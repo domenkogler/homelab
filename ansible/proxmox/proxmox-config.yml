@@ -1,0 +1,5 @@
+---
+- name: "Configure Proxmox VE"
+  roles: 
+    - community-repo
+    
