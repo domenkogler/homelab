@@ -1,0 +1,36 @@
+---
+- name: Konfiguracija izoliranega omrežja na Proxmox Hostu
+  hosts: proxmox_hosts
+  gather_facts: yes
+  become: yes
+
+  tasks:
+    - name: Posodobi apt repozitorije
+      apt:
+        update_cache: yes
+
+    - name: Zagotovi, da je nameščen paket ifupdown2
+      apt:
+        name: ifupdown2
+        state: present
+
+    - name: Omogoči IP Forwarding v jedru za NAT
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        sysctl_set: yes
+        state: present
+        reload: yes
+
+    - name: Ustvari novo konfiguracijo omrežnih vmesnikov iz predloge
+      template:
+        src: templates/interfaces.j2
+        dest: /etc/network/interfaces
+        owner: root
+        group: root
+        mode: '0644'
+      register: network_config
+
+    - name: Uveljavi nove omrežne nastavitve v živo
+      command: ifreload -a
+      when: network_config.changed
