@@ -1,0 +1,13 @@
+---
+- name: Posodobitev apt skladišč in namestitev predpogojev
+  apt:
+    name: [apt-transport-https, ca-certificates, curl, gpg, python3-pip]
+    state: present
+    update_cache: true
+
+- name: Nastavitev sudo brez gesla za uporabnika na strežniku
+  copy:
+    content: "{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL"
+    dest: "/etc/sudoers.d/{{ ansible_user }}"
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'

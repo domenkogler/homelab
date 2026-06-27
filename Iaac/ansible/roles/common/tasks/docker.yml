@@ -1,0 +1,40 @@
+---
+- name: Ustvari mapo za ključe, če še ne obstaja
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Prenesi uradni Docker GPG ključ (sodoben način)
+  get_url:
+    url: https://docker.com
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+
+- name: Dodaj uradni Docker repozitorij preko DEB822 standarda
+  deb822_repository:
+    name: docker
+    types: [deb]
+    uris: ["https://docker.com"]
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
+    components: [stable]
+    signed_by: /etc/apt/keyrings/docker.asc
+    state: present
+
+- name: Namesti Docker komponente
+  apt:
+    name: [docker-ce, docker-ce-cli, containerd.io, docker-buildx-plugin, docker-compose-plugin, python3-docker]
+    state: present
+    update_cache: true
+
+- name: Zagotovi, da Docker servis teče v ozadju
+  systemd:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Dodaj trenutnega uporabnika v docker skupino
+  user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
