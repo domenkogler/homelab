@@ -24,7 +24,7 @@ The travel AP must be **easy to operate** – especially connecting to hotel Wi�
                              │              INTERNET                   │
                              └─────┬───────────┬───────────────────────┘
                                    │           │
-                        (static public IP)   (hotel network – ether1 or hotel Wi‑Fi)
+                   (PPPoE – DDNS endpoint)  (hotel network – ether1 or hotel Wi‑Fi)
                                    │           │
                            ┌───────▼────┐  ┌───▼─────────────────────┐
                            │  RB4011    │  │  hAP ac²  (Travel AP)   │
