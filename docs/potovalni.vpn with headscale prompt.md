@@ -7,6 +7,8 @@ You work as a systems and network engineer. I am asking for a detailed, step-by-
 
 **Travel AP (MikroTik hAP ac2):** Uses a secure local subnet 192.168.123.0/24. The router's location IP is 192.168.123.1. Attached find `hap-ac2.rsc` for config. Start with this config.
 
+**Home Homelab server:** Runs Docker (will be used in Phase 2).
+
 ### 2. Technical requirements for Phase 1 (travel AP and RB4011 - Fixed WireGuard):
 
 **2a. Establish a permanent WireGuard connection (Site-to-Site)** between the home RB4011 and the travel AP. Traffic between 10.10.1.0/24 and 192.168.123.0/24 must be full-duplex and pass-through.
@@ -24,12 +26,24 @@ You work as a systems and network engineer. I am asking for a detailed, step-by-
 
 **2e. Security (Kill-Switch):** If the WireGuard tunnel fails, the firewall on the travel AP must not let traffic from the `bridge-trusted` unprotected to the public hotel internet.
 
-### 3. Required outputs:
+## Phase 2: Headscale (Tailscale) for Mobile Devices
 
-**3a. Clean and commented CLI code** for:
+**Important: This phase should be implemented AFTER Phase 1 is verified working.**
+
+### 3. Technical requirements for Phase 2 (Homelab - Headscale):
+
+**3a. Prepare a `docker-compose.yml` file** for setting up Headscale and the associated web interface (Headscale-UI) for easier management of individual devices (e.g., phones on the go).
+
+**3b. On the home RB4011**, set up a static route and firewall rules so that traffic from the Headscale network (default 100.64.0.0/10) can access the home LAN (10.10.1.0/24) without any problems.
+
+### 4. Required outputs:
+
+**4a. Clean and commented CLI code** for:
 - Home RB4011 (RouterOS v7)
 - Travel AP (RouterOS v7)
 
-**3b. FAMILY USER GUIDE** (Print-friendly, in plain Slovenian language):
+**4b. Docker Compose file** and basic instructions for starting the Headscale environment.
 
-**Part 1:** How to turn on the travel AP in the hotel, open the `potovalni.vpn` page on the phone, and connect it to the hotel WiFi.
+**4c. FAMILY USER GUIDE** (Print-friendly, in plain Slovenian language):
+
+**Part 1:** How to turn on the travel AP in the hotel, open the `potovalni.vpn` page on the phone, and connect it to the hotel WiFi
