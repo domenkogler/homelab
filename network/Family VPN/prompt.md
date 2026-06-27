@@ -37,13 +37,14 @@ The travel AP must be **easy to operate** – especially connecting to hotel Wi�
                                            └─────────────────────────┘
 ```
 
-- **Home router** – MikroTik RB4011, RouterOS v7.  
-  - Static public IP: `vpn.kogler.si`  
+- **Home router** – MikroTik RB4011, RouterOS v7 (upgraded to latest stable).  
+  - Internet via **PPPoE** (ISP assigns a static IP), but the WireGuard endpoint uses the **MikroTik Cloud DDNS hostname** (`/ip cloud ddns-enabled=yes`) for reliability.  
   - LAN subnet: `10.10.1.0/24`, gateway `10.10.1.1`  
-  - Baseline config provided as `rb4011.rsc`
+  - Baseline config provided as `rb4011.rsc`. **Important:** all existing WireGuard interfaces/peers, netwatch entries, cloud Back‑to‑Home, and firewall rules will be **purged** and rebuilt from scratch to avoid conflicts with the old back‑to‑home VPN.
 
-- **Travel AP** – MikroTik hAP ac², RouterOS v7.  
-  - **Dual WAN** (active/passive):  
+- **Travel AP** – MikroTik hAP ac², RouterOS v7 (upgraded to latest stable).  
+  - **First‑time setup:** connect `ether1` to the home LAN temporarily to obtain internet access for the RouterOS upgrade.  
+  - **Dual WAN** (active/passive):
     - `ether1` (primary) – DHCP client, wired connection e.g. in a hotel room  
     - `wlan1` (secondary) – 2.4 GHz radio configured as **station** to join hotel Wi‑Fi  
   - **LAN** – bridge named `bridge-trusted`, subnet `192.168.123.0/24`, gateway `192.168.123.1`  
@@ -119,11 +120,13 @@ The travel AP must provide a **simple, family‑friendly way** to connect to hot
 
 ## 4. Constraints & Assumptions
 
-- **RouterOS version**: 7.x (latest stable). No Docker, no external VPS, no additional hardware. Everything must run on the two MikroTiks alone.
-- The `rb4011.rsc` and `hap-ac2.rsc` files will be provided when the prompt is run. Assume they contain a default, working configuration (LAN set up, firewall default rules, wireless enabled). Your commands must **integrate** with those existing configs – do not merely export a full new config.
-- The hAP ac²’s radios: 2.4 GHz (`wlan1`) will be used as a **station** (5 GHz optional). 5 GHz (`wlan2`) will host the `Family-Traveling` AP. Both radios support dual‑band, but this split is typical; if the .rsc files show a different setup, adapt accordingly.
+- **RouterOS version**: 7.x (latest stable). Both routers must be **upgraded to the latest stable RouterOS 7.x** before applying the new configuration. The hAP ac² needs a temporary wired connection to the home LAN (`ether1` → home bridge) to download the update. No Docker, no external VPS, no additional hardware.
+- **RB4011 clean slate:** All existing WireGuard interfaces/peers, `/ip cloud` Back‑to‑Home, `/tool netwatch` WireGuard entries, and `/ip firewall filter` + `/ip firewall nat` rules will be **deleted** and rewritten. Other config (CAPsMAN, DHCP leases, bridges, PPPoE, IPv6) is preserved.
+- The `rb4011.rsc` and `hap-ac2.rsc` files are the current state of each device. For RB4011 only the areas listed above are wiped; for hAP ac² the config is nearly factory‑default so most configuration is built from scratch.
+- **IPv6:** The home router has IPv6 via PPPoE prefix delegation. The travel AP **may pass IPv6 from the travel LAN through the VPN** if the upstream hotel network provides it. Firewall and kill‑switch rules must handle IPv6 traffic so it follows the same full‑tunnel policy. If IPv6 is unavailable through the VPN, travel‑LAN IPv6 traffic should be dropped.
+- The hAP ac²'s radios: 2.4 GHz (`wlan1`) will be used as a **station** (5 GHz optional). 5 GHz (`wlan2`) will host the `Family-Traveling` AP. If the .rsc shows a different setup, adapt accordingly.
 - The captive portal must work without any internet connection (first‑time hotel setup). `potovalni.vpn` is a **local‑only** hostname.
-- Security: Use WPA2‑PSK for both the home AP and the travel LAN AP (choose strong passphrases, but mention they can be changed).
+- Security: Use WPA2‑PSK for both the home AP and the travel LAN AP (passphrases provided as variables by the user).
 - All internet traffic from the travel LAN is routed through the home router – no split tunneling.
 
 ---
