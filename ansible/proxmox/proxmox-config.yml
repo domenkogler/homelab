@@ -1,6 +1,0 @@
----
-- name: "Configure Proxmox VE"
-  hosts: 'proxmox'
-  roles: 
-    - community-repo
-    
