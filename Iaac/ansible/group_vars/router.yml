@@ -1,0 +1,26 @@
+---
+# MikroTik RB4011 router configuration
+
+routeros_api_port: 8728
+# routeros_api_tls: true   # enable after Let's Encrypt on router
+
+vlans:
+  - { id: 1, name: Management, subnet: "10.10.99.0/24" }
+  - { id: 10, name: Home, subnet: "10.10.1.0/24" }
+  - { id: 20, name: IoT, subnet: "10.10.20.0/24" }
+  - { id: 30, name: Guest, subnet: "10.10.30.0/24" }
+  - { id: 40, name: Kids, subnet: "10.10.40.0/24" }
+
+wireguard_s2s_vps:
+  local_ip: 10.255.40.1/30
+  remote_ip: 10.255.40.2/30
+  remote_endpoint: "{{ hostvars['vps.kogler.si'].ansible_host }}"
+  port: 51820
+
+wireguard_roadwarrior:
+  port: 13231
+  subnet: "10.99.0.0/24"
+
+headscale_subnet: "100.64.0.0/10"
+
+dns_technitium_ip: "{{ hostvars['homelab-pc.kogler.lan'].ansible_host }}"

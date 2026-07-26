@@ -1,7 +1,0 @@
----
-- name: Ustvari osnovno mapo za konfiguracije vseh aplikacij
-  file:
-    path: "/opt/{{ item }}"
-    state: directory
-    mode: '0755'
-  loop: ['kopia/config', 'kopia/cache', 'authentik', 'nextcloud/html', 'nextcloud/db', 'immich', 'homeassistant']

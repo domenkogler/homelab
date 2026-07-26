@@ -1,18 +1,18 @@
 ---
-- name: Orkestracija Družinskega Strežnika (Hyper-V deblab)
-  hosts: home_servers
-  become: true
+# site.yml — Master orchestration playbook
+# Import per-group playbooks. Run: ansible-playbook site.yml -i inventory.ini
 
-  vars:
-    # Ansible bo med izvajanjem varno prebral ta gesla neposredno iz 1Password sefa
-    kopia_pass: "{{ lookup('community.general.onepassword', 'kopia_master_password', field='password', vault='Homelab') }}"
-    auth_pg_pass: "{{ lookup('community.general.onepassword', 'authentik_pg_password', field='password', vault='Homelab') }}"
-    auth_secret: "{{ lookup('community.general.onepassword', 'authentik_secret_key', field='password', vault='Homelab') }}"
-    nc_db_pass: "{{ lookup('community.general.onepassword', 'nextcloud_db_password', field='password', vault='Homelab') }}"
-    oo_jwt: "{{ lookup('community.general.onepassword', 'onlyoffice_jwt_secret', field='password', vault='Homelab') }}"
+- name: Configure MikroTik Router
+  import_playbook: playbooks/router.yml
 
-  roles:
-    - common          # Namesti Docker in ustvari /opt mape na deblab-u
-    # - storage       # (Zaenkrat zakomentirano, dokler ne stestiramo prvega koraka)
-    # - identity
-    # - apps
+- name: Configure Cloud VPS
+  import_playbook: playbooks/vps.yml
+
+- name: Configure Home Servers
+  import_playbook: playbooks/home_servers.yml
+
+- name: Configure Raspberry Pi (Home Assistant)
+  import_playbook: playbooks/raspberry_pi.yml
+
+- name: Cross-Cutting Host Configuration
+  import_playbook: playbooks/all.yml

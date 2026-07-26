@@ -1,0 +1,9 @@
+---
+- hosts: all:!router:!localhost:!deblab
+  become: true
+  tasks:
+    - name: Sync /etc/hosts across all managed nodes
+      ansible.builtin.template:
+        src: etc_hosts.j2
+        dest: /etc/hosts
+      tags: [hosts]

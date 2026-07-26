@@ -1,0 +1,23 @@
+---
+# Home server configuration — Phase 1 (desktop) or Phase 2 (proxmox)
+
+homelab_mode: desktop          # 'desktop' for Phase 1, 'proxmox' for Phase 2
+gpu_vendor: amd
+ollama_keep_alive: 5m
+
+docker_services:
+  - name: ollama
+    template_dir: ollama
+  - name: immich-ml
+    template_dir: immich-ml
+  - name: headscale
+    template_dir: headscale
+  - name: technitium
+    template_dir: technitium
+  - name: pihole
+    template_dir: pihole
+  - name: sunshine
+    template_dir: sunshine
+    enabled: "{{ homelab_mode == 'desktop' }}"
+  - name: kopia-agent
+    template_dir: kopia-agent

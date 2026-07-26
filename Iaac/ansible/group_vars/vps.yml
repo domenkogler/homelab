@@ -1,0 +1,31 @@
+---
+# Contabo VPS configuration
+
+proxmox_bridges:
+  - { name: vmbr0, cidr: "{{ ansible_default_ipv4.address }}", purpose: WAN }
+  - { name: vmbr1, cidr: "10.255.10.0/24", purpose: DMZ }
+  - { name: vmbr2, cidr: "10.255.20.0/24", purpose: Services }
+  - { name: vmbr3, cidr: "10.255.30.0/24", purpose: Lab }
+  - { name: vmbr4, cidr: "10.255.40.0/30", purpose: Site2Site }
+
+docker_services:
+  - name: traefik
+    template_dir: traefik
+  - name: crowdsec
+    template_dir: crowdsec
+  - name: authentik
+    template_dir: authentik
+  - name: opencloud
+    template_dir: opencloud
+  - name: immich-app
+    template_dir: immich-app
+  - name: forgejo
+    template_dir: forgejo
+  - name: grafana
+    template_dir: grafana
+  - name: n8n
+    template_dir: n8n
+  - name: kopia-server
+    template_dir: kopia-server
+  - name: db-backup
+    template_dir: db-backup

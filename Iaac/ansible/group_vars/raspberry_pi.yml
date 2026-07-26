@@ -1,0 +1,5 @@
+---
+# Raspberry Pi 4 — Home Assistant
+
+home_assistant_version: stable
+home_assistant_install_method: docker   # 'docker' or 'supervised'
