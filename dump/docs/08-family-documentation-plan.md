@@ -19,14 +19,15 @@
 docs/family/
   README.md                          # "Kje začeti?" — entry point (SI)
   01-kako-uporabljati-wifi.md        # Which SSID, which VLAN, password reset (SI)
-  02-kako-dostopati-do-slik-immich.md # Immich from phone and PC (SI)
-  03-kako-deliti-datoteke-opencloud.md# OpenCloud usage (SI)
-  04-kako-uporabljati-vpn.md         # Tailscale app on phone (SI)
-  05-kako-uporabljati-potovalni-usmerjevalnik.md # Travel router + hotel Wi-Fi (SI)
-  06-kako-znova-zagnati-streznik.md  # Physical reset procedure (SI)
-  07-kako-obnoviti-iz-varnostne-kopije.md # Disaster recovery (SI, high-level)
-  08-kontakti-za-pomoc.md            # ISP, friends, service contacts (SI)
-  09-kako-upravljati-pametno-hiso.md # HA dashboard, voice commands (SI)
+  02-kako-uporabljati-namizni-racunalnik.md # Family desktop: login, password, what NOT to turn off (SI)
+  03-kako-dostopati-do-slik-immich.md # Immich from phone and PC (SI)
+  04-kako-deliti-datoteke-opencloud.md# OpenCloud usage (SI)
+  05-kako-uporabljati-vpn.md         # Tailscale app on phone (SI)
+  06-kako-uporabljati-potovalni-usmerjevalnik.md # Travel router + hotel Wi-Fi (SI)
+  07-kako-znova-zagnati-streznik.md  # Physical reset procedure (SI)
+  08-kako-obnoviti-iz-varnostne-kopije.md # Disaster recovery (SI, high-level)
+  09-kontakti-za-pomoc.md            # ISP, friends, service contacts (SI)
+  10-kako-upravljati-pametno-hiso.md # HA dashboard, voice commands (SI)
 
 docs/technical/                      # Engineering docs (EN)
   01-network-architecture.md
@@ -89,11 +90,12 @@ Vse je opisano tako, da lahko deluje brez Domna.
 | Guide | Audience | Content |
 |-------|----------|---------|
 | **WiFi usage** | Wife, kids | "Kogler" for everything. "Kogler IOT" for smart devices. "Kogler guest" for visitors. |
+| **Desktop PC** | Wife, kids | This computer IS the server. Closing your session does NOT turn off the internet or photos. If it seems slow, AI is working — it will return to normal. Which monitor is the family PC, which desk it's on. |
 | **Immich** | Wife | How to view, upload, share photos from phone. How to create albums. |
-| **OpenCloud** | Wife, kids | How to save, share, and find files. Windows Explorer integration. |
+| **OpenCloud** | Wife, kids | How to save, share, and find files. Windows Explorer integration. ONLYOFFICE on the desktop PC uses OpenCloud for file storage. |
 | **VPN (Tailscale)** | Wife, kids (14+) | Open app → tap Connect. Check: whatismyip.com shows home IP. |
 | **Travel router** | Wife | Plug in. Connect to "Family-Traveling". Open `potovalni.vpn` in browser. Enter hotel Wi-Fi details. If hotel has login page: first connect phone to hotel Wi-Fi directly. |
-| **Server restart** | Wife | Where the rack is. Which button to press (with photo). Wait 5 minutes. |
+| **Server restart** | Wife | Where the computer is. Which button to press (with photo). Wait 5 minutes. |
 | **Restore from backup** | Trusted tech contact | High-level steps. Link to technical docs for details. |
 | **Smart home** | Everyone | How to use the dashboard. Voice commands (when implemented). |
 
@@ -108,6 +110,17 @@ Vse je opisano tako, da lahko deluje brez Domna.
 | Code comments | **English** | Convention |
 | README.md | **Bilingual** | Entry point for both audiences |
 | Commit messages | **English** | Convention |
+
+### Family Guide: Desktop PC (02-kako-uporabljati-namizni-racunalnik.md)
+
+**Key points to communicate:**
+- "Ta računalnik je hkrati družinski PC in domači strežnik."
+- Which monitor/keyboard/mouse belongs to the family PC
+- How to log in and switch users
+- **Critical:** Closing the session (logout) or turning off the monitor does **NOT** turn off internet services, photos, or the AI — these run invisibly in the background
+- If the computer feels slow, AI might be processing a heavy task — it will return to normal within a few minutes
+- Do NOT press the physical power button — ask Domen if restart is needed
+- Where the PC is physically located (desk/workstation area)
 
 ---
 

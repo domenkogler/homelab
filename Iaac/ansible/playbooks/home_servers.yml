@@ -1,0 +1,18 @@
+---
+- hosts: home_servers
+  become: true
+  roles:
+    - common
+    - docker
+    - network
+    - amd_rocm
+    - role: desktop
+      when: homelab_mode == 'desktop'
+    - role: office
+      when: homelab_mode == 'desktop'
+    - role: proxmox
+      when: homelab_mode == 'proxmox'
+    - kopia
+    - docker_services
+    - home_assistant     # cold-standby template only
+    - monitoring

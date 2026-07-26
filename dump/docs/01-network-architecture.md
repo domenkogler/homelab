@@ -11,6 +11,7 @@
 | Router | MikroTik RB4011iGS+ | PPPoE, VLAN routing, firewall, WireGuard server, CAPsMAN |
 | Switch | MikroTik CRS328-24P-4S+ | Layer-2 VLAN-aware, PoE for APs, trunk via SFP+ |
 | APs | hAP ac, hAP ac² (×2 + 1 spare) | CAPsMAN-managed, all wired (no mesh) |
+| Home Server (Phase 1) | Intel i7-7700K + Radeon RX 7600 + Intel i350-T2 | Bare-metal Debian desktop, Docker AI host, Technitium DNS, Pi-hole, Headscale, family PC |
 
 ---
 
@@ -39,7 +40,10 @@ All wired ports and CAPsMAN wireless traffic carried over a **single VLAN-aware 
 
 - `ether1` → ISP ONT (PPPoE)
 - `sfp-sfpplus1` → trunk to CRS328 (VLANs 1,10,20,30,40 tagged)
+- Home Server (Phase 1) → single UTP to CRS328, VLAN trunk (10,20 tagged, 99 native for Management)
 - Other ports → access ports as needed, or all devices behind the switch
+
+> **Note:** The home server has an Intel i350-T2 dual-port NIC, but only one port is used (single UTP cable at location). All VLANs are carried over this single trunk link to the CRS328 switch.
 
 ### CAPsMAN
 
@@ -77,7 +81,7 @@ Implemented with **address-lists** and **interface lists** in RouterOS.
 
 ### Design: Technitium as Central DNS Router
 
-Technitium runs on the **home server** (Management VLAN). It intercepts all DNS queries from every VLAN and routes them to the appropriate upstream filter based on source subnet.
+Technitium runs on the **Phase 1 home server** (bare-metal Debian, Management VLAN IP). It intercepts all DNS queries from every VLAN and routes them to the appropriate upstream filter based on source subnet. Pi-hole also runs on the same host as a Docker container.
 
 ```
                      ┌──────────────────────────┐

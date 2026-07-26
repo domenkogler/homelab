@@ -136,7 +136,7 @@ Without this, CrowdSec/Fail2Ban will block your own proxy and break everything.
 
 - **Immich runs on VPS** (app server + database + thumbnails on local SSD)
 - **Raw photos stored on Hetzner Storage Box** (mounted via CIFS)
-- **Machine learning (face recognition, object detection) offloaded to home server GPU** via Immich's remote ML feature
+- **Machine learning (face recognition, object detection) offloaded to home server GPU** via Immich's remote ML feature. In Phase 1 this targets the bare-metal Debian desktop's Docker immich-ml container (RX 7600); in Phase 2 it targets the Proxmox LXC (R9700).
 - **Current state:** Photos on Google Photos → will migrate to Storage Box after idempotent Ansible setup
 - Photos are **publicly accessible** (like Google Photos today)
 
@@ -185,6 +185,7 @@ Before Kopia snapshots, databases are dumped to files:
 - **Mirror:** Public/private GitHub
 - All configs, Ansible playbooks, Docker Compose files, RouterOS scripts live here
 - README.md at repo root serves as starting point for family documentation
+- **Forgejo is the authoritative source for Ansible playbooks** — the management laptop pulls from here, not vice versa
 
 ---
 

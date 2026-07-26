@@ -1,9 +1,3 @@
 ---
-- name: "Sistemska priprava: Nadgradnja OS"
+- name: "Sistemska priprava: Nadgradnja OS in predpogoji"
   include_tasks: system.yml
-
-- name: "Sistemska priprava: Namestitev Docker okolja"
-  include_tasks: docker.yml
-
-- name: "Sistemska priprava: Ustvarjanje /opt imenikov"
-  include_tasks: directories.yml

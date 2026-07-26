@@ -9,13 +9,79 @@
 
 - **Centralized LLM:** All AI/ML workloads run here (voice STT/TTS, LLM inference, office AI tools)
 - **Two-phase approach:**
-  1. **Immediate:** Try with existing **Radeon RX 7600** (already owned) to validate workloads
-  2. **Future:** If RX 7600 is insufficient → buy the new server below (priced out for budget awareness)
-- **Location:** Inside a **closed rack cabinet** (one side open for airflow, pet/kid safe, hidden, high family acceptance)
+  1. **Phase 1 (Immediate):** Use existing **i7-7700K + Radeon RX 7600** (already owned) as bare-metal Debian desktop — full hybrid homelab + family PC. See [Phase 1](#phase-1-bare-metal-debian-desktop-immediate) below.
+  2. **Phase 2 (Future):** If RX 7600 is insufficient → buy the dedicated Ryzen server below (priced out for budget awareness). See [Phase 2: Target Build](#phase-2-target-build-if-phase-1-is-insufficient).
 
 ---
 
-## Target Build (if existing RX 7600 is insufficient)
+## Phase 1: Bare-Metal Debian Desktop (Immediate)
+
+This phase uses the existing PC hardware **without any new purchases**. The machine simultaneously serves as the family desktop PC and a 24/7 Docker host for homelab services.
+
+### Hardware
+
+| Component | Detail |
+|-----------|--------|
+| CPU | Intel i7-7700K (4C/8T, 4.2 GHz base, 4.5 GHz boost) |
+| iGPU | Intel HD 630 → dedicated to Linux desktop (family PC) |
+| dGPU | AMD Radeon RX 7600 8 GB → dedicated to Docker AI containers |
+| NIC | Intel i350-T2 (one port used — VLAN trunk to CRS328 switch) |
+| RAM | 32 GB DDR4 |
+| Storage | Local NVMe SSD |
+| OS | Debian with XFCE or GNOME desktop |
+| Location | Workstation desk (not rack-mounted) |
+
+### Dual GPU Topology
+
+- **Intel HD 630 (iGPU):** Primary display — Xorg runs exclusively here. Monitor connected to motherboard HDMI/DP. Family gets a responsive desktop for browsing, ONLYOFFICE, and OpenCloud sync.
+- **Radeon RX 7600 (dGPU):** No monitor attached. Docker containers access it via `/dev/dri` and `/dev/kfd`. Used by Ollama (LLM inference), Immich-ML (face recognition), and optionally Sunshine (game streaming).
+- **No SR-IOV, no PCI passthrough** — clean separation at Xorg level. Xorg config ensures the dGPU is never used for desktop compositing.
+
+### Headless Boot
+
+Docker containers start at boot via systemd units — **before any user logs in**:
+- `restart: always` on all AI containers
+- Scheduled system reboot at 04:00 (systemd timer)
+- All services auto-restore in the background after reboot
+- Family member logging out, switching users, or closing the desktop session does NOT affect running containers
+
+### GPU VRAM Strategy
+
+`OLLAMA_KEEP_ALIVE=5m` is set as an environment variable — after 5 minutes of LLM inactivity, Ollama unloads the model and frees VRAM. The RX 7600 then idles at low power until the next request.
+
+| Mode | Active Models | VRAM Usage | Trigger |
+|------|--------------|------------|---------|
+| **LLM Active** | Qwen 2.5-Coder 14B or Llama 3.1 8B | 6–12 GB | API request received |
+| **Voice + Vision** | Whisper STT + Piper TTS + Immich-ML | ~3–5 GB | Voice command or photo upload |
+| **Idle** | None (after 5 min) | ~0 GB (GPU ~12 W) | No activity for 5 minutes |
+| **Gaming** | None (Ollama + Immich-ML stopped) | 0 GB (GPU at full power) | User manually stops AI containers → launches Sunshine |
+
+> **LLM is priority over gaming.** After gaming, `docker compose up -d ollama immich-ml` restores AI services.
+
+### Remote Management
+
+**GL.iNet Comet KVM (GL-RM1):**
+- Connects to motherboard iGPU HDMI (no impact on desktop display)
+- PoE-powered from CRS328 switch
+- BIOS-level control, remote power/reset, virtual ISO mounting
+- Works even if Debian crashes (OS-independent)
+
+### Docker Services (Phase 1)
+
+```
+Debian Host:
+├─ ollama (Docker)          → LLM inference, GPU via /dev/dri + /dev/kfd
+├─ immich-ml (Docker)       → Face recognition, GPU via /dev/dri + /dev/kfd
+├─ headscale (Docker)       → Tailscale coordination server
+├─ technitium (Docker)      → Central DNS router (VLAN-aware)
+├─ pihole (Docker)          → Ad-blocking DNS
+├─ sunshine (Docker)        → Game streaming (manual start, secondary priority)
+└─ kopia (Docker)           → Backup agent → iDrive e2
+```
+
+---
+
+## Phase 2: Target Build (if Phase 1 is insufficient)
 
 | Component | Model | Cost (€) |
 |-----------|-------|----------|
@@ -86,7 +152,7 @@ Proxmox Host (hostname TBD):
 
 ---
 
-## Remote Management
+## Remote Management (Phase 2)
 
 **GL.iNet Comet KVM (GL-RM1):**
 - Connects to motherboard iGPU HDMI (no impact on GPU)
@@ -96,18 +162,20 @@ Proxmox Host (hostname TBD):
 
 ---
 
-## Existing Hardware (Intermediate Phase)
+### Existing Hardware (Phase 1 Active)
 
-| Device | Current Role | Future Role |
+| Device | Phase 1 Role | Phase 2 Role |
 |--------|-------------|-------------|
-| Radeon RX 7600 | Test GPU for LLM feasibility | Retired or repurposed if new server built |
-| Raspberry Pi 4 | Home Assistant | Stays as primary HA (backup LXC on server) |
-| Rack cabinet | Houses router, switch, ISP ONT | + new server |
+| Radeon RX 7600 | Primary AI GPU in Debian desktop | Retired or repurposed (replaced by R9700 32 GB) |
+| Intel i7-7700K | Phase 1 host CPU | Retired or repurposed |
+| Raspberry Pi 4 | Home Assistant (primary) | Stays as primary HA (backup LXC on Phase 2 server) |
+| Rack cabinet | Houses router, switch, ISP ONT | + Phase 2 server |
 
 ---
 
 ## Home Assistant
 
 - **Stays on Raspberry Pi 4** (in daily use — not worth migration risk)
-- **Backup LXC on home server** as a cold standby (can be promoted if Pi fails)
+- **Phase 1:** Backup as a Docker container on the Debian desktop (systemd unit, disabled by default — enable to promote)
+- **Phase 2:** Backup LXC on Proxmox server as cold standby
 - **HA configs** move from their own GitHub repo into this homelab repo

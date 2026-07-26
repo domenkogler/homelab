@@ -13,7 +13,25 @@ Office AI tools run on the **same home server GPU** as the voice assistant and I
 
 ## Toolchain
 
-### Microsoft Word Integration
+### Phase 1: ONLYOFFICE on Debian Desktop
+
+Since the Phase 1 home server runs **Debian as its host OS**, the family desktop uses **ONLYOFFICE Desktop Editors** as the native office suite:
+
+| Component | Role |
+|-----------|------|
+| **ONLYOFFICE Desktop Editors** | Native Linux office suite — Ribbon UI identical to MS Office, full `.docx`/`.xlsx`/`.pptx` compatibility |
+| **OpenCloud sync client** | Files saved in ONLYOFFICE sync automatically to OpenCloud on the VPS — accessible from any device |
+| **ttf-mscorefonts-installer** | Microsoft core fonts (Calibri, Cambria, etc.) for document fidelity |
+
+**Key advantages:**
+- No Wine, no VM, no Windows license — fully native Debian application
+- Zero cloud dependency for editing (works offline)
+- Files sync to OpenCloud when online, just like the family's Windows laptops
+- For AI-assisted writing from the Debian desktop, queries go directly to the local Ollama API (same machine, no network hop)
+
+> **The MS Word AI toolchain below (LocPilot/AnythingLLM) remains planned for family Windows laptops** — it is not replaced, just not needed on the Debian desktop.
+
+### Microsoft Word Integration (Windows Laptops)
 
 | Component | Role |
 |-----------|------|
@@ -62,11 +80,21 @@ Alternative: **Thunderbird + local AI add-ons** for on-the-fly rephrasing and to
 
 The Ollama `keep_alive` strategy from the hardware doc applies here too:
 
-| Mode | Active Models | Office Use |
-|------|--------------|------------|
-| **Programming** | Qwen 2.5-Coder 32B loaded | Full office + coding capability |
-| **Family Home** | Whisper + HA LLM + Piper (~7GB) | Lighter models for quick office tasks (swaps out after idle) |
-| **Sleep** | None (GPU ~12W) | — |
+| Mode | Active Models | VRAM | Office Use |
+|------|--------------|------|------------|
+| **Programming** | Qwen 2.5-Coder 32B | ~24 GB | Full office + coding capability |
+| **Family Home** | Whisper + HA LLM + Piper | ~7 GB | Lighter models for quick office tasks (swaps out after idle) |
+| **Idle** | None (after 5 min) | ~0 GB (GPU ~12 W) | GPU ready for next request |
+| **Gaming** | None (containers stopped) | 0 GB (GPU at full) | Sunshine game streaming — manual start, LLM has priority |
+
+### GPU Coexistence: LLM vs Game Streaming
+
+Sunshine game streaming uses the same RX 7600 GPU. **LLM always has priority:**
+- `OLLAMA_KEEP_ALIVE=5m` ensures VRAM is freed when AI is idle
+- Gaming session: user manually runs `docker compose stop ollama immich-ml` to release full 8 GB VRAM
+- After gaming: `docker compose up -d ollama immich-ml` restores AI services
+- No automated preemption — manual switch keeps the family in control
+- If a family member is gaming and an AI task is needed, Domen decides which to pause
 
 ---
 
@@ -82,10 +110,11 @@ The Ollama `keep_alive` strategy from the hardware doc applies here too:
 ## Not Yet Implemented
 
 This is planned but not running yet. Depends on:
-1. Home server with GPU (RX 7600 or new build)
+1. Home server with GPU (Phase 1: existing RX 7600 in Debian desktop; Phase 2: new server)
 2. Ollama + model downloads
 3. n8n setup (Docker Compose)
-4. AnythingLLM + LocPilot installation
+4. AnythingLLM + LocPilot installation (Windows laptops only)
+5. ONLYOFFICE installation (Phase 1 Debian desktop only)
 
 ---
 
@@ -97,4 +126,4 @@ This is planned but not running yet. Depends on:
 | ChatGPT Plus | €20/month |
 | **Local (this plan)** | **€0/month** (after hardware purchase) |
 
-The hardware cost (~€4,449 or just the existing RX 7600) is a one-time capital expense. It also serves voice, image recognition, and coding — not just office.
+Phase 1 uses existing hardware at **€0 additional cost**. Phase 2 hardware (~€4,449) is a future one-time capital expense. The GPU also serves voice AI, image recognition, and coding — not just office.

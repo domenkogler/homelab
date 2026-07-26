@@ -32,7 +32,7 @@
 ## Layer 2: Headscale (Mobile Mesh)
 
 ### Server
-- Runs on home server Docker (Proxmox LXC: `docker-host`)
+- Runs on home server as a Docker container (Phase 1: bare-metal Debian; Phase 2: Proxmox LXC `docker-host`)
 - Web UI: **Headscale-UI** for managing devices
 - Default overlay subnet: `100.64.0.0/10`
 

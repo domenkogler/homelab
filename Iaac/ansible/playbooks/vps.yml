@@ -1,0 +1,11 @@
+---
+- hosts: vps
+  become: true
+  roles:
+    - common
+    - docker
+    - network
+    - proxmox
+    - kopia
+    - docker_services
+    - monitoring

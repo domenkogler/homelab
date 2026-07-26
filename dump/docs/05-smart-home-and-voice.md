@@ -8,7 +8,7 @@
 
 ```
 [User Voice] → [Guition ESP32-S3 / Android Phone] → Wi-Fi
-     → [Home Server (Proxmox LXC)] → Whisper STT (English wake word)
+     → [Home Server (Docker)] → Whisper STT (English wake word)
      → [Ollama LLM] → Response text
      → [Piper TTS] → Audio output
      → [Home Assistant] → executes command
@@ -17,6 +17,7 @@
 
 - **Zero cloud dependency** — works if internet is down
 - All processing on the home server GPU (Radeon RX 7600 or future R9700)
+- In Phase 1, GPU is accessed directly by Docker containers via `/dev/dri` and `/dev/kfd` (no LXC passthrough layer). Phase 2 uses Proxmox LXC GPU passthrough.
 
 ---
 

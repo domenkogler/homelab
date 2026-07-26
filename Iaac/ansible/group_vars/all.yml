@@ -1,0 +1,11 @@
+---
+# Global variables for all managed nodes
+
+timezone: Europe/Ljubljana
+locale: en_US.UTF-8
+ntp_servers:
+  - 0.si.pool.ntp.org
+  - 1.si.pool.ntp.org
+op_vault: Homelab
+domain_public: kogler.si
+domain_local: kogler.lan

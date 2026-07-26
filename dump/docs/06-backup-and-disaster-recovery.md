@@ -74,7 +74,11 @@
 | Traefik + Authentik configs | VPS SSD | Kopia | iDrive e2 |
 | Docker Compose files | VPS SSD | Kopia | iDrive e2 |
 | Home Assistant configs | Home server/RPi | Kopia | iDrive e2 |
-| Home server LXC configs | Home server | Kopia | iDrive e2 |
+| Home server Docker configs | Home server | Kopia | iDrive e2 |
+| Home server `/opt/` directories | Home server | Kopia | iDrive e2 |
+| Home server systemd units (`/etc/systemd/system/docker-compose@*.service`) | Home server | Kopia | iDrive e2 |
+| Home server package list (`dpkg --get-selections`) | Home server | Kopia | iDrive e2 |
+| Home server ROCm config (`/etc/apt/sources.list.d/rocm.list`) | Home server | Kopia | iDrive e2 |
 | Router configs (`*.rsc`) | Git repo | Git + Kopia | iDrive e2 |
 | Immich **photos** (raw) | Hetzner Storage Box | Kopia → iDrive e2 | iDrive e2 |
 
@@ -96,7 +100,8 @@
 |----------|---------------|
 | **Single service crashes** | Kopia restore that service's data from latest snapshot |
 | **VPS destroyed** | 1. Provision new VPS (or reprovision existing) 2. Run Ansible playbook to install Docker + dirs 3. Kopia restore data 4. `docker compose up` |
-| **Home server fails** | 1. Reinstall Proxmox 2. Run Ansible orchestration 3. Restore LXC configs + data from Kopia |
+| **Home server fails (Phase 1)** | 1. Reinstall Debian (same version) 2. Run Ansible: `common → docker → amd_rocm → desktop → kopia → docker_services` 3. Kopia restore `/opt/` + systemd units + package list |
+| **Home server fails (Phase 2)** | 1. Reinstall Proxmox 2. Run Ansible orchestration 3. Restore LXC configs + data from Kopia |
 | **Router dies** | 1. Replace RB4011 2. Restore `.rsc` from Git 3. Adjust WAN MAC if needed |
 | **Total house loss** | 1. VPS + iDrive e2 survive (off-site) 2. Rebuild home server from Git + Ansible 3. Restore data from Kopia 4. Replace networking hardware |
 
