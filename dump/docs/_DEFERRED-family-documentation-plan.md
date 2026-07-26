@@ -1,5 +1,9 @@
-# Family Documentation Plan
+# Family Documentation Plan — ⚠️ DEFERRED (Last Priority)
 
+> **Status:** This document is a reference plan only. Family documentation will be implemented **last** — after all services are deployed, Isaac (GitOps) is operational, and Homepage is the family landing page. Numbering in this doc reflects an earlier structure and will be updated when implementation begins.
+>
+> **Current architecture:** Family guides will live in `docs/family/` in the single homelab Git repo. No separate Wiki repo. The Forgejo file viewer serves as the documentation browser. README.md at repo root links to `docs/family/README.md`.
+>
 > **Goal:** The family can operate and recover the homelab without Domen.  
 > Based on answers from Theme G.
 
@@ -36,10 +40,10 @@ docs/technical/                      # Engineering docs (EN)
   04-vpn-and-remote-access.md
   05-smart-home-and-voice.md
   06-backup-and-disaster-recovery.md
-  07-iaac-and-automation.md
-  08-local-llm-office.md
+  07-local-llm-office.md
+  08-gitops-operations.md
 
-Iaac/                                # Ansible, scripts, router configs
+Iaac/                                # Ansible implementation spec (Iaac/README.md)
 dump/                                # Brainstorming synthesis (this batch)
 ```
 
@@ -76,7 +80,9 @@ Vse je opisano tako, da lahko deluje brez Domna.
 → [VPN & Remote Access](docs/technical/04-vpn-and-remote-access.md)
 → [Smart Home & Voice](docs/technical/05-smart-home-and-voice.md)
 → [Backup & Disaster Recovery](docs/technical/06-backup-and-disaster-recovery.md)
-→ [IaC & Automation](docs/technical/07-iaac-and-automation.md)
+→ [IaC Implementation](../Iaac/README.md)
+→ [GitOps Operations](docs/technical/08-gitops-operations.md)
+→ [Local LLM & Office](docs/technical/07-local-llm-office.md)
 
 ## Hitra pomoč
 - [Kontakti](docs/family/08-kontakti-za-pomoc.md)

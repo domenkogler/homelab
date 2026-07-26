@@ -154,7 +154,7 @@ If Sploax/KORP captive portal doesn't work reliably: **use Headscale** on indivi
 
 | Situation | How to Connect |
 |-----------|---------------|
-| **At home** | Connect to "Kogler" SSID — everything local |
+| **At home** | Connect to "Kogler" SSID — everything local. Open `kogler.si` for the family dashboard |
 | **Traveling with router** | Plug in travel router, connect phone to "Family-Traveling", open `potovalni.vpn` to set hotel Wi-Fi |
 | **Traveling without router** | Open Tailscale app on phone → tap Connect → access home services |
-| **Remote (no travel)** | Open Tailscale app → Connect → access Immich, OpenCloud, Home Assistant |
+| **Remote (no travel)** | Open Tailscale app → Connect → access Immich, OpenCloud, Home Assistant. Open `kogler.si` for the family dashboard (public, Authentik-protected) |
