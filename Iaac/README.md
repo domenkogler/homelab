@@ -1,7 +1,7 @@
 # IaC Implementation Specification
 
-> **Companion to `dump/docs/` architecture docs.** This document describes HOW the Ansible infrastructure is implemented — exact file layout, role responsibilities, template paths, and build order.  
-> For architectural rationale (WHY these choices), see `dump/docs/` docs, particularly `02` (hardware), `03` (VPS), `07` (LLM), and `08` (GitOps).
+> **Companion to `docs/` architecture docs.** This document describes HOW the Ansible infrastructure is implemented — exact file layout, role responsibilities, template paths, and build order.  
+> For architectural rationale (WHY these choices), see `docs/` docs, particularly `02` (hardware), `03` (VPS), `07` (LLM), and `08` (GitOps).
 
 ---
 
@@ -79,7 +79,7 @@
 │       ├── host-Hyper-v.md                  # Hyper-V test VM setup
 │       └── sudo user.md                     # Post-install sudo config
 │
-├── dump/docs/                               # Architecture documentation
+├── docs/                                   # Architecture documentation
 │   ├── 01-network-architecture.md
 │   ├── 02-home-server-hardware.md
 │   ├── 03-vps-infrastructure.md
@@ -371,7 +371,7 @@ ansible-playbook main_deploy.yml --tags immich
 ---
 
 > **Cross-references:**
-> - Architecture decisions (why 12 roles, why systemd): see `dump/docs/` docs
-> - GitOps operations (Renovate, Actions, Homepage): see `dump/docs/08-gitops-operations.md`
-> - Hardware context (GPU, Phase 1 vs 2): see `dump/docs/02-home-server-hardware.md`
-> - VPS service context: see `dump/docs/03-vps-infrastructure.md`
+> - Architecture decisions (why 12 roles, why systemd): see `docs/` docs
+> - GitOps operations (Renovate, Actions, Homepage): see `docs/08-gitops-operations.md`
+> - Hardware context (GPU, Phase 1 vs 2): see `docs/02-home-server-hardware.md`
+> - VPS service context: see `docs/03-vps-infrastructure.md`

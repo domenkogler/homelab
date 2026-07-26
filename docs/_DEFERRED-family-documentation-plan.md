@@ -33,7 +33,7 @@ docs/family/
   09-kontakti-za-pomoc.md            # ISP, friends, service contacts (SI)
   10-kako-upravljati-pametno-hiso.md # HA dashboard, voice commands (SI)
 
-docs/technical/                      # Engineering docs (EN)
+docs/                              # Engineering docs (EN)
   01-network-architecture.md
   02-home-server-hardware.md
   03-vps-infrastructure.md
@@ -44,7 +44,7 @@ docs/technical/                      # Engineering docs (EN)
   08-gitops-operations.md
 
 Iaac/                                # Ansible implementation spec (Iaac/README.md)
-dump/                                # Brainstorming synthesis (this batch)
+brainstorming/                        # Brainstorming synthesis (this batch)
 ```
 
 ---
@@ -74,15 +74,15 @@ Vse je opisano tako, da lahko deluje brez Domna.
 → [Dokumentacija za družino](docs/family/README.md)
 
 ## Za vzdrževalce (in English)
-→ [Network Architecture](docs/technical/01-network-architecture.md)
-→ [Home Server Hardware](docs/technical/02-home-server-hardware.md)
-→ [VPS Infrastructure](docs/technical/03-vps-infrastructure.md)
-→ [VPN & Remote Access](docs/technical/04-vpn-and-remote-access.md)
-→ [Smart Home & Voice](docs/technical/05-smart-home-and-voice.md)
-→ [Backup & Disaster Recovery](docs/technical/06-backup-and-disaster-recovery.md)
+→ [Network Architecture](docs/01-network-architecture.md)
+→ [Home Server Hardware](docs/02-home-server-hardware.md)
+→ [VPS Infrastructure](docs/03-vps-infrastructure.md)
+→ [VPN & Remote Access](docs/04-vpn-and-remote-access.md)
+→ [Smart Home & Voice](docs/05-smart-home-and-voice.md)
+→ [Backup & Disaster Recovery](docs/06-backup-and-disaster-recovery.md)
 → [IaC Implementation](../Iaac/README.md)
-→ [GitOps Operations](docs/technical/08-gitops-operations.md)
-→ [Local LLM & Office](docs/technical/07-local-llm-office.md)
+→ [GitOps Operations](docs/08-gitops-operations.md)
+→ [Local LLM & Office](docs/07-local-llm-office.md)
 
 ## Hitra pomoč
 - [Kontakti](docs/family/08-kontakti-za-pomoc.md)
