@@ -7,22 +7,41 @@ description: Read MikroTik RouterOS configuration and runtime state via the Rout
 
 Connects to a MikroTik RouterOS device over the API (port 8728/TCP) using the `routeros-api` Python library to read configuration and state.
 
+## Quick Start (1Password — Recommended)
+
+Sign in to 1Password **once per terminal session** — then use the `mt` alias freely:
+
+```bash
+# 1. Sign in (one time per terminal — no more auth prompts)
+eval $(op signin)
+
+# 2. Create a persistent alias (add to ~/.bashrc or ~/.zshrc to avoid retyping)
+alias mt='op run --env-file=skills/mikrotik/.env.op -- python skills/mikrotik/scripts/mikrotik-read.py'
+
+# 3. Use it — no further auth prompts:
+mt /system/identity
+mt /ip/firewall/filter
+mt //caps-man/registration-table
+```
+
+> 🔑 **Why this works:** `eval $(op signin)` creates a signed-in session that persists in the shell. Subsequent `op run` calls reuse that session without prompting for biometrics or master password again. Without it, every `op run` may prompt for authentication.
+
+> ⚠️ **Git Bash quirk:** On Windows/Git Bash, single-slash paths like `/system/identity` get converted to Windows paths (`C:/Program Files/Git/system/identity`). Always use **double-slash** prefix: `mt //system/identity` instead of `mt /system/identity`.
+
 ## Setup
 
 ### Requirements
 
 - Python 3.8+
-- `routeros-api` library installed globally or in a venv:
+- `routeros-api` library installed:
 
 ```bash
 pip install routeros-api
 ```
 
-If `pip` is unavailable in the current environment, install it manually from the [PyPI package](https://pypi.org/project/routeros-api/).
-
 ### Connection Details
 
-Provide credentials and host via environment variables (recommended) or inline arguments:
+Provide credentials and host via environment variables:
 
 | Variable | Description |
 |----------|-------------|
@@ -32,7 +51,7 @@ Provide credentials and host via environment variables (recommended) or inline a
 | `MIKROTIK_PORT` | API port (default: `8728`) |
 | `MIKROTIK_TIMEOUT` | Connection timeout in seconds (default: `10`) |
 
-> **Security:** Prefer environment variables or a `.env` file. Never hardcode credentials in scripts or commit them to Git. The `--password` argument reads from stdin if you pipe it, so it does not appear in `ps` output.
+> **Security:** Prefer environment variables or a `.env` file. Never hardcode credentials in scripts or commit them to Git.
 
 ### Session-Only Environment Variables
 
@@ -99,68 +118,51 @@ mikrotik /ip/firewall/filter /system/identity
 
 Add the alias to `~/.bashrc` or `~/.zshrc` to keep it across sessions, or type it inline for the current session only.
 
-### Option 5 — 1Password CLI (`op`) — Recommended
+### 1Password CLI (`op`) — Recommended
 
-If you use 1Password, the CLI tool `op` can inject secrets directly without ever storing them in files or shell history.
+The project provides an `.env.op` template file (`skills/mikrotik/.env.op`) with `op://` URI references. Running with `op run` resolves secrets at runtime.
 
-**Prerequisite:** Install the [1Password CLI](https://developer.1password.com/docs/cli/get-started/) and sign in:
+**Prerequisite:** Install the [1Password CLI](https://developer.1password.com/docs/cli/get-started/).
+
+**Approach A — Signed-in session (no repeated prompts):**
 
 ```bash
-op account add --address my.1password.com --email you@example.com
+# One-time per terminal session:
 eval $(op signin)
-```
 
-**Approach A — Inline with `op run`:**
-
-Wrap the command with `op run` and use `op://` references. The secrets are fetched at runtime and never written to disk:
-
-```bash
-op run -- \
-  MIKROTIK_HOST=10.0.0.1 \
-  MIKROTIK_USER=apiuser \
-  MIKROTIK_PASSWORD="op://Private/MikroTik Router/password" \
+# Then run freely — no auth prompts:
+op run --env-file=skills/mikrotik/.env.op -- \
   python skills/mikrotik/scripts/mikrotik-read.py /ip/firewall/filter
 ```
 
-Where `Private/MikroTik Router/password` is your 1Password vault/item/field path.
-
-**Approach B — Environment via `op run` + `--env`:**
-
-Create an env template file (safe to commit — it contains placeholders, not secrets):
+Combine with a shell alias for maximum ergonomics (add to `~/.bashrc`):
 
 ```bash
-# skills/mikrotik/.env.op
-MIKROTIK_HOST=10.0.0.1
-MIKROTIK_USER=apiuser
-MIKROTIK_PASSWORD=op://Private/MikroTik Router/password
-MIKROTIK_PORT=8728
+alias mt='op run --env-file=skills/mikrotik/.env.op -- python skills/mikrotik/scripts/mikrotik-read.py'
+
+# Usage:
+mt /system/identity
+mt //caps-man/registration-table
 ```
 
-Then run:
+**Approach B — Inline (no session needed):**
 
 ```bash
 op run --env-file=skills/mikrotik/.env.op -- \
   python skills/mikrotik/scripts/mikrotik-read.py /ip/firewall/filter
 ```
 
-`op run` resolves all `op://` references at runtime, injects them as real environment variables, and runs the command. The template file `.env.op` contains only references, never the actual password.
-
 **Approach C — One-time fetch with `op item get`:**
 
-For a single manual invocation without `op run`:
+Use when you want to bypass `op run` entirely:
 
 ```bash
-MIKROTIK_PASSWORD=$(op item get "MikTik Router" --fields label=password) \
-  python skills/mikrotik/scripts/mikrotik-read.py /ip/firewall/filter
+python skills/mikrotik/scripts/mikrotik-read.py \
+  --host $(op read op://Homelab/RB4011/url) \
+  --user $(op read op://Homelab/RB4011/username) \
+  --password $(op read op://Homelab/RB4011/password) \
+  /system/identity
 ```
-
-This fetches the password fresh each time and stores it only in memory for that command.
-
-> **Tip:** Combine with a shell alias for minimal typing:
-> ```bash
-> alias mtr='op run --env-file=skills/mikrotik/.env.op -- python skills/mikrotik/scripts/mikrotik-read.py'
-> mtr /ip/firewall/filter /ip/address
-> ```
 
 ## Scripts
 
@@ -330,6 +332,45 @@ It is strongly recommended to use a dedicated read-only user for this skill:
 
 The `read` group has read-only access to all configuration paths and disallows any write, edit, or remove operations.
 
+### Git Bash Path Quirk
+
+On Windows/Git Bash, Unix-style absolute paths starting with `/` (e.g., `/system/identity`) are silently converted to `C:/Program Files/Git/system/identity`. Always prefix RouterOS paths with `//` to prevent this:
+
+```bash
+# ❌ Wrong — converts to Windows path
+mt /ip/firewall/filter
+
+# ✅ Correct — double-slash preserves path
+mt //ip/firewall/filter
+```
+
+This applies to all commands, not just `mt`. Any Python invocation receiving `/ip/...` as an argument in Git Bash will have the same problem.
+
+### Working with `op` and Pi Sub-Agents
+
+The `op` CLI requires a signed-in session. When running commands via a **Pi sub-agent**, the session from the parent shell is **not inherited**. Options:
+
+**Option A — Export session token to the sub-agent:**
+
+```bash
+# Get the session token
+export OP_SESSION_account="$(op session get --account "$(op account list --format json | python -c "import sys,json;print(json.load(sys.stdin)[0]['shorthand'])")""
+
+# Then in sub-agent tasks, prefix with:
+OP_SESSION_account="$OP_SESSION_account" op run ...
+```
+
+**Option B — Let the sub-agent sign in itself:**
+
+Add to the sub-agent's task description: "First, run `eval $(op signin)` if prompted."
+
+**Option C — Full-token export (for automation):**
+
+```bash
+# Get a long-lived session token (expires based on security settings)
+OP_SESSION_my_token=$(op signin --account my --raw)
+```
+
 ## Troubleshooting
 
 | Problem | Likely Cause & Fix |
@@ -340,6 +381,14 @@ The `read` group has read-only access to all configuration paths and disallows a
 | `Timeout` | Firewall blocking port 8728, or router unreachable; check `--timeout` |
 | `Empty result` | Path exists but no matching items; check for typos in path or query filters |
 | Module not found | The `routeros-api` library is not installed; run `pip install routeros-api` |
+
+### IP Address Concealment
+
+1Password's `op run` may conceal IP addresses and other values that match secret-like patterns in JSON output. To work around this:
+
+- Use the `--indent 0` flag for compact JSON
+- Or use custom scripts that output values with formatting that avoids pattern matching
+- Or skip `op run` and use `--host`/`--user`/`--password` flags directly (with `op item get` for the password)
 
 ## Reference
 
