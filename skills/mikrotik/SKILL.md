@@ -7,41 +7,22 @@ description: Read MikroTik RouterOS configuration and runtime state via the Rout
 
 Connects to a MikroTik RouterOS device over the API (port 8728/TCP) using the `routeros-api` Python library to read configuration and state.
 
-## Quick Start (1Password — Recommended)
-
-Sign in to 1Password **once per terminal session** — then use the `mt` alias freely:
-
-```bash
-# 1. Sign in (one time per terminal — no more auth prompts)
-eval $(op signin)
-
-# 2. Create a persistent alias (add to ~/.bashrc or ~/.zshrc to avoid retyping)
-alias mt='op run --env-file=skills/mikrotik/.env.op -- python skills/mikrotik/scripts/mikrotik-read.py'
-
-# 3. Use it — no further auth prompts:
-mt /system/identity
-mt /ip/firewall/filter
-mt //caps-man/registration-table
-```
-
-> 🔑 **Why this works:** `eval $(op signin)` creates a signed-in session that persists in the shell. Subsequent `op run` calls reuse that session without prompting for biometrics or master password again. Without it, every `op run` may prompt for authentication.
-
-> ⚠️ **Git Bash quirk:** On Windows/Git Bash, single-slash paths like `/system/identity` get converted to Windows paths (`C:/Program Files/Git/system/identity`). Always use **double-slash** prefix: `mt //system/identity` instead of `mt /system/identity`.
-
 ## Setup
 
 ### Requirements
 
 - Python 3.8+
-- `routeros-api` library installed:
+- `routeros-api` library installed globally or in a venv:
 
 ```bash
 pip install routeros-api
 ```
 
+If `pip` is unavailable in the current environment, install it manually from the [PyPI package](https://pypi.org/project/routeros-api/).
+
 ### Connection Details
 
-Provide credentials and host via environment variables:
+Provide credentials and host via environment variables (recommended) or inline arguments:
 
 | Variable | Description |
 |----------|-------------|
@@ -51,7 +32,7 @@ Provide credentials and host via environment variables:
 | `MIKROTIK_PORT` | API port (default: `8728`) |
 | `MIKROTIK_TIMEOUT` | Connection timeout in seconds (default: `10`) |
 
-> **Security:** Prefer environment variables or a `.env` file. Never hardcode credentials in scripts or commit them to Git.
+> **Security:** Prefer environment variables or a `.env` file. Never hardcode credentials in scripts or commit them to Git. The `--password` argument reads from stdin if you pipe it, so it does not appear in `ps` output.
 
 ### Session-Only Environment Variables
 
@@ -118,51 +99,68 @@ mikrotik /ip/firewall/filter /system/identity
 
 Add the alias to `~/.bashrc` or `~/.zshrc` to keep it across sessions, or type it inline for the current session only.
 
-### 1Password CLI (`op`) — Recommended
+### Option 5 — 1Password CLI (`op`) — Recommended
 
-The project provides an `.env.op` template file (`skills/mikrotik/.env.op`) with `op://` URI references. Running with `op run` resolves secrets at runtime.
+The script supports `--op-env-file`, which resolves **all** secrets from an `.env.op` file in a **single** `op run --no-masking` call **internally**, and **caches** the resolved values to disk. This fixes both problems:
 
-**Prerequisite:** Install the [1Password CLI](https://developer.1password.com/docs/cli/get-started/).
+- **One auth prompt per session** — The first script invocation resolves secrets via `op run --no-masking` (1 prompt). Cached values are reused for subsequent calls (0 prompts).
+- **No output masking** — The script's stdout is never wrapped by `op run`; `--no-masking` is passed for the internal call.
 
-**Approach A — Signed-in session (no repeated prompts):**
+**Prerequisite:** Install the [1Password CLI](https://developer.1password.com/docs/cli/get-started/) and sign in:
 
 ```bash
-# One-time per terminal session:
+op account add --address my.1password.com --email you@example.com
 eval $(op signin)
-
-# Then run freely — no auth prompts:
-op run --env-file=skills/mikrotik/.env.op -- \
-  python skills/mikrotik/scripts/mikrotik-read.py /ip/firewall/filter
 ```
 
-Combine with a shell alias for maximum ergonomics (add to `~/.bashrc`):
+**How it works:**
+
+Create an `.env.op` file (safe to commit — it contains only `op://` references, never real secrets):
 
 ```bash
-alias mt='op run --env-file=skills/mikrotik/.env.op -- python skills/mikrotik/scripts/mikrotik-read.py'
-
-# Usage:
-mt /system/identity
-mt //caps-man/registration-table
+# skills/mikrotik/.env.op
+MIKROTIK_HOST=10.0.0.1
+MIKROTIK_USER=apiuser
+MIKROTIK_PASSWORD=op://Private/MikroTik Router/password
+MIKROTIK_PORT=8728
+MIKROTIK_TIMEOUT=10
 ```
 
-**Approach B — Inline (no session needed):**
-
-```bash
-op run --env-file=skills/mikrotik/.env.op -- \
-  python skills/mikrotik/scripts/mikrotik-read.py /ip/firewall/filter
-```
-
-**Approach C — One-time fetch with `op item get`:**
-
-Use when you want to bypass `op run` entirely:
+Then use `--op-env-file`:
 
 ```bash
 python skills/mikrotik/scripts/mikrotik-read.py \
-  --host $(op read op://Homelab/RB4011/url) \
-  --user $(op read op://Homelab/RB4011/username) \
-  --password $(op read op://Homelab/RB4011/password) \
-  /system/identity
+  --op-env-file skills/mikrotik/.env.op \
+  /ip/firewall/filter
 ```
+
+Or via environment variable:
+
+```bash
+export MIKROTIK_OP_ENV_FILE=skills/mikrotik/.env.op
+python skills/mikrotik/scripts/mikrotik-read.py /ip/firewall/filter
+```
+
+**What happens internally:**
+1. The script checks `~/.cache/mikrotik-op/` for a cached version of the resolved secrets
+2. **Cache hit** (file exists, less than 8 hours old, source `.env.op` unchanged) → uses cached values, **0 prompts**
+3. **Cache miss** → runs `op run --no-masking --env-file=<file> -- printenv` (1 prompt), caches result
+
+The cache is stored in `~/.cache/mikrotik-op/` with `0600` permissions. Clear it anytime to force re-resolution.
+
+**Cache options:**
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `--op-cache-dir` | `MIKROTIK_OP_CACHE_DIR` | `~/.cache/mikrotik-op/` | Cache directory for resolved secrets |
+| `--op-cache-ttl` | `MIKROTIK_OP_CACHE_TTL` | `28800` (8h) | Cache validity in seconds |
+
+> **Tip:** Combine with a shell alias for minimal typing:
+> ```bash
+> alias mtr='python skills/mikrotik/scripts/mikrotik-read.py --op-env-file skills/mikrotik/.env.op'
+> mtr /ip/firewall/filter
+> mtr /ip/address /ip/route
+> ```
 
 ## Scripts
 
@@ -203,6 +201,9 @@ python scripts/mikrotik-read.py /ip/firewall/filter /ip/address
 | `--host` | `$MIKROTIK_HOST` | Router hostname/IP |
 | `--user` | `$MIKROTIK_USER` | API username |
 | `--password` | `$MIKROTIK_PASSWORD` | API password |
+| `--op-env-file` | `$MIKROTIK_OP_ENV_FILE` | Path to `.env.op` file with `op://` references. Resolves ALL secrets via internal `op run --no-masking` + caching — overrides `--host`/`--user`/`--password`. |
+| `--op-cache-dir` | `$MIKROTIK_OP_CACHE_DIR` | Cache directory for resolved secrets (default: `~/.cache/mikrotik-op/`). |
+| `--op-cache-ttl` | `$MIKROTIK_OP_CACHE_TTL` | Cache TTL in seconds (default: `28800` = 8 hours). |
 | `--port` | `8728` (or `$MIKROTIK_PORT`) | API port |
 | `--timeout` | `10` (or `$MIKROTIK_TIMEOUT`) | Connection timeout |
 | `--plaintext-login` | `true` | Use plaintext login (required for RouterOS v6+). Pass `--no-plaintext-login` to disable. |
@@ -332,45 +333,6 @@ It is strongly recommended to use a dedicated read-only user for this skill:
 
 The `read` group has read-only access to all configuration paths and disallows any write, edit, or remove operations.
 
-### Git Bash Path Quirk
-
-On Windows/Git Bash, Unix-style absolute paths starting with `/` (e.g., `/system/identity`) are silently converted to `C:/Program Files/Git/system/identity`. Always prefix RouterOS paths with `//` to prevent this:
-
-```bash
-# ❌ Wrong — converts to Windows path
-mt /ip/firewall/filter
-
-# ✅ Correct — double-slash preserves path
-mt //ip/firewall/filter
-```
-
-This applies to all commands, not just `mt`. Any Python invocation receiving `/ip/...` as an argument in Git Bash will have the same problem.
-
-### Working with `op` and Pi Sub-Agents
-
-The `op` CLI requires a signed-in session. When running commands via a **Pi sub-agent**, the session from the parent shell is **not inherited**. Options:
-
-**Option A — Export session token to the sub-agent:**
-
-```bash
-# Get the session token
-export OP_SESSION_account="$(op session get --account "$(op account list --format json | python -c "import sys,json;print(json.load(sys.stdin)[0]['shorthand'])")""
-
-# Then in sub-agent tasks, prefix with:
-OP_SESSION_account="$OP_SESSION_account" op run ...
-```
-
-**Option B — Let the sub-agent sign in itself:**
-
-Add to the sub-agent's task description: "First, run `eval $(op signin)` if prompted."
-
-**Option C — Full-token export (for automation):**
-
-```bash
-# Get a long-lived session token (expires based on security settings)
-OP_SESSION_my_token=$(op signin --account my --raw)
-```
-
 ## Troubleshooting
 
 | Problem | Likely Cause & Fix |
@@ -381,14 +343,6 @@ OP_SESSION_my_token=$(op signin --account my --raw)
 | `Timeout` | Firewall blocking port 8728, or router unreachable; check `--timeout` |
 | `Empty result` | Path exists but no matching items; check for typos in path or query filters |
 | Module not found | The `routeros-api` library is not installed; run `pip install routeros-api` |
-
-### IP Address Concealment
-
-1Password's `op run` may conceal IP addresses and other values that match secret-like patterns in JSON output. To work around this:
-
-- Use the `--indent 0` flag for compact JSON
-- Or use custom scripts that output values with formatting that avoids pattern matching
-- Or skip `op run` and use `--host`/`--user`/`--password` flags directly (with `op item get` for the password)
 
 ## Reference
 
