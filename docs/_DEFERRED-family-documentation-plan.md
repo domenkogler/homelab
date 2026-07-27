@@ -42,6 +42,7 @@ docs/                              # Engineering docs (EN)
   06-backup-and-disaster-recovery.md
   07-local-llm-office.md
   08-gitops-operations.md
+  09-device-inventory.md
 
 Iaac/                                # Ansible implementation spec (Iaac/README.md)
 brainstorming/                        # Brainstorming synthesis (this batch)

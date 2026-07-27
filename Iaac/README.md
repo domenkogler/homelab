@@ -18,14 +18,14 @@
 │   │   ├── test-1password.yml               # Quick 1Password connectivity test
 │   │   ├── playbooks/
 │   │   │   ├── router.yml                   # hosts: router → role: router
-│   │   │   ├── vps.yml                      # hosts: vps → common→docker→network→proxmox→kopia→docker_services→monitoring
+│   │   │   ├── vps.yml                      # hosts: vps → common→docker→network→kopia→docker_services→monitoring
 │   │   │   ├── home_servers.yml             # hosts: home_servers → common→docker→network→amd_rocm→[desktop,office]→kopia→docker_services→monitoring
 │   │   │   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→network→home_assistant→monitoring
 │   │   │   └── all.yml                      # Cross-cutting: /etc/hosts sync
 │   │   ├── group_vars/
 │   │   │   ├── all.yml                      # Timezone, locale, NTP, domain names
 │   │   │   ├── router.yml                   # VLAN map, WireGuard peers, DNS forwarding
-│   │   │   ├── vps.yml                      # docker_services list (VPS), Proxmox bridges
+│   │   │   ├── vps.yml                      # docker_services list (VPS)
 │   │   │   ├── home_servers.yml             # homelab_mode, docker_services list (home), GPU config
 │   │   │   └── raspberry_pi.yml             # HA install method, version
 │   │   ├── host_vars/
@@ -157,7 +157,7 @@
 
 ### `proxmox`
 - **File:** `roles/proxmox/tasks/main.yml`
-- **Condition:** `when: homelab_mode == 'proxmox'` (VPS always, home Phase 2)
+- **Condition:** `when: homelab_mode == 'proxmox'` (home Phase 2 only — not used on Contabo VPS)
 - **Config:** Bridges (vmbr0–vmbr4), storage pools, firewall rules, user management
 - **Secrets:** Proxmox root password
 
@@ -297,7 +297,7 @@ All secrets live in the `Homelab` vault. Naming pattern: `<service>_<secret_type
 | `ha_api_key` | home_assistant |
 | `influxdb_token` | monitoring |
 | `router_admin_password` | router |
-| `wireguard_private_key` | router, proxmox (S2S) |
+| `wireguard_private_key` | router (S2S + road-warrior) |
 
 ---
 
@@ -311,7 +311,7 @@ Roles and templates must be built in this sequence — each step depends on the 
 | 2 | `router` role | `network` (IPs/VLANs defined) | Medium |
 | 3 | `docker_services` role (core loop + systemd) | `docker`, `network` | Medium |
 | 4 | VPS service templates (traefik, authentik, opencloud, immich-app, forgejo, grafana, n8n, crowdsec, kopia-server, db-backup) | `docker_services` | Large |
-| 5 | `proxmox` role | `network` | Medium |
+| 5 | `proxmox` role (home Phase 2) | `network` | Medium |
 | 6 | `kopia` role | `docker` | Small |
 | 7 | `amd_rocm` role | `common` | Small |
 | 8 | Home server service templates (ollama, immich-ml, headscale, technitium, pihole, sunshine, kopia-agent) | `docker_services`, `amd_rocm` | Medium |

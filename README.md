@@ -33,6 +33,7 @@ Ko bo postavljeno, bo domača stran na **`kogler.si`** glavna vstopna točka za 
 | [06 — Backup & Disaster Recovery](docs/06-backup-and-disaster-recovery.md) | Kopia, db-backup, recovery scenarios |
 | [07 — Local LLM & Office](docs/07-local-llm-office.md) | Ollama models, ONLYOFFICE, MS Word AI chain |
 | [08 — GitOps Operations (Isaac)](docs/08-gitops-operations.md) | Renovate, Forgejo Actions, Homepage, deployment lifecycle |
+| [09 — Device Inventory](docs/09-device-inventory.md) | Printable port map — CRS328 + RB4011 every port |
 
 ### Implementation
 
@@ -58,10 +59,11 @@ ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 
 ```
 .
-├── docs/                     # Canonical documentation
+├── docs/                     # Canonical documentation (01–09)
 ├── Iaac/                     # Ansible code + implementation spec
 │   ├── README.md
-│   └── ansible/
+│   ├── ansible/
+│   └── router/               # RouterOS .rsc scripts (rb4011, ap, crs328)
 ├── brainstorming/            # Source material (LLM chats, legacy notes)
 ├── obsolete/                 # Superseded configs (pre-IaC RouterOS scripts)
 └── README.md                 # You are here

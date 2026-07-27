@@ -12,30 +12,25 @@
 | Bulk Storage | **Hetzner Storage Box** (1 TB) | CIFS-mounted for photos/files | ~€4/mo |
 | Backup Storage | **iDrive e2** | S3-compatible, Kopia target | ~€5/mo |
 
-> **Why Contabo over Hetzner dedicated:** The dedicated server is overkill for 4+4 users. Contabo VPS 30 provides enough resources for Proxmox with room for monitoring/observability stack. Hetzner Storage Box handles bulk files economically.
+> **Why Contabo over Hetzner dedicated:** The dedicated server is overkill for 4+4 users. Contabo VPS 30 provides enough resources for the Docker stack with room for monitoring/observability. Hetzner Storage Box handles bulk files economically.
 
 ---
 
-## Hypervisor: Proxmox VE
+## OS: Debian (Docker)
 
-Proxmox is preferred over Docker-only because the stack will include monitoring, observability, and future lab VMs.
+Plain Debian with Docker CE — no hypervisor. Contabo VPS is already virtualized, so nesting Proxmox adds overhead without benefit. Docker networks replace Proxmox bridges for service isolation:
 
-### Network Bridges
+| Docker Network | CIDR | Purpose |
+|---------------|------|---------|
+| traefik-public | 172.20.0.0/16 | Traefik ↔ exposed services |
+| services-internal | 172.21.0.0/16 | App ↔ app communication |
+| db-internal | 172.22.0.0/16 | Databases, isolated from everything else |
+| wireguard-s2s | 10.255.40.0/30 | WireGuard tunnel to home (VPS endpoint: 10.255.40.2) |
 
-| Bridge | Name | CIDR | Purpose |
-|--------|------|------|---------|
-| vmbr0 | WAN | public IP | Internet-facing reverse proxy |
-| vmbr1 | DMZ | 10.255.10.0/24 | Traefik, CrowdSec |
-| vmbr2 | Services | 10.255.20.0/24 | Authentik, Immich, OpenCloud, Git |
-| vmbr3 | Lab | 10.255.30.0/24 | Isolated testing |
-| vmbr4 | Site2Site | 10.255.40.0/30 | WireGuard tunnel to home (VPS endpoint: 10.255.40.2) |
-
-### Firewall (Proxmox-level)
-- Default **deny all** inter-bridge traffic
-- Allow Services → DMZ (reverse proxy reaches apps)
-- Allow Site2Site → Services (home accesses VPS services)
-- Block Lab → all other bridges
-- Block WAN → everything except :443 (HTTPS) to DMZ
+### Firewall (iptables/nftables)
+- Default **deny all** inbound except :443 (HTTPS) and WireGuard port
+- Docker networks isolated from each other via iptables rules
+- Allow WireGuard subnet → services network (home accesses VPS services)
 
 ---
 
@@ -218,8 +213,6 @@ Before Kopia snapshots, databases are dumped to files:
 | Service | Subdomain | Access | Notes |
 |---------|-----------|--------|-------|
 | Traefik Dashboard | `traefik.kogler.lan` | Local only | Router admin UI |
-| Proxmox (VPS) | `pve.kogler.lan` | Local only (via VPN) | VPS hypervisor management |
-| Proxmox (Home) | `pve-home.kogler.lan` | Local only | Home hypervisor management |
 | Uptime/Monitoring | `status.kogler.si` | Public (SSO) | If you add Uptime Kuma or similar |
 | CrowdSec Dashboard | `sec.kogler.lan` | Local only | Security overview |
 | n8n | `auto.kogler.lan` | Local only | Office automation |

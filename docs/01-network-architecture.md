@@ -30,17 +30,19 @@ All wired ports and CAPsMAN wireless traffic carried over a **single VLAN-aware 
 
 | VLAN ID | Name | Subnet | Purpose | SSID |
 |---------|------|--------|---------|------|
-| 1 | Management | 10.10.99.0/24 | Router, switch, AP management | — |
-| 10 | Home | 10.10.1.0/24 | Trusted family devices, servers, NAS, HA | "Kogler" |
-| 20 | IoT | 10.10.20.0/24 | Smart-home (KNX, Shelly) — isolated | "Kogler IOT" |
+| 1 | — | — | Blackhole (unused) | — |
+| 10 | Home | 10.10.1.0/24 | Trusted family devices, phones, servers, HA | "Kogler" |
+| 20 | IoT | 10.10.20.0/24 | Smart-home (KNX, Shelly, ESP32-S3 voice mic), no internet | "Kogler IOT" |
 | 30 | Guest | 10.10.30.0/24 | Internet-only, client isolation | "Kogler guest" |
-| 40 | Kids | 10.10.40.0/24 | Filtered DNS, restricted access | (future dedicated SSID) |
+| 40 | Kids | 10.10.40.0/24 | Filtered DNS, restricted access, time-blocked 22:00–07:00 | "Kogler Kids" |
+| 50 | Media | 10.10.50.0/24 | NVIDIA Shield, gaming consoles, smart TV | — |
+| 99 | Management | 10.10.99.0/24 | Router, switch, AP management | — |
 
 ### Physical Layout
 
 - `ether1` → ISP ONT (PPPoE)
-- `sfp-sfpplus1` → trunk to CRS328 (VLANs 1,10,20,30,40 tagged)
-- Home Server (Phase 1) → single UTP to CRS328, VLAN trunk (10,20 tagged, 99 native for Management)
+- `sfp-sfpplus1` → trunk to CRS328 (VLANs 10,20,30,40,50,99 tagged)
+- Home Server (Phase 1) → single UTP to CRS328, VLAN trunk (10,20,50 tagged, 99 native for Management)
 - Other ports → access ports as needed, or all devices behind the switch
 
 > **Note:** The home server has an Intel i350-T2 dual-port NIC, but only one port is used (single UTP cable at location). All VLANs are carried over this single trunk link to the CRS328 switch.
@@ -56,7 +58,7 @@ All wired ports and CAPsMAN wireless traffic carried over a **single VLAN-aware 
 | cfg_kogler | 10 | Kogler |
 | cfg_Kogler-IOT | 20 | Kogler IOT |
 | cfg_Kogler-guest | 30 | Kogler guest |
-| (future) cfg_kogler-kids | 40 | Kogler kids |
+| cfg_kogler-kids | 40 | Kogler Kids |
 
 ---
 
@@ -67,11 +69,15 @@ All wired ports and CAPsMAN wireless traffic carried over a **single VLAN-aware 
 | Source VLAN | Destination VLAN | Rule |
 |-------------|-----------------|------|
 | Home (10) | IoT (20) | Accept established/related + new from trusted IPs for MQTT/HA |
-| Home (10) | Management (1) | Accept for SSH/WinBox/HTTPS |
+| Home (10) | Management (99) | Accept for SSH/WinBox/HTTPS |
+| Home (10) | Media (50) | Accept (remote control, casting) |
 | IoT (20) | Home (10) | **Drop all** (only replies to Home-initiated) |
+| IoT (20) | WAN | **Drop all** (no internet — disable rule manually for firmware updates) |
+| Media (50) | Home (10) | Accept (media server, Plex/Jellyfin) |
 | Guest (30) | any LAN | **Drop all** (internet only) |
 | Kids (40) | Home (10) | Drop, DNS forced through filter |
-| All | WAN | Allowed (masqueraded) |
+| Kids (40) | WAN | Drop 22:00–07:00 (bedtime — hard block at firewall, bypass-proof) |
+| All (except IoT) | WAN | Allowed (masqueraded) |
 
 Implemented with **address-lists** and **interface lists** in RouterOS.
 
@@ -111,8 +117,7 @@ Technitium runs on the **Phase 1 home server** (bare-metal Debian, Management VL
 
 ### MikroTik Firewall Rules for DNS
 
-- Allow DNS (UDP 53) from all user VLANs to Technitium IP on Management VLAN
-- Allow DHCP (UDP 67-68) from user VLANs to Technitium
+- Allow DNS (UDP 53) from all user VLANs to Technitium IP on Management VLAN (99)
 - Global inter-VLAN drop rule sits **below** these exceptions
 
 ### Pi-hole Configuration
@@ -120,6 +125,26 @@ Technitium runs on the **Phase 1 home server** (bare-metal Debian, Management VL
 - Upstream: Cloudflare (1.1.1.1) or Google (8.8.8.8)
 - Conditional forwarding: local domain → Technitium IP (so Pi-hole logs show hostnames, not raw IPs)
 - Internal Technitium blocklists **disabled** (to minimize RAM; Pi-hole handles blocking)
+
+### DHCP Responsibility
+
+DHCP is handled entirely by the RB4011 router — **not** Technitium. The router runs a DHCP server on each VLAN interface. This ensures devices always get IP leases even if the Debian PC is down. DHCP option 15 (`domain=home.kogler.si`) is set on each DHCP network so clients know their local domain.
+
+### DNS Resilience
+
+RouterOS `/ip dns` forwards to Technitium as primary, `1.1.1.1` as secondary:
+
+```
+Client → Router (10.10.x.1) → Technitium (10.10.99.X) → Pi-hole/AdGuard/Quad9
+                             ↘ 1.1.1.1 (fallback if Debian PC unreachable)
+```
+
+If the Debian PC is down: internet still works (unfiltered), but local `*.home.kogler.si` names and ad-blocking are temporarily unavailable. DHCP clients are unaffected — they always point at the router's IP for DNS.
+
+### Local Name Resolution & mDNS
+
+- **DHCP lease integration:** Technitium queries the RouterOS REST API for `/ip/dhcp-server/lease` and automatically creates `*.home.kogler.si` DNS records for all devices with hostnames
+- **mDNS reflector:** Technitium bridges `.local` names across all VLANs. RouterOS built-in mDNS is bridge-wide only and cannot cross VLAN boundaries
 
 ### Current State
 
@@ -136,11 +161,13 @@ From the full plan in the original architecture doc:
 3. **Phase 2** (1h): Switch & AP migration — CRS328 VLAN-aware bridge, CAPsMAN update
 4. **Phase 3** (2h): Device re-assignment — move wired devices to correct VLANs, update HA
 5. **Phase 4** (1h): VPN & DNS — WireGuard road-warrior, DNS architecture (Technitium + Pi-hole + AdGuard)
+   - Router initially forwards DNS to 1.1.1.1. Technitium deployment happens via Ansible after Debian PC is operational — then a single-line change on the router switches DNS forwarding to Technitium.
 
 ---
 
 ## Router Config Storage
 
+- `rb4011_initial.rsc` — fresh-start baseline for factory-reset router (manual import via WinBox)
 - Current config exported as `rb4011_config.rsc` → stored in `Iaac/router/`
-- All future config changes via **Ansible** or version-controlled `.rsc` files
+- All subsequent config changes via **Ansible** or version-controlled `.rsc` snippets
 - Git-versioned in the homelab repo

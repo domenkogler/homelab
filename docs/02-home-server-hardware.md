@@ -122,6 +122,8 @@ Debian Host:
 
 ## Hypervisor: Proxmox VE
 
+> **Why Proxmox on bare metal but not on VPS:** The Contabo VPS is already virtualized — nesting Proxmox adds overhead without benefit. Docker on Debian is lighter and sufficient for web services. Phase 2 bare metal is different: real hardware with a 32 GB GPU to share across services, 12 cores with headroom to spare, and a future Windows VM for gaming. Proxmox snapshots before Ansible runs mean instant rollback if something breaks — valuable when DNS and AI share the same box. Phase 1 on bare-metal Debian proves the GPU-sharing approach first; Phase 2 can stay Debian or move to Proxmox based on real experience.
+
 ### VM/LXC Layout
 
 ```
