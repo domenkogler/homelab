@@ -1,0 +1,27 @@
+# Align with .editorconfig: all text files use LF (both in repo and working tree)
+* text=auto eol=lf
+
+# Shell scripts must always be LF (Linux requirement)
+*.sh text eol=lf
+
+# Python scripts
+*.py text eol=lf
+
+# Ansible YAML files (run on Linux)
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary files - never touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.zip binary
+*.tar.gz binary
+*.gz binary
