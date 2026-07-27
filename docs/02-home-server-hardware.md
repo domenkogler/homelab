@@ -88,15 +88,15 @@ Debian Host (i7-7700K):
 ├─ technitium (Docker)      → Central DNS router (VLAN-aware)
 ├─ pihole (Docker)          → Ad-blocking DNS
 ├─ sunshine (Docker)        → Game streaming (manual start, secondary priority)
-├─ kopia (Docker)           → Backup agent → iDrive e2 (primary)
-└─ kopia (Docker)           → Backup agent → HP MicroServer (local repo)
+├─ kopia (Docker)           → Off-site backup agent → iDrive e2
+├─ sanoid/syncoid (cron)    → ZFS snapshots + replication to HP Gen8
 ```
 
 ---
 
 ### Backup & Storage Server — HP MicroServer Gen8
 
-A dedicated secondary machine for backups and network-attached storage.
+A dedicated secondary machine for ZFS-based storage, local backup replication, and network-attached storage. Runs Debian headless with ZFS on all drives.
 
 #### Hardware
 
@@ -104,17 +104,20 @@ A dedicated secondary machine for backups and network-attached storage.
 |-----------|--------|
 | Model | HP ProLiant MicroServer Gen8 |
 | CPU | Intel Xeon E3 (unknown variant) |
-| RAM | (unknown — verify) |
+| RAM | 16 GB DDR3 ECC |
 | HDD 1 | WD Red 3 TB (WD30EFRX) |
 | HDD 2 | HGST 4 TB (SATA 6 Gb/s) |
-| OS | Debian minimal (headless) or TrueNAS Scale |
+| OS | Debian minimal (headless) with ZFS |
+| Expansion | Additional PCIe card with 2× miniSAS external ports |
 | Location | Rack cabinet |
 
 #### Roles
 
-- **Kopia repository server** — local backup target for the i7-7700K (rsync or Kopia server mode)
-- **NAS / file server** — SMB/CIFS shares for media, documents, and ISO images
-- **Offline copy** — second copy of critical data, separate from the primary server
+- **Primary ZFS storage pool** — WD Red 3TB + HGST 4TB (mirror or separate datasets)
+- **ZFS backup pool** — SilverStone drives via miniSAS (ZFS send/recv target from primary pool)
+- **NAS / file server** — NFS/SMB shares for media, documents, and ISO images
+- **Local backup replication** — incremental ZFS snapshots sent from the primary pool to the backup pool
+- **Kopia relay** — optional cloud relay for off-site backup to iDrive e2
 
 #### Network
 
@@ -137,7 +140,7 @@ External 4-bay enclosure connected to either the i7-7700K or the HP MicroServer.
 |-----------|--------|
 | Model | SilverStone SST-TS43xx |
 | HDDs | 4× Toshiba P300 3 TB (12 TB raw) |
-| Connection | USB 3.0 or eSATA (verify) |
+| Connection | **miniSAS only** (no USB, no eSATA) — connects to HP Gen8 miniSAS card |
 | Location | Rack cabinet (near server) |
 
 #### Roles
@@ -150,10 +153,10 @@ External 4-bay enclosure connected to either the i7-7700K or the HP MicroServer.
 
 | Connect to | Pros | Cons |
 |------------|------|------|
-| **i7-7700K** (USB/eSATA) | Direct access for Docker services | Cable from desk to rack; occupies desk space |
-| **HP MicroServer** | Neatly in the rack; NAS serves everything | Extra network hop; USB passthrough if needed |
+| **HP MicroServer** | miniSAS card available; everything in the rack | Extra network hop for i7-7700K access |
+| **i7-7700K** | Direct access from Docker services | Would need a separate HBA card (no miniSAS on motherboard) |
 
-> **Recommended:** Connect to the HP MicroServer Gen8 (cleaner cabling, everything in the rack). The Gen8 exposes the storage as SMB/NFS shares to the i7-7700K. If the Gen8 has no free USB/eSATA, connect to the i7-7700K instead.
+> **Decision: SilverStone → HP Gen8 miniSAS card.** The SilverStone is miniSAS-only (no USB or eSATA). The HP Gen8 is the only machine with a free miniSAS port. All 6 HDDs live in the rack, managed by the Gen8.
 
 ---
 
@@ -162,31 +165,49 @@ External 4-bay enclosure connected to either the i7-7700K or the HP MicroServer.
 ```
 i7-7700K Desktop (desk)
 ├── NVMe SSD (local)          → OS, Docker volumes, DBs, LLM models
-├── Kopia                      → snapshots configs + DB dumps
-│   ├── to HP MicroServer     via LAN (local repo, fast)
-│   └── to iDrive e2 / B2    via WAN (off-site, encrypted)
-└── SMB mounts                → HP MicroServer shares
+├── Kopia                      → off-site encrypted backup
+│   └── to iDrive e2 / B2    via WAN (encrypted, dedup, S3)
+└── NFS mounts                → HP MicroServer shares (media, bulk data)
 
-HP MicroServer Gen8 (rack)
-├── WD Red 3TB                → Kopia local repository
-├── HGST 4TB                  → NAS shares (media, documents, ISOs)
-└── SilverStone TS43xx (?)    → Connected via USB/eSATA
-    └── 4× Toshiba 3TB        → Bulk archive (planned — connection TBD)
+HP MicroServer Gen8 (rack) — 16 GB ECC RAM
+├── ZFS pool "tank" (primary storage)
+│   ├── bay 1: WD Red 3TB (WD30EFRX)
+│   ├── bay 2: HGST 4TB
+│   ├── bay 3: (free — can host 2× Toshiba from SilverStone)
+│   └── bay 4: (free)
+├── ZFS pool "backup" (local backup target — ZFS send/recv)
+│   └── SilverStone TS43xx via miniSAS
+│       └── 2–4× Toshiba P300 3TB → RAIDZ or mirror
+├── ZFS snapshots              → automated via sanoid/syncoid or cron
+│   └── zfs send/recv         → incremental block-level replication to "backup" pool
+└── Kopia (optional)           → snapshots critical datasets → iDrive e2 (cloud)
 ```
 
-#### Backup Strategy (3-2-1)
+#### Backup Strategy: ZFS + Kopia (Dual Layer)
 
-| Copy | Location | Medium | Speed |
-|------|----------|--------|-------|
-| **Live data** | i7-7700K NVMe | SSD | — |
-| **Local backup** | HP MicroServer Gen8 (WD Red 3TB) | HDD | Fast (LAN) |
-| **Off-site backup** | iDrive e2 / Backblaze B2 | Cloud | Slow (WAN) |
+| Copy | Location | Medium | Transport | Speed |
+|------|----------|--------|-----------|-------|
+| **Live data** | i7-7700K NVMe + HP Gen8 ZFS pool | SSD + HDD | — | — |
+| **Local backup** | HP Gen8 SilverStone pool (ZFS send/recv) | HDD | Block-level incremental | Fast (LAN) |
+| **Off-site backup** | iDrive e2 (Kopia encrypted snapshots) | Cloud | Object storage | Slow (WAN) |
 
-- **3 copies:** live + local + off-site
+**Why ZFS + Kopia instead of Kopia-only:**
+
+| Layer | Tool | What It Does |
+|-------|------|-------------|
+| **Filesystem** | ZFS | Block-level checksums, snapshots, compression, self-healing |
+| **Local replication** | ZFS send/recv | Incremental block-level sync to backup pool — 10–50× faster than Kopia walking the filesystem for TB-scale data |
+| **Off-site backup** | Kopia | Client-side encryption, cross-time dedup, S3-compatible cloud push |
+
+- ZFS snapshots are **instantaneous and immutable** — no window where a backup tool is mid-scan while files change
+- ZFS send/recv transfers only changed blocks since the last snapshot, not re-scanned files
+- Kopia remains for cloud off-site (encryption + dedup + S3) — it's the right tool for that
+
+- **3 copies:** live (tank) + local (backup pool) + off-site (iDrive e2)
 - **2 media:** SSD + HDD + cloud
 - **1 off-site:** cloud storage
 
-> **Hardware failure scenario:** If the i7-7700K dies, restore from the MicroServer over LAN. If both die, restore from cloud. If the MicroServer dies, the SilverStone becomes the spare local target.
+> **Hardware failure scenario:** If the i7-7700K dies, HP Gen8 holds the authoritative ZFS pool. If the HP Gen8 dies, the SilverStone backup pool is a physically separate enclosure. If both die, restore from cloud via Kopia.
 
 ---
 
