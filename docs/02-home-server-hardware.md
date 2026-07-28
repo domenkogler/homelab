@@ -21,7 +21,7 @@ This phase uses **all existing hardware** without any new purchases. Three machi
 | Machine | Role |
 |---------|------|
 | **i7-7700K Desktop** | Primary server — family PC + 24/7 Docker host (LLM, DNS, backup agent) |
-| **HP MicroServer Gen8** | Backup target + NAS — secondary storage, Kopia repository server |
+| **HP MicroServer Gen8** | Main ZFS storage server — tank mirror (4 TB) + backup RAIDZ2 (6 TB), NFS, Cockpit, iLO4 remote mgmt |
 | **SilverStone TS43xx** | Bulk storage enclosure — media archive, photo archive, cold data |
 
 ---
@@ -34,12 +34,19 @@ Bare-metal Debian, simultaneously serves as the family desktop PC and a 24/7 Doc
 
 | Component | Detail |
 |-----------|--------|
-| CPU | Intel i7-7700K (4C/8T, 4.2 GHz base, 4.5 GHz boost) |
+| CPU | Intel i7-7700K (4C/8T, 4.2 GHz base, 4.5 GHz boost, Kaby Lake, 14 nm) |
+| Motherboard | ASRock Z270 Extreme4 (AMI UEFI BIOS, Z270 chipset) |
 | iGPU | Intel HD 630 → dedicated to Linux desktop (family PC) |
 | dGPU | AMD Radeon RX 7600 8 GB → dedicated to Docker AI containers |
 | NIC | Intel i350-T2 (one port used — VLAN trunk to CRS328 switch) |
-| RAM | 48 GB DDR4 |
-| Storage | Local NVMe SSD |
+| RAM | 48 GB DDR4 (4× Corsair Vengeance LPX, DDR4-2400) |
+| └ DIMM 1 | 8 GB CMK16GX4M2A2400C14 (SK Hynix) |
+| └ DIMM 2 | 16 GB CMK32GX4M2A2400C14 (Samsung) |
+| └ DIMM 3 | 8 GB CMK16GX4M2A2400C14 (SK Hynix) |
+| └ DIMM 4 | 16 GB CMK32GX4M2A2400C14 (Samsung) |
+| Storage | 2× NVMe SSDs |
+| └ Drive 1 | Samsung SSD 970 EVO 1TB — OS, Docker volumes, DBs, LLM models |
+| └ Drive 2 | Samsung SSD 960 EVO 500GB — bulk data, media, second-stage storage |
 | OS | Debian with XFCE or GNOME desktop |
 | Location | Workstation desk (not rack-mounted) |
 
@@ -103,21 +110,26 @@ A dedicated secondary machine for ZFS-based storage, local backup replication, a
 | Component | Detail |
 |-----------|--------|
 | Model | HP ProLiant MicroServer Gen8 |
-| CPU | Intel Xeon E3 (unknown variant) |
-| RAM | 16 GB DDR3 ECC |
-| HDD 1 | WD Red 3 TB (WD30EFRX) |
-| HDD 2 | HGST 4 TB (SATA 6 Gb/s) |
-| OS | Debian minimal (headless) with ZFS |
-| Expansion | Additional PCIe card with 2× miniSAS external ports |
+| CPU | Intel Xeon E3-1230 V2 @ 3.30 GHz (4C/8T, Ivy Bridge) |
+| RAM | 12 GB DDR3 ECC (AdvancedECC mode) — 1× 4 GB HP + 1× 8 GB, DDR3-1600 UDIMMs |
+| Boot | Crucial MX300 525 GB SSD (Crucial_CT525MX300SSD4) |
+| HDD 1 | HGST 4 TB (HDN726040ALE614) — 60,070h, healthy |
+| HDD 2 | Seagate IronWolf Pro 4 TB (ST4000NT001) — new, 7200rpm |
+| SATA mode | AHCI / non-RAID (HP B120i controller disabled — ZFS has direct disk access) |
+| NIC | Embedded dual-port Broadcom (1c:98:ec:0e:0d:38 / 39) |
+| iLO | 4 (integrated) — FW 2.55 (Aug 2017), IP 10.10.1.49 (VLAN 99) |
+| OS | Debian 13 (Trixie) minimal, headless, with ZFS 2.3+ |
+| Expansion | PCIe x16 Gen3 slot → miniSAS card → SilverStone TS43xx |
 | Location | Rack cabinet |
 
 #### Roles
 
-- **Primary ZFS storage pool** — WD Red 3TB + HGST 4TB (mirror or separate datasets)
-- **ZFS backup pool** — SilverStone drives via miniSAS (ZFS send/recv target from primary pool)
-- **NAS / file server** — NFS/SMB shares for media, documents, and ISO images
-- **Local backup replication** — incremental ZFS snapshots sent from the primary pool to the backup pool
-- **Kopia relay** — optional cloud relay for off-site backup to iDrive e2
+- **Primary ZFS pool "tank"** — Mirror: HGST 4TB + Seagate IronWolf Pro 4TB (4 TB usable, fully redundant)
+- **Backup ZFS pool "backup"** — RAIDZ2: WD Red 3TB + 3× Toshiba P300 3TB via miniSAS (6 TB usable, 2-disk fault tolerance)
+- **NAS / file server** — NFS/SMB shares for media, photos, documents, and Docker volumes
+- **Local backup replication** — incremental ZFS snapshots (sanoid/syncoid) from tank → backup pool
+- **Web UI** — Cockpit + cockpit-zfs for lightweight monitoring (~150 MB RAM)
+- **Kopia relay** — optional cloud relay for off-site backup to iDrive e2 (critical datasets only)
 
 #### Network
 
@@ -126,7 +138,25 @@ A dedicated secondary machine for ZFS-based storage, local backup replication, a
 | 1 | 10 (Home) | Access port — file sharing, backup traffic |
 | 1 | 99 (Mgmt) | Native — management access |
 
-> **Note:** Only one port on the CRS328. If the Gen8 has a single NIC, use a trunk port (VLAN 10 tagged, VLAN 99 native). If dual NIC, dedicate one to each VLAN.
+> **Note:** The Gen8 has a **dual-port embedded Broadcom NIC** (both ports available). Two options:
+> - **Single trunk:** One port carries VLAN 10 (tagged) + VLAN 99 (native) — frees the second port for a future dedicated backup network
+> - **Dedicated ports:** Port 1 → VLAN 10 (Home, file sharing), Port 2 → VLAN 99 (Mgmt, iLO)
+
+#### Remote Management (iLO4 Integrated)
+
+The Gen8 has a built-in **HP iLO4** management controller — no external KVM needed:
+
+| Feature | Detail |
+|---------|--------|
+| **iLO IP** | 10.10.1.49 (VLAN 99) |
+| **Firmware** | 2.55 (Aug 2017) — latest is 2.82 |
+| **Access** | Web UI via HTTPS, Redfish API, SSH, IPMI |
+| **iKVM** | HTML5 remote console (Java-free) — BIOS-level, virtual ISO mounting |
+| **Power control** | Remote power on/off/reset, boot order, PXE |
+| **Health monitoring** | Temperatures, fan speed, power draw, hardware logs |
+| **Authentication** | Local admin account (`Administrator`) |
+
+> **Note:** iLO is on VLAN 99 (management) and is accessible even when the host OS is down. No separate GL-RM1 KVM is needed for the Gen8 — the iLO4 covers all remote management needs for this machine.
 
 ---
 
@@ -169,18 +199,26 @@ i7-7700K Desktop (desk)
 │   └── to iDrive e2 / B2    via WAN (encrypted, dedup, S3)
 └── NFS mounts                → HP MicroServer shares (media, bulk data)
 
-HP MicroServer Gen8 (rack) — 16 GB ECC RAM
-├── ZFS pool "tank" (primary storage)
-│   ├── bay 1: WD Red 3TB (WD30EFRX)
-│   ├── bay 2: HGST 4TB
-│   ├── bay 3: (free — can host 2× Toshiba from SilverStone)
-│   └── bay 4: (free)
-├── ZFS pool "backup" (local backup target — ZFS send/recv)
+HP MicroServer Gen8 (rack) — 12 GB ECC RAM, Debian 13 (Trixie)
+├── Boot: Crucial MX300 525 GB SSD (boot only — no L2ARC/SLOG)
+├── ZFS pool "tank" (primary storage — mirror)
+│   ├── HGST 4TB (HDN726040ALE614)            — 60,070h, healthy
+│   └── Seagate IronWolf Pro 4TB (ST4000NT001) — new, 7200rpm
+│   └── Datasets:
+│       ├── tank/important     → backed up (photos, documents, Docker data)
+│       ├── tank/media         → backed up (movies, music, Immich library)
+│       └── tank/downloads     → NOT backed up (GDrive/OneDrive syncs, temp data)
+├── ZFS pool "backup" (local backup target — RAIDZ2)
 │   └── SilverStone TS43xx via miniSAS
-│       └── 2–4× Toshiba P300 3TB → RAIDZ or mirror
-├── ZFS snapshots              → automated via sanoid/syncoid or cron
+│       ├── WD Red 3TB (WD30EFRX)             — 45,500h
+│       ├── Toshiba P300 3TB (HDWD130)        — 6,481h
+│       ├── Toshiba P300 3TB (HDWD130)        — 8,093h
+│       └── Toshiba P300 3TB (HDWD130)        — 8,156h
+│       └── 6 TB usable, survives any 2 disk failures
+├── ZFS snapshots              → automated via sanoid/syncoid
 │   └── zfs send/recv         → incremental block-level replication to "backup" pool
-└── Kopia (optional)           → snapshots critical datasets → iDrive e2 (cloud)
+│       └── Only tank/important and tank/media — excludes tank/downloads
+└── Kopia (optional)           → critical datasets only → iDrive e2 (cloud)
 ```
 
 #### Backup Strategy: ZFS + Kopia (Dual Layer)
@@ -208,6 +246,26 @@ HP MicroServer Gen8 (rack) — 16 GB ECC RAM
 - **1 off-site:** cloud storage
 
 > **Hardware failure scenario:** If the i7-7700K dies, HP Gen8 holds the authoritative ZFS pool. If the HP Gen8 dies, the SilverStone backup pool is a physically separate enclosure. If both die, restore from cloud via Kopia.
+
+### SMART Data Collection (Completed — July 2026)
+
+All 7 drives were scanned via `smartctl` on a SystemRescue live ISO. Full report saved in `scripts/smart-report-20260728-172714.txt`.
+
+| Device | Model | Size | Hours | Reallocated | Pending | Health |
+|--------|-------|------|-------|-------------|---------|--------|
+| sda | WD Red WD30EFRX (5400rpm CMR) | 3 TB | 45,500 | 0 | 0 | ✅ OK |
+| sdb | HGST HDN726040ALE614 (7200rpm) | 4 TB | 60,070 | 0 | 0 | ✅ OK |
+| sdc | Toshiba P300 HDWD130 (7200rpm) | 3 TB | 6,481 | 0 | 0 | ✅ OK |
+| sdd | Crucial MX300 525 GB (SSD) | 525 GB | 55,828 | 0 (NAND) | 0 | ✅ OK (81% life left) |
+| sde | Toshiba P300 HDWD130 (7200rpm) | 3 TB | 8,156 | **2,001** | **32** | ❌ **CRITICAL — zeroed & disposed** |
+| sdf | Toshiba P300 HDWD130 (7200rpm) | 3 TB | 8,093 | 0 | 0 | ✅ OK |
+| sdg | Toshiba P300 HDWD130 (7200rpm) | 3 TB | 8,156 | 0 | 0 | ✅ OK |
+
+**Key decisions driven by SMART data:**
+- **sde (Toshiba P300)** was critically failing (2,001 reallocated sectors + 32 pending, SMART: "FAILING_NOW") → zeroed with `dd if=/dev/zero of=/dev/sde bs=1M` and physically removed from the SilverStone enclosure
+- **WD Red (45,500h)** and **HGST (60,070h)** are old but healthy (zero reallocated sectors) → placed in the backup pool (RAIDZ2 with 2-disk parity) for safe retirement
+- **Crucial MX300 (55,828h, 81% life)** → boot drive only. No L2ARC or SLOG: 12 GB RAM is insufficient for L2ARC benefit, and the SSD lacks power-loss protection (PLP) needed for safe SLOG use
+- **Seagate IronWolf Pro 4TB (ST4000NT001)** purchased new to pair with the HGST as a matched-speed (7200rpm) mirror for the main tank pool
 
 ---
 
@@ -299,8 +357,10 @@ Proxmox Host (hostname TBD):
 | Device | Phase 1 Role | Phase 2 Role | Age |
 |--------|-------------|-------------|-----|
 | **Intel i7-7700K** + RX 7600 + 48 GB DDR4 | Primary server — Debian + Docker (LLM, DNS, AI) | Retired or repurposed | ~7 years |
-| **HP MicroServer Gen8** (Xeon E3) + WD Red 3TB + HGST 4TB | Backup target + NAS | Stays as backup server | ~10-12 years |
-| **SilverStone SST-TS43xx** + 4× Toshiba P300 3TB | Bulk storage enclosure | Bulk storage enclosure | Unknown |
+| **HP MicroServer Gen8** (Xeon E3, 12 GB RAM) | Main ZFS server — tank mirror + backup RAIDZ2 | Stays as storage server | ~10-12 years |
+| **Crucial MX300 525 GB (SSD)** | Gen8 boot drive | Boot | ~6 years |
+| **HGST 4TB + Seagate IronWolf Pro 4TB** | tank pool (mirror) | Primary storage | New + ~7 years |
+| **SilverStone SST-TS43xx** + WD Red 3TB + 3× Toshiba P300 3TB | backup pool (RAIDZ2) | Local backup target | Mixed (old + new) |
 | **Raspberry Pi 4** | Home Assistant (primary) | Stays as primary HA (backup LXC on Phase 2 server) | ~4 years |
 | **Rack cabinet** | Houses router, switch, ISP ONT | + Phase 2 server | — |
 

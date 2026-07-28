@@ -1,0 +1,18 @@
+ ### If You Want a Quicker Alternative
+
+ Skip the script entirely. Open an elevated PowerShell and run:
+
+ ```powershell
+   # Install smartmontools if needed
+   winget install smartmontools.smartmontools
+
+   # Refresh PATH
+   $env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
+ [Environment]::GetEnvironmentVariable("Path","User")
+
+   # Scan both NVMe drives
+   smartctl -a /dev/nvme0 > $env:USERPROFILE\Desktop\smart-nvme0-970.txt
+   smartctl -a /dev/nvme1 > $env:USERPROFILE\Desktop\smart-nvme1-960.txt
+ ```
+
+ Then share the output files and I can add them to the report. What error message do you get when you run the script?
