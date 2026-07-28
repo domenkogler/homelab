@@ -194,7 +194,8 @@ External 4-bay enclosure connected to either the i7-7700K or the HP MicroServer.
 
 ```
 i7-7700K Desktop (desk)
-├── NVMe SSD (local)          → OS, Docker volumes, DBs, LLM models
+├── Samsung SSD 970 EVO 1TB    → OS, Docker volumes, DBs, LLM models
+├── Samsung SSD 960 EVO 500GB  → bulk data, media, second-stage storage
 ├── Kopia                      → off-site encrypted backup
 │   └── to iDrive e2 / B2    via WAN (encrypted, dedup, S3)
 └── NFS mounts                → HP MicroServer shares (media, bulk data)
@@ -260,6 +261,17 @@ All 7 drives were scanned via `smartctl` on a SystemRescue live ISO. Full report
 | sde | Toshiba P300 HDWD130 (7200rpm) | 3 TB | 8,156 | **2,001** | **32** | ❌ **CRITICAL — zeroed & disposed** |
 | sdf | Toshiba P300 HDWD130 (7200rpm) | 3 TB | 8,093 | 0 | 0 | ✅ OK |
 | sdg | Toshiba P300 HDWD130 (7200rpm) | 3 TB | 8,156 | 0 | 0 | ✅ OK |
+
+Additional SMART data collected from the **i7-7700K Desktop** (NVMe SSDs, via `smartctl` on Windows):
+
+| Device | Model | Size | Hours | Used | Temp | Spare | Health |
+|--------|-------|------|-------|------|------|-------|--------|
+| nvme0 | Samsung SSD 970 EVO 1TB | 1 TB | 12,943 | 770 GB / 1 TB | ⚠️ **66°C / 87°C** | 98% | ✅ PASSED |
+| nvme1 | Samsung SSD 960 EVO 500GB | 500 GB | 11,360 | 440 GB / 500 GB | ✅ 41°C / 50°C | 100% | ✅ PASSED |
+
+**Key NVMe findings:**
+- **970 EVO 1TB** has 48.8 TB written, 2% usage, 0 media errors. **Temperature sensor 2 reads 87°C** — above the critical threshold (85°C). Check case airflow around the M.2 slot.
+- **960 EVO 500GB** has 30.5 TB written, 5% usage, 0 media errors. **226 unsafe shutdowns** — significantly more than the 970 EVO (39). D: drive has seen many power losses.
 
 **Key decisions driven by SMART data:**
 - **sde (Toshiba P300)** was critically failing (2,001 reallocated sectors + 32 pending, SMART: "FAILING_NOW") → zeroed with `dd if=/dev/zero of=/dev/sde bs=1M` and physically removed from the SilverStone enclosure
@@ -357,6 +369,8 @@ Proxmox Host (hostname TBD):
 | Device | Phase 1 Role | Phase 2 Role | Age |
 |--------|-------------|-------------|-----|
 | **Intel i7-7700K** + RX 7600 + 48 GB DDR4 | Primary server — Debian + Docker (LLM, DNS, AI) | Retired or repurposed | ~7 years |
+| **Samsung SSD 970 EVO 1TB** | i7-7700K OS + Docker boot drive | Boot + apps | ~1.5 years |
+| **Samsung SSD 960 EVO 500GB** | i7-7700K bulk data drive | Bulk data | ~1.3 years |
 | **HP MicroServer Gen8** (Xeon E3, 12 GB RAM) | Main ZFS server — tank mirror + backup RAIDZ2 | Stays as storage server | ~10-12 years |
 | **Crucial MX300 525 GB (SSD)** | Gen8 boot drive | Boot | ~6 years |
 | **HGST 4TB + Seagate IronWolf Pro 4TB** | tank pool (mirror) | Primary storage | New + ~7 years |
