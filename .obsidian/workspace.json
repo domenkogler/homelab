@@ -16,8 +16,8 @@
                 "file": "docs/technical/Rack.canvas",
                 "viewState": {
                   "x": -720,
-                  "y": -1890,
-                  "zoom": -0.35383283722907194
+                  "y": -1634,
+                  "zoom": 0
                 }
               },
               "icon": "lucide-layout-dashboard",
@@ -97,6 +97,7 @@
             "state": {
               "type": "backlink",
               "state": {
+                "file": "docs/technical/Rack.canvas",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -106,7 +107,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks"
+              "title": "Backlinks for Rack"
             }
           },
           {
@@ -170,8 +171,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "left-ribbon": {
     "hiddenItems": {
