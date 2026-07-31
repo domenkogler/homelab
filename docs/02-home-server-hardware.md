@@ -8,9 +8,10 @@
 ## Strategy
 
 - **Centralized LLM:** All AI/ML workloads run here (voice STT/TTS, LLM inference, office AI tools)
-- **Two-phase approach:**
-  1. **Phase 1 (Immediate):** Use **all existing hardware** — no new purchases. The i7-7700K serves as the primary Debian desktop + Docker host; the HP MicroServer Gen8 serves as backup target / NAS; the SilverStone TS43xx provides bulk storage. See [Phase 1: Existing Hardware](#phase-1-existing-hardware-immediate) below.
-  2. **Phase 2 (Future):** If the RX 7600 GPU is insufficient for LLM workloads → buy the dedicated Ryzen server (priced out for budget awareness). See [Phase 2: Target Build](#phase-2-target-build-if-phase-1-is-insufficient).
+- **Phased approach:**
+  1. **Phase 1 (Immediate):** Use **all existing hardware** — no new purchases. The i7-7700K serves as the **sole Docker host** running ALL homelab services: public web stack (Traefik, Authentik, OpenCloud, Immich), AI/LLM (Ollama, Immich-ML), DNS (Technitium, Pi-hole), Git (Forgejo), VPN (Headscale), backup (Kopia), observability (Grafana, InfluxDB), and family dashboard (Homepage). The HP MicroServer Gen8 serves as dedicated ZFS storage server. **No VPS, no new hardware.** See [Phase 1: Existing Hardware](#phase-1-existing-hardware-immediate) below.
+  2. **Phase 2 (Scale-up):** If the i7-7700K is insufficient → either activate a Contabo VPS (see [03](03-vps-infrastructure.md)), build the dedicated Ryzen/Proxmox server (priced out below), or both. The Doco-CD deployment layer is fully portable across all targets: same compose files, same `.doco-cd.yml`, same Git repo.
+  3. **Phase 3 (Co-existence):** Services can be selectively migrated: latency-sensitive AI stays on bare metal, public web stack moves to VPS, or everything consolidates on Proxmox. No architecture changes needed — compose files and Doco-CD config are host-agnostic. See [Phase 2: Target Build](#phase-2-target-build-if-phase-1-is-insufficient).
 
 ---
 
@@ -20,7 +21,7 @@ This phase uses **all existing hardware** without any new purchases. Three machi
 
 | Machine | Role |
 |---------|------|
-| **i7-7700K Desktop** | Primary server — family PC + 24/7 Docker host (LLM, DNS, backup agent) |
+| **i7-7700K Desktop** | **Sole Docker host (Phase 1)** — family PC + 24/7 Docker host for ALL services: public web stack, AI/LLM, DNS, Git, VPN, backup, observability, CD pipeline. See [03](03-vps-infrastructure.md) for the service stack design (deferred VPS, currently deployed on debhost). |
 | **HP MicroServer Gen8** | Main ZFS storage server — tank mirror (4 TB) + backup RAIDZ2 (6 TB), NFS, Cockpit, iLO4 remote mgmt |
 | **SilverStone TS43xx** | Bulk storage enclosure — media archive, photo archive, cold data |
 
@@ -85,19 +86,44 @@ Docker containers start at boot via systemd units — **before any user logs in*
 - BIOS-level control, remote power/reset, virtual ISO mounting
 - Works even if Debian crashes (OS-independent)
 
-#### Docker Services (Phase 1)
+#### Docker Services — Complete Inventory (Phase 1)
 
-```
-Debian Host (i7-7700K):
-├─ ollama (Docker)          → LLM inference, GPU via /dev/dri + /dev/kfd
-├─ immich-ml (Docker)       → Face recognition, GPU via /dev/dri + /dev/kfd
-├─ headscale (Docker)       → Tailscale coordination server
-├─ technitium (Docker)      → Central DNS router (VLAN-aware)
-├─ pihole (Docker)          → Ad-blocking DNS
-├─ sunshine (Docker)        → Game streaming (manual start, secondary priority)
-├─ kopia (Docker)           → Off-site backup agent → iDrive e2
-├─ sanoid/syncoid (cron)    → ZFS snapshots + replication to HP Gen8
-```
+debhost runs **all** homelab Docker services — previously split between Contabo VPS and home server, now consolidated on bare-metal Debian with **Doco-CD** for GitOps deployment.
+
+| Category | Service | GPU | Network | Description |
+|----------|---------|-----|---------|-------------|
+| **Edge** | Traefik | No | traefik-public | Reverse proxy, auto-SSL, Forward Auth middleware |
+| **Edge** | CrowdSec | No | traefik-public | WAF, brute-force protection, community blocklist |
+| **Identity** | Authentik | No | services-internal | OIDC SSO, MFA (WebAuthn), Forward Auth for all apps |
+| **Platform** | OpenCloud | No | services-internal | File sync, WebDAV, OIDC, Windows Explorer + Android |
+| **Platform** | Immich | No | services-internal | Photo management, mobile apps, remote ML capable |
+| **Platform** | Forgejo | No | services-internal | Git hosting, Issues, PRs, Actions runner available |
+| **AI** | Ollama | **Yes** | services-internal | LLM inference (Qwen, Llama), `/dev/dri` + `/dev/kfd` |
+| **AI** | Immich-ML | **Yes** | services-internal | Face recognition, object detection, smart search |
+| **DNS** | Technitium | No | services-internal | Central DNS router, VLAN-aware, DHCP |
+| **DNS** | Pi-hole | No | services-internal | Ad-blocking DNS, upstream → Technitium |
+| **VPN** | Headscale | No | traefik-public | Tailscale coordination server, WireGuard mesh |
+| **Backup** | Kopia | No | services-internal | Encrypted off-site backup → iDrive e2 (S3) |
+| **Backup** | DB Backup | No | db-internal | Database dumps (tiredofit/db-backup), pre-Kopia |
+| **Dashboard** | Homepage | No | traefik-public | Family launchpad at `kogler.si`, health dots |
+| **Observe** | Grafana | No | traefik-public | Analytics dashboards, provisioned JSON |
+| **Observe** | InfluxDB | No | db-internal | Time-series metrics storage |
+| **Observe** | Prometheus | No | db-internal | Metrics collection, Doco-CD + Docker targets |
+| **Observe** | Loki | No | db-internal | Log aggregation |
+| **CD** | Doco-CD | No | host docker.sock | GitOps continuous delivery, drift correction |
+| **Update** | Renovate Bot | No | services-internal | Docker image version tracking, 3-day hold, auto-PR |
+| **Stream** | Sunshine | **Yes** | services-internal | Game streaming (manual start, secondary priority) |
+| **System** | sanoid/syncoid | No | host (cron) | ZFS snapshots + replication to HP Gen8 |
+
+> **Total: 22+ Docker services on debhost.** See [03](03-vps-infrastructure.md) for the service stack design (deferred VPS) and [09](09-architecture-overview.md) for the full architecture.
+
+#### Docker Networks
+
+| Network | CIDR | Purpose |
+|---------|------|---------|
+| traefik-public | 172.20.0.0/16 | Traefik ↔ exposed services |
+| services-internal | 172.21.0.0/16 | App ↔ app communication |
+| db-internal | 172.22.0.0/16 | Databases, fully isolated |
 
 ---
 
@@ -326,21 +352,28 @@ Additional SMART data collected from the **i7-7700K Desktop** (NVMe SSDs, via `s
 
 ### VM/LXC Layout
 
+> **Phase 2 Docker strategy:** Doco-CD + Docker run inside a dedicated VM (or LXC).
+> All compose files and `.doco-cd.yml` are identical to Phase 1 — the CD layer doesn't change.
+
 ```
 Proxmox Host (hostname TBD):
-├─ LXC: ollama (unprivileged, GPU mapped via AMD ROCm)
-│   └─ Ollama, Whisper STT, Piper TTS, LLM models
-├─ LXC: docker-host
-│   ├─ Home Assistant (or dedicated LXC?)
-│   ├─ Headscale
-│   ├─ Technitium DNS
-│   ├─ n8n (office automation)
-│   └─ Grafana + InfluxDB (monitoring)
+├─ VM: docker-host (Docker + Doco-CD)
+│   ├─ Edge: Traefik, CrowdSec
+│   ├─ Identity: Authentik
+│   ├─ Platform: OpenCloud, Immich, Forgejo
+│   ├─ AI: Ollama, Immich-ML (GPU passthrough)
+│   ├─ DNS: Technitium, Pi-hole
+│   ├─ VPN: Headscale
+│   ├─ Backup: Kopia, DB Backup
+│   ├─ Observe: Grafana, InfluxDB, Prometheus, Loki
+│   └─ Dashboard: Homepage
+├─ LXC: home-assistant (backup to RPi 4 primary)
+├─ LXC: n8n (office automation)
 ├─ VM/LXC: steam-streaming (GPU shared if possible)
 ├─ (future) VM: Windows/Linux lab VMs
 └─ Storage:
-    ├─ NVMe Gen5 2TB → LXC root disks, DBs, LLM models
-    └─ NVMe Gen5 4TB → media files (if not on VPS)
+    ├─ NVMe Gen5 2TB → VM root disks, DBs, LLM models
+    └─ NVMe Gen5 4TB → media files
 ```
 
 ### GPU Strategy
@@ -368,7 +401,7 @@ Proxmox Host (hostname TBD):
 
 | Device | Phase 1 Role | Phase 2 Role | Age |
 |--------|-------------|-------------|-----|
-| **Intel i7-7700K** + RX 7600 + 48 GB DDR4 | Primary server — Debian + Docker (LLM, DNS, AI) | Retired or repurposed | ~7 years |
+| **Intel i7-7700K** + RX 7600 + 48 GB DDR4 | **Sole Docker host** — all 22+ services, family PC, Doco-CD pipeline | Migrate to Phase 2 Proxmox, or split with VPS | ~7 years |
 | **Samsung SSD 970 EVO 1TB** | i7-7700K OS + Docker boot drive | Boot + apps | ~1.5 years |
 | **Samsung SSD 960 EVO 500GB** | i7-7700K bulk data drive | Bulk data | ~1.3 years |
 | **HP MicroServer Gen8** (Xeon E3, 12 GB RAM) | Main ZFS server — tank mirror + backup RAIDZ2 | Stays as storage server | ~10-12 years |

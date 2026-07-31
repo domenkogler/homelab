@@ -1,5 +1,11 @@
 # VPS Infrastructure
 
+> **Status: Deferred to Phase 2+.** In Phase 1, all services described in this document run on the **debhost** (i7-7700K) bare-metal Debian server instead of Contabo VPS. See [02-home-server-hardware.md](02-home-server-hardware.md) for the current deployment target and [09-architecture-overview.md](09-architecture-overview.md) for the full architecture.
+>
+> This document is retained as the **reference architecture** for the public-facing service stack. If Phase 1 hardware is outgrown, this plan can be activated on a VPS, a Phase 2 Proxmox build, or both. The Doco-CD deployment layer is fully portable — the same compose files and `.doco-cd.yml` deploy identically on any Docker host.
+>
+> **Phase 1 difference:** Immich ML is co-located with Immich on debhost (no "remote ML"). The remote ML architecture is still supported if services split across hosts in the future.
+
 > **Canonical doc.** Merges: `družinski web sistem.md`, `Varnostni načrt za zaščito VPS.md`, `1password authentik.md`, `chosen db backup service.md`, VPS sections from `Home Lab & Family Network Architecture.md`.
 
 ---
