@@ -11,14 +11,10 @@
             "id": "a0866c10703b55a2",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "docs/02-home-server-hardware.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "02-home-server-hardware"
+              "title": "New tab"
             }
           }
         ]
@@ -96,7 +92,6 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/02-home-server-hardware.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -185,9 +180,48 @@
   },
   "active": "a0866c10703b55a2",
   "lastOpenFiles": [
-    "docs/03-vps-infrastructure.md",
-    "docs/09-architecture-overview.md",
     "docs/02-home-server-hardware.md",
+    "docs/manual/smart-home.md",
+    "docs/manual/contacts.md",
+    "docs/manual/restore-backup.md",
+    "docs/manual/server-restart.md",
+    "docs/manual/travel-router.md",
+    "docs/manual/vpn.md",
+    "docs/manual/opencloud.md",
+    "docs/manual/immich.md",
+    "docs/manual/desktop.md",
+    "docs/manual/wifi.md",
+    "docs/manual/05-vpn.md",
+    "docs/manual/04-opencloud.md",
+    "docs/manual/03-immich.md",
+    "docs/manual/02-desktop.md",
+    "docs/manual/01-wifi.md",
+    "docs/manual/README.md",
+    "docs/backup.md",
+    "docs/llm-office.md",
+    "docs/smart-home-audio.md",
+    "docs/smart-home-dashboards.md",
+    "docs/smart-home-voice.md",
+    "docs/smart-home.md",
+    "docs/deployment-interfaces.md",
+    "docs/deployment-renovate.md",
+    "docs/deployment-secrets.md",
+    "docs/assets/references/DOMENPC-cpuz.txt",
+    "docs/assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf",
+    "docs/assets/Network-Devices.canvas",
+    "docs/assets/Rack.canvas",
+    "docs/assets/images/wAP-ac.png",
+    "docs/assets/images/hAP-ac2.png",
+    "docs/assets/images/hAP-ac.png",
+    "docs/assets/images/RB4011.png",
+    "docs/assets/images/HMIP-HAP.png",
+    "docs/assets/images/Comtrend-GRG-4260us.png",
+    "docs/assets/images/CRS328.png",
+    "docs/assets/references",
+    "docs/assets/manuals",
+    "docs/assets/images",
+    "docs/assets",
+    "docs/manual",
     "docs/technical/Rack.canvas",
     "docs/technical/assets/PowerWalker VFI 3000 ICR IoT.pdf",
     "docs/technical/Network Devices.canvas",
@@ -195,18 +229,7 @@
     "docs/technical/WiFi devices 1.canvas",
     "docs/technical/assets/HMIP-HAP.png",
     "Pasted image 20260727131335.png",
-    "docs/technical/assets/Comtrend GRG-4260us.png",
-    "docs/technical/assets/CRS328.png",
-    "docs/technical/assets/hAP ac.png",
-    "docs/technical/assets/RB4011.png",
-    "docs/technical/assets/hAP ac2.png",
     "docs/technical/assets",
-    "docs/technical",
-    "Untitled.base",
-    "Untitled.md",
-    "docs/01-network-architecture.md",
-    "obsolete/network/Family VPN/docs/user-guide.md",
-    "Iaac/README.md",
-    "docs/_DEFERRED-family-documentation-plan.md"
+    "docs/technical"
   ]
 }

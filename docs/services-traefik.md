@@ -1,0 +1,98 @@
+# Traefik — Reverse Proxy & Edge
+
+> **Role:** Detail — reverse proxy configuration, SSL, CrowdSec, security headers.
+> **Links to:** `services-authentik.md`, `services.md`
+> **Linked from:** `services.md`, `deployment-compose.md`
+
+---
+
+## Responsibilities
+
+- **Reverse proxy** for all public-facing services
+- **Auto-SSL** via Let's Encrypt
+- **Forward Auth middleware** — delegates authentication to Authentik before traffic reaches apps
+- **CrowdSec integration** — WAF and brute-force protection
+
+---
+
+## Network
+
+- Container on `traefik-public` network (172.20.0.0/16)
+- Exposes ports 80, 443 on host
+
+---
+
+## Security Headers
+
+```yaml
+browserXssFilter: true
+contentTypeNosniff: true
+forceSTSHeader: true
+stsSeconds: 31536000
+stsIncludeSubdomains: true
+frameDeny: true
+X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
+```
+
+---
+
+## CrowdSec
+
+- Parses Authentik + Traefik logs
+- Community blocklist (IPs that attacked others)
+- Free for personal use
+- Container on `traefik-public` network
+
+---
+
+## Trusted Proxies (Critical)
+
+```
+AUTHENTIK_TRUSTED_PROXIES = <Traefik IP>, <Cloudflare IPs if used>
+```
+
+Without this, CrowdSec/Fail2Ban will block the proxy itself.
+
+---
+
+## Cloudflare (TBD)
+
+- **Not yet decided** — needs investigation
+- Option: proxy (orange cloud) hides real IP, WAF geo-blocking, DDoS absorption
+- Alternative: direct exposure with Traefik + CrowdSec only (simpler, no third party)
+
+---
+
+## Docker Compose Key Points
+
+```yaml
+services:
+  traefik:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - traefik-public
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+
+networks:
+  traefik-public:
+    external: true
+```
+
+---
+
+## Middleware Chain
+
+1. **CrowdSec bouncer** — blocks malicious IPs
+2. **Authentik Forward Auth** — redirects unauthenticated users to SSO
+3. **Security headers** — applied to all responses
+
+Traefik middleware prevents any traffic from reaching an app before authentication and WAF checks pass.
