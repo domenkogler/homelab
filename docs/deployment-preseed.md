@@ -198,8 +198,8 @@ Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
 ```
 IaC/host/
 ├── post_install.sh         # SHARED bootstrap — ansible-admin + ai-debug + sshd hardening (single copy for all hosts)
-├── nas/
-│   └── preseed.cfg          # Reference implementation for HP Gen8
-└── oldsrv/
-    └── preseed.cfg          # (to be generated)
+└── nas/
+    └── preseed.cfg          # Reference implementation for HP Gen8
+
+# oldsrv/preseed.cfg — deferred, not yet created (generated from this spec when Phase 1 deployment begins)
 ```

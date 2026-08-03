@@ -12,7 +12,7 @@
 |-------------|-------|------|
 | `router.kogler.si` | MikroTik RB4011iGS+ | PPPoE, VLAN routing, firewall, WireGuard server, CAPsMAN |
 | `switch.kogler.si` | MikroTik CRS328-24P-4S+ | Layer-2 VLAN-aware, PoE for APs, trunk via SFP+ |
-| APs | hAP ac, hAP ac² (×2 + 1 spare) | CAPsMAN-managed, all wired (no mesh) |
+| APs | wAP ac (garaža), hAP ac² (spalnica), hAP ac (dnevna) + spare hAP ac² | CAPsMAN-managed, all wired (no mesh) |
 
 ---
 
@@ -37,7 +37,7 @@ Internet → ONT → router ether1 (WAN)
         ┌───────────┼───────────┐
         │           │           │
     APs (PoE)   Wired devices  oldsrv (trunk)
-    hAP ac ×3   (access ports) VLAN 10,20,50 tagged
+  wAP ac + 2× hAP  (access ports) VLAN 10,20,50 tagged
                                VLAN 99 native (Mgmt)
 ```
 

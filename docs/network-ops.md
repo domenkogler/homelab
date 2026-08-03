@@ -10,7 +10,7 @@
 
 - **Host:** `router.kogler.si` (MikroTik RB4011iGS+)
 - `rb4011_initial.rsc` — fresh-start baseline (`IaC/router/rb4011_initial.rsc`)
-- Current config exported as `rb4011_config.rsc` → stored in `IaC/router/`
+- After changes, export the live config as `IaC/router/rb4011_config.rsc` and commit it (runtime snapshot — source of truth is `rb4011_initial.rsc` + the `router` Ansible role)
 - All config changes via **Ansible** or version-controlled `.rsc` snippets
 - Git-versioned in the homelab repo
 
@@ -18,7 +18,7 @@
 
 1. Modify `.rsc` snippet / Ansible role in the repo
 2. Apply via Ansible `router` role (REST API preferred) or WinBox import
-3. Export final config → commit `rb4011_config.rsc` to Git
+3. Export final config → commit `IaC/router/rb4011_config.rsc` to Git (runtime snapshot)
 
 ## Related
 

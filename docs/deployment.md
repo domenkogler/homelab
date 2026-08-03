@@ -64,7 +64,6 @@ git push → Doco-CD webhook → docker compose build + up → deployed <5 min
 │   └── router/                              # RouterOS .rsc files
 │
 ├── docs/                                    # This documentation
-├── docker/                                  # Docker compose files (future)
 ├── .doco-cd.yml                             # Doco-CD deployment config
 └── renovate.json                            # Renovate Bot config
 ```

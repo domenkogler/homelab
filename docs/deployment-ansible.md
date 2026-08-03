@@ -35,7 +35,7 @@ IaC/ansible/
 ├── playbooks/
 │   ├── router.yml                   # hosts: router → role: router
 │   ├── vps.yml                      # hosts: vps → common→docker→network→kopia→docker_services→monitoring
-│   ├── home_servers.yml             # hosts: home_servers → common→docker→network→amd_rocm→[desktop,office]→kopia→docker_services→monitoring
+│   ├── home_servers.yml             # hosts: home_servers → common→ai_diag→docker→network→amd_rocm→[desktop,office]→kopia→docker_services→home_assistant→monitoring
 │   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→network→home_assistant→monitoring
 │   └── all.yml                      # Cross-cutting: /etc/hosts sync
 ├── group_vars/
@@ -59,8 +59,7 @@ IaC/ansible/
 │   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
 │   ├── home_assistant/tasks/main.yml# HA on Pi + cold-standby template
 │   ├── docker_services/tasks/main.yml # THE key role — generic service deployer
-│   ├── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana; blackbox; HA exporter
-│   ├── alerting/tasks/main.yml      # Grafana Alerting → n8n → Signal/email; self-monitoring
+│   ├── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana + alerting; blackbox; HA exporter
 │   └── ai_diag/                     # ai-debug diagnostics dispatcher + sudoers
 │       ├── tasks/main.yml
 │       └── files/ai-diag
@@ -214,18 +213,14 @@ local_domain: kogler.si
 - **Alloy:** host agent (Ansible-installed, not containerized) — host metrics, container logs (`docker.sock`), SNMP scrape
 - **Prometheus:** sole metrics backend, retention 30d, `db-internal`
 - **Loki:** single-node/SSD log store, retention 14d
-- **Grafana:** provisioned dashboard JSON; datasources = Prometheus + Loki; Authentik OIDC, admin-only
+- **Grafana:** provisioned dashboards + alert rules; datasources = Prometheus + Loki; Authentik OIDC, admin-only
+- **Grafana Alerting:** 3 tiers (Critical/Warning/Info), poke interval ~30 min, self-monitoring rules
+- **Grafana-native SMTP:** fail-safe contact point in parallel with n8n (independent of n8n)
 - **blackbox-exporter:** external reachability → `probe_success`
 - **HA exporter:** enable HA `/api/prometheus` (bearer token from 1Password); Prometheus scrape job
 - **SNMP:** MikroTik SNMP for traffic metrics, poll **5–15 s**
-- **Ordering:** run **after** `docker_services` (needs Prometheus/Loki up)
-
-### `alerting`
-- **Grafana Alerting:** 3 tiers (Critical/Warning/Info), poke interval ~30 min, self-monitoring rules
-- **n8n** (Docker service): webhook receiver + normalizer/router → Signal + email
-- **signal-cli-rest-api:** link to personal Signal device (QR), dedicated "Homelab Alerts" group; persist identity volume
-- **Email fail-safe:** Grafana-native SMTP contact point in parallel (independent of n8n)
-- **Ordering:** after `monitoring`
+- **Alert delivery:** n8n + signal-cli-rest-api are Docker services (see `group_vars/home_servers.yml`), deployed by `docker_services` — they handle webhook routing, dedup, and Signal notification at runtime
+- **Ordering:** run **after** `docker_services` (needs Prometheus/Loki/n8n up)
 
 ### `ai_diag`
 - **Deploy:** `/usr/local/sbin/ai-diag` + `/etc/sudoers.d/ai-diag` (single NOPASSWD entry for `ai-debug`)
@@ -288,13 +283,12 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | Step | Role | Depends On |
 |------|------|------------|
 | 1 | `common` + `docker` + `network` | None |
-| 2 | `router` | `network` (IPs/VLANs defined) |
-| 3 | `docker_services` (core loop + systemd) | `docker`, `network` |
-| 4 | Service templates (canonical list — see services.md) | `docker_services` |
+| 2 | `ai_diag` | `common` |
+| 3 | `amd_rocm` | `common` |
+| 4 | `docker_services` (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
 | 5 | `kopia` | `docker` |
-| 6 | `amd_rocm` | `common` |
-| 7 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
-| 8 | `home_assistant` | `docker` |
-| 9 | `monitoring` | `docker_services` (Prometheus/Loki up) |
-| 10 | `alerting` | `monitoring` (Grafana up) |
-| 11 | `proxmox` (Phase 2) | `network` |
+| 6 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
+| 7 | `home_assistant` | `docker` |
+| 8 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) |
+| 9 | `router` | `network` (IPs/VLANs defined) |
+| 10 | `proxmox` (Phase 2) | `network` |

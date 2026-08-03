@@ -79,7 +79,7 @@ Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
 
 ## Local Name Resolution & mDNS
 
-- **DHCP lease integration:** Technitium queries RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records
+- **DHCP lease integration:** Technitium queries RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records. Technitium runs on oldsrv (Management VLAN 99, native trunk) — same VLAN as the router's management interface, so no inter-VLAN firewall rule is needed.
 - **mDNS reflector:** Technitium bridges `.local` names across all VLANs (RouterOS built-in mDNS is bridge-wide only, cannot cross VLANs)
 
 ---

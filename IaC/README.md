@@ -35,7 +35,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   ├── test-1password.yml              # Quick 1Password connectivity test
 │   │   ├── playbooks/
 │   │   │   ├── router.yml                  # hosts: router → role: router
-│   │   │   ├── vps.yml                     # hosts: vps → common→docker→network→proxmox→kopia→docker_services→monitoring
+│   │   │   ├── vps.yml                     # hosts: vps → common→docker→network→kopia→docker_services→monitoring
 │   │   │   ├── home_servers.yml            # hosts: home_servers → common→ai_diag→docker→network→amd_rocm→[desktop,office]→kopia→docker_services→home_assistant→monitoring
 │   │   │   ├── raspberry_pi.yml            # hosts: raspberry_pi → common→network→home_assistant→monitoring
 │   │   │   └── all.yml                     # Cross-cutting: /etc/hosts sync
@@ -68,7 +68,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   │   │   ├── sunshine/
 │   │   │   │   ├── kopia-agent/
 │   │   │   │   └── home-assistant-standby/
-│   │   │   │   # TODO (create): homepage/, renovate/ — services in docs/services.md
+│   │   │   │   # TODO (create): homepage/, renovate/, doco-cd/, prometheus/, loki/, blackbox-exporter/, signal-cli-rest-api/ — see home_servers.yml
 │   │   │   ├── homepage_services.yaml.j2    # Homepage layout (auto-generated)
 │   │   │   ├── homepage_widgets.yaml.j2     # Homepage status widgets
 │   │   │   └── inventory.md.j2              # Service inventory table (auto-generated)
@@ -84,8 +84,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │       ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
 │   │       ├── home_assistant/tasks/main.yml# HA on Pi (OIDC SSO w/ Authentik) + cold-standby
 │   │       ├── docker_services/tasks/main.yml # THE key role — generic service deployer
-│   │       ├── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana; blackbox; HA exporter
-│   │       ├── alerting/tasks/main.yml      # Grafana Alerting → n8n → Signal/email; self-monitoring
+│   │       ├── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana + alerting; blackbox; HA exporter
 │   │       └── ai_diag/                     # ai-debug diagnostics dispatcher + sudoers
 │   │           ├── tasks/main.yml
 │   │           └── files/ai-diag
@@ -108,7 +107,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 └── README.md                               # Repo root (you are here)
 ```
 
-> **Note:** `docs/` and `manual/` are the canonical, currently maintained documentation. This file documents the *intended* IaC implementation. Missing templates (homepage, renovate) and role stubs (TODO) are created as services are deployed.
+> **Note:** `docs/` and `manual/` are the canonical, currently maintained documentation. This file documents the *intended* IaC implementation. Missing templates (homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api) and role stubs are created as services are deployed — see TODO in `group_vars/home_servers.yml`.
 
 ---
 
@@ -178,18 +177,15 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Alloy:** host agent (Ansible-installed, not containerized) — host metrics, container logs (`docker.sock`), SNMP; remote-write → Prometheus, logs → Loki
 - **Prometheus:** sole metrics store, 30 d retention, `db-internal`
 - **Loki:** single-node/SSD log store, 14 d retention
-- **Grafana:** provisioned dashboards; datasources = Prometheus + Loki; Authentik OIDC; **admin-only, internal** (`stats.kogler.si`)
+- **Grafana:** provisioned dashboards + alert rules; datasources = Prometheus + Loki; Authentik OIDC; **admin-only, internal** (`stats.kogler.si`)
+- **Grafana Alerting:** 3 tiers (Critical/Warning/Info), ~30 min poke, self-monitoring rules
+- **Grafana-native SMTP:** fail-safe contact point in parallel with n8n
 - **blackbox-exporter:** external reachability → `probe_success`
 - **HA exporter:** HA `/api/prometheus` (bearer token from 1Password); Prometheus scrape
 - **SNMP:** MikroTik poll 5–15 s
+- **Alert delivery:** n8n + signal-cli-rest-api are Docker services in `group_vars/home_servers.yml`, deployed by the `docker_services` role — they handle webhook routing, dedup, and Signal notification at runtime
 - **Ordering:** after `docker_services`
 - **Secrets:** `ha_exporter_token`, `grafana_admin_password`, `grafana_smtp_password`
-
-### `alerting`
-- Grafana Unified Alerting → n8n webhook → Signal + email (Grafana-native SMTP fail-safe in parallel)
-- Tiers Critical/Warning/Info; ~30 min poke; self-monitoring rules
-- `signal-cli-rest-api` linked to personal device → "Homelab Alerts" group
-- **Ordering:** after `monitoring`
 
 ### `ai_diag`
 - `/usr/local/sbin/ai-diag` + `/etc/sudoers.d/ai-diag` (single NOPASSWD entry for `ai-debug`)
@@ -296,20 +292,19 @@ See `docs/deployment-secrets.md` for the full list (including `cloudflare_api_to
 | Step | What | Depends On |
 |------|------|------------|
 | 1 | `common` + `docker` + `network` roles | None — base OS |
-| 2 | `router` role (+ `.rsc`) | `network` (IPs/VLANs defined) |
-| 3 | `docker_services` role (core loop + systemd) | `docker`, `network` |
-| 4 | Home-server service templates | `docker_services`, `amd_rocm` |
+| 2 | `ai_diag` role | `common` |
+| 3 | `amd_rocm` role | `common` |
+| 4 | `docker_services` role (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
 | 5 | `kopia` role | `docker` |
-| 6 | `amd_rocm` role | `common` |
-| 7 | `desktop` + `office` roles | `amd_rocm` (dual-GPU Xorg) |
-| 8 | `home_assistant` role (Pi + cold standby) | `docker` |
-| 9 | `monitoring` role | `docker_services` |
-| 10 | `alerting` role | `monitoring` |
-| 11 | `proxmox` (Phase 2) | `network` |
-| 12 | Renovate + Homepage templates | `docker_services` |
-| 13 | Post-deploy hooks (Homepage + inventory) | `docker_services` |
-| 14 | Forgejo Actions workflow (`.forgejo/workflows/deploy.yml`) | all roles |
-| 15 | End-to-end test: Renovate → PR → Actions → Deploy | everything |
+| 6 | `desktop` + `office` roles | `amd_rocm` (dual-GPU Xorg) |
+| 7 | `home_assistant` role (Pi + cold standby) | `docker` |
+| 8 | `monitoring` role (incl. Grafana alerting rules + SMTP) | `docker_services` |
+| 9 | `router` role (+ `.rsc`) | `network` (IPs/VLANs defined) |
+| 10 | `proxmox` (Phase 2) | `network` |
+| 11 | Renovate + Homepage templates | `docker_services` |
+| 12 | Post-deploy hooks (Homepage + inventory) | `docker_services` |
+| 13 | Forgejo Actions workflow (`.forgejo/workflows/deploy.yml`) | all roles |
+| 14 | End-to-end test: Renovate → PR → Actions → Deploy | everything |
 
 ---
 

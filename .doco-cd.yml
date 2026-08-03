@@ -1,0 +1,16 @@
+# Doco-CD deployment configuration
+# See docs/deployment.md for the GitOps / Doco-CD flow.
+# TODO: define watch paths, deploy commands, and post-deploy hooks.
+# 
+# Expected structure:
+#   watch:
+#     paths:
+#       - IaC/ansible/templates/docker_services/
+#   deploy:
+#     command: docker compose -f /opt/<service>/docker-compose.yml up -d
+#   hooks:
+#     post_deploy:
+#       - render homepage config
+#       - render inventory docs
+#       - reload homepage
+#       - commit + push updated docs

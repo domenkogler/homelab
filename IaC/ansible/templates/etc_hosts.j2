@@ -1,0 +1,13 @@
+{{ ansible_managed | comment }}
+127.0.0.1   localhost
+::1         localhost ip6-localhost ip6-loopback
+
+# All *.kogler.si hostnames are resolved by Technitium DNS (split-horizon).
+# Static entries below are bootstrap-only — keep in sync with inventory.ini.
+# See docs/network-dns.md for the full DNS architecture.
+
+{% for host in groups['all'] %}
+{% if host != 'localhost' and hostvars[host].ansible_host is defined %}
+{{ hostvars[host].ansible_host }}  {{ host }}.{{ domain_public }} {{ host }}
+{% endif %}
+{% endfor %}

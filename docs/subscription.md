@@ -27,10 +27,6 @@
 
 See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 
----
-
----
-
 ## Planned Subscriptions
 
 | Service | Plan | Est. Cost | Status | Purpose |

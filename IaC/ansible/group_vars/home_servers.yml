@@ -6,18 +6,30 @@ gpu_vendor: amd
 ollama_keep_alive: 5m
 
 docker_services:
-  - name: ollama
-    template_dir: ollama
-  - name: immich-ml
-    template_dir: immich-ml
-  - name: headscale
-    template_dir: headscale
-  - name: technitium
-    template_dir: technitium
-  - name: pihole
-    template_dir: pihole
-  - name: sunshine
-    template_dir: sunshine
-    enabled: "{{ homelab_mode == 'desktop' }}"
-  - name: kopia-agent
-    template_dir: kopia-agent
+  # Edge
+  - { name: traefik,        template_dir: traefik }
+  - { name: crowdsec,       template_dir: crowdsec }
+  # Identity
+  - { name: authentik,      template_dir: authentik }
+  # Platform
+  - { name: opencloud,      template_dir: opencloud }
+  - { name: immich-app,     template_dir: immich-app }
+  - { name: forgejo,        template_dir: forgejo }
+  # AI
+  - { name: ollama,          template_dir: ollama }
+  - { name: immich-ml,       template_dir: immich-ml }
+  # DNS
+  - { name: technitium,      template_dir: technitium }
+  - { name: pihole,          template_dir: pihole }
+  # VPN
+  - { name: headscale,       template_dir: headscale }
+  # Backup
+  - { name: kopia-server,    template_dir: kopia-server }
+  - { name: db-backup,       template_dir: db-backup }
+  - { name: kopia-agent,     template_dir: kopia-agent }
+  # Dashboard & Automation
+  - { name: grafana,         template_dir: grafana }
+  - { name: n8n,             template_dir: n8n }
+  # Stream
+  - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
+  # TODO (create templates): homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api

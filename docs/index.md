@@ -68,7 +68,7 @@ docs/
 │
 ├── backup.md                              LAST: ZFS + Kopia, DR, restore drills
 │
-├── manual/                                Family guides (Slovenian, separate)
+├── manual/                                Family guides (Slovenian, ⚠️ not yet written — deferred)
 │   ├── README.md
 │   ├── wifi.md
 │   ├── desktop.md

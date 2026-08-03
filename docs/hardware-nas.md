@@ -93,7 +93,7 @@ Built-in — no external KVM needed.
 
 | Feature | Detail |
 |---------|--------|
-| iLO IP | 10.10.1.49 (VLAN 99) |
+| iLO IP | 10.10.99.49 (VLAN 99, planned — currently 10.10.1.49 on flat network) |
 | Firmware | 2.55 (Aug 2017) |
 | Access | Web UI HTTPS, Redfish API, SSH, IPMI |
 | iKVM | HTML5 remote console — BIOS-level, virtual ISO |
