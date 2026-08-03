@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # collect-smart-live.sh
-# Run from a SystemRescue live ISO on the HP MicroServer Gen8
+# Run from a SystemRescue live ISO on the NAS host (HP MicroServer Gen8)
 # with all HDDs connected (internal bays + SilverStone via miniSAS).
 #
 # Usage:
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 REPORT="/tmp/smart-report-$(date +%Y%m%d-%H%M%S).txt"
-HOSTNAME="${HOSTNAME:-hp-gen8}"
+HOSTNAME="${HOSTNAME:-nas}"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 log() { printf '%s\n' "$*" | tee -a "$REPORT"; }

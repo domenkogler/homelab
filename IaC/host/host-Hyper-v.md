@@ -38,7 +38,7 @@ Zakaj: TPM (Trusted Platform Module) je nujen za sisteme, kot je Windows 11 (zar
 **5. Korak: Namestitev Debiana**
 
 Zaženite VM in sledite namestitvi.
-1. hostname: deblab.kogler.si
+1. hostname: `test.kogler.si`  (disposable Hyper-V sandbox — NOT part of the managed homelab inventory)
 2. domen account
 3. disk: entire & lvm & all files in one partitionm
 4. le **SSH Server** in **Standard system utilities.**
