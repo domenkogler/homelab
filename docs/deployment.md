@@ -59,7 +59,8 @@ git push → Doco-CD webhook → docker compose build + up → deployed <5 min
 │   │   ├── roles/                           # 13 roles (see deployment-ansible.md)
 │   │   └── templates/                       # docker-compose + homepage + inventory
 │   ├── host/                                # OS configs
-│   │   └── gen8/                            # preseed.cfg + post_install.sh (sample)
+│   │   ├── post_install.sh                  # Shared bootstrap — single copy for all hosts
+│   │   └── gen8/                            # preseed.cfg (sample)
 │   └── router/                              # RouterOS .rsc files
 │
 ├── docs/                                    # This documentation

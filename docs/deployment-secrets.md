@@ -24,6 +24,7 @@
 | **Resolved at deploy time** | Ansible templates call `lookup('onepassword', ...)` — secrets fetched at render time, never cached |
 | **Doco-CD integration** | Service Account token with minimum-scope vault access. Secrets resolved at deploy, never on disk |
 | **1Password CLI** | Installed on management laptop + Actions runner. `op` CLI + `OP_SERVICE_ACCOUNT_TOKEN` |
+| **1Password SSH agent** | Private keys never on disk — served from `Homelab` vault on demand. See SSH Key Separation below |
 
 ---
 
@@ -33,7 +34,9 @@ All secrets in `Homelab` vault. Pattern: `<service>_<type>`.
 
 | Secret Name | Used By |
 |-------------|---------|
-| `admin_laptop_ssh_pubkey` | post_install.sh (ED25519 public key) |
+| `admin_laptop_ssh_pubkey` | post_install.sh — personal key → `ansible-admin` |
+| `ssh_ansible_pubkey` | post_install.sh — dedicated Ansible key → `ansible-admin` |
+| `ssh_ai_pubkey` | post_install.sh — AI debug key (`openrouter_ai`) → `ai-debug` |
 | `kopia_master_password` | kopia, kopia-agent, kopia-server |
 | `authentik_pg_password` | authentik |
 | `authentik_secret_key` | authentik |
@@ -52,6 +55,70 @@ All secrets in `Homelab` vault. Pattern: `<service>_<type>`.
 
 ---
 
+## SSH Key Separation
+
+Three independent ED25519 keys, one per purpose. Separate keys = revoke/rotate one without affecting the others, and audit which key was used.
+
+| Key (1Password item) | Authorized user on hosts | Access level |
+|----------------------|--------------------------|--------------|
+| `admin_laptop_ssh_pubkey` (private: personal) | `ansible-admin` | Full (NOPASSWD sudo) |
+| `ssh_ansible_pubkey` | `ansible-admin` | Full (NOPASSWD sudo) |
+| `ssh_ai_pubkey` (`openrouter_ai`) | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |
+
+**The same three keys are authorized on every homelab host** (gen8, debhost, ...).
+
+**AI access is safe because it is a different user.** The AI key can never log in as `ansible-admin` (which has passwordless root). The `ai-debug` authorized_keys line is injected by `post_install.sh`:
+
+```
+restrict,no-agent-forwarding,no-port-forwarding,no-X11-forwarding,from="10.10.0.0/16" ssh-ed25519 <AI_PUBKEY> openrouter_ai
+```
+
+**1Password SSH agent:** private keys never exist on disk — served on demand from the `Homelab` vault (Settings → Developer → SSH agent, socket path). Create the `.pub` reference files once in `~/.ssh/` (the agent reads them to identify items). Laptop `~/.ssh/config`:
+
+```
+Host gen8 gen8-ansible gen8-ai
+  IdentityAgent <1Password SSH agent socket>
+
+Host gen8              # personal key
+  User ansible-admin
+  IdentityFile ~/.ssh/admin_laptop.pub
+  IdentitiesOnly yes
+
+Host gen8-ansible      # dedicated Ansible key
+  HostName gen8
+  User ansible-admin
+  IdentityFile ~/.ssh/ansible.pub
+  IdentitiesOnly yes
+
+Host gen8-ai           # AI debugging — tell the AI: "use ssh gen8-ai"
+  HostName gen8
+  User ai-debug
+  IdentityFile ~/.ssh/openrouter_ai.pub
+  IdentitiesOnly yes
+  ForwardAgent no
+  ForwardX11 no
+```
+
+After a host reinstall the host key changes — run `ssh-keygen -R gen8` (or `-R debhost`) once on the laptop.
+
+---
+
+## AI Diagnostics Access (`ai-diag`)
+
+For disk-failure forensics, `ai-debug` gets **exactly one** sudo entry — a locked-down dispatcher, never a shell:
+
+```
+# /etc/sudoers.d/ai-diag  (deployed by Ansible role `ai_diag`, mode 0440)
+ai-debug ALL=(root) NOPASSWD: /usr/local/sbin/ai-diag *
+```
+
+- **No free-form flags.** In sudoers `*` is greedy and matches spaces, so a bare `smartctl *` would allow `smartctl -a /dev/sda -s off`. The dispatcher runs only fixed command lines with regex-validated `/dev/` or identifier arguments — flag smuggling is impossible.
+- **Runtime contract:** the AI runs `sudo ai-diag help` to see everything it may do. Read-only SMART/ZFS/journal diagnostics, plus three non-destructive ops: `smart-test-short`, `smart-test-long`, `smart-test-abort`.
+- **Audited:** every invocation appears in the sudo + journal logs (`LogLevel VERBOSE`).
+- **Updating:** the script lives in the repo (`Iaac/ansible/roles/ai_diag/files/ai-diag`). Edit it → re-run the `ai_diag` role → hosts updated. No SSH gymnastics, no drift.
+
+---
+
 ## Passwordless-First Design
 
 ### For Family
@@ -66,7 +133,7 @@ All secrets in `Homelab` vault. Pattern: `<service>_<type>`.
 
 ### For Administration (Domen)
 
-- **SSH keys** — ED25519 key in 1Password, injected by post_install.sh
+- **SSH keys** — three separate ED25519 keys (personal / Ansible / AI) in 1Password, injected by post_install.sh. AI key restricted to the `ai-debug` user (no sudo, LAN-only, no forwarding)
 - **Ansible** — 1Password lookup at render time, no passwords in playbooks
 - **Doco-CD** — 1Password Service Account token, scoped to `Homelab` vault only
 - **Forgejo** — OIDC via Authentik, or deploy key with push access
@@ -99,3 +166,5 @@ This ensures no single point of failure: 1Password cloud + paper backup + Git mi
 | **Actions runner → 1Password** | Service Account token — stored as Forgejo secret |
 | **Homepage → internet** | Protected by Authentik Forward Auth |
 | **Renovate → Docker Hub** | Read-only registry access — no credentials for public images |
+| **AI → homelab hosts** | Dedicated `ai-debug` user — LAN-only (`from=`), no agent/port/X11 forwarding; sudo limited to the `ai-diag` allowlist (read-only diagnostics, see below) |
+| **Ansible → hosts** | Fail-closed guards (site.yml pre-flight + `common` role assert) — playbooks refuse to run as `ai-debug` or unknown users; sudo + docker group granted only to `ansible_admin_users` (`ansible-admin`, `pi`) |

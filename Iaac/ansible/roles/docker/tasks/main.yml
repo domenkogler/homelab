@@ -1,17 +1,17 @@
 ---
-- name: Ustvari mapo za ključe, če še ne obstaja
+- name: Create keyring directory if it does not exist
   file:
     path: /etc/apt/keyrings
     state: directory
     mode: '0755'
 
-- name: Prenesi uradni Docker GPG ključ
+- name: Download official Docker GPG key
   get_url:
     url: https://download.docker.com/linux/debian/gpg
     dest: /etc/apt/keyrings/docker.asc
     mode: '0644'
 
-- name: Dodaj uradni Docker repozitorij preko DEB822 standarda
+- name: Add official Docker repository via DEB822 standard
   deb822_repository:
     name: docker
     types: [deb]
@@ -21,20 +21,22 @@
     signed_by: /etc/apt/keyrings/docker.asc
     state: present
 
-- name: Namesti Docker komponente
+- name: Install Docker components
   apt:
     name: [docker-ce, docker-ce-cli, containerd.io, docker-buildx-plugin, docker-compose-plugin, python3-docker]
     state: present
     update_cache: true
 
-- name: Zagotovi, da Docker servis teče v ozadju
+- name: Ensure Docker service is running
   systemd:
     name: docker
     state: started
     enabled: true
 
-- name: Dodaj trenutnega uporabnika v docker skupino
+- name: Add current user to docker group
   user:
     name: "{{ ansible_user }}"
     groups: docker
     append: true
+  # docker group ≈ root — only whitelisted admin users, never ai-debug
+  when: ansible_user in ansible_admin_users

@@ -2,6 +2,29 @@
 # site.yml — Master orchestration playbook
 # Import per-group playbooks. Run: ansible-playbook site.yml -i inventory.ini
 
+# ---------------------------------------------------------------------
+# Pre-flight safety check: refuse runs as ai-debug or unknown users.
+# Scoped to the Linux host groups that receive sudo via the common role.
+# Excludes: router (network_cli, no sudo grants) and localhost.
+# VPS (Phase 2): add to this list + set ansible_user once it is active —
+# its common-role guard already fails closed in the meantime.
+# The common role repeats this guard for direct playbook/role runs.
+# ---------------------------------------------------------------------
+- name: Safety check — only whitelisted admin users may run Ansible
+  hosts: home_servers:raspberry_pi
+  gather_facts: false
+  tasks:
+    - name: Refuse Ansible runs as ai-debug or unknown users
+      assert:
+        that:
+          - ansible_user is defined
+          - ansible_user in ansible_admin_users
+        fail_msg: >-
+          Refusing to run as '{{ ansible_user | default('(undefined)') }}'.
+          Allowed admin users: {{ ansible_admin_users | join(', ') }}.
+          The ai-debug user must never run Ansible — it would gain
+          passwordless root via the common role.
+
 - name: Configure MikroTik Router
   import_playbook: playbooks/router.yml
 

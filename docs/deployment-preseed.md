@@ -13,7 +13,7 @@ These two files automate a fully unattended Debian installation:
 - **`preseed.cfg`** — answers all Debian installer questions (locale, partitioning, users, packages, GRUB)
 - **`post_install.sh`** — runs after base install: Python, SSH key injection, sudo config for Ansible
 
-Reference implementation: [`Iaac/host/gen8/preseed.cfg`](../../Iaac/host/gen8/preseed.cfg) and [`post_install.sh`](../../Iaac/host/gen8/post_install.sh)
+Reference implementation: [`Iaac/host/gen8/preseed.cfg`](../../Iaac/host/gen8/preseed.cfg) and the **shared** [`Iaac/host/post_install.sh`](../../Iaac/host/post_install.sh) — one copy for all hosts.
 
 ---
 
@@ -101,34 +101,66 @@ d-i preseed/late_command string \
     in-target /bin/bash /tmp/post_install.sh
 ```
 
+> **Media layout:** when assembling the install media, place the shared `post_install.sh` where the late_command expects it (`preseed/post_install.sh` on the media), alongside the per-host `preseed.cfg`.
+
 ---
 
 ## post_install.sh — Required Steps
 
 ```bash
 #!/bin/bash
-# 1. Update + install Python (Ansible requirement)
+set -euo pipefail
+
+# 1. Python (Ansible requirement)
 apt-get update && apt-get install -y python3 python3-pip sudo openssh-server
 
-# 2. SSH key injection for ansible-admin
-mkdir -p /home/ansible-admin/.ssh
-chmod 700 /home/ansible-admin/.ssh
-echo "<ED25519_PUBLIC_KEY from 1Password>" >> /home/ansible-admin/.ssh/authorized_keys
+# 2. ansible-admin (created by preseed) — personal + Ansible keys
+mkdir -p /home/ansible-admin/.ssh && chmod 700 /home/ansible-admin/.ssh
+echo "ssh-ed25519 <PERSONAL_PUBKEY_FROM_1PASSWORD> admin@laptop" >> /home/ansible-admin/.ssh/authorized_keys
+echo "ssh-ed25519 <ANSIBLE_PUBKEY_FROM_1PASSWORD> ansible"       >> /home/ansible-admin/.ssh/authorized_keys
 chmod 600 /home/ansible-admin/.ssh/authorized_keys
 chown -R ansible-admin:ansible-admin /home/ansible-admin/.ssh
-
-# 3. Passwordless sudo for Ansible
 echo "ansible-admin ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/ansible-admin
 chmod 0440 /etc/sudoers.d/ansible-admin
 
-# 4. Cleanup
+# 3. ai-debug user — AI debugging only, NO sudo
+useradd -m -s /bin/bash ai-debug
+mkdir -p /home/ai-debug/.ssh && chmod 700 /home/ai-debug/.ssh
+echo 'restrict,no-agent-forwarding,no-port-forwarding,no-X11-forwarding,from="10.10.0.0/16" ssh-ed25519 <AI_PUBKEY_FROM_1PASSWORD> openrouter_ai' \
+  >> /home/ai-debug/.ssh/authorized_keys
+chmod 600 /home/ai-debug/.ssh/authorized_keys
+chown -R ai-debug:ai-debug /home/ai-debug/.ssh
+
+# 4. sshd hardening (all homelab hosts)
+cat >> /etc/ssh/sshd_config <<'EOF'
+PasswordAuthentication no
+PermitRootLogin no
+PubkeyAuthentication yes
+LogLevel VERBOSE
+AllowUsers ansible-admin ai-debug
+EOF
+systemctl restart ssh
+
+# 5. Cleanup
 rm -f /tmp/post_install.sh
 exit 0
 ```
 
-### SSH Key
+### SSH Keys — three keys, injected at generation time
 
-The ED25519 public key for Domen's management laptop is stored in 1Password `Homelab` vault as `admin_laptop_ssh_pubkey`. See [`deployment-secrets.md`](deployment-secrets.md).
+Public keys are fetched from 1Password `Homelab` vault by the AI when generating the real `post_install.sh` — **the repo only ever contains placeholders**. The same three keys are authorized on **every** homelab host (gen8, debhost, ...). There is a **single shared `post_install.sh`** in `Iaac/host/` — no per-host copies to drift.
+
+| Key (1Password item) | Authorized user | Access |
+|----------------------|-----------------|--------|
+| `admin_laptop_ssh_pubkey` | `ansible-admin` | Full (NOPASSWD sudo) |
+| `ssh_ansible_pubkey` | `ansible-admin` | Full (NOPASSWD sudo) |
+| `ssh_ai_pubkey` | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |
+
+**The AI key must never be authorized for `ansible-admin`** — that user has passwordless root.
+
+See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/config` and 1Password SSH agent setup.
+
+> **Note:** AI hardware diagnostics (`sudo ai-diag ...`) are deployed by the `ai_diag` Ansible role on the first playbook run — not by post_install. See [`deployment-ansible.md`](deployment-ansible.md).
 
 ---
 
@@ -165,10 +197,9 @@ Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
 
 ```
 Iaac/host/
+├── post_install.sh         # SHARED bootstrap — ansible-admin + ai-debug + sshd hardening (single copy for all hosts)
 ├── gen8/
-│   ├── preseed.cfg          # Reference implementation for HP Gen8
-│   └── post_install.sh      # Bootstrap script for ansible-admin
+│   └── preseed.cfg          # Reference implementation for HP Gen8
 └── debhost/
-    ├── preseed.cfg          # (to be generated)
-    └── post_install.sh      # (to be generated)
+    └── preseed.cfg          # (to be generated)
 ```

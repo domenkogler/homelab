@@ -1,0 +1,28 @@
+---
+# Deploy ai-diag — restricted diagnostic dispatcher for the ai-debug user.
+# Edit files/ai-diag and re-run this role to update hosts (single source
+# of truth lives in Git).
+
+- name: Install diagnostic dependencies
+  apt:
+    name: [smartmontools, hdparm, dmidecode, sg3-utils]
+    state: present
+    update_cache: true
+  # zfsutils-linux assumed present on ZFS hosts (gen8)
+
+- name: Install ai-diag dispatcher (single source of truth)
+  copy:
+    src: ai-diag
+    dest: /usr/local/sbin/ai-diag
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Grant ai-debug the single sudoers entry for ai-diag
+  copy:
+    content: "ai-debug ALL=(root) NOPASSWD: /usr/local/sbin/ai-diag *\n"
+    dest: /etc/sudoers.d/ai-diag
+    owner: root
+    group: root
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'

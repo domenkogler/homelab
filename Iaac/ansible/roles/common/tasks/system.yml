@@ -1,11 +1,24 @@
 ---
-- name: Posodobitev apt skladišč in namestitev predpogojev
+# Fail-closed guard: only whitelisted admin users may run Ansible.
+# If this ever runs as ai-debug it would grant passwordless root below,
+# undoing the entire post_install.sh security boundary.
+- name: Refuse Ansible runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      ansible_user '{{ ansible_user }}' is not an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}). The ai-debug user must never
+      run Ansible — it would gain passwordless root via this role.
+  tags: always
+
+- name: Update apt repositories and install prerequisites
   apt:
     name: [apt-transport-https, ca-certificates, curl, gpg, python3-pip]
     state: present
     update_cache: true
 
-- name: Nastavitev sudo brez gesla za uporabnika na strežniku
+- name: Configure passwordless sudo for the Ansible admin user
   copy:
     content: "{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL"
     dest: "/etc/sudoers.d/{{ ansible_user }}"

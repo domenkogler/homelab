@@ -8,6 +8,8 @@
 
 ## Execution Modes
 
+> **Safety guard:** `site.yml` starts with a pre-flight check that **refuses to run as `ai-debug` or any user outside `ansible_admin_users`** (`ansible-admin`, `pi`). The `common` role repeats the same assert for direct playbook/role runs. Anyone running Ansible as `ai-debug` gets an immediate abort — it must never gain sudo.
+
 ### Bootstrap Mode (Domen's Laptop)
 ```bash
 ansible-playbook site.yml -i inventory.ini
@@ -57,7 +59,10 @@ Iaac/ansible/
 │   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
 │   ├── home_assistant/tasks/main.yml# HA on Pi + cold-standby template
 │   ├── docker_services/tasks/main.yml # THE key role — generic service deployer
-│   └── monitoring/tasks/main.yml    # Telegraf → InfluxDB
+│   ├── monitoring/tasks/main.yml    # Telegraf → InfluxDB
+│   └── ai_diag/                     # ai-debug diagnostics dispatcher + sudoers
+│       ├── tasks/main.yml
+│       └── files/ai-diag
 └── templates/
     ├── docker_services/             # docker-compose.yml.j2 per service
     ├── homepage_services.yaml.j2
@@ -146,7 +151,7 @@ local_domain: home.kogler.si
 ## Role Catalog
 
 ### `common`
-- `tasks/system.yml`: apt update, prerequisites (`sudo`, `curl`, `python3-pip`, `openssh-server`), sudoers
+- `tasks/system.yml`: **fail-closed guard** (asserts `ansible_user` is in `ansible_admin_users` — `ai-debug` can never run Ansible), apt update, prerequisites (`sudo`, `curl`, `python3-pip`, `openssh-server`), sudoers
 - **Idempotency:** `state: present`, visudo validate
 - **Depends on:** nothing
 
@@ -208,6 +213,12 @@ local_domain: home.kogler.si
 - **Telegraf:** All hosts → InfluxDB
 - **Grafana:** Dashboard JSON provisioned
 - **SNMP:** MikroTik SNMP for traffic metrics
+
+### `ai_diag`
+- **Deploy:** `/usr/local/sbin/ai-diag` + `/etc/sudoers.d/ai-diag` (single NOPASSWD entry for `ai-debug`)
+- **Deps:** smartmontools, hdparm, dmidecode, sg3-utils
+- **Scope:** read-only diagnostics (SMART, ZFS, journal) — see [`deployment-secrets.md`](deployment-secrets.md); script lives in `roles/ai_diag/files/ai-diag`
+- **Update:** edit the file → re-run the role
 
 ---
 

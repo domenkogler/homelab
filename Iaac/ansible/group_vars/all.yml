@@ -9,3 +9,9 @@ ntp_servers:
 op_vault: Homelab
 domain_public: kogler.si
 domain_local: kogler.lan
+
+# Allowed Ansible management users (the only users that may receive sudo).
+# ai-debug (AI access) must NEVER be added here — see roles/common/tasks/system.yml.
+ansible_admin_users:
+  - ansible-admin   # created by preseed post_install.sh on gen8/debhost/VPS
+  - pi              # Raspberry Pi default user

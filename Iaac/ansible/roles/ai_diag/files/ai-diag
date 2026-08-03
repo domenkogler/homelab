@@ -1,0 +1,129 @@
+#!/bin/bash
+# =====================================================================
+# ai-diag — restricted diagnostic dispatcher for the ai-debug user.
+# Runs as root via a single NOPASSWD sudoers entry (role: ai_diag).
+# No shell, no free arguments: the AI may only call the subcommands
+# shown by:  sudo ai-diag help
+# Only mutating (but non-destructive) ops: smart-test-short / -long /
+# -abort. Everything else is read-only.
+# =====================================================================
+set -euo pipefail
+
+DEV="${2:-}"
+
+# At most one argument (device/pool/type) per subcommand.
+[[ $# -le 2 ]] || { echo "Too many arguments" >&2; exit 1; }
+
+# ---- argument validation ---------------------------------------------
+# Subcommands taking no argument are listed first; everything else
+# requires exactly one argument, locked to a /dev/ path or a plain
+# identifier (spaces rejected -> no flag smuggling).
+case "$1" in
+  help|smart-scan|zpool-status-all|zpool-events|kernel-log|kernel-log-t|\
+  journal-errors|journal-kernel|journal-smartd|journal-zed|mdstat|dmidecode|lsblk|df)
+    ;;
+  *)
+    case "$DEV" in
+      /dev/*)
+        [[ "$DEV" =~ ^/dev/(disk/[a-zA-Z0-9-]+/)?[a-zA-Z0-9-]+$ ]] || { echo "Rejected device: $DEV" >&2; exit 1; } ;;
+      *)
+        [[ "$DEV" =~ ^[a-zA-Z0-9_/.][a-zA-Z0-9_/.:-]{0,63}$ ]] || { echo "Rejected argument: $DEV" >&2; exit 1; } ;;
+    esac ;;
+esac
+
+case "$1" in
+  help)
+    cat <<'HELP'
+USAGE: sudo ai-diag <command> [device|pool]
+
+SMART (DEV = /dev/sdX or /dev/disk/by-id/...)
+  smart-scan                      enumerate disks
+  smart-identify    DEV           model + serial
+  smart-health      DEV           quick pass/fail
+  smart-attributes  DEV           raw attribute table
+  smart             DEV           full SMART report
+  smart-extended    DEV           full report incl. logs
+  smart-errors      DEV           I/O error history
+  smart-selftest-log DEV          past self-test results
+  smart-temp        DEV           SCT temperature stats
+  smart-test-short  DEV           start short self-test (2 min)
+  smart-test-long   DEV           start long self-test (hours)
+  smart-test-abort  DEV           abort a running self-test
+
+ZFS (POOL = pool name, optional)
+  zpool-status      [POOL]        degraded/failed disk + affected files
+  zpool-status-all                one-line health of all pools
+  zpool-list        [POOL]        space, health, fragmentation
+  zpool-iostat      [POOL]        per-vdev IOPS/latency
+  zpool-history     [POOL]        pool command history
+  zpool-events                    recent pool events
+  zpool-get         [POOL]        pool properties
+  zfs-list          [POOL]        dataset tree
+  zfs-snapshots     [POOL]        snapshot inventory
+  zfs-get           [DATASET]     dataset properties
+  zdb-label         DEV           read vdev label
+  zdb-config        [POOL]        pool config
+
+SYSTEM / DISKS
+  kernel-log                      dmesg
+  kernel-log-t                    dmesg with timestamps
+  journal-errors                  error-level journal, this boot
+  journal-kernel                  kernel journal
+  journal-smartd                  smartd journal
+  journal-zed                     zfs-zed journal
+  udev-info         DEV           device properties
+  hdparm-identify   DEV           ATA identify
+  sg-inq            DEV           SCSI inquiry
+  mdadm-detail      DEV           md RAID detail
+  mdadm-examine     DEV           RAID superblock read
+  mdstat                          /proc/mdstat
+  dmidecode                       full SMBIOS
+  dmidecode-type    TYPE          dmidecode -t (memory, bios, ...)
+  lsblk                           block tree with model/serial/state
+  df                              filesystem usage
+HELP
+    ;;
+  smart-scan)        smartctl --scan ;;
+  smart-identify)    smartctl -i "$DEV" ;;
+  smart-health)      smartctl -H "$DEV" ;;
+  smart-attributes)  smartctl -A "$DEV" ;;
+  smart)             smartctl -a "$DEV" ;;
+  smart-extended)    smartctl -x "$DEV" ;;
+  smart-errors)      smartctl -l error "$DEV" ;;
+  smart-selftest-log) smartctl -l selftest "$DEV" ;;
+  smart-temp)        smartctl -l scttempsts "$DEV" ;;
+  smart-test-short)  smartctl -t short "$DEV" ;;
+  smart-test-long)   smartctl -t long "$DEV" ;;
+  smart-test-abort)  smartctl -X "$DEV" ;;
+  zpool-status)      zpool status -v "$DEV" ;;
+  zpool-status-all)  zpool status -x ;;
+  zpool-list)        zpool list -v "$DEV" ;;
+  zpool-iostat)      zpool iostat -v "$DEV" ;;
+  zpool-history)     zpool history "$DEV" ;;
+  zpool-events)      zpool events -v ;;
+  zpool-get)         zpool get all "$DEV" ;;
+  zfs-list)          zfs list -r "$DEV" ;;
+  zfs-snapshots)     zfs list -r -t snapshot "$DEV" ;;
+  zfs-get)           zfs get all "$DEV" ;;
+  zdb-label)         zdb -l "$DEV" ;;
+  zdb-config)        zdb -C "$DEV" ;;
+  kernel-log)        dmesg ;;
+  kernel-log-t)      dmesg -T ;;
+  journal-errors)    journalctl -p err -b ;;
+  journal-kernel)    journalctl -k -b ;;
+  journal-smartd)    journalctl -u smartd -b ;;
+  journal-zed)       journalctl -u zfs-zed -b 2>/dev/null || journalctl -u zfs-zed-cache -b ;;
+  udev-info)         udevadm info -q property -n "$DEV" ;;
+  hdparm-identify)   hdparm -I "$DEV" ;;
+  sg-inq)            sg_inq "$DEV" ;;
+  mdadm-detail)      mdadm --detail "$DEV" ;;
+  mdadm-examine)     mdadm --examine "$DEV" ;;
+  mdstat)            cat /proc/mdstat ;;
+  dmidecode)         dmidecode ;;
+  dmidecode-type)    dmidecode -t "$DEV" ;;
+  lsblk)             lsblk -a -o NAME,SIZE,TYPE,TRAN,MODEL,SERIAL,FSTYPE,MOUNTPOINT,STATE ;;
+  df)                df -hT ;;
+  *)
+    echo "Unknown command: $1 — run 'sudo ai-diag help'" >&2
+    exit 1 ;;
+esac

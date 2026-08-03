@@ -11,10 +11,12 @@
             "id": "a0866c10703b55a2",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
-              "icon": "lucide-file",
-              "title": "New tab"
+              "type": "image",
+              "state": {
+                "file": "docs/assets/images/HMIP-HAP.png"
+              },
+              "icon": "lucide-image",
+              "title": "HMIP-HAP"
             }
           }
         ]
@@ -92,6 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
+                "file": "docs/assets/images/HMIP-HAP.png",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -180,6 +183,9 @@
   },
   "active": "a0866c10703b55a2",
   "lastOpenFiles": [
+    "docs/assets/images/Comtrend-GRG-4260us.png",
+    "docs/assets/images/CRS328.png",
+    "docs/assets/images/hAP-ac.png",
     "docs/02-home-server-hardware.md",
     "docs/manual/smart-home.md",
     "docs/manual/contacts.md",
@@ -205,18 +211,14 @@
     "docs/smart-home.md",
     "docs/deployment-interfaces.md",
     "docs/deployment-renovate.md",
-    "docs/deployment-secrets.md",
     "docs/assets/references/DOMENPC-cpuz.txt",
     "docs/assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf",
     "docs/assets/Network-Devices.canvas",
     "docs/assets/Rack.canvas",
     "docs/assets/images/wAP-ac.png",
     "docs/assets/images/hAP-ac2.png",
-    "docs/assets/images/hAP-ac.png",
     "docs/assets/images/RB4011.png",
     "docs/assets/images/HMIP-HAP.png",
-    "docs/assets/images/Comtrend-GRG-4260us.png",
-    "docs/assets/images/CRS328.png",
     "docs/assets/references",
     "docs/assets/manuals",
     "docs/assets/images",

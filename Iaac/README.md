@@ -70,10 +70,12 @@
 │   │       ├── home_assistant/tasks/main.yml# HA on Pi + cold-standby template
 │   │       ├── docker_services/tasks/main.yml # THE key role — generic service deployer
 │   │       └── monitoring/tasks/main.yml    # Telegraf agents → InfluxDB
+│   │       └── ai_diag/tasks/main.yml      # ai-debug diagnostics dispatcher + sudoers
 │   ├── bootstrap-ansible-client/
 │   │   ├── bootstrap.sh                     # Management laptop setup
 │   │   └── ansible.md                       # WSL2 Debian install guide
 │   └── host/
+│       ├── post_install.sh                 # SHARED bootstrap: ansible-admin + ai-debug + sshd hardening
 │       ├── .wslconfig                       # Mirrored networking for WSL2
 │       ├── host-wsl2.md                     # WSL2 setup instructions
 │       ├── host-Hyper-v.md                  # Hyper-V test VM setup
