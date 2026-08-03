@@ -1,5 +1,5 @@
 ---
-# Contabo VPS configuration
+# Contabo VPS configuration — Phase 2, deferred
 
 proxmox_bridges:
   - { name: vmbr0, cidr: "{{ ansible_default_ipv4.address }}", purpose: WAN }
@@ -9,23 +9,13 @@ proxmox_bridges:
   - { name: vmbr4, cidr: "10.255.40.0/30", purpose: Site2Site }
 
 docker_services:
-  - name: traefik
-    template_dir: traefik
-  - name: crowdsec
-    template_dir: crowdsec
-  - name: authentik
-    template_dir: authentik
-  - name: opencloud
-    template_dir: opencloud
-  - name: immich-app
-    template_dir: immich-app
-  - name: forgejo
-    template_dir: forgejo
-  - name: grafana
-    template_dir: grafana
-  - name: n8n
-    template_dir: n8n
-  - name: kopia-server
-    template_dir: kopia-server
-  - name: db-backup
-    template_dir: db-backup
+  - { name: traefik,        template_dir: traefik,      enabled: false }
+  - { name: crowdsec,       template_dir: crowdsec,     enabled: false }
+  - { name: authentik,      template_dir: authentik,    enabled: false }
+  - { name: opencloud,      template_dir: opencloud,    enabled: false }
+  - { name: immich-app,     template_dir: immich-app,   enabled: false }
+  - { name: forgejo,        template_dir: forgejo,      enabled: false }
+  - { name: grafana,        template_dir: grafana,      enabled: false }
+  - { name: n8n,            template_dir: n8n,           enabled: false }
+  - { name: kopia-server,   template_dir: kopia-server, enabled: false }
+  - { name: db-backup,      template_dir: db-backup,    enabled: false }

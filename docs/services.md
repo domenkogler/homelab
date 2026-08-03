@@ -24,7 +24,7 @@
 | **Backup** | Kopia | No | services-internal | Encrypted off-site backup → iDrive e2 |
 | **Backup** | DB Backup | No | db-internal | Database dumps (tiredofit/db-backup) |
 | **Dashboard** | Homepage | No | traefik-public | Family launchpad at `kogler.si` |
-| **Observe** | Alloy | No | host + services-internal | Host metrics + logs + SNMP agent (Docker socket) |
+| **Observe** | Alloy | No | host (Ansible, not containerized) | Host metrics + logs + SNMP agent — host-installed via Ansible, mounts docker.sock |
 | **Observe** | Prometheus | No | db-internal | Sole metrics store (30d) |
 | **Observe** | Loki | No | db-internal | Log aggregation (14d) |
 | **Observe** | Grafana | No | traefik-public + db-internal | Dashboards at `stats.kogler.si` (internal) |

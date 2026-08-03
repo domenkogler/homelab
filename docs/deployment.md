@@ -10,7 +10,7 @@
 
 - **Database-free, pure GitOps** — all config, versions, and docs are plain text in Git
 - **One Git repo** — IaC code + technical docs + family guides together
-- **Doco-CD driven** — Docker deployments automated via GitOps (watches repo, deploys on change)
+- **Doco-CD driven** ⚠️ WIP — Docker deployments automated via GitOps (watches repo, deploys on change). Not yet activated; Ansible handles all deployment until Doco-CD is configured.
 - **Ansible for OS bootstrap only** — system-level provisioning one-time. App lifecycle is GitOps.
 - **Forgejo Actions for CI + VPS fallback** — CI tests on PR, CD fallback for remote VPS
 
@@ -22,7 +22,7 @@
 |------|-------|------|
 | **Preseed** | OS installation (Debian) | Initial setup, disaster recovery |
 | **Ansible** | Base system (Docker, GPU, ZFS, Doco-CD install) | Initial setup, disaster recovery |
-| **Doco-CD** | Docker container lifecycle (primary CD) | Day-to-day: merge → deploy |
+| **Doco-CD** | Docker container lifecycle (primary CD) ⚠️ WIP — not yet activated | Day-to-day: merge → deploy |
 | **Forgejo Actions** | CI (tests) + VPS CD fallback | PR validation, remote deploy |
 | **Renovate** | Upstream version tracking | Automated, continuous |
 

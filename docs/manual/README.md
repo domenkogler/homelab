@@ -15,7 +15,6 @@
 | [immich.md](immich.md) | Žena | Ogled, nalaganje, deljenje fotografij |
 | [opencloud.md](opencloud.md) | Vsi | Shranjevanje, deljenje datotek |
 | [vpn.md](vpn.md) | Vsi (14+) | Tailscale aplikacija na telefonu |
-| [travel-router.md](travel-router.md) | Žena | Hotelski Wi-Fi, `potovalni.vpn` |
 | [server-restart.md](server-restart.md) | Žena | Fizični reset postopek (s fotografijo) |
 | [restore-backup.md](restore-backup.md) | Tehnični kontakt | Obnovitev iz backupa (visok nivo) |
 | [contacts.md](contacts.md) | Vsi | ISP, prijatelji, servisne številke |

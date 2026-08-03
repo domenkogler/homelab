@@ -34,8 +34,8 @@ IaC/ansible/
 ├── test-1password.yml              # 1Password connectivity test
 ├── playbooks/
 │   ├── router.yml                   # hosts: router → role: router
-│   ├── vps.yml                      # hosts: vps → common→docker→network→kopia→docker_services→monitoring
-│   ├── home_servers.yml             # hosts: home_servers → common→ai_diag→docker→network→amd_rocm→[desktop,office]→kopia→docker_services→home_assistant→monitoring
+│   ├── vps.yml                      # hosts: vps → common→docker→network→docker_services→monitoring
+│   ├── home_servers.yml             # hosts: home_servers → common→ai_diag→docker→network→amd_rocm→[desktop,office]→docker_services→home_assistant→monitoring
 │   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→network→home_assistant→monitoring
 │   └── all.yml                      # Cross-cutting: /etc/hosts sync
 ├── group_vars/
@@ -46,6 +46,8 @@ IaC/ansible/
 │   └── raspberry_pi.yml             # HA install method, version
 ├── host_vars/
 │   ├── oldsrv.kogler.si.yml         # homelab_mode=desktop, static IP
+│   ├── nas.kogler.si.yml            # HP MicroServer Gen8 — ZFS storage
+│   ├── vps.kogler.si.yml            # Contabo VPS — Phase 2, deferred
 │   └── ha.kogler.si.yml             # Static IP, SSH user
 ├── roles/
 │   ├── common/tasks/                # system.yml + main.yml
@@ -54,7 +56,7 @@ IaC/ansible/
 │   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
-│   ├── kopia/tasks/main.yml         # Kopia binary, systemd timer, S3 connect
+│   ├── kopia/tasks/main.yml         # kopia-agent + kopia-server Docker containers (deployed by docker_services)
 │   ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
 │   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
 │   ├── home_assistant/tasks/main.yml# HA on Pi + cold-standby template
@@ -76,10 +78,11 @@ IaC/ansible/
 
 ```ini
 [router]
-router.kogler.si      ansible_connection=network_cli ansible_network_os=routeros
+router.kogler.si      ansible_user=ansible-admin
 
 [home_servers]
 oldsrv.kogler.si     ansible_user=ansible-admin homelab_mode=desktop
+nas.kogler.si        ansible_user=ansible-admin
 
 [vps]
 # Deferred to Phase 2
@@ -98,7 +101,20 @@ ansible_python_interpreter=/usr/bin/python3
 ### oldsrv.kogler.si.yml
 ```yaml
 homelab_mode: desktop            # "desktop" or "proxmox" or "headless"
-ansible_host: 10.10.99.X         # Management VLAN static IP
+ansible_host: 10.10.99.10        # Management VLAN 99 static IP
+ansible_user: ansible-admin
+```
+
+### nas.kogler.si.yml
+```yaml
+ansible_host: 10.10.1.50           # VLAN 10 (Home) — static; Mgmt via VLAN 99 native
+ansible_user: ansible-admin
+```
+
+### vps.kogler.si.yml
+```yaml
+ansible_host: <TBD>                # Public IP — filled when VPS is provisioned
+ansible_user: ansible-admin
 ```
 
 ### ha.kogler.si.yml
@@ -112,18 +128,27 @@ ansible_user: pi
 ## Group Vars: home_servers.yml
 
 ```yaml
-# Docker services deployed on home servers
+# All services run on oldsrv in Phase 1 — see IaC/README.md for the canonical list.
+# Phase 2: public-facing services move to VPS (group_vars/vps.yml, enabled: false).
 docker_services:
+  - { name: traefik,        template_dir: traefik }
+  - { name: crowdsec,       template_dir: crowdsec }
+  - { name: authentik,      template_dir: authentik }
+  - { name: opencloud,      template_dir: opencloud }
+  - { name: immich-app,     template_dir: immich-app }
+  - { name: forgejo,        template_dir: forgejo }
   - { name: ollama,          template_dir: ollama }
   - { name: immich-ml,       template_dir: immich-ml }
-  - { name: headscale,       template_dir: headscale }
   - { name: technitium,      template_dir: technitium }
   - { name: pihole,          template_dir: pihole }
-  - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
+  - { name: headscale,       template_dir: headscale }
+  - { name: kopia-server,    template_dir: kopia-server }
+  - { name: db-backup,       template_dir: db-backup }
   - { name: kopia-agent,     template_dir: kopia-agent }
-
-# All other services: see group_vars/vps.yml (deferred)
-# In Phase 1, ALL services run on oldsrv — see services.md
+  - { name: grafana,         template_dir: grafana,     subdomain: stats }
+  - { name: n8n,             template_dir: n8n,          subdomain: auto }
+  - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
+  # TODO (create templates): homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api
 
 # GPU config
 amd_rocm_version: "6.3"
@@ -142,8 +167,8 @@ ntp_servers:
   - 0.si.pool.ntp.org
   - 1.si.pool.ntp.org
 
-domain: kogler.si
-local_domain: kogler.si
+domain_public: kogler.si
+domain_local: kogler.si
 ```
 
 ---
@@ -188,10 +213,10 @@ local_domain: kogler.si
 - **OpenCloud client:** Official sync client
 
 ### `kopia`
-- **Install:** Binary from GitHub releases (version pinned)
-- **Connect:** `kopia repository connect s3 --bucket=... --access-key=...` — password from 1Password
-- **Schedule:** systemd timer (`kopia-snapshot.timer`), daily 03:00
-- **Policy:** Compression + encryption + 30-day retention
+- Kopia runs as two Docker containers deployed by the `docker_services` role:
+  - **kopia-server:** Web UI + repository server (on VPS in Phase 2, on oldsrv in Phase 1)
+  - **kopia-agent:** Per-host backup agent
+- The standalone `kopia` Ansible role is **not used** — Kopia backup is entirely containerized.
 
 ### `router`
 - **Method:** REST API (preferred) or templated `.rsc` push
@@ -258,7 +283,7 @@ WantedBy=multi-user.target
 All secrets resolved at render time via:
 ```yaml
 # In templates:
-{{ lookup('onepassword', 'authentik_pg_password', vault='Homelab') }}
+{{ lookup('community.general.onepassword', 'authentik_pg_password', vault='Homelab') }}
 ```
 
 See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convention.
@@ -286,9 +311,8 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 2 | `ai_diag` | `common` |
 | 3 | `amd_rocm` | `common` |
 | 4 | `docker_services` (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
-| 5 | `kopia` | `docker` |
-| 6 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
-| 7 | `home_assistant` | `docker` |
-| 8 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) |
-| 9 | `router` | `network` (IPs/VLANs defined) |
-| 10 | `proxmox` (Phase 2) | `network` |
+| 5 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
+| 6 | `home_assistant` | `docker` |
+| 7 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) |
+| 8 | `router` | `network` (IPs/VLANs defined) |
+| 9 | `proxmox` (Phase 2) | `network` |

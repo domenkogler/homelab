@@ -3,6 +3,17 @@
 > **Companion to `docs/` architecture docs.** This document describes HOW the Ansible infrastructure is implemented — exact file layout, role responsibilities, template paths, and build order.
 > For architectural rationale (WHY these choices), see `docs/` — in particular `hardware.md`, `services.md`, `observability.md`, and `deployment.md`.
 
+## Implementation Status
+
+| Component | Implemented | Stubs |
+|-----------|------------|-------|
+| Ansible roles | `common`, `docker`, `ai_diag` (3) | `amd_rocm`, `desktop`, `network`, `office`, `home_assistant`, `proxmox`, `router`, `monitoring`, `docker_services` (9) |
+| Docker compose templates | 0 (all `.j2` files are TODO stubs) | 19 |
+| RouterOS scripts | `rb4011_initial.rsc`, `ap_initial.rsc` (2) | — |
+| Bootstrap | `bootstrap.sh`, `post_install.sh` (2) | — |
+
+> **Note:** the `kopia` role stub is intentionally unused — Kopia runs as Docker containers (`kopia-server`, `kopia-agent`) deployed by `docker_services`.
+
 ## Hostname / Domain Convention
 
 Single namespace **`kogler.si`** — hosts and services use flat subdomains of `kogler.si`.
@@ -35,8 +46,8 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   ├── test-1password.yml              # Quick 1Password connectivity test
 │   │   ├── playbooks/
 │   │   │   ├── router.yml                  # hosts: router → role: router
-│   │   │   ├── vps.yml                     # hosts: vps → common→docker→network→kopia→docker_services→monitoring
-│   │   │   ├── home_servers.yml            # hosts: home_servers → common→ai_diag→docker→network→amd_rocm→[desktop,office]→kopia→docker_services→home_assistant→monitoring
+│   │   │   ├── vps.yml                     # hosts: vps → common→docker→network→docker_services→monitoring
+│   │   │   ├── home_servers.yml            # hosts: home_servers → common→ai_diag→docker→network→amd_rocm→[desktop,office]→docker_services→home_assistant→monitoring
 │   │   │   ├── raspberry_pi.yml            # hosts: raspberry_pi → common→network→home_assistant→monitoring
 │   │   │   └── all.yml                     # Cross-cutting: /etc/hosts sync
 │   │   ├── group_vars/
@@ -79,7 +90,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │       ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   │       ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   │       ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
-│   │       ├── kopia/tasks/main.yml         # Kopia binary, systemd timer, iDrive e2 connect
+│   │       ├── kopia/tasks/main.yml         # kopia-agent + kopia-server Docker containers (deployed by docker_services, not a separate role — stub retained for bare-metal nas option)
 │   │       ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
 │   │       ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
 │   │       ├── home_assistant/tasks/main.yml# HA on Pi (OIDC SSO w/ Authentik) + cold-standby
@@ -148,9 +159,11 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - ONLYOFFICE Desktop Editors, `ttf-mscorefonts-installer` (EULA via debconf), OpenCloud client
 
 ### `kopia`
-- Binary from GitHub releases (version pinned); `kopia repository connect s3` (iDrive e2) — password from 1Password
-- systemd timer (`kopia-snapshot.timer`) daily 03:00; compression + encryption + 30-day retention
-- Secrets: `kopia_master_password`, S3 credentials (1Password)
+- Kopia runs as two Docker containers deployed by the `docker_services` role:
+  - **kopia-server:** Web UI + repository server (on VPS in Phase 2, on oldsrv in Phase 1)
+  - **kopia-agent:** Per-host backup agent
+- The standalone `kopia` Ansible role is **not used** — Kopia backup is entirely containerized, consistent with all other services.
+- **Secrets:** `kopia_master_password`, S3 credentials (1Password)
 
 ### `router`
 - Method: REST API (preferred) or templated `.rsc` push
@@ -199,23 +212,9 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 ### Home Server Services (`group_vars/home_servers.yml`)
 
 ```yaml
-docker_services:
-  - { name: ollama,          template_dir: ollama }
-  - { name: immich-ml,       template_dir: immich-ml }
-  - { name: headscale,       template_dir: headscale }
-  - { name: technitium,      template_dir: technitium }
-  - { name: pihole,          template_dir: pihole }
-  - { name: sunshine,        template_dir: sunshine,       enabled: "{{ homelab_mode == 'desktop' }}" }
-  - { name: kopia-agent,     template_dir: kopia-agent }
-```
-
-> **Canonical catalog:** all services (incl. Traefik, Authentik, Immich, OpenCloud, Forgejo, Grafana,
-> Homepage, Renovate, n8n, Doco-CD …) are defined in `docs/services.md`. In Phase 1 **all** run on
-> `oldsrv.kogler.si`; public-facing ones move to `vps.kogler.si` (Traefik) in Phase 2.
-
-### VPS Services (`group_vars/vps.yml`) — Phase 2, reference only
-
-```yaml
+# === Phase 1: all services run on oldsrv ===
+# Phase 2: public-facing services (traefik, crowdsec, authentik, opencloud,
+# immich-app, forgejo, grafana, n8n, kopia-server, db-backup) move to VPS.
 docker_services:
   - { name: traefik,        template_dir: traefik }
   - { name: crowdsec,       template_dir: crowdsec }
@@ -223,10 +222,37 @@ docker_services:
   - { name: opencloud,      template_dir: opencloud }
   - { name: immich-app,     template_dir: immich-app }
   - { name: forgejo,        template_dir: forgejo }
-  - { name: grafana,        template_dir: grafana }
-  - { name: n8n,            template_dir: n8n }
-  - { name: kopia-server,   template_dir: kopia-server }
-  - { name: db-backup,      template_dir: db-backup }
+  - { name: ollama,          template_dir: ollama }
+  - { name: immich-ml,       template_dir: immich-ml }
+  - { name: technitium,      template_dir: technitium }
+  - { name: pihole,          template_dir: pihole }
+  - { name: headscale,       template_dir: headscale }
+  - { name: kopia-server,    template_dir: kopia-server }
+  - { name: db-backup,       template_dir: db-backup }
+  - { name: kopia-agent,     template_dir: kopia-agent }
+  - { name: grafana,         template_dir: grafana }
+  - { name: n8n,             template_dir: n8n }
+  - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
+  # TODO (create templates): homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api
+```
+
+> **Canonical catalog:** all services are defined in `docs/services.md`. In Phase 1 **all** run on
+> `oldsrv.kogler.si`; public-facing ones move to `vps.kogler.si` (Traefik) in Phase 2.
+
+### VPS Services (`group_vars/vps.yml`) — Phase 2, reference only
+
+```yaml
+docker_services:
+  - { name: traefik,        template_dir: traefik,      enabled: false }
+  - { name: crowdsec,       template_dir: crowdsec,     enabled: false }
+  - { name: authentik,      template_dir: authentik,    enabled: false }
+  - { name: opencloud,      template_dir: opencloud,    enabled: false }
+  - { name: immich-app,     template_dir: immich-app,   enabled: false }
+  - { name: forgejo,        template_dir: forgejo,      enabled: false }
+  - { name: grafana,        template_dir: grafana,      enabled: false }
+  - { name: n8n,            template_dir: n8n,           enabled: false }
+  - { name: kopia-server,   template_dir: kopia-server, enabled: false }
+  - { name: db-backup,      template_dir: db-backup,    enabled: false }
 ```
 
 ---
@@ -295,16 +321,15 @@ See `docs/deployment-secrets.md` for the full list (including `cloudflare_api_to
 | 2 | `ai_diag` role | `common` |
 | 3 | `amd_rocm` role | `common` |
 | 4 | `docker_services` role (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
-| 5 | `kopia` role | `docker` |
-| 6 | `desktop` + `office` roles | `amd_rocm` (dual-GPU Xorg) |
-| 7 | `home_assistant` role (Pi + cold standby) | `docker` |
-| 8 | `monitoring` role (incl. Grafana alerting rules + SMTP) | `docker_services` |
-| 9 | `router` role (+ `.rsc`) | `network` (IPs/VLANs defined) |
-| 10 | `proxmox` (Phase 2) | `network` |
-| 11 | Renovate + Homepage templates | `docker_services` |
-| 12 | Post-deploy hooks (Homepage + inventory) | `docker_services` |
-| 13 | Forgejo Actions workflow (`.forgejo/workflows/deploy.yml`) | all roles |
-| 14 | End-to-end test: Renovate → PR → Actions → Deploy | everything |
+| 5 | `desktop` + `office` roles | `amd_rocm` (dual-GPU Xorg) |
+| 6 | `home_assistant` role (Pi + cold standby) | `docker` |
+| 7 | `monitoring` role (incl. Grafana alerting rules + SMTP) | `docker_services` |
+| 8 | `router` role (+ `.rsc`) | `network` (IPs/VLANs defined) |
+| 9 | `proxmox` (Phase 2) | `network` |
+| 10 | Renovate + Homepage templates | `docker_services` |
+| 11 | Post-deploy hooks (Homepage + inventory) | `docker_services` |
+| 12 | Forgejo Actions workflow (`.forgejo/workflows/deploy.yml`) | all roles |
+| 13 | End-to-end test: Renovate → PR → Actions → Deploy | everything |
 
 ---
 

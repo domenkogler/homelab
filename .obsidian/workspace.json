@@ -4,19 +4,24 @@
     "type": "split",
     "children": [
       {
-        "id": "f0b3d6a919f16d90",
+        "id": "dcc1038a4a992dd4",
         "type": "tabs",
         "children": [
           {
-            "id": "a0866c10703b55a2",
+            "id": "83b3c45719326d1a",
             "type": "leaf",
             "state": {
-              "type": "image",
+              "type": "canvas",
               "state": {
-                "file": "docs/assets/images/HMIP-HAP.png"
+                "file": "docs/assets/Network-Devices.canvas",
+                "viewState": {
+                  "x": -2610,
+                  "y": -2430,
+                  "zoom": -0.6520766965796931
+                }
               },
-              "icon": "lucide-image",
-              "title": "HMIP-HAP"
+              "icon": "lucide-layout-dashboard",
+              "title": "Network-Devices"
             }
           }
         ]
@@ -94,7 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/assets/images/HMIP-HAP.png",
+                "file": "docs/assets/Network-Devices.canvas",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -181,8 +186,14 @@
       "bases:Create new base": false
     }
   },
-  "active": "a0866c10703b55a2",
+  "active": "83b3c45719326d1a",
   "lastOpenFiles": [
+    "IaC/ansible/host_vars/vps.kogler.si.yml",
+    "IaC/ansible/host_vars/nas.kogler.si.yml",
+    "obsolete/network-devices.md",
+    "docs/assets/Rack.canvas",
+    "docs/assets/Network-Devices.canvas",
+    "docs/assets/images/HMIP-HAP.png",
     "docs/observability.md",
     "docs/assets/images/Comtrend-GRG-4260us.png",
     "docs/assets/images/CRS328.png",
@@ -210,16 +221,11 @@
     "docs/smart-home-dashboards.md",
     "docs/smart-home-voice.md",
     "docs/smart-home.md",
-    "docs/deployment-interfaces.md",
-    "docs/deployment-renovate.md",
     "docs/assets/references/DOMENPC-cpuz.txt",
     "docs/assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf",
-    "docs/assets/Network-Devices.canvas",
-    "docs/assets/Rack.canvas",
     "docs/assets/images/wAP-ac.png",
     "docs/assets/images/hAP-ac2.png",
     "docs/assets/images/RB4011.png",
-    "docs/assets/images/HMIP-HAP.png",
     "docs/assets/references",
     "docs/assets/manuals",
     "docs/assets/images",
@@ -232,7 +238,6 @@
     "docs/technical/WiFi devices 1.canvas",
     "docs/technical/assets/HMIP-HAP.png",
     "Pasted image 20260727131335.png",
-    "docs/technical/assets",
-    "docs/technical"
+    "docs/technical/assets"
   ]
 }

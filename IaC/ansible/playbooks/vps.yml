@@ -5,6 +5,5 @@
     - common
     - docker
     - network
-    - kopia
     - docker_services
     - monitoring

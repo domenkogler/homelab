@@ -1,0 +1,5 @@
+---
+# HP MicroServer Gen8 — ZFS storage server
+ansible_host: 10.10.1.50           # VLAN 10 (Home) — static; Mgmt via VLAN 99 native
+ansible_user: ansible-admin        # created by preseed post_install.sh
+# SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

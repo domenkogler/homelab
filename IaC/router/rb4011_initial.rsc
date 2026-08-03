@@ -399,7 +399,7 @@
 # Site-to-Site: Home ↔ VPS
 /interface wireguard add \
     name=wg-vps \
-    listen-port=13231 \
+    listen-port=51820 \
     private-key="CHANGEME"
 
 /ip address add \
@@ -410,7 +410,7 @@
 # Road-warrior server (legacy — Headscale replaces this for family)
 /interface wireguard add \
     name=wg-roadwarrior \
-    listen-port=13232 \
+    listen-port=13231 \
     private-key="CHANGEME"
 
 /ip address add \

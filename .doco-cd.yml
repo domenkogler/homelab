@@ -1,5 +1,6 @@
 # Doco-CD deployment configuration
 # See docs/deployment.md for the GitOps / Doco-CD flow.
+# ⚠️ WIP — not yet configured. Doco-CD activation is pending.
 # TODO: define watch paths, deploy commands, and post-deploy hooks.
 # 
 # Expected structure:

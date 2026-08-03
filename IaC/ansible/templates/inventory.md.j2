@@ -7,7 +7,7 @@
 | Service | Host | Status | URL |
 |---------|------|--------|-----|
 {% for svc in docker_services %}
-| {{ svc.name }} | {{ inventory_hostname }} | {% if svc.enabled | default(true) %}active{% else %}disabled{% endif %} | https://{{ svc.name }}.{{ domain_public }} |
+| {{ svc.name }} | {{ inventory_hostname }} | {% if svc.enabled | default(true) %}active{% else %}disabled{% endif %} | https://{{ svc.subdomain | default(svc.name) }}.{{ domain_public }} |
 {% endfor %}
 
 > Last generated: {{ ansible_date_time.iso8601 }}

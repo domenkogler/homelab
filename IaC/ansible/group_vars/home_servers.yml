@@ -1,9 +1,17 @@
 ---
 # Home server configuration — Phase 1 (desktop) or Phase 2 (proxmox)
+#
+# === Phase 1: all services run on oldsrv ===
+# Phase 2: public-facing services (traefik, crowdsec, authentik, opencloud,
+# immich-app, forgejo, grafana, n8n, kopia-server, db-backup) move to VPS.
+# Templates stay here; deployment target is controlled by group_vars.
 
 homelab_mode: desktop          # 'desktop' for Phase 1, 'proxmox' for Phase 2
 gpu_vendor: amd
 ollama_keep_alive: 5m
+# subdomain (optional): overrides the auto-generated URL hostname.
+# When omitted, the service name is used (e.g. traefik → traefik.kogler.si).
+# Required for services whose subdomain ≠ name (e.g. grafana → stats.kogler.si).
 
 docker_services:
   # Edge
@@ -19,8 +27,8 @@ docker_services:
   - { name: ollama,          template_dir: ollama }
   - { name: immich-ml,       template_dir: immich-ml }
   # DNS
-  - { name: technitium,      template_dir: technitium }
-  - { name: pihole,          template_dir: pihole }
+  - { name: technitium,      template_dir: technitium, subdomain: dns }
+  - { name: pihole,          template_dir: pihole,     subdomain: ad }
   # VPN
   - { name: headscale,       template_dir: headscale }
   # Backup
@@ -28,8 +36,8 @@ docker_services:
   - { name: db-backup,       template_dir: db-backup }
   - { name: kopia-agent,     template_dir: kopia-agent }
   # Dashboard & Automation
-  - { name: grafana,         template_dir: grafana }
-  - { name: n8n,             template_dir: n8n }
+  - { name: grafana,         template_dir: grafana,    subdomain: stats }
+  - { name: n8n,             template_dir: n8n,         subdomain: auto }
   # Stream
   - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
   # TODO (create templates): homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api

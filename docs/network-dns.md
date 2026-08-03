@@ -19,11 +19,12 @@ Technitium runs on the Phase 1 home server (bare-metal Debian, Management VLAN I
                             │       │
             ┌───────────────┼───────┼───────────────┐
             │               │       │               │
-      ┌─────▼─────┐  ┌──────▼──┐ ┌──▼───────┐  ┌────▼────┐
-      │  Pi-hole  │  │ AdGuard │ │Cloudflare│  │ Quad9   │
-      │ (Home)    │  │ (Kids)  │ │ Families │  │ (IoT)   │
-      │ Ad-block  │  │Adult flt│ │1.1.1.3   │  │9.9.9.9  │
-      └───────────┘  └─────────┘ └──────────┘  └─────────┘
+      ┌─────▼─────┐  ┌──────▼──┐ ┌──▼───────┐
+      │  Pi-hole  │  │Cloudflare│ │  Quad9   │
+      │ (Home)    │  │ Families │ │  (IoT)   │
+      │ Ad-block  │  │ 1.1.1.3  │ │ 9.9.9.9  │
+      └───────────┘  │ (Kids)   │ └─────────┘
+                     └──────────┘
 ```
 
 ---

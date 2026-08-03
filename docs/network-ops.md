@@ -6,22 +6,11 @@
 
 ---
 
-## Router Config Storage
+## Router Config Lifecycle
 
-- **Host:** `router.kogler.si` (MikroTik RB4011iGS+)
-- `rb4011_initial.rsc` — fresh-start baseline (`IaC/router/rb4011_initial.rsc`)
-- After changes, export the live config as `IaC/router/rb4011_config.rsc` and commit it (runtime snapshot — source of truth is `rb4011_initial.rsc` + the `router` Ansible role)
-- All config changes via **Ansible** or version-controlled `.rsc` snippets
-- Git-versioned in the homelab repo
+1. **Factory reset** → import `IaC/router/rb4011_initial.rsc` via WinBox (baseline)
+2. **Ansible `router` role** takes over — all subsequent changes via REST API
+3. **Optional:** after manual WinBox changes, export a snapshot as
+   `IaC/router/rb4011_live.rsc` for documentation (not yet created)
 
-## Change Workflow
-
-1. Modify `.rsc` snippet / Ansible role in the repo
-2. Apply via Ansible `router` role (REST API preferred) or WinBox import
-3. Export final config → commit `IaC/router/rb4011_config.rsc` to Git (runtime snapshot)
-
-## Related
-
-- VLAN plan / firewall: [`network-vlans.md`](network-vlans.md)
-- Topology & ISP: [`network.md`](network.md)
-- AP config: `IaC/router/ap_initial.rsc` (CAP mode)
+Source of truth: `rb4011_initial.rsc` + the `router` Ansible role. The live export is documentation-only and not required for operations.

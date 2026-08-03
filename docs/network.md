@@ -1,7 +1,7 @@
 # Network Architecture
 
 > **Role:** Broad context — ISP, physical topology, overview. **Topology only.**
-> **Links to:** `network-vlans.md`, `network-dns.md`, `network-vpn.md`, `network-devices.md`, `network-rack.md`, `network-ops.md`
+> **Links to:** `network-vlans.md`, `network-dns.md`, `network-vpn.md`, `network-rack.md`, `network-ops.md`
 > **Linked from:** `index.md`
 
 ---
@@ -64,7 +64,7 @@ Internet → ONT → router ether1 (WAN)
 | VLAN plan, subnets, firewall rules | [`network-vlans.md`](network-vlans.md) |
 | DNS architecture, Technitium/Pi-hole | [`network-dns.md`](network-dns.md) |
 | VPN layers, Headscale, (travel router obsolete) | [`network-vpn.md`](network-vpn.md) |
-| Port maps, device inventory (WIP) | [`network-devices.md`](network-devices.md) |
+| Device wiring & interconnections | [`assets/Network-Devices.canvas`](assets/Network-Devices.canvas) (Obsidian Canvas) ⚠️ WIP |
 | Rack layout | [`network-rack.md`](network-rack.md) → `assets/Rack.canvas` |
 | Router config storage & versioning | [`network-ops.md`](network-ops.md) |
 | Monitoring / SNMP | [`observability.md`](observability.md) |

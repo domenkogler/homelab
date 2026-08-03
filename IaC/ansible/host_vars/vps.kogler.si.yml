@@ -1,0 +1,5 @@
+---
+# Contabo VPS — Phase 2, deferred
+ansible_host: <TBD>                # Public IP — filled in when VPS is provisioned
+ansible_user: ansible-admin
+# SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

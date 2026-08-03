@@ -13,7 +13,6 @@
       when: homelab_mode == 'desktop'
     - role: proxmox
       when: homelab_mode == 'proxmox'
-    - kopia
     - docker_services
     - home_assistant     # cold-standby template only
     - monitoring

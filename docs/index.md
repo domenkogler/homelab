@@ -35,7 +35,7 @@ docs/
 ├── network-vlans.md                       VLAN table, subnets, firewall rules
 ├── network-dns.md                         Technitium/Pi-hole, per-subnet DNS
 ├── network-vpn.md                         WireGuard, Headscale (travel router obsolete)
-├── network-devices.md                     Port maps, device inventory  ⚠️ WIP
+├── assets/Network-Devices.canvas          Device wiring & interconnections  ⚠️ WIP
 ├── network-rack.md                        Rack layout → assets/Rack.canvas
 ├── network-ops.md                         Router config storage & versioning
 │
