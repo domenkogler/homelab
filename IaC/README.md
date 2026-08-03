@@ -302,7 +302,7 @@ See `docs/deployment-secrets.md` for the full list (including `cloudflare_api_to
 
 | Secret Name | Used By |
 |-------------|---------|
-| `kopia_master_password` | kopia role, kopia-agent, kopia-server |
+| `kopia_master_password` | kopia-agent, kopia-server |
 | `authentik_pg_password`, `authentik_secret_key` | authentik |
 | `opencloud_db_password`, `immich_db_password`, `forgejo_db_password` | platform DBs |
 | `grafana_admin_password`, `grafana_smtp_password` | grafana |

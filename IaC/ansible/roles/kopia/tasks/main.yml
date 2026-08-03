@@ -1,2 +1,4 @@
 ---
-# kopia role — TODO: implement
+# kopia role — intentionally unused.
+# Kopia runs as Docker containers (kopia-server, kopia-agent) deployed by docker_services.
+# This stub is retained for a future bare-metal Kopia option on nas (no Docker).

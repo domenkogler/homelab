@@ -75,7 +75,6 @@ docs/
 │   ├── immich.md
 │   ├── opencloud.md
 │   ├── vpn.md
-│   ├── travel-router.md (obsolete)
 │   ├── server-restart.md
 │   ├── restore-backup.md
 │   ├── contacts.md

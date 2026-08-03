@@ -56,7 +56,7 @@ git push → Doco-CD webhook → docker compose build + up → deployed <5 min
 │   │   ├── group_vars/                      # Per-group variables
 │   │   ├── host_vars/                       # Per-host variables
 │   │   ├── playbooks/                       # Per-group playbooks
-│   │   ├── roles/                           # 13 roles (see deployment-ansible.md)
+│   │   ├── roles/                           # 12 roles (see deployment-ansible.md)
 │   │   └── templates/                       # docker-compose + homepage + inventory
 │   ├── host/                                # OS configs
 │   │   ├── post_install.sh                  # Shared bootstrap — single copy for all hosts
