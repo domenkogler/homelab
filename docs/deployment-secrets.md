@@ -44,9 +44,12 @@ All secrets in `Homelab` vault. Pattern: `<service>_<type>`.
 | `immich_db_password` | immich-app |
 | `forgejo_db_password` | forgejo |
 | `grafana_admin_password` | grafana |
+| `grafana_smtp_password` | grafana (SMTP fail-safe contact point) |
+| `ha_exporter_token` | Prometheus → HA `/api/prometheus` bearer |
+| `signal_api_*` | signal-cli (linked device) |
+| `n8n_*` | n8n (webhook, SMTP) |
 | `headscale_oidc_secret` | headscale |
 | `ha_api_key` | home_assistant |
-| `influxdb_token` | monitoring |
 | `router_admin_password` | router |
 | `wireguard_private_key` | router (S2S + road-warrior) |
 | `forgejo_token` | Doco-CD (repo access) |

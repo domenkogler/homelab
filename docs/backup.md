@@ -61,6 +61,8 @@ tiredofit/db-backup  →  Kopia  →  iDrive e2 (S3)
 | **Bulk media** (photos, videos, ISOs) | **gen8 ZFS tank** | **ZFS send/recv** | **gen8 ZFS backup pool** |
 | Immich raw photos | gen8 / Storage Box | Kopia → iDrive e2 | iDrive e2 |
 
+> **Excluded — by design:** observability TSDB (Prometheus 30d + Loki 14d) is **regenerable and NOT backed up**. It lives on debhost local disk; losing it loses only rolling metric/log history. See [`observability.md`](observability.md).
+
 ---
 
 ## Backup Flow

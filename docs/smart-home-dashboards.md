@@ -34,7 +34,7 @@ See [`deployment-interfaces.md`](../deployment-interfaces.md) for the full matri
 
 - **Purpose:** Time-series data for Domen
 - **Planned graphs:**
-  - MikroTik traffic (24h, 1s refresh from SNMP/Telegraf)
+  - MikroTik traffic (24h, SNMP poll 5–15s, refresh near real-time)
   - Weather station temperature trends (7 days)
   - Heat-recovery ventilator: temperatures and flow rates
   - Docker container CPU/RAM/GPU usage

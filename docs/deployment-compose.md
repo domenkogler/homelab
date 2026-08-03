@@ -30,7 +30,11 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | VPN (Headscale) | `traefik-public` |
 | Backup (Kopia, DB Backup) | `services-internal` / `db-internal` |
 | Dashboard (Homepage) | `traefik-public` |
-| Observe (Grafana, InfluxDB, Prometheus, Loki) | `traefik-public` / `db-internal` |
+| Observe (Alloy) | host (`docker.sock`) + `services-internal` |
+| Observe (Prometheus, Loki) | `db-internal` |
+| Observe (Grafana) | `traefik-public` **+** `db-internal` (needs to query backends) |
+| Observe (blackbox-exporter) | `services-internal` |
+| Alert (n8n) | `services-internal` |
 | CD (Doco-CD) | host network (needs `docker.sock`) |
 | Update (Renovate) | `services-internal` |
 | Stream (Sunshine) | `services-internal` |
@@ -111,6 +115,15 @@ environment:
 See [`deployment-secrets.md`](deployment-secrets.md) for the naming convention.
 
 ---
+
+## Observability / TSDB Retention
+
+- **Prometheus:** retention 30d, data on debhost local disk
+- **Loki:** single-node/SSD, retention 14d, compaction on, filesystem/TSDB store
+- **Grafana:** attached to **both** `traefik-public` + `db-internal`
+- **Alloy:** host-installed (Ansible), mounts `docker.sock` for container logs
+- **HA exporter:** HA exposes `/api/prometheus` (bearer token); Prometheus scrapes it — entities become metrics
+- TSDB data is **regenerable, not backed up** (see `backup.md`); retention is deliberate
 
 ## Common Patterns
 

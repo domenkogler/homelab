@@ -55,10 +55,10 @@ Proxmox Host:
 │   ├─ DNS: Technitium, Pi-hole
 │   ├─ VPN: Headscale
 │   ├─ Backup: Kopia, DB Backup
-│   ├─ Observe: Grafana, InfluxDB, Prometheus, Loki
+│   ├─ Observe: Alloy, Prometheus, Loki, Grafana, blackbox
 │   └─ Dashboard: Homepage
 ├─ LXC: home-assistant (backup to RPi 4 primary)
-├─ LXC: n8n (office automation)
+├─ LXC: n8n (office automation — reuses the Phase-1 n8n alert router)
 ├─ VM/LXC: steam-streaming (GPU shared if possible)
 ├─ (future) VM: Windows/Linux lab VMs
 └─ Storage:

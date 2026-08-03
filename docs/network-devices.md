@@ -14,7 +14,7 @@
 | ether2 | hAP ac (AP-garaza) | 99 | 6C:3B:6B:7D:B9:C5 |
 | ether3 | hAP ac² (AP-spalnica) | 99 | C4:AD:34:42:F1:7D |
 | ether4 | hAP ac (AP-dnevna) | 99 | 64:D1:54:AA:24:D1 |
-| ether5 | eQ-3 HMIP-HAP | 99 | 00:1A:22:1E:F7:FD |
+| ether5 | eQ-3 HMIP-HAP | 21 | 00:1A:22:1E:F7:FD |
 | ether6 | Raspberry Pi 4 B (HA) | 99 | E4:5F:01:26:EF:AA |
 | ether7–10 | _(down)_ | — | — |
 | sfp-sfpplus1 | Trunk → CRS328 | Tagged: 10,20,30,40,50,99 | 74:4D:28:F0:31:B2 |
@@ -31,7 +31,7 @@
 | 2 | DomenPC | .134 (.125 deblab VM) | 10 | — |
 | 3 | ThinkPad P14s | .115 | 10 | — |
 | 4 | HA Raspberry Pi 4 | .122 | 10 | — |
-| 5 | HMIP-HAP (Homematic) | .121 | 20 | — |
+| 5 | HMIP-HAP (Homematic) | .121 | 21 | — |
 | 6–8 | _(empty)_ | — | — | — |
 
 ### Ports 9–16

@@ -32,8 +32,8 @@
 | KNX devices | Whole house | KNX bus | Lights, blinds |
 | Shelly RGBW2 | Whole house | Wi-Fi | LED strip control |
 | Nvidia Shield | Living room | Wi-Fi | Media playback |
-| Weather station | Outdoor | HA integration | Temperature, humidity, wind |
-| Heat-recovery ventilator | Utility | HA integration | Temperature, flow rates |
+| Weather station (**HmIP-SWO-B**) | Outdoor | Homematic IP (868 MHz) | Temperature, humidity, wind, relative brightness, sunshine duration |
+| Heat-recovery ventilator (**Zehnder ComfoAir Q**) | Utility | KNX (ComfoConnect KNX-C) | Temperatures, flow rates |
 
 ---
 
@@ -42,7 +42,19 @@
 - **Primary:** Raspberry Pi 4 (in daily use — not worth migration risk)
 - **Cold standby:** Docker container on debhost (systemd unit, disabled by default)
 - **Configs:** In this homelab repo (moved from HA's own GitHub repo)
-- **Entity list:** Not yet exported — needed for TileBoard + Grafana generation
+- **Entity list:** Not yet exported — needed for TileBoard + Grafana generation (enable HA Prometheus exporter: see `observability.md`)
+
+---
+
+## Homematic IP & KNX Integration
+
+- **Weather sensor HmIP-SWO-B** pairs over Homematic IP radio; HA integration = **`homematicip_cloud`**.
+- **Rekuperator ComfoAir Q 350/450** connects via **ComfoConnect KNX-C** module → KNX TP bus → **GIRA IP Router `.118`**; HA integration = **`knx`**.
+- **Gateway network state (3-phase roadmap):**
+  1. **Now:** HAP (`.121`) on an internet-capable VLAN, HA uses `homematicip_cloud` **cloud mode**.
+  2. **Transition:** with the dedicated **IoT-internet VLAN** (new subnet) available; HAP stays cloud during rollout.
+  3. **Target:** a **CCU3 / RaspberryMatic** (hardware being ordered) → **full local, zero-cloud**. The SWO-B stays compatible; HA integration flips to the legacy **`homematic`** config (XML-RPC ports 2001/2010) once the CCU3 is live.
+- **HA recorder:** after observability is in production, **trim/limit HA recorder history** (`purge_keep_days`) to reduce writes and extend the Raspberry Pi SD-card life — Grafana reads central Prometheus, not HA history (see `observability.md` TODOs).
 
 ---
 
@@ -78,6 +90,7 @@
 - Home Assistant entity list (needed for TileBoard + Grafana)
 - Wall-mounted tablet model for TileBoard
 - Wake word final approval ("Hey, assistant" is tentative)
+- Confirmed HmIP-SWO-B channels: no rain / wind-direction (not part of this sensor)
 
 ---
 

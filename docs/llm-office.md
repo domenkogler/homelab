@@ -40,7 +40,7 @@ debhost runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
 
 | Component | Role |
 |-----------|------|
-| **n8n** (self-hosted, Docker) | Automation workflows with local LLM node |
+| **n8n** (self-hosted, Docker) | Automation workflows with local LLM node — **also the observability alert router** (see [`observability.md`](observability.md)) |
 | **Ollama** | LLM backend for drafting, summarizing |
 | **IMAP/SMTP** | Connects n8n to email inbox |
 

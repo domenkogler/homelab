@@ -59,7 +59,8 @@ Iaac/ansible/
 │   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
 │   ├── home_assistant/tasks/main.yml# HA on Pi + cold-standby template
 │   ├── docker_services/tasks/main.yml # THE key role — generic service deployer
-│   ├── monitoring/tasks/main.yml    # Telegraf → InfluxDB
+│   ├── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana; blackbox; HA exporter
+│   ├── alerting/tasks/main.yml      # Grafana Alerting → n8n → Signal/email; self-monitoring
 │   └── ai_diag/                     # ai-debug diagnostics dispatcher + sudoers
 │       ├── tasks/main.yml
 │       └── files/ai-diag
@@ -210,9 +211,21 @@ local_domain: home.kogler.si
 - **Tags:** Each service task tagged with `{{ item.name }}`
 
 ### `monitoring`
-- **Telegraf:** All hosts → InfluxDB
-- **Grafana:** Dashboard JSON provisioned
-- **SNMP:** MikroTik SNMP for traffic metrics
+- **Alloy:** host agent (Ansible-installed, not containerized) — host metrics, container logs (`docker.sock`), SNMP scrape
+- **Prometheus:** sole metrics backend, retention 30d, `db-internal`
+- **Loki:** single-node/SSD log store, retention 14d
+- **Grafana:** provisioned dashboard JSON; datasources = Prometheus + Loki; Authentik OIDC, admin-only
+- **blackbox-exporter:** external reachability → `probe_success`
+- **HA exporter:** enable HA `/api/prometheus` (bearer token from 1Password); Prometheus scrape job
+- **SNMP:** MikroTik SNMP for traffic metrics, poll **5–15 s**
+- **Ordering:** run **after** `docker_services` (needs Prometheus/Loki up)
+
+### `alerting`
+- **Grafana Alerting:** 3 tiers (Critical/Warning/Info), poke interval ~30 min, self-monitoring rules
+- **n8n** (Docker service): webhook receiver + normalizer/router → Signal + email
+- **signal-cli-rest-api:** link to personal Signal device (QR), dedicated "Homelab Alerts" group; persist identity volume
+- **Email fail-safe:** Grafana-native SMTP contact point in parallel (independent of n8n)
+- **Ordering:** after `monitoring`
 
 ### `ai_diag`
 - **Deploy:** `/usr/local/sbin/ai-diag` + `/etc/sudoers.d/ai-diag` (single NOPASSWD entry for `ai-debug`)
@@ -282,5 +295,6 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 6 | `amd_rocm` | `common` |
 | 7 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
 | 8 | `home_assistant` | `docker` |
-| 9 | `monitoring` | `docker_services` (InfluxDB up) |
-| 10 | `proxmox` (Phase 2) | `network` |
+| 9 | `monitoring` | `docker_services` (Prometheus/Loki up) |
+| 10 | `alerting` | `monitoring` (Grafana up) |
+| 11 | `proxmox` (Phase 2) | `network` |

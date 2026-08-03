@@ -4,6 +4,8 @@
 > **Links to:** `network-dns.md`, `network-devices.md`
 > **Linked from:** `network.md`, `index.md`
 
+> **Status (planning):** the network is **currently flat on `10.10.1.0/24`** — VLAN segmentation below is **planned**, not yet live. Docs that historically implied devices are already isolated are being corrected (see live DHCP in `network-devices.md`).
+
 ---
 
 ## VLAN Table
@@ -13,6 +15,7 @@
 | 1 | — | — | Blackhole (unused) | — |
 | 10 | Home | 10.10.1.0/24 | Trusted family devices, phones, servers, HA | "Kogler" |
 | 20 | IoT | 10.10.20.0/24 | Smart-home (KNX, Shelly, ESP32-S3), no internet | "Kogler IOT" |
+| 21 | IoT-Internet | 10.10.21.0/24 | Internet-needing IoT (HAP during cloud phase, Bosch appliances) | "Kogler IOT-2" |
 | 30 | Guest | 10.10.30.0/24 | Internet-only, client isolation | "Kogler guest" |
 | 40 | Kids | 10.10.40.0/24 | Filtered DNS, restricted access, time-blocked 22:00–07:00 | "Kogler Kids" |
 | 50 | Media | 10.10.50.0/24 | NVIDIA Shield, gaming consoles, smart TV | — |
@@ -26,6 +29,7 @@
 |----------------|---------|------|
 | cfg_kogler | 10 | Kogler |
 | cfg_Kogler-IOT | 20 | Kogler IOT |
+| cfg_Kogler-IOT-inet | 21 | Kogler IOT-2 |
 | cfg_Kogler-guest | 30 | Kogler guest |
 | cfg_kogler-kids | 40 | Kogler Kids |
 
@@ -41,10 +45,13 @@
 | Source VLAN | Destination VLAN | Rule |
 |-------------|-----------------|------|
 | Home (10) | IoT (20) | Accept established/related + new from trusted IPs (MQTT/HA) |
+| Home (10) | IoT-Internet (21) | Accept established/related + new from trusted IPs (HA→HAP, Prometheus→HA) |
 | Home (10) | Management (99) | Accept SSH/WinBox/HTTPS |
 | Home (10) | Media (50) | Accept (remote control, casting) |
 | IoT (20) | Home (10) | **Drop all** (only replies to Home-initiated) |
 | IoT (20) | WAN | **Drop all** — disable rule manually for firmware updates |
+| IoT-Internet (21) | WAN | **Allowed** (these devices need cloud/internet) |
+| IoT-Internet (21) | Home (10) | **Drop all** (only replies to Home-initiated) |
 | Media (50) | Home (10) | Accept (media server, Plex/Jellyfin) |
 | Guest (30) | any LAN | **Drop all** (internet only) |
 | Kids (40) | Home (10) | Drop, DNS forced through filter |
@@ -68,7 +75,8 @@ DHCP option 15 (`domain=home.kogler.si`) is set on each DHCP network.
 | Device type | Port config | VLAN |
 |-------------|------------|------|
 | Family PC, laptop, server | Access | 10 (Home) |
-| Shelly, KNX, Homematic, ESP32 | Access | 20 (IoT) |
+| Shelly, KNX, ESP32-S3 | Access | 20 (IoT, no internet) |
+| Homematic HAP (cloud), Bosch IoT | Access | 21 (IoT-Internet) |
 | AP (hAP ac/ac²) | Access | 99 (Mgmt) |
 | Printer | Access | 10 (Home) |
 | Camera | Access | 20 (IoT) |

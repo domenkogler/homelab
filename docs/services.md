@@ -24,10 +24,12 @@
 | **Backup** | Kopia | No | services-internal | Encrypted off-site backup → iDrive e2 |
 | **Backup** | DB Backup | No | db-internal | Database dumps (tiredofit/db-backup) |
 | **Dashboard** | Homepage | No | traefik-public | Family launchpad at `kogler.si` |
-| **Observe** | Grafana | No | traefik-public | Analytics dashboards |
-| **Observe** | InfluxDB | No | db-internal | Time-series metrics storage |
-| **Observe** | Prometheus | No | db-internal | Metrics collection |
-| **Observe** | Loki | No | db-internal | Log aggregation |
+| **Observe** | Alloy | No | host + services-internal | Host metrics + logs + SNMP agent (Docker socket) |
+| **Observe** | Prometheus | No | db-internal | Sole metrics store (30d) |
+| **Observe** | Loki | No | db-internal | Log aggregation (14d) |
+| **Observe** | Grafana | No | traefik-public + db-internal | Dashboards at `stats.kogler.si` |
+| **Observe** | blackbox-exporter | No | services-internal | External reachability (`probe_success`) |
+| **Alert** | n8n | No | services-internal | Alert router → Signal/email (also office automation) |
 | **CD** | Doco-CD | No | host docker.sock | GitOps continuous delivery |
 | **Update** | Renovate Bot | No | services-internal | Docker image version tracking |
 | **Stream** | Sunshine | **Yes** | services-internal | Game streaming (manual start) |
@@ -60,6 +62,7 @@
 | Kopia Web UI | `bck.kogler.si` | Public (SSO-protected) |
 | Headscale | `vpn.kogler.si` | Public |
 | Grafana | `stats.kogler.si` | Public (SSO-protected) |
+| n8n | `auto.home.kogler.si` | Local only |
 | Home Assistant | `ha.home.kogler.si` | Local only |
 | Technitium | `dns.home.kogler.si` | Local only |
 | Pi-hole | `ad.home.kogler.si` | Local only |
@@ -69,9 +72,7 @@
 | Service | Subdomain | Access |
 |---------|-----------|--------|
 | Traefik Dashboard | `traefik.home.kogler.si` | Local only |
-| Uptime Monitoring | `status.kogler.si` | Public (SSO) |
 | CrowdSec Dashboard | `sec.home.kogler.si` | Local only |
-| n8n | `auto.home.kogler.si` | Local only |
 | Portainer/Dockge | `docker.home.kogler.si` | Local only |
 
 ---
@@ -96,3 +97,15 @@
 | Git + CI/CD | **Forgejo** | Lightweight, OIDC, built-in Actions runner |
 | WAF | **CrowdSec** | Community threat intel, free, Authentik + Traefik parsers |
 | Dashboard | **Homepage** | App launchpad, health dots, auto-generated config |
+
+---
+
+## Observability & Alerting
+
+Full architecture in [`observability.md`](observability.md). Summary:
+
+- **Metrics ownership:** Alloy = host + SNMP; Prometheus = service scrape (Traefik, CrowdSec, Doco-CD); blackbox = external reachability; HA exporter = entity metrics. **One metrics backend: Prometheus.**
+- **Logs:** Alloy → Loki (14d).
+- **Display:** Grafana (`stats.kogler.si`, admin-only SSO) + Homepage status widget (reachability).
+- **Alerts:** Grafana Alerting → n8n → Signal (Homelab Alerts group) + email fail-safe. 3 tiers (Critical/Warning/Info).
+- **Alloy** runs as a host service (Ansible) with `docker.sock` access for container logs — it is **not** a containerized service.

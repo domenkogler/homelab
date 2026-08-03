@@ -86,16 +86,28 @@ Containers start at boot via systemd units **before any user logs in**:
 | **Backup** | Kopia | No | services-internal | Encrypted off-site backup → iDrive e2 |
 | **Backup** | DB Backup | No | db-internal | Database dumps (tiredofit/db-backup) |
 | **Dashboard** | Homepage | No | traefik-public | Family launchpad at `kogler.si` |
-| **Observe** | Grafana | No | traefik-public | Analytics dashboards |
-| **Observe** | InfluxDB | No | db-internal | Time-series metrics |
-| **Observe** | Prometheus | No | db-internal | Metrics collection |
-| **Observe** | Loki | No | db-internal | Log aggregation |
+| **Observe** | Alloy | No | host + services-internal | Host metrics + logs + SNMP agent (host service) |
+| **Observe** | Prometheus | No | db-internal | Sole metrics store (30d) |
+| **Observe** | Loki | No | db-internal | Log aggregation (14d) |
+| **Observe** | Grafana | No | traefik-public + db-internal | Dashboards at `stats.kogler.si` |
+| **Observe** | blackbox-exporter | No | services-internal | External reachability (`probe_success`) |
+| **Alert** | n8n | No | services-internal | Alert router → Signal/email (also office automation) |
+| **Alert** | signal-cli | No | services-internal | Signal delivery (linked device) |
 | **CD** | Doco-CD | No | host docker.sock | GitOps continuous delivery |
 | **Update** | Renovate Bot | No | services-internal | Docker image version tracking |
 | **Stream** | Sunshine | **Yes** | services-internal | Game streaming (manual start) |
 | **System** | sanoid/syncoid | No | host (cron) | ZFS snapshots → gen8 |
 
-**Total: 22+ Docker services.**
+**Total: 24+ Docker services** (Alloy is a host service, not a container).
+
+---
+
+## Observability Storage & Notes
+
+- **TSDB storage:** Prometheus/Loki volumes on debhost local disk (`NVMe 1`), not gen8 ZFS — metrics/logs are **regenerable**, expected ~10–20 GB at 30d/14d retention. Retention deliberate (see `observability.md`).
+- **Disk headroom:** monitor NVMe free space in Grafana + treat ≥90% as a **Critical** alert.
+- **SPOF (accepted):** all observability lives here — if debhost dies, you cannot see gen8/others. Documented; HA cold-standby + backups cover recovery, not observability continuity.
+- Adds RAM weight vs original: n8n + Loki are the main additions; i7-7700K / 48 GB handles it.
 
 ---
 

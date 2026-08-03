@@ -53,6 +53,13 @@ Internet → ONT → RB4011 ether1 (WAN)
 - CAPsMAN in `local-forwarding=no` mode (all traffic tunneled to router)
 - No mesh — all APs wired
 
+> **Status:** segmentation is **planned**; the network is **currently flat on `10.10.1.0/24`** (all devices, incl. HAP/KNX/Shelly). This will change during rollout.
+
+## Monitoring / SNMP
+
+- Enable **SNMP read-only** on the RB4011 (dedicated community string in 1Password) for Prometheus/Alloy traffic metrics — poll **5–15 s**.
+- See [`observability.md`](observability.md).
+
 ---
 
 ## Document Map

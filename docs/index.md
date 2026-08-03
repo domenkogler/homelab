@@ -17,6 +17,7 @@
 | **Configure VPN** | [`network-vpn.md`](network-vpn.md) | `network.md` |
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
 | **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md` |
+| **Understand observability / alerting** | [`observability.md`](observability.md) | `services.md`, `deployment-ansible.md` |
 | **Understand GitOps pipeline** | [`deployment.md`](deployment.md) | `deployment-renovate.md`, `deployment-interfaces.md` |
 | **Configure backup** | [`backup.md`](backup.md) | `hardware-gen8.md` |
 | **Add subscription / billing** | [`subscription.md`](subscription.md) | — |
@@ -45,6 +46,7 @@ docs/
 ├── hardware-phase2.md                     Ryzen 9 + R9700 Phase 2 build
 │
 ├── services.md                            Broad: catalog, networks, domains
+├── observability.md                        Single source of truth: stack, alerting, retention
 ├── services-traefik.md                    Reverse proxy, CrowdSec, SSL
 ├── services-authentik.md                  OIDC SSO, WebAuthn, Forward Auth
 ├── services-vps.md                        Deferred Contabo VPS reference
