@@ -1,7 +1,7 @@
 # Smart Home & Voice Assistant
 
 > **Role:** Broad context — Home Assistant, devices, voice pipeline, architecture.
-> **Links to:** `smart-home-voice.md`, `smart-home-dashboards.md`, `smart-home-audio.md`
+> **Links to:** `smart-home-voice.md`, `interfaces.md`, `smart-home-audio.md`
 > **Linked from:** `index.md`
 
 ---
@@ -10,7 +10,7 @@
 
 ```
 [User Voice] → [Guition ESP32-S3 / Android Phone] → Wi-Fi
-     → [debhost (Docker)] → Whisper STT
+     → [oldsrv (Docker)] → Whisper STT
      → [Ollama LLM] → Response text
      → [Piper TTS] → Audio output
      → [Home Assistant] → executes command
@@ -18,7 +18,7 @@
 ```
 
 - **Zero cloud dependency** — works if internet is down
-- All processing on debhost GPU (RX 7600)
+- All processing on oldsrv GPU (RX 7600)
 - See [`hardware-gpu.md`](hardware-gpu.md) for GPU sharing strategy
 
 ---
@@ -39,10 +39,17 @@
 
 ## Home Assistant
 
-- **Primary:** Raspberry Pi 4 (in daily use — not worth migration risk)
-- **Cold standby:** Docker container on debhost (systemd unit, disabled by default)
+- **Host:** `ha.kogler.si` (Raspberry Pi 4, in daily use — not worth migration risk)
+- **Cold standby:** Docker container on oldsrv (systemd unit, disabled by default)
 - **Configs:** In this homelab repo (moved from HA's own GitHub repo)
 - **Entity list:** Not yet exported — needed for TileBoard + Grafana generation (enable HA Prometheus exporter: see `observability.md`)
+
+### Remote access & SSO (ha.kogler.si)
+
+- **Web UI (browser):** SSO via **Authentik** using HA's native **OpenID Connect (OIDC)** integration — family logs into Authentik (passkey), no separate HA password.
+- **Companion app / Android Auto:** uses HA's **long-lived access token** (one-time pairing, authenticated through Authentik). The **`ha` route must NOT use Authentik Forward-Auth** — that would break the app's WebSocket/API and token flow.
+- **Security:** at the edge keep Traefik + CrowdSec/rate-limit; in HA set `http.use_x_forwarded_for: true` + `trusted_proxies: <Traefik>`. Keep **one local `owner` account** as a recovery fallback if Authentik is unreachable.
+- Config: `configuration.yaml` templated from this repo (see `deployment-ansible.md` → `home_assistant` role).
 
 ---
 
@@ -81,7 +88,7 @@
 
 ## Rejected
 
-**Minisforum MS-A2** — considered as dedicated AI/voice processor. Rejected: centralized LLM on debhost GPU avoids managing two separate AI devices.
+**Minisforum MS-A2** — considered as dedicated AI/voice processor. Rejected: centralized LLM on oldsrv GPU avoids managing two separate AI devices.
 
 ---
 
@@ -99,5 +106,5 @@
 | For | Read |
 |-----|------|
 | Voice pipeline details | [`smart-home-voice.md`](smart-home-voice.md) |
-| Dashboards & interfaces | [`smart-home-dashboards.md`](smart-home-dashboards.md) |
+| Dashboards & interfaces | [`interfaces.md`](interfaces.md) |
 | Audio hardware | [`smart-home-audio.md`](smart-home-audio.md) |

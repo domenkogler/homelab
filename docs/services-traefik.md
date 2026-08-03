@@ -55,11 +55,16 @@ Without this, CrowdSec/Fail2Ban will block the proxy itself.
 
 ---
 
-## Cloudflare (TBD)
+## Cloudflare (DECIDED — DNS-only)
 
-- **Not yet decided** — needs investigation
-- Option: proxy (orange cloud) hides real IP, WAF geo-blocking, DDoS absorption
-- Alternative: direct exposure with Traefik + CrowdSec only (simpler, no third party)
+Cloudflare is used as the **DNS provider only** (registrar: domenca.com; nameservers `george`/`may.ns.cloudflare.com`). **No proxy** — real client IPs reach Traefik, so CrowdSec/rate-limiting see actual addresses.
+
+- Public records: only the internet-facing subset (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`).
+- Internal-only hosts/services: **no public record**; WAN firewall blocks them (split-horizon).
+- Certificates: wildcard `*.kogler.si` via ACME **DNS-01** (Cloudflare API token in 1Password `Homelab`).
+- No orange-cloud/DDoS/geo-WAF layer — Traefik + CrowdSec handle edge security.
+
+Alternative (rejected): direct exposure without Cloudflare DNS — same result, no benefit.
 
 ---
 

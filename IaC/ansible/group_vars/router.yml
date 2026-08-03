@@ -1,15 +1,19 @@
 ---
-# MikroTik RB4011 router configuration
+# MikroTik Router (RB4011) configuration — host router.kogler.si
 
 routeros_api_port: 8728
 # routeros_api_tls: true   # enable after Let's Encrypt on router
 
+# VLAN map — must match docs/network-vlans.md
 vlans:
-  - { id: 1, name: Management, subnet: "10.10.99.0/24" }
-  - { id: 10, name: Home, subnet: "10.10.1.0/24" }
-  - { id: 20, name: IoT, subnet: "10.10.20.0/24" }
-  - { id: 30, name: Guest, subnet: "10.10.30.0/24" }
-  - { id: 40, name: Kids, subnet: "10.10.40.0/24" }
+  - { id: 1,  name: Blackhole,    subnet: "0.0.0.0/0",  unused: true }
+  - { id: 10, name: Home,         subnet: "10.10.1.0/24" }
+  - { id: 20, name: IoT,          subnet: "10.10.20.0/24" }
+  - { id: 21, name: IoT-Internet, subnet: "10.10.21.0/24" }
+  - { id: 30, name: Guest,        subnet: "10.10.30.0/24" }
+  - { id: 40, name: Kids,         subnet: "10.10.40.0/24" }
+  - { id: 50, name: Media,        subnet: "10.10.50.0/24" }
+  - { id: 99, name: Management,   subnet: "10.10.99.0/24" }
 
 wireguard_s2s_vps:
   local_ip: 10.255.40.1/30
@@ -23,4 +27,4 @@ wireguard_roadwarrior:
 
 headscale_subnet: "100.64.0.0/10"
 
-dns_technitium_ip: "{{ hostvars['homelab-pc.kogler.lan'].ansible_host }}"
+dns_technitium_ip: "{{ hostvars['oldsrv.kogler.si'].ansible_host }}"

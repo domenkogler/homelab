@@ -1,7 +1,7 @@
 # HP MicroServer Gen8
 
 > **Role:** Detail — dedicated ZFS storage server.
-> **Links to:** `hardware-silverstone.md`, `backup.md`
+> **Links to:** `backup.md`
 > **Linked from:** `hardware.md`, `deployment-preseed.md`, `deployment-ansible.md`
 
 ---
@@ -42,7 +42,7 @@
 
 ## ZFS Pool "backup" (Local Target — RAIDZ2)
 
-Connected via **miniSAS** to SilverStone TS43xx enclosure.
+Connected via **miniSAS** to the SilverStone SST-TS43xx external disk enclosure (4-bay, miniSAS-only — no USB/eSATA).
 
 | Drive | Model | Size | Hours | Health |
 |-------|-------|------|-------|--------|
@@ -54,6 +54,14 @@ Connected via **miniSAS** to SilverStone TS43xx enclosure.
 - **6 TB usable**, survives any 2 disk failures
 - sde (Toshiba P300, 2,001 reallocated + 32 pending) was zeroed and physically removed
 - Snapshot schedule: every 15 min (kept 4), hourly (24), daily (7), weekly (4), monthly (3)
+
+### SilverStone SST-TS43xx (External Disk Enclosure)
+
+The "backup" pool above lives on an external **SilverStone SST-TS43xx** 4-bay disk case
+(miniSAS only — no USB/eSATA), attached to the MicroServer miniSAS card. It serves
+as the **local backup target** via ZFS send/recv from the primary "tank" pool
+(bulk/cold/scratch storage, 12 TB raw / 6 TB usable in RAIDZ2). `sde` was removed
+(⚠️ critically failing: 2,001 reallocated + 32 pending sectors).
 
 ---
 

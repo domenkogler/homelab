@@ -1,4 +1,4 @@
-# debhost — i7-7700K Docker Host
+# oldsrv — i7-7700K Docker Host
 
 > **Role:** Detail — Phase 1 primary server. Bare-metal Debian, simultaneously family desktop PC and 24/7 Docker host.
 > **Links to:** `hardware-gpu.md`, `services.md`, `network-vlans.md`
@@ -37,7 +37,7 @@
 | Samsung SSD 970 EVO 1TB | 12,943 h | 48.8 TB | 98% | ✅ (⚠️ 87°C temp sensor 2) |
 | Samsung SSD 960 EVO 500GB | 11,360 h | 30.5 TB | 100% | ✅ (⚠️ 226 unsafe shutdowns) |
 
-> Full CPU-Z data dump: [`assets/references/DOMENPC-cpuz.txt`](../assets/references/DOMENPC-cpuz.txt)
+> Full CPU-Z data dump: [`assets/references/DOMENPC-cpuz.txt`](assets/references/DOMENPC-cpuz.txt)
 
 ---
 
@@ -68,45 +68,19 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ---
 
-## Docker Services (Phase 1 — all on debhost)
+## Docker Services (Phase 1 — all on oldsrv)
 
-| Category | Service | GPU | Network | Description |
-|----------|---------|-----|---------|-------------|
-| **Edge** | Traefik | No | traefik-public | Reverse proxy, auto-SSL, Forward Auth |
-| **Edge** | CrowdSec | No | traefik-public | WAF, brute-force protection |
-| **Identity** | Authentik | No | services-internal | OIDC SSO, MFA (WebAuthn) |
-| **Platform** | OpenCloud | No | services-internal | File sync, WebDAV, OIDC |
-| **Platform** | Immich | No | services-internal | Photo management |
-| **Platform** | Forgejo | No | services-internal | Git hosting, Issues, PRs |
-| **AI** | Ollama | **Yes** | services-internal | LLM inference |
-| **AI** | Immich-ML | **Yes** | services-internal | Face recognition, object detection |
-| **DNS** | Technitium | No | services-internal | Central DNS router |
-| **DNS** | Pi-hole | No | services-internal | Ad-blocking |
-| **VPN** | Headscale | No | traefik-public | Tailscale coordination server |
-| **Backup** | Kopia | No | services-internal | Encrypted off-site backup → iDrive e2 |
-| **Backup** | DB Backup | No | db-internal | Database dumps (tiredofit/db-backup) |
-| **Dashboard** | Homepage | No | traefik-public | Family launchpad at `kogler.si` |
-| **Observe** | Alloy | No | host + services-internal | Host metrics + logs + SNMP agent (host service) |
-| **Observe** | Prometheus | No | db-internal | Sole metrics store (30d) |
-| **Observe** | Loki | No | db-internal | Log aggregation (14d) |
-| **Observe** | Grafana | No | traefik-public + db-internal | Dashboards at `stats.kogler.si` |
-| **Observe** | blackbox-exporter | No | services-internal | External reachability (`probe_success`) |
-| **Alert** | n8n | No | services-internal | Alert router → Signal/email (also office automation) |
-| **Alert** | signal-cli | No | services-internal | Signal delivery (linked device) |
-| **CD** | Doco-CD | No | host docker.sock | GitOps continuous delivery |
-| **Update** | Renovate Bot | No | services-internal | Docker image version tracking |
-| **Stream** | Sunshine | **Yes** | services-internal | Game streaming (manual start) |
-| **System** | sanoid/syncoid | No | host (cron) | ZFS snapshots → gen8 |
-
-**Total: 24+ Docker services** (Alloy is a host service, not a container).
+> **Single source of truth:** the canonical service catalog is [`services.md`](services.md).
+> In Phase 1 **all** services run here on `oldsrv.kogler.si`; in Phase 2 the public-facing ones move to `vps` (Traefik).
+> GPU-enabled containers (Ollama, Immich-ML, Sunshine) are noted in `hardware-gpu.md`.
 
 ---
 
 ## Observability Storage & Notes
 
-- **TSDB storage:** Prometheus/Loki volumes on debhost local disk (`NVMe 1`), not gen8 ZFS — metrics/logs are **regenerable**, expected ~10–20 GB at 30d/14d retention. Retention deliberate (see `observability.md`).
+- **TSDB storage:** Prometheus/Loki volumes on oldsrv local disk (`NVMe 1`), not nas ZFS — metrics/logs are **regenerable**, expected ~10–20 GB at 30d/14d retention. Retention deliberate (see `observability.md`).
 - **Disk headroom:** monitor NVMe free space in Grafana + treat ≥90% as a **Critical** alert.
-- **SPOF (accepted):** all observability lives here — if debhost dies, you cannot see gen8/others. Documented; HA cold-standby + backups cover recovery, not observability continuity.
+- **SPOF (accepted):** all observability lives here — if oldsrv dies, you cannot see nas/others. Documented; HA cold-standby + backups cover recovery, not observability continuity.
 - Adds RAM weight vs original: n8n + Loki are the main additions; i7-7700K / 48 GB handles it.
 
 ---

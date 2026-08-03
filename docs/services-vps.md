@@ -1,7 +1,7 @@
 # Deferred VPS Infrastructure
 
 > **Role:** Detail — reference architecture for Contabo VPS. Deferred to Phase 2+.
-> **Status:** In Phase 1, all services here run on debhost ([`hardware-debhost.md`](hardware-debhost.md)).
+> **Status:** In Phase 1, all services here run on oldsrv ([`hardware-oldsrv.md`](hardware-oldsrv.md)).
 > **Links to:** `services.md`, `network-vpn.md`
 > **Linked from:** `services.md`
 
@@ -20,7 +20,7 @@
 
 ## OS: Debian (Docker)
 
-Plain Debian with Docker CE — no hypervisor. Contabo VPS is already virtualized. Same Docker networks as debhost ([`services.md`](services.md)).
+Plain Debian with Docker CE — no hypervisor. Contabo VPS is already virtualized. Same Docker networks as oldsrv ([`services.md`](services.md)).
 
 ---
 
@@ -84,7 +84,7 @@ Plain Debian with Docker CE — no hypervisor. Contabo VPS is already virtualize
 - Immich app server + database on VPS
 - Raw photos on Hetzner Storage Box (CIFS)
 - **Machine learning offloaded to home server GPU** via Immich remote ML feature
-- Phase 1: targets debhost immich-ml container (RX 7600)
+- Phase 1: targets oldsrv immich-ml container (RX 7600)
 - Phase 2: targets Proxmox LXC (R9700)
 
 ---

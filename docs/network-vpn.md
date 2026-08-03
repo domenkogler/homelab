@@ -1,7 +1,7 @@
 # VPN & Remote Access
 
-> **Role:** Detail — three VPN layers, Headscale, travel router.
-> **Links to:** `network.md`, `hardware-debhost.md`
+> **Role:** Detail — VPN layers, Headscale mesh, remote access. (Travel router obsolete.)
+> **Links to:** `network.md`, `hardware-oldsrv.md`
 > **Linked from:** `network.md`, `index.md`
 
 ---
@@ -45,6 +45,10 @@
 
 ## Layer 3: Travel Router
 
+> **⚠️ OBSOLETE — SUPERSEDED BY HEADSCALE (Layer 2).** The travel-router approach is retained
+> here only for reference; it is **not** the supported path. Use the Tailscale/Headscale app instead.
+> The hAP ac² used for this is now treated as a **spare AP**.
+
 ### Device
 - **MikroTik hAP ac²** (existing spare)
 
@@ -85,7 +89,7 @@ If travel router doesn't work reliably: use Headscale on individual devices.
 | Domain | Resolves via |
 |--------|-------------|
 | `potovalni.vpn` | Local static DNS → `192.168.123.1` |
-| `*.home.kogler.si` | Forwarded through VPN → home DNS |
+| `*.kogler.si` | Forwarded through VPN → home DNS |
 | Everything else | Public resolver (1.1.1.1), through VPN |
 
 ---
@@ -95,6 +99,5 @@ If travel router doesn't work reliably: use Headscale on individual devices.
 | Situation | How to Connect |
 |-----------|---------------|
 | **At home** | "Kogler" SSID, `kogler.si` dashboard |
-| **Traveling with router** | "Family-Traveling" SSID, `potovalni.vpn` to configure |
-| **Traveling without router** | Tailscale app → tap Connect |
-| **Remote (no travel)** | Tailscale → access Immich, OpenCloud, HA |
+| **Traveling** | Tailscale app → tap Connect (mobile mesh) |
+| **Remote (anywhere)** | Tailscale → access Immich, OpenCloud, HA |

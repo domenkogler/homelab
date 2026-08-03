@@ -2,7 +2,7 @@
 
 > **Role:** Cross-cutting detail — GPU used by LLM, voice, vision, and gaming across multiple domains.
 > **Links to:** `llm-office.md`, `smart-home-voice.md`, `services.md`
-> **Linked from:** `hardware-debhost.md`, `hardware-phase2.md`, `deployment-compose.md`
+> **Linked from:** `hardware-oldsrv.md`, `hardware-phase2.md`, `deployment-compose.md`
 
 ---
 
@@ -66,7 +66,7 @@
 | Whisper STT | Voice (speech-to-text) | [`smart-home-voice.md`](smart-home-voice.md) |
 | Piper TTS | Voice (text-to-speech) | [`smart-home-voice.md`](smart-home-voice.md) |
 | Immich-ML | Photo face recognition | [`services.md`](services.md) |
-| Sunshine | Game streaming (manual, secondary) | [`hardware-debhost.md`](hardware-debhost.md) |
+| Sunshine | Game streaming (manual, secondary) | [`hardware-oldsrv.md`](hardware-oldsrv.md) |
 
 ---
 

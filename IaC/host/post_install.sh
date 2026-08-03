@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================================
 # SHARED BOOTSTRAP SCRIPT FOR ANSIBLE + AI DEBUG USERS
-# Single copy for ALL homelab hosts (gen8, debhost, ...) — same keys.
+# Single copy for ALL homelab hosts (nas, oldsrv, ...) — same keys.
 # Preseed late_command copies it to the target as /tmp/post_install.sh.
 # =====================================================================
 # SECURITY NOTE: Never commit real keys — only placeholders. The AI

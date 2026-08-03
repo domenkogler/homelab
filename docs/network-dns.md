@@ -48,8 +48,19 @@ Client → Router (10.10.x.1) → Technitium (10.10.99.X) → Pi-hole/AdGuard/Qu
 ```
 
 - Router `/ip dns` forwards to Technitium as primary, `1.1.1.1` as secondary
-- If Debian PC is down: internet still works (unfiltered via 1.1.1.1), but local `*.home.kogler.si` and ad-blocking unavailable
+- If the server is down: internet still works (unfiltered via 1.1.1.1), but local `*.kogler.si` and ad-blocking unavailable
 - DHCP clients always point at the router's IP for DNS
+
+---
+
+## Single Namespace & Split-Horizon
+
+Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
+
+- **Local (Technitium):** authoritative for `*.kogler.si` internally — resolves hosts/services to internal IPs, and auto-creates records from DHCP leases.
+- **Public (Cloudflare):** publishes **only** the internet-facing subset (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
+- Internal-only services/hosts (stats, bck, dns, ad, auto, cockpit-*, router, switch, nas, oldsrv) have **no public record**; WAN firewall blocks them (defense in depth).
+- **TLS:** a single wildcard `*.kogler.si` certificate, issued via ACME **DNS-01** with a Cloudflare API token (1Password `Homelab`) — covers internal and public hostnames alike.
 
 ---
 
@@ -62,7 +73,7 @@ Client → Router (10.10.x.1) → Technitium (10.10.99.X) → Pi-hole/AdGuard/Qu
 
 ## Local Name Resolution & mDNS
 
-- **DHCP lease integration:** Technitium queries RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.home.kogler.si` records
+- **DHCP lease integration:** Technitium queries RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records
 - **mDNS reflector:** Technitium bridges `.local` names across all VLANs (RouterOS built-in mDNS is bridge-wide only, cannot cross VLANs)
 
 ---

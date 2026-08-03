@@ -8,7 +8,7 @@
 
 ## Strategy
 
-Office AI tools run on the **same debhost GPU** as voice assistant and Immich ML. Ollama serves all workloads, switching models via `keep_alive`. See [`hardware-gpu.md`](hardware-gpu.md) for VRAM management.
+Office AI tools run on the **same oldsrv GPU** as voice assistant and Immich ML. Ollama serves all workloads, switching models via `keep_alive`. See [`hardware-gpu.md`](hardware-gpu.md) for VRAM management.
 
 ---
 
@@ -16,7 +16,7 @@ Office AI tools run on the **same debhost GPU** as voice assistant and Immich ML
 
 ### Phase 1: ONLYOFFICE on Debian Desktop
 
-debhost runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
+oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
 
 | Component | Role |
 |-----------|------|
@@ -91,8 +91,8 @@ Phase 1: €0 additional. Phase 2 hardware is one-time capital expense.
 ## Not Yet Implemented
 
 Depends on:
-1. debhost with GPU operational
+1. oldsrv with GPU operational
 2. Ollama + model downloads
 3. n8n Docker setup
 4. AnythingLLM + LocPilot on Windows laptops
-5. ONLYOFFICE on debhost desktop
+5. ONLYOFFICE on oldsrv desktop

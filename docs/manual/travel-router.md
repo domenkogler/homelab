@@ -1,5 +1,7 @@
 # Kako uporabljati potovalni usmerjevalnik
 
+> **⚠️ OBSOLETE — nadomešča Headscale/Tailscale.** Ta vodnik ni več podprt. Za dostop izven doma uporabi aplikacijo Tailscale na telefonu (glej [vpn.md](vpn.md)).
+
 > **Status:** 🚧 Še ni napisano — počaka na prototip.
 
 ## Hitri začetek

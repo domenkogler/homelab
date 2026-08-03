@@ -36,9 +36,9 @@ Microphone → Wake Word Detection → Whisper STT → Ollama LLM → Piper TTS 
 | Stage | Software | Hardware | Notes |
 |-------|----------|----------|-------|
 | **Wake Word** | microWakeWord / HA Assist | ESP32-S3 / Android | "Hey, assistant" |
-| **STT** | Whisper (faster-whisper) | debhost GPU (RX 7600) | English speech → text |
-| **LLM** | Ollama (Llama 3.1 8B / Qwen 2.5 7B) | debhost GPU (RX 7600) | Intent parsing, response generation |
-| **TTS** | Piper TTS | debhost GPU (RX 7600) | Text → Slovenian speech |
+| **STT** | Whisper (faster-whisper) | oldsrv GPU (RX 7600) | English speech → text |
+| **LLM** | Ollama (Llama 3.1 8B / Qwen 2.5 7B) | oldsrv GPU (RX 7600) | Intent parsing, response generation |
+| **TTS** | Piper TTS | oldsrv GPU (RX 7600) | Text → Slovenian speech |
 
 ---
 
@@ -54,7 +54,7 @@ When voice is active, GPU runs in **Voice + Vision** mode:
 | Immich-ML (background) | ~2 GB |
 | **Total** | ~7–8 GB (near RX 7600 limit) |
 
-See [`hardware-gpu.md`](../hardware-gpu.md) for the full VRAM management table.
+See [`hardware-gpu.md`](hardware-gpu.md) for the full VRAM management table.
 
 ---
 
@@ -70,7 +70,7 @@ See [`hardware-gpu.md`](../hardware-gpu.md) for the full VRAM management table.
 ## Not Yet Implemented
 
 Depends on:
-1. debhost with GPU operational
+1. oldsrv with GPU operational
 2. Ollama + model downloads
 3. Whisper + Piper containers
 4. ESP32-S3 flashed with ESPHome + microWakeWord

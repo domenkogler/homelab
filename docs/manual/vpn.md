@@ -12,6 +12,6 @@
 
 - Dostop do fotografij (Immich) ko nisi doma
 - Dostop do datotek (OpenCloud) ko nisi doma
-- Dostop do Home Assistant-a na `ha.home.kogler.si`
+- Dostop do Home Assistant-a na `ha.kogler.si`
 
 (še bo napisano)

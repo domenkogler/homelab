@@ -8,7 +8,7 @@
 
 ## How It Works
 
-1. Renovate container runs on debhost, scans `docker-compose.yml` files in repo
+1. Renovate container runs on oldsrv, scans `docker-compose.yml` files in repo
 2. New upstream Docker image detected → **3-day hold** (stability delay)
 3. After 3 days, update appears as checkbox on **Dependency Dashboard** (Forgejo Issue, auto-managed)
 4. Domen reviews → checks the box

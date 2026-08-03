@@ -15,7 +15,7 @@
 | 1 | — | — | Blackhole (unused) | — |
 | 10 | Home | 10.10.1.0/24 | Trusted family devices, phones, servers, HA | "Kogler" |
 | 20 | IoT | 10.10.20.0/24 | Smart-home (KNX, Shelly, ESP32-S3), no internet | "Kogler IOT" |
-| 21 | IoT-Internet | 10.10.21.0/24 | Internet-needing IoT (HAP during cloud phase, Bosch appliances) | "Kogler IOT-2" |
+| 21 | IoT-Internet | 10.10.21.0/24 | Internet-needing IoT (HAP during cloud phase, Bosch appliances) | "Kogler IOT WAN" |
 | 30 | Guest | 10.10.30.0/24 | Internet-only, client isolation | "Kogler guest" |
 | 40 | Kids | 10.10.40.0/24 | Filtered DNS, restricted access, time-blocked 22:00–07:00 | "Kogler Kids" |
 | 50 | Media | 10.10.50.0/24 | NVIDIA Shield, gaming consoles, smart TV | — |
@@ -27,11 +27,11 @@
 
 | CAPsMAN Config | VLAN ID | SSID |
 |----------------|---------|------|
-| cfg_kogler | 10 | Kogler |
-| cfg_Kogler-IOT | 20 | Kogler IOT |
-| cfg_Kogler-IOT-inet | 21 | Kogler IOT-2 |
-| cfg_Kogler-guest | 30 | Kogler guest |
-| cfg_kogler-kids | 40 | Kogler Kids |
+| `cfg-kogler` | 10 | Kogler |
+| `cfg-kogler-iot` | 20 | Kogler IOT |
+| `cfg-kogler-iot-wan` | 21 | Kogler IOT WAN |
+| `cfg-kogler-guest` | 30 | Kogler guest |
+| `cfg-kogler-kids` | 40 | Kogler Kids |
 
 - **Mode:** `local-forwarding=no` — all traffic tunneled to router for VLAN tagging
 - All APs wired, no mesh
@@ -66,7 +66,7 @@ Implemented with **address-lists** and **interface lists** in RouterOS.
 
 DHCP is handled entirely by the **RB4011 router** on each VLAN interface. This ensures devices always get IP leases even if the Debian PC is down.
 
-DHCP option 15 (`domain=home.kogler.si`) is set on each DHCP network.
+DHCP option 15 (`domain=kogler.si`) is set on each DHCP network.
 
 ---
 

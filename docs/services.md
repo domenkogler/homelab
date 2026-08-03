@@ -6,7 +6,7 @@
 
 ---
 
-## Service Catalog (Phase 1 — all on debhost)
+## Service Catalog (Phase 1 — all on oldsrv)
 
 | Category | Service | GPU | Network | Description |
 |----------|---------|-----|---------|-------------|
@@ -27,7 +27,7 @@
 | **Observe** | Alloy | No | host + services-internal | Host metrics + logs + SNMP agent (Docker socket) |
 | **Observe** | Prometheus | No | db-internal | Sole metrics store (30d) |
 | **Observe** | Loki | No | db-internal | Log aggregation (14d) |
-| **Observe** | Grafana | No | traefik-public + db-internal | Dashboards at `stats.kogler.si` |
+| **Observe** | Grafana | No | traefik-public + db-internal | Dashboards at `stats.kogler.si` (internal) |
 | **Observe** | blackbox-exporter | No | services-internal | External reachability (`probe_success`) |
 | **Alert** | n8n | No | services-internal | Alert router → Signal/email (also office automation) |
 | **CD** | Doco-CD | No | host docker.sock | GitOps continuous delivery |
@@ -49,35 +49,46 @@
 
 ## Domain & Subdomain Plan
 
-- **Public domain:** `kogler.si`
-- **Local domain:** `home.kogler.si` (resolved by Technitium)
+- **Single namespace:** `kogler.si`. Public DNS (Cloudflare, **DNS-only**), local DNS (Technitium, split-horizon).
+- One wildcard `*.kogler.si` cert via Cloudflare DNS-01.
+- **Internal = no public DNS record + WAN-block.**
+- In Phase 1 all services run on `oldsrv`; public-faced ones move to `vps` (Traefik) in Phase 2 — domain/URLs unchanged.
 
-| Service | Subdomain | Access |
-|---------|-----------|--------|
-| **Homepage** | `kogler.si` (root) | Public (Authentik-protected) |
-| Immich | `foto.kogler.si` | Public |
-| OpenCloud | `file.kogler.si` | Public |
-| Authentik | `sso.kogler.si` | Public |
-| Forgejo | `git.kogler.si` | Public |
-| Kopia Web UI | `bck.kogler.si` | Public (SSO-protected) |
-| Headscale | `vpn.kogler.si` | Public |
-| Grafana | `stats.kogler.si` | Public (SSO-protected) |
-| n8n | `auto.home.kogler.si` | Local only |
-| Home Assistant | `ha.home.kogler.si` | Local only |
-| Technitium | `dns.home.kogler.si` | Local only |
-| Pi-hole | `ad.home.kogler.si` | Local only |
+### Public (internet-facing, via Traefik + Authentik)
+
+| Service | Subdomain |
+|---------|-----------|
+| Homepage | `kogler.si` (root) |
+| Immich | `foto.kogler.si` |
+| OpenCloud | `file.kogler.si` |
+| Authentik | `sso.kogler.si` |
+| Forgejo | `git.kogler.si` |
+| Home Assistant | `ha.kogler.si` (HA-native auth / OIDC, no Forward-Auth) |
+| Headscale | `vpn.kogler.si` |
+
+### Internal (LAN / VPN only — no public record)
+
+| Service | Subdomain |
+|---------|-----------|
+| Grafana | `stats.kogler.si` |
+| Kopia Web UI | `bck.kogler.si` |
+| n8n | `auto.kogler.si` |
+| Technitium | `dns.kogler.si` |
+| Pi-hole | `ad.kogler.si` |
+| NAS Cockpit | `cockpit-nas.kogler.si` |
+| Server Cockpit | `cockpit-oldsrv.kogler.si` |
 
 ### Suggested (not deployed yet)
 
 | Service | Subdomain | Access |
 |---------|-----------|--------|
-| Traefik Dashboard | `traefik.home.kogler.si` | Local only |
-| CrowdSec Dashboard | `sec.home.kogler.si` | Local only |
-| Portainer/Dockge | `docker.home.kogler.si` | Local only |
+| Traefik Dashboard | `traefik.kogler.si` | Internal |
+| CrowdSec Dashboard | `sec.kogler.si` | Internal |
+| Portainer/Dockge | `docker.kogler.si` | Internal |
 
 ---
 
-## What Is NOT on debhost
+## What Is NOT on oldsrv
 
 - **Home Assistant** — on Raspberry Pi 4 (HA config in this repo)
 - **VPS services** — deferred to Phase 2+ ([`services-vps.md`](services-vps.md))
@@ -106,6 +117,6 @@ Full architecture in [`observability.md`](observability.md). Summary:
 
 - **Metrics ownership:** Alloy = host + SNMP; Prometheus = service scrape (Traefik, CrowdSec, Doco-CD); blackbox = external reachability; HA exporter = entity metrics. **One metrics backend: Prometheus.**
 - **Logs:** Alloy → Loki (14d).
-- **Display:** Grafana (`stats.kogler.si`, admin-only SSO) + Homepage status widget (reachability).
+- **Display:** Grafana (`stats.kogler.si`, **internal**, admin-only SSO) + Homepage status widget (reachability).
 - **Alerts:** Grafana Alerting → n8n → Signal (Homelab Alerts group) + email fail-safe. 3 tiers (Critical/Warning/Info).
 - **Alloy** runs as a host service (Ansible) with `docker.sock` access for container logs — it is **not** a containerized service.

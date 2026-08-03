@@ -7,9 +7,9 @@ Vse je opisano tako, da lahko deluje brez Domna.
 
 ## Za družino (v slovenščini)
 
-→ **[Dokumentacija za družino](docs/_DEFERRED-family-documentation-plan.md)** *(v nastajanju — zadnja prioriteta)*
+→ **[Dokumentacija za družino](docs/manual/README.md)** *(v nastajanju — zadnja prioriteta)*
 
-Ko bo postavljeno, bo domača stran na **`kogler.si`** glavna vstopna točka za vse storitve.
+Domača stran na **`kogler.si`** je glavna vstopna točka za vse storitve.
 
 | Storitev | Naslov | Kaj je to |
 |----------|--------|-----------|
@@ -21,33 +21,33 @@ Ko bo postavljeno, bo domača stran na **`kogler.si`** glavna vstopna točka za 
 
 ## For Maintainers (in English)
 
-### Documentation
+> Start at **[`docs/index.md`](docs/index.md)** — the AI dispatcher / document map.
 
-| Document | Content |
-|----------|---------|
-| [01 — Network Architecture](docs/01-network-architecture.md) | VLANs, DNS, firewall, physical layout |
-| [02 — Home Server Hardware](docs/02-home-server-hardware.md) | Phase 1 Debian desktop + Phase 2 Ryzen build |
-| [03 — VPS Infrastructure](docs/03-vps-infrastructure.md) | Proxmox, Traefik, Authentik, services, domains |
-| [04 — VPN & Remote Access](docs/04-vpn-and-remote-access.md) | WireGuard, Headscale, travel router |
-| [05 — Smart Home & Voice](docs/05-smart-home-and-voice.md) | Home Assistant, voice pipeline, dashboards |
-| [06 — Backup & Disaster Recovery](docs/06-backup-and-disaster-recovery.md) | Kopia, db-backup, recovery scenarios |
-| [07 — Local LLM & Office](docs/07-local-llm-office.md) | Ollama models, ONLYOFFICE, MS Word AI chain |
-| [08 — GitOps Operations (Isaac)](docs/08-gitops-operations.md) | Renovate, Forgejo Actions, Homepage, deployment lifecycle |
-| [09 — Device Inventory](docs/09-device-inventory.md) | Printable port map — CRS328 + RB4011 every port |
+### Hosts (single namespace `kogler.si`)
+
+| Host | Role |
+|------|------|
+| `oldsrv.kogler.si` | Old i7-7700K desktop → family PC + Docker host |
+| `nas.kogler.si` | HP MicroServer ZFS storage (+ external SilverStone case) |
+| `ha.kogler.si` | Raspberry Pi 4 — Home Assistant |
+| `router.kogler.si` | MikroTik RB4011 — routing/firewall/VPN/CAPsMAN |
+| `switch.kogler.si` | MikroTik CRS328 — L2 PoE switch |
+| `vps.kogler.si` | Contabo VPS (Phase 2 — public Traefik + services) |
 
 ### Implementation
 
 | Path | Content |
 |------|---------|
-| [`Iaac/README.md`](Iaac/README.md) | Ansible implementation specification — roles, templates, build order |
-| [`Iaac/ansible/`](Iaac/ansible/) | Ansible playbooks, roles, inventory, group vars |
-| [`Iaac/bootstrap-ansible-client/`](Iaac/bootstrap-ansible-client/) | Management laptop setup script |
+| [`IaC/README.md`](IaC/README.md) | Ansible implementation specification — roles, templates, build order |
+| [`IaC/ansible/`](IaC/ansible/) | Ansible playbooks, roles, inventory, group vars |
+| [`IaC/bootstrap-ansible-client/`](IaC/bootstrap-ansible-client/) | Management laptop setup script |
+| [`IaC/router/`](IaC/router/) | RouterOS `.rsc` (rb4011, ap) |
 
 ### Bootstrap (Management Laptop)
 
 ```bash
 git clone <this-repo>
-cd Iaac/bootstrap-ansible-client
+cd IaC/bootstrap-ansible-client
 bash bootstrap.sh
 source ~/.bashrc
 ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
@@ -59,13 +59,15 @@ ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 
 ```
 .
-├── docs/                     # Canonical documentation (01–09)
-├── Iaac/                     # Ansible code + implementation spec
+├── docs/                     # Canonical documentation (index.md → document map)
+├── docs/manual/              # Family guides (Slovenian)
+├── IaC/                      # Ansible code + implementation spec
 │   ├── README.md
 │   ├── ansible/
-│   └── router/               # RouterOS .rsc scripts (rb4011, ap, crs328)
+│   ├── host/                 # preseed.cfg (nas) + shared post_install.sh
+│   └── router/               # RouterOS .rsc scripts (rb4011, ap)
 ├── brainstorming/            # Source material (LLM chats, legacy notes)
-├── obsolete/                 # Superseded configs (pre-IaC RouterOS scripts)
+├── obsolete/                 # Superseded configs (e.g. pre-Headscale travel VPN)
 └── README.md                 # You are here
 ```
 
@@ -73,7 +75,8 @@ ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 
 ## Key Design Decisions
 
-- **Phase 1 first:** Existing i7-7700K + RX 7600 as bare-metal Debian desktop. No hardware purchase needed to start
+- **Phase 1 first:** Existing i7-7700K + RX 7600 as bare-metal Debian desktop (now `oldsrv`). No hardware purchase needed to start
 - **GitOps operations:** Renovate tracks updates → Forgejo Actions deploys via Ansible `--tags`
 - **Single Git repo:** IaC, documentation, and family guides live together
-- **Five interfaces, no overlap:** Homepage (family launchpad), TileBoard (smart home), Grafana (analytics), Forgejo (admin), Obsidian (knowledge base)
+- **Single DNS namespace `kogler.si`** — split-horizon; one `*.kogler.si` wildcard cert (Cloudflare DNS-01)
+- **Six interfaces, no overlap:** Homepage (family launchpad), TileBoard (smart home), Grafana (analytics), Forgejo (admin), Obsidian (knowledge base), Doco-CD (deployment status)

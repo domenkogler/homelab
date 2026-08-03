@@ -8,6 +8,7 @@
 |------|---------|--------|
 | **Kogler** | Družinski telefoni, računalniki | Internet + domače naprave |
 | **Kogler IOT** | Pametne naprave (luči, žaluzije, kamera) | Brez interneta (večinoma) |
+| **Kogler IOT WAN** | Naprave, ki rabijo internet (npr. Homematic HAP, Bosch) | Internet, ne dostopa do domačega omrežja |
 | **Kogler guest** | Gostje | Samo internet |
 | **Kogler Kids** | Otroci | Filtriran internet, blokiran 22:00–07:00 |
 

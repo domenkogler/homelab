@@ -1,7 +1,7 @@
 # GitOps Deployment
 
 > **Role:** Broad context — deployment philosophy, Doco-CD flow, tool choices.
-> **Links to:** `deployment-preseed.md`, `deployment-ansible.md`, `deployment-compose.md`, `deployment-secrets.md`, `deployment-renovate.md`, `deployment-interfaces.md`
+> **Links to:** `deployment-preseed.md`, `deployment-ansible.md`, `deployment-compose.md`, `deployment-secrets.md`, `deployment-renovate.md`, `interfaces.md`
 > **Linked from:** `index.md`
 
 ---
@@ -49,7 +49,7 @@ git push → Doco-CD webhook → docker compose build + up → deployed <5 min
 
 ```
 ./
-├── Iaac/                                    # Infrastructure as Code
+├── IaC/                                    # Infrastructure as Code
 │   ├── ansible/                             # Ansible playbooks, roles, templates
 │   │   ├── site.yml                         # Master playbook
 │   │   ├── inventory.ini                    # Host groups
@@ -60,7 +60,7 @@ git push → Doco-CD webhook → docker compose build + up → deployed <5 min
 │   │   └── templates/                       # docker-compose + homepage + inventory
 │   ├── host/                                # OS configs
 │   │   ├── post_install.sh                  # Shared bootstrap — single copy for all hosts
-│   │   └── gen8/                            # preseed.cfg (sample)
+│   │   └── nas/                            # preseed.cfg (sample)
 │   └── router/                              # RouterOS .rsc files
 │
 ├── docs/                                    # This documentation
@@ -75,10 +75,10 @@ git push → Doco-CD webhook → docker compose build + up → deployed <5 min
 
 | Target | CD Tool | Why |
 |--------|---------|-----|
-| **debhost** (local Docker) | Doco-CD | Fast, drift-correcting, no SSH |
+| **oldsrv** (local Docker) | Doco-CD | Fast, drift-correcting, no SSH |
 | **Proxmox VM** (local Docker) | Doco-CD | Same container, portable |
 | **VPS** (remote Docker) | Forgejo Actions + Ansible | No socket access; SSH is right tool |
-| **gen8** (no Docker) | Ansible (bootstrap only) | ZFS/NFS are system-level |
+| **nas** (no Docker) | Ansible (bootstrap only) | ZFS/NFS are system-level |
 
 ---
 
@@ -91,4 +91,4 @@ git push → Doco-CD webhook → docker compose build + up → deployed <5 min
 | Docker compose conventions | [`deployment-compose.md`](deployment-compose.md) |
 | 1Password secrets & philosophy | [`deployment-secrets.md`](deployment-secrets.md) |
 | Renovate config | [`deployment-renovate.md`](deployment-renovate.md) |
-| Dashboard matrix | [`deployment-interfaces.md`](deployment-interfaces.md) |
+| Dashboard matrix | [`interfaces.md`](interfaces.md) |

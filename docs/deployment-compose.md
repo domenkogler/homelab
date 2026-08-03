@@ -9,7 +9,7 @@
 ## File Location Convention
 
 ```
-Iaac/ansible/templates/docker_services/<service>/
+IaC/ansible/templates/docker_services/<service>/
 ├── docker-compose.yml.j2              # Main compose (Jinja2 template)
 └── <extra configs>                    # Service-specific files (traefik.yml, middlewares.yml, etc.)
 ```
@@ -72,7 +72,7 @@ services:
       - "{{ gpu_video_gid }}"     # video group
 ```
 
-See [`hardware-gpu.md`](../hardware-gpu.md) for the GPU topology and VRAM strategy.
+See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
 
 ---
 
@@ -118,7 +118,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the naming convention.
 
 ## Observability / TSDB Retention
 
-- **Prometheus:** retention 30d, data on debhost local disk
+- **Prometheus:** retention 30d, data on oldsrv local disk
 - **Loki:** single-node/SSD, retention 14d, compaction on, filesystem/TSDB store
 - **Grafana:** attached to **both** `traefik-public` + `db-internal`
 - **Alloy:** host-installed (Ansible), mounts `docker.sock` for container logs

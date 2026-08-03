@@ -55,6 +55,7 @@ All secrets in `Homelab` vault. Pattern: `<service>_<type>`.
 | `forgejo_token` | Doco-CD (repo access) |
 | `doco_cd_webhook_secret` | Doco-CD webhook |
 | `doco_cd_op_service_account` | Doco-CD → 1Password |
+| `cloudflare_api_token` | ACME **DNS-01** wildcard `*.kogler.si` cert |
 
 ---
 
@@ -68,7 +69,7 @@ Three independent ED25519 keys, one per purpose. Separate keys = revoke/rotate o
 | `ssh_ansible_pubkey` | `ansible-admin` | Full (NOPASSWD sudo) |
 | `ssh_ai_pubkey` (`openrouter_ai`) | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |
 
-**The same three keys are authorized on every homelab host** (gen8, debhost, ...).
+**The same three keys are authorized on every homelab host** (nas, oldsrv, ...).
 
 **AI access is safe because it is a different user.** The AI key can never log in as `ansible-admin` (which has passwordless root). The `ai-debug` authorized_keys line is injected by `post_install.sh`:
 
@@ -79,22 +80,22 @@ restrict,no-agent-forwarding,no-port-forwarding,no-X11-forwarding,from="10.10.0.
 **1Password SSH agent:** private keys never exist on disk — served on demand from the `Homelab` vault (Settings → Developer → SSH agent, socket path). Create the `.pub` reference files once in `~/.ssh/` (the agent reads them to identify items). Laptop `~/.ssh/config`:
 
 ```
-Host gen8 gen8-ansible gen8-ai
+Host nas nas-ansible nas-ai
   IdentityAgent <1Password SSH agent socket>
 
-Host gen8              # personal key
+Host nas              # personal key
   User ansible-admin
   IdentityFile ~/.ssh/admin_laptop.pub
   IdentitiesOnly yes
 
-Host gen8-ansible      # dedicated Ansible key
-  HostName gen8
+Host nas-ansible      # dedicated Ansible key
+  HostName nas
   User ansible-admin
   IdentityFile ~/.ssh/ansible.pub
   IdentitiesOnly yes
 
-Host gen8-ai           # AI debugging — tell the AI: "use ssh gen8-ai"
-  HostName gen8
+Host nas-ai           # AI debugging — tell the AI: "use ssh nas-ai"
+  HostName nas
   User ai-debug
   IdentityFile ~/.ssh/openrouter_ai.pub
   IdentitiesOnly yes
@@ -102,7 +103,7 @@ Host gen8-ai           # AI debugging — tell the AI: "use ssh gen8-ai"
   ForwardX11 no
 ```
 
-After a host reinstall the host key changes — run `ssh-keygen -R gen8` (or `-R debhost`) once on the laptop.
+After a host reinstall the host key changes — run `ssh-keygen -R nas` (or `-R oldsrv`) once on the laptop.
 
 ---
 
@@ -118,7 +119,7 @@ ai-debug ALL=(root) NOPASSWD: /usr/local/sbin/ai-diag *
 - **No free-form flags.** In sudoers `*` is greedy and matches spaces, so a bare `smartctl *` would allow `smartctl -a /dev/sda -s off`. The dispatcher runs only fixed command lines with regex-validated `/dev/` or identifier arguments — flag smuggling is impossible.
 - **Runtime contract:** the AI runs `sudo ai-diag help` to see everything it may do. Read-only SMART/ZFS/journal diagnostics, plus three non-destructive ops: `smart-test-short`, `smart-test-long`, `smart-test-abort`.
 - **Audited:** every invocation appears in the sudo + journal logs (`LogLevel VERBOSE`).
-- **Updating:** the script lives in the repo (`Iaac/ansible/roles/ai_diag/files/ai-diag`). Edit it → re-run the `ai_diag` role → hosts updated. No SSH gymnastics, no drift.
+- **Updating:** the script lives in the repo (`IaC/ansible/roles/ai_diag/files/ai-diag`). Edit it → re-run the `ai_diag` role → hosts updated. No SSH gymnastics, no drift.
 
 ---
 

@@ -2,16 +2,19 @@
 # Global variables for all managed nodes
 
 timezone: Europe/Ljubljana
-locale: en_US.UTF-8
+locale: sl_SI.UTF-8
 ntp_servers:
   - 0.si.pool.ntp.org
   - 1.si.pool.ntp.org
 op_vault: Homelab
 domain_public: kogler.si
-domain_local: kogler.lan
+domain_local: kogler.si
+
+# Single-namespace DNS: everything (hosts + services) is under kogler.si.
+# Internal-only hosts/services are NOT published in public DNS (split-horizon).
 
 # Allowed Ansible management users (the only users that may receive sudo).
 # ai-debug (AI access) must NEVER be added here — see roles/common/tasks/system.yml.
 ansible_admin_users:
-  - ansible-admin   # created by preseed post_install.sh on gen8/debhost/VPS
-  - pi              # Raspberry Pi default user
+  - ansible-admin   # created by preseed post_install.sh on nas/oldsrv/VPS
+  - pi              # Raspberry Pi default user (host ha.kogler.si)

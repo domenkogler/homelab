@@ -1,5 +1,5 @@
 ---
-- hosts: all:!router:!localhost:!deblab
+- hosts: all:!router:!localhost
   become: true
   tasks:
     - name: Sync /etc/hosts across all managed nodes

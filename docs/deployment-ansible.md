@@ -27,7 +27,7 @@ ansible-playbook site.yml --tags immich-ml # GPU service
 ## File Layout
 
 ```
-Iaac/ansible/
+IaC/ansible/
 ├── ansible.cfg                      # SSH settings, output format
 ├── site.yml                         # Master playbook: imports per-group
 ├── inventory.ini                    # Host groups
@@ -45,8 +45,8 @@ Iaac/ansible/
 │   ├── home_servers.yml             # homelab_mode, docker_services list (home), GPU config
 │   └── raspberry_pi.yml             # HA install method, version
 ├── host_vars/
-│   ├── debhost.kogler.si.yml         # homelab_mode=desktop, static IP
-│   └── ha-pi.kogler.si.yml          # Static IP, SSH user
+│   ├── oldsrv.kogler.si.yml         # homelab_mode=desktop, static IP
+│   └── ha.kogler.si.yml             # Static IP, SSH user
 ├── roles/
 │   ├── common/tasks/                # system.yml + main.yml
 │   ├── docker/tasks/main.yml        # Docker CE + compose install
@@ -77,16 +77,16 @@ Iaac/ansible/
 
 ```ini
 [router]
-rb4011.kogler.si      ansible_connection=network_cli ansible_network_os=routeros
+router.kogler.si      ansible_connection=network_cli ansible_network_os=routeros
 
 [home_servers]
-debhost.kogler.si     ansible_user=ansible-admin homelab_mode=desktop
+oldsrv.kogler.si     ansible_user=ansible-admin homelab_mode=desktop
 
 [vps]
 # Deferred to Phase 2
 
 [raspberry_pi]
-ha-pi.kogler.si       ansible_user=pi
+ha.kogler.si          ansible_user=pi
 
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3
@@ -96,13 +96,13 @@ ansible_python_interpreter=/usr/bin/python3
 
 ## Host Vars
 
-### debhost.kogler.si.yml
+### oldsrv.kogler.si.yml
 ```yaml
 homelab_mode: desktop            # "desktop" or "proxmox" or "headless"
 ansible_host: 10.10.99.X         # Management VLAN static IP
 ```
 
-### ha-pi.kogler.si.yml
+### ha.kogler.si.yml
 ```yaml
 ansible_host: 10.10.1.122        # Home VLAN
 ansible_user: pi
@@ -124,7 +124,7 @@ docker_services:
   - { name: kopia-agent,     template_dir: kopia-agent }
 
 # All other services: see group_vars/vps.yml (deferred)
-# In Phase 1, ALL services run on debhost — see services.md
+# In Phase 1, ALL services run on oldsrv — see services.md
 
 # GPU config
 amd_rocm_version: "6.3"
@@ -144,7 +144,7 @@ ntp_servers:
   - 1.si.pool.ntp.org
 
 domain: kogler.si
-local_domain: home.kogler.si
+local_domain: kogler.si
 ```
 
 ---
@@ -180,7 +180,7 @@ local_domain: home.kogler.si
 - **DM:** LightDM or GDM3 with auto-login
 - **Desktop:** XFCE (preferred, lightweight)
 - **Xorg:** Config in `/etc/X11/xorg.conf.d/10-igpu-primary.conf` — iGPU primary, dGPU excluded
-- See [`hardware-gpu.md`](../hardware-gpu.md) for dual-GPU topology
+- See [`hardware-gpu.md`](hardware-gpu.md) for dual-GPU topology
 
 ### `office`
 - **Condition:** `when: homelab_mode == 'desktop'`
@@ -290,7 +290,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 1 | `common` + `docker` + `network` | None |
 | 2 | `router` | `network` (IPs/VLANs defined) |
 | 3 | `docker_services` (core loop + systemd) | `docker`, `network` |
-| 4 | Service templates (18 services) | `docker_services` |
+| 4 | Service templates (canonical list — see services.md) | `docker_services` |
 | 5 | `kopia` | `docker` |
 | 6 | `amd_rocm` | `common` |
 | 7 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |

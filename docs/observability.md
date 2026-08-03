@@ -1,8 +1,8 @@
 # Observability
 
 > **Role:** Single source of truth — the complete observability architecture in one page.
-> **Links to:** `deployment-interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`
-> **Linked from:** `index.md`, `deployment-interfaces.md`
+> **Links to:** `interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`
+> **Linked from:** `index.md`, `interfaces.md`
 
 ---
 
@@ -16,7 +16,7 @@ Home Assistant (SWO-B + ComfoAir) ──Prometheus exporter──▶ Prometheus
 MikroTik (SNMP, 5–15s poll) ─────────────────────────────▶ Prometheus
 blackbox_exporter (external reachability) ───────────────▶ Prometheus  (probe_success)
 
-                        Prometheus ──▶ Grafana (stats.kogler.si, Authentik admin-only)
+                        Prometheus ──▶ Grafana (stats.kogler.si, internal, Authentik admin-only)
                                           │  webhook
                                           ▼
                                         n8n (alert router: dedup / tier / format)
@@ -40,7 +40,7 @@ blackbox_exporter (external reachability) ────────────�
 | Backend | **Loki** | Log aggregation, single-node/SSD | `db-internal` | 14d |
 | Exporter | **blackbox** | External reachability (`probe_success`) | `services-internal` | in Prometheus |
 | Exporter | **HA Prometheus exporter** | HA entities → Prometheus | `services-internal` | in Prometheus |
-| UI | **Grafana** | Dashboards, `stats.kogler.si` | `traefik-public` **+** `db-internal` | — |
+| UI | **Grafana** | Dashboards, `stats.kogler.si` (**internal**) | `traefik-public` **+** `db-internal` | — |
 | Router | **n8n** | Alert routing/dedup → Signal/email | `services-internal` | — |
 | Notify | **signal-cli** | Signal delivery (linked device) | `services-internal` (needs internet) | — |
 
@@ -71,7 +71,7 @@ blackbox_exporter (external reachability) ────────────�
 
 | Severity | What alerts | Channel | Notes |
 |----------|-------------|---------|-------|
-| **Critical** | debhost disk ≥90%, host down, ZFS pool degraded, service down >2min, `probe_success==0` | Signal + email | page-worthy |
+| **Critical** | oldsrv disk ≥90%, host down, ZFS pool degraded, service down >2min, `probe_success==0` | Signal + email | page-worthy |
 | **Warning** | container restart loop, high CPU/load, HA unreachable, MikroTik link down | Signal (deduped) | sent once |
 | **Info** | transient / everything else | logged only | no push |
 
@@ -84,8 +84,8 @@ blackbox_exporter (external reachability) ────────────�
 
 - **MikroTik SNMP:** poll at **5–15 s**; the "1s" in dashboards is a *refresh* interval, not a poll.
 - **Retention is deliberate:** 30d metrics / 14d logs. TSDB data is **regenerable and not backed up** (see [backup.md](backup.md)); long-term metric history is a deferred option (remote-write/downsampling).
-- **SPOF:** all observability lives on debhost — accepted for Phase 1; documented as a known property.
-- **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on debhost). Only the live instance is scraped; on failover the same URL resumes with no replay.
+- **SPOF:** all observability lives on oldsrv — accepted for Phase 1; documented as a known property.
+- **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv). Only the live instance is scraped; on failover the same URL resumes with no replay.
 
 ---
 

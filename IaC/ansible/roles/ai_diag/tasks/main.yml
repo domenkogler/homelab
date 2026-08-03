@@ -8,7 +8,7 @@
     name: [smartmontools, hdparm, dmidecode, sg3-utils]
     state: present
     update_cache: true
-  # zfsutils-linux assumed present on ZFS hosts (gen8)
+  # zfsutils-linux assumed present on ZFS hosts (nas)
 
 - name: Install ai-diag dispatcher (single source of truth)
   copy:

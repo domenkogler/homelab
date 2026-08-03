@@ -1,3 +1,9 @@
+> **⚠️ WORK IN PROGRESS — port map not verified. Do not rely on specific port/VLAN/MAC assignments; a physical wiring audit is pending.**
+>
+> Known inconsistencies to resolve during the audit:
+> - Garage AP: identified as **hAP ac** on RB4011 vs **wAP ac** at Patch Panel A /1/2 → actual is **wAP ac**.
+> - HA Raspberry Pi (RPi 4) and HMIP-HAP are currently connected **directly to the router**, on the **flat network (no VLANs)** — the RB4011/switch rows below are draft.
+
 # Device Inventory — Port Map
 
 > **Role:** Detail — physical port-to-device mapping for CRS328 and RB4011.
@@ -28,7 +34,7 @@
 | Port | Device | IP | VLAN | MAC |
 |------|--------|-----|------|-----|
 | 1 | _(occupied, link up)_ | — | — | — |
-| 2 | DomenPC | .134 (.125 deblab VM) | 10 | — |
+| 2 | oldsrv | .134 | 10 | — |
 | 3 | ThinkPad P14s | .115 | 10 | — |
 | 4 | HA Raspberry Pi 4 | .122 | 10 | — |
 | 5 | HMIP-HAP (Homematic) | .121 | 21 | — |

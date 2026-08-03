@@ -8,7 +8,7 @@
 
 ## Rack: 19" 18U Frame
 
-Visual layout is maintained in **[Rack.canvas](../assets/Rack.canvas)** — open with Obsidian Canvas.
+Visual layout is maintained in **[Rack.canvas](assets/Rack.canvas)** — open with Obsidian Canvas.
 
 ### Unit Assignment (bottom to top)
 
@@ -62,17 +62,17 @@ Visual layout is maintained in **[Rack.canvas](../assets/Rack.canvas)** — open
 
 | Device | Image |
 |--------|-------|
-| CRS328 | [`assets/images/CRS328.png`](../assets/images/CRS328.png) |
-| RB4011 | [`assets/images/RB4011.png`](../assets/images/RB4011.png) |
-| Comtrend GRG-4260us | [`assets/images/Comtrend-GRG-4260us.png`](../assets/images/Comtrend-GRG-4260us.png) |
-| HMIP-HAP | [`assets/images/HMIP-HAP.png`](../assets/images/HMIP-HAP.png) |
-| hAP ac | [`assets/images/hAP-ac.png`](../assets/images/hAP-ac.png) |
-| hAP ac² | [`assets/images/hAP-ac2.png`](../assets/images/hAP-ac2.png) |
-| wAP ac | [`assets/images/wAP-ac.png`](../assets/images/wAP-ac.png) |
+| CRS328 | [`assets/images/CRS328.png`](assets/images/CRS328.png) |
+| RB4011 | [`assets/images/RB4011.png`](assets/images/RB4011.png) |
+| Comtrend GRG-4260us | [`assets/images/Comtrend-GRG-4260us.png`](assets/images/Comtrend-GRG-4260us.png) |
+| HMIP-HAP | [`assets/images/HMIP-HAP.png`](assets/images/HMIP-HAP.png) |
+| hAP ac | [`assets/images/hAP-ac.png`](assets/images/hAP-ac.png) |
+| hAP ac² | [`assets/images/hAP-ac2.png`](assets/images/hAP-ac2.png) |
+| wAP ac | [`assets/images/wAP-ac.png`](assets/images/wAP-ac.png) |
 
 ---
 
 ## Related
 
-- **[Network Devices Canvas](../assets/Network-Devices.canvas)** — Obsidian Canvas with device interconnections
-- **[PowerWalker Manual](../assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf)**
+- **[Network Devices Canvas](assets/Network-Devices.canvas)** — Obsidian Canvas with device interconnections
+- **[PowerWalker Manual](assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf)**

@@ -1,7 +1,7 @@
 # Hardware Overview
 
 > **Role:** Broad context — all machines, phase strategy, role assignments.
-> **Links to:** `hardware-debhost.md`, `hardware-gpu.md`, `hardware-gen8.md`, `hardware-silverstone.md`, `hardware-phase2.md`
+> **Links to:** `hardware-oldsrv.md`, `hardware-gpu.md`, `hardware-nas.md`, `hardware-phase2.md`
 > **Linked from:** `index.md`
 
 ---
@@ -20,9 +20,9 @@
 
 | Machine | Phase 1 Role | Phase 2 Role |
 |---------|-------------|-------------|
-| **debhost** (i7-7700K + RX 7600 + 48 GB) | **Sole Docker host** — 22+ services, family PC | AI/LLM only, or retired |
-| **gen8** (HP MicroServer, Xeon E3, 12 GB ECC) | ZFS pools (tank + backup), NFS, Cockpit | Permanent storage server |
-| **SilverStone TS43xx** | Attached to gen8 via miniSAS — 4× 3 TB HDDs | Same |
+| **oldsrv** (i7-7700K + RX 7600 + 48 GB) | **Sole Docker host** — all Phase 1 services, family PC | AI/LLM only, or retired |
+| **nas** (HP MicroServer, Xeon E3, 12 GB ECC) | ZFS pools (tank + backup), NFS, Cockpit | Permanent storage server |
+| **SilverStone TS43xx** | Attached to nas via miniSAS — 4× 3 TB HDDs | Same |
 | **Raspberry Pi 4** | Home Assistant (primary) | Stays primary HA |
 | **VPS (Contabo)** | *Not used* | Public web stack |
 | **custom** (Ryzen 9 + R9700) | *Not built* | Proxmox hypervisor |
@@ -32,13 +32,13 @@
 ## Storage Architecture
 
 ```
-debhost (desk)
+oldsrv (desk)
 ├── Samsung SSD 970 EVO 1TB    → OS, Docker volumes, DBs, LLM models
 ├── Samsung SSD 960 EVO 500GB  → bulk data, media
 ├── Kopia                      → off-site encrypted backup → iDrive e2
-└── NFS mounts                → gen8 shares
+└── NFS mounts                → nas shares
 
-gen8 (rack) — Debian 13, ZFS
+nas (rack) — Debian 13, ZFS
 ├── Boot: Crucial MX300 525 GB SSD
 ├── ZFS pool "tank" (mirror) — HGST 4TB + Seagate IronWolf Pro 4TB
 │   ├── tank/important          → backed up
@@ -54,7 +54,7 @@ gen8 (rack) — Debian 13, ZFS
 ## Key Design Decisions
 
 1. **Phase 1 uses zero new hardware** — everything is existing
-2. **Dual GPU on debhost:** iGPU for desktop, dGPU for Docker AI containers
+2. **Dual GPU on oldsrv:** iGPU for desktop, dGPU for Docker AI containers
 3. **Docker is portable** — same compose files deploy on bare metal, VPS, or Proxmox VM
 4. **3-2-1 backup:** 3 copies (live + local ZFS + cloud Kopia), 2 media (SSD/HDD + cloud), 1 off-site (iDrive e2)
 5. **Ansible is OS-only** — system provisioning once. App lifecycle is GitOps via Doco-CD.
@@ -65,9 +65,8 @@ gen8 (rack) — Debian 13, ZFS
 
 | For | Read |
 |-----|------|
-| i7-7700K Docker host + family PC | [`hardware-debhost.md`](hardware-debhost.md) |
+| i7-7700K Docker host + family PC | [`hardware-oldsrv.md`](hardware-oldsrv.md) |
 | Shared GPU resource (VRAM, topology) | [`hardware-gpu.md`](hardware-gpu.md) |
-| HP Gen8 ZFS storage server | [`hardware-gen8.md`](hardware-gen8.md) |
-| SilverStone bulk enclosure | [`hardware-silverstone.md`](hardware-silverstone.md) |
+| NAS ZFS storage server (+ external SilverStone case) | [`hardware-nas.md`](hardware-nas.md) |
 | Phase 2 Ryzen/Proxmox build | [`hardware-phase2.md`](hardware-phase2.md) |
 | Subscriptions & costs | [`subscription.md`](subscription.md) |

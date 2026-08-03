@@ -12,7 +12,7 @@
 
 # ---- System ----
 
-/system identity set name=rb4011.kogler.lan
+/system identity set name=router.kogler.si
 /system clock set time-zone-name=Europe/Ljubljana
 /system ntp client set enabled=yes server-dns-names=pool.ntp.org
 /system ntp client servers add server=193.2.1.66
@@ -59,6 +59,7 @@
 # VLAN 1:  Blackhole (unused, all ports default pvid=1)
 # VLAN 10: Home
 # VLAN 20: IoT
+# VLAN 21: IoT-Internet (Kogler IOT WAN)
 # VLAN 30: Guest
 # VLAN 40: Kids
 # VLAN 50: Media
@@ -69,6 +70,7 @@
 
 /interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1
 /interface bridge vlan add bridge=bridge-lan vlan-ids=20 tagged=bridge-lan,sfp-sfpplus1
+/interface bridge vlan add bridge=bridge-lan vlan-ids=21 tagged=bridge-lan,sfp-sfpplus1
 /interface bridge vlan add bridge=bridge-lan vlan-ids=30 tagged=bridge-lan,sfp-sfpplus1
 /interface bridge vlan add bridge=bridge-lan vlan-ids=40 tagged=bridge-lan,sfp-sfpplus1
 /interface bridge vlan add bridge=bridge-lan vlan-ids=50 tagged=bridge-lan,sfp-sfpplus1
@@ -78,6 +80,7 @@
 
 /interface vlan add name=vlan10-home  vlan-id=10 interface=bridge-lan
 /interface vlan add name=vlan20-iot   vlan-id=20 interface=bridge-lan
+/interface vlan add name=vlan21-iot-wan vlan-id=21 interface=bridge-lan
 /interface vlan add name=vlan30-guest vlan-id=30 interface=bridge-lan
 /interface vlan add name=vlan40-kids  vlan-id=40 interface=bridge-lan
 /interface vlan add name=vlan50-media vlan-id=50 interface=bridge-lan
@@ -87,6 +90,7 @@
 
 /ip address add address=10.10.1.1/24  interface=vlan10-home  comment="Home gateway"
 /ip address add address=10.10.20.1/24 interface=vlan20-iot   comment="IoT gateway"
+/ip address add address=10.10.21.1/24 interface=vlan21-iot-wan comment="IoT-Internet gateway"
 /ip address add address=10.10.30.1/24 interface=vlan30-guest comment="Guest gateway"
 /ip address add address=10.10.40.1/24 interface=vlan40-kids  comment="Kids gateway"
 /ip address add address=10.10.50.1/24 interface=vlan50-media comment="Media gateway"
@@ -96,6 +100,7 @@
 
 /ip pool add name=pool-home    ranges=10.10.1.100-10.10.1.199
 /ip pool add name=pool-iot     ranges=10.10.20.100-10.10.20.199
+/ip pool add name=pool-iot-wan ranges=10.10.21.100-10.10.21.199
 /ip pool add name=pool-guest   ranges=10.10.30.100-10.10.30.199
 /ip pool add name=pool-kids    ranges=10.10.40.100-10.10.40.199
 /ip pool add name=pool-media   ranges=10.10.50.100-10.10.50.199
@@ -105,6 +110,7 @@
 
 /ip dhcp-server add name=dhcp-home  interface=vlan10-home  address-pool=pool-home  disabled=no
 /ip dhcp-server add name=dhcp-iot   interface=vlan20-iot   address-pool=pool-iot   disabled=no
+/ip dhcp-server add name=dhcp-iot-wan interface=vlan21-iot-wan address-pool=pool-iot-wan disabled=no
 /ip dhcp-server add name=dhcp-guest interface=vlan30-guest address-pool=pool-guest disabled=no
 /ip dhcp-server add name=dhcp-kids  interface=vlan40-kids  address-pool=pool-kids  disabled=no
 /ip dhcp-server add name=dhcp-media interface=vlan50-media address-pool=pool-media disabled=no
@@ -115,11 +121,15 @@
 
 /ip dhcp-server network add \
     address=10.10.1.0/24 gateway=10.10.1.1 dns-server=10.10.1.1 \
-    domain=home.kogler.si comment="Home"
+    domain=kogler.si comment="Home"
 
 /ip dhcp-server network add \
     address=10.10.20.0/24 gateway=10.10.20.1 dns-server=10.10.20.1 \
-    domain=home.kogler.si comment="IoT"
+    domain=kogler.si comment="IoT"
+
+/ip dhcp-server network add \
+    address=10.10.21.0/24 gateway=10.10.21.1 dns-server=10.10.21.1 \
+    domain=kogler.si comment="IoT-Internet"
 
 /ip dhcp-server network add \
     address=10.10.30.0/24 gateway=10.10.30.1 dns-server=10.10.30.1 \
@@ -127,15 +137,15 @@
 
 /ip dhcp-server network add \
     address=10.10.40.0/24 gateway=10.10.40.1 dns-server=10.10.40.1 \
-    domain=home.kogler.si comment="Kids"
+    domain=kogler.si comment="Kids"
 
 /ip dhcp-server network add \
     address=10.10.50.0/24 gateway=10.10.50.1 dns-server=10.10.50.1 \
-    domain=home.kogler.si comment="Media"
+    domain=kogler.si comment="Media"
 
 /ip dhcp-server network add \
     address=10.10.99.0/24 gateway=10.10.99.1 dns-server=10.10.99.1 \
-    domain=home.kogler.si comment="Management"
+    domain=kogler.si comment="Management"
 
 # ---- DNS (temporary — switches to Technitium after Debian PC is up) ----
 
@@ -149,6 +159,7 @@
 /interface list add name=LAN
 /interface list add name=VLAN-Home
 /interface list add name=VLAN-IoT
+/interface list add name=VLAN-IoT-WAN
 /interface list add name=VLAN-Guest
 /interface list add name=VLAN-Kids
 /interface list add name=VLAN-Media
@@ -157,12 +168,14 @@
 /interface list member add list=WAN        interface=pppoe-telekom
 /interface list member add list=LAN        interface=vlan10-home
 /interface list member add list=LAN        interface=vlan20-iot
+/interface list member add list=LAN        interface=vlan21-iot-wan
 /interface list member add list=LAN        interface=vlan30-guest
 /interface list member add list=LAN        interface=vlan40-kids
 /interface list member add list=LAN        interface=vlan50-media
 /interface list member add list=LAN        interface=vlan99-mgmt
 /interface list member add list=VLAN-Home  interface=vlan10-home
 /interface list member add list=VLAN-IoT   interface=vlan20-iot
+/interface list member add list=VLAN-IoT-WAN interface=vlan21-iot-wan
 /interface list member add list=VLAN-Guest interface=vlan30-guest
 /interface list member add list=VLAN-Kids  interface=vlan40-kids
 /interface list member add list=VLAN-Media interface=vlan50-media
@@ -199,6 +212,7 @@
 # DNS: allow all VLANs → router DNS (intercepted before inter-VLAN drop)
 /ip firewall filter add chain=forward dst-address=10.10.1.1   protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (Home GW)"
 /ip firewall filter add chain=forward dst-address=10.10.20.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (IoT GW)"
+/ip firewall filter add chain=forward dst-address=10.10.21.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (IoT-Internet GW)"
 /ip firewall filter add chain=forward dst-address=10.10.30.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (Guest GW)"
 /ip firewall filter add chain=forward dst-address=10.10.40.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (Kids GW)"
 /ip firewall filter add chain=forward dst-address=10.10.50.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (Media GW)"
@@ -209,6 +223,18 @@
     src-address-list=trusted-ha out-interface=vlan20-iot \
     connection-state=new action=accept \
     comment="Home→IoT (trusted: HA)"
+
+# Home → IoT-Internet (HA → HAP, Prometheus → HA async)
+/ip firewall filter add chain=forward \
+    src-address-list=trusted-ha out-interface=vlan21-iot-wan \
+    connection-state=new action=accept \
+    comment="Home→IoT-Internet (trusted: HA)"
+
+# IoT-Internet → Home (only replies, no new connections)
+/ip firewall filter add chain=forward \
+    in-interface=vlan21-iot-wan out-interface=vlan10-home \
+    connection-state=new action=drop \
+    comment="IoT-Internet↛Home (block new)"
 
 # Home → Management
 /ip firewall filter add chain=forward \
@@ -226,6 +252,10 @@
     in-interface=vlan50-media out-interface=vlan10-home \
     action=accept comment="Media→Home (Plex/Jellyfin)"
 
+# IoT-Internet: internet allowed (these devices need cloud)
+/ip firewall filter add chain=forward \
+    in-interface=vlan21-iot-wan out-interface-list=WAN \
+    action=accept comment="IoT-Internet→WAN (allowed)"
 # IoT: no internet (manual disable this rule for firmware updates)
 /ip firewall filter add chain=forward \
     in-interface=vlan20-iot out-interface-list=WAN \
@@ -281,6 +311,12 @@
     encryption=aes-ccm
 
 /caps-man security add \
+    name=sec-kogler-iot-wan \
+    authentication-types=wpa2-psk \
+    passphrase=CHANGEME \
+    encryption=aes-ccm
+
+/caps-man security add \
     name=sec-kogler-guest \
     authentication-types=wpa2-psk \
     passphrase=CHANGEME \
@@ -298,6 +334,8 @@
 /caps-man datapath add \
     name=dp-iot   bridge=bridge-lan local-forwarding=no client-to-client-forwarding=no
 /caps-man datapath add \
+    name=dp-iot-wan bridge=bridge-lan local-forwarding=no client-to-client-forwarding=no
+/caps-man datapath add \
     name=dp-guest bridge=bridge-lan local-forwarding=no client-to-client-forwarding=no
 /caps-man datapath add \
     name=dp-kids  bridge=bridge-lan local-forwarding=no client-to-client-forwarding=no
@@ -313,15 +351,23 @@
 
 /caps-man configuration add \
     name=cfg-kogler-iot \
-    ssid=Kogler-IOT \
+    ssid=Kogler IOT \
     security=sec-kogler-iot \
     datapath=dp-iot \
     datapath.vlan-id=20 \
     datapath.vlan-mode=use-tag
 
 /caps-man configuration add \
+    name=cfg-kogler-iot-wan \
+    ssid=Kogler IOT WAN \
+    security=sec-kogler-iot-wan \
+    datapath=dp-iot-wan \
+    datapath.vlan-id=21 \
+    datapath.vlan-mode=use-tag
+
+/caps-man configuration add \
     name=cfg-kogler-guest \
-    ssid=Kogler-guest \
+    ssid=Kogler guest \
     security=sec-kogler-guest \
     datapath=dp-guest \
     datapath.vlan-id=30 \
@@ -329,17 +375,17 @@
 
 /caps-man configuration add \
     name=cfg-kogler-kids \
-    ssid=Kogler-Kids \
+    ssid=Kogler Kids \
     security=sec-kogler-kids \
     datapath=dp-kids \
     datapath.vlan-id=40 \
     datapath.vlan-mode=use-tag
 
-# Provisioning — all APs get all 4 SSIDs
+# Provisioning — all APs get all 5 SSIDs
 /caps-man provisioning add \
     action=create-dynamic-enabled \
     master-configuration=cfg-kogler \
-    slave-configurations=cfg-kogler-iot,cfg-kogler-guest,cfg-kogler-kids
+    slave-configurations=cfg-kogler-iot,cfg-kogler-iot-wan,cfg-kogler-guest,cfg-kogler-kids
 
 # Enable CAPsMAN
 /caps-man manager set \

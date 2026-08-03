@@ -46,4 +46,4 @@
 # ---- End ----
 # After import, verify on RB4011:
 #   /caps-man remote-cap print
-# AP should appear with 4 dynamic interfaces (one per SSID)
+# AP should appear with 5 dynamic interfaces (one per SSID)

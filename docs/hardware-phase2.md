@@ -97,6 +97,6 @@ Proxmox Host:
 
 | Target | CD Tool | Why |
 |--------|---------|-----|
-| **debhost** (local Docker) | Doco-CD | Fast, drift-correcting, no SSH |
+| **oldsrv** (local Docker) | Doco-CD | Fast, drift-correcting, no SSH |
 | **Phase 2 Proxmox** (local VM Docker) | Doco-CD | Same container, same config — portable |
 | **VPS** (remote Docker) | Forgejo Actions + Ansible | Doco-CD needs socket access; SSH for remote |

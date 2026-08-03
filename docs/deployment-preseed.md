@@ -1,7 +1,7 @@
 # Preseed & Post-Install Specification
 
 > **Role:** ★ Generation target — read this to generate `preseed.cfg` and `post_install.sh` for Debian deployment.
-> **Links to:** `hardware-gen8.md`, `hardware-debhost.md`, `network-vlans.md`, `deployment-secrets.md`
+> **Links to:** `hardware-nas.md`, `hardware-oldsrv.md`, `network-vlans.md`, `deployment-secrets.md`
 > **Linked from:** `deployment.md`, `index.md`
 
 ---
@@ -13,7 +13,7 @@ These two files automate a fully unattended Debian installation:
 - **`preseed.cfg`** — answers all Debian installer questions (locale, partitioning, users, packages, GRUB)
 - **`post_install.sh`** — runs after base install: Python, SSH key injection, sudo config for Ansible
 
-Reference implementation: [`Iaac/host/gen8/preseed.cfg`](../../Iaac/host/gen8/preseed.cfg) and the **shared** [`Iaac/host/post_install.sh`](../../Iaac/host/post_install.sh) — one copy for all hosts.
+Reference implementation: [`IaC/host/nas/preseed.cfg`](../../IaC/host/nas/preseed.cfg) and the **shared** [`IaC/host/post_install.sh`](../../IaC/host/post_install.sh) — one copy for all hosts.
 
 ---
 
@@ -33,8 +33,8 @@ d-i netcfg/get_domain string kogler.si
 ```
 
 Hostname must match the target machine:
-- `debhost` for i7-7700K ([`hardware-debhost.md`](hardware-debhost.md))
-- `gen8` for HP MicroServer ([`hardware-gen8.md`](hardware-gen8.md))
+- `oldsrv` for i7-7700K ([`hardware-oldsrv.md`](hardware-oldsrv.md))
+- `nas` for HP MicroServer ([`hardware-nas.md`](hardware-nas.md))
 
 ### 3. Mirror
 ```
@@ -45,14 +45,14 @@ d-i mirror/http/directory string /debian
 
 ### 4. Partitioning
 
-**For gen8 (single SSD boot):**
+**For nas (single SSD boot):**
 ```
 d-i partman-auto/disk string /dev/disk/by-id/<SSD_MODEL_SERIAL>
 d-i partman-auto/method string regular
 d-i partman-auto/choose_recipe select atomic
 ```
 
-**For debhost (NVMe + dual drives):**
+**For oldsrv (NVMe + dual drives):**
 - OS on NVMe 1 (`Samsung SSD 970 EVO 1TB`)
 - Data on NVMe 2 (`Samsung SSD 960 EVO 500GB`)
 - Use `/dev/disk/by-id/nvme-*` paths
@@ -83,12 +83,12 @@ d-i pkgsel/upgrade select safe-upgrade
 
 ### 7. GRUB
 
-**For gen8 (boots from USB):**
+**For nas (boots from USB):**
 ```
 d-i grub-installer/bootdev string /dev/disk/by-id/usb-<USB_SERIAL>
 ```
 
-**For debhost (boots from NVMe):**
+**For oldsrv (boots from NVMe):**
 ```
 d-i grub-installer/bootdev string /dev/disk/by-id/nvme-<NVME_SERIAL>
 ```
@@ -148,7 +148,7 @@ exit 0
 
 ### SSH Keys — three keys, injected at generation time
 
-Public keys are fetched from 1Password `Homelab` vault by the AI when generating the real `post_install.sh` — **the repo only ever contains placeholders**. The same three keys are authorized on **every** homelab host (gen8, debhost, ...). There is a **single shared `post_install.sh`** in `Iaac/host/` — no per-host copies to drift.
+Public keys are fetched from 1Password `Homelab` vault by the AI when generating the real `post_install.sh` — **the repo only ever contains placeholders**. The same three keys are authorized on **every** homelab host (nas, oldsrv, ...). There is a **single shared `post_install.sh`** in `IaC/host/` — no per-host copies to drift.
 
 | Key (1Password item) | Authorized user | Access |
 |----------------------|-----------------|--------|
@@ -166,16 +166,16 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 
 ## Machine-Specific Partitions
 
-### gen8 (HP MicroServer)
+### nas (HP MicroServer)
 - Boot: Crucial MX300 525 GB SSD (SATA)
 - HDDs HGST 4TB + Seagate 4TB are ZFS — **not touched by preseed**
 - SilverStone drives are ZFS-only — **not touched by preseed**
-- Refer to [`hardware-gen8.md`](hardware-gen8.md) for drive details
+- Refer to [`hardware-nas.md`](hardware-nas.md) for drive details
 
-### debhost (i7-7700K)
+### oldsrv (i7-7700K)
 - OS: Samsung SSD 970 EVO 1TB (NVMe)
 - Data: Samsung SSD 960 EVO 500GB (NVMe)
-- Desktop environment: XFCE or GNOME (see [`hardware-debhost.md`](hardware-debhost.md))
+- Desktop environment: XFCE or GNOME (see [`hardware-oldsrv.md`](hardware-oldsrv.md))
 - Additional packages for desktop: `xorg xfce4 lightdm` (or GNOME equivalent)
 
 ---
@@ -186,8 +186,8 @@ Preseed uses DHCP. After boot, Ansible's `network` role assigns the correct VLAN
 
 | Machine | VLAN | IP |
 |---------|------|-----|
-| debhost | 99 (Management, native) + 10,20,50 tagged | static on VLAN 99 |
-| gen8 | 10 (Home) access + 99 (Management) native | static on VLAN 10 |
+| oldsrv | 99 (Management, native) + 10,20,50 tagged | static on VLAN 99 |
+| nas | 10 (Home) access + 99 (Management) native | static on VLAN 10 |
 
 Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
 
@@ -196,10 +196,10 @@ Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
 ## Files in Repo
 
 ```
-Iaac/host/
+IaC/host/
 ├── post_install.sh         # SHARED bootstrap — ansible-admin + ai-debug + sshd hardening (single copy for all hosts)
-├── gen8/
+├── nas/
 │   └── preseed.cfg          # Reference implementation for HP Gen8
-└── debhost/
+└── oldsrv/
     └── preseed.cfg          # (to be generated)
 ```

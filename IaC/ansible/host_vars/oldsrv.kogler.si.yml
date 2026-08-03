@@ -1,6 +1,6 @@
 ---
 # Phase 1 home server: bare-metal Debian desktop
-ansible_host: 10.10.1.10           # TBD — assign static DHCP lease
+ansible_host: 10.10.99.10           # VLAN 99 (Management) — static
 ansible_user: ansible-admin        # created by preseed post_install.sh
 homelab_mode: desktop
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

@@ -15,6 +15,22 @@
 
 ---
 
+## Domain & DNS (`kogler.si`)
+
+| Item | Value |
+|------|-------|
+| Registrar | **domenca.com** |
+| Nameserver 1 | `george.ns.cloudflare.com` |
+| Nameserver 2 | `may.ns.cloudflare.com` |
+| DNS provider | **Cloudflare** (DNS-only — no proxy) |
+| Certificates | wildcard `*.kogler.si` via ACME **DNS-01** (Cloudflare API token in 1Password `Homelab`) |
+
+See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
+
+---
+
+---
+
 ## Planned Subscriptions
 
 | Service | Plan | Est. Cost | Status | Purpose |
