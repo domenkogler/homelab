@@ -19,6 +19,36 @@ Domača stran na **`kogler.si`** je glavna vstopna točka za vse storitve.
 
 ---
 
+## Agent skills & pi config (`skills/` → global pi folder)
+
+The repo's **`skills/` folder is the single source of truth** for the pi coding
+agent's skills on the management laptop. Edit there, commit, then run
+**`update_pi.cmd`** to deploy them into the global pi skills folder
+(`%USERPROFILE%\.pi\agent\skills\`). Do **not** edit the global copy directly —
+it is refreshed from this repo.
+
+| Skill | Purpose |
+|-------|---------|
+| `platform-env` | Detect OS/shell once and apply platform assumptions (paths, `\` vs `/`, `/tmp`, `~`, `py -3` vs `python3`, UTF-8, CRLF/LF, `&&`). Run at session start and when producing plans; re-consult only on an env failure. Self-learning: records new platform traps into its reference docs. |
+| `plan-task` | Produce a reviewable execution-plan directory from a goal (records the detected environment in the plan). |
+| `run-task` | Execute a plan one task at a time (honors the plan's Environment + per-task models). |
+| `mikrotik` | Read RouterOS config/state via the RouterOS API. |
+| `shelly` | Manage WiFi Shelly devices (switch, dim, colors, WiFi). |
+
+**Session-start config** ships from `pi-agent/` and is also deployed by
+`update_pi.cmd`:
+- `AGENTS.md` → `%USERPROFILE%\.pi\agent\AGENTS.md` — auto-loaded at session
+  start; instructs the agent to run `platform-env` and state the environment
+  before acting.
+- `prompts/start.md` → `%USERPROFILE%\.pi\agent\prompts\start.md` — `/start`
+  prompt template (on-demand trigger for the same environment check).
+
+> ⚠ `update_pi.cmd` **overwrites** `~/.pi/agent/AGENTS.md` and
+> `~/.pi/agent/prompts/\*` with the repo copies. If you customize your global
+> `AGENTS.md` or prompts elsewhere, keep them in this repo instead.
+
+---
+
 ## For Maintainers (in English)
 
 > Start at **[`docs/index.md`](docs/index.md)** — the AI dispatcher / document map.
