@@ -4,24 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "dcc1038a4a992dd4",
+        "id": "4c4f5bfa6c2fba87",
         "type": "tabs",
         "children": [
           {
-            "id": "83b3c45719326d1a",
+            "id": "9db10c86e7a90837",
             "type": "leaf",
             "state": {
-              "type": "canvas",
-              "state": {
-                "file": "docs/assets/Network-Devices.canvas",
-                "viewState": {
-                  "x": -2610,
-                  "y": -2430,
-                  "zoom": -0.6520766965796931
-                }
-              },
-              "icon": "lucide-layout-dashboard",
-              "title": "Network-Devices"
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
             }
           }
         ]
@@ -99,14 +92,13 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/assets/Network-Devices.canvas",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
                 "showSearch": false,
                 "searchQuery": "",
                 "backlinkCollapsed": false,
-                "unlinkedCollapsed": true
+                "unlinkedCollapsed": false
               },
               "icon": "links-coming-in",
               "title": "Backlinks"
@@ -186,13 +178,40 @@
       "bases:Create new base": false
     }
   },
-  "active": "83b3c45719326d1a",
+  "active": "9db10c86e7a90837",
   "lastOpenFiles": [
-    "IaC/ansible/host_vars/vps.kogler.si.yml",
-    "IaC/ansible/host_vars/nas.kogler.si.yml",
+    "plan/2026-08-06-docs-obsidian-reorg/T2.md",
+    "plan/2026-08-06-docs-obsidian-reorg/T1.md",
+    "plan/2026-08-06-docs-obsidian-reorg/index.md",
+    "plan/2026-08-06-docs-obsidian-reorg",
+    "plan/2026-08-06-docs-obsidian-reorg.md",
+    "plan",
+    "skills/plan-task/scripts/__pycache__/validate-plan.cpython-314.pyc",
+    "skills/plan-task/scripts/__pycache__/refresh-model-cache.cpython-314.pyc",
+    "skills/plan-task/scripts/__pycache__",
+    "skills/run-task/references/human-checkpoints.md",
+    "skills/run-task/references/subagent-routing.md",
+    "skills/run-task/references",
+    "skills/run-task/SKILL.md",
+    "skills/run-task",
+    "skills/plan-task/_g.md",
+    "skills/plan-task/_fixture_broken.md",
+    "skills/plan-task/_fixture_good.md",
+    "skills/plan-task/scripts/validate-plan.py",
+    "skills/plan-task/scripts/refresh-model-cache.py",
+    "skills/plan-task/scripts",
+    "skills/plan-task/references/manifest-template.md",
+    "skills/plan-task/references/task-section-template.md",
+    "skills/plan-task/references/selection-algorithm.md",
+    "skills/plan-task/references/clarification-checklist.md",
+    "skills/plan-task/SKILL.md",
+    "docs/deployment-preseed.md",
+    "docs/index.md",
+    "docs/backup.md",
+    "docs/deployment-ansible.md",
+    "docs/assets/Network-Devices.canvas",
     "obsolete/network-devices.md",
     "docs/assets/Rack.canvas",
-    "docs/assets/Network-Devices.canvas",
     "docs/assets/images/HMIP-HAP.png",
     "docs/observability.md",
     "docs/assets/images/Comtrend-GRG-4260us.png",
@@ -203,41 +222,14 @@
     "docs/manual/contacts.md",
     "docs/manual/restore-backup.md",
     "docs/manual/server-restart.md",
-    "docs/manual/travel-router.md",
-    "docs/manual/vpn.md",
-    "docs/manual/opencloud.md",
-    "docs/manual/immich.md",
-    "docs/manual/desktop.md",
-    "docs/manual/wifi.md",
-    "docs/manual/05-vpn.md",
-    "docs/manual/04-opencloud.md",
-    "docs/manual/03-immich.md",
-    "docs/manual/02-desktop.md",
-    "docs/manual/01-wifi.md",
-    "docs/manual/README.md",
-    "docs/backup.md",
-    "docs/llm-office.md",
-    "docs/smart-home-audio.md",
-    "docs/smart-home-dashboards.md",
-    "docs/smart-home-voice.md",
-    "docs/smart-home.md",
-    "docs/assets/references/DOMENPC-cpuz.txt",
-    "docs/assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf",
     "docs/assets/images/wAP-ac.png",
     "docs/assets/images/hAP-ac2.png",
     "docs/assets/images/RB4011.png",
-    "docs/assets/references",
-    "docs/assets/manuals",
-    "docs/assets/images",
-    "docs/assets",
-    "docs/manual",
     "docs/technical/Rack.canvas",
-    "docs/technical/assets/PowerWalker VFI 3000 ICR IoT.pdf",
     "docs/technical/Network Devices.canvas",
     "docs/technical/assets/wAP ac.png",
     "docs/technical/WiFi devices 1.canvas",
     "docs/technical/assets/HMIP-HAP.png",
-    "Pasted image 20260727131335.png",
-    "docs/technical/assets"
+    "Pasted image 20260727131335.png"
   ]
 }
