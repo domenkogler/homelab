@@ -77,3 +77,10 @@ nas (rack) — Debian 13, ZFS
 | NAS ZFS storage server (+ external SilverStone case) | [`hardware-nas.md`](hardware-nas.md) |
 | Phase 2 Ryzen/Proxmox build | [`hardware-phase2.md`](hardware-phase2.md) |
 | Subscriptions & costs | [`subscription.md`](subscription.md) |
+
+## Related
+
+- [oldsrv — i7-7700K Docker Host](hardware-oldsrv.md)
+- [Shared GPU Resource](hardware-gpu.md)
+- [HP MicroServer Gen8](hardware-nas.md)
+- [Phase 2 Target Build (Ryzen + Proxmox)](hardware-phase2.md)

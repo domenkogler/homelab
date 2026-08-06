@@ -115,3 +115,9 @@ tags: [smart-home, homeassistant]
 | Voice pipeline details | [`smart-home-voice.md`](smart-home-voice.md) |
 | Dashboards & interfaces | [`interfaces.md`](interfaces.md) |
 | Audio hardware | [`smart-home-audio.md`](smart-home-audio.md) |
+
+## Related
+
+- [Voice Pipeline](smart-home-voice.md)
+- [Interface Matrix — Dashboards & Management](interfaces.md)
+- [Audio System](smart-home-audio.md)

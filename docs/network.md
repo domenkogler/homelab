@@ -75,3 +75,11 @@ Internet → ONT → router ether1 (WAN)
 | Rack layout | [`network-rack.md`](network-rack.md) → `assets/Rack.canvas` |
 | Router config storage & versioning | [`network-ops.md`](network-ops.md) |
 | Monitoring / SNMP | [`observability.md`](observability.md) |
+
+## Related
+
+- [VLAN Plan](network-vlans.md)
+- [DNS Architecture](network-dns.md)
+- [VPN & Remote Access](network-vpn.md)
+- [Rack Layout](network-rack.md)
+- [Network Operations — Router Config Storage](network-ops.md)

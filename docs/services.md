@@ -127,3 +127,11 @@ Full architecture in [`observability.md`](observability.md). Summary:
 - **Display:** Grafana (`stats.kogler.si`, **internal**, admin-only SSO) + Homepage status widget (reachability).
 - **Alerts:** Grafana Alerting → n8n → Signal (Homelab Alerts group) + email fail-safe. 3 tiers (Critical/Warning/Info).
 - **Alloy** runs as a host service (Ansible) with `docker.sock` access for container logs — it is **not** a containerized service.
+
+## Related
+
+- [Traefik — Reverse Proxy & Edge](services-traefik.md)
+- [Authentik — Identity & SSO](services-authentik.md)
+- [Deferred VPS Infrastructure](services-vps.md)
+- [Docker Compose Specification](deployment-compose.md)
+- [Service Subscriptions & Costs](subscription.md)

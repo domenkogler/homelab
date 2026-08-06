@@ -98,3 +98,12 @@ git push → Doco-CD webhook → docker compose build + up → deployed <5 min
 | 1Password secrets & philosophy | [`deployment-secrets.md`](deployment-secrets.md) |
 | Renovate config | [`deployment-renovate.md`](deployment-renovate.md) |
 | Dashboard matrix | [`interfaces.md`](interfaces.md) |
+
+## Related
+
+- [Preseed & Post-Install Specification](deployment-preseed.md)
+- [Ansible Specification](deployment-ansible.md)
+- [Docker Compose Specification](deployment-compose.md)
+- [Secrets Management & Passwordless Philosophy](deployment-secrets.md)
+- [Renovate Bot — Update Lifecycle](deployment-renovate.md)
+- [Interface Matrix — Dashboards & Management](interfaces.md)
