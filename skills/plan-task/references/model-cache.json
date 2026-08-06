@@ -1,0 +1,355 @@
+{
+  "fetched_at": "2026-08-06T21:44:54.933490+00:00",
+  "source": "https://openrouter.ai/api/v1/models",
+  "note": "Auto-generated cache. Refresh with scripts/refresh-model-cache.py. prices are USD per 1,000,000 tokens.",
+  "tier_defaults": {
+    "T1": "openrouter/free",
+    "T2": "openrouter/free",
+    "T3": "deepseek/deepseek-v4-pro",
+    "T4": "anthropic/claude-sonnet-4.5"
+  },
+  "difficulty_defaults": {
+    "1": {
+      "min_tier": "T1",
+      "selected": "openrouter/free",
+      "fallback": "openai/gpt-5-nano"
+    },
+    "2": {
+      "min_tier": "T1",
+      "selected": "openrouter/free",
+      "fallback": "deepseek/deepseek-v4-flash"
+    },
+    "3": {
+      "min_tier": "T3",
+      "selected": "deepseek/deepseek-v4-pro",
+      "fallback": "openai/gpt-5.2"
+    },
+    "4": {
+      "min_tier": "T4",
+      "selected": "anthropic/claude-sonnet-4.5",
+      "fallback": "anthropic/claude-opus-4.5"
+    },
+    "5": {
+      "min_tier": "T4",
+      "selected": "anthropic/claude-sonnet-4.5",
+      "fallback": "anthropic/claude-opus-4.5"
+    }
+  },
+  "models": [
+    {
+      "id": "openrouter/free",
+      "tier": "T1",
+      "ctx": 200000,
+      "price_in": 0.0,
+      "price_out": 0.0,
+      "caps": {
+        "in": [
+          "image",
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": true,
+        "audio": false,
+        "summary": "in:image,text out:text tools json reasoning vision"
+      }
+    },
+    {
+      "id": "openai/gpt-5-nano",
+      "tier": "T1",
+      "ctx": 400000,
+      "price_in": 0.049999999999999996,
+      "price_out": 0.39999999999999997,
+      "caps": {
+        "in": [
+          "file",
+          "image",
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": true,
+        "audio": false,
+        "summary": "in:file,image,text out:text tools json reasoning vision"
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v4-flash",
+      "tier": "T2",
+      "ctx": 1048576,
+      "price_in": 0.0882,
+      "price_out": 0.1764,
+      "caps": {
+        "in": [
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": false,
+        "audio": false,
+        "summary": "in:text out:text tools json reasoning"
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v3.2",
+      "tier": "T2",
+      "ctx": 163840,
+      "price_in": 0.26899999999999996,
+      "price_out": 0.39999999999999997,
+      "caps": {
+        "in": [
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": false,
+        "audio": false,
+        "summary": "in:text out:text tools json reasoning"
+      }
+    },
+    {
+      "id": "qwen/qwen3-coder-flash",
+      "tier": "T2",
+      "ctx": 1000000,
+      "price_in": 0.195,
+      "price_out": 0.975,
+      "caps": {
+        "in": [
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": false,
+        "vision": false,
+        "audio": false,
+        "summary": "in:text out:text tools json"
+      }
+    },
+    {
+      "id": "google/gemini-2.5-flash",
+      "tier": "T2",
+      "ctx": 1048576,
+      "price_in": 0.3,
+      "price_out": 2.5,
+      "caps": {
+        "in": [
+          "audio",
+          "file",
+          "image",
+          "text",
+          "video"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": true,
+        "audio": true,
+        "summary": "in:audio,file,image,text,video out:text tools json reasoning vision audio"
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v4-pro",
+      "tier": "T3",
+      "ctx": 1048576,
+      "price_in": 0.435,
+      "price_out": 0.87,
+      "caps": {
+        "in": [
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": false,
+        "audio": false,
+        "summary": "in:text out:text tools json reasoning"
+      }
+    },
+    {
+      "id": "qwen/qwen3-coder-plus",
+      "tier": "T3",
+      "ctx": 1000000,
+      "price_in": 0.65,
+      "price_out": 3.25,
+      "caps": {
+        "in": [
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": false,
+        "vision": false,
+        "audio": false,
+        "summary": "in:text out:text tools json"
+      }
+    },
+    {
+      "id": "google/gemini-2.5-pro",
+      "tier": "T3",
+      "ctx": 1048576,
+      "price_in": 1.25,
+      "price_out": 10.0,
+      "caps": {
+        "in": [
+          "audio",
+          "file",
+          "image",
+          "text",
+          "video"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": true,
+        "audio": true,
+        "summary": "in:audio,file,image,text,video out:text tools json reasoning vision audio"
+      }
+    },
+    {
+      "id": "openai/gpt-5",
+      "tier": "T3",
+      "ctx": 400000,
+      "price_in": 1.25,
+      "price_out": 10.0,
+      "caps": {
+        "in": [
+          "file",
+          "image",
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": true,
+        "audio": false,
+        "summary": "in:file,image,text out:text tools json reasoning vision"
+      }
+    },
+    {
+      "id": "openai/gpt-5.2",
+      "tier": "T3",
+      "ctx": 400000,
+      "price_in": 1.75,
+      "price_out": 14.0,
+      "caps": {
+        "in": [
+          "file",
+          "image",
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": true,
+        "audio": false,
+        "summary": "in:file,image,text out:text tools json reasoning vision"
+      }
+    },
+    {
+      "id": "anthropic/claude-sonnet-4.5",
+      "tier": "T4",
+      "ctx": 1000000,
+      "price_in": 3.0,
+      "price_out": 15.0,
+      "caps": {
+        "in": [
+          "file",
+          "image",
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": true,
+        "audio": false,
+        "summary": "in:file,image,text out:text tools json reasoning vision"
+      }
+    },
+    {
+      "id": "anthropic/claude-opus-4.5",
+      "tier": "T4",
+      "ctx": 200000,
+      "price_in": 5.0,
+      "price_out": 25.0,
+      "caps": {
+        "in": [
+          "file",
+          "image",
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": true,
+        "audio": false,
+        "summary": "in:file,image,text out:text tools json reasoning vision"
+      }
+    },
+    {
+      "id": "openai/gpt-5-pro",
+      "tier": "T4",
+      "ctx": 400000,
+      "price_in": 15.0,
+      "price_out": 120.0,
+      "caps": {
+        "in": [
+          "file",
+          "image",
+          "text"
+        ],
+        "out": [
+          "text"
+        ],
+        "tools": true,
+        "json": true,
+        "reasoning": true,
+        "vision": true,
+        "audio": false,
+        "summary": "in:file,image,text out:text tools json reasoning vision"
+      }
+    }
+  ]
+}
