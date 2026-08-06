@@ -38,6 +38,10 @@ stored here — the `index.md` Task summary table is the single source of progre
 ```
 
 **Executor prompt (paste to the worker):**
+> Environment: <platform/shell> — pin CWD to repo root (<abs path>), use <py -3|python3>
+> for validators, UTF-8 no-BOM; see index
+> (`plan/<date>-<slug>/index.md` `## Environment`) for full platform rules.
+>
 > You are executing task T<ID>. Read THIS file (`plan/<date>-<slug>/T<ID>.md`)
 > for the exact File scope and values. Touch ONLY those files. Insert the exact
 > values, transcribe them verbatim, and change no existing body lines. Then run

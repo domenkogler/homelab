@@ -25,6 +25,13 @@ import os
 import re
 import sys
 
+# Windows console default is cp1252; force UTF-8 so our \u2014 (em-dash) output
+# and any non-ASCII in plan/task text isn't garbled when captured on Windows 11.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
+
 VALID_STATUS = {"todo", "in-progress", "awaiting-verification", "done", "blocked"}
 REQ_TASK_HEADERS = ["Objective", "File scope", "Difficulty", "Model", "Validation"]
 # Global sections required in index.md (directory layout). ("## Tasks" no longer

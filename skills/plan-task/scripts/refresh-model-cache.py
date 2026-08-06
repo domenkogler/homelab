@@ -23,12 +23,24 @@ By default it only DRY-RUNS and prints the diff. Use --apply / --add / --add-new
 """
 import argparse
 import json
+import os
 import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+# Windows consoles default to cp1252, which garbles the non-ASCII we print
+# (\u00b7 \u2192 \u2014). Force UTF-8 stdout when possible so captured output
+# is reliable on Windows 11 (and a no-op elsewhere).
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
+
 API = "https://openrouter.ai/api/v1/models"
-DEFAULT_CACHE = "references/model-cache.json"
+# Resolve the default cache relative to THIS file (not CWD) so the script works
+# no matter which directory it is invoked from (a real Windows trap).
+SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_CACHE = os.path.join(SCRIPTS_DIR, os.pardir, "references", "model-cache.json")
 
 # Age past which the cache is flagged stale and a refresh should be the loud
 # default rather than an opt-in.

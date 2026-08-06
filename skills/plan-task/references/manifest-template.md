@@ -26,6 +26,16 @@ Replace every PLACEHOLDER. Emit index at `plan/<YYYY-MM-DD>-<slug>/index.md`.
 ## Goal
 One sentence: what "done" looks like.
 
+## Environment (detected at plan time — follow this)
+- Platform / OS: <windows11 | debian | other — from platform-env>
+- Shell flavor: <cmd | powershell-5.1 | pwsh7 | git-bash | bash>
+- Repo root (pin CWD here before commands): <absolute fwd-slash path>
+- Temp dir: <%TEMP% / C:\Users\domen\AppData\Local\Temp | /tmp>
+- Home dir: <%USERPROFILE% / C:\Users\domen | /home/domen>
+- Python: <py -3 | python3> (NOT bare python/python3-wrong one)
+- Paths: forward-slash relative from repo root; no leading-`/` absolute (git-bash); quote spaces
+- Coding: UTF-8 no-BOM; <LF | CRLF>; `&&` invalid on PowerShell 5.1; case-sensitive/insensitive FS note
+
 ## How to execute (runbook — read by run-task)
 1. Present the Model-assignment table below and block until the human approves
    or edits it (one-time gate).
@@ -68,6 +78,11 @@ One sentence: what "done" looks like.
 
 - The **Models** table is the single source of truth for cost; `run-task`
   converts each row to a pi-subagents `[model=...]` per-run override.
+- The **`## Environment`** section is the single source of truth for platform/shell
+  assumptions. `run-task` reads it and passes a one-line env note to every worker,
+  so subagents never re-derive (and get wrong) the OS. Per-task Executor prompts
+  carry a short env note but state "see index `## Environment`" rather than
+  duplicating the full rules.
 - **CURRENT_TASK** + the summary **Status** column are the **only** progress
   state a driver reads. Keep them in sync. Per-task files carry NO Status field —
   do not duplicate it (avoids sync drift).
