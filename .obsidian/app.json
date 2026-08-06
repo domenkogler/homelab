@@ -1,4 +1,12 @@
 {
   "promptDelete": false,
-  "alwaysUpdateLinks": true
+  "alwaysUpdateLinks": true,
+  "userIgnoreFilters": [
+    "IaC/",
+    "brainstorming/",
+    "skills/",
+    "scripts/",
+    "reports/",
+    "obsolete/"
+  ]
 }
