@@ -1,3 +1,10 @@
+---
+title: Secrets Management & Passwordless Philosophy
+role: detail
+domain: deployment
+status: active
+tags: [deployment, secrets, 1password]
+---
 # Secrets Management & Passwordless Philosophy
 
 > **Role:** Detail — 1Password as sole secrets backend, self-documenting philosophy, passwordless-first design.

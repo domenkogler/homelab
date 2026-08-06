@@ -1,3 +1,10 @@
+---
+title: oldsrv — i7-7700K Docker Host
+role: detail
+domain: hardware
+status: active
+tags: [hardware, oldsrv, docker]
+---
 # oldsrv — i7-7700K Docker Host
 
 > **Role:** Detail — Phase 1 primary server. Bare-metal Debian, simultaneously family desktop PC and 24/7 Docker host.

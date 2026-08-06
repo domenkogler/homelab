@@ -1,3 +1,10 @@
+---
+title: Kako deliti datoteke (OpenCloud)
+role: reference
+domain: manual
+status: wip
+tags: [manual, opencloud, files]
+---
 # Kako deliti datoteke (OpenCloud)
 
 > **Status:** 🚧 Še ni napisano — počaka na postavitev OpenCloud.

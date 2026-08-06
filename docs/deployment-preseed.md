@@ -1,3 +1,10 @@
+---
+title: Preseed & Post-Install Specification
+role: generation-target
+domain: deployment
+status: active
+tags: [deployment, preseed, debian]
+---
 # Preseed & Post-Install Specification
 
 > **Role:** ★ Generation target — read this to generate `preseed.cfg` and `post_install.sh` for Debian deployment.

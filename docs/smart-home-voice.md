@@ -1,3 +1,10 @@
+---
+title: Voice Pipeline
+role: detail
+domain: smart-home
+status: active
+tags: [smart-home, voice, whisper, piper]
+---
 # Voice Pipeline
 
 > **Role:** Detail — Whisper STT, Ollama LLM, Piper TTS pipeline.

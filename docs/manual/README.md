@@ -1,3 +1,10 @@
+---
+title: Dokumentacija za družino
+role: reference
+domain: manual
+status: wip
+tags: [manual, index, slovenian]
+---
 # Dokumentacija za družino
 
 > **Jezik:** Slovenščina

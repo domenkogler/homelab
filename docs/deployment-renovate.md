@@ -1,3 +1,10 @@
+---
+title: Renovate Bot — Update Lifecycle
+role: detail
+domain: deployment
+status: active
+tags: [deployment, renovate, updates]
+---
 # Renovate Bot — Update Lifecycle
 
 > **Role:** Detail — Docker image version tracking, stability delay, PR automation.

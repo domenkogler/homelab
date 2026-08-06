@@ -1,3 +1,10 @@
+---
+title: Traefik — Reverse Proxy & Edge
+role: detail
+domain: services
+status: active
+tags: [services, traefik, proxy, ssl]
+---
 # Traefik — Reverse Proxy & Edge
 
 > **Role:** Detail — reverse proxy configuration, SSL, CrowdSec, security headers.

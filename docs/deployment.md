@@ -1,3 +1,10 @@
+---
+title: GitOps Deployment
+role: broad
+domain: deployment
+status: active
+tags: [deployment, gitops, doco-cd]
+---
 # GitOps Deployment
 
 > **Role:** Broad context — deployment philosophy, Doco-CD flow, tool choices.

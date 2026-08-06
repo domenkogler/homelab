@@ -1,3 +1,10 @@
+---
+title: Smart Home & Voice Assistant
+role: broad
+domain: smart-home
+status: active
+tags: [smart-home, homeassistant]
+---
 # Smart Home & Voice Assistant
 
 > **Role:** Broad context — Home Assistant, devices, voice pipeline, architecture.

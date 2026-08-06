@@ -1,3 +1,10 @@
+---
+title: HP MicroServer Gen8
+role: detail
+domain: hardware
+status: active
+tags: [hardware, nas, zfs]
+---
 # HP MicroServer Gen8
 
 > **Role:** Detail — dedicated ZFS storage server.

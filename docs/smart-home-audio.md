@@ -1,3 +1,10 @@
+---
+title: Audio System
+role: detail
+domain: smart-home
+status: active
+tags: [smart-home, audio]
+---
 # Audio System
 
 > **Role:** Detail — multi-room audio hardware for music and voice assistant output.

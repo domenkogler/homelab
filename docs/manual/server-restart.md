@@ -1,3 +1,10 @@
+---
+title: Kako znova zagnati strežnik
+role: reference
+domain: manual
+status: wip
+tags: [manual, server, restart]
+---
 # Kako znova zagnati strežnik
 
 > **Status:** 🚧 Še ni napisano — dodati fotografije.

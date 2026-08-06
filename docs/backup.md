@@ -1,3 +1,10 @@
+---
+title: Backup & Disaster Recovery
+role: detail
+domain: deployment
+status: active
+tags: [deployment, backup, zfs, kopia]
+---
 # Backup & Disaster Recovery
 
 > **Role:** Detail — LAST document. Dual-layer backup (ZFS + Kopia), DR scenarios, restore drills.

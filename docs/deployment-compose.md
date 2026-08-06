@@ -1,3 +1,10 @@
+---
+title: Docker Compose Specification
+role: generation-target
+domain: deployment
+status: active
+tags: [deployment, docker, compose]
+---
 # Docker Compose Specification
 
 > **Role:** ★ Generation target — read this to generate `docker-compose.yml` files for any homelab service.

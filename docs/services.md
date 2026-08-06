@@ -1,3 +1,10 @@
+---
+title: Service Catalog
+role: broad
+domain: services
+status: active
+tags: [services, catalog]
+---
 # Service Catalog
 
 > **Role:** Broad context — all Docker services, networks, domains.

@@ -1,3 +1,10 @@
+---
+title: Network Architecture
+role: broad
+domain: network
+status: active
+tags: [network, topology]
+---
 # Network Architecture
 
 > **Role:** Broad context — ISP, physical topology, overview. **Topology only.**

@@ -1,3 +1,10 @@
+---
+title: DNS Architecture
+role: detail
+domain: network
+status: active
+tags: [network, dns, technitium, pihole]
+---
 # DNS Architecture
 
 > **Role:** Detail — DNS routing, Technitium/Pi-hole, per-subnet policy.

@@ -1,3 +1,10 @@
+---
+title: VLAN Plan
+role: detail
+domain: network
+status: active
+tags: [network, vlan, firewall]
+---
 # VLAN Plan
 
 > **Role:** Detail — VLAN definitions, subnets, firewall rules.

@@ -1,3 +1,10 @@
+---
+title: Network Operations — Router Config Storage
+role: detail
+domain: network
+status: active
+tags: [network, routeros, ops]
+---
 # Network Operations — Router Config Storage
 
 > **Role:** Detail — where RouterOS configuration lives, versioning, change workflow.

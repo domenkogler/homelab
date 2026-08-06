@@ -1,3 +1,10 @@
+---
+title: Shared GPU Resource
+role: cross-cutting
+domain: hardware
+status: active
+tags: [hardware, gpu, rocm, cross-cutting]
+---
 # Shared GPU Resource
 
 > **Role:** Cross-cutting detail — GPU used by LLM, voice, vision, and gaming across multiple domains.

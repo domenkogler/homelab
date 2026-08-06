@@ -1,3 +1,10 @@
+---
+title: Interface Matrix — Dashboards & Management
+role: detail
+domain: services
+status: active
+tags: [services, interfaces, dashboards]
+---
 # Interface Matrix — Dashboards & Management
 
 > **Role:** Detail — every user-facing interface, its audience, and its responsibility (single source of truth for dashboards).

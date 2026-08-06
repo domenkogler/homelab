@@ -1,3 +1,10 @@
+---
+title: Kako upravljati pametno hišo
+role: reference
+domain: manual
+status: wip
+tags: [manual, smart-home]
+---
 # Kako upravljati pametno hišo
 
 > **Status:** 🚧 Še ni napisano — počaka na TileBoard in glasovne ukaze.

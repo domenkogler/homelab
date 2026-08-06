@@ -1,3 +1,10 @@
+---
+title: Kontakti za pomoč
+role: reference
+domain: manual
+status: wip
+tags: [manual, contacts]
+---
 # Kontakti za pomoč
 
 > **Status:** 🚧 Še ni napisano.

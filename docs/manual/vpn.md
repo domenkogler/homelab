@@ -1,3 +1,10 @@
+---
+title: Kako uporabljati VPN (Tailscale)
+role: reference
+domain: manual
+status: wip
+tags: [manual, vpn, tailscale]
+---
 # Kako uporabljati VPN (Tailscale)
 
 > **Status:** 🚧 Še ni napisano — počaka na postavitev Headscale.

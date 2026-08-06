@@ -1,3 +1,10 @@
+---
+title: Deferred VPS Infrastructure
+role: reference
+domain: services
+status: deferred
+tags: [services, vps, contabo]
+---
 # Deferred VPS Infrastructure
 
 > **Role:** Detail — reference architecture for Contabo VPS. Deferred to Phase 2+.

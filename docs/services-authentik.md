@@ -1,3 +1,10 @@
+---
+title: Authentik — Identity & SSO
+role: detail
+domain: services
+status: active
+tags: [services, authentik, sso, oidc]
+---
 # Authentik — Identity & SSO
 
 > **Role:** Detail — OIDC identity provider, WebAuthn, 1Password integration.

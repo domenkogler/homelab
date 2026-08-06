@@ -1,3 +1,10 @@
+---
+title: Local LLM for Office Tasks
+role: detail
+domain: services
+status: active
+tags: [services, llm, ollama, office]
+---
 # Local LLM for Office Tasks
 
 > **Role:** Detail — AI-assisted office work, model recommendations, toolchain.

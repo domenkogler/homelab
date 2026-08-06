@@ -1,3 +1,10 @@
+---
+title: Kako obnoviti iz varnostne kopije
+role: reference
+domain: manual
+status: wip
+tags: [manual, backup, restore]
+---
 # Kako obnoviti iz varnostne kopije
 
 > **Status:** 🚧 Še ni napisano — napisano ko bo backup postavljen.

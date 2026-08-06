@@ -1,3 +1,10 @@
+---
+title: Rack Layout
+role: detail
+domain: network
+status: active
+tags: [network, rack]
+---
 # Rack Layout
 
 > **Role:** Detail — 18U rack cabinet layout.

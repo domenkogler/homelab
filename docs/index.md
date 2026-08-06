@@ -1,3 +1,10 @@
+---
+title: Homelab Documentation Index
+role: index
+domain: meta
+status: active
+tags: [index, dispatcher, ai]
+---
 # Homelab Documentation Index
 
 > **Role:** AI dispatcher — start here for any task. Points to the correct context document.

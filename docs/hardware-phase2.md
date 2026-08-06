@@ -1,3 +1,10 @@
+---
+title: Phase 2 Target Build (Ryzen + Proxmox)
+role: detail
+domain: hardware
+status: deferred
+tags: [hardware, phase2, proxmox]
+---
 # Phase 2 Target Build (Ryzen + Proxmox)
 
 > **Role:** Detail — future scale-up server. Only built if Phase 1 hardware is insufficient.

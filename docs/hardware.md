@@ -1,3 +1,10 @@
+---
+title: Hardware Overview
+role: broad
+domain: hardware
+status: active
+tags: [hardware, phases]
+---
 # Hardware Overview
 
 > **Role:** Broad context — all machines, phase strategy, role assignments.

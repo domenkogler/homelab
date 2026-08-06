@@ -1,3 +1,10 @@
+---
+title: Observability
+role: ssot
+domain: services
+status: active
+tags: [services, observability, grafana, monitoring]
+---
 # Observability
 
 > **Role:** Single source of truth — the complete observability architecture in one page.

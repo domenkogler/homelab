@@ -1,3 +1,10 @@
+---
+title: Ansible Specification
+role: generation-target
+domain: deployment
+status: active
+tags: [deployment, ansible, iac]
+---
 # Ansible Specification
 
 > **Role:** ★ Generation target — read this to generate Ansible playbooks, roles, group_vars, and templates.

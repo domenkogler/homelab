@@ -1,3 +1,10 @@
+---
+title: Service Subscriptions & Costs
+role: reference
+domain: governance
+status: active
+tags: [governance, subscriptions, costs]
+---
 # Service Subscriptions & Costs
 
 > **Role:** Reference — all paid subscriptions, costs, renewal, and status.

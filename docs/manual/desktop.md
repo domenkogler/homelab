@@ -1,3 +1,10 @@
+---
+title: Kako uporabljati namizni računalnik
+role: reference
+domain: manual
+status: wip
+tags: [manual, desktop]
+---
 # Kako uporabljati namizni računalnik
 
 > **Status:** 🚧 Še ni napisano.

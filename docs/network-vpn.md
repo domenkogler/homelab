@@ -1,3 +1,10 @@
+---
+title: VPN & Remote Access
+role: detail
+domain: network
+status: active
+tags: [network, vpn, wireguard, headscale]
+---
 # VPN & Remote Access
 
 > **Role:** Detail — VPN layers, Headscale mesh, remote access. (Travel router obsolete.)

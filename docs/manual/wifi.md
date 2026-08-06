@@ -1,3 +1,10 @@
+---
+title: Kako uporabljati Wi-Fi
+role: reference
+domain: manual
+status: wip
+tags: [manual, wifi]
+---
 # Kako uporabljati Wi-Fi
 
 > **Status:** 🚧 Še ni napisano — počaka na postavitev omrežja.
