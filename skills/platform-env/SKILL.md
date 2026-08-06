@@ -1,6 +1,13 @@
 ---
 name: platform-env
-description: Detect the operating system / shell once and apply the correct platform assumptions (paths, separators, temp dir, home dir, python launcher, encoding, line endings, quoting). Run at session start and when producing/executing plans; re-consult ONLY when a command fails with an environment symptom or the platform is unknown — never as a gate before every command. Self-learning: records newly discovered platform traps back into its own reference docs. Works on Windows 11, Debian, or any host.
+description: |
+  Detect the operating system / shell once and apply the correct platform
+  assumptions (paths, separators, temp dir, home dir, python launcher, encoding,
+  line endings, quoting). Run at session start and when producing/executing
+  plans; re-consult ONLY when a command fails with an environment symptom or the
+  platform is unknown — never as a gate before every command. Self-learning:
+  records newly discovered platform traps back into its own reference docs.
+  Works on Windows 11, Debian, or any host.
 ---
 
 # platform-env — environment awareness
