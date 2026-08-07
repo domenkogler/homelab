@@ -22,7 +22,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - **Exactly one active HA node at a time** (no split-brain). Two HAs driving the same Shelly/KNX/ESPHome devices conflict; HA has **no native active/active clustering or state replication**.
 
 ### Scope
-- Primary: Raspberry Pi 4 (`ha.kogler.si`, `10.10.1.122`, Home VLAN 10).
+- Primary: Raspberry Pi 4 (`ha.kogler.si`, `10.10.1.200`, Home VLAN 10).
 - Fallback: **oldsrv** (`home-assistant-standby` Docker container, cold by default).
 - Supervision: **manual** trigger + **manual** failback (accepted design — no false negatives from automation).
 - Stale state on takeover is acceptable: HA re-polls devices on startup (target: controlling again in 1–3 min).
@@ -39,7 +39,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
    └──────────────┬──────────────┘
                   │ route / DHCP / optional VIP contact
    ┌──────────────▼──────────────┐
-   │     HA VIP 10.10.1.122      │   stable address everything points to
+   │     HA VIP 10.10.1.200      │   stable address everything points to
    └──────┬──────────────┬───────┘
           │              │
    ┌──────▼─────┐   ┌─────▼─────┐
@@ -52,7 +52,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 
 ### Addressing: shared Virtual IP (VIP)
 
-- HA gets a **floating VIP `10.10.1.122`** on the Home VLAN that moves between the Pi and oldsrv via **keepalived (VRRP)**.
+- HA gets a **floating VIP `10.10.1.200`** on the Home VLAN that moves between the Pi and oldsrv via **keepalived (VRRP)**.
 - **Devices, Companion apps, Traefik's `ha` route, and Technitium DNS all point at the VIP**, never a node-specific IP.
 - On takeover the VIP follows the active node → **no per-device reconfiguration and no DNS flip on failover**. This is the key that makes failover practical.
 - **Firewall:** Home→IoT trusted-IP rules for MQTT/HA must reference the **VIP / an IP-set**, not a per-node IP, so the standby can reach Shelly/KNX after takeover (see `network-vlans.md`).
@@ -65,8 +65,8 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 
 | Node | Role | Deployment | VIP |
 |------|------|-----------|-----|
-| Pi 4 (`ha.kogler.si`) | **Primary** (active) | Debian + **HA Container** (home_assistant role) + **RaspberryMatic** + `HmIP-RFUSB` + **Technitium secondary DNS** | owns `10.10.1.122` in normal mode |
-| oldsrv | **Fallback** (standby, cold) | `home-assistant-standby` + `raspberrymatic-standby` Docker compose (both `disabled` by default), same home_assistant role template | takes over `10.10.1.122` on takeover |
+| Pi 4 (`ha.kogler.si`) | **Primary** (active) | Debian + **HA Container** (home_assistant role) + **RaspberryMatic** + `HmIP-RFUSB` + **Technitium secondary DNS** | owns `10.10.1.200` in normal mode |
+| oldsrv | **Fallback** (standby, cold) | `home-assistant-standby` + `raspberrymatic-standby` Docker compose (both `disabled` by default), same home_assistant role template | takes over `10.10.1.200` on takeover |
 
 - Each HA node is paired with a **RaspberryMatic + HmIP-RFUSB**: primary on the Pi (always-on), standby on oldsrv (cold, started by the failover button). Both RaspberryMatic instances expose XML-RPC (2001/2010) on a **fixed Home/IoT VLAN IP** so whichever HA is active reaches it identically.
 - **Technitium secondary DNS moved from nas → Pi** (`ha.kogler.si`, now a Debian host). Primary stays on oldsrv. See `network-dns.md`.
@@ -107,7 +107,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 3. **Press the single failover button** on Homepage. It runs `ha-failover.sh` on oldsrv, which:
    a. starts **RaspberryMatic** (`raspberrymatic-standby`) on oldsrv (stick pinned by `/dev/serial/by-id`),
    b. waits until the CCU answers on XML-RPC **2001/2010**,
-   c. promotes keepalived (Pi MASTER demoted / oldsrv BACKUP promoted → VIP `10.10.1.122`),
+   c. promotes keepalived (Pi MASTER demoted / oldsrv BACKUP promoted → VIP `10.10.1.200`),
    d. starts `home-assistant-standby` (re-polls KNX/Shelly; connects to the fresh RMat).
    (If the VIP path is ever unavailable — HA OS fallback — the script additionally flips the Technitium `ha.kogler.si` record + the Traefik `ha` endpoint.)
 4. Verify HmIP devices reconstructed (same EUI/entity IDs) + a live control command; notify n8n → Signal/email and log the event (see `observability.md`).

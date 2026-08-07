@@ -21,7 +21,7 @@ tags: [hardware, ups, power, modbus, nut]
 | Model | PowerWalker VFI ICT/ICR **IoT** 3000 (3 kVA) |
 | USB identity | `PHOENIXTEC Innova Unity` (HID name reported by the UPS itself) |
 | MAC | `00:20:85:C0:92:FA` |
-| IP | `10.10.1.109` |
+| IP | `10.10.99.9` |
 | VLAN | 99 (Mgmt) — access port |
 | Location | Rack floor / near the rack (18U cabinet) |
 | Protects | **nas** (HP MicroServer Gen8), **oldsrv** (i7-7700K), **ha** (Raspberry Pi 4) + rack infra (router, switch, ONT) |
@@ -37,13 +37,13 @@ tags: [hardware, ups, power, modbus, nut]
 | Link | To | Detail |
 |------|----|--------|
 | **USB HID** | gen8 (`nas`) | `/dev/hidraw0`, `/dev/usb/hiddev0` — currently the **only live data link** to a host |
-| **Ethernet (RJ45)** | LAN (Mgmt VLAN 99) | Network card, IP `10.10.1.109` — hosts web UI + Modbus TCP |
+| **Ethernet (RJ45)** | LAN (Mgmt VLAN 99) | Network card, IP `10.10.99.9` — hosts web UI + Modbus TCP |
 
 The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) port.
 
 ---
 
-## Management Interfaces (verified on `10.10.1.109`)
+## Management Interfaces (verified on `10.10.99.9`)
 
 | Protocol | Port | Status |
 |----------|------|--------|
@@ -54,7 +54,7 @@ The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) 
 
 ### Modbus TCP notes
 - Unit ID **1**, function **0x03** (Read Holding Registers) confirmed working over the LAN.
-- NUT's `modbus_ups` driver can connect directly to `10.10.1.109:502` — **no serial/RS-485 adapter needed** (the UPS already exposes Modbus over its network port).
+- NUT's `modbus_ups` driver can connect directly to `10.10.99.9:502` — **no serial/RS-485 adapter needed** (the UPS already exposes Modbus over its network port).
 - **Register map is PowerWalker/Phoenixtec-proprietary** — needs a tailored mapping/config (see Open Items).
 
 ---

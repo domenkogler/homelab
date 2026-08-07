@@ -47,8 +47,8 @@ Technitium runs as a Docker container on oldsrv (primary) and a **second instanc
 ## DNS Flow
 
 ```
-Client → Router (10.10.x.1) → Technitium PRIMARY (oldsrv, 10.10.99.X)
-                             ↘ Technitium SECONDARY (nas, 10.10.1.50)
+Client → Router (10.10.x.1) → Technitium PRIMARY (oldsrv, 10.10.1.30)
+                             ↘ Technitium SECONDARY (pi, 10.10.1.20)
                              ↘ 1.1.1.1 (final fallback)
 ```
 

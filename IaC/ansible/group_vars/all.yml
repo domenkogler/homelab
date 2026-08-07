@@ -10,6 +10,37 @@ op_vault: Homelab
 domain_public: kogler.si
 domain_local: kogler.si    # reserved for future split-horizon scenarios — currently unused
 
+# ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses.md) ====
+# Hand-edit here ONLY; regenerate docs/network-addresses.md after changes.
+ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
+network_vlans:
+  - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
+  - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }
+  - { id: 21, name: IoT-Internet, subnet: "10.10.21.0/24", pool: "10.10.21.100-10.10.21.199", ssid: "Kogler IOT WAN" }
+  - { id: 30, name: Guest,        subnet: "10.10.30.0/24", pool: "10.10.30.100-10.10.30.199", ssid: "Kogler guest" }
+  - { id: 40, name: Kids,         subnet: "10.10.40.0/24", pool: "10.10.40.100-10.10.40.199", ssid: "Kogler Kids" }
+  - { id: 50, name: Media,        subnet: "10.10.50.0/24", pool: "10.10.50.100-10.10.50.199", ssid: "" }
+  - { id: 99, name: Management,   subnet: "10.10.99.0/24", pool: "10.10.99.50-10.10.99.99",  ssid: "" }
+network_static_hosts:
+  # Management VLAN 99
+  - { name: router,   vlan: 99, ip: "10.10.99.1",  role: "RB4011 gateway" }
+  - { name: switch,   vlan: 99, ip: "10.10.99.2",  role: "CRS328 mgmt" }
+  - { name: ap-garage,  vlan: 99, ip: "10.10.99.3", role: "wAP ac (garaža)" }
+  - { name: ap-spalnica, vlan: 99, ip: "10.10.99.4", role: "hAP ac² (spalnica)" }
+  - { name: ap-dnevna, vlan: 99, ip: "10.10.99.5", role: "hAP ac (dnevna)" }
+  - { name: ap-spare,  vlan: 99, ip: "10.10.99.6", role: "hAP ac² spare" }
+  - { name: ups,      vlan: 99, ip: "10.10.99.9",  role: "PowerWalker VFI 3000 IoT" }
+  - { name: nas,      vlan: 99, ip: "10.10.99.10", role: "HP MicroServer Gen8" }
+  - { name: ilo,      vlan: 99, ip: "10.10.99.11", role: "nas iLO4 BMC" }
+  - { name: pi,       vlan: 99, ip: "10.10.99.20", role: "RPi4 node + DNS secondary" }
+  - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", role: "i7-7700K node + DNS primary" }
+  # Home VLAN 10
+  - { name: router,   vlan: 10, ip: "10.10.1.1",   role: "Home gateway" }
+  - { name: nas,      vlan: 10, ip: "10.10.1.10",  role: "Cockpit/NFS/NUT master" }
+  - { name: pi,       vlan: 10, ip: "10.10.1.20",  role: "node + DNS secondary (VRRP anchor)" }
+  - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  role: "node + DNS primary (VRRP anchor)" }
+  - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }
+
 # Single-namespace DNS: everything (hosts + services) is under kogler.si.
 # Internal-only hosts/services are NOT published in public DNS (split-horizon).
 

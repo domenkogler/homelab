@@ -9,7 +9,7 @@
 # Design & runbooks: docs/smart-home-failover.md, docs/smart-home.md
 # Key facts:
 #   - Both nodes render the SAME configuration.yaml from this repo.
-#   - ha.kogler.si → Traefik → VIP 10.10.1.122 (keepalived/VRRP on both nodes).
+#   - ha.kogler.si → Traefik → VIP 10.10.1.200 (keepalived/VRRP on both nodes).
 #   - Standby + RaspberryMatic-standby are COLD (systemd units disabled) until manual forward takeover.
 #   - Forward + reverse failover are MANUAL; a single `ha-failover.sh` on oldsrv orchestrates
 #     RMat-start → wait XML-RPC 2001/2010 → VIP promote → HA-standby start (button on Homepage).
@@ -23,7 +23,7 @@
 #    - Render /config/configuration.yaml from repo template (use_x_forwarded_for: true, trusted_proxies: <Traefik>)
 #    - Render other configs (integrations: knx via GIRA IP Router .118, homematic [XML-RPC 2001/2010 via local RaspberryMatic], shelly native)
 #    - Run "owner" recovery account; Authentik OIDC; NO Forward-Auth on ha route
-#    - keepalived PRIMARY: owns VIP 10.10.1.122 (state MASTER, priority higher than standby)
+#    - keepalived PRIMARY: owns VIP 10.10.1.200 (state MASTER, priority higher than standby)
 #    - HA exporter: enable /api/prometheus bearer token (monitoring role scrapes)
 # 2. STANDBY (host: home_servers / oldsrv)
 #    - Template home-assistant-standby/docker-compose.yml.j2 → /opt/home-assistant-standby/
@@ -39,7 +39,7 @@
 #    - Deploy /usr/local/sbin/ha-failover.sh + a Homepage button that invokes it
 #      (start RMat standby → wait 2001/2010 → promote VIP → start HA standby)
 # 5. FIREWALL (see docs/network-vlans.md)
-#    - Home→IoT trusted-IP rules for MQTT/HA must cover the VIP (10.10.1.122), not per-node IPs
+#    - Home→IoT trusted-IP rules for MQTT/HA must cover the VIP (10.10.1.200), not per-node IPs
 #    - Home→IoT/Home rules must let the RaspberryMatic XML-RPC ports 2001/2010 (fixed CCU IP) and
 #      both HA nodes reach it
 #

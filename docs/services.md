@@ -133,6 +133,38 @@ Full architecture in [`observability.md`](observability.md). Summary:
 - **Alerts:** Grafana Alerting → n8n → Signal (Homelab Alerts group) + email fail-safe. 3 tiers (Critical/Warning/Info).
 - **Alloy** runs as a host service (Ansible) with `docker.sock` access for container logs — it is **not** a containerized service.
 
+## Service Accessibility & Traefik URL mapping (SSOT)
+
+> **Rule of thumb:** every HTTP(S) service is reached at `https://<name>.kogler.si`
+> (port 443, wildcard `*.kogler.si` cert) via Traefik — **no ports in URLs**.
+> Backends bind private overlay/LAN addresses and are never exposed directly.
+
+- **Rule A (HTTP/S):** Traefik only, hostname-based, no ports. User-facing ports
+  (8123, 9090, …) exist only as Traefik backends.
+- **Rule B (non-HTTP, bypass Traefik — direct IP + firewall):** DNS 53
+  (primary `10.10.1.30` oldsrv, secondary `10.10.1.20` pi) · NUT 3493 (nas master,
+  intra-Home) · UPS Modbus 502 + web 80/443 (`10.10.99.9`) · SNMP 161
+  (router/switch) · WireGuard · SSH/WinBox (Mgmt, trusted only).
+
+### URL → backend
+
+| URL | Backend |
+|-----|---------|
+| `https://kogler.si` / `home.` | Homepage |
+| `https://ha.kogler.si` | `10.10.1.200:8123` (VIP, keepalived) |
+| `https://cockpit-nas.kogler.si` | `10.10.1.10:9090` |
+| `https://cockpit-oldsrv.kogler.si` | `10.10.1.30:9090` |
+| `https://dns.kogler.si` | Technitium web UI (resolution stays `10.10.1.30`/`10.10.1.20`:53) |
+| `https://ad.kogler.si` | Pi-hole |
+| `https://stats.kogler.si` | Grafana |
+| `https://foto./file./sso./git./vpn./bck./auto.` | Immich / OpenCloud / Authentik / Forgejo / Headscale / Kopia / n8n |
+
+**Cockpit scope:** nas + oldsrv only. The Pi is managed via SSH/Ansible + the HA
+Web UI — it does **not** run Cockpit.
+
+> Addresses are defined in the single source of truth — [`network-addresses.md`](network-addresses.md).
+> The executable half of this mapping lives in the Traefik labels in `IaC/ansible/templates/docker_services/*/docker-compose.yml.j2`.
+
 ## Related
 
 - [Traefik — Reverse Proxy & Edge](services-traefik.md)

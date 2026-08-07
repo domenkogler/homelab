@@ -1,0 +1,40 @@
+{{ ansible_managed | comment }}
+<!-- Network address plan — auto-generated from IaC/ansible/group_vars/all.yml. -->
+<!-- Do NOT hand-edit. Change group_vars/all.yml and re-render. -->
+<!-- Source of truth: IaC/ansible (group_vars/all.yml, host_vars) -->
+
+# Network Addresses — SSOT
+
+> **Source of truth:** IaC/ansible. Addresses are hand-edited only in
+> `group_vars/all.yml` (`network_vlans`, `network_static_hosts`) and the
+> host_vars; this page is a generated view. See also
+> [`services.md`](services.md) for the Traefik URL / accessibility mapping.
+
+## VLANs
+
+| VLAN | Name | Subnet | DHCP pool | SSID |
+|------|------|--------|-----------|------|
+{% for v in network_vlans %}
+| {{ v.id }} | {{ v.name }} | {{ v.subnet }} | {{ v.pool }} | {{ v.ssid }} |
+{% endfor %}
+
+## Static hosts
+
+| VLAN | IP | Host | Role |
+|------|----|------|------|
+{% for h in network_static_hosts %}
+| {{ h.vlan }} | {{ h.ip }} | {{ h.name }} | {{ h.role }} |
+{% endfor %}
+
+## Service addresses (Home VLAN 10)
+
+| Purpose | Address | Host |
+|---------|---------|------|
+| DNS primary (Technitium) | {{ hostvars['oldsrv.kogler.si'].dns_primary_ip | default('10.10.1.30') }} | oldsrv |
+| DNS secondary (Technitium) | {{ hostvars['ha.kogler.si'].dns_secondary_ip | default('10.10.1.20') }} | pi |
+| Home Assistant VIP (`ha.kogler.si`) | {{ ha_vip }} | pi ↔ oldsrv (keepalived) |
+
+> Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
+> · UPS Modbus 502 / web 80,443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
+
+> Last generated: {{ ansible_date_time.iso8601 }}

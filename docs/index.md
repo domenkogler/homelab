@@ -22,10 +22,11 @@ tags: [index, dispatcher, ai]
 | **Generate Ansible playbook / role** | [`deployment-ansible.md`](deployment-ansible.md) | `deployment-secrets.md`, `services.md`, `hardware*.md` for target machine |
 | **Generate `docker-compose.yml`** | [`deployment-compose.md`](deployment-compose.md) | `services.md`, `hardware-gpu.md` (if service uses GPU), `network-vlans.md` |
 | **Configure VLANs / firewall** | [`network-vlans.md`](network-vlans.md) | `network.md`, `network-dns.md` |
+| **IP/static address plan (SSOT)** | [`network-addresses.md`](network-addresses.md) | `network-vlans.md`, `services.md` |
 | **Configure DNS** | [`network-dns.md`](network-dns.md) | `network-vlans.md`, `services.md` |
 | **Configure VPN** | [`network-vpn.md`](network-vpn.md) | `network.md` |
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
-| **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md` |
+| **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md`, [`network-addresses.md`](network-addresses.md) |
 | **Understand observability / alerting** | [`observability.md`](observability.md) | `services.md`, `deployment-ansible.md` |
 | **HA failover / high availability** | [`smart-home-failover.md`](smart-home-failover.md) | `smart-home.md`, `network-dns.md`, `deployment-ansible.md` |
 | **Current HA instance / HAOS→Docker feasibility** | [`home-assistant-current.md`](home-assistant-current.md) | `smart-home.md`, `smart-home-failover.md` |
@@ -45,6 +46,7 @@ docs/
 │
 ├── network.md                             Broad: ISP, topology, links to →
 ├── network-vlans.md                       VLAN table, subnets, firewall rules
+├── network-addresses.md                   ★ IP address plan — SSOT (generated from IaC)
 ├── network-dns.md                         Technitium/Pi-hole, per-subnet DNS
 ├── network-vpn.md                         WireGuard, Headscale (travel router obsolete)
 ├── assets/Network-Devices.canvas          Device wiring & interconnections  ⚠️ WIP

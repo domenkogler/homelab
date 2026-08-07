@@ -1,6 +1,8 @@
 ---
 # Phase 1 home server: bare-metal Debian desktop
-ansible_host: 10.10.99.10           # VLAN 99 (Management) — static
+ansible_host: 10.10.99.30           # VLAN 99 (Management) — static
+home_ip: 10.10.1.30                 # VLAN 10 (Home) — node IP (VRRP anchor)
+dns_primary_ip: 10.10.1.30          # Technitium primary binds the node IP
 ansible_user: ansible-admin        # created by preseed post_install.sh
 homelab_mode: desktop
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

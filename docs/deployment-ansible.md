@@ -112,7 +112,9 @@ ansible_python_interpreter=/usr/bin/python3
 ### oldsrv.kogler.si.yml
 ```yaml
 homelab_mode: desktop            # "desktop" or "proxmox" or "headless"
-ansible_host: 10.10.99.10        # Management VLAN 99 static IP
+ansible_host: 10.10.99.30        # Management VLAN 99 static IP
+home_ip: 10.10.1.30              # Home VLAN 10 — node IP (VRRP anchor)
+dns_primary_ip: 10.10.1.30       # Technitium primary binds node IP
 ansible_user: ansible-admin
 nut_mode: client                 # UPS NUT slave → delayed shutdown (see nut role)
 ut_host: nas.kogler.si           # NUT master endpoint
@@ -121,7 +123,9 @@ shutdown_delay_seconds: 60       # lets Grafana→n8n→Signal flush Critical al
 
 ### nas.kogler.si.yml
 ```yaml
-ansible_host: 10.10.1.50           # VLAN 10 (Home) — static; Mgmt via VLAN 99 native
+ansible_host: 10.10.1.10           # VLAN 10 (Home) — static (Cockpit/NFS/NUT master)
+mgmt_ip: 10.10.99.10               # VLAN 99 (Management) — native
+ilo_ip: 10.10.99.11                # iLO4 remote mgmt
 ansible_user: ansible-admin
 nut_mode: master                 # NUT master (only host physically USB-wired to the UPS)
 ut_driver: usbhid-ups            # PowerWalker VFI ICT/ICR IoT 3000 via USB HID
@@ -136,7 +140,8 @@ ansible_user: ansible-admin
 
 ### ha.kogler.si.yml
 ```yaml
-ansible_host: 10.10.1.122        # Home VLAN
+ansible_host: 10.10.1.20        # Home VLAN — node IP (VRRP anchor)
+dns_secondary_ip: 10.10.1.20     # Technitium secondary binds node IP
 ansible_user: pi
 # Roles: primary HA (Docker) + RaspberryMatic/HmIP-RFUSB + Technitium secondary DNS
 ```
@@ -341,7 +346,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 3 | `amd_rocm` | `common` |
 | 4 | `docker_services` (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
 | 5 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
-| 6 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.122`) + Pi `docker_services` (`raspberrymatic`, `technitium-secondary`) | `docker` |
+| 6 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) + Pi `docker_services` (`raspberrymatic`, `technitium-secondary`) | `docker` |
 | 7 | `nut` — nas: master (usbhid-ups + upsd + nut_exporter); oldsrv/ha: client (upsmon slave + upssched + notifycmd) | `common`, `network` |
 | 8 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) **and** `nut` (needs nut_exporter) |
 | 9 | `router` | `network` (IPs/VLANs defined) |

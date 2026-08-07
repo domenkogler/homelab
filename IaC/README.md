@@ -178,7 +178,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Pi = primary** (Debian + HA Container); **oldsrv = standby** (`home-assistant-standby`). Both render the **same `configuration.yaml`** from this repo — see `docs/smart-home-failover.md`.
 - **HA web login = Authentik SSO via native OIDC**; Companion/API = HA long-lived token. **No Authentik Forward-Auth on the `ha` route.**
 - `configuration.yaml` templated from repo (`use_x_forwarded_for: true`, `trusted_proxies: <Traefik>`).
-- **VIP/VRRP:** `keepalived` on both HA nodes sharing `10.10.1.122`; `ha.kogler.si` → VIP.
+- **VIP/VRRP:** `keepalived` on both HA nodes sharing `10.10.1.200`; `ha.kogler.si` → VIP.
 - Standby: `home-assistant-standby/docker-compose.yml.j2` → `/opt/home-assistant-standby/` on home_servers; systemd unit disabled by default; started manually on forward takeover.
 - State sync: config + optional DB pushed Pi → standby every ~15 min (LAN); reverse on failback.
 - Secrets: HA API keys, MQTT credentials
@@ -328,7 +328,7 @@ See `docs/deployment-secrets.md` for the full list (including `cloudflare_api_to
 | 3 | `amd_rocm` role | `common` |
 | 4 | `docker_services` role (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
 | 5 | `desktop` + `office` roles | `amd_rocm` (dual-GPU Xorg) |
-| 6 | `home_assistant` role (Pi primary + oldsrv standby + keepalived VIP `10.10.1.122`) | `docker` |
+| 6 | `home_assistant` role (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) | `docker` |
 | 7 | `monitoring` role (incl. Grafana alerting rules + SMTP) | `docker_services` |
 | 8 | `router` role (+ `.rsc`) | `network` (IPs/VLANs defined) |
 | 9 | `proxmox` (Phase 2) | `network` |

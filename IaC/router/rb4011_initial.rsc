@@ -150,7 +150,7 @@
 # ---- DNS (temporary — switches to Technitium after Debian PC is up) ----
 
 /ip dns set \
-    servers=1.1.1.1 \
+    servers=10.10.1.30,10.10.1.20,1.1.1.1 \
     allow-remote-requests=yes
 
 # ---- Interface Lists (for firewall) ----
@@ -184,7 +184,7 @@
 # ---- Address Lists ----
 
 # Trusted Home devices allowed to initiate connections into IoT
-/ip firewall address-list add address=10.10.1.10  list=trusted-ha    comment="Home Assistant (RPi4)"
+/ip firewall address-list add address=10.10.1.200 list=trusted-ha    comment="HA VIP (Pi<->oldsrv)"
 # Debian PC address added later after install
 
 # IoT devices allowed internet access (firmware updates)

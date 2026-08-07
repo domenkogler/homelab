@@ -10,7 +10,7 @@ homelab_mode: desktop          # 'desktop' for Phase 1, 'proxmox' for Phase 2
 gpu_vendor: amd
 ollama_keep_alive: 5m
 # Home Assistant failover (docs/smart-home-failover.md)
-ha_vip: 10.10.1.122            # shared VIP on Home VLAN; ha.kogler.si → VIP
+ha_vip: 10.10.1.200            # shared VIP on Home VLAN; ha.kogler.si → VIP
 ha_vip_cidr: 24
 ha_standby_state: BACKUP       # standby node (oldsrv); primary (Pi) uses MASTER + higher priority
 ha_standby_priority: 100

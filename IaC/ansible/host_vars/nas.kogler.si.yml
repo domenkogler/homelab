@@ -1,5 +1,7 @@
 ---
 # HP MicroServer Gen8 — ZFS storage server
-ansible_host: 10.10.1.50           # VLAN 10 (Home) — static; Mgmt via VLAN 99 native
+ansible_host: 10.10.1.10           # VLAN 10 (Home) — static (Cockpit/NFS/NUT master)
+mgmt_ip: 10.10.99.10               # VLAN 99 (Management) — native
+ilo_ip: 10.10.99.11                # iLO4 remote mgmt
 ansible_user: ansible-admin        # created by preseed post_install.sh
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

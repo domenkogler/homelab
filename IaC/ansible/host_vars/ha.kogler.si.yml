@@ -1,5 +1,6 @@
 ---
 # Raspberry Pi 4 — Home Assistant (PRIMARY), RaspberryMatic/HmIP-RFUSB, Technitium secondary DNS
-ansible_host: 10.10.1.122          # VLAN 10 (Home) — static DHCP lease
+ansible_host: 10.10.1.20           # VLAN 10 (Home) — node IP (VRRP anchor, SSH)
+dns_secondary_ip: 10.10.1.20       # Technitium secondary binds the node IP (not proxiable)
 ansible_user: pi
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

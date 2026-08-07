@@ -5,7 +5,7 @@
 #
 #   - Same configuration.yaml as the Pi (rendered from the same repo template).
 #   - Config/state synced from Pi every ~15 min (LAN only).
-#   - keepalived STANDBY: VIP 10.10.1.122 moves HERE on takeover.
+#   - keepalived STANDBY: VIP 10.10.1.200 moves HERE on takeover.
 #   - Paired with raspberrymatic-standby (RaspberryMatic) and the physically-moved
 #     HmIP-RFUSB stick; the trigger starts RMat and waits for XML-RPC 2001/2010
 #     BEFORE starting this container, so HA finds the CCU on boot.
@@ -50,7 +50,7 @@ services:
       - host                 # VRRP needs host/primary interface access
     volumes:
       - ./keepalived.conf:/etc/keepalived/keepalived.conf:ro
-    # STANDBY priority (lower than Pi primary). VIP: 10.10.1.122 on Home VLAN (10).
+    # STANDBY priority (lower than Pi primary). VIP: 10.10.1.200 on Home VLAN (10).
 
 networks:
   services-internal:
