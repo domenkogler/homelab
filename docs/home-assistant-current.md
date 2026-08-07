@@ -89,7 +89,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 | **KNX** (`knx`) | **8 blinds** (cover, device_class `blind`: Dnevna soba, Hodnik, Kabinet, Kopalnica, Kuhinja, Soba roza, Soba zelena, Spalnica) · many **lights** · **rekuperator/ComfoAir Q** (airflow, supply/extract/room/outdoor temp+humidity, filter) · **appliance current** (pečica mala/velika=oven, pomivalni stroj=dishwasher, pralni stroj=washer, sušilni stroj=dryer — group addr `1.1.7`, mA) · KNX interface status sensors (telegrams, connection, individual address) · external/internal security zones | Home's field bus. GIRA IP router; ComfoAir Q via ComfoConnect KNX-C per `smart-home.md` |
 | **Homematic IP** (`homematicip_cloud`) | **6 thermostats** (Dnevna soba, Kopalnica, Roza soba, Spalnica, WC, Zelena soba) + temp/humidity/abs-humidity · **weather station HmIP-SWO-B** (temp, humidity, illuminance, windspeed, storm, sunshine) · alarm control panel + battery sensors | **Cloud mode** (HAP on internet VLAN) per `smart-home.md` phase-1/2 roadmap; target is local CCU3/RaspberryMatic |
 | **Shelly** (`shelly`) | **LED/light strips** (LED kuhinja, Kopalnica LED, orhideje, soba postelje/omare, WC-4 ch1–4, Utility…) · **buttons** (Tipka) · **overpowering** binary sensors · **reboot buttons** (Ponovno zaženi) · light values | Native Shelly integration (direct LAN HTTP/WebSocket, **no MQTT**). RGBW2 controllers/buttons across rooms |
-| **Modbus** (`modbus`) | **UPS** sensors: battery capacity, input voltage, output load (scaled raw values, e.g. capacity 20041→~20%, input 2055→~20.5 V) | Sourced from Modbus device (likely the rack/network UPS). Group/register detail **to-confirm** |
+| **Modbus** (`modbus`) | **UPS** sensors: battery capacity, input voltage, output load (scaled raw values, e.g. capacity 20041→~20%, input 2055→~20.5 V) | Source is the **PowerWalker VFI ICT/ICR IoT 3000** on `10.10.1.109:502` (unit 1) — see [`hardware-ups.md`](hardware-ups.md). Exact register map **to-confirm** |
 
 ### 6.2 Media
 | Integration | Devices / entities | Notes |
@@ -189,7 +189,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 
 - [ ] Confirm exact installed versions + full repository list of **HACS** custom components (`motion`, `ai_task`, Weather-2000, OneDrive, go2rtc) via SSH (`Advanced SSH & Web Terminal`) or the config git repo (`custom_components/`, `.storage/hacs.data`).
 - [ ] Confirm the **full Supervisor add-on list** with an **admin** token (`/api/hassio/addons` returned 401 for the owner `domen` token used here) — ensures no community add-on store is in use.
-- [ ] Confirm **Modbus UPS** device/register details (which UPS, register map) — currently `ups_*` sensors are the only Modbus evidence.
+- [x] Confirm **Modbus UPS** device/register details — device is the **PowerWalker VFI ICT/ICR IoT 3000** on `10.10.1.109:502` (unit 1); *register map* still to-confirm (see [`hardware-ups.md`](hardware-ups.md)).
 - [ ] Confirm **ESPHome**: `smart-home.md` references a Guition ESP32-S3 kitchen device, but the `esphome` integration is **not loaded** on this instance — is it online/paired elsewhere or not yet added?
 - [ ] Confirm the **"Weather 2000, Slovenija"** source — third-party/HACS vs core, and whether it should be retained or replaced.
 - [ ] Whether the planned **Authentik/OIDC** SSO is meant to be introduced during the redo (currently not connected).

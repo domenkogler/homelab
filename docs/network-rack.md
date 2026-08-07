@@ -33,7 +33,7 @@ Visual layout is maintained in **[Rack.canvas](assets/Rack.canvas)** — open wi
 | Comtrend GRG-4260us GPON Gateway | Next to RB4011 |
 | Raspberry Pi 4 B | Shelf next to RB4011 |
 | eQ-3 HMIP-HAP | Shelf next to Raspberry Pi |
-| PowerWalker VFI 3000 ICR IoT UPS | Rack floor / nearby |
+| PowerWalker VFI 3000 ICR IoT UPS | Rack floor / nearby · IP `10.10.1.109`, MAC `00:20:85:C0:92:FA` — see [`hardware-ups.md`](hardware-ups.md) |
 
 ---
 

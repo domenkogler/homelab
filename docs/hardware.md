@@ -33,6 +33,7 @@ tags: [hardware, phases]
 | **Raspberry Pi 4** | Home Assistant (primary) | Stays primary HA |
 | **VPS (Contabo)** | *Not used* | Public web stack |
 | **custom** (Ryzen 9 + R9700) | *Not built* | Proxmox hypervisor |
+| **PowerWalker VFI ICT/ICR IoT 3000** (UPS) | Protects nas + rack infra (see [`hardware-ups.md`](hardware-ups.md)) | Same |
 
 ---
 
@@ -75,6 +76,7 @@ nas (rack) — Debian 13, ZFS
 | i7-7700K Docker host + family PC | [`hardware-oldsrv.md`](hardware-oldsrv.md) |
 | Shared GPU resource (VRAM, topology) | [`hardware-gpu.md`](hardware-gpu.md) |
 | NAS ZFS storage server (+ external SilverStone case) | [`hardware-nas.md`](hardware-nas.md) |
+| Rack UPS — links, Modbus TCP, NUT/shutdown status | [`hardware-ups.md`](hardware-ups.md) |
 | Phase 2 Ryzen/Proxmox build | [`hardware-phase2.md`](hardware-phase2.md) |
 | Subscriptions & costs | [`subscription.md`](subscription.md) |
 

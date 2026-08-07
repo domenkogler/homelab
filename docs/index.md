@@ -32,6 +32,7 @@ tags: [index, dispatcher, ai]
 | **Understand GitOps pipeline** | [`deployment.md`](deployment.md) | `deployment-renovate.md`, `interfaces.md` |
 | **Configure backup** | [`backup.md`](backup.md) | `hardware-nas.md` |
 | **Add subscription / billing** | [`subscription.md`](subscription.md) | — |
+| **UPS / power + shutdown monitoring** | [`hardware-ups.md`](hardware-ups.md) | `hardware-nas.md`, `observability.md` |
 | **Family-facing docs** | [`manual/README.md`](manual/README.md) | Individual guides in `manual/` |
 
 ---
@@ -54,6 +55,7 @@ docs/
 ├── hardware-oldsrv.md                    i7-7700K Phase 1 Docker host + family PC
 ├── hardware-gpu.md                        Shared GPU resource (cross-cutting)
 ├── hardware-nas.md                       HP MicroServer Gen8 ZFS storage (+ external SilverStone case)
+├── hardware-ups.md                       PowerWalker VFI ICT/ICR IoT 3000 (UPS) — links, Modbus TCP, NUT status
 ├── hardware-phase2.md                     Ryzen 9 + R9700 Phase 2 build
 │
 ├── services.md                            Broad: catalog, networks, domains
