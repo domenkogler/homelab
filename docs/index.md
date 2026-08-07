@@ -27,6 +27,7 @@ tags: [index, dispatcher, ai]
 | **Configure VPN** | [`network-vpn.md`](network-vpn.md) | `network.md` |
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
 | **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md`, [`network-addresses.md`](network-addresses.md) |
+| **Known issues / out-of-scope follow-ups** | [`issues.md`](issues.md) | — |
 | **Understand observability / alerting** | [`observability.md`](observability.md) | `services.md`, `deployment-ansible.md` |
 | **HA failover / high availability** | [`smart-home-failover.md`](smart-home-failover.md) | `smart-home.md`, `network-dns.md`, `deployment-ansible.md` |
 | **Current HA instance / HAOS→Docker feasibility** | [`home-assistant-current.md`](home-assistant-current.md) | `smart-home.md`, `smart-home-failover.md` |
@@ -74,6 +75,8 @@ docs/
 ├── deployment-secrets.md                  1Password backend, passwordless-first
 ├── deployment-renovate.md                 Renovate Bot & update lifecycle
 ├── interfaces.md                          Dashboard + management interface matrix
+│
+├── issues.md                              Known issues & out-of-scope follow-ups
 │
 ├── smart-home.md                          Home Assistant, devices, architecture
 ├── home-assistant-current.md              Live HA instance inventory (HAOS, plugins) + HAOS→Docker feasibility
