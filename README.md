@@ -53,13 +53,15 @@ it is refreshed from this repo.
 
 > Start at **[`docs/index.md`](docs/index.md)** — the AI dispatcher / document map.
 
+> ⚠️ **It's still the planning phase.** Docs will change often. Do **not** spend effort on small visual/cosmetic tweaks (ASCII-art alignment, spacing, wording polish) — prefer substantive, content-level edits. Keep it consistent and correct, not pixel-perfect.
+
 ### Hosts (single namespace `kogler.si`)
 
 | Host | Role |
 |------|------|
 | `oldsrv.kogler.si` | Old i7-7700K desktop → family PC + Docker host |
 | `nas.kogler.si` | HP MicroServer ZFS storage (+ external SilverStone case) |
-| `ha.kogler.si` | Raspberry Pi 4 — Home Assistant |
+| `ha.kogler.si` | Raspberry Pi 4 — Home Assistant (**primary**; standby on oldsrv, see [`docs/smart-home-failover.md`](docs/smart-home-failover.md)) |
 | `router.kogler.si` | MikroTik RB4011 — routing/firewall/VPN/CAPsMAN |
 | `switch.kogler.si` | MikroTik CRS328 — L2 PoE switch |
 | `vps.kogler.si` | Contabo VPS (Phase 2 — public Traefik + services) |

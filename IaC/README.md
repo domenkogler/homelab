@@ -93,7 +93,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │       ├── kopia/tasks/main.yml         # kopia-agent + kopia-server Docker containers (deployed by docker_services, not a separate role — stub retained for bare-metal nas option)
 │   │       ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
 │   │       ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
-│   │       ├── home_assistant/tasks/main.yml# HA on Pi (OIDC SSO w/ Authentik) + cold-standby
+│   │       ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP
 │   │       ├── docker_services/tasks/main.yml # THE key role — generic service deployer
 │   │       ├── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana + alerting; blackbox; HA exporter
 │   │       └── ai_diag/                     # ai-debug diagnostics dispatcher + sudoers
@@ -175,10 +175,16 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - Bridges (vmbr0–vmbr4), storage, firewall; Secrets: Proxmox root password
 
 ### `home_assistant`
-- Pi: Docker-based HA (or supervised). **HA web login = Authentik SSO via native OIDC**; Companion/API = HA long-lived token. **No Authentik Forward-Auth on the `ha` route.**
+- **Pi = primary** (Debian + HA Container); **oldsrv = standby** (`home-assistant-standby`). Both render the **same `configuration.yaml`** from this repo — see `docs/smart-home-failover.md`.
+- **HA web login = Authentik SSO via native OIDC**; Companion/API = HA long-lived token. **No Authentik Forward-Auth on the `ha` route.**
 - `configuration.yaml` templated from repo (`use_x_forwarded_for: true`, `trusted_proxies: <Traefik>`).
-- Cold standby: `home-assistant-standby/docker-compose.yml.j2` → `/opt/home-assistant-standby/` on home_servers; systemd unit disabled by default
+- **VIP/VRRP:** `keepalived` on both HA nodes sharing `10.10.1.122`; `ha.kogler.si` → VIP.
+- Standby: `home-assistant-standby/docker-compose.yml.j2` → `/opt/home-assistant-standby/` on home_servers; systemd unit disabled by default; started manually on forward takeover.
+- State sync: config + optional DB pushed Pi → standby every ~15 min (LAN); reverse on failback.
 - Secrets: HA API keys, MQTT credentials
+
+### `home_assistant` — failover runbooks
+- Forward (Pi→oldsrv) and reverse (oldsrv→new Pi) manual runbooks in `docs/smart-home-failover.md`.
 
 ### `docker_services` (Key Role)
 - **Input:** `docker_services` list from group vars
@@ -322,7 +328,7 @@ See `docs/deployment-secrets.md` for the full list (including `cloudflare_api_to
 | 3 | `amd_rocm` role | `common` |
 | 4 | `docker_services` role (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
 | 5 | `desktop` + `office` roles | `amd_rocm` (dual-GPU Xorg) |
-| 6 | `home_assistant` role (Pi + cold standby) | `docker` |
+| 6 | `home_assistant` role (Pi primary + oldsrv standby + keepalived VIP `10.10.1.122`) | `docker` |
 | 7 | `monitoring` role (incl. Grafana alerting rules + SMTP) | `docker_services` |
 | 8 | `router` role (+ `.rsc`) | `network` (IPs/VLANs defined) |
 | 9 | `proxmox` (Phase 2) | `network` |

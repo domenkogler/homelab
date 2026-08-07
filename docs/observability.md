@@ -92,7 +92,7 @@ blackbox_exporter (external reachability) ────────────�
 - **MikroTik SNMP:** poll at **5–15 s**; the "1s" in dashboards is a *refresh* interval, not a poll.
 - **Retention is deliberate:** 30d metrics / 14d logs. TSDB data is **regenerable and not backed up** (see [backup.md](backup.md)); long-term metric history is a deferred option (remote-write/downsampling).
 - **SPOF:** all observability lives on oldsrv — accepted for Phase 1; documented as a known property.
-- **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv). Only the live instance is scraped; on failover the same URL resumes with no replay.
+- **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
 
 ---
 

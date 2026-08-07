@@ -97,9 +97,14 @@ tags: [services, catalog]
 
 ## What Is NOT on oldsrv
 
-- **Home Assistant** — on Raspberry Pi 4 (HA config in this repo)
+- **Home Assistant (primary)** — on Raspberry Pi 4 (HA config in this repo). **Standby** Home Assistant runs on oldsrv: see [`smart-home-failover.md`](smart-home-failover.md).
 - **VPS services** — deferred to Phase 2+ ([`services-vps.md`](services-vps.md))
 - **Pangolin** — removed; Traefik handles all reverse proxy
+
+## DNS Redundancy
+
+- **Technitium primary** on oldsrv (Docker, `services-internal`).
+- **Technitium secondary** on nas — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when oldsrv is down (see [`network-dns.md`](network-dns.md)).
 
 ---
 

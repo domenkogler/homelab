@@ -1,5 +1,10 @@
 ---
-# Raspberry Pi 4 — Home Assistant
+# Raspberry Pi 4 — Home Assistant (PRIMARY node)
+# Failover design: docs/smart-home-failover.md
 
 home_assistant_version: stable
-home_assistant_install_method: docker   # 'docker' or 'supervised'
+home_assistant_install_method: docker   # 'docker' or 'supervised' — use docker for keepalived/VIP
+# VIP / VRRP: Pi is MASTER (owns 10.10.1.122 in normal mode); standby on oldsrv is BACKUP.
+ha_vip: 10.10.1.122
+ha_primary_state: MASTER
+ha_primary_priority: 110      # higher than standby (100) so Pi keeps the VIP

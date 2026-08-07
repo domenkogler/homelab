@@ -63,7 +63,7 @@ tiredofit/db-backup  →  Kopia  →  iDrive e2 (S3)
 | Docker Compose files | Git / oldsrv | Kopia | iDrive e2 |
 | Docker configs (`/opt/*`) | oldsrv | Kopia | iDrive e2 |
 | systemd units | oldsrv | Kopia | iDrive e2 |
-| Home Assistant configs | RPi 4 | Kopia | iDrive e2 |
+| Home Assistant configs | RPi 4 (+ standby on oldsrv) | Kopia + standby sync | iDrive e2 / oldsrv |
 | Router configs (`*.rsc`) | Git repo | Git + Kopia | iDrive e2 |
 | **Bulk media** (photos, videos, ISOs) | **nas ZFS tank** | **ZFS send/recv** | **nas ZFS backup pool** |
 | Immich raw photos | nas / Storage Box | Kopia → iDrive e2 | iDrive e2 |
@@ -113,6 +113,7 @@ tiredofit/db-backup  →  Kopia  →  iDrive e2 (S3)
 | **Single service crashes** | Kopia restore that service's data from latest snapshot |
 | **Single file deleted/corrupted** | ZFS rollback to snapshot before deletion (seconds) |
 | **oldsrv fails (Phase 1)** | 1. Reinstall Debian 2. Ansible: `common → docker → amd_rocm → desktop → kopia → docker_services` 3. Kopia restore `/opt/` + systemd units + package list |
+| **HA Pi fails** | Forward takeover to oldsrv standby (manual) — see [`smart-home-failover.md`](smart-home-failover.md); rebuild Pi as fresh peer, reverse-sync standby→Pi, flip VIP back |
 | **nas fails** | 1. ZFS backup pool on SilverStone is separate enclosure — import on new machine 2. Replace nas, import pools |
 | **Both nas pools lost** | Restore bulk data from iDrive e2 via Kopia (slow — last resort) |
 | **Router dies** | 1. Replace RB4011 2. Restore `.rsc` from Git 3. Adjust WAN MAC if needed |

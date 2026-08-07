@@ -1,2 +1,40 @@
-# technitium docker-compose.yml — TODO: define service
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# technitium docker-compose.yml — Central DNS (PRIMARY on oldsrv, SECONDARY on nas)
+#   Two instances on separate physical hosts for DNS redundancy:
+#     - PRIMARY: oldsrv (runs with this template + permissions)
+#     - SECONDARY: nas (same image, different instance name/subnet)
+#   Both serve per-subnet policy and internal *.kogler.si (incl. ha → VIP).
+#   See docs/network-dns.md + docs/smart-home-failover.md.
+#
+#   Important: DNS primary + secondary are a FAILURE-DOMAIN split (oldsrv vs nas).
+#   Do NOT run both on the same host — that defeats the purpose.
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault='Homelab') }}
+
+services:
+  technitium:
+    image: technitium/dns-server:latest
+    container_name: technitium
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN          # needed for the built-in DHCP / interface control
+    networks:
+      - services-internal
+      - host               # Technitium needs to bind 53 on the management/host interface
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "5380:5380"        # web UI: dns.kogler.si (internal only)
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    volumes:
+      - /opt/technitium/config:/etc/technitium      # persistent DB + settings
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.dns.rule: "Host(`dns.kogler.si`)"
+      traefik.http.routers.dns.entrypoints: websecure
+      traefik.http.routers.dns.tls.certresolver: letsencrypt
+      traefik.http.routers.dns.middlewares: authentik-forward-auth@file   # internal-only
+
+  # SECONDARY instance (nas): deploy via the same template with instance name
+  # technitium-secondary, a different primary/secondary mode, and no Traefik labels
+  # (it is a DNS resolver only). Keep its web UI on dns.kogler.si or internal-only.

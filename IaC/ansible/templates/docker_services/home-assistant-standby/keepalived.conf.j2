@@ -1,0 +1,23 @@
+# keepalived.conf — STANDBY node (oldsrv) for HA VIP
+#   VIP 10.10.1.122 on the Home VLAN. Priority is LOWER than the Pi primary,
+#   so in normal operation the Pi owns the VIP. On Pi failure, this node
+#   takes over (manual forward takeover per docs/smart-home-failover.md).
+#
+# NOTE: VRRP crosses L2; both nodes must be reachable on the Home VLAN.
+# The Pi primary uses the same file with state MASTER and a higher priority.
+
+vrrp_instance HA_VIP {
+    state BACKUP
+    interface eth0            # interface on the Home VLAN (VLAN 10)
+    virtual_router_id 51
+    priority 100              # primary (Pi) uses a higher priority, e.g. 110
+    advert_int 1
+    nopreempt                 # do NOT auto-steal the VIP back → prevents split-brain
+    authentication {
+        auth_type PASS
+        auth_pass {{ lookup('community.general.onepassword', 'ha_vrrp_password', vault='Homelab') }}
+    }
+    virtual_ipaddress {
+        10.10.1.122/24        # HA VIP — same on primary + standby
+    }
+}

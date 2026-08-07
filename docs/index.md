@@ -10,6 +10,8 @@ tags: [index, dispatcher, ai]
 > **Role:** AI dispatcher — start here for any task. Points to the correct context document.
 > **Linked from:** `../README.md`
 
+> ⚠️ **Planning phase.** Docs and IaC are still evolving — content will change often. **Do not chase small visual-only tweaks** (ASCII-art alignment, spacing, wording polish). Make substantive, content-level, consistent edits; accept minor cosmetic imperfections.
+
 ---
 
 ## For AI: Which Document to Read First
@@ -25,6 +27,7 @@ tags: [index, dispatcher, ai]
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
 | **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md` |
 | **Understand observability / alerting** | [`observability.md`](observability.md) | `services.md`, `deployment-ansible.md` |
+| **HA failover / high availability** | [`smart-home-failover.md`](smart-home-failover.md) | `smart-home.md`, `network-dns.md`, `deployment-ansible.md` |
 | **Understand GitOps pipeline** | [`deployment.md`](deployment.md) | `deployment-renovate.md`, `interfaces.md` |
 | **Configure backup** | [`backup.md`](backup.md) | `hardware-nas.md` |
 | **Add subscription / billing** | [`subscription.md`](subscription.md) | — |
@@ -68,6 +71,7 @@ docs/
 ├── interfaces.md                          Dashboard + management interface matrix
 │
 ├── smart-home.md                          Home Assistant, devices, architecture
+├── smart-home-failover.md                 HA active/standby failover + takeover/failback runbooks
 ├── smart-home-voice.md                    Voice pipeline: Whisper → Ollama → Piper
 ├── smart-home-audio.md                    WiiM Bar, Audio Pro, Chromecast
 │

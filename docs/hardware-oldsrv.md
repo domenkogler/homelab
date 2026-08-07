@@ -87,7 +87,7 @@ Containers start at boot via systemd units **before any user logs in**:
 
 - **TSDB storage:** Prometheus/Loki volumes on oldsrv local disk (`NVMe 1`), not nas ZFS — metrics/logs are **regenerable**, expected ~10–20 GB at 30d/14d retention. Retention deliberate (see `observability.md`).
 - **Disk headroom:** monitor NVMe free space in Grafana + treat ≥90% as a **Critical** alert.
-- **SPOF (accepted):** all observability lives here — if oldsrv dies, you cannot see nas/others. Documented; HA cold-standby + backups cover recovery, not observability continuity.
+- **SPOF (accepted):** all observability lives here — if oldsrv dies, you cannot see nas/others. Documented; HA standby (see [`smart-home-failover.md`](smart-home-failover.md)) + backups cover recovery, not observability continuity.
 - Adds RAM weight vs original: n8n + Loki are the main additions; i7-7700K / 48 GB handles it.
 
 ---

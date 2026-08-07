@@ -13,25 +13,21 @@ tags: [network, dns, technitium, pihole]
 
 ---
 
-## Design: Technitium as Central DNS Router
+## Design: Technitium as Central DNS Router (Primary + Secondary)
 
-Technitium runs on the Phase 1 home server (bare-metal Debian, Management VLAN IP). It intercepts all DNS queries from every VLAN and routes them to the appropriate upstream filter based on source subnet.
+Technitium runs as a Docker container on oldsrv (primary) and a **second instance on nas (secondary)** — two separate physical hosts so a DNS outage does not depend on a single failure domain. Both serve the same per-subnet policy and internal `*.kogler.si` records. See the HA-failover tie-in in [`smart-home-failover.md`](smart-home-failover.md).
 
 ```
-                     ┌──────────────────────────┐
-                     │     Technitium           │
-                     │  (Central DNS Router)    │
-                     │  Management VLAN         │
-                     └──────┬───────┬───────────┘
-                            │       │
-            ┌───────────────┼───────┼───────────────┐
-            │               │       │               │
-      ┌─────▼─────┐  ┌──────▼──┐ ┌──▼───────┐
-      │  Pi-hole  │  │Cloudflare│ │  Quad9   │
-      │ (Home)    │  │ Families │ │  (IoT)   │
-      │ Ad-block  │  │ 1.1.1.3  │ │ 9.9.9.9  │
-      └───────────┘  │ (Kids)   │ └─────────┘
-                     └──────────┘
+              ┌────────────────────────────┐
+              │ Technitium DNS router      │
+              │ PRIMARY  (oldsrv)          │
+              │ + SECONDARY (nas)          │
+              └──────┬──────────┬─────────┘
+                     │          │
+            ┌────────┴───┐  ┌───┴────────┐
+            │  per-subnet│  │  internal  │
+            │  upstream  │  │ *.kogler.si│
+            └────────────┘  └────────────┘
 ```
 
 ---
@@ -51,13 +47,16 @@ Technitium runs on the Phase 1 home server (bare-metal Debian, Management VLAN I
 ## DNS Flow
 
 ```
-Client → Router (10.10.x.1) → Technitium (10.10.99.X) → Pi-hole/AdGuard/Quad9
-                             ↘ 1.1.1.1 (fallback if Debian PC unreachable)
+Client → Router (10.10.x.1) → Technitium PRIMARY (oldsrv, 10.10.99.X)
+                             ↘ Technitium SECONDARY (nas, 10.10.1.50)
+                             ↘ 1.1.1.1 (final fallback)
 ```
 
-- Router `/ip dns` forwards to Technitium as primary, `1.1.1.1` as secondary
-- If the server is down: internet still works (unfiltered via 1.1.1.1), but local `*.kogler.si` and ad-blocking unavailable
-- DHCP clients always point at the router's IP for DNS
+- Router `/ip dns` forwards to **Technitium primary + secondary**, `1.1.1.1` as final fallback
+- DHCP clients receive **both** the primary and secondary Technitium addresses (and the router's IP)
+- If oldsrv is down: the **secondary on nas** still resolves local `*.kogler.si` and enforces per-subnet filtering; 1.1.1.1 is only a last resort (unfiltered)
+- The **secondary is a true failure-domain split** — nas is a different physical box from oldsrv
+- `ha.kogler.si` resolves to the **VIP** on both secondary and primary (see [`smart-home-failover.md`](smart-home-failover.md)) so DNS is never the thing that breaks HA lookup
 
 ---
 

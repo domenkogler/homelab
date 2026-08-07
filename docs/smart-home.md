@@ -46,9 +46,11 @@ tags: [smart-home, homeassistant]
 
 ## Home Assistant
 
-- **Host:** `ha.kogler.si` (Raspberry Pi 4, in daily use — not worth migration risk)
-- **Cold standby:** Docker container on oldsrv (systemd unit, disabled by default)
+- **Host:** `ha.kogler.si` (Raspberry Pi 4, in daily use) — **primary**
+- **Fallback:** `home-assistant-standby` Docker container on oldsrv (systemd unit, disabled by default) — **active/standby failover, manual trigger + manual failback**
 - **Configs:** In this homelab repo (moved from HA's own GitHub repo)
+
+> **Failover design → [`smart-home-failover.md`](smart-home-failover.md).** Both nodes share a VIP (`10.10.1.122`, keepalived/VRRP); `ha.kogler.si` routes to the VIP so takeover needs no DNS flip or per-device reconfig. WAN loss is NOT a trigger (HA is local); failover is only for Pi failure and must work offline.
 - **Entity list:** Not yet exported — needed for TileBoard + Grafana generation (enable HA Prometheus exporter: see `observability.md`)
 
 ### Remote access & SSO (ha.kogler.si)
@@ -115,9 +117,11 @@ tags: [smart-home, homeassistant]
 | Voice pipeline details | [`smart-home-voice.md`](smart-home-voice.md) |
 | Dashboards & interfaces | [`interfaces.md`](interfaces.md) |
 | Audio hardware | [`smart-home-audio.md`](smart-home-audio.md) |
+| HA failover & high availability | [`smart-home-failover.md`](smart-home-failover.md) |
 
 ## Related
 
 - [Voice Pipeline](smart-home-voice.md)
 - [Interface Matrix — Dashboards & Management](interfaces.md)
 - [Audio System](smart-home-audio.md)
+- [HA Failover & High Availability](smart-home-failover.md)

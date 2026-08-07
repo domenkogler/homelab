@@ -1,2 +1,37 @@
 ---
-# home_assistant role — TODO: implement
+# home_assistant role — Task specification
+#
+# Targets:
+#   - raspberry_pi  → PRIMARY Home Assistant (Debian + HA Container)
+#   - home_servers  → STANDBY Home Assistant container (oldsrv)
+#
+# Design & runbooks: docs/smart-home-failover.md
+# Key facts:
+#   - Both nodes render the SAME configuration.yaml from this repo.
+#   - ha.kogler.si → Traefik → VIP 10.10.1.122 (keepalived/VRRP on both nodes).
+#   - Standby is COLD (systemd unit disabled) until manual forward takeover.
+#   - Forward + reverse failover are MANUAL (see runbooks doc).
+#
+# Roles of this role (implement as tasks):
+#
+# 1. PRIMARY (host: raspberry_pi / ha.kogler.si)
+#    - Install Home Assistant Container (Debian + docker): image ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}
+#    - Render /config/configuration.yaml from repo template (use_x_forwarded_for: true, trusted_proxies: <Traefik>)
+#    - Render other configs (integrations: knx via GIRA IP Router .118, ESPHome, shelly native, homematicip_cloud)
+#    - Run "owner" recovery account; Authentik OIDC; NO Forward-Auth on ha route
+#    - keepalived PRIMARY: owns VIP 10.10.1.122 (state MASTER, priority higher than standby)
+#    - HA exporter: enable /api/prometheus bearer token (monitoring role scrapes)
+# 2. STANDBY (host: home_servers / oldsrv)
+#    - Template home-assistant-standby/docker-compose.yml.j2 → /opt/home-assistant-standby/
+#    - Render the SAME configuration.yaml into /opt/home-assistant-standby/config/
+#    - Create systemd unit home-assistant-standby (disabled by default)
+#    - keepalived STANDBY: state BACKUP, priority lower; takes VIP on takeover
+# 3. STATE SYNC (normal direction: Pi → standby)
+#    - rsync /config from Pi to /opt/home-assistant-standby/config/ every ~15 min (LAN only, no WAN)
+#    - Optionally sync HA DB; best-effort only (HA re-polls devices on startup)
+# 4. FIREWALL (see docs/network-vlans.md)
+#    - Home→IoT trusted-IP rules for MQTT/HA must cover the VIP (10.10.1.122), not per-node IPs
+#
+# Secrets (1Password vault 'Homelab'):
+#   - ha_long_lived_token, ha_api_key, ha_mqtt_credentials (if MQTT added), ha_prometheus_token
+#   - {{ lookup('community.general.onepassword', '...', vault='Homelab') }}

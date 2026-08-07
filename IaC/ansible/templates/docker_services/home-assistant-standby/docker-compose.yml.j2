@@ -1,2 +1,53 @@
-# home-assistant-standby docker-compose.yml — TODO: define service
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# home-assistant-standby docker-compose.yml
+#   Standby Home Assistant on oldsrv — COLD by default.
+#   Started manually on forward takeover (Pi → oldsrv). See docs/smart-home-failover.md.
+#
+#   - Same configuration.yaml as the Pi (rendered from the same repo template).
+#   - Config/state synced from Pi every ~15 min (LAN only).
+#   - keepalived STANDBY: VIP 10.10.1.122 moves HERE on takeover.
+#   - restart policy: manual (systemd unit disabled by default) → restart: "no"
+#   - Traefik's `ha` route targets the VIP; NOT Authentik Forward-Auth (breaks Companion app).
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault='Homelab') }}
+
+services:
+  home-assistant:
+    image: ghcr.io/home-assistant/home-assistant:{{ home_assistant_version | default('stable') }}
+    container_name: home-assistant-standby
+    restart: "no"            # cold standby: started explicitly by failover runbook
+    privileged: false
+    cap_drop:
+      - ALL
+    networks:
+      - services-internal     # reaches Traefik via VIP; plus host/VLAN for device control
+    # Device control requires reaching the Home VLAN + IoT VLAN device IPs,
+    # so network_mode/macvlan or a routed network to VLAN 10 is needed
+    # (implement per deployment-compose.md conventions).
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    volumes:
+      - ./config:/config                 # synced from Pi; identical to primary
+      - ./secrets.yaml:/config/secrets.yaml:ro   # 1Password-rendered
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.ha.rule: "Host(`ha.kogler.si`)"
+      traefik.http.routers.ha.entrypoints: websecure
+      traefik.http.routers.ha.tls.certresolver: letsencrypt
+      # NOTE: no authentik-forward-auth middleware on the ha route (Companion app flow)
+
+  keepalived:
+    image: osixia/keepalived:latest
+    restart: "no"
+    cap_add:
+      - NET_ADMIN
+      - NET_BROADCAST
+      - NET_RAW
+    networks:
+      - host                 # VRRP needs host/primary interface access
+    volumes:
+      - ./keepalived.conf:/etc/keepalived/keepalived.conf:ro
+    # STANDBY priority (lower than Pi primary). VIP: 10.10.1.122 on Home VLAN (10).
+
+networks:
+  services-internal:
+    external: true
