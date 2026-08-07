@@ -33,12 +33,11 @@ docker_services:
   # AI
   - { name: ollama,          template_dir: ollama }
   - { name: immich-ml,       template_dir: immich-ml }
-  # DNS (technitium primary on oldsrv; secondary on nas is separate group var)
+  # DNS (technitium primary on oldsrv; secondary moved to the Pi — see group_vars/raspberry_pi.yml)
   - { name: technitium,      template_dir: technitium, subdomain: dns, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: pihole,          template_dir: pihole,     subdomain: ad }
-  # DNS secondary on nas — different failure domain (see network-dns.md)
-  - { name: technitium-secondary, template_dir: technitium, instance: secondary, enabled: "{{ inventory_hostname == 'nas.kogler.si' }}" }
-  # Smart home failover: standby HA + keepalived VIP on oldsrv (docs/smart-home-failover.md)
+  # Smart home failover: standby HA + RaspberryMatic + keepalived VIP on oldsrv (docs/smart-home-failover.md)
+  - { name: raspberrymatic-standby, template_dir: raspberrymatic, instance: standby, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   # VPN
   - { name: headscale,       template_dir: headscale }

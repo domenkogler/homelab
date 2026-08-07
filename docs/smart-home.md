@@ -64,12 +64,10 @@ tags: [smart-home, homeassistant]
 
 ## Homematic IP & KNX Integration
 
-- **Weather sensor HmIP-SWO-B** pairs over Homematic IP radio; HA integration = **`homematicip_cloud`**.
+- **Weather sensor HmIP-SWO-B** pairs over Homematic IP radio; HA integration = **`homematicip_cloud`** (current, HAP cloud mode).
 - **Rekuperator ComfoAir Q 350/450** connects via **ComfoConnect KNX-C** module → KNX TP bus → **GIRA IP Router `.118`**; HA integration = **`knx`**.
-- **Gateway network state (3-phase roadmap):**
-  1. **Now:** HAP (`.121`) on an internet-capable VLAN, HA uses `homematicip_cloud` **cloud mode**.
-  2. **Transition:** with the dedicated **IoT-internet VLAN** (new subnet) available; HAP stays cloud during rollout.
-  3. **Target:** a **CCU3 / RaspberryMatic** (hardware being ordered) → **full local, zero-cloud**. The SWO-B stays compatible; HA integration flips to the legacy **`homematic`** config (XML-RPC ports 2001/2010) once the CCU3 is live.
+- **Local RF plan (during the redo, replaces HAP cloud mode):** a **HmIP-RFUSB stick + RaspberryMatic** on the Pi (Debian/Docker) gives full local, zero-cloud Homematic IP. HA talks to RaspberryMatic over **XML-RPC 2001/2010** via the legacy **`homematic`** integration. Pairing is stored **on the stick**, so it survives a host change.
+- **Failover of Homematic** is the one physical step in the HA failover model: if the Pi dies, the stick is **physically moved to oldsrv** (pairing travels with it → no re-pair) and the single failover trigger brings up RaspberryMatic + HA standby. See [`smart-home-failover.md`](smart-home-failover.md).
 - **HA recorder:** after observability is in production, **trim/limit HA recorder history** (`purge_keep_days`) to reduce writes and extend the Raspberry Pi SD-card life — Grafana reads central Prometheus, not HA history (see `observability.md` TODOs).
 
 ---

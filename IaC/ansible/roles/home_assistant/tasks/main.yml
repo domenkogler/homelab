@@ -2,22 +2,26 @@
 # home_assistant role — Task specification
 #
 # Targets:
-#   - raspberry_pi  → PRIMARY Home Assistant (Debian + HA Container)
-#   - home_servers  → STANDBY Home Assistant container (oldsrv)
+#   - raspberry_pi  → PRIMARY Home Assistant (Debian + HA Container) + RaspberryMatic/HmIP-RFUSB
+#                     + Technitium secondary DNS (deployed by docker_services on the Pi)
+#   - home_servers  → STANDBY Home Assistant + RaspberryMatic-standby (oldsrv)
 #
-# Design & runbooks: docs/smart-home-failover.md
+# Design & runbooks: docs/smart-home-failover.md, docs/smart-home.md
 # Key facts:
 #   - Both nodes render the SAME configuration.yaml from this repo.
 #   - ha.kogler.si → Traefik → VIP 10.10.1.122 (keepalived/VRRP on both nodes).
-#   - Standby is COLD (systemd unit disabled) until manual forward takeover.
-#   - Forward + reverse failover are MANUAL (see runbooks doc).
+#   - Standby + RaspberryMatic-standby are COLD (systemd units disabled) until manual forward takeover.
+#   - Forward + reverse failover are MANUAL; a single `ha-failover.sh` on oldsrv orchestrates
+#     RMat-start → wait XML-RPC 2001/2010 → VIP promote → HA-standby start (button on Homepage).
+#   - Homematic IP RF is bound to the HmIP-RFUSB stick (on the Pi); takeover REQUIRES physically
+#     moving the stick to oldsrv (pairing stored on the stick → no re-pair).
 #
 # Roles of this role (implement as tasks):
 #
 # 1. PRIMARY (host: raspberry_pi / ha.kogler.si)
 #    - Install Home Assistant Container (Debian + docker): image ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}
 #    - Render /config/configuration.yaml from repo template (use_x_forwarded_for: true, trusted_proxies: <Traefik>)
-#    - Render other configs (integrations: knx via GIRA IP Router .118, ESPHome, shelly native, homematicip_cloud)
+#    - Render other configs (integrations: knx via GIRA IP Router .118, homematic [XML-RPC 2001/2010 via local RaspberryMatic], shelly native)
 #    - Run "owner" recovery account; Authentik OIDC; NO Forward-Auth on ha route
 #    - keepalived PRIMARY: owns VIP 10.10.1.122 (state MASTER, priority higher than standby)
 #    - HA exporter: enable /api/prometheus bearer token (monitoring role scrapes)
@@ -25,13 +29,20 @@
 #    - Template home-assistant-standby/docker-compose.yml.j2 → /opt/home-assistant-standby/
 #    - Render the SAME configuration.yaml into /opt/home-assistant-standby/config/
 #    - Create systemd unit home-assistant-standby (disabled by default)
+#    - Template raspberrymatic-standby (RaspberryMatic) → /opt/raspberrymatic-standby/ (disabled by default)
 #    - keepalived STANDBY: state BACKUP, priority lower; takes VIP on takeover
 # 3. STATE SYNC (normal direction: Pi → standby)
 #    - rsync /config from Pi to /opt/home-assistant-standby/config/ every ~15 min (LAN only, no WAN)
+#    - rsync RaspberryMatic config Pi → oldsrv the same way (pairing stays on the stick)
 #    - Optionally sync HA DB; best-effort only (HA re-polls devices on startup)
-# 4. FIREWALL (see docs/network-vlans.md)
+# 4. FAILOVER ORCHESTRATOR (host: home_servers / oldsrv)
+#    - Deploy /usr/local/sbin/ha-failover.sh + a Homepage button that invokes it
+#      (start RMat standby → wait 2001/2010 → promote VIP → start HA standby)
+# 5. FIREWALL (see docs/network-vlans.md)
 #    - Home→IoT trusted-IP rules for MQTT/HA must cover the VIP (10.10.1.122), not per-node IPs
+#    - Home→IoT/Home rules must let the RaspberryMatic XML-RPC ports 2001/2010 (fixed CCU IP) and
+#      both HA nodes reach it
 #
 # Secrets (1Password vault 'Homelab'):
-#   - ha_long_lived_token, ha_api_key, ha_mqtt_credentials (if MQTT added), ha_prometheus_token
+#   - ha_long_lived_token, ha_api_key, ha_mqtt_credentials (if MQTT added), ha_prometheus_token, ha_vrrp_password
 #   - {{ lookup('community.general.onepassword', '...', vault='Homelab') }}

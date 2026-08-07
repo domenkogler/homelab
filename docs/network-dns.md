@@ -15,13 +15,13 @@ tags: [network, dns, technitium, pihole]
 
 ## Design: Technitium as Central DNS Router (Primary + Secondary)
 
-Technitium runs as a Docker container on oldsrv (primary) and a **second instance on nas (secondary)** — two separate physical hosts so a DNS outage does not depend on a single failure domain. Both serve the same per-subnet policy and internal `*.kogler.si` records. See the HA-failover tie-in in [`smart-home-failover.md`](smart-home-failover.md).
+Technitium runs as a Docker container on oldsrv (primary) and a **second instance on the Raspberry Pi** (`ha.kogler.si` — secondary) — two separate physical hosts so a DNS outage does not depend on a single failure domain. Both serve the same per-subnet policy and internal `*.kogler.si` records. See the HA-failover tie-in in [`smart-home-failover.md`](smart-home-failover.md).
 
 ```
               ┌────────────────────────────┐
               │ Technitium DNS router      │
               │ PRIMARY  (oldsrv)          │
-              │ + SECONDARY (nas)          │
+              │ + SECONDARY (Pi/ha.kogler) │
               └──────┬──────────┬─────────┘
                      │          │
             ┌────────┴───┐  ┌───┴────────┐
@@ -54,9 +54,10 @@ Client → Router (10.10.x.1) → Technitium PRIMARY (oldsrv, 10.10.99.X)
 
 - Router `/ip dns` forwards to **Technitium primary + secondary**, `1.1.1.1` as final fallback
 - DHCP clients receive **both** the primary and secondary Technitium addresses (and the router's IP)
-- If oldsrv is down: the **secondary on nas** still resolves local `*.kogler.si` and enforces per-subnet filtering; 1.1.1.1 is only a last resort (unfiltered)
-- The **secondary is a true failure-domain split** — nas is a different physical box from oldsrv
+- If oldsrv is down: the **secondary on the Pi** still resolves local `*.kogler.si` and enforces per-subnet filtering; 1.1.1.1 is only a last resort (unfiltered)
+- The **secondary is a true failure-domain split** — the Pi is a different physical box from oldsrv
 - `ha.kogler.si` resolves to the **VIP** on both secondary and primary (see [`smart-home-failover.md`](smart-home-failover.md)) so DNS is never the thing that breaks HA lookup
+- **Coupling tradeoff (accepted):** the Pi also hosts primary HA. A Pi failure takes the DNS secondary down **with** it — but the DNS **primary** (oldsrv) survives, and oldsrv is exactly the box HA fails over to, so resolution is never the thing that breaks HA in the Pi-down scenario.
 
 ---
 

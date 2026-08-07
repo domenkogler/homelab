@@ -26,6 +26,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - Fallback: **oldsrv** (`home-assistant-standby` Docker container, cold by default).
 - Supervision: **manual** trigger + **manual** failback (accepted design — no false negatives from automation).
 - Stale state on takeover is acceptable: HA re-polls devices on startup (target: controlling again in 1–3 min).
+- **Homematic IP RF is physically bound to the `HmIP-RFUSB` stick (on the Pi).** Taking over Homematic **requires physically moving the stick to oldsrv** — the only non-automatable step. KNX/Shelly are IP-based and fail over purely via the VIP with no physical action.
 
 ---
 
@@ -64,11 +65,14 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 
 | Node | Role | Deployment | VIP |
 |------|------|-----------|-----|
-| Pi 4 (`ha.kogler.si`) | **Primary** (active) | **Debian + Home Assistant Container**, managed by the Ansible `home_assistant` role | owns `10.10.1.122` in normal mode |
-| oldsrv | **Fallback** (standby, cold) | `home-assistant-standby` Docker compose (normally `disabled` systemd unit), same `home_assistant` role template | takes over `10.10.1.122` on takeover |
+| Pi 4 (`ha.kogler.si`) | **Primary** (active) | Debian + **HA Container** (home_assistant role) + **RaspberryMatic** + `HmIP-RFUSB` + **Technitium secondary DNS** | owns `10.10.1.122` in normal mode |
+| oldsrv | **Fallback** (standby, cold) | `home-assistant-standby` + `raspberrymatic-standby` Docker compose (both `disabled` by default), same home_assistant role template | takes over `10.10.1.122` on takeover |
+
+- Each HA node is paired with a **RaspberryMatic + HmIP-RFUSB**: primary on the Pi (always-on), standby on oldsrv (cold, started by the failover button). Both RaspberryMatic instances expose XML-RPC (2001/2010) on a **fixed Home/IoT VLAN IP** so whichever HA is active reaches it identically.
+- **Technitium secondary DNS moved from nas → Pi** (`ha.kogler.si`, now a Debian host). Primary stays on oldsrv. See `network-dns.md`.
 
 - **Identical config from one source:** both nodes render the **same `configuration.yaml`** from the repo (`use_x_forwarded_for: true`, `trusted_proxies: <Traefik>`), including the `owner` recovery account and Authentik OIDC settings.
-- **Role/playbook:** `raspberry_pi.yml` (common → network → home_assistant → monitoring) configures the Pi as primary. The `home_assistant` role on `home_servers` renders the standby container on oldsrv.
+- **Role/playbook:** `raspberry_pi.yml` (common → network → docker → home_assistant → docker_services → monitoring) configures the Pi as primary (incl. RaspberryMatic + Technitium secondary). The `home_assistant` role on `home_servers` renders the standby + RaspberryMatic-standby containers on oldsrv.
 - **Update policy:** pinned image + Renovate; watchtower optional (see `hardware-oldsrv.md`, `deployment-renovate.md`).
 
 ### Decision: HA OS vs Debian/Docker (Pi primary)
@@ -96,13 +100,19 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 
 ## Forward Takeover (Pi → oldsrv) — MANUAL
 
-**Trigger:** A single dashboard action / script on `home.kogler.si` (no automation, so no false negatives from a mis-updated HA OS). Steps:
+**Two manual actions total:** (1) physically move the HmIP-RFUSB stick, and (2) press **one** failover button on Homepage (`kogler.si`). Everything after the button is a single orchestrated script — no separate VIP / standby steps.
 
 1. **Confirm Pi is down** (human verifies — power, SD, OS, network).
-2. **Move the VIP** to oldsrv (`keepalived` demote on Pi / promote on oldsrv). If no VIP (HA OS fallback): update Technitium `ha.kogler.si` → oldsrv IP **and** Traefik `ha` service endpoint.
-3. **Start the standby:** `systemctl enable --now home-assistant-standby`.
-4. HA boots from last config/DB snapshot → reconnects KNX / Shelly / ESPHome.
-5. **Notify:** n8n → Signal/email (Homelab Alerts), and log the event (see `observability.md`).
+2. **Physically move the HmIP-RFUSB** from the Pi to oldsrv (hot-plug; if the Pi is powered-but-dying, power-cycle it first). Pairing lives on the stick → **no re-pairing** needed.
+3. **Press the single failover button** on Homepage. It runs `ha-failover.sh` on oldsrv, which:
+   a. starts **RaspberryMatic** (`raspberrymatic-standby`) on oldsrv (stick pinned by `/dev/serial/by-id`),
+   b. waits until the CCU answers on XML-RPC **2001/2010**,
+   c. promotes keepalived (Pi MASTER demoted / oldsrv BACKUP promoted → VIP `10.10.1.122`),
+   d. starts `home-assistant-standby` (re-polls KNX/Shelly; connects to the fresh RMat).
+   (If the VIP path is ever unavailable — HA OS fallback — the script additionally flips the Technitium `ha.kogler.si` record + the Traefik `ha` endpoint.)
+4. Verify HmIP devices reconstructed (same EUI/entity IDs) + a live control command; notify n8n → Signal/email and log the event (see `observability.md`).
+
+> **Homematic RF note:** until the stick physically reaches oldsrv, Homematic stays down. IP devices (KNX, Shelly) fail over cleanly via the VIP **without** the stick move — only the RF subset waits on a human being physically present.
 
 ---
 
@@ -112,10 +122,11 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 
 1. **Build the new Pi as a peer, not master:** run the `raspberry_pi` playbook → Pi comes up with the same config as **standby** (disabled VIP, no active role).
 2. **Reverse the state sync (standby → Pi):** oldOVs (former standby) now has the freshest config/DB; push it to the new Pi so no family/lights config is lost. (Normal sync direction is Pi → standby; reverse it here.)
-3. **Drain the standby:** put it in maintenance (disable its VIP/watchdog), confirm the new Pi is healthy and can control a live device.
-4. **Flip the VIP back** to the Pi (manual button/script).
-5. **Mark Pi = primary**, oldOVs returns to cold/disabled.
-6. **Drill:** exercise forward + reverse right after the network redo, and re-test annually with the backup restore drill (see `backup.md`).
+3. **Move the HmIP-RFUSB back** to the (repaired) Pi and bring up its RaspberryMatic; verify pairing is retained (the stick carries it) and HmIP entities reconstruct.
+4. **Drain the standby:** put it in maintenance (disable its VIP/watchdog/RaspberryMatic-standby), confirm the new Pi is healthy and can control a live device + HmIP.
+5. **Flip the VIP back** to the Pi (manual button/script).
+6. **Mark Pi = primary**, oldOVs returns to cold/disabled.
+7. **Drill:** exercise forward + reverse right after the network redo, and re-test annually with the backup restore drill (see `backup.md`).
 
 ---
 
@@ -123,13 +134,14 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 
 - **Source of truth:** this repo (config already lives here). The standby is healthy when its rendered `/config` matches the repo + a recent Pi snapshot.
 - **Normal direction (Pi → standby):** local push of `/config` (and optionally HA DB) to oldsrv on a timer (e.g. every 15 min), LAN-only, no WAN dependency.
+- **RaspberryMatic config** is synced alongside HA config (Pi → oldsrv) so the standby RMat restores its host roles/parameters the same way; the device pairing itself travels with the physical stick.
 - **Best-effort only:** on takeover the standby boots from the last snapshot and **re-polls all devices**; full live-state continuity is not a goal (accepted).
 
 ---
 
 ## DNS Redundancy Tie-In (see `network-dns.md`)
 
-- Both **Technitium** instances (primary on oldsrv, **secondary on nas**) serve `ha.kogler.si` → **VIP** in normal mode, so DNS is never the thing that breaks HA lookup.
+- Both **Technitium** instances (primary on oldsrv, **secondary on the Pi**) serve `ha.kogler.si` → **VIP** in normal mode, so DNS is never the thing that breaks HA lookup.
 - The VIP handles *steering*; the second Technitium handles *lookup availability* when oldsrv is down.
 
 ---
@@ -146,7 +158,9 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - [x] Takeover trigger = **manual**; failback = **manual** (accepted).
 - [x] Stale state on takeover (15-min snapshot) = **acceptable**.
 - [x] WAN access in fallback = **not required** (LAN/VPN only).
-- [ ] Confirm the live Pi's current install method before the redo (docs assume Docker).
+- [x] Pi confirmed running **HAOS** (see `home-assistant-current.md`); redo target = **Debian + HA Container**.
+- [ ] Implement the **single failover button** + `ha-failover.sh` orchestrator (RMat → wait → VIP → standby) on Homepage.
+- [ ] **Once**, test HmIP-RFUSB pairing transfer + entity reconstruction across the stick move.
 - [ ] Choose VIP range/notation for Home VLAN + firewall IP-set name.
 - [ ] Whether to add `watchtower` for the Pi's HA container update automation.
 

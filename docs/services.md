@@ -65,7 +65,7 @@ tags: [services, catalog]
 
 | Service | Subdomain |
 |---------|-----------|
-| Homepage | `kogler.si` (root) |
+| Homepage | `kogler.si` (canonical root) + **`home.kogler.si`** (alias) — public, but behind **Authentik Forward-Auth** (no anonymous access) |
 | Immich | `foto.kogler.si` |
 | OpenCloud | `file.kogler.si` |
 | Authentik | `sso.kogler.si` |
@@ -97,14 +97,14 @@ tags: [services, catalog]
 
 ## What Is NOT on oldsrv
 
-- **Home Assistant (primary)** — on Raspberry Pi 4 (HA config in this repo). **Standby** Home Assistant runs on oldsrv: see [`smart-home-failover.md`](smart-home-failover.md).
+- **Home Assistant (primary)** — on the Raspberry Pi 4 (HA config in this repo), co-located with **RaspberryMatic + HmIP-RFUSB** (local Homematic IP) and the **Technitium secondary** DNS. **Standby** Home Assistant runs on oldsrv: see [`smart-home-failover.md`](smart-home-failover.md).
 - **VPS services** — deferred to Phase 2+ ([`services-vps.md`](services-vps.md))
 - **Pangolin** — removed; Traefik handles all reverse proxy
 
 ## DNS Redundancy
 
 - **Technitium primary** on oldsrv (Docker, `services-internal`).
-- **Technitium secondary** on nas — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when oldsrv is down (see [`network-dns.md`](network-dns.md)).
+- **Technitium secondary** on the **Raspberry Pi (`ha.kogler.si`)** — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when oldsrv is down (see [`network-dns.md`](network-dns.md)).
 
 ---
 

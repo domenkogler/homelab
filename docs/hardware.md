@@ -30,7 +30,7 @@ tags: [hardware, phases]
 | **oldsrv** (i7-7700K + RX 7600 + 48 GB) | **Sole Docker host** — all Phase 1 services, family PC | AI/LLM only, or retired |
 | **nas** (HP MicroServer, Xeon E3, 12 GB ECC) | ZFS pools (tank + backup), NFS, Cockpit | Permanent storage server |
 | **SilverStone TS43xx** | Attached to nas via miniSAS — 4× 3 TB HDDs | Same |
-| **Raspberry Pi 4** | Home Assistant (primary) | Stays primary HA |
+| **Raspberry Pi 4** | Home Assistant (primary, Debian+HA Container) + RaspberryMatic/HmIP-RFUSB + Technitium secondary DNS | Stays primary HA |
 | **VPS (Contabo)** | *Not used* | Public web stack |
 | **custom** (Ryzen 9 + R9700) | *Not built* | Proxmox hypervisor |
 | **PowerWalker VFI ICT/ICR IoT 3000** (UPS) | Protects nas + rack infra (see [`hardware-ups.md`](hardware-ups.md)) | Same |

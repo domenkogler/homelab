@@ -13,6 +13,13 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 
 > ⚠️ **How this was collected (planning phase — read-only, nothing changed).** Enumerated live on **2026-08-07** via the HA REST API (`http://10.10.1.122:8123`) authenticated with the `domen` owner account login flow. No files on the HA host were modified; no config was read from the (separate) HA config git repo. Items that the REST API cannot expose (full Supervisor add-on store, exact HACS repository list, some integration attribution) are marked **to-confirm** below.
 
+> 🧭 **Planned changes (post-audit, decision taken — see `smart-home.md`, `smart-home-failover.md`, `network-dns.md`).**
+> 1. **Primary redo:** Pi moves from HAOS → **Debian + HA Container** during the network redo (keeps the failover VIP/VRRP and one Ansible role for both nodes).
+> 2. **Homematic IP:** HAP **cloud mode** is replaced by a local **HmIP-RFUSB + RaspberryMatic** on the Pi (`homematic` XML-RPC 2001/2010); failover = physically moving the stick to oldsrv (pairing stored on the stick).
+> 3. **Technitium secondary DNS** moves from nas → the Pi (now a Debian host).
+> 4. **Dev add-ons** (SSH / File editor / Studio Code Server) + Supervisor-only services are replaced by standalone containers or host tools in the Docker deployment; HAOS-only auto-backup replaced per `backup.md`.
+> This file remains a point-in-time inventory of the *current* live instance; the bullets above are the approved direction, not yet applied.
+
 ---
 
 ## 1. Executive Summary

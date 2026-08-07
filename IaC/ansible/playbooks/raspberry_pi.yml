@@ -4,5 +4,7 @@
   roles:
     - common
     - network
+    - docker
     - home_assistant
+    - docker_services        # raspberrymatic + technitium-secondary on the Pi
     - monitoring

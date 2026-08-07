@@ -43,14 +43,14 @@ IaC/ansible/
 │   ├── router.yml                   # hosts: router → role: router
 │   ├── vps.yml                      # hosts: vps → common→docker→network→docker_services→monitoring
 │   ├── home_servers.yml             # hosts: home_servers → common→ai_diag→docker→network→amd_rocm→[desktop,office]→docker_services→home_assistant→monitoring
-│   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→network→home_assistant→monitoring
+│   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→network→docker→home_assistant→docker_services→monitoring
 │   └── all.yml                      # Cross-cutting: /etc/hosts sync
 ├── group_vars/
 │   ├── all.yml                      # Timezone, locale, NTP, domain names
 │   ├── router.yml                   # VLAN map, WireGuard peers, DNS forwarding
 │   ├── vps.yml                      # docker_services list (VPS)
 │   ├── home_servers.yml             # homelab_mode, docker_services list (home), GPU config
-│   └── raspberry_pi.yml             # HA install method, version
+│   └── raspberry_pi.yml             # HA install method, Pi docker_services (raspberrymatic, technitium-secondary)
 ├── host_vars/
 │   ├── oldsrv.kogler.si.yml         # homelab_mode=desktop, static IP
 │   ├── nas.kogler.si.yml            # HP MicroServer Gen8 — ZFS storage
@@ -66,7 +66,7 @@ IaC/ansible/
 │   ├── kopia/tasks/main.yml         # kopia-agent + kopia-server Docker containers (deployed by docker_services)
 │   ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
 │   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
-│   ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP
+│   ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP + failover trigger
 │   ├── docker_services/tasks/main.yml # THE key role — generic service deployer
 │   ├── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana + alerting; blackbox; HA exporter
 │   ├── nut/                         # UPS: master (nas) + clients (oldsrv, ha) — see Role Catalog
@@ -138,6 +138,7 @@ ansible_user: ansible-admin
 ```yaml
 ansible_host: 10.10.1.122        # Home VLAN
 ansible_user: pi
+# Roles: primary HA (Docker) + RaspberryMatic/HmIP-RFUSB + Technitium secondary DNS
 ```
 
 ---
@@ -157,8 +158,8 @@ docker_services:
   - { name: ollama,          template_dir: ollama }
   - { name: immich-ml,       template_dir: immich-ml }
   - { name: technitium,      template_dir: technitium, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
-  - { name: technitium-secondary, template_dir: technitium, instance: secondary, enabled: "{{ inventory_hostname == 'nas.kogler.si' }}" }
   - { name: pihole,          template_dir: pihole }
+  - { name: raspberrymatic-standby, template_dir: raspberrymatic, instance: standby, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: headscale,       template_dir: headscale }
   - { name: kopia-server,    template_dir: kopia-server }
@@ -340,7 +341,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 3 | `amd_rocm` | `common` |
 | 4 | `docker_services` (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
 | 5 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
-| 6 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.122`) | `docker` |
+| 6 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.122`) + Pi `docker_services` (`raspberrymatic`, `technitium-secondary`) | `docker` |
 | 7 | `nut` — nas: master (usbhid-ups + upsd + nut_exporter); oldsrv/ha: client (upsmon slave + upssched + notifycmd) | `common`, `network` |
 | 8 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) **and** `nut` (needs nut_exporter) |
 | 9 | `router` | `network` (IPs/VLANs defined) |

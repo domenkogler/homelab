@@ -1,10 +1,14 @@
 # home-assistant-standby docker-compose.yml
 #   Standby Home Assistant on oldsrv — COLD by default.
-#   Started manually on forward takeover (Pi → oldsrv). See docs/smart-home-failover.md.
+#   Started by the single failover trigger on forward takeover (Pi → oldsrv).
+#   See docs/smart-home-failover.md.
 #
 #   - Same configuration.yaml as the Pi (rendered from the same repo template).
 #   - Config/state synced from Pi every ~15 min (LAN only).
 #   - keepalived STANDBY: VIP 10.10.1.122 moves HERE on takeover.
+#   - Paired with raspberrymatic-standby (RaspberryMatic) and the physically-moved
+#     HmIP-RFUSB stick; the trigger starts RMat and waits for XML-RPC 2001/2010
+#     BEFORE starting this container, so HA finds the CCU on boot.
 #   - restart policy: manual (systemd unit disabled by default) → restart: "no"
 #   - Traefik's `ha` route targets the VIP; NOT Authentik Forward-Auth (breaks Companion app).
 #

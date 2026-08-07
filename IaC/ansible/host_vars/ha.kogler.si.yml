@@ -1,5 +1,5 @@
 ---
-# Raspberry Pi 4 — Home Assistant
+# Raspberry Pi 4 — Home Assistant (PRIMARY), RaspberryMatic/HmIP-RFUSB, Technitium secondary DNS
 ansible_host: 10.10.1.122          # VLAN 10 (Home) — static DHCP lease
 ansible_user: pi
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

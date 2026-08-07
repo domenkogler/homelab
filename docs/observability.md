@@ -116,4 +116,4 @@ nut_exporter (UPS, on nas) ─────────────────�
 | Trim/disable HA recorder history | after observability live | protects Pi SD card; Grafana reads central Prometheus, not HA history |
 | Long-term metric retention (remote-write, downsampling) | if ever needed | escape hatch = Thanos/VictoriaMetrics |
 | Prometheus Alertmanager | only if Grafana-outage resilience demanded | Grafana Alerting covers Phase 1 |
-| Homematic full-local (CCU3/RaspberryMatic) | hardware ordered | see `smart-home.md` — affects HAP/HA integration, not metrics flow |
+| Homematic full-local (HmIP-RFUSB + RaspberryMatic on Pi) | redo plan | see `smart-home.md` — affects HAP/HA integration, not metrics flow |

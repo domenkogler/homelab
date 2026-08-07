@@ -1,0 +1,45 @@
+# raspberrymatic docker-compose.yml — Homematic IP local CCU (HmIP-RFUSB + RaspberryMatic)
+#   PRIMARY  on the Pi (ha.kogler.si)      — owns the HmIP-RFUSB stick, always-on.
+#   STANDBY  on oldsrv (instance: standby) — cold by default; started by the failover
+#            trigger only AFTER the HmIP-RFUSB stick is physically moved to oldsrv.
+#   See docs/smart-home.md + docs/smart-home-failover.md.
+#
+#   - HA talks to this CCU over XML-RPC TCP 2001/2010 (legacy `homematic` integration),
+#     NOT to the USB stick directly → the stick only needs to be in whichever host runs
+#     this container, never inside the HA container.
+#   - HmIP-RFUSB pairing is stored ON THE STICK → moving the stick preserves pairing,
+#     no re-pairing required.
+#   - Pin the stick by /dev/serial/by-id (NOT /dev/ttyACM0 — can renumber) on BOTH hosts.
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault='Homelab') }}
+{% set rmat_name = 'raspberrymatic' if (instance | default('primary')) == 'primary' else 'raspberrymatic-standby' %}
+{% set rmat_restart = 'unless-stopped' if (instance | default('primary')) == 'primary' else 'no' %}
+
+services:
+  raspberrymatic:
+    image: ghcr.io/jens-maus/raspberrymatic:latest
+    container_name: {{ rmat_name }}
+    restart: {{ rmat_restart }}   # primary: always-on; standby: cold (trigger-started)
+    privileged: false
+    cap_add: []
+    # USB radio: pass the HmIP-RFUSB stick into the CCU by stable by-id path.
+    # Replace "usb-eQ-3__HmIP-RFUSB_*" with the actual by-id symlink for the stick.
+    devices:
+      - /dev/serial/by-id/usb-eQ-3__HmIP-RFUSB_*:/dev/ttyACM0
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # fixed CCU IP on the Home/IoT VLAN so both HA nodes reach 2001/2010 identically
+      # (implement the exact network per deployment-compose.md conventions;
+      #  macvlan on VLAN 10 or a routed network, plus static association)
+    networks:
+      - homematic           # macvlan/routed network carrying the fixed CCU IP
+    ports:
+      - "2001:2001/tcp"     # XML-RPC (thermostats/weather/alarm)
+      - "2010:2010/tcp"     # XML-RPC TLS
+      - "80:80"             # CCU admin UI (internal only)
+    volumes:
+      - ./data:/usr/local/share/raspberrymatic      # persistent RMat host config/roles
+
+networks:
+  homematic:
+    external: true
