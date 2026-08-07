@@ -53,7 +53,7 @@ tags: [network, vlan, firewall]
 |-------------|-----------------|------|
 | Home (10) | IoT (20) | Accept established/related + new from trusted IPs (MQTT/HA) |
 | Home (10) | IoT-Internet (21) | Accept established/related + new from trusted IPs (HA→HAP, Prometheus→HA) |
-| Home (10) | Management (99) | Accept SSH/WinBox/HTTPS |
+| Home (10) | Management (99) | Accept SSH/WinBox/HTTPS · **502/tcp (UPS Modbus) + 80/443 (UPS web UI)** from trusted monitoring hosts (nas/oldsrv/ha) |
 | Home (10) | Media (50) | Accept (remote control, casting) |
 | IoT (20) | Home (10) | **Drop all** (only replies to Home-initiated) |
 | IoT (20) | WAN | **Drop all** — disable rule manually for firmware updates |
@@ -66,6 +66,8 @@ tags: [network, vlan, firewall]
 | All (except IoT) | WAN | Allowed (masqueraded) |
 
 Implemented with **address-lists** and **interface lists** in RouterOS.
+
+> **UPS / NUT note:** the NUT master (`nas`) and clients (`oldsrv`, `ha`) are all on VLAN 10 (Home), so **3493/tcp (NUT) is intra-VLAN — no inter-VLAN rule needed**. The UPS itself is managed on VLAN 99 (Mgmt); only Modbus TCP (`502`) and web (`80/443`) are reachable from the monitoring hosts per the rule above (see [`hardware-ups.md`](hardware-ups.md)).
 
 ---
 

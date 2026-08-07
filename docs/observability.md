@@ -22,6 +22,7 @@ Alloy (host agent: metrics + logs + SNMP, has docker.sock)
 Home Assistant (SWO-B + ComfoAir) ──Prometheus exporter──▶ Prometheus
 MikroTik (SNMP, 5–15s poll) ─────────────────────────────▶ Prometheus
 blackbox_exporter (external reachability) ───────────────▶ Prometheus  (probe_success)
+nut_exporter (UPS, on nas) ──────────────────────────────▶ Prometheus  (battery/runtime/voltage)
 
                         Prometheus ──▶ Grafana (stats.kogler.si, internal, Authentik admin-only)
                                           │  webhook
@@ -47,6 +48,7 @@ blackbox_exporter (external reachability) ────────────�
 | Backend | **Loki** | Log aggregation, single-node/SSD | `db-internal` | 14d |
 | Exporter | **blackbox** | External reachability (`probe_success`) | `services-internal` | in Prometheus |
 | Exporter | **HA Prometheus exporter** | HA entities → Prometheus | `services-internal` | in Prometheus |
+| Exporter | **nut_exporter** | UPS status (battery/runtime/voltage/load) → Prometheus · single instance on **nas** (NUT master) | `services-internal` | in Prometheus |
 | UI | **Grafana** | Dashboards, `stats.kogler.si` (**internal**) | `traefik-public` **+** `db-internal` | — |
 | Router | **n8n** | Alert routing/dedup → Signal/email | `services-internal` | — |
 | Notify | **signal-cli** | Signal delivery (linked device) | `services-internal` (needs internet) | — |
@@ -61,6 +63,7 @@ blackbox_exporter (external reachability) ────────────�
 | Service scrape (Traefik, CrowdSec, Doco-CD) | Alloy/Prometheus | Prometheus (30d) |
 | HA entity metrics (weather, ComfoAir) | HA exporter → Prometheus | Prometheus (30d) |
 | External reachability | blackbox → `probe_success` | Prometheus (30d) |
+| UPS status (battery, runtime, voltage, load, online/on-batt) | nut_exporter (on nas) → Prometheus | Prometheus (30d) |
 | Logs | Alloy → Loki | Loki (14d) |
 | Alerts | Grafana Alerting → n8n → Signal/email | alert delivery |
 | Display | Grafana + Homepage | — |
@@ -78,12 +81,22 @@ blackbox_exporter (external reachability) ────────────�
 
 | Severity | What alerts | Channel | Notes |
 |----------|-------------|---------|-------|
-| **Critical** | oldsrv disk ≥90%, host down, ZFS pool degraded, service down >2min, `probe_success==0` | Signal + email | page-worthy |
-| **Warning** | container restart loop, high CPU/load, HA unreachable, MikroTik link down | Signal (deduped) | sent once |
-| **Info** | transient / everything else | logged only | no push |
+| **Critical** | oldsrv disk ≥90%, host down, ZFS pool degraded, service down >2min, `probe_success==0` · **UPS battery <20% or runtime <5 min (impending shutdown)** | Signal + email | page-worthy |
+| **Warning** | container restart loop, high CPU/load, HA unreachable, MikroTik link down · **UPS on-battery / mains lost (auto-clear on return)** | Signal (deduped) | sent once |
+| **Info** | transient / everything else · **UPS online ↔ on-battery transitions / restored** | logged only | no push |
 
 - **Poke/throttle:** re-send only if still firing after ~30 min (prevents overnight alert floods).
 - **Self-monitoring:** the observability stack itself (Prometheus/Loki/n8n down) must alert — otherwise the alert channel dies silently.
+
+---
+
+## UPS / Power-Loss Monitoring (NUT)
+
+- **Metrics (single source):** one **nut_exporter** on **nas** (the NUT master) reads local `upsd` → Prometheus. Other hosts do **not** re-export identical UPS data (avoids redundancy).
+- **Shutdown:** **NUT owns local shutdown** on `nas`, `oldsrv`, and `ha` (Raspberry Pi). Grafana/n8n are **alert-only** — there is **no shutdown action from Grafana** (observability lives on oldsrv, which must not be the thing that halts the NAS during a power cut).
+- **Notification ordering & delay:** on mains loss the **Warning "on-battery" alerts at t=0** (WAN still up via router/ONT on UPS → Signal + email deliver). At **Critical**, `oldsrv` is **delayed ~60 s** before powerdown (via NUT `upssched`) so its own Grafana→n8n→Signal/email pipeline flushes the Critical alert, then it powers off. `nas` + `ha` power down immediately.
+- **Guaranteed fallback:** a **NUT-side `notifycmd`/`upssched-cmd` script on nas** emails + sends Signal directly on `ONBATT` and `LOWBATT`, independent of Grafana/n8n — so a pre-shutdown notification is sent even if the observability stack is already degraded.
+- Registered/configured via the `nut` Ansible role — see [`deployment-ansible.md`](deployment-ansible.md).
 
 ---
 

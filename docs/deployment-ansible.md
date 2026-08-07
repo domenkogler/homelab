@@ -69,6 +69,9 @@ IaC/ansible/
 │   ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP
 │   ├── docker_services/tasks/main.yml # THE key role — generic service deployer
 │   ├── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana + alerting; blackbox; HA exporter
+│   ├── nut/                         # UPS: master (nas) + clients (oldsrv, ha) — see Role Catalog
+│   │   ├── tasks/main.yml
+│   │   └── files/upssched-cmd       # direct email+Signal notify on ONBATT/LOWBATT
 │   └── ai_diag/                     # ai-debug diagnostics dispatcher + sudoers
 │       ├── tasks/main.yml
 │       └── files/ai-diag
@@ -76,7 +79,8 @@ IaC/ansible/
     ├── docker_services/             # docker-compose.yml.j2 per service
     ├── homepage_services.yaml.j2
     ├── homepage_widgets.yaml.j2
-    └── inventory.md.j2
+    ├── inventory.md.j2
+    └── nut/                         # nut.conf.j2, ups.conf.j2, upsd.users.j2, upsmon.conf.j2, upssched.conf.j2
 ```
 
 ---
@@ -110,12 +114,18 @@ ansible_python_interpreter=/usr/bin/python3
 homelab_mode: desktop            # "desktop" or "proxmox" or "headless"
 ansible_host: 10.10.99.10        # Management VLAN 99 static IP
 ansible_user: ansible-admin
+nut_mode: client                 # UPS NUT slave → delayed shutdown (see nut role)
+ut_host: nas.kogler.si           # NUT master endpoint
+shutdown_delay_seconds: 60       # lets Grafana→n8n→Signal flush Critical alert before powerdown
 ```
 
 ### nas.kogler.si.yml
 ```yaml
 ansible_host: 10.10.1.50           # VLAN 10 (Home) — static; Mgmt via VLAN 99 native
 ansible_user: ansible-admin
+nut_mode: master                 # NUT master (only host physically USB-wired to the UPS)
+ut_driver: usbhid-ups            # PowerWalker VFI ICT/ICR IoT 3000 via USB HID
+nut_serial: auto                 # USB HID auto-detect; battery/runtime thresholds set here
 ```
 
 ### vps.kogler.si.yml
@@ -256,6 +266,15 @@ domain_local: kogler.si
 - **Alert delivery:** n8n + signal-cli-rest-api are Docker services (see `group_vars/home_servers.yml`), deployed by `docker_services` — they handle webhook routing, dedup, and Signal notification at runtime
 - **Ordering:** run **after** `docker_services` (needs Prometheus/Loki/n8n up)
 
+### `nut`
+- **Mode-driven** via `nut_mode` (see host_vars):
+  - **master** (`nas`): install `nut-server` + `usbhid-ups` driver (USB HID to the PowerWalker) → `upsd` serving `powerwalker@localhost` on **TCP 3493** (restricted to homelab hosts). Deploys **`nut_exporter`** (single instance) → Prometheus. Installs the **`upssched-cmd`** notify script (email + Signal directly on `ONBATT`/`LOWBATT`, secrets from 1Password).
+  - **client** (`oldsrv`, `ha`/Pi): install `nut-client` + `upsmon` slave → `MONITOR powerwalker@{{ nut_host }} 1 …`, local `shutdown` on low battery. Port **3493** is intra-VLAN to the master (no inter-VLAN rule needed).
+- **Shutdown policy:** Critical = battery < **20%** or runtime < **5 min**. `upssched` applies **`shutdown_delay_seconds`** per host — `oldsrv=60` (flush Grafana/n8n/Signal alerts before powerdown), `nas=0`, `ha=0`.
+- **Exporter:** **one** `nut_exporter` on the master only (SSOT — other hosts are NUT clients, not exporters).
+- **Depends on:** `common`, `network`
+- **Run before** `monitoring` (monitoring needs the exporter up).
+
 ### `ai_diag`
 - **Deploy:** `/usr/local/sbin/ai-diag` + `/etc/sudoers.d/ai-diag` (single NOPASSWD entry for `ai-debug`)
 - **Deps:** smartmontools, hdparm, dmidecode, sg3-utils
@@ -322,6 +341,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 4 | `docker_services` (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
 | 5 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
 | 6 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.122`) | `docker` |
-| 7 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) |
-| 8 | `router` | `network` (IPs/VLANs defined) |
-| 9 | `proxmox` (Phase 2) | `network` |
+| 7 | `nut` — nas: master (usbhid-ups + upsd + nut_exporter); oldsrv/ha: client (upsmon slave + upssched + notifycmd) | `common`, `network` |
+| 8 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) **and** `nut` (needs nut_exporter) |
+| 9 | `router` | `network` (IPs/VLANs defined) |
+| 10 | `proxmox` (Phase 2) | `network` |

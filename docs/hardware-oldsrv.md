@@ -53,6 +53,7 @@ tags: [hardware, oldsrv, docker]
 - Single UTP to CRS328 switch (port 7 on patch panel)
 - VLAN trunk: 10 (Home), 20 (IoT), 50 (Media) tagged + 99 (Management) native
 - Intel i350-T2 dual-port NIC — only one port used
+- **UPS:** backed by the PowerWalker VFI ICT/ICR IoT 3000 (see [`hardware-ups.md`](hardware-ups.md)). Runs as a **NUT client** (slave to `nas`) with a **60 s shutdown delay** so its Grafana→n8n→Signal/email alerts flush before powerdown on a mains outage.
 
 ---
 

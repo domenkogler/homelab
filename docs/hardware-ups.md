@@ -24,7 +24,7 @@ tags: [hardware, ups, power, modbus, nut]
 | IP | `10.10.1.109` |
 | VLAN | 99 (Mgmt) — access port |
 | Location | Rack floor / near the rack (18U cabinet) |
-| Protects | **nas** (HP MicroServer Gen8) + rack infra (router, switch, ONT, HA Pi) |
+| Protects | **nas** (HP MicroServer Gen8), **oldsrv** (i7-7700K), **ha** (Raspberry Pi 4) + rack infra (router, switch, ONT) |
 
 > The "IoT" in the model name means the RJ45 is the built-in **network (Ethernet)
 > port**, not a serial/RS-485 Modbus port. It has an IoT network card with its own
@@ -59,21 +59,33 @@ The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) 
 
 ---
 
+## Monitoring & Shutdown Topology (decided)
+
+**Uses the USB HID link + NUT network protocol — not Modbus for monitoring.**
+
+```
+UPS (USB physical link → nas only)
+  └─ nas = NUT MASTER
+       ├─ usbhid-ups driver        (USB)
+       ├─ upsd on :3493 (homelab-only)
+       └─ nut_exporter ──▶ Prometheus   (single source of metrics)
+      ▲ NUT network (upsmon SLAVE, :3493)
+   ┌──┴───────────────────┐
+oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
+```
+
+- **Master = nas** (only host physically USB-wired). **Clients = oldsrv + ha/Pi**, each triggers its own local `shutdown` — no cross-host dependency.
+- **Single sensor of truth:** one `nut_exporter` on the master; other hosts are NUT clients only (not exporters).
+- **Shutdown policy:** Critical = battery < **20%** or runtime < **5 min**. `oldsrv` delayed **60 s** (flushes Grafana→n8n→Signal/email before powerdown); `nas`/`ha` power down immediately.
+- **Guaranteed notify:** NUT-side `upssched-cmd` on nas emails + sends Signal directly on `ONBATT`/`LOWBATT`, independent of Grafana/n8n.
+
 ## Monitoring & Shutdown Status
 
-⚠️ **NUT (Network UPS Tools) is NOT installed on gen8 (`nas`).**
-
-- No `nut` / `apcupsd` on gen8 — nothing reads battery/runtime/voltage, and there is
-  **no automatic graceful shutdown** of the NAS on power failure.
-- The USB link and the Modbus TCP interface both exist and work, but no host driver consumes them.
-- Read-only view of the UPS currently comes from the **winPower View** mobile app only.
-
-### Roadmap
-- [ ] Install **NUT** on gen8 with the `usbhid-ups` driver (USB HID path) *or* the
-      `modbus_ups` driver (`10.10.1.109:502`, unit 1).
-- [ ] Configure `upsd` + a shutdown action so gen8 shuts down cleanly on low battery.
-- [ ] Decide whether metrics flow to Prometheus (see `observability.md`) and whether
-      Home Assistant keeps its own Modbus reader (`home-assistant-current.md` §6.1).
+### Roadmap (implementation pending)
+- [ ] **NUT on nas** — master: `usbhid-ups` (USB path), `upsd`, `nut_exporter`, `upssched-cmd` notify (per [`deployment-ansible.md`](deployment-ansible.md) `nut` role).
+- [ ] **NUT clients** on `oldsrv` + `ha` (*slave* mode) with per-host shutdown delay (60 s / 0 / 0).
+- [ ] Wire UPS metrics + alerts into Prometheus/Grafana (see [`observability.md`](observability.md)) — Critical battery/runtime, Warning on-battery, Info transitions.
+- [ ] Open firewall rule 502/80/443 Home→Mgmt for modbus/web (see [`network-vlans.md`](network-vlans.md)).
 
 ---
 
