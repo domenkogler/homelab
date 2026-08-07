@@ -31,6 +31,7 @@ tags: [services, catalog]
 | **Backup** | Kopia | No | services-internal | Encrypted off-site backup → iDrive e2 |
 | **Backup** | DB Backup | No | db-internal | Database dumps (tiredofit/db-backup) |
 | **Dashboard** | Homepage | No | traefik-public | Family launchpad at `kogler.si` |
+| **Dashboard** | Metabase | No | traefik-public + services-internal | CrowdSec dashboard + Metabase learning/analytics at `sec.kogler.si` |
 | **Observe** | Alloy | No | host (Ansible, not containerized) | Host metrics + logs + SNMP agent — host-installed via Ansible, mounts docker.sock |
 | **Observe** | Prometheus | No | db-internal | Sole metrics store (30d) |
 | **Observe** | Loki | No | db-internal | Log aggregation (14d) |
@@ -78,6 +79,8 @@ tags: [services, catalog]
 | Service | Subdomain |
 |---------|-----------|
 | Grafana | `stats.kogler.si` |
+| Traefik Dashboard | `traefik.kogler.si` |
+| CrowdSec Dashboard (Metabase) | `sec.kogler.si` |
 | Kopia Web UI | `bck.kogler.si` |
 | n8n | `auto.kogler.si` |
 | Technitium | `dns.kogler.si` |
@@ -85,13 +88,11 @@ tags: [services, catalog]
 | NAS Cockpit | `cockpit-nas.kogler.si` |
 | Server Cockpit | `cockpit-oldsrv.kogler.si` |
 
-### Suggested (not deployed yet)
+### Decision: Admin Dashboards
 
-| Service | Subdomain | Access |
-|---------|-----------|--------|
-| Traefik Dashboard | `traefik.kogler.si` | Internal |
-| CrowdSec Dashboard | `sec.kogler.si` | Internal |
-| Portainer/Dockge | `docker.kogler.si` | Internal |
+- **Traefik Dashboard** — **included**, internal-only, `traefik.kogler.si` (labels in [`services-traefik.md`](services-traefik.md)).
+- **CrowdSec Dashboard** — **included**, internal-only, `sec.kogler.si`, served via the **Metabase** instance (one Metabase = CrowdSec view + Metabase learning/analytics sandbox). CrowdSec's bundled/pinned Metabase image is **not** used, keeping the Metabase version decoupled from CrowdSec.
+- **Portainer / Dockge** — **excluded**. Conflicts with the GitOps model (Doco-CD + Ansible-templated compose) and adds an extra Docker-socket admin surface. Not deployed.
 
 ---
 
@@ -120,6 +121,7 @@ tags: [services, catalog]
 | Git + CI/CD | **Forgejo** | Lightweight, OIDC, built-in Actions runner |
 | WAF | **CrowdSec** | Community threat intel, free, Authentik + Traefik parsers |
 | Dashboard | **Homepage** | App launchpad, health dots, auto-generated config |
+| Admin dashboards | **Traefik API** + **Metabase** | Traefik's built-in dashboard for routing/debug; Metabase serves the CrowdSec view and doubles as a Metabase learning/analytics sandbox — no Portainer/Dockge (GitOps) |
 
 ---
 
@@ -157,6 +159,8 @@ Full architecture in [`observability.md`](observability.md). Summary:
 | `https://dns.kogler.si` | Technitium web UI (resolution stays `10.10.1.30`/`10.10.1.20`:53) |
 | `https://ad.kogler.si` | Pi-hole |
 | `https://stats.kogler.si` | Grafana |
+| `https://traefik.kogler.si` | Traefik Dashboard |
+| `https://sec.kogler.si` | CrowdSec Dashboard / Metabase |
 | `https://foto./file./sso./git./vpn./bck./auto.` | Immich / OpenCloud / Authentik / Forgejo / Headscale / Kopia / n8n |
 
 **Cockpit scope:** nas + oldsrv only. The Pi is managed via SSH/Ansible + the HA

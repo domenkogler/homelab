@@ -52,6 +52,27 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 
 ---
 
+## Traefik Dashboard
+
+- **URL:** `traefik.kogler.si` — **internal-only** (no public DNS record; WAN-blocked)
+- **Auth:** behind **Authentik Forward-Auth** (admin only)
+- **Config:** enable the API + dashboard and expose the `api@internal` service as an internal backend:
+  ```yaml
+  command:
+    - "--api.insecure=false"
+  labels:
+    traefik.enable: "true"
+    traefik.http.routers.traefik-dash.rule: "Host(`traefik.kogler.si`)"
+    traefik.http.routers.traefik-dash.entrypoints: websecure
+    traefik.http.routers.traefik-dash.tls.certresolver: letsencrypt
+    traefik.http.routers.traefik-dash.service: api@internal
+    traefik.http.routers.traefik-dash.middlewares: authentik-forward-auth@file
+  ```
+- Useful for tracing the routing/middleware chain; service metrics still flow to Prometheus (see [`observability.md`](observability.md)).
+- Decision: **included**; Portainer/Dockge **excluded** (see [`services.md`](services.md)).
+
+---
+
 ## Trusted Proxies (Critical)
 
 ```
