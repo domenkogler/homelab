@@ -28,6 +28,7 @@ tags: [index, dispatcher, ai]
 | **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md` |
 | **Understand observability / alerting** | [`observability.md`](observability.md) | `services.md`, `deployment-ansible.md` |
 | **HA failover / high availability** | [`smart-home-failover.md`](smart-home-failover.md) | `smart-home.md`, `network-dns.md`, `deployment-ansible.md` |
+| **Current HA instance / HAOS→Docker feasibility** | [`home-assistant-current.md`](home-assistant-current.md) | `smart-home.md`, `smart-home-failover.md` |
 | **Understand GitOps pipeline** | [`deployment.md`](deployment.md) | `deployment-renovate.md`, `interfaces.md` |
 | **Configure backup** | [`backup.md`](backup.md) | `hardware-nas.md` |
 | **Add subscription / billing** | [`subscription.md`](subscription.md) | — |
@@ -71,6 +72,7 @@ docs/
 ├── interfaces.md                          Dashboard + management interface matrix
 │
 ├── smart-home.md                          Home Assistant, devices, architecture
+├── home-assistant-current.md              Live HA instance inventory (HAOS, plugins) + HAOS→Docker feasibility
 ├── smart-home-failover.md                 HA active/standby failover + takeover/failback runbooks
 ├── smart-home-voice.md                    Voice pipeline: Whisper → Ollama → Piper
 ├── smart-home-audio.md                    WiiM Bar, Audio Pro, Chromecast
