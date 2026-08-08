@@ -66,10 +66,10 @@ the convention validator — statically, without running Ansible/Docker.
 | T5 | homepage template + list entry | 2 | done | `--only homepage` PASS | `plan/2026-08-08-hd01-docker-templates/T5.md` |
 | T6 | prometheus template + list entry | 3 | done | `--only prometheus` PASS | `plan/2026-08-08-hd01-docker-templates/T6.md` |
 | T7 | doco-cd template + list entry ⚠️ awaiting-verification | 4 | done | `--only doco-cd` PASS | `plan/2026-08-08-hd01-docker-templates/T7.md` |
-| T8 | metabase template + list entry | 2 | todo | `--only metabase` PASS | `plan/2026-08-08-hd01-docker-templates/T8.md` |
+| T8 | metabase template + list entry | 2 | done | `--only metabase` PASS | `plan/2026-08-08-hd01-docker-templates/T8.md` |
 | T9 | Full validation + stale-TODO comment cleanup | 1 | todo | full runner PASS, exit 0 | `plan/2026-08-08-hd01-docker-templates/T9.md` |
 
-## CURRENT_TASK: T8
+## CURRENT_TASK: T9
 
 ## Run notes (T7 → verified follow-ups)
 - **doco-cd metrics port (affects T6's prometheus.yml):** upstream doco-cd exposes

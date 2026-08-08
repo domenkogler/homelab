@@ -1,0 +1,32 @@
+# metabase docker-compose.yml — CrowdSec dashboard view + analytics sandbox (sec.kogler.si)
+#   ONE instance serves both (latest Metabase, NOT CrowdSec's pinned bundle).
+#   Internal-only, Authentik Forward-Auth (docs/services.md). Default H2 app DB with a
+#   named volume — upgrade/experiment freedom without data loss. Secrets via
+#   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }} — none needed here.
+services:
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    restart: unless-stopped
+    environment:
+      MB_DB_FILE: /metabase.db/metabase.db
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    networks:
+      - traefik-public
+      - services-internal
+    volumes:
+      - metabase-data:/metabase.db
+    labels:
+      traefik.enable: "true"
+      traefik.tls.certresolver: letsencrypt
+      traefik.http.routers.metabase.rule: "Host(`sec.kogler.si`)"
+      traefik.http.routers.metabase.entrypoints: websecure
+      traefik.http.routers.metabase.tls.certresolver: letsencrypt
+      traefik.http.routers.metabase.middlewares: authentik-forward-auth@file
+volumes:
+  metabase-data:
+networks:
+  services-internal:
+    external: true
+  traefik-public:
+    external: true

@@ -49,6 +49,7 @@ docker_services:
   - { name: n8n,             template_dir: n8n,         subdomain: auto }
   # Dashboard
   - { name: homepage,        template_dir: homepage }
+  - { name: metabase,        template_dir: metabase, subdomain: sec }
   # Observability
   - { name: blackbox-exporter, template_dir: blackbox-exporter }
   - { name: loki,            template_dir: loki }
