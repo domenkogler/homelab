@@ -18,6 +18,29 @@
 
 ---
 
+## HD-02 — Activation notes (for the next session)
+
+> **HD-02 (Activate Doco-CD) is a MULTI-STAGE task — do NOT attempt as a single run.
+> Use `plan_task` to split it into ordered, idempotent tasks with exact validations
+> and an explicit dependency graph. Stages (analysis from the HD-01 session):**
+> 1. **Config finalization** — turn the `.doco-cd.yml` skeleton into the real deploy
+>    path (`auto_discovery` vs per-service compose), `compose_files`, `reference`,
+>    and `external_secrets:` mappings (`op://Homelab/<item>/<field>` refs). Deferred
+>    from HD-01/T7.
+> 2. **1Password secret provider** — add `SECRET_PROVIDER=1password` +
+>    `SECRET_PROVIDER_ACCESS_TOKEN` to the `doco-cd` compose env (deferred from T7).
+> 3. **Trigger wiring** — webhook `/v1/webhook` (HTTP port 80, `WEBHOOK_SECRET` HMAC,
+>    configure the Forgejo webhook) and/or polling for the repo → deploy on merge.
+>    Private network → decide polling vs webhook reachability first.
+> 4. **Cross-task prerequisite (T6)** — fix doco-cd **metrics port 9120** + host-IP
+>    scrape in `prometheus.yml` (recorded as a run-note in the HD-01 index).
+> 5. **Post-deploy hooks** — regenerate Homepage config + inventory docs + reload /
+>    commit+push. May depend on **HD-12** (inventory.md render pipeline, separate
+>    open item) — check before planning this stage.
+> 6. **Activate + verify** — render templates and bring the container up. ⚠️ This
+>    box has **no docker/ansible**; live activation likely happens on a different
+>    host → separate stage, likely a human gate + a decision on trigger method.
+
 ## Priority 1
 
 | ID | D | Exec | Status | Item |
