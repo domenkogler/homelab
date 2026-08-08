@@ -1,17 +1,12 @@
 # Doco-CD deployment configuration
-# See docs/deployment.md for the GitOps / Doco-CD flow.
-# ⚠️ WIP — not yet configured. Doco-CD activation is pending.
-# TODO: define watch paths, deploy commands, and post-deploy hooks.
-# 
-# Expected structure:
-#   watch:
-#     paths:
-#       - IaC/ansible/templates/docker_services/
-#   deploy:
-#     command: docker compose -f /opt/<service>/docker-compose.yml up -d
-#   hooks:
-#     post_deploy:
-#       - render homepage config
-#       - render inventory docs
-#       - reload homepage
-#       - commit + push updated docs
+# Real schema: https://doco.cd/latest/Configuration/Deploy-Settings/
+# ⚠️ WIP — Doco-CD is NOT activated (HD-02). This is a schema-correct skeleton:
+# the concrete deploy path (per-service compose vs auto_discovery) and any
+# external_secrets: / SECRET_PROVIDER wiring are finalized when Doco-CD is enabled.
+# Ansible still performs deployment until then (docs/deployment.md).
+
+name: homelab
+reference: main
+working_dir: .
+compose_files:
+  - docker-compose.yml

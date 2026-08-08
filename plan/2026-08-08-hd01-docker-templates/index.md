@@ -65,12 +65,20 @@ the convention validator — statically, without running Ansible/Docker.
 | T4 | signal-cli-rest-api template + list entry | 2 | done | `--only signal-cli-rest-api` PASS | `plan/2026-08-08-hd01-docker-templates/T4.md` |
 | T5 | homepage template + list entry | 2 | done | `--only homepage` PASS | `plan/2026-08-08-hd01-docker-templates/T5.md` |
 | T6 | prometheus template + list entry | 3 | done | `--only prometheus` PASS | `plan/2026-08-08-hd01-docker-templates/T6.md` |
-| T7 | doco-cd template + list entry ⚠️ awaiting-verification | 4 | todo | `--only doco-cd` PASS | `plan/2026-08-08-hd01-docker-templates/T7.md` |
+| T7 | doco-cd template + list entry ⚠️ awaiting-verification | 4 | done | `--only doco-cd` PASS | `plan/2026-08-08-hd01-docker-templates/T7.md` |
 | T8 | metabase template + list entry | 2 | todo | `--only metabase` PASS | `plan/2026-08-08-hd01-docker-templates/T8.md` |
 | T9 | Full validation + stale-TODO comment cleanup | 1 | todo | full runner PASS, exit 0 | `plan/2026-08-08-hd01-docker-templates/T9.md` |
 
-## CURRENT_TASK: T7
+## CURRENT_TASK: T8
 
+## Run notes (T7 → verified follow-ups)
+- **doco-cd metrics port (affects T6's prometheus.yml):** upstream doco-cd exposes
+  `/metrics` on `METRICS_PORT` default **9120** (not 8008). T6's prometheus
+  `doco-cd` job used `doco_cd_metrics_port | default(8008)`. Follow-up: change the
+  default to `9120`, and because doco-cd runs on the **host network**, scrape the
+  **host IP** (e.g. `10.10.1.30:9120`) rather than a `doco-cd` container DNS name.
+- **doco-cd webhook:** `/v1/webhook` on HTTP port 80, auth via `WEBHOOK_SECRET`
+  (HMAC); host network binds host ports 80 + 9120. Not activated (HD-02).
 ---
 
 ## Global acceptance (final)
