@@ -81,10 +81,13 @@ reviews and edits the plan before any execution happens.
    `references/task-section-template.md`. Compute per-task:
    - `difficulty` (1-5) via `references/selection-algorithm.md` rubric table.
    - `model` via the price-driven selection rules in
-     `references/selection-algorithm.md` (cheap first; difficulty 1-2 never
-     T4; free default for 1-2; propose-upgrade fallback on failure).
+     `references/selection-algorithm.md` (cheap first; difficulty 1-3 now default
+     to free; propose-upgrade fallback on failure).
    - `validation` = an **exact command** + **exact pass criterion** (usually
      "exit code 0"). Make each subtask idempotent ("skip if already valid").
+   - **`dependencies`** = which tasks must be `done` before this one runs, and any
+     sibling task that WRITES THE SAME FILE as this one (forces serialization).
+     Record it in the task file (see below) and in the index dependency graph.
 
 7. **Human checkpoint placement** — insert an `awaiting-verification` gate on
    **difficulty 4-5** tasks by default (human-editable). Lower-difficulty tasks
@@ -94,7 +97,8 @@ reviews and edits the plan before any execution happens.
    `plan/` subdir of the repo root) using `references/manifest-template.md`:
    - `index.md` — the lean driver + review file: goal, runbook, **Environment**
      (detected platform/shell), global invariants, the resolved **Models** table
-     (per task: difficulty, selected model, price in/out), the **Task summary**
+     (per task: difficulty, selected model, price in/out), the **Dependency graph**
+     (edges + shared-file notes), the **Task summary**
      progress table, `CURRENT_TASK`, **Global acceptance**, and Out of scope. Keep
      this small.
    - `T1.md`, `T2.md`, ... — **one file per task**, each following
@@ -102,6 +106,10 @@ reviews and edits the plan before any execution happens.
      subtasks, difficulty, model, validation, executor prompt).
    - Each per-task file is the ONLY place the worker needs to read; heavy payload
      tables (e.g. a 40-row frontmatter map) live in the task file, NOT in index.
+   - **Every task file carries a `**Dependencies:**` line** (task IDs it waits on,
+     or `none`) plus a shared-file note where a sibling writes the same path.
+   - index.md includes a **`## Dependency graph`** section (edges + shared-file
+     serialization notes) so concurrency is explicitly visible.
    - The **Task summary** table in `index.md` is the single source of progress
      state (Status column); per-task files do NOT carry their own status.
 
@@ -114,6 +122,8 @@ reviews and edits the plan before any execution happens.
 
 - **Never execute** a task in this skill. Your output is a plan + a clear
   handoff.
+- **Record dependencies + shared files** so `run-task` can schedule safely and
+  concurrently when the human opts in.
 - **Idempotent subtasks only**: each subtask states "skip if already valid" so
   interrupted/reread execution is safe.
 - **Exact validation**: every task's Validation block is a copy-pasteable

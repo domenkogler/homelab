@@ -37,9 +37,11 @@ d=5 -> {T4}                # minimum tier T4
    the T3 model is eligible and wins on price (it is used first).
 4. **Rule B:** if a T4 model is the *global cheapest*, it is selected for every
    difficulty **except 1-2**.
-5. **Free default for easy tasks:** d=1 and d=2 default to `openrouter/free`
-   (cost $0). If execution later fails to meet the goal, `run-task` proposes an
-   upgrade to the `fallback` model (see cache `difficulty_defaults`).
+5. **Free default for easy/well-scoped tasks:** d=1, d=2, d=3 default to
+   `openrouter/free` (cost $0) — well-scoped multi-file config/implementation
+   tasks are reliably handled at the free tier (verified). If execution later
+   fails to meet the goal, `run-task` proposes an upgrade to the `fallback`
+   model (see cache `difficulty_defaults`).
 
 ### Defaults (from a freshly refreshed cache)
 
@@ -47,7 +49,7 @@ d=5 -> {T4}                # minimum tier T4
 |-----------|----------|--------------------------------|
 | 1 | `openrouter/free` ($0) | `openai/gpt-5-nano` ($0.05/M) |
 | 2 | `openrouter/free` ($0) | `deepseek/deepseek-v4-flash` ($0.088/M) |
-| 3 | `deepseek/deepseek-v4-pro` ($0.435/M) | `openai/gpt-5.2` ($1.75/M) |
+| 3 | `openrouter/free` ($0) | `deepseek/deepseek-v4-pro` ($0.435/M) |
 | 4 | `anthropic/claude-sonnet-4.5` ($3.00/M) | `anthropic/claude-opus-4.5` ($5.00/M) |
 | 5 | `anthropic/claude-sonnet-4.5` ($3.00/M) | `anthropic/claude-opus-4.5` ($5.00/M) |
 

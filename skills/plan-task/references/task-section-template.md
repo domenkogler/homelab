@@ -31,6 +31,9 @@ stored here — the `index.md` Task summary table is the single source of progre
 **Capabilities:** <compact flags, e.g. text->text ·T·J·R | in/file/img/txt->txt ·T·J·R·V>
 <state why this fits the task if it is non-obvious, e.g. "vision needed by T3">
 
+**Dependencies:** <list of T<ID> that must be `done` before this task runs, e.g. `T1, T2` — or `none`>
+<the File-scope overlap that forces serialization with a sibling task, if any — see `## Dependency graph` in index.md>
+
 **Validation:**
 ```
 <EXACT command, e.g. `python scripts/validate-plan.py --task T4`>
@@ -48,10 +51,17 @@ stored here — the `index.md` Task summary table is the single source of progre
 > the exact Validation command below. Report PASS or FAIL. On PASS, your driver
 > (run-task) marks the task `done` in `index.md` and advances. On FAIL, stay
 > `in-progress`, paste the validator output, and STOP - do not advance.
+>
+> <If Dependencies is non-empty:> Do NOT read `plan/<date>-<slug>/index.md` or
+> any sibling `T*.md`; do NOT edit `index.md` (the orchestrator owns it); run
+> ONLY this one task; then STOP.
 ```
 
 ## Rules for writing task files
 
+- **Every task file MUST carry a `**Dependencies:**` line** (task IDs that must be
+  `done` first, or `none`), plus a note of any sibling File-scope overlap that
+  forces serialization. This is how concurrency is made explicit and safe.
 - Every subtask is **idempotent**: state the skip condition explicitly.
 - Keep subtasks small and independently verifiable (a failure localizes).
 - Order matters; the checklist preserves partial progress on interruption.

@@ -39,17 +39,35 @@ One sentence: what "done" looks like.
 ## How to execute (runbook — read by run-task)
 1. Present the Model-assignment table below and block until the human approves
    or edits it (one-time gate).
-2. Take the first task not marked `done`; read its task file; run it via a
-   subagent at its resolved model; run its exact Validation command.
-3. Pass -> mark `done` in the summary, advance to the next task. Fail -> mark
-   `in-progress`, log error, propose a model upgrade, and STOP until approved.
-4. Pause at every `awaiting-verification` task (difficulty 4-5) for human
+2. ASK the human whether to run tasks concurrently or strictly one at a time
+   (default: sequential).
+3. Take the first task not marked `done` (whose `## Dependency graph` edges are
+   satisfied); read its task file; run it via an **isolated** subagent at its
+   resolved model; run its exact Validation command.
+4. Pass -> mark `done` in the summary, advance. Fail -> mark `in-progress`, log
+   error, propose a model upgrade, and STOP until approved (dependents wait).
+5. Pause at every `awaiting-verification` task (difficulty 4-5) for human
    sign-off.
-5. After the last task, run the Global acceptance suite, write the closing
+6. After the last task, run the Global acceptance suite, write the closing
    report, then ask the human before deleting this plan directory.
 
 ## Global invariants (never-do)
 - <e.g. no renames, no wikilinks, no body edits, no secrets>
+
+## Dependency graph (concurrency visibility)
+```
+T1 ─► T2 ─► T4
+       └► T3
+T2 + T3 ─► T5          # T5 needs both
+T4, T5 ─► T6 (gate)   # gate blocks its dependents
+```
+- **Edge = "must be `done` before it starts."** A task with no incoming edges can
+  start as soon as the human opts into concurrency (run-task asks).
+- **Any two tasks that WRITE the same path must be serialized** even if the graph
+  omits an edge — note shared files here (e.g. "T2, T3 both append
+  group_vars/home_servers.yml → never run together").
+- Tasks whose `Dependencies:` says `none` and whose File scopes are disjoint MAY
+  run concurrently; everything else waits on the graph / shared-file note.
 
 ## Models (review/edit here)
 | Task | Difficulty | Selected model | price_in/M | price_out/M | caps |
@@ -83,6 +101,10 @@ One sentence: what "done" looks like.
   so subagents never re-derive (and get wrong) the OS. Per-task Executor prompts
   carry a short env note but state "see index `## Environment`" rather than
   duplicating the full rules.
+- **The `## Dependency graph` + per-task `**Dependencies:**` lines** make
+  concurrency explicit and safe: `run-task` uses them to choose which tasks may
+  run concurrently and which must wait. Update them whenever the task order or
+  shared files change.
 - **CURRENT_TASK** + the summary **Status** column are the **only** progress
   state a driver reads. Keep them in sync. Per-task files carry NO Status field —
   do not duplicate it (avoids sync drift).

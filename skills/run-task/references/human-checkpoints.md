@@ -21,7 +21,7 @@ When you reach a task whose status is `awaiting-verification`:
 4. On approval → mark `done`, advance. On "edit" → apply the edit, re-run the
    exact Validation command, then re-present.
 
-## Startup model gate (run-task step 2)
+## Startup model gate (run-task step 4)
 
 - Single, one-time gate at the start. Show the full Task → model table
   (model, price, caps) and note any capability mismatch.
@@ -30,6 +30,20 @@ When you reach a task whose status is `awaiting-verification`:
 - The human may also edit `index.md` (or a task file) directly between
   `plan-task` and `run-task`; treat the plan's Models table as authoritative at
   startup.
+
+## Concurrency gate (run-task step 3)
+
+- run-task **asks first** whether to run concurrently or one at a time; default
+  is sequential unless the human opts in.
+- A task may run concurrently only if its dependencies (plan `## Dependency graph`)
+  are satisfied, its File scope is disjoint from other running tasks, and it is
+  not an unapproved gate task. See run-task `How to decide concurrency`.
+
+## Gates under concurrency
+
+- An `awaiting-verification` gate task runs alone while the human reviews; its
+  **dependents must not start** until it is approved and marked `done`.
+- A dependent of a **failed** task must not start, regardless of the mode.
 
 ## Safety
 
