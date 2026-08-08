@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 41 open · 1 done** · **Total: 42**
+**Status: 40 open · 2 done** · **Total: 42**
 
 ---
 
@@ -22,7 +22,7 @@
 
 | ID | D | Exec | Status | Item |
 |----|---|------|--------|------|
-| HD-01 | 3 | AI | open | **Create missing `docker_services` compose templates** — homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api. Explicit `# TODO` in `group_vars/home_servers.yml`; blocks full stack deployment. · [deployment-ansible.md](docs/deployment-ansible.md) |
+| HD-01 | 3 | AI | done | **Create missing `docker_services` compose templates** ✅ — homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api, **metabase** (8 templates + `group_vars/home_servers.yml` entries created; validator added; stale `# TODO` removed). · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-02 | 3 | AI | open | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
 | HD-03 | 5 | AI + gate | open | **Network redo: implement VLAN segmentation** — currently flat `10.10.1.0/24` → VLANs 10/20/21/30/40/50/99, inter-VLAN firewall, CAPsMAN SSIDs. High-risk cross-cutting change (D5, human gate); enabler for the redo work. · [network-vlans.md](docs/network-vlans.md) |
 | HD-04 | 5 | AI + gate | open | **Pi redo: HAOS → Debian + HA Container + RaspberryMatic + Technitium secondary** — in-use device migration, done opportunistically during the network redo; approved direction, not yet applied. · [home-assistant-current.md](docs/home-assistant-current.md) |
