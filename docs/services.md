@@ -105,7 +105,7 @@ tags: [services, catalog]
 ## DNS Redundancy
 
 - **Technitium primary** on oldsrv (Docker, `services-internal`).
-- **Technitium secondary** on the **Raspberry Pi (`ha.kogler.si`)** — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when oldsrv is down (see [`network-dns.md`](network-dns.md)).
+- **Technitium secondary** on the **Raspberry Pi (`pi.kogler.si`)** — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when oldsrv is down (see [`network-dns.md`](network-dns.md)).
 
 ---
 
@@ -145,7 +145,7 @@ Full architecture in [`observability.md`](observability.md). Summary:
   (8123, 9090, …) exist only as Traefik backends.
 - **Rule B (non-HTTP, bypass Traefik — direct IP + firewall):** DNS 53
   (primary `10.10.1.30` oldsrv, secondary `10.10.1.20` pi) · NUT 3493 (nas master,
-  intra-Home) · UPS Modbus 502 + web 80/443 (`10.10.99.9`) · SNMP 161
+  intra-Home) · UPS web 80/443 (`10.10.99.9`) · SNMP 161
   (router/switch) · WireGuard · SSH/WinBox (Mgmt, trusted only).
 
 ### URL → backend

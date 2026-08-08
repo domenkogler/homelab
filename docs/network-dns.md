@@ -15,7 +15,7 @@ tags: [network, dns, technitium, pihole]
 
 ## Design: Technitium as Central DNS Router (Primary + Secondary)
 
-Technitium runs as a Docker container on oldsrv (primary) and a **second instance on the Raspberry Pi** (`ha.kogler.si` — secondary) — two separate physical hosts so a DNS outage does not depend on a single failure domain. Both serve the same per-subnet policy and internal `*.kogler.si` records. See the HA-failover tie-in in [`smart-home-failover.md`](smart-home-failover.md).
+Technitium runs as a Docker container on oldsrv (primary) and a **second instance on the Raspberry Pi** (`pi.kogler.si` — secondary; `ha.kogler.si` is the VIP) — two separate physical hosts so a DNS outage does not depend on a single failure domain. Both serve the same per-subnet policy and internal `*.kogler.si` records. See the HA-failover tie-in in [`smart-home-failover.md`](smart-home-failover.md).
 
 ```
               ┌────────────────────────────┐

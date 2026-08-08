@@ -47,4 +47,4 @@
 | Home Assistant VIP (`ha.kogler.si`) | 10.10.1.200 | pi ↔ oldsrv (keepalived) |
 
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
-> · UPS Modbus 502 / web 80,443 (10.10.99.9) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
+> · UPS web 80/443 (10.10.99.9) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.

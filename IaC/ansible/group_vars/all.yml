@@ -47,5 +47,4 @@ network_static_hosts:
 # Allowed Ansible management users (the only users that may receive sudo).
 # ai-debug (AI access) must NEVER be added here — see roles/common/tasks/system.yml.
 ansible_admin_users:
-  - ansible-admin   # created by preseed post_install.sh on nas/oldsrv/VPS
-  - pi              # Raspberry Pi default user (host ha.kogler.si)
+  - ansible-admin   # created by preseed post_install.sh on all preseed hosts (nas/oldsrv/VPS/Pi)

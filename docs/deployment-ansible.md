@@ -62,7 +62,7 @@ IaC/ansible/
 │   ├── oldsrv.kogler.si.yml         # homelab_mode=desktop, static IP
 │   ├── nas.kogler.si.yml            # HP MicroServer Gen8 — ZFS storage
 │   ├── vps.kogler.si.yml            # Contabo VPS — Phase 2, deferred
-│   └── ha.kogler.si.yml             # Static IP, SSH user
+│   └── pi.kogler.si.yml             # Static IP, SSH user (node; ha.kogler.si = VIP)
 ├── roles/
 │   ├── common/tasks/                # system.yml + main.yml
 │   ├── docker/tasks/main.yml        # Docker CE + compose install
@@ -107,7 +107,7 @@ nas.kogler.si        ansible_user=ansible-admin
 # Deferred to Phase 2
 
 [raspberry_pi]
-ha.kogler.si          ansible_user=pi
+pi.kogler.si         ansible_user=ansible-admin
 
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3
@@ -146,11 +146,11 @@ ansible_host: <TBD>                # Public IP — filled when VPS is provisione
 ansible_user: ansible-admin
 ```
 
-### ha.kogler.si.yml
+### pi.kogler.si.yml
 ```yaml
-ansible_host: 10.10.1.20        # Home VLAN — node IP (VRRP anchor)
+ansible_host: 10.10.1.20        # Home VLAN — node IP (VRRP anchor); ha.kogler.si = VIP
+ansible_user: ansible-admin      # preseed-installed like nas/oldsrv (no Cockpit)
 dns_secondary_ip: 10.10.1.20     # Technitium secondary binds node IP
-ansible_user: pi
 # Roles: primary HA (Docker) + RaspberryMatic/HmIP-RFUSB + Technitium secondary DNS
 ```
 

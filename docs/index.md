@@ -112,7 +112,7 @@ docs/
 
 ## Conventions
 
-- **Hostnames:** single namespace `kogler.si` — `oldsrv`, `nas`, `ha`, `router`, `switch`, `vps`
+- **Hostnames:** single namespace `kogler.si` — `oldsrv`, `nas`, `pi`, `router`, `switch`, `vps` (HA service = VIP `ha.kogler.si`)
 - **Language:** English (technical), Slovenian (family/manual)
 - **Headers:** Every doc starts with `> **Role:** ...` and `> **Linked from:** ...`
 - **Links:** Use relative paths (`[doc](deployment-preseed.md)`)

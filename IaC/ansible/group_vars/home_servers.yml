@@ -50,4 +50,4 @@ docker_services:
   - { name: n8n,             template_dir: n8n,         subdomain: auto }
   # Stream
   - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
-  # TODO (create templates): homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api
+  # TODO (create templates): homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api, metabase

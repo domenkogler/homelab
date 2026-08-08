@@ -1,7 +1,7 @@
 # technitium docker-compose.yml — Central DNS (PRIMARY on oldsrv, SECONDARY on the Pi)
 #   Two instances on separate physical hosts for DNS redundancy:
 #     - PRIMARY: oldsrv (runs with this template + permissions)
-#     - SECONDARY: ha.kogler.si (Pi — same image, instance: secondary; moved from nas)
+#     - SECONDARY: pi.kogler.si (Pi — same image, instance: secondary; moved from nas)
 #   Both serve per-subnet policy and internal *.kogler.si (incl. ha → VIP).
 #   See docs/network-dns.md + docs/smart-home-failover.md.
 #
@@ -35,6 +35,6 @@ services:
       traefik.http.routers.dns.tls.certresolver: letsencrypt
       traefik.http.routers.dns.middlewares: authentik-forward-auth@file   # internal-only
 
-  # SECONDARY instance (Pi/ha.kogler.si): deploy via the same template with instance name
+  # SECONDARY instance (Pi/pi.kogler.si): deploy via the same template with instance name
   # technitium-secondary, a different primary/secondary mode, and no Traefik labels
   # (it is a DNS resolver only). Keep its web UI on dns.kogler.si or internal-only.

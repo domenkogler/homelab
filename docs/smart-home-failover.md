@@ -22,7 +22,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - **Exactly one active HA node at a time** (no split-brain). Two HAs driving the same Shelly/KNX/ESPHome devices conflict; HA has **no native active/active clustering or state replication**.
 
 ### Scope
-- Primary: Raspberry Pi 4 (`ha.kogler.si`, `10.10.1.200`, Home VLAN 10).
+- Primary: Raspberry Pi 4 (`pi.kogler.si`; HA accessed via VIP, Home VLAN 10).
 - Fallback: **oldsrv** (`home-assistant-standby` Docker container, cold by default).
 - Supervision: **manual** trigger + **manual** failback (accepted design — no false negatives from automation).
 - Stale state on takeover is acceptable: HA re-polls devices on startup (target: controlling again in 1–3 min).
@@ -52,7 +52,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 
 ### Addressing: shared Virtual IP (VIP)
 
-- HA gets a **floating VIP `10.10.1.200`** on the Home VLAN that moves between the Pi and oldsrv via **keepalived (VRRP)**.
+- HA gets a **floating VIP ** on the Home VLAN that moves between the Pi and oldsrv via **keepalived (VRRP)**.
 - **Devices, Companion apps, Traefik's `ha` route, and Technitium DNS all point at the VIP**, never a node-specific IP.
 - On takeover the VIP follows the active node → **no per-device reconfiguration and no DNS flip on failover**. This is the key that makes failover practical.
 - **Firewall:** Home→IoT trusted-IP rules for MQTT/HA must reference the **VIP / an IP-set**, not a per-node IP, so the standby can reach Shelly/KNX after takeover (see `network-vlans.md`).
@@ -65,11 +65,11 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 
 | Node | Role | Deployment | VIP |
 |------|------|-----------|-----|
-| Pi 4 (`ha.kogler.si`) | **Primary** (active) | Debian + **HA Container** (home_assistant role) + **RaspberryMatic** + `HmIP-RFUSB` + **Technitium secondary DNS** | owns `10.10.1.200` in normal mode |
+| Pi 4 (`pi.kogler.si`) | **Primary** (active) | Debian + **HA Container** (home_assistant role) + **RaspberryMatic** + `HmIP-RFUSB` + **Technitium secondary DNS** | owns `10.10.1.200` in normal mode |
 | oldsrv | **Fallback** (standby, cold) | `home-assistant-standby` + `raspberrymatic-standby` Docker compose (both `disabled` by default), same home_assistant role template | takes over `10.10.1.200` on takeover |
 
 - Each HA node is paired with a **RaspberryMatic + HmIP-RFUSB**: primary on the Pi (always-on), standby on oldsrv (cold, started by the failover button). Both RaspberryMatic instances expose XML-RPC (2001/2010) on a **fixed Home/IoT VLAN IP** so whichever HA is active reaches it identically.
-- **Technitium secondary DNS moved from nas → Pi** (`ha.kogler.si`, now a Debian host). Primary stays on oldsrv. See `network-dns.md`.
+- **Technitium secondary DNS moved from nas → Pi** (`pi.kogler.si`, now a Debian host; `ha.kogler.si` = VIP). Primary stays on oldsrv. See `network-dns.md`.
 
 - **Identical config from one source:** both nodes render the **same `configuration.yaml`** from the repo (`use_x_forwarded_for: true`, `trusted_proxies: <Traefik>`), including the `owner` recovery account and Authentik OIDC settings.
 - **Role/playbook:** `raspberry_pi.yml` (common → network → docker → home_assistant → docker_services → monitoring) configures the Pi as primary (incl. RaspberryMatic + Technitium secondary). The `home_assistant` role on `home_servers` renders the standby + RaspberryMatic-standby containers on oldsrv.

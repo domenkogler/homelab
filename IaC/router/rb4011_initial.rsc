@@ -14,8 +14,9 @@
 
 /system identity set name=router.kogler.si
 /system clock set time-zone-name=Europe/Ljubljana
-/system ntp client set enabled=yes server-dns-names=pool.ntp.org
-/system ntp client servers add server=193.2.1.66
+/system ntp client set enabled=yes
+/system ntp client servers add server=0.si.pool.ntp.org
+/system ntp client servers add server=1.si.pool.ntp.org
 
 # ---- PPPoE (Telekom Slovenije) ----
 
@@ -242,17 +243,12 @@
     connection-state=new action=drop \
     comment="IoT-Internet↛Home (block new)"
 
-# Home → Mgmt (SSH/WinBox/API/Web + UPS Modbus, from trusted Home servers)
+# Home → Mgmt (SSH/WinBox/API/Web from trusted Home servers; incl. UPS web 80/443)
 /ip firewall filter add chain=forward \
     in-interface=vlan10-home out-interface=vlan99-mgmt \
     src-address-list=trusted-admin \
     protocol=tcp dst-port=22,8291,8728,80,443 action=accept \
     comment="Home→Mgmt (SSH/WinBox/API/Web from trusted)"
-/ip firewall filter add chain=forward \
-    in-interface=vlan10-home out-interface=vlan99-mgmt \
-    src-address-list=trusted-admin \
-    protocol=tcp dst-port=502 action=accept \
-    comment="Home→Mgmt (UPS Modbus from trusted)"
 
 # Home → Media (casting, remote control)
 /ip firewall filter add chain=forward \

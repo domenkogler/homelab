@@ -54,8 +54,7 @@ The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) 
 
 ### Modbus TCP notes
 - Unit ID **1**, function **0x03** (Read Holding Registers) confirmed working over the LAN.
-- NUT's `modbus_ups` driver can connect directly to `10.10.99.9:502` — **no serial/RS-485 adapter needed** (the UPS already exposes Modbus over its network port).
-- **Register map is PowerWalker/Phoenixtec-proprietary** — needs a tailored mapping/config (see Open Items).
+- **Retired as a consumer:** the UPS NIC exposes Modbus TCP on `10.10.99.9:502` (verified), but **no service uses it** — the HA **Modbus sensors were removed** and UPS monitoring is exclusively NUT over **USB HID** (below). No register map needed; the Modbus endpoint is left open/available on the NIC but is not part of the design.
 
 ---
 
@@ -83,19 +82,18 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 
 ### Roadmap (implementation pending)
 - [ ] **NUT on nas** — master: `usbhid-ups` (USB path), `upsd`, `nut_exporter`, `upssched-cmd` notify (per [`deployment-ansible.md`](deployment-ansible.md) `nut` role).
-- [ ] **NUT clients** on `oldsrv` + `ha` (*slave* mode) with per-host shutdown delay (60 s / 0 / 0).
+- [ ] **NUT clients** on `oldsrv` + `pi` (*slave* mode) with per-host shutdown delay (60 s / 0 / 0).
 - [ ] Wire UPS metrics + alerts into Prometheus/Grafana (see [`observability.md`](observability.md)) — Critical battery/runtime, Warning on-battery, Info transitions.
-- [ ] Open firewall rule 502/80/443 Home→Mgmt for modbus/web (see [`network-vlans.md`](network-vlans.md)).
+- [ ] Open firewall rule 80/443 Home→Mgmt for the UPS **web UI** only (Modbus **502 retired** — no consumer, see [`network-vlans.md`](network-vlans.md)).
 
 ---
 
 ## Open Items
 
-- [ ] **Register map** for the PowerWalker/Phoenixtec Modbus TCP device — which
-      register addresses hold battery %, input voltage, output load, runtime. HA already
-      reads some `ups_*` sensors (scaled values — see `home-assistant-current.md`); exact
-      map still to-confirm.
 - [ ] **SNMP UDP** — confirm whether the network card serves SNMP (161/udp).
+
+> Modbus TCP register-map item **removed (retired):** HA Modbus UPS sensors were removed;
+> UPS monitoring is NUT/USB via `nut_exporter` (`hardware-ups` topology above).
 
 ---
 
@@ -104,5 +102,5 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 - [HP MicroServer Gen8 (nas)](hardware-nas.md) — the protected host
 - [Rack Layout](network-rack.md) — physical placement + manual PDF
 - [VLAN Plan](network-vlans.md) — UPS mgmt on VLAN 99
-- [Home Assistant — current instance](home-assistant-current.md) — Modbus UPS sensors
+- [Home Assistant — current instance](home-assistant-current.md) — HA (UPS via NUT now, not Modbus)
 - [Observability](observability.md) — where UPS metrics would land

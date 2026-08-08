@@ -3,6 +3,7 @@
   become: true
   roles:
     - common
+    - ai_diag        # restricted diagnostic dispatcher for ai-debug (as other hosts)
     - network
     - nut             # UPS client (Pi) — after network
     - docker

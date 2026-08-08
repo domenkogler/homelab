@@ -23,7 +23,7 @@ Internal-only hosts/services are **not** published in public DNS (split-horizon;
 |---------|------|------|
 | Old desktop + Docker host | `oldsrv.kogler.si` | bare-metal Debian desktop + Docker host (Phase 1) |
 | HP MicroServer NAS | `nas.kogler.si` | ZFS storage server |
-| Raspberry Pi 4 | `ha.kogler.si` | Home Assistant |
+| Raspberry Pi 4 | `pi.kogler.si` | Home Assistant primary node (HA service = VIP `ha.kogler.si`) |
 | MikroTik Router | `router.kogler.si` | PPPoE, VLAN routing, firewall, WireGuard, CAPsMAN |
 | MikroTik Switch | `switch.kogler.si` | Layer-2 VLAN-aware PoE switch |
 | Contabo VPS | `vps.kogler.si` | Phase 2 — public Traefik + public services |
@@ -60,7 +60,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   │   └── raspberry_pi.yml            # HA install method, version
 │   │   ├── host_vars/
 │   │   │   ├── oldsrv.kogler.si.yml        # Phase 1: homelab_mode=desktop, static IP
-│   │   │   └── ha.kogler.si.yml            # Static IP, SSH user
+│   │   │   └── pi.kogler.si.yml             # Static IP, SSH user (node; ha.kogler.si = VIP)
 │   │   ├── templates/
 │   │   │   ├── docker_services/            # docker-compose.yml.j2 per service (canonical list = docs/services.md)
 │   │   │   │   ├── traefik/                #   + traefik.yml.j2, dynamic/middlewares.yml.j2
@@ -235,32 +235,21 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 
 ### Home Server Services (`group_vars/home_servers.yml`)
 
+> **Canonical list:** `docker_services` lives in `group_vars/home_servers.yml` (the
+> runtime source of truth — including the `enabled`/`instance`/`subdomain` modifiers
+> and any per-host gates). The inline sample below is **illustrative only and may
+> drift** — do not edit it to "keep it in sync"; edit the group_vars instead.
+
 ```yaml
-# === Phase 1: all services run on oldsrv ===
-# Phase 2: public-facing services (traefik, crowdsec, authentik, opencloud,
-# immich-app, forgejo, grafana, n8n, kopia-server, db-backup) move to VPS.
-docker_services:
-  - { name: traefik,        template_dir: traefik }
-  - { name: crowdsec,       template_dir: crowdsec }
-  - { name: authentik,      template_dir: authentik }
-  - { name: opencloud,      template_dir: opencloud }
-  - { name: immich-app,     template_dir: immich-app }
-  - { name: forgejo,        template_dir: forgejo }
-  - { name: ollama,          template_dir: ollama }
-  - { name: immich-ml,       template_dir: immich-ml }
-  - { name: technitium,      template_dir: technitium }
-  - { name: pihole,          template_dir: pihole }
-  - { name: headscale,       template_dir: headscale }
-  - { name: kopia-server,    template_dir: kopia-server }
-  - { name: db-backup,       template_dir: db-backup }
-  - { name: kopia-agent,     template_dir: kopia-agent }
-  - { name: grafana,         template_dir: grafana }
-  - { name: n8n,             template_dir: n8n }
-  - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
-  # TODO (create templates): homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api
+# Illustrative sample — canonical list: group_vars/home_servers.yml
+# (traefik, crowdsec, authentik, opencloud, immich-app, forgejo, ollama, immich-ml,
+#  technitium[oldsrv], pihole, raspberrymatic-standby[oldsrv], home-assistant-standby[oldsrv],
+#  headscale, kopia-server, db-backup, kopia-agent, grafana→stats, n8n→auto,
+#  sunshine[desktop], + TODO templates: homepage, renovate, doco-cd, prometheus, loki,
+#  blackbox-exporter, signal-cli-rest-api, metabase)
 ```
 
-> **Canonical catalog:** all services are defined in `docs/services.md`. In Phase 1 **all** run on
+> **Catalog:** all services are defined in `docs/services.md`. In Phase 1 **all** run on
 > `oldsrv.kogler.si`; public-facing ones move to `vps.kogler.si` (Traefik) in Phase 2.
 
 ### VPS Services (`group_vars/vps.yml`) — Phase 2, reference only
@@ -314,7 +303,7 @@ critical for Phase 1 where services must run headless.
 - **Local DNS:** Technitium (on `oldsrv`) is the central DNS router/resolver. DHCP clients point at the router;
   router forwards to Technitium (fallback `1.1.1.1`). Technitium answers `*.kogler.si` internally.
 - **Public DNS:** Cloudflare (registry registrar: **domenca.com**) publishes only the internet-facing subset
-  (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`). **No proxy** — DNS-only, real client IPs reach Traefik.
+  (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`). **No proxy** — DNS-only, real client IPs reach Traefik.
 - **Certificates:** single `*.kogler.si` wildcard via ACME **DNS-01** with a Cloudflare API token (1Password `Homelab`).
 
 ---

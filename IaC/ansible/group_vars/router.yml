@@ -29,4 +29,4 @@ headscale_subnet: "100.64.0.0/10"
 dns_primary_ip: "{{ hostvars['oldsrv.kogler.si'].dns_primary_ip }}"    # 10.10.1.30
 # secondary on Pi
 # (populated on the Pi; keep it defined here so the router references both)
-dns_secondary_ip: "{{ hostvars['ha.kogler.si'].dns_secondary_ip | default('10.10.1.20') }}"    # 10.10.1.20
+dns_secondary_ip: "{{ hostvars['pi.kogler.si'].dns_secondary_ip | default('10.10.1.20') }}"    # 10.10.1.20

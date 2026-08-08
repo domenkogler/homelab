@@ -46,7 +46,7 @@ tags: [smart-home, homeassistant]
 
 ## Home Assistant
 
-- **Host:** `ha.kogler.si` (Raspberry Pi 4, in daily use) — **primary**
+- **Host (node):** `pi.kogler.si` (Raspberry Pi 4, in daily use) — **primary**; accessed via the VIP `ha.kogler.si`
 - **Fallback:** `home-assistant-standby` Docker container on oldsrv (systemd unit, disabled by default) — **active/standby failover, manual trigger + manual failback**
 - **Configs:** In this homelab repo (moved from HA's own GitHub repo)
 

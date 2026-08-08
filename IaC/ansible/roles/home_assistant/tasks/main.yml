@@ -18,7 +18,7 @@
 #
 # Roles of this role (implement as tasks):
 #
-# 1. PRIMARY (host: raspberry_pi / ha.kogler.si)
+# 1. PRIMARY (host: raspberry_pi / pi.kogler.si)
 #    - Install Home Assistant Container (Debian + docker): image ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}
 #    - Render /config/configuration.yaml from repo template (use_x_forwarded_for: true, trusted_proxies: <Traefik>)
 #    - Render other configs (integrations: knx via GIRA IP Router .118, homematic [XML-RPC 2001/2010 via local RaspberryMatic], shelly native)

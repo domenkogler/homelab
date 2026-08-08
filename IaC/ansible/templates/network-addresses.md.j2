@@ -31,10 +31,10 @@
 | Purpose | Address | Host |
 |---------|---------|------|
 | DNS primary (Technitium) | {{ hostvars['oldsrv.kogler.si'].dns_primary_ip | default('10.10.1.30') }} | oldsrv |
-| DNS secondary (Technitium) | {{ hostvars['ha.kogler.si'].dns_secondary_ip | default('10.10.1.20') }} | pi |
+| DNS secondary (Technitium) | {{ hostvars['pi.kogler.si'].dns_secondary_ip | default('10.10.1.20') }} | pi |
 | Home Assistant VIP (`ha.kogler.si`) | {{ ha_vip }} | pi ↔ oldsrv (keepalived) |
 
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
-> · UPS Modbus 502 / web 80,443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
+> · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
 > Last generated: {{ ansible_date_time.iso8601 }}

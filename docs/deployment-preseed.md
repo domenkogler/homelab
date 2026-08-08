@@ -31,7 +31,7 @@ Reference implementation: [`IaC/host/nas/preseed.cfg`](../../IaC/host/nas/presee
 ### 1. Localization
 ```
 d-i debian-installer/locale string sl_SI.UTF-8
-d-i keyboard-configuration/xkb-map select si
+d-i keyboard-configuration/xkb-keymap select si
 ```
 
 ### 2. Network
@@ -44,6 +44,7 @@ d-i netcfg/get_domain string kogler.si
 Hostname must match the target machine:
 - `oldsrv` for i7-7700K ([`hardware-oldsrv.md`](hardware-oldsrv.md))
 - `nas` for HP MicroServer ([`hardware-nas.md`](hardware-nas.md))
+- `pi` for Raspberry Pi 4 (HA primary node — preseed-installed like nas/oldsrv, no desktop/Cockpit; its `preseed.cfg` is deferred like oldsrv)
 
 ### 3. Mirror
 ```
@@ -197,6 +198,7 @@ Preseed uses DHCP. After boot, Ansible's `network` role assigns the correct VLAN
 |---------|------|-----|
 | oldsrv | 99 (Management, native) + 10,20,50 tagged | static on VLAN 99 |
 | nas | 10 (Home) access + 99 (Management) native | static on VLAN 10 |
+| pi | 10 (Home) access | static on VLAN 10 (`10.10.1.20`) |
 
 Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
 
@@ -211,4 +213,5 @@ IaC/host/
     └── preseed.cfg          # Reference implementation for HP Gen8
 
 # oldsrv/preseed.cfg — deferred, not yet created (generated from this spec when Phase 1 deployment begins)
+# pi/preseed.cfg — deferred, not yet created (same preseed path as nas/oldsrv; headless, no desktop/Cockpit)
 ```

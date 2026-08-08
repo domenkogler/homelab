@@ -1,0 +1,13 @@
+---
+# Raspberry Pi 4 — Home Assistant (PRIMARY node), RaspberryMatic/HmIP-RFUSB,
+# Technitium secondary DNS. Node FQDN: pi.kogler.si (ha.kogler.si = the VIP).
+# Deployed via preseed like nas/oldsrv (preseed.cfg deferred — see
+# deployment-preseed.md); managed by Ansible as ansible-admin. No Cockpit.
+ansible_host: 10.10.1.20           # VLAN 10 (Home) — node IP (VRRP anchor, SSH)
+dns_secondary_ip: 10.10.1.20       # Technitium secondary binds the node IP (not proxiable)
+ansible_user: ansible-admin        # created by preseed post_install.sh (like nas/oldsrv)
+# NUT: UPS CLIENT (slave to nas) — power down immediately on critical
+nut_mode: client
+nut_host: nas.kogler.si             # NUT master endpoint
+shutdown_delay_seconds: 0
+# SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

@@ -61,7 +61,7 @@ it is refreshed from this repo.
 |------|------|
 | `oldsrv.kogler.si` | Old i7-7700K desktop → family PC + Docker host |
 | `nas.kogler.si` | HP MicroServer ZFS storage (+ external SilverStone case) |
-| `ha.kogler.si` | Raspberry Pi 4 — Home Assistant (**primary**; standby on oldsrv), + RaspberryMatic/HmIP-RFUSB, + Technitium secondary DNS (see [`docs/smart-home-failover.md`](docs/smart-home-failover.md)) |
+| `pi.kogler.si` | Raspberry Pi 4 — Home Assistant **primary node** (`ha.kogler.si` = the VIP; standby on oldsrv), + RaspberryMatic/HmIP-RFUSB, + Technitium secondary DNS (see [`docs/smart-home-failover.md`](docs/smart-home-failover.md)) |
 | `router.kogler.si` | MikroTik RB4011 — routing/firewall/VPN/CAPsMAN |
 | `switch.kogler.si` | MikroTik CRS328 — L2 PoE switch |
 | `vps.kogler.si` | Contabo VPS (Phase 2 — public Traefik + services) |
@@ -99,7 +99,6 @@ ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 │   ├── host/                 # preseed.cfg (nas) + shared post_install.sh
 │   └── router/               # RouterOS .rsc scripts (rb4011, ap)
 ├── brainstorming/            # Source material (LLM chats, legacy notes)
-├── obsolete/                 # Superseded configs (e.g. pre-Headscale travel VPN)
 └── README.md                 # You are here
 ```
 
