@@ -10,6 +10,18 @@ op_vault: Homelab
 domain_public: kogler.si
 domain_local: kogler.si    # reserved for future split-horizon scenarios — currently unused
 
+# ==== Shared service knobs (used across host templates) ====
+# traefik image version — shared by oldsrv `traefik` (edge) and Pi `traefik-ha`.
+traefik_version: latest
+# Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
+# oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
+#   oldsrv traefik: ACME storage/checkout must emit exactly these names.
+#   Pi traefik-ha:  synced to /opt/traefik-ha/certs/ with these names.
+wildcard_cert_file: kogler.si.pem
+wildcard_cert_key_file: kogler.si-key.pem
+# Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== pi 10.10.1.20).
+technitium_secondary_ip: 10.10.1.20
+
 # ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses.md) ====
 # Hand-edit here ONLY; regenerate docs/network-addresses.md after changes.
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si

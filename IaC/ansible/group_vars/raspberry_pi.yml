@@ -4,9 +4,9 @@
 
 home_assistant_version: stable
 home_assistant_install_method: docker   # 'docker' or 'supervised' — use docker for keepalived/VIP
-traefik_version: latest                # shared with the oldsrv traefik template
 # The Pi also runs a minimal VIP-bound edge (`traefik-ha`) that keeps ha.kogler.si
 # reachable when oldsrv is down — see docs/smart-home-failover.md.
+# (traefik_version is defined in group_vars/all.yml — shared with the oldsrv edge.)
 ha_edge_enabled: true
 # VIP / VRRP: Pi is MASTER (owns 10.10.1.200 in normal mode); standby on oldsrv is BACKUP.
 ha_vip: 10.10.1.200
@@ -16,6 +16,7 @@ ha_primary_priority: 110      # higher than standby (100) so Pi keeps the VIP
 # Pi also runs a small docker_services set (needs the docker + docker_services roles):
 #   - raspberrymatic:  HmIP-RFUSB + RaspberryMatic (local Homematic IP, XML-RPC 2001/2010)
 #   - technitium-secondary: DNS secondary (moved from nas; primary is on oldsrv)
+#   - traefik-ha: HA + DNS-secondary web-UI edge (VIP-bound; oldsrv-down gap)
 docker_services:
   - { name: raspberrymatic,        template_dir: raspberrymatic }
   - { name: technitium-secondary,  template_dir: technitium, instance: secondary }

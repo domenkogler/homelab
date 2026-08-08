@@ -3,11 +3,20 @@
 #   - ha:      same `ha` route semantics as the oldsrv `traefik` (backend = VIP:8123),
 #              NO Authentik Forward-Auth (breaks the Companion WebSocket/token flow).
 #   - dns-pi:  Technitium SECONDARY web UI (dns-pi.kogler.si → VIP, served by THIS
-#              edge so it survives an oldsrv outage; backend = local host 10.10.1.20:5380).
-#              No Forward-Auth — management surface with its own login, internal-only.
+#              edge so it survives an oldsrv outage; backend = local host
+#              {{ technitium_secondary_ip }}:5380). No Forward-Auth — a
+#              management surface with its own login, internal-only.
+#   - http-redirect: catch-all :80 → :443 (the `web` entrypoint).
 #   ACME is DISABLED on this edge — TLS comes from the cert files synced from
 #   oldsrv (see tls.certificates below). No certResolver is configured.
+
 http:
+  middlewares:
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
   routers:
     ha:
       rule: "Host(`ha.kogler.si`)"
@@ -23,6 +32,14 @@ http:
       service: dns-pi-backend
       tls: true
       # NOTE: no authentik-forward-auth on the dns-pi route (own-login mgmt surface)
+    http-redirect:
+      rule: "HostRegexp(`{host:.+}`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
   services:
     ha-backend:
       loadBalancer:
@@ -31,12 +48,14 @@ http:
     dns-pi-backend:
       loadBalancer:
         servers:
-          - url: "http://10.10.1.20:5380"
+          - url: "http://{{ technitium_secondary_ip }}:5380"
 
 # Wildcard *.kogler.si cert pair, synced from oldsrv's `traefik` (the single ACME
-# issuer; Cloudflare DNS-01) — see home_assistant role cert-sync task. Offline-safe:
-# both routes stay TLS-valid even when WAN/ACME is down.
+# issuer; Cloudflare DNS-01). File names come from the shared
+# `wildcard_cert_file` / `wildcard_cert_key_file` vars in group_vars/all.yml so the
+# oldsrv issuer, the Pi cert-sync and this config can never drift.
+# Offline-safe: both routes stay TLS-valid even when WAN/ACME is down.
 tls:
   certificates:
-    - certFile: /etc/traefik/certs/kogler.si.pem
-      keyFile: /etc/traefik/certs/kogler.si-key.pem
+    - certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
+      keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"

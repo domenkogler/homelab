@@ -32,9 +32,10 @@
 #    - sysctl net.ipv4.ip_nonlocal_bind=1 (persist via /etc/sysctl.d) so traefik-ha can
 #      bind the VIP even before/without keepalived holding the address.
 #    - Cert sync (LAN, timer — same cadence as the HA config sync Pi→standby, reversed):
-#      rsync the wildcard *.kogler.si cert pair from oldsrv's `traefik` (the SINGLE ACME
-#      issuer; Cloudflare DNS-01) → /opt/traefik-ha/certs/. ACME is intentionally DISABLED
-#      on the Pi edge; it must run before traefik-ha starts and keep the cert offline-safe.
+#      rsync the wildcard *.kogler.si cert pair ({{ wildcard_cert_file }} /
+#      {{ wildcard_cert_key_file }}) from oldsrv's `traefik` (the SINGLE ACME issuer;
+#      Cloudflare DNS-01) → /opt/traefik-ha/certs/. ACME is intentionally DISABLED on
+#      the Pi edge; sync must run before traefik-ha starts and keep the cert offline-safe.
 #    - HA exporter: enable /api/prometheus bearer token (monitoring role scrapes)
 # 2. STANDBY (host: home_servers / oldsrv)
 #    - Template home-assistant-standby/docker-compose.yml.j2 → /opt/home-assistant-standby/
