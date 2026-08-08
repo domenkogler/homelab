@@ -21,10 +21,8 @@ wireguard_s2s_vps:
   remote_endpoint: "{{ hostvars['vps.kogler.si'].ansible_host }}"
   port: 51820
 
-wireguard_roadwarrior:
-  port: 13231
-  subnet: "10.99.0.0/24"
-
+# Headscale overlay for user devices (Tailscale-compatible CGNAT range).
+# WireGuard is site-to-site ONLY — user devices use Headscale, not road-warrior.
 headscale_subnet: "100.64.0.0/10"
 
 # Technitium (Traefik cannot proxy DNS — these are the resolver addresses)

@@ -419,24 +419,6 @@
     interface=wg-vps \
     comment="S2S tunnel to VPS"
 
-# Road-warrior server (legacy — Headscale replaces this for family)
-/interface wireguard add \
-    name=wg-roadwarrior \
-    listen-port=13231 \
-    private-key="CHANGEME"
-
-/ip address add \
-    address=10.255.50.1/24 \
-    interface=wg-roadwarrior \
-    comment="Road-warrior VPN"
-
-# Travel router peer (placeholder — key generated later)
-# /interface wireguard peers add \
-#     interface=wg-vps \
-#     public-key="CHANGEME" \
-#     allowed-address=10.99.99.2/32 \
-#     comment="Travel hAP ac2 (Sploax)"
-
 # VPS peer (placeholder — key generated later)
 # /interface wireguard peers add \
 #     interface=wg-vps \

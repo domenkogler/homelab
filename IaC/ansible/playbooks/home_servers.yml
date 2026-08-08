@@ -7,6 +7,7 @@
     - docker
     - network
     - nut             # UPS client (oldsrv) — after network, before monitoring
+    - cockpit         # management UI (oldsrv) — own login, NOT behind Authentik
     - amd_rocm
     - role: desktop
       when: homelab_mode == 'desktop'

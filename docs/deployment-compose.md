@@ -1,13 +1,16 @@
 ---
 title: Docker Compose Specification
-role: generation-target
+role: design-spec
 domain: deployment
 status: active
 tags: [deployment, docker, compose]
 ---
 # Docker Compose Specification
 
-> **Role:** ★ Generation target — read this to generate `docker-compose.yml` files for any homelab service.
+> **Role:** ★ Design spec — read this to **author or correct** `docker-compose.yml`
+> files for any homelab service. Concrete values (networks, IPs, image tags) live
+> in IaC (`group_vars/*.yml`, compose templates) and flow **IaC → docs** via the
+> render — this file is the authoring guide, not a runtime input.
 > **Links to:** `services.md`, `hardware-gpu.md`, `deployment-secrets.md`
 > **Linked from:** `deployment.md`, `index.md`
 

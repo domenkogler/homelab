@@ -1,0 +1,50 @@
+---
+# cockpit role — web management UI on nas + oldsrv.
+# Scope decided: nas + oldsrv only; the Pi is excluded (managed via SSH/HA UI).
+# Decision: management surface with its OWN login — deliberately NOT behind
+# Authentik (must stay reachable even if Authentik is down). Traefik routes
+# cockpit-*.kogler.si via a file-provider dynamic config (Cockpit is a host
+# service, not a Docker container, so no Traefik labels).
+- name: Refuse cockpit runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      cockpit role must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+  tags: always
+
+- name: Install cockpit
+  apt:
+    name: "{{ ['cockpit'] + (['cockpit-zfs'] if inventory_hostname == 'nas.kogler.si' else []) }}"
+    state: present
+    update_cache: true
+
+- name: Enable and start cockpit socket
+  systemd:
+    name: cockpit.socket
+    state: started
+    enabled: true
+
+- name: Add admin users to sudo group (Cockpit admins on Debian)
+  user:
+    name: "{{ item }}"
+    groups: sudo
+    append: true
+  loop: "{{ ansible_admin_users }}"
+
+# Only the Traefik host (oldsrv) drops the route config. Traefik's file
+# provider must watch /opt/traefik/dynamic (see services-traefik.md).
+- name: Deploy Traefik file-provider routes for cockpit subdomains
+  template:
+    src: cockpit-routes.yml.j2
+    dest: /opt/traefik/dynamic/cockpit.yml
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname == 'oldsrv.kogler.si'
+
+# NOTE on Cockpit behind the proxy: cockpit-ws accepts the request only when
+# the browser Origin matches the Host header. Traefik preserves the original
+# Host (cockpit-nas.kogler.si / cockpit-oldsrv.kogler.si) and no port rewrite
+# happens, so this holds. Do NOT strip/add Host headers for these routes.

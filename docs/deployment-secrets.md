@@ -58,7 +58,7 @@ All secrets in `Homelab` vault. Pattern: `<service>_<type>`.
 | `headscale_oidc_secret` | headscale |
 | `ha_api_key` | home_assistant |
 | `router_admin_password` | router |
-| `wireguard_private_key` | router (S2S + road-warrior) |
+| `wireguard_private_key` | router (S2S) |
 | `forgejo_token` | Doco-CD (repo access) |
 | `doco_cd_webhook_secret` | Doco-CD webhook |
 | `doco_cd_op_service_account` | Doco-CD → 1Password |

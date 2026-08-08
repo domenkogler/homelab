@@ -15,6 +15,7 @@ tags: [deployment, gitops, doco-cd]
 
 ## Architecture Philosophy
 
+- **Direction of truth:** IaC is the source of truth for **values** (IPs, VLANs, host vars, service lists) — they render INTO docs (`network-addresses.md`, `inventory.md`). The `deployment-*` specs are **authoring guides** used to write/correct the IaC, not runtime inputs. See `deployment-ansible.md`.
 - **Database-free, pure GitOps** — all config, versions, and docs are plain text in Git
 - **One Git repo** — IaC code + technical docs + family guides together
 - **Doco-CD driven** ⚠️ WIP — Docker deployments automated via GitOps (watches repo, deploys on change). Not yet activated; Ansible handles all deployment until Doco-CD is configured.

@@ -70,7 +70,7 @@ Internet → ONT → router ether1 (WAN)
 |-----|------|
 | VLAN plan, subnets, firewall rules | [`network-vlans.md`](network-vlans.md) |
 | DNS architecture, Technitium/Pi-hole | [`network-dns.md`](network-dns.md) |
-| VPN layers, Headscale, (travel router obsolete) | [`network-vpn.md`](network-vpn.md) |
+| VPN layers, Headscale mesh | [`network-vpn.md`](network-vpn.md) |
 | Device wiring & interconnections | [`assets/Network-Devices.canvas`](assets/Network-Devices.canvas) (Obsidian Canvas) ⚠️ WIP |
 | Rack layout | [`network-rack.md`](network-rack.md) → `assets/Rack.canvas` |
 | Router config storage & versioning | [`network-ops.md`](network-ops.md) |

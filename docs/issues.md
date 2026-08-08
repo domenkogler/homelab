@@ -14,18 +14,7 @@ tags: [meta, issues, backlog]
 
 ---
 
-## I1 — Road-warrior WireGuard subnet conflict
-- **Area:** `network-vpn.md` / IaC router
-- **Symptom:** `IaC/ansible/group_vars/router.yml` declares
-  `wireguard_roadwarrior.subnet: "10.99.0.0/24"`, but `IaC/router/rb4011_initial.rsc`
-  configures the road-warrior interface as `10.255.50.1/24`. `docs/network-vpn.md`
-  also references travel-router `10.99.99.0/31` for the (obsolete) travel device.
-- **Likely fix:** pick one address space for road-warrior (10.99.0.0/24 vs
-  10.255.50.0/24) and align router.yml with the rsc; keep travel `10.99.99.0/31`
-  clearly separate.
-- **Priority:** medium · **Status:** open
-
-## I2 — Several IaC roles are still "TODO: implement" (SSOT model is aspirational)
+## I1 — Several IaC roles are still "TODO: implement" (SSOT model is aspirational)
 - **Area:** `IaC/ansible/roles/`, `IaC/ansible/templates/docker_services/`
 - **Symptom:** `docker_services`, `monitoring`, `amd_rocm`, `desktop`, `office`,
   `router`, `proxmox` roles are literally `# TODO: implement`; all 19 compose
@@ -39,25 +28,7 @@ tags: [meta, issues, backlog]
   the same post-deploy hook.
 - **Priority:** high · **Status:** open
 
-## I3 — Cockpit has no Ansible role (scope now decided)
-- **Area:** `services.md` / `IaC/ansible`
-- **Symptom:** `cockpit-nas.kogler.si` / `cockpit-oldsrv.kogler.si` URLs are documented
-  (and now fronted by Traefik), but there is no `cockpit` Ansible role. Session decided
-  scope: **nas + oldsrv only**; the Pi does not run Cockpit.
-- **Likely fix:** add a `cockpit` role scoped to `nas` + `oldsrv`, subdomains as above.
-- **Priority:** medium · **Status:** open
-
-## I4 — Docs↔IaC direction of truth is contradictory
-- **Area:** `deployment-ansible.md` / generate pipeline
-- **Symptom:** `deployment-ansible.md` is labeled *"generation-target — read this to
-  generate Ansible playbooks"* (docs → IaC), but the repo also has an IaC → docs
-  render pipeline (`inventory.md.j2`). The session chose **IaC as source of truth**,
-  which contradicts the "generation-target" framing of that doc.
-- **Likely fix:** update `deployment-ansible.md` framing to reflect IaC-as-source,
-  or document the intended direction explicitly so future AI sessions don't ping-pong.
-- **Priority:** low · **Status:** open
-
-## I5 — Traefik (`ha` route) depends on cross-host VIP
+## I2 — Traefik (`ha` route) depends on cross-host VIP
 - **Area:** `services.md` accessibility / `smart-home-failover.md`
 - **Symptom:** Traefik runs on oldsrv; HA primary runs on the Pi. The `ha.kogler.si`
   backend is the VIP `10.10.1.200` over the Home VLAN. This works intra-VLAN today,
@@ -66,14 +37,14 @@ tags: [meta, issues, backlog]
 - **Likely fix:** document the coupling in the accessibility SSOT; no code change now.
 - **Priority:** low · **Status:** open
 
-## I6 — Hardcoded NTP server in router baseline
+## I3 — Hardcoded NTP server in router baseline
 - **Area:** `IaC/router/rb4011_initial.rsc`
 - **Symptom:** line 18 pins `/system ntp client servers add server=193.2.1.66`.
   Verify this is intentional (vs. a Slovenian pool).
 - **Likely fix:** if not intentional, use `0.si.pool.ntp.org` to match `group_vars/all.yml`.
 - **Priority:** low · **Status:** open
 
-## I7 — shared `post_install.sh` sshd `AllowUsers` locks out the Pi's `pi` user
+## I4 — shared `post_install.sh` sshd `AllowUsers` locks out the Pi's `pi` user
 - **Area:** `IaC/host/post_install.sh` / `deployment-preseed.md` / `host_vars/ha.kogler.si.yml`
 - **Symptom:** `post_install.sh` (and `deployment-preseed.md`) harden sshd with
   `AllowUsers ansible-admin ai-debug`. But the Raspberry Pi's deploy user is **`pi`**
@@ -86,7 +57,7 @@ tags: [meta, issues, backlog]
   Pi's SSH user/creation path.
 - **Priority:** medium · **Status:** open
 
-## I8 — `ha.kogler.si` is both the HA service VIP name and the Pi's inventory host
+## I5 — `ha.kogler.si` is both the HA service VIP name and the Pi's inventory host
 - **Area:** `services.md` / `smart-home*.md` / `IaC/ansible/inventory.ini` / `host_vars/ha.kogler.si.yml`
 - **Symptom:** `ha.kogler.si` is documented to resolve to the VIP `10.10.1.200`, but it
   is also the Ansible inventory host for the Pi node, whose SSH/node IP is `10.10.1.20`.
@@ -98,7 +69,7 @@ tags: [meta, issues, backlog]
   the node-vs-VIP naming convention.
 - **Priority:** medium · **Status:** open
 
-## I9 — Live HA reads UPS via Modbus 502, but the decided NUT topology uses USB HID
+## I6 — Live HA reads UPS via Modbus 502, but the decided NUT topology uses USB HID
 - **Area:** `home-assistant-current.md` / `hardware-ups.md` / `observability.md`
 - **Symptom:** `home-assistant-current.md` shows a **Modbus** integration reading the
   UPS on `10.10.99.9:502` (scaled battery/voltage/load sensors). `hardware-ups.md`'s
@@ -110,7 +81,7 @@ tags: [meta, issues, backlog]
   second/independent view.
 - **Priority:** medium · **Status:** open
 
-## I10 — IaC/README.md is stale vs real group_vars and other docs
+## I7 — IaC/README.md is stale vs real group_vars and other docs
 - **Area:** `IaC/README.md`
 - **Symptom:** its `docker_services` sample lacks `raspberrymatic-standby` and
   `home-assistant-standby`, and drops the `enabled:`/`instance:`/`subdomain:`
@@ -122,7 +93,7 @@ tags: [meta, issues, backlog]
   with `group_vars/home_servers.yml` and `network-dns.md`.
 - **Priority:** low · **Status:** open
 
-## I11 — Metabase (`sec.kogler.si`) documented but absent from service list and TODOs
+## I8 — Metabase (`sec.kogler.si`) documented but absent from service list and TODOs
 - **Area:** `services.md` / `interfaces.md` / `observability.md` / `IaC/ansible`
 - **Symptom:** `sec.kogler.si` (CrowdSec dashboard + Metabase learning sandbox) is
   described in three docs. It has **no compose template**, is **not** in
@@ -133,7 +104,7 @@ tags: [meta, issues, backlog]
   wiring), or add it to the TODO list.
 - **Priority:** low · **Status:** open
 
-## I12 — preseed keyboard key mismatch (`xkb-map` vs `xkb-keymap`)
+## I9 — preseed keyboard key mismatch (`xkb-map` vs `xkb-keymap`)
 - **Area:** `deployment-preseed.md` / `IaC/host/nas/preseed.cfg`
 - **Symptom:** `deployment-preseed.md` says `d-i keyboard-configuration/xkb-map select si`;
   the reference `nas/preseed.cfg` uses `d-i keyboard-configuration/xkb-keymap select si`.
@@ -141,7 +112,7 @@ tags: [meta, issues, backlog]
 - **Likely fix:** fix the `deployment-preseed.md` spelling to `xkb-keymap`.
 - **Priority:** low · **Status:** open
 
-## I13 — README references a non-existent `obsolete/` directory
+## I10 — README references a non-existent `obsolete/` directory
 - **Area:** `README.md`
 - **Symptom:** `README.md`'s Repository Structure lists an `obsolete/` folder that does
   not exist in the repo.

@@ -7,7 +7,7 @@
 
 | Component | Implemented | Stubs |
 |-----------|------------|-------|
-| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `network` (foundation) (5) | `amd_rocm`, `desktop`, `office`, `home_assistant`, `proxmox`, `router`, `monitoring`, `docker_services` (8) — + `network` static-IP/trunk pending |
+| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation) (6) | `amd_rocm`, `desktop`, `office`, `home_assistant`, `proxmox`, `router`, `monitoring`, `docker_services` (8) — + `network` static-IP/trunk pending |
 | Docker compose templates | 0 (all `.j2` files are TODO stubs) | 19 |
 | RouterOS scripts | `rb4011_initial.rsc`, `ap_initial.rsc` (2) | — |
 | Bootstrap | `bootstrap.sh`, `post_install.sh` (2) | — |
@@ -93,6 +93,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │       │   ├── tasks/main.yml
 │   │       │   ├── templates/*.j2
 │   │       │   └── (upssched-cmd notify)
+│   │       ├── cockpit/tasks/main.yml       # Management UI (nas + oldsrv, not Pi) — own login, no Authentik
 │   │       ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   │       ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   │       ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
@@ -146,6 +147,12 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Current scope (foundation):** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml`.
 - **Pending:** VLAN sub-interface on trunk port, static IP (VLAN 99 for oldsrv, VLAN 10 + 99 native for nas); Pi static IP on Home VLAN. Network config-manager (systemd-networkd vs netplan) decision needed first.
 - **All hosts:** `/etc/hosts` template with all node entries (resolved via local DNS)
+
+### `cockpit`
+- **Scope:** nas + oldsrv only (Pi excluded — managed via SSH/HA UI).
+- Installs `cockpit` (+ `cockpit-zfs` on nas), enables `cockpit.socket`, grants `sudo` group (Cockpit admins on Debian) to `ansible_admin_users`.
+- **Own login — deliberately NOT behind Authentik** (management surface, independent of SSO). Routes are Traefik **file-provider** config (`/opt/traefik/dynamic/cockpit.yml`, rendered on oldsrv): `cockpit-nas → 10.10.1.10:9090`, `cockpit-oldsrv → 10.10.1.30:9090`, no Forward-Auth middleware.
+- Host/Origin note: Traefik preserves the original Host, so cockpit-ws Origin validation passes — no header rewrite on these routes.
 
 ### `nut`
 - **Mode-driven** via `nut_mode` (host_vars): `master` (nas) / `client` (oldsrv, ha). See `docs/hardware-ups.md`, `docs/observability.md`.

@@ -49,7 +49,7 @@ docs/
 ├── network-vlans.md                       VLAN table, subnets, firewall rules
 ├── network-addresses.md                   ★ IP address plan — SSOT (generated from IaC)
 ├── network-dns.md                         Technitium/Pi-hole, per-subnet DNS
-├── network-vpn.md                         WireGuard, Headscale (travel router obsolete)
+├── network-vpn.md                         WireGuard (S2S), Headscale mesh
 ├── assets/Network-Devices.canvas          Device wiring & interconnections  ⚠️ WIP
 ├── network-rack.md                        Rack layout → assets/Rack.canvas
 ├── network-ops.md                         Router config storage & versioning
@@ -117,4 +117,4 @@ docs/
 - **Headers:** Every doc starts with `> **Role:** ...` and `> **Linked from:** ...`
 - **Links:** Use relative paths (`[doc](deployment-preseed.md)`)
 - **Secrets:** Never in docs — always reference 1Password `Homelab` vault
-- **Generation targets:** Marked with ★ — these docs are read by AI to produce specific IaC files
+- **Generation targets:** Marked with ★ — *authoring specs* read by AI to write or correct the corresponding IaC. Direction of truth: concrete values live in IaC and are rendered INTO value-carrying docs (`network-addresses.md`, `inventory.md`) — those generated views are never hand-edited.

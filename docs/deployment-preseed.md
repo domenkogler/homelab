@@ -1,13 +1,15 @@
 ---
 title: Preseed & Post-Install Specification
-role: generation-target
+role: design-spec
 domain: deployment
 status: active
 tags: [deployment, preseed, debian]
 ---
 # Preseed & Post-Install Specification
 
-> **Role:** ★ Generation target — read this to generate `preseed.cfg` and `post_install.sh` for Debian deployment.
+> **Role:** ★ Design spec — read this to **author or correct** `preseed.cfg` and
+> `post_install.sh` for Debian deployment. The reference implementations in
+> `IaC/host/` are the source of truth; this doc describes what they must contain.
 > **Links to:** `hardware-nas.md`, `hardware-oldsrv.md`, `network-vlans.md`, `deployment-secrets.md`
 > **Linked from:** `deployment.md`, `index.md`
 

@@ -1,13 +1,20 @@
 ---
 title: Ansible Specification
-role: generation-target
+role: design-spec
 domain: deployment
 status: active
 tags: [deployment, ansible, iac]
 ---
 # Ansible Specification
 
-> **Role:** ★ Generation target — read this to generate Ansible playbooks, roles, group_vars, and templates.
+> **Role:** ★ Design spec — read this to **author or correct** the Ansible IaC
+> (playbooks, roles, group_vars, templates).
+>
+> **Direction of truth:** this document is an *authoring* spec, not the source
+> of runtime values. Concrete values (IPs, VLANs, service lists) live in IaC
+> (`group_vars/*.yml`, `host_vars/*.yml`) and flow **IaC → docs** via the render
+> (`render-docs.yml` → `docs/network-addresses.md`, later `docs/inventory.md`);
+> those generated views must not be hand-edited.
 > **Links to:** `services.md`, `hardware.md`, `deployment-secrets.md`, `deployment-compose.md`
 > **Linked from:** `deployment.md`, `index.md`
 
@@ -60,6 +67,7 @@ IaC/ansible/
 │   ├── common/tasks/                # system.yml + main.yml
 │   ├── docker/tasks/main.yml        # Docker CE + compose install
 │   ├── network/tasks/main.yml       # VLAN interfaces, /etc/hosts
+│   ├── cockpit/tasks/main.yml       # Cockpit management UI (nas+oldsrv, own login, no Authentik)
 │   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
@@ -215,6 +223,12 @@ domain_local: kogler.si
 - **VPS:** Static IP on services bridge
 - **Pi:** Static IP on Home VLAN
 - **All:** `/etc/hosts` template with all nodes
+
+### `cockpit`
+- **Scope:** nas + oldsrv only (Pi excluded). Installs `cockpit` (+ `cockpit-zfs` on nas), enables `cockpit.socket`, grants Cockpit admin group to `ansible_admin_users`.
+- **Own login — NOT behind Authentik** (management surface must work independently of SSO).
+- **Traefik:** file-provider routes (`/opt/traefik/dynamic/cockpit.yml` on oldsrv): `cockpit-nas → 10.10.1.10:9090`, `cockpit-oldsrv → 10.10.1.30:9090`, no Forward-Auth middleware.
+- 9090 is intra-Home-VLAN between Traefik (oldsrv) and nas — no inter-VLAN firewall rule needed.
 
 ### `amd_rocm`
 - **Repo:** Official AMD ROCm (Debian-compatible path)

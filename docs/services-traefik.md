@@ -71,6 +71,21 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 - Useful for tracing the routing/middleware chain; service metrics still flow to Prometheus (see [`observability.md`](observability.md)).
 - Decision: **included**; Portainer/Dockge **excluded** (see [`services.md`](services.md)).
 
+## Cockpit Routes (file-provider, no Forward-Auth)
+
+Cockpit is a host service (not a Docker container), so its routes are a Traefik
+**file-provider** dynamic config: `/opt/traefik/dynamic/cockpit.yml` (deployed by the
+`cockpit` Ansible role on oldsrv).
+
+- `cockpit-nas.kogler.si` → `http://10.10.1.10:9090` · `cockpit-oldsrv.kogler.si` → `http://10.10.1.30:9090`
+- **Deliberately NO Authentik Forward-Auth**: Cockpit is a management surface with its
+own login and must stay reachable if Authentik is down. Internal-only (no public DNS
+record, WAN-blocked).
+- Traefik must preserve the original Host header on these routes — cockpit-ws validates
+  that the browser Origin matches Host.
+- Requires Traefik's file provider to watch `/opt/traefik/dynamic` (mount in the
+  `traefik` compose template).
+
 ---
 
 ## Trusted Proxies (Critical)

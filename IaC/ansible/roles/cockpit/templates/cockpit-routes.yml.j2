@@ -1,0 +1,31 @@
+# managed by Ansible — cockpit role
+# Traefik file-provider routes for the Cockpit host services.
+# Deliberately NO authentik-forward-auth middleware: cockpit is a management
+# surface with its own login and must work independently of Authentik.
+# Scope: nas + oldsrv only.
+http:
+  routers:
+    cockpit-nas:
+      rule: "Host(`cockpit-nas.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: cockpit-nas
+      tls:
+        certResolver: letsencrypt
+    cockpit-oldsrv:
+      rule: "Host(`cockpit-oldsrv.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: cockpit-oldsrv
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    cockpit-nas:
+      loadBalancer:
+        servers:
+          - url: "http://10.10.1.10:9090"
+    cockpit-oldsrv:
+      loadBalancer:
+        servers:
+          - url: "http://10.10.1.30:9090"
