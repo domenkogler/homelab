@@ -45,7 +45,13 @@ tags: [meta, issues, backlog]
   `rsc` `Home→Mgmt` (add 502/8728, restrict to trusted hosts) and `Home→IoT`
   (add oldsrv/nas IPs to a trusted address-list) rules with `network-vlans.md`.
 - **See also:** I12 (firewall drift, folded into this entry).
-- **Priority:** high (correctness) · **Status:** open
+- **Progress (506b856):** `rb4011_initial.rsc` updated — DHCP hands out Technitium
+  primary+secondary (Home) + gateway tertiary; forward rules to `10.10.1.30/.20`
+  above the inter-VLAN drop; input DNS allowed; `Home→Mgmt` adds 502/8728 restricted
+  to `trusted-admin`; `trusted-ha` extended to nas/pi/oldsrv. `network-dns.md` /
+  `network-vlans.md` rewritten to the Home-based model. Config NOT yet deployed to
+  the live router / verified.
+- **Priority:** high (correctness) · **Status:** implemented in IaC/docs · **pending deploy/verify** · open
 
 ## I3 — Several IaC roles are still "TODO: implement" (SSOT model is aspirational)
 - **Area:** `IaC/ansible/roles/`
@@ -57,7 +63,13 @@ tags: [meta, issues, backlog]
   post-deploy hook.
 - **Likely fix:** implement the roles (esp. `network` for static IP/VLAN provisioning),
   then add the `network-addresses.md` render to the same hook that renders `inventory.md`.
-- **Priority:** high · **Status:** open
+- **Progress (506b856):** the SSOT render is now wired — `playbooks/render-docs.yml`
+  renders `docs/network-addresses.md` from `group_vars/all.yml` as the final `site.yml`
+  step; `network` role foundation added (admin guard + `/etc/hosts`). Still TODO:
+  `docker_services`, `monitoring`, `amd_rocm`, `desktop`, `office`, `router`, `proxmox`,
+  the 19 compose templates, and `network` static-IP/trunk provisioning (needs
+  networkd-vs-netplan decision).
+- **Priority:** high · **Status:** partially addressed · open
 
 ## I4 — Cockpit has no Ansible role (scope now decided)
 - **Area:** `services.md` / `IaC/ansible`
@@ -106,7 +118,11 @@ tags: [meta, issues, backlog]
   `nut_exporter`; clients on oldsrv/ha: `upsmon` slave + `shutdown_delay_seconds`,
   `upssched-cmd` notify) with `templates/nut/*.j2`, wire it into `home_servers.yml`
   / `raspberry_pi.yml` before `monitoring`, and add it to `IaC/README.md`.
-- **Priority:** high · **Status:** open
+- **Progress (506b856):** implement — `roles/nut/` added (master USB-HID + host
+  `nut_exporter` on nas, clients oldsrv=60s / ha=0s delays, `upssched-cmd` notify),
+  host_vars + play wiring, `IaC/README.md` catalog. Note: `nut_exporter_release` is an
+  operator-set var (binary download). PENDING deploy/verify on real hardware.
+- **Priority:** high · **Status:** implemented in IaC · pending deploy/verify · open
 
 ## I9 — `home_servers.yml` deploys the entire Docker stack onto `nas`
 - **Area:** `IaC/ansible/group_vars/home_servers.yml` / `inventory.ini` / `deployment.md`
@@ -118,8 +134,12 @@ tags: [meta, issues, backlog]
   and deployed onto `nas` too. This contradicts `deployment.md` ("nas (no Docker) —
   Ansible bootstrap only") and `hardware-nas.md` (ZFS storage, no Docker).
 - **Likely fix:** put `nas` in its own group (e.g. `[storage]`) so it gets only
-  `common`/`ai_diag`/`network`/`monitoring`, or gate the whole service loop per-host.
-- **Priority:** high · **Status:** open
+  `common`/`ai_diag`/`network`/`nut` (+ any future storage-only roles), or gate the
+  whole service loop per-host.
+- **Progress (506b856):** implemented — `nas` moved to a new `[storage]` group via
+  `playbooks/storage.yml` (common → ai_diag → network → nut, NO Docker); `home_servers`
+  is now oldsrv-only; `site.yml` + pre-flight guard updated. Pending deploy/verify.
+- **Priority:** high · **Status:** implemented in IaC · pending deploy/verify · open
 
 ## I10 — shared `post_install.sh` sshd `AllowUsers` locks out the Pi's `pi` user
 - **Area:** `IaC/host/post_install.sh` / `deployment-preseed.md` / `host_vars/ha.kogler.si.yml`
