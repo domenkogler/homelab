@@ -1,12 +1,82 @@
-# traefik docker-compose.yml — TODO: define service
+# traefik docker-compose.yml — oldsrv edge + SINGLE ACME issuer
 #
-# This is the SINGLE ACME issuer for the wildcard *.kogler.si cert (Cloudflare DNS-01).
-# The Pi's `traefik-ha` edge syncs its cert pair from here (see home_assistant role, and
-# docs/smart-home-failover.md — Edge accessibility). CONTRACT:
-#   - The ACME storage/checkout must emit / present the cert pair as exactly
-#     `{{ wildcard_cert_file }}` and `{{ wildcard_cert_key_file }}`
-#     (vars in group_vars/all.yml — shared with traefik-ha), e.g. at
-#     /opt/traefik/certs/{{ wildcard_cert_file }} + {{ wildcard_cert_key_file }}.
-#   - ha route: Host(`ha.kogler.si`) -> VIP {{ ha_vip }}:8123, NO Authentik Forward-Auth
-#     (Companion WebSocket/token flow), tls.certresolver: letsencrypt.
+# This is THE ACME issuer for the wildcard *.kogler.si cert (Cloudflare DNS-01).
+# The Pi's `traefik-ha` edge syncs its cert pair from here (see
+# docs/smart-home-failover.md). CONTRACT (must keep):
+#   - ACME state lives in ./acme/acme.json (persisted; renewals survive restarts).
+#   - The `certs-dumper` sidecar extracts the wildcard pair out of acme.json into
+#     ./certs with EXACTLY `{{ wildcard_cert_file }}` / `{{ wildcard_cert_key_file }}`
+#     (vars in group_vars/all.yml, shared with traefik-ha) → /opt/traefik/certs/.
+#     The Pi cert-sync timer reads these two files; never rename/move them.
+#   - File provider watches ./dynamic (cockpit role drops cockpit.yml here; this
+#     file's routes.yml holds the takeover `ha` route).
+#   - `ha` route: Host(`ha.kogler.si`) -> VIP {{ ha_vip }}:8123, NO Authentik
+#     Forward-Auth (Companion WebSocket/token flow), tls.certresolver: letsencrypt.
+#   - traefik-public network is EXTERNAL — the docker_services role must create it
+#     before any service (incl. this one) starts.
+#   - Runs FIRST in the docker_services list so the external network exists before
+#     other services join it.
+#
 # Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+#   - cloudflare_api_token  -> ACME DNS-01 (needs Zone.DNS edit on kogler.si)
+services:
+  traefik:
+    image: traefik:{{ traefik_version | default('latest') }}
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # Cloudflare DNS-01 credential for the wildcard cert (scoped API token).
+      CF_DNS_API_TOKEN: "{{ lookup('community.general.onepassword', 'cloudflare_api_token_credential', vault=Homelab) }}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./dynamic:/etc/traefik/dynamic:ro   # cockpit.yml + routes.yml (ha) — file provider
+      - ./acme:/etc/traefik/acme            # acme.json ACME state (persistent)
+    networks:
+      - traefik-public
+    command:
+      - "--log.level=INFO"
+      # Docker provider — only explicitly-labelled services are exposed.
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=traefik-public"
+      # File provider — cockpit + ha routes (host services / VIP backends).
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # ACME DNS-01 (wildcard) — single issuer for *.kogler.si.
+      - "--certificatesresolvers.letsencrypt.acme.email={{ letsencrypt_email }}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare"
+      # NOTE: DO NOT switch to TLSchallenge — it cannot issue a wildcard. The whole
+      # internal+public namespace depends on this DNS-01 wildcard (see network-dns.md).
+
+  # certs-dumper sidecar — turns Traefik's acme.json into the flat PEM pair the
+  # Pi edge + failover contract depends on. Watch mode keeps /opt/traefik/certs in
+  # sync on every renewal. Image/CLI: ghcr.io/traware/certs-dumper (flat names via
+  # --crt-name/--key-name so the shared wildcard_cert_* vars can never drift).
+  certs-dumper:
+    image: ghcr.io/traware/certs-dumper:{{ certs_dumper_version }}
+    container_name: traefik-certs-dumper
+    restart: unless-stopped
+    volumes:
+      - ./acme:/traefik/acme:ro
+      - ./certs:/output
+    command:
+      - "file"
+      - "--version=v2"
+      - "--watch"
+      - "--source=/traefik/acme/acme.json"
+      - "--dest=/output"
+      - "--domain-name={{ wildcard_cert_domain }}"
+      - "--crt-name={{ wildcard_cert_file }}"
+      - "--key-name={{ wildcard_cert_key_file }}"
+
+networks:
+  traefik-public:
+    external: true

@@ -13,12 +13,22 @@ domain_local: kogler.si    # reserved for future split-horizon scenarios — cur
 # ==== Shared service knobs (used across host templates) ====
 # traefik image version — shared by oldsrv `traefik` (edge) and Pi `traefik-ha`.
 traefik_version: latest
+# Let's Encrypt account contact — REQUIRED to register the ACME account when the
+# first cert is issued (wildcard *.kogler.si via DNS-01 on oldsrv's `traefik`).
+letsencrypt_email: domen@kogler.si
+# traefik-certs-dumper (certs-dumper sidecar on oldsrv `traefik`) — extracts the
+# wildcard PEM pair out of acme.json into /opt/traefik/certs with the exact
+# wildcard_cert_file / wildcard_cert_key_file names (the Pi edge syncs from these).
+certs_dumper_version: v2.8.3
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.
 #   Pi traefik-ha:  synced to /opt/traefik-ha/certs/ with these names.
 wildcard_cert_file: kogler.si.pem
 wildcard_cert_key_file: kogler.si-key.pem
+# The wildcard SAN root — the certs-dumper matches acme.json by this domain and
+# the Pi/oldSrv edges serve all *.kogler.si hosts from the dumped pair.
+wildcard_cert_domain: "kogler.si"
 # Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== pi 10.10.1.20).
 technitium_secondary_ip: 10.10.1.20
 
