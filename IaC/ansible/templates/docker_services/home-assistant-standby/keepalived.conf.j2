@@ -18,6 +18,6 @@ vrrp_instance HA_VIP {
         auth_pass {{ lookup('community.general.onepassword', 'ha_vrrp_password', vault='Homelab') }}
     }
     virtual_ipaddress {
-        10.10.1.200/24        # HA VIP — same on primary + standby
+        {{ ha_vip }}/{{ ha_vip_cidr }}        # HA VIP — same on primary + standby
     }
 }

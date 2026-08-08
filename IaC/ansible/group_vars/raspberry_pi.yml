@@ -8,8 +8,8 @@ home_assistant_install_method: docker   # 'docker' or 'supervised' — use docke
 # reachable when oldsrv is down — see docs/smart-home-failover.md.
 # (traefik_version is defined in group_vars/all.yml — shared with the oldsrv edge.)
 ha_edge_enabled: true
-# VIP / VRRP: Pi is MASTER (owns 10.10.1.200 in normal mode); standby on oldsrv is BACKUP.
-ha_vip: 10.10.1.200
+# VIP / VRRP: Pi is MASTER (owns the VIP — {{ ha_vip }} — in normal mode); standby on oldsrv is BACKUP.
+# ha_vip / ha_vip_cidr are defined once in group_vars/all.yml (SSOT).
 ha_primary_state: MASTER
 ha_primary_priority: 110      # higher than standby (100) so Pi keeps the VIP
 

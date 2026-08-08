@@ -34,7 +34,12 @@ technitium_secondary_ip: 10.10.1.20
 
 # ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses.md) ====
 # Hand-edit here ONLY; regenerate docs/network-addresses.md after changes.
+#
+# HA virtual IP (keepalived/VRRP) on Home VLAN 10 — ha.kogler.si. Canonical name `ha-vip`.
+# D2: single /32, no reserved block. Home DHCP pool (10.10.1.100-.199) must stay <= .199
+# and must never be extended into the VIP; 10.10.1.200 is reserved — not a normal static lease.
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
+ha_vip_cidr: 24                    # VIP prefix — shared by primary + standby keepalived
 network_vlans:
   - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }

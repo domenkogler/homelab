@@ -35,6 +35,9 @@
 | DNS secondary web UI (`dns-pi.kogler.si`) | VIP `{{ ha_vip }}` (edge) → `{{ technitium_secondary_ip }}:5380` | pi |
 | Home Assistant VIP (`ha.kogler.si`) | {{ ha_vip }} | pi ↔ oldsrv (keepalived) |
 
+> **VIP:** `{{ ha_vip }}` is a single `/32` reserved for keepalived (ha.kogler.si). Home DHCP pool
+> stays ≤ `10.10.1.199` — never extend it into the VIP or assign `{{ ha_vip }}` statically.
+
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 

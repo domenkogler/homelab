@@ -203,6 +203,19 @@ rescue them. This is an **HA/DNS availability** change, not general service fail
 
 ---
 
+## Decided — HA VIP (address / notation / firewall IP-set)
+
+> Single source of truth for the value: `group_vars/all.yml` (`ha_vip`, `ha_vip_cidr`).
+
+- **Address:** `10.10.1.200/32` — keepalived VRRP VIP on Home VLAN 10; `ha.kogler.si` → VIP. No change (already the value in SSOT + config templates).
+- **Reservation:** single `/32`, **no reserved block**. Home DHCP pool stays ≤ `10.10.1.199`; never extend it into the VIP or assign `10.10.1.200` as a normal static lease.
+- **Naming:** canonical name **`ha-vip`** everywhere (SSOT host row, keepalived, Technitium A records, docs). Ansible vars **`ha_vip`** + **`ha_vip_cidr: 24`** live in `group_vars/all.yml` only; all templates consume `{{ ha_vip }}` — no `10.10.1.200` literals in config values.
+- **Firewall IP-sets (RouterOS):** the VIP belongs to the **existing** address-lists in `rb4011_initial.rsc`:
+  - `trusted-admin` — Home→Mgmt rules (SSH/WinBox/API + UPS web 80/443)
+  - `trusted-ha` — Home→IoT rules (MQTT/HA, KNX/Shelly trusted-IP). No dedicated `ha-vip` list.
+
+---
+
 ## Open Questions / Decisions
 
 - [x] Takeover trigger = **manual**; failback = **manual** (accepted).
@@ -211,7 +224,7 @@ rescue them. This is an **HA/DNS availability** change, not general service fail
 - [x] Pi confirmed running **HAOS** (see `home-assistant-current.md`); redo target = **Debian + HA Container**.
 - [ ] Implement the **single failover button** + `ha-failover.sh` orchestrator (RMat → wait → VIP → standby) on Homepage.
 - [ ] **Once**, test HmIP-RFUSB pairing transfer + entity reconstruction across the stick move.
-- [ ] Choose VIP range/notation for Home VLAN + firewall IP-set name.
+- [x] **VIP address / notation + firewall IP-set** — **decided:** `10.10.1.200/32` (`ha-vip`), DHCP pool stays ≤ `.199`; router lists `trusted-ha` + `trusted-admin`. See **Decided — HA VIP** above.
 - [ ] Whether to add `watchtower` for the Pi's HA container update automation.
 
 ## Related

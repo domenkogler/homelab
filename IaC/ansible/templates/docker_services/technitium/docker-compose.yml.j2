@@ -8,8 +8,8 @@
 #   Important: DNS primary + secondary are a FAILURE-DOMAIN split (oldsrv vs Pi).
 #   Do NOT run both on the same host — that defeats the purpose.
 #
-#   STATIC RECORDS (both instances): ha.kogler.si → {{ ha_vip | default('10.10.1.200') }} and
-#   dns-pi.kogler.si → {{ ha_vip | default('10.10.1.200') }} MUST exist as A records on BOTH
+#   STATIC RECORDS (both instances): ha.kogler.si → {{ ha_vip }} and
+#   dns-pi.kogler.si → {{ ha_vip }} MUST exist as A records on BOTH
 #   primary + secondary. DHCP auto-creation covers leases only, and the VIP is not a lease —
 #   without them the traefik-ha / oldsrv edges are unreachable by name.
 #
