@@ -1,0 +1,85 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+scrape_configs:
+  # blackbox-exporter (services-internal, :9115, /probe)
+  - job_name: blackbox-exporter
+    static_configs:
+      - targets:
+          - "blackbox-exporter:9115"
+    metrics_path: /probe
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [__param_module]
+        target_label: __param_module
+    params:
+      module: [http_2xx]
+  # HTTP probes for web services
+  - job_name: blackbox_http_probes
+    static_configs:
+      - targets: ["https://kogler.si", "https://sso.kogler.si", "https://foto.kogler.si", "https://file.kogler.si", "https://git.kogler.si", "https://ha.kogler.si"]
+    metrics_path: /probe
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [__param_module]
+        target_label: __param_module
+    params:
+      module: [http_2xx]
+  # ICMP probes (router + switch)
+  - job_name: blackbox_icmp
+    static_configs:
+      - targets: ["10.10.99.1", "10.10.99.2"]
+    metrics_path: /probe
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [__param_module]
+        target_label: __param_module
+    params:
+      module: [icmp]
+  # nut_exporter (host binary on nas, 10.10.1.10:9195)
+  - job_name: nut_exporter
+    static_configs:
+      - targets: ["10.10.1.10:9195"]
+  # HA exporter (edge HA's /api/prometheus)
+  - job_name: ha_exporter
+    metrics_path: /api/prometheus
+    bearer_token_file: /etc/prometheus/ha_token
+    static_configs:
+      - targets:
+          - "http://10.10.1.200:8123"
+  # Service self-metrics: traefik
+  - job_name: traefik
+    static_configs:
+      - targets: ["http://traefik:8082/metrics"]
+  # Service self-metrics: crowdsec
+  - job_name: crowdsec
+    static_configs:
+      - targets: ["http://crowdsec:6060/metrics"]
+  # Service self-metrics: doco-cd (port from T7; default 8008)
+  - job_name: doco-cd
+    static_configs:
+      - targets:
+          - "http://doco-cd:{{ doco_cd_metrics_port | default(8008) }}/metrics"
+  # Alertmanager (static)
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+remote_write: []
+rule_files: []
+storage:
+  tsdb:
+    path: /prometheus
+    retention: 30d

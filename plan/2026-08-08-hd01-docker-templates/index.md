@@ -44,31 +44,32 @@ the convention validator — statically, without running Ansible/Docker.
 | T3  | 2 | openrouter/free | $0 | $0 | image/text->text ·T·J·R·V |
 | T4  | 2 | openrouter/free | $0 | $0 | image/text->text ·T·J·R·V |
 | T5  | 2 | openrouter/free | $0 | $0 | image/text->text ·T·J·R·V |
-| T6  | 3 | ~deepseek/deepseek-v4-flash-latest (user pick) | ≈$0.14 | ≈$0.28 | text->text ·T·J·R |
+| T6  | 3 | openrouter/free | $0 | $0 | image/text->text ·T·J·R·V |
 | T7  | 4 | ~deepseek/deepseek-v4-flash-latest (user pick) | ≈$0.14 | ≈$0.28 | text->text ·T·J·R |
 | T8  | 2 | openrouter/free | $0 | $0 | image/text->text ·T·J·R·V |
 | T9  | 1 | openrouter/free | $0 | $0 | image/text->text ·T·J·R·V |
 
-> User override: difficulties 3 and 4 use `~deepseek/deepseek-v4-flash-latest`
-> (≈ the cached `deepseek/deepseek-v4-flash` T2 row, $0.14/$0.28 — the `~`/`-latest`
-> alias resolves to the same lineage; if the alias id does not resolve at run time,
-> fall back to `deepseek/deepseek-v4-flash`). All other rows follow the cache defaults.
+> Model note: T6 (difficulty 3) executed on `openrouter/free` and **verified PASS**
+> ($0) — the deepseek escalation was not needed. T7 (difficulty 4) keeps
+> `~deepseek/deepseek-v4-flash-latest` as the plan default (≈ the cached
+> `deepseek/deepseek-v4-flash` T2 row, $0.14/$0.28); the human may override at run
+> time. All other rows follow the cache defaults.
 
 ## Task summary (the progress marker — single source of Status)
 | ID | Title | Difficulty | Status | Validation | Task file |
 |----|-------|-----------|--------|------------|-----------|
-| T0 | Validator script `scripts/validate-docker-services.py` (baseline: 8 missing) | 2 | todo | sees exactly the 8 missing, exit 1 | `plan/2026-08-08-hd01-docker-templates/T0.md` |
-| T1 | renovate template + list entry | 1 | todo | `--only renovate` PASS | `plan/2026-08-08-hd01-docker-templates/T1.md` |
-| T2 | blackbox-exporter template + list entry | 2 | todo | `--only blackbox-exporter` PASS | `plan/2026-08-08-hd01-docker-templates/T2.md` |
-| T3 | loki template + list entry | 2 | todo | `--only loki` PASS | `plan/2026-08-08-hd01-docker-templates/T3.md` |
-| T4 | signal-cli-rest-api template + list entry | 2 | todo | `--only signal-cli-rest-api` PASS | `plan/2026-08-08-hd01-docker-templates/T4.md` |
-| T5 | homepage template + list entry | 2 | todo | `--only homepage` PASS | `plan/2026-08-08-hd01-docker-templates/T5.md` |
-| T6 | prometheus template + list entry | 3 | todo | `--only prometheus` PASS | `plan/2026-08-08-hd01-docker-templates/T6.md` |
+| T0 | Validator script `scripts/validate-docker-services.py` (baseline: 8 missing) | 2 | done | sees exactly the 8 missing, exit 1 | `plan/2026-08-08-hd01-docker-templates/T0.md` |
+| T1 | renovate template + list entry | 1 | done | `--only renovate` PASS | `plan/2026-08-08-hd01-docker-templates/T1.md` |
+| T2 | blackbox-exporter template + list entry | 2 | done | `--only blackbox-exporter` PASS | `plan/2026-08-08-hd01-docker-templates/T2.md` |
+| T3 | loki template + list entry | 2 | done | `--only loki` PASS | `plan/2026-08-08-hd01-docker-templates/T3.md` |
+| T4 | signal-cli-rest-api template + list entry | 2 | done | `--only signal-cli-rest-api` PASS | `plan/2026-08-08-hd01-docker-templates/T4.md` |
+| T5 | homepage template + list entry | 2 | done | `--only homepage` PASS | `plan/2026-08-08-hd01-docker-templates/T5.md` |
+| T6 | prometheus template + list entry | 3 | done | `--only prometheus` PASS | `plan/2026-08-08-hd01-docker-templates/T6.md` |
 | T7 | doco-cd template + list entry ⚠️ awaiting-verification | 4 | todo | `--only doco-cd` PASS | `plan/2026-08-08-hd01-docker-templates/T7.md` |
 | T8 | metabase template + list entry | 2 | todo | `--only metabase` PASS | `plan/2026-08-08-hd01-docker-templates/T8.md` |
 | T9 | Full validation + stale-TODO comment cleanup | 1 | todo | full runner PASS, exit 0 | `plan/2026-08-08-hd01-docker-templates/T9.md` |
 
-## CURRENT_TASK: T0
+## CURRENT_TASK: T7
 
 ---
 

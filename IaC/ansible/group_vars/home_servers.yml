@@ -47,6 +47,15 @@ docker_services:
   # Dashboard & Automation
   - { name: grafana,         template_dir: grafana,    subdomain: stats }
   - { name: n8n,             template_dir: n8n,         subdomain: auto }
+  # Dashboard
+  - { name: homepage,        template_dir: homepage }
+  # Observability
+  - { name: blackbox-exporter, template_dir: blackbox-exporter }
+  - { name: loki,            template_dir: loki }
+  - { name: prometheus,      template_dir: prometheus }
+  - { name: signal-cli-rest-api, template_dir: signal-cli-rest-api }
   # Stream
   - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
+  # Update
+  - { name: renovate,        template_dir: renovate }
   # TODO (create templates): homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api, metabase

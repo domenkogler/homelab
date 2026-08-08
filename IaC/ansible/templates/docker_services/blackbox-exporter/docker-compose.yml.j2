@@ -1,0 +1,20 @@
+# blackbox-exporter docker-compose.yml — external reachability (probe_success)
+#   Scraped by Prometheus (services-internal, :9115); no web UI, no Traefik labels.
+#   Probe modules: http_2xx (TLS cert expiry + status), icmp, tcp, dns.
+#   Scrape targets are defined in Prometheus' prometheus.yml (see T6), NOT here.
+#   See docs/observability.md. Secrets via
+#   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }} — none needed here.
+services:
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    networks:
+      - services-internal
+    volumes:
+      - ./blackbox.yml:/etc/blackbox_exporter/blackbox.yml:ro
+    command:
+      - "--config.file=/etc/blackbox_exporter/blackbox.yml"
+networks:
+  services-internal:
+    external: true

@@ -1,0 +1,27 @@
+# renovate docker-compose.yml — upstream version tracking (3-day stability hold)
+#   Renovate container scanning the homelab repo on Forgejo — no web UI, no Traefik labels.
+#   Secret: forgejo_token (1Password « Homelab).
+#   See docs/deployment-renovate.md. Secrets via
+#   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+services:
+  renovate:
+    image: ghcr.io/renovatebot/renovate:latest
+    container_name: renovate
+    restart: unless-stopped
+    environment:
+      RENOVATE_PLATFORM: forgejo
+      RENOVATE_ENDPOINT: https://git.kogler.si
+      RENOVATE_TOKEN: "{{ lookup('community.general.onepassword', 'forgejo_token', vault=op_vault) }}"
+      RENOVATE_REPOSITORIES: "domen/homelab"
+      RENOVATE_ONBOARDING: "false"
+      RENOVATE_DEPENDENCY_DASHBOARD: "true"
+      RENOVATE_DEPENDENCY_DASHBOARD_TITLE: "Homelab Dependency Dashboard"
+      RENOVATE_STABILITY_DAYS: "3"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    networks:
+      - services-internal
+    volumes:
+      - /opt/renovate/config:/config
+networks:
+  services-internal:
+    external: true
