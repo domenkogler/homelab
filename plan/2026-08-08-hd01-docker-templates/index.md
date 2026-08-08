@@ -94,9 +94,10 @@ the docs regression are **pre-existing / out-of-scope**, not caused by this plan
    grafana, n8n, …) are empty/TODO and fail strict validation. Human decided (B):
    treat them as known out-of-scope; validation bar = per-service `--only` PASS for
    the 8 new. Validator NOT modified.
-2. **docs regression:** `scripts/validate_doc_templates.py` errors with
-   `'dict object' has no attribute 'pi.kogler.si'` — pre-existing docs-generator
-   context bug, unrelated to the 8 templates (deferred).
+2. **docs regression:** `scripts/validate_doc_templates.py` previously errored with
+   `'dict object' has no attribute 'pi.kogler.si'` — **fixed**: the validator's mock
+   `ctx.hostvars` was missing the `pi.kogler.si` entry (and `technitium_secondary_ip`);
+   both added. `validate_doc_templates.py` now renders OK, exit 0.
 ---
 
 ## Global acceptance (final)
@@ -104,7 +105,7 @@ the docs regression are **pre-existing / out-of-scope**, not caused by this plan
 py -3 scripts/validate-docker-services.py --only <name>   # per-service, for each of the 8 new
 # pass = each prints PASS and exits 0  (8/8 green)
 py -3 scripts/validate_doc_templates.py
-# KNOWN pre-existing failure (deferred): errors 'pi.kogler.si' attr — unrelated to this plan's 8 templates
+# pass = renders network-addresses.md.j2 + inventory.md.j2 OK (regression fixed: mock ctx now includes pi.kogler.si + technitium_secondary_ip)
 rg -n "<secret|PASSWORD=.*[A-Za-z0-9]{8}" IaC/ansible/templates/docker_services
 # pass = no output (clean)
 git status --porcelain

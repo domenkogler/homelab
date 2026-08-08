@@ -36,9 +36,11 @@ ctx = {
     "network_vlans": network_vlans,
     "network_static_hosts": network_static_hosts,
     "ha_vip": ha_vip,
+    "technitium_secondary_ip": "10.10.1.20",
     "hostvars": {
         "oldsrv.kogler.si": {"dns_primary_ip": "10.10.1.30"},
         "ha.kogler.si": {"dns_secondary_ip": "10.10.1.20"},
+        "pi.kogler.si": {"dns_secondary_ip": "10.10.1.20"},
     },
     "docker_services": [
         {"name": "traefik", "subdomain": None, "enabled": True},
