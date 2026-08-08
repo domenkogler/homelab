@@ -92,6 +92,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 ## Remote & App Access (`ha.kogler.si`)
 
 - **Route:** `ha.kogler.si` → Traefik → **VIP**. The `ha` route must **NOT** use Authentik Forward-Auth (breaks the Companion WebSocket/token flow) — see `smart-home.md`.
+- **Traefik↔VIP coupling (hard requirement):** Traefik runs on oldsrv and its `ha` backend is the keepalived VIP on the **Home VLAN**. HA must not leave VLAN 10, and the VIP must stay reachable from oldsrv across takeover/failback — otherwise the `ha` route breaks (see `services.md` accessibility SSOT).
 - **Normal (Pi active):** Android app works over WAN (Cloudflare → VPS Traefik, Phase 2) and over VPN (Headscale).
 - **Fallback (oldsrv active):** same hostname routes to the standby. **WAN access is NOT required in fallback** (accepted) — app still works on LAN/WiFi, and over VPN if needed.
 - **Security:** HA `http.use_x_forwarded_for: true` + `trusted_proxies: <Traefik>`; one local `owner` account as recovery if Authentik is unreachable.

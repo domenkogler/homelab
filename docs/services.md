@@ -166,6 +166,14 @@ Full architecture in [`observability.md`](observability.md). Summary:
 **Cockpit scope:** nas + oldsrv only. The Pi is managed via SSH/Ansible + the HA
 Web UI — it does **not** run Cockpit.
 
+**`ha` route coupling (VIP, must-not-break):** Traefik runs on oldsrv; the HA active
+node moves Pi ↔ oldsrv via keepalived. The `ha.kogler.si` backend is the **VIP
+`10.10.1.200` on the Home VLAN** — the route works only while Traefik (oldsrv) can
+reach VLAN 10. If HA ever leaves the Home VLAN, this route is the first thing to
+break. Keep the VIP and Traefik on the same reachable path and treat the VIP as
+the only valid backend (never "correct" it to a node IP). Runbook:
+[`smart-home-failover.md`](smart-home-failover.md).
+
 > Addresses are defined in the single source of truth — [`network-addresses.md`](network-addresses.md).
 > The executable half of this mapping lives in the Traefik labels in `IaC/ansible/templates/docker_services/*/docker-compose.yml.j2`.
 

@@ -14,29 +14,6 @@ tags: [meta, issues, backlog]
 
 ---
 
-## I1 — Several IaC roles are still "TODO: implement" (SSOT model is aspirational)
-- **Area:** `IaC/ansible/roles/`, `IaC/ansible/templates/docker_services/`
-- **Symptom:** `docker_services`, `monitoring`, `amd_rocm`, `desktop`, `office`,
-  `router`, `proxmox` roles are literally `# TODO: implement`; all 19 compose
-  templates under `templates/docker_services/` are TODO stubs. The "IaC = source of
-  truth, docs generated" model is only partially real: `network-addresses.md` is
-  rendered from IaC, but `inventory.md` still needs the `docker_services` post-deploy
-  hook, and the `network` role's static-IP/trunk provisioning is pending a
-  config-manager decision (systemd-networkd vs netplan).
-- **Likely fix:** implement the roles (esp. the `docker_services` generic loop and
-  `network` static IP/VLAN provisioning), then wire the `inventory.md` render into
-  the same post-deploy hook.
-- **Priority:** high · **Status:** open
-
-## I2 — Traefik (`ha` route) depends on cross-host VIP
-- **Area:** `services.md` accessibility / `smart-home-failover.md`
-- **Symptom:** Traefik runs on oldsrv; HA primary runs on the Pi. The `ha.kogler.si`
-  backend is the VIP `10.10.1.200` over the Home VLAN. This works intra-VLAN today,
-  but is a hidden coupling: if HA ever leaves the Home VLAN, Traefik's `ha` route
-  breaks. Worth an explicit note/runbook reference.
-- **Likely fix:** document the coupling in the accessibility SSOT; no code change now.
-- **Priority:** low · **Status:** open
-
 ## I3 — Hardcoded NTP server in router baseline
 - **Area:** `IaC/router/rb4011_initial.rsc`
 - **Symptom:** line 18 pins `/system ntp client servers add server=193.2.1.66`.
