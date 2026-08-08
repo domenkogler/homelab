@@ -9,7 +9,8 @@
 # Design & runbooks: docs/smart-home-failover.md, docs/smart-home.md
 # Key facts:
 #   - Both nodes render the SAME configuration.yaml from this repo.
-#   - ha.kogler.si → Traefik → VIP 10.10.1.200 (keepalived/VRRP on both nodes).
+#   - ha.kogler.si → VIP 10.10.1.200 (keepalived/VRRP); the VIP's :443 edge is served by
+#     whichever node owns it: Pi's minimal `traefik-ha` (normal) or oldsrv's `traefik` (after takeover).
 #   - Standby + RaspberryMatic-standby are COLD (systemd units disabled) until manual forward takeover.
 #   - Forward + reverse failover are MANUAL; a single `ha-failover.sh` on oldsrv orchestrates
 #     RMat-start → wait XML-RPC 2001/2010 → VIP promote → HA-standby start (button on Homepage).
@@ -20,10 +21,20 @@
 #
 # 1. PRIMARY (host: raspberry_pi / pi.kogler.si)
 #    - Install Home Assistant Container (Debian + docker): image ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}
-#    - Render /config/configuration.yaml from repo template (use_x_forwarded_for: true, trusted_proxies: <Traefik>)
+#    - Render /config/configuration.yaml from repo template (use_x_forwarded_for: true,
+#      trusted_proxies: <Pi traefik-ha + oldsrv traefik — both edges must be trusted>)
 #    - Render other configs (integrations: knx via GIRA IP Router .118, homematic [XML-RPC 2001/2010 via local RaspberryMatic], shelly native)
 #    - Run "owner" recovery account; Authentik OIDC; NO Forward-Auth on ha route
 #    - keepalived PRIMARY: owns VIP 10.10.1.200 (state MASTER, priority higher than standby)
+#    - Deploy `traefik-ha` edge (docker_services, group_vars/raspberry_pi.yml): VIP-bound
+#      serve of ha.kogler.si → VIP:8123; keeps ha.kogler.si reachable when oldsrv is down.
+#      network_mode: host + entrypoints bound to {{ ha_vip }}:80/443.
+#    - sysctl net.ipv4.ip_nonlocal_bind=1 (persist via /etc/sysctl.d) so traefik-ha can
+#      bind the VIP even before/without keepalived holding the address.
+#    - Cert sync (LAN, timer — same cadence as the HA config sync Pi→standby, reversed):
+#      rsync the wildcard *.kogler.si cert pair from oldsrv's `traefik` (the SINGLE ACME
+#      issuer; Cloudflare DNS-01) → /opt/traefik-ha/certs/. ACME is intentionally DISABLED
+#      on the Pi edge; it must run before traefik-ha starts and keep the cert offline-safe.
 #    - HA exporter: enable /api/prometheus bearer token (monitoring role scrapes)
 # 2. STANDBY (host: home_servers / oldsrv)
 #    - Template home-assistant-standby/docker-compose.yml.j2 → /opt/home-assistant-standby/

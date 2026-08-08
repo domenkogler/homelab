@@ -1,0 +1,39 @@
+# traefik-ha docker-compose.yml — Pi-side edge (pi.kogler.si)
+#   Keeps the Pi-hosted services (ha.kogler.si + dns-pi.kogler.si) reachable when
+#   oldsrv is DOWN (docs/smart-home-failover.md). Serves via file provider:
+#     - ha      → VIP:8123 (local HA) — NO Authentik Forward-Auth
+#     - dns-pi  → 10.10.1.20:5380 (local Technitium secondary web UI)
+#   Both routes resolve to the VIP (dns-pi like ha), so they work on the Pi edge
+#   even while oldsrv (and its Traefik) is down.
+#
+#   - Binds the HA VIP ({{ ha_vip }}) :80/:443 via explicitly bound entrypoints.
+#     Requires `net.ipv4.ip_nonlocal_bind=1` on the Pi (set by the home_assistant
+#     role) so Traefik can bind the VIP before/without keepalived holding the
+#     address; only the keepalived MASTER (Pi in normal mode) owns the VIP→443 so
+#     this edge never fights oldsrv's `traefik`.
+#   - host networking: bind the VIP directly and reach local HA on the VIP; file
+#     provider only → no docker.sock needed.
+#   - ACME intentionally DISABLED on this edge (no certresolver configured): the
+#     wildcard cert pair is SYNCED FROM oldsrv's `traefik` (single ACME issuer) to
+#     ./certs → both routes stay TLS-valid even when WAN is down.
+#   - Scope: HA-availability + DNS-secondary-UI availability only. Other services'
+#     backends live on oldsrv and do NOT fail over to this edge.
+#
+#   Design context: docs/smart-home-failover.md, group_vars/raspberry_pi.yml.
+#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault='Homelab') }}
+services:
+  traefik:
+    image: traefik:{{ traefik_version | default('latest') }}
+    container_name: traefik-ha
+    restart: unless-stopped
+    network_mode: host                 # bind the VIP directly + reach local HA on the VIP
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    volumes:
+      - ./dynamic:/etc/traefik/dynamic:ro   # ha route (file provider)
+      - ./certs:/etc/traefik/certs:ro        # wildcard cert synced from oldsrv (offline-safe)
+    command:
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address={{ ha_vip }}:80"
+      - "--entrypoints.websecure.address={{ ha_vip }}:443"

@@ -86,6 +86,11 @@ record, WAN-blocked).
 - Requires Traefik's file provider to watch `/opt/traefik/dynamic` (mount in the
   `traefik` compose template).
 
+> **`dns-pi.kogler.si` is NOT a file-provider route.** The Technitium secondary web UI
+> (on the Pi) is served by the Pi's **`traefik-ha`** edge like `ha`: `dns-pi.kogler.si →
+> VIP` so it stays reachable when oldsrv is down (see [`smart-home-failover.md`](smart-home-failover.md)).
+> The `service-host` FQDN shape is the only thing borrowed from the cockpit naming pattern.
+
 ---
 
 ## Trusted Proxies (Critical)

@@ -44,6 +44,7 @@
 |---------|---------|------|
 | DNS primary (Technitium) | 10.10.1.30 | oldsrv |
 | DNS secondary (Technitium) | 10.10.1.20 | pi |
+| DNS secondary web UI (`dns-pi.kogler.si`) | VIP `10.10.1.200` (edge) → `10.10.1.20:5380` | pi |
 | Home Assistant VIP (`ha.kogler.si`) | 10.10.1.200 | pi ↔ oldsrv (keepalived) |
 
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)

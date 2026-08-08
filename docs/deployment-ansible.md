@@ -360,7 +360,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 3 | `amd_rocm` | `common` |
 | 4 | `docker_services` (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
 | 5 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
-| 6 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) + Pi `docker_services` (`raspberrymatic`, `technitium-secondary`) | `docker` |
+| 6 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) + Pi `docker_services` (`raspberrymatic`, `technitium-secondary`, `traefik-ha` edge for `ha` + `dns-pi`) | `docker` |
 | 7 | `nut` — nas: master (usbhid-ups + upsd + nut_exporter); oldsrv/ha: client (upsmon slave + upssched + notifycmd) | `common`, `network` |
 | 8 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) **and** `nut` (needs nut_exporter) |
 | 9 | `router` | `network` (IPs/VLANs defined) |

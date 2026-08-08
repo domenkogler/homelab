@@ -92,10 +92,59 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 ## Remote & App Access (`ha.kogler.si`)
 
 - **Route:** `ha.kogler.si` → Traefik → **VIP**. The `ha` route must **NOT** use Authentik Forward-Auth (breaks the Companion WebSocket/token flow) — see `smart-home.md`.
-- **Traefik↔VIP coupling (hard requirement):** Traefik runs on oldsrv and its `ha` backend is the keepalived VIP on the **Home VLAN**. HA must not leave VLAN 10, and the VIP must stay reachable from oldsrv across takeover/failback — otherwise the `ha` route breaks (see `services.md` accessibility SSOT).
+- **VIP↔edge coupling (hard requirement):** the VIP `10.10.1.200` is served on `:443` by whichever keepalived node owns it. In normal mode the Pi's **`traefik-ha`** edge (see below) serves `ha.kogler.si`; after takeover oldsrv's `traefik` takes over (both have an identical `ha` route → VIP:8123). HA must not leave VLAN 10, and keepalived must keep the VIP on the active HA node — otherwise the `ha` route breaks (see `services.md` accessibility SSOT).
 - **Normal (Pi active):** Android app works over WAN (Cloudflare → VPS Traefik, Phase 2) and over VPN (Headscale).
 - **Fallback (oldsrv active):** same hostname routes to the standby. **WAN access is NOT required in fallback** (accepted) — app still works on LAN/WiFi, and over VPN if needed.
-- **Security:** HA `http.use_x_forwarded_for: true` + `trusted_proxies: <Traefik>`; one local `owner` account as recovery if Authentik is unreachable.
+- **Security:** HA `http.use_x_forwarded_for: true` + `trusted_proxies: <both Traefik edges — Pi traefik-ha and oldsrv traefik>`; one local `owner` account as recovery if Authentik is unreachable.
+
+### Edge (`ha.kogler.si`) accessibility on node failure
+
+> **The gap this closes:** `traefik` runs only on oldsrv → it is the single point of
+> failure for the whole `:443`/TLS plane. The **Pi-down** case is already covered
+> (HA, DNS-primary and Traefik all sit on oldsrv, so after the manual failover
+> everything incl. the `ha` route works). The **oldsrv-down** case is the real gap:
+> HA + DNS survive on the Pi, but the only HTTPS edge is down.
+
+**Design — HA's edge is co-located with HA and rides the VIP.** Run a minimal,
+VIP-bound **`traefik-ha`** edge on the Pi that serves **only** `ha.kogler.si →
+VIP:8123` (no Authentik Forward-Auth — same rule as the oldsrv `ha` route, it breaks
+the Companion WebSocket/token flow). Because the VIP already tracks the active HA
+node, the `ha` edge moves with HA automatically — **no DNS flip on failover**:
+
+| State | VIP owner | Serves `ha.kogler.si` via… |
+|---|---|---|
+| Normal | Pi | Pi `traefik-ha` → local HA |
+| Pi down (manual forward takeover) | oldsrv | oldsrv `traefik` → VIP → standby HA |
+| **oldsrv down** | Pi | **Pi `traefik-ha` → local HA — gap closed** |
+
+**The same edge also serves the DNS-secondary web UI (`dns-pi.kogler.si`).**
+`dns-pi.kogler.si` resolves to the **VIP** (FQDN shape borrowed from the cockpit
+naming pattern, but delivery is like `ha` — NOT a file-provider route on oldsrv)
+and is served by the Pi's `traefik-ha` edge → local `10.10.1.20:5380`. Rationale:
+when oldsrv is down, the Technitium **secondary** on the Pi is the surviving DNS,
+so its web UI must be reachable without oldsrv's Traefik. Internal-only, no
+Forward-Auth. Direct fallback `http://10.10.1.20:5380`.
+
+**Scope (what it does NOT do):** this only keeps **HA + the DNS-secondary web UI**
+reachable when oldsrv is down. Immich / Forgejo / Authentik / Grafana / … have
+their backends as containers *on* oldsrv and die with it — a second Traefik cannot
+rescue them. This is an **HA/DNS availability** change, not general service failover
+(Phase 2 moves the public edge to the VPS per `services-vps.md`).
+
+**Caveats (implementation):**
+- **VIP-only bind / gating:** `traefik-ha` uses `network_mode: host` with entrypoints
+  explicitly bound to `10.10.1.200:80/443`, and the Pi sets `net.ipv4.ip_nonlocal_bind=1`
+  so Traefik can bind the VIP before/without keepalived holding the address. Only the
+  keepalived MASTER (Pi in normal mode) owns the VIP → `:443`, so it never fights
+  oldsrv's `traefik` for the VIP.
+- **Offline-safe cert (decision):** ACME is **disabled on the Pi edge** — it is not an ACME
+  issuer. The wildcard `*.kogler.si` cert pair is **synced from oldsrv's `traefik`**
+  (single ACME issuer, Cloudflare DNS-01) to `/opt/traefik-ha/certs/` on a LAN timer
+  (same cadence as the HA config sync, direction reversed). If oldsrv is down *and* WAN is
+  down, the last synced cert still serves `ha.kogler.si` / `dns-pi.kogler.si` (ACME
+  cannot renew, but it does not need to). The Companion app requires a valid cert, so it must work fully offline
+  (WAN loss is not a failover trigger and is not required in fallback).
+- **`trusted_proxies`:** HA must trust both edges so real client IPs are preserved.
 
 ---
 

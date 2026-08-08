@@ -84,6 +84,7 @@ tags: [services, catalog]
 | Kopia Web UI | `bck.kogler.si` |
 | n8n | `auto.kogler.si` |
 | Technitium | `dns.kogler.si` |
+| Technitium secondary (Pi) | `dns-pi.kogler.si` |
 | Pi-hole | `ad.kogler.si` |
 | NAS Cockpit | `cockpit-nas.kogler.si` |
 | Server Cockpit | `cockpit-oldsrv.kogler.si` |
@@ -98,7 +99,7 @@ tags: [services, catalog]
 
 ## What Is NOT on oldsrv
 
-- **Home Assistant (primary)** — on the Raspberry Pi 4 (HA config in this repo), co-located with **RaspberryMatic + HmIP-RFUSB** (local Homematic IP) and the **Technitium secondary** DNS. **Standby** Home Assistant runs on oldsrv: see [`smart-home-failover.md`](smart-home-failover.md).
+- **Home Assistant (primary)** — on the Raspberry Pi 4 (HA config in this repo), co-located with **RaspberryMatic + HmIP-RFUSB** (local Homematic IP), the **Technitium secondary** DNS, and a minimal **`traefik-ha`** edge (VIP-bound) that serves `ha.kogler.si` and keeps it reachable when oldsrv is down. **Standby** Home Assistant runs on oldsrv: see [`smart-home-failover.md`](smart-home-failover.md).
 - **VPS services** — deferred to Phase 2+ ([`services-vps.md`](services-vps.md))
 - **Pangolin** — removed; Traefik handles all reverse proxy
 
@@ -157,6 +158,7 @@ Full architecture in [`observability.md`](observability.md). Summary:
 | `https://cockpit-nas.kogler.si` | `10.10.1.10:9090` |
 | `https://cockpit-oldsrv.kogler.si` | `10.10.1.30:9090` |
 | `https://dns.kogler.si` | Technitium web UI (resolution stays `10.10.1.30`/`10.10.1.20`:53) |
+| `https://dns-pi.kogler.si` | Technitium **secondary** web UI — `dns-pi → VIP 10.10.1.200`, served by Pi `traefik-ha` → `10.10.1.20:5380` (reachable when oldsrv is down) |
 | `https://ad.kogler.si` | Pi-hole |
 | `https://stats.kogler.si` | Grafana |
 | `https://traefik.kogler.si` | Traefik Dashboard |
@@ -166,12 +168,13 @@ Full architecture in [`observability.md`](observability.md). Summary:
 **Cockpit scope:** nas + oldsrv only. The Pi is managed via SSH/Ansible + the HA
 Web UI — it does **not** run Cockpit.
 
-**`ha` route coupling (VIP, must-not-break):** Traefik runs on oldsrv; the HA active
-node moves Pi ↔ oldsrv via keepalived. The `ha.kogler.si` backend is the **VIP
-`10.10.1.200` on the Home VLAN** — the route works only while Traefik (oldsrv) can
-reach VLAN 10. If HA ever leaves the Home VLAN, this route is the first thing to
-break. Keep the VIP and Traefik on the same reachable path and treat the VIP as
-the only valid backend (never "correct" it to a node IP). Runbook:
+**`ha` route coupling (VIP, must-not-break):** `ha.kogler.si` resolves to the **VIP
+`10.10.1.200` on the Home VLAN**, and the VIP's `:443` edge is served by whichever
+keepalived node owns it — the Pi's minimal **`traefik-ha`** edge in normal mode,
+oldsrv's `traefik` after a forward takeover. Both edges serve an identical `ha`
+route → VIP:8123, so the route keeps working as long as keepalived keeps the VIP on
+the active HA node and every DNS server serves `ha.kogler.si → VIP` (never "correct"
+it to a node IP). Treat the VIP as the only valid backend. Runbook:
 [`smart-home-failover.md`](smart-home-failover.md).
 
 > Addresses are defined in the single source of truth — [`network-addresses.md`](network-addresses.md).

@@ -37,4 +37,7 @@ services:
 
   # SECONDARY instance (Pi/pi.kogler.si): deploy via the same template with instance name
   # technitium-secondary, a different primary/secondary mode, and no Traefik labels
-  # (it is a DNS resolver only). Keep its web UI on dns.kogler.si or internal-only.
+  # (labels can't cross Docker hosts). Its web UI is reachable at dns-pi.kogler.si
+  # (resolves to the VIP, served by the Pi's traefik-ha edge → local :5380, so it stays
+  # reachable when oldsrv is down — docs/smart-home-failover.md) or directly at
+  # http://10.10.1.20:5380.

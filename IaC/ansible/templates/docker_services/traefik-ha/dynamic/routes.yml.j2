@@ -1,0 +1,42 @@
+# traefik-ha — dynamic routes (file provider). Serves ha.kogler.si + dns-pi.kogler.si:
+# the services hosted on the Pi that must stay reachable when oldsrv is DOWN.
+#   - ha:      same `ha` route semantics as the oldsrv `traefik` (backend = VIP:8123),
+#              NO Authentik Forward-Auth (breaks the Companion WebSocket/token flow).
+#   - dns-pi:  Technitium SECONDARY web UI (dns-pi.kogler.si → VIP, served by THIS
+#              edge so it survives an oldsrv outage; backend = local host 10.10.1.20:5380).
+#              No Forward-Auth — management surface with its own login, internal-only.
+#   ACME is DISABLED on this edge — TLS comes from the cert files synced from
+#   oldsrv (see tls.certificates below). No certResolver is configured.
+http:
+  routers:
+    ha:
+      rule: "Host(`ha.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: ha-backend
+      tls: true
+      # NOTE: no authentik-forward-auth@file middleware on the ha route
+    dns-pi:
+      rule: "Host(`dns-pi.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: dns-pi-backend
+      tls: true
+      # NOTE: no authentik-forward-auth on the dns-pi route (own-login mgmt surface)
+  services:
+    ha-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ ha_vip }}:8123"
+    dns-pi-backend:
+      loadBalancer:
+        servers:
+          - url: "http://10.10.1.20:5380"
+
+# Wildcard *.kogler.si cert pair, synced from oldsrv's `traefik` (the single ACME
+# issuer; Cloudflare DNS-01) — see home_assistant role cert-sync task. Offline-safe:
+# both routes stay TLS-valid even when WAN/ACME is down.
+tls:
+  certificates:
+    - certFile: /etc/traefik/certs/kogler.si.pem
+      keyFile: /etc/traefik/certs/kogler.si-key.pem
