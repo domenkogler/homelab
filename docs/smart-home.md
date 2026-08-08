@@ -50,7 +50,7 @@ tags: [smart-home, homeassistant]
 - **Fallback:** `home-assistant-standby` Docker container on oldsrv (systemd unit, disabled by default) — **active/standby failover, manual trigger + manual failback**
 - **Configs:** In this homelab repo (moved from HA's own GitHub repo)
 
-> **Failover design → [`smart-home-failover.md`](smart-home-failover.md).** Both nodes share a VIP (`10.10.1.200`, keepalived/VRRP); `ha.kogler.si` routes to the VIP so takeover needs no DNS flip or per-device reconfig. WAN loss is NOT a trigger (HA is local); failover is only for Pi failure and must work offline.
+> **Failover design → [`smart-home-failover.md`](smart-home-failover.md).** Both nodes share a VIP (keepalived/VRRP); `ha.kogler.si` routes to the VIP so takeover needs no DNS flip or per-device reconfig. WAN loss is NOT a trigger (HA is local); failover is only for Pi failure and must work offline.
 - **Entity list:** Not yet exported — needed for TileBoard + Grafana generation (enable HA Prometheus exporter: see `observability.md`)
 
 ### Remote access & SSO (ha.kogler.si)
