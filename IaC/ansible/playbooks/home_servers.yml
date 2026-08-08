@@ -6,6 +6,7 @@
     - ai_diag        # restricted diagnostic dispatcher for ai-debug
     - docker
     - network
+    - nut             # UPS client (oldsrv) — after network, before monitoring
     - amd_rocm
     - role: desktop
       when: homelab_mode == 'desktop'

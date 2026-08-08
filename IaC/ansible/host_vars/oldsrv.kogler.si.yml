@@ -5,4 +5,8 @@ home_ip: 10.10.1.30                 # VLAN 10 (Home) — node IP (VRRP anchor)
 dns_primary_ip: 10.10.1.30          # Technitium primary binds the node IP
 ansible_user: ansible-admin        # created by preseed post_install.sh
 homelab_mode: desktop
+# NUT: UPS CLIENT (slave to nas) — delayed so alerts flush before powerdown
+nut_mode: client
+nut_host: nas.kogler.si             # NUT master endpoint
+shutdown_delay_seconds: 60          # flush Grafana→n8n→Signal before critical shutdown
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

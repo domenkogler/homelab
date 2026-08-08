@@ -1,0 +1,17 @@
+# managed by Ansible — nut role (both)
+# Deferred shutdown helper. `shutdown_delay_seconds` lets a host wait before
+# power-off so critical alerts flush first. ONBATT/ONLINE transitions send a
+# direct notification (independent of Grafana/n8n).
+CMDSCRIPT /etc/nut/upssched-cmd
+PIPEFN /var/run/nut/upssched.pipe
+LOCKFN /var/run/nut/upssched.lock
+
+# Notify immediately on mains loss / battery low.
+AT ONBATT  * EXECUTE onbatt
+AT LOWBATT * EXECUTE lowbatt
+
+# Optional delayed shutdown (set shutdown_delay_seconds > 0 on clients that
+# must flush alerts first, e.g. oldsrv=60). Cancel if power returns in time.
+AT ONBATT * START-TIMER onbatt-delay {{ shutdown_delay_seconds | default(0) }}
+AT ONLINE * CANCEL-TIMER onbatt-delay
+AT ONLINE * EXECUTE online

@@ -1,0 +1,41 @@
+#!/bin/bash
+# managed by Ansible — nut role (master) — upssched-cmd notify
+# Direct ONBATT/LOWBATT notification, INDEPENDENT of Grafana/n8n — so a
+# pre-shutdown notice is sent even if the observability stack is degraded.
+# Emails via /usr/sbin/sendmail, optionally forwards to a Signal helper.
+set -u
+
+case "$1" in
+  onbatt)
+    SUBJ="[Homelab UPS] ON BATTERY — mains lost"
+    BODY="The PowerWalker UPS is on battery. ${nut_host}@${nut_listen_ip} — expect shutdown per NUT policy."
+    ;;
+  lowbatt)
+    SUBJ="[Homelab UPS] LOW BATTERY — imminent shutdown"
+    BODY="UPS battery critically low — hosts will shut down now (${nut_host})."
+    ;;
+  online)
+    SUBJ="[Homelab UPS] Back on mains"
+    BODY="Utility power restored; UPS charging. ${nut_host}"
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+
+# --- Email (sendmail) ---
+{
+  echo "To: ${nut_notify_email}"
+  echo "Subject: ${SUBJ}"
+  echo "MIME-Version: 1.0"
+  echo "Content-Type: text/plain; charset=utf-8"
+  echo ""
+  echo "${BODY}"
+} | /usr/sbin/sendmail -t 2>/dev/null || /usr/bin/mail -s "${SUBJ}" "${nut_notify_email}" <<<"${BODY}" 2>/dev/null || true
+
+# --- Optional Signal helper ---
+if [ -n "${nut_signal_helper}" ] && [ -x "${nut_signal_helper}" ]; then
+  "${nut_signal_helper}" "${SUBJ} — ${BODY}" 2>/dev/null || true
+fi
+
+exit 0

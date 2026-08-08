@@ -1,0 +1,5 @@
+# managed by Ansible — nut role (master)
+# Listen on loopback + the nas Home-VLAN IP (intra-VLAN to clients on VLAN 10).
+LISTEN 127.0.0.1 3493
+LISTEN {{ nut_listen_ip }} 3493
+MAXCONN 16

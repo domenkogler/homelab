@@ -1,0 +1,38 @@
+---
+# nut role defaults — UPS NUT master (nas) / clients (oldsrv, ha).
+# Mode is driven per-host by `nut_mode` (master | client) set in host_vars.
+# Secrets (upsmon passwords, notify SMTP/Signal) resolve from 1Password at
+# render time — never hardcoded.
+
+# Master endpoint used by clients.
+nut_host: nas.kogler.si
+
+# --- Master (usbhid-ups, USB HID to the PowerWalker VFI ICT/ICR IoT 3000) ---
+nut_driver: usbhid-ups
+nut_serial: auto
+nut_listen_ip: 10.10.1.10        # nas Home-VLAN IP — upsd listens here (intra-VLAN)
+
+# --- Per-host shutdown delay (seconds) — set in host_vars ---
+# shutdown_delay_seconds: 0      # nas/ha power down immediately
+# shutdown_delay_seconds: 60     # oldsrv — flush Grafana→n8n→Signal before powerdown
+
+# --- nut_exporter (single SSOT exporter, run as a HOST binary on master;
+# nas has no Docker). Set `nut_exporter_release` to a version to enable the
+# download; skip (empty) leaves it to be provisioned out-of-band.
+nut_exporter: true
+nut_exporter_release: ""         # e.g. "3.1.0" — set by operator (binary download)
+nut_exporter_arch: amd64         # nas is x86_64
+nut_exporter_listen: ":9199"
+
+# --- Notify (upssched-cmd) — direct email + optional Signal on ONBATT/LOWBATT,
+# independent of Grafana/n8n. Recipient + SMTP creds from 1Password Homelab.
+nut_notify_email: "{{ lookup('community.general.onepassword', 'nut_notify_email', vault=op_vault) }}"
+
+# upsmon auth password (shared between upsd.users / upsd + clients) — 1Password at render.
+nut_upsmon_password: "{{ lookup('community.general.onepassword', 'upsmon_password', vault=op_vault) }}"
+nut_smtp_server: "{{ lookup('community.general.onepassword', 'nut_smtp_server', vault=op_vault, default='') }}"
+nut_smtp_user: "{{ lookup('community.general.onepassword', 'nut_smtp_user', vault=op_vault, default='') }}"
+nut_smtp_pass: "{{ lookup('community.general.onepassword', 'nut_smtp_pass', vault=op_vault, default='') }}"
+# Optional: absolute path to a helper that sends a Signal message as $1
+# (e.g. a wrapper around signal-cli). Leave empty to skip Signal from NUT.
+nut_signal_helper: ""

@@ -4,6 +4,7 @@
   roles:
     - common
     - network
+    - nut             # UPS client (Pi) — after network
     - docker
     - home_assistant
     - docker_services        # raspberrymatic + technitium-secondary on the Pi

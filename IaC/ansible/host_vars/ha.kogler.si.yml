@@ -3,4 +3,8 @@
 ansible_host: 10.10.1.20           # VLAN 10 (Home) — node IP (VRRP anchor, SSH)
 dns_secondary_ip: 10.10.1.20       # Technitium secondary binds the node IP (not proxiable)
 ansible_user: pi
+# NUT: UPS CLIENT (slave to nas) — power down immediately on critical
+nut_mode: client
+nut_host: nas.kogler.si             # NUT master endpoint
+shutdown_delay_seconds: 0
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

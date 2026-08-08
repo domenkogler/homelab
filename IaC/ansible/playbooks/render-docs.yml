@@ -1,0 +1,29 @@
+---
+# render-docs.yml — control-plane SSOT render (issues.md I3)
+# ------------------------------------------------
+# Regenerates docs/network-addresses.md (IP address SSOT) from
+# IaC/ansible group_vars/host_vars. This is the "IaC → docs" half of the
+# IaC-as-source model. Doco-CD's post-deploy hook will invoke the same render
+# once it is active (docs/interfaces.md).
+#
+# Run standalone:   ansible-playbook playbooks/render-docs.yml -i inventory.ini
+# (also invoked as the final step of site.yml)
+- name: Render SSOT docs from IaC (control plane)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  run_once: true
+  tasks:
+    - name: Render docs/network-addresses.md from group_vars/all.yml SSOT
+      template:
+        src: "{{ playbook_dir }}/../templates/network-addresses.md.j2"
+        dest: "{{ playbook_dir }}/../../../docs/network-addresses.md"
+
+    # inventory.md belongs to the docker_services post-deploy hook (on oldsrv,
+    # where `inventory_hostname` is meaningful). Rendered here only if a
+    # docker_services list is in scope.
+    - name: Render docs/inventory.md (service inventory)
+      template:
+        src: "{{ playbook_dir }}/../templates/inventory.md.j2"
+        dest: "{{ playbook_dir }}/../../../docs/inventory.md"
+      when: docker_services is defined

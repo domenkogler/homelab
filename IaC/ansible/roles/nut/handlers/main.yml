@@ -1,0 +1,24 @@
+---
+- name: restart nut services
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+    daemon_reload: true
+  loop:
+    - nut-server
+    - nut-monitor
+  when: nut_mode == 'master'
+
+- name: restart nut-monitor (client)
+  systemd:
+    name: nut-monitor
+    state: restarted
+    daemon_reload: true
+  when: nut_mode == 'client'
+
+- name: restart nut_exporter
+  systemd:
+    name: nut_exporter
+    state: restarted
+    daemon_reload: true
+  when: nut_exporter

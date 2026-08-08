@@ -4,4 +4,9 @@ ansible_host: 10.10.1.10           # VLAN 10 (Home) — static (Cockpit/NFS/NUT 
 mgmt_ip: 10.10.99.10               # VLAN 99 (Management) — native
 ilo_ip: 10.10.99.11                # iLO4 remote mgmt
 ansible_user: ansible-admin        # created by preseed post_install.sh
+# NUT: UPS MASTER — only host physically USB-wired to the PowerWalker
+nut_mode: master
+nut_driver: usbhid-ups
+nut_serial: auto                    # USB HID auto-detect (no serial/RS-485)
+shutdown_delay_seconds: 0           # power down immediately on critical
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

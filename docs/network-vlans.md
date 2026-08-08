@@ -53,7 +53,7 @@ tags: [network, vlan, firewall]
 |-------------|-----------------|------|
 | Home (10) | IoT (20) | Accept established/related + new from trusted IPs (MQTT/HA) |
 | Home (10) | IoT-Internet (21) | Accept established/related + new from trusted IPs (HA→HAP, Prometheus→HA) |
-| Home (10) | Management (99) | Accept SSH/WinBox/HTTPS · **502/tcp (UPS Modbus) + 80/443 (UPS web UI)** from trusted monitoring hosts (nas/oldsrv/ha) |
+| Home (10) | Management (99) | Accept SSH/WinBox/API (22,8291,8728)/HTTPS · **502/tcp (UPS Modbus) + 80/443 (UPS web UI)** from trusted Home servers (`trusted-admin`: nas/oldsrv/HA-VIP) |
 | Home (10) | Media (50) | Accept (remote control, casting) |
 | IoT (20) | Home (10) | **Drop all** (only replies to Home-initiated) |
 | IoT (20) | WAN | **Drop all** — disable rule manually for firmware updates |

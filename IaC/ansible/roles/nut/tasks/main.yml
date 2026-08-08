@@ -1,0 +1,156 @@
+---
+# nut role — UPS monitoring & shutdown (docs/hardware-ups.md, observability.md).
+# Mode-driven: master = nas (usbhid-ups + upsd + nut_exporter on the HOST —
+# nas has no Docker); client = oldsrv/ha (upsmon slave + per-host shutdown
+# delay). Must run BEFORE the `monitoring` role (monitoring scrapes the exporter).
+- name: Refuse NUT runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      nut role must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+  tags: always
+
+- name: Require nut_mode is set per host
+  assert:
+    that:
+      - nut_mode is defined
+      - nut_mode in ['master', 'client']
+    fail_msg: "nut_mode must be 'master' or 'client' for {{ inventory_hostname }}"
+  tags: always
+
+- name: Set NUT packages by mode
+  set_fact:
+    _nut_packages: "{{ ['nut-server', 'nut', 'nut-client'] if nut_mode == 'master' else ['nut-client'] }}"
+
+- name: Install NUT packages
+  apt:
+    name: "{{ _nut_packages }}"
+    state: present
+    update_cache: true
+
+- name: Configure /etc/nut/nut.conf (mode)
+  template:
+    src: nut.conf.j2
+    dest: /etc/nut/nut.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart nut services
+
+- name: Configure /etc/nut/ups.conf (master — USB HID driver)
+  template:
+    src: ups.conf.j2
+    dest: /etc/nut/ups.conf
+    owner: root
+    group: root
+    mode: '0640'
+  when: nut_mode == 'master'
+  notify: restart nut services
+
+- name: Configure /etc/nut/upsd.conf (master)
+  template:
+    src: upsd.conf.j2
+    dest: /etc/nut/upsd.conf
+    owner: root
+    group: root
+    mode: '0640'
+  when: nut_mode == 'master'
+  notify: restart nut services
+
+- name: Configure /etc/nut/upsd.users (master — auth for remote slaves)
+  template:
+    src: upsd.users.j2
+    dest: /etc/nut/upsd.users
+    owner: root
+    group: root
+    mode: '0640'
+  when: nut_mode == 'master'
+  notify: restart nut services
+
+- name: Configure /etc/nut/upsmon.conf (master)
+  template:
+    src: upsmon.conf.j2
+    dest: /etc/nut/upsmon.conf
+    owner: root
+    group: root
+    mode: '0640'
+  when: nut_mode == 'master'
+  notify: restart nut services
+
+- name: Configure /etc/nut/upsmon.conf (client slave)
+  template:
+    src: upsmon-client.conf.j2
+    dest: /etc/nut/upsmon.conf
+    owner: root
+    group: root
+    mode: '0640'
+  when: nut_mode == 'client'
+  notify: restart nut services
+
+- name: Configure /etc/nut/upssched.conf (both)
+  template:
+    src: upssched.conf.j2
+    dest: /etc/nut/upssched.conf
+    owner: root
+    group: nut
+    mode: '0640'
+  notify: restart nut services
+
+- name: Deploy upssched-cmd notify script (master — email + optional Signal)
+  template:
+    src: upssched-cmd.j2
+    dest: /etc/nut/upssched-cmd
+    owner: root
+    group: nut
+    mode: '0755'
+  when: nut_mode == 'master'
+
+# --- nut_exporter: single SSOT exporter, HOST binary on the master ---
+- name: Download nut_exporter binary (master, host — nas has no Docker)
+  get_url:
+    url: "https://github.com/DRuggeri/nut_exporter/releases/download/{{ nut_exporter_release }}/nut_exporter-linux-{{ nut_exporter_arch }}"
+    dest: /usr/local/bin/nut_exporter
+    mode: '0755'
+  when:
+    - nut_mode == 'master'
+    - nut_exporter
+    - nut_exporter_release != ''
+  tags: [nut_exporter]
+
+- name: Deploy nut_exporter systemd unit (master)
+  template:
+    src: nut_exporter.service.j2
+    dest: /etc/systemd/system/nut_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: nut_mode == 'master' and nut_exporter
+  notify: restart nut_exporter
+
+- name: Enable nut_exporter (master)
+  systemd:
+    name: nut_exporter
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: nut_mode == 'master' and nut_exporter
+
+# --- Enable/start NUT daemons ---
+- name: Enable and start NUT services (master)
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  loop: "{{ ['nut-server', 'nut-monitor'] }}"
+  when: nut_mode == 'master'
+
+- name: Enable and start NUT services (client)
+  systemd:
+    name: nut-monitor
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: nut_mode == 'client'

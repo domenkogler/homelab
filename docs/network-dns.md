@@ -47,14 +47,16 @@ Technitium runs as a Docker container on oldsrv (primary) and a **second instanc
 ## DNS Flow
 
 ```
-Client → Router (10.10.x.1) → Technitium PRIMARY (oldsrv, 10.10.1.30)
-                             ↘ Technitium SECONDARY (pi, 10.10.1.20)
-                             ↘ 1.1.1.1 (final fallback)
+Client → Technitium PRIMARY (oldsrv, 10.10.1.30)     ← DHCP lists this first
+        → Technitium SECONDARY (pi, 10.10.1.20)
+        → Router /ip dns (10.10.x.1, tertiary) → 1.1.1.1 (final fallback)
 ```
 
-- Router `/ip dns` forwards to **Technitium primary + secondary**, `1.1.1.1` as final fallback
-- DHCP clients receive **both** the primary and secondary Technitium addresses (and the router's IP)
-- If oldsrv is down: the **secondary on the Pi** still resolves local `*.kogler.si` and enforces per-subnet filtering; 1.1.1.1 is only a last resort (unfiltered)
+- DHCP hands clients **both** Technitium addresses first (10.10.1.30, 10.10.1.20),
+  then the router's IP as tertiary — so per-subnet filtering is enforced (Technitium
+  sees the source subnet, not the router). All three bind **Home**-VLAN addresses.
+- If oldsrv is down: the **secondary on the Pi** still resolves local `*.kogler.si`
+  and enforces per-subnet filtering; 1.1.1.1 is only a last resort (unfiltered)
 - The **secondary is a true failure-domain split** — the Pi is a different physical box from oldsrv
 - `ha.kogler.si` resolves to the **VIP** on both secondary and primary (see [`smart-home-failover.md`](smart-home-failover.md)) so DNS is never the thing that breaks HA lookup
 - **Coupling tradeoff (accepted):** the Pi also hosts primary HA. A Pi failure takes the DNS secondary down **with** it — but the DNS **primary** (oldsrv) survives, and oldsrv is exactly the box HA fails over to, so resolution is never the thing that breaks HA in the Pi-down scenario.
@@ -80,14 +82,23 @@ Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
 
 ## MikroTik Firewall Rules for DNS
 
-- Allow DNS (UDP 53) from all user VLANs to Technitium IP on Management VLAN (99)
-- Global inter-VLAN drop rule sits **below** these exceptions
+Technitium binds **Home**-VLAN addresses (`10.10.1.30` oldsrv primary, `10.10.1.20`
+Pi secondary). Clients on every other VLAN reach them via explicit **forward** rules,
+plus the router's own resolver is open on UDP/TCP 53 (input) as a tertiary.
+
+- Forward, above the inter-VLAN drop: from `in-interface-list=LAN` →
+  `dst-address=10.10.1.30` **and** `10.10.1.20`, UDP 53 (+ DoT 853).
+- Input: `in-interface-list=LAN` UDP/TCP 53 → router `/ip dns` (tertiary), which itself
+  forwards to Technitium + 1.1.1.1.
+- Global inter-VLAN drop rule sits **below** these exceptions.
+- There is **no** "allow DNS on the Management VLAN" rule — Technitium is **not** on the
+  Management VLAN; the old Mgmt-placement wording predates the Home-based move (see issues.md **I2**).
 
 ---
 
 ## Local Name Resolution & mDNS
 
-- **DHCP lease integration:** Technitium queries RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records. Technitium runs on oldsrv (Management VLAN 99, native trunk) — same VLAN as the router's management interface, so no inter-VLAN firewall rule is needed.
+- **DHCP lease integration:** Technitium queries RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records. Technitium primary binds the **Home** IP `10.10.1.30` (oldsrv) and secondary `10.10.1.20` (the Pi) — cross-VLAN DNS is permitted by the forward rules above.
 - **mDNS reflector:** Technitium bridges `.local` names across all VLANs (RouterOS built-in mDNS is bridge-wide only, cannot cross VLANs)
 
 ---

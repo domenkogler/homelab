@@ -1,0 +1,8 @@
+# managed by Ansible — nut role (master: usbhid-ups via USB HID)
+# PowerWalker VFI ICT/ICR IoT 3000 — no serial/RS-485 adapter needed (USB HID).
+[powerwalker]
+    driver = {{ nut_driver }}
+    port = {{ nut_serial }}
+    desc = "PowerWalker VFI ICT/ICR IoT 3000 (USB HID)"
+    pollinterval = 2
+    retrycount = 5

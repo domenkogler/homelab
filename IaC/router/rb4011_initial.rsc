@@ -117,37 +117,38 @@
 /ip dhcp-server add name=dhcp-mgmt  interface=vlan99-mgmt  address-pool=pool-mgmt  disabled=no
 
 # ---- DHCP Networks ----
-# DNS points at router (10.10.x.1). Router forwards to Technitium (later) / 1.1.1.1 (now)
+# DNS: user VLANs hand out Technitium primary+secondary (Home) + gateway as tertiary.
+# Mgmt (99) uses the router resolver (local system). See docs/network-dns.md.
 
 /ip dhcp-server network add \
-    address=10.10.1.0/24 gateway=10.10.1.1 dns-server=10.10.1.1 \
+    address=10.10.1.0/24 gateway=10.10.1.1 dns-server=10.10.1.30,10.10.1.20,10.10.1.1 \
     domain=kogler.si comment="Home"
 
 /ip dhcp-server network add \
-    address=10.10.20.0/24 gateway=10.10.20.1 dns-server=10.10.20.1 \
+    address=10.10.20.0/24 gateway=10.10.20.1 dns-server=10.10.1.30,10.10.1.20,10.10.20.1 \
     domain=kogler.si comment="IoT"
 
 /ip dhcp-server network add \
-    address=10.10.21.0/24 gateway=10.10.21.1 dns-server=10.10.21.1 \
+    address=10.10.21.0/24 gateway=10.10.21.1 dns-server=10.10.1.30,10.10.1.20,10.10.21.1 \
     domain=kogler.si comment="IoT-Internet"
 
 /ip dhcp-server network add \
-    address=10.10.30.0/24 gateway=10.10.30.1 dns-server=10.10.30.1 \
+    address=10.10.30.0/24 gateway=10.10.30.1 dns-server=10.10.1.30,10.10.1.20,10.10.30.1 \
     comment="Guest (no local domain)"
 
 /ip dhcp-server network add \
-    address=10.10.40.0/24 gateway=10.10.40.1 dns-server=10.10.40.1 \
+    address=10.10.40.0/24 gateway=10.10.40.1 dns-server=10.10.1.30,10.10.1.20,10.10.40.1 \
     domain=kogler.si comment="Kids"
 
 /ip dhcp-server network add \
-    address=10.10.50.0/24 gateway=10.10.50.1 dns-server=10.10.50.1 \
+    address=10.10.50.0/24 gateway=10.10.50.1 dns-server=10.10.1.30,10.10.1.20,10.10.50.1 \
     domain=kogler.si comment="Media"
 
 /ip dhcp-server network add \
     address=10.10.99.0/24 gateway=10.10.99.1 dns-server=10.10.99.1 \
     domain=kogler.si comment="Management"
 
-# ---- DNS (temporary — switches to Technitium after Debian PC is up) ----
+# ---- DNS (Technitium primary+secondary on Home; router static use as tertiary) ----
 
 /ip dns set \
     servers=10.10.1.30,10.10.1.20,1.1.1.1 \
@@ -183,9 +184,16 @@
 
 # ---- Address Lists ----
 
-# Trusted Home devices allowed to initiate connections into IoT
-/ip firewall address-list add address=10.10.1.200 list=trusted-ha    comment="HA VIP (Pi<->oldsrv)"
-# Debian PC address added later after install
+# Trusted Home servers that may manage Mgmt (UPS) + reach IoT. oldsrv/nas/vip.
+/ip firewall address-list add address=10.10.1.10  list=trusted-admin comment="nas (Home)"
+/ip firewall address-list add address=10.10.1.30  list=trusted-admin comment="oldsrv (Home)"
+/ip firewall address-list add address=10.10.1.200 list=trusted-admin comment="HA VIP"
+
+# Trusted Home devices allowed to initiate connections into IoT (MQTT/HA/prom)
+/ip firewall address-list add address=10.10.1.10  list=trusted-ha comment="nas (Home)"
+/ip firewall address-list add address=10.10.1.20  list=trusted-ha comment="pi (Home)"
+/ip firewall address-list add address=10.10.1.30  list=trusted-ha comment="oldsrv (Home)"
+/ip firewall address-list add address=10.10.1.200 list=trusted-ha comment="HA VIP (Pi<->oldsrv)"
 
 # IoT devices allowed internet access (firmware updates)
 # Uncomment and add IPs when needed:
@@ -204,21 +212,19 @@
 /ip firewall filter add chain=input in-interface-list=VLAN-Mgmt protocol=tcp dst-port=22,8291,8728,80,443 action=accept comment="SSH/WinBox/API/Web from Mgmt"
 /ip firewall filter add chain=input in-interface=vlan10-home                               protocol=icmp                                 action=accept comment="ICMP from Home"
 /ip firewall filter add chain=input in-interface=vlan99-mgmt                               protocol=icmp                                 action=accept comment="ICMP from Mgmt"
+/ip firewall filter add chain=input in-interface-list=LAN protocol=udp,tcp dst-port=53 action=accept comment="DNS → router resolver (tertiary)"
 /ip firewall filter add chain=input                                                         action=drop    comment="Drop all other input"
 
 # Inter-VLAN forwarding rules
 # NOTE: Order matters — rules are evaluated top-to-bottom
 
-# DNS: allow all VLANs → router DNS (intercepted before inter-VLAN drop)
-/ip firewall filter add chain=forward dst-address=10.10.1.1   protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (Home GW)"
-/ip firewall filter add chain=forward dst-address=10.10.20.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (IoT GW)"
-/ip firewall filter add chain=forward dst-address=10.10.21.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (IoT-Internet GW)"
-/ip firewall filter add chain=forward dst-address=10.10.30.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (Guest GW)"
-/ip firewall filter add chain=forward dst-address=10.10.40.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (Kids GW)"
-/ip firewall filter add chain=forward dst-address=10.10.50.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (Media GW)"
-/ip firewall filter add chain=forward dst-address=10.10.99.1  protocol=udp dst-port=53 in-interface-list=LAN action=accept comment="DNS → router (Mgmt GW)"
+# DNS: allow every user VLAN → Technitium primary+secondary on Home (above inter-VLAN drop)
+/ip firewall filter add chain=forward in-interface-list=LAN dst-address=10.10.1.30 protocol=udp dst-port=53 action=accept comment="DNS → Technitium primary (oldsrv)"
+/ip firewall filter add chain=forward in-interface-list=LAN dst-address=10.10.1.30 protocol=tcp dst-port=853 action=accept comment="DoT → Technitium primary"
+/ip firewall filter add chain=forward in-interface-list=LAN dst-address=10.10.1.20 protocol=udp dst-port=53 action=accept comment="DNS → Technitium secondary (Pi)"
+/ip firewall filter add chain=forward in-interface-list=LAN dst-address=10.10.1.20 protocol=tcp dst-port=853 action=accept comment="DoT → Technitium secondary"
 
-# Home → IoT (MQTT/HA initiated by trusted devices)
+# Home → IoT (MQTT/HA/prom initiated by trusted Home servers)
 /ip firewall filter add chain=forward \
     src-address-list=trusted-ha out-interface=vlan20-iot \
     connection-state=new action=accept \
@@ -236,11 +242,17 @@
     connection-state=new action=drop \
     comment="IoT-Internet↛Home (block new)"
 
-# Home → Management
+# Home → Mgmt (SSH/WinBox/API/Web + UPS Modbus, from trusted Home servers)
 /ip firewall filter add chain=forward \
     in-interface=vlan10-home out-interface=vlan99-mgmt \
-    protocol=tcp dst-port=22,8291,80,443 action=accept \
-    comment="Home→Mgmt (SSH/WinBox/Web)"
+    src-address-list=trusted-admin \
+    protocol=tcp dst-port=22,8291,8728,80,443 action=accept \
+    comment="Home→Mgmt (SSH/WinBox/API/Web from trusted)"
+/ip firewall filter add chain=forward \
+    in-interface=vlan10-home out-interface=vlan99-mgmt \
+    src-address-list=trusted-admin \
+    protocol=tcp dst-port=502 action=accept \
+    comment="Home→Mgmt (UPS Modbus from trusted)"
 
 # Home → Media (casting, remote control)
 /ip firewall filter add chain=forward \

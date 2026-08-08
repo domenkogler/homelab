@@ -7,7 +7,7 @@
 
 | Component | Implemented | Stubs |
 |-----------|------------|-------|
-| Ansible roles | `common`, `docker`, `ai_diag` (3) | `amd_rocm`, `desktop`, `network`, `office`, `home_assistant`, `proxmox`, `router`, `monitoring`, `docker_services` (9) |
+| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `network` (foundation) (5) | `amd_rocm`, `desktop`, `office`, `home_assistant`, `proxmox`, `router`, `monitoring`, `docker_services` (8) — + `network` static-IP/trunk pending |
 | Docker compose templates | 0 (all `.j2` files are TODO stubs) | 19 |
 | RouterOS scripts | `rb4011_initial.rsc`, `ap_initial.rsc` (2) | — |
 | Bootstrap | `bootstrap.sh`, `post_install.sh` (2) | — |
@@ -42,14 +42,16 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   ├── ansible/
 │   │   ├── ansible.cfg                     # SSH settings, output format
 │   │   ├── site.yml                        # Master playbook — imports per-group playbooks
-│   │   ├── inventory.ini                   # Host groups: router, vps, home_servers, raspberry_pi
+│   │   ├── inventory.ini                   # Host groups: router, vps, home_servers (oldsrv), storage (nas), raspberry_pi
 │   │   ├── test-1password.yml              # Quick 1Password connectivity test
 │   │   ├── playbooks/
 │   │   │   ├── router.yml                  # hosts: router → role: router
 │   │   │   ├── vps.yml                     # hosts: vps → common→docker→network→docker_services→monitoring
-│   │   │   ├── home_servers.yml            # hosts: home_servers → common→ai_diag→docker→network→amd_rocm→[desktop,office]→docker_services→home_assistant→monitoring
-│   │   │   ├── raspberry_pi.yml            # hosts: raspberry_pi → common→network→home_assistant→monitoring
-│   │   │   └── all.yml                     # Cross-cutting: /etc/hosts sync
+│   │   │   ├── home_servers.yml            # hosts: home_servers (oldsrv) → common→ai_diag→docker→network→nut→amd_rocm→[desktop,office]→docker_services→home_assistant→monitoring
+│   │   │   ├── storage.yml                 # hosts: storage (nas) → common→ai_diag→network→nut  (ZFS, NO Docker — I9)
+│   │   │   ├── raspberry_pi.yml            # hosts: raspberry_pi → common→network→nut→docker→home_assistant→docker_services→monitoring
+│   │   │   ├── all.yml                     # Cross-cutting: /etc/hosts sync
+│   │   │   └── render-docs.yml             # Control-plane SSOT render → docs/network-addresses.md (I3)
 │   │   ├── group_vars/
 │   │   │   ├── all.yml                     # Timezone, locale (sl_SI.UTF-8), NTP, domain kogler.si
 │   │   │   ├── router.yml                  # VLAN map (10/20/21/30/40/50/99), WireGuard, DNS
@@ -86,7 +88,11 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   └── roles/
 │   │       ├── common/tasks/{main,system}.yml  # fail-closed admin guard, apt, sudo
 │   │       ├── docker/tasks/main.yml        # Docker CE + compose, daemon.json, user group
-│   │       ├── network/tasks/main.yml       # VLAN interfaces, /etc/hosts
+│   │       ├── network/tasks/main.yml       # /etc/hosts (foundation; static-IP/trunk pending — I3)
+│   │       ├── nut/                         # UPS: master (nas) + clients (oldsrv, ha) — host-binary nut_exporter
+│   │       │   ├── tasks/main.yml
+│   │       │   ├── templates/*.j2
+│   │       │   └── (upssched-cmd notify)
 │   │       ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   │       ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   │       ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
@@ -137,10 +143,15 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Secrets:** None
 
 ### `network`
-- **Home server (Phase 1):** VLAN sub-interface on trunk port, static IP (VLAN 99 for oldsrv, VLAN 10 + 99 native for nas)
-- **VPS:** Static IP on services bridge
-- **Pi:** Static IP on Home VLAN
+- **Current scope (foundation):** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml` (I3).
+- **Pending (I3):** VLAN sub-interface on trunk port, static IP (VLAN 99 for oldsrv, VLAN 10 + 99 native for nas); Pi static IP on Home VLAN. Network config-manager (systemd-networkd vs netplan) decision needed first.
 - **All hosts:** `/etc/hosts` template with all node entries (resolved via local DNS)
+
+### `nut`
+- **Mode-driven** via `nut_mode` (host_vars): `master` (nas) / `client` (oldsrv, ha). See `docs/hardware-ups.md`, `docs/observability.md`.
+- **master (nas):** `nut-server` + `usbhid-ups` (USB HID), `upsd` listening `LISTEN 10.10.1.10:3493`, `nut_exporter` as a **host binary** (`nas` has no Docker — I9) + systemd, `upssched-cmd` direct email/Signal notify (independent of Grafana/n8n).
+- **client (oldsrv, ha):** `nut-client` + `upsmon` slave → `MONITOR powerwalker@{{ nut_host }} …`, per-host `shutdown_delay_seconds` (oldsrv 60 / ha 0).
+- **Secrets:** `upsmon_password` + notify SMTP/Signal from 1Password `Homelab` at render time.
 
 ### `amd_rocm`
 - Official AMD ROCm repo (Debian-compatible path); packages `rocm-hip-sdk`, `rocm-opencl-sdk`

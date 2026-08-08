@@ -1,0 +1,17 @@
+# managed by Ansible — nut role (master) — nut_exporter systemd unit
+[Unit]
+Description=Prometheus NUT exporter (UPS — single SSOT on nas master)
+After=network-online.target nut-server.service
+Wants=network-online.target
+Requires=nut-server.service
+
+[Service]
+Type=simple
+User=nut
+Group=nut
+ExecStart=/usr/local/bin/nut_exporter -nut.server 127.0.0.1:3493 -web.listen-address {{ nut_exporter_listen }}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

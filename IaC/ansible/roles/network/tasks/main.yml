@@ -1,2 +1,32 @@
 ---
-# network role — TODO: implement
+# network role — host networking foundation + SSOT doc render (issues.md I3).
+# Current scope (safe, deterministic):
+#   1. assert we run as an allowed admin user (mirror of common's guard)
+#   2. sync /etc/hosts from the shared template (same source as playbooks/all.yml)
+#   3. render docs/network-addresses.md from IaC via render-docs.yml (run by site.yml)
+#
+# REMAINING (scoped TODO — kept out of this role until the config manager is
+# decided): static IP + VLAN trunk/sub-interface provisioning per host, using
+# `home_ip` / `mgmt_ip` / `ilo_ip` from host_vars. The host network stack is
+# DECIDED to be systemd-networkd vs netplan is still open — see issues.md I3.
+# Once chosen, add:
+#   - template networkd/netplan unit per host (Home access + Mgmt native + trunk
+#     for oldsrv: 10,20,50 tagged + 99 native; nas: VLAN10 + 99 native; Pi: VLAN10)
+#   - restart/verify idempotently, never severing the Ansible session.
+- name: Refuse network runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      network role must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+  tags: always
+
+- name: Sync /etc/hosts from shared template (bootstrap resolution)
+  template:
+    src: "{{ playbook_dir }}/../templates/etc_hosts.j2"
+    dest: /etc/hosts
+    owner: root
+    group: root
+    mode: '0644'
+  tags: [hosts, network]

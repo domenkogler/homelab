@@ -11,7 +11,7 @@
 # The common role repeats this guard for direct playbook/role runs.
 # ---------------------------------------------------------------------
 - name: Safety check — only whitelisted admin users may run Ansible
-  hosts: home_servers:raspberry_pi
+  hosts: home_servers:raspberry_pi:storage
   gather_facts: false
   tasks:
     - name: Refuse Ansible runs as ai-debug or unknown users
@@ -31,11 +31,17 @@
 - name: Configure Cloud VPS
   import_playbook: playbooks/vps.yml
 
-- name: Configure Home Servers
+- name: Configure Home Servers (oldsrv — full Docker stack)
   import_playbook: playbooks/home_servers.yml
+
+- name: Configure Storage (nas — ZFS, no Docker)
+  import_playbook: playbooks/storage.yml
 
 - name: Configure Raspberry Pi (Home Assistant)
   import_playbook: playbooks/raspberry_pi.yml
 
 - name: Cross-Cutting Host Configuration
   import_playbook: playbooks/all.yml
+
+- name: Render SSOT docs from IaC (control plane — IaC-as-source, I3)
+  import_playbook: playbooks/render-docs.yml
