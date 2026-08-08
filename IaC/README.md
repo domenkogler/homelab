@@ -81,7 +81,6 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   │   │   ├── sunshine/
 │   │   │   │   ├── kopia-agent/
 │   │   │   │   └── home-assistant-standby/
-│   │   │   │   # TODO (create): homepage/, renovate/, doco-cd/, prometheus/, loki/, blackbox-exporter/, signal-cli-rest-api/ — see home_servers.yml
 │   │   │   ├── homepage_services.yaml.j2    # Homepage layout (auto-generated)
 │   │   │   ├── homepage_widgets.yaml.j2     # Homepage status widgets
 │   │   │   └── inventory.md.j2              # Service inventory table (auto-generated)
@@ -125,7 +124,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 └── README.md                               # Repo root (you are here)
 ```
 
-> **Note:** `docs/` and `manual/` are the canonical, currently maintained documentation. This file documents the *intended* IaC implementation. Missing templates (homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api) and role stubs are created as services are deployed — see TODO in `group_vars/home_servers.yml`.
+> **Note:** `docs/` and `manual/` are the canonical, currently maintained documentation. This file documents the *intended* IaC implementation.
 
 ---
 

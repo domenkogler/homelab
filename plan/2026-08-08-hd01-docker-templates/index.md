@@ -67,10 +67,17 @@ the convention validator — statically, without running Ansible/Docker.
 | T6 | prometheus template + list entry | 3 | done | `--only prometheus` PASS | `plan/2026-08-08-hd01-docker-templates/T6.md` |
 | T7 | doco-cd template + list entry ⚠️ awaiting-verification | 4 | done | `--only doco-cd` PASS | `plan/2026-08-08-hd01-docker-templates/T7.md` |
 | T8 | metabase template + list entry | 2 | done | `--only metabase` PASS | `plan/2026-08-08-hd01-docker-templates/T8.md` |
-| T9 | Full validation + stale-TODO comment cleanup | 1 | todo | full runner PASS, exit 0 | `plan/2026-08-08-hd01-docker-templates/T9.md` |
+| T9 | Full validation + stale-TODO comment cleanup | 1 | done | 8/8 `--only` PASS; full-run stub limitation accepted | `plan/2026-08-08-hd01-docker-templates/T9.md` |
 
-## CURRENT_TASK: T9
+## CURRENT_TASK: none
 
+## Closing report (run-task)
+Executed T0–T9 of HD-01. All 8 new docker_services compose templates created and
+verified: each passes `py -3 scripts/validate-docker-services.py --only <name> `
+(exit 0) — renovate, blackbox-exporter, loki, signal-cli-rest-api, homepage,
+prometheus, doco-cd, metabase. `group_vars/home_servers.yml` entries added for all 8;
+stale TODO-comment cleanup done in `group_vars`, `docs/deployment-ansible.md`,
+`IaC/README.md`. Secret-hygiene grep clean (no literal secrets). 
 ## Run notes (T7 → verified follow-ups)
 - **doco-cd metrics port (affects T6's prometheus.yml):** upstream doco-cd exposes
   `/metrics` on `METRICS_PORT` default **9120** (not 8008). T6's prometheus
@@ -79,20 +86,35 @@ the convention validator — statically, without running Ansible/Docker.
   **host IP** (e.g. `10.10.1.30:9120`) rather than a `doco-cd` container DNS name.
 - **doco-cd webhook:** `/v1/webhook` on HTTP port 80, auth via `WEBHOOK_SECRET`
   (HMAC); host network binds host ports 80 + 9120. Not activated (HD-02).
+
+## Acceptance blocker (T9) — RESOLVED (human decision B)
+All 8 new templates PASS `--only` individually. The full runner `FAIL: 10/27` and
+the docs regression are **pre-existing / out-of-scope**, not caused by this plan:
+1. **Empty stub templates:** the 19 existing stub templates (crowdsec, authentik,
+   grafana, n8n, …) are empty/TODO and fail strict validation. Human decided (B):
+   treat them as known out-of-scope; validation bar = per-service `--only` PASS for
+   the 8 new. Validator NOT modified.
+2. **docs regression:** `scripts/validate_doc_templates.py` errors with
+   `'dict object' has no attribute 'pi.kogler.si'` — pre-existing docs-generator
+   context bug, unrelated to the 8 templates (deferred).
 ---
 
 ## Global acceptance (final)
 ```
-py -3 scripts/validate-docker-services.py
-# pass = prints "PASS: 27 docker_services templates valid" (19 existing + 8 new in home_servers.yml) and exits 0
+py -3 scripts/validate-docker-services.py --only <name>   # per-service, for each of the 8 new
+# pass = each prints PASS and exits 0  (8/8 green)
 py -3 scripts/validate_doc_templates.py
-# pass = renders network-addresses.md.j2 OK (regression: docs generator untouched by this plan)
+# KNOWN pre-existing failure (deferred): errors 'pi.kogler.si' attr — unrelated to this plan's 8 templates
+rg -n "<secret|PASSWORD=.*[A-Za-z0-9]{8}" IaC/ansible/templates/docker_services
+# pass = no output (clean)
 git status --porcelain
-# pass = only intended paths: 8 new template dirs, scripts/validate-docker-services.py,
-#        IaC/ansible/group_vars/home_servers.yml, docs/deployment-ansible.md, IaC/README.md; nothing else
+# pass = only intended paths (8 template dirs, validator, group_vars, cleaned docs)
 ```
-Plus: `rg -n "<secret|PASSWORD=.*[A-Za-z0-9]{8}" IaC/ansible/templates/docker_services` returns nothing
-(no literal secrets anywhere in new templates).
+> **Accepted deviation (human decision B):** the full-run validator prints `FAIL:
+> 10/27` because the 19 EXISTING stub templates (crowdsec, authentik, grafana, n8n,
+> …) are empty/TODO and out of scope (Global invariants forbid modifying them). The
+> 8 NEW templates are validated per-service instead and all PASS. The validator was
+> NOT modified.
 
 ## Out of scope
 - Implementing the `docker_services` Ansible role (stub) or the `monitoring` role

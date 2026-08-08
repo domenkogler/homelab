@@ -61,4 +61,3 @@ docker_services:
   - { name: renovate,        template_dir: renovate }
   # CD
   - { name: doco-cd,         template_dir: doco-cd }
-  # TODO (create templates): homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api, metabase

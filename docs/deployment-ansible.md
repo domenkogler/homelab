@@ -181,7 +181,6 @@ docker_services:
   - { name: grafana,         template_dir: grafana,     subdomain: stats }
   - { name: n8n,             template_dir: n8n,          subdomain: auto }
   - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
-  # TODO (create templates): homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api
 
 # GPU config
 amd_rocm_version: "6.3"
