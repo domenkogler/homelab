@@ -92,7 +92,7 @@ plus the router's own resolver is open on UDP/TCP 53 (input) as a tertiary.
   forwards to Technitium + 1.1.1.1.
 - Global inter-VLAN drop rule sits **below** these exceptions.
 - There is **no** "allow DNS on the Management VLAN" rule — Technitium is **not** on the
-  Management VLAN; the old Mgmt-placement wording predates the Home-based move (see issues.md **I2**).
+  Management VLAN; the old Mgmt-placement wording predates the Home-based move.
 
 ---
 

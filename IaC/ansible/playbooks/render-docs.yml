@@ -1,5 +1,5 @@
 ---
-# render-docs.yml — control-plane SSOT render (issues.md I3)
+# render-docs.yml — control-plane SSOT render
 # ------------------------------------------------
 # Regenerates docs/network-addresses.md (IP address SSOT) from
 # IaC/ansible group_vars/host_vars. This is the "IaC → docs" half of the

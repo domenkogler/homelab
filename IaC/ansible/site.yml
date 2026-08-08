@@ -43,5 +43,5 @@
 - name: Cross-Cutting Host Configuration
   import_playbook: playbooks/all.yml
 
-- name: Render SSOT docs from IaC (control plane — IaC-as-source, I3)
+- name: Render SSOT docs from IaC (control plane — IaC-as-source)
   import_playbook: playbooks/render-docs.yml

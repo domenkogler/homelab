@@ -1,5 +1,5 @@
 ---
-# network role — host networking foundation + SSOT doc render (issues.md I3).
+# network role — host networking foundation + SSOT doc render.
 # Current scope (safe, deterministic):
 #   1. assert we run as an allowed admin user (mirror of common's guard)
 #   2. sync /etc/hosts from the shared template (same source as playbooks/all.yml)
@@ -7,8 +7,8 @@
 #
 # REMAINING (scoped TODO — kept out of this role until the config manager is
 # decided): static IP + VLAN trunk/sub-interface provisioning per host, using
-# `home_ip` / `mgmt_ip` / `ilo_ip` from host_vars. The host network stack is
-# DECIDED to be systemd-networkd vs netplan is still open — see issues.md I3.
+# `home_ip` / `mgmt_ip` / `ilo_ip` from host_vars. The host network stack manager
+# (systemd-networkd vs netplan) is still undecided.
 # Once chosen, add:
 #   - template networkd/netplan unit per host (Home access + Mgmt native + trunk
 #     for oldsrv: 10,20,50 tagged + 99 native; nas: VLAN10 + 99 native; Pi: VLAN10)

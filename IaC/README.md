@@ -48,10 +48,10 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   │   ├── router.yml                  # hosts: router → role: router
 │   │   │   ├── vps.yml                     # hosts: vps → common→docker→network→docker_services→monitoring
 │   │   │   ├── home_servers.yml            # hosts: home_servers (oldsrv) → common→ai_diag→docker→network→nut→amd_rocm→[desktop,office]→docker_services→home_assistant→monitoring
-│   │   │   ├── storage.yml                 # hosts: storage (nas) → common→ai_diag→network→nut  (ZFS, NO Docker — I9)
+│   │   │   ├── storage.yml                 # hosts: storage (nas) → common→ai_diag→network→nut  (ZFS, NO Docker)
 │   │   │   ├── raspberry_pi.yml            # hosts: raspberry_pi → common→network→nut→docker→home_assistant→docker_services→monitoring
 │   │   │   ├── all.yml                     # Cross-cutting: /etc/hosts sync
-│   │   │   └── render-docs.yml             # Control-plane SSOT render → docs/network-addresses.md (I3)
+│   │   │   └── render-docs.yml             # Control-plane SSOT render → docs/network-addresses.md
 │   │   ├── group_vars/
 │   │   │   ├── all.yml                     # Timezone, locale (sl_SI.UTF-8), NTP, domain kogler.si
 │   │   │   ├── router.yml                  # VLAN map (10/20/21/30/40/50/99), WireGuard, DNS
@@ -88,7 +88,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   └── roles/
 │   │       ├── common/tasks/{main,system}.yml  # fail-closed admin guard, apt, sudo
 │   │       ├── docker/tasks/main.yml        # Docker CE + compose, daemon.json, user group
-│   │       ├── network/tasks/main.yml       # /etc/hosts (foundation; static-IP/trunk pending — I3)
+│   │       ├── network/tasks/main.yml       # /etc/hosts (foundation; static-IP/trunk pending)
 │   │       ├── nut/                         # UPS: master (nas) + clients (oldsrv, ha) — host-binary nut_exporter
 │   │       │   ├── tasks/main.yml
 │   │       │   ├── templates/*.j2
@@ -143,13 +143,13 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Secrets:** None
 
 ### `network`
-- **Current scope (foundation):** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml` (I3).
-- **Pending (I3):** VLAN sub-interface on trunk port, static IP (VLAN 99 for oldsrv, VLAN 10 + 99 native for nas); Pi static IP on Home VLAN. Network config-manager (systemd-networkd vs netplan) decision needed first.
+- **Current scope (foundation):** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml`.
+- **Pending:** VLAN sub-interface on trunk port, static IP (VLAN 99 for oldsrv, VLAN 10 + 99 native for nas); Pi static IP on Home VLAN. Network config-manager (systemd-networkd vs netplan) decision needed first.
 - **All hosts:** `/etc/hosts` template with all node entries (resolved via local DNS)
 
 ### `nut`
 - **Mode-driven** via `nut_mode` (host_vars): `master` (nas) / `client` (oldsrv, ha). See `docs/hardware-ups.md`, `docs/observability.md`.
-- **master (nas):** `nut-server` + `usbhid-ups` (USB HID), `upsd` listening `LISTEN 10.10.1.10:3493`, `nut_exporter` as a **host binary** (`nas` has no Docker — I9) + systemd, `upssched-cmd` direct email/Signal notify (independent of Grafana/n8n).
+- **master (nas):** `nut-server` + `usbhid-ups` (USB HID), `upsd` listening `LISTEN 10.10.1.10:3493`, `nut_exporter` as a **host binary** (nas has no Docker) + systemd, `upssched-cmd` direct email/Signal notify (independent of Grafana/n8n).
 - **client (oldsrv, ha):** `nut-client` + `upsmon` slave → `MONITOR powerwalker@{{ nut_host }} …`, per-host `shutdown_delay_seconds` (oldsrv 60 / ha 0).
 - **Secrets:** `upsmon_password` + notify SMTP/Signal from 1Password `Homelab` at render time.
 

@@ -1,6 +1,6 @@
 ---
 # storage.yml — ZFS storage hosts (nas).
-# nas runs NO Docker and NO service stack (see issues.md I9). Ansible is
+# nas runs NO Docker and NO service stack. Ansible is
 # bootstrap-only: system hardening, /etc/hosts, host networking, and the
 # NUT UPS master. The observability stack (Prometheus/Grafana/n8n) lives on
 # oldsrv and scrapes nas's nut_exporter remotely (see observability.md).
