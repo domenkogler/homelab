@@ -56,5 +56,5 @@
 #      both HA nodes reach it
 #
 # Secrets (1Password vault 'Homelab'):
-#   - ha_long_lived_token, ha_api_key, ha_mqtt_credentials (if MQTT added), ha_prometheus_token, ha_vrrp_password
-#   - {{ lookup('community.general.onepassword', '...', vault='Homelab') }}
+#   - ha_api (long-lived), ha-mqtt_login (if MQTT added), ha-vrrp_password
+#   - {{ lookup('community.general.onepassword', '...', vault=op_vault) }}

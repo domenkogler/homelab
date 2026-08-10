@@ -28,7 +28,7 @@ tags: [deployment, secrets, 1password]
 |-----------|---------------|
 | **One vault** | All secrets in `Homelab` vault |
 | **Never in Git** | No `.env` files, no Ansible Vault, no hardcoded credentials |
-| **Resolved at deploy time** | Ansible templates call `lookup('onepassword', ...)` — secrets fetched at render time, never cached |
+| **Resolved at deploy time** | Ansible templates call `lookup('community.general.onepassword', ...)` — secrets fetched at render time, never cached |
 | **Doco-CD integration** | Service Account token with minimum-scope vault access. Secrets resolved at deploy, never on disk |
 | **1Password CLI** | Installed on management laptop + Actions runner. `op` CLI + `OP_SERVICE_ACCOUNT_TOKEN` |
 | **1Password SSH agent** | Private keys never on disk — served from `Homelab` vault on demand. See SSH Key Separation below |
@@ -37,32 +37,109 @@ tags: [deployment, secrets, 1password]
 
 ## Secret Naming Convention
 
-All secrets in `Homelab` vault. Pattern: `<service>_<type>`.
+> **The single source of truth for 1Password items.** Every secret lives in the `Homelab` vault.
 
-| Secret Name | Used By |
-|-------------|---------|
-| `admin_laptop_ssh_pubkey` | post_install.sh — personal key → `ansible-admin` |
-| `ssh_ansible_pubkey` | post_install.sh — dedicated Ansible key → `ansible-admin` |
-| `ssh_ai_pubkey` | post_install.sh — AI debug key (`openrouter_ai`) → `ai-debug` |
-| `kopia_master_password` | kopia, kopia-agent, kopia-server |
-| `authentik_pg_password` | authentik |
-| `authentik_secret_key` | authentik |
-| `opencloud_db_password` | opencloud |
-| `immich_db_password` | immich-app |
-| `forgejo_db_password` | forgejo |
-| `grafana_admin_password` | grafana |
-| `grafana_smtp_password` | grafana (SMTP fail-safe contact point) |
-| `ha_exporter_token` | Prometheus → HA `/api/prometheus` bearer |
-| `signal_api_*` | signal-cli (linked device) |
-| `n8n_*` | n8n (webhook, SMTP) |
-| `headscale_oidc_secret` | headscale |
-| `ha_api_key` | home_assistant |
-| `router_admin_password` | router |
-| `wireguard_private_key` | router (S2S) |
-| `forgejo_token` | Doco-CD (repo access) |
-| `doco_cd_webhook_secret` | Doco-CD webhook |
-| `doco_cd_op_service_account` | Doco-CD → 1Password |
-| `cloudflare_api_token` | ACME **DNS-01** wildcard `*.kogler.si` cert |
+**Item name pattern: `<service>_<type>`**
+
+- `<service>` = the consuming service / role. May contain `-` (e.g. `ansible-admin`, `laptop-domen`, `grafana-smtp`, `kopia-s3`). **Never `_` inside the service name.**
+- `_` is the **only** delimiter between `<service>` and `<type>` in the whole name.
+- `<type>` = the 1Password **item type** (see map below) — it determines which field the lookup reads.
+- **Never put the field in the item name** (e.g. `service-name-db-password` → `service-name_db`).
+
+**Always pass `field=` in Ansible.** The `community.general.onepassword` lookup defaults to the `password` field, which is **NOT** always the value you want. Vault is the `op_vault` variable (defined once in `group_vars/all.yml` → `Homelab`), so a vault rename is a one-line change:
+
+```yaml
+lookup('community.general.onepassword', '<service>_<type>', field='<field>', vault=op_vault)
+```
+
+---
+
+## Type Map — one per `<type>`, with canonical examples
+
+| `type`       | 1Password item    | `field=`              | Examples |
+|--------------|-------------------|-----------------------|----------|
+| `login`      | Login             | `password`            | SMTP/SMTP-relay creds (`grafana-smtp_login`, `nut-smtp_login`), admin accounts (`router_login`, `grafana_login`, `authentik_login`), any username+password combo |
+| `password`   | Password          | `password`            | shared / opaque secrets with no username: webhook HMAC (`doco-cd_password`), VRRP (`ha-vrrp_password`), upsmon (`nut_password`), repo master (`kopia_password`), Django `SECRET_KEY` (`authentik_password`), WireGuard private key (`wg_password`) |
+| `api`        | API Credential    | `credential`          | tokens & keys: Cloudflare (`cloudflare_api`), Forgejo (`forgejo_api`), HA long-lived (`ha_api`), headscale OIDC (`headscale_api`), S3 (`kopia-s3_api`), 1Password service-account (`op_api`), signal-cli (`signal_api`) |
+| `db`         | Database          | `password` (also `username`) | platform DBs: `authentik_db`, `opencloud_db`, `immich_db`, `forgejo_db` — Database item holds both `username` (DB user) and `password` |
+| `ssh`        | SSH Key           | `private_key` / `public_key` | `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh` — item stores both halves; read whichever the consumer needs |
+
+> **Guidance:**
+> - `login` = anything with a **username** (admin accounts, SMTP relays). One Login item per service — e.g. a service that has both an admin login and an SMTP relay gets two items: `grafana_login` + `grafana-smtp_login`.
+> - `password` = a shared/opaque secret with **no username** (tokens for HMAC/VRRP/upsmon, repo/SECRET keys).
+> - `api` = a **credential/token/key** for an API (including S3 and service-account tokens). API Credential items use `username` for access-key/client-id where applicable and `credential` for the secret.
+> - `db` = Database item (`username` + `password` fields). Field for postgres link/password is `password`.
+> - `ssh` = SSH Key item (`private_key` + `public_key` fields). See SSH Key Separation below.
+
+---
+
+## Master Secret List (canonical)
+
+| Item name | `field=` | Used By |
+|-----------|----------|---------|
+| `laptop-domen_ssh` | `private_key` / `public_key` | post_install.sh — Domen's personal key → `ansible-admin` |
+| `ansible-admin_ssh` | `private_key` / `public_key` | post_install.sh — dedicated Ansible key → `ansible-admin` |
+| `ai_ssh` | `private_key` / `public_key` | post_install.sh — AI debug key (maps to `openrouter_ai`) → `ai-debug` |
+| `kopia_password` | `password` | kopia, kopia-agent, kopia-server (repo master password) |
+| `authentik_db` | `password` (`username` = DB user) | authentik (Postgres) |
+| `authentik_password` | `password` | authentik (Django `SECRET_KEY`) |
+| `authentik_login` | `password` | authentik (bootstrap admin user) |
+| `opencloud_db` | `password` | opencloud (Postgres) |
+| `immich_db` | `password` | immich-app (Postgres) |
+| `forgejo_db` | `password` | forgejo (Postgres) |
+| `forgejo_api` | `credential` | doco-cd (`GIT_ACCESS_TOKEN`) + renovate (`RENOVATE_TOKEN`) — Forgejo token |
+| `grafana_login` | `password` | grafana (admin user) |
+| `grafana-smtp_login` | `password` | grafana (SMTP fail-safe contact point) |
+| `ha_api` | `credential` | HA long-lived token → Traefik/Companion, `/api/prometheus` bearer for Prometheus |
+| `ha-vrrp_password` | `password` | keepalived (VIP `ha.kogler.si`) shared auth |
+| `headscale_api` | `credential` | headscale (OIDC client secret; `username` = client id) |
+| `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
+| `nut-smtp_login` | `password` | UPS / scheduled-shutdown email notifications (SMTP; `username` = notify email + SMTP user) |
+| `wg_password` | `password` | router (WireGuard S2S private key) |
+| `router_login` | `password` | router — RouterOS admin (item `RB4011`) |
+| `cloudflare_api` | `credential` | ACME **DNS-01** wildcard `*.kogler.si` cert |
+| `kopia-s3_api` | `credential` (`username` = access key) | kopia-server S3 storage (access key + secret key) |
+| `op_api` | `credential` | 1Password Service Account token → Doco-CD + Forgejo Actions |
+| `signal_api` | `credential` (`username` = phone number) | signal-cli-rest-api (linked-device pair / captcha) |
+| `doco-cd_password` | `password` | Doco-CD webhook HMAC (`WEBHOOK_SECRET`) |
+
+> Entity count: **25 items**, each a single `<service>_<type>` name with one `_` delimiter.
+> Future / not-yet-created: `n8n_password` (webhook) + `n8n-smtp_login` (SMTP), `ha_mqtt` / `ha-mqtt_login` (if MQTT added to HA), `proxmox_root` / `proxmox_login` (Phase 2).
+
+---
+
+## Rename Map (legacy → canonical)
+
+| Legacy (before) | Canonical (now) |
+|-----------------|-----------------|
+| `admin_laptop_ssh_pubkey` | `laptop-domen_ssh` |
+| `ssh_ansible_pubkey` | `ansible-admin_ssh` |
+| `ssh_ai_pubkey` | `ai_ssh` |
+| `kopia_master_password` | `kopia_password` |
+| `authentik_pg_password` | `authentik_db` |
+| `authentik_secret_key` | `authentik_password` |
+| `opencloud_db_password` | `opencloud_db` |
+| `immich_db_password` | `immich_db` |
+| `forgejo_db_password` | `forgejo_db` |
+| `forgejo_token` | `forgejo_api` |
+| `grafana_admin_password` | `grafana_login` |
+| `grafana_smtp_password` | `grafana-smtp_login` |
+| `ha_api_key` / `ha_exporter_token` / `ha_prometheus_token` / `long_lived_token` | `ha_api` |
+| `ha_vrrp_password` | `ha-vrrp_password` |
+| `headscale_oidc_secret` | `headscale_api` |
+| `upsmon_password` / `nut_upsmon_password` | `nut_password` |
+| `smtp_notify_creds` / `nut_notify_email` / `nut_smtp_user` / `nut_smtp_pass` | `nut-smtp_login` |
+| `wireguard_private_key` | `wg_password` |
+| `router_admin_password` | `router_login` |
+| `cloudflare_api_token` / `cloudflare_api_token_credential` | `cloudflare_api` |
+| `s3_kopia_access_key` / `s3_kopia_secret_key` / `kopia_access_key` / `s3_kopia_secret` | `kopia-s3_api` |
+| `op_service_account_token` | `op_api` |
+| `doco_cd_op_service_account` | `op_api` (single SA token for Doco-CD + Actions) |
+| `doco_cd_webhook_secret` | `doco-cd_password` |
+| `signal_api_*` | `signal_api` |
+
+> `nut_smtp_server` (relay host, not a credential) is **config** — it lives in `group_vars`, not
+> 1Password. `wildcard_cert_file` / `wildcard_cert_key_file` are cert filenames, not secrets.
 
 ---
 
@@ -72,9 +149,9 @@ Three independent ED25519 keys, one per purpose. Separate keys = revoke/rotate o
 
 | Key (1Password item) | Authorized user on hosts | Access level |
 |----------------------|--------------------------|--------------|
-| `admin_laptop_ssh_pubkey` (private: personal) | `ansible-admin` | Full (NOPASSWD sudo) |
-| `ssh_ansible_pubkey` | `ansible-admin` | Full (NOPASSWD sudo) |
-| `ssh_ai_pubkey` (`openrouter_ai`) | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |
+| `laptop-domen_ssh` (private: personal) | `ansible-admin` | Full (NOPASSWD sudo) |
+| `ansible-admin_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
+| `ai_ssh` (private maps to `openrouter_ai`) | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |
 
 **The same three keys are authorized on every homelab host** (nas, oldsrv, ...).
 
@@ -92,19 +169,19 @@ Host nas nas-ansible nas-ai
 
 Host nas              # personal key
   User ansible-admin
-  IdentityFile ~/.ssh/admin_laptop.pub
+  IdentityFile ~/.ssh/laptop-domen.pub
   IdentitiesOnly yes
 
 Host nas-ansible      # dedicated Ansible key
   HostName nas
   User ansible-admin
-  IdentityFile ~/.ssh/ansible.pub
+  IdentityFile ~/.ssh/ansible-admin.pub
   IdentitiesOnly yes
 
 Host nas-ai           # AI debugging — tell the AI: "use ssh nas-ai"
   HostName nas
   User ai-debug
-  IdentityFile ~/.ssh/openrouter_ai.pub
+  IdentityFile ~/.ssh/ai.pub
   IdentitiesOnly yes
   ForwardAgent no
   ForwardX11 no
@@ -146,7 +223,7 @@ ai-debug ALL=(root) NOPASSWD: /usr/local/sbin/ai-diag *
 
 - **SSH keys** — three separate ED25519 keys (personal / Ansible / AI) in 1Password, injected by post_install.sh. AI key restricted to the `ai-debug` user (no sudo, LAN-only, no forwarding)
 - **Ansible** — 1Password lookup at render time, no passwords in playbooks
-- **Doco-CD** — 1Password Service Account token, scoped to `Homelab` vault only
+- **Doco-CD** — 1Password Service Account token (`op_api`), scoped to `Homelab` vault only
 - **Forgejo** — OIDC via Authentik, or deploy key with push access
 
 ---
@@ -171,10 +248,10 @@ This ensures no single point of failure: 1Password cloud + paper backup + Git mi
 | Boundary | Detail |
 |----------|--------|
 | **Doco-CD → Docker socket** | Mounts `docker.sock` read-write. Non-root container, `cap_drop: [ALL]` |
-| **Doco-CD → Forgejo** | Git access token (read-only on repo) |
-| **Doco-CD → 1Password** | Service Account token — minimum-scope `Homelab` vault access |
+| **Doco-CD → Forgejo** | Git access token (`forgejo_api`, read-only on repo) |
+| **Doco-CD → 1Password** | Service Account token (`op_api`) — minimum-scope `Homelab` vault access |
 | **Actions runner → VPS** | Dedicated SSH key (separate from Domen's personal key) |
-| **Actions runner → 1Password** | Service Account token — stored as Forgejo secret |
+| **Actions runner → 1Password** | Service Account token (`op_api`) — stored as Forgejo secret |
 | **Homepage → internet** | Protected by Authentik Forward Auth |
 | **Renovate → Docker Hub** | Read-only registry access — no credentials for public images |
 | **AI → homelab hosts** | Dedicated `ai-debug` user — LAN-only (`from=`), no agent/port/X11 forwarding; sudo limited to the `ai-diag` allowlist (read-only diagnostics, see below) |

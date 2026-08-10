@@ -162,9 +162,9 @@ Public keys are fetched from 1Password `Homelab` vault by the AI when generating
 
 | Key (1Password item) | Authorized user | Access |
 |----------------------|-----------------|--------|
-| `admin_laptop_ssh_pubkey` | `ansible-admin` | Full (NOPASSWD sudo) |
-| `ssh_ansible_pubkey` | `ansible-admin` | Full (NOPASSWD sudo) |
-| `ssh_ai_pubkey` | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |
+| `laptop-domen_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
+| `ansible-admin_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
+| `ai_ssh` | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |
 
 **The AI key must never be authorized for `ansible-admin`** — that user has passwordless root.
 

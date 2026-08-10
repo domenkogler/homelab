@@ -20,7 +20,7 @@
 #     backends live on oldsrv and do NOT fail over to this edge.
 #
 #   Design context: docs/smart-home-failover.md, group_vars/raspberry_pi.yml.
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault='Homelab') }}
+#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 services:
   traefik:
     image: traefik:{{ traefik_version | default('latest') }}

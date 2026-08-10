@@ -12,7 +12,7 @@
 #   - restart policy: manual (systemd unit disabled by default) → restart: "no"
 #   - Traefik's `ha` route targets the VIP; NOT Authentik Forward-Auth (breaks Companion app).
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault='Homelab') }}
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 
 services:
   home-assistant:

@@ -330,7 +330,7 @@ WantedBy=multi-user.target
 All secrets resolved at render time via:
 ```yaml
 # In templates:
-{{ lookup('community.general.onepassword', 'authentik_pg_password', vault='Homelab') }}
+{{ lookup('community.general.onepassword', 'authentik_db', field='password', vault=op_vault) }}
 ```
 
 See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convention.

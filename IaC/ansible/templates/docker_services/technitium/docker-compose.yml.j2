@@ -13,7 +13,7 @@
 #   primary + secondary. DHCP auto-creation covers leases only, and the VIP is not a lease —
 #   without them the traefik-ha / oldsrv edges are unreachable by name.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault='Homelab') }}
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 
 services:
   technitium:

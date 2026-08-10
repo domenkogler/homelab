@@ -26,13 +26,13 @@ nut_exporter_listen: ":9199"
 
 # --- Notify (upssched-cmd) — direct email + optional Signal on ONBATT/LOWBATT,
 # independent of Grafana/n8n. Recipient + SMTP creds from 1Password Homelab.
-nut_notify_email: "{{ lookup('community.general.onepassword', 'nut_notify_email', vault=op_vault) }}"
+nut_notify_email: "{{ lookup('community.general.onepassword', 'nut-smtp_login', field='username', vault=op_vault) }}"
 
 # upsmon auth password (shared between upsd.users / upsd + clients) — 1Password at render.
-nut_upsmon_password: "{{ lookup('community.general.onepassword', 'upsmon_password', vault=op_vault) }}"
-nut_smtp_server: "{{ lookup('community.general.onepassword', 'nut_smtp_server', vault=op_vault, default='') }}"
-nut_smtp_user: "{{ lookup('community.general.onepassword', 'nut_smtp_user', vault=op_vault, default='') }}"
-nut_smtp_pass: "{{ lookup('community.general.onepassword', 'nut_smtp_pass', vault=op_vault, default='') }}"
+nut_upsmon_password: "{{ lookup('community.general.onepassword', 'nut_password', field='password', vault=op_vault) }}"
+nut_smtp_server: ""   # SMTP relay host — config (group_vars), NOT a 1Password secret
+nut_smtp_user: "{{ lookup('community.general.onepassword', 'nut-smtp_login', field='username', vault=op_vault, default='') }}"
+nut_smtp_pass: "{{ lookup('community.general.onepassword', 'nut-smtp_login', field='password', vault=op_vault, default='') }}"
 # Optional: absolute path to a helper that sends a Signal message as $1
 # (e.g. a wrapper around signal-cli). Leave empty to skip Signal from NUT.
 nut_signal_helper: ""

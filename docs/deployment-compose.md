@@ -116,7 +116,7 @@ Secrets come from 1Password at template render time. Never hardcode:
 ```yaml
 # Good — resolved at Ansible template time
 environment:
-  POSTGRES_PASSWORD: "{{ lookup('community.general.onepassword', 'authentik_pg_password', vault='Homelab') }}"
+  POSTGRES_PASSWORD: "{{ lookup('community.general.onepassword', 'authentik_db', field='password', vault=op_vault) }}"
 
 # Bad — never commit secrets
 environment:
@@ -149,7 +149,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
-      POSTGRES_PASSWORD: "{{ lookup('community.general.onepassword', '<service>_pg_password', vault='Homelab') }}"
+      POSTGRES_PASSWORD: "{{ lookup('community.general.onepassword', '<service>_db', field='password', vault=op_vault) }}"
 
 volumes:
   postgres-data:
@@ -184,8 +184,8 @@ services:
       DB01_TYPE: postgresql
       DB01_HOST: postgres
       DB01_PORT: "5432"
-      DB01_USER: "{{ lookup('community.general.onepassword', '<service>_db_user', vault='Homelab') }}"
-      DB01_PASS: "{{ lookup('community.general.onepassword', '<service>_pg_password', vault='Homelab') }}"
+      DB01_USER: "{{ lookup('community.general.onepassword', '<service>_db', field='username', vault=op_vault) }}"
+      DB01_PASS: "{{ lookup('community.general.onepassword', '<service>_db', field='password', vault=op_vault) }}"
       COMPRESSION: ZSTD
       RETENTION: "7"
     volumes:

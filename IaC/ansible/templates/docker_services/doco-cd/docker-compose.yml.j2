@@ -16,8 +16,8 @@ services:
     cap_drop:
       - ALL
     environment:
-      GIT_ACCESS_TOKEN: "{{ lookup('community.general.onepassword', 'forgejo_token', vault=op_vault) }}"
-      WEBHOOK_SECRET: "{{ lookup('community.general.onepassword', 'doco_cd_webhook_secret', vault=op_vault) }}"
+      GIT_ACCESS_TOKEN: "{{ lookup('community.general.onepassword', 'forgejo_api', field='credential', vault=op_vault) }}"
+      WEBHOOK_SECRET: "{{ lookup('community.general.onepassword', 'doco-cd_password', field='password', vault=op_vault) }}"
       GIT_SCM_PROVIDER: forgejo
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
