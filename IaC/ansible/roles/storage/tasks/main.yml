@@ -1,0 +1,54 @@
+---
+# storage role — ZFS layout, snapshots/replication, NFS, push timers.
+# Spec/data model SSOT: docs/storage-zfs.md. Style mirrors roles/nut.
+#
+# Hosts:
+#   nas     — import tank/bulk, datasets+properties, sanoid/syncoid, NFS exports
+#   oldsrv  — import/create nvme, datasets+properties, NFS client mounts,
+#             nightly push timers (db dumps / service state / face thumbs)
+#   pi      — no-op (layout handled by home_assistant + docker_services roles)
+#
+# Must run AFTER `network` (VLANs, /etc/hosts) and BEFORE `docker_services`
+# (containers mount the NFS shares / bind mounts).
+
+- name: Refuse storage runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      storage role must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+  tags: always
+
+- name: Install ZFS userland + supporting packages
+  ansible.builtin.apt:
+    name:
+      - zfsutils-linux
+      - sanoid
+      - syncoid
+    state: present
+    update_cache: true
+
+- name: NFS server packages (nas is the NFS server)
+  ansible.builtin.apt:
+    name: [nfs-kernel-server, nfs-common]
+    state: present
+  when: inventory_hostname in groups['storage'] | default([])
+
+- name: NFS client package (oldsrv mounts the shares)
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+  when: inventory_hostname in groups['home_servers'] | default([])
+
+- name: Load ZFS kernel module (present on native kernel images)
+  community.general.modprobe:
+    name: zfs
+    state: present
+  when: ansible_os_family == 'Debian'
+
+- include_tasks: zfs_common.yml
+- include_tasks: nas.yml
+  when: inventory_hostname in groups['storage'] | default([])
+- include_tasks: oldsrv.yml
+  when: inventory_hostname in groups['home_servers'] | default([])

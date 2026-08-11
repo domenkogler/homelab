@@ -40,8 +40,8 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   ├── playbooks/
 │   │   │   ├── router.yml                  # hosts: router → role: router
 │   │   │   ├── vps.yml                     # hosts: vps → common→docker→network→docker_services→monitoring
-│   │   │   ├── home_servers.yml            # hosts: home_servers (oldsrv) → common→ai_diag→docker→network→nut→amd_rocm→[desktop,office]→docker_services→home_assistant→monitoring
-│   │   │   ├── storage.yml                 # hosts: storage (nas) → common→ai_diag→network→nut  (ZFS, NO Docker)
+│   │   │   ├── home_servers.yml            # hosts: home_servers (oldsrv) → common→ai_diag→docker→network→storage→nut→amd_rocm→[desktop,office]→docker_services→home_assistant→monitoring
+│   │   │   ├── storage.yml                 # hosts: storage (nas) → common→ai_diag→network→storage→nut→cockpit  (ZFS, NO Docker)
 │   │   │   ├── raspberry_pi.yml            # hosts: raspberry_pi → common→network→nut→docker→home_assistant→docker_services→monitoring
 │   │   │   ├── all.yml                     # Cross-cutting: /etc/hosts sync
 │   │   │   └── render-docs.yml             # Control-plane SSOT render → docs/network-addresses.md
@@ -86,6 +86,9 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │       │   ├── templates/*.j2
 │   │       │   └── (upssched-cmd notify)
 │   │       ├── cockpit/tasks/main.yml       # Management UI (nas + oldsrv, not Pi) — own login, no Authentik
+│   │       ├── storage/                     # ZFS: import tank/bulk+nvme, datasets+props, sanoid/syncoid, NFS exports/mounts, push timers (docs/storage-zfs.md)
+│   │       │   ├── defaults/main.yml        #   dataset/property/schedule map (mirrors storage-zfs.md)
+│   │       │   ├── tasks/{main,zfs_common,nas,oldsrv}.yml
 │   │       ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   │       ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   │       ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client

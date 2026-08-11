@@ -1,0 +1,9 @@
+[Unit]
+Description=Nightly service-state push to NAS
+
+[Timer]
+OnCalendar={{ storage_push_services.oncalendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

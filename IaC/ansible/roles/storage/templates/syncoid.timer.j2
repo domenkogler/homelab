@@ -1,0 +1,9 @@
+[Unit]
+Description=Every 15 min: sync new ZFS snapshots tank → bulk
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+
+[Install]
+WantedBy=timers.target

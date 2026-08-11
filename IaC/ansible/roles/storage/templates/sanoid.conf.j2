@@ -1,0 +1,34 @@
+# Managed by Ansible — storage role (docs/storage-zfs.md).
+# sanoid snapshots: tank/data/* + bulk/data/* replicas + bulk/data/immich-thumbs.
+# bulk/media is deliberately absent (unbacked, never snapshotted).
+# `frequently` = 5-min tier (sanoid.timer fires every 5 min).
+
+{% for tname, t in storage_sanoid.templates.items() %}
+[template_{{ tname }}]
+    autosnap = {{ t.get('autosnap', 'yes') }}
+    autoprune = {{ t.get('autoprune', 'yes') }}
+    frequently = {{ t.get('frequently', 0) }}
+    hourly = {{ t.get('hourly', 0) }}
+    daily = {{ t.get('daily', 0) }}
+    weekly = {{ t.get('weekly', 0) }}
+    monthly = {{ t.get('monthly', 0) }}
+    yearly = 0
+{% endfor %}
+
+{% for ds, tname in storage_sanoid.datasets.items() %}
+[{{ ds }}]
+    use_template = {{ tname }}
+{% endfor %}
+
+# Replicas on bulk retain the same cadence independently (they are their own
+# rollback targets); sanoid runs on the backup side too but never sends.
+# Dedup/global defaults:
+[template_all]
+    frequently = 0
+    hourly = 0
+    daily = 0
+    weekly = 0
+    monthly = 0
+    yearly = 0
+    autosnap = no
+    autoprune = no

@@ -1,0 +1,7 @@
+[Unit]
+Description=Push DB dumps (local scratch → tank/data/db-dumps)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rsync -a --delay-updates {{ storage_push_db_dumps.src | quote }}/ {{ storage_push_db_dumps.target | quote }}/

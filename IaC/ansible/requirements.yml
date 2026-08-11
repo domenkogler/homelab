@@ -1,0 +1,5 @@
+---
+# Ansible collections required by the homelab roles.
+collections:
+  - name: community.general        # onepassword lookup, zfs/zpool modules
+  - name: ansible.posix            # authorized_key (push deploy key)

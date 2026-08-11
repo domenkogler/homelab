@@ -1,0 +1,101 @@
+---
+# nas: sanoid snapshots, syncoid replication, NFS exports.
+# (ZFS datasets/properties already applied in zfs_common.yml.)
+
+# ---------------------------------------------------------------------------
+# sanoid — snapshot schedules (sanoid.conf from storage_sanoid map)
+# ---------------------------------------------------------------------------
+- name: Render sanoid.conf
+  ansible.builtin.template:
+    src: sanoid.conf.j2
+    dest: /etc/sanoid/sanoid.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart sanoid timers
+
+- name: sanoid timer — every 5 min (so `frequently` = 5-min snapshots)
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=Sanoid ZFS snapshot pruning/capture
+
+      [Timer]
+      OnCalendar=*:0/5
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+    dest: /etc/systemd/system/sanoid.timer
+    mode: "0644"
+  notify: Restart sanoid timers
+
+- name: Sanoid oneshot service (no .service shipped by distro package)
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=Run sanoid (snapshot + prune)
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/sanoid --cron
+    dest: /etc/systemd/system/sanoid.service
+    mode: "0644"
+  notify: Restart sanoid timers
+
+# ---------------------------------------------------------------------------
+# syncoid — incremental replication tank/data/* → bulk/data/*
+# ---------------------------------------------------------------------------
+- name: Render syncoid run script
+  ansible.builtin.template:
+    src: syncoid-run.sh.j2
+    dest: /usr/local/sbin/storage-syncoid.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: syncoid oneshot service
+  ansible.builtin.template:
+    src: syncoid.service.j2
+    dest: /etc/systemd/system/storage-syncoid.service
+    mode: "0644"
+  notify: Restart syncoid timer
+
+- name: syncoid timer — check every 15 min, send on new snapshot
+  ansible.builtin.template:
+    src: syncoid.timer.j2
+    dest: /etc/systemd/system/storage-syncoid.timer
+    mode: "0644"
+  notify: Restart syncoid timer
+
+- name: Enable+start sanoid + syncoid timers
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    daemon_reload: true
+    enabled: true
+    state: started
+  loop:
+    - sanoid.timer
+    - storage-syncoid.timer
+
+# ---------------------------------------------------------------------------
+# NFS server — export tank/data + bulk/media
+# ---------------------------------------------------------------------------
+- name: Resolve NFS client CIDR (SSOT -> concrete /etc/exports value)
+  ansible.builtin.set_fact:
+    _nfs_clients: "{{ storage_nfs_clients }}"
+
+- name: Render /etc/exports
+  ansible.builtin.template:
+    src: exports.j2
+    dest: /etc/exports
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload NFS exports
+
+- name: Ensure nfs-kernel-server runs
+  ansible.builtin.systemd:
+    name: nfs-server.service
+    enabled: true
+    state: started

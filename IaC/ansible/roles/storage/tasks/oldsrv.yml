@@ -1,0 +1,98 @@
+---
+# oldsrv: NFS client mounts, nightly push timers (db dumps / services / face
+# thumbs). (ZFS nvme datasets/properties applied in zfs_common.yml.)
+
+# ---------------------------------------------------------------------------
+# NFS client mounts (fstab + systemd automount)
+# ---------------------------------------------------------------------------
+- name: Mount nas shares (tank/data, bulk/media)
+  ansible.builtin.mount:
+    src: "{{ item.src }}"
+    path: "{{ item.path }}"
+    fstype: nfs
+    opts: "{{ item.opts }}"
+    state: mounted
+  loop: "{{ storage_nfs_mounts }}"
+
+# ---------------------------------------------------------------------------
+# Push job 1 — DB dumps scratch → tank/data/db-dumps
+# ---------------------------------------------------------------------------
+- name: Render push-db-dumps unit + timer
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item | replace('.j2','') }}"
+    mode: "0644"
+  loop:
+    - push-db-dumps.service.j2
+    - push-db-dumps.timer.j2
+  notify: Reload systemd
+
+- name: Enable+start push-db-dumps.timer
+  ansible.builtin.systemd:
+    name: push-db-dumps.timer
+    daemon_reload: true
+    enabled: true
+    state: started
+
+# ---------------------------------------------------------------------------
+# Push job 2 — service state (Forgejo dump, n8n sqlite) → tank/data/services
+# ---------------------------------------------------------------------------
+- name: Render push-services script + units
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "{{ '/usr/local/sbin/storage-push-services.sh' if item == 'push-services.sh.j2' else '/etc/systemd/system/' + item | replace('.j2','') }}"
+    mode: "{{ '0755' if item == 'push-services.sh.j2' else '0644' }}"
+  loop:
+    - push-services.sh.j2
+    - push-services.service.j2
+    - push-services.timer.j2
+  notify: Reload systemd
+
+- name: Enable+start push-services.timer
+  ansible.builtin.systemd:
+    name: push-services.timer
+    daemon_reload: true
+    enabled: true
+    state: started
+
+# ---------------------------------------------------------------------------
+# Push job 3 — face thumbnails → bulk/data/immich-thumbs (rsync over ssh)
+# Note: bulk/data is NOT exported over NFS; a dedicated deploy key (1Password
+# item `storage-push_ssh`) authenticates oldsrv → nas for this one job.
+# ---------------------------------------------------------------------------
+- name: Render push-face-thumbs unit + timer
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item | replace('.j2','') }}"
+    mode: "0644"
+  loop:
+    - push-face-thumbs.service.j2
+    - push-face-thumbs.timer.j2
+  notify: Reload systemd
+
+- name: Provision push deploy key (private, 0600) from 1Password
+  ansible.builtin.copy:
+    content: "{{ lookup('community.general.onepassword', storage_push_ssh_item, field='private_key', vault=op_vault, default='') | string }}"
+    dest: "{{ storage_push_face_thumbs.ssh_key }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: lookup('community.general.onepassword', storage_push_ssh_item, field='private_key', vault=op_vault, default='') | length > 0
+
+- name: Authorize push key for ansible-admin on nas (restricted)
+  ansible.posix.authorized_key:
+    user: ansible-admin
+    key: "{{ lookup('community.general.onepassword', storage_push_ssh_item, field='public_key', vault=op_vault, default='') }}"
+    state: present
+    exclusive: false
+    key_options: 'no-agent-forwarding,no-port-forwarding,no-X11-forwarding,from="10.10.0.0/16"'
+  when:
+    - inventory_hostname in groups['home_servers'] | default([])
+  delegate_to: "{{ groups['storage'][0] }}"
+
+- name: Enable+start push-face-thumbs.timer
+  ansible.builtin.systemd:
+    name: push-face-thumbs.timer
+    daemon_reload: true
+    enabled: true
+    state: started

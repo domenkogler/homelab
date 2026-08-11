@@ -1,0 +1,7 @@
+[Unit]
+Description=Push service state (Forgejo dump, n8n sqlite) → tank/data/services
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ storage_push_services.scripts }}

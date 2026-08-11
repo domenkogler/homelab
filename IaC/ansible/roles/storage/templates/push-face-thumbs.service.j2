@@ -1,0 +1,11 @@
+[Unit]
+Description=Push Immich face thumbnails → bulk/data/immich-thumbs (ssh)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rsync -a --delete --partial \
+    -e "ssh -i {{ storage_push_face_thumbs.ssh_key }} -o StrictHostKeyChecking=accept-new" \
+    --include "{{ storage_push_face_thumbs.pattern }}" --exclude "*" \
+    {{ storage_push_face_thumbs.src | quote }}/ \
+    {{ storage_push_face_thumbs.remote }}:{{ storage_push_face_thumbs.target }}/

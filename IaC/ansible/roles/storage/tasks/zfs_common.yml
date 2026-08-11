@@ -1,0 +1,91 @@
+---
+# Shared ZFS tasks: import/create pools, apply datasets + properties.
+# IMPORT-FIRST rule: on an existing machine pools are imported, never created.
+# storage_allow_pool_create must be true for a fresh-build create (see defaults).
+# Host identity uses the SHORT name (nas / oldsrv) to match defaults keys.
+
+- name: Host short name
+  ansible.builtin.set_fact:
+    _host_short: "{{ inventory_hostname_short | lower }}"
+
+# ---------------------------------------------------------------------------
+# Pools — presence check
+# ---------------------------------------------------------------------------
+- name: Check pools present on this host
+  ansible.builtin.command: zpool list -H -o name {{ item.name }}
+  changed_when: false
+  failed_when: false
+  register: _pool_list
+  loop: "{{ storage_pools }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# ---------------------------------------------------------------------------
+# Pools — import (no mount yet; data untouched)
+# ---------------------------------------------------------------------------
+- name: Import pool (no mount yet) — never touches data
+  ansible.builtin.command: zpool import -N {{ item.item.name }}
+  changed_when: false
+  register: _pool_import
+  loop: "{{ _pool_list.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when:
+    - (item.rc | default(0)) != 0
+    - item.item.name in storage_own_pools[_host_short] | default([])
+
+# ---------------------------------------------------------------------------
+# Pools — fail hard unless a fresh build explicitly allows creating the pool
+# ---------------------------------------------------------------------------
+- name: Refuse to create a missing pool (import failed, no explicit fresh build)
+  ansible.builtin.fail:
+    msg: >-
+      Pool {{ item.item.name }} is missing and could not be imported.
+      Refusing to create it — this must never overwrite data. On a VERIFIED
+      fresh disk set storage_allow_pool_create=true and provide vdevs in
+      storage_pools.
+  loop: "{{ _pool_import.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when:
+    - not (item.skipped | default(false))
+    - (item.rc | default(0)) != 0
+    - item.item.name in storage_own_pools[_host_short] | default([])
+    - not (item.item.allow_create | default(false))
+
+- name: Create pool (fresh build — explicitly allowed)
+  community.general.zpool:
+    name: "{{ item.item.name }}"
+    state: present
+    vdevs: "{{ item.item.vdevs }}"
+    force: no
+  loop: "{{ _pool_import.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when:
+    - not (item.skipped | default(false))
+    - (item.rc | default(0)) != 0
+    - item.item.allow_create | default(false)
+    - item.item.vdevs | length > 0
+
+# ---------------------------------------------------------------------------
+# Datasets + properties — apply the storage-zfs.md table (all pools this host
+# owns; community.general.zfs also re-applies missing props on existing data)
+# ---------------------------------------------------------------------------
+- name: Apply datasets + properties
+  community.general.zfs:
+    name: "{{ item.name }}"
+    state: present
+    extra_zfs_properties: "{{ item.props }}"
+  loop: "{{ storage_datasets }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.name.split('/')[0] in storage_own_pools[_host_short] | default([])
+
+# ---------------------------------------------------------------------------
+# Mount everything of the imported pools (after datasets exist)
+# ---------------------------------------------------------------------------
+- name: Mount all datasets (zfs mount -a)
+  ansible.builtin.command: zfs mount -a
+  changed_when: false

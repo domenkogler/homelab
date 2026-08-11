@@ -1,0 +1,24 @@
+#!/bin/bash
+# Managed by Ansible — storage role. Nightly service-state export to NAS.
+# Steps: (1) forgejo dump, (2) n8n sqlite backup, (3) rsync to tank/data/services.
+# Container names follow the docker_services role (/opt/<svc> compose project).
+set -euo pipefail
+
+STAGING="{{ storage_push_services.src }}"
+TARGET="{{ storage_push_services.target }}"
+mkdir -p "$STAGING/forgejo" "$STAGING/n8n"
+
+# Forgejo — full dump (repos + DB + config) into staging
+docker exec forgejo forgejo dump --file /tmp/forgejo-dump.zip --tempdir /tmp \
+    && docker cp forgejo:/tmp/forgejo-dump.zip "$STAGING/forgejo/" \
+    && docker exec forgejo rm -f /tmp/forgejo-dump.zip
+# (Alternative if 'forgejo dump' inside the container is unavailable at impl time:
+#  run 'git bundle' per repo — see storage-zfs.md)
+
+# n8n — sqlite backup (encrypted creds travel inside; N8N_ENCRYPTION_KEY in 1Password)
+docker exec n8n sqlite3 /home/node/.n8n/database.sqlite \
+    ".backup '/home/node/.n8n/n8n.sqlite'" \
+    && docker cp n8n:/home/node/.n8n/n8n.sqlite "$STAGING/n8n/"
+
+# Push to NAS (NFS mount of tank/data)
+rsync -a --delay-updates "$STAGING/" "$TARGET/"

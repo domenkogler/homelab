@@ -82,6 +82,7 @@ network_ranges:
   - { name: services-internal, cidr: "172.21.0.0/16",  purpose: "Docker bridge — app ↔ app communication" }
   - { name: db-internal,       cidr: "172.22.0.0/16",  purpose: "Docker bridge — databases (fully isolated)" }
   - { name: site,              cidr: "10.10.0.0/16",   purpose: "Whole homelab site — all VLANs (10.10.x.0/24)" }
+  - { name: nfs-clients,       cidr: "10.10.1.30/32",  purpose: "NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP)" }
 
 # Single-namespace DNS: everything (hosts + services) is under kogler.si.
 # Internal-only hosts/services are NOT published in public DNS (split-horizon).

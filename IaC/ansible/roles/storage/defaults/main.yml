@@ -1,0 +1,150 @@
+---
+# storage role defaults — ZFS layout, properties, snapshots, NFS, push jobs.
+# Single source of truth for the DATA model: docs/storage-zfs.md.
+# This role runs on BOTH nas (tank/bulk, NFS server) and oldsrv (nvme,
+# NFS client, push timers). It never runs on the Pi (no ZFS) — the Pi
+# layout is produced by the home_assistant + docker_services roles.
+
+# ---------------------------------------------------------------------
+# Safety / bootstrap
+# ---------------------------------------------------------------------
+# Pools are IMPORTED, never auto-created. storage_allow_pool_create must be
+# set to true explicitly and ONLY on a verified-fresh disk (no data on it).
+# On reinstall-with-data, import must win — this role never destroys a pool.
+storage_allow_pool_create: false
+
+# NFS topology.
+storage_nfs_server: nas.kogler.si   # resolved via /etc/hosts (network role)
+# NFS export client — single SSOT source: group_vars/all.yml → network_ranges
+# (`nfs-clients`, rendered to docs/network-addresses.md). Least privilege:
+# only oldsrv's Home-VLAN IP may mount the exports.
+storage_nfs_clients: "{{ (network_ranges | selectattr('name', 'equalto', 'nfs-clients') | map(attribute='cidr') | first) }}"
+
+# uid/gid for the exported trees (1000 = domen; *arr PUID/PGID 1000:1000).
+storage_uid: "1000"
+storage_gid: "1000"
+
+# ---------------------------------------------------------------------
+# Pools
+# ---------------------------------------------------------------------
+# allow_create: false = import-only (pools live on their disks).
+# true = fresh build only (oldssrv nvme pool on the 970 EVO).
+storage_pools:
+  - name: tank
+    hosts: [nas]
+    allow_create: false
+    vdevs: []
+  - name: bulk
+    hosts: [nas]
+    allow_create: false
+    vdevs: []
+  - name: nvme
+    hosts: [oldsrv]
+    allow_create: "{{ storage_allow_pool_create }}"
+    vdevs: ["/dev/disk/by-id/<970_EVO_SERIAL>"]   # TODO: fill real by-id at deployment
+    options: { ashift: "12" }
+
+# ---------------------------------------------------------------------
+# Datasets + ZFS properties (mirrors the storage-zfs.md properties table)
+# ---------------------------------------------------------------------
+# Common props for every dataset (applied via community.general.zfs):
+_common_zfs_props: &common
+  xattr: sa
+  acltype: posixacl
+  atime: "off"
+
+storage_datasets:
+  # --- nas pool "tank" — user data (BACKED UP) ---
+  - { name: tank/data,            props: { canmount: off, mountpoint: none } }
+  - { name: tank/data/immich,     props: { recordsize: 1M,   compression: lz4,  <<: *common } }
+  - { name: tank/data/documents,  props: { recordsize: 128K, compression: zstd, <<: *common } }
+  - { name: tank/data/services,   props: { recordsize: 128K, compression: zstd, <<: *common } }
+  - { name: tank/data/db-dumps,   props: { recordsize: 128K, compression: zstd, <<: *common } }
+  # --- nas pool "bulk" — MIXED: active media (unbacked) + replicas + thumbs ---
+  - { name: bulk/media,           props: { recordsize: 1M,   compression: lz4,  <<: *common } }
+  - { name: bulk/data,            props: { canmount: off, mountpoint: none } }
+  - { name: bulk/data/immich,     props: { recordsize: 1M,   compression: lz4,  <<: *common } }
+  - { name: bulk/data/documents,  props: { recordsize: 128K, compression: zstd, <<: *common } }
+  - { name: bulk/data/services,   props: { recordsize: 128K, compression: zstd, <<: *common } }
+  - { name: bulk/data/db-dumps,   props: { recordsize: 128K, compression: zstd, <<: *common } }
+  - { name: bulk/data/immich-thumbs, props: { recordsize: 128K, compression: lz4, <<: *common } }
+  # --- oldsrv pool "nvme" — compute-host data (NAS-backed or regenerable) ---
+  - { name: nvme/docker-layers,   props: { recordsize: 128K, compression: lz4, atime: "off", mountpoint: /var/lib/docker } }
+  - { name: nvme/docker,          props: { canmount: off, mountpoint: none } }
+  - { name: nvme/docker/postgres, props: { recordsize: 8K,   compression: lz4, atime: "off", mountpoint: /srv/docker/postgres } }
+  - { name: nvme/docker/immich,   props: { recordsize: 128K, compression: lz4, atime: "off", mountpoint: /srv/docker/immich } }
+  - { name: nvme/docker/services, props: { recordsize: 128K, compression: zstd, atime: "off", mountpoint: /srv/docker/services } }
+  - { name: nvme/tsdb,            props: { recordsize: 16K,  compression: lz4, atime: "off", mountpoint: /srv/tsdb } }
+  - { name: nvme/models,          props: { recordsize: 128K, compression: off, atime: "off", mountpoint: /srv/models } }
+  - { name: nvme/dumps,           props: { recordsize: 128K, compression: zstd, atime: "off", mountpoint: /srv/dumps } }
+
+# Hosts allowed per pool (used to skip irrelevant datasets per host at runtime).
+# Simplified: the tasks apply the full list and ignore 'dataset missing pool'
+# failures on hosts that don't own the pool (see tasks/zfs_common.yml).
+storage_own_pools:
+  nas: [tank, bulk]
+  oldsrv: [nvme]
+  pi: []
+
+# ---------------------------------------------------------------------
+# Snapshots (sanoid) — cadence per dataset. sanoid.timer runs every 5 min
+# so the `frequently` tier means 5-min snapshots (documents: 96 = 8 h).
+# ---------------------------------------------------------------------
+storage_sanoid:
+  templates:
+    data:            { frequently: 0,  hourly: 24, daily: 7, weekly: 4, monthly: 3 }
+    documents:       { frequently: 96, hourly: 24, daily: 7, weekly: 4, monthly: 3 }
+    thumbs:          { frequently: 0,  hourly: 0,  daily: 7, weekly: 0, monthly: 0 }
+    none:            { autosnap: "no", autoprune: "no" }
+  datasets:
+    tank/data/immich:        data
+    tank/data/documents:     documents
+    tank/data/services:      data
+    tank/data/db-dumps:      data
+    bulk/data/immich:        data          # replicas keep the same cadence
+    bulk/data/documents:     documents
+    bulk/data/services:      data
+    bulk/data/db-dumps:      data
+    bulk/data/immich-thumbs: thumbs
+    bulk/media:              none          # unbacked — never snapshotted
+
+# ---------------------------------------------------------------------
+# Replication (syncoid) — source → target pairs on nas.
+# Timers check every 15 min; a send happens only when a new snapshot exists
+# (≈5 min for documents, ≈hourly otherwise).
+# ---------------------------------------------------------------------
+storage_replication:
+  - { source: tank/data/immich,     target: bulk/data/immich }
+  - { source: tank/data/documents,  target: bulk/data/documents }
+  - { source: tank/data/services,   target: bulk/data/services }
+  - { source: tank/data/db-dumps,   target: bulk/data/db-dumps }
+
+# ---------------------------------------------------------------------
+# NFS exports (nas) and client mounts (oldsrv) — see storage-zfs.md.
+# ---------------------------------------------------------------------
+storage_exports:
+  - { path: /tank/data, clients: "{{ storage_nfs_clients }}", options: "rw,sync,no_subtree_check,root_squash,anonuid={{ storage_uid }},anongid={{ storage_gid }}" }
+  - { path: /bulk/media, clients: "{{ storage_nfs_clients }}", options: "rw,sync,no_subtree_check,root_squash,anonuid={{ storage_uid }},anongid={{ storage_gid }}" }
+
+storage_nfs_mounts:
+  - { src: "{{ storage_nfs_server }}:/tank/data",  path: /mnt/nas/data, opts: "nfsvers=4.2,hard,intr,nofail,x-systemd.automount,noatime" }
+  - { src: "{{ storage_nfs_server }}:/bulk/media", path: /mnt/nas/media, opts: "nfsvers=4.2,hard,intr,nofail,x-systemd.automount,noatime" }
+
+# ---------------------------------------------------------------------
+# Nightly push jobs (oldsrv → nas). Schedules are systemd OnCalendar specs.
+# ---------------------------------------------------------------------
+# 1) DB dump scratch → tank/data/db-dumps (runs after tiredofit/db-backup).
+storage_push_db_dumps: { src: /srv/dumps, target: /mnt/nas/data/db-dumps, oncalendar: "*-*-* 03:35:00" }
+# 2) Service state (Forgejo dump, n8n sqlite backup) → tank/data/services.
+storage_push_services: { src: /srv/docker/services, target: /mnt/nas/data/services, oncalendar: "*-*-* 04:00:00",
+                         scripts: "/usr/local/sbin/storage-push-services.sh" }
+# 3) Immich face thumbnails → bulk/data/immich-thumbs (over ssh — bulk/data is
+#    NOT exported; done with a dedicated deploy key, pubkey on nas).
+storage_push_face_thumbs: { src: /srv/docker/immich/upload/thumbs, target: /bulk/data/immich-thumbs,
+                            remote: "ansible-admin@{{ storage_nfs_server }}", oncalendar: "*-*-* 04:30:00",
+                            ssh_key: /root/.ssh/id_storage_push, pattern: "face*" }
+storage_push_ssh_item: storage-push_ssh   # 1Password item: private_key + public_key fields
+
+# Kopia wiring (oldsrv): sources already exist as dirs above; policies are
+# configured in the kopia-agent container config — this role only guarantees
+# the paths exist and comments the intended policy in storage-zfs.md.

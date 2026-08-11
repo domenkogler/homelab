@@ -1,0 +1,21 @@
+---
+# storage role handlers.
+- name: Restart sanoid timers
+  ansible.builtin.systemd:
+    name: sanoid.timer
+    daemon_reload: true
+    state: restarted
+
+- name: Restart syncoid timer
+  ansible.builtin.systemd:
+    name: storage-syncoid.timer
+    daemon_reload: true
+    state: restarted
+
+- name: Reload NFS exports
+  ansible.builtin.command: exportfs -ra
+  changed_when: false
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true

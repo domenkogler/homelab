@@ -1,0 +1,7 @@
+[Unit]
+Description=Storage syncoid replication (tank/data/* → bulk/data/*)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/storage-syncoid.sh

@@ -68,7 +68,7 @@ IaC/ansible/
 │   ├── docker/tasks/main.yml        # Docker CE + compose install
 │   ├── network/tasks/main.yml       # VLAN interfaces, /etc/hosts
 │   ├── cockpit/tasks/main.yml       # Cockpit management UI (nas+oldsrv, own login, no Authentik)
-│   ├── storage/tasks/main.yml       # nas: ZFS pools/datasets, sanoid/syncoid, NFS exports; oldsrv push timers — proposed, spec: storage-zfs.md
+│   ├── storage/tasks/main.yml       # nas: ZFS pools/datasets, sanoid/syncoid, NFS exports; oldsrv push timers — see roles/storage (implemented)
 │   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
@@ -230,7 +230,7 @@ domain_local: kogler.si
 - **Traefik:** file-provider routes (`/opt/traefik/dynamic/cockpit.yml` on oldsrv): `cockpit-nas → 10.10.1.10:9090`, `cockpit-oldsrv → 10.10.1.30:9090`, no Forward-Auth middleware.
 - 9090 is intra-Home-VLAN between Traefik (oldsrv) and nas — no inter-VLAN firewall rule needed.
 
-### `storage` (proposed — spec: [`storage-zfs.md`](storage-zfs.md))
+### `storage` (roles/storage — data model SSOT: [`storage-zfs.md`](storage-zfs.md))
 - **Hosts:** nas (ZFS + NFS server) and oldsrv (`nvme` data pool + fstab mounts + push timers)
 - Installs `zfsutils-linux`, `sanoid`, `syncoid`; **imports** pools — `tank`/`bulk` on nas, `nvme` on
   oldsrv (never re-creates; pools are self-describing); creates datasets with the properties from
@@ -368,7 +368,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 1 | `common` + `docker` + `network` | None |
 | 2 | `ai_diag` | `common` |
 | 3 | `amd_rocm` | `common` |
-| 4 | `storage` (nas: ZFS `tank`/`bulk` datasets, sanoid/syncoid, NFS exports; oldsrv fstab + push timers) — *proposed, spec: [`storage-zfs.md`](storage-zfs.md)* | `common`, `network` |
+| 4 | `storage` (ZFS import/datasets, sanoid/syncoid, NFS exports/mounts, push timers — `roles/storage`) | `common`, `network` |
 | 5 | `docker_services` (core loop + systemd + templates) | `docker`, `network`, `amd_rocm`, `storage` (NFS mounts ready) |
 | 6 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
 | 7 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) + Pi `docker_services` (`raspberrymatic`, `technitium-secondary`, `traefik-ha` edge for `ha` + `dns-pi`) | `docker` |

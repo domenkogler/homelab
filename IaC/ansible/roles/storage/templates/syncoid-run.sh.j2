@@ -1,0 +1,8 @@
+#!/bin/bash
+# Managed by Ansible — storage role. Incremental ZFS send/recv per pair.
+# Runs via storage-syncoid.timer (every 15 min); no-ops when no new snapshot.
+set -euo pipefail
+{% for pair in storage_replication %}
+syncoid --no-privilege-elevation --force-delete \
+    "{{ pair.source }}" "{{ pair.target }}"
+{% endfor %}

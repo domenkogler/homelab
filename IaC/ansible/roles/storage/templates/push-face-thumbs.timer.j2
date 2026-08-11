@@ -1,0 +1,9 @@
+[Unit]
+Description=Nightly face-thumbnail push to NAS (bulk/data/immich-thumbs)
+
+[Timer]
+OnCalendar={{ storage_push_face_thumbs.oncalendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
