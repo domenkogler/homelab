@@ -23,8 +23,8 @@ tags: [hardware, oldsrv, docker]
 | dGPU | AMD Radeon RX 7600 8 GB → dedicated to Docker AI containers |
 | NIC | Intel i350-T2 (one port used — VLAN trunk to CRS328) |
 | RAM | 48 GB DDR4 (2×8 GB + 2×16 GB Corsair Vengeance LPX, DDR4-2400) |
-| NVMe 1 | Samsung SSD 970 EVO 1TB — OS, Docker volumes, DBs, LLM models |
-| NVMe 2 | Samsung SSD 960 EVO 500GB — bulk data, media, second-stage storage |
+| NVMe 1 | Samsung SSD 970 EVO 1TB — **data**: ZFS pool `nvme` (DBs, service data, TSDB, models, dumps) — heavy writes live here (600 TBW, fastest) |
+| NVMe 2 | Samsung SSD 960 EVO 500GB — **system**: ext4 OS/root + `/opt` configs — light writes only (200 TBW) |
 | OS | Debian with XFCE or GNOME desktop |
 | Location | Workstation desk (not rack-mounted) |
 
@@ -86,8 +86,8 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ## Observability Storage & Notes
 
-- **TSDB storage:** Prometheus/Loki volumes on oldsrv local disk (`NVMe 1`), not nas ZFS — metrics/logs are **regenerable**, expected ~10–20 GB at 30d/14d retention. Retention deliberate (see `observability.md`).
-- **Disk headroom:** monitor NVMe free space in Grafana + treat ≥90% as a **Critical** alert.
+- **TSDB storage:** Prometheus/Loki on the oldsrv **`nvme` ZFS pool** (`nvme/tsdb`, 16K/lz4, no snapshots, no backup), not nas ZFS — metrics/logs are **regenerable**, expected ~10–20 GB at 30d/14d retention. Retention deliberate (see `observability.md`).
+- **Disk headroom:** monitor the `nvme` pool **and** OS disk in Grafana — pool ≥70% Warning / ≥80% Critical (see `observability.md`), OS disk ≥90% Critical.
 - **SPOF (accepted):** all observability lives here — if oldsrv dies, you cannot see nas/others. Documented; HA standby (see [`smart-home-failover.md`](smart-home-failover.md)) + backups cover recovery, not observability continuity.
 - Adds RAM weight vs original: n8n + Loki are the main additions; i7-7700K / 48 GB handles it.
 

@@ -41,8 +41,8 @@ tags: [hardware, phases]
 
 ```
 oldsrv (desk)
-├── Samsung SSD 970 EVO 1TB    → OS, Docker volumes, DBs, LLM models
-├── Samsung SSD 960 EVO 500GB  → bulk data, media
+├── Samsung SSD 960 EVO 500GB  → OS/system (ext4), configs — light writes (200 TBW)
+├── Samsung SSD 970 EVO 1TB    → ZFS pool "nvme": DBs, service data, TSDB, models, dumps
 ├── Kopia                      → off-site encrypted backup → iDrive e2
 └── NFS mounts                → nas shares
 

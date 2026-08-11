@@ -63,9 +63,15 @@ d-i partman-auto/choose_recipe select atomic
 ```
 
 **For oldsrv (NVMe + dual drives):**
-- OS on NVMe 1 (`Samsung SSD 970 EVO 1TB`)
-- Data on NVMe 2 (`Samsung SSD 960 EVO 500GB`)
+- OS on the **960 EVO 500 GB** (ext4 root) — light system writes on the 200 TBW disk
+- **970 EVO 1 TB** is **NOT offered to the installer** — left raw for the ZFS pool `nvme` (see [`storage-zfs.md`](storage-zfs.md))
 - Use `/dev/disk/by-id/nvme-*` paths
+
+> **Rule (all hosts):** preseed partitions the **OS disk only**. ZFS disks are never part of
+> partitioning; pools are **imported** post-boot (`zpool import`), never auto-created — automation
+> only creates a pool on an explicitly fresh machine. The filesystem layout (datasets, properties,
+> mounts, sanoid/syncoid) is owned by the Ansible `storage` role; `post_install.sh` stays
+> bootstrap-only (users/SSH/hardening) and contains no layout logic. SSOT: [`storage-zfs.md`](storage-zfs.md).
 
 ### 5. Users
 
@@ -183,8 +189,8 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 - Refer to [`hardware-nas.md`](hardware-nas.md) for drive details
 
 ### oldsrv (i7-7700K)
-- OS: Samsung SSD 970 EVO 1TB (NVMe)
-- Data: Samsung SSD 960 EVO 500GB (NVMe)
+- OS: Samsung SSD 960 EVO 500 GB (NVMe) — ext4 root; light system writes on the 200 TBW disk
+- Data: Samsung SSD 970 EVO 1 TB (NVMe) — **untouched by preseed** → ZFS pool `nvme` (600 TBW, fastest)
 - Desktop environment: XFCE or GNOME (see [`hardware-oldsrv.md`](hardware-oldsrv.md))
 - Additional packages for desktop: `xorg xfce4 lightdm` (or GNOME equivalent)
 
