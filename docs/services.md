@@ -131,11 +131,12 @@ WAN allow. Everything else in the catalog is **internal-only** (no public record
 
 ## Media / *arr Stack
 
-Single dataset **`tank/data`** on nas, one NFS export → oldsrv **`/mnt/nas/data`**
-(hardlinks between `downloads/` and `media/` require the same filesystem — TRaSH).
+Media lives on the nas **`bulk`** pool (RAIDZ2) in a single dataset — `bulk/media` — because TRaSH
+hardlinks between `downloads/` and `media/` require a **single filesystem** (ZFS hardlinks can't cross
+dataset boundaries).
 
 ```
-tank/data/                        # ZFS dataset (backed up; sanoid: hourly, no 15-min tier)
+bulk/media/                       # ONE dataset — ACTIVE library, NOT backed up (redownloadable)
 ├── media/
 │   ├── movies/
 │   ├── tv/
@@ -145,10 +146,11 @@ tank/data/                        # ZFS dataset (backed up; sanoid: hourly, no 1
     └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd categories / qBittorrent save paths)
 ```
 
+- One **NFS export** `bulk/media` → oldsrv **`/mnt/nas/media`** (the *arr share; distinct from
+  `tank/data` → `/mnt/nas/data`, which carries immutable user data — two pools, two exports).
 - **Import = hardlink** (Sonarr/Radarr/Lidarr: `Use Hardlinks` ON) — instant, zero-space, atomic.
-  The coarser sanoid cadence bounds snapshot churn; imported files exist once, so they cost
-  nothing in snapshot history.
-- **Kopia excludes** `/mnt/nas/data/downloads` — scratch is never backed up (media in `media/` is).
+- **Media is not backed up** — no sanoid snapshots, no syncoid, no Kopia. Lost media is re-fetched via
+  usenet/torrents. Full layout/properties/replication: [`storage-zfs.md`](storage-zfs.md).
 - **PUID/PGID `1000:1000`** (domen) across all *arr containers (linuxserver `PUID/PGID` env;
   Jellyfin `user: "1000:1000"`). NFS ownership on nas must match.
 - **VPN:** only qBittorrent egress → gluetun (WireGuard, PrivadoVPN, Netherlands — same region as

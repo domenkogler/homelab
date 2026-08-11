@@ -84,8 +84,8 @@ nut_exporter (UPS, on nas) ─────────────────�
 
 | Severity | What alerts | Channel | Notes |
 |----------|-------------|---------|-------|
-| **Critical** | oldsrv disk ≥90%, host down, ZFS pool degraded, service down >2min, `probe_success==0` · **UPS battery <20% or runtime <5 min (impending shutdown)** | Signal + email | page-worthy |
-| **Warning** | container restart loop, high CPU/load, HA unreachable, MikroTik link down · **UPS on-battery / mains lost (auto-clear on return)** | Signal (deduped) | sent once |
+| **Critical** | oldsrv disk ≥90%, **nas ZFS pool usage ≥80% (`tank` & `bulk`)**, host down, ZFS pool degraded, service down >2min, `probe_success==0` · **UPS battery <20% or runtime <5 min (impending shutdown)** | Signal + email | page-worthy |
+| **Warning** | container restart loop, high CPU/load, HA unreachable, MikroTik link down, **nas pool ≥70%** · **UPS on-battery / mains lost (auto-clear on return)** | Signal (deduped) | sent once |
 | **Info** | transient / everything else · **UPS online ↔ on-battery transitions / restored** | logged only | no push |
 
 - **Poke/throttle:** re-send only if still firing after ~30 min (prevents overnight alert floods).

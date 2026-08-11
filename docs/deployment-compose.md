@@ -109,12 +109,14 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   `latest` tags, Renovate-tracked.
 - **PUID/PGID:** all *arr containers run as **`1000:1000`** (domen) — linuxserver images via
   `PUID=1000`/`PGID=1000`, Jellyfin via `user: "1000:1000"`. NFS ownership on nas must match.
-- **Storage:** single NFS export `tank/data` → `/mnt/nas/data` (hardlinks need one filesystem):
-  - Jellyfin: `/mnt/nas/data/media/...` **ro**
-  - Sonarr/Radarr/Lidarr: their library dir (rw — creates folders) + `downloads/complete/<cat>` (import)
-  - SABnzbd / qBittorrent: `/mnt/nas/data/downloads` (rw)
+- **Storage:** media lives in a **single dataset** on the nas `bulk` pool — `bulk/media` → NFS export →
+  oldsrv `/mnt/nas/media` (one filesystem → TRaSH hardlinks; **not backed up**, redownloadable):
+  - Jellyfin: `/mnt/nas/media/media/...` **ro**
+  - Sonarr/Radarr/Lidarr: library `/mnt/nas/media/media/<cat>` (rw — creates folders) + `downloads/complete/<cat>` (import)
+  - SABnzbd / qBittorrent: `/mnt/nas/media/downloads` (rw)
   - Bazarr: library dirs (writes subtitles next to media)
   - `Use Hardlinks: ON` in Sonarr/Radarr/Lidarr
+  - Full layout + dataset properties: [`storage-zfs.md`](storage-zfs.md)
 - **Downloader egress:** only qBittorrent routes through gluetun:
   ```yaml
   services:
@@ -139,6 +141,21 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
 - **Auth:** admin UIs behind `authentik-forward-auth@file` with built-in logins disabled;
   Jellyfin + Seerr use their own login (client apps / family portal).
 - **Dozzle** is an observability viewer (all containers), not part of the *arr stack — see `observability.md`.
+
+### Immich Hybrid Storage (originals on NAS, thumbs/ML local)
+
+```yaml
+services:
+  immich-server:
+    volumes:
+      - immich-data:/usr/src/app/upload        # local NVMe: thumbs, encoded-video
+      - /mnt/nas/data/immich:/usr/src/app/upload/library   # NFS originals (storage template on)
+```
+
+- `UPLOAD_LOCATION` = local NVMe; enable **storage template** so originals go to `upload/library`
+- Bind-mount nas `tank/data/immich` → `upload/library` (only big write-once originals cross NFS)
+- Postgres + Immich-ML model cache + ML embeddings (in DB) stay local — see [`storage-zfs.md`](storage-zfs.md)
+- Face thumbnail files → `bulk/data/immich-thumbs` nightly (backed up); the rest of `thumbs/` regenerable
 
 ---
 
@@ -251,8 +268,11 @@ services:
 
 ## Volume Strategy
 
-- Named volumes for persistent data
-- Bind mounts only where necessary (Docker socket, GPU devices, configs on host)
+- **Stateful service data = bind mounts** under `/srv/docker/<svc>` on the oldsrv `nvme` ZFS pool —
+  each dir is its own dataset (per-service recordsize/snapshots) and backup jobs + Kopia get clean host
+  paths. Ownership `1000:1000` (domen) where the app expects it (see *arr conventions).
+- Named volumes only for truly ephemeral/utility caches — never for anything that is backed up
+- Bind mounts for host resources (Docker socket, GPU devices)
 - No anonymous volumes
 
 ---

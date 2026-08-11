@@ -47,15 +47,18 @@ oldsrv (desk)
 └── NFS mounts                → nas shares
 
 nas (rack) — Debian 13, ZFS
-├── Boot: Crucial MX300 525 GB SSD
-├── ZFS pool "tank" (mirror) — HGST 4TB + Seagate IronWolf Pro 4TB
-│   ├── tank/important          → backed up
-│   ├── tank/media              → backed up
-│   └── tank/downloads          → NOT backed up
-├── ZFS pool "backup" (RAIDZ2) — SilverStone via miniSAS
-│   └── WD Red 3TB + 3× Toshiba P300 3TB (6 TB usable)
-└── ZFS snapshots → zfs send/recv → backup pool (sanoid/syncoid)
+├── Boot: Crucial MX300 525 GB SSD (no image backup — pools are self-describing)
+├── ZFS pool "tank" (mirror) — HGST 4TB + Seagate IronWolf Pro 4TB — user data, BACKED UP
+│   └── data/{immich, documents, services, db-dumps}
+├── ZFS pool "bulk" (RAIDZ2) — SilverStone via miniSAS — MIXED role
+│   ├── media/                active *arr library + downloads (hardlinks, NOT backed up)
+│   ├── data/                 syncoid replicas of tank/data/* (hourly)
+│   └── immich-thumbs/        face thumbnails (daily rsync ← oldsrv)
+├── NFS exports → oldsrv: tank/data → /mnt/nas/data · bulk/media → /mnt/nas/media
+└── ZFS snapshots → sanoid/syncoid → bulk pool (data datasets only)
 ```
+
+> Full dataset tree, properties, and replication: [`storage-zfs.md`](storage-zfs.md)
 
 ---
 

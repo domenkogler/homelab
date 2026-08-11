@@ -39,31 +39,32 @@ tags: [hardware, nas, zfs]
 | sdb | HGST HDN726040ALE614 | 4 TB | 60,070 | ✅ |
 | — | Seagate IronWolf Pro ST4000NT001 | 4 TB | new | ✅ |
 
-- **4 TB usable**, fully redundant mirror
-- Datasets:
-  - `tank/important` → backed up (photos, documents, Docker data) — separate from the media export
-  - `tank/data` → backed up (bulk media + *arr library) — **single NFS export** → oldsrv `/mnt/nas/data`
-    - `media/{movies,tv,music}` — long-term library (Jellyfin, Sonarr/Radarr/Lidarr)
-    - `downloads/{incomplete,complete}` — TRaSH scratch: **hardlink-imported** into `media/`, then pruned.
-      Hardlinks need one filesystem, so downloads live INSIDE the snapshotted dataset (accepted
-      trade-off — coarser sanoid cadence bounds transient snapshot cost, see `backup.md`)
-  - (older `tank/downloads`-as-dataset plan → **superseded**: a separate dataset would break TRaSH
-    hardlinks; downloads now live under `tank/data`)
+- **4 TB usable**, fully redundant mirror — reserved for **user data** (backed up). No media.
+- Datasets (all snapshotted + syncoid-replicated to `bulk`):
+  - `tank/data/immich` → Immich **originals** only (photos/videos) — `recordsize=1M`
+  - `tank/data/documents` → OpenCloud files — `recordsize=128K`
+  - `tank/data/services` → nightly state pushes from oldsrv (Forgejo dump, n8n sqlite, …)
+  - `tank/data/db-dumps` → tiredofit/db-backup output (pushed from oldsrv local scratch)
+  - (older `tank/important` / `tank/data`-with-media plans → **superseded**: media moved to the `bulk`
+    pool; only user data remains on `tank`. Full layout: [`storage-zfs.md`](storage-zfs.md))
 
-### NFS Export (→ oldsrv)
+### NFS Exports (→ oldsrv)
 
-- Export: **`tank/data`** — a single export, no sub-mounts (hardlinks require one filesystem)
-- Client mount: oldsrv at **`/mnt/nas/data`** (fstab / Ansible)
+- Export **`tank/data`** (user data) → oldsrv **`/mnt/nas/data`**
+- Export **`bulk/media`** (the *arr library + downloads) → oldsrv **`/mnt/nas/media`**
 - Ownership: uid/gid **1000:1000** (domen) so *arr containers (`PUID/PGID 1000:1000`) can read/write
-- `tank/important` is **not** part of this export (separate share, TBD)
+- Two exports because the datasets live on **different pools** (tank vs bulk) — they can't share one mount.
+  TRaSH hardlinks only need a single filesystem **within** `bulk/media`, which is one dataset ✓
+- Full layout/properties: [`storage-zfs.md`](storage-zfs.md)
 
-> **TODO (IaC):** nas storage role — NFS export config (`tank/data`), `sanoid.conf` for `tank/data`
-> (no 15-min tier → hourly(24)+daily(7)+weekly(4)+monthly(3); `tank/important` unchanged), and the
-> oldsrv fstab mount. Doc-only in the planning phase.
+> **TODO (IaC):** nas `storage` role — pool import, dataset creation with properties (see
+> `storage-zfs.md`), `sanoid.conf` + systemd timers (sanoid.timer/syncoid.timer), NFS exports
+> (`tank/data`, `bulk/media`), oldsrv fstab mounts, and the nightly push jobs (db dumps, service state,
+> face thumbnails). Doc-only in the planning phase.
 
 ---
 
-## ZFS Pool "backup" (Local Target — RAIDZ2)
+## ZFS Pool "bulk" (Local Secondary — RAIDZ2, mixed role)
 
 Connected via **miniSAS** to the SilverStone SST-TS43xx external disk enclosure (4-bay, miniSAS-only — no USB/eSATA).
 
@@ -76,26 +77,30 @@ Connected via **miniSAS** to the SilverStone SST-TS43xx external disk enclosure 
 
 - **6 TB usable**, survives any 2 disk failures
 - sde (Toshiba P300, 2,001 reallocated + 32 pending) was zeroed and physically removed
-- Snapshot schedule: every 15 min (kept 4), hourly (24), daily (7), weekly (4), monthly (3)
+- **Mixed role:** hosts the **syncoid replicas** of `tank/data/*` AND the **active media library**
+  (`bulk/media`, no snapshots — redownloadable) AND the face-thumbnail copy (`bulk/data/immich-thumbs`,
+  daily snapshots). Replica datasets retain the source snapshot schedules independently. Detail:
+  [`storage-zfs.md`](storage-zfs.md)
 
 ### SilverStone SST-TS43xx (External Disk Enclosure)
 
-The "backup" pool above lives on an external **SilverStone SST-TS43xx** 4-bay disk case
+The "bulk" pool above lives on an external **SilverStone SST-TS43xx** 4-bay disk case
 (miniSAS only — no USB/eSATA), attached to the MicroServer miniSAS card. It serves
-as the **local backup target** via ZFS send/recv from the primary "tank" pool
-(bulk/cold/scratch storage, 12 TB raw / 6 TB usable in RAIDZ2). `sde` was removed
+as the **local secondary pool**: syncoid replicas of `tank/data/*` (ZFS send/recv) plus the
+**active media library** (`bulk/media`) and the face-thumbnail push target (`bulk/data/immich-thumbs`)
+— 12 TB raw / 6 TB usable in RAIDZ2 on consumer disks. `sde` was removed
 (⚠️ critically failing: 2,001 reallocated + 32 pending sectors).
 
 ---
 
 ## Roles
 
-- Primary ZFS pool "tank" — mirror, 4 TB usable
-- Backup ZFS pool "backup" — RAIDZ2, 6 TB usable
-- NAS / file server — NFS/SMB shares for media, photos, documents
-- Local backup replication — ZFS send/recv (sanoid/syncoid) from tank → backup pool
+- Primary ZFS pool "tank" — mirror, 4 TB usable — **user data only** (backed up)
+- Secondary ZFS pool "bulk" — RAIDZ2, 6 TB usable — active media (unbacked) + data replicas + thumb copies
+- NAS / file server — NFS shares: `tank/data` (user data), `bulk/media` (media); SMB for family deferred
+- Local replication — sanoid/syncoid: `tank/data/*` → `bulk/data/*` (incremental, ≈ hourly)
 - Web UI — Cockpit + cockpit-zfs (~150 MB RAM)
-- Kopia relay — optional cloud relay to iDrive e2
+- **Kopia does not run on nas** — off-site backup originates from oldsrv (NAS-independent, see `backup.md`)
 
 ---
 
