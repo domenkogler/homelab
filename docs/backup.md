@@ -30,9 +30,11 @@ nas ZFS pool "tank"  ──zfs send/recv──→  nas ZFS pool "bulk"
 - **Scope:** ONLY `tank/data/*` (immich, documents, services, db-dumps). The media library
   (`bulk/media`) is intentionally **NOT snapshotted or replicated** — it is redownloadable, see
   [`services.md`](services.md) / [`storage-zfs.md`](storage-zfs.md)
-- Snapshot schedule (per data dataset): hourly (24), daily (7), weekly (4), monthly (3) — no 15-min
-  tier: photos/documents change by upload, dumps change daily; snapshotting unbacked media would be pure churn
-- Replication: syncoid timer checks every 15 min, sends when a new source snapshot exists (≈ hourly)
+- Snapshot schedule: data datasets hourly (24), daily (7), weekly (4), monthly (3); **`documents` gets an
+  additional 5-min tier retained 8 h (`5m(96)`)** for fine-grained per-file versioning — photo/dump
+  datasets stay hourly (photos change by upload, dumps daily); snapshotting unbacked media is pure churn
+- Replication: syncoid timer checks every 15 min, sends when a new source snapshot exists (≈ hourly;
+  ≈ 5 min for `documents`)
 - Managed via **sanoid/syncoid**, run by **systemd timers** (sanoid.timer + syncoid.timer) — not raw cron; gives journaling, randomized schedules, and failure tracking
 
 ### Layer 2: Kopia (Off-Site — Application-Level, NAS-independent)

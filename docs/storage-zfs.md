@@ -37,7 +37,7 @@ tags: [storage, zfs, datasets, backup, media, nfs]
 tank   (4 TB mirror — HGST + IronWolf, 24/7-rated)         → BACKED UP
 └── data/
     ├── immich/          Immich originals (photos/videos) only   hourly+ snapshots, syncoid
-    ├── documents/       OpenCloud files                          hourly+ snapshots, syncoid
+    ├── documents/       OpenCloud files — 5-min snapshots (8 h), syncoid
     ├── services/        nightly state pushes (Forgejo dump, n8n sqlite, …)
     └── db-dumps/        tiredofit/db-backup output (push from oldsrv)   hourly+ snapshots, syncoid
 
@@ -81,7 +81,7 @@ No native encryption by default (homelab threat model; re-evaluate only if it ch
 | Dataset | recordsize | compression | Snapshots (sanoid) | syncoid → `bulk`? | Backed up off-site (Kopia)? |
 |---------|-----------|-------------|--------------------|-------------------|-----------------------------|
 | `tank/data/immich` | 1M | lz4 | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | via dumps (DB) — originals are the ZFS copy |
-| `tank/data/documents` | 128K | zstd | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | optional (small) |
+| `tank/data/documents` | 128K | zstd | **5m(96)**+hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | optional (small) |
 | `tank/data/services` | 128K | zstd | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | yes (state dirs on oldsrv) |
 | `tank/data/db-dumps` | 128K | zstd | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | yes (local scratch via Kopia) |
 | `bulk/media` | 1M | lz4 | **none** | **no** | **no** — redownloadable |
@@ -90,9 +90,11 @@ No native encryption by default (homelab threat model; re-evaluate only if it ch
 
 Rationale: `recordsize=1M` matches large sequential photo/video files; `128K` is the sensible default for
 documents/dumps/git. Media and photos are already compressed by their codecs → `lz4` (cheap, tiny gain);
-documents/SQL dumps compress well → `zstd`. Snapshot cadence is **hourly, no 15-min tier**: photos change by
-upload, dumps change daily, and snapshots of unbacked media would be pure churn. Replication granularity
-follows the snapshot cadence (≈ hourly), bounded by DB dump frequency (daily restore point) — worst case a
+documents/SQL dumps compress well → `zstd`. Snapshot cadence is **hourly** for immich/services/db-dumps
+(photos change by upload, dumps change daily) — with one deliberate exception: **`tank/data/documents`
+gets a 5-min tier retained 8 h (`5m(96)`)** for fine-grained per-file versioning (see File-Version UI
+below). Snapshots of unbacked media are pure churn. Replication granularity follows the snapshot cadence
+(≈ hourly; 5-min for documents), bounded by DB dump frequency (daily restore point) — worst case a
 homelab loses <24 h of DB changes, acceptable.
 
 ---
@@ -102,12 +104,27 @@ homelab loses <24 h of DB changes, acceptable.
 - **sanoid** on nas snapshots `tank/data/*` (and `bulk/data/*` replicas + `bulk/data/immich-thumbs`).
   `bulk/media` is excluded from sanoid entirely.
 - **syncoid** replicates `tank/data/* → bulk/data/*` (incremental `zfs send | zfs recv`). Timer checks
-  every 15 min, sends only when a new source snapshot exists.
+  every 15 min, sends only when a new source snapshot exists — so `documents` pushes ≈ every 5 min, the
+  rest ≈ hourly.
 - Replica datasets retain **independent** snapshot history on the `bulk` pool (protects against source
   deletion/error propagation; the replica is a rollback target of its own).
 - `bulk/data/immich-thumbs` and `bulk/media` are **push targets** — no syncoid definition.
 - Managed by **systemd timers** (`sanoid.timer`, `syncoid.timer`) — journaling, randomized schedules,
   failure tracking. Not raw cron.
+
+---
+
+## File-Version UI (per-file restore from snapshots)
+
+- **Family today:** OpenCloud's built-in per-file versions (`REV.*` in `.oc-nodes/`) + Trash — keep its
+  revision retention short; ZFS owns the long tail.
+- **Admin today:** cockpit-zfs (nas) + `.zfs/snapshot/*` + `zfs rollback`/`receive` (whole-tree or per-file copy out of a snapshot).
+- **Optional later:** serve `tank/data/documents` over SMB with `vfs objects = shadow_copy_zfs` → Windows
+  Explorer *Properties → Previous Versions* per file, straight from these snapshots (~5 lines in smb.conf;
+  SMB itself is currently deferred).
+- **Future:** OpenCloud FR [opencloud-eu/opencloud#1702](https://github.com/opencloud-eu/opencloud/issues/1702)
+  would expose ZFS snapshots inside OpenCloud's version panel — our sanoid naming plugs straight in; don't
+  plan around it (open, no ETA).
 
 ---
 

@@ -67,6 +67,11 @@ tags: [services, catalog]
 > gaming mode ≈ 10–13 GB — ample headroom. Plus host desktop + browser 2–4 GB (6–8 GB heavy).
 > Estimates only; validate with real working-set metrics after deploy (observability TODO).
 
+> **Storage & versions (summary):** storage SSOT = [`storage-zfs.md`](storage-zfs.md). OpenCloud keeps its
+> own per-file versions (`REV.*` in `.oc-nodes/`); `tank/data/documents` gets **5-min ZFS snapshots kept 8 h**
+> as the deeper history. OpenCloud FR [opencloud-eu/opencloud#1702](https://github.com/opencloud-eu/opencloud/issues/1702)
+> (expose ZFS snapshots in the version panel) is a future option, not planned around.
+
 ---
 
 ## Docker Networks
