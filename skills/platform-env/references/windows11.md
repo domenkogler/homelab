@@ -86,4 +86,4 @@ Append durable discoveries here when a resolved environment failure reveals a
 gap not covered above (procedure: `references/self-learn.md`). One line each,
 `symptom → fix (when …)`. Prune duplicates as the file grows.
 
-- *(active space — add entries as you learn them)*
+- `py -3` printing non-ASCII to stdout (✓/✗) → `UnicodeEncodeError: 'charmap' codec … cp1252` → keep script output ASCII-only, or run with `PYTHONUTF8=1` / reconfigure stdout to UTF-8 (when a Python script prints to the Windows console)
