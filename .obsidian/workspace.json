@@ -11,10 +11,17 @@
             "id": "9db10c86e7a90837",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "canvas",
+              "state": {
+                "file": "docs/assets/Rack.canvas",
+                "viewState": {
+                  "x": -720,
+                  "y": -1820,
+                  "zoom": -0.4585302158957649
+                }
+              },
+              "icon": "lucide-layout-dashboard",
+              "title": "Rack"
             }
           }
         ]
@@ -76,7 +83,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 337.5
   },
   "right": {
     "id": "3a19182c9b3161c0",
@@ -92,6 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
+                "file": "docs/assets/Rack.canvas",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -180,6 +188,23 @@
   },
   "active": "9db10c86e7a90837",
   "lastOpenFiles": [
+    "docs/assets/Network-Devices.canvas",
+    "docs/assets/images/Comtrend-GRG-4260us.png",
+    "docs/assets/images/CRS328.png",
+    "docs/assets/images/hAP-ac.png",
+    "docs/assets/images/hAP-ac2.png",
+    "docs/assets/manuals/comtrend-grg-4260-in-neo-smartbox_navodila-za-priklop.pdf",
+    "docs/assets/Rack.canvas",
+    "docs/assets/manuals/HMPI-HAP manual.pdf",
+    "docs/assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf",
+    "docs/assets/manuals/RB4011iGS+RM - User manuals.pdf",
+    "docs/assets/manuals/TP-LINK TP-SG108E manual.pdf",
+    "docs/assets/manuals/crs3284c20s4srm.pdf",
+    "docs/assets/manuals/DS_GRG-4260us.pdf",
+    "docs/assets/manuals/GRG-4260us_v2.pdf",
+    "docs/assets/manuals/Unconfirmed 112504.crdownload",
+    "docs/assets/manuals/Unconfirmed 680872.crdownload",
+    "docs/assets/images/TP-Link TL-SG108E.jpg",
     "plan/2026-08-06-docs-obsidian-reorg/T1.md",
     "plan/2026-08-06-docs-obsidian-reorg.md",
     "docs/index.md",
@@ -188,24 +213,16 @@
     "docs/backup.md",
     "plan/2026-08-06-docs-obsidian-reorg/index.md",
     "skills/run-task/references/subagent-routing.md",
-    "plan",
     "docs/manual/restore-backup.md",
     "skills/plan-task/references/task-section-template.md",
     "skills/plan-task/SKILL.md",
     "plan/2026-08-06-docs-obsidian-reorg/T2.md",
-    "skills/plan-task/scripts/refresh-model-cache.py",
-    "docs/assets/images/Comtrend-GRG-4260us.png",
     "skills/run-task/references/human-checkpoints.md",
     "skills/plan-task/references/clarification-checklist.md",
     "skills/plan-task/_fixture_broken.md",
-    "skills/run-task",
-    "skills/run-task/references",
-    "skills/plan-task/scripts/__pycache__/validate-plan.cpython-314.pyc",
     "docs/manual/smart-home.md",
     "docs/manual/server-restart.md",
-    "skills/plan-task/scripts/validate-plan.py",
     "skills/run-task/SKILL.md",
-    "skills/plan-task/scripts",
     "skills/plan-task/references/manifest-template.md",
     "docs/deployment-preseed.md",
     "docs/assets/images/wAP-ac.png",
@@ -213,16 +230,8 @@
     "skills/plan-task/_fixture_good.md",
     "docs/deployment-ansible.md",
     "skills/plan-task/_g.md",
-    "skills/plan-task/scripts/__pycache__",
-    "docs/assets/images/hAP-ac.png",
     "docs/manual/contacts.md",
-    "docs/assets/images/hAP-ac2.png",
-    "docs/assets/images/CRS328.png",
-    "docs/assets/Rack.canvas",
     "docs/assets/images/HMIP-HAP.png",
-    "obsolete/network-devices.md",
-    "docs/assets/Network-Devices.canvas",
-    "plan/2026-08-06-docs-obsidian-reorg",
-    "skills/plan-task/scripts/__pycache__/refresh-model-cache.cpython-314.pyc"
+    "obsolete/network-devices.md"
   ]
 }
