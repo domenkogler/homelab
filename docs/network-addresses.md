@@ -1,8 +1,13 @@
+# Ansible managed: file edited by Ansible
+<!-- Network address plan — auto-generated from IaC/ansible/group_vars/all.yml. -->
+<!-- Do NOT hand-edit. Change group_vars/all.yml and re-render. -->
+<!-- Source of truth: IaC/ansible (group_vars/all.yml, host_vars) -->
+
 # Network Addresses — SSOT
 
 > **Source of truth:** IaC/ansible. Addresses are hand-edited only in
-> `IaC/ansible/group_vars/all.yml` (`network_vlans`, `network_static_hosts`) and the
-> host_vars; this page is a generated view. See also
+> `group_vars/all.yml` (`network_vlans`, `network_static_hosts`, `network_ranges`)
+> and the host_vars; this page is a generated view. See also
 > [`services.md`](services.md) for the Traefik URL / accessibility mapping.
 
 ## VLANs
@@ -38,6 +43,21 @@
 | 10 | 10.10.1.30 | oldsrv | node + DNS primary (VRRP anchor) |
 | 10 | 10.10.1.200 | ha-vip | keepalived VIP — ha.kogler.si |
 
+## Infrastructure networks
+
+| Name | CIDR | Purpose |
+|------|------|---------|
+| wireguard | 10.255.0.0/16 | WireGuard / tunnel family (S2S links, VPS networks) |
+| wg-s2s | 10.255.40.0/30 | WireGuard S2S link — home RB4011 (.1) ↔ VPS (.2) |
+| wg-vps-services | 10.255.20.0/24 | WireGuard — VPS services network |
+| wg-vps-dmz | 10.255.10.0/24 | WireGuard — VPS DMZ |
+| wg-vps-lab | 10.255.30.0/24 | WireGuard — VPS lab |
+| headscale | 100.64.0.0/10 | Headscale overlay (CGNAT, Tailscale-compatible) |
+| traefik-public | 172.20.0.0/16 | Docker bridge — Traefik edge ↔ exposed services |
+| services-internal | 172.21.0.0/16 | Docker bridge — app ↔ app communication |
+| db-internal | 172.22.0.0/16 | Docker bridge — databases (fully isolated) |
+| site | 10.10.0.0/16 | Whole homelab site — all VLANs (10.10.x.0/24) |
+
 ## Service addresses (Home VLAN 10)
 
 | Purpose | Address | Host |
@@ -47,5 +67,10 @@
 | DNS secondary web UI (`dns-pi.kogler.si`) | VIP `10.10.1.200` (edge) → `10.10.1.20:5380` | pi |
 | Home Assistant VIP (`ha.kogler.si`) | 10.10.1.200 | pi ↔ oldsrv (keepalived) |
 
+> **VIP:** `10.10.1.200` is a single `/32` reserved for keepalived (ha.kogler.si). Home DHCP pool
+> stays ≤ `10.10.1.199` — never extend it into the VIP or assign `10.10.1.200` statically.
+
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
-> · UPS web 80/443 (10.10.99.9) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
+> · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
+
+> Last generated: 2026-08-11T19:52:45+00:00

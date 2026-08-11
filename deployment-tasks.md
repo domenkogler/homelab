@@ -1,6 +1,6 @@
 # Deployment Tasks — Kogler Homelab (redo from scratch)
 
-> **Goal:** take the homelab from zero — **network redo** (flat `10.10.1.0/24` → VLAN segmentation),
+> **Goal:** take the homelab from zero — **network redo** (flat single subnet → VLAN segmentation),
 > **fresh installs of `nas`, `pi`, `oldsrv`**, and **1Password-secret wiring** — to the **working
 > homelab as desired** (single `*.kogler.si` namespace, HA primary+standby, observability, GitOps CD).
 >
@@ -83,7 +83,7 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 
 ## Phase 1 — Network Redo from Scratch (Router RB4011 + Switch CRS328)
 
-> **This is the irreversible cutover**: the current **flat `10.10.1.0/24`** is replaced by
+> **This is the irreversible cutover**: the current **flat single-subnet** network is replaced by
 > **VLAN segmentation** per `docs/network-vlans.md`. Until the router is rebuilt, the whole home is
 > offline — do this at a planned maintenance window. All subsequent fresh installs depend on it.
 >
@@ -121,9 +121,9 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
    (single-SSD boot; ZFS HDDs **not touched** by preseed) + shared `IaC/host/post_install.sh`
    (ansible-admin + ai-debug keys, sshd hardening).
 2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/storage.yml`:
-   `common` → `ai_diag` → `network` (static IP VLAN 10 = 10.10.1.10) → `nut` (mode=master) → `cockpit`.
+   `common` → `ai_diag` → `network` (static on VLAN 10, IP per SSOT) → `nut` (mode=master) → `cockpit`.
 3. **NUT master** — `nut-server` + `usbhid-ups` (PowerWalker USB), `upsd` listening intra-VLAN
-   `10.10.1.10:3493` (no inter-VLAN rule needed — see `docs/hardware-ups.md`), `nut_exporter` as a
+   `nas:3493` (no inter-VLAN rule needed — see `docs/hardware-ups.md`), `nut_exporter` as a
    host binary (:9199), `upssched-cmd` email/Signal notify (`nut-smtp_login`).
 4. **Storage** — create ZFS pool + datasets; exports (NFS/SMB); mount layout per `docs/hardware-nas.md`.
 
@@ -173,7 +173,7 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 ## Phase 4 — Pi Fresh Install + HA Primary (`pi.kogler.si`)
 
 > **Depends on:** Phase 1 (VLANs), Phase 2 (NAS NUT master). The Pi is the HA **primary** node;
-> oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP `10.10.1.200`.
+> oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP (`ha-vip`).
 > **1Password prerequisites (new this phase):** none beyond Phase 3 (`ha_api`, `ha-vrrp_password`,
 > `nut_password`, `nut-smtp_login` already exist). Add `ha-mqtt_login` if/when MQTT is introduced
 > (currently out of scope).
@@ -183,13 +183,13 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 1. **Preseed install** — boot from `IaC/host/pi/preseed.cfg` (**headless**, no desktop/Cockpit) +
    shared `post_install.sh`.
 2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/raspberry_pi.yml`:
-   `common` → `network` (static on VLAN 10 = `10.10.1.20`) → `nut` (client, `shutdown_delay_seconds=0`)
-   → `docker` → `home_assistant` (**primary**, Debian + HA Container + keepalived → VIP `10.10.1.200`)
+   `common` → `network` (static on VLAN 10, IP per SSOT) → `nut` (client, `shutdown_delay_seconds=0`)
+   → `docker` → `home_assistant` (**primary**, Debian + HA Container + keepalived → VIP `ha-vip`)
    → `docker_services` (Pi-specific: `technitium` DNS, `pihole`, `raspberrymatic`) → `monitoring` (Alloy only).
 3. **Local Homematic** — `raspberrymatic` + HmIP-RFUSB (full-local XML-RPC, no cloud) — HD-13.
 
 **Verify:**
-- `ha.kogler.si` resolves to `10.10.1.200`; `keepalived` is MASTER on the Pi.
+- `ha.kogler.si` resolves to the VIP (`ha-vip` per SSOT); `keepalived` is MASTER on the Pi.
 - Technitium (on oldsrv/Pi) resolves `*.kogler.si` internally; Pi-hole filtering active.
 - HA web login via Authentik SSO (native OIDC on the `ha` route — no Forward-Auth).
 - Manual failover runbook in `docs/smart-home-failover.md` passes Pi→oldsrv and back.
@@ -225,7 +225,7 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 > `signal_api` (Signal notify via n8n). **Runs in parallel with Phase 5+.**
 
 - UPS metrics + alerts in Grafana (Critical battery/runtime, Warning on-battery, Info transitions) — **HD-08**
-- UPS web-UI firewall rule (80/443 Home→Mgmt for `10.10.99.9` only) — **HD-09** (also touches Phase 1 firewall)
+- UPS web-UI firewall rule (80/443 Home→Mgmt for the `ups` host only) — **HD-09** (also touches Phase 1 firewall)
 - HA entity list export (Prometheus exporter) for TileBoard + Grafana — **HD-14**
 - HA recorder trim (`purge_keep_days`) to protect the Pi SD — **HD-19**
 - Grafana Alerting tiers (Critical/Warning/Info), self-monitoring, n8n + signal-cli-routing
@@ -323,16 +323,18 @@ Phase 1 (network redo: flat ─▶ VLANs 10/20/21/30/40/50/99)  ◀── IRREVE
 
 ## Host → Playbook → VLAN Mapping
 
-| Host | FQDN / IP | VLANs | Playbook | Key roles (order) |
-|------|-----------|-------|----------|-------------------|
+| Host | FQDN | VLANs | Playbook | Key roles (order) |
+|------|------|-------|----------|-------------------|
 | router | `router.kogler.si` | L3 all | `router.yml` | `router` |
 | switch | `switch.kogler.si` | L2 trunk | (`.rsc`) | — |
-| nas | `nas.kogler.si` · 10.10.1.10 | 10 + 99 native | `storage.yml` | common → ai_diag → network → nut(master) → cockpit |
+| nas | `nas.kogler.si` | 10 + 99 native | `storage.yml` | common → ai_diag → network → nut(master) → cockpit |
 | oldsrv | `oldsrv.kogler.si` | 99 native + 10/20/50 tagged | `home_servers.yml` | common → ai_diag → docker → network → nut(client) → amd_rocm → desktop → office → cockpit → docker_services → home_assistant(standby) → monitoring |
-| pi | `pi.kogler.si` · 10.10.1.20 | 10 | `raspberry_pi.yml` | common → network → nut(client) → docker → home_assistant(primary+keepalived) → docker_services(pi) → monitoring(alloy) |
+| pi | `pi.kogler.si` | 10 | `raspberry_pi.yml` | common → network → nut(client) → docker → home_assistant(primary+keepalived) → docker_services(pi) → monitoring(alloy) |
 | vps | `vps.kogler.si` | public | `vps.yml` (Phase 2) | common → docker → network → docker_services → monitoring |
 | — | all | — | `all.yml` | `/etc/hosts` sync |
 | laptop | control | 10 | `render-docs.yml` | renders `docs/network-addresses.md` |
+
+> Static IPs: [`docs/network-addresses.md`](docs/network-addresses.md) (SSOT).
 
 ---
 
@@ -343,7 +345,7 @@ Phase 1 (network redo: flat ─▶ VLANs 10/20/21/30/40/50/99)  ◀── IRREVE
 | Network cutover | Phase 1 | all VLANs up, DHCP per VLAN, inter-VLAN firewall matrix, CAPsMAN SSIDs, WireGuard up |
 | NAS + UPS master | Phase 2 | `zpool status` healthy, `upsc powerwalker@nas` live, cockpit reachable |
 | oldsrv services | Phase 3 | every `docker compose ps` healthy, wildcard cert issued, Homepage/Grafana/Forgejo reachable |
-| HA VIP | Phase 4 | `ha.kogler.si`→10.10.1.200, keepalived MASTER on Pi, manual failover works |
+| HA VIP | Phase 4 | `ha.kogler.si`→VIP (`ha-vip`), keepalived MASTER on Pi, manual failover works |
 | GitOps | Phase 5 | Renovate PR → merge → deployed with no manual Ansible run |
 | Restore drill | Phase 8 | Kopia restores a test dataset to an alternate location |
 

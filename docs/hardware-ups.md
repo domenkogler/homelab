@@ -21,7 +21,7 @@ tags: [hardware, ups, power, modbus, nut]
 | Model | PowerWalker VFI ICT/ICR **IoT** 3000 (3 kVA) |
 | USB identity | `PHOENIXTEC Innova Unity` (HID name reported by the UPS itself) |
 | MAC | `00:20:85:C0:92:FA` |
-| IP | `10.10.99.9` |
+| IP | static — `ups` per [`network-addresses.md`](network-addresses.md) |
 | VLAN | 99 (Mgmt) — access port |
 | Location | Rack floor / near the rack (18U cabinet) |
 | Protects | **nas** (HP MicroServer Gen8), **oldsrv** (i7-7700K), **ha** (Raspberry Pi 4) + rack infra (router, switch, ONT) |
@@ -37,13 +37,13 @@ tags: [hardware, ups, power, modbus, nut]
 | Link | To | Detail |
 |------|----|--------|
 | **USB HID** | gen8 (`nas`) | `/dev/hidraw0`, `/dev/usb/hiddev0` — currently the **only live data link** to a host |
-| **Ethernet (RJ45)** | LAN (Mgmt VLAN 99) | Network card, IP `10.10.99.9` — hosts web UI + Modbus TCP |
+| **Ethernet (RJ45)** | LAN (Mgmt VLAN 99) | Network card, static IP (per SSOT) — hosts web UI + Modbus TCP |
 
 The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) port.
 
 ---
 
-## Management Interfaces (verified on `10.10.99.9`)
+## Management Interfaces (verified on the UPS NIC)
 
 | Protocol | Port | Status |
 |----------|------|--------|
@@ -54,7 +54,7 @@ The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) 
 
 ### Modbus TCP notes
 - Unit ID **1**, function **0x03** (Read Holding Registers) confirmed working over the LAN.
-- **Retired as a consumer:** the UPS NIC exposes Modbus TCP on `10.10.99.9:502` (verified), but **no service uses it** — the HA **Modbus sensors were removed** and UPS monitoring is exclusively NUT over **USB HID** (below). No register map needed; the Modbus endpoint is left open/available on the NIC but is not part of the design.
+- **Retired as a consumer:** the UPS NIC exposes Modbus TCP on the `ups` NIC (port 502, verified — IP per SSOT), but **no service uses it** — the HA **Modbus sensors were removed** and UPS monitoring is exclusively NUT over **USB HID** (below). No register map needed; the Modbus endpoint is left open/available on the NIC but is not part of the design.
 
 ---
 

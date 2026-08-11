@@ -25,7 +25,7 @@ tags: [hardware, nas, zfs]
 | HDD 2 | Seagate IronWolf Pro 4 TB (ST4000NT001) — new, 7200rpm |
 | SATA mode | AHCI / non-RAID (B120i disabled — ZFS direct disk access) |
 | NIC | Embedded dual-port Broadcom |
-| iLO | 4 (integrated) — FW 2.55, IP 10.10.99.11 (VLAN 99) |
+| iLO | 4 (integrated) — FW 2.55, IP `ilo` per [`network-addresses.md`](network-addresses.md) (VLAN 99) |
 | OS | Debian 13 (Trixie) minimal, headless, ZFS 2.3+ |
 | Expansion | PCIe x16 Gen3 → miniSAS card → SilverStone |
 | Location | Rack cabinet |
@@ -116,7 +116,7 @@ Built-in — no external KVM needed.
 
 | Feature | Detail |
 |---------|--------|
-| iLO IP | 10.10.99.11 (VLAN 99) |
+| iLO IP | static — `ilo` (VLAN 99), see [`network-addresses.md`](network-addresses.md) |
 | Firmware | 2.55 (Aug 2017) |
 | Access | Web UI HTTPS, Redfish API, SSH, IPMI |
 | iKVM | HTML5 remote console — BIOS-level, virtual ISO |

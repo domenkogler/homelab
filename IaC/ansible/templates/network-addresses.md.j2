@@ -6,8 +6,8 @@
 # Network Addresses — SSOT
 
 > **Source of truth:** IaC/ansible. Addresses are hand-edited only in
-> `group_vars/all.yml` (`network_vlans`, `network_static_hosts`) and the
-> host_vars; this page is a generated view. See also
+> `group_vars/all.yml` (`network_vlans`, `network_static_hosts`, `network_ranges`)
+> and the host_vars; this page is a generated view. See also
 > [`services.md`](services.md) for the Traefik URL / accessibility mapping.
 
 ## VLANs
@@ -24,6 +24,14 @@
 |------|----|------|------|
 {% for h in network_static_hosts %}
 | {{ h.vlan }} | {{ h.ip }} | {{ h.name }} | {{ h.role }} |
+{% endfor %}
+
+## Infrastructure networks
+
+| Name | CIDR | Purpose |
+|------|------|---------|
+{% for r in network_ranges %}
+| {{ r.name }} | {{ r.cidr }} | {{ r.purpose }} |
 {% endfor %}
 
 ## Service addresses (Home VLAN 10)

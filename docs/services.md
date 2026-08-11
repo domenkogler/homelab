@@ -71,12 +71,14 @@ tags: [services, catalog]
 
 ## Docker Networks
 
-| Network | CIDR | Purpose |
-|---------|------|---------|
-| traefik-public | 172.20.0.0/16 | Traefik ↔ exposed services |
-| services-internal | 172.21.0.0/16 | App ↔ app communication |
-| db-internal | 172.22.0.0/16 | Databases, fully isolated |
-| wireguard-s2s | 10.255.40.0/30 | WireGuard tunnel to VPS |
+| Network | Purpose |
+|---------|---------|
+| traefik-public | Traefik ↔ exposed services |
+| services-internal | App ↔ app communication |
+| db-internal | Databases, fully isolated |
+| wireguard-s2s | WireGuard tunnel to VPS (Phase 2 — not yet used) |
+
+> CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastructure networks* (SSOT).
 
 > **Network codes (used in the catalog above):** `P` = traefik-public (edge) · `I` = services-internal
 > (app ↔ app) · `D` = db-internal (isolated) · `W` = wireguard-s2s (VPS tunnel, Phase 2 — not yet used)
@@ -189,9 +191,10 @@ Full architecture in [`observability.md`](observability.md). Summary:
 - **Rule A (HTTP/S):** Traefik only, hostname-based, no ports. User-facing ports
   (8123, 9090, …) exist only as Traefik backends.
 - **Rule B (non-HTTP, bypass Traefik — direct IP + firewall):** DNS 53
-  (primary `10.10.1.30` oldsrv, secondary `10.10.1.20` pi) · NUT 3493 (nas master,
-  intra-Home) · UPS web 80/443 (`10.10.99.9`) · SNMP 161
-  (router/switch) · WireGuard · SSH/WinBox (Mgmt, trusted only).
+  (primary oldsrv, secondary pi) · NUT 3493 (nas master,
+  intra-Home) · UPS web 80/443 (host `ups`) · SNMP 161
+  (router/switch) · WireGuard · SSH/WinBox (Mgmt, trusted only). Host IPs per
+  [`network-addresses.md`](network-addresses.md) (SSOT).
 
 ### URL → backend (edge cases only)
 
@@ -200,10 +203,10 @@ these deviate from the convention and are listed here:
 
 | URL | Backend | Why it's here |
 |-----|---------|---------------|
-| `https://ha.kogler.si` | `10.10.1.200:8123` (VIP, keepalived) | VIP edge switches nodes; never "correct" to a node IP |
-| `https://dns-pi.kogler.si` | VIP `10.10.1.200` → Pi `traefik-ha` → `10.10.1.20:5380` | Pi edge — reachable when oldsrv is down |
-| `https://cockpit-nas.kogler.si` | `10.10.1.10:9090` | host service (not a Docker service) |
-| `https://cockpit-oldsrv.kogler.si` | `10.10.1.30:9090` | host service |
+| `https://ha.kogler.si` | VIP (`ha-vip`) :8123, keepalived | VIP edge switches nodes; never "correct" to a node IP |
+| `https://dns-pi.kogler.si` | VIP (`ha-vip`) → Pi `traefik-ha` → `pi:5380` | Pi edge — reachable when oldsrv is down |
+| `https://cockpit-nas.kogler.si` | `nas:9090` (IP per SSOT) | host service (not a Docker service) |
+| `https://cockpit-oldsrv.kogler.si` | `oldsrv:9090` (IP per SSOT) | host service |
 
 > The executable half of the mapping lives in the Traefik labels in
 > `IaC/ansible/templates/docker_services/*/docker-compose.yml.j2`.
@@ -212,7 +215,7 @@ these deviate from the convention and are listed here:
 Web UI — it does **not** run Cockpit.
 
 **`ha` route coupling (VIP, must-not-break):** `ha.kogler.si` resolves to the **VIP
-`10.10.1.200` on the Home VLAN**, and the VIP's `:443` edge is served by whichever
+(`ha-vip`) on the Home VLAN**, and the VIP's `:443` edge is served by whichever
 keepalived node owns it — the Pi's minimal **`traefik-ha`** edge in normal mode,
 oldsrv's `traefik` after a forward takeover. Both edges serve an identical `ha`
 route → VIP:8123, so the route keeps working as long as keepalived keeps the VIP on

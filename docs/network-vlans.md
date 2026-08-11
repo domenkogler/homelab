@@ -8,25 +8,25 @@ tags: [network, vlan, firewall]
 # VLAN Plan
 
 > **Role:** Detail — VLAN definitions, subnets, firewall rules.
-> **Links to:** `network-dns.md`, `network-devices.md`
+> **Links to:** `network-dns.md`, `network-addresses.md`
 > **Linked from:** `network.md`, `index.md`
 
-> **Status (planning):** the network is **currently flat on `10.10.1.0/24`** — VLAN segmentation below is **planned**, not yet live. Docs that historically implied devices are already isolated are being corrected (see live DHCP in `network-devices.md`).
+> **Status (planning):** the network is **currently flat (single Home-VLAN subnet)** — VLAN segmentation below is **planned**, not yet live. Docs that historically implied devices are already isolated are being corrected (see live DHCP notes in `network-dns.md`). Subnets, DHCP pools and SSIDs are SSOT data: see [`network-addresses.md`](network-addresses.md).
 
 ---
 
 ## VLAN Table
 
-| VLAN ID | Name | Subnet | Purpose | SSID |
-|---------|------|--------|---------|------|
-| 1 | — | — | Blackhole (unused) | — |
-| 10 | Home | 10.10.1.0/24 | Trusted family devices, phones, servers, HA | "Kogler" |
-| 20 | IoT | 10.10.20.0/24 | Smart-home (KNX, Shelly, ESP32-S3), no internet | "Kogler IOT" |
-| 21 | IoT-Internet | 10.10.21.0/24 | Internet-needing IoT (HAP during cloud phase, Bosch appliances) | "Kogler IOT WAN" |
-| 30 | Guest | 10.10.30.0/24 | Internet-only, client isolation | "Kogler guest" |
-| 40 | Kids | 10.10.40.0/24 | Filtered DNS, restricted access, time-blocked 22:00–07:00 | "Kogler Kids" |
-| 50 | Media | 10.10.50.0/24 | NVIDIA Shield, gaming consoles, smart TV | — |
-| 99 | Management | 10.10.99.0/24 | Router, switch, AP management | — |
+| VLAN ID | Name | Purpose |
+|---------|------|---------|
+| 1 | — | Blackhole (unused) |
+| 10 | Home | Trusted family devices, phones, servers, HA |
+| 20 | IoT | Smart-home (KNX, Shelly, ESP32-S3), no internet |
+| 21 | IoT-Internet | Internet-needing IoT (HAP during cloud phase, Bosch appliances) |
+| 30 | Guest | Internet-only, client isolation |
+| 40 | Kids | Filtered DNS, restricted access, time-blocked 22:00–07:00 |
+| 50 | Media | NVIDIA Shield, gaming consoles, smart TV |
+| 99 | Management | Router, switch, AP management |
 
 ---
 

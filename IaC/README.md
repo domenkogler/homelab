@@ -19,14 +19,7 @@
 Single namespace **`kogler.si`** — hosts and services use flat subdomains of `kogler.si`.
 Internal-only hosts/services are **not** published in public DNS (split-horizon; enforced by WAN firewall).
 
-| Machine | FQDN | Role |
-|---------|------|------|
-| Old desktop + Docker host | `oldsrv.kogler.si` | bare-metal Debian desktop + Docker host (Phase 1) |
-| HP MicroServer NAS | `nas.kogler.si` | ZFS storage server |
-| Raspberry Pi 4 | `pi.kogler.si` | Home Assistant primary node (HA service = VIP `ha.kogler.si`) |
-| MikroTik Router | `router.kogler.si` | PPPoE, VLAN routing, firewall, WireGuard, CAPsMAN |
-| MikroTik Switch | `switch.kogler.si` | Layer-2 VLAN-aware PoE switch |
-| Contabo VPS | `vps.kogler.si` | Phase 2 — public Traefik + public services |
+Canonical host list + naming rules: **[`docs/index.md` → Conventions](../docs/index.md)** (single SSOT).
 
 Local DNS (Technitium) resolves `*.kogler.si` to internal IPs; TLS via a single `*.kogler.si`
 wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, no proxy).

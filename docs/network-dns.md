@@ -34,25 +34,27 @@ Technitium runs as a Docker container on oldsrv (primary) and a **second instanc
 
 ## Per-Subnet DNS Policy
 
-| Source Subnet | Technitium Group | Upstream Filter | Purpose |
+VLAN subnets per [`network-addresses.md`](network-addresses.md) (SSOT).
+
+| Source VLAN | Technitium Group | Upstream Filter | Purpose |
 |--------------|------------------|-----------------|---------|
 | Management | — | Local system | Infrastructure isolation |
-| Home (10.10.1.0/24) | Main-Group | **Pi-hole** | Aggressive ad-blocking |
-| Kids (10.10.40.0/24) | Kids-Group | **Cloudflare Families** (1.1.1.3) | Adult content + porn filtering |
-| IoT (10.10.20.0/24) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking |
-| Guest (10.10.30.0/24) | Guest-Group | Standard public (1.1.1.1) | No filtering needed |
+| Home (10) | Main-Group | **Pi-hole** | Aggressive ad-blocking |
+| Kids (40) | Kids-Group | **Cloudflare Families** (1.1.1.3) | Adult content + porn filtering |
+| IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking |
+| Guest (30) | Guest-Group | Standard public (1.1.1.1) | No filtering needed |
 
 ---
 
 ## DNS Flow
 
 ```
-Client → Technitium PRIMARY (oldsrv, 10.10.1.30)     ← DHCP lists this first
-        → Technitium SECONDARY (pi, 10.10.1.20)
-        → Router /ip dns (10.10.x.1, tertiary) → 1.1.1.1 (final fallback)
+Client → Technitium PRIMARY (oldsrv)     ← DHCP lists this first
+        → Technitium SECONDARY (pi)
+        → Router /ip dns (tertiary, per-VLAN gateway) → 1.1.1.1 (final fallback)
 ```
 
-- DHCP hands clients **both** Technitium addresses first (10.10.1.30, 10.10.1.20),
+- DHCP hands clients **both** Technitium servers first (oldsrv, then pi — addresses per SSOT),
   then the router's IP as tertiary — so per-subnet filtering is enforced (Technitium
   sees the source subnet, not the router). All three bind **Home**-VLAN addresses.
 - If oldsrv is down: the **secondary on the Pi** still resolves local `*.kogler.si`
@@ -60,9 +62,9 @@ Client → Technitium PRIMARY (oldsrv, 10.10.1.30)     ← DHCP lists this first
 - The **secondary is a true failure-domain split** — the Pi is a different physical box from oldsrv
 - `ha.kogler.si` resolves to the **VIP** on both secondary and primary (see [`smart-home-failover.md`](smart-home-failover.md)) so DNS is never the thing that breaks HA lookup
 - **The VIP's `:443` edge is served by whichever keepalived node owns the VIP:** in normal mode the Pi's minimal **`traefik-ha`** edge serves `ha.kogler.si`; after a forward takeover oldsrv's `traefik` takes over. Both serve an identical `ha` route → VIP:8123, so `ha.kogler.si → VIP` is always served by the active HA node (**no DNS flip on failover**). See [`smart-home-failover.md`](smart-home-failover.md).
-- **Web UIs:** primary on `dns.kogler.si` (oldsrv, Forward-Auth). The **secondary** on the Pi at **`dns-pi.kogler.si`** — FQDN shape only borrowed from the cockpit naming; like `ha` it resolves to the **VIP `10.10.1.200`** and is served by the Pi's `traefik-ha` edge → local `10.10.1.20:5380`, so it keeps working **when oldsrv is down** (internal-only, no Forward-Auth). Direct fallback `http://10.10.1.20:5380`.
-- **Static records (do not forget):** `ha.kogler.si → 10.10.1.200` and `dns-pi.kogler.si → 10.10.1.200` must be created as **A records on BOTH Technitium instances** (primary + secondary). DHCP auto-creation only covers leases, and the VIP is **not** a lease — without these static records the edges are unreachable by name.
-- **Static records — *arr stack (both instances → oldsrv Traefik edge `10.10.1.30`):** `seerr`, `sonarr`,
+- **Web UIs:** primary on `dns.kogler.si` (oldsrv, Forward-Auth). The **secondary** on the Pi at **`dns-pi.kogler.si`** — FQDN shape only borrowed from the cockpit naming; like `ha` it resolves to the **VIP (`ha-vip`)** and is served by the Pi's `traefik-ha` edge → local `pi:5380` (IP per SSOT), so it keeps working **when oldsrv is down** (internal-only, no Forward-Auth). Direct fallback `pi:5380` on the LAN.
+- **Static records (do not forget):** `ha.kogler.si → VIP` and `dns-pi.kogler.si → VIP` (VIP = `ha-vip`, value per SSOT) must be created as **A records on BOTH Technitium instances** (primary + secondary). DHCP auto-creation only covers leases, and the VIP is **not** a lease — without these static records the edges are unreachable by name.
+- **Static records — *arr stack (both instances → oldsrv Traefik edge):** `seerr`, `sonarr`,
   `radarr`, `lidarr`, `prowlarr`, `bazarr`, `sab`, `torrent`, `media`, `profilarr`, `logs` (all
   `*.kogler.si`). Recyclarr has no hostname (scheduled worker, no UI). All are **internal-only** —
   no public (Cloudflare) record, WAN-blocked (see `services.md`).
@@ -89,12 +91,12 @@ Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
 
 ## MikroTik Firewall Rules for DNS
 
-Technitium binds **Home**-VLAN addresses (`10.10.1.30` oldsrv primary, `10.10.1.20`
-Pi secondary). Clients on every other VLAN reach them via explicit **forward** rules,
+Technitium binds **Home**-VLAN addresses (oldsrv primary, pi secondary — values per
+SSOT). Clients on every other VLAN reach them via explicit **forward** rules,
 plus the router's own resolver is open on UDP/TCP 53 (input) as a tertiary.
 
 - Forward, above the inter-VLAN drop: from `in-interface-list=LAN` →
-  `dst-address=10.10.1.30` **and** `10.10.1.20`, UDP 53 (+ DoT 853).
+  `dst-address=<oldsrv IP>` **and** `<pi IP>` (per SSOT), UDP 53 (+ DoT 853).
 - Input: `in-interface-list=LAN` UDP/TCP 53 → router `/ip dns` (tertiary), which itself
   forwards to Technitium + 1.1.1.1.
 - Global inter-VLAN drop rule sits **below** these exceptions.
@@ -105,7 +107,7 @@ plus the router's own resolver is open on UDP/TCP 53 (input) as a tertiary.
 
 ## Local Name Resolution & mDNS
 
-- **DHCP lease integration:** Technitium queries RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records. Technitium primary binds the **Home** IP `10.10.1.30` (oldsrv) and secondary `10.10.1.20` (the Pi) — cross-VLAN DNS is permitted by the forward rules above.
+- **DHCP lease integration:** Technitium queries RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records. Technitium primary binds the **Home**-VLAN IP of oldsrv and secondary that of the Pi (per SSOT) — cross-VLAN DNS is permitted by the forward rules above.
 - **mDNS reflector:** Technitium bridges `.local` names across all VLANs (RouterOS built-in mDNS is bridge-wide only, cannot cross VLANs)
 
 ---

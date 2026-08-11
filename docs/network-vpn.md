@@ -26,28 +26,30 @@ tags: [network, vpn, wireguard, headscale]
 
 ### Reserved Subnets
 
-| Family | Range | Allocations |
-|--------|-------|-------------|
-| **WireGuard / tunnel** | `10.255.0.0/16` | `10.255.40.0/30` S2S link (home `.1` ↔ VPS `.2`) · `10.255.20.0/24` VPS services · `10.255.10.0/24` VPS DMZ · `10.255.30.0/24` VPS lab |
-| **Headscale overlay** | `100.64.0.0/10` | CGNAT (Tailscale-compatible) — router routes this to Home LAN |
-| **Home LAN** | `10.10.0.0/16` | VLANs `10.10.x.0/24` (see `network-vlans.md`) |
+| Family | Name (see SSOT) | Allocations |
+|--------|-----------------|-------------|
+| **WireGuard / tunnel** | `wireguard` | `wg-s2s` link (home `.1` ↔ VPS `.2`) · `wg-vps-services` (VPS services) · `wg-vps-dmz` (VPS DMZ) · `wg-vps-lab` (VPS lab) |
+| **Headscale overlay** | `headscale` | CGNAT (Tailscale-compatible) — router routes this to Home LAN |
+| **Home LAN** | `site` | VLANs `10.10.x.0/24` (see `network-vlans.md`) |
+
+All concrete CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastructure networks* (SSOT).
 
 ---
 
 ## Layer 1: WireGuard Site-to-Site (Home ↔ VPS)
 
-- **Home RB4011:** `10.255.40.1/30`
-- **VPS WireGuard endpoint:** `10.255.40.2/30`
+- **Home RB4011:** `wg-s2s` peer `.1`
+- **VPS WireGuard endpoint:** `wg-s2s` peer `.2`
 - Always on, no on-demand
-- Home router: static route `10.255.20.0/24 → via 10.255.40.2`
-- VPS: route `10.10.0.0/16 → via 10.255.40.1`
+- Home router: static route `wg-vps-services` → via the VPS S2S peer
+- VPS: route `site` → via the home S2S peer
 
 ## Layer 2: Headscale (Mobile Mesh)
 
 - Runs on home server as Docker container
-- Overlay subnet: `100.64.0.0/10`
+- Overlay subnet: `headscale` (CIDR per SSOT)
 - Clients: Android/iOS Tailscale app, laptops
-- On RB4011: static route + firewall rules so `100.64.0.0/10` reaches `10.10.1.0/24`
+- On RB4011: static route + firewall rules so the Headscale overlay reaches the Home VLAN
 - Headscale traffic to VPS goes through the site-to-site WireGuard tunnel
 
 ### Transition

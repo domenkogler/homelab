@@ -24,7 +24,7 @@ tags: [services, traefik, proxy, ssl]
 
 ## Network
 
-- Container on `traefik-public` network (172.20.0.0/16)
+- Container on `traefik-public` network (CIDR per [`network-addresses.md`](network-addresses.md) SSOT)
 - Exposes ports 80, 443 on host
 
 ---
@@ -77,7 +77,7 @@ Cockpit is a host service (not a Docker container), so its routes are a Traefik
 **file-provider** dynamic config: `/opt/traefik/dynamic/cockpit.yml` (deployed by the
 `cockpit` Ansible role on oldsrv).
 
-- `cockpit-nas.kogler.si` → `http://10.10.1.10:9090` · `cockpit-oldsrv.kogler.si` → `http://10.10.1.30:9090`
+- `cockpit-nas.kogler.si` → `http://nas:9090` · `cockpit-oldsrv.kogler.si` → `http://oldsrv:9090` (host IPs per SSOT)
 - **Deliberately NO Authentik Forward-Auth**: Cockpit is a management surface with its
 own login and must stay reachable if Authentik is down. Internal-only (no public DNS
 record, WAN-blocked).

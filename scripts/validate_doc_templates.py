@@ -35,6 +35,14 @@ ctx = {
     "ansible_date_time": {"iso8601": "2026-01-01T00:00:00Z"},
     "network_vlans": network_vlans,
     "network_static_hosts": network_static_hosts,
+    # subset of group_vars/all.yml network_ranges — enough to smoke-test the template
+    "network_ranges": [
+        {"name": "wireguard", "cidr": "10.255.0.0/16", "purpose": "tunnel family"},
+        {"name": "wg-s2s", "cidr": "10.255.40.0/30", "purpose": "S2S link"},
+        {"name": "headscale", "cidr": "100.64.0.0/10", "purpose": "overlay"},
+        {"name": "traefik-public", "cidr": "172.20.0.0/16", "purpose": "docker edge"},
+        {"name": "site", "cidr": "10.10.0.0/16", "purpose": "site"},
+    ],
     "ha_vip": ha_vip,
     "technitium_secondary_ip": "10.10.1.20",
     "hostvars": {

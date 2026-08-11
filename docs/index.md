@@ -112,7 +112,27 @@ docs/
 
 ## Conventions
 
-- **Hostnames:** single namespace `kogler.si` — `oldsrv`, `nas`, `pi`, `router`, `switch`, `vps` (HA service = VIP `ha.kogler.si`)
+Cross-cutting rules for every doc in this repo. Domain-specific policies stay in their own
+`docs` (`deployment-secrets.md`, `deployment-compose.md`, `network-dns.md`, …); only the
+rules below are central.
+
+- **Hostnames:** single namespace `kogler.si` — flat subdomains, split-horizon (internal-only hosts unpublished in public DNS).
+
+  | Host | FQDN | Role |
+  |------|------|------|
+  | Old desktop + Docker host | `oldsrv.kogler.si` | bare-metal Debian desktop + Docker host (Phase 1) |
+  | HP MicroServer NAS | `nas.kogler.si` | ZFS storage server |
+  | Raspberry Pi 4 | `pi.kogler.si` | Home Assistant primary node (HA service = VIP `ha.kogler.si`) |
+  | MikroTik Router | `router.kogler.si` | PPPoE, VLAN routing, firewall, WireGuard, CAPsMAN |
+  | MikroTik Switch | `switch.kogler.si` | Layer-2 VLAN-aware PoE switch |
+  | Contabo VPS | `vps.kogler.si` | Phase 2 — public Traefik + public services |
+
+- **IP addresses:** internal IPv4 ranges/addresses live **only** in
+  [`network-addresses.md`](network-addresses.md) (SSOT, generated from IaC) and in IaC. Other
+  docs refer to hosts by hostname/role (`oldsrv.kogler.si`, `ha-vip`, `wg-s2s`) or link the SSOT
+  row. Exemptions: well-known external IPs (public DNS, third-party services — e.g. `1.1.1.1`,
+  `9.9.9.9`) and historical decision-log entries (`~~strikethrough~~`). Enforced by
+  `scripts/check_doc_ips.py`.
 - **Language:** English (technical), Slovenian (family/manual)
 - **Headers:** Every doc starts with `> **Role:** ...` and `> **Linked from:** ...`
 - **Links:** Use relative paths (`[doc](deployment-preseed.md)`)

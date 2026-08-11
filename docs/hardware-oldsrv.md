@@ -95,11 +95,13 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ## Docker Networks
 
-| Network | CIDR | Purpose |
-|---------|------|---------|
-| traefik-public | 172.20.0.0/16 | Traefik ↔ exposed services |
-| services-internal | 172.21.0.0/16 | App ↔ app communication |
-| db-internal | 172.22.0.0/16 | Databases, fully isolated |
+| Network | Purpose |
+|---------|---------|
+| traefik-public | Traefik ↔ exposed services |
+| services-internal | App ↔ app communication |
+| db-internal | Databases, fully isolated |
+
+> CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastructure networks* (SSOT).
 
 ---
 
