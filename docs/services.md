@@ -15,32 +15,57 @@ tags: [services, catalog]
 
 ## Service Catalog (Phase 1 — all on oldsrv)
 
-| Category | Service | GPU | Network | Description |
-|----------|---------|-----|---------|-------------|
-| **Edge** | Traefik | No | traefik-public | Reverse proxy, auto-SSL, Forward Auth |
-| **Edge** | CrowdSec | No | traefik-public | WAF, brute-force protection |
-| **Identity** | Authentik | No | services-internal | OIDC SSO, MFA (WebAuthn) |
-| **Platform** | OpenCloud | No | services-internal | File sync, WebDAV, OIDC |
-| **Platform** | Immich | No | services-internal | Photo management, mobile apps |
-| **Platform** | Forgejo | No | services-internal | Git hosting, Issues, PRs |
-| **AI** | Ollama | **Yes** | services-internal | LLM inference (Qwen, Llama) |
-| **AI** | Immich-ML | **Yes** | services-internal | Face recognition, smart search |
-| **DNS** | Technitium | No | services-internal | Central DNS router, VLAN-aware |
-| **DNS** | Pi-hole | No | services-internal | Ad-blocking DNS |
-| **VPN** | Headscale | No | traefik-public | Tailscale coordination server |
-| **Backup** | Kopia | No | services-internal | Encrypted off-site backup → iDrive e2 |
-| **Backup** | DB Backup | No | db-internal | Database dumps (tiredofit/db-backup) |
-| **Dashboard** | Homepage | No | traefik-public | Family launchpad at `kogler.si` |
-| **Dashboard** | Metabase | No | traefik-public + services-internal | CrowdSec dashboard + Metabase learning/analytics at `sec.kogler.si` |
-| **Observe** | Alloy | No | host (Ansible, not containerized) | Host metrics + logs + SNMP agent — host-installed via Ansible, mounts docker.sock |
-| **Observe** | Prometheus | No | db-internal | Sole metrics store (30d) |
-| **Observe** | Loki | No | db-internal | Log aggregation (14d) |
-| **Observe** | Grafana | No | traefik-public + db-internal | Dashboards at `stats.kogler.si` (internal) |
-| **Observe** | blackbox-exporter | No | services-internal | External reachability (`probe_success`) |
-| **Alert** | n8n | No | services-internal | Alert router → Signal/email (also office automation) |
-| **CD** | Doco-CD | No | host docker.sock | GitOps continuous delivery |
-| **Update** | Renovate Bot | No | services-internal | Docker image version tracking |
-| **Stream** | Sunshine | **Yes** | services-internal | Game streaming (manual start) |
+> Subdomains are relative to `kogler.si` (no port, no suffix). RAM = approx **idle / peak in MB** —
+> estimates to be validated with `container_memory_working_set_bytes` after deploy (TODO, `observability.md`).
+> Network codes (`P/I/D/W`, `host`): see [Docker Networks](#docker-networks). Exposure: see
+> [Domain & Subdomain Plan](#domain--subdomain-plan) — **anything not listed there as public is internal-only**.
+
+| Service | Subdomain | Network | RAM (idle/peak MB) | Description |
+|---------|-----------|---------|--------------------|-------------|
+| Traefik | traefik | P | 60–120 / 250 | Reverse proxy, auto-SSL, Forward Auth (dashboard internal) |
+| CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via Metabase) |
+| Authentik | sso | P+I | 700–1,100 / 2,000 | OIDC SSO, MFA (WebAuthn) — bundle: server+worker+postgres+redis |
+| OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud |
+| Immich | foto | I | 800–1,300 / 2,500 | Photo management, mobile apps (app+postgres+redis) |
+| Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner) |
+| Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
+| Immich-ML | — | I | 300–600 / 1,200 | Face recognition, smart search — shares AMD VRAM |
+| Technitium | dns | I | 120–250 / 400 | Central DNS router, VLAN-aware (binds 53 on host) |
+| Pi-hole | ad | I | 100–200 / 300 | Ad-blocking DNS |
+| Headscale | vpn | P | 60–120 / 250 | Tailscale coordination server |
+| Kopia | bck | I | 150–250 / 500 | Encrypted off-site backup → iDrive e2 |
+| DB Backup | — | D | 30–60 / 200 | Database dumps (tiredofit/db-backup) |
+| Homepage | kogler.si (root) / home | P | 80–150 / 250 | Family launchpad + status widget |
+| Metabase | sec | P+I | 250–450 / 800 | CrowdSec dashboard + analytics sandbox (one instance, two roles) |
+| Alloy | — | host | 200–400 / 600 | Host metrics + logs + SNMP agent (Ansible, mounts docker.sock) |
+| Prometheus | — | D | 200–400 / 800 | Sole metrics store (30d) |
+| Loki | — | D | 300–600 / 1,500 | Log aggregation (14d) |
+| Grafana | stats | P+D | 150–300 / 500 | Dashboards (internal) |
+| blackbox-exporter | — | I | 10–25 / 40 | External reachability (`probe_success`) |
+| Dozzle | logs | P | 25–50 / 80 | Live container log viewer — ALL containers, read-only docker.sock; **viewer only, Loki stays the log store** |
+| n8n | auto | I | 200–400 / 700 | Alert router → Signal/email (also office automation) |
+| signal-cli | — | I | 80–150 / 250 | Signal delivery (linked device, "Homelab Alerts") |
+| Doco-CD | — | host | 60–120 / 200 | GitOps continuous delivery (host docker.sock) |
+| Renovate Bot | — | I | 150–300 / 600 | Docker image version tracking |
+| Sunshine | — | I | 100–200 / 500 | Game streaming (manual start) — AMD dGPU (VRAM) |
+| HA standby | ha (VIP) | I | 300–500 / 800 | Home Assistant cold-standby on oldsrv (failover) |
+| RaspberryMatic standby | — | I | 100–200 / 300 | Homematic CCU3 standby container |
+| Jellyfin | media | P+I | 250–400 / +150–350 per stream | Media server — **Intel HD 630 iGPU** QuickSync transcode, own login |
+| Seerr | seerr | P+I | 150–250 / 400 | Request portal (seerr.dev, `seerr/seerr`) — own login, Jellyfin/Plex/Emby |
+| Sonarr | sonarr | P+I | 120–180 / 250 | TV series management (linuxserver) |
+| Radarr | radarr | P+I | 140–200 / 300 | Movie management (linuxserver) |
+| Lidarr | lidarr | P+I | 90–140 / 200 | Music management (linuxserver) |
+| Prowlarr | prowlarr | P+I | 70–120 / 180 | Indexer registry shared by all *arr |
+| Bazarr | bazarr | P+I | 80–150 / 250 | Subtitle management (connects to Sonarr/Radarr) |
+| SABnzbd | sab | P+I | 90–150 / 500 | Usenet downloader → Eweka (NL), plain LAN (no VPN) |
+| qBittorrent | torrent | P+I (via gluetun) | 80–130 / 300 | Torrent downloader — only egress via VPN |
+| gluetun | — | P+I | 15–30 / 50 | WireGuard sidecar → PrivadoVPN (NL); only qBittorrent routes through it |
+| Profilarr | profilarr | P+I | 50–100 / 150 | Quality-profile UI on top of Sonarr/Radarr |
+| Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (scheduled, no UI) |
+
+> **RAM sanity (48 GB on oldsrv):** typical idle ≈ 12–15 GB, worst-case burst ≈ 22–26 GB,
+> gaming mode ≈ 10–13 GB — ample headroom. Plus host desktop + browser 2–4 GB (6–8 GB heavy).
+> Estimates only; validate with real working-set metrics after deploy (observability TODO).
 
 ---
 
@@ -53,6 +78,10 @@ tags: [services, catalog]
 | db-internal | 172.22.0.0/16 | Databases, fully isolated |
 | wireguard-s2s | 10.255.40.0/30 | WireGuard tunnel to VPS |
 
+> **Network codes (used in the catalog above):** `P` = traefik-public (edge) · `I` = services-internal
+> (app ↔ app) · `D` = db-internal (isolated) · `W` = wireguard-s2s (VPS tunnel, Phase 2 — not yet used)
+> · `host` = host process / host docker.sock, not on an overlay (Alloy, Doco-CD).
+
 ---
 
 ## Domain & Subdomain Plan
@@ -62,32 +91,20 @@ tags: [services, catalog]
 - **Internal = no public DNS record + WAN-block.**
 - In Phase 1 all services run on `oldsrv`; public-faced ones move to `vps` (Traefik) in Phase 2 — domain/URLs unchanged.
 
-### Public (internet-facing, via Traefik + Authentik)
+### Public (internet-facing via Traefik + Authentik) — the exceptions
 
-| Service | Subdomain |
-|---------|-----------|
-| Homepage | `kogler.si` (canonical root) + **`home.kogler.si`** (alias) — public, but behind **Authentik Forward-Auth** (no anonymous access) |
-| Immich | `foto.kogler.si` |
-| OpenCloud | `file.kogler.si` |
-| Authentik | `sso.kogler.si` |
-| Forgejo | `git.kogler.si` |
-| Home Assistant | `ha.kogler.si` (HA-native auth / OIDC, no Forward-Auth) |
-| Headscale | `vpn.kogler.si` |
+The catalog above is the single list of subdomains; **only this subset** gets a Cloudflare record and a
+WAN allow. Everything else in the catalog is **internal-only** (no public record, WAN-blocked; defense in depth).
 
-### Internal (LAN / VPN only — no public record)
-
-| Service | Subdomain |
-|---------|-----------|
-| Grafana | `stats.kogler.si` |
-| Traefik Dashboard | `traefik.kogler.si` |
-| CrowdSec Dashboard (Metabase) | `sec.kogler.si` |
-| Kopia Web UI | `bck.kogler.si` |
-| n8n | `auto.kogler.si` |
-| Technitium | `dns.kogler.si` |
-| Technitium secondary (Pi) | `dns-pi.kogler.si` |
-| Pi-hole | `ad.kogler.si` |
-| NAS Cockpit | `cockpit-nas.kogler.si` |
-| Server Cockpit | `cockpit-oldsrv.kogler.si` |
+| Subdomain | Service |
+|-----------|---------|
+| `kogler.si` (root) + `home` | Homepage — public, but behind Authentik Forward-Auth |
+| `sso` | Authentik |
+| `foto` | Immich |
+| `file` | OpenCloud |
+| `git` | Forgejo |
+| `ha` | Home Assistant (VIP, HA-native auth, no Forward-Auth) |
+| `vpn` | Headscale |
 
 ### Decision: Admin Dashboards
 
@@ -110,19 +127,45 @@ tags: [services, catalog]
 
 ---
 
-## Service Choice Rationale
+## Media / *arr Stack
 
-| Service | Software | Why |
-|---------|----------|-----|
-| Reverse Proxy | **Traefik** | Auto-SSL, Docker-native labels, Forward Auth |
-| Identity | **Authentik** | OIDC SSO, MFA (WebAuthn/TOTP), Forward Auth |
-| File Sync | **OpenCloud** | Go-based (~100MB RAM), WebDAV, OIDC, Windows + Android |
-| Photos | **Immich** | C++/Go, AI face recognition, mobile apps |
-| Email/Calendar | **Infomaniak kSuite** | Swiss (EU privacy), CalDAV, catch-all aliases |
-| Git + CI/CD | **Forgejo** | Lightweight, OIDC, built-in Actions runner |
-| WAF | **CrowdSec** | Community threat intel, free, Authentik + Traefik parsers |
-| Dashboard | **Homepage** | App launchpad, health dots, auto-generated config |
-| Admin dashboards | **Traefik API** + **Metabase** | Traefik's built-in dashboard for routing/debug; Metabase serves the CrowdSec view and doubles as a Metabase learning/analytics sandbox — no Portainer/Dockge (GitOps) |
+Single dataset **`tank/data`** on nas, one NFS export → oldsrv **`/mnt/nas/data`**
+(hardlinks between `downloads/` and `media/` require the same filesystem — TRaSH).
+
+```
+tank/data/                        # ZFS dataset (backed up; sanoid: hourly, no 15-min tier)
+├── media/
+│   ├── movies/
+│   ├── tv/
+│   └── music/
+└── downloads/                    # transient scratch (hardlink-import → media/, then prune)
+    ├── incomplete/{usenet,torrent}
+    └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd categories / qBittorrent save paths)
+```
+
+- **Import = hardlink** (Sonarr/Radarr/Lidarr: `Use Hardlinks` ON) — instant, zero-space, atomic.
+  The coarser sanoid cadence bounds snapshot churn; imported files exist once, so they cost
+  nothing in snapshot history.
+- **Kopia excludes** `/mnt/nas/data/downloads` — scratch is never backed up (media in `media/` is).
+- **PUID/PGID `1000:1000`** (domen) across all *arr containers (linuxserver `PUID/PGID` env;
+  Jellyfin `user: "1000:1000"`). NFS ownership on nas must match.
+- **VPN:** only qBittorrent egress → gluetun (WireGuard, PrivadoVPN, Netherlands — same region as
+  Eweka usenet). SABnzbd stays on the plain LAN (usenet is a licensed service, no VPN needed).
+- **Auth:** admin UIs (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, Profilarr, SABnzbd, qBittorrent) =
+  Authentik Forward-Auth, built-in logins disabled. Jellyfin + Seerr = own login
+  (client apps / family request portal would break under forward-auth). Dozzle (observability) is
+  also Forward-Auth — see [`observability.md`](observability.md).
+- **FlareSolverr: deferred** — only if an indexer actually requires Cloudflare bypass.
+- All *arr subdomains are **internal-only** (not in the public set above).
+
+| App | Web UI | Auth | Notes |
+|-----|--------|------|-------|
+| Jellyfin | `media.` | own login | transcode via Intel HD 630 `/dev/dri` |
+| Seerr | `seerr.` | own login | family request portal |
+| Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr | `<name>.` | Forward-Auth | linuxserver images |
+| SABnzbd | `sab.` | Forward-Auth | → Eweka |
+| qBittorrent | `torrent.` | Forward-Auth | via gluetun network namespace |
+| Recyclarr | — | — | scheduled; config `recyclarr.yml` in this repo |
 
 ---
 
@@ -135,10 +178,11 @@ Full architecture in [`observability.md`](observability.md). Summary:
 - **Display:** Grafana (`stats.kogler.si`, **internal**, admin-only SSO) + Homepage status widget (reachability).
 - **Alerts:** Grafana Alerting → n8n → Signal (Homelab Alerts group) + email fail-safe. 3 tiers (Critical/Warning/Info).
 - **Alloy** runs as a host service (Ansible) with `docker.sock` access for container logs — it is **not** a containerized service.
+- **Live logs:** Dozzle (`logs.kogler.si`, internal, Forward-Auth) streams live per-container logs for **all** Docker services (read-only docker.sock) — day-to-day ops tail. Viewer only: nothing is stored; Loki stays the log store (14d) and Grafana the search/alert surface.
 
 ## Service Accessibility & Traefik URL mapping (SSOT)
 
-> **Rule of thumb:** every HTTP(S) service is reached at `https://<name>.kogler.si`
+> **Rule of thumb:** every HTTP(S) service is reached at `https://<sub>.kogler.si`
 > (port 443, wildcard `*.kogler.si` cert) via Traefik — **no ports in URLs**.
 > Backends bind private overlay/LAN addresses and are never exposed directly.
 
@@ -149,21 +193,20 @@ Full architecture in [`observability.md`](observability.md). Summary:
   intra-Home) · UPS web 80/443 (`10.10.99.9`) · SNMP 161
   (router/switch) · WireGuard · SSH/WinBox (Mgmt, trusted only).
 
-### URL → backend
+### URL → backend (edge cases only)
 
-| URL | Backend |
-|-----|---------|
-| `https://kogler.si` / `home.` | Homepage |
-| `https://ha.kogler.si` | `10.10.1.200:8123` (VIP, keepalived) |
-| `https://cockpit-nas.kogler.si` | `10.10.1.10:9090` |
-| `https://cockpit-oldsrv.kogler.si` | `10.10.1.30:9090` |
-| `https://dns.kogler.si` | Technitium web UI (resolution stays `10.10.1.30`/`10.10.1.20`:53) |
-| `https://dns-pi.kogler.si` | Technitium **secondary** web UI — `dns-pi → VIP 10.10.1.200`, served by Pi `traefik-ha` → `10.10.1.20:5380` (reachable when oldsrv is down) |
-| `https://ad.kogler.si` | Pi-hole |
-| `https://stats.kogler.si` | Grafana |
-| `https://traefik.kogler.si` | Traefik Dashboard |
-| `https://sec.kogler.si` | CrowdSec Dashboard / Metabase |
-| `https://foto./file./sso./git./vpn./bck./auto.` | Immich / OpenCloud / Authentik / Forgejo / Headscale / Kopia / n8n |
+The catalog table above maps every `<sub>.kogler.si` → its container on Traefik. Only
+these deviate from the convention and are listed here:
+
+| URL | Backend | Why it's here |
+|-----|---------|---------------|
+| `https://ha.kogler.si` | `10.10.1.200:8123` (VIP, keepalived) | VIP edge switches nodes; never "correct" to a node IP |
+| `https://dns-pi.kogler.si` | VIP `10.10.1.200` → Pi `traefik-ha` → `10.10.1.20:5380` | Pi edge — reachable when oldsrv is down |
+| `https://cockpit-nas.kogler.si` | `10.10.1.10:9090` | host service (not a Docker service) |
+| `https://cockpit-oldsrv.kogler.si` | `10.10.1.30:9090` | host service |
+
+> The executable half of the mapping lives in the Traefik labels in
+> `IaC/ansible/templates/docker_services/*/docker-compose.yml.j2`.
 
 **Cockpit scope:** nas + oldsrv only. The Pi is managed via SSH/Ansible + the HA
 Web UI — it does **not** run Cockpit.
@@ -176,9 +219,6 @@ route → VIP:8123, so the route keeps working as long as keepalived keeps the V
 the active HA node and every DNS server serves `ha.kogler.si → VIP` (never "correct"
 it to a node IP). Treat the VIP as the only valid backend. Runbook:
 [`smart-home-failover.md`](smart-home-failover.md).
-
-> Addresses are defined in the single source of truth — [`network-addresses.md`](network-addresses.md).
-> The executable half of this mapping lives in the Traefik labels in `IaC/ansible/templates/docker_services/*/docker-compose.yml.j2`.
 
 ## Related
 

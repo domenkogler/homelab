@@ -1,0 +1,5 @@
+# qbittorrent docker-compose.yml — TODO: define service
+#   Torrent client + gluetun sidecar (PrivadoVPN, WireGuard, Netherlands),
+#   torrent.kogler.si — Forward-Auth. network_mode: service:gluetun (no own network);
+#   gluetun on traefik-public + services-internal. Save paths → /mnt/nas/data/downloads/complete/<cat>.
+# Secrets via {{ lookup('community.general.onepassword', 'privado-vpn_api', vault=op_vault) }}

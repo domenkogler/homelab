@@ -19,6 +19,7 @@ tags: [services, observability, grafana, monitoring]
 Alloy (host agent: metrics + logs + SNMP, has docker.sock)
    ├─ remote_write ──▶ Prometheus  (THE metrics store, 30d)
    └─ push ──────────▶ Loki        (logs, 14d)
+Dozzle (read-only docker.sock) ─────▶ live per-container log tail (ops, no storage)
 Home Assistant (SWO-B + ComfoAir) ──Prometheus exporter──▶ Prometheus
 MikroTik (SNMP, 5–15s poll) ─────────────────────────────▶ Prometheus
 blackbox_exporter (external reachability) ───────────────▶ Prometheus  (probe_success)
@@ -52,6 +53,7 @@ nut_exporter (UPS, on nas) ─────────────────�
 | UI | **Grafana** | Dashboards, `stats.kogler.si` (**internal**) | `traefik-public` **+** `db-internal` | — |
 | Router | **n8n** | Alert routing/dedup → Signal/email | `services-internal` | — |
 | Notify | **signal-cli** | Signal delivery (linked device) | `services-internal` (needs internet) | — |
+| Viewer | **Dozzle** | Live per-container log streaming for ALL containers (read-only `docker.sock`); Forward-Auth, internal `logs.kogler.si`; **viewer only — nothing stored** | `traefik-public` | — |
 
 ---
 
@@ -65,6 +67,7 @@ nut_exporter (UPS, on nas) ─────────────────�
 | External reachability | blackbox → `probe_success` | Prometheus (30d) |
 | UPS status (battery, runtime, voltage, load, online/on-batt) | nut_exporter (on nas) → Prometheus | Prometheus (30d) |
 | Logs | Alloy → Loki | Loki (14d) |
+| Live logs (ops day-to-day tail) | Dozzle (read-only viewer, no storage) | ephemeral — nothing persisted |
 | Alerts | Grafana Alerting → n8n → Signal/email | alert delivery |
 | Display | Grafana + Homepage | — |
 
@@ -105,6 +108,7 @@ nut_exporter (UPS, on nas) ─────────────────�
 - **MikroTik SNMP:** poll at **5–15 s**; the "1s" in dashboards is a *refresh* interval, not a poll.
 - **Retention is deliberate:** 30d metrics / 14d logs. TSDB data is **regenerable and not backed up** (see [backup.md](backup.md)); long-term metric history is a deferred option (remote-write/downsampling).
 - **SPOF:** all observability lives on oldsrv — accepted for Phase 1; documented as a known property.
+- **Dozzle is not a second log backend** — it streams live logs straight from the Docker API (read-only socket) and persists nothing. Loki stays the single stored-log source (14d) and Grafana the search/alert surface.
 - **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
 
 ---
@@ -117,3 +121,4 @@ nut_exporter (UPS, on nas) ─────────────────�
 | Long-term metric retention (remote-write, downsampling) | if ever needed | escape hatch = Thanos/VictoriaMetrics |
 | Prometheus Alertmanager | only if Grafana-outage resilience demanded | Grafana Alerting covers Phase 1 |
 | Homematic full-local (HmIP-RFUSB + RaspberryMatic on Pi) | redo plan | see `smart-home.md` — affects HAP/HA integration, not metrics flow |
+| Container memory working-set metrics (Docker API → Prometheus) | with the *arr stack | validates the `services.md` RAM budget with real numbers, not estimates |

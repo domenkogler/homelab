@@ -62,6 +62,10 @@ Client → Technitium PRIMARY (oldsrv, 10.10.1.30)     ← DHCP lists this first
 - **The VIP's `:443` edge is served by whichever keepalived node owns the VIP:** in normal mode the Pi's minimal **`traefik-ha`** edge serves `ha.kogler.si`; after a forward takeover oldsrv's `traefik` takes over. Both serve an identical `ha` route → VIP:8123, so `ha.kogler.si → VIP` is always served by the active HA node (**no DNS flip on failover**). See [`smart-home-failover.md`](smart-home-failover.md).
 - **Web UIs:** primary on `dns.kogler.si` (oldsrv, Forward-Auth). The **secondary** on the Pi at **`dns-pi.kogler.si`** — FQDN shape only borrowed from the cockpit naming; like `ha` it resolves to the **VIP `10.10.1.200`** and is served by the Pi's `traefik-ha` edge → local `10.10.1.20:5380`, so it keeps working **when oldsrv is down** (internal-only, no Forward-Auth). Direct fallback `http://10.10.1.20:5380`.
 - **Static records (do not forget):** `ha.kogler.si → 10.10.1.200` and `dns-pi.kogler.si → 10.10.1.200` must be created as **A records on BOTH Technitium instances** (primary + secondary). DHCP auto-creation only covers leases, and the VIP is **not** a lease — without these static records the edges are unreachable by name.
+- **Static records — *arr stack (both instances → oldsrv Traefik edge `10.10.1.30`):** `seerr`, `sonarr`,
+  `radarr`, `lidarr`, `prowlarr`, `bazarr`, `sab`, `torrent`, `media`, `profilarr`, `logs` (all
+  `*.kogler.si`). Recyclarr has no hostname (scheduled worker, no UI). All are **internal-only** —
+  no public (Cloudflare) record, WAN-blocked (see `services.md`).
 - **Coupling tradeoff (accepted):** the Pi also hosts primary HA. A Pi failure takes the DNS secondary down **with** it — but the DNS **primary** (oldsrv) survives, and oldsrv is exactly the box HA fails over to, so resolution is never the thing that breaks HA in the Pi-down scenario.
 
 ---

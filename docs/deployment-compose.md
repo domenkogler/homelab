@@ -45,10 +45,14 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Observe (Prometheus, Loki) | `db-internal` |
 | Observe (Grafana) | `traefik-public` **+** `db-internal` (needs to query backends) |
 | Observe (blackbox-exporter) | `services-internal` |
+| Observe logs viewer (Dozzle) | `traefik-public` (read-only `docker.sock`) |
 | Alert (n8n) | `services-internal` |
 | CD (Doco-CD) | host network (needs `docker.sock`) |
 | Update (Renovate) | `services-internal` |
 | Stream (Sunshine) | `services-internal` |
+| Media/*arr UI (Jellyfin, Seerr, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd, Profilarr) | `services-internal` + `traefik-public` |
+| Media torrent VPN (gluetun; qBittorrent via `network_mode: service:gluetun`) | `traefik-public` + `services-internal` (shares gluetun namespace) |
+| Media scheduled (Recyclarr) | `services-internal` |
 
 ---
 
@@ -68,7 +72,7 @@ networks:
 
 ## GPU-Enabled Containers
 
-Services that need GPU access: **Ollama, Immich-ML, Sunshine**.
+Services that need GPU access: **Ollama, Immich-ML, Sunshine** (+ **Jellyfin** — iGPU transcode, not the AMD dGPU).
 
 ```yaml
 services:
@@ -83,7 +87,58 @@ services:
       - "{{ gpu_video_gid }}"     # video group
 ```
 
+### Jellyfin (iGPU transcode)
+
+```yaml
+services:
+  jellyfin:
+    devices:
+      - /dev/dri:/dev/dri          # Intel HD 630 QuickSync
+    group_add:
+      - "{{ gpu_render_gid | default(104) }}"
+      - "{{ gpu_video_gid | default(44) }}"
+```
+
 See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
+
+### *arr / Media Stack Conventions
+
+- **Images:** `linuxserver/*` for the *arr apps (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd,
+  qBittorrent); Jellyfin official `jellyfin/jellyfin`; `seerr/seerr`; gluetun `qm12/gluetun`;
+  Profilarr (community image — verify at implementation); Recyclarr `ghcr.io/recyclarr/recyclarr`.
+  `latest` tags, Renovate-tracked.
+- **PUID/PGID:** all *arr containers run as **`1000:1000`** (domen) — linuxserver images via
+  `PUID=1000`/`PGID=1000`, Jellyfin via `user: "1000:1000"`. NFS ownership on nas must match.
+- **Storage:** single NFS export `tank/data` → `/mnt/nas/data` (hardlinks need one filesystem):
+  - Jellyfin: `/mnt/nas/data/media/...` **ro**
+  - Sonarr/Radarr/Lidarr: their library dir (rw — creates folders) + `downloads/complete/<cat>` (import)
+  - SABnzbd / qBittorrent: `/mnt/nas/data/downloads` (rw)
+  - Bazarr: library dirs (writes subtitles next to media)
+  - `Use Hardlinks: ON` in Sonarr/Radarr/Lidarr
+- **Downloader egress:** only qBittorrent routes through gluetun:
+  ```yaml
+  services:
+    gluetun:
+      image: qm12/gluetun:latest
+      cap_add: [NET_ADMIN]
+      devices:
+        - /dev/net/tun:/dev/net/tun
+      environment:
+        VPN_SERVICE_PROVIDER: privado
+        VPN_TYPE: wireguard
+        WIREGUARD_PRIVATE_KEY: "{{ lookup('community.general.onepassword', 'privado-vpn_api', field='credential', vault=op_vault) }}"
+        SERVER_COUNTRIES: Netherlands
+    qbittorrent:
+      image: linuxserver/qbittorrent:latest
+      network_mode: "service:gluetun"      # no own network — shares gluetun namespace
+      depends_on: [gluetun]
+  # gluetun must be on traefik-public + services-internal so the qBittorrent
+  # web UI stays reachable via Traefik and Sonarr/Radarr can call its API.
+  ```
+  SABnzbd stays on the plain LAN (Eweka usenet is a licensed service).
+- **Auth:** admin UIs behind `authentik-forward-auth@file` with built-in logins disabled;
+  Jellyfin + Seerr use their own login (client apps / family portal).
+- **Dozzle** is an observability viewer (all containers), not part of the *arr stack — see `observability.md`.
 
 ---
 

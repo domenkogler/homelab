@@ -70,13 +70,19 @@ tiredofit/db-backup  →  Kopia  →  iDrive e2 (S3)
 
 > **Excluded — by design:** observability TSDB (Prometheus 30d + Loki 14d) is **regenerable and NOT backed up**. It lives on oldsrv local disk; losing it loses only rolling metric/log history. See [`observability.md`](observability.md).
 
+> **Excluded — *arr scratch:** `tank/data/downloads` (transient). Hardlink-imported media lives on in
+> `media/` (backed up); the scratch copies are not. ZFS snapshots of `tank/data` use a **coarser cadence**
+> (no 15-min tier) so active-download churn never inflates snapshot history. Kopia additionally excludes
+> `/mnt/nas/data/downloads` if an app-level backup ever covers the media share.
+
 ---
 
 ## Backup Flow
 
 ```
 ── ZFS path (bulk data, local) ──
-1. sanoid takes ZFS snapshots every 15 min on nas "tank" pool
+1. sanoid takes ZFS snapshots on nas "tank" pool — `tank/important` per standard schedule (15-min),
+   `tank/data` at coarser cadence (hourly, no 15-min tier) because it contains media + transient downloads
 2. syncoid replicates to SilverStone "backup" pool via zfs send/recv
 3. Backup pool retains same snapshot schedule independently
 

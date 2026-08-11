@@ -41,9 +41,25 @@ tags: [hardware, nas, zfs]
 
 - **4 TB usable**, fully redundant mirror
 - Datasets:
-  - `tank/important` → backed up (photos, documents, Docker data)
-  - `tank/media` → backed up (movies, music, Immich library)
-  - `tank/downloads` → NOT backed up
+  - `tank/important` → backed up (photos, documents, Docker data) — separate from the media export
+  - `tank/data` → backed up (bulk media + *arr library) — **single NFS export** → oldsrv `/mnt/nas/data`
+    - `media/{movies,tv,music}` — long-term library (Jellyfin, Sonarr/Radarr/Lidarr)
+    - `downloads/{incomplete,complete}` — TRaSH scratch: **hardlink-imported** into `media/`, then pruned.
+      Hardlinks need one filesystem, so downloads live INSIDE the snapshotted dataset (accepted
+      trade-off — coarser sanoid cadence bounds transient snapshot cost, see `backup.md`)
+  - (older `tank/downloads`-as-dataset plan → **superseded**: a separate dataset would break TRaSH
+    hardlinks; downloads now live under `tank/data`)
+
+### NFS Export (→ oldsrv)
+
+- Export: **`tank/data`** — a single export, no sub-mounts (hardlinks require one filesystem)
+- Client mount: oldsrv at **`/mnt/nas/data`** (fstab / Ansible)
+- Ownership: uid/gid **1000:1000** (domen) so *arr containers (`PUID/PGID 1000:1000`) can read/write
+- `tank/important` is **not** part of this export (separate share, TBD)
+
+> **TODO (IaC):** nas storage role — NFS export config (`tank/data`), `sanoid.conf` for `tank/data`
+> (no 15-min tier → hourly(24)+daily(7)+weekly(4)+monthly(3); `tank/important` unchanged), and the
+> oldsrv fstab mount. Doc-only in the planning phase.
 
 ---
 

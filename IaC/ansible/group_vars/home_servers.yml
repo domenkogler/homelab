@@ -55,8 +55,21 @@ docker_services:
   - { name: loki,            template_dir: loki }
   - { name: prometheus,      template_dir: prometheus }
   - { name: signal-cli-rest-api, template_dir: signal-cli-rest-api }
+  - { name: dozzle,       template_dir: dozzle,       subdomain: logs }
   # Stream
   - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
+  # Media / *arr stack — internal-only, docs/services.md (subdomains: media, seerr, sab, torrent)
+  - { name: jellyfin,     template_dir: jellyfin,     subdomain: media }
+  - { name: seerr,        template_dir: seerr }
+  - { name: sonarr,       template_dir: sonarr }
+  - { name: radarr,       template_dir: radarr }
+  - { name: lidarr,       template_dir: lidarr }
+  - { name: prowlarr,     template_dir: prowlarr }
+  - { name: bazarr,       template_dir: bazarr }
+  - { name: sabnzbd,      template_dir: sabnzbd,      subdomain: sab }
+  - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent }   # + gluetun sidecar in template
+  - { name: profilarr,    template_dir: profilarr }
+  - { name: recyclarr,    template_dir: recyclarr }                          # scheduled worker, no UI
   # Update
   - { name: renovate,        template_dir: renovate }
   # CD
