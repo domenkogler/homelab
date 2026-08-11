@@ -125,10 +125,12 @@ storage_replication:
 storage_exports:
   - { path: /tank/data, clients: "{{ storage_nfs_clients }}", options: "rw,sync,no_subtree_check,root_squash,anonuid={{ storage_uid }},anongid={{ storage_gid }}" }
   - { path: /bulk/media, clients: "{{ storage_nfs_clients }}", options: "rw,sync,no_subtree_check,root_squash,anonuid={{ storage_uid }},anongid={{ storage_gid }}" }
+  - { path: /bulk/data/immich-thumbs, clients: "{{ storage_nfs_clients }}", options: "rw,sync,no_subtree_check,root_squash,anonuid={{ storage_uid }},anongid={{ storage_gid }}" }
 
 storage_nfs_mounts:
-  - { src: "{{ storage_nfs_server }}:/tank/data",  path: /mnt/nas/data, opts: "nfsvers=4.2,hard,intr,nofail,x-systemd.automount,noatime" }
-  - { src: "{{ storage_nfs_server }}:/bulk/media", path: /mnt/nas/media, opts: "nfsvers=4.2,hard,intr,nofail,x-systemd.automount,noatime" }
+  - { src: "{{ storage_nfs_server }}:/tank/data",        path: /mnt/nas/data,  opts: "nfsvers=4.2,hard,intr,nofail,x-systemd.automount,noatime" }
+  - { src: "{{ storage_nfs_server }}:/bulk/media",       path: /mnt/nas/media, opts: "nfsvers=4.2,hard,intr,nofail,x-systemd.automount,noatime" }
+  - { src: "{{ storage_nfs_server }}:/bulk/data/immich-thumbs", path: /mnt/nas/thumbs, opts: "nfsvers=4.2,hard,intr,nofail,x-systemd.automount,noatime" }
 
 # ---------------------------------------------------------------------
 # Nightly push jobs (oldsrv → nas). Schedules are systemd OnCalendar specs.
@@ -138,12 +140,9 @@ storage_push_db_dumps: { src: /srv/dumps, target: /mnt/nas/data/db-dumps, oncale
 # 2) Service state (Forgejo dump, n8n sqlite backup) → tank/data/services.
 storage_push_services: { src: /srv/docker/services, target: /mnt/nas/data/services, oncalendar: "*-*-* 04:00:00",
                          scripts: "/usr/local/sbin/storage-push-services.sh" }
-# 3) Immich face thumbnails → bulk/data/immich-thumbs (over ssh — bulk/data is
-#    NOT exported; done with a dedicated deploy key, pubkey on nas).
-storage_push_face_thumbs: { src: /srv/docker/immich/upload/thumbs, target: /bulk/data/immich-thumbs,
-                            remote: "ansible-admin@{{ storage_nfs_server }}", oncalendar: "*-*-* 04:30:00",
-                            ssh_key: /root/.ssh/id_storage_push, pattern: "face*" }
-storage_push_ssh_item: storage-push_ssh   # 1Password item: private_key + public_key fields
+# 3) Immich face thumbnails → bulk/data/immich-thumbs. Over NFS like the other
+#    two jobs (third export + /mnt/nas/thumbs mount) — no ssh key, no extra secret.
+storage_push_face_thumbs: { src: /srv/docker/immich/upload/thumbs, target: /mnt/nas/thumbs, oncalendar: "*-*-* 04:30:00", pattern: "face*" }
 
 # Kopia wiring (oldsrv): sources already exist as dirs above; policies are
 # configured in the kopia-agent container config — this role only guarantees

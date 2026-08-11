@@ -53,8 +53,9 @@ tags: [hardware, nas, zfs]
 - Export **`tank/data`** (user data) → oldsrv **`/mnt/nas/data`**
 - Export **`bulk/media`** (the *arr library + downloads) → oldsrv **`/mnt/nas/media`**
 - Ownership: uid/gid **1000:1000** (domen) so *arr containers (`PUID/PGID 1000:1000`) can read/write
-- Two exports because the datasets live on **different pools** (tank vs bulk) — they can't share one mount.
-  TRaSH hardlinks only need a single filesystem **within** `bulk/media`, which is one dataset ✓
+- Three exports because they live on two **different pools** (`tank/data`, `bulk/media`) plus the
+  `bulk/data/immich-thumbs` push target — they can't share one mountpoint. TRaSH hardlinks only need a
+  single filesystem **within** `bulk/media`, which is one dataset ✓
 - Full layout/properties: [`storage-zfs.md`](storage-zfs.md)
 
 > **TODO (IaC):** nas `storage` role — pool import, dataset creation with properties (see

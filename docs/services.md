@@ -151,8 +151,9 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
     └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd categories / qBittorrent save paths)
 ```
 
-- One **NFS export** `bulk/media` → oldsrv **`/mnt/nas/media`** (the *arr share; distinct from
-  `tank/data` → `/mnt/nas/data`, which carries immutable user data — two pools, two exports).
+- Three NFS exports: `bulk/media` → oldsrv **`/mnt/nas/media`** (the *arr share), `tank/data` →
+  `/mnt/nas/data` (immutable user data) and `bulk/data/immich-thumbs` → `/mnt/nas/thumbs` (push target) —
+  two pools, three exports.
 - **Import = hardlink** (Sonarr/Radarr/Lidarr: `Use Hardlinks` ON) — instant, zero-space, atomic.
 - **Media is not backed up** — no sanoid snapshots, no syncoid, no Kopia. Lost media is re-fetched via
   usenet/torrents. Full layout/properties/replication: [`storage-zfs.md`](storage-zfs.md).

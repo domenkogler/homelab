@@ -54,7 +54,7 @@ nas (rack) — Debian 13, ZFS
 │   ├── media/                active *arr library + downloads (hardlinks, NOT backed up)
 │   ├── data/                 syncoid replicas of tank/data/* (hourly)
 │   └── immich-thumbs/        face thumbnails (daily rsync ← oldsrv)
-├── NFS exports → oldsrv: tank/data → /mnt/nas/data · bulk/media → /mnt/nas/media
+├── NFS exports → oldsrv: tank/data → /mnt/nas/data · bulk/media → /mnt/nas/media · bulk/data/immich-thumbs → /mnt/nas/thumbs
 └── ZFS snapshots → sanoid/syncoid → bulk pool (data datasets only)
 ```
 

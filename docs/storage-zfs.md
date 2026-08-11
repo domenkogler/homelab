@@ -130,15 +130,16 @@ homelab loses <24 h of DB changes, acceptable.
 
 ## NFS Exports (nas → oldsrv)
 
-Two exports, one per pool (can't share one mount across pools):
+Three exports (one per pool + the face-thumbs push target — mounts can't span pools):
 
 | Export | Mount (oldsrv) | Purpose |
 |--------|----------------|---------|
 | `tank/data` | `/mnt/nas/data` | user data: Immich originals, OpenCloud documents, db dumps, service-state copies |
 | `bulk/media` | `/mnt/nas/media` | *arr library + downloads (Jellyfin, Sonarr/Radarr/Lidarr, SABnzbd, qBittorrent, Bazarr) |
+| `bulk/data/immich-thumbs` | `/mnt/nas/thumbs` | face-thumbnail push target (nightly rsync from oldsrv) |
 
-- Ownership uid/gid **1000:1000** (domen) — matches *arr `PUID/PGID` (linuxserver) and Jellyfin `user: "1000:1000"`; NFS `root_squash` on, no sub-mounts.
-- fstab mounts via Ansible (`network`/`storage` role). Hardlinks only ever cross paths **within** `bulk/media` — one dataset, one filesystem ✓.
+- Ownership uid/gid **1000:1000** (domen) — matches *arr `PUID/PGID` (linuxserver) and Jellyfin `user: "1000:1000"`; NFS `root_squash` on.
+- fstab mounts via Ansible (`storage` role). Hardlinks only ever cross paths **within** `bulk/media` — one dataset, one filesystem ✓.
 - SMB for direct family LAN access: deferred (family already reaches files via OpenCloud/Immich apps).
 
 ---
@@ -149,7 +150,7 @@ Two exports, one per pool (can't share one mount across pools):
 |-----|-----------------|--------------|--------|
 | DB dumps | `/srv/dumps` (local scratch) | `tank/data/db-dumps` | rsync/cp after db-backup completes |
 | Service state | Forgejo `forgejo dump` archive, n8n `sqlite3 .backup`, Authentik state | `tank/data/services/<svc>/` | rsync |
-| Face thumbnails | Immich `thumbs/` face files | `bulk/data/immich-thumbs` | rsync (deltas) |
+| Face thumbnails | Immich `thumbs/` face files | `bulk/data/immich-thumbs` | rsync over NFS (deltas) |
 
 Key properties: dumps are written **locally first** (Kopia snapshots the local dir) and then pushed —
 Kopia never reads NAS mounts, so off-site backup survives a dead NAS. All three jobs are systemd timers

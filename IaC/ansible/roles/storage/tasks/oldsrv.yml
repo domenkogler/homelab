@@ -56,9 +56,8 @@
     state: started
 
 # ---------------------------------------------------------------------------
-# Push job 3 — face thumbnails → bulk/data/immich-thumbs (rsync over ssh)
-# Note: bulk/data is NOT exported over NFS; a dedicated deploy key (1Password
-# item `storage-push_ssh`) authenticates oldsrv → nas for this one job.
+# Push job 3 — face thumbnails → bulk/data/immich-thumbs (over NFS mount
+# /mnt/nas/thumbs, third export; no ssh key needed — see storage-zfs.md)
 # ---------------------------------------------------------------------------
 - name: Render push-face-thumbs unit + timer
   ansible.builtin.template:
@@ -69,26 +68,6 @@
     - push-face-thumbs.service.j2
     - push-face-thumbs.timer.j2
   notify: Reload systemd
-
-- name: Provision push deploy key (private, 0600) from 1Password
-  ansible.builtin.copy:
-    content: "{{ lookup('community.general.onepassword', storage_push_ssh_item, field='private_key', vault=op_vault, default='') | string }}"
-    dest: "{{ storage_push_face_thumbs.ssh_key }}"
-    owner: root
-    group: root
-    mode: "0600"
-  when: lookup('community.general.onepassword', storage_push_ssh_item, field='private_key', vault=op_vault, default='') | length > 0
-
-- name: Authorize push key for ansible-admin on nas (restricted)
-  ansible.posix.authorized_key:
-    user: ansible-admin
-    key: "{{ lookup('community.general.onepassword', storage_push_ssh_item, field='public_key', vault=op_vault, default='') }}"
-    state: present
-    exclusive: false
-    key_options: 'no-agent-forwarding,no-port-forwarding,no-X11-forwarding,from="10.10.0.0/16"'
-  when:
-    - inventory_hostname in groups['home_servers'] | default([])
-  delegate_to: "{{ groups['storage'][0] }}"
 
 - name: Enable+start push-face-thumbs.timer
   ansible.builtin.systemd:
