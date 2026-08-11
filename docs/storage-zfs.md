@@ -181,6 +181,7 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
 | 960 EVO 500 GB (200 TBW) | oldsrv | ext4 | OS/system only: `/`, `/var`, `/opt` — no churn, no Docker |
 | 970 EVO 1 TB (600 TBW) | oldsrv | **ZFS pool `nvme`** | all local data — writes balanced on the durable/fast disk |
 | MX300 525 GB | nas | ext4 | OS/boot only; `tank`/`bulk` imported via cachefile |
+| microSD (32–64 GB) | pi | ext4 | HA primary + RaspberryMatic + Technitium secondary + `traefik-ha` edge — lean, no ZFS, no backup surface |
 
 ```
 970 EVO 1 TB → ZFS pool "nvme" (single-disk; every dataset is NAS-backed or regenerable, no mirror needed)
@@ -201,6 +202,30 @@ gives backup jobs/Kopia clean host paths (see `deployment-compose.md` → Volume
 - **Capacity budget:** keep `nvme` < 80% full (ZFS fragmentation). ~1 TB fits comfortably: DBs < 50 GB,
 thumbs+encoded ~150–300 GB over 5 yr, docker layers ~50–100 GB, models ~60–150 GB, TSDB ~20–40 GB.
 - Docker stays on overlay2 over `nvme/docker-layers` (auto-snapshot off on that dataset).
+
+### Pi (HA node) — `/opt/<svc>`, no ZFS
+
+The Pi is a Docker node too (HA primary + RaspberryMatic + Technitium secondary + `traefik-ha` edge), but
+its data is **tiny and already covered** — configs in Git, everything else re-syncs or regenerates, so it
+adds **no backup surface** (no datasets, no Kopia policy). No ZFS: microSD + 4 GB RAM, and every byte is
+already mirrored by the Pi→standby sync.
+
+```
+/opt/<svc>/                  per-service: compose (docker_services role) + small data together
+├── homeassistant/           HA Container (home_assistant role)
+│   └── config/              configuration.yaml (templated from repo) + .storage/ + trimmed recorder DB
+├── traefik-ha/              VIP-bound HA edge — compose + dynamic routes from repo
+│   └── certs/               wildcard *.kogler.si rsync from oldsrv (ACME off on Pi) — regenerable
+├── raspberrymatic/          CCU3 config — pairing lives on the HmIP-RFUSB *stick* (moves on failover)
+└── technitium-secondary/    config.json + zones.db — secondary zones AXFR-replicate from oldsrv primary
+```
+
+- Coverage: HA `config/` → Git + 15-min rsync to `oldsrv` standby (+ optional Kopia); recorder DB →
+  best-effort/regenerable; RaspberryMatic config → same 15-min rsync, pairing on the stick; Technitium
+  zones → AXFR from primary; `traefik-ha` certs → re-rsync/re-issue from oldsrv ACME (single issuer).
+- Pi data deliberately stays under `/opt/<svc>` (unlike oldsrv's `/srv/docker/<svc>`) — small footprint,
+  and the role already pins `/opt/traefik-ha/certs/` as the cert-sync target.
+- SD-card wear: HA recorder already trimmed (observability TODO); consider tmpfs for `/var/log`/`/var/tmp`.
 
 ---
 
