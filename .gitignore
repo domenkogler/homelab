@@ -3,3 +3,6 @@ __pycache__/
 
 # pi-subagents run artifacts
 .pi-subagents/
+
+# Rendered RouterOS bootstrap scripts (secrets + static IPs injected at render time)
+IaC/router/rendered/

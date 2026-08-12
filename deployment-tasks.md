@@ -29,7 +29,7 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 | `ansible-admin_ssh` | ssh → `private_key`/`public_key` | Phase 0 |
 | `ai_ssh` | ssh → `private_key`/`public_key` | Phase 0 |
 | `op_api` | api → `credential` (1Password Service Account token) | Phase 0 |
-| `router_login` | login → `password` | Phase 1 |
+| `mikrotik-admin_login` | login → `password` | Phase 1 |
 | `wg_password` | password → `password` (WireGuard S2S key) | Phase 1 |
 | `nut_password` | password → `password` | Phase 2 |
 | `nut-smtp_login` | login → `password` (`username`=notify email/SMTP user) | Phase 2 |
@@ -88,7 +88,7 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 > offline — do this at a planned maintenance window. All subsequent fresh installs depend on it.
 >
 > **Depends on:** Phase 0 (laptop + 1Password agent).
-> **1Password prerequisites:** `router_login` (login→`password`), `wg_password` (password→`password`).
+> **1Password prerequisites:** `mikrotik-admin_login` (login→`password`), `wg_password` (password→`password`).
 > **Continuation:** next phases require the router serving DHCP on VLANs 10 + 99 (and 20/21/30/40/50 as configured).
 
 1. **Router baseline** — factory-reset the RB4011 and apply `IaC/router/rb4011_initial.rsc`:
@@ -267,7 +267,7 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 ## Phase 9 — Documentation & Polish
 
 > **Depends on:** services live (Phase 3+) to document accurately.
-> **1Password prerequisites:** `router_login` (export the live config).
+> **1Password prerequisites:** `mikrotik-admin_login` (export the live config).
 
 - Write family guides `docs/manual/*` (10 Slovenian files, `status: wip`) — **HD-32**
 - Export live router config `rb4011_live.rsc` (RouterOS export) — **HD-33**
@@ -314,7 +314,7 @@ Phase 1 (network redo: flat ─▶ VLANs 10/20/21/30/40/50/99)  ◀── IRREVE
 
 **Phase prerequisites (1Password) recap — what must exist before you start:**
 - **Phase 0:** `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `op_api`, `kopia_password` (seed)
-- **Phase 1:** + `router_login`, `wg_password`
+- **Phase 1:** + `mikrotik-admin_login`, `wg_password`
 - **Phase 2:** + `nut_password`, `nut-smtp_login`
 - **Phase 3:** + `cloudflare_api`, `kopia-s3_api`, `authentik_db/password/login`,
   `opencloud_db`, `immich_db`, `forgejo_db`, `forgejo_api`, `grafana_login`, `grafana-smtp_login`,

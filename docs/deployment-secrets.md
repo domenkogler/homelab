@@ -58,7 +58,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 
 | `type`       | 1Password item    | `field=`              | Examples |
 |--------------|-------------------|-----------------------|----------|
-| `login`      | Login             | `password`            | SMTP/SMTP-relay creds (`grafana-smtp_login`, `nut-smtp_login`), admin accounts (`router_login`, `grafana_login`, `authentik_login`), any username+password combo |
+| `login`      | Login             | `password`            | SMTP/SMTP-relay creds (`grafana-smtp_login`, `nut-smtp_login`), admin accounts (`mikrotik-admin_login`, `grafana_login`, `authentik_login`), any username+password combo |
 | `password`   | Password          | `password`            | shared / opaque secrets with no username: webhook HMAC (`doco-cd_password`), VRRP (`ha-vrrp_password`), upsmon (`nut_password`), repo master (`kopia_password`), Django `SECRET_KEY` (`authentik_password`), WireGuard private key (`wg_password`) |
 | `api`        | API Credential    | `credential`          | tokens & keys: Cloudflare (`cloudflare_api`), Forgejo (`forgejo_api`), HA long-lived (`ha_api`), headscale OIDC (`headscale_api`), S3 (`kopia-s3_api`), 1Password service-account (`op_api`), signal-cli (`signal_api`), PrivadoVPN WireGuard client key (`privado-vpn_api`) |
 | `db`         | Database          | `password` (also `username`) | platform DBs: `authentik_db`, `opencloud_db`, `immich_db`, `forgejo_db` — Database item holds both `username` (DB user) and `password` |
@@ -96,14 +96,15 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
 | `nut-smtp_login` | `password` | UPS / scheduled-shutdown email notifications (SMTP; `username` = notify email + SMTP user) |
 | `wg_password` | `password` | router (WireGuard S2S private key) |
-| `router_login` | `password` | router — RouterOS admin (item `RB4011`) |
+| `mikrotik-admin_login` | `password` | router + switch + APs — MikroTik RouterOS admin (items RB4011/CRS328/hAP; shared across all network gear) |
+| `pppoe_login` | `password` (`username` = PPPoE user) | router — ISP (Telekom) PPPoE credentials for the egress WAN |
 | `cloudflare_api` | `credential` | ACME **DNS-01** wildcard `*.kogler.si` cert |
 | `kopia-s3_api` | `credential` (`username` = access key) | kopia-server S3 storage (access key + secret key) |
 | `op_api` | `credential` | 1Password Service Account token → Doco-CD + Forgejo Actions |
 | `signal_api` | `credential` (`username` = phone number) | signal-cli-rest-api (linked-device pair / captcha) |
 | `doco-cd_password` | `password` | Doco-CD webhook HMAC (`WEBHOOK_SECRET`) |
 
-> Entity count: **25 items**, each a single `<service>_<type>` name with one `_` delimiter.
+> Entity count: **26 items**, each a single `<service>_<type>` name with one `_` delimiter.
 > Future / not-yet-created: `n8n_password` (webhook) + `n8n-smtp_login` (SMTP), `ha_mqtt` / `ha-mqtt_login` (if MQTT added to HA), `proxmox_root` / `proxmox_login` (Phase 2).
 
 ---
@@ -130,7 +131,8 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `upsmon_password` / `nut_upsmon_password` | `nut_password` |
 | `smtp_notify_creds` / `nut_notify_email` / `nut_smtp_user` / `nut_smtp_pass` | `nut-smtp_login` |
 | `wireguard_private_key` | `wg_password` |
-| `router_admin_password` | `router_login` |
+| `router_admin_password` | `mikrotik-admin_login` |
+| `router_login` | `mikrotik-admin_login` |
 | `cloudflare_api_token` / `cloudflare_api_token_credential` | `cloudflare_api` |
 | `s3_kopia_access_key` / `s3_kopia_secret_key` / `kopia_access_key` / `s3_kopia_secret` | `kopia-s3_api` |
 | `op_service_account_token` | `op_api` |
