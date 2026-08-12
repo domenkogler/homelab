@@ -47,7 +47,7 @@
 |----|---|------|--------|------|
 | HD-01 | 3 | AI | done | **Create missing `docker_services` compose templates** ✅ — homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api, **metabase** (8 templates + `group_vars/home_servers.yml` entries created; validator added; stale `# TODO` removed). · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-02 | 3 | AI | open | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
-| HD-03 | 5 | AI + gate | open | **Network redo: implement VLAN segmentation** — currently flat `10.10.1.0/24` → VLANs 10/20/21/30/40/50/99, inter-VLAN firewall, CAPsMAN SSIDs. High-risk cross-cutting change (D5, human gate); enabler for the redo work. · [network-vlans.md](docs/network-vlans.md) |
+| HD-03 | 5 | AI + gate | open | **Network redo: implement VLAN segmentation** — currently flat `10.10.1.0/24` → VLANs 10/20/21/30/40/50/99, inter-VLAN firewall, CAPsMAN SSIDs. ✅ **IaC implemented + committed (`39b9f02`):** router + switch `community.routeros` roles (VLANs, DHCP, firewall, mgmt). ⏳ **NOT deployed to live gear** — Ansible can't run on this Windows host (see render note). Open before deploy: switch bridge-VLAN access-port membership (under review vs Rack.canvas), CAPsMAN SSID secret items, WG VPS peer. · [network-vlans.md](docs/network-vlans.md) |
 | HD-04 | 5 | AI + gate | open | **Pi redo: HAOS → Debian + HA Container + RaspberryMatic + Technitium secondary** — in-use device migration, done opportunistically during the network redo; approved direction, not yet applied. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-05 | 1 | Human | **done** | **VIP address / notation / firewall IP-set** — decided: `10.10.1.200/32` (`ha-vip`), DHCP pool ≤ `.199`, router lists `trusted-ha` + `trusted-admin`. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-06 | 3 | AI | open | **NUT master on nas** — `usbhid-ups`, `upsd` (3493), `nut_exporter`, `upssched-cmd` notify. ✅ **IaC done+fixed** (SSOT exporter on master `:9199`, scrape via `all.yml` vars, `@latest` release w/ verified asset URL, `nut-exporter_password` upsd auth, SMTP+Signal notify wired via `NOTIFYCMD`, battery.runtime/charge thresholds, USB verify task — G1–G7). ⏳ **Missing:** live deploy on nas (host not provisioned yet) + battery-pull test; feeds HD-07 (clients) / HD-08 (metrics+alerts). · [hardware-ups.md](docs/hardware-ups.md) |
@@ -58,7 +58,7 @@
 | ID | D | Exec | Status | Item |
 |----|---|------|--------|------|
 | HD-08 | 3 | AI | open | **Wire UPS metrics + alerts into Prometheus/Grafana** — Critical battery/runtime, Warning on-battery, Info transitions. Depends on HD-06/07. · [hardware-ups.md](docs/hardware-ups.md) |
-| HD-09 | 1 | AI | open | **UPS web-UI firewall rule** — open 80/443 Home→Mgmt for `10.10.99.9` only; Modbus 502 retired (no consumer). · [hardware-ups.md](docs/hardware-ups.md) |
+| HD-09 | 1 | AI | open | **UPS web-UI firewall rule** — open 80/443 Home→Mgmt for `10.10.99.9` only; Modbus 502 retired (no consumer). ✅ **IaC done** (router role: trusted-admin → `ups_management` 80/443); ⏳ not deployed. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-10 | 2 | AI | open | **Generate `oldsrv/preseed.cfg`** — deferred / not created; host-specific partitions + GRUB (NVMe). · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-11 | 2 | AI | open | **Generate `pi/preseed.cfg`** — headless, no desktop/Cockpit; same preseed path as nas/oldsrv. · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-12 | 3 | AI | open | **Implement `inventory.md` render pipeline** — `inventory.md.j2` + render hook; referenced but `docs/inventory.md` doesn't exist (value-doc, never hand-edited). · [interfaces.md](docs/interfaces.md) |
@@ -112,12 +112,50 @@
 
 ---
 
+## Network redo — implementation status (router/switch Ansible)
+
+> **Commit `39b9f02`** implemented the Ansible halves of the network redo (HD-03) at the
+> **role/template level**. None of this is **live** — the network is still flat (single
+> Home subnet) and no device has been reconfigured. First apply must be a human-gated
+> deploy (dry-run → single host) on a working Ansible host.
+>
+> ### Done (implemented + committed, NOT deployed)
+> - **Router role** (`roles/router/`): VLAN interfaces+gateways (SSOT-derived), per-VLAN
+>   DHCP, inter-VLAN firewall (address-lists, NAT masquerade on `pppoe-telekom`,
+>   established/related return path, trusted-admin rules, IoT→WAN drop), AP DHCP static
+>   leases, mgmt services. `community.routeros` added to requirements.yml. Auth via
+>   `admin` + 1Password (`mikrotik-admin_login`).
+> - **Switch role + inventory** (`roles/switch/`, `[switch]` group, `playbooks/switch.yml`):
+>   VLAN-filtering bridge, trunk (`sfp-sfpplus1`), access ports + PoE (config-driven),
+>   mgmt on VLAN 99, default route + DNS.
+> - **SSOT / dedup:** `group_vars/network.yml` derives `ansible_host` from
+>   `network_static_hosts`; `vlan_subnets` / `router_mgmt_ip` / `switch_mgmt_ip` derived;
+>   missing router gateway entries (VLAN 20/21/30/40/50) added to `network_static_hosts`.
+> - **Bug fixes (6):** inverted switch safety guard; hardcoded IP literals; broken
+>   `item.vlan.*`/`item.subnet` refs in gateway IP + all DHCP tasks; firewall logic gaps;
+>   VLAN 1 Blackhole loop skip + bridge-lan created before use.
+> - **Docs/tooling:** `scripts/render_network_addresses.py` (Windows-friendly SSOT
+>   render), regenerated `docs/network-addresses.md`, render instructions in
+>   `deployment-ansible.md` + template header.
+>
+> ### Not done / deferred (open items before the network is usable)
+> - **Switch bridge-VLAN access-port membership** — access ports get a `pvid` but are
+>   NOT yet `untagged` members of their VLAN in the bridge VLAN DB; segmentation won't
+>   actually work until implemented. Under review vs `Rack.canvas`.
+> - **Per-switch port→VLAN/PoE map** — not finalized; `group_vars/switch.yml` marked
+>   TODO (estimates from `Rack.canvas`; also conflicts noted: HAP/RPi on switch vs router,
+>   sfp+ sweep, printer/AP-garage ports).
+> - **CAPsMAN SSIDs** — need WPA2 passphrases from 1Password (`wifi_login` or per-SSID);
+>   left commented with TODO.
+> - **WireGuard S2S → VPS** — deferred to Phase 10 (VPS peer not built); left commented.
+> - **Deploy/verify on gear** — not run (Ansible crashes on Windows; run on WSL/Debian).
+
 ## Notes / observed gaps
 
 - `issues.md` is the official scratchpad for follow-ups (`docs/issues.md`) and is currently **empty** — decide whether it or this file is the backlog home (single source, avoid duplication). Recommended split: **todo.md = planned work**, **issues.md = defects/follow-ups**.
 - Two dead references in docs: `docs/network-devices.md` (HD-35) and `docs/inventory.md` (HD-12).
 - Dependencies: HD-03 → HD-04 → HD-13/HD-16 · HD-06/07 → HD-08 · HD-01 → HD-02/HD-19 · HD-29 → HD-31.
-- **Recently-implemented IaC (done at template/role level, NOT yet deployed):** storage role (ZFS layout, snapshots, NFS, push jobs), face-thumbnail push over NFS, boot-time provisioning, traefik-ha edge failover, and the Media/·\*arr + dozzle templates (→ HD-43/-44). These are **not** live on any host yet — track them as open until a deploy/verify task (Phase 2/3) runs.
+- **Recently-implemented IaC (done at template/role level, NOT yet deployed):** storage role (ZFS layout, snapshots, NFS, push jobs), face-thumbnail push over NFS, boot-time provisioning, traefik-ha edge failover, the Media/·\*arr + dozzle templates (→ HD-43/-44), and the **router/switch network roles** (→ HD-03). These are **not** live on any host yet — track them as open until a deploy/verify task (Phase 2/3) runs.
 
 ## Executor summary
 
