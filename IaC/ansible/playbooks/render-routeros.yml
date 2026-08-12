@@ -13,7 +13,7 @@
 #
 # Output (bootstrap device → rendered file):
 #   RB4011 router  -> IaC/router/rendered/rb4011_initial.rsc
-#   CRS328 switch  -> (added in a follow-up task)
+#   CRS328 switch  -> IaC/router/rendered/crs328_initial.rsc
 #   hAP APs        -> (added in a follow-up task)
 #
 # Then upload each rendered .rsc (+ admin.pub / ansible.pub) to the device's
@@ -40,8 +40,14 @@
         src: "{{ playbook_dir }}/../../router/templates/rb4011_initial.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_initial.rsc"
 
-    - name: Report rendered file (upload, never commit)
+    - name: Render crs328_initial.rsc
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/crs328_initial.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/crs328_initial.rsc"
+
+    - name: Report rendered files (upload, never commit)
       debug:
         msg:
           - "Upload IaC/router/rendered/rb4011_initial.rsc + admin.pub + ansible.pub to the RB4011"
-          - "Then: /system reset-configuration no-defaults=yes run-after-reset=rb4011_initial.rsc"
+          - "Upload IaC/router/rendered/crs328_initial.rsc + admin.pub + ansible.pub to the CRS328"
+          - "Then per device: /system reset-configuration no-defaults=yes run-after-reset=<file>"

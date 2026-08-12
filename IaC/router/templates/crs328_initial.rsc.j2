@@ -1,0 +1,67 @@
+{#- CRS328 bootstrap template — rendered by render-routeros.yml (never commit rendered/).
+    IPs/VLANs from group_vars/all.yml; secrets from 1Password at render time. -#}
+# =============================================================================
+# CRS328-24P-4S+ — Kogler Homelab — Bootstrap (RENDERED — do not edit, regenerate)
+# Source template: IaC/router/templates/crs328_initial.rsc.j2
+# =============================================================================
+# Purpose: Minimal bootstrap that establishes the Management (VLAN {{ mgmt.id }})
+#          plane: sfp+1 trunk to the router + all access ports on management, so
+#          Ansible can reach the switch (user=ansible, SSH-key auth) and take
+#          over ports/VLANs/PoE + move management to 10.10.99.2.
+# How:     Upload this + admin.pub + ansible.pub to the switch Files, then:
+#            /system reset-configuration no-defaults=yes run-after-reset=crs328_initial.rsc
+#          The router (rb4011_initial.rsc) must be up FIRST.
+# NOTE:    NO secrets in the repo — credentials injected from 1Password.
+# =============================================================================
+
+# ---- System ----
+
+/system identity set name=switch.kogler.si
+/system clock set time-zone-name={{ timezone }}
+
+# ---- Users (bootstrap auth) ----
+# admin = password + SSH key. ansible = key-only (automation).
+
+/user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
+/user ssh-keys import public-key-file=admin.pub user=admin
+
+/user add name=ansible group=full disabled=no comment="Ansible automation (SSH-key auth)"
+/user set [find name=ansible] password=""
+/user ssh-keys import public-key-file=ansible.pub user=ansible
+
+# ---- Management (VLAN {{ mgmt.id }} — {{ mgmt.name }}) ----
+# sfp+1 = trunk to the router (mgmt tagged); all other ports = access on mgmt.
+/interface bridge add name=bridge vlan-filtering=yes protocol-mode=none
+
+# uplink to RB4011 — trunk
+/interface bridge port add bridge=bridge interface=sfp-sfpplus1 comment="uplink -> router"
+# all RJ45 access ports (bootstrap: management VLAN)
+{% for n in range(1, 25) %}
+/interface bridge port add bridge=bridge interface=ether{{ n }} pvid={{ mgmt.id }}
+{% endfor %}
+# remaining SFP+ ports
+{% for n in range(2, 5) %}
+/interface bridge port add bridge=bridge interface=sfp-sfpplus{{ n }} pvid={{ mgmt.id }}
+{% endfor %}
+
+# carry mgmt VLAN on the bridge + uplink trunk
+/interface bridge vlan add bridge=bridge vlan-ids={{ mgmt.id }} tagged=bridge,sfp-sfpplus1
+/interface vlan add name=vlan{{ mgmt.id }}-mgmt vlan-id={{ mgmt.id }} interface=bridge
+
+# static management IP on mgmt VLAN (SSOT) + default route via router gateway
+/ip address add address={{ switch99.ip }}/{{ mgmt.subnet.split('/')[1] }} interface=vlan{{ mgmt.id }}-mgmt \
+    comment="{{ mgmt.name }} mgmt (SSOT)"
+/ip route add dst-address=0.0.0.0/0 gateway={{ router99.ip }} comment="Default via router (bootstrap)"
+/ip dns set servers={{ router99.ip }}
+
+# ---- Services (Ansible REST/API/SSH door) ----
+
+/ip service set api disabled=no
+/ip service set www-ssl disabled=no certificate=none
+/ip service set ssh disabled=no port=22
+
+# ---- End ----
+# After import, verify:
+#   1. Reachable from laptop  → ping {{ switch99.ip }}
+#   2. REST reachable         → /ip service print (api + www-ssl enabled)
+#   3. Ansible role then applies ports/VLANs/PoE + keeps mgmt on {{ switch99.ip }}.
