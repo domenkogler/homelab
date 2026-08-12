@@ -10,3 +10,10 @@ HOSTSYNC 15
 DEADTIME 15
 POWERDOWNWAIT 0
 RUN_AS_USER nut
+
+# Wire the guaranteed notify (upssched-cmd: email + Signal on ONBATT/LOWBATT,
+# independent of Grafana/n8n). upssched runs via upsmon's NOTIFYCMD.
+NOTIFYCMD /usr/sbin/upssched
+NOTIFYFLAG ONLINE SYSLOG+WALL+EXEC
+NOTIFYFLAG ONBATT SYSLOG+WALL+EXEC
+NOTIFYFLAG LOWBATT SYSLOG+WALL+EXEC

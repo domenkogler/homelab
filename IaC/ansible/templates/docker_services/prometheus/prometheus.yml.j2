@@ -45,10 +45,10 @@ scrape_configs:
         target_label: __param_module
     params:
       module: [icmp]
-  # nut_exporter (host binary on nas, 10.10.1.10:9195)
+  # nut_exporter (single SSOT exporter — host binary on the NUT master, nas)
   - job_name: nut_exporter
     static_configs:
-      - targets: ["10.10.1.10:9195"]
+      - targets: ["{{ nut_exporter_host }}:{{ nut_exporter_port }}"]
   # HA exporter (edge HA's /api/prometheus)
   - job_name: ha_exporter
     metrics_path: /api/prometheus

@@ -3,3 +3,9 @@
 [upsmon]
     password = {{ nut_upsmon_password }}
     upsmon master
+
+# nut_exporter authentication — dedicated read-only user so the exporter can
+# LIST VAR without full upsmon privileges.
+[{{ nut_exporter_user }}]
+    password = {{ nut_exporter_password }}
+    upsmon slave

@@ -32,6 +32,14 @@ wildcard_cert_domain: "kogler.si"
 # Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== pi 10.10.1.20).
 technitium_secondary_ip: 10.10.1.20
 
+# ==== UPS / NUT (docs/hardware-ups.md) ====
+# Single SSOT `nut_exporter` runs as a HOST binary on the NUT master (nas, no Docker)
+# and is scraped by Prometheus (on oldsrv) over the Home VLAN. Host derived from the
+# address SSOT below (nas @ VLAN 10); port matches the nut role's `nut_exporter_listen`.
+nut_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+# nut_exporter_listen in roles/nut/defaults/main.yml (:9199); keep in sync.
+nut_exporter_port: 9199
+
 # ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses.md) ====
 # Hand-edit here ONLY; regenerate docs/network-addresses.md after changes.
 #

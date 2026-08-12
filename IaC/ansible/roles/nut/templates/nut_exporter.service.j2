@@ -9,7 +9,9 @@ Requires=nut-server.service
 Type=simple
 User=nut
 Group=nut
-ExecStart=/usr/local/bin/nut_exporter -nut.server 127.0.0.1:3493 -web.listen-address {{ nut_exporter_listen }}
+Environment=NUT_EXPORTER_USERNAME={{ nut_exporter_user }}
+Environment=NUT_EXPORTER_PASSWORD={{ nut_exporter_password }}
+ExecStart=/usr/local/bin/nut_exporter -nut.server 127.0.0.1:3493 -web.listen-address {{ nut_exporter_listen }} --nut.vars_enable "{{ nut_exporter_vars }}"
 Restart=on-failure
 RestartSec=5
 

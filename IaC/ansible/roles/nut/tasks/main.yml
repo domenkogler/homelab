@@ -104,19 +104,35 @@
     dest: /etc/nut/upssched-cmd
     owner: root
     group: nut
-    mode: '0755'
+    mode: '0750'        # 0750: not world-readable — script embeds SMTP creds at render time; nut (group) must execute it.
   when: nut_mode == 'master'
 
 # --- nut_exporter: single SSOT exporter, HOST binary on the master ---
+# Resolve the release tag: pinned tag used as-is; '' / '@latest' → latest GitHub release.
+- name: Resolve nut_exporter release tag from GitHub (when not pinned)
+  uri:
+    url: https://api.github.com/repos/DRuggeri/nut_exporter/releases/latest
+    return_content: true
+  register: _nut_exporter_latest
+  when: nut_exporter_release in ['', '@latest']
+  tags: [nut_exporter]
+
+- name: Determine final nut_exporter release tag
+  set_fact:
+    _nut_exporter_release: >-
+      {{ nut_exporter_release if nut_exporter_release not in ['', '@latest']
+         else _nut_exporter_latest.json.tag_name }}
+  tags: [nut_exporter]
+
 - name: Download nut_exporter binary (master, host — nas has no Docker)
   get_url:
-    url: "https://github.com/DRuggeri/nut_exporter/releases/download/{{ nut_exporter_release }}/nut_exporter-linux-{{ nut_exporter_arch }}"
+    url: "https://github.com/DRuggeri/nut_exporter/releases/download/{{ _nut_exporter_release }}/nut_exporter-{{ _nut_exporter_release }}-linux-{{ nut_exporter_arch }}"
     dest: /usr/local/bin/nut_exporter
     mode: '0755'
   when:
     - nut_mode == 'master'
     - nut_exporter
-    - nut_exporter_release != ''
+    - _nut_exporter_release | default('') != ''
   tags: [nut_exporter]
 
 - name: Deploy nut_exporter systemd unit (master)
@@ -154,3 +170,26 @@
     enabled: true
     daemon_reload: true
   when: nut_mode == 'client'
+
+# --- Verify UPS visibility (master; non-destructive) ---
+- name: List USB devices (master — confirm the UPS HID is present)
+  command: lsusb
+  register: _ups_lsusb
+  changed_when: false
+  when: nut_mode == 'master'
+
+- name: Assert the PowerWalker UPS USB HID device is attached
+  assert:
+    that:
+      - "'Innova' in _ups_lsusb.stdout or 'PHOENIXTEC' in _ups_lsusb.stdout or 'PowerWalker' in _ups_lsusb.stdout"
+    fail_msg: >-
+      UPS USB HID device not found via lsusb — verify the USB cable to the
+      PowerWalker is attached to nas and the HID path for usbhid-ups.
+  when: nut_mode == 'master'
+
+- name: Verify upsd reports the UPS (master)
+  command: upsc powerwalker@localhost
+  register: _ups_sc
+  changed_when: false
+  failed_when: _ups_sc.rc != 0
+  when: nut_mode == 'master'

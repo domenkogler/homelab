@@ -2,7 +2,8 @@
 # managed by Ansible — nut role (master) — upssched-cmd notify
 # Direct ONBATT/LOWBATT notification, INDEPENDENT of Grafana/n8n — so a
 # pre-shutdown notice is sent even if the observability stack is degraded.
-# Emails via /usr/sbin/sendmail, optionally forwards to a Signal helper.
+# Email via SMTP (creds from 1Password `nut-smtp_login`), optionally forwards to
+# a Signal helper. Falls back to local sendmail/mail if SMTP is unset.
 set -u
 
 case "$1" in
@@ -23,15 +24,39 @@ case "$1" in
     ;;
 esac
 
-# --- Email (sendmail) ---
-{
-  echo "To: ${nut_notify_email}"
-  echo "Subject: ${SUBJ}"
-  echo "MIME-Version: 1.0"
-  echo "Content-Type: text/plain; charset=utf-8"
-  echo ""
-  echo "${BODY}"
-} | /usr/sbin/sendmail -t 2>/dev/null || /usr/bin/mail -s "${SUBJ}" "${nut_notify_email}" <<<"${BODY}" 2>/dev/null || true
+# --- Email (SMTP via python3, or local sendmail/mail fallback) ---
+send_mail() {
+  if [ -n "${nut_smtp_server}" ] && command -v python3 >/dev/null 2>&1; then
+    python3 - "${nut_smtp_server}" "${nut_smtp_user}" "${nut_smtp_pass}" \
+      "${nut_notify_email}" "${SUBJ}" "${BODY}" <<'PYEOF'
+import smtplib, sys
+from email.mime.text import MIMEText
+server, user, pwd, to, subj, body = sys.argv[1:7]
+msg = MIMEText(body, 'plain', 'utf-8')
+msg['Subject'] = subj
+msg['From'] = user
+msg['To'] = to
+try:
+    smtp = smtplib.SMTP(server, 587, timeout=15)
+    smtp.ehlo()
+    smtp.starttls()
+    smtp.login(user, pwd)
+    smtp.sendmail(user, [to], msg.as_string())
+    smtp.quit()
+except Exception as e:
+    sys.stderr.write("NUT SMTP failed: %s\n" % e)
+    sys.exit(1)
+PYEOF
+    return $?
+  fi
+  # Fallback: local MTA if SMTP not configured.
+  { echo "To: ${nut_notify_email}"; echo "Subject: ${SUBJ}"; echo ""; echo "${BODY}"; } \
+    | /usr/sbin/sendmail -t 2>/dev/null \
+    || /usr/bin/mail -s "${SUBJ}" "${nut_notify_email}" <<<"${BODY}" 2>/dev/null || true
+  return 0
+}
+
+send_mail || true
 
 # --- Optional Signal helper ---
 if [ -n "${nut_signal_helper}" ] && [ -x "${nut_signal_helper}" ]; then

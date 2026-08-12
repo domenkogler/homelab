@@ -94,6 +94,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `ha-vrrp_password` | `password` | keepalived (VIP `ha.kogler.si`) shared auth |
 | `headscale_api` | `credential` | headscale (OIDC client secret; `username` = client id) |
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
+| `nut-exporter_password` | `password` | nut_exporter → upsd read-only auth (dedicated `upsmon slave` user on the NUT master) |
 | `nut-smtp_login` | `password` | UPS / scheduled-shutdown email notifications (SMTP; `username` = notify email + SMTP user) |
 | `wg_password` | `password` | router (WireGuard S2S private key) |
 | `mikrotik-admin_login` | `password` | router + switch + APs — MikroTik RouterOS admin (items RB4011/CRS328/hAP; shared across all network gear) |
@@ -104,7 +105,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `signal_api` | `credential` (`username` = phone number) | signal-cli-rest-api (linked-device pair / captcha) |
 | `doco-cd_password` | `password` | Doco-CD webhook HMAC (`WEBHOOK_SECRET`) |
 
-> Entity count: **26 items**, each a single `<service>_<type>` name with one `_` delimiter.
+> Entity count: **27 items**, each a single `<service>_<type>` name with one `_` delimiter.
 > Future / not-yet-created: `n8n_password` (webhook) + `n8n-smtp_login` (SMTP), `ha_mqtt` / `ha-mqtt_login` (if MQTT added to HA), `proxmox_root` / `proxmox_login` (Phase 2).
 
 ---
