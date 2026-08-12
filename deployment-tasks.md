@@ -147,9 +147,12 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
    `shutdown_delay_seconds=60` → `powerwalker@nas`) → `amd_rocm` (ROCm stack, udev, `OLLAMA_KEEP_ALIVE=5m`)
    → `desktop` → `office` → `cockpit` → `docker_services` → `home_assistant` (standby) → `monitoring`.
 3. **Edge + services** — Traefik issues `*.kogler.si` wildcard via ACME DNS-01 (`cloudflare_api`);
-   `docker_services` deploys every service in `group_vars/home_servers.yml` (traefik, crowdsec, authentik,
-   opencloud, immich-app, forgejo, ollama, immich-ml, technitium, pihole, headscale, kopia-server,
-   db-backup, kopia-agent, grafana→stats, n8n, signal-cli-rest-api, sunshine, home-assistant-standby, …).
+   `docker_services` deploys every service listed in `group_vars/home_servers.yml` (see that file or
+   `docs/services.md` — **SSOT**; includes traefik, crowdsec, authentik, opencloud, immich-app/mml,
+   forgejo, ollama, technitium, pihole, headscale, kopia-server/agent, db-backup, grafana→stats, n8n,
+   homepage, metabase, signal-cli-rest-api, sunshine, home-assistant-standby, plus the Media /·\*arr
+   stack and `dozzle` → **HD-43/-44**).
+
 4. **HA standby** — `home-assistant-standby` compose + keepalived (`ha-vrrp_password`); disabled by default.
 
 **New 1Password prerequisites (Phase 3):**
@@ -225,10 +228,10 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 > `signal_api` (Signal notify via n8n). **Runs in parallel with Phase 5+.**
 
 - UPS metrics + alerts in Grafana (Critical battery/runtime, Warning on-battery, Info transitions) — **HD-08**
-- UPS web-UI firewall rule (80/443 Home→Mgmt for the `ups` host only) — **HD-09** (also touches Phase 1 firewall)
+- UPS web-UI firewall rule (80/443 Home→Mgmt for the `ups` host only, + touches Phase 1 firewall) — **HD-09**
 - HA entity list export (Prometheus exporter) for TileBoard + Grafana — **HD-14**
 - HA recorder trim (`purge_keep_days`) to protect the Pi SD — **HD-19**
-- Grafana Alerting tiers (Critical/Warning/Info), self-monitoring, n8n + signal-cli-routing
+- Grafana Alerting tiers (Critical/Warning/Info), self-monitoring, n8n + signal-cli-routing (details: `docs/observability.md`)
 
 ---
 
@@ -236,6 +239,7 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 
 > **Depends on:** Phase 4 (HA primary stable), Homematic HmIP-RFUSB stick available (human action).
 > **1Password prerequisites:** existing — `authentik_login`, `authentik_db` (SSO), `ha_api`, `signal_api`.
+> Items are tracked in `docs/todo.md` (HD-XX) — execute per-item, don't restate here.
 
 1. Homematic full-local (HmIP-RFUSB + RaspberryMatic, local XML-RPC; human moves/fits the stick) — **HD-13**
 2. Confirm HACS custom components (motion, ai_task, Weather-2000, OneDrive, go2rtc) — **HD-15**

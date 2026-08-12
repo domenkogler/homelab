@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 40 open · 2 done** · **Total: 42**
+**Status: 42 open · 2 done** · **Total: 44**
 
 ---
 
@@ -85,6 +85,8 @@
 | HD-28 | 3 | AI | open | **Office AI stack** — Ollama models/downloads, n8n Docker, AnythingLLM + LocPilot on laptops, ONLYOFFICE; depends on oldsrv GPU. · [llm-office.md](docs/llm-office.md) |
 | HD-29 | 2 | Human | open | *(decision)* **Bulk media off-site** — iDrive e2 space/cost headroom, or keep bulk local-only (ZFS). Input to HD-31. · [backup.md](docs/backup.md) |
 | HD-30 | 1 | Human | open | *(buy)* **Sign up Infomaniak kSuite** — email, CalDAV, catch-all aliases; ~€3–5/mo; secrets → 1Password `Homelab`. · [subscription.md](docs/subscription.md) |
+| HD-43 | 3 | AI | open | **Deploy/verify Media ·\*arr stack** — recent IaC added the templates (jellyfin, seerr, sonarr, radarr, lidarr, prowlarr, bazarr, sabnzbd, qbittorrent+gluetun, profilarr, recyclarr) in `group_vars/home_servers.yml`; deploys on oldsrv bulk/media NFS. · [services.md](docs/services.md) |
+| HD-44 | 2 | AI | open | **Deploy/verify new ops services** — `dozzle` (`logs.`, Forward-Auth, viewer-only) and `traefik-ha` VIP edge on the Pi (added in recent IaC but not tracked/verified). · [services.md](docs/services.md) |
 
 ## Priority 4
 
@@ -112,15 +114,16 @@
 
 ## Notes / observed gaps
 
-- `issues.md` is the official scratchpad for follow-ups (`docs/issues.md`) and is currently **empty** — decide whether it or this file is the backlog home (single source, avoid duplication).
+- `issues.md` is the official scratchpad for follow-ups (`docs/issues.md`) and is currently **empty** — decide whether it or this file is the backlog home (single source, avoid duplication). Recommended split: **todo.md = planned work**, **issues.md = defects/follow-ups**.
 - Two dead references in docs: `docs/network-devices.md` (HD-35) and `docs/inventory.md` (HD-12).
 - Dependencies: HD-03 → HD-04 → HD-13/HD-16 · HD-06/07 → HD-08 · HD-01 → HD-02/HD-19 · HD-29 → HD-31.
+- **Recently-implemented IaC (done at template/role level, NOT yet deployed):** storage role (ZFS layout, snapshots, NFS, push jobs), face-thumbnail push over NFS, boot-time provisioning, traefik-ha edge failover, and the Media/·\*arr + dozzle templates (→ HD-43/-44). These are **not** live on any host yet — track them as open until a deploy/verify task (Phase 2/3) runs.
 
 ## Executor summary
 
 | Exec | Count | IDs |
 |------|-------|-----|
-| AI | 23 | HD-01,02,06,07,08,09,10,11,12,14,15,17,19,23,26,28,32,33,35,36,37,38,41 |
+| AI | 25 | HD-01,02,06,07,08,09,10,11,12,14,15,17,19,23,26,28,32,33,35,36,37,38,41,43,44 |
 | Human | 11 | HD-05(done),16,18,20,24,25,29,30,31,39,42 |
 | AI + gate | 2 | HD-03, HD-04 |
 | AI + Human | 6 | HD-13,21,22,27,34,40 |
