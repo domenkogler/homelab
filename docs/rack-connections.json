@@ -1,0 +1,196 @@
+{
+  "schema": "homelab.rack/1",
+  "generated_from": "docs/assets/Rack.canvas",
+  "description": "Single Source of Truth for rack port-to-port cabling, parsed from Rack.canvas.",
+  "rack": {
+    "id": "rack_frame",
+    "name": "19'' 18U",
+    "units": {
+      "U13": "MikroTik RB4011iGS+ Router",
+      "U15": "MikroTik CRS328-24P-4S+ Switch",
+      "U17": "Schrack 24-Port Cat.6 Patch Panel B",
+      "U18": "Schrack 24-Port Cat.6 Patch Panel A"
+    },
+    "notes": "Patch panels are 1:1 wall-side cable end-points. Device ports terminate either directly to another device or to a patch panel port (panel port then maps to a room/device)."
+  },
+  "devices": [
+    {
+      "id": "crs328",
+      "name": "CRS328-24P-4S+ Switch",
+      "vendor": "MikroTik",
+      "rack_unit": "U15",
+      "ifaces": {
+        "port_labeling": "Canvas draws ports in 2 rows (odd/even). Reversal applies: lower on-canvas cell == lower port number (eth1->A2, eth2->A1)."
+      }
+    },
+    {
+      "id": "rb4011",
+      "name": "RB4011iGS+ Router",
+      "vendor": "MikroTik",
+      "rack_unit": "U13",
+      "iface_macs": {
+        "ether1": "74:4D:28:8D:45:BE",
+        "ether2": "74:4D:28:8D:45:BF",
+        "ether3": "74:4D:28:8D:45:C0",
+        "ether4": "74:4D:28:8D:45:C1",
+        "ether5": "74:4D:28:8D:45:C2",
+        "ether6": "74:4D:28:8D:45:C3",
+        "ether7": "74:4D:28:8D:45:C4",
+        "ether8": "74:4D:28:8D:45:C5",
+        "ether9": "74:4D:28:8D:45:C6",
+        "ether10": "74:4D:28:8D:45:C7",
+        "sfp+": "74:4D:28:8D:45:C8"
+      }
+    },
+    {
+      "id": "comtrend",
+      "name": "GRG-4260us GPON Gateway",
+      "vendor": "Comtrend",
+      "rack_unit": null,
+      "iface_macs": {
+        "eth1": null,
+        "eth2": "1C:64:99:51:BF:92",
+        "eth3": null,
+        "eth4": null,
+        "eth5": null
+      }
+    },
+    {
+      "id": "nas",
+      "name": "HP Gen 8 server",
+      "vendor": "HP",
+      "rack_unit": null,
+      "iface_macs": {
+        "eno1": "1C:98:EC:0E:0D:38",
+        "eno2": "1C:98:EC:0E:0D:39",
+        "iLO4": "1C:98:EC:0E:0D:3A"
+      }
+    },
+    {
+      "id": "pi",
+      "name": "Raspberry Pi 4 B",
+      "vendor": "Raspberry Pi",
+      "rack_unit": null,
+      "role": "Home Assistant",
+      "iface_macs": {
+        "eth": "E4:5F:01:26:EF:AA"
+      }
+    },
+    {
+      "id": "hmip",
+      "name": "HMIP-HAP HomeMatic Access Point",
+      "vendor": "eQ-3",
+      "rack_unit": null,
+      "iface_macs": {
+        "eth": "00:1A:22:1E:F7:FD"
+      }
+    },
+    {
+      "id": "tplink-sg108e",
+      "name": "TL-SG108E switch",
+      "vendor": "TP-Link",
+      "rack_unit": null,
+      "iface_macs": {},
+      "note": "Present in canvas as image only; no cabling table found. Wiring unknown."
+    }
+  ],
+  "patch_panels": {
+    "A": {
+      "id": "A",
+      "name": "Schrack 24-Port Cat.6 Patch Panel A",
+      "rack_unit": "U18",
+      "ports": {
+        "1": {"room": "garaža", "ends_at": "kamera", "device": "Reolink RLC-420-5MP", "mac": "EC:71:DB:5F:BC:C1", "used": true},
+        "2": {"room": "garaža", "ends_at": "AP", "device": "Mikrotik wAP ac", "mac": "6C:3B:6B:7D:B9:C5", "used": true},
+        "3": {"room": "predsoba", "ends_at": "rack / UPS", "device": "PowerWalker VFI 3000 ICR IoT", "mac": "00:20:85:C0:92:FA", "used": true},
+        "4": {"room": "predsoba", "ends_at": "rack", "device": null, "mac": null, "used": false, "note": "patch cord terminated, no device"},
+        "5": {"room": "hodnik", "ends_at": "domofon", "device": null, "mac": null, "used": false},
+        "6": {"room": "spalnica", "ends_at": "postelja", "device": null, "mac": null, "used": false},
+        "7": {"room": "spalnica", "ends_at": "postelja", "device": null, "mac": null, "used": false},
+        "8": {"room": "spalnica", "ends_at": "TV", "device": null, "mac": null, "used": false},
+        "9": {"room": "spalnica", "ends_at": "TV", "device": null, "mac": null, "used": false},
+        "10": {"room": "spalnica", "ends_at": "garderoba / AP", "device": "Mikrotik hAP ac2", "mac": "C4:AD:34:42:F1:7D", "used": true},
+        "11": {"room": "spalnica", "ends_at": "garderoba", "device": null, "mac": null, "used": false},
+        "12": {"room": "utility", "ends_at": null, "device": null, "mac": null, "used": false},
+        "13": {"room": "roza soba", "ends_at": "postelja", "device": null, "mac": null, "used": false},
+        "14": {"room": "roza soba", "ends_at": "postelja", "device": null, "mac": null, "used": false},
+        "15": {"room": "roza soba", "ends_at": "miza", "device": null, "mac": null, "used": false},
+        "16": {"room": "roza soba", "ends_at": "miza", "device": null, "mac": null, "used": false},
+        "17": {"room": "zelena soba", "ends_at": "postelja", "device": null, "mac": null, "used": false},
+        "18": {"room": "zelena soba", "ends_at": "postelja", "device": null, "mac": null, "used": false},
+        "19": {"room": "zelena soba", "ends_at": "miza", "device": null, "mac": null, "used": false},
+        "20": {"room": "zelena soba", "ends_at": "miza", "device": null, "mac": null, "used": false},
+        "21": {"room": "zelena soba", "ends_at": "talno gretje", "device": null, "mac": null, "used": false},
+        "22": {"room": "zelena soba", "ends_at": null, "device": null, "mac": null, "used": false},
+        "23": {"room": null, "ends_at": null, "device": null, "mac": null, "used": false},
+        "24": {"room": null, "ends_at": null, "device": null, "mac": null, "used": false}
+      }
+    },
+    "B": {
+      "id": "B",
+      "name": "Schrack 24-Port Cat.6 Patch Panel B",
+      "rack_unit": "U17",
+      "ports": {
+        "1": {"room": "kabinet", "ends_at": "desno", "device": null, "mac": null, "used": false},
+        "2": {"room": "kabinet", "ends_at": "desno", "device": null, "mac": null, "used": false},
+        "3": {"room": "kabinet", "ends_at": "levo / printer", "device": "Canon TS9550", "mac": "74:BF:C0:CD:33:0B", "used": true},
+        "4": {"room": "kabinet", "ends_at": "levo", "device": null, "mac": null, "used": false},
+        "5": {"room": "kuhinja", "ends_at": "omara", "device": null, "mac": null, "used": false},
+        "6": {"room": "kuhinja", "ends_at": "omara", "device": null, "mac": null, "used": false},
+        "7": {"room": "kabinet", "ends_at": "miza / PC", "device": "PC", "mac": "00:1B:21:13:12:15", "used": true, "note": "PC / may become oldsrv"},
+        "8": {"room": "kabinet", "ends_at": "miza / docking laptop", "device": "laptop (docking station)", "mac": "48:2A:E3:9D:31:85", "used": true},
+        "9": {"room": "dnevna", "ends_at": "klima", "device": null, "mac": null, "used": false},
+        "10": {"room": "dnevna", "ends_at": "klima", "device": null, "mac": null, "used": false},
+        "11": {"room": "dnevna", "ends_at": "omara", "device": null, "mac": null, "used": false},
+        "12": {"room": "dnevna", "ends_at": "omara / AP", "device": "Mikrotik hAP ac", "mac": "64:D1:54:AA:24:D1", "used": true},
+        "13": {"room": "dnevna", "ends_at": "pod TV", "device": null, "mac": null, "used": false},
+        "14": {"room": "dnevna", "ends_at": "pod TV / konzola", "device": "Nintendo Switch 2", "mac": "E0:EF:BF:74:CE:07", "used": true},
+        "15": {"room": "dnevna", "ends_at": "pod TV", "device": null, "mac": null, "used": false},
+        "16": {"room": "dnevna", "ends_at": "pod TV", "device": null, "mac": null, "used": false},
+        "17": {"room": "dnevna", "ends_at": "pod TV", "device": null, "mac": null, "used": false},
+        "18": {"room": "dnevna", "ends_at": "pod TV / Streaming", "device": "Nvidia Shield TV pro", "mac": "48:B0:2D:09:6F:90", "used": true},
+        "19": {"room": "dnevna", "ends_at": "TV", "device": null, "mac": null, "used": false},
+        "20": {"room": "dnevna", "ends_at": "TV", "device": null, "mac": null, "used": false},
+        "21": {"room": "predsoba", "ends_at": "elektrika / KNX", "device": "Gira X1", "mac": "00:0A:B3:29:2C:9E", "used": true},
+        "22": {"room": "predsoba", "ends_at": "elektrika / KNX", "device": "Gira IP Router", "mac": "00:0A:B3:27:5F:8B", "used": true},
+        "23": {"room": null, "ends_at": null, "device": null, "mac": null, "used": false},
+        "24": {"room": null, "ends_at": null, "device": null, "mac": null, "used": false}
+      }
+    }
+  },
+  "connections": [
+    {"from_device": "rb4011", "from_iface": "ether1", "to_type": "device", "to_device": "comtrend", "to_iface": "eth2", "role": "WAN upstream"},
+    {"from_device": "rb4011", "from_iface": "ether2", "to_type": "patch", "to_panel": "B", "to_patch_port": 7},
+    {"from_device": "rb4011", "from_iface": "ether3", "to_type": "patch", "to_panel": "B", "to_patch_port": 8},
+    {"from_device": "rb4011", "from_iface": "ether7", "to_type": "device", "to_device": "nas", "to_iface": "iLO4", "note": "HP iLO 4 out-of-band mgmt"},
+    {"from_device": "rb4011", "from_iface": "ether9", "to_type": "device", "to_device": "hmip", "to_iface": "eth", "note": "fixed: HMIP-HAP on eth9"},
+    {"from_device": "rb4011", "from_iface": "ether10", "to_type": "device", "to_device": "pi", "to_iface": "eth", "note": "fixed: Raspberry Pi on eth10"},
+    {"from_device": "crs328", "from_iface": "eth1", "to_type": "patch", "to_panel": "A", "to_patch_port": 2, "note": "reversal: eth1->A2"},
+    {"from_device": "crs328", "from_iface": "eth2", "to_type": "patch", "to_panel": "A", "to_patch_port": 1, "note": "reversal: eth2->A1"},
+    {"from_device": "crs328", "from_iface": "eth3", "to_type": "patch", "to_panel": "A", "to_patch_port": 4, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth4", "to_type": "patch", "to_panel": "A", "to_patch_port": 3, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth6", "to_type": "patch", "to_panel": "B", "to_patch_port": 3, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth9", "to_type": "device", "to_device": "nas", "to_iface": "eno2"},
+    {"from_device": "crs328", "from_iface": "eth10", "to_type": "device", "to_device": "nas", "to_iface": "eno1"},
+    {"from_device": "crs328", "from_iface": "eth11", "to_type": "patch", "to_panel": "B", "to_patch_port": 12, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth12", "to_type": "patch", "to_panel": "A", "to_patch_port": 10, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth14", "to_type": "patch", "to_panel": "B", "to_patch_port": 14, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth15", "to_type": "patch", "to_panel": "A", "to_patch_port": 16, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth16", "to_type": "patch", "to_panel": "A", "to_patch_port": 15, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth20", "to_type": "patch", "to_panel": "B", "to_patch_port": 18, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth21", "to_type": "patch", "to_panel": "B", "to_patch_port": 22, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth22", "to_type": "patch", "to_panel": "B", "to_patch_port": 21, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth23", "to_type": "patch", "to_panel": "A", "to_patch_port": 19, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "eth24", "to_type": "patch", "to_panel": "A", "to_patch_port": 20, "note": "reversal"},
+    {"from_device": "crs328", "from_iface": "sfp+1", "to_type": "device", "to_device": "rb4011", "to_iface": "sfp+"}
+  ],
+  "notes": [
+    "Reversal rule on CRS328 (user-confirmed): canvas draws switch ports in 2 rows; lower on-canvas cell = lower port number (eth1->A2, eth2->A1). Applied consistently to all paired columns.",
+    "Fixed conflicts (user-confirmed): Raspberry Pi is on RB4011 ether10 (was labeled 'eth6' by a standalone canvas node); HMIP-HAP is on RB4011 ether9 (was labeled 'eth5').",
+    "TP-Link TL-SG108E appears in the canvas as an image but has no wiring table - its connections are unknown and not modelled.",
+    "Patch panel ports with cable but no device (e.g. A4, roza/zelena miza) are marked used:false and show 'patch cord terminated, no device'.",
+    "Comtrend eth2 <-> RB4011 ether1 is the WAN upstream link.",
+    "RB4011 ether4, ether5, ether6, ether8 are unused/empty.",
+    "Comtrend eth1, eth3, eth4, eth5 are unused/empty."
+  ]
+}

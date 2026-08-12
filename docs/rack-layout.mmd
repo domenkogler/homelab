@@ -1,0 +1,36 @@
+flowchart LR
+  rb4011[RB4011iGS+ Router]
+  crs328[CRS328-24P-4S+ Switch]
+  comtrend[GRG-4260us GPON Gateway]
+  nas[HP Gen 8 server]
+  pi[Raspberry Pi 4 B]
+  hmip[HMIP-HAP HomeMatic Access Point]
+  tplink-sg108e[TL-SG108E switch]
+  subgraph PANELA["Patch Panel A (U18)"]
+  end
+  subgraph PANELB["Patch Panel B (U17)"]
+  end
+  rb4011 -- "ether1 ↔ eth2" --> comtrend
+  rb4011 -- "ether2 → B7" --> PANELB
+  rb4011 -- "ether3 → B8" --> PANELB
+  rb4011 -- "ether7 ↔ iLO4" --> nas
+  rb4011 -- "ether9 ↔ eth" --> hmip
+  rb4011 -- "ether10 ↔ eth" --> pi
+  crs328 -- "eth1 → A2" --> PANELA
+  crs328 -- "eth2 → A1" --> PANELA
+  crs328 -- "eth3 → A4" --> PANELA
+  crs328 -- "eth4 → A3" --> PANELA
+  crs328 -- "eth6 → B3" --> PANELB
+  crs328 -- "eth9 ↔ eno2" --> nas
+  crs328 -- "eth10 ↔ eno1" --> nas
+  crs328 -- "eth11 → B12" --> PANELB
+  crs328 -- "eth12 → A10" --> PANELA
+  crs328 -- "eth14 → B14" --> PANELB
+  crs328 -- "eth15 → A16" --> PANELA
+  crs328 -- "eth16 → A15" --> PANELA
+  crs328 -- "eth20 → B18" --> PANELB
+  crs328 -- "eth21 → B22" --> PANELB
+  crs328 -- "eth22 → B21" --> PANELB
+  crs328 -- "eth23 → A19" --> PANELA
+  crs328 -- "eth24 → A20" --> PANELA
+  crs328 -- "sfp+1 ↔ sfp+" --> rb4011
