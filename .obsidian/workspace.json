@@ -16,7 +16,7 @@
                 "file": "docs/assets/Rack.canvas",
                 "viewState": {
                   "x": -720,
-                  "y": -1820,
+                  "y": -1436.614615865084,
                   "zoom": -0.4585302158957649
                 }
               },
@@ -188,6 +188,8 @@
   },
   "active": "9db10c86e7a90837",
   "lastOpenFiles": [
+    "docs/assets/images/rack.jpg",
+    "docs/assets/images/Unconfirmed 950904.crdownload",
     "docs/assets/Network-Devices.canvas",
     "docs/assets/images/Comtrend-GRG-4260us.png",
     "docs/assets/images/CRS328.png",
@@ -203,7 +205,6 @@
     "docs/assets/manuals/DS_GRG-4260us.pdf",
     "docs/assets/manuals/GRG-4260us_v2.pdf",
     "docs/assets/manuals/Unconfirmed 112504.crdownload",
-    "docs/assets/manuals/Unconfirmed 680872.crdownload",
     "docs/assets/images/TP-Link TL-SG108E.jpg",
     "plan/2026-08-06-docs-obsidian-reorg/T1.md",
     "plan/2026-08-06-docs-obsidian-reorg.md",
