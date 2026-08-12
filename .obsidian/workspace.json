@@ -11,17 +11,12 @@
             "id": "9db10c86e7a90837",
             "type": "leaf",
             "state": {
-              "type": "canvas",
+              "type": "mermaid-view",
               "state": {
-                "file": "docs/assets/Rack.canvas",
-                "viewState": {
-                  "x": -720,
-                  "y": -1564.409743910056,
-                  "zoom": -0.4585302158957649
-                }
+                "file": "docs/rack-layout.mmd"
               },
-              "icon": "lucide-layout-dashboard",
-              "title": "Rack"
+              "icon": "git-branch",
+              "title": "rack-layout"
             }
           }
         ]
@@ -58,7 +53,7 @@
             "state": {
               "type": "search",
               "state": {
-                "query": "",
+                "query": "rack-l",
                 "matchingCase": false,
                 "explainSearch": false,
                 "collapseAll": false,
@@ -99,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/assets/Rack.canvas",
+                "file": "docs/rack-layout.mmd",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -183,11 +178,18 @@
       "daily-notes:Open today's daily note": false,
       "templates:Insert template": false,
       "command-palette:Open command palette": false,
-      "bases:Create new base": false
+      "bases:Create new base": false,
+      "mermaid-tools:Open Mermaid Toolbar": false
     }
   },
   "active": "9db10c86e7a90837",
   "lastOpenFiles": [
+    "docs/rack-connections.md",
+    "docs/network-rack.md",
+    "docs/assets/Rack.canvas",
+    "docs/rack-layout.mmd",
+    "scripts/render_rack_connections.py",
+    "docs/rack-connections.json",
     "prompt.md",
     "IaC/router/templates/ap_initial.rsc.j2",
     "IaC/router/rendered_test.rsc",
@@ -197,16 +199,12 @@
     "IaC/router/templates",
     "IaC/ansible/playbooks/render-routeros.yml",
     "sedaohfuo",
-    "IaC/router/crs328_initial.rsc",
     "docs/assets/images/rack.jpg",
-    "docs/assets/images/Unconfirmed 950904.crdownload",
     "docs/assets/Network-Devices.canvas",
     "docs/assets/images/Comtrend-GRG-4260us.png",
     "docs/assets/images/CRS328.png",
     "docs/assets/images/hAP-ac.png",
     "docs/assets/images/hAP-ac2.png",
-    "docs/assets/manuals/comtrend-grg-4260-in-neo-smartbox_navodila-za-priklop.pdf",
-    "docs/assets/Rack.canvas",
     "docs/assets/images/TP-Link TL-SG108E.jpg",
     "plan/2026-08-06-docs-obsidian-reorg/T1.md",
     "plan/2026-08-06-docs-obsidian-reorg.md",
@@ -232,8 +230,6 @@
     "docs/assets/images/RB4011.png",
     "skills/plan-task/_fixture_good.md",
     "docs/deployment-ansible.md",
-    "skills/plan-task/_g.md",
-    "docs/manual/contacts.md",
     "docs/assets/images/HMIP-HAP.png"
   ]
 }
