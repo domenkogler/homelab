@@ -1,0 +1,67 @@
+{#- Universal AP bootstrap template — rendered by render-routeros.yml.
+    ONE script for all APs: they DHCP off the router and get their static-reserved
+    Management IP (10.10.99.x) from a router static DHCP lease (added by the
+    Ansible `router` role). Secrets from 1Password at render time. -#}
+# =============================================================================
+# hAP / wAP — Kogler Homelab — Bootstrap (RENDERED — do not edit, regenerate)
+# Source template: IaC/router/templates/ap_initial.rsc.j2   (UNIVERSAL — all APs)
+# =============================================================================
+# Purpose: Universal bootstrap for every hAP/wAP AP. The AP is placed on a
+#          Management (VLAN {{ mgmt.id }}) access port on the CRS328 and gets its
+#          static-reserved IP via DHCP from the router — no static IP here.
+# How:     Upload this + admin.pub + ansible.pub to the AP Files, then:
+#            /system reset-configuration no-defaults=yes run-after-reset=ap_initial.rsc
+# NOTE:    NO secrets in the repo — credentials injected from 1Password.
+# =============================================================================
+
+# Static DHCP reservations the Ansible `router` role adds (AP MAC -> Management IP),
+# sourced from group_vars/all.yml (SSOT):
+{% for ap in network_static_hosts if ap.name.startswith('ap-') and ap.vlan == mgmt.id %}
+#   {{ ap.name }}  {{ ap.mac | default('TBD') }}  -> {{ ap.ip }}
+{% endfor %}
+
+# ---- System ----
+
+/system identity set name={{ ap_identity }}
+/system clock set time-zone-name={{ timezone }}
+
+# ---- Users (bootstrap auth) ----
+# admin = password + SSH key. ansible = key-only (automation).
+
+/user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
+/user ssh-keys import public-key-file=admin.pub user=admin
+
+/user add name=ansible group=full disabled=no comment="Ansible automation (SSH-key auth)"
+/user set [find name=ansible] password=""
+/user ssh-keys import public-key-file=ansible.pub user=ansible
+
+# ---- Bridge (all ports) ----
+
+/interface bridge add name=bridge protocol-mode=none
+/interface bridge port add bridge=bridge interface=ether1
+/interface bridge port add bridge=bridge interface=ether2
+/interface bridge port add bridge=bridge interface=ether3
+/interface bridge port add bridge=bridge interface=ether4
+/interface bridge port add bridge=bridge interface=ether5
+/interface bridge port add bridge=bridge interface=wlan1
+/interface bridge port add bridge=bridge interface=wlan2
+
+# ---- Management IP via DHCP (static reservation from the router) ----
+
+/ip dhcp-client add interface=bridge disabled=no comment="Mgmt IP via router DHCP (static reservation: VLAN {{ mgmt.id }})"
+
+# ---- CAP Mode (SSIDs provisioned by the router CAPsMAN later) ----
+
+/interface wireless cap set \
+    enabled=yes \
+    interfaces=wlan1,wlan2 \
+    discovery-interfaces=bridge
+
+# ---- Services ----
+
+/ip service set ssh disabled=no port=22
+
+# ---- End ----
+# After import, verify on the router: /ip dhcp-server lease print
+# (AP should show its static-reserved 10.10.99.x). CAP registration + SSIDs
+# happen once the Ansible `router` role configures CAPsMAN.

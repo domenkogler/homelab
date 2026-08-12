@@ -22,7 +22,9 @@ Bootstrap / initial RouterOS scripts for the homelab network gear — the route
 |------|---------|
 | `templates/*.rsc.j2` | Jinja2 source templates (**source of truth**, committed) |
 | `rendered/*.rsc` | Generated output — **gitignored**, never committed |
-| `crs328_initial.rsc`, `ap_initial.rsc` | (being migrated to templates in follow-up tasks) |
+
+Scripts rendered: `rb4011_initial.rsc` (router), `crs328_initial.rsc` (switch), and
+`ap_initial.rsc` (a **universal** AP script — all APs).
 
 ## Workflow
 
@@ -42,6 +44,20 @@ Bootstrap / initial RouterOS scripts for the homelab network gear — the route
    SSH-key auth) and applies the real config.
 
 > Device reset order within Phase 1: **router → switch → APs**, then Ansible.
+
+## AP addressing (no per-AP static IP)
+
+APs get a **static DHCP reservation** from the router (MAC → Management IP), so one
+universal `ap_initial.rsc` is enough — the AP just DHCPs on VLAN 99. The reservations
+are added by the **Ansible `router` role** (not the router template). AP → IP mapping
+(SSOT, `network_static_hosts`):
+
+| AP | MAC | IP |
+|----|-----|-----|
+| ap-garage | `6C:3B:6B:7D:B9:C5` | `10.10.99.3` |
+| ap-spalnica | `C4:AD:34:42:F1:7D` | `10.10.99.4` |
+| ap-dnevna | `64:D1:54:AA:24:D1` | `10.10.99.5` |
+| ap-spare | (TBD) | `10.10.99.6` |
 
 ## Secrets referenced (1Password `Homelab` vault)
 

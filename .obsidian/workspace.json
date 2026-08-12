@@ -16,7 +16,7 @@
                 "file": "docs/assets/Rack.canvas",
                 "viewState": {
                   "x": -720,
-                  "y": -1436.614615865084,
+                  "y": -1820,
                   "zoom": -0.4585302158957649
                 }
               },
@@ -188,6 +188,15 @@
   },
   "active": "9db10c86e7a90837",
   "lastOpenFiles": [
+    "IaC/router/templates/ap_initial.rsc.j2",
+    "IaC/router/rendered_test.rsc",
+    "IaC/router/templates/crs328_initial.rsc.j2",
+    "IaC/router/README.md",
+    "IaC/router/templates/rb4011_initial.rsc.j2",
+    "IaC/router/templates",
+    "IaC/ansible/playbooks/render-routeros.yml",
+    "sedaohfuo",
+    "IaC/router/crs328_initial.rsc",
     "docs/assets/images/rack.jpg",
     "docs/assets/images/Unconfirmed 950904.crdownload",
     "docs/assets/Network-Devices.canvas",
@@ -198,13 +207,6 @@
     "docs/assets/manuals/comtrend-grg-4260-in-neo-smartbox_navodila-za-priklop.pdf",
     "docs/assets/Rack.canvas",
     "docs/assets/manuals/HMPI-HAP manual.pdf",
-    "docs/assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf",
-    "docs/assets/manuals/RB4011iGS+RM - User manuals.pdf",
-    "docs/assets/manuals/TP-LINK TP-SG108E manual.pdf",
-    "docs/assets/manuals/crs3284c20s4srm.pdf",
-    "docs/assets/manuals/DS_GRG-4260us.pdf",
-    "docs/assets/manuals/GRG-4260us_v2.pdf",
-    "docs/assets/manuals/Unconfirmed 112504.crdownload",
     "docs/assets/images/TP-Link TL-SG108E.jpg",
     "plan/2026-08-06-docs-obsidian-reorg/T1.md",
     "plan/2026-08-06-docs-obsidian-reorg.md",
@@ -232,7 +234,6 @@
     "docs/deployment-ansible.md",
     "skills/plan-task/_g.md",
     "docs/manual/contacts.md",
-    "docs/assets/images/HMIP-HAP.png",
-    "obsolete/network-devices.md"
+    "docs/assets/images/HMIP-HAP.png"
   ]
 }

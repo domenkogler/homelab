@@ -14,7 +14,7 @@
 # Output (bootstrap device → rendered file):
 #   RB4011 router  -> IaC/router/rendered/rb4011_initial.rsc
 #   CRS328 switch  -> IaC/router/rendered/crs328_initial.rsc
-#   hAP APs        -> (added in a follow-up task)
+#   hAP/wAP APs    -> IaC/router/rendered/ap_initial.rsc (UNIVERSAL — one for all)
 #
 # Then upload each rendered .rsc (+ admin.pub / ansible.pub) to the device's
 # Files and set:
@@ -29,6 +29,10 @@
     pppoe_login_user: "{{ lookup('community.general.onepassword', 'pppoe_login', field='username', vault=op_vault) }}"
     pppoe_login_password: "{{ lookup('community.general.onepassword', 'pppoe_login', field='password', vault=op_vault) }}"
     mikrotik_admin_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
+    # --- Universal AP script knob ---
+    ap_identity: ap   # override per-AP if you want distinct identities
+    # AP MAC -> IP reservations are read from group_vars/all.yml (SSOT) inside the
+    # ap_initial template loop — no per-AP literals here.
   tasks:
     - name: Ensure rendered output directory exists
       file:
@@ -45,9 +49,15 @@
         src: "{{ playbook_dir }}/../../router/templates/crs328_initial.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/crs328_initial.rsc"
 
+    - name: Render ap_initial.rsc (universal — all APs)
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/ap_initial.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/ap_initial.rsc"
+
     - name: Report rendered files (upload, never commit)
       debug:
         msg:
           - "Upload IaC/router/rendered/rb4011_initial.rsc + admin.pub + ansible.pub to the RB4011"
           - "Upload IaC/router/rendered/crs328_initial.rsc + admin.pub + ansible.pub to the CRS328"
+          - "Upload IaC/router/rendered/ap_initial.rsc + admin.pub + ansible.pub to EACH AP"
           - "Then per device: /system reset-configuration no-defaults=yes run-after-reset=<file>"
