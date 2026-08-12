@@ -1,0 +1,26 @@
+---
+# switch role defaults
+
+# Trunk port configuration
+switch_trunk_port: sfp-sfpplus1  # Uplink to router
+
+# Management settings (derived from SSOT network_static_hosts)
+switch_mgmt_vlan: 99
+# CRS328 management IP — derived from network_static_hosts (name=switch, vlan=99)
+switch_mgmt_ip: "{{ (network_static_hosts | selectattr('name', '==', 'switch') | selectattr('vlan', '==', 99) | map(attribute='ip') | list | first) }}"
+# Router (RB4011) management IP — derived from network_static_hosts (name=router, vlan=99)
+router_mgmt_ip: "{{ (network_static_hosts | selectattr('name', '==', 'router') | selectattr('vlan', '==', 99) | map(attribute='ip') | list | first) }}"
+
+# VLANs from SSOT (must match router.yml vlans)
+switch_vlans:
+  - { id: 10, name: Home }
+  - { id: 20, name: IoT }
+  - { id: 21, name: IoT-Internet }
+  - { id: 30, name: Guest }
+  - { id: 40, name: Kids }
+  - { id: 50, name: Media }
+  - { id: 99, name: Management }
+
+# Port map - see group_vars/switch.yml for detailed configuration
+# Ports without explicit configuration default to VLAN 99 (Management)
+switch_port_map: {}

@@ -5,7 +5,7 @@
 # ---------------------------------------------------------------------
 # Pre-flight safety check: refuse runs as ai-debug or unknown users.
 # Scoped to the Linux host groups that receive sudo via the common role.
-# Excludes: router (network_cli, no sudo grants) and localhost.
+# Excludes: router, switch (network_cli, no sudo grants) and localhost.
 # VPS (Phase 2): add to this list + set ansible_user once it is active —
 # its common-role guard already fails closed in the meantime.
 # The common role repeats this guard for direct playbook/role runs.
@@ -27,6 +27,9 @@
 
 - name: Configure MikroTik Router
   import_playbook: playbooks/router.yml
+
+- name: Configure CRS328 Switch
+  import_playbook: playbooks/switch.yml
 
 - name: Configure Cloud VPS
   import_playbook: playbooks/vps.yml

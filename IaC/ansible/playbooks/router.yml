@@ -1,5 +1,8 @@
 ---
+# RouterOS configuration playbook
+# Configures the MikroTik RB4011 via RouterOS REST API
 - hosts: router
-  become: true
+  gather_facts: false
+  connection: local
   roles:
     - router

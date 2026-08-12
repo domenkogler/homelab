@@ -1,0 +1,218 @@
+---
+# switch role — CRS328-24P-4S+ configuration via REST API
+# Implements: VLAN filtering, trunk port, access ports, PoE, management
+#
+# Connection: Uses community.routeros modules with local connection
+# Auth: admin password from 1Password (mikrotik-admin_login)
+
+- name: Refuse switch runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_connection == 'local' or ansible_user in ansible_admin_users
+      - ansible_user is not defined or ansible_user not in ['ai-debug']
+    fail_msg: >-
+      switch role must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}). The ai-debug user must never run Ansible.
+  tags: always
+
+# -------------------------------------------------------------------------
+# Get admin password from 1Password for API authentication
+# -------------------------------------------------------------------------
+- name: Fetch MikroTik admin password from 1Password
+  set_fact:
+    routeros_api_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
+  no_log: true
+
+# -------------------------------------------------------------------------
+# Ensure bridge exists with VLAN filtering
+# -------------------------------------------------------------------------
+- name: Ensure bridge-lan exists with VLAN filtering
+  community.routeros_interface_bridge:
+    name: bridge-lan
+    vlan_filtering: yes
+    protocol_mode: none
+    disabled: no
+    comment: "CRS328 bridge with VLAN filtering"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# Configure VLANs on bridge (tagged for trunk)
+# -------------------------------------------------------------------------
+- name: Configure VLAN IDs on bridge for trunk port
+  community.routeros_interface_bridge_vlan:
+    bridge: bridge-lan
+    vlan_ids: "{{ item.id }}"
+    tagged: bridge-lan,{{ switch_trunk_port }}
+    comment: "{{ item.name }} VLAN"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ switch_vlans }}"
+
+# -------------------------------------------------------------------------
+# Configure trunk port to router
+# -------------------------------------------------------------------------
+- name: Configure trunk port to router
+  community.routeros_interface_bridge_port:
+    bridge: bridge-lan
+    interface: "{{ switch_trunk_port }}"
+    pvid: 1
+    comment: "Uplink to RB4011 - trunk (all VLANs tagged)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# Configure access ports with VLAN assignment from port map
+# dict2items transforms dict to list of {key, value} pairs
+# -------------------------------------------------------------------------
+- name: Configure access port for Management VLAN (99)
+  community.routeros_interface_bridge_port:
+    bridge: bridge-lan
+    interface: "{{ item.value.port }}"
+    pvid: "{{ item.value.vlan }}"
+    comment: "Management port for {{ item.key }}"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ switch_port_map | dict2items | list }}"
+  when: item.value.vlan == 99
+
+- name: Configure access port for Home VLAN (10)
+  community.routeros_interface_bridge_port:
+    bridge: bridge-lan
+    interface: "{{ item.value.port }}"
+    pvid: "{{ item.value.vlan }}"
+    comment: "Home VLAN port for {{ item.key }}"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ switch_port_map | dict2items | list }}"
+  when: item.value.vlan == 10
+
+- name: Configure access port for Media VLAN (50)
+  community.routeros_interface_bridge_port:
+    bridge: bridge-lan
+    interface: "{{ item.value.port }}"
+    pvid: "{{ item.value.vlan }}"
+    comment: "Media VLAN port for {{ item.key }}"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ switch_port_map | dict2items | list }}"
+  when: item.value.vlan == 50
+
+# -------------------------------------------------------------------------
+# Configure SFP+ ports as management (VLAN 99 native)
+# -------------------------------------------------------------------------
+- name: Configure SFP+ ports 2-4 for management
+  community.routeros_interface_bridge_port:
+    bridge: bridge-lan
+    interface: "sfp-sfpplus{{ item }}"
+    pvid: 99
+    comment: "Management (VLAN 99) - SFP+ port {{ item }}"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop:
+    - 2
+    - 3
+    - 4
+
+# -------------------------------------------------------------------------
+# Configure PoE on AP ports
+# -------------------------------------------------------------------------
+- name: Enable PoE on AP ports
+  community.routeros_interface_ethernet:
+    name: "{{ item.value.port }}"
+    poe_out: at-45v-fixed
+    poe_priority: high
+    comment: "PoE for AP: {{ item.key }}"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ switch_port_map | dict2items | list }}"
+  when: item.value.poe | bool
+
+# -------------------------------------------------------------------------
+# VLAN 99 interface for management
+# -------------------------------------------------------------------------
+- name: Ensure VLAN 99 interface exists for management
+  community.routeros_interface_vlan:
+    name: vlan99-mgmt
+    vlan_id: 99
+    interface: bridge-lan
+    disabled: no
+    comment: "Management VLAN 99"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Configure management IP address
+  community.routeros_ip_address:
+    name: vlan99-mgmt
+    address: "{{ switch_mgmt_ip }}/24"
+    interface: vlan99-mgmt
+    disabled: no
+    comment: "CRS328 management IP"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# Management services
+# -------------------------------------------------------------------------
+- name: Enable REST API service
+  community.routeros_ip_service:
+    name: api
+    disabled: no
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Enable WinBox/Web service
+  community.routeros_ip_service:
+    name: www-ssl
+    disabled: no
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# Default route via router
+# -------------------------------------------------------------------------
+- name: Ensure default route via router gateway
+  community.routeros_ip_route:
+    dst_address: 0.0.0.0/0
+    gateway: "{{ router_mgmt_ip }}"
+    comment: "Default route via RB4011"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# DNS configuration
+# -------------------------------------------------------------------------
+- name: Configure DNS to router
+  community.routeros_ip_dns:
+    servers: "{{ router_mgmt_ip }}"
+    static_dns: []
+    comment: "DNS via router (DHCP fallback)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# Configure unconfigured ports as management (default)
+# -------------------------------------------------------------------------
+- name: Get list of configured port names
+  set_fact:
+    configured_port_names: "{{ switch_port_map | dict2items | map('extract', 'value', 'port') | list }}"
+
+- name: Set unconfigured ports to management VLAN (default)
+  community.routeros_interface_bridge_port:
+    bridge: bridge-lan
+    interface: "ether{{ item }}"
+    pvid: 99
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ range(1, 25) | list }}"
+  when: "'ether' + item|string not in configured_port_names"
+
+# -------------------------------------------------------------------------
+# Document port map verification
+# -------------------------------------------------------------------------
+- name: Document port map verification needed
+  debug:
+    msg: |
+      Port map from Rack.canvas should be verified by human.
+      Current mapping includes APs, UPS, NAS iLO, Raspberry Pi, Nintendo Switch, printer.
+      TODO: Verify actual physical port positions and finalize switch_port_map.

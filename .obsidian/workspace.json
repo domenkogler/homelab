@@ -16,7 +16,7 @@
                 "file": "docs/assets/Rack.canvas",
                 "viewState": {
                   "x": -720,
-                  "y": -1820,
+                  "y": -1564.409743910056,
                   "zoom": -0.4585302158957649
                 }
               },
@@ -188,6 +188,7 @@
   },
   "active": "9db10c86e7a90837",
   "lastOpenFiles": [
+    "prompt.md",
     "IaC/router/templates/ap_initial.rsc.j2",
     "IaC/router/rendered_test.rsc",
     "IaC/router/templates/crs328_initial.rsc.j2",
@@ -206,7 +207,6 @@
     "docs/assets/images/hAP-ac2.png",
     "docs/assets/manuals/comtrend-grg-4260-in-neo-smartbox_navodila-za-priklop.pdf",
     "docs/assets/Rack.canvas",
-    "docs/assets/manuals/HMPI-HAP manual.pdf",
     "docs/assets/images/TP-Link TL-SG108E.jpg",
     "plan/2026-08-06-docs-obsidian-reorg/T1.md",
     "plan/2026-08-06-docs-obsidian-reorg.md",

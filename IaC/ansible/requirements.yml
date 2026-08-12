@@ -2,3 +2,4 @@
 # Ansible collections required by the homelab roles.
 collections:
   - name: community.general        # onepassword lookup, zfs/zpool modules
+  - name: community.routeros      # MikroTik RouterOS REST API modules (vlan, dhcp, firewall, etc.)

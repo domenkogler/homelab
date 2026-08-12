@@ -1,2 +1,419 @@
 ---
-# router role — TODO: implement
+# router role — MikroTik RouterOS configuration via REST API
+# Implements: VLAN interfaces, DHCP, firewall, CAPsMAN, WireGuard, AP DHCP reservations
+#
+# Connection/auth decision:
+# The bootstrap creates `ansible` (SSH-key only, empty password) and `admin` (password + key).
+# For community.routeros modules, we use the RouterOS API (username+password).
+# We authenticate as `admin` using mikrotik-admin_login from 1Password.
+#
+# Note: community.routeros collection is required. Added to requirements.yml.
+
+- name: Refuse router runs as ai-debug or unknown users (local connection allowed via 1Password auth)
+  assert:
+    that:
+      - ansible_connection == 'local' or ansible_user in ansible_admin_users
+      - ansible_user is not defined or ansible_user not in ['ai-debug']
+    fail_msg: >-
+      router role must run as an allowed admin user (or local connection with 1Password auth).
+      The ai-debug user must never run Ansible.
+  tags: always
+
+# -------------------------------------------------------------------------
+# Get admin password from 1Password for API authentication
+# -------------------------------------------------------------------------
+- name: Fetch MikroTik admin password from 1Password
+  set_fact:
+    routeros_api_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
+  no_log: true
+
+# -------------------------------------------------------------------------
+# Bridge + VLAN Interfaces
+# -------------------------------------------------------------------------
+# Ensure bridge-lan exists BEFORE creating VLAN interfaces on it (self-contained;
+# a non-bootstrap run may not have a bridge yet). vlan_filtering is deliberately
+# left off here and enabled LAST (see below) so the mgmt plane, VLAN DB and trunk
+# are in place first — no window where filtering is on but VLANs aren't defined.
+- name: Ensure bridge-lan bridge exists
+  community.routeros_interface_bridge:
+    name: bridge-lan
+    disabled: no
+    protocol_mode: none
+    comment: "LAN bridge (VLAN filtering enabled later)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Ensure VLAN interfaces exist
+  community.routeros_interface_vlan:
+    name: "vlan{{ item.id }}-{{ item.name | lower }}"
+    vlan_id: "{{ item.id }}"
+    interface: bridge-lan
+    disabled: no
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ vlans | selectattr('unused', 'undefined') | list }}"  # skip VLAN 1 Blackhole (unused: true)
+  loop_control:
+    label: "VLAN{{ item.id }}"
+
+# -------------------------------------------------------------------------
+# VLAN IP Addresses
+# -------------------------------------------------------------------------
+- name: Configure VLAN gateway IP addresses
+  community.routeros_ip_address:
+    name: "vlan{{ item.id }}-{{ item.name | lower }}"
+    address: "{{ (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | map(attribute='ip') | list | first) }}/{{ item.subnet.split('/')[1] }}"
+    interface: "vlan{{ item.id }}-{{ item.name | lower }}"
+    disabled: no
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ network_vlans | selectattr('id', 'in', [10, 20, 21, 30, 40, 50, 99]) | list }}"
+  loop_control:
+    label: "VLAN{{ item.id }} gateway"
+
+# -------------------------------------------------------------------------
+# DHCP Pools and Servers
+# -------------------------------------------------------------------------
+- name: Configure DHCP pools for each VLAN
+  community.routeros_ip_dhcp_server_pool:
+    name: "pool-vlan{{ item.id }}"
+    ranges: "{{ item.pool }}"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ network_vlans }}"
+  when: item.id not in [1, 99]
+
+- name: Configure DHCP server networks for each VLAN
+  community.routeros_ip_dhcp_server_network:
+    name: "dhcp-{{ item.id }}"
+    address: "{{ item.subnet }}"
+    gateway: >-
+      {{ (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | list | first).ip }}
+    dns_server: >-
+      {% set primary = dns_primary_ip %}
+      {% set secondary = dns_secondary_ip | default('') %}
+      {{ [primary, secondary] | select('string') | join(',') }}
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ network_vlans }}"
+  when: item.id not in [1, 99]
+
+- name: Configure DHCP servers for each VLAN
+  community.routeros_ip_dhcp_server:
+    name: "dhcp-{{ item.id }}"
+    interface: "vlan{{ item.id }}-{{ item.name | lower }}"
+    address_pool: "pool-vlan{{ item.id }}"
+    disabled: no
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ network_vlans }}"
+  when: item.id not in [1, 99]
+
+# -------------------------------------------------------------------------
+# DHCP Static Reservations for APs
+# -------------------------------------------------------------------------
+- name: Configure DHCP static reservations for APs
+  community.routeros_ip_dhcp_server_lease:
+    mac_address: "{{ item.mac }}"
+    ip_address: "{{ item.ip }}"
+    comment: "AP {{ item.name }} static reservation"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ network_static_hosts | selectattr('name', 'startswith', 'ap-') | selectattr('mac', 'defined') | selectattr('vlan', '==', 99) | list }}"
+  when: item.vlan == 99
+
+# -------------------------------------------------------------------------
+# Firewall - Address Lists
+# -------------------------------------------------------------------------
+- name: Create firewall address list for trusted-admin hosts
+  community.routeros_ip_firewall_address_list:
+    list: trusted-admin
+    address: "{{ item.ip }}"
+    comment: "Trusted admin host: {{ item.name }}"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ network_static_hosts | selectattr('name', 'in', ['oldsrv', 'nas', 'ha-vip']) | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create firewall address list for trusted-ha hosts
+  community.routeros_ip_firewall_address_list:
+    list: trusted-ha
+    address: "{{ item.ip }}"
+    comment: "Trusted HA host: {{ item.name }}"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ network_static_hosts | selectattr('name', 'in', ['oldsrv', 'ha-vip']) | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create firewall address list for internal LAN subnets
+  community.routeros_ip_firewall_address_list:
+    list: internal_lan
+    address: "{{ item.subnet }}"
+    comment: "Internal LAN {{ item.name }} VLAN"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+  loop: "{{ network_vlans }}"
+  when: item.id not in [1, 99]
+
+- name: Set UPS management IP in address list
+  community.routeros_ip_firewall_address_list:
+    list: ups_management
+    address: "{{ (network_static_hosts | selectattr('name', '==', 'ups') | list | first).ip }}"
+    comment: "UPS management host"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# Firewall - NAT Masquerade
+# -------------------------------------------------------------------------
+- name: Configure NAT masquerade for outbound traffic
+  community.routeros_ip_firewall_nat:
+    chain: srcnat
+    out_interface: pppoe-telekom
+    action: masquerade
+    comment: "NAT masquerade → WAN"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# Firewall - Inter-VLAN Rules
+# -------------------------------------------------------------------------
+# Order matters in RouterOS: rules are evaluated top-down, first match wins.
+# The established/related accept MUST come first so replies to already-allowed
+# connections (inter-VLAN and WAN return) are permitted before the default-deny.
+
+- name: Allow established/related return traffic (inter-VLAN + WAN replies)
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    connection_state: established,related
+    action: accept
+    comment: "Allow established/related return traffic"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Allow trusted-admin NEW connections to IoT (MQTT/HA)
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address_list: trusted-admin
+    dst_address: "{{ vlan_subnets[20] }}"
+    action: accept
+    comment: "Trusted admin → IoT (new, MQTT/HA)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Allow Home to IoT established/related
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address: "{{ vlan_subnets[10] }}"
+    dst_address: "{{ vlan_subnets[20] }}"
+    protocol: tcp
+    connection_state: established,related
+    action: accept
+    comment: "Home → IoT (established/related)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Allow trusted-admin NEW connections to IoT-Internet (HA→HAP, Prometheus→HA)
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address_list: trusted-admin
+    dst_address: "{{ vlan_subnets[21] }}"
+    action: accept
+    comment: "Trusted admin → IoT-Internet (new)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Allow Home to IoT-Internet established/related
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address: "{{ vlan_subnets[10] }}"
+    dst_address: "{{ vlan_subnets[21] }}"
+    protocol: tcp
+    connection_state: established,related
+    action: accept
+    comment: "Home → IoT-Internet (established/related)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Allow trusted-admin to UPS web UI on Management (80/443)
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address_list: trusted-admin
+    dst_address_list: ups_management
+    protocol: tcp
+    dst_port: 80,443
+    action: accept
+    comment: "Trusted admin → UPS web UI (Mgmt)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Allow Management to DNS resolver (DNS forwarding)
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address_list: internal_lan
+    dst_address: "{{ dns_primary_ip }}"
+    protocol: udp,tcp
+    dst_port: 53,853
+    action: accept
+    comment: "LAN → DNS resolver (Technitium)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Allow IoT to DNS resolver
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address: "{{ vlan_subnets[20] }}"
+    dst_address: "{{ dns_primary_ip }}"
+    protocol: udp,tcp
+    dst_port: 53,853
+    action: accept
+    comment: "IoT → DNS resolver"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Allow IoT-Internet to Internet
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address: "{{ vlan_subnets[21] }}"
+    action: accept
+    comment: "IoT-Internet → Internet allowed"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Drop IoT VLAN to Internet (no internet for IoT)
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address: "{{ vlan_subnets[20] }}"
+    out_interface: pppoe-telekom
+    action: drop
+    comment: "IoT → WAN drop (disable manually for firmware updates)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Allow Home to Media VLAN (casting / remote control)
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address: "{{ vlan_subnets[10] }}"
+    dst_address: "{{ vlan_subnets[50] }}"
+    action: accept
+    comment: "Home → Media (new allowed)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Allow Media to Home VLAN (media server / Plex / Jellyfin)
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address: "{{ vlan_subnets[50] }}"
+    dst_address: "{{ vlan_subnets[10] }}"
+    action: accept
+    comment: "Media → Home (media server)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Drop Guest VLAN to internal LAN
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address: "{{ vlan_subnets[30] }}"
+    dst_address_list: internal_lan
+    action: drop
+    comment: "Guest → LAN drop"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Configure Kids VLAN bedtime restriction
+  debug:
+    msg: "Kids VLAN bedtime restriction (22:00-07:00) requires RouterOS schedule object. Pending implementation."
+
+- name: Drop all remaining inter-VLAN traffic (default deny)
+  community.routeros_ip_firewall_filter:
+    chain: forward
+    src_address_list: internal_lan
+    dst_address_list: internal_lan
+    action: drop
+    comment: "Default deny inter-VLAN"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# CAPsMAN Configuration
+# -------------------------------------------------------------------------
+# TODO: CAPsMAN SSIDs require WPA2 passphrases from 1Password.
+# Required secret items: wifi_login or per-SSID password items.
+
+- name: Document CAPsMAN pending secrets
+  debug:
+    msg: |
+      CAPsMAN SSIDs require WPA2 passphrases from 1Password.
+      Required secret items: wifi_login (or per-SSID password items).
+      Once available, uncomment and configure CAPsMAN in this role.
+
+# -------------------------------------------------------------------------
+# WireGuard S2S Configuration
+# -------------------------------------------------------------------------
+# Note: VPN endpoint on VPS may be deferred (Phase 10).
+
+- name: Configure WireGuard S2S tunnel (commented - pending VPS peer config)
+  debug:
+    msg: |
+      WireGuard S2S to VPS is deferred to Phase 10.
+      wireguard_s2s_vps vars available in group_vars/router.yml.
+
+# Uncomment when VPS peer is ready:
+# - name: Create WireGuard interface
+#   community.routeros_interface_wireguard:
+#     name: wg-s2s
+#     listen_port: "{{ wireguard_s2s_vps.port | default(51820) }}"
+#     api_user: admin
+#     api_password: "{{ routeros_api_password }}"
+
+# - name: Configure WireGuard peer (VPS)
+#   community.routeros_interface_wireguard_peer:
+#     interface: wg-s2s
+#     name: vps
+#     address: "{{ wireguard_s2s_vps.remote_ip.split('/')[0] }}/30"
+#     allowed_address: 0.0.0.0/0
+#     private_key: "{{ lookup('community.general.onepassword', 'wg_password', field='password', vault=op_vault) }}"
+#     api_user: admin
+#     api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# Management Services
+# -------------------------------------------------------------------------
+- name: Enable REST API service
+  community.routeros_ip_service:
+    name: api
+    disabled: no
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Enable WinBox/Web service
+  community.routeros_ip_service:
+    name: www-ssl
+    disabled: no
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# VLAN 99 on trunk port to switch
+# -------------------------------------------------------------------------
+- name: Configure VLAN 99 on trunk port
+  community.routeros_interface_bridge_vlan:
+    bridge: bridge-lan
+    vlan_ids: 99
+    tagged: bridge-lan,sfp-sfpplus1
+    comment: "Management VLAN on trunk"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+# -------------------------------------------------------------------------
+# Enable VLAN filtering on bridge
+# -------------------------------------------------------------------------
+- name: Enable VLAN filtering on bridge
+  community.routeros_interface_bridge:
+    name: bridge-lan
+    vlan_filtering: yes
+    protocol_mode: none
+    comment: "Bridge with VLAN filtering enabled"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"

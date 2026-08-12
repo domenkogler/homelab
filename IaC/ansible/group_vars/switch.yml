@@ -1,0 +1,102 @@
+---
+# Switch (CRS328-24P-4S+) specific variables
+# Port mapping derived from docs/assets/Rack.canvas and docs/network-vlans.md Port Type Reference
+# 
+# IMPORTANT: Physical port positions on the CRS328 need verification
+# (front vs rear, port numbering, Panel A vs Panel B). This mapping is based on 
+# the canvas layout and should be confirmed by the human who configured the physical rack.
+
+# Trunk port to router (uplink)
+switch_trunk_port: sfp-sfpplus1  # Port 1 on switch, carries all VLANs tagged
+
+# Switch management VLAN (must match router mgmt VLAN)
+# Management IP is derived from SSOT network_static_hosts in role defaults.
+switch_mgmt_vlan: 99
+
+# Access ports per-device VLAN mapping
+# NOTE: This is a work-in-progress. Port numbers are estimates from Rack.canvas
+# that should be verified by the human to match actual physical positions.
+# Missing ports are marked as TODO for the human to finalize.
+#
+# Port Type Reference from docs/network-vlans.md:
+# - APs → Access, VLAN 99, PoE
+# - UPS → Access, VLAN 99 (management interface)
+# - Family PC/laptop → Access, VLAN 10
+# - NAS iLO → Access, VLAN 99
+# - Raspberry Pi → Access, VLAN 10
+# - Nintendo Switch/Shield → Access, VLAN 50 (Media)
+# - Printer → Access, VLAN 10
+# - SFP+ uplinks → Trunk, all VLANs tagged
+
+switch_port_map:
+  # AP ports (VLAN 99, Management) - PoE enabled
+  # MAC addresses from network_static_hosts in group_vars/all.yml
+  ap-garage:
+    port: ether17  # TODO: VERIFY - estimate from canvas
+    vlan: 99
+    poe: true
+    mac: "6C:3B:6B:7D:B9:C5"
+  ap-spalnica:
+    port: ether14  # TODO: VERIFY - estimate from canvas
+    vlan: 99
+    poe: true
+    mac: "C4:AD:34:42:F1:7D"
+  ap-dnevna:
+    port: ether8   # TODO: VERIFY - estimate from canvas
+    vlan: 99
+    poe: true
+    mac: "64:D1:54:AA:24:D1"
+
+  # UPS Management (VLAN 99) - no PoE
+  ups:
+    port: ether9   # TODO: VERIFY - estimate from canvas
+    vlan: 99
+    poe: false
+    mac: "00:20:85:C0:92:FA"
+
+  # NAS iLO (VLAN 99 Management)
+  nas-ilo:
+    port: ether11  # TODO: VERIFY - estimate from canvas
+    vlan: 99
+    poe: false
+    mac: "1C:98:EC:0E:0D:3A"
+
+  # Raspberry Pi (VLAN 10 - Home)
+  rpi:
+    port: ether10  # TODO: VERIFY - estimate from canvas
+    vlan: 10
+    poe: false
+    mac: "E4:5F:01:26:EF:AA"
+
+  # Nintendo Switch (Media VLAN 50)
+  nintendo-switch:
+    port: ether16  # TODO: VERIFY - estimate from canvas
+    vlan: 50
+    poe: false
+    mac: "E0:EF:BF:74:CE:07"
+
+  # Printer (Home VLAN 10)
+  # Note: May share port with other devices
+  printer:
+    port: ether3   # TODO: VERIFY - estimate from canvas
+    vlan: 10
+    poe: false
+    mac: "74:BF:C0:CD:33:0B"
+
+# VLAN list for switch (must match router.yml vlans)
+switch_vlans:
+  - { id: 10, name: Home }
+  - { id: 20, name: IoT }
+  - { id: 21, name: IoT-Internet }
+  - { id: 30, name: Guest }
+  - { id: 40, name: Kids }
+  - { id: 50, name: Media }
+  - { id: 99, name: Management }
+
+# TODO: Remaining Ports from Rack.canvas (need port-VLAN assignment)
+# Based on the canvas, the following ports need configuration:
+# - Panel A/B ports for TV, klima, knx, camera, etc.
+# - Additional devices in spalnica, garaža, etc.
+#
+# Once the physical port positions are verified, add them to switch_port_map
+# following the same structure as the entries above.

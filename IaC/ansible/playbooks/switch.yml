@@ -1,0 +1,8 @@
+---
+# CRS328 Switch configuration playbook
+# Configures the MikroTik CRS328 via RouterOS REST API
+- hosts: switch
+  gather_facts: false
+  connection: local
+  roles:
+    - switch

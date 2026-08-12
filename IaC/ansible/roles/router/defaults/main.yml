@@ -1,0 +1,17 @@
+---
+# router role defaults
+
+# Connection settings
+routeros_api_port: 8728
+routeros_connection_method: api  # api or ssh
+
+# VLAN IDs from SSOT
+mgmt_vlan_id: 99
+
+# Helper variables computed from group_vars
+router99_ip: "{{ (network_static_hosts | selectattr('vlan', '==', 99) | selectattr('name', '==', 'router') | list | first).ip }}"
+router99_cidr: 24
+
+# SSOT-derived subnet lookup keyed by VLAN id (from group_vars/all.yml network_vlans)
+# Used by firewall rules to avoid hardcoding IP/subnet literals.
+vlan_subnets: "{{ dict(network_vlans | map(attribute='id') | zip(network_vlans | map(attribute='subnet'))) }}"

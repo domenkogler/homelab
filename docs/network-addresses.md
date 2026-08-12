@@ -1,6 +1,8 @@
 # Ansible managed: file edited by Ansible
 <!-- Network address plan — auto-generated from IaC/ansible/group_vars/all.yml. -->
 <!-- Do NOT hand-edit. Change group_vars/all.yml and re-render. -->
+<!-- Re-render (Windows / no Ansible):  python scripts/render_network_addresses.py -->
+<!-- Re-render (Ansible / Linux / CI):   ansible-playbook IaC/ansible/playbooks/render-docs.yml -i IaC/ansible/inventory.ini -->
 <!-- Source of truth: IaC/ansible (group_vars/all.yml, host_vars) -->
 
 # Network Addresses — SSOT
@@ -42,6 +44,11 @@
 | 10 | 10.10.1.20 | pi | node + DNS secondary (VRRP anchor) |
 | 10 | 10.10.1.30 | oldsrv | node + DNS primary (VRRP anchor) |
 | 10 | 10.10.1.200 | ha-vip | keepalived VIP — ha.kogler.si |
+| 20 | 10.10.20.1 | router | IoT gateway |
+| 21 | 10.10.21.1 | router | IoT-Internet gateway |
+| 30 | 10.10.30.1 | router | Guest gateway |
+| 40 | 10.10.40.1 | router | Kids gateway |
+| 50 | 10.10.50.1 | router | Media gateway |
 
 ## Infrastructure networks
 
@@ -57,6 +64,7 @@
 | services-internal | 172.21.0.0/16 | Docker bridge — app ↔ app communication |
 | db-internal | 172.22.0.0/16 | Docker bridge — databases (fully isolated) |
 | site | 10.10.0.0/16 | Whole homelab site — all VLANs (10.10.x.0/24) |
+| nfs-clients | 10.10.1.30/32 | NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP) |
 
 ## Service addresses (Home VLAN 10)
 
@@ -73,4 +81,4 @@
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-08-11T19:52:45+00:00
+> Last generated: 2026-08-12T21:06:09Z

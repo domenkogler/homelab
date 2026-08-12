@@ -1,0 +1,11 @@
+---
+# Network devices (router + switch) — shared connectivity/auth vars.
+# Parent group of [router] and [switch] via inventory [network:children].
+
+# Connectivity (VLAN 99) management IP — derived from SSOT.
+# Single source of truth: group_vars/all.yml -> network_static_hosts.
+# No IP literals here; renumber by editing all.yml only.
+ansible_host: "{{ (network_static_hosts
+                  | selectattr('name', '==', inventory_hostname_short)
+                  | selectattr('vlan', '==', 99)
+                  | map(attribute='ip') | list | first) }}"

@@ -13,8 +13,15 @@ tags: [deployment, ansible, iac]
 > **Direction of truth:** this document is an *authoring* spec, not the source
 > of runtime values. Concrete values (IPs, VLANs, service lists) live in IaC
 > (`group_vars/*.yml`, `host_vars/*.yml`) and flow **IaC → docs** via the render
-> (`render-docs.yml` → `docs/network-addresses.md`, later `docs/inventory.md`);
-> those generated views must not be hand-edited.
+> (→ `docs/network-addresses.md`, later `docs/inventory.md`); those generated
+> views must not be hand-edited.
+>
+> **Regenerate `docs/network-addresses.md` after a master `.yml` change** — either
+> `python scripts/render_network_addresses.py` (works on this Windows host, no
+> Ansible needed) or `ansible-playbook playbooks/render-docs.yml -i inventory.ini`
+> (Linux/CI). Ansible's `render-docs.yml` cannot run on Windows (ansible crashes at
+> startup: `os.get_blocking` → `OSError [WinError 87]`), so use the Python script
+> locally.
 > **Links to:** `services.md`, `hardware.md`, `deployment-secrets.md`, `deployment-compose.md`
 > **Linked from:** `deployment.md`, `index.md`
 

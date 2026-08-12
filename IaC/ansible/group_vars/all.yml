@@ -76,6 +76,13 @@ network_static_hosts:
   - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  role: "node + DNS primary (VRRP anchor)" }
   - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }
 
+  # Router gateways on the remaining VLANs — RB4011 is the .1 inter-VLAN gateway on each.
+  - { name: router, vlan: 20, ip: "10.10.20.1",  role: "IoT gateway" }
+  - { name: router, vlan: 21, ip: "10.10.21.1",  role: "IoT-Internet gateway" }
+  - { name: router, vlan: 30, ip: "10.10.30.1",  role: "Guest gateway" }
+  - { name: router, vlan: 40, ip: "10.10.40.1",  role: "Kids gateway" }
+  - { name: router, vlan: 50, ip: "10.10.50.1",  role: "Media gateway" }
+
 # Infrastructure / non-VLAN ranges (tunnels, overlays, Docker bridges) — rendered to
 # docs/network-addresses.md §Infrastructure networks. Names are stable tokens used in
 # docs/runbooks (e.g. `wg-s2s`, `ha-vip`); values are hand-edited here only.
