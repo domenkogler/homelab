@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 48 open · 2 done** · **Total: 50**
+**Status: 47 open · 3 done** · **Total: 50**
 
 ---
 
@@ -45,7 +45,7 @@
 
 | ID | D | Exec | Status | Item |
 |----|---|------|--------|------|
-| HD-01 | 3 | AI | open | **Create remaining `docker_services` compose templates** — 24 created ✅, **17 TODO stubs** (bazarr, dozzle, immich-app, immich-ml, jellyfin, lidarr, ollama, pihole, profilarr, prowlarr, qbittorrent, radarr, recyclarr, sabnzbd, seerr, sonarr, sunshine). Each follows `deployment-compose.md` conventions. · [deployment-ansible.md](docs/deployment-ansible.md) |
+| HD-01 | 3 | AI | done | **Create remaining `docker_services` compose templates** — 24 created ✅ (pre-existing), 17 TODO stubs implemented ✅ (bazarr, dozzle, immich-app, immich-ml, jellyfin, lidarr, ollama, pihole, profilarr, prowlarr, qbittorrent, radarr, recyclarr, sabnzbd, seerr, sonarr, sunshine). 18+ compliance fixes applied across all 43 templates. Immich v3 updated (microservices merged, postgres/valkey images). All validators pass. · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-02 | 3 | AI | open | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
 | HD-03 | 5 | AI + gate | open | **Network redo: implement VLAN segmentation** — currently flat `10.10.1.0/24` → VLANs 10/20/21/30/40/50/99, inter-VLAN firewall, CAPsMAN SSIDs. ✅ **IaC implemented + committed (`39b9f02`):** router + switch `community.routeros` roles (VLANs, DHCP, firewall, mgmt). ⏳ **NOT deployed to live gear** — Ansible can't run on this Windows host (see render note). Open before deploy: switch bridge-VLAN access-port membership (under review vs Rack.canvas), CAPsMAN SSID secret items, WG VPS peer. · [network-vlans.md](docs/network-vlans.md) |
 | HD-04 | 5 | AI + gate | open | **Pi redo: HAOS → Debian + HA Container + RaspberryMatic + Technitium secondary** — in-use device migration, done opportunistically during the network redo; approved direction, not yet applied. · [home-assistant-current.md](docs/home-assistant-current.md) |
@@ -160,7 +160,7 @@
 
 - `issues.md` is the official scratchpad for follow-ups (`docs/issues.md`) and is currently **empty** — decide whether it or this file is the backlog home (single source, avoid duplication). Recommended split: **todo.md = planned work**, **issues.md = defects/follow-ups**.
 - Two dead references in docs: `docs/network-devices.md` (HD-35) and `docs/inventory.md` (HD-12).
-- Dependencies: HD-03 → HD-04 → HD-13 · HD-06/07 → HD-08 · HD-01 → HD-02/HD-19/HD-16/HD-50 · HD-29 → HD-31 · HD-50 → HD-16 → HD-43/HD-44/HD-46 (Authentik is a hard prerequisite for Forward-Auth services) · HD-50 blocks all `docker_services` deployments.
+- Dependencies: HD-03 → HD-04 → HD-13 · HD-06/07 → HD-08 · HD-01 done ✅ · HD-29 → HD-31 · HD-50 done ✅ → HD-16 → HD-43/HD-44/HD-46 (Authentik is a hard prerequisite for Forward-Auth services) · HD-50 blocks all `docker_services` deployments.
 - **Recently-implemented IaC (done at template/role level, NOT yet deployed):** storage role (ZFS layout, snapshots, NFS, push jobs), face-thumbnail push over NFS, boot-time provisioning, traefik-ha edge failover, the Media/·\*arr + dozzle templates (→ HD-43/-44), and the **router/switch network roles** (→ HD-03). These are **not** live on any host yet — track them as open until a deploy/verify task (Phase 2/3) runs.
 
 ## Executor summary

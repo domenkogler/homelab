@@ -28,3 +28,5 @@ _extra_templates:
     - dynamic/middlewares.yml.j2
   traefik-ha:
     - dynamic/routes.yml.j2
+  recyclarr:
+    - recyclarr.yml.j2

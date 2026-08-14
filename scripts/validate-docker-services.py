@@ -105,6 +105,7 @@ _EXTRA_TEMPLATES = {
     "matrix": ["tuwunel.toml.j2"],
     "prometheus": ["prometheus.yml.j2"],
     "headscale": ["config.yaml.j2"],
+    "recyclarr": ["recyclarr.yml.j2"],
     "traefik": ["dynamic/routes.yml.j2", "dynamic/middlewares.yml.j2"],
     "traefik-ha": ["dynamic/routes.yml.j2"],
 }

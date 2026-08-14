@@ -104,6 +104,8 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `op_api` | `credential` | 1Password Service Account token → Doco-CD + Forgejo Actions |
 | `signal_api` | `credential` (`username` = phone number) | signal-cli-rest-api (linked-device pair / captcha) |
 | `doco-cd_password` | `password` | Doco-CD webhook HMAC (`WEBHOOK_SECRET`) |
+| `sonarr_api` | `credential` | Sonarr API key — recyclarr syncs quality profiles from this instance |
+| `radarr_api` | `credential` | Radarr API key — recyclarr syncs quality profiles from this instance |
 | `pihole_password` | `password` | Pi-hole admin UI (`WEBPASSWORD`) — optional; empty = no password set via web UI |
 | `matrix_api` | `credential` (`username` = client_id) | Tuwunel Matrix — Authentik OIDC client (`client_id` = username, `client_secret` = credential); callback URI registered in Authentik provider |
 | `matrix_password` | `password` | Tuwunel Matrix — `registration_shared_secret` (bootstrap via `/_synapse/admin/v1/register`; keep a copy with the server identity/backups — HD-49) |
