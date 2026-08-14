@@ -1,2 +1,67 @@
-# opencloud docker-compose.yml — TODO: define service
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# opencloud docker-compose.yml — File sync & share (file.kogler.si)
+#   Go-based, lighter than Nextcloud. Embedded database (no external Postgres).
+#   Files stored in /srv/docker/opencloud/data.
+#
+#   On first start: opencloud init generates config + admin user; admin logs in
+#   via INITIAL_ADMIN_PASSWORD at https://file.kogler.si.
+#   OIDC via Authentik (add env vars below after creating the provider in Authentik).
+#
+#   Config files (csp.yaml, apps.yaml, banned-password-list.txt) sourced from
+#   https://github.com/opencloud-eu/opencloud-compose — override by placing
+#   custom files in /srv/docker/opencloud/config/.
+#
+#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#     opencloud_login   (Login: password=<admin password>)
+#     opencloud_db      (Database — reserved for future Postgres migration)
+services:
+  opencloud:
+    image: opencloudeu/opencloud-rolling:{{ opencloud_version | default('7.4.0') }}
+    container_name: opencloud
+    restart: unless-stopped
+    user: "1000:1000"
+    networks:
+      - traefik-public
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "opencloud init || true; exec opencloud server"]
+    volumes:
+      - /srv/docker/opencloud/data:/var/lib/opencloud
+      - /srv/docker/opencloud/config:/etc/opencloud:ro
+    environment:
+      # Domain
+      OC_DOMAIN: file.kogler.si
+      OC_URL: "https://file.kogler.si"
+      OC_INSECURE: "true"
+      PROXY_HTTP_ADDR: 0.0.0.0:9200
+      PROXY_TLS: "false"
+      # Admin
+      IDM_ADMIN_PASSWORD: "{{ lookup('community.general.onepassword', 'opencloud_login', default='admin', field='password', vault=op_vault) }}"
+      IDM_CREATE_DEMO_USERS: "false"
+      # Logging
+      OC_LOG_LEVEL: "{{ opencloud_log_level | default('info') }}"
+      OC_LOG_COLOR: "false"
+      OC_LOG_PRETTY: "false"
+      # Sharing
+      OC_SHARING_PUBLIC_SHARE_MUST_HAVE_PASSWORD: "true"
+      OC_SHARING_PUBLIC_WRITEABLE_SHARE_MUST_HAVE_PASSWORD: "false"
+      # Language
+      OC_DEFAULT_LANGUAGE: sl
+      OC_PASSWORD_POLICY_DISABLED: "true"
+      FRONTEND_CHECK_FOR_UPDATES: "false"
+      # === OIDC via Authentik (uncomment after creating provider) ===
+      # OC_EXCLUDE_RUN_SERVICES: "idm"
+      # OC_OIDC_ISSUER: "https://sso.kogler.si/application/o/opencloud/"
+      # PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD: "jwt"
+      # PROXY_OIDC_REWRITE_WELLKNOWN: "true"
+      # PROXY_USER_OIDC_CLAIM: preferred_username
+      # PROXY_USER_CS3_CLAIM: username
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.opencloud.rule: "Host(`file.kogler.si`)"
+      traefik.http.routers.opencloud.entrypoints: websecure
+      traefik.http.routers.opencloud.tls.certresolver: letsencrypt
+      traefik.http.routers.opencloud.middlewares: authentik-forward-auth@file
+      traefik.http.services.opencloud.loadbalancer.server.port: "9200"
+networks:
+  traefik-public:
+    external: true
