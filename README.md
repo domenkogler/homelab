@@ -73,7 +73,7 @@ it is refreshed from this repo.
 
 | Path | Content |
 |------|---------|
-| [`IaC/README.md`](IaC/README.md) | Ansible implementation specification — roles, templates, build order |
+| [`IaC/README.md`](IaC/README.md) | Ansible implementation specification — roles, templates, build order, **conventions** |
 | [`IaC/ansible/`](IaC/ansible/) | Ansible playbooks, roles, inventory, group vars |
 | [`IaC/bootstrap-ansible-client/`](IaC/bootstrap-ansible-client/) | Management laptop setup script |
 | [`IaC/router/`](IaC/router/) | RouterOS `.rsc` (rb4011, ap) |

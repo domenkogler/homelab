@@ -27,6 +27,73 @@ tags: [deployment, ansible, iac]
 
 ---
 
+## IaC Authoring Conventions
+
+> Rules that apply to every role, template, and group_var. Violations must be
+> flagged during code review.
+
+### Variables & IPs
+- **Never hardcode IPs or CIDRs** — reference `network_static_hosts` / `network_ranges`
+  from `group_vars/all.yml` (the SSOT). Even Docker bridge CIDRs (`traefik-public`,
+  `services-internal`, `db-internal`) have entries there.
+- **Service config → `group_vars/`, not role defaults.** `defaults/main.yml` is for
+  role-internal knobs (directories, timeouts), not architecture values.
+- **`/opt/<service>/`** is the standard compose path — this is an architectural
+  constant used by all templates and systemd units.
+
+### Secrets
+- **Never hardcode secrets.** All credentials use
+  `{{ lookup('community.general.onepassword', '<item>', field='<field>', vault=op_vault) }}`
+  at render time. See `docs/deployment-secrets.md` for the naming convention.
+- **One vault: `Homelab`.** The variable `op_vault` is defined in `group_vars/all.yml` —
+  always use it, never a literal string.
+- **The `field=` parameter is mandatory.** The lookup defaults to `password`, which is
+  NOT always the right field (API credentials use `credential`; Database items also carry
+  `username`).
+
+### Role structure
+- **One entry point:** `tasks/main.yml` → `include_tasks:` for sub-files
+  (see the `nut` role for the canonical pattern).
+- **Always assert safe execution context** at the top:
+  ```yaml
+  - name: Refuse runs as ai-debug or unknown users
+    assert:
+      that: ansible_user in ansible_admin_users
+  ```
+- **Idempotent by default.** Use `state: present`, `force: no` where local edits
+  should survive, check for existence before resource-heavy operations.
+- **Tag every loop item** for targeted `--tags`:
+  ```yaml
+  tags: "{{ item.name }}"
+  ```
+
+### Compose templates (`templates/docker_services/`)
+- **One directory per service.** Files inside: `docker-compose.yml.j2` (always),
+  plus extra configs (e.g. `dynamic/routes.yml.j2`, `tuwunel.toml.j2`).
+- **Networks are `external: true`** — the `docker_services` role creates
+  `traefik-public`, `services-internal`, `db-internal` before any compose up.
+- **Labels reference group_vars** (`timezone`, `domain_local`, `ha_vip`) and
+  1Password lookups — never hardcoded values.
+- **Secrets placeholders:** every template starts with a comment block documenting
+  which 1Password items it consumes:
+  ```yaml
+  # Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+  #   - service_db       field=password
+  #   - service_api      field=credential
+  ```
+
+### `docker_services` entry fields
+- **`name`** — project name, also `/opt/<name>/` directory.
+- **`template_dir`** — subdirectory under `templates/docker_services/`.
+- **`subdomain`** (optional) — overrides `{{ name }}.kogler.si`. Required when
+  the service URL differs from its name (e.g. `grafana` → `stats.kogler.si`).
+- **`enabled`** (optional) — Jinja2 expression, evaluated per-host. Defaults to
+  `true`. Use for per-host gating (`technitium` on `oldsrv` only).
+- **`instance`** (optional) — for multi-instance services sharing one template
+  (e.g. `raspberrymatic-standby`).
+
+---
+
 ## Execution Modes
 
 > **Safety guard:** `site.yml` starts with a pre-flight check that **refuses to run as `ai-debug` or any user outside `ansible_admin_users`** (`ansible-admin`, `pi`). The `common` role repeats the same assert for direct playbook/role runs. Anyone running Ansible as `ai-debug` gets an immediate abort — it must never gain sudo.

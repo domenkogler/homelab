@@ -144,4 +144,5 @@ rules below are central.
 - **Headers:** Every doc starts with `> **Role:** ...` and `> **Linked from:** ...`
 - **Links:** Use relative paths (`[doc](deployment-preseed.md)`)
 - **Secrets:** Never in docs — always reference 1Password `Homelab` vault
+- **Ansible IaC:** see [`deployment-ansible.md` → IaC Authoring Conventions](deployment-ansible.md) — variables, secrets, role structure, compose template rules
 - **Generation targets:** Marked with ★ — *authoring specs* read by AI to write or correct the corresponding IaC. Direction of truth: concrete values live in IaC and are rendered INTO value-carrying docs (`network-addresses.md`, `inventory.md`) — those generated views are never hand-edited.
