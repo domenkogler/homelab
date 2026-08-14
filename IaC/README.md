@@ -12,7 +12,7 @@
 | RouterOS scripts | `rb4011_initial.rsc`, `ap_initial.rsc` (2) | — |
 | Bootstrap | `bootstrap.sh`, `post_install.sh` (2) | — |
 
-> **Note:** the `kopia` role stub is intentionally unused — Kopia runs as Docker containers (`kopia-server`, `kopia-agent`) deployed by `docker_services`.
+> **Note:** the `kopia` role stub is intentionally unused — Kopia runs as a Docker container (`kopia-server`) deployed by `docker_services`.
 
 ## Hostname / Domain Convention
 
@@ -72,7 +72,6 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   │   │   ├── technitium/
 │   │   │   │   ├── pihole/
 │   │   │   │   ├── sunshine/
-│   │   │   │   ├── kopia-agent/
 │   │   │   │   └── home-assistant-standby/
 │   │   │   ├── homepage_services.yaml.j2    # Homepage layout (auto-generated)
 │   │   │   ├── homepage_widgets.yaml.j2     # Homepage status widgets
@@ -92,7 +91,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │       ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   │       ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   │       ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
-│   │       ├── kopia/tasks/main.yml         # kopia-agent + kopia-server Docker containers (deployed by docker_services, not a separate role — stub retained for bare-metal nas option)
+│   │       ├── kopia/tasks/main.yml         # kopia-server Docker container (deployed by docker_services, not a separate role — stub retained for bare-metal nas option)
 │   │       ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
 │   │       ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
 │   │       ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP
@@ -172,9 +171,8 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - ONLYOFFICE Desktop Editors, `ttf-mscorefonts-installer` (EULA via debconf), OpenCloud client
 
 ### `kopia`
-- Kopia runs as two Docker containers deployed by the `docker_services` role:
+- Kopia runs as a Docker container deployed by the `docker_services` role:
   - **kopia-server:** Web UI + repository server (on VPS in Phase 2, on oldsrv in Phase 1)
-  - **kopia-agent:** Per-host backup agent
 - The standalone `kopia` Ansible role is **not used** — Kopia backup is entirely containerized, consistent with all other services.
 - **Secrets:** `kopia_password`, S3 credentials (`kopia-s3_api`) (1Password)
 
@@ -239,7 +237,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 # Illustrative sample — canonical list: group_vars/home_servers.yml
 # (traefik, crowdsec, authentik, opencloud, immich-app, forgejo, ollama, immich-ml,
 #  technitium[oldsrv], pihole, raspberrymatic-standby[oldsrv], home-assistant-standby[oldsrv],
-#  headscale, kopia-server, db-backup, kopia-agent, grafana→stats, n8n→auto,
+#  headscale, kopia-server, db-backup, grafana→stats, n8n→auto,
 #  sunshine[desktop], + TODO templates: homepage, renovate, doco-cd, prometheus, loki,
 #  blackbox-exporter, signal-cli-rest-api, metabase)
 ```
@@ -310,7 +308,7 @@ See `docs/deployment-secrets.md` for the full master list + rename map (includin
 
 | Item Name | Used By |
 |-----------|---------|
-| `kopia_password` | kopia-agent, kopia-server |
+| `kopia_password` | kopia-server |
 | `authentik_db`, `authentik_password`, `authentik_login` | authentik |
 | `opencloud_db`, `immich_db`, `forgejo_db` | platform DBs |
 | `grafana_login`, `grafana-smtp_login` | grafana |

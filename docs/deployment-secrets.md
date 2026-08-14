@@ -80,7 +80,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `laptop-domen_ssh` | `private_key` / `public_key` | post_install.sh — Domen's personal key → `ansible-admin` |
 | `ansible-admin_ssh` | `private_key` / `public_key` | post_install.sh — dedicated Ansible key → `ansible-admin` |
 | `ai_ssh` | `private_key` / `public_key` | post_install.sh — AI debug key (maps to `openrouter_ai`) → `ai-debug` |
-| `kopia_password` | `password` | kopia, kopia-agent, kopia-server (repo master password) |
+| `kopia_password` | `password` | kopia-server (repo master password) |
 | `authentik_db` | `password` (`username` = DB user) | authentik (Postgres) |
 | `authentik_password` | `password` | authentik (Django `SECRET_KEY`) |
 | `authentik_login` | `password` | authentik (bootstrap admin user) |

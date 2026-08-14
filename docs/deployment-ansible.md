@@ -252,7 +252,6 @@ docker_services:
   - { name: headscale,       template_dir: headscale }
   - { name: kopia-server,    template_dir: kopia-server }
   - { name: db-backup,       template_dir: db-backup }
-  - { name: kopia-agent,     template_dir: kopia-agent }
   - { name: grafana,         template_dir: grafana,     subdomain: stats }
   - { name: n8n,             template_dir: n8n,          subdomain: auto }
   - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
