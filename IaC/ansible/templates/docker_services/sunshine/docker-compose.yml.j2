@@ -1,2 +1,35 @@
-# sunshine docker-compose.yml — TODO: define service
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# sunshine docker-compose.yml — Game streaming host (Moonlight)
+#   Manual start (restart: "no") — user stops AI containers first to free
+#   AMD dGPU VRAM, then starts this container for game streaming.
+#   GPU encoding via /dev/dri (VAAPI/AMF). No Traefik labels (not running
+#   unless gaming). Web UI on 47990 for config; streaming on 47989.
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   — none needed
+services:
+  sunshine:
+    image: lizardbyte/sunshine:latest
+    container_name: sunshine
+    restart: "no"                     # manual start for gaming sessions
+    networks:
+      - services-internal
+    devices:
+      - /dev/dri:/dev/dri             # AMD GPU encoding (VAAPI/AMF)
+      - /dev/input:/dev/input:ro       # gamepad/keyboard/mouse input
+    group_add:
+      - "{{ gpu_render_gid }}"
+      - "{{ gpu_video_gid }}"
+    volumes:
+      - /srv/docker/sunshine/config:/home/sunshine/.config/sunshine
+      - /run/udev:/run/udev:ro        # device enumeration
+    ports:
+      - "47989:47989/tcp"              # streaming
+      - "47990:47990/tcp"              # web config UI
+      - "47991:47991/udp"              # streaming (UDP)
+      - "48010:48010/udp"              # streaming (UDP)
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      SUNSHINE_USER: domen
+networks:
+  services-internal:
+    external: true

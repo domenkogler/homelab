@@ -1,2 +1,30 @@
-# immich-ml docker-compose.yml — TODO: define service
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# immich-ml docker-compose.yml — Face recognition & smart search (Immich ML)
+#   GPU-accelerated (shares AMD RX 7600 VRAM with ollama). Connects to
+#   immich-server on services-internal. No web UI — no Traefik labels.
+#   Model weights in /srv/models/immich-ml (local NVMe, no backup).
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   — none needed (connects to immich-server via env, no API keys)
+services:
+  immich-ml:
+    image: ghcr.io/immich-app/immich-machine-learning:{{ immich_version | default('release') }}
+    container_name: immich-ml
+    restart: unless-stopped
+    networks:
+      - services-internal
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/kfd:/dev/kfd
+    group_add:
+      - "{{ gpu_render_gid }}"
+      - "{{ gpu_video_gid }}"
+    volumes:
+      - /srv/models/immich-ml:/cache               # model weights (regenerable, not backed up)
+      - /srv/docker/immich/upload:/usr/src/app/upload:ro   # read thumbs for ML processing
+    environment:
+      IMMICH_PORT: "3003"
+      IMMICH_HOST: "0.0.0.0"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+networks:
+  services-internal:
+    external: true

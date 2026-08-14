@@ -75,6 +75,40 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - **Role/playbook:** `raspberry_pi.yml` (common → network → docker → home_assistant → docker_services → monitoring) configures the Pi as primary (incl. RaspberryMatic + Technitium secondary). The `home_assistant` role on `home_servers` renders the standby + RaspberryMatic-standby containers on oldsrv.
 - **Update policy:** pinned image + Renovate; watchtower optional (see `hardware-oldsrv.md`, `deployment-renovate.md`).
 
+### Homematic macvlan network (prerequisite on both hosts)
+
+Both the Pi and oldsrv need the `homematic` Docker network before RaspberryMatic can start.
+This is a **macvlan** network that gives the CCU a fixed IP on the Home VLAN (10) so both
+HA nodes reach XML-RPC 2001/2010 at the same address. Create it once per host:
+
+```bash
+# On Pi (primary): CCU gets 10.10.1.50 (Home VLAN)
+docker network create -d macvlan \
+  --subnet=10.10.1.0/24 \
+  --gateway=10.10.1.1 \
+  --ip-range=10.10.1.50/32 \
+  --parent=eth0 \
+  -o parent=eth0 \
+  homematic
+
+# On oldsrv (standby): CCU-standby gets 10.10.1.51 (Home VLAN)
+docker network create -d macvlan \
+  --subnet=10.10.1.0/24 \
+  --gateway=10.10.1.1 \
+  --ip-range=10.10.1.51/32 \
+  --parent=eth0.10 \
+  -o parent=eth0.10 \
+  homematic
+```
+
+The `--parent` interface on oldsrv uses a VLAN subinterface (`eth0.10`) because oldsrv's
+physical port is a trunk. On the Pi it's `eth0` — the access port on VLAN 10.
+The `--ip-range` reserves one IP per host so the two instances never collide.
+
+> **Adjust `--parent` if the host interface differs** — run `ip link show` to find the
+> correct device. The compose template declares `homematic: external: true`;
+> the network must exist before `docker compose up -d`.
+
 ### Decision: HA OS vs Debian/Docker (Pi primary)
 
 | | **HA OS** | **Debian + Docker (chosen)** |
@@ -149,6 +183,10 @@ rescue them. This is an **HA/DNS availability** change, not general service fail
 ---
 
 ## Forward Takeover (Pi → oldsrv) — MANUAL
+
+**Prerequisites:** the `homematic` macvlan network must already exist on oldsrv
+(created once during initial setup — see [Homematic macvlan network](#homematic-macvlan-network-prerequisite-on-both-hosts)).
+If not present, run the `docker network create` command for oldsrv first.
 
 **Two manual actions total:** (1) physically move the HmIP-RFUSB stick, and (2) press **one** failover button on Homepage (`kogler.si`). Everything after the button is a single orchestrated script — no separate VIP / standby steps.
 

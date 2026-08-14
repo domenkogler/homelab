@@ -1,4 +1,40 @@
-# jellyfin docker-compose.yml — TODO: define service
-#   Media server, media.kogler.si — OWN LOGIN (no Forward-Auth, client apps),
-#   iGPU transcode via /dev/dri, user: "1000:1000", /mnt/nas/data/media ro.
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# jellyfin docker-compose.yml — Media server (media.kogler.si)
+#   OWN LOGIN (no Authentik Forward-Auth — client apps need direct auth).
+#   iGPU transcode via /dev/dri (Intel HD 630 QuickSync), user: "1000:1000".
+#   /mnt/nas/media/media mounted ro. Cache on local NVMe for performance.
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   — none needed
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - services-internal
+    devices:
+      - /dev/dri:/dev/dri          # Intel HD 630 QuickSync
+    group_add:
+      - "{{ gpu_render_gid | default(104) }}"
+      - "{{ gpu_video_gid | default(44) }}"
+    volumes:
+      - /srv/docker/jellyfin/config:/config
+      - /srv/docker/jellyfin/cache:/cache
+      - /mnt/nas/media/media:/media:ro             # ro — library access, writes go to /config + /cache
+    environment:
+      JELLYFIN_PublishedServerUrl: media.kogler.si
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.jellyfin.rule: "Host(`media.kogler.si`)"
+      traefik.http.routers.jellyfin.entrypoints: websecure
+      traefik.http.routers.jellyfin.tls.certresolver: letsencrypt
+      # NOTE: no authentik-forward-auth — Jellyfin has its own login (client apps)
+      traefik.http.services.jellyfin.loadbalancer.server.port: "8096"
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true

@@ -1,5 +1,53 @@
-# qbittorrent docker-compose.yml — TODO: define service
-#   Torrent client + gluetun sidecar (PrivadoVPN, WireGuard, Netherlands),
-#   torrent.kogler.si — Forward-Auth. network_mode: service:gluetun (no own network);
-#   gluetun on traefik-public + services-internal. Save paths → /mnt/nas/data/downloads/complete/<cat>.
-# Secrets via {{ lookup('community.general.onepassword', 'privado-vpn_api', vault=op_vault) }}
+# qbittorrent docker-compose.yml — Torrent client + gluetun VPN sidecar
+#   torrent.kogler.si — Forward-Auth. qBittorrent routes through gluetun
+#   (PrivadoVPN, WireGuard, Netherlands). network_mode: service:gluetun
+#   means qBittorrent has no own network — Traefik labels go on gluetun.
+#   Save paths → /mnt/nas/media/downloads/complete/<cat> for TRaSH hardlink import.
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   privado-vpn_api  (API Credential: WIREGUARD_PRIVATE_KEY)
+services:
+  gluetun:
+    image: qm12/gluetun:latest
+    container_name: gluetun
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      - traefik-public
+      - services-internal
+    environment:
+      VPN_SERVICE_PROVIDER: privado
+      VPN_TYPE: wireguard
+      WIREGUARD_PRIVATE_KEY: "{{ lookup('community.general.onepassword', 'privado-vpn_api', field='credential', vault=op_vault) }}"
+      SERVER_COUNTRIES: Netherlands
+    labels:
+      traefik.enable: "true"
+      # qBittorrent web UI is reachable through gluetun namespace on :8080
+      traefik.http.routers.qbittorrent.rule: "Host(`torrent.kogler.si`)"
+      traefik.http.routers.qbittorrent.entrypoints: websecure
+      traefik.http.routers.qbittorrent.tls.certresolver: letsencrypt
+      traefik.http.routers.qbittorrent.middlewares: authentik-forward-auth@file
+      traefik.http.services.qbittorrent.loadbalancer.server.port: "8080"
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    network_mode: "service:gluetun"          # no own network — shares gluetun namespace
+    depends_on:
+      - gluetun
+    volumes:
+      - /srv/docker/qbittorrent/config:/config
+      - /mnt/nas/media/downloads:/downloads   # rw — downloads/complete/<cat>
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true

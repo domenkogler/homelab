@@ -1,3 +1,32 @@
-# prowlarr docker-compose.yml — TODO: define service
-#   Indexer registry, prowlarr.kogler.si — Forward-Auth; syncs to Sonarr/Radarr/Lidarr.
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# prowlarr docker-compose.yml — Indexer registry (prowlarr.kogler.si)
+#   Syncs indexers to Sonarr/Radarr/Lidarr. Forward-Auth.
+#   linuxserver image, PUID/PGID=1000:1000.
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   — none needed
+services:
+  prowlarr:
+    image: linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - services-internal
+    volumes:
+      - /srv/docker/prowlarr/config:/config
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.prowlarr.rule: "Host(`prowlarr.kogler.si`)"
+      traefik.http.routers.prowlarr.entrypoints: websecure
+      traefik.http.routers.prowlarr.tls.certresolver: letsencrypt
+      traefik.http.routers.prowlarr.middlewares: authentik-forward-auth@file
+      traefik.http.services.prowlarr.loadbalancer.server.port: "9696"
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true

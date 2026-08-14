@@ -1,2 +1,29 @@
-# ollama docker-compose.yml — TODO: define service
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# ollama docker-compose.yml — Local LLM inference engine
+#   GPU-accelerated via AMD ROCm (/dev/dri, /dev/kfd). Accessed by other services
+#   on services-internal (n8n, AnythingLLM, maybe HA Assist). No web UI directly —
+#   no Traefik labels. OLLAMA_KEEP_ALIVE=5m keeps models warm between requests.
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   — none needed (models are public, no API keys)
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: always               # must start at boot before user login
+    networks:
+      - services-internal
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/kfd:/dev/kfd
+    group_add:
+      - "{{ gpu_render_gid }}"
+      - "{{ gpu_video_gid }}"
+    volumes:
+      - /srv/models/ollama:/root/.ollama          # nvme/models dataset — no snapshots, no backup
+    environment:
+      OLLAMA_KEEP_ALIVE: "{{ ollama_keep_alive | default('5m') }}"
+      OLLAMA_HOST: "0.0.0.0"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+networks:
+  services-internal:
+    external: true

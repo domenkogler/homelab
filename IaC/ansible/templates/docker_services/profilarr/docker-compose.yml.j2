@@ -1,3 +1,51 @@
-# profilarr docker-compose.yml — TODO: define service
-#   Quality-profile UI on top of Sonarr/Radarr, profilarr.kogler.si — Forward-Auth.
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# profilarr docker-compose.yml — Quality profile manager (profilarr.kogler.si)
+#   Configuration management for Radarr/Sonarr quality profiles (Dictionarry-Hub).
+#   Two containers: web UI (6868) + parser sidecar (5000). Forward-Auth.
+#   Image source: ghcr.io/dictionarry-hub/profilarr — v2 Deno-based.
+#   See docs/services.md + docs/deployment-compose.md.
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   — none needed
+services:
+  profilarr:
+    image: ghcr.io/dictionarry-hub/profilarr:latest
+    container_name: profilarr
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - services-internal
+    volumes:
+      - /srv/docker/profilarr/config:/config
+    environment:
+      PORT: "6868"
+      HOST: "0.0.0.0"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.profilarr.rule: "Host(`profilarr.kogler.si`)"
+      traefik.http.routers.profilarr.entrypoints: websecure
+      traefik.http.routers.profilarr.tls.certresolver: letsencrypt
+      traefik.http.routers.profilarr.middlewares: authentik-forward-auth@file
+      traefik.http.services.profilarr.loadbalancer.server.port: "6868"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:6868/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  profilarr-parser:
+    image: ghcr.io/dictionarry-hub/profilarr-parser:latest
+    container_name: profilarr-parser
+    restart: unless-stopped
+    networks:
+      - services-internal
+    environment:
+      PARSER_PORT: "5000"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true

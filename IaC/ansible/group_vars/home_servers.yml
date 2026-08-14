@@ -26,9 +26,9 @@ docker_services:
   # Identity
   - { name: authentik,      template_dir: authentik,      subdomain: sso }
   # Platform
-  - { name: opencloud,      template_dir: opencloud }
-  - { name: immich-app,     template_dir: immich-app }
-  - { name: forgejo,        template_dir: forgejo }
+  - { name: opencloud,      template_dir: opencloud,      subdomain: file }
+  - { name: immich-app,     template_dir: immich-app,     subdomain: foto }
+  - { name: forgejo,        template_dir: forgejo,        subdomain: git }
   # AI
   - { name: ollama,          template_dir: ollama }
   - { name: immich-ml,       template_dir: immich-ml }
@@ -39,7 +39,7 @@ docker_services:
   - { name: raspberrymatic-standby, template_dir: raspberrymatic, instance: standby, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   # VPN
-  - { name: headscale,       template_dir: headscale }
+  - { name: headscale,       template_dir: headscale,       subdomain: vpn }
   # Backup
   - { name: kopia-server,    template_dir: kopia-server }
   - { name: db-backup,       template_dir: db-backup }
@@ -47,7 +47,7 @@ docker_services:
   - { name: grafana,         template_dir: grafana,    subdomain: stats }
   - { name: n8n,             template_dir: n8n,         subdomain: auto }
   # Dashboard
-  - { name: homepage,        template_dir: homepage }
+  - { name: homepage,        template_dir: homepage,        subdomain: home }
   - { name: metabase,        template_dir: metabase, subdomain: sec }
   # Observability
   - { name: blackbox-exporter, template_dir: blackbox-exporter }

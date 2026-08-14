@@ -36,7 +36,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Identity (Authentik) | `traefik-public` + `services-internal` |
 | Platform (OpenCloud, Immich, Forgejo) | `services-internal` |
 | AI/LLM (Ollama, Immich-ML) | `services-internal` |
-| DNS (Technitium, Pi-hole) | `services-internal` |
+| DNS (Technitium, Pi-hole) | `traefik-public` + `services-internal` (Technitium web UI behind Traefik; Pi-hole ad-blocking behind Traefik) |
 | VPN (Headscale) | `traefik-public` |
 | Backup (Kopia, DB Backup) | `services-internal` / `db-internal` |
 | Dashboard (Homepage) | `traefik-public` |
@@ -105,7 +105,7 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
 
 - **Images:** `linuxserver/*` for the *arr apps (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd,
   qBittorrent); Jellyfin official `jellyfin/jellyfin`; `seerr/seerr`; gluetun `qm12/gluetun`;
-  Profilarr (community image — verify at implementation); Recyclarr `ghcr.io/recyclarr/recyclarr`.
+  Profilarr (`ghcr.io/dictionarry-hub/profilarr` + parser sidecar, Dictionarry-Hub, Deno-based v2); Recyclarr `ghcr.io/recyclarr/recyclarr`.
   `latest` tags, Renovate-tracked.
 - **PUID/PGID:** all *arr containers run as **`1000:1000`** (domen) — linuxserver images via
   `PUID=1000`/`PGID=1000`, Jellyfin via `user: "1000:1000"`. NFS ownership on nas must match.

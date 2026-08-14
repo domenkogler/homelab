@@ -37,11 +37,11 @@ NETWORK_MAP = {
     "forgejo":           {"traefik-public", "services-internal", "db-internal"},
     "ollama":            {"services-internal"},
     "immich-ml":         {"services-internal"},
-    "technitium":        {"services-internal"},
+    "technitium":        {"traefik-public", "services-internal"},
     "pihole":            {"services-internal"},
     "home-assistant-standby": {"services-internal"},
     "raspberrymatic":    {"homematic"},
-    "technitium-secondary": {"services-internal"},
+    "technitium-secondary": {"traefik-public", "services-internal"},
     "headscale":         {"traefik-public"},
     "kopia-server":      {"services-internal"},
     "db-backup":         {"services-internal", "db-internal"},
@@ -53,7 +53,8 @@ NETWORK_MAP = {
     "grafana":           {"traefik-public", "db-internal"},
     "signal-cli-rest-api": {"services-internal"},
     "dozzle":            {"traefik-public"},
-    "n8n":               {"services-internal"},
+    "sunshine":          {"services-internal"},
+    "n8n":               {"traefik-public", "services-internal"},
     "doco-cd":           set(),
     "renovate":          {"services-internal"},
     "sunshine":          {"services-internal"},
@@ -63,6 +64,8 @@ NETWORK_MAP = {
     "radarr":            {"services-internal", "traefik-public"},
     "lidarr":            {"services-internal", "traefik-public"},
     "prowlarr":          {"services-internal", "traefik-public"},
+    "immich-app":        {"traefik-public", "services-internal", "db-internal"},
+    "immich-ml":         {"services-internal"},
     "bazarr":            {"services-internal", "traefik-public"},
     "sabnzbd":           {"services-internal", "traefik-public"},
     "qbittorrent":       {"services-internal", "traefik-public"},
@@ -75,13 +78,19 @@ NETWORK_MAP = {
 }
 
 # Services that don't need Traefik labels (are their own reverse proxy)
-NO_TRAEFIK_LABELS = {"traefik", "traefik-ha"}
+NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent"}  # qbittorrent labels are on gluetun sidecar
+
+# Services that use network_mode: service:<sidecar> (no own networks)
+NETWORK_MODE_SERVICE = {"qbittorrent"}
 
 WEB_SERVICES = {
     "traefik", "authentik", "opencloud", "forgejo", "homepage", "metabase",
     "grafana", "headscale", "element-web", "matrix",
     "jellyfin", "seerr", "sonarr", "radarr", "lidarr", "prowlarr", "bazarr",
+    "traefik",
     "sabnzbd", "qbittorrent", "profilarr",
+    "immich-app",
+    "dozzle",
     "technitium", "pihole", "n8n",
     "chat",
 }
@@ -133,6 +142,7 @@ BASE_CTX = {
     "kopia_version": "latest",
     "db_backup_version": "latest",
     "grafana_version": "latest",
+    "immich_version": "release",
     "n8n_version": "latest",
     "rmat_name": "raspberrymatic",
     "rmat_restart": "unless-stopped",
@@ -285,7 +295,7 @@ def validate_render(name, j2_path, env, service):
                 errors.append(f"{prefix} network_mode: host combined with networks: {svc_nets}")
             if svc_def.get("ports"):
                 errors.append(f"{prefix} network_mode: host combined with ports:")
-        else:
+        elif name not in NETWORK_MODE_SERVICE:
             allowed = NETWORK_MAP.get(name, set())
             if svc_nets and not svc_nets.issubset(allowed | defined_nets):
                 unexpected = svc_nets - allowed - defined_nets
