@@ -1,0 +1,41 @@
+{{ ansible_managed | comment }}
+# headscale configuration — auto-generated from template.
+# OIDC provider must be created in Authentik post-deploy:
+#   Provider: OIDC, Client ID = {{ lookup('community.general.onepassword', 'headscale_api', field='username', vault=op_vault) }}
+#   Redirect URI: https://vpn.kogler.si/oidc/callback
+
+server_url: https://vpn.kogler.si
+listen_addr: 0.0.0.0:8080
+metrics_listen_addr: 0.0.0.0:9090
+grpc_listen_addr: 0.0.0.0:50443
+log:
+  level: info
+
+# Database — SQLite (single node, no external Postgres needed)
+database:
+  type: sqlite3
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+
+# OIDC via Authentik (provider must be created in Authentik first)
+oidc:
+  issuer: "https://sso.kogler.si/application/o/headscale/"
+  client_id: "{{ lookup('community.general.onepassword', 'headscale_api', field='username', vault=op_vault) }}"
+  client_secret: "{{ lookup('community.general.onepassword', 'headscale_api', field='credential', vault=op_vault) }}"
+  scope: ["openid", "profile", "email"]
+  allowed_domains:
+    - kogler.si
+
+# DNS configuration
+dns_config:
+  base_domain: kogler.si
+  magic_dns: true
+  override_local_dns: false
+  nameservers:
+    - 10.10.1.30  # Technitium primary (oldsrv)
+    - 10.10.1.20  # Technitium secondary (Pi)
+
+# Client registration — requires admin approval (prevents rogue nodes)
+acl_policy_path: ""
+logtail:
+  enabled: false

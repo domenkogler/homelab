@@ -21,6 +21,8 @@ _extra_templates:
     - tuwunel.toml.j2
   prometheus:
     - prometheus.yml.j2
+  headscale:
+    - config.yaml.j2
   traefik:
     - dynamic/routes.yml.j2
     - dynamic/middlewares.yml.j2

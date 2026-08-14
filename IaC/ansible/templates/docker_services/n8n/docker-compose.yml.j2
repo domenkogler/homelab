@@ -1,2 +1,38 @@
-# n8n docker-compose.yml — TODO: define service
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# n8n docker-compose.yml — Workflow automation / alert router (auto.kogler.si)
+#   Routes Grafana alerts to Signal (via signal-cli-rest-api) and email.
+#   Also handles office automation workflows.
+#
+#   SQLite database (no external Postgres). Built-in auth active for API calls
+#   (webhooks from Grafana); web UI protected by Authentik Forward-Auth.
+#
+#   No 1Password secrets required for basic operation.
+#   Future: n8n_password (webhook HMAC / encryption key), n8n-smtp_login (SMTP).
+#   See docs/deployment-secrets.md §Future / not-yet-created.
+services:
+  n8n:
+    image: n8nio/n8n:{{ n8n_version | default('latest') }}
+    container_name: n8n
+    restart: unless-stopped
+    networks:
+      - services-internal
+    volumes:
+      - /srv/docker/n8n/data:/home/node/.n8n
+    environment:
+      N8N_PORT: 5678
+      N8N_PROTOCOL: https
+      N8N_HOST: auto.kogler.si
+      WEBHOOK_URL: https://auto.kogler.si
+      N8N_ENCRYPTION_KEY: "{{ lookup('community.general.onepassword', 'n8n_password', default='', vault=op_vault) }}"
+      N8N_METRICS: "true"
+      DB_TYPE: sqlite
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.n8n.rule: "Host(`auto.kogler.si`)"
+      traefik.http.routers.n8n.entrypoints: websecure
+      traefik.http.routers.n8n.tls.certresolver: letsencrypt
+      traefik.http.routers.n8n.middlewares: authentik-forward-auth@file
+      traefik.http.services.n8n.loadbalancer.server.port: "5678"
+networks:
+  services-internal:
+    external: true
