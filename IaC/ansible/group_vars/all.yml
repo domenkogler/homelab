@@ -10,6 +10,13 @@ op_vault: Homelab
 domain_public: kogler.si
 domain_local: kogler.si    # reserved for future split-horizon scenarios — currently unused
 
+# GPU group IDs — standard Debian 12/13 (bookworm/trixie).
+# video:44 (static since Debian 1.x), render:104 (since Debian 11 bullseye).
+# Used by ollama, immich-ml, jellyfin, sunshine for /dev/dri access.
+# Verify with: getent group render video
+gpu_render_gid: 104
+gpu_video_gid: 44
+
 # ==== Shared service knobs (used across host templates) ====
 # traefik image version — shared by oldsrv `traefik` (edge) and Pi `traefik-ha`.
 traefik_version: latest
