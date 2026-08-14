@@ -43,7 +43,6 @@ docker_services:
   # Backup
   - { name: kopia-server,    template_dir: kopia-server }
   - { name: db-backup,       template_dir: db-backup }
-  - { name: kopia-agent,     template_dir: kopia-agent }
   # Dashboard & Automation
   - { name: grafana,         template_dir: grafana,    subdomain: stats }
   - { name: n8n,             template_dir: n8n,         subdomain: auto }

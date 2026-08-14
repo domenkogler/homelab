@@ -1,19 +1,36 @@
 # traefik — file-provider middlewares (deployed as /opt/traefik/dynamic/middlewares.yml)
 #
-# Authentik Forward-Auth middleware — delegates auth checks to the Authentik
-# SSO provider before traffic reaches any protected service.
+# Middleware chain for public services:
+#   1. CrowdSec bouncer plugin — queries CrowdSec LAPI, blocks malicious IPs
+#   2. Authentik Forward-Auth — delegates auth to the SSO provider
 #
-# Every public service except `ha` and Matrix references this middleware:
+# Every public service except `ha` and Matrix references the chain:
 #   traefik.http.routers.<svc>.middlewares: authentik-forward-auth@file
+# (the chain name is the same as the previous forwardAuth — no template updates needed)
 # See services-traefik.md §Middleware Chain.
-#
-# The backend URL resolves via Docker internal DNS on the traefik-public network:
-#   authentik-server = the compose service name (resolved by Docker DNS on traefik-public)
-#   port 9000 = Authentik's HTTP port (TLS is handled by Traefik)
 
 http:
   middlewares:
+    # Chain: CrowdSec → Authentik. Services reference this by name.
+    # No service template changes needed — the middleware name stayed the same.
     authentik-forward-auth:
+      chain:
+        middlewares:
+          - crowdsec-bouncer
+          - authentik-forward-auth-inner
+
+    # CrowdSec bouncer plugin — checks the client IP against CrowdSec's
+    # blocklist (LAPI). Registered in traefik's static config via
+    # --experimental.plugins.crowdsec-bouncher.*
+    crowdsec-bouncer:
+      plugin:
+        crowdsec-bouncer:
+          lapi_url: http://crowdsec:8080
+          update_interval: 10s
+
+    # Authentik Forward-Auth — validates the user session, redirects to
+    # sso.kogler.si if not authenticated. Passes user info as headers.
+    authentik-forward-auth-inner:
       forwardAuth:
         address: "http://authentik-server:9000/outpost.goauthentik.io/auth/traefik"
         trustForwardHeader: true

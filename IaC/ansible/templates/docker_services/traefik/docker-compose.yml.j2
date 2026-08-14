@@ -55,6 +55,9 @@ services:
       - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare"
       # NOTE: DO NOT switch to TLSchallenge — it cannot issue a wildcard. The whole
       # internal+public namespace depends on this DNS-01 wildcard (see network-dns.md).
+      # CrowdSec bouncer plugin (WAF) — blocks malicious IPs via CrowdSec LAPI.
+      - "--experimental.plugins.crowdsec-bouncer.moduleName=github.com/maxlerebourc/crowdsec-bouncer-traefik-plugin"
+      - "--experimental.plugins.crowdsec-bouncer.version={{ crowdsec_bouncer_plugin_version | default('v0.4.0') }}"
 
   # certs-dumper sidecar — turns Traefik's acme.json into the flat PEM pair the
   # Pi edge + failover contract depends on. Watch mode keeps /opt/traefik/certs in

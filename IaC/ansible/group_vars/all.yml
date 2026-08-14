@@ -40,6 +40,12 @@ nut_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'na
 # nut_exporter_listen in roles/nut/defaults/main.yml (:9199); keep in sync.
 nut_exporter_port: 9199
 
+# ==== Kopia S3 backup target (iDrive e2) ====
+# Default bucket and endpoint for the kopia-server repository.
+# Override in host_vars or via extra vars if different targets are needed.
+kopia_s3_bucket: kogler-homelab
+kopia_s3_endpoint: https://e2.idy.io
+
 # ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses.md) ====
 # Hand-edit here ONLY; regenerate docs/network-addresses.md after changes.
 #

@@ -27,6 +27,12 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: "{{ lookup('community.general.onepassword', 'grafana_login', field='password', vault=op_vault) }}"
       GF_SECURITY_DISABLE_GRAVATAR: "true"
+      # Auth proxy — trusts the Authentik Forward-Auth headers passed by Traefik.
+      # Users who pass Forward-Auth are auto-logged in, skipping the Grafana login form.
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-authentik-email
+      GF_AUTH_PROXY_HEADER_PROPERTY: email
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
       # Server
       GF_SERVER_ROOT_URL: "https://stats.kogler.si"
       GF_SERVER_DOMAIN: stats.kogler.si
