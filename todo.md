@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 47 open · 2 done** · **Total: 49**
+**Status: 49 open · 1 done** · **Total: 50**
 
 ---
 
@@ -45,13 +45,15 @@
 
 | ID | D | Exec | Status | Item |
 |----|---|------|--------|------|
-| HD-01 | 3 | AI | done | **Create missing `docker_services` compose templates** ✅ — homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api, **metabase** (8 templates + `group_vars/home_servers.yml` entries created; validator added; stale `# TODO` removed). · [deployment-ansible.md](docs/deployment-ansible.md) |
+| HD-01 | 3 | AI | open | **Create remaining `docker_services` compose templates** — 8 created ✅ (homepage, renovate, doco-cd, prometheus, loki, blackbox-exporter, signal-cli-rest-api, metabase). **Still TODO:** authentik (→HD-16), crowdsec, forgejo, opencloud, db-backup, headscale, and others. · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-02 | 3 | AI | open | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
 | HD-03 | 5 | AI + gate | open | **Network redo: implement VLAN segmentation** — currently flat `10.10.1.0/24` → VLANs 10/20/21/30/40/50/99, inter-VLAN firewall, CAPsMAN SSIDs. ✅ **IaC implemented + committed (`39b9f02`):** router + switch `community.routeros` roles (VLANs, DHCP, firewall, mgmt). ⏳ **NOT deployed to live gear** — Ansible can't run on this Windows host (see render note). Open before deploy: switch bridge-VLAN access-port membership (under review vs Rack.canvas), CAPsMAN SSID secret items, WG VPS peer. · [network-vlans.md](docs/network-vlans.md) |
 | HD-04 | 5 | AI + gate | open | **Pi redo: HAOS → Debian + HA Container + RaspberryMatic + Technitium secondary** — in-use device migration, done opportunistically during the network redo; approved direction, not yet applied. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-05 | 1 | Human | **done** | **VIP address / notation / firewall IP-set** — decided: `10.10.1.200/32` (`ha-vip`), DHCP pool ≤ `.199`, router lists `trusted-ha` + `trusted-admin`. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-06 | 3 | AI | open | **NUT master on nas** — `usbhid-ups`, `upsd` (3493), `nut_exporter`, `upssched-cmd` notify. ✅ **IaC done+fixed** (SSOT exporter on master `:9199`, scrape via `all.yml` vars, `@latest` release w/ verified asset URL, `nut-exporter_password` upsd auth, SMTP+Signal notify wired via `NOTIFYCMD`, battery.runtime/charge thresholds, USB verify task — G1–G7). ⏳ **Missing:** live deploy on nas (host not provisioned yet) + battery-pull test; feeds HD-07 (clients) / HD-08 (metrics+alerts). · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-07 | 2 | AI | open | **NUT clients on `oldsrv` + `pi`** — upsmon slave, per-host shutdown delay 60/0/0. Same role pattern, well-specified. · [hardware-ups.md](docs/hardware-ups.md) |
+| HD-16 | 3 | AI | open | **Implement Authentik compose template + Traefik Forward-Auth middleware** — Authentik is a hard dependency for the security model (Forward-Auth on every public service). Write `authentik/docker-compose.yml.j2` (server+worker+postgres+redis, 4 containers), create `traefik/dynamic/middlewares.yml.j2` defining `authentik-forward-auth@file`, add `subdomain: sso` to `home_servers.yml` entry. Variables in `group_vars`, secrets in `deployment-secrets.md`. Depends on HD-50. · [services-authentik.md](docs/services-authentik.md), [services-traefik.md](docs/services-traefik.md) |
+| HD-50 | 3 | AI | open | **Implement `docker_services` Ansible role** — `IaC/ansible/roles/docker_services/tasks/main.yml` is currently `# TODO: implement`. This role loops over `docker_services` in `home_servers.yml` and: creates external Docker networks, copies compose templates, renders Jinja2 with 1Password lookups, runs `docker compose up -d`. Universal blocker — no template (Traefik, Authentik, Matrix, Jellyfin, or any) can be deployed by Ansible until this exists. · [deployment-ansible.md](docs/deployment-ansible.md) |
 
 ## Priority 2
 
@@ -65,7 +67,6 @@
 | HD-13 | 3 | AI + Human | open | **Homematic full-local (HmIP-RFUSB + RaspberryMatic)** — replace HAP cloud mode with local `homematic` XML-RPC; agent builds roles, human moves/fits the stick. Part of redo (HD-04). · [observability.md](docs/observability.md) |
 | HD-14 | 2 | AI | open | **Export HA entity list** — enable HA Prometheus exporter; needed for TileBoard + Grafana. Wait for observability. · [smart-home.md](docs/smart-home.md) |
 | HD-15 | 1 | AI | open | **Confirm HACS custom-component versions/repos** — `motion`, `ai_task`, Weather-2000, OneDrive, go2rtc via SSH / config git repo (REST API can't expose). · [home-assistant-current.md](docs/home-assistant-current.md) |
-| HD-16 | 1 | Human | open | *(decision)* **Authentik/OIDC SSO timing** — introduce during the redo? Currently not connected live; input to HD-04. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-17 | 3 | AI | open | **Single failover button + `ha-failover.sh`** — RMat → wait → VIP → standby, on Homepage; manual-trigger design accepted. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-18 | 2 | Human | open | **Once: test HmIP-RFUSB pairing transfer** + entity reconstruction across stick move. Hands-on; requires HD-13. · [smart-home-failover.md](docs/smart-home-failover.md) |
 
@@ -159,14 +160,14 @@
 
 - `issues.md` is the official scratchpad for follow-ups (`docs/issues.md`) and is currently **empty** — decide whether it or this file is the backlog home (single source, avoid duplication). Recommended split: **todo.md = planned work**, **issues.md = defects/follow-ups**.
 - Two dead references in docs: `docs/network-devices.md` (HD-35) and `docs/inventory.md` (HD-12).
-- Dependencies: HD-03 → HD-04 → HD-13/HD-16 · HD-06/07 → HD-08 · HD-01 → HD-02/HD-19 · HD-29 → HD-31.
+- Dependencies: HD-03 → HD-04 → HD-13 · HD-06/07 → HD-08 · HD-01 → HD-02/HD-19/HD-16/HD-50 · HD-29 → HD-31 · HD-50 → HD-16 → HD-43/HD-44/HD-46 (Authentik is a hard prerequisite for Forward-Auth services) · HD-50 blocks all `docker_services` deployments.
 - **Recently-implemented IaC (done at template/role level, NOT yet deployed):** storage role (ZFS layout, snapshots, NFS, push jobs), face-thumbnail push over NFS, boot-time provisioning, traefik-ha edge failover, the Media/·\*arr + dozzle templates (→ HD-43/-44), and the **router/switch network roles** (→ HD-03). These are **not** live on any host yet — track them as open until a deploy/verify task (Phase 2/3) runs.
 
 ## Executor summary
 
 | Exec | Count | IDs |
 |------|-------|-----|
-| AI | 29 | HD-01,02,06,07,08,09,10,11,12,14,15,17,19,23,26,28,32,33,35,36,37,38,41,43,44,45,46,47,49 |
-| Human | 11 | HD-05(done),16,18,20,24,25,29,30,31,39,42 |
+| AI | 32 | HD-01,02,06,07,08,09,10,11,12,14,15,16,17,19,23,26,28,32,33,35,36,37,38,41,43,44,45,46,47,49,50 |
+| Human | 10 | HD-05(done),18,20,24,25,29,30,31,39,42 |
 | AI + gate | 2 | HD-03, HD-04 |
 | AI + Human | 7 | HD-13,21,22,27,34,40,48 |

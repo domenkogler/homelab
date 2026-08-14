@@ -153,6 +153,11 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
    homepage, metabase, signal-cli-rest-api, sunshine, home-assistant-standby, plus the Media /·\*arr
    stack and `dozzle` → **HD-43/-44**).
 
+   ⚠ **Templates audit — some compose templates are still `TODO: define service` placeholders:**
+   `authentik` (→HD-16), `crowdsec`, `forgejo`, `opencloud`, `db-backup`, `headscale` and others.
+   Each must be implemented (or verified already done) **before** Phase 3 deploy — blocked by HD-50
+   (`docker_services` role) and tracked per-service in `todo.md`.
+
 4. **HA standby** — `home-assistant-standby` compose + keepalived (`ha-vrrp_password`); disabled by default.
 
 **New 1Password prerequisites (Phase 3):**
@@ -243,7 +248,7 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 
 1. Homematic full-local (HmIP-RFUSB + RaspberryMatic, local XML-RPC; human moves/fits the stick) — **HD-13**
 2. Confirm HACS custom components (motion, ai_task, Weather-2000, OneDrive, go2rtc) — **HD-15**
-3. Authentik/OIDC SSO timing decision (during redo or later?) — **HD-16**
+3. Authentik OIDC provider + redirect URIs for downstream services (Matrix, Forgejo) — **HD-16** (compose template is Phase 3; post-deploy provider config)
 4. Single failover button + `ha-failover.sh` (RMat → wait → VIP → standby) — **HD-17**
 5. Test HmIP-RFUSB pairing transfer + entity reconstruction — **HD-18**
 6. Voice pipeline (Whisper → Ollama → Piper, ESP32-S3 microWakeWord, HA Assist) — **HD-27**
