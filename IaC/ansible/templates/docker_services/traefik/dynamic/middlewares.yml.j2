@@ -1,0 +1,26 @@
+# traefik — file-provider middlewares (deployed as /opt/traefik/dynamic/middlewares.yml)
+#
+# Authentik Forward-Auth middleware — delegates auth checks to the Authentik
+# SSO provider before traffic reaches any protected service.
+#
+# Every public service except `ha` and Matrix references this middleware:
+#   traefik.http.routers.<svc>.middlewares: authentik-forward-auth@file
+# See services-traefik.md §Middleware Chain.
+#
+# The backend URL resolves via Docker internal DNS on the traefik-public network:
+#   authentik-server = the compose service name (resolved by Docker DNS on traefik-public)
+#   port 9000 = Authentik's HTTP port (TLS is handled by Traefik)
+
+http:
+  middlewares:
+    authentik-forward-auth:
+      forwardAuth:
+        address: "http://authentik-server:9000/outpost.goauthentik.io/auth/traefik"
+        trustForwardHeader: true
+        authResponseHeaders:
+          X-authentik-username: username
+          X-authentik-groups: groups
+          X-authentik-email: email
+          X-authentik-name: name
+          X-authentik-uid: uid
+          X-authentik-jwt: jwt

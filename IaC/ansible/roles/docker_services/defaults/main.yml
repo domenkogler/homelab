@@ -23,5 +23,6 @@ _extra_templates:
     - prometheus.yml.j2
   traefik:
     - dynamic/routes.yml.j2
+    - dynamic/middlewares.yml.j2
   traefik-ha:
     - dynamic/routes.yml.j2

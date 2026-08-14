@@ -24,7 +24,7 @@ docker_services:
   - { name: traefik,        template_dir: traefik }
   - { name: crowdsec,       template_dir: crowdsec }
   # Identity
-  - { name: authentik,      template_dir: authentik }
+  - { name: authentik,      template_dir: authentik,      subdomain: sso }
   # Platform
   - { name: opencloud,      template_dir: opencloud }
   - { name: immich-app,     template_dir: immich-app }
