@@ -1,2 +1,57 @@
-# forgejo docker-compose.yml — TODO: define service
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# forgejo docker-compose.yml — Git hosting (git.kogler.si)
+#   Postgres-backed, OIDC-ready (Authentik), behind Traefik Forward-Auth.
+#   Data in /srv/docker/forgejo/ (included in Kopia backup).
+#
+#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#     forgejo_db       (Database: username=<db user>, password=<db password>)
+services:
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:{{ forgejo_version | default('latest') }}
+    container_name: forgejo
+    restart: unless-stopped
+    networks:
+      - services-internal
+    volumes:
+      - /srv/docker/forgejo/data:/data
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: forgejo-db:5432
+      FORGEJO__database__NAME: forgejo
+      FORGEJO__database__USER: "{{ lookup('community.general.onepassword', 'forgejo_db', field='username', vault=op_vault) }}"
+      FORGEJO__database__PASSWD: "{{ lookup('community.general.onepassword', 'forgejo_db', field='password', vault=op_vault) }}"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.forgejo.rule: "Host(`git.kogler.si`)"
+      traefik.http.routers.forgejo.entrypoints: websecure
+      traefik.http.routers.forgejo.tls.certresolver: letsencrypt
+      traefik.http.routers.forgejo.middlewares: authentik-forward-auth@file
+      traefik.http.services.forgejo.loadbalancer.server.port: "3000"
+    depends_on:
+      - forgejo-db
+
+  forgejo-db:
+    image: postgres:16-alpine
+    container_name: forgejo-db
+    restart: unless-stopped
+    networks:
+      - services-internal
+    volumes:
+      - /srv/docker/forgejo/postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: forgejo
+      POSTGRES_USER: "{{ lookup('community.general.onepassword', 'forgejo_db', field='username', vault=op_vault) }}"
+      POSTGRES_PASSWORD: "{{ lookup('community.general.onepassword', 'forgejo_db', field='password', vault=op_vault) }}"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  services-internal:
+    external: true

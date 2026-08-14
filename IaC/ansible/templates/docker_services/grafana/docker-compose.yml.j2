@@ -1,2 +1,54 @@
-# grafana docker-compose.yml — TODO: define service
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# grafana docker-compose.yml — Observability dashboards (stats.kogler.si)
+#   Queries Prometheus + Loki on db-internal. Admin auth via Authentik
+#   Forward-Auth (no OIDC — the Forward-Auth layer handles auth).
+#   SMTP configured for fail-safe alert contact point.
+#
+#   Provisioning configs (datasources, dashboards, alerting) are mounted
+#   from /srv/docker/grafana/provisioning/ and populated by the monitoring
+#   Ansible role (or manually).
+#
+#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#     grafana_login        (Login: password=<admin password>)
+#     grafana-smtp_login   (Login: username=<SMTP user>, password=<SMTP password>)
+services:
+  grafana:
+    image: grafana/grafana:{{ grafana_version | default('latest') }}
+    container_name: grafana
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - db-internal
+    volumes:
+      - /srv/docker/grafana/data:/var/lib/grafana
+      - /srv/docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      # Admin account — behind Authentik Forward-Auth (admin uses Forward-Auth SSO,
+      # this account is the break-glass / provisioning owner).
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: "{{ lookup('community.general.onepassword', 'grafana_login', field='password', vault=op_vault) }}"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      # Server
+      GF_SERVER_ROOT_URL: "https://stats.kogler.si"
+      GF_SERVER_DOMAIN: stats.kogler.si
+      # SMTP — fail-safe contact point (parallel to n8n → Signal)
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: "{{ grafana_smtp_host | default('localhost:25') }}"
+      GF_SMTP_USER: "{{ lookup('community.general.onepassword', 'grafana-smtp_login', field='username', vault=op_vault) }}"
+      GF_SMTP_PASSWORD: "{{ lookup('community.general.onepassword', 'grafana-smtp_login', field='password', vault=op_vault) }}"
+      GF_SMTP_FROM_ADDRESS: "grafana@kogler.si"
+      GF_SMTP_FROM_NAME: Grafana
+      # No OIDC env vars — auth is handled by Authentik Forward-Auth in Traefik.
+      # OIDC can be configured via provisioning if needed later.
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.grafana.rule: "Host(`stats.kogler.si`)"
+      traefik.http.routers.grafana.entrypoints: websecure
+      traefik.http.routers.grafana.tls.certresolver: letsencrypt
+      traefik.http.routers.grafana.middlewares: authentik-forward-auth@file
+      traefik.http.services.grafana.loadbalancer.server.port: "3000"
+networks:
+  traefik-public:
+    external: true
+  db-internal:
+    external: true
