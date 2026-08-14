@@ -119,8 +119,8 @@ Alternative (rejected): direct exposure without Cloudflare DNS — same result, 
 ## Matrix Routing — `/_matrix/*` is NOT behind Forward-Auth
 
 Matrix (**[`services-matrix.md`](services-matrix.md)**) is the deliberate exception to the
-Forward-Auth-everything rule, exactly like `ha` (HA-native auth). Native clients, other servers, and
-the appservice bridges must reach `/_matrix/*` directly, so:
+Forward-Auth-everything rule, exactly like `ha` (HA-native auth). Native clients, other servers
+(federation), and any future appservice bridges must reach `/_matrix/*` directly, so:
 
 - `matrix.kogler.si` → Tuwunel homeserver. **No Authentik Forward-Auth middleware on `/_matrix/*`** —
   auth happens *inside* the homeserver via Matrix-native SSO → Authentik OIDC.

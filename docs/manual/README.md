@@ -26,7 +26,7 @@ tags: [manual, index, slovenian]
 | [restore-backup.md](restore-backup.md) | Tehnični kontakt | Obnovitev iz backupa (visok nivo) |
 | [contacts.md](contacts.md) | Vsi | ISP, prijatelji, servisne številke |
 | [smart-home.md](smart-home.md) | Vsi | Dashboard, glasovni ukazi |
-| [chat.md](chat.md) | Vsi | Klepet (Matrix), povezava WhatsApp/Messenger/Signal |
+| [chat.md](chat.md) | Vsi | Klepet (Matrix) — sporočanje z družino |
 
 ---
 

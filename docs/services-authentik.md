@@ -94,4 +94,4 @@ Element / native client  →  homeserver /login/sso  →  Authentik OIDC  →  1
 - Register the OIDC client in **Tuwunel** (`well_known`/OIDC discovery → Authentik issuer `sso.kogler.si`).
 - **Redirect URIs** must include Tuwunel's SSO callback (`https://matrix.kogler.si/_synapse/...` or Tuwunel's own `/login/sso`/oidc callback).
 - The Authentik client **secret** goes to 1Password `Homelab` (never the repo).
-- Bridges (`mautrix-*`) use **appservice tokens**, independent of this SSO.
+- No bridges in Phase 1 (deferred — see [`services-matrix.md`](services-matrix.md)).

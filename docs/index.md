@@ -67,7 +67,7 @@ docs/
 ├── observability.md                        Single source of truth: stack, alerting, retention
 ├── services-traefik.md                    Reverse proxy, CrowdSec, SSL
 ├── services-authentik.md                  OIDC SSO, WebAuthn, Forward Auth
-├── services-matrix.md                     ★ Matrix messaging: homeserver (Tuwunel) + Element Web + WhatsApp/Messenger/Signal bridges
+├── services-matrix.md                     ★ Matrix messaging: homeserver (Tuwunel) + Element Web (native-only; bridges deferred)
 ├── services-vps.md                        Deferred Contabo VPS reference
 ├── subscription.md                        Costs, providers, renewal status
 │

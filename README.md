@@ -16,7 +16,7 @@ Domača stran na **`kogler.si`** je glavna vstopna točka za vse storitve.
 | Fotografije | `foto.kogler.si` | Družinske slike (kot Google Photos) |
 | Datoteke | `file.kogler.si` | Skupne datoteke (kot Google Drive) |
 | Git | `git.kogler.si` | Koda in dokumentacija |
-| Klepet | `chat.kogler.si` | Družinski klepet (Matrix) + WhatsApp/Messenger/Signal |
+| Klepet | `chat.kogler.si` | Družinski klepet (Matrix) |
 
 ---
 
@@ -114,4 +114,4 @@ ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 - **Single Git repo:** IaC, documentation, and family guides live together
 - **Single DNS namespace `kogler.si`** — split-horizon; one `*.kogler.si` wildcard cert (Cloudflare DNS-01)
 - **Six interfaces, no overlap:** Homepage (family launchpad), TileBoard (smart home), Grafana (analytics), Forgejo (admin), Obsidian (knowledge base), Doco-CD (deployment status)
-- **Self-hosted messaging:** Matrix (Tuwunel) + Element Web with WhatsApp/Messenger/Signal bridges — family chat not tied to any single commercial app (see [`docs/services-matrix.md`](docs/services-matrix.md))
+- **Self-hosted messaging:** Matrix (Tuwunel) + Element Web — native family chat, no commercial-app dependency, no third-party bridges (deferred, Phase 2 best-effort) — see [`docs/services-matrix.md`](docs/services-matrix.md)

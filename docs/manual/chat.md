@@ -18,9 +18,10 @@ tags: [manual, chat, matrix]
 
 ## Povezava z drugimi aplikacijami
 
-- **WhatsApp / Messenger / Signal** so povezani prek mostov (bridges) — iz klepeta se pišeš z istimi
-  stiki kot v teh aplikacijah, brez preklapljanja med aplikacijami.
-- Če most ne deluje / zahteva ponovno povezavo: pokliči [tehnični kontakt](contacts.md).
+- Klepet deluje **družinsko — med nami** v Matrix sobah (vse na domačem strežniku).
+- Za sporočanje z drugimi (WhatApp/Signal) **še naprej uporabljamo običajne aplikacije na telefonu** —
+  v tej fazi ni mostov (bridges).
+- Če se to kdaj spremeni / dodajo mostovi: pokliči [tehnični kontakt](contacts.md).
 
 ## Pravila
 
