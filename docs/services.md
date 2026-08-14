@@ -8,7 +8,7 @@ tags: [services, catalog]
 # Service Catalog
 
 > **Role:** Broad context — all Docker services, networks, domains.
-> **Links to:** `services-traefik.md`, `services-authentik.md`, `services-vps.md`, `deployment-compose.md`, `subscription.md`
+> **Links to:** `services-traefik.md`, `services-authentik.md`, `services-matrix.md`, `services-finance.md`, `services-vps.md`, `deployment-compose.md`, `subscription.md`
 > **Linked from:** `index.md`, `deployment-ansible.md`
 
 ---
