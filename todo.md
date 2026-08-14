@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 49 open · 1 done** · **Total: 50**
+**Status: 48 open · 2 done** · **Total: 50**
 
 ---
 
@@ -53,7 +53,7 @@
 | HD-06 | 3 | AI | open | **NUT master on nas** — `usbhid-ups`, `upsd` (3493), `nut_exporter`, `upssched-cmd` notify. ✅ **IaC done+fixed** (SSOT exporter on master `:9199`, scrape via `all.yml` vars, `@latest` release w/ verified asset URL, `nut-exporter_password` upsd auth, SMTP+Signal notify wired via `NOTIFYCMD`, battery.runtime/charge thresholds, USB verify task — G1–G7). ⏳ **Missing:** live deploy on nas (host not provisioned yet) + battery-pull test; feeds HD-07 (clients) / HD-08 (metrics+alerts). · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-07 | 2 | AI | open | **NUT clients on `oldsrv` + `pi`** — upsmon slave, per-host shutdown delay 60/0/0. Same role pattern, well-specified. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-16 | 3 | AI | open | **Implement Authentik compose template + Traefik Forward-Auth middleware** — Authentik is a hard dependency for the security model (Forward-Auth on every public service). Write `authentik/docker-compose.yml.j2` (server+worker+postgres+redis, 4 containers), create `traefik/dynamic/middlewares.yml.j2` defining `authentik-forward-auth@file`, add `subdomain: sso` to `home_servers.yml` entry. Variables in `group_vars`, secrets in `deployment-secrets.md`. Depends on HD-50. · [services-authentik.md](docs/services-authentik.md), [services-traefik.md](docs/services-traefik.md) |
-| HD-50 | 3 | AI | open | **Implement `docker_services` Ansible role** — `IaC/ansible/roles/docker_services/tasks/main.yml` is currently `# TODO: implement`. This role loops over `docker_services` in `home_servers.yml` and: creates external Docker networks, copies compose templates, renders Jinja2 with 1Password lookups, runs `docker compose up -d`. Universal blocker — no template (Traefik, Authentik, Matrix, Jellyfin, or any) can be deployed by Ansible until this exists. · [deployment-ansible.md](docs/deployment-ansible.md) |
+| HD-50 | 3 | AI | done | **Implement `docker_services` Ansible role** — ✅ **Done (`eadf9d4`).** Role creates external Docker networks, copies templates, renders Jinja2 with 1Password lookups, runs `docker compose up -d`. Added: systemd auto-start per service (`docker-compose@.service` template unit + `systemctl enable`), post-deploy Homepage reload + `inventory.md` render. Fixed pre-existing path bugs (templates at playbook level, not in role). All 43 templates validated. · [deployment-ansible.md](docs/deployment-ansible.md) |
 
 ## Priority 2
 
