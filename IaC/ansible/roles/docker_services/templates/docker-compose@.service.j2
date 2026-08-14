@@ -1,0 +1,17 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Docker Compose service: %i
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{ docker_compose_dir }}/%i
+ExecStart=/usr/bin/docker compose -f {{ docker_compose_dir }}/%i/docker-compose.yml up -d
+ExecStop=/usr/bin/docker compose -f {{ docker_compose_dir }}/%i/docker-compose.yml down
+StandardOutput=journal
+User={{ ansible_user }}
+
+[Install]
+WantedBy=multi-user.target

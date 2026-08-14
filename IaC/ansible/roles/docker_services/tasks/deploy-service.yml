@@ -11,20 +11,20 @@
 
 - name: "Copy template files for {{ svc.name }}"
   ansible.builtin.copy:
-    src: "{{ role_path }}/templates/docker_services/{{ svc.template_dir }}/"
+    src: "{{ playbook_dir }}/../templates/docker_services/{{ svc.template_dir }}/"
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/"
     mode: '0644'
   # .j2 files are copied as-is (unrendered); overwritten with rendered versions below
 
 - name: "Template docker-compose.yml for {{ svc.name }}"
   ansible.builtin.template:
-    src: "templates/docker_services/{{ svc.template_dir }}/docker-compose.yml.j2"
+    src: "{{ playbook_dir }}/../templates/docker_services/{{ svc.template_dir }}/docker-compose.yml.j2"
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml"
     mode: '0644'
 
 - name: "Template extra .j2 files for {{ svc.name }}"
   ansible.builtin.template:
-    src: "templates/docker_services/{{ svc.template_dir }}/{{ extra }}"
+    src: "{{ playbook_dir }}/../templates/docker_services/{{ svc.template_dir }}/{{ extra }}"
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/{{ extra | replace('.j2', '') }}"
     mode: '0644'
   loop: "{{ _extra_templates[svc.template_dir] | default([]) }}"
@@ -35,3 +35,10 @@
   community.docker.docker_compose_v2:
     project_src: "{{ docker_compose_dir }}/{{ svc.name }}"
     state: present
+
+- name: "Enable systemd service docker-compose@{{ svc.name }} (boot auto-start)"
+  ansible.builtin.systemd:
+    name: "docker-compose@{{ svc.name }}"
+    enabled: true
+    state: started
+  when: ansible_service_mgr == 'systemd'

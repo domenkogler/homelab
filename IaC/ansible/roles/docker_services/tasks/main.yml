@@ -17,6 +17,13 @@
       docker_services role must only run as an allowed admin user
       ({{ ansible_admin_users | join(', ') }}).
 
+- name: Create systemd template unit for Docker Compose services
+  ansible.builtin.template:
+    src: docker-compose@.service.j2
+    dest: /etc/systemd/system/docker-compose@.service
+    mode: '0644'
+  notify: reload systemd
+
 - name: Create external Docker networks
   community.docker.docker_network:
     name: "{{ item.name }}"
@@ -49,13 +56,24 @@
 
     - name: Template homepage services.yaml
       ansible.builtin.template:
-        src: "homepage_services.yaml.j2"
+        src: "{{ playbook_dir }}/../templates/homepage_services.yaml.j2"
         dest: "{{ docker_compose_dir }}/homepage/config/services.yaml"
         mode: '0644'
 
     - name: Template homepage widgets.yaml
       ansible.builtin.template:
-        src: "homepage_widgets.yaml.j2"
+        src: "{{ playbook_dir }}/../templates/homepage_widgets.yaml.j2"
         dest: "{{ docker_compose_dir }}/homepage/config/widgets.yaml"
         mode: '0644'
+
+    - name: Restart Homepage to pick up new config
+      ansible.builtin.shell:
+        cmd: "docker compose -f {{ docker_compose_dir }}/homepage/docker-compose.yml restart"
+      changed_when: true
   tags: [homepage, docker_services]
+
+- name: Render docs/inventory.md (service inventory — on hosts where docker_services is defined)
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../templates/inventory.md.j2"
+    dest: "{{ playbook_dir }}/../../../docs/inventory.md"
+  when: docker_services is defined
