@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 42 open · 2 done** · **Total: 44**
+**Status: 43 open · 2 done** · **Total: 45**
 
 ---
 
@@ -109,6 +109,7 @@
 | HD-40 | 4 | AI + Human | open | *(Phase 2)* **VPS (Contabo) + public stack** — incl. Cloudflare layer (TBD); agent automates after human provides the VPS. · [services-vps.md](docs/services-vps.md) |
 | HD-41 | 4 | AI | open | *(Phase 2)* **Proxmox role + VM lab** — bridges, storage, VMs; implementation order step 10. · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-42 | 3 | Human | open | *(Phase 2)* **Phase-2 hardware build** — Ryzen 9, open-frame chassis; only if Phase 1 insufficient; physical. · [hardware-phase2.md](docs/hardware-phase2.md) |
+| HD-45 | 3 | AI | open | *(Phase 2)* **Re-evaluate Homelable (topology/rack visualizer)** — Pouzor/homelable, MIT, young project; network + rack canvas + nmap scan + live health + MCP; potential successor to `Rack.canvas` visual/Homepage reachability widget. Keep deferred until services are live; re-check maturity. Noted in `observability.md` + `network-rack.md`. · [observability.md](docs/observability.md) |
 
 ---
 
@@ -161,7 +162,7 @@
 
 | Exec | Count | IDs |
 |------|-------|-----|
-| AI | 25 | HD-01,02,06,07,08,09,10,11,12,14,15,17,19,23,26,28,32,33,35,36,37,38,41,43,44 |
+| AI | 26 | HD-01,02,06,07,08,09,10,11,12,14,15,17,19,23,26,28,32,33,35,36,37,38,41,43,44,45 |
 | Human | 11 | HD-05(done),16,18,20,24,25,29,30,31,39,42 |
 | AI + gate | 2 | HD-03, HD-04 |
 | AI + Human | 6 | HD-13,21,22,27,34,40 |

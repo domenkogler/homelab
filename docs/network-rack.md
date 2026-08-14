@@ -85,6 +85,7 @@ Visual layout is maintained in **[Rack.canvas](assets/Rack.canvas)** — open wi
 - **[Rack Connections](rack-connections.md)** — per-port wiring (device ↔ patch panel ↔ room/device + MAC)
 - **[Rack Connections JSON](rack-connections.json)** — machine-readable SSOT for the wiring
 - **[Rack Layout Mermaid](rack-layout.mmd)** — wiring diagram
+- **Homelable (deferred, Phase 2)** — web-based interactive rack + topology visualizer; potential successor to `Rack.canvas` as the *live* visual. See the Deferred table in [`observability.md`](observability.md).
 
 > Rack wiring docs are regenerated from `rack-connections.json` via `scripts/render_rack_connections.py` after editing either the SSOT or [`assets/Rack.canvas`](assets/Rack.canvas).
 - **[PowerWalker Manual](assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf)**

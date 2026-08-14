@@ -122,3 +122,4 @@ nut_exporter (UPS, on nas) ─────────────────�
 | Prometheus Alertmanager | only if Grafana-outage resilience demanded | Grafana Alerting covers Phase 1 |
 | Homematic full-local (HmIP-RFUSB + RaspberryMatic on Pi) | redo plan | see `smart-home.md` — affects HAP/HA integration, not metrics flow |
 | Container memory working-set metrics (Docker API → Prometheus) | with the *arr stack | validates the `services.md` RAM budget with real numbers, not estimates |
+| **Homelable** (interactive topology/rack visualizer) | Phase 2 — once services are live | MIT · Pouzor/homelable · young project (re-evaluate maturity before adopting). Live health-check map + rack canvas w/ port patching + nmap scan + MCP server. Could replace the Obsidian `Rack.canvas` as the *live* visual and subsume the Homepage reachability widget. **Not** a metrics/logs/alert backend. · [`network-rack.md`](network-rack.md), [`todo.md`](../todo.md) |
