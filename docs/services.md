@@ -62,21 +62,11 @@ tags: [services, catalog]
 | gluetun | — | P+I | 15–30 / 50 | WireGuard sidecar → PrivadoVPN (NL); only qBittorrent routes through it |
 | Profilarr | profilarr | P+I | 50–100 / 150 | Quality-profile UI on top of Sonarr/Radarr |
 | Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (scheduled, no UI) |
-
-> **Messaging (Matrix)** — see [`services-matrix.md`](services-matrix.md): homeserver **Tuwunel** (`matrix.`), web client **Element Web** (`chat.`) — **native-only** (family↔family). Public + federated; Matrix-native SSO → Authentik (not Forward-Auth). WhatsApp/Messenger/Signal **bridges are deferred** (Phase-2 best-effort, dedicated numbers only). Rows below are the planned Phase-1 additions (estimates to validate after deploy).
-
-| Service | Subdomain | Network | RAM (idle/peak MB) | Description |
-|---------|-----------|---------|--------------------|-------------|
 | Tuwunel (homeserver) | matrix | P+I | 150–350 / 700 | Rust Matrix homeserver (`/_matrix/*`, public/federated, native SSO → Authentik; RocksDB file store in `/srv/docker/matrix` — no external DB) |
 | Element Web | chat | P | 30–80 / 150 | Matrix web client (SSO via homeserver → Authentik) |
-
-> **Personal Finance** — see [`services-finance.md`](services-finance.md): budgeting, account import
-> strategy, Enable Banking (open-banking PSD2 sync), AI auto-categorization via Ollama. Internal-only,
-> Authentik Forward-Auth. Row below is the planned Phase-1 addition (estimates to validate after deploy).
-
-| Service | Subdomain | Network | RAM (idle/peak MB) | Description |
-|---------|-----------|---------|--------------------|-------------|
 | Actual Budget | budget | P+I | 60–120 / 250 | Budgeting + investment tracking (Node.js + SQLite, one container; native Enable Banking sync, Forward-Auth) |
+
+> **Domain docs:** [Matrix messaging](services-matrix.md) · [Personal finance](services-finance.md)
 
 > **RAM sanity (48 GB on oldsrv):** typical idle ≈ 12–15 GB, worst-case burst ≈ 22–26 GB,
 > gaming mode ≈ 10–13 GB — ample headroom. Plus host desktop + browser 2–4 GB (6–8 GB heavy).
