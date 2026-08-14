@@ -44,7 +44,7 @@ d-i netcfg/get_domain string kogler.si
 Hostname must match the target machine:
 - `oldsrv` for i7-7700K ([`hardware-oldsrv.md`](hardware-oldsrv.md))
 - `nas` for HP MicroServer ([`hardware-nas.md`](hardware-nas.md))
-- `pi` for Raspberry Pi 4 (HA primary node — preseed-installed like nas/oldsrv, no desktop/Cockpit; its `preseed.cfg` is deferred like oldsrv)
+- `pi` for Raspberry Pi 4 (HA primary node — preseed-installed like nas/oldsrv, no desktop/Cockpit; its `preseed.cfg` is at [`IaC/host/pi/preseed.cfg`](../../IaC/host/pi/preseed.cfg))
 
 ### 3. Mirror
 ```
@@ -215,9 +215,10 @@ Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
 ```
 IaC/host/
 ├── post_install.sh         # SHARED bootstrap — ansible-admin + ai-debug + sshd hardening (single copy for all hosts)
-└── nas/
-    └── preseed.cfg          # Reference implementation for HP Gen8
-
-# oldsrv/preseed.cfg — deferred, not yet created (generated from this spec when Phase 1 deployment begins)
-# pi/preseed.cfg — deferred, not yet created (same preseed path as nas/oldsrv; headless, no desktop/Cockpit)
+├── nas/
+│   └── preseed.cfg          # Reference implementation for HP Gen8
+├── oldsrv/
+│   └── preseed.cfg          # i7-7700K Docker host + family desktop (XFCE)
+└── pi/
+    └── preseed.cfg          # Raspberry Pi 4 HA primary (headless, microSD boot)
 ```

@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 47 open · 3 done** · **Total: 50**
+**Status: 45 open · 5 done** · **Total: 50**
 
 ---
 
@@ -61,8 +61,8 @@
 |----|---|------|--------|------|
 | HD-08 | 3 | AI | open | **Wire UPS metrics + alerts into Prometheus/Grafana** — Critical battery/runtime, Warning on-battery, Info transitions. Depends on HD-06/07. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-09 | 1 | AI | open | **UPS web-UI firewall rule** — open 80/443 Home→Mgmt for `10.10.99.9` only; Modbus 502 retired (no consumer). ✅ **IaC done** (router role: trusted-admin → `ups_management` 80/443); ⏳ not deployed. · [hardware-ups.md](docs/hardware-ups.md) |
-| HD-10 | 2 | AI | open | **Generate `oldsrv/preseed.cfg`** — deferred / not created; host-specific partitions + GRUB (NVMe). · [deployment-preseed.md](docs/deployment-preseed.md) |
-| HD-11 | 2 | AI | open | **Generate `pi/preseed.cfg`** — headless, no desktop/Cockpit; same preseed path as nas/oldsrv. · [deployment-preseed.md](docs/deployment-preseed.md) |
+| HD-10 | 2 | AI | done | **Generate `oldsrv/preseed.cfg`** — created: ext4 root on 960 EVO 500 GB, 970 EVO 1 TB left raw for ZFS pool `nvme`, XFCE desktop, GRUB on NVMe. · [deployment-preseed.md](docs/deployment-preseed.md) |
+| HD-11 | 2 | AI | done | **Generate `pi/preseed.cfg`** — headless, no desktop/Cockpit, microSD boot, placeholder MMC_IDENT for device path. · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-12 | 3 | AI | open | **Implement `inventory.md` render pipeline** — `inventory.md.j2` + render hook; referenced but `docs/inventory.md` doesn't exist (value-doc, never hand-edited). · [interfaces.md](docs/interfaces.md) |
 | HD-13 | 3 | AI + Human | open | **Homematic full-local (HmIP-RFUSB + RaspberryMatic)** — replace HAP cloud mode with local `homematic` XML-RPC; agent builds roles, human moves/fits the stick. Part of redo (HD-04). · [observability.md](docs/observability.md) |
 | HD-14 | 2 | AI | open | **Export HA entity list** — enable HA Prometheus exporter; needed for TileBoard + Grafana. Wait for observability. · [smart-home.md](docs/smart-home.md) |
