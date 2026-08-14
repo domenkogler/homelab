@@ -1,8 +1,12 @@
 # sunshine docker-compose.yml — Game streaming host (Moonlight)
 #   Manual start (restart: "no") — user stops AI containers first to free
 #   AMD dGPU VRAM, then starts this container for game streaming.
-#   GPU encoding via /dev/dri (VAAPI/AMF). No Traefik labels (not running
-#   unless gaming). Web UI on 47990 for config; streaming on 47989.
+#   GPU encoding via /dev/dri (VAAPI/AMF). Needs /dev/uinput for virtual gamepad.
+#   No Traefik labels (not running unless gaming). Web UI on 47990 for config.
+#
+#   Debian 13 (Trixie): /dev/input access may need apparmor=unconfined or
+#   cap_add SYS_ADMIN if input events don't reach the container.
+#   Verify render GID ({{ gpu_render_gid }}) matches the host.
 #
 # Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 #   — none needed
@@ -16,6 +20,7 @@ services:
     devices:
       - /dev/dri:/dev/dri             # AMD GPU encoding (VAAPI/AMF)
       - /dev/input:/dev/input:ro       # gamepad/keyboard/mouse input
+      - /dev/uinput:/dev/uinput        # virtual gamepad creation
     group_add:
       - "{{ gpu_render_gid }}"
       - "{{ gpu_video_gid }}"

@@ -26,7 +26,7 @@ tags: [services, catalog]
 | CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via Metabase) |
 | Authentik | sso | P+I | 700–1,100 / 2,000 | OIDC SSO, MFA (WebAuthn) — bundle: server+worker+postgres+redis |
 | OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud |
-| Immich | foto | I | 800–1,300 / 2,500 | Photo management, mobile apps (app+postgres+redis) |
+| Immich | foto | I | 600–1,000 / 2,000 | Photo management, mobile apps (app+postgres+valkey — microservices merged into server in v3) |
 | Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner) |
 | Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
 | Immich-ML | — | I | 300–600 / 1,200 | Face recognition, smart search — shares AMD VRAM |

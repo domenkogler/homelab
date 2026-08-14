@@ -20,7 +20,7 @@ services:
       - "{{ gpu_video_gid }}"
     volumes:
       - /srv/models/immich-ml:/cache               # model weights (regenerable, not backed up)
-      - /srv/docker/immich/upload:/usr/src/app/upload:ro   # read thumbs for ML processing
+      - /srv/docker/immich/upload:/data:ro                # read thumbs for ML processing
     environment:
       IMMICH_PORT: "3003"
       IMMICH_HOST: "0.0.0.0"

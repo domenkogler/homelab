@@ -1,9 +1,9 @@
 # immich-app docker-compose.yml — Photo management (foto.kogler.si)
-#   Server + Microservices + PostgreSQL + Redis. Hybrid storage:
-#   - Local NVMe /srv/docker/immich/upload (thumbs, encoded-video, ML cache)
-#   - NFS originals from nas tank/data/immich → /usr/src/app/upload/library
+#   Immich v3: server + PostgreSQL + Valkey. Microservices merged into server.
+#   Hybrid storage:
+#     - Local NVMe /srv/docker/immich/upload → /data (thumbs, encoded-video)
+#     - NFS originals from nas tank/data/immich → /data/library
 #   Storage template enabled so big write-once originals land on NAS.
-#   UPLOAD_LOCATION = /usr/src/app/upload (the local mount root).
 #   Face thumbnails backed up nightly (bulk/data/immich-thumbs).
 #   Forward-Auth.
 #
@@ -19,8 +19,8 @@ services:
       - services-internal
       - db-internal
     volumes:
-      - /srv/docker/immich/upload:/usr/src/app/upload   # local NVMe: thumbs, encoded-video, ML cache
-      - /mnt/nas/data/immich:/usr/src/app/upload/library   # NFS originals (storage template on)
+      - /srv/docker/immich/upload:/data               # local NVMe: thumbs, encoded-video
+      - /mnt/nas/data/immich:/data/library             # NFS originals (storage template on)
       - /etc/localtime:/etc/localtime:ro
     environment:
       DB_USERNAME: "{{ lookup('community.general.onepassword', 'immich_db', field='username', vault=op_vault) }}"
@@ -28,7 +28,7 @@ services:
       DB_DATABASE_NAME: immich
       DB_HOST: immich-postgres
       DB_PORT: "5432"
-      REDIS_HOSTNAME: immich-redis
+      REDIS_HOSTNAME: immich-valkey
       IMMICH_MACHINE_LEARNING_URL: "http://immich-ml:3003"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
@@ -41,36 +41,11 @@ services:
     depends_on:
       immich-postgres:
         condition: service_healthy
-      immich-redis:
-        condition: service_started
-
-  immich-microservices:
-    image: ghcr.io/immich-app/immich-server:{{ immich_version | default('release') }}
-    container_name: immich-microservices
-    restart: unless-stopped
-    networks:
-      - services-internal
-      - db-internal
-    volumes:
-      - /srv/docker/immich/upload:/usr/src/app/upload
-      - /mnt/nas/data/immich:/usr/src/app/upload/library
-      - /etc/localtime:/etc/localtime:ro
-    environment:
-      DB_USERNAME: "{{ lookup('community.general.onepassword', 'immich_db', field='username', vault=op_vault) }}"
-      DB_PASSWORD: "{{ lookup('community.general.onepassword', 'immich_db', field='password', vault=op_vault) }}"
-      DB_DATABASE_NAME: immich
-      DB_HOST: immich-postgres
-      DB_PORT: "5432"
-      REDIS_HOSTNAME: immich-redis
-      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-    depends_on:
-      immich-postgres:
-        condition: service_healthy
-      immich-redis:
+      immich-valkey:
         condition: service_started
 
   immich-postgres:
-    image: tensorchord/pgvecto.rs:pg14-v0.2.0
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
     container_name: immich-postgres
     restart: unless-stopped
     networks:
@@ -81,7 +56,9 @@ services:
       POSTGRES_USER: "{{ lookup('community.general.onepassword', 'immich_db', field='username', vault=op_vault) }}"
       POSTGRES_PASSWORD: "{{ lookup('community.general.onepassword', 'immich_db', field='password', vault=op_vault) }}"
       POSTGRES_DB: immich
+      POSTGRES_INITDB_ARGS: "--data-checksums"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    shm_size: 128mb
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d $$POSTGRES_DB -U $$POSTGRES_USER"]
       interval: 5s
@@ -89,14 +66,14 @@ services:
       retries: 5
       start_period: 30s
 
-  immich-redis:
-    image: redis:7-alpine
-    container_name: immich-redis
+  immich-valkey:
+    image: docker.io/valkey/valkey:9
+    container_name: immich-valkey
     restart: unless-stopped
     networks:
       - db-internal
     volumes:
-      - /srv/docker/immich/redis:/data
+      - /srv/docker/immich/valkey:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

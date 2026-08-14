@@ -142,20 +142,27 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   Jellyfin + Seerr use their own login (client apps / family portal).
 - **Dozzle** is an observability viewer (all containers), not part of the *arr stack — see `observability.md`.
 
+### Immich (v3) — Server + Postgres + Valkey (microservices merged into server)
+
+Immich v3 uses its own Postgres image (`ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0`)
+and Valkey (`docker.io/valkey/valkey:9`) instead of Redis. Microservices are merged into the server
+container — no separate `immich-microservices` service needed.
+
 ### Immich Hybrid Storage (originals on NAS, thumbs/ML local)
 
 ```yaml
 services:
   immich-server:
     volumes:
-      - immich-data:/usr/src/app/upload        # local NVMe: thumbs, encoded-video
-      - /mnt/nas/data/immich:/usr/src/app/upload/library   # NFS originals (storage template on)
+      - /srv/docker/immich/upload:/data        # local NVMe: thumbs, encoded-video
+      - /mnt/nas/data/immich:/data/library     # NFS originals (storage template on)
 ```
 
-- `UPLOAD_LOCATION` = local NVMe; enable **storage template** so originals go to `upload/library`
-- Bind-mount nas `tank/data/immich` → `upload/library` (only big write-once originals cross NFS)
-- Postgres + Immich-ML model cache + ML embeddings (in DB) stay local — see [`storage-zfs.md`](storage-zfs.md)
-- Face thumbnail files → `bulk/data/immich-thumbs` nightly (backed up); the rest of `thumbs/` regenerable
+- Container-internal path changed from `/usr/src/app/upload` → `/data` (v3+).
+- Enable **storage template** so originals go to `/data/library`.
+- Bind-mount nas `tank/data/immich` → `/data/library` (only big write-once originals cross NFS).
+- Postgres + Immich-ML model cache + ML embeddings (in DB) stay local — see [`storage-zfs.md`](storage-zfs.md).
+- Face thumbnail files → `bulk/data/immich-thumbs` nightly (backed up); the rest of `thumbs/` regenerable.
 
 ---
 
