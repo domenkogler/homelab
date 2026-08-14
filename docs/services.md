@@ -70,6 +70,14 @@ tags: [services, catalog]
 | Tuwunel (homeserver) | matrix | P+I | 150–350 / 700 | Rust Matrix homeserver (`/_matrix/*`, public/federated, native SSO → Authentik; RocksDB file store in `/srv/docker/matrix` — no external DB) |
 | Element Web | chat | P | 30–80 / 150 | Matrix web client (SSO via homeserver → Authentik) |
 
+> **Personal Finance** — see [`services-finance.md`](services-finance.md): budgeting, account import
+> strategy, Enable Banking (open-banking PSD2 sync), AI auto-categorization via Ollama. Internal-only,
+> Authentik Forward-Auth. Row below is the planned Phase-1 addition (estimates to validate after deploy).
+
+| Service | Subdomain | Network | RAM (idle/peak MB) | Description |
+|---------|-----------|---------|--------------------|-------------|
+| Actual Budget | budget | P+I | 60–120 / 250 | Budgeting + investment tracking (Node.js + SQLite, one container; native Enable Banking sync, Forward-Auth) |
+
 > **RAM sanity (48 GB on oldsrv):** typical idle ≈ 12–15 GB, worst-case burst ≈ 22–26 GB,
 > gaming mode ≈ 10–13 GB — ample headroom. Plus host desktop + browser 2–4 GB (6–8 GB heavy).
 > Estimates only; validate with real working-set metrics after deploy (observability TODO).
@@ -245,6 +253,7 @@ it to a node IP). Treat the VIP as the only valid backend. Runbook:
 - [Traefik — Reverse Proxy & Edge](services-traefik.md)
 - [Authentik — Identity & SSO](services-authentik.md)
 - [Matrix — Messaging](services-matrix.md)
+- [Personal Finance Stack](services-finance.md)
 - [Deferred VPS Infrastructure](services-vps.md)
 - [Docker Compose Specification](deployment-compose.md)
 - [Service Subscriptions & Costs](subscription.md)
