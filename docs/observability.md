@@ -109,7 +109,36 @@ nut_exporter (UPS, on nas) ─────────────────�
 - **Retention is deliberate:** 30d metrics / 14d logs. TSDB data is **regenerable and not backed up** (see [backup.md](backup.md)); long-term metric history is a deferred option (remote-write/downsampling).
 - **SPOF:** all observability lives on oldsrv — accepted for Phase 1; documented as a known property.
 - **Dozzle is not a second log backend** — it streams live logs straight from the Docker API (read-only socket) and persists nothing. Loki stays the single stored-log source (14d) and Grafana the search/alert surface.
+- **Pi keeps only a tiny bounded local log buffer.** The Raspberry Pi primary holds **no durable log store** — Docker uses log driver `local` (`max-size: 10m, max-file: 2`) as RAM/disk resilience when oldsrv/Loki is down; the durable, searchable copy lives in Loki. Host OS logs run on tmpfs (`journald Storage=volatile` + `/var/log` tmpfs). See [Pi SD-card wear strategy](#pi-sd-card-wear-strategy).
 - **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
+
+---
+
+## Pi SD-card wear strategy
+
+The Raspberry Pi 4 primary runs HA from a **microSD** (`storage-zfs.md`), so the dominant continuous SD-wear
+source is **HA's recorder DB**, plus rolling Docker/OS logs. Strategy (HD-19, applies to the Pi; the standby on
+oldsrv is on NVMe and mostly unaffected):
+
+1. **HA recorder → trim, NOT disable.** Grafana (central Prometheus, 30d) replaces HA for *long-term analytics*,
+   so raw state history can be short: `recorder: { purge_keep_days: 1–2, commit_interval: 2–5, … }` plus
+   `exclude:` for noisy domains you only need in Grafana. Keeping the recorder **enabled** is deliberate — it still
+   powers the **Logbook**, the **Energy Dashboard (long-term-statistics tables)** (e.g. KNX appliance-current
+   sensors → kWh), **`history_stats` / `history()` templates**, and per-entity short-term UI sparklines, none of
+   which Grafana covers. LTS writes are hourly min/max/mean per entity — negligible SD cost. **Do NOT disable** the
+   recorder, and do NOT move HA to Postgres (worse microSD wear + failover coupling — see `smart-home.md`).
+2. **Docker container logs → stream + bounded local buffer.** Docker log driver `local`, `max-size: 10m, max-file: 2`
+   on the Pi (and standby): small RAM/disk buffer survives an oldsrv/Loki outage, while **Alloy ships logs → Loki
+   (14d, oldsrv NVMe)** and Dozzle streams live — no durable on-Pi log store.
+3. **OS logs off the SD.** `journald Storage=volatile` + `/var/log` mounted as tmpfs (fstab) — host OS logs live in
+   RAM, lost on reboot (acceptable; Loki retains the useful logs). Cheap, well-tested Pi-SD saver.
+4. *(Optional)* **Docker *log* directory on tmpfs** to guarantee zero *transient* SD writes — must stay hard-capped
+   (`max-size`/`max-file`); **never** tmpfs the Docker data-root (`/var/lib/docker`/overlay2, that holds images &
+   containers), only the log portion. Only if the 4 GB RAM budget (shared with HA/RaspberryMatic/Technitium) allows.
+
+> Not addressed via ramdisk: the HA recorder DB and Technitium / RaspberryMatic state stay on the microSD but are
+> kept small (trimmed recorder, reduced log verbosity). tmpfs-ing the recorder would throw away state/history on
+> every reboot — see the energy/logbook caveats above.
 
 ---
 
@@ -117,7 +146,7 @@ nut_exporter (UPS, on nas) ─────────────────�
 
 | Item | When | Notes |
 |------|------|-------|
-| Trim/disable HA recorder history | after observability live | protects Pi SD card; Grafana reads central Prometheus, not HA history |
+| Pi recorder trim + log strategy | after observability live (HD-19) | recorder trimmed, **not disabled** (keep Logbook/Energy-Dashboard LTS/history_stats); Pi logs → Loki + `local` driver buffer + `/var/log` tmpfs — see [Pi SD-card wear strategy](#pi-sd-card-wear-strategy)
 | Long-term metric retention (remote-write, downsampling) | if ever needed | escape hatch = Thanos/VictoriaMetrics |
 | Prometheus Alertmanager | only if Grafana-outage resilience demanded | Grafana Alerting covers Phase 1 |
 | Homematic full-local (HmIP-RFUSB + RaspberryMatic on Pi) | redo plan | see `smart-home.md` — affects HAP/HA integration, not metrics flow |

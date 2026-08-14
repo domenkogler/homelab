@@ -183,9 +183,10 @@ rescue them. This is an **HA/DNS availability** change, not general service fail
 ## Config & State Sync
 
 - **Source of truth:** this repo (config already lives here). The standby is healthy when its rendered `/config` matches the repo + a recent Pi snapshot.
-- **Normal direction (Pi → standby):** local push of `/config` (and optionally HA DB) to oldsrv on a timer (e.g. every 15 min), LAN-only, no WAN dependency.
+- **Normal direction (Pi → standby):** local push of `/config` to oldsrv on a timer (e.g. every 15 min), LAN-only, no WAN dependency.
+- **HA recorder DB:** the recorder stays on the Pi as **local trimmed SQLite** (always available, survives oldsrv-down; `purge_keep_days: 1–2` per `observability.md` *Pi SD-card wear strategy*). A periodic **rsync** of the SQLite file Pi → `/opt/home-assistant-standby/config/` (~15 min, ~few MB) produces a best-effort remote copy — this is the **only** remote copy, not a failover primary. On standby takeover, HA reads the synced copy (best-effort) and re-polls devices; durable long-term analytics live in Grafana (Prometheus, 30d), not in the recorder DB.
 - **RaspberryMatic config** is synced alongside HA config (Pi → oldsrv) so the standby RMat restores its host roles/parameters the same way; the device pairing itself travels with the physical stick.
-- **Best-effort only:** on takeover the standby boots from the last snapshot and **re-polls all devices**; full live-state continuity is not a goal (accepted).
+- **Rejected: remote-primary databases for the HA recorder.** Putting the recorder's only database on oldsrv (Postgres) or on a VPS (Postgres) would make HA history depend on a remote host — violating the *Pi survives oldsrv-down* failover property and the *no WAN on critical path* rule. The **local-primary + remote-rsync** pattern above gives equivalent durability without that coupling, and trimming the recorder already defends the microSD (see `observability.md`).
 
 ---
 

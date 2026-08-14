@@ -68,7 +68,7 @@ tags: [smart-home, homeassistant]
 - **Rekuperator ComfoAir Q 350/450** connects via **ComfoConnect KNX-C** module → KNX TP bus → **GIRA IP Router `.118`**; HA integration = **`knx`**.
 - **Local RF plan (during the redo, replaces HAP cloud mode):** a **HmIP-RFUSB stick + RaspberryMatic** on the Pi (Debian/Docker) gives full local, zero-cloud Homematic IP. HA talks to RaspberryMatic over **XML-RPC 2001/2010** via the legacy **`homematic`** integration. Pairing is stored **on the stick**, so it survives a host change.
 - **Failover of Homematic** is the one physical step in the HA failover model: if the Pi dies, the stick is **physically moved to oldsrv** (pairing travels with it → no re-pair) and the single failover trigger brings up RaspberryMatic + HA standby. See [`smart-home-failover.md`](smart-home-failover.md).
-- **HA recorder:** after observability is in production, **trim/limit HA recorder history** (`purge_keep_days`) to reduce writes and extend the Raspberry Pi SD-card life — Grafana reads central Prometheus, not HA history (see `observability.md` TODOs).
+- **HA recorder:** after observability is live, **trim, NOT disable, recorder history** (`purge_keep_days: 1–2`, `commit_interval` up, `exclude` noisy domains) to cut Raspberry Pi microSD writes — Grafana reads central Prometheus for long-term graphs. **Kept enabled** deliberately: it still powers the **Logbook**, **Energy Dashboard (long-term statistics)** (KNX appliance-current sensors → kWh), and `history_stats` / `history()` templates that Grafana doesn't cover. Full Pi SD-wear strategy (recorder + Docker-log driver + tmpfs `/var/log`): [`observability.md`](docs/observability.md) → *Pi SD-card wear strategy*.
 
 ---
 

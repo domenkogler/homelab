@@ -73,7 +73,7 @@
 
 | ID | D | Exec | Status | Item |
 |----|---|------|--------|------|
-| HD-19 | 1 | AI | open | **Trim/limit HA recorder (`purge_keep_days`)** — protects Pi SD card once observability is live. · [observability.md](docs/observability.md) |
+| HD-19 | 2 | AI | open | **Pi SD-card wear: trim HA recorder + log strategy** — recorder `purge_keep_days: 1–2` / `commit_interval` / `exclude` (**not disabled**: keeps Logbook/Energy-LTS/history_stats, Grafana replaces long-term graphs) + Pi Docker-log driver `local` (10m×2) + `journald Storage=volatile` + `/var/log` tmpfs. Protects microSD once observability is live. · [observability.md](docs/observability.md)
 | HD-20 | 1 | Human | open | **Confirm full Supervisor add-on list** — `/api/hassio/addons` returned 401 (non-admin token); needs admin/SSH on HAOS host. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-21 | 1 | AI + Human | open | **Confirm ESPHome / Guition ESP32-S3 status** — `esphome` not loaded; agent checks network/repo, owner knows if the device was ever added. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-22 | 1 | AI + Human | open | *(decision)* **Weather 2000 (SI) source** — third-party/HACS vs core; retain or replace. Agent researches, human decides. · [home-assistant-current.md](docs/home-assistant-current.md) |
