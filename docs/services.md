@@ -67,7 +67,7 @@ tags: [services, catalog]
 
 | Service | Subdomain | Network | RAM (idle/peak MB) | Description |
 |---------|-----------|---------|--------------------|-------------|
-| Tuwunel (homeserver) | matrix | P+I+D | 120–250 / 600 | Rust Matrix homeserver (`/_matrix/*`, public/federated, native SSO → Authentik) |
+| Tuwunel (homeserver) | matrix | P+I | 150–350 / 700 | Rust Matrix homeserver (`/_matrix/*`, public/federated, native SSO → Authentik; RocksDB file store in `/srv/docker/matrix` — no external DB) |
 | Element Web | chat | P | 30–80 / 150 | Matrix web client (SSO via homeserver → Authentik) |
 
 > **RAM sanity (48 GB on oldsrv):** typical idle ≈ 12–15 GB, worst-case burst ≈ 22–26 GB,

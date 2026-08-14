@@ -58,6 +58,9 @@ docker_services:
   - { name: dozzle,       template_dir: dozzle,       subdomain: logs }
   # Stream
   - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
+  # Messaging (Matrix) — native-only, public+federated, SSO -> Authentik (docs/services-matrix.md)
+  - { name: matrix,         template_dir: matrix }
+  - { name: chat,           template_dir: element-web, subdomain: chat }
   # Media / *arr stack — internal-only, docs/services.md (subdomains: media, seerr, sab, torrent)
   - { name: jellyfin,     template_dir: jellyfin,     subdomain: media }
   - { name: seerr,        template_dir: seerr }

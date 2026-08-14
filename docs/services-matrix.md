@@ -39,9 +39,10 @@ service.
 | **Tuwunel** (homeserver) | `matrix.kogler.si` | Rust homeserver — official successor to Conduwuit. Handles `/_matrix/*` (client-server + federation). **Public + federated.** |
 | **Element Web** (web client) | `chat.kogler.si` | Static web client. **Matrix-native SSO → Authentik.** |
 
-- **Container:** homeserver + Element Web on `oldsrv` (`traefik-public` + `services-internal`; homeserver DB on `db-internal`).
-- **RAM (idle/peak MB, to validate after deploy):** Tuwunel 120–250 / 600 · Element Web 30–80 / 150 · homeserver DB 100–200 / 400.
-  ≈ **250–550 idle / ≤ 1 200 peak** — comfortable on `oldsrv` (48 GB).
+- **Container:** homeserver + Element Web on `oldsrv` (`traefik-public` + `services-internal`).
+- **Storage:** Tuwunel uses a **RocksDB file store** (`database_path`, includes media) — **no external Postgres**; bind-mounted to `/srv/docker/matrix` on oldsrv and included in ZFS/Kopia backup (**HD-49**).
+- **RAM (idle/peak MB, to validate after deploy):** Tuwunel 150–350 / 700 · Element Web 30–80 / 150.
+  ≈ **180–430 idle / ≤ 900 peak** — comfortable on `oldsrv` (48 GB).
 
 ---
 

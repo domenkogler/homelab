@@ -1,0 +1,41 @@
+# tuwunel docker-compose.yml — Matrix homeserver (matrix.kogler.si)
+#   Public + federated. Matrix-native SSO -> Authentik OIDC; NO Traefik Forward-Auth
+#   on /_matrix/* (docs/services-matrix.md, services-traefik.md, services-authentik.md).
+#   server_name = kogler.si (clean @user:kogler.si IDs), delegated to matrix.kogler.si
+#   via .well-known — that root-domain delegation is HD-47; nothing here needed for it.
+#   RocksDB file store (NO external Postgres) — stateful data bind-mounted to
+#   /srv/docker/matrix (included in ZFS/Kopia backup — HD-49). Config = tuwunel.toml.
+#
+#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#     matrix_api      (API Credential: username=<client_id>, credential=<client_secret>) — Authentik OIDC client
+#     matrix_password (Password: bootstrap registration_token + registration_shared_secret)
+services:
+  matrix:
+    image: jevolk/tuwunel:latest
+    container_name: matrix
+    restart: unless-stopped
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # Tuwunel reads its config from TUWUNEL_CONFIG (tuwunel.toml below). The built-in
+      # HEALTHCHECK reads the same file, so reported health matches real listeners.
+      TUWUNEL_CONFIG: /etc/tuwunel/tuwunel.toml
+    networks:
+      - traefik-public
+      - services-internal
+    volumes:
+      - /srv/docker/matrix:/var/lib/tuwunel              # RocksDB + media (stateful, backed up — HD-49)
+      - ./tuwunel.toml:/etc/tuwunel/tuwunel.toml:ro      # config (server_name, OIDC, well-known)
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.matrix.rule: "Host(`matrix.kogler.si`)"
+      traefik.http.routers.matrix.entrypoints: websecure
+      traefik.http.routers.matrix.tls.certresolver: letsencrypt
+      # Intentional: NO authentik-forward-auth middleware here — the homeserver owns its
+      # auth via Matrix-native SSO (docs/services-matrix.md). Wrapping /_matrix/* would
+      # break federation + native clients.
+      traefik.http.services.matrix.loadbalancer.server.port: "8008"
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true

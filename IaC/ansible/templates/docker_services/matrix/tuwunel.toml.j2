@@ -1,0 +1,49 @@
+# tuwunel.toml — Matrix homeserver config (docs/services-matrix.md)
+# Rendered by Ansible; secrets resolved from 1Password `Homelab` at deploy time.
+#
+# server_name is PERMANENT — it cannot be changed without a DB wipe. We deliberately use
+# the root domain `kogler.si` (clean @user:kogler.si IDs) and delegate the physical host
+# to matrix.kogler.si via .well-known (that root-domain delegation is HD-47).
+
+server_name = "kogler.si"
+database_path = "/var/lib/tuwunel"
+address = ["0.0.0.0"]
+port = 8008
+max_request_size = 20000000   # bytes (~20 MB)
+
+# --- Registration (closed by default — no manual config toggling, ever) ---
+# Registration is DISABLED. Family members' accounts are created automatically by
+# logging in via the Authentik OIDC provider (SSO auto-provisions Matrix users) —
+# there is no open-registration surface to manage or later remember to turn off.
+allow_registration = false
+# The Synapse-style /_synapse/admin/v1/register endpoint stays available (enabled by
+# this shared secret) for out-of-band account creation + admin promotion — e.g. to
+# bootstrap the first admin. No config edits required for day-to-day operation.
+registration_shared_secret = "{{ lookup('community.general.onepassword', 'matrix_password', field='password', vault=op_vault) }}"
+
+allow_federation = true
+trusted_servers = ["matrix.org"]
+
+# --- Discovery (served at matrix.kogler.si) ---
+# [global.well_known] makes matrix.kogler.si/.well-known/matrix/{client,server} work for
+# clients pointed here. Root-domain delegation (kogler.si/.well-known -> matrix.kogler.si)
+# is a Traefik static host and belongs to HD-47.
+[global.well_known]
+client = "https://matrix.kogler.si"
+server = "matrix.kogler.si:443"
+
+# --- Authentik OIDC — Matrix-native SSO (docs/services-authentik.md) ---
+#   - client_id / client_secret  -> 1Password `matrix_api` (API credential item:
+#     username = client_id, credential = client_secret).
+#   - issuer_url must match the Authentik OIDC provider discovery URL. Adjust the
+#     <slug> to the Authentik provider-application slug (Authentik is configured in its
+#     own UI/DB, not in this repo).
+#   - The provider's redirect/Allowed redirect URI must be registered EXACTLY as:
+#       https://matrix.kogler.si/_matrix/client/unstable/login/sso/callback/<client_id>
+[[global.identity_provider]]
+brand = "Authentik"
+client_id = "{{ lookup('community.general.onepassword', 'matrix_api', field='username', vault=op_vault) }}"
+client_secret = "{{ lookup('community.general.onepassword', 'matrix_api', field='credential', vault=op_vault) }}"
+issuer_url = "https://sso.kogler.si/application/o/matrix/"   # adjust <slug> to Authentik app
+callback_url = "https://matrix.kogler.si/_matrix/client/unstable/login/sso/callback/{{ lookup('community.general.onepassword', 'matrix_api', field='username', vault=op_vault) }}"
+scope = ["openid", "profile", "email"]
