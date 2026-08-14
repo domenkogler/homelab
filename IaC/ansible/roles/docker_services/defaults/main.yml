@@ -1,0 +1,27 @@
+---
+# docker_services role defaults
+# SSOT for variables: all IPs/CIDRs come from group_vars/all.yml -> network_ranges.
+# This file holds only role-internal knobs and data.
+
+# Base directory for all Docker Compose projects.
+docker_compose_dir: /opt
+
+# Extra .j2 template files (beyond docker-compose.yml.j2) per service.
+# Keyed by template_dir (must match docker_services[].template_dir).
+# The copy step copies the entire template dir first; these are then rendered
+# (overwriting the raw .j2 copy with the rendered version, stripping .j2 suffix).
+_extra_templates:
+  element-web:
+    - config.json.j2
+  home-assistant-standby:
+    - keepalived.conf.j2
+  loki:
+    - loki.yaml.j2
+  matrix:
+    - tuwunel.toml.j2
+  prometheus:
+    - prometheus.yml.j2
+  traefik:
+    - dynamic/routes.yml.j2
+  traefik-ha:
+    - dynamic/routes.yml.j2

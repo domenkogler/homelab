@@ -1,2 +1,39 @@
 ---
-# docker_services role — TODO: implement
+# docker_services role — generic Docker Compose service deployer
+#
+# Loops over docker_services from group_vars, creates external networks,
+# copies templates, renders .j2 files with 1Password lookups, and runs
+# docker compose up -d for each enabled service.
+#
+# Input: docker_services list (group_vars/home_servers.yml, group_vars/raspberry_pi.yml)
+# Depends on: community.docker collection (requirements.yml)
+# See docs/deployment-ansible.md §docker_services for spec.
+
+- name: Assert safe execution context
+  ansible.builtin.assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      docker_services role must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+
+- name: Create external Docker networks
+  community.docker.docker_network:
+    name: "{{ item.name }}"
+    state: present
+    driver: bridge
+    ipam_config:
+      - subnet: "{{ item.cidr }}"
+  loop: "{{ network_ranges | selectattr('name', 'in', ['traefik-public', 'services-internal', 'db-internal']) | list }}"
+  tags: [docker_services, networks]
+
+- name: Deploy each enabled service
+  ansible.builtin.include_tasks:
+    file: deploy-service.yml
+  vars:
+    svc: "{{ item }}"
+  loop: "{{ docker_services }}"
+  when: item.enabled | default(true)
+  loop_control:
+    label: "{{ item.name }}"
+  tags: "{{ item.name }}"

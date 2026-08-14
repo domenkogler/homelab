@@ -1,0 +1,37 @@
+---
+# deploy-service.yml — per-service deployment tasks
+# Called from main.yml in a loop over docker_services.
+# Variables: svc (the current docker_services entry)
+
+- name: "Create directory {{ docker_compose_dir }}/{{ svc.name }}"
+  ansible.builtin.file:
+    path: "{{ docker_compose_dir }}/{{ svc.name }}"
+    state: directory
+    mode: '0755'
+
+- name: "Copy template files for {{ svc.name }}"
+  ansible.builtin.copy:
+    src: "{{ role_path }}/templates/docker_services/{{ svc.template_dir }}/"
+    dest: "{{ docker_compose_dir }}/{{ svc.name }}/"
+    mode: '0644'
+  # .j2 files are copied as-is (unrendered); overwritten with rendered versions below
+
+- name: "Template docker-compose.yml for {{ svc.name }}"
+  ansible.builtin.template:
+    src: "templates/docker_services/{{ svc.template_dir }}/docker-compose.yml.j2"
+    dest: "{{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml"
+    mode: '0644'
+
+- name: "Template extra .j2 files for {{ svc.name }}"
+  ansible.builtin.template:
+    src: "templates/docker_services/{{ svc.template_dir }}/{{ extra }}"
+    dest: "{{ docker_compose_dir }}/{{ svc.name }}/{{ extra | replace('.j2', '') }}"
+    mode: '0644'
+  loop: "{{ _extra_templates[svc.template_dir] | default([]) }}"
+  loop_control:
+    label: "{{ extra | replace('.j2', '') }}"
+
+- name: "Docker compose up -d for {{ svc.name }}"
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker_compose_dir }}/{{ svc.name }}"
+    state: present
