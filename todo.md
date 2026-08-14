@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 43 open · 2 done** · **Total: 45**
+**Status: 47 open · 2 done** · **Total: 49**
 
 ---
 
@@ -87,6 +87,10 @@
 | HD-30 | 1 | Human | open | *(buy)* **Sign up Infomaniak kSuite** — email, CalDAV, catch-all aliases; ~€3–5/mo; secrets → 1Password `Homelab`. · [subscription.md](docs/subscription.md) |
 | HD-43 | 3 | AI | open | **Deploy/verify Media ·\*arr stack** — recent IaC added the templates (jellyfin, seerr, sonarr, radarr, lidarr, prowlarr, bazarr, sabnzbd, qbittorrent+gluetun, profilarr, recyclarr) in `group_vars/home_servers.yml`; deploys on oldsrv bulk/media NFS. · [services.md](docs/services.md) |
 | HD-44 | 2 | AI | open | **Deploy/verify new ops services** — `dozzle` (`logs.`, Forward-Auth, viewer-only) and `traefik-ha` VIP edge on the Pi (added in recent IaC but not tracked/verified). · [services.md](docs/services.md) |
+| HD-46 | 4 | AI | open | **Implement Matrix IaC** — `docker_services` templates + `group_vars/home_servers.yml`: Tuwunel homeserver (`matrix.`) + Element Web (`chat.`) + mautrix-whatsapp/meta/signal bridges; SSO → Authentik OIDC; secrets → 1Password `Homelab`. · [services-matrix.md](docs/services-matrix.md) |
+| HD-47 | 2 | AI | open | **Matrix public records + Federation** — publish `matrix`/`chat` (Cloudflare DNS-only) + `_matrix` well-known/SRV delegation; WAN allow 443 (8448 optional) to oldsrv; **no Forward-Auth on `/_matrix/*`**. · [services-traefik.md](docs/services-traefik.md), [network-dns.md](docs/network-dns.md) |
+| HD-48 | 3 | AI + Human | open | **Link & test Matrix bridges** — pair WhatsApp/Messenger/Signal (phone-link/second SIM); accept anti-abuse/block risk; verify rooms + encrypted history. · [services-matrix.md](docs/services-matrix.md) |
+| HD-49 | 3 | AI | open | **Backup Matrix identity + media** — signing/identity keys (critical — reissue breaks rooms), homeserver DB (db-backup/Kopia), media store; add to backup policy. · [services-matrix.md](docs/services-matrix.md), [backup.md](docs/backup.md) |
 
 ## Priority 4
 
@@ -162,7 +166,7 @@
 
 | Exec | Count | IDs |
 |------|-------|-----|
-| AI | 26 | HD-01,02,06,07,08,09,10,11,12,14,15,17,19,23,26,28,32,33,35,36,37,38,41,43,44,45 |
+| AI | 29 | HD-01,02,06,07,08,09,10,11,12,14,15,17,19,23,26,28,32,33,35,36,37,38,41,43,44,45,46,47,49 |
 | Human | 11 | HD-05(done),16,18,20,24,25,29,30,31,39,42 |
 | AI + gate | 2 | HD-03, HD-04 |
-| AI + Human | 6 | HD-13,21,22,27,34,40 |
+| AI + Human | 7 | HD-13,21,22,27,34,40,48 |

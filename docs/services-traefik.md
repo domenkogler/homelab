@@ -107,12 +107,29 @@ Without this, CrowdSec/Fail2Ban will block the proxy itself.
 
 Cloudflare is used as the **DNS provider only** (registrar: domenca.com; nameservers `george`/`may.ns.cloudflare.com`). **No proxy** — real client IPs reach Traefik, so CrowdSec/rate-limiting see actual addresses.
 
-- Public records: only the internet-facing subset (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`).
+- Public records: only the internet-facing subset (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`, **`matrix`**, **`chat`**).
 - Internal-only hosts/services: **no public record**; WAN firewall blocks them (split-horizon).
 - Certificates: wildcard `*.kogler.si` via ACME **DNS-01** (Cloudflare API token in 1Password `Homelab`).
 - No orange-cloud/DDoS/geo-WAF layer — Traefik + CrowdSec handle edge security.
 
 Alternative (rejected): direct exposure without Cloudflare DNS — same result, no benefit.
+
+---
+
+## Matrix Routing — `/_matrix/*` is NOT behind Forward-Auth
+
+Matrix (**[`services-matrix.md`](services-matrix.md)**) is the deliberate exception to the
+Forward-Auth-everything rule, exactly like `ha` (HA-native auth). Native clients, other servers, and
+the appservice bridges must reach `/_matrix/*` directly, so:
+
+- `matrix.kogler.si` → Tuwunel homeserver. **No Authentik Forward-Auth middleware on `/_matrix/*`** —
+  auth happens *inside* the homeserver via Matrix-native SSO → Authentik OIDC.
+- `chat.kogler.si` → Element Web (static). Also no Forward-Auth (avoids double login); SSO is Matrix's own flow.
+- **Federation over 443** (TLS) via Traefik + the existing wildcard `*.kogler.si` cert; 8448 optional and not required.
+- Public DNS must add `matrix` + `chat` records and the `_matrix` well-known/SRV delegation (see [`network-dns.md`](network-dns.md)); WAN firewall allows 443 (and 8448 if used) to oldsrv for these.
+
+> Precedent in this repo: `ha.kogler.si` (VIP) is already a public route with **no Forward-Auth**
+> because the app owns its auth. Matrix follows the same shape.
 
 ---
 

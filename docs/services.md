@@ -63,6 +63,16 @@ tags: [services, catalog]
 | Profilarr | profilarr | P+I | 50–100 / 150 | Quality-profile UI on top of Sonarr/Radarr |
 | Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (scheduled, no UI) |
 
+> **Messaging (Matrix)** — see [`services-matrix.md`](services-matrix.md): homeserver **Tuwunel** (`matrix.`), web client **Element Web** (`chat.`), and bridges (**mautrix-whatsapp / mautrix-meta / mautrix-signal**, appservices, no FQDN). Public + federated; Matrix-native SSO → Authentik (not Forward-Auth). Additions below are the planned Phase-1 rows (estimates to validate after deploy).
+
+| Service | Subdomain | Network | RAM (idle/peak MB) | Description |
+|---------|-----------|---------|--------------------|-------------|
+| Tuwunel (homeserver) | matrix | P+I+D | 120–250 / 600 | Rust Matrix homeserver (`/_matrix/*`, public/federated, native SSO → Authentik) |
+| Element Web | chat | P | 30–80 / 150 | Matrix web client (SSO via homeserver → Authentik) |
+| mautrix-whatsapp | — | I | 80–150 / 300 | WhatsApp bridge (appservice, phone-linked) |
+| mautrix-meta | — | I | 80–150 / 300 | Messenger bridge (appservice) |
+| mautrix-signal | — | I | 60–120 / 250 | Signal bridge (appservice, second-SIM link) |
+
 > **RAM sanity (48 GB on oldsrv):** typical idle ≈ 12–15 GB, worst-case burst ≈ 22–26 GB,
 > gaming mode ≈ 10–13 GB — ample headroom. Plus host desktop + browser 2–4 GB (6–8 GB heavy).
 > Estimates only; validate with real working-set metrics after deploy (observability TODO).
@@ -112,6 +122,8 @@ WAN allow. Everything else in the catalog is **internal-only** (no public record
 | `git` | Forgejo |
 | `ha` | Home Assistant (VIP, HA-native auth, no Forward-Auth) |
 | `vpn` | Headscale |
+| `matrix` | Tuwunel homeserver — public/federated, `/_matrix/*` **no Forward-Auth** (Matrix-native SSO → Authentik) |
+| `chat` | Element Web — Matrix-native SSO → Authentik |
 
 ### Decision: Admin Dashboards
 
@@ -235,6 +247,7 @@ it to a node IP). Treat the VIP as the only valid backend. Runbook:
 
 - [Traefik — Reverse Proxy & Edge](services-traefik.md)
 - [Authentik — Identity & SSO](services-authentik.md)
+- [Matrix — Messaging & Bridges](services-matrix.md)
 - [Deferred VPS Infrastructure](services-vps.md)
 - [Docker Compose Specification](deployment-compose.md)
 - [Service Subscriptions & Costs](subscription.md)

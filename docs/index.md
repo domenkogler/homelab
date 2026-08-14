@@ -29,6 +29,7 @@ tags: [index, dispatcher, ai]
 | **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md`, [`network-addresses.md`](network-addresses.md) |
 | **Known issues / out-of-scope follow-ups** | [`issues.md`](issues.md) | — |
 | **Understand observability / alerting** | [`observability.md`](observability.md) | `services.md`, `deployment-ansible.md` |
+| **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
 | **HA failover / high availability** | [`smart-home-failover.md`](smart-home-failover.md) | `smart-home.md`, `network-dns.md`, `deployment-ansible.md` |
 | **Current HA instance / HAOS→Docker feasibility** | [`home-assistant-current.md`](home-assistant-current.md) | `smart-home.md`, `smart-home-failover.md` |
 | **Understand GitOps pipeline** | [`deployment.md`](deployment.md) | `deployment-renovate.md`, `interfaces.md` |
@@ -66,6 +67,7 @@ docs/
 ├── observability.md                        Single source of truth: stack, alerting, retention
 ├── services-traefik.md                    Reverse proxy, CrowdSec, SSL
 ├── services-authentik.md                  OIDC SSO, WebAuthn, Forward Auth
+├── services-matrix.md                     ★ Matrix messaging: homeserver (Tuwunel) + Element Web + WhatsApp/Messenger/Signal bridges
 ├── services-vps.md                        Deferred Contabo VPS reference
 ├── subscription.md                        Costs, providers, renewal status
 │

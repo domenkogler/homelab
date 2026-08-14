@@ -76,3 +76,22 @@ User → Traefik (port 443)
 - **No app exposes its own login publicly** — all auth is handled at the Traefik layer
 - **Trusted proxies** must be configured: `AUTHENTIK_TRUSTED_PROXIES` must include Traefik IP
 - **Secrets** stored in 1Password `Homelab` vault, never in repo ([`deployment-secrets.md`](deployment-secrets.md))
+
+---
+
+## Matrix SSO (OIDC) — identity for the homeserver
+
+Matrix (**[`services-matrix.md`](services-matrix.md)**) cannot sit behind Traefik Forward-Auth, so it
+delegates auth **into the homeserver** instead: create an Authentik **OIDC Provider** for Tuwunel, then a
+**Provider Application** (e.g. `Tuwunel Matrix`)
+
+```
+Element / native client  →  homeserver /login/sso  →  Authentik OIDC  →  1Password passkey / TOTP
+                                                                              ↓
+                                                              Matrix access_token → client
+```
+
+- Register the OIDC client in **Tuwunel** (`well_known`/OIDC discovery → Authentik issuer `sso.kogler.si`).
+- **Redirect URIs** must include Tuwunel's SSO callback (`https://matrix.kogler.si/_synapse/...` or Tuwunel's own `/login/sso`/oidc callback).
+- The Authentik client **secret** goes to 1Password `Homelab` (never the repo).
+- Bridges (`mautrix-*`) use **appservice tokens**, independent of this SSO.

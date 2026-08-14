@@ -8,7 +8,7 @@ tags: [services, interfaces, dashboards]
 # Interface Matrix — Dashboards & Management
 
 > **Role:** Detail — every user-facing interface, its audience, and its responsibility (single source of truth for dashboards).
-> **Links to:** `smart-home.md`, `observability.md`
+> **Links to:** `smart-home.md`, `observability.md`, `services-matrix.md`
 > **Linked from:** `deployment.md`, `smart-home.md`, `index.md`
 
 ---
@@ -21,6 +21,7 @@ tags: [services, interfaces, dashboards]
 | **Doco-CD Status** | Domen (admin) | REST API, Prometheus | Deployment status, drift detection, logs |
 | **Homepage Launcher** | Entire family | `services.yaml`, `widgets.yaml` | Navigation: `kogler.si`, app bookmarks, health dots, reachability status widgets |
 | **TileBoard Interface** | Family / Guests | `config.js` (from HA entities) | Smart home: lights, blinds, RGBW, security |
+| **Element Web (Matrix)** | Family | Matrix-native SSO → Authentik | Messaging: chat, WhatsApp/Messenger/Signal bridges (`chat.kogler.si`, see [`services-matrix.md`](services-matrix.md)) |
 | **Grafana Dashboard** | Domen (admin) | Provisioned JSON | Observability: analytics, logs, resource metrics |
 | **Traefik Dashboard** | Domen (admin) | API/labels | Routing/debug: middleware chain, cert status (`traefik.kogler.si`) |
 | **Metabase / CrowdSec Dashboard** | Domen (admin) | SQL/JSON | Analytics: CrowdSec view + Metabase learning sandbox (`sec.kogler.si`) |

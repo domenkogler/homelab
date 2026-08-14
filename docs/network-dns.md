@@ -77,13 +77,14 @@ Client → Technitium PRIMARY (oldsrv)     ← DHCP lists this first
 Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
 
 - **Local (Technitium):** authoritative for `*.kogler.si` internally — resolves hosts/services to internal IPs, and auto-creates records from DHCP leases.
-- **Public (Cloudflare):** publishes **only** the internet-facing subset (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
+- **Public (Cloudflare):** publishes **only** the internet-facing subset (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`, **`matrix`**, **`chat`**). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
 - Internal-only services/hosts (stats, bck, dns, ad, auto, cockpit-*, router, switch, nas, oldsrv) have **no public record**; WAN firewall blocks them (defense in depth).
 - **TLS:** a single wildcard `*.kogler.si` certificate, issued via ACME **DNS-01** with a Cloudflare API token (1Password `Homelab`) — covers internal and public hostnames alike.
 
 ### A / AAAA policy
 
-- **Public (Cloudflare, DNS-only):** publish **A + AAAA** for the internet-facing set (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`). The home `/56` prefix is **static** (unchanged for 7+ years), so AAAA is safe and enables real dual-stack. Assign oldsrv a **fixed global IPv6** from the /56 for its AAAA.
+- **Public (Cloudflare, DNS-only):** publish **A + AAAA** for the internet-facing set (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`, **`matrix`**, **`chat`**). The home `/56` prefix is **static** (unchanged for 7+ years), so AAAA is safe and enables real dual-stack. Assign oldsrv a **fixed global IPv6** from the /56 for its AAAA.
+- **Matrix delegation (public):** the homeserver name is `kogler.si`, delegated to `matrix.kogler.si` — publish `_matrix._tcp` SRV (`matrix.kogler.si 443`) and serve `_matrix/client` + `_matrix/server` well-known on `kogler.si` and `matrix.kogler.si` (Caddy/Traefik static host or an intermediate). Required for clean `@user:kogler.si` IDs and federation (see [`services-matrix.md`](services-matrix.md)).
 - **Internal (Technitium):** serve **A (IPv4)** for all hosts/services — primary, deterministic, matches the static VLAN/IPv4 plan and the IPv4 inter-VLAN firewall.
 - **Internal AAAA: deferred (optional).** Static prefix would allow it, but it needs stable per-host global addressing **and** mirroring inter-VLAN isolation in the IPv6 firewall (currently IPv6 is WAN-only). IPv4-first internally until that's verified.
 
