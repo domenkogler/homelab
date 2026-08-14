@@ -22,9 +22,10 @@ services:
     restart: unless-stopped
     cap_add:
       - NET_ADMIN          # needed for the built-in DHCP / interface control
+    # Port mappings expose 53/udp+tcp on the host interface without needing
+    # host networking (which would conflict with services-internal).
     networks:
       - services-internal
-      - host               # Technitium needs to bind 53 on the management/host interface
     ports:
       - "53:53/udp"
       - "53:53/tcp"

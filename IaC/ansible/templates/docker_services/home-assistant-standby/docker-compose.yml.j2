@@ -42,12 +42,11 @@ services:
   keepalived:
     image: osixia/keepalived:latest
     restart: "no"
+    network_mode: host      # VRRP multicast requires host networking
     cap_add:
       - NET_ADMIN
       - NET_BROADCAST
       - NET_RAW
-    networks:
-      - host                 # VRRP needs host/primary interface access
     volumes:
       - ./keepalived.conf:/etc/keepalived/keepalived.conf:ro
     # STANDBY priority (lower than Pi primary). VIP: 10.10.1.200 on Home VLAN (10).

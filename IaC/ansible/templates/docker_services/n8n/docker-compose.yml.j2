@@ -22,7 +22,7 @@ services:
       N8N_PROTOCOL: https
       N8N_HOST: auto.kogler.si
       WEBHOOK_URL: https://auto.kogler.si
-      N8N_ENCRYPTION_KEY: "{{ lookup('community.general.onepassword', 'n8n_password', default='', vault=op_vault) }}"
+      N8N_ENCRYPTION_KEY: "{{ lookup('community.general.onepassword', 'n8n_password', vault=op_vault) }}"
       N8N_METRICS: "true"
       DB_TYPE: sqlite
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"

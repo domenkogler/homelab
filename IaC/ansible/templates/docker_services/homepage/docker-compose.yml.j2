@@ -19,7 +19,6 @@ services:
       - ./config:/app/config                            # services.yaml + widgets.yaml (auto-generated)
     labels:
       traefik.enable: "true"
-      traefik.tls.certresolver: letsencrypt
       traefik.http.routers.homepage.rule: "Host(`kogler.si`) || Host(`home.kogler.si`)"
       traefik.http.routers.homepage.entrypoints: websecure
       traefik.http.routers.homepage.tls.certresolver: letsencrypt

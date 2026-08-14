@@ -18,7 +18,6 @@ services:
       - metabase-data:/metabase.db
     labels:
       traefik.enable: "true"
-      traefik.tls.certresolver: letsencrypt
       traefik.http.routers.metabase.rule: "Host(`sec.kogler.si`)"
       traefik.http.routers.metabase.entrypoints: websecure
       traefik.http.routers.metabase.tls.certresolver: letsencrypt

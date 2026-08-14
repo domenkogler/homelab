@@ -34,7 +34,7 @@ services:
       PROXY_HTTP_ADDR: 0.0.0.0:9200
       PROXY_TLS: "false"
       # Admin
-      IDM_ADMIN_PASSWORD: "{{ lookup('community.general.onepassword', 'opencloud_login', default='admin', field='password', vault=op_vault) }}"
+      IDM_ADMIN_PASSWORD: "{{ lookup('community.general.onepassword', 'opencloud_login', field='password', vault=op_vault) }}"
       IDM_CREATE_DEMO_USERS: "false"
       # Logging
       OC_LOG_LEVEL: "{{ opencloud_log_level | default('info') }}"
