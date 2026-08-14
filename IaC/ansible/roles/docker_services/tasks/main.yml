@@ -37,3 +37,25 @@
   loop_control:
     label: "{{ item.name }}"
   tags: "{{ item.name }}"
+
+- name: Render Homepage config (post-deploy, after all services up)
+  when: "'homepage' in (docker_services | map(attribute='name') | list)"
+  block:
+    - name: Ensure homepage config directory exists
+      ansible.builtin.file:
+        path: "{{ docker_compose_dir }}/homepage/config"
+        state: directory
+        mode: '0755'
+
+    - name: Template homepage services.yaml
+      ansible.builtin.template:
+        src: "homepage_services.yaml.j2"
+        dest: "{{ docker_compose_dir }}/homepage/config/services.yaml"
+        mode: '0644'
+
+    - name: Template homepage widgets.yaml
+      ansible.builtin.template:
+        src: "homepage_widgets.yaml.j2"
+        dest: "{{ docker_compose_dir }}/homepage/config/widgets.yaml"
+        mode: '0644'
+  tags: [homepage, docker_services]
