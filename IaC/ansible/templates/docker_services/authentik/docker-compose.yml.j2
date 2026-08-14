@@ -49,6 +49,7 @@ services:
     networks:
       - traefik-public
       - services-internal
+      - db-internal
     volumes:
       - /srv/docker/authentik/media:/media
       - /srv/docker/authentik/certs:/certs
@@ -86,6 +87,7 @@ services:
     command: worker
     networks:
       - services-internal
+      - db-internal
     volumes:
       - /srv/docker/authentik/media:/media
       - /srv/docker/authentik/certs:/certs

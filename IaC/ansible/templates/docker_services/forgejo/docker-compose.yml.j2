@@ -10,7 +10,9 @@ services:
     container_name: forgejo
     restart: unless-stopped
     networks:
+      - traefik-public
       - services-internal
+      - db-internal
     volumes:
       - /srv/docker/forgejo/data:/data
     environment:
@@ -37,7 +39,7 @@ services:
     container_name: forgejo-db
     restart: unless-stopped
     networks:
-      - services-internal
+      - db-internal
     volumes:
       - /srv/docker/forgejo/postgres:/var/lib/postgresql/data
     environment:
@@ -53,5 +55,9 @@ services:
       start_period: 30s
 
 networks:
+  traefik-public:
+    external: true
   services-internal:
+    external: true
+  db-internal:
     external: true
