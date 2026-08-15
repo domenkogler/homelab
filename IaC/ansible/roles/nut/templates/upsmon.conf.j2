@@ -1,7 +1,7 @@
 # managed by Ansible — nut role (master)
 # Local upsmon on the master watches the USB-HID device via upsd.
 MONITOR powerwalker@localhost 1 upsmon {{ nut_upsmon_password }} master
-SHUTDOWNCMD "/sbin/shutdown -h +0"
+SHUTDOWNCMD "/sbin/shutdown -h now"
 POLLFREQ 5
 POLLFREQALERT 5
 HOSTSYNC 15

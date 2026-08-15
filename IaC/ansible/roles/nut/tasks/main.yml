@@ -98,14 +98,13 @@
     mode: '0640'
   notify: restart nut services
 
-- name: Deploy upssched-cmd notify script (master — email + optional Signal)
+- name: Deploy upssched-cmd (both modes — master notifies, all hosts do deferred shutdown)
   template:
     src: upssched-cmd.j2
     dest: /etc/nut/upssched-cmd
     owner: root
     group: nut
-    mode: '0750'        # 0750: not world-readable — script embeds SMTP creds at render time; nut (group) must execute it.
-  when: nut_mode == 'master'
+    mode: '0750'        # 0750: not world-readable — master's copy embeds SMTP creds at render time; nut (group) must execute it.
 
 # --- nut_exporter: single SSOT exporter, HOST binary on the master ---
 # Resolve the release tag: pinned tag used as-is; '' / '@latest' → latest GitHub release.

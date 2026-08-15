@@ -1,11 +1,17 @@
 #!/bin/bash
-# managed by Ansible — nut role (master) — upssched-cmd notify
-# Direct ONBATT/LOWBATT notification, INDEPENDENT of Grafana/n8n — so a
-# pre-shutdown notice is sent even if the observability stack is degraded.
-# Email via SMTP (creds from 1Password `nut-smtp_login`), optionally forwards to
-# a Signal helper. Falls back to local sendmail/mail if SMTP is unset.
+# managed by Ansible — nut role — upssched-cmd
+# master (nas): direct ONBATT/LOWBATT/ONLINE email + optional Signal notify,
+#               INDEPENDENT of Grafana/n8n — a pre-shutdown notice goes out even
+#               if the observability stack is degraded. SMTP creds render from
+#               1Password `nut-smtp_login` on the master only — clients keep
+#               no secrets (mode 0750).
+# both:         `powerdown` — the deferred shutdown fired by the upssched
+#               ONBATT timer (shutdown_delay_seconds: nas/pi=0 immediate,
+#               oldsrv=60). upsmon's own SHUTDOWNCMD covers LOWBATT.
 set -u
 
+{% if nut_mode == 'master' %}
+# --- Notification path (master) ---
 case "$1" in
   onbatt)
     SUBJ="[Homelab UPS] ON BATTERY — mains lost"
@@ -18,6 +24,11 @@ case "$1" in
   online)
     SUBJ="[Homelab UPS] Back on mains"
     BODY="Utility power restored; UPS charging. ${nut_host}"
+    ;;
+  powerdown)
+    logger -t nut-upssched "UPS still on battery after ${shutdown_delay_seconds}s — powering down"
+    /sbin/shutdown -h now
+    exit 0
     ;;
   *)
     exit 0
@@ -62,5 +73,24 @@ send_mail || true
 if [ -n "${nut_signal_helper}" ] && [ -x "${nut_signal_helper}" ]; then
   "${nut_signal_helper}" "${SUBJ} — ${BODY}" 2>/dev/null || true
 fi
-
+{% else %}
+# --- Shutdown/log path (client) — no SMTP creds on clients ---
+case "$1" in
+  onbatt)
+    logger -t nut-upssched "UPS on battery (${nut_host}) — shutdown in ${shutdown_delay_seconds}s unless mains returns"
+    ;;
+  lowbatt)
+    logger -t nut-upssched "UPS battery critically low — shutting down now"
+    ;;
+  online)
+    logger -t nut-upssched "UPS back on mains — shutdown cancelled"
+    ;;
+  powerdown)
+    logger -t nut-upssched "UPS still on battery after ${shutdown_delay_seconds}s — powering down"
+    /sbin/shutdown -h now
+    ;;
+  *)
+    ;;
+esac
+{% endif %}
 exit 0

@@ -1,9 +1,10 @@
 # managed by Ansible — nut role (client slave)
 # Connects to the nas master (intra-Home VLAN) and shuts down locally on low
-# battery. `shutdown_delay_seconds` applies a graceful delay via upssched so
-# oldsrv can flush Grafana→n8n→Signal before powerdown (nas/ha = 0).
+# battery. The graceful delay (shutdown_delay_seconds: oldsrv=60, pi=0) is
+# owned by the upssched ONBATT timer (see upssched.conf.j2 → powerdown);
+# SHUTDOWNCMD here is the immediate LOWBATT path only.
 MONITOR powerwalker@{{ nut_host }} 1 upsmon {{ nut_upsmon_password }} slave
-SHUTDOWNCMD "/sbin/shutdown -h +{{ shutdown_delay_seconds | default(0) }}"
+SHUTDOWNCMD "/sbin/shutdown -h now"
 POLLFREQ 5
 POLLFREQALERT 5
 HOSTSYNC 15

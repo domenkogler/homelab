@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 48 open · 9 done** · **Total: 57**
+**Status: 47 open · 10 done** · **Total: 57**
 
 ---
 
@@ -51,7 +51,7 @@
 | HD-04 | 5 | AI + gate | open | **Pi redo: HAOS → Debian + HA Container + RaspberryMatic + Technitium secondary** — in-use device migration, done opportunistically during the network redo; approved direction, not yet applied. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-05 | 1 | Human | **done** | **VIP address / notation / firewall IP-set** — decided: `10.10.1.200/32` (`ha-vip`), DHCP pool ≤ `.199`, router lists `trusted-ha` + `trusted-admin`. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-06 | 3 | AI | open | **NUT master on nas** — `usbhid-ups`, `upsd` (3493), `nut_exporter`, `upssched-cmd` notify. ✅ **IaC done+fixed** (SSOT exporter on master `:9199`, scrape via `all.yml` vars, `@latest` release w/ verified asset URL, `nut-exporter_password` upsd auth, SMTP+Signal notify wired via `NOTIFYCMD`, battery.runtime/charge thresholds, USB verify task — G1–G7). ⏳ **Missing:** live deploy on nas (host not provisioned yet) + battery-pull test; feeds HD-07 (clients) / HD-08 (metrics+alerts). · [hardware-ups.md](docs/hardware-ups.md) |
-| HD-07 | 2 | AI | open | **NUT clients on `oldsrv` + `pi`** — upsmon slave, per-host shutdown delay 60/0/0. Same role pattern, well-specified. · [hardware-ups.md](docs/hardware-ups.md) |
+| HD-07 | 2 | AI | done | **NUT clients on `oldsrv` + `pi`** — upsmon slave, per-host shutdown delay 60/0/0. ✅ **IaC done:** host_vars wired (oldsrv 60 / pi 0), client upsmon + secret-free upssched-cmd deployed on clients, **fixed deferred-shutdown bug** (`shutdown -h +60` = minutes not seconds → now owned by the upssched ONBATT timer `AT onbatt-delay * EXECUTE powerdown`; LOWBATT stays immediate). ⏳ Not deployed (hosts unprovisioned). · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-16 | 3 | AI | done | **Implement Authentik compose template + Traefik Forward-Auth middleware** — server+worker+postgres+redis compose (115 lines), `authentik-forward-auth@file` middleware (42 lines), `subdomain: sso` entry. All implemented in `db51854`. · [services-authentik.md](docs/services-authentik.md), [services-traefik.md](docs/services-traefik.md) |
 | HD-50 | 3 | AI | done | **Implement `docker_services` Ansible role** — ✅ **Done (`eadf9d4`).** Role creates external Docker networks, copies templates, renders Jinja2 with 1Password lookups, runs `docker compose up -d`. Added: systemd auto-start per service (`docker-compose@.service` template unit + `systemctl enable`), post-deploy Homepage reload + `inventory.md` render. Fixed pre-existing path bugs (templates at playbook level, not in role). All 43 templates validated. · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-53 | 2 | AI + Human | open | *(decision)* **MikroTik SNMP community** — Alloy collector assumes v2c `public` (monitoring role); decide a dedicated read-only community + mgmt-VLAN ACL vs RouterOS default, then enable `/snmp` on RB4011/CRS328 (device-side — blocks HD-03 deploy). · [observability.md](docs/observability.md) |

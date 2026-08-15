@@ -10,8 +10,10 @@ LOCKFN /var/run/nut/upssched.lock
 AT ONBATT  * EXECUTE onbatt
 AT LOWBATT * EXECUTE lowbatt
 
-# Optional delayed shutdown (set shutdown_delay_seconds > 0 on clients that
-# must flush alerts first, e.g. oldsrv=60). Cancel if power returns in time.
+# Deferred shutdown (shutdown_delay_seconds: nas/pi=0 immediate, oldsrv=60).
+# Timer fires only if mains has NOT returned in time; upsmon's SHUTDOWNCMD
+# (immediate) covers the LOWBATT path separately.
 AT ONBATT * START-TIMER onbatt-delay {{ shutdown_delay_seconds | default(0) }}
 AT ONLINE * CANCEL-TIMER onbatt-delay
 AT ONLINE * EXECUTE online
+AT onbatt-delay * EXECUTE powerdown
