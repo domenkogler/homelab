@@ -1,0 +1,72 @@
+---
+# home_assistant role — STANDBY + failover tasks (home_servers / oldsrv)
+# Included from tasks/main.yml when inventory_hostname in groups['home_servers'].
+# HD-17: keepalived normal/failover configs + the ha-failover.sh orchestrator +
+# the failover trigger API consumed by the Homepage buttons.
+
+# ---- Standby keepalived configs ----
+# Normal (BACKUP) + failover (MASTER) variants land in /opt/home-assistant-standby/;
+# the standby compose's `keepalived` service mounts ./keepalived.conf. ha-failover.sh
+# swaps to the .failover variant and restarts keepalived on manual forward takeover.
+
+- name: Render standby keepalived config (normal — BACKUP)
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /opt/home-assistant-standby/keepalived.standby.conf
+    mode: '0644'
+  tags: [ha_failover, hd17]
+
+- name: Render standby keepalived config (failover — MASTER, higher priority)
+  ansible.builtin.template:
+    src: keepalived.failover.conf.j2
+    dest: /opt/home-assistant-standby/keepalived.failover.conf
+    mode: '0644'
+  tags: [ha_failover, hd17]
+
+- name: Deploy ha-failover.sh orchestrator (forward + reverse)
+  ansible.builtin.template:
+    src: ha-failover.sh.j2
+    dest: /usr/local/sbin/ha-failover.sh
+    mode: '0755'
+  tags: [ha_failover, hd17]
+
+# ---- Failover trigger API (host HTTP endpoint for the Homepage buttons) ----
+
+- name: Require a strong failover API token (fail-closed, from 1Password)
+  ansible.builtin.assert:
+    that:
+      - (lookup('community.general.onepassword', 'ha-failover_api', field='credential', vault=op_vault) | length) >= 16
+    fail_msg: >-
+      1Password item ha-failover_api (Homelab vault, api → credential) must be a
+      random string >= 16 chars — shared by the Homepage failover buttons and the
+      trigger API. Generate e.g. `openssl rand -hex 16` and store it there.
+  tags: [ha_failover, hd17]
+
+- name: Deploy ha-failover-api HTTP trigger
+  ansible.builtin.copy:
+    src: ha-failover-api.py
+    dest: /usr/local/sbin/ha-failover-api.py
+    mode: '0755'
+  tags: [ha_failover, hd17]
+
+- name: Deploy ha-failover-api env (token + port, root-only)
+  ansible.builtin.template:
+    src: api.env.j2
+    dest: /etc/ha-failover/api.env
+    mode: '0600'
+  tags: [ha_failover, hd17]
+
+- name: Install ha-failover-api systemd unit
+  ansible.builtin.copy:
+    src: ha-failover-api.service
+    dest: /etc/systemd/system/ha-failover-api.service
+    mode: '0644'
+  notify: reload systemd
+  tags: [ha_failover, hd17]
+
+- name: Enable + start ha-failover-api
+  ansible.builtin.systemd:
+    name: ha-failover-api
+    enabled: true
+    state: started
+  tags: [ha_failover, hd17]

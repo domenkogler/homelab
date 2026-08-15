@@ -1,5 +1,5 @@
 ---
-# home_assistant role — Task specification
+# home_assistant role — Task specification + entry point
 #
 # Targets:
 #   - raspberry_pi  → PRIMARY Home Assistant (Debian + HA Container) + RaspberryMatic/HmIP-RFUSB
@@ -19,153 +19,62 @@
 #
 # Roles of this role (implement as tasks):
 #
-# 1. PRIMARY (host: raspberry_pi / pi.kogler.si)
+# 1. PRIMARY (host: raspberry_pi / pi.kogler.si) — tasks/pi.yml
 #    - Install Home Assistant Container (Debian + docker): image ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}
 #    - Render /config/configuration.yaml from repo template (use_x_forwarded_for: true,
 #      trusted_proxies: <Pi traefik-ha + oldsrv traefik — both edges must be trusted>)
 #    - Render other configs (integrations: knx via GIRA IP Router .118, homematic [XML-RPC 2001/2010 via local RaspberryMatic], shelly native)
 #    - Run "owner" recovery account; Authentik OIDC; NO Forward-Auth on ha route
-#    - keepalived PRIMARY: owns VIP 10.10.1.200 (state MASTER, priority higher than standby)
+#    - keepalived PRIMARY: owns VIP 10.10.1.200 (state MASTER, priority higher than standby)   ← PENDING
 #    - Deploy `traefik-ha` edge (docker_services, group_vars/raspberry_pi.yml): VIP-bound
-#      serve of ha.kogler.si → VIP:8123; keeps ha.kogler.si reachable when oldsrv is down.
-#      network_mode: host + entrypoints bound to {{ ha_vip }}:80/443.
+#      serve of ha.kogler.si → VIP:8123; keeps ha.kogler.si reachable when oldsrv is down.     ← PENDING
 #    - sysctl net.ipv4.ip_nonlocal_bind=1 (persist via /etc/sysctl.d) so traefik-ha can
-#      bind the VIP even before/without keepalived holding the address.
+#      bind the VIP even before/without keepalived holding the address.                        ← PENDING
 #    - Cert sync (LAN, timer — same cadence as the HA config sync Pi→standby, reversed):
 #      rsync the wildcard *.kogler.si cert pair ({{ wildcard_cert_file }} /
 #      {{ wildcard_cert_key_file }}) from oldsrv's `traefik` (the SINGLE ACME issuer;
 #      Cloudflare DNS-01) → /opt/traefik-ha/certs/. ACME is intentionally DISABLED on
-#      the Pi edge; sync must run before traefik-ha starts and keep the cert offline-safe.
+#      the Pi edge; sync must run before traefik-ha starts and keep the cert offline-safe.     ← PENDING
 #    - HA exporter: enable /api/prometheus bearer token (monitoring role scrapes)
-# 2. STANDBY (host: home_servers / oldsrv)
+# 2. STANDBY (host: home_servers / oldsrv) — tasks/standby.yml
 #    - Template home-assistant-standby/docker-compose.yml.j2 → /opt/home-assistant-standby/
-#    - Render the SAME configuration.yaml into /opt/home-assistant-standby/config/
-#    - Create systemd unit home-assistant-standby (disabled by default)
-#    - Template raspberrymatic-standby (RaspberryMatic) → /opt/raspberrymatic-standby/ (disabled by default)
-#    - keepalived STANDBY: state BACKUP, priority lower; takes VIP on takeover
-# 3. STATE SYNC (normal direction: Pi → standby)
+#    - Render the SAME configuration.yaml into /opt/home-assistant-standby/config/            ← PENDING
+#    - Create systemd unit home-assistant-standby (disabled by default)                        ← PENDING
+#    - Template raspberrymatic-standby (RaspberryMatic) → /opt/raspberrymatic-standby/ (disabled by default) ← PENDING
+#    - keepalived STANDBY: state BACKUP, priority lower; takes VIP on takeover                 ✅ HD-17
+#    - ha-failover.sh + trigger API + Homepage buttons                                        ✅ HD-17
+# 3. STATE SYNC (normal direction: Pi → standby)                                              ← PENDING
 #    - rsync /config from Pi to /opt/home-assistant-standby/config/ every ~15 min (LAN only, no WAN)
 #    - rsync RaspberryMatic config Pi → oldsrv the same way (pairing stays on the stick)
 #    - Optionally sync HA DB; best-effort only (HA re-polls devices on startup)
-# 4. FAILOVER ORCHESTRATOR (host: home_servers / oldsrv)
-#    - Deploy /usr/local/sbin/ha-failover.sh + a Homepage button that invokes it
-#      (start RMat standby → wait 2001/2010 → promote VIP → start HA standby)
-# 5. PI SD-CARD WEAR MITIGATION (HD-19, host: raspberry_pi only)
+# 4. FAILOVER ORCHESTRATOR (host: home_servers / oldsrv) — tasks/standby.yml                 ✅ HD-17
+# 5. PI SD-CARD WEAR MITIGATION (HD-19, host: raspberry_pi only) — tasks/pi.yml              ✅ HD-19
 #    - Trim HA recorder (purge_keep_days: 2, commit_interval: 5, exclude noisy domains)
 #    - Docker log driver `local` (max-size: 10m, max-file: 2) — in docker role
 #    - journald Storage=volatile
 #    - /var/log mounted as tmpfs
 #
 # Secrets (1Password vault 'Homelab'):
+#    - ha_api (long-lived), ha-mqtt_login (if MQTT added), ha-vrrp_password, ha-failover_api
 #    - Home→IoT trusted-IP rules for MQTT/HA must cover the VIP (10.10.1.200), not per-node IPs
 #    - Home→IoT/Home rules must let the RaspberryMatic XML-RPC ports 2001/2010 (fixed CCU IP) and
 #      both HA nodes reach it
-#
 
-# ---- Tasks: PI SD-CARD WEAR MITIGATION (HD-19) ----
-
-- name: Render HA configuration.yaml (with recorder trim)
-  ansible.builtin.template:
-    src: configuration.yaml.j2
-    dest: /opt/homeassistant/config/configuration.yaml
-    mode: '0644'
-  when: inventory_hostname == 'pi.kogler.si'
-  tags: [ha_recorder, hd19]
-
-- name: Set journald to volatile (RAM-only, Pi SD-card wear)
-  ansible.builtin.lineinfile:
-    path: /etc/systemd/journald.conf
-    regexp: '^#?Storage='
-    line: 'Storage=volatile'
-    create: true
-    mode: '0644'
-  when: inventory_hostname == 'pi.kogler.si'
-  notify: restart journald
-  tags: [pi_sd_trim, hd19]
-
-- name: Mount /var/log as tmpfs (Pi SD-card wear)
-  ansible.builtin.mount:
-    path: /var/log
-    src: tmpfs
-    fstype: tmpfs
-    opts: defaults,noatime,nosuid,nodev,noexec,size=100m
-    state: mounted
-  when: inventory_hostname == 'pi.kogler.si'
-  tags: [pi_sd_trim, hd19]
-
-# ---- STANDBY (home_servers / oldsrv): keepalived configs for ha-failover.sh (HD-17) ----
-# Normal (BACKUP) + failover (MASTER) variants land in /opt/home-assistant-standby/;
-# the standby compose's `keepalived` service mounts ./keepalived.conf. ha-failover.sh
-# swaps to the .failover variant and restarts keepalived on manual forward takeover.
-
-- name: Render standby keepalived config (normal — BACKUP)
-  ansible.builtin.template:
-    src: keepalived.conf.j2
-    dest: /opt/home-assistant-standby/keepalived.standby.conf
-    mode: '0644'
-  when: inventory_hostname in groups['home_servers']
-  tags: [ha_failover, hd17]
-
-- name: Render standby keepalived config (failover — MASTER, higher priority)
-  ansible.builtin.template:
-    src: keepalived.failover.conf.j2
-    dest: /opt/home-assistant-standby/keepalived.failover.conf
-    mode: '0644'
-  when: inventory_hostname in groups['home_servers']
-  tags: [ha_failover, hd17]
-
-- name: Deploy ha-failover.sh orchestrator (forward + reverse)
-  ansible.builtin.template:
-    src: ha-failover.sh.j2
-    dest: /usr/local/sbin/ha-failover.sh
-    mode: '0755'
-  when: inventory_hostname in groups['home_servers']
-  tags: [ha_failover, hd17]
-
-# ---- Failover trigger API (HD-17) — host HTTP endpoint for the Homepage buttons ----
-
-- name: Require a strong failover API token (fail-closed, from 1Password)
-  ansible.builtin.assert:
+- name: Refuse runs as ai-debug or unknown users
+  assert:
     that:
-      - (lookup('community.general.onepassword', 'ha-failover_api', field='credential', vault=op_vault) | length) >= 16
+      - ansible_user in ansible_admin_users
     fail_msg: >-
-      1Password item ha-failover_api (Homelab vault, api → credential) must be a
-      random string >= 16 chars — shared by the Homepage failover buttons and the
-      trigger API. Generate e.g. `openssl rand -hex 16` and store it there.
-  when: inventory_hostname in groups['home_servers']
-  tags: [ha_failover, hd17]
+      home_assistant role must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+  tags: always
 
-- name: Deploy ha-failover-api HTTP trigger
-  ansible.builtin.copy:
-    src: ha-failover-api.py
-    dest: /usr/local/sbin/ha-failover-api.py
-    mode: '0755'
-  when: inventory_hostname in groups['home_servers']
-  tags: [ha_failover, hd17]
+- name: Primary node tasks (Pi)
+  ansible.builtin.include_tasks: pi.yml
+  when: inventory_hostname == 'pi.kogler.si'
+  tags: [home_assistant]
 
-- name: Deploy ha-failover-api env (token + port, root-only)
-  ansible.builtin.template:
-    src: api.env.j2
-    dest: /etc/ha-failover/api.env
-    mode: '0600'
+- name: Standby + failover tasks (oldsrv)
+  ansible.builtin.include_tasks: standby.yml
   when: inventory_hostname in groups['home_servers']
-  tags: [ha_failover, hd17]
-
-- name: Install ha-failover-api systemd unit
-  ansible.builtin.copy:
-    src: ha-failover-api.service
-    dest: /etc/systemd/system/ha-failover-api.service
-    mode: '0644'
-  when: inventory_hostname in groups['home_servers']
-  notify: reload systemd
-  tags: [ha_failover, hd17]
-
-- name: Enable + start ha-failover-api
-  ansible.builtin.systemd:
-    name: ha-failover-api
-    enabled: true
-    state: started
-  when: inventory_hostname in groups['home_servers']
-  tags: [ha_failover, hd17]
-#   - ha_api (long-lived), ha-mqtt_login (if MQTT added), ha-vrrp_password
-#   - {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+  tags: [home_assistant]

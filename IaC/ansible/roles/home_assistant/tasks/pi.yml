@@ -1,0 +1,32 @@
+---
+# home_assistant role — PRIMARY node tasks (raspberry_pi / pi.kogler.si)
+# Included from tasks/main.yml when inventory_hostname == 'pi.kogler.si'.
+# Current scope: Pi SD-card wear mitigation (HD-19). The rest of the PRIMARY
+# scope (keepalived MASTER, traefik-ha edge, cert sync, state sync) is pending —
+# see the role spec comment in tasks/main.yml.
+
+- name: Render HA configuration.yaml (with recorder trim)
+  ansible.builtin.template:
+    src: configuration.yaml.j2
+    dest: /opt/homeassistant/config/configuration.yaml
+    mode: '0644'
+  tags: [ha_recorder, hd19]
+
+- name: Set journald to volatile (RAM-only, Pi SD-card wear)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/journald.conf
+    regexp: '^#?Storage='
+    line: 'Storage=volatile'
+    create: true
+    mode: '0644'
+  notify: restart journald
+  tags: [pi_sd_trim, hd19]
+
+- name: Mount /var/log as tmpfs (Pi SD-card wear)
+  ansible.builtin.mount:
+    path: /var/log
+    src: tmpfs
+    fstype: tmpfs
+    opts: defaults,noatime,nosuid,nodev,noexec,size=100m
+    state: mounted
+  tags: [pi_sd_trim, hd19]
