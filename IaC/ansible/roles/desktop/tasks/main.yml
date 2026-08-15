@@ -1,2 +1,55 @@
 ---
-# desktop role — TODO: implement
+# desktop role — family desktop environment on oldsrv (docs/hardware-oldsrv.md,
+# docs/hardware-gpu.md). Condition: applied when homelab_mode == 'desktop'.
+#
+# Scope:
+#   1. Xorg + XFCE + LightDM (decision: XFCE preferred, LightDM auto-login-capable)
+#   2. Xorg fragment pinning the Intel iGPU (HD 630) as primary screen; the AMD
+#      dGPU (RX 7600) stays headless by design — no monitor, reserved for Docker
+#      GPU containers (see amd_rocm role / hardware-gpu.md).
+#   3. PENDING (HD-51, docs note): family user accounts + auto-login — 4 members +
+#      guest + a NEUTRAL family account owning shared media data (NOT a personal
+#      account as uid 1000/1000). User/UID strategy still under research; until
+#      decided, the box boots to the LightDM greeter with no local users. Add here:
+#        - user/group creation loop (users in group_vars)
+#        - [Seat:*] autologin-user=<neutral account> in /etc/lightdm/lightdm.conf
+#        - XDG/media dirs ownership + umask for the neutral account
+#
+# Secrets: none.
+
+- name: Refuse runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      desktop role must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+  tags: always
+
+- name: Install Xorg + XFCE desktop + LightDM display manager
+  ansible.builtin.apt:
+    name:
+      - xorg
+      - xfce4
+      - lightdm
+      - lightdm-gtk-greeter
+    state: present
+    update_cache: true
+  tags: [desktop]
+
+- name: Enable LightDM as the display manager
+  ansible.builtin.systemd:
+    name: lightdm
+    enabled: true
+  tags: [desktop]
+
+- name: Force iGPU-primary Xorg config (dGPU headless, reserved for containers)
+  ansible.builtin.template:
+    src: 10-igpu-primary.conf.j2
+    dest: /etc/X11/xorg.conf.d/10-igpu-primary.conf
+    mode: '0644'
+  tags: [desktop]
+
+# Verify after deploy: systemctl status lightdm · ls /etc/X11/xorg.conf.d/
+#   X starts on the iGPU output; `xrandr --listproviders` shows the AMD GPU as a
+#   secondary provider with no outputs (headless by design).

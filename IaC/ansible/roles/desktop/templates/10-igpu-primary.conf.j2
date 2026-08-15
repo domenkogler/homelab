@@ -1,0 +1,14 @@
+# Xorg fragment — iGPU primary, dGPU headless (roles/desktop, docs/hardware-gpu.md)
+#
+# Pins the Intel iGPU (modesetting) as the primary screen. The AMD RX 7600 is left
+# to X auto-detection as a secondary GPU device with NO outputs: it has no monitor
+# attached, so X never composites on it — it stays reserved for Docker GPU
+# containers via /dev/dri + /dev/kfd (see roles/amd_rocm). To hard-exclude the
+# dGPU instead, add a second Device section with its BusID (confirm via `lspci`
+# at deploy) and Option "Ignore" "true".
+Section "Device"
+    Identifier "Intel HD 630 (iGPU)"
+    Driver     "modesetting"
+    BusID      "{{ desktop_igpu_busid }}"
+    Option     "PrimaryGPU" "true"
+EndSection
