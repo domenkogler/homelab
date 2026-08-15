@@ -1,0 +1,14 @@
+#!/bin/bash
+# Managed by Ansible — home_assistant role (Pi). Pull the wildcard *.kogler.si
+# cert pair from oldsrv's traefik (the SINGLE ACME issuer) to traefik-ha's certs,
+# keeping the Pi edge TLS-valid offline. The last synced copy stays valid when
+# oldsrv is down (ACME cannot renew, but does not need to). Runs as root via
+# ha-cert-sync.service (key at /root/.ssh/ha-sync). LAN only.
+set -euo pipefail
+
+SRC="ansible-admin@{{ oldsrv_home_ip }}:/opt/traefik/certs/"
+DST="/opt/traefik-ha/certs/"
+SSH="ssh -i /root/.ssh/ha-sync -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+
+mkdir -p "$DST"
+rsync -az --delete -e "$SSH" "$SRC" "$DST"

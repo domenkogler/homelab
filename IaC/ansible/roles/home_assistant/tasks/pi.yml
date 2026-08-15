@@ -45,6 +45,69 @@
     mode: '0644'
   tags: [ha_failover, hd17]
 
+# ---- HA sync channel + edge (failover primary side, step 2) ----
+# ip_nonlocal_bind lets traefik-ha bind the VIP before/without keepalived holding
+# it. The ha-sync keypair (Pi → oldsrv) powers the cert-pull + config-push timers;
+# the pubkey is authorized on oldsrv (standby.yml) with an rsync-only wrapper.
+
+- name: Enable net.ipv4.ip_nonlocal_bind (traefik-ha VIP binding)
+  ansible.builtin.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: '1'
+    sysctl_file: /etc/sysctl.d/60-ha-edge.conf
+    reload: true
+  tags: [ha_failover, hd17]
+
+- name: Create root .ssh directory (ha-sync key)
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    mode: '0700'
+  tags: [ha_failover, hd17]
+
+- name: Generate ha-sync SSH keypair (Pi → oldsrv cert/config sync)
+  ansible.builtin.command:
+    cmd: ssh-keygen -t ed25519 -N '' -C ha-sync@{{ inventory_hostname }} -f /root/.ssh/ha-sync
+    creates: /root/.ssh/ha-sync
+  tags: [ha_failover, hd17]
+
+- name: Deploy ha-cert-sync script (pull wildcard certs from oldsrv traefik)
+  ansible.builtin.template:
+    src: ha-cert-sync.sh.j2
+    dest: /usr/local/sbin/ha-cert-sync.sh
+    mode: '0755'
+  tags: [ha_failover, hd17]
+
+- name: Deploy ha-config-sync script (push HA config to standby)
+  ansible.builtin.template:
+    src: ha-config-sync.sh.j2
+    dest: /usr/local/sbin/ha-config-sync.sh
+    mode: '0755'
+  tags: [ha_failover, hd17]
+
+- name: Install cert/config sync systemd units
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: '0644'
+  loop:
+    - ha-cert-sync.service
+    - ha-cert-sync.timer
+    - ha-config-sync.service
+    - ha-config-sync.timer
+  notify: reload systemd
+  tags: [ha_failover, hd17]
+
+- name: Enable + start HA sync timers
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - ha-cert-sync.timer
+    - ha-config-sync.timer
+  tags: [ha_failover, hd17]
+
 # ---- Pi SD-card wear mitigation (HD-19) ----
 
 - name: Set journald to volatile (RAM-only, Pi SD-card wear)

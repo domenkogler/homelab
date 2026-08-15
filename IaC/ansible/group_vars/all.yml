@@ -36,6 +36,10 @@ wildcard_cert_key_file: kogler.si-key.pem
 # The wildcard SAN root — the certs-dumper matches acme.json by this domain and
 # the Pi/oldSrv edges serve all *.kogler.si hosts from the dumped pair.
 wildcard_cert_domain: "kogler.si"
+# Doco-CD metrics listen port — host-network container (needs docker.sock); /metrics
+# answered on the host at this port. Prometheus scrapes via host.docker.internal
+# (host-gateway extra_hosts in the prometheus template). Verified at HD-02 activation.
+doco_cd_metrics_port: 9120
 # Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== pi 10.10.1.20).
 technitium_secondary_ip: 10.10.1.20
 
@@ -74,6 +78,11 @@ ha_keepalived_vrid: 51            # VRRP virtual_router_id — MUST match on bot
 # RaspberryMatic standby CCU (macvlan on Home VLAN) — XML-RPC 2001/2010 target for
 # ha-failover.sh (derived from the address SSOT).
 homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'homematic-ccu-oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+# HA sync (Pi-initiated cert/config sync — failover primary side): oldsrv and Pi
+# Home-VLAN IPs, used by ha-cert-sync/ha-config-sync timers + authorized_keys
+# source restriction. Derived from the address SSOT.
+oldsrv_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+pi_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 network_vlans:
   - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }

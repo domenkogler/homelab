@@ -70,3 +70,50 @@
     enabled: true
     state: started
   tags: [ha_failover, hd17]
+
+# ---- HA sync channel: standby side (sync is Pi-initiated) ----
+# The Pi generates /root/.ssh/ha-sync and pushes config + pulls certs over LAN;
+# oldsrv hosts the rsync-only wrapper + authorizes the key (source-restricted).
+# Requires the Pi reachable (full site.yml run) — the sync cannot be set up
+# otherwise.
+
+- name: Create standby HA config directory (sync target, ansible-admin writable)
+  ansible.builtin.file:
+    path: /opt/home-assistant-standby/config
+    state: directory
+    owner: ansible-admin
+    group: ansible-admin
+    mode: '0755'
+  tags: [ha_failover, hd17]
+
+- name: Render standby configuration.yaml (same source as Pi; sync refreshes it)
+  ansible.builtin.template:
+    src: configuration.yaml.j2
+    dest: /opt/home-assistant-standby/config/configuration.yaml
+    mode: '0644'
+  tags: [ha_failover, hd17]
+
+- name: Deploy ha-sync rsync-only SSH wrapper
+  ansible.builtin.copy:
+    src: ha-sync-rsync
+    dest: /usr/local/sbin/ha-sync-rsync
+    mode: '0755'
+  tags: [ha_failover, hd17]
+
+- name: Fetch Pi ha-sync public key (delegated)
+  ansible.builtin.slurp:
+    src: /root/.ssh/ha-sync.pub
+  delegate_to: pi.kogler.si
+  register: ha_sync_pubkey
+  tags: [ha_failover, hd17]
+
+- name: Authorize Pi ha-sync key (rsync-only, Home-VLAN source only)
+  ansible.builtin.authorized_key:
+    user: ansible-admin
+    key: "{{ ha_sync_pubkey['content'] | b64decode }}"
+    key_options: >-
+      command="/usr/local/sbin/ha-sync-rsync",
+      no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty,
+      from="{{ pi_home_ip }}"
+    comment: ha-sync@pi.kogler.si
+  tags: [ha_failover, hd17]

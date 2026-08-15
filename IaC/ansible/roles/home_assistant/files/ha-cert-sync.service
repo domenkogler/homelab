@@ -1,0 +1,8 @@
+[Unit]
+Description=Sync wildcard certs: oldsrv traefik → Pi traefik-ha certs (HA edge, offline-safe)
+Documentation=docs/smart-home-failover.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ha-cert-sync.sh

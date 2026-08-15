@@ -1,0 +1,10 @@
+#!/bin/bash
+# ha-sync-rsync — SSH wrapper (home_assistant role, standby side / oldsrv).
+# Restricts the Pi's ha-sync key to rsync only: the client's "rsync --server"
+# command is executed verbatim; anything else is rejected. Used via the
+# command= option in ansible-admin's authorized_keys (see standby.yml).
+if printf '%s' "$SSH_ORIGINAL_COMMAND" | grep -q '^rsync --server'; then
+    exec /bin/bash -c "$SSH_ORIGINAL_COMMAND"
+fi
+echo "ha-sync key: only rsync is allowed" >&2
+exit 1

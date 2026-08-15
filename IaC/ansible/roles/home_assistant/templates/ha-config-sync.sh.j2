@@ -1,0 +1,13 @@
+#!/bin/bash
+# Managed by Ansible — home_assistant role (Pi). Push the Pi's HA config to the
+# oldsrv standby (same configuration.yaml source; best-effort copy — HA re-polls
+# devices on takeover). secrets.yaml is EXCLUDED: each side keeps its own
+# 1Password-rendered copy (the standby compose mounts ./secrets.yaml separately).
+# Runs as root via ha-config-sync.service. LAN only, ~15 min cadence.
+set -euo pipefail
+
+SRC="/opt/home-assistant-primary/config/"
+DST="ansible-admin@{{ oldsrv_home_ip }}:/opt/home-assistant-standby/config/"
+SSH="ssh -i /root/.ssh/ha-sync -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+
+rsync -az --delete --exclude 'secrets.yaml' -e "$SSH" "$SRC" "$DST"

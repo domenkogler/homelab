@@ -1,0 +1,10 @@
+[Unit]
+Description=15-min HA config sync (Pi primary → oldsrv standby)
+
+[Timer]
+OnCalendar=:0/15
+RandomizedDelaySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target
