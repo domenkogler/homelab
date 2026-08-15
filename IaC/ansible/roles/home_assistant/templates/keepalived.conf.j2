@@ -1,0 +1,24 @@
+# keepalived — HA STANDBY (oldsrv) — NORMAL config (docs/smart-home-failover.md)
+# Rendered by the home_assistant role; consumed by the `keepalived` service in
+# /opt/home-assistant-standby/docker-compose.yml (osixia/keepalived, host net).
+# The ha-failover.sh orchestrator swaps this for keepalived.conf.failover on a
+# manual forward takeover (Pi → oldsrv) — see HD-17.
+#
+# Interface: Home-VLAN subinterface on the oldsrv trunk (eth0.10) — must match the
+# network role's trunk interface once static-IP/trunk provisioning lands.
+# auth_pass: VRRP PASS is limited to 8 chars — truncate the 1Password secret
+# identically on BOTH nodes (same lookup ⇒ same truncation).
+vrrp_instance HA_VIP {
+    state BACKUP
+    interface {{ ha_keepalived_interface }}
+    virtual_router_id {{ ha_keepalived_vrid }}
+    priority {{ ha_standby_priority }}
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{ lookup('community.general.onepassword', 'ha-vrrp_password', field='password', vault=op_vault) | truncate(8, true, '') }}
+    }
+    virtual_ipaddress {
+        {{ ha_vip }}/{{ ha_vip_cidr }}
+    }
+}

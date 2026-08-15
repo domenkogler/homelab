@@ -92,5 +92,26 @@
     state: mounted
   when: inventory_hostname == 'pi.kogler.si'
   tags: [pi_sd_trim, hd19]
+
+# ---- STANDBY (home_servers / oldsrv): keepalived configs for ha-failover.sh (HD-17) ----
+# Normal (BACKUP) + failover (MASTER) variants land in /opt/home-assistant-standby/;
+# the standby compose's `keepalived` service mounts ./keepalived.conf. ha-failover.sh
+# swaps to the .failover variant and restarts keepalived on manual forward takeover.
+
+- name: Render standby keepalived config (normal — BACKUP)
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /opt/home-assistant-standby/keepalived.conf
+    mode: '0644'
+  when: inventory_hostname in groups['home_servers']
+  tags: [ha_failover, hd17]
+
+- name: Render standby keepalived config (failover — MASTER, higher priority)
+  ansible.builtin.template:
+    src: keepalived.failover.conf.j2
+    dest: /opt/home-assistant-standby/keepalived.conf.failover
+    mode: '0644'
+  when: inventory_hostname in groups['home_servers']
+  tags: [ha_failover, hd17]
 #   - ha_api (long-lived), ha-mqtt_login (if MQTT added), ha-vrrp_password
 #   - {{ lookup('community.general.onepassword', '...', vault=op_vault) }}

@@ -1,0 +1,19 @@
+# keepalived — HA STANDBY (oldsrv) — FAILOVER config (docs/smart-home-failover.md)
+# Swapped in by ha-failover.sh (forward takeover, Pi → oldsrv). MASTER + priority
+# ABOVE the Pi primary (110) so a half-alive Pi never wins.
+# Reverse (ha-failover.sh --reverse) restores keepalived.conf (BACKUP, lower
+# priority) so the repaired Pi MASTER takes the VIP back automatically.
+vrrp_instance HA_VIP {
+    state MASTER
+    interface {{ ha_keepalived_interface }}
+    virtual_router_id {{ ha_keepalived_vrid }}
+    priority {{ ha_failover_priority }}
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{ lookup('community.general.onepassword', 'ha-vrrp_password', field='password', vault=op_vault) | truncate(8, true, '') }}
+    }
+    virtual_ipaddress {
+        {{ ha_vip }}/{{ ha_vip_cidr }}
+    }
+}

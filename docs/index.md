@@ -27,7 +27,7 @@ tags: [index, dispatcher, ai]
 | **Configure VPN** | [`network-vpn.md`](network-vpn.md) | `network.md` |
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
 | **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md`, [`network-addresses.md`](network-addresses.md) |
-| **Known issues / out-of-scope follow-ups** | [`issues.md`](issues.md) | — |
+| **Backlog / open decisions** | [`todo.md`](../todo.md) | — |
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `llm-office.md`, `deployment-compose.md` |
 | **Understand observability / alerting** | [`observability.md`](observability.md) | `services.md`, `deployment-ansible.md` |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
@@ -82,7 +82,7 @@ docs/
 ├── deployment-renovate.md                 Renovate Bot & update lifecycle
 ├── interfaces.md                          Dashboard + management interface matrix
 │
-├── issues.md                              Known issues & out-of-scope follow-ups
+├── todo.md                              Planned work + open decisions backlog (HD-XX, single source)
 │
 ├── smart-home.md                          Home Assistant, devices, architecture
 ├── home-assistant-current.md              Live HA instance inventory (HAOS, plugins) + HAOS→Docker feasibility

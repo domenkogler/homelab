@@ -9,4 +9,7 @@ homelab_mode: desktop
 nut_mode: client
 nut_host: nas.kogler.si             # NUT master endpoint
 shutdown_delay_seconds: 60          # flush Grafana→n8n→Signal before critical shutdown
+# HA failover (docs/smart-home-failover.md): Home-VLAN subinterface on the trunk —
+# must match the network role's trunk interface (eth0.10) once static-IP/trunk lands.
+ha_keepalived_interface: eth0.10
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

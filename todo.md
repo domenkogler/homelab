@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 43 open · 9 done** · **Total: 52**
+**Status: 48 open · 9 done** · **Total: 57**
 
 ---
 
@@ -54,12 +54,14 @@
 | HD-07 | 2 | AI | open | **NUT clients on `oldsrv` + `pi`** — upsmon slave, per-host shutdown delay 60/0/0. Same role pattern, well-specified. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-16 | 3 | AI | done | **Implement Authentik compose template + Traefik Forward-Auth middleware** — server+worker+postgres+redis compose (115 lines), `authentik-forward-auth@file` middleware (42 lines), `subdomain: sso` entry. All implemented in `db51854`. · [services-authentik.md](docs/services-authentik.md), [services-traefik.md](docs/services-traefik.md) |
 | HD-50 | 3 | AI | done | **Implement `docker_services` Ansible role** — ✅ **Done (`eadf9d4`).** Role creates external Docker networks, copies templates, renders Jinja2 with 1Password lookups, runs `docker compose up -d`. Added: systemd auto-start per service (`docker-compose@.service` template unit + `systemctl enable`), post-deploy Homepage reload + `inventory.md` render. Fixed pre-existing path bugs (templates at playbook level, not in role). All 43 templates validated. · [deployment-ansible.md](docs/deployment-ansible.md) |
+| HD-53 | 2 | AI + Human | open | *(decision)* **MikroTik SNMP community** — Alloy collector assumes v2c `public` (monitoring role); decide a dedicated read-only community + mgmt-VLAN ACL vs RouterOS default, then enable `/snmp` on RB4011/CRS328 (device-side — blocks HD-03 deploy). · [observability.md](docs/observability.md) |
+| HD-56 | 3 | AI + Human | open | *(decision)* **Host network config-manager: systemd-networkd vs netplan** — undecided; blocks the `network` role's static-IP/VLAN-trunk provisioning (oldsrv VLAN 99 native + 10/20/50 tagged, nas VLAN 10+99, pi static). · [deployment-ansible.md](docs/deployment-ansible.md), [IaC/README.md](IaC/README.md) |
 
 ## Priority 2
 
 | ID | D | Exec | Status | Item |
 |----|---|------|--------|------|
-| HD-08 | 3 | AI | open | **Wire UPS metrics + alerts into Prometheus/Grafana** — Critical battery/runtime, Warning on-battery, Info transitions. Depends on HD-06/07. · [hardware-ups.md](docs/hardware-ups.md) |
+| HD-08 | 3 | AI | open | **Wire UPS metrics + alerts into Prometheus/Grafana** — Critical battery/runtime, Warning on-battery, Info transitions. Depends on HD-06/07. ✅ **Monitoring IaC implemented** (nut_* alert rules + UPS dashboard — commits `aaa3f7c`/`8c50d7f`). ⚠ **Deploy-time verification:** confirm DRuggeri/nut_exporter `nut_ups_status` bitmask + metric names, and that Grafana alert-rule provisioning loads (live check). · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-09 | 1 | AI | open | **UPS web-UI firewall rule** — open 80/443 Home→Mgmt for `10.10.99.9` only; Modbus 502 retired (no consumer). ✅ **IaC done** (router role: trusted-admin → `ups_management` 80/443); ⏳ not deployed. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-10 | 2 | AI | done | **Generate `oldsrv/preseed.cfg`** — created: ext4 root on 960 EVO 500 GB, 970 EVO 1 TB left raw for ZFS pool `nvme`, XFCE desktop, GRUB on NVMe. · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-11 | 2 | AI | done | **Create Pi first-boot config** — `first-boot-config.sh` writes cloud-init `user-data` + fallback SSH enable on boot partition for raspi.debian.net images. · [deployment-preseed.md](docs/deployment-preseed.md) |
@@ -69,6 +71,7 @@
 | HD-15 | 1 | AI | open | **Confirm HACS custom-component versions/repos** — `motion`, `ai_task`, Weather-2000, OneDrive, go2rtc via SSH / config git repo (REST API can't expose). · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-17 | 3 | AI | open | **Single failover button + `ha-failover.sh`** — RMat → wait → VIP → standby, on Homepage; manual-trigger design accepted. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-18 | 2 | Human | open | **Once: test HmIP-RFUSB pairing transfer** + entity reconstruction across stick move. Hands-on; requires HD-13. · [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-54 | 2 | AI + Human | open | *(decision)* **Grafana/n8n SMTP relay provider** — `grafana_smtp_host` undecided; the alert fail-safe email can't deliver until a relay is chosen. Related: HD-30 (Infomaniak). · [observability.md](docs/observability.md), [deployment-secrets.md](docs/deployment-secrets.md) |
 
 ## Priority 3
 
@@ -92,6 +95,8 @@
 | HD-47 | 2 | AI | open | **Matrix public records + Federation** — publish `matrix`/`chat` (Cloudflare DNS-only) + `_matrix` well-known/SRV delegation; WAN allow 443 (8448 optional) to oldsrv; **no Forward-Auth on `/_matrix/*`**. · [services-traefik.md](docs/services-traefik.md), [network-dns.md](docs/network-dns.md) |
 | HD-48 | 3 | AI + Human | open | **Requested-only bridges (deferred, Phase 2 best-effort)** — WhatsApp/Messenger/Signal bridges are **out of Phase 1 scope** (every bridge risks a real external account). Revisit **only if family asks**, and then only against **dedicated** numbers, accepting re-pairing/ban. · [services-matrix.md](docs/services-matrix.md) |
 | HD-49 | 3 | AI | open | **Backup Matrix identity + media** — signing/identity keys (critical — reissue breaks rooms), homeserver DB (db-backup/Kopia), media store; add to backup policy. · [services-matrix.md](docs/services-matrix.md), [backup.md](docs/backup.md) |
+| HD-55 | 2 | AI + Human | open | *(decision)* **Alloy per-host `instance` label** — every host scrapes `127.0.0.1:9998` → identical `instance` (series collide in Prometheus); set per-host (e.g. `{{ inventory_hostname }}`) before enabling Alloy on the Pi. · [observability.md](docs/observability.md) |
+| HD-57 | 3 | AI + Human | open | **Finance pre-deploy prep (Actual Budget / Enable Banking)** — verify EB redirect URL (`budget.kogler.si`) covered by Traefik + wildcard cert; Wise API token (read-only); IBKR Flex Query token URL; *(decision)* UniCredit SI email-transaction alerts (World Elite) vs SMS; *(decision)* `actual-server:nightly` vs stable + n8n bridge; enter initial capital base. · [services-finance.md](docs/services-finance.md) |
 | HD-51 | 2 | AI + Human | open | *(research/decision)* **Family desktop users** — 4 members + guest + a NEUTRAL family account that owns shared media data (NOT a personal account as uid/gid 1000/1000); UID/group strategy + auto-login target under research. Blocks desktop-role auto-login (role shipped without user accounts). · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-52 | 1 | AI + Human | open | *(decision)* **OpenCloud sync client packaging** — official client (opencloud-eu/desktop) ships AppImage only, no apt repo; options: AppImage → /opt + .desktop entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Blocks office role's client. · [llm-office.md](docs/llm-office.md) |
 
@@ -160,7 +165,7 @@
 
 ## Notes / observed gaps
 
-- `issues.md` is the official scratchpad for follow-ups (`docs/issues.md`) and is currently **empty** — decide whether it or this file is the backlog home (single source, avoid duplication). Recommended split: **todo.md = planned work**, **issues.md = defects/follow-ups**.
+- **Single backlog decided:** `todo.md` is the one backlog for planned work + open decisions (HD-XX). The former `docs/issues.md` scratchpad was **removed** — route new defects/follow-ups into `todo.md` with an HD-XX entry (or mark inline in the owning doc with a ⚠ marker).
 - Two dead references in docs: `docs/network-devices.md` (HD-35) and `docs/inventory.md` (HD-12).
 - Dependencies: HD-03 → HD-04 → HD-13 · HD-06/07 → HD-08 · HD-01 done ✅ · HD-29 → HD-31 · HD-50 done ✅ → HD-16 → HD-43/HD-44/HD-46 (Authentik is a hard prerequisite for Forward-Auth services) · HD-50 blocks all `docker_services` deployments.
 - **Recently-implemented IaC (done at template/role level, NOT yet deployed):** storage role (ZFS layout, snapshots, NFS, push jobs), face-thumbnail push over NFS, boot-time provisioning, traefik-ha edge failover, the Media/·\*arr + dozzle templates (→ HD-43/-44), and the **router/switch network roles** (→ HD-03). These are **not** live on any host yet — track them as open until a deploy/verify task (Phase 2/3) runs.
@@ -172,4 +177,4 @@
 | AI | 31 | HD-01,02,06,07,08,09,10,11,12,14,15,16,17,19,23,26,28,32,33,35,36,37,38,41,43,44,45,46,47,49,50 |
 | Human | 10 | HD-05(done),18,20,24,25,29,30,31,39,42 |
 | AI + gate | 2 | HD-03, HD-04 |
-| AI + Human | 9 | HD-13,21,22,27,34,40,48,51,52 |
+| AI + Human | 14 | HD-13,21,22,27,34,40,48,51,52,53,54,55,56,57 |

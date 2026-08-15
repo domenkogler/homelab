@@ -25,6 +25,7 @@ amd_rocm_packages:
 # ha_vip / ha_vip_cidr are defined once in group_vars/all.yml (SSOT).
 ha_standby_state: BACKUP       # standby node (oldsrv); primary (Pi) uses MASTER + higher priority
 ha_standby_priority: 100
+ha_failover_priority: 120       # failover keepalived (MASTER) must beat Pi primary (110)
 ha_sync_interval: 15           # minutes; Pi → standby config sync (LAN only)
 ha_standby_path: /opt/home-assistant-standby
 # Observability alerting (docs/observability.md) — Grafana alert email recipient.

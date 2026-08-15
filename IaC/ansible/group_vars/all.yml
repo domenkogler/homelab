@@ -70,6 +70,7 @@ kopia_s3_endpoint: https://e2.idy.io
 # and must never be extended into the VIP; 10.10.1.200 is reserved — not a normal static lease.
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
 ha_vip_cidr: 24                    # VIP prefix — shared by primary + standby keepalived
+ha_keepalived_vrid: 51            # VRRP virtual_router_id — MUST match on both HA nodes
 network_vlans:
   - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }
