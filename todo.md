@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 43 open · 7 done** · **Total: 50**
+**Status: 42 open · 8 done** · **Total: 50**
 
 ---
 
@@ -101,7 +101,7 @@
 | HD-32 | 2 | AI | open | **Write family guides `docs/manual/*`** — 10 Slovenian files, `status: wip`, not yet written; content well-specified; deferred until services live. · [manual/README.md](docs/manual/README.md) |
 | HD-33 | 1 | AI | open | **Export live router config `rb4011_live.rsc`** — one-time RouterOS export; docs-only. · [network-ops.md](docs/network-ops.md) |
 | HD-34 | 2 | AI + Human | open | **Assess Kopia Web GUI vs CLI** at the first restore drill (agent assesses during the human-run yearly drill). · [backup.md](docs/backup.md) |
-| HD-35 | 1 | AI | open | **Fix broken `network-devices.md` reference** — linked from network-vlans.md but missing; create or correct. · [network-vlans.md](docs/network-vlans.md) |
+| HD-35 | 1 | AI | done | **Fix broken `network-devices.md` reference** — link was already removed from network-vlans.md (resolved). The content lives in `assets/Network-Devices.canvas`. · [network-vlans.md](docs/network-vlans.md) |
 
 ## Priority 5 (deferred / optional / Phase 2)
 
