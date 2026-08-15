@@ -6,8 +6,9 @@
 #   (webhooks from Grafana); web UI protected by Authentik Forward-Auth.
 #
 #   No 1Password secrets required for basic operation.
-#   Future: n8n_password (webhook HMAC / encryption key), n8n-smtp_login (SMTP).
-#   See docs/deployment-secrets.md §Future / not-yet-created.
+#   Secrets: n8n_password (Password → field=password) — N8N_ENCRYPTION_KEY, also
+#   authenticates Grafana alert webhooks (see docs/deployment-secrets.md master list).
+#   Future: n8n-smtp_login (SMTP relay — provider not chosen yet).
 services:
   n8n:
     image: n8nio/n8n:{{ n8n_version | default('latest') }}
@@ -23,7 +24,7 @@ services:
       N8N_PROTOCOL: https
       N8N_HOST: auto.kogler.si
       WEBHOOK_URL: https://auto.kogler.si
-      N8N_ENCRYPTION_KEY: "{{ lookup('community.general.onepassword', 'n8n_password', vault=op_vault) }}"
+      N8N_ENCRYPTION_KEY: "{{ lookup('community.general.onepassword', 'n8n_password', field='password', vault=op_vault) }}"
       N8N_METRICS: "true"
       DB_TYPE: sqlite
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"

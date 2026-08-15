@@ -109,9 +109,10 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `pihole_password` | `password` | Pi-hole admin UI (`WEBPASSWORD`) — optional; empty = no password set via web UI |
 | `matrix_api` | `credential` (`username` = client_id) | Tuwunel Matrix — Authentik OIDC client (`client_id` = username, `client_secret` = credential); callback URI registered in Authentik provider |
 | `matrix_password` | `password` | Tuwunel Matrix — `registration_shared_secret` (bootstrap via `/_synapse/admin/v1/register`; keep a copy with the server identity/backups — HD-49) |
+| `n8n_password` | `password` | n8n — `N8N_ENCRYPTION_KEY` (workflow encryption; also used to authenticate Grafana alert webhooks — n8n compose template) |
 
-> Entity count: **29 items**, each a single `<service>_<type>` name with one `_` delimiter.
-> Future / not-yet-created: `n8n_password` (webhook) + `n8n-smtp_login` (SMTP), `ha_mqtt` / `ha-mqtt_login` (if MQTT added to HA), `proxmox_root` / `proxmox_login` (Phase 2).
+> Entity count: **30 items**, each a single `<service>_<type>` name with one `_` delimiter.
+> Future / not-yet-created: `n8n-smtp_login` (SMTP relay — provider not chosen yet, see deployment.md), `ha_mqtt` / `ha-mqtt_login` (if MQTT added to HA), `proxmox_root` / `proxmox_login` (Phase 2).
 
 ---
 

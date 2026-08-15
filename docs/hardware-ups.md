@@ -83,7 +83,7 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 ### Roadmap (implementation pending)
 - [ ] **NUT on nas** — master: `usbhid-ups` (USB path), `upsd`, `nut_exporter`, `upssched-cmd` notify (per [`deployment-ansible.md`](deployment-ansible.md) `nut` role).
 - [ ] **NUT clients** on `oldsrv` + `pi` (*slave* mode) with per-host shutdown delay (60 s / 0 / 0).
-- [ ] Wire UPS metrics + alerts into Prometheus/Grafana (see [`observability.md`](observability.md)) — Critical battery/runtime, Warning on-battery, Info transitions.
+- [ ] Wire UPS metrics + alerts into Prometheus/Grafana (see [`observability.md`](observability.md)) — Critical battery/runtime, Warning on-battery, Info transitions. ⚠ **needs research + decision:** alert rules in the monitoring role assume the DRuggeri/nut_exporter `nut_ups_status` bitmask (`1=OL, 2=OB, 16=RB`); verify the installed exporter version's status flags + metric names at deploy before relying on on-battery / replace-battery alerts. See monitoring role `vars/main.yml`.
 - [ ] Open firewall rule 80/443 Home→Mgmt for the UPS **web UI** only (Modbus **502 retired** — no consumer, see [`network-vlans.md`](network-vlans.md)).
 
 ---

@@ -24,7 +24,7 @@ services:
       - /srv/docker/pihole/dnsmasq:/etc/dnsmasq.d
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      WEBPASSWORD: "{{ lookup('community.general.onepassword', 'pihole_password', vault=op_vault) | default('') }}"
+      WEBPASSWORD: "{{ lookup('community.general.onepassword', 'pihole_password', field='password', vault=op_vault) | default('') }}"
       PIHOLE_DNS_: "technitium:53"
       DNSSEC: "true"
       CONDITIONAL_FORWARDING: "true"

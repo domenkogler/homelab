@@ -19,7 +19,7 @@ storage_allow_pool_create: false
 # Scrape job + port in prometheus.yml.j2 / group_vars/all.yml (zfs_exporter_port).
 # ---------------------------------------------------------------------
 zfs_exporter: true
-zfs_exporter_release: "@latest"    # or a pinned tag like "v2.4.1"
+zfs_exporter_release: "v2.4.1"    # pinned — verified linux-amd64 asset; bump deliberately
 zfs_exporter_platform: linux
 zfs_exporter_arch: amd64
 zfs_exporter_listen: ":9198"

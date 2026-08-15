@@ -20,7 +20,7 @@ services:
       - db-internal
     volumes:
       - /srv/docker/grafana/data:/var/lib/grafana
-      - /srv/docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - /srv/docker/grafana/provisioning:/etc/grafana/provisioning
     environment:
       # Admin account — behind Authentik Forward-Auth (admin uses Forward-Auth SSO,
       # this account is the break-glass / provisioning owner).

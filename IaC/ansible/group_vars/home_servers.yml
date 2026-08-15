@@ -27,6 +27,11 @@ ha_standby_state: BACKUP       # standby node (oldsrv); primary (Pi) uses MASTER
 ha_standby_priority: 100
 ha_sync_interval: 15           # minutes; Pi → standby config sync (LAN only)
 ha_standby_path: /opt/home-assistant-standby
+# Observability alerting (docs/observability.md) — Grafana alert email recipient.
+# SMTP fail-safe contact point in the monitoring role (grafana-contactpoints.yml.j2).
+# NOTE: the SMTP relay host (grafana_smtp_host) is still undecided — needs a provider
+# decision (Infomaniak kSuite, HD-30) before the fail-safe can actually deliver.
+grafana_alert_email: domen@kogler.si
 # subdomain (optional): overrides the auto-generated URL hostname.
 # When omitted, the service name is used (e.g. traefik → traefik.kogler.si).
 # Required for services whose subdomain ≠ name (e.g. grafana → stats.kogler.si).
