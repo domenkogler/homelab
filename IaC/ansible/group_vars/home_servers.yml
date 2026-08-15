@@ -9,6 +9,18 @@
 homelab_mode: desktop          # 'desktop' for Phase 1, 'proxmox' for Phase 2
 gpu_vendor: amd
 ollama_keep_alive: 5m
+
+# AMD ROCm host userspace (roles/amd_rocm, docs/hardware-gpu.md)
+# Official AMD repo, "latest" track — AMD publishes Ubuntu suites only (jammy/noble),
+# so the noble suite is installed on Debian (decision: track latest). In-tree amdgpu
+# driver + firmware-amd-graphics; no amdgpu-dkms. Flip to Debian-native ROCm blocks
+# (rocm-opencl-icd/hipcc) by pointing amd_rocm_repo/amd_rocm_suite elsewhere.
+amd_rocm_repo: https://repo.radeon.com/rocm/apt/latest
+amd_rocm_suite: noble
+amd_rocm_packages:
+  - rocm-hip-sdk
+  - rocm-opencl-sdk
+  - rocminfo
 # Home Assistant failover (docs/smart-home-failover.md)
 # ha_vip / ha_vip_cidr are defined once in group_vars/all.yml (SSOT).
 ha_standby_state: BACKUP       # standby node (oldsrv); primary (Pi) uses MASTER + higher priority

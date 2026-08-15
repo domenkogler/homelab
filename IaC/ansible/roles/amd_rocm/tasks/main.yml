@@ -1,2 +1,88 @@
 ---
-# amd_rocm role — TODO: implement
+# amd_rocm role — host ROCm userspace + GPU access rules (docs/hardware-gpu.md)
+#
+# Decisions (recorded):
+#   - Repo: official AMD repo, "latest" track, Ubuntu `noble` suite installed on
+#     Debian — AMD publishes NO Debian suite (jammy/noble only); "latest" is a
+#     convention, not a pinned version. Switchable via amd_rocm_repo/amd_rocm_suite.
+#   - Kernel: in-tree amdgpu driver + firmware-amd-graphics (RX 7600 / gfx1102).
+#     NO amdgpu-dkms — the Debian kernel already supports the card; a DKMS module
+#     only adds upgrade risk.
+#   - GPU containers (ollama:rocm, immich-ml) map /dev/dri + /dev/kfd and bundle
+#     their own ROCm runtime; this role installs the host userland
+#     (rocm-hip-sdk, rocm-opencl-sdk, rocminfo) for host-side tooling/inspection
+#     and grants device access via groups + udev.
+#
+# Secrets: none — public packages, no credentials.
+# Condition: applied from playbooks/home_servers.yml when gpu_vendor == "amd".
+
+- name: Refuse runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      amd_rocm role must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+  tags: always
+
+- name: Create keyring directory if it does not exist
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+  tags: [amd_rocm]
+
+- name: Download official AMD ROCm GPG key
+  ansible.builtin.get_url:
+    url: https://repo.radeon.com/rocm/rocm.gpg.key
+    dest: /etc/apt/keyrings/rocm.gpg
+    mode: '0644'
+  tags: [amd_rocm]
+
+- name: Add official AMD ROCm repository (Ubuntu noble suite on Debian — "latest" track)
+  ansible.builtin.deb822_repository:
+    name: amd-rocm
+    types: [deb]
+    uris: ["{{ amd_rocm_repo }}"]
+    suites: ["{{ amd_rocm_suite }}"]
+    components: [main]
+    signed_by: /etc/apt/keyrings/rocm.gpg
+    state: present
+  tags: [amd_rocm]
+
+- name: Install AMD GPU firmware + ROCm host userspace
+  ansible.builtin.apt:
+    name: "{{ ['firmware-amd-graphics'] + amd_rocm_packages }}"
+    state: present
+    update_cache: true
+  tags: [amd_rocm]
+
+- name: Add admin user to video + render groups (GPU device access)
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: [video, render]
+    append: true
+  when: ansible_user in ansible_admin_users
+  tags: [amd_rocm]
+
+- name: Udev rules — world-accessible /dev/kfd + /dev/dri/renderD* for containers
+  ansible.builtin.copy:
+    dest: /etc/udev/rules.d/60-rocm.rules
+    content: |
+      # AMD ROCm (roles/amd_rocm) — container/GPU device access (docs/hardware-gpu.md)
+      KERNEL=="kfd", MODE="0666"
+      SUBSYSTEM=="drm", KERNEL=="renderD*", MODE="0666"
+    mode: '0644'
+  notify: [reload udev, trigger udev]
+  tags: [amd_rocm]
+
+- name: Set OLLAMA_KEEP_ALIVE in /etc/environment (VRAM release after inactivity)
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    regexp: '^OLLAMA_KEEP_ALIVE='
+    line: "OLLAMA_KEEP_ALIVE={{ ollama_keep_alive | default('5m') }}"
+  tags: [amd_rocm]
+
+# Verify after deploy:  getent group video render
+#                        rocminfo | head          (or rocm-smi)
+#                        ls -l /dev/kfd /dev/dri/renderD*
