@@ -66,8 +66,11 @@ docker_services:
   - { name: technitium,      template_dir: technitium, subdomain: dns, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: pihole,          template_dir: pihole,     subdomain: ad }
   # Smart home failover: standby HA + RaspberryMatic + keepalived VIP on oldsrv (docs/smart-home-failover.md)
-  - { name: raspberrymatic-standby, template_dir: raspberrymatic, instance: standby, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
-  - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
+  # COLD by design — docker_services must NOT start them (exactly one active HA). The
+  # home_assistant role renders their compose files + configs; ha-failover.sh starts
+  # them on manual forward takeover (RMat → wait CCU → VIP → HA standby).
+  - { name: raspberrymatic-standby, template_dir: raspberrymatic, instance: standby, enabled: false }
+  - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: false }
   # VPN
   - { name: headscale,       template_dir: headscale,       subdomain: vpn }
   # Backup

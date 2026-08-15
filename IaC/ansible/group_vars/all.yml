@@ -40,8 +40,8 @@ wildcard_cert_domain: "kogler.si"
 # answered on the host at this port. Prometheus scrapes via host.docker.internal
 # (host-gateway extra_hosts in the prometheus template). Verified at HD-02 activation.
 doco_cd_metrics_port: 9120
-# Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== pi 10.10.1.20).
-technitium_secondary_ip: 10.10.1.20
+# Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== pi_home_ip, SSOT-derived).
+technitium_secondary_ip: "{{ pi_home_ip }}"
 
 # ==== UPS / NUT (docs/hardware-ups.md) ====
 # Single SSOT `nut_exporter` runs as a HOST binary on the NUT master (nas, no Docker)

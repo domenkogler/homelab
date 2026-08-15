@@ -20,35 +20,35 @@
 # Roles of this role (implement as tasks):
 #
 # 1. PRIMARY (host: raspberry_pi / pi.kogler.si) — tasks/pi.yml
-#    - Install Home Assistant Container (Debian + docker): image ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}
+#    - Install Home Assistant Container (Debian + docker): image ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}  ✅
 #    - Render /config/configuration.yaml from repo template (use_x_forwarded_for: true,
 #      trusted_proxies: <Pi traefik-ha + oldsrv traefik — both edges must be trusted>)
 #    - Render other configs (integrations: knx via GIRA IP Router .118, homematic [XML-RPC 2001/2010 via local RaspberryMatic], shelly native)
 #    - Run "owner" recovery account; Authentik OIDC; NO Forward-Auth on ha route
-#    - keepalived PRIMARY: owns VIP 10.10.1.200 (state MASTER, priority higher than standby)   ← PENDING
+#    - keepalived PRIMARY: owns VIP 10.10.1.200 (state MASTER, priority higher than standby)  ✅ HD-17
 #    - Deploy `traefik-ha` edge (docker_services, group_vars/raspberry_pi.yml): VIP-bound
-#      serve of ha.kogler.si → VIP:8123; keeps ha.kogler.si reachable when oldsrv is down.     ← PENDING
+#      serve of ha.kogler.si → VIP:8123; keeps ha.kogler.si reachable when oldsrv is down.  ✅
 #    - sysctl net.ipv4.ip_nonlocal_bind=1 (persist via /etc/sysctl.d) so traefik-ha can
-#      bind the VIP even before/without keepalived holding the address.                        ← PENDING
+#      bind the VIP even before/without keepalived holding the address.  ✅
 #    - Cert sync (LAN, timer — same cadence as the HA config sync Pi→standby, reversed):
 #      rsync the wildcard *.kogler.si cert pair ({{ wildcard_cert_file }} /
 #      {{ wildcard_cert_key_file }}) from oldsrv's `traefik` (the SINGLE ACME issuer;
 #      Cloudflare DNS-01) → /opt/traefik-ha/certs/. ACME is intentionally DISABLED on
-#      the Pi edge; sync must run before traefik-ha starts and keep the cert offline-safe.     ← PENDING
-#    - HA exporter: enable /api/prometheus bearer token (monitoring role scrapes)
+#      the Pi edge; sync must run before traefik-ha starts and keep the cert offline-safe.  ✅
+#    - HA exporter: enable /api/prometheus bearer token (monitoring role scrapes — token file in monitoring role)
 # 2. STANDBY (host: home_servers / oldsrv) — tasks/standby.yml
-#    - Template home-assistant-standby/docker-compose.yml.j2 → /opt/home-assistant-standby/
-#    - Render the SAME configuration.yaml into /opt/home-assistant-standby/config/            ← PENDING
-#    - Create systemd unit home-assistant-standby (disabled by default)                        ← PENDING
-#    - Template raspberrymatic-standby (RaspberryMatic) → /opt/raspberrymatic-standby/ (disabled by default) ← PENDING
-#    - keepalived STANDBY: state BACKUP, priority lower; takes VIP on takeover                 ✅ HD-17
-#    - ha-failover.sh + trigger API + Homepage buttons                                        ✅ HD-17
-# 3. STATE SYNC (normal direction: Pi → standby)                                              ← PENDING
-#    - rsync /config from Pi to /opt/home-assistant-standby/config/ every ~15 min (LAN only, no WAN)
-#    - rsync RaspberryMatic config Pi → oldsrv the same way (pairing stays on the stick)
-#    - Optionally sync HA DB; best-effort only (HA re-polls devices on startup)
-# 4. FAILOVER ORCHESTRATOR (host: home_servers / oldsrv) — tasks/standby.yml                 ✅ HD-17
-# 5. PI SD-CARD WEAR MITIGATION (HD-19, host: raspberry_pi only) — tasks/pi.yml              ✅ HD-19
+#    - Template home-assistant-standby/docker-compose.yml.j2 → /opt/home-assistant-standby/  ✅ (cold render)
+#    - Render the SAME configuration.yaml into /opt/home-assistant-standby/config/  ✅
+#    - Create systemd unit home-assistant-standby (disabled by default)  ✅ handled by ha-failover.sh (docker compose up -d; no unit)
+#    - Template raspberrymatic-standby (RaspberryMatic) → /opt/raspberrymatic-standby/ (disabled by default)  ✅ (cold render)
+#    - keepalived STANDBY: state BACKUP, priority lower; takes VIP on takeover  ✅ HD-17
+#    - ha-failover.sh + trigger API + Homepage buttons  ✅ HD-17
+# 3. STATE SYNC (normal direction: Pi → standby)  ✅
+#    - rsync /config from Pi to /opt/home-assistant-standby/config/ every ~15 min (LAN only, no WAN)  ✅ ha-config-sync.timer
+#    - rsync RaspberryMatic config Pi → oldsrv the same way (pairing stays on the stick)  ← PENDING
+#    - Optionally sync HA DB; best-effort only (HA re-polls devices on startup)  ← PENDING
+# 4. FAILOVER ORCHESTRATOR (host: home_servers / oldsrv) — tasks/standby.yml  ✅ HD-17
+# 5. PI SD-CARD WEAR MITIGATION (HD-19, host: raspberry_pi only) — tasks/pi.yml  ✅ HD-19
 #    - Trim HA recorder (purge_keep_days: 2, commit_interval: 5, exclude noisy domains)
 #    - Docker log driver `local` (max-size: 10m, max-file: 2) — in docker role
 #    - journald Storage=volatile
