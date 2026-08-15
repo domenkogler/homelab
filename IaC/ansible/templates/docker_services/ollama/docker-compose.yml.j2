@@ -2,12 +2,14 @@
 #   GPU-accelerated via AMD ROCm (/dev/dri, /dev/kfd). Accessed by other services
 #   on services-internal (n8n, AnythingLLM, maybe HA Assist). No web UI directly —
 #   no Traefik labels. OLLAMA_KEEP_ALIVE=5m keeps models warm between requests.
+#   Image: `:rocm` == latest release incl. bundled ROCm runtime (the plain `:latest`
+#   tag has no ROCm support). A model is pulled at runtime, so no API keys needed.
 #
 # Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 #   — none needed (models are public, no API keys)
 services:
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:rocm
     container_name: ollama
     restart: always               # must start at boot before user login
     networks:
