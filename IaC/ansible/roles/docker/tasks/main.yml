@@ -40,3 +40,20 @@
     append: true
   # docker group ≈ root — only whitelisted admin users, never ai-debug
   when: ansible_user in ansible_admin_users
+
+# ---- Pi SD-card wear mitigation (HD-19) ----
+- name: Configure Docker log driver for Pi (local, capped)
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "local",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "2"
+        }
+      }
+    mode: '0644'
+  when: inventory_hostname == 'pi.kogler.si'
+  notify: restart docker
+  tags: [pi_sd_trim, hd19]

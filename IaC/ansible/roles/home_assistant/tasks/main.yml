@@ -50,11 +50,47 @@
 # 4. FAILOVER ORCHESTRATOR (host: home_servers / oldsrv)
 #    - Deploy /usr/local/sbin/ha-failover.sh + a Homepage button that invokes it
 #      (start RMat standby → wait 2001/2010 → promote VIP → start HA standby)
-# 5. FIREWALL (see docs/network-vlans.md)
+# 5. PI SD-CARD WEAR MITIGATION (HD-19, host: raspberry_pi only)
+#    - Trim HA recorder (purge_keep_days: 2, commit_interval: 5, exclude noisy domains)
+#    - Docker log driver `local` (max-size: 10m, max-file: 2) — in docker role
+#    - journald Storage=volatile
+#    - /var/log mounted as tmpfs
+#
+# Secrets (1Password vault 'Homelab'):
 #    - Home→IoT trusted-IP rules for MQTT/HA must cover the VIP (10.10.1.200), not per-node IPs
 #    - Home→IoT/Home rules must let the RaspberryMatic XML-RPC ports 2001/2010 (fixed CCU IP) and
 #      both HA nodes reach it
 #
-# Secrets (1Password vault 'Homelab'):
+
+# ---- Tasks: PI SD-CARD WEAR MITIGATION (HD-19) ----
+
+- name: Render HA configuration.yaml (with recorder trim)
+  ansible.builtin.template:
+    src: configuration.yaml.j2
+    dest: /opt/homeassistant/config/configuration.yaml
+    mode: '0644'
+  when: inventory_hostname == 'pi.kogler.si'
+  tags: [ha_recorder, hd19]
+
+- name: Set journald to volatile (RAM-only, Pi SD-card wear)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/journald.conf
+    regexp: '^#?Storage='
+    line: 'Storage=volatile'
+    create: true
+    mode: '0644'
+  when: inventory_hostname == 'pi.kogler.si'
+  notify: restart journald
+  tags: [pi_sd_trim, hd19]
+
+- name: Mount /var/log as tmpfs (Pi SD-card wear)
+  ansible.builtin.mount:
+    path: /var/log
+    src: tmpfs
+    fstype: tmpfs
+    opts: defaults,noatime,nosuid,nodev,noexec,size=100m
+    state: mounted
+  when: inventory_hostname == 'pi.kogler.si'
+  tags: [pi_sd_trim, hd19]
 #   - ha_api (long-lived), ha-mqtt_login (if MQTT added), ha-vrrp_password
 #   - {{ lookup('community.general.onepassword', '...', vault=op_vault) }}

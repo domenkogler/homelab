@@ -1,0 +1,32 @@
+# Home Assistant configuration.yaml — templated by Ansible
+# Source of truth: IaC/ansible/roles/home_assistant/templates/configuration.yaml.j2
+# Both Pi (primary) and oldsrv (standby) render the same config.
+
+# ---- Reverse proxy (Traefik) ----
+# Both edges must be trusted so HA sees real client IPs.
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.20.0.0/16   # traefik-public Docker network (SSOT: network-addresses.md)
+
+# ---- Recorder (trimmed for Pi microSD wear) ----
+# Grafana replaces HA for long-term analytics, so local history is kept short.
+# Keep recorder ENABLED — it still powers Logbook, Energy-Dashboard LTS, and
+# history_stats sensors. Do NOT disable, do NOT switch to Postgres.
+recorder:
+  purge_keep_days: 2
+  commit_interval: 5
+  exclude:
+    domains:
+      - update
+      - updater
+      - persistent_notification
+      - scene
+      - automation
+    entity_globs:
+      - sensor.*_last_boot
+      - binary_sensor.*_status
+
+# ---- Integrations ----
+# Configure additional integrations via the HA UI (stored in .storage/).
+# See docs/smart-home.md for architecture.
