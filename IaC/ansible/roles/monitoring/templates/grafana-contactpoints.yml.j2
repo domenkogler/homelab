@@ -1,0 +1,26 @@
+# Grafana contact points — monitoring role (step 3)
+# Target: /srv/docker/grafana/provisioning/alerting/contactpoints.yml
+#
+# Design (docs/observability.md): one contact point carries BOTH receivers —
+# n8n webhook (normal path → Signal + email routing) AND Grafana-native SMTP
+# (fail-safe, parallel: still delivers if n8n/signal-cli is down).
+# n8n is reached on traefik-public (shared with Grafana). The webhook workflow
+# ("homelab-alerts") must exist in n8n; payload = Grafana alert webhook.
+# No 1Password lookup here — email address is a non-secret group_var.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: homelab-alerts
+    receivers:
+      - uid: n8n-webhook
+        type: webhook
+        settings:
+          url: "http://n8n:5678/webhook/homelab-alerts"
+          httpMethod: POST
+          autoResolve: false
+      - uid: smtp-failsafe
+        type: email
+        settings:
+          addresses: "{{ grafana_alert_email | default('domen@kogler.si') }}"
+          autoResolve: false

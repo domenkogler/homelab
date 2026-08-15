@@ -1,0 +1,100 @@
+{
+  "title": "Homelab — UPS",
+  "uid": "homelab-ups",
+  "tags": ["homelab", "ups"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Battery charge",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 20 },
+            { "color": "green", "value": 50 }
+          ]}
+        }
+      },
+      "targets": [{ "refId": "A", "expr": "nut_battery_charge_percent", "instant": true }]
+    },
+    {
+      "type": "stat",
+      "title": "Runtime left",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "min",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 5 },
+            { "color": "green", "value": 15 }
+          ]}
+        }
+      },
+      "targets": [{ "refId": "A", "expr": "nut_battery_runtime_seconds / 60", "instant": true }]
+    },
+    {
+      "type": "gauge",
+      "title": "Load",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 60 },
+            { "color": "red", "value": 85 }
+          ]}
+        }
+      },
+      "targets": [{ "refId": "A", "expr": "nut_ups_load_percent", "instant": true }]
+    },
+    {
+      "type": "stat",
+      "title": "Input voltage",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "volt" } },
+      "targets": [{ "refId": "A", "expr": "nut_input_voltage", "instant": true }]
+    },
+    {
+      "type": "stat",
+      "title": "Output voltage",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "volt" } },
+      "targets": [{ "refId": "A", "expr": "nut_output_voltage", "instant": true }]
+    },
+    {
+      "type": "stat",
+      "title": "Real power",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "watt" } },
+      "targets": [{ "refId": "A", "expr": "nut_ups_realpower_watts", "instant": true }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Input vs output voltage",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "volt" } },
+      "targets": [
+        { "refId": "A", "expr": "nut_input_voltage" },
+        { "refId": "B", "expr": "nut_output_voltage" }
+      ]
+    }
+  ]
+}

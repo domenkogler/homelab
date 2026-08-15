@@ -1,0 +1,17 @@
+# Grafana notification policy — monitoring role (step 3)
+# Target: /srv/docker/grafana/provisioning/alerting/policies.yml
+#
+# Single default route → homelab-alerts (webhook n8n + SMTP fail-safe).
+# Throttle (docs/observability.md "Poke/throttle"): a still-firing alert is
+# re-sent at most every 30m; new/grouped alerts wait 2m before first send.
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: homelab-alerts
+    group_by:
+      - grafana_folder
+      - alertname
+    group_wait: 2m
+    group_interval: 10m
+    repeat_interval: 30m

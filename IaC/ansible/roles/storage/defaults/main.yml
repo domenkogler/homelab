@@ -13,6 +13,20 @@
 # On reinstall-with-data, import must win — this role never destroys a pool.
 storage_allow_pool_create: false
 
+# ---------------------------------------------------------------------
+# zfs_exporter — host binary on nas (no Docker), mirrors roles/nut nut_exporter.
+# Metrics: zfs_pool_allocated / zfs_pool_size / zfs_pool_health per pool.
+# Scrape job + port in prometheus.yml.j2 / group_vars/all.yml (zfs_exporter_port).
+# ---------------------------------------------------------------------
+zfs_exporter: true
+zfs_exporter_release: "@latest"    # or a pinned tag like "v2.4.1"
+zfs_exporter_platform: linux
+zfs_exporter_arch: amd64
+zfs_exporter_listen: ":9198"
+zfs_exporter_pools:
+  - tank
+  - bulk
+
 # NFS topology.
 storage_nfs_server: nas.kogler.si   # resolved via /etc/hosts (network role)
 # NFS export client — single SSOT source: group_vars/all.yml → network_ranges

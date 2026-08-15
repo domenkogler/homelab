@@ -31,12 +31,16 @@ scrape_configs:
         target_label: __param_module
     params:
       module: [http_2xx]
-  # ICMP probes (router + switch — IPs from SSOT network_static_hosts)
+  # ICMP probes (router + switch on Mgmt VLAN; nas/oldsrv/pi on Home VLAN — IPs from SSOT network_static_hosts)
   - job_name: blackbox_icmp
     static_configs:
       - targets:
-          - "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}"
-          - "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}"
+{% for hostname in ['router', 'switch'] %}
+          - "{{ (network_static_hosts | selectattr('name', 'equalto', hostname) | selectattr('vlan', 'equalto', 99) | first).ip }}"
+{% endfor %}
+{% for hostname in ['nas', 'oldsrv', 'pi'] %}
+          - "{{ (network_static_hosts | selectattr('name', 'equalto', hostname) | selectattr('vlan', 'equalto', 10) | first).ip }}"
+{% endfor %}
     metrics_path: /probe
     relabel_configs:
       - source_labels: [__address__]
@@ -51,6 +55,10 @@ scrape_configs:
   - job_name: nut_exporter
     static_configs:
       - targets: ["{{ nut_exporter_host }}:{{ nut_exporter_port }}"]
+  # zfs_exporter (single SSOT ZFS exporter — host binary on nas, storage role)
+  - job_name: zfs_exporter
+    static_configs:
+      - targets: ["{{ zfs_exporter_host }}:{{ zfs_exporter_port }}"]
   # HA exporter (edge HA's /api/prometheus — bearer_token populated by monitoring role)
   - job_name: ha_exporter
     metrics_path: /api/prometheus
@@ -71,6 +79,17 @@ scrape_configs:
     static_configs:
       - targets:
           - "http://doco-cd:{{ doco_cd_metrics_port | default(8008) }}/metrics"
+  # Self-monitoring: the observability stack itself must alert when it dies
+  # (docs/observability.md — Grafana rules key off up{job=...}, noData/execErr as backstop).
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+  - job_name: n8n
+    static_configs:
+      - targets: ["n8n:5678"]
   # Alertmanager (static)
   - job_name: alertmanager
     static_configs:

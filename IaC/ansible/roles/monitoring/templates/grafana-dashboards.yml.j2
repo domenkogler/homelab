@@ -1,0 +1,17 @@
+# Grafana dashboard provider — monitoring role (step 3)
+# Target: /srv/docker/grafana/provisioning/dashboards/dashboards.yml
+# JSON dashboards live next to this file (provisioning/dashboards/*.json)
+# and are hot-reloaded; the provider re-scans every 30s.
+apiVersion: 1
+
+providers:
+  - name: homelab
+    orgId: 1
+    folder: Homelab
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

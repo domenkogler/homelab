@@ -1,0 +1,40 @@
+# snmp_exporter config — monitoring role (step 3 / gap: MikroTik link down)
+# Target: /etc/alloy/snmp.yml (consumed by prometheus.exporter.snmp in alloy.river.j2)
+# Minimal MikroTik module: interface admin/oper status + ifName for labels.
+# Device prerequisite (not this file): RouterOS /snmp set enabled=yes
+# communities=public on the RB4011 + CRS328 — configure via router/switch roles
+# or .rsc before going live (tracked with HD-03).
+auths:
+  public_v2:
+    community: public
+    version: 2
+    timeout: 5s
+    retries: 2
+modules:
+  mikrotik:
+    walk:
+      - 1.3.6.1.2.1.2.2.1.7    # ifAdminStatus
+      - 1.3.6.1.2.1.2.2.1.8    # ifOperStatus
+    metrics:
+      - name: ifAdminStatus
+        oid: 1.3.6.1.2.1.2.2.1.7
+        type: gauge
+        help: Administrative status (1=up, 2=down)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+        lookups:
+          - labels: [ifIndex]
+            labelname: ifName
+            oid: 1.3.6.1.2.1.31.1.1.1.1
+      - name: ifOperStatus
+        oid: 1.3.6.1.2.1.2.2.1.8
+        type: gauge
+        help: Operational status (1=up, 2=down)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+        lookups:
+          - labels: [ifIndex]
+            labelname: ifName
+            oid: 1.3.6.1.2.1.31.1.1.1.1

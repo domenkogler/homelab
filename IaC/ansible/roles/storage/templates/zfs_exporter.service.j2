@@ -1,0 +1,20 @@
+# ZFS pool Prometheus exporter — host binary on nas (no Docker), storage role
+# Scraped by Prometheus on oldsrv over the Home VLAN (zfs_exporter job).
+# Only the pool collector is enabled (datasets/snapshots/volumes disabled —
+# pdf/zfs_exporter README recommends collecting only what's needed).
+[Unit]
+Description=ZFS Prometheus exporter
+After=zfs.target
+
+[Service]
+ExecStart=/usr/local/bin/zfs_exporter \
+  --web.listen-address={{ zfs_exporter_listen }} \
+{% for p in zfs_exporter_pools %}  --pool={{ p }} \
+{% endfor %}  --no-collector.dataset-filesystem \
+  --no-collector.dataset-snapshot \
+  --no-collector.dataset-volume
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

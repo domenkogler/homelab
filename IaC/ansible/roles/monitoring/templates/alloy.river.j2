@@ -62,6 +62,17 @@ loki.write "local" {
     }
 }
 
+// ---- MikroTik SNMP (router + switch — Mgmt VLAN 99, IPs from SSOT) ----
+prometheus.exporter.snmp "mikrotik" {
+    config_file = "/etc/alloy/snmp.yml"
+
+    targets = [
+        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}", "auth" = "public_v2", "module" = "mikrotik"},
+        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}", "auth" = "public_v2", "module" = "mikrotik"},
+    ]
+    forward_to = [prometheus.remote_write.metrics.receiver]
+}
+
 // ---- Host metrics → remote_write ----
 prometheus.scrape "host_metrics" {
     targets = [
@@ -74,4 +85,4 @@ prometheus.scrape "host_metrics" {
 prometheus.exporter.unix "host" {
     // This is wired into the scrape above via port
 }
-{{/* Note: the unix exporter's listen port is set via CLI flag in the systemd service */}}
+// Note: the unix exporter's listen port is set via CLI flag in the systemd service

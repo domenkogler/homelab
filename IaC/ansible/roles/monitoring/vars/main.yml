@@ -1,0 +1,98 @@
+---
+# Alert rule definitions — consumed by grafana-rules.yml.j2 (monitoring step 3).
+# Tiers + thresholds per docs/observability.md. Exprs are PromQL over metrics
+# that exist today (nut_* from DRuggeri/nut_exporter, node_* from Alloy,
+# probe_success from blackbox, up from the self-scrape jobs in prometheus.yml.j2).
+# noDataState/execErrState: Alerting only on self-monitoring rules (a dead data
+# source must still page). ZFS-pool/SNMP rules are TODO — see rules template header.
+grafana_alert_rules:
+  critical:
+    - uid: ups-battery-low
+      title: UPS battery low
+      for: 1m
+      expr: "nut_battery_charge_percent < 20"
+      summary: "UPS battery below 20% — impending shutdown"
+    - uid: ups-runtime-low
+      title: UPS runtime low
+      for: 1m
+      expr: "nut_battery_runtime_seconds < 300"
+      summary: "UPS runtime below 5 min — impending shutdown"
+    - uid: public-service-down
+      title: Public service unreachable
+      for: 2m
+      expr: 'probe_success{job="blackbox_http_probes"} == 0'
+      summary: "Unreachable public service (probe_success = 0)"
+    - uid: host-unreachable
+      title: Host unreachable
+      for: 2m
+      expr: 'probe_success{job="blackbox_icmp"} == 0'
+      summary: "Host unreachable (ICMP probe failed)"
+    - uid: host-disk-full
+      title: Host disk nearly full
+      for: 5m
+      expr: >-
+        (node_filesystem_avail_bytes{mountpoint=~"/|/srv|/var/lib/docker"}
+        / node_filesystem_size_bytes{mountpoint=~"/|/srv|/var/lib/docker"}) < 0.10
+      summary: "Host disk ≥ 90% used"
+    - uid: prometheus-down
+      title: Prometheus is down
+      for: 2m
+      expr: 'up{job="prometheus"} == 0'
+      summary: "Prometheus self-scrape failed — alerting data source is dead"
+      noDataState: Alerting
+      execErrState: Alerting
+    - uid: zfs-pool-full
+      title: ZFS pool nearly full
+      for: 5m
+      expr: "(zfs_pool_allocated / zfs_pool_size) * 100 >= 80"
+      summary: "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥80% used (Critical)"
+    - uid: zfs-pool-degraded
+      title: ZFS pool degraded
+      for: 5m
+      expr: "zfs_pool_health == 1"
+      summary: "ZFS pool {{ $labels.pool }} is DEGRADED"
+  warning:
+    - uid: ups-on-battery
+      title: UPS on battery
+      for: 1m
+      expr: "(nut_ups_status & 2) > 0"
+      summary: "UPS is on battery — mains lost (auto-clears on return)"
+    - uid: ups-battery-replace
+      title: UPS battery needs replacement
+      for: 10m
+      expr: "(nut_ups_status & 16) > 0"
+      summary: "UPS reports Replace-Battery flag"
+    - uid: mikrotik-link-down
+      title: MikroTik link down
+      for: 1m
+      expr: 'ifOperStatus{job="alloy-snmp"} == 2 and on(instance, ifIndex) ifAdminStatus{job="alloy-snmp"} == 1'
+      summary: "MikroTik interface {{ $labels.ifName }} is down (oper down, admin up)"
+    - uid: ha-unreachable
+      title: Home Assistant unreachable
+      for: 1m
+      expr: 'probe_success{job="blackbox_http_probes", instance="https://ha.kogler.si"} == 0'
+      summary: "ha.kogler.si HTTP probe failed"
+    - uid: host-load-high
+      title: Host load high
+      for: 5m
+      expr: "(node_load1 / count(node_cpu_seconds_total)) > 0.85"
+      summary: "Host load average above 85% of CPU count"
+    - uid: loki-down
+      title: Loki is down
+      for: 2m
+      expr: 'up{job="loki"} == 0'
+      summary: "Loki self-scrape failed — log store is dead"
+      noDataState: Alerting
+      execErrState: Alerting
+    - uid: n8n-down
+      title: n8n is down
+      for: 2m
+      expr: 'up{job="n8n"} == 0'
+      summary: "n8n self-scrape failed — alert router is dead (SMTP failsafe still active)"
+      noDataState: Alerting
+      execErrState: Alerting
+    - uid: zfs-pool-warn
+      title: ZFS pool usage high
+      for: 5m
+      expr: "(zfs_pool_allocated / zfs_pool_size) * 100 >= 70"
+      summary: "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥70% used"

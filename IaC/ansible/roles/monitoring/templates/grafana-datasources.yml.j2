@@ -1,0 +1,21 @@
+# Grafana datasources — provisioned by the monitoring role (step 3)
+# Target: /srv/docker/grafana/provisioning/datasources/datasources.yml
+# Both backends live on db-internal (container-name DNS from Grafana, which is
+# attached to traefik-public + db-internal — see grafana compose template).
+# UIDs are stable tokens referenced by alert rules + dashboards.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false

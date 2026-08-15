@@ -48,6 +48,8 @@
   when: ansible_os_family == 'Debian'
 
 - include_tasks: zfs_common.yml
+- include_tasks: zfs_exporter.yml
+  when: inventory_hostname in groups['storage'] | default([])
 - include_tasks: nas.yml
   when: inventory_hostname in groups['storage'] | default([])
 - include_tasks: oldsrv.yml

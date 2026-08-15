@@ -21,6 +21,16 @@
 #
 # Ordering: after docker_services (needs Grafana, Prometheus, Loki containers up)
 
+- name: Refuse Ansible runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      ansible_user '{{ ansible_user }}' is not an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}). The ai-debug user must never
+      run Ansible — it would gain passwordless root via this role.
+  tags: always
+
 - name: Create HA Prometheus API bearer token for Prometheus scraping
   ansible.builtin.copy:
     dest: /etc/prometheus/ha_token
@@ -69,6 +79,15 @@
   when: inventory_hostname in groups['home_servers']
   tags: [monitoring, alloy]
 
+- name: Template Alloy SNMP config (MikroTik module)
+  ansible.builtin.template:
+    src: snmp.yml.j2
+    dest: /etc/alloy/snmp.yml
+    mode: '0644'
+  notify: restart alloy
+  when: inventory_hostname in groups['home_servers']
+  tags: [monitoring, alloy]
+
 - name: Ensure Alloy service is running
   ansible.builtin.systemd:
     name: alloy
@@ -77,3 +96,73 @@
     daemon_reload: true
   when: inventory_hostname in groups['home_servers']
   tags: [monitoring, alloy]
+
+# ---- Grafana provisioning (step 3: datasources, dashboards, alerting) ----
+# Grafana compose mounts /srv/docker/grafana/provisioning → /etc/grafana/provisioning:ro
+# (templates/docker_services/grafana/docker-compose.yml.j2). Files are read at
+# container start; we write them then restart grafana so provisioning loads.
+
+- name: Create Grafana provisioning directories
+  ansible.builtin.file:
+    path: "/srv/docker/grafana/provisioning/{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - datasources
+    - dashboards
+    - alerting
+  when: inventory_hostname in groups['home_servers']
+  tags: [monitoring, grafana]
+
+- name: Provision Grafana datasources (Prometheus + Loki)
+  ansible.builtin.template:
+    src: grafana-datasources.yml.j2
+    dest: /srv/docker/grafana/provisioning/datasources/datasources.yml
+    mode: '0644'
+  notify: restart grafana
+  when: inventory_hostname in groups['home_servers']
+  tags: [monitoring, grafana]
+
+- name: Provision Grafana dashboard provider
+  ansible.builtin.template:
+    src: grafana-dashboards.yml.j2
+    dest: /srv/docker/grafana/provisioning/dashboards/dashboards.yml
+    mode: '0644'
+  notify: restart grafana
+  when: inventory_hostname in groups['home_servers']
+  tags: [monitoring, grafana]
+
+- name: Copy Grafana dashboards
+  ansible.builtin.copy:
+    src: dashboards/
+    dest: /srv/docker/grafana/provisioning/dashboards/
+    mode: '0644'
+  when: inventory_hostname in groups['home_servers']
+  tags: [monitoring, grafana]
+
+- name: Provision Grafana alert contact points
+  ansible.builtin.template:
+    src: grafana-contactpoints.yml.j2
+    dest: /srv/docker/grafana/provisioning/alerting/contactpoints.yml
+    mode: '0644'
+  notify: restart grafana
+  when: inventory_hostname in groups['home_servers']
+  tags: [monitoring, grafana]
+
+- name: Provision Grafana alert notification policy
+  ansible.builtin.template:
+    src: grafana-policies.yml.j2
+    dest: /srv/docker/grafana/provisioning/alerting/policies.yml
+    mode: '0644'
+  notify: restart grafana
+  when: inventory_hostname in groups['home_servers']
+  tags: [monitoring, grafana]
+
+- name: Provision Grafana alert rules
+  ansible.builtin.template:
+    src: grafana-rules.yml.j2
+    dest: /srv/docker/grafana/provisioning/alerting/rules.yml
+    mode: '0644'
+  notify: restart grafana
+  when: inventory_hostname in groups['home_servers']
+  tags: [monitoring, grafana]

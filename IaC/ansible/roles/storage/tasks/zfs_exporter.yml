@@ -1,0 +1,56 @@
+---
+# zfs_exporter — host binary on nas (no Docker), mirrors roles/nut/nut_exporter.
+# Single SSOT ZFS pool exporter: scraped by Prometheus on oldsrv (zfs_exporter
+# job in prometheus.yml.j2). Metrics: zfs_pool_allocated/size/health per pool
+# (pdf/zfs_exporter). Feeds the pool-usage + degraded alert rules (monitoring
+# role vars/main.yml) — closes the observability.md ZFS alerting gap.
+
+- name: Resolve zfs_exporter release tag from GitHub (when not pinned)
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/pdf/zfs_exporter/releases/latest
+    return_content: true
+  register: _zfs_exporter_latest
+  when: zfs_exporter_release in ['', '@latest']
+  tags: [zfs_exporter]
+
+- name: Determine final zfs_exporter release tag
+  ansible.builtin.set_fact:
+    _zfs_exporter_release: >-
+      {{ zfs_exporter_release if zfs_exporter_release not in ['', '@latest']
+         else _zfs_exporter_latest.json.tag_name }}
+  tags: [zfs_exporter]
+
+- name: Download zfs_exporter release tarball (nas, host — no Docker)
+  ansible.builtin.get_url:
+    url: "https://github.com/pdf/zfs_exporter/releases/download/{{ _zfs_exporter_release }}/zfs_exporter-{{ _zfs_exporter_release | replace('v', '') }}.{{ zfs_exporter_platform }}-{{ zfs_exporter_arch }}.tar.gz"
+    dest: /tmp/zfs_exporter.tar.gz
+    mode: '0644'
+  when: _zfs_exporter_release | default('') != ''
+  tags: [zfs_exporter]
+
+- name: Unpack zfs_exporter binary
+  ansible.builtin.unarchive:
+    src: /tmp/zfs_exporter.tar.gz
+    dest: /usr/local/bin
+    remote_src: true
+    mode: '0755'
+  when: _zfs_exporter_release | default('') != ''
+  tags: [zfs_exporter]
+
+- name: Deploy zfs_exporter systemd unit
+  ansible.builtin.template:
+    src: zfs_exporter.service.j2
+    dest: /etc/systemd/system/zfs_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart zfs_exporter
+  tags: [zfs_exporter]
+
+- name: Enable and start zfs_exporter
+  ansible.builtin.systemd:
+    name: zfs_exporter
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags: [zfs_exporter]

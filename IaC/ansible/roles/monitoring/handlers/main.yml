@@ -4,3 +4,9 @@
     name: alloy
     state: restarted
     daemon_reload: true
+
+- name: restart grafana
+  ansible.builtin.command:
+    cmd: docker restart grafana
+  changed_when: true
+  when: inventory_hostname in groups['home_servers']

@@ -47,6 +47,15 @@ nut_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'na
 # nut_exporter_listen in roles/nut/defaults/main.yml (:9199); keep in sync.
 nut_exporter_port: 9199
 
+# ==== ZFS exporter (nas, host binary — storage role) ====
+# Single SSOT ZFS pool exporter on nas (no Docker) — mirrors nut_exporter.
+# Host derived from the address SSOT below (nas @ VLAN 10); port matches the
+# storage role's `zfs_exporter_listen` (:9198). Metrics: zfs_pool_allocated/
+# size/health per pool. Feeds the pool-usage/degraded alert rules.
+zfs_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+# zfs_exporter_listen in roles/storage/defaults/main.yml (:9198); keep in sync.
+zfs_exporter_port: 9198
+
 # ==== Kopia S3 backup target (iDrive e2) ====
 # Default bucket and endpoint for the kopia-server repository.
 # Override in host_vars or via extra vars if different targets are needed.

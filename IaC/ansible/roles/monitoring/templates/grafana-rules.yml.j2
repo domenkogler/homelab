@@ -1,0 +1,62 @@
+# Grafana alert rules — monitoring role (step 3)
+# Target: /srv/docker/grafana/provisioning/alerting/rules.yml
+# Rules data: roles/monitoring/vars/main.yml (grafana_alert_rules).
+# Tiers per docs/observability.md: Critical (Signal+email), Warning (Signal).
+# Throttle: policy repeat_interval=30m (poke).
+# All observability.md rules are now implemented (ZFS via zfs_exporter on nas,
+# MikroTik via Alloy SNMP, host-down via blackbox ICMP, self via prometheus/loki/n8n).
+apiVersion: 1
+
+groups:
+{% for tier in ['critical', 'warning'] %}
+  - orgId: 1
+    name: homelab-{{ tier }}
+    folder: Homelab · {{ tier | capitalize }}
+    interval: 1m
+    rules:
+{% for r in grafana_alert_rules[tier] %}
+      - uid: {{ r.uid }}
+        title: {{ r.title }}
+        condition: B
+        for: {{ r.for }}
+        labels:
+          severity: {{ tier }}
+        annotations:
+          summary: "{{ r.summary }}"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: {{ r.expr }}
+              instant: true
+              refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [B]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              refId: B
+              type: threshold
+            relativeTimeRange:
+              from: 600
+              to: 0
+        noDataState: {{ r.noDataState | default('NoData') }}
+        execErrState: {{ r.execErrState | default('Error') }}
+{% endfor %}
+{% endfor %}
