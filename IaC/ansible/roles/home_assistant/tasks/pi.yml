@@ -1,16 +1,51 @@
 ---
 # home_assistant role — PRIMARY node tasks (raspberry_pi / pi.kogler.si)
 # Included from tasks/main.yml when inventory_hostname == 'pi.kogler.si'.
-# Current scope: Pi SD-card wear mitigation (HD-19). The rest of the PRIMARY
-# scope (keepalived MASTER, traefik-ha edge, cert sync, state sync) is pending —
-# see the role spec comment in tasks/main.yml.
+# Scope: HA Container config + keepalived PRIMARY (VIP) configs (HD-17 completion);
+# Pi SD-card wear mitigation (HD-19). The remaining PRIMARY scope (cert sync, state
+# sync, traefik-ha wiring details) is pending — see the role spec in tasks/main.yml.
+#
+# The HA container itself (home-assistant-primary) is deployed by docker_services
+# (group_vars/raspberry_pi.yml) — this file renders its config/keepalived files
+# first (playbook order: home_assistant → docker_services).
 
 - name: Render HA configuration.yaml (with recorder trim)
   ansible.builtin.template:
     src: configuration.yaml.j2
-    dest: /opt/homeassistant/config/configuration.yaml
+    dest: /opt/home-assistant-primary/config/configuration.yaml
     mode: '0644'
   tags: [ha_recorder, hd19]
+
+# ---- keepalived PRIMARY (VIP owner in normal mode) ----
+# Variants: master.conf (MASTER/{{ ha_primary_priority }}) + peer.conf
+# (BACKUP/{{ ha_primary_peer_priority }} for reverse failback). The ACTIVE
+# ./keepalived.conf is created once from master (force: no) — the failback runbook
+# swaps it manually and re-runs must not clobber a live swap.
+
+- name: Render Pi keepalived config (MASTER — normal)
+  ansible.builtin.template:
+    src: keepalived.master.conf.j2
+    dest: /opt/home-assistant-primary/keepalived.master.conf
+    mode: '0644'
+  tags: [ha_failover, hd17]
+
+- name: Render Pi keepalived config (PEER — reverse failback)
+  ansible.builtin.template:
+    src: keepalived.peer.conf.j2
+    dest: /opt/home-assistant-primary/keepalived.peer.conf
+    mode: '0644'
+  tags: [ha_failover, hd17]
+
+- name: Create active keepalived.conf from MASTER (first deploy only)
+  ansible.builtin.copy:
+    src: keepalived.master.conf
+    dest: /opt/home-assistant-primary/keepalived.conf
+    remote_src: true
+    force: false                # never clobber a manual master/peer swap
+    mode: '0644'
+  tags: [ha_failover, hd17]
+
+# ---- Pi SD-card wear mitigation (HD-19) ----
 
 - name: Set journald to volatile (RAM-only, Pi SD-card wear)
   ansible.builtin.lineinfile:

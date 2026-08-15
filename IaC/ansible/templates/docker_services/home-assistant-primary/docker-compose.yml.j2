@@ -1,0 +1,44 @@
+# home-assistant-primary docker-compose.yml — PRIMARY HA on the Pi (pi.kogler.si)
+#   Always-on HA Container (Debian + docker). docs/smart-home-failover.md.
+#
+#   - network_mode: host — HA Container's recommended mode: mDNS/device discovery +
+#     direct access to Home/IoT device IPs via the host's routing (no bridge NAT).
+#   - keepalived service (osixia/keepalived, host net): VRRP MASTER owns the VIP
+#     ({{ ha_vip }}) in normal mode; config mounted from ./keepalived.conf (role-
+#     rendered; swapped between master/peer variants by the failback runbook).
+#   - NO Traefik labels: ha.kogler.si is served by the VIP-bound `traefik-ha` edge
+#     (docker_services on the Pi, file provider) → VIP:8123. No Authentik
+#     Forward-Auth (breaks the Companion WebSocket/token flow).
+#   - ACME intentionally absent here: the wildcard cert pair is synced from
+#     oldsrv's `traefik` (single ACME issuer) by the cert-sync timer
+#     (home_assistant role) → /opt/traefik-ha/certs/ (offline-safe).
+#
+# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   - ha-vrrp_password — keepalived auth (rendered into keepalived.conf by the role)
+#   - ./secrets.yaml is 1Password-rendered (home_assistant role, pending)
+
+services:
+  home-assistant:
+    image: ghcr.io/home-assistant/home-assistant:{{ home_assistant_version | default('stable') }}
+    container_name: home-assistant-primary
+    restart: unless-stopped
+    network_mode: host
+    privileged: true            # official HA Container guidance (device access)
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    volumes:
+      - ./config:/config
+      - ./secrets.yaml:/config/secrets.yaml:ro   # 1Password-rendered (role)
+
+  keepalived:
+    image: osixia/keepalived:latest
+    restart: unless-stopped
+    network_mode: host          # VRRP multicast requires host networking
+    cap_add:
+      - NET_ADMIN
+      - NET_BROADCAST
+      - NET_RAW
+    volumes:
+      - ./keepalived.conf:/etc/keepalived/keepalived.conf:ro
+    # MASTER (normal) priority {{ ha_primary_priority }}; peer {{ ha_primary_peer_priority }}
+    # during failback — see keepalived.master.conf / keepalived.peer.conf

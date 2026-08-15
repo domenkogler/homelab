@@ -1,0 +1,19 @@
+# keepalived — HA PRIMARY (pi) — PEER config for reverse failback (docs/smart-home-failover.md)
+# The repaired/new Pi rejoins as a peer: BACKUP priority {{ ha_primary_peer_priority }}
+# stays BELOW the standby (normal 100 / failover 120), so the Pi never grabs the VIP
+# mid-failback. Flip to keepalived.master.conf ONLY after oldsrv has been demoted
+# (ha-failover.sh --reverse on oldsrv), so MASTER/{{ ha_primary_priority }} wins.
+vrrp_instance HA_VIP {
+    state BACKUP
+    interface {{ ha_keepalived_interface }}
+    virtual_router_id {{ ha_keepalived_vrid }}
+    priority {{ ha_primary_peer_priority }}
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{ lookup('community.general.onepassword', 'ha-vrrp_password', field='password', vault=op_vault) | truncate(8, true, '') }}
+    }
+    virtual_ipaddress {
+        {{ ha_vip }}/{{ ha_vip_cidr }}
+    }
+}

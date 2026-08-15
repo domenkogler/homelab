@@ -1,0 +1,23 @@
+# keepalived — HA PRIMARY (pi) — MASTER config (docs/smart-home-failover.md)
+# Rendered by the home_assistant role; consumed by the `keepalived` service in
+# /opt/home-assistant-primary/docker-compose.yml (osixia/keepalived, host net).
+# The Pi owns the VIP in normal mode: priority {{ ha_primary_priority }} beats the
+# standby normal (100). On forward takeover ha-failover.sh (oldsrv) promotes to
+# MASTER/120; on failback the Pi flips back to this config AFTER oldsrv has been
+# demoted (--reverse), so MASTER/110 reclaims the VIP.
+# Interface: {{ ha_keepalived_interface }} (Home VLAN access port).
+# auth_pass: VRRP PASS is limited to 8 chars — truncated identically on BOTH nodes.
+vrrp_instance HA_VIP {
+    state MASTER
+    interface {{ ha_keepalived_interface }}
+    virtual_router_id {{ ha_keepalived_vrid }}
+    priority {{ ha_primary_priority }}
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass {{ lookup('community.general.onepassword', 'ha-vrrp_password', field='password', vault=op_vault) | truncate(8, true, '') }}
+    }
+    virtual_ipaddress {
+        {{ ha_vip }}/{{ ha_vip_cidr }}
+    }
+}

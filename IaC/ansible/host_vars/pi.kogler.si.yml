@@ -10,4 +10,7 @@ ansible_user: ansible-admin        # created by preseed post_install.sh (like na
 nut_mode: client
 nut_host: nas.kogler.si             # NUT master endpoint
 shutdown_delay_seconds: 0
+# HA failover (docs/smart-home-failover.md): Home-VLAN access-port interface —
+# the Pi is an access port on VLAN 10 (plain eth0, unlike oldsrv's trunk).
+ha_keepalived_interface: eth0
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)
