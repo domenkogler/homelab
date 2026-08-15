@@ -29,6 +29,13 @@ ha_failover_priority: 120       # failover keepalived (MASTER) must beat Pi prim
 # n8n webhook for ha-failover.sh notifications (event/status payload). Empty = skip
 # notify (always journald-logged). Set once the n8n workflow exists (observability.md).
 failover_notify_webhook: ""
+# Failover trigger API (HD-17) — Homepage buttons call this endpoint on oldsrv.
+# Token is shared by the buttons (services.yaml) and the API (api.env); REQUIRED
+# before deploy (role asserts >= 16 chars). LAN trigger token — could move to a
+# 1Password item later if it ever guards more than a manual failover.
+failover_api_port: 8266
+failover_api_token: ""      # set before deploy: openssl rand -hex 16
+failover_api_url: "http://{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}:{{ failover_api_port }}"
 ha_sync_interval: 15           # minutes; Pi → standby config sync (LAN only)
 ha_standby_path: /opt/home-assistant-standby
 # Observability alerting (docs/observability.md) — Grafana alert email recipient.

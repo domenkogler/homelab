@@ -121,5 +121,51 @@
     mode: '0755'
   when: inventory_hostname in groups['home_servers']
   tags: [ha_failover, hd17]
+
+# ---- Failover trigger API (HD-17) — host HTTP endpoint for the Homepage buttons ----
+
+- name: Require a failover API token (fail-closed)
+  ansible.builtin.assert:
+    that:
+      - failover_api_token | length >= 16
+    fail_msg: >-
+      failover_api_token (group_vars/home_servers.yml) must be a random
+      string >= 16 chars — the Homepage failover buttons and the trigger API
+      share it. Generate e.g. `openssl rand -hex 16`.
+  when: inventory_hostname in groups['home_servers']
+  tags: [ha_failover, hd17]
+
+- name: Deploy ha-failover-api HTTP trigger
+  ansible.builtin.copy:
+    src: ha-failover-api.py
+    dest: /usr/local/sbin/ha-failover-api.py
+    mode: '0755'
+  when: inventory_hostname in groups['home_servers']
+  tags: [ha_failover, hd17]
+
+- name: Deploy ha-failover-api env (token + port, root-only)
+  ansible.builtin.template:
+    src: api.env.j2
+    dest: /etc/ha-failover/api.env
+    mode: '0600'
+  when: inventory_hostname in groups['home_servers']
+  tags: [ha_failover, hd17]
+
+- name: Install ha-failover-api systemd unit
+  ansible.builtin.copy:
+    src: ha-failover-api.service
+    dest: /etc/systemd/system/ha-failover-api.service
+    mode: '0644'
+  when: inventory_hostname in groups['home_servers']
+  notify: reload systemd
+  tags: [ha_failover, hd17]
+
+- name: Enable + start ha-failover-api
+  ansible.builtin.systemd:
+    name: ha-failover-api
+    enabled: true
+    state: started
+  when: inventory_hostname in groups['home_servers']
+  tags: [ha_failover, hd17]
 #   - ha_api (long-lived), ha-mqtt_login (if MQTT added), ha-vrrp_password
 #   - {{ lookup('community.general.onepassword', '...', vault=op_vault) }}

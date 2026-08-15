@@ -1,0 +1,15 @@
+[Unit]
+Description=HA failover trigger API (docs/smart-home-failover.md, HD-17)
+Documentation=docs/smart-home-failover.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/ha-failover-api.py
+EnvironmentFile=/etc/ha-failover/api.env
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

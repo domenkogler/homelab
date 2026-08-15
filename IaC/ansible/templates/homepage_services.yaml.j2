@@ -3,12 +3,18 @@
 # Source of truth: group_vars/home_servers.yml docker_services list.
 # See docs/interfaces.md for the 6-tier interface model.
 
-# TODO: define service groups and layout structure.
-# Each service gets a tile with health check pointing at its Traefik route.
-# Example structure:
-# - Edge:
-#     - Traefik:
-#         icon: traefik.png
-#         href: https://traefik.kogler.si
-#         description: Reverse proxy
-#         container: traefik
+# HD-17: manual HA failover buttons (docs/smart-home-failover.md). href cards call
+# the ha-failover-api endpoint on oldsrv (?token= GET; POST with X-Failover-Token
+# also supported). Forward REQUIRES the HmIP-RFUSB stick physically moved to oldsrv.
+- Smart Home Failover:
+    - HA Forward Takeover:
+        icon: sh-home-assistant
+        href: "http://{{ failover_api_url }}/failover?token={{ failover_api_token }}"
+        description: Pi → oldsrv (RMat → wait CCU → VIP → HA standby)
+    - HA Reverse Failback:
+        icon: sh-home-assistant
+        href: "http://{{ failover_api_url }}/failback?token={{ failover_api_token }}"
+        description: oldsrv → Pi (VIP back, standby off)
+
+# TODO: full service layout — one tile per docker_services entry with a health
+# check pointing at its Traefik route (6-tier model per interfaces.md). Defined here later.
