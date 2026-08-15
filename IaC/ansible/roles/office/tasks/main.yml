@@ -1,2 +1,80 @@
 ---
-# office role — TODO: implement
+# office role — family office suite on oldsrv (docs/llm-office.md,
+# docs/hardware-oldsrv.md). Condition: applied when homelab_mode == 'desktop'.
+#
+# Scope:
+#   1. ONLYOFFICE Desktop Editors (official ONLYOFFICE apt repo) — native Linux
+#      office suite, full .docx/.xlsx/.pptx, no Wine/VM.
+#   2. ttf-mscorefonts-installer — Calibri/Cambria etc. for document fidelity
+#      (EULA accepted via debconf; package downloads fonts at install time).
+#   3. PENDING (HD-52): OpenCloud sync client — the official client
+#      (opencloud-eu/desktop) ships AppImage only (no apt repo/.deb). Decision
+#      open: AppImage → /opt + .desktop entry, or Debian `nextcloud-desktop`
+#      (protocol-equivalent), or skip. NOT implemented yet — see
+#      docs/llm-office.md and docs/deployment-ansible.md.
+#
+# Secrets: none.
+
+- name: Refuse runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      office role must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+  tags: always
+
+- name: Create keyring directory if it does not exist
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+  tags: [office]
+
+- name: Download official ONLYOFFICE GPG key
+  ansible.builtin.get_url:
+    url: https://download.onlyoffice.com/repo/onlyoffice.key
+    dest: /etc/apt/keyrings/onlyoffice.asc
+    mode: '0644'
+  tags: [office]
+
+- name: Add official ONLYOFFICE repository
+  ansible.builtin.deb822_repository:
+    name: onlyoffice
+    types: [deb]
+    uris: ["https://download.onlyoffice.com/repo/debian"]
+    suites: [squeeze]        # ONLYOFFICE uses 'squeeze' as the codename for all Debian
+    components: [main]
+    signed_by: /etc/apt/keyrings/onlyoffice.asc
+    state: present
+  tags: [office]
+
+- name: Install ONLYOFFICE Desktop Editors
+  ansible.builtin.apt:
+    name: onlyoffice-desktopeditors
+    state: present
+    update_cache: true
+  tags: [office]
+
+# MS core fonts — Calibri/Cambria for .docx fidelity (ttf-mscorefonts-installer
+# downloads the fonts at install time; EULA must be pre-accepted via debconf).
+- name: Accept Microsoft core-fonts EULA (debconf)
+  ansible.builtin.debconf:
+    name: ttf-mscorefonts-installer
+    question: msttcorefonts/accepted-mscorefonts-eula
+    vtype: boolean
+    value: 'true'
+  tags: [office]
+
+- name: Install Microsoft core fonts
+  ansible.builtin.apt:
+    name: ttf-mscorefonts-installer
+    state: present
+    update_cache: true
+  tags: [office]
+
+# PENDING (HD-52): OpenCloud sync client — official client ships AppImage only;
+# packaging decision open (AppImage → /opt + .desktop entry | Debian
+# nextcloud-desktop | skip). Add the chosen install task here once decided.
+
+# Verify after deploy: onlyoffice-desktopeditors launches · fc-list | grep -i calibri

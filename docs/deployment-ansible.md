@@ -328,11 +328,11 @@ domain_local: kogler.si
 - **PENDING (HD-51):** family user accounts + auto-login — 4 members + guest + a **neutral family account** owning shared media data (NOT a personal account as uid/gid 1000/1000); UID/group strategy under research. Role currently boots to the greeter with no local users.
 - See [`hardware-gpu.md`](hardware-gpu.md) for dual-GPU topology
 
-### `office`  *(partially implemented — OpenCloud client pending → HD-52)*
+### `office`  *(implemented — OpenCloud client pending → HD-52)*
 - **Condition:** `when: homelab_mode == 'desktop'`
-- **ONLYOFFICE:** Official Debian repo, `onlyoffice-desktopeditors`
-- **Fonts:** `ttf-mscorefonts-installer` (EULA via `debconf`)
-- **OpenCloud client — PENDING (HD-52):** the official client (`opencloud-eu/desktop`) ships **AppImage only** — no apt repo/.deb; options: AppImage → `/opt` + `.desktop` entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Not implemented yet.
+- **ONLYOFFICE:** official ONLYOFFICE apt repo (`deb https://download.onlyoffice.com/repo/debian squeeze main`), `onlyoffice-desktopeditors` — installed
+- **Fonts:** `ttf-mscorefonts-installer` (EULA pre-accepted via `debconf`) — installed
+- **OpenCloud client — PENDING (HD-52):** the official client (`opencloud-eu/desktop`) ships **AppImage only** — no apt repo/.deb; options: AppImage → `/opt` + `.desktop` entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Not implemented (task block left marked in the role).
 
 ### `kopia`
 - Kopia runs as two Docker containers deployed by the `docker_services` role:
