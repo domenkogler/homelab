@@ -124,14 +124,14 @@
 
 # ---- Failover trigger API (HD-17) — host HTTP endpoint for the Homepage buttons ----
 
-- name: Require a failover API token (fail-closed)
+- name: Require a strong failover API token (fail-closed, from 1Password)
   ansible.builtin.assert:
     that:
-      - failover_api_token | length >= 16
+      - (lookup('community.general.onepassword', 'ha-failover_api', field='credential', vault=op_vault) | length) >= 16
     fail_msg: >-
-      failover_api_token (group_vars/home_servers.yml) must be a random
-      string >= 16 chars — the Homepage failover buttons and the trigger API
-      share it. Generate e.g. `openssl rand -hex 16`.
+      1Password item ha-failover_api (Homelab vault, api → credential) must be a
+      random string >= 16 chars — shared by the Homepage failover buttons and the
+      trigger API. Generate e.g. `openssl rand -hex 16` and store it there.
   when: inventory_hostname in groups['home_servers']
   tags: [ha_failover, hd17]
 

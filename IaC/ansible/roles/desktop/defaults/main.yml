@@ -1,6 +1,0 @@
----
-# Role-internal knobs for the desktop role (docs/hardware-gpu.md, hardware-oldsrv.md)
-#
-# PCI BusID of the primary desktop GPU (Intel HD 630 on the Z270 board = 00:02.0).
-# Format: "PCI:bus:device:function". Override in host_vars if the hardware differs.
-desktop_igpu_busid: "PCI:0:2:0"

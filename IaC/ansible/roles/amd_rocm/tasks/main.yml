@@ -35,7 +35,7 @@
 - name: Download official AMD ROCm GPG key
   ansible.builtin.get_url:
     url: https://repo.radeon.com/rocm/rocm.gpg.key
-    dest: /etc/apt/keyrings/rocm.gpg
+    dest: /etc/apt/keyrings/rocm.asc
     mode: '0644'
   tags: [amd_rocm]
 
@@ -46,7 +46,7 @@
     uris: ["{{ amd_rocm_repo }}"]
     suites: ["{{ amd_rocm_suite }}"]
     components: [main]
-    signed_by: /etc/apt/keyrings/rocm.gpg
+    signed_by: /etc/apt/keyrings/rocm.asc
     state: present
   tags: [amd_rocm]
 
