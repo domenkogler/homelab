@@ -142,7 +142,7 @@ chmod 0440 /etc/sudoers.d/ansible-admin
 # 3. ai-debug user — AI debugging only, NO sudo
 useradd -m -s /bin/bash ai-debug
 mkdir -p /home/ai-debug/.ssh && chmod 700 /home/ai-debug/.ssh
-echo 'restrict,no-agent-forwarding,no-port-forwarding,no-X11-forwarding,from="10.10.0.0/16" ssh-ed25519 <AI_PUBKEY_FROM_1PASSWORD> openrouter_ai' \
+echo 'restrict,no-agent-forwarding,no-port-forwarding,no-X11-forwarding,from="<SITE_LAN_CIDR>" ssh-ed25519 <AI_PUBKEY_FROM_1PASSWORD> openrouter_ai' \
   >> /home/ai-debug/.ssh/authorized_keys
 chmod 600 /home/ai-debug/.ssh/authorized_keys
 chown -R ai-debug:ai-debug /home/ai-debug/.ssh

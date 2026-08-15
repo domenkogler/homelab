@@ -8,7 +8,7 @@ the SSOT row.
 
 Exempt files (documented in the convention):
   * docs/network-addresses.md          — the SSOT itself
-  * deployment-ansible/preseed/secrets — ★ authoring specs that define IaC values
+  * deployment-ansible/secrets — ★ authoring specs that define IaC values
   * docs/home-assistant-current.md     — historical decision log (strikethrough)
   * deployment-tasks.md                — legacy task log
 
@@ -35,7 +35,6 @@ SPECIAL = [
 EXEMPT_FILES = {
     "docs/network-addresses.md",
     "docs/deployment-ansible.md",
-    "docs/deployment-preseed.md",
     "docs/deployment-secrets.md",
     "docs/home-assistant-current.md",
     "deployment-tasks.md",
