@@ -10,7 +10,7 @@
 | Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation) (6) | `amd_rocm`, `desktop`, `office`, `home_assistant`, `proxmox`, `router`, `monitoring`, `docker_services` (8) — + `network` static-IP/trunk pending |
 | Docker compose templates | 0 (all `.j2` files are TODO stubs) | 19 |
 | RouterOS scripts | `rb4011_initial.rsc`, `ap_initial.rsc` (2) | — |
-| Bootstrap | `bootstrap.sh`, `post_install.sh` (2) | — |
+| Bootstrap | `bootstrap.sh`, `post_install.sh`, `pi/first-boot-config.sh` (3) | — |
 
 > **Note:** the `kopia` role stub is intentionally unused — Kopia runs as a Docker container (`kopia-server`) deployed by `docker_services`.
 
@@ -106,6 +106,8 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   ├── host/
 │   │   ├── post_install.sh                 # SHARED bootstrap: ansible-admin + ai-debug + sshd hardening
 │   │   ├── nas/                            # preseed.cfg for nas.kogler.si (HP MicroServer)
+│   │   ├── oldsrv/                         # preseed.cfg for oldsrv.kogler.si (i7-7700K)
+│   │   ├── pi/                             # first-boot-config.sh for raspi.debian.net images (Pi 4)
 │   │   ├── .wslconfig                       # Mirrored networking for WSL2
 │   │   ├── host-wsl2.md                     # WSL2 setup instructions
 │   │   ├── host-Hyper-v.md                  # Hyper-V test VM setup

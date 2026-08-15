@@ -188,8 +188,9 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 > **Continuation:** `ha.kogler.si` → VIP becomes live here; observability (Phase 6) scrapes the HA
 > exporter and smart-home work (Phase 7) builds on this node.
 
-1. **Preseed install** — boot from `IaC/host/pi/preseed.cfg` (**headless**, no desktop/Cockpit) +
-   shared `post_install.sh`.
+1. **Flash + first-boot config** — download the latest raspi.debian.net Pi 4 image, flash to microSD,
+   then run `IaC/host/pi/first-boot-config.sh` on the boot partition **before first boot**
+   (see [`deployment-preseed.md` → Pi Image Deployment](docs/deployment-preseed.md)).
 2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/raspberry_pi.yml`:
    `common` → `network` (static on VLAN 10, IP per SSOT) → `nut` (client, `shutdown_delay_seconds=0`)
    → `docker` → `home_assistant` (**primary**, Debian + HA Container + keepalived → VIP `ha-vip`)

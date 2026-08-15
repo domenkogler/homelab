@@ -44,7 +44,7 @@ d-i netcfg/get_domain string kogler.si
 Hostname must match the target machine:
 - `oldsrv` for i7-7700K ([`hardware-oldsrv.md`](hardware-oldsrv.md))
 - `nas` for HP MicroServer ([`hardware-nas.md`](hardware-nas.md))
-- `pi` for Raspberry Pi 4 (HA primary node — preseed-installed like nas/oldsrv, no desktop/Cockpit; its `preseed.cfg` is at [`IaC/host/pi/preseed.cfg`](../../IaC/host/pi/preseed.cfg))
+- `pi` for Raspberry Pi 4 (HA primary node — **image-based install** via raspi.debian.net, NOT preseed; see [Pi image deployment](#pi-image-deployment-raspidebiannet) below)
 
 ### 3. Mirror
 ```
@@ -206,6 +206,9 @@ Preseed uses DHCP. After boot, Ansible's `network` role assigns the correct VLAN
 | nas | 10 (Home) access + 99 (Management) native | static on VLAN 10 |
 | pi | 10 (Home) access | static on VLAN 10 (`10.10.1.20`) |
 
+> **Note:** The Pi is deployed from a **pre-built image** (raspi.debian.net), not via preseed.
+> The static IP above applies identically after Ansible runs.
+
 Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
 
 ---
@@ -214,11 +217,48 @@ Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
 
 ```
 IaC/host/
-├── post_install.sh         # SHARED bootstrap — ansible-admin + ai-debug + sshd hardening (single copy for all hosts)
+├── post_install.sh         # SHARED bootstrap — ansible-admin + ai-debug + sshd hardening (single copy for nas/oldsrv)
 ├── nas/
 │   └── preseed.cfg          # Reference implementation for HP Gen8
 ├── oldsrv/
 │   └── preseed.cfg          # i7-7700K Docker host + family desktop (XFCE)
 └── pi/
-    └── preseed.cfg          # Raspberry Pi 4 HA primary (headless, microSD boot)
+    └── first-boot-config.sh # SD card prep script for raspi.debian.net images
 ```
+
+---
+
+## Pi Image Deployment (raspi.debian.net)
+
+The Raspberry Pi 4 uses a **pre-built Debian image** from https://raspi.debian.net/tested-images/
+instead of the Debian Installer + preseed path used by nas/oldsrv. These are pre-installed system
+images — there is no `d-i` installer to answer questions, so `preseed.cfg` does not apply.
+
+### Workflow
+
+1. **Download** the latest tested image for Pi 4 from raspi.debian.net.
+2. **Flash** to a microSD card (≥ 32 GB recommended; 32–64 GB is typical).
+3. **Before first boot**, run the first-boot config script on the SD card's boot partition:
+   ```bash
+   # On the management laptop (after the card is flashed and re-inserted):
+   bash IaC/host/pi/first-boot-config.sh /media/$USER/boot_fat32
+   ```
+   This enables SSH and writes cloud-init `user-data` with the Ansible + AI SSH keys.
+4. **Insert the SD card into the Pi and power on.**
+5. **Verify reachability** and run Ansible:
+   ```bash
+   ping pi.kogler.si
+   ansible-playbook -i inventory.ini playbooks/raspberry_pi.yml
+   ```
+
+### SSH Keys — same as nas/oldsrv
+
+The same three keys from the 1Password `Homelab` vault are injected via the boot-partition
+cloud-init config (the `first-boot-config.sh` script writes placeholders — replace with real
+public keys before flashing).
+
+| Key (1Password item) | Authorized user | Access |
+|----------------------|-----------------|--------|
+| `laptop-domen_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
+| `ansible-admin_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
+| `ai_ssh` | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |

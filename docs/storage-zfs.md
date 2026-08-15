@@ -216,11 +216,11 @@ already mirrored by the Pi→standby sync.
 > (keeps Logbook / Energy-Dashboard LTS / history_stats); Pi logs are **streamed to Loki** with only a tiny
 > bounded Docker-log buffer (`local`, 10m×2); `/var/log` + journald run on **tmpfs/RAM**.
 
-**Pi filesystem layout on microSD (ext4, single preseed partition):**
+**Pi filesystem layout on microSD (ext4, single partition):**
 
 ```
 Pi microSD (ext4 — 32–64 GB, no ZFS, no backup surface)
-├── /                    ext4 (preseed-installed Debian, regenerable)
+├── /                    ext4 (raspi.debian.net image, regenerable)
 ├── /var/log             tmpfs (RAM; `journald Storage=volatile`, OS logs lost on reboot → Loki retains them)
 ├── /var/lib/docker      ext4 (overlay2 on microSD — images/containers; log driver capped to avoid heavy SD writes)
 └── /opt/<svc>/          ext4 (Docker service configs + small state — see tree below)
