@@ -31,10 +31,12 @@ scrape_configs:
         target_label: __param_module
     params:
       module: [http_2xx]
-  # ICMP probes (router + switch)
+  # ICMP probes (router + switch — IPs from SSOT network_static_hosts)
   - job_name: blackbox_icmp
     static_configs:
-      - targets: ["10.10.99.1", "10.10.99.2"]
+      - targets:
+          - "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}"
+          - "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}"
     metrics_path: /probe
     relabel_configs:
       - source_labels: [__address__]
@@ -49,13 +51,13 @@ scrape_configs:
   - job_name: nut_exporter
     static_configs:
       - targets: ["{{ nut_exporter_host }}:{{ nut_exporter_port }}"]
-  # HA exporter (edge HA's /api/prometheus)
+  # HA exporter (edge HA's /api/prometheus — bearer_token populated by monitoring role)
   - job_name: ha_exporter
     metrics_path: /api/prometheus
     bearer_token_file: /etc/prometheus/ha_token
     static_configs:
       - targets:
-          - "http://10.10.1.200:8123"
+          - "http://{{ ha_vip }}:8123"
   # Service self-metrics: traefik
   - job_name: traefik
     static_configs:
