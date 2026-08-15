@@ -5,14 +5,15 @@
 
 ## Implementation Status
 
-| Component | Implemented | Stubs |
-|-----------|------------|-------|
-| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation) (6) | `amd_rocm`, `desktop`, `office`, `home_assistant`, `proxmox`, `router`, `monitoring`, `docker_services` (8) — + `network` static-IP/trunk pending |
-| Docker compose templates | 0 (all `.j2` files are TODO stubs) | 19 |
+| Component | Implemented | Stubs / TODO |
+|-----------|-------------|--------------|
+| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation), `storage`, `router`, `switch` (HD-03), `home_assistant`, `docker_services` (HD-50), `monitoring` (11) | `amd_rocm`, `desktop`, `office`, `proxmox` (4, TODO) — `kopia` intentionally unused |
+| Docker compose templates | 41 templates implemented (HD-01) | — |
 | RouterOS scripts | `rb4011_initial.rsc`, `ap_initial.rsc` (2) | — |
 | Bootstrap | `bootstrap.sh`, `post_install.sh`, `pi/first-boot-config.sh` (3) | — |
 
-> **Note:** the `kopia` role stub is intentionally unused — Kopia runs as a Docker container (`kopia-server`) deployed by `docker_services`.
+> **Notes:** the `kopia` role stub is intentionally unused — Kopia runs as a Docker container (`kopia-server`) deployed by `docker_services`.
+> `network` role: static-IP + VLAN trunk provisioning is a scoped TODO until the host network config manager (systemd-networkd vs netplan) is decided — see `roles/network/tasks/main.yml`.
 
 ## Hostname / Domain Convention
 
