@@ -1,2 +1,30 @@
 ---
-# monitoring role — TODO: implement
+# monitoring role — Observability stack agent + provisioning
+#
+# Targets: all hosts (raspberry_pi, home_servers, storage, router)
+#
+# Architecture (docs/observability.md):
+#   Alloy (host agent: metrics + logs + SNMP) ──remote_write──▶ Prometheus
+#   Alloy (container logs via docker.sock) ────push──────────▶ Loki
+#   HA exporter /api/prometheus ────────────────scrape────────▶ Prometheus  (bearer token)
+#   blackbox_exporter (services-internal) ──────scrape────────▶ Prometheus
+#   nut_exporter (nas, host binary) ────────────scrape────────▶ Prometheus
+#   SNMP (MikroTik router + switch) ────────────Alloy────────▶ Prometheus
+#
+# This role handles:
+#   1. HA Prometheus API bearer token (from 1Password ha_api)
+#   2. Alloy installation + config (host metrics, container logs, SNMP, remote_write)
+#   3. Grafana provisioning (datasources, dashboards, alert rules)
+#
+# Secrets (1Password vault 'Homelab'):
+#   ha_api (credential) — HA long-lived API token for Prometheus scraping
+#
+# Ordering: after docker_services (needs Grafana, Prometheus, Loki containers up)
+
+- name: Create HA Prometheus API bearer token for Prometheus scraping
+  ansible.builtin.copy:
+    dest: /etc/prometheus/ha_token
+    content: "{{ lookup('community.general.onepassword', 'ha_api', field='credential', vault=op_vault) }}"
+    mode: '0600'
+  when: inventory_hostname in groups['home_servers']
+  tags: [monitoring, ha_token]
