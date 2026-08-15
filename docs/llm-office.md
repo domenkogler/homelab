@@ -29,6 +29,8 @@ oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
 |-----------|------|
 | **ONLYOFFICE Desktop Editors** | Native Linux office suite, Ribbon UI, full `.docx`/`.xlsx`/`.pptx` |
 | **OpenCloud sync client** | Files sync automatically to OpenCloud |
+
+> ⚠ **PENDING (HD-52):** the official OpenCloud sync client (`opencloud-eu/desktop`) ships as an **AppImage only** — no apt repo. Packaging decision open: AppImage → `/opt` + `.desktop` entry, or Debian `nextcloud-desktop` (protocol-equivalent), or skip until the docs/manual phase.
 | **ttf-mscorefonts-installer** | Calibri, Cambria for document fidelity |
 
 - No Wine, no VM, no Windows license — fully native Debian

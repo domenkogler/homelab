@@ -319,20 +319,20 @@ domain_local: kogler.si
 - **Groups:** `ansible_user` → `video`, `render`
 - **Udev:** `/dev/kfd` mode 0666, `/dev/dri/render*` mode 0666
 - **Env:** `OLLAMA_KEEP_ALIVE=5m` in `/etc/environment`
-- **Condition:** `when: "'amd' in ansible_facts['gpu_vendor'] | default('')"` or hardware list
+- **Condition:** applied from `playbooks/home_servers.yml` when `gpu_vendor | default('') == 'amd'` (group var; the role itself asserts the admin-user guard)
 
-### `desktop`
+### `desktop`  *(implemented — user accounts/auto-login pending → HD-51)*
 - **Condition:** `when: homelab_mode == 'desktop'`
-- **DM:** LightDM or GDM3 with auto-login
-- **Desktop:** XFCE (preferred, lightweight)
-- **Xorg:** Config in `/etc/X11/xorg.conf.d/10-igpu-primary.conf` — iGPU primary, dGPU excluded
+- **DM/Desktop:** LightDM + XFCE (decision: XFCE preferred, lightweight) — installed, greeter enabled
+- **Xorg:** `10-igpu-primary.conf.j2` → `/etc/X11/xorg.conf.d/10-igpu-primary.conf` — Intel iGPU (modesetting, BusID `PCI:0:2:0` from `desktop_igpu_busid`) as `PrimaryGPU`; AMD dGPU headless by design (no monitor — reserved for Docker GPU containers)
+- **PENDING (HD-51):** family user accounts + auto-login — 4 members + guest + a **neutral family account** owning shared media data (NOT a personal account as uid/gid 1000/1000); UID/group strategy under research. Role currently boots to the greeter with no local users.
 - See [`hardware-gpu.md`](hardware-gpu.md) for dual-GPU topology
 
-### `office`
+### `office`  *(partially implemented — OpenCloud client pending → HD-52)*
 - **Condition:** `when: homelab_mode == 'desktop'`
 - **ONLYOFFICE:** Official Debian repo, `onlyoffice-desktopeditors`
 - **Fonts:** `ttf-mscorefonts-installer` (EULA via `debconf`)
-- **OpenCloud client:** Official sync client
+- **OpenCloud client — PENDING (HD-52):** the official client (`opencloud-eu/desktop`) ships **AppImage only** — no apt repo/.deb; options: AppImage → `/opt` + `.desktop` entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Not implemented yet.
 
 ### `kopia`
 - Kopia runs as two Docker containers deployed by the `docker_services` role:

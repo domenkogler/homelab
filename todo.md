@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 41 open · 9 done** · **Total: 50**
+**Status: 43 open · 9 done** · **Total: 52**
 
 ---
 
@@ -92,6 +92,8 @@
 | HD-47 | 2 | AI | open | **Matrix public records + Federation** — publish `matrix`/`chat` (Cloudflare DNS-only) + `_matrix` well-known/SRV delegation; WAN allow 443 (8448 optional) to oldsrv; **no Forward-Auth on `/_matrix/*`**. · [services-traefik.md](docs/services-traefik.md), [network-dns.md](docs/network-dns.md) |
 | HD-48 | 3 | AI + Human | open | **Requested-only bridges (deferred, Phase 2 best-effort)** — WhatsApp/Messenger/Signal bridges are **out of Phase 1 scope** (every bridge risks a real external account). Revisit **only if family asks**, and then only against **dedicated** numbers, accepting re-pairing/ban. · [services-matrix.md](docs/services-matrix.md) |
 | HD-49 | 3 | AI | open | **Backup Matrix identity + media** — signing/identity keys (critical — reissue breaks rooms), homeserver DB (db-backup/Kopia), media store; add to backup policy. · [services-matrix.md](docs/services-matrix.md), [backup.md](docs/backup.md) |
+| HD-51 | 2 | AI + Human | open | *(research/decision)* **Family desktop users** — 4 members + guest + a NEUTRAL family account that owns shared media data (NOT a personal account as uid/gid 1000/1000); UID/group strategy + auto-login target under research. Blocks desktop-role auto-login (role shipped without user accounts). · [deployment-ansible.md](docs/deployment-ansible.md) |
+| HD-52 | 1 | AI + Human | open | *(decision)* **OpenCloud sync client packaging** — official client (opencloud-eu/desktop) ships AppImage only, no apt repo; options: AppImage → /opt + .desktop entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Blocks office role's client. · [llm-office.md](docs/llm-office.md) |
 
 ## Priority 4
 
@@ -167,7 +169,7 @@
 
 | Exec | Count | IDs |
 |------|-------|-----|
-| AI | 32 | HD-01,02,06,07,08,09,10,11,12,14,15,16,17,19,23,26,28,32,33,35,36,37,38,41,43,44,45,46,47,49,50 |
+| AI | 31 | HD-01,02,06,07,08,09,10,11,12,14,15,16,17,19,23,26,28,32,33,35,36,37,38,41,43,44,45,46,47,49,50 |
 | Human | 10 | HD-05(done),18,20,24,25,29,30,31,39,42 |
 | AI + gate | 2 | HD-03, HD-04 |
-| AI + Human | 7 | HD-13,21,22,27,34,40,48 |
+| AI + Human | 9 | HD-13,21,22,27,34,40,48,51,52 |
