@@ -32,8 +32,8 @@ dns_config:
   magic_dns: true
   override_local_dns: false
   nameservers:
-    - 10.10.1.30  # Technitium primary (oldsrv)
-    - 10.10.1.20  # Technitium secondary (Pi)
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium primary (oldsrv)
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium secondary (Pi)
 
 # Client registration — requires admin approval (prevents rogue nodes)
 acl_policy_path: ""

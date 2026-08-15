@@ -4,7 +4,7 @@
 # that exist today (nut_* from DRuggeri/nut_exporter, node_* from Alloy,
 # probe_success from blackbox, up from the self-scrape jobs in prometheus.yml.j2).
 # noDataState/execErrState: Alerting only on self-monitoring rules (a dead data
-# source must still page). ZFS-pool/SNMP rules are TODO — see rules template header.
+# source must still page).
 grafana_alert_rules:
   critical:
     - uid: ups-battery-low

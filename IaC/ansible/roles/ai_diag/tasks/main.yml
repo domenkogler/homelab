@@ -3,6 +3,16 @@
 # Edit files/ai-diag and re-run this role to update hosts (single source
 # of truth lives in Git).
 
+- name: Refuse Ansible runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      ansible_user '{{ ansible_user }}' is not an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}). The ai-debug user must never
+      run Ansible — it would gain passwordless root via this role.
+  tags: always
+
 - name: Install diagnostic dependencies
   apt:
     name: [smartmontools, hdparm, dmidecode, sg3-utils]

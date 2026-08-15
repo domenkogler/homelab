@@ -46,3 +46,9 @@ services:
   # (resolves to the VIP, served by the Pi's traefik-ha edge → local :5380, so it stays
   # reachable when oldsrv is down — docs/smart-home-failover.md) or directly at
   # http://10.10.1.20:5380.
+
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true

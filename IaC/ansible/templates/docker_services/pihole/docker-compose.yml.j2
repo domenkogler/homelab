@@ -31,7 +31,7 @@ services:
       CONDITIONAL_FORWARDING_IP: "{{ ha_vip }}"
       CONDITIONAL_FORWARDING_DOMAIN: "kogler.si"
       REV_SERVER: "true"
-      REV_SERVER_CIDR: "10.10.0.0/16"
+      REV_SERVER_CIDR: "{{ (network_ranges | selectattr('name', 'equalto', 'site') | first).cidr }}"
     labels:
       traefik.enable: "true"
       traefik.http.routers.pihole.rule: "Host(`ad.kogler.si`)"

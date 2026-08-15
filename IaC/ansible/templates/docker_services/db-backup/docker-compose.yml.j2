@@ -50,3 +50,9 @@ services:
 
 volumes:
   db-backups:
+
+networks:
+  services-internal:
+    external: true
+  db-internal:
+    external: true
