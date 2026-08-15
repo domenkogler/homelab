@@ -36,5 +36,7 @@ services:
       traefik.http.routers.n8n.middlewares: authentik-forward-auth@file
       traefik.http.services.n8n.loadbalancer.server.port: "5678"
 networks:
+  traefik-public:
+    external: true
   services-internal:
     external: true

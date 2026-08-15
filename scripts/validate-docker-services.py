@@ -270,6 +270,13 @@ def validate_render(name, j2_path, env, service):
     # Per-service checks
     defined_nets = set(compose.get("networks", {}).keys()) if compose.get("networks") else set()
 
+    # Convention (deployment-compose.md): the docker_services role creates the
+    # external networks — every declared network must be external: true so
+    # compose never tries to create it.
+    for net_name, net_def in (compose.get("networks", {}) or {}).items():
+        if not (isinstance(net_def, dict) and net_def.get("external") is True):
+            errors.append(f"[{name}] network '{net_name}' must be declared 'external: true'")
+
     for svc_name, svc_def in compose["services"].items():
         prefix = f"[{name}/{svc_name}]"
 
@@ -303,10 +310,14 @@ def validate_render(name, j2_path, env, service):
                 if unexpected:
                     errors.append(f"{prefix} unexpected networks {unexpected}")
 
-        # network defined at bottom
+        # every referenced network must be declared external: true at the top
+        # (convention: the role creates the networks; compose must never create them)
         for net in svc_nets:
-            if net not in defined_nets and net not in ("traefik-public", "services-internal", "db-internal"):
-                errors.append(f"{prefix} network '{net}' not defined in file's networks:")
+            if net not in defined_nets:
+                errors.append(
+                    f"{prefix} network '{net}' not declared in the file's top-level "
+                    f"networks: (must be external: true)"
+                )
 
         # Traefik labels - only check on the MAIN service (matching template name)
         labels = svc_def.get("labels", {}) or {}
