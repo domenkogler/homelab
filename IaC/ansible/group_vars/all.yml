@@ -87,6 +87,8 @@ network_static_hosts:
   - { name: nas,      vlan: 10, ip: "10.10.1.10",  role: "Cockpit/NFS/NUT master" }
   - { name: pi,       vlan: 10, ip: "10.10.1.20",  role: "node + DNS secondary (VRRP anchor)" }
   - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  role: "node + DNS primary (VRRP anchor)" }
+  - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan)" }
+  - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan)" }
   - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }
 
   # Router gateways on the remaining VLANs — RB4011 is the .1 inter-VLAN gateway on each.

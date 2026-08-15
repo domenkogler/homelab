@@ -43,6 +43,8 @@
 | 10 | 10.10.1.10 | nas | Cockpit/NFS/NUT master |
 | 10 | 10.10.1.20 | pi | node + DNS secondary (VRRP anchor) |
 | 10 | 10.10.1.30 | oldsrv | node + DNS primary (VRRP anchor) |
+| 10 | 10.10.1.50 | homematic-ccu-pi | RaspberryMatic CCU — Pi primary (macvlan) |
+| 10 | 10.10.1.51 | homematic-ccu-oldsrv | RaspberryMatic CCU — oldsrv standby (macvlan) |
 | 10 | 10.10.1.200 | ha-vip | keepalived VIP — ha.kogler.si |
 | 20 | 10.10.20.1 | router | IoT gateway |
 | 21 | 10.10.21.1 | router | IoT-Internet gateway |
