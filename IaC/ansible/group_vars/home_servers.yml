@@ -26,6 +26,9 @@ amd_rocm_packages:
 ha_standby_state: BACKUP       # standby node (oldsrv); primary (Pi) uses MASTER + higher priority
 ha_standby_priority: 100
 ha_failover_priority: 120       # failover keepalived (MASTER) must beat Pi primary (110)
+# n8n webhook for ha-failover.sh notifications (event/status payload). Empty = skip
+# notify (always journald-logged). Set once the n8n workflow exists (observability.md).
+failover_notify_webhook: ""
 ha_sync_interval: 15           # minutes; Pi → standby config sync (LAN only)
 ha_standby_path: /opt/home-assistant-standby
 # Observability alerting (docs/observability.md) — Grafana alert email recipient.

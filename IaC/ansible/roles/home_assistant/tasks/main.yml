@@ -101,7 +101,7 @@
 - name: Render standby keepalived config (normal — BACKUP)
   ansible.builtin.template:
     src: keepalived.conf.j2
-    dest: /opt/home-assistant-standby/keepalived.conf
+    dest: /opt/home-assistant-standby/keepalived.standby.conf
     mode: '0644'
   when: inventory_hostname in groups['home_servers']
   tags: [ha_failover, hd17]
@@ -109,8 +109,16 @@
 - name: Render standby keepalived config (failover — MASTER, higher priority)
   ansible.builtin.template:
     src: keepalived.failover.conf.j2
-    dest: /opt/home-assistant-standby/keepalived.conf.failover
+    dest: /opt/home-assistant-standby/keepalived.failover.conf
     mode: '0644'
+  when: inventory_hostname in groups['home_servers']
+  tags: [ha_failover, hd17]
+
+- name: Deploy ha-failover.sh orchestrator (forward + reverse)
+  ansible.builtin.template:
+    src: ha-failover.sh.j2
+    dest: /usr/local/sbin/ha-failover.sh
+    mode: '0755'
   when: inventory_hostname in groups['home_servers']
   tags: [ha_failover, hd17]
 #   - ha_api (long-lived), ha-mqtt_login (if MQTT added), ha-vrrp_password

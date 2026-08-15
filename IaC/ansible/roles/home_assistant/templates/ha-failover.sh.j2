@@ -1,0 +1,105 @@
+#!/bin/bash
+# ha-failover.sh — single-trigger HA failover orchestrator (docs/smart-home-failover.md, HD-17)
+#
+#   forward (default)  : Pi → oldsrv. Start RaspberryMatic-standby → wait XML-RPC 2001
+#                        → promote VIP (keepalived MASTER) → start home-assistant-standby.
+#   reverse            : oldsrv → Pi. Stop standby services, restore keepalived BACKUP —
+#                        the repaired Pi MASTER (priority 110) reclaims the VIP via VRRP.
+#
+# Prerequisites (human, forward): HmIP-RFUSB stick physically moved to oldsrv; the
+# `homematic` macvlan network exists on oldsrv (docs/smart-home-failover.md).
+#
+# Render-time vars (home_assistant role): docker_compose_dir, homematic_ccu_oldsrv_ip,
+# ha_vip, ha_vip_cidr, ha_keepalived_interface, failover_notify_webhook.
+set -euo pipefail
+
+DIR={{ docker_compose_dir | default('/opt') }}
+RMAT_DIR="$DIR/raspberrymatic-standby"
+HA_DIR="$DIR/home-assistant-standby"
+CCU_IP={{ homematic_ccu_oldsrv_ip }}
+CCU_PORT=2001
+VIP={{ ha_vip }}
+VIP_PREFIX={{ ha_vip_cidr }}
+IFACE={{ ha_keepalived_interface }}
+NOTIFY_URL="{{ failover_notify_webhook | default('') }}"
+
+log()  { logger -t ha-failover "$*"; echo "ha-failover: $*"; }
+fail() { log "FATAL: $*"; exit 1; }
+
+# Optional n8n notification (empty failover_notify_webhook = skip); always journald-logged.
+notify() { # $1 = event, $2 = ok|warn|fail
+  [ -n "$NOTIFY_URL" ] || return 0
+  curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
+    -d "{\"event\":\"$1\",\"status\":\"$2\",\"node\":\"$(hostname)\",\"time\":\"$(date -Is)\"}" \
+    "$NOTIFY_URL" >/dev/null 2>&1 || log "notify '$1' → n8n webhook failed"
+}
+
+# Wait for the RaspberryMatic CCU XML-RPC port (up to ~2 min).
+wait_ccu() {
+  local tries=60
+  for _ in $(seq 1 "$tries"); do
+    if timeout 2 bash -c "echo >/dev/tcp/$CCU_IP/$CCU_PORT" 2>/dev/null; then return 0; fi
+    sleep 2
+  done
+  return 1
+}
+
+vip_up() { ip -4 addr show dev "$IFACE" | grep -q "$VIP/"; }
+
+promote_vip() {
+  cp "$HA_DIR/keepalived.failover.conf" "$HA_DIR/keepalived.conf"
+  docker compose -f "$HA_DIR/docker-compose.yml" up -d keepalived    || fail "keepalived up"
+  docker compose -f "$HA_DIR/docker-compose.yml" restart keepalived  || fail "keepalived restart"
+  local tries=30
+  for _ in $(seq 1 "$tries"); do vip_up && return 0; sleep 1; done
+  return 1
+}
+
+demote_vip() {
+  cp "$HA_DIR/keepalived.standby.conf" "$HA_DIR/keepalived.conf"
+  docker compose -f "$HA_DIR/docker-compose.yml" up -d keepalived    || true
+  docker compose -f "$HA_DIR/docker-compose.yml" restart keepalived  || true
+  # BACKUP (priority 100) yields the VIP to the Pi MASTER (110) via VRRP advertisements.
+}
+
+forward() {
+  log "forward takeover Pi → oldsrv: starting RaspberryMatic-standby"
+  docker compose -f "$RMAT_DIR/docker-compose.yml" up -d || fail "raspberrymatic-standby up"
+
+  log "waiting for CCU XML-RPC ${CCU_IP}:${CCU_PORT}"
+  wait_ccu || fail "CCU did not answer on ${CCU_IP}:${CCU_PORT} (stick moved? macvlan up?)"
+
+  log "promoting VIP (${VIP} → oldsrv)"
+  promote_vip || fail "VIP promote failed (keepalived not taking ${VIP})"
+
+  log "starting home-assistant-standby"
+  docker compose -f "$HA_DIR/docker-compose.yml" up -d home-assistant || fail "home-assistant-standby up"
+
+  log "forward takeover complete — VIP on ${IFACE}, standby HA active"
+  notify "ha-failover-forward" "ok"
+}
+
+reverse() {
+  log "reverse failback oldsrv → Pi: stopping standby services"
+  docker compose -f "$HA_DIR/docker-compose.yml" down --remove-orphans || true
+  docker compose -f "$RMAT_DIR/docker-compose.yml" down --remove-orphans || true
+
+  log "restoring keepalived BACKUP (Pi MASTER reclaims the VIP)"
+  demote_vip
+  sleep 3
+  if vip_up; then
+    log "WARN: VIP still on ${IFACE} after reverse — Pi not advertising (is it up?)"
+    notify "ha-failover-reverse" "warn"
+  else
+    log "reverse complete — VIP released back to the Pi"
+    notify "ha-failover-reverse" "ok"
+  fi
+}
+
+[ "$(id -u)" -eq 0 ] || fail "must run as root (endpoint/sudo)"
+
+case "${1:-forward}" in
+  forward) forward ;;
+  reverse) reverse ;;
+  *) echo "usage: $0 [forward|reverse]" >&2; exit 1 ;;
+esac

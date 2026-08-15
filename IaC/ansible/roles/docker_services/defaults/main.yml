@@ -13,8 +13,6 @@ docker_compose_dir: /opt
 _extra_templates:
   element-web:
     - config.json.j2
-  home-assistant-standby:
-    - keepalived.conf.j2
   loki:
     - loki.yaml.j2
   matrix:

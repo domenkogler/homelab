@@ -71,6 +71,9 @@ kopia_s3_endpoint: https://e2.idy.io
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
 ha_vip_cidr: 24                    # VIP prefix — shared by primary + standby keepalived
 ha_keepalived_vrid: 51            # VRRP virtual_router_id — MUST match on both HA nodes
+# RaspberryMatic standby CCU (macvlan on Home VLAN) — XML-RPC 2001/2010 target for
+# ha-failover.sh (derived from the address SSOT).
+homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'homematic-ccu-oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 network_vlans:
   - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }
