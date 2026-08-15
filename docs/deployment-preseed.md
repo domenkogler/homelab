@@ -204,7 +204,7 @@ Preseed uses DHCP. After boot, Ansible's `network` role assigns the correct VLAN
 |---------|------|-----|
 | oldsrv | 99 (Management, native) + 10,20,50 tagged | static on VLAN 99 |
 | nas | 10 (Home) access + 99 (Management) native | static on VLAN 10 |
-| pi | 10 (Home) access | static on VLAN 10 (`10.10.1.20`) |
+| pi | 10 (Home) access | static per SSOT (see [`network-addresses.md`](network-addresses.md) → *pi* VLAN 10) |
 
 > **Note:** The Pi is deployed from a **pre-built image** (raspi.debian.net), not via preseed.
 > The static IP above applies identically after Ansible runs.
