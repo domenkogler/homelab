@@ -41,6 +41,10 @@ ha_standby_path: /opt/home-assistant-standby
 # NOTE: the SMTP relay host (grafana_smtp_host) is still undecided — needs a provider
 # decision (Infomaniak kSuite, HD-30) before the fail-safe can actually deliver.
 grafana_alert_email: domen@kogler.si
+# n8n alert webhook — Grafana contact point posts here (monitoring role).
+# The n8n workflow 'homelab-alerts' on this route must exist before the first
+# alert (created at n8n setup; URL is internal, traefik-public network).
+grafana_alert_webhook_url: "http://n8n:5678/webhook/homelab-alerts"
 # subdomain (optional): overrides the auto-generated URL hostname.
 # When omitted, the service name is used (e.g. traefik → traefik.kogler.si).
 # Required for services whose subdomain ≠ name (e.g. grafana → stats.kogler.si).

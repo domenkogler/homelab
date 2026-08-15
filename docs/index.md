@@ -124,10 +124,11 @@ Cross-cutting rules for every doc in this repo. Domain-specific policies stay in
 rules below are central.
 
 - **Validation scripts:** `scripts/` contains automated checks invoked before committing.
-  Run `python3 scripts/validate-docker-services.py` after touching any compose template or
-  group_vars docker_services list. It renders each template, parses the YAML, and enforces
-  10 structural rules (networks, Traefik labels, secret hygiene, source-level bugs). Exit 0
-  = all 43 templates valid. See [`scripts/validate-docker-services.py`](../scripts/validate-docker-services.py).
+  Run **`bash scripts/validate-all.sh`** (Linux/CI; works on Windows git-bash) — it runs all
+  checkers and exits non-zero on the first failure. Individual: `python3 scripts/validate-docker-services.py`
+  after touching any compose template or group_vars docker_services list. It renders each template,
+  parses the YAML, and enforces structural rules (external networks, Traefik labels, secret hygiene,
+  source-level bugs). Exit 0 = all 44 templates valid. See [`scripts/validate-docker-services.py`](../scripts/validate-docker-services.py).
   Other scripts: `check_doc_ips.py` (IP address SSOT enforcement), `render_network_addresses.py`
   (regenerate SSOT doc from IaC), `validate_doc_templates.py` (smoke-test .j2 renders).
 

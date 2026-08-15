@@ -17,6 +17,8 @@ services:
       - db-internal
     ports:
       - "9090:9090"          # Host access for Alloy remote_write (host agent)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach doco-cd /metrics (host network)
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus

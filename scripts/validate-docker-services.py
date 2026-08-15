@@ -154,6 +154,9 @@ BASE_CTX = {
     "kopia_s3_bucket": "kogler-homelab",
     "kopia_s3_endpoint": "https://e2.idy.io",
     "grafana_smtp_host": "localhost:25",
+    "ha_primary_state": "MASTER",
+    "ha_primary_priority": 110,
+    "ha_primary_peer_priority": 90,
     "network_ranges": [
         {"name": "traefik-public",    "cidr": "172.20.0.0/16", "purpose": "docker edge"},
         {"name": "services-internal", "cidr": "172.21.0.0/16", "purpose": "app mesh"},
