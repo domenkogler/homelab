@@ -339,7 +339,7 @@ item," follow these rules exactly:
 - **Verify:** `docs/index.md` map lists only live docs; the dispatcher's "Backlog / open
   decisions" row resolves through `todo.md` only.
 
-### AUD-13 — Record every audit policy decision in a persistent decision log (pending)
+### AUD-13 — Record every audit policy decision in a persistent decision log (done)
 - **Difficulty:** 2 · **Priority:** P3 · **Depends on:** AUD-02
 - **What:** Decisions the audits surfaced as "findings" — e.g. Matrix open federation
   (KOPS-033/034), Homepage docker.sock health widget (KOPS-058), Seerr SQLite accepted
@@ -354,7 +354,7 @@ item," follow these rules exactly:
 
 ## End-state checklist (all AUD-xx done ⇒ consolidation complete)
 
-- [ ] KOPS IDs unique and reconciled to HEAD (AUD-01, AUD-02)
+- [x] KOPS IDs unique and reconciled to HEAD (AUD-01, AUD-02)
 - [x] Proxmox artifact removed; cross-refs fixed (AUD-03, AUD-04)
 - [x] All 6 low-fruits + all architecture `NEW-*` items are HD-XX rows in `todo.md` (AUD-05, AUD-06)
 - [x] `deployment-tasks.md` reflects live status (AUD-07)
@@ -363,4 +363,4 @@ item," follow these rules exactly:
 - [x] Each audit doc has a committed long-term disposition (AUD-10)
 - [x] Validators green; no dangling references (AUD-11)
 - [x] `docs/index.md` map reflects only live docs (AUD-12)
-- [ ] Policy decisions recorded in a persistent decision log (AUD-13)
+- [x] Policy decisions recorded in a persistent decision log (AUD-13)
