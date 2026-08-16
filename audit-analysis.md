@@ -150,7 +150,7 @@ item," follow these rules exactly:
   findings are marked open while the current code already addresses them; `decision` findings
   are excluded from open-bug counts.
 
-### AUD-03 — Remove / relabel the legacy Proxmox "Final Architecture Proposal" artifact (pending)
+### AUD-03 — Remove / relabel the legacy Proxmox "Final Architecture Proposal" artifact (done)
 - **Difficulty:** 1 · **Priority:** P1 · **Depends on:** none
 - **What:** `Qwen-architecture.md` §1 ends with a "Final Architecture Proposal" ASCII block
   showing `oldsrv (Proxmox)` + "infra VM" + "desktop VM" + GPU passthrough. This contradicts
