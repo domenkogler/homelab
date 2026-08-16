@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 58 open · 18 done** · **Total: 76**
+**Status: 57 open · 19 done** · **Total: 76**
 
 ---
 
@@ -75,7 +75,7 @@
 | HD-107 | 2 | AI + Human | done | *(decision)* **Linux clients = server-side Office tools only** — `python-docx`/`python-pptx`/`openpyxl` on the server act on files in OpenCloud (file SSOT); results appear in the synced OpenCloud folder on any host (Linux opens them in ONLYOFFICE). No live COM on Linux — file-level sync latency, **not** in-app live editing. · [llm-office.md](docs/llm-office.md) |
 | HD-108 | 2 | AI + Human | done | *(decision)* **OpenCloud = file SSOT · Open WebUI = chat/UX SSOT** — Office files live/round-trip in OpenCloud; chat + RAG + all tools live in Open WebUI (+PGVector). **AnythingLLM and LocPilot retired** once the Office MCP path lands. · [llm-office.md](docs/llm-office.md), [ai-stack.md](docs/ai-stack.md) |
 | HD-109 | 2 | AI + Human | done | *(decision)* **Office MCP bridges exposed over Headscale-only, token-auth** — bind to the Headscale interface only (no public, no host `0.0.0.0`), token-auth, matching the repo exposure convention. · [network-vpn.md](docs/network-vpn.md) |
-| HD-110 | 3 | AI | open | **Research: unified vs per-app Office MCP bridge + client topology** — is `@ykuwai/ppt-mcp` PPT-only, or can one MCP server expose Word+Excel+PPT tool groups on one Headscale endpoint + one token? And: one shared family-office bridge vs per-laptop bridges; "which client owns the open file" semantics. Gates HD-111. · [llm-office.md](docs/llm-office.md) |
+| HD-110 | 3 | AI | done | **Research: unified vs per-app Office MCP bridge + client topology** — ✅ **Complete (2026-08):** one unified bridge (PPT+Excel+Word) behind a single Headscale endpoint + token is feasible, but **needs a thin STDIO→HTTP wrapper** we own — Open WebUI's MCP client is `streamablehttp_client` (remote HTTP), while every native COM server (`ppt-mcp`, `word-mcp-live`, `office-mcp`) is stdio-local. **Recommendation:** unified bridge v1 on the shared family desktop; use mature per-app backends (`ppt-mcp` 1.7.0 + `word-mcp-live` + an added Excel) or adopt immature unified `office-mcp` (0★) for PoC. Excel-live server gap is an open risk. Gates HD-111. · [hd110-office-mcp-research.md](docs/hd110-office-mcp-research.md) |
 | HD-111 | 4 | AI | open | **Office MCP via Open WebUI** — `ppt-mcp` first (proven, from OpenWeb.md), then extend/parallel Word+Excel; register as MCP **servers in Open WebUI** (Tools); **retires AnythingLLM + LocPilot**. Server-side python-docx/pptx/openpyxl path for Linux (HD-107). Depends on HD-110. · [llm-office.md](docs/llm-office.md), [ai-stack.md](docs/ai-stack.md) |
 | HD-09 | 1 | AI | open | **UPS web-UI firewall rule** — open 80/443 Home→Mgmt for `10.10.99.9` only; Modbus 502 retired (no consumer). ✅ **IaC done** (router role: trusted-admin → `ups_management` 80/443); ⏳ not deployed. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-10 | 2 | AI | done | **Generate `oldsrv/preseed.cfg`** — created: ext4 root on 960 EVO 500 GB, 970 EVO 1 TB left raw for ZFS pool `nvme`, XFCE desktop, GRUB on NVMe. · [deployment-preseed.md](docs/deployment-preseed.md) |
