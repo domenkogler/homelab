@@ -29,7 +29,7 @@ tags: [index, dispatcher, ai]
 | **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md`, [`network-addresses.md`](network-addresses.md) |
 | **Backlog / open decisions** | [`todo.md`](../todo.md) | — |
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `llm-office.md`, `deployment-compose.md` |
-| **Understand observability / alerting** | [`observability.md`](observability.md) | `services.md`, `deployment-ansible.md` |
+| **Understand the security posture / hardening** | [`security.md`](security.md) | `services-traefik.md`, `deployment-secrets.md`, `deployment-preseed.md`, `network-ops.md` |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
 | **Understand / build the AI stack (chat + RAG + agents)** | [`ai-stack.md`](ai-stack.md) | `llm-office.md`, `services-authentik.md`, `deployment-secrets.md`, `hardware-gpu.md`, `hd110-office-mcp-research.md` (Office live editing) |
 | **Live MS Office via Open WebUI (Word/Excel/PPT)** | [`llm-office.md`](llm-office.md) | `ai-stack.md`, `hd110-office-mcp-research.md`, [`client/office-bridge/`](../client/office-bridge/) (HD-106–111) |
@@ -82,6 +82,7 @@ docs/
 ├── deployment-compose.md                  ★ Docker compose conventions
 ├── deployment-secrets.md                  1Password backend, passwordless-first
 ├── deployment-renovate.md                 Renovate Bot & update lifecycle
+├── security.md                            ★ Security hardening posture (WAF, pinning, privilege, bootstrap, decisions)
 ├── interfaces.md                          Dashboard + management interface matrix
 │
 ├── todo.md                              Planned work + open decisions backlog (HD-XX, single source)
