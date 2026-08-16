@@ -125,6 +125,7 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 | **Open WebUI ↔ OpenClaw** | Register OpenClaw as a **model/provider in LiteLLM** → chatting to the "OpenClaw" model in the UI invokes the agent. No bespoke glue. |
 | **Open WebUI ↔ OpenCloud** | Family-docs dataset (neutral `media` owner) mounted **read-only** into Open WebUI RAG ingestion; documents live in OpenCloud, Open WebUI indexes them. |
 | **OpenClaw ↔ OpenCloud** | OpenClaw **WebDAV skill** reads/writes family files (summarize, organize, OCR a scan via Docling, draft replies). |
+| **Open WebUI ↔ MS Office** | Office MCP bridges (Windows 11 clients) surface Word/Excel/PowerPoint as **tools** into Open WebUI over the Headscale tunnel — live COM edits; server-side python-docx/pptx/openpyxl path for Linux. See [`llm-office.md`](llm-office.md) (HD-106–111). |
 
 ---
 
@@ -135,8 +136,8 @@ Open WebUI + OpenClaw config/state → Kopia as well.
   (a young, fast-moving project — treat like Tuwunel, KOPS-030). Keep Renovate tracking.
 - **VRAM/RAM budget:** RX 7600 = 8 GB VRAM, shared with Ollama + immich-ML + voice. Docling on **CPU**
   by default; size chat models ~7–8B q4; keep `keep_alive` sensible (see `hardware-gpu.md`).
-- **AnythingLLM removed** for the family web UI; **LocPilot kept** (Windows-Word inline only) — both
-  reflected in `llm-office.md`.
+- **AnythingLLM + LocPilot removed** for the family web UI — replaced by the **MS Office MCP path** in
+  Open WebUI (HD-108), reflected in `llm-office.md`.
 
 ---
 
@@ -150,6 +151,8 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 | 4 | No host `0.0.0.0` port binds (loopback-only if ever needed). | 2025-08-16 |
 | 5 | Single `openrouter_api` for all external LLM gen; **`cohere_api` separate** (embeddings not on OpenRouter). | 2025-08-16 |
 | 6 | **LocPilot kept; AnythingLLM removed.** | 2025-08-16 |
+| 7 | **OpenCloud = file SSOT · Open WebUI = chat/UX SSOT** — Office via MCP tools, not add-ins (HD-108). | 2025-08-16 |
+| 8 | **Office MCP bridges are native Windows per-client** (no Docker), Headscale-only + token-auth, version-pinned (HD-106/109). | 2025-08-16 |
 
 ---
 

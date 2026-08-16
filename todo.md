@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 56 open · 14 done** · **Total: 70**
+**Status: 58 open · 18 done** · **Total: 76**
 
 ---
 
@@ -71,6 +71,12 @@
 | HD-103 | 3 | AI | open | **AI stack: Docling OCR** — CPU `docling-serve` for RAG ingestion (spares dGPU). · [ai-stack.md](docs/ai-stack.md) |
 | HD-104 | 4 | AI | open | **AI stack: OpenClaw agent + integrations** — pinned version; register as model in LiteLLM; OpenCloud WebDAV skill (read/write family files); wire Open WebUI ↔ OpenClaw ↔ OpenCloud. · [ai-stack.md](docs/ai-stack.md) |
 | HD-105 | 2 | AI | open | **AI stack: secrets + wiring** — `openrouter_api`, `cohere_api`, `litellm_master_key`, `openwebui_secret`, `pgvector_db` in 1Password; catalog rows + index map already added. · [deployment-secrets.md](docs/deployment-secrets.md) |
+| HD-106 | 2 | AI + Human | done | *(decision)* **Office MCP bridges = native Windows per-client apps (no Docker)** — Office COM requires a licensed, installed Office **natively on the Windows host**; Docker/Linux can't reach host COM automation. The bridge (Node MCP/SSE wrapper + pinned PyWin32 COM worker) runs natively per client. Version-pinned (Flaw-B supply-chain discipline). Distributed from a repo-owned `client/office-bridge/` folder served read-only over the Headscale tunnel (independent of Ansible/GitOps, which manages server Docker, not Windows endpoints). · [llm-office.md](docs/llm-office.md) |
+| HD-107 | 2 | AI + Human | done | *(decision)* **Linux clients = server-side Office tools only** — `python-docx`/`python-pptx`/`openpyxl` on the server act on files in OpenCloud (file SSOT); results appear in the synced OpenCloud folder on any host (Linux opens them in ONLYOFFICE). No live COM on Linux — file-level sync latency, **not** in-app live editing. · [llm-office.md](docs/llm-office.md) |
+| HD-108 | 2 | AI + Human | done | *(decision)* **OpenCloud = file SSOT · Open WebUI = chat/UX SSOT** — Office files live/round-trip in OpenCloud; chat + RAG + all tools live in Open WebUI (+PGVector). **AnythingLLM and LocPilot retired** once the Office MCP path lands. · [llm-office.md](docs/llm-office.md), [ai-stack.md](docs/ai-stack.md) |
+| HD-109 | 2 | AI + Human | done | *(decision)* **Office MCP bridges exposed over Headscale-only, token-auth** — bind to the Headscale interface only (no public, no host `0.0.0.0`), token-auth, matching the repo exposure convention. · [network-vpn.md](docs/network-vpn.md) |
+| HD-110 | 3 | AI | open | **Research: unified vs per-app Office MCP bridge + client topology** — is `@ykuwai/ppt-mcp` PPT-only, or can one MCP server expose Word+Excel+PPT tool groups on one Headscale endpoint + one token? And: one shared family-office bridge vs per-laptop bridges; "which client owns the open file" semantics. Gates HD-111. · [llm-office.md](docs/llm-office.md) |
+| HD-111 | 4 | AI | open | **Office MCP via Open WebUI** — `ppt-mcp` first (proven, from OpenWeb.md), then extend/parallel Word+Excel; register as MCP **servers in Open WebUI** (Tools); **retires AnythingLLM + LocPilot**. Server-side python-docx/pptx/openpyxl path for Linux (HD-107). Depends on HD-110. · [llm-office.md](docs/llm-office.md), [ai-stack.md](docs/ai-stack.md) |
 | HD-09 | 1 | AI | open | **UPS web-UI firewall rule** — open 80/443 Home→Mgmt for `10.10.99.9` only; Modbus 502 retired (no consumer). ✅ **IaC done** (router role: trusted-admin → `ups_management` 80/443); ⏳ not deployed. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-10 | 2 | AI | done | **Generate `oldsrv/preseed.cfg`** — created: ext4 root on 960 EVO 500 GB, 970 EVO 1 TB left raw for ZFS pool `nvme`, XFCE desktop, GRUB on NVMe. · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-11 | 2 | AI | done | **Create Pi first-boot config** — `first-boot-config.sh` writes cloud-init `user-data` + fallback SSH enable on boot partition for raspi.debian.net images. · [deployment-preseed.md](docs/deployment-preseed.md) |
@@ -95,7 +101,7 @@
 | HD-25 | 1 | Human | open | *(decision)* **Wake word final approval** — "Hey, assistant" is tentative; family meeting needed. · [smart-home.md](docs/smart-home.md) |
 | HD-26 | 1 | AI | open | **Confirm UPS SNMP UDP (161/udp)** on the NIC — TCP probe closed, UDP untested; one probe vs `10.10.99.9`. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-27 | 4 | AI + Human | open | **Voice pipeline build-out** — Whisper → Ollama → Piper containers, flash ESP32-S3 (ESPHome + microWakeWord), HA Assist on phones; GPU + physical flashing. · [smart-home-voice.md](docs/smart-home-voice.md) |
-| HD-28 | 3 | AI | open | **Office AI stack** — Ollama models/downloads, n8n Docker, AnythingLLM + LocPilot on laptops, ONLYOFFICE; depends on oldsrv GPU. · [llm-office.md](docs/llm-office.md) |
+| HD-28 | 3 | AI | open | **Office AI stack** — Ollama models/downloads, n8n Docker, ONLYOFFICE on Debian desktop + **MS Office via MCP tools in Open WebUI** (see HD-106–HD-111); depends on oldsrv GPU. Superseded: AnythingLLM + LocPilot replaced by the Open WebUI MCP path. · [llm-office.md](docs/llm-office.md) |
 | HD-29 | 2 | Human | open | *(decision)* **Bulk media off-site** — iDrive e2 space/cost headroom, or keep bulk local-only (ZFS). Input to HD-31. · [backup.md](docs/backup.md) |
 | HD-30 | 1 | Human | open | *(buy)* **Sign up Infomaniak kSuite** — email, CalDAV, catch-all aliases; ~€3–5/mo; secrets → 1Password `Homelab`. · [subscription.md](docs/subscription.md) |
 | HD-43 | 3 | AI | open | **Deploy/verify Media ·\*arr stack** — recent IaC added the templates (jellyfin, seerr, sonarr, radarr, lidarr, prowlarr, bazarr, sabnzbd, qbittorrent+gluetun, profilarr, recyclarr) in `group_vars/home_servers.yml`; deploys on oldsrv bulk/media NFS. · [services.md](docs/services.md) |
@@ -186,7 +192,7 @@
 
 | Exec | Count | IDs |
 |------|-------|-----|
-| AI | 40 | HD-01,02,06,07,08,09,10,11,12,14,15,16,17,19,23,26,28,32,33,35,36,37,38,40B,41,43,44,45,46,47,49,50,59,94,100,101,102,103,104,105 |
+| AI | 42 | HD-01,02,06,07,08,09,10,11,12,14,15,16,17,19,23,26,28,32,33,35,36,37,38,40B,41,43,44,45,46,47,49,50,59,94,100,101,102,103,104,105,110,111 |
 | Human | 10 | HD-05(done),18,20,24,25,29,30,31,39,42 |
 | AI + gate | 2 | HD-03, HD-04 |
-| AI + Human | 16 | HD-13,21,22,27,34,40A,48,51,52,53,54,55,56(done),57,92,93 |
+| AI + Human | 20 | HD-13,21,22,27,34,40A,48,51,52,53,54,55,56(done),57,92,93,106,107,108,109 |

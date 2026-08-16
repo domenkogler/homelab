@@ -138,6 +138,7 @@ WAN allow. Everything else in the catalog is **internal-only** (no public record
 
 - **Home Assistant (primary)** — on the Raspberry Pi 4 (HA config in this repo), co-located with **RaspberryMatic + HmIP-RFUSB** (local Homematic IP), the **Technitium secondary** DNS, and a minimal **`traefik-ha`** edge (VIP-bound) that serves `ha.kogler.si` and keeps it reachable when oldsrv is down. **Standby** Home Assistant runs on oldsrv: see [`smart-home-failover.md`](smart-home-failover.md).
 - **VPS services** — deferred to Phase 2+ ([`services-vps.md`](services-vps.md))
+- **Office MCP bridges (Windows 11 clients)** — native per-client apps, **not** Docker services in this catalog; distributed server-side from a repo `client/office-bridge/` folder. See [`llm-office.md`](llm-office.md) (HD-106–111).
 - **Pangolin** — removed; Traefik handles all reverse proxy
 
 ## DNS Redundancy
