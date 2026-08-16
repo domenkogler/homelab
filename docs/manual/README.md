@@ -27,6 +27,7 @@ tags: [manual, index, slovenian]
 | [contacts.md](contacts.md) | Vsi | ISP, prijatelji, servisne številke |
 | [smart-home.md](smart-home.md) | Vsi | Dashboard, glasovni ukazi |
 | [chat.md](chat.md) | Vsi | Klepet (Matrix) — sporočanje z družino |
+| [office-ai.md](office-ai.md) | Uporabniki Office (Win 11) | AI pomočnik in Word / Excel / PowerPoint prek Open WebUI |
 
 ---
 
