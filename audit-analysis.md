@@ -213,7 +213,7 @@ item," follow these rules exactly:
   has `| D | Exec | Status |` columns in the `todo.md` schema; each links to its owning doc;
   the header tally equals the true table count.
 
-### AUD-06 — Migrate the architecture roadmap `NEW-*` items into `todo.md` (pending)
+### AUD-06 — Migrate the architecture roadmap `NEW-*` items into `todo.md` (done)
 - **Difficulty:** 2 · **Priority:** P1 · **Depends on:** AUD-01/02 (IDs + validation)
 - **What:** Replace the parallel `NEW-S01…S07`, `NEW-M01…M08`, `NEW-L01…L07` namespace in
   `Qwen-architecture.md` §5 with HD-60+ rows in `todo.md` (tagged `source: qwen`). Where an
@@ -355,7 +355,7 @@ item," follow these rules exactly:
 
 - [ ] KOPS IDs unique and reconciled to HEAD (AUD-01, AUD-02)
 - [x] Proxmox artifact removed; cross-refs fixed (AUD-03, AUD-04)
-- [ ] All 6 low-fruits + all architecture `NEW-*` items are HD-XX rows in `todo.md` (AUD-05, AUD-06)
+- [x] All 6 low-fruits + all architecture `NEW-*` items are HD-XX rows in `todo.md` (AUD-05, AUD-06)
 - [ ] `deployment-tasks.md` reflects live status (AUD-07)
 - [ ] `docs/security.md` exists and is wired into the doc map (AUD-08)
 - [ ] `todo.md` tally/hygiene correct (AUD-09)
