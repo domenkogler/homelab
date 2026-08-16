@@ -115,12 +115,14 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ---
 
-## Design Consideration: Proxmox Hypervisor Layer
+## Design Consideration: Proxmox Hypervisor Layer — REJECTED for Phase 1
 
-> **Status:** Research needed. Not decided. Dropped if IOMMU/GPU passthrough not viable.
-
-Option under evaluation: run a thin Proxmox VE layer on oldsrv instead of bare-metal
-Debian Desktop, creating two VMs to isolate desktop crashes from infrastructure:
+> **Status:** REJECTED (2025-08-16, per HD-92 / brainstorming). oldsrv stays **bare-metal Debian +
+> Docker**. No local Proxmox and no GPU passthrough on the single Phase-1 box (one shared dGPU = desktop
+> **and** AI; a single host gains no HA from VMs). Proxmox is deferred to Phase 2 (HD-41/42) with a real
+> second node. The `infra`/`desktop` VM split below is **not adopted**; it is kept only as the historical
+> rationale for why bare-metal + Docker was chosen (Docker is portable → same compose files run on bare
+> metal, VPS, or a Phase-2 Proxmox VM).
 
 | VM | Role | Resources | Benefit |
 |----|------|-----------|---------|

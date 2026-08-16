@@ -255,7 +255,14 @@
 ```
 
 
- ### Final Architecture Proposal
+ ### REJECTED / OUTDATED — Final Architecture Proposal (superseded by bare-metal Debian + Docker)
+
+> **REJECTED** (2025-08-16, per HD-92 / brainstorming): oldsrv runs bare-metal Debian + Docker, **not**
+> Proxmox. No local Proxmox and no GPU passthrough on the single Phase-1 box — one shared dGPU serves
+> desktop **and** AI, and a single host gains no HA from VMs. The Proxmox role/VMs are deferred to
+> Phase 2 (HD-41/42) with a real second node. The `oldsrv (Proxmox)` / `infra VM` / `desktop VM`
+> / `GPU PCI passthrough` diagram below is therefore **not the target architecture** and must not be
+> used as a spec. See README + `todo.md` (HD-92).
 
  ```
    oldsrv (Proxmox)                Pi 4 (bare Debian)           nas (bare Debian)
