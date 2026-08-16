@@ -158,6 +158,7 @@ Either:
 1. Add `--password=FILE:/run/secrets/kopia_server_password` (Docker secrets or env var) and remove `--without-password`.
 2. Remove `--insecure` and ensure TLS (even self-signed) so traffic between containers is encrypted.
 3. Put Kopia on a separate, more restricted network if it doesn't need broad service-internal access.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -184,6 +185,7 @@ This maps the port to `0.0.0.0:8080` on oldsrv itself. While the comment says "n
 **Recommended fix:**
 1. **Remove the host port mapping.** n8n already reaches signal-cli via the `services-internal` Docker network hostname. The host-level bind is unnecessary unless an external caller needs it.
 2. If a host-level port is truly needed, put behind a reverse proxy with basic auth, or use `127.0.0.1:8080:8080` to bind loopback only.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -225,6 +227,7 @@ This means the RouterOS admin API can be reached from the WAN in plaintext. With
 2. Enable `api-ssl` (port 8729) instead of plain `api`, or disable `api` entirely and use only `api-ssl`.
 3. Even before TLS cert: disable `api` on WAN; enable `api-ssl` on mgmt only.
 4. Consider disabling WinBox/web (`www`) on non-management interfaces as well.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -263,6 +266,7 @@ ha:
 ```
 
 This preserves the Companion app flow while still getting IP-level threat blocking.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -285,6 +289,7 @@ Both the main Traefik edge and the HA standby edge pull `traefik:latest`. This m
 
 **Recommended fix:**
 Pin to a specific minor version at minimum (e.g., `v3.3` or `v3.3.2`), ideally a full semver tag. Use Renovate (which is already deployed) to open PRs when new patches are available. Same applies to `certs_dumper_version` and other `latest` tags across services.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -304,6 +309,7 @@ While TLS termination happens at Traefik (and traffic from internet → Traefik 
 
 **Recommended fix:**
 Unless there is a documented incompatibility, set `OC_INSECURE: "false"` and configure opencloud to trust the Traefik CA or use mutual TLS. At minimum, accept that internal traffic is unencrypted and ensure CrowdSec reduces the blast radius of compromised containers.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -334,6 +340,7 @@ These bind to `0.0.0.0`, meaning they are reachable from **every VLAN that has r
 1. Add a password via environment variable (`SUNSHINE_PASSWORD` or similar).
 2. Bind to Home VLAN IP only if possible: `"10.10.1.30:47990:47990/tcp"`.
 3. Consider running inside Headscale WireGuard overlay so only authorized Tailscale clients reach it.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -354,6 +361,7 @@ While normal users enter via Authentik (Traefik → Forward-Auth → auto-signup
 Set `GF_AUTH_PROXY_AUTO_SIGN_UP: "true"` (already done) but also consider:
 - Disabling Grafana's built-in login form entirely: `GF_AUTH_DISABLE_LOGIN_FORM: "true"` — forces all auth through the proxy.
 - Or at minimum, use a high-entropy admin password different from the 1Password item used elsewhere.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -383,6 +391,7 @@ Add input chain rules to restrict management services to Management VLAN (99) an
 ```
 
 Plus a drop-all at the end of the input chain for those ports.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -407,6 +416,7 @@ Remove the `default('')` fallback and let the deployment fail loudly if the secr
 ```yaml
 WEBPASSWORD: "{{ lookup('community.general.onepassword', 'pihole_password', field='password', vault=op_vault) }}"
 ```
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -427,6 +437,7 @@ The service account token is stored in plaintext in `~/.bashrc`. Anyone who can 
 
 **Recommended fix:**
 Use `op signin` interactively or store the token via `op signin --account ...` which uses 1Password's secure credential storage instead of plaintext env vars.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -447,6 +458,7 @@ Uses append (`>>`) without checking if the hardening block already exists. If th
 
 **Recommended fix:**
 Use a guard or idempotent approach, e.g., check for a marker comment before appending, or manage sshd_config via Ansible after bootstrap.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -482,6 +494,7 @@ Use a guard or idempotent approach, e.g., check for a marker comment before appe
 4. **KOPS-007 (Sunshine):** Should Sunshine be reachable only via Headscale/Tailscale overlay instead of being on the Home VLAN?
 
 5. **Kids VLAN bedtime restriction** is noted as `debug: "pending implementation"` — is this tracked elsewhere?
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -514,6 +527,7 @@ If any HA integration or custom component has a remote code execution vulnerabil
    - `cap_add: [NET_ADMIN, SYS_RAWIO]` for discovery protocols (mDNS, SSDP)
    - A custom Docker network with `--network host` replaced by explicit port mappings
 2. If `network_mode: host` is truly needed (mDNS/SSDP discovery), at minimum remove `privileged: true` and use targeted capabilities. The HA Container docs list this as a recommendation, not a hard requirement.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -542,6 +556,7 @@ Technitium DNS binds directly to the host's port 53 on `0.0.0.0`. Combined with 
 1. Remove `NET_ADMIN` if Technitium isn't serving DHCP (RouterOS handles DHCP per design).
 2. Bind to specific VLAN IPs rather than `0.0.0.0`: use `"10.10.1.30:53:53/udp"` to limit to Home VLAN.
 3. Consider using `macvlan` or `ipvlan` networking so Technitium gets its own IP on the Home VLAN without host port mapping.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -564,6 +579,7 @@ While the comment says "Accessed by other services (n8n, AnythingLLM, maybe HA A
 
 **Recommended fix:**
 Set `OLLAMA_ORIGINS` or configure a simple API key via `OLLAMA_HOST` binding to `127.0.0.1` only, then use Docker networking labels for intended consumers. Or put Ollama on a smaller dedicated network with only n8n attached.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -589,6 +605,7 @@ While the comment says "Host access for Alloy remote_write," the Alloy agent run
 
 **Recommended fix:**
 Bind to loopback only: `"127.0.0.1:9090:9090"` or use `extra_hosts` with `host-gateway` like already done for doco-cd. Alternatively, move Alloy to Docker network mode and remove the host bind entirely.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -619,6 +636,7 @@ traefik.http.routers.jellyfin.middlewares: crowdsec-only
 traefik.http.routers.matrix.middlewares: crowdsec-only
 ```
 This blocks malicious IPs before they even reach the service's own auth.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -641,6 +659,7 @@ Consider adding Gluetun's built-in DNS leak protection explicitly:
 DNS_UPDATE: "true"
 ```
 And verify `HEALTH_TYPE: none` or `HEALTH_TYPE: http` with a valid check endpoint to restart if the tunnel drops.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -664,6 +683,7 @@ VRRP `PASS` authentication sends the 8-character password in cleartext over mult
 3. Failover is manual (not automated), so split-brain risk from VRRP spoofing is limited
 
 Still, `auth_type AH` (IPsec Authentication Header) would provide stronger protection if both hosts support it.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -690,6 +710,7 @@ Wait — actually looking closer: the deploy-task doesn't check `svc.enabled`. I
 
 **Recommended fix:**
 Add a `when` condition: `when: svc.enabled | default(true)` so disabled services don't get rendered or started.
+**Disposition (AUD-02, HEAD):** stale — code no longer present / already fixed in current HEAD. fixed by `when: item.enabled | default(true)` in roles/docker_services/tasks/main.yml:43
 
 ---
 
@@ -714,6 +735,7 @@ With no ACL policy file, Headscale **auto-approves** all OIDC-authenticated regi
 Once inside the mesh, the device gets CGNAT IP from `100.64.0.0/10` and can reach whatever the RB4011 routes to the Headscale overlay.
 
 **Recommended fix:** Either set `acl_policy_path` with a real policy, or update the comment to reflect that clients are auto-approved after OIDC auth.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -730,6 +752,7 @@ auth_enabled: false
 Any container on `db-internal` can push arbitrary log streams to Loki or query existing ones without authentication. A compromised container can inject malicious log entries to cover its tracks, or read all logs (credentials leaked in error messages, session tokens in request logs).
 
 **Recommended fix:** Acceptable trade-off for single-node Loki. Mitigate by ensuring no unnecessary containers join `db-internal`. Audit members against `deployment-compose.md`.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -748,6 +771,7 @@ Doco-CD combines host network + docker.sock write + Forgejo repo write token. Wh
 **Mitigating factors:** HMAC webhook auth, `cap_drop: [ALL]`, non-root distroless image, marked as NOT ACTIVATED yet.
 
 **Recommended fix:** Pin a specific commit/tag in Doco-CD config; ensure `WEBHOOK_SECRET` is high entropy; restrict to specific compose directories.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -763,6 +787,7 @@ Element Web at `chat.kogler.si` has neither Forward-Auth nor CrowdSec bouncer. I
 - If `config.json` has any XSS vector (injected via misconfigured deploy), visitors' browsers execute the attack.
 
 **Recommended fix:** Add `crowdsec-only` middleware. Forward-Auth is correctly skipped (Matrix-native SSO handles login).
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -778,6 +803,7 @@ Immich and OpenCloud databases are **commented out** in automated daily backup. 
 Currently only authentik-postgres and forgejo-db are dumped. Immich photos' metadata (albums, face recognition results, labels, smart search embeddings) live in Postgres — if the DB dies, having originals on ZFS isn't enough; you lose all organization and metadata.
 
 **Recommended fix:** Uncomment DB03+ blocks with correct hostname `immich-postgres`. OpenCloud uses an embedded database (not external Postgres), so backup approach = tar of `/var/lib/opencloud` data dir.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -794,6 +820,7 @@ image: ollama/ollama:rocm
 The `:rocm` tag is mutable — updated by Ollama for every ROCm-capable release. Not caught by Renovate's semantic version parsing. A new pull could bring breaking changes, ROCm regressions, or compromised images. Combined with direct GPU device access (`/dev/dri`, `/dev/kfd`), this gives kernel-level GPU access if compromised.
 
 **Recommended fix:** Pin to specific version (e.g., `ollama/ollama:0.6.9-rocm`). Update renovate.json to track `-rocm` suffix.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -806,6 +833,7 @@ The `:rocm` tag is mutable — updated by Ollama for every ROCm-capable release.
 **Description:** During bootstrap, Management VLAN gets Cloudflare public DNS instead of Technitium. If someone bootstraps but forgets to run the router role, internal `.kogler.si` names never resolve for temporary hosts.
 
 **Recommended fix:** Document in bootstrap checklist: "After importing initial script, run Ansible router role."
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -818,6 +846,7 @@ The `:rocm` tag is mutable — updated by Ollama for every ROCm-capable release.
 **Description:** CrowdSec Traefik bouncer plugin defaults to `v0.4.0`. If plugin falls out of sync with CrowdSec LAPI, blocking rules may stop working silently.
 
 **Recommended fix:** Set `crowdsec_bouncer_plugin_version` explicitly in group_vars; add to Renovate tracking.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -838,6 +867,7 @@ Tuwunel is a lesser-known Matrix homeserver by single developer. Combined with `
 - `:latest` amplifies all supply chain risks
 
 **Recommended fix:** Pin to specific version. Evaluate conduit (Rust-based) or synapse if Tuwunel activity slows.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -861,6 +891,7 @@ Since `configured_port_names` is derived from the empty map, every port is "unco
 **Impact:** Complete loss of VLAN segmentation on the CRS328 switch. All wired devices end up on Management VLAN with access to router admin, iLO, UPS web UI, and all other management services.
 
 **Recommended fix:** Create `IaC/ansible/group_vars/switch.yml` with the actual physical port-to-VLAN mapping before deployment.
+**Disposition (AUD-02, HEAD):** stale — code no longer present / already fixed in current HEAD. group_vars/switch.yml now exists with a populated switch_port_map and the role applies it
 
 ---
 
@@ -882,6 +913,7 @@ Additionally, root login is enabled (`d-i passwd/root-login boolean true`) which
 **Mitigating factor:** `post_install.sh` disables SSH root login and enforces key-only auth. Root password is only for local console access.
 
 **Recommended fix:** Either generate unique hashes at render time or disable root login entirely (`d-i passwd/root-login boolean false`) since ansible-admin has NOPASSWD sudo.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -898,6 +930,7 @@ ROOT_ETC="${BOOT/\boot/\etc}"  # crude root partition path guess
 This string substitution works only if BOOT literally starts with `/boot`. For real paths like `/media/$USER/boot_fat32` or `/mnt/d/sd_boot`, hostname setting is silently skipped.
 
 **Mitigating factor:** Cloud-init `hostname:` directive handles it, and Ansible's network role manages `/etc/hosts` anyway.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -922,6 +955,7 @@ Seerr is internal-only per `deployment-compose.md`, but even if not publicly exp
 ```yaml
 traefik.http.routers.seerr.middlewares: crowdsec-only
 ```
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -943,6 +977,7 @@ The first port comment says "XML-RPC" but this is correct. However, port 80 on h
 **Impact:** On the Pi primary, traefik-ha binds `${ha_vip}:80` so no conflict. But on oldsrv standby during takeover, both Traefik + RMat want port 80.
 
 **Recommended fix:** Map CCU admin UI to non-standard port: `"8081:80"` for primary, `"8082:80"` for standby.
+**Disposition (AUD-02, HEAD):** stale — code no longer present / already fixed in current HEAD. port 2001 is no longer bound twice (single 2001:2001 mapping remains)
 
 ---
 
@@ -978,6 +1013,7 @@ Docker starts at step 3 (`docker` role enables systemd unit). Then network + sto
 ---
 
 *Findings updated incrementally. Resume point: scanned playbooks (home_servers, raspberry_pi, router, storage), seerr compose, switch/group_vars, hardware docs (gpu, nas, oldsrv), deployment-preseed, deployment-ansible. Next batch: remaining compose templates (sabnzbd, radarr, lidarr, prowlarr, bazarr, profilarr, recyclarr) and cockpit/home_assistant templates.*
+**Disposition (AUD-02, HEAD):** decision — playbook role order documented as accepted, not a bug.
 
 ### 🟡 MEDIUM — KOPS-031: `n8n_password` serves dual purpose — encryption key AND webhook auth token
 
@@ -996,6 +1032,7 @@ The same secret is both:
 If someone rotates the webhook auth (e.g., after a suspected leak), they must also re-encrypt every n8n workflow credential. Conversely, if Grafana's webhook header is visible in any log, the encryption key is also exposed.
 
 **Recommended fix:** Use two separate 1Password items: `n8n_password` for `N8N_ENCRYPTION_KEY` and `n8n-webhook_api` for the webhook auth token. Update the Grafana contact point template accordingly.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1019,6 +1056,7 @@ A compromised Technitium instance running as root with NET_ADMIN and host port b
 If Technitium's web UI (at `dns.kogler.si`, behind Forward-Auth) has a vulnerability, the attacker inherits this elevated access.
 
 **Recommended fix:** Add `user: "53:53"` (Technitium supports running as non-root) and use Docker network mode instead of host port mapping where possible. If NET_ADMIN isn't needed (RouterOS handles DHCP), remove it.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1041,6 +1079,7 @@ The `trusted_servers` list only affects initial routing bootstrapping — delive
 1. Disabling federation entirely (`allow_federation = false`) — defeats the Matrix purpose but maximum isolation.
 2. Adding federation filtering rules to block servers known for spam.
 3. Educating family about unsolicited Matrix DMs (same as email).
+**Disposition (AUD-02, HEAD):** decision — open federation accepted/expected for a federated Matrix homeserver.
 
 ---
 
@@ -1064,6 +1103,7 @@ SNMPv2c with community string `public` means:
 1. Create a high-entropy read-only community string stored in 1Password (e.g., `snmp-ro_api`).
 2. Configure MikroTik to restrict SNMP to Management VLAN only: `/snmp set community="<ro_community>"` + ACL on the interface.
 3. Consider SNMPv3 with authPriv if MikroTik supports it well enough (some RouterOS versions have bugs with v3).
+**Disposition (AUD-02, HEAD):** decision — SNMP v2c `public` flagged as pending decision in observability.md.
 
 ---
 
@@ -1083,6 +1123,7 @@ Services behind Authentik Forward-Auth return redirect codes (302) or 401/403 wh
 - Auth flow breakage (e.g., Authentik down causing 502→302→403 chains) might be masked
 
 **Recommended fix:** Keep 401/403 for services that return them behind Forward-Auth, but add a separate probe module with stricter valid codes (`http_2xx_strict: [200]`) for services that should always return 200. Use path-specific probes for `/health` endpoints where available.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1099,6 +1140,7 @@ The TODO notes:
 When the Pi gets its own Alloy agent (deferred), both hosts report `instance="127.0.0.1:9998"`. Prometheus treats these as the same target — metrics overwrite each other, dashboards show wrong values, alerts fire incorrectly.
 
 **Recommended fix:** Set per-host instance in the Alloy template: `instance = "{{ inventory_hostname }}:9998"` or use Ansible to inject the hostname into the Alloy config before enabling the second host.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1112,6 +1154,7 @@ When the Pi gets its own Alloy agent (deferred), both hosts report `instance="12
 Dozzle mounts `/var/run/docker.sock:ro` and streams logs from ALL containers in real time. This includes containers that log database passwords, API tokens, or session data during startup or errors. Anyone authenticated through Authentik at `logs.kogler.si` can see these.
 
 **Mitigating factors:** Behind CrowdSec + Authentik Forward-Auth; read-only socket; no persistence.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ### 🟢 LOW — KOPS-046: AP ethernet ports grant full Management VLAN access
 
@@ -1131,6 +1174,7 @@ All 5 AP ethernet ports are bridged without VLAN tagging:
 Any device plugged into an AP's wired port gets full Management VLAN 99 access. While APs are in secured locations (garaža, spalernica, dnevna), this means a visitor connecting a laptop to an unused AP port gets direct access to the router admin interface, iLO, UPS management, and all other Management VLAN services.
 
 **Recommended fix:** Disable unused AP ethernet ports or put them on a restricted VLAN. In CAPsMAN mode, configure the bridge ports per-port rather than adding all to the bridge upfront.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1174,6 +1218,7 @@ Renovate only tracks Docker image tags. The following dependencies go completely
   ]
 }
 ```
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1205,6 +1250,7 @@ Per `smart-home-failover.md`, the failover orchestrator follows the sequence: RM
 ---
 
 *Findings updated incrementally. Resume point: continue scanning remaining IaC templates (sabnzbd, radarr, lidarr, prowlarr, bazarr, profilarr, recyclarr, cockpit routes, headscale compose) and remaining docs (hardware-nas, hardware-oldsrv, hardware-gpu, deployment-preseed).*
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1227,6 +1273,7 @@ On the **Pi primary**, both Traefik (`traefik-ha` edge) and RaspberryMatic try t
 On **oldsrv standby**, Traefik also uses `:80` and `:443`. If both start (even briefly during failover testing), they conflict.
 
 **Recommended fix:** Map CCU UI to a different host port, e.g., `"8085:80"` for primary or `"8086:80"` for standby. Access via IP:port internally. Never expose the CCU admin UI publicly.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1257,6 +1304,7 @@ trusted_proxies:
   - "<Pi traefik-ha IP>/32"  # Pi traefik-ha edge
 ```
 Or at minimum shrink to `/24`. Note that Docker bridge IPs can shift on recreate, so pin Traefik's network config or use a dynamic approach.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1278,6 +1326,7 @@ The glob `usb-eQ-3__HmIP-RFUSB_*` won't be expanded by Docker's device mapping. 
 1. Add a host_var `homematic_usb_by_id` per host and use it in the template.
 2. Use a udev rule to create a stable symlink (e.g., `/dev/hmip-rfusb`) and reference that.
 3. Pin down the actual device path during initial Ansible deployment and store it in a fact cache.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1303,6 +1352,7 @@ aren't covered by automated blocking.
 **Mitigating factor:** These services are behind Authentik Forward-Auth (except HA/Jellyfin/Matrix). CrowdSec + Authentik is already the chain for most of them at the proxy level.
 
 **Recommended fix:** Add relevant CrowdSec collections for each exposed service. Prioritize: `crowdsecurity/home-assistant`, `crowdsecurity/matrix`, `crowdsecurity/grafana`.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1325,6 +1375,7 @@ These listen on all interfaces including WAN (pppoe-telekom / ether1). While the
 **Mitigating factor:** No firewall rules are applied yet, but services bind globally by default in RouterOS. The Ansible router role should restrict these.
 
 **Note:** Related to KOPS-003 (which covers this same issue more broadly). This is the bootstrap-specific window where the risk is highest before Ansible runs.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1348,6 +1399,7 @@ The switch gets its management IP from the bootstrap and is reachable from the M
 **Mitigating factor:** The bootstrap window is short (minutes to hours until Ansible runs). Services are on the isolated Management VLAN physically.
 
 **Recommended fix:** In the bootstrap scripts, disable `api` and `www-ssl` services entirely and rely on SSH-key-only access for the initial bootstrap. Or restrict services to specific interfaces: `/ip service set ssh interface=vlan99-mgmt`.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1382,6 +1434,7 @@ The `NET_ADMIN` capability is also notable — while needed for Technitium's DHC
 ---
 
 *Findings updated incrementally. Resume point: scanned technitium, home-assistant-standby, zfs_exporter, homepage, signal-cli-rest-api, nut role, monitoring vars, prometheus config, headscale config. Next batch: remaining compose templates (sabnzbd, radarr, lidarr, prowlarr, bazarr, profilarr, recyclarr) and cockpit templates.*
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1412,6 +1465,7 @@ schema_config:
 ```
 
 Or make it configurable via group_vars: `{{ ansible_date_time.iso8601 | regex_replace(':.*', '') }}` to auto-set from deploy date.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1440,6 +1494,7 @@ The containers currently on db-internal are Prometheus, Grafana DB, Authentik DB
 ---
 
 *Findings updated incrementally. Resume point: scanned docker_services role, technitium, home-assistant-standby, zfs_exporter, homepage, signal-cli-rest-api, nut role, monitoring vars, prometheus config, headscale config, *arr stack (sabnzbd/radarr/recyclarr), loki compose + config.*
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1470,6 +1525,7 @@ But there is **no alertmanager container** in `group_vars/home_servers.yml` or a
 **Recommended fix:** Either:
 1. Remove the alertmanager scrape job and `alerting:` block entirely (since Grafana Alerting is the chosen path).
 2. Or deploy a minimal `alertmanager` container on `db-internal` if Prometheus-native alerting is needed alongside Grafana.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1489,6 +1545,7 @@ But there is **no alertmanager container** in `group_vars/home_servers.yml` or a
 This is a critical failover component — VIP ownership determines which node serves `ha.kogler.si`. Using `:latest` means any pull during failover preparation could bring incompatible keepalived behavior or regressions. Given that VRRP misbehavior can cause split-brain or flapping, this deserves version pinning.
 
 **Recommended fix:** Pin to specific version (e.g., `osixia/keepalived:2.3.2`). Add `keepalived_version` variable to group_vars like other service versions. Same pattern for the Pi primary keepalived template.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1513,6 +1570,7 @@ Element Web correctly skips Forward-Auth (Matrix handles SSO). However, it also 
 ```yaml
 traefik.http.routers.chat.middlewares: crowdsec-only@file
 ```
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1529,6 +1587,7 @@ While `cap_drop: ALL` mitigates container escape risk, the combination means: if
 **Mitigating factors:** Doco-CD is distroless, non-root, `cap_drop: ALL`. Not yet activated (HD-02). Webhook HMAC provides authenticity check.
 
 **Recommended fix:** Use separate Forgejo tokens — `forgejo_readonly_api` for Renovate (read-only), `doco-cd_deploy_api` for Doco-CD (write scoped to specific branches only). Limits blast radius if one token leaks.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1550,6 +1609,7 @@ The systemd timer runs these as **root** (systemd service default). SQLite `.bac
 **Impact:** Service state backups (Forgejo repos, n8n encrypted credentials database) may be corrupted. Discovered only at restore time.
 
 **Recommended fix:** For n8n: stop the container briefly, backup, then restart — or use native n8n backup command if available. For Forgejo: ensure `forgejo dump` handles concurrency inside the process. At minimum, add health checks before/after the backup to detect corruption early.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1574,6 +1634,7 @@ If `storage_allow_pool_create` is flipped to `true` and this TODO placeholder is
 **Impact:** Deploy-time failure if someone enables pool creation without updating the device path. Obvious but wastes time debugging.
 
 **Recommended fix:** Move the vdevs value to `host_vars/oldsrv.kogler.si.yml` (where the real serial goes after provisioning). Add a pre-flight assert in the role: verify each path in `vdevs` exists on disk before pool operations.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1588,6 +1649,7 @@ If `storage_allow_pool_create` is flipped to `true` and this TODO placeholder is
 **Mitigating factor:** Read-only socket, behind Authentik Forward-Auth. Information leakage only (no action possible).
 
 **Recommended fix:** Acceptable as-is. The insight into container health is useful for the launchpad. Consider filtering the health widget to show only user-relevant services.
+**Disposition (AUD-02, HEAD):** decision — Homepage docker.sock health widget accepted (read-only, behind Forward-Auth).
 
 ---
 
@@ -1602,6 +1664,7 @@ If `storage_allow_pool_create` is flipped to `true` and this TODO placeholder is
 **Impact:** If the Seerr config directory is lost or corrupted, all media request history, user accounts, and integration settings (Jellyfin/Sonarr/Radarr connections) are unrecoverable. Low practical impact — reconfiguration takes ~15 minutes.
 
 **Recommended fix:** Acceptable risk. Ensure Seerr config is included in Kopia backup scope if `/srv/docker/seerr` is covered by the kopia-server policies.
+**Disposition (AUD-02, HEAD):** decision — Seerr SQLite single-file accepted risk.
 
 ---
 
@@ -1616,6 +1679,7 @@ If `storage_allow_pool_create` is flipped to `true` and this TODO placeholder is
 **Impact:** Zero now (domen = 1000). Post HD-51 decision: potential NFS permission errors across entire media stack.
 
 **Recommended fix:** After HD-51 resolves, replace `PUID/PGID` literals with group_vars variables (`storage_uid`, `storage_gid`) already defined in the storage role defaults. One-line change per template, centralized update path.
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
 
 ---
 
@@ -1645,3 +1709,4 @@ If `storage_allow_pool_create` is flipped to `true` and this TODO placeholder is
 | 🟢 LOW   | 14    | KOPS-058 (Homepage docker.sock visibility), KOPS-059 (Seerr SQLite unbacked), KOPS-060 (*arr PUID hardcoded), KOPS-061 (Pi cert expiry) |
 
 *Full scan complete. All 44+ compose templates, roles, push scripts, bootstrap configs, router templates, switch defaults, AI diag, and remaining docs reviewed.*
+**Disposition (AUD-02, HEAD):** valid — code still present as quoted; risk applies.
