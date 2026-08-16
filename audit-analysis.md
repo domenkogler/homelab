@@ -264,7 +264,7 @@ item," follow these rules exactly:
 - **Verify:** no "TODO: define service" / stale placeholder wording remains; the doc points at
   `group_vars/home_servers.yml` (the true source of truth) without stale per-template caveats.
 
-### AUD-08 — Create persistent `docs/security.md` hardening posture (pending)
+### AUD-08 — Create persistent `docs/security.md` hardening posture (done)
 - **Difficulty:** 3 · **Priority:** P2 · **Depends on:** AUD-06 (so the HD rows exist to link)
 - **What:** Create `docs/security.md` — a durable home for the security *postures* so they
   outlive the audits. Write it following `docs/index.md` conventions: start with
@@ -357,7 +357,7 @@ item," follow these rules exactly:
 - [x] Proxmox artifact removed; cross-refs fixed (AUD-03, AUD-04)
 - [x] All 6 low-fruits + all architecture `NEW-*` items are HD-XX rows in `todo.md` (AUD-05, AUD-06)
 - [x] `deployment-tasks.md` reflects live status (AUD-07)
-- [ ] `docs/security.md` exists and is wired into the doc map (AUD-08)
+- [x] `docs/security.md` exists and is wired into the doc map (AUD-08)
 - [ ] `todo.md` tally/hygiene correct (AUD-09)
 - [ ] Each audit doc has a committed long-term disposition (AUD-10)
 - [ ] Validators green; no dangling references (AUD-11)
