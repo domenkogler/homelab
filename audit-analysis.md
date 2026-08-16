@@ -77,14 +77,24 @@ item," follow these rules exactly:
 
 ## A. Reconcile & clean the audit documents (inputs 1–3)
 
-### AUD-01 — Renumber KOPS findings uniquely (dedupe 043–049) (pending)
+### AUD-01 — Deduplicate KOPS findings by adding **only** first-free IDs (no mass renumber) (pending)
 - **Difficulty:** 2 · **Priority:** P1 · **Depends on:** none
-- **What:** In `Qwen-bugs.md`, several KOPS IDs are reused with *different* content (evidence
-  of incremental appends, never consolidated). Give **every distinct finding** a unique ID
-  (KOPS-001…N in file order), keeping each finding's original title and content. Where the
-  same ID carries two different findings, split them; where the same finding is repeated
-  verbatim, keep it once.
-- **Known duplicate inventory (indicative — confirm with the method below, then renumber):**
+- **What:** In `Qwen-bugs.md` the same KOPS ID is sometimes reused for *different* content
+  (evidence of incremental appends, never consolidated), and some findings are repeated
+  verbatim. **Do NOT renumber the whole file sequentially.** The IDs are opaque labels, not a
+  sequence — a bug just needs its own unique ID. So:
+  - **Keep** the existing ID on every finding whose content is currently unique (don't touch
+    already-unique IDs, even though they are non-contiguous).
+  - **Split:** where one ID carries two (or more) different findings, keep the *first*
+    occurrence on the original ID and give each *additional* distinct finding the **first free
+    (unused) KOPS number** (e.g. KOPS-062 onward, since KOPS-001…061 already exist).
+  - **Remove:** where the same finding is repeated verbatim, keep one copy and delete the
+    duplicates entirely (no new ID needed — same finding, same ID).
+  - Preserve each finding's original title and content; only the ID label may change. Do **not**
+    build a comprehensive `old → new` map — since one old ID can fan out to several new IDs, a
+    clean 1:1 map isn't possible. AUD-04 resolves the cross-refs by reading the deduped file
+    directly instead (content-based lookup), so no map is required here.
+- **Known duplicate inventory (indicative — confirm with the method below):**
 
   | ID | # occurrences | distinct topics carried |
   |----|---------------|------------------------|
@@ -97,18 +107,22 @@ item," follow these rules exactly:
   | KOPS-049 | 3 | RMat port 2001 dup, playbook order, Technitium port 53 |
   | KOPS-050 | 2 | Loki schema date, playbook order |
 
-  > ⚠ Only trust this table as a *starting checklist*. Before renumbering, re-derive the
-  > authoritative occurrences with the method below; there may be more than listed.
+  > ⚠ Only trust this table as a *starting checklist*; re-derive the authoritative occurrences
+  > with the method below — there may be more than listed.
 - **Method (do this, don't guess):** for each suspected duplicate, list every heading that
   uses it: `grep -nE 'KOPS-(043|044|045|046|047|048|049|050)' Qwen-bugs.md`. For each, read the
-  following block, and assign a new unique ID per **distinct** finding. Preserve original
-  titles/content; add the new ID as `KOPS-###` and keep a one-line map comment at the top of
-  the file (`old → new`) so AUD-04 cross-refs can be updated.
+  following block and decide: identical content already seen ⇒ **delete** the repeat; genuinely
+  different content ⇒ assign the **first free** KOPS number (`grep -oE 'KOPS-[0-9]+' Qwen-bugs.md
+  | sort -V | tail -1` to see the current max, then use the next ID). Preserve original
+  titles/content; add the new ID only where a distinct finding needs it.
 - **Verify:** `grep -oE 'KOPS-[0-9]+' Qwen-bugs.md | sort | uniq -d` returns **nothing** (no
-  duplicate IDs); every finding retains its original title/content; a `old → new` map comment
-  exists at the top.
+  duplicate IDs); `grep -oE 'KOPS-[0-9]+' Qwen-bugs.md | sort -u | wc -l` equals the number of
+  distinct findings (blocks) actually present; every surviving finding retains its original
+  title/content. (No `old → new` map is required — see AUD-04.)
 - **Why first:** all other cross-referencing (Flaw-A table, low-fruits, roadmap, and this
-  audit) is unreliable until IDs are unique.
+  audit) is unreliable until IDs are unique. This approach reaches that state with far less
+  churn than a full renumber: already-unique findings keep their IDs, only duplicated content
+  gets a fresh label, and verbatim repeats are dropped.
 
 ### AUD-02 — Reconcile audit findings against current HEAD (pending)
 - **Difficulty:** 3 · **Priority:** P1 · **Depends on:** AUD-01 (works on the de-duplicated
@@ -147,12 +161,21 @@ item," follow these rules exactly:
 
 ### AUD-04 — Fix cross-references broken by the KOPS duplication (pending)
 - **Difficulty:** 2 · **Priority:** P1 · **Depends on:** AUD-01
-- **What:** `Qwen-architecture.md` Flaw-A table and `low-fruits.md` cite KOPS-047/048 as the
-  *Seerr* finding, but in Qwen-bugs those IDs (final form) are *Renovate* and *Signal*.
-  After AUD-01 renumbers, update every cross-reference in `Qwen-architecture.md`,
-  `low-fruits.md`, and any `todo.md` mentions to the correct unique IDs.
-- **Verify:** `grep -rn 'KOPS-' *.md docs/ todo.md` returns IDs that all exist uniquely in
-  `Qwen-bugs.md` and point at the intended finding.
+- **What:** Other docs cite KOPS IDs as shorthand for a specific finding — e.g. the Flaw-A
+  table in `Qwen-architecture.md` and `low-fruits.md` cite KOPS-047/048 for the *Seerr*
+  finding, but after dedup those IDs belong to *Renovate* / *Signal*. Because AUD-01 now only
+  keeps surviving unique IDs (no comprehensive `old → new` map; one old ID can become several
+  new ones), update every cross-reference in `Qwen-architecture.md`, `low-fruits.md`, and any
+  `todo.md` mention by **resolving the intended finding by content**, not by number.
+- **Method (do this, don't guess):** for each cited KOPS ID outside `Qwen-bugs.md`, read the
+  surrounding sentence to determine *which* finding it means (by its topic/title — e.g. "the
+  Seerr finding"). Locate that finding's unique block in the now-deduplicated `Qwen-bugs.md`
+  (grep on a distinctive title word) and replace the stale ID with that block's actual final
+  ID. If the cross-ref meant a finding that was deleted as a verbatim duplicate, point it at
+  the surviving copy's ID instead.
+- **Verify:** `grep -rn 'KOPS-' *.md docs/ todo.md` returns only IDs that each resolve to
+  exactly one unique finding block in `Qwen-bugs.md`, and every cross-ref corresponds to the
+  intended finding by content (spot-check the Seerr/Flaw-A citations specifically).
 
 ---
 
