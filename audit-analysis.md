@@ -298,7 +298,7 @@ item," follow these rules exactly:
 
 ## C. Backlog hygiene & final consolidation (inputs 4–5)
 
-### AUD-09 — Reconcile `todo.md` tally and completed-state notes (pending)
+### AUD-09 — Reconcile `todo.md` tally and completed-state notes (done)
 - **Difficulty:** 2 · **Priority:** P2 · **Depends on:** AUD-05, AUD-06
 - **What:** `todo.md` header says "50 open · 11 done". Re-tally after AUD-05/06 add rows;
   remove the resolved "dead reference" note for HD-35 (content already lives in
@@ -358,7 +358,7 @@ item," follow these rules exactly:
 - [x] All 6 low-fruits + all architecture `NEW-*` items are HD-XX rows in `todo.md` (AUD-05, AUD-06)
 - [x] `deployment-tasks.md` reflects live status (AUD-07)
 - [x] `docs/security.md` exists and is wired into the doc map (AUD-08)
-- [ ] `todo.md` tally/hygiene correct (AUD-09)
+- [x] `todo.md` tally/hygiene correct (AUD-09)
 - [ ] Each audit doc has a committed long-term disposition (AUD-10)
 - [ ] Validators green; no dangling references (AUD-11)
 - [ ] `docs/index.md` map reflects only live docs (AUD-12)
