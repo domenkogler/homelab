@@ -181,7 +181,7 @@ item," follow these rules exactly:
 
 ## B. Absorb actionable content into the canonical system
 
-### AUD-05 — Add the 6 low-fruits fixes as `todo.md` rows (tag ROI) (pending)
+### AUD-05 — Add the 6 low-fruits fixes as `todo.md` rows (tag ROI) (done)
 - **Difficulty:** 1 · **Priority:** P1 · **Depends on:** AUD-01/02 (IDs + validation)
 - **What:** Represent the six `low-fruits.md` items in `todo.md`, each as one row tagged
   `ROI`, `source: qwen`, with the difficulty/priority below. Suggested IDs **HD-60…HD-65**
