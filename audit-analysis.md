@@ -255,7 +255,7 @@ item," follow these rules exactly:
   NEW-* row above exists in `todo.md` as an HD-70+ row (or is marked *merged* into HD-60–65);
   no HD-70+ row duplicates an already-tracked HD item; roadmap rows keep a `source: qwen` tag.
 
-### AUD-07 — Refresh the stale status in `deployment-tasks.md` (pending)
+### AUD-07 — Refresh the stale status in `deployment-tasks.md` (done)
 - **Difficulty:** 1 · **Priority:** P1 · **Depends on:** none
 - **What:** Phase 3's warning "some compose templates are still `TODO: define service`
   placeholders (authentik→HD-16, crowdsec, forgejo, opencloud, db-backup, headscale…)" is
@@ -356,7 +356,7 @@ item," follow these rules exactly:
 - [ ] KOPS IDs unique and reconciled to HEAD (AUD-01, AUD-02)
 - [x] Proxmox artifact removed; cross-refs fixed (AUD-03, AUD-04)
 - [x] All 6 low-fruits + all architecture `NEW-*` items are HD-XX rows in `todo.md` (AUD-05, AUD-06)
-- [ ] `deployment-tasks.md` reflects live status (AUD-07)
+- [x] `deployment-tasks.md` reflects live status (AUD-07)
 - [ ] `docs/security.md` exists and is wired into the doc map (AUD-08)
 - [ ] `todo.md` tally/hygiene correct (AUD-09)
 - [ ] Each audit doc has a committed long-term disposition (AUD-10)
