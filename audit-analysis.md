@@ -159,7 +159,7 @@ item," follow these rules exactly:
 - **Verify:** no section of `Qwen-architecture.md` (or any live doc) contradicts the
   bare-metal+Docker design.
 
-### AUD-04 — Fix cross-references broken by the KOPS duplication (pending)
+### AUD-04 — Fix cross-references broken by the KOPS duplication (done)
 - **Difficulty:** 2 · **Priority:** P1 · **Depends on:** AUD-01
 - **What:** Other docs cite KOPS IDs as shorthand for a specific finding — e.g. the Flaw-A
   table in `Qwen-architecture.md` and `low-fruits.md` cite KOPS-047/048 for the *Seerr*
@@ -354,7 +354,7 @@ item," follow these rules exactly:
 ## End-state checklist (all AUD-xx done ⇒ consolidation complete)
 
 - [ ] KOPS IDs unique and reconciled to HEAD (AUD-01, AUD-02)
-- [ ] Proxmox artifact removed; cross-refs fixed (AUD-03, AUD-04)
+- [x] Proxmox artifact removed; cross-refs fixed (AUD-03, AUD-04)
 - [ ] All 6 low-fruits + all architecture `NEW-*` items are HD-XX rows in `todo.md` (AUD-05, AUD-06)
 - [ ] `deployment-tasks.md` reflects live status (AUD-07)
 - [ ] `docs/security.md` exists and is wired into the doc map (AUD-08)
