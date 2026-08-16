@@ -7,9 +7,9 @@
 > rule in "How to use this file" below (lowest-numbered `(pending)` whose deps are done).
 >
 > **Input documents (the "5"):**
-> 1. `Qwen-bugs.md` — security audit (61 findings, KOPS-xxx, incremental/duplicated)
-> 2. `Qwen-architecture.md` — architecture audit (6 systemic flaws, roadmap, open questions)
-> 3. `low-fruits.md` — highest-ROI changes (6 concrete fixes)
+> 1. `reports/Qwen-bugs.md` — security audit (61 findings, KOPS-xxx, incremental/duplicated)
+> 2. `reports/Qwen-architecture.md` — architecture audit (6 systemic flaws, roadmap, open questions)
+> 3. `reports/low-fruits.md` — highest-ROI changes (6 concrete fixes)
 > 4. `todo.md` — canonical backlog (HD-XX, the surviving single source of truth)
 > 5. `deployment-tasks.md` — phase-based build-order runbook
 >
@@ -306,16 +306,17 @@ item," follow these rules exactly:
   block to current truth (failover primary/standby steps are now committed).
 - **Verify:** header count matches row count; no note describes already-resolved work as open.
 
-### AUD-10 — Decide disposition of each audit document (pending)
+### AUD-10 — Decide disposition of each audit document (done)
 - **Difficulty:** 3 · **Priority:** P2 (needs a human decision for the final call) · **Depends on:** AUD-01, AUD-02, AUD-06
 - **What:** After content is absorbed, decide for each source doc where it lives long-term.
-  Recommended:
-  - `Qwen-bugs.md` → keep as **evidence annex** (deduped per AUD-01) under `reports/` or
-    `brainstorming/`; not a living document.
-  - `Qwen-architecture.md` → **retire** after AUD-06 (keep §2 "six flaws" distilled into
-    `docs/security.md`); move to `reports/` or `brainstorming/`.
-  - `low-fruits.md` → **execute-then-retire** after AUD-05; move to `reports/` as historical.
-  - `todo.md`, `deployment-tasks.md` → **remain canonical and live**.
+  **Decision (2025-08-16, user): move all retired audit docs to `reports/`.** Executed:
+  - `Qwen-bugs.md` → moved to `reports/Qwen-bugs.md` — kept as **evidence annex** (deduped per
+    AUD-01); not a living document.
+  - `Qwen-architecture.md` → moved to `reports/Qwen-architecture.md` — **retired** (Flaw A–F
+    distilled into `docs/security.md`, roadmap absorbed into `todo.md` per AUD-06).
+  - `low-fruits.md` → moved to `reports/low-fruits.md` — **execute-then-retire** (items now
+    HD-60…65 in `todo.md` per AUD-05); historical.
+  - `todo.md`, `deployment-tasks.md` → **remain canonical and live** (in repo root).
 - **Verify:** a committed decision exists for each file; no audit doc is still treated as a
   source of truth.
 
@@ -359,7 +360,7 @@ item," follow these rules exactly:
 - [x] `deployment-tasks.md` reflects live status (AUD-07)
 - [x] `docs/security.md` exists and is wired into the doc map (AUD-08)
 - [x] `todo.md` tally/hygiene correct (AUD-09)
-- [ ] Each audit doc has a committed long-term disposition (AUD-10)
+- [x] Each audit doc has a committed long-term disposition (AUD-10)
 - [ ] Validators green; no dangling references (AUD-11)
 - [ ] `docs/index.md` map reflects only live docs (AUD-12)
 - [ ] Policy decisions recorded in a persistent decision log (AUD-13)

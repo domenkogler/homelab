@@ -10,7 +10,7 @@ tags: [security, waf, hardening, secrets, bootstrap]
 > **Role:** Security hardening posture — the durable "how we secure the homelab" reference, distilled from
 > the Qwen security audits into ongoing rules. Each section states an *ongoing policy* and links (a) the
 > owning doc that implements it and (b) the canonical `todo.md` **HD-xx** tracking row. The underlying
-> raw findings live in the evidence annex `../Qwen-bugs.md` (referenced below as *evidence* where useful);
+> raw findings live in the evidence annex `../reports/Qwen-bugs.md` (referenced below as *evidence* where useful);
 > **HD-xx rows are the primary tracking handle**, KOPS ids are the archived annex footer.
 > **Links to:** `services-traefik.md`, `deployment-compose.md`, `deployment-secrets.md`,
 > `deployment-preseed.md`, `smart-home-failover.md`, `backup.md`, `network-ops.md`, `network-vpn.md`,
