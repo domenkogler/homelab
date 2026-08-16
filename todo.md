@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 79 open · 19 done** · **Total: 98**
+**Status: 76 open · 19 done** · **Total: 95**
 
 ---
 
@@ -211,9 +211,9 @@
 ## Notes / observed gaps
 
 - **Single backlog decided:** `todo.md` is the one backlog for planned work + open decisions (HD-XX). The former `docs/issues.md` scratchpad was **removed** — route new defects/follow-ups into `todo.md` with an HD-XX entry (or mark inline in the owning doc with a ⚠ marker).
-- Two dead references in docs: `docs/network-devices.md` (HD-35) and `docs/inventory.md` (HD-12).
+- **Resolved dead references:** `docs/network-devices.md` (HD-35 — content adopted into `assets/Network-Devices.canvas`; HD-35 done) and `docs/inventory.md` (HD-12 — render pipeline done; `docs/inventory.md` is now generated). No open dead references remain.
 - Dependencies: HD-03 → HD-04 → HD-13 · HD-06/07 → HD-08 · HD-01 done ✅ · HD-29 → HD-31 · HD-50 done ✅ → HD-16 → HD-43/HD-44/HD-46 (Authentik is a hard prerequisite for Forward-Auth services) · HD-50 blocks all `docker_services` deployments.
-- **Recently-implemented IaC (done at template/role level, NOT yet deployed):** storage role (ZFS layout, snapshots, NFS, push jobs), face-thumbnail push over NFS, boot-time provisioning, traefik-ha edge failover, the Media/·\*arr + dozzle templates (→ HD-43/-44), and the **router/switch network roles** (→ HD-03). These are **not** live on any host yet — track them as open until a deploy/verify task (Phase 2/3) runs.
+- **Recently-implemented IaC (committed at template/role level):** storage role (ZFS layout, snapshots, NFS, push jobs), face-thumbnail push over NFS, boot-time provisioning, traefik-ha edge failover (**HA primary/standby steps now committed** — keepalived + `ha-failover.sh` (HD-17)), the Media/·\*arr + dozzle templates (→ HD-43/-44), and the **router/switch network roles** (→ HD-03). These are **implemented and committed in IaC but not yet deployed** to live hosts; that pending live provisioning is tracked by the deploy/verify tasks (Phase 2/3), not as open defects.
 
 ## Executor summary
 
