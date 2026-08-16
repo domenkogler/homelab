@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 48 open · 10 done** · **Total: 58**
+**Status: 50 open · 11 done** · **Total: 61**
 
 ---
 
@@ -55,7 +55,7 @@
 | HD-16 | 3 | AI | done | **Implement Authentik compose template + Traefik Forward-Auth middleware** — server+worker+postgres+redis compose (115 lines), `authentik-forward-auth@file` middleware (42 lines), `subdomain: sso` entry. All implemented in `db51854`. · [services-authentik.md](docs/services-authentik.md), [services-traefik.md](docs/services-traefik.md) |
 | HD-50 | 3 | AI | done | **Implement `docker_services` Ansible role** — ✅ **Done (`eadf9d4`).** Role creates external Docker networks, copies templates, renders Jinja2 with 1Password lookups, runs `docker compose up -d`. Added: systemd auto-start per service (`docker-compose@.service` template unit + `systemctl enable`), post-deploy Homepage reload + `inventory.md` render. Fixed pre-existing path bugs (templates at playbook level, not in role). All 43 templates validated. · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-53 | 2 | AI + Human | open | *(decision)* **MikroTik SNMP community** — Alloy collector assumes v2c `public` (monitoring role); decide a dedicated read-only community + mgmt-VLAN ACL vs RouterOS default, then enable `/snmp` on RB4011/CRS328 (device-side — blocks HD-03 deploy). · [observability.md](docs/observability.md) |
-| HD-56 | 3 | AI + Human | open | *(decision)* **Host network config-manager: systemd-networkd vs netplan** — undecided; blocks the `network` role's static-IP/VLAN-trunk provisioning (oldsrv VLAN 99 native + 10/20/50 tagged, nas VLAN 10+99, pi static). · [deployment-ansible.md](docs/deployment-ansible.md), [IaC/README.md](IaC/README.md) |
+| HD-56 | 3 | AI + Human | done | *(decision)* **Host network config-manager: systemd-networkd vs netplan** — ✅ **Decided: systemd-networkd.** Rationale: native Debian server tooling, no Python dependency (netplan pulls python3+libnetplan), Ansible `community.general.systemd_network` module is mature, consistent with existing systemd timer usage (sanoid/syncoid/db-backup). Netplan rejected — Ubuntu desktop default, extra translation layer on Debian server. Blocker cleared for network role's static-IP/VLAN-trunk provisioning. · [deployment-ansible.md](docs/deployment-ansible.md) |
 
 ## Priority 2
 
@@ -100,6 +100,9 @@
 | HD-51 | 2 | AI + Human | open | *(research/decision)* **Family desktop users** — 4 members + guest + a NEUTRAL family account that owns shared media data (NOT a personal account as uid/gid 1000/1000); UID/group strategy + auto-login target under research. Blocks desktop-role auto-login (role shipped without user accounts). · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-52 | 1 | AI + Human | open | *(decision)* **OpenCloud sync client packaging** — official client (opencloud-eu/desktop) ships AppImage only, no apt repo; options: AppImage → /opt + .desktop entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Blocks office role's client. · [llm-office.md](docs/llm-office.md) |
 | HD-58 | 3 | AI | open | **Implement Stirling PDF service** — self-hosted PDF toolkit (merge/split/compress/convert/number/OCR via Tesseract); family-friendly replacement for online PDF editors. Compose template + `group_vars/home_servers.yml` entry per the `docker_services` role (HD-50); catalog row in [`services.md`](docs/services.md). **Auth (decided 2025-08-15): anonymous mode** (`SECURITY_ENABLELOGIN=false`, default) **+ Authentik Forward-Auth at the Traefik edge** — same pattern as admin UIs; **native Stirling OIDC/SAML deliberately NOT used** (beta, adds per-user roles we don't need). **Exposure: internal-only** — no Cloudflare record, WAN-blocked; remote access only via the Headscale VPN (road-warrior), NOT public. Enable OCR (`TESSERACT_LANGS=eng+slv`, Slovenian). All processing in-memory, nothing persisted to disk → no ZFS/backup implication. Low RAM (~100–200 MB idle). · [services.md](docs/services.md) |
+| HD-40A | 3 | AI + Human | open | *(Phase 1.5)* **Provision VPS + establish public Traefik edge** — Contabo VPS purchased, WireGuard S2S home↔VPS, Traefik on VPS terminates TLS for public subset. Backends still on oldsrv over WG tunnel. Cloudflare A records updated. · [services-vps.md](docs/services-vps.md) |
+| HD-40B | 3 | AI | open | *(Phase 1.5)* **Migrate public-facing services to VPS** — Authentik, OpenCloud web, Forgejo, Grafana. Databases stay on LAN over WG tunnel. · [services-vps.md](docs/services-vps.md) |
+| HD-59 | 2 | AI | open | **Internal service auth on flat Docker networks** — Ollama (`OLLAMA_AUTH_*` env vars), Kopia server (`--password` flag replacing `--without-password`), Signal CLI (basic auth wrapper on services-internal), Prometheus (`--web.config.file` with htpasswd). Flat networks = zero auth between containers; supply-chain compromise in one image gives attacker free rein. Auth tokens → 1Password `<service>-internal_api`. · [deployment-compose.md](docs/deployment-compose.md), Qwen-bugs KOPS-001/016/002 |
 
 ## Priority 4
 
@@ -119,7 +122,6 @@
 | HD-37 | 3 | AI | open | **Long-term metric retention** — remote-write/downsampling (Thanos/VictoriaMetrics) only if ever needed. · [observability.md](docs/observability.md) |
 | HD-38 | 2 | AI | open | **Prometheus Alertmanager** — only if Grafana-outage resilience demanded; Grafana Alerting covers Phase 1. · [observability.md](docs/observability.md) |
 | HD-39 | 1 | Human | open | *(decision)* **watchtower for Pi HA container** — Renovate + pinned images may suffice. · [smart-home-failover.md](docs/smart-home-failover.md) |
-| HD-40 | 4 | AI + Human | open | *(Phase 2)* **VPS (Contabo) + public stack** — incl. Cloudflare layer (TBD); agent automates after human provides the VPS. · [services-vps.md](docs/services-vps.md) |
 | HD-41 | 4 | AI | open | *(Phase 2)* **Proxmox role + VM lab** — bridges, storage, VMs; implementation order step 10. · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-42 | 3 | Human | open | *(Phase 2)* **Phase-2 hardware build** — Ryzen 9, open-frame chassis; only if Phase 1 insufficient; physical. · [hardware-phase2.md](docs/hardware-phase2.md) |
 | HD-45 | 3 | AI | open | *(Phase 2)* **Re-evaluate Homelable (topology/rack visualizer)** — Pouzor/homelable, MIT, young project; network + rack canvas + nmap scan + live health + MCP; potential successor to `Rack.canvas` visual/Homepage reachability widget. Keep deferred until services are live; re-check maturity. Noted in `observability.md` + `network-rack.md`. · [observability.md](docs/observability.md) |
@@ -175,7 +177,7 @@
 
 | Exec | Count | IDs |
 |------|-------|-----|
-| AI | 31 | HD-01,02,06,07,08,09,10,11,12,14,15,16,17,19,23,26,28,32,33,35,36,37,38,41,43,44,45,46,47,49,50 |
+| AI | 33 | HD-01,02,06,07,08,09,10,11,12,14,15,16,17,19,23,26,28,32,33,35,36,37,38,40B,41,43,44,45,46,47,49,50,59 |
 | Human | 10 | HD-05(done),18,20,24,25,29,30,31,39,42 |
 | AI + gate | 2 | HD-03, HD-04 |
-| AI + Human | 14 | HD-13,21,22,27,34,40,48,51,52,53,54,55,56,57 |
+| AI + Human | 15 | HD-13,21,22,27,34,40A,48,51,52,53,54,55,56(done),57 |

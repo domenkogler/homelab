@@ -307,3 +307,17 @@ services:
     tmpfs:
       - /tmp
 ```
+
+### Internal Service Authentication
+
+Even trusted containers on shared Docker networks should have independent auth. A supply-chain
+compromise in one public image gives the attacker free rein across the entire bridge network if
+sibling services have no auth. Apply minimum auth per service:
+
+- **Services accepting API requests:** require token/key/header (Ollama `OLLAMA_AUTH_*`, n8n API key)
+- **Backup servers:** always require password (Kopia `--password`, never `--without-password`)
+- **Observability UIs:** protect scrape/config endpoints (Prometheus `--web.config.file` with htpasswd)
+- **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
+
+Auth tokens for internal services live in 1Password `Homelab` vault under the
+`<service>-internal_api` naming pattern. Referenced via `lookup('community.general.onepassword', ...)` at template render time.

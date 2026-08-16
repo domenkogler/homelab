@@ -112,3 +112,30 @@ Containers start at boot via systemd units **before any user logs in**:
 - PoE-powered from CRS328 switch
 - BIOS-level control, remote power/reset, virtual ISO mounting
 - OS-independent (works if Debian crashes)
+
+---
+
+## Design Consideration: Proxmox Hypervisor Layer
+
+> **Status:** Research needed. Not decided. Dropped if IOMMU/GPU passthrough not viable.
+
+Option under evaluation: run a thin Proxmox VE layer on oldsrv instead of bare-metal
+Debian Desktop, creating two VMs to isolate desktop crashes from infrastructure:
+
+| VM | Role | Resources | Benefit |
+|----|------|-----------|---------|
+| `infra` | All Docker services | 32 GB RAM, 8 vCPU, NVMe passthrough | Isolated from desktop crashes; reboot independently |
+| `desktop` | XFCE + browser + gaming | 8 GB RAM, 4 vCPU, GPU PCI passthrough | GPU/driver crashes don't take down homelab |
+
+**Preconditions to verify:**
+- IOMMU support on ASRock Z270 Extreme4 (check CPUID.IOMMU + BIOS VT-d setting)
+- AMD RX 7600 PCI passthrough viability (device isolation in IOMMU groups, VRAM reset behavior)
+- Proxmox LXC vs full VM trade-off (LXC = lighter but no GPU passthrough)
+- Hypervisor overhead cost (~2–4 GB RAM for management + two VMs)
+- Impact on preseed: generate Proxmox ISO instead of Debian Desktop
+
+**If IOMMU/GPU passthrough fails:** accept infra+desktop in single VM (still gives resource limits, independent reboot, snapshot-before-update). Or skip entirely and keep bare-metal — zero migration cost since nothing is live.
+
+**Why only 2 VMs (not 3)?** Split point is desktop vs. everything else. Adding a third VM just to separate databases from web frontends buys nothing that GitOps per-service compose doesn't already provide. 3 VMs on 48 GB = premature partitioning before workload justifies it.
+
+**Decision trigger:** resolve after motherboard/IOMMU check + ROCm driver stability assessment on oldsrv post-deploy.
