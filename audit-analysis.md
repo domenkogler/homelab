@@ -124,7 +124,7 @@ item," follow these rules exactly:
   churn than a full renumber: already-unique findings keep their IDs, only duplicated content
   gets a fresh label, and verbatim repeats are dropped.
 
-### AUD-02 — Reconcile audit findings against current HEAD (pending)
+### AUD-02 — Reconcile audit findings against current HEAD (done)
 - **Difficulty:** 3 · **Priority:** P1 · **Depends on:** AUD-01 (works on the de-duplicated
   findings)
 - **What:** Re-validate every KOPS finding against the **current** tree before treating it as
