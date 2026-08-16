@@ -161,10 +161,11 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
    homepage, metabase, signal-cli-rest-api, sunshine, home-assistant-standby, plus the Media /·\*arr
    stack and `dozzle` → **HD-43/-44**).
 
-   ⚠ **Templates audit — some compose templates are still `TODO: define service` placeholders:**
-   `authentik` (→HD-16), `crowdsec`, `forgejo`, `opencloud`, `db-backup`, `headscale` and others.
-   Each must be implemented (or verified already done) **before** Phase 3 deploy — blocked by HD-50
-   (`docker_services` role) and tracked per-service in `todo.md`.
+   ✅ **Templates status (live):** all **42** compose templates exist under `docker_services/` — HD-16
+   (authentik + Forward-Auth middleware) and HD-50 (`docker_services` role) are **done**. The authoritative
+   service list is `group_vars/home_servers.yml` (the loop source of truth) + `docs/services.md`; it is
+   **not** a per-template TODO list. New services are added by dropping a template under
+   `docker_services/<name>/` and listing it in `home_servers.yml` — no per-template placeholder caveats.
 
 4. **HA standby** — `home-assistant-standby` compose + keepalived (`ha-vrrp_password`); disabled by default.
 
