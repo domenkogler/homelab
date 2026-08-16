@@ -901,29 +901,6 @@ This string substitution works only if BOOT literally starts with `/boot`. For r
 
 ---
 
-### 🟡 MEDIUM — KOPS-046: RaspberryMatic maps host port 80 — conflicts with Traefik
-
-**File:** `IaC/ansible/templates/docker_services/raspberrymatic/docker-compose.yml.j2`
-
-**Severity:** MEDIUM (Host Port Conflict Breaks CCU Admin UI)
-
-**Description:**
-```yaml
-ports:
-  - "2001:201/tcp"
-  - "2010:2010/tcp"
-  - "80:80"             # CCU admin UI (internal only)
-```
-On oldsrv, standard Traefik binds `:80` on `0.0.0.0`. On the Pi, traefik-ha binds `{{ ha_vip }}:80`. Both conflict with RaspberryMatic's `80:80` binding.
-
-During a forward takeover on oldsrv, both containers try to bind port 80 on `0.0.0.0` — one will fail.
-
-**Mitigating factor:** CCU web UI is rarely used. RMat uses `restart: no` on standby.
-
-**Recommended fix:** Map CCU UI to a different host port: `"8081:80"` for primary, `"8082:80"` for standby.
-
----
-
 ### 🔴 HIGH — KOPS-047: Seerr has its own login with NO Forward-Auth AND NO CrowdSec
 
 **File:** `IaC/ansible/templates/docker_services/seerr/docker-compose.yml.j2`
@@ -942,27 +919,6 @@ Seerr is internal-only per `deployment-compose.md`, but even if not publicly exp
 **Impact:** If Seerr ever gets a public DNS record (or if WAN firewall allows it), brute-force login attempts face only Seerr's native rate limiting. Known exploit scans hit the app directly with no community blocklist filtering.
 
 **Recommended fix:** Apply the `crowdsec-only` middleware chain (see KOPS-004/KOPS-018 fix):
-```yaml
-traefik.http.routers.seerr.middlewares: crowdsec-only
-```
-
----
-
-### 🟡 MEDIUM — KOPS-048: Seerr has own login with NO Forward-Auth AND NO CrowdSec
-
-**File:** `IaC/ansible/templates/docker_services/seerr/docker-compose.yml.j2`
-
-**Severity:** MEDIUM (Internet-Facing Service Without Edge Protection)
-
-**Description:**
-```yaml
-# NOTE: no authentik-forward-auth — Seerr has its own login
-traefik.http.routers.seerr.rule: "Host(`seerr.kogler.si`)"
-traefik.http.services.seerr.loadbalancer.server.port: "5055"
-```
-Seerr is internal-only per docs, but on `traefik-public` with NO middleware. Family members submit requests directly — justifying skipping Forward-Auth — but **CrowdSec is also skipped**. Any known Seerr vulnerability faces the internet with zero edge protection.
-
-**Recommended fix:** Apply `crowdsec-only` middleware even for non-Forward-Auth services:
 ```yaml
 traefik.http.routers.seerr.middlewares: crowdsec-only
 ```
@@ -1157,87 +1113,6 @@ Dozzle mounts `/var/run/docker.sock:ro` and streams logs from ALL containers in 
 
 **Mitigating factors:** Behind CrowdSec + Authentik Forward-Auth; read-only socket; no persistence.
 
-### 🟡 MEDIUM — KOPS-043: Switch port map is empty in defaults, all ports default to Management VLAN
-
-**Files:** `IaC/ansible/roles/switch/defaults/main.yml`, `IaC/ansible/group_vars/switch.yml`
-
-**Severity:** MEDIUM (VLAN Segmentation Defeated on Switch)
-
-**Description:**
-The role defaults have `switch_port_map: {}` and the actual `group_vars/switch.yml` file doesn't exist. This means when the switch role runs, **all 24 RJ45 ports end up on Management VLAN 99** — the fallback for unconfigured ports. No Home (VLAN 10), no IoT (VLAN 20), no Guest (VLAN 30), no Kids (VLAN 40), no Media (VLAN 50) — everything is Management.
-
-The switch bootstrap template also assigns all ports to VLAN 99 initially:
-```routeros
-{% for n in range(1, 25) %}
-/interface bridge port add bridge=bridge interface=ether{{ n }} pvid={{ mgmt.id }}
-{% endfor %}
-```
-
-And the role's last task sets unconfigured ports to VLAN 99:
-```yaml
-- name: Set unconfigured ports to management VLAN (default)
-  community.routeros_interface_bridge_port:
-    ...
-    pvid: 99
-  when: "'ether' + item|string not in configured_port_names"
-```
-
-Since `configured_port_names` is derived from the empty `switch_port_map`, every port is "unconfigured" and gets VLAN 99.
-
-**Impact:** Complete loss of VLAN segmentation on the CRS328 switch. All wired devices end up on the Management VLAN with access to router admin, iLO, UPS web UI, and all other management services.
-
-**Recommended fix:** Create `IaC/ansible/group_vars/switch.yml` with the actual physical port-to-VLAN mapping before the first deployment. Example structure:
-```yaml
-switch_port_map:
-  ap-garage: { port: ether1, vlan: 99, poe: true }
-  oldsrv-trunk: { port: sfp-sfpplus2, vlan: trunk }
-  family-pc: { port: ether2, vlan: 10 }
-```
-
----
-
-### 🟡 MEDIUM — KOPS-044: Preseed files have identical placeholder root password hash
-
-**Files:** `IaC/host/nas/preseed.cfg`, `IaC/host/oldsrv/preseed.cfg`
-
-**Severity:** MEDIUM (Identical Emergency Root Password If Deployed As-Is)
-
-**Description:**
-Both preseed files use the exact same root password hash:
-```
-d-i passwd/root-password-crypted password $6$rounds=40000$randomsaltstring$7F9eX8pZqK3vM1oN6bYm...
-```
-
-The comment says `# ROOT PASSWORD: Change this hash!` but if someone deploys both servers without noticing, they share the same root password. An attacker who discovers one host's emergency console password gains root on both.
-
-Additionally, `d-i passwd/user-password-crypted password !` sets `!` as the ansible-admin password, which disables password login entirely (good). But root has an active password that could be brute-forced via the iLO/IPMI web console.
-
-**Recommended fix:** Either generate unique hashes at render time (Jinja2 template) or disable root login entirely (`d-i passwd/root-login boolean false`) since SSH key auth covers all operational access.
-
----
-
-### 🟢 LOW — KOPS-045: RaspberryMatic maps port 80 on host — conflicts with Traefik
-
-**File:** `IaC/ansible/templates/docker_services/raspberrymatic/docker-compose.yml.j2`
-
-**Severity:** LOW (Host Port Conflict During Failover Testing)
-
-**Description:**
-```yaml
-ports:
-  - "2001:2001/tcp"
-  - "2010:2010/tcp"
-  - "80:80"             # CCU admin UI (internal only)
-```
-
-On the Pi primary, Traefik-ha binds `{{ ha_vip }}:80` while RaspberryMatic tries to bind `0.0.0.0:80`. If the VIP isn't bound yet (during boot or after reboot), this works. But if both containers restart simultaneously, the CCU may fail to start because port 80 is already taken by Traefik.
-
-On oldsrv standby, standard Traefik also uses `:80`. If both are started during failover testing, they conflict.
-
-**Recommended fix:** Map CCU UI to a different host port: `"8085:80"` for primary, `"8086:80"` for standby. Never expose the CCU admin UI publicly.
-
----
-
 ### 🟢 LOW — KOPS-046: AP ethernet ports grant full Management VLAN access
 
 **File:** `IaC/router/templates/ap_initial.rsc.j2`
@@ -1259,7 +1134,7 @@ Any device plugged into an AP's wired port gets full Management VLAN 99 access. 
 
 ---
 
-### 🟢 LOW — KOPS-047: Renovate only tracks Docker images — ignores Ansible, Python, RouterOS packages
+### 🟢 LOW — KOPS-062: Renovate only tracks Docker images — ignores Ansible, Python, RouterOS packages
 
 **File:** `renovate.json`
 
@@ -1302,36 +1177,7 @@ Renovate only tracks Docker image tags. The following dependencies go completely
 
 ---
 
-### 🔴 HIGH — KOPS-048: Seerr has own login with NO Forward-Auth AND NO CrowdSec
-
-**File:** `IaC/ansible/templates/docker_services/seerr/docker-compose.yml.j2`
-
-**Severity:** HIGH (Internet-Facing Service With No Edge Protection)
-
-**Description:**
-```yaml
-# NOTE: no authentik-forward-auth — Seerr has its own login
-traefik.http.routers.seerr.rule: "Host(`seerr.kogler.si`)"
-traefik.http.services.seerr.loadbalancer.server.port: "5055"
-```
-
-Seerr is listed in `deployment-compose.md` under services that get Traefik labels but skips ALL middleware (no Forward-Auth AND no CrowdSec bouncer). The comment says "family non-admin users submit requests directly" which justifies skipping Forward-Auth, but it also means CrowdSec is bypassed.
-
-Seerr is internet-facing (it needs to be reachable from phones outside the LAN). Without any edge middleware:
-- Brute-force login attempts face only Seerr's native rate limiting (which may be weak or nonexistent)
-- Known exploit scans hit the app directly
-- No community IP blocklist filtering
-
-**Recommended fix:** Apply the `crowdsec-only` middleware chain (see KOPS-004/KOPS-018 fix):
-```yaml
-traefik.http.routers.seerr.middlewares: crowdsec-only
-```
-
-This blocks malicious IPs at the edge while preserving Seerr's own login flow.
-
----
-
-### 🟡 MEDIUM — KOPS-049: Playbook ordering issue — Pi runs `home_assistant` role before `docker_services`
+### 🟡 MEDIUM — KOPS-063: Playbook ordering issue — Pi runs `home_assistant` role before `docker_services`
 
 **File:** `IaC/ansible/playbooks/raspberry_pi.yml`
 
@@ -1482,37 +1328,7 @@ These listen on all interfaces including WAN (pppoe-telekom / ether1). While the
 
 ---
 
-### 🟡 MEDIUM — KOPS-043: Switch role has empty port map — all 24 RJ45 ports default to Management VLAN
-
-**File:** `IaC/ansible/roles/switch/defaults/main.yml`, `IaC/ansible/roles/switch/tasks/main.yml`
-
-**Severity:** MEDIUM (VLAN Segmentation Broken if Port Map Not Provided)
-
-**Description:**
-The switch role defaults have:
-```yaml
-switch_port_map: {}  # empty
-```
-
-And the role sets **any unconfigured port to Management VLAN 99**:
-```yaml
-- name: Set unconfigured ports to management VLAN (default)
-  community.routeros_interface_bridge_port:
-    ...
-    pvid: 99
-    ...
-  when: "'ether' + item|string not in configured_port_names"
-```
-
-Since `switch_port_map` is empty, `configured_port_names` is also empty — meaning **all 24 RJ45 ports end up on Management VLAN 99** unless a `group_vars/switch.yml` with the actual port map is created. The bootstrap template also puts all ports on Management VLAN as a starting point, so without the actual port map the switch has zero VLAN segmentation for wired devices.
-
-**Mitigating factor:** The `group_vars/switch.yml` file is mentioned in the comment (`# Ports without explicit configuration default to VLAN 99 (Management)`). If this file exists and is loaded, it would override the empty default.
-
-**Recommended fix:** Create `IaC/ansible/group_vars/switch.yml` with the actual port assignments from the physical rack wiring. Do not rely on a separate file that might be forgotten — put the port map directly in the role defaults if it's not going to change, or document clearly that the role is non-functional without it.
-
----
-
-### 🟡 MEDIUM — KOPS-044: Switch and AP bootstrap templates enable management services without TLS
+### 🟡 MEDIUM — KOPS-066: Switch and AP bootstrap templates enable management services without TLS
 
 **Files:** `IaC/router/templates/crs328_initial.rsc.j2`, `IaC/router/templates/ap_initial.rsc.j2`
 
@@ -1535,158 +1351,7 @@ The switch gets its management IP from the bootstrap and is reachable from the M
 
 ---
 
-### 🟡 MEDIUM — KOPS-045: Preseed files have identical placeholder root password hash
-
-**Files:** `IaC/host/nas/preseed.cfg`, `IaC/host/oldsrv/preseed.cfg`
-
-**Severity:** MEDIUM (Identical Root Password If Deployed As-Is)
-
-**Description:**
-Both preseed files use the **exact same placeholder hash**:
-```yaml
-d-i passwd/root-password-crypted password $6$rounds=40000$randomsaltstring$7F9eX8pZqK3vM1oN6bYm...
-```
-
-The comment says `# ROOT PASSWORD: Change this hash!` but both files have the same hash. If someone deploys both servers without reading the comments carefully, both get the same root password. This violates the principle that each host should have independent credentials.
-
-**Mitigating factor:** The `post_install.sh` is designed to run after preseed, and root login is only for local/iLO console emergency use. SSH is passwordless key-only.
-
-**Recommended fix:** Either:
-1. Generate unique hashes for each host at render time (e.g., from 1Password or a random secret per host).
-2. Use `d-i passwd/root-login boolean false` and rely on `sudo` via `ansible-admin` exclusively — the root account is rarely needed for emergency console access if `ansible-admin` has NOPASSWD sudo.
-
----
-
-### 🟢 LOW — KOPS-046: AP ethernet ports grant full Management VLAN access
-
-**File:** `IaC/router/templates/ap_initial.rsc.j2`
-
-**Severity:** LOW (Management VLAN Exposure via AP Wired Ports)
-
-**Description:**
-The AP bootstrap bridges all 5 ethernet ports (`ether1-5`) to the management bridge:
-```routeros
-/interface bridge port add bridge=bridge interface=ether1
-/interface bridge port add bridge=bridge interface=ether2
-...
-/interface bridge port add bridge=bridge interface=ether5
-```
-
-Any device plugged into an AP's ethernet port gets full **Management VLAN 99** access (router, switch, iLO, all other APs). In CAPsMAN mode the ports are used for daisy-chaining or wired clients, but nothing in the current config restricts what can connect.
-
-**Mitigating factor:** APs are in secured locations (garaža, spalnica, dnevna). The Management VLAN is already isolated from Home/IoT/Guest VLANs by the RB4011 firewall.
-
-**Recommended fix:** If the AP ethernet ports are not needed for wired devices, disable them or put them on a dedicated VLAN. If they're used for wired clients, put them on Home VLAN (10) instead of Management (99).
-
----
-
-### 🟢 LOW — KOPS-047: Renovate only tracks Docker images — no rules for Ansible collections, Python packages, RouterOS
-
-**File:** `renovate.json`
-
-**Severity:** LOW (Incomplete Update Automation Coverage)
-
-**Description:**
-```json
-{
-  "packageRules": [
-    {
-      "matchDatasources": ["docker"],
-      "stabilityDays": 3
-    }
-  ]
-}
-```
-
-Renovate is configured to track Docker images only. The following are **not tracked**:
-- Ansible collection versions (`community.docker`, `community.general`, `community.routeros`)
-- Python package versions in scripts (`check_doc_ips.py`, `render_network_addresses.py`, etc.)
-- RouterOS firmware versions
-- Debian package versions installed by preseed/Ansible (`zfsutils-linux`, `sanoid`, `syncoid`, `nfs-kernel-server`)
-- Host-installed binaries (nut_exporter, zfs_exporter, Alloy)
-
-**Recommended fix:** Add package rules for the specific managers used:
-```json
-{
-  "packageRules": [
-    {"matchManagers": ["docker-compose"], "matchDatasources": ["docker"], "stabilityDays": 3},
-    {"matchManagers": ["ansible-galaxy"], "platformAutomerge": true},
-    {"matchManagers": ["pip_requirements"], "schedule": ["on monday"]}
-  ]
-}
-```
-
----
-
-*Findings updated incrementally. Resume point: continue scanning remaining IaC templates (seerr, sabnzbd, radarr, lidarr, prowlarr, bazarr, profilarr, recyclarr, cockpit routes, headscale compose) and remaining docs (services-vps, inventory, hardware-nas, hardware-oldsrv, hardware-gpu, deployment-preseed).*
-
----
-
-## Summary by Severity
-
-| Severity | Count | Top Items |
-|----------|-------|-----------|
-| 🔴 HIGH  | 5     | Kopia `--without-password`, Signal API on host port, Router API unencrypted, HA `privileged: true`, Technitium root + NET_ADMIN |
-| 🟡 MEDIUM | 23  | Switch empty port map, identical preseed root hash, AP Mgmt VLAN exposure, Services without CrowdSec, Doco-CD host+docker.sock, db-backup incomplete, Headscale auto-approve, Matrix federation, Technitium port conflict, HA trusted_proxies too broad, RaspberryMatic port 80 conflict, RaspberryMatic USB path wildcard, Switch/AP bootstrap no TLS |
-| 🟢 LOW   | 12    | Keepalived PASS auth, bootstrap DNS, Tuwunel latest tag, SNMP public community, Dozzle log visibility, Alloy label collision, blackbox 401/403 as success, Renovate incomplete coverage, AP wired ports on Mgmt VLAN, CrowdSec limited collections, AP bootstrap wired ports |
-
-## Remaining to Scan — ✅ ALL NOW SCANNED
-
-> **Scan completed.** All 44+ compose templates, all roles, push job templates, bootstrap scripts,
-> router templates, switch role, AI diag script, and remaining docs reviewed.
-> New findings KOPS-052 through KOPS-061 added below.
-
----
-
-## Questions for Discussion
-
-1. **KOPS-001 (Kopia `--without-password`):** Is the intent that Kopia clients authenticate using the stored repo password in their own config, while the server itself stays open? Or should the server require its own independent auth layer?
-
-2. **KOPS-002 (Signal port 8080):** Does any service besides n8n need direct host-level access to Signal? If not, removing the host port mapping is safe.
-
-3. **KOPS-003 (Router API):** Are you planning to eventually get a Let's Encrypt cert for the RB4011, or should we design around SSH-key-only access for Ansible and disable the API entirely?
-
-4. **KOPS-014 (HA `privileged: true`):** The official HA docs recommend this, but is it truly required given your device set (KNX via GIRA router IP, Shelly native, Homematic via XML-RPC)? Could we use targeted `devices:` + `cap_add` instead?
-
-5. **KOPS-026 (db-backup missing immich/opencloud):** Should we enable these now or wait until a specific milestone? The risk is losing all photo metadata / document versions if Postgres dies.
-
-6. **KOPS-038 (RaspberryMatic port 80 conflict):** Confirmed — does the Pi's `traefik-ha` edge already conflict with RaspberryMatic's port 80? How is this resolved in practice?
-
-7. **KOPS-039 (HA trusted_proxies /16):** Should we shrink to Traefik's actual container IPs? The tradeoff is that Docker bridge IPs can shift on container recreation.
-
-8. **KOPS-040 (RaspberryMatic USB path wildcard):** What is the actual `/dev/serial/by-id/` path for your HmIP-RFUSB stick? We need to pin it in host_vars.
-
-9. **Kids VLAN bedtime restriction** is noted as `debug: "pending implementation"` — is this tracked elsewhere?
-
-10. **Matrix federation (KOPS-033):** Is open federation intentional, or should it be disabled for maximum isolation?
-
----
-
-*Findings updated incrementally. Resume point: scanned playbooks (home_servers, raspberry_pi, router, storage), seerr compose, switch/group_vars, hardware docs (gpu, nas, oldsrv), deployment-preseed, deployment-ansible. Next batch: remaining compose templates (sabnzbd, radarr, lidarr, prowlarr, bazarr, profilarr, recyclarr) and cockpit/home_assistant templates.
-
----
-
-### 🟡 MEDIUM — KOPS-048: Signal CLI REST API exposed on host port 8080 without auth
-
-**File:** `IaC/ansible/templates/docker_services/signal-cli-rest-api/docker-compose.yml.j2`
-
-**Severity:** MEDIUM (Unauthorized Signal Message Sending)
-
-**Description:**
-```yaml
-ports:
-  - "8080:8080"        # HTTP API — consumed by n8n on services-internal; not exposed publicly
-```
-
-The Signal CLI REST API is mapped to host port 8080 (`0.0.0.0:8080`), meaning any device on the Home VLAN can reach it. The comment says "consumed by n8n on services-internal; not exposed publicly" — but "not exposed publicly" (internet) ≠ "not accessible from LAN". The REST API has no built-in auth and accepts arbitrary POST requests with phone numbers, so anyone who discovers port 8080 can send messages from Domen's personal number.
-
-**Impact:** Any LAN user can impersonate Domen by sending Signal messages to arbitrary contacts, or trigger SMS delivery charges. Worse: could be used for social engineering attacks against the family ("Domen" messages saying "send money urgently").
-
-**Recommended fix:** Remove the `ports` mapping entirely. The container is already on `services-internal` network where n8n can reach it by hostname. If a host-level port is truly needed later, restrict to `127.0.0.1:8080:8080`.
-
----
-
-### 🟡 MEDIUM — KOPS-049: Technitium DNS binds host port 53 without network restriction
+### 🟡 MEDIUM — KOPS-064: Technitium DNS binds host port 53 without network restriction
 
 **File:** `IaC/ansible/templates/docker_services/technitium/docker-compose.yml.j2`
 
@@ -1720,7 +1385,7 @@ The `NET_ADMIN` capability is also notable — while needed for Technitium's DHC
 
 ---
 
-### 🟡 MEDIUM — KOPS-050: Loki schema date is set to 2026-01-01 (future)
+### 🟡 MEDIUM — KOPS-065: Loki schema date is set to 2026-01-01 (future)
 
 **File:** `IaC/ansible/templates/docker_services/loki/loki.yaml.j2`
 
