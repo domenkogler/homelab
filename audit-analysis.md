@@ -320,7 +320,7 @@ item," follow these rules exactly:
 - **Verify:** a committed decision exists for each file; no audit doc is still treated as a
   source of truth.
 
-### AUD-11 — Final cross-document consistency pass (pending)
+### AUD-11 — Final cross-document consistency pass (done)
 - **Difficulty:** 2 · **Priority:** P2 · **Depends on:** AUD-01…AUD-09
 - **What:** Run the repo validators (`bash scripts/validate-all.sh`, `check_doc_ips.py`,
   `validate_doc_templates.py`), confirm no dangling links / dead references introduced by the
@@ -361,6 +361,6 @@ item," follow these rules exactly:
 - [x] `docs/security.md` exists and is wired into the doc map (AUD-08)
 - [x] `todo.md` tally/hygiene correct (AUD-09)
 - [x] Each audit doc has a committed long-term disposition (AUD-10)
-- [ ] Validators green; no dangling references (AUD-11)
+- [x] Validators green; no dangling references (AUD-11)
 - [ ] `docs/index.md` map reflects only live docs (AUD-12)
 - [ ] Policy decisions recorded in a persistent decision log (AUD-13)
