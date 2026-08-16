@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 63 open · 19 done** · **Total: 82**
+**Status: 79 open · 19 done** · **Total: 98**
 
 ---
 
@@ -65,6 +65,8 @@
 | HD-63 | 2 | AI | open | **Uncomment immich DB backup + opencloud tar** — host default `immich-postgres` (the stale `db-backup` comment says `immich-db`; the real service is `immich-postgres`). ROI · source qwen. · [backup.md](docs/backup.md) |
 | HD-64 | 1 | AI | open | **Fix Loki schema `from:` date** — `2026-01-01` (future) → `2025-01-01` / current; Loki silently drops all logs until the schema activates. ROI · source qwen. · [observability.md](docs/observability.md) |
 
+| HD-72 | 3 | AI | open | **HA primary privileged → targeted caps** — replace `privileged: true` + `network_mode: host` with targeted `devices:` + `cap_add:` to drop root/cgroup-escape + keepalived/VRRP control on the smart-home controller (KOPS-014). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
+
 ## Priority 2
 
 | ID | D | Exec | Status | Item |
@@ -96,6 +98,15 @@
 
 | HD-65 | 2 | AI | open | **Fail-loud on missing secrets** — remove `default('')` (pihole `WEBPASSWORD`) so a failed 1Password lookup fails loudly instead of deploying unprotected. ROI · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 
+| HD-77 | 2 | AI | open | **Split `n8n_password`** — separate `n8n_password` (N8N_ENCRYPTION_KEY) from `n8n-webhook_api` (webhook auth token) so key rotation is independent (KOPS-031). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
+| HD-78 | 2 | AI | open | **Router INPUT-chain firewall** — restrict management services (API, SSH, WinBox, www) to Management VLAN 99 only; currently extensive FORWARD but no INPUT chain (KOPS-003/009). · source qwen. · [network-vlans.md](docs/network-vlans.md), [network-ops.md](docs/network-ops.md) |
+| HD-79 | 2 | AI | open | **Pin RaspberryMatic USB path per host** — exact `/dev/serial/by-id/` in `host_vars` + udev rule/symlink (glob in template doesn't resolve; KOPS-040). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-80 | 2 | AI | open | **Unique root password hash per host in preseed** — render per-host hash at preseed time, or disable root login (ansible-admin has NOPASSWD sudo); currently identical placeholder hash on nas+oldsrv (KOPS-044). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
+| HD-81 | 2 | AI | open | **Shrink HA `trusted_proxies` from `/16` to Traefik container IPs** — prevent spoofed client IPs from sibling containers (KOPS-039). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md), [security.md](docs/security.md) |
+| HD-82 | 2 | AI | open | **Grafana single auth path** — enable `GF_AUTH_DISABLE_LOGIN_FORM: "true"` to force auth through Authentik proxy (KOPS-008). · source qwen. · [observability.md](docs/observability.md) |
+| HD-83 | 2 | AI | open | **Restrict router API to Management VLAN in bootstrap .rsc itself** — disable `api`/`www-ssl` or bind to mgmt interface in the bootstrap scripts, not just the Ansible role (KOPS-003/042). · source qwen. · [network-ops.md](docs/network-ops.md) |
+| HD-84 | 2 | AI | open | **Headscale ACL policy or fix misleading comment** — empty `acl_policy_path` auto-approves OIDC registrations; add real ACL or correct the comment (KOPS-022). · source qwen. · [network-vpn.md](docs/network-vpn.md) |
+
 ## Priority 3
 
 | ID | D | Exec | Status | Item |
@@ -126,6 +137,14 @@
 | HD-40A | 3 | AI + Human | open | *(Phase 1.5)* **Provision VPS + establish public Traefik edge** — Contabo VPS purchased, WireGuard S2S home↔VPS, Traefik on VPS terminates TLS for public subset. Backends still on oldsrv over WG tunnel. Cloudflare A records updated. · [services-vps.md](docs/services-vps.md) |
 | HD-40B | 3 | AI | open | *(Phase 1.5)* **Migrate public-facing services to VPS** — Authentik, OpenCloud web, Forgejo, Grafana. Databases stay on LAN over WG tunnel. · [services-vps.md](docs/services-vps.md) |
 | HD-59 | 2 | AI | open | **Internal service auth on flat Docker networks** — Ollama (`OLLAMA_AUTH_*` env vars), Kopia server (`--password` flag replacing `--without-password`), Signal CLI (basic auth wrapper on services-internal), Prometheus (`--web.config.file` with htpasswd). Flat networks = zero auth between containers; supply-chain compromise in one image gives attacker free rein. Auth tokens → 1Password `<service>-internal_api`. · [deployment-compose.md](docs/deployment-compose.md), Qwen-bugs KOPS-001/016/002 |
+
+| HD-85 | 1 | AI | open | **Add CrowdSec collections** — extend beyond traefik+linux: home-assistant, matrix, grafana parsers (KOPS-041). · source qwen. · [observability.md](docs/observability.md) |
+| HD-86 | 1 | AI | open | **`op signin --account` instead of bashrc token** — stop persisting OP token in `~/.bashrc` for production (bootstrap OK as-is; KOPS-011). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
+| HD-87 | 1 | AI | open | **Pin CrowdSec bouncer plugin version** — explicit version in group_vars instead of hardcoded default (KOPS-029). · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
+| HD-88 | 1 | AI | open | **Dedup sshd_config append in post_install.sh** — guard against double-run (KOPS-012). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
+| HD-89 | 1 | AI | open | **Disable/move unused AP ethernet ports off Mgmt VLAN** — wired devices on AP ports currently get full Management access (KOPS-046). · source qwen. · [network-vlans.md](docs/network-vlans.md) |
+| HD-90 | 1 | AI | open | **Renovate managers: ansible-galaxy + pip** — track Ansible collections + Python packages, not just Docker (KOPS-062). · source qwen. · [deployment-renovate.md](docs/deployment-renovate.md) |
+| HD-91 | 2 | AI | open | **Fail-closed guards on missing secrets** — add `fail: msg=` in templates when critical secrets absent (relates to HD-65; KOPS cross-cutting). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 
 ## Priority 4
 

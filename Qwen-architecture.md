@@ -682,15 +682,15 @@ When a route skips Forward-Auth, it also loses CrowdSec entirely. Six services h
 
 | ID | D | Item | Source | Why Now |
 |----|---|------|--------|---------|
-| **NEW-S01** | 2 | Create `crowdsec-only@file` middleware chain in `middlewares.yml.j2`; apply to ha, jellyfin, seerr, matrix, element-web routes | KOPS-004/018/025/047 | Eliminates Flaw A entirely. One template change fixes 6 findings. Zero operational risk |
-| **NEW-S02** | 1 | Pin `traefik_version` to specific semver tag (e.g., `v3.3`) in `group_vars/all.yml`. Set explicit versions for all services defaulting to `latest` | KOPS-005/013 | Traefik is single ingress point for ALL services. `latest` = unknown revision on every restart |
-| **NEW-S03** | 2 | Replace HA primary `privileged: true` + `network_mode: host` with targeted `devices:` + `cap_add:`. Remove from compose template | KOPS-014 | Full root on smart-home controller = cgroup escape + keepalived control + VRRP manipulation |
+| **HD-60** | 2 | Create `crowdsec-only@file` middleware chain in `middlewares.yml.j2`; apply to ha, jellyfin, seerr, matrix, element-web routes | KOPS-004/018/025/047 | Eliminates Flaw A entirely. One template change fixes 6 findings. Zero operational risk |
+| **HD-61** | 1 | Pin `traefik_version` to specific semver tag (e.g., `v3.3`) in `group_vars/all.yml`. Set explicit versions for all services defaulting to `latest` | KOPS-005/013 | Traefik is single ingress point for ALL services. `latest` = unknown revision on every restart |
+| **HD-72** | 2 | Replace HA primary `privileged: true` + `network_mode: host` with targeted `devices:` + `cap_add:`. Remove from compose template | KOPS-014 | Full root on smart-home controller = cgroup escape + keepalived control + VRRP manipulation |
 | HD-03 | 5 | Network redo: VLAN segmentation deploy on RB4011 + CRS328 | todo.md | Cannot safely expose services to internet without inter-VLAN firewall. Current flat network defeats all isolation |
 | HD-04 | 5 | Pi redo: HAOS → Debian + HA Container | todo.md | Required for VRRP/keepalived on Pi. Blocks failover mechanism. Dependent on HD-03 (network redo) |
-| **NEW-S04** | 1 | Create `group_vars/switch.yml` with actual physical port-to-VLAN mapping before first switch role deploy | KOPS-043 | Without this, first switch deploy puts all 24 ports on Management VLAN — complete loss of segmentation |
-| **NEW-S05** | 1 | Remove host port bindings for Signal CLI (`8080:8080`), Prometheus (`9090:9090`). Bind Technitium to VLAN IP only. Map RaspberryMatic CCU to alternate port | KOPS-002/007/015/017/038 | LAN-level attacks bypass Traefik entirely. Zero auth on raw container ports |
-| **NEW-S06** | 1 | Uncomment immich-postgres and opencloud DB blocks in `db-backup/docker-compose.yml.j2`. Fix hostname to `immich-postgres` | KOPS-026 | Immich photo metadata (albums, faces, labels, embeddings) unprotected if Postgres dies |
-| **NEW-S07** | 1 | Set Loki schema `from:` date to current/past date (not 2026-01-01). Remove `default('')` from Pi-hole WEBPASSWORD lookup | KOPS-065/010 | Loki silently drops all logs until schema activates. Pi-hole deploys unprotected if 1Password lookup fails |
+| **HD-03** | 1 | Create `group_vars/switch.yml` with actual physical port-to-VLAN mapping before first switch role deploy | KOPS-043 | Without this, first switch deploy puts all 24 ports on Management VLAN — complete loss of segmentation |
+| **HD-62** | 1 | Remove host port bindings for Signal CLI (`8080:8080`), Prometheus (`9090:9090`). Bind Technitium to VLAN IP only. Map RaspberryMatic CCU to alternate port | KOPS-002/007/015/017/038 | LAN-level attacks bypass Traefik entirely. Zero auth on raw container ports |
+| **HD-63** | 1 | Uncomment immich-postgres and opencloud DB blocks in `db-backup/docker-compose.yml.j2`. Fix hostname to `immich-postgres` | KOPS-026 | Immich photo metadata (albums, faces, labels, embeddings) unprotected if Postgres dies |
+| **HD-64/65** | 1 | Set Loki schema `from:` date to current/past date (not 2026-01-01). Remove `default('')` from Pi-hole WEBPASSWORD lookup | KOPS-065/010 | Loki silently drops all logs until schema activates. Pi-hole deploys unprotected if 1Password lookup fails |
 
 ### MEDIUM Priority — Required Before Going Live
 
@@ -699,14 +699,14 @@ When a route skips Forward-Auth, it also loses CrowdSec entirely. Six services h
 | HD-02 | 3 | Activate Doco-CD (GitOps CD pipeline) | todo.md | After docker_services stable |
 | HD-06 | 3 | NUT master on nas (live deploy + battery test) | todo.md | NAS must be provisioned first |
 | HD-16 | 3 | Authentik compose template + Traefik Forward-Auth middleware | todo.md | Hard prerequisite for all Forward-Auth services |
-| **NEW-M01** | 2 | Split `n8n_password` into `n8n_password` (encryption key) + `n8n-webhook_api` (webhook auth token). Update templates | KOPS-031 | Key rotation independence |
-| **NEW-M02** | 2 | Add INPUT chain firewall rules on router restricting management services (API, SSH, WinBox, www) to Management VLAN only | KOPS-003/009 | Router role deploy |
-| **NEW-M03** | 2 | Pin exact USB device path per host for RaspberryMatic in `host_vars`. Add udev rule or symlink approach | KOPS-040 | Physical HmIP-RFUSB stick needed |
-| **NEW-M04** | 2 | Render unique root password hash per host at preseed time (Jinja2 template). Or disable root login entirely since ansible-admin has NOPASSWD sudo | KOPS-044 | Preseed files only |
-| **NEW-M05** | 2 | Shrink HA `trusted_proxies` from `/16` CIDR to Traefik's specific container IPs | KOPS-033 | Requires knowing actual Docker bridge IPs |
-| **NEW-M06** | 2 | Enable `GF_AUTH_DISABLE_LOGIN_FORM: "true"` on Grafana to force single auth path through Authentik proxy | KOPS-008 | Grafana compose template |
-| **NEW-M07** | 2 | Restrict router API to Management VLAN interface in bootstrap template itself (not just Ansible role). Disable API if TLS cert unavailable | KOPS-003/042 | Bootstrap scripts |
-| **NEW-M08** | 2 | Update Headscale config to either enable real ACL policy OR fix misleading comment (currently auto-approves despite comment saying "requires admin approval") | KOPS-022 | Headscale config |
+| **HD-77** | 2 | Split `n8n_password` into `n8n_password` (encryption key) + `n8n-webhook_api` (webhook auth token). Update templates | KOPS-031 | Key rotation independence |
+| **HD-78** | 2 | Add INPUT chain firewall rules on router restricting management services (API, SSH, WinBox, www) to Management VLAN only | KOPS-003/009 | Router role deploy |
+| **HD-79** | 2 | Pin exact USB device path per host for RaspberryMatic in `host_vars`. Add udev rule or symlink approach | KOPS-040 | Physical HmIP-RFUSB stick needed |
+| **HD-80** | 2 | Render unique root password hash per host at preseed time (Jinja2 template). Or disable root login entirely since ansible-admin has NOPASSWD sudo | KOPS-044 | Preseed files only |
+| **HD-81** | 2 | Shrink HA `trusted_proxies` from `/16` CIDR to Traefik's specific container IPs | KOPS-039 | Requires knowing actual Docker bridge IPs |
+| **HD-82** | 2 | Enable `GF_AUTH_DISABLE_LOGIN_FORM: "true"` on Grafana to force single auth path through Authentik proxy | KOPS-008 | Grafana compose template |
+| **HD-83** | 2 | Restrict router API to Management VLAN interface in bootstrap template itself (not just Ansible role). Disable API if TLS cert unavailable | KOPS-003/042 | Bootstrap scripts |
+| **HD-84** | 2 | Update Headscale config to either enable real ACL policy OR fix misleading comment (currently auto-approves despite comment saying "requires admin approval") | KOPS-022 | Headscale config |
 | HD-13 | 3 | Homematic full-local (HmIP-RFUSB + RaspberryMatic): replace HAP cloud mode with local XML-RPC | todo.md | HD-04 (Pi redo) |
 | HD-17 | 3 | Single failover button + `ha-failover.sh` orchestrator on Homepage | todo.md | HD-04 (Pi redo), HD-13 |
 | HD-53 | 2 | Decide SNMP community string (dedicated RO + mgmt ACL vs default public) | todo.md | Router role deploy |
@@ -717,13 +717,13 @@ When a route skips Forward-Auth, it also loses CrowdSec entirely. Six services h
 
 | ID | D | Item | Source |
 |----|---|------|--------|
-| NEW-L01 | 1 | Move CrowdsSec collections beyond just traefik+linux: add home-assistant, matrix, grafana parsers | KOPS-041 |
-| NEW-L02 | 1 | Use `op signin --account` instead of persisting token in `~/.bashrc` for production (bootstrap OK as-is) | KOPS-011 |
-| NEW-L03 | 1 | Pin CrowdSec Traefik bouncer plugin version explicitly in group_vars instead of hardcoded default | KOPS-029 |
-| NEW-L04 | 1 | Dedup sshd_config append in `post_install.sh` (guard against double-run) | KOPS-012 |
-| NEW-L05 | 1 | Disable unused AP ethernet ports or move to Home VLAN instead of Management | KOPS-046 |
-| NEW-L06 | 1 | Update Renovate config to track ansible-galaxy managers + pip_requirements (not just docker) | KOPS-062 |
-| NEW-L07 | 1 | Add `fail: msg=` guards in templates when critical secrets are missing (fail-loudly pattern) | Cross-cutting |
+| HD-85 | 1 | Move CrowdsSec collections beyond just traefik+linux: add home-assistant, matrix, grafana parsers | KOPS-041 |
+| HD-86 | 1 | Use `op signin --account` instead of persisting token in `~/.bashrc` for production (bootstrap OK as-is) | KOPS-011 |
+| HD-87 | 1 | Pin CrowdSec Traefik bouncer plugin version explicitly in group_vars instead of hardcoded default | KOPS-029 |
+| HD-88 | 1 | Dedup sshd_config append in `post_install.sh` (guard against double-run) | KOPS-012 |
+| HD-89 | 1 | Disable unused AP ethernet ports or move to Home VLAN instead of Management | KOPS-046 |
+| HD-90 | 1 | Update Renovate config to track ansible-galaxy managers + pip_requirements (not just docker) | KOPS-062 |
+| HD-91 | 1 | Add `fail: msg=` guards in templates when critical secrets are missing (fail-loudly pattern) | Cross-cutting |
 | HD-19 | 2 | Pi SD-card wear: trim HA recorder + log strategy | todo.md | Already implemented in IaC |
 | HD-39 | 1 | Decide watchtower for Pi HA container update automation | todo.md | After HA container migration |
 | HD-52 | 1 | Decide OpenCloud sync client packaging (AppImage vs Debian client vs skip) | todo.md | Desktop role |
