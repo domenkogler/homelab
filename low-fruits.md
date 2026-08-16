@@ -22,7 +22,7 @@ http:
 Then apply `crowdsec-only@file` to every route that skips Forward-Auth:
 - `ha.kogler.si` (HA native auth) — KOPS-004
 - `media.kogler.si` (Jellyfin login) — KOPS-018
-- `seerr.kogler.si` (Seerr login) — KOPS-047/048
+- `seerr.kogler.si` (Seerr login) — KOPS-047
 - `matrix.kogler.si` (Matrix-native OIDC) — KOPS-018
 - `chat.kogler.si` (Element Web, homeserver SSO) — KOPS-025
 - HA standby via VIP — KOPS-018
@@ -62,7 +62,7 @@ ports:
 Apply same review to:
 - Prometheus `"9090:9090"` → bind loopback `"127.0.0.1:9090:9090"` (KOPS-017)
 - Sunshine game-streaming ports → restrict to Home VLAN IP (KOPS-007)
-- Technitium DNS `"53:53"` → bind to specific VLAN IPs (KOPS-015/049)
+- Technitium DNS `"53:53"` → bind to specific VLAN IPs (KOPS-015/064)
 
 **Effort:** ~10 sec per service
 **Impact:** Eliminates LAN-level impersonation via Signal REST API (social engineering against family contacts), infrastructure intelligence leakage from Prometheus, and open-resolver amplification from Technitium. KOPS-002/017/007/015.
@@ -94,7 +94,7 @@ schema_config:
 ```
 
 **Effort:** 4 characters
-**Impact:** Complete observability black hole until January 2026. Zero log collection, zero log-based alerts, zero audit trail. Almost certainly a typo — but as written you troubleshoot blind when things break in production. KOPS-050.
+**Impact:** Complete observability black hole until January 2026. Zero log collection, zero log-based alerts, zero audit trail. Almost certainly a typo — but as written you troubleshoot blind when things break in production. KOPS-065.
 
 ---
 

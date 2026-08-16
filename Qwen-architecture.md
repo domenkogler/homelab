@@ -305,7 +305,7 @@ that skip Forward-Auth.
 | Finding | KOPS-ID | Affected Service |
 |---------|---------|------------------|
 | HA route has no WAF | KOPS-004 | Home Assistant primary |
-| *arr/Jellyfin/Matrix/Seerr no WAF | KOPS-018, KOPS-025, KOPS-047, KOPS-048 | Jellyfin, HA standby, Matrix/Tuwunel, Element Web, Seerr |
+| *arr/Jellyfin/Matrix/Seerr no WAF | KOPS-018, KOPS-025, KOPS-047 | Jellyfin, HA standby, Matrix/Tuwunel, Element Web, Seerr |
 
 **Impact:** Every service with its own login (HA, Jellyfin, Seerr, Matrix federation) is exposed to the
 internet with **zero IP-level threat blocking**. Brute-force, CVE exploit scans, and known-bad-IP traffic
@@ -353,9 +353,9 @@ The port mapping often duplicates functionality already available on the Docker 
 
 | Finding | KOPS-ID | Port Binding | Risk |
 |---------|---------|-------------|------|
-| Signal REST API host bind | KOPS-002, KOPS-048 | `8080:8080` | Impersonate Domen via Signal; social engineering against family contacts |
+| Signal REST API host bind | KOPS-002 | `8080:8080` | Impersonate Domen via Signal; social engineering against family contacts |
 | Prometheus host bind | KOPS-017 | `9090:9090` | Infrastructure intelligence leakage (internal IPs, topology, alert rules) |
-| Technitium DNS host bind | KOPS-015, KOPS-032, KOPS-049 | `53:53` + `NET_ADMIN` | DNS takeover if Technitium web UI compromised; open resolver amplification |
+| Technitium DNS host bind | KOPS-015, KOPS-032, KOPS-064 | `53:53` + `NET_ADMIN` | DNS takeover if Technitium web UI compromised; open resolver amplification |
 | Sunshine game-streaming | KOPS-007 | `47989-48010:…` | RCE via streaming protocol CVEs; GPU + input device access |
 | qBittorrent via gluetun | KOPS-019 | shares gluetun namespace | VPN tunnel DNS exfiltration; connection leak during server rotation |
 
@@ -426,7 +426,7 @@ Ansible fails to overwrite them in the bootstrap window), the system enters serv
 | Router API enabled without TLS or interface binding | KOPS-003, KOPS-042 | RouterOS admin API reachable from WAN during bootstrap window |
 | AP ethernet ports on Management VLAN | KOPS-046 | Any wired device on AP port gets full Management VLAN access |
 | Pi-hole WEBPASSWORD defaults to empty | KOPS-010 | Admin UI unprotected if 1Password lookup fails |
-| Loki schema date set to 2026-01-01 | KOPS-050 | Log collection silently fails until schema activates |
+| Loki schema date set to 2026-01-01 | KOPS-065 | Log collection silently fails until schema activates |
 | Pi first-boot hostname path assumption | KOPS-045 | Silently skipped if partition mount differs |
 | post_install.sh sshd_config append without dedup | KOPS-012 | Config drift on re-run |
 | bootstrap.sh OP token saved to ~/.bashrc plaintext | KOPS-011 | Token persistence risk |
@@ -519,7 +519,7 @@ When a route skips Forward-Auth, it also loses CrowdSec entirely. Six services h
 |---------|-----------|-----------|-----------------|
 | Home Assistant | `ha.kogler.si` | Yes (HA native) | **None** (KOPS-004) |
 | Jellyfin | `media.kogler.si` | Yes (Jellyfin login) | **None** (KOPS-018) |
-| Seerr | `seerr.kogler.si` | Yes (Seerr login) | **None** (KOPS-047/048) |
+| Seerr | `seerr.kogler.si` | Yes (Seerr login) | **None** (KOPS-047) |
 | Matrix/Tuwunel | `matrix.kogler.si` | Yes (Matrix-native OIDC) | **None** (KOPS-018) |
 | Element Web | `chat.kogler.si` | Via homeserver SSO | **None** (KOPS-025) |
 | HA standby | `ha.kogler.si` (VIP) | Yes (HA native) | **None** (KOPS-018) |
@@ -592,9 +592,9 @@ When a route skips Forward-Auth, it also loses CrowdSec entirely. Six services h
 | Risk | Severity | Detail |
 |------|----------|--------|
 | HA primary `privileged: true` + `network_mode: host` | HIGH | KOPS-014: Full root on Pi = cgroup escape + all devices + host network sniffing. If compromised, attacker controls keepalived + VRRP + potential split-brain |
-| RaspberryMatic port 80 conflict | MEDIUM | KOPS-038/046: Both Traefik and CCU try to bind :80 during failover. Map CCU to alternate port (`8085:80`) |
+| RaspberryMatic port 80 conflict | MEDIUM | KOPS-038: Both Traefik and CCU try to bind :80 during failover. Map CCU to alternate port (`8085:80`) |
 | RaspberryMatic USB path wildcard | MEDIUM | KOPS-040: Glob won't resolve in Docker. Need exact `/dev/serial/by-id/` path per host in `host_vars` |
-| HA boot sequencing on Pi | MEDIUM | KOPS-049: Both HA and RaspberryMatic start simultaneously at reboot. RMat must respond on XML-RPC 2001 before HA starts to avoid missed automations |
+| HA boot sequencing on Pi | MEDIUM | KOPS-063: Both HA and RaspberryMatic start simultaneously at reboot. RMat must respond on XML-RPC 2001 before HA starts to avoid missed automations |
 | State sync gap = 15 minutes | LOW | Config + SQLite rsync every ~15 min means last 15 min of events/config changes lost on failover. Accepted trade-off per design doc |
 | Homematic requires physical stick move | MEDIUM | Non-automatable step means Homematic devices stay down until someone is physically present. KNX/Shelly fail over cleanly but Homematic does not |
 
@@ -682,7 +682,7 @@ When a route skips Forward-Auth, it also loses CrowdSec entirely. Six services h
 
 | ID | D | Item | Source | Why Now |
 |----|---|------|--------|---------|
-| **NEW-S01** | 2 | Create `crowdsec-only@file` middleware chain in `middlewares.yml.j2`; apply to ha, jellyfin, seerr, matrix, element-web routes | KOPS-004/018/025/047/048 | Eliminates Flaw A entirely. One template change fixes 6 findings. Zero operational risk |
+| **NEW-S01** | 2 | Create `crowdsec-only@file` middleware chain in `middlewares.yml.j2`; apply to ha, jellyfin, seerr, matrix, element-web routes | KOPS-004/018/025/047 | Eliminates Flaw A entirely. One template change fixes 6 findings. Zero operational risk |
 | **NEW-S02** | 1 | Pin `traefik_version` to specific semver tag (e.g., `v3.3`) in `group_vars/all.yml`. Set explicit versions for all services defaulting to `latest` | KOPS-005/013 | Traefik is single ingress point for ALL services. `latest` = unknown revision on every restart |
 | **NEW-S03** | 2 | Replace HA primary `privileged: true` + `network_mode: host` with targeted `devices:` + `cap_add:`. Remove from compose template | KOPS-014 | Full root on smart-home controller = cgroup escape + keepalived control + VRRP manipulation |
 | HD-03 | 5 | Network redo: VLAN segmentation deploy on RB4011 + CRS328 | todo.md | Cannot safely expose services to internet without inter-VLAN firewall. Current flat network defeats all isolation |
@@ -690,7 +690,7 @@ When a route skips Forward-Auth, it also loses CrowdSec entirely. Six services h
 | **NEW-S04** | 1 | Create `group_vars/switch.yml` with actual physical port-to-VLAN mapping before first switch role deploy | KOPS-043 | Without this, first switch deploy puts all 24 ports on Management VLAN — complete loss of segmentation |
 | **NEW-S05** | 1 | Remove host port bindings for Signal CLI (`8080:8080`), Prometheus (`9090:9090`). Bind Technitium to VLAN IP only. Map RaspberryMatic CCU to alternate port | KOPS-002/007/015/017/038 | LAN-level attacks bypass Traefik entirely. Zero auth on raw container ports |
 | **NEW-S06** | 1 | Uncomment immich-postgres and opencloud DB blocks in `db-backup/docker-compose.yml.j2`. Fix hostname to `immich-postgres` | KOPS-026 | Immich photo metadata (albums, faces, labels, embeddings) unprotected if Postgres dies |
-| **NEW-S07** | 1 | Set Loki schema `from:` date to current/past date (not 2026-01-01). Remove `default('')` from Pi-hole WEBPASSWORD lookup | KOPS-050/010 | Loki silently drops all logs until schema activates. Pi-hole deploys unprotected if 1Password lookup fails |
+| **NEW-S07** | 1 | Set Loki schema `from:` date to current/past date (not 2026-01-01). Remove `default('')` from Pi-hole WEBPASSWORD lookup | KOPS-065/010 | Loki silently drops all logs until schema activates. Pi-hole deploys unprotected if 1Password lookup fails |
 
 ### MEDIUM Priority — Required Before Going Live
 
@@ -722,7 +722,7 @@ When a route skips Forward-Auth, it also loses CrowdSec entirely. Six services h
 | NEW-L03 | 1 | Pin CrowdSec Traefik bouncer plugin version explicitly in group_vars instead of hardcoded default | KOPS-029 |
 | NEW-L04 | 1 | Dedup sshd_config append in `post_install.sh` (guard against double-run) | KOPS-012 |
 | NEW-L05 | 1 | Disable unused AP ethernet ports or move to Home VLAN instead of Management | KOPS-046 |
-| NEW-L06 | 1 | Update Renovate config to track ansible-galaxy managers + pip_requirements (not just docker) | KOPS-047 |
+| NEW-L06 | 1 | Update Renovate config to track ansible-galaxy managers + pip_requirements (not just docker) | KOPS-062 |
 | NEW-L07 | 1 | Add `fail: msg=` guards in templates when critical secrets are missing (fail-loudly pattern) | Cross-cutting |
 | HD-19 | 2 | Pi SD-card wear: trim HA recorder + log strategy | todo.md | Already implemented in IaC |
 | HD-39 | 1 | Decide watchtower for Pi HA container update automation | todo.md | After HA container migration |
