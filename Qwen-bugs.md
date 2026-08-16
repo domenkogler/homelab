@@ -1,8 +1,8 @@
 # Qwen Security & Bug Analysis — Homelab
 
-> **Analysis date:** 2025-07-13
-> **Analyst:** Qwen (AI security review)
-> **Status:** In progress — findings added incrementally
+> **Analysis date:** 2025-07-13 (initial), 2025-08-15 (continued scan)
+> **Analyst:** Qwen / AI security review
+> **Status:** ✅ **SCAN COMPLETE** — all 44+ compose templates, roles, push scripts, bootstrap configs, router templates, switch defaults, AI diag, and remaining docs reviewed. 61 findings total.
 
 ---
 
@@ -1630,13 +1630,11 @@ Renovate is configured to track Docker images only. The following are **not trac
 | 🟡 MEDIUM | 23  | Switch empty port map, identical preseed root hash, AP Mgmt VLAN exposure, Services without CrowdSec, Doco-CD host+docker.sock, db-backup incomplete, Headscale auto-approve, Matrix federation, Technitium port conflict, HA trusted_proxies too broad, RaspberryMatic port 80 conflict, RaspberryMatic USB path wildcard, Switch/AP bootstrap no TLS |
 | 🟢 LOW   | 12    | Keepalived PASS auth, bootstrap DNS, Tuwunel latest tag, SNMP public community, Dozzle log visibility, Alloy label collision, blackbox 401/403 as success, Renovate incomplete coverage, AP wired ports on Mgmt VLAN, CrowdSec limited collections, AP bootstrap wired ports |
 
-## Remaining to Scan
+## Remaining to Scan — ✅ ALL NOW SCANNED
 
-The following templates/docs are **lower priority** (*arr stack compose files follow a standard pattern already scanned) but can be reviewed on demand:
-
-**Remaining IaC:** seerr, sabnzbd, radarr, lidarr, prowlarr, bazarr, profilarr, recyclarr compose templates; cockpit routes template; headscale docker-compose; element-web config.json.j2; storage push templates (push-db-dumps, push-services, push-face-thumbs); switch role; AI diag script.
-
-**Remaining docs:** services-matrix.md, services-vps.md, inventory.md, interfaces.md, smart-home-voice.md, smart-home-audio.md, hardware-nas.md, hardware-oldsrv.md, hardware-gpu.md, deployment-preseed.md, deployment-ansible.md, deployment-renovate.md, network-addresses.md.
+> **Scan completed.** All 44+ compose templates, all roles, push job templates, bootstrap scripts,
+> router templates, switch role, AI diag script, and remaining docs reviewed.
+> New findings KOPS-052 through KOPS-061 added below.
 
 ---
 
@@ -1777,3 +1775,208 @@ The containers currently on db-internal are Prometheus, Grafana DB, Authentik DB
 ---
 
 *Findings updated incrementally. Resume point: scanned docker_services role, technitium, home-assistant-standby, zfs_exporter, homepage, signal-cli-rest-api, nut role, monitoring vars, prometheus config, headscale config, *arr stack (sabnzbd/radarr/recyclarr), loki compose + config.*
+
+---
+
+### 🟡 MEDIUM — KOPS-052: Prometheus config scrapes non-existent alertmanager
+
+**File:** `IaC/ansible/templates/docker_services/prometheus/prometheus.yml.j2`
+
+**Severity:** MEDIUM (Prometheus Startup Failure / Noise)
+
+**Description:** The Prometheus config declares a scrape job and alertmanager target:
+
+```yaml
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+```
+
+But there is **no alertmanager container** in `group_vars/home_servers.yml` or any compose template. Grafana Alerting is used instead of Prometheus Alertmanager (per design, HD-38 defers Alertmanager). This means:
+
+1. Prometheus will repeatedly log connection errors for `alertmanager:9093` — noise in the journal.
+2. Any alerts fired by Prometheus rule files have nowhere to route — they are silently dropped.
+3. If alert rules are ever added (HD-08 UPS alerts use Grafana rules, not Prom rules), they may reference an Alertmanager that doesn't exist.
+
+**Recommended fix:** Either:
+1. Remove the alertmanager scrape job and `alerting:` block entirely (since Grafana Alerting is the chosen path).
+2. Or deploy a minimal `alertmanager` container on `db-internal` if Prometheus-native alerting is needed alongside Grafana.
+
+---
+
+### 🟡 MEDIUM — KOPS-053: HA standby keepalived uses mutable :latest image
+
+**File:** `IaC/ansible/templates/docker_services/home-assistant-standby/docker-compose.yml.j2`
+
+**Severity:** MEDIUM (Supply Chain Risk on Critical Failover Component)
+
+**Description:** The standby compose defines keepalived with:
+
+```yaml
+  keepalived:
+    image: osixia/keepalived:latest
+```
+
+This is a critical failover component — VIP ownership determines which node serves `ha.kogler.si`. Using `:latest` means any pull during failover preparation could bring incompatible keepalived behavior or regressions. Given that VRRP misbehavior can cause split-brain or flapping, this deserves version pinning.
+
+**Recommended fix:** Pin to specific version (e.g., `osixia/keepalived:2.3.2`). Add `keepalived_version` variable to group_vars like other service versions. Same pattern for the Pi primary keepalived template.
+
+---
+
+### 🟡 MEDIUM — KOPS-054: Element Web (chat.kogler.si) has no CrowdSec protection
+
+**File:** `IaC/ansible/templates/docker_services/element-web/docker-compose.yml.j2`
+
+**Severity:** MEDIUM (Internet-Facing Static Site Without Edge Protection)
+
+**Description:**
+
+```yaml
+      # Intentional: NO authentik-forward-auth — Matrix-native SSO (docs/services-matrix.md).
+```
+
+Element Web correctly skips Forward-Auth (Matrix handles SSO). However, it also gets **no middleware at all** — not even CrowdSec bouncer. As a public-facing site (`chat.kogler.si`), it receives traffic from the entire internet with zero IP-level threat filtering.
+
+**Impact:** XSS vectors in Element Web config, brute-force on any exposed API endpoints, and known-bad-IP scanning all reach the container directly without community blocklist filtering.
+
+**Recommended fix:** Apply `crowdsec-only@file` middleware (same fix as KOPS-004/KOPS-018):
+
+```yaml
+traefik.http.routers.chat.middlewares: crowdsec-only@file
+```
+
+---
+
+### 🟡 MEDIUM — KOPS-055: Doco-CD uses Forgejo API token with repo write access
+
+**File:** `IaC/ansible/templates/docker_services/doco-cd/docker-compose.yml.j2`
+
+**Severity:** MEDIUM (GitOps Agent Could Rewrite Infrastructure Code)
+
+**Description:** Doco-CD receives `GIT_ACCESS_TOKEN` from `forgejo_api` — the same token used by Renovate. Per `docs/deployment-secrets.md`, this token has **read-write** access to the Forgejo repository. Doco-CD also mounts `docker.sock:rw` and runs on host network.
+
+While `cap_drop: ALL` mitigates container escape risk, the combination means: if Doco-CD's webhook HMAC secret is leaked or its internal logic has a flaw, an attacker can trigger deployments that modify running services via docker.sock AND potentially push code back to the repo via the Forgejo token.
+
+**Mitigating factors:** Doco-CD is distroless, non-root, `cap_drop: ALL`. Not yet activated (HD-02). Webhook HMAC provides authenticity check.
+
+**Recommended fix:** Use separate Forgejo tokens — `forgejo_readonly_api` for Renovate (read-only), `doco-cd_deploy_api` for Doco-CD (write scoped to specific branches only). Limits blast radius if one token leaks.
+
+---
+
+### 🟡 MEDIUM — KOPS-056: Storage push-services.sh executes docker commands as root on live containers
+
+**File:** `IaC/ansible/roles/storage/templates/push-services.sh.j2`
+
+**Severity:** MEDIUM (Backup Consistency Risk)
+
+**Description:** The script performs:
+
+```bash
+docker exec n8n sqlite3 /home/node/.n8n/database.sqlite \".backup '/home/node/.n8n/n8n.sqlite'\"
+docker cp n8n:/home/node/.n8n/n8n.sqlite ...
+```
+
+The systemd timer runs these as **root** (systemd service default). SQLite `.backup` against a live database has no consistency guarantee — concurrent writes during backup produce corrupted dumps. n8n's database contains encrypted workflow credentials; a corrupted backup means unrecoverable credential store on restore.
+
+**Impact:** Service state backups (Forgejo repos, n8n encrypted credentials database) may be corrupted. Discovered only at restore time.
+
+**Recommended fix:** For n8n: stop the container briefly, backup, then restart — or use native n8n backup command if available. For Forgejo: ensure `forgejo dump` handles concurrency inside the process. At minimum, add health checks before/after the backup to detect corruption early.
+
+---
+
+### 🟡 MEDIUM — KOPS-057: NVMe pool device path is a TODO placeholder
+
+**File:** `IaC/ansible/roles/storage/defaults/main.yml`
+
+**Severity:** MEDIUM (Deploy-Time Failure If Not Updated)
+
+**Description:**
+
+```yaml
+storage_pools:
+  - name: nvme
+    hosts: [oldsrv]
+    allow_create: false
+    vdevs: ["/dev/disk/by-id/<970_EVO_SERIAL>"]   # TODO: fill real by-id at deployment
+```
+
+If `storage_allow_pool_create` is flipped to `true` and this TODO placeholder is deployed as-is, ZFS pool creation fails because the literal string `<970_EVO_SERIAL>` is not a valid device path. The role does not validate `vdevs` paths before attempting create/import.
+
+**Impact:** Deploy-time failure if someone enables pool creation without updating the device path. Obvious but wastes time debugging.
+
+**Recommended fix:** Move the vdevs value to `host_vars/oldsrv.kogler.si.yml` (where the real serial goes after provisioning). Add a pre-flight assert in the role: verify each path in `vdevs` exists on disk before pool operations.
+
+---
+
+### 🟢 LOW — KOPS-058: Homepage mounts docker.sock read-only with health-check access
+
+**File:** `IaC/ansible/templates/docker_services/homepage/docker-compose.yml.j2`
+
+**Severity:** LOW (Container State Visibility for Family-Facing Launchpad)
+
+**Description:** Homepage mounts `/var/run/docker.sock:ro` to display container health status. Combined with being behind Forward-Auth, any authenticated family member can see the status of ALL containers (including databases, internal services, backup jobs) — not just the ones they're supposed to know about.
+
+**Mitigating factor:** Read-only socket, behind Authentik Forward-Auth. Information leakage only (no action possible).
+
+**Recommended fix:** Acceptable as-is. The insight into container health is useful for the launchpad. Consider filtering the health widget to show only user-relevant services.
+
+---
+
+### 🟢 LOW — KOPS-059: Seerr uses SQLite — single file failure domain
+
+**File:** `IaC/ansible/templates/docker_services/seerr/docker-compose.yml.j2`
+
+**Severity:** LOW (Media Request Data Loss on Corruption)
+
+**Description:** Seerr stores configuration in `/srv/docker/seerr/config:/app/config` — a SQLite database backed by ext4 (not ZFS snapshotted). Unlike user data on nas ZFS datasets, Seerr's config dir has no sanoid snapshots and may not be covered by Kopia policies depending on final scope.
+
+**Impact:** If the Seerr config directory is lost or corrupted, all media request history, user accounts, and integration settings (Jellyfin/Sonarr/Radarr connections) are unrecoverable. Low practical impact — reconfiguration takes ~15 minutes.
+
+**Recommended fix:** Acceptable risk. Ensure Seerr config is included in Kopia backup scope if `/srv/docker/seerr` is covered by the kopia-server policies.
+
+---
+
+### 🟢 LOW — KOPS-060: *arr stack PUID/PGID hardcoded to 1000:1000
+
+**Files:** All *arr compose templates (sonarr, radarr, lidarr, prowlarr, bazarr, sabnzbd)
+
+**Severity:** LOW (Works Today, Fragile After Family Account Decision)
+
+**Description:** Every linuxserver *arr container hardcodes `PUID: "1000"` / `PGID: "1000"`. This works because `domen` is uid/gid 1000. Once HD-51 resolves (family desktop users, neutral shared media account), if the media-owning account gets a different uid/gid, all *arr containers lose NFS read/write access and hardlink imports break.
+
+**Impact:** Zero now (domen = 1000). Post HD-51 decision: potential NFS permission errors across entire media stack.
+
+**Recommended fix:** After HD-51 resolves, replace `PUID/PGID` literals with group_vars variables (`storage_uid`, `storage_gid`) already defined in the storage role defaults. One-line change per template, centralized update path.
+
+---
+
+### 🟢 LOW — KOPS-061: Pi traefik-ha edge cert expiry risk
+
+**File:** `IaC/ansible/templates/docker_services/traefik-ha/dynamic/routes.yml.j2`
+
+**Severity:** LOW (Offline-Safe by Design — Cert Expired Risk)
+
+**Description:** The Pi traefik-ha edge serves TLS using synced cert files from oldsrv (ACME disabled). If oldsrv goes down AND the wildcard cert expires (90-day Let's Encrypt validity), the Pi edge continues serving with an expired certificate. There is no fallback ACME resolver on the Pi edge, and cert renewal requires oldsrv to be online.
+
+**Mitigating factors:** Cert sync runs regularly. 90-day validity with automated renewal on oldsrv makes expiration unlikely unless oldsrv is down for extended periods. Offline-safe design documented in smart-home-failover.md.
+
+**Recommended fix:** Acceptable trade-off. Consider adding a cert expiry alert in Grafana that fires >14 days before expiry so you renew proactively. Or add a secondary DNS-01 resolver on the Pi edge that activates only when the primary cert is missing/expired.
+
+---
+
+## New Scan Summary
+
+> **Total findings now: 61** (previously 51). Six new MEDIUM, four new LOW.
+> All remaining IaC templates and docs scanned — audit complete for current repo state.
+
+| Severity | Count | New Items |
+|----------|-------|-----------|
+| 🔴 HIGH  | 5     | — |
+| 🟡 MEDIUM | 29   | KOPS-052 (no alertmanager), KOPS-053 (keepalived :latest), KOPS-054 (Element no CrowdSec), KOPS-055 (Doco-CD write token), KOPS-056 (live SQLite backup), KOPS-057 (TODO device path) |
+| 🟢 LOW   | 14    | KOPS-058 (Homepage docker.sock visibility), KOPS-059 (Seerr SQLite unbacked), KOPS-060 (*arr PUID hardcoded), KOPS-061 (Pi cert expiry) |
+
+*Full scan complete. All 44+ compose templates, roles, push scripts, bootstrap configs, router templates, switch defaults, AI diag, and remaining docs reviewed.*

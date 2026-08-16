@@ -255,7 +255,7 @@
 ```
 
 
- ### Final Architecture View
+ ### Final Architecture Proposal
 
  ```
    oldsrv (Proxmox)                Pi 4 (bare Debian)           nas (bare Debian)
