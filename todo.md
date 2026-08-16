@@ -14,7 +14,7 @@
 > **Executor (Exec):** `AI` agent-executable · `Human` decision/purchase/physical (blocks) · `AI + gate` agent work w/ human checkpoint · `AI + Human` joint.
 > **Status:** `open` · `done`. Decided items point to the owning doc.
 
-**Status: 57 open · 19 done** · **Total: 76**
+**Status: 63 open · 19 done** · **Total: 82**
 
 ---
 
@@ -59,6 +59,12 @@
 | HD-92 | 2 | AI + Human | done | *(decision)* **oldsrv stays bare-metal Debian — no local Proxmox / no GPU passthrough on the single Phase-1 box** — ✅ **Decided (2025-08-16):** keep Phase 1 as bare-metal Debian + Docker on oldsrv. Rationale: one shared dGPU (RX 7600) is needed by **both** the family desktop and the AI stack (Ollama/immich-ML) — VM/GPU-passthrough is mutually exclusive and would force choosing one; a single host gains no HA/migration from VMs; hypervisor + ~40 containers is RAM-heavy and fights the "works without Domen" priority. **Proxmox deferred to HD-41/HD-42** (Phase 2) once a real 2nd local node exists. If desktop isolation ever becomes a hard requirement → dedicated 2nd local desktop box, **not** a VM on oldsrv. · [hardware-oldsrv.md](docs/hardware-oldsrv.md), [IaC/README.md](IaC/README.md) |
 | HD-93 | 3 | AI + Human | done | *(decision)* **Buy Contabo VPS before go-live; public edge on VPS from day one** — ✅ **Decided (2025-08-16):** purchase the VPS pre-go-live and fold **HD-40A/HD-40B forward into Phase 1** — public Traefik + CrowdSec + Authentik and public apps (Forgejo, Grafana, OpenCloud web) terminate TLS on the VPS (WG S2S → oldsrv backends); oldsrv becomes an internal/LAN box (leaner, less exposed → mitigates the audit's SPOF critique). Does **not** change HD-92 — the VPS is remote/GPU-less, hosts no desktop or AI, and is not a substitute for a 2nd local node. · [services-vps.md](docs/services-vps.md) |
 
+| HD-60 | 2 | AI | open | **crowdsec-only middleware chain** — add `crowdsec-only@file` to `middlewares.yml.j2`; apply to every self-auth'd route (ha, jellyfin, seerr, matrix, chat, ha-standby). ROI · source qwen. · [services-traefik.md](docs/services-traefik.md) |
+| HD-61 | 1 | AI | open | **Pin image tags — Traefik first** — `traefik_version: latest` today in group_vars; pin to a semver + Renovate follow-up (also dedupe the other `latest`/`:rocm` mutable tags). ROI · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
+| HD-62 | 2 | AI | open | **Remove / unbind host ports** — signal `8080:8080`; prometheus `9090:9090`; technitium `53:53`; sunshine `47989-48010` → bind loopback or a specific VLAN IP, or drop (prefer the Docker overlay network). ROI · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
+| HD-63 | 2 | AI | open | **Uncomment immich DB backup + opencloud tar** — host default `immich-postgres` (the stale `db-backup` comment says `immich-db`; the real service is `immich-postgres`). ROI · source qwen. · [backup.md](docs/backup.md) |
+| HD-64 | 1 | AI | open | **Fix Loki schema `from:` date** — `2026-01-01` (future) → `2025-01-01` / current; Loki silently drops all logs until the schema activates. ROI · source qwen. · [observability.md](docs/observability.md) |
+
 ## Priority 2
 
 | ID | D | Exec | Status | Item |
@@ -87,6 +93,8 @@
 | HD-17 | 3 | AI | open | **Single failover button + `ha-failover.sh`** — RMat → wait → VIP → standby, on Homepage; manual-trigger design accepted. ✅ **IaC done + committed:** `ha-failover.sh` (forward + reverse), standby keepalived normal/failover configs (VRID/interface/priority vars), trigger API endpoint + systemd unit (`ha-failover-api`, token auth), Homepage forward/reverse buttons. ⏳ **Not deployed** (hosts not provisioned); deploy needs 1Password `ha-failover_api` (api → credential) + the HmIP-RFUSB stick physically moved at runbook time. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-18 | 2 | Human | open | **Once: test HmIP-RFUSB pairing transfer** + entity reconstruction across stick move. Hands-on; requires HD-13. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-54 | 2 | AI + Human | open | *(decision)* **Grafana/n8n SMTP relay provider** — `grafana_smtp_host` undecided; the alert fail-safe email can't deliver until a relay is chosen. Related: HD-30 (Infomaniak). · [observability.md](docs/observability.md), [deployment-secrets.md](docs/deployment-secrets.md) |
+
+| HD-65 | 2 | AI | open | **Fail-loud on missing secrets** — remove `default('')` (pihole `WEBPASSWORD`) so a failed 1Password lookup fails loudly instead of deploying unprotected. ROI · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 
 ## Priority 3
 
