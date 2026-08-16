@@ -9,6 +9,14 @@
 > `docs/deployment-secrets.md` (secrets single source of truth).
 >
 > **Status tracking for sub-tasks / difficulty:** `docs/todo.md` (HD-XX IDs).
+
+> **✅ Decisions (2025-08-16 — overriding some phase wording below):** see `todo.md` for the full
+> rationale. **HD-92:** `oldsrv` stays bare-metal Debian + Docker (no Proxmox / no GPU passthrough on the
+> single Phase-1 box; Proxmox deferred to HD-41/42). **HD-93:** the Contabo VPS is **bought before go-live**
+> and the **public edge (Traefik + CrowdSec + Authentik + public apps) goes on the VPS from day one**
+> (fold HD-40A/40B into Phase 1) — oldsrv becomes an internal/LAN box. **HD-51:** multi-axis identity model
+> (persons = Authentik; shared bytes = neutral `media` owner via `storage_uid`/`storage_gid`; no human
+> logins on nas; OpenCloud via Authentik OIDC).
 >
 ---
 

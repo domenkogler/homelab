@@ -30,6 +30,11 @@ tags: [services, catalog]
 | Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner) |
 | Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
 | Immich-ML | — | I | 300–600 / 1,200 | Face recognition, smart search — shares AMD VRAM |
+| LiteLLM | — | I | 120–250 / 500 | **AI stack** — LLM gateway/router: local Ollama + OpenRouter (gen) + Cohere (embeddings). Single endpoint; only component holding upstream keys. *(planning)* |
+| Open WebUI | ai | P | 300–600 / 1,500 | **AI stack** — family chat + RAG UI; Authentik OIDC + crowdsec-only; Cohere embed-v4, Docling OCR, PGVector store. *(planning)* |
+| Docling | — | I | 150–400 / 900 | **AI stack** — OCR / document understanding for RAG (CPU). *(planning)* |
+| OpenClaw | — | I | 200–500 / 1,200 | **AI stack** — agent orchestration (ex-Clawd); models → LiteLLM; OpenCloud WebDAV skill; **version pinned**. *(planning)* |
+| PGVector | — | D | 100–250 / 600 | **AI stack** — vector DB for Open WebUI RAG + chat history (`db-internal`; backup via db-backup). *(planning)* |
 | Technitium | dns | I | 120–250 / 400 | Central DNS router, VLAN-aware (binds 53 on host) |
 | Pi-hole | ad | I | 100–200 / 300 | Ad-blocking DNS |
 | Headscale | vpn | P | 60–120 / 250 | Tailscale coordination server |
@@ -114,6 +119,7 @@ WAN allow. Everything else in the catalog is **internal-only** (no public record
 | `sso` | Authentik |
 | `foto` | Immich |
 | `file` | OpenCloud |
+| `ai` | Open WebUI — AI chat/RAG, public, Authentik OIDC + crowdsec-only *(planning)* |
 | `git` | Forgejo |
 | `ha` | Home Assistant (VIP, HA-native auth, no Forward-Auth) |
 | `vpn` | Headscale |

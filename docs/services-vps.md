@@ -2,13 +2,16 @@
 title: Deferred VPS Infrastructure
 role: reference
 domain: services
-status: deferred
+status: active
 tags: [services, vps, contabo]
 ---
 # Deferred VPS Infrastructure
 
-> **Role:** Detail — reference architecture for Contabo VPS. Deferred to Phase 2+.
-> **Status:** In Phase 1, all services here run on oldsrv ([`hardware-oldsrv.md`](hardware-oldsrv.md)).
+> **Role:** Detail — reference architecture for Contabo VPS.
+> **Status:** ✅ **Decision (2025-08-16, HD-93):** the VPS is to be **purchased before go-live** and the
+> public edge moves onto it from **day one** (public Traefik + CrowdSec + Authentik + public apps terminate
+> TLS on the VPS over WG S2S → oldsrv backends). This supersedes the older "deferred to Phase 2+" wording
+> below, which is retained as the implementation spec for what actually ships there.
 > **Links to:** `services.md`, `network-vpn.md`
 > **Linked from:** `services.md`
 
