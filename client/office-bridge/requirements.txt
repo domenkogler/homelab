@@ -1,0 +1,25 @@
+# Office MCP Bridge — client-side pinned dependencies (Flaw-B / HD-106)
+# Deployed on the Windows 11 client from this repo folder (HD-106) via the Headscale tunnel.
+# Pin exact versions at deploy time (uv.lock / requirements freeze). These are the
+# recommendations from HD-110 research — full verify on a Windows client before locking.
+#
+# --- bridge runtime ---
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+httpx>=0.27,<0.29
+# MCP SDK (client + streamable-http); pin exact once validated against OW client.py
+mcp>=1.2,<2
+# --- backend COM servers (pinned per HD-110 research) ---
+# PowerPoint live
+ppt-mcp==1.7.0             # fetch via `uvx ppt-mcp` on the client; PyPI pin
+# Word live
+word-mcp-live>=1.5,<2.0    # COM(Windows)/JXA(macOS); PyPI pin at finalize
+# Excel via sbroenne: standalone C# CLI (excelcli.exe) — NOT a pip package.
+#   Download the MIT release and pin the binary checksum in update script (HD-106),
+#   point OFFICE_BRIDGE_TOKEN / EXCEL_CLI env at it. Excel requires Excel 2016+ on Windows.
+#
+# --- DIY Excel attach-mode fallback (optional) ---
+pywin32>=306              # win32com.client for GetActiveObject attach mode
+
+# Server-side / Linux path deps are NOT installed on the Windows client (they run on oldsrv):
+#   python-pptx, python-docx, openpyxl  (see research doc server path)
