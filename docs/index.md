@@ -31,7 +31,7 @@ tags: [index, dispatcher, ai]
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `llm-office.md`, `deployment-compose.md` |
 | **Understand observability / alerting** | [`observability.md`](observability.md) | `services.md`, `deployment-ansible.md` |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
-| **Understand / build the AI stack (chat + RAG + agents)** | [`ai-stack.md`](ai-stack.md) | `llm-office.md`, `services-authentik.md`, `deployment-secrets.md`, `hardware-gpu.md` |
+| **Understand / build the AI stack (chat + RAG + agents)** | [`ai-stack.md`](ai-stack.md) | `llm-office.md`, `services-authentik.md`, `deployment-secrets.md`, `hardware-gpu.md`, `hd110-office-mcp-research.md` (Office live editing) |
 | **HA failover / high availability** | [`smart-home-failover.md`](smart-home-failover.md) | `smart-home.md`, `network-dns.md`, `deployment-ansible.md` |
 | **Current HA instance / HAOS→Docker feasibility** | [`home-assistant-current.md`](home-assistant-current.md) | `smart-home.md`, `smart-home-failover.md` |
 | **Understand GitOps pipeline** | [`deployment.md`](deployment.md) | `deployment-renovate.md`, `interfaces.md` |
@@ -92,6 +92,7 @@ docs/
 ├── smart-home-audio.md                    WiiM Bar, Audio Pro, Chromecast
 │
 ├── llm-office.md                          Local LLM, office tools, ONLYOFFICE, n8n
+├── hd110-office-mcp-research.md            ★ Office MCP bridge research (unified vs per-app; topology) — HD-110
 ├── ai-stack.md                           ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, PGVector
 │
 ├── storage-zfs.md                         ZFS dataset tree, properties, replication (SSOT)
