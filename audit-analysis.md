@@ -77,7 +77,7 @@ item," follow these rules exactly:
 
 ## A. Reconcile & clean the audit documents (inputs 1–3)
 
-### AUD-01 — Deduplicate KOPS findings by adding **only** first-free IDs (no mass renumber) (pending)
+### AUD-01 — Deduplicate KOPS findings by adding **only** first-free IDs (no mass renumber) (done)
 - **Difficulty:** 2 · **Priority:** P1 · **Depends on:** none
 - **What:** In `Qwen-bugs.md` the same KOPS ID is sometimes reused for *different* content
   (evidence of incremental appends, never consolidated), and some findings are repeated
