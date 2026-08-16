@@ -330,7 +330,7 @@ item," follow these rules exactly:
 
 ---
 
-### AUD-12 — Update `docs/index.md` document map for the consolidated state (pending)
+### AUD-12 — Update `docs/index.md` document map for the consolidated state (done)
 - **Difficulty:** 1 · **Priority:** P2 · **Depends on:** AUD-08, AUD-10
 - **What:** Once the audits are reconciled and retired, update `docs/index.md` so the dispatcher
   reflects reality: add `security.md` (from AUD-08) to the document map, keep the **Backlog**
@@ -362,5 +362,5 @@ item," follow these rules exactly:
 - [x] `todo.md` tally/hygiene correct (AUD-09)
 - [x] Each audit doc has a committed long-term disposition (AUD-10)
 - [x] Validators green; no dangling references (AUD-11)
-- [ ] `docs/index.md` map reflects only live docs (AUD-12)
+- [x] `docs/index.md` map reflects only live docs (AUD-12)
 - [ ] Policy decisions recorded in a persistent decision log (AUD-13)
