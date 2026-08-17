@@ -56,6 +56,8 @@ it is refreshed from this repo.
 
 > ⚠️ **It's still the planning phase.** Docs will change often. Do **not** spend effort on small visual/cosmetic tweaks (ASCII-art alignment, spacing, wording polish) — prefer substantive, content-level edits. Keep it consistent and correct, not pixel-perfect.
 
+> 📐 Cross-cutting conventions (naming, secrets, IaC, compose, onboarding): see [`CONVENTIONS.md`](CONVENTIONS.md) — the index that points to each authoritative owning doc.
+
 ### Hosts (single namespace `kogler.si`)
 
 | Host | Role |
@@ -102,6 +104,7 @@ ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 │   ├── host/                 # preseed.cfg (nas) + shared post_install.sh
 │   └── router/               # RouterOS .rsc scripts (rb4011, ap)
 ├── brainstorming/            # Source material (LLM chats, legacy notes)
+├── CONVENTIONS.md            # Cross-cutting rules index + service-onboarding checklist
 └── README.md                 # You are here
 ```
 

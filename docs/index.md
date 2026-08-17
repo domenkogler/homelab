@@ -28,6 +28,7 @@ tags: [index, dispatcher, ai]
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
 | **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md`, [`network-addresses.md`](network-addresses.md) |
 | **Backlog / open decisions** | [`todo.md`](../todo.md) | — |
+| **Cross-cutting conventions / onboarding a service** | [`CONVENTIONS.md`](../CONVENTIONS.md) | owning docs (`deployment-*.md`, `network-*.md`, `services.md`) |
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `llm-office.md`, `deployment-compose.md` |
 | **Understand the security posture / hardening** | [`security.md`](security.md) | `services-traefik.md`, `deployment-secrets.md`, `deployment-preseed.md`, `network-ops.md` |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
@@ -86,6 +87,7 @@ docs/
 ├── interfaces.md                          Dashboard + management interface matrix
 │
 ├── todo.md                              Planned work + open decisions backlog (HD-XX, single source)
+├── CONVENTIONS.md                        Cross-cutting rules index + service-onboarding checklist (repo root)
 │
 ├── smart-home.md                          Home Assistant, devices, architecture
 ├── home-assistant-current.md              Live HA instance inventory (HAOS, plugins) + HAOS→Docker feasibility
@@ -123,6 +125,9 @@ docs/
 ---
 
 ## Conventions
+
+> **Consolidated index:** [`CONVENTIONS.md`](../CONVENTIONS.md) (repo root) names every cross-cutting rule and
+> points to its owning doc; the rules below are the central ones approved here.
 
 Cross-cutting rules for every doc in this repo. Domain-specific policies stay in their own
 `docs` (`deployment-secrets.md`, `deployment-compose.md`, `network-dns.md`, …); only the

@@ -8,7 +8,7 @@
 > `docs/deployment-ansible.md`, `docs/network-vlans.md`, `IaC/README.md`, and
 > `docs/deployment-secrets.md` (secrets single source of truth).
 >
-> **Status tracking for sub-tasks / difficulty:** `docs/todo.md` (HD-XX IDs).
+> **Status tracking for sub-tasks / difficulty:** `todo.md` (HD-XX IDs).
 
 > **✅ Decisions (2025-08-16 — overriding some phase wording below):** see `todo.md` for the full
 > rationale. **HD-92:** `oldsrv` stays bare-metal Debian + Docker (no Proxmox / no GPU passthrough on the
@@ -254,7 +254,7 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 
 > **Depends on:** Phase 4 (HA primary stable), Homematic HmIP-RFUSB stick available (human action).
 > **1Password prerequisites:** existing — `authentik_login`, `authentik_db` (SSO), `ha_api`, `signal_api`.
-> Items are tracked in `docs/todo.md` (HD-XX) — execute per-item, don't restate here.
+> Items are tracked in `todo.md` (HD-XX) — execute per-item, don't restate here.
 
 1. Homematic full-local (HmIP-RFUSB + RaspberryMatic, local XML-RPC; human moves/fits the stick) — **HD-13**
 2. Confirm HACS custom components (motion, ai_task, Weather-2000, OneDrive, go2rtc) — **HD-15**
@@ -377,4 +377,4 @@ Phase 1 (network redo: flat ─▶ VLANs 10/20/21/30/40/50/99)  ◀── IRREVE
 - **Secrets source of truth:** `docs/deployment-secrets.md` (type map, master list, rename map).
 - **Architecture rationale:** `docs/hardware.md`, `docs/services.md`, `docs/observability.md`,
   `docs/deployment.md`, `docs/network-vlans.md`, `docs/smart-home-failover.md`.
-- **Per-item status / difficulty:** `docs/todo.md` (HD-XX IDs referenced above).
+- **Per-item status / difficulty:** `todo.md` (HD-XX IDs referenced above).
