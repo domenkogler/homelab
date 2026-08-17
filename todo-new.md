@@ -1,0 +1,223 @@
+# Homelab TODO Backlog (restructure proposal)
+
+> **DRAFT** generated from `todo.md` on 2026-08-17. This replaces the old file only after human review.
+> The old `todo.md` remains the running backlog until then.
+
+**Status:** 78 open · decisions in front · done items → [changelog.md](changelog.md)
+
+---
+
+## 0. How this backlog works
+
+- **One row = one outcome.** New work gets `HD-<next>` and links its owning `docs/*.md`.
+- **Priority (P):** 1 = highest (how hot), module = what domain it touches. Priority is per-row, modules group.
+- **Executors:** `AI` · `AI + gate` (human checkpoint) · `AI + Human` (joint) · `Human` (blocks).
+- **Lifecycle:** open → (decided → front section) → done → changelog. Deferred → park section.
+- **Conventions / onboarding:** see the [service-onboarding draft](#7-service-onboarding-draft) and repo conventions in `docs/index.md`.
+
+## 1. Human decisions & purchases — review first
+
+### Decisions (blocking / waiting on a human call)
+
+| ID | D | Exec | Item |
+|----|---|------|------|
+| HD-22 | 1 | AI + Human | *(decision)* **Weather 2000 (SI) source** — third-party/HACS vs core; retain or replace. Agent researches, human decides. · [home-assistant-current.md](docs/home-assistant-current.md) |
+| HD-24 | 1 | Human | *(decision)* **TileBoard wall tablet model** — iPad / Android / repurposed; family/hardware purchase. · [interfaces.md](docs/interfaces.md) |
+| HD-25 | 1 | Human | *(decision)* **Wake word final approval** — "Hey, assistant" is tentative; family meeting needed. · [smart-home.md](docs/smart-home.md) |
+| HD-29 | 2 | Human | *(decision)* **Bulk media off-site** — iDrive e2 space/cost headroom, or keep bulk local-only (ZFS). Input to HD-31. · [backup.md](docs/backup.md) |
+| HD-39 | 1 | Human | *(decision)* **watchtower for Pi HA container** — Renovate + pinned images may suffice. · [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-52 | 1 | AI + Human | *(decision)* **OpenCloud sync client packaging** — official client (opencloud-eu/desktop) ships AppImage only, no apt repo; options: AppImage → /opt + .desktop entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Blocks office role's client. · [llm-office.md](docs/llm-office.md) |
+| HD-53 | 2 | AI + Human | *(decision)* **MikroTik SNMP community** — Alloy collector assumes v2c `public` (monitoring role); decide a dedicated read-only community + mgmt-VLAN ACL vs RouterOS default, then enable `/snmp` on RB4011/CRS328 (device-side — blocks HD-03 deploy). · [observability.md](docs/observability.md) |
+| HD-54 | 2 | AI + Human | *(decision)* **Grafana/n8n SMTP relay provider** — `grafana_smtp_host` undecided; the alert fail-safe email can't deliver until a relay is chosen. Related: HD-30 (Infomaniak). · [observability.md](docs/observability.md), [deployment-secrets.md](docs/deployment-secrets.md) |
+| HD-55 | 2 | AI + Human | *(decision)* **Alloy per-host `instance` label** — every host scrapes `127.0.0.1:9998` → identical `instance` (series collide in Prometheus); set per-host (e.g. `{{ inventory_hostname }}`) before enabling Alloy on the Pi. · [observability.md](docs/observability.md) |
+
+### Purchases
+
+| ID | D | Exec | Item |
+|----|---|------|------|
+| HD-30 | 1 | Human | *(buy)* **Sign up Infomaniak kSuite** — email, CalDAV, catch-all aliases; ~€3–5/mo; secrets → 1Password `Homelab`. · [subscription.md](docs/subscription.md) |
+| HD-31 | 1 | Human | *(buy)* **Sign up iDrive e2** — S3 Kopia off-site target; ~€5/mo; depends on HD-29. · [subscription.md](docs/subscription.md) |
+
+## 2. Active work — by module
+
+### 2.1 Network & DNS — VLANs, firewall, DNS, VPN, router/switch
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-03 | 5 | AI + gate | 1 | **Network redo: implement VLAN segmentation** — currently flat `10.10.1.0/24` → VLANs 10/20/21/30/40/50/99, inter-VLAN firewall, CAPsMAN SSIDs. ✅ **IaC implemented + committed (`39b9f02`):** router + switch `community.routeros` roles (VLANs, DHCP, firewall, mgmt). ⏳ **NOT deployed to live gear** — Ansible can't run on this Windows host (see render note). Open before deploy: switch bridge-VLAN access-port membership (under review vs Rack.canvas), CAPsMAN SSID secret items, WG VPS peer. · [network-vlans.md](docs/network-vlans.md) |
+| HD-78 | 2 | AI | 2 | **Router INPUT-chain firewall** — restrict management services (API, SSH, WinBox, www) to Management VLAN 99 only; currently extensive FORWARD but no INPUT chain (KOPS-003/009). · source qwen. · [network-vlans.md](docs/network-vlans.md), [network-ops.md](docs/network-ops.md) |
+| HD-83 | 2 | AI | 2 | **Restrict router API to Management VLAN in bootstrap .rsc itself** — disable `api`/`www-ssl` or bind to mgmt interface in the bootstrap scripts, not just the Ansible role (KOPS-003/042). · source qwen. · [network-ops.md](docs/network-ops.md) |
+| HD-84 | 2 | AI | 2 | **Headscale ACL policy or fix misleading comment** — empty `acl_policy_path` auto-approves OIDC registrations; add real ACL or correct the comment (KOPS-022). · source qwen. · [network-vpn.md](docs/network-vpn.md) |
+| HD-89 | 1 | AI | 3 | **Disable/move unused AP ethernet ports off Mgmt VLAN** — wired devices on AP ports currently get full Management access (KOPS-046). · source qwen. · [network-vlans.md](docs/network-vlans.md) |
+
+### 2.2 Storage, ZFS & UPS — NAS datasets, NFS, UPS/NUT
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-06 | 3 | AI | 1 | **NUT master on nas** — `usbhid-ups`, `upsd` (3493), `nut_exporter`, `upssched-cmd` notify. ✅ **IaC done+fixed** (SSOT exporter on master `:9199`, scrape via `all.yml` vars, `@latest` release w/ verified asset URL, `nut-exporter_password` upsd auth, SMTP+Signal notify wired via `NOTIFYCMD`, battery.runtime/charge thresholds, USB verify task — G1–G7). ⏳ **Missing:** live deploy on nas (host not provisioned yet) + battery-pull test; feeds HD-07 (clients) / HD-08 (metrics+alerts). · [hardware-ups.md](docs/hardware-ups.md) |
+| HD-08 | 3 | AI | 2 | **Wire UPS metrics + alerts into Prometheus/Grafana** — Critical battery/runtime, Warning on-battery, Info transitions. Depends on HD-06/07. ✅ **Monitoring IaC implemented** (nut_* alert rules + UPS dashboard — commits `aaa3f7c`/`8c50d7f`). ⚠ **Deploy-time verification:** confirm DRuggeri/nut_exporter `nut_ups_status` bitmask + metric names, and that Grafana alert-rule provisioning loads (live check). · [hardware-ups.md](docs/hardware-ups.md) |
+| HD-09 | 1 | AI | 2 | **UPS web-UI firewall rule** — open 80/443 Home→Mgmt for `10.10.99.9` only; Modbus 502 retired (no consumer). ✅ **IaC done** (router role: trusted-admin → `ups_management` 80/443); ⏳ not deployed. · [hardware-ups.md](docs/hardware-ups.md) |
+| HD-94 | 2 | AI | 2 | **Centralize shared-data owner as `storage_uid`/`storage_gid` (KOPS-060)** — replace the hardcoded `PUID/PGID: 1000:1000` literals in the *arr / opencloud / immich compose templates with the group_vars `storage_uid`/`storage_gid` (the neutral owner from HD-51); define the shared-owner uid/gid once (e.g. `1005`) in the storage role group_vars and use it on both nas and oldsrv. Verify NFS ownership + container perms after the change. · [deployment-compose.md](docs/deployment-compose.md), [hardware-nas.md](docs/hardware-nas.md) |
+| HD-26 | 1 | AI | 3 | **Confirm UPS SNMP UDP (161/udp)** on the NIC — TCP probe closed, UDP untested; one probe vs `10.10.99.9`. · [hardware-ups.md](docs/hardware-ups.md) |
+
+### 2.3 Platform & Deploy — Ansible, compose conventions, GitOps, Renovate, Doco-CD
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-02 | 3 | AI | 1 | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
+| HD-61 | 1 | AI | 1 | **Pin image tags — Traefik first** — `traefik_version: latest` today in group_vars; pin to a semver + Renovate follow-up (also dedupe the other `latest`/`:rocm` mutable tags). ROI · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
+| HD-90 | 1 | AI | 3 | **Renovate managers: ansible-galaxy + pip** — track Ansible collections + Python packages, not just Docker (KOPS-062). · source qwen. · [deployment-renovate.md](docs/deployment-renovate.md) |
+
+### 2.4 Services & Edge — Traefik, SSO, service catalog, Matrix, VPS edge
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-60 | 2 | AI | 1 | **crowdsec-only middleware chain** — add `crowdsec-only@file` to `middlewares.yml.j2`; apply to every self-auth'd route (ha, jellyfin, seerr, matrix, chat, ha-standby). ROI · source qwen. · [services-traefik.md](docs/services-traefik.md) |
+| HD-40A | 3 | AI + Human | 3 | *(Phase 1.5)* **Provision VPS + establish public Traefik edge** — Contabo VPS purchased, WireGuard S2S home↔VPS, Traefik on VPS terminates TLS for public subset. Backends still on oldsrv over WG tunnel. Cloudflare A records updated. · [services-vps.md](docs/services-vps.md) |
+| HD-40B | 3 | AI | 3 | *(Phase 1.5)* **Migrate public-facing services to VPS** — Authentik, OpenCloud web, Forgejo, Grafana. Databases stay on LAN over WG tunnel. · [services-vps.md](docs/services-vps.md) |
+| HD-43 | 3 | AI | 3 | **Deploy/verify Media ·\*arr stack** — recent IaC added the templates (jellyfin, seerr, sonarr, radarr, lidarr, prowlarr, bazarr, sabnzbd, qbittorrent+gluetun, profilarr, recyclarr) in `group_vars/home_servers.yml`; deploys on oldsrv bulk/media NFS. · [services.md](docs/services.md) |
+| HD-44 | 2 | AI | 3 | **Deploy/verify new ops services** — `dozzle` (`logs.`, Forward-Auth, viewer-only) and `traefik-ha` VIP edge on the Pi (added in recent IaC but not tracked/verified). · [services.md](docs/services.md) |
+| HD-46 | 4 | AI | 3 | **Implement Matrix IaC (native-only)** — ✅ **IaC done + committed (`62e0045`):** `matrix/` (Tuwunel, `matrix.kogler.si`) + `element-web/` (Element Web, `chat.kogler.si`) compose templates + `group_vars/home_servers.yml` entries; SSO → Authentik OIDC; registration closed (`allow_registration=false`, bootstrap via `registration_shared_secret`); RocksDB on `/srv/docker/matrix` (no external DB). Secrets → 1Password `matrix_api` + `matrix_password` ([deployment-secrets.md](docs/deployment-secrets.md)). ⏳ **Not deployed:** hosts not provisioned; needs HD-47 (public records + `.well-known` delegation) + Authentik OIDC provider/redirect URI. ⚠ **No bridges in Phase 1** (deferred — HD-48). · [services-matrix.md](docs/services-matrix.md) |
+| HD-47 | 2 | AI | 3 | **Matrix public records + Federation** — publish `matrix`/`chat` (Cloudflare DNS-only) + `_matrix` well-known/SRV delegation; WAN allow 443 (8448 optional) to oldsrv; **no Forward-Auth on `/_matrix/*`**. · [services-traefik.md](docs/services-traefik.md), [network-dns.md](docs/network-dns.md) |
+| HD-58 | 3 | AI | 3 | **Implement Stirling PDF service** — self-hosted PDF toolkit (merge/split/compress/convert/number/OCR via Tesseract); family-friendly replacement for online PDF editors. Compose template + `group_vars/home_servers.yml` entry per the `docker_services` role (HD-50); catalog row in [`services.md`](docs/services.md). **Auth (decided 2025-08-15): anonymous mode** (`SECURITY_ENABLELOGIN=false`, default) **+ Authentik Forward-Auth at the Traefik edge** — same pattern as admin UIs; **native Stirling OIDC/SAML deliberately NOT used** (beta, adds per-user roles we don't need). **Exposure: internal-only** — no Cloudflare record, WAN-blocked; remote access only via the Headscale VPN (road-warrior), NOT public. Enable OCR (`TESSERACT_LANGS=eng+slv`, Slovenian). All processing in-memory, nothing persisted to disk → no ZFS/backup implication. Low RAM (~100–200 MB idle). · [services.md](docs/services.md) |
+
+### 2.5 Observability & Alerting — Prometheus/Loki/Grafana, exporters, alert rules
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-64 | 1 | AI | 1 | **Fix Loki schema `from:` date** — `2026-01-01` (future) → `2025-01-01` / current; Loki silently drops all logs until the schema activates. ROI · source qwen. · [observability.md](docs/observability.md) |
+| HD-85 | 1 | AI | 3 | **Add CrowdSec collections** — extend beyond traefik+linux: home-assistant, matrix, grafana parsers (KOPS-041). · source qwen. · [observability.md](docs/observability.md) |
+
+### 2.6 Smart Home — HA primary/standby, Homematic, voice, devices
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-04 | 5 | AI + gate | 1 | **Pi redo: HAOS → Debian + HA Container + RaspberryMatic + Technitium secondary** — in-use device migration, done opportunistically during the network redo; approved direction, not yet applied. · [home-assistant-current.md](docs/home-assistant-current.md) |
+| HD-72 | 3 | AI | 1 | **HA primary privileged → targeted caps** — replace `privileged: true` + `network_mode: host` with targeted `devices:` + `cap_add:` to drop root/cgroup-escape + keepalived/VRRP control on the smart-home controller (KOPS-014). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-13 | 3 | AI + Human | 2 | **Homematic full-local (HmIP-RFUSB + RaspberryMatic)** — replace HAP cloud mode with local `homematic` XML-RPC; agent builds roles, human moves/fits the stick. Part of redo (HD-04). · [observability.md](docs/observability.md) |
+| HD-14 | 2 | AI | 2 | **Export HA entity list** — enable HA Prometheus exporter; needed for TileBoard + Grafana. Wait for observability. · [smart-home.md](docs/smart-home.md) |
+| HD-15 | 1 | AI | 2 | **Confirm HACS custom-component versions/repos** — `motion`, `ai_task`, Weather-2000, OneDrive, go2rtc via SSH / config git repo (REST API can't expose). · [home-assistant-current.md](docs/home-assistant-current.md) |
+| HD-17 | 3 | AI | 2 | **Single failover button + `ha-failover.sh`** — RMat → wait → VIP → standby, on Homepage; manual-trigger design accepted. ✅ **IaC done + committed:** `ha-failover.sh` (forward + reverse), standby keepalived normal/failover configs (VRID/interface/priority vars), trigger API endpoint + systemd unit (`ha-failover-api`, token auth), Homepage forward/reverse buttons. ⏳ **Not deployed** (hosts not provisioned); deploy needs 1Password `ha-failover_api` (api → credential) + the HmIP-RFUSB stick physically moved at runbook time. · [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-18 | 2 | Human | 2 | **Once: test HmIP-RFUSB pairing transfer** + entity reconstruction across stick move. Hands-on; requires HD-13. · [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-79 | 2 | AI | 2 | **Pin RaspberryMatic USB path per host** — exact `/dev/serial/by-id/` in `host_vars` + udev rule/symlink (glob in template doesn't resolve; KOPS-040). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-20 | 1 | Human | 3 | **Confirm full Supervisor add-on list** — `/api/hassio/addons` returned 401 (non-admin token); needs admin/SSH on HAOS host. · [home-assistant-current.md](docs/home-assistant-current.md) |
+| HD-21 | 1 | AI + Human | 3 | **Confirm ESPHome / Guition ESP32-S3 status** — `esphome` not loaded; agent checks network/repo, owner knows if the device was ever added. · [home-assistant-current.md](docs/home-assistant-current.md) |
+| HD-23 | 1 | AI | 3 | **Confirm HmIP-SWO-B channels** — no rain / wind-direction on this sensor; verification only. · [smart-home.md](docs/smart-home.md) |
+| HD-27 | 4 | AI + Human | 3 | **Voice pipeline build-out** — Whisper → Ollama → Piper containers, flash ESP32-S3 (ESPHome + microWakeWord), HA Assist on phones; GPU + physical flashing. · [smart-home-voice.md](docs/smart-home-voice.md) |
+
+### 2.7 AI & Office — LLM stack, Open WebUI, office MCP, vector DB
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-100 | 4 | AI | 2 | **AI stack: LiteLLM spine** — LLM gateway/router (local Ollama + OpenRouter gen + Cohere embed); single endpoint; only component holding upstream keys; `config.yaml.j2`; `litellm_master_key` auth. No host port binds. · [ai-stack.md](docs/ai-stack.md) |
+| HD-101 | 4 | AI | 2 | **AI stack: Open Web UI** — compose + `ai` route (**public**, Authentik OIDC + `crowdsec-only`); RAG (Cohere embed-v4, Docling, PGVector); pin secrets. · [ai-stack.md](docs/ai-stack.md), [services-traefik.md](docs/services-traefik.md) |
+| HD-102 | 3 | AI | 2 | **AI stack: PGVector DB + backup** — `pgvector` postgres on `db-internal`; add DBxx block to `db-backup` + Kopia scope (RAG index + chat history — KOPS-026 class). · [ai-stack.md](docs/ai-stack.md), [backup.md](docs/backup.md) |
+| HD-103 | 3 | AI | 2 | **AI stack: Docling OCR** — CPU `docling-serve` for RAG ingestion (spares dGPU). · [ai-stack.md](docs/ai-stack.md) |
+| HD-104 | 4 | AI | 2 | **AI stack: OpenClaw agent + integrations** — pinned version; register as model in LiteLLM; OpenCloud WebDAV skill (read/write family files); wire Open WebUI ↔ OpenClaw ↔ OpenCloud. · [ai-stack.md](docs/ai-stack.md) |
+| HD-105 | 2 | AI | 2 | **AI stack: secrets + wiring** — `openrouter_api`, `cohere_api`, `litellm_master_key`, `openwebui_secret`, `pgvector_db` in 1Password; catalog rows + index map already added. · [deployment-secrets.md](docs/deployment-secrets.md) |
+| HD-111 | 4 | AI | 2 | **Office MCP via Open WebUI** — `ppt-mcp` first (proven, from OpenWeb.md), then extend/parallel Word+Excel; register as MCP **servers in Open WebUI** (Tools); **retires AnythingLLM + LocPilot**. Server-side python-docx/pptx/openpyxl path for Linux (HD-107). Depends on HD-110. · [llm-office.md](docs/llm-office.md), [ai-stack.md](docs/ai-stack.md) |
+| HD-28 | 3 | AI | 3 | **Office AI stack** — Ollama models/downloads, n8n Docker, ONLYOFFICE on Debian desktop + **MS Office via MCP tools in Open WebUI** (see HD-106–HD-111); depends on oldsrv GPU. Superseded: AnythingLLM + LocPilot replaced by the Open WebUI MCP path. · [llm-office.md](docs/llm-office.md) |
+
+### 2.8 Security & Secrets — secrets hygiene, privilege, firewall, preseed hardening
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-62 | 2 | AI | 1 | **Remove / unbind host ports** — signal `8080:8080`; prometheus `9090:9090`; technitium `53:53`; sunshine `47989-48010` → bind loopback or a specific VLAN IP, or drop (prefer the Docker overlay network). ROI · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
+| HD-65 | 2 | AI | 2 | **Fail-loud on missing secrets** — remove `default('')` (pihole `WEBPASSWORD`) so a failed 1Password lookup fails loudly instead of deploying unprotected. ROI · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
+| HD-77 | 2 | AI | 2 | **Split `n8n_password`** — separate `n8n_password` (N8N_ENCRYPTION_KEY) from `n8n-webhook_api` (webhook auth token) so key rotation is independent (KOPS-031). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
+| HD-80 | 2 | AI | 2 | **Unique root password hash per host in preseed** — render per-host hash at preseed time, or disable root login (ansible-admin has NOPASSWD sudo); currently identical placeholder hash on nas+oldsrv (KOPS-044). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
+| HD-81 | 2 | AI | 2 | **Shrink HA `trusted_proxies` from `/16` to Traefik container IPs** — prevent spoofed client IPs from sibling containers (KOPS-039). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md), [security.md](docs/security.md) |
+| HD-82 | 2 | AI | 2 | **Grafana single auth path** — enable `GF_AUTH_DISABLE_LOGIN_FORM: "true"` to force auth through Authentik proxy (KOPS-008). · source qwen. · [observability.md](docs/observability.md) |
+| HD-59 | 2 | AI | 3 | **Internal service auth on flat Docker networks** — Ollama (`OLLAMA_AUTH_*` env vars), Kopia server (`--password` flag replacing `--without-password`), Signal CLI (basic auth wrapper on services-internal), Prometheus (`--web.config.file` with htpasswd). Flat networks = zero auth between containers; supply-chain compromise in one image gives attacker free rein. Auth tokens → 1Password `<service>-internal_api`. · [deployment-compose.md](docs/deployment-compose.md), Qwen-bugs KOPS-001/016/002 |
+| HD-86 | 1 | AI | 3 | **`op signin --account` instead of bashrc token** — stop persisting OP token in `~/.bashrc` for production (bootstrap OK as-is; KOPS-011). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
+| HD-87 | 1 | AI | 3 | **Pin CrowdSec bouncer plugin version** — explicit version in group_vars instead of hardcoded default (KOPS-029). · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
+| HD-88 | 1 | AI | 3 | **Dedup sshd_config append in post_install.sh** — guard against double-run (KOPS-012). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
+| HD-91 | 2 | AI | 3 | **Fail-closed guards on missing secrets** — add `fail: msg=` in templates when critical secrets absent (relates to HD-65; KOPS cross-cutting). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
+
+### 2.9 Backup & DR — ZFS snapshots, Kopia, off-site, restore drills
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-63 | 2 | AI | 1 | **Uncomment immich DB backup + opencloud tar** — host default `immich-postgres` (the stale `db-backup` comment says `immich-db`; the real service is `immich-postgres`). ROI · source qwen. · [backup.md](docs/backup.md) |
+| HD-49 | 3 | AI | 3 | **Backup Matrix identity + media** — signing/identity keys (critical — reissue breaks rooms), homeserver DB (db-backup/Kopia), media store; add to backup policy. · [services-matrix.md](docs/services-matrix.md), [backup.md](docs/backup.md) |
+| HD-34 | 2 | AI + Human | 4 | **Assess Kopia Web GUI vs CLI** at the first restore drill (agent assesses during the human-run yearly drill). · [backup.md](docs/backup.md) |
+
+### 2.10 Docs & Family — family guides, docs, manual
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-32 | 2 | AI | 4 | **Write family guides `docs/manual/*`** — 10 Slovenian files, `status: wip`, not yet written; content well-specified; deferred until services live. · [manual/README.md](docs/manual/README.md) |
+| HD-33 | 1 | AI | 4 | **Export live router config `rb4011_live.rsc`** — one-time RouterOS export; docs-only. · [network-ops.md](docs/network-ops.md) |
+
+### 2.11 Finance & Subscriptions — budget apps, banks, billing
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-57 | 3 | AI + Human | 3 | **Finance pre-deploy prep (Actual Budget / Enable Banking)** — verify EB redirect URL (`budget.kogler.si`) covered by Traefik + wildcard cert; Wise API token (read-only); IBKR Flex Query token URL; *(decision)* UniCredit SI email-transaction alerts (World Elite) vs SMS; *(decision)* `actual-server:nightly` vs stable + n8n bridge; enter initial capital base. · [services-finance.md](docs/services-finance.md) |
+
+## 3. Park — deferred / optional / Phase 2
+
+> Items here are not actively worked. They stay visible for planning.
+
+| ID | D | Exec | Item |
+|----|---|------|------|
+| HD-36 | 3 | AI | **Internal AAAA records** — deferred/optional; needs stable per-host global addressing + IPv6 firewall mirroring. · [network-dns.md](docs/network-dns.md) |
+| HD-37 | 3 | AI | **Long-term metric retention** — remote-write/downsampling (Thanos/VictoriaMetrics) only if ever needed. · [observability.md](docs/observability.md) |
+| HD-38 | 2 | AI | **Prometheus Alertmanager** — only if Grafana-outage resilience demanded; Grafana Alerting covers Phase 1. · [observability.md](docs/observability.md) |
+| HD-41 | 4 | AI | *(Phase 2)* **Proxmox role + VM lab** — bridges, storage, VMs; implementation order step 10. · [deployment-ansible.md](docs/deployment-ansible.md) |
+| HD-42 | 3 | Human | *(Phase 2)* **Phase-2 hardware build** — Ryzen 9, open-frame chassis; only if Phase 1 insufficient; physical. · [hardware-phase2.md](docs/hardware-phase2.md) |
+| HD-45 | 3 | AI | *(Phase 2)* **Re-evaluate Homelable (topology/rack visualizer)** — Pouzor/homelable, MIT, young project; network + rack canvas + nmap scan + live health + MCP; potential successor to `Rack.canvas` visual/Homepage reachability widget. Keep deferred until services are live; re-check maturity. Noted in `observability.md` + `network-rack.md`. · [observability.md](docs/observability.md) |
+| HD-48 | 3 | AI + Human | **Requested-only bridges (deferred, Phase 2 best-effort)** — WhatsApp/Messenger/Signal bridges are **out of Phase 1 scope** (every bridge risks a real external account). Revisit **only if family asks**, and then only against **dedicated** numbers, accepting re-pairing/ban. · [services-matrix.md](docs/services-matrix.md) |
+
+## 3b. Activation notes - HD-02 (Doco-CD)
+
+> **HD-02 is a MULTI-STAGE task - do NOT attempt as a single run.** Use `plan_task` to
+> split into ordered, idempotent tasks with exact validations and an explicit dependency graph.
+
+- Config finalization: turn .doco-cd.yml into the real deploy path (auto_discovery vs per-service compose), compose_files, reference, external_secrets mappings.
+- 1Password secret provider: SECRET_PROVIDER=1password + SECRET_PROVIDER_ACCESS_TOKEN in the doco-cd compose env.
+- Trigger wiring: webhook /v1/webhook (HTTP 80, WEBHOOK_SECRET HMAC, Forgejo webhook) and/or polling; decide polling vs webhook reachability first.
+- Cross-task prerequisite: fix doco-cd metrics port 9120 + host-IP scrape in prometheus.yml.
+- Post-deploy hooks: regenerate Homepage config + inventory docs + reload/commit+push. May depend on HD-12 - check before planning.
+- Activate + verify: render templates and bring the container up; live activation likely on another host (human gate).
+
+## 4. Status & dependency notes
+
+- **HD-50 done** → blocks all `docker_services` deployments; **HD-16 done** (Authentik + Forward-Auth middleware) unblocks Forward-Auth services (HD-43/44/46).
+- **HD-03 → HD-04 → HD-13** (network redo feeds Pi redo feeds Homematic full-local).
+- **HD-06/07 done** → feeds HD-08. **HD-29 → HD-31** (off-site decision gates iDrive purchase).
+- 'Implemented, not deployed' rows (HD-03/06/17/46/60/61/62/63/64/94 …) stay open with a ⏳ marker until a live deploy happens — closing requires a deploy/verify pass, not just IaC.
+
+## 5. Tally (generated)
+
+- Open rows: 78
+- Decisions front: 9 · Buys: 2 · Park: 7
+- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=2, platform=3, security=11, services=8, smart=12, storage=5
+
+## 6. Conventions quick-reference
+
+| Area | Rule | Owning doc |
+|------|------|-----------|
+| Hostnames | single `kogler.si` namespace, flat subdomains | `docs/index.md` Conventions
+| IPs | `docs/network-addresses.md` is the SSOT, generated, never hand-edit | `scripts/check_doc_ips.py`
+| Secrets | 1Password `Homelab` vault, `<service>_<type>` naming | `docs/deployment-secrets.md`
+| Compose | conventions & port binding policy | `docs/deployment-compose.md`
+| Ansible | roles/templates/conventions | `docs/deployment-ansible.md`, `IaC/README.md`
+| Service catalog | `group_vars/home_servers.yml` + `docs/services.md` | `docs/services.md`
+| Validation | `bash scripts/validate-all.sh` before commit | `scripts/`
+
+## 7. Service-onboarding draft (new-service checklist)
+
+A uniform 'add a service' path, so a new service doesn't spawn custom habits:
+
+1. **Exposure & auth decision** — public/internal/Headscale-only; Forward-Auth vs native OIDC. Write the decision in the owning service doc.
+2. **Secrets** — create 1Password item(s) `<service>_<type>`; add a catalog row in `docs/deployment-secrets.md`.
+3. **Compose template** — `docker_services/<service>/` per `docs/deployment-compose.md` (external networks, pinned tags, no host ports unless justified).
+4. **Registry** — add to `group_vars/home_servers.yml` + catalog row in `docs/services.md`.
+5. **Edge (if exposed)** — Traefik route + middleware chain (`crowdsec-only`, Forward-Auth).
+6. **State & backups** — volume/driver `local`, map any DB into `db-backup`/Kopia scope.
+7. **Observability** — exporter/scrape target + Grafana dashboard/alert if needed.
+8. **Validation** — `bash scripts/validate-all.sh` green (template + group_vars).
+9. **Deploy gate** — first deploy is a human-gated apply (dry-run → single host).
+10. **Docs** — family guide + `docs/index.md` map row for family/ops-facing service.
+
