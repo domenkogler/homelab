@@ -196,6 +196,8 @@
 
 ## 6. Conventions quick-reference
 
+> Full, consolidated rule set: [`CONVENTIONS.md`](CONVENTIONS.md) — this section is only the index.
+
 | Area | Rule | Owning doc |
 |------|------|-----------|
 | Hostnames | single `kogler.si` namespace, flat subdomains | `docs/index.md` Conventions

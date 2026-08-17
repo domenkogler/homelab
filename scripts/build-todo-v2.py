@@ -250,6 +250,8 @@ def render_todo(open_rows: list[dict]) -> str:
     # ---- 6. conventions quick-reference -------------------------------------
     L.append("## 6. Conventions quick-reference")
     L.append("")
+    L.append("> Full, consolidated rule set: [`CONVENTIONS.md`](CONVENTIONS.md) — this section is only the index.")
+    L.append("")
     L.append("| Area | Rule | Owning doc |")
     L.append("|------|------|-----------|")
     L.append("| Hostnames | single `kogler.si` namespace, flat subdomains | `docs/index.md` Conventions")
