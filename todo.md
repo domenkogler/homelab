@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 78 open · 9 decisions · 2 purchases · 7 parked · 19 done (in changelog)
+**Status:** 80 open · 9 decisions · 2 purchases · 7 parked · 19 done (in changelog)
 
 ---
 
@@ -15,6 +15,7 @@
 - **Executors:** `AI` · `AI + gate` (human checkpoint) · `AI + Human` (joint) · `Human` (blocks).
 - **Lifecycle:** open → (decided → front section) → done → changelog. Deferred → park section.
 - **Conventions / onboarding:** consolidated rule index + 10-step service-onboarding checklist in [`CONVENTIONS.md`](CONVENTIONS.md).
+- **Service stages:** service-onboarding rows (per-checklist tasks) carry **`Stage: N/10`** in the bold title = current Service-onboarding checklist step ([CONVENTIONS.md](CONVENTIONS.md) §5). `10/10` = deployed + verified; only then does a row close. Non-service tasks (network/fix/decision) carry no stage marker.
 
 ## 1. Human decisions & purchases — review first
 
@@ -76,11 +77,13 @@
 | HD-60 | 2 | AI | 1 | **crowdsec-only middleware chain** — add `crowdsec-only@file` to `middlewares.yml.j2`; apply to every self-auth'd route (ha, jellyfin, seerr, matrix, chat, ha-standby). ROI · source qwen. · [services-traefik.md](docs/services-traefik.md) |
 | HD-40A | 3 | AI + Human | 3 | *(Phase 1.5)* **Provision VPS + establish public Traefik edge** — Contabo VPS purchased, WireGuard S2S home↔VPS, Traefik on VPS terminates TLS for public subset. Backends still on oldsrv over WG tunnel. Cloudflare A records updated. · [services-vps.md](docs/services-vps.md) |
 | HD-40B | 3 | AI | 3 | *(Phase 1.5)* **Migrate public-facing services to VPS** — Authentik, OpenCloud web, Forgejo, Grafana. Databases stay on LAN over WG tunnel. · [services-vps.md](docs/services-vps.md) |
-| HD-43 | 3 | AI | 3 | **Deploy/verify Media ·\*arr stack** — recent IaC added the templates (jellyfin, seerr, sonarr, radarr, lidarr, prowlarr, bazarr, sabnzbd, qbittorrent+gluetun, profilarr, recyclarr) in `group_vars/home_servers.yml`; deploys on oldsrv bulk/media NFS. · [services.md](docs/services.md) |
-| HD-44 | 2 | AI | 3 | **Deploy/verify new ops services** — `dozzle` (`logs.`, Forward-Auth, viewer-only) and `traefik-ha` VIP edge on the Pi (added in recent IaC but not tracked/verified). · [services.md](docs/services.md) |
-| HD-46 | 4 | AI | 3 | **Implement Matrix IaC (native-only)** — ✅ **IaC done + committed (`62e0045`):** `matrix/` (Tuwunel, `matrix.kogler.si`) + `element-web/` (Element Web, `chat.kogler.si`) compose templates + `group_vars/home_servers.yml` entries; SSO → Authentik OIDC; registration closed (`allow_registration=false`, bootstrap via `registration_shared_secret`); RocksDB on `/srv/docker/matrix` (no external DB). Secrets → 1Password `matrix_api` + `matrix_password` ([deployment-secrets.md](docs/deployment-secrets.md)). ⏳ **Not deployed:** hosts not provisioned; needs HD-47 (public records + `.well-known` delegation) + Authentik OIDC provider/redirect URI. ⚠ **No bridges in Phase 1** (deferred — HD-48). · [services-matrix.md](docs/services-matrix.md) |
+| HD-43 | 3 | AI | 3 | **Deploy/verify Media ·\*arr stack** — Stage: 4/10. recent IaC added the templates (jellyfin, seerr, sonarr, radarr, lidarr, prowlarr, bazarr, sabnzbd, qbittorrent+gluetun, profilarr, recyclarr) in `group_vars/home_servers.yml`; deploys on oldsrv bulk/media NFS. · [services.md](docs/services.md) |
+| HD-44 | 2 | AI | 3 | **Deploy/verify new ops services** — Stage: 3/10. `dozzle` (`logs.`, Forward-Auth, viewer-only) and `traefik-ha` VIP edge on the Pi (added in recent IaC but not tracked/verified). · [services.md](docs/services.md) |
+| HD-46 | 4 | AI | 3 | **Implement Matrix IaC (native-only)** — Stage: 4/10. ✅ **IaC done + committed (`62e0045`):** `matrix/` (Tuwunel, `matrix.kogler.si`) + `element-web/` (Element Web, `chat.kogler.si`) compose templates + `group_vars/home_servers.yml` entries; SSO → Authentik OIDC; registration closed (`allow_registration=false`, bootstrap via `registration_shared_secret`); RocksDB on `/srv/docker/matrix` (no external DB). Secrets → 1Password `matrix_api` + `matrix_password` ([deployment-secrets.md](docs/deployment-secrets.md)). ⏳ **Not deployed:** hosts not provisioned; needs HD-47 (public records + `.well-known` delegation) + Authentik OIDC provider/redirect URI. ⚠ **No bridges in Phase 1** (deferred — HD-48). · [services-matrix.md](docs/services-matrix.md) |
 | HD-47 | 2 | AI | 3 | **Matrix public records + Federation** — publish `matrix`/`chat` (Cloudflare DNS-only) + `_matrix` well-known/SRV delegation; WAN allow 443 (8448 optional) to oldsrv; **no Forward-Auth on `/_matrix/*`**. · [services-traefik.md](docs/services-traefik.md), [network-dns.md](docs/network-dns.md) |
-| HD-58 | 3 | AI | 3 | **Implement Stirling PDF service** — self-hosted PDF toolkit (merge/split/compress/convert/number/OCR via Tesseract); family-friendly replacement for online PDF editors. Compose template + `group_vars/home_servers.yml` entry per the `docker_services` role (HD-50); catalog row in [`services.md`](docs/services.md). **Auth (decided 2025-08-15): anonymous mode** (`SECURITY_ENABLELOGIN=false`, default) **+ Authentik Forward-Auth at the Traefik edge** — same pattern as admin UIs; **native Stirling OIDC/SAML deliberately NOT used** (beta, adds per-user roles we don't need). **Exposure: internal-only** — no Cloudflare record, WAN-blocked; remote access only via the Headscale VPN (road-warrior), NOT public. Enable OCR (`TESSERACT_LANGS=eng+slv`, Slovenian). All processing in-memory, nothing persisted to disk → no ZFS/backup implication. Low RAM (~100–200 MB idle). · [services.md](docs/services.md) |
+| HD-58 | 3 | AI | 3 | **Implement Stirling PDF service** — Stage: 4/10. self-hosted PDF toolkit (merge/split/compress/convert/number/OCR via Tesseract); family-friendly replacement for online PDF editors. Compose template + `group_vars/home_servers.yml` entry per the `docker_services` role (HD-50); catalog row in [`services.md`](docs/services.md). **Auth (decided 2025-08-15): anonymous mode** (`SECURITY_ENABLELOGIN=false`, default) **+ Authentik Forward-Auth at the Traefik edge** — same pattern as admin UIs; **native Stirling OIDC/SAML deliberately NOT used** (beta, adds per-user roles we don't need). **Exposure: internal-only** — no Cloudflare record, WAN-blocked; remote access only via the Headscale VPN (road-warrior), NOT public. Enable OCR (`TESSERACT_LANGS=eng+slv`, Slovenian). All processing in-memory, nothing persisted to disk → no ZFS/backup implication. Low RAM (~100–200 MB idle). · [services.md](docs/services.md) |
+| HD-112 | 4 | AI | 2 | **Zipline + OpenCloud file share** — Stage: 1/10. All-in-one Zipline (URL shortener + QR generator + pastebin + file share) with **S3 storage backend writing directly into the OpenCloud S3ng bucket**, and **OIDC SSO** so users log in with the same OpenCloud credentials. Compose template + `group_vars/home_servers.yml` entry per `docker_services` role; catalog row in [`services.md`](docs/services.md). **Open decisions before build:** (a) S3ng bucket provisioning + access-key mapping on OpenCloud side, (b) public vs internal exposure (Zipline URL shortener often needs public links), (c) Forward-Auth vs native OIDC (Zipline supports OIDC natively). See [services.md](docs/services.md), [storage-zfs.md](docs/storage-zfs.md). |
+| HD-113 | 2 | AI | 3 | **PairDrop P2P file share** — Stage: 1/10. Self-hosted direct "AirDrop-style" peer-to-peer transfer between devices (browser WebRTC, no upload through server, local-network device discovery). Compose template + catalog row per `docker_services` role; internal exposure. See [services.md](docs/services.md). |
 
 ### 2.5 Observability & Alerting — Prometheus/Loki/Grafana, exporters, alert rules
 
@@ -110,13 +113,13 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-100 | 4 | AI | 2 | **AI stack: LiteLLM spine** — LLM gateway/router (local Ollama + OpenRouter gen + Cohere embed); single endpoint; only component holding upstream keys; `config.yaml.j2`; `litellm_master_key` auth. No host port binds. · [ai-stack.md](docs/ai-stack.md) |
-| HD-101 | 4 | AI | 2 | **AI stack: Open Web UI** — compose + `ai` route (**public**, Authentik OIDC + `crowdsec-only`); RAG (Cohere embed-v4, Docling, PGVector); pin secrets. · [ai-stack.md](docs/ai-stack.md), [services-traefik.md](docs/services-traefik.md) |
-| HD-102 | 3 | AI | 2 | **AI stack: PGVector DB + backup** — `pgvector` postgres on `db-internal`; add DBxx block to `db-backup` + Kopia scope (RAG index + chat history — KOPS-026 class). · [ai-stack.md](docs/ai-stack.md), [backup.md](docs/backup.md) |
-| HD-103 | 3 | AI | 2 | **AI stack: Docling OCR** — CPU `docling-serve` for RAG ingestion (spares dGPU). · [ai-stack.md](docs/ai-stack.md) |
-| HD-104 | 4 | AI | 2 | **AI stack: OpenClaw agent + integrations** — pinned version; register as model in LiteLLM; OpenCloud WebDAV skill (read/write family files); wire Open WebUI ↔ OpenClaw ↔ OpenCloud. · [ai-stack.md](docs/ai-stack.md) |
-| HD-105 | 2 | AI | 2 | **AI stack: secrets + wiring** — `openrouter_api`, `cohere_api`, `litellm_master_key`, `openwebui_secret`, `pgvector_db` in 1Password; catalog rows + index map already added. · [deployment-secrets.md](docs/deployment-secrets.md) |
-| HD-111 | 4 | AI | 2 | **Office MCP via Open WebUI** — `ppt-mcp` first (proven, from OpenWeb.md), then extend/parallel Word+Excel; register as MCP **servers in Open WebUI** (Tools); **retires AnythingLLM + LocPilot**. Server-side python-docx/pptx/openpyxl path for Linux (HD-107). Depends on HD-110. · [llm-office.md](docs/llm-office.md), [ai-stack.md](docs/ai-stack.md) |
+| HD-100 | 4 | AI | 2 | **AI stack: LiteLLM spine** — Stage: 1/10. LLM gateway/router (local Ollama + OpenRouter gen + Cohere embed); single endpoint; only component holding upstream keys; `config.yaml.j2`; `litellm_master_key` auth. No host port binds. · [ai-stack.md](docs/ai-stack.md) |
+| HD-101 | 4 | AI | 2 | **AI stack: Open Web UI** — Stage: 1/10. compose + `ai` route (**public**, Authentik OIDC + `crowdsec-only`); RAG (Cohere embed-v4, Docling, PGVector); pin secrets. · [ai-stack.md](docs/ai-stack.md), [services-traefik.md](docs/services-traefik.md) |
+| HD-102 | 3 | AI | 2 | **AI stack: PGVector DB + backup** — Stage: 1/10. `pgvector` postgres on `db-internal`; add DBxx block to `db-backup` + Kopia scope (RAG index + chat history — KOPS-026 class). · [ai-stack.md](docs/ai-stack.md), [backup.md](docs/backup.md) |
+| HD-103 | 3 | AI | 2 | **AI stack: Docling OCR** — Stage: 1/10. CPU `docling-serve` for RAG ingestion (spares dGPU). · [ai-stack.md](docs/ai-stack.md) |
+| HD-104 | 4 | AI | 2 | **AI stack: OpenClaw agent + integrations** — Stage: 1/10. pinned version; register as model in LiteLLM; OpenCloud WebDAV skill (read/write family files); wire Open WebUI ↔ OpenClaw ↔ OpenCloud. · [ai-stack.md](docs/ai-stack.md) |
+| HD-105 | 2 | AI | 2 | **AI stack: secrets + wiring** — Stage: 1/10 (→ step 2). `openrouter_api`, `cohere_api`, `litellm_master_key`, `openwebui_secret`, `pgvector_db` in 1Password; catalog rows + index map already added. · [deployment-secrets.md](docs/deployment-secrets.md) |
+| HD-111 | 4 | AI | 2 | **Office MCP via Open WebUI** — Stage: 1/10 (MCP tool, partial checklist fit). `ppt-mcp` first (proven, from OpenWeb.md), then extend/parallel Word+Excel; register as MCP **servers in Open WebUI** (Tools); **retires AnythingLLM + LocPilot**. Server-side python-docx/pptx/openpyxl path for Linux (HD-107). Depends on HD-110. · [llm-office.md](docs/llm-office.md), [ai-stack.md](docs/ai-stack.md) |
 | HD-28 | 3 | AI | 3 | **Office AI stack** — Ollama models/downloads, n8n Docker, ONLYOFFICE on Debian desktop + **MS Office via MCP tools in Open WebUI** (see HD-106–HD-111); depends on oldsrv GPU. Superseded: AnythingLLM + LocPilot replaced by the Open WebUI MCP path. · [llm-office.md](docs/llm-office.md) |
 
 ### 2.8 Security & Secrets — secrets hygiene, privilege, firewall, preseed hardening
@@ -154,7 +157,7 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-57 | 3 | AI + Human | 3 | **Finance pre-deploy prep (Actual Budget / Enable Banking)** — verify EB redirect URL (`budget.kogler.si`) covered by Traefik + wildcard cert; Wise API token (read-only); IBKR Flex Query token URL; *(decision)* UniCredit SI email-transaction alerts (World Elite) vs SMS; *(decision)* `actual-server:nightly` vs stable + n8n bridge; enter initial capital base. · [services-finance.md](docs/services-finance.md) |
+| HD-57 | 3 | AI + Human | 3 | **Finance pre-deploy prep (Actual Budget / Enable Banking)** — Stage: 1/10. verify EB redirect URL (`budget.kogler.si`) covered by Traefik + wildcard cert; Wise API token (read-only); IBKR Flex Query token URL; *(decision)* UniCredit SI email-transaction alerts (World Elite) vs SMS; *(decision)* `actual-server:nightly` vs stable + n8n bridge; enter initial capital base. · [services-finance.md](docs/services-finance.md) |
 
 ## 3. Park — deferred / optional / Phase 2
 
@@ -191,9 +194,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 78
+- Open rows: 80
 - Decisions front: 9 · Buys: 2 · Park: 7
-- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=2, platform=3, security=11, services=8, smart=12, storage=5
+- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=2, platform=3, security=11, services=10, smart=12, storage=5
 
 ## 6. Conventions quick-reference
 

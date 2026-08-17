@@ -15,7 +15,7 @@
 |-----------|------|-----------|
 | DNS namespace | single `kogler.si`, flat subdomains, split-horizon; internal-only hosts unpublished in public DNS | `docs/index.md` (Conventions) |
 | Hostnames | canonical list `oldsrv / nas / pi / router / switch / vps` — SSOT table | `docs/index.md` (Conventions, Hosts) |
-| Backlog IDs | `HD-<number>` (next free = `HD-112`), 1 row = 1 outcome, link the owning `docs/*.md` | `todo.md` (§0) |
+| Backlog IDs | `HD-<number>` (next free = `HD-114`), 1 row = 1 outcome, link the owning `docs/*.md` | `todo.md` (§0) |
 | 1Password items | `<service>_<type>`; `_` only delimiter; `-` allowed inside service; never a field in the name; `field=` mandatory in lookups | [docs/deployment-secrets.md](docs/deployment-secrets.md) (Secret Naming Convention) |
 | Vault | one vault `Homelab`, referenced via `op_vault` var, never a literal | [docs/deployment-secrets.md](docs/deployment-secrets.md) |
 | Service domains | service → `https://<name>.kogler.si` unless stated (service catalog SSOT) | [docs/services.md](docs/services.md) |
@@ -75,6 +75,8 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 8. **Validation** — `bash scripts/validate-all.sh` green (template + group_vars both).
 9. **Deploy gate** — first apply is human-gated (dry-run → single host) — no blind `docker compose up -d`.
 10. **Docs** — `docs/index.md` map row + family guide (`docs/manual/`) if family-facing.
+
+**Stage tracking:** service-onboarding rows in `todo.md` carry **`Stage: N/10`** in the bold title = current checklist step above. `10/10` = deployed + verified — a row only closes at step 10 (never at step 8 validation / step 9 deploy-gate). The checklist is the ledger in the owning service doc; `Stage: N/10` is a summary pointer, not a second ledger. Non-service tasks (network / IaC fixes / decisions) are not checklist candidates and carry no stage marker.
 
 ---
 
