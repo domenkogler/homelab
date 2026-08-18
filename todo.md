@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 94 open · 9 decisions · 2 purchases · 9 parked · 22 done (in changelog)
+**Status:** 91 open · 9 decisions · 2 purchases · 9 parked · 25 done (in changelog)
 
 ---
 
@@ -136,8 +136,6 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-62 | 2 | AI | 1 | **Remove / unbind host ports** — signal `8080:8080`; prometheus `9090:9090`; technitium `53:53`; sunshine `47989-48010` → bind loopback or a specific VLAN IP, or drop (prefer the Docker overlay network). ROI · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
-| HD-65 | 2 | AI | 2 | **Fail-loud on missing secrets** — remove `default('')` (pihole `WEBPASSWORD`) so a failed 1Password lookup fails loudly instead of deploying unprotected. ROI · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 | HD-77 | 2 | AI | 2 | **Split `n8n_password`** — separate `n8n_password` (N8N_ENCRYPTION_KEY) from `n8n-webhook_api` (webhook auth token) so key rotation is independent (KOPS-031). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 | HD-80 | 2 | AI | 2 | **Unique root password hash per host in preseed** — render per-host hash at preseed time, or disable root login (ansible-admin has NOPASSWD sudo); currently identical placeholder hash on nas+oldsrv (KOPS-044). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-81 | 2 | AI | 2 | **Shrink HA `trusted_proxies` from `/16` to Traefik container IPs** — prevent spoofed client IPs from sibling containers (KOPS-039). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md), [security.md](docs/security.md) |
@@ -146,7 +144,6 @@
 | HD-86 | 1 | AI | 3 | **`op signin --account` instead of bashrc token** — stop persisting OP token in `~/.bashrc` for production (bootstrap OK as-is; KOPS-011). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 | HD-87 | 1 | AI | 3 | **Pin CrowdSec bouncer plugin version** — explicit version in group_vars instead of hardcoded default (KOPS-029). · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 | HD-88 | 1 | AI | 3 | **Dedup sshd_config append in post_install.sh** — guard against double-run (KOPS-012). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
-| HD-91 | 2 | AI | 3 | **Fail-closed guards on missing secrets** — add `fail: msg=` in templates when critical secrets absent (relates to HD-65; KOPS cross-cutting). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 | HD-125 | 2 | AI | 1 | **Signal CLI REST host port 8080 auth** — exposed with no auth (KOPS-002); bind internal or wrap with basic auth token. · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 | HD-126 | 2 | AI | 2 | **OpenCloud internal TLS (`OC_INSECURE:true`)** — re-enable internal TLS / rely on edge-terminated TLS (KOPS-006). · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 | HD-127 | 2 | AI | 1 | **Deploy scripts not root on live** — `push-services.sh` executes docker as root on live containers (KOPS-056); move to sudo-scoped or dedicated run user. · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
@@ -209,9 +206,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 94
+- Open rows: 91
 - Decisions front: 9 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=3, platform=3, security=14, services=15, smart=14, storage=6
+- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=3, platform=3, security=11, services=15, smart=14, storage=6
 
 ## 6. Conventions quick-reference
 

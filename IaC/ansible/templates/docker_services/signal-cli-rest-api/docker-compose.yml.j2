@@ -17,8 +17,9 @@ services:
       - services-internal
     volumes:
       - signal-cli-data:/home/.local/share/signal-cli      # identity persists across restarts
-    ports:
-      - "8080:8080"        # HTTP API — consumed by n8n on services-internal; not exposed publicly
+    # No host ports: n8n reaches this on services-internal via signal-cli-rest-api:8080
+    # over the Docker overlay — a host binding would expose the unauthenticated REST API
+    # on the host net (KOPS-002 / HD-62).
 volumes:
   signal-cli-data:
 networks:

@@ -28,10 +28,13 @@ services:
       - /srv/docker/sunshine/config:/home/sunshine/.config/sunshine
       - /run/udev:/run/udev:ro        # device enumeration
     ports:
-      - "47989:47989/tcp"              # streaming
+      - "47989:47989/tcp"              # streaming (Moonlight)
       - "47990:47990/tcp"              # web config UI
       - "47991:47991/udp"              # streaming (UDP)
       - "48010:48010/udp"              # streaming (UDP)
+      # Host ports kept (HD-62): Moonlight clients connect from LAN/VPN, so loopback/
+      # drop would break streaming. `restart: "no"` = manual-start gaming timer, so the
+      # exposure is time-limited. Bind to the LAN/Headscale interface if narrower is wanted.
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       SUNSHINE_USER: domen

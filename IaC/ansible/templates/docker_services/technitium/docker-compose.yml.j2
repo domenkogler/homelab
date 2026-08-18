@@ -26,9 +26,9 @@ services:
       - traefik-public
       - services-internal
     ports:
-      - "53:53/udp"
+      - "53:53/udp"                # required: LAN clients query DNS on the standard port — network-wide by design (HD-62)
       - "53:53/tcp"
-      - "5380:5380"        # web UI: dns.kogler.si (internal only)
+    # NO host 5380 — the web UI (dns.kogler.si) is served via Traefik on the overlay network (HD-62).
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:

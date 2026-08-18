@@ -17,6 +17,39 @@
       docker_services role must only run as an allowed admin user
       ({{ ansible_admin_users | join(', ') }}).
 
+# Fail-closed on secret resolution (HD-91): every compose template resolves 1Password
+# secrets inline. If the op CLI or the vault is unavailable/unset, abort with a clear
+# message BEFORE any render — never proceed to deploy secrets that silently failed.
+# (Template lookups with an explicit `default('')` are the exception and are removed
+# by HD-65/HD-91 policy — see templates/docker_services for the fail-open audit trail.)
+- name: Assert 1Password secret backend is available
+  ansible.builtin.assert:
+    that:
+      - op_vault is defined
+      - op_vault | length > 0
+    fail_msg: >-
+      op_vault is not set (group_vars/all.yml defines `op_vault: Homelab`).
+      Compose render resolves secrets from 1Password at template time; without a
+      vault the render must abort loudly rather than deploy with missing secrets.
+      Fix the 1Password backend before re-running.
+
+- ansible.builtin.shell:
+    cmd: command -v op || true
+  register: op_bin
+  changed_when: false
+  check_mode: false
+
+- name: Fail if 1Password CLI (op) is not on this host
+  ansible.builtin.assert:
+    that:
+      - op_bin.stdout | trim | length > 0
+    fail_msg: >-
+      The 1Password CLI (op) was not found on PATH. The docker_services role
+      resolves every secret via `community.general.onepassword` lookups and must
+      fail closed if the CLI is missing — install 1Password CLI on the control
+      host and re-run.
+  tags: [docker_services]
+
 - name: Create systemd template unit for Docker Compose services
   ansible.builtin.template:
     src: docker-compose@.service.j2

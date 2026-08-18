@@ -16,7 +16,7 @@ services:
     networks:
       - db-internal
     ports:
-      - "9090:9090"          # Host access for Alloy remote_write (host agent)
+      - "127.0.0.1:9090:9090"   # Alloy remote_write (host agent) reaches via localhost; no LAN exposure (HD-62)
     extra_hosts:
       - "host.docker.internal:host-gateway"   # reach doco-cd /metrics (host network)
     volumes:

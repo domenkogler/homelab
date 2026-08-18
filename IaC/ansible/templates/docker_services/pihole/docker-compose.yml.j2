@@ -24,7 +24,9 @@ services:
       - /srv/docker/pihole/dnsmasq:/etc/dnsmasq.d
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      WEBPASSWORD: "{{ lookup('community.general.onepassword', 'pihole_password', field='password', vault=op_vault) | default('') }}"
+      # Fail-loud (HD-65): a missing `pihole_password` must abort the render, NOT deploy a
+      # Pi-hole with an empty web password. No `default('')` on a secret lookup.
+      WEBPASSWORD: "{{ lookup('community.general.onepassword', 'pihole_password', field='password', vault=op_vault) }}"
       PIHOLE_DNS_: "technitium:53"
       DNSSEC: "true"
       CONDITIONAL_FORWARDING: "true"
