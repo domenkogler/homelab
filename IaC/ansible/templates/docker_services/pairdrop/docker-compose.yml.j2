@@ -1,0 +1,39 @@
+# pairdrop docker-compose.yml — P2P file share (pairdrop.kogler.si)
+#   Internal-only "AirDrop-style" direct device-to-device transfer (browser WebRTC),
+#   local-network device discovery. Family-facing via Traefik + Forward-Auth; NO public
+#   DNS record / WAN exposure — reachable on LAN/VPN only (HD-113).
+#
+#   Networking: `traefik-public` only (Traefik routes to it); no host port binds (HD-62).
+#   TLS via the wildcard *.kogler.si cert is REQUIRED for WebRTC in modern browsers —
+#   the Traefik route provides it. WS_FALLBACK=true covers VPN/WebRTC-blocked clients
+#   (direct local transfers still work peer-to-peer on the same LAN).
+#
+#   Image: lscr.io/linuxserver/pairdrop, pinned via `pairdrop_version` (HD-61/KOPS-053
+#   convention). Linuxserver image exposes port 3000 (http gui).
+#
+#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   — none required here (no API keys); auth is Authentik Forward-Auth at the edge.
+services:
+  pairdrop:
+    image: lscr.io/linuxserver/pairdrop:{{ pairdrop_version }}
+    container_name: pairdrop
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      PUID: "1000"          # linuxserver.io convention (uid of the runtime user)
+      PGID: "1000"
+      WS_FALLBACK: "true"   # enable WS fallback for VPN/WebRTC-blocked clients (see header)
+      RATE_LIMIT: "true"    # limit clients to 100 req / 5 min (family-facing abuse guard)
+      # DEBUG_MODE: "false" # do NOT enable in production (logs client IPs, see host-your-own.md)
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.pairdrop.rule: "Host(`pairdrop.kogler.si`)"
+      traefik.http.routers.pairdrop.entrypoints: websecure
+      traefik.http.routers.pairdrop.tls.certresolver: letsencrypt
+      traefik.http.routers.pairdrop.middlewares: authentik-forward-auth@file
+      traefik.http.services.pairdrop.loadbalancer.server.port: "3000"
+networks:
+  traefik-public:
+    external: true

@@ -55,6 +55,9 @@ minio_version: latest
 # Pinned to the verified semver (no `v` prefix on this image's tags); Renovate docker
 # datasource keeps it current once the tag is resolvable at render.
 keepalived_version: "2.3.4"
+# PairDrop (linuxserver.io) image tag — internal P2P file share (HD-113). Pinned semver
+# (linuxserver tags use plain `X.Y.Z`, no `v`); Renovate docker datasource tracks it.
+pairdrop_version: "1.11.2"
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.

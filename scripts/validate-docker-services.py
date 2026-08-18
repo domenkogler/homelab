@@ -91,6 +91,7 @@ WEB_SERVICES = {
     "sabnzbd", "qbittorrent", "profilarr",
     "immich-app",
     "dozzle",
+    "pairdrop",
     "technitium", "pihole", "n8n",
     "chat",
 }
@@ -120,6 +121,7 @@ BASE_CTX = {
     "traefik_version": "latest",
     "certs_dumper_version": "v2.8.3",
     "keepalived_version": "2.3.4",
+    "pairdrop_version": "1.11.2",
     "storage_uid": "1005",
     "storage_gid": "1005",
     "tuwunel_version": "latest",

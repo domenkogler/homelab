@@ -108,6 +108,8 @@ docker_services:
   - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent }   # + gluetun sidecar in template
   - { name: profilarr,    template_dir: profilarr }
   - { name: recyclarr,    template_dir: recyclarr }                          # scheduled worker, no UI
+  # File share (P2P, internal-only) — PairDrop (docs/services.md, HD-113)
+  - { name: pairdrop,     template_dir: pairdrop,     subdomain: pairdrop }
   # Update
   - { name: renovate,        template_dir: renovate }
   # CD

@@ -68,6 +68,7 @@ tags: [services, catalog]
 | gluetun | — | P+I | 15–30 / 50 | WireGuard sidecar → PrivadoVPN (NL); only qBittorrent routes through it |
 | Profilarr | profilarr | P+I | 50–100 / 150 | Quality-profile UI on top of Sonarr/Radarr |
 | Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (scheduled, no UI) |
+| PairDrop | pairdrop | I | 100–180 / 300 | **P2P file share** (HD-113) — browser WebRTC "AirDrop-style" transfers, local-network device discovery, internal-only via Forward-Auth (linuxserver image; no data persisted to disk) |
 | Tuwunel (homeserver) | matrix | P+I | 150–350 / 700 | Rust Matrix homeserver (`/_matrix/*`, public/federated, native SSO → Authentik; RocksDB file store in `/srv/docker/matrix` — no external DB) |
 | Element Web | chat | P | 30–80 / 150 | Matrix web client (SSO via homeserver → Authentik) |
 | Actual Budget | budget | P+I | 60–120 / 250 | Budgeting + investment tracking (Node.js + SQLite, one container; native Enable Banking sync, Forward-Auth) |
