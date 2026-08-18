@@ -1,0 +1,56 @@
+# open-webui docker-compose.yml — Family chat + RAG UI (ai.kogler.si)
+#   The flagship AI-stack UI (docs/ai-stack.md, HD-101). Public via the `ai` route:
+#   Authentik OIDC (per-user chat/history) + crowdsec-only at the Traefik edge.
+#
+#   Model backend = LiteLLM (spine, HD-100) over services-internal. RAG reaches:
+#     PGVector (db-internal)  — vector store (HD-102)
+#     Docling (services-internal) — OCR ingestion (HD-103)
+#   So this service joins traefik-public + services-internal + db-internal.
+#
+#   Secrets (fail-closed, HD-65):
+#     openwebui_secret (password -> password)  — WEBUI_SECRET_KEY (session/encryption)
+#     litellm_master_key (api -> credential)   — backend auth to LiteLLM
+#     openwebui_api (api -> username/credential) — Authentik OIDC client_id/secret (created at deploy)
+#   Image: openwebui/open-webui pinned via openwebui_version (HD-61/KOPS-053 convention).
+services:
+  open-webui:
+    image: openwebui/open-webui:{{ openwebui_version }}
+    container_name: open-webui
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - services-internal        # LiteLLM (models) + Docling (OCR)
+      - db-internal              # PGVector (RAG vector store)
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      WEBUI_SECRET_KEY: "{{ lookup('community.general.onepassword', 'openwebui_secret', field='password', vault=op_vault) }}"
+      # Model backend = LiteLLM (the spine, HD-100). LiteLLM = OpenAI-compatible at :4000/v1.
+      OPENAI_API_BASE_URL: "http://litellm:4000/v1"
+      OPENAI_API_KEY: "{{ lookup('community.general.onepassword', 'litellm_master_key', field='credential', vault=op_vault) }}"
+      # Default model shown in the UI (a LiteLLM-exposed model from config.yaml)
+      DEFAULT_MODELS: "ollama/qwen2.5,openrouter/gpt-4o-mini"
+      # Authentik OIDC (per-user login). Redirect URI must match the Authentik provider:
+      #   https://ai.kogler.si/oauth2/callback
+      ENABLE_OIDC: "true"
+      OIDC_ISSUER: "https://sso.kogler.si/application/o/openwebui/"
+      OIDC_CLIENT_ID: "{{ lookup('community.general.onepassword', 'openwebui_api', field='username', vault=op_vault) }}"
+      OIDC_CLIENT_SECRET: "{{ lookup('community.general.onepassword', 'openwebui_api', field='credential', vault=op_vault) }}"
+      OIDC_REDIRECT_URI: "https://ai.kogler.si/oauth2/callback"
+      # RAG store (PGVector on db-internal) — connector configured in UI/settings at deploy;
+      # Docling (services-internal) used as the OCR pipeline.
+    volumes:
+      - /srv/docker/open-webui:/app/backend/data   # users, chat history, settings (stateful; include in Kopia scope)
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.open-webui.rule: "Host(`ai.kogler.si`)"
+      traefik.http.routers.open-webui.entrypoints: websecure
+      traefik.http.routers.open-webui.tls.certresolver: letsencrypt
+      traefik.http.routers.open-webui.middlewares: crowdsec-only@file   # + Authentik OIDC (app-level; native OIDC, no Forward-Auth per HD-101)
+      traefik.http.services.open-webui.loadbalancer.server.port: "8080"
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true
+  db-internal:
+    external: true

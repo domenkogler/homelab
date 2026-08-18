@@ -32,7 +32,7 @@ tags: [services, catalog]
 | Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
 | Immich-ML | — | I | 300–600 / 1,200 | Face recognition, smart search — shares AMD VRAM |
 | LiteLLM | — | I | 120–250 / 500 | **AI stack** — LLM gateway/router (HD-100): local Ollama + OpenRouter (gen) + Cohere (embeddings). Single OpenAI-compatible endpoint, services-internal + llm-backend; own SQLite keys/spend; only component holding upstream keys |
-| Open WebUI | ai | P | 300–600 / 1,500 | **AI stack** — family chat + RAG UI; Authentik OIDC + crowdsec-only; Cohere embed-v4, Docling OCR, PGVector store. *(planning)* |
+| Open WebUI | ai | P | 300–600 / 1,500 | **AI stack** — family chat + RAG UI (HD-101); public via Authentik OIDC + crowdsec-only; backend = LiteLLM (HD-100); RAG: Cohere embed-v4 (via LiteLLM), Docling (HD-103), PGVector (HD-102); data volume `/srv/docker/open-webui` |
 | Docling | — | I | 150–400 / 900 | **AI stack** — OCR / document understanding for RAG (CPU, HD-103; `docling-serve-cpu:v1.30.0`, services-internal, v1 API, HF weight cache volume) |
 | OpenClaw | — | I | 200–500 / 1,200 | **AI stack** — agent orchestration (ex-Clawd); models → LiteLLM; OpenCloud WebDAV skill; **version pinned**. *(planning)* |
 | PGVector | — | D | 100–250 / 600 | **AI stack** — vector DB for Open WebUI RAG + chat history (`db-internal`, HD-102; `pgvector/pgvector:0.8.6-pg16-trixie`; tagged; backup via db-backup DB04 → Kopia) |
@@ -124,7 +124,7 @@ WAN allow. Everything else in the catalog is **internal-only** (no public record
 | `sso` | Authentik |
 | `foto` | Immich |
 | `file` | OpenCloud |
-| `ai` | Open WebUI — AI chat/RAG, public, Authentik OIDC + crowdsec-only *(planning)* |
+| `ai` | Open WebUI — AI chat/RAG, public, Authentik OIDC + crowdsec-only (HD-101) |
 | `git` | Forgejo |
 | `ha` | Home Assistant (VIP, HA-native auth, no Forward-Auth) |
 | `vpn` | Headscale |

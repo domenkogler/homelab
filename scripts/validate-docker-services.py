@@ -51,6 +51,7 @@ NETWORK_MAP = {
     "loki":              {"db-internal"},
     "prometheus":        {"db-internal"},
     "grafana":           {"traefik-public", "db-internal"},
+    "open-webui":        {"traefik-public", "services-internal", "db-internal"},   # HD-101: edge + LiteLLM/Docling + PGVector
     "signal-cli-rest-api": {"services-internal"},
     "dozzle":            {"traefik-public"},
     "sunshine":          {"services-internal"},
@@ -93,6 +94,7 @@ WEB_SERVICES = {
     "dozzle",
     "pairdrop",
     "stirling-pdf",
+    "open-webui",
     "technitium", "pihole", "n8n",
     "chat",
 }
@@ -128,6 +130,7 @@ BASE_CTX = {
     "pgvector_version": "0.8.6-pg16-trixie",
     "docling_version": "v1.30.0",
     "litellm_version": "main-stable",
+    "openwebui_version": "0.11.0",
     "storage_uid": "1005",
     "storage_gid": "1005",
     "tuwunel_version": "latest",

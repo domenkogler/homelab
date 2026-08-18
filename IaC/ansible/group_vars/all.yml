@@ -73,6 +73,10 @@ docling_version: "v1.30.0"
 # MUST pin to a verified semver (main-vX.Y.Z) at first deploy — see matrix HD-121 precedent
 # for the fluid-tag policy; Renovate tracks it once a resolvable tag is chosen.
 litellm_version: main-stable
+# Open WebUI (AI-stack chat + RAG UI) image tag — HD-101. Pinned to a verified semver;
+# Renovate docker datasource tracks it. Base image connects to LiteLLM as an external
+# OpenAI-compatible backend (no bundled Ollama/CUDA variant needed).
+openwebui_version: "0.11.0"
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.
