@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 84 open · 9 decisions · 2 purchases · 9 parked · 32 done (in changelog)
+**Status:** 81 open · 9 decisions · 2 purchases · 9 parked · 35 done (in changelog)
 
 ---
 
@@ -75,7 +75,6 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-121 | 2 | AI | 1 | **Matrix homeserver `:latest` → pin** — obscure Tuwunel image on mutable tag (KOPS-030). · source qwen. · [services-matrix.md](docs/services-matrix.md) |
 | HD-122 | 2 | AI | 2 | **Matrix federation default decision** — federation enabled lets any Matrix user DM the family (KOPS-033); needs an explicit permit-list or disable before go-live. · source qwen. · [services-matrix.md](docs/services-matrix.md) |
 | HD-40A | 3 | AI + Human | 3 | *(Phase 1.5)* **Provision VPS + establish public Traefik edge** — Contabo VPS purchased, WireGuard S2S home↔VPS, Traefik on VPS terminates TLS for public subset. Backends still on oldsrv over WG tunnel. Cloudflare A records updated. · [services-vps.md](docs/services-vps.md) |
 | HD-40B | 3 | AI | 3 | *(Phase 1.5)* **Migrate public-facing services to VPS** — Authentik, OpenCloud web, Forgejo, Grafana. Databases stay on LAN over WG tunnel. · [services-vps.md](docs/services-vps.md) |
@@ -105,8 +104,6 @@
 | HD-15 | 1 | AI | 2 | **Confirm HACS custom-component versions/repos** — `motion`, `ai_task`, Weather-2000, OneDrive, go2rtc via SSH / config git repo (REST API can't expose). · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-17 | 3 | AI | 2 | **Single failover button + `ha-failover.sh`** — RMat → wait → VIP → standby, on Homepage; manual-trigger design accepted. ✅ **IaC done + committed:** `ha-failover.sh` (forward + reverse), standby keepalived normal/failover configs (VRID/interface/priority vars), trigger API endpoint + systemd unit (`ha-failover-api`, token auth), Homepage forward/reverse buttons. ⏳ **Not deployed** (hosts not provisioned); deploy needs 1Password `ha-failover_api` (api → credential) + the HmIP-RFUSB stick physically moved at runbook time. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-18 | 2 | Human | 2 | **Once: test HmIP-RFUSB pairing transfer** + entity reconstruction across stick move. Hands-on; requires HD-13. · [smart-home-failover.md](docs/smart-home-failover.md) |
-| HD-79 | 2 | AI | 2 | **Pin RaspberryMatic USB path per host** — exact `/dev/serial/by-id/` in `host_vars` + udev rule/symlink (glob in template doesn't resolve; KOPS-040). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
-| HD-123 | 2 | AI | 2 | **RaspberryMatic compose hygiene** — duplicate host port 2001 map (KOPS-049); remove host port 80 conflicting with Traefik (KOPS-038) — bind to internal network only. · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-124 | 3 | AI | 2 | **Keepalived hardening** — pin standby `:latest` image (KOPS-053) + replace `auth_type PASS` (obfuscated, KOPS-020) with a real auth mechanism. · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-20 | 1 | Human | 3 | **Confirm full Supervisor add-on list** — `/api/hassio/addons` returned 401 (non-admin token); needs admin/SSH on HAOS host. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-21 | 1 | AI + Human | 3 | **Confirm ESPHome / Guition ESP32-S3 status** — `esphome` not loaded; agent checks network/repo, owner knows if the device was ever added. · [home-assistant-current.md](docs/home-assistant-current.md) |
@@ -199,9 +196,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 84
+- Open rows: 81
 - Decisions front: 9 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=2, platform=2, security=10, services=11, smart=14, storage=6
+- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=2, platform=2, security=10, services=10, smart=12, storage=6
 
 ## 6. Conventions quick-reference
 

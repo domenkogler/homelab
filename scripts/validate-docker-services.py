@@ -119,6 +119,8 @@ BASE_CTX = {
     "letsencrypt_email": "domen@kogler.si",
     "traefik_version": "latest",
     "certs_dumper_version": "v2.8.3",
+    "tuwunel_version": "latest",
+    "homematic_usb_by_id": "/dev/serial/by-id/usb-eQ-3__HmIP-RFUSB_TEST",
     "wildcard_cert_file": "kogler.si.pem",
     "wildcard_cert_key_file": "kogler.si-key.pem",
     "wildcard_cert_domain": "kogler.si",

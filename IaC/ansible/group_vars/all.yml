@@ -28,6 +28,11 @@ letsencrypt_email: domen@kogler.si
 # wildcard PEM pair out of acme.json into /opt/traefik/certs with the exact
 # wildcard_cert_file / wildcard_cert_key_file names (the Pi edge syncs from these).
 certs_dumper_version: v2.8.3
+# Tuwunel (Matrix homeserver, jevolk/tuwunel) image tag — MUST be pinned to a verified
+# semver at first deploy (KOPS-030 / HD-121): it is an obscure single-maintainer image facing
+# public federation, so `latest` is a supply-chain risk. Set the exact tag you verified against
+# the registry here; Renovate docker datasource will then keep it current.
+tuwunel_version: latest
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.

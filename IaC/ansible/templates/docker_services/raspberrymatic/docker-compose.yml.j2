@@ -14,6 +14,8 @@
 # Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 {% set rmat_name = 'raspberrymatic' if (instance | default('primary')) == 'primary' else 'raspberrymatic-standby' %}
 {% set rmat_restart = 'unless-stopped' if (instance | default('primary')) == 'primary' else 'no' %}
+{# CCU admin UI host port — avoid :80 conflict with Traefik (KOPS-038 / HD-123); per-instance. #}
+{% set rmat_ui_port = 8085 if (instance | default('primary')) == 'primary' else 8086 %}
 
 services:
   raspberrymatic:
@@ -22,10 +24,10 @@ services:
     restart: {{ rmat_restart }}   # primary: always-on; standby: cold (trigger-started)
     privileged: false
     cap_add: []
-    # USB radio: pass the HmIP-RFUSB stick into the CCU by stable by-id path.
-    # Replace "usb-eQ-3__HmIP-RFUSB_*" with the actual by-id symlink for the stick.
+    # USB radio: pass the HmIP-RFUSB stick into the CCU by its stable by-id path (per-host
+    # host_var — filled at deploy, KOPS-040 / HD-79). /dev/ttyACM0 can renumber; by-id cannot.
     devices:
-      - /dev/serial/by-id/usb-eQ-3__HmIP-RFUSB_*:/dev/ttyACM0
+      - "{{ homematic_usb_by_id }}:/dev/ttyACM0"
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # fixed CCU IP on the Home/IoT VLAN so both HA nodes reach 2001/2010 identically
@@ -36,7 +38,7 @@ services:
     ports:
       - "2001:2001/tcp"     # XML-RPC (thermostats/weather/alarm)
       - "2010:2010/tcp"     # XML-RPC TLS
-      - "80:80"             # CCU admin UI (internal only)
+      - "{{ rmat_ui_port }}:80"   # CCU admin UI mapped off :80 to avoid Traefik conflict; internal only (KOPS-038/049 / HD-123)
     volumes:
       - ./data:/usr/local/share/raspberrymatic      # persistent RMat host config/roles
 
