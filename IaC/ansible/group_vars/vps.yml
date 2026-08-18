@@ -21,13 +21,36 @@ vps_host:
   # SSH connection facts (ansible_user, ansible_host) live in host_vars/vps.kogler.si.yml.
 
 docker_services:
-  - { name: traefik,        template_dir: traefik,      enabled: false }
-  - { name: crowdsec,       template_dir: crowdsec,     enabled: false }
-  - { name: authentik,      template_dir: authentik,    enabled: false }
-  - { name: opencloud,      template_dir: opencloud,    enabled: false }
-  - { name: immich-app,     template_dir: immich-app,   enabled: false }
-  - { name: forgejo,        template_dir: forgejo,      enabled: false }
-  - { name: grafana,        template_dir: grafana,      enabled: false }
-  - { name: n8n,            template_dir: n8n,           enabled: false }
-  - { name: kopia-server,   template_dir: kopia-server, enabled: false }
-  - { name: db-backup,      template_dir: db-backup,    enabled: false }
+  # === Edge tier (self-contained public edge — HD-40A / HD-135) ===
+  - { name: traefik,        template_dir: traefik,   enabled: true }
+  - { name: crowdsec,       template_dir: crowdsec,  enabled: true }
+  - { name: authentik,      template_dir: authentik, subdomain: sso, enabled: true }  # + bundled pg/redis
+  # === Public live-data apps + co-located DBs (NVMe) ===
+  - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true }  # + bundled db
+  - { name: immich-app,     template_dir: immich-app, subdomain: foto, enabled: true } # + pg/valkey; ML->oldsrv
+  - { name: forgejo,        template_dir: forgejo,   subdomain: git, enabled: true }   # + bundled db
+  # === AI stack (public/gateway tier — HD-100..104) ===
+  - { name: litellm,        template_dir: litellm,   enabled: true }  # llm-backend -> oldsrv ollama over WG
+  - { name: pgvector,       template_dir: pgvector,  enabled: true }  # RAG vector store (db-internal)
+  - { name: docling,        template_dir: docling,   enabled: true }  # OCR (services-internal)
+  - { name: open-webui,     template_dir: open-webui, subdomain: ai, enabled: true }
+  - { name: openclaw,       template_dir: openclaw,  enabled: true }
+  # === Observability backend (VPS = reliable tier; oldsrv Alloy forwards over WG) ===
+  - { name: prometheus,     template_dir: prometheus, enabled: true }
+  - { name: loki,           template_dir: loki,       enabled: true }
+  - { name: grafana,        template_dir: grafana,    subdomain: stats, enabled: true }
+  - { name: blackbox-exporter, template_dir: blackbox-exporter, enabled: true }
+  # === Alert brain (WG-down -> net mail/Signal; independent of tunnel) ===
+  - { name: n8n,            template_dir: n8n,       subdomain: auto, enabled: true }
+  # === Backup agents (Kopia -> backup Box; db-backup dumps) ===
+  - { name: kopia-server,   template_dir: kopia-server, enabled: true }
+  - { name: db-backup,      template_dir: db-backup,    enabled: true }
+  # === Matrix — public + federated (HD-46/47; homeserver next to the public edge) ===
+  - { name: matrix,         template_dir: matrix,    enabled: true }
+  - { name: chat,           template_dir: element-web, subdomain: chat, enabled: true }
+  # === Edge accessories (moved from oldsrv — VPS residency, HD-135 deliberations) ===
+  - { name: headscale,      template_dir: headscale, subdomain: vpn, enabled: true }  # public coordination (rev. network-vpn.md)
+  - { name: metabase,       template_dir: metabase,  subdomain: sec, enabled: true }  # CrowdSec dashboard
+  - { name: pairdrop,       template_dir: pairdrop,  subdomain: pairdrop, enabled: true }
+  - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, enabled: true }
+  - { name: renovate,       template_dir: renovate,  enabled: true }  # co-located with Forgejo/GitOps

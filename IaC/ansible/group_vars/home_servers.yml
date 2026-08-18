@@ -1,10 +1,11 @@
 ---
-# Home server configuration — Phase 1 (desktop) or Phase 2 (proxmox)
+# Home server configuration — OLDSRV (bare-metal Debian + Docker, RX 7600, 48 GB RAM)
 #
-# === Phase 1: all services run on oldsrv ===
-# Phase 2: public-facing services (traefik, crowdsec, authentik, opencloud,
-# immich-app, forgejo, grafana, n8n, kopia-server, db-backup) move to VPS.
-# Templates stay here; deployment target is controlled by group_vars.
+# === Service placement (HD-135 split, 2026-08-18) ===
+# Old-srv keeps the GPU / LAN / storage-bound core (ollama, immich-ml, jellyfin,
+# sunshine, media/*arr, DNS, ha-standby, homepage, dozzle) + the thin Alloy collector.
+# The public edge + live-data apps + AI stack + observability backend + alert brain
+# (n8n) + backup agents moved to the VPS (group_vars/vps.yml). See docs/services.md.
 
 homelab_mode: desktop          # 'desktop' for Phase 1, 'proxmox' for Phase 2
 gpu_vendor: amd
@@ -52,60 +53,39 @@ grafana_alert_webhook_url: "http://n8n:5678/webhook/homelab-alerts"
 # Required for services whose subdomain ≠ name (e.g. grafana → stats.kogler.si).
 
 docker_services:
-  # Edge
-  - { name: traefik,        template_dir: traefik }
-  - { name: crowdsec,       template_dir: crowdsec }
-  # Identity
-  - { name: authentik,      template_dir: authentik,      subdomain: sso }
-  # Platform
-  - { name: minio,          template_dir: minio }       # S3 for Immich originals (HD-131 D1)
-  - { name: opencloud,      template_dir: opencloud,      subdomain: file }
-  - { name: immich-app,     template_dir: immich-app,     subdomain: foto }
-  - { name: forgejo,        template_dir: forgejo,        subdomain: git }
-  # AI
+  # === This is OLDSRV — GPU / LAN / storage-bound services only (HD-135 split). ===
+  # Public edge + live-data apps + observability backend + alert brain + backup agents
+  # moved to the VPS (group_vars/vps.yml). old-srv keeps the hardware-bound core + the
+  # thin Alloy collector (monitoring role) that forwards home telemetry to the VPS
+  # Prometheus/Loki over the wg-vps-services tunnel.
+
+  # --- Compute / GPU backend (cannot leave the GPU box) ---
   - { name: ollama,          template_dir: ollama }
-  - { name: immich-ml,       template_dir: immich-ml }
-  - { name: pgvector,        template_dir: pgvector }   # AI-stack RAG vector store (db-internal, HD-102)
-  - { name: docling,         template_dir: docling }    # AI-stack OCR (CPU, services-internal, HD-103)
-  - { name: litellm,         template_dir: litellm }    # AI-stack LLM spine (services-internal + llm-backend, HD-100)
-  - { name: open-webui,      template_dir: open-webui,      subdomain: ai }   # AI-stack chat + RAG UI (public, HD-101)
-  - { name: openclaw,        template_dir: openclaw }    # AI-stack agent/orchestration (internal, services-internal, HD-104)
-  # DNS (technitium primary on oldsrv; secondary moved to the Pi — see group_vars/raspberry_pi.yml)
+  - { name: immich-ml,       template_dir: immich-ml }   # ML offload for immich-app on VPS (over WG)
+
+  # --- DNS (LAN split-horizon primary on oldsrv; secondary on Pi) ---
   - { name: technitium,      template_dir: technitium, subdomain: dns, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: pihole,          template_dir: pihole,     subdomain: ad }
-  # Smart home failover: standby HA + keepalived VIP on oldsrv (docs/smart-home-failover.md)
+
+  # --- Smart home failover: standby HA + keepalived VIP on oldsrv ---
   # COLD by design — docker_services must NOT start them (exactly one active HA). The
   # home_assistant role renders their compose files + configs; ha-failover.sh starts
   # home-assistant-standby on manual forward takeover.
-  #
-  #  raspberrymatic-standby REMOVED (2026-08-18, HD-13 parked): local Homematic
-  #  (HmIP-RFUSB + RaspberryMatic) is DEactivated repo-wide — HmIP-HAP stays in cloud mode
-  #  until an HmIP-RFUSB is bought. Re-add here (instance: standby, enabled: false) when the
-  #  RFUSB is purchased.
   - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: false }
-  # VPN
-  - { name: headscale,       template_dir: headscale,       subdomain: vpn }
-  # Backup
-  - { name: kopia-server,    template_dir: kopia-server }
-  - { name: db-backup,       template_dir: db-backup }
-  # Dashboard & Automation
-  - { name: grafana,         template_dir: grafana,    subdomain: stats }
-  - { name: n8n,             template_dir: n8n,         subdomain: auto }
-  # Dashboard
-  - { name: homepage,        template_dir: homepage,        subdomain: home }
-  - { name: metabase,        template_dir: metabase, subdomain: sec }
-  # Observability
-  - { name: blackbox-exporter, template_dir: blackbox-exporter }
-  - { name: loki,            template_dir: loki }
-  - { name: prometheus,      template_dir: prometheus }
-  - { name: signal-cli-rest-api, template_dir: signal-cli-rest-api }
-  - { name: dozzle,       template_dir: dozzle,       subdomain: logs }
-  # Stream
-  - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
-  # Messaging (Matrix) — native-only, public+federated, SSO -> Authentik (docs/services-matrix.md)
-  - { name: matrix,         template_dir: matrix }
-  - { name: chat,           template_dir: element-web, subdomain: chat }
-  # Media / *arr stack — internal-only, docs/services.md (subdomains: media, seerr, sab, torrent)
+
+  # --- Dashboard (needs docker.sock to read home container reachability) ---
+  - { name: homepage,        template_dir: homepage, subdomain: home }
+
+  # --- Observability: per-host log viewer (docker.sock = oldsrv containers) ---
+  # NOTE: the central backend (prometheus/loki/grafana) is on the VPS; Alloy (host,
+  # monitoring role) forwards oldsrv metrics/logs over the wg-vps-services tunnel.
+  - { name: dozzle,          template_dir: dozzle, subdomain: logs }
+  - { name: signal-cli-rest-api, template_dir: signal-cli-rest-api }   # Signal gateway (n8n on VPS reaches here over WG)
+
+  # --- Stream ---
+  - { name: sunshine,        template_dir: sunshine, enabled: "{{ homelab_mode == 'desktop' }}" }
+
+  # --- Media / *arr stack — internal-only, documents/services.md ---
   - { name: jellyfin,     template_dir: jellyfin,     subdomain: media }
   - { name: seerr,        template_dir: seerr }
   - { name: sonarr,       template_dir: sonarr }
@@ -117,11 +97,9 @@ docker_services:
   - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent }   # + gluetun sidecar in template
   - { name: profilarr,    template_dir: profilarr }
   - { name: recyclarr,    template_dir: recyclarr }                          # scheduled worker, no UI
-  # File share (P2P, internal-only) — PairDrop (docs/services.md, HD-113)
-  - { name: pairdrop,     template_dir: pairdrop,     subdomain: pairdrop }
-  # PDF toolkit (internal-only) — Stirling PDF (docs/services.md, HD-58)
-  - { name: stirling-pdf, template_dir: stirling-pdf, subdomain: pdf }
-  # Update
-  - { name: renovate,        template_dir: renovate }
-  # CD
-  - { name: doco-cd,         template_dir: doco-cd }
+
+  # --- Services MOVED to the VPS (group_vars/vps.yml) — not deployed on oldsrv ---
+  # opencloud/immich-app/forgejo/litellm/pgvector/docling/open-webui/openclaw,
+  # prometheus/loki/grafana/blackbox-exporter (backend on VPS), n8n, kopia-server,
+  # db-backup, matrix, chat, headscale, metabase, pairdrop, stirling-pdf, renovate.
+  # MinIO REMOVED (2026-08-18, HD-135): Immich originals = live Hetzner Box (CIFS), not S3.
