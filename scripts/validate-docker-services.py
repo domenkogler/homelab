@@ -119,6 +119,7 @@ BASE_CTX = {
     "letsencrypt_email": "domen@kogler.si",
     "traefik_version": "latest",
     "certs_dumper_version": "v2.8.3",
+    "keepalived_version": "2.3.4",
     "storage_uid": "1005",
     "storage_gid": "1005",
     "tuwunel_version": "latest",

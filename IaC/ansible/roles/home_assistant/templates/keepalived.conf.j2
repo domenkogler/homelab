@@ -8,6 +8,9 @@
 # network role's trunk interface once static-IP/trunk provisioning lands.
 # auth_pass: VRRP PASS is limited to 8 chars — truncate the 1Password secret
 # identically on BOTH nodes (same lookup ⇒ same truncation).
+# NOTE (HD-124/KOPS-020): auth_type PASS is the MAXIMUM the VRRP protocol provides
+# (VRRPv3 removed Authentication Header entirely); security = VLAN isolation of the
+# multicast domain, not a stronger cipher — see smart-home-failover.md.
 vrrp_instance HA_VIP {
     state BACKUP
     interface {{ ha_keepalived_interface }}

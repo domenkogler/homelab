@@ -51,6 +51,10 @@ crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/h
 # class / HD-61 convention). MinIO publishes immutable RELEASE.<date> tags; set the exact tag you
 # verified here (default `latest` placeholder — Renovate docker datasource tracks it once pinned).
 minio_version: latest
+# osixia/keepalived image tag — shared by Pi primary + oldsrv standby (HD-124/KOPS-053).
+# Pinned to the verified semver (no `v` prefix on this image's tags); Renovate docker
+# datasource keeps it current once the tag is resolvable at render.
+keepalived_version: "2.3.4"
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.

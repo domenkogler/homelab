@@ -31,7 +31,7 @@ services:
       - ./secrets.yaml:/config/secrets.yaml:ro   # 1Password-rendered (role)
 
   keepalived:
-    image: osixia/keepalived:latest
+    image: osixia/keepalived:{{ keepalived_version }}   # pinned (HD-124/KOPS-053)
     restart: unless-stopped
     network_mode: host          # VRRP multicast requires host networking
     cap_add:

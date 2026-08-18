@@ -56,6 +56,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - **Devices, Companion apps, Traefik's `ha` route, and Technitium DNS all point at the VIP**, never a node-specific IP.
 - On takeover the VIP follows the active node → **no per-device reconfiguration and no DNS flip on failover**. This is the key that makes failover practical.
 - **Firewall:** Home→IoT trusted-IP rules for MQTT/HA must reference the **VIP / an IP-set**, not a per-node IP, so the standby can reach Shelly/KNX after takeover (see `network-vlans.md`).
+- **VRRP auth constraint (HD-124 / KOPS-020):** keepalived uses `auth_type PASS` (an 8-char password from `ha-vrrp_password`, truncated identically on both nodes). VRRP has **no stronger in-protocol auth** — VRRPv2 offers only PASS (plaintext) or AH (discontinued), and VRRPv3 (RFC 5798) **removed Authentication Header entirely** — so `auth_type PASS` is the maximum the protocol provides, not an oversight to "fix" with a stronger cipher. The real mitigation is **network trust**: VRRP multicast runs only on the Home VLAN (10), isolated from the Management/IoT planes. Do not chase a "real auth mechanism" here (none exists); rely on VLAN isolation instead. (Likewise, keepalived image is pinned to `keepalived_version` — HD-124/KOPS-053.)
 
 > ⚠ **VRRP requires a controllable host on both sides.** This is only possible once the Pi runs **Debian + HA Container** (see Decision: HA OS vs Debian/Docker below). If the Pi ever runs HA OS again, VRRP on it is not feasible → fall back to manual DNS/NAT steering (slower, still workable).
 
