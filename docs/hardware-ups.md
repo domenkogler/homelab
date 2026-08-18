@@ -50,7 +50,7 @@ The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) 
 | **Modbus TCP** | **502** | ✅ Open, working (unit ID 1). Responds to Read Holding Registers (fn `0x03`); register block 0 starts with the ASCII strings `PHOENIXTEC` then `RT 3K` (model). |
 | Web UI (HTTP) | 80 | ✅ Open |
 | Web UI (HTTPS) | 443 | ✅ Open |
-| SNMP | 161 (UDP) | ⚠️ TCP probe closed; **UDP untested** — confirm |
+| SNMP | 161 (UDP) | ⚠️ **Untestable from agent host** — TCP probe closed; UDP reachable only from the Mgmt VLAN (99). Monitoring is NUT/USB (no SNMP consumer), so this is informational only. |
 
 ### Modbus TCP notes
 - Unit ID **1**, function **0x03** (Read Holding Registers) confirmed working over the LAN.
@@ -90,7 +90,7 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 
 ## Open Items
 
-- [ ] **SNMP UDP** — confirm whether the network card serves SNMP (161/udp).
+- [ ] **SNMP UDP** — Mgmt-VLAN-only: the `ups` host is unreachable from the agent/LAN network segment (the Management VLAN is intentionally isolated — its gateway reports destination unreachable), so the probe must run from a Management-VLAN host (or via the management-side route) at deploy. Even if the NIC serves SNMP (161/udp), **no consumer uses it** — UPS monitoring is exclusively NUT over USB (`hardware-ups` topology above), so this is confirmational only. (HD-26 attempted 2026-08-18: blocked by Mgmt-VLAN isolation.)
 
 > Modbus TCP register-map item **removed (retired):** HA Modbus UPS sensors were removed;
 > UPS monitoring is NUT/USB via `nut_exporter` (`hardware-ups` topology above).

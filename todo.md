@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 64 open · 7 decisions · 2 purchases · 9 parked · 53 done (in changelog)
+**Status:** 63 open · 6 decisions · 2 purchases · 9 parked · 54 done (in changelog)
 
 ---
 
@@ -26,17 +26,17 @@
 | HD-22 | 1 | AI + Human | *(decision)* **Weather 2000 (SI) source** — third-party/HACS vs core; retain or replace. Agent researches, human decides. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-24 | 1 | Human | *(decision)* **TileBoard wall tablet model** — iPad / Android / repurposed; family/hardware purchase. · [interfaces.md](docs/interfaces.md) |
 | HD-25 | 1 | Human | *(decision)* **Wake word final approval** — "Hey, assistant" is tentative; family meeting needed. · [smart-home.md](docs/smart-home.md) |
-| HD-29 | 2 | Human | *(decision)* **Off-site storage: two Hetzner Storage Boxes (drop iDrive)** — ✅ **Decided (2026-08-18):** **two Hetzner Storage Boxes** — nearest-DC box = **live** (Immich originals S3 + family SMB/WebDAV drives), far-DC box (Helsinki/Falkenstein) = **backup** (Kopia repo). **iDrive e2 dropped** (Hetzner is cheaper per TB + SMB/WebDAV; single-provider risk on Hetzner accepted). Decide box size tier for Immich-originals growth + Kopia backup capacity. Input to HD-31. · [backup.md](docs/backup.md), [subscription.md](docs/subscription.md) |.md](docs/backup.md) |
+| HD-29 | 2 | Human | *(decision)* **Off-site storage: two Hetzner Storage Boxes (drop iDrive)** — ✅ **Decided (2026-08-18):** **two Hetzner Storage Boxes** — nearest-DC box = **live** (Immich originals S3 + family SMB/WebDAV drives), far-DC box (Helsinki/Falkenstein) = **backup** (Kopia repo). **iDrive e2 dropped** (Hetzner is cheaper per TB + SMB/WebDAV; single-provider risk on Hetzner accepted). **Size (2026-08-18): 1 TB × 2** — live box fits 300 GB Immich library (~30%, headroom for growth + drives); backup box holds dedup/encrypted Kopia repo fine. Hetzner boxes are **live-upgradable** in-place → 1 TB is a safe start, bump tier when library crosses ~600–700 GB. **Backup-space add-on:** **live box → minimal only** (its copy-protection = ZFS + far-DC Kopia, NOT same-DC snapshots — geo-separation is the point); **backup box → carry the backup space** (protects the Kopia repo, the actual off-site copy). Input to HD-31. · [backup.md](docs/backup.md), [subscription.md](docs/subscription.md) |.md](docs/backup.md) |
 | HD-39 | 1 | Human | *(decision)* **watchtower for Pi HA container** — Renovate + pinned images may suffice. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-52 | 1 | AI + Human | *(decision)* **OpenCloud sync client packaging** — official client (opencloud-eu/desktop) ships AppImage only, no apt repo; options: AppImage → /opt + .desktop entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Blocks office role's client. · [llm-office.md](docs/llm-office.md) |
-| HD-55 | 2 | AI + Human | *(decision)* **Alloy per-host `instance` label** — every host scrapes `127.0.0.1:9998` → identical `instance` (series collide in Prometheus); set per-host (e.g. `{{ inventory_hostname }}`) before enabling Alloy on the Pi. · [observability.md](docs/observability.md) |
+
 
 ### Purchases
 
 | ID | D | Exec | Item |
 |----|---|------|------|
 | HD-30 | 1 | Human | *(buy)* **Sign up Infomaniak kSuite** — email, CalDAV, catch-all aliases; ~€3–5/mo; secrets → 1Password `Homelab`. · [subscription.md](docs/subscription.md) |
-| HD-31 | 1 | Human | *(buy)* **Sign up two Hetzner Storage Boxes** — ✅ **Decided (2026-08-18):** buy **two** Storage Boxes per HD-29 (live: nearest DC — Immich S3 + drives; backup: far DC Helsinki/Falkenstein — Kopia repo); **iDrive e2 dropped**. Depends on HD-29. · [subscription.md](docs/subscription.md) |
+| HD-31 | 1 | Human | *(buy)* **Sign up two Hetzner Storage Boxes** — ✅ **Decided (2026-08-18):** buy **two** 1 TB Storage Boxes per HD-29 (live: nearest DC — Immich S3 + drives; backup: far DC Helsinki/Falkenstein — Kopia repo); **iDrive e2 dropped**. **Buy spec:** live box = 1 TB, **minimal Hetzner backup-space** (copy-protection is ZFS + far-DC Kopia); backup box = 1 TB + **carry the backup-space add-on** (protects the Kopia repo). Secrets (S3/SFTP/WebDAV creds for both boxes) → 1Password `Homelab` per `<service>_<type>`. Depends on HD-29. · [subscription.md](docs/subscription.md) |
 
 ## 2. Active work — by module
 
@@ -54,7 +54,7 @@
 | HD-06 | 3 | AI | 1 | **NUT master on nas** — `usbhid-ups`, `upsd` (3493), `nut_exporter`, `upssched-cmd` notify. ✅ **IaC done+fixed** (SSOT exporter on master `:9199`, scrape via `all.yml` vars, `@latest` release w/ verified asset URL, `nut-exporter_password` upsd auth, SMTP+Signal notify wired via `NOTIFYCMD`, battery.runtime/charge thresholds, USB verify task — G1–G7). ⏳ **Missing:** live deploy on nas (host not provisioned yet) + battery-pull test; feeds HD-07 (clients) / HD-08 (metrics+alerts). · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-08 | 3 | AI | 2 | **Wire UPS metrics + alerts into Prometheus/Grafana** — Critical battery/runtime, Warning on-battery, Info transitions. Depends on HD-06/07. ✅ **Monitoring IaC implemented** (nut_* alert rules + UPS dashboard — commits `aaa3f7c`/`8c50d7f`). ⚠ **Deploy-time verification:** confirm DRuggeri/nut_exporter `nut_ups_status` bitmask + metric names, and that Grafana alert-rule provisioning loads (live check). · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-09 | 1 | AI | 2 | **UPS web-UI firewall rule** — open 80/443 Home→Mgmt for `10.10.99.9` only; Modbus 502 retired (no consumer). ✅ **IaC done** (router role: trusted-admin → `ups_management` 80/443); ⏳ not deployed. · [hardware-ups.md](docs/hardware-ups.md) |
-| HD-26 | 1 | AI | 3 | **Confirm UPS SNMP UDP (161/udp)** on the NIC — TCP probe closed, UDP untested; one probe vs `10.10.99.9`. · [hardware-ups.md](docs/hardware-ups.md) |
+| HD-26 | 1 | AI | 3 | **Confirm UPS SNMP UDP (161/udp)** on the NIC — ⚠️ **Probe attempted (2026-08-18), blocked by Mgmt-VLAN isolation:** `10.10.99.9` unreachable from agent host (`10.10.250.0/24`, gateway → destination unreachable). Probe must run from a Mgmt-VLAN (99) host at deploy. Even if the NIC serves SNMP, **no consumer uses it** — monitoring is NUT/USB, so this is confirmational only. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-128 | 1 | AI | 1 | **Resolve NVMe pool device-path TODO** — ✅ **IaC done:** replaced the literal `<970_EVO_SERIAL>` TODO in the `storage` role with SSOT var `storage_nvme_data_by_id` (host_vars/oldsrv.kogler.si.yml), referenced in the `nvme` pool vdevs, plus a fail-loud guard in `zfs_common.yml` that aborts any fresh-build CREATE while the path is still a placeholder/UNDEFINED (import-only runs unaffected) — HD-65/91 fail-closed policy (KOPS-057). Docs updated (deployment-preseed.md + storage-zfs.md pointer). ⏳ **Deploy-gated:** fill the REAL `/dev/disk/by-id/nvme-...` of the 970 EVO into `storage_nvme_data_by_id` at first pool create (read from the deployed host). Unblocks immich/opencloud db-backup (KOPS-026). [hardware-oldsrv.md](docs/hardware-oldsrv.md), [deployment-preseed.md](docs/deployment-preseed.md), [storage-zfs.md](docs/storage-zfs.md)
 | HD-132 | 3 | AI | 2 | **Implement Authentik-as-LDAP for Samba self-service password (D7/HD-131)** — ✅ **IaC done (pull-model):** Samba `passdb backend = ldapsam` (LDAP outpost on oldsrv); `smbpasswd -a` provisioning REMOVED from both Ansible (`samba.yml`) and the D5 glue (`sync-authentik-users.sh`) — Authentik is SSOT, Samba pulls, so nothing rewrites a user's portal password; bind/base DN = design constants (`storage_samba_ldap`), bind password = `authentik-ldap_bind` (1Password); `ak-outpost-ldap` container added to authentik compose; smb.conf → 0600; docs updated. ⏳ **Deploy-gated (not live):** create the Authentik **LDAP provider** (base DN `DC=home,DC=kogler,DC=si`, bind DIRECT) + **outpost**, seed `authentik-ldap_bind` token, firewall 3389 to nas, live-verify a family drive mounts. · [deployment-compose.md](docs/deployment-compose.md), [storage-zfs.md](docs/storage-zfs.md) |
 
@@ -168,13 +168,13 @@
 
 - **HD-50 done** → blocks all `docker_services` deployments; **HD-16 done** (Authentik + Forward-Auth middleware) unblocks Forward-Auth services (HD-43/44/46).
 - **HD-03 → HD-04 → HD-13** (network redo feeds Pi redo feeds Homematic full-local).
-- **HD-06/07 done** → feeds HD-08. **HD-29 → HD-31** (off-site = **two Hetzner Storage Boxes**: live + backup; iDrive dropped — HD-131).
+- **HD-06/07 done** → feeds HD-08. **HD-29 → HD-31** (off-site = **two 1 TB Hetzner Storage Boxes**: live next-DC [minimal backup-space; copies via ZFS + far-DC Kopia] + backup far-DC [Kopia repo + backup-space]; iDrive dropped — HD-131).
 - 'Implemented, not deployed' rows (HD-03/06/17/46/60/61/62/63/64/94 …) stay open with a ⏳ marker until a live deploy happens — closing requires a deploy/verify pass, not just IaC.
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 64
-- Decisions front: 7 · Buys: 2 · Park: 9
+- Open rows: 63
+- Decisions front: 6 · Buys: 2 · Park: 9
 - Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=0, platform=1, security=1, services=10, smart=12, storage=5
 
 ## 6. Conventions quick-reference
