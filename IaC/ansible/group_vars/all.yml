@@ -221,6 +221,24 @@ network_ranges:
   - { name: site,              cidr: "10.10.0.0/16",   purpose: "Whole homelab site — all VLANs (10.10.x.0/24)" }
   - { name: nfs-clients,       cidr: "10.10.1.30/32",  purpose: "NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP)" }
 
+# ==== WireGuard S2S: VPS ↔ router (wg-s2s, 10.255.40.0/30) — HD-03 / network-vpn.md ====
+# Single site-to-site tunnel: home RB4011 (peer .1) ↔ VPS (peer .2). The home router
+# routes `wg-vps-services` via the VPS S2S peer; the VPS routes `site` (10.10.0.0/16)
+# via the home S2S peer. Router-side addressing/port is in group_vars/router.yml
+# (`wireguard_s2s_vps`); this is the VPS-side peer var (the tunnel config lives in the
+# wireguard role). Keys: shared `wg_password` (1Password) private key.
+wg_s2s_vps:
+  local_ip: "10.255.40.2/30"        # VPS side of the /30 (router is .1)
+  router_ip: "10.255.40.1"
+  listen_port: 51820
+  endpoint: ""                        # home WAN endpoint (dynamic); the VPS initiates here — set at deploy
+  peer_public_key: "{{ lookup('vars', 'wg_s2s_router_public_key') if 'wg_s2s_router_public_key' in vars else '' }}"  # router(PubKey), provisioned at deploy
+  # AllowedIPs on the VPS peer = home `site` (10.10.0.0/16) + the wg-vps-services range,
+  # so VPS Prometheus reaches home targets (nut/zfs/ha_vip/ICMP) and app backends.
+  allowed_ips:
+    - "10.10.0.0/16"
+    - "10.255.20.0/24"
+
 # Single-namespace DNS: everything (hosts + services) is under kogler.si.
 # Internal-only hosts/services are NOT published in public DNS (split-horizon).
 

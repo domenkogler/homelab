@@ -1,0 +1,11 @@
+# WireGuard interface for the site-to-site tunnel (wg-s2s) — VPS side.
+# systemd-networkd .netdev (HD-03 / network-vpn.md). 
+# Private key sourced from the shared `wg_password` (1Password) at render time.
+[NetDev]
+Name={{ wg_interface }}
+Kind=wireguard
+Description=VPS <-> home router S2S tunnel
+
+[WireGuard]
+PrivateKey={{ lookup('community.general.onepassword', 'wg_password', field='password', vault=op_vault) }}
+ListenPort={{ wg_s2s_vps.listen_port }}

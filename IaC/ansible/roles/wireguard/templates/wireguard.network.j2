@@ -1,0 +1,19 @@
+# WireGuard .network for the site-to-site tunnel (wg-s2s) — VPS side.
+# Local address = VPS .2/30; peer = home RB4011 (.1). AllowedIPs routes the home `site`
+# (10.10.0.0/16) + wg-vps-services through this tunnel, so VPS Prometheus reaches home
+# targets and cross-host backends. The VPS initiates to the home router's WAN endpoint.
+[Match]
+Name={{ wg_interface }}
+
+[Network]
+Address={{ wg_s2s_vps.local_ip }}
+
+[Link]
+RequiredForOnline=no
+
+[WireGuardPeer]
+PublicKey={{ wg_s2s_vps.peer_public_key }}
+AllowedIPs={% for ip in wg_s2s_vps.allowed_ips %}{{ ip }}{% if not loop.last %},{% endif %}{% endfor %}
+{% if wg_s2s_vps.endpoint is defined and wg_s2s_vps.endpoint | length > 0 %}
+Endpoint={{ wg_s2s_vps.endpoint }}:{{ wg_s2s_vps.listen_port }}
+{% endif %}

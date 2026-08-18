@@ -1,0 +1,7 @@
+---
+# wireguard role handlers
+- name: restart systemd-networkd
+  ansible.builtin.systemd:
+    name: systemd-networkd
+    state: restarted
+    daemon_reload: true

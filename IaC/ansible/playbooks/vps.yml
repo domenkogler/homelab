@@ -5,5 +5,6 @@
     - common
     - docker
     - network
+    - wireguard          # VPS side of wg-s2s (home router tunnel) — before services bind its address
     - docker_services
     - monitoring

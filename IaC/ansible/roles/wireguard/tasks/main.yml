@@ -1,0 +1,79 @@
+---
+# wireguard role — VPS side of the site-to-site tunnel to the home router (wg-s2s)
+#
+# Creates a systemd-networkd WireGuard interface (`wg-s2s`) on the VPS, peered with the
+# home RB4011. The VPS reaches the home `site` (10.10.0.0/16) + `wg-vps-services` through
+# this peer, which lets VPS-hosted Prometheus scrape home targets (nut/zfs/ha_vip/ICMP)
+# and lets cross-host app backends route home. See defaults/main.yml + group_vars/all.yml
+# `wg_s2s_vps` + `network-vpn.md`.
+
+- name: Assert wireguard only runs on the VPS (router side is RouterOS/router role)
+  ansible.builtin.assert:
+    that:
+      - ansible_user in ansible_admin_users
+      - inventory_hostname == 'vps.kogler.si'
+    fail_msg: >-
+      wireguard role configures the VPS side of wg-s2s only (router side is RouterOS).
+      Got ansible_user='{{ ansible_user }}' on '{{ inventory_hostname }}'.
+  tags: wireguard
+
+- name: Assert wg_s2s_vps addressing is defined
+  ansible.builtin.assert:
+    that:
+      - wg_s2s_vps is defined
+      - wg_s2s_vps.local_ip | length > 0
+      - wg_s2s_vps.router_ip | length > 0
+    fail_msg: >-
+      group_vars/all.yml must define `wg_s2s_vps` (10.255.40.0/30: VPS .2, router .1).
+  tags: wireguard
+
+- name: Assert the router public key is populated (fail-closed, HD-65/HD-91)
+  ansible.builtin.assert:
+    that:
+      - "wg_s2s_vps.peer_public_key | default('') | length > 0"
+    fail_msg: >-
+      `wg_s2s_router_public_key` must be set (derived from the RB4011 wireguard private
+      key) before the VPS can peer with the home router — never deploy with a blank peer.
+  tags: wireguard
+
+- name: Install wireguard-tools (Debian)
+  ansible.builtin.apt:
+    name: wireguard-tools
+    state: present
+    update_cache: true
+  tags: wireguard
+
+- name: Create systemd-networkd directory
+  ansible.builtin.file:
+    path: "{{ wg_netdev_dir }}"
+    state: directory
+    mode: '0755'
+  tags: wireguard
+
+- name: Render WireGuard .netdev (interface + local private key + listen port)
+  ansible.builtin.template:
+    src: wireguard.netdev.j2
+    dest: "{{ wg_netdev_dir }}/{{ wg_interface }}.netdev"
+    owner: root
+    group: systemd-network
+    mode: '0600'
+  notify: restart systemd-networkd
+  tags: wireguard
+
+- name: Render WireGuard .network (Address + Peer/AllowedIPs)
+  ansible.builtin.template:
+    src: wireguard.network.j2
+    dest: "{{ wg_netdev_dir }}/{{ wg_interface }}.network"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart systemd-networkd
+  tags: wireguard
+
+- name: Ensure systemd-networkd is enabled + running
+  ansible.builtin.systemd:
+    name: systemd-networkd
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags: wireguard
