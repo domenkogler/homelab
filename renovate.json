@@ -8,6 +8,10 @@
     {
       "matchDatasources": ["docker"],
       "stabilityDays": 3
+    },
+    {
+      "matchManagers": ["ansible-galaxy", "pip_requirements"],
+      "stabilityDays": 3
     }
   ]
 }

@@ -37,6 +37,10 @@ tags: [deployment, renovate, updates]
     {
       "matchDatasources": ["docker"],
       "stabilityDays": 3
+    },
+    {
+      "matchManagers": ["ansible-galaxy", "pip_requirements"],
+      "stabilityDays": 3
     }
   ]
 }
@@ -93,11 +97,13 @@ Upstream Release
 ## Scope
 
 Renovate scans:
-- `docker-compose.yml` files in the repo
+- `docker-compose.yml` files in the repo (Docker images)
 - Custom Dockerfiles with `FROM` directives
 - Docker Compose service image tags
+- **Ansible Galaxy collections** (`IaC/ansible/requirements.yml`) — `community.*` pinned collections (HD-90 / KOPS-062)
+- **Python `requirements.txt`** (`client/office-bridge/requirements.txt` + any future) (HD-90 / KOPS-062)
 
 Does NOT scan:
 - System packages (handled by `unattended-upgrades` on Debian)
-- Ansible Galaxy roles (manually updated)
 - RouterOS firmware (manual check)
+- The repo's build/test tools in `scripts/*.py` (no declared dependency manifest — the pip manager tracks `requirements*.txt` only)

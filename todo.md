@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 68 open · 7 decisions · 2 purchases · 9 parked · 50 done (in changelog)
+**Status:** 67 open · 7 decisions · 2 purchases · 9 parked · 51 done (in changelog)
 
 ---
 
@@ -63,7 +63,6 @@
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
 | HD-02 | 3 | AI | 1 | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
-| HD-90 | 1 | AI | 3 | **Renovate managers: ansible-galaxy + pip** — track Ansible collections + Python packages, not just Docker (KOPS-062). · source qwen. · [deployment-renovate.md](docs/deployment-renovate.md) |
 
 
 ### 2.4 Services & Edge — Traefik, SSO, service catalog, Matrix, VPS edge
@@ -181,9 +180,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 68
+- Open rows: 67
 - Decisions front: 7 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=2, platform=2, security=1, services=10, smart=12, storage=6
+- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=2, platform=1, security=1, services=10, smart=12, storage=6
 
 ## 6. Conventions quick-reference
 
