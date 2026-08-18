@@ -85,6 +85,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `authentik_password` | `password` | authentik (Django `SECRET_KEY`) |
 | `authentik_login` | `password` | authentik (bootstrap admin user) |
 | `authentik-api_token` | `api` | authentik — API token (read-only) used by the Authentik→NAS provisioning glue (`sync-authentik-users.sh`, D5/HD-131) |
+| `authentik-ldap_bind` | `password` | authentik LDAP outpost token + Samba ldapsam **bind password** (D7/HD-132). The outpost `AUTHENTIK_TOKEN` and Samba `ldap admin password` both read `field=password`. Populated at deploy when the LDAP provider/outpost are created (see deployment-compose.md HD-132). |
 | `opencloud_db` | `password` | opencloud (Postgres) |
 | `minio_login` | `login` | MinIO S3 object store (HD-131 D1) — `username` = root user, `password` = root secret; S3 endpoint for Immich originals |
 | `immich_db` | `password` | immich-app (Postgres) |
@@ -137,6 +138,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `kopia_master_password` | `kopia_password` |
 | `authentik_pg_password` | `authentik_db` |
 | `authentik_secret_key` | `authentik_password` |
+| `samba_ldap_admin_password` (smb.conf) / authentik-ldap `AUTHENTIK_TOKEN` | `authentik-ldap_bind` |
 | `opencloud_db_password` | `opencloud_db` |
 | `immich_db_password` | `immich_db` |
 | `forgejo_db_password` | `forgejo_db` |

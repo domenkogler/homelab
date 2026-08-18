@@ -59,14 +59,13 @@ provision_user() {
     echo "  created dataset + isolated tree"
   fi
 
-  # 3. Samba account (idempotent via pdbedit). Password from per-user 1Password item.
-  if ! pdbedit -L 2>/dev/null | grep -qw "$u"; then
-    if pw="$(op read "op://Homelab/${u}-samba_login/password" 2>/dev/null || true)"; then
-      printf '%s\n%s\n' "$pw" "$pw" | smbpasswd -a -s "$u" && echo "  samba user $u added"
-    else
-      echo "  SKIP samba password for $u — no 1Password '${u}-samba_login' item yet" >&2
-    fi
-  fi
+  # 3. Samba account — NO password set here (D7/HD-132 pull model).
+  # Samba authenticates family members against Authentik-as-LDAP (`passdb = ldapsam`);
+  # Authentik is the SSOT and does NOT push. A user changes their own password in the
+  # Authentik self-service portal and the next Samba bind (pull) reads it. We deliberately
+  # never write a local Samba/smbpasswd password here — doing so would shadow/overwrite
+  # the LDAP credential and break self-service. The Unix account above is still required
+  # for POSIX ownership/permissions on the dataset.
 
   # 3b. Samba share stanza (idempotent) — write a drop-in fragment + reload samba, so
   #     a member provisioned at runtime gets a mountable drive without waiting for Ansible.

@@ -107,6 +107,31 @@ services:
       authentik-redis:
         condition: service_started
 
+  # ---- Authentik LDAP outpost (D7/HD-132) — Samba pulls auth from here ----
+  # Provides Authentik-as-LDAP to Samba on the LAN (nas). This is a *client* served
+  # outpost: Authentik stays the SSOT (no push). The outpost echoes the Authentik
+  # directory tree (users/groups) over LDAP/LDAPS and validates binds.
+  # REQUIRED at deploy (creation order): create the Authentik **LDAP provider**
+  # (base DN `DC=home,DC=kogler,DC=si`, bind_mode DIRECT) and an outpost instance,
+  # then put the generated outpost token in 1Password as `authentik-ldap_bind`
+  # (field=password). The port below (3389) must be firewall-restricted to the NAS
+  # host only (see network-ops / trusted sources) — LDAP creds must not be LAN-wide.
+  authentik-ldap:
+    image: ghcr.io/goauthentik/ldap:{{ authentik_version | default('latest') }}
+    container_name: authentik-ldap
+    restart: unless-stopped
+    networks:
+      - services-internal
+    environment:
+      AUTHENTIK_HOST: http://authentik-server:9000
+      AUTHENTIK_INSECURE: "true"   # internal HTTP to authentik-server on services-internal only
+      AUTHENTIK_TOKEN: "{{ lookup('community.general.onepassword', 'authentik-ldap_bind', field='password', vault=op_vault) }}"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    ports:
+      - "3389:3389"   # LDAP (outpost binds providers' LDAP port); Samba on nas reaches oldsrv:3389. Restrict src at firewall.
+    depends_on:
+      - authentik-server
+
 networks:
   traefik-public:
     external: true

@@ -322,5 +322,21 @@ sibling services have no auth. Apply minimum auth per service:
 - **Observability UIs:** protect scrape/config endpoints (Prometheus `--web.config.file` with htpasswd)
 - **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
 
+#### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — the pull contract
+- **Samba authenticates against Authentik as an LDAP provider** (`passdb backend = ldapsam`);
+  **Authentik is the SSOT and does NOT push.** No password is replicated/synced to the NAS.
+- **Effect:** a user changes their own password in the Authentik self-service
+  portal and the **next Samba bind (pull) reads it** — no admin step, no sync.
+- **Nothing in Ansible/glue writes a local Samba password** — we deliberately removed the old
+  `smbpasswd -a` provisioning (D5). Writing a local password would shadow/overwrite the LDAP
+  credential and break self-service; there is no such task anywhere.
+- **Dependency/trade-off:** because Samba pulls live from the LDAP outpost, if Authentik or its
+  `ak-outpost-ldap` is down, family drives cannot mount (no local fallback). Accepted D7 trade-off;
+  if outage resilience is ever required, revisit (LDAP replica cache / local fallback).
+- Bind/base DN are **design constants** in `storage_samba_ldap` (storage role); the **bind
+  password** is the secret `authentik-ldap_bind` (1Password). Deploy order: create the Authentik
+  LDAP provider + outpost first, then seed `authentik-ldap_bind` before Samba ldapsam connects.
+
+
 Auth tokens for internal services live in 1Password `Homelab` vault under the
 `<service>-internal_api` naming pattern. Referenced via `lookup('community.general.onepassword', ...)` at template render time.

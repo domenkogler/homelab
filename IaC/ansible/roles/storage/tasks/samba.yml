@@ -47,7 +47,7 @@
     dest: /etc/samba/smb.conf
     owner: root
     group: root
-    mode: "0644"
+    mode: "0600"   # contains the Authentik-LDAP bind password (D7/HD-132) — not world-readable
   notify: Restart Samba
 
 # Create/update each family Samba user's account — IDEMPOTENT (CONVENTIONS §3): only
@@ -76,21 +76,11 @@
     - storage_samba_users | length > 0
     - (item.stdout | trim) == 'absent'
   tags: [samba, storage]
-
-- name: Set Samba password for newly-provisioned family users (only when absent)
-  ansible.builtin.shell: |
-    printf '%s\n%s\n' \
-      "{{ lookup('community.general.onepassword', item.item.name ~ '-samba_login', field='password', vault=op_vault) }}" \
-      "{{ lookup('community.general.onepassword', item.item.name ~ '-samba_login', field='password', vault=op_vault) }}" \
-      | smbpasswd -a -s "{{ item.item.name }}"
-  changed_when: true
-  loop: "{{ _smb_exist.results }}"
-  loop_control:
-    label: "{{ item.item.name }} (smbpasswd)"
-  when:
-    - storage_samba_users | length > 0
-    - (item.stdout | trim) == 'absent'
-  tags: [samba, storage]
+# NO Samba-password task here (D7/HD-132): Samba auths family members against
+# Authentik-as-LDAP (passdb = ldapsam). Authentik is the SSOT and does NOT push;
+# Samba pulls, so a user changes their own password in the portal and the next
+# mount picks it up. We never write a local smbpasswd password — writing one would
+# shadow/overwrite the LDAP credential and break self-service.
 
 # ---------------------------------------------------------------------------
 # Authentik → NAS/OpenCloud provisioning glue (D5/HD-131). Runs on nas via a

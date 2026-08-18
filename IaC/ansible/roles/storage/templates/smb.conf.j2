@@ -3,8 +3,12 @@
 #   \\nas\media  — shared media (any family user; files owned by neutral `media`)
 #   \\nas\<user> — per-user private drive (valid users = that account; files owned by that
 #                  user's OWN uid, NOT the global media account — so per-user isolation holds)
-# Family members log in with their Samba username+password at mount time (manual, no
-# 1Password SSO — 1Password only stores the passwords). Data lives on ZFS datasets.
+# Family members log in with their Authentik credentials at mount time (D7/HD-132):
+# Samba AUTHENTICATES against Authentik-as-LDAP (PULL model — Authentik is SSOT and does
+# NOT push; a portal password change takes effect on the next bind). NO local smbpasswd
+# password is ever stored here, so an Ansible/glue re-run can NEVER overwrite a user's
+# self-service password. Note: if the Authentik LDAP outpost is down, drives don't mount
+# (no local fallback) — accepted D7 trade-off. Data lives on ZFS datasets.
 
 [global]
    workgroup = WORKGROUP
@@ -18,6 +22,17 @@
    create mask = 0664
    directory mask = 0775
    netbios name = NAS
+
+   # ---- Authentik-as-LDAP passdb (D7/HD-132) — Samba pulls from Authentik LDAP outpost ----
+   passdb backend = ldapsam:ldap://{{ storage_samba_ldap.host }}:{{ storage_samba_ldap.port }}
+   ldap ssl = {{ storage_samba_ldap.ssl | default('start tls') }}
+   ldap suffix = {{ storage_samba_ldap.base_dn }}
+   ldap user suffix = {{ storage_samba_ldap.user_suffix }}
+   ldap admin dn = {{ storage_samba_ldap.admin_dn }}
+   ldap admin password = {{ lookup('community.general.onepassword', 'authentik-ldap_bind', field='password', vault=op_vault) }}
+   # Read/write are pull-only: Samba never writes NTAuth/plaintext back to LDAP.
+   ldap passwd sync = no
+
 
 # Runtime-provisioned per-user shares (sync-authentik-users.sh glue, D5) —
 # each "/etc/samba/share-<user>.conf" fragment defines one family member's private
