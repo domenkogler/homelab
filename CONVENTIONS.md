@@ -52,6 +52,7 @@
 | Phase | Rule | Owning doc |
 |-------|------|-----------|
 | Backlog | new work = new `HD-XX` row in `todo.md`; decisions written to owning doc; done → `changelog.md` | [todo.md](todo.md), [docs/index.md](docs/index.md) |
+| Post-task housekeeping | **after each completed task, update `todo.md` in the same change** — move the done `HD-XX` row to `changelog.md` and refresh the status tally (line 7 + §5); never leave completed work marked open | [todo.md](todo.md) (§0 lifecycle), [changelog.md](changelog.md) |
 | Decisions | decisions log, date-stamped, closed once per decision (mirror `docs/security.md §7` style) | [docs/security.md](docs/security.md) (§7 Decision log) |
 | Onboarding a service | see the 10-step checklist below | — |
 | Validation gate | `bash scripts/validate-all.sh` before commit (compose, templates, IPs, docs) | [scripts/](scripts/) |

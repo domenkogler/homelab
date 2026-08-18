@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 97 open · 9 decisions · 2 purchases · 9 parked · 19 done (in changelog)
+**Status:** 94 open · 9 decisions · 2 purchases · 9 parked · 22 done (in changelog)
 
 ---
 
@@ -68,9 +68,9 @@
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
 | HD-02 | 3 | AI | 1 | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
-| HD-61 | 1 | AI | 1 | **Pin image tags — Traefik first** — `traefik_version: latest` today in group_vars; pin to a semver + Renovate follow-up (also dedupe the other `latest`/`:rocm` mutable tags). ROI · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 | HD-90 | 1 | AI | 3 | **Renovate managers: ansible-galaxy + pip** — track Ansible collections + Python packages, not just Docker (KOPS-062). · source qwen. · [deployment-renovate.md](docs/deployment-renovate.md) |
 | HD-117 | 2 | AI | 2 | **Playbook role-order fixes** — `network` runs before `storage` on oldsrv (KOPS-050); Pi runs `home_assistant` before `docker_services` (KOPS-063); correct dependency ordering. · source qwen. · [deployment-ansible.md](docs/deployment-ansible.md) |
+
 
 ### 2.4 Services & Edge — Traefik, SSO, service catalog, Matrix, VPS edge
 
@@ -96,9 +96,7 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-64 | 1 | AI | 1 | **Fix Loki schema `from:` date** — `2026-01-01` (future) → `2025-01-01` / current; Loki silently drops all logs until the schema activates. (also covers KOPS-065, same schema-date fix). ROI · source qwen. · [observability.md](docs/observability.md) |
 | HD-85 | 1 | AI | 3 | **Add CrowdSec collections** — extend beyond traefik+linux: home-assistant, matrix, grafana parsers (KOPS-041). · source qwen. · [observability.md](docs/observability.md) |
-| HD-114 | 1 | AI | 1 | **Drop scraped-but-nonexistent Alertmanager job** — `prometheus.yml` scrapes an alertmanager target that isn't deployed; remove the dead job (KOPS-052). · source qwen. · [observability.md](docs/observability.md) |
 | HD-115 | 2 | AI | 2 | **Loki auth/RBAC** — `auth_enabled: false` lets any container on `db-internal` read/inject logs; add auth + restrict network (KOPS-023/051). · source qwen. · [observability.md](docs/observability.md) |
 | HD-116 | 2 | AI | 2 | **Alloy/Prometheus probe correctness** — ensure per-host `instance` label set (KOPS-036, cross-ref HD-55); blackbox treats 401/403 as failure, not success (KOPS-035). · source qwen. · [observability.md](docs/observability.md) |
 
@@ -211,9 +209,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 97
+- Open rows: 94
 - Decisions front: 9 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=5, platform=4, security=14, services=15, smart=14, storage=6
+- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=3, platform=3, security=14, services=15, smart=14, storage=6
 
 ## 6. Conventions quick-reference
 
