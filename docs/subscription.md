@@ -14,16 +14,12 @@ tags: [governance, subscriptions, costs]
 
 ## Active Subscriptions
 
-> Column **Valid until** doubles as the renewal reminder trigger (⏰ set a reminder ~1 month before expiry).
+> The schedule table below is **derived from `group_vars/subscriptions.yml` (SSOT)** —
+> auto-generated to [`subscriptions-table.md`](subscriptions-table.md) by `render-docs.yml` / the
+> docker_services post-deploy hook. Prose/billing/description sections below are hand-authored.
+> Keep the `subscriptions` var updated; do not hand-edit the generated table.
 
-| Service | € / month | Valid until ⏰ |
-|---------|-----------|----------------|
-| 1Password (Family) | 5,75 € | 2027-06-24 |
-| `kogler.si` domain | 1,88 € | 2029-04-09 |
-| NZBGeek (Usenet indexer) | 0,93 € | 2027-02-13 |
-| Eweka.nl (Usenet) | 2,50 € | 2027-11-11 |
-| Telekom Slovenije (ISP) | 50,50 € | — (monthly) |
-| Meteorblue (weather API) | **0,00 € (free)** | 2027-08-18 |
+📄 **[Full subscription schedule → subscriptions-table.md](subscriptions-table.md)**
 
 ---
 

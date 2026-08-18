@@ -27,3 +27,12 @@
         src: "{{ playbook_dir }}/../templates/inventory.md.j2"
         dest: "{{ playbook_dir }}/../../../docs/inventory.md"
       when: docker_services is defined
+
+    # Subscription schedule table — derived from group_vars/subscriptions.yml SSOT.
+    # Prose/billing/description sections of docs/subscription.md stay hand-authored;
+    # only the renewal/schedule tables are generated here. Keep in sync when
+    # running the post-deploy hook alongside the Homepage + calendar regeneration.
+    - name: Render docs/subscriptions-table.md (subscription SSOT)
+      template:
+        src: "{{ playbook_dir }}/../templates/subscription-table.md.j2"
+        dest: "{{ playbook_dir }}/../../../docs/subscriptions-table.md"

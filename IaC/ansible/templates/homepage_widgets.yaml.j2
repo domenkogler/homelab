@@ -11,3 +11,17 @@
 # - ping:
 #     kogler.si:
 #       href: https://kogler.si
+
+# ---- Renewals calendar widget ----
+# Shows upcoming subscription renewals pulled from iCal/CalDAV feeds
+# (group_vars/subscriptions.yml `calendar_url`). Rendered only for subscriptions
+# that have a feed URL set — i.e. AFTER deployment when CalDAV (Infomaniak kSuite,
+# HD-30) is live. Until then this block produces no widgets (infra-only).
+{% set with_cal = subscriptions | selectattr('calendar_url', 'defined') | selectattr('calendar_url') | list %}
+{% if with_cal | length > 0 %}
+- calendar:
+{% for s in with_cal %}
+    - {{ s.name | replace(' ', '-') | lower }}:
+        url: {{ s.calendar_url }}
+{% endfor %}
+{% endif %}

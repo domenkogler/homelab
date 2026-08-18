@@ -1,0 +1,26 @@
+{{ ansible_managed | comment }}
+{# subscription-table.md.j2 — renders the subscription schedule from the
+   group_vars/subscriptions.yml SSOT. This fragment is auto-generated; the
+   prose/billing/description sections of docs/subscription.md are hand-authored
+   and live outside this template. Run `render-docs.yml` (or the docker_services
+   post-deploy hook) to refresh it. #}
+
+## Active Subscriptions
+
+> Column **Valid until** doubles as the renewal reminder trigger (⏰ set a reminder ~1 month before expiry).
+> **SSOT:** `group_vars/subscriptions.yml` (single source; Homepage tiles + calendar + n8n read the same list).
+
+| Service | € / month | Valid until ⏰ |
+|---------|-----------|----------------|
+{% for s in subscriptions | selectattr('status', 'equalto', 'active') | list %}{% set cost = ('%.2f' | format(s.cost_eur)).replace('.', ',') %}| {{ s.name }} | {{ cost if s.cost_eur and s.cost_eur > 0 else '0,00' }} €{% if s.cost_eur == 0 %} (free){% endif %} | {% if s.valid_until %}{{ s.valid_until }}{% else %}— (monthly){% endif %} |
+{% endfor %}
+## Planned Subscriptions
+
+| Service | Est. Cost | Status | Purpose |
+|---------|-----------|--------|---------|
+{% for s in subscriptions | selectattr('status', 'equalto', 'planned') | list %}| {{ s.name }} | ~{{ (s.cost_eur|string).replace('.', ',') }} €/mo | 🔮 Planned | buy + record here (see `subscription.md` prose) |
+{% endfor %}
+## Dropped / Deferred
+
+{% for s in subscriptions | selectattr('status', 'in', ['dropped', 'deferred']) | list %}- {{ s.name }} — replaced/dropped (see `subscription.md` prose)
+{% endfor %}

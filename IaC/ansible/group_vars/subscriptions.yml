@@ -1,0 +1,147 @@
+---
+# subscriptions.yml — SSOT for paid/free subscriptions & renewal dates.
+# ---------------------------------------------------------------------
+# This is the SINGLE source of truth for renewal/schedule data driving:
+#   - Homepage "Subscriptions" tile group (homepage_services.yaml.j2)
+#   - Homepage calendar widget (homepage_widgets.yaml.j2)   [infra, post-deploy]
+#   - n8n renewal-notification workflow                      [infra, post-deploy]
+#   - docs/subscription.md table (derived; prose stays hand-authored)
+#
+# Conventions:
+#   - `valid_until`  = YYYY-MM-DD; Homepage/n8n flag within `reminder_days`.
+#   - `cost_eur`     = monthly EUR, 0 for free tiers (kept 0,00 in render).
+#   - `since`        = when the subscription started / was bought.
+#   - `secret`       = 1Password ref (vault Homelab) if one exists, else null.
+#   - `calendar_url` = iCal/CalDAV feed URL for the Homepage calendar widget.
+#                     Populate post-deploy (Infomaniak kSuite CalDAV, HD-30);
+#                     null = not yet wired.
+#   - `notify`       = channels to remind on (signal / email); drives the n8n
+#                     workflow. Empty = no push reminder (feed-only/tiles only).
+#   - `status`       = active | planned | dropped | deferred (drives grouping).
+
+op_vault: Homelab
+
+subscriptions:
+  # --- Active (paid) ---
+  - name: 1Password Family
+    cost_eur: 5.75
+    since: "2026-06-24"
+    valid_until: "2027-06-24"
+    reminder_days: 30
+    url: https://my.1password.com
+    icon: fa-key
+    secret: null
+    calendar_url: null
+    notify: [signal]
+    status: active
+
+  - name: kogler.si domain
+    cost_eur: 1.88
+    since: "2024-03-26"
+    valid_until: "2029-04-09"
+    reminder_days: 30
+    url: https://domenca.com
+    icon: fa-globe
+    secret: null
+    calendar_url: null
+    notify: [signal]
+    status: active
+
+  - name: NZBGeek (Usenet indexer)
+    cost_eur: 0.93
+    since: "2026-08-10"
+    valid_until: "2027-02-13"
+    reminder_days: 30
+    url: https://nzbgeek.info
+    icon: fa-newspaper
+    secret: null
+    calendar_url: null
+    notify: [signal]
+    status: active
+
+  - name: Eweka.nl (Usenet)
+    cost_eur: 2.50
+    since: "2026-08-10"
+    valid_until: "2027-11-11"
+    reminder_days: 30
+    url: https://www.eweka.nl
+    icon: fa-download
+    secret: null
+    calendar_url: null
+    notify: [signal]
+    status: active
+
+  - name: Telekom Slovenije (ISP)
+    cost_eur: 50.50
+    since: null
+    valid_until: null          # ongoing, no fixed end date
+    reminder_days: null
+    url: https://www.telekom.si
+    icon: fa-tower-cell
+    secret: null
+    calendar_url: null
+    notify: []
+    status: active
+
+  # --- Active (free) ---
+  - name: Meteorblue (weather API)
+    cost_eur: 0
+    since: "2026-08-18"
+    valid_until: "2027-08-18"
+    reminder_days: 30
+    url: https://www.meteoblue.com
+    icon: fa-cloud-sun
+    secret: meteoblue_api        # 1Password Homelab, API credential (HD-22)
+    calendar_url: null
+    notify: [signal]
+    status: active
+
+  # --- Planned (not yet bought) ---
+  - name: Infomaniak kSuite
+    cost_eur: 4                 # ~3-5/mo; TBD after signup
+    since: null
+    valid_until: null
+    reminder_days: 30
+    url: https://www.infomaniak.com
+    icon: fa-envelope
+    secret: null
+    calendar_url: null          # becomes the CalDAV source for the calendar widget (HD-30)
+    notify: [signal]
+    status: planned
+
+  - name: Hetzner Storage Box (live)
+    cost_eur: 4
+    since: null
+    valid_until: null
+    reminder_days: 30
+    url: https://robot.hetzner.com
+    icon: fa-server
+    secret: null
+    calendar_url: null
+    notify: [signal]
+    status: planned              # HD-31 — buy two 1 TB boxes
+
+  - name: Hetzner Storage Box (backup)
+    cost_eur: 4
+    since: null
+    valid_until: null
+    reminder_days: 30
+    url: https://robot.hetzner.com
+    icon: fa-server
+    secret: null
+    calendar_url: null
+    notify: [signal]
+    status: planned
+
+  # --- Dropped (kept for history/provenance) ---
+  - name: iDrive e2
+    cost_eur: 5
+    since: null
+    valid_until: null
+    reminder_days: null
+    url: null
+    icon: fa-cloud
+    secret: null
+    calendar_url: null
+    notify: []
+    status: dropped              # replaced by Hetzner boxes (HD-29/31)

@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 56 open · 0 decisions · 2 purchases · 9 parked · 59 done (in changelog)
+**Status:** 57 open · 0 decisions · 2 purchases · 9 parked · 59 done (in changelog)
 
 ---
 
@@ -135,6 +135,7 @@
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
 | HD-57 | 3 | AI + Human | 3 | **Finance pre-deploy prep (Actual Budget / Enable Banking)** — Stage: 1/10. verify EB redirect URL (`budget.kogler.si`) covered by Traefik + wildcard cert; Wise API token (read-only); IBKR Flex Query token URL; *(decision)* UniCredit SI email-transaction alerts (World Elite) vs SMS; *(decision)* `actual-server:nightly` vs stable + n8n bridge; enter initial capital base. · [services-finance.md](docs/services-finance.md) |
+| HD-133 | 3 | AI | 3 | **Subscription renewal reminders (Homepage + calendar + n8n)** — SSOT = `group_vars/subscriptions.yml`; drives (a) Homepage **Subscriptions** tile group, (b) Homepage **calendar** widget (via `calendar_url`, live after CalDAV/HD-30), (c) **n8n** renewal-notification workflow (infra prepared — [`automation-renewals.md`](docs/automation-renewals.md); wire Signal/SMTP post-deploy). `subscription.md` table derived from the same var (`subscriptions-table.md`, rendered by `render-docs.yml`). Metadata in vars; prose/descriptions stay in `subscription.md`. · [subscription.md](docs/subscription.md), [automation-renewals.md](docs/automation-renewals.md) |
 
 ## 3. Park — deferred / optional / Phase 2
 
@@ -173,9 +174,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 56
+- Open rows: 57
 - Decisions front: 0 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=0, platform=1, security=1, services=10, smart=12, storage=5
+- Active work per module: ai=8, backup=2, docs=2, finance=2, net=2, observ=0, platform=1, security=1, services=10, smart=12, storage=6
 
 ## 6. Conventions quick-reference
 
