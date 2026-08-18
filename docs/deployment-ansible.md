@@ -17,11 +17,11 @@ tags: [deployment, ansible, iac]
 > views must not be hand-edited.
 >
 > **Regenerate `docs/network-addresses.md` after a master `.yml` change** — either
-> `python scripts/render_network_addresses.py` (works on this Windows host, no
-> Ansible needed) or `ansible-playbook playbooks/render-docs.yml -i inventory.ini`
-> (Linux/CI). Ansible's `render-docs.yml` cannot run on Windows (ansible crashes at
-> startup: `os.get_blocking` → `OSError [WinError 87]`), so use the Python script
-> locally.
+> `python scripts/render_network_addresses.py` (works on the Windows host directly, no
+> Ansible needed) or `ansible-playbook playbooks/render-docs.yml -i inventory.ini` (Linux/CI,
+> or on this machine via **WSL Debian**). Native Windows ansible crashes at startup
+> (`os.get_blocking` → `OSError [WinError 87]`); on this machine run Ansible inside
+> `wsl.exe -d Debian` with `~/ansible-venv/bin/activate` (see `[ansible.md](../IaC/bootstrap-ansible-client/ansible.md)`).
 > **Links to:** `services.md`, `hardware.md`, `deployment-secrets.md`, `deployment-compose.md`
 > **Linked from:** `deployment.md`, `index.md`
 
