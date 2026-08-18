@@ -51,7 +51,7 @@ tags: [smart-home, homeassistant]
 - **Configs:** In this homelab repo (moved from HA's own GitHub repo)
 
 > **Failover design → [`smart-home-failover.md`](smart-home-failover.md).** Both nodes share a VIP (keepalived/VRRP); `ha.kogler.si` routes to the VIP so takeover needs no DNS flip or per-device reconfig. WAN loss is NOT a trigger (HA is local); failover is only for Pi failure and must work offline.
-- **Entity list:** Not yet exported — needed for TileBoard + Grafana generation (enable HA Prometheus exporter: see `observability.md`)
+- **Entity list:** Not yet exported — needed for HA Dashboard `lovelace` + Grafana generation (enable HA Prometheus exporter: see `observability.md`)
 
 ### Remote access & SSO (ha.kogler.si)
 
@@ -101,8 +101,8 @@ tags: [smart-home, homeassistant]
 
 ## Open Questions
 
-- Home Assistant entity list (needed for TileBoard + Grafana)
-- Wall-mounted tablet model for TileBoard
+- Home Assistant entity list (needed for HA Dashboard **lovelace** + Grafana generation; enable HA Prometheus exporter: see `observability.md`)
+- Wall-surface Dashboard: native HA Dashboard on existing devices (iPad A16 + Android RT8, 80% capped) — **TileBoard retired (HD-24)**
 - Wake word final approval ("Hey, assistant" is tentative)
 - Confirmed HmIP-SWO-B channels: no rain / wind-direction (not part of this sensor)
 

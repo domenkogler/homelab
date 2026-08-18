@@ -7,7 +7,7 @@ tags: [manual, smart-home]
 ---
 # Kako upravljati pametno hišo
 
-> **Status:** 🚧 Še ni napisano — počaka na TileBoard in glasovne ukaze.
+> **Status:** 🚧 Še ni napisano — počaka na HA Dashboard (zaslon na steni) in glasovne ukaze.
 
 ## Dashboard (zaslon na steni)
 
