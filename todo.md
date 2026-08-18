@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 63 open · 6 decisions · 2 purchases · 9 parked · 54 done (in changelog)
+**Status:** 62 open · 5 decisions · 2 purchases · 9 parked · 55 done (in changelog)
 
 ---
 
@@ -23,7 +23,7 @@
 
 | ID | D | Exec | Item |
 |----|---|------|------|
-| HD-22 | 1 | AI + Human | *(decision)* **Weather 2000 (SI) source** — third-party/HACS vs core; retain or replace. Agent researches, human decides. · [home-assistant-current.md](docs/home-assistant-current.md) |
+| ~~HD-22~~ | 1 | AI + Human | *(decision)* **Weather 2000 (SI) source** — ✅ **Decided (2026-08-18):** **drop** third-party HACS "Weather 2000" **and** core `met` (single authoritative source). Replace with HA **core `meteoblue`** (models Slovenia well; hourly + 7-day). Key = `meteoblue_api` (1Password Homelab); coords = Maribor `{{ home_latitude }}/{{ home_longitude }}` (added to `all.yml`). Configured in `configuration.yaml.j2` (IaC). Row closed → [changelog.md](changelog.md). · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-24 | 1 | Human | *(decision)* **TileBoard wall tablet model** — iPad / Android / repurposed; family/hardware purchase. · [interfaces.md](docs/interfaces.md) |
 | HD-25 | 1 | Human | *(decision)* **Wake word final approval** — "Hey, assistant" is tentative; family meeting needed. · [smart-home.md](docs/smart-home.md) |
 | HD-29 | 2 | Human | *(decision)* **Off-site storage: two Hetzner Storage Boxes (drop iDrive)** — ✅ **Decided (2026-08-18):** **two Hetzner Storage Boxes** — nearest-DC box = **live** (Immich originals S3 + family SMB/WebDAV drives), far-DC box (Helsinki/Falkenstein) = **backup** (Kopia repo). **iDrive e2 dropped** (Hetzner is cheaper per TB + SMB/WebDAV; single-provider risk on Hetzner accepted). **Size (2026-08-18): 1 TB × 2** — live box fits 300 GB Immich library (~30%, headroom for growth + drives); backup box holds dedup/encrypted Kopia repo fine. Hetzner boxes are **live-upgradable** in-place → 1 TB is a safe start, bump tier when library crosses ~600–700 GB. **Backup-space add-on:** **live box → minimal only** (its copy-protection = ZFS + far-DC Kopia, NOT same-DC snapshots — geo-separation is the point); **backup box → carry the backup space** (protects the Kopia repo, the actual off-site copy). Input to HD-31. · [backup.md](docs/backup.md), [subscription.md](docs/subscription.md) |.md](docs/backup.md) |
@@ -173,8 +173,8 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 63
-- Decisions front: 6 · Buys: 2 · Park: 9
+- Open rows: 62
+- Decisions front: 5 · Buys: 2 · Park: 9
 - Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=0, platform=1, security=1, services=10, smart=12, storage=5
 
 ## 6. Conventions quick-reference

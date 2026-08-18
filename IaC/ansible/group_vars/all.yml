@@ -3,6 +3,10 @@
 
 timezone: Europe/Ljubljana
 locale: sl_SI.UTF-8
+# Home location (Maribor, SI) — used by HA weather integrations (meteoblue) and others.
+# Keep in sync with HA location settings (docs/home-assistant-current.md).
+home_latitude: 46.5596
+home_longitude: 15.6355
 ntp_servers:
   - 0.si.pool.ntp.org
   - 1.si.pool.ntp.org

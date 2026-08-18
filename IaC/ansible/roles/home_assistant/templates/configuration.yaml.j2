@@ -34,3 +34,15 @@ recorder:
 # ---- Integrations ----
 # Configure additional integrations via the HA UI (stored in .storage/).
 # See docs/smart-home.md for architecture.
+
+# ---- Weather (HD-22) ----
+# Single authoritative weather source = HA core `meteoblue` (models Slovenia well,
+# hourly + daily forecast). Replaces the third-party HACS "Weather 2000" and drop core
+# `met` (weather.forecast_dom). api key from 1Password Homelab.
+weather:
+  - platform: meteoblue
+    api_key: "{{ lookup('community.general.onepassword', 'meteoblue_api', field='credential', vault=op_vault) }}"
+    name: Meteoblue kogler.si (Maribor)
+    latitude: {{ home_latitude }}
+    longitude: {{ home_longitude }}
+    forecast_days: 7

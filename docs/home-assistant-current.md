@@ -27,7 +27,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 - The live instance is a **Raspberry Pi 4 B running Home Assistant OS (HAOS)** — confirmed by the `hassio` (Supervisor) component, the HAOS/OS/Supervisor update entities, and Raspberry Pi–specific integrations.
 - **Component versions:** HA **Core 2026.7.4** · HA **OS 18.2** · **Supervisor 2026.07.5** · RPi4 firmware 2026-01-09.
 - **198 entities**, spanning KNX (blinds, lights, heat-recovery ventilator, appliance power), Homematic IP (6 room thermostats + weather station + alarm), Shelly (<lights, buttons, overpowering>), media (Nvidia Shield via Android-TV-Remote **and** Cast, Sony BRAVIA via DLNA), Companion mobile apps, and weather.
-- **Community/HACS plugins confirmed:** **HACS v2.0.5**, **OneDrive Backup** (cloud backup), **go2rtc** (camera streaming), and **card-mod v3.4.4** (frontend). Likely-custom but **to-confirm:** `motion`, `ai_task`, and a Slovenian "Weather 2000" forecast source.
+- **Community/HACS plugins confirmed:** **HACS v2.0.5**, **OneDrive Backup** (cloud backup), **go2rtc** (camera streaming), and **card-mod v3.4.4** (frontend). Likely-custom but **to-confirm:** `motion`, `ai_task`. (**Weather 2000** forecast source = **dropped** per HD-22 → core `meteoblue`.)
 - **HAOS add-ons (Supervisor, all official):** `Advanced SSH & Web Terminal`, `File editor`, `Studio Code Server`. These are the **only** Supervisor add-ons currently detected.
 - **Feasibility verdict (Docker):** **High** — every functional integration (KNX, Homematic IP, Shelly, media, Companion, weather, HACS, OneDrive, go2rtc) runs under **HA Container**, because HACS and its custom components live inside HA Core, not the Supervisor. The only things lost moving to Docker are the **dev-tool add-ons** (SSH/File editor/VS Code) and **Supervisor OS-level services** (OS/firmware updates, watchdog, add-on lifecycle) — all replaceable as standalone containers or host tools. Details in §8.
 
@@ -110,11 +110,10 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 |---|---|---|
 | **Mobile App (Companion)** (`mobile_app`) | `SM-A546B` (Galaxy A54), `SM-A556B` (Galaxy A56): device_tracker, notify, battery level/state, charger type | 2 phones registered via HA Companion |
 
-### 6.4 Weather (2 providers)
+### 6.4 Weather (1 provider — HD-22 decided)
 | Integration | Entity | Notes |
 |---|---|---|
-| **met** (Meteorologisk institutt) | `weather.forecast_dom` (Forecast Belačeva ulica 5) | Official core weather |
-| **Weather 2000 / Slovenian** (custom?) | `weather.weather_2000_slovenija` | Non-core added source; likely a HACS/third-party Slovenian feed (**to-confirm** — not attributable via REST attributes; no matching domain in component list) |
+| **meteoblue** (core) | `weather.meteoblue_kogler_si_maribor` | **Single authoritative source** (Maribor, `{{ home_latitude }}/{{ home_longitude }}`). Replaces third-party HACS "Weather 2000" + core `met` (both dropped). Key = `meteoblue_api` (1Password Homelab). Hourly + 7-day forecast; Slovenia is modeled well. Configured in `configuration.yaml.j2` (IaC). |
 
 ### 6.5 System / HAOS-level
 | Integration | Observed | Notes |
@@ -145,7 +144,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 | **card-mod** (`card_mod`) | HACS frontend card | v3.4.4 | v4.2.1 (skipped) | Custom Lovelace card CSS/modification | ✅ Yes |
 | **motion** (`motion`) | HACS?(custom) | *(api)* | — | Motion-detection component (no motion entities live yet) | **To-confirm** |
 | **ai_task** (`ai_task`) | custom / 2026-builtin? | *(api)* | — | AI/LLM task component | **To-confirm** |
-| **Weather 2000 (SI)** | HACS?(custom) | *(api)* | — | Slovenian forecast (`weather.weather_2000_slovenija`) | **To-confirm** |
+| ~~**Weather 2000 (SI)**~~ | ~~HACS (custom)~~ | ~~*(api)*~~ | — | ~~Slovenian forecast (`weather.weather_2000_slovenija`)~~ | ❌ **Removed (HD-22)** — superseded by core `meteoblue` (**single source**); third-party HACS / duplicate `met` all dropped |
 
 > Exact installed versions of OneDrive, go2rtc, motion, ai_task, Weather-2000 are not exposed via the REST API — confirm by reading HACS `.storage/hacs.data` + `custom_components/` from the config git repo or via SSH (Advanced SSH add-on) + admin Supervisor access.
 
@@ -197,7 +196,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 - [ ] Confirm the **full Supervisor add-on list** with an **admin** token (`/api/hassio/addons` returned 401 for the owner `domen` token used here) — ensures no community add-on store is in use.
 - [x] ~~Confirm **Modbus UPS** device/register details — device is the **PowerWalker VFI ICT/ICR IoT 3000** on `10.10.99.9:502` (unit 1); *register map* still to-confirm~~ (see [`hardware-ups.md`](hardware-ups.md)). **Superceded/removed** — HA Modbus UPS sensors retired; UPS monitoring is NUT/USB via `nut_exporter`.
 - [ ] Confirm **ESPHome**: `smart-home.md` references a Guition ESP32-S3 kitchen device, but the `esphome` integration is **not loaded** on this instance — is it online/paired elsewhere or not yet added?
-- [ ] Confirm the **"Weather 2000, Slovenija"** source — third-party/HACS vs core, and whether it should be retained or replaced.
+- [x] ~~Confirm the **"Weather 2000, Slovenija"** source — third-party/HACS vs core, and whether it should be retained or replaced.~~ **Decided (HD-22):** dropped. Single authoritative source = HA core **`meteoblue`** (Maribor, `meteoblue_api` from 1Password), configured in `configuration.yaml.j2`. Core `met` also dropped.
 - [ ] Whether the planned **Authentik/OIDC** SSO is meant to be introduced during the redo (currently not connected).
 
 ---
