@@ -10,7 +10,7 @@
 #     creds at deploy. Endpoint stays loopback-only (HD-62).
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:{{ prometheus_version }}
     container_name: prometheus
     restart: unless-stopped
     command:

@@ -6,7 +6,7 @@
 #   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }} — none needed here.
 services:
   blackbox-exporter:
-    image: prom/blackbox-exporter:latest
+    image: prom/blackbox-exporter:{{ blackbox_exporter_version }}
     container_name: blackbox-exporter
     restart: unless-stopped
     networks:

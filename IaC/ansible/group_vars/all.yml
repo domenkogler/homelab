@@ -81,6 +81,24 @@ openwebui_version: "0.11.0"
 # stable release (date-based versioning); young project, MUST re-verify at deploy.
 # GHCR is the primary registry for release automation/provenance.
 openclaw_version: "2026.7.1"
+# HD-134 / KOPS-030: pinned semvers for core services that previously fell back to
+# `latest` via an undefined *_version var. Renovate docker datasource keeps each current.
+# (Versions verified against upstream registries 2026-08-18.)
+authentik_version: "2026.5.6"      # ghcr.io/goauthentik/server + ldap (GoAuthentik)
+crowdsec_version: "v1.7.8"          # crowdsecurity/crowdsec (Docker Hub tag has a `v`)
+db_backup_version: "4.1.100"        # tiredofit/db-backup
+forgejo_version: "16.0.2"           # codeberg.org/forgejo/forgejo (docker tag strips `v`)
+grafana_version: "13.2.0"           # grafana/grafana OSS
+headscale_version: "0.29.3"         # headscale/headscale (docker tag strips `v`)
+kopia_version: "0.23.1"             # kopia/kopia
+n8n_version: "2.35.3"               # n8nio/n8n
+immich_version: "v3.1.0"            # ghcr.io/immich-app/immich-server (tag has `v`)
+opencloud_version: "7.4.0"          # ghcr.io/opencloud-eu/opencloud (docker tag strips `v`)
+# Observability infra pins (HD-134 / KOPS-030) — Renovate docker datasource keeps them
+# current. Verified against Docker Hub 2026-08-18.
+prometheus_version: "v3.14.0"        # prom/prometheus (Docker Hub tag has a `v`)
+loki_version: "3.7.6"                # grafana/loki (Docker Hub tag strips `v`)
+blackbox_exporter_version: "v0.28.0"  # prom/blackbox-exporter (Docker Hub tag has a `v`)
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.

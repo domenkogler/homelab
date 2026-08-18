@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 57 open · 0 decisions · 2 purchases · 10 parked · 59 done (in changelog)
+**Status:** 58 open · 0 decisions · 2 purchases · 10 parked · 59 done (in changelog)
 
 ---
 
@@ -63,7 +63,7 @@
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
 | HD-02 | 3 | AI | 1 | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
-
+| HD-134 | 3 | AI | 2 | **Pin all unpinned image tags + add a validator guard** — ✅ **Done (2026-08-18, mostly):** audit found ~37 services could resolve to `latest`. **Pinned (verified, added `_version` in all.yml + Renovate-tracked):** authentik 2026.5.6, crowdsec v1.7.8, db-backup 4.1.100, forgejo 16.0.2, grafana 13.2.0, headscale 0.29.3, kopia 0.23.1, n8n 2.35.3, immich v3.1.0, opencloud 7.4.0, prometheus v3.14.0, loki 3.7.6, blackbox-exporter v0.28.0 (traefik/postgres already pinned). **Guard added:** `validate-docker-services.py` now FAILS on any compose image resolving to bare `latest`, with an `ALLOWED_LATEST` allowlist for the documented media/*arr stack + HD-121 fluid/obscure slow-moving tags (MUST-pin comment). `BASE_CTX` version mocks corrected to real pins. ⏳ **Remaining:** fluid/obscure services (minio, tuwunel, element-web, homepage, metabase, pihole, technitium, dozzle, signal-cli, sunshine) stay documented `latest` — pin at first deploy when registry-verified. · [deployment-compose.md](docs/deployment-compose.md), [CONVENTIONS.md](CONVENTIONS.md) §3 |
 
 ### 2.4 Services & Edge — Traefik, SSO, service catalog, Matrix, VPS edge
 
@@ -152,7 +152,7 @@
 | HD-45 | 3 | AI | *(Phase 2)* **Re-evaluate Homelable (topology/rack visualizer)** — Pouzor/homelable, MIT, young project; network + rack canvas + nmap scan + live health + MCP; potential successor to `Rack.canvas` visual/Homepage reachability widget. Keep deferred until services are live; re-check maturity. Noted in `observability.md` + `network-rack.md`. · [observability.md](docs/observability.md) |
 | HD-48 | 3 | AI + Human | **Requested-only bridges (deferred, Phase 2 best-effort)** — WhatsApp/Messenger/Signal bridges are **out of Phase 1 scope** (every bridge risks a real external account). Revisit **only if family asks**, and then only against **dedicated** numbers, accepting re-pairing/ban. · [services-matrix.md](docs/services-matrix.md) |
 | HD-129 | 2 | AI | **Router DHCP → use internal resolver** — bootstrap assigns 1.1.1.1 not the internal resolver (KOPS-028); same outcome as HD-03 DNS setup, so fold in at live DNS. · [network-vlans.md](docs/network-vlans.md) |
-| HD-130 | 2 | AI | **Low-severity opportunistic fixes** — Homepage docker.sock ro visibility, Seerr SQLite failure domain, pi edge cert expiry (KOPS-058/059/061); do opportunistically during service deployment. · [services.md](docs/services.md) |
+| HD-130 | 2 | AI | **Low-severity opportunistic fixes** — Homepage docker.sock ro visibility, Seerr SQLite failure domain, pi edge cert expiry (KOPS-058/059/061). ✅ **Applied (2026-08-18):** KOPS-058 already `:ro` on the docker.sock mount (verified); KOPS-059 Seerr config+`seerr.db` added to `backup.md` Service-state scope + documented in the compose; KOPS-061 Grafana SSL-cert-expiry alert rule added (warning tier, fires <14 days out) per the KOPS-061 recommended fix. Live dashboard/cert check still at deploy. Do remaining opportunistically during service deployment. · [services.md](docs/services.md) |
 
 ## 3b. Activation notes - HD-02 (Doco-CD)
 
@@ -204,9 +204,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 57
+- Open rows: 58
 - Decisions front: 0 · Buys: 2 · Park: 10
-- Active work per module: ai=8, backup=2, docs=2, finance=2, net=2, observ=0, platform=1, security=1, services=10, smart=11, storage=6
+- Active work per module: ai=8, backup=2, docs=2, finance=2, net=2, observ=0, platform=2, security=1, services=10, smart=11, storage=6
 
 ## 6. Conventions quick-reference
 

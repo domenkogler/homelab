@@ -81,6 +81,34 @@ NETWORK_MAP = {
 # Services that don't need Traefik labels (are their own reverse proxy)
 NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent"}  # qbittorrent labels are on gluetun sidecar
 
+# HD-134 / KOPS-030 convention: pinned tags (never bare `latest`). A compose image that
+# RESOLVES to bare `latest` (either a literal `:latest` or an undefined *_version var falling
+# back to `default('latest')`) is an unpinned-tag violation and FAILS validation — unless the
+# service is in the documented allowlists below.
+#
+# ALLOWED_LATEST  = services that deliberately track `latest`, Renovate-controlled:
+#   - the media/*arr stack (deployment-compose.md §"*arr / Media Stack Conventions"):
+#     linuxserver/*, jellyfin, seerr, gluetun, profilarr, recyclarr.
+#   - HD-121-style obscure/fluid or single-maintainer tags kept on `latest` with an explicit
+#     MUST-pin comment until a registry check can pin a verified semver (tuwunel precedent).
+ALLOWED_LATEST = {
+    # media/*arr stack (documented `latest`-tracked, Renovate) — deployment-compose.md:
+    "sonarr", "radarr", "lidarr", "prowlarr", "bazarr", "sabnzbd", "qbittorrent",
+    "jellyfin", "seerr", "profilarr", "recyclarr",
+    # sidecars/helpers of that stack that share its tag policy:
+    "gluetun",
+    # HD-121-style fluid/obscure/Rolling-tag services kept on `latest` — Renovate-tracked,
+    # MUST pin to a verified semver at first deploy (registry check) before production:
+    "doco-cd", "renovate",          # CD/update tooling, rolling tags
+    "dozzle",                        # rolling `master`/pr tags; no stable semver on top 100
+    "minio",                         # all.yml: documented `latest` placeholder (HD-61 note)
+    "matrix",                        # tuwunel — HD-121 documented obscure image
+    "chat",                          # element-web (web frontend; fluid tags)
+    "homepage", "metabase", "pihole",      # UI/utility containers, Renovate-tracked latest
+    "technitium", "technitium-secondary",  # DNS servers, fluid tags
+    "signal-cli-rest-api", "sunshine",     # helper / GPU streaming
+}
+
 # Services that use network_mode: service:<sidecar> (no own networks)
 NETWORK_MODE_SERVICE = {"qbittorrent"}
 
@@ -122,7 +150,7 @@ BASE_CTX = {
     "domain_public": "kogler.si",
     "domain_local": "kogler.si",
     "letsencrypt_email": "domen@kogler.si",
-    "traefik_version": "latest",
+    "traefik_version": "v3.5.2",
     "certs_dumper_version": "v2.8.3",
     "keepalived_version": "2.3.4",
     "pairdrop_version": "1.11.2",
@@ -132,6 +160,9 @@ BASE_CTX = {
     "litellm_version": "main-stable",
     "openwebui_version": "0.11.0",
     "openclaw_version": "2026.7.1",
+    "prometheus_version": "v3.14.0",
+    "loki_version": "3.7.6",
+    "blackbox_exporter_version": "v0.28.0",
     "storage_uid": "1005",
     "storage_gid": "1005",
     "tuwunel_version": "latest",
@@ -150,20 +181,20 @@ BASE_CTX = {
     "gpu_render_gid": "123",
     "gpu_video_gid": "124",
     "crowdsec_bouncer_plugin_version": "v0.4.0",
-    "crowdsec_version": "latest",
+    "crowdsec_version": "v1.7.8",
     "crowdsec_collections": "crowdsecurity/traefik crowdsecurity/linux",
     "minio_version": "latest",
     "authentik_db_name": "authentik",
-    "authentik_version": "latest",
+    "authentik_version": "2026.5.6",
     "opencloud_version": "7.4.0",
-    "forgejo_version": "latest",
+    "forgejo_version": "16.0.2",
     "home_assistant_version": "stable",
-    "headscale_version": "latest",
-    "kopia_version": "latest",
-    "db_backup_version": "latest",
-    "grafana_version": "latest",
-    "immich_version": "release",
-    "n8n_version": "latest",
+    "headscale_version": "0.29.3",
+    "kopia_version": "0.23.1",
+    "db_backup_version": "4.1.100",
+    "grafana_version": "13.2.0",
+    "immich_version": "v3.1.0",
+    "n8n_version": "2.35.3",
     "rmat_name": "raspberrymatic",
     "rmat_restart": "unless-stopped",
     "instance": "primary",
@@ -305,6 +336,20 @@ def validate_render(name, j2_path, env, service):
         # image
         if "image" not in svc_def:
             errors.append(f"{prefix} missing `image`")
+        else:
+            # HD-134: enforce the pinned-tag convention (never bare `latest`).
+            # Flags both a literal `image: ...:latest` and an undefined *_version var that
+            # resolved to `latest` via the `default('latest')` fallback at render time.
+            img = svc_def.get("image", "")
+            tag = img.rsplit(":", 1)[-1] if ":" in img else ""
+            if tag == "latest":
+                if name not in ALLOWED_LATEST:
+                    errors.append(
+                        f"{prefix} UNPINNED image '{img}' resolves to bare `latest` "
+                        f"(HD-134/KOPS-030) — pin a semver via a `{name}` compose version var + "
+                        f"group_vars, or (if it's a deliberate latest/fluid tag) add `{name}` "
+                        f"to ALLOWED_LATEST with a MUST-pin comment."
+                    )
 
         # restart policy
         restart = svc_def.get("restart", "")

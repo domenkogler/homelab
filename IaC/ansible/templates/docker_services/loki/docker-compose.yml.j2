@@ -7,7 +7,7 @@
 #   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }} — none needed here.
 services:
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:{{ loki_version }}
     container_name: loki
     restart: unless-stopped
     command:

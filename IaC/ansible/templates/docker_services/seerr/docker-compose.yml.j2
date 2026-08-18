@@ -1,8 +1,13 @@
 # seerr docker-compose.yml — Request portal (seerr.kogler.si)
 #   seerr.dev image. OWN LOGIN (no Authentik Forward-Auth — family non-admin users
-#   submit requests directly). SQLite config in /app/config. Internal-only.
+#   submit requests directly). Internal-only.
+#   SQLite (`seerr.db`) lives in /app/config → host path /srv/docker/seerr/config.
+#   KOPS-059 / HD-130: this config+DB IS in backup scope (docs/backup.md "Service state"
+#   → tank/data/services via nightly push + Kopia). Single-file SQLite — reconfig ~15 min;
+#   isolated per-service under /srv/docker/seerr so its failure domain is the service only.
 #
 # Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   — none needed
 #   — none needed
 services:
   seerr:

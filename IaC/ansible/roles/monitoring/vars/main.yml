@@ -72,6 +72,13 @@ grafana_alert_rules:
       for: 1m
       expr: 'probe_success{job="blackbox_http_probes", instance="https://ha.kogler.si"} == 0'
       summary: "ha.kogler.si HTTP probe failed"
+    - uid: ssl-cert-expiring
+      title: TLS certificate expiring soon
+      for: 5m
+      expr: '(probe_ssl_earliest_cert_expiry{job="blackbox_http_probes"} - time()) < 86400*14'
+      summary: "TLS cert on {{ $labels.instance }} expires in under 14 days"
+      # KOPS-061: the Pi traefik-ha edge serves a cert synced from oldsrv (ACME disabled) —
+      # alert before expiry so it is renewed on oldsrv (the single ACME issuer) while it is up.
     - uid: host-load-high
       title: Host load high
       for: 5m
