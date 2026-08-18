@@ -125,8 +125,8 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
    then `sso` (+ each public app as it lands).
 4. **Live Box CIFS mount** — mount `//u653411.your-storagebox.de/backup` (`Hertzner-SB-Data`) on the VPS
    (`/mnt/storagebox`) for Immich originals + encoded-video + OpenCloud files (HD-135 storage split).
-5. **NOT yet online (needs WG + oldsrv):** immich-app→immich-ml, litellm→ollama — these expose only after the
-   S2S tunnel to oldsrv exists (GPU backends, Phase 1.5). Their DBs/thumbs can be stood up now; the ML/local-model link waits.
+5. **NOT yet online (needs WG S2S + oldsrv):** immich-app→immich-ml, litellm→ollama — these expose only after the
+   S2S tunnel (VPS↔home router, `wg-s2s`) reaches oldsrv's GPU backends (Phase 1.5). Their DBs/thumbs can be stood up now; the ML/local-model link waits.
 
 **Verify:**
 - `sso.kogler.si` (Authentik) reachable publicly through the VPS Traefik with the wildcard cert; crowdsec decision active.
