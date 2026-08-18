@@ -7,11 +7,11 @@
 #      office suite, full .docx/.xlsx/.pptx, no Wine/VM.
 #   2. ttf-mscorefonts-installer — Calibri/Cambria etc. for document fidelity
 #      (EULA accepted via debconf; package downloads fonts at install time).
-#   3. PENDING (HD-52): OpenCloud sync client — the official client
-#      (opencloud-eu/desktop) ships AppImage only (no apt repo/.deb). Decision
-#      open: AppImage → /opt + .desktop entry, or Debian `nextcloud-desktop`
-#      (protocol-equivalent), or skip. NOT implemented yet — see
-#      docs/llm-office.md and docs/deployment-ansible.md.
+#   3. OpenCloud sync client dependency — the official client
+#      (opencloud-eu/desktop) ships AppImage only (no apt repo/.deb); it is
+#      installed MANUALLY on clients (HD-52). Ansible only preps the runtime
+#      dependency: `libfuse2t64` (FUSE, AppImage mount/run). Clients are
+#      Debian 13 (trixie) only.
 #
 # Secrets: none.
 
@@ -73,8 +73,21 @@
     update_cache: true
   tags: [office]
 
-# PENDING (HD-52): OpenCloud sync client — official client ships AppImage only;
-# packaging decision open (AppImage → /opt + .desktop entry | Debian
-# nextcloud-desktop | skip). Add the chosen install task here once decided.
+# OpenCloud sync client runtime dependency (HD-52).
+# The OpenCloud desktop client (opencloud-eu/desktop) ships as an AppImage only
+# (no apt repo/.deb) and is installed MANUALLY on each Debian 13 client.
+# Ansible preps what AppImage needs to run: FUSE. On Debian 13 (trixie) this is
+# the `libfuse2t64` package (renamed from `libfuse2` on bookworm).
+- name: Install FUSE runtime for AppImage (OpenCloud client, Debian 13 trixie)
+  ansible.builtin.apt:
+    name: libfuse2t64
+    state: present
+    update_cache: true
+  tags: [office]
 
-# Verify after deploy: onlyoffice-desktopeditors launches · fc-list | grep -i calibri
+# NOTE (HD-52): the OpenCloud AppImage itself is installed manually per client
+# (download from opencloud-eu/desktop releases, chmod +x, /opt or ~/, .desktop
+# entry). Ansible intentionally does NOT manage the binary (no apt repo; avoids
+# fighting an unmanaged artifact).
+
+# Verify after deploy: onlyoffice-desktopeditors launches · fc-list | grep -i calibri · `opencloud --version` (AppImage)

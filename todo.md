@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 61 open · 4 decisions · 2 purchases · 9 parked · 56 done (in changelog)
+**Status:** 60 open · 3 decisions · 2 purchases · 9 parked · 57 done (in changelog)
 
 ---
 
@@ -28,7 +28,7 @@
 | HD-25 | 1 | Human | *(decision)* **Wake word final approval** — "Hey, assistant" is tentative; family meeting needed. · [smart-home.md](docs/smart-home.md) |
 | HD-29 | 2 | Human | *(decision)* **Off-site storage: two Hetzner Storage Boxes (drop iDrive)** — ✅ **Decided (2026-08-18):** **two Hetzner Storage Boxes** — nearest-DC box = **live** (Immich originals S3 + family SMB/WebDAV drives), far-DC box (Helsinki/Falkenstein) = **backup** (Kopia repo). **iDrive e2 dropped** (Hetzner is cheaper per TB + SMB/WebDAV; single-provider risk on Hetzner accepted). **Size (2026-08-18): 1 TB × 2** — live box fits 300 GB Immich library (~30%, headroom for growth + drives); backup box holds dedup/encrypted Kopia repo fine. Hetzner boxes are **live-upgradable** in-place → 1 TB is a safe start, bump tier when library crosses ~600–700 GB. **Backup-space add-on:** **live box → minimal only** (its copy-protection = ZFS + far-DC Kopia, NOT same-DC snapshots — geo-separation is the point); **backup box → carry the backup space** (protects the Kopia repo, the actual off-site copy). Input to HD-31. · [backup.md](docs/backup.md), [subscription.md](docs/subscription.md) |.md](docs/backup.md) |
 | HD-39 | 1 | Human | *(decision)* **watchtower for Pi HA container** — Renovate + pinned images may suffice. · [smart-home-failover.md](docs/smart-home-failover.md) |
-| HD-52 | 1 | AI + Human | *(decision)* **OpenCloud sync client packaging** — official client (opencloud-eu/desktop) ships AppImage only, no apt repo; options: AppImage → /opt + .desktop entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Blocks office role's client. · [llm-office.md](docs/llm-office.md) |
+| ~~HD-52~~ | 1 | AI + Human | *(decision)* **OpenCloud sync client packaging** — ✅ **Decided (2026-08-18):** official client (`opencloud-eu/desktop`) installed **manually per client** (AppImage → download/chmod/`/opt` or `~` + `.desktop`); Ansible prep only **`libfuse2t64`** (FUSE) — **Debian 13 (trixie) only**. Auth = **native OpenCloud OIDC → Authentik** (multi-redirect provider: web+desktop+mobile) + `csp.yaml` (`sso.kogler.si` in `connect-src`/`frame-src`); **prefer native OIDC over Traefik Forward-Auth** on `file` route. ⏳ *Deploy-gated:* uncomment OIDC block + create Authentik provider + add CSP + drop Forward-Auth label. Row closed → [changelog.md](changelog.md). · [llm-office.md](docs/llm-office.md), [deployment-ansible.md](docs/deployment-ansible.md) |
 
 
 ### Purchases
@@ -173,8 +173,8 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 61
-- Decisions front: 4 · Buys: 2 · Park: 9
+- Open rows: 60
+- Decisions front: 3 · Buys: 2 · Park: 9
 - Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=0, platform=1, security=1, services=10, smart=12, storage=5
 
 ## 6. Conventions quick-reference

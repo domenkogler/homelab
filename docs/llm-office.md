@@ -28,9 +28,9 @@ oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
 | Component | Role |
 |-----------|------|
 | **ONLYOFFICE Desktop Editors** | Native Linux office suite, Ribbon UI, full `.docx`/`.xlsx`/`.pptx` |
-| **OpenCloud sync client** | Files sync automatically to OpenCloud |
+| **OpenCloud sync client** | Files sync automatically to OpenCloud (AppImage, manual install — HD-52) |
 
-> ⚠ **PENDING (HD-52):** the official OpenCloud sync client (`opencloud-eu/desktop`) ships as an **AppImage only** — no apt repo. Packaging decision open: AppImage → `/opt` + `.desktop` entry, or Debian `nextcloud-desktop` (protocol-equivalent), or skip until the docs/manual phase.
+> ⚠ **HD-52 (Debian 13 only):** the official OpenCloud sync client (`opencloud-eu/desktop`) ships as an **AppImage only** — no apt repo. **Decision (2026-08-18):** install the company manually per client; Ansible preps **`libfuse2t64`** (FUSE). Auth via native **OIDC → Authentik** (multi-redirect provider + CSP), not Traefik Forward-Auth.
 | **ttf-mscorefonts-installer** | Calibri, Cambria for document fidelity |
 
 - No Wine, no VM, no Windows license — fully native Debian

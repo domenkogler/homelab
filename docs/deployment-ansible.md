@@ -328,11 +328,11 @@ domain_local: kogler.si
 - **PENDING (HD-51):** family user accounts + auto-login — 4 members + guest + a **neutral family account** owning shared media data (NOT a personal account as uid/gid 1000/1000); UID/group strategy under research. Role currently boots to the greeter with no local users.
 - See [`hardware-gpu.md`](hardware-gpu.md) for dual-GPU topology
 
-### `office`  *(implemented — OpenCloud client pending → HD-52)*
+### `office`  *(implemented — OpenCloud client = Debian 13 AppImage, manual install → HD-52)*
 - **Condition:** `when: homelab_mode == 'desktop'`
 - **ONLYOFFICE:** official ONLYOFFICE apt repo (`deb https://download.onlyoffice.com/repo/debian squeeze main`), `onlyoffice-desktopeditors` — installed
 - **Fonts:** `ttf-mscorefonts-installer` (EULA pre-accepted via `debconf`) — installed
-- **OpenCloud client — PENDING (HD-52):** the official client (`opencloud-eu/desktop`) ships **AppImage only** — no apt repo/.deb; options: AppImage → `/opt` + `.desktop` entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Not implemented (task block left marked in the role).
+- **OpenCloud client (HD-52, Debian 13 only):** the official client (`opencloud-eu/desktop`) ships **AppImage only** — installed **manually** per client (download → `chmod +x` → `/opt` or `~` + `.desktop` entry). Ansible only preps the **runtime dependency `libfuse2t64`** (FUSE for AppImage) — **Debian 13 (trixie) only**, no bookworm support. Auth via **native OIDC → Authentik** (multi-redirect provider + CSP) — *not* Traefik Forward-Auth (see deployment-compose).
 
 ### `kopia`
 - Kopia runs as two Docker containers deployed by the `docker_services` role:
