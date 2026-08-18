@@ -45,6 +45,15 @@ services:
       DB03_PASS: "{{ lookup('community.general.onepassword', 'immich_db', field='password', vault=op_vault) }}"
       DB03_NAME: immich
 
+      # PGVector (AI-stack RAG vector store, HD-102) — on db-internal; RAG index + chat
+      # history = irretrievable metadata (KOPS-026 class) so it must be dumped too.
+      DB04_TYPE: postgresql
+      DB04_HOST: pgvector
+      DB04_PORT: "5432"
+      DB04_USER: "{{ lookup('community.general.onepassword', 'pgvector_db', field='username', vault=op_vault) }}"
+      DB04_PASS: "{{ lookup('community.general.onepassword', 'pgvector_db', field='password', vault=op_vault) }}"
+      DB04_NAME: pgvector
+
       # OpenCloud uses an EMBEDDED database (no external Postgres) — it is NOT a DBxx
       # block here. Its backup is a tar of the data dir (/srv/docker/opencloud/data,
       # mount `/var/lib/opencloud`), covered by the service-state/OpenCloud Kopia scope

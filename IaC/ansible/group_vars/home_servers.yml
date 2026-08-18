@@ -65,6 +65,7 @@ docker_services:
   # AI
   - { name: ollama,          template_dir: ollama }
   - { name: immich-ml,       template_dir: immich-ml }
+  - { name: pgvector,        template_dir: pgvector }   # AI-stack RAG vector store (db-internal, HD-102)
   # DNS (technitium primary on oldsrv; secondary moved to the Pi — see group_vars/raspberry_pi.yml)
   - { name: technitium,      template_dir: technitium, subdomain: dns, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: pihole,          template_dir: pihole,     subdomain: ad }

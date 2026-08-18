@@ -124,6 +124,7 @@ BASE_CTX = {
     "keepalived_version": "2.3.4",
     "pairdrop_version": "1.11.2",
     "stirling_pdf_version": "2.14.3-fat",
+    "pgvector_version": "0.8.6-pg16-trixie",
     "storage_uid": "1005",
     "storage_gid": "1005",
     "tuwunel_version": "latest",

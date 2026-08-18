@@ -73,7 +73,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | Data | Location | Method | Target |
 |------|----------|--------|--------|
-| PostgreSQL DBs (Authentik, Immich, OpenCloud) | oldsrv NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** Hetzner Storage Box (backup) (Kopia) |
+| PostgreSQL DBs (Authentik, Immich, Forgejo, **PGVector** — HD-102) | oldsrv NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** Hetzner Storage Box (backup) (Kopia) |
 | Docker Compose files / systemd units / configs | Git repo + oldsrv `/opt/*` | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box (backup) |
 | Service state (Forgejo dump, n8n sqlite, …) | oldsrv NVMe | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
 | Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |

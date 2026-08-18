@@ -35,7 +35,7 @@ tags: [services, catalog]
 | Open WebUI | ai | P | 300–600 / 1,500 | **AI stack** — family chat + RAG UI; Authentik OIDC + crowdsec-only; Cohere embed-v4, Docling OCR, PGVector store. *(planning)* |
 | Docling | — | I | 150–400 / 900 | **AI stack** — OCR / document understanding for RAG (CPU). *(planning)* |
 | OpenClaw | — | I | 200–500 / 1,200 | **AI stack** — agent orchestration (ex-Clawd); models → LiteLLM; OpenCloud WebDAV skill; **version pinned**. *(planning)* |
-| PGVector | — | D | 100–250 / 600 | **AI stack** — vector DB for Open WebUI RAG + chat history (`db-internal`; backup via db-backup). *(planning)* |
+| PGVector | — | D | 100–250 / 600 | **AI stack** — vector DB for Open WebUI RAG + chat history (`db-internal`, HD-102; `pgvector/pgvector:0.8.6-pg16-trixie`; tagged; backup via db-backup DB04 → Kopia) |
 | Technitium | dns | I | 120–250 / 400 | Central DNS router, VLAN-aware (binds 53 on host) |
 | Pi-hole | ad | I | 100–200 / 300 | Ad-blocking DNS |
 | Headscale | vpn | P | 60–120 / 250 | Tailscale coordination server |

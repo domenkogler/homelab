@@ -62,6 +62,9 @@ pairdrop_version: "1.11.2"
 # with `-fat` variant (bundles all Tesseract langs incl. Slovenian `slv` for OCR);
 # Renovate docker datasource tracks it.
 stirling_pdf_version: "2.14.3-fat"
+# pgvector (postgres + vector extension) image tag — AI-stack RAG vector store (HD-102).
+# Pinned to pg16 on Debian 13 (trixie) to match host base; Renovate docker datasource tracks it.
+pgvector_version: "0.8.6-pg16-trixie"
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.
