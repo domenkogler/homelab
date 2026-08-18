@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 70 open · 9 decisions · 2 purchases · 9 parked · 46 done (in changelog)
+**Status:** 68 open · 9 decisions · 2 purchases · 9 parked · 48 done (in changelog)
 
 ---
 
@@ -124,9 +124,7 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-81 | 2 | AI | 2 | **Shrink HA `trusted_proxies` from `/16` to Traefik container IPs** — prevent spoofed client IPs from sibling containers (KOPS-039). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md), [security.md](docs/security.md) |
 | HD-59 | 2 | AI | 3 | **Internal service auth on flat Docker networks** — Ollama (`OLLAMA_AUTH_*` env vars), Kopia server (`--password` flag replacing `--without-password`), Signal CLI (basic auth wrapper on services-internal), Prometheus (`--web.config.file` with htpasswd). Flat networks = zero auth between containers; supply-chain compromise in one image gives attacker free rein. Auth tokens → 1Password `<service>-internal_api`. · [deployment-compose.md](docs/deployment-compose.md), Qwen-bugs KOPS-001/016/002 |
-| HD-127 | 2 | AI | 1 | **Deploy scripts not root on live** — `push-services.sh` executes docker as root on live containers (KOPS-056); move to sudo-scoped or dedicated run user. · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 
 ### 2.9 Backup & DR — ZFS snapshots, Kopia, off-site, restore drills
 
@@ -185,9 +183,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 70
+- Open rows: 68
 - Decisions front: 9 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=2, platform=2, security=3, services=10, smart=12, storage=6
+- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=2, platform=2, security=1, services=10, smart=12, storage=6
 
 ## 6. Conventions quick-reference
 

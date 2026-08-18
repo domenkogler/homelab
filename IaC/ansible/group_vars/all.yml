@@ -85,6 +85,14 @@ kopia_s3_endpoint: https://e2.idy.io
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
 ha_vip_cidr: 24                    # VIP prefix — shared by primary + standby keepalived
 ha_keepalived_vrid: 51            # VRRP virtual_router_id — MUST match on both HA nodes
+# HA reverse-proxy trust (KOPS-039 / HD-81): only specific Traefik edge container IPs are
+# trusted for X-Forwarded-For, NOT the whole traefik-public /16. Each host runs its OWN
+# traefik-public Docker bridge; fill the exact container IPs (default/`172.20.0.2/32` on the
+# oldsrv edge, adjust the Pi traefik-ha edge) at deploy. Both edges must be listed since the
+# SAME configuration.yaml is rendered on primary + standby.
+ha_trusted_proxies:
+  - 172.20.0.2/32            # oldsrv traefik (traefik-public bridge default .2) — verify at deploy
+  # - <pi-traefik-ha-ip>/32  # Pi traefik-ha edge container IP — uncomment/verify per host
 # RaspberryMatic standby CCU (macvlan on Home VLAN) — XML-RPC 2001/2010 target for
 # ha-failover.sh (derived from the address SSOT).
 homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'homematic-ccu-oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"

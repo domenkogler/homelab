@@ -9,16 +9,21 @@ TARGET="{{ storage_push_services.target }}"
 mkdir -p "$STAGING/forgejo" "$STAGING/n8n"
 
 # Forgejo — full dump (repos + DB + config) into staging
-docker exec forgejo forgejo dump --file /tmp/forgejo-dump.zip --tempdir /tmp \
+( docker exec forgejo forgejo dump --file /tmp/forgejo-dump.zip --tempdir /tmp \
     && docker cp forgejo:/tmp/forgejo-dump.zip "$STAGING/forgejo/" \
-    && docker exec forgejo rm -f /tmp/forgejo-dump.zip
+    && docker exec forgejo rm -f /tmp/forgejo-dump.zip ) \
+    && unzip -t "$STAGING/forgejo/forgejo-dump.zip" >/dev/null   # integrity chk (KOPS-056/HD-127)
 # (Alternative if 'forgejo dump' inside the container is unavailable at impl time:
 #  run 'git bundle' per repo — see storage-zfs.md)
 
 # n8n — sqlite backup (encrypted creds travel inside; N8N_ENCRYPTION_KEY in 1Password)
-docker exec n8n sqlite3 /home/node/.n8n/database.sqlite \
+# SQLite `.backup` uses the online-backup API (n8n keeps running). We then verify the
+# copied file with PRAGMA quick_check so a corrupt dump is caught here, not at restore
+# time (KOPS-056 / HD-127).
+( docker exec n8n sqlite3 /home/node/.n8n/database.sqlite \
     ".backup '/home/node/.n8n/n8n.sqlite'" \
-    && docker cp n8n:/home/node/.n8n/n8n.sqlite "$STAGING/n8n/"
+    && docker cp n8n:/home/node/.n8n/n8n.sqlite "$STAGING/n8n/" )
+sqlite3 "$STAGING/n8n/n8n.sqlite" 'PRAGMA quick_check;' | grep -q '^ok$'
 
 # Push to NAS (NFS mount of tank/data)
 rsync -a --delay-updates "$STAGING/" "$TARGET/"

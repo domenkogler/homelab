@@ -37,6 +37,28 @@
 # ---------------------------------------------------------------------------
 # Push job 2 — service state (Forgejo dump, n8n sqlite) → tank/data/services
 # ---------------------------------------------------------------------------
+# Dedicated non-root run user for the service-state push (KOPS-056 / HD-127): the
+# systemd timer must not run docker root-exec backups as root. svc-backup is in the
+# docker group (so it can `docker exec`/`docker cp`) and owns the staging dir;
+# the service unit sets User=/Group= (see push-services.service.j2).
+- name: Create dedicated non-root backup user (svc-backup)
+  ansible.builtin.user:
+    name: svc-backup
+    system: true
+    shell: /usr/sbin/nologin
+    groups: docker
+    home: "/srv/docker"   # staging sits under /srv/docker/services
+    create_home: false
+  register: svc_backup_user
+
+- name: Ensure push-services staging dir ownership for svc-backup
+  ansible.builtin.file:
+    path: "{{ storage_push_services.src }}"
+    state: directory
+    owner: svc-backup
+    group: svc-backup
+    mode: "0755"
+
 - name: Render push-services script + units
   ansible.builtin.template:
     src: "{{ item }}"

@@ -6,8 +6,12 @@
 # Both edges must be trusted so HA sees real client IPs.
 http:
   use_x_forwarded_for: true
+  # Trust only the specific Traefik edge container IPs, not the whole traefik-public /16
+  # (KOPS-039 / HD-81) — prevents a compromised sibling container from spoofing client IPs.
   trusted_proxies:
-    - 172.20.0.0/16   # traefik-public Docker network (SSOT: network-addresses.md)
+{% for ip in ha_trusted_proxies %}
+    - {{ ip }}
+{% endfor %}
 
 # ---- Recorder (trimmed for Pi microSD wear) ----
 # Grafana replaces HA for long-term analytics, so local history is kept short.

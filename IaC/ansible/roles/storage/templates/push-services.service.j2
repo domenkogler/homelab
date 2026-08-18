@@ -4,4 +4,8 @@ After=network-online.target
 
 [Service]
 Type=oneshot
+# Run as dedicated non-root backup user (KOPS-056 / HD-127) — docker exec backups
+# must not run as root. svc-backup is in the docker group + owns the staging dir.
+User=svc-backup
+Group=svc-backup
 ExecStart={{ storage_push_services.scripts }}
