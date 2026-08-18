@@ -19,7 +19,7 @@ services:
       - ./loki.yaml:/etc/loki/loki.yaml:ro
       - loki-data:/loki
     ports:
-      - "127.0.0.1:3100:3100"   # HTTP API — Grafana/Alloy reach it on db-internal/localhost; no LAN exposure (HD-62)
+      - "{{ wg_s2s_vps.ip | default('127.0.0.1') }}:3100:3100"   # VPS wg-s2s addr — oldsrv Alloy pushes over tunnel (HD-62)
 volumes:
   loki-data:
 networks:

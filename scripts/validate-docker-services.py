@@ -215,6 +215,11 @@ BASE_CTX = {
         {"name": "db-internal",       "cidr": "172.22.0.0/16", "purpose": "database"},
         {"name": "site",              "cidr": "10.10.0.0/16",  "purpose": "site"},
     ],
+    # VPS wg-s2s peer address (group_vars/all.yml `wg_s2s_vps`), used by
+    # prometheus/loki to bind on the tunnel address so oldsrv Alloy can reach them.
+    "wg_s2s_vps": {"ip": "10.255.40.2", "local_ip": "10.255.40.2/30", "router_ip": "10.255.40.1",
+                    "listen_port": 51820, "endpoint": "", "peer_public_key": "mock-router-pubkey",
+                    "allowed_ips": ["10.10.0.0/16", "10.255.20.0/24"]},
 }
 # ── Mock helpers ─────────────────────────────────────────────────────────
 

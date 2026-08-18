@@ -1,15 +1,19 @@
 ---
 # monitoring role — Observability stack agent + provisioning
 #
-# Targets: all hosts (raspberry_pi, home_servers, storage, router)
+# Targets: the `monitoring` inventory group (oldsrv collector + vps backend host).
 #
-# Architecture (docs/observability.md):
-#   Alloy (host agent: metrics + logs + SNMP) ──remote_write──▶ Prometheus
-#   Alloy (container logs via docker.sock) ────push──────────▶ Loki
+# Architecture (docs/observability.md, HD-135 split):
+#   Alloy (host agent: metrics + logs + SNMP) ──remote_write──▶ Prometheus (on VPS)
+#   Alloy (container logs via docker.sock) ────push──────────▶ Loki (on VPS)
 #   HA exporter /api/prometheus ────────────────scrape────────▶ Prometheus  (bearer token)
 #   blackbox_exporter (services-internal) ──────scrape────────▶ Prometheus
 #   nut_exporter (nas, host binary) ────────────scrape────────▶ Prometheus
 #   SNMP (MikroTik router + switch) ────────────Alloy────────▶ Prometheus
+#
+# Backend moves: Prometheus/Loki/Grafana now run on the VPS (reliable tier). old-srv
+# keeps a thin Alloy collector that forwards home telemetry over the wg-s2s tunnel
+# (alloy_backend_host); the VPS runs its own Alloy + the Grafana provisioning.
 #
 # This role handles:
 #   1. HA Prometheus API bearer token (from 1Password ha_api)
@@ -36,7 +40,7 @@
     dest: /etc/prometheus/ha_token
     content: "{{ lookup('community.general.onepassword', 'ha_api', field='credential', vault=op_vault) }}"
     mode: '0600'
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, ha_token]
 
 # ---- Alloy installation (Grafana APT repo) ----
@@ -44,7 +48,7 @@
   ansible.builtin.apt_key:
     url: https://apt.grafana.com/gpg.key
     state: present
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
 - name: Add Grafana APT repository (for Alloy)
@@ -52,14 +56,14 @@
     repo: deb https://apt.grafana.com stable main
     state: present
     update_cache: true
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
 - name: Install Alloy
   ansible.builtin.apt:
     name: alloy
     state: present
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
 - name: Create Alloy config directory
@@ -67,7 +71,7 @@
     path: /etc/alloy
     state: directory
     mode: '0755'
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
 - name: Template Alloy River config
@@ -76,7 +80,7 @@
     dest: /etc/alloy/config.alloy
     mode: '0644'
   notify: restart alloy
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
 - name: Template Alloy SNMP config (MikroTik module)
@@ -85,7 +89,7 @@
     dest: /etc/alloy/snmp.yml
     mode: '0644'
   notify: restart alloy
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
 - name: Ensure Alloy service is running
@@ -94,7 +98,7 @@
     state: started
     enabled: true
     daemon_reload: true
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
 # ---- Grafana provisioning (step 3: datasources, dashboards, alerting) ----
@@ -111,7 +115,7 @@
     - datasources
     - dashboards
     - alerting
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, grafana]
 
 - name: Provision Grafana datasources (Prometheus + Loki)
@@ -120,7 +124,7 @@
     dest: /srv/docker/grafana/provisioning/datasources/datasources.yml
     mode: '0644'
   notify: restart grafana
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, grafana]
 
 - name: Provision Grafana dashboard provider
@@ -129,7 +133,7 @@
     dest: /srv/docker/grafana/provisioning/dashboards/dashboards.yml
     mode: '0644'
   notify: restart grafana
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, grafana]
 
 - name: Copy Grafana dashboards
@@ -137,7 +141,7 @@
     src: dashboards/
     dest: /srv/docker/grafana/provisioning/dashboards/
     mode: '0644'
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, grafana]
 
 - name: Provision Grafana alert contact points
@@ -146,7 +150,7 @@
     dest: /srv/docker/grafana/provisioning/alerting/contactpoints.yml
     mode: '0644'
   notify: restart grafana
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, grafana]
 
 - name: Provision Grafana alert notification policy
@@ -155,7 +159,7 @@
     dest: /srv/docker/grafana/provisioning/alerting/policies.yml
     mode: '0644'
   notify: restart grafana
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, grafana]
 
 - name: Provision Grafana alert rules
@@ -164,5 +168,5 @@
     dest: /srv/docker/grafana/provisioning/alerting/rules.yml
     mode: '0644'
   notify: restart grafana
-  when: inventory_hostname in groups['home_servers']
+  when: inventory_hostname in groups['monitoring']
   tags: [monitoring, grafana]

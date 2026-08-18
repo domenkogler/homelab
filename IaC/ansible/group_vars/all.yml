@@ -229,6 +229,7 @@ network_ranges:
 # wireguard role). Keys: shared `wg_password` (1Password) private key.
 wg_s2s_vps:
   local_ip: "10.255.40.2/30"        # VPS side of the /30 (router is .1)
+  ip: "10.255.40.2"                  # bare VPS peer IP (Alloy/compose bind target)
   router_ip: "10.255.40.1"
   listen_port: 51820
   endpoint: ""                        # home WAN endpoint (dynamic); the VPS initiates here — set at deploy
@@ -238,6 +239,11 @@ wg_s2s_vps:
   allowed_ips:
     - "10.10.0.0/16"
     - "10.255.20.0/24"
+
+# ==== Observability backend target for Alloy (HD-135) ====
+# Alloy on old-srv forwards metrics/logs to the VPS Prometheus/Loki over the wg-s2s
+# tunnel (10.255.40.2); Alloy on the VPS self-observes via loopback.
+alloy_backend_host: "{% if inventory_hostname == 'oldsrv.kogler.si' %}10.255.40.2{% else %}127.0.0.1{% endif %}"
 
 # Single-namespace DNS: everything (hosts + services) is under kogler.si.
 # Internal-only hosts/services are NOT published in public DNS (split-horizon).
