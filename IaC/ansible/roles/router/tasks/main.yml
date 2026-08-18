@@ -477,34 +477,90 @@
       Once available, uncomment and configure CAPsMAN in this role.
 
 # -------------------------------------------------------------------------
-# WireGuard S2S Configuration
+# WireGuard S2S Configuration (wg-s2s — home router ↔ VPS, HD-03 / HD-135)
 # -------------------------------------------------------------------------
-# Note: VPN endpoint on VPS may be deferred (Phase 10).
+# The VPS side is configured by the `wireguard` role (systemd-networkd). This role
+# configures the home RB4011 side via api_modify (per HD-137: the declarative
+# `community.routeros_interface_wireguard*` modules do not exist, so use api_modify
+# path-based calls). Private key = shared `wg_password` (1Password) for the S2S family.
 
-- name: Configure WireGuard S2S tunnel (commented - pending VPS peer config)
-  debug:
-    msg: |
-      WireGuard S2S to VPS is deferred to Phase 10.
-      wireguard_s2s_vps vars available in group_vars/router.yml.
+- name: Assert the VPS WG public key is available (fail-closed, HD-65/HD-91)
+  assert:
+    that:
+      - "(wireguard_s2s_vps.vps_public_key | default('')) | length > 0"
+    fail_msg: >-
+      `wireguard_s2s_vps.vps_public_key` must be set (derived from the VPS wireguard
+      private key) before the router can peer with the VPS — never deploy with a blank peer.
+  tags: router_wireguard
 
-# Uncomment when VPS peer is ready:
-# - name: Create WireGuard interface
-#   community.routeros_interface_wireguard:
-#     name: wg-s2s
-#     listen_port: "{{ wireguard_s2s_vps.port | default(51820) }}"
-#     api_user: admin
-#     api_password: "{{ routeros_api_password }}"
+- name: Create WireGuard interface (wg-s2s)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: interface wireguard
+    handle_absent_entries: ignore
+    data:
+      - name: wg-s2s
+        private-key: "{{ lookup('community.general.onepassword', 'wg_password', field='password', vault=op_vault) }}"
+        listen-port: "{{ wireguard_s2s_vps.port }}"
+  tags: router_wireguard
 
-# - name: Configure WireGuard peer (VPS)
-#   community.routeros_interface_wireguard_peer:
-#     interface: wg-s2s
-#     name: vps
-#     address: "{{ wireguard_s2s_vps.remote_ip.split('/')[0] }}/30"
-#     allowed_address: 0.0.0.0/0
-#     private_key: "{{ lookup('community.general.onepassword', 'wg_password', field='password', vault=op_vault) }}"
-#     api_user: admin
-#     api_password: "{{ routeros_api_password }}"
+- name: Assign WireGuard /ip address to the wg-s2s interface
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip address
+    handle_absent_entries: ignore
+    data:
+      - address: "{{ wireguard_s2s_vps.local_ip }}"
+        interface: wg-s2s
+        disabled: no
+  tags: router_wireguard
 
+- name: Configure WireGuard peer (VPS) on wg-s2s
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: interface wireguard peers
+    handle_absent_entries: ignore
+    data:
+      - interface: wg-s2s
+        public-key: "{{ wireguard_s2s_vps.vps_public_key }}"
+        allowed-address: "{{ wireguard_s2s_vps.remote_ip }},{{ (network_ranges | selectattr('name', 'equalto', 'wg-vps-services') | first).cidr }}"
+        endpoint-address: "{{ wireguard_s2s_vps.remote_endpoint }}"
+        endpoint-port: "{{ wireguard_s2s_vps.port }}"
+        comment: vps-s2s
+        disabled: no
+  tags: router_wireguard
+
+- name: Route wg-vps-services (VPS-resident services) via the VPS S2S peer
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip route
+    handle_absent_entries: ignore
+    data:
+      - dst-address: "{{ (network_ranges | selectattr('name', 'equalto', 'wg-vps-services') | first).cidr }}"
+        gateway: "{{ wireguard_s2s_vps.remote_ip.split('/')[0] }}"
+        comment: wg-vps-services-via-vps
+        disabled: no
+  tags: router_wireguard
 # -------------------------------------------------------------------------
 # Management Services
 # -------------------------------------------------------------------------

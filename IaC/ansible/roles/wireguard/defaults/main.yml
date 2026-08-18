@@ -2,8 +2,8 @@
 # wireguard role — VPS side of the site-to-site tunnel to the home router (wg-s2s)
 #
 # HD-03 / network-vpn.md: a single WireGuard S2S tunnel carries the home↔VPS path.
-#   - Home RB4011: `wg-s2s` peer .1 (RouterOS — configured by the router role, tasks
-#     currently commented pending the VPS peer; wireguard_s2s_vps in group_vars/router.yml)
+#   - Home RB4011: `wg-s2s` peer .1 (RouterOS — configured by the router role via
+#     community.routeros.api_modify; wireguard_s2s_vps in group_vars/router.yml)
 #   - VPS: `wg-s2s` peer .2 (this role — systemd-networkd WireGuard interface)
 #   - VPS routes home `site` (10.10.0.0/16) via the home S2S peer → VPS Prometheus
 #     reaches nut/zfs/ha_vip/ICMP and old-srv over the router-routed home VLANs.

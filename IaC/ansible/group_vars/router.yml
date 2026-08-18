@@ -20,6 +20,10 @@ wireguard_s2s_vps:
   remote_ip: 10.255.40.2/30
   remote_endpoint: "{{ hostvars['vps.kogler.si'].ansible_host }}"
   port: 51820
+  # VPS public key (derived from the VPS wireguard private key), needed for the router
+  # peer. Fail-closed when unset at deploy; the shared `wg_password` here is the router's
+  # private key. Single-private-key-per-S2S-family means each side derives its own pubkey.
+  vps_public_key: "{{ lookup('vars', 'wg_s2s_vps_public_key') if 'wg_s2s_vps_public_key' in vars else '' }}"
 
 # Headscale overlay for user devices (Tailscale-compatible CGNAT range).
 # WireGuard is site-to-site ONLY — user devices use Headscale, not road-warrior.
