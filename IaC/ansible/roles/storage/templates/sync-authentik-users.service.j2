@@ -1,0 +1,11 @@
+[Unit]
+Description=Sync Authentik family members → NAS Unix user + dataset + Samba + OpenCloud (D5)
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Runs as root on the NAS (creates system users + ZFS datasets + Samba accounts).
+# The `op` CLI must be signed in (1Password SSH agent / session) for secret lookups.
+ExecStart=/usr/local/sbin/sync-authentik-users.sh
+# Generous timeout: provisioning + Authentik/OpenCloud API calls over the LAN.
+TimeoutStartSec=300

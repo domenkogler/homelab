@@ -84,6 +84,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `authentik_db` | `password` (`username` = DB user) | authentik (Postgres) |
 | `authentik_password` | `password` | authentik (Django `SECRET_KEY`) |
 | `authentik_login` | `password` | authentik (bootstrap admin user) |
+| `authentik-api_token` | `api` | authentik — API token (read-only) used by the Authentik→NAS provisioning glue (`sync-authentik-users.sh`, D5/HD-131) |
 | `opencloud_db` | `password` | opencloud (Postgres) |
 | `minio_login` | `login` | MinIO S3 object store (HD-131 D1) — `username` = root user, `password` = root secret; S3 endpoint for Immich originals |
 | `immich_db` | `password` | immich-app (Postgres) |

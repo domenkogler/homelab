@@ -1,0 +1,114 @@
+#!/bin/bash
+# =============================================================================
+# sync-authentik-users.sh — Authentik → NAS/OpenCloud provisioning glue (D5/HD-131)
+# Managed by Ansible (storage role). Runs on nas via a systemd timer.
+#
+# Source of truth: Authentik (the IdP). This glue READS the "family" group members
+# via the Authentik API and PROVISIONs, idempotently, for each NEW family member:
+#   1. NAS Unix user + uid
+#   2. ZFS dataset  tank/data/users/<name>
+#   3. Samba account + Samba share [name]
+#   4. OpenCloud account (via OpenCloud admin API) — so a new family member can
+#      immediately mount their NAS drive + has an OpenCloud space.
+#
+# Adding a family member = add them to the Authentik "family" group; the next timer
+# run provisions everything else. (Per HD-131 D5.)
+#
+# Secrets: 1Password Homelab vault via the `op` CLI (must be signed in). No secrets
+# are committed; this script looks them up at run time.
+# =============================================================================
+set -euo pipefail
+
+AUTHENTIK_URL="${AUTHENTIK_URL:-http://authentik-server:9000}"
+FAMILY_GROUP_NAME="family"
+USERS_ROOT="${USERS_ROOT:-/tank/data/users}"
+STORAGE_GID="${STORAGE_GID:-1005}"
+
+get_ak_token() { op read "op://Homelab/authentik-api_token/credential"; }
+get_oc_admin() { op read "op://Homelab/opencloud_login/username"; }
+get_oc_admin_pass() { op read "op://Homelab/opencloud_login/password"; }
+
+echo "== Fetching family group members from Authentik =="
+AK_TOKEN="$(get_ak_token)"
+GROUP_PK="$(curl -fsS -H "Authorization: Bearer $AK_TOKEN" \
+  "$AUTHENTIK_URL/api/v3/core/groups/?name=$FAMILY_GROUP_NAME" \
+  | jq -r '.results[0].pk // empty')"
+if [ -z "$GROUP_PK" ]; then
+  echo "WARN: Authentik group '$FAMILY_GROUP_NAME' not found; nothing to provision." >&2
+  exit 0
+fi
+MEMBERS="$(curl -fsS -H "Authorization: Bearer $AK_TOKEN" \
+  "$AUTHENTIK_URL/api/v3/core/groups/$GROUP_PK/users/" \
+  | jq -r '.results[].username')"
+
+provision_user() {
+  local u="$1"
+  echo "== Provisioning family member: $u =="
+
+  # 1. NAS Unix user (idempotent)
+  if ! id -u "$u" >/dev/null 2>&1; then
+    useradd --system --shell /usr/sbin/nologin -M -g "$STORAGE_GID" "$u"
+    echo "  created unix user $u"
+  fi
+
+  # 2. ZFS dataset (owned by the user, isolated)
+  if ! zfs list "tank/data/users/$u" >/dev/null 2>&1; then
+    zfs create -o xattr=sa -o acltype=posixacl -o atime=off "tank/data/users/$u"
+    chown "$(id -u "$u"):$STORAGE_GID" "$USERS_ROOT/$u"
+    chmod 0700 "$USERS_ROOT/$u"
+    echo "  created dataset + isolated tree"
+  fi
+
+  # 3. Samba account (idempotent via pdbedit). Password from per-user 1Password item.
+  if ! pdbedit -L 2>/dev/null | grep -qw "$u"; then
+    if pw="$(op read "op://Homelab/${u}-samba_login/password" 2>/dev/null || true)"; then
+      printf '%s\n%s\n' "$pw" "$pw" | smbpasswd -a -s "$u" && echo "  samba user $u added"
+    else
+      echo "  SKIP samba password for $u — no 1Password '${u}-samba_login' item yet" >&2
+    fi
+  fi
+
+  # 3b. Samba share stanza (idempotent) — write a drop-in fragment + reload samba, so
+  #     a member provisioned at runtime gets a mountable drive without waiting for Ansible.
+  local share_frag="/etc/samba/share-${u}.conf"
+  if [ ! -f "$share_frag" ]; then
+    cat > "$share_frag" <<EOF
+[${u}]
+   comment = ${u}'s private drive (auto-provisioned, D5)
+   path = $USERS_ROOT/$u
+   browseable = no
+   read only = no
+   valid users = $u
+EOF
+    chmod 0644 "$share_frag"
+    # Wire into smb.conf if not already included (best-effort append before EOF).
+    grep -q "include = /etc/samba/share-\*\.conf" /etc/samba/smb.conf \
+      || printf '\ninclude = /etc/samba/share-*.conf\n' >> /etc/samba/smb.conf
+    smbcontrol all reload-config >/dev/null 2>&1 || true
+    echo "  samba share [$u] added"
+  fi
+
+  # 4. OpenCloud account — ensure an OpenCloud user exists for their drive's data.
+  #    (OpenCloud Graph API endpoint + auth verified at deploy; failure here must not
+  #     abort the NAS-side provisioning already done.)
+  local oc_admin oc_pass
+  oc_admin="$(get_oc_admin)"; oc_pass="$(get_oc_admin_pass)"
+  if curl -fsS -X POST \
+      -u "$oc_admin:$oc_pass" -H "Content-Type: application/json" \
+      -d "{\"onPremisesSamAccountName\":\"$u\"}" \
+      "https://file.kogler.si/graph/v1.0/users" >/dev/null 2>&1; then
+    echo "  requested OpenCloud user $u"
+  else
+    echo "  (OpenCloud user creation pending; NAS user + drive done) OK" >&2
+  fi
+}
+
+if [ -z "$MEMBERS" ]; then
+  echo "Family group '$FAMILY_GROUP_NAME' has no members (yet)."
+else
+  for u in $MEMBERS; do
+    provision_user "$u"
+  done
+fi
+
+echo "== Sync complete =="

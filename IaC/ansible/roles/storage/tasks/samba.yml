@@ -91,3 +91,29 @@
     - storage_samba_users | length > 0
     - (item.stdout | trim) == 'absent'
   tags: [samba, storage]
+
+# ---------------------------------------------------------------------------
+# Authentik → NAS/OpenCloud provisioning glue (D5/HD-131). Runs on nas via a
+# systemd timer: reads the Authentik 'family' group and provisions NAS user +
+# dataset + Samba account (+ OpenCloud) for each new member. The `op` CLI must be
+# available+authd at run time (1Password). auth token from 'authentik-api_token'.
+# ---------------------------------------------------------------------------
+- name: Render Authentik→NAS sync script + units
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "{{ '/usr/local/sbin/sync-authentik-users.sh' if item == 'sync-authentik-users.sh.j2' else '/etc/systemd/system/' + item | replace('.j2','') }}"
+    mode: "{{ '0755' if item == 'sync-authentik-users.sh.j2' else '0644' }}"
+  loop:
+    - sync-authentik-users.sh.j2
+    - sync-authentik-users.service.j2
+    - sync-authentik-users.timer.j2
+  tags: [samba, storage, auth-glue]
+  notify: Reload systemd
+
+- name: Enable+start Authentik→NAS sync timer
+  ansible.builtin.systemd:
+    name: sync-authentik-users.timer
+    daemon_reload: true
+    enabled: true
+    state: started
+  tags: [samba, storage, auth-glue]

@@ -19,6 +19,11 @@
    directory mask = 0775
    netbios name = NAS
 
+# Runtime-provisioned per-user shares (sync-authentik-users.sh glue, D5) —
+# each "/etc/samba/share-<user>.conf" fragment defines one family member's private
+# drive when they're added via Authentik (so the share appears without a re-run of Ansible).
+include = /etc/samba/share-*.conf
+
 # ---- Shared media (any family user; force-owner = neutral media account) ----
 [{{ storage_samba_media.share }}]
    comment = Family shared media

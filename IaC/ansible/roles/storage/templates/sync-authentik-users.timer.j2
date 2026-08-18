@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic Authentik family-member → NAS provisioning sync (D5)
+
+[Timer]
+OnCalendar=*-*-* *:15:00
+Persistent=true
+RandomizedDelaySec=180
+
+[Install]
+WantedBy=timers.target
