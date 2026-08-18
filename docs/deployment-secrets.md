@@ -60,7 +60,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 |--------------|-------------------|-----------------------|----------|
 | `login`      | Login             | `password`            | SMTP/SMTP-relay creds (`grafana-smtp_login`, `nut-smtp_login`), admin accounts (`mikrotik-admin_login`, `grafana_login`, `authentik_login`), any username+password combo |
 | `password`   | Password          | `password`            | shared / opaque secrets with no username: webhook HMAC (`doco-cd_password`), VRRP (`ha-vrrp_password`), upsmon (`nut_password`), repo master (`kopia_password`), Django `SECRET_KEY` (`authentik_password`), WireGuard private key (`wg_password`), Matrix bootstrap shared secret (`matrix_password`) |
-| `api`        | API Credential    | `credential`          | tokens & keys: Cloudflare (`cloudflare_api`), Forgejo (`forgejo_api`), HA long-lived (`ha_api`), HA failover trigger (`ha-failover_api`), headscale OIDC (`headscale_api`), S3 (`kopia-s3_api`), 1Password service-account (`op_api`), signal-cli (`signal_api`), PrivadoVPN WireGuard client key (`privado-vpn_api`), Matrix/Authentik OIDC client (`matrix_api`), Meteoblue weather key (`meteoblue_api`) |
+| `api`        | API Credential    | `credential`          | tokens & keys: Cloudflare (`cloudflare_api`), Forgejo (`forgejo_api`), HA long-lived (`ha_api`), HA failover trigger (`ha-failover_api`), headscale OIDC (`headscale_api`), 1Password service-account (`op_api`), signal-cli (`signal_api`), PrivadoVPN WireGuard client key (`privado-vpn_api`), Matrix/Authentik OIDC client (`matrix_api`), Meteoblue weather key (`meteoblue_api`) |
 | `db`         | Database          | `password` (also `username`) | platform DBs: `authentik_db`, `opencloud_db`, `immich_db`, `forgejo_db` — Database item holds both `username` (DB user) and `password` |
 | `ssh`        | SSH Key           | `private_key` / `public_key` | `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh` — item stores both halves; read whichever the consumer needs |
 
@@ -111,7 +111,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `mikrotik-admin_login` | `password` | router + switch + APs — MikroTik RouterOS admin (items RB4011/CRS328/hAP; shared across all network gear) |
 | `pppoe_login` | `password` (`username` = PPPoE user) | router — ISP (Telekom) PPPoE credentials for the egress WAN |
 | `cloudflare_api` | `credential` | ACME **DNS-01** wildcard `*.kogler.si` cert |
-| `kopia-s3_api` | `credential` (`username` = access key) | kopia-server S3 storage (access key + secret key) |
+| ~~`kopia-s3_api`~~ | ~~`credential` (S3 access key)~~ | **retired (HD-31): iDrive e2 S3 dropped.** Kopia now targets the **backup Box over SSH/SFTP (port 23)** — SSH-key auth via `Hertzner-SB-Backup`, repo password via `kopia_password`. No S3 credential item needed. |
 | `op_api` | `credential` | 1Password Service Account token → Doco-CD + Forgejo Actions |
 | `signal_api` | `credential` (`username` = phone number) | signal-cli-rest-api (linked-device pair / captcha) |
 | `signal-internal_api` | `credential` | signal-cli-rest-api — API token auth (`SIGNAL_CLI_API_TOKEN`; requests require `X-Api-Key` header) so no container on services-internal can send Signal as Domen's number without it (KOPS-002 / HD-125). n8n sends this in its webhook call |
@@ -166,7 +166,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `router_admin_password` | `mikrotik-admin_login` |
 | `router_login` | `mikrotik-admin_login` |
 | `cloudflare_api_token` / `cloudflare_api_token_credential` | `cloudflare_api` |
-| `s3_kopia_access_key` / `s3_kopia_secret_key` / `kopia_access_key` / `s3_kopia_secret` | `kopia-s3_api` |
+| ~~`s3_kopia_access_key` / `s3_kopia_secret_key` / `kopia_access_key` / `s3_kopia_secret`~~ → ~~`kopia-s3_api`~~ | **retired (HD-31/HD-135)** — iDrive S3 dropped; Kopia = SFTP to backup Box (see `kopia-s3_api` row) |
 | `op_service_account_token` | `op_api` |
 | `doco_cd_op_service_account` | `op_api` (single SA token for Doco-CD + Actions) |
 | `doco_cd_webhook_secret` | `doco-cd_password` |

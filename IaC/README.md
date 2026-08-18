@@ -177,7 +177,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - Kopia runs as a Docker container deployed by the `docker_services` role:
   - **kopia-server:** Web UI + repository server (on VPS in Phase 2, on oldsrv in Phase 1)
 - The standalone `kopia` Ansible role is **not used** — Kopia backup is entirely containerized, consistent with all other services.
-- **Secrets:** `kopia_password`, S3 credentials (`kopia-s3_api`) (1Password)
+- **Secrets:** `kopia_password`, `kopia-server-internal_api`; off-site target = backup Box via **SSH/SFTP (port 23)** (`kopia_sftp_*` in `all.yml`, `Hertzner-SB-Backup` SSH key) — **iDrive e2 S3 dropped** (HD-31/HD-135)
 
 ### `router`
 - Method: REST API (preferred) or templated `.rsc` push

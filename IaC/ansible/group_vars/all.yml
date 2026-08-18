@@ -132,11 +132,13 @@ zfs_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'na
 # zfs_exporter_listen in roles/storage/defaults/main.yml (:9198); keep in sync.
 zfs_exporter_port: 9198
 
-# ==== Kopia S3 backup target (iDrive e2) ====
-# Default bucket and endpoint for the kopia-server repository.
-# Override in host_vars or via extra vars if different targets are needed.
-kopia_s3_bucket: kogler-homelab
-kopia_s3_endpoint: https://e2.idy.io
+# ==== Kopia off-site target: Hetzner Storage Box backup (SSH/SFTP, HD-31/HD-135) ====
+# The backup Box (u653424) supports SSH/SFTP only (no S3/object storage); iDrive e2 was dropped.
+# These drive the kopia-server repo create sftp backend.
+kopia_sftp_host: u653424.your-storagebox.de
+kopia_sftp_port: 23          # non-standard Hetzner SSH/SFTP port
+kopia_sftp_user: u653424     # SSH key auth (no password) — key in 1Password Hertzner-SB-Backup
+kopia_sftp_path: /kopia      # repository dir under the box home
 
 # ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses.md) ====
 # Hand-edit here ONLY; regenerate docs/network-addresses.md after changes.

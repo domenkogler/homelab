@@ -131,7 +131,7 @@ subscriptions:
     secret: Hertzner-SB-Data    # 1Password Homelab, server (URL/user/password) — SMB/CIFS + WebDAV
     calendar_url: null
     notify: [signal]
-    status: active              # HD-31 redirect — live Immich-originals S3 + family SMB/WebDAV drives
+    status: active              # HD-31 redirect — live Immich originals + family SMB/WebDAV drives (CIFS, NOT S3)
     host: "653411.your-storagebox.de"      # server 653411; share //u653411.your-storagebox.de/backup
     username: u653411           # SMB/CIFS + SSH user (SSH key + password in 1Password)
     ssh_port: 23                # non-standard SSH/SFTP port

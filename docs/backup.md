@@ -39,12 +39,13 @@ nas ZFS pool "tank"  ──zfs send/recv──→  nas ZFS pool "bulk"
 
 ### Layer 2: Kopia (Off-Site — Application-Level, NAS-independent)
 
-Configs, DB dumps, service state, face thumbnails, and the **MinIO S3 object store** (which holds
-Immich originals, HD-131 D1) go off-site via Kopia — **oldsrv-local sources only, never NAS mounts**, so
-off-site backup keeps working while the NAS is fully down:
+Configs, DB dumps, service state, face thumbnails, and VPS/oldsrv local state go off-site via Kopia —
+**local sources only, never NAS mounts**, so off-site backup keeps working while the NAS is fully down.
+Kopia targets the **backup Box over SSH/SFTP (port 23)** — the Hetzner Storage Box supports **SSH/SFTP
+only, NOT S3** (HD-31/HD-135); iDrive e2 S3 was dropped.
 
 ```
-tiredofit/db-backup (local scratch) →  Kopia agent (oldsrv) →  Hetzner Storage Box (backup) S3
+tiredofit/db-backup (local scratch) →  Kopia agent (VPS + oldsrv) →  Hetzner Storage Box (backup) SSH/SFTP :23
    + service state + face thumbs       (encrypted, dedup)       (far-DC: Helsinki/Falkenstein)
 ```
 
