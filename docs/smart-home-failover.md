@@ -74,7 +74,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 
 - **Identical config from one source:** both nodes render the **same `configuration.yaml`** from the repo (`use_x_forwarded_for: true`, `trusted_proxies: <Traefik>`), including the `owner` recovery account and Authentik OIDC settings.
 - **Role/playbook:** `raspberry_pi.yml` (common → network → docker → home_assistant → docker_services → monitoring) configures the Pi as primary (incl. RaspberryMatic + Technitium secondary). The `home_assistant` role on `home_servers` renders the standby + RaspberryMatic-standby containers on oldsrv.
-- **Update policy:** pinned image + Renovate; watchtower optional (see `hardware-oldsrv.md`, `deployment-renovate.md`).
+- **Update policy:** **Renovate + `stable` tag** (controlled/gated: Renovate → PR → review → deploy). **No watchtower** (HD-39) — preserves primary/standby version parity and the repo's deliberate update gating.
 
 ### Homematic macvlan network (prerequisite on both hosts)
 
@@ -252,7 +252,7 @@ If not present, run the `docker network create` command for oldsrv first.
 - [ ] Implement the **single failover button** + `ha-failover.sh` orchestrator (RMat → wait → VIP → standby) on Homepage.
 - [ ] **Once**, test HmIP-RFUSB pairing transfer + entity reconstruction across the stick move.
 - [x] **VIP address / notation + firewall IP-set** — **decided:** `ha-vip` (`/32`), DHCP pool stays ≤ `.199` (per SSOT); router lists `trusted-ha` + `trusted-admin`. See **Decided — HA VIP** above.
-- [ ] Whether to add `watchtower` for the Pi's HA container update automation.
+- [x] ~~Whether to add `watchtower` for the Pi's HA container update automation.~~ **Decided (HD-39):** no watchtower — keep Renovate + `stable` tag (controlled/gated), preserve primary/standby version parity.
 
 ## Related
 
