@@ -125,6 +125,7 @@ BASE_CTX = {
     "pairdrop_version": "1.11.2",
     "stirling_pdf_version": "2.14.3-fat",
     "pgvector_version": "0.8.6-pg16-trixie",
+    "docling_version": "v1.30.0",
     "storage_uid": "1005",
     "storage_gid": "1005",
     "tuwunel_version": "latest",

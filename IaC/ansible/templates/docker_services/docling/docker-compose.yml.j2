@@ -1,0 +1,32 @@
+# docling docker-compose.yml — AI-stack OCR / document understanding (docling-serve)
+#   Converts scans + PDFs (layout, tables, reading order) -> markdown for RAG ingestion.
+#   Runs on CPU (spares the dGPU for Ollama/immich-ML). Consumed by Open WebUI / OpenClaw
+#   over the v1 API on services-internal. docs/ai-stack.md (HD-103).
+#
+#   Image: quay.io/docling-project/docling-serve-cpu (CPU-only torch build) pinned via
+#   docling_version (HD-61/KOPS-053 convention). Serves the v1 API on port 5001.
+#   Internal backend only: NO Traefik labels, NO host port binds (HD-62) — reached over
+#   the services-internal overlay by the consuming AI services.
+#
+#   Model weights: docling downloads HF models on first start (warm_up_caches) — a
+#   persistent volume + HF_HOME keeps the multi-GB weights across restarts, avoiding a
+#   re-download each container recreate.
+services:
+  docling:
+    image: quay.io/docling-project/docling-serve-cpu:{{ docling_version }}
+    container_name: docling
+    restart: unless-stopped
+    networks:
+      - services-internal
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      DOCLING_SERVE_LOG_LEVEL: INFO
+      DOCLING_SERVE_LOG_FORMAT: json          # structured logs for Loki (observability)
+      DOCLING_SERVE_ENABLE_UI: "false"        # API backend only; UI is a demonstrator
+      DOCLING_SERVE_ENABLE_MANAGEMENT_ENDPOINTS: "true"   # /v1/memory for observability
+      HF_HOME: /models                        # persist downloaded model weights across restarts
+    volumes:
+      - /srv/docker/docling/models:/models     # HF model cache (nvme dataset; regenerable, not backed up)
+networks:
+  services-internal:
+    external: true

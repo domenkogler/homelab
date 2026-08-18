@@ -33,7 +33,7 @@ tags: [services, catalog]
 | Immich-ML | — | I | 300–600 / 1,200 | Face recognition, smart search — shares AMD VRAM |
 | LiteLLM | — | I | 120–250 / 500 | **AI stack** — LLM gateway/router: local Ollama + OpenRouter (gen) + Cohere (embeddings). Single endpoint; only component holding upstream keys. *(planning)* |
 | Open WebUI | ai | P | 300–600 / 1,500 | **AI stack** — family chat + RAG UI; Authentik OIDC + crowdsec-only; Cohere embed-v4, Docling OCR, PGVector store. *(planning)* |
-| Docling | — | I | 150–400 / 900 | **AI stack** — OCR / document understanding for RAG (CPU). *(planning)* |
+| Docling | — | I | 150–400 / 900 | **AI stack** — OCR / document understanding for RAG (CPU, HD-103; `docling-serve-cpu:v1.30.0`, services-internal, v1 API, HF weight cache volume) |
 | OpenClaw | — | I | 200–500 / 1,200 | **AI stack** — agent orchestration (ex-Clawd); models → LiteLLM; OpenCloud WebDAV skill; **version pinned**. *(planning)* |
 | PGVector | — | D | 100–250 / 600 | **AI stack** — vector DB for Open WebUI RAG + chat history (`db-internal`, HD-102; `pgvector/pgvector:0.8.6-pg16-trixie`; tagged; backup via db-backup DB04 → Kopia) |
 | Technitium | dns | I | 120–250 / 400 | Central DNS router, VLAN-aware (binds 53 on host) |

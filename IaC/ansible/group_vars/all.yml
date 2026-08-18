@@ -65,6 +65,9 @@ stirling_pdf_version: "2.14.3-fat"
 # pgvector (postgres + vector extension) image tag — AI-stack RAG vector store (HD-102).
 # Pinned to pg16 on Debian 13 (trixie) to match host base; Renovate docker datasource tracks it.
 pgvector_version: "0.8.6-pg16-trixie"
+# Docling Serve (quay.io/docling-project/docling-serve) CPU image tag — AI-stack OCR (HD-103).
+# CPU-only torch build; pinned to a verified release; Renovate docker datasource tracks it.
+docling_version: "v1.30.0"
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.
