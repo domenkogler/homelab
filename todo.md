@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 65 open · 7 decisions · 2 purchases · 9 parked · 52 done (in changelog)
+**Status:** 64 open · 7 decisions · 2 purchases · 9 parked · 53 done (in changelog)
 
 ---
 
@@ -78,12 +78,6 @@
 | HD-58 | 3 | AI | 3 | **Implement Stirling PDF service** — Stage: 4/10. self-hosted PDF toolkit (merge/split/compress/convert/number/OCR via Tesseract); family-friendly replacement for online PDF editors. Compose template + `group_vars/home_servers.yml` entry per the `docker_services` role (HD-50); catalog row in [`services.md`](docs/services.md). **Auth (decided 2025-08-15): anonymous mode** (`SECURITY_ENABLELOGIN=false`, default) **+ Authentik Forward-Auth at the Traefik edge** — same pattern as admin UIs; **native Stirling OIDC/SAML deliberately NOT used** (beta, adds per-user roles we don't need). **Exposure: internal-only** — no Cloudflare record, WAN-blocked; remote access only via the Headscale VPN (road-warrior), NOT public. Enable OCR (`TESSERACT_LANGS=eng+slv`, Slovenian). All processing in-memory, nothing persisted to disk → no ZFS/backup implication. Low RAM (~100–200 MB idle). · [services.md](docs/services.md) |
 | HD-112 | 4 | AI | 2 | **Zipline + OpenCloud file share** — ⚠️ **TENSION with HD-131 (D2):** row assumes an OpenCloud **S3ng bucket**; HD-131 decides **OpenCloud = WebDAV/filesystem (not S3)** — re-examine whether Zipline writes into OpenCloud's filesystem (WebDAV) instead of an S3ng bucket before build. Stage: 1/10. All-in-one Zipline (URL shortener + QR generator + pastebin + file share) with **OIDC SSO** so users log in with the same OpenCloud credentials. Compose template + `group_vars/home_servers.yml` entry per `docker_services` role; catalog row in [`services.md`](docs/services.md). See [services.md](docs/services.md), [storage-zfs.md](docs/storage-zfs.md). |
 | HD-113 | 2 | AI | 3 | **PairDrop P2P file share** — Stage: 1/10. Self-hosted direct "AirDrop-style" peer-to-peer transfer between devices (browser WebRTC, no upload through server, local-network device discovery). Compose template + catalog row per `docker_services` role; internal exposure. See [services.md](docs/services.md). |
-
-### 2.5 Observability & Alerting — Prometheus/Loki/Grafana, exporters, alert rules
-
-| ID | D | Exec | P | Item |
-|----|---|------|---|------|
-| HD-115 | 2 | AI | 2 | **Loki auth/RBAC** — `auth_enabled: false` lets any container on `db-internal` read/inject logs; add auth + restrict network (KOPS-023/051). · source qwen. · [observability.md](docs/observability.md) |
 
 ### 2.6 Smart Home — HA primary/standby, Homematic, voice, devices
 
@@ -178,9 +172,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 65
+- Open rows: 64
 - Decisions front: 7 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=1, platform=1, security=1, services=10, smart=12, storage=5
+- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=0, platform=1, security=1, services=10, smart=12, storage=5
 
 ## 6. Conventions quick-reference
 

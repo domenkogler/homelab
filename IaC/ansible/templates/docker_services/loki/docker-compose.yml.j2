@@ -1,6 +1,7 @@
 # loki docker-compose.yml — single-node log aggregation (14d retention, SSD)
-#   Alloy (host agent) pushes container/host logs here on db-internal.
+#   Alloy (host agent) pushes container/host logs here over loopback (127.0.0.1).
 #   Grafana queries Loki over db-internal; no web UI of its own, no Traefik labels.
+#   HD-115: multi-tenant auth (auth_enabled=true) — push + query carry tenant 'logs'.
 #   TSDB data is regenerable and NOT backed up (docs/backup.md).
 #   See docs/observability.md. Secrets via
 #   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }} — none needed here.

@@ -19,3 +19,5 @@ datasources:
     access: proxy
     url: http://loki:3100
     editable: false
+    jsonData:
+      tenantId: "logs"   # HD-115 / KOPS-023/051: Loki multi-tenant mode — queries need the tenant ID

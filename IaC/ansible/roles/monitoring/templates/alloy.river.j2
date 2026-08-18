@@ -53,6 +53,10 @@ loki.write "local" {
     endpoint {
         url = "http://127.0.0.1:3100/loki/api/v1/push"
 
+        // HD-115 / KOPS-023/051: Loki runs in multi-tenant mode (auth_enabled=true);
+        // pushes must carry the matching tenant ID or they are rejected.
+        tenant_id = "logs"
+
         // Retry config
         retry {
             enabled = true

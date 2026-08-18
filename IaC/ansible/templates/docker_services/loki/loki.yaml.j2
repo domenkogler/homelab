@@ -1,5 +1,11 @@
 # Loki single-node config — 14d retention, filesystem/TSDB store (docs/observability.md)
-auth_enabled: false
+# HD-115 / KOPS-023/051: auth_enabled=true turns on Loki multi-tenant mode. Every
+# push/query must carry a tenant ID (X-Scope-OrgID); consumers (Alloy push, Grafana
+# query) use the single 'logs' tenant. Note: this is tenant *isolation* (compartmental)
+# not a password gate — the real write-path protection is that Alloy reaches Loki ONLY
+# over loopback (127.0.0.1, compose) and reads come only from Grafana on db-internal.
+# Tenant-ID is a label, not a secret credential; see observability.md HD-115 caveat.
+auth_enabled: true
 server:
   http_listen_port: 3100
 common:
