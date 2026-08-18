@@ -165,6 +165,7 @@ network_ranges:
   - { name: traefik-public,    cidr: "172.20.0.0/16",  purpose: "Docker bridge — Traefik edge ↔ exposed services" }
   - { name: services-internal, cidr: "172.21.0.0/16",  purpose: "Docker bridge — app ↔ app communication" }
   - { name: db-internal,       cidr: "172.22.0.0/16",  purpose: "Docker bridge — databases (fully isolated)" }
+  - { name: llm-backend,       cidr: "172.23.0.0/16",  purpose: "Docker bridge — LLM backend (Ollama) ↔ LiteLLM only, fully isolated (HD-59)" }
   - { name: site,              cidr: "10.10.0.0/16",   purpose: "Whole homelab site — all VLANs (10.10.x.0/24)" }
   - { name: nfs-clients,       cidr: "10.10.1.30/32",  purpose: "NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP)" }
 

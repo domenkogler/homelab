@@ -110,6 +110,8 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `op_api` | `credential` | 1Password Service Account token → Doco-CD + Forgejo Actions |
 | `signal_api` | `credential` (`username` = phone number) | signal-cli-rest-api (linked-device pair / captcha) |
 | `signal-internal_api` | `credential` | signal-cli-rest-api — API token auth (`SIGNAL_CLI_API_TOKEN`; requests require `X-Api-Key` header) so no container on services-internal can send Signal as Domen's number without it (KOPS-002 / HD-125). n8n sends this in its webhook call |
+| `kopia-server-internal_api` | `username` + `credential` | kopia-server auth (HD-59) — `username` = the `user@host` identity backup clients present via HTTP Basic Auth, `credential` = password; written to the in-container `server.htpasswd` (plaintext, 0600). Replaces the old `--without-password` |
+| `prometheus-internal_api` | `username` + `bcrypt_hash` | prometheus Basic Auth (HD-59) — `username` = user, `bcrypt_hash` = bcrypt hash for `basic_auth_users` (generate via `scripts/gen-htpasswd.py`). Grafana + Alloy consume this endpoint |
 | `doco-cd_password` | `password` | Doco-CD webhook HMAC (`WEBHOOK_SECRET`) |
 | `sonarr_api` | `credential` | Sonarr API key — recyclarr syncs quality profiles from this instance |
 | `radarr_api` | `credential` | Radarr API key — recyclarr syncs quality profiles from this instance |

@@ -1,19 +1,21 @@
 # ollama docker-compose.yml — Local LLM inference engine
-#   GPU-accelerated via AMD ROCm (/dev/dri, /dev/kfd). Accessed by other services
-#   on services-internal (n8n, AnythingLLM, maybe HA Assist). No web UI directly —
-#   no Traefik labels. OLLAMA_KEEP_ALIVE=5m keeps models warm between requests.
-#   Image: `:rocm` == latest release incl. bundled ROCm runtime (the plain `:latest`
-#   tag has no ROCm support). A model is pulled at runtime, so no API keys needed.
+#   GPU-accelerated via AMD ROCm (/dev/dri, /dev/kfd). Accessed ONLY by the LiteLLM
+#   spine on the dedicated `llm-backend` network (fully isolated — HD-59). Ollama
+#   deliberately does NOT sit on `services-internal`: its local API has no native auth,
+#   so the network itself is the boundary (same precedent as the isolated `db-internal`
+#   bridge). When LiteLLM is implemented (HD-100), its compose joins `services-internal`
+#   (for consumers) + `llm-backend` (to reach Ollama). No web UI, no Traefik labels.
+#   OLLAMA_KEEP_ALIVE=5m keeps models warm between requests. Image `:rocm` == latest
+#   release incl. bundled ROCm runtime (plain `:latest` has no ROCm support).
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
-#   — none needed (models are public, no API keys)
+# Secrets: none needed (models are public, no API keys).
 services:
   ollama:
     image: ollama/ollama:rocm
     container_name: ollama
     restart: always               # must start at boot before user login
     networks:
-      - services-internal
+      - llm-backend
     devices:
       - /dev/dri:/dev/dri
       - /dev/kfd:/dev/kfd
@@ -24,8 +26,8 @@ services:
       - /srv/models/ollama:/root/.ollama          # nvme/models dataset — no snapshots, no backup
     environment:
       OLLAMA_KEEP_ALIVE: "{{ ollama_keep_alive | default('5m') }}"
-      OLLAMA_HOST: "0.0.0.0"
+      OLLAMA_HOST: "0.0.0.0"      # bound only on llm-backend; reachable only by LiteLLM
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 networks:
-  services-internal:
+  llm-backend:
     external: true

@@ -114,7 +114,7 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-59 | 2 | AI | 3 | **Internal service auth on flat Docker networks** — Ollama (`OLLAMA_AUTH_*` env vars), Kopia server (`--password` flag replacing `--without-password`), Signal CLI (basic auth wrapper on services-internal), Prometheus (`--web.config.file` with htpasswd). Flat networks = zero auth between containers; supply-chain compromise in one image gives attacker free rein. Auth tokens → 1Password `<service>-internal_api`. · [deployment-compose.md](docs/deployment-compose.md), Qwen-bugs KOPS-001/016/002 |
+| HD-59 | 2 | AI | 3 | **Internal service auth on flat Docker networks** — ✅ **IaC applied (2026-08-18), with corrections from research:** **Ollama** has NO native server auth (`OLLAMA_AUTH_*` is ollama.com-cloud only) → isolated onto a dedicated **`llm-backend`** overlay reachable only by LiteLLM (network-isolation, same precedent as `db-internal`); **Kopia** server has NO `--password` flag → `--htpasswd-file` (plaintext `user:password` 0600, `kopia-server-internal_api`), dropped `--without-password`; **Prometheus** `--web.config.file` with **bcrypt** `basic_auth_users` (`prometheus-internal_api`, `scripts/gen-htpasswd.py`); **Signal CLI** already done (HD-125). Fail-loud (HD-65): missing internal_api items abort render. ⏳ deploy-gated: create the 1Password items (`kopia-server-internal_api`, `prometheus-internal_api`) + wire consumers (Grafana/Alloy→Prometheus; backup clients→Kopia). · [deployment-compose.md](docs/deployment-compose.md), KOPS-001/016/002 |
 
 ### 2.9 Backup & DR — ZFS snapshots, Kopia, off-site, restore drills
 

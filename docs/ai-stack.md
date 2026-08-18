@@ -50,9 +50,13 @@ in one place.
 ```
 
 **Docker networks:** Open WebUI on `traefik-public` (via the `ai` route); LiteLLM, OpenClaw, Docling
-on `services-internal`; PGVector on `db-internal`. **No host `0.0.0.0` port binds** — everything is
-reached over the overlay networks + Traefik (Flaw C / HD-62). Loopback-only if a raw port is ever
-required.
+on `services-internal`; PGVector on `db-internal`; **Ollama on `llm-backend`** (HD-59). **No host
+`0.0.0.0` port binds** — everything is reached over the overlay networks + Traefik (Flaw C / HD-62).
+Loopback-only if a raw port is ever required.
+
+> **Ollama isolation (HD-59):** Ollama has no native server auth, so it sits on the dedicated
+> `llm-backend` overlay reachable **only by LiteLLM** (the spine), NOT on the flat `services-internal`
+> network. LiteLLM's future compose joins `services-internal` (consumers) **+ `llm-backend`** (→ Ollama).
 
 ---
 
@@ -60,9 +64,10 @@ required.
 
 | Service | Role | Network | Notes |
 |---------|------|---------|-------|
-| **LiteLLM** | LLM gateway / router | `services-internal` | OpenAI-compatible spine. Own small DB (SQLite volume) for keys/spend. Only component holding upstream keys. |
+| **LiteLLM** | LLM gateway / router | `services-internal` **+ `llm-backend`** | OpenAI-compatible spine. Own small DB (SQLite volume) for keys/spend. Only component holding upstream keys. Joins `llm-backend` to reach Ollama. |
 | **Open WebUI** (`ai.kogler.si`) | Family chat + RAG UI | `traefik-public` | Auth = Authentik **OIDC** (per-user chat/history). Model backend = LiteLLM. |
 | **PGVector** | RAG vector store | `db-internal` | Dedicated `pgvector/pgvector:pg16`. Add DBxx block to `db-backup`. |
+| **Ollama** | Local LLM inference | **`llm-backend`** | GPU (RX 7600). Isolated from `services-internal` — reachable only by LiteLLM (HD-59). |
 | **Docling** | OCR / document understanding | `services-internal` | Runs on **CPU** (spares the dGPU). Multilingual OCR (Slovenian scans). |
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Python framework (ex-Clawd). Models → LiteLLM. **Version pinned** (young project). |
 

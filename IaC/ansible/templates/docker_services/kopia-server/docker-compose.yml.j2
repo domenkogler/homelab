@@ -6,6 +6,10 @@
 #   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
 #     kopia_password  (Password: repository master password)
 #     kopia-s3_api    (API Credential: username=<S3 access key>, credential=<S3 secret key>)
+#     kopia-server-internal_api (API Credential: username=<user@host>, credential=<password>)
+#                              — server auth (HD-59): replaces `--without-password`. The `username`
+#                              MUST be the exact `user@host` identity backup clients present via HTTP
+#                              Basic Auth; password is written plaintext to server.htpasswd at 0600.
 #   Config vars (group_vars/all.yml):
 #     kopia_s3_bucket, kopia_s3_endpoint
 services:
@@ -18,6 +22,13 @@ services:
       - -c
       - |
         set -e
+        # Fail loud: server auth identity is REQUIRED (HD-59 / HD-65) — never start an
+        # unauthenticated Kopia server on services-internal.
+        : "${KOPIA_SERVER_USER:? kopia-server_internal_api.username missing — aborting}"
+        : "${KOPIA_SERVER_PASSWORD:? kopia-server_internal_api.credential missing — aborting}"
+        # Write the htpasswd file (plaintext form accepted by tg123/go-htpasswd), 0600.
+        printf '%s:%s\n' "${KOPIA_SERVER_USER}" "${KOPIA_SERVER_PASSWORD}" > /app/config/server.htpasswd
+        chmod 600 /app/config/server.htpasswd
         if [ ! -f /app/config/config.json ]; then
           echo "Creating S3 repository..."
           kopia repository create s3 \
@@ -26,7 +37,7 @@ services:
             --access-key="${KOPIA_S3_ACCESS_KEY:?}" \
             --secret-access-key="${KOPIA_S3_SECRET_ACCESS_KEY:?}"
         fi
-        exec kopia server start --address=0.0.0.0:51515 --insecure --without-password
+        exec kopia server start --address=0.0.0.0:51515 --insecure --htpasswd-file=/app/config/server.htpasswd  # no without-password (HD-59)
     networks:
       - services-internal
     volumes:
@@ -34,6 +45,10 @@ services:
       - /srv/docker/kopia-server/cache:/app/cache
     environment:
       KOPIA_PASSWORD: "{{ lookup('community.general.onepassword', 'kopia_password', field='password', vault=op_vault) }}"
+      # Server auth (HD-59): user@host + password for the htpasswd file. No default('') —
+      # a missing 1Password item must abort render (fail-loud, HD-65).
+      KOPIA_SERVER_USER: "{{ lookup('community.general.onepassword', 'kopia-server-internal_api', field='username', vault=op_vault) }}"
+      KOPIA_SERVER_PASSWORD: "{{ lookup('community.general.onepassword', 'kopia-server-internal_api', field='credential', vault=op_vault) }}"
       KOPIA_S3_BUCKET: "{{ kopia_s3_bucket | default('kogler-homelab') }}"
       KOPIA_S3_ENDPOINT: "{{ kopia_s3_endpoint | default('https://e2.idy.io') }}"
       KOPIA_S3_ACCESS_KEY: "{{ lookup('community.general.onepassword', 'kopia-s3_api', field='username', vault=op_vault) }}"

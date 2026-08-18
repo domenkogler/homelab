@@ -35,7 +35,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Edge (Traefik, CrowdSec) | `traefik-public` |
 | Identity (Authentik) | `traefik-public` + `services-internal` |
 | Platform (OpenCloud, Immich, Forgejo) | `services-internal` |
-| AI/LLM (Ollama, Immich-ML) | `services-internal` |
+| AI/LLM (Ollama → `llm-backend`; Immich-ML, LiteLLM, Docling, OpenClaw) | `services-internal`; Ollama on **`llm-backend`** (isolated, reachable only by LiteLLM — HD-59) |
 | DNS (Technitium, Pi-hole) | `traefik-public` + `services-internal` (Technitium web UI behind Traefik; Pi-hole ad-blocking behind Traefik) |
 | VPN (Headscale) | `traefik-public` |
 | Backup (Kopia, DB Backup) | `services-internal` / `db-internal` |
@@ -317,9 +317,10 @@ Even trusted containers on shared Docker networks should have independent auth. 
 compromise in one public image gives the attacker free rein across the entire bridge network if
 sibling services have no auth. Apply minimum auth per service:
 
-- **Services accepting API requests:** require token/key/header (Ollama `OLLAMA_AUTH_*`, n8n API key)
-- **Backup servers:** always require password (Kopia `--password`, never `--without-password`)
-- **Observability UIs:** protect scrape/config endpoints (Prometheus `--web.config.file` with htpasswd)
+- **Services accepting API requests:** require token/key/header where the service supports it (n8n API key). **Ollama has NO native server auth** (`OLLAMA_AUTH_*` applies only to ollama.com cloud, not the local API) — the control instead is **network isolation**: Ollama sits on the dedicated **`llm-backend`** overlay reachable only by LiteLLM (HD-59), not `services-internal`.
+- **Backup servers:** always require server auth. **Kopia uses `--htpasswd-file`** (the server has **no `--password` flag** — `--password`/`--without-password` are repo/at-rest vs network concerns). Kopia's htpasswd parser accepts plaintext `user:password` (0600); secret = `kopia-server-internal_api`. Never `--without-password` (HD-59).
+- **Observability UIs:** protect scrape/config endpoints — Prometheus `--web.config.file` with **bcrypt** `basic_auth_users` (`prometheus-internal_api`; hash via `scripts/gen-htpasswd.py`); endpoint stays loopback-only (HD-62) (HD-59).
+- **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
 - **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
 
 #### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — the pull contract

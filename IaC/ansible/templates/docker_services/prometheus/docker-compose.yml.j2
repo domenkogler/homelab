@@ -4,6 +4,10 @@
 #   TSDB is regenerable and NOT backed up (docs/backup.md).
 #   See docs/observability.md. Secrets via
 #   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#     prometheus-internal_api — Basic Auth for the scrape/config endpoint (HD-59):
+#     username/user + bcrypt hash for `basic_auth_users`. See prometheus-web-config.yml.j2
+#     + scripts/gen-htpasswd.py. Grafana (query) + Alloy (remote_write) are wired with these
+#     creds at deploy. Endpoint stays loopback-only (HD-62).
 services:
   prometheus:
     image: prom/prometheus:latest
@@ -11,6 +15,7 @@ services:
     restart: unless-stopped
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.config.file=/etc/prometheus/web.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=30d"
     networks:
@@ -21,6 +26,7 @@ services:
       - "host.docker.internal:host-gateway"   # reach doco-cd /metrics (host network)
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-web-config.yml:/etc/prometheus/web.yml:ro
       - prometheus-data:/prometheus
 volumes:
   prometheus-data:
