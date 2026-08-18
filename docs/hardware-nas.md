@@ -52,7 +52,8 @@ tags: [hardware, nas, zfs]
 
 - Export **`tank/data`** (user data) → oldsrv **`/mnt/nas/data`**
 - Export **`bulk/media`** (the *arr library + downloads) → oldsrv **`/mnt/nas/media`**
-- Ownership: uid/gid **1000:1000** (domen) so *arr containers (`PUID/PGID 1000:1000`) can read/write
+- Ownership: uid/gid **`storage_uid`/`storage_gid` = `1005` (`media`)** (HD-94/HD-131) so *arr containers
+  (`PUID/PGID={{ storage_uid }}:{{ storage_gid }}`) can read/write; SMB/NFS anonuid/anongid follow the same
 - Three exports because they live on two **different pools** (`tank/data`, `bulk/media`) plus the
   `bulk/data/immich-thumbs` push target — they can't share one mountpoint. TRaSH hardlinks only need a
   single filesystem **within** `bulk/media`, which is one dataset ✓
@@ -98,7 +99,7 @@ as the **local secondary pool**: syncoid replicas of `tank/data/*` (ZFS send/rec
 
 - Primary ZFS pool "tank" — mirror, 4 TB usable — **user data only** (backed up)
 - Secondary ZFS pool "bulk" — RAIDZ2, 6 TB usable — active media (unbacked) + data replicas + thumb copies
-- NAS / file server — NFS shares: `tank/data` (user data), `bulk/media` (media); SMB for family deferred
+- NAS / file server — NFS shares: `tank/data` (user data), `bulk/media` (media); **Samba/SMB shares live on the NAS** (HD-131 D4): shared `media` + per-user private drives
 - Local replication — sanoid/syncoid: `tank/data/*` → `bulk/data/*` (incremental, ≈ hourly)
 - Web UI — Cockpit + cockpit-zfs (~150 MB RAM)
 - **Kopia does not run on nas** — off-site backup originates from oldsrv (NAS-independent, see `backup.md`)

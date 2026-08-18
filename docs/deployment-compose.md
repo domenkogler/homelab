@@ -107,8 +107,11 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   qBittorrent); Jellyfin official `jellyfin/jellyfin`; `seerr/seerr`; gluetun `qm12/gluetun`;
   Profilarr (`ghcr.io/dictionarry-hub/profilarr` + parser sidecar, Dictionarry-Hub, Deno-based v2); Recyclarr `ghcr.io/recyclarr/recyclarr`.
   `latest` tags, Renovate-tracked.
-- **PUID/PGID:** all *arr containers run as **`1000:1000`** (domen) — linuxserver images via
-  `PUID=1000`/`PGID=1000`, Jellyfin via `user: "1000:1000"`. NFS ownership on nas must match.
+- **PUID/PGID:** all filesystem/SMB-backed containers (the *arr stack, qBittorrent) run as the
+  **neutral shared owner `storage_uid`/`storage_gid` = `1005` (`media`)** — linuxserver images via
+  `PUID={{ storage_uid }}`/`PGID={{ storage_gid }}`, Jellyfin/OpenCloud via `user: "{{ storage_uid }}:{{ storage_gid }}"`.
+  NFS/SMB ownership on nas must match (HD-94/HD-131). **Immich originals are S3-backed (MinIO, HD-131 D1),**
+  so Immich's container user is not the shared-files owner for originals.
 - **Storage:** media lives in a **single dataset** on the nas `bulk` pool — `bulk/media` → NFS export →
   oldsrv `/mnt/nas/media` (one filesystem → TRaSH hardlinks; **not backed up**, redownloadable):
   - Jellyfin: `/mnt/nas/media/media/...` **ro**
@@ -277,7 +280,7 @@ services:
 
 - **Stateful service data = bind mounts** under `/srv/docker/<svc>` on the oldsrv `nvme` ZFS pool —
   each dir is its own dataset (per-service recordsize/snapshots) and backup jobs + Kopia get clean host
-  paths. Ownership `1000:1000` (domen) where the app expects it (see *arr conventions).
+  paths. Ownership `storage_uid`/`storage_gid` (`media`, 1005) where the app expects it (see *arr conventions; HD-94).
 - Named volumes only for truly ephemeral/utility caches — never for anything that is backed up
 - Bind mounts for host resources (Docker socket, GPU devices)
 - No anonymous volumes

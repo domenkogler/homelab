@@ -25,8 +25,9 @@ tags: [services, catalog]
 | Traefik | traefik | P | 60–120 / 250 | Reverse proxy, auto-SSL, Forward Auth (dashboard internal) |
 | CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via Metabase) |
 | Authentik | sso | P+I | 700–1,100 / 2,000 | OIDC SSO, MFA (WebAuthn) — bundle: server+worker+postgres+redis |
-| OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud |
-| Immich | foto | I | 600–1,000 / 2,000 | Photo management, mobile apps (app+postgres+valkey — microservices merged into server in v3) |
+| OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud. **Filesystem/WebDAV storage** (HD-131 D2) |
+| MinIO | — | I | 60–120 / 300 | **S3-compatible object store** (HD-131 D1) — backs **Immich originals** (bucket `immich-originals`); loopback/overlay only, no public edge. Later move to Hetzner Storage Box / cloud S3 = endpoint change |
+| Immich | foto | I | 600–1,000 / 2,000 | Photo management, mobile apps (app+postgres+valkey — microservices merged into server in v3). **Originals on S3 (MinIO), thumbs/DB local** (HD-131 D1/D3) |
 | Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner) |
 | Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
 | Immich-ML | — | I | 300–600 / 1,200 | Face recognition, smart search — shares AMD VRAM |
@@ -38,7 +39,7 @@ tags: [services, catalog]
 | Technitium | dns | I | 120–250 / 400 | Central DNS router, VLAN-aware (binds 53 on host) |
 | Pi-hole | ad | I | 100–200 / 300 | Ad-blocking DNS |
 | Headscale | vpn | P | 60–120 / 250 | Tailscale coordination server |
-| Kopia | bck | I | 150–250 / 500 | Encrypted off-site backup → iDrive e2 |
+| Kopia | bck | I | 150–250 / 500 | Encrypted off-site backup → Hetzner Storage Box + iDrive e2 |
 | DB Backup | — | D | 30–60 / 200 | Database dumps (tiredofit/db-backup) |
 | Homepage | kogler.si (root) / home | P | 80–150 / 250 | Family launchpad + status widget |
 | Metabase | sec | P+I | 250–450 / 800 | CrowdSec dashboard + analytics sandbox (one instance, two roles) |
@@ -79,7 +80,9 @@ tags: [services, catalog]
 
 > **Storage & versions (summary):** storage SSOT = [`storage-zfs.md`](storage-zfs.md). OpenCloud keeps its
 > own per-file versions (`REV.*` in `.oc-nodes/`); `tank/data/documents` gets **5-min ZFS snapshots kept 8 h**
-> as the deeper history. OpenCloud FR [opencloud-eu/opencloud#1702](https://github.com/opencloud-eu/opencloud/issues/1702)
+> as the deeper history. **Immich originals are S3-backed (MinIO → Storage Box later, HD-131 D1/D3)**;
+> `tank/data/immich` is MinIO's object store, not a ZFS-copy of originals. OpenCloud FR
+> [opencloud-eu/opencloud#1702](https://github.com/opencloud-eu/opencloud/issues/1702)
 > (expose ZFS snapshots in the version panel) is a future option, not planned around.
 
 ---
@@ -171,8 +174,9 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 - **Import = hardlink** (Sonarr/Radarr/Lidarr: `Use Hardlinks` ON) — instant, zero-space, atomic.
 - **Media is not backed up** — no sanoid snapshots, no syncoid, no Kopia. Lost media is re-fetched via
   usenet/torrents. Full layout/properties/replication: [`storage-zfs.md`](storage-zfs.md).
-- **PUID/PGID `1000:1000`** (domen) across all *arr containers (linuxserver `PUID/PGID` env;
-  Jellyfin `user: "1000:1000"`). NFS ownership on nas must match.
+- **Owner = neutral shared owner `storage_uid`/`storage_gid` (`media`, 1005)** across all *arr containers
+  (linuxserver `PUID/PGID={{ storage_uid }}`/`PGID={{ storage_gid }}`; Jellyfin `user: "{{ storage_uid }}:{{ storage_gid }}"`,
+  HD-94/HD-131). SMB/NFS ownership on nas must match.
 - **VPN:** only qBittorrent egress → gluetun (WireGuard, PrivadoVPN, Netherlands — same region as
   Eweka usenet). SABnzbd stays on the plain LAN (usenet is a licensed service, no VPN needed).
 - **Auth:** admin UIs (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, Profilarr, SABnzbd, qBittorrent) =

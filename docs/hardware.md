@@ -43,7 +43,7 @@ tags: [hardware, phases]
 oldsrv (desk)
 ├── Samsung SSD 960 EVO 500GB  → OS/system (ext4), configs — light writes (200 TBW)
 ├── Samsung SSD 970 EVO 1TB    → ZFS pool "nvme": DBs, service data, TSDB, models, dumps
-├── Kopia                      → off-site encrypted backup → iDrive e2
+├── Kopia                      → off-site encrypted backup → Hetzner Storage Box + iDrive e2
 └── NFS mounts                → nas shares
 
 nas (rack) — Debian 13, ZFS
@@ -67,7 +67,7 @@ nas (rack) — Debian 13, ZFS
 1. **Phase 1 uses zero new hardware** — everything is existing
 2. **Dual GPU on oldsrv:** iGPU for desktop, dGPU for Docker AI containers
 3. **Docker is portable** — same compose files deploy on bare metal, VPS, or Proxmox VM
-4. **3-2-1 backup:** 3 copies (live + local ZFS + cloud Kopia), 2 media (SSD/HDD + cloud), 1 off-site (iDrive e2)
+4. **3-2-1 backup:** 3 copies (live + local ZFS + cloud Kopia), 2 media (SSD/HDD + cloud), 1 off-site (Hetzner Storage Box + iDrive e2)
 5. **Ansible is OS-only** — system provisioning once. App lifecycle is GitOps via Doco-CD.
 
 ---

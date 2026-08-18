@@ -43,9 +43,13 @@ Configs, DB dumps, service state, and face thumbnails go off-site via Kopia — 
 only, never NAS mounts**, so off-site backup keeps working while the NAS is fully down:
 
 ```
-tiredofit/db-backup (local scratch) →  Kopia agent (oldsrv) →  iDrive e2 (S3)
+tiredofit/db-backup (local scratch) →  Kopia agent (oldsrv) →  Hetzner Storage Box (S3) + iDrive e2
    + service state + face thumbs       (encrypted, dedup)       (cloud)
 ```
+
+> **Off-site target (HD-131 / HD-29–31 realigned):** primary remote store is **Hetzner Storage Box**
+> (its S3 endpoint serves Immich originals + the Kopia repo). iDrive e2 remains as a secondary/alternate
+> Kopia target where noted.
 
 DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then pushed to
 `tank/data/db-dumps` for the ZFS path — the two layers are independent.
@@ -68,13 +72,13 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | Data | Location | Method | Target |
 |------|----------|--------|--------|
-| PostgreSQL DBs (Authentik, Immich, OpenCloud) | oldsrv NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** iDrive e2 (Kopia) |
-| Docker Compose files / systemd units / configs | Git repo + oldsrv `/opt/*` | Git (+ Kopia) | Forgejo + GitHub mirror / iDrive e2 |
-| Service state (Forgejo dump, n8n sqlite, …) | oldsrv NVMe | nightly push + Kopia | `tank/data/services` (ZFS) + iDrive e2 |
+| PostgreSQL DBs (Authentik, Immich, OpenCloud) | oldsrv NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** Hetzner Storage Box / iDrive e2 (Kopia) |
+| Docker Compose files / systemd units / configs | Git repo + oldsrv `/opt/*` | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box / iDrive e2 |
+| Service state (Forgejo dump, n8n sqlite, …) | oldsrv NVMe | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box / iDrive e2 |
 | Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |
-| Router configs (`*.rsc`) | Git repo | Git + Kopia | iDrive e2 |
-| Immich **originals** (photos/videos) | nas `tank/data/immich` | ZFS send/recv | `bulk/data/immich` |
-| Immich **face thumbnails** | oldsrv NVMe | nightly rsync + Kopia | `bulk/data/immich-thumbs` + iDrive e2 |
+| Router configs (`*.rsc`) | Git repo | Git + Kopia | Hetzner Storage Box / iDrive e2 |
+| Immich **originals** (photos/videos) | **MinIO S3** (oldsrv; bucket `immich-originals`) | **S3 object storage** (HD-131 D1) | MinIO bucket → Storage Box S3 (replicate) / Kopia **+ the Immich DB** (albums/faces/tags) — D3 |
+| Immich **face thumbnails** | oldsrv NVMe | nightly rsync + Kopia | `bulk/data/immich-thumbs` + Hetzner Storage Box / iDrive e2 |
 | **Media library** (movies/tv/music) | **nas `bulk/media`** | **NOT backed up** | redownloadable via usenet/torrents |
 
 > **Excluded — by design:** observability TSDB (Prometheus 30d + Loki 14d) is **regenerable and NOT backed up**. It lives on oldsrv local disk; losing it loses only rolling metric/log history. See [`observability.md`](observability.md).

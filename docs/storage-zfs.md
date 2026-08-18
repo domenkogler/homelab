@@ -80,7 +80,7 @@ No native encryption by default (homelab threat model; re-evaluate only if it ch
 
 | Dataset | recordsize | compression | Snapshots (sanoid) | syncoid → `bulk`? | Backed up off-site (Kopia)? |
 |---------|-----------|-------------|--------------------|-------------------|-----------------------------|
-| `tank/data/immich` | 1M | lz4 | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | via dumps (DB) — originals are the ZFS copy |
+| `tank/data/immich` | 1M | lz4 | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | via dumps (DB) — **originals moved to S3 (MinIO, HD-131 D1)**; this holds MinIO's object blocks / any local cache, not the originals as a ZFS copy |
 | `tank/data/documents` | 128K | zstd | **5m(96)**+hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | optional (small) |
 | `tank/data/services` | 128K | zstd | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | yes (state dirs on oldsrv) |
 | `tank/data/db-dumps` | 128K | zstd | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | yes (local scratch via Kopia) |
@@ -121,7 +121,7 @@ homelab loses <24 h of DB changes, acceptable.
 - **Admin today:** cockpit-zfs (nas) + `.zfs/snapshot/*` + `zfs rollback`/`receive` (whole-tree or per-file copy out of a snapshot).
 - **Optional later:** serve `tank/data/documents` over SMB with `vfs objects = shadow_copy_zfs` → Windows
   Explorer *Properties → Previous Versions* per file, straight from these snapshots (~5 lines in smb.conf;
-  SMB itself is currently deferred).
+  Samba shares are now live (HD-131 D4) — this only adds the ZFS Previous-Versions VFS module on top).
 - **Future:** OpenCloud FR [opencloud-eu/opencloud#1702](https://github.com/opencloud-eu/opencloud/issues/1702)
   would expose ZFS snapshots inside OpenCloud's version panel — our sanoid naming plugs straight in; don't
   plan around it (open, no ETA).
@@ -134,13 +134,13 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 
 | Export | Mount (oldsrv) | Purpose |
 |--------|----------------|---------|
-| `tank/data` | `/mnt/nas/data` | user data: Immich originals, OpenCloud documents, db dumps, service-state copies |
+| `tank/data` | `/mnt/nas/data` | user data: OpenCloud documents, db dumps, service-state copies + MinIO S3 object store backing — **Immich originals live in MinIO S3 (HD-131 D1)**, not directly on this NFS tree |
 | `bulk/media` | `/mnt/nas/media` | *arr library + downloads (Jellyfin, Sonarr/Radarr/Lidarr, SABnzbd, qBittorrent, Bazarr) |
 | `bulk/data/immich-thumbs` | `/mnt/nas/thumbs` | face-thumbnail push target (nightly rsync from oldsrv) |
 
-- Ownership uid/gid **1000:1000** (domen) — matches *arr `PUID/PGID` (linuxserver) and Jellyfin `user: "1000:1000"`; NFS `root_squash` on.
+- Ownership uid/gid **`storage_uid`/`storage_gid` = 1005 (`media`)** — the neutral shared-data owner (HD-51/HD-94/HD-131), NOT domen/1000; matches *arr `PUID/PGID`, Jellyfin/OpenCloud `user:` and the Samba force user/group; NFS `root_squash` on.
 - fstab mounts via Ansible (`storage` role). Hardlinks only ever cross paths **within** `bulk/media` — one dataset, one filesystem ✓.
-- SMB for direct family LAN access: deferred (family already reaches files via OpenCloud/Immich apps).
+- **SMB/Samba is now implemented (HD-131 D4)** on the NAS via the `storage` role: one shared `media` share (any family user) + per-user private shares (`valid users = <user>`) for family mapped drives (Win11 + Linux).
 
 ---
 
