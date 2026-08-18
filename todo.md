@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 80 open · 9 decisions · 2 purchases · 7 parked · 19 done (in changelog)
+**Status:** 97 open · 9 decisions · 2 purchases · 9 parked · 19 done (in changelog)
 
 ---
 
@@ -61,6 +61,7 @@
 | HD-09 | 1 | AI | 2 | **UPS web-UI firewall rule** — open 80/443 Home→Mgmt for `10.10.99.9` only; Modbus 502 retired (no consumer). ✅ **IaC done** (router role: trusted-admin → `ups_management` 80/443); ⏳ not deployed. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-94 | 2 | AI | 2 | **Centralize shared-data owner as `storage_uid`/`storage_gid` (KOPS-060)** — replace the hardcoded `PUID/PGID: 1000:1000` literals in the *arr / opencloud / immich compose templates with the group_vars `storage_uid`/`storage_gid` (the neutral owner from HD-51); define the shared-owner uid/gid once (e.g. `1005`) in the storage role group_vars and use it on both nas and oldsrv. Verify NFS ownership + container perms after the change. · [deployment-compose.md](docs/deployment-compose.md), [hardware-nas.md](docs/hardware-nas.md) |
 | HD-26 | 1 | AI | 3 | **Confirm UPS SNMP UDP (161/udp)** on the NIC — TCP probe closed, UDP untested; one probe vs `10.10.99.9`. · [hardware-ups.md](docs/hardware-ups.md) |
+| HD-128 | 1 | AI | 1 | **Resolve NVMe pool device-path TODO** — `group_vars`/preseed holds a literal `TODO` for the NVMe pool device (KOPS-057); set the real `/dev/...` (KOPS-026 also unblocks immich/opencloud db-backup). · source qwen. · [hardware-nas.md](docs/hardware-nas.md), [deployment-preseed.md](docs/deployment-preseed.md) |
 
 ### 2.3 Platform & Deploy — Ansible, compose conventions, GitOps, Renovate, Doco-CD
 
@@ -69,12 +70,18 @@
 | HD-02 | 3 | AI | 1 | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
 | HD-61 | 1 | AI | 1 | **Pin image tags — Traefik first** — `traefik_version: latest` today in group_vars; pin to a semver + Renovate follow-up (also dedupe the other `latest`/`:rocm` mutable tags). ROI · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 | HD-90 | 1 | AI | 3 | **Renovate managers: ansible-galaxy + pip** — track Ansible collections + Python packages, not just Docker (KOPS-062). · source qwen. · [deployment-renovate.md](docs/deployment-renovate.md) |
+| HD-117 | 2 | AI | 2 | **Playbook role-order fixes** — `network` runs before `storage` on oldsrv (KOPS-050); Pi runs `home_assistant` before `docker_services` (KOPS-063); correct dependency ordering. · source qwen. · [deployment-ansible.md](docs/deployment-ansible.md) |
 
 ### 2.4 Services & Edge — Traefik, SSO, service catalog, Matrix, VPS edge
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
 | HD-60 | 2 | AI | 1 | **crowdsec-only middleware chain** — add `crowdsec-only@file` to `middlewares.yml.j2`; apply to every self-auth'd route (ha, jellyfin, seerr, matrix, chat, ha-standby). ROI · source qwen. · [services-traefik.md](docs/services-traefik.md) |
+| HD-118 | 2 | AI | 1 | **Apply `crowdsec-only` to HA route** — `ha`/`ha-standby` currently lack the CrowdSec bouncer (KOPS-004). · source qwen. · [services-traefik.md](docs/services-traefik.md) |
+| HD-119 | 2 | AI | 2 | **Seerr behind Forward-Auth + CrowdSec** — Seerr has its own login with neither Forward-Auth nor CrowdSec; apply `authentik-forward-auth` + `crowdsec-only` chain (KOPS-047). · source qwen. · [services-traefik.md](docs/services-traefik.md) |
+| HD-120 | 2 | AI | 2 | **Element Web `chat.kogler.si` middleware gap** — no Forward-Auth, no CrowdSec (KOPS-025/054); distinct from Matrix federation (HD-47). · source qwen. · [services-traefik.md](docs/services-traefik.md) |
+| HD-121 | 2 | AI | 1 | **Matrix homeserver `:latest` → pin** — obscure Tuwunel image on mutable tag (KOPS-030). · source qwen. · [services-matrix.md](docs/services-matrix.md) |
+| HD-122 | 2 | AI | 2 | **Matrix federation default decision** — federation enabled lets any Matrix user DM the family (KOPS-033); needs an explicit permit-list or disable before go-live. · source qwen. · [services-matrix.md](docs/services-matrix.md) |
 | HD-40A | 3 | AI + Human | 3 | *(Phase 1.5)* **Provision VPS + establish public Traefik edge** — Contabo VPS purchased, WireGuard S2S home↔VPS, Traefik on VPS terminates TLS for public subset. Backends still on oldsrv over WG tunnel. Cloudflare A records updated. · [services-vps.md](docs/services-vps.md) |
 | HD-40B | 3 | AI | 3 | *(Phase 1.5)* **Migrate public-facing services to VPS** — Authentik, OpenCloud web, Forgejo, Grafana. Databases stay on LAN over WG tunnel. · [services-vps.md](docs/services-vps.md) |
 | HD-43 | 3 | AI | 3 | **Deploy/verify Media ·\*arr stack** — Stage: 4/10. recent IaC added the templates (jellyfin, seerr, sonarr, radarr, lidarr, prowlarr, bazarr, sabnzbd, qbittorrent+gluetun, profilarr, recyclarr) in `group_vars/home_servers.yml`; deploys on oldsrv bulk/media NFS. · [services.md](docs/services.md) |
@@ -89,8 +96,11 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-64 | 1 | AI | 1 | **Fix Loki schema `from:` date** — `2026-01-01` (future) → `2025-01-01` / current; Loki silently drops all logs until the schema activates. ROI · source qwen. · [observability.md](docs/observability.md) |
+| HD-64 | 1 | AI | 1 | **Fix Loki schema `from:` date** — `2026-01-01` (future) → `2025-01-01` / current; Loki silently drops all logs until the schema activates. (also covers KOPS-065, same schema-date fix). ROI · source qwen. · [observability.md](docs/observability.md) |
 | HD-85 | 1 | AI | 3 | **Add CrowdSec collections** — extend beyond traefik+linux: home-assistant, matrix, grafana parsers (KOPS-041). · source qwen. · [observability.md](docs/observability.md) |
+| HD-114 | 1 | AI | 1 | **Drop scraped-but-nonexistent Alertmanager job** — `prometheus.yml` scrapes an alertmanager target that isn't deployed; remove the dead job (KOPS-052). · source qwen. · [observability.md](docs/observability.md) |
+| HD-115 | 2 | AI | 2 | **Loki auth/RBAC** — `auth_enabled: false` lets any container on `db-internal` read/inject logs; add auth + restrict network (KOPS-023/051). · source qwen. · [observability.md](docs/observability.md) |
+| HD-116 | 2 | AI | 2 | **Alloy/Prometheus probe correctness** — ensure per-host `instance` label set (KOPS-036, cross-ref HD-55); blackbox treats 401/403 as failure, not success (KOPS-035). · source qwen. · [observability.md](docs/observability.md) |
 
 ### 2.6 Smart Home — HA primary/standby, Homematic, voice, devices
 
@@ -104,6 +114,8 @@
 | HD-17 | 3 | AI | 2 | **Single failover button + `ha-failover.sh`** — RMat → wait → VIP → standby, on Homepage; manual-trigger design accepted. ✅ **IaC done + committed:** `ha-failover.sh` (forward + reverse), standby keepalived normal/failover configs (VRID/interface/priority vars), trigger API endpoint + systemd unit (`ha-failover-api`, token auth), Homepage forward/reverse buttons. ⏳ **Not deployed** (hosts not provisioned); deploy needs 1Password `ha-failover_api` (api → credential) + the HmIP-RFUSB stick physically moved at runbook time. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-18 | 2 | Human | 2 | **Once: test HmIP-RFUSB pairing transfer** + entity reconstruction across stick move. Hands-on; requires HD-13. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-79 | 2 | AI | 2 | **Pin RaspberryMatic USB path per host** — exact `/dev/serial/by-id/` in `host_vars` + udev rule/symlink (glob in template doesn't resolve; KOPS-040). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-123 | 2 | AI | 2 | **RaspberryMatic compose hygiene** — duplicate host port 2001 map (KOPS-049); remove host port 80 conflicting with Traefik (KOPS-038) — bind to internal network only. · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-124 | 3 | AI | 2 | **Keepalived hardening** — pin standby `:latest` image (KOPS-053) + replace `auth_type PASS` (obfuscated, KOPS-020) with a real auth mechanism. · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-20 | 1 | Human | 3 | **Confirm full Supervisor add-on list** — `/api/hassio/addons` returned 401 (non-admin token); needs admin/SSH on HAOS host. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-21 | 1 | AI + Human | 3 | **Confirm ESPHome / Guition ESP32-S3 status** — `esphome` not loaded; agent checks network/repo, owner knows if the device was ever added. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-23 | 1 | AI | 3 | **Confirm HmIP-SWO-B channels** — no rain / wind-direction on this sensor; verification only. · [smart-home.md](docs/smart-home.md) |
@@ -137,6 +149,9 @@
 | HD-87 | 1 | AI | 3 | **Pin CrowdSec bouncer plugin version** — explicit version in group_vars instead of hardcoded default (KOPS-029). · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 | HD-88 | 1 | AI | 3 | **Dedup sshd_config append in post_install.sh** — guard against double-run (KOPS-012). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-91 | 2 | AI | 3 | **Fail-closed guards on missing secrets** — add `fail: msg=` in templates when critical secrets absent (relates to HD-65; KOPS cross-cutting). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
+| HD-125 | 2 | AI | 1 | **Signal CLI REST host port 8080 auth** — exposed with no auth (KOPS-002); bind internal or wrap with basic auth token. · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
+| HD-126 | 2 | AI | 2 | **OpenCloud internal TLS (`OC_INSECURE:true`)** — re-enable internal TLS / rely on edge-terminated TLS (KOPS-006). · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
+| HD-127 | 2 | AI | 1 | **Deploy scripts not root on live** — `push-services.sh` executes docker as root on live containers (KOPS-056); move to sudo-scoped or dedicated run user. · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 
 ### 2.9 Backup & DR — ZFS snapshots, Kopia, off-site, restore drills
 
@@ -172,6 +187,8 @@
 | HD-42 | 3 | Human | *(Phase 2)* **Phase-2 hardware build** — Ryzen 9, open-frame chassis; only if Phase 1 insufficient; physical. · [hardware-phase2.md](docs/hardware-phase2.md) |
 | HD-45 | 3 | AI | *(Phase 2)* **Re-evaluate Homelable (topology/rack visualizer)** — Pouzor/homelable, MIT, young project; network + rack canvas + nmap scan + live health + MCP; potential successor to `Rack.canvas` visual/Homepage reachability widget. Keep deferred until services are live; re-check maturity. Noted in `observability.md` + `network-rack.md`. · [observability.md](docs/observability.md) |
 | HD-48 | 3 | AI + Human | **Requested-only bridges (deferred, Phase 2 best-effort)** — WhatsApp/Messenger/Signal bridges are **out of Phase 1 scope** (every bridge risks a real external account). Revisit **only if family asks**, and then only against **dedicated** numbers, accepting re-pairing/ban. · [services-matrix.md](docs/services-matrix.md) |
+| HD-129 | 2 | AI | **Router DHCP → use internal resolver** — bootstrap assigns 1.1.1.1 not the internal resolver (KOPS-028); same outcome as HD-03 DNS setup, so fold in at live DNS. · [network-vlans.md](docs/network-vlans.md) |
+| HD-130 | 2 | AI | **Low-severity opportunistic fixes** — Homepage docker.sock ro visibility, Seerr SQLite failure domain, pi edge cert expiry (KOPS-058/059/061); do opportunistically during service deployment. · [services.md](docs/services.md) |
 
 ## 3b. Activation notes - HD-02 (Doco-CD)
 
@@ -194,9 +211,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 80
-- Decisions front: 9 · Buys: 2 · Park: 7
-- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=2, platform=3, security=11, services=10, smart=12, storage=5
+- Open rows: 97
+- Decisions front: 9 · Buys: 2 · Park: 9
+- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=5, platform=4, security=14, services=15, smart=14, storage=6
 
 ## 6. Conventions quick-reference
 
