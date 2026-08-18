@@ -131,6 +131,7 @@ BASE_CTX = {
     "docling_version": "v1.30.0",
     "litellm_version": "main-stable",
     "openwebui_version": "0.11.0",
+    "openclaw_version": "2026.7.1",
     "storage_uid": "1005",
     "storage_gid": "1005",
     "tuwunel_version": "latest",

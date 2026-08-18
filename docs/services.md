@@ -34,7 +34,7 @@ tags: [services, catalog]
 | LiteLLM | — | I | 120–250 / 500 | **AI stack** — LLM gateway/router (HD-100): local Ollama + OpenRouter (gen) + Cohere (embeddings). Single OpenAI-compatible endpoint, services-internal + llm-backend; own SQLite keys/spend; only component holding upstream keys |
 | Open WebUI | ai | P | 300–600 / 1,500 | **AI stack** — family chat + RAG UI (HD-101); public via Authentik OIDC + crowdsec-only; backend = LiteLLM (HD-100); RAG: Cohere embed-v4 (via LiteLLM), Docling (HD-103), PGVector (HD-102); data volume `/srv/docker/open-webui` |
 | Docling | — | I | 150–400 / 900 | **AI stack** — OCR / document understanding for RAG (CPU, HD-103; `docling-serve-cpu:v1.30.0`, services-internal, v1 API, HF weight cache volume) |
-| OpenClaw | — | I | 200–500 / 1,200 | **AI stack** — agent orchestration (ex-Clawd); models → LiteLLM; OpenCloud WebDAV skill; **version pinned**. *(planning)* |
+| OpenClaw | — | I | 200–500 / 1,200 | **AI stack** — agent orchestration (ex-Clawd, HD-104); models → LiteLLM (HD-100); OpenCloud WebDAV skill; **version pinned**; config/state volume `/srv/docker/openclaw` |
 | PGVector | — | D | 100–250 / 600 | **AI stack** — vector DB for Open WebUI RAG + chat history (`db-internal`, HD-102; `pgvector/pgvector:0.8.6-pg16-trixie`; tagged; backup via db-backup DB04 → Kopia) |
 | Technitium | dns | I | 120–250 / 400 | Central DNS router, VLAN-aware (binds 53 on host) |
 | Pi-hole | ad | I | 100–200 / 300 | Ad-blocking DNS |

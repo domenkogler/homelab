@@ -77,6 +77,10 @@ litellm_version: main-stable
 # Renovate docker datasource tracks it. Base image connects to LiteLLM as an external
 # OpenAI-compatible backend (no bundled Ollama/CUDA variant needed).
 openwebui_version: "0.11.0"
+# OpenClaw (AI agent/orchestration, ex-Clawd) image tag — HD-104. Pinned to the latest
+# stable release (date-based versioning); young project, MUST re-verify at deploy.
+# GHCR is the primary registry for release automation/provenance.
+openclaw_version: "2026.7.1"
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.

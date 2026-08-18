@@ -75,7 +75,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 |------|----------|--------|--------|
 | PostgreSQL DBs (Authentik, Immich, Forgejo, **PGVector** — HD-102) | oldsrv NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** Hetzner Storage Box (backup) (Kopia) |
 | Docker Compose files / systemd units / configs | Git repo + oldsrv `/opt/*` | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box (backup) |
-| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend** — HD-100, …) | oldsrv NVMe | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
+| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend** — HD-100, **OpenClaw config/state** — HD-104, …) | oldsrv NVMe | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
 | Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |
 | Router configs (`*.rsc`) | Git repo | Git + Kopia | Hetzner Storage Box (backup) |
 | Immich **originals** (photos/videos) | **MinIO S3** (oldsrv; bucket `immich-originals`) | **S3 object storage** (HD-131 D1) | MinIO bucket → Storage Box S3 (replicate) / Kopia **+ the Immich DB** (albums/faces/tags) — D3 |
