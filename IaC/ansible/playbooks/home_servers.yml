@@ -5,6 +5,9 @@
     - common
     - ai_diag        # restricted diagnostic dispatcher for ai-debug
     - docker
+    # Order: network MUST precede storage (NFS mounts depend on the VLAN/static-IP being up)
+    # and docker_services MUST follow storage (needs NFS ready) — mirrors the
+    # Implementation Order table (deployment-ansible.md §Implementation Order, KOPS-050).
     - network
     - storage        # oldsrv: import/create nvme, datasets+props, NFS mounts, push timers (docs/storage-zfs.md)
     - nut             # UPS client (oldsrv) — after network, before monitoring

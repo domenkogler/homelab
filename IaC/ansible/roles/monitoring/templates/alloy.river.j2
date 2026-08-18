@@ -76,7 +76,7 @@ prometheus.exporter.snmp "mikrotik" {
 // ---- Host metrics → remote_write ----
 prometheus.scrape "host_metrics" {
     targets = [
-        {"__address__" = "127.0.0.1:{{ alloy_host_metrics_port | default(9998) }}", "job" = "alloy-host"},
+        {"__address__" = "127.0.0.1:{{ alloy_host_metrics_port | default(9998) }}", "job" = "alloy-host", "instance" = "{{ inventory_hostname }}"},
     ]
     forward_to = [prometheus.remote_write.metrics.receiver]
 }

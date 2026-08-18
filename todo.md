@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 91 open · 9 decisions · 2 purchases · 9 parked · 25 done (in changelog)
+**Status:** 88 open · 9 decisions · 2 purchases · 9 parked · 28 done (in changelog)
 
 ---
 
@@ -69,7 +69,6 @@
 |----|---|------|---|------|
 | HD-02 | 3 | AI | 1 | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
 | HD-90 | 1 | AI | 3 | **Renovate managers: ansible-galaxy + pip** — track Ansible collections + Python packages, not just Docker (KOPS-062). · source qwen. · [deployment-renovate.md](docs/deployment-renovate.md) |
-| HD-117 | 2 | AI | 2 | **Playbook role-order fixes** — `network` runs before `storage` on oldsrv (KOPS-050); Pi runs `home_assistant` before `docker_services` (KOPS-063); correct dependency ordering. · source qwen. · [deployment-ansible.md](docs/deployment-ansible.md) |
 
 
 ### 2.4 Services & Edge — Traefik, SSO, service catalog, Matrix, VPS edge
@@ -98,7 +97,6 @@
 |----|---|------|---|------|
 | HD-85 | 1 | AI | 3 | **Add CrowdSec collections** — extend beyond traefik+linux: home-assistant, matrix, grafana parsers (KOPS-041). · source qwen. · [observability.md](docs/observability.md) |
 | HD-115 | 2 | AI | 2 | **Loki auth/RBAC** — `auth_enabled: false` lets any container on `db-internal` read/inject logs; add auth + restrict network (KOPS-023/051). · source qwen. · [observability.md](docs/observability.md) |
-| HD-116 | 2 | AI | 2 | **Alloy/Prometheus probe correctness** — ensure per-host `instance` label set (KOPS-036, cross-ref HD-55); blackbox treats 401/403 as failure, not success (KOPS-035). · source qwen. · [observability.md](docs/observability.md) |
 
 ### 2.6 Smart Home — HA primary/standby, Homematic, voice, devices
 
@@ -139,7 +137,6 @@
 | HD-77 | 2 | AI | 2 | **Split `n8n_password`** — separate `n8n_password` (N8N_ENCRYPTION_KEY) from `n8n-webhook_api` (webhook auth token) so key rotation is independent (KOPS-031). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 | HD-80 | 2 | AI | 2 | **Unique root password hash per host in preseed** — render per-host hash at preseed time, or disable root login (ansible-admin has NOPASSWD sudo); currently identical placeholder hash on nas+oldsrv (KOPS-044). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-81 | 2 | AI | 2 | **Shrink HA `trusted_proxies` from `/16` to Traefik container IPs** — prevent spoofed client IPs from sibling containers (KOPS-039). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md), [security.md](docs/security.md) |
-| HD-82 | 2 | AI | 2 | **Grafana single auth path** — enable `GF_AUTH_DISABLE_LOGIN_FORM: "true"` to force auth through Authentik proxy (KOPS-008). · source qwen. · [observability.md](docs/observability.md) |
 | HD-59 | 2 | AI | 3 | **Internal service auth on flat Docker networks** — Ollama (`OLLAMA_AUTH_*` env vars), Kopia server (`--password` flag replacing `--without-password`), Signal CLI (basic auth wrapper on services-internal), Prometheus (`--web.config.file` with htpasswd). Flat networks = zero auth between containers; supply-chain compromise in one image gives attacker free rein. Auth tokens → 1Password `<service>-internal_api`. · [deployment-compose.md](docs/deployment-compose.md), Qwen-bugs KOPS-001/016/002 |
 | HD-86 | 1 | AI | 3 | **`op signin --account` instead of bashrc token** — stop persisting OP token in `~/.bashrc` for production (bootstrap OK as-is; KOPS-011). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 | HD-87 | 1 | AI | 3 | **Pin CrowdSec bouncer plugin version** — explicit version in group_vars instead of hardcoded default (KOPS-029). · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
@@ -206,9 +203,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 91
+- Open rows: 88
 - Decisions front: 9 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=3, platform=3, security=11, services=15, smart=14, storage=6
+- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=2, platform=2, security=10, services=15, smart=14, storage=6
 
 ## 6. Conventions quick-reference
 

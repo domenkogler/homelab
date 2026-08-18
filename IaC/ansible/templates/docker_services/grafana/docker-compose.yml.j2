@@ -27,6 +27,11 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: "{{ lookup('community.general.onepassword', 'grafana_login', field='password', vault=op_vault) }}"
       GF_SECURITY_DISABLE_GRAVATAR: "true"
+      # Single auth path (KOPS-008 / HD-82): force every login through the Authentik
+      # Forward-Auth proxy — the Grafana login form is disabled so the admin account
+      # can't be reached by a direct bypass. Admin stays reachable via API/basic auth
+      # for provisioning (break-glass).
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
       # Auth proxy — trusts the Authentik Forward-Auth headers passed by Traefik.
       # Users who pass Forward-Auth are auto-logged in, skipping the Grafana login form.
       GF_AUTH_PROXY_ENABLED: "true"

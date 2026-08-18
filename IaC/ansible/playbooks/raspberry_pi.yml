@@ -7,6 +7,10 @@
     - network
     - nut             # UPS client (Pi) — after network
     - docker
-    - home_assistant
+    # Order (KOPS-063 / HD-117): deploy containers (docker_services) BEFORE the
+    # home_assistant role so the HA primary + raspberrymatic are up before HA
+    # config keepalived/VIP renders — mirrors the Implementation Order table
+    # (deployment-ansible.md §Implementation Order, step 7).
     - docker_services        # raspberrymatic + technitium-secondary on the Pi
+    - home_assistant
     - monitoring
