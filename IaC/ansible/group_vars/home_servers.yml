@@ -58,6 +58,7 @@ docker_services:
   # Identity
   - { name: authentik,      template_dir: authentik,      subdomain: sso }
   # Platform
+  - { name: minio,          template_dir: minio }       # S3 for Immich originals (HD-131 D1)
   - { name: opencloud,      template_dir: opencloud,      subdomain: file }
   - { name: immich-app,     template_dir: immich-app,     subdomain: foto }
   - { name: forgejo,        template_dir: forgejo,        subdomain: git }

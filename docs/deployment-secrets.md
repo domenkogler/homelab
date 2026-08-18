@@ -85,6 +85,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `authentik_password` | `password` | authentik (Django `SECRET_KEY`) |
 | `authentik_login` | `password` | authentik (bootstrap admin user) |
 | `opencloud_db` | `password` | opencloud (Postgres) |
+| `minio_login` | `login` | MinIO S3 object store (HD-131 D1) — `username` = root user, `password` = root secret; S3 endpoint for Immich originals |
 | `immich_db` | `password` | immich-app (Postgres) |
 | `forgejo_db` | `password` | forgejo (Postgres) |
 | `forgejo_api` | `credential` | doco-cd (`GIT_ACCESS_TOKEN`) + renovate (`RENOVATE_TOKEN`) — Forgejo token |

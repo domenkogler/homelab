@@ -1,14 +1,12 @@
 # immich-app docker-compose.yml — Photo management (foto.kogler.si)
 #   Immich v3: server + PostgreSQL + Valkey. Microservices merged into server.
-#   Hybrid storage:
-#     - Local NVMe /srv/docker/immich/upload → /data (thumbs, encoded-video)
-#     - NFS originals from nas tank/data/immich → /data/library
-#   Storage template enabled so big write-once originals land on NAS.
-#   Face thumbnails backed up nightly (bulk/data/immich-thumbs).
-#   Forward-Auth.
+#   Storage per HD-131 D1: ORIGINALS on S3 (MinIO local now, box/cloud later);
+#   thumbs/encoded-video stay on local NVMe. Originals are S3-backed from day one.
+#   Addons: DB (Postgres), Valkey. Forward-Auth.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
-#   immich_db  (Database: username=<db user>, password=<db password>)
+#   Secrets (deployment-secrets.md):
+#     immich_db  (Database) — Postgres
+#     minio_login (login)  — MinIO/S3 access key + secret (named IMMICH_S3_*)
 services:
   immich-server:
     image: ghcr.io/immich-app/immich-server:{{ immich_version | default('release') }}
@@ -19,8 +17,7 @@ services:
       - services-internal
       - db-internal
     volumes:
-      - /srv/docker/immich/upload:/data               # local NVMe: thumbs, encoded-video
-      - /mnt/nas/data/immich:/data/library             # NFS originals (storage template on)
+      - /srv/docker/immich/upload:/data               # local NVMe: thumbs, encoded-video (NOT originals)
       - /etc/localtime:/etc/localtime:ro
     environment:
       DB_USERNAME: "{{ lookup('community.general.onepassword', 'immich_db', field='username', vault=op_vault) }}"
@@ -30,6 +27,15 @@ services:
       DB_PORT: "5432"
       REDIS_HOSTNAME: immich-valkey
       IMMICH_MACHINE_LEARNING_URL: "http://immich-ml:3003"
+      # ORIGINALS on S3 (MinIO) — HD-131 D1. Create the bucket (immich-originals) + access
+      # key in MinIO, then these map Immich originals to S3. Thumbs stay on local /data.
+      IMMICH_S3_ENDPOINT: "http://minio:9000"
+      IMMICH_S3_USE_SSL: "false"
+      IMMICH_S3_ACCESS_KEY: "{{ lookup('community.general.onepassword', 'minio_login', field='username', vault=op_vault) }}"
+      IMMICH_S3_SECRET_KEY: "{{ lookup('community.general.onepassword', 'minio_login', field='password', vault=op_vault) }}"
+      IMMICH_S3_REGION: us-east-1
+      IMMICH_S3_BUCKET: immich-originals
+      IMMICH_S3_FORCE_PATH_STYLE: "true"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"
