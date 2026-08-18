@@ -23,6 +23,7 @@ tags: [governance, subscriptions, costs]
 | NZBGeek (Usenet indexer) | 0,93 € | 2027-02-13 |
 | Eweka.nl (Usenet) | 2,50 € | 2027-11-11 |
 | Telekom Slovenije (ISP) | 50,50 € | — (monthly) |
+| Meteorblue (weather API) | **0,00 € (free)** | 2027-08-18 |
 
 ---
 
@@ -92,6 +93,21 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | Cost | 50,50 €/mo |
 | Valid until | — (ongoing, no fixed end date) |
 | Purpose | PPPoE, static IP, `/56` IPv6 |
+
+---
+
+## Meteorblue (weather API)
+
+| Item | Value |
+|------|-------|
+| Type | **Weather forecast API** (HA core `meteoblue` integration, HD-22) |
+| Plan | **Free / personal API key** |
+| Cost | **0,00 €** (free tier) |
+| Since | 2026-08-18 |
+| Valid until | **2027-08-18** |
+| ⏰ Renewal reminder | ~2027-07-18 (1 month before expiry) |
+| Secret | `meteoblue_api` (1Password `Homelab`, API credential) |
+| Purpose | Home Assistant single authoritative weather source (Maribor) — `configuration.yaml.j2` |
 
 ---
 
