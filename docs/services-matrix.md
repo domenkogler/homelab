@@ -59,6 +59,27 @@ service.
 - **Federation transport:** serve `matrix.kogler.si` through Traefik on **443/TLS** (federation-over-443).
   Optional listener on **8448** is not required. WAN firewall must allow 443 (and 8448 if used) **to oldsrv — `/_matrix/*` is NOT behind Forward-Auth.** See [`services-traefik.md`](services-traefik.md).
 
+### Federation posture (HD-122 / KOPS-033 — decided 2026-08-18)
+
+**Open federation is kept** — this affirms the recorded KOPS-033 acceptance in [`security.md`](security.md) §7
+(a federated homeserver interoperating with the wider Matrix world; the family is not sealed off).
+
+The "any Matrix user can DM the family" concern is mitigated **without** breaking federation by two settings
+in `tuwunel.toml.j2`:
+
+| Setting | Value | Effect on the KOPS-033 exposure |
+|---------|-------|----------------------------------|
+| `require_auth_for_profile_requests` | `true` | Stops **anonymous profile scraping** — strangers must authenticate to GET a user's profile, so family MXIDs/display names can't be harvested idlely. Closes the *discoverability* half of the concern. |
+| `allow_public_room_directory_over_federation` | `false` (Conduwuit default) | Blocks `/publicRooms` spiders from enumerating our server's public room directory. |
+| `allow_federation` | `true` | Interop with the wider Matrix network — kept. |
+
+> ⚠️ **`trusted_servers` is a key-notary list, NOT a permit-list.** In Conduwuit/Tuwunel it only gathers
+> other servers' signing keys for signature verification (matrix.org = the default Synapse notary). It does
+> **not** control who can DM our users, and there is **no per-server inbound federation allow-list** in this
+> homeserver — federation is global on/off (the docs warn against disabling it after the fact). Do **not**
+> repurpose `trusted_servers` as a federation permit-list. Truly stopping unsolicited DMs is **client-side**
+> (per-user ignore/block in Element), out of server control — noted so AUD does not re-raise it.
+
 ---
 
 ## Authentication — Matrix-native SSO (NOT Traefik Forward-Auth)

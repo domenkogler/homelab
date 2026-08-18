@@ -21,8 +21,27 @@ allow_registration = false
 # bootstrap the first admin. No config edits required for day-to-day operation.
 registration_shared_secret = "{{ lookup('community.general.onepassword', 'matrix_password', field='password', vault=op_vault) }}"
 
+# --- Federation posture (HD-122 / KOPS-033 — DECIDED 2026-08-18) ---
+# Open federation is intentionally kept (matches the recorded KOPS-033 acceptance in
+# security.md §7: a federated homeserver interoperating with the wider Matrix world).
+# Two hardenings that fit a family exposure model WITHOUT breaking federation:
+#
+#  1) require_auth_for_profile_requests=true — requires auth on the unauthenticated
+#     GET profile endpoints, preventing anonymous PROFILE SCRAPING (harvesting family
+#     MXIDs / display names). This is the discoverability half of the "any user can
+#     DM the family" concern.
+#  2) allow_public_room_directory_over_federation stays false (Conduwuit default) so
+#     /publicRooms spiders cannot enumerate our server's public room directory.
+#
+# NOTE: `trusted_servers` is a KEY-NOTARY list (used to gather other servers' signing
+# keys for signature verification) — it is NOT an ingress allow-list and does NOT
+# control who can DM our users. Do not repurpose it as a "federation permit-list":
+# Conduwuit/Tuwunel has no per-server inbound allow-list; federation is global on/off
+# (and the docs warn against disabling it after the fact). Truly stopping unsolicited
+# DMs is client-side (per-user ignore/block in Element), out of server control.
 allow_federation = true
-trusted_servers = ["matrix.org"]
+trusted_servers = ["matrix.org"]   # key-notary only — matrix.org is the default Synapse notary
+require_auth_for_profile_requests = true
 
 # --- Discovery (served at matrix.kogler.si) ---
 # [global.well_known] makes matrix.kogler.si/.well-known/matrix/{client,server} work for
