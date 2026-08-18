@@ -6,11 +6,15 @@
 #
 # Runs on localhost (control plane) — NOT on a managed node.
 #
-# Run standalone (management laptop, `op` signed in):
+# Run standalone — MUST be from inside IaC/ansible/ (so ansible.cfg + ./roles resolve):
+#   cd IaC/ansible
 #   ansible-playbook playbooks/dns.yml -i inventory.ini
+# If on WSL with the repo on a world-writable /mnt/d drive (ansible ignores
+# ansible.cfg + ./roles there), add the explicit role path:
+#   ANSIBLE_ROLES_PATH=roles ansible-playbook playbooks/dns.yml -i inventory.ini
 #
 # Requirements:
-#   * community.dns collection (requirements.yml)
+#   * community.general collection (requirements.yml) — provides cloudflare_dns
 #   * `cloudflare_api` in 1Password Homelab (credential field)
 #   * Egress IP must be 193.77.156.222 (token IP filter) — home control plane only.
 #

@@ -5,7 +5,7 @@
 # on the Cloudflare API, so there is nothing to do on a target node.
 #
 # Used by: playbooks/dns.yml
-# Requires: community.dns collection (requirements.yml) + cloudflare_api in 1Password.
+# Requires: community.general collection (requirements.yml) + cloudflare_api in 1Password.
 #
 # IMPORTANT: the cloudflare_api token is IP-filtered to 193.77.156.222 — run this
 # from the home control plane (management laptop/workstation), not the VPS/CI.
@@ -15,7 +15,7 @@
     cf_api_token: "{{ lookup('community.general.onepassword', 'cloudflare_api', field='credential', vault=op_vault) }}"
 
 - name: Ensure public DNS records are present (idempotent)
-  community.dns.cloudflare_dns:
+  community.general.cloudflare_dns:
     zone: "{{ domain_public | default('kogler.si') }}"
     record: "{{ item.name }}"
     type: "{{ item.type }}"
