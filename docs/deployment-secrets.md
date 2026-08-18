@@ -124,6 +124,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `cohere_api` | `credential` | **AI stack** — LiteLLM: Cohere **embed-v4 multilingual** (embeddings only). Note: embeddings are **not** on OpenRouter, so this is a separate key from `openrouter_api`. |
 | `litellm_master_key` | `credential` | **AI stack** — LiteLLM master key that Open WebUI + OpenClaw use to authenticate (they never hold upstream keys). |
 | `openwebui_secret` | `password` | **AI stack** — Open WebUI session/encryption secret (optional). |
+| `openwebui_api` | `credential` (`username` = client_id) | **AI stack** — Open WebUI **Authentik OIDC client** (`client_id` = username, `client_secret` = credential); redirect URI `https://ai.kogler.si/oauth2/callback` registered in the Authentik provider (HD-101) |
 | `pgvector_db` | `password` (`username` = DB user) | **AI stack** — Open WebUI RAG vector DB (PGVector). Either this dedicated item or reuse a `db` pattern for the `pgvector` postgres. |
 
 > Entity count: **30 items**, each a single `<service>_<type>` name with one `_` delimiter.
