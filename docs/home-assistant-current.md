@@ -15,7 +15,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 
 > 🧭 **Planned changes (post-audit, decision taken — see `smart-home.md`, `smart-home-failover.md`, `network-dns.md`).**
 > 1. **Primary redo:** Pi moves from HAOS → **Debian + HA Container** during the network redo (keeps the failover VIP/VRRP and one Ansible role for both nodes).
-> 2. **Homematic IP:** HAP **cloud mode** is replaced by a local **HmIP-RFUSB + RaspberryMatic** on the Pi (`homematic` XML-RPC 2001/2010); failover = physically moving the stick to oldsrv (pairing stored on the stick).
+> 2. **Homematic IP:** *(deferred 2026-08-18 / HD-13 parked)* the intended local **HmIP-RFUSB + RaspberryMatic** on the Pi (`homematic` XML-RPC 2001/2010) is **held until an HmIP-RFUSB is bought**; meanwhile the **HmIP-HAP stays in cloud mode**. No USB placeholder step at Pi deployment; no physical stick-move failover yet. (When/if added, failover = physically moving the stick to oldsrv, pairing stored on the stick.)
 > 3. **Technitium secondary DNS** moves from nas → the Pi (now a Debian host).
 > 4. **Dev add-ons** (SSH / File editor / Studio Code Server) + Supervisor-only services are replaced by standalone containers or host tools in the Docker deployment; HAOS-only auto-backup replaced per `backup.md`.
 > This file remains a point-in-time inventory of the *current* live instance; the bullets above are the approved direction, not yet applied.
@@ -94,7 +94,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 | Integration (domain) | Devices / entities observed | Notes |
 |---|---|---|
 | **KNX** (`knx`) | **8 blinds** (cover, device_class `blind`: Dnevna soba, Hodnik, Kabinet, Kopalnica, Kuhinja, Soba roza, Soba zelena, Spalnica) · many **lights** · **rekuperator/ComfoAir Q** (airflow, supply/extract/room/outdoor temp+humidity, filter) · **appliance current** (pečica mala/velika=oven, pomivalni stroj=dishwasher, pralni stroj=washer, sušilni stroj=dryer — group addr `1.1.7`, mA) · KNX interface status sensors (telegrams, connection, individual address) · external/internal security zones | Home's field bus. GIRA IP router; ComfoAir Q via ComfoConnect KNX-C per `smart-home.md` |
-| **Homematic IP** (`homematicip_cloud`) | **6 thermostats** (Dnevna soba, Kopalnica, Roza soba, Spalnica, WC, Zelena soba) + temp/humidity/abs-humidity · **weather station HmIP-SWO-B** (temp, humidity, illuminance, windspeed, storm, sunshine) · alarm control panel + battery sensors | **Cloud mode** (HAP on internet VLAN) per `smart-home.md` phase-1/2 roadmap; target is local CCU3/RaspberryMatic |
+| **Homematic IP** (`homematicip_cloud`) | **6 thermostats** (Dnevna soba, Kopalnica, Roza soba, Spalnica, WC, Zelena soba) + temp/humidity/abs-humidity · **weather station HmIP-SWO-B** (temp, humidity, illuminance, windspeed, storm, sunshine) · alarm control panel + battery sensors | **Cloud mode** (HmIP-HAP on internet VLAN) — retained until an HmIP-RFUSB is bought (HD-13 parked); local RaspberryMatic only if RFUSB is added later |
 | **Shelly** (`shelly`) | **LED/light strips** (LED kuhinja, Kopalnica LED, orhideje, soba postelje/omare, WC-4 ch1–4, Utility…) · **buttons** (Tipka) · **overpowering** binary sensors · **reboot buttons** (Ponovno zaženi) · light values | Native Shelly integration (direct LAN HTTP/WebSocket, **no MQTT**). RGBW2 controllers/buttons across rooms |
 
 ### 6.2 Media

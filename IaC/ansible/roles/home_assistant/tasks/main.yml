@@ -40,12 +40,12 @@
 #    - Template home-assistant-standby/docker-compose.yml.j2 → /opt/home-assistant-standby/  ✅ (cold render)
 #    - Render the SAME configuration.yaml into /opt/home-assistant-standby/config/  ✅
 #    - Create systemd unit home-assistant-standby (disabled by default)  ✅ handled by ha-failover.sh (docker compose up -d; no unit)
-#    - Template raspberrymatic-standby (RaspberryMatic) → /opt/raspberrymatic-standby/ (disabled by default)  ✅ (cold render)
+#    - (raspberrymatic-standby cold render  REMOVED 2026-08-18 / HD-13 parked — HmIP-HAP stays cloud until an HmIP-RFUSB is bought)
 #    - keepalived STANDBY: state BACKUP, priority lower; takes VIP on takeover  ✅ HD-17
 #    - ha-failover.sh + trigger API + Homepage buttons  ✅ HD-17
 # 3. STATE SYNC (normal direction: Pi → standby)  ✅
 #    - rsync /config from Pi to /opt/home-assistant-standby/config/ every ~15 min (LAN only, no WAN)  ✅ ha-config-sync.timer
-#    - rsync RaspberryMatic config Pi → oldsrv the same way (pairing stays on the stick)  ← PENDING
+#    - (rsync RaspberryMatic config Pi → oldsrv  REMOVED with HD-13 park — no local RMat deployed)
 #    - Optionally sync HA DB; best-effort only (HA re-polls devices on startup)  ← PENDING
 # 4. FAILOVER ORCHESTRATOR (host: home_servers / oldsrv) — tasks/standby.yml  ✅ HD-17
 # 5. PI SD-CARD WEAR MITIGATION (HD-19, host: raspberry_pi only) — tasks/pi.yml  ✅ HD-19

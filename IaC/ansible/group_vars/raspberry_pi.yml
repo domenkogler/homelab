@@ -17,11 +17,13 @@ ha_primary_peer_priority: 90  # failback peer mode — below standby (100/120), 
 # Pi also runs a small docker_services set (needs the docker + docker_services roles):
 #   - home-assistant-primary: PRIMARY HA + keepalived MASTER (configs rendered by the
 #     home_assistant role BEFORE docker_services runs)
-#   - raspberrymatic:  HmIP-RFUSB + RaspberryMatic (local Homematic IP, XML-RPC 2001/2010)
 #   - technitium-secondary: DNS secondary (moved from nas; primary is on oldsrv)
 #   - traefik-ha: HA + DNS-secondary web-UI edge (VIP-bound; oldsrv-down gap)
+#
+#   - raspberrymatic was REMOVED from the Pi loop (2026-08-18, HD-13 parked): keeping the
+#     HmIP-HAP in cloud mode until an HmIP-RFUSB is bought. Re-add when local RF is purchased
+#     and fill the USB by-id into host_vars/pi.kogler.si.yml.
 docker_services:
   - { name: home-assistant-primary, template_dir: home-assistant-primary }
-  - { name: raspberrymatic,        template_dir: raspberrymatic }
   - { name: technitium-secondary,  template_dir: technitium, instance: secondary }
   - { name: traefik-ha,            template_dir: traefik-ha, enabled: "{{ ha_edge_enabled }}" }   # HA edge, VIP-bound (oldsrv-down gap)

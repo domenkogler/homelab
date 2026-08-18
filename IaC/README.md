@@ -239,7 +239,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 ```yaml
 # Illustrative sample — canonical list: group_vars/home_servers.yml
 # (traefik, crowdsec, authentik, opencloud, immich-app, forgejo, ollama, immich-ml,
-#  technitium[oldsrv], pihole, raspberrymatic-standby[oldsrv], home-assistant-standby[oldsrv],
+#  technitium[oldsrv], pihole, (raspberrymatic-standby[oldsrv] — HD-13 parked), home-assistant-standby[oldsrv],
 #  headscale, kopia-server, db-backup, grafana→stats, n8n→auto,
 #  sunshine[desktop], + TODO templates: homepage, renovate, doco-cd, prometheus, loki,
 #  blackbox-exporter, signal-cli-rest-api, metabase)

@@ -1,22 +1,34 @@
 #!/bin/bash
-# ha-failover.sh — single-trigger HA failover orchestrator (docs/smart-home-failover.md, HD-17)
+# ha-failover.full.sh.j2 — FULL HA failover orchestrator INCLUDING local Homematic (RaspberryMatic)
+# docs/smart-home-failover.md, HD-17. PRESERVED variant — see ha-failover.sh.j2 (active).
 #
-#   forward (default)  : Pi → oldsrv. Promote VIP (keepalived MASTER) → start home-assistant-standby.
+#   This is the local-Homematic variant: forward takeover starts RaspberryMatic-standby and waits
+#   for the CCU XML-RPC port before promoting the VIP — required only when the HmIP-RFUSB stick
+#   (local Homematic) is deployed on oldsrv.
+#
+#   HD-13 parked (2026-08-18): HmIP-HAP stays in cloud mode until an HmIP-RFUSB is bought, so this
+#   full variant is NOT currently active. The ACTIVE script (no RaspberryMatic step) is
+#   `ha-failover.sh.j2`. When the RFUSB is bought, deploy this one instead (swap the template path
+#   used by the home_assistant role) and re-add the raspberrymatic-standby service + the
+#   homematic_usb_by_id var.
+#
+#   forward (default)  : Pi → oldsrv. Start RaspberryMatic-standby → wait XML-RPC 2001
+#                        → promote VIP (keepalived MASTER) → start home-assistant-standby.
 #   reverse            : oldsrv → Pi. Stop standby services, restore keepalived BACKUP —
 #                        the repaired Pi MASTER (priority 110) reclaims the VIP via VRRP.
 #
-#   HD-13 parked (2026-08-18): this is the ACTIVE script for the current state — local Homematic
-#   (RaspberryMatic/HmIP-RFUSB) is DEactivated repo-wide and the HmIP-HAP stays in cloud mode,
-#   so there is NO RaspberryMatic step here. IP devices (KNX/Shelly) fail over purely via the VIP.
-#   The local-Homematic variant (with RMat start/stop + CCU XML-RPC wait) is preserved for the
-#   future RFUSB purchase as `ha-failover.full.sh.j2` — swap this template path back when it's bought.
+# Prerequisites (human, forward): HmIP-RFUSB stick physically moved to oldsrv; the
+# `homematic` macvlan network exists on oldsrv (docs/smart-home-failover.md).
 #
-# Render-time vars (home_assistant role): docker_compose_dir, ha_vip, ha_vip_cidr,
-# ha_keepalived_interface, failover_notify_webhook.
+# Render-time vars (home_assistant role): docker_compose_dir, homematic_ccu_oldsrv_ip,
+# ha_vip, ha_vip_cidr, ha_keepalived_interface, failover_notify_webhook.
 set -euo pipefail
 
 DIR={{ docker_compose_dir | default('/opt') }}
+RMAT_DIR="$DIR/raspberrymatic-standby"
 HA_DIR="$DIR/home-assistant-standby"
+CCU_IP={{ homematic_ccu_oldsrv_ip }}
+CCU_PORT=2001
 VIP={{ ha_vip }}
 VIP_PREFIX={{ ha_vip_cidr }}
 IFACE={{ ha_keepalived_interface }}
@@ -31,6 +43,16 @@ notify() { # $1 = event, $2 = ok|warn|fail
   curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
     -d "{\"event\":\"$1\",\"status\":\"$2\",\"node\":\"$(hostname)\",\"time\":\"$(date -Is)\"}" \
     "$NOTIFY_URL" >/dev/null 2>&1 || log "notify '$1' → n8n webhook failed"
+}
+
+# Wait for the RaspberryMatic CCU XML-RPC port (up to ~2 min).
+wait_ccu() {
+  local tries=60
+  for _ in $(seq 1 "$tries"); do
+    if timeout 2 bash -c "echo >/dev/tcp/$CCU_IP/$CCU_PORT" 2>/dev/null; then return 0; fi
+    sleep 2
+  done
+  return 1
 }
 
 vip_up() { ip -4 addr show dev "$IFACE" | grep -q "$VIP/"; }
@@ -52,7 +74,12 @@ demote_vip() {
 }
 
 forward() {
-  log "forward takeover Pi → oldsrv"
+  log "forward takeover Pi → oldsrv: starting RaspberryMatic-standby"
+  docker compose -f "$RMAT_DIR/docker-compose.yml" up -d || fail "raspberrymatic-standby up"
+
+  log "waiting for CCU XML-RPC ${CCU_IP}:${CCU_PORT}"
+  wait_ccu || fail "CCU did not answer on ${CCU_IP}:${CCU_PORT} (stick moved? macvlan up?)"
+
   log "promoting VIP (${VIP} → oldsrv)"
   promote_vip || fail "VIP promote failed (keepalived not taking ${VIP})"
 
@@ -66,6 +93,7 @@ forward() {
 reverse() {
   log "reverse failback oldsrv → Pi: stopping standby services"
   docker compose -f "$HA_DIR/docker-compose.yml" down --remove-orphans || true
+  docker compose -f "$RMAT_DIR/docker-compose.yml" down --remove-orphans || true
 
   log "restoring keepalived BACKUP (Pi MASTER reclaims the VIP)"
   demote_vip

@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 57 open · 0 decisions · 2 purchases · 9 parked · 59 done (in changelog)
+**Status:** 57 open · 0 decisions · 2 purchases · 10 parked · 59 done (in changelog)
 
 ---
 
@@ -84,13 +84,13 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-04 | 5 | AI + gate | 1 | **Pi redo: HAOS → Debian + HA Container + RaspberryMatic + Technitium secondary** — in-use device migration, done opportunistically during the network redo; approved direction, not yet applied. · [home-assistant-current.md](docs/home-assistant-current.md) |
+| HD-04 | 5 | AI + gate | 1 | **Pi redo: HAOS → Debian + HA Container + Technitium secondary** — in-use device migration, done opportunistically during the network redo; approved direction, not yet applied. ⏳ **Homematic-local (RaspberryMatic + HmIP-RFUSB) scope deferred (2026-08-18):** keep the HmIP-HAP in **cloud mode** for now; **no HmIP-RFUSB purchase yet** → the Pi redo proceeds without the USB placeholder step and without local-Homematic pairing. See HD-13 (parked). · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-72 | 3 | AI | 1 | **HA primary privileged → targeted caps** — replace `privileged: true` + `network_mode: host` with targeted `devices:` + `cap_add:` to drop root/cgroup-escape + keepalived/VRRP control on the smart-home controller (KOPS-014). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md) |
-| HD-13 | 3 | AI + Human | 2 | **Homematic full-local (HmIP-RFUSB + RaspberryMatic)** — replace HAP cloud mode with local `homematic` XML-RPC; agent builds roles, human moves/fits the stick. Part of redo (HD-04). · [observability.md](docs/observability.md) |
+
 | HD-14 | 2 | AI | 2 | **Export HA entity list** — enable HA Prometheus exporter; needed for HA Dashboard `lovelace` + Grafana. Wait for observability. · [smart-home.md](docs/smart-home.md) |
 | HD-15 | 1 | AI | 2 | **Confirm HACS custom-component versions/repos** — `motion`, `ai_task`, Weather-2000, OneDrive, go2rtc via SSH / config git repo (REST API can't expose). · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-17 | 3 | AI | 2 | **Single failover button + `ha-failover.sh`** — RMat → wait → VIP → standby, on Homepage; manual-trigger design accepted. ✅ **IaC done + committed:** `ha-failover.sh` (forward + reverse), standby keepalived normal/failover configs (VRID/interface/priority vars), trigger API endpoint + systemd unit (`ha-failover-api`, token auth), Homepage forward/reverse buttons. ⏳ **Not deployed** (hosts not provisioned); deploy needs 1Password `ha-failover_api` (api → credential) + the HmIP-RFUSB stick physically moved at runbook time. · [smart-home-failover.md](docs/smart-home-failover.md) |
-| HD-18 | 2 | Human | 2 | **Once: test HmIP-RFUSB pairing transfer** + entity reconstruction across stick move. Hands-on; requires HD-13. · [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-18 | 2 | Human | 2 | **Once: test HmIP-RFUSB pairing transfer** + entity reconstruction across stick move. Hands-on; **blocked** until the HmIP-RFUSB is bought (HD-13 parked). · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-124 | 3 | AI | 2 | **Keepalived hardening** — ✅ **IaC done + constraint documented (2026-08-18):** pinned `osixia/keepalived` to `keepalived_version: 2.3.4` (verified semver, KOPS-053/HD-61 convention; shared Pi-primary + oldsrv-standby) in `all.yml` + both compose templates. **`auth_type PASS` is the protocol MAXIMUM** — VRRPv2 only offers PASS/AH and VRRPv3 (RFC 5798) removed Authentication Header entirely, so no stronger in-protocol auth exists; documented as accepted with security = Home-VLAN multicast isolation (KOPS-020). ⏳ deploy-gated (hosts unprovisioned). · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-20 | 1 | Human | 3 | **Confirm full Supervisor add-on list** — `/api/hassio/addons` returned 401 (non-admin token); needs admin/SSH on HAOS host. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-21 | 1 | AI + Human | 3 | **Confirm ESPHome / Guition ESP32-S3 status** — `esphome` not loaded; agent checks network/repo, owner knows if the device was ever added. · [home-assistant-current.md](docs/home-assistant-current.md) |
@@ -148,6 +148,7 @@
 | HD-38 | 2 | AI | **Prometheus Alertmanager** — only if Grafana-outage resilience demanded; Grafana Alerting covers Phase 1. · [observability.md](docs/observability.md) |
 | HD-41 | 4 | AI | *(Phase 2)* **Proxmox role + VM lab** — bridges, storage, VMs; implementation order step 10. · [deployment-ansible.md](docs/deployment-ansible.md) |
 | HD-42 | 3 | Human | *(Phase 2)* **Phase-2 hardware build** — Ryzen 9, open-frame chassis; only if Phase 1 insufficient; physical. · [hardware-phase2.md](docs/hardware-phase2.md) |
+| HD-13 | 3 | Human | **Homematic full-local (HmIP-RFUSB + RaspberryMatic)** — ⏳ **Parked (2026-08-18, decision A):** keeping the **HmIP-HAP in cloud mode** for now; **no HmIP-RFUSB purchase yet**. Full-local Homematic (`homematic` XML-RPC 2001/2010) resumes only after the stick/buy. Until then HD-04's Pi redo proceeds with **cloud HmIP-HAP** (no USB placeholder step, no local pairing); HD-18 (stick-move test) is blocked on this. · [smart-home.md](docs/smart-home.md) |
 | HD-45 | 3 | AI | *(Phase 2)* **Re-evaluate Homelable (topology/rack visualizer)** — Pouzor/homelable, MIT, young project; network + rack canvas + nmap scan + live health + MCP; potential successor to `Rack.canvas` visual/Homepage reachability widget. Keep deferred until services are live; re-check maturity. Noted in `observability.md` + `network-rack.md`. · [observability.md](docs/observability.md) |
 | HD-48 | 3 | AI + Human | **Requested-only bridges (deferred, Phase 2 best-effort)** — WhatsApp/Messenger/Signal bridges are **out of Phase 1 scope** (every bridge risks a real external account). Revisit **only if family asks**, and then only against **dedicated** numbers, accepting re-pairing/ban. · [services-matrix.md](docs/services-matrix.md) |
 | HD-129 | 2 | AI | **Router DHCP → use internal resolver** — bootstrap assigns 1.1.1.1 not the internal resolver (KOPS-028); same outcome as HD-03 DNS setup, so fold in at live DNS. · [network-vlans.md](docs/network-vlans.md) |
@@ -197,15 +198,15 @@
 ## 4. Status & dependency notes
 
 - **HD-50 done** → blocks all `docker_services` deployments; **HD-16 done** (Authentik + Forward-Auth middleware) unblocks Forward-Auth services (HD-43/44/46).
-- **HD-03 → HD-04 → HD-13** (network redo feeds Pi redo feeds Homematic full-local).
+- **HD-03 → HD-04** (network redo feeds Pi redo). **HD-04 → HD-13** was the Homematic-full-local path, but **HD-13 is parked (2026-08-18)** until an HmIP-RFUSB is bought — HmIP-HAP stays in cloud mode; HD-04's Pi redo proceeds without local-Homematic.
 - **HD-06/07 done** → feeds HD-08. **HD-29 → HD-31** (off-site = **two 1 TB Hetzner Storage Boxes**: live next-DC [minimal backup-space; copies via ZFS + far-DC Kopia] + backup far-DC [Kopia repo + backup-space]; iDrive dropped — HD-131).
 - 'Implemented, not deployed' rows (HD-03/06/17/46/60/61/62/63/64/94 …) stay open with a ⏳ marker until a live deploy happens — closing requires a deploy/verify pass, not just IaC.
 
 ## 5. Tally (as of restructure)
 
 - Open rows: 57
-- Decisions front: 0 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=2, docs=2, finance=2, net=2, observ=0, platform=1, security=1, services=10, smart=12, storage=6
+- Decisions front: 0 · Buys: 2 · Park: 10
+- Active work per module: ai=8, backup=2, docs=2, finance=2, net=2, observ=0, platform=1, security=1, services=10, smart=11, storage=6
 
 ## 6. Conventions quick-reference
 

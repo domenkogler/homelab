@@ -97,14 +97,6 @@
     mode: '0644'
   tags: [ha_failover, hd17]
 
-- name: Render cold standby compose (raspberrymatic-standby)
-  ansible.builtin.template:
-    src: "{{ playbook_dir }}/../templates/docker_services/raspberrymatic/docker-compose.yml.j2"
-    dest: /opt/raspberrymatic-standby/docker-compose.yml
-    mode: '0644'
-  vars:
-    instance: standby
-  tags: [ha_failover, hd17]
 
 - name: Render standby configuration.yaml (same source as Pi; sync refreshes it)
   ansible.builtin.template:

@@ -73,11 +73,15 @@ docker_services:
   # DNS (technitium primary on oldsrv; secondary moved to the Pi — see group_vars/raspberry_pi.yml)
   - { name: technitium,      template_dir: technitium, subdomain: dns, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: pihole,          template_dir: pihole,     subdomain: ad }
-  # Smart home failover: standby HA + RaspberryMatic + keepalived VIP on oldsrv (docs/smart-home-failover.md)
+  # Smart home failover: standby HA + keepalived VIP on oldsrv (docs/smart-home-failover.md)
   # COLD by design — docker_services must NOT start them (exactly one active HA). The
   # home_assistant role renders their compose files + configs; ha-failover.sh starts
-  # them on manual forward takeover (RMat → wait CCU → VIP → HA standby).
-  - { name: raspberrymatic-standby, template_dir: raspberrymatic, instance: standby, enabled: false }
+  # home-assistant-standby on manual forward takeover.
+  #
+  #  raspberrymatic-standby REMOVED (2026-08-18, HD-13 parked): local Homematic
+  #  (HmIP-RFUSB + RaspberryMatic) is DEactivated repo-wide — HmIP-HAP stays in cloud mode
+  #  until an HmIP-RFUSB is bought. Re-add here (instance: standby, enabled: false) when the
+  #  RFUSB is purchased.
   - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: false }
   # VPN
   - { name: headscale,       template_dir: headscale,       subdomain: vpn }

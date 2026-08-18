@@ -27,7 +27,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - Supervision: **manual** trigger + **manual** failback (accepted design — no false negatives from automation).
 - Stale state on takeover is acceptable: HA re-polls devices on startup (target: controlling again in 1–3 min).
 - **Homematic IP RF is physically bound to the `HmIP-RFUSB` stick (on the Pi).** Taking over Homematic **requires physically moving the stick to oldsrv** — the only non-automatable step. KNX/Shelly are IP-based and fail over purely via the VIP with no physical action.
-
+- **Local-RF scope deferred (2026-08-18 / HD-13 parked):** until an **HmIP-RFUSB is bought**, the **HmIP-HAP stays in cloud mode** — there is no stick to move. During this interim, *IP devices (KNX, Shelly) fail over via the VIP as described; Homematic rides the cloud HmIP-HAP rather than a local RaspberryMatic.* The HmIP-RFUSB stick-move steps in the runbooks below (HD-17/HD-18) and the RaspberryMatic container pairing are **inactive/parked** until the RFUSB purchase happens.
 ---
 
 ## Architecture Overview
@@ -176,7 +176,9 @@ rescue them. This is an **HA/DNS availability** change, not general service fail
 (created once during initial setup — see [Homematic macvlan network](#homematic-macvlan-network-prerequisite-on-both-hosts)).
 If not present, run the `docker network create` command for oldsrv first.
 
-**Two manual actions total:** (1) physically move the HmIP-RFUSB stick, and (2) press **one** failover button on Homepage (`kogler.si`). Everything after the button is a single orchestrated script — no separate VIP / standby steps.
+> 📌 **HD-13 parked (2026-08-18):** this forward-takeover runbook below is the **local-Homematic (full)** path — it assumes the HmIP-RFUSB stick + RaspberryMatic-standby exist. **Currently the HmIP-HAP stays in cloud mode** (no stick, no RMat), so the ACTIVE `ha-failover.sh` skips steps 2 and 3a/3b entirely: failover is just *confirm Pi down → press button → VIP moves → HA-standby starts* (IP devices only). The full-with-RMat flow below (and `ha-failover.full.sh.j2`) is preserved for when the RFUSB is bought. See the deferral note at the top of this doc and [`smart-home.md`](smart-home.md).
+
+**Two manual actions total (local-Homematic path):** (1) physically move the HmIP-RFUSB stick, and (2) press **one** failover button on Homepage (`kogler.si`). Everything after the button is a single orchestrated script — no separate VIP / standby steps.
 
 1. **Confirm Pi is down** (human verifies — power, SD, OS, network).
 2. **Physically move the HmIP-RFUSB** from the Pi to oldsrv (hot-plug; if the Pi is powered-but-dying, power-cycle it first). Pairing lives on the stick → **no re-pairing** needed.

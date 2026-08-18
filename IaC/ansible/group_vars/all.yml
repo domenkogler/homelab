@@ -138,7 +138,9 @@ ha_trusted_proxies:
   - 172.20.0.2/32            # oldsrv traefik (traefik-public bridge default .2) — verify at deploy
   # - <pi-traefik-ha-ip>/32  # Pi traefik-ha edge container IP — uncomment/verify per host
 # RaspberryMatic standby CCU (macvlan on Home VLAN) — XML-RPC 2001/2010 target for
-# ha-failover.sh (derived from the address SSOT).
+# ha-failover.full.sh.j2 (local-Homematic variant, HD-13 parked). Only used when the
+# HmIP-RFUSB is bought and raspberrymatic-standby is re-added; the active ha-failover.sh
+# (no local Homematic) does not consume this.
 homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'homematic-ccu-oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 # HA sync (Pi-initiated cert/config sync — failover primary side): oldsrv and Pi
 # Home-VLAN IPs, used by ha-cert-sync/ha-config-sync timers + authorized_keys
@@ -171,8 +173,8 @@ network_static_hosts:
   - { name: nas,      vlan: 10, ip: "10.10.1.10",  role: "Cockpit/NFS/NUT master" }
   - { name: pi,       vlan: 10, ip: "10.10.1.20",  role: "node + DNS secondary (VRRP anchor)" }
   - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  role: "node + DNS primary (VRRP anchor)" }
-  - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan)" }
-  - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan)" }
+  - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
+  - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
   - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }
 
   # Router gateways on the remaining VLANs — RB4011 is the .1 inter-VLAN gateway on each.
