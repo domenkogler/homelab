@@ -14,6 +14,8 @@ http:
       rule: "Host(`ha.kogler.si`)"
       entryPoints:
         - websecure
+      middlewares:
+        - crowdsec-only@file   # CrowdSec block-list only; no Forward-Auth (Companion flow) — HD-118/KOPS-004
       service: ha-backend
       tls:
         certResolver: letsencrypt

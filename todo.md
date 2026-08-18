@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 88 open · 9 decisions · 2 purchases · 9 parked · 28 done (in changelog)
+**Status:** 84 open · 9 decisions · 2 purchases · 9 parked · 32 done (in changelog)
 
 ---
 
@@ -75,10 +75,6 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-60 | 2 | AI | 1 | **crowdsec-only middleware chain** — add `crowdsec-only@file` to `middlewares.yml.j2`; apply to every self-auth'd route (ha, jellyfin, seerr, matrix, chat, ha-standby). ROI · source qwen. · [services-traefik.md](docs/services-traefik.md) |
-| HD-118 | 2 | AI | 1 | **Apply `crowdsec-only` to HA route** — `ha`/`ha-standby` currently lack the CrowdSec bouncer (KOPS-004). · source qwen. · [services-traefik.md](docs/services-traefik.md) |
-| HD-119 | 2 | AI | 2 | **Seerr behind Forward-Auth + CrowdSec** — Seerr has its own login with neither Forward-Auth nor CrowdSec; apply `authentik-forward-auth` + `crowdsec-only` chain (KOPS-047). · source qwen. · [services-traefik.md](docs/services-traefik.md) |
-| HD-120 | 2 | AI | 2 | **Element Web `chat.kogler.si` middleware gap** — no Forward-Auth, no CrowdSec (KOPS-025/054); distinct from Matrix federation (HD-47). · source qwen. · [services-traefik.md](docs/services-traefik.md) |
 | HD-121 | 2 | AI | 1 | **Matrix homeserver `:latest` → pin** — obscure Tuwunel image on mutable tag (KOPS-030). · source qwen. · [services-matrix.md](docs/services-matrix.md) |
 | HD-122 | 2 | AI | 2 | **Matrix federation default decision** — federation enabled lets any Matrix user DM the family (KOPS-033); needs an explicit permit-list or disable before go-live. · source qwen. · [services-matrix.md](docs/services-matrix.md) |
 | HD-40A | 3 | AI + Human | 3 | *(Phase 1.5)* **Provision VPS + establish public Traefik edge** — Contabo VPS purchased, WireGuard S2S home↔VPS, Traefik on VPS terminates TLS for public subset. Backends still on oldsrv over WG tunnel. Cloudflare A records updated. · [services-vps.md](docs/services-vps.md) |
@@ -203,9 +199,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 88
+- Open rows: 84
 - Decisions front: 9 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=2, platform=2, security=10, services=15, smart=14, storage=6
+- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=2, platform=2, security=10, services=11, smart=14, storage=6
 
 ## 6. Conventions quick-reference
 

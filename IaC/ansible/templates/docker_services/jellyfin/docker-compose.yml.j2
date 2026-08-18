@@ -30,6 +30,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.jellyfin.rule: "Host(`media.kogler.si`)"
       traefik.http.routers.jellyfin.entrypoints: websecure
+      traefik.http.routers.jellyfin.middlewares: crowdsec-only@file   # CrowdSec block-list; own login, no Forward-Auth (HD-60)
       traefik.http.routers.jellyfin.tls.certresolver: letsencrypt
       # NOTE: no authentik-forward-auth — Jellyfin has its own login (client apps)
       traefik.http.services.jellyfin.loadbalancer.server.port: "8096"

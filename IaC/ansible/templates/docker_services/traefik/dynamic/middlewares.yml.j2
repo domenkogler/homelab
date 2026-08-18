@@ -4,9 +4,15 @@
 #   1. CrowdSec bouncer plugin — queries CrowdSec LAPI, blocks malicious IPs
 #   2. Authentik Forward-Auth — delegates auth to the SSO provider
 #
-# Every public service except `ha` and Matrix references the chain:
+# Services that can use Forward-Auth reference the chain:
 #   traefik.http.routers.<svc>.middlewares: authentik-forward-auth@file
-# (the chain name is the same as the previous forwardAuth — no template updates needed)
+#
+# Self-auth'd services (own login / Matrix-native SSO / Companion flow that breaks
+# with Forward-Auth) instead use the CrowdSec-only middleware, so they still get
+# IP-level blocklist protection without the auth-proxy (KOPS-004/018/025/047/054,
+# HD-60/118/119/120):
+#   traefik.http.routers.<svc>.middlewares: crowdsec-only@file
+#   (ha, jellyfin, matrix, seerr, chat, ha-standby — docs/services-traefik.md §Middleware)
 # See services-traefik.md §Middleware Chain.
 
 http:
@@ -18,6 +24,13 @@ http:
         middlewares:
           - crowdsec-bouncer
           - authentik-forward-auth-inner
+
+    # CrowdSec-only: for routes that must NOT use Forward-Auth (own login / Matrix SSO /
+    # Companion flow) but still need CrowdSec blocklist protection (HD-60/118/119/120).
+    crowdsec-only:
+      chain:
+        middlewares:
+          - crowdsec-bouncer
 
     # CrowdSec bouncer plugin — checks the client IP against CrowdSec's
     # blocklist (LAPI). Registered in traefik's static config via

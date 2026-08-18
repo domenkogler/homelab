@@ -36,6 +36,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.ha.rule: "Host(`ha.kogler.si`)"
       traefik.http.routers.ha.entrypoints: websecure
+      traefik.http.routers.ha.middlewares: crowdsec-only@file   # CrowdSec only; no Forward-Auth (Companion flow) — HD-118
       traefik.http.routers.ha.tls.certresolver: letsencrypt
       # NOTE: no authentik-forward-auth middleware on the ha route (Companion app flow)
 

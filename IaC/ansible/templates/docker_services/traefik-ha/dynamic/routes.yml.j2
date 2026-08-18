@@ -6,6 +6,11 @@
 #              edge so it survives an oldsrv outage; backend = local host
 #              {{ technitium_secondary_ip }}:5380). No Forward-Auth — a
 #              management surface with its own login, internal-only.
+#   NOTE — no crowdsec-only here (HD-118): CrowdSec runs on oldsrv and is DOWN whenever
+#   this failover edge is live (oldsrv is down). Adding the bouncer here would query a
+#   dead LAPI and fail the ha route open/closed at exactly the moment it must survive,
+#   so the Pi edge intentionally stays CrowdSec-free. oldsrv's own `traefik` ha route
+#   (which has local CrowdSec) is the HD-118 target.
 #   - http-redirect: catch-all :80 → :443 (the `web` entrypoint).
 #   ACME is DISABLED on this edge — TLS comes from the cert files synced from
 #   oldsrv (see tls.certificates below). No certResolver is configured.
