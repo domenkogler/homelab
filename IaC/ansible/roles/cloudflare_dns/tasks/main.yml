@@ -1,0 +1,28 @@
+---
+# cloudflare_dns — maintain public DNS records at Cloudflare (control plane).
+#
+# RUNS ON localhost (control node), NOT on managed hosts — it creates records
+# on the Cloudflare API, so there is nothing to do on a target node.
+#
+# Used by: playbooks/dns.yml
+# Requires: community.dns collection (requirements.yml) + cloudflare_api in 1Password.
+#
+# IMPORTANT: the cloudflare_api token is IP-filtered to 193.77.156.222 — run this
+# from the home control plane (management laptop/workstation), not the VPS/CI.
+
+- name: Resolve Cloudflare API token from 1Password (Homelab)
+  ansible.builtin.set_fact:
+    cf_api_token: "{{ lookup('community.general.onepassword', 'cloudflare_api', field='credential', vault=op_vault) }}"
+
+- name: Ensure public DNS records are present (idempotent)
+  community.dns.cloudflare_dns:
+    zone: "{{ domain_public | default('kogler.si') }}"
+    record: "{{ item.name }}"
+    type: "{{ item.type }}"
+    value: "{{ item.value }}"
+    ttl: "{{ item.ttl | default(300) }}"
+    proxied: "{{ item.proxied | default(false) }}"
+    api_token: "{{ cf_api_token }}"
+    state: present
+  loop: "{{ cloudflare_dns_records }}"
+  register: dns_result

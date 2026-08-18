@@ -18,7 +18,7 @@ tags: [hardware, phases]
 - **Centralized LLM:** All AI/ML workloads run on the primary server GPU
 - **Phased approach:**
   1. **Phase 1 (Immediate):** Use all existing hardware — no new purchases. i7-7700K serves as the sole Docker host. HP MicroServer Gen8 as ZFS storage server.
-  2. **Phase 2 (Scale-up):** If insufficient → activate Contabo VPS ([`services-vps.md`](services-vps.md)), build dedicated Ryzen/Proxmox server ([`hardware-phase2.md`](hardware-phase2.md)), or both.
+  2. **Phase 2 (Scale-up):** If insufficient → activate netcup VPS ([`services-vps.md`](services-vps.md)), build dedicated Ryzen/Proxmox server ([`hardware-phase2.md`](hardware-phase2.md)), or both.
   3. **Phase 3 (Co-existence):** Selectively migrate services. Compose files and deployment config are host-agnostic — same Git repo, same Doco-CD.
 
 ---
@@ -31,7 +31,7 @@ tags: [hardware, phases]
 | **nas** (HP MicroServer, Xeon E3, 12 GB ECC) | ZFS pools (tank + backup), NFS, Cockpit | Permanent storage server |
 | **SilverStone TS43xx** | Attached to nas via miniSAS — 4× 3 TB HDDs | Same |
 | **Raspberry Pi 4** | Home Assistant (primary, Debian+HA Container) + RaspberryMatic/HmIP-RFUSB + Technitium secondary DNS | Stays primary HA |
-| **VPS (Contabo)** | *Not used* | Public web stack |
+| **VPS (netcup)** | *Not used* | Public web stack |
 | **custom** (Ryzen 9 + R9700) | *Not built* | Proxmox hypervisor |
 | **PowerWalker VFI ICT/ICR IoT 3000** (UPS) | Protects nas + rack infra (see [`hardware-ups.md`](hardware-ups.md)) | Same |
 

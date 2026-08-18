@@ -44,6 +44,7 @@ d-i netcfg/get_domain string kogler.si
 Hostname must match the target machine:
 - `oldsrv` for i7-7700K ([`hardware-oldsrv.md`](hardware-oldsrv.md))
 - `nas` for HP MicroServer ([`hardware-nas.md`](hardware-nas.md))
+- `vps` for netcup RS 2000 G12 ([`services-vps.md`](services-vps.md)) — **separate VPS-specific preseed + post_install**, see [VPS Deviations](#vps-deviations-public-edge) below
 - `pi` for Raspberry Pi 4 (HA primary node — **image-based install** via raspi.debian.net, NOT preseed; see [Pi image deployment](#pi-image-deployment-raspidebiannet) below)
 
 ### 3. Mirror
@@ -179,6 +180,42 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 
 ---
 
+## VPS Deviations (public edge)
+
+**`IaC/host/vps/`** is **NOT** a copy of the shared `post_install.sh` — the VPS is a **public** host, so it deviates from the homelab-LAN baseline:
+
+| Aspect | Shared (nas/oldsrv) | VPS (`IaC/host/vps/`) |
+|--------|--------------------|-------------------------|
+| user `ai-debug` | ✅ present (LAN `from=10.10.0.0/16`) | ❌ **excluded** — never expose the AI key on a public box |
+| `AllowUsers` | `ansible-admin ai-debug` | `ansible-admin` only |
+| SSH keys authorized | 3 (Domen + Ansible + AI) | **2** (Domen + Ansible) |
+| OS disk | nas: SATA SSD / oldsrv: NVMe | `/dev/nvme0n1` — single 512 GB NVMe ([`IaC/host/vps/preseed.cfg`](../../IaC/host/vps/preseed.cfg)) |
+| Data pools | ZFS (untouched by preseed) | **no ZFS** — DBs/thumbs on VPS NVMe; bulk on Hetzner Storage Boxes |
+
+**Bootstrap warning:** netcup installs remotely (SCP custom ISO / PXE, no console recovery like iLO/USB). The preseed disables root login and locks the `ansible-admin` password (policy KOPS-044), relying **entirely** on the injected SSH keys. If the keys are not present at first boot you are **locked out** — verify the placeholders are replaced with the real 1Password public keys **before** the ISO is booted.
+
+#### netcup Custom-Script flow (`*_with_secrets.sh`)
+netcup SCP's "**Custom Script** (executed at end of image installation, ≤10 000 chars, must have shebang)" is the operative install hook — the `d-i` preseed lines do **not** run on netcup's pre-built image. Workflow:
+1. Copy `IaC/host/vps/post_install.sh` → `IaC/host/vps/post_install_with_secrets.sh`.
+2. Replace the two `<..._FROM_1PASSWORD>` placeholders with the real public keys from 1Password (`laptop-domen_ssh`, `ansible-admin_ssh`).
+3. Paste `*_with_secrets.sh` into netcup → Custom Script, then **delete the file** (git-ignored in `.gitignore`, never committed).
+4. Committed `post_install.sh` stays **placeholder-only** (repo rule: keys never in Git).
+5. After install: `ssh ansible-admin@<vps-ip>` → run Ansible (`common` role) to set `sl_SI.UTF-8` locale + finish hardening/Docker.
+
+#### netcup SCP — field-by-field install decisions
+
+| netcup SCP field | Value | Notes |
+|---|---|---|
+| OS image | **Debian 13.6.0 UEFI amd64** | UEFI (not BIOS) — modern EPYC platform, GPT/ESP |
+| Disk layout | **large / entire + LVM / one partition** | repo convention (`host-Hyper-v.md` "entire & lvm"); single 512 GB NVMe root |
+| Hostname | **vps** | FQDN `vps.kogler.si` |
+| Locale | **en_US.UTF-8** | netcup offers only de_DE/en_US; `sl_SI.UTF-8` set by Ansible `common` on first run |
+| Keyboard | en/us | headless — irrelevant to SSH |
+| Custom Script | `post_install.sh` (real keys via `*_with_secrets.sh`) | end-of-install hook; ≤10 000 chars |
+| Root password (fallback) | set in SCP | recovery path if script fails; Ansible later disables root login |
+
+---
+
 ## Machine-Specific Partitions
 
 ### nas (HP MicroServer)
@@ -216,11 +253,14 @@ Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
 
 ```
 IaC/host/
-├── post_install.sh         # SHARED bootstrap — ansible-admin + ai-debug + sshd hardening (single copy for nas/oldsrv)
+├── post_install.sh         # SHARED bootstrap — ansible-admin + ai-debug + sshd hardening (nas/oldsrv)
 ├── nas/
 │   └── preseed.cfg          # Reference implementation for HP Gen8
 ├── oldsrv/
 │   └── preseed.cfg          # i7-7700K Docker host + family desktop (XFCE)
+├── vps/
+│   ├── preseed.cfg          # netcup RS 2000 G12 — public edge (single 512 GB NVMe)
+│   └── post_install.sh      # VPS-specific: NO ai-debug, AllowUsers ansible-admin only
 └── pi/
     └── first-boot-config.sh # SD card prep script for raspi.debian.net images
 ```

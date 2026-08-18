@@ -3,11 +3,11 @@ title: Deferred VPS Infrastructure
 role: reference
 domain: services
 status: active
-tags: [services, vps, contabo]
+tags: [services, vps, netcup]
 ---
 # Deferred VPS Infrastructure
 
-> **Role:** Detail — reference architecture for Contabo VPS.
+> **Role:** Detail — reference architecture for the netcup VPS.
 > **Status:** ✅ **Decision (2025-08-16, HD-93):** the VPS is to be **purchased before go-live** and the
 > public edge moves onto it from **day one** (public Traefik + CrowdSec + Authentik + public apps terminate
 > TLS on the VPS over WG S2S → oldsrv backends). This supersedes the older "deferred to Phase 2+" wording
@@ -21,16 +21,18 @@ tags: [services, vps, contabo]
 
 | Item | Provider | Specs | Cost |
 |------|----------|-------|------|
-| VPS | **Contabo Storage VPS 30** | 6 vCPU, 18 GB RAM, 1 TB SSD | ~€15/mo |
-| Bulk Storage | **Hetzner Storage Box** (1 TB) | CIFS-mounted for photos/files | ~€4/mo |
+| VPS | **netcup RS 2000 G12** (root server) | **AMD EPYC™ 9645** · **8 dedicated cores** · **16 GB DDR5 ECC** · **512 GB NVMe SSD** · **2,5 GBit/s** iface (flatrate) | **263,52 €/12 mo** (21,96 €/mo) |
+| Local Block Storage | netcup add-on | Expandable up to **8 TB** (candidate bulk tier alongside Hetzner Storage Box) | *variable* |
+| Bulk Storage | **Hetzner Storage Box** (live) — **BX11 1 TB**, bought 2026-08-18 (`Hertzner-SB-Data`) | CIFS-mounted for photos/files, served from VPS | **3,90 €/mo** |
 
-> **Why Contabo over Hetzner dedicated:** Dedicated server is overkill for 4+4 users. VPS 30 provides enough resources for the Docker stack with monitoring overhead. Storage Box handles bulk files economically.
+> **Why netcup RS over Hetzner dedicated:** A root server gives dedicated compute for 4+4 users
+> without the overhead/pricing of a full Hetzner dedicated box. Storage Box handles bulk files economically.
 
 ---
 
 ## OS: Debian (Docker)
 
-Plain Debian with Docker CE — no hypervisor. Contabo VPS is already virtualized. Same Docker networks as oldsrv ([`services.md`](services.md)).
+Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (already virtualized at the provider). Same Docker networks as oldsrv ([`services.md`](services.md)).
 
 ---
 

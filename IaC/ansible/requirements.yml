@@ -4,3 +4,4 @@ collections:
   - name: community.general        # onepassword lookup, zfs/zpool modules
   - name: community.routeros      # MikroTik RouterOS REST API modules (vlan, dhcp, firewall, etc.)
   - name: community.docker        # docker_network, docker_compose_v2 modules (docker_services role)
+  - name: community.dns           # cloudflare_dns — automate public DNS records (playbooks/dns.yml)

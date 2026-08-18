@@ -83,6 +83,18 @@ subscriptions:
     notify: []
     status: active
 
+  - name: netcup RS 2000 G12 (VPS)
+    cost_eur: 21.96               # 263,52 € / 12 mo prepaid
+    since: "2026-08-18"
+    valid_until: "2027-08-18"
+    reminder_days: 30
+    url: https://www.netcup.com
+    icon: fa-server
+    secret: null
+    calendar_url: null
+    notify: [signal]
+    status: active                # replaces deferred Contabo Storage VPS 30 (HD-93)
+
   # --- Active (free) ---
   - name: Meteorblue (weather API)
     cost_eur: 0
@@ -110,28 +122,35 @@ subscriptions:
     status: planned
 
   - name: Hetzner Storage Box (live)
-    cost_eur: 4
-    since: null
-    valid_until: null
+    cost_eur: 3.90              # BX11 1 TB
+    since: "2026-08-18"
+    valid_until: null            # monthly
     reminder_days: 30
     url: https://robot.hetzner.com
     icon: fa-server
-    secret: null
+    secret: Hertzner-SB-Data    # 1Password Homelab, server (URL/user/password) — SMB/CIFS + WebDAV
     calendar_url: null
     notify: [signal]
-    status: planned              # HD-31 — buy two 1 TB boxes
+    status: active              # HD-31 redirect — live Immich-originals S3 + family SMB/WebDAV drives
+    host: "653411.your-storagebox.de"      # server 653411; share //u653411.your-storagebox.de/backup
+    username: u653411           # SMB/CIFS + SSH user (SSH key + password in 1Password)
+    ssh_port: 23                # non-standard SSH/SFTP port
 
   - name: Hetzner Storage Box (backup)
-    cost_eur: 4
-    since: null
-    valid_until: null
+    cost_eur: 3.90              # BX11 1 TB
+    since: "2026-08-18"           # bought
+    valid_until: null            # monthly
     reminder_days: 30
     url: https://robot.hetzner.com
-    icon: fa-server
-    secret: null
+    icon: fa-cloud
+    secret: Hertzner-SB-Backup  # 1Password Homelab, connection ref (URL/username only, no password — SSH-key auth)
     calendar_url: null
     notify: [signal]
-    status: planned
+    status: active              # OFF-SITE backup leg (house-loss). SSH/SFTP-only, port 23, reuse existing Hetzner SSH key — no password
+    host: "u653424.your-storagebox.de"   # backup box
+    username: u653424            # SSH user (only; SMB/WebDAV not needed) — SSH key in 1Password, no password
+    ssh_port: 23                 # non-standard SSH/SFTP port (same convention as live box)
+
 
   # --- Dropped (kept for history/provenance) ---
   - name: iDrive e2

@@ -135,7 +135,7 @@ IaC/ansible/
 ├── host_vars/
 │   ├── oldsrv.kogler.si.yml         # homelab_mode=desktop, static IP
 │   ├── nas.kogler.si.yml            # HP MicroServer Gen8 — ZFS storage
-│   ├── vps.kogler.si.yml            # Contabo VPS — Phase 2, deferred
+│   ├── vps.kogler.si.yml            # netcup RS 2000 G12 (bought 2026-08-18)
 │   └── pi.kogler.si.yml             # Static IP, SSH user (node; ha.kogler.si = VIP)
 ├── roles/
 │   ├── common/tasks/                # system.yml + main.yml
@@ -217,9 +217,17 @@ nut_serial: auto                 # USB HID auto-detect; battery/runtime threshol
 
 ### vps.kogler.si.yml
 ```yaml
-ansible_host: <TBD>                # Public IP — filled when VPS is provisioned
+ansible_host: 159.195.111.66        # Public IPv4 (netcup RS 2000 G12); IPv6 2a0a:4cc0:60:fcc:*
 ansible_user: ansible-admin
 ```
+
+**SSH host fingerprints** (netcup SCP, 2026-08-18) — for `known_hosts` pinning / MITM reference:
+
+| Type | SHA256 | MD5 |
+|---|---|---|
+| RSA | `SHA256:LpwYdCSTDcIZ0fvGUj8mRFJOgLXabbMYU+7VTr+tWIE` | `73:94:9d:34:5d:9c:c1:78:09:28:ca:73:fb:78:f3:ea` |
+| ECDSA | `SHA256:aPEyZBN0xmIMhqV2SsWSy0OANMRdbmIOYYcYWtgejzI` | `d8:95:ad:63:97:df:f5:0a:3d:44:71:07:a3:64:46:a3` |
+| ED25519 | `SHA256:DfRE+i6EiZUYD2Bot2hanIh+Ey47tTpzv352boxB3fY` | `d7:9f:00:72:b9:26:68:ce:64:eb:49:05:1e:00:d1:8e` |
 
 ### pi.kogler.si.yml
 ```yaml

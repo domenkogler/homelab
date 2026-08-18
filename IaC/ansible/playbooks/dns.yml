@@ -1,0 +1,24 @@
+---
+# dns.yml — maintain public Cloudflare DNS records (control plane)
+# ---------------------------------------------------------------
+# Creates/updates the public `*.kogler.si` records (DNS-only) that point at the
+# internet-facing services (VPS public edge + moving services).
+#
+# Runs on localhost (control plane) — NOT on a managed node.
+#
+# Run standalone (management laptop, `op` signed in):
+#   ansible-playbook playbooks/dns.yml -i inventory.ini
+#
+# Requirements:
+#   * community.dns collection (requirements.yml)
+#   * `cloudflare_api` in 1Password Homelab (credential field)
+#   * Egress IP must be 193.77.156.222 (token IP filter) — home control plane only.
+#
+# The record list is the SSOT in roles/cloudflare_dns/vars/main.yml.
+- name: Ensure public Cloudflare DNS records (control plane)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  run_once: true
+  roles:
+    - cloudflare_dns

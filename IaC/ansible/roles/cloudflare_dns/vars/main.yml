@@ -1,0 +1,64 @@
+---
+# Public DNS records managed by Ansible (playbooks/dns.yml).
+# SSOT for the internet-facing subset published at Cloudflare (DNS-only).
+#
+# `cloudflare_dns_records` is a list of dicts:
+#   - name:    record name (relative label, e.g. "vps", "foto"); "" = root (@)
+#   - type:    A | AAAA | TXT | CNAME | SRV | MX
+#   - value:   record value (IP for A/AAAA, target/string for others)
+#   - ttl:     TTL seconds (default 300)
+#   - proxied: only for A/AAAA/CNAME (we use DNS-only, so false vs. Cloudflare proxy)
+#
+# Only the internet-facing subset belongs here (docs/network-dns.md §A/AAAA policy —
+# internal-only hosts get NO public record; WAN firewall blocks them).
+#
+# ── SCOPE & BEHAVIOR (read before editing) ────────────────────────────────
+# The playbook applies ONLY the records listed below, each with `state: present`
+# (incremental — it CREATES/UPDATES what's listed and NEVER touches/deletes any
+# other Cloudflare records). Scope is driven by THIS list, not by an inventory
+# group: whatever is here gets ensured. It is currently VPS-only by design.
+#
+# Migration plan (incremental → full SSOT):
+#   1. Now:        only the VPS host records (below) — safe, VPS-only.
+#   2. As each public app moves onto the VPS (foto, file, git, sso, …):
+#      uncomment/add its record here and re-run — this file becomes the
+#      authority for that record (URLs unchanged, decision HD-93).
+#   3. Eventually: migrate ALL public `*.kogler.si` records into this file so
+#      it is the complete public-DNS SSOT (Option B / full declaration), and
+#      reconcile the Cloudflare zone against it. Until then the live Cloudflare
+#      zone and this file are two sources of truth — keep them in sync by hand.
+# ───────────────────────────────────────────────────────────────────────────
+# NOTE: the token (cloudflare_api) is IP-filtered to 193.77.156.222, so this
+# playbook must run from a machine behind that egress IP (home control plane),
+# NOT from the VPS or CI runners.
+
+cloudflare_dns_records:
+  # --- netcup VPS (host vps.kogler.si) — public edge ---
+  # A record for resolving the VPS host itself.
+  - name: vps
+    type: A
+    value: 159.195.111.66
+    ttl: 300
+    proxied: false   # DNS-only (real client IP -> Traefik on VPS)
+
+  # AAAA record for the VPS (as provided by netcup).
+  - name: vps
+    type: AAAA
+    value: 2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5
+    ttl: 300
+    proxied: false
+
+# ---------------------------------------------------------------------------
+# Public service records — ADD these as each public app moves onto the VPS
+# (decision HD-93: public Traefik + apps terminate on the VPS, URLs unchanged).
+# Point them at 159.195.111.66 instead of oldsrv when the VPS actually serves them.
+# Reference the internet-facing set from docs/network-dns.md:
+#   kogler.si (root), foto, file, git, sso, ha, vpn, matrix, chat
+#
+# Example (once foto.kogler.si is served by VPS Traefik):
+#   - name: foto
+#     type: A
+#     value: 159.195.111.66
+#     ttl: 300
+#     proxied: false
+# ---------------------------------------------------------------------------

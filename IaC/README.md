@@ -185,7 +185,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - Secrets: RouterOS admin password, WireGuard keys
 
 ### `proxmox`
-- Condition: `when: homelab_mode == 'proxmox'` (home Phase 2 only — not on Contabo VPS)
+- Condition: `when: homelab_mode == 'proxmox'` (home Phase 2 only — not on netcup VPS)
 - Bridges (vmbr0–vmbr4), storage, firewall; Secrets: Proxmox root password
 
 ### `home_assistant`

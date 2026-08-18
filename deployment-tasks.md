@@ -12,7 +12,7 @@
 
 > **✅ Decisions (2025-08-16 — overriding some phase wording below):** see `todo.md` for the full
 > rationale. **HD-92:** `oldsrv` stays bare-metal Debian + Docker (no Proxmox / no GPU passthrough on the
-> single Phase-1 box; Proxmox deferred to HD-41/42). **HD-93:** the Contabo VPS is **bought before go-live**
+> single Phase-1 box; Proxmox deferred to HD-41/42). **HD-93:** the netcup VPS (**RS 2000 G12**, bought 2026-08-18) is **bought before go-live**
 > and the **public edge (Traefik + CrowdSec + Authentik + public apps) goes on the VPS from day one**
 > (fold HD-40A/40B into Phase 1) — oldsrv becomes an internal/LAN box. **HD-51:** multi-axis identity model
 > (persons = Authentik; shared bytes = neutral `media` owner via `storage_uid`/`storage_gid`; no human
@@ -297,7 +297,7 @@ lists an item as a prerequisite must have that item created in the `Homelab` vau
 > Cloudflare layer.
 > **1Password prerequisites (future):** `op_api`/`forgejo_api` (deploy), `proxmox_login` (VM lab), etc.
 
-- VPS (Contabo) + public stack: Traefik, Cloudflare layer, public services — **HD-40**
+- VPS (netcup) + public stack: Traefik, Cloudflare layer, public services — **HD-40**
 - Proxmox role + VM lab (bridges, storage, VMs) — **HD-41**
 - Phase-2 hardware build (Ryzen 9, open-frame chassis) — **HD-42**
 

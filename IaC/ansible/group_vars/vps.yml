@@ -1,12 +1,24 @@
 ---
-# Contabo VPS configuration — Phase 2, deferred
+# VPS host configuration — netcup RS 2000 G12 (bought 2026-08-18, HD-93/HD-40B)
+# Replaces the earlier planned Contabo Storage VPS 30. Plain Debian root server with
+# Docker CE — the VPS is NOT a Proxmox node (no proxmox_bridges here, see home
+# `proxmox` role / homelab_mode). Host identity facts live here; billing lives in
+# `subscriptions.yml` (cost, renewal, status).
 
-proxmox_bridges:
-  - { name: vmbr0, cidr: "{{ ansible_default_ipv4.address }}", purpose: WAN }
-  - { name: vmbr1, cidr: "10.255.10.0/24", purpose: DMZ }
-  - { name: vmbr2, cidr: "10.255.20.0/24", purpose: Services }
-  - { name: vmbr3, cidr: "10.255.30.0/24", purpose: Lab }
-  - { name: vmbr4, cidr: "10.255.40.0/30", purpose: Site2Site }
+vps_host:
+  provider: netcup
+  model: RS 2000 G12
+  purchased: 263.52           # EUR, 12 months prepaid (2026-08-18)
+  monthly: 21.96              # EUR/mo effective
+  valid_until: "2027-08-18"
+  specs:
+    cpu: "AMD EPYC 9645"
+    cores: 8                 # dedicated
+    ram_gb: 16               # DDR5 ECC
+    disk_gb: 512             # NVMe SSD root
+    max_local_block_storage_tb: 8   # expandable Local Block Storage add-on
+    iface_gbit: 2.5          # flatrate traffic; throttled to 300 MBit/s if >3 TB rolling / 24 h
+  # SSH connection facts (ansible_user, ansible_host) live in host_vars/vps.kogler.si.yml.
 
 docker_services:
   - { name: traefik,        template_dir: traefik,      enabled: false }

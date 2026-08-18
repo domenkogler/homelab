@@ -92,6 +92,21 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 
 ---
 
+## netcup RS 2000 G12 (VPS)
+
+| Item | Value |
+|------|-------|
+| Plan | **RS 2000 G12** (root server) |
+| Provider | **netcup** |
+| Billing | Annual · 12 months (prepaid) |
+| Last payment | 263,52 € on 2026-08-18 |
+| Effective price | 21,96 €/mo |
+| Valid until | **2027-08-18** |
+| ⏰ Renewal reminder | ~2027-07-18 (1 month before expiry) |
+| Purpose | Public web stack (Authentik, OpenCloud web, Forgejo, Grafana) — replaces deferred Contabo Storage VPS 30 (HD-93/HD-40B); DBs stay on LAN over WireGuard |
+
+---
+
 ## Meteorblue (weather API)
 
 | Item | Value |
@@ -107,12 +122,49 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 
 ---
 
+## Hetzner Storage Box — live (BX11 1 TB)
+
+| Item | Value |
+|------|-------|
+| Type | **Hetzner Storage Box BX11** (1 TB) — live data (Immich originals + family SMB/WebDAV drives) |
+| Billing | Monthly |
+| Cost | **3,90 €/mo** |
+| Since | 2026-08-18 |
+| 🔑 Secret | `Hertzner-SB-Data` (1Password `Homelab`, server: URL/username/password) |
+| Host | `653411.your-storagebox.de` (server 653411) |
+| SMB/CIFS share | `//u653411.your-storagebox.de/backup` |
+| SSH/SFTP | port **23** — SSH key + password in 1Password |
+| Protocols | SMB/CIFS, WebDAV, SSH (external reachability) |
+| Purpose | Phase-2 live Immich-originals S3 + family SMB/WebDAV drives (HD-31 / HD-131 D1) |
+
+> ⚠ **SMB password:** SSH key alone works for SSH/SFTP (port 23). For **CIFS/SMB + WebDAV** mounts you
+> need the box **password** set via the web UI — store it in 1Password `Hertzner-SB-Data` (so the `password`
+> field matches the box, not just SSH-key auth).
+
+---
+
+## Hetzner Storage Box — backup (BX11 1 TB)
+
+| Item | Value |
+|------|-------|
+| Type | **Hetzner Storage Box BX11** (1 TB) — **off-site backup leg** (house-loss protection) |
+| Billing | Monthly |
+| Cost | **3,90 €/mo** |
+| Since | 2026-08-18 |
+| 🔑 Secret | `Hertzner-SB-Backup` (1Password `Homelab` — connection ref: URL/username only, **no password**) |
+| Host | `u653424.your-storagebox.de` (server/u 653424) |
+| SSH/SFTP | port **23** — **reuse existing Hetzner SSH key**, no password |
+| Protocols | SSH/SFTP only (SMB/WebDAV not enabled) |
+| Purpose | Kopia off-site encrypted snapshots (DBs, configs, Immich originals) — survives house loss alongside VPS |
+
+---
+
 ## Planned Subscriptions
 
 | Service | Plan | Est. Cost | Status | Purpose |
 |---------|------|-----------|--------|---------|
 | Infomaniak kSuite | TBD | ~€3–5/mo | 🔮 Planned | Email, calendar (CalDAV), catch-all aliases |
-| ~~iDrive e2~~ | ~~TBD bucket~~ | ~~~€5/mo~~ | ❌ **Dropped** | ~~S3 off-site backup~~ → replaced by a 2nd Hetzner Storage Box (HD-29/31) |
+| ~~iDrive e2~~ | ~~TBD bucket~~ | ~~~€5/mo~~ | ❌ **Dropped** | ~~S3 off-site backup~~ → replaced by Hetzner Storage Boxes (HD-29/31) |
 
 ---
 
@@ -120,6 +172,6 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 
 | Service | Plan | Est. Cost | Status | Purpose |
 |---------|------|-----------|--------|---------|
-| Contabo | Storage VPS 30 | ~€15/mo | 📦 Deferred | Public web stack |
-| Hetzner | Storage Box (live) | ~€4/mo | 📦 Deferred | Live Immich-originals S3 + family SMB/WebDAV drives — nearest DC (HD-131 D1) |
-| Hetzner | Storage Box (backup) | ~€4/mo | 📦 Deferred | Kopia off-site backup repo — far DC (Helsinki/Falkenstein, HD-29/31) |
+| ~~Contabo~~ | ~~Storage VPS 30~~ | ~~~€15/mo~~ | ✅ **Replaced** | Public web stack → bought **netcup RS 2000 G12** (263,52 €/12 mo, 2026-08-18) — see Active above |
+| ~~Hetzner~~ | ~~Storage Box (live)~~ | ~~~€4/mo~~ | ✅ **Active/Bought** | see Active — BX11 1 TB, `Hertzner-SB-Data` |
+| ~~Hetzner~~ | ~~Storage Box (backup)~~ | ~~~€4/mo~~ | ✅ **Active/Bought** | see Active — off-site Kopia leg, `Hertzner-SB-Backup` |

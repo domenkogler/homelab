@@ -10,3 +10,6 @@ IaC/router/rendered/
 
 # Office bridge secrets (HD-109): token/env never committed
 client/office-bridge/bridge.env
+
+# Netcup VPS post-install script with REAL SSH keys injected (never commit; delete after use)
+IaC/host/vps/post_install_with_secrets.sh

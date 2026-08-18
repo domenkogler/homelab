@@ -1,5 +1,8 @@
 ---
-# Contabo VPS — Phase 2, deferred
-ansible_host: <TBD>                # Public IP — filled in when VPS is provisioned
-ansible_user: ansible-admin
+# netcup RS 2000 G12 — VPS connection facts
+# Bought 2026-08-18 (263,52 € / 12 mo). Provisioned 2026-08-18.
+ansible_host: 159.195.111.66        # IPv4 (public). IPv6: 2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5
+ansible_user: ansible-admin        # comment + SSH agent identity, like nas/oldsrv/pi
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)
+# Host identity (provider/model/billing or nothing here) -> group_vars/vps.yml `vps_host`
+# Billing (cost/renewal/status) -> group_vars/subscriptions.yml

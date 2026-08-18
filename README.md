@@ -67,7 +67,7 @@ it is refreshed from this repo.
 | `pi.kogler.si` | Raspberry Pi 4 — Home Assistant **primary node** (`ha.kogler.si` = the VIP; standby on oldsrv), + RaspberryMatic/HmIP-RFUSB, + Technitium secondary DNS (see [`docs/smart-home-failover.md`](docs/smart-home-failover.md)) |
 | `router.kogler.si` | MikroTik RB4011 — routing/firewall/VPN/CAPsMAN |
 | `switch.kogler.si` | MikroTik CRS328 — L2 PoE switch |
-| `vps.kogler.si` | Contabo VPS (Phase 2 — public Traefik + services) |
+| `vps.kogler.si` | netcup RS 2000 G12 (bought 2026-08-18 — public Traefik + services) |
 
 > Canonical host list + naming/IP conventions: [`docs/index.md`](docs/index.md) → Conventions.
 

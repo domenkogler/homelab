@@ -74,7 +74,7 @@ docs/
 ├── services-traefik.md                    Reverse proxy, CrowdSec, SSL
 ├── services-authentik.md                  OIDC SSO, WebAuthn, Forward Auth
 ├── services-matrix.md                     ★ Matrix messaging: homeserver (Tuwunel) + Element Web (native-only; bridges deferred)
-├── services-vps.md                        Deferred Contabo VPS reference
+├── services-vps.md                        netcup VPS (public edge) reference
 ├── subscription.md                        Costs, providers, renewal status
 │
 ├── deployment.md                          Broad: GitOps philosophy, Doco-CD flow
@@ -151,7 +151,7 @@ rules below are central.
   | Raspberry Pi 4 | `pi.kogler.si` | Home Assistant primary node (HA service = VIP `ha.kogler.si`) |
   | MikroTik Router | `router.kogler.si` | PPPoE, VLAN routing, firewall, WireGuard, CAPsMAN |
   | MikroTik Switch | `switch.kogler.si` | Layer-2 VLAN-aware PoE switch |
-  | Contabo VPS | `vps.kogler.si` | Phase 2 — public Traefik + public services |
+  | netcup VPS | `vps.kogler.si` | Phase 2 — public Traefik + public services |
 
 - **IP addresses:** internal IPv4 ranges/addresses live **only** in
   [`network-addresses.md`](network-addresses.md) (SSOT, generated from IaC) and in IaC. Other

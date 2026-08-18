@@ -114,9 +114,10 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | Copy | Location | Medium | Transport |
 |------|----------|--------|-----------|
-| **Live data** | oldsrv NVMe + nas ZFS `tank` | SSD + HDD | — |
-| **Local backup** | nas ZFS `bulk` (send/recv + nightly pushes) | HDD | Block-level (fast) |
-| **Off-site backup** | Hetzner Storage Box (backup), far DC (Kopia encrypted, NAS-independent) | Cloud | S3 (encrypted) |
+| **Live data** | netcup VPS NVMe (Immich DB, thumbs, configs) | SSD | — |
+| **Originals store** | Hetzner Storage Box **live** (`//u653411.../backup`, CIFS-mounted to VPS) | Cloud | CIFS/SMB + WebDAV |
+| **Local backup** | home NAS (snapshot / nightly push) | HDD | LAN (fast restore) |
+| **Off-site backup** | Hetzner Storage Box **backup** (Kopia over **SSH/SFTP**, port 23, encrypted, NAS-independent) | Cloud | SSH/SFTP (port 23) |
 
 > **Media is the deliberate exception** to 3-2-1: `bulk/media` is redownloadable, so 0-1-0 suffices
 > (RAIDZ2 redundancy, no backup copy) — see [`storage-zfs.md`](storage-zfs.md).
@@ -140,7 +141,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | **nas fails** | Services keep running (state is on oldsrv); Immich photos + OpenCloud files unavailable until rebuild. Pools are self-describing: reinstall from preseed, `zpool import tank bulk`, re-run Ansible |
 | **Both nas pools lost** | Media: re-download. Data (`tank/data/*`): restore from `bulk` if it survived, else Storage Box (backup) via Kopia (slow — last resort) |
 | **Router dies** | 1. Replace RB4011 2. Restore `.rsc` from Git 3. Adjust WAN MAC if needed |
-| **Total house loss** | 1. VPS + Storage Box (backup) survive (off-site) 2. Rebuild from Git + Ansible 3. Restore data from Kopia 4. Replace hardware |
+| **Total house loss** | 1. VPS + Storage Box (backup) survive (off-site; NAS is lost with the house) 2. Rebuild from Git + Ansible 3. Restore data from Kopia (backup box) 4. Replace hardware |
 
 ---
 
@@ -156,4 +157,4 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 ## Open Questions
 
 - **Kopia Web GUI vs CLI:** Web GUI is sufficient for now; CLI needs assessed at first restore drill
-- **Bulk media off-site:** decided under HD-29/31: two Hetzner Storage Boxes (live + backup); bulk media library stays local-only (ZFS), only configs/DBs + Immich originals go off-site
+- **Bulk media off-site:** live + backup Hybrid Storage Boxes (BX11, bought/planned 2026); bulk media library stays local-only on NAS (ZFS), only configs/DBs + Immich originals go off-site. Off-site copy via Kopia over SSH/SFTP (port 23); **no S3 / Object Storage** (Hetzner Storage Box is not S3 — handled via CIFS mount + Kopia over SSH).

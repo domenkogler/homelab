@@ -83,7 +83,7 @@ Proxmox Host:
 
 ## Why Proxmox (Only on Bare Metal)
 
-- Contabo VPS is already virtualized — nesting Proxmox adds overhead
+- netcup RS root server is already virtualized — nesting Proxmox adds overhead
 - Phase 2 bare metal: real hardware, 32 GB GPU to share, 12 cores
 - Proxmox snapshots before Ansible runs = instant rollback if DNS/AI breaks
 - Phase 1 on bare-metal Debian proves the GPU-sharing approach first
