@@ -46,11 +46,12 @@ All concrete CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastr
 
 ## Layer 2: Headscale (Mobile Mesh)
 
-- Runs on home server as Docker container
+- Runs on the **VPS** as a Docker container (HD-135: public coordination server, VPS residency)
 - Overlay subnet: `headscale` (CIDR per SSOT)
 - Clients: Android/iOS Tailscale app, laptops
-- On RB4011: static route + firewall rules so the Headscale overlay reaches the Home VLAN
-- Headscale traffic to VPS goes through the site-to-site WireGuard tunnel
+- **Home RB4011:** static route + firewall rules so the Headscale overlay reaches the Home VLAN
+- **VPS:** routes the home `site` + `wg-vps-services` over the S2S tunnel to reach home resources
+- Mesh clients → VPS Headscale (public, its purpose) → over S2S → home LAN; each node has an ACL-gated path home
 - **Registration & ACL (HD-84 / KOPS-022):** OIDC-authenticated clients are **auto-approved** by
   Headscale (no separate registration gate in `config.yaml`). The traffic boundary is therefore a **real
   ACL policy** (`policy.hujson`, rendered alongside `config.yaml`): only nodes carrying the admin-applied
@@ -58,7 +59,7 @@ All concrete CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastr
   can apply that tag. Untagged / rogue auto-joined nodes are denied by default.
 
 ### Transition
-1. Deploy Headscale on home server
+1. Deploy Headscale on the VPS (public edge; remote nodes reach it directly)
 2. Family installs the Tailscale app (one-by-one migration from the removed road-warrior / travel-router paths)
 3. WireGuard road-warrior and the travel router are **gone** — no fallback surface to maintain
 

@@ -228,22 +228,23 @@ network_ranges:
 # (`wireguard_s2s_vps`); this is the VPS-side peer var (the tunnel config lives in the
 # wireguard role). Keys: shared `wg_password` (1Password) private key.
 wg_s2s_vps:
+  # Peer addresses on the `wg-s2s` /30 (10.255.40.0/30): VPS is .2, router is .1.
+  # This is the single SSOT for the VPS peer; templates reference these, never literals.
   local_ip: "10.255.40.2/30"        # VPS side of the /30 (router is .1)
   ip: "10.255.40.2"                  # bare VPS peer IP (Alloy/compose bind target)
   router_ip: "10.255.40.1"
   listen_port: 51820
   endpoint: ""                        # home WAN endpoint (dynamic); the VPS initiates here — set at deploy
   peer_public_key: "{{ lookup('vars', 'wg_s2s_router_public_key') if 'wg_s2s_router_public_key' in vars else '' }}"  # router(PubKey), provisioned at deploy
-  # AllowedIPs on the VPS peer = home `site` (10.10.0.0/16) + the wg-vps-services range,
+  # AllowedIPs derived from the network_ranges SSOT by name (site, wg-vps-services) —
   # so VPS Prometheus reaches home targets (nut/zfs/ha_vip/ICMP) and app backends.
   allowed_ips:
-    - "10.10.0.0/16"
-    - "10.255.20.0/24"
+    - "{{ (network_ranges | selectattr('name', 'equalto', 'site') | first).cidr }}"
+    - "{{ (network_ranges | selectattr('name', 'equalto', 'wg-vps-services') | first).cidr }}"
 
 # ==== Observability backend target for Alloy (HD-135) ====
-# Alloy on old-srv forwards metrics/logs to the VPS Prometheus/Loki over the wg-s2s
-# tunnel (10.255.40.2); Alloy on the VPS self-observes via loopback.
-alloy_backend_host: "{% if inventory_hostname == 'oldsrv.kogler.si' %}10.255.40.2{% else %}127.0.0.1{% endif %}"
+# Forward target derived from `wg_s2s_vps.ip` (SSOT) — no literal IP embedded here.
+alloy_backend_host: "{% if inventory_hostname == 'oldsrv.kogler.si' %}{{ wg_s2s_vps.ip }}{% else %}127.0.0.1{% endif %}"
 
 # Single-namespace DNS: everything (hosts + services) is under kogler.si.
 # Internal-only hosts/services are NOT published in public DNS (split-horizon).

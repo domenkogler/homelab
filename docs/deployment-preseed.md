@@ -186,7 +186,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 
 | Aspect | Shared (nas/oldsrv) | VPS (`IaC/host/vps/`) |
 |--------|--------------------|-------------------------|
-| user `ai-debug` | ✅ present (LAN `from=10.10.0.0/16`) | ❌ **excluded** — never expose the AI key on a public box |
+| user `ai-debug` | ✅ present (LAN `from=site` — see [`network-addresses.md`](network-addresses.md)) | ❌ **excluded** — never expose the AI key on a public box |
 | `AllowUsers` | `ansible-admin ai-debug` | `ansible-admin` only |
 | SSH keys authorized | 3 (Domen + Ansible + AI) | **2** (Domen + Ansible) |
 | OS disk | nas: SATA SSD / oldsrv: NVMe | `/dev/nvme0n1` — single 512 GB NVMe ([`IaC/host/vps/preseed.cfg`](../../IaC/host/vps/preseed.cfg)) |

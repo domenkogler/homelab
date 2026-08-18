@@ -13,7 +13,7 @@ tags: [services, catalog]
 
 ---
 
-## Service Catalog (Phase 1 — all on oldsrv)
+## Service Catalog (placement: HD-135 split — oldsrv GPU/LAN core + VPS edge/observability)
 
 > Subdomains are relative to `kogler.si` (no port, no suffix). RAM = approx **idle / peak in MB** —
 > estimates to be validated with `container_memory_working_set_bytes` after deploy (TODO, `observability.md`).
@@ -111,7 +111,7 @@ tags: [services, catalog]
 - **Single namespace:** `kogler.si`. Public DNS (Cloudflare, **DNS-only**), local DNS (Technitium, split-horizon).
 - One wildcard `*.kogler.si` cert via Cloudflare DNS-01.
 - **Internal = no public DNS record + WAN-block.**
-- In Phase 1 all services run on `oldsrv`; public-faced ones move to `vps` (Traefik) in Phase 2 — domain/URLs unchanged.
+- **Placement (HD-135 split):** the public/edge/GitOps/observability tier runs on the **VPS**; the GPU/LAN/storage-bound core runs on **oldsrv**. Subdomains/URLs are host-agnostic (unchanged by placement). See [`services-vps.md`](services-vps.md).
 
 ### Public (internet-facing via Traefik + Authentik) — the exceptions
 
@@ -142,7 +142,7 @@ WAN allow. Everything else in the catalog is **internal-only** (no public record
 ## What Is NOT on oldsrv
 
 - **Home Assistant (primary)** — on the Raspberry Pi 4 (HA config in this repo), co-located with **RaspberryMatic + HmIP-RFUSB** (local Homematic IP), the **Technitium secondary** DNS, and a minimal **`traefik-ha`** edge (VIP-bound) that serves `ha.kogler.si` and keeps it reachable when oldsrv is down. **Standby** Home Assistant runs on oldsrv: see [`smart-home-failover.md`](smart-home-failover.md).
-- **VPS services** — deferred to Phase 2+ ([`services-vps.md`](services-vps.md))
+- **Public/edge/observability tier** — the public edge (Traefik/CrowdSec/Authentik), live-data apps (OpenCloud/Immich/Forgejo), AI stack, **observability backend** (Prometheus/Loki/Grafana), n8n, GitOps (Renovate), and edge accessories (Matrix/Headscale/Metabase/PairDrop/Stirling/renovate) run on the **VPS** ([`services-vps.md`](services-vps.md), HD-135); oldsrv avoids the public/edge workload
 - **Office MCP bridges (Windows 11 clients)** — native per-client apps, **not** Docker services in this catalog; distributed server-side from a repo `client/office-bridge/` folder. See [`llm-office.md`](llm-office.md) (HD-106–111).
 - **Pangolin** — removed; Traefik handles all reverse proxy
 

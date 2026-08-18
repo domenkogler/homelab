@@ -121,8 +121,11 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 
 ## What Stays on Home Server
 
-- Home Assistant (Raspberry Pi 4)
+- Home Assistant (Raspberry Pi 4) + HA standby
 - Ollama / LLM (needs GPU)
 - Immich ML (needs GPU)
 - DNS (Technitium + Pi-hole)
-- Headscale (VPN mesh)
+- Media/*arr, jellyfin, sunshine (GPU/LAN/storage-bound)
+- Old-srv thin Alloy collector → VPS Prometheus/Loki (HD-135)
+
+> **Headscale** (VPN mesh coordination) moved to the VPS (HD-135) — it is public by nature and co-locates with the edge. The **observability backend** (Prometheus/Loki/Grafana) also moved to the VPS (reliable tier).
