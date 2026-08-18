@@ -74,8 +74,8 @@ tags: [smart-home, homeassistant]
 
 ## Wake Word
 
-- **Language: English** (wider tool support; it's only 2 words)
-- **Phrase: "Hey, assistant"** (tentative — family meeting still needed)
+- **Language: English** (wider tool support; single word)
+- **Phrase: "Assistant"** (approved 2026-08-18, HD-25) — changeable later: wake words are per-device configurable in ESPHome/HA Assist, so adjusting after the family tries it is trivial (no re-architecture).
 - See [`smart-home-voice.md`](smart-home-voice.md) for engine selection
 
 ---
@@ -103,7 +103,7 @@ tags: [smart-home, homeassistant]
 
 - Home Assistant entity list (needed for HA Dashboard **lovelace** + Grafana generation; enable HA Prometheus exporter: see `observability.md`)
 - Wall-surface Dashboard: native HA Dashboard on existing devices (iPad A16 + Android RT8, 80% capped) — **TileBoard retired (HD-24)**
-- Wake word final approval ("Hey, assistant" is tentative)
+- Wake word final approval ("Assistant" — approved 2026-08-18, HD-25; changeable later)
 - Confirmed HmIP-SWO-B channels: no rain / wind-direction (not part of this sensor)
 
 ---
