@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 67 open · 7 decisions · 2 purchases · 9 parked · 51 done (in changelog)
+**Status:** 66 open · 7 decisions · 2 purchases · 9 parked · 51 done (in changelog)
 
 ---
 
@@ -54,7 +54,6 @@
 | HD-06 | 3 | AI | 1 | **NUT master on nas** — `usbhid-ups`, `upsd` (3493), `nut_exporter`, `upssched-cmd` notify. ✅ **IaC done+fixed** (SSOT exporter on master `:9199`, scrape via `all.yml` vars, `@latest` release w/ verified asset URL, `nut-exporter_password` upsd auth, SMTP+Signal notify wired via `NOTIFYCMD`, battery.runtime/charge thresholds, USB verify task — G1–G7). ⏳ **Missing:** live deploy on nas (host not provisioned yet) + battery-pull test; feeds HD-07 (clients) / HD-08 (metrics+alerts). · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-08 | 3 | AI | 2 | **Wire UPS metrics + alerts into Prometheus/Grafana** — Critical battery/runtime, Warning on-battery, Info transitions. Depends on HD-06/07. ✅ **Monitoring IaC implemented** (nut_* alert rules + UPS dashboard — commits `aaa3f7c`/`8c50d7f`). ⚠ **Deploy-time verification:** confirm DRuggeri/nut_exporter `nut_ups_status` bitmask + metric names, and that Grafana alert-rule provisioning loads (live check). · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-09 | 1 | AI | 2 | **UPS web-UI firewall rule** — open 80/443 Home→Mgmt for `10.10.99.9` only; Modbus 502 retired (no consumer). ✅ **IaC done** (router role: trusted-admin → `ups_management` 80/443); ⏳ not deployed. · [hardware-ups.md](docs/hardware-ups.md) |
-| HD-94 | 2 | AI | 2 | **Centralize shared-data owner as `storage_uid`/`storage_gid` (KOPS-060)** — ✅ **Core done (HD-131 D1/D2/D4):** `storage_uid`/`storage_gid`=`1005` (`media`), neutral owner provisioned; 9 filesystem/SMB templates (sonarr, radarr, lidarr, prowlarr, bazarr, sabnzbd, qBittorrent, jellyfin, opencloud) centralized to the vars; Samba shares (shared `media` + per-user) + MinIO S3 + Immich→S3 wired. ⏳ **Remaining:** the **Authentik→NAS provisioning glue (HD-131 D5)** + populating `storage_samba_users` once family accounts exist (HD-51). Verify NFS/SMB ownership + container perms at deploy. · [deployment-compose.md](docs/deployment-compose.md), [hardware-nas.md](docs/hardware-nas.md) |
 | HD-26 | 1 | AI | 3 | **Confirm UPS SNMP UDP (161/udp)** on the NIC — TCP probe closed, UDP untested; one probe vs `10.10.99.9`. · [hardware-ups.md](docs/hardware-ups.md) |
 | HD-128 | 1 | AI | 1 | **Resolve NVMe pool device-path TODO** — `group_vars`/preseed holds a literal `TODO` for the NVMe pool device (KOPS-057); set the real `/dev/...` (KOPS-026 also unblocks immich/opencloud db-backup). · source qwen. · [hardware-nas.md](docs/hardware-nas.md), [deployment-preseed.md](docs/deployment-preseed.md) |
 
@@ -180,9 +179,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 67
+- Open rows: 66
 - Decisions front: 7 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=2, platform=1, security=1, services=10, smart=12, storage=6
+- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=2, platform=1, security=1, services=10, smart=12, storage=5
 
 ## 6. Conventions quick-reference
 
