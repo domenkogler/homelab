@@ -5,6 +5,15 @@
 routeros_api_port: 8728
 routeros_connection_method: api  # api or ssh
 
+# API host + credentials for community.routeros modules.
+# We talk to the RouterOS API over the Management VLAN (host = mgmt IP),
+# authenticating as `admin` with the 1Password secret (mikrotik-admin_login).
+# The old schematic modules used api_user/api_password; the community.routeros
+# api_* modules instead take hostname/username/password/port.
+routeros_api_host: "{{ ansible_host | default(router99_ip) }}"
+routeros_api_user: admin
+routeros_tls: false
+
 # VLAN IDs from SSOT
 mgmt_vlan_id: 99
 

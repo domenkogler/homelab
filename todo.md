@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 60 open · 0 decisions · 2 purchases · 10 parked · 61 done (in changelog)
+**Status:** 59 open · 0 decisions · 2 purchases · 10 parked · 62 done (in changelog)
 
 ---
 
@@ -45,7 +45,7 @@
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
 | HD-03 | 5 | AI + gate | 1 | **Network redo: implement VLAN segmentation** — currently flat `10.10.1.0/24` → VLANs 10/20/21/30/40/50/99, inter-VLAN firewall, CAPsMAN SSIDs. ✅ **IaC implemented + committed (`39b9f02`):** router + switch `community.routeros` roles (VLANs, DHCP, firewall, mgmt). ⏳ **NOT deployed to live gear** — Ansible can't run on this Windows host (see render note). Open before deploy: switch bridge-VLAN access-port membership (under review vs Rack.canvas), CAPsMAN SSID secret items, WG VPS peer. · [network-vlans.md](docs/network-vlans.md) |
-| HD-137 | 1 | AI | 1 | **Rewrite router/switch roles off nonexistent `community.routeros_*` modules** — `roles/router/tasks/main.yml` (40 calls) + `roles/switch/tasks/main.yml` (15) use declarative modules (`community.routeros_interface_bridge`, `_ip_firewall_filter`, `_ip_dhcp_server`, `_system_snmp`, etc.) that **do not exist in `community.routeros` 3.21.0** (the latest) — that collection has only ever shipped `api`, `api_facts`, `api_find_and_modify`, `api_info`, `api_modify`, `command`, `facts`. `ansible-playbook --syntax-check playbooks/router.yml` and `switch.yml` both fail: `couldn't resolve module/action 'community.routeros_interface_bridge'`. ~55 call-sites across 20 distinct FQCNs. **Fix:** rewrite both roles onto the installed `community.routeros.api`/`command` primitives (keep the declarative end-state, implement via the low-level modules) — requires a task-by-task rewrite, not a rename. ⏳ Deploy-gated after rewrite: live-verify against MikroTik gear (needs `routeros_api_password`, mgmt-VLAN reachability). · [deployment-ansible.md](docs/deployment-ansible.md), [network-vlans.md](docs/network-vlans.md) |
+| ~~HD-137~~ | 1 | AI | 1 | **Rewrite router/switch roles off nonexistent `community.routeros_*` modules** — ✅ **Done (2026-08-18):** `roles/router/tasks/main.yml` (40 calls) + `roles/switch/tasks/main.yml` (15) used declarative modules (`community.routeros_interface_bridge`, `_ip_firewall_filter`, `_ip_dhcp_server`, `_system_snmp`, etc.) that **do not exist in `community.routeros`** (that collection only ships `api`/`api_facts`/`api_find_and_modify`/`api_info`/`api_modify`/`command`/`facts`), so both playbacks failed to resolve them. Rewrote all ~55 call-sites onto idempotent, path-based **`community.routeros.api_modify`** (`interface bridge`/`vlan`/`bridge port`/`bridge vlan`, `ip address`/`pool`/`dhcp-server`/`dhcp-server network`/`dhcp-server lease`/`firewall address-list`/`firewall nat`/`firewall filter`/`service`/`route`/`dns`, `interface ethernet`), with firewall filter **consolidated per-chain** (forward + input) as ordered `data` lists with `handle_absent_entries: remove` + `ensure_order` for deterministic rule order. Added API connection vars (`routeros_api_host`/`_user`/`_tls`) to both role defaults; auth via `community.general.onepassword` (`mikrotik-admin_login`) unchanged. ✅ **Verified:** both playbooks pass `--syntax-check` and list 24 (router) + 19 (switch) coherent tasks; all 11 playbooks in the repo pass. ⏳ Deploy-gated: live-verify against MikroTik gear (needs `routeros_api_password`, mgmt-VLAN reachability). Commented WireGuard S2S blocks (Phase 10) left as-is. Row closed → [changelog.md](changelog.md). · [deployment-ansible.md](docs/deployment-ansible.md), [network-vlans.md](docs/network-vlans.md) |
 | HD-89 | 1 | AI | 3 | **Disable/move unused AP ethernet ports off Mgmt VLAN** — wired devices on AP ports currently get full Management access (KOPS-046). · source qwen. · [network-vlans.md](docs/network-vlans.md) |
 
 ### 2.2 Storage, ZFS & UPS — NAS datasets, NFS, UPS/NUT
@@ -208,9 +208,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 60
+- Open rows: 59
 - Decisions front: 0 · Buys: 2 · Park: 10
-- Active work per module: ai=8, backup=2, docs=2, finance=2, net=3, observ=0, platform=2, security=1, services=11, smart=11, storage=6
+- Active work per module: ai=8, backup=2, docs=2, finance=2, net=2, observ=0, platform=2, security=1, services=11, smart=11, storage=6
 
 ## 6. Conventions quick-reference
 

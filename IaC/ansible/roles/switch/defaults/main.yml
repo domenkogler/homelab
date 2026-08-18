@@ -1,6 +1,16 @@
 ---
 # switch role defaults
 
+# RouterOS API connection for community.routeros modules.
+# We talk to the RouterOS API over the Management VLAN (host = mgmt IP),
+# authenticating as `admin` with the 1Password secret (mikrotik-admin_login).
+# The old schematic modules used api_user/api_password; the community.routeros
+# api_* modules instead take hostname/username/password/port.
+routeros_api_port: 8728
+routeros_api_host: "{{ ansible_host | default(switch_mgmt_ip) }}"
+routeros_api_user: admin
+routeros_tls: false
+
 # Trunk port configuration
 switch_trunk_port: sfp-sfpplus1  # Uplink to router
 
