@@ -30,6 +30,13 @@ services:
       # Domain
       OC_DOMAIN: file.kogler.si
       OC_URL: "https://file.kogler.si"
+      # Edge-terminated TLS (HD-126 / KOPS-006): Traefik terminates TLS at the edge, so
+      # OpenCloud serves plain HTTP on traefik-public port 9200 for the proxy. `OC_INSECURE:
+      # true` is CORRECT here — forcing OC_INSECURE:false would make OpenCloud serve its own
+      # HTTPS and break the Traefik backend (which expects HTTP on 9200). The plaintext is
+      # confined to the isolated traefik-public Docker network (no Home/Mgmt VLAN exposure);
+      # CrowdSec reduces the blast radius. Internal mTLS deliberately NOT adopted (no real
+      # gain vs edge TLS + network isolation for a single trusted host) — see deployment-compose.md.
       OC_INSECURE: "true"
       PROXY_HTTP_ADDR: 0.0.0.0:9200
       PROXY_TLS: "false"

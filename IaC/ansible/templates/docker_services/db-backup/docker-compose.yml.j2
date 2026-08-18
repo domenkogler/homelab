@@ -36,14 +36,19 @@ services:
       DB02_PASS: "{{ lookup('community.general.onepassword', 'forgejo_db', field='password', vault=op_vault) }}"
       DB02_NAME: forgejo
 
-      # Add DB03+ for immich, opencloud once their compose templates exist
-      # DB03_TYPE: postgresql
-      # DB03_HOST: immich-db
-      # DB03_PORT: "5432"
-      # DB03_USER: "{{ lookup('...', 'immich_db', field='username', vault=op_vault) }}"
-      # DB03_PASS: "{{ lookup('...', 'immich_db', field='password', vault=op_vault) }}"
-      # DB03_NAME: immich
+      # Immich Postgres — on db-internal (real service name is `immich-postgres`, not
+      # the stale `immich-db` from older notes). KOPS-026 / HD-63.
+      DB03_TYPE: postgresql
+      DB03_HOST: immich-postgres
+      DB03_PORT: "5432"
+      DB03_USER: "{{ lookup('community.general.onepassword', 'immich_db', field='username', vault=op_vault) }}"
+      DB03_PASS: "{{ lookup('community.general.onepassword', 'immich_db', field='password', vault=op_vault) }}"
+      DB03_NAME: immich
 
+      # OpenCloud uses an EMBEDDED database (no external Postgres) — it is NOT a DBxx
+      # block here. Its backup is a tar of the data dir (/srv/docker/opencloud/data,
+      # mount `/var/lib/opencloud`), covered by the service-state/OpenCloud Kopia scope
+      # rather than db-backup (KOPS-026 / HD-63, docs/backup.md).
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       - db-backups:/backup

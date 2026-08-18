@@ -2,12 +2,14 @@
 #   Routes Grafana alerts to Signal (via signal-cli-rest-api) and email.
 #   Also handles office automation workflows.
 #
-#   SQLite database (no external Postgres). Built-in auth active for API calls
-#   (webhooks from Grafana); web UI protected by Authentik Forward-Auth.
+#   SQLite database (no external Postgres). Web UI protected by Authentik Forward-Auth.
 #
-#   No 1Password secrets required for basic operation.
-#   Secrets: n8n_password (Password → field=password) — N8N_ENCRYPTION_KEY, also
-#   authenticates Grafana alert webhooks (see docs/deployment-secrets.md master list).
+#   Secrets (docs/deployment-secrets.md master list):
+#   - n8n_password    (Password → field=password)  — N8N_ENCRYPTION_KEY (workflow encryption,
+#                     long-lived, immutable; rotating = re-encrypt stored credentials).
+#   - n8n-webhook_api (API/Password → field=credential) — webhook/API auth token, independently
+#                     rotatable (short-lived) so an encryption key is never exposed in webhook
+#                     auth (KOPS-031 / HD-77).
 #   Future: n8n-smtp_login (SMTP relay — provider not chosen yet).
 services:
   n8n:
@@ -25,6 +27,10 @@ services:
       N8N_HOST: auto.kogler.si
       WEBHOOK_URL: https://auto.kogler.si
       N8N_ENCRYPTION_KEY: "{{ lookup('community.general.onepassword', 'n8n_password', field='password', vault=op_vault) }}"
+      # Webhook/API auth — separate, rotatable token from the encryption key (KOPS-031 / HD-77).
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: grafana
+      N8N_BASIC_AUTH_PASSWORD: "{{ lookup('community.general.onepassword', 'n8n-webhook_api', field='credential', vault=op_vault) }}"
       N8N_METRICS: "true"
       DB_TYPE: sqlite
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"

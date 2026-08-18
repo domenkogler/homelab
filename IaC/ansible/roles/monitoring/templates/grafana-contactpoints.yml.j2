@@ -6,7 +6,8 @@
 # (fail-safe, parallel: still delivers if n8n/signal-cli is down).
 # high-alerts webhook workflow ("homelab-alerts") must exist in n8n; payload = Grafana alert webhook.
 # Webhook URL is a group_var (grafana_alert_webhook_url, group_vars/home_servers.yml).
-# No 1Password lookup here — email address + URL are non-secret group_vars.
+# The webhook authenticates to n8n with the separate, rotatable `n8n-webhook_api` token
+# (KOPS-031 / HD-77) — N8N_BASIC_AUTH_ACTIVE on the n8n service; not the encryption key.
 apiVersion: 1
 
 contactPoints:
@@ -18,6 +19,8 @@ contactPoints:
         settings:
           url: "{{ grafana_alert_webhook_url | default('http://n8n:5678/webhook/homelab-alerts') }}"
           httpMethod: POST
+          basicAuthUser: grafana
+          basicAuthPassword: "{{ lookup('community.general.onepassword', 'n8n-webhook_api', field='credential', vault=op_vault) }}"
           autoResolve: false
       - uid: smtp-failsafe
         type: email

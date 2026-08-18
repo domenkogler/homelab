@@ -13,6 +13,10 @@ services:
       SIGNAL_CLI_PHONE_NUMBER: "{{ lookup('community.general.onepassword', 'signal_api', field='username', vault=op_vault) }}"
       SIGNAL_CLI_CAPTCHA: "{{ lookup('community.general.onepassword', 'signal_api', field='credential', vault=op_vault) | default('', true) }}"
       MODE: json-rpc
+      # API token auth (KOPS-002 / HD-125): require an X-Api-Key header so no container on
+      # services-internal can send Signal messages as Domen's number without the token.
+      # n8n sends the token in its webhook call. Token from `signal-internal_api` (SSOT).
+      SIGNAL_CLI_API_TOKEN: "{{ lookup('community.general.onepassword', 'signal-internal_api', field='credential', vault=op_vault) }}"
     networks:
       - services-internal
     volumes:

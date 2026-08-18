@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 81 open · 9 decisions · 2 purchases · 9 parked · 35 done (in changelog)
+**Status:** 77 open · 9 decisions · 2 purchases · 9 parked · 39 done (in changelog)
 
 ---
 
@@ -127,22 +127,18 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-77 | 2 | AI | 2 | **Split `n8n_password`** — separate `n8n_password` (N8N_ENCRYPTION_KEY) from `n8n-webhook_api` (webhook auth token) so key rotation is independent (KOPS-031). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 | HD-80 | 2 | AI | 2 | **Unique root password hash per host in preseed** — render per-host hash at preseed time, or disable root login (ansible-admin has NOPASSWD sudo); currently identical placeholder hash on nas+oldsrv (KOPS-044). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-81 | 2 | AI | 2 | **Shrink HA `trusted_proxies` from `/16` to Traefik container IPs** — prevent spoofed client IPs from sibling containers (KOPS-039). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md), [security.md](docs/security.md) |
 | HD-59 | 2 | AI | 3 | **Internal service auth on flat Docker networks** — Ollama (`OLLAMA_AUTH_*` env vars), Kopia server (`--password` flag replacing `--without-password`), Signal CLI (basic auth wrapper on services-internal), Prometheus (`--web.config.file` with htpasswd). Flat networks = zero auth between containers; supply-chain compromise in one image gives attacker free rein. Auth tokens → 1Password `<service>-internal_api`. · [deployment-compose.md](docs/deployment-compose.md), Qwen-bugs KOPS-001/016/002 |
 | HD-86 | 1 | AI | 3 | **`op signin --account` instead of bashrc token** — stop persisting OP token in `~/.bashrc` for production (bootstrap OK as-is; KOPS-011). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
 | HD-87 | 1 | AI | 3 | **Pin CrowdSec bouncer plugin version** — explicit version in group_vars instead of hardcoded default (KOPS-029). · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 | HD-88 | 1 | AI | 3 | **Dedup sshd_config append in post_install.sh** — guard against double-run (KOPS-012). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
-| HD-125 | 2 | AI | 1 | **Signal CLI REST host port 8080 auth** — exposed with no auth (KOPS-002); bind internal or wrap with basic auth token. · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
-| HD-126 | 2 | AI | 2 | **OpenCloud internal TLS (`OC_INSECURE:true`)** — re-enable internal TLS / rely on edge-terminated TLS (KOPS-006). · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 | HD-127 | 2 | AI | 1 | **Deploy scripts not root on live** — `push-services.sh` executes docker as root on live containers (KOPS-056); move to sudo-scoped or dedicated run user. · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 
 ### 2.9 Backup & DR — ZFS snapshots, Kopia, off-site, restore drills
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-63 | 2 | AI | 1 | **Uncomment immich DB backup + opencloud tar** — host default `immich-postgres` (the stale `db-backup` comment says `immich-db`; the real service is `immich-postgres`). ROI · source qwen. · [backup.md](docs/backup.md) |
 | HD-49 | 3 | AI | 3 | **Backup Matrix identity + media** — signing/identity keys (critical — reissue breaks rooms), homeserver DB (db-backup/Kopia), media store; add to backup policy. · [services-matrix.md](docs/services-matrix.md), [backup.md](docs/backup.md) |
 | HD-34 | 2 | AI + Human | 4 | **Assess Kopia Web GUI vs CLI** at the first restore drill (agent assesses during the human-run yearly drill). · [backup.md](docs/backup.md) |
 
@@ -196,9 +192,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 81
+- Open rows: 77
 - Decisions front: 9 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=3, docs=2, finance=1, net=5, observ=2, platform=2, security=10, services=10, smart=12, storage=6
+- Active work per module: ai=8, backup=2, docs=2, finance=1, net=5, observ=2, platform=2, security=7, services=10, smart=12, storage=6
 
 ## 6. Conventions quick-reference
 
