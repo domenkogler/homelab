@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 68 open · 9 decisions · 2 purchases · 9 parked · 48 done (in changelog)
+**Status:** 68 open · 7 decisions · 2 purchases · 9 parked · 50 done (in changelog)
 
 ---
 
@@ -29,8 +29,6 @@
 | HD-29 | 2 | Human | *(decision)* **Bulk media off-site** — iDrive e2 space/cost headroom, or keep bulk local-only (ZFS). Input to HD-31. · [backup.md](docs/backup.md) |
 | HD-39 | 1 | Human | *(decision)* **watchtower for Pi HA container** — Renovate + pinned images may suffice. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-52 | 1 | AI + Human | *(decision)* **OpenCloud sync client packaging** — official client (opencloud-eu/desktop) ships AppImage only, no apt repo; options: AppImage → /opt + .desktop entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Blocks office role's client. · [llm-office.md](docs/llm-office.md) |
-| HD-53 | 2 | AI + Human | *(decision)* **MikroTik SNMP community** — Alloy collector assumes v2c `public` (monitoring role); decide a dedicated read-only community + mgmt-VLAN ACL vs RouterOS default, then enable `/snmp` on RB4011/CRS328 (device-side — blocks HD-03 deploy). · [observability.md](docs/observability.md) |
-| HD-54 | 2 | AI + Human | *(decision)* **Grafana/n8n SMTP relay provider** — `grafana_smtp_host` undecided; the alert fail-safe email can't deliver until a relay is chosen. Related: HD-30 (Infomaniak). · [observability.md](docs/observability.md), [deployment-secrets.md](docs/deployment-secrets.md) |
 | HD-55 | 2 | AI + Human | *(decision)* **Alloy per-host `instance` label** — every host scrapes `127.0.0.1:9998` → identical `instance` (series collide in Prometheus); set per-host (e.g. `{{ inventory_hostname }}`) before enabling Alloy on the Pi. · [observability.md](docs/observability.md) |
 
 ### Purchases
@@ -184,7 +182,7 @@
 ## 5. Tally (as of restructure)
 
 - Open rows: 68
-- Decisions front: 9 · Buys: 2 · Park: 9
+- Decisions front: 7 · Buys: 2 · Park: 9
 - Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=2, platform=2, security=1, services=10, smart=12, storage=6
 
 ## 6. Conventions quick-reference

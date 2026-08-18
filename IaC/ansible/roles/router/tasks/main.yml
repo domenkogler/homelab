@@ -397,6 +397,37 @@
     api_user: admin
     api_password: "{{ routeros_api_password }}"
 
+# -------------------------------------------------------------------------
+# SNMP — dedicated read-only community, restricted to Management VLAN (HD-53)
+# -------------------------------------------------------------------------
+# Option A decision: a dedicated RO community (in 1Password, `network-snmp_login`)
+# replaces the snmp_exporter default `public`; SNMP (161/udp) is reachable ONLY
+# from the Management VLAN (the Alloy host, oldsrv, scrapes via its VLAN-99 IP).
+# The device-side `/snmp` enable + RO community is a HD-03 deploy step (the
+# `community.routeros_system_snmp` module isn't used here to avoid an unverified
+# module name — see snmp.yml.j2 header for the exact RouterOS commands).
+
+- name: Accept SNMP from Management VLAN (Alloy RO poller)
+  community.routeros_ip_firewall_filter:
+    chain: input
+    src_address: "{{ vlan_subnets[99] }}"
+    protocol: udp
+    dst_port: 161
+    action: accept
+    comment: "Allow SNMP from Management VLAN (HD-53)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
+- name: Drop SNMP from all other input sources (Mgmt-VLAN only)
+  community.routeros_ip_firewall_filter:
+    chain: input
+    protocol: udp
+    dst_port: 161
+    action: drop
+    comment: "Drop SNMP from non-mgmt sources (HD-53)"
+    api_user: admin
+    api_password: "{{ routeros_api_password }}"
+
 # Note: WireGuard S2S (Phase 10) and VRRP keepalived advertise input are left at
 # the RouterOS default (accept) so the deferred tunnel / HA links keep working.
 # If a full default-deny input policy is ever wanted, add accept rules for the

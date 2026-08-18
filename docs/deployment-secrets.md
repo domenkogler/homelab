@@ -97,6 +97,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
 | `nut-exporter_password` | `password` | nut_exporter → upsd read-only auth (dedicated `upsmon slave` user on the NUT master) |
 | `nut-smtp_login` | `password` | UPS / scheduled-shutdown email notifications (SMTP; `username` = notify email + SMTP user) |
+| `network-snmp_login` | `credential` | router + switch — MikroTik SNMP **read-only community** for Alloy polling (HD-53/Option A); `credential` = the RO community string |
 | `wg_password` | `password` | router (WireGuard S2S private key) |
 | `mikrotik-admin_login` | `password` | router + switch + APs — MikroTik RouterOS admin (items RB4011/CRS328/hAP; shared across all network gear) |
 | `pppoe_login` | `password` (`username` = PPPoE user) | router — ISP (Telekom) PPPoE credentials for the egress WAN |
@@ -145,6 +146,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `headscale_oidc_secret` | `headscale_api` |
 | `upsmon_password` / `nut_upsmon_password` | `nut_password` |
 | `smtp_notify_creds` / `nut_notify_email` / `nut_smtp_user` / `nut_smtp_pass` | `nut-smtp_login` |
+| `snmp_ro_community` (snmp.yml.j2 auth) | `network-snmp_login` |
 | `wireguard_private_key` | `wg_password` |
 | `router_admin_password` | `mikrotik-admin_login` |
 | `router_login` | `mikrotik-admin_login` |

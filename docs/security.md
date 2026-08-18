@@ -123,8 +123,7 @@ Owning docs: [deployment-preseed.md](deployment-preseed.md),
 
 - **Matrix open federation** — accepted/expected for a federated Matrix homeserver. Date: 2025-08-16.
   *(evidence: KOPS-033)*
-- **SNMP v2c default community** — flagged *pending decision* in `observability.md`; not an open defect.
-  **Tracked: HD-53.** *(evidence: KOPS-034)* Date: 2025-08-16.
+- **SNMP v2c default community** — **Decided (HD-53, Option A):** dedicated read-only community (`network-snmp_login`, in 1Password) replacing `public`, with SNMP (161/udp) **restricted to the Management VLAN** via router INPUT-chain ACL. KOPS-034 closed. Date: 2026-08-18. *(evidence: KOPS-034)* Owning doc: [`observability.md`](observability.md).
 - **Playbook role order** (`network` before `storage` on oldsrv) — documented as accepted; not a bug.
   *(evidence: KOPS-050)* Date: 2025-08-16.
 - **Homepage docker.sock health widget** — accepted (read-only mount, behind Forward-Auth).

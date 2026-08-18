@@ -9,4 +9,8 @@ nut_mode: master
 nut_driver: usbhid-ups
 nut_serial: auto                    # USB HID auto-detect (no serial/RS-485)
 shutdown_delay_seconds: 0           # power down immediately on critical
+# SMTP relay (HD-54/Option B): SMTP2Go — dedicated transactional relay for NUT
+# power-loss email. Credentials: nut-smtp_login (Login) in 1Password. Only the
+# master (nas) renders upssched-cmd that sends mail; clients keep the role default.
+nut_smtp_server: "mail.smtp2go.com:587"
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

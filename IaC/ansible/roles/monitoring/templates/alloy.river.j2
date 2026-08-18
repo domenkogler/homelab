@@ -67,8 +67,8 @@ prometheus.exporter.snmp "mikrotik" {
     config_file = "/etc/alloy/snmp.yml"
 
     targets = [
-        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}", "auth" = "public_v2", "module" = "mikrotik"},
-        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}", "auth" = "public_v2", "module" = "mikrotik"},
+        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}", "auth" = "kogler_ro_v2", "module" = "mikrotik"},
+        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}", "auth" = "kogler_ro_v2", "module" = "mikrotik"},
     ]
     forward_to = [prometheus.remote_write.metrics.receiver]
 }

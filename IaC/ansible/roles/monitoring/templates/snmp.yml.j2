@@ -1,12 +1,18 @@
 # snmp_exporter config — monitoring role (step 3 / gap: MikroTik link down)
 # Target: /etc/alloy/snmp.yml (consumed by prometheus.exporter.snmp in alloy.river.j2)
 # Minimal MikroTik module: interface admin/oper status + ifName for labels.
-# Device prerequisite (not this file): RouterOS /snmp set enabled=yes
-# communities=public on the RB4011 + CRS328 — configure via router/switch roles
-# or .rsc before going live (tracked with HD-03).
+#
+# Device prerequisite (not this file): RouterOS /snmp enabled + the same RO
+# community below must be set on the RB4011 + CRS328 at deploy (HD-03),
+# e.g. on each device:
+#   /snmp set enabled=yes take-over=no
+#   /snmp community add name={{ community }} address=10.10.99.0/24 read-access=yes write-access=no
+#   /snmp set enabled=yes
+# Tracked with HD-53 (decision: dedicated read-only community + Mgmt-VLAN ACL).
+# The community string resolves from 1Password (fail-loud — no default('')).
 auths:
-  public_v2:
-    community: public
+  kogler_ro_v2:
+    community: "{{ lookup('community.general.onepassword', 'network-snmp_login', field='credential', vault=op_vault) }}"
     version: 2
     timeout: 5s
     retries: 2
