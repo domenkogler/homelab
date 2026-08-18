@@ -165,6 +165,30 @@
 - Post-deploy hooks: regenerate Homepage config + inventory docs + reload/commit+push. May depend on HD-12 - check before planning.
 - Activate + verify: render templates and bring the container up; live activation likely on another host (human gate).
 
+## 3c. ⏳ Deploy-gated live-verification checklist
+
+> **Consolidated, one-screen view of every `⏳` deploy-gated row** — each task whose IaC is done but not yet verified **live**. This is a *derived view* of the ⏳ markers in the module sections above (their single source of truth); striking a row here = clearing its ⏳ and closing it in its home section. Detail per row stays in the owning doc. **Do not add rows here that aren't ⏳-marked in §2.**
+
+| ID | Pending live step (one-line) | Owning doc |
+|----|------------------------------|-----------|
+| HD-03 | Network redo — VLAN/firewall/CAPsMAN/WG not deployed to live gear (Ansible can't run on this Windows host); open switch bridge-VLAN membership, CAPsMAN SSID secrets, WG VPS peer | [network-vlans.md](docs/network-vlans.md) |
+| HD-06 | NUT master — live deploy on nas (host unprovisioned) + battery-pull test; feeds HD-07/HD-08 | [hardware-ups.md](docs/hardware-ups.md) |
+| HD-09 | UPS web-UI firewall rule 80/443 — not deployed | [hardware-ups.md](docs/hardware-ups.md) |
+| HD-128 | Fill real `/dev/disk/by-id/nvme-…` into `storage_nvme_data_by_id` at first pool create (unblocks immich/opencloud db-backup) | [hardware-oldsrv.md](docs/hardware-oldsrv.md), [deployment-preseed.md](docs/deployment-preseed.md) |
+| HD-132 | Authentik LDAP provider + outpost; seed `authentik-ldap_bind`; firewall 3389→nas; live-verify family drive mounts | [deployment-compose.md](docs/deployment-compose.md) |
+| HD-122 | Matrix federation hardening — live-verify at first Matrix deploy that profile endpoints require auth | [services-matrix.md](docs/services-matrix.md) |
+| HD-46 | Matrix — hosts unprovisioned; needs HD-47 records/well-known + Authentik OIDC provider/redirect | [services-matrix.md](docs/services-matrix.md) |
+| HD-58 | Stirling PDF — re-render `inventory.md`; live-verify OCR `slv` + Forward-Auth chain | [services.md](docs/services.md) |
+| HD-113 | PairDrop — re-render `inventory.md`; live-verify WebRTC/signaling through Traefik | [services.md](docs/services.md) |
+| HD-17 | HA failover button — deploy needs `ha-failover_api` (1Password) + HmIP-RFUSB stick moved at runbook time | [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-124 | Keepalived hardening — deploy-gated (hosts unprovisioned) | [smart-home-failover.md](docs/smart-home-failover.md) |
+| HD-102 | PGVector — create 1Password `pgvector_db`; live-verify extension init + db-backup DB04 | [ai-stack.md](docs/ai-stack.md) |
+| HD-103 | Docling — first start downloads HF models (multi-GB); live-verify v1 API converts Slovenian scan | [ai-stack.md](docs/ai-stack.md) |
+| HD-59 | Internal service auth — 1Password `kopia-server-internal_api` + `prometheus-internal_api`; wire consumers | [deployment-compose.md](docs/deployment-compose.md) |
+| HD-52 | OpenCloud client OIDC — uncomment OIDC block, create Authentik provider, add CSP, drop Forward-Auth label *(closed decision, deploy step remains)* | [llm-office.md](docs/llm-office.md) |
+
+> **Note:** HD-03/HD-17/HD-06/HD-46/HD-124 are blocked on **hosts being provisioned**; several others need 1Password items created at deploy. See [CONVENTIONS.md](CONVENTIONS.md) §4 (deploy-gated rule) and each owning doc for the full runbook.
+
 ## 4. Status & dependency notes
 
 - **HD-50 done** → blocks all `docker_services` deployments; **HD-16 done** (Authentik + Forward-Auth middleware) unblocks Forward-Auth services (HD-43/44/46).
