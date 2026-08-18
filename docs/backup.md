@@ -39,8 +39,9 @@ nas ZFS pool "tank"  ──zfs send/recv──→  nas ZFS pool "bulk"
 
 ### Layer 2: Kopia (Off-Site — Application-Level, NAS-independent)
 
-Configs, DB dumps, service state, and face thumbnails go off-site via Kopia — **oldsrv-local sources
-only, never NAS mounts**, so off-site backup keeps working while the NAS is fully down:
+Configs, DB dumps, service state, face thumbnails, and the **MinIO S3 object store** (which holds
+Immich originals, HD-131 D1) go off-site via Kopia — **oldsrv-local sources only, never NAS mounts**, so
+off-site backup keeps working while the NAS is fully down:
 
 ```
 tiredofit/db-backup (local scratch) →  Kopia agent (oldsrv) →  Hetzner Storage Box (S3) + iDrive e2
@@ -60,7 +61,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | | ZFS send/recv | Kopia |
 |---|---|---|
-| **Scope** | User data (`tank/data/*` → `bulk/data/*`) | Configs, DB dumps, service state, face thumbnails |
+| **Scope** | User data (`tank/data/*` → `bulk/data/*`) | Configs, DB dumps, service state, face thumbnails, **MinIO S3 store (Immich originals)** |
 | **Speed** | Block-level incremental (very fast) | File-level with dedup |
 | **Encryption** | Optional (ZFS native) | Client-side (before leaving) |
 | **Target** | nas `bulk` pool (local) | iDrive e2 cloud (off-site) |

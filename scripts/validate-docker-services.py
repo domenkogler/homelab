@@ -138,6 +138,7 @@ BASE_CTX = {
     "gpu_video_gid": "124",
     "crowdsec_bouncer_plugin_version": "v0.4.0",
     "crowdsec_version": "latest",
+    "minio_version": "latest",
     "authentik_db_name": "authentik",
     "authentik_version": "latest",
     "opencloud_version": "7.4.0",

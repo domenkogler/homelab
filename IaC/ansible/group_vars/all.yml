@@ -37,6 +37,10 @@ tuwunel_version: latest
 # hardcoded default in the traefik compose; now a group_var so Renovate can track it and it
 # stays in sync with the CrowdSec LAPI (drift would silently break blocking).
 crowdsec_bouncer_plugin_version: v0.4.0
+# MinIO (S3 object store, HD-131 D1) image tag — pin to a verified semver at deploy (KOPS-005
+# class / HD-61 convention). MinIO publishes immutable RELEASE.<date> tags; set the exact tag you
+# verified here (default `latest` placeholder — Renovate docker datasource tracks it once pinned).
+minio_version: latest
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.

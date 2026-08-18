@@ -7,13 +7,14 @@
 #     minio_login   (Login: username=<minio root user>, password=<minio root password>)
 services:
   minio:
-    image: minio/minio:latest
+    image: minio/minio:{{ minio_version | default('latest') }}
     container_name: minio
     restart: unless-stopped
+    # Overlay-network access only (services-internal): Immich reaches http://minio:9000 by
+    # Docker DNS name — no host ports (CONVENTIONS §3 / HD-62 host-port hygiene). The S3 API
+    # + console :9001 are reached via SSH/cockpit or an admin tunnel if needed.
     command: server /data --console-address ":9001"
-    ports:
-      - "127.0.0.1:9000:9000"   # S3 API — loopback only; accessed via services-internal overlay by consumers
-      - "127.0.0.1:9001:9001"   # console — loopback only (admin via SSH/cockpit)
+    cap_drop: [ALL]
     networks:
       - services-internal
     volumes:
@@ -22,8 +23,7 @@ services:
       MINIO_ROOT_USER: "{{ lookup('community.general.onepassword', 'minio_login', field='username', vault=op_vault) }}"
       MINIO_ROOT_PASSWORD: "{{ lookup('community.general.onepassword', 'minio_login', field='password', vault=op_vault) }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-    # No Traefik labels: MinIO is an internal S3 store (loopback S3 API :9000 +
-    # console :9001 best accessed via SSH/cockpit), reached by Immich over the
+    # No Traefik labels: MinIO is an internal S3 store, reached by Immich over the
     # services-internal overlay — not exposed on the public Traefik edge (HD-131 D1).
 
 networks:

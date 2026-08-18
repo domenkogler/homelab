@@ -51,6 +51,8 @@ storage_samba_users: []
 storage_samba_media:
   share: media
   path: /tank/data/shared  # shared family tree; per-user stores live under /tank/data/users
+# Root of per-user private Samba stores (SSOT for smb.conf per-user share paths).
+storage_samba_users_root: /tank/data/users
 
 # ---------------------------------------------------------------------
 # Pools

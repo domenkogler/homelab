@@ -31,11 +31,11 @@
 # Per-user private trees (created only when the family-user list is populated, HD-51).
 - name: Create per-user Samba private trees
   ansible.builtin.file:
-    path: "/tank/data/users/{{ item.name }}"
+    path: "{{ storage_samba_users_root }}/{{ item.name }}"
     state: directory
-    owner: "{{ storage_uid }}"
+    owner: "{{ item.uid | default(storage_uid) }}"
     group: "{{ storage_gid }}"
-    mode: "0770"
+    mode: "0700"
   loop: "{{ storage_samba_users }}"
   loop_control:
     label: "{{ item.name }}"
@@ -50,26 +50,44 @@
     mode: "0644"
   notify: Restart Samba
 
-# Create/update each Samba user's account. Password is provided via 1Password by the
-# operator at deploy time (1Password stores it; the mount uses username+password manually).
-- name: Ensure each family Samba user account exists
+# Create/update each family Samba user's account — IDEMPOTENT (CONVENTIONS §3): only
+# provision/password when the Samba account is absent, so re-runs don't churn or error.
+# Password via 1Password at deploy (mount uses username+password manually, D4).
+- name: Probe which family Samba users are absent (idempotency guard)
+  ansible.builtin.shell: "pdbedit -L | grep -qw '{{ item.name }}' && echo present || echo absent"
+  changed_when: false
+  register: _smb_exist
+  loop: "{{ storage_samba_users }}"
+  loop_control:
+    label: "probe {{ item.name }}"
+  when: storage_samba_users | length > 0
+  tags: [samba, storage]
+
+- name: Ensure each family Samba user account exists (only when absent)
   ansible.builtin.user:
-    name: "{{ item.name }}"
-    uid: "{{ item.uid | default(omit) }}"
+    name: "{{ item.item.name }}"
+    uid: "{{ item.item.uid | default(omit) }}"
     groups: "{{ storage_gid }}"
     append: true
     shell: /usr/sbin/nologin
     create_home: false
-  loop: "{{ storage_samba_users }}"
-  when: storage_samba_users | length > 0
+  loop: "{{ _smb_exist.results }}"
+  when:
+    - storage_samba_users | length > 0
+    - (item.stdout | trim) == 'absent'
+  tags: [samba, storage]
 
-- name: Set Samba password for each family user (from 1Password)
+- name: Set Samba password for newly-provisioned family users (only when absent)
   ansible.builtin.shell: |
-    printf '%s\n%s\n' "{{ lookup('community.general.onepassword', item.name ~ '-samba_login', field='password', vault=op_vault) }}" \
-      "{{ lookup('community.general.onepassword', item.name ~ '-samba_login', field='password', vault=op_vault) }}" \
-      | smbpasswd -s -a "{{ item.name }}"
+    printf '%s\n%s\n' \
+      "{{ lookup('community.general.onepassword', item.item.name ~ '-samba_login', field='password', vault=op_vault) }}" \
+      "{{ lookup('community.general.onepassword', item.item.name ~ '-samba_login', field='password', vault=op_vault) }}" \
+      | smbpasswd -a -s "{{ item.item.name }}"
   changed_when: true
-  loop: "{{ storage_samba_users }}"
+  loop: "{{ _smb_exist.results }}"
   loop_control:
-    label: "{{ item.name }} (smbpasswd)"
-  when: storage_samba_users | length > 0
+    label: "{{ item.item.name }} (smbpasswd)"
+  when:
+    - storage_samba_users | length > 0
+    - (item.stdout | trim) == 'absent'
+  tags: [samba, storage]

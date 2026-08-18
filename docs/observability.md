@@ -50,6 +50,7 @@ nut_exporter (UPS, on nas) ─────────────────�
 | Exporter | **blackbox** | External reachability (`probe_success`) | `services-internal` | in Prometheus |
 | Exporter | **HA Prometheus exporter** | HA entities → Prometheus | `services-internal` | in Prometheus |
 | Exporter | **nut_exporter** | UPS status (battery/runtime/voltage/load) → Prometheus · single instance on **nas** (NUT master) | `services-internal` | in Prometheus |
+| Exporter | **minio_exporter** | MinIO S3 store health/size (stores Immich originals, HD-131 D1) → Prometheus | `services-internal` | in Prometheus |
 | UI | **Grafana** | Dashboards, `stats.kogler.si` (**internal**) | `traefik-public` **+** `db-internal` | — |
 | Router | **n8n** | Alert routing/dedup → Signal/email | `services-internal` | — |
 | Notify | **signal-cli** | Signal delivery (linked device) | `services-internal` (needs internet) | — |
@@ -66,6 +67,7 @@ nut_exporter (UPS, on nas) ─────────────────�
 | HA entity metrics (weather, ComfoAir) | HA exporter → Prometheus | Prometheus (30d) |
 | External reachability | blackbox → `probe_success` | Prometheus (30d) |
 | UPS status (battery, runtime, voltage, load, online/on-batt) | nut_exporter (on nas) → Prometheus | Prometheus (30d) |
+| MinIO S3 store health/usage (Immich originals) | minio_exporter (on oldsrv) → Prometheus | Prometheus (30d) |
 | Logs | Alloy → Loki | Loki (14d) |
 | Live logs (ops day-to-day tail) | Dozzle (read-only viewer, no storage) | ephemeral — nothing persisted |
 | Alerts | Grafana Alerting → n8n → Signal/email | alert delivery |
