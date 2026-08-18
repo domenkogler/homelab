@@ -1,0 +1,42 @@
+# litellm docker-compose.yml — LLM gateway/router spine (docs/ai-stack.md, HD-100)
+#   Single OpenAI-compatible endpoint for the whole AI stack (Open WebUI, OpenClaw).
+#   THE only component holding upstream keys (openrouter_api, cohere_api). Local models
+#   -> Ollama on `llm-backend`; consumers reach LiteLLM on `services-internal`. Joins
+#   BOTH networks (per HD-59 Ollama-isolation design). No host port binds (HD-62).
+#
+#   Auth: clients authenticate with LITELLM_MASTER_KEY (1Password `litellm_master_key`);
+#   config.yaml.j2 defines the exposed model_list. Keys/spend stored in a SQLite volume
+#   (ai-stack design — "own small DB"), not Postgres.
+#
+#   Secrets (all fail-closed, HD-65):
+#     litellm_master_key (api -> credential), openrouter_api (api -> credential),
+#     cohere_api (api -> credential)
+#   Image: docker.litellm.ai/berriai/litellm:{{ litellm_version }} (see all.yml for the
+#   MUST-pin note). Serves the OpenAI-compatible API on port 4000.
+services:
+  litellm:
+    image: docker.litellm.ai/berriai/litellm:{{ litellm_version }}
+    container_name: litellm
+    restart: unless-stopped
+    networks:
+      - services-internal
+      - llm-backend                 # reach Ollama (local models); see HD-59 design
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - /srv/docker/litellm:/app/.data            # SQLite keys/spend + settings (stateful: include in Kopia scope)
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      LITELLM_MASTER_KEY: "{{ lookup('community.general.onepassword', 'litellm_master_key', field='credential', vault=op_vault) }}"
+      OPENROUTER_API_KEY: "{{ lookup('community.general.onepassword', 'openrouter_api', field='credential', vault=op_vault) }}"
+      COHERE_API_KEY: "{{ lookup('community.general.onepassword', 'cohere_api', field='credential', vault=op_vault) }}"
+    command: ["--config", "/app/config.yaml"]
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://localhost:4000/health/liveliness')\""]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+networks:
+  services-internal:
+    external: true
+  llm-backend:
+    external: true

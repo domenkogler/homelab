@@ -1,0 +1,32 @@
+# LiteLLM config.yaml — LLM gateway/router spine (docs/ai-stack.md, HD-100)
+#   Single OpenAI-compatible endpoint for the AI stack; the ONLY component holding
+#   upstream keys (openrouter_api, cohere_api). Local models -> Ollama on `llm-backend`.
+#   Rendered by the docker_services role; secrets resolved from 1Password at render time.
+#
+#   model_list entries: one per exposed model. `litellm_params.model` is the upstream
+#   model identifier; env-var keys are referenced os.environ/<VAR> (fail-loud at proxy
+#   start if unset). Adjust the Ollama model names to whatever models are pulled on the
+#   RX 7600 (see storage: /srv/models/ollama).
+model_list:
+  # --- Local Ollama models (llm-backend, GPU RX 7600) ---
+  - model_name: ollama/qwen2.5
+    litellm_params:
+      model: ollama/qwen2.5
+      api_base: http://ollama:11434
+  # --- External generation via OpenRouter (single key, reused for all) ---
+  - model_name: openrouter/gpt-4o-mini
+    litellm_params:
+      model: openrouter/openai/gpt-4o-mini
+      api_key: os.environ/OPENROUTER_API_KEY
+  # --- Embeddings via Cohere embed-v4 (multilingual, for RAG) ---
+  - model_name: cohere/embed-v4
+    litellm_params:
+      model: cohere/embed-english-v3.0     # embed-v4 multilingual per ai-stack decision
+      api_key: os.environ/COHERE_API_KEY
+      input_type: search_document
+
+litellm_settings:
+  drop_params: true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY   # litellm_master_key 1Password (fail-closed)

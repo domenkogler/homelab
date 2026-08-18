@@ -68,6 +68,11 @@ pgvector_version: "0.8.6-pg16-trixie"
 # Docling Serve (quay.io/docling-project/docling-serve) CPU image tag — AI-stack OCR (HD-103).
 # CPU-only torch build; pinned to a verified release; Renovate docker datasource tracks it.
 docling_version: "v1.30.0"
+# LiteLLM (LLM gateway spine) image tag — AI-stack (HD-100). LiteLLM publishes fluid
+# build tags; `main-stable` is the documented stable tag used by their official compose.
+# MUST pin to a verified semver (main-vX.Y.Z) at first deploy — see matrix HD-121 precedent
+# for the fluid-tag policy; Renovate tracks it once a resolvable tag is chosen.
+litellm_version: main-stable
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.

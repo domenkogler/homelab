@@ -3,8 +3,8 @@
 #   spine on the dedicated `llm-backend` network (fully isolated — HD-59). Ollama
 #   deliberately does NOT sit on `services-internal`: its local API has no native auth,
 #   so the network itself is the boundary (same precedent as the isolated `db-internal`
-#   bridge). When LiteLLM is implemented (HD-100), its compose joins `services-internal`
-#   (for consumers) + `llm-backend` (to reach Ollama). No web UI, no Traefik labels.
+#   bridge). LiteLLM (HD-100) joins `services-internal` (for consumers) + `llm-backend`
+#   (to reach Ollama). No web UI, no Traefik labels.
 #   OLLAMA_KEEP_ALIVE=5m keeps models warm between requests. Image `:rocm` == latest
 #   release incl. bundled ROCm runtime (plain `:latest` has no ROCm support).
 #

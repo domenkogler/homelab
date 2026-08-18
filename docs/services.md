@@ -31,7 +31,7 @@ tags: [services, catalog]
 | Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner) |
 | Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
 | Immich-ML | — | I | 300–600 / 1,200 | Face recognition, smart search — shares AMD VRAM |
-| LiteLLM | — | I | 120–250 / 500 | **AI stack** — LLM gateway/router: local Ollama + OpenRouter (gen) + Cohere (embeddings). Single endpoint; only component holding upstream keys. *(planning)* |
+| LiteLLM | — | I | 120–250 / 500 | **AI stack** — LLM gateway/router (HD-100): local Ollama + OpenRouter (gen) + Cohere (embeddings). Single OpenAI-compatible endpoint, services-internal + llm-backend; own SQLite keys/spend; only component holding upstream keys |
 | Open WebUI | ai | P | 300–600 / 1,500 | **AI stack** — family chat + RAG UI; Authentik OIDC + crowdsec-only; Cohere embed-v4, Docling OCR, PGVector store. *(planning)* |
 | Docling | — | I | 150–400 / 900 | **AI stack** — OCR / document understanding for RAG (CPU, HD-103; `docling-serve-cpu:v1.30.0`, services-internal, v1 API, HF weight cache volume) |
 | OpenClaw | — | I | 200–500 / 1,200 | **AI stack** — agent orchestration (ex-Clawd); models → LiteLLM; OpenCloud WebDAV skill; **version pinned**. *(planning)* |
