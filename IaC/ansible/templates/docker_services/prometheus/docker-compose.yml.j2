@@ -21,7 +21,7 @@ services:
     networks:
       - db-internal
     ports:
-      - "{{ wg_s2s_vps.ip | default('127.0.0.1') }}:9090:9090"   # VPS wg-s2s addr — oldsrv Alloy remote_writes over tunnel (HD-62)
+      - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:9090:9090"   # binds WG addr (oldsrv Alloy) only when tunnel intended; else loopback (HD-62)
 
     extra_hosts:
       - "host.docker.internal:host-gateway"   # reach doco-cd /metrics (host network)

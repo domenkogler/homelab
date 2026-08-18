@@ -19,7 +19,7 @@ services:
       - ./loki.yaml:/etc/loki/loki.yaml:ro
       - loki-data:/loki
     ports:
-      - "{{ wg_s2s_vps.ip | default('127.0.0.1') }}:3100:3100"   # VPS wg-s2s addr — oldsrv Alloy pushes over tunnel (HD-62)
+      - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:3100:3100"   # binds WG addr (oldsrv Alloy) only when tunnel intended; else loopback (HD-62)
 volumes:
   loki-data:
 networks:

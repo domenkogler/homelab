@@ -5,6 +5,12 @@
     - common
     - docker
     - network
-    - wireguard          # VPS side of wg-s2s (home router tunnel) — before services bind its address
+    # wg-s2s (VPS↔home router tunnel) is a follow-on, NOT a hard prerequisite: the VPS
+    # edges + observability backend deploy standalone — prometheus/loki fall back to
+    # 127.0.0.1 and the VPS Alloy self-observes on loopback. The tunnel applies once the
+    # router peer public key is provisioned (fail-closed guard is in the role). Bring it
+    # up explicitly with: ansible-playbook playbooks/vps.yml --check --tags wireguard
+    - role: wireguard
+      when: wg_s2s_vps.peer_public_key | default('') | length > 0
     - docker_services
     - monitoring
