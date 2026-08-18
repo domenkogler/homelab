@@ -51,7 +51,9 @@ chown -R ai-debug:ai-debug /home/ai-debug/.ssh
 
 # ---------------------------------------------------------------------
 # 4. sshd hardening (all homelab hosts)
-# ---------------------------------------------------------------------
+# Idempotent (KOPS-012 / HD-88): skip the append if the hardening marker already exists so a
+# re-run (e.g. preseed retry) never accumulates duplicate sshd directives.
+if ! grep -q '^# Homelab hardening (post_install.sh)' /etc/ssh/sshd_config 2>/dev/null; then
 cat >> /etc/ssh/sshd_config <<'EOF'
 
 # Homelab hardening (post_install.sh)
@@ -61,6 +63,7 @@ PubkeyAuthentication yes
 LogLevel VERBOSE
 AllowUsers ansible-admin ai-debug
 EOF
+fi
 
 systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
 

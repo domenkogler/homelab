@@ -77,11 +77,9 @@ d-i partman-auto/choose_recipe select atomic
 
 **Root account:**
 ```
-d-i passwd/root-login boolean true
-d-i passwd/root-password-crypted password <SHA-512_HASH>
+d-i passwd/root-login boolean false
 ```
-
-Generate hash with: `mkpasswd -m sha-512`
+Root login is **disabled** (KOPS-044 / HD-80) — `ansible-admin` has key-only SSH + NOPASSWD sudo, so no emergency root password is deployed (avoids an identical placeholder-hash across hosts and removes the password-root attack surface). Console recovery = boot single-user / reset via `ansible-admin` sudo.
 
 **Ansible admin user (passwordless — SSH key only):**
 ```

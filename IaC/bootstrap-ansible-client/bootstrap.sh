@@ -42,15 +42,26 @@ else
 fi
 
 echo "=== 5. Idempotent 1Password token setup ==="
-if ! grep -q "OP_SERVICE_ACCOUNT_TOKEN" ~/.bashrc; then
+# Store the service-account token in a 0600-protected file, NOT inline in ~/.bashrc
+# (KOPS-011 / HD-86). ~/.bashrc is world-readable; a separate chmod 600 file keeps the
+# secret out of any shell history/logs and limits it to a single purpose. Ansible's
+# community.general.onepassword lookup reads OP_SERVICE_ACCOUNT_TOKEN at run time.
+OP_TOKEN_FILE=~/.config/op/homelab-sa-token
+mkdir -p ~/.config/op
+if [ ! -f "$OP_TOKEN_FILE" ]; then
     read -sp "Paste your 1Password OP_SERVICE_ACCOUNT_TOKEN: " OP_TOKEN
     echo ""
-    echo "source ~/ansible-venv/bin/activate" >> ~/.bashrc
-    echo "export OP_SERVICE_ACCOUNT_TOKEN=\"$OP_TOKEN\"" >> ~/.bashrc
-    echo "✔ 1Password token saved to ~/.bashrc."
+    umask 077
+    printf 'export OP_SERVICE_ACCOUNT_TOKEN=%q\n' "$OP_TOKEN" > "$OP_TOKEN_FILE"
+    chmod 600 "$OP_TOKEN_FILE"
+    unset OP_TOKEN
+    echo "✔ 1Password token stored in $OP_TOKEN_FILE (chmod 600)."
 else
-    echo "ℹ 1Password token already configured in ~/.bashrc."
+    echo "ℹ 1Password token already stored in $OP_TOKEN_FILE."
 fi
+# Idempotently source the venv + the restricted token file from bashrc.
+grep -q 'ansible-venv' ~/.bashrc || echo 'source ~/ansible-venv/bin/activate' >> ~/.bashrc
+grep -q "homelab-sa-token" ~/.bashrc || printf '\n[ -f %s ] && source %s\n' "$OP_TOKEN_FILE" "$OP_TOKEN_FILE" >> ~/.bashrc
 
 echo "=== 6. Idempotent passwordless sudo for local WSL ==="
 if [ ! -f /etc/sudoers.d/$USER ]; then
