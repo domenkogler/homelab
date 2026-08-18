@@ -18,3 +18,11 @@ desktop_igpu_busid: "PCI:0:2:0"
 # Homematic HmIP-RFUSB stick (standby RMat on this host, failover) — stable /dev/serial/by-id/
 # path, filled at deployment with the actual symlink (KOPS-040 / HD-79).
 homematic_usb_by_id: /dev/serial/by-id/usb-eQ-3__HmIP-RFUSB_##PLACEHOLDER##
+# oldsrv ZFS pool `nvme` (Samsung 970 EVO 1 TB) — the /dev/disk/by-id device the storage role
+# uses to CREATE the pool on a fresh build (HD-128 / KOPS-057). SSOT for the literal device;
+# everything else (dataset layout) is governed by roles/storage. The preseed leaves this disk
+# raw (deployment-preseed.md) and automation only creates the pool on an explicitly fresh
+# machine. Fill the REAL /dev/disk/by-id/nvme-* path (read it from the deployed host via
+# `ls -l /dev/disk/by-id` for the 970 EVO) — a fail-loud guard aborts if create is attempted
+# while this still points at the placeholder.
+storage_nvme_data_by_id: /dev/disk/by-id/nvme-<970_EVO_SERIAL>   # HD-128: fill real by-id at deploy

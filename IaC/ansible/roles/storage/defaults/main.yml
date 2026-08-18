@@ -85,7 +85,10 @@ storage_pools:
   - name: nvme
     hosts: [oldsrv]
     allow_create: "{{ storage_allow_pool_create }}"
-    vdevs: ["/dev/disk/by-id/<970_EVO_SERIAL>"]   # TODO: fill real by-id at deployment
+    # REAL device path is the SSOT var storage_nvme_data_by_id (set in host_vars/oldsrv.kogler.si.yml,
+    # HD-128/KOPS-057) — never a literal here. A fail-loud guard in zfs_common.yml aborts any CREATE
+    # attempt while it still points at the placeholder; import-only runs never touch it.
+    vdevs: ["{{ storage_nvme_data_by_id | default('/dev/disk/by-id/UNDEFINED') }}"]
     options: { ashift: "12" }
 
 # ---------------------------------------------------------------------

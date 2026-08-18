@@ -67,6 +67,24 @@
     - item.item.name in storage_own_pools[_host_short] | default([])
     - not (item.item.allow_create | default(false))
 
+- name: Refuse CREATE when a pool vdev still carries a placeholder device (HD-128/KOPS-057)
+  ansible.builtin.fail:
+    msg: >-
+      Pool {{ item.item.name }} is set for fresh-build creation but its vdev
+      resolves to a placeholder device path -- {{ item.item.vdevs | join(', ') }}.
+      Fill the REAL /dev/disk/by-id path (SSOT: storage_nvme_data_by_id in
+      host_vars/oldsrv.kogler.si.yml, read from the deployed host) before creating.
+      Never create a pool against an unresolved/UNDEFINED device.
+  loop: "{{ _pool_import.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when:
+    - not (item.skipped | default(false))
+    - (item.rc | default(0)) != 0
+    - item.item.allow_create | default(false)
+    - item.item.name in storage_own_pools[_host_short] | default([])
+    - (item.item.vdevs | join(' ')) is search('UNDEFINED|<|>') or (item.item.vdevs | length) == 0
+
 - name: Create pool (fresh build — explicitly allowed)
   community.general.zpool:
     name: "{{ item.item.name }}"

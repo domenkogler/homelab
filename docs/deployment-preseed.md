@@ -66,6 +66,7 @@ d-i partman-auto/choose_recipe select atomic
 - OS on the **960 EVO 500 GB** (ext4 root) — light system writes on the 200 TBW disk
 - **970 EVO 1 TB** is **NOT offered to the installer** — left raw for the ZFS pool `nvme` (see [`storage-zfs.md`](storage-zfs.md))
 - Use `/dev/disk/by-id/nvme-*` paths
+- The **970 EVO data-pool device** is the SSOT var `storage_nvme_data_by_id` (host_vars/oldsrv.kogler.si.yml, HD-128/KOPS-057) — the storage role reads it for a fresh-build create; the preseed never touches this disk. Fill the real `by-id` when the pool is first created.
 
 > **Rule (all hosts):** preseed partitions the **OS disk only**. ZFS disks are never part of
 > partitioning; pools are **imported** post-boot (`zpool import`), never auto-created — automation

@@ -185,7 +185,9 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
 | microSD (32–64 GB) | pi | ext4 | HA primary + RaspberryMatic + Technitium secondary + `traefik-ha` edge — lean, no ZFS, no backup surface |
 
 ```
-970 EVO 1 TB → ZFS pool "nvme" (single-disk; every dataset is NAS-backed or regenerable, no mirror needed)
+970 EVO 1 TB → ZFS pool "nvme" (single-disk; every dataset is NAS-backed or regenerable, no mirror needed).
+   Device path = SSOT var `storage_nvme_data_by_id` (host_vars/oldsrv.kogler.si.yml, HD-128/KOPS-057);
+   automation only creates the pool on a fresh build and a fail-loud guard blocks it while the placeholder remains.
 ├── nvme/docker-layers       /var/lib/docker        128K lz4   no snapshots (images re-pullable)
 ├── nvme/docker              /srv/docker (container, canmount=off)
 │   ├── nvme/docker/postgres /srv/docker/postgres   8K   lz4   no snapshots (dumps = recovery point)
