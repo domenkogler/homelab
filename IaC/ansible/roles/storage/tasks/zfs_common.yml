@@ -8,6 +8,20 @@
   ansible.builtin.set_fact:
     _host_short: "{{ inventory_hostname_short | lower }}"
 
+# Neutral shared-data owner `media` (HD-51 / HD-131 D4): owns all shared NAS datasets,
+# NFS/SMB exports (anonuid/anongid), and the filesystem/SMB-backed service containers
+# (*arr, OpenCloud-local). uid/gid come from storage_uid/storage_gid (default 1005),
+# matching the NFS root_squash anonuid/anongid so exported trees align.
+- name: Create neutral shared-data owner (media, storage_uid/storage_gid)
+  ansible.builtin.user:
+    name: media
+    system: true
+    uid: "{{ storage_uid }}"
+    group: "{{ storage_gid }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+  when: storage_uid is defined and storage_gid is defined
+
 # ---------------------------------------------------------------------------
 # Pools — presence check
 # ---------------------------------------------------------------------------

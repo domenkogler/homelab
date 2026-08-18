@@ -1,6 +1,6 @@
 # sonarr docker-compose.yml — TV series (sonarr.kogler.si)
 #   TRaSH hardlink import: /mnt/nas/media/downloads/complete/tv → /mnt/nas/media/media/tv.
-#   Forward-Auth. linuxserver image, PUID/PGID=1000:1000.
+#   Forward-Auth. linuxserver image, PUID/PGID={{ storage_uid }}:{{ storage_gid }} (shared `media` owner).
 #
 # Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 #   — none needed
@@ -17,8 +17,8 @@ services:
       - /mnt/nas/media/media:/media              # rw — creates tv/ folder, hardlink import
       - /mnt/nas/media/downloads:/downloads       # rw — downloads/complete/tv
     environment:
-      PUID: "1000"
-      PGID: "1000"
+      PUID: "{{ storage_uid }}"
+      PGID: "{{ storage_gid }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"

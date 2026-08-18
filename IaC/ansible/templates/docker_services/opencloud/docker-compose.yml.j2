@@ -18,7 +18,7 @@ services:
     image: opencloudeu/opencloud-rolling:{{ opencloud_version | default('7.4.0') }}
     container_name: opencloud
     restart: unless-stopped
-    user: "1000:1000"
+    user: "{{ storage_uid }}:{{ storage_gid }}"
     networks:
       - traefik-public
     entrypoint: ["/bin/sh"]

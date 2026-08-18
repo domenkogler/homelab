@@ -43,8 +43,8 @@ services:
       - /srv/docker/qbittorrent/config:/config
       - /mnt/nas/media/downloads:/downloads   # rw — downloads/complete/<cat>
     environment:
-      PUID: "1000"
-      PGID: "1000"
+      PUID: "{{ storage_uid }}"
+      PGID: "{{ storage_gid }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 networks:
   traefik-public:

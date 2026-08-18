@@ -1,6 +1,6 @@
 # bazarr docker-compose.yml — Subtitles (bazarr.kogler.si)
 #   Writes .srt next to media files in library directories (needs library rw).
-#   Forward-Auth. linuxserver image with PUID/PGID=1000:1000.
+#   Forward-Auth. linuxserver image, PUID/PGID={{ storage_uid }}:{{ storage_gid }} (shared `media` owner).
 #   NFS mount from nas bulk/media → /mnt/nas/media/media.
 #
 # Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
@@ -17,8 +17,8 @@ services:
       - /srv/docker/bazarr/config:/config
       - /mnt/nas/media/media:/media                # rw — writes subtitles next to media
     environment:
-      PUID: "1000"
-      PGID: "1000"
+      PUID: "{{ storage_uid }}"
+      PGID: "{{ storage_gid }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"

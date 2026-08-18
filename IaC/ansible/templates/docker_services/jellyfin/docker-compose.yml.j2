@@ -1,6 +1,6 @@
 # jellyfin docker-compose.yml — Media server (media.kogler.si)
 #   OWN LOGIN (no Authentik Forward-Auth — client apps need direct auth).
-#   iGPU transcode via /dev/dri (Intel HD 630 QuickSync), user: "1000:1000".
+#   iGPU transcode via /dev/dri (Intel HD 630 QuickSync), user: "{{ storage_uid }}:{{ storage_gid }}" (shared `media` owner).
 #   /mnt/nas/media/media mounted ro. Cache on local NVMe for performance.
 #
 # Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
@@ -9,7 +9,7 @@ services:
   jellyfin:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
-    user: "1000:1000"
+    user: "{{ storage_uid }}:{{ storage_gid }}"
     restart: unless-stopped
     networks:
       - traefik-public

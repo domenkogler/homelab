@@ -1,6 +1,6 @@
 # prowlarr docker-compose.yml — Indexer registry (prowlarr.kogler.si)
 #   Syncs indexers to Sonarr/Radarr/Lidarr. Forward-Auth.
-#   linuxserver image, PUID/PGID=1000:1000.
+#   linuxserver image, PUID/PGID={{ storage_uid }}:{{ storage_gid }} (shared `media` owner).
 #
 # Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 #   — none needed
@@ -15,8 +15,8 @@ services:
     volumes:
       - /srv/docker/prowlarr/config:/config
     environment:
-      PUID: "1000"
-      PGID: "1000"
+      PUID: "{{ storage_uid }}"
+      PGID: "{{ storage_gid }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"

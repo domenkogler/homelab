@@ -34,9 +34,23 @@ storage_nfs_server: nas.kogler.si   # resolved via /etc/hosts (network role)
 # only oldsrv's Home-VLAN IP may mount the exports.
 storage_nfs_clients: "{{ (network_ranges | selectattr('name', 'equalto', 'nfs-clients') | map(attribute='cidr') | first) }}"
 
-# uid/gid for the exported trees (1000 = domen; *arr PUID/PGID 1000:1000).
-storage_uid: "1000"
-storage_gid: "1000"
+# uid/gid for the exported trees — the NEUTRAL shared-data owner `media` (HD-51/HD-131),
+# NOT domen (1000), NOT an interactive family user. Containers running the filesystem/SMB
+# shared stack (Samba shares, *arr, OpenCloud-local) run as this owner (KOPS-060 / HD-94).
+# The `media` system user at this uid/gid is provisioned on nas + oldsrv (storage role).
+storage_uid: "1005"
+storage_gid: "1005"
+
+# Samba (D4 / HD-131): per-user private shares + a shared media share on the NAS.
+# Each family member = one Samba account with a private home share (valid users = that
+# account); plus a `media` shared share (any family user). The family-user list is filled
+# when the family Linux/OpenCloud accounts are defined (HD-51 desktop auth); empty now.
+# Format: [{ name: <sambauser>, uid: <unixuid>, share: <dataset-shares>, home: <dataset> }]
+storage_samba_users: []
+# Shared media share name + dataset (map to bulk/media NFS mount on the NAS).
+storage_samba_media:
+  share: media
+  path: /tank/data/shared  # shared family tree; per-user stores live under /tank/data/users
 
 # ---------------------------------------------------------------------
 # Pools

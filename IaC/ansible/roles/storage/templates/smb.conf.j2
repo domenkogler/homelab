@@ -1,0 +1,45 @@
+# smb.conf — Samba shares on the NAS (D4 / HD-131)
+# Managed by Ansible (storage role). Family mapped drives:
+#   \\nas\media  — shared media (any family user)
+#   \\nas\<user> — per-user private drive (valid users = that account; others blocked)
+# Family members log in with their Samba username+password at mount time (manual, no
+# 1Password SSO — 1Password only stores the passwords). Data lives on ZFS datasets owned
+# by the neutral `media` account (storage_uid/storage_gid).
+
+[global]
+   workgroup = WORKGROUP
+   server string = Kogler NAS
+   security = user
+   map to guest = never
+   # Windows Explorer compatibility + per-user share enforcement
+   guest account = nobody
+   min protocol = SMB2
+   max protocol = SMB3
+   vfs objects = zfs_core
+   create mask = 0664
+   directory mask = 0775
+   force user = {{ storage_uid }}
+   force group = {{ storage_gid }}
+   follow symlinks = yes
+   wide links = yes
+   netbios name = NAS
+
+# ---- Shared media (any family user) ----
+[{{ storage_samba_media.share }}]
+   comment = Family shared media
+   path = {{ storage_samba_media.path }}
+   browseable = yes
+   read only = no
+   valid users = @{{ storage_gid }}
+   # writable by the shared media group
+
+# ---- Per-user private drives (only the named user can mount) ----
+{% for u in storage_samba_users %}
+[{{ u.name }}]
+   comment = {{ u.name }}'s private drive
+   path = /tank/data/users/{{ u.name }}
+   browseable = no
+   read only = no
+   valid users = {{ u.name }}
+
+{% endfor %}

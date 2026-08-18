@@ -52,5 +52,7 @@
   when: inventory_hostname in groups['storage'] | default([])
 - include_tasks: nas.yml
   when: inventory_hostname in groups['storage'] | default([])
+- include_tasks: samba.yml
+  when: inventory_hostname in groups['storage'] | default([])   # Samba shares on the NAS (D4/HD-131)
 - include_tasks: oldsrv.yml
   when: inventory_hostname in groups['home_servers'] | default([])
