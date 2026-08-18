@@ -5,6 +5,7 @@
     - common
     - docker
     - network
+    - cifs                 # live Box CIFS mount at /mnt/storagebox (Immich/OpenCloud originals)
     # wg-s2s (VPS↔home router tunnel) is a follow-on, NOT a hard prerequisite: the VPS
     # edges + observability backend deploy standalone — prometheus/loki fall back to
     # 127.0.0.1 and the VPS Alloy self-observes on loopback. The tunnel applies once the

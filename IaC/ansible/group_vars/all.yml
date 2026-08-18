@@ -246,6 +246,19 @@ wg_s2s_vps:
 # Forward target derived from `wg_s2s_vps.ip` (SSOT) — no literal IP embedded here.
 alloy_backend_host: "{% if inventory_hostname == 'oldsrv.kogler.si' %}{{ wg_s2s_vps.ip }}{% else %}127.0.0.1{% endif %}"
 
+# ==== Hetzner Storage Box — live (CIFS mount on the VPS, HD-135) ====
+# Immich originals+encoded-video and OpenCloud files live on the live Box (CIFS), mounted
+# on the VPS at /mnt/storagebox. Connection facts (host/user/password) are the live-box
+# entry in subscriptions.yml (`secret: Hertzner-SB-Data`); only the mount-specific knobs
+# live here. SMB username/password resolved at render from the 1Password item.
+# Exposed to containers as the neutral storage owner (storage_uid/storage_gid).
+livebox_cifs:
+  mount_point: /mnt/storagebox
+  cifs_share: "//u653411.your-storagebox.de/backup"   # live box share (subscriptions.yml host)
+  uid: "{{ storage_uid | default('1005') }}"
+  gid: "{{ storage_gid | default('1005') }}"
+  creds_file: /etc/cifs/livebox.creds
+
 # Single-namespace DNS: everything (hosts + services) is under kogler.si.
 # Internal-only hosts/services are NOT published in public DNS (split-horizon).
 

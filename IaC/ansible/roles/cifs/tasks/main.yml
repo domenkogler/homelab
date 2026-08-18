@@ -1,0 +1,69 @@
+---
+# cifs role tasks — Live Hetzner Box CIFS mount on the VPS (HD-135)
+#
+# Order: install cifs-utils → credentials file (0600, from 1Password) → mount (fstab).
+
+- name: Assert cifs only runs on the VPS (the host that hosts Immich/OpenCloud originals)
+  ansible.builtin.assert:
+    that:
+      - ansible_user in ansible_admin_users
+      - inventory_hostname == 'vps.kogler.si'
+    fail_msg: >-
+      cifs role mounts the live Box on the VPS only. Got ansible_user='{{ ansible_user }}'
+      on '{{ inventory_hostname }}'.
+  tags: cifs
+
+- name: Assert livebox_cifs SSOT is defined
+  ansible.builtin.assert:
+    that:
+      - livebox_cifs is defined
+      - livebox_cifs.mount_point | length > 0
+      - livebox_cifs.cifs_share | length > 0
+    fail_msg: >-
+      group_vars/all.yml must define `livebox_cifs` (mount_point, cifs_share).
+  tags: cifs
+
+- name: Install CIFS/SMB client utilities
+  ansible.builtin.apt:
+    name:
+      - cifs-utils
+      - smbclient
+    state: present
+    update_cache: true
+  tags: cifs
+
+- name: Create the CIFS credentials directory
+  ansible.builtin.file:
+    path: "{{ livebox_cifs.creds_file | dirname }}"
+    state: directory
+    mode: '0700'
+    owner: root
+    group: root
+  tags: cifs
+
+- name: Write the CIFS credentials file (0600, from 1Password)
+  ansible.builtin.template:
+    src: cifs-credentials.j2
+    dest: "{{ livebox_cifs.creds_file }}"
+    owner: root
+    group: root
+    mode: '0600'
+  tags: cifs
+
+- name: Create the CIFS mountpoint
+  ansible.builtin.file:
+    path: "{{ livebox_cifs.mount_point }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ livebox_cifs.uid }}"
+    group: "{{ livebox_cifs.gid }}"
+  tags: cifs
+
+- name: Mount the live Box (fstab-managed)
+  ansible.builtin.mount:
+    path: "{{ livebox_cifs.mount_point }}"
+    src: "{{ livebox_cifs.cifs_share }}"
+    fstype: cifs
+    opts: "credentials={{ livebox_cifs.creds_file }},uid={{ livebox_cifs.uid }},gid={{ livebox_cifs.gid }},nofail,x-systemd.automount,file_mode=0644,dir_mode=0755"
+    state: mounted
+  tags: cifs

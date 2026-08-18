@@ -1,0 +1,14 @@
+---
+# cifs role — Hetzner Storage Box live CIFS mount on the VPS (HD-135)
+#
+# Mounts the live Box (`//u653411.your-storagebox.de/backup`) at `livebox_cifs.mount_point`
+# on the VPS so Immich originals/encoded-video and OpenCloud files live on the Box (CIFS,
+# not S3/MinIO). Driven by SSOT (`livebox_cifs` in group_vars/all.yml + the live-box entry
+# in subscriptions.yml). Container-visible as the neutral storage owner (storage_uid/gid).
+#
+# Security posture (deployment-compose/HD-62): the SMB credentials are written to a 0600
+# file (`livebox_cifs.creds_file`) referenced from fstab — never on the command line, never
+# in the mount options, never committed.
+
+# 1Password item holding the live-box SMB credentials (see subscriptions.yml `secret:`).
+livebox_op_item: Hertzner-SB-Data

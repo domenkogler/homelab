@@ -123,8 +123,7 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
    (+ co-located DBs); Traefik issues the wildcard `*.kogler.si` cert via ACME **DNS-01** (`cloudflare_api`).
    The `dns.yml` control-plane playbook (roles/cloudflare_dns) adds the public records — start with `vps` A/AAAA,
    then `sso` (+ each public app as it lands).
-4. **Live Box CIFS mount** — mount `//u653411.your-storagebox.de/backup` (`Hertzner-SB-Data`) on the VPS
-   (`/mnt/storagebox`) for Immich originals + encoded-video + OpenCloud files (HD-135 storage split).
+4. **Live Box CIFS mount** — the `cifs` role (in `vps.yml`) mounts `//u653411.your-storagebox.de/backup` (`Hertzner-SB-Data`) at `/mnt/storagebox` on the VPS (0600 creds from 1Password) for Immich originals + encoded-video + OpenCloud files (HD-135 storage split). Applied automatically by Ansible; verify `mountpoint --q /mnt/storagebox` after deploy.
 5. **NOT yet online (needs WG S2S + oldsrv):** immich-app→immich-ml, litellm→ollama — these expose only after the
    S2S tunnel (VPS↔home router, `wg-s2s`) reaches oldsrv's GPU backends (Phase 1.5). Their DBs/thumbs can be stood up now; the ML/local-model link waits.
 
