@@ -19,7 +19,8 @@ gpu_video_gid: 44
 
 # ==== Shared service knobs (used across host templates) ====
 # traefik image version — shared by oldsrv `traefik` (edge) and Pi `traefik-ha`.
-traefik_version: latest
+# Pinned semver (KOPS-005 / HD-61) — Renovate keeps it current via docker datasource.
+traefik_version: v3.5.2
 # Let's Encrypt account contact — REQUIRED to register the ACME account when the
 # first cert is issued (wildcard *.kogler.si via DNS-01 on oldsrv's `traefik`).
 letsencrypt_email: domen@kogler.si
