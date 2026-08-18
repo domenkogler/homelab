@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 59 open · 2 decisions · 2 purchases · 9 parked · 58 done (in changelog)
+**Status:** 57 open · 1 decision · 2 purchases · 9 parked · 58 done (in changelog)
 
 ---
 
@@ -26,7 +26,7 @@
 | ~~HD-22~~ | 1 | AI + Human | *(decision)* **Weather 2000 (SI) source** — ✅ **Decided (2026-08-18):** **drop** third-party HACS "Weather 2000" **and** core `met` (single authoritative source). Replace with HA **core `meteoblue`** (models Slovenia well; hourly + 7-day). Key = `meteoblue_api` (1Password Homelab); coords = Maribor `{{ home_latitude }}/{{ home_longitude }}` (added to `all.yml`). Configured in `configuration.yaml.j2` (IaC). Row closed → [changelog.md](changelog.md). · [home-assistant-current.md](docs/home-assistant-current.md) |
 | ~~HD-24~~ | 1 | Human | *(decision)* **TileBoard wall tablet model** — ✅ **Decided (2026-08-18):** **retire TileBoard** (obsolete/unmaintained). Consolidate smart-home control on the **native HA Dashboard** (PWA installable, IaC-native YAML, maintained). **No purchase** — surface on existing devices only: iPad (A16) + Android RT8 (both 80%-battery-capped) as wall/dash surfaces, plus family phones via PWA/bookmark. Row closed → [changelog.md](changelog.md). · [interfaces.md](docs/interfaces.md) |
 | ~~HD-25~~ | 1 | Human | *(decision)* **Wake word final approval** — ✅ **Decided (2026-08-18):** use **"Assistant"** (English, single-word) on all wake-word voice devices (ESP32-S3 kitchen + phones). **Changeable later** — wake words are per-device configurable in ESPHome/HA Assist, so no re-architecture if the family re-decides after trying it. Row closed → [changelog.md](changelog.md). · [smart-home.md](docs/smart-home.md) |
-| HD-29 | 2 | Human | *(decision)* **Off-site storage: two Hetzner Storage Boxes (drop iDrive)** — ✅ **Decided (2026-08-18):** **two Hetzner Storage Boxes** — nearest-DC box = **live** (Immich originals S3 + family SMB/WebDAV drives), far-DC box (Helsinki/Falkenstein) = **backup** (Kopia repo). **iDrive e2 dropped** (Hetzner is cheaper per TB + SMB/WebDAV; single-provider risk on Hetzner accepted). **Size (2026-08-18): 1 TB × 2** — live box fits 300 GB Immich library (~30%, headroom for growth + drives); backup box holds dedup/encrypted Kopia repo fine. Hetzner boxes are **live-upgradable** in-place → 1 TB is a safe start, bump tier when library crosses ~600–700 GB. **Backup-space add-on:** **live box → minimal only** (its copy-protection = ZFS + far-DC Kopia, NOT same-DC snapshots — geo-separation is the point); **backup box → carry the backup space** (protects the Kopia repo, the actual off-site copy). Input to HD-31. · [backup.md](docs/backup.md), [subscription.md](docs/subscription.md) |.md](docs/backup.md) |
+| ~~HD-29~~ | 2 | Human | *(decision)* **Off-site storage: two Hetzner Storage Boxes (drop iDrive)** — ✅ **Decided (2026-08-18):** **two Hetzner Storage Boxes** — nearest-DC box = **live** (Immich originals S3 + family SMB/WebDAV drives), far-DC box (Helsinki/Falkenstein) = **backup** (Kopia repo). **iDrive e2 dropped** (Hetzner is cheaper per TB + SMB/WebDAV; single-provider risk on Hetzner accepted). **Size (2026-08-18): 1 TB × 2** — live box fits 300 GB Immich library (~30%, headroom for growth + drives); backup box holds dedup/encrypted Kopia repo fine. Hetzner boxes are **live-upgradable** in-place → 1 TB is a safe start, bump tier when library crosses ~600–700 GB. **Backup-space add-on:** **live box → minimal only** (its copy-protection = ZFS + far-DC Kopia, NOT same-DC snapshots — geo-separation is the point); **backup box → carry the backup space** (protects the Kopia repo, the actual off-site copy). Input to HD-31 (the buy stays open). Row closed → [changelog.md](changelog.md). · [backup.md](docs/backup.md), [subscription.md](docs/subscription.md) |.md](docs/backup.md) |
 | HD-39 | 1 | Human | *(decision)* **watchtower for Pi HA container** — Renovate + pinned images may suffice. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | ~~HD-52~~ | 1 | AI + Human | *(decision)* **OpenCloud sync client packaging** — ✅ **Decided (2026-08-18):** official client (`opencloud-eu/desktop`) installed **manually per client** (AppImage → download/chmod/`/opt` or `~` + `.desktop`); Ansible prep only **`libfuse2t64`** (FUSE) — **Debian 13 (trixie) only**. Auth = **native OpenCloud OIDC → Authentik** (multi-redirect provider: web+desktop+mobile) + `csp.yaml` (`sso.kogler.si` in `connect-src`/`frame-src`); **prefer native OIDC over Traefik Forward-Auth** on `file` route. ⏳ *Deploy-gated:* uncomment OIDC block + create Authentik provider + add CSP + drop Forward-Auth label. Row closed → [changelog.md](changelog.md). · [llm-office.md](docs/llm-office.md), [deployment-ansible.md](docs/deployment-ansible.md) |
 
@@ -173,8 +173,8 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 59
-- Decisions front: 2 · Buys: 2 · Park: 9
+- Open rows: 57
+- Decisions front: 1 · Buys: 2 · Park: 9
 - Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=0, platform=1, security=1, services=10, smart=12, storage=5
 
 ## 6. Conventions quick-reference
