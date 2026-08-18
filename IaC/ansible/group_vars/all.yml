@@ -58,6 +58,10 @@ keepalived_version: "2.3.4"
 # PairDrop (linuxserver.io) image tag — internal P2P file share (HD-113). Pinned semver
 # (linuxserver tags use plain `X.Y.Z`, no `v`); Renovate docker datasource tracks it.
 pairdrop_version: "1.11.2"
+# Stirling PDF (frooodle/s-pdf) image tag — internal PDF toolkit (HD-58). Pinned semver
+# with `-fat` variant (bundles all Tesseract langs incl. Slovenian `slv` for OCR);
+# Renovate docker datasource tracks it.
+stirling_pdf_version: "2.14.3-fat"
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.

@@ -1,0 +1,43 @@
+# stirling-pdf docker-compose.yml — PDF toolkit (pdf.kogler.si)
+#   Self-hosted PDF merge/split/compress/convert/number/OCR (Tesseract), family-facing.
+#   Replaces online PDF editors. docs/services.md (HD-58).
+#
+#   Auth (decided 2025-08-15): anonymous mode inside the app (SECURITY_ENABLELOGIN=false)
+#   + Authentik Forward-Auth at the Traefik edge — same pattern as admin UIs. Native
+#   Stirling OIDC/SAML deliberately NOT used (beta; adds per-user roles we don't need).
+#   Exposure: internal-only — no public DNS/WAN; remote access only via Headscale VPN.
+#
+#   OCR: TESSERACT_LANGS=eng+slv (English + Slovenian). The `-fat` image variant bundles
+#   all Tesseract language packs (incl. slv) — pinned via stirling_pdf_version.
+#   Stateless: all processing in-memory, nothing persisted to disk -> no volume/backup
+#   implication (HD-58). No host ports (HD-62); Traefik routes on traefik-public.
+#
+#   Secrets: none required (anonymous app; edge auth = Authentik Forward-Auth).
+services:
+  stirling-pdf:
+    image: frooodle/s-pdf:{{ stirling_pdf_version }}
+    container_name: stirling-pdf
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      PUID: "1000"          # linuxserver-style runtime user (stateless; no shared data)
+      PGID: "1000"
+      SECURITY_ENABLELOGIN: "false"   # anonymous inside the app; Forward-Auth at edge
+      TESSERACT_LANGS: "eng+slv"      # OCR: English + Slovenian (HD-58)
+      APP_LOCALE: "sl-SI"             # Slovenian UI default
+      SYSTEM_MAXFILESIZE: "100"       # MB limit per upload (family safety cap)
+      METRICS_ENABLED: "true"         # /api/v1/metrics for optional Prometheus scrape
+      SHOW_SURVEY: "false"
+      # DISABLE_ADDITIONAL_FEATURES: "false"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.stirling-pdf.rule: "Host(`pdf.kogler.si`)"
+      traefik.http.routers.stirling-pdf.entrypoints: websecure
+      traefik.http.routers.stirling-pdf.tls.certresolver: letsencrypt
+      traefik.http.routers.stirling-pdf.middlewares: authentik-forward-auth@file
+      traefik.http.services.stirling-pdf.loadbalancer.server.port: "8080"
+networks:
+  traefik-public:
+    external: true

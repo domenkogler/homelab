@@ -92,6 +92,7 @@ WEB_SERVICES = {
     "immich-app",
     "dozzle",
     "pairdrop",
+    "stirling-pdf",
     "technitium", "pihole", "n8n",
     "chat",
 }
@@ -122,6 +123,7 @@ BASE_CTX = {
     "certs_dumper_version": "v2.8.3",
     "keepalived_version": "2.3.4",
     "pairdrop_version": "1.11.2",
+    "stirling_pdf_version": "2.14.3-fat",
     "storage_uid": "1005",
     "storage_gid": "1005",
     "tuwunel_version": "latest",

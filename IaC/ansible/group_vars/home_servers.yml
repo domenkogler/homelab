@@ -110,6 +110,8 @@ docker_services:
   - { name: recyclarr,    template_dir: recyclarr }                          # scheduled worker, no UI
   # File share (P2P, internal-only) — PairDrop (docs/services.md, HD-113)
   - { name: pairdrop,     template_dir: pairdrop,     subdomain: pairdrop }
+  # PDF toolkit (internal-only) — Stirling PDF (docs/services.md, HD-58)
+  - { name: stirling-pdf, template_dir: stirling-pdf, subdomain: pdf }
   # Update
   - { name: renovate,        template_dir: renovate }
   # CD
