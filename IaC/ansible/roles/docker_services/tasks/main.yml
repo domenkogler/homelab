@@ -76,7 +76,7 @@
   when: item.enabled | default(true)
   loop_control:
     label: "{{ item.name }}"
-  tags: "{{ item.name }}"
+  tags: docker_services
 
 - name: Render Homepage config (post-deploy, after all services up)
   when: "'homepage' in (docker_services | map(attribute='name') | list)"

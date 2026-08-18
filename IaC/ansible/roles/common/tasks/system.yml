@@ -14,7 +14,7 @@
 
 - name: Update apt repositories and install prerequisites
   apt:
-    name: [apt-transport-https, ca-certificates, curl, gpg, python3-pip]
+    name: [apt-transport-https, ca-certificates, curl, gpg, python3-pip, acl]
     state: present
     update_cache: true
 

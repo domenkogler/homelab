@@ -41,7 +41,7 @@
     group: root
   tags: cifs
 
-- name: Write the CIFS credentials file (0600, from 1Password)
+- name: Write the CIFS credentials file (0600, root-owned)
   ansible.builtin.template:
     src: cifs-credentials.j2
     dest: "{{ livebox_cifs.creds_file }}"
