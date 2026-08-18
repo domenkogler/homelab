@@ -1,0 +1,43 @@
+{{ ansible_managed | comment }}
+// headscale ACL policy — auto-generated from template (HD-84 / KOPS-022).
+//
+// This is the *traffic* policy for the kogler.si mobile mesh (Headscale).
+// Behaviour note: OIDC-authenticated clients are AUTO-APPROVED (there is no separate
+// registration gate in config.yaml), so this file is the enforcement boundary:
+// it decides what an auto-joined family node may reach. The policy below is a
+// genuine ACL (non-empty `acl_policy_path`), not the `""` default which allowed
+// unrestricted `*:*` traffic that the old "requires admin approval" comment
+// wrongly claimed to prevent.
+//
+// Default posture: only nodes carrying the `tag:kogler` tag (applied by the
+// mesh admin via `headscale nodes tag`) may talk to the rest of the mesh.
+// Untagged / rogue auto-joined nodes are denied by default.
+{
+  "groups": {},
+
+  // Only the mesh administrator (the user that registered the control server)
+  // may apply the kogler tag to a node. Family devices are tagged post-join so
+  // an arbitrary OIDC registration alone cannot grant mesh reach.
+  "tagOwners": {
+    "tag:kogler": ["autogroup:admin"]
+  },
+
+  "acls": [
+    // The trusted family mesh: every kogler-tagged node may reach every other
+    // node's services. This is the intended "hub" — family phones/laptops reach
+    // Immich / OpenCloud / HA etc. gateways route the CGNAT overlay to Home.
+    {
+      "action": "accept",
+      "src": ["tag:kogler"],
+      "dst": ["tag:kogler:*"]
+    },
+
+    // The admin control plane is always reachable so the mesh remains
+    // manageable even if a node is untagged.
+    {
+      "action": "accept",
+      "src": ["autogroup:admin"],
+      "dst": ["*:*"]
+    }
+  ]
+}

@@ -17,6 +17,7 @@ services:
     volumes:
       - /srv/docker/headscale/data:/var/lib/headscale
       - ./config.yaml:/etc/headscale/config.yaml:ro
+      - ./policy.hujson:/etc/headscale/policy.hujson:ro
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:

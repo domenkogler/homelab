@@ -21,6 +21,7 @@ _extra_templates:
     - prometheus.yml.j2
   headscale:
     - config.yaml.j2
+    - policy.hujson.j2
   traefik:
     - dynamic/routes.yml.j2
     - dynamic/middlewares.yml.j2

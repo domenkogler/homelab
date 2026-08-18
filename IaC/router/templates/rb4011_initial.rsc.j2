@@ -58,10 +58,16 @@
 /ip firewall nat add chain=srcnat out-interface=pppoe-telekom action=masquerade comment="Masquerade → WAN"
 
 # ---- Services (Ansible REST/API/SSH door) ----
-
-/ip service set api disabled=no
-/ip service set www-ssl disabled=no certificate=none
-/ip service set ssh disabled=no port=22
+# Security (HD-83 / KOPS-003/042): bind every management service to the
+# Management VLAN interface created above (vlan{{ mgmt.id }}-mgmt) so none of
+# them listens on WAN or any other VLAN during the bootstrap window. Plain
+# HTTP `www` and `api-ssl` (no TLS cert yet) are left disabled; `api` stays
+# reachable on the mgmt interface ONLY so the Ansible router role can connect.
+/ip service set api disabled=no interface=vlan{{ mgmt.id }}-mgmt
+/ip service set api-ssl disabled=yes
+/ip service set www disabled=yes
+/ip service set www-ssl disabled=no certificate=none interface=vlan{{ mgmt.id }}-mgmt
+/ip service set ssh disabled=no port=22 interface=vlan{{ mgmt.id }}-mgmt
 
 # ---- End ----
 # After import, verify:

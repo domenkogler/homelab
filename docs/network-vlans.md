@@ -67,6 +67,11 @@ tags: [network, vlan, firewall]
 
 Implemented with **address-lists** and **interface lists** in RouterOS.
 
+> **Router INPUT chain (HD-78 / KOPS-003/009):** the rules above are the `forward` (inter-VLAN) policy.
+> Separately, the router's **own** management service ports (`22,8728,8729,8291,80,443`) are gated by a
+> `chain: input` firewall: reachable **only from the Management VLAN (99) and `trusted-admin` hosts**
+> (nas/oldsrv/ha-vip), dropped from all other sources. See [`network-ops.md`](network-ops.md).
+
 > **UPS / NUT note:** the NUT master (`nas`) and clients (`oldsrv`, `ha`) are all on VLAN 10 (Home), so **3493/tcp (NUT) is intra-VLAN — no inter-VLAN rule needed**. The UPS itself is managed on VLAN 99 (Mgmt); only Modbus TCP (`502`) and web (`80/443`) are reachable from the monitoring hosts per the rule above (see [`hardware-ups.md`](hardware-ups.md)).
 
 ---

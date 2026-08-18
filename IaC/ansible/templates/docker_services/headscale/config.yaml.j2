@@ -35,7 +35,10 @@ dns_config:
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium primary (oldsrv)
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium secondary (Pi)
 
-# Client registration — requires admin approval (prevents rogue nodes)
-acl_policy_path: ""
+# ACL/traffic policy (HD-84 / KOPS-022): points at the rendered policy.hujson
+# mounted next to this config. NOTE: OIDC-authenticated clients are AUTO-APPROVED
+# by Headscale (no separate registration gate here), so the ACL is what stops a
+# rogue auto-joined node from reaching the mesh — see policy.hujson.j2.
+acl_policy_path: /etc/headscale/policy.hujson
 logtail:
   enabled: false

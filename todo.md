@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 77 open · 9 decisions · 2 purchases · 9 parked · 39 done (in changelog)
+**Status:** 70 open · 9 decisions · 2 purchases · 9 parked · 46 done (in changelog)
 
 ---
 
@@ -47,9 +47,6 @@
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
 | HD-03 | 5 | AI + gate | 1 | **Network redo: implement VLAN segmentation** — currently flat `10.10.1.0/24` → VLANs 10/20/21/30/40/50/99, inter-VLAN firewall, CAPsMAN SSIDs. ✅ **IaC implemented + committed (`39b9f02`):** router + switch `community.routeros` roles (VLANs, DHCP, firewall, mgmt). ⏳ **NOT deployed to live gear** — Ansible can't run on this Windows host (see render note). Open before deploy: switch bridge-VLAN access-port membership (under review vs Rack.canvas), CAPsMAN SSID secret items, WG VPS peer. · [network-vlans.md](docs/network-vlans.md) |
-| HD-78 | 2 | AI | 2 | **Router INPUT-chain firewall** — restrict management services (API, SSH, WinBox, www) to Management VLAN 99 only; currently extensive FORWARD but no INPUT chain (KOPS-003/009). · source qwen. · [network-vlans.md](docs/network-vlans.md), [network-ops.md](docs/network-ops.md) |
-| HD-83 | 2 | AI | 2 | **Restrict router API to Management VLAN in bootstrap .rsc itself** — disable `api`/`www-ssl` or bind to mgmt interface in the bootstrap scripts, not just the Ansible role (KOPS-003/042). · source qwen. · [network-ops.md](docs/network-ops.md) |
-| HD-84 | 2 | AI | 2 | **Headscale ACL policy or fix misleading comment** — empty `acl_policy_path` auto-approves OIDC registrations; add real ACL or correct the comment (KOPS-022). · source qwen. · [network-vpn.md](docs/network-vpn.md) |
 | HD-89 | 1 | AI | 3 | **Disable/move unused AP ethernet ports off Mgmt VLAN** — wired devices on AP ports currently get full Management access (KOPS-046). · source qwen. · [network-vlans.md](docs/network-vlans.md) |
 
 ### 2.2 Storage, ZFS & UPS — NAS datasets, NFS, UPS/NUT
@@ -127,12 +124,8 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-80 | 2 | AI | 2 | **Unique root password hash per host in preseed** — render per-host hash at preseed time, or disable root login (ansible-admin has NOPASSWD sudo); currently identical placeholder hash on nas+oldsrv (KOPS-044). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-81 | 2 | AI | 2 | **Shrink HA `trusted_proxies` from `/16` to Traefik container IPs** — prevent spoofed client IPs from sibling containers (KOPS-039). · source qwen. · [smart-home-failover.md](docs/smart-home-failover.md), [security.md](docs/security.md) |
 | HD-59 | 2 | AI | 3 | **Internal service auth on flat Docker networks** — Ollama (`OLLAMA_AUTH_*` env vars), Kopia server (`--password` flag replacing `--without-password`), Signal CLI (basic auth wrapper on services-internal), Prometheus (`--web.config.file` with htpasswd). Flat networks = zero auth between containers; supply-chain compromise in one image gives attacker free rein. Auth tokens → 1Password `<service>-internal_api`. · [deployment-compose.md](docs/deployment-compose.md), Qwen-bugs KOPS-001/016/002 |
-| HD-86 | 1 | AI | 3 | **`op signin --account` instead of bashrc token** — stop persisting OP token in `~/.bashrc` for production (bootstrap OK as-is; KOPS-011). · source qwen. · [deployment-secrets.md](docs/deployment-secrets.md) |
-| HD-87 | 1 | AI | 3 | **Pin CrowdSec bouncer plugin version** — explicit version in group_vars instead of hardcoded default (KOPS-029). · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
-| HD-88 | 1 | AI | 3 | **Dedup sshd_config append in post_install.sh** — guard against double-run (KOPS-012). · source qwen. · [deployment-preseed.md](docs/deployment-preseed.md) |
 | HD-127 | 2 | AI | 1 | **Deploy scripts not root on live** — `push-services.sh` executes docker as root on live containers (KOPS-056); move to sudo-scoped or dedicated run user. · source qwen. · [deployment-compose.md](docs/deployment-compose.md) |
 
 ### 2.9 Backup & DR — ZFS snapshots, Kopia, off-site, restore drills
@@ -192,9 +185,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 77
+- Open rows: 70
 - Decisions front: 9 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=2, docs=2, finance=1, net=5, observ=2, platform=2, security=7, services=10, smart=12, storage=6
+- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=2, platform=2, security=3, services=10, smart=12, storage=6
 
 ## 6. Conventions quick-reference
 

@@ -51,6 +51,11 @@ All concrete CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastr
 - Clients: Android/iOS Tailscale app, laptops
 - On RB4011: static route + firewall rules so the Headscale overlay reaches the Home VLAN
 - Headscale traffic to VPS goes through the site-to-site WireGuard tunnel
+- **Registration & ACL (HD-84 / KOPS-022):** OIDC-authenticated clients are **auto-approved** by
+  Headscale (no separate registration gate in `config.yaml`). The traffic boundary is therefore a **real
+  ACL policy** (`policy.hujson`, rendered alongside `config.yaml`): only nodes carrying the admin-applied
+  `tag:kogler` may reach the family mesh (`tag:kogler:*`), and only the mesh admin (`autogroup:admin`)
+  can apply that tag. Untagged / rogue auto-joined nodes are denied by default.
 
 ### Transition
 1. Deploy Headscale on home server
