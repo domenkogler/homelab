@@ -26,7 +26,7 @@
 | HD-22 | 1 | AI + Human | *(decision)* **Weather 2000 (SI) source** — third-party/HACS vs core; retain or replace. Agent researches, human decides. · [home-assistant-current.md](docs/home-assistant-current.md) |
 | HD-24 | 1 | Human | *(decision)* **TileBoard wall tablet model** — iPad / Android / repurposed; family/hardware purchase. · [interfaces.md](docs/interfaces.md) |
 | HD-25 | 1 | Human | *(decision)* **Wake word final approval** — "Hey, assistant" is tentative; family meeting needed. · [smart-home.md](docs/smart-home.md) |
-| HD-29 | 2 | Human | *(decision)* **Bulk media off-site target** — ⚠️ **REALIGN under HD-131:** off-site store = **Hetzner Storage Box** (S3 for Immich originals + Kopia), not iDrive e2; decide space/cost headroom + retention. Input to HD-31. · [backup.md](docs/backup.md) |
+| HD-29 | 2 | Human | *(decision)* **Off-site storage: two Hetzner Storage Boxes (drop iDrive)** — ✅ **Decided (2026-08-18):** **two Hetzner Storage Boxes** — nearest-DC box = **live** (Immich originals S3 + family SMB/WebDAV drives), far-DC box (Helsinki/Falkenstein) = **backup** (Kopia repo). **iDrive e2 dropped** (Hetzner is cheaper per TB + SMB/WebDAV; single-provider risk on Hetzner accepted). Decide box size tier for Immich-originals growth + Kopia backup capacity. Input to HD-31. · [backup.md](docs/backup.md), [subscription.md](docs/subscription.md) |.md](docs/backup.md) |
 | HD-39 | 1 | Human | *(decision)* **watchtower for Pi HA container** — Renovate + pinned images may suffice. · [smart-home-failover.md](docs/smart-home-failover.md) |
 | HD-52 | 1 | AI + Human | *(decision)* **OpenCloud sync client packaging** — official client (opencloud-eu/desktop) ships AppImage only, no apt repo; options: AppImage → /opt + .desktop entry vs Debian `nextcloud-desktop` (protocol-equivalent) vs skip. Blocks office role's client. · [llm-office.md](docs/llm-office.md) |
 | HD-55 | 2 | AI + Human | *(decision)* **Alloy per-host `instance` label** — every host scrapes `127.0.0.1:9998` → identical `instance` (series collide in Prometheus); set per-host (e.g. `{{ inventory_hostname }}`) before enabling Alloy on the Pi. · [observability.md](docs/observability.md) |
@@ -36,7 +36,7 @@
 | ID | D | Exec | Item |
 |----|---|------|------|
 | HD-30 | 1 | Human | *(buy)* **Sign up Infomaniak kSuite** — email, CalDAV, catch-all aliases; ~€3–5/mo; secrets → 1Password `Homelab`. · [subscription.md](docs/subscription.md) |
-| HD-31 | 1 | Human | *(buy)* **Sign up Hetzner Storage Box** — ⚠️ **REALIGN under HD-131:** off-site target = Hetzner Storage Box (S3 for Immich + Kopia off-site), not iDrive e2; depends on HD-29. · [subscription.md](docs/subscription.md) |
+| HD-31 | 1 | Human | *(buy)* **Sign up two Hetzner Storage Boxes** — ✅ **Decided (2026-08-18):** buy **two** Storage Boxes per HD-29 (live: nearest DC — Immich S3 + drives; backup: far DC Helsinki/Falkenstein — Kopia repo); **iDrive e2 dropped**. Depends on HD-29. · [subscription.md](docs/subscription.md) |
 
 ## 2. Active work — by module
 
@@ -168,7 +168,7 @@
 
 - **HD-50 done** → blocks all `docker_services` deployments; **HD-16 done** (Authentik + Forward-Auth middleware) unblocks Forward-Auth services (HD-43/44/46).
 - **HD-03 → HD-04 → HD-13** (network redo feeds Pi redo feeds Homematic full-local).
-- **HD-06/07 done** → feeds HD-08. **HD-29 → HD-31** (off-site decision gates **Hetzner Storage Box** purchase, not iDrive — HD-131).
+- **HD-06/07 done** → feeds HD-08. **HD-29 → HD-31** (off-site = **two Hetzner Storage Boxes**: live + backup; iDrive dropped — HD-131).
 - 'Implemented, not deployed' rows (HD-03/06/17/46/60/61/62/63/64/94 …) stay open with a ⏳ marker until a live deploy happens — closing requires a deploy/verify pass, not just IaC.
 
 ## 5. Tally (as of restructure)

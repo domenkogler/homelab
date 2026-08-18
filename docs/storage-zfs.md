@@ -57,7 +57,7 @@ bulk   (6 TB RAIDZ2 — WD Red + 3× Toshiba P300, consumer disks)  → MIXED RO
 │   └── db-dumps/
 └── immich-thumbs/       face thumbnails, nightly rsync ← oldsrv — daily(7) snapshots, no syncoid send
 
-oldsrv — two local disks (Kopia → iDrive, NAS-independent)
+oldsrv — two local disks (Kopia → Hetzner Storage Box backup, NAS-independent)
 ├── 960 EVO 500 GB (ext4) — OS/system only: `/`, `/var`, `/opt` — regenerable, no churn
 └── 970 EVO 1 TB (ZFS pool "nvme") — ALL local data:
     ├── nvme/docker-layers   /var/lib/docker         images/layers — re-pullable
@@ -158,7 +158,7 @@ deployed by the Ansible `storage` role.
 
 ---
 
-## Kopia Policy (oldsrv agent → iDrive e2)
+## Kopia Policy (oldsrv agent → Hetzner Storage Box, backup)
 
 **Sources (all local, none on NAS):**
 - `/srv/dumps` (SQL dump scratch)
@@ -270,7 +270,7 @@ Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Cri
 
 ---
 
-## Rebuild-from-NAS Runbook (oldsrv total loss, **no iDrive**)
+## Rebuild-from-NAS Runbook (oldsrv total loss, **no off-site**)
 
 Design invariant: with the NAS alive, a dead oldsrv is a config/DB restore, not a data migration —
 all user data lives on the NAS and re-attaches via NFS.

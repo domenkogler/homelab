@@ -100,7 +100,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | Service | Plan | Est. Cost | Status | Purpose |
 |---------|------|-----------|--------|---------|
 | Infomaniak kSuite | TBD | ~€3–5/mo | 🔮 Planned | Email, calendar (CalDAV), catch-all aliases |
-| iDrive e2 | TBD bucket | ~€5/mo | 🔮 Planned | S3-compatible off-site backup (Kopia target) |
+| ~~iDrive e2~~ | ~~TBD bucket~~ | ~~~€5/mo~~ | ❌ **Dropped** | ~~S3 off-site backup~~ → replaced by a 2nd Hetzner Storage Box (HD-29/31) |
 
 ---
 
@@ -109,4 +109,5 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | Service | Plan | Est. Cost | Status | Purpose |
 |---------|------|-----------|--------|---------|
 | Contabo | Storage VPS 30 | ~€15/mo | 📦 Deferred | Public web stack |
-| Hetzner | Storage Box 1 TB | ~€4/mo | 📦 Deferred | Bulk CIFS storage for Immich photos |
+| Hetzner | Storage Box (live) | ~€4/mo | 📦 Deferred | Live Immich-originals S3 + family SMB/WebDAV drives — nearest DC (HD-131 D1) |
+| Hetzner | Storage Box (backup) | ~€4/mo | 📦 Deferred | Kopia off-site backup repo — far DC (Helsinki/Falkenstein, HD-29/31) |

@@ -39,7 +39,7 @@ tags: [services, catalog]
 | Technitium | dns | I | 120–250 / 400 | Central DNS router, VLAN-aware (binds 53 on host) |
 | Pi-hole | ad | I | 100–200 / 300 | Ad-blocking DNS |
 | Headscale | vpn | P | 60–120 / 250 | Tailscale coordination server |
-| Kopia | bck | I | 150–250 / 500 | Encrypted off-site backup → Hetzner Storage Box + iDrive e2 |
+| Kopia | bck | I | 150–250 / 500 | Encrypted off-site backup → Hetzner Storage Box (backup, far DC) |
 | DB Backup | — | D | 30–60 / 200 | Database dumps (tiredofit/db-backup) |
 | Homepage | kogler.si (root) / home | P | 80–150 / 250 | Family launchpad + status widget |
 | Metabase | sec | P+I | 250–450 / 800 | CrowdSec dashboard + analytics sandbox (one instance, two roles) |
