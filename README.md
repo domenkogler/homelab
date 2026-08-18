@@ -112,7 +112,7 @@ ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 
 ## Key Design Decisions
 
-- **Phase 1 first:** Existing i7-7700K + RX 7600 as bare-metal Debian desktop (now `oldsrv`). No hardware purchase needed to start
+- **Day-one VPS edge (HD-93/HD-40A):** the netcup VPS carries the public edge + live-data apps + observability backend from day one; existing i7-7700K (now `oldsrv`) is the internal/GPU/LAN host. The VPS was the one new purchase needed to start.
 - **GitOps operations:** Renovate tracks updates → Forgejo Actions deploys via Ansible `--tags`
 - **Single Git repo:** IaC, documentation, and family guides live together
 - **Single DNS namespace `kogler.si`** — split-horizon; one `*.kogler.si` wildcard cert (Cloudflare DNS-01)

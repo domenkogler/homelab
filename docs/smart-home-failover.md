@@ -115,7 +115,7 @@ The `--ip-range` reserves one IP per host so the two instances never collide.
 
 - **Route:** `ha.kogler.si` → Traefik → **VIP**. The `ha` route must **NOT** use Authentik Forward-Auth (breaks the Companion WebSocket/token flow) — see `smart-home.md`.
 - **VIP↔edge coupling (hard requirement):** the VIP (`ha-vip`) is served on `:443` by whichever keepalived node owns it. In normal mode the Pi's **`traefik-ha`** edge (see below) serves `ha.kogler.si`; after takeover oldsrv's `traefik` takes over (both have an identical `ha` route → VIP:8123). HA must not leave VLAN 10, and keepalived must keep the VIP on the active HA node — otherwise the `ha` route breaks (see `services.md` accessibility SSOT).
-- **Normal (Pi active):** Android app works over WAN (Cloudflare → VPS Traefik, Phase 2) and over VPN (Headscale).
+- **Normal (Pi active):** Android app works over WAN (Cloudflare → VPS Traefik) and over VPN (Headscale).
 - **Fallback (oldsrv active):** same hostname routes to the standby. **WAN access is NOT required in fallback** (accepted) — app still works on LAN/WiFi, and over VPN if needed.
 - **Security:** HA `http.use_x_forwarded_for: true` + `trusted_proxies: <both Traefik edges — Pi traefik-ha and oldsrv traefik>`; one local `owner` account as recovery if Authentik is unreachable.
 
@@ -151,7 +151,7 @@ Forward-Auth. Direct fallback `pi:5380` on the LAN.
 reachable when oldsrv is down. Immich / Forgejo / Authentik / Grafana / … have
 their backends as containers *on* oldsrv and die with it — a second Traefik cannot
 rescue them. This is an **HA/DNS availability** change, not general service failover
-(Phase 2 moves the public edge to the VPS per `services-vps.md`).
+(the public edge is on the VPS per `services-vps.md`).
 
 **Caveats (implementation):**
 - **VIP-only bind / gating:** `traefik-ha` uses `network_mode: host` with entrypoints

@@ -96,12 +96,12 @@ tags: [services, catalog]
 | traefik-public | Traefik ↔ exposed services |
 | services-internal | App ↔ app communication |
 | db-internal | Databases, fully isolated |
-| wireguard-s2s | WireGuard tunnel to VPS (Phase 2 — not yet used) |
+| wireguard-s2s | WireGuard S2S tunnel home router ↔ VPS (HD-03/HD-135; reaches home VLANs + wg-vps-services) |
 
 > CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastructure networks* (SSOT).
 
 > **Network codes (used in the catalog above):** `P` = traefik-public (edge) · `I` = services-internal
-> (app ↔ app) · `D` = db-internal (isolated) · `W` = wireguard-s2s (VPS tunnel, Phase 2 — not yet used)
+> (app ↔ app) · `D` = db-internal (isolated) · `W` = wireguard-s2s (home router ↔ VPS S2S tunnel)
 > · `host` = host process / host docker.sock, not on an overlay (Alloy, Doco-CD).
 
 ---

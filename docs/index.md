@@ -61,7 +61,7 @@ docs/
 ├── network-ops.md                         Router config storage & versioning
 │
 ├── hardware.md                            Broad: phases, all machines
-├── hardware-oldsrv.md                    i7-7700K Phase 1 Docker host + family PC
+├── hardware-oldsrv.md                    i7-7700K internal/GPU/LAN host (GPU + media + DNS + HA standby)
 ├── hardware-gpu.md                        Shared GPU resource (cross-cutting)
 ├── hardware-nas.md                       HP MicroServer Gen8 ZFS storage (+ external SilverStone case)
 ├── hardware-ups.md                       PowerWalker VFI ICT/ICR IoT 3000 (UPS) — links, Modbus TCP, NUT status
@@ -138,7 +138,7 @@ rules below are central.
   checkers and exits non-zero on the first failure. Individual: `python3 scripts/validate-docker-services.py`
   after touching any compose template or group_vars docker_services list. It renders each template,
   parses the YAML, and enforces structural rules (external networks, Traefik labels, secret hygiene,
-  source-level bugs). Exit 0 = all 44 templates valid. See [`scripts/validate-docker-services.py`](../scripts/validate-docker-services.py).
+  source-level bugs). Exit 0 = all templates valid (currently 48). See [`scripts/validate-docker-services.py`](../scripts/validate-docker-services.py).
   Other scripts: `check_doc_ips.py` (IP address SSOT enforcement), `render_network_addresses.py`
   (regenerate SSOT doc from IaC), `validate_doc_templates.py` (smoke-test .j2 renders).
 
@@ -146,12 +146,12 @@ rules below are central.
 
   | Host | FQDN | Role |
   |------|------|------|
-  | Old desktop + Docker host | `oldsrv.kogler.si` | bare-metal Debian desktop + Docker host (Phase 1) |
+  | Old desktop + Docker host | `oldsrv.kogler.si` | internal/GPU/LAN host (ollama, immich-ml, jellyfin/*arr, DNS, HA standby) |
   | HP MicroServer NAS | `nas.kogler.si` | ZFS storage server |
   | Raspberry Pi 4 | `pi.kogler.si` | Home Assistant primary node (HA service = VIP `ha.kogler.si`) |
   | MikroTik Router | `router.kogler.si` | PPPoE, VLAN routing, firewall, WireGuard, CAPsMAN |
   | MikroTik Switch | `switch.kogler.si` | Layer-2 VLAN-aware PoE switch |
-  | netcup VPS | `vps.kogler.si` | Phase 2 — public Traefik + public services |
+  | netcup VPS | `vps.kogler.si` | **public edge + live-data apps + observability backend** (day-one edge, HD-93/HD-40A) |
 
 - **IP addresses:** internal IPv4 ranges/addresses live **only** in
   [`network-addresses.md`](network-addresses.md) (SSOT, generated from IaC) and in IaC. Other

@@ -17,21 +17,21 @@ tags: [hardware, phases]
 
 - **Centralized LLM:** All AI/ML workloads run on the primary server GPU
 - **Phased approach:**
-  1. **Phase 1 (Immediate):** Use all existing hardware — no new purchases. i7-7700K serves as the sole Docker host. HP MicroServer Gen8 as ZFS storage server.
-  2. **Phase 2 (Scale-up):** If insufficient → activate netcup VPS ([`services-vps.md`](services-vps.md)), build dedicated Ryzen/Proxmox server ([`hardware-phase2.md`](hardware-phase2.md)), or both.
-  3. **Phase 3 (Co-existence):** Selectively migrate services. Compose files and deployment config are host-agnostic — same Git repo, same Doco-CD.
+  1. **Phase 1 (Immediate, HD-93 day-one-edge):** existing hardware (i7-7700K as GPU/LAN host, HP MicroServer Gen8 as ZFS storage) **+ the netcup VPS** (active from day one as the public/observability tier). No other purchases.
+  2. **Phase 2 (Scale-up):** if insufficient → dedicated Ryzen/Proxmox server ([`hardware-phase2.md`](hardware-phase2.md)).
+  3. **Co-existence:** services migrate selectively. Compose files and deployment config are host-agnostic — same Git repo, same Doco-CD.
 
 ---
 
 ## All Machines
 
-| Machine | Phase 1 Role | Phase 2 Role |
+| Machine | Role (Phase 1 — day-one edge) | Phase 2 Role |
 |---------|-------------|-------------|
-| **oldsrv** (i7-7700K + RX 7600 + 48 GB) | **Sole Docker host** — all Phase 1 services, family PC | AI/LLM only, or retired |
+| **oldsrv** (i7-7700K + RX 7600 + 48 GB) | **GPU/LAN host** — ollama, immich-ml, jellyfin/*arr, sunshine, DNS, HA standby, homepage; thin Alloy collector → VPS | AI/LLM + LAN core, or retired |
 | **nas** (HP MicroServer, Xeon E3, 12 GB ECC) | ZFS pools (tank + backup), NFS, Cockpit | Permanent storage server |
 | **SilverStone TS43xx** | Attached to nas via miniSAS — 4× 3 TB HDDs | Same |
 | **Raspberry Pi 4** | Home Assistant (primary, Debian+HA Container) + RaspberryMatic/HmIP-RFUSB + Technitium secondary DNS | Stays primary HA |
-| **VPS (netcup)** | *Not used* | Public web stack |
+| **VPS (netcup)** | **Public edge + live-data apps + observability backend** (HD-93/HD-40A, active day one) | Public tier + more |
 | **custom** (Ryzen 9 + R9700) | *Not built* | Proxmox hypervisor |
 | **PowerWalker VFI ICT/ICR IoT 3000** (UPS) | Protects nas + rack infra (see [`hardware-ups.md`](hardware-ups.md)) | Same |
 

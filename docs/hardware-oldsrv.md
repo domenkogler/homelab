@@ -76,10 +76,10 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ---
 
-## Docker Services (Phase 1 — all on oldsrv)
+## Docker Services (HD-135 split — oldsrv = GPU/LAN core)
 
 > **Single source of truth:** the canonical service catalog is [`services.md`](services.md).
-> In Phase 1 **all** services run here on `oldsrv.kogler.si`; in Phase 2 the public-facing ones move to `vps` (Traefik).
+> Per the HD-135 split, `oldsrv` runs the **GPU/LAN/storage-bound core** (ollama, immich-ml, jellyfin/*arr, sunshine, DNS, HA standby, homepage, dozzle, signal-cli); the public edge + live-data apps + observability backend + GitOps moved to the VPS. See [`services-vps.md`](services-vps.md).
 > GPU-enabled containers (Ollama, Immich-ML, Sunshine) are noted in `hardware-gpu.md`.
 
 ---

@@ -242,8 +242,8 @@ dns_secondary_ip: 10.10.1.20     # Technitium secondary binds node IP
 ## Group Vars: home_servers.yml
 
 ```yaml
-# All services run on oldsrv in Phase 1 — see IaC/README.md for the canonical list.
-# Phase 2: public-facing services move to VPS (group_vars/vps.yml, enabled: false).
+# HD-135 split: recursive — oldsrv runs the GPU/LAN core; the public edge + services
+# + observability backend live on the VPS (group_vars/vps.yml). See IaC/README.md.
 docker_services:
   - { name: traefik,        template_dir: traefik }
   - { name: crowdsec,       template_dir: crowdsec }
@@ -344,7 +344,7 @@ domain_local: kogler.si
 
 ### `kopia`
 - Kopia runs as two Docker containers deployed by the `docker_services` role:
-  - **kopia-server:** Web UI + repository server (on VPS in Phase 2, on oldsrv in Phase 1)
+  - **kopia-server:** Web UI + repository server (on the VPS — HD-135 plane)
   - **kopia-agent:** Per-host backup agent
 - The standalone `kopia` Ansible role is **not used** — Kopia backup is entirely containerized.
 
