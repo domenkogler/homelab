@@ -21,7 +21,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      COLLECTIONS: "crowdsecurity/traefik crowdsecurity/linux"
+      COLLECTIONS: "{{ crowdsec_collections }}"
       # LAPI is enabled by default; Metabase queries it on :8080 internally.
       # No Traefik labels — CrowdSec is not a web-facing service.
 networks:

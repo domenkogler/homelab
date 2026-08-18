@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 66 open · 7 decisions · 2 purchases · 9 parked · 51 done (in changelog)
+**Status:** 65 open · 7 decisions · 2 purchases · 9 parked · 52 done (in changelog)
 
 ---
 
@@ -83,7 +83,6 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-85 | 1 | AI | 3 | **Add CrowdSec collections** — extend beyond traefik+linux: home-assistant, matrix, grafana parsers (KOPS-041). · source qwen. · [observability.md](docs/observability.md) |
 | HD-115 | 2 | AI | 2 | **Loki auth/RBAC** — `auth_enabled: false` lets any container on `db-internal` read/inject logs; add auth + restrict network (KOPS-023/051). · source qwen. · [observability.md](docs/observability.md) |
 
 ### 2.6 Smart Home — HA primary/standby, Homematic, voice, devices
@@ -179,9 +178,9 @@
 
 ## 5. Tally (as of restructure)
 
-- Open rows: 66
+- Open rows: 65
 - Decisions front: 7 · Buys: 2 · Park: 9
-- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=2, platform=1, security=1, services=10, smart=12, storage=5
+- Active work per module: ai=8, backup=2, docs=2, finance=1, net=2, observ=1, platform=1, security=1, services=10, smart=12, storage=5
 
 ## 6. Conventions quick-reference
 

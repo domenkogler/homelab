@@ -37,6 +37,12 @@ tuwunel_version: latest
 # hardcoded default in the traefik compose; now a group_var so Renovate can track it and it
 # stays in sync with the CrowdSec LAPI (drift would silently break blocking).
 crowdsec_bouncer_plugin_version: v0.4.0
+# CrowdSec collections to install (HD-85 / KOPS-041): which app logs CrowdSec
+# parses for WAF/brute-force. Included: traefik + linux (baseline) + the exposed
+# auth-surfaces home-assistant, matrix (Synapse/Tuwunel), grafana. Extend here as
+# services are exposed (qBittorrent, jellyfin, n8n …) — a collection only does
+# something if its logs are ALSO sent to CrowdSec (docker.sock container-log parsing).
+crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/home-assistant crowdsecurity/matrix crowdsecurity/grafana"
 # MinIO (S3 object store, HD-131 D1) image tag — pin to a verified semver at deploy (KOPS-005
 # class / HD-61 convention). MinIO publishes immutable RELEASE.<date> tags; set the exact tag you
 # verified here (default `latest` placeholder — Renovate docker datasource tracks it once pinned).
