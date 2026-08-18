@@ -49,7 +49,7 @@ tiredofit/db-backup (local scratch) →  Kopia agent (oldsrv) →  Hetzner Stora
 ```
 
 > **Off-site (HD-29/31, 2026-08-18): two Hetzner Storage Boxes.** **Live** box (nearest DC) serves
-> Immich originals over S3 + the family SMB/WebDAV drives; **backup** box (far DC) hosts the Kopia repo.
+> Immich originals **+ encoded-video** and the family SMB/WebDAV drives (CIFS, **not S3** — HD-135); **backup** box (far DC) hosts the Kopia repo.
 > **iDrive e2 dropped** (Hetzner cheaper per TB + SMB/WebDAV; single-provider risk accepted).
 
 DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then pushed to
@@ -61,7 +61,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | | ZFS send/recv | Kopia |
 |---|---|---|
-| **Scope** | User data (`tank/data/*` → `bulk/data/*`) | Configs, DB dumps, service state, face thumbnails, **MinIO S3 store (Immich originals)** |
+| **Scope** | User data (`tank/data/*` → `bulk/data/*`) | Configs, DB dumps, service state, face thumbnails, **live Box originals + encoded-video (CIFS, HD-135)** |
 | **Speed** | Block-level incremental (very fast) | File-level with dedup |
 | **Encryption** | Optional (ZFS native) | Client-side (before leaving) |
 | **Target** | nas `bulk` pool (local) | Hetzner Storage Box (backup), far DC (off-site) |
@@ -78,7 +78,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend** — HD-100, **OpenClaw config/state** — HD-104, **Seerr config + `seerr.db`** — HD-130/KOPS-059, …) | oldsrv NVMe | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
 | Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |
 | Router configs (`*.rsc`) | Git repo | Git + Kopia | Hetzner Storage Box (backup) |
-| Immich **originals** (photos/videos) | **MinIO S3** (oldsrv; bucket `immich-originals`) | **S3 object storage** (HD-131 D1) | MinIO bucket → Storage Box S3 (replicate) / Kopia **+ the Immich DB** (albums/faces/tags) — D3 |
+| Immich **originals + encoded-video** (photos/videos) | **live Hetzner Box** (CIFS `//u653411.../backup`, VPS) | **live tier** (HD-135) | backed by **Kopia → backup Box** (off-site) **+ the Immich DB** (albums/faces/tags) — D3. *Supersedes the MinIO/S3-originals plan (HD-131 D1).* |
 | Immich **face thumbnails** | oldsrv NVMe | nightly rsync + Kopia | `bulk/data/immich-thumbs` + Hetzner Storage Box (backup) |
 | **Media library** (movies/tv/music) | **nas `bulk/media`** | **NOT backed up** | redownloadable via usenet/torrents |
 

@@ -1,12 +1,17 @@
 # immich-app docker-compose.yml — Photo management (foto.kogler.si)
 #   Immich v3: server + PostgreSQL + Valkey. Microservices merged into server.
-#   Storage per HD-131 D1: ORIGINALS on S3 (MinIO local now, box/cloud later);
-#   thumbs/encoded-video stay on local NVMe. Originals are S3-backed from day one.
+#   Storage decision (HD-135, 2026-08-18) — Immich runs on the VPS; three-way split:
+#     * Local NVMe (/srv/docker/immich): Postgres DB + Valkey + upload/thumbs (hot).
+#     * Live Hetzner Box (CIFS /mnt/storagebox): originals (library/) AND encoded-video
+#       (cold/bulk, sequential reads) — via the Immich storage template (a DB/UI setting
+#       at deploy, configured on the VPS after first deploy, NOT compose env).
+#     * ML on oldsrv GPU (IMMICH_MACHINE_LEARNING_URL, WG tunnel).
+#   Supersedes the older "originals on S3/MinIO" plan — the live Box is CIFS, not S3.
 #   Addons: DB (Postgres), Valkey. Forward-Auth.
 #
 #   Secrets (deployment-secrets.md):
 #     immich_db  (Database) — Postgres
-#     minio_login (login)  — MinIO/S3 access key + secret (named IMMICH_S3_*)
+#     minio_login (login)  — kept for legacy; originals now go to the live Box (CIFS), not MinIO
 services:
   immich-server:
     image: ghcr.io/immich-app/immich-server:{{ immich_version | default('release') }}
@@ -27,8 +32,10 @@ services:
       DB_PORT: "5432"
       REDIS_HOSTNAME: immich-valkey
       IMMICH_MACHINE_LEARNING_URL: "http://immich-ml:3003"
-      # ORIGINALS on S3 (MinIO) — HD-131 D1. Create the bucket (immich-originals) + access
-      # key in MinIO, then these map Immich originals to S3. Thumbs stay on local /data.
+      # LEGACY/SUPERSEDED (HD-135, 2026-08-18): S3/MinIO originals. Keep the block for now —
+      # the active deployment switches originals + encoded-video to the live Box (CIFS) via the
+      # Immich storage template. Remove these IMMICH_S3_* vars once the storage-template path
+      # is wired to the Box and MinIO is retired. (Thumbs stay on local /data regardless.)
       IMMICH_S3_ENDPOINT: "http://minio:9000"
       IMMICH_S3_USE_SSL: "false"
       IMMICH_S3_ACCESS_KEY: "{{ lookup('community.general.onepassword', 'minio_login', field='username', vault=op_vault) }}"

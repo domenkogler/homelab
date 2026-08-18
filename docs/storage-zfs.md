@@ -260,15 +260,43 @@ Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Cri
 
 ---
 
-## Immich Hybrid Storage (originals on NAS, thumbs/ML local)
+## Service ↔ Storage Placement (VPS era) — which service lives on which storage
 
-- `UPLOAD_LOCATION` = **local NVMe** dir — `upload/thumbs` + `upload/encoded-video` + ML cache stay local.
-- Enable **storage template** → originals land in `{UPLOAD_LOCATION}/library/...`.
-- Bind-mount nas `tank/data/immich` → `{UPLOAD_LOCATION}/library` (NFS) — only big write-once originals cross NFS.
-- Postgres + Immich-ML model weights local. ML **embeddings/face data live in Postgres** → covered by
-  DB dumps; **face thumbnail files** are backed up (bulk + Kopia) because regenerating them means a full
-  facial-recognition re-scan of the library (the expensive, non-obvious part). Plain thumbnails and
-  encoded-video are regenerable on demand (Immich reconstruct job) — not backed up.
+> **Decision (HD-135, 2026-08-18):** the public stack lives on the VPS; storage is split across three tiers
+> by performance and access pattern. This is the authoritative placement table for the VPS-era layout.
+> Keep it in sync with `backup.md` and `services-vps.md`.
+
+| Tier | Medium | Latency | Holds | Services consuming it |
+|------|--------|---------|-------|----------------------|
+| **Local SSD** | VPS 512 GB NVMe (`/srv/docker/*`) | fast | DBs, thumbnails, caches, container runtime state, Linux root | authentik, opencloud (metadata), immich (DB+thumbs), forgejo, grafana, n8n, kopia, db-backup — **hot, random-I/O, synchronous** |
+| **Cold/bulk tier** | Hetzner Storage Box **live** (`u653411`, CIFS `//u653411.your-storagebox.de/backup`) | slow (CIFS over internet) | big write-once / rarely-read / regenerable-but-bulk files | **Immich originals + encoded-video**, **OpenCloud user files (WebDAV)**, family SMB drives |
+| **Local backup tier** | NAS ZFS `tank`/`bulk` + local oldSrv NVMe | LAN | snapshots, dumps, service-state pushes, media library | *arr stack (media), VPS→NAS push timers, Kopia scratch |
+
+**Rule of thumb:** *hot/random/synchronous* on local SSD; *bulk/sequential/cold* on the live Box; *media + local backup* on the NAS.
+
+---
+
+## Immich Hybrid Storage (VPS: app+DB+thumbs local, originals+encoded on the live Box, ML on oldsrv)
+
+> **Decision (2026-08-18, HD-135):** Immich runs **on the VPS**. Originals and encoded-video move to the
+> **live Hetzner Box** (cold tier); thumbnails + Postgres DB stay on VPS NVMe (hot); ML offloaded to the
+> oldsrv GPU. The older "originals on NAS/MinIO" plan is superseded — the live Box is CIFS, **not S3/MinIO**.
+
+- **VPS NVMe (`/srv/docker/immich/`)**: Postgres DB + Valkey + `upload/thumbs` (small previews, hot random reads on every UI render).
+- **Live Box (CIFS)**: **originals** (`library/`) **and encoded-video** (`encoded-video/`) — sequential reads, big files, safe off NVMe.
+  - Enabled via Immich **storage template** (a DB/UI setting at deploy, not compose env): thumbnails stay under `upload/thumbs`; originals + encoded-video are templated out to the CIFS mount.
+- **ML on oldsrv GPU** (`IMMICH_MACHINE_LEARNING_URL` over WG): embeddings/face data in Postgres → covered by DB dumps.
+- **Face thumbnail files** are backed up (Kopia → backup Box) because regenerating them means a full facial-recognition re-scan (expensive). Plain thumbnails and encoded-video are regenerable on demand (Immich reconstruct job), so only the large cold files move to the Box, not an extra backup copy.
+
+---
+
+## Immich Hybrid Storage (legacy — originals on NAS, thumbs/ML local)  *(superseded 2026-08-18)*
+
+- ~~`UPLOAD_LOCATION` = local NVMe dir — `upload/thumbs` + `upload/encoded-video` + ML cache stay local.~~
+- ~~Enable storage template → originals land in `{UPLOAD_LOCATION}/library/...`.~~
+- ~~Bind-mount nas `tank/data/immich` → `{UPLOAD_LOCATION}/library` (NFS) — only big write-once originals cross NFS.~~
+- ~~Postgres + Immich-ML model weights local.~~
+- ~~Plain thumbnails and encoded-video regenerable on demand (reconstruct job) — not backed up.~~
 
 ---
 
