@@ -97,6 +97,9 @@ Loopback-only if a raw port is ever required.
 
 > **Fail-closed secrets:** no `default('')` on any of these — a missing item fails the render loudly
 > (HD-65/76).
+>
+> 📋 **Deploy checklist:** see [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) for the
+> step-by-step 1Password item-creation + Authentik OIDC wiring runbook (HD-105).
 
 ---
 
