@@ -134,9 +134,11 @@ only set it if Authentik rejects the custom scheme (http(s)-forwarder workaround
 ### Forgejo / Metabase native-OIDC notes (HD-148)
 - **Forgejo** (`git.`): callback `https://git.kogler.si/user/oauth2/<app-slug>/callback`; keep
   `crowdsec-only` edge; decide whether git-over-https/API pushes stay open or follow web SSO.
-- **Metabase** (`sec.`): only **one** OIDC provider at a time; email auto-provision + roles. For a
-  read-only CrowdSec dashboard, evaluate whether per-user identity is worth the onboarding; if not,
-  keep Forward-Auth. Redirect `https://sec.kogler.si/auth/sso`.
+- **Metabase** (`sec.`): **Metabase OSS (`metabase/metabase:latest`) has NO OIDC/SSO — it is a
+  paid Enterprise feature.** The `metabase_oidc` provider is declared (Blueprint) only for a
+  future Enterprise license; with OSS the route **stays Forward-Auth** (free, works). If
+  Enterprise is ever licensed: switch this route to `crowdsec-only` + enable `MB_OIDC_*`
+  (single provider, `https://sec.kogler.si/auth/sso` callback).
 
 ---
 

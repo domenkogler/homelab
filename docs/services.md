@@ -42,7 +42,7 @@ tags: [services, catalog]
 | Kopia | bck | I | 150–250 / 500 | Encrypted off-site backup → Hetzner Storage Box (backup, far DC) |
 | DB Backup | — | D | 30–60 / 200 | Database dumps (tiredofit/db-backup) |
 | Homepage | kogler.si (root) / home | P | 80–150 / 250 | Family launchpad + status widget |
-| Metabase | sec | P+I | 250–450 / 800 | CrowdSec dashboard + analytics sandbox (one instance, two roles). **Auth (HD-148): native OIDC → Authentik** single-provider (email auto-provision); client via Blueprint + glue |
+| Metabase | sec | P+I | 250–450 / 800 | CrowdSec dashboard + analytics sandbox (one instance, two roles). **Auth (HD-148): Forward-Auth** (Metabase OSS has NO OIDC/SSO — paid Enterprise feature; provider/`metabase_oidc` declared for future, but route stays Forward-Auth) |
 | Alloy | — | host | 200–400 / 600 | Host metrics + logs + SNMP agent (Ansible, mounts docker.sock) |
 | Prometheus | — | D | 200–400 / 800 | Sole metrics store (30d) |
 | Loki | — | D | 300–600 / 1,500 | Log aggregation (14d) |
