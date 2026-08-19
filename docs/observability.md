@@ -63,7 +63,7 @@ nut_exporter (UPS, on nas) ─────────────────�
 | Data | Owner | Where it lives |
 |------|-------|----------------|
 | Host + SNMP metrics | Alloy → Prometheus | Prometheus (30d) |
-| Service scrape (Traefik, CrowdSec, Doco-CD) | Alloy/Prometheus | Prometheus (30d) |
+| Service scrape (Traefik, CrowdSec) | Alloy/Prometheus | Prometheus (30d) |
 | HA entity metrics (weather, ComfoAir) | HA exporter → Prometheus | Prometheus (30d) |
 | External reachability | blackbox → `probe_success` | Prometheus (30d) |
 | UPS status (battery, runtime, voltage, load, online/on-batt) | nut_exporter (on nas) → Prometheus | Prometheus (30d) |

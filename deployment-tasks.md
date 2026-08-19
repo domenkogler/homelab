@@ -63,7 +63,7 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 | `ha-vrrp_password` | password → `password` | Phase 3 (standby) / 4 (primary) |
 | `headscale_api` | api → `credential` (OIDC client secret) | Phase 3 |
 | `signal_api` | api → `credential` (`username`=phone number) | Phase 3 |
-| `doco-cd_password` | password → `password` (webhook HMAC) | Phase 6 |
+| *(doco-cd_password retired — Doco-CD dropped, HD-150)* | — | — |
 | `netcup-ccp_login` | login → `password` (netcup CCP — billing/orders) | Phase 1 (VPS) |
 | `netcup-scp_login` | login → `password` (netcup SCP — console/reboot/root reset) | Phase 1 (VPS) |
 | `netcup-vps_login` | login → `password` (**separate vault**, root/OS break-glass) | Phase 1 (VPS) |
@@ -225,7 +225,7 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 - `kopia_password` (password) — Kopia off-site = **backup Box over SSH/SFTP (port 23)** (`kopia_sftp_*` in `all.yml`; SSH key in `Hertzner-SB-Backup`; **no password secret item**). ~~`kopia-s3_api`~~ retired (iDrive e2 dropped).
 - `authentik_db` (db→`password`), `authentik_password` (password→`password`), `authentik_login` (login→`password`)
 - `opencloud_db`, `immich_db`, `forgejo_db` (db→`password` each)
-- `forgejo_api` (api→`credential`) — renovate + doco-cd token
+- `forgejo_api` (api→`credential`) — renovate token + Forgejo Actions deploy runner
 - `grafana_login` (login→`password`), `grafana-smtp_login` (login→`password`)
 - `ha_api` (api→`credential`), `ha-vrrp_password` (password→`password`)
 - `headscale_api` (api→`credential`) — OIDC client secret
@@ -265,25 +265,24 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 
 ---
 
-## Phase 5 — GitOps Pipeline Activation (Doco-CD + Forgejo Actions)
+## Phase 5 — GitOps Deploy Button (Forgejo Actions → Ansible) — Doco-CD removed (HD-150)
 
 > **Depends on:** Phase 3 (Forgejo + services live, Renovate running), Phase 4 (HA live).
-> **1Password prerequisites (new this phase):** `doco-cd_password` (password→`password`, webhook HMAC);
-> `forgejo_api` + `op_api` (already created). Doco-CD reads `op_api` for the Service Account token.
-> **Continuation:** once active, deploys happen on merge instead of manual Ansible runs (HD-02).
+> **1Password prerequisites:** `forgejo_api` + `op_api` (already created). Doco-CD + `doco-cd_password` are
+> **removed** (HD-150) — single Ansible-only deploy path; the deploy button runs Ansible (not a webhook agent).
+> **Continuation:** once active, merges are applied via the Forgejo Actions deploy button instead of manual Ansible runs.
 
-1. **Finalize `.doco-cd.yml`** — `auto_discovery` vs per-service compose, `compose_files`, `reference`,
-   `external_secrets:` (1Password refs `op://Homelab/<item>/<field>`).
-2. **1Password provider** — add `SECRET_PROVIDER=1password` + `SECRET_PROVIDER_ACCESS_TOKEN` (`op_api`)
-   to the doco-cd compose env.
-3. **Trigger** — Forgejo webhook `/v1/webhook` (port 80, HMAC `WEBHOOK_SECRET` ← `doco-cd_password`)
-   **or** polling (decide on private-network reachability first).
-4. **Metrics** — fix doco-cd metrics port **9120** + Prometheus scrape target.
-5. **Post-deploy hooks** — regenerate Homepage config + `inventory.md` → commit+push.
-6. **Forgejo Actions** — add `.forgejo/workflows/deploy.yml` (manual dispatch, `--tags` selector);
-   test Renovate PR → Actions → service updated.
+1. **Forgejo Actions deploy workflow** — add `.forgejo/workflows/deploy.yml` (manual `workflow_dispatch`,
+   `--tags` selector); the runner SSHes to the target host(s) and runs `ansible-playbook`
+   (`vps.yml` for VPS, `home_servers.yml` for oldsrv).
+2. **1Password for the runner** — `op_api` Service Account token stored as a Forgejo secret; the runner
+   resolves secrets at Ansible render time (same as the control node).
+3. **Trigger** — no webhook; you click the **deploy button** on Forgejo (Dependency Dashboard / Actions tab).
+4. **Renovate** — already live (Phase 3); it opens PRs; the deploy button applies them via Ansible.
+5. **Metrics** — none (no Doco-CD exporter); Prometheus scrape set stays Traefik/CrowdSec + services.
+6. **Post-deploy hooks** — Ansible regenerates Homepage config + `inventory.md` → commit+push.
 
-**Verify:** a Renovate PR → merge → service updated with **no manual Ansible run**; webhook reachable.
+**Verify:** a Renovate PR → merge → Forgejo **deploy button** → service updated with **no manual Ansible run**;
 
 ---
 
@@ -378,7 +377,7 @@ Phase 3 (oldsrv: internal/GPU host — ollama/immich-ml/jellyfin, DNS, media, HA
 Phase 4 (pi: HA primary + VIP, Technitium DNS, RaspberryMatic)
    │
    ▼
-Phase 5 (GitOps: Doco-CD + Forgejo Actions)
+Phase 5 (GitOps: Forgejo Actions deploy button → Ansible)
    ▼
 Phase 6-9 (observability, smart-home, backup, docs) ── can run in parallel
    ▼
@@ -394,7 +393,7 @@ Phase 10 (deferred: Phase-2 Proxmox hardware, HD-41/42)
 - **Phase 2:** + `nut_password`, `nut-smtp_login`
 - **Phase 3:** + `ha_api`, `ha-vrrp_password`, `headscale_api`, `signal_api`
 - **Phase 4–9:** no new items (reuse the above)
-- **Phase 5 specifically:** `doco-cd_password` (webhook HMAC)
+- **Phase 5 specifically:** `forgejo_api` + `op_api` (deploy runner token) — Doco-CD `doco-cd_password` retired (HD-150)
 - **Phase 8 (backup):** no S3 items — Kopia = backup Box via **SSH/SFTP** (`kopia_password` + SSH key `Hertzner-SB-Backup`)
 - **Phase 10:** future (`proxmox_login`, etc.)
 

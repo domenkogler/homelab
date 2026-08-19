@@ -78,7 +78,7 @@ docs/
 ├── services-vps.md                        netcup VPS (public edge) reference
 ├── subscription.md                        Costs, providers, renewal status
 │
-├── deployment.md                          Broad: GitOps philosophy, Doco-CD flow
+├── deployment.md                          Broad: GitOps philosophy, Ansible-only deploy flow
 ├── deployment-preseed.md                  ★ Preseed + post_install spec
 ├── deployment-ansible.md                  ★ Ansible role catalog & spec
 ├── deployment-compose.md                  ★ Docker compose conventions

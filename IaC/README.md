@@ -241,7 +241,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 # (traefik, crowdsec, authentik, opencloud, immich-app, forgejo, ollama, immich-ml,
 #  technitium[oldsrv], pihole, (raspberrymatic-standby[oldsrv] — HD-13 parked), home-assistant-standby[oldsrv],
 #  headscale, kopia-server, db-backup, grafana→stats, n8n→auto,
-#  sunshine[desktop], + TODO templates: homepage, renovate, doco-cd, prometheus, loki,
+#  sunshine[desktop], + TODO templates: homepage, renovate, prometheus, loki,
 #  blackbox-exporter, signal-cli-rest-api, metabase)
 ```
 

@@ -3,8 +3,7 @@
 # ------------------------------------------------
 # Regenerates docs/network-addresses.md (IP address SSOT) from
 # IaC/ansible group_vars/host_vars. This is the "IaC → docs" half of the
-# IaC-as-source model. Doco-CD's post-deploy hook will invoke the same render
-# once it is active (docs/interfaces.md).
+# IaC-as-source model. The Ansible post-deploy hook invokes the same render
 #
 # Run standalone:   ansible-playbook playbooks/render-docs.yml -i inventory.ini
 # (also invoked as the final step of site.yml)

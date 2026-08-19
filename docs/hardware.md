@@ -19,7 +19,7 @@ tags: [hardware, phases]
 - **Phased approach:**
   1. **Phase 1 (Immediate, HD-93 day-one-edge):** existing hardware (i7-7700K as GPU/LAN host, HP MicroServer Gen8 as ZFS storage) **+ the netcup VPS** (active from day one as the public/observability tier). No other purchases.
   2. **Phase 2 (Scale-up):** if insufficient → dedicated Ryzen/Proxmox server ([`hardware-phase2.md`](hardware-phase2.md)).
-  3. **Co-existence:** services migrate selectively. Compose files and deployment config are host-agnostic — same Git repo, same Doco-CD.
+  3. **Co-existence:** services migrate selectively. Compose files and deployment config are host-agnostic — same Git repo, same Ansible.
 
 ---
 
@@ -68,7 +68,7 @@ nas (rack) — Debian 13, ZFS
 2. **Dual GPU on oldsrv:** iGPU for desktop, dGPU for Docker AI containers
 3. **Docker is portable** — same compose files deploy on bare metal, VPS, or Proxmox VM
 4. **3-2-1 backup:** 3 copies (live + local ZFS + cloud Kopia), 2 media (SSD/HDD + cloud), 1 off-site (Hetzner Storage Box backup, far DC)
-5. **Ansible is OS-only** — system provisioning once. App lifecycle is GitOps via Doco-CD.
+5. **Ansible deploys everywhere** — base system AND app lifecycle (VPS + oldsrv), one path.
 
 ---
 

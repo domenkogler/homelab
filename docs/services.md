@@ -50,7 +50,6 @@ tags: [services, catalog]
 | Dozzle | logs | P | 25–50 / 80 | Live container log viewer — ALL containers, read-only docker.sock; **viewer only, Loki stays the log store** |
 | n8n | auto | I | 200–400 / 700 | Alert router → Signal/email (also office automation) |
 | signal-cli | — | I | 80–150 / 250 | Signal delivery (linked device, "Homelab Alerts") |
-| Doco-CD | — | host | 60–120 / 200 | GitOps continuous delivery (host docker.sock) |
 | Renovate Bot | — | I | 150–300 / 600 | Docker image version tracking |
 | Sunshine | — | I | 100–200 / 500 | Game streaming (manual start) — AMD dGPU (VRAM) |
 | HA standby | ha (VIP) | I | 300–500 / 800 | Home Assistant cold-standby on oldsrv (failover) |
@@ -101,7 +100,7 @@ tags: [services, catalog]
 
 > **Network codes (used in the catalog above):** `P` = traefik-public (edge) · `I` = services-internal
 > (app ↔ app) · `D` = db-internal (isolated) · `W` = wireguard-s2s (home router ↔ VPS S2S tunnel)
-> · `host` = host process / host docker.sock, not on an overlay (Alloy, Doco-CD).
+> · `host` = host process / host docker.sock, not on an overlay (Alloy). (Doco-CD removed — HD-150.)
 
 ---
 
@@ -134,7 +133,7 @@ WAN allow. Everything else in the catalog is **internal-only** (no public record
 
 - **Traefik Dashboard** — **included**, internal-only, `traefik.kogler.si` (labels in [`services-traefik.md`](services-traefik.md)).
 - **CrowdSec Dashboard** — **included**, internal-only, `sec.kogler.si`, served via the **Metabase** instance (one Metabase = CrowdSec view + Metabase learning/analytics sandbox). CrowdSec's bundled/pinned Metabase image is **not** used, keeping the Metabase version decoupled from CrowdSec.
-- **Portainer / Dockge** — **excluded**. Conflicts with the GitOps model (Doco-CD + Ansible-templated compose) and adds an extra Docker-socket admin surface. Not deployed.
+- **Portainer / Dockge** — **excluded**. Conflicts with the single Ansible-templated compose model and adds an extra Docker-socket admin surface. Not deployed.
 
 ---
 
@@ -202,7 +201,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 
 Full architecture in [`observability.md`](observability.md). Summary:
 
-- **Metrics ownership:** Alloy = host + SNMP; Prometheus = service scrape (Traefik, CrowdSec, Doco-CD); blackbox = external reachability; HA exporter = entity metrics. **One metrics backend: Prometheus.**
+- **Metrics ownership:** Alloy = host + SNMP; Prometheus = service scrape (Traefik, CrowdSec); blackbox = external reachability; HA exporter = entity metrics. **One metrics backend: Prometheus.**
 - **Logs:** Alloy → Loki (14d).
 - **Display:** Grafana (`stats.kogler.si`, **internal**, admin-only SSO) + Homepage status widget (reachability).
 - **Alerts:** Grafana Alerting → n8n → Signal (Homelab Alerts group) + email fail-safe. 3 tiers (Critical/Warning/Info).

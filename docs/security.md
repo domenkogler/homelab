@@ -83,8 +83,6 @@ Owning doc: [deployment-compose.md](deployment-compose.md). **Tracked: HD-62.**
   needs. *(evidence: KOPS-014)*. Owning doc: [smart-home-failover.md](smart-home-failover.md).
 - **Technitium** — runs as root with `NET_ADMIN` on port 53; add `user:` and drop `NET_ADMIN` if not
   required (**HD-62** host-port policy; evidence: KOPS-015/032).
-- **Doco-CD** — host-network + `docker.sock:rw` + Forgejo write token. Keep `cap_drop: ALL`, distroless
-  non-root; split the Forgejo token to bound write scope (**HD-77**; evidence: KOPS-024/055).
 
 **Tracked: HD-72, HD-62, HD-77.**
 

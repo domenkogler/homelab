@@ -116,5 +116,5 @@ ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 - **GitOps operations:** Renovate tracks updates → Forgejo Actions deploys via Ansible `--tags`
 - **Single Git repo:** IaC, documentation, and family guides live together
 - **Single DNS namespace `kogler.si`** — split-horizon; one `*.kogler.si` wildcard cert (Cloudflare DNS-01)
-- **Six interfaces, no overlap:** Homepage (family launchpad), TileBoard (smart home), Grafana (analytics), Forgejo (admin), Obsidian (knowledge base), Doco-CD (deployment status)
+- **Five interfaces, no overlap:** Homepage (family launchpad), TileBoard (smart home), Grafana (analytics), Forgejo (admin), Obsidian (knowledge base). (Doco-CD removed — HD-150; deployment = Ansible + Forgejo Actions.)
 - **Self-hosted messaging:** Matrix (Tuwunel) + Element Web — native family chat, no commercial-app dependency, no third-party bridges (deferred, Phase 2 best-effort) — see [`docs/services-matrix.md`](docs/services-matrix.md)

@@ -47,7 +47,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Observe (blackbox-exporter) | `services-internal` |
 | Observe logs viewer (Dozzle) | `traefik-public` (read-only `docker.sock`) |
 | Alert (n8n) | `services-internal` |
-| CD (Doco-CD) | host network (needs `docker.sock`) |
+| CD (Ansible via Forgejo Actions) | host SSH (no Docker-socket agent) |
 | Update (Renovate) | `services-internal` |
 | Stream (Sunshine) | `services-internal` |
 | Media/*arr UI (Jellyfin, Seerr, Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd, Profilarr) | `services-internal` + `traefik-public` |

@@ -54,7 +54,7 @@ tags: [hardware, phase2, proxmox]
 
 ```
 Proxmox Host:
-├─ VM: docker-host (Docker + Doco-CD)
+├─ VM: docker-host (Docker + Ansible-managed)
 │   ├─ Edge: Traefik, CrowdSec
 │   ├─ Identity: Authentik
 │   ├─ Platform: OpenCloud, Immich, Forgejo
@@ -102,8 +102,8 @@ Proxmox Host:
 
 ## Phase 2 vs VPS Co-existence
 
-| Target | CD Tool | Why |
-|--------|---------|-----|
-| **oldsrv** (local Docker) | Doco-CD | Fast, drift-correcting, no SSH |
-| **Phase 2 Proxmox** (local VM Docker) | Doco-CD | Same container, same config — portable |
-| **VPS** (remote Docker) | Forgejo Actions + Ansible | Doco-CD needs socket access; SSH for remote |
+| Target | Deploy tool | Why |
+|--------|-------------|-----|
+| **oldsrv** (local Docker) | Ansible | single path; SSH into host, no Docker-socket agent |
+| **Phase 2 Proxmox** (local VM Docker) | Ansible | same, portable |
+| **VPS** (remote Docker) | Forgejo Actions + Ansible | the deploy button runs Ansible; SSH is right tool |
