@@ -10,7 +10,8 @@
 #   Secrets (fail-closed, HD-65):
 #     openwebui_secret (password -> password)  — WEBUI_SECRET_KEY (session/encryption)
 #     litellm_master_key (api -> credential)   — backend auth to LiteLLM
-#     openwebui_api (api -> username/credential) — Authentik OIDC client_id/secret (created at deploy)
+#     openwebui_api (api -> username/credential) — Authentik OIDC client_id/secret; seeded by the
+#     secret-egress glue (HD-143) from the Blueprint-declared provider (ks-oidc.yml, HD-142)
 #   Image: openwebui/open-webui pinned via openwebui_version (HD-61/KOPS-053 convention).
 services:
   open-webui:

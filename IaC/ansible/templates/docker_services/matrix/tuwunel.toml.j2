@@ -53,12 +53,10 @@ server = "matrix.kogler.si:443"
 
 # --- Authentik OIDC — Matrix-native SSO (docs/services-authentik.md) ---
 #   - client_id / client_secret  -> 1Password `matrix_api` (API credential item:
-#     username = client_id, credential = client_secret).
-#   - issuer_url must match the Authentik OIDC provider discovery URL. Adjust the
-#     <slug> to the Authentik provider-application slug (Authentik is configured in its
-#     own UI/DB, not in this repo).
+#     username = client_id, credential = client_secret), seeded by the secret-egress glue (HD-143)
+#     from the Authentik Blueprint-declared provider (ks-oidc.yml, HD-142).
+#   - issuer_url must match the Authentik OIDC provider discovery URL.
 #   - The provider's redirect/Allowed redirect URI must be registered EXACTLY as:
-#       https://matrix.kogler.si/_matrix/client/unstable/login/sso/callback/<client_id>
 [[global.identity_provider]]
 brand = "Authentik"
 client_id = "{{ lookup('community.general.onepassword', 'matrix_api', field='username', vault=op_vault) }}"

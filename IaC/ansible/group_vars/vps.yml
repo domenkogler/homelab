@@ -21,6 +21,12 @@ vps_host:
   # SSH connection facts (ansible_user, ansible_host) live in host_vars/vps.kogler.si.yml.
 
 docker_services:
+  # ORDERING CONSTRAINT (HD-146): `authentik` MUST appear before every native-OIDC consumer
+  # (opencloud, immich-app, forgejo, open-webui, matrix, headscale…). The docker_services
+  # role runs the secret-egress glue (HD-143) on the `authentik` iteration, seeding 1Password
+  # client creds that the consumers' compose `lookup()` reads at render time — so a consumer
+  # rendered BEFORE authentik would get empty/placeholder OIDC creds (fail-loud, HD-65).
+  # Do not reorder authentik after a native-OIDC service.
   # === Edge tier (self-contained public edge — HD-40A / HD-135) ===
   - { name: traefik,        template_dir: traefik,   enabled: true }
   - { name: crowdsec,       template_dir: crowdsec,  enabled: true }

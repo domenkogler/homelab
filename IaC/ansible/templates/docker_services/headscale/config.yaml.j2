@@ -1,8 +1,9 @@
 {{ ansible_managed | comment }}
 # headscale configuration — auto-generated from template.
-# OIDC provider must be created in Authentik post-deploy:
-#   Provider: OIDC, Client ID = {{ lookup('community.general.onepassword', 'headscale_api', field='username', vault=op_vault) }}
-#   Redirect URI: https://vpn.kogler.si/oidc/callback
+# OIDC provider is declared in the Authentik Blueprint (ks-oidc.yml, HD-142); client
+# creds (`username`=client_id, `credential`=client_secret) are seeded into `headscale_api`
+# by the secret-egress glue (HD-143).
+#   Issuer OIDC: https://sso.kogler.si/application/o/headscale/   Redirect: https://vpn.kogler.si/oidc/callback
 
 server_url: https://vpn.kogler.si
 listen_addr: 0.0.0.0:8080
@@ -17,7 +18,7 @@ database:
   sqlite:
     path: /var/lib/headscale/db.sqlite
 
-# OIDC via Authentik (provider must be created in Authentik first)
+# OIDC via Authentik (provider declared in ks-oidc.yml Blueprint; creds seeded by glue, HD-142/143)
 oidc:
   issuer: "https://sso.kogler.si/application/o/headscale/"
   client_id: "{{ lookup('community.general.onepassword', 'headscale_api', field='username', vault=op_vault) }}"

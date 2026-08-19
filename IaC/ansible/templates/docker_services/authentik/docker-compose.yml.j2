@@ -112,8 +112,9 @@ services:
   # Provides Authentik-as-LDAP to Samba on the LAN (nas). This is a *client* served
   # outpost: Authentik stays the SSOT (no push). The outpost echoes the Authentik
   # directory tree (users/groups) over LDAP/LDAPS and validates binds.
-  # REQUIRED at deploy (creation order): create the Authentik **LDAP provider**
-  # (base DN `DC=home,DC=kogler,DC=si`, bind_mode DIRECT) and an outpost instance,
+  # REQUIRED at deploy (creation order): ensure the Authentik **LDAP provider**
+  # (base DN `DC=home,DC=kogler,DC=si`, bind_mode DIRECT) + outpost instance exist —
+  # either declared in the `ks-oidc.yml` Blueprint (HD-142) or created in the Authentik UI,
   # then put the generated outpost token in 1Password as `authentik-ldap_bind`
   # (field=password). The port below (3389) must be firewall-restricted to the NAS
   # host only (see network-ops / trusted sources) — LDAP creds must not be LAN-wide.

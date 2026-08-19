@@ -1,6 +1,6 @@
 # headscale docker-compose.yml — Tailscale coordination server (vpn.kogler.si)
 #   Web UI on port 8080, gRPC metrics on port 9090 (internal).
-#   OIDC configured via config.yaml (Authentik provider must be created post-deploy).
+#   OIDC via config.yaml (Authentik provider declared in ks-oidc.yml Blueprint, HD-142).
 #
 #   Config is mounted from config.yaml.j2 (rendered alongside this compose file).
 #   Data persistence in /srv/docker/headscale/data/.
