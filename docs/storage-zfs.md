@@ -271,6 +271,44 @@ Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Cri
 
 ---
 
+## VPS Storage Layout (netcup RS 2000 G12 — no ZFS)
+
+> **Decision (HD-135, 2026-08-18):** the VPS uses **no ZFS** — the 512 GB NVMe is a single ext4 root disk
+> (netcup default) and the live Hetzner Box is **CIFS**, not a block device, so ZFS-on-the-VPS is **rejected**.
+> Recovery is app-level (OpenCloud `REV.*` versioning + Kopia → backup Box), not filesystem-snapshot-based.
+> The three-tier placement table above is the authoritative decision; this layout documents the concrete paths.
+
+```
+netcup RS 2000 G12 (VPS) — 16 GB RAM, 512 GB NVMe (ext4, single root disk)
+├── / (ext4, root)                    Debian + Docker CE — no ZFS, no btrfs
+├── /srv/docker/<svc>/                per-app data (bind mounts — hot, random-I/O)
+│   ├── authentik/   PostgreSQL + Redis + media
+│   ├── immich/      Postgres + Valkey + upload/thumbs (NOT originals)
+│   ├── opencloud/   OpenCloud instance + config + metadata
+│   ├── forgejo/     Git repos
+│   ├── ...          (full list = group_vars/vps.yml docker_services)
+│   └── *.db         SQLite/state for other services (db-backup, n8n, …)
+└── /mnt/storagebox/                 live Hetzner Box — CIFS (cold/bulk tier)
+    ├── immich/      Immich originals + encoded-video (storage template)
+    ├── opencloud/   OpenCloud user files (WebDAV)
+    └── ...          (any other bulk, write-once, rarely-read data)
+```
+
+**What lives where:**
+
+| Path | Backing | Recovery | Notes |
+|------|---------|-------------------|-------|
+| `/srv/docker/<svc>/*` | VPS NVMe (ext4) | Kopia → backup Box | Hot DBs, caches, live data. Restore = re-run Ansible + Kopia snapshot restore |
+| `/mnt/storagebox/**` | live Hetzner Box (CIFS) | Kopia → backup Box | Cold/bulk: Immich originals, OpenCloud files. CIFS-mounted by the `cifs` role (`livebox_cifs`) |
+| `/var/lib/docker` | VPS NVMe (ext4) | none (images re-pullable) | Overlay2, no bind mount |
+
+**Why no ZFS here:** single NVMe disk with no redundancy to gain; CIFS (the actual bulk tier) is not a block
+protocol ZFS can use; snapshot/rollback is covered by Kopia + OpenCloud versioning at the app layer. This also
+means **`zfs`/`zpool` does not run anywhere in the VPS-era layout** — the only ZFS pools are `tank`/`bulk` (nas)
+and `nvme` (oldsrv), documented above.
+
+---
+
 ## Immich Hybrid Storage (VPS: app+DB+thumbs local, originals+encoded on the live Box, ML on oldsrv)
 
 > **Decision (2026-08-18, HD-135):** Immich runs **on the VPS**. Originals and encoded-video move to the
