@@ -17,10 +17,17 @@
 #   read credentials before Authentik has generated them (chicken-and-egg) and is the
 #   exact error the A+mini-glue design removes.
 #
-# Deploy-verify (HD-147): oauth2provider attrs (authentication_flow/authorization_flow
-# names, signing_key name, sub_mode, scope/property mappings) are Authentik-version-specific.
-# Validate against the running Authentik on first apply; defaults referenced (self-signed
-# cert, implicit-consent flows) ship with a stock Authentik install.
+# VERIFIED against goauthentik/authentik main, 2026-08-19 (HD-149):
+#   - authentication_flow slug = default-authentication-flow
+#   - authorization_flow slug = default-provider-authorization-implicit-consent (default- required)
+#   - signing_key = 'authentik Self-signed Certificate' (default bootstrap cert)
+#   - sub_mode = hashed_user_id (model default)
+#   - application binds provider via `provider: !KeyOf <id>` INSIDE the authentik_core.application
+#     entry; there is NO authentik_providers_oauth2.application link model (removed 2026-08-19).
+# Local validation: scripts/validate_blueprints.py (custom-tag YAML loader + HD-149 checks), wired
+# into scripts/validate-all.sh. Authoring notes: docs/services-authentik.md "Blueprint authoring notes".
+# Live deploy-verify (HD-147/149): apply on the pinned authentik_version, confirm import + the
+# secret-egress glue (HD-143) seeds client creds + each redirect_uri matches its consumer.
 #
 # Scope (2026-08-19): HD-142 + HD-148 — OpenWebUI, Headscale, Matrix(Tuwunel), OpenClaw,
 #   OpenCloud, Immich, Forgejo, Metabase.
@@ -34,8 +41,8 @@ entries:
     id: provider_openwebui
     attrs:
       name: openwebui
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
       redirect_uris: |
         https://ai.kogler.si/oauth2/callback
@@ -47,10 +54,8 @@ entries:
       name: Open WebUI
       slug: openwebui
       meta_launch_url: https://ai.kogler.si
-  - model: authentik_providers_oauth2.application
-    attrs:
-      application: !Key app_openwebui
-      provider: !Key provider_openwebui
+      provider: !KeyOf provider_openwebui
+
 
   # ==================================================================================
   # Headscale (vpn.kogler.si)  ->  1Password `headscale_api` (seeded by glue)
@@ -59,8 +64,8 @@ entries:
     id: provider_headscale
     attrs:
       name: headscale
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
       redirect_uris: |
         https://vpn.kogler.si/oidc/callback
@@ -72,10 +77,8 @@ entries:
       name: Headscale
       slug: headscale
       meta_launch_url: https://vpn.kogler.si
-  - model: authentik_providers_oauth2.application
-    attrs:
-      application: !Key app_headscale
-      provider: !Key provider_headscale
+      provider: !KeyOf provider_headscale
+
 
   # ==================================================================================
   # Matrix / Tuwunel (matrix.kogler.si)  ->  1Password `matrix_api` (seeded by glue)
@@ -87,8 +90,8 @@ entries:
     id: provider_matrix
     attrs:
       name: matrix
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
       redirect_uris: |
         https://matrix.kogler.si/_matrix/client/unstable/login/sso/callback/*
@@ -100,10 +103,8 @@ entries:
       name: Matrix
       slug: matrix
       meta_launch_url: https://matrix.kogler.si
-  - model: authentik_providers_oauth2.application
-    attrs:
-      application: !Key app_matrix
-      provider: !Key provider_matrix
+      provider: !KeyOf provider_matrix
+
 
   # ==================================================================================
   # OpenClaw (internal gateway, services-internal — NO public subdomain)
@@ -118,8 +119,8 @@ entries:
     id: provider_openclaw
     attrs:
       name: openclaw
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
       # redirect_uris filled from `openclaw onboard` output at deploy (HD-104 / HD-143)
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
@@ -129,10 +130,8 @@ entries:
     attrs:
       name: OpenClaw
       slug: openclaw
-  - model: authentik_providers_oauth2.application
-    attrs:
-      application: !Key app_openclaw
-      provider: !Key provider_openclaw
+      provider: !KeyOf provider_openclaw
+
 
   # ==================================================================================
   # OpenCloud (file.kogler.si)  ->  1Password `opencloud_oidc` (seeded by glue)
@@ -145,8 +144,8 @@ entries:
     id: provider_opencloud
     attrs:
       name: opencloud
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
       redirect_uris: |
         https://file.kogler.si/oauth2/callback
@@ -158,10 +157,8 @@ entries:
       name: OpenCloud
       slug: opencloud
       meta_launch_url: https://file.kogler.si
-  - model: authentik_providers_oauth2.application
-    attrs:
-      application: !Key app_opencloud
-      provider: !Key provider_opencloud
+      provider: !KeyOf provider_opencloud
+
 
   # ==================================================================================
   # Immich (foto.kogler.si)  ->  1Password `immich_oidc` (seeded by glue)
@@ -174,8 +171,8 @@ entries:
     id: provider_immich
     attrs:
       name: immich
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
       redirect_uris: |
         app.immich:///oauth-callback
@@ -189,10 +186,8 @@ entries:
       name: Immich
       slug: immich
       meta_launch_url: https://foto.kogler.si
-  - model: authentik_providers_oauth2.application
-    attrs:
-      application: !Key app_immich
-      provider: !Key provider_immich
+      provider: !KeyOf provider_immich
+
 
   # ==================================================================================
   # Forgejo (git.kogler.si)  ->  1Password `forgejo_oidc` (seeded by glue)
@@ -206,8 +201,8 @@ entries:
     id: provider_forgejo
     attrs:
       name: forgejo
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
       redirect_uris: |
         https://git.kogler.si/user/oauth2/.*
@@ -219,10 +214,8 @@ entries:
       name: Forgejo
       slug: forgejo
       meta_launch_url: https://git.kogler.si
-  - model: authentik_providers_oauth2.application
-    attrs:
-      application: !Key app_forgejo
-      provider: !Key provider_forgejo
+      provider: !KeyOf provider_forgejo
+
 
   # ==================================================================================
   # Metabase (sec.kogler.si)  ->  1Password `metabase_oidc` (seeded by glue)
@@ -234,8 +227,8 @@ entries:
     id: provider_metabase
     attrs:
       name: metabase
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
       redirect_uris: |
         https://sec.kogler.si/auth/sso
@@ -247,7 +240,4 @@ entries:
       name: Metabase
       slug: metabase
       meta_launch_url: https://sec.kogler.si
-  - model: authentik_providers_oauth2.application
-    attrs:
-      application: !Key app_metabase
-      provider: !Key provider_metabase
+      provider: !KeyOf provider_metabase

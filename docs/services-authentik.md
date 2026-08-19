@@ -95,6 +95,53 @@ The two concerns are split at their natural seam — **shape** (Blueprints) vs *
 volume live in [`deployment-compose.md`](deployment-compose.md); the glue step is referenced in
 `deployment-ansible.md`.
 
+### Blueprint authoring notes (verified against Authentik source, 2026-08-19 — HD-149)
+
+> Local validation: **`scripts/validate_blueprints.py`** parses Blueprint YAML (custom `!Find`/`!KeyOf`
+> tags) and fails on the mistakes below — run it (or `scripts/validate-all.sh`) before committing a
+> blueprint change.
+>
+> These four facts were **verified against `goauthentik/authentik` `main`** (blueprints + models) on
+> 2026-08-19 and the `ks-oidc.yml` blueprint was corrected to match. Follow them when adding any
+> future OIDC provider/app to the blueprint:
+
+1. **Flow slugs (both have the `default-` prefix).** The default provider-authorization flow slug is
+   `default-provider-authorization-implicit-consent` (NOT `provider-authorization-implicit-consent` —
+   omitting `default-` makes the `!Find` return null and the blueprint import fails). The default
+   *authentication* flow slug is `default-authentication-flow`. ⚠ Do NOT point `authentication_flow`
+   at the authorization slug — they are different flows.
+2. **Signing key:** `!Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]`
+   is correct — Authentik's default bootstrap cert carries that exact name.
+3. **`sub_mode: hashed_user_id`** is correct (it is the OAuth2Provider model default).
+4. **Provider→application binding:** there is **NO `authentik_providers_oauth2.application` model.**
+   The `authentik_core.application` model carries a `provider` OneToOneField, so bind via
+   `provider: !KeyOf <provider-id>` **inside the application entry's `attrs`**. Do NOT use a separate
+   link entry (`model: authentik_providers_oauth2.application` + `application:`/`provider:` `!Key`
+   refs) — that model does not exist and the import fails.
+
+**Canonical 2-entry pattern (per OIDC consumer):**
+
+```yaml
+- model: authentik_providers_oauth2.oauth2provider
+  id: provider_<svc>
+  attrs:
+    name: <svc>
+    authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+    authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+    client_type: confidential
+    redirect_uris: |
+      https://<svc>.kogler.si/<callback>
+    signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+    sub_mode: hashed_user_id
+- model: authentik_core.application
+  id: app_<svc>
+  attrs:
+    name: <Service Name>
+    slug: <svc>
+    meta_launch_url: https://<svc>.kogler.si
+    provider: !KeyOf provider_<svc>
+```
+
 ### Authentication tokens (two, distinct scopes)
 - `authentik-api_token` — **read-only** API token; the Authentik→NAS provisioning glue
   (`sync-authentik-users.sh`, D5/HD-131) uses this to *read* the `family` group.

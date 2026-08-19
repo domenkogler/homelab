@@ -26,6 +26,9 @@ export PYTHONUTF8=1
 echo "== validate-docker-services.py =="
 $PY scripts/validate-docker-services.py
 
+echo "== validate_blueprints.py =="
+$PY scripts/validate_blueprints.py
+
 echo "== check_doc_ips.py =="
 $PY scripts/check_doc_ips.py
 
