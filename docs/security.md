@@ -84,7 +84,7 @@ Owning doc: [deployment-compose.md](deployment-compose.md). **Tracked: HD-62.**
 - **Technitium** — runs as root with `NET_ADMIN` on port 53; add `user:` and drop `NET_ADMIN` if not
   required (**HD-62** host-port policy; evidence: KOPS-015/032).
 
-**Tracked: HD-72, HD-62, HD-77.**
+**Tracked: HD-72, HD-62.** *(HD-77 was the Doco-CD Forgejo-token split — dropped with Doco-CD, HD-150.)*
 
 ## 5. Backup coverage (Flaw E)
 

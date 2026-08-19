@@ -282,7 +282,7 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 5. **Metrics** — none (no Doco-CD exporter); Prometheus scrape set stays Traefik/CrowdSec + services.
 6. **Post-deploy hooks** — Ansible regenerates Homepage config + `inventory.md` → commit+push.
 
-**Verify:** a Renovate PR → merge → Forgejo **deploy button** → service updated with **no manual Ansible run**;
+**Verify:** a Renovate PR → merge → Forgejo **deploy button** → service updated with **no manual Ansible run**.
 
 ---
 

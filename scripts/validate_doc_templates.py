@@ -54,6 +54,12 @@ ctx = {
         {"name": "traefik", "subdomain": None, "enabled": True},
         {"name": "grafana", "subdomain": "stats", "enabled": True},
     ],
+    # Multi-host inventory render: list of {key: host, value: {('_docker_services'): [...]}}
+    # (the shape render-docs.yml builds via dict2items + selectattr).
+    "all_hostvars": [
+        {"key": "vps.kogler.si", "value": {"_docker_services": [{"name": "traefik", "subdomain": None, "enabled": True}]}},
+        {"key": "oldsrv.kogler.si", "value": {"_docker_services": [{"name": "jellyfin", "subdomain": "media", "enabled": True}]}},
+    ],
     "domain_public": "kogler.si",
     "inventory_hostname": "oldsrv.kogler.si",
 }

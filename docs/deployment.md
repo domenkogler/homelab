@@ -72,8 +72,7 @@ git push → (Forgejo Actions CI) → merge → deploy button → Ansible → de
 │   └── router/                              # RouterOS .rsc files
 │
 ├── docs/                                    # This documentation
-├── renovate.json                            # Renovate update config
-└── renovate.json                            # Renovate Bot config
+└── renovate.json                            # Renovate update config
 ```
 
 ---

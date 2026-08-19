@@ -1,25 +1,31 @@
 {{ ansible_managed | comment }}
 <!-- Service inventory — auto-generated from IaC/ansible/group_vars docker_services list. -->
-<!-- Do NOT hand-edit. Change group_vars/home_servers.yml (or raspberry_pi.yml, vps.yml) and re-render. -->
+<!-- Do NOT hand-edit. Change group_vars/*.yml (home_servers.yml, raspberry_pi.yml, vps.yml) and re-render. -->
 <!-- Re-render:   ansible-playbook IaC/ansible/playbooks/render-docs.yml -i IaC/ansible/inventory.ini -->
 <!-- (also regenerated automatically by the docker_services role post-deploy hook) -->
 <!-- Source of truth: IaC/ansible/group_vars/ (home_servers.yml, raspberry_pi.yml, vps.yml) -->
 
 # Service Inventory
 
-> **Source of truth:** `group_vars/home_servers.yml` / `group_vars/raspberry_pi.yml` — the `docker_services` list.
-> This page is a generated view. For architectural context (RAM, networks, descriptions), see
+> **Source of truth:** the `docker_services` lists in `group_vars/*.yml` (home_servers.yml, vps.yml).
+> This page is a generated view across ALL docker hosts. For architectural context (RAM, networks, descriptions), see
 > [`services.md`](services.md).
 
-Services listed in the order defined in `group_vars` (grouped by purpose in the source).
+Services grouped by host, in the order defined in `group_vars` (grouped by purpose in the source).
+{% set all_docker_hosts = {} %}
+{% for h in all_hostvars %}{% set _d = all_docker_hosts.update({h.key: h.value['_docker_services']}) %}{% endfor %}
+{% for host, services in all_docker_hosts.items() %}
 
-| # | Service | Subdomain | URL | Host | Status |
-|---|---------|-----------|-----|------|--------|
-{% for svc in docker_services %}
+## {{ host }}
+
+| # | Service | Subdomain | URL | Status |
+|---|---------|-----------|-----|--------|
+{% for svc in services %}
 {% set sub = svc.subdomain | default(svc.name) %}
-| {{ loop.index }} | {{ svc.name }}{% if svc.instance is defined %} ({{ svc.instance }}){% endif %} | {{ sub }} | `https://{{ sub }}.{{ domain_public }}` | {{ inventory_hostname }} | {{ 'enabled' if (svc.enabled | default(true)) else 'disabled' }} |
+| {{ loop.index }} | {{ svc.name }}{% if svc.instance is defined %} ({{ svc.instance }}){% endif %} | {{ sub }} | `https://{{ sub }}.{{ domain_public }}` | {{ 'enabled' if (svc.enabled | default(true)) else 'disabled' }} |
+{% endfor %}
 {% endfor %}
 
 ---
 
-> Generated from `docker_services` list | {{ ansible_date_time.iso8601 }}
+> Generated from the `docker_services` lists | {{ ansible_date_time.iso8601 }}

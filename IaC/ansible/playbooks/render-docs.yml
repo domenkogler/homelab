@@ -1,37 +1,46 @@
 ---
 # render-docs.yml — control-plane SSOT render
 # ------------------------------------------------
-# Regenerates docs/network-addresses.md (IP address SSOT) from
-# IaC/ansible group_vars/host_vars. This is the "IaC → docs" half of the
+# Regenerates docs/network-addresses.md + docs/inventory.md + docs/subscriptions-table.md
+# from IaC/ansible group_vars/host_vars. This is the "IaC → docs" half of the
 # IaC-as-source model. The Ansible post-deploy hook invokes the same render
 #
 # Run standalone:   ansible-playbook playbooks/render-docs.yml -i inventory.ini
 # (also invoked as the final step of site.yml)
 - name: Render SSOT docs from IaC (control plane)
-  hosts: localhost
+  hosts: localhost:docker_hosts:raspberry_pi
   connection: local
-  gather_facts: false
-  run_once: true
+  gather_facts: true
   tasks:
-    - name: Render docs/network-addresses.md from group_vars/all.yml SSOT
-      template:
-        src: "{{ playbook_dir }}/../templates/network-addresses.md.j2"
-        dest: "{{ playbook_dir }}/../../../docs/network-addresses.md"
-
-    # inventory.md belongs to the docker_services post-deploy hook (on oldsrv,
-    # where `inventory_hostname` is meaningful). Rendered here only if a
-    # docker_services list is in scope.
-    - name: Render docs/inventory.md (service inventory)
-      template:
-        src: "{{ playbook_dir }}/../templates/inventory.md.j2"
-        dest: "{{ playbook_dir }}/../../../docs/inventory.md"
+    # Record each Docker host's `docker_services` as a hostvar so the render task can read
+    # every host's list (docker_hosts + raspberry_pi are in this play, but only hosts that
+    # define `docker_services` — i.e. the Docker hosts, not pure-control localhost — carry it).
+    - name: Record docker_services for this host
+      ansible.builtin.set_fact:
+        _docker_services: "{{ docker_services }}"
       when: docker_services is defined
 
-    # Subscription schedule table — derived from group_vars/subscriptions.yml SSOT.
-    # Prose/billing/description sections of docs/subscription.md stay hand-authored;
-    # only the renewal/schedule tables are generated here. Keep in sync when
-    # running the post-deploy hook alongside the Homepage + calendar regeneration.
+    # inventory.md — full multi-host service inventory (VPS + home_servers + raspberry_pi),
+    # rendered once on localhost from each host's recorded `_docker_services`.
+    - name: Render docs/inventory.md (service inventory — all Docker hosts)
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/inventory.md.j2"
+        dest: "{{ playbook_dir }}/../../../docs/inventory.md"
+      vars:
+        all_hostvars: "{{ hostvars | dict2items | selectattr('value._docker_services', 'defined') | list }}"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Render docs/network-addresses.md from group_vars/all.yml SSOT
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/network-addresses.md.j2"
+        dest: "{{ playbook_dir }}/../../../docs/network-addresses.md"
+      delegate_to: localhost
+      run_once: true
+
     - name: Render docs/subscriptions-table.md (subscription SSOT)
-      template:
+      ansible.builtin.template:
         src: "{{ playbook_dir }}/../templates/subscription-table.md.j2"
         dest: "{{ playbook_dir }}/../../../docs/subscriptions-table.md"
+      delegate_to: localhost
+      run_once: true
