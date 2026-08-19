@@ -29,6 +29,8 @@
 | Service list | `group_vars/<host>.yml` is the deploy loop SSOT; catalog row in `docs/services.md` | [docs/services.md](docs/services.md) |
 | Compose path | `/opt/<service>/docker-compose.yml` — architectural constant | [docs/deployment-compose.md](docs/deployment-compose.md) |
 | Generated docs | never hand-edit ★-marked/generated docs (`inventory.md`, `network-addresses.md`) | [docs/index.md](docs/index.md) |
+| Counts | doc-stated **counts** (templates, roles, files, services) are **derived, never hand-entered** — quote the validator/dir as the source (`scripts/validate-docker-services.py`, `roles/`, `docker_services/`); a stale number in prose is a defect, not a cosmetic | [docs/index.md](docs/index.md) (Validation), [scripts/validate-all.sh](scripts/validate-all.sh) |
+| Data location | a storage/media **data-location change** (e.g. MinIO retired → live Box CIFS) must update IaC **and** the owning service/storage docs **in the same change** — a data-location claim in prose that contradicts the IaC is a review failure | [docs/services.md](docs/services.md), [docs/storage-zfs.md](docs/storage-zfs.md), [docs/deployment-compose.md](docs/deployment-compose.md) |
 
 ---
 
@@ -44,6 +46,7 @@
 | Compose security | `cap_drop: ALL` + minimal `cap_add`, `read_only`, `tmpfs`; no host ports unless justified; internal services need auth tokens (`<service>-internal_api`) | [docs/deployment-compose.md](docs/deployment-compose.md) (Container Security), [docs/security.md](docs/security.md) (Flaw C/D) |
 | Compose versioning | pinned tags (never bare `latest`) + Renovate trail | [docs/deployment-compose.md](docs/deployment-compose.md), [renovate.json](renovate.json) |
 | RouterOS | management services bound to Management VLAN; bootstrap `.rsc` + Ansible role both enforce | [docs/network-ops.md](docs/network-ops.md) |
+| Two-sided deploy gate | a service/component whose IaC is done **but not live** is ⏳ deploy-gated in `todo.md` **and** its owning doc must carry the same visible status block (**🔴 planned / 🟢 IaC done ⏳ / ✅ live**) — a design-spec doc for a not-live service must say "not yet live — ⏳ deploy-gated", never read as deployed | [todo.md](todo.md) (§0/§3c), [docs/security.md](docs/security.md) (Deploy-gated rows), each owning service doc |
 
 ---
 
@@ -96,4 +99,4 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 
 ---
 
-*Last review: 2026-08-17. Owning docs above remain authoritative.*
+*Last review: 2026-08-19 (added: derived-counts, data-location same-change, two-sided deploy gate). Owning docs above remain authoritative.*
