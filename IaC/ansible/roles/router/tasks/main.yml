@@ -245,6 +245,52 @@
         list: ups_management
         comment: "UPS management host"
 
+- name: Create firewall address list for the VPS S2S peer (HD-155 least-access)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip firewall address-list
+    handle_absent_entries: ignore
+    data:
+      - address: "{{ wireguard_s2s_vps.remote_ip.split('/')[0] }}"
+        list: vps_s2s_peer
+        comment: "VPS S2S peer (HD-155) — least-access source"
+
+- name: Create firewall address list for the scoped home targets the VPS may reach (HD-155)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip firewall address-list
+    handle_absent_entries: ignore
+    data:
+      - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+        list: vps_scoped_home
+        comment: "HD-155: nas (nut/zfs exporters)"
+      - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'ha-vip') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+        list: vps_scoped_home
+        comment: "HD-155: HA VIP (exporter)"
+      - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+        list: vps_scoped_home
+        comment: "HD-155: oldsrv (backends when wired)"
+      - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+        list: vps_scoped_home
+        comment: "HD-155: pi (probe)"
+      - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}"
+        list: vps_scoped_home
+        comment: "HD-155: router (probe)"
+      - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}"
+        list: vps_scoped_home
+        comment: "HD-155: switch (probe)"
+
+
 
 # -------------------------------------------------------------------------
 # Firewall - NAT Masquerade
@@ -348,6 +394,15 @@
         out-interface: pppoe-telekom
         action: drop
         comment: "IoT → WAN drop (disable manually for firmware updates)"
+      - chain: forward
+        src-address-list: vps_s2s_peer
+        dst-address-list: vps_scoped_home
+        action: accept
+        comment: "VPS S2S → scoped home targets (HD-155)"
+      - chain: forward
+        src-address-list: vps_s2s_peer
+        action: drop
+        comment: "VPS S2S → anything else DROP (HD-155 least-access)"
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ vlan_subnets[50] }}"
@@ -538,7 +593,7 @@
     data:
       - interface: wg-s2s
         public-key: "{{ wireguard_s2s_vps.vps_public_key }}"
-        allowed-address: "{{ wireguard_s2s_vps.remote_ip }},{{ (network_ranges | selectattr('name', 'equalto', 'wg-vps-services') | first).cidr }}"
+        allowed-address: "{{ wireguard_s2s_vps.remote_ip }},{{ wireguard_s2s_vps.allowed_ips | join(',') }}"
         endpoint-address: "{{ wireguard_s2s_vps.remote_endpoint }}"
         endpoint-port: "{{ wireguard_s2s_vps.port }}"
         comment: vps-s2s

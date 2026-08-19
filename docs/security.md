@@ -172,11 +172,20 @@ Owning docs: [deployment-preseed.md](deployment-preseed.md),
 > `site` (whole /16) + `wg-vps-services` from the VPS into the home plane — **too broad** for a compromised-VPS
 > blast radius. Folded from the 2026-08-19 security audit (HD-153).
 >
-> **Recommendation:** define an **ACL on the tunnel** — the VPS may reach only the home **exporter / HA-VIP / probe**
-> targets (Prometheus/Loki scrapers, blackbox liveness), NOT general LAN read/write. Enforce in WireGuard
-> **AllowedIPs** + a **RouterOS INPUT rule**, and document which home subnets/ports the VPS may reach.
-> Additionally, the `wireguard` role skip under an **empty pubkey** must be **fail-loud** (task log / guard), not
-> silent — a run must never look like it configured WG when it didn't.
+> **Enforced (2026-08-19, HD-155):**
+> - **WireGuard AllowedIPs** scoped on BOTH sides (`all.yml` `wg_s2s_vps.allowed_ips` + `router.yml` `wireguard_s2s_vps.allowed_ips`)
+>   to the **specific home targets** only — nas (nut:9199/zfs:9198), ha-vip (HA:8123), oldsrv + pi (probes/backends),
+>   router/switch (ICMP) — **NOT** the whole `site` /16. Derived from `network_static_hosts` by name (no literals).
+> - **RouterOS forward ACL:** a `vps_s2s_peer` address-list may reach only `vps_scoped_home`; everything else from
+>   the VPS peer is **DROPPED** (fail-loud blast radius on the router, independent of crypto AllowedIPs).
+> - **fail-loud WG gate:** the `wireguard` role already asserts an **empty peer pubkey aborts** (assert task, HD-65/91) —
+>   a run never looks like it configured WG when it didn't. (`playbooks/vps.yml` also gates the role on
+>   `wg_s2s_vps.peer_public_key` non-empty.)
+>
+>   `wg_s2s_vps.peer_public_key` non-empty.)
+>
+> **Design note (superseded by the enforcement above):** the original recommendation was an ACL on the tunnel —
+> WG gate. That is now implemented; see the enforced items above.
 >
 > Owning docs: [network-vpn.md](network-vpn.md), [services-vps.md](services-vps.md), `router.yml`, `all.yml`
 > (`wg_s2s_vps.allowed_ips`). **HD-155 (IaC + ACL), HD-03 (deploy-gate).**

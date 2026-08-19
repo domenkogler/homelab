@@ -44,6 +44,11 @@ All concrete CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastr
 - Home router: static route `wg-vps-services` → via the VPS S2S peer
 - VPS: route `site` → via the home S2S peer
 
+> **Least-access (HD-155):** the VPS S2S peer's **AllowedIPs** (both sides) cover **only** the scoped home targets —
+> `nas` (nut:9199 / zfs:9198), `ha-vip` (HA:8123), `oldsrv` + `pi` (probes / app backends when wired), `router`/`switch`
+> (ICMP) — **not** the whole `site` /16. The RB4011 additionally enforces a forward ACL (`vps_s2s_peer` →
+> `vps_scoped_home` accept, else drop). See [`security.md`](security.md) §9.
+
 ## Layer 2: Headscale (Mobile Mesh)
 
 - Runs on the **VPS** as a Docker container (HD-135: public coordination server, VPS residency)

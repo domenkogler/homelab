@@ -24,6 +24,18 @@ wireguard_s2s_vps:
   # peer. Fail-closed when unset at deploy; the shared `wg_password` here is the router's
   # private key. Single-private-key-per-S2S-family means each side derives its own pubkey.
   vps_public_key: "{{ lookup('vars', 'wg_s2s_vps_public_key') if 'wg_s2s_vps_public_key' in vars else '' }}"
+  # LEAST-ACCESS (HD-155): the router accepts from the VPS peer only the scoped home
+  # targets (exporter/VIP/probe + oldsrv backends) + wg-vps-services — NOT the whole
+  # `site` /16. Same SSOT-derived list as group_vars/all.yml `wg_s2s_vps.allowed_ips`
+  # (kept here so the RouterOS peer `allowed-address` matches the VPS side).
+  allowed_ips:
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'ha-vip') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
+    - "{{ (network_ranges | selectattr('name', 'equalto', 'wg-vps-services') | first).cidr }}"
 
 # Headscale overlay for user devices (Tailscale-compatible CGNAT range).
 # WireGuard is site-to-site ONLY — user devices use Headscale, not road-warrior.

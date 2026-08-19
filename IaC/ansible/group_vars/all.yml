@@ -171,10 +171,18 @@ wg_s2s_vps:
   listen_port: 51820
   endpoint: ""                        # home WAN endpoint (dynamic); the VPS initiates here — set at deploy
   peer_public_key: "{{ lookup('vars', 'wg_s2s_router_public_key') if 'wg_s2s_router_public_key' in vars else '' }}"  # router(PubKey), provisioned at deploy
-  # AllowedIPs derived from the network_ranges SSOT by name (site, wg-vps-services) —
-  # so VPS Prometheus reaches home targets (nut/zfs/ha_vip/ICMP) and app backends.
+  # AllowedIPs — LEAST-ACCESS (HD-155): the VPS may reach ONLY the scoped home
+  # targets below (exporter/VIP/probe + oldsrv backends when wired), NOT the whole
+  # `site` /16. Derived from network_static_hosts by name (never literal IPs). The
+  # wg-vps-services range stays (VPS-resident services on the other side of the peer).
+  # A compromised VPS can thus only reach nut/zfs/HA + ICMP + the named app backends.
   allowed_ips:
-    - "{{ (network_ranges | selectattr('name', 'equalto', 'site') | first).cidr }}"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'ha-vip') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
     - "{{ (network_ranges | selectattr('name', 'equalto', 'wg-vps-services') | first).cidr }}"
 
 # ==== Observability backend target for Alloy (HD-135) ====
