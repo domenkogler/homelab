@@ -148,8 +148,10 @@ rules below are central.
   checkers and exits non-zero on the first failure. Individual: `python3 scripts/validate-docker-services.py`
   after touching any compose template or group_vars docker_services list. It renders each template,
   parses the YAML, and enforces structural rules (external networks, Traefik labels, secret hygiene,
-  source-level bugs). Exit 0 = all templates valid (currently 48). See [`scripts/validate-docker-services.py`](../scripts/validate-docker-services.py).
-  Other scripts: `check_doc_ips.py` (IP address SSOT enforcement), `render_network_addresses.py`
+  source-level bugs). Exit 0 = all templates valid (currently 49). See [`scripts/validate-docker-services.py`](../scripts/validate-docker-services.py).
+  Other scripts: `check_doc_ips.py` (IP address SSOT enforcement), `validate-secrets.py`
+  (no literal credentials in group_vars/templates — 1Password lookups only), `check_doc_map.py`
+  (every doc under `docs/` is in the Document Map, no dead links), `render_network_addresses.py`
   (regenerate SSOT doc from IaC), `validate_doc_templates.py` (smoke-test .j2 renders).
 
 - **Hostnames:** single namespace `kogler.si` — flat subdomains, split-horizon (internal-only hosts unpublished in public DNS).

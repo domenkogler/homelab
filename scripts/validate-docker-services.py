@@ -501,9 +501,40 @@ def main():
             failed += 1
             errors_out.extend(errs)
 
-    if errors_out:
-        for e in errors_out:
-            print(e, file=sys.stderr)
+    # Count-lint: every dir under docker_services/ must be referenced by at
+    # least one group_vars docker_services `template_dir:` (HD-157). This
+    # catches the orphan-dir drift where a template is added/renamed but the
+    # group_vars list (the deploy loop SSOT) is not updated — the mirror of
+    # the per-service missing-template check above. A template dir with no
+    # reference is dead code and hides that the service is NOT deployed.
+    referenced_dirs = {
+        s.get("template_dir") or s.get("name")
+        for s in services
+        if s.get("template_dir") is not None or s.get("name") is not None
+    }
+    referenced_dirs = {d for d in referenced_dirs if d}
+    # Intentionally retained template dirs that are NOT in any docker_services
+    # list right now (parked / deferred, documented in group_vars + docs). They
+    # are kept so the work isn't lost, but must be re-wired on reactivation.
+    #   * raspberrymatic — parked (HD-13): HmIP-RFUSB not bought; re-add to the
+    #     Pi loop when local RF is purchased (see group_vars/raspberry_pi.yml).
+    RETAINED_TEMPLATE_DIRS = {"raspberrymatic"}
+    orphan_dirs = sorted(
+        p.name for p in TEMPLATES_DIR.iterdir() if p.is_dir()
+        and p.name not in referenced_dirs
+        and p.name not in RETAINED_TEMPLATE_DIRS
+    )
+    if orphan_dirs:
+        for d in orphan_dirs:
+            errors_out.append(
+                f"[count-lint] docker_services/{d}/ has no `template_dir:` in any "
+                f"group_vars docker_services list — add it or remove the dir"
+            )
+        failed += len(orphan_dirs)
+
+    for e in errors_out:
+        print(e, file=sys.stderr)
+
 
     if failed == 0:
         print(f"PASS: {passed} docker_services templates valid")

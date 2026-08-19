@@ -3,11 +3,14 @@
 #   bash scripts/validate-all.sh          (Linux, macOS, Windows git-bash)
 #
 # Runs every automated checker referenced in docs/index.md → Conventions:
-#   1. validate-docker-services.py — compose templates + group_vars list
-#   2. check_doc_ips.py           — no internal IP literals outside the SSOT
-#   3. validate_doc_templates.py  — SSOT doc templates render with group_vars
+#   1. validate-docker-services.py  — compose templates + group_vars list
+#   2. validate_blueprints.py       — Authentik ks-oidc.yml blueprint shape
+#   3. check_doc_ips.py            — no internal IP literals outside the SSOT
+#   4. validate_doc_templates.py   — SSOT doc templates render with group_vars
+#   5. validate-secrets.py         — no literal credentials in group_vars/templates
+#   6. check_doc_map.py            — docs/index.md document map matches docs/ tree
 #
-# Exit 0 only when all three pass. `set -e` stops at the first failure.
+# Exit 0 only when all pass. `set -e` stops at the first failure.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -34,5 +37,11 @@ $PY scripts/check_doc_ips.py
 
 echo "== validate_doc_templates.py =="
 $PY scripts/validate_doc_templates.py
+
+echo "== validate-secrets.py =="
+$PY scripts/validate-secrets.py
+
+echo "== check_doc_map.py =="
+$PY scripts/check_doc_map.py
 
 echo "OK: all validators passed"
