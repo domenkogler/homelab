@@ -27,8 +27,8 @@ tags: [services, catalog]
 | Authentik | sso | P+I | 700–1,100 / 2,000 | OIDC SSO, MFA (WebAuthn) — bundle: server+worker+postgres+redis |
 | OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud. **Filesystem/WebDAV storage** (HD-131 D2). **Auth: native OIDC → Authentik** (multi-redirect web+desktop+mobile, HD-52); client provisioned via Blueprint + secret-egress glue |
 | MinIO | — | I | 60–120 / 300 | **S3-compatible object store** (HD-131 D1) — backs **Immich originals** (bucket `immich-originals`); loopback/overlay only, no public edge. Later move to Hetzner Storage Box / cloud S3 = endpoint change |
-| Immich | foto | I | 600–1,000 / 2,000 | Photo management, mobile apps (app+postgres+valkey — microservices merged into server in v3). **Originals on S3 (MinIO), thumbs/DB local** (HD-131 D1/D3) |
-| Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner) |
+| Immich | foto | I | 600–1,000 / 2,000 | Photo management, mobile apps (app+postgres+valkey — microservices merged into server in v3). **Originals on live Box (CIFS), thumbs/DB local** (HD-131 D1/D3). **Auth (HD-148): native OIDC → Authentik** (web + mobile `app.immich:///oauth-callback`); client via Blueprint + glue |
+| Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner). **Auth (HD-148): native OIDC → Authentik** (web SSO + per-user API/token); client via Blueprint + glue |
 | Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
 | Immich-ML | — | I | 300–600 / 1,200 | Face recognition, smart search — shares AMD VRAM |
 | LiteLLM | — | I | 120–250 / 500 | **AI stack** — LLM gateway/router (HD-100): local Ollama + OpenRouter (gen) + Cohere (embeddings). Single OpenAI-compatible endpoint, services-internal + llm-backend; own SQLite keys/spend; only component holding upstream keys |
@@ -42,7 +42,7 @@ tags: [services, catalog]
 | Kopia | bck | I | 150–250 / 500 | Encrypted off-site backup → Hetzner Storage Box (backup, far DC) |
 | DB Backup | — | D | 30–60 / 200 | Database dumps (tiredofit/db-backup) |
 | Homepage | kogler.si (root) / home | P | 80–150 / 250 | Family launchpad + status widget |
-| Metabase | sec | P+I | 250–450 / 800 | CrowdSec dashboard + analytics sandbox (one instance, two roles) |
+| Metabase | sec | P+I | 250–450 / 800 | CrowdSec dashboard + analytics sandbox (one instance, two roles). **Auth (HD-148): native OIDC → Authentik** single-provider (email auto-provision); client via Blueprint + glue |
 | Alloy | — | host | 200–400 / 600 | Host metrics + logs + SNMP agent (Ansible, mounts docker.sock) |
 | Prometheus | — | D | 200–400 / 800 | Sole metrics store (30d) |
 | Loki | — | D | 300–600 / 1,500 | Log aggregation (14d) |

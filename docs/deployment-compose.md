@@ -79,7 +79,8 @@ networks:
 The `authentik-server` service mounts a **`blueprints/`** volume (alongside the existing
 `/templates`): Authentik applies the Blueprint idempotently at startup / on demand. The
 `ks-oidc.yml` Blueprint declares the OIDC providers + applications for Open WebUI, Headscale,
-Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC, multi-redirect). Optionally the Authentik
+Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC, multi-redirect), **Immich, Forgejo, Metabase**
+(HD-148). Optionally the Authentik
 **LDAP provider/outpost** (D7/HD-132) is also declared here, removing a manual UI create-step.
 
 ### Deploy ordering (in `vps.yml`)
@@ -88,7 +89,8 @@ Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC, multi-redirect). Optionally 
    bundled blueprint on container start.
 3. **Run the secret-egress glue** — for each declared provider, `GET /api/v3/core/providers/oauth2/`
    → seed the 1Password item (`openwebui_api`, `headscale_api`, `matrix_api`, `openclaw_api`,
-   `opencloud_oidc`) and the OpenCloud service-account item (`opencloud-service_api`).
+   `opencloud_oidc`, `immich_oidc`, `forgejo_oidc`, `metabase_oidc`) and the OpenCloud
+   service-account item (`opencloud-service_api`).
 4. Deploy the **OIDC consumers** — their compose `lookup()` now resolves real client creds.
 
 Fail-closed (HD-65/91): the glue aborts loudly if `authentik-provision_api` is missing, rather than
@@ -101,6 +103,23 @@ For OpenCloud, native OIDC (desktop/mobile client) requires, in the `opencloud` 
 - add `sso.kogler.si` to OpenCloud `csp.yaml` `connect-src`/`frame-src`.
 The Authentik provider itself is a **Blueprint entry** (multi-redirect web + desktop + mobile), so
 no UI creation is needed.
+
+### Immich native-OIDC note (HD-148)
+Immich v3 mobile is OAuth-capable; its default mobile redirect is the custom scheme
+`app.immich:///oauth-callback`. Enabling native OIDC requires, in the `immich-app` compose:
+- add the `IMMICH_OAUTH_*` block (issuer `https://sso.kogler.si/application/o/immich/`, client
+  creds from 1Password `immich_oidc`, `scope openid email profile`, `preferred_username` storage
+  label, option `immich_quota`);
+- **remove** the `traefik.http.routers.immich.middlewares: authentik-forward-auth@file` label;
+- Authentik must accept the mobile redirect: either `app.immich:///oauth-callback` directly, or the
+  http(s)-forwarder + **Mobile Redirect URI Override** workaround (deploy-verify).
+
+### Forgejo / Metabase native-OIDC notes (HD-148)
+- **Forgejo** (`git.`): callback `https://git.kogler.si/user/oauth2/<app-slug>/callback`; keep
+  `crowdsec-only` edge; decide whether git-over-https/API pushes stay open or follow web SSO.
+- **Metabase** (`sec.`): only **one** OIDC provider at a time; email auto-provision + roles. For a
+  read-only CrowdSec dashboard, evaluate whether per-user identity is worth the onboarding; if not,
+  keep Forward-Auth. Redirect `https://sec.kogler.si/auth/sso`.
 
 ---
 
