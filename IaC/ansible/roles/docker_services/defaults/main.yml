@@ -17,6 +17,8 @@ _extra_templates:
     - loki.yaml.j2
   matrix:
     - tuwunel.toml.j2
+  opencloud:
+    - csp.yaml.j2        # HD-144 — Authentik SSO domain in connect-src/frame-src
   litellm:
     - config.yaml.j2   # HD-100 LLM gateway model_list/config
   prometheus:

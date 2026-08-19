@@ -4,11 +4,11 @@
 #
 #   On first start: opencloud init generates config + admin user; admin logs in
 #   via INITIAL_ADMIN_PASSWORD at https://file.kogler.si.
-#   OIDC via Authentik (HD-52): native OIDC for BOTH web UI AND the desktop
-#   client. Uncomment the OIDC block below + create the Authentik provider
-#   (multi-redirect URI: web + desktop + mobile) and add sso.kogler.si to
-#   csp.yaml connect-src/frame-src. Prefer native OIDC over Traefik
-#   Forward-Auth on this route so the desktop client can authenticate.
+#   OIDC via Authentik (HD-52/HD-144): native OIDC for BOTH web UI AND the desktop
+#   client. Provider declared in the Authentik Blueprint (ks-oidc.yml, HD-142); client sets
+#   seeded into `opencloud_oidc` by the secret-egress glue (HD-143). csp.yaml (this dir)
+#   adds https://sso.kogler.si to connect-src/frame-src. Native OIDC replaces Traefik
+#   Forward-Auth on this route so the desktop client's OAuth/WebDAV isn't blocked.
 #
 #   Config files (csp.yaml, apps.yaml, banned-password-list.txt) sourced from
 #   https://github.com/opencloud-eu/opencloud-compose — override by placing
@@ -58,28 +58,26 @@ services:
       OC_DEFAULT_LANGUAGE: sl
       OC_PASSWORD_POLICY_DISABLED: "true"
       FRONTEND_CHECK_FOR_UPDATES: "false"
-      # === OIDC via Authentik (HD-52) — uncomment at deploy, once the Authentik ===
-      # OIDC provider (multi-redirect: web+desktop+mobile) is created. Native OIDC
-      # lets BOTH the web UI and the desktop/AppImage client authenticate. Keeping
-      # this on Forward-Auth would block the desktop client (OAuth/WebDAV needs not
-      # a browser redirect). Prefer native OIDC over Forward-Auth on this route.
-      # OC_EXCLUDE_RUN_SERVICES: "idm"
-      # OC_OIDC_ISSUER: "https://sso.kogler.si/application/o/opencloud/"
-      # PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD: "jwt"
-      # PROXY_OIDC_REWRITE_WELLKNOWN: "true"
-      # PROXY_USER_OIDC_CLAIM: preferred_username
-      # PROXY_USER_CS3_CLAIM: username
+      # === OIDC via Authentik (HD-52/HD-144) — native OIDC for web + desktop AppImage ===
+      # + mobile. Provider declared in the Authentik Blueprint (ks-oidc.yml, HD-142); client
+      # creds seeded into `opencloud_oidc` by the secret-egress glue (HD-143). Keeping this
+      # behind Forward-Auth blocks the desktop client's OAuth/WebDAV, so native OIDC is used.
+      OC_EXCLUDE_RUN_SERVICES: "idm"
+      OC_OIDC_ISSUER: "https://sso.kogler.si/application/o/opencloud/"
+      PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD: "jwt"
+      PROXY_OIDC_REWRITE_WELLKNOWN: "true"
+      PROXY_USER_OIDC_CLAIM: preferred_username
+      PROXY_USER_CS3_CLAIM: username
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"
       traefik.http.routers.opencloud.rule: "Host(`file.kogler.si`)"
       traefik.http.routers.opencloud.entrypoints: websecure
       traefik.http.routers.opencloud.tls.certresolver: letsencrypt
-      # HD-52: currently Forward-Auth. When native OIDC is enabled (desktop client
-      # needs it), switch to native OIDC — remove this Forward-Auth middleware so
-      # the client's OAuth/WebDAV isn't blocked by a browser-redirect SSO layer.
-      # (Remove the `opencloud` entry from `authentik-forward-auth` router set.)
-      traefik.http.routers.opencloud.middlewares: authentik-forward-auth@file
+      # HD-52/HD-144: native OIDC enabled (desktop client needs it). NOT behind Forward-Auth —
+      # replacing `authentik-forward-auth@file` with `crowdsec-only@file` so the desktop/mobile
+      # OAuth/WebDAV isn't blocked by a browser-redirect SSO layer, while keeping WAF protection.
+      traefik.http.routers.opencloud.middlewares: crowdsec-only@file
       traefik.http.services.opencloud.loadbalancer.server.port: "9200"
 networks:
   traefik-public:
