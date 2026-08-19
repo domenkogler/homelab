@@ -4,7 +4,7 @@
 > work reorganized into domain modules, deferred items parked. Done items → [changelog.md](changelog.md);
 > conventions → [`CONVENTIONS.md`](CONVENTIONS.md). Single source for planned work + open decisions (HD-XX).
 
-**Status:** 67 open · 0 decisions · 1 purchase · 10 parked · 63 done (in changelog)
+**Status:** 66 open · 0 decisions · 1 purchase · 10 parked · 63 done (in changelog)
 
 ---
 
@@ -58,7 +58,7 @@
 
 | ID | D | Exec | P | Item |
 |----|---|------|---|------|
-| HD-02 | 3 | AI | 1 | **Activate Doco-CD** — GitOps CD, currently ⚠️ WIP / not activated: webhook + compose lifecycle + post-deploy hooks. Ansible handles everything until live. · [deployment.md](docs/deployment.md) |
+| ~~HD-02~~ | 3 | AI | 1 | **Activate Doco-CD** — ❌ **DROPPED (2026-08-19, HD-150 decision):** Doco-CD removed entirely — single **Ansible-only** deployment/upgrade path chosen (Renovate PR → Forgejo Actions deploy button → Ansible) covering BOTH VPS + oldsrv; Doco-CD was a 2nd path that couldn't safely run on the public VPS (`docker.sock:rw` = root-equivalent). Superseded by HD-150; closed → [changelog.md](changelog.md). · [deployment.md](docs/deployment.md) |
 | HD-134 | 3 | AI | 2 | **Pin all unpinned image tags + add a validator guard** — ✅ **Done (2026-08-18, mostly):** audit found ~37 services could resolve to `latest`. **Pinned (verified, added `_version` in all.yml + Renovate-tracked):** authentik 2026.5.6, crowdsec v1.7.8, db-backup 4.1.100, forgejo 16.0.2, grafana 13.2.0, headscale 0.29.3, kopia 0.23.1, n8n 2.35.3, immich v3.1.0, opencloud 7.4.0, prometheus v3.14.0, loki 3.7.6, blackbox-exporter v0.28.0 (traefik/postgres already pinned). **Guard added:** `validate-docker-services.py` now FAILS on any compose image resolving to bare `latest`, with an `ALLOWED_LATEST` allowlist for the documented media/*arr stack + HD-121 fluid/obscure slow-moving tags (MUST-pin comment). `BASE_CTX` version mocks corrected to real pins. ⏳ **Remaining:** fluid/obscure services (minio, tuwunel, element-web, homepage, metabase, pihole, technitium, dozzle, signal-cli, sunshine) stay documented `latest` — pin at first deploy when registry-verified. · [deployment-compose.md](docs/deployment-compose.md), [CONVENTIONS.md](CONVENTIONS.md) §3 |
 | ~~HD-138~~ | 1 | AI | 1 | **Fix removed `stdout_callback = yaml` in `ansible.cfg`** — ✅ **Done (2026-08-18):** `ansible.cfg` set `stdout_callback = yaml`, which references the `community.general.yaml` callback **removed in community.general v12.0.0** (installed: 13.1.0) and blocked **every** playbook run. Changed to `stdout_callback = default` + `result_format = yaml` (the modern replacement, built into ansible-core ≥2.13). ✅ **Verified:** `ansible-playbook playbooks/dns.yml` now runs past the callback error, parses, loads the `cloudflare_dns` role and reaches task 1 (stops only on the expected local `op` sign-in — environmental). Row closed → [changelog.md](changelog.md). · [deployment-ansible.md](docs/deployment-ansible.md) |
 | ~~HD-136~~ | 1 | AI | 1 | **Fix `cloudflare_dns` FQCN → `community.general`** — ✅ **Done (2026-08-18):** the callsite used `community.dns.cloudflare_dns`, but that module lives in **`community.general`** (community.dns ships no Cloudflare module). Changed `roles/cloudflare_dns/tasks/main.yml:18` to `community.general.cloudflare_dns` and corrected the stale "Requires community.dns" comments in `requirements.yml`, `roles/cloudflare_dns/tasks/main.yml:8`, and `playbooks/dns.yml:17`. No install needed — `community.general` 13.1.0 already in the venv. ✅ **Verified:** `ansible-playbook playbooks/dns.yml --syntax-check --list-tasks` resolves both role tasks (`--check` on real API still blocked until live deploy). Row closed → [changelog.md](changelog.md). · [deployment-ansible.md](docs/deployment-ansible.md) |
@@ -163,17 +163,13 @@
 | HD-129 | 2 | AI | **Router DHCP → use internal resolver** — bootstrap assigns 1.1.1.1 not the internal resolver (KOPS-028); same outcome as HD-03 DNS setup, so fold in at live DNS. · [network-vlans.md](docs/network-vlans.md) |
 | HD-130 | 2 | AI | **Low-severity opportunistic fixes** — Homepage docker.sock ro visibility, Seerr SQLite failure domain, pi edge cert expiry (KOPS-058/059/061). ✅ **Applied (2026-08-18):** KOPS-058 already `:ro` on the docker.sock mount (verified); KOPS-059 Seerr config+`seerr.db` added to `backup.md` Service-state scope + documented in the compose; KOPS-061 Grafana SSL-cert-expiry alert rule added (warning tier, fires <14 days out) per the KOPS-061 recommended fix. Live dashboard/cert check still at deploy. Do remaining opportunistically during service deployment. · [services.md](docs/services.md) |
 
-## 3b. Activation notes - HD-02 (Doco-CD)
+## 3b. Deploy path — Ansible-only (HD-150, supersedes HD-02 Doco-CD)
 
-> **HD-02 is a MULTI-STAGE task - do NOT attempt as a single run.** Use `plan_task` to
-> split into ordered, idempotent tasks with exact validations and an explicit dependency graph.
-
-- Config finalization: turn .doco-cd.yml into the real deploy path (auto_discovery vs per-service compose), compose_files, reference, external_secrets mappings.
-- 1Password secret provider: SECRET_PROVIDER=1password + SECRET_PROVIDER_ACCESS_TOKEN in the doco-cd compose env.
-- Trigger wiring: webhook /v1/webhook (HTTP 80, WEBHOOK_SECRET HMAC, Forgejo webhook) and/or polling; decide polling vs webhook reachability first.
-- Cross-task prerequisite: fix doco-cd metrics port 9120 + host-IP scrape in prometheus.yml.
-- Post-deploy hooks: regenerate Homepage config + inventory docs + reload/commit+push. May depend on HD-12 - check before planning.
-- Activate + verify: render templates and bring the container up; live activation likely on another host (human gate).
+> **Doco-CD is DROPPED (HD-150).** Deployment + upgrades use **Ansible only** for BOTH VPS and
+> oldsrv. The single upgrade path: **Renovate** opens Forgejo PRs → the **Forgejo Actions deploy
+> button** (`workflow_dispatch`) runs Ansible (idempotent `docker_compose_v2` re-render/applies the
+> merged image-tag) → post-deploy renders Homepage config + inventory. Homepage is a dashboard link to
+> the Dependency Dashboard + deploy button (no deploy role). Old HD-02 activation notes removed.
 
 ## 3c. ⏳ Deploy-gated live-verification checklist
 
@@ -224,7 +220,7 @@
 
 - Open rows: 66
 - Decisions front: 0 · Buys: 1 · Park: 10
-- Active work per module: ai=8, backup=2, docs=2, finance=2, net=2, observ=0, platform=2, security=1, services=20, smart=11, storage=6
+- Active work per module: ai=8, backup=2, docs=2, finance=2, net=2, observ=0, platform=1, security=1, services=20, smart=11, storage=6
 
 ## 6. Conventions quick-reference
 
