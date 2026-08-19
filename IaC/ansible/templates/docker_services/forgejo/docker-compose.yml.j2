@@ -1,9 +1,21 @@
 # forgejo docker-compose.yml — Git hosting (git.kogler.si)
-#   Postgres-backed, OIDC-ready (Authentik), behind Traefik Forward-Auth.
+#   Postgres-backed, OIDC via Authentik (native, NOT forward-auth — Forgejo must own its auth
+#   state for API/SSH). HD-148: Authentik provider + `forgejo_oidc` client declared in the
+#   Blueprint + client creds seeded by the glue. DEPLOY-VERIFY (HD-149):
+#   - Register the OIDC source in the Forgejo ADMIN UI (Site Administration > Authentication
+#     Sources > Add > OAuth2 > OpenID Connect), NOT env-injected (needs DB formatting sync).
+#     Set the Authentication Name (e.g. `Authentik`) — it MUST match the callback path exactly:
+#     https://git.kogler.si/user/oauth2/<Authentication Name>/callback
+#   - Client ID / Secret / Issuer -> from `forgejo_oidc` (username/credential) + the Blueprint.
+#   - ROOT_URL must be https (app.ini) or Authentik rejects the callback.
+#   - Once the source is registered + verified, switch this route from Forward-Auth to
+#     crowdsec-only@file (Forgejo handles its own auth). Until then it stays behind
+#     Forward-Auth so git/web are never left unauthenticated.
 #   Data in /srv/docker/forgejo/ (included in Kopia backup).
 #
 #   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
 #     forgejo_db       (Database: username=<db user>, password=<db password>)
+#     forgejo_oidc     (api: username=client_id, credential=client_secret — Authentik OIDC client)
 services:
   forgejo:
     image: codeberg.org/forgejo/forgejo:{{ forgejo_version | default('latest') }}

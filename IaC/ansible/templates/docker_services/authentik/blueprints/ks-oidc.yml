@@ -22,8 +22,8 @@
 # Validate against the running Authentik on first apply; defaults referenced (self-signed
 # cert, implicit-consent flows) ship with a stock Authentik install.
 #
-# Scope (2026-08-19): HD-142 — OpenWebUI, Headscale, Matrix(Tuwunel), OpenClaw, OpenCloud.
-#   Immich / Forgejo / Metabase are HD-148 (follow-on, separate commit).
+# Scope (2026-08-19): HD-142 + HD-148 — OpenWebUI, Headscale, Matrix(Tuwunel), OpenClaw,
+#   OpenCloud, Immich, Forgejo, Metabase.
 ---
 version: 1
 entries:
@@ -162,3 +162,92 @@ entries:
     attrs:
       application: !Key app_opencloud
       provider: !Key provider_opencloud
+
+  # ==================================================================================
+  # Immich (foto.kogler.si)  ->  1Password `immich_oidc` (seeded by glue)
+  #   native OIDC (HD-148). Immich v3 mobile supports OAuth via the custom scheme
+  #   app.immich:///oauth-callback (Confidential client, Authorization Code only).
+  #   If Authentik rejects the custom scheme, use the http(s)-forwarder + Mobile Redirect
+  #   Override workaround (deploy-verify HD-149).
+  # ==================================================================================
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider_immich
+    attrs:
+      name: immich
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      client_type: confidential
+      redirect_uris: |
+        app.immich:///oauth-callback
+        https://foto.kogler.si/auth/login
+        https://foto.kogler.si/user-settings
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+  - model: authentik_core.application
+    id: app_immich
+    attrs:
+      name: Immich
+      slug: immich
+      meta_launch_url: https://foto.kogler.si
+  - model: authentik_providers_oauth2.application
+    attrs:
+      application: !Key app_immich
+      provider: !Key provider_immich
+
+  # ==================================================================================
+  # Forgejo (git.kogler.si)  ->  1Password `forgejo_oidc` (seeded by glue)
+  #   native OIDC (HD-148). Forgejo's OAuth2 callback is Authentication-Name-scoped:
+  #   https://git.kogler.si/user/oauth2/<Authentication Name>/callback. Register the source in
+  #   the Forgejo admin UI (NOT env-injected) and set the NAME; it must match this redirect
+  #   path exactly. Registered here as a wildcard prefix (Authentik regex matcher); verify the
+  #   resolved callback at deploy (HD-149). ROOT_URL must be https.
+  # ==================================================================================
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider_forgejo
+    attrs:
+      name: forgejo
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      client_type: confidential
+      redirect_uris: |
+        https://git.kogler.si/user/oauth2/.*
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+  - model: authentik_core.application
+    id: app_forgejo
+    attrs:
+      name: Forgejo
+      slug: forgejo
+      meta_launch_url: https://git.kogler.si
+  - model: authentik_providers_oauth2.application
+    attrs:
+      application: !Key app_forgejo
+      provider: !Key provider_forgejo
+
+  # ==================================================================================
+  # Metabase (sec.kogler.si)  ->  1Password `metabase_oidc` (seeded by glue)
+  #   native OIDC (HD-148). Metabase supports ONE OIDC provider at a time; callback
+  #   https://sec.kogler.si/auth/sso. Email-based auto-provision + roles. For a read-only
+  #   CrowdSec dashboard, evaluate whether per-user identity is worth it (HD-148 note).
+  # ==================================================================================
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider_metabase
+    attrs:
+      name: metabase
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, provider-authorization-implicit-consent]]
+      client_type: confidential
+      redirect_uris: |
+        https://sec.kogler.si/auth/sso
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+  - model: authentik_core.application
+    id: app_metabase
+    attrs:
+      name: Metabase
+      slug: metabase
+      meta_launch_url: https://sec.kogler.si
+  - model: authentik_providers_oauth2.application
+    attrs:
+      application: !Key app_metabase
+      provider: !Key provider_metabase

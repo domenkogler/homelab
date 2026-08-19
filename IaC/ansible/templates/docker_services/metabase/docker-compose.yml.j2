@@ -10,6 +10,13 @@ services:
     restart: unless-stopped
     environment:
       MB_DB_FILE: /metabase.db/metabase.db
+      # === OIDC via Authentik (HD-148) — native OIDC (single provider) ===
+      # Metabase supports ONE OIDC provider. Provider declared in ks-oidc.yml Blueprint; client
+      # creds seeded into `metabase_oidc` by the secret-egress glue (HD-143). Email auto-provision.
+      MB_OIDC_ISSUER: "https://sso.kogler.si/application/o/metabase/"
+      MB_OIDC_CLIENT_ID: "{{ lookup('community.general.onepassword', 'metabase_oidc', field='username', vault=op_vault) }}"
+      MB_OIDC_CLIENT_SECRET: "{{ lookup('community.general.onepassword', 'metabase_oidc', field='credential', vault=op_vault) }}"
+      MB_OIDC_REDIRECT_URI: "https://sec.kogler.si/auth/sso"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     networks:
       - traefik-public
@@ -21,7 +28,8 @@ services:
       traefik.http.routers.metabase.rule: "Host(`sec.kogler.si`)"
       traefik.http.routers.metabase.entrypoints: websecure
       traefik.http.routers.metabase.tls.certresolver: letsencrypt
-      traefik.http.routers.metabase.middlewares: authentik-forward-auth@file
+      # HD-148: native OIDC. NOT behind Forward-Auth (OIDC handles auth) — crowdsec-only keeps WAF.
+      traefik.http.routers.metabase.middlewares: crowdsec-only@file
 volumes:
   metabase-data:
 networks:

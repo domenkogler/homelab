@@ -43,13 +43,25 @@ services:
       IMMICH_S3_REGION: us-east-1
       IMMICH_S3_BUCKET: immich-originals
       IMMICH_S3_FORCE_PATH_STYLE: "true"
+      # === OIDC via Authentik (HD-148) — native OIDC for web + mobile ===
+      # v3 mobile is OAuth-capable (app.immich:///oauth-callback). Provider declared in the
+      # Authentik Blueprint (ks-oidc.yml, HD-142); client creds seeded into `immich_oidc` by the
+      # secret-egress glue (HD-143). Must be Authorization Code (Confidential client), never implicit.
+      IMMICH_OAUTH_ISSUER_URL: "https://sso.kogler.si/application/o/immich/"
+      IMMICH_OAUTH_CLIENT_ID: "{{ lookup('community.general.onepassword', 'immich_oidc', field='username', vault=op_vault) }}"
+      IMMICH_OAUTH_CLIENT_SECRET: "{{ lookup('community.general.onepassword', 'immich_oidc', field='credential', vault=op_vault) }}"
+      IMMICH_OAUTH_SCOPE: "openid profile email"
+      IMMICH_OAUTH_STORAGE_LABEL_CLAIM: preferred_username
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"
       traefik.http.routers.immich.rule: "Host(`foto.kogler.si`)"
       traefik.http.routers.immich.entrypoints: websecure
       traefik.http.routers.immich.tls.certresolver: letsencrypt
-      traefik.http.routers.immich.middlewares: authentik-forward-auth@file
+      # HD-148: native OIDC enabled (mobile OAuth). NOT behind Forward-Auth — replacing with
+      # crowdsec-only@file so the mobile app.immich:///oauth-callback OAuth isn't blocked by a
+      # browser-redirect SSO layer, while keeping WAF protection.
+      traefik.http.routers.immich.middlewares: crowdsec-only@file
       traefik.http.services.immich.loadbalancer.server.port: "2283"
     depends_on:
       immich-postgres:
