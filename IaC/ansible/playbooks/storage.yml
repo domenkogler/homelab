@@ -10,6 +10,6 @@
     - common
     - ai_diag
     - network
-    - storage        # ZFS: import tank/bulk, datasets+props, sanoid/syncoid, NFS exports (docs/storage-zfs.md)
+    - storage        # ZFS: import tank/bulk, datasets+props, sanoid/syncoid, NFS exports (docs/storage.md)
     - nut             # UPS master (usbhid-ups + upsd + nut_exporter on the host)
     - cockpit         # management UI (nas) + cockpit-zfs — own login, NOT behind Authentik

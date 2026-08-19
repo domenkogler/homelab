@@ -98,7 +98,7 @@ Owning doc: [deployment-compose.md](deployment-compose.md). **Tracked: HD-62.**
 - Add/uncomment the `immich-postgres` + `opencloud` DB blocks in `db-backup`. Note the real service
   hostname is `immich-postgres`, *not* the stale `immich-db` comment.
 
-Owning docs: [backup.md](backup.md), [storage-zfs.md](storage-zfs.md). **Tracked: HD-63.**
+Owning docs: [backup.md](backup.md), [storage.md](storage.md). **Tracked: HD-63.**
 
 ## 6. Bootstrap hygiene (Flaw F)
 

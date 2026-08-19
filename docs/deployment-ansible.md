@@ -340,11 +340,11 @@ domain_local: kogler.si
 - **Traefik:** file-provider routes (`/opt/traefik/dynamic/cockpit.yml` on oldsrv): `cockpit-nas → 10.10.1.10:9090`, `cockpit-oldsrv → 10.10.1.30:9090`, no Forward-Auth middleware.
 - 9090 is intra-Home-VLAN between Traefik (oldsrv) and nas — no inter-VLAN firewall rule needed.
 
-### `storage` (roles/storage — data model SSOT: [`storage-zfs.md`](storage-zfs.md))
+### `storage` (roles/storage — data model SSOT: [`storage.md`](storage.md))
 - **Hosts:** nas (ZFS + NFS server) and oldsrv (`nvme` data pool + fstab mounts + push timers)
 - Installs `zfsutils-linux`, `sanoid`, `syncoid`; **imports** pools — `tank`/`bulk` on nas, `nvme` on
   oldsrv (never re-creates; pools are self-describing); creates datasets with the properties from
-  `storage-zfs.md`; templates `sanoid.conf`;
+  `storage.md`; templates `sanoid.conf`;
   enables `sanoid.timer`/`syncoid.timer`; renders `/etc/exports` (`tank/data`, `bulk/media`); oldsrv
   fstab mounts; deploys the three nightly push jobs (db dumps → `tank/data/db-dumps`, service state →
   `tank/data/services`, face thumbs → `bulk/data/immich-thumbs`); wires Kopia sources on oldsrv

@@ -31,7 +31,7 @@
 | Compose path | `/opt/<service>/docker-compose.yml` — architectural constant | [docs/deployment-compose.md](docs/deployment-compose.md) |
 | Generated docs | never hand-edit ★-marked/generated docs (`inventory.md`, `network-addresses.md`) | [docs/index.md](docs/index.md) |
 | Counts | doc-stated **counts** (templates, roles, files, services) are **derived, never hand-entered** — quote the validator/dir as the source (`scripts/validate-docker-services.py`, `roles/`, `docker_services/`); a stale number in prose is a defect, not a cosmetic | [docs/index.md](docs/index.md) (Validation), [scripts/validate-all.sh](scripts/validate-all.sh) |
-| Data location | a storage/media **data-location change** (e.g. MinIO retired → live Box CIFS) must update IaC **and** the owning service/storage docs **in the same change** — a data-location claim in prose that contradicts the IaC is a review failure | [docs/services.md](docs/services.md), [docs/storage-zfs.md](docs/storage-zfs.md), [docs/deployment-compose.md](docs/deployment-compose.md) |
+| Data location | a storage/media **data-location change** (e.g. MinIO retired → live Box CIFS) must update IaC **and** the owning service/storage docs **in the same change** — a data-location claim in prose that contradicts the IaC is a review failure | [docs/services.md](docs/services.md), [docs/storage.md](docs/storage.md), [docs/deployment-compose.md](docs/deployment-compose.md) |
 
 ---
 
@@ -80,7 +80,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 4. **Registry** — add to `group_vars/home_servers.yml` + catalog row in `docs/services.md`.
 5. **Edge (if exposed)** — Traefik route + middleware chain (`crowdsec-only`, Forward-Auth) per `docs/services-traefik.md`.
 6. **State & backups** — map volumes/data into `db-backup` / Kopia scope.
-6.5. **Storage / data location** — state where the service's big data lives (NAS ZFS dataset / VPS NVMe / live Box CIFS / WebDAV / S3) **in the owning doc**, consistent with the storage SSOT (`storage-zfs.md`). If a storage decision changes, update IaC + owning doc **in the same change** (data-location rule §2).
+6.5. **Storage / data location** — state where the service's big data lives (NAS ZFS dataset / VPS NVMe / live Box CIFS / WebDAV / S3) **in the owning doc**, consistent with the storage SSOT (`storage.md`). If a storage decision changes, update IaC + owning doc **in the same change** (data-location rule §2).
 7. **Observability** — exporter / scrape target + Grafana dashboard if it's on a watchlist.
 8. **Validation** — `bash scripts/validate-all.sh` green (template + group_vars both).
 9. **Deploy gate** — first apply is human-gated (dry-run → single host) — no blind `docker compose up -d`.

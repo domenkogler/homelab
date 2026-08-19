@@ -194,7 +194,7 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   - SABnzbd / qBittorrent: `/mnt/nas/media/downloads` (rw)
   - Bazarr: library dirs (writes subtitles next to media)
   - `Use Hardlinks: ON` in Sonarr/Radarr/Lidarr
-  - Full layout + dataset properties: [`storage-zfs.md`](storage-zfs.md)
+  - Full layout + dataset properties: [`storage.md`](storage.md)
 - **Downloader egress:** only qBittorrent routes through gluetun:
   ```yaml
   services:
@@ -242,7 +242,7 @@ services:
 - Container-internal path changed from `/usr/src/app/upload` → `/data` (v3+).
 - Enable **storage template** so originals go to `/data/library`.
 - Bind-mount nas `tank/data/immich` → `/data/library` (only big write-once originals cross NFS).
-- Postgres + Immich-ML model cache + ML embeddings (in DB) stay local — see [`storage-zfs.md`](storage-zfs.md).
+- Postgres + Immich-ML model cache + ML embeddings (in DB) stay local — see [`storage.md`](storage.md).
 - Face thumbnail files → `bulk/data/immich-thumbs` nightly (backed up); the rest of `thumbs/` regenerable.
 
 ---

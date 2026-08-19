@@ -10,7 +10,7 @@ tags: [services, finance, budget, banking, investing]
 > **Role:** Single source of truth — personal finance services, account import strategy, Enable Banking
 > integration, AI auto-categorization via local Ollama, backup rules, and the manual-import plan for
 > accounts without open-banking access.
-> **Links to:** `services.md`, `services-authentik.md`, `deployment-compose.md`, `storage-zfs.md`,
+> **Links to:** `services.md`, `services-authentik.md`, `deployment-compose.md`, `storage.md`,
 > `llm-office.md`, `network-dns.md`
 
 > ⚠️ **Planning phase — not deployed.** Actual Budget + Enable Banking are designed but **not live** (tracked HD-57, Stage 1/10); the manual-import plan assumes Ollama is up (Phase 3). This is the authoring spec.
@@ -288,7 +288,7 @@ Actual's backup export includes all accounts, transactions, categories, and rule
 - [Authentik — Identity & SSO](services-authentik.md) — Forward-Auth config for `budget.*`
 - [Traefik — Reverse Proxy & Edge](services-traefik.md) — route config, wildcard cert, Forward-Auth labels
 - [Local LLM & Office Tools](llm-office.md) — Ollama sharing GPU with office LLM workloads
-- [Storage — ZFS](storage-zfs.md) — dataset layout for backup
+- [Storage — ZFS](storage.md) — dataset layout for backup
 - [Backup Architecture](backup.md) — Kopia off-site + ZFS snapshot schedule
 - [Subscriptions & Costs](subscription.md) — no new subscriptions for this stack
 - [Docker Compose Conventions](deployment-compose.md) — Actual Budget compose template spec

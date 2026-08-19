@@ -45,7 +45,7 @@ tags: [hardware, nas, zfs]
   - `tank/data/db-dumps` → tiredofit/db-backup output (pushed from oldsrv local scratch)
   - *(`tank/data/immich` + `tank/data/documents` were trimmed HD-151 — originals/user-files live on the live Box, no NAS copy.)*
   - (older `tank/important` / `tank/data`-with-media plans → **superseded**: media moved to the `bulk`
-    pool; only user data remains on `tank`. Full layout: [`storage-zfs.md`](storage-zfs.md))
+    pool; only user data remains on `tank`. Full layout: [`storage.md`](storage.md))
 
 ### NFS Exports (→ oldsrv)
 
@@ -56,10 +56,10 @@ tags: [hardware, nas, zfs]
 - Three exports because they live on two **different pools** (`tank/data`, `bulk/media`) plus the
   `bulk/data/immich-thumbs` push target — they can't share one mountpoint. TRaSH hardlinks only need a
   single filesystem **within** `bulk/media`, which is one dataset ✓
-- Full layout/properties: [`storage-zfs.md`](storage-zfs.md)
+- Full layout/properties: [`storage.md`](storage.md)
 
 > **TODO (IaC):** nas `storage` role — pool import, dataset creation with properties (see
-> `storage-zfs.md`), `sanoid.conf` + systemd timers (sanoid.timer/syncoid.timer), NFS exports
+> `storage.md`), `sanoid.conf` + systemd timers (sanoid.timer/syncoid.timer), NFS exports
 > (`tank/data`, `bulk/media`), oldsrv fstab mounts, and the nightly push jobs (db dumps, service state,
 > face thumbnails). Doc-only in the planning phase.
 
@@ -81,7 +81,7 @@ Connected via **miniSAS** to the SilverStone SST-TS43xx external disk enclosure 
 - **Mixed role:** hosts the **syncoid replicas** of `tank/data/*` AND the **active media library**
   (`bulk/media`, no snapshots — redownloadable) AND the face-thumbnail copy (`bulk/data/immich-thumbs`,
   daily snapshots). Replica datasets retain the source snapshot schedules independently. Detail:
-  [`storage-zfs.md`](storage-zfs.md)
+  [`storage.md`](storage.md)
 
 ### SilverStone SST-TS43xx (External Disk Enclosure)
 

@@ -14,7 +14,7 @@ mkdir -p "$STAGING/forgejo" "$STAGING/n8n"
     && docker exec forgejo rm -f /tmp/forgejo-dump.zip ) \
     && unzip -t "$STAGING/forgejo/forgejo-dump.zip" >/dev/null   # integrity chk (KOPS-056/HD-127)
 # (Alternative if 'forgejo dump' inside the container is unavailable at impl time:
-#  run 'git bundle' per repo — see storage-zfs.md)
+#  run 'git bundle' per repo — see storage.md)
 
 # n8n — sqlite backup (encrypted creds travel inside; N8N_ENCRYPTION_KEY in 1Password)
 # SQLite `.backup` uses the online-backup API (n8n keeps running). We then verify the

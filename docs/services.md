@@ -79,7 +79,7 @@ tags: [services, catalog]
 > gaming mode ≈ 10–13 GB — ample headroom. Plus host desktop + browser 2–4 GB (6–8 GB heavy).
 > Estimates only; validate with real working-set metrics after deploy (observability TODO).
 
-> **Storage & versions (summary):** storage SSOT = [`storage-zfs.md`](storage-zfs.md). OpenCloud keeps its
+> **Storage & versions (summary):** storage SSOT = [`storage.md`](storage.md). OpenCloud keeps its
 > own per-file versions (`REV.*` in `.oc-nodes/`); **OpenCloud user files live on the live Hetzner Box
 > (CIFS/WebDAV, cold tier — HD-135)**, and the NAS `documents` dataset was **trimmed (HD-151)**. **Immich originals are NOT S3/MinIO-backed (HD-135):** originals + encoded-video
 > live on the **live Hetzner Box (CIFS)** via the Immich storage template; the old `tank/data/immich`
@@ -176,7 +176,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
   two pools, three exports.
 - **Import = hardlink** (Sonarr/Radarr/Lidarr: `Use Hardlinks` ON) — instant, zero-space, atomic.
 - **Media is not backed up** — no sanoid snapshots, no syncoid, no Kopia. Lost media is re-fetched via
-  usenet/torrents. Full layout/properties/replication: [`storage-zfs.md`](storage-zfs.md).
+  usenet/torrents. Full layout/properties/replication: [`storage.md`](storage.md).
 - **Owner = neutral shared owner `storage_uid`/`storage_gid` (`media`, 1005)** across all *arr containers
   (linuxserver `PUID/PGID={{ storage_uid }}`/`PGID={{ storage_gid }}`; Jellyfin `user: "{{ storage_uid }}:{{ storage_gid }}"`,
   HD-94/HD-131). SMB/NFS ownership on nas must match.

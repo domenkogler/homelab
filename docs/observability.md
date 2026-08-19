@@ -123,7 +123,7 @@ nut_exporter (UPS, on nas) ─────────────────�
 
 ## Pi SD-card wear strategy
 
-The Raspberry Pi 4 primary runs HA from a **microSD** (`storage-zfs.md`), so the dominant continuous SD-wear
+The Raspberry Pi 4 primary runs HA from a **microSD** (`storage.md`), so the dominant continuous SD-wear
 source is **HA's recorder DB**, plus rolling Docker/OS logs. Strategy (HD-19, applies to the Pi; the standby on
 oldsrv is on NVMe and mostly unaffected):
 

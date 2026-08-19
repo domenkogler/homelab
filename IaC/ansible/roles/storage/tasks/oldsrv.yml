@@ -79,7 +79,7 @@
 
 # ---------------------------------------------------------------------------
 # Push job 3 — face thumbnails → bulk/data/immich-thumbs (over NFS mount
-# /mnt/nas/thumbs, third export; no ssh key needed — see storage-zfs.md)
+# /mnt/nas/thumbs, third export; no ssh key needed — see storage.md)
 # ---------------------------------------------------------------------------
 - name: Render push-face-thumbs unit + timer
   ansible.builtin.template:

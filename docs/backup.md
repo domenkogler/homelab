@@ -30,7 +30,7 @@ nas ZFS pool "tank"  ──zfs send/recv──→  nas ZFS pool "bulk"
 - **Scope:** ONLY `tank/data/*` (services, db-dumps) — retained archives. (The old `immich`/`documents`
   datasets were trimmed HD-151 — the live Box + Kopia is recovery.) The media library
   (`bulk/media`) is intentionally **NOT snapshotted or replicated** — it is redownloadable, see
-  [`services.md`](services.md) / [`storage-zfs.md`](storage-zfs.md)
+  [`services.md`](services.md) / [`storage.md`](storage.md)
 - Snapshot schedule: data datasets hourly (24), daily (7), weekly (4), monthly (3); photo/dump datasets
   stay hourly (photos change by upload, dumps daily); snapshotting unbacked media is pure churn
 - Replication: syncoid timer checks every 15 min, sends when a new source snapshot exists (≈ hourly)
@@ -120,7 +120,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | **Off-site backup** | Hetzner Storage Box **backup** (Kopia over **SSH/SFTP**, port 23, encrypted, NAS-independent) | Cloud | SSH/SFTP (port 23) |
 
 > **Media is the deliberate exception** to 3-2-1: `bulk/media` is redownloadable, so 0-1-0 suffices
-> (RAIDZ2 redundancy, no backup copy) — see [`storage-zfs.md`](storage-zfs.md).
+> (RAIDZ2 redundancy, no backup copy) — see [`storage.md`](storage.md).
 
 ---
 
@@ -136,7 +136,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 |----------|---------------|
 | **Single service crashes** | Kopia restore that service's data from latest snapshot |
 | **Single file deleted/corrupted** | ZFS rollback to snapshot before deletion (seconds) |
-| **oldsrv fails (Phase 1)** | Rebuild **from the NAS, no off-site** — runbook in [`storage-zfs.md`](storage-zfs.md): preseed reinstall → Ansible → mount NFS → restore DBs from dumps → unpack `tank/data/services` → copy thumbs back |
+| **oldsrv fails (Phase 1)** | Rebuild **from the NAS, no off-site** — runbook in [`storage.md`](storage.md): preseed reinstall → Ansible → mount NFS → restore DBs from dumps → unpack `tank/data/services` → copy thumbs back |
 | **HA Pi fails** | Forward takeover to oldsrv standby (manual) — see [`smart-home-failover.md`](smart-home-failover.md); rebuild Pi as fresh peer, reverse-sync standby→Pi, flip VIP back |
 | **nas fails** | Services keep running (state is on oldsrv); Immich photos + OpenCloud files are on the **live Hetzner Box** (cold tier) so they stay reachable — only NAS-local archive datasets are unavailable until rebuild. Pools are self-describing: reinstall from preseed, `zpool import tank bulk`, re-run Ansible |
 | **Both nas pools lost** | Media: re-download. Data (`tank/data/*`): restore from `bulk` if it survived, else Storage Box (backup) via Kopia (slow — last resort) |

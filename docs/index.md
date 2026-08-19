@@ -39,7 +39,7 @@ tags: [index, dispatcher, ai]
 | **Current HA instance / HAOS→Docker feasibility** | [`home-assistant-current.md`](home-assistant-current.md) | `smart-home.md`, `smart-home-failover.md` |
 | **Understand GitOps pipeline** | [`deployment.md`](deployment.md) | `deployment-renovate.md`, `interfaces.md` |
 | **Configure backup** | [`backup.md`](backup.md) | `hardware-nas.md` |
-| **Design/verify ZFS datasets & properties** | [`storage-zfs.md`](storage-zfs.md) | `hardware-nas.md`, `backup.md`, `services.md`, `deployment-compose.md` |
+| **Design/verify ZFS datasets & properties** | [`storage.md`](storage.md) | `hardware-nas.md`, `backup.md`, `services.md`, `deployment-compose.md` |
 | **Add subscription / billing** | [`subscription.md`](subscription.md) | — |
 | **UPS / power + shutdown monitoring** | [`hardware-ups.md`](hardware-ups.md) | `hardware-nas.md`, `observability.md` |
 | **Family-facing docs** | [`manual/README.md`](manual/README.md) | Individual guides in `manual/` |
@@ -107,7 +107,7 @@ docs/
 ├── hd110-office-mcp-research.md            ★ Office MCP bridge research (unified vs per-app; topology) — HD-110
 ├── ai-stack.md                           ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, PGVector
 │
-├── storage-zfs.md                         ZFS dataset tree, properties, replication (SSOT)
+├── storage.md                         ZFS dataset tree, properties, replication (SSOT)
 ├── backup.md                              LAST: ZFS + Kopia, DR, restore drills
 │
 ├── manual/                                Family guides (Slovenian, ⚠️ not yet written — deferred)

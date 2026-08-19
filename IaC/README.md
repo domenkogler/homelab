@@ -92,8 +92,8 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │       │   ├── templates/*.j2
 │   │       │   └── (upssched-cmd notify)
 │   │       ├── cockpit/tasks/main.yml       # Management UI (nas + oldsrv, not Pi) — own login, no Authentik
-│   │       ├── storage/                     # ZFS: import tank/bulk+nvme, datasets+props, sanoid/syncoid, NFS exports/mounts, push timers (docs/storage-zfs.md)
-│   │       │   ├── defaults/main.yml        #   dataset/property/schedule map (mirrors storage-zfs.md)
+│   │       ├── storage/                     # ZFS: import tank/bulk+nvme, datasets+props, sanoid/syncoid, NFS exports/mounts, push timers (docs/storage.md)
+│   │       │   ├── defaults/main.yml        #   dataset/property/schedule map (mirrors storage.md)
 │   │       │   ├── tasks/{main,zfs_common,nas,oldsrv}.yml
 │   │       ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   │       ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config

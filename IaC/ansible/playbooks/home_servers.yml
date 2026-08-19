@@ -9,7 +9,7 @@
     # and docker_services MUST follow storage (needs NFS ready) — mirrors the
     # Implementation Order table (deployment-ansible.md §Implementation Order, KOPS-050).
     - network
-    - storage        # oldsrv: import/create nvme, datasets+props, NFS mounts, push timers (docs/storage-zfs.md)
+    - storage        # oldsrv: import/create nvme, datasets+props, NFS mounts, push timers (docs/storage.md)
     - nut             # UPS client (oldsrv) — after network, before monitoring
     - cockpit         # management UI (oldsrv) — own login, NOT behind Authentik
     - role: amd_rocm

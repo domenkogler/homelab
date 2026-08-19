@@ -1,6 +1,6 @@
 ---
 # storage role defaults — ZFS layout, properties, snapshots, NFS, push jobs.
-# Single source of truth for the DATA model: docs/storage-zfs.md.
+# Single source of truth for the DATA model: docs/storage.md.
 # This role runs on BOTH nas (tank/bulk, NFS server) and oldsrv (nvme,
 # NFS client, push timers). It never runs on the Pi (no ZFS) — the Pi
 # layout is produced by the home_assistant + docker_services roles.
@@ -92,7 +92,7 @@ storage_pools:
     options: { ashift: "12" }
 
 # ---------------------------------------------------------------------
-# Datasets + ZFS properties (mirrors the storage-zfs.md properties table)
+# Datasets + ZFS properties (mirrors the storage.md properties table)
 # ---------------------------------------------------------------------
 # Common props for every dataset (applied via community.general.zfs):
 _common_zfs_props: &common
@@ -156,7 +156,7 @@ storage_replication:
   - { source: tank/data/db-dumps,   target: bulk/data/db-dumps }
 
 # ---------------------------------------------------------------------
-# NFS exports (nas) and client mounts (oldsrv) — see storage-zfs.md.
+# NFS exports (nas) and client mounts (oldsrv) — see storage.md.
 # ---------------------------------------------------------------------
 storage_exports:
   - { path: /tank/data, clients: "{{ storage_nfs_clients }}", options: "rw,sync,no_subtree_check,root_squash,anonuid={{ storage_uid }},anongid={{ storage_gid }}" }
@@ -182,4 +182,4 @@ storage_push_face_thumbs: { src: /srv/docker/immich/upload/thumbs, target: /mnt/
 
 # Kopia wiring (oldsrv): sources already exist as dirs above; policies are
 # configured in the kopia-agent container config — this role only guarantees
-# the paths exist and comments the intended policy in storage-zfs.md.
+# the paths exist and comments the intended policy in storage.md.

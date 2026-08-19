@@ -58,7 +58,7 @@ nas (rack) — Debian 13, ZFS
 └── ZFS snapshots → sanoid/syncoid → bulk pool (data datasets only)
 ```
 
-> Full dataset tree, properties, and replication: [`storage-zfs.md`](storage-zfs.md)
+> Full dataset tree, properties, and replication: [`storage.md`](storage.md)
 
 ---
 

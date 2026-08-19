@@ -101,7 +101,7 @@
     - item.item.vdevs | length > 0
 
 # ---------------------------------------------------------------------------
-# Datasets + properties — apply the storage-zfs.md table (all pools this host
+# Datasets + properties — apply the storage.md table (all pools this host
 # owns; community.general.zfs also re-applies missing props on existing data)
 # ---------------------------------------------------------------------------
 - name: Apply datasets + properties

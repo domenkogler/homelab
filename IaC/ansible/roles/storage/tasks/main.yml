@@ -1,6 +1,6 @@
 ---
 # storage role — ZFS layout, snapshots/replication, NFS, push timers.
-# Spec/data model SSOT: docs/storage-zfs.md. Style mirrors roles/nut.
+# Spec/data model SSOT: docs/storage.md. Style mirrors roles/nut.
 #
 # Hosts:
 #   nas     — import tank/bulk, datasets+properties, sanoid/syncoid, NFS exports
