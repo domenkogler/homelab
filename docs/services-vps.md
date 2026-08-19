@@ -80,9 +80,12 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 - Parses Authentik + Traefik logs
 - Community blocklist, free for personal use
 
-### Layer 4: Authentik Forward Auth
-- No app exposes its own login publicly
-- Traefik middleware blocks traffic before it reaches the app
+### Layer 4: Authentik OIDC + Forward Auth
+- No app exposes its own login publicly (Forward-Auth services)
+- Native-OIDC services (Open WebUI, Headscale, Matrix, OpenClaw, OpenCloud) authenticate
+  *inside* the app against Authentik; their providers/applications are declared in the **Authentik
+  Blueprint** and seeded by the **secret-egress glue** (see [`services-authentik.md`](services-authentik.md))
+- Traefik middleware blocks traffic before it reaches Forward-Auth apps
 
 ### Layer 5: Docker Security
 - Separate networks per role

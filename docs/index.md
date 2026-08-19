@@ -27,6 +27,7 @@ tags: [index, dispatcher, ai]
 | **Configure VPN** | [`network-vpn.md`](network-vpn.md) | `network.md` |
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
 | **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md`, [`network-addresses.md`](network-addresses.md) |
+| **Provision Authentik OIDC clients (Blueprint + glue)** | [`services-authentik.md`](services-authentik.md) | `deployment-secrets.md`, `deployment-compose.md`, `deployment-ansible.md`, `security.md` |
 | **Backlog / open decisions** | [`todo.md`](../todo.md) | — |
 | **Cross-cutting conventions / onboarding a service** | [`CONVENTIONS.md`](../CONVENTIONS.md) | owning docs (`deployment-*.md`, `network-*.md`, `services.md`) |
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `llm-office.md`, `deployment-compose.md` |
@@ -72,7 +73,7 @@ docs/
 ├── services.md                            Broad: catalog, networks, domains
 ├── observability.md                        Single source of truth: stack, alerting, retention
 ├── services-traefik.md                    Reverse proxy, CrowdSec, SSL
-├── services-authentik.md                  OIDC SSO, WebAuthn, Forward Auth
+├── services-authentik.md                  OIDC SSO, WebAuthn, Forward Auth, Blueprint + glue provisioning
 ├── services-matrix.md                     ★ Matrix messaging: homeserver (Tuwunel) + Element Web (native-only; bridges deferred)
 ├── services-vps.md                        netcup VPS (public edge) reference
 ├── subscription.md                        Costs, providers, renewal status

@@ -68,6 +68,9 @@
 A new service must clear this path (each step's owning doc is the anchor; violations are review failures):
 
 1. **Exposure & auth decision** — public / internal / Headscale-only; Forward-Auth vs native OIDC. Write it in the owning service doc.
+   - **Native OIDC → Authentik:** declare the provider/application in the **Blueprint** (`ks-oidc.yml`),
+     and let the **secret-egress glue** seed its `…_api` item. **Do not** hand-create OIDC providers in
+     the Authentik UI. (Forward-Auth services need no provider at all.) [services-authentik.md](docs/services-authentik.md)
 2. **Secrets** — create 1Password item(s) `<service>_<type>`; add a catalog row in `docs/deployment-secrets.md` (master list).
 3. **Compose template** — `docker_services/<service>/` per `docs/deployment-compose.md` (external networks, pinned tags, no host ports unless justified, `cap_drop: ALL`).
 4. **Registry** — add to `group_vars/home_servers.yml` + catalog row in `docs/services.md`.

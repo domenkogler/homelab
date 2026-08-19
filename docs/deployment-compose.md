@@ -68,6 +68,40 @@ networks:
     external: true
 ```
 
+## Authentik OIDC provisioning — Blueprint + secret-egress glue
+
+> **Decision:** OIDC providers/applications are declared as an **Authentik Blueprint**; a
+> **secret-egress glue** copies the generated client creds into 1Password. See
+> [`services-authentik.md`](services-authentik.md) *OIDC client provisioning* for the decision.
+> This section is the compose-side contract.
+
+### Blueprint volume (authentik compose template)
+The `authentik-server` service mounts a **`blueprints/`** volume (alongside the existing
+`/templates`): Authentik applies the Blueprint idempotently at startup / on demand. The
+`ks-oidc.yml` Blueprint declares the OIDC providers + applications for Open WebUI, Headscale,
+Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC, multi-redirect). Optionally the Authentik
+**LDAP provider/outpost** (D7/HD-132) is also declared here, removing a manual UI create-step.
+
+### Deploy ordering (in `vps.yml`)
+1. Deploy `authentik` (+ bundled pg/redis/ldap) — `docker compose up -d`.
+2. **Apply the Blueprint** (`ks-oidc.yml`) — via Authentik API (`authentik-provision_api`) or the
+   bundled blueprint on container start.
+3. **Run the secret-egress glue** — for each declared provider, `GET /api/v3/core/providers/oauth2/`
+   → seed the 1Password item (`openwebui_api`, `headscale_api`, `matrix_api`, `openclaw_api`,
+   `opencloud_oidc`) and the OpenCloud service-account item (`opencloud-service_api`).
+4. Deploy the **OIDC consumers** — their compose `lookup()` now resolves real client creds.
+
+Fail-closed (HD-65/91): the glue aborts loudly if `authentik-provision_api` is missing, rather than
+rendering a consumer with an empty/placeholder OIDC secret.
+
+### OpenCloud native-OIDC switch (HD-52)
+For OpenCloud, native OIDC (desktop/mobile client) requires, in the `opencloud` compose:
+- uncomment the `OC_OIDC_ISSUER` / `PROXY_OIDC_*` / `OC_EXCLUDE_RUN_SERVICES: idm` block;
+- remove the `traefik.http.routers.opencloud.middlewares: authentik-forward-auth@file` label;
+- add `sso.kogler.si` to OpenCloud `csp.yaml` `connect-src`/`frame-src`.
+The Authentik provider itself is a **Blueprint entry** (multi-redirect web + desktop + mobile), so
+no UI creation is needed.
+
 ---
 
 ## GPU-Enabled Containers
@@ -335,8 +369,10 @@ sibling services have no auth. Apply minimum auth per service:
   `ak-outpost-ldap` is down, family drives cannot mount (no local fallback). Accepted D7 trade-off;
   if outage resilience is ever required, revisit (LDAP replica cache / local fallback).
 - Bind/base DN are **design constants** in `storage_samba_ldap` (storage role); the **bind
-  password** is the secret `authentik-ldap_bind` (1Password). Deploy order: create the Authentik
-  LDAP provider + outpost first, then seed `authentik-ldap_bind` before Samba ldapsam connects.
+  password** is the secret `authentik-ldap_bind` (1Password). Deploy order: ensure the Authentik
+  LDAP provider + outpost exist (preferably declared in the `ks-oidc.yml` Blueprint — see the
+  *Authentik OIDC provisioning* section above), then seed `authentik-ldap_bind` before Samba
+  ldapsam connects.
 
 
 Auth tokens for internal services live in 1Password `Homelab` vault under the

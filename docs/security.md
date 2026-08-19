@@ -14,7 +14,7 @@ tags: [security, waf, hardening, secrets, bootstrap]
 > **HD-xx rows are the primary tracking handle**, KOPS ids are the archived annex footer.
 > **Links to:** `services-traefik.md`, `deployment-compose.md`, `deployment-secrets.md`,
 > `deployment-preseed.md`, `smart-home-failover.md`, `backup.md`, `network-ops.md`, `network-vpn.md`,
-> `observability.md`, `deployment-renovate.md`
+> `observability.md`, `deployment-renovate.md`, `services-authentik.md`
 > **Linked from:** `../README.md`, `index.md`
 
 Each of the six sections maps to one systemic flaw (Flaw A–F) from the architecture audit. Everything is
@@ -110,6 +110,10 @@ Owning docs: [backup.md](backup.md), [storage-zfs.md](storage-zfs.md). **Tracked
   don't all land on VLAN 99 (folded into **HD-03**; evidence KOPS-043).
 - **Fail-loud secrets** — no `default('')`; a missing 1Password secret must fail loudly, not deploy an
   unprotected service (**HD-65**; evidence KOPS-010). Owning doc: [deployment-secrets.md](deployment-secrets.md).
+- **Authentik provisioning token least-privilege** — the **write-scoped** `authentik-provision_api`
+  (Blueprint apply + secret-egress glue) must be scoped to issuer/app/flow/outpost endpoints *only*;
+  the **read-only** `authentik-api_token` (NAS glue) must never be granted write scope. See
+  [`services-authentik.md`](services-authentik.md) *OIDC client provisioning* / [`deployment-secrets.md`](deployment-secrets.md).
 - **Preseed defaults / post_install** — dedupe the `sshd_config` append (**HD-88**; evidence KOPS-012).
 
 Owning docs: [deployment-preseed.md](deployment-preseed.md),

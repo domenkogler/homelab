@@ -39,21 +39,25 @@ placeholder (a `default('')` is deliberately absent — HD-65).
 
 ---
 
-## 2. Authentik OIDC providers (create in the Authentik UI)
+## 2. Authentik OIDC providers (declared in the Blueprint; creds seeded by the secret-egress glue)
 
-The two OIDC items are **not** random tokens — they are the **client credentials of Authentik OIDC provider
-applications**. Create the provider first, then copy the client_id/secret into the 1Password items above.
+The OIDC items are **not** random tokens — they are the **client credentials of Authentik OIDC provider
+applications**. The providers/applications are declared idempotently in the **Authentik Blueprint**
+(`ks-oidc.yml`, see [`services-authentik.md`](services-authentik.md) *OIDC client provisioning*); the
+secret-egress glue reads the generated `client_id`/`client_secret` via the Authentik API and writes them
+into the 1Password items below. **No manual UI creation, no copy-paste** — verify the Blueprint + glue
+have run and the items are populated.
 
 ### 2a. Open WebUI provider → `openwebui_api`
-- **Provider type:** OIDC Provider.
-- **Issuer / app slug:** `sso.kogler.si/application/o/openwebui/` (must match `OIDC_ISSUER` in `open-webui` compose).
-- **Allowed redirect URI:** exactly `https://ai.kogler.si/oauth2/callback` (matches `OIDC_REDIRECT_URI`).
+- **Provider type:** OIDC Provider (declared in Blueprint).
+- **Issuer / app slug:** `sso.kogler.si/application/o/openwebui/` (must match `OIDC_ISSUER` in `open-webui` compose) — this is the glue's lookup key.
+- **Allowed redirect URI:** exactly `https://ai.kogler.si/oauth2/callback` (matches `OIDC_REDIRECT_URI`) — the glue's existence check.
 - **Scopes:** `openid profile email` (per-user chat/history isolation).
-- **Client ID / Secret** → store in 1Password item **`openwebui_api`** (`username` = client_id, `credential` = client_secret).
+- **Client ID / Secret** → glue writes into 1Password item **`openwebui_api`** (`username` = client_id, `credential` = client_secret). (Values originate from Authentik, not hand-set.)
 
 ### 2b. OpenClaw provider (deploy-time)
-- Create an Authentik OIDC provider for OpenClaw's Control UI / gateway login; store its client creds in a
-  dedicated `openclaw_api` item (same `matrix_api`-style pattern). Redirect URI per `openclaw onboard` output.
+- Authentik OIDC provider for OpenClaw's Control UI / gateway login is a **Blueprint entry**; its client creds
+  land in a dedicated `openclaw_api` item (same `matrix_api`-style pattern) via the glue. Redirect URI per `openclaw onboard` output.
 
 ---
 

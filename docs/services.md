@@ -25,14 +25,14 @@ tags: [services, catalog]
 | Traefik | traefik | P | 60–120 / 250 | Reverse proxy, auto-SSL, Forward Auth (dashboard internal) |
 | CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via Metabase) |
 | Authentik | sso | P+I | 700–1,100 / 2,000 | OIDC SSO, MFA (WebAuthn) — bundle: server+worker+postgres+redis |
-| OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud. **Filesystem/WebDAV storage** (HD-131 D2) |
+| OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud. **Filesystem/WebDAV storage** (HD-131 D2). **Auth: native OIDC → Authentik** (multi-redirect web+desktop+mobile, HD-52); client provisioned via Blueprint + secret-egress glue |
 | MinIO | — | I | 60–120 / 300 | **S3-compatible object store** (HD-131 D1) — backs **Immich originals** (bucket `immich-originals`); loopback/overlay only, no public edge. Later move to Hetzner Storage Box / cloud S3 = endpoint change |
 | Immich | foto | I | 600–1,000 / 2,000 | Photo management, mobile apps (app+postgres+valkey — microservices merged into server in v3). **Originals on S3 (MinIO), thumbs/DB local** (HD-131 D1/D3) |
 | Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner) |
 | Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
 | Immich-ML | — | I | 300–600 / 1,200 | Face recognition, smart search — shares AMD VRAM |
 | LiteLLM | — | I | 120–250 / 500 | **AI stack** — LLM gateway/router (HD-100): local Ollama + OpenRouter (gen) + Cohere (embeddings). Single OpenAI-compatible endpoint, services-internal + llm-backend; own SQLite keys/spend; only component holding upstream keys |
-| Open WebUI | ai | P | 300–600 / 1,500 | **AI stack** — family chat + RAG UI (HD-101); public via Authentik OIDC + crowdsec-only; backend = LiteLLM (HD-100); RAG: Cohere embed-v4 (via LiteLLM), Docling (HD-103), PGVector (HD-102); data volume `/srv/docker/open-webui` |
+| Open WebUI | ai | P | 300–600 / 1,500 | **AI stack** — family chat + RAG UI (HD-101); public via Authentik OIDC + crowdsec-only; backend = LiteLLM (HD-100); RAG: Cohere embed-v4 (via LiteLLM), Docling (HD-103), PGVector (HD-102); data volume `/srv/docker/open-webui`; OIDC client provisioned via Blueprint + glue |
 | Docling | — | I | 150–400 / 900 | **AI stack** — OCR / document understanding for RAG (CPU, HD-103; `docling-serve-cpu:v1.30.0`, services-internal, v1 API, HF weight cache volume) |
 | OpenClaw | — | I | 200–500 / 1,200 | **AI stack** — agent orchestration (ex-Clawd, HD-104); models → LiteLLM (HD-100); OpenCloud WebDAV skill; **version pinned**; config/state volume `/srv/docker/openclaw` |
 | PGVector | — | D | 100–250 / 600 | **AI stack** — vector DB for Open WebUI RAG + chat history (`db-internal`, HD-102; `pgvector/pgvector:0.8.6-pg16-trixie`; tagged; backup via db-backup DB04 → Kopia) |
