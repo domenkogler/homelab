@@ -20,6 +20,30 @@ tags: [deployment, secrets, 1password]
 - **Documentation drives automation** — these `docs/*.md` files are read by AI to generate IaC configs
 - **No tribal knowledge** — if Domen is incapacitated, family + trusted tech contact can recover from 1Password + repo
 
+### Config vs credential split (decision 2026-08-19 — why there is NO `server` type)
+
+1Password holds **credentials only**. Connection *configuration* (which host, which user, which port)
+lives in the **Git IaC** so `git clone` → `ansible-playbook` can fully rebuild and a recoverer finds
+host facts in the repo. This split is deliberate and **intentionally uses no `server`-type secret**
+(an item bundling host + user + key + port).
+
+| Connection fact | Where it lives | Why |
+|-----------------|----------------|-----|
+| hostname / IP / port | `host_vars/*.yml` (`ansible_host`), `group_vars/all.yml` (`kopia_sftp_*`, …) | **config**, not secret — part of the repo's self-rebuild + recovery premise; moving it to 1P would break the `git clone → rebuild` and the provisioning bootstrap (which needs host facts before 1P is available) |
+| login (`ansible_user`, `kopia_sftp_user`) | `host_vars` / `group_vars` (inventory) | the login alone grants nothing; the **key** does. Kept in IaC so inventory is complete |
+| **key / credential** | 1Password `_ssh` items via the **1Password SSH agent**, or connection-refs (`Hertzner-SB-Backup`) for kopia SFTP | this is the actual secret — never on disk, never in Git |
+
+**Why not a `server` type:** none of the repo's consumers need a full bundle from a single
+`lookup()` — Ansible reads host/login from inventory (parse-time, not 1P), and keys come from
+the SSH agent / connection refs. A `server` item would (a) duplicate the IaC host/user SSOT
+(second source of truth — `CONVENTIONS.md`), (b) weaken the recovery/bootstrap premise by hiding
+host facts in 1P, and (c) match nothing that consumes it. The kopia SFTP case already demonstrates
+the split: `kopia_sftp_host/user/port` in `group_vars` + `Hertzner-SB-Backup` key-ref in 1P.
+
+**Exception:** genuinely credential-like, ops-only connection facts that are deliberately kept OFF
+the automation path (e.g. `netcup-vps_login` root + IP in a **separate vault**) stay in 1Password —
+that is a break-glass decision, not a connection-config item.
+
 ---
 
 ## 1Password as Sole Secrets Backend
@@ -55,6 +79,9 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 ---
 
 ## Type Map — one per `<type>`, with canonical examples
+
+> There is **no `server` type** by design — host/login/port are connection *config* kept in Git IaC;
+> 1Password holds only *credentials*. See *Config vs credential split* above.
 
 | `type`       | 1Password item    | `field=`              | Examples |
 |--------------|-------------------|-----------------------|----------|
