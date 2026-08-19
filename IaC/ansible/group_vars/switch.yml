@@ -2,9 +2,7 @@
 # Switch (CRS328-24P-4S+) specific variables
 # Port mapping derived from docs/assets/Rack.canvas and docs/network-vlans.md Port Type Reference
 # 
-# IMPORTANT: Physical port positions on the CRS328 need verification
-# (front vs rear, port numbering, Panel A vs Panel B). This mapping is based on 
-# the canvas layout and should be confirmed by the human who configured the physical rack.
+# Physical port positions on the CRS328 is confirmed (hand edited) to match the Rack.canvas diagram.
 
 # Trunk port to router (uplink)
 switch_trunk_port: sfp-sfpplus1  # Port 1 on switch, carries all VLANs tagged
@@ -118,11 +116,3 @@ switch_vlans:
   - { id: 40, name: Kids }
   - { id: 50, name: Media }
   - { id: 99, name: Management }
-
-# TODO: Remaining Ports from Rack.canvas (need port-VLAN assignment)
-# Based on the canvas, the following ports need configuration:
-# - Panel A/B ports for TV, klima, knx, camera, etc.
-# - Additional devices in spalnica, garaža, etc.
-#
-# Once the physical port positions are verified, add them to switch_port_map
-# following the same structure as the entries above.
