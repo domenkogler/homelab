@@ -106,13 +106,30 @@ no UI creation is needed.
 
 ### Immich native-OIDC note (HD-148)
 Immich v3 mobile is OAuth-capable; its default mobile redirect is the custom scheme
-`app.immich:///oauth-callback`. Enabling native OIDC requires, in the `immich-app` compose:
-- add the `IMMICH_OAUTH_*` block (issuer `https://sso.kogler.si/application/o/immich/`, client
-  creds from 1Password `immich_oidc`, `scope openid email profile`, `preferred_username` storage
-  label, option `immich_quota`);
-- **remove** the `traefik.http.routers.immich.middlewares: authentik-forward-auth@file` label;
-- Authentik must accept the mobile redirect: either `app.immich:///oauth-callback` directly, or the
-  http(s)-forwarder + **Mobile Redirect URI Override** workaround (deploy-verify).
+`app.immich:///oauth-callback`. Per the official Immich OAuth docs (Authentik is first-class):
+
+**Authentik client profile (confidential):** Provider type OIDC/OAuth2, **Confidential** client,
+Application type **Web**, Grant type **Authorization Code** (no `implicit`). `issuer_url` =
+`https://sso.kogler.si/application/o/immich/` (the `.well-known/openid-configuration` suffix is
+auto-appended on discovery).
+
+**Redirect URIs (Authentik provider `redirect_uris` must include all):**
+- `app.immich:///oauth-callback` — **mobile** (MUST be present for iOS/Android)
+- `https://foto.kogler.si/auth/login` — web login
+- `https://foto.kogler.si/user-settings` — web manual OAuth link
+- optional **Backchannel logout**: `https://foto.kogler.si/api/oauth/backchannel-logout`
+For local debugging also allow `http://localhost:2283/auth/login` + `http://localhost:2283/user-settings`.
+
+**Immich env/config (`immich_oidc` from 1Password):** `scope openid email profile`; claims
+`preferred_username` → storage label, `immich_role` → role (`user`/`admin`), `immich_quota` →
+storage quota (claims are creation-only, not re-synced); `Auto Register` true, optional `Auto Launch`
+(per-request `/auth/login?autoLaunch=0|1`). `Mobile Redirect URI Override` empty → uses the custom scheme;
+only set it if Authentik rejects the custom scheme (http(s)-forwarder workaround, deploy-verify).
+
+**Edge changes in the `immich-app` compose:**
+- add the config above (client creds from 1Password `immich_oidc`, issuer/scope/claims);
+- **remove** the `traefik.http.routers.immich.middlewares: authentik-forward-auth@file` label
+  (would block the mobile OAuth redirect).
 
 ### Forgejo / Metabase native-OIDC notes (HD-148)
 - **Forgejo** (`git.`): callback `https://git.kogler.si/user/oauth2/<app-slug>/callback`; keep
