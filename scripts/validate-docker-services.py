@@ -146,6 +146,9 @@ _EXTRA_TEMPLATES = {
 
 # ── Render context ───────────────────────────────────────────────────────
 BASE_CTX = {
+    # Render mocks for version pins. Source of truth: group_vars/all/versions.yml
+    # (HD-156) — keep these values in sync with it. Values below mirror the
+    # single-file version sheet so compose templates render testably without Ansible.
     "timezone": "Europe/Ljubljana",
     "op_vault": "Homelab",
     "domain_public": "kogler.si",

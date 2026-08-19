@@ -47,7 +47,9 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   │   ├── all.yml                     # Cross-cutting: /etc/hosts sync
 │   │   │   └── render-docs.yml             # Control-plane SSOT render → docs/network-addresses.md
 │   │   ├── group_vars/
-│   │   │   ├── all.yml                     # Timezone, locale (sl_SI.UTF-8), NTP, domain kogler.si
+│   │   │   ├── all.yml                     # Timezone, locale (sl_SI.UTF-8), NTP, domain kogler.si; infra vars (network/IP/WG/livebox)
+│   │   │   ├── all/
+│   │   │   │   └── versions.yml              # Docker image version pins (ALL hosts, HD-156) — one-file Renovate review
 │   │   │   ├── router.yml                  # VLAN map (10/20/21/30/40/50/99), WireGuard, DNS
 │   │   │   ├── vps.yml                     # docker_services list (VPS, Phase 2)
 │   │   │   ├── home_servers.yml            # homelab_mode, docker_services list (home), GPU config

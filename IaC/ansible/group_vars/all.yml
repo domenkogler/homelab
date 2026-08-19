@@ -21,80 +21,22 @@ domain_local: kogler.si    # reserved for future split-horizon scenarios — cur
 gpu_render_gid: 104
 gpu_video_gid: 44
 
-# ==== Shared service knobs (used across host templates) ====
-# traefik image version — shared by oldsrv `traefik` (edge) and Pi `traefik-ha`.
-# Pinned semver (KOPS-005 / HD-61) — Renovate keeps it current via docker datasource.
-traefik_version: v3.5.2
+# ==== Shared service knobs ====
+# Docker image version pins live in ONE file: `group_vars/all/versions.yml`
+# (HD-156) so Renovate docker datasource updates + version review are a single sheet.
+# All hosts load it via the `all` group. Keep INFRASTRUCTURE vars here (network, IP,
+# identity, WG, livebox, NUT/ZFS exporters); only VERSION PINS go in versions.yml.
+#
+# (Version pins were moved here → versions.yml by HD-156 on 2026-08-19.)
 # Let's Encrypt account contact — REQUIRED to register the ACME account when the
 # first cert is issued (wildcard *.kogler.si via DNS-01 on oldsrv's `traefik`).
 letsencrypt_email: domen@kogler.si
-# traefik-certs-dumper (certs-dumper sidecar on oldsrv `traefik`) — extracts the
-# wildcard PEM pair out of acme.json into /opt/traefik/certs with the exact
-# wildcard_cert_file / wildcard_cert_key_file names (the Pi edge syncs from these).
-certs_dumper_version: v2.8.3
-# Tuwunel (Matrix homeserver, jevolk/tuwunel) image tag — MUST be pinned to a verified
-# semver at first deploy (KOPS-030 / HD-121): it is an obscure single-maintainer image facing
-# public federation, so `latest` is a supply-chain risk. Set the exact tag you verified against
-# the registry here; Renovate docker datasource will then keep it current.
-tuwunel_version: latest
-# CrowdSec Traefik bouncer plugin version — explicit (KOPS-029 / HD-87): previously the
-# hardcoded default in the traefik compose; now a group_var so Renovate can track it and it
-# stays in sync with the CrowdSec LAPI (drift would silently break blocking).
-crowdsec_bouncer_plugin_version: v0.4.0
 # CrowdSec collections to install (HD-85 / KOPS-041): which app logs CrowdSec
 # parses for WAF/brute-force. Included: traefik + linux (baseline) + the exposed
 # auth-surfaces home-assistant, matrix (Synapse/Tuwunel), grafana. Extend here as
 # services are exposed (qBittorrent, jellyfin, n8n …) — a collection only does
 # something if its logs are ALSO sent to CrowdSec (docker.sock container-log parsing).
 crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/home-assistant crowdsecurity/matrix crowdsecurity/grafana"
-# osixia/keepalived image tag — shared by Pi primary + oldsrv standby (HD-124/KOPS-053).
-# Pinned to the verified semver (no `v` prefix on this image's tags); Renovate docker
-# datasource keeps it current once the tag is resolvable at render.
-keepalived_version: "2.3.4"
-# PairDrop (linuxserver.io) image tag — internal P2P file share (HD-113). Pinned semver
-# (linuxserver tags use plain `X.Y.Z`, no `v`); Renovate docker datasource tracks it.
-pairdrop_version: "1.11.2"
-# Stirling PDF (frooodle/s-pdf) image tag — internal PDF toolkit (HD-58). Pinned semver
-# with `-fat` variant (bundles all Tesseract langs incl. Slovenian `slv` for OCR);
-# Renovate docker datasource tracks it.
-stirling_pdf_version: "2.14.3-fat"
-# pgvector (postgres + vector extension) image tag — AI-stack RAG vector store (HD-102).
-# Pinned to pg16 on Debian 13 (trixie) to match host base; Renovate docker datasource tracks it.
-pgvector_version: "0.8.6-pg16-trixie"
-# Docling Serve (quay.io/docling-project/docling-serve) CPU image tag — AI-stack OCR (HD-103).
-# CPU-only torch build; pinned to a verified release; Renovate docker datasource tracks it.
-docling_version: "v1.30.0"
-# LiteLLM (LLM gateway spine) image tag — AI-stack (HD-100). LiteLLM publishes fluid
-# build tags; `main-stable` is the documented stable tag used by their official compose.
-# MUST pin to a verified semver (main-vX.Y.Z) at first deploy — see matrix HD-121 precedent
-# for the fluid-tag policy; Renovate tracks it once a resolvable tag is chosen.
-litellm_version: main-stable
-# Open WebUI (AI-stack chat + RAG UI) image tag — HD-101. Pinned to a verified semver;
-# Renovate docker datasource tracks it. Base image connects to LiteLLM as an external
-# OpenAI-compatible backend (no bundled Ollama/CUDA variant needed).
-openwebui_version: "0.11.0"
-# OpenClaw (AI agent/orchestration, ex-Clawd) image tag — HD-104. Pinned to the latest
-# stable release (date-based versioning); young project, MUST re-verify at deploy.
-# GHCR is the primary registry for release automation/provenance.
-openclaw_version: "2026.7.1"
-# HD-134 / KOPS-030: pinned semvers for core services that previously fell back to
-# `latest` via an undefined *_version var. Renovate docker datasource keeps each current.
-# (Versions verified against upstream registries 2026-08-18.)
-authentik_version: "2026.5.6"      # ghcr.io/goauthentik/server + ldap (GoAuthentik)
-crowdsec_version: "v1.7.8"          # crowdsecurity/crowdsec (Docker Hub tag has a `v`)
-db_backup_version: "4.1.100"        # tiredofit/db-backup
-forgejo_version: "16.0.2"           # codeberg.org/forgejo/forgejo (docker tag strips `v`)
-grafana_version: "13.2.0"           # grafana/grafana OSS
-headscale_version: "0.29.3"         # headscale/headscale (docker tag strips `v`)
-kopia_version: "0.23.1"             # kopia/kopia
-n8n_version: "2.35.3"               # n8nio/n8n
-immich_version: "v3.1.0"            # ghcr.io/immich-app/immich-server (tag has `v`)
-opencloud_version: "7.4.0"          # ghcr.io/opencloud-eu/opencloud (docker tag strips `v`)
-# Observability infra pins (HD-134 / KOPS-030) — Renovate docker datasource keeps them
-# current. Verified against Docker Hub 2026-08-18.
-prometheus_version: "v3.14.0"        # prom/prometheus (Docker Hub tag has a `v`)
-loki_version: "3.7.6"                # grafana/loki (Docker Hub tag strips `v`)
-blackbox_exporter_version: "v0.28.0"  # prom/blackbox-exporter (Docker Hub tag has a `v`)
 # Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
 # oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
 #   oldsrv traefik: ACME storage/checkout must emit exactly these names.

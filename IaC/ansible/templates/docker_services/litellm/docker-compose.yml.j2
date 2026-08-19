@@ -11,8 +11,8 @@
 #   Secrets (all fail-closed, HD-65):
 #     litellm_master_key (api -> credential), openrouter_api (api -> credential),
 #     cohere_api (api -> credential)
-#   Image: docker.litellm.ai/berriai/litellm:{{ litellm_version }} (see all.yml for the
-#   MUST-pin note). Serves the OpenAI-compatible API on port 4000.
+#   Image: docker.litellm.ai/berriai/litellm:{{ litellm_version }} (see versions.yml for
+#   the MUST-pin note). Serves the OpenAI-compatible API on port 4000.
 services:
   litellm:
     image: docker.litellm.ai/berriai/litellm:{{ litellm_version }}

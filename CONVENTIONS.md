@@ -105,7 +105,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 
 | Rule | Owning doc |
 |------|-----------|
-| a `*_version` pin lives in **one** file — the proposed `group_vars/versions.yml` (HD-156) — **not** spread across `all.yml`; Renovate docker datasource + version review are single-sheet | [docs/deployment-compose.md](docs/deployment-compose.md), [docs/deployment-renovate.md](docs/deployment-renovate.md) |
+| a `*_version` pin lives in **one** file — `group_vars/all/versions.yml` (HD-156, live 2026-08-19) — **not** spread across `all.yml`; Renovate docker datasource + version review are single-sheet | [docs/deployment-compose.md](docs/deployment-compose.md), [docs/deployment-renovate.md](docs/deployment-renovate.md) |
 | a pin is **never bare `latest`** and never a *mutable alias* (`-rocm`, `main-stable`) **unless** the owning doc records an explicit MUST-pin + verified-semver precondition (Tuwunel / OpenClaw / LiteLLM fluid-tag precedents, HD-121/134) | [docs/deployment-compose.md](docs/deployment-compose.md) |
 | on a fluid-tag *first* pin, show the registry-verified tag + Renovate tracking **in the same change** | [docs/deployment-compose.md](docs/deployment-compose.md), [docs/deployment-renovate.md](docs/deployment-renovate.md) |
 

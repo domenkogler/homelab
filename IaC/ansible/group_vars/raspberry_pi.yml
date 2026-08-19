@@ -6,7 +6,7 @@ home_assistant_version: stable
 home_assistant_install_method: docker   # 'docker' or 'supervised' — use docker for keepalived/VIP
 # The Pi also runs a minimal VIP-bound edge (`traefik-ha`) that keeps ha.kogler.si
 # reachable when oldsrv is down — see docs/smart-home-failover.md.
-# (traefik_version is defined in group_vars/all.yml — shared with the oldsrv edge.)
+# (traefik_version is defined in group_vars/all/versions.yml — shared with the oldsrv edge.)
 ha_edge_enabled: true
 # VIP / VRRP: Pi is MASTER (owns the VIP — {{ ha_vip }} — in normal mode); standby on oldsrv is BACKUP.
 # ha_vip / ha_vip_cidr are defined once in group_vars/all.yml (SSOT).

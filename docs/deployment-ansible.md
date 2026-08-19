@@ -127,7 +127,9 @@ IaC/ansible/
 │   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→network→docker→home_assistant→docker_services→monitoring
 │   └── all.yml                      # Cross-cutting: /etc/hosts sync
 ├── group_vars/
-│   ├── all.yml                      # Timezone, locale, NTP, domain names
+│   ├── all.yml                      # Timezone, locale, NTP, domain names; infra vars (network/IP/WG/livebox)
+│   ├── all/
+│   │   └── versions.yml              # Docker image version pins (ALL hosts, HD-156) — one-file Renovate review
 │   ├── router.yml                   # VLAN map, WireGuard peers, DNS forwarding
 │   ├── vps.yml                      # docker_services list (VPS)
 │   ├── home_servers.yml             # homelab_mode, docker_services list (home), GPU config
