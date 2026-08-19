@@ -26,6 +26,7 @@ tags: [services, catalog]
 | CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via Metabase) |
 | Authentik | sso | P+I | 700–1,100 / 2,000 | OIDC SSO, MFA (WebAuthn) — bundle: server+worker+postgres+redis |
 | OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud. **User files on the live Hetzner Box (WebDAV/CIFS, cold tier — HD-135); NAS `documents` dataset = archive only** (HD-151). **Auth: native OIDC → Authentik** (multi-redirect web+desktop+mobile, HD-52); client provisioned via Blueprint + secret-egress glue |
+| ONLYOFFICE Docs | office | P | 1,000–2,000 / 4,000 | In-browser document editor for OpenCloud (Word/Excel/PPT) — WOPI **helper** via OpenCloud's native `collaboration` service (**HD-166**). **Not an auth surface:** NO Authentik OIDC client, NOT behind Forward-Auth — the browser holds the user's Authentik session, ONLYOFFICE↔OpenCloud share a **JWT secret** for WOPI calls. Stateless (config volume only, no user data). Placement: VPS edge (HD-166); heavyweight — see `llm-office.md` §ONLYOFFICE |
 | Immich | foto | I | 600–1,000 / 2,000 | Photo management, mobile apps (app+postgres+valkey — microservices merged into server in v3). **Originals on live Box (CIFS), thumbs/DB local** (HD-131 D1/D3). **Auth (HD-148): native OIDC → Authentik** (web + mobile `app.immich:///oauth-callback`); client via Blueprint + glue |
 | Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner). **Auth (HD-148): native OIDC → Authentik** (web SSO + per-user API/token); client via Blueprint + glue |
 | Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
@@ -124,6 +125,7 @@ WAN allow. Everything else in the catalog is **internal-only** (no public record
 | `sso` | Authentik |
 | `foto` | Immich |
 | `file` | OpenCloud |
+| `office` | ONLYOFFICE Docs — browser editor UI served over Traefik (WOPI helper, JWT-auth, no user auth itself — HD-166) |
 | `ai` | Open WebUI — AI chat/RAG, public, Authentik OIDC + crowdsec-only (HD-101) |
 | `git` | Forgejo |
 | `ha` | Home Assistant (VIP, HA-native auth, no Forward-Auth) |

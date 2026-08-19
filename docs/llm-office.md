@@ -33,6 +33,27 @@ Office AI tools run on the **same oldsrv GPU** as voice assistant and Immich ML.
 | **🐧 Linux** | **OpenCloud Desktop Client** for Linux | **ONLYOFFICE Desktop Editors** | ONLYOFFICE preserves Microsoft formatting much better than LibreOffice or OpenOffice. |
 
 > ✅ **Verified (`docs.opencloud.eu/dev`):** OpenCloud ships a native **`collaboration` service** that connects to ONLYOFFICE / Collabora / Microsoft **via WOPI** (no third-party glue). Not enabled by default — start manually with `opencloud collaboration server`. Key vars: `COLLABORATION_APP_PRODUCT=OnlyOffice`, `COLLABORATION_APP_ADDR` (editing app URL), `COLLABORATION_WOPI_SRC` (public WOPI callback), plus `OC_URL`, `OC_JWT_SECRET`, `OC_REVA_GATEWAY`, `MICRO_REGISTRY_ADDRESS`. [Docs](https://docs.opencloud.eu/docs/dev/server/services/collaboration/information/).
+
+#### ONLYOFFICE Docs Server — deployment & auth decision (HD-166)
+
+**What it is:** a WOPI-helper Docker container (`onlyoffice/documentserver`) that renders the in-browser editor for OpenCloud documents at `office.kogler.si`. Brings browser editing (Word/Excel/PPT) to the **"🌐 Web Browser" row** above — desktop sync/edit is unchanged (native ONLYOFFICE Desktop Editors / MS Office).
+
+**Auth — NOT an identity surface (no Authentik client, no Forward-Auth):**
+
+```
+ Browser (user's Authentik session)──► Traefik ──► ONLYOFFICE Docs (`office.kogler.si`)
+                                        │                   │
+                                        │                   │  WOPI (shared JWT secret,
+                                        │                   │  NOT user identity)
+                                        ▼                   ▼
+                                    OpenCloud ◄─────────────┘
+                                    (`file.kogler.si`, `collaboration` svc)
+```
+
+- **The browser** authenticates the *user* (Authentik OIDC).
+- **ONLYOFFICE** is a **background worker**: it never sees family logins. OpenCloud and ONLYOFFICE trust each other over **cryptographically signed WOPI calls** (shared `OC_JWT_SECRET`), so no `office_*` Authentik client is needed and the route is **not** behind Forward-Auth (it would break the editor's iframe/API calls).
+- **Consequence for IaC (HD-166):** clear the Authentik Blueprint path — no provider, no app, no secret-egress item. ONLY Traefik cert (``Host(`office.kogler.si`)``) + a pinned `onlyoffice_version` + `OC_JWT_SECRET` lookup.
+
 ### Phase 1: ONLYOFFICE on Debian Desktop
 
 oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
