@@ -356,7 +356,10 @@ domain_local: kogler.si
 - **Input:** `docker_services` list from group vars
 - **Authentik OIDC provisioning step (blueprint + glue):** before deploying the OIDC consumers on
   the VPS, run (a) **apply the `ks-oidc.yml` Blueprint** (Authentik API via `authentik-provision_api`)
-  and (b) the **secret-egress glue** to seed client creds / the OpenCloud service account into 1Password.
+  and (b) the **secret-egress glue** to seed client creds into the 1Password OIDC items
+  (`openwebui_api`…`metabase_oidc`, 8 providers). The **OpenCloud Graph-API service account**
+  (`opencloud-service_api`) is **NOT** the glue's job — it is provisioned by the `sync-authentik-users`
+  rework (**HD-145**).
   Ordering in `vps.yml`: `authentik` → blueprint+glue → OIDC consumers. Fail-closed on a missing
   `authentik-provision_api` (HD-65/91). See [`deployment-compose.md`](deployment-compose.md)
   *Authentik OIDC provisioning* and [`services-authentik.md`](services-authentik.md).

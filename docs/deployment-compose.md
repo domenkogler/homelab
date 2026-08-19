@@ -89,8 +89,9 @@ Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC, multi-redirect), **Immich, F
    bundled blueprint on container start.
 3. **Run the secret-egress glue** — for each declared provider, `GET /api/v3/core/providers/oauth2/`
    → seed the 1Password item (`openwebui_api`, `headscale_api`, `matrix_api`, `openclaw_api`,
-   `opencloud_oidc`, `immich_oidc`, `forgejo_oidc`, `metabase_oidc`) and the OpenCloud
-   service-account item (`opencloud-service_api`).
+   `opencloud_oidc`, `immich_oidc`, `forgejo_oidc`, `metabase_oidc`). (The OpenCloud Graph-API
+   service account `opencloud-service_api` is NOT this glue's job — it is seeded by the
+   `sync-authentik-users` rework, HD-145.)
 4. Deploy the **OIDC consumers** — their compose `lookup()` now resolves real client creds.
 
 Fail-closed (HD-65/91): the glue aborts loudly if `authentik-provision_api` is missing, rather than

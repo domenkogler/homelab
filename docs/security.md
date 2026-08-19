@@ -38,6 +38,9 @@ tracked in `../todo.md` (HD-XX rows, `source: qwen`).
 - `seerr.kogler.si` (Seerr login)
 - `matrix.kogler.si` (Matrix-native OIDC)
 - `chat.kogler.si` (Element Web, homeserver SSO)
+- `file.kogler.si` (OpenCloud — native OIDC, HD-144)
+- `foto.kogler.si` (Immich — native OIDC, HD-148)
+- `ai.kogler.si` (Open WebUI — native OIDC, HD-101)
 - HA standby via VIP
 
 Owning doc: [services-traefik.md](services-traefik.md). **Tracked: HD-60** (crowdsec-only middleware

@@ -119,8 +119,9 @@ Alternative (rejected): direct exposure without Cloudflare DNS — same result, 
 
 ## Matrix Routing — `/_matrix/*` is NOT behind Forward-Auth
 
-Matrix (**[`services-matrix.md`](services-matrix.md)**) is the deliberate exception to the
-Forward-Auth-everything rule, exactly like `ha` (HA-native auth). Native clients, other servers
+Matrix (**[`services-matrix.md`](services-matrix.md)**) skips Forward-Auth (like `ha`, and like the
+native-OIDC services OpenCloud/`file`, Immich/`foto`, Open WebUI/`ai` — HD-144/148). Native clients,
+other servers (federation), and any future appservice bridges must reach `/_matrix/*` directly, so:
 (federation), and any future appservice bridges must reach `/_matrix/*` directly, so:
 
 - `matrix.kogler.si` → Tuwunel homeserver. **No Authentik Forward-Auth middleware on `/_matrix/*`** —
@@ -130,7 +131,7 @@ Forward-Auth-everything rule, exactly like `ha` (HA-native auth). Native clients
 - Public DNS must add `matrix` + `chat` records and the `_matrix` well-known/SRV delegation (see [`network-dns.md`](network-dns.md)); WAN firewall allows 443 (and 8448 if used) to oldsrv for these.
 
 > Precedent in this repo: `ha.kogler.si` (VIP) is already a public route with **no Forward-Auth**
-> because the app owns its auth. Matrix follows the same shape.
+> because the app owns its auth. Matrix and the other native-OIDC routes follow the same shape.
 
 ---
 
