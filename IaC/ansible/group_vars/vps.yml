@@ -33,6 +33,7 @@ docker_services:
   - { name: authentik,      template_dir: authentik, subdomain: sso, enabled: true }  # + bundled pg/redis
   # === Public live-data apps + co-located DBs (NVMe) ===
   - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true }  # + bundled db
+  - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, enabled: true }  # WOPI helper for opencloud (HD-166); NO auth surface
   - { name: immich-app,     template_dir: immich-app, subdomain: foto, enabled: true } # + pg/valkey; ML->oldsrv
   - { name: forgejo,        template_dir: forgejo,   subdomain: git, enabled: true }   # + bundled db
   # === AI stack (public/gateway tier — HD-100..104) ===

@@ -23,6 +23,7 @@ font-src:
 frame-src:
   - "'self'"
   - "https://sso.kogler.si"        # Authentik hosted login (if shown in an iframe)
+  - "https://office.kogler.si"     # HD-166: ONLYOFFICE editor iframe (OpenCloud loads it)
 img-src:
   - "'self'"
   - "data:"
@@ -31,6 +32,7 @@ img-src:
 connect-src:
   - "'self'"
   - "https://sso.kogler.si"        # OAuth /userinfo + token calls to Authentik
+  - "https://office.kogler.si"     # HD-166: WOPI/API calls to ONLYOFFICE
   - "wss:"
   - "ws:"
   - "https://file.kogler.si"

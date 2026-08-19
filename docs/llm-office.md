@@ -52,7 +52,7 @@ Office AI tools run on the **same oldsrv GPU** as voice assistant and Immich ML.
 
 - **The browser** authenticates the *user* (Authentik OIDC).
 - **ONLYOFFICE** is a **background worker**: it never sees family logins. OpenCloud and ONLYOFFICE trust each other over **cryptographically signed WOPI calls** (shared `OC_JWT_SECRET`), so no `office_*` Authentik client is needed and the route is **not** behind Forward-Auth (it would break the editor's iframe/API calls).
-- **Consequence for IaC (HD-166):** clear the Authentik Blueprint path — no provider, no app, no secret-egress item. ONLY Traefik cert (``Host(`office.kogler.si`)``) + a pinned `onlyoffice_version` + `OC_JWT_SECRET` lookup.
+- **Consequence for IaC (HD-166):** clear the Authentik Blueprint path — no provider, no app, no secret-egress item. Implemented: Traefik cert (``Host(`office.kogler.si`)``) + pinned `onlyoffice_version` (`9.3.0.1`) + `OC_ADD_RUN_SERVICES: collaboration` + `COLLABORATION_APP_*`/`WOPI_SRC` env on the opencloud compose + `opencloud-collab_password` (shared JWT, 1Password, same value on BOTH sides) + CSP `office.kogler.si` in frame-src/connect-src.
 
 ### Phase 1: ONLYOFFICE on Debian Desktop
 

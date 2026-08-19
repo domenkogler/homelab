@@ -79,6 +79,10 @@ kopia_version: "0.23.1"             # kopia/kopia
 n8n_version: "2.35.3"               # n8nio/n8n
 immich_version: "v3.1.0"            # ghcr.io/immich-app/immich-server (tag has `v`)
 opencloud_version: "7.4.0"          # ghcr.io/opencloud-eu/opencloud (docker tag strips `v`)
+# ONLYOFFICE Docs Server — WOPI helper for OpenCloud browser editing (HD-166). Registry-verified
+# 2026-08-19: Docker Hub `onlyoffice/documentserver` latest stable 9.3.x is 9.3.0.1 (patch of 9.3.0).
+# Renovate docker datasource tracks it; MUST re-verify at first deploy (HD-134/§7).
+onlyoffice_version: "9.3.0.1"
 
 # ==== Observability infra ====
 prometheus_version: "v3.14.0"        # prom/prometheus (Docker Hub tag has a `v`)

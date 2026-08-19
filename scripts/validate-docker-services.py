@@ -124,6 +124,7 @@ WEB_SERVICES = {
     "open-webui",
     "technitium", "pihole", "n8n",
     "chat",
+    "onlyoffice-docs",
 }
 
 HOST_NET_SERVICES = {"traefik-ha"}
@@ -190,6 +191,7 @@ BASE_CTX = {
     "authentik_db_name": "authentik",
     "authentik_version": "2026.5.6",
     "opencloud_version": "7.4.0",
+    "onlyoffice_version": "9.3.0.1",   # ONLYOFFICE Docs Server — WOPI helper (HD-166)
     "forgejo_version": "16.0.2",
     "home_assistant_version": "stable",
     "headscale_version": "0.29.3",

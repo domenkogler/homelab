@@ -68,6 +68,27 @@ services:
       PROXY_OIDC_REWRITE_WELLKNOWN: "true"
       PROXY_USER_OIDC_CLAIM: preferred_username
       PROXY_USER_CS3_CLAIM: username
+      # === ONLYOFFICE / WOPI collaboration (HD-166) — in-browser doc editor ===
+      # OpenCloud's native `collaboration` service speaks WOPI to ONLYOFFICE Docs at
+      # office.kogler.si. ONLYOFFICE is NOT an auth surface: it never sees family logins.
+      # OpenCloud <-> ONLYOFFICE trust via a shared JWT secret (COLLABORATION_JWT_SECRET,
+      # aliased from OC_JWT_SECRET) — 1Password lookup, never a literal (HD-65).
+      # Real OpenCloud 4.0 vars (verified against docs.opencloud.eu 4.0 dev collaboration
+      # env-vars page, 2026-08-19): COLLABORATION_APP_NAME/PRODUCT/ADDR/WOPI_SRC/JWT_SECRET.
+      # NO `WOPI_ENABLED` / `COLLABORATION_ENABLED` booleans exist — the service is
+      # registered via OC_ADD_RUN_SERVICES=collaboration (mirrors OC_EXCLUDE_RUN_SERVICES
+      # pattern already used below) and activates on APP_* config.
+      OC_ADD_RUN_SERVICES: "collaboration"
+      COLLABORATION_APP_NAME: "OnlyOffice"
+      COLLABORATION_APP_PRODUCT: "OnlyOffice"
+      COLLABORATION_APP_ADDR: "https://office.kogler.si"
+      COLLABORATION_APP_INSECURE: "false"
+      COLLABORATION_APP_PROOF_DISABLE: "false"       # verify OnlyOffice proof keys
+      COLLABORATION_JWT_SECRET: "{{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}"
+      # WOPI callback + live-typing sync store (default nats-js-kv; node addr via
+      # OC_CACHE_STORE_NODES per docs — not COLLABORATION_STORE_NODES)
+      COLLABORATION_WOPI_SRC: "https://file.kogler.si"
+      COLLABORATION_STORE: "nats-js-kv"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"

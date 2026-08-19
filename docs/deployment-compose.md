@@ -35,6 +35,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Edge (Traefik, CrowdSec) | `traefik-public` |
 | Identity (Authentik) | `traefik-public` + `services-internal` |
 | Platform (OpenCloud, Immich, Forgejo) | `services-internal` |
+| Office editor (ONLYOFFICE Docs — WOPI helper for OpenCloud, HD-166) | `traefik-public` (only; no auth surface, no user identity) |
 | AI/LLM (Ollama → `llm-backend`; Immich-ML, LiteLLM, Docling, OpenClaw) | `services-internal`; Ollama on **`llm-backend`** (isolated, reachable only by LiteLLM — HD-59) |
 | DNS (Technitium, Pi-hole) | `traefik-public` + `services-internal` (Technitium web UI behind Traefik; Pi-hole ad-blocking behind Traefik) |
 | VPN (Headscale) | `traefik-public` |
