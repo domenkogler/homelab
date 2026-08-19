@@ -41,4 +41,35 @@
     name: "docker-compose@{{ svc.name }}"
     enabled: true
     state: started
+- name: "Enable systemd service docker-compose@{{ svc.name }} (boot auto-start)"
+  ansible.builtin.systemd:
+    name: "docker-compose@{{ svc.name }}"
+    enabled: true
+    state: started
   when: ansible_service_mgr == 'systemd'
+
+# ---- Authentik secret-egress glue (HD-143) -----------------------------------
+# After `authentik` is up (+ the /blueprints volume auto-applies ks-oidc.yml), run the
+# secret-egress glue: Authentik generates client creds per provider; this script reads
+# them back via the API and writes them into 1Password so the SUBSEQUENT services in the
+# docker_services loop (the OIDC consumers) render with real client creds (HD-146 order).
+# Runs once, on the authentik iteration, BEFORE the consumers that follow it in the list.
+- name: "Render Authentik secret-egress glue (HD-143)"
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../roles/docker_services/templates/authentik-secret-egress.sh.j2"
+    dest: "/usr/local/sbin/authentik-secret-egress.sh"
+    mode: '0755'
+  when: svc.name == 'authentik'
+  tags: [authentik, secret-egress]
+
+- name: "Run Authentik secret-egress glue (HD-143)"
+  ansible.builtin.shell:
+    cmd: "/usr/local/sbin/authentik-secret-egress.sh"
+    executable: /bin/bash
+  register: ak_egress
+  until: ak_egress.rc == 0        # script exits 3 until the ks-oidc.yml blueprint is applied
+  retries: 12
+  delay: 10
+  changed_when: "'updated' in ak_egress.stdout or 'created' in ak_egress.stdout"
+  when: svc.name == 'authentik'
+  tags: [authentik, secret-egress]
