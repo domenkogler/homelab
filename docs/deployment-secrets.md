@@ -112,7 +112,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `pppoe_login` | `password` (`username` = PPPoE user) | router — ISP (Telekom) PPPoE credentials for the egress WAN |
 | `cloudflare_api` | `credential` | ACME **DNS-01** wildcard `*.kogler.si` cert |
 | ~~`kopia-s3_api`~~ | ~~`credential` (S3 access key)~~ | **retired (HD-31): iDrive e2 S3 dropped.** Kopia now targets the **backup Box over SSH/SFTP (port 23)** — SSH-key auth via `Hertzner-SB-Backup`, repo password via `kopia_password`. No S3 credential item needed. |
-| `op_api` | `credential` | 1Password Service Account token → Doco-CD + Forgejo Actions |
+| `op_api` | `credential` | 1Password Service Account token → Doco-CD + Forgejo Actions. **Note (HD-140):** the Ansible runner uses the separate `Service Account Auth Token: ansible` in a **Private vault** instead of this item — see [1password.md](1password.md). `op_api` is the token storage slot here for Doco-CD/Actions; it is NOT created for the runner's CLI lookup. |
 | `signal_api` | `credential` (`username` = phone number) | signal-cli-rest-api (linked-device pair / captcha) |
 | `signal-internal_api` | `credential` | signal-cli-rest-api — API token auth (`SIGNAL_CLI_API_TOKEN`; requests require `X-Api-Key` header) so no container on services-internal can send Signal as Domen's number without it (KOPS-002 / HD-125). n8n sends this in its webhook call |
 | `kopia-server-internal_api` | `username` + `credential` | kopia-server auth (HD-59) — `username` = the `user@host` identity backup clients present via HTTP Basic Auth, `credential` = password; written to the in-container `server.htpasswd` (plaintext, 0600). Replaces the old `--without-password` |

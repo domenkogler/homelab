@@ -82,6 +82,7 @@ docs/
 ├── deployment-ansible.md                  ★ Ansible role catalog & spec
 ├── deployment-compose.md                  ★ Docker compose conventions
 ├── deployment-secrets.md                  1Password backend, passwordless-first
+├── 1password.md                           1Password CLI + SSH agent runner setup (SA token, vaults, ssh keys)
 ├── deployment-renovate.md                 Renovate Bot & update lifecycle
 ├── security.md                            ★ Security hardening posture (WAF, pinning, privilege, bootstrap, decisions)
 ├── interfaces.md                          Dashboard + management interface matrix
