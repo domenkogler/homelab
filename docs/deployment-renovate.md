@@ -15,12 +15,12 @@ tags: [deployment, renovate, updates]
 
 ## How It Works
 
-1. Renovate container runs on oldsrv, scans `docker-compose.yml` files in repo
+1. Renovate container runs on the **VPS** (co-located with Forgejo), scans `docker-compose.yml` files in repo
 2. New upstream Docker image detected → **3-day hold** (stability delay)
 3. After 3 days, update appears as checkbox on **Dependency Dashboard** (Forgejo Issue, auto-managed)
 4. Domen reviews → checks the box
 5. Renovate generates PR with version bump
-6. Merge PR → Doco-CD auto-deploys
+6. Merge PR → **Forgejo Actions deploy button** (`workflow_dispatch`) → **Ansible** applies the image-tag bump (VPS + oldsrv, one path) → `docker compose up -d`
 
 ---
 
@@ -85,7 +85,7 @@ Upstream Release
         ▼ (Domen reviews, merges)
   Version committed to main branch
         │
-        ▼ (Doco-CD detects new commit)
+        ▼ (Forgejo Actions deploy button → Ansible)
   docker compose pull && docker compose up -d
         │
         ▼ (Post-deploy hooks)

@@ -17,8 +17,7 @@ tags: [services, interfaces, dashboards]
 
 | Interface | Audience | Config | Responsibility |
 |-----------|----------|--------|----------------|
-| **Forgejo Control Panel** | Domen (admin) | Markdown & YAML | Management: Renovate checkboxes, PR review, Git |
-| **Doco-CD Status** | Domen (admin) | REST API, Prometheus | Deployment status, drift detection, logs |
+| **Forgejo Control Panel** | Domen (admin) | Markdown & YAML | Management: Renovate checkboxes, PR review, Git, the **deploy button** (Actions `workflow_dispatch`) |
 | **Homepage Launcher** | Entire family | `services.yaml`, `widgets.yaml` | Navigation: `kogler.si`, app bookmarks, health dots, reachability status widgets |
 | **HA Dashboard (native)** | Family / Guests | YAML (HA `lovelace`, templated) | Smart home: lights, blinds, RGBW, security · replaces TileBoard (HD-24) |
 | **Element Web (Matrix)** | Family | Matrix-native SSO → Authentik | Messaging: family chat (`chat.kogler.si`, native-only; see [`services-matrix.md`](services-matrix.md)) |
@@ -34,7 +33,7 @@ tags: [services, interfaces, dashboards]
 - **Access:** `kogler.si` (root), Authentik Forward Auth
 - **Content:** Grid of service tiles with green/red health dots
 - **Health checks:** oldsrv services via Docker socket
-- **Auto-generated:** Doco-CD post-deploy hook regenerates `services.yaml` + `widgets.yaml`
+- **Auto-generated:** the Ansible post-deploy hook regenerates `services.yaml` + `widgets.yaml`
 - **Local-only links resolve on LAN/VPN only** (split-horizon)
 
 ---
@@ -118,7 +117,7 @@ See [`observability.md`](observability.md).
 ## Auto-Generation Pipeline
 
 ```
-Doco-CD deploys/updates container
+Ansible deploys/updates container (VPS + oldsrv, single path)
     │
     ▼
 Post-deploy hooks:
