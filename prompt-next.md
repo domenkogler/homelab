@@ -5,30 +5,7 @@
 
 ---
 
-## 1. FIRST: commit the uncommitted working tree
-
-**Nothing from the last two sessions is committed yet.** `git status` shows ~27 modified files + 7 staged deletions. All of it is coherent, validated work; do **not** re-derive it.
-
-```
-git status          # expect: 27 modified + 7 deleted (D staged)
-bash scripts/validate-all.sh   # must be green before commit
-git add -A
-git commit          # 2 logical commits:
-#  a) "docs(audit): fold audit deliverables + delete root audit files (HD-153)"
-#     → CONVENTIONS.md, IaC/README.md, README.md, changelog.md, deployment-tasks.md,
-#       docs/security.md (§8–9 new), docs/index.md, docs/interfaces.md, docs/observability.md,
-#       docs/services*.md, docs/smart-home*.md, docs/hardware-oldsrv.md, docs/storage-zfs.md,
-#       todo.md (HD-154…165 rows), + the 7 deleted audit files
-#  b) "docs(storage): OpenCloud user files → live Hetzner Box, NAS dataset = archive (HD-135/151)"
-#     → docs/storage-zfs.md, docs/services.md, docs/hardware-nas.md, docs/backup.md,
-#       docs/ai-stack.md, docs/subscription.md, todo.md (HD-151 row)
-```
-
-Housekeeping rules (CONVENTIONS.md): `validate-all.sh` green before commit; update `todo.md` in the same change; **no hand-maintained tally/Status line** (removed — counts are derived).
-
-> ⚠ Two stray zero-byte files exist in repo root: `**Linked` and `**Role:**` (untracked, from an earlier accidental redirect). Safe to `rm` them — they are not referenced anywhere.
-
----
+## 1. Already done
 
 ## 2. State of the world (what the last session did)
 
