@@ -7,8 +7,8 @@
 
 | Component | Implemented | Stubs / TODO |
 |-----------|-------------|--------------|
-| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation), `storage`, `router`, `switch` (HD-03), `home_assistant`, `docker_services` (HD-50), `monitoring`, `amd_rocm`, `desktop`, `office` (15) | `proxmox` (1, TODO) — `kopia` intentionally unused |
-| Docker compose templates | 41 templates implemented (HD-01) | — |
+| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation), `storage`, `router`, `switch` (HD-03), `home_assistant`, `docker_services` (HD-50), `monitoring`, `amd_rocm`, `desktop`, `office`, `cifs`, `cloudflare_dns`, `wireguard` (18) | `proxmox` (1, TODO) — `kopia` intentionally unused |
+| Docker compose templates | 48 templates implemented (HD-01) — see `templates/docker_services/` | — |
 | RouterOS scripts | `rb4011_initial.rsc`, `ap_initial.rsc` (2) | — |
 | Bootstrap | `bootstrap.sh`, `post_install.sh`, `pi/first-boot-config.sh` (3) | — |
 
@@ -127,6 +127,9 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 ---
 
 ## Role Catalog (Implementation Details)
+
+> **Catalog SSOT:** the role *list + responsibilities* live in [`docs/deployment-ansible.md`](../docs/deployment-ansible.md) (Role Catalog).
+> This section adds implementation-level detail (files, idempotency, secrets) per role — the two are kept in sync, the doc is the owner.
 
 ### `common`
 - **Files:** `tasks/main.yml` → includes `tasks/system.yml`

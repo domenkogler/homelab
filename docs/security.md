@@ -17,8 +17,10 @@ tags: [security, waf, hardening, secrets, bootstrap]
 > `observability.md`, `deployment-renovate.md`, `services-authentik.md`
 > **Linked from:** `../README.md`, `index.md`
 
-Each of the six sections maps to one systemic flaw (Flaw A–F) from the architecture audit. Everything is
-tracked in `../todo.md` (HD-XX rows, `source: qwen`).
+Each of the first six sections maps to one systemic flaw (Flaw A–F) from the architecture audit. Everything is
+tracked in `../todo.md` (HD-XX rows, `source: qwen`). §§8–9 fold the post-HD-135 public-VPS + tunnel
+hardening recommendations from the 2026-08-19 security audit (the temporary root `security.md`/`architecture.md`
+were deleted after folding — HD-153).
 
 ## 1. Edge WAF (Flaw A)
 
@@ -140,3 +142,34 @@ Owning docs: [deployment-preseed.md](deployment-preseed.md),
   *(evidence: KOPS-058)* Date: 2025-08-16.
 - **Seerr SQLite single-file** — accepted risk (reconfig takes ~15 min; keep in Kopia scope).
   *(evidence: KOPS-059)* Date: 2025-08-16.
+
+## 8. Public VPS host hardening (HD-154)
+
+> **Law:** the VPS is the **single public trust boundary** — the biggest surface exposed to the internet.
+> Its OS/SSH/Docker surface must be hardened as an explicit **checklist item at VPS deploy (HD-40A/154)**, not
+> left as aspirational design prose. Folded from the 2026-08-19 security audit (HD-153).
+
+- **SSH hardening** — `MaxAuthTries`, `PasswordAuthentication no`, `Source address filter`, key-only `ansible-admin`;
+  **fail2ban / IP-throttle** on the VPS SSH + public login pages (n8n/Grafana/Forgejo). Owned by
+  [deployment-preseed.md](deployment-preseed.md) (VPS) + [services-vps.md](services-vps.md) §Security Hardening. **HD-154.**
+- **Container/escape hardening** — the VPS `docker_services` compose uses `cap_drop`/`read_only`/`tmpfs` where
+  possible; no public container gets `privileged` / host networking without a documented reason (§4 applies). **HD-154.**
+- **VPS firewall default-deny** — inbound **deny-all except :443 + WireGuard port** (already in
+  [services-vps.md](services-vps.md) §VPS-Specific Firewall); committed as a checklist item, not prose. **HD-154.**
+- **SSO on VPS admission** — the netcup `post_install.sh` SSH config must match the preseed defaults; root-login
+  disabled, per-host keys (see [deployment-preseed.md](deployment-preseed.md) → VPS Deviations). **HD-154.**
+
+## 9. Home↔VPS tunnel least-access (HD-155)
+
+> **Law:** the `wg-s2s` home↔VPS tunnel must be **least-access**, not a wide-open bridge. Today `vps.yml` routes
+> `site` (whole /16) + `wg-vps-services` from the VPS into the home plane — **too broad** for a compromised-VPS
+> blast radius. Folded from the 2026-08-19 security audit (HD-153).
+>
+> **Recommendation:** define an **ACL on the tunnel** — the VPS may reach only the home **exporter / HA-VIP / probe**
+> targets (Prometheus/Loki scrapers, blackbox liveness), NOT general LAN read/write. Enforce in WireGuard
+> **AllowedIPs** + a **RouterOS INPUT rule**, and document which home subnets/ports the VPS may reach.
+> Additionally, the `wireguard` role skip under an **empty pubkey** must be **fail-loud** (task log / guard), not
+> silent — a run must never look like it configured WG when it didn't.
+>
+> Owning docs: [network-vpn.md](network-vpn.md), [services-vps.md](services-vps.md), `router.yml`, `all.yml`
+> (`wg_s2s_vps.allowed_ips`). **HD-155 (IaC + ACL), HD-03 (deploy-gate).**

@@ -183,7 +183,8 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
 - **PUID/PGID:** all filesystem/SMB-backed containers (the *arr stack, qBittorrent) run as the
   **neutral shared owner `storage_uid`/`storage_gid` = `1005` (`media`)** — linuxserver images via
   `PUID={{ storage_uid }}`/`PGID={{ storage_gid }}`, Jellyfin/OpenCloud via `user: "{{ storage_uid }}:{{ storage_gid }}"`.
-  NFS/SMB ownership on nas must match (HD-94/HD-131). **Immich originals are S3-backed (MinIO, HD-131 D1),**
+  NFS/SMB ownership on nas must match (HD-94/HD-131). **Immich originals are NOT S3-backed — they live on
+  the live Hetzner Box (CIFS) via the Immich storage template (HD-135);**
   so Immich's container user is not the shared-files owner for originals.
 - **Storage:** media lives in a **single dataset** on the nas `bulk` pool — `bulk/media` → NFS export →
   oldsrv `/mnt/nas/media` (one filesystem → TRaSH hardlinks; **not backed up**, redownloadable):

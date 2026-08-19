@@ -103,14 +103,14 @@ tags: [services, interfaces, dashboards]
 
 ## Alerting & Notification
 
-- **Engine:** Grafana Unified Alerting → webhook → **n8n** → Signal + email
-- **Fail-safe:** Grafana-native SMTP contact point runs in parallel (alerts survive n8n/signal-cli outage)
-- **Signal:** `signal-cli-rest-api` (linked to personal number), dedicated "Homelab Alerts" group
-- **Tiers:** Critical (Signal+email), Warning (Signal, deduped), Info (log only); ~30 min poke interval
-- **Self-monitoring:** the observability stack itself must alert if down
-- **Reachability (blackbox `probe_success`)** shown on Homepage via a status widget — no separate status page
+> **SSOT:** full alerting architecture, tiers, delivery and fail-safes live in [`observability.md`](observability.md) (§Alerting) — this section is only the interface-level summary.
 
-See [`observability.md`](observability.md).
+- Grafana Unified Alerting → **n8n** → Signal + email; Grafana-native SMTP as parallel fail-safe.
+- Tiers: Critical (Signal+email) / Warning (Signal, deduped) / Info (log only); ~30 min poke.
+- Reachability (`blackbox probe_success`) shows on the Homepage status widget — no separate status page.
+- Self-monitoring: the observability stack alerts if it is down.
+
+→ See [`observability.md`](observability.md).
 
 ---
 

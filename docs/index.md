@@ -33,7 +33,7 @@ tags: [index, dispatcher, ai]
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `llm-office.md`, `deployment-compose.md` |
 | **Understand the security posture / hardening** | [`security.md`](security.md) | `services-traefik.md`, `deployment-secrets.md`, `deployment-preseed.md`, `network-ops.md` |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
-| **Understand / build the AI stack (chat + RAG + agents)** | [`ai-stack.md`](ai-stack.md) | `llm-office.md`, `services-authentik.md`, `deployment-secrets.md`, `hardware-gpu.md`, `hd110-office-mcp-research.md` (Office live editing) |
+| **Understand / build the AI stack (chat + RAG + agents)** | [`ai-stack.md`](ai-stack.md) | `llm-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook, HD-105), `hardware-gpu.md`, `hd110-office-mcp-research.md` (Office live editing) |
 | **Live MS Office via Open WebUI (Word/Excel/PPT)** | [`llm-office.md`](llm-office.md) | `ai-stack.md`, `hd110-office-mcp-research.md`, [`client/office-bridge/`](../client/office-bridge/) (HD-106–111) |
 | **HA failover / high availability** | [`smart-home-failover.md`](smart-home-failover.md) | `smart-home.md`, `network-dns.md`, `deployment-ansible.md` |
 | **Current HA instance / HAOS→Docker feasibility** | [`home-assistant-current.md`](home-assistant-current.md) | `smart-home.md`, `smart-home-failover.md` |
@@ -77,6 +77,10 @@ docs/
 ├── services-matrix.md                     ★ Matrix messaging: homeserver (Tuwunel) + Element Web (native-only; bridges deferred)
 ├── services-vps.md                        netcup VPS (public edge) reference
 ├── subscription.md                        Costs, providers, renewal status
+├── subscriptions-table.md                 ★ Subscription schedule (generated from group_vars/subscriptions.yml)
+├── automation-renewals.md                 Renewal-reminder automation (Homepage + n8n)
+│
+├── rack-connections.md                    ★ Rack wiring map (generated from rack-connections.json — do not hand-edit)
 │
 ├── deployment.md                          Broad: GitOps philosophy, Ansible-only deploy flow
 ├── deployment-preseed.md                  ★ Preseed + post_install spec
@@ -84,9 +88,11 @@ docs/
 ├── deployment-compose.md                  ★ Docker compose conventions
 ├── deployment-secrets.md                  1Password backend, passwordless-first
 ├── 1password.md                           1Password CLI + SSH agent runner setup (SA token, vaults, ssh keys)
+├── deployment-ai-stack-secrets.md         ★ AI-stack 1Password item-creation + OIDC wiring runbook (HD-105)
 ├── deployment-renovate.md                 Renovate Bot & update lifecycle
 ├── security.md                            ★ Security hardening posture (WAF, pinning, privilege, bootstrap, decisions)
 ├── interfaces.md                          Dashboard + management interface matrix
+├── inventory.md                           ★ Service inventory (generated from group_vars docker_services)
 │
 ├── todo.md                              Planned work + open decisions backlog (HD-XX, single source)
 ├── CONVENTIONS.md                        Cross-cutting rules index + service-onboarding checklist (repo root)
@@ -114,7 +120,9 @@ docs/
 │   ├── server-restart.md
 │   ├── restore-backup.md
 │   ├── contacts.md
-│   └── smart-home.md
+│   ├── smart-home.md
+│   ├── chat.md
+│   └── office-ai.md
 │
 └── assets/
     ├── Rack.canvas

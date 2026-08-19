@@ -19,6 +19,7 @@
 | 1Password items | `<service>_<type>`; `_` only delimiter; `-` allowed inside service; never a field in the name; `field=` mandatory in lookups | [docs/deployment-secrets.md](docs/deployment-secrets.md) (Secret Naming Convention) |
 | Vault | one vault `Homelab`, referenced via `op_vault` var, never a literal | [docs/deployment-secrets.md](docs/deployment-secrets.md) |
 | Service domains | service → `https://<name>.kogler.si` unless stated (service catalog SSOT) | [docs/services.md](docs/services.md) |
+| Service placement | post-HD-135 plane split is a cross-cutting fact: **VPS** = public edge / live-data apps / AI stack / observability backend / GitOps · **oldsrv** = GPU / LAN / storage-bound core · **nas** = ZFS storage (no Docker) · **pi** = HA primary + DNS secondary. A service's plane + exposure is stated in its catalog row, never implied | [docs/services.md](docs/services.md), [docs/services-vps.md](docs/services-vps.md) |
 
 ## 2. Values & SSOT (never hardcode)
 
@@ -55,10 +56,10 @@
 | Phase | Rule | Owning doc |
 |-------|------|-----------|
 | Backlog | new work = new `HD-XX` row in `todo.md`; decisions written to owning doc; done → `changelog.md` | [todo.md](todo.md), [docs/index.md](docs/index.md) |
-| Post-task housekeeping | **after each completed task, update `todo.md` in the same change** — move the done `HD-XX` row to `changelog.md` and refresh the status tally (line 7 + §5); never leave completed work marked open | [todo.md](todo.md) (§0 lifecycle), [changelog.md](changelog.md) |
+| Post-task housekeeping | **after each completed task, update `todo.md` in the same change** — move the done `HD-XX` row to `changelog.md`; never leave completed work marked open. **No hand-maintained tally/Status line** — the backlog count is derived from the rows themselves (counts are derived, never hand-entered, §2) | [todo.md](todo.md) (§0 lifecycle), [changelog.md](changelog.md) |
 | Decisions | decisions log, date-stamped, closed once per decision (mirror `docs/security.md §7` style); **a resolved decision is written ONCE to `changelog.md` (decision-log SSOT) — do NOT leave a struck duplicate row with the full rationale in `todo.md` §1** | [docs/security.md](docs/security.md) (§7 Decision log), [changelog.md](changelog.md) |
 | Onboarding a service | see the 10-step checklist below | — |
-| Validation gate | `bash scripts/validate-all.sh` before commit (compose, templates, IPs, docs) | [scripts/](scripts/) |
+| Validation gate | `bash scripts/validate-all.sh` before commit (compose, templates, IPs, docs). **Planned extension (HD-157):** also lint the `docs/index.md` doc-map vs `find docs -name "*.md"` and any doc-claimed role/template count — a docs-claim that drifts is a lint failure, not a cosmetic | [scripts/](scripts/), [docs/index.md](docs/index.md) (Validation) |
 | Deploy | first apply human-gated (dry-run → single host); single path = Ansible (Renovate PR → Forgejo Actions deploy button → Ansible) | [docs/deployment.md](docs/deployment.md) |
 | Deploy-gated rows | an `HD-XX` row whose IaC is done **but not yet live** stays **open** with a **`⏳ Deploy-gated:`** tail listing the exact pending live steps (provider creation, secret seeding, firewall open, live-verify). It closes only after a live deploy/verify pass — **not** at IaC-completion. A task's ⏳ is a *phase*, never moved to a separate file | [todo.md](todo.md) (§0 lifecycle, §⏳ checklist), [changelog.md](changelog.md) |
 
@@ -79,6 +80,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 4. **Registry** — add to `group_vars/home_servers.yml` + catalog row in `docs/services.md`.
 5. **Edge (if exposed)** — Traefik route + middleware chain (`crowdsec-only`, Forward-Auth) per `docs/services-traefik.md`.
 6. **State & backups** — map volumes/data into `db-backup` / Kopia scope.
+6.5. **Storage / data location** — state where the service's big data lives (NAS ZFS dataset / VPS NVMe / live Box CIFS / WebDAV / S3) **in the owning doc**, consistent with the storage SSOT (`storage-zfs.md`). If a storage decision changes, update IaC + owning doc **in the same change** (data-location rule §2).
 7. **Observability** — exporter / scrape target + Grafana dashboard if it's on a watchlist.
 8. **Validation** — `bash scripts/validate-all.sh` green (template + group_vars both).
 9. **Deploy gate** — first apply is human-gated (dry-run → single host) — no blind `docker compose up -d`.
@@ -99,4 +101,16 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 
 ---
 
-*Last review: 2026-08-19 (added: derived-counts, data-location same-change, two-sided deploy gate). Owning docs above remain authoritative.*
+## 7. Version-pin hygiene
+
+| Rule | Owning doc |
+|------|-----------|
+| a `*_version` pin lives in **one** file — the proposed `group_vars/versions.yml` (HD-156) — **not** spread across `all.yml`; Renovate docker datasource + version review are single-sheet | [docs/deployment-compose.md](docs/deployment-compose.md), [docs/deployment-renovate.md](docs/deployment-renovate.md) |
+| a pin is **never bare `latest`** and never a *mutable alias* (`-rocm`, `main-stable`) **unless** the owning doc records an explicit MUST-pin + verified-semver precondition (Tuwunel / OpenClaw / LiteLLM fluid-tag precedents, HD-121/134) | [docs/deployment-compose.md](docs/deployment-compose.md) |
+| on a fluid-tag *first* pin, show the registry-verified tag + Renovate tracking **in the same change** | [docs/deployment-compose.md](docs/deployment-compose.md), [docs/deployment-renovate.md](docs/deployment-renovate.md) |
+
+> Strengthens the §3 "Compose versioning" row (pinned tags, never bare `latest` + Renovate trail) — same owner, more explicit.
+
+---
+
+*Last review: 2026-08-19 (added: derived-counts, data-location same-change, two-sided deploy gate; placement §1, onboarding storage bullet §5, version-pin hygiene §7, validation-gate extension §4). Owning docs above remain authoritative.*

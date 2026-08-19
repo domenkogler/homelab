@@ -21,7 +21,9 @@ tags: [storage, zfs, datasets, backup, media, nfs]
    service state (Forgejo, n8n), Immich originals and face thumbnails. Docker images, packages, Ollama/ML
    model weights, TSDB (Prometheus/Loki), and the media library are deliberately **not** backup targets.
 3. **Live data is local.** DBs and service runtime state live on the host's NVMe/SSD — never on NFS.
-   The NAS holds only **big write-once files** (Immich originals) and **backup artifacts** (dumps, state pushes).
+   The NAS holds **backup artifacts** (dumps, state pushes). **OpenCloud user files + Immich originals live
+   on the live Hetzner Box (CIFS/WebDAV)**, not the NAS (HD-135) — the NAS keeps only ZFS snapshots/replicas
+   of the box-facing datasets where retained.
 4. **TRaSH hardlinks need one filesystem.** `downloads/` and `media/` live in a **single dataset**
    (`bulk/media`) — ZFS hardlinks cannot cross dataset boundaries.
 5. **No raw disk/NVMe images, ever.** IaC (preseed + Ansible) replaces *config* backup; ZFS pools are
@@ -36,8 +38,8 @@ tags: [storage, zfs, datasets, backup, media, nfs]
 ```
 tank   (4 TB mirror — HGST + IronWolf, 24/7-rated)         → BACKED UP
 └── data/
-    ├── immich/          Immich originals (photos/videos) only   hourly+ snapshots, syncoid
-    ├── documents/       OpenCloud files — 5-min snapshots (8 h), syncoid
+    ├── immich/          Immich dataset (NAS-local archive only — originals on live Box, HD-135)   hourly+ snapshots, syncoid
+    ├── documents/       OpenCloud dataset (NAS-local archive only — user files on live Box, HD-135)   5-min snapshots (8 h), syncoid
     ├── services/        nightly state pushes (Forgejo dump, n8n sqlite, …)
     └── db-dumps/        tiredofit/db-backup output (push from oldsrv)   hourly+ snapshots, syncoid
 
@@ -61,9 +63,8 @@ oldsrv — two local disks (Kopia → Hetzner Storage Box backup, NAS-independen
 ├── 960 EVO 500 GB (ext4) — OS/system only: `/`, `/var`, `/opt` — regenerable, no churn
 └── 970 EVO 1 TB (ZFS pool "nvme") — ALL local data:
     ├── nvme/docker-layers   /var/lib/docker         images/layers — re-pullable
-    ├── nvme/docker          /srv/docker — per-service datasets (DBs, Immich thumbs, services)
-    ├── nvme/tsdb            /srv/tsdb               30d/14d regenerable, no backup
-    ├── nvme/models          /srv/models             re-pullable, no backup
+    ├── nvme/docker          /srv/docker — per-service datasets (services; DBs/Immich moved to VPS — HD-135)
+    ├── nvme/models          /srv/models             re-pullable, no backup  (TSDB moved to VPS — HD-135)
     └── nvme/dumps           /srv/dumps              Kopia source → push → tank/data/db-dumps
 nas — MX300 525 GB (ext4) — OS/boot only; `tank`/`bulk` imported via ZFS cachefile
 ```
@@ -80,8 +81,8 @@ No native encryption by default (homelab threat model; re-evaluate only if it ch
 
 | Dataset | recordsize | compression | Snapshots (sanoid) | syncoid → `bulk`? | Backed up off-site (Kopia)? |
 |---------|-----------|-------------|--------------------|-------------------|-----------------------------|
-| `tank/data/immich` | 1M | lz4 | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | via dumps (DB) — **originals moved to S3 (MinIO, HD-131 D1)**; this holds MinIO's object blocks / any local cache, not the originals as a ZFS copy |
-| `tank/data/documents` | 128K | zstd | **5m(96)**+hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | optional (small) |
+| `tank/data/immich` | 1M | lz4 | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | via dumps (DB) — **no longer the originals store** (HD-135): Immich originals + encoded-video live on the **live Hetzner Box (CIFS)**, not S3/MinIO. Dataset retained by the storage role for a possible local cache/archive; nothing writes to it today (orphan — trim decision: HD-151) |
+| `tank/data/documents` | 128K | zstd | **5m(96)**+hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | optional (small) — **no longer the user-files store** (HD-135): OpenCloud user files live on the **live Hetzner Box (CIFS/WebDAV)**, not here. Dataset retained by the storage role as NAS-local archive only; nothing writes to it today (orphan — trim decision: HD-151) |
 | `tank/data/services` | 128K | zstd | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | yes (state dirs on oldsrv) |
 | `tank/data/db-dumps` | 128K | zstd | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | yes (local scratch via Kopia) |
 | `bulk/media` | 1M | lz4 | **none** | **no** | **no** — redownloadable |
@@ -92,10 +93,10 @@ Rationale: `recordsize=1M` matches large sequential photo/video files; `128K` is
 documents/dumps/git. Media and photos are already compressed by their codecs → `lz4` (cheap, tiny gain);
 documents/SQL dumps compress well → `zstd`. Snapshot cadence is **hourly** for immich/services/db-dumps
 (photos change by upload, dumps change daily) — with one deliberate exception: **`tank/data/documents`
-gets a 5-min tier retained 8 h (`5m(96)`)** for fine-grained per-file versioning (see File-Version UI
-below). Snapshots of unbacked media are pure churn. Replication granularity follows the snapshot cadence
-(≈ hourly; 5-min for documents), bounded by DB dump frequency (daily restore point) — worst case a
-homelab loses <24 h of DB changes, acceptable.
+gets a 5-min tier retained 8 h (`5m(96)`)** (legacy fine-grained per-file versioning, retained while the
+dataset stays as archive). Snapshots of unbacked media are pure churn. Replication granularity follows the
+snapshot cadence (≈ hourly; 5-min for documents), bounded by DB dump frequency (daily restore point) — worst
+case a homelab loses <24 h of DB changes, acceptable.
 
 ---
 
@@ -116,8 +117,11 @@ homelab loses <24 h of DB changes, acceptable.
 
 ## File-Version UI (per-file restore from snapshots)
 
+> **Post-HD-135 note:** OpenCloud user files live on the **live Hetzner Box**, so OpenCloud versioning below
+> applies to the box copy; the NAS `documents` dataset is a retained archive only (HD-151).
+
 - **Family today:** OpenCloud's built-in per-file versions (`REV.*` in `.oc-nodes/`) + Trash — keep its
-  revision retention short; ZFS owns the long tail.
+  revision retention short; ZFS owns the long tail (where the dataset is retained).
 - **Admin today:** cockpit-zfs (nas) + `.zfs/snapshot/*` + `zfs rollback`/`receive` (whole-tree or per-file copy out of a snapshot).
 - **Optional later:** serve `tank/data/documents` over SMB with `vfs objects = shadow_copy_zfs` → Windows
   Explorer *Properties → Previous Versions* per file, straight from these snapshots (~5 lines in smb.conf;
@@ -134,7 +138,7 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 
 | Export | Mount (oldsrv) | Purpose |
 |--------|----------------|---------|
-| `tank/data` | `/mnt/nas/data` | user data: OpenCloud documents, db dumps, service-state copies + MinIO S3 object store backing — **Immich originals live in MinIO S3 (HD-131 D1)**, not directly on this NFS tree |
+| `tank/data` | `/mnt/nas/data` | user data: db dumps, service-state copies, archived datasets. **Immich originals + OpenCloud user files do NOT live here** — they are on the live Hetzner Box (CIFS/WebDAV) via storage templates (HD-135); no S3/MinIO |
 | `bulk/media` | `/mnt/nas/media` | *arr library + downloads (Jellyfin, Sonarr/Radarr/Lidarr, SABnzbd, qBittorrent, Bazarr) |
 | `bulk/data/immich-thumbs` | `/mnt/nas/thumbs` | face-thumbnail push target (nightly rsync from oldsrv) |
 
@@ -190,11 +194,10 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
    automation only creates the pool on a fresh build and a fail-loud guard blocks it while the placeholder remains.
 ├── nvme/docker-layers       /var/lib/docker        128K lz4   no snapshots (images re-pullable)
 ├── nvme/docker              /srv/docker (container, canmount=off)
-│   ├── nvme/docker/postgres /srv/docker/postgres   8K   lz4   no snapshots (dumps = recovery point)
-│   ├── nvme/docker/immich   /srv/docker/immich     128K lz4   thumbs + encoded-video; face thumbs → bulk
+│   ├── nvme/docker/postgres /srv/docker/postgres   8K   lz4   no snapshots (dumps = recovery point)  (⚠ post-HD-135 DBs live on VPS NVMe — role still creates this; trim decision: HD-151)
+│   ├── nvme/docker/immich   /srv/docker/immich     128K lz4   thumbs + encoded-video; face thumbs → bulk  (⚠ Immich runs on VPS — role still creates this; trim decision: HD-151)
 │   └── nvme/docker/services /srv/docker/services   128K zstd  forgejo, n8n, authentik, traefik, … (pushes + Kopia)
-├── nvme/tsdb                /srv/tsdb   16K lz4    no snapshots, no backup (30d/14d regenerable)
-├── nvme/models              /srv/models 128K off   no snapshots, no backup (ollama + immich-ml weights)
+├── nvme/models              /srv/models 128K off   no snapshots, no backup (ollama + immich-ml weights)  (TSDB moved to VPS — HD-135)
 └── nvme/dumps               /srv/dumps  128K zstd  db-backup scratch → Kopia + push → tank/data/db-dumps
 ```
 
@@ -203,7 +206,7 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
 - **Bind mounts, not named volumes** for stateful services: each service dir maps 1:1 to a dataset and
 gives backup jobs/Kopia clean host paths (see `deployment-compose.md` → Volume Strategy).
 - **Capacity budget:** keep `nvme` < 80% full (ZFS fragmentation). ~1 TB fits comfortably: DBs < 50 GB,
-thumbs+encoded ~150–300 GB over 5 yr, docker layers ~50–100 GB, models ~60–150 GB, TSDB ~20–40 GB.
+thumbs+encoded ~150–300 GB over 5 yr, docker layers ~50–100 GB, models ~60–150 GB. (TSDB ~20–40 GB is on the VPS NVMe, not this pool — HD-135.)
 - Docker stays on overlay2 over `nvme/docker-layers` (auto-snapshot off on that dataset).
 
 ### Pi (HA node) — `/opt/<svc>`, no ZFS
@@ -313,13 +316,15 @@ all user data lives on the NAS and re-attaches via NFS.
 5. Unpack service state from `/mnt/nas/data/services/*` (Forgejo dump, n8n sqlite + 1Password key,
    Authentik DB already in dumps).
 6. Copy face thumbnails back from `bulk/data/immich-thumbs` (NFS) → local `thumbs/`.
-7. Point Immich/OpenCloud at the existing NAS data — **no copy**: originals/documents/media are already
-   there. Media library is untouched (Jellyfin/*arr resume from the same `/mnt/nas/media`).
+7. Point Immich/OpenCloud at the live Box data — **no copy**: originals/user files are already there (the
+   live Hetzner Box is the cold tier, HD-135). Media library is untouched (Jellyfin/*arr resume from the
+   same `/mnt/nas/media`).
 
 Also covers `nas` boot-SSD death: reinstall (preseed), `zpool import tank bulk`, re-run Ansible — no
 image backup of the MX300 needed; pools are self-describing. `nas` total-loss behaves differently:
-services keep running (their state is on oldsrv), Immich photos + OpenCloud files are unavailable until
-the NAS is rebuilt (accepted, see `backup.md`).
+services keep running (their state is on oldsrv); Immich photos + OpenCloud files are on the **live
+Hetzner Box** (cold tier), so they remain reachable — only the NAS-local archive datasets are
+unavailable until the NAS is rebuilt (accepted, see `backup.md`).
 
 ---
 

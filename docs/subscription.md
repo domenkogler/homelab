@@ -126,7 +126,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 
 | Item | Value |
 |------|-------|
-| Type | **Hetzner Storage Box BX11** (1 TB) — live data (Immich originals + family SMB/WebDAV drives) |
+| Type | **Hetzner Storage Box BX11** (1 TB) — live data (Immich originals + OpenCloud user files + family SMB/WebDAV drives) |
 | Billing | Monthly |
 | Cost | **3,90 €/mo** |
 | Since | 2026-08-18 |
@@ -135,7 +135,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | SMB/CIFS share | `//u653411.your-storagebox.de/backup` |
 | SSH/SFTP | port **23** — SSH key + password in 1Password |
 | Protocols | SMB/CIFS, WebDAV, SSH (external reachability) |
-| Purpose | Phase-2 live Immich-originals S3 + family SMB/WebDAV drives (HD-31 / HD-131 D1) |
+| Purpose | **live Immich-originals + encoded-video + OpenCloud user files (WebDAV) + family SMB/WebDAV drives** (CIFS, **not S3** — HD-135) |
 
 > ⚠ **SMB password:** SSH key alone works for SSH/SFTP (port 23). For **CIFS/SMB + WebDAV** mounts you
 > need the box **password** set via the web UI — store it in 1Password `Hertzner-SB-Data` (so the `password`

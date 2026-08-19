@@ -11,6 +11,8 @@ tags: [services, llm, ollama, office]
 > **Links to:** `hardware-gpu.md`
 > **Linked from:** `index.md`
 
+> ⚠️ **Planning phase — not deployed.** The office/AI toolchain (ONLYOFFICE on oldsrv desktop, Open WebUI MCP for Word/Excel/PPT) depends on oldsrv being live (Phase 3) and the AI stack (HD-100…111); this is the authoring spec, not a live system.
+
 ---
 
 ## Strategy
@@ -21,6 +23,16 @@ Office AI tools run on the **same oldsrv GPU** as voice assistant and Immich ML.
 
 ## Toolchain
 
+
+### Family Device Stack (one document, any screen)
+
+| Platform | File Syncing & Access | Document Editing (Word/Excel/PP) | Why This Works Best |
+| :--- | :--- | :--- | :--- |
+| **🌐 Web Browser** | OpenCloud Web Interface | **ONLYOFFICE Docs Server** (via WOPI) | Perfect for quick edits or when a family member is on a guest computer. |
+| **💻 Windows 11** | **OpenCloud Desktop Client** for Windows | **Microsoft Office Suite** (Local) | Your files sync to a local folder, and MS Office opens them with maximum feature compatibility. |
+| **🐧 Linux** | **OpenCloud Desktop Client** for Linux | **ONLYOFFICE Desktop Editors** | ONLYOFFICE preserves Microsoft formatting much better than LibreOffice or OpenOffice. |
+
+> ✅ **Verified (`docs.opencloud.eu/dev`):** OpenCloud ships a native **`collaboration` service** that connects to ONLYOFFICE / Collabora / Microsoft **via WOPI** (no third-party glue). Not enabled by default — start manually with `opencloud collaboration server`. Key vars: `COLLABORATION_APP_PRODUCT=OnlyOffice`, `COLLABORATION_APP_ADDR` (editing app URL), `COLLABORATION_WOPI_SRC` (public WOPI callback), plus `OC_URL`, `OC_JWT_SECRET`, `OC_REVA_GATEWAY`, `MICRO_REGISTRY_ADDRESS`. [Docs](https://docs.opencloud.eu/docs/dev/server/services/collaboration/information/).
 ### Phase 1: ONLYOFFICE on Debian Desktop
 
 oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:

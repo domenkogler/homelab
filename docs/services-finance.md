@@ -12,6 +12,8 @@ tags: [services, finance, budget, banking, investing]
 > accounts without open-banking access.
 > **Links to:** `services.md`, `services-authentik.md`, `deployment-compose.md`, `storage-zfs.md`,
 > `llm-office.md`, `network-dns.md`
+
+> ⚠️ **Planning phase — not deployed.** Actual Budget + Enable Banking are designed but **not live** (tracked HD-57, Stage 1/10); the manual-import plan assumes Ollama is up (Phase 3). This is the authoring spec.
 > **Linked from:** `index.md`, `services.md`
 
 > ⚠️ **Phase 1 (planned, not yet deployed).** Nothing about the finance stack is live. This doc is the

@@ -12,6 +12,8 @@ tags: [hardware, ups, power, modbus, nut]
 > **Links to:** `hardware-nas.md`, `network-rack.md`, `network-vlans.md`, `home-assistant-current.md`, `observability.md`
 > **Linked from:** `hardware.md`, `index.md`
 
+> ⚠️ **Planning phase — UPS hardware exists, NUT monitoring not deployed.** The PowerWalker is on the rack (VLAN 99, `ups` host per SSOT) but the NUT master (nas) + clients (oldsrv/pi) are **not live yet** — deploy-gated ⏳ (HD-06/07/08/09, hosts unprovisioned).
+
 ---
 
 ## Identity

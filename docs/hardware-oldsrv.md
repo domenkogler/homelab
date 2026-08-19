@@ -86,10 +86,10 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ## Observability Storage & Notes
 
-- **TSDB storage:** Prometheus/Loki on the oldsrv **`nvme` ZFS pool** (`nvme/tsdb`, 16K/lz4, no snapshots, no backup), not nas ZFS — metrics/logs are **regenerable**, expected ~10–20 GB at 30d/14d retention. Retention deliberate (see `observability.md`).
-- **Disk headroom:** monitor the `nvme` pool **and** OS disk in Grafana — pool ≥70% Warning / ≥80% Critical (see `observability.md`), OS disk ≥90% Critical.
-- **SPOF (accepted):** all observability lives here — if oldsrv dies, you cannot see nas/others. Documented; HA standby (see [`smart-home-failover.md`](smart-home-failover.md)) + backups cover recovery, not observability continuity.
-- Adds RAM weight vs original: n8n + Loki are the main additions; i7-7700K / 48 GB handles it.
+- **TSDB storage:** the observability **backend moved to the VPS (HD-135)** — Prometheus/Loki live on **VPS NVMe** (`/srv/tsdb` on the VPS, or equivalent `prometheus`/`loki` service volumes), not on oldsrv. Oldsrv runs only the thin **Alloy collector** (host metrics + logs) forwarding over the `wg-s2s` tunnel (`alloy_backend_host`). Metrics/logs remain **regenerable**, ~10–20 GB at 30d/14d retention, not backed up. See `observability.md` §Placement.
+- **Disk headroom:** monitor the `nvme` pool (oldsrv) + OS disk **and** the VPS NVMe in Grafana — pool ≥70% Warning / ≥80% Critical (see `observability.md`), OS disk ≥90% Critical.
+- **SPOF (accepted, HD-135):** the observability **backend** now lives on the **VPS** — if the VPS (or the home↔VPS `wg-s2s` tunnel) is down, live home metrics/logs are unavailable in Grafana (aggregation is buffered/replayed on reconnect). NUT-side `notifycmd`/`upssched-cmd` on nas remains the independent power-loss alert path. Documented in `observability.md` §Placement.
+- Adds RAM weight vs original: n8n + Loki are the main additions; i7-7700K / 48 GB handles the collector side.
 
 ---
 

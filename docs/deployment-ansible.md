@@ -172,17 +172,34 @@ IaC/ansible/
 
 ```ini
 [router]
-router.kogler.si      ansible_user=ansible-admin
+router.kogler.si
 
-[home_servers]
-oldsrv.kogler.si     ansible_user=ansible-admin homelab_mode=desktop
-nas.kogler.si        ansible_user=ansible-admin
+[switch]
+switch.kogler.si
+
+[network:children]
+router
+switch
 
 [vps]
-# Deferred to Phase 2
+vps.kogler.si
+
+[home_servers]
+oldsrv.kogler.si              # bare-metal Debian desktop + Docker host
+
+[storage]
+nas.kogler.si                 # HP MicroServer Gen8 — ZFS storage (NO Docker)
 
 [raspberry_pi]
-pi.kogler.si         ansible_user=ansible-admin
+pi.kogler.si                  # HA primary node (ha.kogler.si = VIP)
+
+[docker_hosts:children]
+vps
+home_servers
+
+[monitoring]
+oldsrv.kogler.si              # collector — forwards home telemetry to VPS
+vps.kogler.si                 # backend host — Prometheus/Loki/Grafana
 
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3

@@ -11,6 +11,8 @@ tags: [smart-home, homeassistant]
 > **Links to:** `smart-home-voice.md`, `interfaces.md`, `smart-home-audio.md`
 > **Linked from:** `index.md`
 
+> ⚠️ **Planning phase — nothing deployed yet.** The HA primary (Pi, HAOS→Docker redo) + standby (oldsrv) + voice pipeline are designed but **not live**; the current live instance is the HAOS box documented in [`home-assistant-current.md`](home-assistant-current.md). Deploy tracks HD-04 (Pi redo) / Phase 4.
+
 ---
 
 ## Architecture: 100% Local, Cloud-Free

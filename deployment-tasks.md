@@ -212,7 +212,7 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
    forgejo/immich-app/grafana) are on the VPS** (Phase 1/HD-135), not oldsrv — remove/downgrade them
    here per the HD-135 `enabled:` split.
 
-   ✅ **Templates status (live):** all **42** compose templates exist under `docker_services/` — HD-16
+   ✅ **Templates status (live):** all compose templates exist under `docker_services/` — HD-16
    (authentik + Forward-Auth middleware) and HD-50 (`docker_services` role) are **done**. The authoritative
    service list is `group_vars/home_servers.yml` (the loop source of truth) + `docs/services.md`; it is
    **not** a per-template TODO list. New services are added by dropping a template under

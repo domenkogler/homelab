@@ -12,6 +12,8 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 > `deployment-ansible.md`, `services.md`, `backup.md`
 > **Linked from:** `smart-home.md`, `index.md`
 
+> ⚠️ **Phase 1 (planned, not yet deployed).** The failover design + runbooks are authored but **not live** — the Pi primary + oldsrv standby + keepalived VIP deploy during Phase 4 (HD-04) / Phase 3 (HD-17); HmIP-RFUSB local-Homematic is parked (HD-13). Runbooks below are the spec to be executed at takeover time, not a live system.
+
 ---
 
 ## Goals & Non-Goals

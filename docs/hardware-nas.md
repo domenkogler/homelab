@@ -41,8 +41,8 @@ tags: [hardware, nas, zfs]
 
 - **4 TB usable**, fully redundant mirror — reserved for **user data** (backed up). No media.
 - Datasets (all snapshotted + syncoid-replicated to `bulk`):
-  - `tank/data/immich` → Immich **originals** only (photos/videos) — `recordsize=1M`
-  - `tank/data/documents` → OpenCloud files — `recordsize=128K`
+  - `tank/data/immich` → Immich **originals** only (photos/videos) — `recordsize=1M` *(HD-135: originals moved to the live Box; dataset = NAS-local archive only)*
+  - `tank/data/documents` → OpenCloud files — `recordsize=128K` *(HD-135: user files moved to the live Box; dataset = NAS-local archive only)*
   - `tank/data/services` → nightly state pushes from oldsrv (Forgejo dump, n8n sqlite, …)
   - `tank/data/db-dumps` → tiredofit/db-backup output (pushed from oldsrv local scratch)
   - (older `tank/important` / `tank/data`-with-media plans → **superseded**: media moved to the `bulk`

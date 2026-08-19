@@ -25,7 +25,7 @@ tags: [services, catalog]
 | Traefik | traefik | P | 60–120 / 250 | Reverse proxy, auto-SSL, Forward Auth (dashboard internal) |
 | CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via Metabase) |
 | Authentik | sso | P+I | 700–1,100 / 2,000 | OIDC SSO, MFA (WebAuthn) — bundle: server+worker+postgres+redis |
-| OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud. **Filesystem/WebDAV storage** (HD-131 D2). **Auth: native OIDC → Authentik** (multi-redirect web+desktop+mobile, HD-52); client provisioned via Blueprint + secret-egress glue |
+| OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud. **User files on the live Hetzner Box (WebDAV/CIFS, cold tier — HD-135); NAS `documents` dataset = archive only** (HD-151). **Auth: native OIDC → Authentik** (multi-redirect web+desktop+mobile, HD-52); client provisioned via Blueprint + secret-egress glue |
 | Immich | foto | I | 600–1,000 / 2,000 | Photo management, mobile apps (app+postgres+valkey — microservices merged into server in v3). **Originals on live Box (CIFS), thumbs/DB local** (HD-131 D1/D3). **Auth (HD-148): native OIDC → Authentik** (web + mobile `app.immich:///oauth-callback`); client via Blueprint + glue |
 | Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner). **Auth (HD-148): native OIDC → Authentik** (web SSO + per-user API/token); client via Blueprint + glue |
 | Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
@@ -79,9 +79,11 @@ tags: [services, catalog]
 > Estimates only; validate with real working-set metrics after deploy (observability TODO).
 
 > **Storage & versions (summary):** storage SSOT = [`storage-zfs.md`](storage-zfs.md). OpenCloud keeps its
-> own per-file versions (`REV.*` in `.oc-nodes/`); `tank/data/documents` gets **5-min ZFS snapshots kept 8 h**
-> as the deeper history. **Immich originals are S3-backed (MinIO → Storage Box later, HD-131 D1/D3)**;
-> `tank/data/immich` is MinIO's object store, not a ZFS-copy of originals. OpenCloud FR
+> own per-file versions (`REV.*` in `.oc-nodes/`); **OpenCloud user files live on the live Hetzner Box
+> (CIFS/WebDAV, cold tier — HD-135)**, and the NAS `documents` dataset is a retained archive only
+> (HD-151). **Immich originals are NOT S3/MinIO-backed (HD-135):** originals + encoded-video
+> live on the **live Hetzner Box (CIFS)** via the Immich storage template; `tank/data/immich` is no longer the
+> originals store (orphan dataset retained by the storage role — nothing writes to it today). OpenCloud FR
 > [opencloud-eu/opencloud#1702](https://github.com/opencloud-eu/opencloud/issues/1702)
 > (expose ZFS snapshots in the version panel) is a future option, not planned around.
 

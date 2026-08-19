@@ -105,8 +105,8 @@ Loopback-only if a raw port is ever required.
 
 ## 5. RAG pipeline
 
-1. **Ingest:** family documents from **OpenCloud** (mounted read-only, owned by the neutral `media`
-   uid per HD-51/94).
+1. **Ingest:** family documents from **OpenCloud** (WebDAV/CIFS on the live Hetzner Box, mounted read-only,
+   owned by the neutral `media` uid per HD-51/94).
 2. **OCR / structure:** **Docling** converts scans + PDFs (layout, tables, reading order) → markdown.
 3. **Index:** chunk → embed via **Cohere embed-v4 multilingual** → store in **PGVector** (`db-internal`).
 4. **Retrieve + answer:** Open WebUI queries PGVector, sends context + prompt to LiteLLM model.
@@ -131,7 +131,7 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 | Integration | How |
 |-------------|-----|
 | **Open WebUI ↔ OpenClaw** | Register OpenClaw as a **model/provider in LiteLLM** → chatting to the "OpenClaw" model in the UI invokes the agent. No bespoke glue. |
-| **Open WebUI ↔ OpenCloud** | Family-docs dataset (neutral `media` owner) mounted **read-only** into Open WebUI RAG ingestion; documents live in OpenCloud, Open WebUI indexes them. |
+| **Open WebUI ↔ OpenCloud** | Family documents from the **live Hetzner Box (WebDAV, HD-135)** mounted **read-only** into Open WebUI RAG ingestion; documents live in OpenCloud, Open WebUI indexes them. |
 | **OpenClaw ↔ OpenCloud** | OpenClaw **WebDAV skill** reads/writes family files (summarize, organize, OCR a scan via Docling, draft replies). |
 | **Open WebUI ↔ MS Office** | Office MCP bridges (Windows 11 clients) surface Word/Excel/PowerPoint as **tools** into Open WebUI over the Headscale tunnel — live COM edits; server-side python-docx/pptx/openpyxl path for Linux. See [`llm-office.md`](llm-office.md) (HD-106–111). |
 
