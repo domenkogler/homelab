@@ -226,7 +226,10 @@ Immich v3 uses its own Postgres image (`ghcr.io/immich-app/postgres:14-vectorcho
 and Valkey (`docker.io/valkey/valkey:9`) instead of Redis. Microservices are merged into the server
 container — no separate `immich-microservices` service needed.
 
-### Immich Hybrid Storage (originals on NAS, thumbs/ML local)
+### Immich Hybrid Storage (originals on NAS, thumbs/ML local)  *(superseded 2026-08-18)*
+
+> **Stale — HD-135/HD-151:** Immich now runs on the VPS with originals on the **live Hetzner Box** (CIFS) and
+> the NAS datasets trimmed. Kept only as historical context; do not follow the mount paths below.
 
 ```yaml
 services:

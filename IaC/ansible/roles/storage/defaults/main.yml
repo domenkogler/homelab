@@ -102,26 +102,22 @@ _common_zfs_props: &common
 
 storage_datasets:
   # --- nas pool "tank" — user data (BACKED UP) ---
+  # (immich + documents datasets trimmed HD-151: originals/user-files on the live
+  #  Hetzner Box; offline copies were a retained archive — Box + Kopia is recovery.)
   - { name: tank/data,            props: { canmount: off, mountpoint: none } }
-  - { name: tank/data/immich,     props: { recordsize: 1M,   compression: lz4,  <<: *common } }
-  - { name: tank/data/documents,  props: { recordsize: 128K, compression: zstd, <<: *common } }
   - { name: tank/data/services,   props: { recordsize: 128K, compression: zstd, <<: *common } }
   - { name: tank/data/db-dumps,   props: { recordsize: 128K, compression: zstd, <<: *common } }
   # --- nas pool "bulk" — MIXED: active media (unbacked) + replicas + thumbs ---
   - { name: bulk/media,           props: { recordsize: 1M,   compression: lz4,  <<: *common } }
   - { name: bulk/data,            props: { canmount: off, mountpoint: none } }
-  - { name: bulk/data/immich,     props: { recordsize: 1M,   compression: lz4,  <<: *common } }
-  - { name: bulk/data/documents,  props: { recordsize: 128K, compression: zstd, <<: *common } }
   - { name: bulk/data/services,   props: { recordsize: 128K, compression: zstd, <<: *common } }
   - { name: bulk/data/db-dumps,   props: { recordsize: 128K, compression: zstd, <<: *common } }
-  - { name: bulk/data/immich-thumbs, props: { recordsize: 128K, compression: lz4, <<: *common } }
+  - { name: bulk/data/immich-thumbs, props: { recordsize: 128K, compression: lz4, <<: *common } }  # kept (HD-151): nightly face-thumbnail push target
   # --- oldsrv pool "nvme" — compute-host data (NAS-backed or regenerable) ---
   - { name: nvme/docker-layers,   props: { recordsize: 128K, compression: lz4, atime: "off", mountpoint: /var/lib/docker } }
   - { name: nvme/docker,          props: { canmount: off, mountpoint: none } }
-  - { name: nvme/docker/postgres, props: { recordsize: 8K,   compression: lz4, atime: "off", mountpoint: /srv/docker/postgres } }
-  - { name: nvme/docker/immich,   props: { recordsize: 128K, compression: lz4, atime: "off", mountpoint: /srv/docker/immich } }
+  - { name: nvme/docker/immich,   props: { recordsize: 128K, compression: lz4, atime: "off", mountpoint: /srv/docker/immich } }  # kept (HD-151): immich-ml reads thumbs here
   - { name: nvme/docker/services, props: { recordsize: 128K, compression: zstd, atime: "off", mountpoint: /srv/docker/services } }
-  - { name: nvme/tsdb,            props: { recordsize: 16K,  compression: lz4, atime: "off", mountpoint: /srv/tsdb } }
   - { name: nvme/models,          props: { recordsize: 128K, compression: off, atime: "off", mountpoint: /srv/models } }
   - { name: nvme/dumps,           props: { recordsize: 128K, compression: zstd, atime: "off", mountpoint: /srv/dumps } }
 
@@ -134,23 +130,18 @@ storage_own_pools:
   pi: []
 
 # ---------------------------------------------------------------------
-# Snapshots (sanoid) — cadence per dataset. sanoid.timer runs every 5 min
-# so the `frequently` tier means 5-min snapshots (documents: 96 = 8 h).
+# Snapshots (sanoid) — cadence per dataset. sanoid.timer runs every 5 min.
+# (The 5-min fine-grained `documents` tier was dropped with the dataset — HD-151.)
 # ---------------------------------------------------------------------
 storage_sanoid:
   templates:
     data:            { frequently: 0,  hourly: 24, daily: 7, weekly: 4, monthly: 3 }
-    documents:       { frequently: 96, hourly: 24, daily: 7, weekly: 4, monthly: 3 }
-    thumbs:          { frequently: 0,  hourly: 0,  daily: 7, weekly: 0, monthly: 0 }
+    thumbs:          { frequently: 0,  hourly: 0,  daily: 7, weekly: 0, monthly: 0 }   # immich-thumbs (bulk)
     none:            { autosnap: "no", autoprune: "no" }
   datasets:
-    tank/data/immich:        data
-    tank/data/documents:     documents
     tank/data/services:      data
     tank/data/db-dumps:      data
-    bulk/data/immich:        data          # replicas keep the same cadence
-    bulk/data/documents:     documents
-    bulk/data/services:      data
+    bulk/data/services:      data          # replicas keep the same cadence
     bulk/data/db-dumps:      data
     bulk/data/immich-thumbs: thumbs
     bulk/media:              none          # unbacked — never snapshotted
@@ -158,11 +149,9 @@ storage_sanoid:
 # ---------------------------------------------------------------------
 # Replication (syncoid) — source → target pairs on nas.
 # Timers check every 15 min; a send happens only when a new snapshot exists
-# (≈5 min for documents, ≈hourly otherwise).
+# (≈ hourly for services/db-dumps).
 # ---------------------------------------------------------------------
 storage_replication:
-  - { source: tank/data/immich,     target: bulk/data/immich }
-  - { source: tank/data/documents,  target: bulk/data/documents }
   - { source: tank/data/services,   target: bulk/data/services }
   - { source: tank/data/db-dumps,   target: bulk/data/db-dumps }
 

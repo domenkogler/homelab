@@ -38,8 +38,6 @@ tags: [storage, zfs, datasets, backup, media, nfs]
 ```
 tank   (4 TB mirror — HGST + IronWolf, 24/7-rated)         → BACKED UP
 └── data/
-    ├── immich/          Immich dataset (NAS-local archive only — originals on live Box, HD-135)   hourly+ snapshots, syncoid
-    ├── documents/       OpenCloud dataset (NAS-local archive only — user files on live Box, HD-135)   5-min snapshots (8 h), syncoid
     ├── services/        nightly state pushes (Forgejo dump, n8n sqlite, …)
     └── db-dumps/        tiredofit/db-backup output (push from oldsrv)   hourly+ snapshots, syncoid
 
@@ -53,22 +51,20 @@ bulk   (6 TB RAIDZ2 — WD Red + 3× Toshiba P300, consumer disks)  → MIXED RO
 │       ├── incomplete/{usenet,torrent}
 │       └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd / qBittorrent)
 ├── data/                syncoid replicas of tank/data/* — same names, same snapshot schedules
-│   ├── immich/
-│   ├── documents/
 │   ├── services/
 │   └── db-dumps/
 └── immich-thumbs/       face thumbnails, nightly rsync ← oldsrv — daily(7) snapshots, no syncoid send
 
 oldsrv — two local disks (Kopia → Hetzner Storage Box backup, NAS-independent)
 ├── 960 EVO 500 GB (ext4) — OS/system only: `/`, `/var`, `/opt` — regenerable, no churn
-└── 970 EVO 1 TB (ZFS pool "nvme") — ALL local data:
+└── 970 EVO 1 TB (ZFS pool "nvme") — ALL local data (immich dataset kept — immich-ml reads thumbs local):
     ├── nvme/docker-layers   /var/lib/docker         images/layers — re-pullable
     ├── nvme/docker          /srv/docker — per-service datasets (services; DBs/Immich moved to VPS — HD-135)
+    │   └── nvme/docker/immich  /srv/docker/immich   thumbs read by immich-ml (kept, HD-151)
     ├── nvme/models          /srv/models             re-pullable, no backup  (TSDB moved to VPS — HD-135)
     └── nvme/dumps           /srv/dumps              Kopia source → push → tank/data/db-dumps
 nas — MX300 525 GB (ext4) — OS/boot only; `tank`/`bulk` imported via ZFS cachefile
 ```
-
 > **Superseded plans:** earlier `tank/important`, `tank/media`, `tank/downloads` and `tank/data`-with-media
 > layouts. Media moved to its own dataset on the `bulk` pool; `tank` is now reserved for user data only.
 
@@ -81,21 +77,23 @@ No native encryption by default (homelab threat model; re-evaluate only if it ch
 
 | Dataset | recordsize | compression | Snapshots (sanoid) | syncoid → `bulk`? | Backed up off-site (Kopia)? |
 |---------|-----------|-------------|--------------------|-------------------|-----------------------------|
-| `tank/data/immich` | 1M | lz4 | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | via dumps (DB) — **no longer the originals store** (HD-135): Immich originals + encoded-video live on the **live Hetzner Box (CIFS)**, not S3/MinIO. Dataset retained by the storage role for a possible local cache/archive; nothing writes to it today (orphan — trim decision: HD-151) |
-| `tank/data/documents` | 128K | zstd | **5m(96)**+hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | optional (small) — **no longer the user-files store** (HD-135): OpenCloud user files live on the **live Hetzner Box (CIFS/WebDAV)**, not here. Dataset retained by the storage role as NAS-local archive only; nothing writes to it today (orphan — trim decision: HD-151) |
 | `tank/data/services` | 128K | zstd | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | yes (state dirs on oldsrv) |
 | `tank/data/db-dumps` | 128K | zstd | hourly(24)+daily(7)+weekly(4)+monthly(3) | yes | yes (local scratch via Kopia) |
 | `bulk/media` | 1M | lz4 | **none** | **no** | **no** — redownloadable |
 | `bulk/data/*` | inherit | same as source | same as source (retained on the replica) | — (target) | — |
 | `bulk/data/immich-thumbs` | 128K | lz4 | daily(7) | **no** (pushed, not sent) | yes |
+| `nvme/docker/immich` (oldsrv) | 128K | lz4 | none | **no** | no — regenerable thumbs; immich-ml reads directly |
+
+> **TRIM (HD-151, 2026-08-19):** `tank/data/immich`, `tank/data/documents`, `bulk/data/immich`,
+> `bulk/data/documents`, `nvme/tsdb` and `nvme/docker/postgres` were removed from the `storage` role
+> create-set — originals/user-files live on the live Hetzner Box, so the NAS-local retained archives added
+> no recovery coverage (the Box + Kopia is the recovery path). `bulk/data/immich-thumbs` and
+> `nvme/docker/immich` are **kept** — still written today.
 
 Rationale: `recordsize=1M` matches large sequential photo/video files; `128K` is the sensible default for
-documents/dumps/git. Media and photos are already compressed by their codecs → `lz4` (cheap, tiny gain);
-documents/SQL dumps compress well → `zstd`. Snapshot cadence is **hourly** for immich/services/db-dumps
-(photos change by upload, dumps change daily) — with one deliberate exception: **`tank/data/documents`
-gets a 5-min tier retained 8 h (`5m(96)`)** (legacy fine-grained per-file versioning, retained while the
-dataset stays as archive). Snapshots of unbacked media are pure churn. Replication granularity follows the
-snapshot cadence (≈ hourly; 5-min for documents), bounded by DB dump frequency (daily restore point) — worst
+services/dumps. Media and photos are already compressed by their codecs → `lz4` (cheap, tiny gain);
+SQL dumps compress well → `zstd`. Snapshots of unbacked media are pure churn. Replication granularity
+follows the snapshot cadence (≈ hourly), bounded by DB dump frequency (daily restore point) — worst
 case a homelab loses <24 h of DB changes, acceptable.
 
 ---
@@ -105,8 +103,7 @@ case a homelab loses <24 h of DB changes, acceptable.
 - **sanoid** on nas snapshots `tank/data/*` (and `bulk/data/*` replicas + `bulk/data/immich-thumbs`).
   `bulk/media` is excluded from sanoid entirely.
 - **syncoid** replicates `tank/data/* → bulk/data/*` (incremental `zfs send | zfs recv`). Timer checks
-  every 15 min, sends only when a new source snapshot exists — so `documents` pushes ≈ every 5 min, the
-  rest ≈ hourly.
+  every 15 min, sends only when a new source snapshot exists — effectively ≈ hourly for services/db-dumps.
 - Replica datasets retain **independent** snapshot history on the `bulk` pool (protects against source
   deletion/error propagation; the replica is a rollback target of its own).
 - `bulk/data/immich-thumbs` and `bulk/media` are **push targets** — no syncoid definition.
@@ -115,20 +112,17 @@ case a homelab loses <24 h of DB changes, acceptable.
 
 ---
 
-## File-Version UI (per-file restore from snapshots)
+## File-Version UI (per-file restore)
 
-> **Post-HD-135 note:** OpenCloud user files live on the **live Hetzner Box**, so OpenCloud versioning below
-> applies to the box copy; the NAS `documents` dataset is a retained archive only (HD-151).
+> **Post-HD-151:** the NAS `tank/data/documents` dataset is **gone** (trimmed HD-151) — OpenCloud user
+> files live entirely on the live Hetzner Box, so per-file versioning is OpenCloud's native mechanism below;
+> there is no NAS ZFS shadow-copy long tail anymore.
 
 - **Family today:** OpenCloud's built-in per-file versions (`REV.*` in `.oc-nodes/`) + Trash — keep its
-  revision retention short; ZFS owns the long tail (where the dataset is retained).
-- **Admin today:** cockpit-zfs (nas) + `.zfs/snapshot/*` + `zfs rollback`/`receive` (whole-tree or per-file copy out of a snapshot).
-- **Optional later:** serve `tank/data/documents` over SMB with `vfs objects = shadow_copy_zfs` → Windows
-  Explorer *Properties → Previous Versions* per file, straight from these snapshots (~5 lines in smb.conf;
-  Samba shares are now live (HD-131 D4) — this only adds the ZFS Previous-Versions VFS module on top).
+  revision retention short; retention is purely box-side now (config in the OpenCloud service, not ZFS).
+- **Admin today:** cockpit-zfs (nas) for the remaining datasets + `.zfs/snapshot/*` + `zfs rollback`/`receive` (whole-tree or per-file copy out of a snapshot) where a dataset is retained.
 - **Future:** OpenCloud FR [opencloud-eu/opencloud#1702](https://github.com/opencloud-eu/opencloud/issues/1702)
-  would expose ZFS snapshots inside OpenCloud's version panel — our sanoid naming plugs straight in; don't
-  plan around it (open, no ETA).
+  would expose box-side snapshots in OpenCloud's version panel; don't plan around it (open, no ETA).
 
 ---
 
@@ -194,8 +188,7 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
    automation only creates the pool on a fresh build and a fail-loud guard blocks it while the placeholder remains.
 ├── nvme/docker-layers       /var/lib/docker        128K lz4   no snapshots (images re-pullable)
 ├── nvme/docker              /srv/docker (container, canmount=off)
-│   ├── nvme/docker/postgres /srv/docker/postgres   8K   lz4   no snapshots (dumps = recovery point)  (⚠ post-HD-135 DBs live on VPS NVMe — role still creates this; trim decision: HD-151)
-│   ├── nvme/docker/immich   /srv/docker/immich     128K lz4   thumbs + encoded-video; face thumbs → bulk  (⚠ Immich runs on VPS — role still creates this; trim decision: HD-151)
+│   ├── nvme/docker/immich   /srv/docker/immich     128K lz4   thumbs read by immich-ml (kept, HD-151)
 │   └── nvme/docker/services /srv/docker/services   128K zstd  forgejo, n8n, authentik, traefik, … (pushes + Kopia)
 ├── nvme/models              /srv/models 128K off   no snapshots, no backup (ollama + immich-ml weights)  (TSDB moved to VPS — HD-135)
 └── nvme/dumps               /srv/dumps  128K zstd  db-backup scratch → Kopia + push → tank/data/db-dumps
@@ -205,8 +198,7 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
   the pool mirrors the NAS backup surface (dumps + services + face-thumbs) and adds convenience, not coverage.
 - **Bind mounts, not named volumes** for stateful services: each service dir maps 1:1 to a dataset and
 gives backup jobs/Kopia clean host paths (see `deployment-compose.md` → Volume Strategy).
-- **Capacity budget:** keep `nvme` < 80% full (ZFS fragmentation). ~1 TB fits comfortably: DBs < 50 GB,
-thumbs+encoded ~150–300 GB over 5 yr, docker layers ~50–100 GB, models ~60–150 GB. (TSDB ~20–40 GB is on the VPS NVMe, not this pool — HD-135.)
+- **Capacity budget:** keep `nvme` < 80% full (ZFS fragmentation). ~1 TB fits comfortably: thumbs+encoded ~150–300 GB over 5 yr, docker layers ~50–100 GB, models ~60–150 GB. (TSDB ~20–40 GB is on the VPS NVMe, not this pool — HD-135.)
 - Docker stays on overlay2 over `nvme/docker-layers` (auto-snapshot off on that dataset).
 
 ### Pi (HA node) — `/opt/<svc>`, no ZFS

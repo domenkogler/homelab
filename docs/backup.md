@@ -27,15 +27,13 @@ nas ZFS pool "tank"  ──zfs send/recv──→  nas ZFS pool "bulk"
 
 - ZFS snapshots are instantaneous, immutable, cheap (only changed blocks)
 - `zfs send/recv`: block-level incremental — 10–50× faster than file-level scan for TB-scale
-- **Scope:** ONLY `tank/data/*` (immich, documents, services, db-dumps) — retained archives. The media library
+- **Scope:** ONLY `tank/data/*` (services, db-dumps) — retained archives. (The old `immich`/`documents`
+  datasets were trimmed HD-151 — the live Box + Kopia is recovery.) The media library
   (`bulk/media`) is intentionally **NOT snapshotted or replicated** — it is redownloadable, see
   [`services.md`](services.md) / [`storage-zfs.md`](storage-zfs.md)
-- Snapshot schedule: data datasets hourly (24), daily (7), weekly (4), monthly (3); **`documents` gets an
-  additional 5-min tier retained 8 h (`5m(96)`)** (legacy fine-grained per-file versioning, retained while the
-  dataset stays as archive) — photo/dump datasets stay hourly (photos change by upload, dumps daily);
-  snapshotting unbacked media is pure churn
-- Replication: syncoid timer checks every 15 min, sends when a new source snapshot exists (≈ hourly;
-  ≈ 5 min for `documents`)
+- Snapshot schedule: data datasets hourly (24), daily (7), weekly (4), monthly (3); photo/dump datasets
+  stay hourly (photos change by upload, dumps daily); snapshotting unbacked media is pure churn
+- Replication: syncoid timer checks every 15 min, sends when a new source snapshot exists (≈ hourly)
 - Managed via **sanoid/syncoid**, run by **systemd timers** (sanoid.timer + syncoid.timer) — not raw cron; gives journaling, randomized schedules, and failure tracking
 
 ### Layer 2: Kopia (Off-Site — Application-Level, NAS-independent)
@@ -97,7 +95,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 ```
 ── ZFS path (user data, local) ──
-1. sanoid snapshots `tank/data/*` (immich, documents, services, db-dumps) — hourly(24)+daily(7)+weekly(4)+monthly(3)
+1. sanoid snapshots `tank/data/*` (services, db-dumps) — hourly(24)+daily(7)+weekly(4)+monthly(3)
 2. syncoid replicates `tank/data/*` → `bulk/data/*` via zfs send/recv (≈ hourly incremental)
 3. `bulk` retains the same snapshot schedules independently (rollback target of its own)
 4. `bulk/media` → no snapshots (unbacked); `bulk/data/immich-thumbs` → daily(7), no send

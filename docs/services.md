@@ -81,10 +81,9 @@ tags: [services, catalog]
 
 > **Storage & versions (summary):** storage SSOT = [`storage-zfs.md`](storage-zfs.md). OpenCloud keeps its
 > own per-file versions (`REV.*` in `.oc-nodes/`); **OpenCloud user files live on the live Hetzner Box
-> (CIFS/WebDAV, cold tier — HD-135)**, and the NAS `documents` dataset is a retained archive only
-> (HD-151). **Immich originals are NOT S3/MinIO-backed (HD-135):** originals + encoded-video
-> live on the **live Hetzner Box (CIFS)** via the Immich storage template; `tank/data/immich` is no longer the
-> originals store (orphan dataset retained by the storage role — nothing writes to it today). OpenCloud FR
+> (CIFS/WebDAV, cold tier — HD-135)**, and the NAS `documents` dataset was **trimmed (HD-151)**. **Immich originals are NOT S3/MinIO-backed (HD-135):** originals + encoded-video
+> live on the **live Hetzner Box (CIFS)** via the Immich storage template; the old `tank/data/immich`
+> originals store is **gone** (HD-151). OpenCloud FR
 > [opencloud-eu/opencloud#1702](https://github.com/opencloud-eu/opencloud/issues/1702)
 > (expose ZFS snapshots in the version panel) is a future option, not planned around.
 
