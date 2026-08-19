@@ -32,56 +32,82 @@ switch_port_map:
   # AP ports (VLAN 99, Management) - PoE enabled
   # MAC addresses from network_static_hosts in group_vars/all.yml
   ap-garage:
-    port: ether17  # TODO: VERIFY - estimate from canvas
+    port: ether1
     vlan: 99
     poe: true
     mac: "6C:3B:6B:7D:B9:C5"
   ap-spalnica:
-    port: ether14  # TODO: VERIFY - estimate from canvas
+    port: ether12
     vlan: 99
     poe: true
     mac: "C4:AD:34:42:F1:7D"
   ap-dnevna:
-    port: ether8   # TODO: VERIFY - estimate from canvas
+    port: ether11
     vlan: 99
     poe: true
     mac: "64:D1:54:AA:24:D1"
 
   # UPS Management (VLAN 99) - no PoE
   ups:
-    port: ether9   # TODO: VERIFY - estimate from canvas
+    port: ether4
     vlan: 99
     poe: false
     mac: "00:20:85:C0:92:FA"
 
-  # NAS iLO (VLAN 99 Management)
-  nas-ilo:
-    port: ether11  # TODO: VERIFY - estimate from canvas
-    vlan: 99
+  # NAS eno1
+  nas-eno1:
+    port: ether10
+    vlan: 
     poe: false
-    mac: "1C:98:EC:0E:0D:3A"
-
-  # Raspberry Pi (VLAN 10 - Home)
-  rpi:
-    port: ether10  # TODO: VERIFY - estimate from canvas
-    vlan: 10
+    mac: "1C:98:EC:0E:0D:38"
+  # NAS eno1
+  nas-eno2:
+    port: ether9 
+    vlan: 
     poe: false
-    mac: "E4:5F:01:26:EF:AA"
+    mac: "1C:98:EC:0E:0D:39"
 
-  # Nintendo Switch (Media VLAN 50)
-  nintendo-switch:
-    port: ether16  # TODO: VERIFY - estimate from canvas
-    vlan: 50
-    poe: false
-    mac: "E0:EF:BF:74:CE:07"
+  # Relolink camera (IoT VLAN 20) - PoE enabled
+  reolink-camera:
+    port: ether2
+    vlan: 20
+    poe: true
+    mac: "EC:71:DB:5F:BC:C1"
 
-  # Printer (Home VLAN 10)
-  # Note: May share port with other devices
+  # Printer
   printer:
-    port: ether3   # TODO: VERIFY - estimate from canvas
+    port: ether6 
     vlan: 10
     poe: false
     mac: "74:BF:C0:CD:33:0B"
+
+  # Nintendo Switch (IoT-Internet VLAN 21) - no PoE
+  nintendo-switch:
+    port: ether14 
+    vlan: 21
+    poe: false
+    mac: "E0:EF:BF:74:CE:07"
+
+  # NVIDIA Shield (Media VLAN 50) - no PoE
+  nvidia-shield:
+    port: ether20 
+    vlan: 50
+    poe: false
+    mac: "48:B0:2D:09:6F:90"
+
+  # KNX IP (IoT VLAN 20) - no PoE
+  knx-ip:
+    port: ether21
+    vlan: 20
+    poe: false
+    mac: "00:0A:B3:29:2C:9E"
+
+  # KNX X1 (IoT VLAN 20) - no PoE
+  knx-x1:
+    port: ether22
+    vlan: 20
+    poe: false
+    mac: "00:0A:B3:27:5F:8B"
 
 # VLAN list for switch (must match router.yml vlans)
 switch_vlans:

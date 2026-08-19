@@ -15,6 +15,32 @@ vlans:
   - { id: 50, name: Media,        subnet: "10.10.50.0/24" }
   - { id: 99, name: Management,   subnet: "10.10.99.0/24" }
 
+router_port_map:
+  wan:
+    port: ether1
+    vlan: 
+    mac: "1C:64:99:51:BF:92"
+  old-srv:
+    port: ether2
+    vlan: 
+    mac: "00:1B:21:13:12:15"
+  laptop-domen:
+    port: ether3
+    vlan:
+    mac: "48:2A:E3:9D:31:85"
+  nas-ilo:
+    port: ether7 
+    vlan: 99
+    mac: "1C:98:EC:0E:0D:3A"
+  homematic-ap:
+    port: ether9
+    vlan: 
+    mac: "00:1A:22:1E:F7:FD"  
+  rpi:
+    port: ether10
+    vlan: 
+    mac: "E4:5F:01:26:EF:AA"
+
 wireguard_s2s_vps:
   local_ip: 10.255.40.1/30
   remote_ip: 10.255.40.2/30
