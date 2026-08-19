@@ -47,10 +47,6 @@ crowdsec_bouncer_plugin_version: v0.4.0
 # services are exposed (qBittorrent, jellyfin, n8n …) — a collection only does
 # something if its logs are ALSO sent to CrowdSec (docker.sock container-log parsing).
 crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/home-assistant crowdsecurity/matrix crowdsecurity/grafana"
-# MinIO (S3 object store, HD-131 D1) image tag — pin to a verified semver at deploy (KOPS-005
-# class / HD-61 convention). MinIO publishes immutable RELEASE.<date> tags; set the exact tag you
-# verified here (default `latest` placeholder — Renovate docker datasource tracks it once pinned).
-minio_version: latest
 # osixia/keepalived image tag — shared by Pi primary + oldsrv standby (HD-124/KOPS-053).
 # Pinned to the verified semver (no `v` prefix on this image's tags); Renovate docker
 # datasource keeps it current once the tag is resolvable at render.

@@ -101,7 +101,6 @@ ALLOWED_LATEST = {
     # MUST pin to a verified semver at first deploy (registry check) before production:
     "doco-cd", "renovate",          # CD/update tooling, rolling tags
     "dozzle",                        # rolling `master`/pr tags; no stable semver on top 100
-    "minio",                         # all.yml: documented `latest` placeholder (HD-61 note)
     "matrix",                        # tuwunel — HD-121 documented obscure image
     "chat",                          # element-web (web frontend; fluid tags)
     "homepage", "metabase", "pihole",      # UI/utility containers, Renovate-tracked latest
@@ -185,7 +184,6 @@ BASE_CTX = {
     "crowdsec_bouncer_plugin_version": "v0.4.0",
     "crowdsec_version": "v1.7.8",
     "crowdsec_collections": "crowdsecurity/traefik crowdsecurity/linux",
-    "minio_version": "latest",
     "authentik_db_name": "authentik",
     "authentik_version": "2026.5.6",
     "opencloud_version": "7.4.0",
