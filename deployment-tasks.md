@@ -129,6 +129,7 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 
 **Verify:**
 - `sso.kogler.si` (Authentik) reachable publicly through the VPS Traefik with the wildcard cert; crowdsec decision active.
+- **Authentik OAuth2 Blueprint** — verify the `ks-oidc.yml` blueprint imports + the secret-egress glue seeds client creds on the pinned `2026.5.6` (version-specific flow/signing/binding attrs). Tracked: **HD-149**.
 - `vps` A/AAAA records live at Cloudflare (via `dns.yml`); `ansible-admin` SSH works with the agent.
 - Live Box CIFS mount returns data; VPS NVMe under 80%.
 
