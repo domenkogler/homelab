@@ -8,8 +8,9 @@
 #   1. NAS Unix user + uid
 #   2. ZFS dataset  tank/data/users/<name>
 #   3. Samba account + Samba share [name]
-#   4. OpenCloud account (via OpenCloud admin API) — so a new family member can
-#      immediately mount their NAS drive + has an OpenCloud space.
+#   4. OpenCloud account — Authentik-as-SSOT mapped (native OIDC, HD-52/HD-144); best-effort
+#      ensure the account exists via the least-privilege `opencloud-service_api` service account
+#      (not the interactive admin) so their drive data / space is attached.
 #
 # Adding a family member = add them to the Authentik "family" group; the next timer
 # run provisions everything else. (Per HD-131 D5.)
@@ -25,8 +26,11 @@ USERS_ROOT="${USERS_ROOT:-/tank/data/users}"
 STORAGE_GID="${STORAGE_GID:-1005}"
 
 get_ak_token() { op read "op://Homelab/authentik-api_token/credential"; }
-get_oc_admin() { op read "op://Homelab/opencloud_login/username"; }
-get_oc_admin_pass() { op read "op://Homelab/opencloud_login/password"; }
+# OpenCloud provisioning uses the dedicated least-privilege SERVICE ACCOUNT
+# (opencloud-service_api), NOT the interactive admin (`opencloud_login`). The
+# service account must exist (HD-141/HD-145 requirement).
+get_oc_service_user() { op read "op://Homelab/opencloud-service_api/username"; }
+get_oc_service_pass() { op read "op://Homelab/opencloud-service_api/credential"; }
 
 echo "== Fetching family group members from Authentik =="
 AK_TOKEN="$(get_ak_token)"
@@ -87,20 +91,26 @@ EOF
     echo "  samba share [$u] added"
   fi
 
-  # 4. OpenCloud account — ensure an OpenCloud user exists for their drive's data.
-  #    (OpenCloud Graph API endpoint + auth verified at deploy; failure here must not
-  #     abort the NAS-side provisioning already done.)
-  local oc_admin oc_pass
-  oc_admin="$(get_oc_admin)"; oc_pass="$(get_oc_admin_pass)"
-  if curl -fsS -X POST \
-      -u "$oc_admin:$oc_pass" -H "Content-Type: application/json" \
+  # 4. OpenCloud account — with Authentik as SSOT + native OIDC (HD-52/HD-144), the OpenCloud
+  #    identity is mapped from Authentik (the `preferred_username` OIDC claim). This step uses the
+  #    dedicated least-privilege SERVICE ACCOUNT (opencloud-service_api) to BEST-EFFORT ensure the
+  #    user exists in OpenCloud so their drive data / space is attached. It is NOT a second source
+  #    of truth — Authentik remains SSOT. If OpenCloud JIT-provisions OIDC users on first login,
+  #    this becomes a no-op; if it needs a pre-seeded account, this keeps it working.
+  #    JIT-vs-preseed verified at deploy (HD-149). Failure must not abort the NAS-side work done.
+  local oc_u oc_p
+  oc_u="$(get_oc_service_user)"; oc_p="$(get_oc_service_pass)"
+  if [ -n "$oc_u" ] && [ -n "$oc_p" ] && \
+     curl -fsS -X POST \
+      -u "$oc_u:$oc_p" -H "Content-Type: application/json" \
       -d "{\"onPremisesSamAccountName\":\"$u\"}" \
       "https://file.kogler.si/graph/v1.0/users" >/dev/null 2>&1; then
-    echo "  requested OpenCloud user $u"
+    echo "  ensured OpenCloud user $u (service account)"
   else
-    echo "  (OpenCloud user creation pending; NAS user + drive done) OK" >&2
+    echo "  (OpenCloud user seed pending; NAS user + drive done) OK" >&2
   fi
 }
+
 
 if [ -z "$MEMBERS" ]; then
   echo "Family group '$FAMILY_GROUP_NAME' has no members (yet)."
