@@ -54,6 +54,7 @@ services:
       - /srv/docker/authentik/media:/media
       - /srv/docker/authentik/certs:/certs
       - /srv/docker/authentik/templates:/templates
+      - ./blueprints:/blueprints
     environment:
       AUTHENTIK_SECRET_KEY: "{{ lookup('community.general.onepassword', 'authentik_password', field='password', vault=op_vault) }}"
       AUTHENTIK_TOKEN_LENGTH: "86"
