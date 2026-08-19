@@ -53,7 +53,7 @@ that is a break-glass decision, not a connection-config item.
 | **One vault** | All secrets in `Homelab` vault |
 | **Never in Git** | No `.env` files, no Ansible Vault, no hardcoded credentials |
 | **Resolved at deploy time** | Ansible templates call `lookup('community.general.onepassword', ...)` — secrets fetched at render time, never cached |
-| **Doco-CD integration** | Service Account token with minimum-scope vault access. Secrets resolved at deploy, never on disk |
+| **Forgejo Actions integration** | Service Account token with minimum-scope vault access. Secrets resolved at deploy, never on disk |
 | **1Password CLI** | Installed on management laptop + Actions runner. `op` CLI + `OP_SERVICE_ACCOUNT_TOKEN` |
 | **1Password SSH agent** | Private keys never on disk — served from `Homelab` vault on demand. See SSH Key Separation below |
 
@@ -86,9 +86,9 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `type`       | 1Password item    | `field=`              | Examples |
 |--------------|-------------------|-----------------------|----------|
 | `login`      | Login             | `password`            | SMTP/SMTP-relay creds (`grafana-smtp_login`, `nut-smtp_login`), admin accounts (`mikrotik-admin_login`, `grafana_login`, `authentik_login`), any username+password combo |
-| `password`   | Password          | `password`            | shared / opaque secrets with no username: webhook HMAC (`doco-cd_password`), VRRP (`ha-vrrp_password`), upsmon (`nut_password`), repo master (`kopia_password`), Django `SECRET_KEY` (`authentik_password`), WireGuard private key (`wg_password`), Matrix bootstrap shared secret (`matrix_password`) |
+| `password`   | Password          | `password`            | shared / opaque secrets with no username: webhook HMAC (`doco-cd_password` — retired HD-150), VRRP (`ha-vrrp_password`), upsmon (`nut_password`), repo master (`kopia_password`), Django `SECRET_KEY` (`authentik_password`), WireGuard private key (`wg_password`), Matrix bootstrap shared secret (`matrix_password`) |
 | `api`        | API Credential    | `credential`          | tokens & keys: Cloudflare (`cloudflare_api`), Forgejo (`forgejo_api`), HA long-lived (`ha_api`), HA failover trigger (`ha-failover_api`), headscale OIDC (`headscale_api`), 1Password service-account (`op_api`), signal-cli (`signal_api`), PrivadoVPN WireGuard client key (`privado-vpn_api`), Matrix/Authentik OIDC client (`matrix_api`), Meteoblue weather key (`meteoblue_api`) |
-| `oidc`       | API Credential    | `username`=`client_id`, `credential`=`client_secret` | **OAuth2/OIDC client credentials** — the 1Password item holds the Authentik-generated client_id (in `username`) + client_secret (in `credential`), seeded by the secret-egress glue (HD-143). e.g. `immich_oidc`, `opencloud_oidc`, `forgejo_oidc`, `metabase_oidc`. **Use `oidc`, NOT `api`**, for a service's OIDC *client* — this keeps it distinct from service API tokens (e.g. `forgejo_api` = the doco-cd/renovate git token, vs `forgejo_oidc` = the Authentik login client). Items older than this rule (`matrix_api`, `headscale_api`, `openwebui_api` for OIDC) are grandfathered under `api`; do not rename them. |
+| `oidc`       | API Credential    | `username`=`client_id`, `credential`=`client_secret` | **OAuth2/OIDC client credentials** — the 1Password item holds the Authentik-generated client_id (in `username`) + client_secret (in `credential`), seeded by the secret-egress glue (HD-143). e.g. `immich_oidc`, `opencloud_oidc`, `forgejo_oidc`, `metabase_oidc`. **Use `oidc`, NOT `api`**, for a service's OIDC *client* — this keeps it distinct from service API tokens (e.g. `forgejo_api` = the renovate/doco-cd git token, vs `forgejo_oidc` = the Authentik login client). Items older than this rule (`matrix_api`, `headscale_api`, `openwebui_api` for OIDC) are grandfathered under `api`; do not rename them. |
 | `db`         | Database          | `password` (also `username`) | platform DBs: `authentik_db`, `opencloud_db`, `immich_db`, `forgejo_db` — Database item holds both `username` (DB user) and `password` |
 | `ssh`        | SSH Key           | `private_key` / `public_key` | `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh` — item stores both halves; read whichever the consumer needs |
 
@@ -130,7 +130,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | ~~`minio_login`~~ | ~~`login`~~ | **retired (HD-135): MinIO S3 removed** — Immich originals + encoded-video go to the **live Hetzner Box (CIFS)**, not S3/MinIO. Orphaned MinIO compose template, `minio_version` var, and the Immich `IMMICH_S3_*` block all removed; `services.md` MinIO row removed. No S3 credential needed. |
 | `immich_db` | `password` | immich-app (Postgres) |
 | `forgejo_db` | `password` | forgejo (Postgres) |
-| `forgejo_api` | `credential` | doco-cd (`GIT_ACCESS_TOKEN`) + renovate (`RENOVATE_TOKEN`) — Forgejo token |
+| `forgejo_api` | `credential` | renovate (`RENOVATE_TOKEN`) — Forgejo token (deploy/CI via the Forgejo Actions runner); previously also doco-cd `GIT_ACCESS_TOKEN` (doco-cd dropped, HD-150) |
 | `grafana_login` | `password` | grafana (admin user) |
 | `grafana-smtp_login` | `password` | grafana (SMTP fail-safe contact point) |
 | `ha_api` | `credential` | HA long-lived token → Traefik/Companion, `/api/prometheus` bearer for Prometheus |
@@ -147,12 +147,12 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `pppoe_login` | `password` (`username` = PPPoE user) | router — ISP (Telekom) PPPoE credentials for the egress WAN |
 | `cloudflare_api` | `credential` | ACME **DNS-01** wildcard `*.kogler.si` cert |
 | ~~`kopia-s3_api`~~ | ~~`credential` (S3 access key)~~ | **retired (HD-31): iDrive e2 S3 dropped.** Kopia now targets the **backup Box over SSH/SFTP (port 23)** — SSH-key auth via `Hertzner-SB-Backup`, repo password via `kopia_password`. No S3 credential item needed. |
-| `op_api` | `credential` | 1Password Service Account token → Doco-CD + Forgejo Actions. **Note (HD-140):** the Ansible runner uses the separate `Service Account Auth Token: ansible` in a **Private vault** instead of this item — see [1password.md](1password.md). `op_api` is the token storage slot here for Doco-CD/Actions; it is NOT created for the runner's CLI lookup. |
+| `op_api` | `credential` | 1Password Service Account token → **Forgejo Actions** (deploy button). **Note (HD-140):** the Ansible runner uses the separate `Service Account Auth Token: ansible` in a **Private vault** instead of this item — see [1password.md](1password.md). `op_api` is the token storage slot for Actions; it is NOT created for the runner's CLI lookup. (Doco-CD half removed — Doco-CD dropped, HD-150.) |
 | `signal_api` | `credential` (`username` = phone number) | signal-cli-rest-api (linked-device pair / captcha) |
 | `signal-internal_api` | `credential` | signal-cli-rest-api — API token auth (`SIGNAL_CLI_API_TOKEN`; requests require `X-Api-Key` header) so no container on services-internal can send Signal as Domen's number without it (KOPS-002 / HD-125). n8n sends this in its webhook call |
 | `kopia-server-internal_api` | `username` + `credential` | kopia-server auth (HD-59) — `username` = the `user@host` identity backup clients present via HTTP Basic Auth, `credential` = password; written to the in-container `server.htpasswd` (plaintext, 0600). Replaces the old `--without-password` |
 | `prometheus-internal_api` | `username` + `bcrypt_hash` | prometheus Basic Auth (HD-59) — `username` = user, `bcrypt_hash` = bcrypt hash for `basic_auth_users` (generate via `scripts/gen-htpasswd.py`). Grafana + Alloy consume this endpoint |
-| `doco-cd_password` | `password` | Doco-CD webhook HMAC (`WEBHOOK_SECRET`) |
+| ~~`doco-cd_password`~~ | ~~`password`~~ | **retired (HD-150): Doco-CD dropped** — single Ansible-only deploy/upgrade path. No webhook HMAC needed. |
 | `sonarr_api` | `credential` | Sonarr API key — recyclarr syncs quality profiles from this instance |
 | `radarr_api` | `credential` | Radarr API key — recyclarr syncs quality profiles from this instance |
 | `pihole_password` | `password` | Pi-hole admin UI (`WEBPASSWORD`) — optional; empty = no password set via web UI |
@@ -203,8 +203,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `cloudflare_api_token` / `cloudflare_api_token_credential` | `cloudflare_api` |
 | ~~`s3_kopia_access_key` / `s3_kopia_secret_key` / `kopia_access_key` / `s3_kopia_secret`~~ → ~~`kopia-s3_api`~~ | **retired (HD-31/HD-135)** — iDrive S3 dropped; Kopia = SFTP to backup Box (see `kopia-s3_api` row) |
 | `op_service_account_token` | `op_api` |
-| `doco_cd_op_service_account` | `op_api` (single SA token for Doco-CD + Actions) |
-| `doco_cd_webhook_secret` | `doco-cd_password` |
+
 | `signal_api_*` | `signal_api` |
 
 > `nut_smtp_server` (relay host, not a credential) is **config** — it lives in `group_vars`, not
@@ -292,7 +291,7 @@ ai-debug ALL=(root) NOPASSWD: /usr/local/sbin/ai-diag *
 
 - **SSH keys** — three separate ED25519 keys (personal / Ansible / AI) in 1Password, injected by post_install.sh. AI key restricted to the `ai-debug` user (no sudo, LAN-only, no forwarding)
 - **Ansible** — 1Password lookup at render time, no passwords in playbooks
-- **Doco-CD** — 1Password Service Account token (`op_api`), scoped to `Homelab` vault only
+
 - **Forgejo** — OIDC via Authentik, or deploy key with push access
 
 ---
@@ -316,9 +315,6 @@ This ensures no single point of failure: 1Password cloud + paper backup + Git mi
 
 | Boundary | Detail |
 |----------|--------|
-| **Doco-CD → Docker socket** | Mounts `docker.sock` read-write. Non-root container, `cap_drop: [ALL]` |
-| **Doco-CD → Forgejo** | Git access token (`forgejo_api`, read-only on repo) |
-| **Doco-CD → 1Password** | Service Account token (`op_api`) — minimum-scope `Homelab` vault access |
 | **Actions runner → VPS** | Dedicated SSH key (separate from Domen's personal key) |
 | **Actions runner → 1Password** | Service Account token (`op_api`) — stored as Forgejo secret |
 | **Homepage → internet** | Protected by Authentik Forward Auth |

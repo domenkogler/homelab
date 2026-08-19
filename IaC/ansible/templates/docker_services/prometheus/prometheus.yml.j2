@@ -74,14 +74,7 @@ scrape_configs:
   - job_name: crowdsec
     static_configs:
       - targets: ["http://crowdsec:6060/metrics"]
-  # Service self-metrics: doco-cd — HOST-network container (needs docker.sock), so its
-  # /metrics is on the host, not on a docker network. Prometheus reaches the host via
-  # host.docker.internal (extra_hosts: host-gateway in the prometheus compose).
-  # Port = doco_cd_metrics_port (group_vars/all.yml, 9120 — re-verify at HD-02).
-  - job_name: doco-cd
-    static_configs:
-      - targets:
-          - "http://host.docker.internal:{{ doco_cd_metrics_port }}/metrics"
+  # (Doco-CD scrape job removed — Doco-CD dropped, HD-150.)
   # Self-monitoring: the observability stack itself must alert when it dies
   # (docs/observability.md — Grafana rules key off up{job=...}, noData/execErr as backstop).
   - job_name: prometheus

@@ -56,7 +56,7 @@ NETWORK_MAP = {
     "dozzle":            {"traefik-public"},
     "sunshine":          {"services-internal"},
     "n8n":               {"traefik-public", "services-internal"},
-    "doco-cd":           set(),
+
     "renovate":          {"services-internal"},
     "sunshine":          {"services-internal"},
     "jellyfin":          {"services-internal", "traefik-public"},
@@ -99,7 +99,7 @@ ALLOWED_LATEST = {
     "gluetun",
     # HD-121-style fluid/obscure/Rolling-tag services kept on `latest` — Renovate-tracked,
     # MUST pin to a verified semver at first deploy (registry check) before production:
-    "doco-cd", "renovate",          # CD/update tooling, rolling tags
+    "renovate",                    # CD/update tooling, rolling tags
     "dozzle",                        # rolling `master`/pr tags; no stable semver on top 100
     "matrix",                        # tuwunel — HD-121 documented obscure image
     "chat",                          # element-web (web frontend; fluid tags)
@@ -126,7 +126,7 @@ WEB_SERVICES = {
     "chat",
 }
 
-HOST_NET_SERVICES = {"doco-cd", "traefik-ha"}
+HOST_NET_SERVICES = {"traefik-ha"}
 HOST_NET_CONTAINERS = {"home-assistant-standby"}
 
 _EXTRA_TEMPLATES = {
@@ -198,7 +198,7 @@ BASE_CTX = {
     "rmat_name": "raspberrymatic",
     "rmat_restart": "unless-stopped",
     "instance": "primary",
-    "doco_cd_password": "secret123",
+
     "forgejo_api": "secret456",
     "opencloud_log_level": "info",
     "kopia_sftp_host": "u653424.your-storagebox.de",

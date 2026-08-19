@@ -104,10 +104,7 @@ wildcard_cert_key_file: kogler.si-key.pem
 # The wildcard SAN root — the certs-dumper matches acme.json by this domain and
 # the Pi/oldSrv edges serve all *.kogler.si hosts from the dumped pair.
 wildcard_cert_domain: "kogler.si"
-# Doco-CD metrics listen port — host-network container (needs docker.sock); /metrics
-# answered on the host at this port. Prometheus scrapes via host.docker.internal
-# (host-gateway extra_hosts in the prometheus template). Verified at HD-02 activation.
-doco_cd_metrics_port: 9120
+# (Doco-CD metrics port removed — Doco-CD dropped, HD-150.)
 # Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== pi_home_ip, SSOT-derived).
 technitium_secondary_ip: "{{ pi_home_ip }}"
 
