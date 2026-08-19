@@ -122,7 +122,7 @@ IaC/ansible/
 ├── test-1password.yml              # 1Password connectivity test
 ├── playbooks/
 │   ├── router.yml                   # hosts: router → role: router
-│   ├── vps.yml                      # hosts: vps → common→docker→network→docker_services→monitoring
+│   ├── vps.yml                      # hosts: vps → common→docker→vps-hardening→network→cifs→[wireguard]→docker_services→monitoring
 │   ├── home_servers.yml             # hosts: home_servers → common→ai_diag→docker→network→amd_rocm→[desktop,office]→docker_services→home_assistant→monitoring
 │   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→network→docker→home_assistant→docker_services→monitoring
 │   └── all.yml                      # Cross-cutting: /etc/hosts sync
@@ -142,8 +142,9 @@ IaC/ansible/
 ├── roles/
 │   ├── common/tasks/                # system.yml + main.yml
 │   ├── docker/tasks/main.yml        # Docker CE + compose install
+│   ├── docker/tasks/main.yml        # Docker CE + compose install
+│   ├── vps-hardening/tasks/main.yml # HD-154: VPS pre-deploy hardening — fail2ban, nftables default-deny, docker daemon (public edge only)
 │   ├── network/tasks/main.yml       # VLAN interfaces, /etc/hosts
-│   ├── cockpit/tasks/main.yml       # Cockpit management UI (nas+oldsrv, own login, no Authentik)
 │   ├── storage/tasks/main.yml       # nas: ZFS pools/datasets, sanoid/syncoid, NFS exports; oldsrv push timers — see roles/storage (implemented)
 │   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
@@ -317,6 +318,15 @@ domain_local: kogler.si
 - **Repo:** DEB822 format (`deb822_repository` module), GPG key from Docker
 - **Suite:** `ansible_facts['distribution_release']`
 - **Post:** `systemd: name=docker state=started enabled=true`, user → `docker` group
+
+### `vps-hardening`  *(HD-154 — VPS public edge only, mandatory pre-deploy)*
+- **Scope:** VPS-only hardening role run **before** `docker_services` in `playbooks/vps.yml` (the VPS is the single public trust boundary — `security.md` §8).
+- **fail2ban:** SSH jail (`maxretry 3`) + `http-auth` jail for public login pages; installed + enabled.
+- **nftables:** `/etc/nftables.conf` (template) — input policy `drop`; allow `:443` + `:51820` (WG S2S) + loopback + established/related; forward allows docker bridges only.
+- **Docker daemon:** `daemon.json` — `iptables: true`, `userland-proxy: false`, `live-restore: true`, capped json-file logs.
+- **sshd assert:** `PasswordAuthentication no` / `PermitRootLogin no` / `MaxAuthTries 3` present (post_install.sh supplies; role asserts + fail-loud).
+- **Idempotency:** lineinfile asserts + file copies; handlers restart fail2ban/nftables/docker on change.
+- **Secrets:** None.
 
 ### `network`
 - **Home server:** VLAN sub-interface on trunk port, static IP

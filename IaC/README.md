@@ -82,6 +82,10 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   └── roles/
 │   │       ├── common/tasks/{main,system}.yml  # fail-closed admin guard, apt, sudo
 │   │       ├── docker/tasks/main.yml        # Docker CE + compose, daemon.json, user group
+│   │       ├── vps-hardening/               # HD-154: VPS pre-deploy hardening (public edge only) — fail2ban, nftables default-deny, docker daemon
+│   │       │   ├── tasks/main.yml
+│   │       │   ├── templates/nftables.conf.j2
+│   │       │   └── handlers/main.yml
 │   │       ├── network/tasks/main.yml       # /etc/hosts (foundation; static-IP/trunk pending)
 │   │       ├── nut/                         # UPS: master (nas) + clients (oldsrv, ha) — host-binary nut_exporter
 │   │       │   ├── tasks/main.yml
@@ -144,6 +148,15 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - Docker CE via DEB822 repo format (`deb822_repository`), GPG key from `https://download.docker.com/linux/debian/gpg`; suite from `ansible_facts['distribution_release']`.
 - **Post-install:** `systemd: name=docker state=started enabled=true`, admin user → `docker` group
 - **Secrets:** None
+
+### `vps-hardening`  *(HD-154 — public VPS only, mandatory pre-deploy)*
+- **File:** `roles/vps-hardening/tasks/main.yml`, `templates/nftables.conf.j2`, `handlers/main.yml`
+- **Scope:** the VPS is the single public trust boundary — run BEFORE `docker_services` in `playbooks/vps.yml`.
+- **fail2ban:** SSH jail (`maxretry 3`) + `http-auth` jail for public login pages; installed + enabled.
+- **nftables:** `/etc/nftables.conf` — input policy `drop`, allow `:443` + `:51820` + loopback + established/related (ICMP echo limited); forward allows docker bridges only.
+- **Docker daemon:** `daemon.json` with `iptables: true`, `userland-proxy: false`, `live-restore: true`, capped json-file logs.
+- **sshd assert:** `PasswordAuthentication no`, `PermitRootLogin no`, `MaxAuthTries 3` present (post_install.sh supplies the directives; the role asserts + fails loud if missing).
+- **Secrets:** None.
 
 ### `network`
 - **Current scope (foundation):** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml`.

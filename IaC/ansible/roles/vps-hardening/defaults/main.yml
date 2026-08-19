@@ -1,0 +1,17 @@
+---
+# vps-hardening role — mandatory VPS pre-deploy hardening checklist (HD-154)
+#
+# Enforces security.md §8 as EXECUTABLE IaC, not prose. Applied by playbooks/vps.yml
+# BEFORE docker_services (so containers land on an already-hardened host). Every
+# sub-item is idempotent and fail-loud.
+#
+# Checklist (mirrors docs/services-vps.md §Security Hardening + deployment-tasks.md
+# Phase 1 step):
+#   1. fail2ban — SSH jail + HTTP/HTTPS jail (n8n/Grafana/Forgejo login pages)
+#   2. nftables default-deny inbound — allow :443 + :51820 (WireGuard) only
+#   3. Docker daemon hardening — no live-restore risk, iptables explicit, no default
+#      host bindings; containers get no privileged by policy (compose templates own that)
+#   4. sshd extras that post_install.sh can't do idempotently (MaxAuthTries already
+#      in post_install.sh; this role asserts it landed)
+#
+# Secrets: none required (no credentials) — pure config.

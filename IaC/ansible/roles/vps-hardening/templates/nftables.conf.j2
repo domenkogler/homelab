@@ -1,0 +1,48 @@
+#!/usr/sbin/nft -f
+# nftables ruleset — VPS default-deny inbound (HD-154 / security.md §8)
+# Allow: loopback, established/related, :443 (Traefik edge), :51820 (WireGuard S2S).
+# Deny everything else inbound. Docker containers on isolated overlay networks
+# (traefik-public/services-internal/db-internal) reach the internet via the host
+# NAT (docker's own iptables/nftables chains), which this ruleset leaves intact —
+# we only gate the HOST-facing input path.
+
+flush ruleset
+
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        # Loopback
+        iif lo accept
+
+        # Established/related (outbound-initiated replies)
+        ct state established,related accept
+
+        # Public edge
+        tcp dport 443 accept        # Traefik HTTPS (wildcard *.kogler.si)
+        udp dport 51820 accept      # WireGuard S2S (wg-s2s, home router peer)
+        # ICMP ping (ops sanity) — limited
+        ip protocol icmp icmp type echo-request accept
+
+        # Docker containers that publish host ports (e.g. via host network) —
+        # none expected on the VPS by policy (compose uses traefik-public only).
+        # Log dropped input at rate-limit (fail2ban / ops visibility)
+        limit rate 5/minute log prefix "nft-drop-input: "
+        counter drop
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+
+        # Docker publishes its own forward chains; keep host policy drop but
+        # allow the docker bridge forwarding (docker manages this via its own
+        # table — this policy line is a safety net for non-docker forwarding).
+        iifname "docker*" accept
+        oifname "docker*" accept
+        counter drop
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}

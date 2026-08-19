@@ -1,0 +1,100 @@
+---
+# vps-hardening role — mandatory VPS pre-deploy hardening checklist (HD-154)
+# Enforces security.md §8 as executable, idempotent, fail-loud IaC.
+
+- name: Refuse vps-hardening runs as ai-debug or unknown users
+  assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      vps-hardening must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+  tags: always
+
+# ── 1. fail2ban — SSH + HTTP jails (brute-force throttle) ────────────────
+- name: Install fail2ban
+  apt:
+    name: fail2ban
+    state: present
+    update_cache: true
+
+- name: Configure fail2ban jails (SSH + nginx/Traefik http-auth)
+  copy:
+    dest: /etc/fail2ban/jail.local
+    mode: '0644'
+    content: |
+      [DEFAULT]
+      bantime = 10m
+      findtime = 10m
+      maxretry = 5
+      ignoreip = 127.0.0.1/8 ::1
+
+      [sshd]
+      enabled = true
+      backend = systemd
+      maxretry = 3
+
+      [http-auth]
+      enabled = true
+      port = http,https
+      filter = nginx-http-auth
+      logpath = /var/log/traefik/access.log
+      maxretry = 5
+  notify: restart fail2ban
+
+- name: Ensure fail2ban is running + enabled
+  systemd:
+    name: fail2ban
+    state: started
+    enabled: true
+
+# ── 2. nftables default-deny inbound (allow :443 + :51820 WG only) ────────
+- name: Install nftables
+  apt:
+    name: nftables
+    state: present
+
+- name: Deploy nftables ruleset (default-deny inbound)
+  template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    mode: '0644'
+  notify: reload nftables
+
+- name: Enable + start nftables
+  systemd:
+    name: nftables
+    state: started
+    enabled: true
+
+# ── 3. Docker daemon hardening ────────────────────────────────────────────
+- name: Harden Docker daemon (iptables explicit, no host bindings by default)
+  copy:
+    dest: /etc/docker/daemon.json
+    mode: '0644'
+    content: |
+      {
+        "iptables": true,
+        "ip6tables": true,
+        "userland-proxy": false,
+        "live-restore": true,
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+  notify: restart docker
+
+# ── 4. Assert sshd hardening landed (post_install.sh + this role) ─────────
+- name: Assert sshd hardening is present
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^{{ item.key }}\s'
+    line: "{{ item.key }} {{ item.value }}"
+    state: present
+  loop:
+    - { key: "PasswordAuthentication", value: "no" }
+    - { key: "PermitRootLogin",        value: "no" }
+    - { key: "MaxAuthTries",           value: "3" }
+  check_mode: false

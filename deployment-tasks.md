@@ -118,19 +118,25 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
    (see `deployment-preseed.md` → VPS Deviations). The `*_with_secrets.sh` injects the real SSH keys;
    root login disabled. Single 512 GB NVMe root (ext4, no ZFS).
 2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/vps.yml`:
-   `common` → `docker` → `network` (static public IP per SSOT) → `docker_services` → `monitoring`.
-3. **Edge tier** — enable the self-contained subset in `group_vars/vps.yml`: **`traefik`, `crowdsec`, `authentik`**
+   `common` → `docker` → **`vps-hardening`** (HD-154: fail2ban + nftables default-deny + docker daemon) → `network` (static public IP per SSOT) → `docker_services` → `monitoring`.
+3. **Mandatory hardening checklist (HD-154, enforced by the `vps-hardening` role — NOT optional prose):**
+   - **SSH:** `PasswordAuthentication no`, `PermitRootLogin no`, `MaxAuthTries 3`, `AllowUsers ansible-admin` only (post_install.sh + role assert).
+   - **fail2ban:** SSH jail (`maxretry 3`) + `http-auth` jail for public login pages (n8n/Grafana/Forgejo) — role-installed + enabled.
+   - **Firewall (nftables):** default-deny inbound; allow only `:443` (Traefik) + `:51820` (WG S2S) + loopback + established/related; ICMP echo limited. Role-deployed `/etc/nftables.conf`.
+   - **Docker daemon:** `iptables: true`, `userland-proxy: false`, `live-restore: true`, capped json-file logs; no public container `privileged` / host-net by compose policy.
+   - **SSO admission:** root disabled, per-host keys only (Domen + Ansible), no `ai-debug` on a public box.
+4. **Edge tier** — enable the self-contained subset in `group_vars/vps.yml`: **`traefik`, `crowdsec`, `authentik`**
    (+ co-located DBs); Traefik issues the wildcard `*.kogler.si` cert via ACME **DNS-01** (`cloudflare_api`).
    The `dns.yml` control-plane playbook (roles/cloudflare_dns) adds the public records — start with `vps` A/AAAA,
    then `sso` (+ each public app as it lands).
-4. **Live Box CIFS mount** — the `cifs` role (in `vps.yml`) mounts `//u653411.your-storagebox.de/backup` (`Hertzner-SB-Data`) at `/mnt/storagebox` on the VPS (0600 creds from 1Password) for Immich originals + encoded-video + OpenCloud files (HD-135 storage split). Applied automatically by Ansible; verify `mountpoint --q /mnt/storagebox` after deploy.
-5. **NOT yet online (needs WG S2S + oldsrv):** immich-app→immich-ml, litellm→ollama — these expose only after the
-   S2S tunnel (VPS↔home router, `wg-s2s`) reaches oldsrv's GPU backends (Phase 1.5). Their DBs/thumbs can be stood up now; the ML/local-model link waits.
+5. **Live Box CIFS mount** — the `cifs` role (in `vps.yml`) mounts `//u653411.your-storagebox.de/backup` (`Hertzner-SB-Data`) at `/mnt/storagebox` on the VPS (0600 creds from 1Password) for Immich originals + encoded-video + OpenCloud files (HD-135 storage split). Applied automatically by Ansible; verify `mountpoint --q /mnt/storagebox` after deploy.
+6. **NOT yet online (needs WG S2S + oldsrv):** immich-app→immich-ml, litellm→ollama — these expose only after the
 
 **Verify:**
 - `sso.kogler.si` (Authentik) reachable publicly through the VPS Traefik with the wildcard cert; crowdsec decision active.
 - **Authentik OAuth2 Blueprint** — verify the `ks-oidc.yml` blueprint imports + the secret-egress glue seeds client creds on the pinned `2026.5.6` (version-specific flow/signing/binding attrs). Tracked: **HD-149**.
 - `vps` A/AAAA records live at Cloudflare (via `dns.yml`); `ansible-admin` SSH works with the agent.
+- **Hardening verified (HD-154):** `fail2ban-client status sshd` shows the SSH jail active; `nft list ruleset` shows the default-deny input chain with `:443`/`:51820` accepts; `sshd -T | grep -E 'maxauthtries|passwordauthentication|permitrootlogin'` = 3/no/no; `docker info` shows `userland-proxy=false` + capped log driver.
 - Live Box CIFS mount returns data; VPS NVMe under 80%.
 
 ---

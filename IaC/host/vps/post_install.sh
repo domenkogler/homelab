@@ -61,6 +61,11 @@ PermitRootLogin no
 PubkeyAuthentication yes
 LogLevel VERBOSE
 AllowUsers ansible-admin
+# HD-154: brute-force throttle — hard cap on auth attempts + dead-connection
+# cleanup (complements the fail2ban jail installed by the vps-hardening role).
+MaxAuthTries 3
+ClientAliveInterval 300
+ClientAliveCountMax 2
 EOF
 fi
 

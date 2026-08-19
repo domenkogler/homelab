@@ -147,17 +147,24 @@ Owning docs: [deployment-preseed.md](deployment-preseed.md),
 
 > **Law:** the VPS is the **single public trust boundary** — the biggest surface exposed to the internet.
 > Its OS/SSH/Docker surface must be hardened as an explicit **checklist item at VPS deploy (HD-40A/154)**, not
-> left as aspirational design prose. Folded from the 2026-08-19 security audit (HD-153).
+> left as aspirational design prose. **Enforced (2026-08-19, HD-154):** the mandatory checklist now lives in
+> `docs/services-vps.md` §VPS-Specific Firewall as a verify-command table, **and** is implemented as executable
+> IaC by the **`vps-hardening` Ansible role** (`playbooks/vps.yml` before `docker_services`) + the
+> `IaC/host/vps/post_install.sh` sshd extras. A VPS deploy that skips the role fails review.
+> Folded from the 2026-08-19 security audit (HD-153).
 
-- **SSH hardening** — `MaxAuthTries`, `PasswordAuthentication no`, `Source address filter`, key-only `ansible-admin`;
-  **fail2ban / IP-throttle** on the VPS SSH + public login pages (n8n/Grafana/Forgejo). Owned by
-  [deployment-preseed.md](deployment-preseed.md) (VPS) + [services-vps.md](services-vps.md) §Security Hardening. **HD-154.**
-- **Container/escape hardening** — the VPS `docker_services` compose uses `cap_drop`/`read_only`/`tmpfs` where
-  possible; no public container gets `privileged` / host networking without a documented reason (§4 applies). **HD-154.**
-- **VPS firewall default-deny** — inbound **deny-all except :443 + WireGuard port** (already in
-  [services-vps.md](services-vps.md) §VPS-Specific Firewall); committed as a checklist item, not prose. **HD-154.**
-- **SSO on VPS admission** — the netcup `post_install.sh` SSH config must match the preseed defaults; root-login
-  disabled, per-host keys (see [deployment-preseed.md](deployment-preseed.md) → VPS Deviations). **HD-154.**
+- **SSH hardening** ✅ — `MaxAuthTries 3`, `PasswordAuthentication no`, `PermitRootLogin no`, key-only `ansible-admin`
+  (post_install.sh + role assert); **fail2ban** SSH jail (`maxretry 3`) + `http-auth` jail for public login pages
+  (n8n/Grafana/Forgejo). Owned by [deployment-preseed.md](deployment-preseed.md) (VPS) + [services-vps.md](services-vps.md)
+  §VPS-Specific Firewall + `roles/vps-hardening/`. **HD-154. ✅ enforced.**
+- **Container/escape hardening** ✅ — the VPS `docker_services` compose uses `cap_drop`/`read_only`/`tmpfs` where
+  possible; no public container gets `privileged` / host networking without a documented reason (§4 applies);
+  daemon `userland-proxy: false` + `live-restore: true`. **HD-154. ✅ enforced (daemon) + compose-policy.**
+- **VPS firewall default-deny** ✅ — inbound **deny-all except :443 + :51820 (WG)** via the `vps-hardening` role's
+  `/etc/nftables.conf` (nftables, input policy drop). Committed as executable checklist, not prose. **HD-154. ✅ enforced.**
+- **SSO on VPS admission** ✅ — the netcup `post_install.sh` SSH config matches the preseed defaults; root-login
+  disabled, per-host keys (Domen + Ansible), no `ai-debug` on a public box
+  (see [deployment-preseed.md](deployment-preseed.md) → VPS Deviations). **HD-154. ✅ enforced.**
 
 ## 9. Home↔VPS tunnel least-access (HD-155)
 
