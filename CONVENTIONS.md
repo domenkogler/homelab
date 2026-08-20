@@ -116,17 +116,29 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 ## 8. Docs taxonomy & service triage
 
 > **Purpose:** a repeatable rule for *where a piece of documentation or a service candidate lives*.
+> **Two independent axes** (a doc is classified on BOTH):
+>  - **Domain (placement)** — which stack / host target the doc's services belong to → `domain:` frontmatter.
+>  - **Ownership (cross-cutting)** — who owns the doc's *content*: a single module, or the whole homelab →
+>    `cross_cutting: true`.
+> These are NOT opposites. A doc is usually a domain AND (optionally) cross-cutting. Deciding one says
+> nothing about the other.
 > Adopted 2026-08-20 (docs-refactor). The goal is a consistent mental model + URL scheme, not achieved
-> purity: cross-cutting docs are explicitly allowed and marked as such.
+> purity: both placements and cross-cutting docs have explicit homes and markers (never ambiguous).
 
-### 8.1 Domains & stack index
-- **Domain** = a set of services deployed together (same host target) under one owning doc. A domain
-  owns an **index file** `<domain>.md` with `role: broad|index` that links to `<domain>-<sub>.md`
-  detail docs. Canonical existing pattern: `smart-home.md` → `smart-home-{voice,audio,failover}.md`.
+### 8.1 Domains & stack index (placement axis)
+- **Domain** = a deployable stack: the set of services (plus their docs) that deploy together under one
+  owning `domain:` value. A domain has a **primary owning host / host-class** (e.g. `smart-home` →
+  Pi/oldsrv, `network` → router/switch, `observability` → VPS backend). Frontmatter: `domain: <stack>`
+  + a document `role:`.
+- **`role:` values** (the doc's *shape*, not a placement statement): `index` (domain hub linking sub-docs),
+  `broad` (overview), `ssot` (single source of truth for a concern), `detail` (a sub-topic), `reference`,
+  `design-spec`, `runbook`, `research`, `cross-cutting`. A domain hub is `role: index` (or `broad`).
+- **Domain index** links to `<domain>-<sub>.md` detail docs. Canonical pattern: `smart-home.md` →
+  `smart-home-{voice,audio,failover}.md`. **Stack / sub-domain docs** group a big domain's catalog into
+  `services-<x>.md` — e.g. `services-matrix.md`, and `llm-office.md` as the office-workload slice of the
+  services stack. All share the owning `domain:` (e.g. `services`).
 - **Central service stack index** = `docs/services.md` (catalog + networks + domains). It is the *only*
-  pointer from `docs/index.md` for service layout. Each big domain X gets a `services-<x>.md` stack doc
-  (`services-arr.md`, …) that `services.md` links to — the catalog must not become a single
-  multi-hundred-line table.
+  pointer from `docs/index.md` for service layout.
 - **No doc is both** an index and a dumping ground: when a domain doc grows past ~1 screen of catalog
   table, split the table into a `services-<x>.md` stack doc and link it from the index.
 
@@ -164,16 +176,20 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   `docs/services-rejected.md`. Other big domains (network, hardware, smart-home) opt in with their own
   `<domain>-{review,rejected}.md` when they have enough volume.
 
-### 8.4 Cross-cutting docs
-- **Cross-cutting docs are allowed** and do not need a `services-*` prefix. A doc is cross-cutting if
-  it is **owned by no single deploying host** (e.g. `security.md`, `backup.md`, `storage.md`,
+### 8.4 Cross-cutting docs (ownership axis)
+- **Cross-cutting** = the doc's *content* is **owned by no single host/module** — a policy or
+  architecture fact spanning the whole homelab (e.g. `security.md`, `backup.md`, `storage.md`,
   `llm-office.md`).
-- Mark them explicitly with frontmatter `cross_cutting: true` and a `**Role:** … (cross-cutting)`
-  header so the taxonomy analyzer does not re-litigate them.
-- **Not cross-cutting — a domain instead:** a doc whose services deploy as a **cohesive set with a
-  primary home on one host** is a *domain* (§8.1), not cross-cutting, even if its agents/collectors
-  fan out to other hosts. Precedent: `observability.md` (Prometheus/Loki/Grafana/n8n backend on the
-  VPS; Alloy/nut_exporter/HA-exporters fan out) — `domain: observability`, no cross-cutting marker.
+- Mark them: frontmatter `cross_cutting: true` + a `**Role:** … (cross-cutting)` header so the taxonomy
+  analyzer does not re-litigate them.
+- **Orthogonal to `domain:`** — a cross-cutting doc still belongs to a stack. Examples:
+  - `security.md` → `domain: security` + cross-cutting (policy spans all hosts).
+  - `backup.md` → `domain: deployment` + cross-cutting (spans nas/oldsrv/VPS + cloud Boxes).
+  - `llm-office.md` → `domain: services` + cross-cutting (office slice; touches oldsrv GPU/VPS/desktop).
+- **Not all big-stack docs are cross-cutting.** A doc whose services deploy as a **cohesive set with a
+  primary home on one host** is a *clean domain* (`cross_cutting: false`). Precedent: `observability.md`
+  (Prometheus/Loki/Grafana/n8n backend on the **VPS**; Alloy/nut_exporter/HA-exporters fan out) —
+  `domain: observability`, no cross-cutting marker.
 - The *decision of what to do with a cross-cutting doc* is a per-task concern, not a standing rule:
   it is a candidate review point whenever a domain doc it overlaps is edited.
 
@@ -190,4 +206,4 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 
 ---
 
-*Last review: 2026-08-19 (added: derived-counts, data-location same-change, two-sided deploy gate; placement §1, onboarding storage bullet §5, version-pin hygiene §7, validation-gate extension §4; §8 docs taxonomy & service triage, 2026-08-20). Owning docs above remain authoritative.*
+*Last review: 2026-08-20 (added: derived-counts, data-location same-change, two-sided deploy gate; placement §1, onboarding storage bullet §5, version-pin hygiene §7, validation-gate extension §4; §8 docs taxonomy & service triage 2026-08-20, refined to a **two-axis model** (domain ≁ placement + cross_cutting ≁ ownership) with observability as the clean-domain precedent and llm-office as a services/office slice). Owning docs above remain authoritative.*
