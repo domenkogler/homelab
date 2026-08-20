@@ -3,7 +3,7 @@
 # master (nas): direct ONBATT/LOWBATT/ONLINE email + optional Signal notify,
 #               INDEPENDENT of Grafana/n8n — a pre-shutdown notice goes out even
 #               if the observability stack is degraded. SMTP creds render from
-#               1Password `nut-smtp_login` on the master only — clients keep
+#               1Password `smtp_login` on the master only — clients keep
 #               no secrets (mode 0750).
 # both:         `powerdown` — the deferred shutdown fired by the upssched
 #               ONBATT timer (shutdown_delay_seconds: nas/pi=0 immediate,

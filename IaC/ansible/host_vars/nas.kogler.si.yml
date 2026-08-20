@@ -10,7 +10,7 @@ nut_driver: usbhid-ups
 nut_serial: auto                    # USB HID auto-detect (no serial/RS-485)
 shutdown_delay_seconds: 0           # power down immediately on critical
 # SMTP relay (HD-54/Option B): SMTP2Go — dedicated transactional relay for NUT
-# power-loss email. Credentials: nut-smtp_login (Login) in 1Password. Only the
+# power-loss email. Credentials: smtp_login (Login) in 1Password. Only the
 # master (nas) renders upssched-cmd that sends mail; clients keep the role default.
 # Host/port derive from the SMTP2Go connection SSOT in group_vars/all.yml (smtp2go_*).
 nut_smtp_server: "{{ smtp2go_host }}:{{ smtp2go_port }}"

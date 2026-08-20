@@ -56,13 +56,12 @@
 | `pppoe_login` | login → `password` (`username`=PPPoE user) | Phase 1.5 (router) | ✓ |
 | `wg_password` | password → `password` (**WireGuard S2S private key** — a `wg genkey` value, never a random password; the auto-tool does not write it) | Phase 1.5 | ✓ |
 | **Phase 2** | | | |
-| `nut-smtp_login` | login → `password` (`username`=notify email/SMTP user) | Phase 2 | ✓ |
+| `smtp_login` | login → `password` (**SMTP relay, HD-54 SMTP2Go** — shared by Grafana + NUT; `username`=SMTP user/notify email) | Phase 2 | ✓ |
 | **Phase 3** | | | |
 | `authentik_login` | login → `password` (bootstrap admin) | Phase 3 | ✗ |
 | `cloudflare_api` | api → `credential` (ACME DNS-01) | Phase 3 | ✓ |
 | `forgejo_api` | api → `credential` (Forgejo deploy token) | Phase 3 | ✗ |
-| `grafana_login` | login → `password` (admin) | Phase 3 | ✗ |
-| `grafana-smtp_login` | login → `password` | Phase 3 | ✗ |
+| `grafana_login` | login → `password` (admin) | Phase 3 | ✓ |
 | `ha_api` | api → `credential` (long-lived HA token) | Phase 3 | ✗ |
 | `headscale_api` | api → `credential` (OIDC client secret) | Phase 3 | ✗ |
 | `signal_api` | api → `credential` (`username`=phone number) | Phase 3 | ✗ |
@@ -203,7 +202,7 @@
 ## Phase 2 — NAS Fresh Install + Storage + UPS Master (`nas.kogler.si`)
 
 > **Depends on:** Phase 1 (VPS edge + Authentik live), Phase 1.5 (router VLANs + DHCP). NAS is on VLAN 10 (Home, access) + VLAN 99 (Mgmt, native).
-> **1Password prerequisites (new this phase):** `nut_password` (password→`password`), `nut-smtp_login`
+> **1Password prerequisites (new this phase):** `nut_password` (password→`password`), `smtp_login`
 > (login; `username`=notify email/SMTP user, `password`=SMTP pass). SSH items from Phase 0 are injected
 > by `post_install.sh`. **No Docker on NAS.**
 > **Continuation:** the NAS is the **NUT master** — `oldsrv` and `pi` are NUT clients and depend on it.
@@ -215,7 +214,7 @@
    `common` → `ai_diag` → `network` (static on VLAN 10, IP per SSOT) → `nut` (mode=master) → `cockpit`.
 3. **NUT master** — `nut-server` + `usbhid-ups` (PowerWalker USB), `upsd` listening intra-VLAN
    `nas:3493` (no inter-VLAN rule needed — see `docs/hardware-ups.md`), `nut_exporter` as a
-   host binary (:9199), `upssched-cmd` email/Signal notify (`nut-smtp_login`).
+   host binary (:9199), `upssched-cmd` email/Signal notify (`smtp_login`).
 4. **Storage** — create ZFS pool + datasets; exports (NFS/SMB); mount layout per `docs/hardware-nas.md`.
 
 **Verify:**
@@ -269,7 +268,7 @@
 - `authentik_db` (db→`password`), `authentik_password` (password→`password`), `authentik_login` (login→`password`)
 - `opencloud_db`, `immich_db`, `forgejo_db` (db→`password` each)
 - `forgejo_api` (api→`credential`) — renovate token + Forgejo Actions deploy runner
-- `grafana_login` (login→`password`), `grafana-smtp_login` (login→`password`)
+- `grafana_login` (login→`password`), `smtp_login` (login→`password`)
 - `ha_api` (api→`credential`), `ha-vrrp_password` (password→`password`)
 - `headscale_api` (api→`credential`) — OIDC client secret
 - `signal_api` (api; `username`=phone, `credential`=captcha) — signal-cli-rest-api
@@ -304,7 +303,7 @@
 > **Depends on:** Phase 1.5 (VLANs), Phase 2 (NAS NUT master). The Pi is the HA **primary** node;
 > oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP (`ha-vip`).
 > **1Password prerequisites (new this phase):** none beyond Phase 3 (`ha_api`, `ha-vrrp_password`,
-> `nut_password`, `nut-smtp_login` already exist). Add `ha-mqtt_login` if/when MQTT is introduced
+> `nut_password`, `smtp_login` already exist). Add `ha-mqtt_login` if/when MQTT is introduced
 > (currently out of scope).
 > **Continuation:** `ha.kogler.si` → VIP becomes live here; observability (Phase 6) scrapes the HA
 > exporter and smart-home work (Phase 7) builds on this node.
@@ -355,7 +354,7 @@
 ## Phase 6 — Observability & Alerting Hardening
 
 > **Depends on:** Phase 3 (monitoring role, Prometheus/Loki/Grafana central), Phase 4 (HA exporter).
-> **1Password prerequisites:** existing — `ha_api` (HA bearer), `grafana-smtp_login`, `nut-smtp_login`,
+> **1Password prerequisites:** existing — `ha_api` (HA bearer), `smtp_login`,
 > `signal_api` (Signal notify via n8n). **Runs in parallel with Phase 5+.**
 
 - UPS metrics + alerts in Grafana (Critical battery/runtime, Warning on-battery, Info transitions) — **HD-08**
@@ -462,9 +461,9 @@ Phase 10 (deferred: Phase-2 Proxmox hardware, HD-41/42)
 - **Phase 0:** `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `op_api`, `kopia_password` (seed)
 - **Phase 1 (VPS):** + `netcup-ccp_login`, `netcup-scp_login`, `netcup-vps_login` (separate vault), `Hertzner-SB-Data`,
   `Hertzner-SB-Backup`, `cloudflare_api`, `authentik_db/password/login`, `opencloud_db`, `immich_db`, `forgejo_db`,
-  `forgejo_api`, `grafana_login`, `grafana-smtp_login`
+  `forgejo_api`, `grafana_login`, `smtp_login`
 - **Phase 1.5 (network):** + `mikrotik-admin_login`, `wg_password`
-- **Phase 2:** + `nut_password`, `nut-smtp_login`
+- **Phase 2:** + `nut_password`, `smtp_login`
 - **Phase 3:** + `ha_api`, `ha-vrrp_password`, `headscale_api`, `signal_api`
 - **Phase 4–9:** no new items (reuse the above)
 - **Phase 5 specifically:** `forgejo_api` + `op_api` (deploy runner token) — Doco-CD `doco-cd_password` retired (HD-150)

@@ -70,8 +70,8 @@ Derive this table directly from `deployment-secrets.md`:
 
 ** (manual value — script creates the empty shell only; you paste the value once):**
 `netcup-ccp_login`, `netcup-scp_login`, `netcup-vps_login` (separate vault), `Hertzner-SB-Data` /
-`Hertzner-SB-Backup` (connection refs), `mikrotik-admin_login`, `grafana_login`, `grafana-smtp_login`,
-`nut-smtp_login`, `pppoe_login` (ISP), `cloudflare_api`, `signal_api`, `openrouter_api`, `cohere_api`,
+`Hertzner-SB-Backup` (connection refs), `mikrotik-admin_login`, `grafana_login`, `smtp_login`,
+`smtp_login`, `pppoe_login` (ISP), `cloudflare_api`, `signal_api`, `openrouter_api`, `cohere_api`,
 `forgejo_api` (Forgejo token), `sonarr_api`, `radarr_api`, `ha_api`, `meteoblue_api`,
 `network-snmp_api` (RO community).
 

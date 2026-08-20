@@ -89,6 +89,9 @@ CATALOG = [
     ("API Credential", "n8n-webhook_api",         lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "signal-internal_api",     lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "network-snmp_api",       lambda: [f"credential={gen_pw()}"]),
+    # grafana_login: Grafana admin password — generated (no external source);
+    # the SMTP relay creds are the shared `smtp_login` item (not auto-gen here).
+    ("Login",       "grafana_login",              lambda: [f"password={gen_pw()}"]),
     ("API Credential", "kopia-server-internal_api", lambda: [f"username=kopia@{gen_token(16)}", f"credential={gen_pw()}"]),
     # prometheus-internal_api: username + password + bcrypt_hash rotate together.
     ("API Credential", "prometheus-internal_api", lambda: bcrypt_item()),

@@ -29,7 +29,7 @@ nut_exporter_vars: "battery.charge,battery.charge.low,battery.runtime,battery.ru
 
 # --- Notify (upssched-cmd) — direct email + optional Signal on ONBATT/LOWBATT,
 # independent of Grafana/n8n. Recipient + SMTP creds from 1Password Homelab.
-nut_notify_email: "{{ lookup('community.general.onepassword', 'nut-smtp_login', field='username', vault=op_vault) }}"
+nut_notify_email: "{{ lookup('community.general.onepassword', 'smtp_login', field='username', vault=op_vault) }}"
 
 # upsmon auth password (shared between upsd.users / upsd + clients) — 1Password at render.
 nut_upsmon_password: "{{ lookup('community.general.onepassword', 'nut_password', field='password', vault=op_vault) }}"
@@ -38,11 +38,11 @@ nut_upsmon_password: "{{ lookup('community.general.onepassword', 'nut_password',
 nut_exporter_user: nut_exporter
 nut_exporter_password: "{{ lookup('community.general.onepassword', 'nut-exporter_password', field='password', vault=op_vault) }}"
 nut_smtp_server: ""   # SMTP relay host — config (group_vars), NOT a 1Password secret
-# Fail-closed (HD-91): nut_notify_email already hard-requires nut-smtp_login above, so there
+# Fail-closed (HD-91): nut_notify_email already hard-requires smtp_login above, so there
 # is no reason for these to silently default to empty — a missing item must abort the render,
 # not send an unauthenticated SMTP attempt masked by the || true fallback in upssched-cmd.
-nut_smtp_user: "{{ lookup('community.general.onepassword', 'nut-smtp_login', field='username', vault=op_vault) }}"
-nut_smtp_pass: "{{ lookup('community.general.onepassword', 'nut-smtp_login', field='password', vault=op_vault) }}"
+nut_smtp_user: "{{ lookup('community.general.onepassword', 'smtp_login', field='username', vault=op_vault) }}"
+nut_smtp_pass: "{{ lookup('community.general.onepassword', 'smtp_login', field='password', vault=op_vault) }}"
 # Optional: absolute path to a helper that sends a Signal message as $1
 # (e.g. a wrapper around signal-cli). Leave empty to skip Signal from NUT.
 nut_signal_helper: ""

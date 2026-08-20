@@ -60,7 +60,7 @@ nut_exporter_port: 9199
 
 # ==== SMTP2Go relay — single connection SSOT (HD-54, Option B) ====
 # Dedicated transactional relay used by BOTH Grafana (grafana_smtp_host) and NUT
-# (nut_smtp_server). Credentials are in 1Password (`grafana-smtp_login` /
+# (nut_smtp_server). Credentials are in 1Password (`smtp_login` /
 # `nut_smtp_login`, Login items); only the connection config lives here.
 # Account region/host + ports as provided by SMTP2Go (EU datacenter):
 #   SMTP server: mail-eu.smtp2go.com; SMTP port 2525 (default); alternative

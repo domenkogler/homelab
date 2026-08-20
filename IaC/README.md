@@ -173,7 +173,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Mode-driven** via `nut_mode` (host_vars): `master` (nas) / `client` (oldsrv, ha). See `docs/hardware-ups.md`, `docs/observability.md`.
 - **master (nas):** `nut-server` + `usbhid-ups` (USB HID), `upsd` listening `LISTEN 10.10.1.10:3493`, `nut_exporter` as a **host binary** (nas has no Docker) + systemd, `upssched-cmd` direct email/Signal notify (independent of Grafana/n8n).
 - **client (oldsrv, ha):** `nut-client` + `upsmon` slave → `MONITOR powerwalker@{{ nut_host }} …`, per-host `shutdown_delay_seconds` (oldsrv 60 / ha 0).
-- **Secrets:** `nut_password` + notify SMTP/Signal (`nut-smtp_login`) from 1Password `Homelab` at render time.
+- **Secrets:** `nut_password` + notify SMTP/Signal (`smtp_login`) from 1Password `Homelab` at render time.
 
 ### `amd_rocm`
 - Official AMD ROCm repo (Debian-compatible path); packages `rocm-hip-sdk`, `rocm-opencl-sdk`
@@ -230,7 +230,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **SNMP:** MikroTik poll 5–15 s
 - **Alert delivery:** n8n + signal-cli-rest-api are Docker services in `group_vars/home_servers.yml`, deployed by the `docker_services` role — they handle webhook routing, dedup, and Signal notification at runtime
 - **Ordering:** after `docker_services`
-- **Secrets:** `ha_api`, `grafana_login`, `grafana-smtp_login`
+- **Secrets:** `ha_api`, `grafana_login`, `smtp_login`
 
 ### `ai_diag`
 - `/usr/local/sbin/ai-diag` + `/etc/sudoers.d/ai-diag` (single NOPASSWD entry for `ai-debug`)
@@ -326,7 +326,7 @@ See `docs/deployment-secrets.md` for the full master list + rename map (includin
 | `kopia_password` | kopia-server |
 | `authentik_db`, `authentik_password`, `authentik_login` | authentik |
 | `opencloud_db`, `immich_db`, `forgejo_db` | platform DBs |
-| `grafana_login`, `grafana-smtp_login` | grafana |
+| `grafana_login`, `smtp_login` | grafana |
 | `headscale_api` | headscale |
 | `ha_api`, `ha-vrrp_password` | home_assistant / monitoring |
 | `cloudflare_api` | ACME DNS-01 wildcard cert |

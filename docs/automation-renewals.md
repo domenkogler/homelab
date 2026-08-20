@@ -47,7 +47,7 @@ The list lives in IaC, not in n8n. Two ways to source it at run time:
    `status == active` and `valid_until` is set. Compute `days_to_renewal`.
 4. **SMTP / Signal send** — one notification per due renewal (or an aggregate
    digest). Use the existing `signal-api` (`signal-internal_api`) and/or the SMTP
-   relay (`grafana-smtp_login` / `nut-smtp_login`) — same channels Grafana alerting
+   relay (`smtp_login` / `smtp_login`) — same channels Grafana alerting
    already uses (see `deployment-secrets.md`).
 5. **(optional)** IFrame/card update is NOT needed — Homepage calendar widget
    already shows upcoming dates visually.
@@ -62,7 +62,7 @@ The list lives in IaC, not in n8n. Two ways to source it at run time:
 | Channel | Node | Secret (1Password `Homelab-ansible`) |
 |---------|------|------------------------------|
 | Signal | `@signal-cli` / HTTP to `signal-api` | `signal-internal_api` (token), `signal_api` (phone) |
-| Email  | SMTP (`mail-eu.smtp2go.com:587` STARTTLS) | `grafana-smtp_login` / `nut-smtp_login` |
+| Email  | SMTP (`mail-eu.smtp2go.com:587` STARTTLS) | `smtp_login` / `smtp_login` |
 
 ## Rollout checklist (post-deploy)
 - [ ] CalDAV (kSuite, HD-30) live → populate `calendar_url` in `subscriptions.yml`

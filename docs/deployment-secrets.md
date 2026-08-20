@@ -85,7 +85,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 
 | `type`       | 1Password item    | `field=`              | Examples |
 |--------------|-------------------|-----------------------|----------|
-| `login`      | Login             | `password`            | SMTP/SMTP-relay creds (`grafana-smtp_login`, `nut-smtp_login`), admin accounts (`mikrotik-admin_login`, `grafana_login`, `authentik_login`), any username+password combo |
+| `login`      | Login             | `password`            | SMTP/SMTP-relay creds (`smtp_login`), admin accounts (`mikrotik-admin_login`, `grafana_login`, `authentik_login`), any username+password combo |
 | `password`   | Password          | `password`            | shared / opaque secrets with no username: webhook HMAC (`doco-cd_password` — retired HD-150), VRRP (`ha-vrrp_password`), upsmon (`nut_password`), repo master (`kopia_password`), Django `SECRET_KEY` (`authentik_password`), WireGuard private key (`wg_password`), Matrix bootstrap shared secret (`matrix_password`) |
 | `api`        | API Credential    | `credential`          | tokens & keys: Cloudflare (`cloudflare_api`), Forgejo (`forgejo_api`), HA long-lived (`ha_api`), HA failover trigger (`ha-failover_api`), headscale OIDC (`headscale_api`), 1Password service-account (`op_api`), signal-cli (`signal_api`), PrivadoVPN WireGuard client key (`privado-vpn_api`), Matrix/Authentik OIDC client (`matrix_api`), Meteoblue weather key (`meteoblue_api`) |
 | `oidc`       | API Credential    | `username`=`client_id`, `credential`=`client_secret` | **OAuth2/OIDC client credentials** — the 1Password item holds the Authentik-generated client_id (in `username`) + client_secret (in `credential`), seeded by the secret-egress glue (HD-143). e.g. `immich_oidc`, `opencloud_oidc`, `forgejo_oidc`, `metabase_oidc`. **Use `oidc`, NOT `api`**, for a service's OIDC *client* — this keeps it distinct from service API tokens (e.g. `forgejo_api` = the renovate git token, vs `forgejo_oidc` = the Authentik login client). Items older than this rule (`matrix_api`, `headscale_api`, `openwebui_api` for OIDC) are grandfathered under `api`; do not rename them. |
@@ -93,7 +93,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `ssh`        | SSH Key           | `private_key` / `public_key` | `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh` — item stores both halves; read whichever the consumer needs |
 
 > **Guidance:**
-> - `login` = anything with a **username** (admin accounts, SMTP relays). One Login item per service — e.g. a service that has both an admin login and an SMTP relay gets two items: `grafana_login` + `grafana-smtp_login`.
+> - `login` = anything with a **username** (admin accounts, SMTP relays). One Login item per service — e.g. a service that has both an admin login and an SMTP relay gets two items: `grafana_login` + `smtp_login`.
 > - `password` = a shared/opaque secret with **no username** (tokens for HMAC/VRRP/upsmon, repo/SECRET keys).
 > - `api` = a **credential/token/key** for an API (including S3 and service-account tokens). API Credential items use `username` for access-key/client-id where applicable and `credential` for the secret.
 > - `db` = Database item (`username` + `password` fields). Field for postgres link/password is `password`.
@@ -133,7 +133,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `forgejo_db` | `password` | forgejo (Postgres) |
 | `forgejo_api` | `credential` | renovate (`RENOVATE_TOKEN`) — Forgejo token (deploy/CI via the Forgejo Actions runner); previously also doco-cd `GIT_ACCESS_TOKEN` (doco-cd dropped, HD-150) |
 | `grafana_login` | `password` | grafana (admin user) |
-| `grafana-smtp_login` | `password` | grafana (SMTP fail-safe contact point) |
+| `smtp_login` | `password` | **SMTP relay (HD-54, SMTP2Go)** — shared by Grafana (SMTP fail-safe) + NUT (UPS email notify). `username` = SMTP user + notify email; `password` = SMTP pass. |
 | `ha_api` | `credential` | HA long-lived token → Traefik/Companion, `/api/prometheus` bearer for Prometheus |
 | `ha-vrrp_password` | `password` | keepalived (VIP `ha.kogler.si`) shared auth |
 | `ha-failover_api` | `credential` | HA failover trigger API (HD-17) — Homepage buttons + `ha-failover-api` token |
@@ -141,7 +141,6 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `headscale_api` | `credential` | headscale (OIDC client secret; `username` = client id) |
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
 | `nut-exporter_password` | `password` | nut_exporter → upsd read-only auth (dedicated `upsmon slave` user on the NUT master) |
-| `nut-smtp_login` | `password` | UPS / scheduled-shutdown email notifications (SMTP; `username` = notify email + SMTP user) |
 | `network-snmp_api` | `credential` | router + switch — MikroTik SNMP **read-only community** for Alloy polling (HD-53/Option A); `credential` = the RO community string |
 | `wg_password` | `password` | router (WireGuard S2S private key) |
 | `mikrotik-admin_login` | `password` | router + switch + APs — MikroTik RouterOS admin (items RB4011/CRS328/hAP; **shared across all network gear — accepted, HD-165**). One admin password across all gear is an **accepted risk**: every RouterOS management surface binds to the Management VLAN (99) only — router `api`/`www-ssl`/`ssh` (8728/443/22) are `interface=vlan99-mgmt`; switch + APs are L2-only with no WAN egress — so the shared credential never crosses the internet boundary ([network-ops.md](network-ops.md)). Revisit per-gear items only if a gear gains WAN-exposed management or the Mgmt-VLAN INPUT ACL changes. |
@@ -193,12 +192,12 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `forgejo_db_password` | `forgejo_db` |
 | `forgejo_token` | `forgejo_api` |
 | `grafana_admin_password` | `grafana_login` |
-| `grafana_smtp_password` | `grafana-smtp_login` |
+| `grafana_smtp_password` | `smtp_login` |
 | `ha_api_key` / `ha_exporter_token` / `ha_prometheus_token` / `long_lived_token` | `ha_api` |
 | `ha_vrrp_password` | `ha-vrrp_password` |
 | `headscale_oidc_secret` | `headscale_api` |
 | `upsmon_password` / `nut_upsmon_password` | `nut_password` |
-| `smtp_notify_creds` / `nut_notify_email` / `nut_smtp_user` / `nut_smtp_pass` | `nut-smtp_login` |
+| `smtp_notify_creds` / `nut_notify_email` / `nut_smtp_user` / `nut_smtp_pass` | `smtp_login` |
 | `snmp_ro_community` (snmp.yml.j2 auth) | `network-snmp_api` |
 | `network-snmp_login` (misnamed; API Credential, `credential` field) | `network-snmp_api` |
 | `wireguard_private_key` | `wg_password` |
