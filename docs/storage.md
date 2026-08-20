@@ -364,5 +364,12 @@ unavailable until the NAS is rebuilt (accepted, see `backup.md`).
 Install `zfsutils-linux`, `sanoid`, `syncoid`; **import** pools — `tank`/`bulk` on nas, `nvme` on oldsrv
 (never re-create; pools are self-describing); create datasets with the properties above; template
 `sanoid.conf`; enable `sanoid.timer`/`syncoid.timer`; render `/etc/exports` (`tank/data`, `bulk/media`);
-oldsrv `/etc/fstab` mounts + push timers; wire Kopia sources.
+3879 oldsrv `/etc/fstab` mounts + push timers; wire Kopia sources.
 Run after `common`+`network`, before `docker_services` (containers need the NFS mounts).
+
+---
+
+## Related
+
+- [Storage Review Queue](storage-review.md)
+- [Storage Rejected / Dropped (decision log)](storage-rejected.md)

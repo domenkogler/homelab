@@ -26,7 +26,8 @@ tags: [index, dispatcher, ai]
 | **Configure DNS** | [`network-dns.md`](network-dns.md) | `network-vlans.md`, `services.md` |
 | **Configure VPN** | [`network-vpn.md`](network-vpn.md) | `network.md` |
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
-| **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md`, [`network-addresses-generated.md`](network-addresses-generated.md) |
+| **Understand service layout** | [`services.md`](services.md) | `services-*.md` stack docs (media/downloads/dns/utilities/admin), `services-traefik.md`, `services-authentik.md`, [`network-addresses-generated.md`](network-addresses-generated.md) |
+| **Triage a candidate service / check past rejections** | [`services-review.md`](services-review.md) + [`services-rejected.md`](services-rejected.md) | `services.md`, `CONVENTIONS.md` §8.3 |
 | **Provision Authentik OIDC clients (Blueprint + glue)** | [`services-authentik.md`](services-authentik.md) | `deployment-secrets.md`, `deployment-compose.md`, `deployment-ansible.md`, `security.md` |
 | **Backlog / open decisions** | [`todo.md`](../todo.md) | — |
 | **Cross-cutting conventions / onboarding a service** | [`CONVENTIONS.md`](../CONVENTIONS.md) | owning docs (`deployment-*.md`, `network-*.md`, `services.md`) |
@@ -53,6 +54,8 @@ docs/
 ├── index.md                              ← YOU ARE HERE
 │
 ├── network.md                             Index: ISP, topology, links to network-*.md
+├── network-review.md                      Network intake queue
+├── network-rejected.md                    Append-only network decision log
 ├── network-vlans.md                       VLAN table, subnets, firewall rules
 ├── network-addresses-generated.md       ★ IP address plan — SSOT (generated from IaC)
 ├── network-dns.md                         Technitium/Pi-hole, per-subnet DNS
@@ -70,12 +73,19 @@ docs/
 │
 ├── services-finance.md                    ★ Personal finance: Actual Budget, Enable Banking, account import strategy, AI categorization
 │
-├── services.md                            Broad: catalog, networks, domains
+├── services.md                            Index: catalog legend, networks, domains → services-*.md stack docs
+├── services-media.md                      Media: Jellyfin, Immich, Seerr, *arr + storage/import
+├── services-downloads.md                  Usenet/torrent ingress (SABnzbd, qBittorrent, gluetun)
+├── services-dns.md                        DNS services (Technitium, Pi-hole)
+├── services-utilities.md                  Utility sidekicks (n8n, signal-cli, PairDrop, Stirling)
+├── services-admin.md                      Ops/GitOps/security/backup (Forgejo, Renovate, CrowdSec, Metabase, Headscale, Kopia, DB Backup)
 ├── observability.md                        Observability domain — stack, alerting, retention
-├── services-traefik.md                    Reverse proxy, CrowdSec, SSL
+├── services-traefik.md                    Reverse proxy edge, CrowdSec, SSL
 ├── services-authentik.md                  OIDC SSO, WebAuthn, Forward Auth, Blueprint + glue provisioning
 ├── services-matrix.md                     ★ Matrix messaging: homeserver (Tuwunel) + Element Web (native-only; bridges deferred)
 ├── services-vps.md                        netcup VPS (public edge) reference
+├── services-review.md                     Services intake queue (rejected first, 30-day stale)
+├── services-rejected.md                   Append-only services decision log (§8.3)
 ├── subscription.md                        Costs, providers, renewal status
 ├── subscriptions-table-generated.md      ★ Subscription schedule (generated from group_vars/subscriptions.yml)
 ├── automation-renewals.md                 Renewal-reminder automation (Homepage + n8n)
@@ -83,6 +93,8 @@ docs/
 ├── network-rack-generated.md            ★ Rack wiring map (generated from rack-connections.json — do not hand-edit)
 │
 ├── deployment.md                          Broad: GitOps philosophy, Ansible-only deploy flow
+├── deployment-review.md                   Deployment intake queue
+├── deployment-rejected.md                 Append-only deploy/hypervisor decision log
 ├── deployment-preseed.md                  ★ Preseed + post_install spec
 ├── deployment-ansible.md                  ★ Ansible role catalog & spec
 ├── deployment-compose.md                  ★ Docker compose conventions
@@ -98,6 +110,8 @@ docs/
 ├── CONVENTIONS.md                        Cross-cutting rules index + service-onboarding checklist (repo root)
 │
 ├── smart-home.md                          Index: HA, devices, architecture, links to smart-home-*.md
+├── smart-home-review.md                   Smart-home intake queue
+├── smart-home-rejected.md                 Append-only smart-home decision log
 ├── home-assistant-current.md              Live HA instance inventory (HAOS, plugins) + HAOS→Docker feasibility
 ├── smart-home-failover.md                 HA active/standby failover + takeover/failback runbooks
 ├── smart-home-voice.md                    Voice pipeline: Whisper → Ollama → Piper
@@ -108,6 +122,8 @@ docs/
 ├── services-ai.md                         ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, PGVector
 │
 ├── storage.md                         ZFS dataset tree, properties, replication (SSOT)
+├── storage-review.md                    Storage intake queue
+├── storage-rejected.md                  Append-only storage decision log
 ├── backup.md                              LAST: ZFS + Kopia, DR, restore drills
 │
 ├── manual/                                Family guides (Slovenian, ⚠️ not yet written — deferred)

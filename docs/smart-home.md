@@ -127,3 +127,5 @@ tags: [smart-home, homeassistant]
 - [Audio System](smart-home-audio.md)
 - [HA Failover & High Availability](smart-home-failover.md)
 - [Current HA Instance (HAOS) & HAOS→Docker](home-assistant-current.md)
+- [Smart Home Review Queue](smart-home-review.md)
+- [Smart Home Rejected / Dropped (decision log)](smart-home-rejected.md)

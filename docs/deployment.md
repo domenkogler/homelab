@@ -108,6 +108,8 @@ git push → (Forgejo Actions CI) → merge → deploy button → Ansible → de
 - [Ansible Specification](deployment-ansible.md)
 - [Docker Compose Specification](deployment-compose.md)
 - [Secrets Management & Passwordless Philosophy](deployment-secrets.md)
+- [Deployment Review Queue](deployment-review.md)
+- [Deployment Rejected / Dropped (decision log)](deployment-rejected.md)
 - [Renovate Bot — Update Lifecycle](deployment-renovate.md)
 - [Security Hardening Posture](security.md)
 - [Backup & Disaster Recovery](backup.md)
