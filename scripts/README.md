@@ -51,6 +51,7 @@ Every script here is part of one of three groups: **validation** (the fail-close
 | Script | What it does | Owning spec |
 |--------|--------------|-------------|
 | [`gen-htpasswd.py`](gen-htpasswd.py) | **bcrypt htpasswd line** for Prometheus `basic_auth_users` — `gen-htpasswd.py USERNAME [PASSWORD]`; cost 12. Seed `prometheus-internal_api` (HD-59). | `docs/deployment-compose.md`, `docs/deployment-secrets.md` |
+| [`provision-secrets.py`](provision-secrets.py) | **1Password item create/rotate helper** for the `Homelab-ansible` vault — **safe-by-default** (bare run is a no-op help; every write needs an explicit flag + `--yes`). `--list` shows the generated-item catalog; `--create` seeds missing generated items (never overwrites); `--rotate ITEM` / `--rotate-all` regenerate values in place, refusing externally-coupled items (`wg_password`, DB passwords, `authentik_password`, `kopia_password`, `matrix_password`). Rotation + Ansible: 1Password is the SSOT, so after rotating a 1P item re-run the affected Ansible role to re-render compose/config with the new value. Needs a write-scoped `OP_SERVICE_ACCOUNT_TOKEN`; fails closed without it. | `docs/deployment-secrets.md`, [`proposal-1p-automation.md`](../proposal-1p-automation.md) |
 | [`collect-smart-live.sh`](collect-smart-live.sh) | **SMART report** from a SystemRescue live ISO on the NAS (HP MicroServer Gen8) — `smartctl --scan` across internal + SilverStone miniSAS bays → `/tmp/smart-report-*.txt` (host, disk map, SMART attrs). | `docs/hardware-nas.md` |
 
 The scratch files `laptop-sda.txt`, `laptop-sdb.txt`, `oldsrv-sda.txt`, `oldsrv-sdb.txt`, and
@@ -69,4 +70,4 @@ is the Windows PowerShell sibling of `collect-smart-live.sh` (same purpose, runs
 
 ---
 
-*Last updated 2026-08-20 · scripts/ has no separate CI hook beyond `validate-all.sh`.*
+*Last updated 2026-08-21 · scripts/ has no separate CI hook beyond `validate-all.sh`.*
