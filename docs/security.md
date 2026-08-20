@@ -124,6 +124,29 @@ Owning docs: [deployment-preseed.md](deployment-preseed.md),
 [deployment-secrets.md](deployment-secrets.md), [network-ops.md](network-ops.md).
 **Tracked: HD-65, HD-80, HD-83, HD-88, HD-03.**
 
+## 6a. Internal sibling auth (HD-160)
+
+> **Law:** every **data-writing `services-internal` sibling** carries per-service token/header auth, or a
+> documented network-isolation decision — so a supply-chain compromise in any public image on the
+> overlay can't write to a sibling (extends HD-59, which covered Kopia/Prometheus/Signal/Ollama).
+
+- **Coverage map (SSOT):** [`deployment-compose.md`](deployment-compose.md) *§ Container Security →
+  Sibling-auth coverage map* — every writer→receiver pair, its auth mechanism, 1Password item and
+  status.
+- **Deliberate isolation decisions (accepted, not gaps):**
+  - **Ollama** — no native server auth (`OLLAMA_AUTH_*` is ollama.com-cloud only) → stays on the
+    dedicated `llm-backend` overlay reachable only by LiteLLM (**HD-59**).
+  - **docling** — no supported API-key mechanism → treated like Ollama; consumed only by the AI
+    stack over the overlay (see [`services-ai.md`](services-ai.md)).
+- **Cross-host reaches** (`immich-app→immich-ml`, `n8n→signal-cli`) traverse the WG tunnel; the
+  token is enforced at the **receiving** service.
+- **Fail-loud (HD-65):** a missing `-internal_api` / `_api` item aborts the render — never
+  `default('')`.
+
+Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.**
+
+---
+
 ## 7. Decision log
 
 > Accepted/closed policy decisions — recorded so they are **not** re-raised as open bugs on future scans.
@@ -143,6 +166,12 @@ Owning docs: [deployment-preseed.md](deployment-preseed.md),
   *(evidence: KOPS-058)* Date: 2025-08-16.
 - **Seerr SQLite single-file** — accepted risk (reconfig takes ~15 min; keep in Kopia scope).
   *(evidence: KOPS-059)* Date: 2025-08-16.
+- **services-internal sibling auth** — **done (HD-160, 2026-08-20):** every data-writing
+  `services-internal` sibling now has per-service token/header auth or a documented isolation
+  decision. Ollama isolated on `llm-backend` (HD-59); OpenClaw→OpenCloud via scoped
+  app-specific password (`openclaw-opencloud_api`); immich-app→immich-ml via native ML API key
+  (`immich-ml-internal_api`). Coverage map: `deployment-compose.md` §Sibling-auth coverage map.
+  *(evidence: KOPS-001/002/016 → closed, HD-59/HD-125/HD-160)*
 
 ## 8. Public VPS host hardening (HD-154)
 

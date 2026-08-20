@@ -401,6 +401,31 @@ sibling services have no auth. Apply minimum auth per service:
 - **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
 - **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
 
+#### Sibling-auth coverage map (HD-160)
+
+Every **data-writing `services-internal` sibling** carries per-service token/header auth, or a
+documented network-isolation decision — so a supply-chain compromise in any public image on the
+overlay can't write to a sibling (extends HD-59). Cross-host reaches (`immich-app→immich-ml`,
+`n8n→signal-cli`) traverse the WG tunnel; the token is enforced at the **receiving** service.
+
+| Pair (writer → receiver) | Host(s) | Auth mechanism | 1Password item | Status |
+|---|---|---|---|---|
+| n8n → signal-cli | VPS → oldsrv (WG) | `X-Api-Key` (`SIGNAL_CLI_API_TOKEN`) | `signal-internal_api` | ✅ HD-125 |
+| backup clients → kopia | VPS (WG) | `--htpasswd-file` Basic | `kopia-server-internal_api` | ✅ HD-59 |
+| grafana/alloy → prometheus | VPS | `--web.config.file` bcrypt | `prometheus-internal_api` | ✅ HD-59 |
+| litellm → ollama | VPS → oldsrv (WG) | **network isolation** (`llm-backend`, no native auth) | — | ✅ HD-59 |
+| open-webui / openclaw → litellm | VPS | `LITELLM_MASTER_KEY` bearer | `litellm_master_key` | ✅ HD-100 |
+| openclaw → opencloud (WebDAV) | VPS | OpenCloud **app-specific password** (scoped service user) | `openclaw-opencloud_api` | ✅ IaC (HD-160) |
+| immich-app → immich-ml | VPS → oldsrv (WG) | native ML **API-key header** | `immich-ml-internal_api` | ✅ IaC (HD-160) |
+| renovate → forgejo API | VPS | `RENOVATE_TOKEN` | `forgejo_api` | ✅ |
+| recyclarr → sonarr/radarr | oldsrv | API key | `sonarr_api` / `radarr_api` | ✅ |
+| db-backup → postgres (immich/opencloud/forgejo) | VPS | postgres password (`db-internal`) | `*_db` | ✅ |
+| opencloud ↔ onlyoffice-docs (WOPI) | VPS | shared JWT (`COLLABORATION_JWT_SECRET`) | `opencloud-collab_password` | ✅ HD-166 |
+
+Deliberate isolation decisions (accepted, not gaps): **Ollama** (no native server auth → stays on
+`llm-backend`, reachable only by LiteLLM, HD-59) and **docling** (no supported API key → see
+`services-ai.md`; treated like Ollama). *Cross-ref: `security.md` HD-160 block.*
+
 #### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — the pull contract
 - **Samba authenticates against Authentik as an LDAP provider** (`passdb backend = ldapsam`);
   **Authentik is the SSOT and does NOT push.** No password is replicated/synced to the NAS.
