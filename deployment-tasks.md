@@ -48,7 +48,7 @@
 | `ai_ssh` | ssh → `private_key`/`public_key` | Phase 0 | ✓ |
 | `op_api` | api → `credential` (1Password Service Account token) | Phase 0 | ✓ |
 | `mikrotik-admin_login` | login → `password` | Phase 1.5 | ✗ |
-| `wg_password` | password → `password` (**WireGuard S2S private key** — a `wg genkey` value, never a random password; the auto-tool does not write it) | Phase 1.5 | ✗ (correct value TBD) |
+| `wg_password` | password → `password` (**WireGuard S2S private key** — a `wg genkey` value, never a random password; the auto-tool does not write it) | Phase 1.5 | ✓ |
 | `nut-smtp_login` | login → `password` (`username`=notify email/SMTP user) | Phase 2 | ✗ |
 | `network-snmp_login` | api → `credential` (SNMP RO community) | Phase 1.5 | ✗ |
 | `pppoe_login` | login → `password` (`username`=PPPoE user) | Phase 1.5 (router) | ✓ |
@@ -70,9 +70,9 @@
 | Item | What it is | Vault | In OP? |
 |------|-------------------------|-------|--------|
 | `netcup-ccp_login` | netcup Customer Control Panel login (billing/orders) | Ansible vault | ✓ |
-| `netcup-scp_login` | netcup Server Control Panel login (reboot/OS reset) | Ansible vault | ✗ |
-| `netcup-vps_login` | netcup root/OS credential — **separate break-glass vault** | separate vault | ✗ |
-| `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Ansible vault | ✗ |
+| `netcup-scp_login` | netcup Server Control Panel login (reboot/OS reset) | Ansible vault | ✓ |
+| `netcup-vps_login` | netcup root/OS credential — **separate break-glass vault** | separate vault | ✓ |
+| `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Ansible vault | ✓ |
 
 > **Provisioning note:** the generated items — the DB items `authentik_db`/`opencloud_db`/`immich_db`/`forgejo_db`/
 > `pgvector_db`, the secrets `authentik_password`/`nut_password`/`nut-exporter_password`/`kopia_password`/
