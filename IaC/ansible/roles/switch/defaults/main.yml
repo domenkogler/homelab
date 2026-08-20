@@ -11,6 +11,10 @@ routeros_api_host: "{{ ansible_host | default(switch_mgmt_ip) }}"
 routeros_api_user: admin
 routeros_tls: false
 
+# FAIL-LOUD guard (HD-161): the real value lives in group_vars/switch.yml. If unset,
+# the assert task fails rather than silently comparing against a blank identity.
+routeros_expected_identity: ""
+
 # Trunk port configuration
 switch_trunk_port: sfp-sfpplus1  # Uplink to router
 

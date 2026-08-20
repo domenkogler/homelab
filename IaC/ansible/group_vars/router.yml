@@ -2,7 +2,16 @@
 # MikroTik Router (RB4011) configuration — host router.kogler.si
 
 routeros_api_port: 8728
-# routeros_api_tls: true   # enable after Let's Encrypt on router
+
+# RouterOS device identity asserted before any api_modify (HD-161).
+# Must match what rb4011_initial.rsc.j2 sets at bootstrap: `/system identity set name=router.kogler.si`.
+# Set by group_vars so the assert is per-gear (HD-165); role defaults keep only a fail-loud '' guard.
+routeros_expected_identity: "router.kogler.si"
+
+# TLS for the RouterOS API — self-signed device cert on api-ssl (8729). Kept false until the
+# router is reset with the initial .rsc and api-ssl is live; then flip to true (validate_certs
+# stays false — self-signed, private mgmt VLAN). HD-161 Part B.
+# routeros_tls: true
 
 # VLAN map — must match docs/network-vlans.md
 vlans:

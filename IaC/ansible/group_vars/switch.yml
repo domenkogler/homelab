@@ -11,6 +11,11 @@ switch_trunk_port: sfp-sfpplus1  # Port 1 on switch, carries all VLANs tagged
 # Management IP is derived from SSOT network_static_hosts in role defaults.
 switch_mgmt_vlan: 99
 
+# RouterOS device identity asserted before any api_modify (HD-161).
+# Must match what crs328_initial.rsc.j2 sets at bootstrap: `/system identity set name=switch.kogler.si`.
+# Set by group_vars so the assert is per-gear (HD-165); role defaults keep only a fail-loud '' guard.
+routeros_expected_identity: "switch.kogler.si"
+
 # Access ports per-device VLAN mapping
 #
 # Port Type Reference from docs/network-vlans.md:

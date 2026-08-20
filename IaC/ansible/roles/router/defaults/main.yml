@@ -14,6 +14,10 @@ routeros_api_host: "{{ ansible_host | default(router99_ip) }}"
 routeros_api_user: admin
 routeros_tls: false
 
+# FAIL-LOUD guard (HD-161): the real value lives in group_vars/router.yml. If unset,
+# the assert task fails rather than silently comparing against a blank identity.
+routeros_expected_identity: ""
+
 # VLAN IDs from SSOT
 mgmt_vlan_id: 99
 

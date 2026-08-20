@@ -24,6 +24,35 @@
   no_log: true
 
 # -------------------------------------------------------------------------
+# Assert-before-mutate (HD-161): read device identity once and refuse to apply
+# any api_modify if the target is not the CRS328 switch we expect. Guards against
+# a wrong-target or swapped-host applying switch config to the wrong gear.
+# Runs once per role run, before the first api_modify below.
+# -------------------------------------------------------------------------
+- name: Assert device identity before any mutate (HD-161)
+  community.routeros.api_facts:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    port: "{{ routeros_api_port }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    path: system identity
+  register: switch_identity_facts
+  tags: always
+
+- name: Assert the API target is {{ routeros_expected_identity }}
+  assert:
+    that:
+      - routeros_expected_identity | length > 0
+      - (switch_identity_facts.data | map(attribute='name') | list | first) == routeros_expected_identity
+    fail_msg: >-
+      Target at {{ routeros_api_host }} reports identity
+      '{{ switch_identity_facts.data | map(attribute='name') | list | first }}' —
+      expected '{{ routeros_expected_identity }}'. Refusing to mutate the wrong device.
+  tags: always
+
+# -------------------------------------------------------------------------
 # Ensure bridge exists with VLAN filtering
 # -------------------------------------------------------------------------
 - name: Ensure bridge-lan exists with VLAN filtering
