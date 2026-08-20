@@ -167,9 +167,13 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 ### 8.4 Cross-cutting docs
 - **Cross-cutting docs are allowed** and do not need a `services-*` prefix. A doc is cross-cutting if
   it is **owned by no single deploying host** (e.g. `security.md`, `backup.md`, `storage.md`,
-  `observability.md`, `llm-office.md`).
+  `llm-office.md`).
 - Mark them explicitly with frontmatter `cross_cutting: true` and a `**Role:** … (cross-cutting)`
   header so the taxonomy analyzer does not re-litigate them.
+- **Not cross-cutting — a domain instead:** a doc whose services deploy as a **cohesive set with a
+  primary home on one host** is a *domain* (§8.1), not cross-cutting, even if its agents/collectors
+  fan out to other hosts. Precedent: `observability.md` (Prometheus/Loki/Grafana/n8n backend on the
+  VPS; Alloy/nut_exporter/HA-exporters fan out) — `domain: observability`, no cross-cutting marker.
 - The *decision of what to do with a cross-cutting doc* is a per-task concern, not a standing rule:
   it is a candidate review point whenever a domain doc it overlaps is edited.
 

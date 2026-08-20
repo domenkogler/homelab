@@ -71,7 +71,7 @@ docs/
 ├── services-finance.md                    ★ Personal finance: Actual Budget, Enable Banking, account import strategy, AI categorization
 │
 ├── services.md                            Broad: catalog, networks, domains
-├── observability.md                        Single source of truth: stack, alerting, retention
+├── observability.md                        Observability domain — stack, alerting, retention
 ├── services-traefik.md                    Reverse proxy, CrowdSec, SSL
 ├── services-authentik.md                  OIDC SSO, WebAuthn, Forward Auth, Blueprint + glue provisioning
 ├── services-matrix.md                     ★ Matrix messaging: homeserver (Tuwunel) + Element Web (native-only; bridges deferred)

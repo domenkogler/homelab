@@ -1,14 +1,13 @@
 ---
 title: Observability
+domain: observability
 role: ssot
-domain: services
-cross_cutting: true
 status: active
-tags: [services, observability, grafana, monitoring]
+tags: [observability, grafana, prometheus, monitoring]
 ---
 # Observability
 
-> **Role:** Single source of truth (cross-cutting) — the complete observability architecture in one page.
+> **Role:** Single source of truth — the complete observability stack as a domain (Prometheus/Loki/Grafana + Alloy/exporters + alerting).
 > **Links to:** `interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`
 > **Linked from:** `index.md`, `interfaces.md`
 
