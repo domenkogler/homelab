@@ -47,12 +47,8 @@
     name: "docker-compose@{{ svc.name }}"
     enabled: true
     state: started
-- name: "Enable systemd service docker-compose@{{ svc.name }} (boot auto-start)"
-  ansible.builtin.systemd:
-    name: "docker-compose@{{ svc.name }}"
-    enabled: true
-    state: started
   when: ansible_service_mgr == 'systemd'
+
 # ---- Authentik secret-egress glue (HD-143) moved to prepass-authentik.yml (HD-162) ----
 # The glue is no longer a per-loop side-iteration on the `authentik` entry. It now runs
 # once in the explicit pre-pass (tasks/prepass-authentik.yml) BEFORE the deploy loop,
