@@ -51,6 +51,13 @@ grafana_alert_rules:
       for: 5m
       expr: "zfs_pool_health == 1"
       summary: "ZFS pool {{ $labels.pool }} is DEGRADED"
+    - uid: wg-s2s-down
+      title: Home<->VPS WireGuard tunnel down
+      for: 2m
+      expr: 'probe_success{job="wg_icmp"} == 0'
+      summary: "wg-s2s tunnel down — home reachable only if the WG link is up"
+      noDataState: Alerting
+      execErrState: Alerting
   warning:
     - uid: ups-on-battery
       title: UPS on battery

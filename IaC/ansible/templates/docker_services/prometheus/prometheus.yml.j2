@@ -51,7 +51,26 @@ scrape_configs:
         target_label: __param_module
     params:
       module: [icmp]
-  # nut_exporter (single SSOT exporter — host binary on the NUT master, nas)
+  # wg-s2s tunnel-liveness (HD-159): single ICMP probe to the home router's
+  # WireGuard-side peer IP (10.255.40.1, SSOT wg_s2s_vps.router_ip). Succeeds only
+  # when the home<VPS tunnel is up — the first-class tunnel-down signal. Kept as a
+  # separate scrape job so job-level up{job="wg_icmp"}/execErr backstop is distinct
+  # from the host-down blackbox_icmp job.
+  - job_name: wg_icmp
+    static_configs:
+      - targets:
+          - "{{ wg_s2s_vps.router_ip }}"
+    metrics_path: /probe
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [__param_module]
+        target_label: __param_module
+    params:
+      module: [icmp]
+
   - job_name: nut_exporter
     static_configs:
       - targets: ["{{ nut_exporter_host }}:{{ nut_exporter_port }}"]
