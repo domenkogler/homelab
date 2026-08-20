@@ -12,7 +12,7 @@
 # The community string resolves from 1Password (fail-loud — no default('')).
 auths:
   kogler_ro_v2:
-    community: "{{ lookup('community.general.onepassword', 'network-snmp_login', field='credential', vault=op_vault) }}"
+    community: "{{ lookup('community.general.onepassword', 'network-snmp_api', field='credential', vault=op_vault) }}"
     version: 2
     timeout: 5s
     retries: 2

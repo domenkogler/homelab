@@ -52,7 +52,7 @@
 | `Hertzner-SB-Data` | — (connection ref; CIFS/SMB/WebDAV live box, `cifs` role) | Phase 1 (VPS) | ✓ |
 | **Phase 1.5** | | | |
 | `mikrotik-admin_login` | login → `password` | Phase 1.5 | ✓ |
-| `network-snmp_login` | api → `credential` (SNMP RO community) | Phase 1.5 | ✗ |
+| `network-snmp_api` | api → `credential` (SNMP RO community) | Phase 1.5 | ✗ |
 | `pppoe_login` | login → `password` (`username`=PPPoE user) | Phase 1.5 (router) | ✓ |
 | `wg_password` | password → `password` (**WireGuard S2S private key** — a `wg genkey` value, never a random password; the auto-tool does not write it) | Phase 1.5 | ✓ |
 | **Phase 2** | | | |
