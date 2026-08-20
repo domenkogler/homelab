@@ -67,6 +67,16 @@
   loop: "{{ network_ranges | selectattr('name', 'in', ['traefik-public', 'services-internal', 'db-internal', 'llm-backend']) | list }}"
   tags: [docker_services, networks]
 
+# Authentik OIDC pre-pass (HD-162) — BEFORE the deploy loop. On hosts where `authentik`
+# is in docker_services (the VPS public edge), seed the 1Password OIDC items (secret-
+# egress glue) so the consumer compose templates that follow in the loop render with
+# real client creds. Gated on `authentik` presence so home hosts (home_servers /
+# raspberry_pi) skip it. Mirrors deployment-compose.md ordering.
+- name: Authentik OIDC secret-egress pre-pass (glue before consumers)
+  ansible.builtin.include_tasks:
+    file: prepass-authentik.yml
+  when: "'authentik' in (docker_services | map(attribute='name') | list)"
+
 - name: Deploy each enabled service
   ansible.builtin.include_tasks:
     file: deploy-service.yml

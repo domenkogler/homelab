@@ -1,0 +1,46 @@
+---
+# prepass-authentik.yml — Authentik OIDC pre-pass (HD-162)
+# Runs BEFORE the per-service deploy loop in main.yml, on hosts where `authentik`
+# is in docker_services (the VPS public edge). Guarantees the OIDC secret-egress
+# glue has seeded the 1Password OIDC items BEFORE any consumer compose template
+# renders — so no consumer ever renders with empty/placeholder client creds.
+#
+# Ordering (docs/deployment-compose.md "Authentik OIDC provisioning"): deploy
+# `authentik` (+ bundled pg/redis, with the /blueprints volume auto-applying the
+# ks-oidc.yml Blueprint), then apply the Blueprint if not yet applied, then run the
+# secret-egress glue, then deploy the OIDC consumers. Home hosts (home_servers /
+# raspberry_pi) never run this pre-pass — `authentik` is not in their docker_services.
+
+- name: "Guard: Authentik pre-pass reached without an authentik entry"
+  ansible.builtin.assert:
+    that:
+      - "'authentik' in (docker_services | map(attribute='name') | list)"
+    fail_msg: >-
+      The Authentik secret-egress pre-pass was included without an `authentik` entry
+      in docker_services on {{ inventory_hostname }}. main.yml gates this include
+      with when: 'authentik' in (...) — this assert is a safety net and should
+      never fire. See HD-162.
+  tags: [authentik, secret-egress]
+
+# Render the secret-egress glue script once per host (idempotent; force: no would
+# preserve local edits, but the script is managed by Ansible — overwrite is intended).
+- name: "Render Authentik secret-egress glue (HD-143)"
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../roles/docker_services/templates/authentik-secret-egress.sh.j2"
+    dest: "/usr/local/sbin/authentik-secret-egress.sh"
+    mode: '0755'
+  tags: [authentik, secret-egress]
+
+# Run the glue. Retried because the ks-oidc.yml Blueprint may still be applying on the
+# /blueprints volume at container first-start; the script itself exits 3 (with retry-
+# safe logging) until every provider/client_secret is present.
+- name: "Run Authentik secret-egress glue (HD-143)"
+  ansible.builtin.shell:
+    cmd: "/usr/local/sbin/authentik-secret-egress.sh"
+    executable: /bin/bash
+  register: ak_egress
+  until: ak_egress.rc == 0        # script exits 3 until the ks-oidc.yml blueprint is applied
+  retries: 12
+  delay: 10
+  changed_when: "'updated' in ak_egress.stdout or 'created' in ak_egress.stdout"
+  tags: [authentik, secret-egress]
