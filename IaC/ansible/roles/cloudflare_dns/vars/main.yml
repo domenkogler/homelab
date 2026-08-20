@@ -48,6 +48,29 @@ cloudflare_dns_records:
     ttl: 300
     proxied: false
 
+  # --- SMTP2Go sender setup (HD-54, SMTP relay) — verification / DKIM / tracking ---
+  # CNAMEs required by the SMTP2Go domain-setup wizard for kogler.si (return-path
+  # verification, DKIM signing, open-tracking). Applied to Cloudflare (DNS-only).
+  # Consumed by SMTP2Go; not by our Traefik edge. Do not proxied (CNAME to
+  # external SMTP2Go targets must stay DNS-only / orange-cloud-off).
+  - name: em918249
+    type: CNAME
+    value: return.smtp2go.net
+    ttl: 300
+    proxied: false
+
+  - name: s918249._domainkey
+    type: CNAME
+    value: dkim.smtp2go.net
+    ttl: 300
+    proxied: false
+
+  - name: link
+    type: CNAME
+    value: track.smtp2go.net
+    ttl: 300
+    proxied: false
+
 # ---------------------------------------------------------------------------
 # Public service records — ADD these as each public app moves onto the VPS
 # (decision HD-93: public Traefik + apps terminate on the VPS, URLs unchanged).
