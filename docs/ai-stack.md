@@ -10,12 +10,12 @@ tags: [services, ai, llm, llm-gateway, rag, agents]
 > **Role:** Detail — family web AI platform: LLM routing (LiteLLM), chat + RAG UI (Open WebUI),
 > agent orchestration (OpenClaw), OCR document ingestion (Docling), and the PGVector vector store.
 > This is the **family-facing web AI layer**. Desktop/office AI (ONLYOFFICE, LocPilot, Word, email,
-> presentations) stays in [`llm-office.md`](llm-office.md); this doc covers everything browser-facing.
-> **Links to:** `llm-office.md`, `hardware-gpu.md`, `services-authentik.md`, `services-traefik.md`,
+> presentations) stays in [`services-office.md`](services-office.md); this doc covers everything browser-facing.
+> **Links to:** `services-office.md`, `hardware-gpu.md`, `services-authentik.md`, `services-traefik.md`,
 > `deployment-secrets.md`, `services.md`
 > **Linked from:** `index.md`
 
-> **Status:** Planning — nothing deployed yet. Supersedes the AnythingLLM path in `llm-office.md`
+> **Status:** Planning — nothing deployed yet. Supersedes the AnythingLLM path in `services-office.md`
 > for the family web UI (AnythingLLM **removed**; **LocPilot kept** for Windows-Word inline only).
 > Tracked via `todo.md` HD-1xx (`source: ai-stack`).
 
@@ -133,7 +133,7 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 | **Open WebUI ↔ OpenClaw** | Register OpenClaw as a **model/provider in LiteLLM** → chatting to the "OpenClaw" model in the UI invokes the agent. No bespoke glue. |
 | **Open WebUI ↔ OpenCloud** | Family documents from the **live Hetzner Box (WebDAV, HD-135)** mounted **read-only** into Open WebUI RAG ingestion; documents live in OpenCloud, Open WebUI indexes them. |
 | **OpenClaw ↔ OpenCloud** | OpenClaw **WebDAV skill** reads/writes family files (summarize, organize, OCR a scan via Docling, draft replies). |
-| **Open WebUI ↔ MS Office** | Office MCP bridges (Windows 11 clients) surface Word/Excel/PowerPoint as **tools** into Open WebUI over the Headscale tunnel — live COM edits; server-side python-docx/pptx/openpyxl path for Linux. See [`llm-office.md`](llm-office.md) (HD-106–111). |
+| **Open WebUI ↔ MS Office** | Office MCP bridges (Windows 11 clients) surface Word/Excel/PowerPoint as **tools** into Open WebUI over the Headscale tunnel — live COM edits; server-side python-docx/pptx/openpyxl path for Linux. See [`services-office.md`](services-office.md) (HD-106–111). |
 
 ---
 
@@ -145,7 +145,7 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 - **VRAM/RAM budget:** RX 7600 = 8 GB VRAM, shared with Ollama + immich-ML + voice. Docling on **CPU**
   by default; size chat models ~7–8B q4; keep `keep_alive` sensible (see `hardware-gpu.md`).
 - **AnythingLLM + LocPilot removed** for the family web UI — replaced by the **MS Office MCP path** in
-  Open WebUI (HD-108), reflected in `llm-office.md`.
+  Open WebUI (HD-108), reflected in `services-office.md`.
 
 ---
 

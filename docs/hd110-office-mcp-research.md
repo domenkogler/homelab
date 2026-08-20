@@ -3,7 +3,7 @@ title: HD-110 — Office MCP Bridge Research
 role: research
 domain: services
 status: active
-tags: [services, ai, office, mcp, research, llm-office]
+tags: [services, ai, office, mcp, research]
 ---
 # HD-110 — Office MCP Bridge: Unified vs Per-App, & Topology
 
@@ -11,7 +11,7 @@ tags: [services, ai, office, mcp, research, llm-office]
 > feasible (one Headscale endpoint, one token) that covers Word+Excel+PowerPoint, or do we
 > need per-app bridge(s)? Plus the client-topology decision (shared family desktop vs per-laptop).
 > **Gates:** HD-111 implementation.
-> **Linked from:** `llm-office.md` (Office MCP section)
+> **Linked from:** `services-office.md` (Office MCP section)
 
 **Status:** Complete (2026-08). A unified bridge is feasible but requires a **thin wrapper**
 because every native Office MCP server ships **stdio-only** — and Open WebUI consumes

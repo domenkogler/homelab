@@ -77,4 +77,4 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 | **At home** | "Kogler" SSID, `kogler.si` dashboard |
 | **Traveling** | Tailscale app → tap Connect (mobile mesh) |
 | **Remote (anywhere)** | Tailscale → access Immich, OpenCloud, HA |
-| **Office MCP bridges (Windows clients)** | Expose the per-client **Office MCP server** over the Headscale interface only (token-auth, no public) so a server-side **Open WebUI** can call Word/Excel/PowerPoint tools. See [`llm-office.md`](llm-office.md) (HD-106–111). |
+| **Office MCP bridges (Windows clients)** | Expose the per-client **Office MCP server** over the Headscale interface only (token-auth, no public) so a server-side **Open WebUI** can call Word/Excel/PowerPoint tools. See [`services-office.md`](services-office.md) (HD-106–111). |

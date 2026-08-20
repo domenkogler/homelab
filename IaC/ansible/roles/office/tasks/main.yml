@@ -1,5 +1,5 @@
 ---
-# office role — family office suite on oldsrv (docs/llm-office.md,
+# office role — family office suite on oldsrv (docs/services-office.md,
 # docs/hardware-oldsrv.md). Condition: applied when homelab_mode == 'desktop'.
 #
 # Scope:

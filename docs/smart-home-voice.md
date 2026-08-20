@@ -8,7 +8,7 @@ tags: [smart-home, voice, whisper, piper]
 # Voice Pipeline
 
 > **Role:** Detail — Whisper STT, Ollama LLM, Piper TTS pipeline.
-> **Links to:** `hardware-gpu.md`, `llm-office.md`
+> **Links to:** `hardware-gpu.md`, `services-office.md`
 > **Linked from:** `smart-home.md`
 
 ---

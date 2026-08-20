@@ -9,7 +9,7 @@ tags: [hardware, gpu, rocm, cross-cutting]
 # Shared GPU Resource
 
 > **Role:** Cross-cutting detail — GPU used by LLM, voice, vision, and gaming across multiple domains.
-> **Links to:** `llm-office.md`, `smart-home-voice.md`, `services.md`
+> **Links to:** `services-office.md`, `smart-home-voice.md`, `services.md`
 > **Linked from:** `hardware-oldsrv.md`, `hardware-phase2.md`, `deployment-compose.md`
 
 ---
@@ -70,7 +70,7 @@ tags: [hardware, gpu, rocm, cross-cutting]
 
 | Consumer | Domain | Doc |
 |----------|--------|-----|
-| Ollama | LLM inference | [`llm-office.md`](llm-office.md) |
+| Ollama | LLM inference | [`services-office.md`](services-office.md) |
 | Whisper STT | Voice (speech-to-text) | [`smart-home-voice.md`](smart-home-voice.md) |
 | Piper TTS | Voice (text-to-speech) | [`smart-home-voice.md`](smart-home-voice.md) |
 | Immich-ML | Photo face recognition | [`services.md`](services.md) |

@@ -135,7 +135,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   `design-spec`, `runbook`, `research`, `cross-cutting`. A domain hub is `role: index` (or `broad`).
 - **Domain index** links to `<domain>-<sub>.md` detail docs. Canonical pattern: `smart-home.md` →
   `smart-home-{voice,audio,failover}.md`. **Stack / sub-domain docs** group a big domain's catalog into
-  `services-<x>.md` — e.g. `services-matrix.md`, and `llm-office.md` as the office-workload slice of the
+  `services-<x>.md` — e.g. `services-matrix.md`, and `services-office.md` as the office-workload slice of the
   services stack. All share the owning `domain:` (e.g. `services`).
 - **Umbrella domain** — a domain need not have a single service host to be a domain; it may be an
   *ops umbrella* whose children are cross-cutting concerns. Precedent: **`deployment`** — deployment.md
@@ -184,7 +184,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 ### 8.4 Cross-cutting docs (ownership axis)
 - **Cross-cutting** = the doc's *content* is **owned by no single host/module** — a policy or
   architecture fact spanning the whole homelab (e.g. `security.md`, `backup.md`, `storage.md`,
-  `llm-office.md`).
+  `interfaces.md`, `services-office.md`).
 - Mark them: frontmatter `cross_cutting: true` + a `**Role:** … (cross-cutting)` header so the taxonomy
   analyzer does not re-litigate them.
 - **Orthogonal to `domain:`** — a cross-cutting doc still carries a `domain:` tag, and that tag is its
@@ -194,7 +194,16 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   - `security.md` → `domain: deployment` + cross-cutting — hardening policy spans every host.
   - `backup.md` → `domain: deployment` + cross-cutting — spans nas/oldsrv/VPS + cloud Boxes.
   - `storage.md` → `domain: deployment` + cross-cutting — ZFS spans nas (tank/bulk) + oldsrv (nvme).
-  - `llm-office.md` → `domain: services` + cross-cutting — the office slice; touches oldsrv GPU/VPS/desktop.
+  - `services-office.md` → `domain: services` + cross-cutting — the office slice; touches oldsrv GPU/VPS/desktop.
+  - `interfaces.md` → `domain: services` + cross-cutting — dashboards/management span every host; no single
+    deployable home (kept intent-based name, unprefixed).
+- **Filenames: prefixed = stack, unprefixed = concern.** A `services-<x>.md` / `<domain>-<x>.md` filename
+  signals a *deployable stack* sub-doc. A **strongly cross-cutting** doc keeps an **intent-based unprefixed name**
+  (`security.md`, `backup.md`, `storage.md`) — its home lives in frontmatter (`domain: deployment`
+  + `cross_cutting: true`), never in a `deployment-` prefix (that prefix is reserved for the deploy toolchain:
+  preseed/ansible/compose/secrets/renovate). So: rename a doc to a `services-*` stack *only* when it is a
+  real deployable stack slice (e.g. `llm-office.md` → `services-office.md`); do NOT prefix a cross-cutting
+  policy doc with its domain.
 - **Not all big-stack docs are cross-cutting.** A doc whose services deploy as a **cohesive set with a
   primary home on one host** is a *clean domain* (`cross_cutting: false`). Precedent: `observability.md`
   (Prometheus/Loki/Grafana/n8n backend on the **VPS**; Alloy/nut_exporter/HA-exporters fan out) —
@@ -215,4 +224,4 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 
 ---
 
-*Last review: 2026-08-20 (added: derived-counts, data-location same-change, two-sided deploy gate; placement §1, onboarding storage bullet §5, version-pin hygiene §7, validation-gate extension §4; §8 docs taxonomy & service triage 2026-08-20, refined to a **two-axis model** (domain ≁ placement + cross_cutting ≁ ownership) with observability as the clean-domain precedent and llm-office as a services/office slice; **deployment as the ops-umbrella** seeding cross-cutting security/backup/storage (Option A)). Owning docs above remain authoritative.*
+*Last review: 2026-08-20 (added: derived-counts, data-location same-change, two-sided deploy gate; placement §1, onboarding storage bullet §5, version-pin hygiene §7, validation-gate extension §4; §8 docs taxonomy & service triage 2026-08-20, refined to a **two-axis model** (domain ≁ placement + cross_cutting ≁ ownership) with observability as the clean-domain precedent and llm-office as a services/office slice; **deployment as the ops-umbrella** seeding cross-cutting security/backup/storage + interfaces (Option A); **filename rule** — prefixed = stack, unprefixed = concern). Owning docs above remain authoritative.*

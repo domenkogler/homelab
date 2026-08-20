@@ -160,12 +160,17 @@ def main() -> int:
     # so a stale/missing target in the index is caught, as is any other link
     # across all canonical .md files.
     broken_all: list[tuple[str, str]] = []
+    # Append-only history: changelog.md rows may reference files renamed after
+    # the row was written (e.g. docs/llm-office.md -> services-office.md). Those
+    # historical links are intentionally left as written — allow them.
+    CHANGELOG_STALE = {"docs/llm-office.md"}
     for f in _iter_scan_files():
         try:
             text = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
         text = _strip_code(text)
+        rel_src = f.relative_to(ROOT).as_posix()
         for tgt in sorted(_markdown_link_targets(text)):
             if _is_ignorable_target(tgt):
                 continue
@@ -173,8 +178,10 @@ def main() -> int:
             path = tgt.split("#", 1)[0]
             candidate = (f.parent / path)
             if not candidate.exists():
-                broken_all.append((str(f.relative_to(ROOT)), tgt,
-                                   str(candidate.resolve())))
+                # allowlist for append-only changelog rows referencing pre-rename files
+                if rel_src == "changelog.md" and path in CHANGELOG_STALE:
+                    continue
+                broken_all.append((rel_src, tgt, str(candidate.resolve())))
 
     if broken_all:
         bad = True

@@ -1,16 +1,16 @@
 ---
-title: Local LLM for Office Tasks
+title: Office Stack — Local LLM, Documents & Office Automation
 role: detail
 domain: services
 cross_cutting: true
 status: active
 tags: [services, llm, ollama, office]
 ---
-# Local LLM for Office Tasks
+# Office Stack — Local LLM, Documents & Office Automation
 
-> **Role:** Detail (cross-cutting) — AI-assisted office work, model recommendations, toolchain.
-> **Links to:** `hardware-gpu.md`
-> **Linked from:** `index.md`
+> **Role:** Stack doc (detail, cross-cutting) — the office workload slice of the services stack: local LLM for office, ONLYOFFICE/WOPI, Office MCP bridges, model recommendations, toolchain.
+> **Links to:** `hardware-gpu.md`, `ai-stack.md`, `services-authentik.md`, `services-traefik.md`
+> **Linked from:** `services.md`, `index.md`
 
 > ⚠️ **Planning phase — not deployed.** The office/AI toolchain (ONLYOFFICE on oldsrv desktop, Open WebUI MCP for Word/Excel/PPT) depends on oldsrv being live (Phase 3) and the AI stack (HD-100…111); this is the authoring spec, not a live system.
 

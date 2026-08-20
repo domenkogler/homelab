@@ -26,7 +26,7 @@ tags: [services, catalog]
 | CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via Metabase) |
 | Authentik | sso | P+I | 700–1,100 / 2,000 | OIDC SSO, MFA (WebAuthn) — bundle: server+worker+postgres+redis |
 | OpenCloud | file | I | 250–400 / 700 | File sync, WebDAV, OIDC — Go (~100 MB), lighter than Nextcloud. **User files on the live Hetzner Box (WebDAV/CIFS, cold tier — HD-135); NAS `documents` dataset = archive only** (HD-151). **Auth: native OIDC → Authentik** (multi-redirect web+desktop+mobile, HD-52); client provisioned via Blueprint + secret-egress glue |
-| ONLYOFFICE Docs | office | P | 1,000–2,000 / 4,000 | In-browser document editor for OpenCloud (Word/Excel/PPT) — WOPI **helper** via OpenCloud's native `collaboration` service (**HD-166**). **Not an auth surface:** NO Authentik OIDC client, NOT behind Forward-Auth — the browser holds the user's Authentik session, ONLYOFFICE↔OpenCloud share a **JWT secret** for WOPI calls. Stateless (config volume only, no user data). Placement: VPS edge (HD-166); heavyweight — see `llm-office.md` §ONLYOFFICE |
+| ONLYOFFICE Docs | office | P | 1,000–2,000 / 4,000 | In-browser document editor for OpenCloud (Word/Excel/PPT) — WOPI **helper** via OpenCloud's native `collaboration` service (**HD-166**). **Not an auth surface:** NO Authentik OIDC client, NOT behind Forward-Auth — the browser holds the user's Authentik session, ONLYOFFICE↔OpenCloud share a **JWT secret** for WOPI calls. Stateless (config volume only, no user data). Placement: VPS edge (HD-166); heavyweight — see `services-office.md` §ONLYOFFICE |
 | Immich | foto | I | 600–1,000 / 2,000 | Photo management, mobile apps (app+postgres+valkey — microservices merged into server in v3). **Originals on live Box (CIFS), thumbs/DB local** (HD-131 D1/D3). **Auth (HD-148): native OIDC → Authentik** (web + mobile `app.immich:///oauth-callback`); client via Blueprint + glue |
 | Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner). **Auth (HD-148): native OIDC → Authentik** (web SSO + per-user API/token); client via Blueprint + glue |
 | Ollama | — | I | 600–1,000 / 2,500–4,000 | LLM inference (Qwen, Llama) — models in **AMD RX 7600 8 GB VRAM** |
@@ -73,7 +73,7 @@ tags: [services, catalog]
 | Element Web | chat | P | 30–80 / 150 | Matrix web client (SSO via homeserver → Authentik) |
 | Actual Budget | budget | P+I | 60–120 / 250 | Budgeting + investment tracking (Node.js + SQLite, one container; native Enable Banking sync, Forward-Auth) |
 
-> **Domain docs:** [Matrix messaging](services-matrix.md) · [Personal finance](services-finance.md)
+> **Domain docs:** [Matrix messaging](services-matrix.md) · [Personal finance](services-finance.md) · [Office stack](services-office.md)
 
 > **RAM sanity (48 GB on oldsrv):** typical idle ≈ 12–15 GB, worst-case burst ≈ 22–26 GB,
 > gaming mode ≈ 10–13 GB — ample headroom. Plus host desktop + browser 2–4 GB (6–8 GB heavy).
@@ -144,7 +144,7 @@ WAN allow. Everything else in the catalog is **internal-only** (no public record
 
 - **Home Assistant (primary)** — on the Raspberry Pi 4 (HA config in this repo), co-located with **RaspberryMatic + HmIP-RFUSB** (local Homematic IP), the **Technitium secondary** DNS, and a minimal **`traefik-ha`** edge (VIP-bound) that serves `ha.kogler.si` and keeps it reachable when oldsrv is down. **Standby** Home Assistant runs on oldsrv: see [`smart-home-failover.md`](smart-home-failover.md).
 - **Public/edge/observability tier** — the public edge (Traefik/CrowdSec/Authentik), live-data apps (OpenCloud/Immich/Forgejo), AI stack, **observability backend** (Prometheus/Loki/Grafana), n8n, GitOps (Renovate), and edge accessories (Matrix/Headscale/Metabase/PairDrop/Stirling/renovate) run on the **VPS** ([`services-vps.md`](services-vps.md), HD-135); oldsrv avoids the public/edge workload
-- **Office MCP bridges (Windows 11 clients)** — native per-client apps, **not** Docker services in this catalog; distributed server-side from a repo `client/office-bridge/` folder. See [`llm-office.md`](llm-office.md) (HD-106–111).
+- **Office MCP bridges (Windows 11 clients)** — native per-client apps, **not** Docker services in this catalog; distributed server-side from a repo `client/office-bridge/` folder. See [`services-office.md`](services-office.md) (HD-106–111).
 - **Pangolin** — removed; Traefik handles all reverse proxy
 
 ## DNS Redundancy
@@ -258,6 +258,7 @@ it to a node IP). Treat the VIP as the only valid backend. Runbook:
 - [Authentik — Identity & SSO](services-authentik.md)
 - [Matrix — Messaging](services-matrix.md)
 - [Personal Finance Stack](services-finance.md)
+- [Office Stack — Local LLM, Documents & Office Automation](services-office.md)
 - [Deferred VPS Infrastructure](services-vps.md)
 - [Docker Compose Specification](deployment-compose.md)
 - [Service Subscriptions & Costs](subscription.md)

@@ -2,12 +2,13 @@
 title: Interface Matrix — Dashboards & Management
 role: detail
 domain: services
+cross_cutting: true
 status: active
 tags: [services, interfaces, dashboards]
 ---
 # Interface Matrix — Dashboards & Management
 
-> **Role:** Detail — every user-facing interface, its audience, and its responsibility (single source of truth for dashboards).
+> **Role:** Detail (cross-cutting) — every user-facing interface, its audience, and its responsibility (single source of truth for dashboards).
 > **Links to:** `smart-home.md`, `observability.md`, `services-matrix.md`
 > **Linked from:** `deployment.md`, `smart-home.md`, `index.md`
 

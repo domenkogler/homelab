@@ -3,7 +3,7 @@
 #   NOT an identity surface: no Authentik OIDC client, NOT behind Forward-Auth.
 #   The browser holds the user's Authentik session (via OpenCloud file.kogler.si);
 #   OpenCloud <-> ONLYOFFICE trust each other over signed WOPI calls with a shared
-#   JWT secret (opencloud-collab_password). See docs/llm-office.md §ONLYOFFICE.
+#   JWT secret (opencloud-collab_password). See docs/services-office.md §ONLYOFFICE.
 #
 #   Networking: `traefik-public` only (Traefik routes to it); no host ports (HD-62).
 #   TLS via the wildcard *.kogler.si cert on the Traefik route. Image port 80 = http.
