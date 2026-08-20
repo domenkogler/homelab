@@ -171,9 +171,8 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   `observability.md`, `llm-office.md`).
 - Mark them explicitly with frontmatter `cross_cutting: true` and a `**Role:** … (cross-cutting)`
   header so the taxonomy analyzer does not re-litigate them.
-- **Resolution order:** the goal is to absorb a cross-cutting section into its owning domain *when the
-  domain is imported* (HD-171). The cross-cutting file itself is re-evaluated **last**, after all
-  domains have absorbed what is theirs.
+- The *decision of what to do with a cross-cutting doc* is a per-task concern, not a standing rule:
+  it is a candidate review point whenever a domain doc it overlaps is edited.
 
 ### 8.5 SSOT & rendering direction (scripts must not read generated MD)
 - **Source of truth for values = IaC** (`group_vars/*.yml`, `host_vars/*.yml`,
