@@ -110,6 +110,11 @@ Owning docs: [backup.md](backup.md), [storage.md](storage.md). **Tracked: HD-63.
   KOPS-044). Owning doc: [deployment-preseed.md](deployment-preseed.md).
 - **Router API** — restrict to the Management VLAN interface in the bootstrap `.rsc`, or disable if no TLS
   (**HD-83**; evidence KOPS-003/042). Owning doc: [network-ops.md](network-ops.md).
+- **Shared RouterOS admin (HD-165, accepted)** — one `mikrotik-admin_login` password across router + switch
+  + APs is an **accepted** risk **because every management surface binds to the Management VLAN (99) only**
+  (router `api`/`www-ssl`/`ssh` = `interface=vlan99-mgmt`; switch + APs are L2-only, no WAN egress); the shared
+  credential never crosses an internet boundary. Revisit per-gear items only if a gear gains WAN-exposed
+  management or the Mgmt-VLAN ACL changes. Owning docs: [deployment-secrets.md](deployment-secrets.md), [network-ops.md](network-ops.md).
 - **Switch port map** — `group_vars/switch.yml` must exist before first switch deploy so unused ports
   don't all land on VLAN 99 (folded into **HD-03**; evidence KOPS-043).
 - **Fail-loud secrets** — no `default('')`; a missing 1Password secret must fail loudly, not deploy an

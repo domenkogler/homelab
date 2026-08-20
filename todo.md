@@ -59,8 +59,8 @@
 | HD-161 | 3 | AI | 2 | **Router/switch: assert state before `api_modify` + decide router API TLS** — add `api_facts` assert-before-mutate; decide `routeros_api_tls` (TODO after Let's Encrypt). · [deployment-ansible.md](docs/deployment-ansible.md) |
 
 | ~~HD-163~~ | 2 | AI | 3 | **Consolidate render scripts behind one entry (`render_all.py`)** — ✅ **Done (2026-08-20)** — see `changelog.md`. Pure-Python umbrella over all 5 generated-doc renders (network-addresses / inventory / subscriptions / rack+rack-layout); imports the two standalone renderers (option B); `--check` drift mode; standardized `# Ansible managed` header; wired into `scripts/README.md` + `docs/index.md` + `CONVENTIONS.md` §8.2. · [scripts/render_all.py](scripts/render_all.py), [scripts/README.md](scripts/README.md) |
-| HD-164 | 1 | AI | 4 | **Annotate `kopia` role as a retained stub + expiry note** — unused (containerized); note in `IaC/README.md`. · [IaC/README.md](IaC/README.md) |
-| HD-165 | 1 | AI | 4 | **Document per-gear routeros credentials** — RB4011/CRS328/hAP; single admin item shouldn't imply one password. · [deployment-secrets.md](docs/deployment-secrets.md) |
+| ~~HD-164~~ | 1 | AI | 4 | **Remove the orphaned `kopia` Ansible role** — ✅ **Done (2026-08-20)**: `roles/kopia/` deleted (never referenced in any playbook/inventory/group_vars); role table/note/section stripped from `IaC/README.md` + `docs/deployment-ansible.md`. · [IaC/README.md](IaC/README.md) |
+| ~~HD-165~~ | 1 | AI | 4 | **Document per-gear routeros credentials** — ✅ **Decided (2026-08-20)**: **keep the single shared `mikrotik-admin_login`** as an **accepted** risk — every RouterOS mgmt surface binds to Mgmt-VLAN 99 only (never WAN/internet); rationale documented in `deployment-secrets.md`/`network-ops.md`/`security.md`. No per-gear items. · [deployment-secrets.md](docs/deployment-secrets.md) |
 
 ### 2.4 Services & Edge — Traefik, SSO, service catalog, Matrix, VPS edge
 

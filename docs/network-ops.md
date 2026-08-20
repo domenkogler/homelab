@@ -33,3 +33,4 @@ Source of truth: `rb4011_initial.rsc` + the `router` Ansible role. The live expo
   VLAN (99) and `trusted-admin` hosts** (nas/oldsrv/ha-vip); the ports are dropped from every other
   source. Established/related and DHCP input remain accepted so the control plane, clients and the
   deferred WireGuard/VRRP links keep working.
+- **Shared RouterOS admin credential (HD-165):** because all management binds to Mgmt-VLAN 99 (above), the **same `mikrotik-admin_login` password is deliberately shared** across RB4011 + CRS328 + APs as an **accepted** risk — it cannot be reached from WAN or any non-Mgmt VLAN. Revisit per-gear items only if a device gains WAN-exposed management or this ACL changes. See [deployment-secrets.md](deployment-secrets.md).

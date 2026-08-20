@@ -7,12 +7,12 @@
 
 | Component | Implemented | Stubs / TODO |
 |-----------|-------------|--------------|
-| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation), `storage`, `router`, `switch` (HD-03), `home_assistant`, `docker_services` (HD-50), `monitoring`, `amd_rocm`, `desktop`, `office`, `cifs`, `cloudflare_dns`, `wireguard` (18) | `proxmox` (1, TODO) — `kopia` intentionally unused |
+| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation), `storage`, `router`, `switch` (HD-03), `home_assistant`, `docker_services` (HD-50), `monitoring`, `amd_rocm`, `desktop`, `office`, `cifs`, `cloudflare_dns`, `wireguard` (18) | `proxmox` (1, TODO) |
 | Docker compose templates | 49 templates implemented (HD-01) — see `templates/docker_services/` | — |
 | RouterOS scripts | `rb4011_initial.rsc`, `ap_initial.rsc` (2) | — |
 | Bootstrap | `bootstrap.sh`, `post_install.sh`, `pi/first-boot-config.sh` (3) | — |
 
-> **Notes:** the `kopia` role stub is intentionally unused — Kopia runs as a Docker container (`kopia-server`) deployed by `docker_services`.
+> `network` role: static-IP + VLAN trunk provisioning is a scoped TODO until the host network config manager (systemd-networkd vs netplan) is decided — see `roles/network/tasks/main.yml`.
 > `network` role: static-IP + VLAN trunk provisioning is a scoped TODO until the host network config manager (systemd-networkd vs netplan) is decided — see `roles/network/tasks/main.yml`.
 
 ## Hostname / Domain Convention
@@ -98,7 +98,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │       ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   │       ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   │       ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
-│   │       ├── kopia/tasks/main.yml         # kopia-server Docker container (deployed by docker_services, not a separate role — stub retained for bare-metal nas option)
+│   │       ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
 │   │       ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
 │   │       ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
 │   │       ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP
@@ -190,12 +190,6 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 ### `office`
 - Condition: `when: homelab_mode == 'desktop'`
 - ONLYOFFICE Desktop Editors, `ttf-mscorefonts-installer` (EULA via debconf), OpenCloud client
-
-### `kopia`
-- Kopia runs as a Docker container deployed by the `docker_services` role:
-  - **kopia-server:** Web UI + repository server (on VPS in Phase 2, on oldsrv in Phase 1)
-- The standalone `kopia` Ansible role is **not used** — Kopia backup is entirely containerized, consistent with all other services.
-- **Secrets:** `kopia_password`, `kopia-server-internal_api`; off-site target = backup Box via **SSH/SFTP (port 23)** (`kopia_sftp_*` in `all.yml`, `Hertzner-SB-Backup` SSH key) — **iDrive e2 S3 dropped** (HD-31/HD-135)
 
 ### `router`
 - Method: REST API (preferred) or templated `.rsc` push

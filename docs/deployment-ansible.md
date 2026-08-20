@@ -154,7 +154,7 @@ IaC/ansible/
 │   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
-│   ├── kopia/tasks/main.yml         # kopia-agent + kopia-server Docker containers (deployed by docker_services)
+│   ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
 │   ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
 │   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
 │   ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP + failover trigger
@@ -375,12 +375,6 @@ domain_local: kogler.si
 - **ONLYOFFICE:** official ONLYOFFICE apt repo (`deb https://download.onlyoffice.com/repo/debian squeeze main`), `onlyoffice-desktopeditors` — installed
 - **Fonts:** `ttf-mscorefonts-installer` (EULA pre-accepted via `debconf`) — installed
 - **OpenCloud client (HD-52, Debian 13 only):** the official client (`opencloud-eu/desktop`) ships **AppImage only** — installed **manually** per client (download → `chmod +x` → `/opt` or `~` + `.desktop` entry). Ansible only preps the **runtime dependency `libfuse2t64`** (FUSE for AppImage) — **Debian 13 (trixie) only**, no bookworm support. Auth via **native OIDC → Authentik** (multi-redirect provider + CSP) — *not* Traefik Forward-Auth (see deployment-compose).
-
-### `kopia`
-- Kopia runs as two Docker containers deployed by the `docker_services` role:
-  - **kopia-server:** Web UI + repository server (on the VPS — HD-135 plane)
-  - **kopia-agent:** Per-host backup agent
-- The standalone `kopia` Ansible role is **not used** — Kopia backup is entirely containerized.
 
 ### `router`
 - **Method:** REST API (preferred) or templated `.rsc` push
