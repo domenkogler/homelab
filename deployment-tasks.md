@@ -31,48 +31,57 @@
 > **only** secrets backend — Ansible lookups resolve items at render time, keys are served on demand
 > by the 1Password SSH agent. No secret is ever committed to Git.
 
-### 1Password items (the full canonical set — `docs/deployment-secrets.md` is the single source of truth)
+### 1Password items — human-gated (not auto-generated)
 
-All **36** items use the `<service>_<type>` convention (single `_`, `-` in service names). A phase that
-lists an item as a prerequisite must have that item created in the `Homelab-ansible` vault first. (Count + catalog
-are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase view.)
+> The 1Password item catalog SSOT is [`docs/deployment-secrets.md`](docs/deployment-secrets.md) — the canonical list
+> of ALL items (generated + human + derived). This section lists **only the human-gated items**: external values,
+> manual/deploy-provisioned tokens or keys, break-glass vaults, and connection refs. Auto-generatable items are
+> seeded by [`scripts/provision-secrets.py`](../scripts/provision-secrets.py) and are **not repeated here**.
+> `✓` = item already present. Ansible-consumed vs account/ref-only are split into two tables below.
 
-| Item | type → `field=` | First needed in |
-|------|-----------------|-----------------|
-| `laptop-domen_ssh` | ssh → `private_key`/`public_key` | Phase 0 (bootstrap key on laptop) |
-| `ansible-admin_ssh` | ssh → `private_key`/`public_key` | Phase 0 |
-| `ai_ssh` | ssh → `private_key`/`public_key` | Phase 0 |
-| `op_api` | api → `credential` (1Password Service Account token) | Phase 0 |
-| `mikrotik-admin_login` | login → `password` | Phase 1.5 |
-| `wg_password` | password → `password` (WireGuard S2S key) | Phase 1.5 |
-| `nut_password` | password → `password` | Phase 2 |
-| `nut-smtp_login` | login → `password` (`username`=notify email/SMTP user) | Phase 2 |
-| `cloudflare_api` | api → `credential` (ACME DNS-01) | Phase 3 |
-| `kopia_password` | password → `password` | Phase 0 (seed; read by the 1Password test, later by kopia) |
-| ~~`kopia-s3_api`~~ | ~~api → `credential` (S3 access key)~~ — **retired**: iDrive e2 dropped, Kopia → backup Box via **SSH/SFTP (port 23)** (`kopia_password` + `Hertzner-SB-Backup` key) | — (no longer needed) |
-| `authentik_db` | db → `password` (`username`=DB user) | Phase 3 |
-| `authentik_password` | password → `password` (Django SECRET_KEY) | Phase 3 |
-| `authentik_login` | login → `password` (bootstrap admin) | Phase 3 |
-| `opencloud_db` | db → `password` | Phase 3 |
-| `immich_db` | db → `password` | Phase 3 |
-| `forgejo_db` | db → `password` | Phase 3 |
-| `forgejo_api` | api → `credential` | Phase 3 |
-| `grafana_login` | login → `password` | Phase 3 |
-| `grafana-smtp_login` | login → `password` | Phase 3 |
-| `ha_api` | api → `credential` (long-lived token) | Phase 3 |
-| `ha-vrrp_password` | password → `password` | Phase 3 (standby) / 4 (primary) |
-| `headscale_api` | api → `credential` (OIDC client secret) | Phase 3 |
-| `signal_api` | api → `credential` (`username`=phone number) | Phase 3 |
-| *(doco-cd_password retired — Doco-CD dropped, HD-150)* | — | — |
-| `netcup-ccp_login` | login → `password` (netcup CCP — billing/orders) | Phase 1 (VPS) |
-| `netcup-scp_login` | login → `password` (netcup SCP — console/reboot/root reset) | Phase 1 (VPS) |
-| `netcup-vps_login` | login → `password` (**separate vault**, root/OS break-glass) | Phase 1 (VPS) |
-| `Hertzner-SB-Data` | — (connection ref; CIFS/SMB/WebDAV live box) | Phase 1 (VPS) |
-| `Hertzner-SB-Backup` | — (connection ref; SSH/SFTP backup box) | Phase 1 (VPS) |
+#### A) Ansible-consumed secrets (rendered into IaC — need a value in `Homelab-ansible` before the phase runs)
 
-> **Creation gap:** most items are created during deployment. The **ssh items + `op_api`** must exist
-> first (Phase 0), because `post_install.sh` injects the SSH keys into every fresh install and Ansible
-> needs the Service Account token to resolve secrets.
+| Item | type → `field=` | First needed in | In OP? |
+|------|-----------------|-----------------|--------|
+| `laptop-domen_ssh` | ssh → `private_key`/`public_key` | Phase 0 (bootstrap key on laptop) | ✓ |
+| `ansible-admin_ssh` | ssh → `private_key`/`public_key` | Phase 0 | ✓ |
+| `ai_ssh` | ssh → `private_key`/`public_key` | Phase 0 | ✓ |
+| `op_api` | api → `credential` (1Password Service Account token) | Phase 0 | ✓ |
+| `mikrotik-admin_login` | login → `password` | Phase 1.5 | ✗ |
+| `wg_password` | password → `password` (**WireGuard S2S private key** — a `wg genkey` value, never a random password; the auto-tool does not write it) | Phase 1.5 | ✗ (correct value TBD) |
+| `nut-smtp_login` | login → `password` (`username`=notify email/SMTP user) | Phase 2 | ✗ |
+| `network-snmp_login` | api → `credential` (SNMP RO community) | Phase 1.5 | ✗ |
+| `pppoe_login` | login → `password` (`username`=PPPoE user) | Phase 1.5 (router) | ✓ |
+| `cloudflare_api` | api → `credential` (ACME DNS-01) | Phase 3 | ✓ |
+| `authentik_login` | login → `password` (bootstrap admin) | Phase 3 | ✗ |
+| `forgejo_api` | api → `credential` (Forgejo deploy token) | Phase 3 | ✗ |
+| `grafana_login` | login → `password` (admin) | Phase 3 | ✗ |
+| `grafana-smtp_login` | login → `password` | Phase 3 | ✗ |
+| `ha_api` | api → `credential` (long-lived HA token) | Phase 3 | ✗ |
+| `headscale_api` | api → `credential` (OIDC client secret) | Phase 3 | ✗ |
+| `signal_api` | api → `credential` (`username`=phone number) | Phase 3 | ✗ |
+| `Hertzner-SB-Data` | — (connection ref; CIFS/SMB/WebDAV live box, `cifs` role) | Phase 1 (VPS) | ✓ |
+
+#### B) Account / connection refs — NOT consumed by Ansible (human maintenance / break-glass)
+
+> These live in 1Password for **a human / break-glass recovery**, not as an Ansible `lookup`. They do not gate
+> a deployment phase; keep them in the vault for operating-account access, not in a compose template.
+
+| Item | What it is | Vault | In OP? |
+|------|-------------------------|-------|--------|
+| `netcup-ccp_login` | netcup Customer Control Panel login (billing/orders) | Ansible vault | ✓ |
+| `netcup-scp_login` | netcup Server Control Panel login (reboot/OS reset) | Ansible vault | ✗ |
+| `netcup-vps_login` | netcup root/OS credential — **separate break-glass vault** | separate vault | ✗ |
+| `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Ansible vault | ✗ |
+
+> **Provisioning note:** the generated items — the DB items `authentik_db`/`opencloud_db`/`immich_db`/`forgejo_db`/
+> `pgvector_db`, the secrets `authentik_password`/`nut_password`/`nut-exporter_password`/`kopia_password`/
+> `ha-vrrp_password`/`n8n_password`/`matrix_password`/`opencloud-collab_password`/`openwebui_secret`, and the
+> API creds `litellm_master_key`/`immich-ml-internal_api`/`n8n-webhook_api`/`signal-internal_api`/
+> `kopia-server-internal_api`/`prometheus-internal_api` — are seeded automatically into `Homelab-ansible` by the
+> provisioner above, so they are deliberately **absent** from the human-gated tables. Exception (manual key):
+> `wg_password` stays out of the auto-catalog because WireGuard needs a real private key; provision it by hand
+> with a `wg genkey` value.
 
 ---
 

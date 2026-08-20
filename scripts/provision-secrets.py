@@ -95,7 +95,10 @@ CATALOG = [
 # Items never auto-rotated by this tool (external/app coupling). Kept here as a
 # guard list so `--rotate-all`/`--rotate` cannot clobber them.
 NOT_AUTO_ROTATABLE = {
-    "wg_password",          # WireGuard key — router.rb + VPS S2S both consume it
+    "wg_password",          # WireGuard S2S private key — BOTH router (.rsc) + VPS (.netdev)
+                             # consume it as a WG key. Stored manually with a `wg genkey` value;
+                             # NEVER generated as a random password by this tool (it is also
+                             # absent from CATALOG).
     "matrix_password",      # Matrix shared secret — reissue breaks rooms/sessions
     "authentik_db", "opencloud_db", "immich_db", "forgejo_db", "pgvector_db",  # running Postgres
     "authentik_password",   # Django SECRET_KEY — invalidates the running instance
@@ -111,6 +114,14 @@ def gen_pw(n: int = 32) -> str:
 def gen_token(n: int = 32) -> str:
     al = string.ascii_letters + string.digits + "-_"
     return "".join(secrets.choice(al) for _ in range(n))
+
+
+def gen_wg_key() -> str:
+    """Generate a valid WireGuard private key (base64 of 32 random bytes) — same
+    format `wg genkey` emits. Used ONLY for a manual `op item edit wg_password`;
+    the provisioner itself never writes `wg_password` (see NOT_AUTO_ROTATABLE)."""
+    import base64
+    return base64.b64encode(os.urandom(32)).decode()
 
 
 def op(*args: str) -> subprocess.CompletedProcess:
