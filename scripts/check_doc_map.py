@@ -163,7 +163,7 @@ def main() -> int:
     # Append-only history: changelog.md rows may reference files renamed after
     # the row was written (e.g. docs/llm-office.md -> services-office.md). Those
     # historical links are intentionally left as written — allow them.
-    CHANGELOG_STALE = {"docs/llm-office.md"}
+    CHANGELOG_STALE = {"docs/llm-office.md", "docs/ai-stack.md"}
     for f in _iter_scan_files():
         try:
             text = f.read_text(encoding="utf-8")

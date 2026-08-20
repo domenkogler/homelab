@@ -9,7 +9,7 @@ tags: [services, llm, ollama, office]
 # Office Stack — Local LLM, Documents & Office Automation
 
 > **Role:** Stack doc (detail, cross-cutting) — the office workload slice of the services stack: local LLM for office, ONLYOFFICE/WOPI, Office MCP bridges, model recommendations, toolchain.
-> **Links to:** `hardware-gpu.md`, `ai-stack.md`, `services-authentik.md`, `services-traefik.md`
+> **Links to:** `hardware-gpu.md`, `services-ai.md`, `services-authentik.md`, `services-traefik.md`
 > **Linked from:** `services.md`, `index.md`
 
 > ⚠️ **Planning phase — not deployed.** The office/AI toolchain (ONLYOFFICE on oldsrv desktop, Open WebUI MCP for Word/Excel/PPT) depends on oldsrv being live (Phase 3) and the AI stack (HD-100…111); this is the authoring spec, not a live system.

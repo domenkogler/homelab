@@ -10,8 +10,8 @@ tags: [deployment, secrets, ai, litellm, open-webui, pgvector, openclaw, docling
 > **Role:** Deploy checklist — create the 1Password `Homelab` vault items + Authentik OIDC providers the
 > AI stack compose templates reference (HD-100→HD-104) via fail-closed `lookup()`. Without these, every
 > `docker compose up` for the AI stack aborts loudly (HD-65) — this checklist unblocks the whole stack.
-> **Linked from:** `ai-stack.md`, `deployment-secrets.md`, `deployment.md`
-> **Links to:** [`deployment-secrets.md`](deployment-secrets.md) (SSOT master list), [`ai-stack.md`](ai-stack.md)
+> **Linked from:** `services-ai.md`, `deployment-secrets.md`, `deployment.md`
+> **Links to:** [`deployment-secrets.md`](deployment-secrets.md) (SSOT master list), [`services-ai.md`](services-ai.md)
 
 > **Type map / field conventions** live in [`deployment-secrets.md`](deployment-secrets.md) §Type Map — one
 > `<type>` per item, `_` is the only delimiter, **never** the field in the name, always pass `field=`.

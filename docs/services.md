@@ -73,7 +73,7 @@ tags: [services, catalog]
 | Element Web | chat | P | 30–80 / 150 | Matrix web client (SSO via homeserver → Authentik) |
 | Actual Budget | budget | P+I | 60–120 / 250 | Budgeting + investment tracking (Node.js + SQLite, one container; native Enable Banking sync, Forward-Auth) |
 
-> **Domain docs:** [Matrix messaging](services-matrix.md) · [Personal finance](services-finance.md) · [Office stack](services-office.md)
+> **Domain docs:** [Matrix messaging](services-matrix.md) · [Personal finance](services-finance.md) · [Office stack](services-office.md) · [AI platform](services-ai.md)
 
 > **RAM sanity (48 GB on oldsrv):** typical idle ≈ 12–15 GB, worst-case burst ≈ 22–26 GB,
 > gaming mode ≈ 10–13 GB — ample headroom. Plus host desktop + browser 2–4 GB (6–8 GB heavy).
@@ -259,6 +259,7 @@ it to a node IP). Treat the VIP as the only valid backend. Runbook:
 - [Matrix — Messaging](services-matrix.md)
 - [Personal Finance Stack](services-finance.md)
 - [Office Stack — Local LLM, Documents & Office Automation](services-office.md)
+- [AI Platform — Chat, RAG & Agents (LiteLLM / Open WebUI / OpenClaw / Docling / PGVector)](services-ai.md)
 - [Deferred VPS Infrastructure](services-vps.md)
 - [Docker Compose Specification](deployment-compose.md)
 - [Service Subscriptions & Costs](subscription.md)

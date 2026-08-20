@@ -33,8 +33,8 @@ tags: [index, dispatcher, ai]
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `services-office.md`, `deployment-compose.md` |
 | **Understand the security posture / hardening** | [`security.md`](security.md) | `services-traefik.md`, `deployment-secrets.md`, `deployment-preseed.md`, `network-ops.md` |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
-| **Understand / build the AI stack (chat + RAG + agents)** | [`ai-stack.md`](ai-stack.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook, HD-105), `hardware-gpu.md`, `hd110-office-mcp-research.md` (Office live editing) |
-| **Live MS Office via Open WebUI (Word/Excel/PPT)** | [`services-office.md`](services-office.md) | `ai-stack.md`, `hd110-office-mcp-research.md`, [`client/office-bridge/`](../client/office-bridge/) (HD-106–111) |
+| **Understand / build the AI stack (chat + RAG + agents)** | [`services-ai.md`](services-ai.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook, HD-105), `hardware-gpu.md`, `hd110-office-mcp-research.md` (Office live editing) |
+| **Live MS Office via Open WebUI (Word/Excel/PPT)** | [`services-office.md`](services-office.md) | `services-ai.md`, `hd110-office-mcp-research.md`, [`client/office-bridge/`](../client/office-bridge/) (HD-106–111) |
 | **HA failover / high availability** | [`smart-home-failover.md`](smart-home-failover.md) | `smart-home.md`, `network-dns.md`, `deployment-ansible.md` |
 | **Current HA instance / HAOS→Docker feasibility** | [`home-assistant-current.md`](home-assistant-current.md) | `smart-home.md`, `smart-home-failover.md` |
 | **Understand GitOps pipeline** | [`deployment.md`](deployment.md) | `deployment-renovate.md`, `interfaces.md` |
@@ -105,7 +105,7 @@ docs/
 │
 ├── services-office.md                          Local LLM, office tools, ONLYOFFICE, n8n
 ├── hd110-office-mcp-research.md            ★ Office MCP bridge research (unified vs per-app; topology) — HD-110
-├── ai-stack.md                           ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, PGVector
+├── services-ai.md                         ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, PGVector
 │
 ├── storage.md                         ZFS dataset tree, properties, replication (SSOT)
 ├── backup.md                              LAST: ZFS + Kopia, DR, restore drills

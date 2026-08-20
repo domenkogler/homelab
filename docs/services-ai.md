@@ -1,23 +1,23 @@
 ---
-title: AI Stack — Chat, RAG & Agents
+title: AI Platform — Chat, RAG & Agents (LiteLLM / Open WebUI / OpenClaw / Docling / PGVector)
 role: detail
 domain: services
 status: planning
 tags: [services, ai, llm, llm-gateway, rag, agents]
 ---
-# AI Stack — Chat, RAG & Agents
+# AI Platform — Chat, RAG & Agents
 
-> **Role:** Detail — family web AI platform: LLM routing (LiteLLM), chat + RAG UI (Open WebUI),
+> **Role:** Stack doc (detail) — family web AI platform: LLM routing (LiteLLM), chat + RAG UI (Open WebUI),
 > agent orchestration (OpenClaw), OCR document ingestion (Docling), and the PGVector vector store.
 > This is the **family-facing web AI layer**. Desktop/office AI (ONLYOFFICE, LocPilot, Word, email,
 > presentations) stays in [`services-office.md`](services-office.md); this doc covers everything browser-facing.
 > **Links to:** `services-office.md`, `hardware-gpu.md`, `services-authentik.md`, `services-traefik.md`,
 > `deployment-secrets.md`, `services.md`
-> **Linked from:** `index.md`
+> **Linked from:** `services.md`, `index.md`
 
 > **Status:** Planning — nothing deployed yet. Supersedes the AnythingLLM path in `services-office.md`
 > for the family web UI (AnythingLLM **removed**; **LocPilot kept** for Windows-Word inline only).
-> Tracked via `todo.md` HD-1xx (`source: ai-stack`).
+> Tracked via `todo.md` HD-1xx (`source: services-ai`).
 
 ---
 
@@ -169,4 +169,4 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 Depends on: oldsrv GPU operational + Ollama live · LiteLLM (spine) first · `openrouter_api` +
 `cohere_api` + `litellm_master_key` in 1Password · Authentik OIDC provider for Open WebUI ·
 OpenCloud + neutral `media` owner (HD-51) · PGVector DB + db-backup row · OpenClaw pinned.
-See `todo.md` HD-1xx (`source: ai-stack`).
+See `todo.md` HD-1xx (`source: services-ai`).
