@@ -209,7 +209,7 @@ adds **no backup surface** (no datasets, no Kopia policy). No ZFS: microSD + 4 G
 already mirrored by the Pi→standby sync.
 
 > **MicroSD wear is minimised separately** (HA recorder + Docker/OS logs), see
-> [`observability.md`](docs/observability.md) → *Pi SD-card wear strategy*: recorder is **trimmed, not disabled**
+> [`observability.md`](observability.md) → *Pi SD-card wear strategy*: recorder is **trimmed, not disabled**
 > (keeps Logbook / Energy-Dashboard LTS / history_stats); Pi logs are **streamed to Loki** with only a tiny
 > bounded Docker-log buffer (`local`, 10m×2); `/var/log` + journald run on **tmpfs/RAM**.
 
