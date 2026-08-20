@@ -139,6 +139,16 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 - **Hardening verified (HD-154):** `fail2ban-client status sshd` shows the SSH jail active; `nft list ruleset` shows the default-deny input chain with `:443`/`:51820` accepts; `sshd -T | grep -E 'maxauthtries|passwordauthentication|permitrootlogin'` = 3/no/no; `docker info` shows `userland-proxy=false` + capped log driver.
 - Live Box CIFS mount returns data; VPS NVMe under 80%.
 
+**Deploy-gated verification (Phase 1):**
+- **HD-40A** — root-level VPS playbook run in WSL; Traefik wildcard cert via ACME DNS-01 (`cloudflare_api`); `sso` record via `dns.yml`; live-Box CIFS mount. · [services-vps.md](docs/services-vps.md)
+- **HD-135** — live-Box CIFS mount; cross-host app wiring; `foto`/`file`/`git`/`ai` round-trip over the WG S2S tunnel (peer pubkeys in Phase 1.5). · [services-vps.md](docs/services-vps.md)
+- **HD-149** — Authentik `ks-oidc.yml` Blueprint live-apply on `2026.5.6` (flow slugs, signing_key, app-provider binding) + glue harvests client creds; `redirect_uris` match compose (`ai`/`vpn`/`matrix`/`file`). · [deployment-compose.md](docs/deployment-compose.md)
+- **HD-143** — create write-scoped `authentik-provision_api` 1Password item; glue seeds the 8 OIDC client-creds items after Blueprint (NOT `opencloud-service_api`). · [deployment-ansible.md](docs/deployment-ansible.md)
+- **HD-144** — uncomment OpenCloud OIDC block, drop Forward-Auth, add CSP `opencloud/csp.yaml.j2` (provider = Blueprint entry HD-142). · [deployment-compose.md](docs/deployment-compose.md)
+- **HD-146** — `vps.yml` deploy ordering enforced (authentik precedes every OIDC consumer) + glue wired in `deploy-service.yml`. · [deployment-ansible.md](docs/deployment-ansible.md)
+- **HD-166** — create `opencloud-collab_password` (single JWT, both sides); first deploy on VPS Phase 1; live-verify `file`→ONLYOFFICE iframe + CSP. · [services-office.md](docs/services-office.md)
+- **HD-159** — blackbox liveness: verify the `wg_icmp` probe (VPS→home router WG-side peer IP, `wg_s2s_vps.router_ip`) + the Critical `wg-s2s-down` Grafana rule fires on a `wg down` test at Phase 1. · [observability.md](docs/observability.md)
+
 ---
 
 ## Phase 1.5 — Network Redo from Scratch (Router RB4011 + Switch CRS328)
@@ -167,6 +177,13 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 - CAPsMAN SSIDs visible; WireGuard handshake established.
 - Rollback plan documented before starting (preserve the previous flat config as `rb4011_flat_backup.rsc`).
 
+**Deploy-gated verification (Phase 1.5):**
+- **HD-03** — Network redo live: VLANs 10/20/21/30/40/50/99 + inter-VLAN firewall + CAPsMAN SSIDs NOT yet on live gear (deploy runnable via Ansible in WSL Debian); open switch bridge-VLAN membership + CAPsMAN SSID secret items; WG S2S VPS peer (IaC present VPS `77833f1`/router `85ba6dc`) — provision both peer pubkeys + bring up tunnel. · [network-vlans.md](docs/network-vlans.md)
+- **HD-09** — UPS web-UI firewall rule (80/443 Home→Mgmt for `10.10.99.9` only) not deployed. · [hardware-ups.md](docs/hardware-ups.md)
+- **HD-89** — disable/move unused AP ethernet ports off Mgmt VLAN (wired devices currently get full Management access). · [network-vlans.md](docs/network-vlans.md)
+- **HD-161** — router/switch `api_facts` assert-before-mutate step + router API TLS decision (`routeros_api_tls`, TODO after Let's Encrypt). · [deployment-ansible.md](docs/deployment-ansible.md)
+- **HD-26** — confirmantional UPS SNMP UDP (161/udp) probe must run from a Mgmt-VLAN (99) host; even if present, no consumer uses it (NUT/USB is the monitor). · [hardware-ups.md](docs/hardware-ups.md)
+
 ---
 
 ## Phase 2 — NAS Fresh Install + Storage + UPS Master (`nas.kogler.si`)
@@ -190,6 +207,12 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 **Verify:**
 - `zpool status` healthy; `upsc powerwalker@nas` returns live UPS data.
 - `nut_exporter` scrapable on :9199; cockpit reachable at `cockpit-nas.kogler.si` (Traefik file-provider route).
+
+**Deploy-gated verification (Phase 2):**
+- **HD-06** — NUT master live on nas: `upsd` :3493 + `nut_exporter` :9199 + `upssched-cmd` SMTP/Signal notify; **battery-pull test** on the PowerWalker USB. · [hardware-ups.md](docs/hardware-ups.md)
+- **HD-07** — NUT clients on `oldsrv` (Phase 3) / `pi` (Phase 4) — `upsmon` slave + per-host shutdown delay (60/0). · [hardware-ups.md](docs/hardware-ups.md)
+- **HD-08** — live-verify `nut_exporter` `nut_ups_status` bitmask + metric names + Grafana alert-rule provisioning loads (blocked on HD-06). · [hardware-ups.md](docs/hardware-ups.md)
+- **HD-132** — create Authentik **LDAP provider** `DC=home,DC=kogler,DC=si` (bind DIRECT) + outpost; seed `authentik-ldap_bind`; firewall 3389→nas; live-verify a family drive mounts. · [deployment-compose.md](docs/deployment-compose.md)
 
 ---
 
@@ -242,6 +265,24 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 - Homepage (`home.kogler.si`), Grafana (`stats.kogler.si`), Forgejo (`git.kogler.si`) reachable (after Authentik SSO).
 - Wildcard `*.kogler.si` cert issued (Traefik ACME logs).
 
+**Deploy-gated verification (Phase 3):**
+- **HD-105** — **AI-stack pre-deploy gate:** create the 7 1Password items (`openrouter_api`, `cohere_api`, `litellm_master_key`, `openwebui_secret`, `openwebui_api`, `pgvector_db`, `openclaw_gateway_token`) + Authentik OIDC providers per [`deployment-ai-stack-secrets.md`](docs/deployment-ai-stack-secrets.md); blocks HD-100→104. · [deployment-secrets.md](docs/deployment-secrets.md)
+- **HD-100** — LiteLLM live: create `litellm_master_key`/`openrouter_api`/`cohere_api`; MUST pin `litellm_version` semver; OpenAI-compatible completion + embed respond. · [services-ai.md](docs/services-ai.md)
+- **HD-101** — Open Web UI live: `openwebui_secret` + `openwebui_api` (Authentik OIDC, redirect `https://ai.kogler.si/oauth2/callback`); OIDC login + LiteLLM completion + RAG. · [services-ai.md](docs/services-ai.md)
+- **HD-102** — PGVector live: `pgvector_db`; extension init + db-backup DB04 dump. · [services-ai.md](docs/services-ai.md)
+- **HD-103** — Docling live: first start downloads HF models (multi-GB); v1 API converts a Slovenian scan. · [services-ai.md](docs/services-ai.md)
+- **HD-104** — OpenClaw live: `openclaw_gateway_token`; `openclaw onboard` → schema-valid `openclaw.json` (LiteLLM + WebDAV); Open WebUI ↔ OpenClaw ↔ OpenCloud round-trip. · [services-ai.md](docs/services-ai.md)
+- **HD-58** — Stirling PDF: re-render `services-inventory-generated.md`; OCR `slv` + Forward-Auth chain live-verify. · [services.md](docs/services.md)
+- **HD-113** — PairDrop: re-render `services-inventory-generated.md`; WebRTC/signaling through Traefik (may need `RTC_CONFIG` STUN/TURN). · [services.md](docs/services.md)
+- **HD-46** — Matrix live: hosts provisioned; needs HD-47 records + Authentik OIDC provider/redirect URI; verify profile endpoints require auth (HD-122). · [services-matrix.md](docs/services-matrix.md)
+- **HD-47** — Matrix public records + `_matrix` well-known/SRV delegation; WAN 443 (8448 optional). · [services-traefik.md](docs/services-traefik.md)
+- **HD-122** — Matrix federation hardening live-verify that profile endpoints require auth at first deploy. · [services-matrix.md](docs/services-matrix.md)
+- **HD-59** — internal service auth: `kopia-server-internal_api` + `prometheus-internal_api` 1Password items; wire consumers. · [deployment-compose.md](docs/deployment-compose.md)
+- **HD-160** — services-internal sibling auth: create `immich-ml-internal_api` + `openclaw-opencloud_api` 1Password items; verify Immich v3 ML-auth env names + `openclaw onboard` + WebDAV round-trip; Ollama stays isolated on `llm-backend`. · [deployment-compose.md](docs/deployment-compose.md)
+- **HD-43** — Media `*arr` stack Stage: 4/10; deploy + verify on oldsrv bulk/media NFS. · [services.md](docs/services.md)
+- **HD-44** — ops services (`dozzle`, `traefik-ha` VIP edge) Stage: 3/10; deploy + verify. · [services.md](docs/services.md)
+- **HD-128** — at first pool create on oldsrv, fill the REAL `/dev/disk/by-id/nvme-…` into `storage_nvme_data_by_id` (read from the deployed host); unblocks immich/opencloud db-backup (KOPS-026). · [hardware-oldsrv.md](docs/hardware-oldsrv.md), [storage.md](docs/storage.md)
+
 ---
 
 ## Phase 4 — Pi Fresh Install + HA Primary (`pi.kogler.si`)
@@ -268,6 +309,11 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 - Technitium (on oldsrv/Pi) resolves `*.kogler.si` internally; Pi-hole filtering active.
 - HA web login via Authentik SSO (native OIDC on the `ha` route — no Forward-Auth).
 - Manual failover runbook in `docs/smart-home-failover.md` passes Pi→oldsrv and back.
+
+**Deploy-gated verification (Phase 4):**
+- **HD-04** — Pi redo: HAOS → Debian + HA Container + Technitium secondary; leaves HmIP-HAP in cloud mode (no HmIP-RFUSB yet — HD-13 parked). · [home-assistant-current.md](docs/home-assistant-current.md)
+- **HD-17** — single failover button + `ha-failover.sh` needs `ha-failover_api` 1Password + HmIP-RFUSB stick physically moved at runbook time. · [smart-home-failover.md](docs/smart-home-failover.md)
+- **HD-124** — keepalived hardening live (pinned `keepalived_version: 2.3.4`, hosts unprovisioned). · [smart-home-failover.md](docs/smart-home-failover.md)
 
 ---
 
@@ -304,6 +350,10 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 - HA recorder trim (`purge_keep_days`) to protect the Pi SD — **HD-19**
 - Grafana Alerting tiers (Critical/Warning/Info), self-monitoring, n8n + signal-cli-routing (details: `docs/observability.md`)
 
+**Deploy-gated verification (Phase 6):**
+- **HD-14** — enable HA Prometheus exporter → HA Dashboard `lovelace` + Grafana (`ha_api`). · [smart-home.md](docs/smart-home.md)
+- **HD-19** — HA recorder trim (`purge_keep_days: 2`) + log strategy to protect the Pi SD. · [observability.md](docs/observability.md)
+
 ---
 
 ## Phase 7 — Smart Home Enhancements
@@ -334,6 +384,10 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 > - Kopia: server + per-host agents; verify policies/retention.
 > - Assess Kopia Web GUI vs CLI at first restore drill — **HD-34**
 > - Sign up Infomaniak kSuite (email, CalDAV, catch-all) — **HD-30**
+
+**Deploy-gated verification (Phase 8):**
+- **HD-49** — Back up Matrix identity + media (signing/identity keys, homeserver DB, media store) into the backup policy. · [services-matrix.md](docs/services-matrix.md)
+- **HD-34** — Assess Kopia Web GUI vs CLI at the first (human-run) restore drill. · [backup.md](docs/backup.md)
 
 ---
 
