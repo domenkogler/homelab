@@ -88,6 +88,7 @@ CATALOG = [
     ("API Credential", "immich-ml-internal_api",  lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "n8n-webhook_api",         lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "signal-internal_api",     lambda: [f"credential={gen_pw()}"]),
+    ("API Credential", "network-snmp_login",       lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "kopia-server-internal_api", lambda: [f"username=kopia@{gen_token(16)}", f"credential={gen_pw()}"]),
     # prometheus-internal_api: username + password + bcrypt_hash rotate together.
     ("API Credential", "prometheus-internal_api", lambda: bcrypt_item()),
