@@ -159,6 +159,32 @@
 | HD-57 | 3 | AI + Human | 3 | **Finance pre-deploy prep (Actual Budget / Enable Banking)** — Stage: 1/10. verify EB redirect URL (`budget.kogler.si`) covered by Traefik + wildcard cert; Wise API token (read-only); IBKR Flex Query token URL; *(decision)* UniCredit SI email-transaction alerts (World Elite) vs SMS; *(decision)* `actual-server:nightly` vs stable + n8n bridge; enter initial capital base. · [services-finance.md](docs/services-finance.md) |
 | HD-133 | 3 | AI | 3 | **Subscription renewal reminders (Homepage + calendar + n8n)** — SSOT = `group_vars/subscriptions.yml`; drives (a) Homepage **Subscriptions** tile group, (b) Homepage **calendar** widget (via `calendar_url`, live after CalDAV/HD-30), (c) **n8n** renewal-notification workflow (infra prepared — [`automation-renewals.md`](docs/automation-renewals.md); wire Signal/SMTP post-deploy). `subscription.md` table derived from the same var (`subscriptions-table.md`, rendered by `render-docs.yml`). Metadata in vars; prose/descriptions stay in `subscription.md`. · [subscription.md](docs/subscription.md), [automation-renewals.md](docs/automation-renewals.md) |
 
+---
+
+### 2.12 Docs refactor — taxonomy, `-generated` suffix, review/rejected
+
+> Docs-refactor program (2026-08-20; rules in `CONVENTIONS.md` §8). Goal: consistent mental model +
+> URL scheme per domain, `*-generated.md` filenames for machine-produced docs, and per-domain
+> `-review`/`-rejected` triage. Cross-cutting docs are resolved **last** (HD-171). This is a living,
+> incremental effort, **not** a one-shot rename. Each task begins with analysis + a Q/A pass (see its
+> `prompt-hd<id>.md`) before any file edits; on completion, `todo.md` row → `changelog.md` and the
+> prompt file is deleted.
+
+| ID | D | Exec | P | Item |
+|----|---|------|---|------|
+| HD-167 | 4 | AI + gate | 3 | **Services docs stack refactor** — make `services.md` the **central stack index** (catalog + networks + domains; the *only* pointer for service layout) and split the ~260-line catalog into per-domain `services-<x>.md` stack docs (`services-arr.md`, …) per `CONVENTIONS.md` §8.1. Register each new stack doc in the `docs/index.md` Document Map (doc-map linter enforces). · [services.md](docs/services.md), [docs/index.md](docs/index.md) |
+| HD-168 | 3 | AI | 3 | **Network docs refactor** — `network.md` as the network index + `network-*.md` stack docs; **merge/delete `rack-connections.md`** (it duplicates SSOT-only info already in `network-rack.md`, whose real content becomes `*-generated`). · [network.md](docs/network.md), [network-rack.md](docs/network-rack.md), [rack-connections.md](docs/rack-connections.md) |
+| HD-169 | 2 | AI | 3 | **Hardware docs refactor** — `hardware.md` as index + `hardware-*.md` stack docs, aligned to `CONVENTIONS.md` §8.1. · [hardware.md](docs/hardware.md) |
+| HD-170 | 2 | AI | 3 | **Smart-home docs refactor** — `smart-home.md` already follows the index pattern; align the remaining `smart-home-*` docs + `home-assistant-current.md` to §8.1 and split any overgrown index content. · [smart-home.md](docs/smart-home.md) |
+| HD-171 | 3 | AI | 3 | **Cross-cutting docs resolution (final, after HD-167→170)** — disposition of `security.md`, `backup.md`, `storage.md`, `observability.md`, `llm-office.md` (§8.4): absorb what belongs to an owning domain; re-evaluate what remains. Mark what stays cross-cutting with `cross_cutting: true` in frontmatter. · `CONVENTIONS.md` §8.4 |
+| HD-172 | 3 | AI + gate | 2 | **`-generated` filename suffix — rename generated docs + add a linter** — rename `inventory.md`→`services-inventory-generated.md`, `network-addresses.md`→`network-addresses-generated.md`, `subscriptions-table.md`→`subscriptions-table-generated.md`, `rack-connections.md`→`network-rack-generated.md`; update the renderer + every reference in the same change (§8.2); add an `-generated` name linter; **red/green** — linter fails first, renames turn it green. · `CONVENTIONS.md` §8.2 |
+| HD-173 | 2 | AI | 2 | **Extend `check_doc_map.py` to scan links beyond `docs/index.md`** — currently only the index's link/stale map is validated; the renames will silently break in-doc links (`CONVENTIONS.md`, `README.md`, prose). Scan all `.md` for unresolved `[x](*.md)` targets. **Prerequisite to HD-172.** · [scripts/check_doc_map.py](scripts/check_doc_map.py) |
+| HD-174 | 2 | AI | 2 | **Bootstrap `docs/services-review.md` + `docs/services-rejected.md`** — seed the triage pattern (§8.3, services domain); **populate `-rejected` from `changelog.md`** historical decisions (Doco-CD/HD-150, Proxmox/HD-92, watchtower/HD-39, iDrive, MinIO, TileBoard, netplan, …). Rejected = append-only decision log, sorted by service name. · `CONVENTIONS.md` §8.3, [changelog.md](changelog.md) |
+
+> **Ordering:** HD-173 (link-scan) is a **prerequisite** to HD-172 (renames) — without it, renames break
+> links silently. Cross-cutting HD-171 runs **last**. HD-174 (review/rejected bootstrap) is independent
+> and can start immediately. The domain refactors (167/168/169/170) are lighter and can be interleaved.
+
 ## 3. Park — deferred / optional / Phase 2
 
 > Items here are not actively worked. They stay visible for planning.
