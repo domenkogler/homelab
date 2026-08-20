@@ -17,7 +17,7 @@
 | Hostnames | canonical list `oldsrv / nas / pi / router / switch / vps` — SSOT table | `docs/index.md` (Conventions, Hosts) |
 | Backlog IDs | `HD-<number>` (next free = `HD-114`), 1 row = 1 outcome, link the owning `docs/*.md` | `todo.md` (§0) |
 | 1Password items | `<service>_<type>`; `_` only delimiter; `-` allowed inside service; never a field in the name; `field=` mandatory in lookups | [docs/deployment-secrets.md](docs/deployment-secrets.md) (Secret Naming Convention) |
-| Vault | one vault `Homelab`, referenced via `op_vault` var, never a literal | [docs/deployment-secrets.md](docs/deployment-secrets.md) |
+| Vault | one vault `Homelab-ansible`, referenced via `op_vault` var, never a literal | [docs/deployment-secrets.md](docs/deployment-secrets.md) |
 | Service domains | service → `https://<name>.kogler.si` unless stated (service catalog SSOT) | [docs/services.md](docs/services.md) |
 | Service placement | post-HD-135 plane split is a cross-cutting fact: **VPS** = public edge / live-data apps / AI stack / observability backend / GitOps · **oldsrv** = GPU / LAN / storage-bound core · **nas** = ZFS storage (no Docker) · **pi** = HA primary + DNS secondary. A service's plane + exposure is stated in its catalog row, never implied | [docs/services.md](docs/services.md), [docs/services-vps.md](docs/services-vps.md) |
 
@@ -95,7 +95,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 - Language: English (technical), Slovenian (family/manual).
 - Headers: every doc starts with `> **Role:**` and `> **Linked from:**` — enforced by convention.
 - Relative links only — markdown relatives to `docs/*.md`.
-- Secrets never in docs — 1Password `Homelab` vault only.
+- Secrets never in docs — 1Password `Homelab-ansible` vault only.
 - Generated files use the **`-generated` filename suffix** and are rendered, never hand-edited (§8.2). The legacy **★** marker in `docs/index.md` is a display aid only, **not** the convention.
 - **Don't chase cosmetic tweaks** during planning phase (ASCII alignment, spacing); substantive, consistent edits only.
 

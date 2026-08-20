@@ -10,7 +10,7 @@ home_longitude: 15.6355
 ntp_servers:
   - 0.si.pool.ntp.org
   - 1.si.pool.ntp.org
-op_vault: Homelab
+op_vault: Homelab-ansible
 domain_public: kogler.si
 domain_local: kogler.si    # reserved for future split-horizon scenarios — currently unused
 

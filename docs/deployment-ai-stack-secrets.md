@@ -7,7 +7,7 @@ tags: [deployment, secrets, ai, litellm, open-webui, pgvector, openclaw, docling
 ---
 # AI Stack — 1Password Items & OIDC Wiring (HD-105)
 
-> **Role:** Deploy checklist — create the 1Password `Homelab` vault items + Authentik OIDC providers the
+> **Role:** Deploy checklist — create the 1Password `Homelab-ansible` vault items + Authentik OIDC providers the
 > AI stack compose templates reference (HD-100→HD-104) via fail-closed `lookup()`. Without these, every
 > `docker compose up` for the AI stack aborts loudly (HD-65) — this checklist unblocks the whole stack.
 > **Linked from:** `services-ai.md`, `deployment-secrets.md`, `deployment.md`
@@ -15,11 +15,11 @@ tags: [deployment, secrets, ai, litellm, open-webui, pgvector, openclaw, docling
 
 > **Type map / field conventions** live in [`deployment-secrets.md`](deployment-secrets.md) §Type Map — one
 > `<type>` per item, `_` is the only delimiter, **never** the field in the name, always pass `field=`.
-> All items below are in the **`Homelab`** vault (the `op_vault` var) — no literal vault name in configs.
+> All items below are in the **`Homelab-ansible`** vault (the `op_vault` var) — no literal vault name in configs.
 
 ---
 
-## 1. Items to create in 1Password (`Homelab` vault)
+## 1. Items to create in 1Password (`Homelab-ansible` vault)
 
 Create these **9** items. Each row gives the exact item name, the 1Password **item type**, the `field=` the
 compose lookup reads, and who consumes it. **Fail-closed:** every one is required; none may be left as a

@@ -244,9 +244,9 @@ provides a native structured **CSV/Excel export** ("Transactions Export"), Trade
 | Data | Method | Schedule |
 |------|--------|----------|
 | Actual Budget SQLite DB | Actual built-in backup (export) → NAS dataset + Kopia off-site | Daily |
-| Enable Banking credentials | 1Password `Homelab` vault | — |
-| Wise API token | 1Password `Homelab` vault | — |
-| IBKR Flex Query token | 1Password `Homelab` vault | — |
+| Enable Banking credentials | 1Password `Homelab-ansible` vault | — |
+| Wise API token | 1Password `Homelab-ansible` vault | — |
+| IBKR Flex Query token | 1Password `Homelab-ansible` vault | — |
 | n8n workflow definitions | Git repo (this repo, `IaC/`) | On commit |
 
 Actual's backup export includes all accounts, transactions, categories, and rules. See

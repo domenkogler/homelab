@@ -164,7 +164,7 @@ exit 0
 
 ### SSH Keys — three keys, injected at generation time
 
-Public keys are fetched from 1Password `Homelab` vault by the AI when generating the real `post_install.sh` — **the repo only ever contains placeholders**. The same three keys are authorized on **every** homelab host (nas, oldsrv, ...). There is a **single shared `post_install.sh`** in `IaC/host/` — no per-host copies to drift.
+Public keys are fetched from 1Password `Homelab-ansible` vault by the AI when generating the real `post_install.sh` — **the repo only ever contains placeholders**. The same three keys are authorized on **every** homelab host (nas, oldsrv, ...). There is a **single shared `post_install.sh`** in `IaC/host/` — no per-host copies to drift.
 
 | Key (1Password item) | Authorized user | Access |
 |----------------------|-----------------|--------|
@@ -292,7 +292,7 @@ images — there is no `d-i` installer to answer questions, so `preseed.cfg` doe
 
 ### SSH Keys — same as nas/oldsrv
 
-The same three keys from the 1Password `Homelab` vault are injected via the boot-partition
+The same three keys from the 1Password `Homelab-ansible` vault are injected via the boot-partition
 cloud-init config (the `first-boot-config.sh` script writes placeholders — replace with real
 public keys before flashing).
 

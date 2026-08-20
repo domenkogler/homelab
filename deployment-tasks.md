@@ -27,14 +27,14 @@
 
 ## 0. Prerequisites & Global Secrets
 
-> **Everything runs from the management laptop (Phase 0).** The `Homelab` 1Password vault is the
+> **Everything runs from the management laptop (Phase 0).** The `Homelab-ansible` 1Password vault is the
 > **only** secrets backend — Ansible lookups resolve items at render time, keys are served on demand
 > by the 1Password SSH agent. No secret is ever committed to Git.
 
 ### 1Password items (the full canonical set — `docs/deployment-secrets.md` is the single source of truth)
 
 All **36** items use the `<service>_<type>` convention (single `_`, `-` in service names). A phase that
-lists an item as a prerequisite must have that item created in the `Homelab` vault first. (Count + catalog
+lists an item as a prerequisite must have that item created in the `Homelab-ansible` vault first. (Count + catalog
 are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase view.)
 
 | Item | type → `field=` | First needed in |
@@ -80,7 +80,7 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 
 > **Depends on:** nothing (first action).
 > **1Password prerequisites:** `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `op_api`, and
-> `kopia_password` (seed `password`-type item read by `test-1password.yml`) all exist in `Homelab`.
+> `kopia_password` (seed `password`-type item read by `test-1password.yml`) all exist in `Homelab-ansible`.
 > **Continuation:** once verified, you can run Ansible and the 1Password test; nothing else.
 
 1. Clone the repo; run the client bootstrap:
@@ -224,7 +224,7 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 > jellyfin/iGPU, sunshine), HA **standby**, DNS, media/*arr, observability, and an **internal** Traefik edge
 > (the `ha` VIP + internal routes). The **public edge + stateless/live-data public apps live on the VPS**
 > (Phase 1) — the wildcard cert is issued by the VPS Traefik; oldsrv serves internal-only + GPU workloads.
-> **1Password prerequisites (new this phase):** the platform block below must exist in `Homelab`.
+> **1Password prerequisites (new this phase):** the platform block below must exist in `Homelab-ansible`.
 > **Continuation:** the GPU/AI stack (Phase 1's deferred `litellm→ollama`, `immich-app→immich-ml` links) comes
 > online here once the WG S2S tunnel to the VPS exists; HA primary (Phase 4) builds on this node's standby.
 

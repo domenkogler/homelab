@@ -161,7 +161,7 @@ Everything else — provider/application creation, secret seeding into 1Password
 
 - **No app exposes its own login publicly** — all auth is handled at the Traefik layer
 - **Trusted proxies** must be configured: `AUTHENTIK_TRUSTED_PROXIES` must include Traefik IP
-- **Secrets** stored in 1Password `Homelab` vault, never in repo ([`deployment-secrets.md`](deployment-secrets.md))
+- **Secrets** stored in 1Password `Homelab-ansible` vault, never in repo ([`deployment-secrets.md`](deployment-secrets.md))
 
 ---
 
@@ -180,5 +180,5 @@ Element / native client  →  homeserver /login/sso  →  Authentik OIDC  →  1
 
 - Register the OIDC client in **Tuwunel** (`well_known`/OIDC discovery → Authentik issuer `sso.kogler.si`).
 - **Redirect URIs** must include Tuwunel's SSO callback (`https://matrix.kogler.si/_synapse/...` or Tuwunel's own `/login/sso`/oidc callback).
-- The Authentik client **secret** goes to 1Password `Homelab` (never the repo).
+- The Authentik client **secret** goes to 1Password `Homelab-ansible` (never the repo).
 - No bridges in Phase 1 (deferred — see [`services-matrix.md`](services-matrix.md)).

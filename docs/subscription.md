@@ -50,7 +50,7 @@ tags: [governance, subscriptions, costs]
 | Nameserver 1 | `george.ns.cloudflare.com` |
 | Nameserver 2 | `may.ns.cloudflare.com` |
 | DNS provider | **Cloudflare** (DNS-only — no proxy) |
-| Certificates | wildcard `*.kogler.si` via ACME **DNS-01** (Cloudflare API token in 1Password `Homelab`) |
+| Certificates | wildcard `*.kogler.si` via ACME **DNS-01** (Cloudflare API token in 1Password `Homelab-ansible`) |
 
 See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 
@@ -117,7 +117,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | Since | 2026-08-18 |
 | Valid until | **2027-08-18** |
 | ⏰ Renewal reminder | ~2027-07-18 (1 month before expiry) |
-| Secret | `meteoblue_api` (1Password `Homelab`, API credential) |
+| Secret | `meteoblue_api` (1Password `Homelab-ansible`, API credential) |
 | Purpose | Home Assistant single authoritative weather source (Maribor) — `configuration.yaml.j2` |
 
 ---
@@ -130,7 +130,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | Billing | Monthly |
 | Cost | **3,90 €/mo** |
 | Since | 2026-08-18 |
-| 🔑 Secret | `Hertzner-SB-Data` (1Password `Homelab`, server: URL/username/password) |
+| 🔑 Secret | `Hertzner-SB-Data` (1Password `Homelab-ansible`, server: URL/username/password) |
 | Host | `653411.your-storagebox.de` (server 653411) |
 | SMB/CIFS share | `//u653411.your-storagebox.de/backup` |
 | SSH/SFTP | port **23** — SSH key + password in 1Password |
@@ -151,7 +151,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | Billing | Monthly |
 | Cost | **3,90 €/mo** |
 | Since | 2026-08-18 |
-| 🔑 Secret | `Hertzner-SB-Backup` (1Password `Homelab` — connection ref: URL/username only, **no password**) |
+| 🔑 Secret | `Hertzner-SB-Backup` (1Password `Homelab-ansible` — connection ref: URL/username only, **no password**) |
 | Host | `u653424.your-storagebox.de` (server/u 653424) |
 | SSH/SFTP | port **23** — **reuse existing Hetzner SSH key**, no password |
 | Protocols | SSH/SFTP only (SMB/WebDAV not enabled) |

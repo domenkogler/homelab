@@ -28,7 +28,7 @@
       - op_vault is defined
       - op_vault | length > 0
     fail_msg: >-
-      op_vault is not set (group_vars/all.yml defines `op_vault: Homelab`).
+      op_vault is not set (group_vars/all.yml defines `op_vault: Homelab-ansible`).
       Compose render resolves secrets from 1Password at template time; without a
       vault the render must abort loudly rather than deploy with missing secrets.
       Fix the 1Password backend before re-running.

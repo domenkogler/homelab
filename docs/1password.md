@@ -25,11 +25,11 @@ using a **Service Account token**, not an interactive login.
 
 ### Credential source
 - **1Password item:** `Service Account Auth Token: ansible` (`ansible`).
-- **Vault:** a **Private vault** (not the `Homelab` vault).
+- **Vault:** a **Private vault** (not the `Homelab-ansible` vault).
 - **Why private:** keeps the automation service-account token out of the main secret
-  vault (`Homelab`), limiting blast radius. This is a **deliberate deviation** from the
+  vault (`Homelab-ansible`), limiting blast radius. This is a **deliberate deviation** from the
   `deployment-tasks.md`/`deployment-secrets.md` assumption that an `op_api` Service
-  Account token item exists in `Homelab`. **That `op_api` item is intentionally NOT
+  Account token item exists in `Homelab-ansible`. **That `op_api` item is intentionally NOT
   created.** The token for this runner lives in the private vault instead.
 
 ### Installed location (runner)
@@ -41,10 +41,10 @@ using a **Service Account token**, not an interactive login.
   at run time — so it is non-interactive (no `op signin` / 2FA prompt).
 
 ### Service account scope
-The service account must have **read access to the `Homelab` vault** (where the secret
+The service account must have **read access to the `Homelab-ansible` vault** (where the secret
 items live) plus any private vault holding runner credentials. Verify:
 ```bash
-op vault list                      # should list Homelab (and the private vault)
+op vault list                      # should list Homelab-ansible (and the private vault)
 op whoami                          # shows User Type: SERVICE_ACCOUNT
 ```
 

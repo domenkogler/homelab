@@ -26,7 +26,7 @@
 
 | ID | D | Exec | Item |
 |----|---|------|------|
-| HD-30 | 1 | Human | *(buy)* **Sign up Infomaniak kSuite** — email, CalDAV, catch-all aliases; ~€3–5/mo; secrets → 1Password `Homelab`. · [subscription.md](docs/subscription.md) |
+| HD-30 | 1 | Human | *(buy)* **Sign up Infomaniak kSuite** — email, CalDAV, catch-all aliases; ~€3–5/mo; secrets → 1Password `Homelab-ansible`. · [subscription.md](docs/subscription.md) |
 
 ## 2. Active work — by module
 
@@ -189,7 +189,7 @@
 |------|------|-----------|
 | Hostnames | single `kogler.si` namespace, flat subdomains | `docs/index.md` Conventions
 | IPs | `docs/network-addresses-generated.md` is the SSOT, generated, never hand-edit | `scripts/check_doc_ips.py`
-| Secrets | 1Password `Homelab` vault, `<service>_<type>` naming | `docs/deployment-secrets.md`
+| Secrets | 1Password `Homelab-ansible` vault, `<service>_<type>` naming | `docs/deployment-secrets.md`
 | Compose | conventions & port binding policy | `docs/deployment-compose.md`
 | Ansible | roles/templates/conventions | `docs/deployment-ansible.md`, `IaC/README.md`
 | Service catalog | `group_vars/home_servers.yml` + `docs/services.md` | `docs/services.md`

@@ -11,15 +11,13 @@
 #   - `valid_until`  = YYYY-MM-DD; Homepage/n8n flag within `reminder_days`.
 #   - `cost_eur`     = monthly EUR, 0 for free tiers (kept 0,00 in render).
 #   - `since`        = when the subscription started / was bought.
-#   - `secret`       = 1Password ref (vault Homelab) if one exists, else null.
+#   - `secret`       = 1Password ref (vault Homelab-ansible) if one exists, else null.
 #   - `calendar_url` = iCal/CalDAV feed URL for the Homepage calendar widget.
 #                     Populate post-deploy (Infomaniak kSuite CalDAV, HD-30);
 #                     null = not yet wired.
 #   - `notify`       = channels to remind on (signal / email); drives the n8n
 #                     workflow. Empty = no push reminder (feed-only/tiles only).
 #   - `status`       = active | planned | dropped | deferred (drives grouping).
-
-op_vault: Homelab
 
 subscriptions:
   # --- Active (paid) ---

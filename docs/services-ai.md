@@ -85,7 +85,7 @@ Loopback-only if a raw port is ever required.
 - **Local models:** LiteLLM also lists local Ollama models (RX 7600) so the family sees local + cloud
   models through one dropdown; local is default where privacy/offline matters.
 
-1Password (`Homelab` vault) items — see [`deployment-secrets.md`](deployment-secrets.md):
+1Password (`Homelab-ansible` vault) items — see [`deployment-secrets.md`](deployment-secrets.md):
 
 | Item | type → `field=` | Used by |
 |------|-----------------|---------|

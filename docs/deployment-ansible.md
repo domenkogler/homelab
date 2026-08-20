@@ -50,7 +50,7 @@ tags: [deployment, ansible, iac]
 - **Never hardcode secrets.** All credentials use
   `{{ lookup('community.general.onepassword', '<item>', field='<field>', vault=op_vault) }}`
   at render time. See `docs/deployment-secrets.md` for the naming convention.
-- **One vault: `Homelab`.** The variable `op_vault` is defined in `group_vars/all.yml` —
+- **One vault: `Homelab-ansible`.** The variable `op_vault` is defined in `group_vars/all.yml` —
   always use it, never a literal string.
 - **The `field=` parameter is mandatory.** The lookup defaults to `password`, which is
   NOT always the right field (API credentials use `credential`; Database items also carry

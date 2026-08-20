@@ -148,7 +148,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 ## Family Access
 
-- **Kopia master password:** 1Password (vault: `Homelab`)
+- **Kopia master password:** 1Password (vault: `Homelab-ansible`)
 - **1Password master password + recovery codes:** Paper in family safe
 - **Family safe also contains:** Link to Git repo (Forgejo + GitHub mirror)
 - See [`deployment-secrets.md`](deployment-secrets.md)

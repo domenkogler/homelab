@@ -51,7 +51,7 @@ to Read First" for task-specific dispatch. Do **not** bulk-read the repo.
 - **SSOT direction:** values live in IaC (`group_vars/*.yml`, `host_vars/*.yml`,
   `rack-connections.json`). Generated `*-generated.md` docs are render views — **never hand-edit**
   them, and scripts never parse generated MD.
-- **Secrets:** never literal in docs / group_vars / templates — always 1Password `Homelab` vault
+- **Secrets:** never literal in docs / group_vars / templates — always 1Password `Homelab-ansible` vault
   refs (or the Private SA vault per HD-140). **Fail-loud**: no `default('')`.
 - **Language / links:** English (technical); Slovenian only for `docs/manual/` (family). Relative
   `.md` links. Every doc starts with `> **Role:**` / `> **Linked from:**`.

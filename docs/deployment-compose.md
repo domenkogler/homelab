@@ -450,5 +450,5 @@ Deliberate isolation decisions (accepted, not gaps): **Ollama** (no native serve
   ldapsam connects.
 
 
-Auth tokens for internal services live in 1Password `Homelab` vault under the
+Auth tokens for internal services live in 1Password `Homelab-ansible` vault under the
 `<service>-internal_api` naming pattern. Referenced via `lookup('community.general.onepassword', ...)` at template render time.
