@@ -2,12 +2,12 @@
 """Lint: no internal IP literals outside the SSOT.
 
 Enforces `docs/index.md` §Conventions — internal IPv4 ranges/addresses live ONLY in
-`docs/network-addresses.md` (SSOT, generated from IaC) and in IaC; every other doc
+`docs/network-addresses-generated.md` (SSOT, generated from IaC) and in IaC; every other doc
 refers to hosts by hostname/role (`oldsrv.kogler.si`, `ha-vip`, `wg-s2s`) or links
 the SSOT row.
 
 Exempt files (documented in the convention):
-  * docs/network-addresses.md          — the SSOT itself
+  * docs/network-addresses-generated.md          — the SSOT itself
   * deployment-ansible/secrets — ★ authoring specs that define IaC values
   * docs/home-assistant-current.md     — historical decision log (strikethrough)
   * deployment-tasks.md                — legacy task log
@@ -33,7 +33,7 @@ SPECIAL = [
 ]
 
 EXEMPT_FILES = {
-    "docs/network-addresses.md",
+    "docs/network-addresses-generated.md",
     "docs/deployment-ansible.md",
     "docs/deployment-secrets.md",
     "docs/home-assistant-current.md",
@@ -58,10 +58,10 @@ def main() -> int:
     if bad:
         print(
             f"\nFAIL: {bad} internal IP literal(s) outside the SSOT — move them to "
-            "network-addresses.md (or use hostnames / SSOT links)."
+            "network-addresses-generated.md (or use hostnames / SSOT links)."
         )
         return 1
-    print("OK: no internal IP literals outside docs/network-addresses.md")
+    print("OK: no internal IP literals outside docs/network-addresses-generated.md")
     return 0
 
 

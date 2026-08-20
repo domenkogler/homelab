@@ -15,11 +15,11 @@ tags: [governance, subscriptions, costs]
 ## Active Subscriptions
 
 > The schedule table below is **derived from `group_vars/subscriptions.yml` (SSOT)** —
-> auto-generated to [`subscriptions-table.md`](subscriptions-table.md) by `render-docs.yml` / the
+> auto-generated to [`subscriptions-table-generated.md`](subscriptions-table-generated.md) by `render-docs.yml` / the
 > docker_services post-deploy hook. Prose/billing/description sections below are hand-authored.
 > Keep the `subscriptions` var updated; do not hand-edit the generated table.
 
-📄 **[Full subscription schedule → subscriptions-table.md](subscriptions-table.md)**
+📄 **[Full subscription schedule → subscriptions-table-generated.md](subscriptions-table-generated.md)**
 
 ---
 

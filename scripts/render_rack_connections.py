@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Render docs/rack-connections.md + docs/rack-layout.mmd from the rack SSOT JSON.
+"""Render docs/network-rack-generated.md + docs/rack-layout.mmd from the rack SSOT JSON.
 
 SSOT (hand-maintained, parsed from docs/assets/Rack.canvas):
     docs/rack-connections.json
 Generated outputs (do NOT hand-edit):
-    docs/rack-connections.md   - per-device & per-patch-panel port connectivity
+    docs/network-rack-generated.md   - per-device & per-patch-panel port connectivity
     docs/rack-layout.mmd       - Mermaid wiring diagram
 
 Usage:
@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SSOT = ROOT / "docs" / "rack-connections.json"
-MD_DEST = ROOT / "docs" / "rack-connections.md"
+MD_DEST = ROOT / "docs" / "network-rack-generated.md"
 MMD_DEST = ROOT / "docs" / "rack-layout.mmd"
 
 import json

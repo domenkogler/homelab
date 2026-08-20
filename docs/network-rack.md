@@ -33,7 +33,7 @@ Visual layout is maintained in **[Rack.canvas](assets/Rack.canvas)** — open wi
 | Comtrend GRG-4260us GPON Gateway | Next to RB4011 |
 | Raspberry Pi 4 B | Shelf next to RB4011 |
 | eQ-3 HMIP-HAP | Shelf next to Raspberry Pi |
-| PowerWalker VFI 3000 ICR IoT UPS | Rack floor / nearby ·(static IP per [`network-addresses.md`](network-addresses.md)) — see [`hardware-ups.md`](hardware-ups.md) |
+| PowerWalker VFI 3000 ICR IoT UPS | Rack floor / nearby ·(static IP per [`network-addresses-generated.md`](network-addresses-generated.md)) — see [`hardware-ups.md`](hardware-ups.md) |
 
 ---
 
@@ -82,7 +82,7 @@ Visual layout is maintained in **[Rack.canvas](assets/Rack.canvas)** — open wi
 ## Related
 
 - **[Network Devices Canvas](assets/Network-Devices.canvas)** — Obsidian Canvas with device interconnections
-- **[Rack Connections](rack-connections.md)** — per-port wiring (device ↔ patch panel ↔ room/device + MAC)
+- **[Rack Connections](network-rack-generated.md)** — per-port wiring (device ↔ patch panel ↔ room/device + MAC)
 - **[Rack Connections JSON](rack-connections.json)** — machine-readable SSOT for the wiring
 - **[Rack Layout Mermaid](rack-layout.mmd)** — wiring diagram
 - **Homelable (deferred, Phase 2)** — web-based interactive rack + topology visualizer; potential successor to `Rack.canvas` as the *live* visual. See the Deferred table in [`observability.md`](observability.md).

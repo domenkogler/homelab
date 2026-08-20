@@ -8,10 +8,10 @@ tags: [network, vlan, firewall]
 # VLAN Plan
 
 > **Role:** Detail — VLAN definitions, subnets, firewall rules.
-> **Links to:** `network-dns.md`, `network-addresses.md`
+> **Links to:** `network-dns.md`, `network-addresses-generated.md`
 > **Linked from:** `network.md`, `index.md`
 
-> **Status (planning):** the network is **currently flat (single Home-VLAN subnet)** — VLAN segmentation below is **planned**, not yet live. Docs that historically implied devices are already isolated are being corrected (see live DHCP notes in `network-dns.md`). Subnets, DHCP pools and SSIDs are SSOT data: see [`network-addresses.md`](network-addresses.md).
+> **Status (planning):** the network is **currently flat (single Home-VLAN subnet)** — VLAN segmentation below is **planned**, not yet live. Docs that historically implied devices are already isolated are being corrected (see live DHCP notes in `network-dns.md`). Subnets, DHCP pools and SSIDs are SSOT data: see [`network-addresses-generated.md`](network-addresses-generated.md).
 
 ---
 

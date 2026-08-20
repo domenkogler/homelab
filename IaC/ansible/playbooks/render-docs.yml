@@ -1,7 +1,7 @@
 ---
 # render-docs.yml — control-plane SSOT render
 # ------------------------------------------------
-# Regenerates docs/network-addresses.md + docs/inventory.md + docs/subscriptions-table.md
+# Regenerates docs/network-addresses-generated.md + docs/services-inventory-generated.md + docs/subscriptions-table-generated.md
 # from IaC/ansible group_vars/host_vars. This is the "IaC → docs" half of the
 # IaC-as-source model. The Ansible post-deploy hook invokes the same render
 #
@@ -20,27 +20,27 @@
         _docker_services: "{{ docker_services }}"
       when: docker_services is defined
 
-    # inventory.md — full multi-host service inventory (VPS + home_servers + raspberry_pi),
+    # services-inventory-generated.md — full multi-host service inventory (VPS + home_servers + raspberry_pi),
     # rendered once on localhost from each host's recorded `_docker_services`.
-    - name: Render docs/inventory.md (service inventory — all Docker hosts)
+    - name: Render docs/services-inventory-generated.md (service inventory — all Docker hosts)
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../templates/inventory.md.j2"
-        dest: "{{ playbook_dir }}/../../../docs/inventory.md"
+        dest: "{{ playbook_dir }}/../../../docs/services-inventory-generated.md"
       vars:
         all_hostvars: "{{ hostvars | dict2items | selectattr('value._docker_services', 'defined') | list }}"
       delegate_to: localhost
       run_once: true
 
-    - name: Render docs/network-addresses.md from group_vars/all.yml SSOT
+    - name: Render docs/network-addresses-generated.md from group_vars/all.yml SSOT
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../templates/network-addresses.md.j2"
-        dest: "{{ playbook_dir }}/../../../docs/network-addresses.md"
+        dest: "{{ playbook_dir }}/../../../docs/network-addresses-generated.md"
       delegate_to: localhost
       run_once: true
 
-    - name: Render docs/subscriptions-table.md (subscription SSOT)
+    - name: Render docs/subscriptions-table-generated.md (subscription SSOT)
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../templates/subscription-table.md.j2"
-        dest: "{{ playbook_dir }}/../../../docs/subscriptions-table.md"
+        dest: "{{ playbook_dir }}/../../../docs/subscriptions-table-generated.md"
       delegate_to: localhost
       run_once: true

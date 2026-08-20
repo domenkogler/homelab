@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render docs/network-addresses.md from the IaC SSOT without Ansible.
+"""Render docs/network-addresses-generated.md from the IaC SSOT without Ansible.
 
 Windows note: `ansible-playbook playbooks/render-docs.yml` cannot run on this
 Windows host (ansible crashes at startup: `os.get_blocking` -> OSError [WinError 87]).
@@ -10,7 +10,7 @@ after any master .yml change WITHOUT needing a working Ansible install.
 Run after editing group_vars/all.yml (or the DNS host_vars):
     python scripts/render_network_addresses.py  # requires PyYAML
 
-Idempotent: overwrites docs/network-addresses.md.
+Idempotent: overwrites docs/network-addresses-generated.md.
 """
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,7 +21,7 @@ from jinja2 import Environment, StrictUndefined
 ROOT = Path(__file__).resolve().parent.parent
 ANSIBLE = ROOT / "IaC" / "ansible"
 TEMPLATE = ANSIBLE / "templates" / "network-addresses.md.j2"
-DEST = ROOT / "docs" / "network-addresses.md"
+DEST = ROOT / "docs" / "network-addresses-generated.md"
 
 
 def load_yml(path: Path) -> dict:

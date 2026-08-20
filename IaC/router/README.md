@@ -71,4 +71,4 @@ are added by the **Ansible `router` role** (not the router template). AP → IP 
 
 - [`docs/deployment-secrets.md`](../../docs/deployment-secrets.md) — secret item catalogue
 - [`docs/network-ops.md`](../../docs/network-ops.md) — config lifecycle / versioning
-- [`docs/network-addresses.md`](../../docs/network-addresses.md) — generated IP SSOT
+- [`docs/network-addresses-generated.md`](../../docs/network-addresses-generated.md) — generated IP SSOT

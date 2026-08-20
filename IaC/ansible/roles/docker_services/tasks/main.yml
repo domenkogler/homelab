@@ -105,8 +105,8 @@
       changed_when: true
   tags: [homepage, docker_services]
 
-- name: Render docs/inventory.md (service inventory — on hosts where docker_services is defined)
+- name: Render docs/services-inventory-generated.md (service inventory — on hosts where docker_services is defined)
   ansible.builtin.template:
     src: "{{ playbook_dir }}/../templates/inventory.md.j2"
-    dest: "{{ playbook_dir }}/../../../docs/inventory.md"
+    dest: "{{ playbook_dir }}/../../../docs/services-inventory-generated.md"
   when: docker_services is defined

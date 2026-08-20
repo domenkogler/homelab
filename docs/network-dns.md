@@ -34,7 +34,7 @@ Technitium runs as a Docker container on oldsrv (primary) and a **second instanc
 
 ## Per-Subnet DNS Policy
 
-VLAN subnets per [`network-addresses.md`](network-addresses.md) (SSOT).
+VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.md) (SSOT).
 
 | Source VLAN | Technitium Group | Upstream Filter | Purpose |
 |--------------|------------------|-----------------|---------|

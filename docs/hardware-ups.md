@@ -23,7 +23,7 @@ tags: [hardware, ups, power, modbus, nut]
 | Model | PowerWalker VFI ICT/ICR **IoT** 3000 (3 kVA) |
 | USB identity | `PHOENIXTEC Innova Unity` (HID name reported by the UPS itself) |
 | MAC | `00:20:85:C0:92:FA` |
-| IP | static — `ups` per [`network-addresses.md`](network-addresses.md) |
+| IP | static — `ups` per [`network-addresses-generated.md`](network-addresses-generated.md) |
 | VLAN | 99 (Mgmt) — access port |
 | Location | Rack floor / near the rack (18U cabinet) |
 | Protects | **nas** (HP MicroServer Gen8), **oldsrv** (i7-7700K), **ha** (Raspberry Pi 4) + rack infra (router, switch, ONT) |

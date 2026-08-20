@@ -45,7 +45,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   │   ├── storage.yml                 # hosts: storage (nas) → common→ai_diag→network→storage→nut→cockpit  (ZFS, NO Docker)
 │   │   │   ├── raspberry_pi.yml            # hosts: raspberry_pi → common→network→nut→docker→home_assistant→docker_services→monitoring
 │   │   │   ├── all.yml                     # Cross-cutting: /etc/hosts sync
-│   │   │   └── render-docs.yml             # Control-plane SSOT render → docs/network-addresses.md
+│   │   │   └── render-docs.yml             # Control-plane SSOT render → docs/network-addresses-generated.md
 │   │   ├── group_vars/
 │   │   │   ├── all.yml                     # Timezone, locale (sl_SI.UTF-8), NTP, domain kogler.si; infra vars (network/IP/WG/livebox)
 │   │   │   ├── all/

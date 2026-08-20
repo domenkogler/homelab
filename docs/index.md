@@ -22,11 +22,11 @@ tags: [index, dispatcher, ai]
 | **Generate Ansible playbook / role** | [`deployment-ansible.md`](deployment-ansible.md) | `deployment-secrets.md`, `services.md`, `hardware*.md` for target machine |
 | **Generate `docker-compose.yml`** | [`deployment-compose.md`](deployment-compose.md) | `services.md`, `hardware-gpu.md` (if service uses GPU), `network-vlans.md` |
 | **Configure VLANs / firewall** | [`network-vlans.md`](network-vlans.md) | `network.md`, `network-dns.md` |
-| **IP/static address plan (SSOT)** | [`network-addresses.md`](network-addresses.md) | `network-vlans.md`, `services.md` |
+| **IP/static address plan (SSOT)** | [`network-addresses-generated.md`](network-addresses-generated.md) | `network-vlans.md`, `services.md` |
 | **Configure DNS** | [`network-dns.md`](network-dns.md) | `network-vlans.md`, `services.md` |
 | **Configure VPN** | [`network-vpn.md`](network-vpn.md) | `network.md` |
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
-| **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md`, [`network-addresses.md`](network-addresses.md) |
+| **Understand service layout** | [`services.md`](services.md) | `services-traefik.md`, `services-authentik.md`, [`network-addresses-generated.md`](network-addresses-generated.md) |
 | **Provision Authentik OIDC clients (Blueprint + glue)** | [`services-authentik.md`](services-authentik.md) | `deployment-secrets.md`, `deployment-compose.md`, `deployment-ansible.md`, `security.md` |
 | **Backlog / open decisions** | [`todo.md`](../todo.md) | — |
 | **Cross-cutting conventions / onboarding a service** | [`CONVENTIONS.md`](../CONVENTIONS.md) | owning docs (`deployment-*.md`, `network-*.md`, `services.md`) |
@@ -54,7 +54,7 @@ docs/
 │
 ├── network.md                             Broad: ISP, topology, links to →
 ├── network-vlans.md                       VLAN table, subnets, firewall rules
-├── network-addresses.md                   ★ IP address plan — SSOT (generated from IaC)
+├── network-addresses-generated.md       ★ IP address plan — SSOT (generated from IaC)
 ├── network-dns.md                         Technitium/Pi-hole, per-subnet DNS
 ├── network-vpn.md                         WireGuard (S2S), Headscale mesh
 ├── assets/Network-Devices.canvas          Device wiring & interconnections  ⚠️ WIP
@@ -77,10 +77,10 @@ docs/
 ├── services-matrix.md                     ★ Matrix messaging: homeserver (Tuwunel) + Element Web (native-only; bridges deferred)
 ├── services-vps.md                        netcup VPS (public edge) reference
 ├── subscription.md                        Costs, providers, renewal status
-├── subscriptions-table.md                 ★ Subscription schedule (generated from group_vars/subscriptions.yml)
+├── subscriptions-table-generated.md      ★ Subscription schedule (generated from group_vars/subscriptions.yml)
 ├── automation-renewals.md                 Renewal-reminder automation (Homepage + n8n)
 │
-├── rack-connections.md                    ★ Rack wiring map (generated from rack-connections.json — do not hand-edit)
+├── network-rack-generated.md            ★ Rack wiring map (generated from rack-connections.json — do not hand-edit)
 │
 ├── deployment.md                          Broad: GitOps philosophy, Ansible-only deploy flow
 ├── deployment-preseed.md                  ★ Preseed + post_install spec
@@ -92,7 +92,7 @@ docs/
 ├── deployment-renovate.md                 Renovate Bot & update lifecycle
 ├── security.md                            ★ Security hardening posture (WAF, pinning, privilege, bootstrap, decisions)
 ├── interfaces.md                          Dashboard + management interface matrix
-├── inventory.md                           ★ Service inventory (generated from group_vars docker_services)
+├── services-inventory-generated.md      ★ Service inventory (generated from group_vars docker_services)
 │
 ├── todo.md                              Planned work + open decisions backlog (HD-XX, single source)
 ├── CONVENTIONS.md                        Cross-cutting rules index + service-onboarding checklist (repo root)
@@ -166,7 +166,7 @@ rules below are central.
   | netcup VPS | `vps.kogler.si` | **public edge + live-data apps + observability backend** (day-one edge, HD-93/HD-40A) |
 
 - **IP addresses:** internal IPv4 ranges/addresses live **only** in
-  [`network-addresses.md`](network-addresses.md) (SSOT, generated from IaC) and in IaC. Other
+  [`network-addresses-generated.md`](network-addresses-generated.md) (SSOT, generated from IaC) and in IaC. Other
   docs refer to hosts by hostname/role (`oldsrv.kogler.si`, `ha-vip`, `wg-s2s`) or link the SSOT
   row. Exemptions: well-known external IPs (public DNS, third-party services — e.g. `1.1.1.1`,
   `9.9.9.9`) and historical decision-log entries (`~~strikethrough~~`). Enforced by
@@ -176,4 +176,4 @@ rules below are central.
 - **Links:** Use relative paths (`[doc](deployment-preseed.md)`)
 - **Secrets:** Never in docs — always reference 1Password `Homelab` vault
 - **Ansible IaC:** see [`deployment-ansible.md` → IaC Authoring Conventions](deployment-ansible.md) — variables, secrets, role structure, compose template rules
-- **Generation targets:** Marked with ★ — *authoring specs* read by AI to write or correct the corresponding IaC. Direction of truth: concrete values live in IaC and are rendered INTO value-carrying docs (`network-addresses.md`, `inventory.md`) — those generated views are never hand-edited.
+- **Generation targets:** Marked with ★ — *authoring specs* read by AI to write or correct the corresponding IaC. Direction of truth: concrete values live in IaC and are rendered INTO value-carrying docs (`network-addresses-generated.md`, `services-inventory-generated.md`) — those generated views are never hand-edited.

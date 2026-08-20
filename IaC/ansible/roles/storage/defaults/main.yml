@@ -30,7 +30,7 @@ zfs_exporter_pools:
 # NFS topology.
 storage_nfs_server: nas.kogler.si   # resolved via /etc/hosts (network role)
 # NFS export client — single SSOT source: group_vars/all.yml → network_ranges
-# (`nfs-clients`, rendered to docs/network-addresses.md). Least privilege:
+# (`nfs-clients`, rendered to docs/network-addresses-generated.md). Least privilege:
 # only oldsrv's Home-VLAN IP may mount the exports.
 storage_nfs_clients: "{{ (network_ranges | selectattr('name', 'equalto', 'nfs-clients') | map(attribute='cidr') | first) }}"
 

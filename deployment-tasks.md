@@ -286,7 +286,7 @@ are SSOT in `docs/deployment-secrets.md` — this table is the deployment-phase 
 3. **Trigger** — no webhook; you click the **deploy button** on Forgejo (Dependency Dashboard / Actions tab).
 4. **Renovate** — already live (Phase 3); it opens PRs; the deploy button applies them via Ansible.
 5. **Metrics** — none (no Doco-CD exporter); Prometheus scrape set stays Traefik/CrowdSec + services.
-6. **Post-deploy hooks** — Ansible regenerates Homepage config + `inventory.md` → commit+push.
+6. **Post-deploy hooks** — Ansible regenerates Homepage config + `services-inventory-generated.md` → commit+push.
 
 **Verify:** a Renovate PR → merge → Forgejo **deploy button** → service updated with **no manual Ansible run**.
 
@@ -416,9 +416,9 @@ Phase 10 (deferred: Phase-2 Proxmox hardware, HD-41/42)
 | pi | `pi.kogler.si` | 10 | `raspberry_pi.yml` | common → network → nut(client) → docker → home_assistant(primary+keepalived) → docker_services(pi) → monitoring(alloy) |
 | vps | `vps.kogler.si` | public | `vps.yml` (**Phase 1**) | common → docker → network → docker_services → monitoring |
 | — | all | — | `all.yml` | `/etc/hosts` sync |
-| laptop | control | 10 | `render-docs.yml` + `dns.yml` | renders `docs/network-addresses.md`; maintains Cloudflare public DNS records |
+| laptop | control | 10 | `render-docs.yml` + `dns.yml` | renders `docs/network-addresses-generated.md`; maintains Cloudflare public DNS records |
 
-> Static IPs: [`docs/network-addresses.md`](docs/network-addresses.md) (SSOT).
+> Static IPs: [`docs/network-addresses-generated.md`](docs/network-addresses-generated.md) (SSOT).
 
 ---
 
@@ -439,7 +439,7 @@ Phase 10 (deferred: Phase-2 Proxmox hardware, HD-41/42)
 ## Notes
 
 - **Service list source of truth:** `group_vars/home_servers.yml` (not this doc) — `docker_services` loop.
-- **Generated docs (never hand-edit):** `docs/network-addresses.md`, `docs/inventory.md` (rendered by `render-docs.yml`).
+- **Generated docs (never hand-edit):** `docs/network-addresses-generated.md`, `docs/services-inventory-generated.md` (rendered by `render-docs.yml`).
 - **Secrets source of truth:** `docs/deployment-secrets.md` (type map, master list, rename map).
 - **Kopia off-site transport (decided HD-31/HD-135):** Hetzner Storage Box **backup** supports **SSH/SFTP only**
   (port 23, `u653424`, SSH-key auth via `Hertzner-SB-Backup`) — **NOT S3**. iDrive e2 S3 dropped. Backend config:

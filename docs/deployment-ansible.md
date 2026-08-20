@@ -13,10 +13,10 @@ tags: [deployment, ansible, iac]
 > **Direction of truth:** this document is an *authoring* spec, not the source
 > of runtime values. Concrete values (IPs, VLANs, service lists) live in IaC
 > (`group_vars/*.yml`, `host_vars/*.yml`) and flow **IaC → docs** via the render
-> (→ `docs/network-addresses.md`, later `docs/inventory.md`); those generated
+> (→ `docs/network-addresses-generated.md`, later `docs/services-inventory-generated.md`); those generated
 > views must not be hand-edited.
 >
-> **Regenerate `docs/network-addresses.md` after a master `.yml` change** — either
+> **Regenerate `docs/network-addresses-generated.md` after a master `.yml` change** — either
 > `python scripts/render_network_addresses.py` (works on the Windows host directly, no
 > Ansible needed) or `ansible-playbook playbooks/render-docs.yml -i inventory.ini` (Linux/CI,
 > or on this machine via **WSL Debian**). Native Windows ansible crashes at startup

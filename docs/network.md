@@ -60,7 +60,7 @@ Internet → ONT → router ether1 (WAN)
 - CAPsMAN in `local-forwarding=no` mode (all traffic tunneled to router)
 - No mesh — all APs wired
 
-> **Status:** the network is **currently flat (single Home-VLAN subnet)** — VLAN segmentation is **planned**. Subnets per [`network-addresses.md`](network-addresses.md) (SSOT).
+> **Status:** the network is **currently flat (single Home-VLAN subnet)** — VLAN segmentation is **planned**. Subnets per [`network-addresses-generated.md`](network-addresses-generated.md) (SSOT).
 
 ---
 

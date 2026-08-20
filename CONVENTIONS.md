@@ -26,7 +26,7 @@
 | Convention | Rule | Owning doc |
 |-----------|------|-----------|
 | IPs / CIDRs | never hardcode — `network_static_hosts` / `network_ranges` from `group_vars/*` | [docs/deployment-ansible.md](docs/deployment-ansible.md) (Variables & IPs) |
-| IP doc | `docs/network-addresses.md` is the SSOT — generated (see Generated docs), **never hand-edit** | [scripts/check_doc_ips.py](scripts/check_doc_ips.py), [docs/deployment-ansible.md](docs/deployment-ansible.md) |
+| IP doc | `docs/network-addresses-generated.md` is the SSOT — generated (see Generated docs), **never hand-edit** | [scripts/check_doc_ips.py](scripts/check_doc_ips.py), [docs/deployment-ansible.md](docs/deployment-ansible.md) |
 | Service list | `group_vars/<host>.yml` is the deploy loop SSOT; catalog row in `docs/services.md` | [docs/services.md](docs/services.md) |
 | Compose path | `/opt/<service>/docker-compose.yml` — architectural constant | [docs/deployment-compose.md](docs/deployment-compose.md) |
 | Generated docs | a generated doc is recognized by its `-generated` filename suffix and is **never hand-edited** — canonical rule: §8.2 | [docs/index.md](docs/index.md), §8.2 |

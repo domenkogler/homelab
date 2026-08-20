@@ -15,7 +15,7 @@ tags: [deployment, gitops, ansible, renovate, forgejo-actions]
 
 ## Architecture Philosophy
 
-- **Direction of truth:** IaC is the source of truth for **values** (IPs, VLANs, host vars, service lists) — they render INTO docs (`network-addresses.md`, `inventory.md`). The `deployment-*` specs are **authoring guides** used to write/correct the IaC, not runtime inputs. See `deployment-ansible.md`.
+- **Direction of truth:** IaC is the source of truth for **values** (IPs, VLANs, host vars, service lists) — they render INTO docs (`network-addresses-generated.md`, `services-inventory-generated.md`). The `deployment-*` specs are **authoring guides** used to write/correct the IaC, not runtime inputs. See `deployment-ansible.md`.
 - **Database-free, pure GitOps** — all config, versions, and docs are plain text in Git
 - **One Git repo** — IaC code + technical docs + family guides together
 - **Ansible-driven** — single deployment/upgrade path for BOTH VPS and oldsrv (idempotent, safe; no Docker-socket agent). Doco-CD is **dropped** (HD-150) — it was a 2nd path that couldn't safely deploy public VPS services (`docker.sock:rw` = root-equivalent).

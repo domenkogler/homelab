@@ -186,7 +186,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 
 | Aspect | Shared (nas/oldsrv) | VPS (`IaC/host/vps/`) |
 |--------|--------------------|-------------------------|
-| user `ai-debug` | ✅ present (LAN `from=site` — see [`network-addresses.md`](network-addresses.md)) | ❌ **excluded** — never expose the AI key on a public box |
+| user `ai-debug` | ✅ present (LAN `from=site` — see [`network-addresses-generated.md`](network-addresses-generated.md)) | ❌ **excluded** — never expose the AI key on a public box |
 | `AllowUsers` | `ansible-admin ai-debug` | `ansible-admin` only |
 | SSH keys authorized | 3 (Domen + Ansible + AI) | **2** (Domen + Ansible) |
 | OS disk | nas: SATA SSD / oldsrv: NVMe | `/dev/nvme0n1` — single 512 GB NVMe ([`IaC/host/vps/preseed.cfg`](../../IaC/host/vps/preseed.cfg)) |
@@ -240,7 +240,7 @@ Preseed uses DHCP. After boot, Ansible's `network` role assigns the correct VLAN
 |---------|------|-----|
 | oldsrv | 99 (Management, native) + 10,20,50 tagged | static on VLAN 99 |
 | nas | 10 (Home) access + 99 (Management) native | static on VLAN 10 |
-| pi | 10 (Home) access | static per SSOT (see [`network-addresses.md`](network-addresses.md) → *pi* VLAN 10) |
+| pi | 10 (Home) access | static per SSOT (see [`network-addresses-generated.md`](network-addresses-generated.md) → *pi* VLAN 10) |
 
 > **Note:** The Pi is deployed from a **pre-built image** (raspi.debian.net), not via preseed.
 > The static IP above applies identically after Ansible runs.

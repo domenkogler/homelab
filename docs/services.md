@@ -98,7 +98,7 @@ tags: [services, catalog]
 | db-internal | Databases, fully isolated |
 | wireguard-s2s | WireGuard S2S tunnel home router ↔ VPS (HD-03/HD-135; reaches home VLANs + wg-vps-services) |
 
-> CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastructure networks* (SSOT).
+> CIDRs: [`network-addresses-generated.md`](network-addresses-generated.md) → *Infrastructure networks* (SSOT).
 
 > **Network codes (used in the catalog above):** `P` = traefik-public (edge) · `I` = services-internal
 > (app ↔ app) · `D` = db-internal (isolated) · `W` = wireguard-s2s (home router ↔ VPS S2S tunnel)
@@ -223,7 +223,7 @@ Full architecture in [`observability.md`](observability.md). Summary:
   (primary oldsrv, secondary pi) · NUT 3493 (nas master,
   intra-Home) · UPS web 80/443 (host `ups`) · SNMP 161
   (router/switch) · WireGuard · SSH/WinBox (Mgmt, trusted only). Host IPs per
-  [`network-addresses.md`](network-addresses.md) (SSOT).
+  [`network-addresses-generated.md`](network-addresses-generated.md) (SSOT).
 
 ### URL → backend (edge cases only)
 

@@ -3,7 +3,7 @@
 # Current scope (safe, deterministic):
 #   1. assert we run as an allowed admin user (mirror of common's guard)
 #   2. sync /etc/hosts from the shared template (same source as playbooks/all.yml)
-#   3. render docs/network-addresses.md from IaC via render-docs.yml (run by site.yml)
+#   3. render docs/network-addresses-generated.md from IaC via render-docs.yml (run by site.yml)
 #
 # REMAINING (scoped TODO — kept out of this role until the config manager is
 # decided): static IP + VLAN trunk/sub-interface provisioning per host, using

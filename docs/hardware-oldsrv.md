@@ -101,7 +101,7 @@ Containers start at boot via systemd units **before any user logs in**:
 | services-internal | App ↔ app communication |
 | db-internal | Databases, fully isolated |
 
-> CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastructure networks* (SSOT).
+> CIDRs: [`network-addresses-generated.md`](network-addresses-generated.md) → *Infrastructure networks* (SSOT).
 
 ---
 

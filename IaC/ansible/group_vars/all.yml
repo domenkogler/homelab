@@ -75,8 +75,8 @@ kopia_sftp_port: 23          # non-standard Hetzner SSH/SFTP port
 kopia_sftp_user: u653424     # SSH key auth (no password) — key in 1Password Hertzner-SB-Backup
 kopia_sftp_path: /kopia      # repository dir under the box home
 
-# ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses.md) ====
-# Hand-edit here ONLY; regenerate docs/network-addresses.md after changes.
+# ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses-generated.md) ====
+# Hand-edit here ONLY; regenerate docs/network-addresses-generated.md after changes.
 #
 # HA virtual IP (keepalived/VRRP) on Home VLAN 10 — ha.kogler.si. Canonical name `ha-vip`.
 # D2: single /32, no reserved block. Home DHCP pool (10.10.1.100-.199) must stay <= .199
@@ -140,7 +140,7 @@ network_static_hosts:
   - { name: router, vlan: 50, ip: "10.10.50.1",  role: "Media gateway" }
 
 # Infrastructure / non-VLAN ranges (tunnels, overlays, Docker bridges) — rendered to
-# docs/network-addresses.md §Infrastructure networks. Names are stable tokens used in
+# docs/network-addresses-generated.md §Infrastructure networks. Names are stable tokens used in
 # docs/runbooks (e.g. `wg-s2s`, `ha-vip`); values are hand-edited here only.
 network_ranges:
   - { name: wireguard,         cidr: "10.255.0.0/16", purpose: "WireGuard / tunnel family (S2S links, VPS networks)" }

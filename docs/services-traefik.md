@@ -26,7 +26,7 @@ tags: [services, traefik, proxy, ssl]
 
 ## Network
 
-- Container on `traefik-public` network (CIDR per [`network-addresses.md`](network-addresses.md) SSOT)
+- Container on `traefik-public` network (CIDR per [`network-addresses-generated.md`](network-addresses-generated.md) SSOT)
 - Exposes ports 80, 443 on host
 
 ---

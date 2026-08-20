@@ -32,7 +32,7 @@ tags: [network, vpn, wireguard, headscale]
 | **Headscale overlay** | `headscale` | CGNAT (Tailscale-compatible) — router routes this to Home LAN |
 | **Home LAN** | `site` | VLANs `10.10.x.0/24` (see `network-vlans.md`) |
 
-All concrete CIDRs: [`network-addresses.md`](network-addresses.md) → *Infrastructure networks* (SSOT).
+All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generated.md) → *Infrastructure networks* (SSOT).
 
 ---
 

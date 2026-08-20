@@ -85,10 +85,10 @@ This is a **macvlan** network that gives the CCU a fixed IP on the Home VLAN (10
 HA nodes reach XML-RPC 2001/2010 at the same address. Create it once per host:
 
 ```bash
-# On Pi (primary): homematic-ccu-pi IP (see network-addresses.md)
+# On Pi (primary): homematic-ccu-pi IP (see network-addresses-generated.md)
 docker network create -d macvlan   --subnet=<Home VLAN subnet per SSOT>   --gateway=<Home VLAN gateway per SSOT>   --ip-range=<homematic-ccu-pi IP>/32   --parent=eth0   -o parent=eth0   homematic
 
-# On oldsrv (standby): homematic-ccu-oldsrv IP (see network-addresses.md)
+# On oldsrv (standby): homematic-ccu-oldsrv IP (see network-addresses-generated.md)
 docker network create -d macvlan   --subnet=<Home VLAN subnet per SSOT>   --gateway=<Home VLAN gateway per SSOT>   --ip-range=<homematic-ccu-oldsrv IP>/32   --parent=eth0.10   -o parent=eth0.10   homematic
 ```
 The `--parent` interface on oldsrv uses a VLAN subinterface (`eth0.10`) because oldsrv's
