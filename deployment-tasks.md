@@ -43,24 +43,29 @@
 
 | Item | type → `field=` | First needed in | In OP? |
 |------|-----------------|-----------------|--------|
-| `laptop-domen_ssh` | ssh → `private_key`/`public_key` | Phase 0 (bootstrap key on laptop) | ✓ |
-| `ansible-admin_ssh` | ssh → `private_key`/`public_key` | Phase 0 | ✓ |
+| **Phase 0** | | | |
 | `ai_ssh` | ssh → `private_key`/`public_key` | Phase 0 | ✓ |
+| `ansible-admin_ssh` | ssh → `private_key`/`public_key` | Phase 0 | ✓ |
+| `laptop-domen_ssh` | ssh → `private_key`/`public_key` | Phase 0 (bootstrap key on laptop) | ✓ |
 | `op_api` | api → `credential` (1Password Service Account token) | Phase 0 | ✓ |
-| `mikrotik-admin_login` | login → `password` | Phase 1.5 | ✗ |
-| `wg_password` | password → `password` (**WireGuard S2S private key** — a `wg genkey` value, never a random password; the auto-tool does not write it) | Phase 1.5 | ✓ |
-| `nut-smtp_login` | login → `password` (`username`=notify email/SMTP user) | Phase 2 | ✗ |
+| **Phase 1** | | | |
+| `Hertzner-SB-Data` | — (connection ref; CIFS/SMB/WebDAV live box, `cifs` role) | Phase 1 (VPS) | ✓ |
+| **Phase 1.5** | | | |
+| `mikrotik-admin_login` | login → `password` | Phase 1.5 | ✓ |
 | `network-snmp_login` | api → `credential` (SNMP RO community) | Phase 1.5 | ✗ |
 | `pppoe_login` | login → `password` (`username`=PPPoE user) | Phase 1.5 (router) | ✓ |
-| `cloudflare_api` | api → `credential` (ACME DNS-01) | Phase 3 | ✓ |
+| `wg_password` | password → `password` (**WireGuard S2S private key** — a `wg genkey` value, never a random password; the auto-tool does not write it) | Phase 1.5 | ✓ |
+| **Phase 2** | | | |
+| `nut-smtp_login` | login → `password` (`username`=notify email/SMTP user) | Phase 2 | ✗ |
+| **Phase 3** | | | |
 | `authentik_login` | login → `password` (bootstrap admin) | Phase 3 | ✗ |
+| `cloudflare_api` | api → `credential` (ACME DNS-01) | Phase 3 | ✓ |
 | `forgejo_api` | api → `credential` (Forgejo deploy token) | Phase 3 | ✗ |
 | `grafana_login` | login → `password` (admin) | Phase 3 | ✗ |
 | `grafana-smtp_login` | login → `password` | Phase 3 | ✗ |
 | `ha_api` | api → `credential` (long-lived HA token) | Phase 3 | ✗ |
 | `headscale_api` | api → `credential` (OIDC client secret) | Phase 3 | ✗ |
 | `signal_api` | api → `credential` (`username`=phone number) | Phase 3 | ✗ |
-| `Hertzner-SB-Data` | — (connection ref; CIFS/SMB/WebDAV live box, `cifs` role) | Phase 1 (VPS) | ✓ |
 
 #### B) Account / connection refs — NOT consumed by Ansible (human maintenance / break-glass)
 
