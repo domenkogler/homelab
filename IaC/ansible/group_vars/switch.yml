@@ -12,9 +12,6 @@ switch_trunk_port: sfp-sfpplus1  # Port 1 on switch, carries all VLANs tagged
 switch_mgmt_vlan: 99
 
 # Access ports per-device VLAN mapping
-# NOTE: This is a work-in-progress. Port numbers are estimates from Rack.canvas
-# that should be verified by the human to match actual physical positions.
-# Missing ports are marked as TODO for the human to finalize.
 #
 # Port Type Reference from docs/network-vlans.md:
 # - APs → Access, VLAN 99, PoE

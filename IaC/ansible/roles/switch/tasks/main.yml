@@ -320,13 +320,13 @@
   loop: "{{ range(1, 25) | list }}"
   when: "'ether' + item|string not in configured_port_names"
 
-
 # -------------------------------------------------------------------------
-# Document port map verification
+# Port map verification (record only — map is confirmed, see group_vars/switch.yml)
 # -------------------------------------------------------------------------
-- name: Document port map verification needed
+- name: Document port map verification
   debug:
     msg: |
-      Port map from Rack.canvas should be verified by human.
-      Current mapping includes APs, UPS, NAS iLO, Raspberry Pi, Nintendo Switch, printer.
-      TODO: Verify actual physical port positions and finalize switch_port_map.
+      Port map from Rack.canvas confirmed by human (group_vars/switch.yml).
+      Full CRS328 access-port mapping is recorded in switch_port_map (APs, UPS,
+      NAS, printer, console, media, KNX) — applied by the tasks above; any port
+      not listed defaults to Management VLAN 99.
