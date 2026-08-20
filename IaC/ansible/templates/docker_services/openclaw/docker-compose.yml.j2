@@ -11,7 +11,8 @@
 #   deploy-gated step.
 #
 #   Secrets (fail-closed): litellm_master_key (backend auth), openclaw_gateway_token
-#   (gateway/Control-UI auth). Image pinned via openclaw_version (GHCR; young project).
+#   (gateway/Control-UI auth), openclaw-opencloud_api (OpenCloud WebDAV credential, HD-160).
+#   Image pinned via openclaw_version (GHCR; young project).
 services:
   openclaw:
     image: ghcr.io/openclaw/openclaw:{{ openclaw_version }}
@@ -29,6 +30,10 @@ services:
       OPENCLAW_CONFIG_DIR: /home/node/.openclaw
       OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
       OPENCLAW_GATEWAY_TOKEN: "{{ lookup('community.general.onepassword', 'openclaw_gateway_token', field='password', vault=op_vault) }}"
+      # HD-160: OpenCloud WebDAV credential (app-specific password, scoped service user).
+      # Consumed by `openclaw onboard` / `openclaw.json` WebDAV block at deploy; fail-loud.
+      OPENCLOUD_WEBDAV_USERNAME: "{{ lookup('community.general.onepassword', 'openclaw-opencloud_api', field='username', vault=op_vault) }}"
+      OPENCLOUD_WEBDAV_PASSWORD: "{{ lookup('community.general.onepassword', 'openclaw-opencloud_api', field='credential', vault=op_vault) }}"
       # Model backend = LiteLLM (spine). OpenClaw talks to LitLLM as an OpenAI-compatible
       # provider; full binding set in openclaw.json at deploy (LITELLM_MASTER_KEY auth).
       # No host ports (HD-62); Control UI reachable via services-internal only.

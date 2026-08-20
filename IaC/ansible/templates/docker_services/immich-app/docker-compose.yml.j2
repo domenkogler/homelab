@@ -12,6 +12,7 @@
 #   Secrets (deployment-secrets.md):
 #     immich_db  (Database) — Postgres
 #     immich_oidc (api) — Authentik OIDC client (username=client_id, credential=client_secret)
+#     immich-ml-internal_api (api) — shared ML API-key auth immich-app -> immich-ml (HD-160)
 services:
   immich-server:
     image: ghcr.io/immich-app/immich-server:{{ immich_version | default('release') }}
@@ -32,6 +33,9 @@ services:
       DB_PORT: "5432"
       REDIS_HOSTNAME: immich-valkey
       IMMICH_MACHINE_LEARNING_URL: "http://immich-ml:3003"
+      # HD-160: ML API-key auth — immich-ml validates this header so only immich-app can
+      # drive ML inference (fail-loud: missing item aborts render). Shared with immich-ml.
+      IMMICH_MACHINE_LEARNING_KEY: "{{ lookup('community.general.onepassword', 'immich-ml-internal_api', field='credential', vault=op_vault) }}"
       # (Immich originals + encoded-video -> live Hetzner Box CIFS via the Immich storage
       # template, HD-135; thumbs/DB stay on local /data. MinIO/S3 retired — minio_login removed.)
 
