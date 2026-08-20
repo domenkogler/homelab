@@ -1,14 +1,14 @@
 ---
 title: Hardware Overview
-role: broad
+role: index
 domain: hardware
 status: active
 tags: [hardware, phases]
 ---
 # Hardware Overview
 
-> **Role:** Broad context — all machines, phase strategy, role assignments.
-> **Links to:** `hardware-oldsrv.md`, `hardware-gpu.md`, `hardware-nas.md`, `hardware-phase2.md`
+> **Role:** Index — the hardware domain hub. Machine roster, phase strategy, and links to each `hardware-*.md` stack doc.
+> **Links to:** `hardware-oldsrv.md`, `hardware-gpu.md`, `hardware-nas.md`, `hardware-ups.md`, `hardware-phase2.md`
 > **Linked from:** `index.md`
 
 ---
@@ -88,4 +88,5 @@ nas (rack) — Debian 13, ZFS
 - [oldsrv — i7-7700K Docker Host](hardware-oldsrv.md)
 - [Shared GPU Resource](hardware-gpu.md)
 - [HP MicroServer Gen8](hardware-nas.md)
+- [PowerWalker VFI ICT/ICR IoT 3000 (UPS)](hardware-ups.md)
 - [Phase 2 Target Build (Ryzen + Proxmox)](hardware-phase2.md)

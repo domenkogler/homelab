@@ -61,7 +61,7 @@ docs/
 ├── network-rack.md                        Rack layout → assets/Rack.canvas
 ├── network-ops.md                         Router config storage & versioning
 │
-├── hardware.md                            Broad: phases, all machines
+├── hardware.md                            Index: phases, all machines, links to hardware-*.md
 ├── hardware-oldsrv.md                    i7-7700K internal/GPU/LAN host (GPU + media + DNS + HA standby)
 ├── hardware-gpu.md                        Shared GPU resource (cross-cutting)
 ├── hardware-nas.md                       HP MicroServer Gen8 ZFS storage (+ external SilverStone case)
