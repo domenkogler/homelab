@@ -113,4 +113,79 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 
 ---
 
-*Last review: 2026-08-19 (added: derived-counts, data-location same-change, two-sided deploy gate; placement §1, onboarding storage bullet §5, version-pin hygiene §7, validation-gate extension §4). Owning docs above remain authoritative.*
+## 8. Docs taxonomy & service triage
+
+> **Purpose:** a repeatable rule for *where a piece of documentation or a service candidate lives*.
+> Adopted 2026-08-20 (docs-refactor). The goal is a consistent mental model + URL scheme, not achieved
+> purity: cross-cutting docs are explicitly allowed, marked as such, and resolved last (with the owning
+> domains).
+
+### 8.1 Domains & stack index
+- **Domain** = a set of services deployed together (same host target) under one owning doc. A domain
+  owns an **index file** `<domain>.md` with `role: broad|index` that links to `<domain>-<sub>.md`
+  detail docs. Canonical existing pattern: `smart-home.md` → `smart-home-{voice,audio,failover}.md`.
+- **Central service stack index** = `docs/services.md` (catalog + networks + domains). It is the *only*
+  pointer from `docs/index.md` for service layout. Each big domain X gets a `services-<x>.md` stack doc
+  (`services-arr.md`, …) that `services.md` links to — the catalog must not become a single
+  multi-hundred-line table.
+- **No doc is both** an index and a dumping ground: when a domain doc grows past ~1 screen of catalog
+  table, split the table into a `services-<x>.md` stack doc and link it from the index.
+
+### 8.2 Generated docs — the `-generated` suffix
+- **Any file produced by a script/Ansible (not hand-authored) carries a `-generated` suffix** in its
+  base name: `<name>-generated.md` (e.g. `network-addresses-generated.md`,
+  `services-inventory-generated.md`, `subscriptions-table-generated.md`, `network-rack-generated.md`).
+  The suffix appears **in the filename**, never only in a header, so file lists and `git grep` make
+  generated sources obvious. Headers still say "do not hand-edit"; the filename is the guarantee, the
+  header the hint.
+- **Renaming a generated file = touching the renderer + every reference** in the same change: the
+  render helper itself (`scripts/render_*.py`, `IaC/ansible/playbooks/render-docs.yml`, the
+  `docker_services` role), the validators that whitelist/tokenize the name
+  (`scripts/check_doc_ips.py`), and the doc map in `docs/index.md`. The doc-map linter
+  (`scripts/check_doc_map.py`) fails closed, so a stale reference breaks `validate-all.sh`.
+
+### 8.3 Service triage: `<domain>-review` / `<domain>-rejected` (per-domain)
+- **`<domain>-review.md`** = *intake queue* for services heard of but not yet researched. Kept
+  **near-empty**: it is a queue, not a backlog. One row = service name + URL + a 3-word "why". Low
+  friction is deliberate — a short phrase is enough, a paragraph needs its own `brainstorming/` file.
+- **Lifecycle** (checked in this order):
+  1. **Before adding** to `-review`, check `<domain>-rejected.md` first (convention: rejected is
+     consulted, not auto-blocking). A re-review is allowed **only with an exception note** —
+     "re-evaluating Y because X changed".
+  2. **Promote** (→ research/backlog): move the row to `todo.md` as an HD-XXX (pointer back to the
+     review file), then **delete** it from `-review`. `-review` has no "accepted" state.
+  3. **Stale**: if a `-review` entry is untouched for **30 days**, it must be promoted to `todo.md` or
+     moved to `-rejected`. (Deliberate anti-`todo.md` guard: review must not become a second backlog.)
+- **`<domain>-rejected.md`** = *decision log*. **Append-only** — never edit or reorder an entry, only
+  add. Sorted by **service name** (stable key for `git grep` / `git log -S`). Each entry:
+  `| <service> | <rejected|dropped|superseded> | <date> | <why, 1–2 lines + evidence link> |`. When a
+  decision changes, the old entry is left unchanged and a new one is appended (do **not** strike the
+  old one — mirror the decision-log style in `changelog.md`).
+- The **services** domain seeds the pattern: `docs/services-review.md` + `docs/services-rejected.md`
+  (HD-170). Other big domains (network, hardware, smart-home) opt in with their own
+  `<domain>-{review,rejected}.md` when they have enough volume.
+
+### 8.4 Cross-cutting docs
+- **Cross-cutting docs are allowed** and do not need a `services-*` prefix. A doc is cross-cutting if
+  it is **owned by no single deploying host** (e.g. `security.md`, `backup.md`, `storage.md`,
+  `observability.md`, `llm-office.md`).
+- Mark them explicitly with frontmatter `cross_cutting: true` and a `**Role:** … (cross-cutting)`
+  header so the taxonomy analyzer does not re-litigate them.
+- **Resolution order:** the goal is to absorb a cross-cutting section into its owning domain *when the
+  domain is imported* (HD-171). The cross-cutting file itself is re-evaluated **last**, after all
+  domains have absorbed what is theirs.
+
+### 8.5 SSOT & rendering direction (scripts must not read generated MD)
+- **Source of truth for values = IaC** (`group_vars/*.yml`, `host_vars/*.yml`,
+  `rack-connections.json`).
+- **Scripts consume the SSOT, never a generated `.md`.** Generated markdown is a *render view for
+  humans only*; no script parses values out of a generated doc.
+- **Drift detection = re-render and `git diff --exit-code`**, NOT a filename allow-list in a linter. If
+  a generated file is out of sync with its SSOT, that is a **build failure**, not a docs note.
+- Rendering direction is always **IaC → generated MD** (single hand-editing path):
+  `group_vars/*.yml` / `rack-connections.json` → `render-docs.yml` / `scripts/render_*.py` →
+  `*-generated.md`.
+
+---
+
+*Last review: 2026-08-19 (added: derived-counts, data-location same-change, two-sided deploy gate; placement §1, onboarding storage bullet §5, version-pin hygiene §7, validation-gate extension §4; §8 docs taxonomy & service triage, 2026-08-20). Owning docs above remain authoritative.*
