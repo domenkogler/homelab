@@ -56,7 +56,7 @@
 | `pppoe_login` | login → `password` (`username`=PPPoE user) | Phase 1.5 (router) | ✓ |
 | `wg_password` | password → `password` (**WireGuard S2S private key** — a `wg genkey` value, never a random password; the auto-tool does not write it) | Phase 1.5 | ✓ |
 | **Phase 2** | | | |
-| `nut-smtp_login` | login → `password` (`username`=notify email/SMTP user) | Phase 2 | ✗ |
+| `nut-smtp_login` | login → `password` (`username`=notify email/SMTP user) | Phase 2 | ✓ |
 | **Phase 3** | | | |
 | `authentik_login` | login → `password` (bootstrap admin) | Phase 3 | ✗ |
 | `cloudflare_api` | api → `credential` (ACME DNS-01) | Phase 3 | ✓ |
