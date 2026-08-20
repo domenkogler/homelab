@@ -62,7 +62,7 @@ The list lives in IaC, not in n8n. Two ways to source it at run time:
 | Channel | Node | Secret (1Password `Homelab-ansible`) |
 |---------|------|------------------------------|
 | Signal | `@signal-cli` / HTTP to `signal-api` | `signal-internal_api` (token), `signal_api` (phone) |
-| Email  | SMTP (`mail.smtp2go.com:587` STARTTLS) | `grafana-smtp_login` / `nut-smtp_login` |
+| Email  | SMTP (`mail-eu.smtp2go.com:587` STARTTLS) | `grafana-smtp_login` / `nut-smtp_login` |
 
 ## Rollout checklist (post-deploy)
 - [ ] CalDAV (kSuite, HD-30) live → populate `calendar_url` in `subscriptions.yml`

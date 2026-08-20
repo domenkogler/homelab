@@ -58,6 +58,21 @@ nut_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'na
 # nut_exporter_listen in roles/nut/defaults/main.yml (:9199); keep in sync.
 nut_exporter_port: 9199
 
+# ==== SMTP2Go relay — single connection SSOT (HD-54, Option B) ====
+# Dedicated transactional relay used by BOTH Grafana (grafana_smtp_host) and NUT
+# (nut_smtp_server). Credentials are in 1Password (`grafana-smtp_login` /
+# `nut_smtp_login`, Login items); only the connection config lives here.
+# Account region/host + ports as provided by SMTP2Go (EU datacenter):
+#   SMTP server: mail-eu.smtp2go.com; SMTP port 2525 (default); alternative
+#   ports 8025, 587, 80, 25 — TLS available on the same ports (STARTTLS).
+#   SSL only on 465, 8465, 443.
+# We use mail-eu.smtp2go.com:587 + STARTTLS (587 is a TLS port; the NUT
+# template requires STARTTLS on the same host).
+smtp2go_host: mail-eu.smtp2go.com
+smtp2go_port: 587                   # TLS/STARTTLS port (alternatives: 2525/8025/80/25)
+smtp2go_ssl_ports: [465, 8465, 443]  # SSL-only ports (not used)
+smtp2go_smtp_ports: [2525, 8025, 587, 80, 25]  # SMTP ports with TLS available
+
 # ==== ZFS exporter (nas, host binary — storage role) ====
 # Single SSOT ZFS pool exporter on nas (no Docker) — mirrors nut_exporter.
 # Host derived from the address SSOT below (nas @ VLAN 10); port matches the

@@ -42,13 +42,19 @@ send_mail() {
       "${nut_notify_email}" "${SUBJ}" "${BODY}" <<'PYEOF'
 import smtplib, sys
 from email.mime.text import MIMEText
-server, user, pwd, to, subj, body = sys.argv[1:7]
+server_arg, user, pwd, to, subj, body = sys.argv[1:7]
+# nut_smtp_server is "host:port" (SMTP2Go SSOT); split, default 587 for safety.
+if ':' in server_arg:
+    server, port = server_arg.rsplit(':', 1)
+    port = int(port)
+else:
+    server, port = server_arg, 587
 msg = MIMEText(body, 'plain', 'utf-8')
 msg['Subject'] = subj
 msg['From'] = user
 msg['To'] = to
 try:
-    smtp = smtplib.SMTP(server, 587, timeout=15)
+    smtp = smtplib.SMTP(server, port, timeout=15)
     smtp.ehlo()
     smtp.starttls()
     smtp.login(user, pwd)

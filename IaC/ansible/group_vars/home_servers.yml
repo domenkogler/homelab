@@ -39,10 +39,11 @@ ha_sync_interval: 15           # minutes; Pi → standby config sync (LAN only)
 ha_standby_path: /opt/home-assistant-standby
 # Observability alerting (docs/observability.md) — Grafana alert email recipient.
 # SMTP fail-safe contact point in the monitoring role (grafana-contactpoints.yml.j2).
-# Decision HD-54 (Option B): dedicated transactional relay — SMTP2Go (mail.smtp2go.com:587).
+# Decision HD-54 (Option B): dedicated transactional relay — SMTP2Go (mail-eu.smtp2go.com:587).
 # Credentials: grafana-smtp_login (Login) in 1Password — the address (domen@kogler.si)
 # is the Grafana recipient; SMTP2Go authenticates with a separate SMTP username+password.
-grafana_smtp_host: mail.smtp2go.com:587
+# Host/port derive from the SMTP2Go connection SSOT in group_vars/all.yml (smtp2go_*).
+grafana_smtp_host: "{{ smtp2go_host }}:{{ smtp2go_port }}"
 grafana_alert_email: domen@kogler.si
 # n8n alert webhook — Grafana contact point posts here (monitoring role).
 # The n8n workflow 'homelab-alerts' on this route must exist before the first
