@@ -2,6 +2,7 @@
 title: Shared GPU Resource
 role: cross-cutting
 domain: hardware
+cross_cutting: true
 status: active
 tags: [hardware, gpu, rocm, cross-cutting]
 ---

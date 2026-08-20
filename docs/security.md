@@ -2,12 +2,13 @@
 title: Security Hardening Posture
 role: detail
 domain: security
+cross_cutting: true
 status: active
 tags: [security, waf, hardening, secrets, bootstrap]
 ---
 # Security Hardening Posture
 
-> **Role:** Security hardening posture — the durable "how we secure the homelab" reference, distilled from
+> **Role:** Security hardening posture (cross-cutting) — the durable "how we secure the homelab" reference, distilled from
 > the Qwen security audits into ongoing rules. Each section states an *ongoing policy* and links (a) the
 > owning doc that implements it and (b) the canonical `todo.md` **HD-xx** tracking row. The underlying
 > raw findings live in the evidence annex `../reports/Qwen-bugs.md` (referenced below as *evidence* where useful);

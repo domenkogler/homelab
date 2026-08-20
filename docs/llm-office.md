@@ -2,12 +2,13 @@
 title: Local LLM for Office Tasks
 role: detail
 domain: services
+cross_cutting: true
 status: active
 tags: [services, llm, ollama, office]
 ---
 # Local LLM for Office Tasks
 
-> **Role:** Detail — AI-assisted office work, model recommendations, toolchain.
+> **Role:** Detail (cross-cutting) — AI-assisted office work, model recommendations, toolchain.
 > **Links to:** `hardware-gpu.md`
 > **Linked from:** `index.md`
 

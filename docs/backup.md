@@ -2,12 +2,13 @@
 title: Backup & Disaster Recovery
 role: detail
 domain: deployment
+cross_cutting: true
 status: active
 tags: [deployment, backup, zfs, kopia]
 ---
 # Backup & Disaster Recovery
 
-> **Role:** Detail — LAST document. Dual-layer backup (ZFS + Kopia), DR scenarios, restore drills.
+> **Role:** Detail (cross-cutting) — LAST document. Dual-layer backup (ZFS + Kopia), DR scenarios, restore drills.
 > **Links to:** `hardware-nas.md`, `deployment-secrets.md`
 > **Linked from:** `index.md`
 
