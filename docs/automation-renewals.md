@@ -1,4 +1,17 @@
+---
+title: Subscription Renewal Reminder Workflow (n8n)
+domain: services
+role: detail
+status: active
+tags: [services, n8n, subscriptions, automation]
+---
 # n8n — Subscription Renewal Reminder Workflow (infrastructure)
+
+> **Role:** Detail — the n8n workflow that turns `group_vars/subscriptions.yml` renewal dates into push reminders (Signal/SMTP), complementing the always-on Homepage tiles + calendar widget.
+> **Links to:** `subscription.md`, `services-ai.md` (n8n on the VPS)
+> **Linked from:** `index.md`
+
+> **Status:** 🚧 Infrastructure-prepared, NOT live. Create this workflow in the n8n
 
 > **Status:** 🚧 Infrastructure-prepared, NOT live. Create this workflow in the n8n
 > UI (`auto.kogler.si`) **after deployment** (point 3: wait until CalDAV/Signal/SMTP

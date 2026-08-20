@@ -8,8 +8,8 @@ tags: [observability, grafana, prometheus, monitoring]
 # Observability
 
 > **Role:** Single source of truth — the complete observability stack as a domain (Prometheus/Loki/Grafana + Alloy/exporters + alerting).
-> **Links to:** `interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`
-> **Linked from:** `index.md`, `interfaces.md`
+> **Links to:** `interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`, `services.md`
+> **Linked from:** `index.md`, `interfaces.md`, `services.md`
 
 > ⚠️ **Phase 1 (planned, not yet deployed).** The stack is IaC-authored (monitoring role + compose templates) but **not live** — the backend deploys on the VPS (HD-135), oldsrv/Pi Alloy collectors come online with their hosts (Phase 3/4). Alerting/retention below is the authoring spec; live-verify items are ⏳ deploy-gated (HD-08, Grafana rules, Alloy instance labels).
 
