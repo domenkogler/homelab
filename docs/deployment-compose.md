@@ -85,6 +85,12 @@ Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC, multi-redirect), **Immich, F
 **LDAP provider/outpost** (D7/HD-132) is also declared here, removing a manual UI create-step.
 
 ### Deploy ordering (in `vps.yml`)
+Steps 2–4 map to the Ansible **Authentik pre-pass** (`roles/docker_services/tasks/prepass-authentik.yml`,
+HD-162), which runs **before** the per-service deploy loop and is gated on `authentik` being in
+`docker_services`. The loop (`deploy-service.yml`) additionally validates each rendered compose
+file (`docker compose -f … validate`) before `up`. See
+[`deployment-ansible.md`](deployment-ansible.md) §`docker_services`.
+
 1. Deploy `authentik` (+ bundled pg/redis/ldap) — `docker compose up -d`.
 2. **Apply the Blueprint** (`ks-oidc.yml`) — via Authentik API (`authentik-provision_api`) or the
    bundled blueprint on container start.

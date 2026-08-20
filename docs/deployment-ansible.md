@@ -383,25 +383,27 @@ domain_local: kogler.si
 
 ### `docker_services` (Key Role)
 - **Input:** `docker_services` list from group vars
-- **Authentik OIDC provisioning step (blueprint + glue):** before deploying the OIDC consumers on
-  the VPS, run (a) **apply the `ks-oidc.yml` Blueprint** (Authentik API via `authentik-provision_api`)
-  and (b) the **secret-egress glue** to seed client creds into the 1Password OIDC items
-  (`openwebui_api`…`metabase_oidc`, 8 providers). The **OpenCloud Graph-API service account**
-  (`opencloud-service_api`) is **NOT** the glue's job — it is provisioned by the `sync-authentik-users`
-  rework (**HD-145**).
-  Ordering in `vps.yml`: `authentik` → blueprint+glue → OIDC consumers. Fail-closed on a missing
+- **Authentik OIDC pre-pass (HD-162):** a dedicated pre-pass (`tasks/prepass-authentik.yml`),
+  run **before** the deploy loop on hosts where `authentik` is in `docker_services` (the VPS
+  edge), applies the `ks-oidc.yml` Blueprint + runs the **secret-egress glue** to seed client
+  creds into the 1Password OIDC items (`openwebui_api`…`metabase_oidc`, 8 providers). The
+  **OpenCloud Graph-API service account** (`opencloud-service_api`) is **NOT** the glue's job
+  — it is provisioned by the `sync-authentik-users` rework (**HD-145**). The pre-pass is
+  gated on `authentik` presence via `when:`, so home hosts (home_servers / raspberry_pi)
+  skip it entirely; the assert inside is a safety net that should never fire.
+  Ordering: `authentik` → blueprint+glue → OIDC consumers. Fail-closed on a missing
   `authentik-provision_api` (HD-65/91). See [`deployment-compose.md`](deployment-compose.md)
   *Authentik OIDC provisioning* and [`services-authentik.md`](services-authentik.md).
-- **Loop:**
+- **Loop:** each enabled service:
   1. Skip if `enabled: false`
   2. Create `/opt/{{ item.name }}/`
   3. Template `docker-compose.yml.j2` → `/opt/{{ item.name }}/docker-compose.yml`
   4. Template extra config files from same template dir
-  5. Create systemd unit: `docker-compose@{{ item.name }}.service`
-  6. `systemctl enable --now docker-compose@{{ item.name }}`
+  5. **Validate the rendered compose file** (`docker compose -f <svc>/docker-compose.yml
+     validate`) — catches a bad render before `up` (HD-162)
+  6. `docker compose up -d` (systemd unit `docker-compose@{{ item.name }}`)
 - **Post-deploy:** Template Homepage config, inventory docs, reload Homepage, commit to Git
 - **Tags:** Each service task tagged with `{{ item.name }}`
-
 ### `monitoring`
 - **Alloy:** host agent (Ansible-installed, not containerized) — host metrics, container logs (`docker.sock`), SNMP scrape
 - **Prometheus:** sole metrics backend, retention 30d, `db-internal`
