@@ -10,7 +10,7 @@ tags: [deployment, backup, zfs, kopia]
 
 > **Role:** Detail (cross-cutting) — LAST document. Dual-layer backup (ZFS + Kopia), DR scenarios, restore drills.
 > **Links to:** `hardware-nas.md`, `deployment-secrets.md`
-> **Linked from:** `index.md`
+> **Linked from:** `deployment.md`, `index.md`
 
 ---
 

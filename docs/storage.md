@@ -1,7 +1,7 @@
 ---
 title: ZFS Storage Layout & Properties
 role: ssot
-domain: storage
+domain: deployment
 cross_cutting: true
 status: active
 tags: [storage, zfs, datasets, backup, media, nfs]
@@ -11,7 +11,7 @@ tags: [storage, zfs, datasets, backup, media, nfs]
 > **Role:** Single source of truth (cross-cutting) — ZFS dataset tree, per-dataset properties, snapshot/replication policy,
 > NFS exports, nightly push jobs, Kopia scope, capacity budget, and the oldsrv rebuild-from-NAS runbook.
 > **Links to:** `hardware-nas.md`, `backup.md`, `services.md`, `deployment-compose.md`, `deployment-ansible.md`, `observability.md`
-> **Linked from:** `index.md`
+> **Linked from:** `deployment.md`, `index.md`
 
 ---
 

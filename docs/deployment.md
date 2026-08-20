@@ -97,6 +97,9 @@ git push → (Forgejo Actions CI) → merge → deploy button → Ansible → de
 | Docker compose conventions | [`deployment-compose.md`](deployment-compose.md) |
 | 1Password secrets & philosophy | [`deployment-secrets.md`](deployment-secrets.md) |
 | Renovate config | [`deployment-renovate.md`](deployment-renovate.md) |
+| Security hardening posture | [`security.md`](security.md) |
+| Backup & disaster recovery | [`backup.md`](backup.md) |
+| ZFS storage layout & properties | [`storage.md`](storage.md) |
 | Dashboard matrix | [`interfaces.md`](interfaces.md) |
 
 ## Related
@@ -106,4 +109,7 @@ git push → (Forgejo Actions CI) → merge → deploy button → Ansible → de
 - [Docker Compose Specification](deployment-compose.md)
 - [Secrets Management & Passwordless Philosophy](deployment-secrets.md)
 - [Renovate Bot — Update Lifecycle](deployment-renovate.md)
+- [Security Hardening Posture](security.md)
+- [Backup & Disaster Recovery](backup.md)
+- [ZFS Storage Layout & Properties](storage.md)
 - [Interface Matrix — Dashboards & Management](interfaces.md)

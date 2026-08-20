@@ -1,7 +1,7 @@
 ---
 title: Security Hardening Posture
 role: detail
-domain: security
+domain: deployment
 cross_cutting: true
 status: active
 tags: [security, waf, hardening, secrets, bootstrap]
@@ -16,7 +16,7 @@ tags: [security, waf, hardening, secrets, bootstrap]
 > **Links to:** `services-traefik.md`, `deployment-compose.md`, `deployment-secrets.md`,
 > `deployment-preseed.md`, `smart-home-failover.md`, `backup.md`, `network-ops.md`, `network-vpn.md`,
 > `observability.md`, `deployment-renovate.md`, `services-authentik.md`
-> **Linked from:** `../README.md`, `index.md`
+> **Linked from:** `deployment.md`, `../README.md`, `index.md`
 
 Each of the first six sections maps to one systemic flaw (Flaw A–F) from the architecture audit. Everything is
 tracked in `../todo.md` (HD-XX rows, `source: qwen`). §§8–9 fold the post-HD-135 public-VPS + tunnel
