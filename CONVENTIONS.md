@@ -26,10 +26,10 @@
 | Convention | Rule | Owning doc |
 |-----------|------|-----------|
 | IPs / CIDRs | never hardcode — `network_static_hosts` / `network_ranges` from `group_vars/*` | [docs/deployment-ansible.md](docs/deployment-ansible.md) (Variables & IPs) |
-| IP doc | `docs/network-addresses.md` is the SSOT, generated, **never hand-edit** | [scripts/check_doc_ips.py](scripts/check_doc_ips.py), [docs/deployment-ansible.md](docs/deployment-ansible.md) |
+| IP doc | `docs/network-addresses.md` is the SSOT — generated (see Generated docs), **never hand-edit** | [scripts/check_doc_ips.py](scripts/check_doc_ips.py), [docs/deployment-ansible.md](docs/deployment-ansible.md) |
 | Service list | `group_vars/<host>.yml` is the deploy loop SSOT; catalog row in `docs/services.md` | [docs/services.md](docs/services.md) |
 | Compose path | `/opt/<service>/docker-compose.yml` — architectural constant | [docs/deployment-compose.md](docs/deployment-compose.md) |
-| Generated docs | never hand-edit ★-marked/generated docs (`inventory.md`, `network-addresses.md`) | [docs/index.md](docs/index.md) |
+| Generated docs | a generated doc is recognized by its `-generated` filename suffix and is **never hand-edited** — canonical rule: §8.2 | [docs/index.md](docs/index.md), §8.2 |
 | Counts | doc-stated **counts** (templates, roles, files, services) are **derived, never hand-entered** — quote the validator/dir as the source (`scripts/validate-docker-services.py`, `roles/`, `docker_services/`); a stale number in prose is a defect, not a cosmetic | [docs/index.md](docs/index.md) (Validation), [scripts/validate-all.sh](scripts/validate-all.sh) |
 | Data location | a storage/media **data-location change** (e.g. MinIO retired → live Box CIFS) must update IaC **and** the owning service/storage docs **in the same change** — a data-location claim in prose that contradicts the IaC is a review failure | [docs/services.md](docs/services.md), [docs/storage.md](docs/storage.md), [docs/deployment-compose.md](docs/deployment-compose.md) |
 
@@ -96,7 +96,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 - Headers: every doc starts with `> **Role:**` and `> **Linked from:**` — enforced by convention.
 - Relative links only — markdown relatives to `docs/*.md`.
 - Secrets never in docs — 1Password `Homelab` vault only.
-- Generation targets marked with ★; value-carrying views are rendered, never hand-edited.
+- Generated files use the **`-generated` filename suffix** and are rendered, never hand-edited (§8.2). The legacy **★** marker in `docs/index.md` is a display aid only, **not** the convention.
 - **Don't chase cosmetic tweaks** during planning phase (ASCII alignment, spacing); substantive, consistent edits only.
 
 ---
@@ -117,8 +117,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 
 > **Purpose:** a repeatable rule for *where a piece of documentation or a service candidate lives*.
 > Adopted 2026-08-20 (docs-refactor). The goal is a consistent mental model + URL scheme, not achieved
-> purity: cross-cutting docs are explicitly allowed, marked as such, and resolved last (with the owning
-> domains).
+> purity: cross-cutting docs are explicitly allowed and marked as such.
 
 ### 8.1 Domains & stack index
 - **Domain** = a set of services deployed together (same host target) under one owning doc. A domain
@@ -161,8 +160,8 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   `| <service> | <rejected|dropped|superseded> | <date> | <why, 1–2 lines + evidence link> |`. When a
   decision changes, the old entry is left unchanged and a new one is appended (do **not** strike the
   old one — mirror the decision-log style in `changelog.md`).
-- The **services** domain seeds the pattern: `docs/services-review.md` + `docs/services-rejected.md`
-  (HD-170). Other big domains (network, hardware, smart-home) opt in with their own
+- The **services** domain seeds the pattern: `docs/services-review.md` +
+  `docs/services-rejected.md`. Other big domains (network, hardware, smart-home) opt in with their own
   `<domain>-{review,rejected}.md` when they have enough volume.
 
 ### 8.4 Cross-cutting docs
