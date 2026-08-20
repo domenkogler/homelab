@@ -52,7 +52,7 @@ tags: [index, dispatcher, ai]
 docs/
 ├── index.md                              ← YOU ARE HERE
 │
-├── network.md                             Broad: ISP, topology, links to →
+├── network.md                             Index: ISP, topology, links to network-*.md
 ├── network-vlans.md                       VLAN table, subnets, firewall rules
 ├── network-addresses-generated.md       ★ IP address plan — SSOT (generated from IaC)
 ├── network-dns.md                         Technitium/Pi-hole, per-subnet DNS

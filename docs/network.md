@@ -1,14 +1,14 @@
 ---
 title: Network Architecture
-role: broad
+role: index
 domain: network
 status: active
 tags: [network, topology]
 ---
 # Network Architecture
 
-> **Role:** Broad context — ISP, physical topology, overview. **Topology only.**
-> **Links to:** `network-vlans.md`, `network-dns.md`, `network-vpn.md`, `network-rack.md`, `network-ops.md`
+> **Role:** Index — the network domain hub. Broad topology overview + links to each `network-*.md` stack doc.
+> **Links to:** `network-vlans.md`, `network-dns.md`, `network-vpn.md`, `network-rack.md`, `network-rack-generated.md`, `network-ops.md`
 > **Linked from:** `index.md`
 
 ---
@@ -72,7 +72,8 @@ Internet → ONT → router ether1 (WAN)
 | DNS architecture, Technitium/Pi-hole | [`network-dns.md`](network-dns.md) |
 | VPN layers, Headscale mesh | [`network-vpn.md`](network-vpn.md) |
 | Device wiring & interconnections | [`assets/Network-Devices.canvas`](assets/Network-Devices.canvas) (Obsidian Canvas) ⚠️ WIP |
-| Rack layout | [`network-rack.md`](network-rack.md) → `assets/Rack.canvas` |
+| Rack layout (18U cabinet, rooms) | [`network-rack.md`](network-rack.md) → `assets/Rack.canvas` |
+| Rack wiring (port↔device, generated) | [`network-rack-generated.md`](network-rack-generated.md) |
 | Router config storage & versioning | [`network-ops.md`](network-ops.md) |
 | Monitoring / SNMP | [`observability.md`](observability.md) |
 
@@ -81,5 +82,5 @@ Internet → ONT → router ether1 (WAN)
 - [VLAN Plan](network-vlans.md)
 - [DNS Architecture](network-dns.md)
 - [VPN & Remote Access](network-vpn.md)
-- [Rack Layout](network-rack.md)
+- [Rack Layout](network-rack.md) · [Rack Wiring](network-rack-generated.md)
 - [Network Operations — Router Config Storage](network-ops.md)
