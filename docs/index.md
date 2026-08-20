@@ -97,7 +97,7 @@ docs/
 ├── todo.md                              Planned work + open decisions backlog (HD-XX, single source)
 ├── CONVENTIONS.md                        Cross-cutting rules index + service-onboarding checklist (repo root)
 │
-├── smart-home.md                          Home Assistant, devices, architecture
+├── smart-home.md                          Index: HA, devices, architecture, links to smart-home-*.md
 ├── home-assistant-current.md              Live HA instance inventory (HAOS, plugins) + HAOS→Docker feasibility
 ├── smart-home-failover.md                 HA active/standby failover + takeover/failback runbooks
 ├── smart-home-voice.md                    Voice pipeline: Whisper → Ollama → Piper

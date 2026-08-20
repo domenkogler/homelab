@@ -9,7 +9,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 
 > **Role:** Detail — point-in-time snapshot of the live HA instance on the Raspberry Pi 4 (HAOS), all integrations/devices, community plugins (HACS + add-ons), and their impact when evaluating a future **VM with HAOS vs HA in Docker** deployment.
 > **Links to:** `smart-home.md`, `smart-home-failover.md`, `deployment-ansible.md` (`home_assistant` role), `backup.md`
-> **Linked from:** `index.md`
+> **Linked from:** `smart-home.md`, `index.md`
 
 > ⚠️ **How this was collected (planning phase — read-only, nothing changed).** Enumerated live on **2026-08-07** via the HA REST API (`https://ha.kogler.si`) authenticated with the `domen` owner account login flow. No files on the HA host were modified; no config was read from the (separate) HA config git repo. Items that the REST API cannot expose (full Supervisor add-on store, exact HACS repository list, some integration attribution) are marked **to-confirm** below.
 

@@ -1,14 +1,14 @@
 ---
 title: Smart Home & Voice Assistant
-role: broad
+role: index
 domain: smart-home
 status: active
 tags: [smart-home, homeassistant]
 ---
 # Smart Home & Voice Assistant
 
-> **Role:** Broad context — Home Assistant, devices, voice pipeline, architecture.
-> **Links to:** `smart-home-voice.md`, `interfaces.md`, `smart-home-audio.md`
+> **Role:** Index — the smart-home domain hub. Home Assistant, devices, voice pipeline, architecture, and links to each `smart-home-*.md` + `home-assistant-current.md` detail doc.
+> **Links to:** `smart-home-voice.md`, `smart-home-audio.md`, `smart-home-failover.md`, `home-assistant-current.md`, `interfaces.md`
 > **Linked from:** `index.md`
 
 > ⚠️ **Planning phase — nothing deployed yet.** The HA primary (Pi, HAOS→Docker redo) + standby (oldsrv) + voice pipeline are designed but **not live**; the current live instance is the HAOS box documented in [`home-assistant-current.md`](home-assistant-current.md). Deploy tracks HD-04 (Pi redo) / Phase 4.
@@ -118,6 +118,7 @@ tags: [smart-home, homeassistant]
 | Dashboards & interfaces | [`interfaces.md`](interfaces.md) |
 | Audio hardware | [`smart-home-audio.md`](smart-home-audio.md) |
 | HA failover & high availability | [`smart-home-failover.md`](smart-home-failover.md) |
+| Live HA instance (HAOS) + HAOS→Docker feasibility | [`home-assistant-current.md`](home-assistant-current.md) |
 
 ## Related
 
@@ -125,3 +126,4 @@ tags: [smart-home, homeassistant]
 - [Interface Matrix — Dashboards & Management](interfaces.md)
 - [Audio System](smart-home-audio.md)
 - [HA Failover & High Availability](smart-home-failover.md)
+- [Current HA Instance (HAOS) & HAOS→Docker](home-assistant-current.md)
