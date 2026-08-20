@@ -31,6 +31,7 @@ tags: [index, dispatcher, ai]
 | **Provision Authentik OIDC clients (Blueprint + glue)** | [`services-authentik.md`](services-authentik.md) | `deployment-secrets.md`, `deployment-compose.md`, `deployment-ansible.md`, `security.md` |
 | **Backlog / open decisions** | [`todo.md`](../todo.md) | — |
 | **Cross-cutting conventions / onboarding a service** | [`CONVENTIONS.md`](../CONVENTIONS.md) | owning docs (`deployment-*.md`, `network-*.md`, `services.md`) |
+| **Find a script / validation gate / renderer** | [`../scripts/README.md`](../scripts/README.md) | `CONVENTIONS.md` §8, [`validate-all.sh`](../scripts/validate-all.sh) |
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `services-office.md`, `deployment-compose.md` |
 | **Understand the security posture / hardening** | [`security.md`](security.md) | `services-traefik.md`, `deployment-secrets.md`, `deployment-preseed.md`, `network-ops.md` |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |

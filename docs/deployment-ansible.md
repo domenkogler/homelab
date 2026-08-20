@@ -16,7 +16,12 @@ tags: [deployment, ansible, iac]
 > (→ `docs/network-addresses-generated.md`, later `docs/services-inventory-generated.md`); those generated
 > views must not be hand-edited.
 >
-> **Regenerate `docs/network-addresses-generated.md` after a master `.yml` change** — either
+> **Regenerate `docs/network-addresses-generated.md` after a master `.yml` change** — easiest is
+> the unified entry `python scripts/render_all.py` (pure-Python, refreshes ALL generated docs;
+> see `scripts/README.md`). Equivalent per-doc: `python scripts/render_network_addresses.py`
+> (works on the Windows host directly, no
+> Ansible needed) or `ansible-playbook playbooks/render-docs.yml -i inventory.ini` (Linux/CI,
+> or on this machine via **WSL Debian**). Native Windows ansible crashes at startup
 > `python scripts/render_network_addresses.py` (works on the Windows host directly, no
 > Ansible needed) or `ansible-playbook playbooks/render-docs.yml -i inventory.ini` (Linux/CI,
 > or on this machine via **WSL Debian**). Native Windows ansible crashes at startup

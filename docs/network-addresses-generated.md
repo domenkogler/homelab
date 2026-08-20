@@ -1,4 +1,4 @@
-# Ansible managed: file edited by Ansible
+# Ansible managed
 <!-- Network address plan — auto-generated from IaC/ansible/group_vars/all.yml. -->
 <!-- Do NOT hand-edit. Change group_vars/all.yml and re-render. -->
 <!-- Re-render (Windows / no Ansible):  python scripts/render_network_addresses.py -->
@@ -43,8 +43,8 @@
 | 10 | 10.10.1.10 | nas | Cockpit/NFS/NUT master |
 | 10 | 10.10.1.20 | pi | node + DNS secondary (VRRP anchor) |
 | 10 | 10.10.1.30 | oldsrv | node + DNS primary (VRRP anchor) |
-| 10 | 10.10.1.50 | homematic-ccu-pi | RaspberryMatic CCU — Pi primary (macvlan) |
-| 10 | 10.10.1.51 | homematic-ccu-oldsrv | RaspberryMatic CCU — oldsrv standby (macvlan) |
+| 10 | 10.10.1.50 | homematic-ccu-pi | RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought |
+| 10 | 10.10.1.51 | homematic-ccu-oldsrv | RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought |
 | 10 | 10.10.1.200 | ha-vip | keepalived VIP — ha.kogler.si |
 | 20 | 10.10.20.1 | router | IoT gateway |
 | 21 | 10.10.21.1 | router | IoT-Internet gateway |
@@ -84,4 +84,4 @@
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-08-18T14:27:31Z
+> Last generated: 2026-08-20T20:30:06Z

@@ -1,5 +1,4 @@
-# auto-gen
-
+# Ansible managed
 
 ## Active Subscriptions
 
@@ -14,16 +13,14 @@
 | Eweka.nl (Usenet) | 2,50 € | 2027-11-11 |
 | Telekom Slovenije (ISP) | 50,50 € | — (monthly) |
 | netcup RS 2000 G12 (VPS) | 21,96 € | 2027-08-18 |
-| Hetzner Storage Box (live) BX11 | 3,90 € | — (monthly) |
-| Hetzner Storage Box (backup) BX11 | 3,90 € | — (monthly) |
 | Meteorblue (weather API) | 0,00 € (free) | 2027-08-18 |
-
+| Hetzner Storage Box (live) | 3,90 € | — (monthly) |
+| Hetzner Storage Box (backup) | 3,90 € | — (monthly) |
 ## Planned Subscriptions
 
 | Service | Est. Cost | Status | Purpose |
 |---------|-----------|--------|---------|
 | Infomaniak kSuite | ~4 €/mo | 🔮 Planned | buy + record here (see `subscription.md` prose) |
-
 ## Dropped / Deferred
 
 - iDrive e2 — replaced/dropped (see `subscription.md` prose)

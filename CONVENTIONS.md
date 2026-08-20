@@ -59,7 +59,7 @@
 | Post-task housekeeping | **after each completed task, update `todo.md` in the same change** — move the done `HD-XX` row to `changelog.md`; never leave completed work marked open. **No hand-maintained tally/Status line** — the backlog count is derived from the rows themselves (counts are derived, never hand-entered, §2) | [todo.md](todo.md) (§0 lifecycle), [changelog.md](changelog.md) |
 | Decisions | decisions log, date-stamped, closed once per decision (mirror `docs/security.md §7` style); **a resolved decision is written ONCE to `changelog.md` (decision-log SSOT) — do NOT leave a struck duplicate row with the full rationale in `todo.md` §1** | [docs/security.md](docs/security.md) (§7 Decision log), [changelog.md](changelog.md) |
 | Onboarding a service | see the 10-step checklist below | — |
-| Validation gate | `bash scripts/validate-all.sh` before commit (compose, templates, IPs, docs). **Planned extension (HD-157):** also lint the `docs/index.md` doc-map vs `find docs -name "*.md"` and any doc-claimed role/template count — a docs-claim that drifts is a lint failure, not a cosmetic | [scripts/](scripts/), [docs/index.md](docs/index.md) (Validation) |
+| Validation gate | `bash scripts/validate-all.sh` before commit (compose, templates, IPs, docs). **Planned extension (HD-157):** also lint the `docs/index.md` doc-map vs `find docs -name "*.md"` and any doc-claimed role/template count — a docs-claim that drifts is a lint failure, not a cosmetic | [scripts/README.md](scripts/README.md), [docs/index.md](docs/index.md) (Validation) |
 | Deploy | first apply human-gated (dry-run → single host); single path = Ansible (Renovate PR → Forgejo Actions deploy button → Ansible) | [docs/deployment.md](docs/deployment.md) |
 | Deploy-gated rows | an `HD-XX` row whose IaC is done **but not yet live** stays **open** with a **`⏳ Deploy-gated:`** tail listing the exact pending live steps (provider creation, secret seeding, firewall open, live-verify). It closes only after a live deploy/verify pass — **not** at IaC-completion. A task's ⏳ is a *phase*, never moved to a separate file | [todo.md](todo.md) (§0 lifecycle, §⏳ checklist), [changelog.md](changelog.md) |
 
@@ -154,6 +154,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   The suffix appears **in the filename**, never only in a header, so file lists and `git grep` make
   generated sources obvious. Headers still say "do not hand-edit"; the filename is the guarantee, the
   header the hint.
+- **Canonical managed-header:** every generated doc opens with `# Ansible managed` — **exactly Ansible's built-in `ansible_managed` default**, so a real Ansible render and the pure-Python `scripts/render_all.py` umbrella stay byte-identical. Do not personalize it (the old `# Ansible managed: file edited by Ansible` and `# auto-gen` variants are retired). HD-163.
 - **Renaming a generated file = touching the renderer + every reference** in the same change: the
   render helper itself (`scripts/render_*.py`, `IaC/ansible/playbooks/render-docs.yml`, the
   `docker_services` role), the validators that whitelist/tokenize the name

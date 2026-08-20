@@ -38,7 +38,7 @@ def main() -> int:
     dns_secondary = pi_vars.get("dns_secondary_ip") or "10.10.1.20"
 
     ctx = {
-        "ansible_managed": "Ansible managed: file edited by Ansible",
+        "ansible_managed": "Ansible managed",
         "ansible_date_time": {
             "iso8601": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         },

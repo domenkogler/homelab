@@ -1,6 +1,4 @@
-#
 # Ansible managed
-#
 <!-- Service inventory — auto-generated from IaC/ansible/group_vars docker_services list. -->
 <!-- Do NOT hand-edit. Change group_vars/*.yml (home_servers.yml, raspberry_pi.yml, vps.yml) and re-render. -->
 <!-- Re-render:   ansible-playbook IaC/ansible/playbooks/render-docs.yml -i IaC/ansible/inventory.ini -->
@@ -23,27 +21,28 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 2 | crowdsec | crowdsec | `https://crowdsec.kogler.si` | enabled |
 | 3 | authentik | sso | `https://sso.kogler.si` | enabled |
 | 4 | opencloud | file | `https://file.kogler.si` | enabled |
-| 5 | immich-app | foto | `https://foto.kogler.si` | enabled |
-| 6 | forgejo | git | `https://git.kogler.si` | enabled |
-| 7 | litellm | litellm | `https://litellm.kogler.si` | enabled |
-| 8 | pgvector | pgvector | `https://pgvector.kogler.si` | enabled |
-| 9 | docling | docling | `https://docling.kogler.si` | enabled |
-| 10 | open-webui | ai | `https://ai.kogler.si` | enabled |
-| 11 | openclaw | openclaw | `https://openclaw.kogler.si` | enabled |
-| 12 | prometheus | prometheus | `https://prometheus.kogler.si` | enabled |
-| 13 | loki | loki | `https://loki.kogler.si` | enabled |
-| 14 | grafana | stats | `https://stats.kogler.si` | enabled |
-| 15 | blackbox-exporter | blackbox-exporter | `https://blackbox-exporter.kogler.si` | enabled |
-| 16 | n8n | auto | `https://auto.kogler.si` | enabled |
-| 17 | kopia-server | kopia-server | `https://kopia-server.kogler.si` | enabled |
-| 18 | db-backup | db-backup | `https://db-backup.kogler.si` | enabled |
-| 19 | matrix | matrix | `https://matrix.kogler.si` | enabled |
-| 20 | chat | chat | `https://chat.kogler.si` | enabled |
-| 21 | headscale | vpn | `https://vpn.kogler.si` | enabled |
-| 22 | metabase | sec | `https://sec.kogler.si` | enabled |
-| 23 | pairdrop | pairdrop | `https://pairdrop.kogler.si` | enabled |
-| 24 | stirling-pdf | pdf | `https://pdf.kogler.si` | enabled |
-| 25 | renovate | renovate | `https://renovate.kogler.si` | enabled |
+| 5 | onlyoffice-docs | office | `https://office.kogler.si` | enabled |
+| 6 | immich-app | foto | `https://foto.kogler.si` | enabled |
+| 7 | forgejo | git | `https://git.kogler.si` | enabled |
+| 8 | litellm | litellm | `https://litellm.kogler.si` | enabled |
+| 9 | pgvector | pgvector | `https://pgvector.kogler.si` | enabled |
+| 10 | docling | docling | `https://docling.kogler.si` | enabled |
+| 11 | open-webui | ai | `https://ai.kogler.si` | enabled |
+| 12 | openclaw | openclaw | `https://openclaw.kogler.si` | enabled |
+| 13 | prometheus | prometheus | `https://prometheus.kogler.si` | enabled |
+| 14 | loki | loki | `https://loki.kogler.si` | enabled |
+| 15 | grafana | stats | `https://stats.kogler.si` | enabled |
+| 16 | blackbox-exporter | blackbox-exporter | `https://blackbox-exporter.kogler.si` | enabled |
+| 17 | n8n | auto | `https://auto.kogler.si` | enabled |
+| 18 | kopia-server | kopia-server | `https://kopia-server.kogler.si` | enabled |
+| 19 | db-backup | db-backup | `https://db-backup.kogler.si` | enabled |
+| 20 | matrix | matrix | `https://matrix.kogler.si` | enabled |
+| 21 | chat | chat | `https://chat.kogler.si` | enabled |
+| 22 | headscale | vpn | `https://vpn.kogler.si` | enabled |
+| 23 | metabase | sec | `https://sec.kogler.si` | enabled |
+| 24 | pairdrop | pairdrop | `https://pairdrop.kogler.si` | enabled |
+| 25 | stirling-pdf | pdf | `https://pdf.kogler.si` | enabled |
+| 26 | renovate | renovate | `https://renovate.kogler.si` | enabled |
 
 ## oldsrv.kogler.si
 
@@ -80,4 +79,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-08-19T15:41:23Z
+> Generated from the `docker_services` lists | 2026-08-20T20:30:06Z
