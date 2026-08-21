@@ -14,7 +14,7 @@
 #   Future: n8n-smtp_login (SMTP relay — provider not chosen yet).
 services:
   n8n:
-    image: n8nio/n8n:{{ n8n_version | default('latest') }}
+    image: n8nio/n8n:{{ n8n_version }}
     container_name: n8n
     restart: unless-stopped
     networks:

@@ -8,7 +8,7 @@
 #   this key as the ML-auth header so only the immich server can drive ML inference.
 services:
   immich-ml:
-    image: ghcr.io/immich-app/immich-machine-learning:{{ immich_version | default('release') }}
+    image: ghcr.io/immich-app/immich-machine-learning:{{ immich_version }}
     container_name: immich-ml
     restart: unless-stopped
     networks:

@@ -6,7 +6,7 @@
 #   — none needed
 services:
   sonarr:
-    image: linuxserver/sonarr:latest
+    image: linuxserver/sonarr:{{ sonarr_version }}
     container_name: sonarr
     restart: unless-stopped
     networks:

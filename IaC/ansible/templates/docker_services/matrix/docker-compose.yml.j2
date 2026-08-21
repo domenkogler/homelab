@@ -11,7 +11,7 @@
 #     matrix_password (Password: bootstrap registration_token + registration_shared_secret)
 services:
   matrix:
-    image: jevolk/tuwunel:{{ tuwunel_version | default('latest') }}
+    image: jevolk/tuwunel:{{ tuwunel_version }}
     container_name: matrix
     restart: unless-stopped
     environment:

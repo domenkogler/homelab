@@ -41,29 +41,19 @@ NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent"}  # qbittorrent labels are on g
 
 # HD-134 / KOPS-030 convention: pinned tags (never bare `latest`). A compose image that
 # RESOLVES to bare `latest` (either a literal `:latest` or an undefined *_version var falling
-# back to `default('latest')`) is an unpinned-tag violation and FAILS validation — unless the
-# service is in the documented allowlists below.
+# back to `default('latest')`) is an unpinned-tag violation and FAILS validation.
 #
-# ALLOWED_LATEST  = services that deliberately track `latest`, Renovate-controlled:
-#   - the media/*arr stack (deployment-compose.md §"*arr / Media Stack Conventions"):
-#     linuxserver/*, jellyfin, seerr, gluetun, profilarr, recyclarr.
-#   - HD-121-style obscure/fluid or single-maintainer tags kept on `latest` with an explicit
-#     MUST-pin comment until a registry check can pin a verified semver (tuwunel precedent).
+# ALLOWED_LATEST (HD-192 inversion): only genuinely FLUID tags with no pinnable semver
+# upstream survive, each with a MUST-pin justification. Everything else was pinned into
+# group_vars/all/versions.yml (registry-verified 2026-08-21).
 ALLOWED_LATEST = {
-    # media/*arr stack (documented `latest`-tracked, Renovate) — deployment-compose.md:
-    "sonarr", "radarr", "lidarr", "prowlarr", "bazarr", "sabnzbd", "qbittorrent",
-    "jellyfin", "seerr", "profilarr", "recyclarr",
-    # sidecars/helpers of that stack that share its tag policy:
-    "gluetun",
-    # HD-121-style fluid/obscure/Rolling-tag services kept on `latest` — Renovate-tracked,
-    # MUST pin to a verified semver at first deploy (registry check) before production:
-    "renovate",                    # CD/update tooling, rolling tags
-    "dozzle",                        # rolling `master`/pr tags; no stable semver on top 100
-    "matrix",                        # tuwunel — HD-121 documented obscure image
-    "chat",                          # element-web (web frontend; fluid tags)
-    "homepage", "metabase", "pihole",      # UI/utility containers, Renovate-tracked latest
-    "technitium", "technitium-secondary",  # DNS servers, fluid tags
-    "signal-cli-rest-api", "sunshine",     # helper / GPU streaming
+    # HD-121 precedent: obscure single-maintainer image facing public federation;
+    # MUST pin to a registry-verified tag at first deploy (tuwunel_version: latest).
+    "matrix",
+    # profilarr + profilarr-parser: upstream publishes NO versioned tags (only
+    # develop/buildcache/sha256 — probe 2026-08-21); fluid by upstream design,
+    # documented in the compose header + versions.yml comment.
+    "profilarr",
 }
 
 # Services that use network_mode: service:<sidecar> (no own networks)

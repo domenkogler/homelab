@@ -184,9 +184,12 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
 ### *arr / Media Stack Conventions
 
 - **Images:** `linuxserver/*` for the *arr apps (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd,
-  qBittorrent); Jellyfin official `jellyfin/jellyfin`; `seerr/seerr`; gluetun `qm12/gluetun`;
+  qBittorrent); Jellyfin official `jellyfin/jellyfin`; `seerr/seerr`; gluetun `qmcgaw/gluetun`
+  (upstream — the former `qm12` fork no longer exists, HD-192);
   Profilarr (`ghcr.io/dictionarry-hub/profilarr` + parser sidecar, Dictionarry-Hub, Deno-based v2); Recyclarr `ghcr.io/recyclarr/recyclarr`.
-  `latest` tags, Renovate-tracked.
+  All pinned via `*_version` vars in `group_vars/all/versions.yml` (HD-192, registry-verified
+  2026-08-21) + Renovate-tracked; the only `latest` left is Profilarr (no versioned tags upstream —
+  documented fluid exception) and tuwunel (MUST-pin precedent, HD-121).
 - **PUID/PGID:** all filesystem/SMB-backed containers (the *arr stack, qBittorrent) run as the
   **neutral shared owner `storage_uid`/`storage_gid` = `1005` (`media`)** — linuxserver images via
   `PUID={{ storage_uid }}`/`PGID={{ storage_gid }}`, Jellyfin/OpenCloud via `user: "{{ storage_uid }}:{{ storage_gid }}"`.

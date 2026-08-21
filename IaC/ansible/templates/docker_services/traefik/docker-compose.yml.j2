@@ -26,7 +26,7 @@
 #   - cloudflare_api  -> ACME DNS-01 (needs Zone.DNS edit on kogler.si)
 services:
   traefik:
-    image: traefik:{{ traefik_version | default('latest') }}
+    image: traefik:{{ traefik_version }}
     container_name: traefik
     restart: unless-stopped
     ports:

@@ -7,7 +7,7 @@
 #   — none needed (no secrets for basic sub-titling)
 services:
   bazarr:
-    image: linuxserver/bazarr:latest
+    image: linuxserver/bazarr:{{ bazarr_version }}
     container_name: bazarr
     restart: unless-stopped
     networks:

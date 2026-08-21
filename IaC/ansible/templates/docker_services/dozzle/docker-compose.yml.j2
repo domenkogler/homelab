@@ -6,7 +6,7 @@
 #   — none needed
 services:
   dozzle:
-    image: amir20/dozzle:latest
+    image: amir20/dozzle:{{ dozzle_version }}
     container_name: dozzle
     restart: unless-stopped
     networks:

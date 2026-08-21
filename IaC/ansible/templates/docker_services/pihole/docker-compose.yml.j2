@@ -8,7 +8,7 @@
 #   pihole_password (Password: WEBPASSWORD for admin UI)
 services:
   pihole:
-    image: pihole/pihole:latest
+    image: pihole/pihole:{{ pihole_version }}
     container_name: pihole
     restart: unless-stopped
     networks:

@@ -38,6 +38,50 @@ keepalived_version: "2.3.4"
 # tag here; Renovate docker datasource then keeps it current.
 tuwunel_version: latest
 
+# ==== Media stack (HD-192, registry-verified 2026-08-21 via Docker Hub API) ====
+bazarr_version: "1.6.0"                    # linuxserver/bazarr (plain semver tag)
+jellyfin_version: "10.11.11"               # jellyfin/jellyfin (12.0 still RC — not pinned)
+lidarr_version: "3.1.0.4875-ls39"          # linuxserver/lidarr (ls build tag; no plain semver)
+prowlarr_version: "2.5.2.5491-ls156"       # linuxserver/prowlarr (ls build tag)
+radarr_version: "6.3.0"                    # linuxserver/radarr
+sabnzbd_version: "5.1.1"                   # linuxserver/sabnzbd
+sonarr_version: "4.0.19.2979-ls321"        # linuxserver/sonarr (ls build tag)
+qbittorrent_version: "5.2.3"               # linuxserver/qbittorrent
+seerr_version: "v3.4.1"                    # seerr/seerr
+recyclarr_version: "7.4.0"                 # ghcr.io/recyclarr/recyclarr
+profilarr_version: latest                  # ghcr.io/dictionarry-hub/profilarr — NO versioned
+                                           # tags upstream (only develop/buildcache/sha256,
+                                           # probe 2026-08-21) → documented fluid exception;
+                                           # MUST re-check for a pinnable tag at first deploy.
+sunshine_version: "v2026.821.30050-ubuntu-24.04"  # lizardbyte/sunshine (distro-suffixed tag scheme)
+
+# ==== DNS / network ====
+technitium_version: "15.4.0"               # technitium/dns-server (shared by primary + Pi secondary instance)
+pihole_version: "2026.07.2"                # pihole/pihole (calver v6 line)
+
+# ==== Utilities / dashboards ====
+dozzle_version: "v10.7.3"                  # amir20/dozzle
+homepage_version: "v1.4.5"                 # ghcr.io/gethomepage/homepage
+metabase_version: "v0.63.14.1"             # metabase/metabase
+signal_cli_rest_api_version: "0.202-dev"   # bbernhard/signal-cli-rest-api — upstream only publishes
+                                           # -dev-scheme tags now (probe 2026-08-21); specific dev tag
+                                           # beats bare latest; REGISTRY-VERIFY at first deploy.
+renovate_version: "35.10.0"                # ghcr.io/renovatebot/renovate — GHCR tag list truncated
+                                           # (1000-tag page); REGISTRY-VERIFY at first deploy.
+element_web_version: "v1.11.96"            # ghcr.io/element-hq/element-web (vectorim org is GONE —
+                                           # DENIED on probe 2026-08-21; template re-pointed)
+
+# ==== gluetun sidecar (qbittorrent VPN) ====
+# The qm12/gluetun fork referenced before HD-192 NO LONGER EXISTS on Docker Hub
+# ("object not found", probe 2026-08-21). Re-pointed to upstream qmcgaw/gluetun;
+# v3.41.3 verified present there. Re-check forks only if upstream dies.
+gluetun_version: "v3.41.3"                 # qmcgaw/gluetun (upstream)
+
+# ==== GPU / AI inference ====
+# ollama ROCm build — the RX 7600 needs the ROCm-bundled variant (no separate rocm
+# install on oldsrv); `-rocm` suffix tracks the matching release of the same version.
+ollama_version: "0.32.15-rocm"             # ollama/ollama (verified 2026-08-21)
+
 # ==== File / PDF / P2P ====
 # PairDrop (linuxserver.io) image tag — internal P2P file share (HD-113). Pinned semver
 # (linuxserver tags use plain `X.Y.Z`, no `v`); Renovate docker datasource tracks it.

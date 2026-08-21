@@ -2,7 +2,11 @@
 # Raspberry Pi 4 — Home Assistant (PRIMARY node)
 # Failover design: docs/smart-home-failover.md
 
-home_assistant_version: stable
+# HA container pin (HD-192): semver replaces the `stable` mutable alias — primary +
+# standby MUST run the same version for clean manual failover (HD-39 rationale).
+# Tag scheme is calver; REGISTRY-VERIFY at first deploy (GHCR tag list truncated on
+# the 2026-08-21 probe), then Renovate keeps it current.
+home_assistant_version: "2026.8.1"
 home_assistant_install_method: docker   # 'docker' or 'supervised' — use docker for keepalived/VIP
 # The Pi also runs a minimal VIP-bound edge (`traefik-ha`) that keeps ha.kogler.si
 # reachable when oldsrv is down — see docs/smart-home-failover.md.

@@ -55,10 +55,14 @@ chain), HD-72 (HA caps). *Evidence: KOPS-004/018/047/025.*
 > pin defined as a variable in `group_vars/*.yml`, tracked by Renovate — never `latest`, never a mutable
 > alias such as `-rocm`.
 
-- **Traefik** — pin `traefik_version` (currently `latest`) to a semver. **HD-61**.
-- **Every `:latest`** across the 42 compose templates → convert to a pinned var. **HD-61**
-  (owning doc: [deployment-compose.md](deployment-compose.md)).
-- **Ollama `:rocm`** is a mutable alias → pin to a specific `0.6.x-rocm`. **HD-61** *(evidence: KOPS-027)*.
+- **Traefik** — pinned `traefik_version: v3.5.2` (HD-61, done).
+- **Every `:latest`** across the compose templates → pinned var. **HD-192 (done 2026-08-21):** all
+  templates now render `{{ *_version }}` pins from `group_vars/all/versions.yml` (registry-verified);
+  the only remaining `latest` renders are the documented fluid exceptions (tuwunel HD-121,
+  profilarr — no versioned tags upstream). The validator allowlist is inverted: bare-`latest`
+  fails unless in `ALLOWED_LATEST` with a MUST-pin justification.
+- **Ollama `:rocm`** mutable alias → pinned to a specific `<ver>-rocm` build tag (`ollama_version`,
+  HD-192; the RX 7600 needs the ROCm-bundled variant).
 
 Owning docs: [deployment-compose.md](deployment-compose.md),
 [deployment-renovate.md](deployment-renovate.md). **Tracked: HD-61.**

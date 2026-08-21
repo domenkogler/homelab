@@ -15,7 +15,7 @@
 
 services:
   home-assistant:
-    image: ghcr.io/home-assistant/home-assistant:{{ home_assistant_version | default('stable') }}
+    image: ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}
     container_name: home-assistant-standby
     restart: "no"            # cold standby: started explicitly by failover runbook
     privileged: false

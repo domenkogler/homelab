@@ -18,7 +18,7 @@
 #     forgejo_oidc     (api: username=client_id, credential=client_secret — Authentik OIDC client)
 services:
   forgejo:
-    image: codeberg.org/forgejo/forgejo:{{ forgejo_version | default('latest') }}
+    image: codeberg.org/forgejo/forgejo:{{ forgejo_version }}
     container_name: forgejo
     restart: unless-stopped
     networks:

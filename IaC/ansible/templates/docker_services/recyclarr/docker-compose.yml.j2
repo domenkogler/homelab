@@ -7,7 +7,7 @@
 #   — none needed
 services:
   recyclarr:
-    image: ghcr.io/recyclarr/recyclarr:latest
+    image: ghcr.io/recyclarr/recyclarr:{{ recyclarr_version }}
     container_name: recyclarr
     restart: unless-stopped
     networks:

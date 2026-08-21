@@ -43,7 +43,7 @@ services:
       - /srv/docker/authentik/redis:/data
 
   authentik-server:
-    image: ghcr.io/goauthentik/server:{{ authentik_version | default('latest') }}
+    image: ghcr.io/goauthentik/server:{{ authentik_version }}
     container_name: authentik-server
     restart: unless-stopped
     networks:
@@ -82,7 +82,7 @@ services:
         condition: service_started
 
   authentik-worker:
-    image: ghcr.io/goauthentik/server:{{ authentik_version | default('latest') }}
+    image: ghcr.io/goauthentik/server:{{ authentik_version }}
     container_name: authentik-worker
     restart: unless-stopped
     command: worker
@@ -119,7 +119,7 @@ services:
   # (field=password). The port below (3389) must be firewall-restricted to the NAS
   # host only (see network-ops / trusted sources) — LDAP creds must not be LAN-wide.
   authentik-ldap:
-    image: ghcr.io/goauthentik/ldap:{{ authentik_version | default('latest') }}
+    image: ghcr.io/goauthentik/ldap:{{ authentik_version }}
     container_name: authentik-ldap
     restart: unless-stopped
     networks:

@@ -12,7 +12,7 @@
 #     smtp_login   (Login: username=<SMTP user>, password=<SMTP password>)
 services:
   grafana:
-    image: grafana/grafana:{{ grafana_version | default('latest') }}
+    image: grafana/grafana:{{ grafana_version }}
     container_name: grafana
     restart: unless-stopped
     networks:

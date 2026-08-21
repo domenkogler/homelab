@@ -17,7 +17,7 @@
 
 services:
   technitium:
-    image: technitium/dns-server:latest
+    image: technitium/dns-server:{{ technitium_version }}
     container_name: technitium
     restart: unless-stopped
     cap_add:

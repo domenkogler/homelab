@@ -10,7 +10,7 @@
 #   See docs/services-traefik.md §CrowdSec.
 services:
   crowdsec:
-    image: crowdsecurity/crowdsec:{{ crowdsec_version | default('latest') }}
+    image: crowdsecurity/crowdsec:{{ crowdsec_version }}
     container_name: crowdsec
     restart: unless-stopped
     networks:

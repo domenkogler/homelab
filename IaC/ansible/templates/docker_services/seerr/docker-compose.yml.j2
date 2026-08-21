@@ -11,7 +11,7 @@
 #   — none needed
 services:
   seerr:
-    image: seerr/seerr:latest
+    image: seerr/seerr:{{ seerr_version }}
     container_name: seerr
     restart: unless-stopped
     networks:

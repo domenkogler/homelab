@@ -7,7 +7,7 @@
 #   — none needed
 services:
   jellyfin:
-    image: jellyfin/jellyfin:latest
+    image: jellyfin/jellyfin:{{ jellyfin_version }}
     container_name: jellyfin
     user: "{{ storage_uid }}:{{ storage_gid }}"
     restart: unless-stopped

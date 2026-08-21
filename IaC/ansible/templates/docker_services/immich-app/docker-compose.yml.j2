@@ -15,7 +15,7 @@
 #     immich-ml-internal_api (api) — shared ML API-key auth immich-app -> immich-ml (HD-160)
 services:
   immich-server:
-    image: ghcr.io/immich-app/immich-server:{{ immich_version | default('release') }}
+    image: ghcr.io/immich-app/immich-server:{{ immich_version }}
     container_name: immich-server
     restart: unless-stopped
     networks:

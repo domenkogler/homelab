@@ -7,7 +7,7 @@
 #   — none needed (Eweka credentials set via web UI, not env vars)
 services:
   sabnzbd:
-    image: linuxserver/sabnzbd:latest
+    image: linuxserver/sabnzbd:{{ sabnzbd_version }}
     container_name: sabnzbd
     restart: unless-stopped
     networks:

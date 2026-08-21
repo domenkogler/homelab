@@ -12,7 +12,7 @@
 #   — none needed
 services:
   sunshine:
-    image: lizardbyte/sunshine:latest
+    image: lizardbyte/sunshine:{{ sunshine_version }}
     container_name: sunshine
     restart: "no"                     # manual start for gaming sessions
     networks:

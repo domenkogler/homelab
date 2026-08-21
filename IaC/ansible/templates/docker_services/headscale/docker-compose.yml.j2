@@ -9,7 +9,7 @@
 #     headscale_api    (API Credential: username=<OIDC client_id>, credential=<OIDC client_secret>)
 services:
   headscale:
-    image: headscale/headscale:{{ headscale_version | default('latest') }}
+    image: headscale/headscale:{{ headscale_version }}
     container_name: headscale
     restart: unless-stopped
     networks:

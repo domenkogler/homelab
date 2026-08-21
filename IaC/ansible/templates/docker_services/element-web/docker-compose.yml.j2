@@ -5,7 +5,8 @@
 #   Static frontend — served by Traefik on port 80.
 services:
   chat:
-    image: vectorim/element-web:latest
+    # vectorim/element-web moved to element-hq (old org DENIED, probe 2026-08-21)
+    image: ghcr.io/element-hq/element-web:{{ element_web_version }}
     container_name: chat
     restart: unless-stopped
     environment:

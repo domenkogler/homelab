@@ -11,7 +11,7 @@
 #                     for each database listed below
 services:
   db-backup:
-    image: tiredofit/db-backup:{{ db_backup_version | default('latest') }}
+    image: tiredofit/db-backup:{{ db_backup_version }}
     container_name: db-backup
     restart: unless-stopped
     networks:

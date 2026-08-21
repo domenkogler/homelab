@@ -5,7 +5,7 @@
 #   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 services:
   renovate:
-    image: ghcr.io/renovatebot/renovate:latest
+    image: ghcr.io/renovatebot/renovate:{{ renovate_version }}
     container_name: renovate
     restart: unless-stopped
     environment:

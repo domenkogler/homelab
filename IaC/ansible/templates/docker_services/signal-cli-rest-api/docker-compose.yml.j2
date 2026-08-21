@@ -6,7 +6,7 @@
 #   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 services:
   signal-cli-rest-api:
-    image: bbernhard/signal-cli-rest-api:latest
+    image: bbernhard/signal-cli-rest-api:{{ signal_cli_rest_api_version }}
     container_name: signal-cli-rest-api
     restart: unless-stopped
     environment:

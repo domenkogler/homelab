@@ -17,7 +17,7 @@
 #     kopia_sftp_host, kopia_sftp_port, kopia_sftp_user (backup box u653424, port 23)
 services:
   kopia-server:
-    image: kopia/kopia:{{ kopia_version | default('latest') }}
+    image: kopia/kopia:{{ kopia_version }}
     container_name: kopia-server
     restart: unless-stopped
     command:

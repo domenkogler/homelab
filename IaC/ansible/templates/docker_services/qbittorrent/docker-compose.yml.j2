@@ -8,7 +8,8 @@
 #   privado-vpn_api  (API Credential: WIREGUARD_PRIVATE_KEY)
 services:
   gluetun:
-    image: qm12/gluetun:latest
+    # qm12/gluetun fork is GONE (probe 2026-08-21) → upstream qmcgaw/gluetun
+    image: qmcgaw/gluetun:{{ gluetun_version }}
     container_name: gluetun
     restart: unless-stopped
     cap_add:
@@ -33,7 +34,7 @@ services:
       traefik.http.services.qbittorrent.loadbalancer.server.port: "8080"
 
   qbittorrent:
-    image: linuxserver/qbittorrent:latest
+    image: linuxserver/qbittorrent:{{ qbittorrent_version }}
     container_name: qbittorrent
     restart: unless-stopped
     network_mode: "service:gluetun"          # no own network — shares gluetun namespace

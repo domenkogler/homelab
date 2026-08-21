@@ -19,7 +19,7 @@
 
 services:
   raspberrymatic:
-    image: ghcr.io/jens-maus/raspberrymatic:latest
+    image: ghcr.io/jens-maus/raspberrymatic:{{ raspberrymatic_version }}
     container_name: {{ rmat_name }}
     restart: {{ rmat_restart }}   # primary: always-on; standby: cold (trigger-started)
     privileged: false

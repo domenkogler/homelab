@@ -6,7 +6,7 @@
 #   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }} — none needed here.
 services:
   homepage:
-    image: ghcr.io/gethomepage/homepage:latest
+    image: ghcr.io/gethomepage/homepage:{{ homepage_version }}
     container_name: homepage
     restart: unless-stopped
     environment:

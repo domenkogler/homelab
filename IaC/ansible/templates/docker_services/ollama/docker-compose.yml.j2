@@ -11,7 +11,7 @@
 # Secrets: none needed (models are public, no API keys).
 services:
   ollama:
-    image: ollama/ollama:rocm
+    image: ollama/ollama:{{ ollama_version }}
     container_name: ollama
     restart: always               # must start at boot before user login
     networks:

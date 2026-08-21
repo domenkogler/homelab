@@ -23,7 +23,7 @@
 #   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 services:
   traefik:
-    image: traefik:{{ traefik_version | default('latest') }}
+    image: traefik:{{ traefik_version }}
     container_name: traefik-ha
     restart: unless-stopped
     network_mode: host                 # bind the VIP directly + reach local HA on the VIP
