@@ -87,9 +87,10 @@ Found live 2026-08-22 while restoring VPS access (deployment-journal Phase 1.0 /
 - **Keep the offered-key count small:** hosts run `maxauthtries 3` (HD-154); every
   agent-served key burns one offer. Disable "Use with SSH agent" on unused items so
   plain `ssh ansible-admin@vps.kogler.si` reaches the right key within 3 tries.
-- **Win32 OpenSSH quirk:** `ssh.exe` 9.5p2 rejects valid ed25519 `.pub` IdentityFile
-  hints (`Load key … invalid format`) though its own `ssh-keygen.exe` parses them —
-  `IdentitiesOnly` pinning is unavailable on this build; rely on the allowlist instead.
+- **Pub-hint + agent refusal:** pointing `IdentityFile` at a `.pub` served by the agent works
+  (e.g. `IdentityFile ~/.ssh/ansible-admin_ssh.pub` + `IdentitiesOnly`); if the vault is NOT
+  allowlisted in `agent.toml`, the agent refuses the key and `ssh` misreports it as
+  `Load key … invalid format` — the toml fix above is the real solution, not a client bug.
 - **Laptop convenience:** `~/.ssh/config` carries a `Host vps` alias (`HostName`
   + `User ansible-admin`) — no IdentityFile line (nothing on disk to point at).
 
