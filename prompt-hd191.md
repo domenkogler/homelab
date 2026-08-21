@@ -10,7 +10,7 @@ Immich face thumbs, `/opt/*` compose configs), NAS-independent. Reality: only th
 `kopia-server` + `db-backup` in `group_vars/vps.yml`; **`group_vars/home_servers.yml` has no kopia
 entry** → oldsrv-local state never reaches the off-site backup Box.
 
-## Design (per existing docs — confirm while implementing)
+## Design (DECIDED HD-204: containerized agent — parity with kopia-server)
 
 - The repo server (`kopia-server`) lives on the **VPS**; its repository backend is the Hetzner
   **backup Box over SFTP** (`kopia_sftp_*` in `all.yml`). Server auth = `kopia-server-internal_api`
@@ -19,16 +19,14 @@ entry** → oldsrv-local state never reaches the off-site backup Box.
   or `http://kopia-server:51515` over `services-internal`/WG with the htpasswd identity, then a
   systemd timer snapshots the local sources.
 - Cross-host reach: oldsrv → kopia-server (VPS) is home-initiated over WG — allowed by the S2S
-  scoping (router routes `wg-vps-services`; VPS nftables forward admits docker-bound traffic).
-  Verify the kopia-server port (51515) is reachable on the overlay path; it is NOT published
-  (correct) — the client must target the overlay/WG address per the prometheus/loki bind pattern.
+  scoping. The kopia-server port (51515) is NOT published (correct) — the containerized client
+  targets the overlay/WG address per the prometheus/loki bind pattern.
 
 ## Steps
 
 1. New template `templates/docker_services/kopia-agent/docker-compose.yml.j2` (client mode:
-   `kopia repository connect server …` + `kopia snapshot create <sources>` via a small entrypoint
-   script or scheduled command) — OR a host-native systemd timer if containerizing the client adds
-   friction with `/srv/dumps` + `/opt/*` reads (decide; document why).
+   `kopia repository connect server …` + scheduled `kopia snapshot create` over the local sources,
+   bind-mounted read-only).
 2. Register `kopia-agent` in `group_vars/home_servers.yml`; add any needed 1Password item to
    `docs/deployment-secrets.md` master list (likely reuse `kopia-server-internal_api`; no new item
    unless the design needs one).

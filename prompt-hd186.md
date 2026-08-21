@@ -1,7 +1,7 @@
 # prompt-hd186 — Close the published-port firewall bypass (S1)
 
-> **Role:** Task handoff for **HD-186** (todo.md §2.8). **AI + gate**: firewall semantics on the
-> public VPS — confirm option choice before merging. **Linked from:** [todo.md](todo.md) (HD-186);
+> **Role:** Task handoff for **HD-186** (todo.md §2.8). **AI + gate.** **DECIDED (HD-204, 2026-08-21): option A — remove the publish**; option B is
+> documented as future hardening in `docs/security.md` §8. Gate = review of the change. **Linked from:** [todo.md](todo.md) (HD-186);
 > audit evidence: `security.md` §2 S1 + §5 verification plan.
 
 ## Problem (two halves — fix both)
@@ -14,9 +14,11 @@
    not hold for published ports. The authentik template comment ("restrict src at firewall") is
    currently false.
 
-## Fix options
+## Decision
 
-- **A (preferred): remove the publish.** The LDAP outpost is consumed by Samba (nas). Over WG:
+**Option A — remove the publish** (options below kept as context; B is documented, not implemented):
+
+- **A (CHOSEN): remove the publish.** The LDAP outpost is consumed by Samba (nas). Over WG:
   home→VPS is allowed by scoping, so Samba targets the VPS's WG-side address instead of a published
   port. Consequence: HD-132's "firewall 3389→nas" wording must be updated (direction: nas is the
   client; nothing is published publicly).
@@ -26,8 +28,8 @@
 - **C: bind the publish to the WG address** — same pattern as prometheus/loki templates
   (`{{ wg_s2s_vps.ip … }}:3389:3389` conditional on peer pubkey).
 
-Recommendation: **A**, with **B** as defense-in-depth follow-up if any future service ever needs a
-published port.
+Option B (DOCKER-USER chain) is recorded in `docs/security.md` §8 as the future-hardening path if
+any service ever truly needs a published port — implement it only then, as its own gated task.
 
 ## Steps
 

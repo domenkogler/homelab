@@ -196,6 +196,7 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
   possible; no public container gets `privileged` / host networking without a documented reason (§4 applies);
   daemon `userland-proxy: false` + `live-restore: true`. **HD-154. ✅ enforced (daemon) + compose-policy.**
 - **VPS firewall default-deny** ✅ — inbound **deny-all except :443 + :51820 (WG)** via the `vps-hardening` role's
+- **Published-port bypass (S1, decided HD-204):** docker-published ports traverse the *forward* chain (`oifname "docker*" accept`), so the input default-deny does not cover them. Decision: **no public publishes** — authentik's LDAP `3389` publish is removed (Samba reaches the outpost over WG S2S). Documented future-hardening option if a publish is ever required: a **DOCKER-USER filter chain** restricting forwarded dports (443 from any; specific ports from the WG peer only). Tracked HD-186.
   `/etc/nftables.conf` (nftables, input policy drop). Committed as executable checklist, not prose. **HD-154. ✅ enforced.**
 - **SSO on VPS admission** ✅ — the netcup `post_install.sh` SSH config matches the preseed defaults; root-login
   disabled, per-host keys (Domen + Ansible), no `ai-debug` on a public box

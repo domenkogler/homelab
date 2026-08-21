@@ -21,12 +21,10 @@ in the same change (or exempt-with-comment if genuinely not a secret).
 
 - **Fail-open loader:** `load_all_services()` swallows malformed YAML (`except: pass`) → fewer
   templates validated, still PASS. Abort with file+error instead.
-- **Duplicate dict keys:** `NETWORK_MAP` (`immich-app`, `immich-ml`, `sunshine` ×2),
-  `_EXTRA_TEMPLATES` (`opencloud` ×2), `WEB_SERVICES` (`traefik` ×2). Then decide NETWORK_MAP's
-  fate: it is dead code (the `defined_nets` subtraction makes the check unfireable) AND stale
-  (`ollama` → `services-internal`, but HD-59 moved it to `llm-backend`). Either enforce strictly
-  (drop the `defined_nets` escape) or delete the map + rely on the external-networks rule. State
-  the choice in the commit.
+- **Duplicate dict keys + dead map (DECIDED HD-204: delete `NETWORK_MAP`):** dedupe
+  `_EXTRA_TEMPLATES` (`opencloud` ×2) and `WEB_SERVICES` (`traefik` ×2); DELETE `NETWORK_MAP`
+  entirely (dead code — the `defined_nets` escape makes it unfireable — and stale vs HD-59's
+  `llm-backend` move) and rely on the external-networks rule + docs.
 - **`_EXTRA_TEMPLATES` twin-list drift:** read the list from
   `roles/docker_services/defaults/main.yml` (parse the YAML) instead of the duplicated literal;
   delete the local copy. Note: role renders `headscale/policy.hujson.j2` (validator missed it);

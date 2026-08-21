@@ -33,10 +33,10 @@ is the IaC mechanism + the S1 verify line.
      `traefik-ha/dynamic/routes.yml.j2`) currently say `certResolver: letsencrypt` with no resolver
      defined — **pre-existing latent bug on the Pi edge**; switch them to rely on the default store
      (drop the certResolver key) or explicit certFile/keyFile pairs.
-4. Cert-sync retarget: `roles/home_assistant/templates/ha-cert-sync.sh.j2` pulls from oldsrv —
-   retarget to the VPS (`ansible_host` from SSOT; path `/opt/traefik/certs`). Key authorization on
-   the VPS is a live step → ⏳ tail. oldsrv also needs the pair locally: same sync (second consumer)
-   or an oldsrv-side pull timer — pick one, document in smart-home-failover.md.
+4. Cert-sync retarget (DECIDED HD-204: oldsrv = second consumer with its OWN pull timer from the
+   VPS — no Pi relay): `roles/home_assistant/templates/ha-cert-sync.sh.j2` retargets to the VPS
+   (`ansible_host` from SSOT; path `/opt/traefik/certs`); add an oldsrv-side pull timer for
+   `/opt/traefik/certs`. Key authorization on the VPS is a live step → ⏳ tail.
 
 ## Steps
 

@@ -1,7 +1,7 @@
 # prompt-hd185 — Fix Pi first-deploy ordering (docker_services vs home_assistant)
 
-> **Role:** Task handoff for **HD-185** (todo.md §2.6). **AI + gate**: confirm the chosen option
-> with the human before rewriting playbook order — it touches the KOPS-063/HD-117 decision.
+> **Role:** Task handoff for **HD-185** (todo.md §2.6). **AI + gate.** **DECIDED (HD-204, 2026-08-21): option A — render-first reorder for the Pi**
+> (supersedes the KOPS-063/HD-117 order on this host); gate = review of the change itself.
 > **Linked from:** [todo.md](todo.md) (HD-185); audit evidence: `docs-vs-iac.md` §J2, `iac-changes.md` §11 D2.
 
 ## Problem
@@ -22,9 +22,11 @@ empty directory**. Then:
 Net: Pi deploy blocked / HA silently mis-configured. The standby is safe (`enabled: false` — its
 compose never runs via the loop; `ha-failover.sh` creates `keepalived.conf` at takeover).
 
-## Options (pick one, confirm at the gate)
+## Decision
 
-- **A. Render-first (recommended):** on the Pi, run `home_assistant` before `docker_services`
+**Option A — render-first** (options B/C below kept only as historical context):
+
+- **A. Render-first (CHOSEN):** on the Pi, run `home_assistant` before `docker_services`
   (revert KOPS-063 for this host). Config/keepalived exist before first `up`; containers start
   already configured. Update the KOPS-063 comment to the new rationale + note in changelog that
   HD-117's ordering decision is superseded **for the Pi**.
@@ -36,7 +38,8 @@ compose never runs via the loop; `ha-failover.sh` creates `keepalived.conf` at t
 
 ## Steps (for any option)
 
-1. Read the KOPS-063/HD-117 changelog entries first; state which option and why in the PR/commit.
+1. Read the KOPS-063/HD-117 changelog entries; note the supersession (HD-204) in the commit and
+   in the role/playbook comments.
 2. Implement; make the role-header comment in `pi.yml` match reality.
 3. Add a first-boot guard regardless of option: assert on the Pi that
    `/opt/home-assistant-primary/keepalived.conf` is a **regular file** before `docker compose up`
