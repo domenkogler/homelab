@@ -15,7 +15,8 @@
 |-----------|------|-----------|
 | DNS namespace | single `kogler.si`, flat subdomains, split-horizon; internal-only hosts unpublished in public DNS | `docs/index.md` (Conventions) |
 | Hostnames | canonical list `oldsrv / nas / pi / router / switch / vps` — SSOT table | `docs/index.md` (Conventions, Hosts) |
-| Backlog IDs | `HD-<number>` (next free = `HD-114`), 1 row = 1 outcome, link the owning `docs/*.md` | `todo.md` (§0) |
+| Backlog IDs | `HD-<number>` (next free = **max(HD)+1 in [todo.md](todo.md)** — a hand-entered "next free" here went stale within one week; never re-type it), 1 row = 1 outcome, link the owning `docs/*.md` | `todo.md` (§0) |
+| Cert issuer | exactly **one** ACME issuer issues the wildcard `*.kogler.si` cert — **the VPS Traefik** (decided HD-178); every other edge (Pi `traefik-ha`, oldsrv internal edge) consumes a **synced cert pair**, never runs its own ACME for this name; the issuer is named in its owning doc and all other docs link to it | [docs/services-traefik.md](docs/services-traefik.md), [docs/services-vps.md](docs/services-vps.md) |
 | 1Password items | `<service>_<type>`; `_` only delimiter; `-` allowed inside service; never a field in the name; `field=` mandatory in lookups | [docs/deployment-secrets.md](docs/deployment-secrets.md) (Secret Naming Convention) |
 | Vault | one vault `Homelab-ansible`, referenced via `op_vault` var, never a literal | [docs/deployment-secrets.md](docs/deployment-secrets.md) |
 | Service domains | service → `https://<name>.kogler.si` unless stated (service catalog SSOT) | [docs/services.md](docs/services.md) |
@@ -31,6 +32,7 @@
 | Compose path | `/opt/<service>/docker-compose.yml` — architectural constant | [docs/deployment-compose.md](docs/deployment-compose.md) |
 | Generated docs | a generated doc is recognized by its `-generated` filename suffix and is **never hand-edited** — canonical rule: §8.2 | [docs/index.md](docs/index.md), §8.2 |
 | Counts | doc-stated **counts** (templates, roles, files, services) are **derived, never hand-entered** — quote the validator/dir as the source (`scripts/validate-docker-services.py`, `roles/`, `docker_services/`); a stale number in prose is a defect, not a cosmetic | [docs/index.md](docs/index.md) (Validation), [scripts/validate-all.sh](scripts/validate-all.sh) |
+| Pointers / lists | the Counts rule extends to **pointers and enumerated lists**: next-free backlog IDs, 1Password item counts, public-DNS record sets, VLAN maps, AllowedIPs scopes — quote the source ("see todo.md", "see `roles/cloudflare_dns/vars/main.yml`") or render them; re-typed copies drift silently (audit round 2, HD-175/177 — four divergent public-record lists, triple VLAN map) | [docs/index.md](docs/index.md), owning docs |
 | Data location | a storage/media **data-location change** (e.g. MinIO retired → live Box CIFS) must update IaC **and** the owning service/storage docs **in the same change** — a data-location claim in prose that contradicts the IaC is a review failure | [docs/services.md](docs/services.md), [docs/storage.md](docs/storage.md), [docs/deployment-compose.md](docs/deployment-compose.md) |
 
 ---
@@ -57,11 +59,12 @@
 |-------|------|-----------|
 | Backlog | new work = new `HD-XX` row in `todo.md`; decisions written to owning doc; done → `changelog.md` | [todo.md](todo.md), [docs/index.md](docs/index.md) |
 | Post-task housekeeping | **after each completed task, update `todo.md` in the same change** — move the done `HD-XX` row to `changelog.md`; never leave completed work marked open. **No hand-maintained tally/Status line** — the backlog count is derived from the rows themselves (counts are derived, never hand-entered, §2) | [todo.md](todo.md) (§0 lifecycle), [changelog.md](changelog.md) |
-| Decisions | decisions log, date-stamped, closed once per decision (mirror `docs/security.md §7` style); **a resolved decision is written ONCE to `changelog.md` (decision-log SSOT) — do NOT leave a struck duplicate row with the full rationale in `todo.md` §1** | [docs/security.md](docs/security.md) (§7 Decision log), [changelog.md](changelog.md) |
+| Decisions | decisions log, date-stamped, closed once per decision (mirror `docs/security.md §7` style); **a resolved decision is written ONCE to `changelog.md` (decision-log SSOT) — do NOT leave a struck duplicate row with the full rationale in `todo.md` §1**; the closing change also **sweeps stale mentions of the superseded thing in other docs** (TileBoard/AnythingLLM/watchtower precedents — a decision that leaves old text standing elsewhere is not closed) | [docs/security.md](docs/security.md) (§7 Decision log), [changelog.md](changelog.md) |
 | Onboarding a service | see the 10-step checklist below | — |
 | Validation gate | `bash scripts/validate-all.sh` before commit (compose, templates, IPs, docs). **Planned extension (HD-157):** also lint the `docs/index.md` doc-map vs `find docs -name "*.md"` and any doc-claimed role/template count — a docs-claim that drifts is a lint failure, not a cosmetic | [scripts/README.md](scripts/README.md), [docs/index.md](docs/index.md) (Validation) |
 | Deploy | first apply human-gated (dry-run → single host); single path = Ansible (Renovate PR → Forgejo Actions deploy button → Ansible) | [docs/deployment.md](docs/deployment.md) |
 | Deploy-gated rows | an `HD-XX` row whose IaC is done **but not yet live** stays **open** with a **`⏳ Deploy-gated:`** tail listing the exact pending live steps (provider creation, secret seeding, firewall open, live-verify). It closes only after a live deploy/verify pass — **not** at IaC-completion. A task's ⏳ is a *phase*, never moved to a separate file | [todo.md](todo.md) (§0 lifecycle, §⏳ checklist), [changelog.md](changelog.md) |
+| Audit reports | root-level audit / prompt-deliverable reports are **ephemeral**: each actionable finding is folded into its owning doc + an HD row (or explicitly rejected), then the report is deleted in the change that closes its last finding — reports are context, never SSOT (HD-153 precedent; the 2026-08-21 round-2 reports fold per this rule) | [changelog.md](changelog.md) (HD-153), repo root |
 
 > **Decision log format** (`security.md §7`): a dated bullet per decision: `- **Decision statement** — accepted/expected, Date: YYYY-MM-DD, *(evidence: KOPS-xx)*`.
 
@@ -92,7 +95,8 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 
 ## 6. Cross-cutting rules (short list)
 
-- Language: English (technical), Slovenian (family/manual).
+- Language: English (technical), Slovenian (family/manual). Slovenian also covers the family-facing root guide `readme-humans.md`.
+- Decision dates are ISO `YYYY-MM-DD`; when touching a dated prose entry, fix year typos in the same change (2025→2026 sweep pending in five docs; changelog rows stay append-only).
 - Headers: every doc starts with `> **Role:**` and `> **Linked from:**` — enforced by convention.
 - Relative links only — markdown relatives to `docs/*.md`.
 - Secrets never in docs — 1Password `Homelab-ansible` vault only.
@@ -108,6 +112,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 | a `*_version` pin lives in **one** file — `group_vars/all/versions.yml` (HD-156, live 2026-08-19) — **not** spread across `all.yml`; Renovate docker datasource + version review are single-sheet | [docs/deployment-compose.md](docs/deployment-compose.md), [docs/deployment-renovate.md](docs/deployment-renovate.md) |
 | a pin is **never bare `latest`** and never a *mutable alias* (`-rocm`, `main-stable`) **unless** the owning doc records an explicit MUST-pin + verified-semver precondition (Tuwunel / OpenClaw / LiteLLM fluid-tag precedents, HD-121/134) | [docs/deployment-compose.md](docs/deployment-compose.md) |
 | on a fluid-tag *first* pin, show the registry-verified tag + Renovate tracking **in the same change** | [docs/deployment-compose.md](docs/deployment-compose.md), [docs/deployment-renovate.md](docs/deployment-renovate.md) |
+| a `*_version` var carries **no `default()` fallback in templates** — a missing pin aborts the render (fail-loud, same as secrets, HD-65); mutable aliases (`stable`, `release`, `-rocm`) are bare-`latest` equivalents under the same MUST-pin precondition | [docs/deployment-compose.md](docs/deployment-compose.md), HD-121 precedent |
 
 > Strengthens the §3 "Compose versioning" row (pinned tags, never bare `latest` + Renovate trail) — same owner, more explicit.
 
@@ -225,4 +230,6 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 
 ---
 
-*Last review: 2026-08-20 (added: derived-counts, data-location same-change, two-sided deploy gate; placement §1, onboarding storage bullet §5, version-pin hygiene §7, validation-gate extension §4; §8 docs taxonomy & service triage 2026-08-20, refined to a **two-axis model** (domain ≁ placement + cross_cutting ≁ ownership) with observability as the clean-domain precedent and llm-office as a services/office slice; **deployment as the ops-umbrella** seeding cross-cutting security/backup/storage + interfaces (Option A); **filename rule** — prefixed = stack, unprefixed = concern). Owning docs above remain authoritative.*
+*Last review: **2026-08-21** (HD-178–180 decisions recorded; added: single-cert-issuer §1, derived-pointers/lists §2, mention-sweep + audit-report-lifecycle §4, ISO-date hygiene §6, pin-no-default §7; §1 backlog-ID pointer de-hardcoded). Owning docs above remain authoritative.*
+
+*Prior review: 2026-08-20 (added: derived-counts, data-location same-change, two-sided deploy gate; placement §1, onboarding storage bullet §5, version-pin hygiene §7, validation-gate extension §4; §8 docs taxonomy & service triage 2026-08-20, refined to a **two-axis model** (domain ≁ placement + cross_cutting ≁ ownership) with observability as the clean-domain precedent and llm-office as a services/office slice; **deployment as the ops-umbrella** seeding cross-cutting security/backup/storage + interfaces (Option A); **filename rule** — prefixed = stack, unprefixed = concern).*
