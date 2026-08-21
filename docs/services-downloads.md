@@ -11,7 +11,7 @@ tags: [services, downloads, usenet, torrents, vpn]
 > **Links to:** `services-media.md`, `storage.md`, `services-traefik.md`, `deployment-compose.md`
 > **Linked from:** `services.md`, `services-media.md`
 
-> ⚠️ **Planning phase — not yet deployed.** Downloads services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Downloads services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
 
 ---
 

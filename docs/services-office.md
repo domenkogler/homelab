@@ -8,17 +8,20 @@ tags: [services, llm, ollama, office]
 ---
 # Office Stack — Local LLM, Documents & Office Automation
 
-> **Role:** Stack doc (detail, cross-cutting) — the office workload slice of the services stack: local LLM for office, ONLYOFFICE/WOPI, Office MCP bridges, model recommendations, toolchain.
+> **Role:** Stack doc (detail, cross-cutting) — the office workload slice of the services stack: ONLYOFFICE/WOPI + OpenCloud collaboration, MS fonts, family device/client matrix, Office MCP bridges, toolchain. AI platform details (models, routing) live in [`services-ai.md`](services-ai.md).
 > **Links to:** `hardware-gpu.md`, `services-ai.md`, `services-authentik.md`, `services-traefik.md`
 > **Linked from:** `services.md`, `index.md`
 
-> ⚠️ **Planning phase — not deployed.** The office/AI toolchain (ONLYOFFICE on oldsrv desktop, Open WebUI MCP for Word/Excel/PPT) depends on oldsrv being live (Phase 3) and the AI stack (HD-100…111); this is the authoring spec, not a live system.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The office/AI toolchain (ONLYOFFICE on oldsrv desktop, Open WebUI MCP for Word/Excel/PPT) depends on oldsrv being live (Phase 3) and the AI stack (HD-100…111); this is the authoring spec, not a live system.
 
 ---
 
 ## Strategy
 
-Office AI tools run on the **same oldsrv GPU** as voice assistant and Immich ML. Ollama serves all workloads, switching models via `keep_alive`. See [`hardware-gpu.md`](hardware-gpu.md) for VRAM management.
+Office AI tools run on the **same oldsrv GPU** as voice assistant and Immich ML. The AI **platform**
+(routing, models, keys) is owned by [`services-ai.md`](services-ai.md) — the LiteLLM spine is the only
+path to Ollama/upstream providers; this doc covers only the office slice. VRAM management:
+[`hardware-gpu.md`](hardware-gpu.md).
 
 ---
 
@@ -69,7 +72,7 @@ oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
 
 - No Wine, no VM, no Windows license — fully native Debian
 - Zero cloud dependency for editing (works offline)
-- AI queries go directly to local Ollama API (same machine, no network hop)
+- AI queries route through the LiteLLM spine ([`services-ai.md`](services-ai.md)) to local Ollama — consumers never call Ollama directly
 
 ### MS Office via Open WebUI MCP Tools (Windows 11 Clients)
 
@@ -118,14 +121,11 @@ Word + Excel get matching MCP tools by parallel/extending the Office MCP bridge 
 
 ---
 
-## Recommended Models (2026)
+## Model Recommendations
 
-| Model | VRAM | Best For |
-|-------|------|----------|
-| **Llama 3.1/3.2 8B** | ~6 GB | Everyday office, email drafting, summarization |
-| **Qwen 2.5/3.5 7B–14B** | ~6–12 GB | Complex document structuring, code generation |
-| **Phi-4 14B** | ~10 GB | Reasoning, logic, Microsoft workflow drop-in |
-| **Qwen 2.5-Coder 32B** | ~24 GB | Heavy programming (Phase 2 GPU) |
+Model choice + routing are owned by the AI platform SSOT — see [`services-ai.md`](services-ai.md)
+(§LLM routing & keys, incl. the local-model recommendations for office/voice workloads) and
+[`hardware-gpu.md`](hardware-gpu.md) for the RX 7600 VRAM budget.
 
 ---
 

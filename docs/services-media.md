@@ -11,7 +11,7 @@ tags: [services, media, arr, photos, streaming]
 > **Links to:** `services-downloads.md`, `services-authentik.md`, `services-traefik.md`, `storage.md`, `observability.md`
 > **Linked from:** `services.md`, `storage.md`
 
-> ⚠️ **Planning phase — not yet deployed.** Media services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`. Hosts (`oldsrv`, `nas`) are not provisioned.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Media services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`. Hosts (`oldsrv`, `nas`) are not provisioned.
 
 ---
 

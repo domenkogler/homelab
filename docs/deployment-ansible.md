@@ -391,8 +391,8 @@ domain_local: kogler.si
   gated on `authentik` presence via `when:`, so home hosts (home_servers / raspberry_pi)
   skip it entirely; the assert inside is a safety net that should never fire.
   Ordering: `authentik` → blueprint+glue → OIDC consumers. Fail-closed on a missing
-  `authentik-provision_api` (HD-65/91). See [`deployment-compose.md`](deployment-compose.md)
-  *Authentik OIDC provisioning* and [`services-authentik.md`](services-authentik.md).
+  `authentik-provision_api` (HD-65/91). See [`deployment-oidc.md`](deployment-oidc.md)
+  and [`services-authentik.md`](services-authentik.md).
 - **Loop:** each enabled service:
   1. Skip if `enabled: false`
   2. Create `/opt/{{ item.name }}/`

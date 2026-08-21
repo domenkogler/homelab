@@ -29,7 +29,7 @@ tags: [index, dispatcher, ai]
 | **Understand service layout** | [`services.md`](services.md) | `services-*.md` stack docs (media/downloads/dns/utilities/admin), `services-traefik.md`, `services-authentik.md`, [`network-addresses-generated.md`](network-addresses-generated.md) |
 | **Triage a candidate service / check past rejections** | [`services-review.md`](services-review.md) + [`services-rejected.md`](services-rejected.md) | `services.md`, `CONVENTIONS.md` §8.3 |
 | **Triage a storage candidate / check past rejections** | [`storage-review.md`](storage-review.md) + [`storage-rejected.md`](storage-rejected.md) | `storage.md`, `CONVENTIONS.md` §8.3 |
-| **Provision Authentik OIDC clients (Blueprint + glue)** | [`services-authentik.md`](services-authentik.md) | `deployment-secrets.md`, `deployment-compose.md`, `deployment-ansible.md`, `security.md` |
+| **Provision Authentik OIDC clients (Blueprint + glue)** | [`deployment-oidc.md`](deployment-oidc.md) | `services-authentik.md`, `deployment-secrets.md`, `deployment-compose.md`, `deployment-ansible.md`, `security.md` |
 | **Backlog / open decisions** | [`todo.md`](../todo.md) | — |
 | **Cross-cutting conventions / onboarding a service** | [`CONVENTIONS.md`](../CONVENTIONS.md) | owning docs (`deployment-*.md`, `network-*.md`, `services.md`) |
 | **Find a script / validation gate / renderer** | [`../scripts/README.md`](../scripts/README.md) | `CONVENTIONS.md` §8, [`validate-all.sh`](../scripts/validate-all.sh) |
@@ -100,6 +100,7 @@ docs/
 ├── deployment-preseed.md                  ★ Preseed + post_install spec
 ├── deployment-ansible.md                  ★ Ansible role catalog & spec
 ├── deployment-compose.md                  ★ Docker compose conventions
+├── deployment-oidc.md                     ★ Authentik OIDC provisioning: Blueprint + secret-egress glue, per-service native-OIDC recipes
 ├── deployment-secrets.md                  1Password backend, passwordless-first
 ├── 1password.md                           1Password CLI + SSH agent runner setup (SA token, vaults, ssh keys)
 ├── deployment-ai-stack-secrets.md         ★ AI-stack 1Password item-creation + OIDC wiring runbook (HD-105)

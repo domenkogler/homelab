@@ -85,6 +85,16 @@ Loopback-only if a raw port is ever required.
 - **Local models:** LiteLLM also lists local Ollama models (RX 7600) so the family sees local + cloud
   models through one dropdown; local is default where privacy/offline matters.
 
+**Local model recommendations** (office/voice workloads, moved from `services-office.md` — HD-199
+boundary trim; this doc is the platform SSOT for model guidance):
+
+| Model | VRAM | Best For |
+|-------|------|----------|
+| **Llama 3.1/3.2 8B** | ~6 GB | Everyday office, email drafting, summarization |
+| **Qwen 2.5/3.5 7B–14B** | ~6–12 GB | Complex document structuring, code generation |
+| **Phi-4 14B** | ~10 GB | Reasoning, logic, Microsoft workflow drop-in |
+| **Qwen 2.5-Coder 32B** | ~24 GB | Heavy programming (Phase 2 GPU) |
+
 1Password (`Homelab-ansible` vault) items — see [`deployment-secrets.md`](deployment-secrets.md):
 
 | Item | type → `field=` | Used by |

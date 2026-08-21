@@ -5,7 +5,7 @@
 # glue has seeded the 1Password OIDC items BEFORE any consumer compose template
 # renders — so no consumer ever renders with empty/placeholder client creds.
 #
-# Ordering (docs/deployment-compose.md "Authentik OIDC provisioning"): deploy
+# Ordering (docs/deployment-oidc.md): deploy
 # `authentik` (+ bundled pg/redis, with the /blueprints volume auto-applying the
 # ks-oidc.yml Blueprint), then apply the Blueprint if not yet applied, then run the
 # secret-egress glue, then deploy the OIDC consumers. Home hosts (home_servers /

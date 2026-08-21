@@ -95,6 +95,7 @@ git push → (Forgejo Actions CI) → merge → deploy button → Ansible → de
 | Preseed + post_install spec | [`deployment-preseed.md`](deployment-preseed.md) |
 | Ansible role catalog & spec | [`deployment-ansible.md`](deployment-ansible.md) |
 | Docker compose conventions | [`deployment-compose.md`](deployment-compose.md) |
+| Authentik OIDC provisioning (Blueprint + glue) | [`deployment-oidc.md`](deployment-oidc.md) |
 | 1Password secrets & philosophy | [`deployment-secrets.md`](deployment-secrets.md) |
 | Renovate config | [`deployment-renovate.md`](deployment-renovate.md) |
 | Security hardening posture | [`security.md`](security.md) |
@@ -107,6 +108,7 @@ git push → (Forgejo Actions CI) → merge → deploy button → Ansible → de
 - [Preseed & Post-Install Specification](deployment-preseed.md)
 - [Ansible Specification](deployment-ansible.md)
 - [Docker Compose Specification](deployment-compose.md)
+- [Authentik OIDC Provisioning](deployment-oidc.md)
 - [Secrets Management & Passwordless Philosophy](deployment-secrets.md)
 - [Deployment Review Queue](deployment-review.md)
 - [Deployment Rejected / Dropped (decision log)](deployment-rejected.md)

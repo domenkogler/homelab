@@ -11,7 +11,7 @@ tags: [services, matrix, chat, messaging]
 > **Links to:** `services.md`, `services-traefik.md`, `services-authentik.md`, `interfaces.md`, `network-dns.md`, `manual/chat.md`
 > **Linked from:** `index.md`, `services.md`
 
-> ⚠️ **Phase 1 (planned, not yet deployed).** Nothing about Matrix is live. Decisions below are the
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Nothing about Matrix is live. Decisions below are the
 > authoring spec for the IaC (`docker_services` templates + `group_vars/vps.yml`) and the
 > network/DNS records. IaC implementation is tracked as **HD-46**; public records/federation as **HD-47**;
 > backup as **HD-49** (see [`todo.md`](../todo.md)). Bridges are **deferred** (Phase 2 best-effort) — HD-48.

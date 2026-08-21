@@ -11,7 +11,7 @@ tags: [services, dns, technitium, pihole]
 > **Links to:** `network-dns.md`, `network-vlans.md`, `services.md`
 > **Linked from:** `services.md`, `network-dns.md`
 
-> ⚠️ **Planning phase — not yet deployed.** DNS services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** DNS services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
 
 ---
 

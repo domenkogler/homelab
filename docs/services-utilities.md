@@ -11,7 +11,7 @@ tags: [services, utilities, tools, automation]
 > **Links to:** `services-office.md`, `observability.md`, `services-authentik.md`, `services.md`
 > **Linked from:** `services.md`
 
-> ⚠️ **Planning phase — not yet deployed.** Utility services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Utility services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
 
 ---
 

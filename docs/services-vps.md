@@ -8,13 +8,15 @@ tags: [services, vps, netcup]
 # Deferred VPS Infrastructure
 
 > **Role:** Detail — reference architecture for the netcup VPS.
+> **Links to:** `services.md`, `network-vpn.md`
+> **Linked from:** `services.md`
+>
 > **Status:** ✅ **Decision (2026-08-16, HD-93):** the VPS is to be **purchased before go-live** and the
 > public edge moves onto it from **day one** (public Traefik + CrowdSec + Authentik + public apps terminate
 > TLS on the VPS over WG S2S → oldsrv backends). This supersedes the older "deferred to Phase 2+" wording
 > below, which is retained as the implementation spec for what actually ships there.
-> ⚠️ **Deployed? No — host provisioned, stack not live.** The netcup box is **bought + provisioned** (2026-08-18, IP + SSH fingerprints in `host_vars`) but the **service stack is NOT deployed yet** — Traefik/CrowdSec/Authentik/AI/observability land in Phase 1 (HD-40A/135) with the WG S2S tunnel deploy-gated ⏳ (HD-03). Sections below describe what ships there, not what is running.
-> **Links to:** `services.md`, `network-vpn.md`
-> **Linked from:** `services.md`
+>
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Host provisioned, stack not live. The netcup box is **bought + provisioned** (2026-08-18, IP + SSH fingerprints in `host_vars`) but the **service stack is NOT deployed yet** — Traefik/CrowdSec/Authentik/AI/observability land in Phase 1 (HD-40A/135) with the WG S2S tunnel deploy-gated ⏳ (HD-03). Sections below describe what ships there, not what is running.
 
 ---
 

@@ -11,7 +11,7 @@ tags: [services, admin, ops, gitops, security, backup]
 > **Links to:** `services-traefik.md`, `services-authentik.md`, `backup.md`, `deployment-renovate.md`, `observability.md`, `services.md`
 > **Linked from:** `services.md`
 
-> ⚠️ **Planning phase — not yet deployed.** Admin services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Admin services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
 
 ---
 

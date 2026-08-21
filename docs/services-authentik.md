@@ -8,10 +8,10 @@ tags: [services, authentik, sso, oidc]
 # Authentik — Identity & SSO
 
 > **Role:** Detail — OIDC identity provider, WebAuthn, 1Password integration.
-> **Links to:** `services-traefik.md`, `deployment-secrets.md`, `deployment-compose.md`, `deployment-ansible.md`
+> **Links to:** `services-traefik.md`, `deployment-secrets.md`, `deployment-compose.md`, `deployment-oidc.md`, `deployment-ansible.md`
 > **Linked from:** `services.md`, `deployment-compose.md`, `index.md`
 
-> ⚠️ **Phase 1 (planned, not yet deployed).** Authentik is IaC-authored (`docker_services` templates + `ks-oidc.yml` Blueprint + secret-egress glue) but **not live** — it deploys on the VPS during Phase 1 (HD-40A), and the OIDC provisioning chain (Blueprint + glue) is deploy-gated ⏳ (HD-142/143/147/149). Decisions below are the authoring spec, not a live system.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Authentik is IaC-authored (`docker_services` templates + `ks-oidc.yml` Blueprint + secret-egress glue) but **not live** — it deploys on the VPS during Phase 1 (HD-40A), and the OIDC provisioning chain (Blueprint + glue) is deploy-gated ⏳ (HD-142/143/147/149). Decisions below are the authoring spec, not a live system.
 
 ---
 
@@ -92,7 +92,7 @@ User → Traefik (port 443)
 
 The two concerns are split at their natural seam — **shape** (Blueprints) vs **credentials**
 (glue) — so each goes to the mechanism natively better at it. Deploy ordering + the blueprint
-volume live in [`deployment-compose.md`](deployment-compose.md); the glue step is referenced in
+volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is referenced in
 `deployment-ansible.md`.
 
 ### Blueprint authoring notes (verified against Authentik source, 2026-08-19 — HD-149)
