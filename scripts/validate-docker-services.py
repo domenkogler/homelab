@@ -155,6 +155,10 @@ BASE_CTX = _load_ssot_ctx()
 BASE_CTX.update({
     "homematic_usb_by_id": "/dev/serial/by-id/usb-eQ-3__HmIP-RFUSB_TEST",
     "technitium_secondary_ip": "10.10.1.20",
+    # Technitium primary binds oldsrv's Home IP (host_vars/oldsrv) — same
+    # instance-specific mock class as technitium_secondary_ip above (HD-187:
+    # pihole CONDITIONAL_FORWARDING_IP renders against it).
+    "dns_primary_ip": "10.10.1.30",
     "ansible_user": "ansible-admin",
     "inventory_hostname": "oldsrv.kogler.si",
     "homelab_mode": "desktop",
