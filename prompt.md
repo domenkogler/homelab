@@ -11,7 +11,12 @@
 ## 0. Ground rules (every session, read first)
 
 1. Bootstrap: read `README.md` → mandatory context chain; state your environment (platform-env).
-2. **Own branch:** `git checkout -b audit/a` (or `audit/b`, `audit/c`). Never commit to `main`.
+2. **Own branch AND own checkout.** Running in parallel, a plain branch is not enough (one
+   working tree = one checked-out branch). From the main clone run:
+   `git worktree add ../homelab-A audit/a` (…-B audit/b, …-C audit/c) and `cd` into your worktree;
+   do all work/commits there. Merges into `main` happen from the main clone (§4). Never commit to
+   `main` directly. If you run sessions strictly sequentially instead, a plain branch in the main
+   checkout is fine.
 3. One task at a time: implement → `bash scripts/validate-all.sh` green → update the todo row
    (✅ / ⏳ tail) → move the done row to `changelog.md` → delete that task's `prompt-hd*.md`
    (A3 lifecycle) → commit.
