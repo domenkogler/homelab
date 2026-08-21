@@ -35,6 +35,8 @@ tags: [services, vps, netcup]
 
 Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (already virtualized at the provider). Same Docker networks as oldsrv ([`services.md`](services.md)).
 
+> **Wildcard-cert issuer (HD-178):** this host's Traefik is **THE single ACME (DNS-01) issuer** for `*.kogler.si`. oldsrv's internal edge and the Pi `traefik-ha` consume the synced cert pair; template-level single-issuer enforcement is tracked HD-181 ⏳.
+
 ---
 
 ## Application Stack

@@ -112,7 +112,7 @@ Cloudflare is used as the **DNS provider only** (registrar: domenca.com; nameser
 
 - Public records: only the internet-facing subset (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`, **`matrix`**, **`chat`**).
 - Internal-only hosts/services: **no public record**; WAN firewall blocks them (split-horizon).
-- Certificates: wildcard `*.kogler.si` via ACME **DNS-01** (Cloudflare API token in 1Password `Homelab-ansible`).
+- Certificates: wildcard `*.kogler.si` via ACME **DNS-01** (Cloudflare API token in 1Password `Homelab-ansible`). **Issuer = the VPS Traefik** (HD-178 — the single issuer; oldsrv's internal edge and the Pi `traefik-ha` consume the synced pair; template enforcement tracked HD-181 ⏳).
 - No orange-cloud/DDoS/geo-WAF layer — Traefik + CrowdSec handle edge security.
 
 Alternative (rejected): direct exposure without Cloudflare DNS — same result, no benefit.

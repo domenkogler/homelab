@@ -162,10 +162,11 @@ rescue them. This is an **HA/DNS availability** change, not general service fail
   keepalived MASTER (Pi in normal mode) owns the VIP → `:443`, so it never fights
   oldsrv's `traefik` for the VIP.
 - **Offline-safe cert (decision):** ACME is **disabled on the Pi edge** — it is not an ACME
-  issuer. The wildcard `*.kogler.si` cert pair is **synced from oldsrv's `traefik`**
-  (single ACME issuer, Cloudflare DNS-01) to `/opt/traefik-ha/certs/` on a LAN timer
-  (same cadence as the HA config sync, direction reversed). If oldsrv is down *and* WAN is
-  down, the last synced cert still serves `ha.kogler.si` / `dns-pi.kogler.si` (ACME
+  issuer. The wildcard `*.kogler.si` cert pair is **synced from the issuer — the VPS Traefik**
+  (single issuer per HD-178; previously written as "from oldsrv" — superseded) to
+  `/opt/traefik-ha/certs/` on a timer (sync-source rework + key authorization tracked HD-181 ⏳;
+  until then the oldsrv-sync path remains as deployed). If the sync source is unreachable,
+  the last synced cert still serves `ha.kogler.si` / `dns-pi.kogler.si` (ACME
   cannot renew, but it does not need to). The Companion app requires a valid cert, so it must work fully offline
   (WAN loss is not a failover trigger and is not required in fallback).
 - **`trusted_proxies`:** HA must trust both edges so real client IPs are preserved.

@@ -448,9 +448,12 @@
         action: drop
         comment: "Guest → LAN drop"
 
-- name: Configure Kids VLAN bedtime restriction
+- name: Configure Kids VLAN bedtime restriction (HD-179 decided: implement at Phase 1.5)
   debug:
-    msg: "Kids VLAN bedtime restriction (22:00-07:00) requires RouterOS schedule object. Pending implementation."
+    msg: >-
+      Kids VLAN bedtime restriction (22:00-07:00) + forced filtered DNS + Kids-to-Home drop
+      are DECIDED in-scope for Phase 1.5 (HD-179); implementation tracked HD-182. This
+      placeholder is replaced by the real scheduler + filter rules in that task.
 
 - name: Ensure default-deny inter-VLAN forward rule
   community.routeros.api_modify:

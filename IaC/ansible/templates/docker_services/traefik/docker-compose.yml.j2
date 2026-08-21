@@ -1,5 +1,10 @@
 # traefik docker-compose.yml — oldsrv edge + SINGLE ACME issuer
 #
+# HD-178 (2026-08-21): the wildcard issuer is the **VPS Traefik**; this oldsrv edge
+# becomes a cert CONSUMER once the single-issuer flag lands (HD-181 ⏳). Until that
+# change, this template still renders ACME on both hosts — known defect, do not
+# rely on the oldsrv acme.json going forward.
+#
 # This is THE ACME issuer for the wildcard *.kogler.si cert (Cloudflare DNS-01).
 # The Pi's `traefik-ha` edge syncs its cert pair from here (see
 # docs/smart-home-failover.md). CONTRACT (must keep):

@@ -29,7 +29,8 @@ gpu_video_gid: 44
 #
 # (Version pins were moved here → versions.yml by HD-156 on 2026-08-19.)
 # Let's Encrypt account contact — REQUIRED to register the ACME account when the
-# first cert is issued (wildcard *.kogler.si via DNS-01 on oldsrv's `traefik`).
+# first cert is issued. Issuer = the **VPS Traefik** (HD-178: single issuer; oldsrv/Pi
+# edges consume synced certs). Single-issuer enforcement in templates tracked HD-181 ⏳.
 letsencrypt_email: domen@kogler.si
 # CrowdSec collections to install (HD-85 / KOPS-041): which app logs CrowdSec
 # parses for WAF/brute-force. Included: traefik + linux (baseline) + the exposed

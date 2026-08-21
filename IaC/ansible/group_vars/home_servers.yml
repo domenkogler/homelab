@@ -74,7 +74,7 @@ docker_services:
   # home-assistant-standby on manual forward takeover.
   - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: false }
 
-  # --- Dashboard (needs docker.sock to read home container reachability) ---
+  # --- Dashboard (family launchpad; MOVES TO THE VPS per HD-180 — move tracked HD-183 ⏳) ---
   - { name: homepage,        template_dir: homepage, subdomain: home }
 
   # --- Observability: per-host log viewer (docker.sock = oldsrv containers) ---
