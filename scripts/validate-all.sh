@@ -11,6 +11,7 @@
 #   6. check_doc_map.py            — docs/index.md document map matches docs/ tree
 #   7. check_generated_suffix.py    — every machine-generated doc carries the -generated suffix
 #   8. check_vault_name.py          — vault is 'Homelab-ansible' (no bare Homelab refs, HD-189)
+#   9. check_placeholders.py        — placeholder tokens only in designated bootstrap files (HD-201)
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -52,6 +53,9 @@ $PY scripts/check_generated_suffix.py
 
 echo "== check_vault_name.py =="
 $PY scripts/check_vault_name.py
+
+echo "== check_placeholders.py =="
+$PY scripts/check_placeholders.py
 
 echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="
 # HD-197: catch unresolvable modules / broken YAML in every playbook at gate time.

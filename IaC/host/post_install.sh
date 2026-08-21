@@ -67,6 +67,36 @@ fi
 
 systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
 
-# 5. Cleanup temp script
+# ---------------------------------------------------------------------
+# 5. Placeholder assertion (B5/H2/H3 — HD-201): fail loudly BEFORE the
+#    installer reboots when the produced config still carries placeholders
+#    (REPLACE_ME_* tokens, placeholder disk serials, placeholder pubkeys).
+#    A host that boots with unreplaced keys is locked out (no root
+#    password, KOPS-044) — the late_command failure surfaces the misfire
+#    on the installer console/log instead.
+#    Covers the shared preseeds (nas + oldsrv) and, by the same rule,
+#    pi/first-boot-config.sh (same assertion, same pattern list).
+# ---------------------------------------------------------------------
+PLACEHOLDER_PATTERNS='REPLACE_ME_|<SERIAL>|VNESI_MODEL_IN_SERIJSKO_SSD_STEVILKO|VNESI_SERIJSKO_USB_KLJUCA|_FROM_1PASSWORD>|<PLACEHOLDER>'
+# Produced-config files only — never this script itself (its pattern
+# definition would self-match). fstab/boot-device strings cover the
+# placeholder-serial class; authorized_keys cover the pubkey class.
+PLACEHOLDER_CHECK_FILES="/home/ansible-admin/.ssh/authorized_keys /home/ai-debug/.ssh/authorized_keys /etc/ssh/sshd_config /etc/fstab"
+placeholder_hits=""
+for cfg_file in $PLACEHOLDER_CHECK_FILES; do
+    if [ -f "$cfg_file" ] && grep -Eq "$PLACEHOLDER_PATTERNS" "$cfg_file"; then
+        placeholder_hits="$placeholder_hits $cfg_file"
+    fi
+done
+if [ -n "$placeholder_hits" ]; then
+    echo "FATAL (HD-201): placeholder content still present in:$placeholder_hits" >&2
+    echo "       patterns: $PLACEHOLDER_PATTERNS" >&2
+    echo "       Replace the placeholders with the real 1Password Homelab-ansible" >&2
+    echo "       values (laptop-domen_ssh / ansible-admin_ssh / ai_ssh) and re-run" >&2
+    echo "       the install — aborting BEFORE reboot so the misfire is loud." >&2
+    exit 1
+fi
+
+# 6. Cleanup temp script
 rm -f /tmp/post_install.sh
 exit 0

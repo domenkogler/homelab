@@ -142,6 +142,32 @@ chmod +x "$BOOT/firstboot.sh"
 echo "  [3/4] Fallback script written (boot/firstboot.sh)"
 
 # -----------------------------------------------------------------
+# 4. Placeholder assertion (B5/H2/H3 — HD-201): refuse to hand back an
+#    SD card that would boot with placeholder keys — the Pi has no root
+#    password and no console recovery, so placeholder pubkeys = locked-out
+#    host. The generated files on the card must carry the real 1Password
+#    public keys BEFORE first power-on. On a hit the written files stay on
+#    the card: fix them in place, or edit the key lines in this script and
+#    re-run it. DO NOT power on the Pi until the placeholders are gone.
+#    (This script's own source intentionally still contains placeholders —
+#    only the WRITTEN files are asserted.)
+# -----------------------------------------------------------------
+PLACEHOLDER_PATTERNS='REPLACE_ME_|<SERIAL>|VNESI_MODEL_IN_SERIJSKO_SSD_STEVILKO|VNESI_SERIJSKO_USB_KLJUCA|_FROM_1PASSWORD>|<PLACEHOLDER>'
+placeholder_hits=""
+for cfg_file in "$BOOT/user-data" "$BOOT/firstboot.sh"; do
+    if grep -Eq "$PLACEHOLDER_PATTERNS" "$cfg_file"; then
+        echo "FATAL (HD-201): placeholder keys still present in $cfg_file" >&2
+        placeholder_hits=1
+    fi
+done
+if [ -n "$placeholder_hits" ]; then
+    echo "       Replace them with the real 1Password Homelab-ansible public keys" >&2
+    echo "       (laptop-domen_ssh / ansible-admin_ssh / ai_ssh): edit the files on" >&2
+    echo "       the card directly, or edit the key lines in this script and re-run." >&2
+    exit 1
+fi
+
+# -----------------------------------------------------------------
 # 4. Set hostname (root partition, if accessible)
 # -----------------------------------------------------------------
 ROOT_ETC="${BOOT/\/boot/\/etc}"  # crude root partition path guess

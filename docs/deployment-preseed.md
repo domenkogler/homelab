@@ -157,7 +157,9 @@ AllowUsers ansible-admin ai-debug
 EOF
 systemctl restart ssh
 
-# 5. Cleanup
+# 5. Placeholder assertion (B5/HD-201) — abort loudly if the produced config
+#    still contains placeholder tokens (implemented in IaC/host/post_install.sh)
+# 6. Cleanup
 rm -f /tmp/post_install.sh
 exit 0
 ```
@@ -178,6 +180,16 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 
 > **Note:** AI hardware diagnostics (`sudo ai-diag ...`) are deployed by the `ai_diag` Ansible role on the first playbook run — not by post_install. See [`deployment-ansible.md`](deployment-ansible.md).
 
+> **Placeholder assertion (B5 / HD-201):** before cleanup, `post_install.sh` greps the produced
+> config (both users' `authorized_keys`, `sshd_config`, `fstab`) for the greppable placeholder
+> tokens (`REPLACE_ME_*`, `<SERIAL>`, the nas serial stubs, `_FROM_1PASSWORD>` pubkeys) and exits
+> non-zero on any hit — an install that would boot into a locked-out host (no root password,
+> KOPS-044) fails loudly on the installer console/log instead. The same rule gates the Pi flow:
+> [`first-boot-config.sh`](../IaC/host/pi/first-boot-config.sh) asserts the written
+> `user-data`/`firstboot.sh` carry no placeholders before the card is declared ready. A repo-side
+> grep gate (`scripts/check_placeholders.py`, checker 9 in `validate-all.sh`) keeps *committed*
+> placeholders inside the designated bootstrap artifacts only.
+
 ---
 
 ## VPS Deviations (public edge)
@@ -193,6 +205,16 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 | Data pools | ZFS (untouched by preseed) | **no ZFS** — DBs/thumbs on VPS NVMe; bulk on Hetzner Storage Boxes |
 
 **Bootstrap warning:** netcup installs remotely (SCP custom ISO / PXE, no console recovery like iLO/USB). The preseed disables root login and locks the `ansible-admin` password (policy KOPS-044), relying **entirely** on the injected SSH keys. If the keys are not present at first boot you are **locked out** — verify the placeholders are replaced with the real 1Password public keys **before** the ISO is booted.
+
+> **Wrong-script risk (late_command, HD-201):** the VPS [`preseed.cfg`](../IaC/host/vps/preseed.cfg)
+> late_command copies `/cdrom/preseed/post_install.sh` — the **same media path** the shared
+> nas/oldsrv preseeds use ([Media layout](#8-late-command)). If the install media is assembled
+> with the **shared** `post_install.sh`, the preseed still runs — and installs `ai-debug` + the
+> LAN-only AI key on this **public** box (the "do NOT use the shared script" rule lives only in a
+> preseed comment, nothing enforces it). Before booting the VPS installer, verify the file at
+> `preseed/post_install.sh` on the media is [`IaC/host/vps/post_install.sh`](../IaC/host/vps/post_install.sh)
+> (two keys, no `ai-debug`), never the shared three-key script. The netcup Custom-Script flow below
+> is immune (the pasted script is explicit); the custom-ISO/preseed path carries the risk.
 
 #### netcup Custom-Script flow (`*_with_secrets.sh`)
 netcup SCP's "**Custom Script** (executed at end of image installation, ≤10 000 chars, must have shebang)" is the operative install hook — the `d-i` preseed lines do **not** run on netcup's pre-built image. Workflow:
