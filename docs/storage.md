@@ -326,11 +326,9 @@ and `nvme` (oldsrv), documented above.
 
 ## Immich Hybrid Storage (legacy — originals on NAS, thumbs/ML local)  *(superseded 2026-08-18)*
 
-- ~~`UPLOAD_LOCATION` = local NVMe dir — `upload/thumbs` + `upload/encoded-video` + ML cache stay local.~~
-- ~~Enable storage template → originals land in `{UPLOAD_LOCATION}/library/...`.~~
-- ~~Bind-mount nas `tank/data/immich` → `{UPLOAD_LOCATION}/library` (NFS) — only big write-once originals cross NFS.~~
-- ~~Postgres + Immich-ML model weights local.~~
-- ~~Plain thumbnails and encoded-video regenerable on demand (reconstruct job) — not backed up.~~
+> Superseded by the VPS-era layout above (**HD-135**, decided 2026-08-18): app + DB + thumbs on VPS NVMe,
+> originals + encoded-video on the live Hetzner Box, ML on oldsrv. The old "originals on NAS/MinIO" mount
+> plan lives in git history — see [changelog.md](../changelog.md) (HD-135/HD-151).
 
 ---
 
@@ -356,16 +354,6 @@ image backup of the MX300 needed; pools are self-describing. `nas` total-loss be
 services keep running (their state is on oldsrv); Immich photos + OpenCloud files are on the **live
 Hetzner Box** (cold tier), so they remain reachable — only the NAS-local archive datasets are
 unavailable until the NAS is rebuilt (accepted, see `backup.md`).
-
----
-
-## Proposed IaC (`storage` Ansible role — stub for `deployment-ansible.md`)
-
-Install `zfsutils-linux`, `sanoid`, `syncoid`; **import** pools — `tank`/`bulk` on nas, `nvme` on oldsrv
-(never re-create; pools are self-describing); create datasets with the properties above; template
-`sanoid.conf`; enable `sanoid.timer`/`syncoid.timer`; render `/etc/exports` (`tank/data`, `bulk/media`);
-3879 oldsrv `/etc/fstab` mounts + push timers; wire Kopia sources.
-Run after `common`+`network`, before `docker_services` (containers need the NFS mounts).
 
 ---
 

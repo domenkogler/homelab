@@ -122,10 +122,11 @@ tags: [services, interfaces, dashboards]
 Ansible deploys/updates container (VPS + oldsrv, single path)
     │
     ▼
-Post-deploy hooks:
+Post-deploy hooks (control plane, where the playbook runs):
   1. Render homepage_services.yaml.j2 → /opt/homepage/config/services.yaml
   2. Render homepage_widgets.yaml.j2 → /opt/homepage/config/widgets.yaml
   3. Render inventory.md.j2 → docs/services-inventory-generated.md
   4. Reload Homepage container
-  5. Commit + push updated docs to Git
+  5. Generated-doc updates land in the control-plane repo working tree —
+     commit + push is MANUAL (Ansible never commits; D11)
 ```

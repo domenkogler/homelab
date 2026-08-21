@@ -117,27 +117,7 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ## Design Consideration: Proxmox Hypervisor Layer — REJECTED for Phase 1
 
-> **Status:** REJECTED (2026-08-16, per HD-92 / brainstorming). oldsrv stays **bare-metal Debian +
-> Docker**. No local Proxmox and no GPU passthrough on the single Phase-1 box (one shared dGPU = desktop
-> **and** AI; a single host gains no HA from VMs). Proxmox is deferred to Phase 2 (HD-41/42) with a real
-> second node. The `infra`/`desktop` VM split below is **not adopted**; it is kept only as the historical
-> rationale for why bare-metal + Docker was chosen (Docker is portable → same compose files run on bare
-> metal, VPS, or a Phase-2 Proxmox VM).
-
-| VM | Role | Resources | Benefit |
-|----|------|-----------|---------|
-| `infra` | All Docker services | 32 GB RAM, 8 vCPU, NVMe passthrough | Isolated from desktop crashes; reboot independently |
-| `desktop` | XFCE + browser + gaming | 8 GB RAM, 4 vCPU, GPU PCI passthrough | GPU/driver crashes don't take down homelab |
-
-**Preconditions to verify:**
-- IOMMU support on ASRock Z270 Extreme4 (check CPUID.IOMMU + BIOS VT-d setting)
-- AMD RX 7600 PCI passthrough viability (device isolation in IOMMU groups, VRAM reset behavior)
-- Proxmox LXC vs full VM trade-off (LXC = lighter but no GPU passthrough)
-- Hypervisor overhead cost (~2–4 GB RAM for management + two VMs)
-- Impact on preseed: generate Proxmox ISO instead of Debian Desktop
-
-**If IOMMU/GPU passthrough fails:** accept infra+desktop in single VM (still gives resource limits, independent reboot, snapshot-before-update). Or skip entirely and keep bare-metal — zero migration cost since nothing is live.
-
-**Why only 2 VMs (not 3)?** Split point is desktop vs. everything else. Adding a third VM just to separate databases from web frontends buys nothing that GitOps per-service compose doesn't already provide. 3 VMs on 48 GB = premature partitioning before workload justifies it.
-
-**Decision trigger:** resolve after motherboard/IOMMU check + ROCm driver stability assessment on oldsrv post-deploy.
+> **REJECTED (2026-08-16, HD-92):** oldsrv stays **bare-metal Debian + Docker** — no local Proxmox and no GPU
+> passthrough on the single Phase-1 box (one shared dGPU serves both desktop and AI; a single host gains no HA
+> from VMs). Proxmox defers to Phase 2 (HD-41/42) with a real second node. Full rationale + the rejected
+> `infra`/`desktop` VM split live in [changelog.md](../changelog.md) (HD-92) and git history.

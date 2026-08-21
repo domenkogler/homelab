@@ -58,11 +58,6 @@ tags: [hardware, nas, zfs]
   single filesystem **within** `bulk/media`, which is one dataset ✓
 - Full layout/properties: [`storage.md`](storage.md)
 
-> **TODO (IaC):** nas `storage` role — pool import, dataset creation with properties (see
-> `storage.md`), `sanoid.conf` + systemd timers (sanoid.timer/syncoid.timer), NFS exports
-> (`tank/data`, `bulk/media`), oldsrv fstab mounts, and the nightly push jobs (db dumps, service state,
-> face thumbnails). Doc-only in the planning phase.
-
 ---
 
 ## ZFS Pool "bulk" (Local Secondary — RAIDZ2, mixed role)

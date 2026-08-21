@@ -237,22 +237,9 @@ container — no separate `immich-microservices` service needed.
 
 ### Immich Hybrid Storage (originals on NAS, thumbs/ML local)  *(superseded 2026-08-18)*
 
-> **Stale — HD-135/HD-151:** Immich now runs on the VPS with originals on the **live Hetzner Box** (CIFS) and
-> the NAS datasets trimmed. Kept only as historical context; do not follow the mount paths below.
-
-```yaml
-services:
-  immich-server:
-    volumes:
-      - /srv/docker/immich/upload:/data        # local NVMe: thumbs, encoded-video
-      - /mnt/nas/data/immich:/data/library     # NFS originals (storage template on)
-```
-
-- Container-internal path changed from `/usr/src/app/upload` → `/data` (v3+).
-- Enable **storage template** so originals go to `/data/library`.
-- Bind-mount nas `tank/data/immich` → `/data/library` (only big write-once originals cross NFS).
-- Postgres + Immich-ML model cache + ML embeddings (in DB) stay local — see [`storage.md`](storage.md).
-- Face thumbnail files → `bulk/data/immich-thumbs` nightly (backed up); the rest of `thumbs/` regenerable.
+> Superseded by **HD-135** (VPS era): Immich app + DB + thumbs run on the **VPS**, originals + encoded-video
+> on the **live Hetzner Box** (CIFS), ML offloaded to oldsrv — layout in [`storage.md`](storage.md), decision
+> history in [changelog.md](../changelog.md) (HD-135/HD-151). The old NAS-NFS mount plan lives in git history.
 
 ---
 

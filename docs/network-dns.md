@@ -77,13 +77,13 @@ Client → Technitium PRIMARY (oldsrv)     ← DHCP lists this first
 Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
 
 - **Local (Technitium):** authoritative for `*.kogler.si` internally — resolves hosts/services to internal IPs, and auto-creates records from DHCP leases.
-- **Public (Cloudflare):** publishes **only** the internet-facing subset (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`, **`matrix`**, **`chat`**). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
-- Internal-only services/hosts (stats, bck, dns, ad, auto, cockpit-*, router, switch, nas, oldsrv) have **no public record**; WAN firewall blocks them (defense in depth).
+- **Public (Cloudflare):** publishes **only** the internet-facing subset — the human-readable mirror is [`services.md`](services.md) §Domain & Subdomain Plan (`kogler.si` root + `home`, `sso`, `foto`, `file`, `office`, `ai`, `git`, `ha`, `vpn`, `matrix`, `chat`). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
+- Internal-only services/hosts (stats, dns, ad, auto, logs, cockpit-*, router, switch, nas, oldsrv) have **no public record**; WAN firewall blocks them (defense in depth).
 - **TLS:** a single wildcard `*.kogler.si` certificate, issued via ACME **DNS-01** with a Cloudflare API token (1Password `Homelab-ansible`) — covers internal and public hostnames alike.
 
 ### A / AAAA policy
 
-- **Public (Cloudflare, DNS-only):** publish **A + AAAA** for the internet-facing set (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`, **`matrix`**, **`chat`**). The home `/56` prefix is **static** (unchanged for 7+ years), so AAAA is safe and enables real dual-stack. Assign oldsrv a **fixed global IPv6** from the /56 for its AAAA.
+- **Public (Cloudflare, DNS-only):** publish **A + AAAA** for the internet-facing set — same list as the mirror in [`services.md`](services.md) §Domain & Subdomain Plan. The home `/56` prefix is **static** (unchanged for 7+ years), so AAAA is safe and enables real dual-stack. Assign oldsrv a **fixed global IPv6** from the /56 for its AAAA.
 - **Manually or via Ansible:** the public record list is the SSOT in `IaC/ansible/roles/cloudflare_dns/vars/main.yml`, applied by `playbooks/dns.yml` (control node, `community.dns.cloudflare_dns`, token `cloudflare_api` in 1Password `Homelab-ansible`; **IP-filtered to `193.77.156.222` — run from the home control plane only**). Records for the VPS public edge (`vps` → `159.195.111.66` / `2a0a:...`) are already listed; add each `*.kogler.si` service there as it moves onto the VPS.
 - **Matrix delegation (public):** the homeserver name is `kogler.si`, delegated to `matrix.kogler.si` — publish `_matrix._tcp` SRV (`matrix.kogler.si 443`) and serve `_matrix/client` + `_matrix/server` well-known on `kogler.si` and `matrix.kogler.si` (Caddy/Traefik static host or an intermediate). Required for clean `@user:kogler.si` IDs and federation (see [`services-matrix.md`](services-matrix.md)).
 - **Internal (Technitium):** serve **A (IPv4)** for all hosts/services — primary, deterministic, matches the static VLAN/IPv4 plan and the IPv4 inter-VLAN firewall.
@@ -114,8 +114,8 @@ plus the router's own resolver is open on UDP/TCP 53 (input) as a tertiary.
 
 ---
 
-## Pi-hole Configuration
+## Pi-hole
 
-- Upstream: Cloudflare (1.1.1.1) or Google (8.8.8.8)
-- Conditional forwarding: local domain → Technitium IP (so Pi-hole logs show hostnames)
-- Internal Technitium blocklists **disabled** (minimize RAM; Pi-hole handles blocking)
+Pi-hole is a *service* — its catalog row, configuration (upstream resolvers, conditional forwarding to
+the Technitium primary so logs show hostnames, blocklist policy) and deployment live in
+[`services-dns.md`](services-dns.md). This file owns only the per-VLAN/subnet DNS **policy** above.

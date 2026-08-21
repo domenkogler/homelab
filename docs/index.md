@@ -28,6 +28,7 @@ tags: [index, dispatcher, ai]
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
 | **Understand service layout** | [`services.md`](services.md) | `services-*.md` stack docs (media/downloads/dns/utilities/admin), `services-traefik.md`, `services-authentik.md`, [`network-addresses-generated.md`](network-addresses-generated.md) |
 | **Triage a candidate service / check past rejections** | [`services-review.md`](services-review.md) + [`services-rejected.md`](services-rejected.md) | `services.md`, `CONVENTIONS.md` §8.3 |
+| **Triage a storage candidate / check past rejections** | [`storage-review.md`](storage-review.md) + [`storage-rejected.md`](storage-rejected.md) | `storage.md`, `CONVENTIONS.md` §8.3 |
 | **Provision Authentik OIDC clients (Blueprint + glue)** | [`services-authentik.md`](services-authentik.md) | `deployment-secrets.md`, `deployment-compose.md`, `deployment-ansible.md`, `security.md` |
 | **Backlog / open decisions** | [`todo.md`](../todo.md) | — |
 | **Cross-cutting conventions / onboarding a service** | [`CONVENTIONS.md`](../CONVENTIONS.md) | owning docs (`deployment-*.md`, `network-*.md`, `services.md`) |
@@ -58,7 +59,7 @@ docs/
 ├── network-review.md                      Network intake queue
 ├── network-rejected.md                    Append-only network decision log
 ├── network-vlans.md                       VLAN table, subnets, firewall rules
-├── network-addresses-generated.md       ★ IP address plan — SSOT (generated from IaC)
+├── network-addresses-generated.md         IP address plan — SSOT (generated from IaC; never hand-edited)
 ├── network-dns.md                         Technitium/Pi-hole, per-subnet DNS
 ├── network-vpn.md                         WireGuard (S2S), Headscale mesh
 ├── assets/Network-Devices.canvas          Device wiring & interconnections  ⚠️ WIP
@@ -72,7 +73,7 @@ docs/
 ├── hardware-ups.md                       PowerWalker VFI ICT/ICR IoT 3000 (UPS) — links, Modbus TCP, NUT status
 ├── hardware-phase2.md                     Ryzen 9 + R9700 Phase 2 build
 │
-├── services-finance.md                    ★ Personal finance: Actual Budget, Enable Banking, account import strategy, AI categorization
+├── services-finance.md                    Personal finance: Actual Budget, Enable Banking, account import strategy, AI categorization
 │
 ├── services.md                            Index: catalog legend, networks, domains → services-*.md stack docs
 ├── services-media.md                      Media: Jellyfin, Immich, Seerr, *arr + storage/import
@@ -88,10 +89,10 @@ docs/
 ├── services-review.md                     Services intake queue (rejected first, 30-day stale)
 ├── services-rejected.md                   Append-only services decision log (§8.3)
 ├── subscription.md                        Costs, providers, renewal status
-├── subscriptions-table-generated.md      ★ Subscription schedule (generated from group_vars/subscriptions.yml)
+├── subscriptions-table-generated.md       Subscription schedule (generated from group_vars/subscriptions.yml; never hand-edited)
 ├── automation-renewals.md                 Renewal-reminder automation (Homepage + n8n)
 │
-├── network-rack-generated.md            ★ Rack wiring map (generated from rack-connections.json — do not hand-edit)
+├── network-rack-generated.md              Rack wiring map (generated from rack-connections.json — do not hand-edit)
 │
 ├── deployment.md                          Broad: GitOps philosophy, Ansible-only deploy flow
 ├── deployment-review.md                   Deployment intake queue
@@ -105,7 +106,7 @@ docs/
 ├── deployment-renovate.md                 Renovate Bot & update lifecycle
 ├── security.md                            ★ Security hardening posture (WAF, pinning, privilege, bootstrap, decisions)
 ├── interfaces.md                          Dashboard + management interface matrix
-├── services-inventory-generated.md      ★ Service inventory (generated from group_vars docker_services)
+├── services-inventory-generated.md        Service inventory (generated from group_vars docker_services; never hand-edited)
 │
 ├── todo.md                              Planned work + open decisions backlog (HD-XX, single source)
 ├── CONVENTIONS.md                        Cross-cutting rules index + service-onboarding checklist (repo root)
@@ -122,7 +123,7 @@ docs/
 
 ├── services-ai.md                         ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, PGVector
 │
-├── storage.md                         ZFS dataset tree, properties, replication (SSOT)
+├── storage.md                         ★ ZFS dataset tree, properties, replication (SSOT — authoring spec for the `storage` role)
 ├── storage-review.md                    Storage intake queue
 ├── storage-rejected.md                  Append-only storage decision log
 ├── backup.md                              LAST: ZFS + Kopia, DR, restore drills
@@ -169,4 +170,4 @@ docs/
   | netcup VPS | `vps.kogler.si` | **public edge + live-data apps + observability backend** (day-one edge, HD-93/HD-40A) |
 
 - **Ansible IaC:** see [`deployment-ansible.md` → IaC Authoring Conventions](deployment-ansible.md) — variables, secrets, role structure, compose template rules
-- **Generation targets:** Marked with ★ — *authoring specs* read by AI to write or correct the corresponding IaC. Direction of truth: concrete values live in IaC and are rendered INTO value-carrying docs (`network-addresses-generated.md`, `services-inventory-generated.md`) — those generated views are never hand-edited.
+- **★ legend:** Marked with ★ — *authoring specs* read by AI to write or correct the corresponding IaC. Generated views (`*-generated.md`) are **not** starred: they are rendered FROM IaC and never hand-edited — direction of truth is IaC → rendered doc (`network-addresses-generated.md`, `services-inventory-generated.md`).

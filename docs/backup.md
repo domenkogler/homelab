@@ -80,16 +80,16 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | Data | Location | Method | Target |
 |------|----------|--------|--------|
-| PostgreSQL DBs (Authentik, Immich, Forgejo, **PGVector** — HD-102) | oldsrv NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** Hetzner Storage Box (backup) (Kopia) |
-| Docker Compose files / systemd units / configs | Git repo + oldsrv `/opt/*` | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box (backup) |
-| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend** — HD-100, **OpenClaw config/state** — HD-104, **Seerr config + `seerr.db`** — HD-130/KOPS-059, …) | oldsrv NVMe | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
+| PostgreSQL DBs (Authentik, Immich, Forgejo, **PGVector** — HD-102; all bundled on the **VPS**, `db-backup` DB01–04) | VPS NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** Hetzner Storage Box (backup) (Kopia) |
+| Docker Compose files / systemd units / configs | Git repo + host `/opt/*` (**VPS + oldsrv**) | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box (backup) |
+| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend** — HD-100, **OpenClaw config/state** — HD-104 on the **VPS**; **Seerr config + `seerr.db`** — HD-130/KOPS-059 on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
 | Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |
 | Router configs (`*.rsc`) | Git repo | Git + Kopia | Hetzner Storage Box (backup) |
 | Immich **originals + encoded-video** (photos/videos) | **live Hetzner Box** (CIFS `//u653411.../backup`, VPS) | **live tier** (HD-135) | backed by **Kopia → backup Box** (off-site) **+ the Immich DB** (albums/faces/tags) — D3. *Supersedes the MinIO/S3-originals plan (HD-131 D1).* |
 | Immich **face thumbnails** | oldsrv NVMe | nightly rsync + Kopia | `bulk/data/immich-thumbs` + Hetzner Storage Box (backup) |
 | **Media library** (movies/tv/music) | **nas `bulk/media`** | **NOT backed up** | redownloadable via usenet/torrents |
 
-> **Excluded — by design:** observability TSDB (Prometheus 30d + Loki 14d) is **regenerable and NOT backed up**. It lives on oldsrv local disk; losing it loses only rolling metric/log history. See [`observability.md`](observability.md).
+> **Excluded — by design:** observability TSDB (Prometheus 30d + Loki 14d) is **regenerable and NOT backed up**. It lives on the **VPS NVMe** (HD-135 backend placement); losing it loses only rolling metric/log history. See [`observability.md`](observability.md).
 
 > **Excluded — media + *arr scratch:** `bulk/media` (library **and** `downloads/`) is partially or fully
 > redownloadable via usenet/torrents, so the whole dataset is **unbacked** — no sanoid snapshots, no

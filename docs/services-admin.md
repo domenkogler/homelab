@@ -24,7 +24,7 @@ tags: [services, admin, ops, gitops, security, backup]
 | CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via Metabase) |
 | Metabase | sec | P+I | 250–450 / 800 | CrowdSec dashboard + analytics sandbox (one instance, two roles). **Auth (HD-148): Forward-Auth** (Metabase OSS has NO OIDC/SSO — paid Enterprise feature; provider/`metabase_oidc` declared for future, but route stays Forward-Auth) |
 | Headscale | vpn | P | 60–120 / 250 | Tailscale coordination server |
-| Kopia | bck | I | 150–250 / 500 | Encrypted off-site backup → Hetzner Storage Box (backup, far DC) |
+| Kopia | — | I | 150–250 / 500 | Encrypted off-site backup (kopia-server on the VPS + oldsrv agent, HD-191) → Hetzner Storage Box (backup, far DC); agent reach = WG-only `:51515`, no subdomain |
 | DB Backup | — | D | 30–60 / 200 | Database dumps (tiredofit/db-backup) |
 
 ## Notes

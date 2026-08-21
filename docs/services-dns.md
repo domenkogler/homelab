@@ -27,6 +27,13 @@ tags: [services, dns, technitium, pihole]
 - **Technitium primary** on oldsrv (Docker, `services-internal`).
 - **Technitium secondary** on the **Raspberry Pi (`pi.kogler.si`)** — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when oldsrv is down (see [`network-dns.md`](network-dns.md) + [`smart-home-failover.md`]).
 
+## Pi-hole Configuration
+
+- Upstream: Cloudflare (1.1.1.1) or Google (8.8.8.8).
+- Conditional forwarding: local domain → the **Technitium primary** (`dns_primary_ip`, HD-187) so Pi-hole logs show hostnames.
+- Internal Technitium blocklists **disabled** (minimize RAM; Pi-hole handles blocking).
+- Per-VLAN/subnet DNS **policy** (who may query whom, port-53 binding) lives in [`network-dns.md`](network-dns.md).
+
 ## Related
 - [Network DNS architecture](network-dns.md) — VLAN/subnet policy, port-53 binding, DNS SSOT
 - [Services index](services.md) — catalog legend + network/subdomain SSOT

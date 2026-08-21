@@ -12,7 +12,7 @@ tags: [services, matrix, chat, messaging]
 > **Linked from:** `index.md`, `services.md`
 
 > ⚠️ **Phase 1 (planned, not yet deployed).** Nothing about Matrix is live. Decisions below are the
-> authoring spec for the IaC (`docker_services` templates + `group_vars/home_servers.yml`) and the
+> authoring spec for the IaC (`docker_services` templates + `group_vars/vps.yml`) and the
 > network/DNS records. IaC implementation is tracked as **HD-46**; public records/federation as **HD-47**;
 > backup as **HD-49** (see [`todo.md`](../todo.md)). Bridges are **deferred** (Phase 2 best-effort) — HD-48.
 
@@ -21,8 +21,7 @@ tags: [services, matrix, chat, messaging]
 ## Goals
 
 Family messaging that does **not** depend on any single commercial chat app: a self-hosted Matrix
-homeserver with **Element Web** as the web client. Runs on `oldsrv` (Phase 1) alongside every other
-service.
+homeserver with **Element Web** as the web client. Runs on the **VPS** (public/federated tier — HD-139).
 
 > **Scope (decided):** Phase 1 is **Matrix-native only** — family↔family in Matrix rooms. The family
 > keeps WhatsApp/Signal native on their phones for the outside world. **Third-party bridges are
@@ -39,10 +38,10 @@ service.
 | **Tuwunel** (homeserver) | `matrix.kogler.si` | Rust homeserver — official successor to Conduwuit. Handles `/_matrix/*` (client-server + federation). **Public + federated.** |
 | **Element Web** (web client) | `chat.kogler.si` | Static web client. **Matrix-native SSO → Authentik.** |
 
-- **Container:** homeserver + Element Web on `oldsrv` (`traefik-public` + `services-internal`).
-- **Storage:** Tuwunel uses a **RocksDB file store** (`database_path`, includes media) — **no external Postgres**; bind-mounted to `/srv/docker/matrix` on oldsrv and included in ZFS/Kopia backup (**HD-49**).
+- **Container:** homeserver + Element Web on the **VPS** (`traefik-public` + `services-internal`; placement per `group_vars/vps.yml`, HD-139).
+- **Storage:** Tuwunel uses a **RocksDB file store** (`database_path`, includes media) — **no external Postgres**; bind-mounted to `/srv/docker/matrix` on the VPS and included in ZFS/Kopia backup (**HD-49**).
 - **RAM (idle/peak MB, to validate after deploy):** Tuwunel 150–350 / 700 · Element Web 30–80 / 150.
-  ≈ **180–430 idle / ≤ 900 peak** — comfortable on `oldsrv` (48 GB).
+  ≈ **180–430 idle / ≤ 900 peak** — comfortable within the VPS budget (**16 GB DDR5**, netcup RS 2000 G12 — [`services-vps.md`](services-vps.md)).
 
 ---
 
@@ -57,7 +56,7 @@ service.
   `kogler.si`, `home`, `sso`, `foto`, `file`, `git`, `ha`, `vpn`).
 - The wildcard `*.kogler.si` cert (Cloudflare DNS-01) already covers both subdomains — no extra cert work.
 - **Federation transport:** serve `matrix.kogler.si` through Traefik on **443/TLS** (federation-over-443).
-  Optional listener on **8448** is not required. WAN firewall must allow 443 (and 8448 if used) **to oldsrv — `/_matrix/*` is NOT behind Forward-Auth.** See [`services-traefik.md`](services-traefik.md).
+  Optional listener on **8448** is not required. WAN firewall must allow 443 (and 8448 if used) **to the VPS — `/_matrix/*` is NOT behind Forward-Auth.** See [`services-traefik.md`](services-traefik.md).
 
 ### Federation posture (HD-122 / KOPS-033 — decided 2026-08-18)
 
@@ -109,7 +108,7 @@ Phones / Element X ─────────────  same homeserver /log
 - The homeserver **signing key + room encryption keys** are the server's identity. **Losing them breaks
   all existing rooms / encrypted history.** They are **secrets**: keep in 1Password *and* include the
   identity file in the ZFS/Kopia backup (see [`backup.md`](backup.md)).
-- Back up: homeserver Postgres DB (via `db-backup` / Kopia), the **media store**, and the signing/identity
+- Back up: the RocksDB database/media store (`/srv/docker/matrix`, via Kopia — there is **no** homeserver Postgres) and the signing/identity
   keys. Tracked as **HD-49**.
 
 ---

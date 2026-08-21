@@ -224,8 +224,6 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
 >   a run never looks like it configured WG when it didn't. (`playbooks/vps.yml` also gates the role on
 >   `wg_s2s_vps.peer_public_key` non-empty.)
 >
->   `wg_s2s_vps.peer_public_key` non-empty.)
->
 > **Design note (superseded by the enforcement above):** the original recommendation was an ACL on the tunnel —
 > WG gate. That is now implemented; see the enforced items above.
 >
