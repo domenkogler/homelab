@@ -50,6 +50,7 @@ echo "=== 5. Idempotent 1Password token setup ==="
 # community.general.onepassword lookup reads OP_SERVICE_ACCOUNT_TOKEN at run time.
 OP_TOKEN_FILE=~/.config/op/homelab-sa-token
 mkdir -p ~/.config/op
+chmod 700 ~/.config/op   # op CLI refuses world-accessible config dirs (found live 2026-08-22, true-zero rebuild)
 if [ ! -f "$OP_TOKEN_FILE" ]; then
     read -sp "Paste your 1Password OP_SERVICE_ACCOUNT_TOKEN: " OP_TOKEN
     echo ""

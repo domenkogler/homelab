@@ -162,6 +162,15 @@
 - Working prereqs (this session): `Homelab-ansible` allowlisted in 1Password's agent toml + agent-use toggles — without it the agent refuses the keys and `ssh` misreports `invalid format`; offered-key count kept under the server's `maxauthtries 3`. Item names are vault identities, not usernames (no `laptop-domen`/`domen` user exists on the box).
 - (doc updated: `docs/1password.md` §Windows-desktop agent notes)
 
+### 2026-08-22 — Phase 0 · runner rebuilt from true zero — VERIFIED `[MANUAL]`
+
+- Owner executed: `wsl --unregister Debian` → `wsl --install -d Debian` (user `domen`) → `IaC/bootstrap-ansible-client/bootstrap.sh`. Repo reused at `/mnt/d/source/domenkogler/homelab` (single working copy, no clone). Supersedes the 2026-08-21 "no wipe" correction per the owner's true-zero documentation decision (prompt.md §3.4).
+- Bootstrap output (fed): venv + ansible + collections from `requirements.yml` SSOT; SA token stored 0600 via the prompt flow (`op_api.credential`); sudoers NOPASSWD; throwaway SSH key generated then REPLACED (step 4 below).
+- **bootstrap.sh fix (this change):** `chmod 700 ~/.config/op` — the `op` CLI refuses world-accessible config dirs; the script's `mkdir -p` ran before its `umask 077`, so the dir landed 755 and every `op read` aborted (found live on true-zero; the old runner had it fixed by hand at some point).
+- **Canonical key restored** per the prompt.md §3.1 continuity plan (the pre-wipe check had found the old local key mismatched): `ansible-admin_ssh.private_key/public_key` → `~/.ssh/id_ed25519[.pub]` via `op read`; fingerprint `SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU` = vault canonical ✓ (stale key `pUUdmN…` ceased to exist with the wipe).
+- **Verify:** `ansible-playbook -i IaC/ansible/inventory.ini IaC/ansible/test-1password.yml` → green; `kopia_password` read from vault ✓ (`PLAY RECAP: ok=2 failed=0`). ⚠ required `-e op_vault=Homelab-ansible`: `op_vault` does not resolve for implicit localhost — non-blocking, tracked as HD-210.
+- Phase 0 CLOSED — next: Phase 1 main run (`playbooks/vps.yml`).
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
