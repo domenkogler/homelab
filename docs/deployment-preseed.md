@@ -218,6 +218,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 
 #### netcup Custom-Script flow (`*_with_secrets.sh`)
 netcup SCP's "**Custom Script** (executed at end of image installation, ≤10 000 chars, must have shebang)" is the operative install hook — the `d-i` preseed lines do **not** run on netcup's pre-built image. Workflow:
+0. **Automated (preferred):** `cd IaC/host/vps && ./gen-custom-script.sh` — performs steps 1–2 via `op read` and writes `post_install_with_secrets.sh` (0600, git-ignored). Manual fallback below.
 1. Copy `IaC/host/vps/post_install.sh` → `IaC/host/vps/post_install_with_secrets.sh`.
 2. Replace the two `<..._FROM_1PASSWORD>` placeholders with the real public keys from 1Password (`laptop-domen_ssh`, `ansible-admin_ssh`).
 3. Paste `*_with_secrets.sh` into netcup → Custom Script, then **delete the file** (git-ignored in `.gitignore`, never committed).

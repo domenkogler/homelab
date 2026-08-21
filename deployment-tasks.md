@@ -137,6 +137,11 @@
    (`IaC/host/vps/preseed.cfg`) do **NOT** run on netcup's image — that file is a reference/fallback only
    (see `deployment-preseed.md` → VPS Deviations). The `*_with_secrets.sh` injects the real SSH keys;
    root login disabled. Single 512 GB NVMe root (ext4, no ZFS).
+   - [ ] **[MANUAL]** **Re-provision with the HD-208-fixed script** (reinstall, 2026-08-21+): from WSL runner
+     run `cd IaC/host/vps && ./gen-custom-script.sh` (pulls both pubkeys via `op read`, writes the git-ignored
+     `post_install_with_secrets.sh`) → paste into netcup SCP → Custom Script → reinstall → then verify first
+     boot: `ssh ansible-admin@vps.kogler.si` + `sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|maxauthtries'`
+     must show **no/no/3** from the drop-in alone. Journal it; delete the secrets file after pasting.
 2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/vps.yml`:
    `common` → `docker` → **`vps-hardening`** (HD-154: fail2ban + nftables default-deny + docker daemon) → `network` (static public IP per SSOT) → `docker_services` → `monitoring`.
 3. **Mandatory hardening checklist (HD-154, enforced by the `vps-hardening` role — NOT optional prose):**

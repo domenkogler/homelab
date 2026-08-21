@@ -47,11 +47,11 @@
 1. **Key continuity check** (before any wipe): compare WSL `~/.ssh/id_ed25519.pub` fingerprint vs
    `op read "op://Homelab-ansible/ansible-admin_ssh/public_key"`. If different → after rebuild, restore the
    canonical private key from the item into `~/.ssh/id_ed25519` (1P = source of truth).
-2. **VPS reinstall** (box is empty, safe): build `IaC/host/vps/post_install_with_secrets.sh`
-   (copy `IaC/host/vps/post_install.sh`, fill its two 1Password key placeholders with the real
-   pubkeys from `laptop-domen_ssh` + `ansible-admin_ssh` per the script's own SECURITY NOTE,
-   paste into netcup SCP Custom Script, DELETE the file). Field choices table:
-   `docs/deployment-preseed.md` §netcup.
+2. **VPS reinstall** (box is empty, safe): from WSL runner run
+   `cd IaC/host/vps && ./gen-custom-script.sh` — generates the git-ignored
+   `post_install_with_secrets.sh` with both real pubkeys injected via `op read`
+   (REMINDER: key-continuity check of step 1 first). Paste into netcup SCP → Custom Script →
+   reinstall (field choices: `docs/deployment-preseed.md` §netcup) → DELETE the secrets file.
 3. **Verify first boot** (expect no/no/3 from the drop-in alone):
    `ssh ansible-admin@vps.kogler.si` → `sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|maxauthtries'`
 4. **Runner rebuild** (owner wants Phase 0 documented from true zero): `wsl --unregister Debian` →
