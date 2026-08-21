@@ -46,6 +46,13 @@
 - **⚠ Backfill gap:** installer image/generation specifics + initial root-password flow were not captured at creation. → At first console/SSH access, record: installed Debian version, partition layout, whether `IaC/host/post_install.sh` has already been applied (expected: NOT yet — first-boot hardening is part of the Phase 1 checklist), SSH host fingerprints vs `known_hosts` TOFU note.
 - **Status:** box reachable-ready, service stack NOT deployed — Phase 1 checklist (hardening → docker → docker_services) is the next action.
 
+### 2026-08-21 — Phase 1.0 · first SSH access verified `[MANUAL]`
+
+- `ssh ansible-admin@vps.kogler.si` succeeds with the 1Password agent key (no password prompt, no fallback offered).
+- **Conclusion:** the netcup **Custom Script hook ran at image install** (2026-08-18) with `IaC/host/vps/post_install_with_secrets.sh` — the VPS variant: TWO keys only (`laptop-domen_ssh`, `ansible-admin_ssh`), no `ai-debug`, root login disabled per script.
+- Corrects the 2026-08-18 backfill entry above, which assumed "NOT yet applied".
+- Still open from that entry's capture checklist (run at the console when convenient): installed Debian version · partition/LVM layout · host-key fingerprints for `known_hosts` pinning · `sshd -T` hardening state pre-Ansible.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

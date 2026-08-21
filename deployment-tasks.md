@@ -129,7 +129,7 @@
 > **Continuation:** once the edge + Authentik are live, the LAN track (Phase 1.5 network redo → Phase 2 nas → Phase 3 oldsrv)
 > brings up the internal/GPU backends; the WG S2S tunnel (Phase 1.5 / HD-03 WG VPS peer) then lets the VPS reach them.
 
-1. **Provision VPS (netcup SCP)** — netcup boots its **pre-built Debian 13 image**; the operative install hook
+1. - [x] **[MANUAL]** **Provision VPS (netcup SCP)** — ✅ done 2026-08-18; Custom Script confirmed applied (first key-auth login verified 2026-08-21, see deployment-journal.md). netcup boots its **pre-built Debian 13 image**; the operative install hook
    is the **Custom Script** (netcup SCP field) = **`IaC/host/vps/post_install.sh`** (pasted as `*_with_secrets.sh`;
    no `ai-debug`, `AllowUsers ansible-admin` only — public box). **NOTE:** the `d-i` preseed lines
    (`IaC/host/vps/preseed.cfg`) do **NOT** run on netcup's image — that file is a reference/fallback only
