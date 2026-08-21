@@ -129,6 +129,11 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 > **Media is the deliberate exception** to 3-2-1: `bulk/media` is redownloadable, so 0-1-0 suffices
 > (RAIDZ2 redundancy, no backup copy) — see [`storage.md`](storage.md).
 
+> **Accepted residual risk (S13):** the off-site Kopia repo is encrypted but not immutable — a
+> ransomware attacker holding the Box credentials/key could reach the backup copy. Accepted for now;
+> mitigation options if ever needed: Storage Box snapshot/versioning, or a second cold credential.
+> Restore-drill discipline (yearly) is the current integrity check.
+
 ---
 
 ## Disaster Recovery

@@ -101,7 +101,7 @@ tags: [deployment, ansible, iac]
 
 ## Execution Modes
 
-> **Safety guard:** `site.yml` starts with a pre-flight check that **refuses to run as `ai-debug` or any user outside `ansible_admin_users`** (`ansible-admin`, `pi`). The `common` role repeats the same assert for direct playbook/role runs. Anyone running Ansible as `ai-debug` gets an immediate abort — it must never gain sudo.
+> **Safety guard:** `site.yml` starts with a pre-flight check that **refuses to run as `ai-debug` or any user outside `ansible_admin_users`** (per `group_vars/all.yml`: `ansible-admin` only). The `common` role repeats the same assert for direct playbook/role runs. Anyone running Ansible as `ai-debug` gets an immediate abort — it must never gain sudo.
 
 ### Bootstrap Mode (Domen's Laptop)
 ```bash
@@ -127,45 +127,52 @@ IaC/ansible/
 ├── test-1password.yml              # 1Password connectivity test
 ├── playbooks/
 │   ├── router.yml                   # hosts: router → role: router
+│   ├── switch.yml                   # hosts: switch → role: switch
+│   ├── storage.yml                  # hosts: storage (nas) → common→ai_diag→network→storage→nut(master)→cockpit
 │   ├── vps.yml                      # hosts: vps → common→docker→vps-hardening→network→cifs→[wireguard]→docker_services→monitoring
-│   ├── home_servers.yml             # hosts: home_servers → common→ai_diag→docker→network→amd_rocm→[desktop,office]→docker_services→home_assistant→monitoring
-│   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→network→docker→home_assistant→docker_services→monitoring
-│   └── all.yml                      # Cross-cutting: /etc/hosts sync
+│   ├── home_servers.yml             # hosts: home_servers (oldsrv) → common→ai_diag→docker→network→storage→nut(client)→cockpit→[amd_rocm,desktop,office,proxmox]→docker_services→home_assistant(standby)
+│   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→ai_diag→network→nut(client)→docker→home_assistant(render-first, HD-185)→docker_services→monitoring
+│   ├── dns.yml                      # Cloudflare public-record runs (roles/cloudflare_dns)
+│   ├── render-docs.yml              # renders generated docs from group_vars (Ansible path)
+│   ├── render-routeros.yml          # renders RouterOS bootstrap .rsc (secrets) → gitignored IaC/router/rendered/
+│   └── all.yml                      # hosts: all:!router:!localhost — /etc/hosts sync
 ├── group_vars/
 │   ├── all.yml                      # Timezone, locale, NTP, domain names; infra vars (network/IP/WG/livebox)
 │   ├── all/
 │   │   └── versions.yml              # Docker image version pins (ALL hosts, HD-156) — one-file Renovate review
+│   ├── network.yml                   # router+switch shared connectivity/auth (ansible_host derived from SSOT)
 │   ├── router.yml                   # WG peers, DNS forwarding; VLAN map = derived view of all.yml network_vlans
-│   ├── vps.yml                      # docker_services list (VPS)
-│   ├── home_servers.yml             # homelab_mode, docker_services list (home), GPU config
-│   └── raspberry_pi.yml             # HA install method, Pi docker_services (raspberrymatic, technitium-secondary)
+│   ├── switch.yml                   # switch ports/VLANs (switch_vlans derives from network_vlans, HD-200)
+│   ├── vps.yml                      # docker_services list (VPS edge tier)
+│   ├── home_servers.yml             # homelab_mode, docker_services list (oldsrv core), GPU config
+│   ├── raspberry_pi.yml             # HA install method/version pin, Pi docker_services (technitium-secondary etc.)
+│   └── subscriptions.yml            # subscriptions SSOT (drives subscription.md render + renewals)
 ├── host_vars/
 │   ├── oldsrv.kogler.si.yml         # homelab_mode=desktop, static IP
 │   ├── nas.kogler.si.yml            # HP MicroServer Gen8 — ZFS storage
 │   ├── vps.kogler.si.yml            # netcup RS 2000 G12 (bought 2026-08-18)
 │   └── pi.kogler.si.yml             # Static IP, SSH user (node; ha.kogler.si = VIP)
-├── roles/
+├── roles/                            # full catalog = ls roles/ (count derived, never hand-entered)
 │   ├── common/tasks/                # system.yml + main.yml
+│   ├── ai_diag/                     # ai-debug diagnostics dispatcher + sudoers
 │   ├── docker/tasks/main.yml        # Docker CE + compose install
-│   ├── docker/tasks/main.yml        # Docker CE + compose install
-│   ├── vps-hardening/tasks/main.yml # HD-154: VPS pre-deploy hardening — fail2ban, nftables default-deny, docker daemon (public edge only)
 │   ├── network/tasks/main.yml       # VLAN interfaces, /etc/hosts
-│   ├── storage/tasks/main.yml       # nas: ZFS pools/datasets, sanoid/syncoid, NFS exports; oldsrv push timers — see roles/storage (implemented)
+│   ├── storage/                     # ZFS pools/datasets/sanoid/syncoid/NFS/Samba/push timers (nas + oldsrv)
+│   ├── nut/                         # UPS: master (nas) + clients (oldsrv, pi) — host-level, no Docker
+│   ├── cockpit/                     # management UI + file-provider Traefik routes (HD-188)
+│   ├── cifs/                        # VPS live-Box CIFS mount
+│   ├── wireguard/                   # WG S2S VPS side (router peer lives in roles/router)
+│   ├── cloudflare_dns/              # public-record runs (vars/main.yml = IaC side of the record SSOT)
+│   ├── vps-hardening/tasks/main.yml # HD-154: VPS pre-deploy hardening — fail2ban, nftables default-deny, docker daemon (public edge only)
 │   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
-│   ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
-│   ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
-│   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
+│   ├── router/                      # RouterOS api_modify: VLANs, DHCP, firewall, CAPsMAN, Kids rules, address lists
+│   ├── switch/                      # CRS328 trunk/access port map via api_modify
+│   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2 stub)
 │   ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP + failover trigger
-│   ├── docker_services/tasks/main.yml # THE key role — generic service deployer
-│   ├── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana + alerting; blackbox; HA exporter
-│   ├── nut/                         # UPS: master (nas) + clients (oldsrv, ha) — see Role Catalog
-│   │   ├── tasks/main.yml
-│   │   └── files/upssched-cmd       # direct email+Signal notify on ONBATT/LOWBATT
-│   └── ai_diag/                     # ai-debug diagnostics dispatcher + sudoers
-│       ├── tasks/main.yml
-│       └── files/ai-diag
+│   ├── docker_services/             # THE key role — generic service deployer (+ prepass-authentik)
+│   └── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana + alerting; blackbox; HA exporter
 └── templates/
     ├── docker_services/             # docker-compose.yml.j2 per service
     ├── homepage_services.yaml.j2
@@ -266,29 +273,17 @@ dns_secondary_ip: 10.10.1.20     # Technitium secondary binds node IP
 
 ## Group Vars: home_servers.yml
 
-```yaml
-# HD-135 split: recursive — oldsrv runs the GPU/LAN core; the public edge + services
-# + observability backend live on the VPS (group_vars/vps.yml). See IaC/README.md.
-docker_services:
-  - { name: traefik,        template_dir: traefik }
-  - { name: crowdsec,       template_dir: crowdsec }
-  - { name: authentik,      template_dir: authentik }
-  - { name: opencloud,      template_dir: opencloud }
-  - { name: immich-app,     template_dir: immich-app }
-  - { name: forgejo,        template_dir: forgejo }
-  - { name: ollama,          template_dir: ollama }
-  - { name: immich-ml,       template_dir: immich-ml }
-  - { name: technitium,      template_dir: technitium, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
-  - { name: pihole,          template_dir: pihole }
-  - { name: raspberrymatic-standby, template_dir: raspberrymatic, instance: standby, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
-  - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
-  - { name: headscale,       template_dir: headscale }
-  - { name: kopia-server,    template_dir: kopia-server }
-  - { name: db-backup,       template_dir: db-backup }
-  - { name: grafana,         template_dir: grafana,     subdomain: stats }
-  - { name: n8n,             template_dir: n8n,          subdomain: auto }
-  - { name: sunshine,        template_dir: sunshine,     enabled: "{{ homelab_mode == 'desktop' }}" }
+> **Canonical list:** `docker_services` (with `enabled`/`instance`/`subdomain`/`template_dir`
+> modifiers and per-host gates) lives only in [`group_vars/home_servers.yml`](../IaC/ansible/group_vars/home_servers.yml)
+> — derived data, never re-typed in docs (CONVENTIONS §2). Post-HD-135, oldsrv keeps the
+> **GPU / LAN / storage-bound core** (ollama, immich-ml, technitium-primary, pihole,
+> home-assistant-standby, dozzle, signal-cli-rest-api, sunshine [desktop-gated], jellyfin + seerr
+> + the *arr stack, kopia-agent); the public edge, public apps, AI stack, observability backend and
+> n8n live on the VPS (`group_vars/vps.yml`). Human catalog: [`services.md`](services.md).
 
+Non-derived reference values that DO belong here (host-agnostic GPU config):
+
+```yaml
 # GPU config
 amd_rocm_version: "6.3"
 gpu_render_group: render

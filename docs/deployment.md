@@ -64,7 +64,7 @@ git push → (Forgejo Actions CI) → merge → deploy button → Ansible → de
 │   │   ├── group_vars/                      # Per-group variables
 │   │   ├── host_vars/                       # Per-host variables
 │   │   ├── playbooks/                       # Per-group playbooks
-│   │   ├── roles/                           # 12 roles (see deployment-ansible.md)
+│   │   ├── roles/                           # role catalog — see deployment-ansible.md (count derived from the directory)
 │   │   └── templates/                       # docker-compose + homepage + inventory
 │   ├── host/                                # OS configs
 │   │   ├── post_install.sh                  # Shared bootstrap — single copy for all hosts

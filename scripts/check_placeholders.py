@@ -17,8 +17,8 @@ assertions in `IaC/host/post_install.sh` + `IaC/host/pi/first-boot-config.sh`):
   * <PLACEHOLDER>                              — pi first-boot key stub
 
 Designated files (placeholders are the design, never flagged): see ALLOWLIST
-below — the bootstrap artifacts (injection points) plus the owning-spec /
-audit-prose docs that quote the token set.
+below — the bootstrap artifacts (injection points) plus the owning-spec doc that
+quotes the token set.
 
 Scan scope: every text file in the repo except .git/, brainstorming/
 (ephemeral), reports/ (raw snapshots) and prompt-* handoffs; undecodable
@@ -55,8 +55,6 @@ ALLOWLIST = {
     "IaC/host/vps/post_install.sh",
     "IaC/host/pi/first-boot-config.sh",
     "docs/deployment-preseed.md",   # owning spec — quotes the tokens
-    "iac-changes.md",               # audit deliverable — §7 quotes the tokens
-    "conventions-sugestions.md",    # audit deliverable — B5 quotes the tokens
     "changelog.md",                 # append-only history — exempt
 }
 

@@ -130,3 +130,6 @@ Post-deploy hooks (control plane, where the playbook runs):
   5. Generated-doc updates land in the control-plane repo working tree —
      commit + push is MANUAL (Ansible never commits; D11)
 ```
+
+> Windows/no-Ansible path for the repo-side generated docs: `scripts/render_all.py` (HD-163) —
+> pure-Python umbrella, same outputs as the Ansible renders (see `scripts/README.md`).

@@ -12,7 +12,6 @@ Exempt files (documented in the convention):
   * docs/home-assistant-current.md     — historical decision log (strikethrough)
   * deployment-tasks.md                — legacy task log
   * changelog.md                       — append-only history (rows stay as written)
-  * ephemeral round-2 audit reports at repo root — folded + deleted by HD-203
 
 Allowed anywhere: well-known external IPs (public DNS, third-party services) — the
 patterns below only match private/special-use ranges (RFC 1918 + 100.64.0.0/10 CGNAT).
@@ -46,18 +45,13 @@ EXEMPT_FILES = {
     "changelog.md",                    # append-only history (HD-197 F5)
 }
 
-# Ephemeral round-2 audit reports at repo root (A3 lifecycle, CONVENTIONS §4):
-# they quote IP evidence by design and are fold+deleted by HD-203 — not canonical.
-EPHEMERAL_AUDIT_REPORTS = {
-    "architecture.md", "conventions-sugestions.md", "docs-changes.md",
-    "docs-vs-iac.md", "iac-changes.md", "scripts.md", "security.md",
-    "tracking-sugestions.md",
-}
+# Ephemeral round-2 audit reports at repo root were fold+deleted by HD-203 (A3
+# lifecycle, CONVENTIONS §4); no name list is kept here — deleted files simply no
+# longer match the glob.
 
 
 def _scan_files() -> list[Path]:
-    """Canonical root *.md (minus prompt-* handoffs + ephemeral audit reports),
-    all docs/**/*.md, all IaC/**/*.md."""
+    """Canonical root *.md (minus prompt-* handoffs), all docs/**/*.md, all IaC/**/*.md."""
     files: set[Path] = set(ROOT.glob("*.md"))
     files |= set((ROOT / "docs").rglob("*.md"))
     iac = ROOT / "IaC"
@@ -66,8 +60,6 @@ def _scan_files() -> list[Path]:
     out = []
     for f in sorted(files):
         if f.name.startswith("prompt-"):
-            continue
-        if f.name in EPHEMERAL_AUDIT_REPORTS and f.parent == ROOT:
             continue
         out.append(f)
     return out

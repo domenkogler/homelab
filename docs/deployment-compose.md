@@ -331,7 +331,6 @@ sibling services have no auth. Apply minimum auth per service:
 - **Backup servers:** always require server auth. **Kopia uses `--htpasswd-file`** (the server has **no `--password` flag** — `--password`/`--without-password` are repo/at-rest vs network concerns). Kopia's htpasswd parser accepts plaintext `user:password` (0600); secret = `kopia-server-internal_api`. Never `--without-password` (HD-59).
 - **Observability UIs:** protect scrape/config endpoints — Prometheus `--web.config.file` with **bcrypt** `basic_auth_users` (`prometheus-internal_api`; hash via `scripts/gen-htpasswd.py`); endpoint stays loopback-only (HD-62) (HD-59).
 - **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
-- **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
 
 #### Sibling-auth coverage map (HD-160)
 

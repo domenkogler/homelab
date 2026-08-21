@@ -7,9 +7,9 @@
 
 | Component | Implemented | Stubs / TODO |
 |-----------|-------------|--------------|
-| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation), `storage`, `router`, `switch` (HD-03), `home_assistant`, `docker_services` (HD-50), `monitoring`, `amd_rocm`, `desktop`, `office`, `cifs`, `cloudflare_dns`, `wireguard` (18) | `proxmox` (1, TODO) |
-| Docker compose templates | 49 templates implemented (HD-01) — see `templates/docker_services/` | — |
-| RouterOS scripts | `rb4011_initial.rsc`, `ap_initial.rsc` (2) | — |
+| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation), `storage`, `router`, `switch` (HD-03), `home_assistant`, `docker_services` (HD-50), `monitoring`, `amd_rocm`, `desktop`, `office`, `cifs`, `cloudflare_dns`, `wireguard`, `vps-hardening` (HD-154) — count = `ls roles/`, never hand-entered | `proxmox` (TODO, Phase 2) |
+| Docker compose templates | implemented set = `templates/docker_services/` (count derived from the directory; count-lint enforced by `validate-docker-services.py`) | — |
+| RouterOS bootstrap scripts | `IaC/router/templates/{rb4011,crs328,ap}_initial.rsc.j2` (3) — rendered with secrets via `playbooks/render-routeros.yml` into gitignored `IaC/router/rendered/`; never import the raw template | — |
 | Bootstrap | `bootstrap.sh`, `post_install.sh`, `pi/first-boot-config.sh` (3) | — |
 
 > `network` role: static-IP + VLAN trunk provisioning is a scoped TODO until the host network config manager (systemd-networkd vs netplan) is decided — see `roles/network/tasks/main.yml`.
@@ -241,40 +241,17 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 
 ## Service Definitions (Group Vars)
 
-### Home Server Services (`group_vars/home_servers.yml`)
+The per-host service lists (`docker_services`, with `enabled`/`instance`/`subdomain`/`template_dir`
+modifiers and per-host gates) are **defined only in group_vars** — they are derived data and are
+never re-typed here (CONVENTIONS §2):
 
-> **Canonical list:** `docker_services` lives in `group_vars/home_servers.yml` (the
-> runtime source of truth — including the `enabled`/`instance`/`subdomain` modifiers
-> and any per-host gates). The inline sample below is **illustrative only and may
-> drift** — do not edit it to "keep it in sync"; edit the group_vars instead.
+- **VPS (public edge + live-data tier):** [`group_vars/vps.yml`](ansible/group_vars/vps.yml)
+- **Home servers (GPU/LAN core):** [`group_vars/home_servers.yml`](ansible/group_vars/home_servers.yml)
+- **Pi:** [`group_vars/raspberry_pi.yml`](ansible/group_vars/raspberry_pi.yml)
 
-```yaml
-# Illustrative sample — canonical list: group_vars/home_servers.yml
-# (traefik, crowdsec, authentik, opencloud, immich-app, forgejo, ollama, immich-ml,
-#  technitium[oldsrv], pihole, (raspberrymatic-standby[oldsrv] — HD-13 parked), home-assistant-standby[oldsrv],
-#  headscale, kopia-server, db-backup, grafana→stats, n8n→auto,
-#  sunshine[desktop], + TODO templates: homepage, renovate, prometheus, loki,
-#  blackbox-exporter, signal-cli-rest-api, metabase)
-```
-
-> **Catalog:** all services are defined in `docs/services.md`. In Phase 1 **all** run on
-> `oldsrv.kogler.si`; public-facing ones move to `vps.kogler.si` (Traefik) in Phase 2.
-
-### VPS Services (`group_vars/vps.yml`) — Phase 2, reference only
-
-```yaml
-docker_services:
-  - { name: traefik,        template_dir: traefik,      enabled: false }
-  - { name: crowdsec,       template_dir: crowdsec,     enabled: false }
-  - { name: authentik,      template_dir: authentik,    enabled: false }
-  - { name: opencloud,      template_dir: opencloud,    enabled: false }
-  - { name: immich-app,     template_dir: immich-app,   enabled: false }
-  - { name: forgejo,        template_dir: forgejo,      enabled: false }
-  - { name: grafana,        template_dir: grafana,      enabled: false }
-  - { name: n8n,            template_dir: n8n,           enabled: false }
-  - { name: kopia-server,   template_dir: kopia-server, enabled: false }
-  - { name: db-backup,      template_dir: db-backup,    enabled: false }
-```
+Placement follows the HD-135 plane split (oldsrv runs the GPU/LAN core; the public edge, public
+services and the observability backend live on the VPS). The human-readable catalog is
+[`docs/services.md`](../docs/services.md); the deploy-loop SSOT is group_vars.
 
 ---
 
@@ -330,7 +307,7 @@ See `docs/deployment-secrets.md` for the full master list + rename map (includin
 | `headscale_api` | headscale |
 | `ha_api`, `ha-vrrp_password` | home_assistant / monitoring |
 | `cloudflare_api` | ACME DNS-01 wildcard cert |
-| `router_login`, `wg_password` | router |
+| `mikrotik-admin_login`, `wg_password` | router (+ switch/APs, shared — HD-165) |
 
 ---
 

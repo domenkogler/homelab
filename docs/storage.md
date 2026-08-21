@@ -190,13 +190,14 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
 ├── nvme/docker-layers       /var/lib/docker        128K lz4   no snapshots (images re-pullable)
 ├── nvme/docker              /srv/docker (container, canmount=off)
 │   ├── nvme/docker/immich   /srv/docker/immich     128K lz4   thumbs read by immich-ml (kept, HD-151)
-│   └── nvme/docker/services /srv/docker/services   128K zstd  forgejo, n8n, authentik, traefik, … (pushes + Kopia)
+│   └── nvme/docker/services /srv/docker/services   128K zstd  remaining local service state (post-HD-135 the public apps/DBs run on the VPS — oldsrv keeps the LAN core: DNS, dozzle, signal-cli, media stack state)
 ├── nvme/models              /srv/models 128K off   no snapshots, no backup (ollama + immich-ml weights)  (TSDB moved to VPS — HD-135)
 └── nvme/dumps               /srv/dumps  128K zstd  db-backup scratch → Kopia + push → tank/data/db-dumps
 ```
 
-- **Snapshots:** only `nvme/docker/services` daily(7) (rollback before migrations); everything else none —
-  the pool mirrors the NAS backup surface (dumps + services + face-thumbs) and adds convenience, not coverage.
+- **Snapshots:** none on `nvme/*` (`storage_sanoid` covers the NAS pools only) — oldsrv-local state is
+  protected by the nightly push jobs + Kopia instead (rollback-before-migrations convenience is traded
+  for simplicity; the pool mirrors the NAS backup surface, it does not extend coverage).
 - **Bind mounts, not named volumes** for stateful services: each service dir maps 1:1 to a dataset and
 gives backup jobs/Kopia clean host paths (see `deployment-compose.md` → Volume Strategy).
 - **Capacity budget:** keep `nvme` < 80% full (ZFS fragmentation). ~1 TB fits comfortably: thumbs+encoded ~150–300 GB over 5 yr, docker layers ~50–100 GB, models ~60–150 GB. (TSDB ~20–40 GB is on the VPS NVMe, not this pool — HD-135.)

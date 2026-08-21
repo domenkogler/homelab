@@ -54,8 +54,8 @@ technitium_secondary_ip: "{{ pi_home_ip }}"
 
 # ==== UPS / NUT (docs/hardware-ups.md) ====
 # Single SSOT `nut_exporter` runs as a HOST binary on the NUT master (nas, no Docker)
-# and is scraped by Prometheus (on oldsrv) over the Home VLAN. Host derived from the
-# address SSOT below (nas @ VLAN 10); port matches the nut role's `nut_exporter_listen`.
+# and is scraped by Prometheus (on the VPS, HD-135) over the WG S2S tunnel. Host derived
+# from the address SSOT below (nas @ VLAN 10); port matches the nut role's `nut_exporter_listen`.
 nut_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 # nut_exporter_listen in roles/nut/defaults/main.yml (:9199); keep in sync.
 nut_exporter_port: 9199

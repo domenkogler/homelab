@@ -15,12 +15,15 @@ tags: [network, routeros, ops]
 
 ## Router Config Lifecycle
 
-1. **Factory reset** → import `IaC/router/rb4011_initial.rsc` via WinBox (baseline)
+1. **Factory reset** → import the **rendered** `IaC/router/rendered/rb4011_initial.rsc` via WinBox
+   (baseline) — the committed file is the TEMPLATE `IaC/router/templates/rb4011_initial.rsc.j2`;
+   render it first with `playbooks/render-routeros.yml` (secrets-injected output into the gitignored
+   `rendered/` dir). Never import the raw `.j2`.
 2. **Ansible `router` role** takes over — all subsequent changes via REST API
 3. **Optional:** after manual WinBox changes, export a snapshot as
    `IaC/router/rb4011_live.rsc` for documentation (not yet created)
 
-Source of truth: `rb4011_initial.rsc` + the `router` Ansible role. The live export is documentation-only and not required for operations.
+Source of truth: `rb4011_initial.rsc.j2` + the `router` Ansible role. The live export is documentation-only and not required for operations.
 
 ## Service Binding & INPUT Firewall (HD-78 / HD-83)
 
@@ -28,6 +31,11 @@ Source of truth: `rb4011_initial.rsc` + the `router` Ansible role. The live expo
   (`api`, `www-ssl`, `ssh`) is **bound to the Management VLAN interface** (`interface=vlan{mgmt}-mgmt`)
   so none listens on WAN or any other VLAN during the bootstrap window. Plain `www` (HTTP) and
   `api-ssl` (no TLS cert yet) are left disabled.
+- **Bootstrap-window binding floor (B4):** EVERY bootstrap template (`rb4011`, `crs328`, `ap`) must
+  bind management services to the Management interface/bridge **from the first line of device
+  uptime** — the rb4011 template above is the canonical pattern; no template may enable an unbound
+  management service. The crs328/ap templates are aligned to this floor by **HD-193** before the
+  Phase 1.5 cutover.
 - **Steady-state INPUT chain (HD-78 / KOPS-003/009):** Ansible router role adds `chain: input` rules so
   the management service ports (`22,8728,8729,8291,80,443`) are reachable **only from the Management
   VLAN (99) and `trusted-admin` hosts** (nas/oldsrv/ha-vip); the ports are dropped from every other
