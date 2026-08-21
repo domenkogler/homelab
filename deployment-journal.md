@@ -23,6 +23,9 @@
 - **Promotion loop:** if a deviation turns out to be permanent/better, fold it into the owning doc or runbook
   in the same change so the SSOT stays true. The journal records the execution; the SSOT records the decision.
 - Tick the matching `- [x]` checkbox in `deployment-tasks.md` in the same change.
+- **Human input path:** the human does NOT edit this file directly — they paste raw notes into the
+  **DATA block of [`prompt-journal.md`](prompt-journal.md)** (standing feed file); the AI session converts
+  them into entries per these rules, ticks the plan, closes gates, validates, commits, and clears the feed.
 
 ---
 
