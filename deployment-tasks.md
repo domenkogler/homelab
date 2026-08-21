@@ -78,10 +78,10 @@
 
 | Item | What it is | Vault | In OP? |
 |------|-------------------------|-------|--------|
-| `netcup-ccp_login` | netcup Customer Control Panel login (billing/orders) | Ansible vault | ✓ |
-| `netcup-scp_login` | netcup Server Control Panel login (reboot/OS reset) | Ansible vault | ✓ |
-| `netcup-vps_login` | netcup root/OS credential — **separate break-glass vault** | separate vault | ✓ |
-| `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Ansible vault | ✓ |
+| `netcup-ccp_login` | netcup Customer Control Panel login (billing/orders) | Ansible vault | ✗ (vault audit 2026-08-21: not found — create) |
+| `netcup-scp_login` | netcup Server Control Panel login (reboot/OS reset) | Ansible vault | ✗ (vault audit 2026-08-21: not found — create) |
+| `netcup-vps_login` | netcup root/OS credential — **separate break-glass vault** | separate vault | ? (invisible to the Ansible SA — confirm manually) |
+| `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Ansible vault | ✗ (vault audit 2026-08-21: not found — create before kopia first repo create) |
 
 > **Provisioning note:** the generated items — the DB items `authentik_db`/`opencloud_db`/`immich_db`/`forgejo_db`/
 > `pgvector_db`, the secrets `authentik_password`/`nut_password`/`nut-exporter_password`/`kopia_password`/
