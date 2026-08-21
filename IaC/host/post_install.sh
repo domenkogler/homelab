@@ -50,12 +50,17 @@ chown -R ai-debug:ai-debug /home/ai-debug/.ssh
 
 # ---------------------------------------------------------------------
 # 4. sshd hardening (all homelab hosts)
-# Idempotent (KOPS-012 / HD-88): skip the append if the hardening marker already exists so a
+# Drop-in (/etc/ssh/sshd_config.d) instead of appending to the main file: sshd uses
+# FIRST-obtained-value-wins, so provider/custom images with explicit "yes" directives
+# would shadow an appended block (found live on netcup 2026-08-21 → HD-208; stock
+# Debian puts Include *.conf at the TOP of sshd_config, so a drop-in always wins).
+# Idempotent (KOPS-012 / HD-88 spirit): skip if the drop-in already exists so a
 # re-run (e.g. preseed retry) never accumulates duplicate sshd directives.
-if ! grep -q '^# Homelab hardening (post_install.sh)' /etc/ssh/sshd_config 2>/dev/null; then
-cat >> /etc/ssh/sshd_config <<'EOF'
-
-# Homelab hardening (post_install.sh)
+DROPIN=/etc/ssh/sshd_config.d/00-homelab-hardening.conf
+if [ ! -f "$DROPIN" ]; then
+mkdir -p /etc/ssh/sshd_config.d
+cat > "$DROPIN" <<'EOF'
+# Homelab hardening (post_install.sh) — must win first-match over image defaults
 PasswordAuthentication no
 PermitRootLogin no
 PubkeyAuthentication yes
