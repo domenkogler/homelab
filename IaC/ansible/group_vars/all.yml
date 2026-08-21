@@ -219,6 +219,13 @@ wg_s2s_vps:
 # Forward target derived from `wg_s2s_vps.ip` (SSOT) — no literal IP embedded here.
 alloy_backend_host: "{% if inventory_hostname == 'oldsrv.kogler.si' %}{{ wg_s2s_vps.ip }}{% else %}127.0.0.1{% endif %}"
 
+# ==== Immich ML cross-host endpoint (HD-184) ====
+# immich-app runs on the VPS; immich-ml (GPU) stays on oldsrv. Docker DNS cannot
+# resolve across hosts, so the app targets oldsrv's Home-VLAN address over the WG
+# S2S tunnel (HD-135/155) — derived from the address SSOT, never a literal IP.
+immich_ml_bind: "{{ oldsrv_home_ip }}"   # immich-ml publishes :3003 bound to this on oldsrv
+immich_ml_url: "http://{{ immich_ml_bind }}:3003"   # IMMICH_MACHINE_LEARNING_URL on the VPS
+
 # ==== Hetzner Storage Box — live (CIFS mount on the VPS, HD-135) ====
 # Immich originals+encoded-video and OpenCloud files live on the live Box (CIFS), mounted
 # on the VPS at /mnt/storagebox. Connection facts (host/user/password) are the live-box

@@ -44,6 +44,12 @@ Configs, DB dumps, service state, face thumbnails, and VPS/oldsrv local state go
 Kopia targets the **backup Box over SSH/SFTP (port 23)** — the Hetzner Storage Box supports **SSH/SFTP
 only, NOT S3** (HD-31/HD-135); iDrive e2 S3 was dropped.
 
+The **oldsrv agent runs containerized** (HD-191/HD-204): it connects to `kopia-server` on the VPS over
+the **WG S2S tunnel** — server port 51515 is bound **only to the VPS tunnel address** (`wg_s2s_vps.ip`,
+never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach stays scoped by the
+S2S ACL (HD-155). Agent sources are oldsrv-local, read-only: `/opt/*` configs, `/srv/dumps` scratch,
+the immich upload/thumb dir, and the signal-cli state volume.
+
 ```
 tiredofit/db-backup (local scratch) →  Kopia agent (VPS + oldsrv) →  Hetzner Storage Box (backup) SSH/SFTP :23
    + service state + face thumbs       (encrypted, dedup)       (far-DC: Helsinki/Falkenstein)

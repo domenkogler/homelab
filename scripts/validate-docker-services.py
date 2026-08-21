@@ -60,11 +60,12 @@ ALLOWED_LATEST = {
 NETWORK_MODE_SERVICE = {"qbittorrent"}
 
 # HD-202 backstop allowlist — templates deliberately WITHOUT cap_drop: [ALL].
-# GPU device services (decided HD-204: GPU/VPN exempt), HA primary/standby
-# (privileged/host-net rework = HD-72), raspberrymatic (parked HD-13, CCU emulation).
+# GPU device services (decided HD-204: GPU/VPN exempt), HA standby (its keepalived
+# sidecar predates the law — primary was reworked by HD-72 and left this list),
+# raspberrymatic (parked HD-13, CCU emulation).
 ALLOWED_NO_CAP_DROP = {
     "ollama", "immich-ml", "jellyfin", "sunshine",          # GPU / device access
-    "home-assistant-primary", "home-assistant-standby",     # HD-72 scope
+    "home-assistant-standby",                               # keepalived sidecar (HD-72 closed primary)
     "raspberrymatic",                                        # parked (HD-13)
 }
 # Per-SERVICE exemptions inside otherwise-hardened templates:
@@ -155,6 +156,18 @@ BASE_CTX = _load_ssot_ctx()
 BASE_CTX.update({
     "homematic_usb_by_id": "/dev/serial/by-id/usb-eQ-3__HmIP-RFUSB_TEST",
     "technitium_secondary_ip": "10.10.1.20",
+    # Technitium primary binds oldsrv's Home IP (host_vars/oldsrv) — same
+    # instance-specific mock class as technitium_secondary_ip above (HD-187:
+    # pihole CONDITIONAL_FORWARDING_IP renders against it).
+    "dns_primary_ip": "10.10.1.30",
+    # Immich ML cross-host endpoint (HD-184) — derived in group_vars/all.yml
+    # from `oldsrv_home_ip`; mocked here with the same Home-IP value.
+    "immich_ml_bind": "10.10.1.30",
+    "immich_ml_url": "http://10.10.1.30:3003",
+    # WG S2S peer (HD-155/191) — dict var in all.yml is Jinja-valued, so it stays
+    # a mock; values mirror the documented /30 (VPS .2). Consumed by the kopia-server
+    # WG-bound publish guard + the kopia-agent server address.
+    "wg_s2s_vps": {"ip": "10.255.40.2", "peer_public_key": "mock-router-public-key"},
     "ansible_user": "ansible-admin",
     "inventory_hostname": "oldsrv.kogler.si",
     "homelab_mode": "desktop",

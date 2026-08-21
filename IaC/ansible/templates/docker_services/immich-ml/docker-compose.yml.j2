@@ -2,6 +2,9 @@
 #   GPU-accelerated (shares AMD RX 7600 VRAM with ollama). Connects to
 #   immich-server on services-internal. No web UI — no Traefik labels.
 #   Model weights in /srv/models/immich-ml (local NVMe, no backup).
+#   HD-184: :3003 is ALSO published bound to oldsrv's Home IP so immich-app (VPS)
+#   can reach it cross-host over the WG S2S tunnel — firewall-scoped by the WG
+#   AllowedIPs + RouterOS forward ACL (HD-155), never 0.0.0.0.
 #
 # Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
 #   immich-ml-internal_api (api -> credential) — ML API-key auth (HD-160): immich-app sends
@@ -13,6 +16,11 @@ services:
     restart: unless-stopped
     networks:
       - services-internal
+    ports:
+      # Cross-host ML for immich-app on the VPS (HD-184): bound to oldsrv's Home
+      # IP (SSOT-derived `immich_ml_bind`), not 0.0.0.0 — reach is scoped by the
+      # WG AllowedIPs + RouterOS ACL; inside the overlay it stays immich-ml:3003.
+      - "{{ immich_ml_bind }}:3003:3003"
     devices:
       - /dev/dri:/dev/dri
       - /dev/kfd:/dev/kfd

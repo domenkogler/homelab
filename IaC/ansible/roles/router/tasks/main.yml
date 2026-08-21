@@ -152,10 +152,13 @@
       - address: "{{ item.subnet }}"
         gateway: >-
           {{ (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | list | first).ip }}
+        # Resolver chain per network-dns.md (HD-182 parity): Technitium primary,
+        # Technitium secondary (Pi), then the router /ip dns as tertiary fallback.
         dns-server: >-
-          {% set primary = dns_primary_ip %}
-          {% set secondary = dns_secondary_ip | default('') %}
-          {{ [primary, secondary] | select('string') | join(',') }}
+          {{ [dns_primary_ip,
+              dns_secondary_ip | default(''),
+              (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | list | first).ip]
+             | select('string') | unique | join(',') }}
   loop: "{{ network_vlans }}"
   when: item.id not in [1, 99]
 
@@ -339,6 +342,28 @@
         out-interface: pppoe-telekom
         action: masquerade
         comment: "NAT masquerade → WAN"
+      # --- Kids VLAN 40 forced filtered DNS (HD-182) ---
+      # Hijack any DNS (53 udp/tcp) leaving the Kids VLAN — hardcoded-resolver
+      # devices included — to the Technitium primary, which enforces the
+      # Kids-Group policy (Cloudflare Families, network-dns.md). NAT runs before
+      # the forward chain, so the rewritten packets match the LAN→resolver accept
+      # rule above. DoT (853) bypass is dropped in the filter chain.
+      - chain: dstnat
+        src-address: "{{ vlan_subnets[40] }}"
+        protocol: udp
+        dst-port: 53
+        action: dst-nat
+        to-addresses: "{{ dns_primary_ip }}"
+        to-ports: 53
+        comment: "Kids forced filtered DNS — UDP 53 → Technitium (HD-182)"
+      - chain: dstnat
+        src-address: "{{ vlan_subnets[40] }}"
+        protocol: tcp
+        dst-port: 53
+        action: dst-nat
+        to-addresses: "{{ dns_primary_ip }}"
+        to-ports: 53
+        comment: "Kids forced filtered DNS — TCP 53 → Technitium (HD-182)"
 
 
 # -------------------------------------------------------------------------
@@ -407,6 +432,16 @@
         dst-port: 53,853
         action: accept
         comment: "LAN → DNS resolver (Technitium)"
+      # Secondary-resolver parity (HD-182, network-dns.md): the Pi resolver must be
+      # reachable from every VLAN exactly like the primary — without this rule the
+      # default-deny below blocks it once the Pi secondary takes over.
+      - chain: forward
+        src-address-list: internal_lan
+        dst-address: "{{ dns_secondary_ip }}"
+        protocol: udp,tcp
+        dst-port: 53,853
+        action: accept
+        comment: "LAN → DNS secondary Pi (HD-182)"
       - chain: forward
         src-address: "{{ vlan_subnets[20] }}"
         dst-address: "{{ dns_primary_ip }}"
@@ -447,30 +482,40 @@
         dst-address-list: internal_lan
         action: drop
         comment: "Guest → LAN drop"
-
-- name: Configure Kids VLAN bedtime restriction (HD-179 decided: implement at Phase 1.5)
-  debug:
-    msg: >-
-      Kids VLAN bedtime restriction (22:00-07:00) + forced filtered DNS + Kids-to-Home drop
-      are DECIDED in-scope for Phase 1.5 (HD-179); implementation tracked HD-182. This
-      placeholder is replaced by the real scheduler + filter rules in that task.
-
-- name: Ensure default-deny inter-VLAN forward rule
-  community.routeros.api_modify:
-    hostname: "{{ routeros_api_host }}"
-    username: "{{ routeros_api_user }}"
-    password: "{{ routeros_api_password }}"
-    tls: "{{ routeros_tls }}"
-    validate_certs: false
-    port: "{{ routeros_api_port }}"
-    path: ip firewall filter
-    handle_absent_entries: remove
-    handle_entries_content: remove_as_much_as_possible
-    ensure_order: true
-    restrict:
-      - field: chain
-        values: [forward]
-    data:
+      # --- Kids VLAN 40 controls (HD-182; decision HD-179 — implement at Phase 1.5) ---
+      # Forced filtered DNS: plain :53 from Kids is dst-nat'ed to the Technitium
+      # primary (ip firewall nat below) which enforces the Kids-Group policy
+      # (Cloudflare Families upstream, network-dns.md); encrypted DoT (853) to
+      # anything but the resolver (allowed above) is dropped here so DNS cannot
+      # bypass the filter. Residual bypass: DoH/443 — accepted (kids' browsers can
+      # reach arbitrary HTTPS; upstream filtering still applies on the resolver).
+      - chain: forward
+        src-address: "{{ vlan_subnets[40] }}"
+        protocol: tcp,udp
+        dst-port: 853
+        action: drop
+        comment: "Kids → DoT bypass drop — DNS forced through filter (HD-182)"
+      - chain: forward
+        src-address: "{{ vlan_subnets[40] }}"
+        dst-address: "{{ vlan_subnets[10] }}"
+        action: drop
+        comment: "Kids → Home drop (HD-182)"
+      # Bedtime hard block (network-vlans.md matrix row). Implemented with the
+      # RouterOS NATIVE time-based filter parameter, deliberately NOT a
+      # /system scheduler enable/disable toggle: under declarative api_modify a
+      # toggled rule's disabled flag gets reset on every re-run (a 23:00 run would
+      # silently lift the block until 07:00) and the state would not survive a
+      # reboot mid-window. The time= param is stateless, reboot-safe and idempotent.
+      # ⏳ Deploy-gated: confirm the overnight span renders correctly on RouterOS 7.
+      - chain: forward
+        src-address: "{{ vlan_subnets[40] }}"
+        out-interface: pppoe-telekom
+        time: 22:00:00-07:00:00
+        action: drop
+        comment: "Kids bedtime WAN block 22:00-07:00 (HD-182)"
+      # Default deny LAST — merged into this ordered block (was a second
+      # chain=forward api_modify whose handle_absent_entries: remove would have
+      # deleted every rule above on each run; HD-182).
       - chain: forward
         src-address-list: internal_lan
         dst-address-list: internal_lan
@@ -543,6 +588,32 @@
         dst-port: 161
         action: drop
         comment: "Drop SNMP from non-mgmt sources (HD-53)"
+      # --- Router resolver as DNS tertiary (HD-182, network-dns.md) ---
+      # DHCP hands out primary → secondary → router; the input rule lets LAN
+      # sources query the router's own /ip dns when both resolvers are down
+      # (unfiltered last resort — accepted tradeoff documented in network-dns.md).
+      - chain: input
+        src-address-list: internal_lan
+        protocol: udp,tcp
+        dst-port: 53
+        action: accept
+        comment: "Allow DNS input from LAN — router resolver tertiary (HD-182)"
+
+# The router /ip dns only answers queries with allow-remote-requests=yes
+# (RouterOS default: no) — required for the tertiary above to work.
+# Requires community.routeros >= 2.17 (settings-path support in api_modify);
+# fails loud at deploy on older collections rather than silently skipping.
+- name: Allow the router resolver to answer LAN queries (DNS tertiary, HD-182)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip dns
+    data:
+      - allow-remote-requests: yes
 
 
 # Note: WireGuard S2S (Phase 10) and VRRP keepalived advertise input are left at

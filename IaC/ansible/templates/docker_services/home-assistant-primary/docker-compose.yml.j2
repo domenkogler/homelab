@@ -1,11 +1,24 @@
 # home-assistant-primary docker-compose.yml — PRIMARY HA on the Pi (pi.kogler.si)
 #   Always-on HA Container (Debian + docker). docs/smart-home-failover.md.
 #
-#   - network_mode: host — HA Container's recommended mode: mDNS/device discovery +
-#     direct access to Home/IoT device IPs via the host's routing (no bridge NAT).
+#   - Bridged (services-internal) + published :8123 — HD-72/KOPS-014: no
+#     `privileged`, no `network_mode: host` on HA itself (security.md §4
+#     minimum-privilege law). Device control stays network-based (Homematic CCU
+#     over macvlan XML-RPC, LAN/Wi-Fi integrations) — no local RF hardware is
+#     attached to the Pi (HD-13 parked, HmIP-HAP in cloud mode), so no targeted
+#     `devices:` are needed either.
+#   - The plain :8123 publish keeps the VIP contract intact: both Traefik edges
+#     and Prometheus target VIP:8123, and an all-addresses publish DNATs any
+#     local destination — including the VIP while keepalived (MASTER here)
+#     holds it. Exposure is unchanged vs host networking (the Pi is single-homed
+#     on Home VLAN 10). Trade-off accepted (same as the standby): mDNS/SSDP
+#     auto-discovery no longer traverses into the container — integrations must
+#     target device IPs explicitly.
 #   - keepalived service (osixia/keepalived, host net): VRRP MASTER owns the VIP
 #     ({{ ha_vip }}) in normal mode; config mounted from ./keepalived.conf (role-
 #     rendered; swapped between master/peer variants by the failback runbook).
+#     Host networking here is the ONE documented exemption (VRRP multicast —
+#     security.md §4); caps minimal: NET_ADMIN + NET_RAW only (HD-72).
 #   - NO Traefik labels: ha.kogler.si is served by the VIP-bound `traefik-ha` edge
 #     (docker_services on the Pi, file provider) → VIP:8123. No Authentik
 #     Forward-Auth (breaks the Companion WebSocket/token flow).
@@ -22,8 +35,12 @@ services:
     image: ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}
     container_name: home-assistant-primary
     restart: unless-stopped
-    network_mode: host
-    privileged: true            # official HA Container guidance (device access)
+    cap_drop:
+      - ALL
+    networks:
+      - services-internal
+    ports:
+      - "8123:8123"   # VIP:8123 must keep resolving to HA (traefik-ha + prometheus)
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
@@ -33,12 +50,17 @@ services:
   keepalived:
     image: osixia/keepalived:{{ keepalived_version }}   # pinned (HD-124/KOPS-053)
     restart: unless-stopped
-    network_mode: host          # VRRP multicast requires host networking
+    network_mode: host          # VRRP multicast requires host networking (security.md §4)
+    cap_drop:
+      - ALL
     cap_add:
-      - NET_ADMIN
-      - NET_BROADCAST
-      - NET_RAW
+      - NET_ADMIN               # VRRP interface/VIP manipulation
+      - NET_RAW                 # VRRP protocol packets (IP proto 112)
     volumes:
       - ./keepalived.conf:/etc/keepalived/keepalived.conf:ro
     # MASTER (normal) priority {{ ha_primary_priority }}; peer {{ ha_primary_peer_priority }}
     # during failback — see keepalived.master.conf / keepalived.peer.conf
+
+networks:
+  services-internal:
+    external: true

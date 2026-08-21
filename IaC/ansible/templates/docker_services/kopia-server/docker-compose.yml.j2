@@ -15,6 +15,9 @@
 #   kopia-s3_api (iDrive e2 S3) is retired.
 #   Config vars (group_vars/all.yml):
 #     kopia_sftp_host, kopia_sftp_port, kopia_sftp_user (backup box u653424, port 23)
+#
+#   Reach (HD-191): the oldsrv agent connects over the WG S2S tunnel — :51515 is
+#   published ONLY on the VPS tunnel address (wg_s2s_vps.ip), never 0.0.0.0.
 services:
   kopia-server:
     image: kopia/kopia:{{ kopia_version }}
@@ -25,6 +28,10 @@ services:
       - /tmp
     container_name: kopia-server
     restart: unless-stopped
+    ports:
+      # HD-191: WG-only reach for the oldsrv agent. Fail-loud guard mirrors the
+      # authentik LDAP bind (HD-186): unprovisioned router pubkey -> loopback only.
+      - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:51515:51515"
     command:
       - sh
       - -c

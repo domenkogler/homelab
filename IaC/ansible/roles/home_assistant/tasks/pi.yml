@@ -7,7 +7,9 @@
 #
 # The HA container itself (home-assistant-primary) is deployed by docker_services
 # (group_vars/raspberry_pi.yml) — this file renders its config/keepalived files
-# first (playbook order: home_assistant → docker_services).
+# first (playbook order since HD-204: home_assistant → docker_services — render-first,
+# superseding KOPS-063/HD-117 on the Pi so bind-mount sources never get auto-created
+# as directories; deploy-service.yml asserts them before every `compose up`).
 
 - name: Render HA configuration.yaml (with recorder trim)
   ansible.builtin.template:

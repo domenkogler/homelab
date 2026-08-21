@@ -37,7 +37,7 @@ services:
       PIHOLE_DNS_: "technitium:53"
       DNSSEC: "true"
       CONDITIONAL_FORWARDING: "true"
-      CONDITIONAL_FORWARDING_IP: "{{ ha_vip }}"
+      CONDITIONAL_FORWARDING_IP: "{{ dns_primary_ip }}"
       CONDITIONAL_FORWARDING_DOMAIN: "kogler.si"
       REV_SERVER: "true"
       REV_SERVER_CIDR: "{{ (network_ranges | selectattr('name', 'equalto', 'site') | first).cidr }}"
