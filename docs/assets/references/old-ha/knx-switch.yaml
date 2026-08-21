@@ -1,0 +1,11 @@
+- name: "WC radiator"
+  address: "10/4/0"
+  state_address: "10/4/2"
+
+- name: "Kopalnica radiator"
+  address: "4/4/0"
+  state_address: "4/4/2"
+
+# - name: "Led Tipka 2"
+#   address: "12/2/1"
+#   state_address: "12/2/1"

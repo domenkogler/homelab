@@ -1,0 +1,57 @@
+# Loads default set of integrations. Do not remove.
+default_config:
+
+lovelace:
+  mode: storage
+  dashboards:
+    lovelace-stanovanje:
+      mode: yaml
+      title: Stanovanje
+      show_in_sidebar: true
+      filename: /config/lovelace/dashboard_stanovanje.yaml
+
+# Text to speech
+tts:
+  - platform: google_translate
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+  extra_module_url:
+    - /config/www/community/lovelace-card-mod/card-mod.js
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+knx: !include knx.yaml
+
+modbus:
+  - name: "powerwalker_ups"
+    type: tcp
+    host: 10.10.1.109 # Replace with your local UPS IP address
+    port: 502
+    sensors:
+      - name: "UPS Input Voltage"
+        slave: 1
+        address: 0 # Primary input register block
+        input_type: holding
+        unit_of_measurement: "V"
+        device_class: voltage
+        state_class: measurement
+        scale: 0.1 # Adjust based on raw output if numbers appear 10x larger
+
+      - name: "UPS Battery Capacity"
+        slave: 1
+        address: 2 # Typical battery percentage register
+        input_type: holding
+        unit_of_measurement: "%"
+        device_class: battery
+        state_class: measurement
+
+      - name: "UPS Output Load"
+        slave: 1
+        address: 5 # Percentage of load on the inverter
+        input_type: holding
+        unit_of_measurement: "%"
+        state_class: measurement

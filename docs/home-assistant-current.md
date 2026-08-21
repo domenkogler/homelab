@@ -11,7 +11,21 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 > **Links to:** `smart-home.md`, `smart-home-failover.md`, `deployment-ansible.md` (`home_assistant` role), `backup.md`
 > **Linked from:** `smart-home.md`, `index.md`
 
-> ⚠️ **How this was collected (planning phase — read-only, nothing changed).** Enumerated live on **2026-08-07** via the HA REST API (`https://ha.kogler.si`) authenticated with the `domen` owner account login flow. No files on the HA host were modified; no config was read from the (separate) HA config git repo. Items that the REST API cannot expose (full Supervisor add-on store, exact HACS repository list, some integration attribution) are marked **to-confirm** below.
+> ⚠️ **How this was collected (planning phase — read-only, nothing changed).** Enumerated live on **2026-08-07** via the HA REST API (`https://ha.kogler.si`) authenticated with the `domen` owner account login flow. No files on the HA host were modified; no config was read from the (separate) HA config git repo. Items that the REST API cannot expose (full Supervisor add-on store, exact HACS repository list, some integration attribution) were marked **to-confirm** below.
+>
+> ✅ **Second collection pass — 2026-08-21, via `ha` CLI + shell in the Advanced SSH & Web Terminal add-on:**
+> full add-on list confirmed (`ha addons list`: exactly the 3 dev add-ons below), `custom_components/`
+> read directly (**only `hacs` present**), `lsusb` shows **no user USB devices** (hub only), host =
+> **HAOS 18.2 rpi4-64**, SD = **128 GB** (119.1 GiB), NIC `end0`. The to-confirm items are resolved
+> in §7/§9.
+>
+> 📁 **Raw pre-redo harvest:** the live config files pulled off HAOS before it gets wiped live in
+> `assets/references/old-ha/` (`configuration.yaml`, the split KNX group-address maps — knx-lights/
+> cover/sensors/switch/binary, scripts, Lovelace views, entity-registry JSON). **The KNX GA files are
+> legacy** — the redo integrates KNX from the ETS project export instead (**decided 2026-08-21:**
+> `assets/references/knx/StanovanjeKogler_v1_0.knxproj` + HA `knx` `project_file:`, see
+> [`smart-home.md`](smart-home.md)); the YAML maps stay as reference for what was live. Secrets-scanned
+> clean before commit.
 
 > 🧭 **Planned changes (post-audit, decision taken — see `smart-home.md`, `smart-home-failover.md`, `network-dns.md`).**
 > 1. **Primary redo:** Pi moves from HAOS → **Debian + HA Container** during the network redo (keeps the failover VIP/VRRP and one Ansible role for both nodes).
@@ -141,24 +155,34 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 | **HACS** | Integration (core) | 2.0.5 | 2.0.5 | Community add-on store / install manager | ✅ Yes |
 | **OneDrive Backup** (`onedrive`) | HACS integration | *(api)* | — | Cloud backup to Microsoft OneDrive (used space/free space/drive state sensors) | ✅ Yes |
 | **go2rtc** (`go2rtc`) | HACS integration | *(api)* | — | Camera/RTSP streaming (camera/ffmpeg/stream/web_rtc loaded; **no live camera entities yet**) | ✅ Yes |
-| **card-mod** (`card_mod`) | HACS frontend card | v3.4.4 | v4.2.1 (skipped) | Custom Lovelace card CSS/modification | ✅ Yes |
-| **motion** (`motion`) | HACS?(custom) | *(api)* | — | Motion-detection component (no motion entities live yet) | **To-confirm** |
-| **ai_task** (`ai_task`) | custom / 2026-builtin? | *(api)* | — | AI/LLM task component | **To-confirm** |
+| **card-mod** (`card_mod`) | HACS frontend card | v3.4.4 | v4.2.1 (skipped) | Custom Lovelace card CSS/modification (frontend resource — lives under `www/`, not `custom_components/`) | ✅ Yes |
+| ~~**motion**~~ | ~~HACS?(custom)~~ | — | — | ❌ **NOT PRESENT** in `custom_components/` (SSH-verified 2026-08-21) | — |
+| ~~**ai_task**~~ | ~~custom / 2026-builtin?~~ | — | — | ❌ **NOT PRESENT** in `custom_components/` (SSH-verified 2026-08-21); likely a 2026 core component misattributed via REST API | — |
 | ~~**Weather 2000 (SI)**~~ | ~~HACS (custom)~~ | ~~*(api)*~~ | — | ~~Slovenian forecast (`weather.weather_2000_slovenija`)~~ | ❌ **Removed (HD-22)** — superseded by core `meteoblue` (**single source**); third-party HACS / duplicate `met` all dropped |
 
-> Exact installed versions of OneDrive, go2rtc, motion, ai_task, Weather-2000 are not exposed via the REST API — confirm by reading HACS `.storage/hacs.data` + `custom_components/` from the config git repo or via SSH (Advanced SSH add-on) + admin Supervisor access.
+> ✅ **SSH-verified 2026-08-21:** `/config/custom_components/` contains **exactly one directory: `hacs`**.
+> The components the 2026-08-07 REST pass attributed to HACS/custom (OneDrive, go2rtc, card-mod,
+> motion, ai_task) are **not in `custom_components/`** — either since-removed or misattributed
+> (frontend resources such as card-mod load from `www/`; `ai_task` is plausibly a 2026 core
+> integration, not a custom component). For the HD-04 redo this means: **nothing to port except
+> HACS itself (+ any `www/` frontend resources)**; re-adding OneDrive/go2rtc etc. is a fresh-deploy
+> decision, not a migration step.
 
 ### 7.2 HAOS add-ons (Supervisor) — currently installed
-> These are **all official** HA add-ons (dev/management tooling). Identified via their `update` entities + add-on slugs. Accessing the full add-on store/`/api/hassio/*` returns **401 (non-admin token)** — the complete list should be re-checked with admin rights or SSH.
+> ✅ **Full list confirmed 2026-08-21 via `ha addons list` (admin CLI)** — these three are ALL of them;
+> **no community add-on repositories** are configured.
 
 | Add-on | Slug | Version | Category | Docker replacement |
 |---|---|---|---|---|
-| **Advanced SSH & Web Terminal** | `a0d7b954_ssh` | 24.0.1 | official (dev/ops) | Standalone SSH server / use host SSH |
-| **File editor** | *(official)* | 6.1.0 | official (dev/ops) | VS Code / code-server container, or `config` editor add-on replacement |
-| **Studio Code Server** | *(official)* | 6.0.1 | official (dev/ops) | `lscr.io/linuxserver/code-server` container |
+| **Advanced SSH & Web Terminal** | `a0d7b954_ssh` | 24.0.1 (24.1.0 available) | official (dev/ops) | Standalone SSH server / use host SSH |
+| **File editor** | `core_configurator` | 6.1.0 | official (dev/ops) | VS Code / code-server container, or `config` editor add-on replacement |
+| **Studio Code Server** | `a0d7b954_vscode` | 6.0.1 | official (dev/ops) | `lscr.io/linuxserver/code-server` container |
 | *(HA Core / OS / Supervisor updates)* | — | Core 2026.7.4 · OS 18.2 · Sup 2026.07.5 | platform | n/a in Docker (host-managed) |
 
-> No **community** add-on store repositories are detected among installed add-ons. No MQTT (Mosquitto), Zigbee2MQTT, or media add-ons are installed.
+> No MQTT (Mosquitto), Zigbee2MQTT, or media add-ons are installed. Hardware side notes from the same
+> pass: `lsusb` = **hub only, zero user USB devices** (no ESP32-S3 serial device, consistent with HD-13
+> parking — no HmIP-RFUSB); boot media = single **128 GB** microSD (HAOS p1–p8 layout); NIC = `end0`
+> (+ `wlan0`).
 
 ### 7.3 HAOS/OS-level services (not add-ons)
 - Supervisor watchdog, OS + Supervisor + `raspberry_pi` EEPROM updates, automatic **backup** (HAOS backup manager), RPi power monitoring, hardware detection (`homeassistant_hardware`). These are **HAOS-only** and do not exist in HA Container.
@@ -192,9 +216,10 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 
 ## 9. Open Questions / Data Gaps (to-confirm before finalising plans)
 
-- [ ] Confirm exact installed versions + full repository list of **HACS** custom components (`motion`, `ai_task`, Weather-2000, OneDrive, go2rtc) via SSH (`Advanced SSH & Web Terminal`) or the config git repo (`custom_components/`, `.storage/hacs.data`).
-- [ ] Confirm the **full Supervisor add-on list** with an **admin** token (`/api/hassio/addons` returned 401 for the owner `domen` token used here) — ensures no community add-on store is in use.
+- [x] ~~Confirm exact installed versions + full repository list of **HACS** custom components (`motion`, `ai_task`, Weather-2000, OneDrive, go2rtc) via SSH (`Advanced SSH & Web Terminal`) or the config git repo (`custom_components/`, `.storage/hacs.data`).~~ **Confirmed 2026-08-21 (HD-15):** `custom_components/` = **only `hacs`**; the other named components are not present (see §7.1) — nothing to migrate except HACS itself; re-adds are fresh-deploy decisions under HD-04.
+- [x] ~~Confirm the **full Supervisor add-on list** with an **admin** token (`/api/hassio/addons` returned 401 for the owner `domen` token used here) — ensures no community add-on store is in use.~~ **Confirmed 2026-08-21 (HD-20):** `ha addons list` = File editor · Studio Code Server · Advanced SSH & Web Terminal — all official, no community stores (§7.2).
 - [x] ~~Confirm **Modbus UPS** device/register details — device is the **PowerWalker VFI ICT/ICR IoT 3000** on `10.10.99.9:502` (unit 1); *register map* still to-confirm~~ (see [`hardware-ups.md`](hardware-ups.md)). **Superceded/removed** — HA Modbus UPS sensors retired; UPS monitoring is NUT/USB via `nut_exporter`.
+- [ ] Confirm **ESPHome**: `smart-home.md` references a Guition ESP32-S3 kitchen device, but the `esphome` integration is **not loaded** on this instance — is it online/paired elsewhere or not yet added? *(2026-08-21 evidence added: `lsusb` = hub-only, no USB serial device; no esphome add-on among the 3 installed — remaining check is network-side pairing / owner memory.)*
 - [ ] Confirm **ESPHome**: `smart-home.md` references a Guition ESP32-S3 kitchen device, but the `esphome` integration is **not loaded** on this instance — is it online/paired elsewhere or not yet added?
 - [x] ~~Confirm the **"Weather 2000, Slovenija"** source — third-party/HACS vs core, and whether it should be retained or replaced.~~ **Decided (HD-22):** dropped. Single authoritative source = HA core **`meteoblue`** (Maribor, `meteoblue_api` from 1Password), configured in `configuration.yaml.j2`. Core `met` also dropped.
 - [ ] Whether the planned **Authentik/OIDC** SSO is meant to be introduced during the redo (currently not connected).

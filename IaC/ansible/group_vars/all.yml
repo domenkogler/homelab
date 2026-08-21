@@ -149,12 +149,12 @@ network_static_hosts:
   - { name: ups,      vlan: 99, ip: "10.10.99.9",  role: "PowerWalker VFI 3000 IoT" }
   - { name: nas,      vlan: 99, ip: "10.10.99.10", role: "HP MicroServer Gen8" }
   - { name: ilo,      vlan: 99, ip: "10.10.99.11", role: "nas iLO4 BMC" }
-  - { name: pi,       vlan: 99, ip: "10.10.99.20", role: "RPi4 node + DNS secondary" }
+  - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS secondary" }
   - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", role: "i7-7700K node + DNS primary" }
   # Home VLAN 10
   - { name: router,   vlan: 10, ip: "10.10.1.1",   role: "Home gateway" }
   - { name: nas,      vlan: 10, ip: "10.10.1.10",  role: "Cockpit/NFS/NUT master" }
-  - { name: pi,       vlan: 10, ip: "10.10.1.20",  role: "node + DNS secondary (VRRP anchor)" }
+  - { name: pi,       vlan: 10, ip: "10.10.1.20",  mac: "E4:5F:01:26:EF:AA", role: "node + DNS secondary (VRRP anchor)" }
   - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  role: "node + DNS primary (VRRP anchor)" }
   - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
   - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }

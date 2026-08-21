@@ -30,8 +30,10 @@ source ~/ansible-venv/bin/activate
 pip install --upgrade pip
 pip install ansible
 
-# Install collections (Galaxy handles idempotency and skips re-installs)
-ansible-galaxy collection install community.docker community.general
+# Install collections (Galaxy handles idempotency and skips re-installs).
+# SSOT = requirements.yml (Renovate-tracked, HD-90) — covers community.general,
+# community.docker AND community.routeros (router/switch roles need it).
+ansible-galaxy collection install -r "$(dirname "$0")/../ansible/requirements.yml"
 
 echo "=== 4. Idempotent SSH key generation ==="
 if [ ! -f ~/.ssh/id_ed25519 ]; then
@@ -62,6 +64,10 @@ fi
 # Idempotently source the venv + the restricted token file from bashrc.
 grep -q 'ansible-venv' ~/.bashrc || echo 'source ~/ansible-venv/bin/activate' >> ~/.bashrc
 grep -q "homelab-sa-token" ~/.bashrc || printf '\n[ -f %s ] && source %s\n' "$OP_TOKEN_FILE" "$OP_TOKEN_FILE" >> ~/.bashrc
+# Neutralize any LEGACY inline token export in ~/.bashrc (HD-86): older setups embedded
+# the plaintext token there; the restricted file above is the only sanctioned location.
+# Last assignment wins in bash, so a leftover inline export shadows or duplicates the file.
+sed -i '/^export OP_SERVICE_ACCOUNT_TOKEN=/d' ~/.bashrc
 
 echo "=== 6. Idempotent passwordless sudo for local WSL ==="
 if [ ! -f /etc/sudoers.d/$USER ]; then

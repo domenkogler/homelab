@@ -1,0 +1,20 @@
+title: Ogrevanje
+type: masonry
+icon: mdi:radiator
+path: ogrevanje
+subview: false
+header:
+  layout: responsive
+  badges_position: top
+  badges_wrap: scroll
+cards:
+  - type: vertical-stack
+    cards:
+      - type: entities
+        entities:
+          - entity: switch.kopalnica_radiator
+          - entity: script.kopalnica_radiator_za_1h
+          - entity: sensor.kopalnica_radiator
+          - entity: switch.wc_radiator
+          - entity: script.wc_radiator_za_1h_podvoji
+          - entity: sensor.wc_radiator

@@ -1,0 +1,39 @@
+kopalnica_radiator_za_1h:
+  sequence:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.kopalnica_radiator
+  - delay:
+      hours: 1
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.kopalnica_radiator
+  alias: Kopalnica Radiator za 1h
+  description: ''
+wc_radiator_za_1h_podvoji:
+  sequence:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.wc_radiator
+  - delay:
+      hours: 1
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.wc_radiator
+  alias: WC Radiator za 1h
+  description: ''

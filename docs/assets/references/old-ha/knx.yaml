@@ -1,0 +1,5 @@
+light: !include knx-lights.yaml
+sensor: !include knx-sensors.yaml
+binary_sensor: !include knx-binary.yaml
+switch: !include knx-switch.yaml
+cover: !include knx-cover.yaml

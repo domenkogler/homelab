@@ -1,0 +1,99 @@
+- name: "Rekuperator Airflow"
+  state_address: "12/1/13"
+  type: flow_rate_m3h
+  sync_state: every 30
+
+- name: "Rekuperator Room Temperature"
+  state_address: "12/1/14"
+  type: temperature
+  sync_state: every 30
+
+- name: "Rekuperator Extract Temperature"
+  state_address: "12/1/15"
+  type: temperature
+  sync_state: every 30
+
+- name: "Rekuperator Exhaust Temperature"
+  state_address: "12/1/16"
+  type: temperature
+  sync_state: every 30
+
+- name: "Rekuperator Outdoor Temperature"
+  state_address: "12/1/17"
+  type: temperature
+  sync_state: every 30
+
+- name: "Rekuperator Supply Temperature"
+  state_address: "12/1/18"
+  type: temperature
+  sync_state: every 30
+
+- name: "Rekuperator Room Humidity"
+  state_address: "12/1/19"
+  type: percent
+  sync_state: every 30
+
+- name: "Rekuperator Extract Humidity"
+  state_address: "12/1/20"
+  type: percent
+  sync_state: every 30
+
+- name: "Rekuperator Exhaust Humidity"
+  state_address: "12/1/21"
+  type: percent
+  sync_state: every 30
+
+- name: "Rekuperator Outdoor Humidity"
+  state_address: "12/1/22"
+  type: percent
+  sync_state: every 30
+
+- name: "Rekuperator Supply Humidity"
+  state_address: "12/1/23"
+  type: percent
+  sync_state: every 30
+
+- name: "Rekuperator Filter Replace"
+  state_address: "12/1/24"
+  type: delta_time_hrs
+  sync_state: every 30
+
+- name: "WC radiator"
+  state_address: "10/4/3"
+  type: current
+  sync_state: every 30
+
+- name: "Kopalnica radiator"
+  state_address: "4/4/3"
+  type: current
+  sync_state: every 30
+
+- name: "Pečica velika"
+  state_address: "5/4/2"
+  type: current
+  sync_state: every 30
+
+- name: "Pečica mala"
+  state_address: "5/4/5"
+  type: current
+  sync_state: every 30
+
+- name: "Pomivalni stroj"
+  state_address: "5/4/8"
+  type: current
+  sync_state: every 30
+
+- name: "Pralni stroj"
+  state_address: "6/4/2"
+  type: current
+  sync_state: every 30
+
+- name: "Sušilni stroj"
+  state_address: "6/4/5"
+  type: current
+  sync_state: every 30
+
+# - name: "Led Tipka 2"
+#   state_address: "12/2/1"
+#   type: 1byte_unsigned
+#   sync_state: every 2

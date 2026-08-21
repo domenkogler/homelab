@@ -38,6 +38,13 @@
 - **Decision (owner, 2026-08-21):** wipe the half-configured WSL Debian and re-run `IaC/bootstrap-ansible-client/bootstrap.sh` from scratch, journaling each step via the prompt-journal feed. Nothing of value lost (no ansible, broken auth).
 - **Action items for the redo:** rotate the 1Password Service Account token (old one stale + exposed in session logs) → new token goes ONLY into `~/.config/op/homelab-sa-token` (0600) via the fixed bootstrap flow, never inline in `.bashrc`.
 
+### 2026-08-21 — Phase 0 · VERIFICATION CORRECTION: runner is functional — no wipe
+
+- Corrects the entry above. Re-probe with the REAL environment semantics (interactive shell = venv activated; token loaded via `source`, not `cat`) shows Phase 0 was **already functional**: ansible-playbook core **2.21.1** (`~/ansible-venv`) · collections community.general 13.1.0 / community.docker 5.2.1 / community.routeros 3.21.0 · `op whoami` + vault listing (**35 items**) work through the sanctioned file-sourcing mechanism.
+- Root cause of the false alarm: non-interactive probes skip `.bashrc`'s interactive guard (venv) and `cat`-ing the token file yields its `export …` wrapper text, not the value.
+- Real findings that DID hold: (1) stale inline `OP_SERVICE_ACCOUNT_TOKEN` export in `.bashrc` line 116 — a DIFFERENT (older) token than the working file one; HD-86 violation + leaked to session logs but inactive ⇒ **deleted in-place** (sed), rotation optional since unused; auth re-verified green after removal. (2) `bootstrap.sh` never neutralized such legacy inline exports ⇒ fixed: it now seds them out idempotently. (3) `bootstrap.sh` installed only 2 collections instead of `-r requirements.yml` (routeros had been added manually) ⇒ fixed: installs from the Renovate-tracked SSOT.
+- **Decision revised:** NO wipe, NO re-bootstrap — existing runner stands; WSL local key stays the documented access model (1Password-agent migration remains the separately-tracked end state).
+
 ## Phase 1 — VPS Public Edge
 
 ### 2026-08-18 — Phase 1.0 · VPS purchased & provisioned `[MANUAL]` *(backfilled from repo records)*

@@ -1,0 +1,76 @@
+title: Luci
+type: masonry
+icon: mdi:lightbulb
+path: luci
+subview: false
+header:
+  layout: responsive
+  badges_position: top
+  badges_wrap: scroll
+cards:
+  - type: vertical-stack
+    cards:
+      - type: entities
+        entities:
+          - entity: light.kuhinja_1
+          - entity: light.kuhinja_2
+          - entity: light.jedilnica
+          - entity: light.kuhinja
+            name: LED kuhinja
+          - entity: light.dnevna_soba
+          - entity: light.orhideje
+            name: LED dnevna
+          - entity: light.kabinet_miza
+            name: Delovni kotiček miza
+          - entity: light.kabinet_omara
+            name: Delovni kotiček omara
+        title: Dnevna soba
+        state_color: true
+  - type: vertical-stack
+    cards:
+      - type: entities
+        entities:
+          - entity: light.wc
+          - entity: light.wc_4_channel_4
+            name: Tuš LED
+          - entity: light.kopalnica
+          - entity: light.kopalnica_2
+          - entity: light.kopalnica_ogledalo
+        state_color: true
+        show_header_toggle: true
+        title: Kopalnica
+  - type: vertical-stack
+    cards:
+      - type: entities
+        entities:
+          - entity: light.soba_roza_miza
+          - entity: light.soba_roza_omara
+          - entity: light.soba_roza_postelja
+          - entity: light.soba_zelena_miza
+          - entity: light.soba_zelena_omara
+          - entity: light.soba_zelena_postelja
+        state_color: true
+        show_header_toggle: true
+        title: Sobe
+  - type: vertical-stack
+    cards:
+      - type: entities
+        entities:
+          - entity: light.utility
+          - entity: light.hodnik
+          - entity: light.hodnik_vrata
+          - entity: light.hodnik_garderoba
+        state_color: true
+        show_header_toggle: true
+        title: Hodnik
+  - type: vertical-stack
+    cards:
+      - type: entities
+        entities:
+          - entity: light.spalnica_domen
+          - entity: light.spalnica_martina
+          - entity: light.spalnica_postelja
+          - entity: light.spalnica_garderoba
+        state_color: true
+        show_header_toggle: true
+        title: Spalnica

@@ -185,7 +185,7 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
 | 960 EVO 500 GB (200 TBW) | oldsrv | ext4 | OS/system only: `/`, `/var`, `/opt` — no churn, no Docker |
 | 970 EVO 1 TB (600 TBW) | oldsrv | **ZFS pool `nvme`** | all local data — writes balanced on the durable/fast disk |
 | MX300 525 GB | nas | ext4 | OS/boot only; `tank`/`bulk` imported via cachefile |
-| microSD (32–64 GB) | pi | ext4 | HA primary + RaspberryMatic + Technitium secondary + `traefik-ha` edge — lean, no ZFS, no backup surface |
+| microSD (128 GB) | pi | ext4 | HA primary + RaspberryMatic + Technitium secondary + `traefik-ha` edge — lean, no ZFS, no backup surface |
 
 ```
 970 EVO 1 TB → ZFS pool "nvme" (single-disk; every dataset is NAS-backed or regenerable, no mirror needed).
@@ -222,7 +222,7 @@ already mirrored by the Pi→standby sync.
 **Pi filesystem layout on microSD (ext4, single partition):**
 
 ```
-Pi microSD (ext4 — 32–64 GB, no ZFS, no backup surface)
+Pi microSD (ext4 — 128 GB, no ZFS, no backup surface)
 ├── /                    ext4 (raspi.debian.net image, regenerable)
 ├── /var/log             tmpfs (RAM; `journald Storage=volatile`, OS logs lost on reboot → Loki retains them)
 ├── /var/lib/docker      ext4 (overlay2 on microSD — images/containers; log driver capped to avoid heavy SD writes)

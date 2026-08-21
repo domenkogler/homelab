@@ -1,0 +1,5 @@
+title: stanovanje
+views:
+  - !include view_luci.yaml
+  - !include view_zaluzije.yaml
+  - !include view_ogrevanje.yaml

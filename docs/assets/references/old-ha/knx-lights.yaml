@@ -1,0 +1,155 @@
+### HODNIK ###
+
+# linija 1/1
+- name: "Hodnik garderoba"
+  address: "0/0/1"
+  state_address: "0/0/2"
+# linija 1/2
+- name: "Hodnik vrata"
+  address: "0/1/3"
+  state_address: "0/1/4"
+  brightness_address: "0/1/7"
+  brightness_state_address: "0/1/6"
+# linija 1/3
+- name: "Hodnik"
+  address: "0/1/8"
+  state_address: "0/1/9"
+  brightness_address: "0/1/11"
+  brightness_state_address: "0/1/12"
+
+### UTILITY ###
+
+# linija 1/4
+- name: "Utility"
+  address: "3/0/13"
+  state_address: "3/0/14"
+
+### WC ###
+
+# linija 1/5
+- name: "WC"
+  address: "10/0/0"
+  state_address: "10/0/1"
+
+### Kopalnica ###
+
+# linija 1/6
+- name: "Kopalnica"
+  address: "4/1/0"
+  state_address: "4/1/1"
+  brightness_address: "4/1/4"
+  brightness_state_address: "4/1/3"
+
+# linija 1/7
+- name: "Kopalnica ogledalo"
+  address: "4/1/5"
+  state_address: "4/1/6"
+  brightness_address: "4/1/9"
+  brightness_state_address: "4/1/8"
+
+### SOBI ###
+# linija 1/8
+- name: "Soba roza omara"
+  address: "7/1/0"
+  state_address: "7/1/1"
+  brightness_address: "7/1/4"
+  brightness_state_address: "7/1/3"
+
+  # linija 1/9
+- name: "Soba roza miza"
+  address: "7/1/5"
+  state_address: "7/1/6"
+  brightness_address: "7/1/9"
+  brightness_state_address: "7/1/8"
+
+  # linija 1/10
+- name: "Soba roza postelja"
+  address: "7/0/10"
+  state_address: "7/0/11"
+
+# linija 1/11
+- name: "Soba zelena omara"
+  address: "8/1/0"
+  state_address: "8/1/1"
+  brightness_address: "8/1/4"
+  brightness_state_address: "8/1/3"
+
+  # linija 1/12
+- name: "Soba zelena miza"
+  address: "8/1/5"
+  state_address: "8/1/6"
+  brightness_address: "8/1/9"
+  brightness_state_address: "8/1/8"
+
+  # linija 1/13
+- name: "Soba zelena postelja"
+  address: "8/0/10"
+  state_address: "8/0/11"
+
+### SPALNICA ###
+# linija 2/1
+- name: "Spalnica garderoba"
+  address: "9/0/0"
+  state_address: "9/0/1"
+
+  # linija 2/2
+- name: "Spalnica postelja"
+  address: "9/1/2"
+  state_address: "9/1/3"
+  brightness_address: "9/1/6"
+  brightness_state_address: "9/1/5"
+
+  # linija 2/3
+- name: "Spalnica Martina"
+  address: "9/0/7"
+  state_address: "9/0/8"
+
+  # linija 2/4
+- name: "Spalnica Domen"
+  address: "9/0/9"
+  state_address: "9/0/10"
+
+### KUHINJA ###
+# linija 2/5
+- name: "Kuhinja 1"
+  address: "5/1/0"
+  state_address: "5/1/1"
+  brightness_address: "5/1/4"
+  brightness_state_address: "5/1/3"
+
+  # linija 2/6
+- name: "Kuhinja 2"
+  address: "5/1/5"
+  state_address: "5/1/6"
+  brightness_address: "5/1/9"
+  brightness_state_address: "5/1/8"
+
+  # linija 2/7
+- name: "Jedilnica"
+  address: "2/1/0"
+  state_address: "2/1/1"
+  brightness_address: "2/1/4"
+  brightness_state_address: "2/1/3"
+
+### DNEVNA SOBA ###
+
+# linija 2/8
+- name: "Dnevna soba"
+  address: "1/2/0"
+  state_address: "1/2/1"
+  brightness_address: "1/2/4"
+  brightness_state_address: "1/2/3"
+
+#linija 2/9
+- name: "Kabinet miza"
+  address: "1/2/5"
+  state_address: "1/2/6"
+  brightness_address: "1/2/9"
+  brightness_state_address: "1/2/8"
+
+#linija 2/10
+- name: "Kabinet omara"
+  address: "1/2/10"
+  state_address: "1/2/11"
+  brightness_address: "1/2/14"
+  brightness_state_address: "1/2/13"

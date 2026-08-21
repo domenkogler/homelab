@@ -1,0 +1,23 @@
+title: Žaluzije
+type: masonry
+icon: mdi:blinds
+path: zaluzije
+subview: false
+header:
+  layout: responsive
+  badges_position: top
+  badges_wrap: scroll
+cards:
+  - type: vertical-stack
+    cards:
+      - type: entities
+        entities:
+          - entity: cover.hodnik
+          - entity: cover.dnevna_soba
+          - entity: cover.kabinet
+            name: Delovni kotiček
+          - entity: cover.kopalnica
+          - entity: cover.kuhinja
+          - entity: cover.soba_roza
+          - entity: cover.soba_zelena
+          - entity: cover.spalnica
