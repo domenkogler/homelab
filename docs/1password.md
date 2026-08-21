@@ -91,8 +91,11 @@ Found live 2026-08-22 while restoring VPS access (deployment-journal Phase 1.0 /
   (e.g. `IdentityFile ~/.ssh/ansible-admin_ssh.pub` + `IdentitiesOnly`); if the vault is NOT
   allowlisted in `agent.toml`, the agent refuses the key and `ssh` misreports it as
   `Load key … invalid format` — the toml fix above is the real solution, not a client bug.
-- **Laptop convenience:** `~/.ssh/config` carries a `Host vps` alias (`HostName`
-  + `User ansible-admin`) — no IdentityFile line (nothing on disk to point at).
+- **Laptop convenience (final, owner-set 2026-08-22):** `~/.ssh/config` carries TWO aliases,
+  both `User ansible-admin` (the only SSH user), differing only by the presented key via
+  `.pub` hint + `IdentitiesOnly yes`: `vps-ansible` → runner identity (`ansible-admin_ssh.pub`),
+  `vps` → personal interactive identity (`laptop-domen_ssh.pub`). Item names are vault
+  identities, NOT usernames — there is no `laptop-domen` user on any host.
 
 ---
 

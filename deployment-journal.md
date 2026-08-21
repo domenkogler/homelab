@@ -142,6 +142,26 @@
 - **Secrets touched:** `ansible-admin_ssh.private_key` transiently materialized at `%TEMP%\homelab-deploy\vps-verify-key` (0600, written inside WSL via `op read`, **shredded immediately after verification**) — deviation from the no-keys-on-disk posture, forced by the client quirk below.
 - **Client quirk recorded (laptop, not server):** Win32 OpenSSH `9.5p2` rejects valid ed25519 `.pub` IdentityFile hints (`Load key … invalid format` while its own `ssh-keygen.exe` parses the same bytes); MSYS git-bash ssh has no agent socket ⇒ plain interactive `ssh` trips `maxauthtries 3` via multi-key agent offering. Interim interactive path = WSL runner (documented model, post-rebuild with canonical key restored); pub-hint Host-entry retry deferred until a Windows OpenSSH update.
 
+### 2026-08-22 — Phase 1.0 · client access model finalized on management laptop `[MANUAL]`
+
+- Owner-finalized `~/.ssh/config` (Windows): two aliases, both `User ansible-admin`, differing only by the presented key (`.pub` hint + `IdentitiesOnly yes`):
+  ```ssh-config
+  Host vps-ansible   # runner identity (ansible-admin_ssh)
+    HostName vps.kogler.si
+    User ansible-admin
+    IdentityFile ~/.ssh/ansible-admin_ssh.pub
+    IdentitiesOnly yes
+
+  Host vps           # personal interactive identity (laptop-domen_ssh)
+    HostName vps.kogler.si
+    User ansible-admin
+    IdentityFile ~/.ssh/laptop-domen_ssh.pub
+    IdentitiesOnly yes
+  ```
+- Both aliases verified live against the VPS post-HD-209 remediation.
+- Working prereqs (this session): `Homelab-ansible` allowlisted in 1Password's agent toml + agent-use toggles — without it the agent refuses the keys and `ssh` misreports `invalid format`; offered-key count kept under the server's `maxauthtries 3`. Item names are vault identities, not usernames (no `laptop-domen`/`domen` user exists on the box).
+- (doc updated: `docs/1password.md` §Windows-desktop agent notes)
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
