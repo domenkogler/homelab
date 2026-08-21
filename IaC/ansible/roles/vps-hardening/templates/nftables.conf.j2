@@ -19,6 +19,7 @@ table inet filter {
         ct state established,related accept
 
         # Public edge
+        tcp dport 22 accept         # SSH (ansible-admin) — management path; HD-154 checklist gap found live 2026-08-22 (lockout)
         tcp dport 443 accept        # Traefik HTTPS (wildcard *.kogler.si)
         udp dport 51820 accept      # WireGuard S2S (wg-s2s, home router peer)
         # ICMP ping (ops sanity) — limited

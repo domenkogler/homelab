@@ -171,6 +171,25 @@
 - **Verify:** `ansible-playbook -i IaC/ansible/inventory.ini IaC/ansible/test-1password.yml` → green; `kopia_password` read from vault ✓ (`PLAY RECAP: ok=2 failed=0`). ⚠ required `-e op_vault=Homelab-ansible`: `op_vault` does not resolve for implicit localhost — non-blocking, tracked as HD-210.
 - Phase 0 CLOSED — next: Phase 1 main run (`playbooks/vps.yml`).
 
+### 2026-08-22 — Phase 1 · main run `vps.yml` — attempt log, five live defects found + fixed, VPS currently SSH-unreachable (lockout) `[MANUAL]`
+
+- Plan ref: Phase 1 step 2 (`ansible-playbook -i inventory.ini playbooks/vps.yml`), run from the true-zero WSL runner via `%TEMP%\homelab-deploy\vps-run.sh` wrapper (activates venv + sources SA token + exports `ANSIBLE_CONFIG`/`ANSIBLE_ROLES_PATH`). **Every fix below is committed and permanent — a future re-run needs NONE of them again; this list is the record of why they exist.**
+- **Attempt 0 (dry-run `--check`)** failed on two setup gaps, both fixed before the real run:
+  - ansible.cfg ignored (world-writable /mnt dir) → wrapper exports `ANSIBLE_CONFIG` + `ANSIBLE_ROLES_PATH` explicitly (wrapper-level workaround; NTFS DrvFs mounts always look 0777 — no repo change needed).
+  - `group_vars/all.yml` silently shadowed by `group_vars/all/` directory → moved to `all/main.yml`, consumers re-pointed (**HD-210**, closed).
+- **Attempt 1** — FAILED at `common`: apt module in check mode needs python3-apt pre-installed (minimal image). Check-mode artifact only → real run auto-installs; no defect.
+- **Attempt 2** — FAILED at `docker`: `deb822_repository` needs remote `python3-debian`. Fix (permanent): added `python3-debian` + `python3-apt` to `roles/common/tasks/system.yml` prerequisites.
+- **Attempt 3** — FAILED at `docker_services`: the op-CLI fail-closed guard probed the REMOTE host for `op`; lookups resolve on the CONTROL node. Fix: guard task gained `delegate_to: localhost` + `run_once: true` + `become: false`.
+- **Attempt 4** — FAILED at `docker_services` network creation: "iptables … No chain/target/match by that name" — loading an nft ruleset that starts with `flush ruleset` DELETES Docker's iptables-nft chains. Fix: `vps-hardening` now restarts Docker immediately after nftables start/reload.
+- **⚠ Attempt 5 — SSH LOCKOUT (active):** after hardening applied the default-deny ruleset, new SSH connections time out — **the nftables template had NO `:22` accept rule** (the HD-154 checklist itself omitted SSH while requiring Ansible-managed access; self-contradictory spec, found live). Template fixed to accept `tcp dport 22`; docs swept (deployment-tasks ×2, security.md §8, services-vps.md firewall row).
+- **Recovery procedure (owner, netcup SCP console as root):**
+  ```bash
+  nft flush ruleset        # temporary full-open window (~minutes) until the playbook re-applies
+  ```
+  then I re-run `vps.yml` from here — it re-applies the corrected ruleset (with :22) and completes the deploy.
+- Owner also recorded: WSL user password stored as 1Password item *"Debian Ansible on Laptop P14s"* (personal vault).
+- **Re-run recipe from TRUE ZERO (for any future rebuild):** wsl unregister/install → bootstrap.sh (paste `op_api.credential`) → `chmod 700 ~/.config/op` (fixed in script) → canonical key restore (fingerprint `1uKzmwf…`) → test-1password.yml → `vps-run.sh` wrapper. All five attempt-defects above are already fixed in-repo.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
