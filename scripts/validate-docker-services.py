@@ -60,11 +60,12 @@ ALLOWED_LATEST = {
 NETWORK_MODE_SERVICE = {"qbittorrent"}
 
 # HD-202 backstop allowlist — templates deliberately WITHOUT cap_drop: [ALL].
-# GPU device services (decided HD-204: GPU/VPN exempt), HA primary/standby
-# (privileged/host-net rework = HD-72), raspberrymatic (parked HD-13, CCU emulation).
+# GPU device services (decided HD-204: GPU/VPN exempt), HA standby (its keepalived
+# sidecar predates the law — primary was reworked by HD-72 and left this list),
+# raspberrymatic (parked HD-13, CCU emulation).
 ALLOWED_NO_CAP_DROP = {
     "ollama", "immich-ml", "jellyfin", "sunshine",          # GPU / device access
-    "home-assistant-primary", "home-assistant-standby",     # HD-72 scope
+    "home-assistant-standby",                               # keepalived sidecar (HD-72 closed primary)
     "raspberrymatic",                                        # parked (HD-13)
 }
 # Per-SERVICE exemptions inside otherwise-hardened templates:
