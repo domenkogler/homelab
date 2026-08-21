@@ -89,6 +89,22 @@
   - Network: `eth0` `159.195.111.66/22` + IPv6 (matches SSOT).
 - ⚠ **SSHD-SHADOW FINDING (deploy-blocking priority):** effective config is `passwordauthentication yes` + `permitrootlogin yes` + `maxauthtries 6` (`sshd -T` verified). Cause: netcup's image ships EXPLICIT `PasswordAuthentication yes` / `PermitRootLogin yes` at `sshd_config` lines 124–125; the Homelab hardening block appended at lines 128–129 by the Custom Script **loses to sshd's first-obtained-value-wins semantics**. Root has an SCP-set fallback password ⇒ internet-exposed password login window RIGHT NOW. Mitigation: run `playbooks/vps.yml` promptly — the `vps-hardening` role lineinfile-flips the directives (verified in role tasks). Permanent fix tracked as **HD-208** (drop-in instead of append). (doc updated: `docs/deployment-preseed.md`; todo: HD-208 added)
 
+### 2026-08-22 — Phase 1.0 · VPS re-provision started — HD-208-fixed script pasted `[MANUAL]`
+
+- Plan ref: [deployment-tasks.md](deployment-tasks.md) Phase 1 step 1 sub-step **"Re-provision with the HD-208-fixed script"** (reinstall closes the SSHD-shadow above); owning doc `docs/deployment-preseed.md` §netcup Custom-Script flow.
+- **Prep (AI-driven on the WSL runner, same session):**
+  - Key-continuity check (prompt.md §3.1, read-only): local WSL `~/.ssh/id_ed25519.pub` = `SHA256:pUUdmN3sVORTqITHHnlhUeH6+As8HkSOIEknI4JtuOg domen@kogler.si` vs vault `ansible-admin_ssh.public_key` = `SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU` — **MISMATCH** ⇒ after the planned runner rebuild (Phase 0, in flight) the canonical private key must be restored from the vault into `~/.ssh/id_ed25519` (1P = source of truth).
+  - `cd IaC/host/vps && ./gen-custom-script.sh` — wrote `post_install_with_secrets.sh` (0600, 81 lines, git-ignored); both injected pubkeys fingerprint-verified against the vault (`laptop-domen_ssh` → `SHA256:XTmK3tR59IMnok1HbEW7n3ZK0v4bd7miPS+0r7lSPTA`, `ansible-admin_ssh` → `SHA256:1uKzmwf…7rU`); placeholder self-check + `bash -n` green.
+- **Settings chosen (netcup SCP reinstall, fed via prompt-journal):**
+  - Official image: **Debian 13.6.0 UEFI amd64** · Installation method: **Minimal**
+  - Partitioning: single large OS partition over the full available disk (netcup wording; = plain partitions, no LVM)
+  - Hostname: `vps` · Locale: `en_US.UTF-8` · Timezone: `Europe/Vienna`
+  - Additional user: **false** (the Custom Script creates `ansible-admin`) · e-mail notification: **true**
+  - Custom Script: FULL content of `post_install_with_secrets.sh` (HD-208 drop-in variant, both pubkeys injected)
+- **Secrets touched:** public material only — `laptop-domen_ssh.public_key`, `ansible-admin_ssh.public_key` (pubkeys are not secrets); `post_install_with_secrets.sh` deleted immediately after paste.
+- **Verify:** ⏳ pending — first boot must show `sshd -T` → `passwordauthentication no` / `permitrootlogin no` / `maxauthtries 3` **from the drop-in alone**; reinstall rotates the host keys ⇒ flush old `known_hosts` entry and capture the new fingerprints for pinning.
+- **Deviations:** none vs the documented flow. Three SCP fields were not previously tabulated (installation method, timezone, e-mail notify) — recorded as actually chosen (doc updated: `docs/deployment-preseed.md`).
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

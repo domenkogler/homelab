@@ -234,6 +234,9 @@ netcup SCP's "**Custom Script** (executed at end of image installation, ≤10 00
 | Hostname | **vps** | FQDN `vps.kogler.si` |
 | Locale | **en_US.UTF-8** | netcup offers only de_DE/en_US; `sl_SI.UTF-8` set by Ansible `common` on first run |
 | Keyboard | en/us | headless — irrelevant to SSH |
+| Installation method | **Minimal** | minimal image variant — as chosen 2026-08-22 reinstall |
+| Timezone | **Europe/Vienna** | set at install; same UTC offset as `Europe/Ljubljana` |
+| E-mail notification | **true** | SCP notifies the owner when the install finishes |
 | Custom Script | `post_install.sh` (real keys via `*_with_secrets.sh`) | end-of-install hook; ≤10 000 chars |
 | Root password (fallback) | set in SCP | recovery path if script fails; Ansible later disables root login |
 
