@@ -9,7 +9,7 @@
 - **One row = one outcome.** New work gets `HD-<next>` and links its owning `docs/*.md`.
 - **Priority (P):** 1 = highest (how hot), module = what domain it touches. Priority is per-row, modules group.
 - **Executors:** `AI` · `AI + gate` (human checkpoint) · `AI + Human` (joint) · `Human` (blocks).
-- **Lifecycle:** open → (decided) → done → changelog. Deferred → park section. **Decisions:** a decided item is written **once** to `changelog.md` (decision-log SSOT) and the full rationale is **removed** from `todo.md` — §1 shows only still-open decisions/purchases (compact pointer, no struck duplicate).
+- **Lifecycle:** open → (decided) → done → changelog — ONE pattern (CONVENTIONS §4): a **fully-done** row is DELETED from this file (changelog-only record); an **IaC-done-but-deploy-gated** row STAYS with a `⏳` tail (trimmed to pending items) until the live verify closes it, and still gets its Done changelog row. Deferred → park section. **Decisions:** a decided item is written **once** to `changelog.md` (decision-log SSOT) and the full rationale is **removed** from `todo.md` — §1 shows only still-open decisions/purchases (compact pointer, no struck duplicate).
 - **Conventions / onboarding:** consolidated rule index + 10-step service-onboarding checklist in [`CONVENTIONS.md`](CONVENTIONS.md).
 - **Service stages:** service-onboarding rows (per-checklist tasks) carry **`Stage: N/10`** in the bold title = current Service-onboarding checklist step ([CONVENTIONS.md](CONVENTIONS.md) §5). `10/10` = deployed + verified; only then does a row close. Non-service tasks (network/fix/decision) carry no stage marker.
 
