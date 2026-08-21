@@ -126,6 +126,22 @@
 - **Secrets touched:** root fallback password copied by owner into `netcup-vps_login` — ⚠ open question: owner said "Homelab vault"; plan Table B expects it in the **separate break-glass vault** (SA-invisible, cannot verify — owner to confirm placement).
 - **Next:** break-glass diagnostics via netcup SCP console / root fallback; surgical remediation of user+keys (+drop-in if absent); then re-run this verify; root cause decides whether the owning doc needs a Minimal-image warning.
 
+### 2026-08-22 — Phase 1.0 · re-provision VERIFIED after HD-209 console remediation — step closed `[MANUAL]`
+
+- Corrects the FAILED entry above; closes the "Re-provision with the HD-208-fixed script" checkbox.
+- **Root cause confirmed** (owner console output): `authorized_keys` lines were `ssh-ed25519 ssh-ed25519 AAAA…` — the template hardcoded the algorithm token while the injected placeholders already carried full keys (HD-209, fixed in `a97783d`). The script itself had run **fully** — user, drop-in and sudoers all present — so both earlier theories (apt failure at step 1; Minimal-image hook difference) are RETRACTED.
+- **Remediation (owner, netcup SCP console as root):** `authorized_keys` overwritten with the two correct single-prefix pubkey lines + `chown -R ansible-admin` + `chmod 600`.
+- **Verification (this session):**
+  ```bash
+  ssh -o IdentitiesOnly=yes -i <transient-key> ansible-admin@vps.kogler.si \
+    'whoami; hostname; sudo sshd -T | grep -E "^(passwordauthentication|permitrootlogin|maxauthtries)"; \
+     ls /etc/ssh/sshd_config.d/; sudo cat /etc/sudoers.d/ansible-admin; awk "{print \$NF}" .ssh/authorized_keys'
+  ```
+  - `ansible-admin@vps` ✓ · **sshd -T = maxauthtries 3 / permitrootlogin no / passwordauthentication no** — the HD-208 no/no/3 requirement, from the drop-in alone ✓
+  - drop-in `00-homelab-hardening.conf` present ✓ · sudoers `NOPASSWD:ALL` ✓ · both key comments (`admin@laptop`, `ansible`) present ✓
+- **Secrets touched:** `ansible-admin_ssh.private_key` transiently materialized at `%TEMP%\homelab-deploy\vps-verify-key` (0600, written inside WSL via `op read`, **shredded immediately after verification**) — deviation from the no-keys-on-disk posture, forced by the client quirk below.
+- **Client quirk recorded (laptop, not server):** Win32 OpenSSH `9.5p2` rejects valid ed25519 `.pub` IdentityFile hints (`Load key … invalid format` while its own `ssh-keygen.exe` parses the same bytes); MSYS git-bash ssh has no agent socket ⇒ plain interactive `ssh` trips `maxauthtries 3` via multi-key agent offering. Interim interactive path = WSL runner (documented model, post-rebuild with canonical key restored); pub-hint Host-entry retry deferred until a Windows OpenSSH update.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
