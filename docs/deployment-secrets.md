@@ -41,7 +41,7 @@ host facts in 1P, and (c) match nothing that consumes it. The kopia SFTP case al
 the split: `kopia_sftp_host/user/port` in `group_vars` + `Hertzner-SB-Backup` key-ref in 1P.
 
 **Exception:** genuinely credential-like, ops-only connection facts that are deliberately kept OFF
-the automation path (e.g. `netcup-vps_login` root + IP in a **separate vault**) stay in 1Password —
+the automation path (e.g. `netcup-vps_login` root + IP in the **Homelab (human)** vault) stay in 1Password —
 that is a break-glass decision, not a connection-config item.
 
 ---

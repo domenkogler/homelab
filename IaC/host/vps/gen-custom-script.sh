@@ -32,6 +32,15 @@ if grep -q "_FROM_1PASSWORD>" "$OUT"; then
     echo "FAIL: placeholders remain in $OUT — aborting"; exit 1
 fi
 
+# Malformed-key guard (found live 2026-08-22, HD-209): the templates used to
+# hardcode an "ssh-ed25519 " prefix while the injected public_key fields already
+# carry one → doubled prefix → sshd silently ignores the line → SSH lockout.
+if grep -qE 'ssh-(ed25519|rsa)[[:space:]]+ssh-' "$OUT"; then
+    echo "FAIL: doubled algorithm prefix in $OUT — aborting"; exit 1
+fi
+grep -qF -- "${domen_pub} admin@laptop" "$OUT" || { echo "FAIL: personal key line malformed in $OUT"; exit 1; }
+grep -qF -- "${ansible_pub} ansible" "$OUT" || { echo "FAIL: ansible key line malformed in $OUT"; exit 1; }
+
 bash -n "$OUT"
 echo "✔ $OUT written (0600, placeholders injected, syntax OK)."
 echo "  Next: paste its FULL content into netcup SCP → Custom Script,"

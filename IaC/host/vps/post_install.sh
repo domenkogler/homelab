@@ -30,11 +30,12 @@ fi
 mkdir -p /home/ansible-admin/.ssh
 chmod 700 /home/ansible-admin/.ssh
 
-# 2a. Domen's personal key (1Password: admin_laptop_ssh_pubkey)
-echo "ssh-ed25519 <PERSONAL_PUBKEY_FROM_1PASSWORD> admin@laptop" >> /home/ansible-admin/.ssh/authorized_keys
+# 2a. Domen's personal key (1Password: laptop-domen_ssh.public_key — full key
+#     INCLUDING the algorithm token; never hardcode a prefix here)
+echo "<PERSONAL_PUBKEY_FROM_1PASSWORD> admin@laptop" >> /home/ansible-admin/.ssh/authorized_keys
 
-# 2b. Dedicated Ansible key (1Password: ssh_ansible_pubkey)
-echo "ssh-ed25519 <ANSIBLE_PUBKEY_FROM_1PASSWORD> ansible" >> /home/ansible-admin/.ssh/authorized_keys
+# 2b. Dedicated Ansible key (1Password: ansible-admin_ssh.public_key)
+echo "<ANSIBLE_PUBKEY_FROM_1PASSWORD> ansible" >> /home/ansible-admin/.ssh/authorized_keys
 
 chmod 600 /home/ansible-admin/.ssh/authorized_keys
 chown -R ansible-admin:ansible-admin /home/ansible-admin/.ssh

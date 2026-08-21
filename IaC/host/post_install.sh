@@ -21,10 +21,12 @@ mkdir -p /home/ansible-admin/.ssh
 chmod 700 /home/ansible-admin/.ssh
 
 # 2a. Domen's personal key (1Password: admin_laptop_ssh_pubkey)
-echo "ssh-ed25519 <PERSONAL_PUBKEY_FROM_1PASSWORD> admin@laptop" >> /home/ansible-admin/.ssh/authorized_keys
+# Placeholders below are replaced by FULL public keys (they already carry the
+# algorithm token — do NOT hardcode 'ssh-ed25519 ' here).
+echo "<PERSONAL_PUBKEY_FROM_1PASSWORD> admin@laptop" >> /home/ansible-admin/.ssh/authorized_keys
 
 # 2b. Dedicated Ansible key (1Password: ssh_ansible_pubkey)
-echo "ssh-ed25519 <ANSIBLE_PUBKEY_FROM_1PASSWORD> ansible" >> /home/ansible-admin/.ssh/authorized_keys
+echo "<ANSIBLE_PUBKEY_FROM_1PASSWORD> ansible" >> /home/ansible-admin/.ssh/authorized_keys
 
 chmod 600 /home/ansible-admin/.ssh/authorized_keys
 chown -R ansible-admin:ansible-admin /home/ansible-admin/.ssh
@@ -43,7 +45,7 @@ chmod 700 /home/ai-debug/.ssh
 
 # AI key (1Password: ssh_ai_pubkey / openrouter_ai)
 # Restrictions: LAN only (10.10.0.0/16), no agent/port/X11 forwarding
-echo 'restrict,no-agent-forwarding,no-port-forwarding,no-X11-forwarding,from="10.10.0.0/16" ssh-ed25519 <AI_PUBKEY_FROM_1PASSWORD> openrouter_ai' >> /home/ai-debug/.ssh/authorized_keys
+echo 'restrict,no-agent-forwarding,no-port-forwarding,no-X11-forwarding,from="10.10.0.0/16" <AI_PUBKEY_FROM_1PASSWORD> openrouter_ai' >> /home/ai-debug/.ssh/authorized_keys
 
 chmod 600 /home/ai-debug/.ssh/authorized_keys
 chown -R ai-debug:ai-debug /home/ai-debug/.ssh

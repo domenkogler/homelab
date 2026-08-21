@@ -73,7 +73,7 @@
 
 #### B) Account / connection refs — NOT consumed by Ansible (human maintenance / break-glass)
 
-> These live in the **Homelab (human)** vault (or a separate break-glass vault) — deliberately NOT in
+> These live in the **Homelab (human)** vault — deliberately NOT in
 > `Homelab-ansible`, so the Ansible Service Account cannot see them (least-access). They are not consumed
 > by Ansible lookups; they gate human operations only. `✓` = owner-verified present (an SA-scoped vault
 > audit cannot check this table).
@@ -82,7 +82,7 @@
 |------|-------------------------|-------|--------|
 | `netcup-ccp_login` | netcup Customer Control Panel login (billing/orders) | Homelab (human) vault | ✓ |
 | `netcup-scp_login` | netcup Server Control Panel login (reboot/OS reset) | Homelab (human) vault | ✓ |
-| `netcup-vps_login` | netcup root/OS credential — **separate break-glass vault** | separate break-glass vault | ✓ |
+| `netcup-vps_login` | netcup root/OS credential | Homelab (human) vault *(owner decision 2026-08-22 — consolidated with the other netcup-* logins; former break-glass-vault plan dropped)* | ✓ |
 | `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Homelab (human) vault | ✓ |
 
 > **Provisioning note:** the generated items — the DB items `authentik_db`/`opencloud_db`/`immich_db`/`forgejo_db`/
@@ -126,7 +126,7 @@
 > the LAN/network work (Phase 1.5) is **not** a prerequisite — this tier is public (netcup → internet → Cloudflare), not LAN.
 > The VPS hosts the **self-contained public tier first**: Traefik + CrowdSec + Authentik (+ their co-located Postgres/Redis)
 > and the public apps whose DBs live on VPS NVMe. It has **no dependency on oldsrv or nas**. **Needed before Phase 2.**
-> **1Password prerequisites (new this phase):** `netcup-ccp_login`, `netcup-scp_login`, `netcup-vps_login` (separate vault),
+> **1Password prerequisites (new this phase):** `netcup-ccp_login`, `netcup-scp_login`, `netcup-vps_login` (Homelab (human) vault),
 > `Hertzner-SB-Data`, `Hertzner-SB-Backup`, plus the cloudflare/authentik/DB items listed in **Phase 3** for the moved apps.
 > **Continuation:** once the edge + Authentik are live, the LAN track (Phase 1.5 network redo → Phase 2 nas → Phase 3 oldsrv)
 > brings up the internal/GPU backends; the WG S2S tunnel (Phase 1.5 / HD-03 WG VPS peer) then lets the VPS reach them.
@@ -475,7 +475,7 @@ Phase 10 (deferred: Phase-2 Proxmox hardware, HD-41/42)
 
 **Phase prerequisites (1Password) recap — what must exist before you start:**
 - **Phase 0:** `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `op_api`, `kopia_password` (seed)
-- **Phase 1 (VPS):** + `netcup-ccp_login`, `netcup-scp_login`, `netcup-vps_login` (separate vault), `Hertzner-SB-Data`,
+- **Phase 1 (VPS):** + `netcup-ccp_login`, `netcup-scp_login`, `netcup-vps_login` (Homelab (human) vault), `Hertzner-SB-Data`,
   `Hertzner-SB-Backup`, `cloudflare_api`, `authentik_db/password/login`, `opencloud_db`, `immich_db`, `forgejo_db`,
   `forgejo_api`, `grafana_login`, `smtp_login`
 - **Phase 1.5 (network):** + `mikrotik-admin_login`, `wg_password`
