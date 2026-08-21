@@ -11,6 +11,7 @@
 #   6. check_doc_map.py            — docs/index.md document map matches docs/ tree
 #   7. check_generated_suffix.py    — every machine-generated doc carries the -generated suffix
 #   8. check_vault_name.py          — vault is 'Homelab-ansible' (no bare Homelab refs, HD-189)
+#   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
 set -euo pipefail
@@ -51,5 +52,18 @@ $PY scripts/check_generated_suffix.py
 
 echo "== check_vault_name.py =="
 $PY scripts/check_vault_name.py
+
+echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="
+# HD-197: catch unresolvable modules / broken YAML in every playbook at gate time.
+# Requires the Ansible venv (WSL/CI); skipped gracefully on native Windows like the
+# Ansible render path (see scripts/README.md).
+if command -v ansible-playbook >/dev/null 2>&1 && ansible-playbook --version >/dev/null 2>&1; then
+  for pb in IaC/ansible/site.yml IaC/ansible/playbooks/*.yml; do
+    ansible-playbook -i IaC/ansible/inventory.ini "$pb" --syntax-check >/dev/null
+  done
+  echo "OK: all playbooks pass --syntax-check"
+else
+  echo "SKIP: ansible-playbook not functional on this host (absent or native-Windows WinError 87) — syntax gate runs under WSL/CI"
+fi
 
 echo "OK: all validators passed"

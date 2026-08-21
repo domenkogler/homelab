@@ -11,12 +11,17 @@ Exempt files (documented in the convention):
   * deployment-ansible/secrets — ★ authoring specs that define IaC values
   * docs/home-assistant-current.md     — historical decision log (strikethrough)
   * deployment-tasks.md                — legacy task log
+  * changelog.md                       — append-only history (rows stay as written)
+  * ephemeral round-2 audit reports at repo root — folded + deleted by HD-203
 
 Allowed anywhere: well-known external IPs (public DNS, third-party services) — the
 patterns below only match private/special-use ranges (RFC 1918 + 100.64.0.0/10 CGNAT).
 
+Scan scope (HD-197 F5): every canonical root *.md (prompt-* handoffs excluded),
+every docs/**/*.md, and every IaC/**/*.md.
+
 Run:   python scripts/check_doc_ips.py
-Exit:  0 = clean, 1 = violations. Wire into CI once Doco-CD activates.
+Exit:  0 = clean, 1 = violations. Wired into `validate-all.sh`.
 """
 import re
 import sys
@@ -38,21 +43,50 @@ EXEMPT_FILES = {
     "docs/deployment-secrets.md",
     "docs/home-assistant-current.md",
     "deployment-tasks.md",
+    "changelog.md",                    # append-only history (HD-197 F5)
+}
+
+# Ephemeral round-2 audit reports at repo root (A3 lifecycle, CONVENTIONS §4):
+# they quote IP evidence by design and are fold+deleted by HD-203 — not canonical.
+EPHEMERAL_AUDIT_REPORTS = {
+    "architecture.md", "conventions-sugestions.md", "docs-changes.md",
+    "docs-vs-iac.md", "iac-changes.md", "scripts.md", "security.md",
+    "tracking-sugestions.md",
 }
 
 
+def _scan_files() -> list[Path]:
+    """Canonical root *.md (minus prompt-* handoffs + ephemeral audit reports),
+    all docs/**/*.md, all IaC/**/*.md."""
+    files: set[Path] = set(ROOT.glob("*.md"))
+    files |= set((ROOT / "docs").rglob("*.md"))
+    iac = ROOT / "IaC"
+    if iac.is_dir():
+        files |= set(iac.rglob("*.md"))
+    out = []
+    for f in sorted(files):
+        if f.name.startswith("prompt-"):
+            continue
+        if f.name in EPHEMERAL_AUDIT_REPORTS and f.parent == ROOT:
+            continue
+        out.append(f)
+    return out
+
+
 def main() -> int:
-    files = sorted([*ROOT.glob("docs/**/*.md"), ROOT / "deployment-tasks.md", ROOT / "README.md"])
     bad = 0
-    for f in files:
+    for f in _scan_files():
         rel = f.relative_to(ROOT).as_posix()
         if rel in EXEMPT_FILES:
             continue
         for ln, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
             for rx in SPECIAL:
                 if rx.search(line):
+                    # ASCII-sanitize the echoed line: Windows consoles default to
+                    # cp1252 and a non-ASCII doc char would crash the report itself.
+                    safe = line.strip().encode("ascii", "replace").decode("ascii")
                     print(f"{rel}:{ln}: {rx.pattern}")
-                    print(f"    {line.strip()}")
+                    print(f"    {safe}")
                     bad += 1
                     break
     if bad:

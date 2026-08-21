@@ -43,15 +43,10 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 INDEX = DOCS / "index.md"
 
-# Root docs that are canonical content (always scanned for links).
-ROOT_SCAN = {"README.md", "CONVENTIONS.md", "todo.md", "changelog.md",
-             "deployment-tasks.md", "readme-humans.md"}
-
-# basenames at repo root that are intentionally NOT under docs/ but are valid
-# link targets (used in CONVENTIONS/README/root docs and in-doc links).
-ROOT_DOCS = {"README.md", "CONVENTIONS.md", "todo.md", "CHANGELOG.md",
-             "changelog.md", "prompt-next.md", "deployment-tasks.md",
-             "readme-humans.md", "readme.md"}
+# Root docs scanned for links: ALL root *.md except prompt-* handoffs (HD-197 F6
+# replaced the hand-maintained allowlist that silently missed new root docs).
+def _root_scan_files() -> set[Path]:
+    return {p for p in ROOT.glob("*.md") if not p.name.startswith("prompt-")}
 
 
 def _strip_code(text: str) -> str:
@@ -95,10 +90,7 @@ def _iter_scan_files() -> list[Path]:
     """Every canonical .md file whose links we validate (order stable)."""
     files: set[Path] = set()
     files |= _on_disk_docs()                            # all docs/**
-    for name in ROOT_SCAN:
-        p = ROOT / name
-        if p.exists():
-            files.add(p)
+    files |= _root_scan_files()                          # all canonical root *.md
     files |= set((ROOT / "IaC").rglob("*.md"))         # IaC/ docs incl. README
     # exclude brainstorming/ (freeform notes) and anything under docs/assets
     # (non-navigation). Exclude prompt-*.md handoffs (transient).

@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Collects SMART data from all physical disks for homelab storage planning.
-    Run on the i7-7700K Windows 10 PC with all 6 HDDs attached via hot-plug SATA.
+    Run on the i7-7700K Windows 11 PC with all 6 HDDs attached via hot-plug SATA.
 
 .DESCRIPTION
     - Installs smartmontools via winget if not present

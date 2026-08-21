@@ -26,6 +26,7 @@ Every script here is part of one of three groups: **validation** (the fail-close
 | [`check_doc_map.py`](check_doc_map.py) | **Docs reachable + links valid** — every doc under `docs/` reachable from `docs/index.md` (and vice-versa) + repo-wide `.md` link resolution. HD-152 + HD-173. | `docs/index.md` |
 | [`check_generated_suffix.py`](check_generated_suffix.py) | **`-generated` suffix discipline** — every machine-produced doc carries `-generated.md`, no hand-authored doc carries it. Keeps `EXPECTED_GENERATED` in sync with `docs/index.md` map. | `CONVENTIONS.md` §8.2 |
 | [`check_vault_name.py`](check_vault_name.py) | **Vault name = `Homelab-ansible`** — flags a bare `Homelab` vault reference (prose/comments/op:// URIs) in canonical docs, IaC yml/j2 and scripts/*.py; changelog.md exempt (append-only history). HD-189. | `docs/deployment-secrets.md`, `CONVENTIONS.md` §1 |
+| `ansible-playbook --syntax-check` (in `validate-all.sh`) | **Playbook syntax gate** — every playbook must parse + resolve modules. WSL/CI-gated: skipped with a note when ansible is absent or broken natively on Windows (WinError 87). HD-197. | `docs/deployment-ansible.md` |
 
 ---
 
@@ -55,9 +56,10 @@ Every script here is part of one of three groups: **validation** (the fail-close
 | [`provision-secrets.py`](provision-secrets.py) | **1Password item create/rotate helper** for the `Homelab-ansible` vault — **safe-by-default** (bare run is a no-op help; every write needs an explicit flag + `--yes`). `--list` shows the generated-item catalog; `--create` seeds missing generated items (never overwrites); `--rotate ITEM` / `--rotate-all` regenerate values in place, refusing externally-coupled items (`wg_password`, DB passwords, `authentik_password`, `kopia_password`, `matrix_password`). Rotation + Ansible: 1Password is the SSOT, so after rotating a 1P item re-run the affected Ansible role to re-render compose/config with the new value. Needs a write-scoped `OP_SERVICE_ACCOUNT_TOKEN`; fails closed without it. | `docs/deployment-secrets.md` |
 | [`collect-smart-live.sh`](collect-smart-live.sh) | **SMART report** from a SystemRescue live ISO on the NAS (HP MicroServer Gen8) — `smartctl --scan` across internal + SilverStone miniSAS bays → `/tmp/smart-report-*.txt` (host, disk map, SMART attrs). | `docs/hardware-nas.md` |
 
-The scratch files `laptop-sda.txt`, `laptop-sdb.txt`, `oldsrv-sda.txt`, `oldsrv-sdb.txt`, and
-`smart-report-*.txt` are **raw SMART/drive data snapshots** (CI / audit), not tools. `collect-smart.ps1`
-is the Windows PowerShell sibling of `collect-smart-live.sh` (same purpose, runs from Windows instead of a live ISO).
+The raw SMART/drive data snapshots live in [`reports/`](../reports/) (`laptop-sda.txt`,
+`laptop-sdb.txt`, `oldsrv-sda.txt`, `oldsrv-sdb.txt`, `smart-report-*.txt`) — CI / audit
+inputs, not tools. `collect-smart.ps1` is the Windows PowerShell sibling of
+`collect-smart-live.sh` (same purpose, runs from Windows instead of a live ISO).
 
 ---
 

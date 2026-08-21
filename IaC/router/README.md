@@ -54,10 +54,10 @@ are added by the **Ansible `router` role** (not the router template). AP → IP 
 
 | AP | MAC | IP |
 |----|-----|-----|
-| ap-garage | `6C:3B:6B:7D:B9:C5` | `10.10.99.3` |
-| ap-spalnica | `C4:AD:34:42:F1:7D` | `10.10.99.4` |
-| ap-dnevna | `64:D1:54:AA:24:D1` | `10.10.99.5` |
-| ap-spare | (TBD) | `10.10.99.6` |
+| ap-garage | `6C:3B:6B:7D:B9:C5` | per `network_static_hosts` (all.yml) |
+| ap-spalnica | `C4:AD:34:42:F1:7D` | per `network_static_hosts` (all.yml) |
+| ap-dnevna | `64:D1:54:AA:24:D1` | per `network_static_hosts` (all.yml) |
+| ap-spare | (TBD) | per `network_static_hosts` (all.yml) |
 
 ## Secrets referenced (1Password `Homelab-ansible` vault)
 

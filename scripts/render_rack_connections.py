@@ -70,6 +70,9 @@ def main() -> int:
         return sorted(rows, key=lambda r: _iface_sort(r[0]))
 
     md = []
+    # Canonical managed header (CONVENTIONS §8.2 / HD-163): exactly Ansible's
+    # built-in ansible_managed default, first line of every generated doc.
+    md.append("# Ansible managed")
     md.append("# Rack Connections")
     md.append("")
     md.append("> **Generated** from [`rack-connections.json`](rack-connections.json) by "
@@ -135,7 +138,7 @@ def main() -> int:
         md.append(f"- {n}")
     md.append("")
 
-    MD_DEST.write_text("\n".join(md), encoding="utf-8")
+    MD_DEST.write_text("\n".join(md), encoding="utf-8", newline="\n")
 
     # ---- Mermaid ----
     mmd = []
@@ -160,7 +163,7 @@ def main() -> int:
             to = c["to_device"]
             lbl = f"{c['from_iface']} ↔ {c['to_iface']}"
             mmd.append(f'  {fr} -- "{lbl}" --> {to}')
-    MMD_DEST.write_text("\n".join(mmd) + "\n", encoding="utf-8")
+    MMD_DEST.write_text("\n".join(mmd) + "\n", encoding="utf-8", newline="\n")
 
     print(f"wrote {MD_DEST}")
     print(f"wrote {MMD_DEST}")

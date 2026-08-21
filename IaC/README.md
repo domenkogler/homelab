@@ -166,12 +166,12 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 ### `cockpit`
 - **Scope:** nas + oldsrv only (Pi excluded — managed via SSH/HA UI).
 - Installs `cockpit` (+ `cockpit-zfs` on nas), enables `cockpit.socket`, grants `sudo` group (Cockpit admins on Debian) to `ansible_admin_users`.
-- **Own login — deliberately NOT behind Authentik** (management surface, independent of SSO). Routes are Traefik **file-provider** config (`/opt/traefik/dynamic/cockpit.yml`, rendered on oldsrv): `cockpit-nas → 10.10.1.10:9090`, `cockpit-oldsrv → 10.10.1.30:9090`, no Forward-Auth middleware.
+- **Own login — deliberately NOT behind Authentik** (management surface, independent of SSO). Routes are Traefik **file-provider** config (`/opt/traefik/dynamic/cockpit.yml`, rendered on oldsrv): `cockpit-nas → nas.kogler.si:9090`, `cockpit-oldsrv → oldsrv.kogler.si:9090` (backends derived from the address SSOT, HD-188), no Forward-Auth middleware.
 - Host/Origin note: Traefik preserves the original Host, so cockpit-ws Origin validation passes — no header rewrite on these routes.
 
 ### `nut`
 - **Mode-driven** via `nut_mode` (host_vars): `master` (nas) / `client` (oldsrv, ha). See `docs/hardware-ups.md`, `docs/observability.md`.
-- **master (nas):** `nut-server` + `usbhid-ups` (USB HID), `upsd` listening `LISTEN 10.10.1.10:3493`, `nut_exporter` as a **host binary** (nas has no Docker) + systemd, `upssched-cmd` direct email/Signal notify (independent of Grafana/n8n).
+- **master (nas):** `nut-server` + `usbhid-ups` (USB HID), `upsd` listening on the nas Home-VLAN address (`network_static_hosts` SSOT), port 3493, `nut_exporter` as a **host binary** (nas has no Docker) + systemd, `upssched-cmd` direct email/Signal notify (independent of Grafana/n8n).
 - **client (oldsrv, ha):** `nut-client` + `upsmon` slave → `MONITOR powerwalker@{{ nut_host }} …`, per-host `shutdown_delay_seconds` (oldsrv 60 / ha 0).
 - **Secrets:** `nut_password` + notify SMTP/Signal (`smtp_login`) from 1Password `Homelab-ansible` at render time.
 
@@ -204,7 +204,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Pi = primary** (Debian + HA Container); **oldsrv = standby** (`home-assistant-standby`). Both render the **same `configuration.yaml`** from this repo — see `docs/smart-home-failover.md`.
 - **HA web login = Authentik SSO via native OIDC**; Companion/API = HA long-lived token. **No Authentik Forward-Auth on the `ha` route.**
 - `configuration.yaml` templated from repo (`use_x_forwarded_for: true`, `trusted_proxies: <Traefik>`).
-- **VIP/VRRP:** `keepalived` on both HA nodes sharing `10.10.1.200`; `ha.kogler.si` → VIP.
+- **VIP/VRRP:** `keepalived` on both HA nodes sharing the `ha-vip` (address SSOT); `ha.kogler.si` → VIP.
 - Standby: `home-assistant-standby/docker-compose.yml.j2` → `/opt/home-assistant-standby/` on home_servers; systemd unit disabled by default; started manually on forward takeover.
 - State sync: config + optional DB pushed Pi → standby every ~15 min (LAN); reverse on failback.
 - Secrets: HA API keys, MQTT credentials
@@ -343,7 +343,7 @@ See `docs/deployment-secrets.md` for the full master list + rename map (includin
 | 3 | `amd_rocm` role | `common` |
 | 4 | `docker_services` role (core loop + systemd + templates) | `docker`, `network`, `amd_rocm` |
 | 5 | `desktop` + `office` roles | `amd_rocm` (dual-GPU Xorg) |
-| 6 | `home_assistant` role (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) | `docker` |
+| 6 | `home_assistant` role (Pi primary + oldsrv standby + keepalived VIP `ha-vip`) | `docker` |
 | 7 | `monitoring` role (incl. Grafana alerting rules + SMTP) | `docker_services` |
 | 8 | `router` role (+ `.rsc`) | `network` (IPs/VLANs defined) |
 | 9 | `proxmox` (Phase 2) | `network` |

@@ -1,3 +1,4 @@
+# Ansible managed
 # Rack Connections
 
 > **Generated** from [`rack-connections.json`](rack-connections.json) by `scripts/render_rack_connections.py` — do not hand-edit.

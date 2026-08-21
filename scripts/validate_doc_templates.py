@@ -1,79 +1,130 @@
 #!/usr/bin/env python3
-"""Validate network-addresses.md.j2 + inventory.md.j2 render with real group_vars context."""
-import re
+"""Smoke-render the SSOT doc templates with REAL group_vars context.
+
+Renders templates/network-addresses.md.j2 + templates/inventory.md.j2 the way
+render-docs.yml does, using values parsed from group_vars/all.yml (+ host_vars)
+so this check fails when the SSOT and its doc templates drift apart (HD-197 F2:
+the hardcoded copies this script once carried could never catch that).
+
+What is checked:
+  * both templates render under StrictUndefined with real group_vars data
+  * no missing-variable / Jinja errors
+
+Mocked (host/instance-specific, no plain group_vars equivalent): per-host
+dns_*_ip entries are derived here from network_static_hosts exactly like the
+playbook does; ansible_date_time is a fixed instant.
+
+Run:   python scripts/validate_doc_templates.py
+Exit:  0 = both templates render; 1 = any render/parsing failure.
+Wired into `validate-all.sh`.
+"""
+import sys
 from pathlib import Path
-from jinja2 import Environment, StrictUndefined, Template
 
-root = Path("IaC/ansible")
+import yaml
+from jinja2 import Environment, StrictUndefined
 
-# --- parse group_vars/all.yml (safe subset) ---
-def grab_yml_var(text, var):
-    m = re.search(rf"^{var}:\s*(.*)$", text, re.M)
-    return m.group(1).strip() if m else None
+ROOT = Path(__file__).resolve().parent.parent
+ANSIBLE = ROOT / "IaC" / "ansible"
 
-all_yml = (root / "group_vars/all.yml").read_text(encoding="utf-8")
-ha_vip = grab_yml_var(all_yml, "ha_vip").split("#")[0].strip()
-print(f"ha_vip = {ha_vip}")
 
-# network_static_hosts / network_vlans are list-of-dicts; replicate from group_vars/all.yml
-network_vlans = [
-    {"id": 10, "name": "Home", "subnet": "10.10.1.0/24", "pool": "10.10.1.100-10.10.1.199", "ssid": "Kogler"},
-    {"id": 20, "name": "IoT", "subnet": "10.10.20.0/24", "pool": "10.10.20.100-10.10.20.199", "ssid": "Kogler IOT"},
-    {"id": 21, "name": "IoT-Internet", "subnet": "10.10.21.0/24", "pool": "10.10.21.100-10.10.21.199", "ssid": "Kogler IOT WAN"},
-    {"id": 30, "name": "Guest", "subnet": "10.10.30.0/24", "pool": "10.10.30.100-10.10.30.199", "ssid": "Kogler guest"},
-    {"id": 40, "name": "Kids", "subnet": "10.10.40.0/24", "pool": "10.10.40.100-10.10.40.199", "ssid": "Kogler Kids"},
-    {"id": 50, "name": "Media", "subnet": "10.10.50.0/24", "pool": "10.10.50.100-10.10.50.199", "ssid": ""},
-    {"id": 99, "name": "Management", "subnet": "10.10.99.0/24", "pool": "10.10.99.50-10.10.99.99", "ssid": ""},
-]
-network_static_hosts = [
-    {"vlan": 99, "ip": "10.10.99.1", "name": "router", "role": "RB4011 gateway"},
-    {"vlan": 10, "ip": "10.10.1.30", "name": "oldsrv", "role": "node + DNS primary"},
-]
+def _load_group_vars() -> dict:
+    out = {}
+    for rel in ("group_vars/all.yml",):
+        p = ANSIBLE / rel
+        try:
+            data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError) as e:
+            print(f"FAIL: cannot parse {p}: {e}", file=sys.stderr)
+            sys.exit(1)
+        out.update(data)
+    return out
 
-ctx = {
-    "ansible_managed": "Ansible managed: file edited by Ansible",
-    "ansible_date_time": {"iso8601": "2026-01-01T00:00:00Z"},
-    "network_vlans": network_vlans,
-    "network_static_hosts": network_static_hosts,
-    # subset of group_vars/all.yml network_ranges — enough to smoke-test the template
-    "network_ranges": [
-        {"name": "wireguard", "cidr": "10.255.0.0/16", "purpose": "tunnel family"},
-        {"name": "wg-s2s", "cidr": "10.255.40.0/30", "purpose": "S2S link"},
-        {"name": "headscale", "cidr": "100.64.0.0/10", "purpose": "overlay"},
-        {"name": "traefik-public", "cidr": "172.20.0.0/16", "purpose": "docker edge"},
-        {"name": "site", "cidr": "10.10.0.0/16", "purpose": "site"},
-    ],
-    "ha_vip": ha_vip,
-    "technitium_secondary_ip": "10.10.1.20",
-    "hostvars": {
-        "oldsrv.kogler.si": {"dns_primary_ip": "10.10.1.30"},
-        "ha.kogler.si": {"dns_secondary_ip": "10.10.1.20"},
-        "pi.kogler.si": {"dns_secondary_ip": "10.10.1.20"},
-    },
-    "docker_services": [
-        {"name": "traefik", "subdomain": None, "enabled": True},
-        {"name": "grafana", "subdomain": "stats", "enabled": True},
-    ],
-    # Multi-host inventory render: list of {key: host, value: {('_docker_services'): [...]}}
-    # (the shape render-docs.yml builds via dict2items + selectattr).
-    "all_hostvars": [
-        {"key": "vps.kogler.si", "value": {"_docker_services": [{"name": "traefik", "subdomain": None, "enabled": True}]}},
-        {"key": "oldsrv.kogler.si", "value": {"_docker_services": [{"name": "jellyfin", "subdomain": "media", "enabled": True}]}},
-    ],
-    "domain_public": "kogler.si",
-    "inventory_hostname": "oldsrv.kogler.si",
-}
 
-env = Environment(undefined=StrictUndefined, keep_trailing_newline=True, trim_blocks=True, lstrip_blocks=True)
+def _derive_host_ips(gv: dict) -> dict:
+    """Derive per-host DNS IPs from network_static_hosts (same derivation the
+    playbook uses) — no phantom hosts, no hardcoded IPs."""
+    hosts = gv.get("network_static_hosts", [])
 
-# Emulate Ansible's `comment` filter (simple '#' style) for local validation.
-def ansible_comment(text, style="plain"):
-    return "\n".join(f"# {l}" if l else "#" for l in str(text).splitlines())
+    def ip(name, vlan):
+        match = [h for h in hosts if h.get("name") == name and h.get("vlan") == vlan]
+        return match[0]["ip"] if match else None
 
-env.filters["comment"] = ansible_comment
+    oldsrv = ip("oldsrv", 10)
+    pi = ip("pi", 10)
+    hostvars = {}
+    if oldsrv:
+        hostvars["oldsrv.kogler.si"] = {"dns_primary_ip": oldsrv}
+    if pi:
+        hostvars["pi.kogler.si"] = {"dns_secondary_ip": pi}
+    return hostvars
 
-for tpl in ["network-addresses.md.j2", "inventory.md.j2"]:
-    src = (root / "templates" / tpl).read_text(encoding="utf-8")
-    out = env.from_string(src).render(**ctx)
-    print(f"===== {tpl} rendered OK ({len(out)} bytes) =====")
-    print(out[:400])
+
+def main() -> int:
+    gv = _load_group_vars()
+    for key in ("network_vlans", "network_static_hosts", "network_ranges",
+                "ha_vip", "domain_public"):
+        if key not in gv:
+            print(f"FAIL: group_vars/all.yml is missing '{key}' — SSOT incomplete",
+                  file=sys.stderr)
+            return 1
+
+    docker_services = []
+    for gvf in sorted((ANSIBLE / "group_vars").glob("*.yml")):
+        try:
+            data = yaml.safe_load(gvf.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError) as e:
+            print(f"FAIL: cannot parse {gvf}: {e}", file=sys.stderr)
+            return 1
+        docker_services.extend(data.get("docker_services", []))
+
+    ctx = {
+        # Canonical managed header (CONVENTIONS §8.2 / HD-163): exactly Ansible's
+        # built-in ansible_managed default.
+        "ansible_managed": "Ansible managed",
+        "ansible_date_time": {"iso8601": "2026-01-01T00:00:00Z"},
+        "network_vlans": gv["network_vlans"],
+        "network_static_hosts": gv["network_static_hosts"],
+        "network_ranges": gv["network_ranges"],
+        "ha_vip": gv["ha_vip"],
+        "technitium_secondary_ip": "{{ pi_home_ip }}",   # rendered literally in all.yml
+        "hostvars": _derive_host_ips(gv),
+        "docker_services": docker_services,
+        "all_hostvars": [
+            {"key": h, "value": {"_docker_services": docker_services}}
+            for h in ("vps.kogler.si", "oldsrv.kogler.si")
+        ],
+        "domain_public": gv["domain_public"],
+        "inventory_hostname": "oldsrv.kogler.si",
+    }
+
+    env = Environment(undefined=StrictUndefined, keep_trailing_newline=True,
+                      trim_blocks=True, lstrip_blocks=True)
+
+    def ansible_comment(text, style="plain"):
+        return "\n".join(f"# {l}" if l else "#" for l in str(text).splitlines())
+
+    env.filters["comment"] = ansible_comment
+
+    failed = False
+    for tpl in ("network-addresses.md.j2", "inventory.md.j2"):
+        src = (ANSIBLE / "templates" / tpl).read_text(encoding="utf-8")
+        try:
+            out = env.from_string(src).render(**ctx)
+        except Exception as e:
+            print(f"FAIL: {tpl} does not render with real group_vars context: {e}",
+                  file=sys.stderr)
+            failed = True
+            continue
+        print(f"===== {tpl} rendered OK ({len(out)} bytes) =====")
+
+    if failed:
+        print("\nSee docs/deployment-ansible.md (render pipeline) — a template that "
+              "references a variable absent from group_vars is an SSOT drift defect.",
+              file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
