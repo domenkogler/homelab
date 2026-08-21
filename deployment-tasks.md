@@ -11,7 +11,7 @@
 >
 > **Status tracking for sub-tasks / difficulty:** `todo.md` (HD-XX IDs).
 
-> **✅ Decisions (2025-08-16 — overriding some phase wording below):** see `todo.md` for the full
+> **✅ Decisions (2026-08-16 — overriding some phase wording below):** see `todo.md` for the full
 > rationale. **HD-92:** `oldsrv` stays bare-metal Debian + Docker (no Proxmox / no GPU passthrough on the
 > single Phase-1 box; Proxmox deferred to HD-41/42). **HD-93:** the netcup VPS (**RS 2000 G12**, bought 2026-08-18) is **bought before go-live**
 > and the **public edge (Traefik + CrowdSec + Authentik + public apps) goes on the VPS from day one**
@@ -211,7 +211,7 @@
    (single-SSD boot; ZFS HDDs **not touched** by preseed) + shared `IaC/host/post_install.sh`
    (ansible-admin + ai-debug keys, sshd hardening).
 2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/storage.yml`:
-   `common` → `ai_diag` → `network` (static on VLAN 10, IP per SSOT) → `nut` (mode=master) → `cockpit`.
+   `common` → `ai_diag` → `network` (static on VLAN 10, IP per SSOT) → `storage` (ZFS import/create, datasets, NFS exports) → `nut` (mode=master) → `cockpit`.
 3. **NUT master** — `nut-server` + `usbhid-ups` (PowerWalker USB), `upsd` listening intra-VLAN
    `nas:3493` (no inter-VLAN rule needed — see `docs/hardware-ups.md`), `nut_exporter` as a
    host binary (:9199), `upssched-cmd` email/Signal notify (`smtp_login`).
@@ -248,11 +248,12 @@
    `shutdown_delay_seconds=60` → `powerwalker@nas`) → `amd_rocm` (ROCm stack, udev, `OLLAMA_KEEP_ALIVE=5m`)
    → `desktop` → `office` → `cockpit` → `docker_services` → `home_assistant` (standby) → `monitoring`.
 3. **Services (internal/GPU subset)** — `docker_services` deploys the **oldsrv** subset in
-   `group_vars/home_servers.yml`: ollama, immich-ml, jellyfin (iGPU), sunshine, technitium, pihole,
-   headscale, kopia-server/agent, n8n, homepage, metabase, signal-cli-rest-api, home-assistant-standby,
-   the Media /*arr stack and dozzle → **HD-43/-44**. The **public apps (traefik/crowdsec/authentik/opencloud/
-   forgejo/immich-app/grafana) are on the VPS** (Phase 1/HD-135), not oldsrv — remove/downgrade them
-   here per the HD-135 `enabled:` split.
+   `group_vars/home_servers.yml`: ollama, immich-ml, technitium (primary), pihole, homepage
+   (moves to the VPS per HD-180/183), dozzle, signal-cli-rest-api, sunshine
+   (`homelab_mode == 'desktop'` gated), home-assistant-standby, and the media stack
+   (jellyfin iGPU + seerr/sonarr/radarr/lidarr/prowlarr/bazarr/sabnzbd/qbittorrent/profilarr/recyclarr).
+   The public apps (traefik/crowdsec/authentik/opencloud/forgejo/immich-app/grafana and the
+   observability backend) are on the VPS (Phase 1/HD-135), not oldsrv.
 
    ✅ **Templates status (live):** all compose templates exist under `docker_services/` — HD-16
    (authentik + Forward-Auth middleware) and HD-50 (`docker_services` role) are **done**. The authoritative
@@ -275,7 +276,7 @@
 
 **Verify:**
 - `docker compose ps` for every service is healthy; `systemctl status docker-compose@<service>`.
-- Homepage (`home.kogler.si`) reachable after Authentik SSO (moves to the VPS per HD-180; until HD-183 lands it still renders on oldsrv) · Grafana (`stats.kogler.si`), Forgejo (`git.kogler.si`) served by the VPS edge (verify via public URL, not locally here).
+- Homepage (`home.kogler.si`) reachable after Authentik SSO (moves to the VPS per HD-180; until HD-183 lands it still renders on oldsrv). Grafana/Forgejo are VPS-edge services — verify via their public URLs in Phase 1, not here.
 - Wildcard `*.kogler.si` cert: issued on the **VPS** (Phase 1, HD-178) — oldsrv serves internal routes from the synced pair (pulled from the VPS by its own timer, HD-181); no ACME logs expected on oldsrv.
 
 **Deploy-gated verification (Phase 3):**
@@ -312,10 +313,15 @@
    then run `IaC/host/pi/first-boot-config.sh` on the boot partition **before first boot**
    (see [`deployment-preseed.md` → Pi Image Deployment](docs/deployment-preseed.md)).
 2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/raspberry_pi.yml`:
-   `common` → `network` (static on VLAN 10, IP per SSOT) → `nut` (client, `shutdown_delay_seconds=0`)
-   → `docker` → `home_assistant` (**primary**, Debian + HA Container + keepalived → VIP `ha-vip`)
-   → `docker_services` (Pi-specific: `technitium` DNS, `pihole`, `raspberrymatic`) → `monitoring` (Alloy only).
-3. **Local Homematic** — `raspberrymatic` + HmIP-RFUSB (full-local XML-RPC, no cloud) — HD-13.
+   `common` → `ai_diag` → `network` (static on VLAN 10, IP per SSOT) → `nut` (client,
+   `shutdown_delay_seconds=0`) → `docker` → `docker_services` (Pi-specific:
+   `home-assistant-primary`, `technitium-secondary`, `traefik-ha` — no pihole/raspberrymatic;
+   KOPS-063: containers BEFORE the HA role so they are up when keepalived/VIP renders)
+   → `home_assistant` (**primary**, Debian + HA Container + keepalived → VIP `ha-vip`)
+   → `monitoring` (Alloy only).
+3. **Local Homematic** — ⏳ **parked** (HD-13): `raspberrymatic` was dropped from the Pi loop
+   (2026-08-18); re-add with an HmIP-RFUSB only when local RF is purchased (HmIP-HAP stays in
+   cloud mode until then).
 
 **Verify:**
 - `ha.kogler.si` resolves to the VIP (`ha-vip` per SSOT); `keepalived` is MASTER on the Pi.
@@ -359,7 +365,7 @@
 
 - UPS metrics + alerts in Grafana (Critical battery/runtime, Warning on-battery, Info transitions) — **HD-08**
 - UPS web-UI firewall rule (80/443 Home→Mgmt for the `ups` host only, + touches Phase 1.5 firewall) — **HD-09**
-- HA entity list export (Prometheus exporter) for TileBoard + Grafana — **HD-14**
+- HA entity list export (Prometheus exporter) for the HA Dashboard (lovelace) + Grafana — **HD-14**
 - HA recorder trim (`purge_keep_days`) to protect the Pi SD — **HD-19**
 - Grafana Alerting tiers (Critical/Warning/Info), self-monitoring, n8n + signal-cli-routing (details: `docs/observability.md`)
 
@@ -381,7 +387,7 @@
 4. Single failover button + `ha-failover.sh` (RMat → wait → VIP → standby) — **HD-17**
 5. Test HmIP-RFUSB pairing transfer + entity reconstruction — **HD-18**
 6. Voice pipeline (Whisper → Ollama → Piper, ESP32-S3 microWakeWord, HA Assist) — **HD-27**
-7. Office AI stack (Ollama models, n8n, AnythingLLM + LocPilot, ONLYOFFICE) — **HD-28**
+7. Office AI stack (Ollama models, n8n, Office MCP path per HD-108/111 — AnythingLLM/LocPilot retired, ONLYOFFICE) — **HD-28**
 
 ---
 
@@ -411,8 +417,6 @@
 
 - Write family guides `docs/manual/*` (10 Slovenian files, `status: wip`) — **HD-32**
 - Export live router config `rb4011_live.rsc` (RouterOS export) — **HD-33**
-- Fix broken `docs/network-devices.md` reference — **HD-35**
-- Confirm watchtower vs Renovate for the Pi HA container — **HD-39**
 
 ---
 
@@ -478,10 +482,10 @@ Phase 10 (deferred: Phase-2 Proxmox hardware, HD-41/42)
 |------|------|-------|----------|-------------------|
 | router | `router.kogler.si` | L3 all | `router.yml` | `router` |
 | switch | `switch.kogler.si` | L2 trunk | (`.rsc`) | — |
-| nas | `nas.kogler.si` | 10 + 99 native | `storage.yml` | common → ai_diag → network → nut(master) → cockpit |
+| nas | `nas.kogler.si` | 10 + 99 native | `storage.yml` | common → ai_diag → network → storage → nut(master) → cockpit |
 | oldsrv | `oldsrv.kogler.si` | 99 native + 10/20/50 tagged | `home_servers.yml` | common → ai_diag → docker → network → nut(client) → amd_rocm → desktop → office → cockpit → docker_services → home_assistant(standby) → monitoring |
-| pi | `pi.kogler.si` | 10 | `raspberry_pi.yml` | common → network → nut(client) → docker → home_assistant(primary+keepalived) → docker_services(pi) → monitoring(alloy) |
-| vps | `vps.kogler.si` | public | `vps.yml` (**Phase 1**) | common → docker → network → docker_services → monitoring |
+| pi | `pi.kogler.si` | 10 | `raspberry_pi.yml` | common → ai_diag → network → nut(client) → docker → docker_services(pi) → home_assistant(primary+keepalived) → monitoring(alloy) |
+| vps | `vps.kogler.si` | public | `vps.yml` (**Phase 1**) | common → docker → vps-hardening → network → cifs → wireguard(cond.) → docker_services → monitoring |
 | — | all | — | `all.yml` | `/etc/hosts` sync |
 | laptop | control | 10 | `render-docs.yml` + `dns.yml` | renders `docs/network-addresses-generated.md`; maintains Cloudflare public DNS records |
 

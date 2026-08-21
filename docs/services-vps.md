@@ -8,7 +8,7 @@ tags: [services, vps, netcup]
 # Deferred VPS Infrastructure
 
 > **Role:** Detail — reference architecture for the netcup VPS.
-> **Status:** ✅ **Decision (2025-08-16, HD-93):** the VPS is to be **purchased before go-live** and the
+> **Status:** ✅ **Decision (2026-08-16, HD-93):** the VPS is to be **purchased before go-live** and the
 > public edge moves onto it from **day one** (public Traefik + CrowdSec + Authentik + public apps terminate
 > TLS on the VPS over WG S2S → oldsrv backends). This supersedes the older "deferred to Phase 2+" wording
 > below, which is retained as the implementation spec for what actually ships there.

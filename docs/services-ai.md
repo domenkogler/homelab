@@ -81,7 +81,7 @@ Loopback-only if a raw port is ever required.
   chat/LLM models, declared in LiteLLM's `config.yaml`.
 - **Embeddings → Cohere:** `cohere_api` (api → credential). Cohere embed-v4 **multilingual** chosen
   deliberately for state-of-the-art multilingual embeddings (strong for Slovenian). Cloud call is an
-  **accepted** trade-off (decision 2025-08-16) — only embedded vectors, not documents/chats, leave.
+  **accepted** trade-off (decision 2026-08-16) — only embedded vectors, not documents/chats, leave.
 - **Local models:** LiteLLM also lists local Ollama models (RX 7600) so the family sees local + cloud
   models through one dropdown; local is default where privacy/offline matters.
 
@@ -119,7 +119,7 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 
 ## 6. Auth & exposure
 
-- **`ai.kogler.si` is public** (decision 2025-08-16), behind **Authentik OIDC** (native SSO, per-person)
+- **`ai.kogler.si` is public** (decision 2026-08-16), behind **Authentik OIDC** (native SSO, per-person)
   + **`crowdsec-only`** middleware at the Traefik edge (internet-facing → Flaw A / HD-60).
 - Per-person chat/history follows the HD-51 identity model (users = Authentik identities). No shared
   admin login exposed; admin surface is the OIDC account only.
@@ -153,14 +153,14 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 
 | # | Decision | Date |
 |---|----------|------|
-| 1 | Cohere embed-v4 **multilingual** (paid, cloud) for embeddings — SOTA chosen; cloud acceptable. | 2025-08-16 |
-| 2 | `ai.kogler.si` **public**, Authentik OIDC + CrowdSec. | 2025-08-16 |
-| 3 | OpenClaw **kept**, **version pinned** (supply-chain risk accepted). | 2025-08-16 |
-| 4 | No host `0.0.0.0` port binds (loopback-only if ever needed). | 2025-08-16 |
-| 5 | Single `openrouter_api` for all external LLM gen; **`cohere_api` separate** (embeddings not on OpenRouter). | 2025-08-16 |
-| 6 | **LocPilot kept; AnythingLLM removed.** | 2025-08-16 |
-| 7 | **OpenCloud = file SSOT · Open WebUI = chat/UX SSOT** — Office via MCP tools, not add-ins (HD-108). | 2025-08-16 |
-| 8 | **Office MCP bridges are native Windows per-client** (no Docker), Headscale-only + token-auth, version-pinned (HD-106/109). | 2025-08-16 |
+| 1 | Cohere embed-v4 **multilingual** (paid, cloud) for embeddings — SOTA chosen; cloud acceptable. | 2026-08-16 |
+| 2 | `ai.kogler.si` **public**, Authentik OIDC + CrowdSec. | 2026-08-16 |
+| 3 | OpenClaw **kept**, **version pinned** (supply-chain risk accepted). | 2026-08-16 |
+| 4 | No host `0.0.0.0` port binds (loopback-only if ever needed). | 2026-08-16 |
+| 5 | Single `openrouter_api` for all external LLM gen; **`cohere_api` separate** (embeddings not on OpenRouter). | 2026-08-16 |
+| 6 | **LocPilot kept; AnythingLLM removed.** | 2026-08-16 |
+| 7 | **OpenCloud = file SSOT · Open WebUI = chat/UX SSOT** — Office via MCP tools, not add-ins (HD-108). | 2026-08-16 |
+| 8 | **Office MCP bridges are native Windows per-client** (no Docker), Headscale-only + token-auth, version-pinned (HD-106/109). | 2026-08-16 |
 
 ---
 

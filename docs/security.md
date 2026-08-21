@@ -164,7 +164,7 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
 > (Populated from the AUD-02 dispositions; AUD-13 keeps this current.)
 
 - **Matrix open federation** — **accepted/expected, kept by decision (HD-122, 2026-08-18).** Open federation affirms
-  the original 2025-08-16 acceptance: a federated Matrix homeserver interoperating with the wider Matrix world.
+  the original 2026-08-16 acceptance: a federated Matrix homeserver interoperating with the wider Matrix world.
   The "any Matrix user can DM the family" concern is mitigated WITHOUT breaking federation via
   `require_auth_for_profile_requests=true` (stops anonymous profile/MXID scraping) + `allow_public_room_directory_over_federation=false`
   (blocks `/publicRooms` enumeration). `trusted_servers` is a **key-notary** list, not an ingress permit-list —
@@ -172,11 +172,11 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
   (per-user ignore/block). IaC: `tuwunel.toml.j2`. *(evidence: KOPS-033 → closed, HD-122)* Owning doc: [`services-matrix.md`](services-matrix.md).
 - **SNMP v2c default community** — **Decided (HD-53, Option A):** dedicated read-only community (`network-snmp_api`, in 1Password) replacing `public`, with SNMP (161/udp) **restricted to the Management VLAN** via router INPUT-chain ACL. KOPS-034 closed. Date: 2026-08-18. *(evidence: KOPS-034)* Owning doc: [`observability.md`](observability.md).
 - **Playbook role order** (`network` before `storage` on oldsrv) — documented as accepted; not a bug.
-  *(evidence: KOPS-050)* Date: 2025-08-16.
+  *(evidence: KOPS-050)* Date: 2026-08-16.
 - **Homepage docker.sock health widget** — accepted (read-only mount, behind Forward-Auth).
-  *(evidence: KOPS-058)* Date: 2025-08-16.
+  *(evidence: KOPS-058)* Date: 2026-08-16.
 - **Seerr SQLite single-file** — accepted risk (reconfig takes ~15 min; keep in Kopia scope).
-  *(evidence: KOPS-059)* Date: 2025-08-16.
+  *(evidence: KOPS-059)* Date: 2026-08-16.
 - **services-internal sibling auth** — **done (HD-160, 2026-08-20):** every data-writing
   `services-internal` sibling now has per-service token/header auth or a documented isolation
   decision. Ollama isolated on `llm-backend` (HD-59); OpenClaw→OpenCloud via scoped
