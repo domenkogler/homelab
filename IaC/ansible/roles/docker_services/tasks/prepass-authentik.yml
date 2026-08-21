@@ -40,6 +40,18 @@
     mode: '0755'
   tags: [authentik, secret-egress]
 
+# Deploy the host-side write-scoped SA token FROM THE VAULT (HD-143): rotation =
+# update the authentik-provision_api item + re-run this playbook.
+- name: "Deploy provision token for host-side op (HD-143)"
+  ansible.builtin.copy:
+    content: "{{ lookup('community.general.onepassword', 'authentik-provision_api', field='credential', vault=op_vault) }}\n"
+    dest: /etc/op/provision-token
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  tags: [authentik, secret-egress]
+
 # Run the glue. Retried because the ks-oidc.yml Blueprint may still be applying on the
 # /blueprints volume at container first-start; the script itself exits 3 (with retry-
 # safe logging) until every provider/client_secret is present.
