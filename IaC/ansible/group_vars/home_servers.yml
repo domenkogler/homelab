@@ -96,6 +96,12 @@ docker_services:
   - { name: profilarr,    template_dir: profilarr }
   - { name: recyclarr,    template_dir: recyclarr }                          # scheduled worker, no UI
 
+  # --- Backup: off-site agent (HD-191) — client of kopia-server on the VPS ---
+  # Snapshots oldsrv-LOCAL state (configs, dumps scratch, thumbs, signal state) to
+  # the Hetzner backup Box via kopia-server over the WG S2S tunnel. Never reads NAS
+  # mounts (backup.md invariant). Scheduled worker, no UI.
+  - { name: kopia-agent,    template_dir: kopia-agent }
+
   # --- Services MOVED to the VPS (group_vars/vps.yml) — not deployed on oldsrv ---
   # opencloud/immich-app/forgejo/litellm/pgvector/docling/open-webui/openclaw,
   # prometheus/loki/grafana/blackbox-exporter (backend on VPS), n8n, kopia-server,

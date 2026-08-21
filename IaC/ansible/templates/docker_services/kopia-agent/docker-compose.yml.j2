@@ -1,0 +1,78 @@
+# kopia-agent docker-compose.yml — oldsrv off-site backup CLIENT (HD-191)
+#   Containerized Kopia agent on oldsrv (decided HD-204): snapshots oldsrv-LOCAL
+#   state to the kopia-server repository (VPS) over the WireGuard S2S tunnel —
+#   parity with the VPS-side agent. The repo backend is the Hetzner Storage Box
+#   **backup** (SFTP) behind kopia-server; the agent never touches storage itself.
+#
+#   NAS-independent by invariant (backup.md): sources below are oldsrv-local paths
+#   only, mounted READ-ONLY. Never mounted: NAS mounts (/mnt/nas/*), model weights
+#   (/srv/models — regenerable), Docker layers, TSDB (not on oldsrv any more).
+#
+#   Transport: kopia-server :51515 is published ONLY on the VPS WG tunnel address
+#   (wg_s2s_vps.ip — see the kopia-server template); home-initiated connect is
+#   allowed by the S2S scoping (HD-155). Reach is deploy-gated live-verify.
+#
+#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#     kopia-server-internal_api (API Credential) — the SAME item kopia-server auths
+#       with (HD-59): `username` = the user@host identity the agent presents via
+#       HTTP Basic Auth, `credential` = its password. No new 1Password item.
+#   Config vars: none new — server address derives from `wg_s2s_vps.ip` (all.yml SSOT).
+services:
+  kopia-agent:
+    image: kopia/kopia:{{ kopia_version }}   # same pin as kopia-server (one pin per image)
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: kopia-agent
+    restart: unless-stopped
+    # No overlay network: the agent egresses via the host's default bridge to the
+    # WG S2S tunnel (wg-s2s on the router → VPS). It talks to NO local container.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        # Fail loud: server auth identity is REQUIRED (HD-59 / HD-65) — never run an
+        # agent that would silently skip auth (the server would reject it anyway).
+        : "${KOPIA_SERVER_USER:? kopia-server-internal_api.username missing — aborting}"
+        : "${KOPIA_SERVER_PASSWORD:? kopia-server-internal_api.credential missing — aborting}"
+        if [ ! -f /app/config/repository.config ]; then
+          echo "Connecting to kopia-server over the WG S2S tunnel..."
+          kopia repository connect server \
+            --url="http://${KOPIA_SERVER_ADDR}" \
+            --server-username="${KOPIA_SERVER_USER}" \
+            --server-password="${KOPIA_SERVER_PASSWORD}" \
+            --override-hostname=oldsrv.kogler.si \
+            --override-username=oldsrv-agent
+        fi
+        # Scheduled worker (no UI): snapshot loop, first pass at start-up. Interval
+        # is env-tunable; exact window + server-side policy tuning = deploy-gated.
+        while :; do
+          echo "[kopia-agent] snapshot create $(date -u +%FT%TZ)"
+          kopia snapshot create /mnt/src/opt /mnt/src/dumps /mnt/src/immich-upload || echo "[kopia-agent] snapshot create FAILED — retrying next interval"
+          kopia snapshot create /mnt/src/signal-cli-data || echo "[kopia-agent] signal state snapshot FAILED — retrying next interval"
+          sleep "${KOPIA_SNAPSHOT_INTERVAL_SECONDS:-86400}"
+        done
+    volumes:
+      # --- Sources (READ-ONLY, oldsrv-local only — backup.md §Layer 2 policy) ---
+      - /opt:/mnt/src/opt:ro                       # compose configs + technitium state + ha-standby config (/opt/*)
+      - /srv/dumps:/mnt/src/dumps:ro               # dump scratch (created by push jobs; may be empty at first)
+      - /srv/docker/immich/upload:/mnt/src/immich-upload:ro   # immich-ml thumbs/upload dir (face thumbnails — the one regenerable-adjacent exception backup.md keeps)
+      # Signal gateway identity/state (named volume owned by the signal-cli-rest-api
+      # project — `name:` pins the projected volume name; renaming that service's
+      # project breaks this mount, caught at deploy). Read-only.
+      - signal-cli-data:/mnt/src/signal-cli-data:ro
+      - /srv/docker/kopia-agent/config:/app/config
+      - /srv/docker/kopia-agent/cache:/app/cache
+    environment:
+      # VPS peer address on the wg-s2s /30 (SSOT: group_vars/all.yml wg_s2s_vps.ip).
+      KOPIA_SERVER_ADDR: "{{ wg_s2s_vps.ip }}:51515"
+      KOPIA_SERVER_USER: "{{ lookup('community.general.onepassword', 'kopia-server-internal_api', field='username', vault=op_vault) }}"
+      KOPIA_SERVER_PASSWORD: "{{ lookup('community.general.onepassword', 'kopia-server-internal_api', field='credential', vault=op_vault) }}"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+volumes:
+  signal-cli-data:
+    external: true
+    name: signal-cli-rest-api_signal-cli-data   # exact projected name of the signal-cli-rest-api project volume

@@ -163,6 +163,10 @@ BASE_CTX.update({
     # from `oldsrv_home_ip`; mocked here with the same Home-IP value.
     "immich_ml_bind": "10.10.1.30",
     "immich_ml_url": "http://10.10.1.30:3003",
+    # WG S2S peer (HD-155/191) — dict var in all.yml is Jinja-valued, so it stays
+    # a mock; values mirror the documented /30 (VPS .2). Consumed by the kopia-server
+    # WG-bound publish guard + the kopia-agent server address.
+    "wg_s2s_vps": {"ip": "10.255.40.2", "peer_public_key": "mock-router-public-key"},
     "ansible_user": "ansible-admin",
     "inventory_hostname": "oldsrv.kogler.si",
     "homelab_mode": "desktop",
