@@ -31,7 +31,12 @@
 
 ## Phase 0 — Bootstrap the Management Laptop
 
-*(no entries yet — runner bootstrap pending)*
+### 2026-08-21 — Phase 0 · runner state verified — DECISION: wipe + re-bootstrap `[MANUAL]`
+
+- Plan ref: deployment-tasks Phase 0; verification run read-only from the orchestrator (`wsl -d Debian`).
+- **Found:** op CLI v2.34.1 installed ✅ · token file `~/.config/op/homelab-sa-token` present ⚠️ but **fails to authenticate** (`unrecognized auth type` — stale/mismatched vs CLI) · `.bashrc` line 116 carries an **inline `OP_SERVICE_ACCOUNT_TOKEN` export** (the exact HD-86 violation; correct `source` line also present at line 118) · **Ansible NOT installed** (login shell + pip both empty) · no `~/.ssh/config` host entries, no agent bridge.
+- **Decision (owner, 2026-08-21):** wipe the half-configured WSL Debian and re-run `IaC/bootstrap-ansible-client/bootstrap.sh` from scratch, journaling each step via the prompt-journal feed. Nothing of value lost (no ansible, broken auth).
+- **Action items for the redo:** rotate the 1Password Service Account token (old one stale + exposed in session logs) → new token goes ONLY into `~/.config/op/homelab-sa-token` (0600) via the fixed bootstrap flow, never inline in `.bashrc`.
 
 ## Phase 1 — VPS Public Edge
 
