@@ -16,6 +16,11 @@
 services:
   stirling-pdf:
     image: frooodle/s-pdf:{{ stirling_pdf_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: stirling-pdf
     restart: unless-stopped
     networks:

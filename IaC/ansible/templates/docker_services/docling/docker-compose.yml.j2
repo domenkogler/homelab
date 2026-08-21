@@ -14,6 +14,11 @@
 services:
   docling:
     image: quay.io/docling-project/docling-serve-cpu:{{ docling_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: docling
     restart: unless-stopped
     networks:

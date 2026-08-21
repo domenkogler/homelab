@@ -10,6 +10,11 @@
 services:
   headscale:
     image: headscale/headscale:{{ headscale_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: headscale
     restart: unless-stopped
     networks:

@@ -16,6 +16,11 @@
 services:
   litellm:
     image: docker.litellm.ai/berriai/litellm:{{ litellm_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: litellm
     restart: unless-stopped
     networks:

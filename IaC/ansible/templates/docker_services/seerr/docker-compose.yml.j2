@@ -12,6 +12,11 @@
 services:
   seerr:
     image: seerr/seerr:{{ seerr_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: seerr
     restart: unless-stopped
     networks:

@@ -15,6 +15,11 @@
 services:
   authentik-postgres:
     image: postgres:16-alpine
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: authentik-postgres
     restart: unless-stopped
     networks:
@@ -35,6 +40,11 @@ services:
 
   authentik-redis:
     image: redis:7-alpine
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: authentik-redis
     restart: unless-stopped
     networks:
@@ -44,6 +54,11 @@ services:
 
   authentik-server:
     image: ghcr.io/goauthentik/server:{{ authentik_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: authentik-server
     restart: unless-stopped
     networks:
@@ -83,6 +98,11 @@ services:
 
   authentik-worker:
     image: ghcr.io/goauthentik/server:{{ authentik_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: authentik-worker
     restart: unless-stopped
     command: worker
@@ -120,6 +140,11 @@ services:
   # host only (see network-ops / trusted sources) — LDAP creds must not be LAN-wide.
   authentik-ldap:
     image: ghcr.io/goauthentik/ldap:{{ authentik_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: authentik-ldap
     restart: unless-stopped
     networks:

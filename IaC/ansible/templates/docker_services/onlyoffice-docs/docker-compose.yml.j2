@@ -18,6 +18,8 @@
 services:
   onlyoffice-docs:
     image: onlyoffice/documentserver:{{ onlyoffice_version }}
+    cap_drop:
+      - ALL
     container_name: onlyoffice-docs
     restart: unless-stopped
     networks:

@@ -14,6 +14,11 @@
 services:
   pgvector:
     image: pgvector/pgvector:{{ pgvector_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: pgvector
     restart: unless-stopped
     networks:

@@ -20,6 +20,11 @@
 services:
   opencloud:
     image: opencloudeu/opencloud-rolling:{{ opencloud_version | default('7.4.0') }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: opencloud
     restart: unless-stopped
     user: "{{ storage_uid }}:{{ storage_gid }}"

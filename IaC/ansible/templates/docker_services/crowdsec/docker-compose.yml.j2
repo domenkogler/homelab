@@ -11,6 +11,11 @@
 services:
   crowdsec:
     image: crowdsecurity/crowdsec:{{ crowdsec_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: crowdsec
     restart: unless-stopped
     networks:

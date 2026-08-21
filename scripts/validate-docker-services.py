@@ -59,6 +59,17 @@ ALLOWED_LATEST = {
 # Services that use network_mode: service:<sidecar> (no own networks)
 NETWORK_MODE_SERVICE = {"qbittorrent"}
 
+# HD-202 backstop allowlist — templates deliberately WITHOUT cap_drop: [ALL].
+# GPU device services (decided HD-204: GPU/VPN exempt), HA primary/standby
+# (privileged/host-net rework = HD-72), raspberrymatic (parked HD-13, CCU emulation).
+ALLOWED_NO_CAP_DROP = {
+    "ollama", "immich-ml", "jellyfin", "sunshine",          # GPU / device access
+    "home-assistant-primary", "home-assistant-standby",     # HD-72 scope
+    "raspberrymatic",                                        # parked (HD-13)
+}
+# Per-SERVICE exemptions inside otherwise-hardened templates:
+SKIP_CAP_DROP_SERVICES = {"gluetun"}   # VPN sidecar — needs NET_ADMIN (HD-204 exemption)
+
 WEB_SERVICES = {
     "traefik", "authentik", "opencloud", "forgejo", "homepage", "metabase",
     "grafana", "headscale", "element-web", "matrix",
@@ -307,6 +318,18 @@ def validate_render(name, j2_path, env, service):
         restart = svc_def.get("restart", "")
         if restart and restart not in ("always", "unless-stopped", "no", ""):
             errors.append(f"{prefix} invalid restart policy: '{restart}'")
+
+        # HD-202 backstop: container-hardening law (deployment-compose.md §Container
+        # Security) — every service carries `cap_drop: [ALL]` (+ minimal cap_add),
+        # rolled into the templates 2026-08-21. The allowlist below is the BACKSTOP
+        # for deliberate exemptions only (GPU device services, the VPN sidecar,
+        # HD-72 scope, parked) — it must stay small and commented.
+        if "cap_drop" not in svc_def:
+            if name not in ALLOWED_NO_CAP_DROP and svc_name not in SKIP_CAP_DROP_SERVICES:
+                errors.append(
+                    f"{prefix} missing 'cap_drop: [ALL]' (HD-202 container-hardening law; "
+                    f"exempt only via ALLOWED_NO_CAP_DROP with justification)"
+                )
 
         # network_mode vs networks
         net_mode = svc_def.get("network_mode", "")

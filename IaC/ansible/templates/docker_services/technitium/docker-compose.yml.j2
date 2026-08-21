@@ -18,6 +18,13 @@
 services:
   technitium:
     image: technitium/dns-server:{{ technitium_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: technitium
     restart: unless-stopped
     cap_add:

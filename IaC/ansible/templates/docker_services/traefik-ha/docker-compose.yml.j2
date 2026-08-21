@@ -24,6 +24,13 @@
 services:
   traefik:
     image: traefik:{{ traefik_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: traefik-ha
     restart: unless-stopped
     network_mode: host                 # bind the VIP directly + reach local HA on the VIP

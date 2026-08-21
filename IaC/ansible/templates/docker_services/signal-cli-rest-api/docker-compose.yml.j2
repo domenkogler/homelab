@@ -7,10 +7,18 @@
 services:
   signal-cli-rest-api:
     image: bbernhard/signal-cli-rest-api:{{ signal_cli_rest_api_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: signal-cli-rest-api
     restart: unless-stopped
     environment:
       SIGNAL_CLI_PHONE_NUMBER: "{{ lookup('community.general.onepassword', 'signal_api', field='username', vault=op_vault) }}"
+      # INTENTIONAL default('', true) (HD-202): the Signal captcha token is an OPTIONAL
+      # anti-bot value — signal-cli starts and receives fine without it; a missing 1Password
+      # field must not abort the whole render (fail-loud law applies to REQUIRED secrets only).
       SIGNAL_CLI_CAPTCHA: "{{ lookup('community.general.onepassword', 'signal_api', field='credential', vault=op_vault) | default('', true) }}"
       MODE: json-rpc
       # API token auth (KOPS-002 / HD-125): require an X-Api-Key header so no container on

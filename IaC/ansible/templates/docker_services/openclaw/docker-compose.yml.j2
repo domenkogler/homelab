@@ -16,6 +16,11 @@
 services:
   openclaw:
     image: ghcr.io/openclaw/openclaw:{{ openclaw_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: openclaw
     restart: unless-stopped
     networks:

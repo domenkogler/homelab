@@ -7,6 +7,11 @@
 services:
   dozzle:
     image: amir20/dozzle:{{ dozzle_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: dozzle
     restart: unless-stopped
     networks:

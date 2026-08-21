@@ -8,6 +8,11 @@
 services:
   sabnzbd:
     image: linuxserver/sabnzbd:{{ sabnzbd_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: sabnzbd
     restart: unless-stopped
     networks:

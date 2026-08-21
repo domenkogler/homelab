@@ -12,6 +12,11 @@
 services:
   matrix:
     image: jevolk/tuwunel:{{ tuwunel_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: matrix
     restart: unless-stopped
     environment:

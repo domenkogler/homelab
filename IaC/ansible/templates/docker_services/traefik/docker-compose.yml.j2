@@ -27,6 +27,13 @@
 services:
   traefik:
     image: traefik:{{ traefik_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: traefik
     restart: unless-stopped
     ports:
@@ -81,6 +88,13 @@ services:
   # --crt-name/--key-name so the shared wildcard_cert_* vars can never drift).
   certs-dumper:
     image: ghcr.io/traware/certs-dumper:{{ certs_dumper_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: traefik-certs-dumper
     restart: unless-stopped
     volumes:

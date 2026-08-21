@@ -11,6 +11,11 @@
 services:
   prometheus:
     image: prom/prometheus:{{ prometheus_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: prometheus
     restart: unless-stopped
     command:

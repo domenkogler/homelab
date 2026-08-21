@@ -12,6 +12,11 @@
 services:
   db-backup:
     image: tiredofit/db-backup:{{ db_backup_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: db-backup
     restart: unless-stopped
     networks:

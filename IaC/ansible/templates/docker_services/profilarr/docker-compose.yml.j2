@@ -12,6 +12,11 @@
 services:
   profilarr:
     image: ghcr.io/dictionarry-hub/profilarr:latest
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: profilarr
     restart: unless-stopped
     networks:
@@ -39,6 +44,11 @@ services:
 
   profilarr-parser:
     image: ghcr.io/dictionarry-hub/profilarr-parser:latest
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: profilarr-parser
     restart: unless-stopped
     networks:

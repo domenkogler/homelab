@@ -35,6 +35,11 @@ services:
 
   qbittorrent:
     image: linuxserver/qbittorrent:{{ qbittorrent_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: qbittorrent
     restart: unless-stopped
     network_mode: "service:gluetun"          # no own network — shares gluetun namespace

@@ -13,6 +13,11 @@
 services:
   grafana:
     image: grafana/grafana:{{ grafana_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: grafana
     restart: unless-stopped
     networks:

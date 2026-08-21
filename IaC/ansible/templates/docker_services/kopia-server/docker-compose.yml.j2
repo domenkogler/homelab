@@ -18,6 +18,11 @@
 services:
   kopia-server:
     image: kopia/kopia:{{ kopia_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: kopia-server
     restart: unless-stopped
     command:

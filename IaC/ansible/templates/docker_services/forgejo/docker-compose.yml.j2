@@ -19,6 +19,11 @@
 services:
   forgejo:
     image: codeberg.org/forgejo/forgejo:{{ forgejo_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: forgejo
     restart: unless-stopped
     networks:
@@ -48,6 +53,11 @@ services:
 
   forgejo-db:
     image: postgres:16-alpine
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: forgejo-db
     restart: unless-stopped
     networks:

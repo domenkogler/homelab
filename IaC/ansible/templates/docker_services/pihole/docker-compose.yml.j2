@@ -9,6 +9,13 @@
 services:
   pihole:
     image: pihole/pihole:{{ pihole_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: pihole
     restart: unless-stopped
     networks:

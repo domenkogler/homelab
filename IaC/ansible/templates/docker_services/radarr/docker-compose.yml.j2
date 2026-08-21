@@ -7,6 +7,11 @@
 services:
   radarr:
     image: linuxserver/radarr:{{ radarr_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: radarr
     restart: unless-stopped
     networks:

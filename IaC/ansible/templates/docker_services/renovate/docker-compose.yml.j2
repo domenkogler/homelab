@@ -6,6 +6,11 @@
 services:
   renovate:
     image: ghcr.io/renovatebot/renovate:{{ renovate_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: renovate
     restart: unless-stopped
     environment:

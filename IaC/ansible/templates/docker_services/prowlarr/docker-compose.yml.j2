@@ -7,6 +7,11 @@
 services:
   prowlarr:
     image: linuxserver/prowlarr:{{ prowlarr_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     container_name: prowlarr
     restart: unless-stopped
     networks:
