@@ -183,7 +183,7 @@ def main() -> int:
             print(f"  - {src} -> [{tgt}]  ({res})")
 
     if bad:
-        print("\nSee docs/index.md → '## Document Map' + any unfound link target (HD-173).")
+        print("\nSee docs/index.md -> '## Document Map' + any unfound link target (HD-173).")  # ASCII only: cp1252 console crash on '→'
         return 1
 
     print(f"OK: {len(on_disk)} docs/ in Document Map; {len(_iter_scan_files())} "
