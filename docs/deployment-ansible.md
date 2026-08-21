@@ -491,7 +491,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 4 | `storage` (ZFS import/datasets, sanoid/syncoid, NFS exports/mounts, push timers — `roles/storage`) | `common`, `network` |
 | 5 | `docker_services` (core loop + systemd + templates) | `docker`, `network`, `amd_rocm`, `storage` (NFS mounts ready) |
 | 6 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
-| 7 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) + Pi `docker_services` (`raspberrymatic`, `technitium-secondary`, `traefik-ha` edge for `ha` + `dns-pi`) | `docker` |
+| 7 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) + Pi `docker_services` (`technitium-secondary`, `traefik-ha` edge for `ha` + `dns-pi`) — on the Pi, `home_assistant` runs BEFORE `docker_services` (render-first, HD-204 — supersedes the KOPS-063/HD-117 order) | `docker` |
 | 8 | `nut` — nas: master (usbhid-ups + upsd + nut_exporter); oldsrv/ha: client (upsmon slave + upssched + notifycmd) | `common`, `network` |
 | 9 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) **and** `nut` (needs nut_exporter) |
 | 10 | `router` | `network` (IPs/VLANs defined) |

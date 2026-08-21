@@ -30,6 +30,40 @@
   loop: "{{ _extra_templates[svc.template_dir] | default([]) }}"
   loop_control:
     label: "{{ extra | replace('.j2', '') }}"
+
+# ---- First-boot guard (HD-185): home-assistant-primary bind-mount sources ----
+# Render-first order (HD-204: home_assistant BEFORE docker_services on the Pi) means
+# ./config/configuration.yaml, ./keepalived.conf and ./secrets.yaml must already be
+# regular files when `docker compose up` first runs. If any is missing, Docker
+# auto-creates it as an empty DIRECTORY at bind-mount time and HA starts mis-configured
+# with no error (the exact bug HD-185 fixes) — so fail LOUD here instead, before up,
+# with the remediation path. Belt-and-braces against any future role reorder.
+- name: "First-boot guard: {{ svc.name }} bind-mount sources are regular files (HD-185)"
+  when: svc.name == 'home-assistant-primary'
+  block:
+    - name: "Stat {{ svc.name }} bind-mount sources"
+      ansible.builtin.stat:
+        path: "{{ docker_compose_dir }}/{{ svc.name }}/{{ item }}"
+      loop:
+        - config/configuration.yaml   # rendered by home_assistant (render-first order)
+        - keepalived.conf             # rendered by home_assistant (first-deploy copy)
+        - secrets.yaml                # 1Password-rendered (renderer still pending)
+      register: ha_primary_sources
+
+    - name: "Assert {{ svc.name }} bind-mount sources pre-exist as regular files"
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isreg
+        fail_msg: >-
+          {{ item.item }} under {{ docker_compose_dir }}/{{ svc.name }}/ is missing or not a
+          regular file. An empty DIRECTORY here means an earlier deploy ran `docker compose up`
+          for home-assistant-primary BEFORE the home_assistant role rendered its configs —
+          Docker auto-created the bind-mount source as a directory. Remediation: stop the stack
+          (`docker compose down`), delete the auto-created path(s), then re-run so that
+          home_assistant renders BEFORE docker_services (HD-204 render-first order). Note:
+          secrets.yaml additionally requires its pending 1Password render task to land first.
+  tags: [home_assistant, hd185]
 - name: "Validate rendered compose file for {{ svc.name }} (HD-162)"
   ansible.builtin.shell:
     cmd: "docker compose -f {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml validate"

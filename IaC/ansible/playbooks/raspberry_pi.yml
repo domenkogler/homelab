@@ -7,10 +7,15 @@
     - network
     - nut             # UPS client (Pi) — after network
     - docker
-    # Order (KOPS-063 / HD-117): deploy containers (docker_services) BEFORE the
-    # home_assistant role so HA containers are up before config keepalived/VIP renders —
-    # mirrors the Implementation Order table (deployment-ansible.md §Implementation Order, step 7).
+    # Order (SUPERSEDED on this host — HD-204 decision 2026-08-21, option A "render-first",
+    # replacing KOPS-063/HD-117): run home_assistant BEFORE docker_services so
+    # config/configuration.yaml, keepalived.conf (+ secrets.yaml once its renderer lands)
+    # exist as REGULAR FILES before the first `docker compose up`. The old KOPS-063 order
+    # (containers up before config renders) made Docker auto-create each bind-mount source
+    # as an empty DIRECTORY at first up — the HA role's copy→keepalived.conf then failed and
+    # HA ran default config silently (audit J2/D2). deploy-service.yml carries a
+    # belt-and-braces regular-file guard in front of every `compose up`.
     # (raspberrymatic was dropped from the Pi loop 2026-08-18 / HD-13 parked.)
+    - home_assistant         # render-first (HD-204): configs exist before compose up
     - docker_services        # home-assistant-primary + technitium-secondary on the Pi
-    - home_assistant
     - monitoring
