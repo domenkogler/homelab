@@ -34,10 +34,13 @@ tags: [hardware, nas, zfs]
 
 ## ZFS Pool "tank" (Primary — Mirror)
 
-| Drive | Model | Size | Hours | Health |
+> **Disk reference SSOT = `/dev/disk/by-id/`** (captured 2026-08-21 on the pre-reinstall Debian).
+> `sdX` letters are boot-specific and already shifted once — never use them in preseed/pool commands.
+
+| by-id (`/dev/disk/by-id/`) | Model | Size | Hours | Health |
 |-------|-------|------|-------|--------|
-| sdb | HGST HDN726040ALE614 | 4 TB | 60,070 | ✅ |
-| — | Seagate IronWolf Pro ST4000NT001 | 4 TB | new | ✅ |
+| `ata-HGST_HDN726040ALE614_K4K9LBGB` | HGST HDN726040ALE614 | 4 TB | 60,070 | ✅ |
+| `ata-ST4000NT001-3M2101_WX122FLD` | Seagate IronWolf Pro ST4000NT001 | 4 TB | new | ✅ |
 
 - **4 TB usable**, fully redundant mirror — reserved for **user data** (backed up). No media.
 - Datasets (all snapshotted + syncoid-replicated to `bulk`):
@@ -64,12 +67,16 @@ tags: [hardware, nas, zfs]
 
 Connected via **miniSAS** to the SilverStone SST-TS43xx external disk enclosure (4-bay, miniSAS-only — no USB/eSATA).
 
-| Drive | Model | Size | Hours | Health |
+| by-id (`/dev/disk/by-id/`) | Model | Size | Hours | Health |
 |-------|-------|------|-------|--------|
-| sda | WD Red WD30EFRX | 3 TB | 45,500 | ✅ |
-| sdc | Toshiba P300 HDWD130 | 3 TB | 6,481 | ✅ |
-| sdf | Toshiba P300 HDWD130 | 3 TB | 8,093 | ✅ |
-| sdg | Toshiba P300 HDWD130 | 3 TB | 8,156 | ✅ |
+| `ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU` | WD Red WD30EFRX | 3 TB | 45,500 | ✅ |
+| `ata-TOSHIBA_HDWD130_98M0ZZYAS` | Toshiba P300 HDWD130 | 3 TB | ~6.5–8.2 k | ✅ |
+| `ata-TOSHIBA_HDWD130_98M101SAS` | Toshiba P300 HDWD130 | 3 TB | ~6.5–8.2 k | ✅ |
+| `ata-TOSHIBA_HDWD130_98M0X0TAS` | Toshiba P300 HDWD130 | 3 TB | ~6.5–8.2 k | ✅ |
+
+> The three Toshiba hour readings (6,481 / 8,093 / 8,156 h) were recorded against unstable `sdX`
+> names and can no longer be attributed per serial — treat as a range. Re-read SMART per by-id at
+> the Phase-2 deploy check.
 
 - **6 TB usable**, survives any 2 disk failures
 - sde (Toshiba P300, 2,001 reallocated + 32 pending) was zeroed and physically removed
@@ -86,6 +93,70 @@ as the **local secondary pool**: syncoid replicas of `tank/data/*` (ZFS send/rec
 **active media library** (`bulk/media`) and the face-thumbnail push target (`bulk/data/immich-thumbs`)
 — 12 TB raw / 6 TB usable in RAIDZ2 on consumer disks. `sde` was removed
 (⚠️ critically failing: 2,001 reallocated + 32 pending sectors).
+
+---
+
+## Pool-Creation Runbook (one-time bootstrap, BEFORE the preseed reinstall)
+
+> Executed once on the pre-reinstall Debian install (2026-08). The Ansible `storage` role is
+> **import-only** for `tank`/`bulk` (`allow_create: false`, import-first rule in
+> `roles/storage/tasks/zfs_common.yml`) — pool creation is a human bootstrap step; datasets +
+> properties are then applied by the role from its defaults SSOT. The preseed wipes **only the OS SSD**
+> (`ata-Crucial_CT525MX300SSD4_173818D02FF0`); pools live on their data disks and survive the reinstall.
+> Create pools with `ashift=12`; `-O` props mirror the [`storage.md`](storage.md) all-datasets row.
+
+```bash
+sudo apt update && sudo apt install -y zfsutils-linux
+
+# -- 0. wipe stale labels (all six HDDs carry old ZFS part1/part9 tables) ----------------------
+sudo wipefs -a \
+  /dev/disk/by-id/ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU \
+  /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0X0TAS \
+  /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0ZZYAS \
+  /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M101SAS
+
+# -- 1. bulk FIRST (RAIDZ2) — it becomes the migration target ----------------------------------
+sudo zpool create -o ashift=12 \
+  -O xattr=sa -O acltype=posixacl -O atime=off -O normalization=formD \
+  bulk raidz2 \
+    /dev/disk/by-id/ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU \
+    /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0X0TAS \
+    /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0ZZYAS \
+    /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M101SAS
+
+# -- 2. migrate the legacy single-disk pool OFF the IronWolf (it has no redundancy) ------------
+sudo zpool import                                   # list importable pools, note NAME + datasets
+# rename-on-import avoids a name clash with the new tank/bulk; readonly protects the source:
+sudo zpool import -o readonly=on -R /mnt/legacy <legacy-pool-name> legacy-migrate
+sudo zfs list -r legacy-migrate
+sudo zfs snapshot -r legacy-migrate/<dataset>@migrate
+sudo zfs send -R legacy-migrate/<dataset>@migrate | sudo zfs receive bulk/migrate/<dataset>
+diff -r /mnt/legacy/<dataset> /bulk/migrate/<dataset>        # spot-check before wiping anything
+sudo zpool export legacy-migrate
+
+# -- 3. tank (MIRROR — never raidz1 for 2 disks; docs/storage.md layout) -----------------------
+sudo wipefs -a \
+  /dev/disk/by-id/ata-HGST_HDN726040ALE614_K4K9LBGB \
+  /dev/disk/by-id/ata-ST4000NT001-3M2101_WX122FLD
+sudo zpool create -o ashift=12 \
+  -O xattr=sa -O acltype=posixacl -O atime=off -O normalization=formD \
+  tank mirror \
+    /dev/disk/by-id/ata-HGST_HDN726040ALE614_K4K9LBGB \
+    /dev/disk/by-id/ata-ST4000NT001-3M2101_WX122FLD
+
+# -- 4. final home of the migrated data (open decision, todo.md HD-207) ------------------------
+# media library -> zfs rename bulk/migrate/<dataset> bulk/media   (role applies documented props)
+# user data     -> decide against storage.md first (NAS-local user datasets were trimmed HD-151)
+zfs destroy -r bulk/migrate@unused || true          # clean the landing zone once decided
+
+# -- 5. export BOTH pools before booting the preseed installer ---------------------------------
+sudo zpool export bulk tank
+```
+
+Rules: create **no datasets by hand** beyond the `bulk/migrate` landing zone — the storage role owns
+the tree (`bulk/media`, `bulk/data/*`, `tank/data/*`). After the preseed install,
+`playbooks/storage.yml` imports both pools and applies datasets/props; verify with `zpool status`
+(Phase 2 checklist in `deployment-tasks.md`).
 
 ---
 
@@ -129,9 +200,9 @@ Built-in — no external KVM needed.
 
 ## Boot Drive
 
-| Drive | Model | Size | Hours | Health |
+| by-id (`/dev/disk/by-id/`) | Model | Size | Hours | Health |
 |-------|-------|------|-------|--------|
-| sdd | Crucial MX300 525 GB | 525 GB | 55,828 | ✅ (81% life left) |
+| `ata-Crucial_CT525MX300SSD4_173818D02FF0` | Crucial MX300 525 GB | 525 GB | 55,828 | ✅ (81% life left) |
 
 - Boot only — no L2ARC/SLOG
 - L2ARC skipped: 12 GB RAM insufficient for benefit

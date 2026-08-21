@@ -215,7 +215,7 @@
 3. **NUT master** — `nut-server` + `usbhid-ups` (PowerWalker USB), `upsd` listening intra-VLAN
    `nas:3493` (no inter-VLAN rule needed — see `docs/hardware-ups.md`), `nut_exporter` as a
    host binary (:9199), `upssched-cmd` email/Signal notify (`smtp_login`).
-4. **Storage** — create ZFS pool + datasets; exports (NFS/SMB); mount layout per `docs/hardware-nas.md`.
+4. **Storage** — pools already created by the one-time bootstrap runbook (`docs/hardware-nas.md` → Pool-Creation Runbook; role is import-only for tank/bulk); Ansible imports them + creates datasets, exports (NFS/SMB); mount layout per `docs/hardware-nas.md`.
 
 **Verify:**
 - `zpool status` healthy; `upsc powerwalker@nas` returns live UPS data.

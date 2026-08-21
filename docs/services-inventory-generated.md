@@ -68,6 +68,7 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 17 | qbittorrent | torrent | `https://torrent.kogler.si` | enabled |
 | 18 | profilarr | profilarr | `https://profilarr.kogler.si` | enabled |
 | 19 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
+| 20 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
 
 ## pi.kogler.si
 
@@ -79,4 +80,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-08-21T17:18:05Z
+> Generated from the `docker_services` lists | 2026-08-21T19:21:51Z

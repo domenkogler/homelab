@@ -84,4 +84,4 @@
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-08-20T20:30:06Z
+> Last generated: 2026-08-21T19:21:51Z
