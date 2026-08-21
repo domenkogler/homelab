@@ -39,10 +39,22 @@ services:
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
       # Auth proxy — trusts the Authentik Forward-Auth headers passed by Traefik.
       # Users who pass Forward-Auth are auto-logged in, skipping the Grafana login form.
+      # Header-trust hardening (S16/HD-190, HD-81 precedent):
+      #   • WHITELIST pins the auth-proxy source to the Traefik edge container IPs
+      #     (traefik_edge_ips) — a forged X-authentik-* header sent directly from a
+      #     compromised sibling container on traefik-public is rejected by source IP.
+      #   • AUTO_SIGN_UP off — no account is auto-created from a header; users must be
+      #     mapped explicitly (admin/API/provisioning) before they can log in.
+      #   Residual risk (documented): [auth.proxy] performs NO signature validation of
+      #   the header itself in Grafana OSS — signed-header validation would require the
+      #   separate [auth.jwt] module (jwks_url against the Authentik OIDC app) — revisit
+      #   at deploy once the sso OIDC app JWKS path is live-verifiable. Compensating
+      #   controls: edge whitelist above + CrowdSec bouncer + fail2ban http-auth jail.
       GF_AUTH_PROXY_ENABLED: "true"
       GF_AUTH_PROXY_HEADER_NAME: X-authentik-email
       GF_AUTH_PROXY_HEADER_PROPERTY: email
-      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      GF_AUTH_PROXY_WHITELIST: "{{ traefik_edge_ips | join(',') }}"
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "false"
       # Server
       GF_SERVER_ROOT_URL: "https://stats.kogler.si"
       GF_SERVER_DOMAIN: stats.kogler.si

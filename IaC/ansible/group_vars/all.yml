@@ -108,6 +108,17 @@ ha_keepalived_vrid: 51            # VRRP virtual_router_id — MUST match on bot
 ha_trusted_proxies:
   - 172.20.0.2/32            # oldsrv traefik (traefik-public bridge default .2) — verify at deploy
   # - <pi-traefik-ha-ip>/32  # Pi traefik-ha edge container IP — uncomment/verify per host
+# Overlay-wide header trust (S15/S16 / HD-190): SAME contract as ha_trusted_proxies
+# (KOPS-039/HD-81) — services that consume forwarded headers must trust ONLY the exact
+# Traefik edge container IPs, never the whole traefik-public /16 (any compromised
+# container on that overlay could otherwise spoof X-Forwarded-For / X-authentik-*).
+# Fill the per-host traefik-public bridge default container IP (`.2`) at deploy and
+# verify (`docker inspect <edge> --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}'`).
+# Consumers today are VPS-resident (authentik AUTHENTIK_TRUSTED_PROXIES, grafana
+# GF_AUTH_PROXY_WHITELIST); extend the list only if another host's edge ever fronts a
+# header-consuming service.
+traefik_edge_ips:
+  - 172.20.0.2/32            # vps traefik (traefik-public bridge default .2) — verify at deploy
 # RaspberryMatic standby CCU (macvlan on Home VLAN) — XML-RPC 2001/2010 target for
 # ha-failover.full.sh.j2 (local-Homematic variant, HD-13 parked). Only used when the
 # HmIP-RFUSB is bought and raspberrymatic-standby is re-added; the active ha-failover.sh

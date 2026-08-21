@@ -81,7 +81,11 @@ services:
       AUTHENTIK_REDIS__HOST: authentik-redis
       AUTHENTIK_BOOTSTRAP_PASSWORD: "{{ lookup('community.general.onepassword', 'authentik_login', field='password', vault=op_vault) }}"
       AUTHENTIK_BOOTSTRAP_EMAIL: admin@kogler.si
-      AUTHENTIK_TRUSTED_PROXIES: "{{ (network_ranges | selectattr('name', 'equalto', 'traefik-public') | first).cidr | default('172.20.0.0/16') }}"
+      # Header trust pinned to the Traefik edge container IPs only (S15/HD-190, HD-81
+      # precedent) — NEVER the whole traefik-public /16: a spoofed X-Forwarded-For from
+      # a compromised sibling container would poison client-IP decisions (rate limits,
+      # logs, future conditional-access rules).
+      AUTHENTIK_TRUSTED_PROXIES: "{{ traefik_edge_ips | join(',') }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"
