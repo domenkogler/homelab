@@ -94,7 +94,17 @@ services:
       {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.authentik.tls.certresolver: letsencrypt
       {% endif %}
-      # NO authentik-forward-auth — this IS the auth provider
+      # NO authentik-forward-auth — this IS the auth provider. CrowdSec bouncer only
+      # (S17a/HD-194): the public login page is the most brute-force-attractive route,
+      # so it must not sit behind zero edge protection.
+      # SAFE for outpost/OIDC callbacks (reasoned, HD-204/HD-194): the bouncer filters
+      # by SOURCE IP only (path-agnostic), and every callback path — OIDC
+      # `/application/o/<slug>/callback/`, forward-auth `/outpost.goauthentik.io/*` —
+      # arrives as an ordinary browser request from a user IP that is not on the
+      # blocklist. Outpost↔server API traffic runs container-direct on
+      # services-internal and never traverses this edge router. Compensating brute-
+      # force control stays layered: fail2ban http-auth jail (vps-hardening).
+      traefik.http.routers.authentik.middlewares: crowdsec-only@file
       traefik.http.services.authentik.loadbalancer.server.port: "9000"
     depends_on:
       authentik-postgres:

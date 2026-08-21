@@ -44,6 +44,8 @@ were deleted after folding — HD-153).
 - `file.kogler.si` (OpenCloud — native OIDC, HD-144)
 - `foto.kogler.si` (Immich — native OIDC, HD-148)
 - `ai.kogler.si` (Open WebUI — native OIDC, HD-101)
+- `sso.kogler.si` (Authentik itself — it IS the auth provider, so Forward-Auth would be circular; **HD-194**: the bouncer filters by source IP only and every callback path (`/application/o/<slug>/callback/`, `/outpost.goauthentik.io/*`) arrives as an ordinary browser request from a user IP — outpost↔server API traffic runs container-direct on services-internal, never through this router; brute force is additionally covered by the fail2ban `http-auth` jail)
+- cockpit-nas/cockpit-oldsrv file-provider routes (own-login mgmt surface, HD-188)
 - HA standby via VIP
 
 Owning doc: [services-traefik.md](services-traefik.md). **Tracked: HD-60** (crowdsec-only middleware

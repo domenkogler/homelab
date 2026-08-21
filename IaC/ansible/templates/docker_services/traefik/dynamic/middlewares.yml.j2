@@ -12,7 +12,8 @@
 # IP-level blocklist protection without the auth-proxy (KOPS-004/018/025/047/054,
 # HD-60/118/119/120):
 #   traefik.http.routers.<svc>.middlewares: crowdsec-only@file
-#   (ha, jellyfin, matrix, seerr, chat, ha-standby — docs/services-traefik.md §Middleware)
+#   (ha, jellyfin, matrix, seerr, chat, ha-standby, sso (HD-194), cockpit routes
+#   (HD-188) — docs/services-traefik.md §Middleware)
 # See services-traefik.md §Middleware Chain.
 
 http:
