@@ -192,6 +192,8 @@ wg_s2s_vps:
   # `site` /16. Derived from network_static_hosts by name (never literal IPs). The
   # wg-vps-services range stays (VPS-resident services on the other side of the peer).
   # A compromised VPS can thus only reach nut/zfs/HA + ICMP + the named app backends.
+  # SSOT for BOTH tunnel sides: the router-side peer list (`wireguard_s2s_vps.allowed_ips`,
+  # group_vars/router.yml) derives from this list (HD-200) — edit here only.
   allowed_ips:
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'ha-vip') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"

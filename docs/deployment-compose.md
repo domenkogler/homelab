@@ -372,6 +372,17 @@ services:
 - Bind mounts for host resources (Docker socket, GPU devices)
 - No anonymous volumes
 
+**Documented exceptions (HD-200 / audit D10):**
+
+- `technitium` binds `/opt/technitium/config` instead of `/srv/docker/technitium` — the template renders
+  BOTH the oldsrv primary and the Pi secondary, and the Pi has no oldsrv-style `/srv/docker` ZFS dataset
+  layout; Kopia covers `/opt/*`, so backup coverage is intact. Revisit only if per-host state paths are
+  ever introduced.
+- `prometheus` keeps its TSDB in the named volume `prometheus-data` — regenerable data (scrape/
+  remote_write sources re-send after loss), deliberately NOT backed up ([backup.md](backup.md)), growth
+  bounded by 30d retention. That places it on the ephemeral/utility side of the named-volume rule, not
+  the stateful/backed-up side.
+
 ---
 
 ## Restart Policy

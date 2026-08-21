@@ -39,6 +39,10 @@ services:
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
+      # /opt — DOCUMENTED exception to the /srv/docker/<svc> bind convention (HD-200/D10):
+      # this template renders BOTH the oldsrv primary and the Pi secondary, and the Pi has
+      # no oldsrv-style /srv/docker dataset layout; Kopia covers /opt/* so backup coverage
+      # is intact. See docs/deployment-compose.md §Volume Strategy.
       - /opt/technitium/config:/etc/technitium      # persistent DB + settings
     labels:
       traefik.enable: "true"

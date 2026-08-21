@@ -1,7 +1,9 @@
 ---
 # Phase 1 home server: bare-metal Debian desktop
 ansible_host: 10.10.99.30           # VLAN 99 (Management) — static
-home_ip: 10.10.1.30                 # VLAN 10 (Home) — node IP (VRRP anchor)
+home_ip: "{{ oldsrv_home_ip }}"     # VLAN 10 (Home) node IP (VRRP anchor) — SSOT-derived
+                                    # from the network_static_hosts lookup in all.yml (HD-200);
+                                    # no literal here to drift from the address SSOT
 dns_primary_ip: 10.10.1.30          # Technitium primary binds the node IP
 ansible_user: ansible-admin        # created by preseed post_install.sh
 homelab_mode: desktop

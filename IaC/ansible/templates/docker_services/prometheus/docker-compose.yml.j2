@@ -31,6 +31,9 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus-web-config.yml:/etc/prometheus/web.yml:ro
+      # Named volume — DOCUMENTED exception to the stateful=bind-mount convention
+      # (HD-200/D10): the TSDB is regenerable (scrape/remote_write sources re-send) and
+      # deliberately NOT backed up (docs/backup.md); 30d retention bounds growth.
       - prometheus-data:/prometheus
 volumes:
   prometheus-data:

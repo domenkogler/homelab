@@ -221,7 +221,7 @@ ansible_python_interpreter=/usr/bin/python3
 ```yaml
 homelab_mode: desktop            # "desktop" or "proxmox" or "headless"
 ansible_host: 10.10.99.30        # Management VLAN 99 static IP
-home_ip: 10.10.1.30              # Home VLAN 10 — node IP (VRRP anchor)
+home_ip: "{{ oldsrv_home_ip }}"  # Home VLAN 10 — node IP (VRRP anchor); SSOT-derived (HD-200)
 dns_primary_ip: 10.10.1.30       # Technitium primary binds node IP
 ansible_user: ansible-admin
 nut_mode: client                 # UPS NUT slave → delayed shutdown (see nut role)
