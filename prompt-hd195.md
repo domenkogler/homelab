@@ -28,3 +28,5 @@
 - `bash scripts/validate-all.sh` green (doc-map links).
 - Cross-check every changed claim against the playbook/group_vars file it names.
 - todo HD-195 ✅; changelog row.
+
+**Cleanup:** delete this handoff (`prompt-hd195.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).

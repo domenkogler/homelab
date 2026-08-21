@@ -32,3 +32,5 @@
 - `bash scripts/validate-all.sh` green after each few files.
 - No new claims without a source: every "VPS-era" statement must match group_vars/playbooks.
 - todo HD-196 ✅; changelog row listing files touched.
+
+**Cleanup:** delete this handoff (`prompt-hd196.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).

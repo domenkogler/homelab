@@ -47,3 +47,5 @@ is the IaC mechanism + the S1 verify line.
 4. Validator: BASE_CTX var + confirm all 49 render; `bash scripts/validate-all.sh` green.
 5. todo HD-181 ✅ IaC; ⏳ tails: VPS first issuance, Pi/oldsrv sync verified, S1 verify line added
    to services-vps checklist. changelog row closing J3/C1/W11.
+
+**Cleanup:** delete this handoff (`prompt-hd181.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).

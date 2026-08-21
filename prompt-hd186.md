@@ -48,3 +48,5 @@ published port.
 
 - Do not weaken the :443/:51820 input accepts; do not touch docker's own chain management.
 - Keep everything derived from group_vars (no IP literals — check_doc_ips gate).
+
+**Cleanup:** delete this handoff (`prompt-hd186.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).

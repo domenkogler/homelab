@@ -45,3 +45,5 @@ Pin the exact Traefik edge container IP(s) instead of the /16:
 - No IP literals (derive/parametrize; `check_doc_ips` gate).
 - Don't break the Authentik forward-auth flow for edge routes — the forward-auth outpost callback
   path (`/outpost.goauthentik.io/`) must keep working from Traefik.
+
+**Cleanup:** delete this handoff (`prompt-hd190.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).

@@ -59,3 +59,5 @@ VPS compose and future docs share one definition.
 
 - No literal IPs anywhere (SSOT rule; check_doc_ips will fail the gate otherwise).
 - Do not touch the immich-ml auth env names — their live verification belongs to HD-160.
+
+**Cleanup:** delete this handoff (`prompt-hd184.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).

@@ -49,3 +49,5 @@ compose never runs via the loop; `ha-failover.sh` creates `keepalived.conf` at t
 - `docs/smart-home-failover.md` (config-sync + keepalived contract)
 - `roles/home_assistant/tasks/pi.yml`, `tasks/main.yml` (order comments to fix)
 - `docs-vs-iac.md` §J2 for the full failure trace
+
+**Cleanup:** delete this handoff (`prompt-hd185.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).

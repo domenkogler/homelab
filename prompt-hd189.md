@@ -62,3 +62,5 @@ over allowlisting.
 - No behavior changes to rendered output (mock value fixes may alter validator-rendered bytes —
   that is fine and intended; call it out).
 - Keep checker output format consistent (`FAIL:`/file:line style) for gate readability.
+
+**Cleanup:** delete this handoff (`prompt-hd189.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).

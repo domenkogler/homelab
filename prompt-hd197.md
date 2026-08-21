@@ -28,3 +28,5 @@
 - Each checker change: red/green test (break a file → gate fails → restore).
 - `bash scripts/validate-all.sh` green at the end, new checks active.
 - todo HD-197 ✅; changelog row.
+
+**Cleanup:** delete this handoff (`prompt-hd197.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).

@@ -51,3 +51,5 @@ upstream (homepage, metabase, pihole, technitium).
   updates through the normal PR path.
 - `tuwunel_version: latest` and `litellm_version: main-stable` keep their documented MUST-pin
   status (HD-121 precedent) — out of scope unless the human wants them pinned now.
+
+**Cleanup:** delete this handoff (`prompt-hd192.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).

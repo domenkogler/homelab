@@ -45,3 +45,5 @@ entry** → oldsrv-local state never reaches the off-site backup Box.
 
 - Kopia stays NAS-independent (never read `/mnt/nas/*`) — backup.md invariant.
 - No new S3 anything (Box is SSH/SFTP-only; the repo already lives behind kopia-server).
+
+**Cleanup:** delete this handoff (`prompt-hd191.md`) in the same closing change (A3 lifecycle, CONVENTIONS §4; HD-203 sweeps any leftovers).
