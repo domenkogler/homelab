@@ -12,8 +12,9 @@
 #   so the Pi edge intentionally stays CrowdSec-free. oldsrv's own `traefik` ha route
 #   (which has local CrowdSec) is the HD-118 target.
 #   - http-redirect: catch-all :80 → :443 (the `web` entrypoint).
-#   ACME is DISABLED on this edge — TLS comes from the cert files synced from
-#   oldsrv (see tls.certificates below). No certResolver is configured.
+#   ACME is DISABLED on this edge — TLS comes from the cert files pulled from the
+#   VPS (the single ACME issuer; see tls.certificates below). No certResolver is
+#   configured.
 
 http:
   middlewares:
@@ -55,10 +56,11 @@ http:
         servers:
           - url: "http://{{ technitium_secondary_ip }}:5380"
 
-# Wildcard *.kogler.si cert pair, synced from oldsrv's `traefik` (the single ACME
-# issuer; Cloudflare DNS-01). File names come from the shared
+# Wildcard *.kogler.si cert pair, pulled from the VPS `traefik` (the single ACME
+# issuer, HD-178/HD-181/HD-204; Cloudflare DNS-01) by the ha-cert-sync timer.
+# File names come from the shared
 # `wildcard_cert_file` / `wildcard_cert_key_file` vars in group_vars/all.yml so the
-# oldsrv issuer, the Pi cert-sync and this config can never drift.
+# VPS issuer, the pull timer and this config can never drift.
 # Offline-safe: both routes stay TLS-valid even when WAN/ACME is down.
 tls:
   certificates:

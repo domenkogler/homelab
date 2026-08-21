@@ -25,7 +25,9 @@ services:
       traefik.http.routers.chat.rule: "Host(`chat.kogler.si`)"
       traefik.http.routers.chat.entrypoints: websecure
       traefik.http.routers.chat.middlewares: crowdsec-only@file   # CrowdSec block-list; Matrix-native SSO, no Forward-Auth (KOPS-025/054 / HD-120)
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.chat.tls.certresolver: letsencrypt
+      {% endif %}
       # Intentional: NO authentik-forward-auth — Matrix-native SSO (docs/services-matrix.md).
       traefik.http.services.chat.loadbalancer.server.port: "80"
 networks:

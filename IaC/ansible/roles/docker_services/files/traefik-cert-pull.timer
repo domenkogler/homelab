@@ -1,0 +1,10 @@
+[Unit]
+Description=15-min wildcard cert pull (consumer edge offline-safe certs)
+
+[Timer]
+OnCalendar=:0/15
+RandomizedDelaySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target

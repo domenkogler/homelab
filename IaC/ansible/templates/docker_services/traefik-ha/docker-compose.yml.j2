@@ -14,8 +14,9 @@
 #   - host networking: bind the VIP directly and reach local HA on the VIP; file
 #     provider only → no docker.sock needed.
 #   - ACME intentionally DISABLED on this edge (no certresolver configured): the
-#     wildcard cert pair is SYNCED FROM oldsrv's `traefik` (single ACME issuer) to
-#     ./certs → both routes stay TLS-valid even when WAN is down.
+#     wildcard cert pair is PULLED FROM THE VPS `traefik` (single ACME issuer,
+#     HD-178/HD-181) by the ha-cert-sync timer to ./certs → both routes stay
+#     TLS-valid even when WAN is down.
 #   - Scope: HA-availability + DNS-secondary-UI availability only. Other services'
 #     backends live on oldsrv and do NOT fail over to this edge.
 #
@@ -38,7 +39,7 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       - ./dynamic:/etc/traefik/dynamic:ro   # ha route (file provider)
-      - ./certs:/etc/traefik/certs:ro        # wildcard cert synced from oldsrv (offline-safe)
+      - ./certs:/etc/traefik/certs:ro        # wildcard cert pulled from the VPS issuer (offline-safe)
     command:
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"

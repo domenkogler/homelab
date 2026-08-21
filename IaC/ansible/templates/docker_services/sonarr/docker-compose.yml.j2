@@ -29,7 +29,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.sonarr.rule: "Host(`sonarr.kogler.si`)"
       traefik.http.routers.sonarr.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.sonarr.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.sonarr.middlewares: authentik-forward-auth@file
       traefik.http.services.sonarr.loadbalancer.server.port: "8989"
 networks:

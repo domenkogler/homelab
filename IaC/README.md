@@ -312,7 +312,7 @@ critical for Phase 1 where services must run headless.
   router forwards to Technitium (fallback `1.1.1.1`). Technitium answers `*.kogler.si` internally.
 - **Public DNS:** Cloudflare (registry registrar: **domenca.com**) publishes only the internet-facing subset
   (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`). **No proxy** — DNS-only, real client IPs reach Traefik.
-- **Certificates:** single `*.kogler.si` wildcard via ACME **DNS-01**, issued by the **VPS Traefik** (single issuer, HD-178; oldsrv/Pi edges consume synced certs — enforcement tracked HD-181 ⏳) with a Cloudflare API token (1Password `Homelab-ansible`).
+- **Certificates:** single `*.kogler.si` wildcard via ACME **DNS-01**, issued by the **VPS Traefik** (single issuer, HD-178; oldsrv/Pi edges consume synced certs — enforced by the `traefik_acme_issuer` flag, HD-181) with a Cloudflare API token (1Password `Homelab-ansible`).
 
 ---
 

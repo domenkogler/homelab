@@ -30,10 +30,11 @@
 #      serve of ha.kogler.si → VIP:8123; keeps ha.kogler.si reachable when oldsrv is down.  ✅
 #    - sysctl net.ipv4.ip_nonlocal_bind=1 (persist via /etc/sysctl.d) so traefik-ha can
 #      bind the VIP even before/without keepalived holding the address.  ✅
-#    - Cert sync (LAN, timer — same cadence as the HA config sync Pi→standby, reversed):
+#    - Cert sync (timer — same cadence as the HA config sync Pi→standby, reversed):
 #      rsync the wildcard *.kogler.si cert pair ({{ wildcard_cert_file }} /
-#      {{ wildcard_cert_key_file }}) from oldsrv's `traefik` (the SINGLE ACME issuer;
-#      Cloudflare DNS-01) → /opt/traefik-ha/certs/. ACME is intentionally DISABLED on
+#      {{ wildcard_cert_key_file }}) from the VPS `traefik` (the SINGLE ACME issuer,
+#      HD-178/181 — direct pull, no relay) → /opt/traefik-ha/certs/. ACME is
+#      intentionally DISABLED on
 #      the Pi edge; sync must run before traefik-ha starts and keep the cert offline-safe.  ✅
 #    - HA exporter: enable /api/prometheus bearer token (monitoring role scrapes — token file in monitoring role)
 # 2. STANDBY (host: home_servers / oldsrv) — tasks/standby.yml

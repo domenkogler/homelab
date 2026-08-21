@@ -45,7 +45,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.pihole.rule: "Host(`ad.kogler.si`)"
       traefik.http.routers.pihole.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.pihole.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.pihole.middlewares: authentik-forward-auth@file
       traefik.http.services.pihole.loadbalancer.server.port: "80"
 networks:

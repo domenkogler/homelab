@@ -40,7 +40,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.stirling-pdf.rule: "Host(`pdf.kogler.si`)"
       traefik.http.routers.stirling-pdf.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.stirling-pdf.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.stirling-pdf.middlewares: authentik-forward-auth@file
       traefik.http.services.stirling-pdf.loadbalancer.server.port: "8080"
 networks:

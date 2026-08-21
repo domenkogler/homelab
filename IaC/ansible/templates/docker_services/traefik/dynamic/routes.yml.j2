@@ -4,7 +4,8 @@
 # {{ ha_vip }}), oldsrv's `traefik` serves ha.kogler.si → VIP:8123. Semantics
 # mirror the Pi `traefik-ha` edge (docs/smart-home-failover.md):
 #   - NO Authentik Forward-Auth (the Companion WebSocket/token flow breaks with it).
-#   - tls.certresolver: letsencrypt → covered by the wildcard *.kogler.si.
+#   - TLS: the issuer (VPS) resolves via letsencrypt; consumers serve the synced
+#     wildcard pair from the DEFAULT store (dynamic/tls.yml.j2, HD-181).
 # In NORMAL operation the VIP is on the Pi, so this route is quiescent (no clients
 # resolve ha.kogler.si to oldsrv); it only becomes live once the VIP + HA-standby
 # are up here after takeover. backends bind the VIP, never a per-node IP.
@@ -17,9 +18,13 @@ http:
       middlewares:
         - crowdsec-only@file   # CrowdSec block-list only; no Forward-Auth (Companion flow) — HD-118/KOPS-004
       service: ha-backend
+{% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       tls:
-        certResolver: letsencrypt
-        # NOTE: no authentik-forward-auth@file on the ha route
+        certResolver: letsencrypt   # issuer (VPS) — ACME-issued wildcard
+{% else %}
+      tls: {}   # consumer — default store serves the synced pair (dynamic/tls.yml.j2)
+{% endif %}
+      # NOTE: no authentik-forward-auth@file on the ha route
 
   services:
     ha-backend:

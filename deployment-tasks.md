@@ -263,7 +263,7 @@
 4. **HA standby** — `home-assistant-standby` compose + keepalived (`ha-vrrp_password`); disabled by default.
 
 **New 1Password prerequisites (Phase 3):**
-- ~~`cloudflare_api` (api→`credential`) — wildcard cert~~ — **moved to Phase 1 (VPS)**: the wildcard is issued by the VPS Traefik (HD-178); oldsrv consumes synced certs (HD-181 ⏳).
+- ~~`cloudflare_api` (api→`credential`) — wildcard cert~~ — **moved to Phase 1 (VPS)**: the wildcard is issued by the VPS Traefik (HD-178); oldsrv consumes synced certs via its own pull timer (HD-181, decided HD-204).
 - `kopia_password` (password) — Kopia off-site = **backup Box over SSH/SFTP (port 23)** (`kopia_sftp_*` in `all.yml`; SSH key in `Hertzner-SB-Backup`; **no password secret item**). ~~`kopia-s3_api`~~ retired (iDrive e2 dropped).
 - `authentik_db` (db→`password`), `authentik_password` (password→`password`), `authentik_login` (login→`password`)
 - `opencloud_db`, `immich_db`, `forgejo_db` (db→`password` each)
@@ -276,7 +276,7 @@
 **Verify:**
 - `docker compose ps` for every service is healthy; `systemctl status docker-compose@<service>`.
 - Homepage (`home.kogler.si`) reachable after Authentik SSO (moves to the VPS per HD-180; until HD-183 lands it still renders on oldsrv) · Grafana (`stats.kogler.si`), Forgejo (`git.kogler.si`) served by the VPS edge (verify via public URL, not locally here).
-- Wildcard `*.kogler.si` cert: issued on the **VPS** (Phase 1, HD-178) — oldsrv serves internal routes from the synced pair (HD-181 ⏳); no ACME logs expected on oldsrv.
+- Wildcard `*.kogler.si` cert: issued on the **VPS** (Phase 1, HD-178) — oldsrv serves internal routes from the synced pair (pulled from the VPS by its own timer, HD-181); no ACME logs expected on oldsrv.
 
 **Deploy-gated verification (Phase 3):**
 - **HD-105** — **AI-stack pre-deploy gate:** create the 7 1Password items (`openrouter_api`, `cohere_api`, `litellm_master_key`, `openwebui_secret`, `openwebui_api`, `pgvector_db`, `openclaw_gateway_token`) + Authentik OIDC providers per [`deployment-ai-stack-secrets.md`](docs/deployment-ai-stack-secrets.md); blocks HD-100→104. · [deployment-secrets.md](docs/deployment-secrets.md)

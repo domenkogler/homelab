@@ -29,7 +29,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.radarr.rule: "Host(`radarr.kogler.si`)"
       traefik.http.routers.radarr.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.radarr.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.radarr.middlewares: authentik-forward-auth@file
       traefik.http.services.radarr.loadbalancer.server.port: "7878"
 networks:

@@ -29,7 +29,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.sabnzbd.rule: "Host(`sab.kogler.si`)"
       traefik.http.routers.sabnzbd.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.sabnzbd.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.sabnzbd.middlewares: authentik-forward-auth@file
       traefik.http.services.sabnzbd.loadbalancer.server.port: "8080"
 networks:

@@ -32,7 +32,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.profilarr.rule: "Host(`profilarr.kogler.si`)"
       traefik.http.routers.profilarr.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.profilarr.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.profilarr.middlewares: authentik-forward-auth@file
       traefik.http.services.profilarr.loadbalancer.server.port: "6868"
     healthcheck:

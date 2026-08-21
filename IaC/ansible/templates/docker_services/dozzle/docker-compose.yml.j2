@@ -25,7 +25,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.dozzle.rule: "Host(`logs.kogler.si`)"
       traefik.http.routers.dozzle.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.dozzle.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.dozzle.middlewares: authentik-forward-auth@file
       traefik.http.services.dozzle.loadbalancer.server.port: "8080"
 networks:

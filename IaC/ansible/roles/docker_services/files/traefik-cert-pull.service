@@ -1,0 +1,8 @@
+[Unit]
+Description=Pull wildcard certs: VPS traefik issuer → local consumer edge certs (HD-181)
+Documentation=docs/services-traefik.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/traefik-cert-pull.sh

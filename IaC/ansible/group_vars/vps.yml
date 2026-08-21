@@ -64,3 +64,8 @@ docker_services:
   - { name: pairdrop,       template_dir: pairdrop,  subdomain: pairdrop, enabled: true }
   - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, enabled: true }
   - { name: renovate,       template_dir: renovate,  enabled: true }  # co-located with Forgejo/GitOps
+
+# Single cert issuer (HD-178/HD-181): THIS host is the only ACME (DNS-01) issuer for
+# *.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host
+# consumes the synced pair (role default false, see roles/docker_services/defaults).
+traefik_acme_issuer: true

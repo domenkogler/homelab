@@ -30,7 +30,7 @@ gpu_video_gid: 44
 # (Version pins were moved here → versions.yml by HD-156 on 2026-08-19.)
 # Let's Encrypt account contact — REQUIRED to register the ACME account when the
 # first cert is issued. Issuer = the **VPS Traefik** (HD-178: single issuer; oldsrv/Pi
-# edges consume synced certs). Single-issuer enforcement in templates tracked HD-181 ⏳.
+# edges consume synced certs; single-issuer enforced by `traefik_acme_issuer`, HD-181).
 letsencrypt_email: domen@kogler.si
 # CrowdSec collections to install (HD-85 / KOPS-041): which app logs CrowdSec
 # parses for WAF/brute-force. Included: traefik + linux (baseline) + the exposed
@@ -38,10 +38,11 @@ letsencrypt_email: domen@kogler.si
 # services are exposed (qBittorrent, jellyfin, n8n …) — a collection only does
 # something if its logs are ALSO sent to CrowdSec (docker.sock container-log parsing).
 crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/home-assistant crowdsecurity/matrix crowdsecurity/grafana"
-# Wildcard *.kogler.si cert pair file names — shared by BOTH Traefik edges so the
-# oldsrv ACME issuer and the Pi cert-sync can never drift. Paths:
-#   oldsrv traefik: ACME storage/checkout must emit exactly these names.
-#   Pi traefik-ha:  synced to /opt/traefik-ha/certs/ with these names.
+# Wildcard *.kogler.si cert pair file names — shared by the issuer and ALL consumer
+# edges so the VPS ACME issuer, the consumer pull timers and the Traefik configs can
+# never drift. Paths:
+#   VPS traefik (issuer): certs-dumper emits exactly these names → /opt/traefik/certs/.
+#   oldsrv traefik + Pi traefik-ha (consumers): pulled to their certs dirs with these names.
 wildcard_cert_file: kogler.si.pem
 wildcard_cert_key_file: kogler.si-key.pem
 # The wildcard SAN root — the certs-dumper matches acme.json by this domain and

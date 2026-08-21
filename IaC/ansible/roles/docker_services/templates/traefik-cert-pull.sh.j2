@@ -1,0 +1,16 @@
+#!/bin/bash
+# Managed by Ansible — docker_services role ({{ inventory_hostname }}). Pull the
+# wildcard *.kogler.si cert pair from the VPS traefik (the SINGLE ACME issuer,
+# HD-178/HD-181 — decided HD-204: every consumer pulls from the VPS directly, no
+# relay) into the local consumer edge's ./certs (→ /etc/traefik/certs read-only),
+# which dynamic/tls.yml.j2 serves via the DEFAULT store. The last synced copy stays
+# valid when the VPS/WAN is down. Runs as root via traefik-cert-pull.timer
+# (key at /root/.ssh/traefik-cert-sync; authorize its pubkey on the VPS at deploy).
+set -euo pipefail
+
+SRC="ansible-admin@{{ hostvars['vps.kogler.si'].ansible_host }}:/opt/traefik/certs/"
+DST="{{ docker_compose_dir }}/traefik/certs/"
+SSH="ssh -i /root/.ssh/traefik-cert-sync -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+
+mkdir -p "$DST"
+rsync -az --delete -e "$SSH" "$SRC" "$DST"

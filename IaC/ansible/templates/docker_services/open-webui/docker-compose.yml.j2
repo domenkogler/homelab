@@ -50,7 +50,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.open-webui.rule: "Host(`ai.kogler.si`)"
       traefik.http.routers.open-webui.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.open-webui.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.open-webui.middlewares: crowdsec-only@file   # + Authentik OIDC (app-level; native OIDC, no Forward-Auth per HD-101)
       traefik.http.services.open-webui.loadbalancer.server.port: "8080"
 networks:

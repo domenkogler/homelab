@@ -169,6 +169,10 @@ BASE_CTX.update({
     "authentik_db_name": "authentik",
     "opencloud_log_level": "info",
     "grafana_smtp_host": "localhost:25",
+    # HD-181: render the ISSUER path by default (ACME flags + certresolver labels +
+    # certs-dumper stay exercised); consumer-only bits (tls.yml default store,
+    # cert-pull wiring) are covered by the role-default false at real deploy.
+    "traefik_acme_issuer": True,
     "ha_primary_state": "MASTER",
     "ha_primary_priority": 110,
     "ha_primary_peer_priority": 90,

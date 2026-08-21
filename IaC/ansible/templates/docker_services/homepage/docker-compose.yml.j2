@@ -26,7 +26,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.homepage.rule: "Host(`kogler.si`) || Host(`home.kogler.si`)"
       traefik.http.routers.homepage.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.homepage.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.homepage.middlewares: authentik-forward-auth@file
       traefik.http.services.homepage.loadbalancer.server.port: "3000"
 networks:

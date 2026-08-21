@@ -91,7 +91,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.authentik.rule: "Host(`sso.kogler.si`)"
       traefik.http.routers.authentik.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.authentik.tls.certresolver: letsencrypt
+      {% endif %}
       # NO authentik-forward-auth — this IS the auth provider
       traefik.http.services.authentik.loadbalancer.server.port: "9000"
     depends_on:

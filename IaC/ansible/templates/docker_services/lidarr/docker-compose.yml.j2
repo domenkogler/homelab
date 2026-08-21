@@ -29,7 +29,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.lidarr.rule: "Host(`lidarr.kogler.si`)"
       traefik.http.routers.lidarr.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.lidarr.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.lidarr.middlewares: authentik-forward-auth@file
       traefik.http.services.lidarr.loadbalancer.server.port: "8686"
 networks:

@@ -99,7 +99,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.opencloud.rule: "Host(`file.kogler.si`)"
       traefik.http.routers.opencloud.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.opencloud.tls.certresolver: letsencrypt
+      {% endif %}
       # HD-52/HD-144: native OIDC enabled (desktop client needs it). NOT behind Forward-Auth —
       # replacing `authentik-forward-auth@file` with `crowdsec-only@file` so the desktop/mobile
       # OAuth/WebDAV isn't blocked by a browser-redirect SSO layer, while keeping WAF protection.

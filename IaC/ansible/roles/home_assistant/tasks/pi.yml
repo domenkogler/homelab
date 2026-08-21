@@ -71,7 +71,7 @@
     creates: /root/.ssh/ha-sync
   tags: [ha_failover, hd17]
 
-- name: Deploy ha-cert-sync script (pull wildcard certs from oldsrv traefik)
+- name: Deploy ha-cert-sync script (pull wildcard certs from the VPS traefik issuer)
   ansible.builtin.template:
     src: ha-cert-sync.sh.j2
     dest: /usr/local/sbin/ha-cert-sync.sh

@@ -88,6 +88,48 @@
     label: "{{ item.name }}"
   tags: docker_services
 
+# Traefik cert-pull consumer wiring (HD-181): non-issuer traefik hosts are cert
+# CONSUMERS — they pull /opt/traefik/certs from the VPS issuer on a timer (decided
+# HD-204: every consumer pulls from the VPS directly, no relay) and serve TLS from
+# the DEFAULT store (dynamic/tls.yml.j2). The issuer (`traefik_acme_issuer: true`,
+# group_vars/vps.yml) issues locally and skips this entirely. Today the only
+# consumer host rendering the shared `traefik` template_dir is oldsrv (internal
+# edge); the Pi's `traefik-ha` keeps its own equivalent puller (home_assistant role,
+# ha-cert-sync). Key authorization on the VPS is a LIVE step: append the consumer's
+# /root/.ssh/traefik-cert-sync.pub to the VPS ansible-admin authorized_keys
+# (restricted options recommended, cf. the Pi ha-sync wrapper precedent).
+- name: Traefik cert-pull consumer wiring (non-issuer hosts)
+  when:
+    - "'traefik' in (docker_services | map(attribute='name') | list)"
+    - not (traefik_acme_issuer | default(false))
+  block:
+    - name: Generate traefik-cert-sync SSH keypair (consumer → VPS issuer pull)
+      ansible.builtin.command:
+        cmd: ssh-keygen -t ed25519 -N '' -C traefik-cert-sync@{{ inventory_hostname }} -f /root/.ssh/traefik-cert-sync
+        creates: /root/.ssh/traefik-cert-sync
+
+    - name: Deploy traefik-cert-pull script
+      ansible.builtin.template:
+        src: traefik-cert-pull.sh.j2
+        dest: /usr/local/sbin/traefik-cert-pull.sh
+        mode: '0755'
+
+    - name: Install traefik-cert-pull systemd units
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "/etc/systemd/system/{{ item }}"
+        mode: '0644'
+      loop:
+        - traefik-cert-pull.service
+        - traefik-cert-pull.timer
+      notify: reload systemd
+
+    - name: Enable + start traefik-cert-pull timer
+      ansible.builtin.systemd:
+        name: traefik-cert-pull.timer
+        enabled: true
+        state: started
+
 - name: Render Homepage config (post-deploy, after all services up)
   when: "'homepage' in (docker_services | map(attribute='name') | list)"
   block:

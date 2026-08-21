@@ -29,7 +29,9 @@ services:
       traefik.enable: "true"
       traefik.http.routers.headscale.rule: "Host(`vpn.kogler.si`)"
       traefik.http.routers.headscale.entrypoints: websecure
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.headscale.tls.certresolver: letsencrypt
+      {% endif %}
       traefik.http.routers.headscale.middlewares: authentik-forward-auth@file
       traefik.http.services.headscale.loadbalancer.server.port: "8080"
 networks:

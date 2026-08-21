@@ -35,7 +35,9 @@ services:
       traefik.http.routers.matrix.rule: "Host(`matrix.kogler.si`)"
       traefik.http.routers.matrix.entrypoints: websecure
       traefik.http.routers.matrix.middlewares: crowdsec-only@file   # CrowdSec block-list; Matrix-native SSO, no Forward-Auth (HD-60)
+      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       traefik.http.routers.matrix.tls.certresolver: letsencrypt
+      {% endif %}
       # Intentional: NO authentik-forward-auth middleware here — the homeserver owns its
       # auth via Matrix-native SSO (docs/services-matrix.md). Wrapping /_matrix/* would
       # break federation + native clients.

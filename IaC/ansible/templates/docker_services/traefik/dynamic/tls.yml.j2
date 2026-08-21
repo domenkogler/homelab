@@ -1,0 +1,26 @@
+# traefik dynamic/tls.yml — consumer default-store TLS (HD-181)
+#
+# Consumer edges (traefik_acme_issuer: false — every host except the VPS) have no
+# ACME resolver; routers without an explicit certResolver fall back to the DEFAULT
+# store below, which serves the synced wildcard pair pulled from the VPS issuer
+# into ./certs → /etc/traefik/certs (Pi ha-cert-sync / oldsrv traefik-cert-pull).
+# File names come from the shared `wildcard_cert_file` / `wildcard_cert_key_file`
+# vars (group_vars/all.yml) so the VPS issuer, the pull timers and this config can
+# never drift. Routers stay TLS-valid even when WAN/ACME is down (last synced copy).
+#
+# On the ISSUER (VPS) this renders to a comment-only file: ACME issues per-router
+# via the letsencrypt resolver, and a defaultCertificate pointing at not-yet-issued
+# files would error before first issuance.
+{% if traefik_acme_issuer is defined and traefik_acme_issuer %}
+# (issuer host — no default-store override; see docker-compose.yml.j2 resolver flags)
+{% else %}
+tls:
+  certificates:
+    - certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
+      keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"
+  stores:
+    default:
+      defaultCertificate:
+        certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
+        keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"
+{% endif %}

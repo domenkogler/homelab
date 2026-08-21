@@ -30,7 +30,14 @@ _extra_templates:
   traefik:
     - dynamic/routes.yml.j2
     - dynamic/middlewares.yml.j2
+    - dynamic/tls.yml.j2        # HD-181 — consumer default-store TLS (renders empty on the issuer)
   traefik-ha:
     - dynamic/routes.yml.j2
   recyclarr:
     - recyclarr.yml.j2
+
+# Single cert issuer (HD-178/HD-181): the VPS Traefik is THE only ACME (DNS-01) issuer
+# for *.kogler.si and runs certs-dumper. Every other host's Traefik is a cert CONSUMER
+# (synced wildcard pair via its pull timer; serves TLS from the default store,
+# dynamic/tls.yml.j2). Override to true ONLY in group_vars/vps.yml.
+traefik_acme_issuer: false
