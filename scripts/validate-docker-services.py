@@ -159,6 +159,10 @@ BASE_CTX.update({
     # instance-specific mock class as technitium_secondary_ip above (HD-187:
     # pihole CONDITIONAL_FORWARDING_IP renders against it).
     "dns_primary_ip": "10.10.1.30",
+    # Immich ML cross-host endpoint (HD-184) — derived in group_vars/all.yml
+    # from `oldsrv_home_ip`; mocked here with the same Home-IP value.
+    "immich_ml_bind": "10.10.1.30",
+    "immich_ml_url": "http://10.10.1.30:3003",
     "ansible_user": "ansible-admin",
     "inventory_hostname": "oldsrv.kogler.si",
     "homelab_mode": "desktop",

@@ -5,7 +5,10 @@
 #     * Live Hetzner Box (CIFS /mnt/storagebox): originals (library/) AND encoded-video
 #       (cold/bulk, sequential reads) — via the Immich storage template (a DB/UI setting
 #       at deploy, configured on the VPS after first deploy, NOT compose env).
-#     * ML on oldsrv GPU (IMMICH_MACHINE_LEARNING_URL, WG tunnel).
+#     * ML on oldsrv GPU — IMMICH_MACHINE_LEARNING_URL = {{ immich_ml_url }}
+#       (SSOT-derived in group_vars/all.yml; cross-host over the WG S2S tunnel,
+#       HD-184 — Docker DNS cannot resolve across hosts; immich-ml publishes
+#       :3003 bound to oldsrv's Home IP).
 #   Supersedes the older "originals on S3/MinIO" plan — the live Box is CIFS, not S3.
 #   Addons: DB (Postgres), Valkey. Auth: native OIDC (HD-148), not Forward-Auth.
 #
@@ -37,7 +40,9 @@ services:
       DB_HOST: immich-postgres
       DB_PORT: "5432"
       REDIS_HOSTNAME: immich-valkey
-      IMMICH_MACHINE_LEARNING_URL: "http://immich-ml:3003"
+      # HD-184: immich-ml runs on oldsrv — the container name is unresolvable from
+      # the VPS. SSOT-derived cross-host URL (WG S2S; key auth below, HD-160).
+      IMMICH_MACHINE_LEARNING_URL: "{{ immich_ml_url }}"
       # HD-160: ML API-key auth — immich-ml validates this header so only immich-app can
       # drive ML inference (fail-loud: missing item aborts render). Shared with immich-ml.
       IMMICH_MACHINE_LEARNING_KEY: "{{ lookup('community.general.onepassword', 'immich-ml-internal_api', field='credential', vault=op_vault) }}"
