@@ -1,22 +1,29 @@
 # managed by Ansible — cockpit role
 # Traefik file-provider routes for the Cockpit host services.
 # Deliberately NO authentik-forward-auth middleware: cockpit is a management
-# surface with its own login and must work independently of Authentik.
+# surface with its own login and must work independently of Authentik — but it
+# still carries crowdsec-only@file (security.md §1 law: never zero edge protection).
 # Scope: nas + oldsrv only.
 # TLS (HD-181): no certResolver — this deploys to consumer edges which serve the
 # synced wildcard pair from the DEFAULT store (traefik dynamic/tls.yml.j2).
+# Backends derived from the address SSOT `network_static_hosts` (Home VLAN 10) —
+# HD-188; no hardcoded IP literals.
 http:
   routers:
     cockpit-nas:
       rule: "Host(`cockpit-nas.kogler.si`)"
       entryPoints:
         - websecure
+      middlewares:
+        - crowdsec-only@file   # bouncer only — own-login mgmt surface (HD-188/S17b)
       service: cockpit-nas
       tls: {}
     cockpit-oldsrv:
       rule: "Host(`cockpit-oldsrv.kogler.si`)"
       entryPoints:
         - websecure
+      middlewares:
+        - crowdsec-only@file   # bouncer only — own-login mgmt surface (HD-188/S17b)
       service: cockpit-oldsrv
       tls: {}
 
@@ -24,8 +31,8 @@ http:
     cockpit-nas:
       loadBalancer:
         servers:
-          - url: "http://10.10.1.10:9090"
+          - url: "http://{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}:9090"
     cockpit-oldsrv:
       loadBalancer:
         servers:
-          - url: "http://10.10.1.30:9090"
+          - url: "http://{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}:9090"
