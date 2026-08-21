@@ -136,8 +136,10 @@ services:
   # (base DN `DC=home,DC=kogler,DC=si`, bind_mode DIRECT) + outpost instance exist —
   # either declared in the `ks-oidc.yml` Blueprint (HD-142) or created in the Authentik UI,
   # then put the generated outpost token in 1Password as `authentik-ldap_bind`
-  # (field=password). The port below (3389) must be firewall-restricted to the NAS
-  # host only (see network-ops / trusted sources) — LDAP creds must not be LAN-wide.
+  # (field=password).
+  # Reachability (HD-186, decided HD-204): NO public publish — the LDAP port binds
+  # ONLY the WireGuard S2S address (prometheus/loki precedent), so Samba (nas, the
+  # client) targets the VPS's WG-side address over the tunnel; the WAN path refuses.
   authentik-ldap:
     image: ghcr.io/goauthentik/ldap:{{ authentik_version }}
     cap_drop:
@@ -155,7 +157,7 @@ services:
       AUTHENTIK_TOKEN: "{{ lookup('community.general.onepassword', 'authentik-ldap_bind', field='password', vault=op_vault) }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     ports:
-      - "3389:3389"   # LDAP (outpost binds providers' LDAP port); Samba on nas reaches oldsrv:3389. Restrict src at firewall.
+      - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:3389:3389"   # LDAP (outpost binds providers' LDAP port); WG-only bind — Samba (nas) pulls over the S2S tunnel (HD-186); no WAN exposure
     depends_on:
       - authentik-server
 

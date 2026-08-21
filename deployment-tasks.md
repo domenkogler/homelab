@@ -225,7 +225,7 @@
 - **HD-06** — NUT master live on nas: `upsd` :3493 + `nut_exporter` :9199 + `upssched-cmd` SMTP/Signal notify; **battery-pull test** on the PowerWalker USB. · [hardware-ups.md](docs/hardware-ups.md)
 - **HD-07** — NUT clients on `oldsrv` (Phase 3) / `pi` (Phase 4) — `upsmon` slave + per-host shutdown delay (60/0). · [hardware-ups.md](docs/hardware-ups.md)
 - **HD-08** — live-verify `nut_exporter` `nut_ups_status` bitmask + metric names + Grafana alert-rule provisioning loads (blocked on HD-06). · [hardware-ups.md](docs/hardware-ups.md)
-- **HD-132** — create Authentik **LDAP provider** `DC=home,DC=kogler,DC=si` (bind DIRECT) + outpost; seed `authentik-ldap_bind`; firewall 3389→nas; live-verify a family drive mounts. · [deployment-compose.md](docs/deployment-compose.md)
+- **HD-132** — create Authentik **LDAP provider** `DC=home,DC=kogler,DC=si` (bind DIRECT) + outpost; seed `authentik-ldap_bind`; live-verify a family drive mounts. Samba (nas, the client) reaches the VPS outpost over WG at the VPS's WG-side address — nothing is published publicly (HD-186). · [deployment-compose.md](docs/deployment-compose.md)
 
 ---
 

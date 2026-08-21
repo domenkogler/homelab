@@ -56,13 +56,15 @@ storage_samba_users_root: /tank/data/users
 
 # ---- Authentik-as-LDAP passdb (D7/HD-132) — Samba pulls auth from Authentik LDAP outpost ----
 # Samba is an LDAP *client* (pull): Authentik is the SSOT and does NOT push. The LDAP outpost
-# runs on oldsrv (where Authentik runs) beside the main server; Samba on nas reaches it over
-# the Home VLAN. host derived from the address SSOT (oldsrv). These are design constants
-# (chosen when the Authentik LDAP provider is created) — see docs/deployment-compose.md HD-132.
-# The bind *password* is the secret: 1Password `authentik-ldap_bind` (field=password).
+# (ak-outpost-ldap) runs on the VPS beside the Authentik server; Samba on nas is the client and
+# reaches it over the WireGuard S2S tunnel at the VPS's WG-side address (HD-186, decided HD-204 —
+# no public publish; WAN path refuses). host derived from the WG SSOT (`wg_s2s_vps.ip`). These are
+# design constants (chosen when the Authentik LDAP provider is created) — see
+# docs/deployment-compose.md HD-132. The bind *password* is the secret: 1Password
+# `authentik-ldap_bind` (field=password).
 storage_samba_ldap:
-  host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
-  port: 3389                 # LAN LDAP port for the ak-outpost-ldap (non-privileged; avoids 389 clash)
+  host: "{{ wg_s2s_vps.ip }}"
+  port: 3389                 # LDAP port for the ak-outpost-ldap (non-privileged; avoids 389 clash)
   base_dn: "DC=home,DC=kogler,DC=si"
   user_suffix: "OU=Users,DC=home,DC=kogler,DC=si"
   admin_dn: "CN=svc_samba,OU=Users,DC=home,DC=kogler,DC=si"   # service bind DN (HD-132)
