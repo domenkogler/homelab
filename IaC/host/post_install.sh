@@ -4,10 +4,9 @@
 # Single copy for ALL homelab hosts (nas, oldsrv, ...) — same keys.
 # Preseed late_command copies it to the target as /tmp/post_install.sh.
 # =====================================================================
-# SECURITY NOTE: Never commit real keys — only placeholders. The AI
-# injects the real public keys from the 1Password "Homelab" vault at
-# generation time (admin_laptop_ssh_pubkey, ssh_ansible_pubkey,
-# ssh_ai_pubkey).
+# SECURITY NOTE: Never commit real keys — only placeholders. At media-build time
+# the real PUBLIC keys are injected from the 1Password `Homelab-ansible` vault
+# (items: laptop-domen_ssh · ansible-admin_ssh · ai_ssh, field=public_key).
 # =====================================================================
 
 set -euo pipefail

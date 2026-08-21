@@ -50,6 +50,16 @@ tags: [hardware, nas, zfs]
   - (older `tank/important` / `tank/data`-with-media plans → **superseded**: media moved to the `bulk`
     pool; only user data remains on `tank`. Full layout: [`storage.md`](storage.md))
 
+> **Topology locked: MIRROR, not raidz1 (2026-08-21, owner decision — todo HD-207).** Even though
+> OpenZFS 2.3+ adds single-disk RAIDZ expansion, mirror wins at this size: fast block-copy resilver,
+> per-block self-healing (reads the good copy directly), better random I/O. Future growth paths:
+> ① `zpool add tank mirror <d3> <d4>` — a NEW second top-level pair contributes its FULL size
+> (e.g. 2× 8 TB ⇒ ~12 TB usable total; existing data stays on the old vdev, new writes spread by free
+> space; mirror vdevs are even removable later via device_removal); ② `zpool replace` both disks
+> one-by-one → autoexpand to one bigger mirror. **Never `zpool attach` a larger disk onto the existing
+> pair** — a mirror is exactly as large as its smallest member, so the extra space is wasted.
+> When buying: CMR only (WD Red Plus / IronWolf / Toshiba N300 — no SMR).
+
 ### NFS Exports (→ oldsrv)
 
 - Export **`tank/data`** (user data) → oldsrv **`/mnt/nas/data`**

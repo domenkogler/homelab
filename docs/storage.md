@@ -68,6 +68,10 @@ nas — MX300 525 GB (ext4) — OS/boot only; `tank`/`bulk` imported via ZFS cac
 ```
 > **Superseded plans:** earlier `tank/important`, `tank/media`, `tank/downloads` and `tank/data`-with-media
 > layouts. Media moved to its own dataset on the `bulk` pool; `tank` is now reserved for user data only.
+> **Tank topology locked: MIRROR (2026-08-21, owner decision, todo HD-207)** — raidz1 rejected even with
+> OpenZFS 2.3+ RAIDZ expansion (mirror wins resilver/self-healing/random-I/O at 2× 4 TB). Growth = a new
+> second mirror pair (contributes its full size) or replace-in-place autoexpand; never `zpool attach` a
+> larger disk onto the existing pair (smallest-member cap). Detail: [`hardware-nas.md`](hardware-nas.md).
 
 ---
 
