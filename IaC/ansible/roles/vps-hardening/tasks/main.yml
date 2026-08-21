@@ -67,6 +67,15 @@
     state: started
     enabled: true
 
+# Loading an nft ruleset that begins with 'flush ruleset' DELETES the ip/ip6 tables
+# Docker created via iptables-nft (DOCKER-FORWARD etc.) — subsequent network creation
+# then fails with "No chain/target/match by that name" (found live Phase 1, 2026-08-22).
+# The docker role ALWAYS precedes this role in host playbooks, so docker.service exists here.
+- name: Restart Docker so it re-programs its chains after the nftables load
+  systemd:
+    name: docker
+    state: restarted
+
 # ── 3. Docker daemon hardening ────────────────────────────────────────────
 - name: Harden Docker daemon (iptables explicit, no host bindings by default)
   copy:

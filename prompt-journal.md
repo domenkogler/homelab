@@ -62,6 +62,8 @@ The key's randomart image is:
 +----[SHA256]-----+
 ✔ New SSH key created.
 
+source ~/.bashrc
+
 *(empty — paste deploy info above this line)*
 
 <!-- Fill between the markers, then tell the AI session: "read prompt-journal.md".
