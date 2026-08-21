@@ -25,15 +25,10 @@ switch_mgmt_ip: "{{ (network_static_hosts | selectattr('name', '==', 'switch') |
 # Router (RB4011) management IP — derived from network_static_hosts (name=router, vlan=99)
 router_mgmt_ip: "{{ (network_static_hosts | selectattr('name', '==', 'router') | selectattr('vlan', '==', 99) | map(attribute='ip') | list | first) }}"
 
-# VLANs from SSOT (must match router.yml vlans)
-switch_vlans:
-  - { id: 10, name: Home }
-  - { id: 20, name: IoT }
-  - { id: 21, name: IoT-Internet }
-  - { id: 30, name: Guest }
-  - { id: 40, name: Kids }
-  - { id: 50, name: Media }
-  - { id: 99, name: Management }
+# VLANs — derived view of the SSOT network_vlans (group_vars/all.yml), HD-200.
+# Role-default fallback only; group_vars/switch.yml carries the same derivation,
+# so a VLAN edit touches all.yml alone (audit H2 / iac-changes §2).
+switch_vlans: "{{ network_vlans }}"
 
 # Port map - see group_vars/switch.yml for detailed configuration
 # Ports without explicit configuration default to VLAN 99 (Management)

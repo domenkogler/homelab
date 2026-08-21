@@ -13,16 +13,13 @@ routeros_expected_identity: "router.kogler.si"
 # stays false — self-signed, private mgmt VLAN). HD-161 Part B.
 # routeros_tls: true
 
-# VLAN map — must match docs/network-vlans.md
-vlans:
-  - { id: 1,  name: Blackhole,    subnet: "0.0.0.0/0",  unused: true }
-  - { id: 10, name: Home,         subnet: "10.10.1.0/24" }
-  - { id: 20, name: IoT,          subnet: "10.10.20.0/24" }
-  - { id: 21, name: IoT-Internet, subnet: "10.10.21.0/24" }
-  - { id: 30, name: Guest,        subnet: "10.10.30.0/24" }
-  - { id: 40, name: Kids,         subnet: "10.10.40.0/24" }
-  - { id: 50, name: Media,        subnet: "10.10.50.0/24" }
-  - { id: 99, name: Management,   subnet: "10.10.99.0/24" }
+# VLAN map — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all.yml), HD-200:
+# the only literal VLAN list lives in all.yml; the router adds just the unused
+# VLAN 1 Blackhole stub (every consumer loop filters it via
+# selectattr('unused', 'undefined')). A VLAN edit touches all.yml only — the old
+# triple map (all.yml/router.yml/switch.yml kept equal by "must match" comments)
+# cannot drift (audit H2 / iac-changes §2).
+vlans: "{{ [ {'id': 1, 'name': 'Blackhole', 'subnet': '0.0.0.0/0', 'unused': True} ] + network_vlans }}"
 
 router_port_map:
   wan:

@@ -135,7 +135,7 @@ IaC/ansible/
 │   ├── all.yml                      # Timezone, locale, NTP, domain names; infra vars (network/IP/WG/livebox)
 │   ├── all/
 │   │   └── versions.yml              # Docker image version pins (ALL hosts, HD-156) — one-file Renovate review
-│   ├── router.yml                   # VLAN map, WireGuard peers, DNS forwarding
+│   ├── router.yml                   # WG peers, DNS forwarding; VLAN map = derived view of all.yml network_vlans
 │   ├── vps.yml                      # docker_services list (VPS)
 │   ├── home_servers.yml             # homelab_mode, docker_services list (home), GPU config
 │   └── raspberry_pi.yml             # HA install method, Pi docker_services (raspberrymatic, technitium-secondary)

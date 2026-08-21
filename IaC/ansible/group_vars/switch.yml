@@ -109,12 +109,7 @@ switch_port_map:
     poe: false
     mac: "00:0A:B3:27:5F:8B"
 
-# VLAN list for switch (must match router.yml vlans)
-switch_vlans:
-  - { id: 10, name: Home }
-  - { id: 20, name: IoT }
-  - { id: 21, name: IoT-Internet }
-  - { id: 30, name: Guest }
-  - { id: 40, name: Kids }
-  - { id: 50, name: Media }
-  - { id: 99, name: Management }
+# VLAN list — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all.yml), HD-200:
+# switch consumers use id + name only, so the full SSOT dicts pass through
+# unchanged; no literal duplicate to drift (audit H2 / iac-changes §2).
+switch_vlans: "{{ network_vlans }}"
