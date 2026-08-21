@@ -29,7 +29,7 @@ host facts in the repo. This split is deliberate and **intentionally uses no `se
 
 | Connection fact | Where it lives | Why |
 |-----------------|----------------|-----|
-| hostname / IP / port | `host_vars/*.yml` (`ansible_host`), `group_vars/all.yml` (`kopia_sftp_*`, …) | **config**, not secret — part of the repo's self-rebuild + recovery premise; moving it to 1P would break the `git clone → rebuild` and the provisioning bootstrap (which needs host facts before 1P is available) |
+| hostname / IP / port | `host_vars/*.yml` (`ansible_host`), `group_vars/all/main.yml` (`kopia_sftp_*`, …) | **config**, not secret — part of the repo's self-rebuild + recovery premise; moving it to 1P would break the `git clone → rebuild` and the provisioning bootstrap (which needs host facts before 1P is available) |
 | login (`ansible_user`, `kopia_sftp_user`) | `host_vars` / `group_vars` (inventory) | the login alone grants nothing; the **key** does. Kept in IaC so inventory is complete |
 | **key / credential** | 1Password `_ssh` items via the **1Password SSH agent**, or connection-refs (`Hertzner-SB-Backup`) for kopia SFTP | this is the actual secret — never on disk, never in Git |
 
@@ -70,7 +70,7 @@ that is a break-glass decision, not a connection-config item.
 - `<type>` = the 1Password **item type** (see map below) — it determines which field the lookup reads.
 - **Never put the field in the item name** (e.g. `service-name-db-password` → `service-name_db`).
 
-**Always pass `field=` in Ansible.** The `community.general.onepassword` lookup defaults to the `password` field, which is **NOT** always the value you want. Vault is the `op_vault` variable (defined once in `group_vars/all.yml` → `Homelab-ansible`), so a vault rename is a one-line change:
+**Always pass `field=` in Ansible.** The `community.general.onepassword` lookup defaults to the `password` field, which is **NOT** always the value you want. Vault is the `op_vault` variable (defined once in `group_vars/all/main.yml` → `Homelab-ansible`), so a vault rename is a one-line change:
 
 ```yaml
 lookup('community.general.onepassword', '<service>_<type>', field='<field>', vault=op_vault)

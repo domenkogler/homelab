@@ -9,7 +9,7 @@ Bootstrap / initial RouterOS scripts for the homelab network gear — the route
   are **injected from 1Password at render time** — the committed files never
   contain them.
 - **No hardcoded IPs.** All static IPs / VLANs come from
-  [`IaC/ansible/group_vars/all.yml`](../ansible/group_vars/all.yml) (SSOT) via
+  [`IaC/ansible/group_vars/all/main.yml`](../ansible/group_vars/all/main.yml) (SSOT) via
   Jinja templates.
 - **Minimal bootstrap only.** These scripts establish the **Management VLAN 99**
   plane (static gateway + DHCP for temporary hosts) so Ansible can connect.

@@ -39,7 +39,7 @@ tags: [deployment, ansible, iac]
 
 ### Variables & IPs
 - **Never hardcode IPs or CIDRs** — reference `network_static_hosts` / `network_ranges`
-  from `group_vars/all.yml` (the SSOT). Even Docker bridge CIDRs (`traefik-public`,
+  from `group_vars/all/main.yml` (the SSOT). Even Docker bridge CIDRs (`traefik-public`,
   `services-internal`, `db-internal`) have entries there.
 - **Service config → `group_vars/`, not role defaults.** `defaults/main.yml` is for
   role-internal knobs (directories, timeouts), not architecture values.
@@ -50,7 +50,7 @@ tags: [deployment, ansible, iac]
 - **Never hardcode secrets.** All credentials use
   `{{ lookup('community.general.onepassword', '<item>', field='<field>', vault=op_vault) }}`
   at render time. See `docs/deployment-secrets.md` for the naming convention.
-- **One vault: `Homelab-ansible`.** The variable `op_vault` is defined in `group_vars/all.yml` —
+- **One vault: `Homelab-ansible`.** The variable `op_vault` is defined in `group_vars/all/main.yml` —
   always use it, never a literal string.
 - **The `field=` parameter is mandatory.** The lookup defaults to `password`, which is
   NOT always the right field (API credentials use `credential`; Database items also carry
@@ -101,7 +101,7 @@ tags: [deployment, ansible, iac]
 
 ## Execution Modes
 
-> **Safety guard:** `site.yml` starts with a pre-flight check that **refuses to run as `ai-debug` or any user outside `ansible_admin_users`** (per `group_vars/all.yml`: `ansible-admin` only). The `common` role repeats the same assert for direct playbook/role runs. Anyone running Ansible as `ai-debug` gets an immediate abort — it must never gain sudo.
+> **Safety guard:** `site.yml` starts with a pre-flight check that **refuses to run as `ai-debug` or any user outside `ansible_admin_users`** (per `group_vars/all/main.yml`: `ansible-admin` only). The `common` role repeats the same assert for direct playbook/role runs. Anyone running Ansible as `ai-debug` gets an immediate abort — it must never gain sudo.
 
 ### Bootstrap Mode (Domen's Laptop)
 ```bash
@@ -137,11 +137,11 @@ IaC/ansible/
 │   ├── render-routeros.yml          # renders RouterOS bootstrap .rsc (secrets) → gitignored IaC/router/rendered/
 │   └── all.yml                      # hosts: all:!router:!localhost — /etc/hosts sync
 ├── group_vars/
-│   ├── all.yml                      # Timezone, locale, NTP, domain names; infra vars (network/IP/WG/livebox)
-│   ├── all/
+│   ├── all/                          # directory fragments — Ansible loads these, a sibling all.yml would be SHADOWED
+│   │   ├── main.yml                  # Timezone, locale, NTP, domain names; infra vars (network/IP/WG/livebox)
 │   │   └── versions.yml              # Docker image version pins (ALL hosts, HD-156) — one-file Renovate review
 │   ├── network.yml                   # router+switch shared connectivity/auth (ansible_host derived from SSOT)
-│   ├── router.yml                   # WG peers, DNS forwarding; VLAN map = derived view of all.yml network_vlans
+│   ├── router.yml                   # WG peers, DNS forwarding; VLAN map = derived view of group_vars/all/main.yml network_vlans
 │   ├── switch.yml                   # switch ports/VLANs (switch_vlans derives from network_vlans, HD-200)
 │   ├── vps.yml                      # docker_services list (VPS edge tier)
 │   ├── home_servers.yml             # homelab_mode, docker_services list (oldsrv core), GPU config
@@ -292,7 +292,7 @@ gpu_video_group: video
 
 ---
 
-## Group Vars: all.yml
+## Group Vars: all/
 
 ```yaml
 timezone: Europe/Ljubljana

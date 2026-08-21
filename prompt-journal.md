@@ -37,6 +37,31 @@ and list your open questions at the top of the commit message for the human to a
 
 ## DATA (human fills — raw notes, pasted outputs, half-sentences; any format goes)
 
+wsl --unregister Debian
+wsl --install -d Debian (user: domen, password: op:Debian Ansible on Laptop P14s)
+cd /mnt/d/source/domenkogler/homelab/IaC/bootstrap-ansible-client && bash bootstrap.sh
+
+output:
+Generating public/private ed25519 key pair.
+Created directory '/home/domen/.ssh'.
+Your identification has been saved in /home/domen/.ssh/id_ed25519
+Your public key has been saved in /home/domen/.ssh/id_ed25519.pub
+The key fingerprint is:
+SHA256:ozYmM9vc9woxFmbrT9xvNSaGdGI98tqKsxBSTySlHeI domen@kogler.si
+The key's randomart image is:
++--[ED25519 256]--+
+|       o.+       |
+|      . * .      |
+|       E+o  .    |
+|      .ooo = +   |
+|     . .S.o * .  |
+|      .+.= o + o.|
+|    + =.o o = o..|
+|     X o.=o. o.  |
+|    . o .+=+o..  |
++----[SHA256]-----+
+✔ New SSH key created.
+
 *(empty — paste deploy info above this line)*
 
 <!-- Fill between the markers, then tell the AI session: "read prompt-journal.md".

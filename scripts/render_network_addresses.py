@@ -4,10 +4,10 @@
 Windows note: `ansible-playbook playbooks/render-docs.yml` cannot run on this
 Windows host (ansible crashes at startup: `os.get_blocking` -> OSError [WinError 87]).
 This standalone script performs the same single-template render with the real
-`group_vars/all.yml` + host_vars SSOT, so the generated doc can be refreshed
+`group_vars/all/main.yml` + host_vars SSOT, so the generated doc can be refreshed
 after any master .yml change WITHOUT needing a working Ansible install.
 
-Run after editing group_vars/all.yml (or the DNS host_vars):
+Run after editing group_vars/all/main.yml (or the DNS host_vars):
     python scripts/render_network_addresses.py  # requires PyYAML
 
 Idempotent: overwrites docs/network-addresses-generated.md.
@@ -29,7 +29,7 @@ def load_yml(path: Path) -> dict:
 
 
 def main() -> int:
-    all_yml = load_yml(ANSIBLE / "group_vars" / "all.yml")
+    all_yml = load_yml(ANSIBLE / "group_vars" / "all" / "main.yml")
 
     # DNS host_vars used by the template (with template-default fallbacks)
     oldsrv_vars = load_yml(ANSIBLE / "host_vars" / "oldsrv.kogler.si.yml") or {}

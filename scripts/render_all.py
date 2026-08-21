@@ -6,7 +6,7 @@ render paths, so **no Ansible / WSL / 1Password CLI is needed** to regenerate
 every `*-generated.md` doc on this Windows host.
 
 Rendered outputs (do NOT hand-edit — SSOT direction is IaC → generated):
-    docs/network-addresses-generated.md   <- group_vars/all.yml + host_vars   [render_network_addresses.py]
+    docs/network-addresses-generated.md   <- group_vars/all/main.yml + host_vars   [render_network_addresses.py]
     docs/services-inventory-generated.md  <- docker_services (all Docker hosts) [inline, Ansible hostvars-equivalent]
     docs/subscriptions-table-generated.md <- group_vars/subscriptions.yml      [inline]
     docs/network-rack-generated.md        <- docs/rack-connections.json        [render_rack_connections.py]
@@ -116,7 +116,7 @@ def render_inventory() -> list[Path]:
             continue
         all_hostvars.append({"key": host, "value": {"_docker_services": svcs}})
 
-    all_yml = _load_yml(GROUP_VARS / "all.yml")
+    all_yml = _load_yml(GROUP_VARS / "all" / "main.yml")
     ctx = {
         "ansible_managed": MANAGED,
         "ansible_date_time": {"iso8601": _iso_now()},

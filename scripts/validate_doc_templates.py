@@ -30,7 +30,7 @@ ANSIBLE = ROOT / "IaC" / "ansible"
 
 def _load_group_vars() -> dict:
     out = {}
-    for rel in ("group_vars/all.yml",):
+    for rel in ("group_vars/all/main.yml", "group_vars/all/versions.yml"):
         p = ANSIBLE / rel
         try:
             data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}

@@ -38,7 +38,7 @@ Every script here is part of one of three groups: **validation** (the fail-close
 
 | Script | Renders | SSOT → outputs | Why it's needed (vs Ansible) |
 |--------|--------|-----------------|----------------------------|
-| [`render_network_addresses.py`](render_network_addresses.py) | `docs/network-addresses-generated.md` | `group_vars/all.yml` + host_vars (`oldsrv`/`pi` DNS) → generated doc | **Windows fallback** — Ansible crashes natively on this host (`os.get_blocking` → WinError 87); this refreshes the doc without WSL/Ansible |
+| [`render_network_addresses.py`](render_network_addresses.py) | `docs/network-addresses-generated.md` | `group_vars/all/main.yml` + host_vars (`oldsrv`/`pi` DNS) → generated doc | **Windows fallback** — Ansible crashes natively on this host (`os.get_blocking` → WinError 87); this refreshes the doc without WSL/Ansible |
 | [`render_rack_connections.py`](render_rack_connections.py) | `docs/network-rack-generated.md` + `docs/rack-layout.mmd` | `docs/rack-connections.json` (parsed from `docs/assets/Rack.canvas`) → generated docs | **Different SSOT** (rack JSON, not group_vars) — not covered by `render-docs.yml` |
 
 > Ansible equivalents: `IaC/ansible/playbooks/render-docs.yml` renders the same *group_vars*-derived

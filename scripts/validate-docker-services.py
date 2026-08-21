@@ -120,11 +120,11 @@ def _load_ssot_ctx():
     except (OSError, yaml.YAMLError) as e:
         print(f"FAIL: cannot read version pins ({vp}): {e}", file=sys.stderr)
         sys.exit(1)
-    ap = GROUP_VARS_DIR / "all.yml"
+    ap = GROUP_VARS_DIR / "all" / "main.yml"
     try:
         data = yaml.safe_load(ap.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError) as e:
-        print(f"FAIL: cannot read group_vars/all.yml: {e}", file=sys.stderr)
+        print(f"FAIL: cannot read group_vars/all/main.yml: {e}", file=sys.stderr)
         sys.exit(1)
     for k in (
         "timezone", "op_vault", "domain_public", "domain_local",
@@ -160,7 +160,7 @@ BASE_CTX.update({
     # instance-specific mock class as technitium_secondary_ip above (HD-187:
     # pihole CONDITIONAL_FORWARDING_IP renders against it).
     "dns_primary_ip": "10.10.1.30",
-    # Immich ML cross-host endpoint (HD-184) — derived in group_vars/all.yml
+    # Immich ML cross-host endpoint (HD-184) — derived in group_vars/all/main.yml
     # from `oldsrv_home_ip`; mocked here with the same Home-IP value.
     "immich_ml_bind": "10.10.1.30",
     "immich_ml_url": "http://10.10.1.30:3003",
@@ -189,7 +189,7 @@ BASE_CTX.update({
     "ha_primary_state": "MASTER",
     "ha_primary_priority": 110,
     "ha_primary_peer_priority": 90,
-    # VPS wg-s2s peer (group_vars/all.yml `wg_s2s_vps`) — kept as a mock because
+    # VPS wg-s2s peer (group_vars/all/main.yml `wg_s2s_vps`) — kept as a mock because
     # the real value embeds Jinja lookups/derivations; shape mirrors the SSOT.
     "wg_s2s_vps": {"ip": "10.255.40.2", "local_ip": "10.255.40.2/30", "router_ip": "10.255.40.1",
                     "listen_port": 51820, "endpoint": "", "peer_public_key": "mock-router-pubkey",

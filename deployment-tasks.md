@@ -273,7 +273,7 @@
 
 **New 1Password prerequisites (Phase 3):**
 - ~~`cloudflare_api` (api→`credential`) — wildcard cert~~ — **moved to Phase 1 (VPS)**: the wildcard is issued by the VPS Traefik (HD-178); oldsrv consumes synced certs via its own pull timer (HD-181, decided HD-204).
-- `kopia_password` (password) — Kopia off-site = **backup Box over SSH/SFTP (port 23)** (`kopia_sftp_*` in `all.yml`; SSH key in `Hertzner-SB-Backup`; **no password secret item**). ~~`kopia-s3_api`~~ retired (iDrive e2 dropped).
+- `kopia_password` (password) — Kopia off-site = **backup Box over SSH/SFTP (port 23)** (`kopia_sftp_*` in `group_vars/all/main.yml`; SSH key in `Hertzner-SB-Backup`; **no password secret item**). ~~`kopia-s3_api`~~ retired (iDrive e2 dropped).
 - `authentik_db` (db→`password`), `authentik_password` (password→`password`), `authentik_login` (login→`password`)
 - `opencloud_db`, `immich_db`, `forgejo_db` (db→`password` each)
 - `forgejo_api` (api→`credential`) — renovate token + Forgejo Actions deploy runner
@@ -522,7 +522,7 @@ Phase 10 (deferred: Phase-2 Proxmox hardware, HD-41/42)
 - **Secrets source of truth:** `docs/deployment-secrets.md` (type map, master list, rename map).
 - **Kopia off-site transport (decided HD-31/HD-135):** Hetzner Storage Box **backup** supports **SSH/SFTP only**
   (port 23, `u653424`, SSH-key auth via `Hertzner-SB-Backup`) — **NOT S3**. iDrive e2 S3 dropped. Backend config:
-  `kopia_sftp_*` in `group_vars/all.yml`; repo password `kopia_password`; `~~kopia-s3_api~~` retired.
+  `kopia_sftp_*` in `group_vars/all/main.yml`; repo password `kopia_password`; `~~kopia-s3_api~~` retired.
 - **Architecture rationale:** `docs/hardware.md`, `docs/services.md`, `docs/observability.md`,
   `docs/deployment.md`, `docs/network-vlans.md`, `docs/smart-home-failover.md`.
 - **Per-item status / difficulty:** `todo.md` (HD-XX IDs referenced above).
