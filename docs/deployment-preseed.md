@@ -229,7 +229,7 @@ netcup SCP's "**Custom Script** (executed at end of image installation, ≤10 00
 | netcup SCP field | Value | Notes |
 |---|---|---|
 | OS image | **Debian 13.6.0 UEFI amd64** | UEFI (not BIOS) — modern EPYC platform, GPT/ESP |
-| Disk layout | **large / entire + LVM / one partition** | repo convention (`host-Hyper-v.md` "entire & lvm"); single 512 GB NVMe root |
+| Disk layout | **entire disk, plain partitions (no LVM)** — ESP 243 M · `/boot` ext4 977 M · `/` ext4 510.8 G | as actually installed 2026-08-18 (lsblk-verified 2026-08-21, deployment-journal Phase 1.0); single 512 GB NVMe root needs no LVM |
 | Hostname | **vps** | FQDN `vps.kogler.si` |
 | Locale | **en_US.UTF-8** | netcup offers only de_DE/en_US; `sl_SI.UTF-8` set by Ansible `common` on first run |
 | Keyboard | en/us | headless — irrelevant to SSH |

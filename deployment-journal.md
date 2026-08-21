@@ -53,6 +53,30 @@
 - Corrects the 2026-08-18 backfill entry above, which assumed "NOT yet applied".
 - Still open from that entry's capture checklist (run at the console when convenient): installed Debian version · partition/LVM layout · host-key fingerprints for `known_hosts` pinning · `sshd -T` hardening state pre-Ansible.
 
+### 2026-08-21 — Phase 1.0 · console capture: image/layout/fingerprints + SSHD-SHADOW FINDING `[MANUAL]`
+
+- Plan ref: Phase 1 backfill-gap checklist (this session's earlier entry).
+- **Commands run:**
+  ```bash
+  cat /etc/os-release | head -2; uname -r
+  lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT; df -h /
+  id; cut -d: -f1 /etc/passwd | grep -E 'admin|ansible|domen'
+  ls -la /root/.ssh/; cat /root/.ssh/authorized_keys | wc -l
+  grep -rn "PasswordAuthentication|PermitRootLogin|MaxAuthTries" /etc/ssh/sshd_config /etc/ssh/sshd_config.d/
+  systemctl is-active ssh; ss -tlnp | grep :22
+  for k in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf $k; done
+  dpkg -l | grep -cE "docker|fail2ban"; nft list ruleset; free -h; ip -br addr
+  cat /etc/debian_version; sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|maxauthtries'
+  ```
+- **Findings:**
+  - OS: **Debian 13.6 (trixie)**, kernel 6.12.101+deb13-amd64.
+  - Layout: `vda` 512 G — `vda1` 243 M vfat EFI · `vda2` 977 M ext4 `/boot` · `vda3` 510.8 G ext4 `/` — **no LVM** (deviation vs the documented "entire + LVM" SCP field choice; doc updated: `docs/deployment-preseed.md`).
+  - Users: only `ansible-admin` (uid 1000, NOPASSWD sudo confirmed — `sudo sshd -T` ran clean); `/root/.ssh/authorized_keys` empty (root = password-only, see finding below); no `domen` account (by design).
+  - Host keys (for `known_hosts` pinning): ECDSA `SHA256:aPEyZBN0xmIMhqV2SsWSy0OANMRdbmIOYYcYWtgejzI` · ED25519 `SHA256:DfRE+i6EiZUYD2Bot2hanIh+Ey47tTpzv352boxB3fY` · RSA `SHA256:LpwYdCSTDcIZ0fvGUj8mRFJOgLXabbMYU+7VTr+tWIE`.
+  - Not yet present: docker, fail2ban, nftables ruleset, swap (0 B — netcup image ships none).
+  - Network: `eth0` `159.195.111.66/22` + IPv6 (matches SSOT).
+- ⚠ **SSHD-SHADOW FINDING (deploy-blocking priority):** effective config is `passwordauthentication yes` + `permitrootlogin yes` + `maxauthtries 6` (`sshd -T` verified). Cause: netcup's image ships EXPLICIT `PasswordAuthentication yes` / `PermitRootLogin yes` at `sshd_config` lines 124–125; the Homelab hardening block appended at lines 128–129 by the Custom Script **loses to sshd's first-obtained-value-wins semantics**. Root has an SCP-set fallback password ⇒ internet-exposed password login window RIGHT NOW. Mitigation: run `playbooks/vps.yml` promptly — the `vps-hardening` role lineinfile-flips the directives (verified in role tasks). Permanent fix tracked as **HD-208** (drop-in instead of append). (doc updated: `docs/deployment-preseed.md`; todo: HD-208 added)
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

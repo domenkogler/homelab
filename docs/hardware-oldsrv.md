@@ -23,8 +23,13 @@ tags: [hardware, oldsrv, docker]
 | dGPU | AMD Radeon RX 7600 8 GB → dedicated to Docker AI containers |
 | NIC | Intel i350-T2 (one port used — VLAN trunk to CRS328) |
 | RAM | 48 GB DDR4 (2×8 GB + 2×16 GB Corsair Vengeance LPX, DDR4-2400) |
-| NVMe 1 | Samsung SSD 970 EVO 1TB — **data**: ZFS pool `nvme` (DBs, service data, TSDB, models, dumps) — heavy writes live here (600 TBW, fastest) |
-| NVMe 2 | Samsung SSD 960 EVO 500GB — **system**: ext4 OS/root + `/opt` configs — light writes only (200 TBW) |
+| NVMe 1 | Samsung SSD 970 EVO 1TB — **data**: ZFS pool `nvme` (DBs, service data, TSDB, models, dumps) — heavy writes live here (600 TBW, fastest) · by-id `nvme-eui.0025385b0143f12e` |
+| NVMe 2 | Samsung SSD 960 EVO 500GB — **system**: ext4 OS/root + `/opt` configs — light writes only (200 TBW) · by-id `nvme-eui.0025385c61b048c2` |
+
+> by-ids derived from the Windows-reported EUI64 (2026-08-21; note: the pre-reinstall Windows C:\
+> lived on the **970 EVO**, not the 960 — data was backed up, both disks are wiped/re-purposed at
+> deploy). Verify at the installer console (`Ctrl+Alt+F2` → `ls -l /dev/disk/by-id/`) before
+> confirming a preseed install — same discipline as HD-128.
 | OS | Debian with XFCE or GNOME desktop |
 | Location | Workstation desk (not rack-mounted) |
 

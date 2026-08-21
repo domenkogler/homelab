@@ -29,4 +29,6 @@ desktop_igpu_busid: "PCI:0:2:0"
 # machine. Fill the REAL /dev/disk/by-id/nvme-* path (read it from the deployed host via
 # `ls -l /dev/disk/by-id` for the 970 EVO) — a fail-loud guard aborts if create is attempted
 # while this still points at the placeholder.
-storage_nvme_data_by_id: /dev/disk/by-id/nvme-<970_EVO_SERIAL>   # HD-128: fill real by-id at deploy
+# Filled 2026-08-21 with the EUI-form by-id derived from the Windows-reported EUI64
+# (0025_385B_0143_F12E.); verify at the installer console (Ctrl+Alt+F2: ls -l /dev/disk/by-id/).
+storage_nvme_data_by_id: /dev/disk/by-id/nvme-eui.0025385b0143f12e   # HD-128: verify at first install
