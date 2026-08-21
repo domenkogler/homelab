@@ -105,6 +105,27 @@
 - **Verify:** ⏳ pending — first boot must show `sshd -T` → `passwordauthentication no` / `permitrootlogin no` / `maxauthtries 3` **from the drop-in alone**; reinstall rotates the host keys ⇒ flush old `known_hosts` entry and capture the new fingerprints for pinning.
 - **Deviations:** none vs the documented flow. Three SCP fields were not previously tabulated (installation method, timezone, e-mail notify) — recorded as actually chosen (doc updated: `docs/deployment-preseed.md`).
 
+### 2026-08-22 — Phase 1.0 · reinstall completed — first-boot verification FAILED: injected keys refused `[MANUAL]`
+
+- Plan ref: same step as above — the **Verify** half failed; checkbox stays OPEN pending remediation.
+- **Install completed** (netcup report fed via prompt-journal): Debian 13 trixie minimal, hostname `vps`, IPs match SSOT (`159.195.111.66` / `2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5`). New host-key fingerprints (reinstall rotated them; old known_hosts flushed):
+  - RSA `SHA256:Eu7MnaeP5u8wG6gyl34CL0/JSjj3AxIuwXnn9vvlA+I` · ECDSA `SHA256:NSAije7AQn/mB7U3nNVOKlqlGj6LzBwjO19tPRbldM4` · ED25519 `SHA256:i1vhb2Su2obdNIqyIw19PLK0PmCZNKl6cBdcUBTky2A` — all three TOFU-verified live via `ssh-keyscan` vs the netcup install report.
+- **Verification attempts (from management laptop, Windows OpenSSH + 1Password agent):**
+  ```bash
+  ssh-keygen -R vps.kogler.si
+  ssh-keyscan -4 -t ed25519,ecdsa,rsa vps.kogler.si | ssh-keygen -lf -   # fingerprints match report
+  ssh -o BatchMode=yes ansible-admin@vps.kogler.si                        # Permission denied (publickey)
+  ssh -o IdentitiesOnly=yes -o IdentityFile=.ssh/laptop-domen_ssh.pub …   # offered SHA256:XTmK3tR… explicit → REFUSED
+  ssh -o IdentitiesOnly=yes -o IdentityFile=.ssh/ansible-admin_ssh.pub …  # offered SHA256:1uKzmwf… explicit → REFUSED
+  ```
+- **Findings / diagnosis:**
+  - Both vault identities (the exact two pubkeys injected into the Custom Script) are rejected ⇒ `/home/ansible-admin/.ssh/authorized_keys` absent ⇒ the script **did not reach step 2**.
+  - Under `set -euo pipefail` the prime suspect is step 1 (`apt-get update && apt-get install …`) failing during late-install (network/apt not ready).
+  - Server offers `publickey` ONLY for `ansible-admin` (verbose capture) — consistent with the **Minimal** image variant shipping password-auth-off defaults rather than proof our drop-in applied; drop-in existence unverified.
+  - New deviation candidate: the **Minimal** installation method (first use; 2026-08-18 install method unrecorded — backfill gap) may behave differently around the Custom Script hook.
+- **Secrets touched:** root fallback password copied by owner into `netcup-vps_login` — ⚠ open question: owner said "Homelab vault"; plan Table B expects it in the **separate break-glass vault** (SA-invisible, cannot verify — owner to confirm placement).
+- **Next:** break-glass diagnostics via netcup SCP console / root fallback; surgical remediation of user+keys (+drop-in if absent); then re-run this verify; root cause decides whether the owning doc needs a Minimal-image warning.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
