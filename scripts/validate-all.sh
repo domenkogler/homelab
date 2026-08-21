@@ -10,6 +10,7 @@
 #   5. validate-secrets.py         — no literal credentials in group_vars/templates
 #   6. check_doc_map.py            — docs/index.md document map matches docs/ tree
 #   7. check_generated_suffix.py    — every machine-generated doc carries the -generated suffix
+#   8. check_vault_name.py          — vault is 'Homelab-ansible' (no bare Homelab refs, HD-189)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
 set -euo pipefail
@@ -47,5 +48,8 @@ $PY scripts/check_doc_map.py
 
 echo "== check_generated_suffix.py =="
 $PY scripts/check_generated_suffix.py
+
+echo "== check_vault_name.py =="
+$PY scripts/check_vault_name.py
 
 echo "OK: all validators passed"

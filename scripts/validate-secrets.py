@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Lint: no literal credential values in IaC group_vars/host_vars/role defaults.
+"""Lint: no literal credential values in the IaC variable layer + templates.
 
 Enforces the repo's secret policy (CONVENTIONS.md §secrets, deployment-secrets.md):
-secrets live in the 1Password `Homelab` vault and are injected via
+secrets live in the 1Password `Homelab-ansible` vault and are injected via
 `lookup('community.general.onepassword', ...)` at template render time. A literal
 secret VALUE must never be committed.
+
+Scan scope (HD-189): group_vars/host_vars/*.yml, role defaults/tasks/vars/*.yml,
+roles/*/files/*, and every rendered template (templates/**/*.j2) — a literal
+credential pasted into a compose template is caught by no other gate.
 
 This linter greps for literal credential *values* in the IaC variable layer:
   * PEM/OpenSSH private-key blocks
@@ -81,6 +85,14 @@ def _is_placeholder(value: str) -> bool:
     if not v or v.lower() in {"null", "none", "~", "{}", "[]", "''", '""'}:
         return True
     if "{{" in v or "lookup(" in v.lower():
+        return True
+    # Boolean / numeric knobs are policy flags, not credentials (e.g.
+    # `OC_SHARING_PUBLIC_SHARE_MUST_HAVE_PASSWORD: "true"`, `AUTHENTIK_TOKEN_LENGTH: "86"`).
+    if v.lower() in {"true", "false", "yes", "no", "on", "off"} or re.fullmatch(r"\d+", v):
+        return True
+    # Env-var indirection, never a literal (LiteLLM `api_key: os.environ/OPENROUTER_API_KEY`,
+    # Python `os.environ.get('HA_FAILOVER_TOKEN', '')`).
+    if "os.environ" in v:
         return True
     low = v.lower()
     if any(
@@ -169,9 +181,22 @@ def _targets() -> list[Path]:
         base = ANSIBLE / sub
         if base.is_dir():
             paths.extend(p for p in base.rglob("*.yml") if p.is_file())
-    for role_glob in ("roles/*/defaults/*.yml", "roles/*/tasks/*.yml"):
+    for role_glob in (
+        "roles/*/defaults/*.yml",
+        "roles/*/tasks/*.yml",
+        "roles/*/vars/*.yml",   # HD-189: role vars layer was not scanned
+    ):
         for p in ANSIBLE.glob(role_glob):
             if p.is_file() and p not in paths:
+                paths.append(p)
+    # HD-189: rendered templates + role files were blind spots — a literal
+    # credential pasted into a compose template was caught by nothing.
+    if (ANSIBLE / "templates").is_dir():
+        paths.extend(p for p in (ANSIBLE / "templates").rglob("*.j2") if p.is_file())
+    files_dir = ANSIBLE / "roles"
+    if files_dir.is_dir():
+        for p in files_dir.glob("*/files/*"):
+            if p.is_file() and not p.is_symlink():
                 paths.append(p)
     return sorted(set(paths))
 
@@ -185,12 +210,12 @@ def main() -> int:
     if bad:
         print(
             f"\nFAIL: {bad} possible literal credential(s) in IaC — move them to "
-            "1Password `Homelab` vault and reference via "
+            "1Password `Homelab-ansible` vault and reference via "
             "lookup('community.general.onepassword', ...) in templates.",
             file=sys.stderr,
         )
         return 1
-    print("OK: no literal credentials in group_vars/host_vars/role defaults")
+    print("OK: no literal credentials in group_vars/host_vars/role defaults/templates")
     return 0
 
 

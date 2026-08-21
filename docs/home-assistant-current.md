@@ -113,7 +113,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 ### 6.4 Weather (1 provider — HD-22 decided)
 | Integration | Entity | Notes |
 |---|---|---|
-| **meteoblue** (core) | `weather.meteoblue_kogler_si_maribor` | **Single authoritative source** (Maribor, `{{ home_latitude }}/{{ home_longitude }}`). Replaces third-party HACS "Weather 2000" + core `met` (both dropped). Key = `meteoblue_api` (1Password Homelab). Hourly + 7-day forecast; Slovenia is modeled well. Configured in `configuration.yaml.j2` (IaC). |
+| **meteoblue** (core) | `weather.meteoblue_kogler_si_maribor` | **Single authoritative source** (Maribor, `{{ home_latitude }}/{{ home_longitude }}`). Replaces third-party HACS "Weather 2000" + core `met` (both dropped). Key = `meteoblue_api` (1Password Homelab-ansible). Hourly + 7-day forecast; Slovenia is modeled well. Configured in `configuration.yaml.j2` (IaC). |
 
 ### 6.5 System / HAOS-level
 | Integration | Observed | Notes |

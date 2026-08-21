@@ -15,7 +15,7 @@
 # Adding a family member = add them to the Authentik "family" group; the next timer
 # run provisions everything else. (Per HD-131 D5.)
 #
-# Secrets: 1Password Homelab vault via the `op` CLI (must be signed in). No secrets
+# Secrets: 1Password Homelab-ansible vault via the `op` CLI (must be signed in). No secrets
 # are committed; this script looks them up at run time.
 # =============================================================================
 set -euo pipefail
@@ -25,12 +25,12 @@ FAMILY_GROUP_NAME="family"
 USERS_ROOT="${USERS_ROOT:-/tank/data/users}"
 STORAGE_GID="${STORAGE_GID:-1005}"
 
-get_ak_token() { op read "op://Homelab/authentik-api_token/credential"; }
+get_ak_token() { op read "op://Homelab-ansible/authentik-api_token/credential"; }
 # OpenCloud provisioning uses the dedicated least-privilege SERVICE ACCOUNT
 # (opencloud-service_api), NOT the interactive admin (`opencloud_login`). The
 # service account must exist (HD-141/HD-145 requirement).
-get_oc_service_user() { op read "op://Homelab/opencloud-service_api/username"; }
-get_oc_service_pass() { op read "op://Homelab/opencloud-service_api/credential"; }
+get_oc_service_user() { op read "op://Homelab-ansible/opencloud-service_api/username"; }
+get_oc_service_pass() { op read "op://Homelab-ansible/opencloud-service_api/credential"; }
 
 echo "== Fetching family group members from Authentik =="
 AK_TOKEN="$(get_ak_token)"

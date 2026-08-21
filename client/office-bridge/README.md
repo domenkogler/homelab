@@ -24,7 +24,7 @@
 # - bridge binds to OFFICE_BRIDGE_HOST = the client's Headscale overlay IP (100.x), NOT
 #   0.0.0.0 (bridge.py refuses it). LAN/public interfaces are not bound (HD-109).
 # - Windows firewall: allow OFFICE_BRIDGE_PORT on the Headscale adapter only.
-# - Token: generate + store in 1Password `Homelab` (item e.g. `office_bridge_api`,
+# - Token: generate + store in 1Password `Homelab-ansible` (item e.g. `office_bridge_api`,
 #   api -> credential). Injected into bridge.env on the client; never committed (see
 #   .gitignore for bridge.env).
 

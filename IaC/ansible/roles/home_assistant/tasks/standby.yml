@@ -37,7 +37,7 @@
     that:
       - (lookup('community.general.onepassword', 'ha-failover_api', field='credential', vault=op_vault) | length) >= 16
     fail_msg: >-
-      1Password item ha-failover_api (Homelab vault, api → credential) must be a
+      1Password item ha-failover_api (Homelab-ansible vault, api → credential) must be a
       random string >= 16 chars — shared by the Homepage failover buttons and the
       trigger API. Generate e.g. `openssl rand -hex 16` and store it there.
   tags: [ha_failover, hd17]

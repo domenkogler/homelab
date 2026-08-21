@@ -11,7 +11,7 @@ Usage:
 
 The bcrypt cost factor is fixed at 12 (Prometheus's documented default). Output is a
 single line — paste it into the htpasswd secret. Never commit the password or the
-generated hash to the repo (secrets live in 1Password `Homelab` only).
+generated hash to the repo (secrets live in 1Password `Homelab-ansible` only).
 """
 import getpass
 import sys

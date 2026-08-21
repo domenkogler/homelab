@@ -173,7 +173,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Mode-driven** via `nut_mode` (host_vars): `master` (nas) / `client` (oldsrv, ha). See `docs/hardware-ups.md`, `docs/observability.md`.
 - **master (nas):** `nut-server` + `usbhid-ups` (USB HID), `upsd` listening `LISTEN 10.10.1.10:3493`, `nut_exporter` as a **host binary** (nas has no Docker) + systemd, `upssched-cmd` direct email/Signal notify (independent of Grafana/n8n).
 - **client (oldsrv, ha):** `nut-client` + `upsmon` slave → `MONITOR powerwalker@{{ nut_host }} …`, per-host `shutdown_delay_seconds` (oldsrv 60 / ha 0).
-- **Secrets:** `nut_password` + notify SMTP/Signal (`smtp_login`) from 1Password `Homelab` at render time.
+- **Secrets:** `nut_password` + notify SMTP/Signal (`smtp_login`) from 1Password `Homelab-ansible` at render time.
 
 ### `amd_rocm`
 - Official AMD ROCm repo (Debian-compatible path); packages `rocm-hip-sdk`, `rocm-opencl-sdk`
@@ -318,7 +318,7 @@ critical for Phase 1 where services must run headless.
 
 ## 1Password Secret Naming Convention
 
-All secrets live in the `Homelab` vault. Naming pattern: `<service>_<type>` (service uses `-`, single `_` delimiter).
+All secrets live in the `Homelab-ansible` vault. Naming pattern: `<service>_<type>` (service uses `-`, single `_` delimiter).
 See `docs/deployment-secrets.md` for the full master list + rename map (including `cloudflare_api`).
 
 | Item Name | Used By |

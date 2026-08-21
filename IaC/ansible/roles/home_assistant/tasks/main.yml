@@ -54,7 +54,7 @@
 #    - journald Storage=volatile
 #    - /var/log mounted as tmpfs
 #
-# Secrets (1Password vault 'Homelab'):
+# Secrets (1Password vault 'Homelab-ansible'):
 #    - ha_api (long-lived), ha-mqtt_login (if MQTT added), ha-vrrp_password, ha-failover_api
 #    - Home→IoT trusted-IP rules for MQTT/HA must cover the VIP (10.10.1.200), not per-node IPs
 #    - Home→IoT/Home rules must let the RaspberryMatic XML-RPC ports 2001/2010 (fixed CCU IP) and

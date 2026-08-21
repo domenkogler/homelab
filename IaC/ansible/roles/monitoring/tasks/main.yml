@@ -20,7 +20,7 @@
 #   2. Alloy installation + config (host metrics, container logs, SNMP, remote_write)
 #   3. Grafana provisioning (datasources, dashboards, alert rules)
 #
-# Secrets (1Password vault 'Homelab'):
+# Secrets (1Password vault 'Homelab-ansible'):
 #   ha_api (credential) — HA long-lived API token for Prometheus scraping
 #
 # Ordering: after docker_services (needs Grafana, Prometheus, Loki containers up)

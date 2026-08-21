@@ -6,7 +6,7 @@
 #
 #   * Static IPs / VLANs come from IaC/ansible/group_vars/all.yml (SSOT).
 #   * Secrets (PPPoE login, MikroTik admin password) are resolved from the
-#     `Homelab` 1Password vault at render time and NEVER stored in the repo.
+#     `Homelab-ansible` 1Password vault at render time and NEVER stored in the repo.
 #
 # Run standalone (on the management laptop, with `op` signed in):
 #   ansible-playbook playbooks/render-routeros.yml -i inventory.ini

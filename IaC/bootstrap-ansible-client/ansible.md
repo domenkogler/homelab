@@ -16,7 +16,7 @@
 
 Nato sledite navodilom na zaslonu, da ustvarite svojega Linux uporabnika (npr. admin) in geslo.
 
-Uporabniško ime in geslo shrani v 1password valut: Homelab
+Uporabniško ime in geslo shrani v 1password valut: Homelab-ansible
 
 # Priprava okolja za upravljanje
 

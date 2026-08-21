@@ -15,7 +15,7 @@
 #
 # Requirements:
 #   * community.general collection (requirements.yml) — provides cloudflare_dns
-#   * `cloudflare_api` in 1Password Homelab (credential field)
+#   * `cloudflare_api` in 1Password Homelab-ansible (credential field)
 #   * Egress IP must be 193.77.156.222 (token IP filter) — home control plane only.
 #
 # The record list is the SSOT in roles/cloudflare_dns/vars/main.yml.

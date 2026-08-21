@@ -83,7 +83,7 @@ Two identity models are in use on the runner:
 | Symptom | Cause / fix |
 |---------|-------------|
 | `error: could not find session token for account` | `OP_SERVICE_ACCOUNT_TOKEN` not exported in this shell — source `~/.bashrc` (interactive shell only) |
-| `"<item>" isn't an item in the "Homelab" vault` | Item missing (not an auth failure) — create it in 1Password, or check the exact name/field |
+| `"<item>" isn't an item in the "Homelab-ansible" vault` | Item missing (not an auth failure) — create it in 1Password, or check the exact name/field |
 | `Unable to sign in to 1Password. Missing required parameters` | Token absent — install/export `OP_SERVICE_ACCOUNT_TOKEN` |
 | `op vault list` only shows some vaults | Service account lacks read grant on the needed vault |
 | `Permission denied (publickey)` to a host | Runner's SSH key not authorized in that host's `authorized_keys` |

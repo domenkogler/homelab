@@ -14,7 +14,7 @@ Preverite, da teče na različici WSL 2
 
 Nato sledite navodilom na zaslonu, da ustvarite svojega Linux uporabnika (npr. admin) in geslo.
 
-Uporabniško ime in geslo shrani v 1password valut: Homelab
+Uporabniško ime in geslo shrani v 1password valut: Homelab-ansible
 
 2. Ko se namestitev zaključi in ustvarite uporabnika, morate v Debianu na PC-ju **omogočiti systemd** (ki ga Docker in SSH nujno potrebujeta za delovanje v ozadju znotraj WSL2).V Debian terminalu na PC-ju ustvarite konfiguracijsko datoteko:
 

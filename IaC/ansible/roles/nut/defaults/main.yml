@@ -28,7 +28,7 @@ nut_exporter_listen: ":9199"
 nut_exporter_vars: "battery.charge,battery.charge.low,battery.runtime,battery.runtime.low,battery.voltage,battery.voltage.nominal,input.voltage,input.voltage.nominal,output.voltage,ups.load,ups.status"
 
 # --- Notify (upssched-cmd) — direct email + optional Signal on ONBATT/LOWBATT,
-# independent of Grafana/n8n. Recipient + SMTP creds from 1Password Homelab.
+# independent of Grafana/n8n. Recipient + SMTP creds from 1Password Homelab-ansible.
 nut_notify_email: "{{ lookup('community.general.onepassword', 'smtp_login', field='username', vault=op_vault) }}"
 
 # upsmon auth password (shared between upsd.users / upsd + clients) — 1Password at render.

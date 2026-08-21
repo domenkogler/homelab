@@ -10,7 +10,7 @@
 # IMPORTANT: the cloudflare_api token is IP-filtered to 193.77.156.222 — run this
 # from the home control plane (management laptop/workstation), not the VPS/CI.
 
-- name: Resolve Cloudflare API token from 1Password (Homelab)
+- name: Resolve Cloudflare API token from 1Password (Homelab-ansible)
   ansible.builtin.set_fact:
     cf_api_token: "{{ lookup('community.general.onepassword', 'cloudflare_api', field='credential', vault=op_vault) }}"
 

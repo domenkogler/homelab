@@ -1,6 +1,6 @@
 # prometheus web-config.yml — Basic Auth for the Prometheus HTTP endpoint (HD-59)
 #   Prometheus `--web.config.file` requires bcrypt-hashed passwords in `basic_auth_users`.
-#   Rendered by the docker_services role; hash seeded from 1Password `Homelab`
+#   Rendered by the docker_services role; hash seeded from 1Password `Homelab-ansible`
 #   `prometheus-internal_api` (username = user, password = the PLAINTEXT password the
 #   secret stores; this template must therefore hold the BCRYPT hash — see
 #   `scripts/gen-htpasswd.py`, which emits `username:bcrypt`).

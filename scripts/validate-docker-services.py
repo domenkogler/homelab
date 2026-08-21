@@ -2,7 +2,8 @@
 """
 Validate docker_services compose templates from group_vars/*.yml.
 
-Checks all 41 compose templates:
+Checks every compose template under templates/docker_services/ referenced by a
+group_vars docker_services list (count is derived — see the count-lint below):
   1. Template file exists
   2. Jinja2 renders without error (mocked 1Password lookups)
   3. Rendered YAML parses correctly
@@ -23,60 +24,17 @@ from pathlib import Path
 from jinja2 import Environment, StrictUndefined
 import yaml
 
-ROOT = Path(".")
+ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = ROOT / "IaC" / "ansible" / "templates" / "docker_services"
 GROUP_VARS_DIR = ROOT / "IaC" / "ansible" / "group_vars"
 
-# ── Network assignments per deployment-compose.md ────────────────────────
-NETWORK_MAP = {
-    "traefik":           {"traefik-public"},
-    "crowdsec":          {"traefik-public"},
-    "authentik":         {"traefik-public", "services-internal", "db-internal"},
-    "opencloud":         {"traefik-public"},
-    "immich-app":        {"traefik-public", "services-internal"},
-    "forgejo":           {"traefik-public", "services-internal", "db-internal"},
-    "ollama":            {"services-internal"},
-    "immich-ml":         {"services-internal"},
-    "technitium":        {"traefik-public", "services-internal"},
-    "pihole":            {"services-internal"},
-    "home-assistant-standby": {"services-internal"},
-    "raspberrymatic":    {"homematic"},
-    "technitium-secondary": {"traefik-public", "services-internal"},
-    "headscale":         {"traefik-public"},
-    "kopia-server":      {"services-internal"},
-    "db-backup":         {"services-internal", "db-internal"},
-    "homepage":          {"traefik-public"},
-    "metabase":          {"traefik-public", "services-internal"},
-    "blackbox-exporter": {"services-internal"},
-    "loki":              {"db-internal"},
-    "prometheus":        {"db-internal"},
-    "grafana":           {"traefik-public", "db-internal"},
-    "open-webui":        {"traefik-public", "services-internal", "db-internal"},   # HD-101: edge + LiteLLM/Docling + PGVector
-    "signal-cli-rest-api": {"services-internal"},
-    "dozzle":            {"traefik-public"},
-    "sunshine":          {"services-internal"},
-    "n8n":               {"traefik-public", "services-internal"},
-
-    "renovate":          {"services-internal"},
-    "sunshine":          {"services-internal"},
-    "jellyfin":          {"services-internal", "traefik-public"},
-    "seerr":             {"services-internal", "traefik-public"},
-    "sonarr":            {"services-internal", "traefik-public"},
-    "radarr":            {"services-internal", "traefik-public"},
-    "lidarr":            {"services-internal", "traefik-public"},
-    "prowlarr":          {"services-internal", "traefik-public"},
-    "immich-app":        {"traefik-public", "services-internal", "db-internal"},
-    "immich-ml":         {"services-internal"},
-    "bazarr":            {"services-internal", "traefik-public"},
-    "sabnzbd":           {"services-internal", "traefik-public"},
-    "qbittorrent":       {"services-internal", "traefik-public"},
-    "profilarr":         {"services-internal", "traefik-public"},
-    "recyclarr":         {"services-internal"},
-    "matrix":            {"traefik-public", "services-internal"},
-    "element-web":       {"traefik-public"},
-    "chat":              {"traefik-public"},
-    "traefik-ha":        set(),
-}
+# ── Network assignments ──────────────────────────────────────────────
+# Per-service network allowlists were REMOVED (HD-189, decided HD-204): the
+# hand-maintained NETWORK_MAP was dead code (the defined_nets escape made it
+# unfireable) and had already drifted (stale immich/sunshine entries vs HD-59's
+# llm-backend move). Enforcement relies on the external-networks rule below
+# (every declared network must be external: true) + the assignment tables in
+# docs/deployment-compose.md.
 
 # Services that don't need Traefik labels (are their own reverse proxy)
 NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent"}  # qbittorrent labels are on gluetun sidecar
@@ -115,7 +73,6 @@ WEB_SERVICES = {
     "traefik", "authentik", "opencloud", "forgejo", "homepage", "metabase",
     "grafana", "headscale", "element-web", "matrix",
     "jellyfin", "seerr", "sonarr", "radarr", "lidarr", "prowlarr", "bazarr",
-    "traefik",
     "sabnzbd", "qbittorrent", "profilarr",
     "immich-app",
     "dozzle",
@@ -130,102 +87,95 @@ WEB_SERVICES = {
 HOST_NET_SERVICES = {"traefik-ha"}
 HOST_NET_CONTAINERS = {"home-assistant-standby"}
 
-_EXTRA_TEMPLATES = {
-    "element-web": ["config.json.j2"],
-    "home-assistant-standby": ["keepalived.conf.j2"],
-    "loki": ["loki.yaml.j2"],
-    "matrix": ["tuwunel.toml.j2"],
-    "opencloud": ["csp.yaml.j2"],
-    "opencloud": ["csp.yaml.j2"],
-    "litellm": ["config.yaml.j2"],
-    "prometheus": ["prometheus.yml.j2", "prometheus-web-config.yml.j2"],
-    "headscale": ["config.yaml.j2"],
-    "recyclarr": ["recyclarr.yml.j2"],
-    "traefik": ["dynamic/routes.yml.j2", "dynamic/middlewares.yml.j2"],
-    "traefik-ha": ["dynamic/routes.yml.j2"],
-}
+# Extra .j2 templates per service are NOT duplicated here any more (HD-189):
+# the SSOT is roles/docker_services/defaults/main.yml `_extra_templates` — the
+# same mapping the deploy loop renders. Loaded once at startup (fail-loud).
+def load_extra_templates():
+    p = ROOT / "IaC" / "ansible" / "roles" / "docker_services" / "defaults" / "main.yml"
+    try:
+        data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as e:
+        print(f"FAIL: cannot read docker_services role defaults ({p}): {e}", file=sys.stderr)
+        sys.exit(1)
+    extra = data.get("_extra_templates")
+    if not isinstance(extra, dict) or not extra:
+        print(f"FAIL: {p} is missing the '_extra_templates' mapping", file=sys.stderr)
+        sys.exit(1)
+    return extra
 
 # ── Render context ───────────────────────────────────────────────────────
-BASE_CTX = {
-    # Render mocks for version pins. Source of truth: group_vars/all/versions.yml
-    # (HD-156) — keep these values in sync with it. Values below mirror the
-    # single-file version sheet so compose templates render testably without Ansible.
-    "timezone": "Europe/Ljubljana",
-    "op_vault": "Homelab",
-    "domain_public": "kogler.si",
-    "domain_local": "kogler.si",
-    "letsencrypt_email": "domen@kogler.si",
-    "traefik_version": "v3.5.2",
-    "certs_dumper_version": "v2.8.3",
-    "keepalived_version": "2.3.4",
-    "pairdrop_version": "1.11.2",
-    "stirling_pdf_version": "2.14.3-fat",
-    "pgvector_version": "0.8.6-pg16-trixie",
-    "docling_version": "v1.30.0",
-    "litellm_version": "main-stable",
-    "openwebui_version": "0.11.0",
-    "openclaw_version": "2026.7.1",
-    "prometheus_version": "v3.14.0",
-    "loki_version": "3.7.6",
-    "blackbox_exporter_version": "v0.28.0",
-    "storage_uid": "1005",
-    "storage_gid": "1005",
-    "tuwunel_version": "latest",
+def _load_ssot_ctx():
+    """Load render-context values straight from the SSOT so the validator's
+    context cannot drift from group_vars (HD-189): versions.yml wholesale
+    (every *_version pin, HD-156 single sheet) + selected PLAIN-valued vars
+    from all.yml. Derived/Jinja-valued all.yml vars (technitium_secondary_ip,
+    wg_s2s_vps, nut_exporter_host …) are NOT loaded — they stay as explicit
+    mocks in BASE_CTX below."""
+    ctx = {}
+    vp = GROUP_VARS_DIR / "all" / "versions.yml"
+    try:
+        ctx.update(yaml.safe_load(vp.read_text(encoding="utf-8")) or {})
+    except (OSError, yaml.YAMLError) as e:
+        print(f"FAIL: cannot read version pins ({vp}): {e}", file=sys.stderr)
+        sys.exit(1)
+    ap = GROUP_VARS_DIR / "all.yml"
+    try:
+        data = yaml.safe_load(ap.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as e:
+        print(f"FAIL: cannot read group_vars/all.yml: {e}", file=sys.stderr)
+        sys.exit(1)
+    for k in (
+        "timezone", "op_vault", "domain_public", "domain_local",
+        "letsencrypt_email", "gpu_render_gid", "gpu_video_gid",
+        "crowdsec_collections", "wildcard_cert_file", "wildcard_cert_key_file",
+        "wildcard_cert_domain", "ha_vip", "ha_vip_cidr", "network_ranges",
+        "kopia_sftp_host", "kopia_sftp_port", "kopia_sftp_user", "kopia_sftp_path",
+    ):
+        if k in data:
+            ctx[k] = data[k]
+    # Neutral shared-data owner (HD-94) — SSOT: roles/storage/defaults/main.yml.
+    sp = ROOT / "IaC" / "ansible" / "roles" / "storage" / "defaults" / "main.yml"
+    try:
+        sdata = yaml.safe_load(sp.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as e:
+        print(f"FAIL: cannot read storage role defaults ({sp}): {e}", file=sys.stderr)
+        sys.exit(1)
+    for k in ("storage_uid", "storage_gid"):
+        if k in sdata:
+            ctx[k] = sdata[k]
+    return ctx
+
+
+BASE_CTX = _load_ssot_ctx()
+# True mocks only — host/instance-specific or secret stand-ins that have no
+# plain group_vars equivalent. Version pins, vault name, GPU gids, network
+# ranges and kopia S2S target come from the SSOT via _load_ssot_ctx() above.
+BASE_CTX.update({
     "homematic_usb_by_id": "/dev/serial/by-id/usb-eQ-3__HmIP-RFUSB_TEST",
-    "wildcard_cert_file": "kogler.si.pem",
-    "wildcard_cert_key_file": "kogler.si-key.pem",
-    "wildcard_cert_domain": "kogler.si",
     "technitium_secondary_ip": "10.10.1.20",
-    "ha_vip": "10.10.1.200",
-    "ha_vip_cidr": "24",
     "ansible_user": "ansible-admin",
     "inventory_hostname": "oldsrv.kogler.si",
     "homelab_mode": "desktop",
     "gpu_vendor": "amd",
     "ollama_keep_alive": "5m",
-    "gpu_render_gid": "123",
-    "gpu_video_gid": "124",
-    "crowdsec_bouncer_plugin_version": "v0.4.0",
-    "crowdsec_version": "v1.7.8",
-    "crowdsec_collections": "crowdsecurity/traefik crowdsecurity/linux",
-    "authentik_db_name": "authentik",
-    "authentik_version": "2026.5.6",
-    "opencloud_version": "7.4.0",
-    "onlyoffice_version": "9.3.0.1",   # ONLYOFFICE Docs Server — WOPI helper (HD-166)
-    "forgejo_version": "16.0.2",
     "home_assistant_version": "stable",
-    "headscale_version": "0.29.3",
-    "kopia_version": "0.23.1",
-    "db_backup_version": "4.1.100",
-    "grafana_version": "13.2.0",
-    "immich_version": "v3.1.0",
-    "n8n_version": "2.35.3",
     "rmat_name": "raspberrymatic",
     "rmat_restart": "unless-stopped",
     "instance": "primary",
 
     "forgejo_api": "secret456",
+    "authentik_db_name": "authentik",
     "opencloud_log_level": "info",
-    "kopia_sftp_host": "u653424.your-storagebox.de",
-    "kopia_sftp_port": 23,
-    "kopia_sftp_user": "u653424",
-    "kopia_sftp_path": "/kopia",
     "grafana_smtp_host": "localhost:25",
     "ha_primary_state": "MASTER",
     "ha_primary_priority": 110,
     "ha_primary_peer_priority": 90,
-    "network_ranges": [
-        {"name": "traefik-public",    "cidr": "172.20.0.0/16", "purpose": "docker edge"},
-        {"name": "services-internal", "cidr": "172.21.0.0/16", "purpose": "app mesh"},
-        {"name": "db-internal",       "cidr": "172.22.0.0/16", "purpose": "database"},
-        {"name": "site",              "cidr": "10.10.0.0/16",  "purpose": "site"},
-    ],
-    # VPS wg-s2s peer address (group_vars/all.yml `wg_s2s_vps`), used by
-    # prometheus/loki to bind on the tunnel address so oldsrv Alloy can reach them.
+    # VPS wg-s2s peer (group_vars/all.yml `wg_s2s_vps`) — kept as a mock because
+    # the real value embeds Jinja lookups/derivations; shape mirrors the SSOT.
     "wg_s2s_vps": {"ip": "10.255.40.2", "local_ip": "10.255.40.2/30", "router_ip": "10.255.40.1",
                     "listen_port": 51820, "endpoint": "", "peer_public_key": "mock-router-pubkey",
                     "allowed_ips": ["10.10.0.0/16", "10.255.20.0/24"]},
-}
+})
 # ── Mock helpers ─────────────────────────────────────────────────────────
 
 def mock_lookup(*args, **kwargs):
@@ -383,11 +333,11 @@ def validate_render(name, j2_path, env, service):
             if svc_def.get("ports"):
                 errors.append(f"{prefix} network_mode: host combined with ports:")
         elif name not in NETWORK_MODE_SERVICE:
-            allowed = NETWORK_MAP.get(name, set())
-            if svc_nets and not svc_nets.issubset(allowed | defined_nets):
-                unexpected = svc_nets - allowed - defined_nets
-                if unexpected:
-                    errors.append(f"{prefix} unexpected networks {unexpected}")
+            # Network assignment policy lives in docs/deployment-compose.md;
+            # enforcement here = every referenced network must be declared
+            # external: true at the top level (checked below). The old
+            # per-service NETWORK_MAP allowlist was dead code, deleted HD-189.
+            pass
 
         # every referenced network must be declared external: true at the top
         # (convention: the role creates the networks; compose must never create them)
@@ -420,9 +370,9 @@ def validate_render(name, j2_path, env, service):
             if top and router:
                 errors.append(f"{prefix} redundant top-level traefik.tls.certresolver")
 
-    # Extra template files exist
+    # Extra template files exist (SSOT: roles/docker_services/defaults/main.yml)
     template_dir = TEMPLATES_DIR / service.get("template_dir", name)
-    for extra in _EXTRA_TEMPLATES.get(service.get("template_dir", name), []):
+    for extra in EXTRA_TEMPLATES.get(service.get("template_dir", name), []):
         if not (template_dir / extra).exists():
             errors.append(f"[{name}] missing extra template: {extra}")
 
@@ -432,24 +382,31 @@ def validate_render(name, j2_path, env, service):
 # ── Main ─────────────────────────────────────────────────────────────────
 
 def load_all_services():
-    """Load docker_services from all group_vars files (deduplicated by name)."""
+    """Load docker_services from all group_vars files (deduplicated by name).
+
+    Fail-loud (HD-189): a malformed YAML file used to be silently skipped
+    (`except: pass`) — fewer templates validated, gate still PASS. Now aborts
+    with the offending file + error."""
     seen = set()
     services = []
     for gv_file in sorted(GROUP_VARS_DIR.glob("*.yml")):
         try:
             data = yaml.safe_load(gv_file.read_text(encoding="utf-8"))
-            for svc in data.get("docker_services", []):
-                name = svc.get("name")
-                if name and name not in seen:
-                    seen.add(name)
-                    services.append(svc)
-        except Exception:
-            pass
+        except yaml.YAMLError as e:
+            print(f"FAIL: malformed YAML in {gv_file}: {e}", file=sys.stderr)
+            sys.exit(1)
+        for svc in (data or {}).get("docker_services", []):
+            name = svc.get("name")
+            if name and name not in seen:
+                seen.add(name)
+                services.append(svc)
     return services
 
 
 def main():
     env = build_env()
+    global EXTRA_TEMPLATES
+    EXTRA_TEMPLATES = load_extra_templates()
     services = load_all_services()
     services_by_name = {s.get("name"): s for s in services if s.get("name")}
 
@@ -469,7 +426,6 @@ def main():
         exists, j2_path = check_template_exists(only_name, service)
         if not exists:
             print(f"ERROR: template not found for {only_name}", file=sys.stderr)
-            sys
             sys.exit(1)
         ok, errors = validate_render(only_name, j2_path, env, service)
         if ok:

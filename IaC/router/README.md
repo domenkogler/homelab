@@ -59,7 +59,7 @@ are added by the **Ansible `router` role** (not the router template). AP → IP 
 | ap-dnevna | `64:D1:54:AA:24:D1` | `10.10.99.5` |
 | ap-spare | (TBD) | `10.10.99.6` |
 
-## Secrets referenced (1Password `Homelab` vault)
+## Secrets referenced (1Password `Homelab-ansible` vault)
 
 | 1Password item | Used for |
 |----------------|----------|
