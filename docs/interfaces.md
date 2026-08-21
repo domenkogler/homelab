@@ -32,8 +32,9 @@ tags: [services, interfaces, dashboards]
 ## Homepage — Family Launchpad
 
 - **Access:** `kogler.si` (root), Authentik Forward Auth
+- **Placement:** the **VPS**, next to the public edge (HD-180/HD-183) — the route is the compose's Docker-provider labels
 - **Content:** Grid of service tiles with green/red health dots
-- **Health checks:** oldsrv services via Docker socket
+- **Health checks:** widget/probe-based reachability — siteMonitor probes per tile + blackbox `probe_success` on the status widget; no Docker socket (on the VPS it would only see VPS containers)
 - **Auto-generated:** the Ansible post-deploy hook regenerates `services.yaml` + `widgets.yaml`
 - **Local-only links resolve on LAN/VPN only** (split-horizon)
 

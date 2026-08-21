@@ -34,6 +34,10 @@ docker_services:
   - { name: traefik,        template_dir: traefik,   enabled: true }
   - { name: crowdsec,       template_dir: crowdsec,  enabled: true }
   - { name: authentik,      template_dir: authentik, subdomain: sso, enabled: true }  # + bundled pg/redis
+  # Family launchpad at the public edge (HD-180/HD-183): kogler.si root + home alias via
+  # the compose's Docker-provider labels; Forward-Auth consumer (not native OIDC), so it
+  # may sit anywhere after authentik.
+  - { name: homepage,       template_dir: homepage, subdomain: home, enabled: true }
   # === Public live-data apps + co-located DBs (NVMe) ===
   - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true }  # + bundled db
   - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, enabled: true }  # WOPI helper for opencloud (HD-166); NO auth surface

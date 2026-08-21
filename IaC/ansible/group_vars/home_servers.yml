@@ -3,7 +3,7 @@
 #
 # === Service placement (HD-135 split, 2026-08-18) ===
 # Old-srv keeps the GPU / LAN / storage-bound core (ollama, immich-ml, jellyfin,
-# sunshine, media/*arr, DNS, ha-standby, homepage, dozzle) + the thin Alloy collector.
+# sunshine, media/*arr, DNS, ha-standby, dozzle) + the thin Alloy collector.
 # The public edge + live-data apps + AI stack + observability backend + alert brain
 # (n8n) + backup agents moved to the VPS (group_vars/vps.yml). See docs/services.md.
 
@@ -74,9 +74,6 @@ docker_services:
   # home-assistant-standby on manual forward takeover.
   - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: false }
 
-  # --- Dashboard (family launchpad; MOVES TO THE VPS per HD-180 — move tracked HD-183 ⏳) ---
-  - { name: homepage,        template_dir: homepage, subdomain: home }
-
   # --- Observability: per-host log viewer (docker.sock = oldsrv containers) ---
   # NOTE: the central backend (prometheus/loki/grafana) is on the VPS; Alloy (host,
   # monitoring role) forwards oldsrv metrics/logs over the wg-vps-services tunnel.
@@ -102,5 +99,6 @@ docker_services:
   # --- Services MOVED to the VPS (group_vars/vps.yml) — not deployed on oldsrv ---
   # opencloud/immich-app/forgejo/litellm/pgvector/docling/open-webui/openclaw,
   # prometheus/loki/grafana/blackbox-exporter (backend on VPS), n8n, kopia-server,
-  # db-backup, matrix, chat, headscale, metabase, pairdrop, stirling-pdf, renovate.
+  # db-backup, matrix, chat, headscale, metabase, pairdrop, stirling-pdf, renovate,
+  # homepage (HD-180/HD-183 — family launchpad at the public edge).
   # MinIO REMOVED (2026-08-18, HD-135): Immich originals = live Hetzner Box (CIFS), not S3.

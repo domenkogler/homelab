@@ -35,7 +35,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 | [Observability](observability.md) | Alloy, Prometheus, Loki, Grafana, blackbox, Dozzle | — |
 
 **Standalone (owned here, no stack doc):**
-- **Homepage** (family launchpad, `kogler.si` root + `home`) — public Forward-Auth; status widget. **Moves to the VPS per HD-180** (decided 2026-08-21; move tracked **HD-183** ⏳ — until it lands, the compose still renders on oldsrv and the public root has no VPS-side route).
+- **Homepage** (family launchpad, `kogler.si` root + `home`) — public Forward-Auth; status widget. **Moved to the VPS** (HD-180; implemented **HD-183** ✅ 2026-08-21): the route is the compose's Docker-provider labels, live on the VPS edge; reachability is widget/probe-based (no Docker socket).
 - **Sunshine** — game streaming (manual start), AMD dGPU/VRAM.
 
 **Non-services (link out to owning domain):**
