@@ -73,15 +73,17 @@
 
 #### B) Account / connection refs — NOT consumed by Ansible (human maintenance / break-glass)
 
-> These live in 1Password for **a human / break-glass recovery**, not as an Ansible `lookup`. They do not gate
-> a deployment phase; keep them in the vault for operating-account access, not in a compose template.
+> These live in the **Homelab (human)** vault (or a separate break-glass vault) — deliberately NOT in
+> `Homelab-ansible`, so the Ansible Service Account cannot see them (least-access). They are not consumed
+> by Ansible lookups; they gate human operations only. `✓` = owner-verified present (an SA-scoped vault
+> audit cannot check this table).
 
 | Item | What it is | Vault | In OP? |
 |------|-------------------------|-------|--------|
-| `netcup-ccp_login` | netcup Customer Control Panel login (billing/orders) | Ansible vault | ✗ (vault audit 2026-08-21: not found — create) |
-| `netcup-scp_login` | netcup Server Control Panel login (reboot/OS reset) | Ansible vault | ✗ (vault audit 2026-08-21: not found — create) |
-| `netcup-vps_login` | netcup root/OS credential — **separate break-glass vault** | separate vault | ? (invisible to the Ansible SA — confirm manually) |
-| `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Ansible vault | ✗ (vault audit 2026-08-21: not found — create before kopia first repo create) |
+| `netcup-ccp_login` | netcup Customer Control Panel login (billing/orders) | Homelab (human) vault | ✓ |
+| `netcup-scp_login` | netcup Server Control Panel login (reboot/OS reset) | Homelab (human) vault | ✓ |
+| `netcup-vps_login` | netcup root/OS credential — **separate break-glass vault** | separate break-glass vault | ✓ |
+| `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Homelab (human) vault | ✓ |
 
 > **Provisioning note:** the generated items — the DB items `authentik_db`/`opencloud_db`/`immich_db`/`forgejo_db`/
 > `pgvector_db`, the secrets `authentik_password`/`nut_password`/`nut-exporter_password`/`kopia_password`/

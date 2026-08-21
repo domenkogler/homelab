@@ -36,6 +36,10 @@ ROOT_SCAN = {"README.md", "CONVENTIONS.md", "todo.md", "changelog.md",
              "deployment-tasks.md", "readme-humans.md"}
 
 # Bare `Homelab` not followed by `-ansible` (word-boundary keeps `Homelable` out).
+# Exception: "Homelab (human)" — the documented human/break-glass vault, distinct
+# from the Ansible SA vault (two-vault model, deployment-tasks §0 table B, 2026-08-21):
+# those occurrences are stripped before matching.
+_HUMAN_VAULT = re.compile(r"\bHomelab \(human\)")
 _HOMELAB = re.compile(r"\bHomelab\b(?!-ansible)")
 # Vault-context tokens that make a bare `Homelab` a vault reference.
 _VAULT_CTX = re.compile(r"vault|1 ?password|onepassword|op_vault|op://", re.IGNORECASE)
@@ -83,7 +87,8 @@ def main() -> int:
         except (OSError, UnicodeDecodeError):
             continue
         for lno, line in enumerate(lines, 1):
-            if _HOMELAB.search(line) and _VAULT_CTX.search(line):
+            probe = _HUMAN_VAULT.sub("", line)   # canonical human-vault spelling is exempt
+            if _HOMELAB.search(probe) and _VAULT_CTX.search(probe):
                 violations.append(f"{path.relative_to(ROOT)}:{lno}: bare 'Homelab' "
                                   f"vault reference — use 'Homelab-ansible'")
     if violations:
