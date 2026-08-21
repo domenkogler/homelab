@@ -10,6 +10,10 @@
 > `docs/deployment-secrets.md` (secrets single source of truth).
 >
 > **Status tracking for sub-tasks / difficulty:** `todo.md` (HD-XX IDs).
+>
+> **Execution log:** every manual command, chosen setting, captured value and deviation is recorded
+> as-built in **[`deployment-journal.md`](deployment-journal.md)** (append-only). Steps get ticked
+> `- [x]` + date here as they complete; human-only steps carry a **`[MANUAL]`** prefix.
 
 > **✅ Decisions (2026-08-16 — overriding some phase wording below):** see `todo.md` for the full
 > rationale. **HD-92:** `oldsrv` stays bare-metal Debian + Docker (no Proxmox / no GPU passthrough on the

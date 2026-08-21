@@ -102,6 +102,8 @@ git push → (Forgejo Actions CI) → merge → deploy button → Ansible → de
 | Backup & disaster recovery | [`backup.md`](backup.md) |
 | ZFS storage layout & properties | [`storage.md`](storage.md) |
 | Dashboard matrix | [`interfaces.md`](interfaces.md) |
+| Deployment ledger (plan + progress) | [`../deployment-tasks.md`](../deployment-tasks.md) |
+| Deployment journal (as-built execution record) | [`../deployment-journal.md`](../deployment-journal.md) |
 
 ## Related
 
