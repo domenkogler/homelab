@@ -190,6 +190,18 @@
 - Owner also recorded: WSL user password stored as 1Password item *"Debian Ansible on Laptop P14s"* (personal vault).
 - **Re-run recipe from TRUE ZERO (for any future rebuild):** wsl unregister/install → bootstrap.sh (paste `op_api.credential`) → `chmod 700 ~/.config/op` (fixed in script) → canonical key restore (fingerprint `1uKzmwf…`) → test-1password.yml → `vps-run.sh` wrapper. All five attempt-defects above are already fixed in-repo.
 
+### 2026-08-22 — Phase 1 · deploy reached the HD-143 human gate — stack live up to Authentik pre-pass `[MANUAL]`
+
+- Continues the attempt log above (same work session).
+- **Attempt 6** — FAILED at HD-143 glue render: bash `${#arr[@]}` contains `{#`, which Jinja parses as a comment opener (`authentik-secret-egress.sh.j2`). Fix: explicit `SEEN_COUNT` counter (⚠ first fix attempt put the sequence into a COMMENT and broke again — lesson: scan the whole template, comments included).
+- **Attempt 7** — glue rendered + executed → rc=127 `op: command not found`: the egress script runs ON THE VPS and expects the 1Password CLI installed + authenticated there (it even reads `authentik-provision_api` itself via `op`). This is exactly the **HD-143 deploy-gated human prerequisite** (write-scoped token/item creation is an owner action in the 1P admin console). Playbook halted here BY DESIGN (fail-closed).
+- **Live state on vps.kogler.si at halt** (verified over SSH): all four Docker networks present (`traefik-public`, `services-internal`, `db-internal`, `llm-backend`) · CIFS `/mnt/storagebox` MOUNTED (earlier console CIFS timeout self-healed — watch it; if it recurs check cifs role vers/options vs Hetzner SMB3) · hardening active (no/no/3 + nftables with :22) · containers deployed up to the authentik pre-pass.
+- ⚠ Minor nit observed: `sudo: unable to resolve host vps` — hostname missing from `/etc/hosts` on the minimal image; candidate small fix for the common role (not blocking).
+- **Remaining to finish Phase 1 (owner decisions/actions):**
+  1. Create the write-scoped 1Password service account + item per HD-143 (`authentik-provision_api`); decide how the VPS's `op` authenticates (env token file? which vault scope?).
+  2. I wire provisioning of op+token onto the VPS (new role task or prepass guard change), then re-run — remaining roles: rest of docker_services (traefik/crowdsec/authentik/apps), monitoring.
+  3. Then the Phase 1 Verify block + Deploy-gated verification rows (HD-40A/135/149/143/144/146/166/159).
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
