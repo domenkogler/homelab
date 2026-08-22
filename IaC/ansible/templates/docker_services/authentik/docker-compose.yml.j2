@@ -95,7 +95,13 @@ services:
       - /srv/docker/authentik/media:/media
       - /srv/docker/authentik/certs:/certs
       - /srv/docker/authentik/templates:/templates
-      - ./blueprints:/blueprints
+      # Mounted as a SUBDIR: mounting /blueprints directly shadows the image's
+      # /blueprints/{system,default,migrations,...} tree — the server's migrate
+      # pre-start then dies on the missing /blueprints/system/bootstrap.yaml every
+      # ~9 s (found live Phase 1, 2026-08-22: server "healthy" but 502 on every
+      # route, core workers never binding). Discovery is recursive (system/ itself
+      # is a subdir), so /blueprints/custom is picked up normally.
+      - ./blueprints:/blueprints/custom
     environment:
       AUTHENTIK_SECRET_KEY: "{{ lookup('community.general.onepassword', 'authentik_password', field='password', vault=op_vault) }}"
       AUTHENTIK_TOKEN_LENGTH: "86"
@@ -160,6 +166,9 @@ services:
       - /srv/docker/authentik/media:/media
       - /srv/docker/authentik/certs:/certs
       - /srv/docker/authentik/templates:/templates
+      # Blueprint file-discovery also runs worker-side — mirror the server's
+      # /blueprints/custom mount so file-based blueprints are discovered+applied.
+      - ./blueprints:/blueprints/custom
     environment:
       AUTHENTIK_SECRET_KEY: "{{ lookup('community.general.onepassword', 'authentik_password', field='password', vault=op_vault) }}"
       AUTHENTIK_DISABLE_STARTUP_ANALYTICS: "true"

@@ -275,6 +275,27 @@
   (doc updated: prompt.md §1, deployment-manual.md How-to-use, todo.md HD-212 row;
   changelog HD-212 row left as-is — append-only.)
 
+### 2026-08-22 — Phase 1 · glue halt LAYER 2: /blueprints mount shadowed the image's system blueprints
+
+- Same session, after the `command: server` fix: pre-flight check-vault-items.sh green (43 items cover
+  all 30 needed — nothing to provision), sync gate green, FULL idempotent `vps.yml` re-run executed.
+  It deployed authentik with the new command and REACHED the HD-143 glue — one layer deeper than ever.
+- **New symptom:** authentik-server Up+"healthy" but EVERY route answers 502; router logs
+  `dial unix /dev/shm/authentik-core.sock: connect: no such file or directory`; gunicorn master runs,
+  no workers bind; raw logs show a ~9 s pre-start loop dying at `[Errno 2] No such file or directory:
+  '/blueprints/system/bootstrap.yaml'`.
+- **Root cause:** compose volume `- ./blueprints:/blueprints` SHADOWS the image's entire /blueprints
+  tree (`system/ default/ example/ migrations/ testing/ schema.json` — verified against the pristine
+  image via `docker run --rm --entrypoint sh …`). The server's migrate pre-start hard-requires
+  `/blueprints/system/bootstrap.yaml`; missing it, core workers never finish booting → no unix socket
+  → router 502s everything. This also explains why the container still passes its `ak healthcheck`
+  (process-level, not route-level).
+- **Fix (this change):** custom blueprints now mount at `/blueprints/custom` — on BOTH authentik-server
+  AND authentik-worker (file-based blueprint discovery also runs worker-side; recursive discovery is
+  proven by the image shipping system/ as its own subdir). Host-side layout unchanged
+  (/opt/authentik/blueprints/ks-oidc.yml).
+- Next: sync gate → full `vps.yml` re-run → expect health 200 + glue completing all providers.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
