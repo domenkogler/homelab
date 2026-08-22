@@ -94,15 +94,16 @@ services:
 
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
   # certs-dumper sidecar — turns Traefik's acme.json into the flat PEM pair the
-  # consumer edges depend on (each pulls /opt/traefik/certs from THIS host). Watch mode
-  # keeps ./certs in sync on every renewal. Image/CLI: ghcr.io/traware/certs-dumper
-  # (flat names via --crt-name/--key-name so the shared wildcard_cert_* vars can never drift).
+  # consumer edges depend on (each pulls /opt/traefik/certs from THIS host). Image:
+  # ldez/traefik-certs-dumper (registry-verified tag on Docker Hub, 2026-08-22; the
+  # previous ghcr.io/traware/certs-dumper:v2.8.3 does not exist — unverified pin).
+  # Wrapper: wait for acme.json → initial dump → rename to the shared wildcard_cert_*
+  # names → watch mode re-dumps + --post-hook re-renames on every renewal.
+  # NOTE --version=v3 = the TRAEFIK version (3.5), not the dumper version.
   certs-dumper:
-    image: ghcr.io/traware/certs-dumper:{{ certs_dumper_version }}
+    image: ldez/traefik-certs-dumper:{{ certs_dumper_version }}
     cap_drop:
       - ALL
-    cap_add:
-      - NET_BIND_SERVICE
     read_only: true
     tmpfs:
       - /tmp
@@ -111,13 +112,10 @@ services:
     volumes:
       - ./acme:/traefik/acme:ro
       - ./certs:/output
-    command:
-      - "file"
-      - "--version=v2"
-      - "--watch"
-      - "--source=/traefik/acme/acme.json"
-      - "--dest=/output"
-      - "--domain-name={{ wildcard_cert_domain }}"
+    entrypoint:
+      - sh
+      - -c
+      - 'while [ ! -s /traefik/acme/acme.json ]; do sleep 2; done; traefik-certs-dumper file --version=v3 --source=/traefik/acme/acme.json --dest=/output/dump; cp /output/dump/private/*{{ wildcard_cert_domain }}*.crt /output/{{ wildcard_cert_file }}; cp /output/dump/certs/*{{ wildcard_cert_domain }}*.key /output/{{ wildcard_cert_key_file }}; exec traefik-certs-dumper file --version=v3 --watch --source=/traefik/acme/acme.json --dest=/output/dump --post-hook="cp /output/dump/private/*{{ wildcard_cert_domain }}*.crt /output/{{ wildcard_cert_file }} && cp /output/dump/certs/*{{ wildcard_cert_domain }}*.key /output/{{ wildcard_cert_key_file }}"'
       - "--crt-name={{ wildcard_cert_file }}"
       - "--key-name={{ wildcard_cert_key_file }}"
 {% endif %}

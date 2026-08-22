@@ -13,7 +13,7 @@
 traefik_version: v3.5.2
 # traefik-certs-dumper (certs-dumper sidecar on oldsrv `traefik`) — extracts the
 # wildcard PEM pair out of acme.json into /opt/traefik/certs (the Pi edge syncs from these).
-certs_dumper_version: v2.8.3
+certs_dumper_version: v2.11.4  # registry-verified on Docker Hub ldez/traefik-certs-dumper (2026-08-22); previous v2.8.3 pin pointed at a nonexistent image path
 # CrowdSec Traefik bouncer plugin version — explicit (KOPS-029 / HD-87): previously the
 # hardcoded default in the traefik compose; now a group_var so Renovate can track it and it
 # stays in sync with the CrowdSec LAPI (drift would silently break blocking).
