@@ -24,6 +24,15 @@ Domača stran na **`kogler.si`** je glavna vstopna točka za vse storitve.
 | Git | `git.kogler.si` | Koda in dokumentacija |
 | Klepet | `chat.kogler.si` | Družinski klepet (Matrix) |
 
+<details>
+<summary>🔧 Kaj, če nekaj ne deluje? (hitri nasveti)</summary>
+
+- **Stran se ne odpre:** osveži brskalnik (Ctrl+F5) in preveri svojo internetno povezavo.
+- **Prijava ne gre skozi:** odjavi se in prijavi znova; geslo resetira Domen.
+- **Nič od tega ne pomaga:** sporoči Domnu — najbolje z zaslonsko sliko napake.
+
+</details>
+
 ---
 
 ## Agent skills & pi config (`skills/` → global pi folder)
