@@ -49,6 +49,10 @@ services:
     image: redis:7-alpine
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     read_only: true
     tmpfs:
       - /tmp

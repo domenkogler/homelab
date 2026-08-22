@@ -18,7 +18,7 @@
     executable: /bin/bash
   register: ak_egress
   until: ak_egress.rc == 0        # script exits 3 until the ks-oidc.yml blueprint is applied
-  retries: 12
+  retries: 30
   delay: 10
   changed_when: "'updated' in ak_egress.stdout or 'created' in ak_egress.stdout"
   tags: [authentik, secret-egress]
