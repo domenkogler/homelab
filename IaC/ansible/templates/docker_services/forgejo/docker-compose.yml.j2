@@ -21,9 +21,16 @@ services:
     image: codeberg.org/forgejo/forgejo:{{ forgejo_version }}
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETUID
+      - SETGID
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
     container_name: forgejo
     restart: unless-stopped
     networks:
@@ -57,9 +64,16 @@ services:
     image: postgres:16-alpine
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETUID
+      - SETGID
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
     container_name: forgejo-db
     restart: unless-stopped
     networks:

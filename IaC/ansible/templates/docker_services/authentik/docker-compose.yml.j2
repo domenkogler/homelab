@@ -17,9 +17,16 @@ services:
     image: postgres:16-alpine
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETUID
+      - SETGID
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
     container_name: authentik-postgres
     restart: unless-stopped
     networks:
@@ -56,9 +63,16 @@ services:
     image: ghcr.io/goauthentik/server:{{ authentik_version }}
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETUID
+      - SETGID
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
     ports:
       - "127.0.0.1:9000:9000"   # loopback-only API access for the host-side secret-egress glue (HD-143); never WAN
     container_name: authentik-server
@@ -116,9 +130,16 @@ services:
     image: ghcr.io/goauthentik/server:{{ authentik_version }}
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETUID
+      - SETGID
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
     container_name: authentik-worker
     restart: unless-stopped
     command: worker

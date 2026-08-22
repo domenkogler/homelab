@@ -14,9 +14,16 @@ services:
     image: tiredofit/db-backup:{{ db_backup_version }}
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETUID
+      - SETGID
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
     container_name: db-backup
     restart: unless-stopped
     networks:
