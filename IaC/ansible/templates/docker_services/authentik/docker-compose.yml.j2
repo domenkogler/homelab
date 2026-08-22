@@ -59,6 +59,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    ports:
+      - "127.0.0.1:9000:9000"   # loopback-only API access for the host-side secret-egress glue (HD-143); never WAN
     container_name: authentik-server
     restart: unless-stopped
     networks:

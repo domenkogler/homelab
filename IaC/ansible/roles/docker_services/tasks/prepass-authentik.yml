@@ -51,23 +51,3 @@
     mode: '0600'
   no_log: true
   tags: [authentik, secret-egress]
-
-# Run the glue. Retried because the ks-oidc.yml Blueprint may still be applying on the
-# /blueprints volume at container first-start; the script itself exits 3 (with retry-
-# safe logging) until every provider/client_secret is present.
-- name: "Run Authentik secret-egress glue (HD-143)"
-  ansible.builtin.shell:
-    cmd: |
-      # The host-side op CLI authenticates via the write-scoped SA token deployed
-      # out-of-band to /etc/op/provision-token (0600 root; never in Git).
-      if [ -r /etc/op/provision-token ]; then
-        export OP_SERVICE_ACCOUNT_TOKEN="$(cat /etc/op/provision-token)"
-      fi
-      exec /usr/local/sbin/authentik-secret-egress.sh
-    executable: /bin/bash
-  register: ak_egress
-  until: ak_egress.rc == 0        # script exits 3 until the ks-oidc.yml blueprint is applied
-  retries: 12
-  delay: 10
-  changed_when: "'updated' in ak_egress.stdout or 'created' in ak_egress.stdout"
-  tags: [authentik, secret-egress]
