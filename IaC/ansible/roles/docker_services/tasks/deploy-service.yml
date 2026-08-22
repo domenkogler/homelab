@@ -69,7 +69,7 @@
   tags: [home_assistant, hd185]
 - name: "Validate rendered compose file for {{ svc.name }} (HD-162)"
   ansible.builtin.shell:
-    cmd: "docker compose -f {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml validate"
+    cmd: "docker compose -f {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml config --quiet"   # `compose validate` does not exist (found live Phase 1)
   when: ansible_service_mgr == 'systemd'   # docker available; catch a bad render before compose up
   tags: "{{ svc.name }}"
 
