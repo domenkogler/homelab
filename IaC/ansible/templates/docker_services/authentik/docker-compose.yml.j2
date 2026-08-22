@@ -7,7 +7,7 @@
 #   NO Forward-Auth on Authentik itself (it IS the auth provider).
 #   Forward-Auth middleware defined in traefik/dynamic/middlewares.yml.j2.
 #
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   Secrets via community.general.onepassword lookups (field names per item type; vault=op_vault):
 #     authentik_db       (Database: username=<postgres user>, password=<postgres password>)
 #     authentik_password (Password: Django SECRET_KEY)
 #     authentik_login    (Login: password=<bootstrap admin password>)
