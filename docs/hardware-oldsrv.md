@@ -8,9 +8,8 @@ tags: [hardware, oldsrv, docker]
 # oldsrv — i7-7700K Docker Host
 
 > **Role:** Detail — Phase 1 primary server. Bare-metal Debian, simultaneously family desktop PC and 24/7 Docker host.
-> **Current state (2026-08):** Windows 10 desktop, rarely used — everything below describes the
-> **target state** after the Debian reinstall (Phase 1a, [deployment-tasks.md](../deployment-tasks.md));
-> nothing in this doc is live yet.
+> **Current state (2026-08-23):** ✅ **Debian 13 (Trixie, XFCE) INSTALLED 2026-08-23** (Phase 1a reinstall done — interactively, not via preseed; execution record: [deployment-journal.md](../deployment-journal.md) Phase 1a). Boot mode **BIOS/CSM** (msdos table on the 960 EVO; UEFI-force question answered No). Ansible hold rule active — first playbook contact only after the Phase 1.5 cutover. Everything below describes the target state; storage pools (ZFS `nvme`, NFS mounts) are NOT live yet.
+> **NIC map (verified live at install):** `enp0s31f6` = onboard Intel (cabled during install, DHCP) · `enp5s0f0` / `enp5s0f1` = Intel i350-T2 (port 2 = `enp5s0f1` is the planned VLAN trunk to CRS328) · `wlp9s0` = WLAN card present — blacklisted at install (`module_blacklist=iwlwifi` on all media boot entries); consider disabling in BIOS.
 > **Links to:** `hardware-gpu.md`, `services.md`, `network-vlans.md`
 > **Linked from:** `hardware.md`, `deployment-preseed.md`, `deployment-ansible.md`
 
@@ -31,8 +30,9 @@ tags: [hardware, oldsrv, docker]
 
 > by-ids derived from the Windows-reported EUI64 (2026-08-21; note: the pre-reinstall Windows C:\
 > lived on the **970 EVO**, not the 960 — data was backed up, both disks are wiped/re-purposed at
-> deploy). Verify at the installer console (`Ctrl+Alt+F2` → `ls -l /dev/disk/by-id/`) before
-> confirming a preseed install — same discipline as HD-128.
+> deploy). ✅ **Verified on Linux 2026-08-22** (Debian 13.6 live USB, [disk-facts report](../reports/disk-facts-oldsrv-20260822-191419.txt)):
+> `nvme-eui.0025385c61b048c2` = 960 EVO 500 GB, S/N `S3EUNX0HC06971Z` (system) · `nvme-eui.0025385b0143f12e`
+> = 970 EVO 1 TB, S/N `S5H9NS1NB12680T` (data — HD-128 closed). Both NVMes carried NTFS signatures at capture.
 | OS | Debian with XFCE or GNOME desktop |
 | Location | Workstation desk (not rack-mounted) |
 

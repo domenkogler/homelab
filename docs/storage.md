@@ -191,6 +191,9 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
 970 EVO 1 TB → ZFS pool "nvme" (single-disk; every dataset is NAS-backed or regenerable, no mirror needed).
    Device path = SSOT var `storage_nvme_data_by_id` (host_vars/oldsrv.kogler.si.yml, HD-128/KOPS-057);
    automation only creates the pool on a fresh build and a fail-loud guard blocks it while the placeholder remains.
+   ⚠ As of the 2026-08-23 reinstall the 970 EVO still carries old Windows **NTFS partitions** — if
+   `zpool create` refuses on existing signatures at the Phase-3 playbook run, wipe them first
+   (`wipefs -a` on that disk only; OS disk untouched).
 ├── nvme/docker-layers       /var/lib/docker        128K lz4   no snapshots (images re-pullable)
 ├── nvme/docker              /srv/docker (container, canmount=off)
 │   ├── nvme/docker/immich   /srv/docker/immich     128K lz4   thumbs read by immich-ml (kept, HD-151)

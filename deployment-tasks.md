@@ -182,6 +182,7 @@
 > their SSOT addresses include Mgmt-VLAN 99 IPs that don't exist before the router redo.
 > **Depends on:** Phase 0 (runner + vault identities). **Feeds:** Phase 2 (the storage role is
 > import-only — pools must already exist), HD-207, HD-128.
+> **Execution runbook:** [deployment-manual.md §Phase 1a](deployment-manual.md) — official path is interactive install + catch-up bootstrap (preseed automation deferred; see journal 2026-08-23).
 
 | Work | Why it can precede 1.5 |
 |------|------------------------|
@@ -190,7 +191,7 @@
 | **oldsrv NVMe by-id capture** | HD-128 still waits for real `/dev/disk/by-id/nvme-…` values "at first pool create" — doing the install early unblocks that IaC fill-in. |
 
 - [ ] **[MANUAL]** Execute the Pool-Creation Runbook ([docs/hardware-nas.md](docs/hardware-nas.md)) — bulk RAIDZ2 first, legacy pool migrated into `bulk/migrate`, tank mirror; export both pools before the nas installer boots.
-- [ ] **[MANUAL]** Reinstall oldsrv via preseed media (retires the rarely-used Windows 10 install); capture the real NVMe by-ids and fill HD-128 (`storage_nvme_data_by_id`).
+- [x] **[MANUAL]** Reinstall oldsrv via preseed media (retires the rarely-used Windows 10 install); capture the real NVMe by-ids and fill HD-128 (`storage_nvme_data_by_id`). ✅ **2026-08-23** — installed interactively (manual partitioning; see deployment-journal.md Phase 1a entry for why automation was bypassed); by-ids verified 2026-08-22 (HD-128 closed); catch-up via `bootstrap-oldsrv.sh` (ansible-admin/ai-debug/keys/hardening) — `ssh ansible-admin@oldsrv` key-only confirmed. **Hold rule active:** no Ansible runs against oldsrv until Phase 1.5 cutover.
 - [ ] **[MANUAL]** Reinstall nas via preseed media (boot-disk/USB by-ids already pinned, HD-206).
 - [ ] **Hold:** NO playbook runs against either host until the Phase 1.5 cutover — first Ansible contact happens with the new VLANs live.
 

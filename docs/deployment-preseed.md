@@ -117,7 +117,8 @@ d-i preseed/late_command string \
     in-target /bin/bash /tmp/post_install.sh
 ```
 
-> **Media layout:** when assembling the install media, place the shared `post_install.sh` where the late_command expects it (`preseed/post_install.sh` on the media), alongside the per-host `preseed.cfg`.
+> **Media layout:** when assembling the install media, place the shared `post_install.sh` where the late_command expects it (`preseed/post_install.sh` on the media), alongside the per-host `preseed.cfg`. The media copy must carry the REAL keys — generate it with [`IaC/host/gen-media-post-install.sh`](../IaC/host/gen-media-post-install.sh) (injects the three 1Password public keys into a git-ignored `post_install_with_secrets.sh`, fail-loud guards per HD-209, optional mountpoint arg copies it to `<media>/preseed/post_install.sh`). Never copy the placeholder-only committed file onto media as-is — the HD-201 runtime assertion would abort the install at late_command.
+> **Executable procedure:** the step-by-step host-install runbook (media → interactive install → catch-up bootstrap) lives in [deployment-manual.md §Phase 1a](../deployment-manual.md) — proven 2026-08-23; full preseed automation is deferred there until re-proven.
 
 ---
 
@@ -259,7 +260,8 @@ Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
 
 ```
 IaC/host/
-├── post_install.sh         # SHARED bootstrap — ansible-admin + ai-debug + sshd hardening (nas/oldsrv)
+├── post_install.sh            # SHARED bootstrap — ansible-admin + ai-debug + sshd hardening (nas/oldsrv)
+├── gen-media-post-install.sh  # media-build: injects the 3 real 1Password pubkeys → post_install_with_secrets.sh (git-ignored)
 ├── nas/
 │   └── preseed.cfg          # Reference implementation for HP Gen8
 ├── oldsrv/

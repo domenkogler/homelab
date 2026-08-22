@@ -187,6 +187,71 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 
 ---
 
+## Phase 1a — Homelab host installs (oldsrv / nas)
+
+> **Official path (proven 2026-08-23, oldsrv): INTERACTIVE install + catch-up script.** The fully
+> preseeded automation stays DEFERRED — four delivery mechanisms failed in one evening (netcfg WLAN
+> loop, `file=` mount-timing on the FAT32 layout, d-i udev lacking `nvme-eui.*` links so the seeded
+> disk path matched nothing, plus a two-sticks incident where the target booted an unrelated USB).
+> Execution record: [deployment-journal.md](deployment-journal.md) §Phase 1a. The preseed files stay
+> in the repo as reference (already fixed to model_serial by-id + runtime resolver); do not trust
+> them for hands-off installs until the deferred issues are re-proven.
+>
+> **Prerequisites:** owning hardware doc ([hardware-oldsrv.md](docs/hardware-oldsrv.md) /
+> [hardware-nas.md](docs/hardware-nas.md)) at hand · working `op` session on the laptop ·
+> **exactly ONE USB stick** plugged into the target (two-sticks = wrong-medium boots).
+
+### 1a.1 Build / verify media `[MANUAL]`
+
+1. Base: Debian amd64 **DVD-with-firmware** image on a FAT32 stick (Rufus-style extracted layout is what was proven).
+2. Recommended overlay (already applied to the proven SanDisk media): patch every boot entry (`boot/grub/grub.cfg`, `isolinux/*.cfg`) with `module_blacklist=iwlwifi` — kills the wireless-loop class of failures.
+3. ✔ Boot the stick on the target → the Debian installer menu appears.
+
+### 1a.2 Single-stick identity check `[MANUAL]`
+
+At the installer console (**Ctrl+Alt+F2**):
+```sh
+ls /dev/disk/by-id/ | grep usb
+```
+✔ Exactly ONE `usb-*` entry and it is YOUR stick model. If anything else appears — shut down and remove the stranger first.
+
+### 1a.3 Interactive install `[MANUAL]` (*Graphical install*)
+
+1. Network: choose the **wired** NIC only; skip any wireless prompt.
+2. Hostname `<host>` (e.g. `oldsrv`), domain `kogler.si`.
+3. Root password: **leave blank twice** (KOPS-044 posture; the local user gets sudo automatically).
+4. Local user: real name + username + password (e.g. `domen`) — this is the LOCAL desktop/sudo identity, never a remote one.
+5. Partitioning → **Manual**: identify the OS disk BY MODEL AND SIZE from the hardware doc (never by `sdX`; data disks must not appear in any step). New empty **msdos** table → swap ~8 GB primary → ext4 `/` primary + **bootable flag** → finish & write.
+    - If asked *"Force UEFI installation?"* → **No** (keeps BIOS/CSM + MGR-in-MBR consistent with prior installs; journal the answer each time).
+6. Mirror: `deb.debian.org`, defaults, no proxy.
+7. Software selection: oldsrv = **XFCE desktop + SSH server + standard system utilities**; headless hosts = **SSH server + standard system utilities**.
+8. GRUB → install to the OS disk entry matching the size above.
+9. Reboot; **pull the stick**. ✔ Log in locally as the local user; `hostname -I` prints an address.
+
+### 1a.4 Catch-up: automation identity + keys + hardening `[MANUAL]`
+
+The interactive path skips the preseed's `post_install.sh`, so reproduce its effect:
+
+1. Laptop: build the keyed script — `cd IaC/host && ./gen-media-post-install.sh` (writes git-ignored `post_install_with_secrets.sh`, three pubkeys from 1Password).
+2. Serve it: `py -3 -m http.server 8000 --directory <dir>` from the folder containing the script (first inbound connection triggers a Windows firewall prompt → Allow; or pre-open with elevated
+   `netsh advfirewall firewall add rule name="preseed-http-8000" dir=in action=allow protocol=TCP localport=8000`).
+3. Target (as the local user):
+   ```sh
+   sudo useradd -m -s /bin/bash ansible-admin
+   wget -O pi.sh http://<LAPTOP_IP>:8000/post_install_with_secrets.sh
+   sudo bash pi.sh
+   rm pi.sh
+   ```
+   (`post_install.sh` installs python3/ssh, injects the two admin keys + restricted AI key, writes the sshd drop-in, restarts sshd.)
+4. Delete the secrets file on the laptop: `rm IaC/host/post_install_with_secrets.sh`.
+5. ✔ From the laptop: `ssh ansible-admin@<host>` logs in KEY-ONLY (no password prompt).
+6. ✔ Expected refusal: `ssh <localuser>@<host>` is rejected by `AllowUsers` — the local user is desktop-only **by design**.
+7. Journal entry + ledger tick in the same change (deployment-journal.md rules).
+
+> **Deferred (do not trust until re-proven):** hands-off preseeded installs. Open items: prove `file=` timing on FAT32-extracted media OR validate the initrd-injection route (initrd.gz rebuild worked mechanically but was never booted — two-sticks incident); keep single-stick discipline; preseed disk paths must use model_serial by-id (never eui — d-i udev lacks those links).
+
+---
+
 ## Phase 1 — Deploy the VPS service stack *(section stub)*
 
 > **To be written after the first fully green Phase 1 Verify block**
@@ -202,4 +267,4 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 
 ---
 
-*Last updated 2026-08-22 · Phases 0 + 0.5 complete; Phase 1+ intentionally stubbed until first green verify.*
+*Last updated 2026-08-23 · Phases 0 + 0.5 complete; Phase 1a (host installs) added from the 2026-08-23 oldsrv reinstall; Phase 1+ intentionally stubbed until first green verify.*

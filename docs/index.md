@@ -149,7 +149,7 @@ docs/
     ├── Rack.canvas
     ├── Network-Devices.canvas
     ├── images/                             Device screenshots
-    ├── references/                         Raw data (DOMENPC-cpuz.txt)
+    ├── references/                         Raw data (knx/, old-ha/) — machine dumps live in repo-root reports/
     └── manuals/                            Hardware manuals (PDF)
 ```
 

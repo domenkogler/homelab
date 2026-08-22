@@ -64,7 +64,8 @@ Every script here is part of one of three groups: **validation** (the fail-close
 | [`collect-disk-facts.sh`](collect-disk-facts.sh) | **Phase 1a read-only disk-facts collector** for a Debian installer/live USB (pre-reinstall facts on oldsrv/nas; generalized sibling of `collect-smart-live.sh` that writes to the stick instead of /tmp): `/dev/disk/by-id/` ↔ device reverse map (HD-128 NVMe by-id capture — the doc values are Windows-derived EUI64, unverified on Linux), model/serial/size/transport per disk, SMART key attrs + full `smartctl -x` dump when smartmontools is present, `lsblk`/`blkid`/`nvme list` context (existing-FS awareness before the Pool-Creation Runbook's wipefs step). Writes `disk-facts-<label>-<ts>.txt` to the root of the writable USB stick (auto-detects mounted removable media or auto-mounts a boot-stick partition; loud fallback if none — a plain dd'd ISO9660 stick is read-only by design). POSIX sh — runs in the d-i busybox console (`Ctrl+Alt+F2`) and live sessions alike. Usage: `sudo sh collect-disk-facts.sh [oldsrv\|nas]`. Strictly read-only toward disks. | `deployment-tasks.md` Phase 1a, `docs/hardware-oldsrv.md`, `docs/hardware-nas.md` (HD-207 runbook pre-flight), `todo.md` HD-128/HD-207 |
 
 The raw SMART/drive data snapshots live in [`reports/`](../reports/) (`laptop-sda.txt`,
-`laptop-sdb.txt`, `oldsrv-sda.txt`, `oldsrv-sdb.txt`, `smart-report-*.txt`) — CI / audit
+`laptop-sdb.txt`, `oldsrv-sda.txt`, `oldsrv-sdb.txt`, `smart-report-*.txt`,
+`disk-facts-oldsrv-*.txt` from collect-disk-facts.sh, `DOMENPC-cpuz.txt`) — CI / audit
 inputs, not tools. `collect-smart.ps1` is the Windows PowerShell sibling of
 `collect-smart-live.sh` (same purpose, runs from Windows instead of a live ISO).
 
