@@ -40,11 +40,15 @@
     mode: '0755'
   tags: [authentik, secret-egress]
 
-# Deploy the host-side write-scoped SA token FROM THE VAULT (HD-143): rotation =
-# update the authentik-provision_api item + re-run this playbook.
+# Deploy the host-side op SA token FROM THE VAULT (HD-143): this is the 1Password
+# WRITE-SCOPED service-account token the VPS's own op CLI uses (glue vault writes).
+# It is a DIFFERENT secret from `authentik-provision_api` (the Authentik-ISSUED API
+# token the glue sends as Bearer) — the first deploy conflated the two and broke the
+# glue (2026-08-22; see services-authentik.md "Authentication tokens").
+# Rotation = update the vps-op-write_api item + re-run this playbook.
 - name: "Deploy provision token for host-side op (HD-143)"
   ansible.builtin.copy:
-    content: "{{ lookup('community.general.onepassword', 'authentik-provision_api', field='credential', vault=op_vault) }}\n"
+    content: "{{ lookup('community.general.onepassword', 'vps-op-write_api', field='credential', vault=op_vault) }}\n"
     dest: /etc/op/provision-token
     owner: root
     group: root

@@ -119,37 +119,93 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
    link entry (`model: authentik_providers_oauth2.application` + `application:`/`provider:` `!Key`
    refs) — that model does not exist and the import fails.
 
+> **Facts 5–8 verified LIVE on the pinned 2026.5.6 during the Phase-1 deploy (2026-08-22)** — the
+> blueprint had never reached a real server before; each of these failed the first true apply:
+
+5. **`identifiers` is REQUIRED on every entry** (Blueprint-v1 spec:
+   docs.goauthentik.io/customize/blueprints/v1/structure). Providers identify by `name`, applications
+   by `slug`; keep the identifier field OUT of `attrs` ("avoid setting the same field in both
+   places"). On create, identifiers merge into attrs; on update only `attrs` apply — so the
+   auto-generated `client_id`/`client_secret` survive every re-apply. An entry without identifiers
+   fails validation: "No or invalid identifiers".
+6. **2026.5.6 OAuth2Provider serializer:** `invalidation_flow` is REQUIRED
+   (`!Find … default-provider-invalidation-flow`) and `redirect_uris` must be a **list of objects**
+   `{url, matching_mode: strict|regex}` (+ optional `redirect_uri_type: authorization|logout`). The
+   legacy newline-separated string AND plain string-list forms fail validation. Authoritative shape:
+   `/blueprints/schema.json` inside the image (`$defs.model_authentik_providers_oauth2.oauth2provider`).
+7. **One-shot apply for fast loops:** `docker exec authentik-worker ak apply_blueprint
+   /blueprints/custom/ks-oidc.yml` applies immediately without waiting for worker file-discovery.
+8. **openclaw placeholder:** the serializer requires ≥1 redirect_uri even for the not-yet-onboarded
+   provider — ks-oidc.yml carries `{url: "http://localhost:.*", matching_mode: regex}` as an explicit
+   placeholder; replace with the real `openclaw onboard` callback(s) at HD-104.
+
 **Canonical 2-entry pattern (per OIDC consumer):**
 
 ```yaml
 - model: authentik_providers_oauth2.oauth2provider
   id: provider_<svc>
-  attrs:
+  identifiers:
     name: <svc>
+  attrs:
     authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
     authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+    invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
     client_type: confidential
-    redirect_uris: |
-      https://<svc>.kogler.si/<callback>
+    redirect_uris:
+      - {url: "https://<svc>.kogler.si/<callback>", matching_mode: strict}
     signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
     sub_mode: hashed_user_id
 - model: authentik_core.application
   id: app_<svc>
+  identifiers:
+    slug: <svc>
   attrs:
     name: <Service Name>
-    slug: <svc>
     meta_launch_url: https://<svc>.kogler.si
     provider: !KeyOf provider_<svc>
 ```
 
-### Authentication tokens (two, distinct scopes)
+### Live-deploy findings — authentik 2026.5.6 image & API (Phase 1, 2026-08-22)
+
+- **The server image has NO default CMD**: entrypoint is `dumb-init -- ak`; compose MUST set
+  `command: server` (the worker passes `command: worker`). Without it the container runs bare `ak`,
+  prints the management-command help and exit-0-flaps forever — while `ak healthcheck` still reports
+  "healthy" (process-level, not route-level).
+- **Custom blueprints mount at `/blueprints/custom`**, never `/blueprints`: a root mount shadows the
+  image's system tree and the server's migrate pre-start dies on the missing
+  `/blueprints/system/bootstrap.yaml` in a ~9 s loop — gunicorn workers never bind and every route
+  answers 502 (`dial unix /dev/shm/authentik-core.sock`). Discovery IS recursive (the image ships
+  `system/` as its own subdir), so the custom subdir is picked up normally.
+- **API paths:** OAuth2 providers live at `/api/v3/providers/oauth2/` — NOT
+  `/api/v3/core/providers/oauth2/` (that 404s; `core/*` is users/groups/apps).
+- **Health probes:** `/-/health/live/` and `/-/health/ready/`; bare `/-/health/` does not exist (404).
+- **RBAC:** `User` has NO `is_superuser` field in 2026.x (Django FieldError if queried). Admin
+  capability = membership of a group with `is_superuser: true` — the bootstrap admin `akadmin` sits
+  in "authentik Admins". API tokens inherit their user's permissions.
+- **CLI:** `ak shell -c "<python>"` executes code; the REPL ignores piped stdin. When driving over
+  ssh, base64-wrap non-trivial python to survive quoting layers. Token minting:
+  `Token.objects.create(user=…, identifier=…, intent="api")` — key printed once.
+- **Provision-token issuance until the Authentik UI exists:** mint via ak-shell (above, user
+  `akadmin`) and store in vault item `authentik-provision_api.credential`. Scoping it down to
+  issuer/app/flow/outpost-only (catalog's least-privilege target) stays a post-green hygiene step
+  (HD-211 batch) — needs Authentik RBAC roles, doable via blueprint later.
+
+### Authentication tokens (THREE, distinct scopes — never merge them)
 - `authentik-api_token` — **read-only** API token; the Authentik→NAS provisioning glue
   (`sync-authentik-users.sh`, D5/HD-131) uses this to *read* the `family` group.
-- `authentik-provision_api` — **write-scoped** API token (issuer/app/flow/outpost endpoints only);
-  used by the blueprint apply + secret-egress glue. Least-privilege: never the read token's scope.
+- `authentik-provision_api` — **write-scoped AUTHENTIK-ISSUED API token**; the Bearer credential the
+  secret-egress glue sends against the Authentik API. Issued in the Authentik UI once one exists;
+  interim issuance via ak-shell (see live-deploy findings). ⚠ NOT a 1Password service-account token
+  — the first deploy conflated the two and broke the glue (2026-08-22).
+- `vps-op-write_api` — 1Password **SERVICE ACCOUNT token (write-scoped)**, deployed by the pre-pass
+  to VPS `/etc/op/provision-token`; authenticates the HOST-side `op` CLI the glue uses to seed the
+  OIDC client-cred items. Different secret, different system from `authentik-provision_api`.
 
 ### What stays manual (only two, one-time)
-- Issuing the **write-scoped Authentik token** (`authentik-provision_api`) in the Authentik UI.
+- Issuing the **write-scoped Authentik token** (`authentik-provision_api`) in the Authentik UI
+  (interim: ak-shell mint — live-deploy findings above).
+- Creating/re-issuing the **1Password write-scoped service account** (`vps-op-write_api`) in the
+  1Password admin console (show-once secret; item history can also restore a prior value).
 - The **first-login admin bootstrap** (WebAuthn/passkey enrolment) at `sso.kogler.si` + the
   bootstrap admin password (set once, sourced from 1Password `authentik_login`).
 

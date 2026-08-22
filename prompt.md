@@ -83,7 +83,7 @@
 
 1. **Diagnose the glue halt** (first action):
    - `ssh vps` then: `sudo docker ps --filter name=authentik --format '{{.Names}}: {{.Status}}'`;
-     `sudo docker port authentik-server 9000`; `curl -s --max-time 3 http://127.0.0.1:9000/-/health/`;
+     `sudo docker port authentik-server 9000`; `curl -s --max-time 3 http://127.0.0.1:9000/-/health/live/`;
      `sudo docker logs authentik-server --tail 20`.
    - Expected healthy end-state: server Up + port published + health 200. If the port is missing while
      the container runs, compare the deployed compose against the repo template (9P staleness check!).

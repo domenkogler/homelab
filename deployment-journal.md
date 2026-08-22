@@ -326,6 +326,45 @@
   capability lives in Group.is_superuser ("authentik Admins" contains akadmin); `ak shell -c` works,
   stdin-piped REPL does not; wrap python in base64 to survive ssh quoting.
 
+### 2026-08-22 — Phase 1 · layer 5: token-architecture conflation resolved; blueprint APPLIED (8 providers live); one owner input pending
+
+- **Blueprint applied GREEN** after the identifier/serializer fixes: manual
+  `ak apply_blueprint /blueprints/custom/ks-oidc.yml` → all **8 OAuth2 providers + 8 applications**
+  exist (forgejo, headscale, immich, matrix, metabase, openclaw, opencloud, openwebui). Iterated
+  against the image's own `/blueprints/schema.json`: `redirect_uris` items are objects
+  `{url, matching_mode}`; `invalidation_flow` required; openclaw needs a placeholder URI until HD-104.
+- **Provision (Authentik) token minted**: `Token.objects.create(user=akadmin, intent="api",
+  identifier="provision-glue")` → stored into vault item `authentik-provision_api.credential` via the
+  runner-side op (VPS-side `op item edit` hangs: its `~/.config/op` was never initialized as root;
+  template-edit from WSL worked). Verified end-to-end: readback 60 chars → Bearer GET
+  `/api/v3/providers/oauth2/` = **200**, provider query resolves.
+- **ROOT CONFLATION found (explains yesterday's halt too):** `prepass-authentik.yml` copies item
+  `authentik-provision_api.credential` → `/etc/op/provision-token`, and the glue exports that file AS
+  `OP_SERVICE_ACCOUNT_TOKEN` (a 1PASSWORD SA token) while ALSO reading the same item as the
+  AUTHENTIK Bearer. One value cannot be both systems' secret. Yesterday "worked" only because the
+  file held an out-of-band 1P SA while the item ALSO wrongly held it → every glue API call failed
+  with "Token invalid/expired". The catalog (deployment-secrets.md) always said the item is an
+  AUTHENTIK-ISSUED token — yesterday's session mis-filed the 1P SA into it because Authentik wasn't
+  up to issue the real one yet.
+- **Incident within the fix:** my ak-shell token write REPLACED the mis-filed 850-char 1P write-SA
+  value in the item (intended per catalog semantics, but that SA secret now lives only in 1Password
+  item history / the admin console). The 12:49→12:59 playbook pre-pass then copied my Authentik
+  token into `/etc/op/provision-token` → host-op parse failure (61-byte file, expected under the new
+  architecture to hold a `ops_…` SA).
+- **Permanent architecture (docs updated this change):** TWO distinct secrets —
+  `authentik-provision_api` = Authentik-ISSUED API token (glue Bearer; DONE ✓);
+  `vps-op-write_api` = 1Password write-scoped service-account token (host-op; prepass copy task
+  REPOINTED here). Owning docs: services-authentik.md (live-deploy findings section + canonical
+  pattern corrected + tokens section), deployment-secrets.md rows, prompt.md health-path fix.
+- ⏳ **HUMAN INPUT NEEDED (only blocker left):** create item `vps-op-write_api` in `Homelab-ansible`
+  with the write-scoped 1P service-account token — either restore the previous version of
+  `authentik-provision_api` (1P UI → item history) and copy its credential over, or re-issue a fresh
+  token for the same service account in the 1P admin console. Then re-run vps.yml from the pre-pass:
+  glue harvests all providers → remaining services deploy.
+- Also observed ~13:00–13:06: interactive Windows `ssh vps` hung post-kex (agent returns identities,
+  signature requests stall) while WSL key-file SSH stayed green throughout — likely locked/wedged
+  1Password app on the laptop; deployment traffic unaffected (WSL path only).
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
