@@ -392,6 +392,42 @@
   `docker exec` + `ak shell -c` (single-layer quoting); fail-loud if mint returns empty.
 - Also registered: the mystery rotator itself (HD-216) for OFFLINE investigation.
 
+### 2026-08-22 — Phase 1 · SESSION PAUSE: docker_services completes all 27 services (11 up / ~17 crash-looping); next blocker = monitoring role (homepage failover buttons)
+
+- **Deploy depth reached:** the docker_services loop rendered and deployed EVERY enabled VPS
+  service for the first time (ok=207/changed=83 at the last full attempt); traefik + crowdsec +
+  authentik + homepage + docling + litellm + open-webui + pgvector + onlyoffice + blackbox + loki +
+  immich-postgres/valkey + forgejo-db are Up (several healthy); ~17 containers across ~14 services
+  are crash-looping with per-app causes (below). The failure point moved PAST docker_services into
+  the `monitoring` role: homepage_services.yaml.j2 fails on `'failover_api_url' is undefined` (and
+  its `ha-failover_api` lookup targets an item that is Phase-4/HD-17 scope — not in the vault yet).
+- **Fixes committed this session (all validated green, in order):** etc_hosts short-alias;
+  authentik `command: server`; blueprints → `/blueprints/custom`; glue API path
+  `/api/v3/providers/…`; two-secret split (vps-op-write_api); blueprint identifiers + 2026.5.6
+  serializer fixes APPLIED LIVE via `ak apply_blueprint` (8 providers + 8 apps exist); sync-gate
+  comparator `--text`; `jq` prereq; glue non-TTY `< /dev/null` on op writes; commented
+  `{{ lookup }}` neutralized ×39; `svc_entry`/`extra` loop_vars; indented `{% if %}` → inline
+  ternary ×29; certs-dumper → `ldez/traefik-certs-dumper:v2.11.4` (registry-verified; old pin never
+  existed) + wrapper/post-hook flat naming; `storage_uid/gid` defined; immich postgres
+  `/etc/postgresql` tmpfs + valkey caps; kopia `.env` interpolation mechanism (server+agent).
+- **Diagnosed-but-unfixed crash causes (next session, in this order):**
+  1. crowdsec: `COLLECTIONS` contains `crowdsecurity/matrix` — does not exist upstream; pick the
+     correct collection set and re-render.
+  2. opencloud: `/srv/docker/opencloud/config:/etc/opencloud:ro` — first-boot `opencloud init`
+     cannot write config/jwt_secret; mount needs rw (or seeded tmpfs).
+  3. grafana: host bind `/srv/docker/grafana/data` root-owned, image runs uid 472 → `user: "0"` +
+     CHOWN cap (entrypoint drops privileges itself), or a pre-chown task.
+  4. matrix/tuwunel: rendered tuwunel.toml "mixes bare keys with a [global] profile" — config
+     schema drift vs the pinned tuwunel version; rework `tuwunel.toml.j2`.
+  5. n8n: node module compile error — capture a fuller log before touching anything.
+  6. Not yet sampled: chat, headscale, metabase, openclaw, pairdrop, renovate, stirling-pdf,
+     db-backup, forgejo app, immich-server app, traefik-certs-dumper.
+- **Proposed (owner sign-off pending):** gate the homepage failover buttons behind a
+  `homepage_failover_button: false` group_var until HD-17 (Phase 4) — unblocks the monitoring role
+  without pretending Phase-4 features are live.
+- **Session hygiene note:** interactive Windows `ssh vps` was flaky (agent wedged) — WSL key-file
+  path used throughout; 1Password app restart recommended before next session.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
