@@ -82,7 +82,7 @@ cloudflare_dns_records:
 # flatten to the vps host record (single IP source). sso unblocks headscale OIDC discovery
 # + every forward-auth route; root = family launchpad (HD-180). ha STAYS unpublished until
 # the Phase-4 HA cutover. Revisit: tighten this list if an app is pulled.
-  - { name: "",        type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: kogler.si, type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # apex - CF flattens
   - { name: sso,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: git,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: chat,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
