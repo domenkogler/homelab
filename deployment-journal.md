@@ -447,6 +447,58 @@
   host-side op write-SA, not the token minter.
 - doc updated: docs/smart-home-failover.md (gate note in status callout); todo + changelog HD-217 rows.
 
+### 2026-08-22 - Phase 1 - Wave 1 (parallel read-only triage, 18/18 diagnosed) + Wave 2 (batched fixes) - HD-218
+
+- **Wave 1 method (owner-approved pattern):** live roster first (`docker ps -a`: 18 Restarting
+  containers incl. prometheus which was NOT in the pause list), then one read-only worker per
+  service - docker ps/inspect/logs ONLY via script-file WSL ssh; each read its own template +
+  group_vars and returned a structured root-cause report. All 18 reports landed; zero mutations,
+  zero repo writes. Probe skeleton dumped full container ENV -> several secrets transited the
+  session transcripts (see HD-211 additions below). Process note: future probes grep-filter
+  *PASS/*TOKEN/*SECRET/*KEY env names before printing.
+- **Root causes (all confirmed against live logs):** crowdsec = nonexistent `crowdsecurity/matrix`
+  collection aborting hub setup (+ secondary EROFS: entrypoint symlinks data files into
+  /staging on the ro rootfs - host probe confirmed no mount anomaly, pure Class B) · opencloud =
+  config bind :ro blocked first-boot init · grafana/n8n/openclaw/opencloud = **Class A** Docker-
+  auto-created root:root bind dirs vs image uids (472/1000/1000/storage_uid) · chat = nginx
+  envsubst needs writable /etc/nginx/conf.d under read_only · pairdrop+db-backup = s6-overlay
+  needs writable /run · forgejo = s6-svscan lock in /etc/s6 (tmpfs would mask init scripts) ·
+  metabase = stock entrypoint user-creation/chmod/su vs cap_drop ALL + read_only · stirling-pdf
+  = init.sh chown+symlink vs hardened rootfs · matrix = tuwunel rejects bare keys mixed with
+  [global.*] subtables · headscale = NO command (bare binary prints help, exits 0 forever) +
+  pre-0.24 config schema keys · immich-server = DB_HOST vs DB_HOSTNAME typo (ENOTFOUND database)
+  · kopia-server = image ENTRYPOINT /bin/kopia ate `sh -c` argv (.env rework VERIFIED GOOD) ·
+  renovate = image 35.x predates forgejo platform (FATAL at startup validation) · prometheus =
+  three full-URL scrape targets invalid (host:port required) + ha_token never mounted/renderable ·
+  traefik-certs-dumper = CF token 403 from VPS egress IP (OWNER FIXED same day: IP whitelisted)
+  + wrapper crash-looped on cert-less acme.json + post-hook ran without shell + dead trailing
+  args + NOTHING EVER REQUESTED the wildcard (per-router certs only).
+- **Wave 2 applied (single writer, one commit):** crowdsec_collections minus matrix (trade-off:
+  no tuwunel log parsing until upstream/collection exists) · Class A generic fix =
+  `bind_owner_uid`/`bind_dirs` metadata on the 4 service entries + pre-create/chown task in
+  deploy-service.yml · element-web tmpfs trio · pairdrop/db-backup `/run` tmpfs · forgejo app
+  read_only removed (db untouched, healthy) · metabase hardening relaxed + ALLOWED_NO_CAP_DROP
+  validator entry w/ justification · stirling read_only->cap_add CHOWN/SETUID/SETGID · tuwunel
+  `[global]` insert · immich DB_HOSTNAME · headscale command: serve + dns:/policy.path migration
+  · renovate RENOVATE_PLATFORM gitea · prometheus bare targets + `prometheus_ha_exporter: false`
+  gate (re-enable at HD-04 with HA token item + compose mount) · kopia entrypoint: [] + /app/logs
+  tmpfs · opencloud rw mount + csp.yaml finally mounted (HD-144 gap found by worker) ·
+  certs-dumper rewritten around rendered `certs-rename.sh` (guards empty acme.json, shelled
+  post-hook, dead args removed) + issuer-only wildcard request labels (*.kogler.si sans apex) ·
+  check-vault-items.sh now scans shared top-level templates + VPS group_vars (the kopia miss had
+  self-resolved via the same-day .env rework; the CLASS was real - ha-failover_api/cloudflare_api
+  were invisible to it).
+- **Validation:** validate-all green (50/50 templates after allowlist entry); hand-renders with
+  real group_vars context: tuwunel.toml parses as TOML w/ single [global], headscale config YAML
+  valid on new schema, prometheus yml valid in both gate states, certs-rename.sh sh -n clean.
+- **HD-211 rotation additions (post-green batch):** GF_SECURITY_ADMIN_PASSWORD, GF_SMTP_PASSWORD,
+  N8N_ENCRYPTION_KEY, N8N_BASIC_AUTH_PASSWORD, RENOVATE_TOKEN, OPENCLAW_GATEWAY_TOKEN,
+  OPENCLOUD_WEBDAV_PASSWORD, db-backup DB01-04 passwords (forgejo_db already listed).
+- **Caveats carried into Wave 3:** openclaw may land "perms fixed, awaiting onboard" (config
+  generated at HD-104 deploy step) · headscale schema migration is medium-confidence until first
+  serve attempt · crowdsec hub-upgrade EROFS expected silenced by /staging tmpfs (verify) ·
+  renovate runs but fails against forgejo until IT is up (ordering fine post-fix).
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

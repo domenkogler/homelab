@@ -39,7 +39,7 @@ docker_services:
   # may sit anywhere after authentik.
   - { name: homepage,       template_dir: homepage, subdomain: home, enabled: true }
   # === Public live-data apps + co-located DBs (NVMe) ===
-  - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true }  # + bundled db
+  - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true, bind_owner_uid: "{{ storage_uid }}", bind_dirs: ['config'] }  # + bundled db
   - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, enabled: true }  # WOPI helper for opencloud (HD-166); NO auth surface
   - { name: immich-app,     template_dir: immich-app, subdomain: foto, enabled: true } # + pg/valkey; ML->oldsrv
   - { name: forgejo,        template_dir: forgejo,   subdomain: git, enabled: true }   # + bundled db
@@ -48,14 +48,17 @@ docker_services:
   - { name: pgvector,       template_dir: pgvector,  enabled: true }  # RAG vector store (db-internal)
   - { name: docling,        template_dir: docling,   enabled: true }  # OCR (services-internal)
   - { name: open-webui,     template_dir: open-webui, subdomain: ai, enabled: true }
-  - { name: openclaw,       template_dir: openclaw,  enabled: true }
+  # bind_owner_uid/bind_dirs (Wave-2 triage 2026-08-22): Docker auto-created these host
+  # bind dirs root-owned; the images run non-root (grafana=472, n8n/openclaw=1000 node)
+  # and crashed with EACCES. deploy-service.yml pre-creates/chowns them (Class-A fix).
+  - { name: openclaw,       template_dir: openclaw,  enabled: true, bind_owner_uid: "1000", bind_dirs: ['.', 'workspace', 'auth'] }
   # === Observability backend (VPS = reliable tier; oldsrv Alloy forwards over WG) ===
   - { name: prometheus,     template_dir: prometheus, enabled: true }
   - { name: loki,           template_dir: loki,       enabled: true }
-  - { name: grafana,        template_dir: grafana,    subdomain: stats, enabled: true }
+  - { name: grafana,        template_dir: grafana,    subdomain: stats, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
   - { name: blackbox-exporter, template_dir: blackbox-exporter, enabled: true }
   # === Alert brain (WG-down -> net mail/Signal; independent of tunnel) ===
-  - { name: n8n,            template_dir: n8n,       subdomain: auto, enabled: true }
+  - { name: n8n,            template_dir: n8n,       subdomain: auto, enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
   # === Backup agents (Kopia -> backup Box; db-backup dumps) ===
   - { name: kopia-server,   template_dir: kopia-server, enabled: true }
   - { name: db-backup,      template_dir: db-backup,    enabled: true }
@@ -79,3 +82,9 @@ traefik_acme_issuer: true
 # Stays false until HD-17 goes live (Phase 4: ha-failover_api vault item seeded +
 # HmIP-RFUSB stick moved at runbook time), then flips true.
 homepage_failover_button: false
+
+# Prometheus HA-exporter scrape job (prometheus.yml.j2): OFF until the Phase-4 HA cutover
+# (HD-04). Today nothing can populate /etc/prometheus/ha_token (no vault item, no monitoring
+# render) and ha_vip serves no HA yet - a live job would just fail. Flip true at HD-04 with
+# the HA long-lived-token item seeded.
+prometheus_ha_exporter: false

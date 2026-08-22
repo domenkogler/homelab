@@ -34,7 +34,13 @@ services:
     command: ["-c", "opencloud init || true; exec opencloud server"]
     volumes:
       - /srv/docker/opencloud/data:/var/lib/opencloud
-      - /srv/docker/opencloud/config:/etc/opencloud:ro
+      # :ro REMOVED (Wave-2 triage 2026-08-22): first-boot `opencloud init` must write
+      # opencloud.yaml/jwt_secret here; init is idempotent so rw costs nothing after boot.
+      # Dir ownership pre-created as storage_uid by deploy-service.yml (bind_dirs).
+      - /srv/docker/opencloud/config:/etc/opencloud
+      # CSP override for the Authentik SSO surface (HD-144) - rendered next to this file
+      # but never mounted until Wave-2 triage spotted it.
+      - ./csp.yaml:/etc/opencloud/csp.yaml:ro
     environment:
       # Domain
       OC_DOMAIN: file.kogler.si

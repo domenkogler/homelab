@@ -18,7 +18,13 @@ services:
     image: frooodle/s-pdf:{{ stirling_pdf_version }}
     cap_drop:
       - ALL
-    read_only: true
+    # HD-202 hardening RELAXED per-service (Wave-2 triage 2026-08-22): init.sh chowns its
+    # tmp dir and symlinks into /usr/local/bin on the rootfs -> needs CHOWN (+SETUID/SETGID
+    # for the PUID drop) and a writable rootfs; read_only removed.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     tmpfs:
       - /tmp
     container_name: stirling-pdf

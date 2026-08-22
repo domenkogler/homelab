@@ -10,9 +10,11 @@
 services:
   metabase:
     image: metabase/metabase:{{ metabase_version }}
-    cap_drop:
-      - ALL
-    read_only: true
+    # HD-202 hardening RELAXED per-service (Wave-2 triage 2026-08-22): the stock entrypoint
+    # (run_metabase.sh) creates a metabase user/group, chmods the jar and su-drops privileges
+    # at every start - each step needs a writable rootfs and SETUID/SETGID. cap_drop ALL +
+    # read_only each independently broke startup before Java launched.
+    # Future hardening: pinned non-root user: + verified upstream support.
     tmpfs:
       - /tmp
     container_name: metabase

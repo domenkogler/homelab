@@ -21,6 +21,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /run   # s6-overlay state dir (/run/s6) - required when read_only (Wave-2 triage 2026-08-22)
     container_name: pairdrop
     restart: unless-stopped
     networks:

@@ -16,6 +16,10 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      # Wave-2 triage 2026-08-22: the entrypoint symlinks data-dir hub files into /staging/...
+      # on the container rootfs; hub upgrade then chtimes through them -> EROFS under
+      # read_only. tmpfs keeps the hardening while giving the staging farm a writable home.
+      - /staging
     container_name: crowdsec
     restart: unless-stopped
     networks:

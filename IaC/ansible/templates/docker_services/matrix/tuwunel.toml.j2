@@ -4,7 +4,9 @@
 # server_name is PERMANENT — it cannot be changed without a DB wipe. We deliberately use
 # the root domain `kogler.si` (clean @user:kogler.si IDs) and delegate the physical host
 # to matrix.kogler.si via .well-known (that root-domain delegation is HD-47).
-
+# [global] header REQUIRED (Wave-2 triage 2026-08-22): tuwunel rejects any mix of bare
+# top-level keys with a [global.*] subtable profile - all plain keys must live under it.
+[global]
 server_name = "kogler.si"
 database_path = "/var/lib/tuwunel"
 address = ["0.0.0.0"]

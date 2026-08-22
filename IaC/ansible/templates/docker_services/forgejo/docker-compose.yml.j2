@@ -27,7 +27,9 @@ services:
       - FOWNER
       - SETUID
       - SETGID
-    read_only: true
+    # read_only REMOVED (Wave-2 triage 2026-08-22): Forgejo boots via s6-svscan /etc/s6 and
+    # must create its supervision lock INSIDE that dir on the rootfs; a tmpfs over /etc/s6
+    # would mask the bundled init scripts. Follow-up candidate: -rootless image variant.
     tmpfs:
       - /tmp
       - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs

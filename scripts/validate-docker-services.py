@@ -67,6 +67,7 @@ ALLOWED_NO_CAP_DROP = {
     "ollama", "immich-ml", "jellyfin", "sunshine",          # GPU / device access
     "home-assistant-standby",                               # keepalived sidecar (HD-72 closed primary)
     "raspberrymatic",                                        # parked (HD-13)
+    "metabase",                                              # stock entrypoint self-manages user + su (Wave-2 triage 2026-08-22)
 }
 # Per-SERVICE exemptions inside otherwise-hardened templates:
 SKIP_CAP_DROP_SERVICES = {"gluetun"}   # VPN sidecar — needs NET_ADMIN (HD-204 exemption)

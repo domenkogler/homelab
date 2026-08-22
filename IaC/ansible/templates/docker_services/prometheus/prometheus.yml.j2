@@ -78,21 +78,25 @@ scrape_configs:
   - job_name: zfs_exporter
     static_configs:
       - targets: ["{{ zfs_exporter_host }}:{{ zfs_exporter_port }}"]
-  # HA exporter (edge HA's /api/prometheus — bearer_token populated by monitoring role)
+  # HA exporter (edge HA's /api/prometheus). GATED OFF until Phase 4 (prometheus_ha_exporter,
+  # Wave-2 triage 2026-08-22): pre-cutover there is no HA behind ha_vip and no token file -
+  # flip the var at HD-04 together with the HA long-lived-token vault item + compose mount.
+{% if prometheus_ha_exporter | default(false) %}
   - job_name: ha_exporter
     metrics_path: /api/prometheus
     bearer_token_file: /etc/prometheus/ha_token
     static_configs:
       - targets:
-          - "http://{{ ha_vip }}:8123"
+          - "{{ ha_vip }}:8123"
+{% endif %}
   # Service self-metrics: traefik
   - job_name: traefik
     static_configs:
-      - targets: ["http://traefik:8082/metrics"]
+      - targets: ["traefik:8082"]
   # Service self-metrics: crowdsec
   - job_name: crowdsec
     static_configs:
-      - targets: ["http://crowdsec:6060/metrics"]
+      - targets: ["crowdsec:6060"]
   # (Doco-CD scrape job removed — Doco-CD dropped, HD-150.)
   # Self-monitoring: the observability stack itself must alert when it dies
   # (docs/observability.md — Grafana rules key off up{job=...}, noData/execErr as backstop).

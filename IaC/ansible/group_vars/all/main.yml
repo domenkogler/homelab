@@ -34,10 +34,13 @@ gpu_video_gid: 44
 letsencrypt_email: domen@kogler.si
 # CrowdSec collections to install (HD-85 / KOPS-041): which app logs CrowdSec
 # parses for WAF/brute-force. Included: traefik + linux (baseline) + the exposed
-# auth-surfaces home-assistant, matrix (Synapse/Tuwunel), grafana. Extend here as
-# services are exposed (qBittorrent, jellyfin, n8n …) — a collection only does
-# something if its logs are ALSO sent to CrowdSec (docker.sock container-log parsing).
-crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/home-assistant crowdsecurity/matrix crowdsecurity/grafana"
+# auth-surfaces home-assistant, grafana. Extend here as services are exposed
+# (qBittorrent, jellyfin, n8n …) — a collection only does something if its logs are
+# ALSO sent to CrowdSec (docker.sock container-log parsing).
+# NOTE (Wave-1 triage 2026-08-22): crowdsecurity/matrix REMOVED — it does not exist
+# upstream; its failed install aborted container startup every boot. Matrix/tuwunel
+# log parsing is dropped until a collection exists upstream or is authored in-repo.
+crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/home-assistant crowdsecurity/grafana"
 # Wildcard *.kogler.si cert pair file names — shared by the issuer and ALL consumer
 # edges so the VPS ACME issuer, the consumer pull timers and the Traefik configs can
 # never drift. Paths:

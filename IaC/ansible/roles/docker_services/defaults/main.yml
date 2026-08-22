@@ -35,6 +35,7 @@ _extra_templates:
     - dynamic/routes.yml.j2
     - dynamic/middlewares.yml.j2
     - dynamic/tls.yml.j2        # HD-181 — consumer default-store TLS (renders empty on the issuer)
+    - certs-rename.sh.j2        # Wave-2 triage 2026-08-22 — wildcard pair rename (entrypoint + post-hook)
   traefik-ha:
     - dynamic/routes.yml.j2
   recyclarr:

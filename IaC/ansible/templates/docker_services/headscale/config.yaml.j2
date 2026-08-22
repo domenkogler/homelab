@@ -27,8 +27,9 @@ oidc:
   allowed_domains:
     - kogler.si
 
-# DNS configuration
-dns_config:
+# DNS configuration — schema migrated for headscale >= 0.24 (pinned 0.29.3; Wave-2
+# triage 2026-08-22): dns_config: -> dns:, acl_policy_path: -> policy.path.
+dns:
   base_domain: kogler.si
   magic_dns: true
   override_local_dns: false
@@ -40,6 +41,8 @@ dns_config:
 # mounted next to this config. NOTE: OIDC-authenticated clients are AUTO-APPROVED
 # by Headscale (no separate registration gate here), so the ACL is what stops a
 # rogue auto-joined node from reaching the mesh — see policy.hujson.j2.
-acl_policy_path: /etc/headscale/policy.hujson
+# Schema migrated for headscale >= 0.24 (pinned 0.29.3, Wave-2 triage 2026-08-22).
+policy:
+  path: /etc/headscale/policy.hujson
 logtail:
   enabled: false

@@ -26,6 +26,11 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /app/logs   # image sets KOPIA_LOG_DIR=/app/logs - EROFS under read_only without it
+    # Wave-2 triage 2026-08-22: image ENTRYPOINT is /bin/kopia; without clearing it the
+    # command below resolved to `kopia sh -c ...` and died instantly. entrypoint: [] makes
+    # the sh -c bootstrap script PID 1 argv.
+    entrypoint: []
     container_name: kopia-server
     restart: unless-stopped
     ports:

@@ -63,6 +63,13 @@ services:
       traefik.http.routers.traefik-dash.rule: "Host(`traefik.kogler.si`)"
       traefik.http.routers.traefik-dash.entrypoints: websecure
       {{ 'traefik.http.routers.traefik-dash.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+{% if traefik_acme_issuer is defined and traefik_acme_issuer %}
+      # Wildcard REQUEST (Wave-2 triage 2026-08-22): until now nothing asked LE for
+      # *.kogler.si - only per-router hostnames got issued, so certs-dumper never had the
+      # wildcard pair the consumer-pull contract needs. sans covers the apex route.
+      traefik.http.routers.traefik-dash.tls.domains[0].main: "*.{{ wildcard_cert_domain }}"
+      traefik.http.routers.traefik-dash.tls.domains[0].sans: "{{ wildcard_cert_domain }}"
+{% endif %}
       traefik.http.routers.traefik-dash.middlewares: authentik-forward-auth@file
       traefik.http.routers.traefik-dash.service: api@internal
     command:
@@ -109,15 +116,17 @@ services:
       - /tmp
     container_name: traefik-certs-dumper
     restart: unless-stopped
-    volumes:
-      - ./acme:/traefik/acme:ro
-      - ./certs:/output
     entrypoint:
       - sh
       - -c
-      - 'while [ ! -s /traefik/acme/acme.json ]; do sleep 2; done; traefik-certs-dumper file --version=v3 --source=/traefik/acme/acme.json --dest=/output/dump; cp /output/dump/private/*{{ wildcard_cert_domain }}*.crt /output/{{ wildcard_cert_file }}; cp /output/dump/certs/*{{ wildcard_cert_domain }}*.key /output/{{ wildcard_cert_key_file }}; exec traefik-certs-dumper file --version=v3 --watch --source=/traefik/acme/acme.json --dest=/output/dump --post-hook="cp /output/dump/private/*{{ wildcard_cert_domain }}*.crt /output/{{ wildcard_cert_file }} && cp /output/dump/certs/*{{ wildcard_cert_domain }}*.key /output/{{ wildcard_cert_key_file }}"'
-      - "--crt-name={{ wildcard_cert_file }}"
-      - "--key-name={{ wildcard_cert_key_file }}"
+      - 'while [ ! -s /traefik/acme/acme.json ]; do sleep 2; done; traefik-certs-dumper file --version=v3 --source=/traefik/acme/acme.json --dest=/output/dump; /bin/sh /certs-rename.sh; exec traefik-certs-dumper file --version=v3 --watch --source=/traefik/acme/acme.json --dest=/output/dump --post-hook="/bin/sh /certs-rename.sh"'
+    volumes:
+      - ./acme:/traefik/acme:ro
+      - ./certs:/output
+      # Rename logic lives in a rendered script (Wave-2 triage 2026-08-22): the dumper runs
+      # --post-hook WITHOUT a shell (unquoted && broke renewals) and the old inline cps
+      # crash-looped while acme.json held no cert yet. The script guards both cases.
+      - ./certs-rename.sh:/certs-rename.sh:ro
 {% endif %}
 
 networks:

@@ -44,7 +44,7 @@ services:
       DB_USERNAME: "{{ lookup('community.general.onepassword', 'immich_db', field='username', vault=op_vault) }}"
       DB_PASSWORD: "{{ lookup('community.general.onepassword', 'immich_db', field='password', vault=op_vault) }}"
       DB_DATABASE_NAME: immich
-      DB_HOST: immich-postgres
+      DB_HOSTNAME: immich-postgres   # upstream var IS DB_HOSTNAME (DB_HOST is silently ignored - Wave-2 triage 2026-08-22)
       DB_PORT: "5432"
       REDIS_HOSTNAME: immich-valkey
       # HD-184: immich-ml runs on oldsrv — the container name is unresolvable from

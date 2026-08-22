@@ -1,0 +1,17 @@
+#!/bin/sh
+# certs-rename.sh — rename the certs-dumper output to the shared wildcard pair names
+# (HD-181 naming contract; rendered by Ansible, mounted read-only into the dumper).
+# Called by the certs-dumper entrypoint after the initial dump AND as --post-hook on
+# every renewal. Idempotent; exits 0 quietly while no wildcard cert exists yet so the
+# container idles in watch mode instead of crash-looping (Wave-2 triage 2026-08-22:
+# before first successful DNS-01 issuance there is nothing to dump).
+set -e
+CRT=$(ls /output/dump/private/*{{ wildcard_cert_domain }}*.crt 2>/dev/null | head -n 1)
+KEY=$(ls /output/dump/certs/*{{ wildcard_cert_domain }}*.key 2>/dev/null | head -n 1)
+if [ -z "$CRT" ] || [ -z "$KEY" ]; then
+    echo "certs-rename: no *{{ wildcard_cert_domain }}* pair under /output/dump yet - waiting for ACME issuance"
+    exit 0
+fi
+cp "$CRT" "/output/{{ wildcard_cert_file }}"
+cp "$KEY" "/output/{{ wildcard_cert_key_file }}"
+echo "certs-rename: installed {{ wildcard_cert_file }} + {{ wildcard_cert_key_file }}"

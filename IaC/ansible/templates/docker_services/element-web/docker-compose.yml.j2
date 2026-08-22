@@ -12,6 +12,13 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      # Wave-2 triage 2026-08-22: the nginx entrypoint envsubsts
+      # /etc/nginx/templates/default.conf.template -> /etc/nginx/conf.d/default.conf at EVERY
+      # start; with only /tmp tmpfs it died EROFS before nginx launched. /var/cache/nginx +
+      # /var/run are the standard read-only-nginx pair (request-body temp + pid).
+      - /etc/nginx/conf.d
+      - /var/cache/nginx
+      - /var/run
     container_name: chat
     restart: unless-stopped
     environment:

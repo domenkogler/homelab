@@ -10,6 +10,9 @@
 services:
   headscale:
     image: headscale/headscale:{{ headscale_version }}
+    # Wave-2 triage 2026-08-22: no command meant the bare binary printed help and exited 0
+    # forever. `serve` is the server subcommand; config via the mounted config.yaml.
+    command: ["serve"]
     cap_drop:
       - ALL
     read_only: true

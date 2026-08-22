@@ -24,6 +24,16 @@ while read -r t; do
     grep -rhoE "onepassword', '[a-z0-9_-]+'" "IaC/ansible/templates/docker_services/$t/" 2>/dev/null |
         sed "s/onepassword', '//; s/'//" >> /tmp/needed.txt
 done < /tmp/enabled.txt
+
+# Blind-spot fix (Wave-2 triage 2026-08-22): item refs OUTSIDE per-service template dirs.
+# Lesson from the kopia-server miss: lookups can land in files this script never scanned
+# (shared top-level templates like homepage_services.yaml.j2 -> ha-failover_api; the VPS
+# host context in group_vars/vps.yml + all/ -> cloudflare_api ACME env). Scan those too.
+# Non-VPS role items (router/nut/Pi hosts) stay deliberately out of scope.
+grep -rhoE "onepassword', '[a-z0-9_-]+'" \
+    IaC/ansible/templates/*.j2 \
+    IaC/ansible/group_vars/vps.yml IaC/ansible/group_vars/all/ 2>/dev/null |
+    sed "s/onepassword', '//; s/'//" >> /tmp/needed.txt
 sort -u /tmp/needed.txt -o /tmp/needed.txt
 
 # items present in the vault

@@ -14,7 +14,11 @@ services:
     container_name: renovate
     restart: unless-stopped
     environment:
-      RENOVATE_PLATFORM: forgejo
+      # Wave-2 triage 2026-08-22: the pinned image (35.x) predates the native `forgejo`
+      # platform; Renovate validates the platform at startup and FATAL-exits on unknown
+      # values. Forgejo is a Gitea soft-fork with API-compatible endpoints -> use gitea.
+      # Revisit when renovate_version bumps to >=37 (native forgejo support).
+      RENOVATE_PLATFORM: gitea
       RENOVATE_ENDPOINT: https://git.kogler.si
       RENOVATE_TOKEN: "{{ lookup('community.general.onepassword', 'forgejo_api', field='credential', vault=op_vault) }}"
       RENOVATE_REPOSITORIES: "domen/homelab"
