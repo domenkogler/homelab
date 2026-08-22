@@ -22,21 +22,16 @@
   // username ONLY if self-service advertise-tags is ever wanted.
   "tagOwners": {},
 
+  // INTERIM (Wave-3 R5, 2026-08-22): headscale v2 requires tags to be DECLARED (via
+  // tagOwners) before ACLs may reference them, and has no autogroup:admin source. Real
+  // usernames only exist after first OIDC login, so the tag-based deny-by-default design
+  // cannot be expressed yet. Interim: any ENROLLED node reaches any other - enrolment
+  // itself is gated by Authentik OIDC. TIGHTEN at first enrolment: replace src/dst with
+  // the real admin/family usernames (or declared tags) per the HD-84 posture.
   "acls": [
-    // The trusted family mesh: every kogler-tagged node may reach every other
-    // node's services. This is the intended "hub" — family phones/laptops reach
-    // Immich / OpenCloud / HA etc. gateways route the CGNAT overlay to Home.
     {
       "action": "accept",
-      "src": ["tag:kogler"],
-      "dst": ["tag:kogler:*"]
-    },
-
-    // The admin control plane is always reachable so the mesh remains
-    // manageable even if a node is untagged.
-    {
-      "action": "accept",
-      "src": ["autogroup:admin"],
+      "src": ["*"],
       "dst": ["*:*"]
     }
   ]
