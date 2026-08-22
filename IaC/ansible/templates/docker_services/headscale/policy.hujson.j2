@@ -15,12 +15,12 @@
 {
   "groups": {},
 
-  // Only the mesh administrator (the user that registered the control server)
-  // may apply the kogler tag to a node. Family devices are tagged post-join so
-  // an arbitrary OIDC registration alone cannot grant mesh reach.
-  "tagOwners": {
-    "tag:kogler": ["autogroup:admin"]
-  },
+  // Only the mesh administrator may apply the kogler tag. Headscale v2 has no
+  // autogroup:admin here (Wave-3 R5) and the admin's headscale username only exists after
+  // first OIDC login - so tagOwners stays EMPTY: tagging happens server-side via
+  // `headscale nodes tag` (CLI on the VPS, no policy check). Populate with the admin's
+  // username ONLY if self-service advertise-tags is ever wanted.
+  "tagOwners": {},
 
   "acls": [
     // The trusted family mesh: every kogler-tagged node may reach every other
