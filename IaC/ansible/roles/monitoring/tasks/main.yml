@@ -40,7 +40,10 @@
     dest: /etc/prometheus/ha_token
     content: "{{ lookup('community.general.onepassword', 'ha_api', field='credential', vault=op_vault) }}"
     mode: '0600'
-  when: inventory_hostname in groups['monitoring']
+  # GATED until Phase 4 (prometheus_ha_exporter, Wave-3 triage 2026-08-22): no HA behind
+  # ha_vip and no ha_api vault item before the HD-04 cutover - flip the var, seed the item,
+  # add the compose mount and re-enable the scrape job together.
+  when: inventory_hostname in groups['monitoring'] and prometheus_ha_exporter | default(false)
   tags: [monitoring, ha_token]
 
 # ---- Alloy installation (Grafana APT repo) ----
