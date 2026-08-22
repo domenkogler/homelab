@@ -167,6 +167,12 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 
 ### Live-deploy findings — authentik 2026.5.6 image & API (Phase 1, 2026-08-22)
 
+- **`AUTHENTIK_BOOTSTRAP_*` applies ONLY at user creation** (Phase 1 R5, 2026-08-22): if the DB was
+  initialized before the bootstrap env landed in compose, `akadmin` keeps its creation-time
+  defaults (email `root@example.com`, no vault password) and later env changes are silently
+  ignored — login with the 1Password value fails forever. Fix: ORM sync inside the worker via
+  ak-shell (`set_password(os.environ[...])` — note the WORKER container does not carry the
+  `AUTHENTIK_BOOTSTRAP_*` env, pass values in explicitly).
 - **The server image has NO default CMD**: entrypoint is `dumb-init -- ak`; compose MUST set
   `command: server` (the worker passes `command: worker`). Without it the container runs bare `ak`,
   prints the management-command help and exit-0-flaps forever — while `ak healthcheck` still reports
