@@ -74,6 +74,11 @@
      fix (/etc/hosts entry), not blocking.
 2. Once the API answers: re-run `ansible-run.sh playbooks/vps.yml` → completes the service loop
    (traefik, crowdsec, opencloud, immich, forgejo, AI stack, matrix, monitoring…).
+   Quicker turnover: resume mid-play with
+   `--start-at-task="Authentik OIDC secret-egress pre-pass (render + token)"` — exact-name match,
+   lands inside `docker_services`; the earlier roles are already applied/live so skipping them only
+   skips their handler flushes (fine). A full idempotent re-run remains the safe fallback; either
+   way do the 9P staleness check first.
 3. **Phase 1 Verify block** (deployment-tasks): sso reachable via Traefik + wildcard cert (DNS-01),
    CrowdSec decisions active, CIFS round-trip, hardening evidence (`fail2ban-client status sshd`,
    `nft list ruleset` incl. :22, `sshd -T` = 3/no/no, `docker info` daemon settings).
