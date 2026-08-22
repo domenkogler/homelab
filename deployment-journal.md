@@ -428,6 +428,25 @@
 - **Session hygiene note:** interactive Windows `ssh vps` was flaky (agent wedged) — WSL key-file
   path used throughout; 1Password app restart recommended before next session.
 
+### 2026-08-22 - Phase 1 - RESUME: owner sign-off on homepage failover-button gating (HD-217); monitoring-role halt cleared
+
+- **Owner decision (resume Q/A):** approve the proposed gate verbatim. New group_var
+  `homepage_failover_button` (`group_vars/vps.yml`, default **false**) controls whether the HA
+  Forward Takeover / Reverse Failback cards render in `homepage_services.yaml.j2`; stays false
+  until Phase 4/HD-17 (`ha-failover_api` seeded + HmIP-RFUSB stick moved), then flips true.
+- Same-change IaC: failover block wrapped in `{% if homepage_failover_button %}` (+ comment);
+  var pinned in `group_vars/vps.yml`. With the gate off, the monitoring role no longer touches the
+  undefined `failover_api_url` / missing vault item -> halt point cleared for the next run.
+- Other resume-session owner calls, recorded: placeholder provider keys (`openrouter_api`,
+  `cohere_api`, `forgejo_api`) post-green; HD-211 rotation batch post-green; check-vault-items
+  blind spot (missed `kopia-server_internal_api`) -> document + fix (repo-only, rides the Wave 2
+  batch); `dns.yml` re-run when needed; LDAP outpost health re-check post-green; HD-159 unchanged
+  (Phase 1.5).
+- Clarified for the record: **HD-216 stays OPEN** (rotator root cause unidentified) - the
+  ephemeral-token design is the Option A workaround, not a fix; `vps-op-write_api` is the
+  host-side op write-SA, not the token minter.
+- doc updated: docs/smart-home-failover.md (gate note in status callout); todo + changelog HD-217 rows.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

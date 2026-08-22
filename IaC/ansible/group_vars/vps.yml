@@ -73,3 +73,9 @@ docker_services:
 # *.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host
 # consumes the synced pair (role default false, see roles/docker_services/defaults).
 traefik_acme_issuer: true
+
+# Homepage HA-failover buttons (HD-17/HD-217): render the HA Forward Takeover /
+# Reverse Failback cards in templates/homepage_services.yaml.j2 ONLY when true.
+# Stays false until HD-17 goes live (Phase 4: ha-failover_api vault item seeded +
+# HmIP-RFUSB stick moved at runbook time), then flips true.
+homepage_failover_button: false

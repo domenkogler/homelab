@@ -12,7 +12,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 > `deployment-ansible.md`, `services.md`, `backup.md`
 > **Linked from:** `smart-home.md`, `index.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The failover design + runbooks are authored but **not live** — the Pi primary + oldsrv standby + keepalived VIP deploy during Phase 4 (HD-04) / Phase 3 (HD-17); HmIP-RFUSB local-Homematic is parked (HD-13). Runbooks below are the spec to be executed at takeover time, not a live system.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The failover design + runbooks are authored but **not live** — the Pi primary + oldsrv standby + keepalived VIP deploy during Phase 4 (HD-04) / Phase 3 (HD-17); HmIP-RFUSB local-Homematic is parked (HD-13). Runbooks below are the spec to be executed at takeover time, not a live system. The Homepage failover buttons are **gated** (HD-217): they render only when group_var `homepage_failover_button: true` (false until HD-17 goes live), so the live dashboard carries no dead buttons meanwhile.
 
 ---
 
