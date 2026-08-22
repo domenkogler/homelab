@@ -44,6 +44,17 @@ the split: `kopia_sftp_host/user/port` in `group_vars` + `Hertzner-SB-Backup` ke
 the automation path (e.g. `netcup-vps_login` root + IP in the **Homelab (human)** vault) stay in 1Password —
 that is a break-glass decision, not a connection-config item.
 
+### Vault taxonomy — the two-vault model (confirmed 2026-08-23)
+
+| Vault | Role | Access |
+|-------|------|--------|
+| **`Homelab-ansible`** | Automation vault — holds EVERY secret the IaC consumes (`*_api` / `*_password` / `*_db` items, SSH keys). The only vault that Ansible `lookup()`, the service-account token(s) and `provision-secrets.py` touch. | `Homelab-ansible` service account(s) + owner |
+| **Homelab (human)** | Break-glass vault — human-only credentials deliberately OFF the automation path (`netcup-ccp_login`, `netcup-scp_login`, `netcup-vps_login`, …). | owner only — **no service account has access** |
+
+Rule of thumb: if Ansible must read it, it lives in `Homelab-ansible`; if it exists only for a human at a
+provider console or for console break-glass, it lives in **Homelab (human)**. The split is the blast-radius
+boundary — a leaked automation token never exposes break-glass credentials.
+
 ---
 
 ## 1Password as Sole Secrets Backend

@@ -30,10 +30,17 @@
   NEVER pass inline commands to wsl.exe from git-bash (MSYS mangles args); never use %TEMP% wrappers.
 - Interactive SSH to the VPS: `ssh vps` / `ssh vps-ansible` (aliases in `~/.ssh/config`, 1Password agent
   + `.pub` hints; Homelab-ansible must stay allowlisted in 1Password's agent toml).
-- ⚠ **9P STALE-CACHE RISK:** the runner reads the repo over `/mnt/d`. Files written Windows-side were
-  served stale to WSL for minutes twice on 2026-08-22 (provisioner ran an old catalog; a render used an
-  old template). Before any playbook run after repo edits: verify the file WSL sees matches
-  (`md5sum` both sides), or migrate the runner clone natively into WSL (see todo HD-212).
+- ⚠ **9P STALE-CACHE RISK — sync gate MANDATORY before every playbook run (HD-212, decided 2026-08-23):**
+  the runner reads the repo over `/mnt/d`; files written Windows-side were served stale to WSL for
+  minutes twice on 2026-08-22 (provisioner ran an old catalog; a render used an old template).
+  Owner decision: **stay on `/mnt/d` (Option A)** behind this gate —
+  1. Whole-tree hash compare from the repo root on BOTH sides — must be equal:
+     `git ls-files -z | xargs -0 md5sum | md5sum`
+  2. On mismatch, force-invalidate (in order, re-hash after each):
+     ① `wsl -d Debian -u root -- bash -c 'echo 3 > /proc/sys/vm/drop_caches'`
+     ② still stale → inside WSL: `sudo umount /mnt/d && sudo mount -t drvfs D: /mnt/d`
+  3. If BOTH mechanisms fail to clear a mismatch → autonomously migrate the runner clone natively
+     into WSL (Option B / HD-212 proper) **without asking** — pre-authorized by the owner.
 
 ## 2. State snapshot (halt point, end of 2026-08-22 session)
 
@@ -53,7 +60,9 @@
   — imperative redeploy runbook; Phase 0 (runner) + Phase 0.5 (netcup SCP reinstall incl. the
   field-by-field settings, moved here from `docs/deployment-preseed.md`) are documented;
   its §Phase 1 is deliberately stubbed until the first green Verify block. No impact on the
-  execution order below.
+  execution order below. Also 2026-08-23 (Q/A session): owner locked the execution parameters in
+  §3 (incl. the HD-212 sync-gate decision in §1); two-vault model (`Homelab` = human/break-glass,
+  `Homelab-ansible` = automation) documented in `docs/deployment-secrets.md`.
 - **Fixes landed & committed on 2026-08-22** (details in the journal attempt log): bootstrap chmod 700,
   group_vars/all.yml→all/main.yml shadowing fix (HD-210 closed), python3-debian prereq,
   op-guard delegate_to localhost + become:false, vps-hardening restarts docker after nftables load,
@@ -61,6 +70,16 @@
   glue counter vs Jinja `{#`, provisioner stdin=DEVNULL fix, ansible-run.sh runner.
 
 ## 3. Next-session execution order
+
+**Execution parameters (owner sign-off, 2026-08-23 Q/A session — binding):**
+- Work **autonomously** through the order below; stop only at failures or human gates.
+- Strategy: **full idempotent `vps.yml` re-run first**; `--start-at-task` only for fast iterations after it.
+- Pre-flight: run `scripts/check-vault-items.sh`; create any missing **generated** items autonomously via
+  `scripts/provision-vault.sh` (create-only, never overwrites — safe). Manual secret work stays POST-GREEN
+  only: real values into the `forgejo_api`/`openrouter_api`/`cohere_api` placeholders + rotate
+  `authentik-provision_api` (HD-211).
+- **HD-159 stays ⏳ deploy-gated until Phase 1.5** (the WG S2S tunnel does not exist yet) — do NOT tick
+  it during Phase 1.
 
 1. **Diagnose the glue halt** (first action):
    - `ssh vps` then: `sudo docker ps --filter name=authentik --format '{{.Names}}: {{.Status}}'`;
@@ -77,17 +96,17 @@
    Quicker turnover: resume mid-play with
    `--start-at-task="Authentik OIDC secret-egress pre-pass (render + token)"` — exact-name match,
    lands inside `docker_services`; the earlier roles are already applied/live so skipping them only
-   skips their handler flushes (fine). A full idempotent re-run remains the safe fallback; either
-   way do the 9P staleness check first.
+   skips their handler flushes (fine). Per the execution parameters above: full re-run first, this
+   for fast iterations after; the §1 sync gate is mandatory either way.
 3. **Phase 1 Verify block** (deployment-tasks): sso reachable via Traefik + wildcard cert (DNS-01),
    CrowdSec decisions active, CIFS round-trip, hardening evidence (`fail2ban-client status sshd`,
    `nft list ruleset` incl. :22, `sshd -T` = 3/no/no, `docker info` daemon settings).
 4. **Deploy-gated verification rows**: HD-40A, HD-135 (partial), HD-149, HD-143, HD-144, HD-146,
    HD-166, HD-159 — tick + journal each as its evidence lands.
 5. **Hygiene**: rotate the exposed provision SA token; swap placeholder `openrouter_api`/`cohere_api`/
-   `forgejo_api` values for real ones; consider HD-212 (native WSL clone) before the next big deploy;
-   write the `deployment-manual.md` §Phase 1 section once the Phase 1 Verify block is green
-   (Phases 0/0.5 already documented).
+   `forgejo_api` values for real ones; HD-212 is handled by the §1 sync-gate decision (native clone
+   only as the pre-authorized fallback); write the `deployment-manual.md` §Phase 1 section once the
+   Phase 1 Verify block is green (Phases 0/0.5 already documented).
 
 ## 4. Working rules (unchanged, binding)
 
