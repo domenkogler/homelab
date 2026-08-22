@@ -364,6 +364,14 @@
 - Also observed ~13:00–13:06: interactive Windows `ssh vps` hung post-kex (agent returns identities,
   signature requests stall) while WSL key-file SSH stayed green throughout — likely locked/wedged
   1Password app on the laptop; deployment traffic unaffected (WSL path only).
+- **Owner actions landed:** fresh `vps-op-write_api` created (850-char `ops_` token ✓);
+  `authentik-provision_api` item restored around the STILL-LIVE Authentik DB token
+  (`provision-glue`, no re-issue needed) via runner-side op with the new write-SA — Bearer verify
+  **200**. Owner question "one item enough?" answered: NO — two systems, two secrets
+  (services-authentik.md tokens section).
+- **Tooling promoted:** `scripts/ak-shell.sh` — base64-safe Python-in-authentik-worker runner
+  (script-file indirection from Windows; agent-independent key-file SSH); ends the multi-layer
+  quoting failures hit all session. Documented in scripts/README.md.
 
 ## Phase 1.5 — Network Redo
 
