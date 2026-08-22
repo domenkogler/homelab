@@ -56,7 +56,7 @@
     uris: https://apt.grafana.com
     suites: stable
     components: main
-    signedby: https://apt.grafana.com/gpg.key
+    signed_by: https://apt.grafana.com/gpg.key
     state: present
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
