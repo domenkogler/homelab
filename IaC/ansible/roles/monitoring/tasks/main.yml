@@ -47,19 +47,25 @@
   tags: [monitoring, ha_token]
 
 # ---- Alloy installation (Grafana APT repo) ----
-- name: Add Grafana GPG key (for Alloy)
-  ansible.builtin.apt_key:
-    url: https://apt.grafana.com/gpg.key
+# deb822_repository (Wave-3 triage 2026-08-22): Debian 13 removed apt-key entirely; the
+# module fetches the armored key to /etc/apt/keyrings and writes the signed-by source.
+- name: Add Grafana APT repo (deb822, for Alloy)
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: deb
+    uris: https://apt.grafana.com
+    suites: stable
+    components: main
+    signedby: https://apt.grafana.com/gpg.key
     state: present
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
-- name: Add Grafana APT repository (for Alloy)
-  ansible.builtin.apt_repository:
-    repo: deb https://apt.grafana.com stable main
-    state: present
+- name: Update APT cache after repo add (for Alloy)
+  ansible.builtin.apt:
     update_cache: true
   when: inventory_hostname in groups['monitoring']
+  changed_when: false
   tags: [monitoring, alloy]
 
 - name: Install Alloy
