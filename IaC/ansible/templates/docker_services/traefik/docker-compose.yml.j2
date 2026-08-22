@@ -105,7 +105,7 @@ services:
       # internal+public namespace depends on this DNS-01 wildcard (see network-dns.md).
 {% endif %}
       # CrowdSec bouncer plugin (WAF) — blocks malicious IPs via CrowdSec LAPI.
-      - "--experimental.plugins.crowdsec-bouncer.moduleName=github.com/maxlerebourc/crowdsec-bouncer-traefik-plugin"
+      - "--experimental.plugins.crowdsec-bouncer.moduleName=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
       - "--experimental.plugins.crowdsec-bouncer.version={{ crowdsec_bouncer_plugin_version }}"
 
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}

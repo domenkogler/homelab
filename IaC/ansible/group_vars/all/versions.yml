@@ -17,7 +17,7 @@ certs_dumper_version: v2.11.4  # registry-verified on Docker Hub ldez/traefik-ce
 # CrowdSec Traefik bouncer plugin version — explicit (KOPS-029 / HD-87): previously the
 # hardcoded default in the traefik compose; now a group_var so Renovate can track it and it
 # stays in sync with the CrowdSec LAPI (drift would silently break blocking).
-crowdsec_bouncer_plugin_version: v0.4.0
+crowdsec_bouncer_plugin_version: v1.7.1   # registry-verified 2026-08-22 (Wave-3 R5): old pin referenced maxlerebourc/...@v0.4.0 - repo+tag never existed (typo), plugin 404'd at every start
 crowdsec_version: "v1.7.8"          # crowdsecurity/crowdsec (Docker Hub tag has a `v`)
 
 # ==== Identity / access ====
