@@ -150,6 +150,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `ha_api` | `credential` | HA long-lived token → Traefik/Companion, `/api/prometheus` bearer for Prometheus |
 | `ha-vrrp_password` | `password` | keepalived (VIP `ha.kogler.si`) shared auth |
 | `ha-failover_api` | `credential` | HA failover trigger API (HD-17) — Homepage buttons + `ha-failover-api` token |
+| `crowdsec-bouncer_api` | `credential` | CrowdSec LAPI bouncer key for the Traefik bouncer plugin (`cscli bouncers add traefik-bouncer`; Wave-3 R5, 2026-08-22) |
 | `meteoblue_api` | `credential` | Home Assistant core `meteoblue` weather integration (HD-22) — Meteoblue model API key |
 | `headscale_api` | `credential` | headscale (OIDC client secret; `username` = client id) |
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |

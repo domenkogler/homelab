@@ -35,11 +35,12 @@ http:
 
     # CrowdSec bouncer plugin — checks the client IP against CrowdSec's
     # blocklist (LAPI). Registered in traefik's static config via
-    # --experimental.plugins.crowdsec-bouncher.*
+    # --experimental.plugins.crowdsec-bouncer.* (v1.7.1 requires the LAPI key - Wave-3 R5).
     crowdsec-bouncer:
       plugin:
         crowdsec-bouncer:
           lapi_url: http://crowdsec:8080
+          crowdsecLapiKey: "{{ lookup('community.general.onepassword', 'crowdsec-bouncer_api', field='credential', vault=op_vault) }}"
           update_interval: 10s
 
     # Authentik Forward-Auth — validates the user session, redirects to
