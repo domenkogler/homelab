@@ -45,7 +45,9 @@ wsl --unregister Debian    # destructive — wipes the current runner; deliberat
 wsl --install -d Debian
 ```
 
-Create the local user `domen`. The repo is **reused** from the Windows checkout at
+Create the local user `domen`, then set its password (`passwd`) and store it as item
+`laptop-domen-wsl-debian_login` (field `password`) in the **Homelab** 1Password vault.
+The repo is **reused** from the Windows checkout at
 `/mnt/d/source/domenkogler/homelab` (single working copy — no second clone inside WSL).
 
 ✔ `wsl -l -v` lists Debian; inside WSL `whoami` → `domen`.
