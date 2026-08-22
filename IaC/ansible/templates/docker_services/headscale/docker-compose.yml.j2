@@ -20,6 +20,10 @@ services:
       - /tmp
     container_name: headscale
     restart: unless-stopped
+    # Public resolvers (Wave-3 R5): the host's netcup resolvers negative-cache NXDOMAIN
+    # for freshly-published records (SOA minttl > record TTL), which kept OIDC discovery
+    # failing long after the sso record went live.
+    dns: [1.1.1.1, 8.8.8.8]
     networks:
       - traefik-public
     volumes:
