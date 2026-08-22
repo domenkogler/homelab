@@ -1,0 +1,220 @@
+---
+# ks-forward-auth.yml — edge forward-auth wiring for Traefik-fronted apps (Wave-3 R5).
+# ==================================================================================
+# Declares the AUTHENTIK side of the `authentik-forward-auth@file` chain:
+#   - one PROXY provider (mode: forward_single) per protected hostname
+#   - one application per provider (slugs namespaced `edge-*`; the OIDC-side apps
+#     live in ks-oidc.yml and must never collide)
+#   - all providers bound to the EMBEDDED outpost ("authentik Embedded Outpost",
+#     auto-created by authentik; blueprint updates it in place)
+#
+# Scope = the interfaces.md edge tier: every app whose router carries
+# `authentik-forward-auth@file`. Excluded BY DESIGN (see labels/comments):
+#   native-OIDC apps (ai/foto/file + headscale after R5 middleware fix),
+#   Matrix-native SSO (matrix/chat), WOPI-only office, the IdP itself (sso),
+#   internal-tier services without public routes.
+# forward_single ONLY — forward_domain would swallow sibling subdomains.
+# ==================================================================================
+version: 1
+metadata:
+  name: ks-forward-auth
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_git
+    identifiers:
+      name: forward-git
+    attrs:
+      mode: forward_single
+      external_host: https://git.kogler.si
+      internal_host: http://forgejo:3000
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_stats
+    identifiers:
+      name: forward-stats
+    attrs:
+      mode: forward_single
+      external_host: https://stats.kogler.si
+      internal_host: http://grafana:3000
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_sec
+    identifiers:
+      name: forward-sec
+    attrs:
+      mode: forward_single
+      external_host: https://sec.kogler.si
+      internal_host: http://metabase:3000
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_auto
+    identifiers:
+      name: forward-auto
+    attrs:
+      mode: forward_single
+      external_host: https://auto.kogler.si
+      internal_host: http://n8n:5678
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_pairdrop
+    identifiers:
+      name: forward-pairdrop
+    attrs:
+      mode: forward_single
+      external_host: https://pairdrop.kogler.si
+      internal_host: http://pairdrop:3000
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_pdf
+    identifiers:
+      name: forward-pdf
+    attrs:
+      mode: forward_single
+      external_host: https://pdf.kogler.si
+      internal_host: http://stirling-pdf:8080
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_home
+    identifiers:
+      name: forward-homepage-apex
+    attrs:
+      mode: forward_single
+      external_host: https://kogler.si
+      internal_host: http://homepage:3000
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_home_home
+    identifiers:
+      name: forward-homepage-home
+    attrs:
+      mode: forward_single
+      external_host: https://home.kogler.si
+      internal_host: http://homepage:3000
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_traefik_dash
+    identifiers:
+      name: forward-traefik-dash
+    attrs:
+      mode: forward_single
+      external_host: https://traefik.kogler.si
+      internal_host: https://traefik.kogler.si
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+
+  - model: authentik_core.application
+    id: app_edge_git
+    identifiers:
+      slug: edge-forgejo
+    attrs:
+      name: Forgejo (edge)
+      meta_launch_url: https://git.kogler.si
+      provider: !KeyOf provider_edge_git
+  - model: authentik_core.application
+    id: app_edge_stats
+    identifiers:
+      slug: edge-grafana
+    attrs:
+      name: Grafana (edge)
+      meta_launch_url: https://stats.kogler.si
+      provider: !KeyOf provider_edge_stats
+  - model: authentik_core.application
+    id: app_edge_sec
+    identifiers:
+      slug: edge-metabase
+    attrs:
+      name: Metabase (edge)
+      meta_launch_url: https://sec.kogler.si
+      provider: !KeyOf provider_edge_sec
+  - model: authentik_core.application
+    id: app_edge_auto
+    identifiers:
+      slug: edge-n8n
+    attrs:
+      name: n8n (edge)
+      meta_launch_url: https://auto.kogler.si
+      provider: !KeyOf provider_edge_auto
+  - model: authentik_core.application
+    id: app_edge_pairdrop
+    identifiers:
+      slug: edge-pairdrop
+    attrs:
+      name: PairDrop (edge)
+      meta_launch_url: https://pairdrop.kogler.si
+      provider: !KeyOf provider_edge_pairdrop
+  - model: authentik_core.application
+    id: app_edge_pdf
+    identifiers:
+      slug: edge-stirling-pdf
+    attrs:
+      name: Stirling PDF (edge)
+      meta_launch_url: https://pdf.kogler.si
+      provider: !KeyOf provider_edge_pdf
+  - model: authentik_core.application
+    id: app_edge_home
+    identifiers:
+      slug: edge-homepage
+    attrs:
+      name: Homepage (edge)
+      meta_launch_url: https://kogler.si
+      provider: !KeyOf provider_edge_home
+  - model: authentik_core.application
+    id: app_edge_home_home
+    identifiers:
+      slug: edge-homepage-home
+    attrs:
+      name: Homepage home (edge)
+      meta_launch_url: https://home.kogler.si
+      provider: !KeyOf provider_edge_home_home
+  - model: authentik_core.application
+    id: app_edge_traefik_dash
+    identifiers:
+      slug: edge-traefik-dash
+    attrs:
+      name: Traefik Dashboard (edge)
+      meta_launch_url: https://traefik.kogler.si
+      provider: !KeyOf provider_edge_traefik_dash
+
+  - model: authentik_outposts.outpost
+    id: outpost_embedded
+    identifiers:
+      name: authentik Embedded Outpost
+    attrs:
+      type: proxy
+      deployment_type: local
+      providers:
+        - !KeyOf provider_edge_git
+        - !KeyOf provider_edge_stats
+        - !KeyOf provider_edge_sec
+        - !KeyOf provider_edge_auto
+        - !KeyOf provider_edge_pairdrop
+        - !KeyOf provider_edge_pdf
+        - !KeyOf provider_edge_home
+        - !KeyOf provider_edge_home_home
+        - !KeyOf provider_edge_traefik_dash

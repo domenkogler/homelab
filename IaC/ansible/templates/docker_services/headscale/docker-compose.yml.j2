@@ -38,7 +38,10 @@ services:
       traefik.http.routers.headscale.rule: "Host(`vpn.kogler.si`)"
       traefik.http.routers.headscale.entrypoints: websecure
       {{ 'traefik.http.routers.headscale.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
-      traefik.http.routers.headscale.middlewares: authentik-forward-auth@file
+      # crowdsec-only (Wave-3 R5, owner-approved): headscale does native OIDC + must accept
+      # unauthenticated client control traffic (/ts2021, DERP) - browser-auth at the edge
+      # would break enrolment. UI protected by its own OIDC login.
+      traefik.http.routers.headscale.middlewares: crowdsec-only@file
       traefik.http.services.headscale.loadbalancer.server.port: "8080"
 networks:
   traefik-public:
