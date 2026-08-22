@@ -36,11 +36,20 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      # Plugin storage (Wave-3 R5): experimental plugins download into /plugins-storage at
+      # start; under read_only the manager failed -> plugins disabled -> every
+      # crowdsec-bouncer router dead since first boot. tmpfs keeps the hardening; plugins
+      # simply re-download per start.
+      - /plugins-storage
     container_name: traefik
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
+    # Public resolvers (Wave-3 R5): lego's DNS-01 propagation self-check queried the docker
+    # forwarder -> netcup resolvers, whose negative cache held _acme-challenge.* NXDOMAIN
+    # from the blocked era -> every validation check timed out. Same fix as headscale.
+    dns: [1.1.1.1, 8.8.8.8]
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
