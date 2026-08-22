@@ -117,7 +117,7 @@ openclaw_version: "2026.7.1"
 # `latest` via an undefined *_version var. Renovate docker datasource keeps each current.
 # (Versions verified against upstream registries 2026-08-18.)
 db_backup_version: "4.1.100"        # tiredofit/db-backup
-forgejo_version: "16.0.2"           # codeberg.org/forgejo/forgejo (docker tag strips `v`)
+forgejo_version: "16.0.3"  # codeberg.org/forgejo/forgejo (docker tag strips `v`); 16.0.2 publish broken upstream (manifest 404) - pull-verified 16.0.3 2026-08-22           # codeberg.org/forgejo/forgejo (docker tag strips `v`)
 grafana_version: "13.2.0"           # grafana/grafana OSS
 kopia_version: "0.23.1"             # kopia/kopia (server on the VPS + oldsrv agent, HD-191)
 n8n_version: "2.35.3"               # n8nio/n8n
