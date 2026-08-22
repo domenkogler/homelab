@@ -232,11 +232,15 @@ immich_ml_url: "http://{{ immich_ml_bind }}:3003"   # IMMICH_MACHINE_LEARNING_UR
 # entry in subscriptions.yml (`secret: Hertzner-SB-Data`); only the mount-specific knobs
 # live here. SMB username/password resolved at render from the 1Password item.
 # Exposed to containers as the neutral storage owner (storage_uid/storage_gid).
+# Defined here ONCE (HD-51 neutral owner): identical across hosts so file ownership
+# survives data moves; CIFS mount + container user: both derive from these.
+storage_uid: "1005"
+storage_gid: "1005"
 livebox_cifs:
   mount_point: /mnt/storagebox
   cifs_share: "//u653411.your-storagebox.de/backup"   # live box share (subscriptions.yml host)
-  uid: "{{ storage_uid | default('1005') }}"
-  gid: "{{ storage_gid | default('1005') }}"
+  uid: "{{ storage_uid }}"
+  gid: "{{ storage_gid }}"
   creds_file: /etc/cifs/livebox.creds
 
 # Single-namespace DNS: everything (hosts + services) is under kogler.si.
