@@ -89,6 +89,18 @@ CATALOG = [
     ("API Credential", "n8n-webhook_api",         lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "signal-internal_api",     lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "network-snmp_api",       lambda: [f"credential={gen_pw()}"]),
+    # Phase 1 first-deploy additions (found live 2026-08-22 — render failed on missing items):
+    # generated placeholders where the real value arrives later (forgejo token after the
+    # Forgejo UI is up; openrouter/cohere keys from the provider dashboards — swap in the
+    # vault, re-run playbook).
+    ("Password",       "authentik_login",         lambda: [f"password={gen_pw()}"]),
+    ("Password",       "authentik-ldap_bind",     lambda: [f"password={gen_pw()}"]),
+    ("Login",          "opencloud_login",         lambda: [f"username=admin", f"password={gen_pw()}"]),
+    ("API Credential", "forgejo_api",             lambda: [f"credential={gen_pw()}"]),
+    ("API Credential", "openrouter_api",          lambda: [f"credential={gen_pw()}"]),
+    ("API Credential", "cohere_api",              lambda: [f"credential={gen_pw()}"]),
+    ("API Credential", "openclaw_gateway_token",  lambda: [f"password={gen_pw()}"]),
+    ("API Credential", "openclaw-opencloud_api",  lambda: [f"username=openclaw", f"credential={gen_pw()}"]),
     # grafana_login: Grafana admin password — generated (no external source);
     # the SMTP relay creds are the shared `smtp_login` item (not auto-gen here).
     ("Login",       "grafana_login",              lambda: [f"password={gen_pw()}"]),
@@ -107,6 +119,16 @@ NOT_AUTO_ROTATABLE = {
     "authentik_db", "opencloud_db", "immich_db", "forgejo_db", "pgvector_db",  # running Postgres
     "authentik_password",   # Django SECRET_KEY — invalidates the running instance
     "kopia_password",       # repo master password on live repo
+    # Phase 1 additions (2026-08-22): external/app-coupled — rotate via vault + redeploy,
+    # never auto-regenerate:
+    "authentik_login",      # bootstrap admin — created at Authentik first boot from this value
+    "authentik-ldap_bind",  # consumed by the LDAP outpost binding
+    "forgejo_api",          # real token issued by the Forgejo UI after first boot
+    "openrouter_api",       # external provider API key
+    "cohere_api",           # external provider API key
+    "openclaw_gateway_token",   # consumed by the running gateway
+    "openclaw-opencloud_api",   # OpenCloud app-password pair
+    "opencloud_login",      # admin login created at first boot
 }
 
 
