@@ -499,6 +499,53 @@
   serve attempt · crowdsec hub-upgrade EROFS expected silenced by /staging tmpfs (verify) ·
   renovate runs but fails against forgejo until IT is up (ordering fine post-fix).
 
+### 2026-08-22 - Phase 1 - Wave 3: combined runs GREEN; public DNS published; 32/35 Up; 3 owner-gated remainders (HD-218 cont.)
+
+- **Loop discipline:** every fix = validate green -> commit -> 9P sync gate -> one playbook run.
+  Commits 143d477, 6482eeb, 900b27b, fbdd913, cf1c350, 528a527, f45f679 (first FULL GREEN run),
+  d3a8f7c (R2), a334370+f6d2d41 (R3), 9c44e63, cf478a3, 2b6edc5, 80cf101 (R4/R5 headscale),
+  1db2a7b+d4c7d18 (DNS), 73f4c8d (headscale resolvers).
+- **Run-1..8 dominoes (all first-time-live defects):** orphaned group_vars/subscriptions.yml
+  (no [subscriptions] group existed) -> group wired; broken post-deploy inventory-doc render
+  (all_hostvars never built host-locally; would clobber the multi-host generated doc) -> removed,
+  canonical renderers documented in-place; monitoring ha_token -> gated behind
+  prometheus_ha_exporter; Debian 13 has no apt-key -> Grafana repo via deb822 (param is
+  signed_by); snmp.yml scoped to oldsrv (undefined {{ community }} inside a template comment);
+  alert-rule summaries carrying Go-template vars -> !unsafe. First FULL GREEN run: ok=264 failed=0.
+- **Round 2:** crowdsec read_only relaxed (upstream seeds /staging on the rootfs; tmpfs made the
+  seed glob degenerate) + one-time data-dir reset (operational; polluted bind kept as
+  db.stale-20260822T181838Z); db-backup+pairdrop: tmpfs /run -> host bind (Docker mounts tmpfs
+  noexec - s6 stage0 exec died with 126) + pairdrop s6 cap quartet; headscale
+  noise.private_key_path (0.24+ requirement); kopia --known-hosts/--keyfile (--no-check-known-hosts
+  never existed in 0.23.1); openclaw --allow-unconfigured until HD-104 onboard; opencloud
+  bind_dirs += data (NATS JetStream died in the root-owned data bind); prometheus trailing
+  storage.tsdb block deleted (not a valid config key - CLI flags only).
+- **Round 3:** crowdsecurity/grafana ALSO nonexistent upstream (masked behind matrix in round 1)
+  -> dropped from collections; headscale prefixes block (v2 schema); n8n read_only removed
+  (~/.cache lives on the rootfs); stirling-pdf user 0:0 + forgejo cap quintet (init.sh must run
+  root) + validator ALLOWED_NO_CAP_DROP entry.
+- **Rounds 4/5 (headscale v2 schema chain):** base_domain ts.kogler.si (v2 rejects server_url
+  inside base_domain; DECISION reversible pre-enrolment - nodes = <node>.ts.kogler.si); policy
+  comments // (HuJSON rejects ansible_managed #-style); tagOwners empty (no autogroup:admin in
+  v2; server-side CLI tagging unaffected); interim *:* ACL (enrolment itself is OIDC-gated;
+  TIGHTEN at first enrolment with real usernames - owner-flagged).
+- **Public DNS published (dns.yml green x3):** apex + sso/git/chat/matrix/file/office/foto/ai/
+  stats/sec/pdf/vpn/pairdrop/auto CNAMEs -> vps (sso unblocks headscale OIDC + the whole
+  forward-auth chain; ha stays unpublished until Phase 4; apex via flattened kogler.si CNAME -
+  the module rejects an empty name). Gotcha: netcup resolvers negative-cache NXDOMAIN beyond
+  the record TTL -> headscale got explicit 1.1.1.1/8.8.8.8.
+- **FINAL TALLY: 32/35 Up** (incl. previously crash-looping chat, forgejo, grafana,
+  immich-server, matrix, metabase, n8n, stirling-pdf, openclaw, opencloud, prometheus,
+  pairdrop, db-backup, crowdsec; traefik-certs-dumper idling correctly pre-issuance).
+  Remaining loops, ALL owner-gated: kopia-server (needs /srv/docker/kopia-server/config/
+  {sftp_key,known_hosts} seeded), renovate (needs real forgejo_api token swap), headscale
+  (needs wildcard cert: CF API STILL 403 from VPS IP 159.195.111.66 despite the whitelist -
+  owner re-check WHICH token was edited vs vault cloudflare_api). authentik-ldap + chat
+  unhealthy = post-green checks.
+- **Process slip (own it):** commit a334370 landed while the validator was red - the `| tail`
+  pipe masked the script exit code. Fixed next commit (f6d2d41); lesson: capture rc before the
+  pipe, never trust the pipe's status.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
