@@ -12,9 +12,9 @@ docker_compose_dir: /opt
 # (overwriting the raw .j2 copy with the rendered version, stripping .j2 suffix).
 _extra_templates:
   kopia-server:
-    - env.j2                # compose ${KOPIA_SERVER_*} interpolation (1Password render)
+    - .env.j2               # compose ${KOPIA_SERVER_*} interpolation (1Password render)
   kopia-agent:
-    - env.j2                # same mechanism — Phase 3 host, fixed while live here
+    - .env.j2               # same mechanism — Phase 3 host, fixed while live here
   element-web:
     - config.json.j2
   loki:
