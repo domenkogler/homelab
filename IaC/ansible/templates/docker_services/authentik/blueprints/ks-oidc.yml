@@ -10,7 +10,8 @@
 #   - Client credentials are NOT declared here. Authentik AUTO-GENERATES a client_id +
 #     client_secret for each confidential oauth2provider on creation.
 #   - The secret-egress glue (HD-143) runs after blueprint apply: GET each provider via
-#     the Authentik API (/api/v3/core/providers/oauth2/) and writes the generated
+#     the Authentik API (/api/v3/providers/oauth2/ — NOT /api/v3/core/providers/…, which
+#     404s) and writes the generated
 #     client_id / client_secret into the 1Password items the compose templates lookup()
 #     (openwebui_api, headscale_api, matrix_api, openclaw_api, opencloud_oidc).
 #   Do NOT add client_id / client_secret lookup() fields to this file — that would try to
@@ -24,6 +25,10 @@
 #   - sub_mode = hashed_user_id (model default)
 #   - application binds provider via `provider: !KeyOf <id>` INSIDE the authentik_core.application
 #     entry; there is NO authentik_providers_oauth2.application link model (removed 2026-08-19).
+# Blueprint v1 spec (docs.goauthentik.io/customize/blueprints/v1/structure): `identifiers` is
+# REQUIRED on every entry — providers identified by `name`, applications by `slug` (moved out of
+# attrs; identifiers merge with attrs on create, updates only apply attrs). Found live 2026-08-22:
+# first real apply rejected every entry with "No or invalid identifiers".
 # Local validation: scripts/validate_blueprints.py (custom-tag YAML loader + HD-149 checks), wired
 # into scripts/validate-all.sh. Authoring notes: docs/services-authentik.md "Blueprint authoring notes".
 # Live deploy-verify (HD-147/149): apply on the pinned authentik_version, confirm import + the
@@ -39,8 +44,9 @@ entries:
   # ==================================================================================
   - model: authentik_providers_oauth2.oauth2provider
     id: provider_openwebui
-    attrs:
+    identifiers:
       name: openwebui
+    attrs:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
@@ -50,9 +56,10 @@ entries:
       sub_mode: hashed_user_id
   - model: authentik_core.application
     id: app_openwebui
+    identifiers:
+      slug: openwebui
     attrs:
       name: Open WebUI
-      slug: openwebui
       meta_launch_url: https://ai.kogler.si
       provider: !KeyOf provider_openwebui
 
@@ -62,8 +69,9 @@ entries:
   # ==================================================================================
   - model: authentik_providers_oauth2.oauth2provider
     id: provider_headscale
-    attrs:
+    identifiers:
       name: headscale
+    attrs:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
@@ -73,9 +81,10 @@ entries:
       sub_mode: hashed_user_id
   - model: authentik_core.application
     id: app_headscale
+    identifiers:
+      slug: headscale
     attrs:
       name: Headscale
-      slug: headscale
       meta_launch_url: https://vpn.kogler.si
       provider: !KeyOf provider_headscale
 
@@ -88,8 +97,9 @@ entries:
   # ==================================================================================
   - model: authentik_providers_oauth2.oauth2provider
     id: provider_matrix
-    attrs:
+    identifiers:
       name: matrix
+    attrs:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
@@ -99,9 +109,10 @@ entries:
       sub_mode: hashed_user_id
   - model: authentik_core.application
     id: app_matrix
+    identifiers:
+      slug: matrix
     attrs:
       name: Matrix
-      slug: matrix
       meta_launch_url: https://matrix.kogler.si
       provider: !KeyOf provider_matrix
 
@@ -117,8 +128,9 @@ entries:
   # ==================================================================================
   - model: authentik_providers_oauth2.oauth2provider
     id: provider_openclaw
-    attrs:
+    identifiers:
       name: openclaw
+    attrs:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
@@ -127,9 +139,10 @@ entries:
       sub_mode: hashed_user_id
   - model: authentik_core.application
     id: app_openclaw
+    identifiers:
+      slug: openclaw
     attrs:
       name: OpenClaw
-      slug: openclaw
       provider: !KeyOf provider_openclaw
 
 
@@ -142,8 +155,9 @@ entries:
   # ==================================================================================
   - model: authentik_providers_oauth2.oauth2provider
     id: provider_opencloud
-    attrs:
+    identifiers:
       name: opencloud
+    attrs:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
@@ -153,9 +167,10 @@ entries:
       sub_mode: hashed_user_id
   - model: authentik_core.application
     id: app_opencloud
+    identifiers:
+      slug: opencloud
     attrs:
       name: OpenCloud
-      slug: opencloud
       meta_launch_url: https://file.kogler.si
       provider: !KeyOf provider_opencloud
 
@@ -169,8 +184,9 @@ entries:
   # ==================================================================================
   - model: authentik_providers_oauth2.oauth2provider
     id: provider_immich
-    attrs:
+    identifiers:
       name: immich
+    attrs:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
@@ -182,9 +198,10 @@ entries:
       sub_mode: hashed_user_id
   - model: authentik_core.application
     id: app_immich
+    identifiers:
+      slug: immich
     attrs:
       name: Immich
-      slug: immich
       meta_launch_url: https://foto.kogler.si
       provider: !KeyOf provider_immich
 
@@ -199,8 +216,9 @@ entries:
   # ==================================================================================
   - model: authentik_providers_oauth2.oauth2provider
     id: provider_forgejo
-    attrs:
+    identifiers:
       name: forgejo
+    attrs:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
@@ -210,9 +228,10 @@ entries:
       sub_mode: hashed_user_id
   - model: authentik_core.application
     id: app_forgejo
+    identifiers:
+      slug: forgejo
     attrs:
       name: Forgejo
-      slug: forgejo
       meta_launch_url: https://git.kogler.si
       provider: !KeyOf provider_forgejo
 
@@ -225,8 +244,9 @@ entries:
   # ==================================================================================
   - model: authentik_providers_oauth2.oauth2provider
     id: provider_metabase
-    attrs:
+    identifiers:
       name: metabase
+    attrs:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       client_type: confidential
@@ -236,8 +256,9 @@ entries:
       sub_mode: hashed_user_id
   - model: authentik_core.application
     id: app_metabase
+    identifiers:
+      slug: metabase
     attrs:
       name: Metabase
-      slug: metabase
       meta_launch_url: https://sec.kogler.si
       provider: !KeyOf provider_metabase

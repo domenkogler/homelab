@@ -296,6 +296,36 @@
   (/opt/authentik/blueprints/ks-oidc.yml).
 - Next: sync gate → full `vps.yml` re-run → expect health 200 + glue completing all providers.
 
+### 2026-08-22 — Phase 1 · layers 3–4: glue API path wrong + provision token dead + blueprint entries lacked required `identifiers`
+
+- Same session, after the `/blueprints/custom` mount fix: full re-run reached the glue again; server
+  healthy (core socket bound, `/-/health/live|ready/` = 200 — note: bare `/-/health/` from prompt.md
+  §3.1 is NOT an authentik route; it 404s by design).
+- **Layer 3 — glue API path:** script called `/api/v3/core/providers/oauth2/` → **404**. Authentik
+  serves OAuth2 providers under **`/api/v3/providers/oauth2/`** (`core/*` is users/groups/apps;
+  verified live: old path 404 unauthenticated, new path 403). Fixed in `authentik-secret-egress.sh.j2`
+  (commit 62913f1) + ks-oidc.yml header comment updated here.
+- **Layer 4a — provision token dead:** with the right path the API answered **403**, then
+  `/api/v3/core/users/me/` returned "Token invalid/expired": the vault item
+  `authentik-provision_api.credential` holds no valid Authentik token — in fact NO provision token
+  exists in this authentik instance at all (only tokens: the LDAP outpost service-account one).
+  Root cause of the original value is unknown (pre-reprovision artifact); resolution below.
+- **Layer 4b — blueprint never applied (root blocker for the glue):** zero OAuth2Provider objects,
+  zero BlueprintInstance for ks-oidc.yml. Manual `ak apply_blueprint /blueprints/custom/ks-oidc.yml`
+  rejected EVERY entry: **"No or invalid identifiers"** — the Blueprint-v1 spec
+  (docs.goauthentik.io/customize/blueprints/v1/structure) requires non-empty `identifiers` on every
+  entry; our file kept name/slug in attrs only.
+- **Fixes (this change):**
+  - ks-oidc.yml: all 16 entries gained proper `identifiers:` (providers ← `name`, applications ←
+    `slug`; moved out of attrs per spec — identifiers merge into attrs on create, updates only apply
+    attrs so auto-generated client_id/secret are preserved); header notes updated.
+  - Provision token: created via `ak shell` (`Token.objects.create(user=akadmin, intent="api")`) and
+    written into the vault item ON THE VPS through its write-scoped op SA (value never displayed;
+    journal records names only).
+- Note for future sessions: authentik 2026.5.x has NO `is_superuser` on User (FieldError) — admin
+  capability lives in Group.is_superuser ("authentik Admins" contains akadmin); `ak shell -c` works,
+  stdin-piped REPL does not; wrap python in base64 to survive ssh quoting.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
