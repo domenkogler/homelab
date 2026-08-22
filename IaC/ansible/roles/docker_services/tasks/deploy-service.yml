@@ -30,6 +30,7 @@
   loop: "{{ _extra_templates[svc.template_dir] | default([]) }}"
   loop_control:
     label: "{{ extra | replace('.j2', '') }}"
+    loop_var: extra
 
 # ---- First-boot guard (HD-185): home-assistant-primary bind-mount sources ----
 # Render-first order (HD-204: home_assistant BEFORE docker_services on the Pi) means
