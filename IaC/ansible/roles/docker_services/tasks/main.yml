@@ -89,9 +89,13 @@
   ansible.builtin.include_tasks:
     file: deploy-service.yml
   vars:
-    svc: "{{ item }}"
+    # Dedicated loop_var (HD-185 pattern): lazy "{{ item }}" would be re-resolved by any
+    # INNER loop in deploy-service.yml (e.g. extra .j2 templates) and shadow into a str.
+    svc: "{{ svc_entry }}"
   loop: "{{ docker_services | selectattr('name', 'equalto', 'authentik') | list }}"
-  when: item.enabled | default(true)
+  loop_control:
+    loop_var: svc_entry
+  when: svc_entry.enabled | default(true)
   tags: docker_services
 
 - name: Run the secret-egress glue (after authentik is up)
@@ -103,13 +107,15 @@
   ansible.builtin.include_tasks:
     file: deploy-service.yml
   vars:
-    svc: "{{ item }}"
+    # Dedicated loop_var (HD-185 pattern): see the authentik-first include above.
+    svc: "{{ svc_entry }}"
   loop: "{{ docker_services }}"
   when:
-    - item.enabled | default(true)
-    - item.name != 'authentik'
+    - svc_entry.enabled | default(true)
+    - svc_entry.name != 'authentik'
   loop_control:
-    label: "{{ item.name }}"
+    label: "{{ svc_entry.name }}"
+    loop_var: svc_entry
   tags: docker_services
 
 # Traefik cert-pull consumer wiring (HD-181): non-issuer traefik hosts are cert
