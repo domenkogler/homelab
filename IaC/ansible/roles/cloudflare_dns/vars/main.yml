@@ -78,6 +78,26 @@ cloudflare_dns_records:
 # Reference the internet-facing set from docs/network-dns.md:
 #   kogler.si (root), foto, file, git, sso, ha, vpn, matrix, chat
 #
+# ADDED 2026-08-22 (Wave-3, HD-218 loop): the Phase-1 VPS app set is LIVE — all CNAMEs
+# flatten to the vps host record (single IP source). sso unblocks headscale OIDC discovery
+# + every forward-auth route; root = family launchpad (HD-180). ha STAYS unpublished until
+# the Phase-4 HA cutover. Revisit: tighten this list if an app is pulled.
+  - { name: "",        type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: sso,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: git,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: chat,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: matrix,    type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: file,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: office,    type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: foto,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: ai,        type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: stats,     type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: sec,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: pdf,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: vpn,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: pairdrop,  type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: auto,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+#
 # Example (once foto.kogler.si is served by VPS Traefik):
 #   - name: foto
 #     type: A
