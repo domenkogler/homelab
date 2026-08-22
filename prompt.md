@@ -5,7 +5,8 @@
 > defects, and got the stack as far as the Authentik secret-egress glue (which cannot reach the API on
 > host loopback — **first diagnostic step below**).
 > **Linked from:** [README.md](README.md) §2 · plan: [deployment-tasks.md](deployment-tasks.md) ·
-> as-built log: [deployment-journal.md](deployment-journal.md) · human feed: [prompt-journal.md](prompt-journal.md)
+> as-built log: [deployment-journal.md](deployment-journal.md) · redeploy runbook:
+> [deployment-manual.md](deployment-manual.md) · human feed: [prompt-journal.md](prompt-journal.md)
 
 ---
 
@@ -48,6 +49,11 @@
   `cohere_api`, `openclaw_gateway_token`, `openclaw-opencloud_api`) — ⚠ `openrouter_api`/`cohere_api`
   hold PLACEHOLDER values (swap for real provider keys later); `forgejo_api` placeholder until the
   Forgejo UI issues the real token. `openclaw-opencloud_api` username=`openclaw`.
+- **New since the halt (2026-08-23 session, HD-213/214):** [deployment-manual.md](deployment-manual.md)
+  — imperative redeploy runbook; Phase 0 (runner) + Phase 0.5 (netcup SCP reinstall incl. the
+  field-by-field settings, moved here from `docs/deployment-preseed.md`) are documented;
+  its §Phase 1 is deliberately stubbed until the first green Verify block. No impact on the
+  execution order below.
 - **Fixes landed & committed on 2026-08-22** (details in the journal attempt log): bootstrap chmod 700,
   group_vars/all.yml→all/main.yml shadowing fix (HD-210 closed), python3-debian prereq,
   op-guard delegate_to localhost + become:false, vps-hardening restarts docker after nftables load,
