@@ -188,10 +188,12 @@ def bcrypt_item() -> list[str]:
 
 
 def create(category: str, title: str, fields: list[str]) -> bool:
+    # stdin=DEVNULL: with a non-TTY stdin, `op item create` tries to parse piped JSON
+    # and fails with "invalid JSON in piped input" (found live 2026-08-22 under WSL).
     r = subprocess.run(
         ["op", "item", "create", "--category", category,
          "--title", title, "--vault", VAULT] + fields,
-        capture_output=True, text=True)
+        capture_output=True, text=True, stdin=subprocess.DEVNULL)
     if r.returncode != 0:
         print(f"FAILED {title}: {r.stderr.strip()}", file=sys.stderr)
         return False
