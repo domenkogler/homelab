@@ -202,6 +202,14 @@
   2. I wire provisioning of op+token onto the VPS (new role task or prepass guard change), then re-run — remaining roles: rest of docker_services (traefik/crowdsec/authentik/apps), monitoring.
   3. Then the Phase 1 Verify block + Deploy-gated verification rows (HD-40A/135/149/143/144/146/166/159).
 
+### 2026-08-22 — Phase 1 · session close — deploy halted at authentik boot; tooling promoted to scripts/ `[MANUAL]`
+
+- Continues the attempt log. **HD-143 unblocked and wired**: owner created the write-scoped SA; token deployed to `/etc/op/provision-token` (0600) out-of-band, then vault-managed via a new `prepass-authentik.yml` copy task (lookup → file, no_log) so rotation = update item + re-run. Provisioner extended with the 8 missing items (create-only; NOT_AUTO_ROTATABLE guard updated) + `stdin=DEVNULL` fix for non-TTY `op item create`; all 8 seeded successfully.
+- **Attempts (each fixed in-repo, committed):** postgres services crash-looped under `cap_drop ALL`+read_only (entrypoint chown/setuid denied) → caps + `/var/run/postgresql` tmpfs patched across authentik/db-backup/forgejo/immich-app/pgvector; redis same class → CHOWN/SETUID/SETGID; deploy-service compose validation used nonexistent `compose validate` → `config --quiet`; HD-185 guard inner loop shadowed the outer lazy `item` var → dedicated `loop_var`; authentik labels used mid-template `{% if %}` whose rendered indentation broke YAML → inline ternary.
+- **HALT STATE:** glue still cannot reach `127.0.0.1:9000` after fresh containers + 30 retries — authentik-server flapping at halt; first next-session action is its diagnosis (prompt.md §3.1). Everything before it is deployed and verified.
+- **Tooling promoted to the repo (owner request):** `scripts/ansible-run.sh` (documented WSL playbook runner replacing ad-hoc %TEMP% wrappers — venv + token + ANSIBLE_CONFIG/ROLES_PATH exports), `scripts/provision-vault.sh`, `scripts/restore-runner-key.sh`, `scripts/check-vault-items.sh`; all documented in scripts/README.md.
+- **Registered:** HD-211 (rotate the chat-exposed provision SA token post-deploy; replace placeholder API keys), HD-212 (/mnt/d 9P stale-cache risk — twice served minutes-old files to the runner; migrate to a native WSL clone or add md5 verification before runs). ⚠ Minor: `sudo: unable to resolve host vps` on the box — candidate common-role /etc/hosts nit.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
