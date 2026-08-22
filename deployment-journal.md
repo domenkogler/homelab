@@ -228,6 +228,35 @@
   Takes effect on the VPS via the next full idempotent `vps.yml` re-run (template task replaces the
   whole file).
 
+### 2026-08-22 — Phase 1 · glue-halt DIAGNOSED: authentik-server image ships no default CMD — `command: server` was never given
+
+- Plan ref: prompt.md §3.1 first diagnostic action (read-only SSH evidence gathering).
+- **Live state at pickup:** authentik-postgres / authentik-redis / authentik-worker Up ~9 h
+  (worker healthy); authentik-ldap Up-but-unhealthy (its `depends_on` target is down);
+  **authentik-server `Restarting (0)`** — crash-loop with EXIT CODE 0 since yesterday's halt;
+  port 127.0.0.1:9000 never published.
+- **Diagnosis:**
+  - Server logs: boot runs clean (config → PostgreSQL OK → bootstrap OK → "Booting authentik
+    2026.5.6" → MMDB → app-module imports) … then prints a Django management-command listing and
+    exits cleanly — the signature of bare `ak` invoked with NO subcommand (help text → exit 0).
+  - `docker inspect authentik-server`: ENTRYPOINT=`["dumb-init","--","ak"]`, **CMD=null** — the
+    pinned 2026.5.6 image has no default command. The worker runs only because our compose passes
+    `command: worker`; nothing ever told the server to run `server`.
+  - Deployed `/opt/authentik/docker-compose.yml` matches the current repo template (NOT 9P
+    staleness): neither side defines `command:` for the server service. Rules out both prior
+    candidates (redis cascade-abort; migrations exceeding the retry window) — the web server was
+    never started at all.
+- **Fix (this change):** `templates/docker_services/authentik/docker-compose.yml.j2` gains explicit
+  `command: server` + rationale comment (mirrors the worker pattern). Applies via the full
+  idempotent `vps.yml` re-run next; expected end-state: server Up, 9000 published, health 200,
+  LDAP outpost follows its dependency back to healthy.
+- ⚠ **Deviation recorded:** during the deployed-vs-repo comparison I displayed the rendered host-side
+  compose file — which carries RESOLVED SECRET VALUES by design — into the session log (same exposure
+  class as the HD-211 token paste). Post-green hygiene list EXTENDED: rotate `authentik_db.password`,
+  `authentik_password.password` (SECRET_KEY — logs out all sessions, fine pre-production),
+  `authentik_login.password` (bootstrap), `authentik-ldap_bind` token alongside HD-211
+  (update item → re-run playbook re-renders). No further raw dumps of rendered env blocks.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

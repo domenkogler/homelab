@@ -81,6 +81,12 @@ services:
       - "127.0.0.1:9000:9000"   # loopback-only API access for the host-side secret-egress glue (HD-143); never WAN
     container_name: authentik-server
     restart: unless-stopped
+    # Explicit subcommand REQUIRED: the 2026.5.6 image entrypoint is `ak` with NO default
+    # CMD — without this the container runs bare `ak`, prints the management-command
+    # help listing and exits 0 in a restart loop (found live Phase 1, 2026-08-22:
+    # authentik-server flapping since first deploy; worker works because it passes its
+    # own command).
+    command: server
     networks:
       - traefik-public
       - services-internal
