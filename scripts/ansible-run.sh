@@ -41,8 +41,9 @@ fi
 PLAYBOOK="${1:?usage: ansible-run.sh <playbook> [extra ansible-playbook args]}"
 shift
 case "$PLAYBOOK" in
-    /*) ;;                      # absolute path — use as-is
-    *) PLAYBOOK="$REPO/$PLAYBOOK" ;;
+    /*) ;;                                    # absolute path — use as-is
+    IaC/*) PLAYBOOK="$REPO/$PLAYBOOK" ;;      # repo-relative
+    *) PLAYBOOK="$REPO/IaC/ansible/$PLAYBOOK" ;;  # bare playbook name — runner default root
 esac
 
 cd "$REPO/IaC/ansible"
