@@ -1,5 +1,7 @@
 ---
 # Alert rule definitions — consumed by grafana-rules.yml.j2 (monitoring step 3).
+# !unsafe (Wave-3 triage 2026-08-22): summaries carrying Go-template vars
+# ({{ $labels.* }} / {{ $values.* }}) must NOT be re-templated by Ansible at render.
 # Tiers + thresholds per docs/observability.md. Exprs are PromQL over metrics
 # that exist today (nut_* from DRuggeri/nut_exporter, node_* from Alloy,
 # probe_success from blackbox, up from the self-scrape jobs in prometheus.yml.j2).
@@ -45,12 +47,12 @@ grafana_alert_rules:
       title: ZFS pool nearly full
       for: 5m
       expr: "(zfs_pool_allocated / zfs_pool_size) * 100 >= 80"
-      summary: "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥80% used (Critical)"
+      summary: !unsafe "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥80% used (Critical)"
     - uid: zfs-pool-degraded
       title: ZFS pool degraded
       for: 5m
       expr: "zfs_pool_health == 1"
-      summary: "ZFS pool {{ $labels.pool }} is DEGRADED"
+      summary: !unsafe "ZFS pool {{ $labels.pool }} is DEGRADED"
     - uid: wg-s2s-down
       title: Home<->VPS WireGuard tunnel down
       for: 2m
@@ -73,7 +75,7 @@ grafana_alert_rules:
       title: MikroTik link down
       for: 1m
       expr: 'ifOperStatus{job="alloy-snmp"} == 2 and on(instance, ifIndex) ifAdminStatus{job="alloy-snmp"} == 1'
-      summary: "MikroTik interface {{ $labels.ifName }} is down (oper down, admin up)"
+      summary: !unsafe "MikroTik interface {{ $labels.ifName }} is down (oper down, admin up)"
     - uid: ha-unreachable
       title: Home Assistant unreachable
       for: 1m
@@ -83,7 +85,7 @@ grafana_alert_rules:
       title: TLS certificate expiring soon
       for: 5m
       expr: '(probe_ssl_earliest_cert_expiry{job="blackbox_http_probes"} - time()) < 86400*14'
-      summary: "TLS cert on {{ $labels.instance }} expires in under 14 days"
+      summary: !unsafe "TLS cert on {{ $labels.instance }} expires in under 14 days"
       # KOPS-061: the Pi traefik-ha edge serves a pulled wildcard cert (ACME disabled) —
       # alert before expiry so it is renewed on the VPS (the single ACME issuer) while it is up.
     - uid: host-load-high
@@ -109,4 +111,4 @@ grafana_alert_rules:
       title: ZFS pool usage high
       for: 5m
       expr: "(zfs_pool_allocated / zfs_pool_size) * 100 >= 70"
-      summary: "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥70% used"
+      summary: !unsafe "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥70% used"
