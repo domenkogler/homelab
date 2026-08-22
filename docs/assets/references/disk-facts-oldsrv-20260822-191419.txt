@@ -1,0 +1,148 @@
+kogler homelab — disk facts (Phase 1a, READ-ONLY collector)
+generated : Sat Aug 22 19:14:19 UTC 2026
+label     : oldsrv
+hostname  : ?
+kernel    : 6.12.94+deb13-amd64
+root      : 1   tools: smartctl=0 lsblk=0 blkid=1 nvme=0
+guarantee : this script only READS disks; it wrote exactly one file (this report).
+WARNING   : smartmontools absent — identity facts complete, health/hour data missing.
+
+$ cat /etc/os-release 2>/dev/null || cat /etc/debian_version 2>/dev/null
+
+============================================================
+== /dev/disk/by-id/ FULL LISTING (SSOT discipline: never use sdX names)
+============================================================
+
+$ ls -l /dev/disk/by-id/
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z -> ../../nvme0n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z-part1 -> ../../nvme0n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z-part5 -> ../../nvme0n1p5
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z_1 -> ../../nvme0n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z_1-part1 -> ../../nvme0n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z_1-part5 -> ../../nvme0n1p5
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T -> ../../nvme1n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T-part1 -> ../../nvme1n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T-part2 -> ../../nvme1n1p2
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T_1 -> ../../nvme1n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T_1-part1 -> ../../nvme1n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T_1-part2 -> ../../nvme1n1p2
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-eui.0025385b0143f12e -> ../../nvme1n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-eui.0025385b0143f12e-part1 -> ../../nvme1n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-eui.0025385b0143f12e-part2 -> ../../nvme1n1p2
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-eui.0025385c61b048c2 -> ../../nvme0n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-eui.0025385c61b048c2-part1 -> ../../nvme0n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-eui.0025385c61b048c2-part5 -> ../../nvme0n1p5
+lrwxrwxrwx    1 root     root             9 Aug 22 19:00 usb-USB_SanDisk_3.2Gen1_040192967fc459db2015f6d4a7814f1daf3c0b2be76f8935ea495613d0436c8f417c0000000000000000000090d92f300019901891558107bdab3121-0:0 -> ../../sda
+lrwxrwxrwx    1 root     root            10 Aug 22 19:00 usb-USB_SanDisk_3.2Gen1_040192967fc459db2015f6d4a7814f1daf3c0b2be76f8935ea495613d0436c8f417c0000000000000000000090d92f300019901891558107bdab3121-0:0-part1 -> ../../sda1
+
+============================================================
+== DISK /dev/nvme0n1 — model=Samsung SSD 960 EVO 500GB   serial=S3EUNX0HC06971Z 
+============================================================
+size=466G sectors=976773168 transport=nvme rotational=0 firmware=1B7QCXE7
+by-id:
+  /dev/disk/by-id/nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z
+  /dev/disk/by-id/nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z_1
+  /dev/disk/by-id/nvme-eui.0025385c61b048c2
+(smartctl absent — install smartmontools in the live session for health data)
+
+============================================================
+== DISK /dev/nvme1n1 — model=Samsung SSD 970 EVO 1TB   serial=S5H9NS1NB12680T 
+============================================================
+size=932G sectors=1953525168 transport=nvme rotational=0 firmware=2B2QEXE7
+by-id:
+  /dev/disk/by-id/nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T
+  /dev/disk/by-id/nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T_1
+  /dev/disk/by-id/nvme-eui.0025385b0143f12e
+(smartctl absent — install smartmontools in the live session for health data)
+
+============================================================
+== DISK /dev/sda — model= SanDisk 3.2Gen1  serial=?
+============================================================
+size=29G sectors=60088320 transport=usb rotational=1 firmware=-
+by-id:
+  /dev/disk/by-id/usb-USB_SanDisk_3.2Gen1_040192967fc459db2015f6d4a7814f1daf3c0b2be76f8935ea495613d0436c8f417c0000000000000000000090d92f300019901891558107bdab3121-0:0
+(smartctl absent — install smartmontools in the live session for health data)
+
+============================================================
+== NVMe BY-ID (HD-128) — paste these EXACT strings into host_vars/oldsrv storage_nvme_data_by_id
+============================================================
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z -> ../../nvme0n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z-part1 -> ../../nvme0n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z-part5 -> ../../nvme0n1p5
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z_1 -> ../../nvme0n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z_1-part1 -> ../../nvme0n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z_1-part5 -> ../../nvme0n1p5
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T -> ../../nvme1n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T-part1 -> ../../nvme1n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T-part2 -> ../../nvme1n1p2
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T_1 -> ../../nvme1n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T_1-part1 -> ../../nvme1n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-Samsung_SSD_970_EVO_1TB_S5H9NS1NB12680T_1-part2 -> ../../nvme1n1p2
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-eui.0025385b0143f12e -> ../../nvme1n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-eui.0025385b0143f12e-part1 -> ../../nvme1n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-eui.0025385b0143f12e-part2 -> ../../nvme1n1p2
+lrwxrwxrwx    1 root     root            13 Aug 22 19:00 nvme-eui.0025385c61b048c2 -> ../../nvme0n1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-eui.0025385c61b048c2-part1 -> ../../nvme0n1p1
+lrwxrwxrwx    1 root     root            15 Aug 22 19:00 nvme-eui.0025385c61b048c2-part5 -> ../../nvme0n1p5
+
+============================================================
+== SUMMARY TABLE
+============================================================
+DEV     MODEL                 SERIAL             SIZE TRAN  POWHRS REALL  PEND HEALTH
+nvme0n1 Samsung SSD 960 EVO 5 S3EUNX0HC06971Z    466G nvme       -     -     - n/a (no smartctl)
+nvme1n1 Samsung SSD 970 EVO 1 S5H9NS1NB12680T    932G nvme       -     -     - n/a (no smartctl)
+sda      SanDisk 3.2Gen1      ?                   29G usb        -     -     - n/a (no smartctl)
+
+============================================================
+== CONTEXT — lsblk
+============================================================
+
+============================================================
+== CONTEXT — blkid (EXISTING filesystem signatures — pre-wipe awareness, read-only query)
+============================================================
+
+$ blkid -o full 2>/dev/null || blkid
+/dev/nvme0n1p5: LABEL="Data" BLOCK_SIZE="512" UUID="01D70EE7C09FA080" TYPE="ntfs" PARTUUID="b422d8d3-05"
+/dev/nvme1n1p2: BLOCK_SIZE="512" UUID="926A358C6A356DDB" TYPE="ntfs" PARTUUID="61c07f6e-02"
+/dev/nvme1n1p1: BLOCK_SIZE="512" UUID="B4FC7F32FC7EEE4C" TYPE="ntfs" PARTUUID="61c07f6e-01"
+/dev/sda1: LABEL="DEBIAN 13_6" UUID="44B7-2B58" BLOCK_SIZE="512" TYPE="vfat" PARTUUID="0944704c-01"
+
+============================================================
+== CONTEXT — nvme-cli
+============================================================
+
+============================================================
+== CONTEXT — kernel view
+============================================================
+
+$ cat /proc/partitions
+major minor  #blocks  name
+
+ 259        0  976762584 nvme1n1
+ 259        1     512000 nvme1n1p1
+ 259        2  976249560 nvme1n1p2
+ 259        3  488386584 nvme0n1
+ 259        4          1 nvme0n1p1
+ 259        5  488385528 nvme0n1p5
+   8        0   30044160 sda
+   8        1   30043120 sda1
+
+$ cat /proc/mounts
+rootfs / rootfs rw,size=49028332k,nr_inodes=6103075,inode64 0 0
+tmpfs /run tmpfs rw,nosuid,relatime,size=4902836k,mode=755,inode64 0 0
+proc /proc proc rw,relatime 0 0
+sysfs /sys sysfs rw,relatime 0 0
+devtmpfs /dev devtmpfs rw,relatime,size=24412300k,nr_inodes=6103075,mode=755,inode64 0 0
+devpts /dev/pts devpts rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000 0 0
+/dev/sda1 /mnt/usb vfat rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,utf8,errors=remount-ro 0 0
+
+============================================================
+== RETURN PATH
+============================================================
+destination used : /mnt/usb  [already-mounted removable partition (/dev/sda1)]
+file             : /mnt/usb/disk-facts-_none_-20260822-191419.txt
+
+back at the laptop:
+  1. nvme-eui.* strings  -> host_vars/oldsrv  storage_nvme_data_by_id  (closes HD-128)
+  2. HDD power-on hours  -> refresh docs/hardware-nas.md tables (old sdX-based ranges)
+  3. blkid section       -> sanity input before Pool-Creation Runbook step 0 (wipefs)
