@@ -72,7 +72,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.grafana.rule: "Host(`stats.kogler.si`)"
       traefik.http.routers.grafana.entrypoints: websecure
-      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.grafana.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.grafana.middlewares: authentik-forward-auth@file
       traefik.http.services.grafana.loadbalancer.server.port: "3000"
 networks:

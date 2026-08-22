@@ -29,7 +29,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.metabase.rule: "Host(`sec.kogler.si`)"
       traefik.http.routers.metabase.entrypoints: websecure
-      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.metabase.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       # HD-148: Metabase OSS has NO OIDC (paid feature) -> stays behind Forward-Auth (free,
       # works). Only switch to crowdsec-only + MB_OIDC_* if Metabase Enterprise is licensed.
       traefik.http.routers.metabase.middlewares: authentik-forward-auth@file

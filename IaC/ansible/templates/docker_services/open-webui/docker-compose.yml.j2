@@ -50,7 +50,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.open-webui.rule: "Host(`ai.kogler.si`)"
       traefik.http.routers.open-webui.entrypoints: websecure
-      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.open-webui.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.open-webui.middlewares: crowdsec-only@file   # + Authentik OIDC (app-level; native OIDC, no Forward-Auth per HD-101)
       traefik.http.services.open-webui.loadbalancer.server.port: "8080"
 networks:

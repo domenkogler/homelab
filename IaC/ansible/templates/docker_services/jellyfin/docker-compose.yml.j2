@@ -31,7 +31,7 @@ services:
       traefik.http.routers.jellyfin.rule: "Host(`media.kogler.si`)"
       traefik.http.routers.jellyfin.entrypoints: websecure
       traefik.http.routers.jellyfin.middlewares: crowdsec-only@file   # CrowdSec block-list; own login, no Forward-Auth (HD-60)
-      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.jellyfin.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       # NOTE: no authentik-forward-auth — Jellyfin has its own login (client apps)
       traefik.http.services.jellyfin.loadbalancer.server.port: "8096"
 networks:

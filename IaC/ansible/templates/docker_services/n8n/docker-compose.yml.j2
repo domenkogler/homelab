@@ -44,7 +44,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.n8n.rule: "Host(`auto.kogler.si`)"
       traefik.http.routers.n8n.entrypoints: websecure
-      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.n8n.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.n8n.middlewares: authentik-forward-auth@file
       traefik.http.services.n8n.loadbalancer.server.port: "5678"
 networks:

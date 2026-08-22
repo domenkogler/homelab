@@ -29,7 +29,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.bazarr.rule: "Host(`bazarr.kogler.si`)"
       traefik.http.routers.bazarr.entrypoints: websecure
-      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.bazarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.bazarr.middlewares: authentik-forward-auth@file
       traefik.http.services.bazarr.loadbalancer.server.port: "6767"
 networks:

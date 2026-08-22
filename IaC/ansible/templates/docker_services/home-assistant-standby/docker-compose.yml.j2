@@ -36,7 +36,7 @@ services:
       traefik.http.routers.ha.rule: "Host(`ha.kogler.si`)"
       traefik.http.routers.ha.entrypoints: websecure
       traefik.http.routers.ha.middlewares: crowdsec-only@file   # CrowdSec only; no Forward-Auth (Companion flow) — HD-118
-      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.ha.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       # NOTE: no authentik-forward-auth middleware on the ha route (Companion app flow)
 
   keepalived:

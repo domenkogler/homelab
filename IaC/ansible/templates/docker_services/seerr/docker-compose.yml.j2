@@ -31,7 +31,7 @@ services:
       traefik.http.routers.seerr.rule: "Host(`seerr.kogler.si`)"
       traefik.http.routers.seerr.entrypoints: websecure
       traefik.http.routers.seerr.middlewares: crowdsec-only@file   # CrowdSec block-list; own login, no Forward-Auth (KOPS-047 / HD-119)
-      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.seerr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       # NOTE: no authentik-forward-auth — Seerr has its own login
       traefik.http.services.seerr.loadbalancer.server.port: "5055"
 networks:

@@ -40,7 +40,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.stirling-pdf.rule: "Host(`pdf.kogler.si`)"
       traefik.http.routers.stirling-pdf.entrypoints: websecure
-      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.stirling-pdf.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.stirling-pdf.middlewares: authentik-forward-auth@file
       traefik.http.services.stirling-pdf.loadbalancer.server.port: "8080"
 networks:
