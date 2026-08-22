@@ -546,6 +546,71 @@
   pipe masked the script exit code. Fixed next commit (f6d2d41); lesson: capture rc before the
   pipe, never trust the pipe's status.
 
+## Phase 1a — Parallel Track: NAS Pools + Host Installs
+
+### 2026-08-23 — Phase 1a · oldsrv reinstalled interactively — preseed automation bypassed after four delivery failures `[MANUAL]`
+
+- Plan ref: [deployment-tasks.md](deployment-tasks.md) §Phase 1a, "Reinstall oldsrv via preseed media"
+- **Media:** Debian 13.6.0 amd64 DVD-with-firmware, SanDisk 3.2 Gen1 USB ("DEBIAN 13_6", FAT32). Overlay: `preseed/preseed.cfg` (repo copy) + `preseed/post_install.sh` (real pubkeys injected at build from 1Password `Homelab-ansible` items `laptop-domen_ssh` / `ansible-admin_ssh` / `ai_ssh`, field `public_key` — via `IaC/host/gen-media-post-install.sh`). Boot configs patched in place: `module_blacklist=iwlwifi` on EVERY entry (GRUB 20 lines + all isolinux appends) and `file=/cdrom/preseed/preseed.cfg` on the automated entries. `install.amd/initrd.gz` additionally rebuilt with `/preseed.cfg` injected (original kept as `initrd.gz.orig`).
+- **Why automation was bypassed (four delivery mechanisms failed identically at partman):**
+    1. netcfg looped on the WPA dialog — oldsrv has a WLAN NIC (`wlp9s0`) and `choose_interface=auto` picked it.
+    2. `file=` preseed never loaded: first attempt used the wrong path (`/cdrom/preseed.cfg` vs subdir); with the correct path the medium mounts late on this Rufus-FAT32 layout → syslog: `preseed: error: error handling file`.
+    3. Manual `debconf-set-selections` (SEEDED-OK) + partman kill/re-run STILL hit "no root filesystem" — root cause found on the console: **debian-installer udev creates no `nvme-eui.*` links**, so `partman-auto/disk` pointing at the eui form matched nothing; model_serial links exist (`S3EUNX0HC06971Z`, owner-confirmed against an OCR misread of `05971Z`).
+    4. initrd-injected `/preseed.cfg` also absent in the running installer — and the decisive discovery: the installer console showed boot medium = **Kingston DataTraveler**, not our SanDisk → a second stick was being booted (also explains an empty `/cdrom` during one manual mount). Kingston quarantined pending inspection.
+- **Decision:** finish interactively (*Graphical install*), then replicate `post_install.sh` state with a one-shot catch-up script served over LAN HTTP from the management laptop (`bootstrap-oldsrv.sh`; NOT committed — carries real pubkeys, repo keeps placeholder-only discipline).
+- **Install answers/settings:**
+    - mode: BIOS/CSM — partman-efi force-UEFI question answered **No** (target disk carried Windows GPT/ESP; fresh msdos table written)
+    - NIC: `enp0s31f6` (onboard Intel), DHCP · hostname `oldsrv.kogler.si`
+    - root password: none (blank ×2, KOPS-044 posture) · user `domen` (local desktop; sudo via blank-root rule)
+    - partitioning MANUAL on `nvme-Samsung_SSD_960_EVO_500GB_S3EUNX0HC06971Z` only: p1 ext4 `/` bootable + p2 swap 8 GB; **970 EVO untouched** (NTFS until pool-create)
+    - tasksel: XFCE + SSH server + standard utilities · GRUB → same 500 GB disk
+- **Catch-up run (`bootstrap-oldsrv.sh`, as domen via sudo):** apt python3/sudo/openssh-server/curl; `ansible-admin` + 2 keys + `sudoers.d` NOPASSWD; `ai-debug` + restricted AI key (`from="<SITE_LAN_CIDR>"`, value per [network-addresses-generated.md](docs/network-addresses-generated.md) — same restriction string as IaC/host/post_install.sh); sshd drop-in `00-homelab-hardening.conf` (`AllowUsers ansible-admin ai-debug`); sshd restarted; self-verify OK (2+1 keys).
+- **Verify:** `ssh ansible-admin@oldsrv` key-only OK from the management laptop; `ssh domen@oldsrv` correctly REFUSED (AllowUsers — domen is the local-desktop identity by design).
+- **Deviations:**
+    - interactive install instead of preseeded (reasons above) — doc updated: `IaC/host/oldsrv/preseed.cfg` (model_serial by-id + `early_command` runtime resolver + wifi-blacklist note), `docs/deployment-preseed.md` (media-build generator step + eui warning), `scripts/check_placeholders.py` ALLOWLIST (generator class), `scripts/README.md` (collect-disk-facts row)
+    - preseed partman path switched to model_serial by-id; `host_vars` `storage_nvme_data_by_id` KEEPS the eui form (full udev on the live system resolves it) — distinction noted in both files
+    - nas HDD SMART-hour re-read still pending (smartmontools absent in the collector live env) — stays at the Phase-2 deploy check per hardware-nas.md
+    - doc updated: [hardware-oldsrv.md](docs/hardware-oldsrv.md) current-state header (installed 2026-08-23, BIOS/CSM, NIC map incl. wlp9s0)
+
+### 2026-08-22/23 - Phase 1 - Waves R4/R5: wildcard ISSUED + installed, public TLS live, authentik admin synced; 33/35 Up (HD-218 cont.)
+
+- **Traefik docker provider was dead since FIRST BOOT**: Engine 29 (min client API 1.40) refused
+  traefik v3.5.2's default API-1.24 client -> label routers never registered. Pin bumped
+  v3.5.2 -> **v3.7.11** (registry-verified 2026-08-22); DOCKER_API_VERSION detour reverted
+  (negotiation works upstream).
+- **Crowdsec bouncer plugin chain (three stacked defects, all first-boot-latent):** moduleName
+  typo maxlerebour**c** -> **maxlerebourg**, version v0.4.0 never existed -> **v1.7.1**
+  (registry-verified); read_only rootfs killed /plugins-storage -> tmpfs (plugins disabled
+  since boot); v1.7.1 REQUIRES crowdsecLapiKey -> generated `cscli bouncers add traefik-bouncer`
+  key, stored as NEW vault item **crowdsec-bouncer_api** (host-side op create), wired into
+  middlewares.yml.j2 + deployment-secrets row.
+- **DNS-01 propagation self-check failed against netcup resolvers' negative cache**
+  (_acme-challenge.* NXDOMAIN outlived record TTL) -> traefik container got explicit
+  1.1.1.1/8.8.8.8 (same fix as headscale).
+- **CF token saga closed:** CIDR entries (/22, /64) were not honored reliably - exact-IP roll
+  exposed a genuinely broken v4 row (home exact-IP passed, VPS exact-IP 403); owner deleted +
+  re-typed the .66 entry -> v4 probe 200 -> issuance cascade.
+- **LE rate-limit interplay:** each blocked-era attempt burned 5-per-identifier-per-hour budget;
+  windows slid for hours; converged ~23:45 CEST once CF accepted + resolvers fixed. Wildcard
+  *.kogler.si + apex ISSUED; certs-rename crt/key dirs were swapped (dumper writes private=key,
+  certs=crt) -> fixed; contract files kogler.si.pem/-key.pem INSTALLED at /opt/traefik/certs.
+- **headscale schema chain completed:** prefixes block, derp map (public Tailscale relays),
+  tmpfs /var/run/headscale (Class-B) -> **headscale UP** on v0.29.3.
+- **authentik akadmin identity stale (R5 close):** DB predated the bootstrap env vars ->
+  akadmin kept root@example.com + dead password; bootstrap env applies ONLY at creation.
+  Fixed via sanctioned ak-shell ORM sync (worker lacks the bootstrap env - values passed
+  explicitly). Owner logged in, enrolled WebAuthn + TOTP. Finding recorded in
+  services-authentik.md live-deploy findings. Fresh reinstalls are UNAFFECTED (env pinned
+  from first boot).
+- **FINAL STATE:** 35 containers accounted: 33 Up (all Phase-1 services behind real LE TLS,
+  crowdsec chain enforced), renovate + kopia-server looping PENDING OWNER steps (forgejo_api
+  real token; kopia sftp_key/known_hosts seed), authentik-ldap + chat health checks post-green.
+  Public routes live: sso (owner-verified), git, chat, matrix, file, office, foto, ai, stats,
+  sec, pdf, vpn, pairdrop, auto + apex homepage.
+- **HD-211 rotation additions:** CF_DNS_API_TOKEN old value transited probe transcript
+  (rolled same day - old value burned); db-backup/n8n/grafana/openclaw entries from Wave 1.
+- Next session: Phase-1 Verify block (deployment-tasks 3b-4) once forgejo_api + kopia seeds land.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
