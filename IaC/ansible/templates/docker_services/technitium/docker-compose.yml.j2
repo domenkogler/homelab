@@ -48,9 +48,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.dns.rule: "Host(`dns.kogler.si`)"
       traefik.http.routers.dns.entrypoints: websecure
-      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
-      traefik.http.routers.dns.tls.certresolver: letsencrypt
-      {% endif %}
+      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.dns.middlewares: authentik-forward-auth@file   # internal-only
 
   # SECONDARY instance (Pi/pi.kogler.si): deploy via the same template with instance name

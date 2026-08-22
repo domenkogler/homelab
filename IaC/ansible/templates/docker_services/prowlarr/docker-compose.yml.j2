@@ -27,9 +27,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.prowlarr.rule: "Host(`prowlarr.kogler.si`)"
       traefik.http.routers.prowlarr.entrypoints: websecure
-      {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
-      traefik.http.routers.prowlarr.tls.certresolver: letsencrypt
-      {% endif %}
+      {{ '' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.prowlarr.middlewares: authentik-forward-auth@file
       traefik.http.services.prowlarr.loadbalancer.server.port: "9696"
 networks:
