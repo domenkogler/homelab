@@ -48,15 +48,18 @@
         - config/configuration.yaml   # rendered by home_assistant (render-first order)
         - keepalived.conf             # rendered by home_assistant (first-deploy copy)
         - secrets.yaml                # 1Password-rendered (renderer still pending)
+      loop_control:
+        loop_var: ha_src_file         # NOT `item` — shadows the outer include's lazy
+                                      # `svc: "{{ item }}"` and turns svc into a string
       register: ha_primary_sources
 
     - name: "Assert {{ svc.name }} bind-mount sources pre-exist as regular files"
       ansible.builtin.assert:
         that:
-          - item.stat.exists
-          - item.stat.isreg
+          - ha_src_file.stat.exists
+          - ha_src_file.stat.isreg
         fail_msg: >-
-          {{ item.item }} under {{ docker_compose_dir }}/{{ svc.name }}/ is missing or not a
+          {{ ha_src_file.item }} under {{ docker_compose_dir }}/{{ svc.name }}/ is missing or not a
           regular file. An empty DIRECTORY here means an earlier deploy ran `docker compose up`
           for home-assistant-primary BEFORE the home_assistant role rendered its configs —
           Docker auto-created the bind-mount source as a directory. Remediation: stop the stack
