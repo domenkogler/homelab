@@ -66,28 +66,24 @@ ansible + collections from `requirements.yml`, stores the token at `~/.config/op
 
 ✔ Script prints `FULL BOOTSTRAP COMPLETED SUCCESSFULLY`; `ansible --version` and `op --version` respond.
 
-### 0.3 Replace the throwaway key with the canonical runner identity
+### 0.3 Canonical runner identity + 1Password/Ansible connectivity check
 
 ```bash
 cd /mnt/d/source/domenkogler/homelab && bash scripts/restore-runner-key.sh
-```
-
-Pulls `ansible-admin_ssh.private_key` / `public_key` from the vault into `~/.ssh/id_ed25519[.pub]`
-(bootstrap's generated key is discarded — the vault is the source of truth).
-
-✔ Output shows `pair-consistent: yes` and the fingerprint matches the canonical one the script prints.
-
-### 0.4 Verify 1Password ↔ Ansible connectivity
-
-```bash
 bash scripts/ansible-run.sh IaC/ansible/test-1password.yml
 ```
 
-✔ `PLAY RECAP: ok=2 failed=0` — the playbook reads `kopia_password` from the vault.
+`restore-runner-key.sh` pulls `ansible-admin_ssh.private_key` / `public_key` from the vault into
+`~/.ssh/id_ed25519[.pub]` (bootstrap's throwaway key is discarded — the vault is the source of
+truth); `test-1password.yml` then proves the lookup path end-to-end.
 
-### 0.5 Windows-side interactive SSH (one-time, management laptop)
+✔ `restore-runner-key.sh` prints `pair-consistent: yes` with the fingerprint matching the canonical
+one it prints · `test-1password.yml` ends `PLAY RECAP: ok=2 failed=0` (reads `kopia_password`).
 
-Owning spec: [docs/1password.md](docs/1password.md).
+### 0.4 Windows-side interactive SSH *(optional, one-time)*
+
+> Only needed for interactive `ssh vps` from the Windows laptop — the Ansible runner runs
+> exclusively in WSL and does not depend on this step. Owning spec: [docs/1password.md](docs/1password.md).
 
 1. 1Password desktop app running, with the `Homelab-ansible` vault allowlisted in the SSH-agent
    config — without it the agent refuses the keys and `ssh` misreports `invalid format`.
