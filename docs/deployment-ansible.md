@@ -96,6 +96,13 @@ tags: [deployment, ansible, iac]
   `true`. Use for per-host gating (`technitium` on `oldsrv` only).
 - **`instance`** (optional) — for multi-instance services sharing one template
   (e.g. `raspberrymatic-standby`).
+- **`bind_owner_uid`** + **`bind_dirs`** (optional; Wave-3 R5, HD-218) — Class-A fix for
+  non-root images: Docker auto-creates host bind-mount sources as `root:root`, so services
+  whose image runs a fixed uid (grafana 472, node-user images 1000) or `storage_uid` died with
+  EACCES on first boot. `deploy-service.yml` pre-creates `/srv/docker/<name>/<dir>` owned by
+  `bind_owner_uid` for each entry in `bind_dirs` (`'.'` = the service root). Set both keys
+  together on the service entry whenever a template bind-mounts `/srv/docker/<name>/...` into
+  a non-root container.
 - **Lazy loop_var shadowing (HD-185 pattern, generalized):** `vars: { svc: "{{ item }}" }` on an
   `include_tasks` loop is LAZY - any INNER loop in the included file re-resolves `item` in its own
   context, so `svc` collapses to that inner string ('str' has no attribute 'name', found live on

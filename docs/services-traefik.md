@@ -167,7 +167,13 @@ networks:
 
 ## Middleware Chain
 
-1. **CrowdSec bouncer** — blocks malicious IPs
+1. **CrowdSec bouncer** — blocks malicious IPs. Plugin contract (Wave-3 R5): module
+   `github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin` (note spelling), pin in
+   `versions.yml` (`crowdsec_bouncer_plugin_version`, registry-verified; v1.7.1 REQUIRES
+   `crowdsecLapiKey`) — key lives in vault item `crowdsec-bouncer_api`, generated via
+   `cscli bouncers add traefik-bouncer`. The container needs a `/plugins-storage` tmpfs:
+   under `read_only: true` the plugin manager cannot create it and plugins silently disable,
+   killing every router that references the chain.
 2. **Authentik Forward Auth** — redirects unauthenticated users to SSO
 3. **Security headers** — applied to all responses
 

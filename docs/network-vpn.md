@@ -51,6 +51,13 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 
 ## Layer 2: Headscale (Mobile Mesh)
 
+> **Naming + policy contract (Wave-3 R5, 2026-08-22):** headscale ≥ 0.24 REJECTS a
+> `server_url` inside `base_domain`, so node names live under the dedicated subtree
+> **`<node>.ts.kogler.si`** (`base_domain: ts.kogler.si`); the control plane stays
+> `https://vpn.kogler.si`. Reversible until the first client enrols. Interim ACL =
+> `*:*` (enrolment itself is Authentik-OIDC-gated); TIGHTEN to named users/tags at first
+> enrolment per the HD-84 posture — see `policy.hujson.j2`.
+
 - Runs on the **VPS** as a Docker container (HD-135: public coordination server, VPS residency)
 - Overlay subnet: `headscale` (CIDR per SSOT)
 - Clients: Android/iOS Tailscale app, laptops

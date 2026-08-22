@@ -17,6 +17,20 @@ tags: [services, vps, netcup]
 > below, which is retained as the implementation spec for what actually ships there.
 >
 > 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Host provisioned, stack not live. The netcup box is **bought + provisioned** (2026-08-18, IP + SSH fingerprints in `host_vars`) but the **service stack is NOT deployed yet** — Traefik/CrowdSec/Authentik/AI/observability land in Phase 1 (HD-40A/135) with the WG S2S tunnel deploy-gated ⏳ (HD-03). Sections below describe what ships there, not what is running.
+> **Live since 2026-08-22** (Phase 1): all enabled services deployed behind real LE TLS.
+
+### netcup edge firewall (SCP-verified 2026-08-22, Wave-3)
+
+- **Outgoing SMTP blocked** on ports **25 / 465 / 587** (netcup default anti-spam rule; DROP).
+  → **VPS-originated mail must use an alternate submission port** — the SMTP2Go relay
+  (`smtp_login`) also listens on **2525**, which is NOT blocked. Configure Grafana/NUT/n8n
+  alert mail accordingly (port 587 will silently drop).
+- ICMP (v4+v6) explicitly allowed both directions; **everything else implicitly ACCEPTED**
+  in/out — the SCP firewall is permissive by default; hardening lives at the host (nftables/
+  fail2ban/docker), not here.
+- Egress addresses as seen by remote services: `159.195.111.66` (v4) and
+  `2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5` (stable SLAAC v6) — both belong in any provider-side
+  IP allowlist (e.g. Cloudflare token filters).
 
 ---
 
