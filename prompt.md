@@ -35,7 +35,7 @@
   minutes twice on 2026-08-22 (provisioner ran an old catalog; a render used an old template).
   Owner decision: **stay on `/mnt/d` (Option A)** behind this gate —
   1. Whole-tree hash compare from the repo root on BOTH sides — must be equal:
-     `git ls-files -z | xargs -0 md5sum | md5sum`
+     `git ls-files -z | xargs -0 md5sum --text | md5sum`
   2. On mismatch, force-invalidate (in order, re-hash after each):
      ① `wsl -d Debian -u root -- bash -c 'echo 3 > /proc/sys/vm/drop_caches'`
      ② still stale → inside WSL: `sudo umount /mnt/d && sudo mount -t drvfs D: /mnt/d`

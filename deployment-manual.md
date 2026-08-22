@@ -24,7 +24,7 @@
 - ⚠ **9P staleness — mandatory sync gate before ANY playbook run (HD-212, decided 2026-08-22):** the
   runner reads the repo over `/mnt/d`; Windows-side writes can be served stale to WSL for minutes.
   1. Whole-tree compare from the repo root on BOTH sides — must be equal:
-     `git ls-files -z | xargs -0 md5sum | md5sum`
+     `git ls-files -z | xargs -0 md5sum --text | md5sum`
   2. Mismatch → force-invalidate, re-hash after each:
      `wsl -d Debian -u root -- bash -c 'echo 3 > /proc/sys/vm/drop_caches'`; still stale → inside WSL
      `sudo umount /mnt/d && sudo mount -t drvfs D: /mnt/d`.

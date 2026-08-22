@@ -257,6 +257,24 @@
   `authentik_login.password` (bootstrap), `authentik-ldap_bind` token alongside HD-211
   (update item → re-run playbook re-renders). No further raw dumps of rendered env blocks.
 
+### 2026-08-22 — Phase 1 · HD-212 sync gate FIRST LIVE RUN: comparator bug found + fixed (`md5sum --text`) — no real staleness
+
+- Plan ref: prompt.md §1 mandatory pre-run sync gate (HD-212, decided today); first execution ever.
+- **What happened:** gate reported a mismatch (WIN `ca9851bf…` vs WSL `a74fdf0f…`). Mechanism ①
+  `drop_caches` did not change either hash; mechanism ② drvfs remount failed (`target is busy`); a
+  full `wsl --terminate Debian` restart changed NOTHING on either side — which disproved staleness:
+  a cold VM cannot serve a stale cache. Per-file hash spot-check then showed IDENTICAL digests
+  (`.editorconfig` = `868e57b8…` both sides) with different SEPARATORS: MSYS md5sum prints binary-mode
+  `<hash> *<path>`, GNU md5sum prints text-mode `<hash>  <path>` — the outer `\| md5sum` hashes those
+  different byte streams, so the documented command could NEVER pass across shells (false-positive by
+  construction).
+- **Fix:** `--text` added to the INNER md5sum on BOTH sides —
+  `git ls-files -z \| xargs -0 md5sum --text \| md5sum` — streams become byte-identical when trees
+  match. Re-run: WIN = WSL = `a74fdf0f…` → **GATE GREEN, tree in sync, no invalidation needed.**
+  Mechanisms ①/②/③ remain valid as staleness invalidation steps; only the comparator was wrong.
+  (doc updated: prompt.md §1, deployment-manual.md How-to-use, todo.md HD-212 row;
+  changelog HD-212 row left as-is — append-only.)
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*
