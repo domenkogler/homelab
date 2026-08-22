@@ -30,7 +30,11 @@ oidc:
 # DNS configuration — schema migrated for headscale >= 0.24 (pinned 0.29.3; Wave-2
 # triage 2026-08-22): dns_config: -> dns:, acl_policy_path: -> policy.path.
 dns:
-  base_domain: kogler.si
+  # Wave-3 round-4 triage 2026-08-22: headscale >= 0.24 REJECTS server_url inside
+  # base_domain (MagicDNS could shadow the DERP/control plane). Node names therefore live
+  # under the dedicated ts.kogler.si subtree (<node>.ts.kogler.si); the control plane stays
+  # https://vpn.kogler.si. DECISION REVERSIBLE until first client enrols - nothing existed.
+  base_domain: ts.kogler.si
   magic_dns: true
   override_local_dns: false
   nameservers:
