@@ -174,6 +174,26 @@
 
 ---
 
+## Phase 1a — Parallel Track: NAS Pools + Host Installs (before / during Phase 1.5)
+
+> **Decision (HD-215, 2026-08-23):** the long-pole destructive disk work and the host OS reinstalls
+> start in parallel with Phase 1 completion — they carry zero network dependency.
+> **Hard line:** both hosts stay OUT of the Ansible configuration loop until Phase 1.5 lands —
+> their SSOT addresses include Mgmt-VLAN 99 IPs that don't exist before the router redo.
+> **Depends on:** Phase 0 (runner + vault identities). **Feeds:** Phase 2 (the storage role is
+> import-only — pools must already exist), HD-207, HD-128.
+
+| Work | Why it can precede 1.5 |
+|------|------------------------|
+| **NAS Pool-Creation Runbook (HD-207)** — bulk RAIDZ2 → migrate the legacy pool off the IronWolf into `bulk/migrate` → tank mirror | Purely local disk work, human-gated (destructive), and the longest pole in the whole homelab (hours of copying/resilvering). Zero network dependency. |
+| **OS installs of nas/oldsrv via preseed media** | Both preseeds are DHCP-based (`netcfg` auto, no static lines) → the boxes come up fine on today's flat LAN, which IS the future VLAN-10 Home subnet (SSOT: [`network-addresses-generated.md`](docs/network-addresses-generated.md)) — planned Home IPs stay valid across the cutover. |
+| **oldsrv NVMe by-id capture** | HD-128 still waits for real `/dev/disk/by-id/nvme-…` values "at first pool create" — doing the install early unblocks that IaC fill-in. |
+
+- [ ] **[MANUAL]** Execute the Pool-Creation Runbook ([docs/hardware-nas.md](docs/hardware-nas.md)) — bulk RAIDZ2 first, legacy pool migrated into `bulk/migrate`, tank mirror; export both pools before the nas installer boots.
+- [ ] **[MANUAL]** Reinstall oldsrv via preseed media (retires the rarely-used Windows 10 install); capture the real NVMe by-ids and fill HD-128 (`storage_nvme_data_by_id`).
+- [ ] **[MANUAL]** Reinstall nas via preseed media (boot-disk/USB by-ids already pinned, HD-206).
+- [ ] **Hold:** NO playbook runs against either host until the Phase 1.5 cutover — first Ansible contact happens with the new VLANs live.
+
 ## Phase 1.5 — Network Redo from Scratch (Router RB4011 + Switch CRS328)
 
 > **This is the irreversible cutover**: the current **flat single-subnet** network is replaced by
@@ -211,7 +231,7 @@
 
 ## Phase 2 — NAS Fresh Install + Storage + UPS Master (`nas.kogler.si`)
 
-> **Depends on:** Phase 1 (VPS edge + Authentik live), Phase 1.5 (router VLANs + DHCP). NAS is on VLAN 10 (Home, access) + VLAN 99 (Mgmt, native).
+> **Depends on:** Phase 1 (VPS edge + Authentik live), Phase 1a (pools created + hosts installed), Phase 1.5 (router VLANs + DHCP). NAS is on VLAN 10 (Home, access) + VLAN 99 (Mgmt, native).
 > **1Password prerequisites (new this phase):** `nut_password` (password→`password`), `smtp_login`
 > (login; `username`=notify email/SMTP user, `password`=SMTP pass). SSH items from Phase 0 are injected
 > by `post_install.sh`. **No Docker on NAS.**

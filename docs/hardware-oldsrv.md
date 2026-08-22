@@ -8,6 +8,9 @@ tags: [hardware, oldsrv, docker]
 # oldsrv — i7-7700K Docker Host
 
 > **Role:** Detail — Phase 1 primary server. Bare-metal Debian, simultaneously family desktop PC and 24/7 Docker host.
+> **Current state (2026-08):** Windows 10 desktop, rarely used — everything below describes the
+> **target state** after the Debian reinstall (Phase 1a, [deployment-tasks.md](../deployment-tasks.md));
+> nothing in this doc is live yet.
 > **Links to:** `hardware-gpu.md`, `services.md`, `network-vlans.md`
 > **Linked from:** `hardware.md`, `deployment-preseed.md`, `deployment-ansible.md`
 
