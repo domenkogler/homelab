@@ -52,15 +52,18 @@ services:
         if [ ! -f /app/config/config.json ]; then
           echo "Creating SFTP repository on backup box..."
           # Hetzner Storage Box backup (u653424) = SSH/SFTP only port 23, SSH-key auth (no password).
-          # --no-check-known-hosts: box host key is pinned by netcup; add explicit known-hosts at deploy
-          # if strict pinning is wanted (KOPS-050 class). Repository path under the box home; kopia repo
-          # must be the SOLE consumer (single repo per box home per Hetzner model).
+          # Strict pinning (KOPS-050): --keyfile/--known-hosts point at two files SEEDED into the
+          # config bind before first start (Wave-3 R2 triage; --no-check-known-hosts does not exist
+          # in kopia 0.23.1): /srv/docker/kopia-server/config/sftp_key = private key of the
+          # backup-box SSH identity (1Password, 0600); .../config/known_hosts = ssh-keyscan -p 23
+          # <backup-box-host> output. Repo path under the box home; sole consumer (Hetzner model).
           kopia repository create sftp \
             --username="${KOPIA_SFTP_USER:?}" \
             --host="${KOPIA_SFTP_HOST:?}" \
             --port="${KOPIA_SFTP_PORT:?}" \
             --path="${KOPIA_SFTP_PATH:?}" \
-            --no-check-known-hosts \
+            --known-hosts=/app/config/known_hosts \
+            --keyfile=/app/config/sftp_key \
             --password="${KOPIA_PASSWORD:?}"
         fi
         exec kopia server start --address=0.0.0.0:51515 --insecure --htpasswd-file=/app/config/server.htpasswd  # no without-password (HD-59)

@@ -39,7 +39,7 @@ docker_services:
   # may sit anywhere after authentik.
   - { name: homepage,       template_dir: homepage, subdomain: home, enabled: true }
   # === Public live-data apps + co-located DBs (NVMe) ===
-  - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true, bind_owner_uid: "{{ storage_uid }}", bind_dirs: ['config'] }  # + bundled db
+  - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true, bind_owner_uid: "{{ storage_uid }}", bind_dirs: ['config', 'data'] }  # + bundled db
   - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, enabled: true }  # WOPI helper for opencloud (HD-166); NO auth surface
   - { name: immich-app,     template_dir: immich-app, subdomain: foto, enabled: true } # + pg/valkey; ML->oldsrv
   - { name: forgejo,        template_dir: forgejo,   subdomain: git, enabled: true }   # + bundled db

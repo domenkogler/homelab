@@ -18,14 +18,23 @@ services:
     image: lscr.io/linuxserver/pairdrop:{{ pairdrop_version }}
     cap_drop:
       - ALL
+    # s6-overlay-suexec must drop to PUID/PGID 1000 (Wave-3 R2 triage; cf. stirling-pdf).
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - SETGID
+      - SETUID
     read_only: true
     tmpfs:
       - /tmp
-      - /run   # s6-overlay state dir (/run/s6) - required when read_only (Wave-2 triage 2026-08-22)
     container_name: pairdrop
     restart: unless-stopped
     networks:
       - traefik-public
+    volumes:
+      # s6 state dir: tmpfs /run is noexec by Docker default (stage0 exec fails, exit 126)
+      # -> host bind instead. Root-owned fine: s6 stage0 runs as root and manages perms.
+      - /srv/docker/pairdrop/run:/run
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       PUID: "1000"          # linuxserver.io convention (uid of the runtime user)

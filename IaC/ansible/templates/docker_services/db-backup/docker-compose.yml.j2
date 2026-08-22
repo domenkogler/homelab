@@ -23,7 +23,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      - /run   # s6-overlay state dir (/run/s6) - required when read_only (Wave-2 triage 2026-08-22)
       - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
     container_name: db-backup
     restart: unless-stopped
@@ -73,6 +72,10 @@ services:
       # rather than db-backup (KOPS-026 / HD-63, docs/backup.md).
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
+      # s6-overlay state dir: a tmpfs /run is mounted noexec by Docker (stage0 cannot exec
+      # its extracted binaries -> exit 126), so it is a host bind instead (Wave-3 R2 triage).
+      # Root-owned is fine: s6 stage0 runs as root and manages perms itself.
+      - /srv/docker/db-backup/run:/run
       - db-backups:/backup
 
 volumes:

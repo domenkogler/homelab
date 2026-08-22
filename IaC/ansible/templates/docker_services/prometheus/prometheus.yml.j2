@@ -114,7 +114,6 @@ scrape_configs:
   # (KOPS-052 — remove the obsolete scrape job; kept here as a comment for the Phase-2 re-add.)
 remote_write: []
 rule_files: []
-storage:
-  tsdb:
-    path: /prometheus
-    retention: 30d
+# NOTE (Wave-3 round-2 triage 2026-08-22): a trailing `storage: tsdb:` block was removed -
+# Prometheus has no such top-level config key; tsdb path/retention are CLI flags only
+# (already set via --storage.tsdb.* in docker-compose.yml.j2).

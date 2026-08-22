@@ -13,13 +13,12 @@ services:
     image: crowdsecurity/crowdsec:{{ crowdsec_version }}
     cap_drop:
       - ALL
-    read_only: true
+    # read_only REMOVED (Wave-3 round-2 triage 2026-08-22): upstream docker_start.sh seeds
+    # and re-links /staging at every boot and assumes it persists on the rootfs; a tmpfs
+    # /staging starts empty, the seed glob degenerates and PID 1 aborts. Same Class-B
+    # relaxation precedent as forgejo/metabase. Follow-up candidate: upstream rootless work.
     tmpfs:
       - /tmp
-      # Wave-2 triage 2026-08-22: the entrypoint symlinks data-dir hub files into /staging/...
-      # on the container rootfs; hub upgrade then chtimes through them -> EROFS under
-      # read_only. tmpfs keeps the hardening while giving the staging farm a writable home.
-      - /staging
     container_name: crowdsec
     restart: unless-stopped
     networks:
