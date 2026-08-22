@@ -17,7 +17,9 @@ services:
     image: n8nio/n8n:{{ n8n_version }}
     cap_drop:
       - ALL
-    read_only: true
+    # read_only REMOVED (Wave-3 round-3 triage): n8n writes runtime dirs under $HOME on the
+    # rootfs (~/.cache for the task-runner compile); tmpfs patches would need per-path modes.
+    # Runs as node uid 1000 which owns those paths on the image.
     tmpfs:
       - /tmp
     container_name: n8n

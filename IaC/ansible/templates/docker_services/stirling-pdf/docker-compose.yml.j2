@@ -16,13 +16,15 @@
 services:
   stirling-pdf:
     image: frooodle/s-pdf:{{ stirling_pdf_version }}
-    cap_drop:
-      - ALL
-    # HD-202 hardening RELAXED per-service (Wave-2 triage 2026-08-22): init.sh chowns its
-    # tmp dir and symlinks into /usr/local/bin on the rootfs -> needs CHOWN (+SETUID/SETGID
-    # for the PUID drop) and a writable rootfs; read_only removed.
+    # HD-202 hardening RELAXED per-service (Wave-2/3 triage 2026-08-22): init.sh must run as
+    # ROOT to chown its tmp dir, create /home/stirlingpdfuser and symlink into /usr/local/bin,
+    # then drops to PUID 1000 - the exact pattern forgejo uses. Round-3 evidence: starting as
+    # uid 1000 cannot create those dirs at all.
+    user: "0:0"
     cap_add:
       - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
       - SETUID
       - SETGID
     tmpfs:
