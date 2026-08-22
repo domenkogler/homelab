@@ -18,6 +18,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run/headscale   # unix socket dir under read_only (Wave-3 R5)
     container_name: headscale
     restart: unless-stopped
     # Public resolvers (Wave-3 R5): the host's netcup resolvers negative-cache NXDOMAIN
