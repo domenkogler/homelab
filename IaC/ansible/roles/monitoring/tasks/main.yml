@@ -98,7 +98,10 @@
     dest: /etc/alloy/snmp.yml
     mode: '0644'
   notify: restart alloy
-  when: inventory_hostname in groups['monitoring']
+  # Same scope as alloy.river.j2's SNMP exporter block: only the OLDSRV collector has
+  # Mgmt-VLAN reach. Rendering on the VPS was dead weight AND failed on an undefined
+  # var inside a template comment (Wave-3 triage 2026-08-22).
+  when: inventory_hostname == 'oldsrv.kogler.si'
   tags: [monitoring, alloy]
 
 - name: Ensure Alloy service is running

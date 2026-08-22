@@ -6,7 +6,7 @@
 # community below must be set on the RB4011 + CRS328 at deploy (HD-03),
 # e.g. on each device:
 #   /snmp set enabled=yes take-over=no
-#   /snmp community add name={{ community }} address=10.10.99.0/24 read-access=yes write-access=no
+#   /snmp community add name=<RO community from network-snmp_api> address=10.10.99.0/24 read-access=yes write-access=no
 #   /snmp set enabled=yes
 # Tracked with HD-53 (decision: dedicated read-only community + Mgmt-VLAN ACL).
 # The community string resolves from 1Password (fail-loud — no default('')).
