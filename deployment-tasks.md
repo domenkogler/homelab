@@ -176,7 +176,7 @@
 
 ## Phase 1a — Parallel Track: NAS Pools + Host Installs (before / during Phase 1.5)
 
-> **Decision (HD-215, 2026-08-23):** the long-pole destructive disk work and the host OS reinstalls
+> **Decision (HD-215, 2026-08-22):** the long-pole destructive disk work and the host OS reinstalls
 > start in parallel with Phase 1 completion — they carry zero network dependency.
 > **Hard line:** both hosts stay OUT of the Ansible configuration loop until Phase 1.5 lands —
 > their SSOT addresses include Mgmt-VLAN 99 IPs that don't exist before the router redo.

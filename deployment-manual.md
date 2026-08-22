@@ -21,7 +21,7 @@
 - Shells: repo ops + validators from **git-bash** (Windows laptop); Ansible runs ONLY on the
   **WSL Debian runner** through [scripts/ansible-run.sh](scripts/README.md) — never pass inline
   commands to wsl.exe.
-- ⚠ **9P staleness — mandatory sync gate before ANY playbook run (HD-212, decided 2026-08-23):** the
+- ⚠ **9P staleness — mandatory sync gate before ANY playbook run (HD-212, decided 2026-08-22):** the
   runner reads the repo over `/mnt/d`; Windows-side writes can be served stale to WSL for minutes.
   1. Whole-tree compare from the repo root on BOTH sides — must be equal:
      `git ls-files -z | xargs -0 md5sum | md5sum`
@@ -202,4 +202,4 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 
 ---
 
-*Last updated 2026-08-23 · Phases 0 + 0.5 complete; Phase 1+ intentionally stubbed until first green verify.*
+*Last updated 2026-08-22 · Phases 0 + 0.5 complete; Phase 1+ intentionally stubbed until first green verify.*

@@ -44,7 +44,7 @@ the split: `kopia_sftp_host/user/port` in `group_vars` + `Hertzner-SB-Backup` ke
 the automation path (e.g. `netcup-vps_login` root + IP in the **Homelab (human)** vault) stay in 1Password —
 that is a break-glass decision, not a connection-config item.
 
-### Vault taxonomy — the two-vault model (confirmed 2026-08-23)
+### Vault taxonomy — the two-vault model (confirmed 2026-08-22)
 
 | Vault | Role | Access |
 |-------|------|--------|

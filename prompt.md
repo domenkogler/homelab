@@ -1,4 +1,4 @@
-# prompt.md — Deployment Execution Handoff #2 — continue the halted Phase 1 deploy (2026-08-23 session)
+# prompt.md — Deployment Execution Handoff #2 — continue the halted Phase 1 deploy (2026-08-22 session)
 
 > **Role:** Entry point for continuing the **Phase 1 VPS deploy** that was halted mid-run on 2026-08-22.
 > The predecessor session bootstrapped the true-zero runner, re-provisioned the VPS, fixed seven live
@@ -30,7 +30,7 @@
   NEVER pass inline commands to wsl.exe from git-bash (MSYS mangles args); never use %TEMP% wrappers.
 - Interactive SSH to the VPS: `ssh vps` / `ssh vps-ansible` (aliases in `~/.ssh/config`, 1Password agent
   + `.pub` hints; Homelab-ansible must stay allowlisted in 1Password's agent toml).
-- ⚠ **9P STALE-CACHE RISK — sync gate MANDATORY before every playbook run (HD-212, decided 2026-08-23):**
+- ⚠ **9P STALE-CACHE RISK — sync gate MANDATORY before every playbook run (HD-212, decided 2026-08-22):**
   the runner reads the repo over `/mnt/d`; files written Windows-side were served stale to WSL for
   minutes twice on 2026-08-22 (provisioner ran an old catalog; a render used an old template).
   Owner decision: **stay on `/mnt/d` (Option A)** behind this gate —
@@ -56,11 +56,11 @@
   `cohere_api`, `openclaw_gateway_token`, `openclaw-opencloud_api`) — ⚠ `openrouter_api`/`cohere_api`
   hold PLACEHOLDER values (swap for real provider keys later); `forgejo_api` placeholder until the
   Forgejo UI issues the real token. `openclaw-opencloud_api` username=`openclaw`.
-- **New since the halt (2026-08-23 session, HD-213/214):** [deployment-manual.md](deployment-manual.md)
+- **New since the halt (2026-08-22 session, HD-213/214):** [deployment-manual.md](deployment-manual.md)
   — imperative redeploy runbook; Phase 0 (runner) + Phase 0.5 (netcup SCP reinstall incl. the
   field-by-field settings, moved here from `docs/deployment-preseed.md`) are documented;
   its §Phase 1 is deliberately stubbed until the first green Verify block. No impact on the
-  execution order below. Also 2026-08-23 (Q/A session): owner locked the execution parameters in
+  execution order below. Also 2026-08-22 (Q/A session): owner locked the execution parameters in
   §3 (incl. the HD-212 sync-gate decision in §1); two-vault model (`Homelab` = human/break-glass,
   `Homelab-ansible` = automation) documented in `docs/deployment-secrets.md`.
 - **Fixes landed & committed on 2026-08-22** (details in the journal attempt log): bootstrap chmod 700,
@@ -71,7 +71,7 @@
 
 ## 3. Next-session execution order
 
-**Execution parameters (owner sign-off, 2026-08-23 Q/A session — binding):**
+**Execution parameters (owner sign-off, 2026-08-22 Q/A session — binding):**
 - Work **autonomously** through the order below; stop only at failures or human gates.
 - Strategy: **full idempotent `vps.yml` re-run first**; `--start-at-task` only for fast iterations after it.
 - Pre-flight: run `scripts/check-vault-items.sh`; create any missing **generated** items autonomously via
