@@ -227,6 +227,7 @@ ls /dev/disk/by-id/ | grep usb
 7. Software selection: oldsrv = **XFCE desktop + SSH server + standard system utilities**; headless hosts = **SSH server + standard system utilities**.
 8. GRUB → install to the OS disk entry matching the size above.
 9. Reboot; **pull the stick**. ✔ Log in locally as the local user; `hostname -I` prints an address.
+   - **VT map on oldsrv:** the XFCE desktop (lightdm) runs on **Ctrl+Alt+F7**; `F1`–`F6` are all text consoles.
 
 ### 1a.4 Catch-up: automation identity + keys + hardening `[MANUAL]`
 
