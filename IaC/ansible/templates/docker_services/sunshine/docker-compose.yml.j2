@@ -8,7 +8,7 @@
 #   cap_add SYS_ADMIN if input events don't reach the container.
 #   Verify render GID ({{ gpu_render_gid }}) matches the host.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   — none needed
 services:
   sunshine:

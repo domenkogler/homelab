@@ -26,7 +26,7 @@
 #     oldsrv's `traefik` (single ACME issuer) by the cert-sync timer
 #     (home_assistant role) → /opt/traefik-ha/certs/ (offline-safe).
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   - ha-vrrp_password — keepalived auth (rendered into keepalived.conf by the role)
 #   - ./secrets.yaml is 1Password-rendered (home_assistant role, pending)
 

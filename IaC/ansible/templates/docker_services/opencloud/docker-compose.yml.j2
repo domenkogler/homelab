@@ -14,7 +14,7 @@
 #   https://github.com/opencloud-eu/opencloud-compose — override by placing
 #   custom files in /srv/docker/opencloud/config/.
 #
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     opencloud_login   (Login: password=<admin password>)
 #     opencloud_db      (Database — reserved for future Postgres migration)
 services:

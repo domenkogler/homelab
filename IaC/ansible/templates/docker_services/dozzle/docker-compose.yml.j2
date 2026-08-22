@@ -2,7 +2,7 @@
 #   Read-only docker.sock, viewer only (never a log store — Loki stays the backend).
 #   Forward-Auth. Shows ALL containers in real time.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   — none needed
 services:
   dozzle:

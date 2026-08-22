@@ -6,7 +6,7 @@
 #   can reach it cross-host over the WG S2S tunnel — firewall-scoped by the WG
 #   AllowedIPs + RouterOS forward ACL (HD-155), never 0.0.0.0.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   immich-ml-internal_api (api -> credential) — ML API-key auth (HD-160): immich-app sends
 #   this key as the ML-auth header so only the immich server can drive ML inference.
 services:

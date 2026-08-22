@@ -12,7 +12,7 @@
 #   (wg_s2s_vps.ip — see the kopia-server template); home-initiated connect is
 #   allowed by the S2S scoping (HD-155). Reach is deploy-gated live-verify.
 #
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     kopia-server-internal_api (API Credential) — the SAME item kopia-server auths
 #       with (HD-59): `username` = the user@host identity the agent presents via
 #       HTTP Basic Auth, `credential` = its password. No new 1Password item.

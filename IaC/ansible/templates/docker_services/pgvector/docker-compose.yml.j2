@@ -7,7 +7,7 @@
 #   Image: pgvector/pgvector, pinned to pg16 on Debian 13 (trixie) via pgvector_version
 #   (HD-61/KOPS-053 convention). SQL port 5432 stays on the overlay — NO host port.
 #
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     pgvector_db  (Database: username=<db user>, password=<db password>) — fail-closed (HD-65)
 #   Backup: covered by db-backup DB04 block -> Kopia snapshots the dump scratch dir (HD-102;
 #   RAG index + chat history = "irretrievable metadata", KOPS-026 class, docs/backup.md).

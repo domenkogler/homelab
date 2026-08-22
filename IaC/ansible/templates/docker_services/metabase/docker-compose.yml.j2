@@ -6,7 +6,7 @@
 #   but active only if Metabase Enterprise is ever licensed — then switch this route to
 #   crowdsec-only and enable MB_OIDC_*. Default H2 app DB with a named volume — upgrade/
 #   experiment freedom without data loss. Secrets via
-#   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }} — none needed here.
+#   1Password lookup at render: onepassword('<name>', field=..., vault=op_vault) — none needed here.
 services:
   metabase:
     image: metabase/metabase:{{ metabase_version }}

@@ -2,7 +2,7 @@
 #   TRaSH hardlink import: /mnt/nas/media/downloads/complete/tv → /mnt/nas/media/media/tv.
 #   Forward-Auth. linuxserver image, PUID/PGID={{ storage_uid }}:{{ storage_gid }} (shared `media` owner).
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   — none needed
 services:
   sonarr:

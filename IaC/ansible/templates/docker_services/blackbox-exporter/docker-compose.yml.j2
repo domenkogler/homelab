@@ -3,7 +3,7 @@
 #   Probe modules: http_2xx (TLS cert expiry + status), icmp, tcp, dns.
 #   Scrape targets are defined in Prometheus' prometheus.yml (see T6), NOT here.
 #   See docs/observability.md. Secrets via
-#   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }} — none needed here.
+#   1Password lookup at render: onepassword('<name>', field=..., vault=op_vault) — none needed here.
 services:
   blackbox-exporter:
     image: prom/blackbox-exporter:{{ blackbox_exporter_version }}

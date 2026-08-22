@@ -4,7 +4,7 @@
 #   HD-115: multi-tenant auth (auth_enabled=true) — push + query carry tenant 'logs'.
 #   TSDB data is regenerable and NOT backed up (docs/backup.md).
 #   See docs/observability.md. Secrets via
-#   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }} — none needed here.
+#   1Password lookup at render: onepassword('<name>', field=..., vault=op_vault) — none needed here.
 services:
   loki:
     image: grafana/loki:{{ loki_version }}

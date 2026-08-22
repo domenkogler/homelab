@@ -4,7 +4,7 @@
 #   means qBittorrent has no own network — Traefik labels go on gluetun.
 #   Save paths → /mnt/nas/media/downloads/complete/<cat> for TRaSH hardlink import.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #   privado-vpn_api  (API Credential: WIREGUARD_PRIVATE_KEY)
 services:
   gluetun:

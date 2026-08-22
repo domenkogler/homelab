@@ -7,7 +7,7 @@
 #   from /srv/docker/grafana/provisioning/ and populated by the monitoring
 #   Ansible role (or manually).
 #
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     grafana_login        (Login: password=<admin password>)
 #     smtp_login   (Login: username=<SMTP user>, password=<SMTP password>)
 services:

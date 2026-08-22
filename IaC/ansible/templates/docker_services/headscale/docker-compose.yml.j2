@@ -5,7 +5,7 @@
 #   Config is mounted from config.yaml.j2 (rendered alongside this compose file).
 #   Data persistence in /srv/docker/headscale/data/.
 #
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     headscale_api    (API Credential: username=<OIDC client_id>, credential=<OIDC client_secret>)
 services:
   headscale:

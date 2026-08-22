@@ -3,7 +3,7 @@
 #   Categories movies/tv/music → /mnt/nas/media/downloads/complete/<cat>
 #   for TRaSH hardlink import. Forward-Auth.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   — none needed (Eweka credentials set via web UI, not env vars)
 services:
   sabnzbd:

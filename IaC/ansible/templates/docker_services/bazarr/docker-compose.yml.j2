@@ -3,7 +3,7 @@
 #   Forward-Auth. linuxserver image, PUID/PGID={{ storage_uid }}:{{ storage_gid }} (shared `media` owner).
 #   NFS mount from nas bulk/media → /mnt/nas/media/media.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   — none needed (no secrets for basic sub-titling)
 services:
   bazarr:

@@ -7,7 +7,7 @@
 #   MUST pin to a verified tag if upstream ever starts publishing semver.
 #   See docs/services.md + docs/deployment-compose.md.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   — none needed
 services:
   profilarr:

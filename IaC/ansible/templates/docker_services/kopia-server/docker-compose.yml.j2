@@ -4,7 +4,7 @@
 #   exists. On the VPS (Phase 1.5); a second agent also runs on oldsrv. Backend decided HD-31/HD-135:
 #   the Hetzner Storage Box supports SSH/SFTP only (no S3/object storage).
 #
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     kopia_password       (Password: repository master password)
 #     kopia-server-internal_api (API Credential: username=<user@host>, credential=<password>)
 #                              — server auth (HD-59): replaces `--without-password`. The `username`

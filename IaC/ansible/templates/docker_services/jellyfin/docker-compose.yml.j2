@@ -3,7 +3,7 @@
 #   iGPU transcode via /dev/dri (Intel HD 630 QuickSync), user: "{{ storage_uid }}:{{ storage_gid }}" (shared `media` owner).
 #   /mnt/nas/media/media mounted ro. Cache on local NVMe for performance.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   — none needed
 services:
   jellyfin:

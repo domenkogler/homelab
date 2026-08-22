@@ -4,7 +4,7 @@
 #   NOTE: Port 53 may conflict with Technitium on the same host; adjust
 #   PIHOLE_DNS_ to point at technitium:53 on services-internal.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #   pihole_password (Password: WEBPASSWORD for admin UI)
 services:
   pihole:

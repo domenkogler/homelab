@@ -11,7 +11,7 @@
 #     no re-pairing required.
 #   - Pin the stick by /dev/serial/by-id (NOT /dev/ttyACM0 — can renumber) on BOTH hosts.
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 {% set rmat_name = 'raspberrymatic' if (instance | default('primary')) == 'primary' else 'raspberrymatic-standby' %}
 {% set rmat_restart = 'unless-stopped' if (instance | default('primary')) == 'primary' else 'no' %}
 {# CCU admin UI host port — avoid :80 conflict with Traefik (KOPS-038 / HD-123); per-instance. #}

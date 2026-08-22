@@ -6,7 +6,7 @@
 #   Scheduled via the tiredofit/db-backup cron runner (default: daily at 02:00).
 #   Backups are stored to a named volume; the kopia-agent backs up that volume.
 #
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     <service>_db    (Database: username=<db user>, password=<db password>)
 #                     for each database listed below
 services:

@@ -2,7 +2,7 @@
 #   Renovate container scanning the homelab repo on Forgejo — no web UI, no Traefik labels.
 #   Secret: forgejo_api (1Password « Homelab-ansible).
 #   See docs/deployment-renovate.md. Secrets via
-#   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 services:
   renovate:
     image: ghcr.io/renovatebot/renovate:{{ renovate_version }}

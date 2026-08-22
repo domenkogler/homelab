@@ -3,7 +3,7 @@
 #   HA exporter and service /metrics. Grafana queries Prometheus on db-internal.
 #   TSDB is regenerable and NOT backed up (docs/backup.md).
 #   See docs/observability.md. Secrets via
-#   {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+#   1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #     prometheus-internal_api — Basic Auth for the scrape/config endpoint (HD-59):
 #     username/user + bcrypt hash for `basic_auth_users`. See prometheus-web-config.yml.j2
 #     + scripts/gen-htpasswd.py. Grafana (query) + Alloy (remote_write) are wired with these

@@ -13,7 +13,7 @@
 #     Forward-Auth so git/web are never left unauthenticated.
 #   Data in /srv/docker/forgejo/ (included in Kopia backup).
 #
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     forgejo_db       (Database: username=<db user>, password=<db password>)
 #     forgejo_oidc     (api: username=client_id, credential=client_secret — Authentik OIDC client)
 services:

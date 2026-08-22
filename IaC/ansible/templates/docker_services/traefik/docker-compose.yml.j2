@@ -24,7 +24,7 @@
 #   - Runs FIRST in the docker_services list so the external network exists before
 #     other services join it.
 #
-# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword(<item>, field=..., vault=op_vault)
 #   - cloudflare_api  -> ACME DNS-01 (needs Zone.DNS edit on kogler.si) — ISSUER ONLY
 services:
   traefik:

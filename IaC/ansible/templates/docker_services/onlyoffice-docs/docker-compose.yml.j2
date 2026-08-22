@@ -13,7 +13,7 @@
 #   Stateful: ONLYOFFICE keeps a per-user document cache under /var/lib/onlyoffice
 #   (regenerable — NOT backed up; the SSOT is OpenCloud). No user data.
 #
-#   Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}:
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     opencloud-collab_password   (password: shared JWT secret, same value on BOTH sides)
 services:
   onlyoffice-docs:

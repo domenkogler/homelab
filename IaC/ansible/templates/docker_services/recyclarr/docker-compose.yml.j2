@@ -3,7 +3,7 @@
 #   TRaSH guide profiles into Sonarr/Radarr. NO Traefik labels.
 #   Config: recyclarr.yml (managed in this repo, mounted from config dir).
 #
-# Secrets via {{ lookup('community.general.onepassword', '<name>', vault=op_vault) }}
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   — none needed
 services:
   recyclarr:
