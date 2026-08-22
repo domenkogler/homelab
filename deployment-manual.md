@@ -80,10 +80,13 @@ truth); `test-1password.yml` then proves the lookup path end-to-end.
 ✔ `restore-runner-key.sh` prints `pair-consistent: yes` with the fingerprint matching the canonical
 one it prints · `test-1password.yml` ends `PLAY RECAP: ok=2 failed=0` (reads `kopia_password`).
 
-### 0.4 Windows-side interactive SSH *(optional, one-time)*
+### 0.4 Windows-side interactive SSH *(one-time, recommended — not required by the runner)*
 
-> Only needed for interactive `ssh vps` from the Windows laptop — the Ansible runner runs
-> exclusively in WSL and does not depend on this step. Owning spec: [docs/1password.md](docs/1password.md).
+> Nothing automated depends on this step: the Ansible runner (WSL) presents the canonical
+> `ansible-admin_ssh` key directly, and interactive debugging also works from WSL
+> (`ssh ansible-admin@vps.kogler.si`, full sudo). Recommended anyway — `ssh vps` from the laptop is
+> the standing debug path (deployment-handoff diagnostics) and stays available while the WSL runner
+> itself is down or being rebuilt. Owning spec: [docs/1password.md](docs/1password.md).
 
 1. 1Password desktop app running, with the `Homelab-ansible` vault allowlisted in the SSH-agent
    config — without it the agent refuses the keys and `ssh` misreports `invalid format`.
