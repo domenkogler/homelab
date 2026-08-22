@@ -373,6 +373,25 @@
   (script-file indirection from Windows; agent-independent key-file SSH); ends the multi-layer
   quoting failures hit all session. Documented in scripts/README.md.
 
+### 2026-08-22 — Phase 1 · DECISION Option A: glue mints an EPHEMERAL Authentik token per run; authentik-provision_api retired; out-of-band SQL incident recorded
+
+- **Owner decision (session, after the token-rotation mystery blocked three glue runs):** stop
+  chasing the background rotator — the glue now MINTS its own throwaway api-intent token via
+  `ak shell` (identifier `egress-glue-<pid>-<ts>`), uses it for the provider harvest, and REVOKES it
+  on exit (trap). Nothing persisted → the rotator (whatever it is, **HD-216** registered) cannot
+  invalidate anything. `authentik-provision_api` RETIRES from the flow (vault item tombstone row in
+  deployment-secrets.md; services-authentik tokens section rewritten to TWO secrets + one ephemeral).
+  Trade-off recorded: minted token = akadmin full rights for seconds — equivalent to the existing
+  root-on-VPS trust model, weaker than the old least-privilege aspiration.
+- ⚠ **INCIDENT (own it):** while hunting the rotator I installed an audit trigger + audit table via
+  hand-run `psql` against the live authentik DB — out-of-band surgery on an Ansible-managed system,
+  NOT in the plan, flagged by the owner. All three artifacts dropped and verified gone the same
+  hour; no data changed beyond the forensic objects. Lesson recorded: live-system debugging stays
+  read-only or goes through IaC, full stop.
+- Glue changes (this commit): helper-python written to container tmpfs per run; mint/revoke via
+  `docker exec` + `ak shell -c` (single-layer quoting); fail-loud if mint returns empty.
+- Also registered: the mystery rotator itself (HD-216) for OFFLINE investigation.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

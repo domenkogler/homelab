@@ -190,20 +190,23 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
   issuer/app/flow/outpost-only (catalog's least-privilege target) stays a post-green hygiene step
   (HD-211 batch) — needs Authentik RBAC roles, doable via blueprint later.
 
-### Authentication tokens (THREE, distinct scopes — never merge them)
-- `authentik-api_token` — **read-only** API token; the Authentik→NAS provisioning glue
-  (`sync-authentik-users.sh`, D5/HD-131) uses this to *read* the `family` group.
-- `authentik-provision_api` — **write-scoped AUTHENTIK-ISSUED API token**; the Bearer credential the
-  secret-egress glue sends against the Authentik API. Issued in the Authentik UI once one exists;
-  interim issuance via ak-shell (see live-deploy findings). ⚠ NOT a 1Password service-account token
-  — the first deploy conflated the two and broke the glue (2026-08-22).
+### Authentication tokens (TWO secrets + one ephemeral — never merge them)
 - `vps-op-write_api` — 1Password **SERVICE ACCOUNT token (write-scoped)**, deployed by the pre-pass
   to VPS `/etc/op/provision-token`; authenticates the HOST-side `op` CLI the glue uses to seed the
-  OIDC client-cred items. Different secret, different system from `authentik-provision_api`.
+  OIDC client-cred items.
+- `authentik-api_token` — **read-only** Authentik-issued API token; the Authentik→NAS provisioning
+  glue (`sync-authentik-users.sh`, D5/HD-131) uses this to *read* the `family` group.
+- **Ephemeral glue token (NOT a secret anywhere):** the OIDC secret-egress glue mints its own
+  api-intent token via `ak shell` per run (identifier `egress-glue-<pid>-<ts>`, revoked on exit).
+  Rationale: persisted ORM tokens were observed being rotated/invalidated server-side within
+  minutes (Phase 1, 2026-08-22 — root cause unidentified, **HD-216**), silently killing any
+  vault-stored copy; the former `authentik-provision_api` vault item was RETIRED because of it.
+  Trade-off note: the minted token carries akadmin's full rights for its seconds-long life —
+  equivalent to the existing trust model (glue already requires root on the VPS), but NOT the
+  least-privilege scope the old catalog row aspired to; revisit if a scoped RBAC role + persisted
+  token becomes necessary.
 
 ### What stays manual (only two, one-time)
-- Issuing the **write-scoped Authentik token** (`authentik-provision_api`) in the Authentik UI
-  (interim: ak-shell mint — live-deploy findings above).
 - Creating/re-issuing the **1Password write-scoped service account** (`vps-op-write_api`) in the
   1Password admin console (show-once secret; item history can also restore a prior value).
 - The **first-login admin bootstrap** (WebAuthn/passkey enrolment) at `sso.kogler.si` + the
