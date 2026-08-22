@@ -102,6 +102,7 @@
 > **1Password prerequisites:** `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `op_api`, and
 > `kopia_password` (seed `password`-type item read by `test-1password.yml`) all exist in `Homelab-ansible`.
 > **Continuation:** once verified, you can run Ansible and the 1Password test; nothing else.
+> **Step-by-step runbook:** [deployment-manual.md](deployment-manual.md) §Phase 0 (true-zero rebuild incl. canonical key restore).
 
 1. Clone the repo; run the client bootstrap:
    ```bash
@@ -130,6 +131,7 @@
 > `Hertzner-SB-Data`, `Hertzner-SB-Backup`, plus the cloudflare/authentik/DB items listed in **Phase 3** for the moved apps.
 > **Continuation:** once the edge + Authentik are live, the LAN track (Phase 1.5 network redo → Phase 2 nas → Phase 3 oldsrv)
 > brings up the internal/GPU backends; the WG S2S tunnel (Phase 1.5 / HD-03 WG VPS peer) then lets the VPS reach them.
+> **Step-by-step runbook:** [deployment-manual.md](deployment-manual.md) §Phase 0.5 (re-provisioning; §Phase 1 lands after the first green Verify block).
 
 1. - [x] **[MANUAL]** **Provision VPS (netcup SCP)** — ✅ done 2026-08-18; Custom Script confirmed applied (first key-auth login verified 2026-08-21, see deployment-journal.md). netcup boots its **pre-built Debian 13 image**; the operative install hook
    is the **Custom Script** (netcup SCP field) = **`IaC/host/vps/post_install.sh`** (pasted as `*_with_secrets.sh`;

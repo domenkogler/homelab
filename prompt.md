@@ -74,7 +74,9 @@
 4. **Deploy-gated verification rows**: HD-40A, HD-135 (partial), HD-149, HD-143, HD-144, HD-146,
    HD-166, HD-159 — tick + journal each as its evidence lands.
 5. **Hygiene**: rotate the exposed provision SA token; swap placeholder `openrouter_api`/`cohere_api`/
-   `forgejo_api` values for real ones; consider HD-212 (native WSL clone) before the next big deploy.
+   `forgejo_api` values for real ones; consider HD-212 (native WSL clone) before the next big deploy;
+   write the `deployment-manual.md` §Phase 1 section once the Phase 1 Verify block is green
+   (Phases 0/0.5 already documented).
 
 ## 4. Working rules (unchanged, binding)
 

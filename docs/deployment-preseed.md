@@ -216,29 +216,9 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 > (two keys, no `ai-debug`), never the shared three-key script. The netcup Custom-Script flow below
 > is immune (the pasted script is explicit); the custom-ISO/preseed path carries the risk.
 
-#### netcup Custom-Script flow (`*_with_secrets.sh`)
-netcup SCP's "**Custom Script** (executed at end of image installation, ≤10 000 chars, must have shebang)" is the operative install hook — the `d-i` preseed lines do **not** run on netcup's pre-built image. Workflow:
-0. **Automated (preferred):** `cd IaC/host/vps && ./gen-custom-script.sh` — performs steps 1–2 via `op read` and writes `post_install_with_secrets.sh` (0600, git-ignored). Manual fallback below.
-1. Copy `IaC/host/vps/post_install.sh` → `IaC/host/vps/post_install_with_secrets.sh`.
-2. Replace the two `<..._FROM_1PASSWORD>` placeholders with the real public keys from 1Password (`laptop-domen_ssh`, `ansible-admin_ssh`).
-3. Paste `*_with_secrets.sh` into netcup → Custom Script, then **delete the file** (git-ignored in `.gitignore`, never committed).
-4. Committed `post_install.sh` stays **placeholder-only** (repo rule: keys never in Git).
-5. After install: `ssh ansible-admin@<vps-ip>` → run Ansible (`common` role) to set `sl_SI.UTF-8` locale + finish hardening/Docker.
-
-#### netcup SCP — field-by-field install decisions
-
-| netcup SCP field | Value | Notes |
-|---|---|---|
-| OS image | **Debian 13.6.0 UEFI amd64** | UEFI (not BIOS) — modern EPYC platform, GPT/ESP |
-| Disk layout | **entire disk, plain partitions (no LVM)** — ESP 243 M · `/boot` ext4 977 M · `/` ext4 510.8 G | as actually installed 2026-08-18 (lsblk-verified 2026-08-21, deployment-journal Phase 1.0); single 512 GB NVMe root needs no LVM |
-| Hostname | **vps** | FQDN `vps.kogler.si` |
-| Locale | **en_US.UTF-8** | netcup offers only de_DE/en_US; `sl_SI.UTF-8` set by Ansible `common` on first run |
-| Keyboard | en/us | headless — irrelevant to SSH |
-| Installation method | **Minimal** | minimal image variant — as chosen 2026-08-22 reinstall |
-| Timezone | **Europe/Vienna** | set at install; same UTC offset as `Europe/Ljubljana` |
-| E-mail notification | **true** | SCP notifies the owner when the install finishes |
-| Custom Script | `post_install.sh` (real keys via `*_with_secrets.sh`) | end-of-install hook; ≤10 000 chars |
-| Root password (fallback) | set in SCP | recovery path if script fails; Ansible later disables root login |
+#### netcup Custom-Script flow — executed via the deployment runbook
+netcup SCP's "**Custom Script**" (executed at end of image installation, ≤10 000 chars, must have shebang) is the operative install hook — the `d-i` preseed lines do **not** run on netcup's pre-built image. The **executable procedure** is owned by the redeploy runbook, [deployment-manual.md §Phase 0.5](../deployment-manual.md): generating/pasting `post_install_with_secrets.sh` via [`gen-custom-script.sh`](../IaC/host/vps/gen-custom-script.sh), the SCP field-by-field install settings, first-boot verification, and break-glass access. This spec keeps only the authoring rules.
+Authoring rules unchanged: committed `post_install.sh` stays **placeholder-only** (repo rule: keys never in Git); the generated `post_install_with_secrets.sh` is git-ignored in `.gitignore` and deleted immediately after pasting; the wrong-script risk above applies to the custom-ISO/preseed path only — the pasted-Custom-Script flow is immune because the pasted script is explicit.
 
 ---
 

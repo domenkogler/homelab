@@ -27,6 +27,7 @@ tags: [index, dispatcher, ai]
 | **Configure VPN** | [`network-vpn.md`](network-vpn.md) | `network.md` |
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
 | **Deployment progress / as-built record** (what did I run, what did I choose) | [`../deployment-journal.md`](../deployment-journal.md) | [`../deployment-tasks.md`](../deployment-tasks.md), [`deployment.md`](deployment.md) |
+| **Redeploy a host from true zero (step-by-step runbook)** | [`../deployment-manual.md`](../deployment-manual.md) | [`../deployment-tasks.md`](../deployment-tasks.md), [`deployment-preseed.md`](deployment-preseed.md), [`../scripts/README.md`](../scripts/README.md) |
 | **Understand service layout** | [`services.md`](services.md) | `services-*.md` stack docs (media/downloads/dns/utilities/admin), `services-traefik.md`, `services-authentik.md`, [`network-addresses-generated.md`](network-addresses-generated.md) |
 | **Triage a candidate service / check past rejections** | [`services-review.md`](services-review.md) + [`services-rejected.md`](services-rejected.md) | `services.md`, `CONVENTIONS.md` §8.3 |
 | **Triage a storage candidate / check past rejections** | [`storage-review.md`](storage-review.md) + [`storage-rejected.md`](storage-rejected.md) | `storage.md`, `CONVENTIONS.md` §8.3 |
