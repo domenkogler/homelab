@@ -108,6 +108,7 @@ Found live 2026-08-22 while restoring VPS access (deployment-journal Phase 1.0 /
 | `Unable to sign in to 1Password. Missing required parameters` | Token absent — install/export `OP_SERVICE_ACCOUNT_TOKEN` |
 | `op vault list` only shows some vaults | Service account lacks read grant on the needed vault |
 | `Permission denied (publickey)` to a host | Runner's SSH key not authorized in that host's `authorized_keys` |
+| `invalid JSON provided` / `invalid JSON in piped input` on `op item create/edit` | Non-TTY stdin: op interprets piped input as a JSON item template. Run with `< /dev/null` in scripts, ansible shell tasks, ssh one-liners, cron (provisioner + secret-egress glue precedents, Phase 1 2026-08-22) |
 | `Failed to change ownership of the temporary files` | `acl` package (`setfacl`) missing on the target host — added to the `common` role prereqs |
 
 > **Secrets rule (CONVENTIONS §6):** never put token/item values in docs or git. This file

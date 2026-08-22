@@ -188,6 +188,24 @@ services:
 
 Services NOT exposed publicly (databases, internal-only apps) have `traefik.enable: "false"` or no Traefik labels.
 
+## Template Jinja Pitfalls (compose) — each found live in Phase 1 (2026-08-22)
+
+1. **Jinja evaluates expressions inside YAML COMMENTS.** A header line like
+   `# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}` EXECUTES the
+   lookup at render and fails on the literal item name. Keep comments expression-free (39 templates
+   neutralized; traefik was the first live hit).
+2. **Indented block tags + `trim_blocks` glue indentation.** An indented
+   `      {% if ... %}` / `{% endif %}` pair collapses to its leading spaces merged onto the next
+   content line (+6 indent per tag), producing invalid YAML (29 blocks converted to inline
+   ternaries, authentik-labels precedent). Rule: block tags at column 0 only; conditional label
+   lines use the single-line form
+   `{{ 'key: value' if (cond) else '# fallback comment' }}`.
+3. **`${VAR}` interpolation does NOT read `services.environment`.** docker compose resolves it from
+   shell env / project `.env` only, so plain `docker compose config` validation aborts on required
+   vars (`${KOPIA_SERVER_USER:?...}`). When a command needs interpolation values, render an extra
+   `.env.j2` (registered in `_extra_templates`, note the leading dot) next to the compose file
+   (kopia-server/agent precedent); the `:?` guards stay fail-loud.
+
 ---
 
 ## Secret Resolution

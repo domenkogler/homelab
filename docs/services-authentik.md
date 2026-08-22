@@ -182,9 +182,12 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 - **RBAC:** `User` has NO `is_superuser` field in 2026.x (Django FieldError if queried). Admin
   capability = membership of a group with `is_superuser: true` — the bootstrap admin `akadmin` sits
   in "authentik Admins". API tokens inherit their user's permissions.
-- **CLI:** `ak shell -c "<python>"` executes code; the REPL ignores piped stdin. When driving over
-  ssh, base64-wrap non-trivial python to survive quoting layers. Token minting:
-  `Token.objects.create(user=…, identifier=…, intent="api")` — key printed once.
+- **CLI:** `ak shell -c "<python>"` executes code; the REPL ignores piped stdin, and `-c` takes NO
+  extra argv (pass parameters via `docker exec -e VAR=...`, options before the container name).
+  When driving over ssh, base64-wrap non-trivial python to survive quoting layers
+  (`scripts/ak-shell.sh` wraps all of this). Token minting:
+  `Token.objects.create(user=…, identifier=…, intent="api")` - then `.update(expires=None)` via a
+  queryset (a bare create gets a short default expiry).
 - **Provision-token issuance until the Authentik UI exists:** mint via ak-shell (above, user
   `akadmin`) and store in vault item `authentik-provision_api.credential`. Scoping it down to
   issuer/app/flow/outpost-only (catalog's least-privilege target) stays a post-green hygiene step

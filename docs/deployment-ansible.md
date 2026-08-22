@@ -96,6 +96,12 @@ tags: [deployment, ansible, iac]
   `true`. Use for per-host gating (`technitium` on `oldsrv` only).
 - **`instance`** (optional) — for multi-instance services sharing one template
   (e.g. `raspberrymatic-standby`).
+- **Lazy loop_var shadowing (HD-185 pattern, generalized):** `vars: { svc: "{{ item }}" }` on an
+  `include_tasks` loop is LAZY - any INNER loop in the included file re-resolves `item` in its own
+  context, so `svc` collapses to that inner string ('str' has no attribute 'name', found live on
+  traefik's extra-.j2 templates). Always give include loops a dedicated `loop_var` (`svc_entry`) AND
+  declare explicit `loop_var:` for every inner loop whose var name is referenced in task args
+  (`extra` precedent).
 
 ---
 
