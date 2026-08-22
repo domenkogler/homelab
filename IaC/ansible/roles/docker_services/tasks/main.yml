@@ -187,8 +187,9 @@
       changed_when: true
   tags: [homepage, docker_services]
 
-- name: Render docs/services-inventory-generated.md (service inventory — on hosts where docker_services is defined)
-  ansible.builtin.template:
-    src: "{{ playbook_dir }}/../templates/inventory.md.j2"
-    dest: "{{ playbook_dir }}/../../../docs/services-inventory-generated.md"
-  when: docker_services is defined
+# NOTE (Wave-3 triage 2026-08-22): the former post-deploy render of
+# docs/services-inventory-generated.md lived here and NEVER ran successfully (its
+# inventory.md.j2 needs all_hostvars, which only render-docs.yml builds by recording
+# _docker_services across ALL docker hosts). A single-host run would have clobbered the
+# multi-host doc with partial data. Canonical renderers: scripts/render_all.py (primary)
+# and playbooks/render-docs.yml (site.yml final step). Do not re-add a host-local copy.
