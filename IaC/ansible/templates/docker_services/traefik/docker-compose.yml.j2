@@ -47,10 +47,6 @@ services:
       # Cloudflare DNS-01 credential for the wildcard cert (scoped API token).
       CF_DNS_API_TOKEN: "{{ lookup('community.general.onepassword', 'cloudflare_api', field='credential', vault=op_vault) }}"
 {% endif %}
-      # Docker Engine 29 raised min client API to 1.40; traefik v3.5 defaults to requesting
-      # 1.24 and the provider was refused at every start (Wave-3 R5, 2026-08-22). Pin a
-      # version inside the engine's supported window; revisit on engine major upgrades.
-      DOCKER_API_VERSION: "1.44"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./dynamic:/etc/traefik/dynamic:ro   # cockpit.yml + routes.yml (ha) + tls.yml — file provider
