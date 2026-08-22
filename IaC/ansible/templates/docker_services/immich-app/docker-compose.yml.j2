@@ -96,6 +96,7 @@ services:
     tmpfs:
       - /tmp
       - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
+      - /etc/postgresql       # entrypoint copies its config here — read_only rootfs needs it as tmpfs
     container_name: immich-postgres
     restart: unless-stopped
     networks:
@@ -120,6 +121,10 @@ services:
     image: docker.io/valkey/valkey:9
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     read_only: true
     tmpfs:
       - /tmp
