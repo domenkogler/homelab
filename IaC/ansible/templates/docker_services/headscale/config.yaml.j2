@@ -56,6 +56,14 @@ logtail:
 noise:
   private_key_path: /var/lib/headscale/noise_private.key
 
+# DERP relay map (required >= 0.24; Wave-3 R5): without it the initial DERP map is empty
+# and headscale refuses to start. Uses the public Tailscale DERP relays - fine for a
+# family mesh; self-hosted DERP is a possible future hardening.
+derp:
+  auto_update_enabled: true
+  urls:
+    - https://controlplane.tailscale.com/derpmap/default
+
 # Node IP prefixes (required >= 0.24; Wave-3 round-3 triage 2026-08-22). Values = the
 # Tailscale-standard CGNAT defaults headscale historically implied when unset.
 prefixes:
