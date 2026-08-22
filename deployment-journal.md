@@ -210,6 +210,24 @@
 - **Tooling promoted to the repo (owner request):** `scripts/ansible-run.sh` (documented WSL playbook runner replacing ad-hoc %TEMP% wrappers — venv + token + ANSIBLE_CONFIG/ROLES_PATH exports), `scripts/provision-vault.sh`, `scripts/restore-runner-key.sh`, `scripts/check-vault-items.sh`; all documented in scripts/README.md.
 - **Registered:** HD-211 (rotate the chat-exposed provision SA token post-deploy; replace placeholder API keys), HD-212 (/mnt/d 9P stale-cache risk — twice served minutes-old files to the runner; migrate to a native WSL clone or add md5 verification before runs). ⚠ Minor: `sudo: unable to resolve host vps` on the box — candidate common-role /etc/hosts nit.
 
+### 2026-08-22 — Phase 1 · corrections at session start: dns.yml test-run backfill + /etc/hosts short-name fix
+
+- **Correction (owner statement):** `playbooks/dns.yml` was already run ONCE during the 2026-08-22 window
+  to test `cloudflare_api`, but was not journaled at the time. This entry records that omission
+  (append-only; no secret values involved — Cloudflare API token stays in `cloudflare_api.credential`).
+- **Decision (owner):** dns.yml is part of the Phase-1 flow per deployment-tasks Phase 1 step 4 and is
+  idempotent (Cloudflare record upserts) → re-run this session before the Verify block (`vps` A/AAAA,
+  `sso`, then public apps as they land); its evidence will be journaled with that run.
+- **Root cause found for the `sudo: unable to resolve host vps` nit** (not blocking, fixed anyway):
+  inventory hostnames are FQDNs (`vps.kogler.si`), so the shared `templates/etc_hosts.j2` rendered
+  `<ip>  vps.kogler.si.kogler.si vps.kogler.si` — a double-suffixed FQDN and NO `vps` short alias,
+  while the system hostname (netcup SCP field) is `vps`; sudo's getaddrinfo on the short name fails.
+- **Fix (this change):** `etc_hosts.j2` now renders `<ip>  <fqdn> <short>` (short name = leading label;
+  bare-name inventory entries still get `.{{ domain_public }}` appended) — fixes the sudo nit AND the
+  latent double-suffix for every managed host; consumed by both the `network` role and `all.yml`.
+  Takes effect on the VPS via the next full idempotent `vps.yml` re-run (template task replaces the
+  whole file).
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

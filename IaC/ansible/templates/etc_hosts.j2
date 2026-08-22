@@ -8,6 +8,7 @@
 
 {% for host in groups['all'] %}
 {% if host != 'localhost' and hostvars[host].ansible_host is defined %}
-{{ hostvars[host].ansible_host }}  {{ host }}.{{ domain_public }} {{ host }}
+{% set fqdn = host if '.' in host else host ~ '.' ~ domain_public %}
+{{ hostvars[host].ansible_host }}  {{ fqdn }} {{ fqdn.split('.')[0] }}
 {% endif %}
 {% endfor %}
