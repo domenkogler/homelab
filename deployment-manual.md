@@ -275,10 +275,7 @@ The interactive path skips the preseed's `post_install.sh`, so reproduce its eff
 cmd //c "wsl -d Debian -- bash /mnt/d/source/domenkogler/homelab/scripts/ansible-run.sh playbooks/vps.yml"
 ```
 
-Anchor until green (`failed=0`). Already encoded in IaC — do NOT hand-fix on first boot:
-blueprint auto-apply (worker applies `ks-oidc.yml` + `ks-forward-auth.yml` from
-`/blueprints/custom`), Class-A bind-dir pre-create, certs-dumper idling until ACME,
-`prometheus_ha_exporter=false` gate, homepage gate off.
+Anchor until green (`failed=0`).
 
 ### 1.3 Publish public DNS
 
