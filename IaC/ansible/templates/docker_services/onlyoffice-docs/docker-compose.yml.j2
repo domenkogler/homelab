@@ -154,7 +154,10 @@ services:
     container_name: onlyoffice-rabbitmq
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      # Probe as the rabbitmq user (HD-222): image has no USER -> docker runs probes as
+      # root, but under cap_drop: ALL root lacks DAC_OVERRIDE and cannot read the 0400
+      # rabbitmq-owned .erlang.cookie -> eternal exit-78 eacces. su-exec ships in alpine.
+      test: ["CMD-SHELL", "su-exec rabbitmq rabbitmq-diagnostics -q ping"]
       interval: 15s
       timeout: 10s
       retries: 5
