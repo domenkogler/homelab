@@ -6,12 +6,12 @@
 # Pre-flight safety check: refuse runs as ai-debug or unknown users.
 # Scoped to the Linux host groups that receive sudo via the common role.
 # Excludes: router, switch (network_cli, no sudo grants) and localhost.
-# VPS (Phase 2): add to this list + set ansible_user once it is active —
-# its common-role guard already fails closed in the meantime.
+# VPS added HD-193 (live since Phase 1; its common-role guard already failed
+# closed before this).
 # The common role repeats this guard for direct playbook/role runs.
 # ---------------------------------------------------------------------
 - name: Safety check — only whitelisted admin users may run Ansible
-  hosts: home_servers:raspberry_pi:storage
+  hosts: home_servers:raspberry_pi:storage:vps
   gather_facts: false
   tasks:
     - name: Refuse Ansible runs as ai-debug or unknown users

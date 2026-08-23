@@ -1,0 +1,50 @@
+---
+# CAPsMAN steady-state WiFi — IMPLEMENTATION PLAN + GUARD (HD-228 / HD-03 tail).
+#
+# STATUS: SCAFFOLD ONLY. The RB4011 is not provisioned yet (Phase 1.5 cutover);
+# RouterOS 7 legacy-`wireless` api_modify field sets must be validated LIVE on
+# first contact, so no speculative mutation tasks are shipped here (fail-loud
+# culture — wrong guesses here would either silently no-op or brick the
+# bootstrap window). Implement the four task blocks below during the cutover
+# prep session, against the live manager, then remove the assert gate.
+#
+# DESIGN (agreed HD-228 session):
+#   - Manager = RB4011 (legacy wireless pkg); APs join as CAPs — ap_initial.rsc.j2
+#     already ships `/interface wireless cap set enabled=yes`.
+#   - Per-SSID objects, all IaC-owned via api_modify (paths under /interface/wireless):
+#       1. security-profiles   — one per SSID; mode=dynamic-keys,
+#                                authentication-types=wpa2-psk,
+#                                wpa2-pre-shared-key=lookup(1Password item).
+#                                Items: wifi-kogler*_password (see
+#                                docs/deployment-secrets.md Master Secret List).
+#       2. configuration       — cfg-* names per the network-vlans.md mapping
+#                                table (cfg-kogler, cfg-kogler-iot,
+#                                cfg-kogler-iot-wan, cfg-kogler-guest,
+#                                cfg-kogler-kids); ssid + security-profile;
+#                                2.4 GHz-friendly bands for IoT configs
+#                                (QCA4002 + Gen1 Shelly chips, HD-228).
+#       3. access-list         — PER-SSID VLAN TAGGING: entries matching each
+#                                cfg's SSID with vlan-mode=use-tag +
+#                                vlan-id from group_vars map (this is the
+#                                legacy-CAPsMAN mechanism when
+#                                local-forwarding=no tunnels traffic to the
+#                                manager). Ordered; keep default-deny tail.
+#       4. provisioning        — minimal rule(s): action=create-dynamic-enabled,
+#                                master-configuration=cfg-kogler,
+#                                slave-configurations=<the other four>; refine
+#                                per-radio rules only if band steering needs it.
+#   - SSID/VLAN/item SSOT = group_vars/router.yml → routeros_capsman_ssids.
+#
+# GATE: included from main.yml ONLY when routeros_capsman_enabled is true
+# (group_vars/router.yml). The lookup()s fail loud if any 1Password item is
+# missing — create the five items FIRST (host-side `op item create`, values
+# owner-chosen), then flip the flag.
+
+- name: CAPsMAN tasks are implemented against the live manager before enabling
+  ansible.builtin.assert:
+    that:
+      - routeros_capsman_implemented | bool
+    fail_msg: >-
+      routeros_capsman_enabled=true but the CAPsMAN api_modify tasks are not
+      implemented yet — see the header of roles/router/tasks/capsman.yml and
+      implement them during the cutover-prep live session (HD-229).

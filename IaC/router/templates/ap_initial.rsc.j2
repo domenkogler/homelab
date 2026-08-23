@@ -58,8 +58,10 @@
     discovery-interfaces=bridge
 
 # ---- Services ----
+# HD-193: bound to the bridge (the AP's only mgmt L2 surface) from first boot;
+# AP is L2-only with no WAN egress (HD-165) — binding satisfies the B4 floor.
 
-/ip service set ssh disabled=no port=22
+/ip service set ssh disabled=no port=22 interface=bridge
 
 # ---- End ----
 # After import, verify on the router: /ip dhcp-server lease print

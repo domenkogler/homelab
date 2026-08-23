@@ -708,6 +708,16 @@
 
 ## Phase 1.5 — Network Redo
 
+### 2026-08-23 — Phase 1.5 · cutover-prep IaC batch: HD-193 closed, CoAP firewall delta + CAPsMAN scaffold landed
+
+- Entry point: prompt.md Handoff #6 §3b Track A; worktree `../homelab-wt-20260823-2308`. NO live gear touched — pure repo prep ahead of the cutover window.
+- **HD-193 CLOSED** (row deleted from todo.md per housekeeping (a), changelog Done record): crs328_initial.rsc.j2 api/www-ssl/ssh bound to `interface=vlan99-mgmt`; ap_initial.rsc.j2 ssh bound to `interface=bridge`; rb4011 bootstrap DHCP DNS literal parameterized to new `bootstrap_dns_servers` group_var (1.1.1.1 until Technitium lands at Phase 3); `vps` added to site.yml pre-flight guard pattern.
+- **Shelly probe evidence (read-only, shelly skill, flat LAN):** all four units = SHRGBW2 **Gen1**, fw v1.14.0 (2023-09), no auth, SSID `Kogler IOT`, DHCP (.112/.104 color 1-ch, .105 white 4-ch, .106 color 1-ch) — Gen1 CoAP push motivates the firewall delta below.
+- **HD-229 OPENED (IaC done, deploy-gated):** CoAP reverse exception added to roles/router forward chain (`src=vlan20 dst-address-list=trusted-ha protocol=udp dst-port=5683 accept`) directly after established/related; gives the created-but-unused `trusted-ha` list its first consumer; network-vlans.md IoT→Home matrix row updated with the exception.
+- **CAPsMAN scaffold (deliberately NOT speculative):** SSID/VLAN/1P-item SSOT map in group_vars/router.yml (`routeros_capsman_ssids`, flags off); capsman.yml ships as documented implementation plan + assert gate (security-profiles / configurations / access-list ssid→vlan tagging / provisioning to be written against the LIVE manager at cutover prep — ROS7 field guesses intentionally not committed); main.yml include gated on `routeros_capsman_enabled`.
+- **Secrets:** catalog rows added for `wifi-kogler_password`, `wifi-kogler-iot_password`, `wifi-kogler-iot-wan_password`, `wifi-kogler-guest_password`, `wifi-kogler-kids_password` (field `password`). OWNER ACTION: create the five items (values owner-chosen, alphanumeric) before any flag flip.
+- Secrets values touched: none (names only).
+
 *(no entries yet)*
 
 ## Phase 2 — NAS

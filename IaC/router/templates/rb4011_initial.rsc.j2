@@ -48,7 +48,7 @@
     comment="{{ mgmt.name }} gateway"
 /ip pool add name=pool-mgmt ranges={{ mgmt.pool }}
 /ip dhcp-server add name=dhcp-mgmt interface=vlan{{ mgmt.id }}-mgmt address-pool=pool-mgmt disabled=no
-/ip dhcp-server network add address={{ mgmt.subnet }} gateway={{ router99.ip }} dns-server=1.1.1.1
+/ip dhcp-server network add address={{ mgmt.subnet }} gateway={{ router99.ip }} dns-server={{ bootstrap_dns_servers }}
 
 # ---- WAN (internet for laptop + 1Password) ----
 

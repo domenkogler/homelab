@@ -55,10 +55,12 @@
 /ip dns set servers={{ router99.ip }}
 
 # ---- Services (Ansible REST/API/SSH door) ----
+# HD-193: bound to the Mgmt interface from FIRST BOOT (B4 binding floor,
+# mirrors rb4011_initial) — nothing listens on access ports during bootstrap.
 
-/ip service set api disabled=no
-/ip service set www-ssl disabled=no certificate=none
-/ip service set ssh disabled=no port=22
+/ip service set api disabled=no interface=vlan{{ mgmt.id }}-mgmt
+/ip service set www-ssl disabled=no certificate=none interface=vlan{{ mgmt.id }}-mgmt
+/ip service set ssh disabled=no port=22 interface=vlan{{ mgmt.id }}-mgmt
 
 # ---- End ----
 # After import, verify:
