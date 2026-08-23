@@ -33,7 +33,12 @@ docker_services:
   # === Edge tier (self-contained public edge — HD-40A / HD-135) ===
   - { name: traefik,        template_dir: traefik,   enabled: true }
   - { name: crowdsec,       template_dir: crowdsec,  enabled: true }
-  - { name: authentik,      template_dir: authentik, subdomain: sso, enabled: true }  # + bundled pg/redis
+  # db_role_sync (2026-08-23 incident): postgres images apply POSTGRES_PASSWORD ONLY at
+  # first cluster init — a rotated 1Password db item re-renders compose envs but the persisted
+  # cluster keeps the OLD role password (forgejo/renovate crash-loop precedent). Opt-in per
+  # service: deploy-service.yml re-syncs the ROLE password from the same vault item post-up.
+  - { name: authentik,      template_dir: authentik, subdomain: sso, enabled: true,
+      db_role_sync: true, db_item: authentik_db, db_pg_container: authentik-postgres }  # + bundled pg/redis
   # Family launchpad at the public edge (HD-180/HD-183): kogler.si root + home alias via
   # the compose's Docker-provider labels; Forward-Auth consumer (not native OIDC), so it
   # may sit anywhere after authentik.
@@ -41,11 +46,14 @@ docker_services:
   # === Public live-data apps + co-located DBs (NVMe) ===
   - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true, bind_owner_uid: "{{ storage_uid }}", bind_dirs: ['config', 'data'] }  # + bundled db
   - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, enabled: true }  # WOPI helper for opencloud (HD-166); NO auth surface
-  - { name: immich-app,     template_dir: immich-app, subdomain: foto, enabled: true } # + pg/valkey; ML->oldsrv
-  - { name: forgejo,        template_dir: forgejo,   subdomain: git, enabled: true }   # + bundled db
+  - { name: immich-app,     template_dir: immich-app, subdomain: foto, enabled: true,  # + pg/valkey; ML->oldsrv
+      db_role_sync: true, db_item: immich_db, db_pg_container: immich-postgres }
+  - { name: forgejo,        template_dir: forgejo,   subdomain: git, enabled: true,   # + bundled db
+      db_role_sync: true, db_item: forgejo_db, db_pg_container: forgejo-db }
   # === AI stack (public/gateway tier — HD-100..104) ===
   - { name: litellm,        template_dir: litellm,   enabled: true }  # llm-backend -> oldsrv ollama over WG
-  - { name: pgvector,       template_dir: pgvector,  enabled: true }  # RAG vector store (db-internal)
+  - { name: pgvector,       template_dir: pgvector,  enabled: true,  # RAG vector store (db-internal)
+      db_role_sync: true, db_item: pgvector_db, db_pg_container: pgvector }
   - { name: docling,        template_dir: docling,   enabled: true }  # OCR (services-internal)
   - { name: open-webui,     template_dir: open-webui, subdomain: ai, enabled: true }
   # bind_owner_uid/bind_dirs (Wave-2 triage 2026-08-22): Docker auto-created these host

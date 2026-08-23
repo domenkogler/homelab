@@ -103,6 +103,38 @@
     state: started
   when: ansible_service_mgr == 'systemd'
 
+# ---- Postgres role-password drift guard (2026-08-23 incident) ----
+# The official postgres image applies POSTGRES_PASSWORD ONLY at first cluster init;
+# rotating the 1Password db item re-renders compose envs, but the persisted cluster
+# keeps the OLD role password -> app crash-loops with SASL auth failures (forgejo +
+# renovate precedent, 1007/455 restarts overnight). Services opting in via db_role_sync/
+# db_item/db_pg_container (group_vars/vps.yml) get their ROLE password re-synced from the SAME vault item after the stack is up. Runs every converge;
+# ALTER to the identical value is a cheap server-side no-op. IaC-only by design:
+# no hand-run SQL against managed DBs.
+- name: "Sync postgres role password with vault ({{ svc.name }})"
+  when: svc.db_role_sync | default(false)
+  vars:
+    _db_user: "{{ lookup('community.general.onepassword', svc.db_item, field='username', vault=op_vault) }}"
+    _db_pass: "{{ lookup('community.general.onepassword', svc.db_item, field='password', vault=op_vault) }}"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - -e
+      - "PGSYNC_USER={{ _db_user }}"
+      - -e
+      - "PGSYNC_PASS={{ _db_pass }}"
+      - "{{ svc.db_pg_container }}"
+      - sh
+      - -c
+      - >-
+        psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+        -v syncuser="$PGSYNC_USER" -v syncpass="$PGSYNC_PASS"
+        -c "ALTER ROLE :'syncuser' WITH PASSWORD :'syncpass'"
+  no_log: true
+  changed_when: false
+  tags: "{{ svc.name }}"
+
 # ---- Authentik secret-egress glue (HD-143) moved to prepass-authentik.yml (HD-162) ----
 # The glue is no longer a per-loop side-iteration on the `authentik` entry. It now runs
 # once in the explicit pre-pass (tasks/prepass-authentik.yml) BEFORE the deploy loop,

@@ -19,7 +19,12 @@ services:
       # values. Forgejo is a Gitea soft-fork with API-compatible endpoints -> use gitea.
       # Revisit when renovate_version bumps to >=37 (native forgejo support).
       RENOVATE_PLATFORM: gitea
-      RENOVATE_ENDPOINT: https://git.kogler.si
+      # 2026-08-23: INTERNAL endpoint — git.kogler.si sits behind authentik-forward-auth,
+      # which intercepts m2m API calls (renovate got the SSO redirect, not a token check).
+      # Both containers share services-internal; the container DNS name resolves directly.
+      # Same pattern applies to the Phase-5 Forgejo Actions runner. Revisit ONLY if
+      # renovate ever moves off this host.
+      RENOVATE_ENDPOINT: http://forgejo:3000
       RENOVATE_TOKEN: "{{ lookup('community.general.onepassword', 'forgejo_api', field='credential', vault=op_vault) }}"
       RENOVATE_REPOSITORIES: "domen/homelab"
       RENOVATE_ONBOARDING: "false"
