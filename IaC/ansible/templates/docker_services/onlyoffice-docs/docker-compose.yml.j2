@@ -147,6 +147,10 @@ services:
     image: rabbitmq:{{ onlyoffice_rabbitmq_version }}
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID   # entrypoint su-execs root -> rabbitmq user (live fix 2026-08-23: setgroups EPERM under bare cap_drop)
     container_name: onlyoffice-rabbitmq
     restart: unless-stopped
     healthcheck:
