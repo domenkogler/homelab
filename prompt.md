@@ -63,11 +63,16 @@
   Reachable via owner's temporary Windows `.ssh/config` alias only — the address is a pre-1.5 DHCP
   artifact deliberately kept OUT of repo docs (SSOT pointer: [network-addresses-generated.md](docs/network-addresses-generated.md)).
   Hold rule: no Ansible against oldsrv/nas until Phase 1.5 cutover.
-- **VPS queue — see the LATEST verify-session journal entry** ("rotation-drift incident +
-  HD-220/221/222/223", deployment-journal §Phase 1a tail): still open there = kopia seed,
-  forgejo_api validity check in Forgejo UI, N8N workflow creation at auto.kogler.si, LDAP
-  outpost-token harvest flow, nftables follow-ups; plus Handoff-#4 items (Verify-block evidence,
-  authentik-ldap + chat health, HD-211 batch, SMTP 2525, HD-216 offline only, HD-159 ⏳ until 1.5).
+- **VPS queue - see the LATEST verify-session journal entry** ("rotation-drift incident +
+  HD-220/221/222/223", deployment-journal Phase 1 tail): RESOLVED tonight = kopia seed
+  (relative sftp path + box mkdir + laptop known_hosts entry), grafana-prometheus 401,
+  forgejo crash-loop (db_role_sync + app.ini sync), chat tmpfs mode fix, drop.kogler.si live
+  (ORM nudge), nftables br-* forward fix. STILL OPEN there = renovate repo-error debug
+  one-shot (LOG_LEVEL=debug), onlyoffice-docs first-boot completion check, authentik-ldap
+  outpost-token harvest flow, nftables scoped-flush permanent fix, blueprint auto-apply gap;
+  plus owner actions: N8N workflow creation, HD-211 rotation batch (incl. two probe-exposed
+  values), stale pairdrop CNAME deletion, Hertzner-SB-Backup private-key copy into the 1P item.
+
 
 ## 3. Next-session execution order
 
