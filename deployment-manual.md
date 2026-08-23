@@ -336,6 +336,40 @@ Browse to `git.kogler.si` → authentik login → installer:
 | Allow registration only via external services | ON (OIDC JIT provisioning) |
 | Administrator Account | expand + set personal admin |
 
+**Mail section** (leave empty; SMTP added post-green via app.ini — SMTP2Go port **2525**, netcup blocks 587):
+
+| Field | Value |
+|---|---|
+| Gostitelj SMTP / Vrata / Send email as / Uporabniško ime / Geslo | *(prazno)* |
+| Zahtevaj e-poštno potrditev za registracijo | false |
+| Omogoči e-poštna obvestila | false |
+
+**Server & third-party settings:**
+
+| Field | Value |
+|---|---|
+| Disable third-party | ON |
+| Gravatar avatar sources | OFF |
+| Libravatar federated lookup | OFF |
+| Enable OpenID user login | ON |
+| Allow registration only via external services | **ON** ← OIDC JIT provisioning (HD-148); local signup hidden anyway |
+| Enable OpenID-based self-registration | ON |
+| Require CAPTCHA for user registration | OFF |
+| Require sign-in to view pages | OFF (edge forward-auth already gates every request) |
+| Default hide email addresses | false (po želji: ON za zasebnost) |
+| Default allow organization creation | ON |
+| Default enable time tracking | ON |
+| Hidden email domain | `noreply.localhost` |
+| Password hashing algorithm | `pbkdf2_hi` |
+
+**Administrator account:**
+
+| Field | Value |
+|---|---|
+| Uporabniško ime administratorja | `domen` |
+| E-poštni naslov | `domen@kogler.si` |
+| Geslo + Potrditev | osebno geslo (shranjeno v 1Password) |
+
 ⚠ The installer form does NOT read the `FORGEJO__*` env overlay — type DB values manually.
 After install: Forgejo Admin → Applications → create API token (repo read/write) → paste into
 1Password `forgejo_api` → `docker compose up -d renovate` (in `/opt/renovate`) or next run.
