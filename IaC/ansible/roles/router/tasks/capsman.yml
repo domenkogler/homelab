@@ -1,6 +1,17 @@
 ---
 # CAPsMAN steady-state WiFi — IMPLEMENTATION PLAN + GUARD (HD-228 / HD-03 tail).
 #
+# FLAVOR DECIDED 2026-08-23: LEGACY `wireless` CAPsMAN for the whole fleet.
+# Reason: flavors cannot mix across a managed fleet, and two of four APs are
+# permanently incompatible with the new wifi-qcom-ac package per MikroTik's
+# official compatibility table (manual.mikrotik.com/docs/wireless/wifi):
+# hAP ac classic (RB962…, MIPSBE CPU) and wAP ac T-variant fall under "all other
+# devices with a MIPSBE CPU"; only hAP ac² units would qualify. Live-probed
+# 2026-08-23: AP-dnevna carries no wifi-qcom-ac package at all.
+# OWNER PLAN same day: retire the hAP ac classic (spare hAP ac² takes the
+# dnevna slot). New flavor becomes revisitable when additionally the garage
+# wAP ac confirms RBwAPG-5HacD2HnD (or gets replaced).
+#
 # STATUS: SCAFFOLD ONLY. The RB4011 is not provisioned yet (Phase 1.5 cutover);
 # RouterOS 7 legacy-`wireless` api_modify field sets must be validated LIVE on
 # first contact, so no speculative mutation tasks are shipped here (fail-loud

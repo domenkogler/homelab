@@ -718,6 +718,15 @@
 - **Secrets:** catalog rows added for `wifi-kogler_password`, `wifi-kogler-iot_password`, `wifi-kogler-iot-wan_password`, `wifi-kogler-guest_password`, `wifi-kogler-kids_password` (field `password`). OWNER ACTION: create the five items (values owner-chosen, alphanumeric) before any flag flip.
 - Secrets values touched: none (names only).
 
+### 2026-08-23 — Phase 1.5 · live verification round: CAPsMAN flavor pinned LEGACY, migration inventory captured from live LAN `[AI]`
+
+- Read-only probes over the RouterOS API (mikrotik skill, shared admin credential per HD-165; MSYS arg-conversion gotcha for positional API paths solved with `MSYS_NO_PATHCONV=1`).
+- **Router:** RB4011iGS+ (no local radios — pure manager), ROS 7.23.2 stable; `wireless` pkg ENABLED, `wifi-qcom-ac` staged-but-disabled.
+- **AP probes** (owner enabled api on two units): AP-dnevna = hAP ac classic 7.23.3, `wireless` only — no wifi-qcom-ac present; AP-spalnica = hAP ac², wifi-qcom + wifi-qcom-ac staged (disabled). AP-garaza/.6 spare still API-off.
+- **DECISION: legacy `wireless` CAPsMAN fleet-wide.** MikroTik compatibility table (manual.mikrotik.com/docs/wireless/wifi): hAP ac classic + wAP ac T-variant = MIPSBE → incompatible with wifi-qcom-ac; flavors cannot mix in one managed fleet. New flavor revisitable after owner's planned dnevna swap (spare hAP ac² takes the slot) AND garage wAP variant confirmation (D vs T). Pinned in capsman.yml header; ap_initial.rsc.j2 stays legacy `/interface wireless cap` syntax unchanged.
+- **Migration inventory created:** [network-migration-inventory.md](docs/network-migration-inventory.md) from a 33-lease live dump — highlights: 3× Bosch Home Connect appliances on DYNAMIC leases (→ VLAN 21 tier per HD-228, need reservations), Shelly DW2 flood sensor (Gen1 CoAP — covered by the HD-229 exception), GIRA X1 + KNX IP router (VLAN 20), Canon TS9550 printer (.117 "Tiskalnik" → VLAN 10, family web UI by design), Reolink garage camera (port-type says VLAN 20 — viewing constraint flagged for owner confirm). ⚠ Owner to identify: .111, .121 (0003B5F29AFDC36), "deblab" .125 (Hyper-V VM), "truenas" .60 (not in any owning doc).
+- Secrets values touched: none.
+
 *(no entries yet)*
 
 ## Phase 2 — NAS
