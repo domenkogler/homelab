@@ -142,14 +142,18 @@
       - "{{ svc.db_pg_container }}"
       - sh
       - -c
-      # NOTE: psql performs NO :var interpolation in -c mode — the SQL must go via STDIN
-      # (-f -). Identifier needs :"var", literal needs :'var' (psql-safe quote escaping).
+      # NOTE: psql performs NO :var interpolation in -c mode — SQL goes via STDIN (-f -).
+      # Identifier needs :"var", literal needs :'var'. ON_ERROR_STOP is MANDATORY here:
+      # without it psql exits 0 even after SQL errors and the drift would persist silently
+      # (live-proven 2026-08-23).
       - >-
-        psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+        psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
         -v syncuser="$PGSYNC_USER" -v syncpass="$PGSYNC_PASS" -f -
     stdin: 'ALTER ROLE :"syncuser" WITH PASSWORD :''syncpass'';'
+  register: db_role_sync_result
   no_log: true
-  changed_when: false
+  changed_when: "'ALTER ROLE' in db_role_sync_result.stdout"
+  failed_when: db_role_sync_result.rc != 0
   tags: "{{ svc.name }}"
 
 # ---- Forgejo app.ini DB-password drift guard (HD-220) ----
@@ -163,11 +167,13 @@
   when: svc.name == 'forgejo'
   vars:
     _ini_db_pass: "{{ lookup('community.general.onepassword', svc.db_item, field='password', vault=op_vault) }}"
-  community.general.ini_file:
+  # lineinfile, NOT ini_file: live-proven 2026-08-23 that ini_file's configparser round-trip
+  # treats the stale value as already-correct (changed:false) while gitea keeps reading it.
+  # PASSWD occurs exactly once in app.ini (verified), so an anchored full-line replace is safe.
+  ansible.builtin.lineinfile:
     path: /srv/docker/forgejo/data/gitea/conf/app.ini
-    section: database
-    option: PASSWD
-    value: "{{ _ini_db_pass }}"
+    regexp: '^PASSWD\\s*='
+    line: "PASSWD = {{ _ini_db_pass }}"
     mode: '0600'
     backup: true
   no_log: true

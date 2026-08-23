@@ -4,9 +4,14 @@
     name: alloy
     state: restarted
     daemon_reload: true
+  tags: always   # handlers are tag-filtered too — without this, --tagged runs skip the restart (HD-220)
 
 - name: restart grafana
+  # NO home_servers guard here (live bug found 2026-08-23): `inventory_hostname in
+  # groups['home_servers']` is False on the VPS — exactly where grafana lives — so the
+  # restart silently never ran and provisioned datasources never loaded. Provisioning
+  # tasks only notify where they changed; keep this unconditional.
   ansible.builtin.command:
     cmd: docker restart grafana
   changed_when: true
-  when: inventory_hostname in groups['home_servers']
+  tags: always
