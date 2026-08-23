@@ -49,6 +49,10 @@ services:
       FORGEJO__database__NAME: forgejo
       FORGEJO__database__USER: "{{ lookup('community.general.onepassword', 'forgejo_db', field='username', vault=op_vault) }}"
       FORGEJO__database__PASSWD: "{{ lookup('community.general.onepassword', 'forgejo_db', field='password', vault=op_vault) }}"
+      # Server identity (Wave-3 R5): without these the first-boot wizard defaulted
+      # AppURL to http://localhost:3000, breaking links/mail/OIDC callbacks.
+      FORGEJO__server__DOMAIN: git.kogler.si
+      FORGEJO__server__ROOT_URL: https://git.kogler.si/
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"
