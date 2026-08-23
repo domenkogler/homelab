@@ -21,7 +21,7 @@ tags: [services, utilities, tools, automation]
 |---------|-----------|---------|--------------------|-------------|
 | n8n | auto | I | 200–400 / 700 | Alert router → Signal/email (also office automation) |
 | signal-cli | — | I | 80–150 / 250 | Signal delivery (linked device, "Homelab Alerts") |
-| PairDrop | pairdrop | I | 100–180 / 300 | **P2P file share** (HD-113) — browser WebRTC "AirDrop-style" transfers, local-network device discovery, internal-only via Forward-Auth (linuxserver image; no data persisted to disk) |
+| PairDrop | pairdrop | P | 100–180 / 300 | **P2P file share** (HD-225, supersedes HD-113) — browser WebRTC "AirDrop-style" transfers; PUBLIC since 2026-08-23 on `pairdrop.kogler.si` + `drop.kogler.si` via crowdsec-only tier (no Forward-Auth), traefik-public-only network isolation, built-in RATE_LIMIT (linuxserver image; no data persisted to disk) |
 | Stirling PDF | pdf | I | 150–400 / 800 | **PDF toolkit** (HD-58) — merge/split/compress/convert/number/OCR (Tesseract `eng+slv`); anonymous mode + Forward-Auth, internal-only; no local online-PDF-editor dependency; **stateless (in-memory, no disk/backup)** |
 
 ## Automation & Alerting

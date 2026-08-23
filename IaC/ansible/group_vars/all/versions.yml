@@ -83,8 +83,8 @@ gluetun_version: "v3.41.3"                 # qmcgaw/gluetun (upstream)
 ollama_version: "0.32.15-rocm"             # ollama/ollama (verified 2026-08-21)
 
 # ==== File / PDF / P2P ====
-# PairDrop (linuxserver.io) image tag — internal P2P file share (HD-113). Pinned semver
-# (linuxserver tags use plain `X.Y.Z`, no `v`); Renovate docker datasource tracks it.
+# PairDrop (linuxserver.io) image tag — PUBLIC P2P file share (HD-225, supersedes HD-113).
+# Pinned semver (linuxserver tags use plain `X.Y.Z`, no `v`); Renovate docker datasource tracks it.
 pairdrop_version: "1.11.2"
 # Stirling PDF (frooodle/s-pdf) image tag — internal PDF toolkit (HD-58). Pinned semver
 # with `-fat` variant (bundles all Tesseract langs incl. Slovenian `slv` for OCR);

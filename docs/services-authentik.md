@@ -135,6 +135,14 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
    `/blueprints/schema.json` inside the image (`$defs.model_authentik_providers_oauth2.oauth2provider`).
 7. **One-shot apply for fast loops:** `docker exec authentik-worker ak apply_blueprint
    /blueprints/custom/ks-oidc.yml` applies immediately without waiting for worker file-discovery.
+   **MANDATORY for EVERY custom-blueprint edit since HD-225 (2026-08-23):** discovery has never
+   registered `/blueprints/custom/*` as BlueprintInstances (28 instances, 0 custom — hourly
+   `blueprints_discovery` runs complete 'done' but skip them), so the file-hash re-apply machinery
+   NEVER fires for our blueprints. The docker_services role now runs the one-shot applies
+   deterministically (`tasks/apply-authentik-blueprints.yml`, wired into main.yml before the glue).
+   Layer-2 cause of discovery non-registration still unknown — follow-up investigation pending.
+   Remember: apply = UPSERT; removing a blueprint entry does NOT delete the server-side object —
+   intentional deletions need ak-shell ORM one-shots in the same change.
 8. **openclaw placeholder:** the serializer requires ≥1 redirect_uri even for the not-yet-onboarded
    provider — ks-oidc.yml carries `{url: "http://localhost:.*", matching_mode: regex}` as an explicit
    placeholder; replace with the real `openclaw onboard` callback(s) at HD-104.

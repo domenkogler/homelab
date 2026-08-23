@@ -98,6 +98,11 @@
   when: svc_entry.enabled | default(true)
   tags: docker_services
 
+- name: Apply custom blueprints one-shot (discovery never registers /blueprints/custom — HD-225)
+  ansible.builtin.include_tasks:
+    file: apply-authentik-blueprints.yml
+  when: "'authentik' in (docker_services | map(attribute='name') | list)"
+
 - name: Run the secret-egress glue (after authentik is up)
   ansible.builtin.include_tasks:
     file: run-authentik-glue.yml
@@ -116,6 +121,28 @@
   loop_control:
     label: "{{ svc_entry.name }}"
     loop_var: svc_entry
+  tags: docker_services
+
+# Disabled services get TORN DOWN (not just skipped) — otherwise a flipped-to-false
+# entry leaves its containers running outside IaC control (2026-08-23: renovate was
+# disabled for the missing-Forgejo-repo crash-loop and would have kept restart-looping
+# forever). `compose down` on the service's project dir is idempotent: absent project
+# dir -> rc 14/1 tolerated, running stack -> removed. Rendered files stay on disk.
+- name: Tear down DISABLED services (enabled=false)
+  ansible.builtin.shell:
+    cmd: "docker compose -p {{ item.name }} -f {{ docker_compose_dir }}/{{ item.name }}/docker-compose.yml down --remove-orphans || true"
+    executable: /bin/bash
+  changed_when: "'Removed' in teardown.stdout or 'Stopping' in teardown.stdout"
+  register: teardown
+  # All services; `when` picks the disabled ones (skip-only semantics elsewhere
+  # would otherwise leave flipped-to-false stacks running outside IaC control).
+  loop: "{{ docker_services }}"
+  when:
+    - item.enabled is defined
+    - not item.enabled
+    - item.name != 'authentik'
+  loop_control:
+    label: "{{ item.name }}"
   tags: docker_services
 
 # Traefik cert-pull consumer wiring (HD-181): non-issuer traefik hosts are cert

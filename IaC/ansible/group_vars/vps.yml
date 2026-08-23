@@ -46,8 +46,7 @@ docker_services:
   # === Public live-data apps + co-located DBs (NVMe) ===
   - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true, bind_owner_uid: "{{ storage_uid }}", bind_dirs: ['config', 'data'] }  # + bundled db
   - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, enabled: true,  # WOPI helper for opencloud (HD-166); NO auth surface
-      bind_owner_uid: "70", bind_dirs: ['postgres'],                                          # postgres:XX-alpine runs as uid 70 (Class-A fix)
-      db_role_sync: true, db_item: onlyoffice_db, db_pg_container: onlyoffice-postgres }      # 2026-08-23 rotation-drift guard
+      db_role_sync: true, db_item: onlyoffice_db, db_pg_container: onlyoffice-postgres }       # rotation-drift guard. NOTE (HD-227): pg+redis moved to NAMED volumes — the old nested host binds under /srv/docker/onlyoffice-docs got chown-corrupted by DS init (uid 105 walk); no bind_owner_uid needed anymore.
   - { name: immich-app,     template_dir: immich-app, subdomain: foto, enabled: true,  # + pg/valkey; ML->oldsrv
       db_role_sync: true, db_item: immich_db, db_pg_container: immich-postgres }
   - { name: forgejo,        template_dir: forgejo,   subdomain: git, enabled: true,   # + bundled db
@@ -78,9 +77,9 @@ docker_services:
   # === Edge accessories (moved from oldsrv — VPS residency, HD-135 deliberations) ===
   - { name: headscale,      template_dir: headscale, subdomain: vpn, enabled: true }  # public coordination (rev. network-vpn.md)
   - { name: metabase,       template_dir: metabase,  subdomain: sec, enabled: true }  # CrowdSec dashboard
-  - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, enabled: true }
+  - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, enabled: true }   # PUBLIC P2P share — dual-host pairdrop+drop, crowdsec-only tier, NO forward-auth (HD-225)
   - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, enabled: true }
-  - { name: renovate,       template_dir: renovate,  enabled: true }  # co-located with Forgejo/GitOps
+  - { name: renovate,       template_dir: renovate,  enabled: false }  # co-located with Forgejo/GitOps. DISABLED 2026-08-23: forgejo instance has NO repos yet (install wizard pending owner) -> renovate crash-looped on 'Repository has unknown error' for domen/homelab. Flip to true once the repo exists on Forgejo.
 
 # Single cert issuer (HD-178/HD-181): THIS host is the only ACME (DNS-01) issuer for
 # *.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host

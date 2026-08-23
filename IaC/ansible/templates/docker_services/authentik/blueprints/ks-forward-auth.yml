@@ -12,25 +12,20 @@
 # `authentik-forward-auth@file`. Excluded BY DESIGN (see labels/comments):
 #   native-OIDC apps (ai/foto/file + headscale after R5 middleware fix),
 #   Matrix-native SSO (matrix/chat), WOPI-only office, the IdP itself (sso),
-#   internal-tier services without public routes.
+#   internal-tier services without public routes,
+#   pairdrop — PUBLIC since HD-225 (2026-08-23): crowdsec-only tier, no
+#   forward-auth; its former forward-pairdrop/edge-pairdrop objects were removed
+#   here and deleted server-side via ak-shell ORM one-shots after the converge.
+#   forgejo/git — NATIVE OIDC since HD-227 (2026-08-23, owner decision): SSO via
+#   ks-oidc.yml provider_forgejo (declared since HD-148); forward-git removed here
+#   and deleted server-side via ak-shell ORM one-shots after the converge.
+# 7 protected routes remain.
 # forward_single ONLY — forward_domain would swallow sibling subdomains.
 # ==================================================================================
 version: 1
 metadata:
   name: ks-forward-auth
 entries:
-  - model: authentik_providers_proxy.proxyprovider
-    id: provider_edge_git
-    identifiers:
-      name: forward-git
-    attrs:
-      mode: forward_single
-      external_host: https://git.kogler.si
-      internal_host: http://forgejo:3000
-      internal_host_ssl_validation: false
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
   - model: authentik_providers_proxy.proxyprovider
     id: provider_edge_stats
     identifiers:
@@ -63,18 +58,6 @@ entries:
       mode: forward_single
       external_host: https://auto.kogler.si
       internal_host: http://n8n:5678
-      internal_host_ssl_validation: false
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-  - model: authentik_providers_proxy.proxyprovider
-    id: provider_edge_pairdrop
-    identifiers:
-      name: forward-pairdrop
-    attrs:
-      mode: forward_single
-      external_host: https://drop.kogler.si
-      internal_host: http://pairdrop:3000
       internal_host_ssl_validation: false
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
@@ -129,14 +112,6 @@ entries:
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
 
   - model: authentik_core.application
-    id: app_edge_git
-    identifiers:
-      slug: edge-forgejo
-    attrs:
-      name: Forgejo (edge)
-      meta_launch_url: https://git.kogler.si
-      provider: !KeyOf provider_edge_git
-  - model: authentik_core.application
     id: app_edge_stats
     identifiers:
       slug: edge-grafana
@@ -160,14 +135,6 @@ entries:
       name: n8n (edge)
       meta_launch_url: https://auto.kogler.si
       provider: !KeyOf provider_edge_auto
-  - model: authentik_core.application
-    id: app_edge_pairdrop
-    identifiers:
-      slug: edge-pairdrop
-    attrs:
-      name: PairDrop (edge)
-      meta_launch_url: https://drop.kogler.si
-      provider: !KeyOf provider_edge_pairdrop
   - model: authentik_core.application
     id: app_edge_pdf
     identifiers:
@@ -209,11 +176,9 @@ entries:
       type: proxy
       deployment_type: local
       providers:
-        - !KeyOf provider_edge_git
         - !KeyOf provider_edge_stats
         - !KeyOf provider_edge_sec
         - !KeyOf provider_edge_auto
-        - !KeyOf provider_edge_pairdrop
         - !KeyOf provider_edge_pdf
         - !KeyOf provider_edge_home
         - !KeyOf provider_edge_home_home

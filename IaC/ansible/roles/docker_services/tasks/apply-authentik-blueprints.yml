@@ -1,0 +1,35 @@
+---
+# apply-authentik-blueprints.yml — deterministic custom-blueprint application (HD-225).
+#
+# WHY THIS EXISTS: authentik's blueprints_discovery has NEVER registered
+# /blueprints/custom/* files as BlueprintInstances (found live 2026-08-23: 28
+# instances exist, 0 custom; hourly discovery runs complete 'done' but skip them).
+# Its file-hash re-apply machinery (instance last_applied_hash vs file sha256)
+# therefore never fires for our blueprints — edits to ks-forward-auth.yml stayed
+# inert server-side until a manual ak-shell ORM nudge (drop.kogler.si rename gap).
+# Until that layer-2 discovery behavior is understood/fixed upstream, EVERY custom
+# blueprint edit must be applied explicitly via this one-shot convention.
+#
+# Idempotency: apply_blueprint upserts by identifier — safe on every converge.
+# NOTE: upsert semantics mean REMOVING an entry from a blueprint does NOT delete
+# the server-side object; intentional deletions go through ak-shell ORM one-shots
+# in the same change (see services-authentik.md).
+
+- name: "One-shot apply custom Authentik blueprints (HD-225)"
+  ansible.builtin.shell:
+    cmd: |
+      rc=0
+      # NOTE: "$bp" is a SHELL variable. Do NOT write bp in Jinja-brace form here:
+      # Ansible resolves those at task-arg time ('bp' undefined -> task fails),
+      # even inside this comment.
+      for bp in ks-forward-auth.yml ks-oidc.yml; do
+        echo "== applying $bp =="
+        docker exec authentik-worker ak apply_blueprint "/blueprints/custom/$bp"
+        this_rc=$?
+        if [ $this_rc -ne 0 ]; then rc=$this_rc; fi
+      done
+      exit $rc
+    executable: /bin/bash
+  changed_when: "'Applied' in applied_bps.stdout or 'applied' in applied_bps.stdout"
+  register: applied_bps
+  tags: [authentik, docker_services]
