@@ -120,8 +120,11 @@ HD-144, HD-146, HD-149, HD-166 — HD-159 stays ⏳ until Phase 1.5.
 - [deployment-manual.md](deployment-manual.md) §Phase 1 exists — append Verify-block evidence
   addendum if the formal pass surfaces gaps.
 
-## 4. Working rules (unchanged, binding)
+## 4. Working rules (binding)
 
+- **Use a new worktree before changing any files** — create a fresh git worktree for the session
+  (e.g. `git worktree add ../homelab-wt-<date>`), apply and validate all edits there, and merge back
+  only committed, green results; the primary checkout stays untouched.
 - Validate green → commit; journal append-only; corrections = new entries; feed raw notes via
   [prompt-journal.md](prompt-journal.md) DATA ("read prompt-journal.md" triggers the conversion loop).
 - Secrets: 1Password item+field names only — never values, never in Git or chat.
