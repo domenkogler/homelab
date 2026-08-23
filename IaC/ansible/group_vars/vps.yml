@@ -76,7 +76,7 @@ docker_services:
   # === Edge accessories (moved from oldsrv — VPS residency, HD-135 deliberations) ===
   - { name: headscale,      template_dir: headscale, subdomain: vpn, enabled: true }  # public coordination (rev. network-vpn.md)
   - { name: metabase,       template_dir: metabase,  subdomain: sec, enabled: true }  # CrowdSec dashboard
-  - { name: pairdrop,       template_dir: pairdrop,  subdomain: pairdrop, enabled: true }
+  - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, enabled: true }
   - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, enabled: true }
   - { name: renovate,       template_dir: renovate,  enabled: true }  # co-located with Forgejo/GitOps
 

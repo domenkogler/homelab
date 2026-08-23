@@ -73,7 +73,7 @@ entries:
       name: forward-pairdrop
     attrs:
       mode: forward_single
-      external_host: https://pairdrop.kogler.si
+      external_host: https://drop.kogler.si
       internal_host: http://pairdrop:3000
       internal_host_ssl_validation: false
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
@@ -166,7 +166,7 @@ entries:
       slug: edge-pairdrop
     attrs:
       name: PairDrop (edge)
-      meta_launch_url: https://pairdrop.kogler.si
+      meta_launch_url: https://drop.kogler.si
       provider: !KeyOf provider_edge_pairdrop
   - model: authentik_core.application
     id: app_edge_pdf
