@@ -167,13 +167,16 @@
   when: svc.name == 'forgejo'
   vars:
     _ini_db_pass: "{{ lookup('community.general.onepassword', svc.db_item, field='password', vault=op_vault) }}"
-  # lineinfile, NOT ini_file: live-proven 2026-08-23 that ini_file's configparser round-trip
-  # treats the stale value as already-correct (changed:false) while gitea keeps reading it.
-  # PASSWD occurs exactly once in app.ini (verified), so an anchored full-line replace is safe.
-  ansible.builtin.lineinfile:
+  # Section-scoped ini_file is the CORRECT writer here (2026-08-23 lesson: an interim
+  # lineinfile attempt with a bare ^PASSWD regexp failed to match and APPENDED a second
+  # PASSWD at EOF - gitea reads the first occurrence under [database], so the stale original
+  # kept winning. ini_file itself was never wrong; the earlier 'false-negative' was a bad
+  # comparison against a stale container env.)
+  community.general.ini_file:
     path: /srv/docker/forgejo/data/gitea/conf/app.ini
-    regexp: '^PASSWD\\s*='
-    line: "PASSWD = {{ _ini_db_pass }}"
+    section: database
+    option: PASSWD
+    value: "{{ _ini_db_pass }}"
     mode: '0600'
     backup: true
   no_log: true
