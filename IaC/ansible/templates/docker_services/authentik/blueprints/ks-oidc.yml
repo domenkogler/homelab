@@ -59,6 +59,13 @@ entries:
         - {url: "https://ai.kogler.si/oauth2/callback", matching_mode: strict}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
+      # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
+      # writes empty), breaking the authorization_code grant on EVERY apply — found
+      # live 2026-08-24 (forgejo + opencloud logins dead; forward-* providers were
+      # unaffected because created via a different path). Pin explicitly.
+      grant_types:
+        - authorization_code
+        - refresh_token
   - model: authentik_core.application
     id: app_openwebui
     identifiers:
@@ -85,6 +92,13 @@ entries:
         - {url: "https://vpn.kogler.si/oidc/callback", matching_mode: strict}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
+      # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
+      # writes empty), breaking the authorization_code grant on EVERY apply — found
+      # live 2026-08-24 (forgejo + opencloud logins dead; forward-* providers were
+      # unaffected because created via a different path). Pin explicitly.
+      grant_types:
+        - authorization_code
+        - refresh_token
   - model: authentik_core.application
     id: app_headscale
     identifiers:
@@ -114,6 +128,13 @@ entries:
         - {url: "https://matrix.kogler.si/_matrix/client/unstable/login/sso/callback/.*", matching_mode: regex}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
+      # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
+      # writes empty), breaking the authorization_code grant on EVERY apply — found
+      # live 2026-08-24 (forgejo + opencloud logins dead; forward-* providers were
+      # unaffected because created via a different path). Pin explicitly.
+      grant_types:
+        - authorization_code
+        - refresh_token
   - model: authentik_core.application
     id: app_matrix
     identifiers:
@@ -149,6 +170,13 @@ entries:
         - {url: "http://localhost:.*", matching_mode: regex}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
+      # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
+      # writes empty), breaking the authorization_code grant on EVERY apply — found
+      # live 2026-08-24 (forgejo + opencloud logins dead; forward-* providers were
+      # unaffected because created via a different path). Pin explicitly.
+      grant_types:
+        - authorization_code
+        - refresh_token
   - model: authentik_core.application
     id: app_openclaw
     identifiers:
@@ -178,6 +206,13 @@ entries:
         - {url: "https://file.kogler.si/oauth2/callback", matching_mode: strict}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
+      # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
+      # writes empty), breaking the authorization_code grant on EVERY apply — found
+      # live 2026-08-24 (forgejo + opencloud logins dead; forward-* providers were
+      # unaffected because created via a different path). Pin explicitly.
+      grant_types:
+        - authorization_code
+        - refresh_token
   - model: authentik_core.application
     id: app_opencloud
     identifiers:
@@ -210,6 +245,13 @@ entries:
         - {url: "https://foto.kogler.si/user-settings", matching_mode: strict}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
+      # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
+      # writes empty), breaking the authorization_code grant on EVERY apply — found
+      # live 2026-08-24 (forgejo + opencloud logins dead; forward-* providers were
+      # unaffected because created via a different path). Pin explicitly.
+      grant_types:
+        - authorization_code
+        - refresh_token
   - model: authentik_core.application
     id: app_immich
     identifiers:
@@ -241,6 +283,13 @@ entries:
         - {url: "https://git.kogler.si/user/oauth2/.*", matching_mode: regex}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
+      # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
+      # writes empty), breaking the authorization_code grant on EVERY apply — found
+      # live 2026-08-24 (forgejo + opencloud logins dead; forward-* providers were
+      # unaffected because created via a different path). Pin explicitly.
+      grant_types:
+        - authorization_code
+        - refresh_token
   - model: authentik_core.application
     id: app_forgejo
     identifiers:
@@ -270,6 +319,13 @@ entries:
         - {url: "https://sec.kogler.si/auth/sso", matching_mode: strict}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
+      # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
+      # writes empty), breaking the authorization_code grant on EVERY apply — found
+      # live 2026-08-24 (forgejo + opencloud logins dead; forward-* providers were
+      # unaffected because created via a different path). Pin explicitly.
+      grant_types:
+        - authorization_code
+        - refresh_token
   - model: authentik_core.application
     id: app_metabase
     identifiers:
