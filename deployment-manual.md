@@ -337,9 +337,9 @@ Browse to `git.kogler.si` → authentik login → installer:
 
 | Field | Value |
 |---|---|
-| Gostitelj SMTP / Vrata / Send email as / Uporabniško ime / Geslo | *(prazno)* |
-| Zahtevaj e-poštno potrditev za registracijo | false |
-| Omogoči e-poštna obvestila | false |
+| SMTP Host / SMTP Port / Send email as / SMTP Username / SMTP Password | *(empty)* |
+| Require email confirmation for registration | false |
+| Enable email notifications | false |
 
 **Server & third-party settings:**
 
@@ -353,7 +353,7 @@ Browse to `git.kogler.si` → authentik login → installer:
 | Enable OpenID-based self-registration | ON |
 | Require CAPTCHA for user registration | OFF |
 | Require sign-in to view pages | OFF (edge forward-auth already gates every request) |
-| Default hide email addresses | false (po želji: ON za zasebnost) |
+| Default hide email addresses | false (optional: ON for privacy) |
 | Default allow organization creation | ON |
 | Default enable time tracking | ON |
 | Hidden email domain | `noreply.localhost` |
@@ -363,9 +363,9 @@ Browse to `git.kogler.si` → authentik login → installer:
 
 | Field | Value |
 |---|---|
-| Uporabniško ime administratorja | `domen` |
-| E-poštni naslov | `domen@kogler.si` |
-| Geslo + Potrditev | osebno geslo (shranjeno v 1Password) |
+| Administrator username | `domen` |
+| Email | `domen@kogler.si` |
+| Password + Confirm | personal password (stored in 1Password) |
 
 ⚠ The installer form does NOT read the `FORGEJO__*` env overlay — type DB values manually.
 After install: Forgejo Admin → Applications → create API token (repo read/write) → paste into
