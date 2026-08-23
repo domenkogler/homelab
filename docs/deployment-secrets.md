@@ -18,6 +18,7 @@ tags: [deployment, secrets, 1password]
 - **Single Git repo is source of truth** — `git clone` + `ansible-playbook` = fully rebuilt infrastructure
 - **Secrets never touch the repo** — all credentials live exclusively in 1Password
 - **Documentation drives automation** — these `docs/*.md` files are read by AI to generate IaC configs
+- ⚠ **Rotation caveat (Wave-3 R5, 2026-08-22):** updating a 1Password item does NOT update already-initialized service state — re-render + redeploy applies it only where the service reads env/config at start. Known one-time seeds: `POSTGRES_PASSWORD` initializes a volume ONCE (later rotation needs `ALTER USER` inside the container); `AUTHENTIK_BOOTSTRAP_*` applies only at user creation. Both hit live during Phase 1 (akadmin identity, forgejo-db role) and were synced manually via sanctioned tooling.
 - **No tribal knowledge** — if Domen is incapacitated, family + trusted tech contact can recover from 1Password + repo
 
 ### Config vs credential split (decision 2026-08-19 — why there is NO `server` type)
