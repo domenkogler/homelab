@@ -230,7 +230,9 @@ Built-in — no external KVM needed.
 
 - Boot only — no L2ARC/SLOG
 - L2ARC skipped: 12 GB RAM insufficient for benefit
-- **Boot chain quirk:** this SSD sits on an internal SATA port the Gen8 cannot boot from →
-  GRUB lives on the **USB stick** (preseed §8 `grub-installer/bootdev` = usb by-id, HD-206);
-  the stick must stay plugged for the box to boot
+- **Boot chain:** this SSD sits on an internal SATA port the Gen8 cannot boot from → GRUB lives on
+  a **dedicated USB stick** (preseed §8 `grub-installer/bootdev` = `usb-Generic_Flash_Disk_C3EB7FE7-0:0`,
+  HD-206; owner reconfirmed 2026-08-23). That Generic stick is the **permanent GRUB carrier** — it
+  stays plugged in the Gen8 forever. Install roles: SanDisk = installer medium only (removed after
+  install); two sticks are attached during install (see deployment-manual §1a.2 nas exception).
 - SLOG skipped: SSD lacks power-loss protection (PLP)

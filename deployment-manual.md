@@ -265,6 +265,13 @@ ls /dev/disk/by-id/ | grep usb
 ```
 ✔ Exactly ONE `usb-*` entry and it is YOUR stick model. If anything else appears — shut down and remove the stranger first.
 
+> **nas exception (two-stick install, owner decision 2026-08-23):** the nas installs with TWO USB
+> sticks by design — the **SanDisk** = installer medium you boot from, and the **Generic_Flash_Disk
+> (C3EB7FE7)** = permanent GRUB carrier that must be plugged so the preseed's `bootdev` by-id pin
+> resolves. Boot EXPLICITLY from the SanDisk (iLO one-time boot menu); if the old Generic stick's
+> bootloader comes up instead, the wrong medium booted — reboot and reselect. Verify at the console:
+> exactly these two `usb-*` entries, nothing else.
+
 ### 1a.3 Interactive install `[MANUAL]` (*Graphical install*)
 
 1. Network: choose the **wired** NIC only; skip any wireless prompt.
