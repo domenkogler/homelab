@@ -66,6 +66,12 @@ entries:
       grant_types:
         - authorization_code
         - refresh_token
+      # HD-231 pt.2: property_mappings were wiped to [] by the same upsert mechanism
+      # -> UserInfo 403 insufficient_scope (forgejo OIDC 500). Pin the three defaults.
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
   - model: authentik_core.application
     id: app_openwebui
     identifiers:
@@ -99,6 +105,12 @@ entries:
       grant_types:
         - authorization_code
         - refresh_token
+      # HD-231 pt.2: property_mappings were wiped to [] by the same upsert mechanism
+      # -> UserInfo 403 insufficient_scope (forgejo OIDC 500). Pin the three defaults.
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
   - model: authentik_core.application
     id: app_headscale
     identifiers:
@@ -135,6 +147,12 @@ entries:
       grant_types:
         - authorization_code
         - refresh_token
+      # HD-231 pt.2: property_mappings were wiped to [] by the same upsert mechanism
+      # -> UserInfo 403 insufficient_scope (forgejo OIDC 500). Pin the three defaults.
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
   - model: authentik_core.application
     id: app_matrix
     identifiers:
@@ -177,6 +195,12 @@ entries:
       grant_types:
         - authorization_code
         - refresh_token
+      # HD-231 pt.2: property_mappings were wiped to [] by the same upsert mechanism
+      # -> UserInfo 403 insufficient_scope (forgejo OIDC 500). Pin the three defaults.
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
   - model: authentik_core.application
     id: app_openclaw
     identifiers:
@@ -213,6 +237,12 @@ entries:
       grant_types:
         - authorization_code
         - refresh_token
+      # HD-231 pt.2: property_mappings were wiped to [] by the same upsert mechanism
+      # -> UserInfo 403 insufficient_scope (forgejo OIDC 500). Pin the three defaults.
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
   - model: authentik_core.application
     id: app_opencloud
     identifiers:
@@ -252,6 +282,12 @@ entries:
       grant_types:
         - authorization_code
         - refresh_token
+      # HD-231 pt.2: property_mappings were wiped to [] by the same upsert mechanism
+      # -> UserInfo 403 insufficient_scope (forgejo OIDC 500). Pin the three defaults.
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
   - model: authentik_core.application
     id: app_immich
     identifiers:
@@ -290,6 +326,12 @@ entries:
       grant_types:
         - authorization_code
         - refresh_token
+      # HD-231 pt.2: property_mappings were wiped to [] by the same upsert mechanism
+      # -> UserInfo 403 insufficient_scope (forgejo OIDC 500). Pin the three defaults.
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
   - model: authentik_core.application
     id: app_forgejo
     identifiers:
@@ -326,6 +368,12 @@ entries:
       grant_types:
         - authorization_code
         - refresh_token
+      # HD-231 pt.2: property_mappings were wiped to [] by the same upsert mechanism
+      # -> UserInfo 403 insufficient_scope (forgejo OIDC 500). Pin the three defaults.
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
   - model: authentik_core.application
     id: app_metabase
     identifiers:
