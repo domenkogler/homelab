@@ -42,8 +42,14 @@
 services:
   onlyoffice-docs:
     image: onlyoffice/documentserver:{{ onlyoffice_version }}
-    cap_drop:
-      - ALL
+    # HD-230 (2026-08-23): cap_drop:ALL REMOVED — relaxation per metabase/stirling
+    # precedent (HD-218 Class-B). Evidence: even with the full setuid-cap whitelist
+    # (CHOWN/DAC_READ_SEARCH/FOWNER/SETUID/SETGID verified present via inspect),
+    # supervisord's per-child setuid still EPERM'd ("couldn't setuid to 105") while a
+    # raw setpriv --init-groups as root SUCCEEDED — image-internal privilege handling
+    # incompatible with cap whitelisting. Compensating controls: read_only retained?
+    # NO — see below; no host ports; traefik-public+db-internal networks only;
+    # regenerable state; edge WAF. Revisit when upstream cleans its init.
     container_name: onlyoffice-docs
     restart: unless-stopped
     depends_on:
@@ -58,6 +64,10 @@ services:
       - db-internal
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # HD-230 (2026-08-23): WOPI discovery (/hosting/discovery) is served by the
+      # bundled example app — WITHOUT it OpenCloud's collaboration service cannot
+      # register the editor (discovery 404, found live). Image default is disabled.
+      EXAMPLE_ENABLED: "true"
       # Shared WOPI JWT — MUST match OpenCloud's COLLABORATION_JWT_SECRET exactly.
       # 1Password lookup on both sides; fail-loud if absent (HD-65).
       JWT_ENABLED: "true"
@@ -113,7 +123,12 @@ services:
     networks:
       - db-internal
     volumes:
-      - /srv/docker/onlyoffice-docs/postgres:/var/lib/postgresql/data
+      # Named volume, NOT a host bind under /srv/docker/onlyoffice-docs (HD-230 fix,
+      # found live 2026-08-23): DS mounts the PARENT dir and its init does a recursive
+      # chown to ds uids (105/107) — the nested postgres datadir got corrupted
+      # (base/* files owned 105:107 -> server 'could not open file' on every catalog
+      # read; broke the db_role_sync ALTER). Named volumes are invisible to that walk.
+      - onlyoffice-pgdata:/var/lib/postgresql/data
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       POSTGRES_DB: onlyoffice
@@ -141,7 +156,8 @@ services:
     networks:
       - db-internal
     volumes:
-      - /srv/docker/onlyoffice-docs/redis:/data
+      # Named volume for the same mount-overlap reason as onlyoffice-pgdata above.
+      - onlyoffice-redis-data:/data
 
   onlyoffice-rabbitmq:
     image: rabbitmq:{{ onlyoffice_rabbitmq_version }}
@@ -180,3 +196,5 @@ networks:
 
 volumes:
   onlyoffice-rabbitmq-data:
+  onlyoffice-pgdata:
+  onlyoffice-redis-data:

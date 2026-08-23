@@ -67,14 +67,37 @@
     state: started
     enabled: true
 
-# Loading an nft ruleset that begins with 'flush ruleset' DELETES the ip/ip6 tables
-# Docker created via iptables-nft (DOCKER-FORWARD etc.) — subsequent network creation
-# then fails with "No chain/target/match by that name" (found live Phase 1, 2026-08-22).
-# The docker role ALWAYS precedes this role in host playbooks, so docker.service exists here.
-- name: Restart Docker so it re-programs its chains after the nftables load
-  systemd:
-    name: docker
-    state: restarted
+# HD-230 (2026-08-23, found live): Debian's stock nftables.service ships
+# ExecStop=/usr/sbin/nft flush ruleset — every stop/restart WIPED docker-programmed
+# nat/filter tables even with the scoped ruleset file below (the wipe came from the
+# STOP half of restart, not the load). Emptying ExecStop makes restart a pure
+# scoped re-load; docker chains survive.
+- name: Ensure nftables.service drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/nftables.service.d
+    state: directory
+    mode: '0755'
+
+- name: Override nftables.service ExecStop (drop the stop-flush)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/nftables.service.d/override.conf
+    content: |
+      # Managed by vps-hardening (HD-230). Stock ExecStop='nft flush ruleset'
+      # wipes docker iptables-nft tables on every restart. Start/reload paths are
+      # already table-scoped via /etc/nftables.conf; an empty ExecStop makes
+      # restart equally safe.
+      [Service]
+      ExecStop=
+    mode: '0644'
+  notify: daemon reload
+
+# HD-223 residual CLOSED (2026-08-23): the ruleset now replaces ONLY its own
+# `table inet filter` (declare+delete+recreate idiom in nftables.conf.j2) instead of
+# 'flush ruleset', so docker's iptables-nft chains survive every apply/restart and
+# NO docker restart is needed here anymore. History: loading a 'flush ruleset'
+# ruleset deleted docker's tables — later network creation failed with "No chain/
+# target/match by that name" (found live Phase 1, 2026-08-22) and a nftables restart
+# briefly wiped docker NAT fleet-wide (Incident C recovery, 2026-08-23).
 
 # ── 3. Docker daemon hardening ────────────────────────────────────────────
 - name: Harden Docker daemon (iptables explicit, no host bindings by default)

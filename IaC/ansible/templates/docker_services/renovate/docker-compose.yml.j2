@@ -27,6 +27,11 @@ services:
       RENOVATE_ENDPOINT: http://forgejo:3000
       RENOVATE_TOKEN: "{{ lookup('community.general.onepassword', 'forgejo_api', field='credential', vault=op_vault) }}"
       RENOVATE_REPOSITORIES: "domen/homelab"
+      # PREREQUISITE (2026-08-23 debug one-shot): the repo MUST exist on Forgejo as
+      # `domen/homelab` — the instance has an admin account but NO repos yet (GitHub
+      # migration/create pending owner), so renovate 404'd every API call ->
+      # "Repository has unknown error" crash-loop; service DISABLED in group_vars
+      # until the repo lands. Token itself verified 200.
       RENOVATE_ONBOARDING: "false"
       RENOVATE_DEPENDENCY_DASHBOARD: "true"
       RENOVATE_DEPENDENCY_DASHBOARD_TITLE: "Homelab Dependency Dashboard"

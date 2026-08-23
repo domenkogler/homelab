@@ -96,6 +96,9 @@ cloudflare_dns_records:
   - { name: pdf,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: vpn,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: drop,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: pairdrop,  type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # KEPT + IaC-tracked (HD-230): pairdrop.kogler.si stays live alongside drop
+  - { name: home,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-230: was missing from CF entirely (route 000 since HD-219 wave)
+  - { name: traefik,   type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-230: dashboard route hostname (forward-auth protected)
   - { name: auto,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
 #
 # Example (once foto.kogler.si is served by VPS Traefik):

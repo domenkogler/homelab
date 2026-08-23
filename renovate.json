@@ -1,6 +1,5 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "platform": "forgejo",
   "dependencyDashboard": true,
   "dependencyDashboardAutoclose": false,
   "dependencyDashboardTitle": "Homelab Dependency Dashboard",

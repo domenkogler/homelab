@@ -16,3 +16,7 @@
     name: docker
     state: restarted
     daemon_reload: true
+
+- name: daemon reload
+  systemd:
+    daemon_reload: true

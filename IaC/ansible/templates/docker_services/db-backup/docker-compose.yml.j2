@@ -3,8 +3,10 @@
 #   block per database service (authentik, forgejo, immich, opencloud).
 #   Each database container must be on a network this service can reach.
 #
-#   Scheduled via the tiredofit/db-backup cron runner (default: daily at 02:00).
-#   Backups are stored to a named volume; the kopia-agent backs up that volume.
+#   Scheduling is INTERVAL-based from container start (NOT wall-clock daily):
+#   first dump fires DEFAULT_BACKUP_BEGIN seconds after boot, then every
+#   DEFAULT_BACKUP_INTERVAL minutes (image default 1440). Backups are stored to a
+#   named volume; kopia protects that volume (source wiring tracked separately).
 #
 #   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     <service>_db    (Database: username=<db user>, password=<db password>)
@@ -48,10 +50,20 @@ services:
       # /var/lib/zabbix writes) and its dead service link. Honored by the image's
       # 00-container function (verified 2026-08-23).
       CONTAINER_ENABLE_MONITORING: "FALSE"
-      # Retention
+      # Boot-race fix (HD-222a follow-up, 2026-08-23): image default
+      # DEFAULT_BACKUP_BEGIN=+0 fired dumps THE SAME SECOND s6 cont-init.d started,
+      # before /tmp/backups was prepared -> mktemp EACCES on ALL four targets
+      # (first post-fix run 16:55:34, zero dumps landed). Delay first run +10
+      # MINUTES (UNIT VERIFIED LIVE: bare "120" rejected; "+N" counts MINUTES —
+      # +120 pushed first run 2h out). Init completes in <10s, so this is ample
+      # deterministic margin. Later runs keep the interval cadence from boot.
+      DEFAULT_BACKUP_BEGIN: "+10"
+      # Retention. NOTE: COMPRESSION=ZSTD kept deliberately — deprecated (warns x4
+      # per boot, removed upstream in 4.3.0) but still honored by the pinned 4.1.100;
+      # replacing it needs the successor variable name verified against the pinned
+      # image script (HD-222b env-name precedent) at the next version bump.
       COMPRESSION: ZSTD
       RETENTION: "7"
-      # Default backup schedule (daily 02:00)
       DB01_TYPE: postgresql
       DB01_HOST: authentik-postgres
       DB01_PORT: "5432"
@@ -95,6 +107,16 @@ services:
       # Root-owned is fine: s6 stage0 runs as root and manages perms itself.
       - /srv/docker/db-backup/run:/run
       - db-backups:/backup
+      # HD-222a REAL root cause (2026-08-23 23:21 live evidence): image internals
+      # DELETE+RECREATE /tmp/backups around first-fire time (dir mtime == fire
+      # second), transiently denying mktemp to the job uid REGARDLESS of delay
+      # (+10min still EACCES). Dedicated sticky-world-writable tmpfs makes the
+      # scratch usable by any uid at any moment (typed entry per HD-224 chat fix;
+      # NOTE: belongs under volumes, NOT the string-only tmpfs: key).
+      - type: tmpfs
+        target: /tmp/backups
+        tmpfs:
+          mode: 01777
 
 volumes:
   db-backups:

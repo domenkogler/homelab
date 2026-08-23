@@ -6,7 +6,14 @@
 # NAT (docker's own iptables/nftables chains), which this ruleset leaves intact —
 # we only gate the HOST-facing input path.
 
-flush ruleset
+# Scoped table replacement (HD-223 residual, 2026-08-23): this file must NEVER
+# begin with 'flush ruleset' — that wipes ALL tables including docker's
+# iptables-nft-programmed nat/filter chains until docker re-programs them (caused
+# the fleet-wide NAT outage during Incident C recovery). Instead: declare an empty
+# table (no-op if absent), delete it, then recreate it below — touching ONLY our
+# own table, so docker-managed tables survive every apply and service restart.
+table inet filter {}
+delete table inet filter
 
 table inet filter {
     chain input {
