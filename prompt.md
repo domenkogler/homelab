@@ -1,29 +1,28 @@
-# prompt.md — Deployment Execution Handoff #4 — Phase 1 stack LIVE → Verify block + two owner inputs
+# prompt.md — Deployment Execution Handoff #5 — Phase 1a pools DONE → NAS OS install next
 
-> **Role:** Entry point for continuing the **Phase 1 VPS deploy**. Predecessor sessions took the stack
-> from true-zero through the crash-loop triage waves to: **all 27 enabled services deployed and LIVE
-> behind real Let's Encrypt TLS** (wildcard `*.kogler.si` issued + installed), forward-auth edge wired,
-> authentik admin operational. First tasks on resume: read the tail of the async convergence run, then
-> the Phase-1 **Verify block** ([deployment-tasks.md](deployment-tasks.md)) — most evidence is already
-> collected. Two owner inputs may still be outstanding (see §2).
+> **Role:** Entry point for continuing the **Phase 1a parallel track**. This session executed the
+> Pool-Creation Runbook on the nas/gen8 (bulk RAIDZ2 + tank mirror created, legacy payload landed in
+> `bulk/migrate`, both pools exported → **installer-ready**), refreshed the nas preseed + install
+> media, and closed out docs/journal/ledger. **First task next session: the NAS OS install via iLO**
+> (§3b). The Phase-1 VPS Verify-block queue is untouched and rides along unchanged (§3d).
 > **Linked from:** [README.md](README.md) §2 · plan: [deployment-tasks.md](deployment-tasks.md) ·
 > as-built log: [deployment-journal.md](deployment-journal.md) · redeploy runbook:
-> [deployment-manual.md](deployment-manual.md) §Phase 1 · human feed: [prompt-journal.md](prompt-journal.md)
+> [deployment-manual.md](deployment-manual.md) §Phase 1a · human feed: [prompt-journal.md](prompt-journal.md)
 
 ---
 
 ## 0. Mandatory context (read in this order)
 
-1. [CONVENTIONS.md](CONVENTIONS.md) §4 (ledger & journal loop is binding)
-2. [deployment-journal.md](deployment-journal.md) — journal entries **2026-08-22/23**: Wave 1/2 triage
-   (HD-218), Waves R4/R5 (traefik engine-29 fix, plugin chain, CF token closure, wildcard issuance,
-   headscale schema chain, akadmin sync), edge forward-auth wiring (HD-219), AND §Phase 1a
-   (parallel track: oldsrv reinstall)
-3. [deployment-manual.md](deployment-manual.md) **§Phase 1** — the settled redeploy path is NOW
-   WRITTEN (1.1–1.9); follow it for any reinstall instead of re-deriving
-4. [todo.md](todo.md) HD-217/218/219 + [changelog.md](changelog.md) same IDs
-5. [scripts/README.md](scripts/README.md) — runner tooling; note `ak-shell.sh`: **arg mode reliable,
-   stdin mode flaky** through cmd→wsl
+1. [CONVENTIONS.md](CONVENTIONS.md) §4 (ledger & journal loop is binding) + §6 (worktree convention,
+   updated this session: every session cuts `../homelab-wt-<date>-<HHMM>` before touching files;
+   own-worktree-only discipline)
+2. [deployment-journal.md](deployment-journal.md) §Phase 1a — BOTH entries: oldsrv reinstall
+   (2026-08-23 morning session) AND **Pool-Creation Runbook executed** (this session)
+3. [deployment-manual.md](deployment-manual.md) **§Phase 1a** — incl. NEW **§1a.0 pool bootstrap**
+   (as-executed commands) and §1a.2's **nas two-stick exception**
+4. [hardware-nas.md](docs/hardware-nas.md) — disk tables (per-serial SMART hours), runbook banner
+   (reality deltas), Boot Drive chain (Generic stick = permanent GRUB carrier)
+5. [todo.md](todo.md) HD-207 (trimmed to redistribution tail) + [changelog.md](changelog.md) same ID
 
 ## 1. Environment (Windows 11 laptop)
 
@@ -32,93 +31,69 @@
   ```bash
   cmd //c "wsl -d Debian -- bash /mnt/d/source/domenkogler/homelab/scripts/ansible-run.sh playbooks/vps.yml"
   ```
-  NEVER inline commands through wsl.exe (MSYS mangling). Read-only VPS probes also go through
-  script files (pattern proven all session). Interactive git-bash ssh was flaky (1Password agent);
-  WSL key-file path (`ansible-admin@vps.kogler.si`, BatchMode) stayed green throughout.
-- Async long runs: launch INSIDE WSL with `setsid nohup … > /tmp/<log> 2>&1 &` via a script file —
-  survives session teardown (plain git-bash `&` does NOT survive the cmd→wsl boundary).
+  NEVER inline commands through wsl.exe (MSYS mangling). Read-only host probes go through
+  script files too (`ssh -o BatchMode=yes …` inside a temp script; pattern proven two sessions).
+  Interactive git-bash ssh can be flaky (1Password agent); key-file paths stay green.
 - ⚠ **9P STALE-CACHE SYNC GATE MANDATORY before every playbook run** (HD-212):
   `git ls-files -z | xargs -0 md5sum --text | md5sum` on BOTH sides must be EQUAL. On mismatch:
   drop_caches → remount drvfs → full `wsl --terminate Debian`; else migrate clone into WSL
   (pre-authorized).
 
-## 2. State snapshot (end of session, night of 2026-08-22/23)
+## 2. State snapshot (end of session, 2026-08-23 afternoon)
 
-- **Stack LIVE:** all 27 enabled services deployed; **33–34/35 Up**; every public route serves real
-  LE TLS (wildcard `*.kogler.si` + apex cert issued, installed to `/opt/traefik/certs/kogler.si{,-key}.pem`).
-- **Auth edge live:** `ks-forward-auth.yml` blueprint applied — 9 proxy providers (forward_single) +
-  edge applications bound to the Embedded Outpost; unauthenticated requests redirect to sso.
-  Excluded tiers per labels: native-OIDC (ai/foto/file + headscale→`crowdsec-only` after owner-approved
-  middleware fix), Matrix-native SSO (matrix/chat), WOPI-only office, IdP itself.
-- **Authentik:** owner logged in as `akadmin` (email corrected to `admin@kogler.si`), WebAuthn + TOTP
-  enrolled. Finding recorded: `AUTHENTIK_BOOTSTRAP_*` applies ONLY at user creation — fresh installs
-  are unaffected (env pinned from first boot). Rotation caveat documented in
-  [deployment-secrets.md](docs/deployment-secrets.md) philosophy block.
-- **Traefik:** pinned **v3.7.11** (Engine 29 min client API 1.40 killed v3.5's docker provider);
-  bouncer plugin **v1.7.1** (`maxlerebourg/…`, registry-verified) with LAPI key from NEW vault item
-  **`crowdsec-bouncer_api`**; `/plugins-storage` tmpfs required under read_only.
-- **DNS published** (`dns.yml`): `vps` A/AAAA + apex + 14 app CNAMEs (SSOT:
-  `roles/cloudflare_dns/vars/main.yml`). `ha` withheld until Phase 4. Gotcha encoded: netcup
-  resolvers negative-cache NXDOMAIN past record TTL → traefik + headscale pin public resolvers.
-- **CF token:** rolled to exact-IP filter (CIDR entries unreliable); old value BURNED in session
-  transcript — include in HD-211 rotations.
-- **Loops remaining (owner-gated):**
-  - `renovate` — owner reports `forgejo_api` UPDATED; convergence run at handoff was mid-flight
-    (fatal-count=0 through kopia-server templates) — **first task: confirm recap + renovate Up**.
-  - `kopia-server` — needs `/srv/docker/kopia-server/config/{sftp_key,known_hosts}` seeded
-    (sftp_key from backup-box private key in 1P; known_hosts via `ssh-keyscan -p 23 …`).
-- **Phase 1a (parallel session, same night): oldsrv REINSTALLED — Debian 13.6, interactive**
-  (preseed bypassed after four delivery failures; root causes journaled: d-i udev creates no
-  nvme-eui.* links → partman matched nothing; WLAN NIC auto-picked; a rogue Kingston stick was
-  being booted — quarantined). Verified live (site-LAN address, SSOT: [network-addresses-generated.md](docs/network-addresses-generated.md)): `ansible-admin` + `ai-debug` +
-  sshd hardening drop-in + sudo NOPASSWD ✓. `storage_nvme_data_by_id` eui target confirmed on
-  the installed system (970 EVO untouched, NTFS until pool-create). **NAS install still pending**;
-  HDD SMART-hour re-read deferred to Phase 2. Docs updated by that session: preseed.cfg
-  (model_serial switch + early_command resolver + wifi-blacklist), deployment-preseed,
-  check_placeholders allowlist, scripts/README collect-disk-facts row, hardware-oldsrv current-state.
-  ⚠ `oldsrv.kogler.si` does NOT resolve from the runner — target its site-LAN address from
-  [network-addresses-generated.md](docs/network-addresses-generated.md) directly (or add a home-DNS/hosts
-  entry when Phase 1a continues).
-- **Post-green health checks pending:** `authentik-ldap` unhealthy, `chat` unhealthy (both Up).
-- **HD-211 rotation batch additions** (values transited session transcripts): old CF_DNS_API_TOKEN,
-  GF admin+smtp, N8N encryption+basic-auth, RENOVATE_TOKEN, OPENCLAW_GATEWAY_TOKEN,
-  OPENCLOUD_WEBDAV_PASSWORD, db-backup DB01–04, forgejo_db.
-- **netcup platform fact:** outbound SMTP 25/465/587 DROPped → VPS alert mail must use SMTP relay
-  port **2525** (documented in [services-vps.md](docs/services-vps.md)).
-- Open investigation **HD-216** unchanged (offline analysis only). **HD-159** stays ⏳ until Phase 1.5.
+- **⚠ UNMERGED BRANCH:** `session-nas-pools-20260823` (worktree `../homelab-wt-20260823-nas`)
+  carries ALL of this session's work — owner has NOT merged yet. Commits: nas preseed refresh ·
+  worktree convention (CONVENTIONS §6 SSOT) · HD-207 close-out (journal+ledger+docs+changelog) ·
+  manual §1a.0 pool bootstrap · boot-chain decision (Generic stick permanent). **First action next
+  session: settle the branch (merge or review) BEFORE any new file edits.**
+- **Pools installer-ready on gen8:** `bulk` = RAIDZ2 ×4 enclosure disks (ashift=12, runbook props)
+  holding the ENTIRE legacy payload under `bulk/migrate/new-pool` (~2.33 T logical, 57 snapshots);
+  `tank` = empty mirror (HGST + ST4000NT001). Both **EXPORTED** — `zpool list` shows nothing until
+  the Phase-2 storage role imports them (import-only, `allow_create: false`). Old single-disk pools
+  `new-pool` (source, exported→wiped) and `backup` (61.9 G gen8 dumps, owner declared disposable)
+  are GONE. SMART: all drives PASS, hours per serial in hardware-nas.md; report archived
+  `reports/smart-report-nas-20260823T105831.txt`.
+- **Install media READY (SanDisk, currently in the laptop as `E:`):** `preseed/preseed.cfg` = nas
+  version (early_command resolves the Crucial SSD at runtime + iwlwifi blacklist; grub-installer/
+  bootdev statically pinned to `usb-Generic_Flash_Disk_C3EB7FE7-0:0`) · `preseed/post_install.sh`
+  = keyed build reused from the oldsrv media build (verified: 3 keys, guards intact). DVD tree boot
+  patches already applied (file= ×5 entries, module_blacklist everywhere).
+- **Boot-chain decision (owner):** Generic_Flash_Disk stays PERMANENT GRUB carrier (SSD SATA port
+  cannot boot); SanDisk = installer medium only. Two-stick install documented in manual §1a.2.
+- **oldsrv:** installed 2026-08-23 (interactive; preseed deferred), catch-up done, key-only SSH OK.
+  Reachable via owner's temporary Windows `.ssh/config` alias only — the address is a pre-1.5 DHCP
+  artifact deliberately kept OUT of repo docs (SSOT pointer: [network-addresses-generated.md](docs/network-addresses-generated.md)).
+  Hold rule: no Ansible against oldsrv/nas until Phase 1.5 cutover.
+- **VPS queue UNCHANGED from Handoff #4:** renovate Up-confirm after real `forgejo_api`,
+  kopia-server seed (sftp_key + known_hosts), Verify-block evidence capture (crowdsec decisions,
+  CIFS round-trip, sshd -T/fail2ban/docker info, NVMe <80%), authentik-ldap + chat health checks,
+  HD-211 rotation batch, SMTP port 2525 notes, HD-216 open (offline only), HD-159 ⏳ until 1.5.
 
 ## 3. Next-session execution order
 
-### 3a. Settle the convergence run
-1. Convergence run COMPLETED GREEN before handoff (recap: `ok=264 changed=35 failed=0`) —
-   recap archived in `/tmp/vps-converge.log` (WSL) if still present.
-2. First check: `renovate` Up with the real token (was mid-render at handoff) — if still
-   auth-failing, token value/scope needs owner re-check (Forgejo audit log).
-3. Full roster sample: expect only `kopia-server` looping (+ ldap/chat unhealthy checks).
+### 3a. Settle the session branch (blocking, owner-gated)
+Review + merge `session-nas-pools-20260823` into main (all commits validated green); then remove
+the worktree via `git worktree remove ../homelab-wt-20260823-nas` and delete the branch. Any new
+edits this session happen in a FRESH `../homelab-wt-<date>-<HHMM>` per CONVENTIONS §6.
 
-### 3b. Kopia seed (if owner hasn't)
-`sftp_key` + `known_hosts` into `/srv/docker/kopia-server/config/` → restart kopia-server.
+### 3b. NAS OS install via iLO (main event)
+Two-stick setup per manual §1a.2: **SanDisk** (installer medium) + **Generic_Flash_Disk** (permanent
+GRUB carrier) BOTH plugged. Boot EXPLICITLY from the SanDisk (iLO one-time menu) — if the old GRUB
+menu appears, wrong medium booted. Run an **Automated** entry: early_command resolves the SSD,
+grub lands on the Generic stick via the static by-id pin, late_command runs the keyed post_install.
+Fallback: *Graphical install* (proven path; pick the small Generic device at the GRUB dialog) +
+catch-up script (`gen-media-post-install.sh` → LAN HTTP → run as local user).
+✔ Post-install verify: `ssh ansible-admin@<nas>` KEY-ONLY; `domen` REFUSED (AllowUsers); hostname
+`nas`; both Crucial by-id forms resolve; pools still exported (import comes later); **no Ansible
+runs against nas (hold rule until 1.5)**. Journal + ledger tick in the same change.
 
-### 3b-II. Phase 1a continuation (separate track)
-NAS install still pending — follow [deployment-journal.md](deployment-journal.md) §Phase 1a +
-[deployment-manual.md](deployment-manual.md) §Phase 1a. Optional quick win: add an `oldsrv`
-DNS/hosts entry so the runner stops needing the raw IP.
+### 3c. After-install bookkeeping
+Journal entry (manual §1a.4 rules) · ledger checkbox "Reinstall nas" tick · hardware-nas.md
+current-state header · if anything deviated permanently → owning doc + changelog same change.
 
-### 3c. Phase 1 Verify block ([deployment-tasks.md](deployment-tasks.md))
-Evidence mostly pre-collected this session: wildcard TLS served on every host ✓, DNS records live ✓,
-forward-auth chain ✓, homepage gate off ✓. Still to capture: crowdsec decisions (`cscli decisions`),
-CIFS round-trip, hardening evidence (`sshd -T` 3/no/no incl. `:22` ruleset, fail2ban, docker info),
-NVMe <80%. Tick + journal each: HD-40A, HD-135 (partial), HD-143 (ephemeral-token re-scope note),
-HD-144, HD-146, HD-149, HD-166 — HD-159 stays ⏳ until Phase 1.5.
-
-### 3d. Hygiene
-- HD-211 rotation batch (list above) — owner executes, playbook re-renders consumers.
-- Grafana/NUT SMTP config → port 2525 (netcup blocks 587).
-- `authentik-ldap` + `chat` health investigations.
-
-### 3e. Docs
-- [deployment-manual.md](deployment-manual.md) §Phase 1 exists — append Verify-block evidence
-  addendum if the formal pass surfaces gaps.
+### 3d. Parallel queues (unchanged from Handoff #4)
+Phase-1 Verify block evidence, kopia seed, renovate confirm, ldap/chat health, HD-211 batch —
+see §2 last bullet; these belong to the VPS-track session, not this one.
 
 ## 4. Working rules (binding)
 
