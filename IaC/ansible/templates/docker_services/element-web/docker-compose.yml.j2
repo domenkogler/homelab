@@ -10,23 +10,38 @@ services:
     cap_drop:
       - ALL
     read_only: true
-    tmpfs:
-      - /tmp
-      # Wave-2 triage 2026-08-22: the nginx entrypoint envsubsts
-      # /etc/nginx/templates/default.conf.template -> /etc/nginx/conf.d/default.conf at EVERY
-      # start; with only /tmp tmpfs it died EROFS before nginx launched. /var/cache/nginx +
-      # /var/run are the standard read-only-nginx pair (request-body temp + pid).
-      - /etc/nginx/conf.d
-      - /var/cache/nginx
-      - /var/run
+    # 2026-08-23: tmpfs via VOLUMES long syntax — docker mounts short-form tmpfs as
+    # root:root 0755, and this image runs everything as uid 101(nginx): envsubst could
+    # not write /etc/nginx/conf.d ("not writable") -> no server block -> nothing listened
+    # on :80 (chat unhealthy + edge 404 since first deploy). mode 01777 fixes the
+    # ownership mismatch for all four paths. (Long tmpfs: block rejected by this
+    # compose version — volumes/type:tmpfs carries tmpfs.mode instead.)
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          mode: 01777
+      # nginx entrypoint envsubsts /etc/nginx/templates/default.conf.template ->
+      # /etc/nginx/conf.d/default.conf at EVERY start (read_only rootfs pair below).
+      - type: tmpfs
+        target: /etc/nginx/conf.d
+        tmpfs:
+          mode: 01777
+      - type: tmpfs
+        target: /var/cache/nginx
+        tmpfs:
+          mode: 01777
+      - type: tmpfs
+        target: /var/run
+        tmpfs:
+          mode: 01777
+      - ./config.json:/app/config.json:ro
     container_name: chat
     restart: unless-stopped
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     networks:
       - traefik-public
-    volumes:
-      - ./config.json:/app/config.json:ro
     labels:
       traefik.enable: "true"
       traefik.http.routers.chat.rule: "Host(`chat.kogler.si`)"

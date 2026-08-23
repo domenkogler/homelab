@@ -1,4 +1,4 @@
-# pairdrop docker-compose.yml — P2P file share (pairdrop.kogler.si)
+# pairdrop docker-compose.yml — P2P file share (drop.kogler.si)
 #   Internal-only "AirDrop-style" direct device-to-device transfer (browser WebRTC),
 #   local-network device discovery. Family-facing via Traefik + Forward-Auth; NO public
 #   DNS record / WAN exposure — reachable on LAN/VPN only (HD-113).
@@ -44,7 +44,7 @@ services:
       # DEBUG_MODE: "false" # do NOT enable in production (logs client IPs, see host-your-own.md)
     labels:
       traefik.enable: "true"
-      traefik.http.routers.pairdrop.rule: "Host(`pairdrop.kogler.si`)"
+      traefik.http.routers.pairdrop.rule: "Host(`drop.kogler.si`)"
       traefik.http.routers.pairdrop.entrypoints: websecure
       {{ 'traefik.http.routers.pairdrop.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.pairdrop.middlewares: authentik-forward-auth@file

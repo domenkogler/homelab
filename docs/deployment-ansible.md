@@ -103,6 +103,15 @@ tags: [deployment, ansible, iac]
   `bind_owner_uid` for each entry in `bind_dirs` (`'.'` = the service root). Set both keys
   together on the service entry whenever a template bind-mounts `/srv/docker/<name>/...` into
   a non-root container.
+- **`db_role_sync`** + **`db_item`** + **`db_pg_container`** (optional; HD-220, incident
+  2026-08-23) — postgres-image rotation-drift guard: the official postgres image applies
+  `POSTGRES_PASSWORD` ONLY at first cluster init, so rotating the vault `<service>_db` item
+  re-renders every compose env while the persisted cluster keeps the OLD role password
+  (forgejo crash-looped overnight on exactly this). Opted-in services get an idempotent
+  `ALTER ROLE ... WITH PASSWORD` executed via `docker exec` into the pg container AFTER the
+  stack is up — the password source is the SAME vault item (no_log; IaC-only, no hand-run
+  SQL against managed DBs). Set all three keys on any service entry whose template bundles
+  its own postgres container.
 - **Lazy loop_var shadowing (HD-185 pattern, generalized):** `vars: { svc: "{{ item }}" }` on an
   `include_tasks` loop is LAZY - any INNER loop in the included file re-resolves `item` in its own
   context, so `svc` collapses to that inner string ('str' has no attribute 'name', found live on

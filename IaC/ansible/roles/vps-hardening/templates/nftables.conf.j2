@@ -35,9 +35,15 @@ table inet filter {
     chain forward {
         type filter hook forward priority filter; policy drop;
 
-        # Docker publishes its own forward chains; keep host policy drop but
-        # allow the docker bridge forwarding (docker manages this via its own
-        # table — this policy line is a safety net for non-docker forwarding).
+        # Docker bridge forwarding (incident 2026-08-23): with br_netfilter loaded,
+        # bridge-nf-call-iptables=1 routes CONTAINER↔CONTAINER frames through THIS
+        # chain. Docker's custom bridges are named br-<hash> (compose/role-created),
+        # so "docker*" (docker0 only) never matched them -> every peer packet fell
+        # through to drop -> fleet-wide container isolation while the edge looked up.
+        # Accept by interface prefix: docker0 + all br-* bridges. Docker's own
+        # ip-filter table keeps inter-network isolation policy.
+        iifname "br-*" accept
+        oifname "br-*" accept
         iifname "docker*" accept
         oifname "docker*" accept
         counter drop

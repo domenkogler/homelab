@@ -2,11 +2,20 @@
 - hosts: vps
   become: true
   roles:
-    - common
-    - docker
-    - vps-hardening      # HD-154: mandatory VPS pre-deploy hardening (fail2ban, nftables default-deny, docker daemon) — BEFORE docker_services
-    - network
-    - cifs                 # live Box CIFS mount at /mnt/storagebox (Immich/OpenCloud originals)
+    # Role-level tags enable surgical runs (deployment-manual "How to use": per-role --tags
+    # previously impossible — gap noted there 2026-08-23). Per-SERVICE tags live inside
+    # docker_services/deploy-service.yml (`tags: "{{ svc.name }}"`); combine e.g.:
+    #   ansible-run.sh playbooks/vps.yml --tags "docker_services,monitoring,renovate,grafana"
+    - role: common
+      tags: [common]
+    - role: docker
+      tags: [docker]
+    - role: vps-hardening
+      tags: [hardening]   # HD-154: mandatory VPS pre-deploy hardening (fail2ban, nftables default-deny, docker daemon) — BEFORE docker_services
+    - role: network
+      tags: [network]
+    - role: cifs
+      tags: [cifs]        # live Box CIFS mount at /mnt/storagebox (Immich/OpenCloud originals)
     # wg-s2s (VPS↔home router tunnel) is a follow-on, NOT a hard prerequisite: the VPS
     # edges + observability backend deploy standalone — prometheus/loki fall back to
     # 127.0.0.1 and the VPS Alloy self-observes on loopback. The tunnel applies once the
@@ -14,5 +23,8 @@
     # up explicitly with: ansible-playbook playbooks/vps.yml --check --tags wireguard
     - role: wireguard
       when: wg_s2s_vps.peer_public_key | default('') | length > 0
-    - docker_services
-    - monitoring
+      tags: [wireguard]
+    - role: docker_services
+      tags: [docker_services]
+    - role: monitoring
+      tags: [monitoring]

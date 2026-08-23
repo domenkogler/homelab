@@ -5,16 +5,40 @@
 #   OpenCloud <-> ONLYOFFICE trust each other over signed WOPI calls with a shared
 #   JWT secret (opencloud-collab_password). See docs/services-office.md §ONLYOFFICE.
 #
-#   Networking: `traefik-public` only (Traefik routes to it); no host ports (HD-62).
-#   TLS via the wildcard *.kogler.si cert on the Traefik route. Image port 80 = http.
+#   Networking: `traefik-public` (Traefik routes it; no host ports, HD-62) + a
+#   existing `db-internal` fleet segment for the three sidecars (postgres/redis/
+#   rabbitmq). OpenCloud talks to ONLYOFFICE over the EDGE (COLLABORATION_APP_ADDR
+#   = https://office.kogler.si) and receives WOPI callbacks at https://file.kogler.si
+#   — so NO services-internal membership (nothing calls DS from inside the Docker
+#   fabric). TLS via the wildcard *.kogler.si cert on the Traefik route. Port 80 = http.
+#
+#   WHY SIDECARS (2026-08-23 triage): the image bundles LOCAL postgres/rabbitmq/
+#   redis and starts them when their hosts resolve to `localhost`. Under
+#   cap_drop: ALL the embedded init died on chown/chmod (root has zero caps) ->
+#   postgres never listened -> eternal "Waiting for connection to the localhost
+#   host on port 5432" -> WopiDiscovery from OpenCloud 502'd. Wiring DB_HOST /
+#   AMQP_URI / REDIS_SERVER_HOST to the sidecars flips run-document-server.sh into
+#   external mode (guards verified in the pinned 9.3.0.1 script: lines ~723/740/759)
+#   and skips the embedded services entirely.
+#
+#   Env names VERIFIED from the pinned image's run-document-server.sh (extracted
+#   live 2026-08-23): DB_TYPE/DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PWD (NOT DB_PASS!),
+#   AMQP_URI (legacy RABBITMQ_SERVER_URL/AMQP_SERVER_URL deprecated),
+#   REDIS_SERVER_HOST / REDIS_SERVER_PORT (NOT REDIS_HOST/REDIS_PORT — don't exist).
 #
 #   Image: onlyoffice/documentserver, pinned via `onlyoffice_version` (HD-134/§7 —
-#   registry-verified 9.3.0.1 on 2026-08-19; MUST re-verify at first deploy).
-#   Stateful: ONLYOFFICE keeps a per-user document cache under /var/lib/onlyoffice
-#   (regenerable — NOT backed up; the SSOT is OpenCloud). No user data.
+#   registry-verified 9.3.0.1; sidecar pins in versions.yml, registry-verified 2026-08-23).
+#
+#   State: ONLYOFFICE per-user document cache under /var/lib/onlyoffice + sidecar
+#   state under /srv/docker/onlyoffice-docs/{postgres,redis} — all REGENERABLE
+#   (SSOT stays OpenCloud; NOT backed up). RabbitMQ holds only transient editor
+#   queues -> named volume (image-initialized ownership; avoids a second
+#   bind_owner_uid on the service entry).
 #
 #   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
-#     opencloud-collab_password   (password: shared JWT secret, same value on BOTH sides)
+#     opencloud-collab_password   (password: shared WOPI JWT secret, same value BOTH sides)
+#     onlyoffice_db               (Database: username=<db user>, password=<db password>)
+#     onlyoffice-rabbitmq_login   (Login: username=<amqp user>, password=<amqp password>)
 services:
   onlyoffice-docs:
     image: onlyoffice/documentserver:{{ onlyoffice_version }}
@@ -22,8 +46,16 @@ services:
       - ALL
     container_name: onlyoffice-docs
     restart: unless-stopped
+    depends_on:
+      onlyoffice-postgres:
+        condition: service_healthy
+      onlyoffice-redis:
+        condition: service_healthy
+      onlyoffice-rabbitmq:
+        condition: service_healthy
     networks:
       - traefik-public
+      - db-internal
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # Shared WOPI JWT — MUST match OpenCloud's COLLABORATION_JWT_SECRET exactly.
@@ -31,6 +63,18 @@ services:
       JWT_ENABLED: "true"
       JWT_SECRET: "{{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}"
       JWT_HEADER: "Authorization"
+      # --- external PostgreSQL (sidecar) ---
+      DB_TYPE: postgres
+      DB_HOST: onlyoffice-postgres
+      DB_PORT: "5432"
+      DB_NAME: onlyoffice
+      DB_USER: "{{ lookup('community.general.onepassword', 'onlyoffice_db', field='username', vault=op_vault) }}"
+      DB_PWD: "{{ lookup('community.general.onepassword', 'onlyoffice_db', field='password', vault=op_vault) }}"
+      # --- external Redis (sidecar) ---
+      REDIS_SERVER_HOST: onlyoffice-redis
+      REDIS_SERVER_PORT: "6379"
+      # --- external RabbitMQ (sidecar); urlencode: generated passwords may contain URI-hostile chars
+      AMQP_URI: "amqp://{{ lookup('community.general.onepassword', 'onlyoffice-rabbitmq_login', field='username', vault=op_vault) }}:{{ lookup('community.general.onepassword', 'onlyoffice-rabbitmq_login', field='password', vault=op_vault) | urlencode }}@onlyoffice-rabbitmq:5672"
     volumes:
       - /srv/docker/onlyoffice-docs:/var/lib/onlyoffice
     labels:
@@ -43,6 +87,96 @@ services:
       # the WAF (crowdsec-only@file), same as the OpenCloud route.
       traefik.http.routers.onlyoffice.middlewares: crowdsec-only@file
       traefik.http.services.onlyoffice.loadbalancer.server.port: "80"
+
+  onlyoffice-postgres:
+    image: postgres:{{ onlyoffice_pg_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETUID
+      - SETGID
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    container_name: onlyoffice-postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - db-internal
+    volumes:
+      - /srv/docker/onlyoffice-docs/postgres:/var/lib/postgresql/data
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      POSTGRES_DB: onlyoffice
+      POSTGRES_USER: "{{ lookup('community.general.onepassword', 'onlyoffice_db', field='username', vault=op_vault) }}"
+      POSTGRES_PASSWORD: "{{ lookup('community.general.onepassword', 'onlyoffice_db', field='password', vault=op_vault) }}"
+
+  onlyoffice-redis:
+    image: redis:{{ onlyoffice_redis_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: onlyoffice-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db-internal
+    volumes:
+      - /srv/docker/onlyoffice-docs/redis:/data
+
+  onlyoffice-rabbitmq:
+    image: rabbitmq:{{ onlyoffice_rabbitmq_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID   # entrypoint su-execs root -> rabbitmq user (live fix 2026-08-23: setgroups EPERM under bare cap_drop)
+    container_name: onlyoffice-rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      # Probe as the rabbitmq user (HD-222): image has no USER -> docker runs probes as
+      # root, but under cap_drop: ALL root lacks DAC_OVERRIDE and cannot read the 0400
+      # rabbitmq-owned .erlang.cookie -> eternal exit-78 eacces. su-exec ships in alpine.
+      test: ["CMD-SHELL", "su-exec rabbitmq rabbitmq-diagnostics -q ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - db-internal
+    volumes:
+      - onlyoffice-rabbitmq-data:/var/lib/rabbitmq
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # Applied at FIRST mnesia init only (rotation => manual, see NOT_AUTO_ROTATABLE)
+      RABBITMQ_DEFAULT_USER: "{{ lookup('community.general.onepassword', 'onlyoffice-rabbitmq_login', field='username', vault=op_vault) }}"
+      RABBITMQ_DEFAULT_PASS: "{{ lookup('community.general.onepassword', 'onlyoffice-rabbitmq_login', field='password', vault=op_vault) }}"
+
 networks:
   traefik-public:
     external: true
+  db-internal:
+    external: true
+
+volumes:
+  onlyoffice-rabbitmq-data:

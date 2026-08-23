@@ -95,7 +95,7 @@ cloudflare_dns_records:
   - { name: sec,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: pdf,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: vpn,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
-  - { name: pairdrop,  type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: drop,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: auto,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
 #
 # Example (once foto.kogler.si is served by VPS Traefik):

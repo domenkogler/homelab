@@ -16,8 +16,8 @@ tags: [services, vps, netcup]
 > TLS on the VPS over WG S2S → oldsrv backends). This supersedes the older "deferred to Phase 2+" wording
 > below, which is retained as the implementation spec for what actually ships there.
 >
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Host provisioned, stack not live. The netcup box is **bought + provisioned** (2026-08-18, IP + SSH fingerprints in `host_vars`) but the **service stack is NOT deployed yet** — Traefik/CrowdSec/Authentik/AI/observability land in Phase 1 (HD-40A/135) with the WG S2S tunnel deploy-gated ⏳ (HD-03). Sections below describe what ships there, not what is running.
-> **Live since 2026-08-22** (Phase 1): all enabled services deployed behind real LE TLS.
+> **Live since 2026-08-22** (Phase 1): all enabled services deployed behind real LE TLS
+> (wildcard `*.kogler.si`). Only the WG S2S tunnel stays ⏳ deploy-gated (HD-03).
 
 ### netcup edge firewall (SCP-verified 2026-08-22, Wave-3)
 
@@ -31,6 +31,13 @@ tags: [services, vps, netcup]
 - Egress addresses as seen by remote services: `159.195.111.66` (v4) and
   `2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5` (stable SLAAC v6) — both belong in any provider-side
   IP allowlist (e.g. Cloudflare token filters).
+- **Console/kmsg noise (benign, accepted 2026-08-23):** Debian 13's `systemd-ssh-generator`
+  logs `Failed to query local AF_VSOCK CID: Cannot assign requested address` on every PID1
+  generator pass (boot + each `daemon-reload`, so every Ansible run repeats it) — netcup KVM
+  exposes no vsock transport to the guest. TCP sshd (`:22`) and all services are unaffected;
+  the lines go to kmsg/console only and are not retained in the journal. Known-noise, do not
+  chase (verified read-only 2026-08-23; silencing via modprobe blacklist/generator stub
+  explicitly declined for now).
 
 ---
 

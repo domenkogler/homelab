@@ -41,7 +41,7 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 22 | chat | chat | `https://chat.kogler.si` | enabled |
 | 23 | headscale | vpn | `https://vpn.kogler.si` | enabled |
 | 24 | metabase | sec | `https://sec.kogler.si` | enabled |
-| 25 | pairdrop | pairdrop | `https://pairdrop.kogler.si` | enabled |
+| 25 | pairdrop | drop | `https://drop.kogler.si` | enabled |
 | 26 | stirling-pdf | pdf | `https://pdf.kogler.si` | enabled |
 | 27 | renovate | renovate | `https://renovate.kogler.si` | enabled |
 
@@ -80,4 +80,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-08-21T19:21:51Z
+> Generated from the `docker_services` lists | 2026-08-23T10:19:50Z

@@ -127,6 +127,13 @@ opencloud_version: "7.4.0"          # ghcr.io/opencloud-eu/opencloud (docker tag
 # 2026-08-19: Docker Hub `onlyoffice/documentserver` latest stable 9.3.x is 9.3.0.1 (patch of 9.3.0).
 # Renovate docker datasource tracks it; MUST re-verify at first deploy (HD-134/§7).
 onlyoffice_version: "9.3.0.1"
+# ONLYOFFICE Docs sidecars (2026-08-23 dependency fix: the documentserver image defaults
+# to LOCALHOST postgres/redis/rabbitmq, which cannot start under cap_drop:ALL -> eternal
+# "Waiting for connection to the localhost host on port 5432" -> WopiDiscovery 502).
+# Tags registry-verified 2026-08-23 via Docker Hub API from the VPS; Renovate tracks each.
+onlyoffice_pg_version: "16.15-alpine"        # postgres 16 line (forgejo-db 16-alpine series)
+onlyoffice_redis_version: "7.4.11-alpine"    # last 7.4.x alpine
+onlyoffice_rabbitmq_version: "3.13.7-alpine" # last 3.x — ONLYOFFICE-supported broker series
 
 # ==== Observability infra ====
 prometheus_version: "v3.14.0"        # prom/prometheus (Docker Hub tag has a `v`)

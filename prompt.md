@@ -41,11 +41,10 @@
 
 ## 2. State snapshot (end of session, 2026-08-23 afternoon)
 
-- **⚠ UNMERGED BRANCH:** `session-nas-pools-20260823` (worktree `../homelab-wt-20260823-nas`)
-  carries ALL of this session's work — owner has NOT merged yet. Commits: nas preseed refresh ·
-  worktree convention (CONVENTIONS §6 SSOT) · HD-207 close-out (journal+ledger+docs+changelog) ·
-  manual §1a.0 pool bootstrap · boot-chain decision (Generic stick permanent). **First action next
-  session: settle the branch (merge or review) BEFORE any new file edits.**
+- **Session work MERGED to main (2026-08-23):** branch `session-nas-pools-20260823` fast-forwarded
+  into main after absorbing the parallel verify-session merge (rotation-drift incident,
+  HD-220–224); its worktree removed per CONVENTIONS §6. Start any new edits in a FRESH
+  `../homelab-wt-<date>-<HHMM>` cut from updated main.
 - **Pools installer-ready on gen8:** `bulk` = RAIDZ2 ×4 enclosure disks (ashift=12, runbook props)
   holding the ENTIRE legacy payload under `bulk/migrate/new-pool` (~2.33 T logical, 57 snapshots);
   `tank` = empty mirror (HGST + ST4000NT001). Both **EXPORTED** — `zpool list` shows nothing until
@@ -64,17 +63,17 @@
   Reachable via owner's temporary Windows `.ssh/config` alias only — the address is a pre-1.5 DHCP
   artifact deliberately kept OUT of repo docs (SSOT pointer: [network-addresses-generated.md](docs/network-addresses-generated.md)).
   Hold rule: no Ansible against oldsrv/nas until Phase 1.5 cutover.
-- **VPS queue UNCHANGED from Handoff #4:** renovate Up-confirm after real `forgejo_api`,
-  kopia-server seed (sftp_key + known_hosts), Verify-block evidence capture (crowdsec decisions,
-  CIFS round-trip, sshd -T/fail2ban/docker info, NVMe <80%), authentik-ldap + chat health checks,
-  HD-211 rotation batch, SMTP port 2525 notes, HD-216 open (offline only), HD-159 ⏳ until 1.5.
+- **VPS queue — see the LATEST verify-session journal entry** ("rotation-drift incident +
+  HD-220/221/222/223", deployment-journal §Phase 1a tail): still open there = kopia seed,
+  forgejo_api validity check in Forgejo UI, N8N workflow creation at auto.kogler.si, LDAP
+  outpost-token harvest flow, nftables follow-ups; plus Handoff-#4 items (Verify-block evidence,
+  authentik-ldap + chat health, HD-211 batch, SMTP 2525, HD-216 offline only, HD-159 ⏳ until 1.5).
 
 ## 3. Next-session execution order
 
-### 3a. Settle the session branch (blocking, owner-gated)
-Review + merge `session-nas-pools-20260823` into main (all commits validated green); then remove
-the worktree via `git worktree remove ../homelab-wt-20260823-nas` and delete the branch. Any new
-edits this session happen in a FRESH `../homelab-wt-<date>-<HHMM>` per CONVENTIONS §6.
+### 3a. Fresh worktree (per convention)
+Cut `../homelab-wt-<date>-<HHMM>` from current main before any file edit — the previous session's
+branch/worktree are already merged and removed.
 
 ### 3b. NAS OS install via iLO (main event)
 Two-stick setup per manual §1a.2: **SanDisk** (installer medium) + **Generic_Flash_Disk** (permanent
