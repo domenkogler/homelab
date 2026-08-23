@@ -253,19 +253,110 @@ The interactive path skips the preseed's `post_install.sh`, so reproduce its eff
 
 ---
 
-## Phase 1 — Deploy the VPS service stack *(section stub)*
+## Phase 1 — Deploy the VPS service stack
 
-> **To be written after the first fully green Phase 1 Verify block**
-> ([deployment-tasks.md](deployment-tasks.md)) so the runbook captures the settled path, not the
-> current halt. Planned coverage: vault coverage check + seeding
-> ([scripts/check-vault-items.sh](scripts/README.md), [scripts/provision-vault.sh](scripts/README.md))
-> → `bash scripts/ansible-run.sh playbooks/vps.yml` → the Verify-block evidence commands →
-> deploy-gated row ticks.
->
-> Known updates expected to land first: rotate the chat-exposed `authentik-provision_api` service
-> account + replace the placeholder API-key items (HD-211); HD-212 (native WSL clone) would change
-> §Phase 0 — update this runbook in the same change if adopted.
+> Stack went live 2026-08-22 (33/35 Up; journal §Phase 1 R1–R5). This section captures the
+> **settled initialization path** — what a redeployer runs beyond the playbook itself.
+> Final Verify-block evidence pass pending two owner inputs (see 1.8).
 
----
+### 1.1 Preconditions
 
-*Last updated 2026-08-23 · Phases 0 + 0.5 complete; Phase 1a (host installs) added from the 2026-08-23 oldsrv reinstall; Phase 1+ intentionally stubbed until first green verify.*
+- Phase 0 runner ready (`op` token readable; canonical key); Phase 0.5 VPS reachable as
+  `ansible-admin@vps.kogler.si`.
+- **Sync gate before EVERY run** (HD-212): whole-tree md5 compare Windows↔WSL must match.
+- Vault coverage: `bash scripts/check-vault-items.sh` → seed gaps via
+  `scripts/provision-vault.sh --create --yes` or manually. Placeholders that stay manual:
+  `forgejo_api` (created post-install, step 1.7), provider keys (`openrouter_api`,
+  `cohere_api`) post-green swaps.
+
+### 1.2 First deploy
+
+```bash
+cmd //c "wsl -d Debian -- bash /mnt/d/source/domenkogler/homelab/scripts/ansible-run.sh playbooks/vps.yml"
+```
+
+Anchor until green (`failed=0`). Already encoded in IaC — do NOT hand-fix on first boot:
+blueprint auto-apply (worker applies `ks-oidc.yml` + `ks-forward-auth.yml` from
+`/blueprints/custom`), Class-A bind-dir pre-create, certs-dumper idling until ACME,
+`prometheus_ha_exporter=false` gate, homepage gate off.
+
+### 1.3 Publish public DNS
+
+```bash
+cmd //c "wsl -d Debian -- bash /mnt/d/source/domenkogler/homelab/scripts/ansible-run.sh playbooks/dns.yml"
+```
+
+Runs from home egress (token IP filter). Records: `vps` A/AAAA + apex/app CNAMEs
+(SSOT: `roles/cloudflare_dns/vars/main.yml`; `ha` withheld until Phase 4).
+Note: netcup resolvers negative-cache NXDOMAIN past record TTL — fresh records may take
+minutes to resolve locally while authoritative answers are immediate.
+
+### 1.4 Wildcard certificate
+
+Traefik requests `*.kogler.si` + apex via DNS-01 automatically once the Cloudflare token is
+valid from the VPS. Evidence of success:
+
+- `traefik-certs-dumper` logs `certs-rename: installed kogler.si.pem + kogler.si-key.pem`
+- `/opt/traefik/certs/kogler.si{,-key}.pem` exist (consumer pull contract)
+
+If issuance loops: read traefik logs. `403 · 9109` = token IP filter (use EXACT IPs, never
+CIDR — see [deployment-secrets.md](docs/deployment-secrets.md) `cloudflare_api`).
+`429` from Let's Encrypt = 5 failed authorizations/identifier/hour — stop restarting, let the
+window slide, then one clean restart. DNS-01 propagation checks query the CONTAINER's
+resolvers — netcup negative cache requires the pinned `dns: [1.1.1.1, 8.8.8.8]` (already in
+traefik + headscale services).
+
+### 1.5 Authentik first login
+
+- `akadmin` / `authentik_login` password — works FIRST TRY on a fresh install (bootstrap env
+  is pinned in compose and applies at user creation).
+- Enrol WebAuthn + TOTP when prompted. Optional: personal named admin for daily use.
+- Blueprint sanity: application count = 8 OIDC (`ks-oidc`) + 9 edge (`ks-forward-auth`);
+  outpost “authentik Embedded Outpost” lists all 9 edge providers.
+
+### 1.6 Forward-auth routes
+
+Unauthenticated requests to protected hosts redirect to `sso.kogler.si`. Protected set +
+exclusions are declared by router labels (source of truth) and mirrored in
+`ks-forward-auth.yml` — add a proxy provider there when a new service joins the tier.
+
+### 1.7 Forgejo one-time wizard
+
+Browse to `git.kogler.si` → authentik login → installer:
+
+| Field | Value |
+|---|---|
+| Database Type | PostgreSQL |
+| Host | `forgejo-db:5432` |
+| Name / Username | `forgejo` / `forgejo` |
+| Password | 1Password `forgejo_db` → `password` |
+| SSL Mode | Disable |
+| Server Domain | `git.kogler.si` (pre-filled via env) |
+| Disable self-registration | ON |
+| Allow registration only via external services | ON (OIDC JIT provisioning) |
+| Administrator Account | expand + set personal admin |
+
+⚠ The installer form does NOT read the `FORGEJO__*` env overlay — type DB values manually.
+After install: Forgejo Admin → Applications → create API token (repo read/write) → paste into
+1Password `forgejo_api` → `docker compose up -d renovate` (in `/opt/renovate`) or next run.
+
+### 1.8 Kopia server seed *(fresh volumes only)*
+
+If `/srv/docker/kopia-server/config/` is empty:
+
+```bash
+# sftp_key: backup-box private key from 1Password (Hetzner-SB-Backup connection), chmod 600
+# known_hosts: ssh-keyscan -p 23 u653424.your-storagebox.de   (as root, into same dir)
+```
+
+Then restart kopia-server. If the crowdsec volume is also fresh: regenerate the bouncer key
+(`sudo docker exec crowdsec cscli bouncers add traefik-bouncer -o raw`) and update 1Password
+item `crowdsec-bouncer_api` → re-run vps.yml (re-renders middleware).
+
+### 1.9 Verification
+
+Full checklist: [deployment-tasks.md](deployment-tasks.md) Phase 1 Verify block. Quick spot
+set: all forward-auth routes return 302→sso; vpn + ai return 200; wildcard cert served on
+every host; `docker ps` shows no Restarting except documented owner-gated stragglers;
+nvme usage <80%.
+*Last updated 2026-08-23 · Phases 0 + 0.5 + 1a complete; Phase 1 written from the settled 2026-08-22 initialization path (stack live, Verify evidence pass pending two owner inputs).*
