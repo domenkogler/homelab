@@ -189,13 +189,15 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 
 ## Phase 1a — Homelab host installs (oldsrv / nas)
 
-> **Official path (proven 2026-08-23, oldsrv): INTERACTIVE install + catch-up script.** The fully
-> preseeded automation stays DEFERRED — four delivery mechanisms failed in one evening (netcfg WLAN
-> loop, `file=` mount-timing on the FAT32 layout, d-i udev lacking `nvme-eui.*` links so the seeded
-> disk path matched nothing, plus a two-sticks incident where the target booted an unrelated USB).
-> Execution record: [deployment-journal.md](deployment-journal.md) §Phase 1a. The preseed files stay
-> in the repo as reference (already fixed to model_serial by-id + runtime resolver); do not trust
-> them for hands-off installs until the deferred issues are re-proven.
+> **Official path: preseeded AUTOMATED install — RE-PROVEN 2026-08-23 on nas** (Automated entry,
+> ZERO interactive questions end-to-end incl. the keyed late_command; success factors: wired-only
+> NIC, ata-model_serial by-id resolves in d-i udev, `file=` patched entries, explicit medium choice
+> via the iLO one-time boot menu). **INTERACTIVE + catch-up script remains the proven fallback**
+> (same-day oldsrv precedent: four delivery mechanisms failed in one evening — netcfg WLAN loop,
+> `file=` mount-timing on the FAT32 layout, d-i udev lacking `nvme-eui.*` links so the seeded disk
+> path matched nothing, plus a two-sticks incident where the target booted an unrelated USB; the eui
+> trap is installer-environment-only — full udev on the installed systems resolves it fine).
+> Execution record: [deployment-journal.md](deployment-journal.md) §Phase 1a.
 >
 > **Prerequisites:** owning hardware doc ([hardware-oldsrv.md](docs/hardware-oldsrv.md) /
 > [hardware-nas.md](docs/hardware-nas.md)) at hand · working `op` session on the laptop ·
@@ -306,7 +308,7 @@ The interactive path skips the preseed's `post_install.sh`, so reproduce its eff
 6. ✔ Expected refusal: `ssh <localuser>@<host>` is rejected by `AllowUsers` — the local user is desktop-only **by design**.
 7. Journal entry + ledger tick in the same change (deployment-journal.md rules).
 
-> **Deferred (do not trust until re-proven):** hands-off preseeded installs. Open items: prove `file=` timing on FAT32-extracted media OR validate the initrd-injection route (initrd.gz rebuild worked mechanically but was never booted — two-sticks incident); keep single-stick discipline; preseed disk paths must use model_serial by-id (never eui — d-i udev lacks those links).
+> **Re-proven on nas 2026-08-23:** the full hands-off chain works on the FAT32-extracted DVD layout (`file=` patched entries loaded, early_command runtime by-id resolution, static bootdev pin, keyed late_command). Still unproven: the initrd-injection route (initrd.gz rebuild worked mechanically but was never needed nor booted). Single-stick discipline vs the nas two-stick exception stands (§1a.2); preseed disk paths use model_serial by-id (never eui — d-i udev lacks those links).
 
 ---
 

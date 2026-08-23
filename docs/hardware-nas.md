@@ -8,6 +8,7 @@ tags: [hardware, nas, zfs]
 # HP MicroServer Gen8
 
 > **Role:** Detail — dedicated ZFS storage server.
+> **Current state (2026-08-23):** ✅ **Debian 13 (Trixie, headless) INSTALLED 2026-08-23 — FULLY AUTOMATED via preseed** (zero interactive questions; execution record: [deployment-journal.md](../deployment-journal.md) Phase 1a). Boot mode BIOS/CSM; GRUB lives on the Generic_Flash_Disk USB carrier (HD-226 — the internal SATA port cannot boot), SanDisk was installer medium only. Pools `bulk`/`tank` exist EXPORTED (created pre-install; ZFS labels verified intact post-install) — imported only by the Phase-2 storage role. Ansible hold rule active — first playbook contact only after the Phase 1.5 cutover. Everything below describes the target state.
 > **Links to:** `backup.md`
 > **Linked from:** `hardware.md`, `deployment-preseed.md`, `deployment-ansible.md`
 
