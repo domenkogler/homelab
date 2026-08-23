@@ -134,6 +134,7 @@
     argv:
       - docker
       - exec
+      - -i
       - -e
       - "PGSYNC_USER={{ _db_user }}"
       - -e
@@ -141,10 +142,12 @@
       - "{{ svc.db_pg_container }}"
       - sh
       - -c
+      # NOTE: psql performs NO :var interpolation in -c mode — the SQL must go via STDIN
+      # (-f -). Identifier needs :"var", literal needs :'var' (psql-safe quote escaping).
       - >-
         psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
-        -v syncuser="$PGSYNC_USER" -v syncpass="$PGSYNC_PASS"
-        -c "ALTER ROLE :'syncuser' WITH PASSWORD :'syncpass'"
+        -v syncuser="$PGSYNC_USER" -v syncpass="$PGSYNC_PASS" -f -
+    stdin: 'ALTER ROLE :"syncuser" WITH PASSWORD :''syncpass'';'
   no_log: true
   changed_when: false
   tags: "{{ svc.name }}"
