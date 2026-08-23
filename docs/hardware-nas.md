@@ -115,7 +115,8 @@ as the **local secondary pool**: syncoid replicas of `tank/data/*` (ZFS send/rec
 ## Pool-Creation Runbook (one-time bootstrap, BEFORE the preseed reinstall)
 
 > ✅ **EXECUTED 2026-08-23 — see the as-built entry in [deployment-journal.md §Phase 1a](../deployment-journal.md)**
-> (pools created, verified, exported; installer-ready). Reality deltas vs the text below:
+> (pools created, verified, exported; installer-ready). **Canonical redeploy procedure** (pool
+> creation commands, no data migration): [deployment-manual.md §1a.0](../deployment-manual.md). Reality deltas vs the text below:
 > the legacy payload lived in pool **`new-pool`** (single disk ST4000NT001) and a second
 > single-disk pool **`backup`** (61.9 G gen8 dumps) existed — the owner declared `backup`
 > disposable and it was destroyed after migration verification instead of being migrated.

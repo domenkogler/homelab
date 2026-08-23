@@ -201,6 +201,56 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 > [hardware-nas.md](docs/hardware-nas.md)) at hand · working `op` session on the laptop ·
 > **exactly ONE USB stick** plugged into the target (two-sticks = wrong-medium boots).
 
+### 1a.0 NAS ZFS pool bootstrap (one-time, BEFORE the nas installer boots) `[MANUAL]`
+
+> As executed 2026-08-23 (data-migration leg of that day's run is NOT part of a redeploy —
+> execution record: [deployment-journal.md §Phase 1a](deployment-journal.md); hardware spec +
+> by-id tables: [hardware-nas.md](docs/hardware-nas.md)). Pools are created EMPTY here; the
+> Ansible `storage` role is import-only (`allow_create: false`) and owns every dataset beyond
+> `bulk/migrate`. Gate: destructive — human approval per wipefs/pool-create block.
+
+```bash
+sudo apt update && sudo apt install -y zfsutils-linux
+
+# -- stale-label wipe (signature-only erase, seconds; enclosure disks carry old GPT/PMBR) ------
+sudo wipefs -a \
+  /dev/disk/by-id/ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU \
+  /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0X0TAS \
+  /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0ZZYAS \
+  /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M101SAS
+
+# -- bulk RAIDZ2 (external SilverStone miniSAS enclosure, 4× 3 TB) ----------------------------
+sudo zpool create -o ashift=12 \
+  -O xattr=sa -O acltype=posixacl -O atime=off -O normalization=formD \
+  bulk raidz2 \
+    /dev/disk/by-id/ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU \
+    /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0X0TAS \
+    /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0ZZYAS \
+    /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M101SAS
+
+# -- landing-zone parent — ONLY if legacy data will be received into bulk/migrate -------------
+#    (zfs receive does NOT create intermediate datasets — learned live 2026-08-23)
+sudo zfs create -p bulk/migrate
+
+# -- tank mirror (2× 4 TB internal) -----------------------------------------------------------
+sudo wipefs -a /dev/disk/by-id/ata-HGST_HDN726040ALE614_K4K9LBGB \
+                /dev/disk/by-id/ata-ST4000NT001-3M2101_WX122FLD
+sudo zpool create -o ashift=12 \
+  -O xattr=sa -O acltype=posixacl -O atime=off -O normalization=formD \
+  tank mirror \
+    /dev/disk/by-id/ata-HGST_HDN726040ALE614_K4K9LBGB \
+    /dev/disk/by-id/ata-ST4000NT001-3M2101_WX122FLD
+
+# -- verify both ONLINE with zero errors, then export BOTH before booting the installer -------
+zpool status; zpool list
+sudo zpool export bulk tank
+```
+
+✔ Evidence: two `zpool status` blocks ONLINE / `errors: No known data errors`; after export,
+`zpool list` shows no pools. Notes: physical ALLOC on raidz2 runs ≈1.67× logical bytes written
+(parity + stripe padding) — do not mistake it for runaway growth; compression stays OFF at pool
+level (runbook props; dataset props come later from the storage role SSOT).
+
 ### 1a.1 Build / verify media `[MANUAL]`
 
 1. Base: Debian amd64 **DVD-with-firmware** image on a FAT32 stick (Rufus-style extracted layout is what was proven).
@@ -390,4 +440,4 @@ Full checklist: [deployment-tasks.md](deployment-tasks.md) Phase 1 Verify block.
 set: all forward-auth routes return 302→sso; vpn + ai return 200; wildcard cert served on
 every host; `docker ps` shows no Restarting except documented owner-gated stragglers;
 nvme usage <80%.
-*Last updated 2026-08-23 · Phases 0 + 0.5 + 1a complete; Phase 1 written from the settled 2026-08-22 initialization path (stack live, Verify evidence pass pending two owner inputs).*
+*Last updated 2026-08-23 · Phases 0 + 0.5 + 1a complete (incl. 1a.0 pool bootstrap as executed); Phase 1 written from the settled 2026-08-22 initialization path (stack live, Verify evidence pass pending two owner inputs).*
