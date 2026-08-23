@@ -433,13 +433,28 @@ After install: Forgejo Admin → Applications → create API token (repo read/wr
 If `/srv/docker/kopia-server/config/` is empty:
 
 ```bash
-# sftp_key: backup-box private key from 1Password (Hetzner-SB-Backup connection), chmod 600
-# known_hosts: ssh-keyscan -p 23 u653424.your-storagebox.de   (as root, into same dir)
+# 1) sftp_key — backup-box PRIVATE key (Hetzner-SB-Backup 1P item), unencrypted:
+sudo nano /srv/docker/kopia-server/config/sftp_key && sudo chmod 600 /srv/docker/kopia-server/config/sftp_key
+
+# 2) known_hosts — ssh-keyscan FROM THE VPS HANGS SILENTLY on box:23 (netcup egress quirk,
+#    verified 2026-08-23). Take the entry from the LAPTOP's known_hosts instead:
+#    laptop: ssh-keygen -F "[u653424.your-storagebox.de]:23"  -> copy the matching lines
+#    into /srv/docker/kopia-server/config/known_hosts (mode 644).
+
+# 3) Pre-create the repo dir ON THE BOX — Hetzner SFTP returns generic SSH_FX_FAILURE for
+#    kopia's create-path even when the dir pre-exists (kopia_sftp_path is RELATIVE in IaC):
+sudo ssh -i /srv/docker/kopia-server/config/sftp_key -p 23 \
+  -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/srv/docker/kopia-server/config/known_hosts \
+  u653424@u653424.your-storagebox.de "mkdir kopia"
+
+# 4) Restart and verify (expect repository-creation lines, no SSH_FX_FAILURE):
+sudo docker restart kopia-server && sleep 30 && sudo docker logs --tail 10 kopia-server
 ```
 
-Then restart kopia-server. If the crowdsec volume is also fresh: regenerate the bouncer key
-(`sudo docker exec crowdsec cscli bouncers add traefik-bouncer -o raw`) and update 1Password
-item `crowdsec-bouncer_api` → re-run vps.yml (re-renders middleware).
+`kopia_sftp_path` stays RELATIVE (`kopia`) — absolute paths break create-path on Hetzner.
+If the crowdsec volume is also fresh: regenerate the bouncer key (`sudo docker exec crowdsec
+cscli bouncers add traefik-bouncer -o raw`) and update 1Password item `crowdsec-bouncer_api`
+→ re-run vps.yml (re-renders middleware).
 
 ### 1.9 Verification
 
@@ -447,4 +462,28 @@ Full checklist: [deployment-tasks.md](deployment-tasks.md) Phase 1 Verify block.
 set: all forward-auth routes return 302→sso; vpn + ai return 200; wildcard cert served on
 every host; `docker ps` shows no Restarting except documented owner-gated stragglers;
 nvme usage <80%.
+
+First-boot notes:
+- **onlyoffice-docs** may sit at edge-502 for >30 min while its entrypoint initializes
+  (nothing listens on :80 until done) — check `docker exec onlyoffice-docs wget -qO-
+  http://localhost/healthcheck` before assuming failure.
+- **db-backup**: trigger + verify the first dump manually —
+  `docker exec db-backup backup01-now`, then confirm `/backup` fills inside the container.
+
+### 1.10 Manual recovery patterns (non-Ansible)
+
+- **nftables restart wipes docker NAT** (`flush ruleset` at top of ruleset): any manual
+  `systemctl restart nftables` deletes docker's NAT programming → edge dark until docker
+  re-programs. Recovery order:
+  ```bash
+  systemctl restart nftables && sleep 2 && systemctl restart docker   # live-restore keeps containers
+  # verify: nft list tables | grep inet filter ; nft list table ip nat | grep -c dnat
+  ```
+  A plain docker restart does NOT wipe the inet filter table (verified 2026-08-23).
+- **VPS reboot checklist** (~2 min): `docker ps` roster complete; inet filter present with
+  input policy drop; ip nat has dnat entries; sso/git return 302.
+- **Renovate repo-error diagnosis** (FATAL summary hides cause):
+  `docker compose -f /opt/renovate/docker-compose.yml run --rm -e LOG_LEVEL=debug renovate`
+- **Stale compose env:** container env older than rendered file (compose sees no change):
+  `docker compose -f /opt/<svc>/docker-compose.yml up -d --force-recreate`.
 *Last updated 2026-08-23 · Phases 0 + 0.5 + 1a complete (incl. 1a.0 pool bootstrap as executed); Phase 1 written from the settled 2026-08-22 initialization path (stack live, Verify evidence pass pending two owner inputs).*
