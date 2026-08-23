@@ -93,6 +93,7 @@ DHCP option 15 (`domain=kogler.si`) is set on each DHCP network.
 | Family PC, laptop, server | Access | 10 (Home) |
 | Shelly, KNX, ESP32-S3 | Access | 20 (IoT, no internet) |
 | Homematic HAP (cloud), Bosch IoT | Access | 21 (IoT-Internet) |
+| LG ThinQ / Bosch Home Connect appliance | Access | 21 (IoT-Internet) |
 | AP (hAP ac/ac²) | Access | 99 (Mgmt) |
 | Printer | Access | 10 (Home) |
 | Camera | Access | 20 (IoT) |
