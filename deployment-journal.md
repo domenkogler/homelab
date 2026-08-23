@@ -697,6 +697,15 @@
     - Stale whole-disk `zfs_member LABEL="rpool"` signature on the OS SSD (blkid; heritage leftover, harmless for import-by-name) — flagged as optional owner-gated `wipefs` candidate at Phase-2 first contact.
 - **Deviations / doc updates:** preseed automation RE-PROVEN — `doc updated:` [deployment-manual.md](deployment-manual.md) §Phase 1a (official-path note flipped: automated = proven official, interactive = fallback; deferred-items paragraph updated); `doc updated:` [hardware-nas.md](docs/hardware-nas.md) (current-state banner: installed 2026-08-23). Secrets touched: none beyond pubkeys already baked into the media build.
 
+### 2026-08-23 — Phase 1 · owner identity bootstrap on the VPS edge: authentik Family group + personal domen user (Internal, MFA), forgejo admin per §1.7, n8n owner account `[MANUAL]`
+
+- Context: closes several "owner actions" from the Phase-1 queue (Handoff #5/#6); executed by the owner in live UIs, recorded here per the journal loop.
+- **Authentik (sso.kogler.si):** group **`Family`** created; user **`domen`** created — Name `Domen`, email `domen@kogler.si`, type **Internal** (per new human-user policy, HD-227), Active; added to `Family`; **WebAuthn + TOTP enrolled**. `akadmin` stays break-glass admin via "authentik Admins" group membership — `domen` deliberately NOT a member.
+- **Forgejo (git.kogler.si):** `domen` administrator account created through the one-time installer exactly per [deployment-manual.md](deployment-manual.md) §1.7 (Administrator Account table: `domen` / `domen@kogler.si`) — self-registration OFF / OIDC-only preserved.
+- **n8n (auto.kogler.si):** owner account created — prerequisite for the still-pending workflow import.
+- **Still open after this entry:** renovate token (create in Forgejo UI as `domen`, repo read/write → 1Password `forgejo_api`.`credential` → restart renovate) THEN the LOG_LEVEL=debug repo-error one-shot; forgejo OAuth2 source wiring (HD-148: authentication name MUST equal `forgejo`, creds from item `forgejo_oidc`); N8N workflow import; onlyoffice-docs first-boot check; authentik-ldap outpost-token harvest; nftables scoped-flush permanent fix; blueprint auto-apply gap; HD-211 rotation batch (incl. two probe-exposed values); stale pairdrop CNAME deletion; Hetzner-SB-Backup private-key copy into the 1P item.
+- **Deviations / doc updates:** human-user policy codified — `doc updated:` [deployment-manual.md](deployment-manual.md) §1.5 (Internal type + family group + MFA setup imperative); cross-ref added to [services-authentik.md](docs/services-authentik.md) RBAC bullet. Secrets touched: none journaled (passwords/tokens live in 1Password; values never recorded here).
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

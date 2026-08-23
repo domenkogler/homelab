@@ -65,11 +65,7 @@
   [network-addresses-generated.md](docs/network-addresses-generated.md)).
 - **Hold rule (both hosts):** NO Ansible runs until the Phase 1.5 cutover; first contact happens
   with the new VLANs live. Read-only probes over the owner's aliases are fine.
-- **VPS queue** — unchanged from Handoff #5: STILL OPEN there = renovate repo-error debug one-shot
-  (LOG_LEVEL=debug), onlyoffice-docs first-boot completion check, authentik-ldap outpost-token
-  harvest flow, nftables scoped-flush permanent fix, blueprint auto-apply gap; plus owner actions:
-  N8N workflow creation, HD-211 rotation batch (incl. two probe-exposed values), stale pairdrop
-  CNAME deletion, Hetzner-SB-Backup private-key copy into the 1P item.
+- **VPS queue** — identity bootstrap DONE 2026-08-23 evening (authentik `Family` group + personal `domen` Internal user w/ WebAuthn+TOTP; forgejo `domen` admin per manual §1.7; n8n owner account — journal has the entry). STILL OPEN: create renovate token as `domen` → 1Password `forgejo_api`.`credential` → restart renovate, then the renovate repo-error debug one-shot (LOG_LEVEL=debug); wire forgejo OAuth2 source (HD-148: authentication name `forgejo`, creds from `forgejo_oidc`); N8N workflow import; onlyoffice-docs first-boot completion check; authentik-ldap outpost-token harvest flow; nftables scoped-flush permanent fix; blueprint auto-apply gap; owner actions: HD-211 rotation batch (incl. two probe-exposed values), stale pairdrop CNAME deletion, Hetzner-SB-Backup private-key copy into the 1P item.
 
 ## 3. Next-session execution order
 

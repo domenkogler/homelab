@@ -187,7 +187,9 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 - **Health probes:** `/-/health/live/` and `/-/health/ready/`; bare `/-/health/` does not exist (404).
 - **RBAC:** `User` has NO `is_superuser` field in 2026.x (Django FieldError if queried). Admin
   capability = membership of a group with `is_superuser: true` — the bootstrap admin `akadmin` sits
-  in "authentik Admins". API tokens inherit their user's permissions.
+  in "authentik Admins". API tokens inherit their user's permissions. Human users are **Internal
+  type** by policy (runbook imperative: [deployment-manual.md](../deployment-manual.md) §1.5) —
+  External/Service-account types are not for people.
 - **CLI:** `ak shell -c "<python>"` executes code; the REPL ignores piped stdin, and `-c` takes NO
   extra argv (pass parameters via `docker exec -e VAR=...`, options before the container name).
   When driving over ssh, base64-wrap non-trivial python to survive quoting layers
