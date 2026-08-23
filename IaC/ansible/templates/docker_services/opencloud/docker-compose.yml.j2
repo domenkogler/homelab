@@ -90,6 +90,12 @@ services:
       # registered via OC_ADD_RUN_SERVICES=collaboration (mirrors OC_EXCLUDE_RUN_SERVICES
       # pattern already used below) and activates on APP_* config.
       OC_ADD_RUN_SERVICES: "collaboration"
+      # HD-231 pt.3 (2026-08-24, found live): without THIS env (exact name verified
+      # from the image binary: CSP_CONFIG_FILE alone is unknown to this build) the
+      # proxy serves the STOCK header — our csp.yaml mount is ignored entirely. Symptom: web UI's
+      # oidc-client-ts fetch of the sso.kogler.si discovery document blocked by CSP
+      # connect-src -> login page stuck at /login doing nothing.
+      PROXY_CSP_CONFIG_FILE_LOCATION: "/etc/opencloud/csp.yaml"
       COLLABORATION_APP_NAME: "OnlyOffice"
       COLLABORATION_APP_PRODUCT: "OnlyOffice"
       COLLABORATION_APP_ADDR: "https://office.kogler.si"

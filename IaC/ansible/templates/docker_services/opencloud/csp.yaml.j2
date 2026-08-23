@@ -1,50 +1,58 @@
 # opencloud csp.yaml — Content-Security-Policy for the OpenCloud web UI (HD-52/HD-144)
 #
-# Overrides the stock OpenCloud csp.yaml (sourced from opencloud-eu/opencloud-compose) by
-# adding the Authentik SSO domain to connect-src and frame-src so the OAuth login prompt is
-# not blocked by the browser's CSP. Mounts into /etc/opencloud/csp.yaml (config volume).
+# Consumed via env PROXY_CSP_CONFIG_FILE_LOCATION (HD-231 pt.3, found live: the plain
+# CSP_CONFIG_FILE name is unknown to this build -> proxy silently served the STOCK CSP,
+# blocking oidc-client-ts discovery fetches to sso.kogler.si in the browser).
 #
-# IMPORTANT (deploy-verify, HD-149): this file carries a hand-written CSP baseline. The
-# EXACT default directives OpenCloud needs (framing ancestors, wasm/eval for the Monaco/Rich
-# text editor, websocket ws:/wss:, image data:, etc.) vary by OpenCloud version. On first
-# apply, diff this against the stock opencloud-eu/opencloud-compose csp.yaml and keep the
-# standard directives, only ADD: `https://sso.kogler.si` to `connect-src` and `frame-src`.
-# If the page breaks (blocked editor/thumbnails/websocket), extend from the stock baseline
-# rather than loosening connect-src for arbitrary domains.
+# SCHEMA (HD-231 pt.5): the parser expects ALL directives nested under a top-level
+# `directives:` key — a flat map parses but is silently ignored (found live).
 #
-# Directives are a YAML map of CSP directive -> list of sources. `'self'` = the OpenCloud
-# origin (https://file.kogler.si).
-default-src:
-  - "'self'"
-  - "https://sso.kogler.si"        # Authentik login redirects back to OpenCloud
-font-src:
-  - "'self'"
-  - "data:"
-frame-src:
-  - "'self'"
-  - "https://sso.kogler.si"        # Authentik hosted login (if shown in an iframe)
-  - "https://office.kogler.si"     # HD-166: ONLYOFFICE editor iframe (OpenCloud loads it)
-img-src:
-  - "'self'"
-  - "data:"
-  - "blob:"
-  - "https://sso.kogler.si"
-connect-src:
-  - "'self'"
-  - "https://sso.kogler.si"        # OAuth /userinfo + token calls to Authentik
-  - "https://office.kogler.si"     # HD-166: WOPI/API calls to ONLYOFFICE
-  - "wss:"
-  - "ws:"
-  - "https://file.kogler.si"
-script-src:
-  - "'self'"
-style-src:
-  - "'self'"
-  - "'unsafe-inline'"
-object-src:
-  - "'none'"
-base-uri:
-  - "'self'"
-form-action:
-  - "'self'"
-  - "https://sso.kogler.si"        # OIDC auth form posts to Authentik
+# BASELINE = stock OpenCloud directives captured live from the served header 2026-08-24,
+# EXTENDED with: sso.kogler.si (OIDC discovery/userinfo/token fetches from the browser +
+# hosted login iframe) and office.kogler.si (HD-166 ONLYOFFICE editor iframe + WOPI).
+# When bumping OpenCloud versions, re-diff against the freshly served stock header.
+#
+# 'self' = https://file.kogler.si
+directives:
+  default-src:
+    - "'none'"                               # stock: strict deny-all, everything explicit below
+  child-src:
+    - "'self'"
+  connect-src:
+    - "'self'"
+    - "blob:"
+    - "https://raw.githubusercontent.com/opencloud-eu/awesome-apps/"
+    - "https://update.opencloud.eu/"
+    - "https://sso.kogler.si"                # OIDC discovery/userinfo/token from browser JS
+    - "https://office.kogler.si"             # HD-166 WOPI/API calls to ONLYOFFICE
+    - "wss:"
+  font-src:
+    - "'self'"
+    - "data:"
+  frame-ancestors:
+    - "'self'"
+  frame-src:
+    - "'self'"
+    - "blob:"
+    - "https://embed.diagrams.net/"
+    - "https://sso.kogler.si"                # Authentik hosted login (if shown in an iframe)
+    - "https://office.kogler.si"             # HD-166: ONLYOFFICE editor iframe
+  img-src:
+    - "'self'"
+    - "data:"
+    - "blob:"
+    - "https://raw.githubusercontent.com/opencloud-eu/awesome-apps/"
+    - "https://sso.kogler.si"
+  manifest-src:
+    - "'self'"
+  media-src:
+    - "'self'"
+  object-src:
+    - "'self'"
+    - "blob:"
+  script-src:
+    - "'self'"
+    - "'unsafe-inline'"
+  style-src:
+    - "'self'"
+    - "'unsafe-inline'"
