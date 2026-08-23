@@ -152,6 +152,37 @@
   changed_when: false
   tags: "{{ svc.name }}"
 
+# ---- Forgejo app.ini DB-password drift guard (HD-220) ----
+# The one-time wizard (deployment-manual §1.7) bakes the DB password into
+# /data/gitea/conf/app.ini, and gitea/forgejo gives ini values precedence over
+# FORGEJO__* envs — so vault rotations never reached the running app (live-proven
+# 2026-08-23: env + cluster role both carried the NEW value while the app kept
+# SASL-failing on the STALE ini password for hours). Re-sync [database] PASSWD from
+# the SAME vault item post-up and restart on change.
+- name: "Sync forgejo app.ini DB password with vault"
+  when: svc.name == 'forgejo'
+  vars:
+    _ini_db_pass: "{{ lookup('community.general.onepassword', svc.db_item, field='password', vault=op_vault) }}"
+  community.general.ini_file:
+    path: /srv/docker/forgejo/data/gitea/conf/app.ini
+    section: database
+    option: PASSWD
+    value: "{{ _ini_db_pass }}"
+    mode: '0600'
+    backup: true
+  no_log: true
+  register: forgejo_ini_sync
+  tags: "{{ svc.name }}"
+
+- name: "Restart forgejo after app.ini password sync"
+  when:
+    - svc.name == 'forgejo'
+    - forgejo_ini_sync is defined and forgejo_ini_sync.changed
+  ansible.builtin.command:
+    cmd: docker restart forgejo
+  changed_when: true
+  tags: "{{ svc.name }}"
+
 # ---- Authentik secret-egress glue (HD-143) moved to prepass-authentik.yml (HD-162) ----
 # The glue is no longer a per-loop side-iteration on the `authentik` entry. It now runs
 # once in the explicit pre-pass (tasks/prepass-authentik.yml) BEFORE the deploy loop,
