@@ -617,6 +617,51 @@
 - At handoff still open: renovate token re-render (mid-run) - next session verifies renovate Up,
   then proceeds to the Verify block per prompt.md Handoff #4.
 
+### 2026-08-23 — Phase 1a · Pool-Creation Runbook EXECUTED on nas (gen8) — bulk RAIDZ2 + tank mirror created, legacy payload landed in bulk/migrate; installer-ready `[MANUAL]`
+
+- Plan ref: [deployment-tasks.md](deployment-tasks.md) §Phase 1a checkbox 1 + [hardware-nas.md](docs/hardware-nas.md) → Pool-Creation Runbook; execution record anticipated by the 2026-08-21 Phase-2 note (placed here per the HD-215 parallel-track home).
+- **Access model (temporary, pre-management install):** owner's Windows `.ssh/config` alias `Host nas` → current Debian 13 box (`domen` account, NOPASSWD sudo confirmed live); probes via git-bash script-file indirection. No Ansible contact (hold rule until 1.5).
+- **SMART pre-check (agreed add-on):** smartmontools installed on the running system; full `-H -A -l error` sweep over sda–sdh → all 7 disks PASS, zero reallocated/pending/offline-uncorr/CRC counters. Hours per serial: WDC 45,903 · Toshibas 6,885/8,560/8,497 · ST4000NT001 399 · HGST 60,452 · MX300 SSD 56,232. Full dump archived: `reports/smart-report-nas-20260823T105831.txt`. Closes the deferred HDD-hour re-read early.
+- **Reality deltas vs runbook assumptions:**
+    - The "legacy IronWolf single-disk pool" is pool **`new-pool`** on `ata-ST4000NT001-3M2101_WX122FLD` (~1.96 T: `uvoz-zpool/storage/data` 1.49 T + `uvoz-data/NAS` 460 G + ~10 G shares; TrueNAS/iocage heritage names). Both pools scrubbed clean Aug 9.
+    - A SECOND single-disk pool **`backup`** existed on `ata-HGST_HDN726040ALE614_K4K9LBGB` (61.9 G `gen8` Proxmox-style dumps incl. `subvol-102-disk-0`). **Decision (owner, option b):** disposable — destroyed after migration verification instead of being migrated.
+- **Commands run (as executed, stepwise with verification between blocks):**
+    ```bash
+    # step 1 — snapshot (AI-run, owner-authorized)
+    sudo zfs snapshot -r new-pool@migrate                 # 26 snapshots; send -nVR estimate 2.35T
+    # step 2 — wipe stale GPT/PMBR labels + create bulk (AI-run)
+    sudo wipefs -a /dev/disk/by-id/ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU \
+                /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0X0TAS \
+                /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0ZZYAS \
+                /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M101SAS   # signature-only erase, seconds
+    sudo zpool create -o ashift=12 \
+      -O xattr=sa -O acltype=posixacl -O atime=off -O normalization=formD \
+      bulk raidz2 <the same four by-ids>                  # ONLINE, 10.9T raw
+    # step 3+ — transfer started by OWNER at iLO console:
+    sudo nohup sh -c 'zfs send -R new-pool@migrate | zfs receive -s bulk/migrate/new-pool' > ~/send-migrate.log 2>&1 &
+    ```
+    First start FAILED instantly: `cannot open 'bulk/migrate': dataset does not exist` — `zfs receive` does NOT create intermediate datasets. Fix (non-destructive, AI-run): `sudo zfs create -p bulk/migrate`; owner re-pasted the same line.
+    Transfer completed cleanly in ~2.5 h (peak ~450 MiB/s, small-files tail ~160 MiB/s; logical landed 2.33 T, physical ALLOC ≈1.67× = parity + stripe padding on raidz2 — completion gauges are process-exit + target snapshot, NOT pool ALLOC).
+- **Verification evidence:**
+    - `bulk/migrate/new-pool@migrate` present; 57 snapshots replicated (all historical chains ride along under `-R`); no `receive_resume_token`, no hidden `%recv` → clean end-to-end completion (ZFS send/receive checksums every block).
+    - Spot-check: dataset tree source↔landing IDENTICAL (`diff` of `zfs list -o name` sets); `diff -rq` of the ~10 G `new-share` subtree → 0 differences; media file counts 26/26.
+    - Zero kernel block-layer faults during the whole run (only benign Gen8 DMAR PTE spam — noted in hardware-nas.md).
+- **Closing sequence (owner gate "GO", AI-executed):**
+    ```bash
+    sudo zpool export new-pool        # releases sde after verified copy
+    sudo zpool destroy backup         # disposable per owner decision (b) — IRREVERSIBLE
+    sudo wipefs -a /dev/disk/by-id/ata-ST4000NT001-3M2101_WX122FLD \
+                /dev/disk/by-id/ata-HGST_HDN726040ALE614_K4K9LBGB
+    sudo zpool create -o ashift=12 \
+      -O xattr=sa -O acltype=posixacl -O atime=off -O normalization=formD \
+      tank mirror /dev/disk/by-id/ata-HGST_HDN726040ALE614_K4K9LBGB \
+                  /dev/disk/by-id/ata-ST4000NT001-3M2101_WX122FLD   # ONLINE, mirror-0
+    zpool status; zpool list
+    sudo zpool export bulk tank       # final state: 'no pools available' = installer-ready
+    ```
+- **Final state:** only `bulk` (exported, holds ALL legacy data under `bulk/migrate`) and `tank` (exported, empty mirror) exist; both imported by the future Phase-2 storage role (import-only). Nas ready for OS reinstall (iLO4 + proven SanDisk stick; preseed refreshed same day — see changelog).
+- **Deviations:** two-pool reality + backup disposal decision (doc updated: `hardware-nas.md` runbook banner); explicit `bulk/migrate` parent creation required (folded into runbook notes); physical-vs-logical ALLOC ratio documented (same file); SMART re-read done NOW instead of Phase-2 check (doc updated: `hardware-nas.md` hour tables per serial). Secrets touched: none.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

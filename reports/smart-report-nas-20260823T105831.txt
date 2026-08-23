@@ -1,0 +1,248 @@
+##### /dev/sda #####
+lrwxrwxrwx 1 root root  9 avg 21 14:02 ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU -> ../../sda
+lrwxrwxrwx 1 root root  9 avg 21 14:02 wwn-0x50014ee2b831139b -> ../../sda
+smartctl 7.4 2023-08-01 r5530 [x86_64-linux-6.12.96+deb13-amd64] (local build)
+Copyright (C) 2002-23, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF READ SMART DATA SECTION ===
+SMART overall-health self-assessment test result: PASSED
+
+SMART Attributes Data Structure revision number: 16
+Vendor Specific SMART Attributes with Thresholds:
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x002f   200   200   051    Pre-fail  Always       -       0
+  3 Spin_Up_Time            0x0027   176   175   021    Pre-fail  Always       -       6175
+  4 Start_Stop_Count        0x0032   098   098   000    Old_age   Always       -       2929
+  5 Reallocated_Sector_Ct   0x0033   200   200   140    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x002e   100   253   000    Old_age   Always       -       0
+  9 Power_On_Hours          0x0032   038   038   000    Old_age   Always       -       45903
+ 10 Spin_Retry_Count        0x0032   100   100   000    Old_age   Always       -       0
+ 11 Calibration_Retry_Count 0x0032   100   100   000    Old_age   Always       -       0
+ 12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       149
+192 Power-Off_Retract_Count 0x0032   200   200   000    Old_age   Always       -       48
+193 Load_Cycle_Count        0x0032   182   182   000    Old_age   Always       -       56413
+194 Temperature_Celsius     0x0022   111   104   000    Old_age   Always       -       39
+196 Reallocated_Event_Count 0x0032   200   200   000    Old_age   Always       -       0
+197 Current_Pending_Sector  0x0032   200   200   000    Old_age   Always       -       0
+198 Offline_Uncorrectable   0x0030   100   253   000    Old_age   Offline      -       0
+199 UDMA_CRC_Error_Count    0x0032   200   200   000    Old_age   Always       -       0
+200 Multi_Zone_Error_Rate   0x0008   100   253   000    Old_age   Offline      -       0
+
+SMART Error Log Version: 1
+No Errors Logged
+
+
+##### /dev/sdb #####
+lrwxrwxrwx 1 root root  9 avg 21 14:02 ata-TOSHIBA_HDWD130_98M0ZZYAS -> ../../sdb
+lrwxrwxrwx 1 root root  9 avg 21 14:02 wwn-0x5000039fe6eabae0 -> ../../sdb
+smartctl 7.4 2023-08-01 r5530 [x86_64-linux-6.12.96+deb13-amd64] (local build)
+Copyright (C) 2002-23, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF READ SMART DATA SECTION ===
+SMART overall-health self-assessment test result: PASSED
+
+SMART Attributes Data Structure revision number: 16
+Vendor Specific SMART Attributes with Thresholds:
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x000b   100   100   016    Pre-fail  Always       -       0
+  2 Throughput_Performance  0x0005   140   140   054    Pre-fail  Offline      -       67
+  3 Spin_Up_Time            0x0007   146   146   024    Pre-fail  Always       -       434 (Average 352)
+  4 Start_Stop_Count        0x0012   100   100   000    Old_age   Always       -       12
+  5 Reallocated_Sector_Ct   0x0033   100   100   005    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x000b   100   100   067    Pre-fail  Always       -       0
+  8 Seek_Time_Performance   0x0005   124   124   020    Pre-fail  Offline      -       33
+  9 Power_On_Hours          0x0012   100   100   000    Old_age   Always       -       6885
+ 10 Spin_Retry_Count        0x0013   100   100   060    Pre-fail  Always       -       0
+ 12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       12
+192 Power-Off_Retract_Count 0x0032   100   100   000    Old_age   Always       -       203
+193 Load_Cycle_Count        0x0012   100   100   000    Old_age   Always       -       203
+194 Temperature_Celsius     0x0002   150   150   000    Old_age   Always       -       40 (Min/Max 21/52)
+196 Reallocated_Event_Count 0x0032   100   100   000    Old_age   Always       -       0
+197 Current_Pending_Sector  0x0022   100   100   000    Old_age   Always       -       0
+198 Offline_Uncorrectable   0x0008   100   100   000    Old_age   Offline      -       0
+199 UDMA_CRC_Error_Count    0x000a   200   200   000    Old_age   Always       -       0
+
+SMART Error Log Version: 1
+No Errors Logged
+
+
+##### /dev/sdc #####
+lrwxrwxrwx 1 root root  9 avg 21 14:02 ata-TOSHIBA_HDWD130_98M101SAS -> ../../sdc
+lrwxrwxrwx 1 root root  9 avg 21 14:02 wwn-0x5000039fe6eabb18 -> ../../sdc
+smartctl 7.4 2023-08-01 r5530 [x86_64-linux-6.12.96+deb13-amd64] (local build)
+Copyright (C) 2002-23, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF READ SMART DATA SECTION ===
+SMART overall-health self-assessment test result: PASSED
+
+SMART Attributes Data Structure revision number: 16
+Vendor Specific SMART Attributes with Thresholds:
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x000b   100   100   016    Pre-fail  Always       -       0
+  2 Throughput_Performance  0x0005   141   141   054    Pre-fail  Offline      -       66
+  3 Spin_Up_Time            0x0007   145   145   024    Pre-fail  Always       -       436 (Average 355)
+  4 Start_Stop_Count        0x0012   100   100   000    Old_age   Always       -       13
+  5 Reallocated_Sector_Ct   0x0033   100   100   005    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x000b   100   100   067    Pre-fail  Always       -       0
+  8 Seek_Time_Performance   0x0005   124   124   020    Pre-fail  Offline      -       33
+  9 Power_On_Hours          0x0012   099   099   000    Old_age   Always       -       8560
+ 10 Spin_Retry_Count        0x0013   100   100   060    Pre-fail  Always       -       0
+ 12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       13
+192 Power-Off_Retract_Count 0x0032   100   100   000    Old_age   Always       -       66
+193 Load_Cycle_Count        0x0012   100   100   000    Old_age   Always       -       66
+194 Temperature_Celsius     0x0002   142   142   000    Old_age   Always       -       42 (Min/Max 21/55)
+196 Reallocated_Event_Count 0x0032   100   100   000    Old_age   Always       -       0
+197 Current_Pending_Sector  0x0022   100   100   000    Old_age   Always       -       0
+198 Offline_Uncorrectable   0x0008   100   100   000    Old_age   Offline      -       0
+199 UDMA_CRC_Error_Count    0x000a   200   200   000    Old_age   Always       -       0
+
+SMART Error Log Version: 1
+No Errors Logged
+
+
+##### /dev/sdd #####
+lrwxrwxrwx 1 root root  9 avg 21 14:02 ata-TOSHIBA_HDWD130_98M0X0TAS -> ../../sdd
+lrwxrwxrwx 1 root root  9 avg 21 14:02 wwn-0x5000039fe6eaafb7 -> ../../sdd
+smartctl 7.4 2023-08-01 r5530 [x86_64-linux-6.12.96+deb13-amd64] (local build)
+Copyright (C) 2002-23, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF READ SMART DATA SECTION ===
+SMART overall-health self-assessment test result: PASSED
+
+SMART Attributes Data Structure revision number: 16
+Vendor Specific SMART Attributes with Thresholds:
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x000b   100   100   016    Pre-fail  Always       -       0
+  2 Throughput_Performance  0x0005   139   139   054    Pre-fail  Offline      -       70
+  3 Spin_Up_Time            0x0007   147   147   024    Pre-fail  Always       -       432 (Average 349)
+  4 Start_Stop_Count        0x0012   100   100   000    Old_age   Always       -       13
+  5 Reallocated_Sector_Ct   0x0033   100   100   005    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x000b   100   100   067    Pre-fail  Always       -       0
+  8 Seek_Time_Performance   0x0005   124   124   020    Pre-fail  Offline      -       33
+  9 Power_On_Hours          0x0012   099   099   000    Old_age   Always       -       8497
+ 10 Spin_Retry_Count        0x0013   100   100   060    Pre-fail  Always       -       0
+ 12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       13
+192 Power-Off_Retract_Count 0x0032   100   100   000    Old_age   Always       -       91
+193 Load_Cycle_Count        0x0012   100   100   000    Old_age   Always       -       91
+194 Temperature_Celsius     0x0002   142   142   000    Old_age   Always       -       42 (Min/Max 21/55)
+196 Reallocated_Event_Count 0x0032   100   100   000    Old_age   Always       -       0
+197 Current_Pending_Sector  0x0022   100   100   000    Old_age   Always       -       0
+198 Offline_Uncorrectable   0x0008   100   100   000    Old_age   Offline      -       0
+199 UDMA_CRC_Error_Count    0x000a   200   200   000    Old_age   Always       -       0
+
+SMART Error Log Version: 1
+No Errors Logged
+
+
+##### /dev/sde #####
+lrwxrwxrwx 1 root root  9 avg 21 14:02 ata-ST4000NT001-3M2101_WX122FLD -> ../../sde
+lrwxrwxrwx 1 root root  9 avg 21 14:02 wwn-0x5000c50113c39084 -> ../../sde
+smartctl 7.4 2023-08-01 r5530 [x86_64-linux-6.12.96+deb13-amd64] (local build)
+Copyright (C) 2002-23, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF READ SMART DATA SECTION ===
+SMART overall-health self-assessment test result: PASSED
+
+SMART Attributes Data Structure revision number: 10
+Vendor Specific SMART Attributes with Thresholds:
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x000f   083   067   044    Pre-fail  Always       -       215118929
+  3 Spin_Up_Time            0x0003   097   097   000    Pre-fail  Always       -       0
+  4 Start_Stop_Count        0x0032   100   100   020    Old_age   Always       -       3
+  5 Reallocated_Sector_Ct   0x0033   100   100   010    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x000f   064   060   045    Pre-fail  Always       -       2514175
+  9 Power_On_Hours          0x0032   100   100   000    Old_age   Always       -       399
+ 10 Spin_Retry_Count        0x0013   100   100   097    Pre-fail  Always       -       0
+ 12 Power_Cycle_Count       0x0032   100   100   020    Old_age   Always       -       3
+ 18 Unknown_Attribute       0x000b   100   100   050    Pre-fail  Always       -       0
+187 Reported_Uncorrect      0x0032   100   100   000    Old_age   Always       -       0
+188 Command_Timeout         0x0032   100   100   000    Old_age   Always       -       0
+190 Airflow_Temperature_Cel 0x0022   062   056   000    Old_age   Always       -       38 (Min/Max 31/39)
+192 Power-Off_Retract_Count 0x0032   100   100   000    Old_age   Always       -       2
+193 Load_Cycle_Count        0x0032   100   100   000    Old_age   Always       -       39
+194 Temperature_Celsius     0x0022   038   044   000    Old_age   Always       -       38 (0 25 0 0 0)
+197 Current_Pending_Sector  0x0012   100   100   000    Old_age   Always       -       0
+198 Offline_Uncorrectable   0x0010   100   100   000    Old_age   Offline      -       0
+199 UDMA_CRC_Error_Count    0x003e   200   200   000    Old_age   Always       -       0
+240 Head_Flying_Hours       0x0000   100   100   000    Old_age   Offline      -       8 (26 102 0)
+241 Total_LBAs_Written      0x0000   100   253   000    Old_age   Offline      -       4329481419
+242 Total_LBAs_Read         0x0000   100   253   000    Old_age   Offline      -       4204337170
+
+SMART Error Log Version: 1
+No Errors Logged
+
+
+##### /dev/sdh #####
+lrwxrwxrwx 1 root root  9 avg 21 14:02 ata-HGST_HDN726040ALE614_K4K9LBGB -> ../../sdh
+lrwxrwxrwx 1 root root  9 avg 21 14:02 wwn-0x5000cca25deea2cf -> ../../sdh
+smartctl 7.4 2023-08-01 r5530 [x86_64-linux-6.12.96+deb13-amd64] (local build)
+Copyright (C) 2002-23, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF READ SMART DATA SECTION ===
+SMART overall-health self-assessment test result: PASSED
+
+SMART Attributes Data Structure revision number: 16
+Vendor Specific SMART Attributes with Thresholds:
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x000b   100   100   016    Pre-fail  Always       -       0
+  2 Throughput_Performance  0x0005   136   136   054    Pre-fail  Offline      -       108
+  3 Spin_Up_Time            0x0007   151   151   024    Pre-fail  Always       -       383 (Average 325)
+  4 Start_Stop_Count        0x0012   100   100   000    Old_age   Always       -       54
+  5 Reallocated_Sector_Ct   0x0033   100   100   005    Pre-fail  Always       -       0
+  7 Seek_Error_Rate         0x000b   100   100   067    Pre-fail  Always       -       0
+  8 Seek_Time_Performance   0x0005   128   128   020    Pre-fail  Offline      -       18
+  9 Power_On_Hours          0x0012   092   092   000    Old_age   Always       -       60452
+ 10 Spin_Retry_Count        0x0013   100   100   060    Pre-fail  Always       -       0
+ 12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       50
+192 Power-Off_Retract_Count 0x0032   096   096   000    Old_age   Always       -       5439
+193 Load_Cycle_Count        0x0012   096   096   000    Old_age   Always       -       5439
+194 Temperature_Celsius     0x0002   150   150   000    Old_age   Always       -       40 (Min/Max 17/51)
+196 Reallocated_Event_Count 0x0032   100   100   000    Old_age   Always       -       0
+197 Current_Pending_Sector  0x0022   100   100   000    Old_age   Always       -       0
+198 Offline_Uncorrectable   0x0008   100   100   000    Old_age   Offline      -       0
+199 UDMA_CRC_Error_Count    0x000a   200   200   000    Old_age   Always       -       0
+
+SMART Error Log Version: 1
+No Errors Logged
+
+
+##### /dev/sdg #####
+lrwxrwxrwx 1 root root  9 avg 21 14:02 ata-Crucial_CT525MX300SSD4_173818D02FF0 -> ../../sdg
+lrwxrwxrwx 1 root root  9 avg 21 14:02 wwn-0x500a075118d02ff0 -> ../../sdg
+smartctl 7.4 2023-08-01 r5530 [x86_64-linux-6.12.96+deb13-amd64] (local build)
+Copyright (C) 2002-23, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF READ SMART DATA SECTION ===
+SMART overall-health self-assessment test result: PASSED
+
+SMART Attributes Data Structure revision number: 16
+Vendor Specific SMART Attributes with Thresholds:
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  1 Raw_Read_Error_Rate     0x002f   100   100   000    Pre-fail  Always       -       0
+  5 Reallocate_NAND_Blk_Cnt 0x0032   100   100   010    Old_age   Always       -       0
+  9 Power_On_Hours          0x0032   100   100   000    Old_age   Always       -       56232
+ 12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       126
+171 Program_Fail_Count      0x0032   100   100   000    Old_age   Always       -       0
+172 Erase_Fail_Count        0x0032   100   100   000    Old_age   Always       -       0
+173 Ave_Block-Erase_Count   0x0032   019   019   000    Old_age   Always       -       1217
+174 Unexpect_Power_Loss_Ct  0x0032   100   100   000    Old_age   Always       -       42
+183 SATA_Interfac_Downshift 0x0032   100   100   000    Old_age   Always       -       0
+184 Error_Correction_Count  0x0032   100   100   000    Old_age   Always       -       0
+187 Reported_Uncorrect      0x0032   100   100   000    Old_age   Always       -       0
+194 Temperature_Celsius     0x0022   057   036   000    Old_age   Always       -       43 (Min/Max 12/64)
+196 Reallocated_Event_Count 0x0032   100   100   000    Old_age   Always       -       0
+197 Current_Pending_ECC_Cnt 0x0032   100   100   000    Old_age   Always       -       0
+198 Offline_Uncorrectable   0x0030   100   100   000    Old_age   Offline      -       0
+199 UDMA_CRC_Error_Count    0x0032   100   100   000    Old_age   Always       -       0
+202 Percent_Lifetime_Remain 0x0030   019   019   001    Old_age   Offline      -       81
+206 Write_Error_Rate        0x000e   100   100   000    Old_age   Always       -       0
+246 Total_LBAs_Written      0x0032   100   100   000    Old_age   Always       -       132793924107
+247 Host_Program_Page_Count 0x0032   100   100   000    Old_age   Always       -       4149810863
+248 FTL_Program_Page_Count  0x0032   100   100   000    Old_age   Always       -       29836567148
+180 Unused_Reserve_NAND_Blk 0x0033   000   000   000    Pre-fail  Always       -       1931
+210 Success_RAIN_Recov_Cnt  0x0032   100   100   000    Old_age   Always       -       0
+
+SMART Error Log Version: 1
+No Errors Logged
+
+

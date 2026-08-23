@@ -21,14 +21,19 @@ tags: [hardware, nas, zfs]
 | CPU | Intel Xeon E3-1230 V2 @ 3.30 GHz (4C/8T, Ivy Bridge) |
 | RAM | 12 GB DDR3 ECC (AdvancedECC) — 1× 4 GB + 1× 8 GB, DDR3-1600 |
 | Boot | Crucial MX300 525 GB SSD (Crucial_CT525MX300SSD4) |
-| HDD 1 | HGST 4 TB (HDN726040ALE614) — 60,070h |
-| HDD 2 | Seagate IronWolf Pro 4 TB (ST4000NT001) — new, 7200rpm |
+| HDD 1 | HGST 4 TB (HDN726040ALE614) — 60,452h |
+| HDD 2 | Seagate IronWolf Pro 4 TB (ST4000NT001) — 399h, 7200rpm |
 | SATA mode | AHCI / non-RAID (B120i disabled — ZFS direct disk access) |
 | NIC | Embedded dual-port Broadcom |
 | iLO | 4 (integrated) — FW 2.55, IP `ilo` per [`network-addresses-generated.md`](network-addresses-generated.md) (VLAN 99) |
 | OS | Debian 13 (Trixie) minimal, headless, ZFS 2.3+ |
 | Expansion | PCIe x16 Gen3 → miniSAS card → SilverStone |
 | Location | Rack cabinet |
+
+> **VT-d/DMAR note (observed live 2026-08-23):** Debian 13 enables DMA remapping on this box;
+> heavy I/O produces benign `DMAR: ERROR: DMA PTE … already set` console spam (B120i quirk).
+> Harmless — zero accompanying block-layer faults across a full 4 T migration — but if it
+> persists post-reinstall, consider `intel_iommu=off` (no passthrough is planned here).
 
 ---
 
@@ -39,8 +44,8 @@ tags: [hardware, nas, zfs]
 
 | by-id (`/dev/disk/by-id/`) | Model | Size | Hours | Health |
 |-------|-------|------|-------|--------|
-| `ata-HGST_HDN726040ALE614_K4K9LBGB` | HGST HDN726040ALE614 | 4 TB | 60,070 | ✅ |
-| `ata-ST4000NT001-3M2101_WX122FLD` | Seagate IronWolf Pro ST4000NT001 | 4 TB | new | ✅ |
+| `ata-HGST_HDN726040ALE614_K4K9LBGB` | HGST HDN726040ALE614 | 4 TB | 60,452 | ✅ |
+| `ata-ST4000NT001-3M2101_WX122FLD` | Seagate IronWolf Pro ST4000NT001 | 4 TB | 399 | ✅ |
 
 - **4 TB usable**, fully redundant mirror — reserved for **user data** (backed up). No media.
 - Datasets (all snapshotted + syncoid-replicated to `bulk`):
@@ -79,14 +84,15 @@ Connected via **miniSAS** to the SilverStone SST-TS43xx external disk enclosure 
 
 | by-id (`/dev/disk/by-id/`) | Model | Size | Hours | Health |
 |-------|-------|------|-------|--------|
-| `ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU` | WD Red WD30EFRX | 3 TB | 45,500 | ✅ |
-| `ata-TOSHIBA_HDWD130_98M0ZZYAS` | Toshiba P300 HDWD130 | 3 TB | ~6.5–8.2 k | ✅ |
-| `ata-TOSHIBA_HDWD130_98M101SAS` | Toshiba P300 HDWD130 | 3 TB | ~6.5–8.2 k | ✅ |
-| `ata-TOSHIBA_HDWD130_98M0X0TAS` | Toshiba P300 HDWD130 | 3 TB | ~6.5–8.2 k | ✅ |
+| `ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU` | WD Red WD30EFRX | 3 TB | 45,903 | ✅ |
+| `ata-TOSHIBA_HDWD130_98M0ZZYAS` | Toshiba P300 HDWD130 | 3 TB | 6,885 | ✅ |
+| `ata-TOSHIBA_HDWD130_98M101SAS` | Toshiba P300 HDWD130 | 3 TB | 8,560 | ✅ |
+| `ata-TOSHIBA_HDWD130_98M0X0TAS` | Toshiba P300 HDWD130 | 3 TB | 8,497 | ✅ |
 
-> The three Toshiba hour readings (6,481 / 8,093 / 8,156 h) were recorded against unstable `sdX`
-> names and can no longer be attributed per serial — treat as a range. Re-read SMART per by-id at
-> the Phase-2 deploy check.
+> Hours re-read per serial 2026-08-23 over SSH on the running system
+> ([smart-report-nas-20260823T105831.txt](../reports/smart-report-nas-20260823T105831.txt)):
+> all six HDDs PASS with zero reallocated/pending/offline-uncorrectable/CRC counters —
+> closes the earlier unattributable-range caveat.
 
 - **6 TB usable**, survives any 2 disk failures
 - sde (Toshiba P300, 2,001 reallocated + 32 pending) was zeroed and physically removed
@@ -108,7 +114,14 @@ as the **local secondary pool**: syncoid replicas of `tank/data/*` (ZFS send/rec
 
 ## Pool-Creation Runbook (one-time bootstrap, BEFORE the preseed reinstall)
 
-> Executed once on the pre-reinstall Debian install (2026-08). The Ansible `storage` role is
+> ✅ **EXECUTED 2026-08-23 — see the as-built entry in [deployment-journal.md §Phase 1a](../deployment-journal.md)**
+> (pools created, verified, exported; installer-ready). Reality deltas vs the text below:
+> the legacy payload lived in pool **`new-pool`** (single disk ST4000NT001) and a second
+> single-disk pool **`backup`** (61.9 G gen8 dumps) existed — the owner declared `backup`
+> disposable and it was destroyed after migration verification instead of being migrated.
+> Two operational notes learned live: `zfs receive` does NOT create intermediate datasets
+> (create `bulk/migrate` explicitly first), and RAIDZ2 physical ALLOC runs ≈1.67× the logical
+> stream size (parity + stripe padding). The Ansible `storage` role is
 > **import-only** for `tank`/`bulk` (`allow_create: false`, import-first rule in
 > `roles/storage/tasks/zfs_common.yml`) — pool creation is a human bootstrap step; datasets +
 > properties are then applied by the role from its defaults SSOT. The preseed wipes **only the OS SSD**
@@ -216,4 +229,7 @@ Built-in — no external KVM needed.
 
 - Boot only — no L2ARC/SLOG
 - L2ARC skipped: 12 GB RAM insufficient for benefit
+- **Boot chain quirk:** this SSD sits on an internal SATA port the Gen8 cannot boot from →
+  GRUB lives on the **USB stick** (preseed §8 `grub-installer/bootdev` = usb by-id, HD-206);
+  the stick must stay plugged for the box to boot
 - SLOG skipped: SSD lacks power-loss protection (PLP)
