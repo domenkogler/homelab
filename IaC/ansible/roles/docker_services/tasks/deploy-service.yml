@@ -4,6 +4,8 @@
 # Variables: svc (the current docker_services entry)
 
 - name: "Create directory {{ docker_compose_dir }}/{{ svc.name }}"
+  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  tags: "{{ svc.name }}"
   ansible.builtin.file:
     path: "{{ docker_compose_dir }}/{{ svc.name }}"
     state: directory
@@ -14,6 +16,8 @@
 # with EACCES on first boot. Services opt in via bind_owner_uid + bind_dirs on their
 # docker_services entry (group_vars/vps.yml). Idempotent; no-op for services without it.
 - name: "Pre-create bind dirs with image uid for {{ svc.name }} (Class-A fix)"
+  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  tags: "{{ svc.name }}"
   ansible.builtin.file:
     path: "/srv/docker/{{ svc.name }}/{{ bind_dir }}"
     state: directory
@@ -26,6 +30,8 @@
   when: svc.bind_owner_uid is defined
 
 - name: "Copy template files for {{ svc.name }}"
+  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  tags: "{{ svc.name }}"
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../templates/docker_services/{{ svc.template_dir }}/"
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/"
@@ -33,12 +39,16 @@
   # .j2 files are copied as-is (unrendered); overwritten with rendered versions below
 
 - name: "Template docker-compose.yml for {{ svc.name }}"
+  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  tags: "{{ svc.name }}"
   ansible.builtin.template:
     src: "{{ playbook_dir }}/../templates/docker_services/{{ svc.template_dir }}/docker-compose.yml.j2"
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml"
     mode: '0644'
 
 - name: "Template extra .j2 files for {{ svc.name }}"
+  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  tags: "{{ svc.name }}"
   ansible.builtin.template:
     src: "{{ playbook_dir }}/../templates/docker_services/{{ svc.template_dir }}/{{ extra }}"
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/{{ extra | replace('.j2', '') }}"
@@ -83,7 +93,7 @@
           (`docker compose down`), delete the auto-created path(s), then re-run so that
           home_assistant renders BEFORE docker_services (HD-204 render-first order). Note:
           secrets.yaml additionally requires its pending 1Password render task to land first.
-  tags: [home_assistant, hd185]
+  tags: ["{{ svc.name }}", home_assistant, hd185]
 - name: "Validate rendered compose file for {{ svc.name }} (HD-162)"
   ansible.builtin.shell:
     cmd: "docker compose -f {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml config --quiet"   # `compose validate` does not exist (found live Phase 1)
@@ -91,12 +101,16 @@
   tags: "{{ svc.name }}"
 
 - name: "Docker compose up -d for {{ svc.name }}"
+  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  tags: "{{ svc.name }}"
   community.docker.docker_compose_v2:
     project_src: "{{ docker_compose_dir }}/{{ svc.name }}"
     state: present
 
 
 - name: "Enable systemd service docker-compose@{{ svc.name }} (boot auto-start)"
+  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  tags: "{{ svc.name }}"
   ansible.builtin.systemd:
     name: "docker-compose@{{ svc.name }}"
     enabled: true
