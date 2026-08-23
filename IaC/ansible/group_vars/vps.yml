@@ -45,7 +45,9 @@ docker_services:
   - { name: homepage,       template_dir: homepage, subdomain: home, enabled: true }
   # === Public live-data apps + co-located DBs (NVMe) ===
   - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true, bind_owner_uid: "{{ storage_uid }}", bind_dirs: ['config', 'data'] }  # + bundled db
-  - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, enabled: true }  # WOPI helper for opencloud (HD-166); NO auth surface
+  - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, enabled: true,  # WOPI helper for opencloud (HD-166); NO auth surface
+      bind_owner_uid: "70", bind_dirs: ['postgres'],                                          # postgres:XX-alpine runs as uid 70 (Class-A fix)
+      db_role_sync: true, db_item: onlyoffice_db, db_pg_container: onlyoffice-postgres }      # 2026-08-23 rotation-drift guard
   - { name: immich-app,     template_dir: immich-app, subdomain: foto, enabled: true,  # + pg/valkey; ML->oldsrv
       db_role_sync: true, db_item: immich_db, db_pg_container: immich-postgres }
   - { name: forgejo,        template_dir: forgejo,   subdomain: git, enabled: true,   # + bundled db

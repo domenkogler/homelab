@@ -72,6 +72,7 @@ CATALOG = [
     ("Database",    "opencloud_db",           lambda: [f"username=opencloud", f"password={gen_pw()}"]),
     ("Database",    "immich_db",              lambda: [f"username=immich",    f"password={gen_pw()}"]),
     ("Database",    "forgejo_db",             lambda: [f"username=forgejo",   f"password={gen_pw()}"]),
+    ("Database",    "onlyoffice_db",          lambda: [f"username=onlyoffice", f"password={gen_pw()}"]),
     ("Database",    "pgvector_db",            lambda: [f"username=pgvector",  f"password={gen_pw()}"]),
     # --- Password items ---
     ("Password",    "authentik_password",     lambda: [f"password={gen_pw()}"]),
@@ -82,6 +83,7 @@ CATALOG = [
     ("Password",    "n8n_password",           lambda: [f"password={gen_pw()}"]),
     ("Password",    "matrix_password",        lambda: [f"password={gen_pw()}"]),
     ("Password",    "opencloud-collab_password", lambda: [f"password={gen_pw()}"]),
+    ("Login",       "onlyoffice-rabbitmq_login", lambda: [f"username=onlyoffice", f"password={gen_pw()}"]),
     ("Password",    "openwebui_secret",       lambda: [f"password={gen_pw()}"]),
     # --- API Credential ---
     ("API Credential", "litellm_master_key",      lambda: [f"credential={gen_pw()}"]),
@@ -117,6 +119,8 @@ NOT_AUTO_ROTATABLE = {
                              # absent from CATALOG).
     "matrix_password",      # Matrix shared secret — reissue breaks rooms/sessions
     "authentik_db", "opencloud_db", "immich_db", "forgejo_db", "pgvector_db",  # running Postgres
+    "onlyoffice_db",           # running Postgres (sidecar cluster init-once password)
+    "onlyoffice-rabbitmq_login",  # RABBITMQ_DEFAULT_* applies at first mnesia init; AMQP_URI couples both sides
     "authentik_password",   # Django SECRET_KEY — invalidates the running instance
     "kopia_password",       # repo master password on live repo
     # Phase 1 additions (2026-08-22): external/app-coupled — rotate via vault + redeploy,
