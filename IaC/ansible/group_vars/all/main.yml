@@ -93,7 +93,7 @@ zfs_exporter_port: 9198
 kopia_sftp_host: u653424.your-storagebox.de
 kopia_sftp_port: 23          # non-standard Hetzner SSH/SFTP port
 kopia_sftp_user: u653424     # SSH key auth (no password) — key in 1Password Hertzner-SB-Backup
-kopia_sftp_path: /kopia      # repository dir under the box home
+kopia_sftp_path: kopia           # RELATIVE to box home (2026-08-23: Hetzner SFTP returns SSH_FX_FAILURE for the "/" component of absolute paths, breaking kopia create-path even when the dir pre-exists)
 
 # ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses-generated.md) ====
 # Hand-edit here ONLY; regenerate docs/network-addresses-generated.md after changes.
