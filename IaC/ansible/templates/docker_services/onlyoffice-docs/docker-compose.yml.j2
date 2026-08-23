@@ -42,7 +42,7 @@
 services:
   onlyoffice-docs:
     image: onlyoffice/documentserver:{{ onlyoffice_version }}
-    # HD-227 (2026-08-23): cap_drop:ALL REMOVED — relaxation per metabase/stirling
+    # HD-230 (2026-08-23): cap_drop:ALL REMOVED — relaxation per metabase/stirling
     # precedent (HD-218 Class-B). Evidence: even with the full setuid-cap whitelist
     # (CHOWN/DAC_READ_SEARCH/FOWNER/SETUID/SETGID verified present via inspect),
     # supervisord's per-child setuid still EPERM'd ("couldn't setuid to 105") while a
@@ -64,7 +64,7 @@ services:
       - db-internal
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      # HD-227 (2026-08-23): WOPI discovery (/hosting/discovery) is served by the
+      # HD-230 (2026-08-23): WOPI discovery (/hosting/discovery) is served by the
       # bundled example app — WITHOUT it OpenCloud's collaboration service cannot
       # register the editor (discovery 404, found live). Image default is disabled.
       EXAMPLE_ENABLED: "true"
@@ -123,7 +123,7 @@ services:
     networks:
       - db-internal
     volumes:
-      # Named volume, NOT a host bind under /srv/docker/onlyoffice-docs (HD-227 fix,
+      # Named volume, NOT a host bind under /srv/docker/onlyoffice-docs (HD-230 fix,
       # found live 2026-08-23): DS mounts the PARENT dir and its init does a recursive
       # chown to ds uids (105/107) — the nested postgres datadir got corrupted
       # (base/* files owned 105:107 -> server 'could not open file' on every catalog

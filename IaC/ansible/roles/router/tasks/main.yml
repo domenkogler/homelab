@@ -395,6 +395,13 @@
         action: accept
         comment: "Allow established/related return traffic"
       - chain: forward
+        src-address: "{{ vlan_subnets[20] }}"
+        dst-address-list: trusted-ha
+        protocol: udp
+        dst-port: 5683
+        action: accept
+        comment: "IoT Shelly Gen1 CoAP push -> HA (HD-229) — narrow reverse exception"
+      - chain: forward
         src-address-list: trusted-admin
         dst-address: "{{ vlan_subnets[20] }}"
         action: accept
@@ -787,3 +794,13 @@
         vlan-filtering: yes
         protocol-mode: none
         comment: "Bridge with VLAN filtering enabled"
+
+# -------------------------------------------------------------------------
+# CAPsMAN steady-state WiFi (guarded scaffold — HD-228/HD-03/HD-229)
+# -------------------------------------------------------------------------
+# Included ONLY when routeros_capsman_enabled: true (group_vars/router.yml).
+# Flip AFTER the five wifi-kogler* 1Password items exist AND during the live
+# cutover-prep session (implementation steps in capsman.yml header).
+- name: Include CAPsMAN WiFi management (guarded)
+  ansible.builtin.include_tasks: capsman.yml
+  when: routeros_capsman_enabled | default(false) | bool

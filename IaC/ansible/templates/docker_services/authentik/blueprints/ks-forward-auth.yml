@@ -13,10 +13,10 @@
 #   native-OIDC apps (ai/foto/file + headscale after R5 middleware fix),
 #   Matrix-native SSO (matrix/chat), WOPI-only office, the IdP itself (sso),
 #   internal-tier services without public routes,
-#   pairdrop — PUBLIC since HD-225 (2026-08-23): crowdsec-only tier, no
+#   pairdrop — PUBLIC since HD-230 (2026-08-23): crowdsec-only tier, no
 #   forward-auth; its former forward-pairdrop/edge-pairdrop objects were removed
 #   here and deleted server-side via ak-shell ORM one-shots after the converge.
-#   forgejo/git — NATIVE OIDC since HD-227 (2026-08-23, owner decision): SSO via
+#   forgejo/git — NATIVE OIDC since HD-230 (2026-08-23, owner decision): SSO via
 #   ks-oidc.yml provider_forgejo (declared since HD-148); forward-git removed here
 #   and deleted server-side via ak-shell ORM one-shots after the converge.
 # 7 protected routes remain.

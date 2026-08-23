@@ -14,6 +14,11 @@ op_vault: Homelab-ansible
 domain_public: kogler.si
 domain_local: kogler.si    # reserved for future split-horizon scenarios — currently unused
 
+# Bootstrap DHCP DNS for freshly-reset MikroTik gear (HD-193): used by the
+# rb4011_initial template BEFORE Technitium exists (it lands on oldsrv at
+# Phase 3). Upstream public resolver until then.
+bootstrap_dns_servers: "1.1.1.1"
+
 # GPU group IDs — standard Debian 12/13 (bookworm/trixie).
 # video:44 (static since Debian 1.x), render:104 (since Debian 11 bullseye).
 # Used by ollama, immich-ml, jellyfin, sunshine for /dev/dri access.

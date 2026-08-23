@@ -160,6 +160,11 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `nut-exporter_password` | `password` | nut_exporter → upsd read-only auth (dedicated `upsmon slave` user on the NUT master) |
 | `network-snmp_api` | `credential` | router + switch — MikroTik SNMP **read-only community** for Alloy polling (HD-53/Option A); `credential` = the RO community string |
 | `wg_password` | `password` | router (WireGuard S2S private key) |
+| `wifi-kogler_password` | `password` | CAPsMAN SSID **Kogler** (VLAN 10 Home) — router role when `routeros_capsman_enabled` flips true (HD-228/HD-03); alphanumeric only, 2.4 GHz-friendly chips on this SSID family (HD-228) |
+| `wifi-kogler-iot_password` | `password` | CAPsMAN SSID **Kogler IOT** (VLAN 20 IoT, no internet) — Gen1 Shellys live here |
+| `wifi-kogler-iot-wan_password` | `password` | CAPsMAN SSID **Kogler IOT WAN** (VLAN 21 IoT-Internet) — Bosch/LG cloud appliances (HD-228) |
+| `wifi-kogler-guest_password` | `password` | CAPsMAN SSID **Kogler guest** (VLAN 30 Guest, client-isolated internet-only) |
+| `wifi-kogler-kids_password` | `password` | CAPsMAN SSID **Kogler Kids** (VLAN 40 Kids, filtered DNS + bedtime block HD-182) |
 | `privado-vpn_api` | `credential` | **PrivadoVPN WireGuard client private key** for the gluetun sidecar (`WIREGUARD_PRIVATE_KEY` in the qbittorrent compose; provider `privado`) — the *arr download traffic egresses through the VPN tunnel (HD-131 D2). |
 | `mikrotik-admin_login` | `password` | router + switch + APs — MikroTik RouterOS admin (items RB4011/CRS328/hAP; **shared across all network gear — accepted, HD-165**). One admin password across all gear is an **accepted risk**: every RouterOS management surface binds to the Management VLAN (99) only — router `api`/`www-ssl`/`ssh` (8728/443/22) are `interface=vlan99-mgmt`; switch + APs are L2-only with no WAN egress — so the shared credential never crosses the internet boundary ([network-ops.md](network-ops.md)). Revisit per-gear items only if a gear gains WAN-exposed management or the Mgmt-VLAN INPUT ACL changes. |
 | `pppoe_login` | `password` (`username` = PPPoE user) | router — ISP (Telekom) PPPoE credentials for the egress WAN |

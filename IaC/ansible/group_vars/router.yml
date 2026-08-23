@@ -73,3 +73,16 @@ dns_primary_ip: "{{ hostvars['oldsrv.kogler.si'].dns_primary_ip }}"    # 10.10.1
 # secondary on Pi
 # (populated on the Pi; keep it defined here so the router references both)
 dns_secondary_ip: "{{ hostvars['pi.kogler.si'].dns_secondary_ip | default('10.10.1.20') }}"    # 10.10.1.20
+# ==== CAPsMAN WiFi map (HD-228 / network-vlans.md SSID mapping) ====
+# SSOT for cfg names/SSIDs/VLANs/passphrase items. Items must exist in
+# 1Password BEFORE flipping routeros_capsman_enabled (role lookups fail loud).
+# IoT configs must stay 2.4 GHz-friendly (QCA4002 + Gen1 Shelly chips, HD-228);
+# passphrases alphanumeric only (HD-228 constraint).
+routeros_capsman_enabled: false
+routeros_capsman_implemented: false   # flips true when capsman.yml tasks are written against the live manager
+routeros_capsman_ssids:
+  - { cfg: cfg-kogler,        ssid: Kogler,         vlan: 10, item: wifi-kogler_password }
+  - { cfg: cfg-kogler-iot,    ssid: Kogler IOT,     vlan: 20, item: wifi-kogler-iot_password }
+  - { cfg: cfg-kogler-iot-wan, ssid: "Kogler IOT WAN", vlan: 21, item: wifi-kogler-iot-wan_password }
+  - { cfg: cfg-kogler-guest,  ssid: Kogler guest,   vlan: 30, item: wifi-kogler-guest_password }
+  - { cfg: cfg-kogler-kids,   ssid: Kogler Kids,    vlan: 40, item: wifi-kogler-kids_password }

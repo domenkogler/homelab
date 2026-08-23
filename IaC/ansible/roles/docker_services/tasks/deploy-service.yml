@@ -192,21 +192,21 @@
   changed_when: true
   tags: "{{ svc.name }}"
 
-# ---- Forgejo native-OIDC source registration (HD-227; design HD-148) ----
+# ---- Forgejo native-OIDC source registration (HD-230; design HD-148) ----
 # The Authentik side (provider_forgejo + app_forgejo in ks-oidc.yml, client creds
 # seeded to vault item forgejo_oidc by the glue) has existed since HD-148. This task
 # registers the CONSUMER side — the OAuth2 authentication source inside Forgejo —
 # idempotently via the admin CLI (NOT env-injectable). Authentication Name MUST stay
 # `authentik`: ks-oidc.yml accepts any callback under /user/oauth2/.* but docs and
 # owner runbook reference this name.
-- name: "Register Authentik OIDC source in Forgejo (HD-227)"
+- name: "Register Authentik OIDC source in Forgejo (HD-230)"
   when: svc.name == 'forgejo'
   vars:
     _oidc_id: "{{ lookup('community.general.onepassword', 'forgejo_oidc', field='username', vault=op_vault) }}"
     _oidc_secret: "{{ lookup('community.general.onepassword', 'forgejo_oidc', field='credential', vault=op_vault) }}"
   ansible.builtin.shell:
     cmd: |
-      # Verified live against this Forgejo build (HD-227): provider key is
+      # Verified live against this Forgejo build (HD-230): provider key is
       # `openidConnect` (NOT `oidc`), no --active/--use-auto-discovery-url flags exist,
       # deletion is `admin auth delete --id N`. Scopes repeated (--scopes is a slice).
       if docker exec -u git forgejo gitea admin auth list 2>/dev/null | grep -qw authentik; then

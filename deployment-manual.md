@@ -367,6 +367,12 @@ traefik + headscale services).
 - `akadmin` / `authentik_login` password — works FIRST TRY on a fresh install (bootstrap env
   is pinned in compose and applies at user creation).
 - Enrol WebAuthn + TOTP when prompted. Optional: personal named admin for daily use.
+- **Human-user policy (owner decision 2026-08-23):** every new HUMAN user is created as **Internal
+  type** — never External (federated sources) or Service account (machine/API identities). Full
+  setup per user: real name + real email · Active ON · membership in the **`family` group** (the
+  NAS user-sync glue reads exactly this group, D5/HD-131) · WebAuthn + TOTP enrolled at first
+  login. Admin capability stays group-based (`authentik Admins`, where break-glass `akadmin`
+  lives) — daily-driver users NEVER join it.
 - Blueprint sanity: application count = 8 OIDC (`ks-oidc`) + 9 edge (`ks-forward-auth`);
   outpost “authentik Embedded Outpost” lists all 9 edge providers.
 

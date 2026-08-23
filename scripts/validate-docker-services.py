@@ -69,7 +69,7 @@ ALLOWED_NO_CAP_DROP = {
     "raspberrymatic",                                        # parked (HD-13)
     "metabase",                                              # stock entrypoint self-manages user + su (Wave-2 triage 2026-08-22)
     "stirling-pdf",                                          # init.sh runs root then su-drops (user 0:0 + cap_add quintet; Wave-3 R3)
-    "onlyoffice-docs",                                       # supervisord per-child setuid EPERMs even WITH setuid-cap whitelist; raw setpriv works — image init incompatible with cap_drop (HD-227, metabase precedent)
+    "onlyoffice-docs",                                       # supervisord per-child setuid EPERMs even WITH setuid-cap whitelist; raw setpriv works — image init incompatible with cap_drop (HD-230, metabase precedent)
 }
 # Per-SERVICE exemptions inside otherwise-hardened templates:
 SKIP_CAP_DROP_SERVICES = {"gluetun"}   # VPN sidecar — needs NET_ADMIN (HD-204 exemption)

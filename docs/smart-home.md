@@ -43,8 +43,59 @@ tags: [smart-home, homeassistant]
 | Nvidia Shield | Living room | Wi-Fi | Media playback |
 | Weather station (**HmIP-SWO-B**) | Outdoor | Homematic IP (868 MHz) | Temperature, humidity, wind, relative brightness, sunshine duration |
 | Heat-recovery ventilator (**Zehnder ComfoAir Q**) | Utility | KNX (ComfoConnect KNX-C) | Temperatures, flow rates |
+| LG air conditioners (**ThinQ**, QCA4002 Wi-Fi module) | Rooms | Wi-Fi 2.4 GHz — **cloud-to-cloud** (VLAN 21 tier) | Climate control via HA ThinQ integration (PAT) |
+| Bosch appliances (**Home Connect**) | Kitchen/utility | Wi-Fi 2.4 GHz — **cloud-to-cloud** (VLAN 21 tier) | via HA `home_connect` integration (OAuth) |
 
 ---
+
+## Cloud Appliances — LG ThinQ & Bosch Home Connect
+
+> **Placement decision (HD-228, 2026-08-23):** cloud-dependent appliances live on **VLAN 21
+> (IoT-Internet)** — the deliberate cloud exception to the otherwise local-first smart home (same
+> tier as the HmIP-HAP cloud phase, HD-13). Both platforms are strictly **cloud-to-cloud**: the
+> appliance keeps an outbound TLS session to the vendor cloud, and HA talks to that cloud API
+> (ThinQ via PAT, Home Connect via OAuth). There is **NO local network path** to these devices —
+> when the internet or vendor cloud is down they hold last state and physical controls still work.
+> No WAN port-forwardings exist or are needed for either family.
+
+### Network implications (RouterOS IaC)
+
+- **Outbound:** VLAN 21 → WAN is allow-all by design (`network-vlans.md` matrix) — deliberately NOT
+  port-tightened, because the stacks need more than HTTPS: Bosch also speaks **TCP/8080** to Home
+  Connect servers; both need **UDP/123 NTP** (a drifted clock breaks TLS certificate validation and
+  looks like a mysterious outage) plus working DNS. If 21 egress is ever tightened, keep at minimum
+  80+443/tcp, 8080/tcp, 123/udp and resolver reachability.
+- **Cross-VLAN: nothing to open.** No mDNS reflection, no multicast routing between VLANs —
+  discovery/pairing runs through the vendor apps while the phone sits on the appliance SSID, and HA
+  integrates purely via cloud API. mDNS reflection is explicitly REJECTED — see
+  [network-rejected.md](network-rejected.md).
+- **Contrast with local devices:** the Gen1 Shellys need a real cross-VLAN exception (IoT →
+  `trusted-ha` udp/5683 CoAP push); these cloud appliances need ZERO rules beyond their VLAN's WAN egress.
+
+### Migration runbook — moving an LG AC to `Kogler IOT WAN`
+
+Pre-provisioning constraints (the QCA4002 Qualcomm Wi-Fi chip is picky):
+
+- **2.4 GHz only** — CAPsMAN config `cfg-kogler-iot-wan` must serve a 2.4 GHz band (applies to the
+  Shellys' `cfg-kogler-iot` too — Gen1 Shellys are 2.4 GHz as well).
+- **Simple SSID/password charset** — no spaces/special characters; keep IoT SSID passphrases
+  alphanumeric when choosing them for the CAPsMAN items.
+
+Per unit (physical remote required; LG ACs have no local web UI or backup-WiFi path):
+
+1. Phone joins `Kogler IOT WAN`.
+2. AC powered on; hold the two buttons flanking Temperature-Down (model-dependent — often
+   Energy-Saver + Jet Mode, or a key marked Wi-Fi) ~3 s until the beep; the panel Wi-Fi icon blinks
+   = pairing mode.
+3. LG ThinQ app → select the AC → "Change Wi-Fi Network" (or delete + re-add via +) → feed it the
+   new SSID/password.
+4. AC rejoins LG cloud on its own; HA picks up the move automatically — no integration change (the
+   PAT is account-scoped, not network-scoped).
+5. ✔ Verify: entity states refresh in HA; unit shows online in the ThinQ app.
+
+Maintenance: the **ThinQ PAT expires/rotates** — store it in 1Password (intended item
+`lg-thinq_api`, field `credential`) and treat renewal as a recurring calendar item; a dead PAT
+shows up as HA entities going unavailable while the AC itself still works from the vendor app.
 
 ## Home Assistant
 

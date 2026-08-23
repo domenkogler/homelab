@@ -1,5 +1,5 @@
 # pairdrop docker-compose.yml — P2P file share (pairdrop.kogler.si + drop.kogler.si)
-#   PUBLIC P2P file transfer (owner decision 2026-08-23, HD-225 — supersedes the
+#   PUBLIC P2P file transfer (owner decision 2026-08-23, HD-230 — supersedes the
 #   HD-113 LAN/VPN-only decision): both hostnames serve this instance WITHOUT
 #   authentik forward-auth, on the crowdsec-only middleware tier (headscale
 #   precedent). Abuse guards: CrowdSec edge bouncer + built-in RATE_LIMIT=true
@@ -17,7 +17,7 @@
 #   convention). Linuxserver image exposes port 3000 (http gui).
 #
 #   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
-#   — none required here (no API keys); the route is PUBLIC by design (HD-225),
+#   — none required here (no API keys); the route is PUBLIC by design (HD-230),
 #   gated only by CrowdSec at the edge.
 services:
   pairdrop:

@@ -61,6 +61,7 @@ docs/
 ├── network-review.md                      Network intake queue
 ├── network-rejected.md                    Append-only network decision log
 ├── network-vlans.md                       VLAN table, subnets, firewall rules
+├── network-migration-inventory.md         Flat-LAN→VLAN device migration table (Phase 1.5 cutover)
 ├── network-addresses-generated.md         IP address plan — SSOT (generated from IaC; never hand-edited)
 ├── network-dns.md                         Technitium/Pi-hole, per-subnet DNS
 ├── network-vpn.md                         WireGuard (S2S), Headscale mesh

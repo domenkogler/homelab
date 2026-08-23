@@ -183,7 +183,7 @@ Traefik middleware prevents any traffic from reaching an app before authenticati
 
 Apps exempt from the auth chain carry `crowdsec-only@file` instead (bouncer + headers, no SSO):
 `office` (WOPI worker, HD-166), `vpn`/headscale (native OIDC + control traffic), and since
-**HD-225 (2026-08-23)** `pairdrop` — PUBLIC P2P share on BOTH `pairdrop.kogler.si` and
+**HD-230 (2026-08-23)** `pairdrop` — PUBLIC P2P share on BOTH `pairdrop.kogler.si` and
 `drop.kogler.si` (one router, dual Host matcher; supersedes the HD-113 LAN-only decision).
 Abuse guards: CrowdSec bouncer + the app's built-in `RATE_LIMIT=true`; network isolation via
 traefik-public-only attachment.

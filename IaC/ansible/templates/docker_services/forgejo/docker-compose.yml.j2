@@ -53,7 +53,7 @@ services:
       # AppURL to http://localhost:3000, breaking links/mail/OIDC callbacks.
       FORGEJO__server__DOMAIN: git.kogler.si
       FORGEJO__server__ROOT_URL: https://git.kogler.si/
-      # HD-227 (2026-08-23, owner decision): native-OIDC SSO replaces the forward-auth
+      # HD-230 (2026-08-23, owner decision): native-OIDC SSO replaces the forward-auth
       # wall. First SSO login associates by email with the existing local account; the
       # OAuth source itself is registered idempotently post-up (deploy-service.yml,
       # `gitea admin auth add-oauth`) from vault item forgejo_oidc — HD-148 design.
@@ -65,7 +65,7 @@ services:
       traefik.http.routers.forgejo.rule: "Host(`git.kogler.si`)"
       traefik.http.routers.forgejo.entrypoints: websecure
       {{ 'traefik.http.routers.forgejo.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
-      # HD-227: crowdsec-only tier — auth moved IN-APP to native OIDC (Authentik);
+      # HD-230: crowdsec-only tier — auth moved IN-APP to native OIDC (Authentik);
       # forward-auth wall removed so SSO callbacks and m2m API hits reach forgejo directly.
       traefik.http.routers.forgejo.middlewares: crowdsec-only@file
       traefik.http.services.forgejo.loadbalancer.server.port: "3000"

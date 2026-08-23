@@ -55,7 +55,7 @@ tags: [network, vlan, firewall]
 | Home (10) | IoT-Internet (21) | Accept established/related + new from trusted IPs (HA→HAP, Prometheus→HA) |
 | Home (10) | Management (99) | Accept SSH/WinBox/API (22,8291,8728)/HTTPS · **80/443 (UPS web UI)** from trusted Home servers (`trusted-admin`: nas/oldsrv/HA-VIP) |
 | Home (10) | Media (50) | Accept (remote control, casting) |
-| IoT (20) | Home (10) | **Drop all** (only replies to Home-initiated) |
+| IoT (20) | Home (10) | **Drop all** (only replies to Home-initiated) — EXCEPT CoAP **udp/5683 → `trusted-ha`** (Gen1 Shelly push, HD-229) |
 | IoT (20) | WAN | **Drop all** — disable rule manually for firmware updates |
 | IoT-Internet (21) | WAN | **Allowed** (these devices need cloud/internet) |
 | IoT-Internet (21) | Home (10) | **Drop all** (only replies to Home-initiated) |
@@ -93,6 +93,7 @@ DHCP option 15 (`domain=kogler.si`) is set on each DHCP network.
 | Family PC, laptop, server | Access | 10 (Home) |
 | Shelly, KNX, ESP32-S3 | Access | 20 (IoT, no internet) |
 | Homematic HAP (cloud), Bosch IoT | Access | 21 (IoT-Internet) |
+| LG ThinQ / Bosch Home Connect appliance | Access | 21 (IoT-Internet) |
 | AP (hAP ac/ac²) | Access | 99 (Mgmt) |
 | Printer | Access | 10 (Home) |
 | Camera | Access | 20 (IoT) |

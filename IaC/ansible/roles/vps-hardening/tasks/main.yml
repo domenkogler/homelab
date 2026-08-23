@@ -67,7 +67,7 @@
     state: started
     enabled: true
 
-# HD-227 (2026-08-23, found live): Debian's stock nftables.service ships
+# HD-230 (2026-08-23, found live): Debian's stock nftables.service ships
 # ExecStop=/usr/sbin/nft flush ruleset — every stop/restart WIPED docker-programmed
 # nat/filter tables even with the scoped ruleset file below (the wipe came from the
 # STOP half of restart, not the load). Emptying ExecStop makes restart a pure
@@ -82,7 +82,7 @@
   ansible.builtin.copy:
     dest: /etc/systemd/system/nftables.service.d/override.conf
     content: |
-      # Managed by vps-hardening (HD-227). Stock ExecStop='nft flush ruleset'
+      # Managed by vps-hardening (HD-230). Stock ExecStop='nft flush ruleset'
       # wipes docker iptables-nft tables on every restart. Start/reload paths are
       # already table-scoped via /etc/nftables.conf; an empty ExecStop makes
       # restart equally safe.

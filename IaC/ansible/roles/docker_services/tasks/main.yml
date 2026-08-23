@@ -98,7 +98,7 @@
   when: svc_entry.enabled | default(true)
   tags: docker_services
 
-- name: Apply custom blueprints one-shot (discovery never registers /blueprints/custom — HD-225)
+- name: Apply custom blueprints one-shot (discovery never registers /blueprints/custom — HD-230)
   ansible.builtin.include_tasks:
     file: apply-authentik-blueprints.yml
   when: "'authentik' in (docker_services | map(attribute='name') | list)"
