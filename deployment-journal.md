@@ -611,6 +611,12 @@
   (rolled same day - old value burned); db-backup/n8n/grafana/openclaw entries from Wave 1.
 - Next session: Phase-1 Verify block (deployment-tasks 3b-4) once forgejo_api + kopia seeds land.
 
+### 2026-08-23 - Phase 1 - async convergence run completed GREEN (HD-218 close-out)
+
+- Post-handoff async `vps.yml` finished: recap `ok=264 changed=35 failed=0 unreachable=0`.
+- At handoff still open: renovate token re-render (mid-run) - next session verifies renovate Up,
+  then proceeds to the Verify block per prompt.md Handoff #4.
+
 ## Phase 1.5 — Network Redo
 
 *(no entries yet)*

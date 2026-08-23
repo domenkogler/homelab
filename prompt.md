@@ -90,9 +90,10 @@
 ## 3. Next-session execution order
 
 ### 3a. Settle the convergence run
-1. Read `/tmp/vps-converge.log` recap (WSL): expect `failed=0`. If fatal: triage per journal R-patterns.
-2. Confirm `renovate` Up (real token picked up) — if still auth-failing, the token value/scope needs
-   owner re-check (Forgejo audit log).
+1. Convergence run COMPLETED GREEN before handoff (recap: `ok=264 changed=35 failed=0`) —
+   recap archived in `/tmp/vps-converge.log` (WSL) if still present.
+2. First check: `renovate` Up with the real token (was mid-render at handoff) — if still
+   auth-failing, token value/scope needs owner re-check (Forgejo audit log).
 3. Full roster sample: expect only `kopia-server` looping (+ ldap/chat unhealthy checks).
 
 ### 3b. Kopia seed (if owner hasn't)
