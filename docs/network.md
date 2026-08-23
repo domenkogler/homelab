@@ -19,7 +19,7 @@ tags: [network, topology]
 |-------------|-------|------|
 | `router.kogler.si` | MikroTik RB4011iGS+ | PPPoE, VLAN routing, firewall, WireGuard server, CAPsMAN |
 | `switch.kogler.si` | MikroTik CRS328-24P-4S+ | Layer-2 VLAN-aware, PoE for APs, trunk via SFP+ |
-| APs | wAP ac (garaža), hAP ac² (spalnica), hAP ac (dnevna) + spare hAP ac² | CAPsMAN-managed, all wired (no mesh) |
+| APs | ~~wAP ac (garaža)~~ **DEAD 2026-08-24** (hardware fault — see [network-migration-inventory.md](network-migration-inventory.md)), hAP ac² (spalnica), hAP ac (dnevna) + spare hAP ac² | CAPsMAN-managed, all wired (no mesh); garage AP needs replacement |
 
 ---
 

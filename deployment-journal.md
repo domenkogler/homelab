@@ -744,6 +744,12 @@
 - **Migration inventory created:** [network-migration-inventory.md](docs/network-migration-inventory.md) from a 33-lease live dump — highlights: 3× Bosch Home Connect appliances on DYNAMIC leases (→ VLAN 21 tier per HD-228, need reservations), Shelly DW2 flood sensor (Gen1 CoAP — covered by the HD-229 exception), GIRA X1 + KNX IP router (VLAN 20), Canon TS9550 printer (.117 "Tiskalnik" → VLAN 10, family web UI by design), Reolink garage camera (port-type says VLAN 20 — viewing constraint flagged for owner confirm). ⚠ Owner to identify: .111, .121 (0003B5F29AFDC36), "deblab" .125 (Hyper-V VM), "truenas" .60 (not in any owning doc).
 - Secrets values touched: none.
 
+### 2026-08-24 — Phase 1.5 · garage wAP ac declared DEAD; CAPsMAN flavor re-decided to MODERN `wifi-qcom-ac` (HD-232) `[AI]`
+
+- **wAP ac (AP-garaza, 6C:3B:6B:7D:B9:C5) → hardware-fault verdict.** Diagnosed live over the RouterOS API + CRS328 logs (read-only): PHY links 1G on switch `ether7` with healthy PoE (dual PSU 26.4 V/52.8 V, 17.7 W total draw), but the board boot-loops (link self-drops every ~50 s), then goes **totally silent after network init** — no DHCP renew, no MNDP, no ARP answers. Config reset (15 s+ button) and Netinstall/Etherboot attempted: device answered BOOTP exactly once (2026-08-24 00:40) then went mute; Netinstall never listed it again even with Npcap installed, firewall off, wired NIC. Clean cold boot with uninterrupted power reproduced the hang → corrupt flash or failing SoC/RAM power path. Switch-side PoE auto-on `current_too_low` cutoffs during its hangs were a *symptom* (idle draw below threshold), not the cause. Documented in [network-migration-inventory.md](docs/network-migration-inventory.md).
+- **DECISION (owner): CAPsMAN flavor flips LEGACY → MODERN `wifi-qcom-ac`** — supersedes the 2026-08-23 legacy pin. The wAP ac was one of two MIPSBE blockers; its death resolves revisit-condition ②. Remaining conditions for the modern fleet: ① dnevna swap executes per owner plan 2026-08-23 (spare hAP ac² C4:AD:34:42:F0:B9 takes the dnevna slot; classic MIPSBE unit retires — no MIPSBE device may remain in the managed fleet); ② garage replacement hardware must be wifi-qcom-ac-capable. Pinned in capsman.yml header; ap_initial.rsc.j2 must move to modern `/interface/wifi` cap syntax at cutover prep (legacy `/interface wireless cap` line now stale). Implementation still fail-loud/live-validated per the scaffold's culture — no speculative field-level tasks shipped.
+- Secrets values touched: none.
+
 *(no entries yet)*
 
 ## Phase 2 — NAS

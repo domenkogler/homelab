@@ -1,7 +1,17 @@
 ---
 # CAPsMAN steady-state WiFi — IMPLEMENTATION PLAN + GUARD (HD-228 / HD-03 tail).
 #
-# FLAVOR DECIDED 2026-08-23: LEGACY `wireless` CAPsMAN for the whole fleet.
+# FLAVOR RE-DECIDED 2026-08-24 (HD-232): MODERN `wifi-qcom-ac` CAPsMAN for the
+# whole fleet — SUPERSEDES the 2026-08-23 LEGACY pin below (kept for history).
+# Trigger: garage wAP ac declared DEAD 2026-08-24 (hardware fault; diagnosis in
+# docs/network-migration-inventory.md) — resolves the legacy pin's condition ②.
+# Conditions attached to this flavor:
+#   ① dnevna swap executes per owner plan 2026-08-23 (spare hAP ac² takes the
+#     dnevna slot, classic MIPSBE unit retires) — NO MIPSBE device may remain
+#     in the managed fleet;
+#   ② garage replacement hardware must be wifi-qcom-ac-capable.
+#
+# --- HISTORY: FLAVOR DECIDED 2026-08-23: LEGACY `wireless` CAPsMAN for the whole fleet.
 # Reason: flavors cannot mix across a managed fleet, and two of four APs are
 # permanently incompatible with the new wifi-qcom-ac package per MikroTik's
 # official compatibility table (manual.mikrotik.com/docs/wireless/wifi):
@@ -20,8 +30,11 @@
 # prep session, against the live manager, then remove the assert gate.
 #
 # DESIGN (agreed HD-228 session):
-#   - Manager = RB4011 (legacy wireless pkg); APs join as CAPs — ap_initial.rsc.j2
-#     already ships `/interface wireless cap set enabled=yes`.
+#   - Manager = RB4011 (HD-232: runs `wifi-qcom-ac` pkg as manager — radios not
+#     required); APs join as CAPs via `/interface/wifi cap` — ap_initial.rsc.j2
+#     still ships LEGACY `/interface wireless cap set enabled=yes` and MUST be
+#     rewritten to the modern syntax during cutover prep (stale until HD-232
+#     implementation).
 #   - Per-SSID objects, all IaC-owned via api_modify (paths under /interface/wireless):
 #       1. security-profiles   — one per SSID; mode=dynamic-keys,
 #                                authentication-types=wpa2-psk,
@@ -40,6 +53,11 @@
 #                                legacy-CAPsMAN mechanism when
 #                                local-forwarding=no tunnels traffic to the
 #                                manager). Ordered; keep default-deny tail.
+#                                HD-232 DELTA: under modern wifi-qcom-ac VLAN
+#                                tagging moves into the configuration object
+#                                (datapath VLAN tagging) instead of access-list
+#                                — exact field set validated LIVE at
+#                                implementation, nothing shipped speculatively.
 #       4. provisioning        — minimal rule(s): action=create-dynamic-enabled,
 #                                master-configuration=cfg-kogler,
 #                                slave-configurations=<the other four>; refine
