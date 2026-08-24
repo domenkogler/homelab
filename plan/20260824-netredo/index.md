@@ -16,7 +16,7 @@ Renovate re-enable = file-edit only (other session runs playbooks) · headplane/
 | 4 | Conflict cleanup (HD-207 dup, AP-dnevna dup, todo §1 stale, deploy-gated trim) | curated todo/changelog/inventory | 2 | ⬜ (AP-dnevna dup part done in R-1) |
 | 5 | Renovate re-enable (file-edit only, no playbook) | flip flag + deployment-renovate.md refresh | 2 | ✅ committed `c845d58` (flip enabled + RENOVATE_REPOSITORIES=domen/test temporary; other session runs playbook) |
 | 6 | Migration-inventory refresh (read-only live probes) | updated inventory + unknowns | 3 | ⬜ |
-| 8 | CAPsMAN-wifi-qcom plan (rsc + retire wAP + docs + hw gate) | rsc templates + render playbook + docs | 4 | 🔄 worker dispatched `f0fb67dc` (authoring only, deploy human-gated) |
+| 8 | CAPsMAN-wifi-qcom plan (rsc + retire wAP + docs + hw gate) | rsc templates + render playbook + docs | 4 | ✅ committed `7a6e504` (authoring only; NO deploy — human-gated at cutover) |
 
 ## Validation convention
 9P gate before any playbook (none run here). Validators/`$?` bare (pipe-masking law).
