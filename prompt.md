@@ -1,18 +1,17 @@
-# prompt.md — Deployment Execution Handoff #13 — HD-237 handler-tag sweep CLOSED ✅ + HD-236 residual ② live-closed ✅; blueprint one-shot mechanism proven
+# prompt.md — Deployment Execution Handoff #14 — HD-57 finance stack IaC landed (stable pin + n8n EB bridge) + 4 decisions recorded; HD-238 registered
 
-> **Role:** Entry point for the next session. This session (2026-08-24, late night) executed the
-> flagged small-batch candidate as **HD-237**: every role handler now carries `tags: always`
-> (22/22 across 9 roles), so surgical `--tags` runs can no longer silently drop a notified
-> handler (`docker_services` `reload systemd` was the live-risk instance). IaC-only — no
-> converge needed (handler definitions are controller-side). In the same session, **HD-236
-> deploy-gated residual ② was closed by read-only live probe** (opencloud effective runtime env
-> reads `COLLABORATION_APP_INSECURE=false` = IaC value) and the **HD-230b blueprint one-shot
-> mechanism was proven end-to-end server-side** (`headscale` provider carries the HD-233
-> `/admin/oidc/callback` redirect → `ks-oidc.yml` content applied; note `custom BlueprintInstances:
-> 0` is the KNOWN discovery gap, not a failure signal). **Linked from:** [README.md](README.md) §2 ·
-> journal: [deployment-journal.md](deployment-journal.md) HD-237 + residual-probe entries ·
-> changelog rows **HD-237** + **HD-236 R1**. Owning doc touched:
-> [docs/deployment-ansible.md](docs/deployment-ansible.md) (handler gotcha bullet → fixed invariant).
+> **Role:** Entry point for the next session. This session (2026-08-24, late night) executed **HD-57**
+> Stage 1→8: new `docker_services/actual-budget/` compose template (`actualbudget/actual-server`,
+> stable pin `26.8.1` registry-verified) + `home_servers.yml` registry entry + `versions.yml` pin,
+> with four dated decisions recorded in [docs/services-finance.md](docs/services-finance.md):
+> ① placement **oldsrv** (internal-only P+I; n8n/LiteLLM stay VPS-side over WG S2S), ② bank sync =
+> **stable image + n8n Enable-Banking bridge** (nightly/native-sync rejected under §7 pin law),
+> ③ credit card = monthly manual CSV first, ④ **seed-before-sync**. Stale AI path corrected to the
+> LiteLLM spine (nothing targets Ollama directly — HD-59); API leg :5006 bound to `oldsrv_home_ip`
+> (immich-ml precedent). Phase-3 ledger wired into deployment-tasks.md; validator got an
+> `oldsrv_home_ip` mock + `actual-budget` in WEB_SERVICES. New **HD-238** (oldsrv→VPS DR runbook for
+> non-GPU services) registered from the placement discussion. **Linked from:** [README.md](README.md)
+> §2 · changelog row **HD-57** · owning doc: [docs/services-finance.md](docs/services-finance.md).
 
 ---
 
@@ -45,17 +44,18 @@
 
 ## 2. State snapshot (end of session)
 
-- **main == origin/main** @ handoff #13 closing commit (worktree `homelab-wt-2026-08-24-2155`
-  merged back green; branch `keep/handler-tags-hd237` deleted post-merge).
-- Closed tonight: **HD-237** (handler-tag sweep; validate-all green + WSL syntax-check on
-  vps.yml/home_servers.yml after 9P gate EQUAL) · **HD-236 residual ②** (live probe, see header).
+- **main == origin/main? verify at close** @ handoff #14 closing commit (worktree
+  `homelab-wt-2026-08-24-2235` merged back green).
+- Closed this session: **HD-57 Stage 8/10** (IaC + decisions; validate-all green; ⏳ tail = human
+  tokens/EB app, n8n workflows at Phase 1, AllowedIPs scope, first deploy + live verify at Phase 3).
+  Registered: **HD-238** (oldsrv→VPS DR runbook, todo §2.9).
 - **Still open at next converge (ride-along checks, no standalone session needed):**
   ① zero spurious restarts on unchanged extras / exactly one per changed extra (HD-236 guard);
   ② direct per-run proof that `apply-authentik-blueprints.yml` fired green (task output shows
   `== applying … ==` + Applied markers; content-side already proven server-side).
 - **Flagged candidates for the NEXT small batch:** none new — the tagged-handler gap is closed.
   Remaining queue below is owner-chase + converge-ride-along only.
-- **ID registry:** next free = **HD-238** (max(changelog)=HD-237; re-derive at write time per
+- **ID registry:** next free = **HD-239** (max(changelog)=HD-238; re-derive at write time per
   CONVENTIONS §1 — never re-type this pointer).
 - **Coordination:** do NOT touch headplane/headscale (separate lane). Primary checkout owns main.
 
@@ -75,6 +75,8 @@
   swaps + capsman rsc — garage wAP ac declared dead HD-232).
 
 ### 3b. Remaining engineering queue
+- **HD-238** oldsrv→VPS DR runbook for non-GPU services (todo §2.9) — laptop-doable authoring task;
+  pairs naturally with the next backup.md touch.
 - **Converge ride-along checks (fold into any upcoming docker_services converge):**
   observe residual ① (extras restart guard behavior) + confirm blueprint one-shot task output
   green in the same run; journal both, then trim the ⏳ tails in changelog HD-236 row history via

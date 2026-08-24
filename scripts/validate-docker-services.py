@@ -85,6 +85,7 @@ WEB_SERVICES = {
     "stirling-pdf",
     "open-webui",
     "technitium", "pihole", "n8n",
+    "actual-budget",   # budget.kogler.si UI + :5006 API leg over WG (HD-57)
     "chat",
     "onlyoffice-docs",
 }
@@ -167,6 +168,9 @@ BASE_CTX.update({
     # from `oldsrv_home_ip`; mocked here with the same Home-IP value.
     "immich_ml_bind": "10.10.1.30",
     "immich_ml_url": "http://10.10.1.30:3003",
+    # oldsrv Home-VLAN IP (group_vars/all/main.yml, derived from network_static_hosts) —
+    # consumed by actual-budget's :5006 API-leg bind (HD-57); same Home-IP mock class.
+    "oldsrv_home_ip": "10.10.1.30",
     # WG S2S peer (HD-155/191) — dict var in all.yml is Jinja-valued, so it stays
     # a mock; values mirror the documented /30 (VPS .2). Consumed by the kopia-server
     # WG-bound publish guard + the kopia-agent server address.

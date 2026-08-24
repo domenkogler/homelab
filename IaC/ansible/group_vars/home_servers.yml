@@ -96,6 +96,11 @@ docker_services:
   - { name: profilarr,    template_dir: profilarr }
   - { name: recyclarr,    template_dir: recyclarr }                          # scheduled worker, no UI
 
+  # --- Finance: Actual Budget (HD-57, decision 2026-08-24) — internal-only P+I;
+  #     stable pin + n8n EB bridge (docs/services-finance.md). API leg :5006 published
+  #     on oldsrv_home_ip for n8n over WG (immich-ml precedent).
+  - { name: actual-budget,   template_dir: actual-budget }
+
   # --- Backup: off-site agent (HD-191) — client of kopia-server on the VPS ---
   # Snapshots oldsrv-LOCAL state (configs, dumps scratch, thumbs, signal state) to
   # the Hetzner backup Box via kopia-server over the WG S2S tunnel. Never reads NAS

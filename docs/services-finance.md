@@ -15,9 +15,13 @@ tags: [services, finance, budget, banking, investing]
 > **Linked from:** `index.md`, `services.md`
 
 > 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Actual Budget + Enable Banking are designed but **not live**
-> (tracked HD-57, Stage 1/10); the manual-import plan assumes Ollama is up (Phase 3). This doc is the
-> authoring spec for the IaC (`docker_services` templates + `group_vars/home_servers.yml`) and the
+> (tracked HD-57, Stage 3/10); compose template + group_vars registry landed 2026-08-24. This doc is the
+> authoring spec for the IaC (`docker_services/actual-budget/` + `group_vars/home_servers.yml`) and the
 > network/DNS records.
+>
+> **Placement (decision 2026-08-24): oldsrv**, internal-only P+I — same plane as the media stack.
+> If oldsrv is ever disposed, non-GPU state restores from Kopia/NAS backups onto any Docker host
+> (see [backup.md](backup.md)); a dedicated oldsrv→VPS DR runbook is tracked in todo.md.
 
 ---
 
@@ -73,7 +77,7 @@ by Actual's built-in bank-sync.
 
 | Account | Type | Automation method | Schedule | Automatic? |
 |---------|------|-------------------|----------|------------|
-| **UniCredit SI (current)** | Checking | **Enable Banking** (native Actual sync) | Daily | ✅ Yes |
+| **UniCredit SI (current)** | Checking | **Enable Banking API → n8n bridge → Actual API** (decision 2026-08-24: stable image — NOT the nightly/native-sync build) | Daily | ✅ Yes |
 | **Wise** | Multi-currency | **Wise API** → n8n → Actual API | Daily | ✅ Yes (API token needed) |
 | **Trade Republic (cash)** | Cash/broker | **CSV export** (TR in-app "Transactions Export") → drop in watched folder → n8n → Actual API | Monthly manual | ⚠️ Manual CSV drop |
 | **MC World Elite (UniCredit)** | Credit card | **CSV export** (UniCredit online banking) → n8n → Actual API | Monthly manual | ⚠️ Manual CSV drop |
@@ -108,15 +112,16 @@ discontinued free personal sign-ups). It is **free for personal use**.
 |------|-------------|-------------|------------|-----------|--------|
 | UniCredit Bank Slovenia (UNICREDIT BANKA SLOVENIJA d.d.) | SI5446546 | ✅ | ✅ | ✅ Personal + Business | Confirmed supported |
 
-**Actual Budget integration:**
-1. Actual must run a **nightly build** (Enable Banking sync is experimental).
-2. Go to *More → Bank Sync → Set up Enable Banking* → paste App ID + upload credential file.
-3. Per account: *Edit account → Link account → Enable Banking* → select country/bank → PSD2 auth flow.
-
-**Risk:** Experimental feature — may have bugs or be removed in a future release. Monitor
-[Actual Budget's Enable Banking docs](https://actualbudget.org/docs/advanced/bank-sync/enable-banking/)
-for stability announcements. Fallback: n8n can poll Enable Banking's API directly and push to Actual
-via its HTTP API if native sync is unavailable.
+**Integration (bridge mode, decision 2026-08-24):**
+1. Create the Enable Banking application (Production mode, name `Actualbudget`) — the App ID +
+   credential file authorize the **n8n** workflows; they live in an n8n credential, not in Actual.
+2. n8n polls EB daily (`GET /api/accounts/{id}/transactions`) and pushes new transactions into Actual
+   via its HTTP API (`X-ACTUAL-TOKEN`, credentials `actual-budget_login`).
+3. Native Actual↔EB sync (`More → Bank Sync`) stays **unused**: it exists only on the `nightly` line,
+   which violates the pin-semver law (§7). Re-evaluate only if upstream ships EB sync in a stable
+   release, with a new dated decision.
+4. Redirect URL: set it to a page we control (e.g. `https://budget.kogler.si/eb-callback`); verify the
+   Traefik route + wildcard cert cover it before creating the EB application.
 
 ### Wise API — n8n workflow
 
@@ -168,42 +173,36 @@ remains the reconciliation anchor. This is a **post-deploy enhancement**, not in
 ## Data Flow
 
 ```
-                        ┌────────────────── LAN (internal) ─────────────────┐
-                        │                                                     │
-UniCredit SI (current) ─▶ Enable Banking (native Actual sync) ───────────────▶│
-Wise                   ─▶ Wise API ─▶ n8n ─▶ Actual Budget HTTP API ─────────▶│
-TR (cash + ETFs)       ─▶ CSV export (manual) ─▶ watched folder ─▶ n8n ─────▶│  Actual Budget
-IBKR (ETFs)            ─▶ Flex Query (auto) ─▶ n8n ──────────────────────────▶│  (budget.kogler.si)
-MC World Elite (card)  ─▶ CSV export (manual) ─▶ watched folder ─▶ n8n ─────▶│
-                        │                              ▲                      │
-                        │              ┌───────────────┴────┐                │
-                        │              │  Ollama (existing) │                │
-                        │              │  AI categorization │                │
-                        │              └────────────────────┘                │
-                        │                              │                    │
-                        │   n8n calls Actual AI copilot │                    │
-                        │   → Ollama OpenAI endpoint    │                    │
-                        │   → tags new transactions     │                    │
-                        └─────────────────────────────────────────────────────┘
+                  ┌─────────────────── VPS (public edge) ───────────────────┐
+UniCredit SI ──▶ Enable Banking API ──┐                                      │
+Wise ──────────▶ Wise API ────────────┤                                       │
+IBKR (ETFs) ───▶ Flex Query (auto) ───┤   n8n                                 │
+TR / MC card ──▶ CSV export (manual) ─▶ watched folder                        │
+                                      │                                       │
+                                      ▼                                       │
+                          Actual HTTP API :5006 over WG S2S                   │
+                          (X-ACTUAL-TOKEN, actual-budget_login)               │
+                                      │                                       ▼
+                                      ├───────────────────────────▶ Actual Budget
+                                      │                            oldsrv · budget.kogler.si
+                      uncategorized   │                            (LAN internal)
+                          txns        ▼
+                          LLM node → LiteLLM spine (VPS) ── WG S2S ──▶ Ollama
+                          categories written back via Actual API
 ```
 
-### AI Categorization via local Ollama
+### AI Categorization via local Ollama (LiteLLM spine)
 
-Actual Budget supports **rules-based auto-categorization** built-in. For transactions that don't match
-a rule, a community AI copilot tool (compatible with Actual's API) can be configured to use an
-**OpenAI-compatible endpoint** — i.e., `http://ollama:11434/v1` on the `services-internal` network.
-
-**How it works:**
-1. n8n (or a scheduled script) fetches uncleared transactions from Actual via its API.
-2. For each unmapped payee, sends a prompt to Ollama: *"Categorize merchant 'X': Groceries, Dining,
-   Transport, Utilities, Shopping, Entertainment, Health, Income, or Transfer? Reply one word."*
-3. Writes the category back to Actual via API.
+Categorization runs inside each import workflow in **n8n**: unmapped payees go to an LLM node pointed
+at the **LiteLLM spine** on the VPS (`llm-backend` isolation means nothing targets Ollama directly —
+HD-59); LiteLLM routes to Ollama on the RX 7600 (small model like `llama3.2:3b`). The category is
+written back to Actual via its API. No extra copilot container is onboarded — the earlier "community
+AI copilot tool" idea is superseded by this n8n-native loop (decision 2026-08-24).
 
 **No extra GPU cost:** Ollama runs on the existing AMD RX 7600 (8 GB VRAM), shared with Qwen/Llama
 for office LLM use. A small model like `llama3.2:3b` or `qwen2.5:7b` handles category inference in
 fractions of a second per transaction.
 
----
 
 ## Decisions
 
@@ -236,16 +235,43 @@ TradeSight (kalix127/tradesight) converts TR PDF statements to CSV via Ollama vi
 provides a native structured **CSV/Excel export** ("Transactions Export"), TradeSight is unnecessary.
 **Decision:** skip.
 
+### Stable pinned image + n8n EB bridge (nightly rejected)
+
+*Decision 2026-08-24 (HD-57).* The native Actual↔Enable Banking sync exists only on the `nightly`
+image line, which violates the pin-semver law (§7 — mutable tag, no Renovate semver trail, silent
+class of breakage). **Decision:** `actual_budget_version` stays a registry-verified stable calver pin;
+UniCredit sync runs as an n8n workflow polling the Enable Banking API and pushing into Actual's HTTP
+API. Re-evaluate only when upstream ships EB sync in a stable release.
+
+### Placement: oldsrv (not VPS)
+
+*Decision 2026-08-24 (HD-57).* Actual Budget is internal-only P+I; financial data stays on the LAN
+plane with the media stack, backed up to NAS + Kopia off-site. The VPS hosts only the pipeline brain
+(n8n + LiteLLM), which reaches Actual over the WG S2S tunnel (:5006 bound to `oldsrv_home_ip`,
+immich-ml precedent). If oldsrv is disposed, non-GPU state restores from backups onto any Docker host.
+
+### Credit card: manual CSV first; SMS/email parsing deferred
+
+*Decision 2026-08-24 (HD-57).* Phase-1 ingest for the MC World Elite is monthly manual CSV only.
+Email-alert → mailbox automation is investigated post-deploy; SMS-forwarder is last resort.
+
+### Seed before sync
+
+*Decision 2026-08-24 (HD-57).* Starting balances and existing IBKR/TR positions are entered manually
+BEFORE any auto-sync is enabled; sources come online one at a time (EB → Wise → Flex) with dedup
+checks after each.
+
 ---
 
 ## Backup
 
 | Data | Method | Schedule |
 |------|--------|----------|
-| Actual Budget SQLite DB | Actual built-in backup (export) → NAS dataset + Kopia off-site | Daily |
+| Actual Budget state (`/srv/docker/actual-budget/data` — SQLite + user files + built-in backups) | kopia-agent snapshot (oldsrv-local path) → kopia-server → Hetzner backup Box | Daily |
 | Enable Banking credentials | 1Password `Homelab-ansible` vault | — |
 | Wise API token | 1Password `Homelab-ansible` vault | — |
 | IBKR Flex Query token | 1Password `Homelab-ansible` vault | — |
+| Actual login (`actual-budget_login`) | 1Password `Homelab-ansible` vault | — |
 | n8n workflow definitions | Git repo (this repo, `IaC/`) | On commit |
 
 Actual's backup export includes all accounts, transactions, categories, and rules. See
@@ -265,19 +291,22 @@ Actual's backup export includes all accounts, transactions, categories, and rule
 
 ---
 
-## Open Questions (pre-deploy)
+## Open Questions (pre-deploy — remaining human steps)
 
-- [ ] Verify Enable Banking redirect URL requires `https://budget.kogler.si` — confirm Traefik route
-      and wildcard cert cover this subdomain before configuring the EB application.
+Decided 2026-08-24: stable+n8n bridge (not nightly), oldsrv placement, CSV-first card, seed-before-sync.
+Remaining before/at first deploy:
+
+- [ ] Verify the wildcard cert + Traefik route cover `budget.kogler.si` (and the EB callback path)
+      before creating the EB application.
+- [ ] Create the Enable Banking application (Production, `Actualbudget`) and store App ID + credential
+      file in 1Password.
 - [ ] Generate Wise API token (personal, read-only) for the n8n workflow.
 - [ ] Set up IBKR Flex Query in Account Management → Reports → Flex Queries and obtain the token URL.
+- [ ] Create the `actual-budget_login` 1Password item (human-side ref — consumed at n8n setup, not by
+      Ansible).
 - [ ] Confirm whether UniCredit SI online banking allows **email transaction alerts** for the
       Mastercard World Elite (preferred over SMS for n8n automation). If yes, set up a dedicated
       mailbox for the alerts.
-- [ ] Decide whether to use `actualbudget/actual-server:nightly` for Enable Banking support, or
-      use a stable build + custom n8n bridge.
-- [ ] Initial capital base: manually enter existing IBKR + TR ETF positions and actual budget
-      starting balances before enabling auto-sync.
 
 ---
 

@@ -76,6 +76,13 @@ renovate_version: "35.10.0"                # ghcr.io/renovatebot/renovate — GH
 element_web_version: "v1.11.96"            # ghcr.io/element-hq/element-web (vectorim org is GONE —
                                            # DENIED on probe 2026-08-21; template re-pointed)
 
+# ==== Finance ====
+# Actual Budget (actualbudget/actual-server) image tag — internal finance stack (HD-57).
+# Calver semver, registry-verified 2026-08-24 via Docker Hub API (latest stable; the
+# `nightly` line that carries native Enable Banking sync is deliberately NOT used —
+# decision 2026-08-24: stable pin + n8n EB-API bridge, per §7 pin law). Renovate tracks.
+actual_budget_version: "26.8.1"
+
 # ==== gluetun sidecar (qbittorrent VPN) ====
 # The qm12/gluetun fork referenced before HD-192 NO LONGER EXISTS on Docker Hub
 # ("object not found", probe 2026-08-21). Re-pointed to upstream qmcgaw/gluetun;

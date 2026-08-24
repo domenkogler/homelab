@@ -304,6 +304,7 @@
 - `ha_api` (api→`credential`), `ha-vrrp_password` (password→`password`)
 - `headscale_api` (api→`credential`) — OIDC client secret
 - `signal_api` (api; `username`=phone, `credential`=captcha) — signal-cli-rest-api
+- `actual-budget_login` (login→`password`) — Actual Budget admin (n8n API-leg credential; human-side ref)
 
 **Verify:**
 - `docker compose ps` for every service is healthy; `systemctl status docker-compose@<service>`.
@@ -324,6 +325,7 @@
 - **HD-122** — Matrix federation hardening live-verify that profile endpoints require auth at first deploy. · [services-matrix.md](docs/services-matrix.md)
 - **HD-59** — internal service auth: `kopia-server-internal_api` + `prometheus-internal_api` 1Password items; wire consumers. · [deployment-compose.md](docs/deployment-compose.md)
 - **HD-160** — services-internal sibling auth: create `immich-ml-internal_api` + `openclaw-opencloud_api` 1Password items; verify Immich v3 ML-auth env names + `openclaw onboard` + WebDAV round-trip; Ollama stays isolated on `llm-backend`. · [deployment-compose.md](docs/deployment-compose.md)
+- **HD-57** — Finance stack live: `actual-budget` healthy on oldsrv; `budget.kogler.si` behind Forward-Auth; :5006 API leg bound to `oldsrv_home_ip` reachable from n8n over WG (AllowedIPs scoped); seed starting balances → enable EB/Wise/Flex one-by-one with dedup checks. · [services-finance.md](docs/services-finance.md)
 - **HD-43** — Media `*arr` stack Stage: 4/10; deploy + verify on oldsrv bulk/media NFS. · [services.md](docs/services.md)
 - **HD-44** — ops services (`dozzle`, `traefik-ha` VIP edge) Stage: 3/10; deploy + verify. · [services.md](docs/services.md)
 - **HD-128** — at first pool create on oldsrv, fill the REAL `/dev/disk/by-id/nvme-…` into `storage_nvme_data_by_id` (read from the deployed host); unblocks immich/opencloud db-backup (KOPS-026). · [hardware-oldsrv.md](docs/hardware-oldsrv.md), [storage.md](docs/storage.md)

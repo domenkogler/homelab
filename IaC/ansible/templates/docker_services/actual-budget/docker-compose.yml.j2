@@ -1,0 +1,59 @@
+# actual-budget docker-compose.yml — Personal finance / budgeting (budget.kogler.si)
+#   Actual Budget (Node.js + SQLite, one container) — docs/services-finance.md (HD-57).
+#
+#   Placement (decision 2026-08-24): OLDSRV — internal-only P+I service; financial data
+#   stays on the LAN (no public DNS record, WAN-blocked; same posture as *arr/Grafana).
+#   Auth: Authentik Forward-Auth at the edge (human UI). No native OIDC needed.
+#
+#   Bank sync (decision 2026-08-24): STABLE pinned image + n8n Enable-Banking bridge —
+#   NOT the nightly/native-sync build (violates the pin-semver law §7). n8n (VPS) polls
+#   the Enable Banking API and pushes transactions into Actual's HTTP API; Wise API +
+#   IBKR Flex Query flows are n8n-native. Credit card + TR stay manual CSV (HD-57).
+#
+#   Cross-host API leg (immich-ml precedent HD-184): :5006 is published ONLY on oldsrv's
+#   Home-VLAN address (SSOT `oldsrv_home_ip`) so n8n on the VPS can reach the API over
+#   the WG S2S tunnel; reach is scoped by WG AllowedIPs + RouterOS ACL (HD-155).
+#   Auth on this leg = Actual's native login → X-ACTUAL-TOKEN (credentials in 1Password
+#   `actual-budget_login`, human-side ref — not Ansible-consumed).
+#
+#   AI categorization: via the LiteLLM spine on the VPS over WG — NEVER direct to
+#   ollama (`llm-backend` is deliberately isolated, LiteLLM-only, HD-59). The
+#   categorization loop runs as an n8n workflow (LLM node → LiteLLM → Ollama), so no
+#   extra copilot container is onboarded.
+#
+#   State: host bind mount under /srv/docker (kopia-agent snapshot scope, backup.md);
+#   Actual's built-in scheduled backups land in the same dir. Secrets via 1Password at
+#   render: NONE required by the container itself.
+services:
+  actual-budget:
+    image: actualbudget/actual-server:{{ actual_budget_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: actual-budget
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - services-internal
+    ports:
+      # API leg for n8n (VPS) over WG S2S — bound to the Home-VLAN address, not 0.0.0.0;
+      # inside the overlay consumers use http://actual-budget:5006 (services-internal).
+      - "{{ oldsrv_home_ip }}:5006:5006"
+    volumes:
+      - /srv/docker/actual-budget/data:/app/data   # SQLite DB + user files + built-in backups
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.actual-budget.rule: "Host(`budget.kogler.si`)"
+      traefik.http.routers.actual-budget.entrypoints: websecure
+      {{ 'traefik.http.routers.actual-budget.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      traefik.http.routers.actual-budget.middlewares: authentik-forward-auth@file
+      traefik.http.services.actual-budget.loadbalancer.server.port: "5006"
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true
