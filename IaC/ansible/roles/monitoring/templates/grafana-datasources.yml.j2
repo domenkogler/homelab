@@ -11,6 +11,10 @@ datasources:
     type: prometheus
     access: proxy
     url: http://prometheus:9090
+    # HD-240 (2026-08-24): without this flag grafana NEVER SENDS the basic-auth header
+    # (queries go out anonymously -> prometheus 401) even with user+password set below.
+    # Wire-capture proof: health-check POST /api/v1/query carried no Authorization header.
+    basicAuth: true
     # HD-59 completion (gap found live 2026-08-23): prometheus enforces basic auth via
     # --web.config.file, but this datasource shipped WITHOUT credentials -> every grafana
     # query/alert rule 401-ed since first deploy. Same vault item prometheus-web-config
