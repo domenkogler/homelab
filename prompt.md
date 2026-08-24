@@ -12,6 +12,10 @@
 > Verified live: forged-header rejection (**HD-190 deploy-gate CLOSED**), ds-health 200, real
 > query data through proxy, zero eval errors. ⏳ One owner step left: logged-in browser click
 > sso → stats must land IN Grafana.
+> **Late addition (2026-08-25, separate mini-session):** HD-101 Open WebUI OIDC root cause FIXED
+> (invented `ENABLE_OIDC`/`OIDC_*` env names never read by the app → template reworked to real
+> `OPENID_PROVIDER_URL`/`OAUTH_CLIENT_*` + signup posture hardening; changelog row + todo tail
+> updated). ⏳ Rides the NEXT converge: see §3a/§3b "HD-101 verify".
 > **Linked from:** [README.md](README.md) §2 · owning doc:
 > [docs/observability.md](docs/observability.md) (new *Access & login path* section) ·
 > changelog row **HD-240** · journal entry 2026-08-24/25 Phase 1.
@@ -62,7 +66,10 @@
   `metabase-forgejo_ro` vault item), LDAP option parked; ⏳ converge-gated tails in todo §2.4.
 - **Still open at next converge (ride-along checks, no standalone session needed):**
   ① zero spurious restarts on unchanged extras / exactly one per changed extra (HD-236 guard);
-  ② direct per-run proof that `apply-authentik-blueprints.yml` fired green.
+  ② direct per-run proof that `apply-authentik-blueprints.yml` fired green;
+  ③ open-webui container RECREATED with the corrected OIDC env (HD-101 template fix — verify
+  `docker exec open-webui printenv OPENID_PROVIDER_URL` non-empty post-up), then walk §3a HD-101
+  verify.
 - **ID registry:** next free = **HD-244** (max(changelog)=HD-243; re-derive at write time per
   CONVENTIONS §1 — never re-type this pointer).
 - **Coordination:** do NOT touch headplane/headscale (separate lane). Primary checkout owns main.
@@ -74,6 +81,11 @@
   in the Grafana UI (not the logo-only `/login`). If it still bounces: check grafana logs for
   `auth.proxy` lines, confirm edge IP still `.2`, confirm the `domen` user exists
   (`GET /api/users` via break-glass). Then trim the HD-240 ⏳ tail + delete the todo row.
+- **NEW — HD-101 verify (after the open-webui template fix converges):** ① "Continue with
+  Authentik" button renders on ai.kogler.si ② owner SSO round-trip LINKS the existing local
+  admin by email (`OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true` — no duplicate account) ③ family-side
+  sanity: local signup rejected, SSO-created accounts land `pending` ④ LiteLLM completion test
+  + RAG verify → trim the HD-101 ⏳ tail + changelog close-out.
 - **PRIORITY — HD-211 rotation batch grew:** `prometheus-internal_api` password was exposed into
   an agent transcript TWICE now (2026-08-23 probe + 2026-08-24 quoting failure). Rotation is
   trivial post-HD-240: rotate the vault item → re-run `--tags monitoring` (API seed task only
