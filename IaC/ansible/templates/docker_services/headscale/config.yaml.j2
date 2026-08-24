@@ -22,7 +22,11 @@ database:
 oidc:
   issuer: "https://sso.kogler.si/application/o/headscale/"
   client_id: "{{ lookup('community.general.onepassword', 'headscale_api', field='username', vault=op_vault) }}"
-  client_secret: "{{ lookup('community.general.onepassword', 'headscale_api', field='credential', vault=op_vault) }}"
+  # client_secret may contain : " ' or YAML-special chars (HD-233 lesson: the rotated
+  # headscale_api value broke headscale/headplane on restart) -> block scalar >- is the
+  # YAML-safe default for secrets from 1Password.
+  client_secret: >-
+    {{ lookup('community.general.onepassword', 'headscale_api', field='credential', vault=op_vault) }}
   scope: ["openid", "profile", "email"]
   allowed_domains:
     - kogler.si

@@ -40,7 +40,8 @@ http:
       plugin:
         crowdsec-bouncer:
           lapi_url: http://crowdsec:8080
-          crowdsecLapiKey: "{{ lookup('community.general.onepassword', 'crowdsec-bouncer_api', field='credential', vault=op_vault) }}"
+          crowdsecLapiKey: >-
+            {{ lookup('community.general.onepassword', 'crowdsec-bouncer_api', field='credential', vault=op_vault) }}
           update_interval: 10s
 
     # Authentik Forward-Auth — validates the user session, redirects to

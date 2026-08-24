@@ -96,6 +96,10 @@ entries:
       client_type: confidential
       redirect_uris:
         - {url: "https://vpn.kogler.si/oidc/callback", matching_mode: strict}
+        # HD-233: Headplane admin UI callback — SAME OAuth client as headscale
+        # (upstream SSO requirement: identical client_id). Pin BOTH entries:
+        # blueprint upsert wipes array attrs that are absent (HD-231 lesson).
+        - {url: "https://vpn.kogler.si/admin/oidc/callback", matching_mode: strict}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
       # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
