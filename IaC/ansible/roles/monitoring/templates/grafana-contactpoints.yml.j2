@@ -20,7 +20,8 @@ contactPoints:
           url: "{{ grafana_alert_webhook_url | default('http://n8n:5678/webhook/homelab-alerts') }}"
           httpMethod: POST
           basicAuthUser: grafana
-          basicAuthPassword: "{{ lookup('community.general.onepassword', 'n8n-webhook_api', field='credential', vault=op_vault) }}"
+          basicAuthPassword: >-
+            {{ lookup('community.general.onepassword', 'n8n-webhook_api', field='credential', vault=op_vault) }}
           autoResolve: false
       - uid: smtp-failsafe
         type: email

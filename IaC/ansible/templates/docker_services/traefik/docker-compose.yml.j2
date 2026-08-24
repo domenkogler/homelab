@@ -65,7 +65,11 @@ services:
       - ./certs:/etc/traefik/certs:ro       # synced wildcard pair — consumer default store (HD-181)
 {% endif %}
     networks:
-      - traefik-public
+      traefik-public:
+        # HD-240: pin the edge container IP — header-trust consumers whitelist exact
+        # edge IPs (traefik_edge_ips, HD-190), so a drifted bridge assignment silently
+        # breaks every auth-proxy consumer (grafana 401 -> bare /login, 2026-08-24).
+        ipv4_address: "{{ traefik_edge_ip_pin }}"
     # Dashboard at traefik.kogler.si (behind Forward-Auth, admin only).
     labels:
       traefik.enable: "true"

@@ -11,7 +11,7 @@ tags: [observability, grafana, prometheus, monitoring]
 > **Links to:** `interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`, `services.md`
 > **Linked from:** `index.md`, `interfaces.md`, `services.md`
 
-> 🟢 **Backend live since 2026-08-22** (Phase 1, VPS): prometheus / loki / grafana / blackbox-exporter deployed and converged — grafana↔prometheus auth gap fixed and datasource verified HTTP 200 (HD-220b). ⏳ deploy-gated: oldsrv/Pi **Alloy collectors** (come online with their hosts, Phase 3/4), alerting/contact-point live-verify (HD-08; contactpoint/datasource passwords sit in the HD-211 rotation batch), device-side SNMP enable (HD-03 cutover). Alerting/retention sections below remain the authoring spec for those gated parts.
+> 🟢 **Backend live since 2026-08-22** (Phase 1, VPS): prometheus / loki / grafana / blackbox-exporter deployed and converged — grafana↔prometheus auth gap fixed and datasource verified HTTP 200 (HD-220b); SSO login path repaired 2026-08-24 (edge IP pinned + datasource secret re-applied, HD-240). ⏳ deploy-gated: oldsrv/Pi **Alloy collectors** (come online with their hosts, Phase 3/4), alerting/contact-point live-verify (HD-08; contactpoint/datasource passwords sit in the HD-211 rotation batch), device-side SNMP enable (HD-03 cutover). Alerting/retention sections below remain the authoring spec for those gated parts.
 
 ---
 
@@ -57,6 +57,20 @@ nut_exporter (UPS, on nas) ─────────────────�
 | Router | **n8n** | Alert routing/dedup → Signal/email | `services-internal` | — |
 | Notify | **signal-cli** | Signal delivery (linked device) | `services-internal` (needs internet) | — |
 | Viewer | **Dozzle** | Live per-container log streaming for ALL containers (read-only `docker.sock`); Forward-Auth, internal `logs.kogler.si`; **viewer only — nothing stored** | `traefik-public` | — |
+
+## Access & login path (stats.kogler.si)
+
+Forward-Auth (Traefik chain) gates the route; Grafana then auto-logs-in via `[auth.proxy]`,
+trusting the `X-authentik-email` header ONLY from the pinned Traefik edge IP (`traefik_edge_ip_pin`
+via compose `ipv4_address`, whitelisted through `GF_AUTH_PROXY_WHITELIST` = `traefik_edge_ips`).
+The native login form is disabled (`GF_AUTH_DISABLE_LOGIN_FORM`), so a **logo-only bare `/login`
+page means Grafana rejected proxy auth** — either a whitelist/edge-IP mismatch or no matching user:
+`AUTO_SIGN_UP` is off by design (HD-190), so every user must be mapped explicitly via the
+break-glass admin API before SSO works for them. Two operational caveats learned live (HD-240):
+Docker's dynamic bridge assignment can silently drift the edge IP off the whitelist (pin prevents
+it), and Grafana provisioning does NOT overwrite `secureJsonData` of an EXISTING datasource — a
+rotated datasource password must be re-applied via delete+recreate with the same uid or an API
+update, or queries keep 401-ing despite correct rendered files.
 
 ---
 
