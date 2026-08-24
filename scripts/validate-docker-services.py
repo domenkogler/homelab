@@ -83,6 +83,7 @@ WEB_SERVICES = {
     "dozzle",
     "pairdrop",
     "stirling-pdf",
+    "zipline",
     "open-webui",
     "technitium", "pihole", "n8n",
     "chat",

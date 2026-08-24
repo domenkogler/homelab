@@ -11,7 +11,7 @@ tags: [services, utilities, tools, automation]
 > **Links to:** `services-office.md`, `observability.md`, `services-authentik.md`, `services.md`
 > **Linked from:** `services.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Utility services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Utility services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`. Zipline IaC authored 2026-08-24 (HD-112); its deploy-gate runbook = the compose header checklist.
 
 ---
 
@@ -23,7 +23,7 @@ tags: [services, utilities, tools, automation]
 | signal-cli | — | I | 80–150 / 250 | Signal delivery (linked device, "Homelab Alerts") |
 | PairDrop | pairdrop | P | 100–180 / 300 | **P2P file share** (HD-230, supersedes HD-113) — browser WebRTC "AirDrop-style" transfers; PUBLIC since 2026-08-23 on `pairdrop.kogler.si` + `drop.kogler.si` via crowdsec-only tier (no Forward-Auth), traefik-public-only network isolation, built-in RATE_LIMIT (linuxserver image; no data persisted to disk) |
 | Stirling PDF | pdf | I | 150–400 / 800 | **PDF toolkit** (HD-58) — merge/split/compress/convert/number/OCR (Tesseract `eng+slv`); anonymous mode + Forward-Auth, internal-only; no local online-PDF-editor dependency; **stateless (in-memory, no disk/backup)** |
-| Zipline | bin | P | ~200–350 / 700 (est.) | **Public bin + URL shortener + QR** (HD-112) — v4.7.0 pin, VPS, local datasource; `crowdsec-only` tier; native-OIDC dashboard; guestbin dropzone (no-login uploads, 6h TTL, quota-bounded); ⏳ IaC pending |
+| Zipline | bin | P | ~200–350 / 700 (est.) | **Public bin + URL shortener + QR** (HD-112) — v4.7.0 pin, VPS, local datasource; `crowdsec-only` tier; native-OIDC dashboard; guestbin dropzone (no-login uploads, 6h TTL, quota-bounded); 🟢 IaC done ⏳ deploy-gated |
 
 ## Automation & Alerting
 
@@ -33,7 +33,7 @@ tags: [services, utilities, tools, automation]
 
 ## Zipline — public bin & shortener (HD-112)
 
-> 🟡 **Decided 2026-08-24 — IaC NOT yet authored, nothing deployed (⏳).** Full decision record: [changelog.md](../changelog.md) (HD-112). Design source-verified against Zipline v4.7.0.
+> 🟢 **Decided + IaC authored 2026-08-24 — nothing deployed yet (⏳ deploy-gated).** Full decision record: [changelog.md](../changelog.md) (HD-112). Design source-verified against Zipline v4.7.0. Deploy-gate steps live in the compose header (`docker_services/zipline/docker-compose.yml.j2`).
 
 **Purpose:** public temporary file bin (phone↔PC transfers via short link), URL shortener + QR codes; private persistent storage secondary (OpenCloud stays the family file cloud).
 
@@ -45,6 +45,7 @@ tags: [services, utilities, tools, automation]
 - **No content blockers:** global type/extension blocklists stay EMPTY (owner stores executables privately); `FILES_MAX_FILE_SIZE` generous — the public side is bounded by guestbin quota + 6h TTL + rate limit + CrowdSec, not by caps. Accepted residual risk: the bin can briefly host arbitrary files ≤ quota within TTL.
 - **Backup split:** ephemeral dropzone volume EXCLUDED from Kopia (expires in 6h by design); persistent private-account data included (storage/backup rows land with the IaC change).
 - **Phase 2 (deferred):** `/drop` static glue page via a higher-priority Traefik router (`PathPrefix(/drop) && Host(bin.kogler.si)` → static files, catch-all → Zipline) — same-origin API calls, no CORS, token in localStorage.
+- **Storage & data location (§5 step 6.5):** datasource = `/srv/docker/zipline/uploads` on **VPS NVMe** (ephemeral guest drops + private files); Postgres metadata at `/srv/docker/zipline/postgres`. Uploads tree is **excluded from Kopia** ([backup.md](backup.md)); DB dumped via `db-backup` DB05.
 - **Runtime tuning:** quota, size cap, expiry defaults, rate limits are all Server-Settings-editable post-deploy — starting values are non-binding.
 
 ## Related

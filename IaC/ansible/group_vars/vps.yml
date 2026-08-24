@@ -51,6 +51,10 @@ docker_services:
       db_role_sync: true, db_item: immich_db, db_pg_container: immich-postgres }
   - { name: forgejo,        template_dir: forgejo,   subdomain: git, enabled: true,   # + bundled db
       db_role_sync: true, db_item: forgejo_db, db_pg_container: forgejo-db }
+  # PUBLIC bin/shortener/QR (HD-112): crowdsec-only tier, native-OIDC dashboard,
+  # guestbin dropzone seeded post-deploy (compose header = deploy-gate runbook).
+  - { name: zipline,        template_dir: zipline,   subdomain: bin, enabled: true,
+      db_role_sync: true, db_item: zipline_db, db_pg_container: zipline-db }
   # === AI stack (public/gateway tier — HD-100..104) ===
   - { name: litellm,        template_dir: litellm,   enabled: true }  # llm-backend -> oldsrv ollama over WG
   - { name: pgvector,       template_dir: pgvector,  enabled: true,  # RAG vector store (db-internal)
