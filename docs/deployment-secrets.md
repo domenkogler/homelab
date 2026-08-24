@@ -114,8 +114,10 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 >
 > Scope: required for any file the consuming app parses as structured config (YAML/TOML/JSON) and the
 > value is a 1Password secret — e.g. `headscale/config.yaml`, `headplane` config, `prometheus-web-config`,
-> a Blueprint, `recyclarr.yml`. Docker `env:` strings and shell scripts stay inline-quoted (not YAML-parsed
-> by the app) — but when in doubt use `>-`. **TOML:** has no `>-`; use a basic string with Jinja escaping
+> a Blueprint, `recyclarr.yml`. Shell scripts stay inline-quoted (never YAML-parsed). Rendered
+> **compose files are still YAML** — `docker compose` parses them at deploy — so 1P-sourced
+> `env:` values use `>-` there TOO (HD-166: a `"` in the value breaks the entire rendered file;
+> plain non-secret env strings stay quoted). **TOML:** has no `>-`; use a basic string with Jinja escaping
 > (`| replace('\\','\\\\') | replace('"','\\"')`) so a value containing `"` or `\` still parses
 > (`tuwunel.toml` precedent). Validators: `validate-docker-services.py` mocks lookups, so
 > it does not catch a secret-as-inline-quote; the audit is `grep` across `templates/**/*.j2` for
