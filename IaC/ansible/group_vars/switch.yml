@@ -54,16 +54,16 @@ switch_port_map:
     poe: false
     mac: "00:20:85:C0:92:FA"
 
-  # NAS eno1
+  # NAS eno1 (Home VLAN 10 per R-1 reconciliation)
   nas-eno1:
     port: ether10
-    vlan: 
+    vlan: 10
     poe: false
     mac: "1C:98:EC:0E:0D:38"
-  # NAS eno1
+  # NAS eno2
   nas-eno2:
     port: ether9 
-    vlan: 
+    vlan: 10
     poe: false
     mac: "1C:98:EC:0E:0D:39"
 

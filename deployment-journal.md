@@ -774,8 +774,17 @@
 - Switch-port finding deferred to R-2 (below): `nvidia-shield` MAC `48:B0:2D:09:6F:90` conflicts with the
   inventory ⚠ unknown; Nintendo Switch listed VLAN 21 vs Media(50) in the plan; `nas-eno1/eno2` vlan blank.
 - Secrets values touched: none.
-- Secrets values touched: none.
 
+### 2026-08-24 — Phase 1.5 · switch role access-port VLAN coverage completion (task 2) `[AI]`
+
+- Worker implementation verified + committed by orchestrator (worker had edited but not committed).
+- **Added two missing access-port tasks** in `roles/switch/tasks/main.yml`: `Configure access port for IoT VLAN (20)`
+  and `Configure access port for IoT-Internet VLAN (21)` (mirror the existing 99/10/50 blocks; `when` gates + pvid + unique comments).
+  Effect: reolink-camera + knx-ip + knx-x1 (VLANs 20/21) no longer fall through to the unconfigured->mgmt(99) default.
+  Defensive-only for 21 today (no wired VLAN-21 device in the port map — Bosch/LG are WiFi on `Kogler IOT WAN`).
+- **`group_vars/switch.yml`:** `nas-eno1`/`nas-eno2` `vlan:` blank → `10` (Home, per R-1 resolution); removed the stale duplicate `# NAS eno1` comment above nas-eno2.
+- Validators: YAML parse OK, `validate-docker-services.py` PASS (50), `check_doc_ips.py` OK. No live gear touched (read-only repo edits).
+- Secrets values touched: none.
 ### 2026-08-24 — Phase 1 · Rotate shared headscale OIDC client secret + encode “never a secret VALUE in output” hygiene rule (HD-235) `[AI]`
 
 - **Stimulus:** an operating probe exposed the shared `headscale_api` OIDC client_secret to the
