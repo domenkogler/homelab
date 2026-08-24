@@ -208,6 +208,28 @@ Services NOT exposed publicly (databases, internal-only apps) have `traefik.enab
 
 ---
 
+## Extra Config Templates — render + restart-on-change
+
+Extras registered in `_extra_templates` (docker_services role defaults) are rendered per service by
+deploy-service.yml and are BIND-MOUNTED into the containers. Two consequences, both live-learned:
+
+1. **`docker compose up -d` does NOT see content changes** of bind-mounted files — it recreates on
+   container-spec changes only. deploy-service.yml therefore registers the render task's result and
+   runs a guarded post-up restart (`docker_compose_v2: state: restarted`) for that ONE service when a
+   non-`.env` extra actually changed. Idempotent converges never fire it; first boot is safe (`up`
+   created the containers moments earlier).
+2. **Exclusions are semantic, not arbitrary:** `.env.j2` extras (kopia-server/agent) feed compose
+   `${}` interpolation, where a change IS a spec change and `up -d` already recreated — restarting
+   again would be a double bounce. `traefik` / `traefik-ha` dynamic files sit in the file-provider
+   watch dir and hot-reload in-process; restarting Traefik would only drop edge traffic. Prometheus
+   is restarted deliberately: its scrape-config churn costs one short gap, while the web-config
+   (basic auth, HD-59) is read at startup only.
+
+If a future extra must NOT trigger this restart, extend the guard's exclusion list in
+deploy-service.yml rather than bypassing the render registration.
+
+---
+
 ## Secret Resolution
 
 Secrets come from 1Password at template render time. Never hardcode:
