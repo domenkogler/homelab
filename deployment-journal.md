@@ -872,6 +872,27 @@
 - **Secret-hygiene incident (must-flag, HD-235):** one probe on this session inadvertently dumped the ONLYOFFICE container's `local.json` (DB password, AMQP URI with credentials, WOPI private key, JWT strings) into a transcript. No rotation performed; values belong in container config. **Recommend adding the involved secrets to the HD-211 rotation batch** (onlyoffice_db, onlyoffice-rabbitmq_login, opencloud-collab_password, and the generated WOPI keypair — regenerateable via container regenerate).
 
 
+#### HD-166 pt.4 — “Invalid access token” 401: REVA-leg JWT secret split-brain (`token_manager.jwt_secret` vs env `OC_JWT_SECRET`) — DIAGNOSED, fix PARTIAL (2026-08-24) `[AI]`
+
+- **After pt.3 (discovery 200) the browser now opens ONLYOFFICE but DS shows “Invalid access token” (401) on checkFileInfo.**
+- **Evidence (live, values never printed — hashes only):**
+  - opencloud env: `COLLABORATION_JWT_SECRET` (hash `169e85ad…`) == onlyoffice env `JWT_SECRET` (hash `169e85ad…`) — the shared DS JWT secret is consistent ✓.
+  - opencloud env: **`COLLABORATION_WOPI_SECRET` now set** (same `169e85ad…` value) — but yaml `collaboration.wopi.secret` is still `c806a4f3…` (rendered at first `opencloud init`, Aug 22, never regenerated; the 7.4 build does NOT re-render yaml from new env — same class as the `insecure: true` env→schema bug).
+  - **`OC_JWT_SECRET` env is ABSENT** from the opencloud container. yaml `token_manager.jwt_secret` = `eefff1c1…` (auto-generated, never overridden).
+- **Exact failing code (fetched from opencloud v7.4.0 source, `services/collaboration/pkg/middleware/wopicontext.go`):**
+  - L93 `jwt.ParseWithClaims(accessToken, claims, … cfg.Wopi.Secret)` — WOPI JWT signature (this PASSES; Wopi.Secret is fine).
+  - L108 `DecryptAES(cfg.Wopi.Secret, claims.WopiContext.AccessToken)` — decrypt embedded REVA token (PASSES).
+  - **L114/L123 `rjwt.New({secret: cfg.TokenManager.JWTSecret}); tokenManager.DismantleToken(…wopiContextAccessToken)` — FAILS with `token signature is invalid`.** This is the REVA-leg: collaboration validates the decrypted REVA token with `cfg.TokenManager.JWTSecret` which is env `OC_JWT_SECRET;COLLABORATION_JWT_SECRET`.
+- **Root cause (high confidence):** JWT secret split-brain. The REVA token was **minted by auth-service** using the system-wide `token_manager.jwt_secret` (yaml auto-gen `eefff1c1…`, since `OC_JWT_SECRET` env was never set). collaboration **overrides** its `TokenManager.JWTSecret` via `COLLABORATION_JWT_SECRET` env (`169e85ad…`). Mint secret ≠ verify secret → “signature is invalid” → 401. `COLLABORATION_JWT_SECRET` was (wrongly) treated as “just the ONLYOFFICE secret”, but in OpenCloud it also feeds the reva token manager and must equal the system `OC_JWT_SECRET`.
+- **Fix (Lane A3, DEPLOYED but NOT sufficient alone):** set `COLLABORATION_WOPI_SECRET` = shared value (needed for the WOPI leg; correct). **Remaining fix (NOT yet applied): set `OC_JWT_SECRET` env on the opencloud compose to the SAME shared value** so every service (auth mint + collaboration dismantle + DS JWT + WOPI) uses one consistent secret. After that: **converge + the user must RE-LOGIN** (existing REVA tokens were minted with the old secret and become invalid).
+- **Notes / gotchas for next session:**
+  - `opencloud.yaml` is a **persistent bind mount** at `/srv/docker/opencloud/config/opencloud.yaml` (mtime Aug 22 19:10, unchanged); `opencloud init` at container start is idempotent and does NOT regenerate an existing file → stale `token_manager.jwt_secret` (`eefff1c1…`) and `collaboration.wopi.secret` (`c806a4f3…`) persist. Setting the env vars (envdecode runs after BindSourcesToStructs in `parser.ParseConfig`) is the intended override path.
+  - After setting `OC_JWT_SECRET`, if the yaml still shows the old secret, verify via `opencloud list`/log that the service actually picked up env (envdecode) — or regenerate yaml via `opencloud init` (careful: may rewrite LDAP/idm blocks — prefer env-only first).
+  - `COLLABORATION_WOPI_SECRET` + `COLLABORATION_JWT_SECRET` + `OC_JWT_SECRET` all set to the SAME `opencloud-collab_password` value = single-secret chain (simplest).
+  - **Owner action needed after the next converge: re-login to file.kogler.si and retry the `.docx`.**
+- **Worktree/branch state at close (IN-FLIGHT, not merged to main):** branch `laneA3-hd166-wopisec` (commit `4976540`, `COLLABORATION_WOPI_SECRET` added, correct+deployed) and `session-hd166-wopisec-20260824-1315` (same commit) in worktrees `../homelab-wt-laneA3-hd166` and `../homelab-wt-wopisec`. main == origin/main == `8f3f7d0` (pt.1–3 merged). The `OC_JWT_SECRET` change is NOT yet written.
+
+
 ### 2026-08-24 — Phase 1 · Headplane admin UI for Headscale at `vpn.kogler.si/admin` (HD-233) `[AI]`
 
 - **Context / root cause:** `https://vpn.kogler.si` returns 200 with a 123-byte empty shell.
