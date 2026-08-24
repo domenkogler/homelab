@@ -35,13 +35,23 @@ services:
       OPENAI_API_KEY: "{{ lookup('community.general.onepassword', 'litellm_master_key', field='credential', vault=op_vault) }}"
       # Default model shown in the UI (a LiteLLM-exposed model from config.yaml)
       DEFAULT_MODELS: "ollama/qwen2.5,openrouter/gpt-4o-mini"
-      # Authentik OIDC (per-user login). Redirect URI must match the Authentik provider:
-      #   https://ai.kogler.si/oauth2/callback
-      ENABLE_OIDC: "true"
-      OIDC_ISSUER: "https://sso.kogler.si/application/o/openwebui/"
-      OIDC_CLIENT_ID: "{{ lookup('community.general.onepassword', 'openwebui_api', field='username', vault=op_vault) }}"
-      OIDC_CLIENT_SECRET: "{{ lookup('community.general.onepassword', 'openwebui_api', field='credential', vault=op_vault) }}"
-      OIDC_REDIRECT_URI: "https://ai.kogler.si/oauth2/callback"
+      # Authentik OIDC (per-user login). Env names VERIFIED against open-webui 0.11.0
+      # backend config.py (HD-101 live-verify root cause, 2026-08-25: the previous
+      # ENABLE_OIDC/OIDC_* names are NOT read by the app — the SSO button never rendered).
+      # The provider registers only when OPENID_PROVIDER_URL + client id/secret are set.
+      OAUTH_CLIENT_ID: "{{ lookup('community.general.onepassword', 'openwebui_api', field='username', vault=op_vault) }}"
+      OAUTH_CLIENT_SECRET: "{{ lookup('community.general.onepassword', 'openwebui_api', field='credential', vault=op_vault) }}"
+      OPENID_PROVIDER_URL: "https://sso.kogler.si/application/o/openwebui/.well-known/openid-configuration"
+      OPENID_REDIRECT_URI: "https://ai.kogler.si/oauth2/callback"   # must match ks-oidc.yml redirect_uris
+      OAUTH_PROVIDER_NAME: "Authentik"       # SSO button label on the login page
+      OAUTH_SCOPES: "openid email profile"   # upstream default; explicit for clarity
+      # Family self-service per the identity model (services-ai.md §6): an Authentik
+      # identity without a local account creates one (DEFAULT_USER_ROLE=pending default
+      # -> admin approves). Local form stays visible for the break-glass admin account;
+      # PUBLIC local sign-up is closed (upstream default was open).
+      ENABLE_OAUTH_SIGNUP: "true"
+      OAUTH_MERGE_ACCOUNTS_BY_EMAIL: "true"  # links an existing local account to its SSO identity (same email)
+      ENABLE_SIGNUP: "false"
       # RAG store (PGVector on db-internal) — connector configured in UI/settings at deploy;
       # Docling (services-internal) used as the OCR pipeline.
     volumes:
