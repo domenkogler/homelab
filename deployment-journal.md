@@ -702,6 +702,7 @@
 
 ### 2026-08-23 — Phase 1a · process note: validator exit-code pipe-masking / ignore-red-commit — REPEATED CLASS
 
+- 4th occurrence (2026-08-24, HD-231 session): `git rebase | tail -1` masked a rebase CONFLICT; the chained converge then ran against a conflict-state worktree (harmless here — only the journal conflicted — but the class is identical). Bare-rc rule now explicitly covers GIT state-changing commands too, not just validators.
 - Records a repeat of the 2026-08-22 lesson ("capture rc before the pipe, never trust the pipe's status") — now three occurrences in two days: (1) Wave-3 `| tail` masking; (2) Handoff-#5 prompt close-out where a masked RED let a temporary DHCP address (owner's `.ssh/config`-only alias, deliberately kept out of repo docs) land in prompt.md — amended within minutes (`95746e3` → `bb53323`, never pushed); (3) THIS process-note entry itself first committed red through an `if/else … && commit` chain whose failure branch still exited 0. Rule hardened to a single safe form for every future gate run: run the validator bare, capture `$?`, and only then act — formatting pipes and conditional chains are forbidden around the gate. All three incidents were caught/amended before any push.
 
 ### 2026-08-23 — Phase 1a · nas reinstalled FULLY AUTOMATED via preseed (iLO two-stick) — preseed path re-proven `[MANUAL]`

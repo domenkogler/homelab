@@ -175,6 +175,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 
 ### Live-deploy findings — authentik 2026.5.6 image & API (Phase 1, 2026-08-22)
 
+- **Blueprint upsert EMPTIES absent array attrs (HD-231, 2026-08-24):** applying a blueprint that omits `grant_types` / `property_mappings` writes `[]` over them — killing the `authorization_code` grant and all token scopes while authorize/token still look healthy (UserInfo then 403 `insufficient_scope`). Pin EVERY array attr explicitly in ks-oidc.yml / ks-forward-auth.yml entries; the docker_services one-shot apply runs on every converge.
 - **`AUTHENTIK_BOOTSTRAP_*` applies ONLY at user creation** (Phase 1 R5, 2026-08-22): if the DB was
   initialized before the bootstrap env landed in compose, `akadmin` keeps its creation-time
   defaults (email `root@example.com`, no vault password) and later env changes are silently
