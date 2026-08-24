@@ -892,6 +892,20 @@
   - **Owner action needed after the next converge: re-login to file.kogler.si and retry the `.docx`.**
 - **Worktree/branch state at close (IN-FLIGHT, not merged to main):** branch `laneA3-hd166-wopisec` (commit `4976540`, `COLLABORATION_WOPI_SECRET` added, correct+deployed) and `session-hd166-wopisec-20260824-1315` (same commit) in worktrees `../homelab-wt-laneA3-hd166` and `../homelab-wt-wopisec`. main == origin/main == `8f3f7d0` (pt.1–3 merged). The `OC_JWT_SECRET` change is NOT yet written.
 
+#### HD-166 pt.5 — OC_JWT_SECRET single-secret chain + mixed-content CSP fix: `.docx` round-trip PASSES, task CLOSED (2026-08-24, evening session) `[AI]`
+
+- **Session start state:** main had moved to `50e2d49` — `4976540` (COLLABORATION_WOPI_SECRET) already merged by the prior close-out; wopi branches/worktrees pruned. Fresh worktree `../homelab-wt-20260824-1859`, branch `session-hd166-jwtfix-20260824-1859`.
+- **Source re-verification (v7.4.0 tag):** auth-service `TokenManager.JWTSecret` env `OC_JWT_SECRET;AUTH_SERVICE_JWT_SECRET`; collaboration same struct via `OC_JWT_SECRET;COLLABORATION_JWT_SECRET`; `Wopi.Secret` env `COLLABORATION_WOPI_SECRET`. Confirms pt.4 exactly.
+- **Fix 1 applied (`3d2adda`):** `OC_JWT_SECRET` added to opencloud compose = 1P `opencloud-collab_password` (same value as COLLABORATION_JWT_SECRET/WOPI_SECRET/DS JWT_SECRET). All four collab-chain env values now render via folded block scalar `>-` (owner-directed: a `"` in the 1P value would break the RENDERED compose at docker-compose parse time; inline double-quoted lookups retired for these). Dry-run `--check` first, then converge `--tags docker_services,opencloud`, 9P gate ✓ both sides.
+- **Live verification:** env names present ×3; chain hashes IDENTICAL (`eb63ab…` ×3, sha256 prefixes only); collaboration running; discovery 200; zero "signature is invalid" log lines. Persistent yaml still holds stale values (expected — envdecode override is the active path).
+- **Owner re-login + retry:** editor NOW OPENS (401 gone) but DS showed **“Napaka: Prenos ni uspel!” + empty document** → new layer.
+- **Forensics:** proxy logs show ONE successful `/contents` GET (200, 34 KB) then cache reuse without refetch on every retry (same docId); `Editor.bin` built fine in DS cache (magic `DOCY`); ALL server logs clean (docservice/converter/nginx/opencloud); edge healthy from owner LAN (discovery 200, versioned static redirects normal). Conclusion: failure is browser-side delivery.
+- **Owner DevTools evidence:** `Mixed Content: ... requested an insecure XMLHttpRequest endpoint 'http://office.kogler.si/cache/files/data/<id>/Editor.bin/...'` — **DS emits http:// cache URLs over the WOPI session websocket**, ignoring `X-Forwarded-Proto` when building them (upstream [ONLYOFFICE/DocumentServer#2186](https://github.com/ONLYOFFICE/DocumentServer/issues/2186) class; no server-side knob exists — upstream workarounds are JS/entrypoint seds).
+- **Fix 2 applied (`0110a74`):** Traefik file middleware `onlyoffice-csp` = `Content-Security-Policy: upgrade-insecure-requests`, attached to the office router (`crowdsec-only@file,onlyoffice-csp@file`). Considered and REJECTED: DS-native TLS per ONLYOFFICE docs (wildcard-key sprawl onto a regenerable worker container, WAF loss or double-TLS hop, entrypoint fragility on Renovate bumps) — no benefit over the header for our browser-only broken leg. Converged `--tags docker_services,onlyoffice-docs,traefik` (9P gate ✓); middleware renders into `/opt/traefik/dynamic/middlewares.yml`.
+- **Post-fix verification:** CSP header live on office.kogler.si ✓; onlyoffice-docs recreated healthy ✓; DS↔OC secret chain still identical (`eb63ab…`) ✓; discovery 200 ✓.
+- **OWNER VERIFIED:** `.docx` opens, edit + save persist, and **live co-editing works across two browsers simultaneously. HD-166 CLOSED.**
+- **Deviations:** none. Secret VALUES never printed (hashes/prefixes only throughout). No manual/non-Ansible steps → deployment-manual.md untouched.
+
 
 ### 2026-08-24 — Phase 1 · Headplane admin UI for Headscale at `vpn.kogler.si/admin` (HD-233) `[AI]`
 

@@ -127,7 +127,22 @@ services:
       # wiring a different var. No functional impact observed (WOPI + JWT flow work).
       COLLABORATION_APP_INSECURE: "false"
       COLLABORATION_APP_PROOF_DISABLE: "false"       # verify OnlyOffice proof keys
-      COLLABORATION_JWT_SECRET: "{{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}"
+      # HD-166 pt.4 (2026-08-24): system-wide REVA JWT secret. auth-service MINTS reva
+      # tokens with TokenManager.JWTSecret (env OC_JWT_SECRET;AUTH_SERVICE_JWT_SECRET);
+      # collaboration DISMANTLES that embedded token with the SAME struct
+      # (env OC_JWT_SECRET;COLLABORATION_JWT_SECRET). Without this env auth fell back to
+      # the init-generated yaml token_manager.jwt_secret while collaboration used
+      # COLLABORATION_JWT_SECRET below -> mint/verify split-brain -> ONLYOFFICE DS
+      # checkFileInfo 401 "Invalid access token". Same shared 1P value = single-secret
+      # chain (OC_JWT_SECRET == COLLABORATION_JWT_SECRET == COLLABORATION_WOPI_SECRET ==
+      # DS JWT_SECRET). Changing it invalidates existing sessions -> users re-login once.
+      # Rendered via folded block scalar >- (never an inline double-quoted lookup): the
+      # 1P value may contain quote or backslash characters that terminate a double-quoted
+      # YAML scalar and break the RENDERED compose file at docker-compose parse time.
+      OC_JWT_SECRET: >-
+        {{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}
+      COLLABORATION_JWT_SECRET: >-
+        {{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}
       # WOPI callback + live-typing sync store (default nats-js-kv; node addr via
       # OC_CACHE_STORE_NODES per docs — not COLLABORATION_STORE_NODES)
       COLLABORATION_WOPI_SRC: "https://file.kogler.si"
@@ -137,7 +152,8 @@ services:
       # value as COLLABORATION_JWT_SECRET (single-secret WOPI chain). WITHOUT it OpenCloud
       # cannot validate the embedded REVA token and the /wopi/files callback returns 401
       # "Invalid access token" (found live 2026-08-24).
-      COLLABORATION_WOPI_SECRET: "{{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}"
+      COLLABORATION_WOPI_SECRET: >-
+        {{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}
       COLLABORATION_STORE: "nats-js-kv"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:

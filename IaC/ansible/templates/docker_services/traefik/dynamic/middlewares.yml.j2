@@ -33,6 +33,16 @@ http:
         middlewares:
           - crowdsec-bouncer
 
+    # ONLYOFFICE CSP upgrade (HD-166 layer-6): DS builds browser-facing cache URLs
+    # (Editor.bin etc.) with an http:// scheme behind our TLS edge (upstream issue
+    # ONLYOFFICE/DocumentServer#2186 class) -> mixed content -> browser blocks the
+    # fetch -> "Download failed" + empty document. This response header tells the
+    # BROWSER to upgrade every http:// request from the office.kogler.si pages to
+    # https:// transparently - no DS-internals patch needed.
+    onlyoffice-csp:
+      headers:
+        contentSecurityPolicy: "upgrade-insecure-requests"
+
     # CrowdSec bouncer plugin — checks the client IP against CrowdSec's
     # blocklist (LAPI). Registered in traefik's static config via
     # --experimental.plugins.crowdsec-bouncer.* (v1.7.1 requires the LAPI key - Wave-3 R5).

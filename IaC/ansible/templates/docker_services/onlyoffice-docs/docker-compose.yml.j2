@@ -78,9 +78,12 @@ services:
       # literal secret to store (never put key material here).
       WOPI_ENABLED: "true"
       # Shared WOPI JWT — MUST match OpenCloud's COLLABORATION_JWT_SECRET exactly.
-      # 1Password lookup on both sides; fail-loud if absent (HD-65).
+      # 1Password lookup on both sides; fail-loud if absent (HD-65). Folded block
+      # scalar >- (never an inline double-quoted lookup): quote/backslash characters
+      # in the 1P value must not break the RENDERED compose file.
       JWT_ENABLED: "true"
-      JWT_SECRET: "{{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}"
+      JWT_SECRET: >-
+        {{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}
       JWT_HEADER: "Authorization"
       # --- external PostgreSQL (sidecar) ---
       DB_TYPE: postgres
@@ -102,9 +105,13 @@ services:
       traefik.http.routers.onlyoffice.entrypoints: websecure
       {{ 'traefik.http.routers.onlyoffice.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       # HD-166: NO Forward-Auth — ONLYOFFICE is a WOPI worker, not a user app. The
-      # OpenCloud side (file.kogler.si) authenticates the user; this route only needs
-      # the WAF (crowdsec-only@file), same as the OpenCloud route.
-      traefik.http.routers.onlyoffice.middlewares: crowdsec-only@file
+      # OpenCloud side (file.kogler.si) authenticates the user; this route needs the
+      # WAF (crowdsec-only@file), same as the OpenCloud route, plus onlyoffice-csp@file
+      # (upgrade-insecure-requests response header): DS emits http:// cache URLs to
+      # the browser over the WOPI session websocket (upstream #2186) -> mixed content
+      # blocked -> "Prenos ni uspel" empty doc. The header makes the browser upgrade
+      # every http:// request on this origin to https://.
+      traefik.http.routers.onlyoffice.middlewares: crowdsec-only@file,onlyoffice-csp@file
       traefik.http.services.onlyoffice.loadbalancer.server.port: "80"
 
   onlyoffice-postgres:
