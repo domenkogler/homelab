@@ -225,9 +225,15 @@ entries:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-      client_type: confidential
+      # HD-231 pt.6 (2026-08-24): OpenCloud web is a PUBLIC PKCE client with the
+      # PREDEFINED id `web` (docs.opencloud.eu external-idp; WebFinger default
+      # WEBFINGER_WEB_OIDC_CLIENT_ID=web). Redirects are the web app's callback pair.
+      # client_id itself is set to 'web' via ORM (serializer treats it read-only);
+      # upsert preserves unlisted attrs, so it survives applies.
+      client_type: public
       redirect_uris:
-        - {url: "https://file.kogler.si/oauth2/callback", matching_mode: strict}
+        - {url: "https://file.kogler.si/oidc-callback.html", matching_mode: strict}
+        - {url: "https://file.kogler.si/oidc-silent-redirect.html", matching_mode: strict}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
       # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
