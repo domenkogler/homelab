@@ -1,4 +1,4 @@
-# prompt.md — Deployment Execution Handoff #16 — HD-240 stats.kogler.si SSO dead-end fixed LIVE (edge pin + datasource auth chain + UPS rules); owner browser check pending
+# prompt.md — Deployment Execution Handoff #16 — HD-240 stats.kogler.si SSO dead-end FIXED & OWNER-VERIFIED (edge pin + datasource auth chain + header-injection fix); zipline 4.6.5 live
 
 > **Role:** Entry point for the next session. This session (2026-08-24 late night → 08-25)
 > diagnosed and LIVE-fixed the "Grafana on the SSO dashboard lands on a logo-only bare `/login`"
@@ -7,11 +7,12 @@
 > `traefik_edge_ip_pin` group_var; ② grafana datasource never sent basic-auth (`basicAuth: true`
 > flag missing since birth) AND grafana 13.2.0 file-provisioning stores an unresolvable
 > secureJsonData blob → Prometheus datasource moved to idempotent **API seeding** in the
-> monitoring role; ③ UPS alert rules used invalid PromQL bitwise-& → modulo bitmask tests.
-> Owner mapped into Grafana as Admin via break-glass API (email matches Authentik identity).
-> Verified live: forged-header rejection (**HD-190 deploy-gate CLOSED**), ds-health 200, real
-> query data through proxy, zero eval errors. ⏳ One owner step left: logged-in browser click
-> sso → stats must land IN Grafana.
+> monitoring role; ③ UPS alert rules used invalid PromQL bitwise-& → modulo bitmask tests; ④ the actual
+> browser blocker: traefik silently DROPPED the map-form `authResponseHeaders` field → identity headers
+> never reached grafana; fixed to list form. Owner mapped into Grafana as Admin via break-glass API. 
+> Verified live AND **owner browser round-trip confirmed 2026-08-25** — HD-240 fully closed. Ride-alongs:
+> db_ro_sync stdin nesting (was blocking all docker_services runs), zipline pinned `4.6.5` + DSN urlencode +
+> uploads mount → zipline UP (remaining HD-112 legs: dns.yml + compose-header checklist).
 > **Late addition (2026-08-25, separate mini-session):** HD-101 Open WebUI OIDC root cause FIXED
 > (invented `ENABLE_OIDC`/`OIDC_*` env names never read by the app → template reworked to real
 > `OPENID_PROVIDER_URL`/`OAUTH_CLIENT_*` + signup posture hardening; changelog row + todo tail
@@ -54,9 +55,10 @@
 - **main == origin/main? verify at close** @ handoff #16 closing commit (worktree
   `homelab-wt-20260824-2321`, branch `session/stats-grafana-fix`, merged back green ×4 merges;
   note: three OTHER lanes also merged during this session — hd112 closeout et al. — no conflicts).
-- Closed tonight: **HD-240 Done (IaC + live)** with a tight ⏳ tail (owner browser round-trip) ·
-  **HD-190 deploy-gate closed** (forged-header rejection verified live; row deleted from todo,
-  closure recorded in the HD-240 changelog row).
+- Closed: **HD-240 ✅ FULLY closed** (IaC + live ops + owner browser verification 2026-08-25;
+  todo row deleted, changelog row is the record) · **HD-190 deploy-gate closed** (forged-header
+  rejection verified live; closure recorded in the HD-240 changelog row) · zipline 4.6.5 live
+  (HD-112 partially: dns.yml + compose-header checklist remain).
 - **Live changes made:** traefik recreated at pinned `.2` (~2 min edge flap during first attempt,
   see journal Incident A) · grafana restarted several times during datasource surgery · grafana
   DB `data_source` row for prometheus replaced by API-seeded equivalent (uid/name/url unchanged;
@@ -76,17 +78,13 @@
   ③ open-webui container RECREATED with the corrected OIDC env (HD-101 template fix — verify
   `docker exec open-webui printenv OPENID_PROVIDER_URL` non-empty post-up), then walk §3a HD-101
   verify.
-- **ID registry:** next free = **HD-244** (max(changelog)=HD-243; re-derive at write time per
+- **ID registry:** next free = **HD-247** (max=HD-246; re-derive at write time per
   CONVENTIONS §1 — never re-type this pointer).
 - **Coordination:** do NOT touch headplane/headscale (separate lane). Primary checkout owns main.
 
 ## 3. Next-session execution order
 
 ### 3a. Owner-action chase (reminders, not blockers)
-- **NEW — HD-240 final leg:** logged-in browser test — sso dashboard → Grafana tile → must land
-  in the Grafana UI (not the logo-only `/login`). If it still bounces: check grafana logs for
-  `auth.proxy` lines, confirm edge IP still `.2`, confirm the `domen` user exists
-  (`GET /api/users` via break-glass). Then trim the HD-240 ⏳ tail + delete the todo row.
 - **NEW — HD-101 verify (after the open-webui template fix converges):** ① "Continue with
   Authentik" button renders on ai.kogler.si ② owner SSO round-trip LINKS the existing local
   admin by email (`OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true` — no duplicate account) ③ family-side
