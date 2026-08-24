@@ -171,7 +171,7 @@
 - **HD-146** — `vps.yml` deploy ordering enforced (authentik precedes every OIDC consumer) + glue wired in `deploy-service.yml`. · [deployment-ansible.md](docs/deployment-ansible.md)
 - **HD-166** — create `opencloud-collab_password` (single JWT, both sides); first deploy on VPS Phase 1; live-verify `file`→ONLYOFFICE iframe + CSP. · [services-office.md](docs/services-office.md)
 - **HD-159** — blackbox liveness: verify the `wg_icmp` probe (VPS→home router WG-side peer IP, `wg_s2s_vps.router_ip`) + the Critical `wg-s2s-down` Grafana rule fires on a `wg down` test at Phase 1. · [observability.md](docs/observability.md)
-- **HD-240** — grafana SSO round-trip: traefik edge IP stays pinned `.2` (= `GF_AUTH_PROXY_WHITELIST` match); **[MANUAL]** map the owner's Authentik email into Grafana via the break-glass admin API (`AUTO_SIGN_UP=false`, HD-190); then a logged-in browser click sso-dashboard → stats.kogler.si must land IN Grafana, never on the logo-only `/login`. · [observability.md](docs/observability.md)
+- **HD-240** — grafana SSO round-trip: ✅ traefik edge IP pinned `.2` (= whitelist match, verified live 2026-08-24); ✅ owner (`domen@kogler.si`) already mapped into Grafana as Admin via break-glass API (AI session); ⏳ **[MANUAL]** logged-in browser click sso-dashboard → stats.kogler.si must land IN Grafana, never on the logo-only `/login`. · [observability.md](docs/observability.md)
 
 ---
 

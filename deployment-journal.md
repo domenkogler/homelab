@@ -1179,6 +1179,52 @@
   seed `guestbin` (small quota, no password) + `dropzone` folder → anonymous round-trip +
   6h sweep verify → family drop script + manual guide.
 
+### 2026-08-24/25 — Phase 1 · HD-240: stats.kogler.si SSO dead-end fixed LIVE (edge-IP pin + datasource auth chain rebuilt + UPS rule exprs)
+
+- **Symptom:** clicking Grafana on the SSO dashboard landed every SSO-authenticated user on a
+  logo-only bare `/login` (native form disabled by design — the page itself proves proxy-auth
+  rejection).
+- **Root cause ① — edge IP drift:** traefik ran at `.12` on traefik-public while consumers trust
+  headers only from `traefik_edge_ips` = `.2/32` (HD-190 contract) → every forwarded request
+  rejected at the source-IP check. Fix: compose template pins the edge IP
+  (`ipv4_address: traefik_edge_ip_pin`, new group_var; validator SSOT-loader extended).
+- **Root cause ② — datasource never sent credentials:** the provisioned datasource set
+  `basicAuthUser` + password but NOT the `basicAuth: true` flag → queries left anonymously
+  (wire-capture proof: health-check POST `/api/v1/query` carried no Authorization header;
+  HD-220b's earlier "verified HTTP 200" had tested creds against prometheus directly, not
+  through grafana). Deeper: grafana 13.2.0 file-provisioning stores a secureJsonData blob it
+  cannot resolve at use time ("Authentication to data source failed") even on fresh creates,
+  and refuses API updates for provisioned datasources. Fix: Prometheus datasource moved out of
+  file-provisioning into an idempotent API-seed task pair (create-only when absent +
+  until-looped health verify, both no_log); `grafana-datasources.yml.j2` keeps Loki only.
+  Rotation path documented in-task: delete DS → re-run role.
+- **Root cause ③ — UPS rules invalid PromQL:** `(nut_ups_status & 2) > 0` style bitmask tests
+  never parsed (PromQL has no bitwise AND) — invisible for weeks because everything 401'd
+  upstream first. Fixed to modulo arithmetic `(nut_ups_status % 4) >= 2` / `% 32 >= 16`.
+- **Owner mapping done in-session:** Authentik identity `domen` / domen@kogler.si created in
+  Grafana via admin API and promoted to org Admin (random password generated on-box, never
+  displayed). Proxy auth matches by email → SSO auto-login works without any password entry.
+- **Verification:** surgical converges green (`--tags docker_services,traefik`, then
+  `--tags monitoring` twice); traefik Up @ `.2`; `sso`/`stats` still 302-gated at the edge;
+  **forged-header test** — direct `X-authentik-email` from the crowdsec container (non-whitelisted
+  IP) → 302 rejected (**closes the HD-190 deploy-gate**); datasource health 200 through grafana;
+  proxy query returns real series; zero eval errors across the final 3-minute window.
+- **Incident A (transient edge outage ≈2 min, self-inflicted):** the first traefik recreate
+  failed "Address already in use" — grafana itself held `.2` (an earlier who-holds-.2 probe was
+  faulty: it kept only each container's FIRST network IP). Recovered by bouncing grafana
+  (releases .2) → starting traefik onto .2 → grafana back on .12. Lesson: multi-network-aware
+  probes before claiming an IP is free.
+- **Incident B (secret exposure, self-reported):** a broken multi-layer ssh quoting attempt
+  echoed the `prometheus-internal_api` password into the session transcript (~23:05). The same
+  item was ALREADY queued in the HD-211 rotation batch (journal 2026-08-23, probe-exposure
+  precedent) — treat rotation as raised-priority. All subsequent probes switched to stdin-fed
+  scripts; nothing else printed.
+- **Secrets touched:** none rotated (see Incident B; HD-211 owns the rotation).
+- **Verify:** validate-all green ×4 commits; live checks listed above; owner action remaining:
+  logged-in browser round-trip sso dashboard → stats.kogler.si must land IN Grafana.
+- **doc updated:** docs/observability.md (Access & login path section), deployment-tasks.md
+  (HD-240 ledger item).
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).
