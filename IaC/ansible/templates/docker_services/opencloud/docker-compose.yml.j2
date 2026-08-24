@@ -118,13 +118,21 @@ services:
       COLLABORATION_APP_NAME: "OnlyOffice"
       COLLABORATION_APP_PRODUCT: "OnlyOffice"
       COLLABORATION_APP_ADDR: "https://office.kogler.si"
-      # TODO (HD-166 follow-up): rendered /etc/opencloud/opencloud.yaml has shown
-      # `collaboration.app.insecure: true` despite COLLABORATION_APP_INSECURE:"false"
-      # here. The env->yaml mapping for this flag does NOT appear to take effect in 7.4
-      # rolling; the true value likely comes from the OC_INSECURE/JWT/store default or a
-      # scaffolded init-written config, not this env. Do NOT invent an env name the 7.4
-      # schema doesn't honor — verify against the 7.4 collaboration env-vars page before
-      # wiring a different var. No functional impact observed (WOPI + JWT flow work).
+      # RESOLVED (HD-166 follow-up, verified 2026-08-24 against source tag v7.4.0):
+      # COLLABORATION_APP_INSECURE IS the mapped env var for collaboration.app.insecure
+      # (github.com/opencloud-eu/opencloud v7.4.0 services/collaboration/pkg/config/app.go:
+      # Insecure bool, yaml:"insecure", env:"COLLABORATION_APP_INSECURE", "Skip TLS
+      # certificate verification when connecting to the WOPI app"). Config load order in
+      # ParseConfig (pkg/config/parser/parse.go): config FILE -> defaults.EnsureDefaults
+      # -> envdecode.Decode (ENV LAST = highest precedence); app default is false and
+      # NOTHING propagates OC_INSECURE into App.Insecure (defaults/defaultconfig.go).
+      # An earlier on-disk opencloud.yaml snapshot showing insecure:true was therefore
+      # NON-AUTHORITATIVE — stale scaffolded file content, a pre-env container start or a
+      # 9P stale read (HD-212 class); the EFFECTIVE runtime value always follows THIS env.
+      # Distinct knobs: OC_INSECURE:"true" above governs OpenCloud's own internal HTTP/TLS
+      # stance and is uncoupled from this flag in 7.4.0. KEEPING "false": office.kogler.si
+      # presents a valid public Let's Encrypt cert at the Traefik edge -> verify it; true
+      # would only disable cert verification on the WOPI leg for zero benefit.
       COLLABORATION_APP_INSECURE: "false"
       COLLABORATION_APP_PROOF_DISABLE: "false"       # verify OnlyOffice proof keys
       # HD-166 pt.4 (2026-08-24): system-wide REVA JWT secret. auth-service MINTS reva
