@@ -1,101 +1,87 @@
-# prompt.md — Deployment Execution Handoff #6 — Phase 1a COMPLETE → Phase 1.5 network redo is THE gate
+# prompt.md — Deployment Execution Handoff #6 — post-HD-230/231 stabilization; VPS track green, small tail queue
 
-> **Role:** Entry point for continuing the deployment track. This session closed **Phase 1a
-> completely**: the nas OS was installed **FULLY AUTOMATED via preseed** (first hands-off success of
-> the track; pools survived untouched; verification green) and all bookkeeping landed in the same
-> change. Both homelab hosts are now installed but UNDER HOLD RULE — **no Ansible against
-> nas/oldsrv until the Phase 1.5 cutover lands**. Next main event: either **Phase 1.5 network redo**
-> (the gate unlocking host onboarding + Phase 2) or the **VPS-track remainder** — owner picks at
-> session start (§3b). The Phase-1 VPS Verify-block queue is untouched and rides along.
-> **Linked from:** [README.md](README.md) §2 · plan: [deployment-tasks.md](deployment-tasks.md) ·
-> as-built log: [deployment-journal.md](deployment-journal.md) · redeploy runbook:
-> [deployment-manual.md](deployment-manual.md) · human feed: [prompt-journal.md](prompt-journal.md)
+> **Role:** Entry point for the next session. The previous session shipped the **HD-230 wave-2
+> corrective batch** (pairdrop PUBLIC dual-host · forgejo native OIDC · blueprint one-shot apply
+> convention · onlyoffice unblock · db-backup first dumps ever · nftables scoped flush + ExecStop
+> override · renovate disable) and then the **HD-231 hotfix chain** (authentik `grant_types` +
+> `property_mappings` wipe → opencloud CSP wiring → external-IdP service set), ending with the
+> FIRST successful file.kogler.si browser login (owner-confirmed). A parallel session owns the
+> NAS/Phase-1a/Phase-1.5-prep work and is ACTIVE in the primary checkout — see §Coordination.
+> **Linked from:** [README.md](README.md) §2 · journal: [deployment-journal.md](deployment-journal.md)
+> (entries 2026-08-23/24 Phase 1, HD-227→renumbered HD-230 + HD-231 pt.1–pt.7) · changelog rows
+> HD-230/231 in [changelog.md](changelog.md) · todo row HD-230 in [todo.md](todo.md)
 
 ---
 
 ## 0. Mandatory context (read in this order)
 
-1. [CONVENTIONS.md](CONVENTIONS.md) §4 (ledger & journal loop is binding) + §6 (worktree convention:
-   every session cuts `../homelab-wt-<date>-<HHMM>` before touching files)
-2. [deployment-journal.md](deployment-journal.md) §Phase 1a — ALL entries, incl. today's
-   nas automated-install entry (and the oldsrv interactive-install entry for contrast)
-3. [deployment-manual.md](deployment-manual.md) §Phase 1a — official-path note UPDATED this session:
-   preseeded automated = re-proven official path; interactive + catch-up = proven fallback
-4. [hardware-nas.md](docs/hardware-nas.md) — current-state banner (installed 2026-08-23), Boot Drive
-   chain (Generic stick = permanent GRUB carrier), disk by-id tables, stale `rpool` finding below
-5. [todo.md](todo.md) HD-207 (trimmed to redistribution tail only) + [changelog.md](changelog.md)
-   HD-206 close-out row
+1. [deployment-journal.md](deployment-journal.md) — BOTH 2026-08-23/24 Phase-1 entries (HD-230 batch; HD-231 pt.1–pt.7 hotfix chain incl. root causes & lessons)
+2. [CONVENTIONS.md](CONVENTIONS.md) §4 (journal/ledger loop) + §6 (worktree convention)
+3. [docs/services-authentik.md](docs/services-authentik.md) — blueprint one-shot-apply convention (MANDATORY for every custom-blueprint edit) + tokens section
+4. [docs/deployment-renovate.md](docs/deployment-renovate.md) — why renovate is disabled and what re-enables it
 
 ## 1. Environment (Windows 11 laptop)
 
 - Repo ops + validators: **git-bash**, forward-slash paths, `py -3`, UTF-8 no-BOM, LF.
-- Ansible runner: **WSL Debian** via script-file indirection ONLY (`scripts/ansible-run.sh`); NEVER
-  inline commands through wsl.exe (MSYS mangling). Read-only host probes go through script files too.
-- ⚠ **Probing nas/oldsrv interactively:** the owner's Windows `.ssh/config` aliases work ONLY through
-  `/c/Windows/System32/OpenSSH/ssh.exe` — MSYS git-bash ssh fails on the alias setup
-  (`IdentityFile …​.pub` + 1Password agent → `error in libcrypto: unsupported`). Always
-  `-o BatchMode=yes`; route `bash -s < script.sh` through ssh.exe.
-- ⚠ **9P STALE-CACHE SYNC GATE MANDATORY before every playbook run** (HD-212):
-  `git ls-files -z | xargs -0 md5sum --text | md5sum` on BOTH sides must be EQUAL. On mismatch:
-  drop_caches → remount drvfs → full `wsl --terminate Debian`; else migrate clone into WSL
-  (pre-authorized).
+- Ansible runner: **WSL Debian** via script-file indirection ONLY (`scripts/ansible-run.sh`,
+  `scripts/ak-shell.sh`). NEVER inline commands through wsl.exe.
+- ⚠ **9P gate MANDATORY before every playbook run** (HD-212): `git ls-files -z | xargs -0 md5sum --text | md5sum`
+  on BOTH sides must be EQUAL. For WORKTREE checkouts the WSL side needs a GIT_DIR translation:
+  `GD=$(sed -n "s|^gitdir: ||p" .git | sed "s|^D:/|/mnt/d|"); export GIT_DIR="$GD"` (worktree `.git`
+  files carry Windows-style gitdirs WSL git cannot resolve).
+- Read-only host probes: temp script files + `ssh -o BatchMode=yes -i ~/.ssh/id_ed25519 ansible-admin@vps.kogler.si` from WSL (canonical runner key); sudo via `sudo -n bash -s`.
+- ⚠ **Pipe-masking law** (process note 2026-08-23, violated AGAIN this session via `git rebase | tail`):
+  run validators/bare commands, capture `$?` FIRST, never gate decisions through pipes/`&&` chains.
 
-## 2. State snapshot (end of session, 2026-08-23 evening)
+## 2. State snapshot (end of session)
 
-- **Session work MERGED to main:** branch `session-nas-osinstall-20260823-1951` merged after green
-  validation; its worktree removed per CONVENTIONS §6. Start any new edits in a FRESH
-  `../homelab-wt-<date>-<HHMM>` cut from updated main.
-- **nas: Debian 13 (trixie) INSTALLED FULLY AUTOMATED 2026-08-23** — Automated grub entry ran
-  end-to-end with ZERO interactive questions (early_command resolved the Crucial SSD by-id; GRUB
-  landed on the Generic_Flash_Disk permanent carrier via static bootdev pin; keyed late_command
-  applied post_install). SanDisk booted explicitly via iLO one-time menu and was pulled pre-reboot;
-  Generic carrier STAYS plugged forever (HD-226). Verified: `ansible-admin` key-only SSH OK,
-  `domen@nas` REFUSED (AllowUsers), hostname `nas`, both Crucial by-id forms resolve, six data-disk
-  ZFS labels intact, sshd hardening drop-in live.
-- **Known nas gaps (deferred BY DESIGN, not defects):** `zfsutils-linux` ABSENT on the fresh OS →
-  definitive `zpool list`/`zpool import` export-state check folds into the Phase-2 storage role run
-  (it installs zfsutils itself); stale whole-disk `zfs_member LABEL="rpool"` signature on the OS SSD
-  = optional owner-gated wipefs candidate at Phase-2 first contact; fqdn reads `nas.lan`
-  (DHCP-supplied domain) — cosmetic, fixed by Phase 1.5 addressing.
-- **Pools installer-ready→reinstall-proven:** `bulk` RAIDZ2 ×4 (legacy payload under `bulk/migrate`,
-  ~2.33 T logical, 57 snapshots) + `tank` empty mirror — BOTH still EXPORTED; import-only storage
-  role (`allow_create: false`) owns them from Phase 2.
-- **oldsrv:** installed 2026-08-23 (interactive), catch-up done, key-only SSH OK. Reachable via the
-  owner's temporary Windows `.ssh/config` alias only — address kept OUT of repo docs (SSOT pointer:
-  [network-addresses-generated.md](docs/network-addresses-generated.md)).
-- **Hold rule (both hosts):** NO Ansible runs until the Phase 1.5 cutover; first contact happens
-  with the new VLANs live. Read-only probes over the owner's aliases are fine.
-- **VPS queue** — identity bootstrap DONE 2026-08-23 evening (authentik `Family` group + personal `domen` Internal user w/ WebAuthn+TOTP; forgejo `domen` admin per manual §1.7; n8n owner account — journal has the entry). STILL OPEN: create renovate token as `domen` → 1Password `forgejo_api`.`credential` → restart renovate, then the renovate repo-error debug one-shot (LOG_LEVEL=debug); wire forgejo OAuth2 source (HD-148: authentication name `forgejo`, creds from `forgejo_oidc`); N8N workflow import; onlyoffice-docs first-boot completion check; authentik-ldap outpost-token harvest flow; nftables scoped-flush permanent fix; blueprint auto-apply gap; owner actions: HD-211 rotation batch (incl. two probe-exposed values), stale pairdrop CNAME deletion, Hetzner-SB-Backup private-key copy into the 1P item.
+- **main = origin/main**, all work merged & pushed (HD-230 as `857cce1..`; HD-231 pt.1–7 as
+  `de7c128..b9a5789..143dd74` + pt.7 `HEAD` push of branch `session-close` → main).
+- **Working & verified live:** forgejo native-OIDC login (owner connected accounts) · pairdrop +
+  drop PUBLIC 200 (crowdsec-only, isolated) · file.kogler.si FULL login + autoprovisioned user ·
+  chat/file/vpn/ai/foto/home/stats/sec/pdf/auto/sso routes healthy · db-backup dumping 4/4 DBs with
+  checksums (+10 min after boot, 1440-min interval) · nftables restart survival (scoped flush +
+  ExecStop override) · renovate container GONE (disabled until repo exists) · authentik-ldap still
+  intentionally crash-looping (HD-132 not yet authored).
+- **ID registry:** HD-230 = wave-2 batch (ours) · their parallel session took HD-225–229 + HD-232
+  (collision resolved by renumber; next free ID ≥ **HD-233** — VERIFY against changelog at write time).
 
 ## 3. Next-session execution order
 
-### 3a. Fresh worktree (per convention)
-Cut `../homelab-wt-<date>-<HHMM>` from current main before any file edit.
+### 3a. Fresh worktree per §6 before ANY edit (`../homelab-wt-<date>-<HHMM>` from updated main).
 
-### 3b. MAIN DECISION POINT — owner picks the track at session start
-- **Track A — Phase 1.5 network redo (THE gate):** router RB4011 + switch CRS328 rebuild per
-  [docs/network-vlans.md](docs/network-vlans.md) + ledger §Phase 1.5. Irreversible cutover,
-  human-gated steps. AFTER it lands: nas + oldsrv enter the Ansible loop (nas first contact =
-  `playbooks/storage.yml` import-first → unlocks Phase 2).
-- **Track B — VPS-track remainder:** the Still-open list in §2 last bullet (renovate debug one-shot,
-  onlyoffice first-boot check, ldap outpost-token harvest, nftables scoped-flush fix, blueprint
-  auto-apply gap) + owner actions. Belongs to a VPS-track session per Handoff #5 §3d.
+### 3b. Open thread — finish verification queue (all read-only unless noted)
+1. **file.kogler.si editor round-trip (HD-166 tail):** owner opens a docx in the UI; if ONLYOFFICE
+   iframe fails, check `/hosting/discovery` (404 known — ds:example RUNNING but route absent in this
+   DS build's nginx set; decide: example-based discovery vs direct app URL per OpenCloud collab docs).
+2. **Renovate re-enable** once owner migrates `domen/homelab` to Forgejo (`domen/test` exists already;
+   homelab repo does NOT): flip `enabled: true` in group_vars/vps.yml, converge, verify dashboard issue.
 
-### 3c. After-any-step bookkeeping (unchanged rules)
-Journal entry + ledger tick in the same change; owning-doc updates for permanent divergences +
-changelog row same change; validate green before commit.
+### 3c. Owner-action chase (reminders, not blockers)
+- HD-211 rotation batch: grafana contactpoint + datasource passwords, kopia-server htpasswd +
+  repo password (probe-exposed via `.Args`), `authentik-provision_api` SA token.
+- Kopia source wiring decision for the `/backup` volume (agent vs server-managed source).
+- LDAP HD-132 authoring session: base DN `DC=home,DC=kogler,DC=si`, bind/search mode, TLS cert,
+  UID numbers, decouple `authentik-ldap_bind.password` (shared outpost-token/Samba row in
+  deployment-secrets.md). Until then authentik-ldap stays crash-looping BY DESIGN.
+
+### 3d. Small engineering queue
+- csp.yaml changes need explicit opencloud restart (bind mount, startup-only parse) → candidate
+  deploy-service restart-on-change task.
+- Surgical-run tag gotcha: include_tasks is tagged `docker_services`; per-service tags are a union,
+  not a filter → add svc tag to the include or accept full-loop runs.
+- Blueprint auto-apply layer-2 cause (discovery skips `/blueprints/custom/*`) — offline investigation
+  à la HD-216; one-shot apply convention covers it meanwhile.
 
 ## 4. Working rules (binding)
 
-- **Use a new worktree before changing any files** — per CONVENTIONS §6: fresh
-  `../homelab-wt-<date>-<HHMM>`, edits applied and validated there, merge back only committed green
-  results; manage ONLY your own worktree via `git worktree add`/`remove`.
-- Validate green → commit; journal append-only; corrections = new entries; feed raw notes via
-  [prompt-journal.md](prompt-journal.md) DATA ("read prompt-journal.md" triggers the conversion loop).
-- Secrets: 1Password item+field names only — never values, never in Git or chat.
-- Temporary host addresses stay out of repo docs (owner's `.ssh/config` aliases are the bridge).
-- Decisions made during deploy → owning doc + changelog row in the same change; journal entry notes
-  `doc updated: <file>`.
-- No cosmetic edits; English technical prose; relative links.
-- Live-system debugging stays read-only or goes through IaC — no hand-run SQL against managed
-  databases; Authentik data fixes go through `ak-shell.sh` (arg mode) ORM one-shots.
+- New worktree before edits; merge back only committed+green; primary checkout belongs to the
+  PARALLEL session right now — **do not clean/revert their dirty files** (capsman.yml, changelog.md,
+  deployment-journal.md, network docs were mid-edit at handoff).
+- Stale-index artifact pattern: after ref-level merges, primary may show STAGED old versions of
+  files you changed elsewhere — fix with `git checkout HEAD -- <path>` ONLY for YOUR files
+  (done this session for ks-oidc.yml + ansible.cfg).
+- Converges: 9P gate first (see §1 GIT_DIR variant for worktrees), surgical `--tags` preferred
+  BUT note union-tag gotcha (include tagged docker_services ⇒ full fleet walk anyway).
+- Secrets: 1Password item.field names only — never values in Git/chat/output.
+- Journal append-only; owning doc + changelog row in the same change; English prose; relative links.
