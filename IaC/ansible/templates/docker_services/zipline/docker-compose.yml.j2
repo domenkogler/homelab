@@ -24,7 +24,9 @@
 #   (owner stores executables privately). Global default expiration stays UNSET so
 #   private uploads default permanent.
 #
-#   DEPLOY-GATE (CONVENTIONS §5 step 9) — post-up manual seeding (runtime-editable,
+#   DEPLOY-GATE (CONVENTIONS §5 step 9) — pre-deploy: run playbooks/dns.yml once so the
+#   IaC-tracked CNAME makes bin.kogler.si resolve (Traefik route alone is NOT reachable);
+#   post-up manual seeding (runtime-editable,
 #   Server Settings/admin UI — nothing here is a one-way door):
 #     1. First-boot admin: browse https://bin.kogler.si/auth/setup (local admin).
 #     2. OIDC verify: login via Authentik (first OIDC login auto-creates the account,

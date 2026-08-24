@@ -49,9 +49,10 @@
 
 ## 2. State snapshot (end of session)
 
-- **main == origin/main? verify at close** @ handoff #15 closing commit (worktrees
-  `homelab-wt-20260824-2233` [HD-112] and `homelab-wt-2026-08-24-2235` [HD-57 lane] both merged
-  back green).
+- **main == origin/main? verify at close** @ handoff #15 closing commit (all four session
+  worktrees of 2026-08-24 merged back green: `homelab-wt-2026-08-24-2235` [HD-57 lane],
+  `homelab-wt-20260824-2233` [HD-112], `homelab-wt-20260824-2312` [seed-fix],
+  `homelab-wt-20260824-2330` [close-out]).
 - Closed tonight: **HD-112 decided + IaC authored, Stage 9/10, ⏳ deploy-gated** (validate-all
   green ×2) · **HD-57 Stage 8/10** (IaC + decisions; ⏳ tail = human tokens/EB app, n8n workflows
   at Phase 1, AllowedIPs scope, first deploy at Phase 3) · **HD-239** liveness sweep · **HD-238**
@@ -89,9 +90,14 @@
 - **HD-238** oldsrv→VPS DR runbook for non-GPU services (todo §2.9) — laptop-doable authoring task;
   pairs naturally with the next backup.md touch (which now also carries the HD-112 uploads-
   exclusion row).
-- **HD-112 deploy-gate rides the NEXT Phase-1 docker_services converge on vps.yml** — plain
-  registry entry; no special ordering beyond authentik-precedence already guaranteed by the list
-  (OIDC provider + glue fire automatically). Journal the post-up seeding steps as-run.
+- **HD-112 go-live rides the NEXT Phase-1 converge — full sequence:** ① `bash
+  scripts/provision-vault.sh` (seeds `zipline_password` + `zipline_db`; render fails loud without)
+  ② 9P gate → human-gated dry-run → converge `vps.yml` — plain registry entry, authentik
+  precedence guarantees blueprint + glue fire ③ **run `dns.yml` too** — the `bin` CNAME is
+  IaC-tracked but applied ONLY by dns.yml; without it `bin.kogler.si` does not resolve ④ walk the
+  compose-header checklist (`/auth/setup` admin → OIDC verify → flip bypass-local-login → seed
+  `guestbin` + `dropzone`) ⑤ anonymous round-trip + 6h sweep verify → trim the HD-112 ⏳ tail.
+  Journal the post-up steps as-run.
 - Converge ride-along checks (fold into any upcoming docker_services converge): observe residual ①
   (extras restart guard behavior) + confirm blueprint one-shot task output green in the same run;
   journal both, then trim the ⏳ tails via an append-only R-row.
