@@ -9,7 +9,7 @@
 #   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     headscale_api      (API Credential: username=<OIDC client_id>, credential=<OIDC client_secret>)
 #     headplane_api      (API Credential: Headscale API key for the admin UI, HD-233)
-#     headplane_session  (API Credential: Headplane cookie secret, exactly 32 chars, HD-233)
+#     headplane_password  (Password: Headplane cookie secret, exactly 32 chars, HD-233)
 services:
   headscale:
     image: headscale/headscale:{{ headscale_version }}

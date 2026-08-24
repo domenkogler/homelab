@@ -86,7 +86,7 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
   get `default_role: member`.
 - **Headscale API key (required for OIDC mode):** mint ONCE on the VPS —
   `docker exec headscale headscale apikeys create --expiration 8760d` — store in 1Password
-  `headplane_api`.`credential`. Cookie secret (32 chars) lives in `headplane_session`.`credential`.
+  `headplane_api`.`credential`. Cookie secret (32 chars) lives in `headplane_password`.`credential`.
 - **Capabilities:** node/user management, pre-auth keys, read-only Settings view (headscale's
   rendered `config.yaml` is mounted `:ro`). Docker-socket integration (DNS editing from the UI,
   restart headscale on change) deliberately NOT wired — future hardening with a socket proxy.

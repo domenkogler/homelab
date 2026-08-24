@@ -775,13 +775,13 @@
   First login bootstraps the owner; later users get `default_role: member`.
 - **Secrets touched:** none (values only). Required NEW 1Password items (owner):
   `headplane_api` = Headscale API key (`docker exec headscale headscale apikeys create --expiration 8760d`),
-  `headplane_session` = cookie secret, exactly 32 chars (`openssl rand -hex 16`).
+  `headplane_password` = cookie secret, exactly 32 chars (`openssl rand -hex 16`).
 - **Settings chosen:** `headscale.url: http://headscale:8080` (internal, NOT gRPC); `config_path: /etc/headscale/config.yaml`
   mounted `:ro` → read-only Settings view in the UI; `disable_api_key_login: false` (recovery path until
   first OIDC login verified); docker-socket integration deliberately NOT enabled (hardening candidate).
 - **Template plumbing:** `_extra_templates` in role defaults gained `headscale → headplane-config.yaml.j2`
   so the new config renders alongside the compose file (existing mechanism, no role changes).
-- **Remaining (deploy-gated):** owner creates `headplane_api` + `headplane_session` → converge
+- **Remaining (deploy-gated):** owner creates `headplane_api` + `headplane_password` → converge
   (`services` tag; blueprints one-shot apply adds the redirect; 9P gate first) → browser-verify
   `vpn.kogler.si/admin` login; hardening candidates afterwards (`use_pkce: true`, flip
   `disable_api_key_login`).
