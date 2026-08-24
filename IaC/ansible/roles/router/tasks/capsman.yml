@@ -22,19 +22,22 @@
 # dnevna slot). New flavor becomes revisitable when additionally the garage
 # wAP ac confirms RBwAPG-5HacD2HnD (or gets replaced).
 #
-# STATUS: SCAFFOLD ONLY. The RB4011 is not provisioned yet (Phase 1.5 cutover);
-# RouterOS 7 legacy-`wireless` api_modify field sets must be validated LIVE on
-# first contact, so no speculative mutation tasks are shipped here (fail-loud
-# culture — wrong guesses here would either silently no-op or brick the
-# bootstrap window). Implement the four task blocks below during the cutover
-# prep session, against the live manager, then remove the assert gate.
+# STATUS: SCAFFOLD ONLY + DELIVERY RE-DECIDED 2026-08-24 (task 8): steady-state WiFi is NOT
+# ansible api_modify — it ships as a RENDERED .rsc uploaded at the cutover
+# (IaC/router/templates/capsman_steady-state.rsc.j2, modern wifi-qcom-ac), same pattern as the
+# bootstrap scripts (render-routeros.yml). This file's api_modify blocks are NOT to be
+# implemented; the include-gate below stays only as a documented assert until the flag flips
+# (the rsc replaces the api_modify path entirely).
 #
-# DESIGN (agreed HD-228 session):
+# DESIGN (agreed HD-228 session, DELIVERY RE-DECIDED task 8):
 #   - Manager = RB4011 (HD-232: runs `wifi-qcom-ac` pkg as manager — radios not
-#     required); APs join as CAPs via `/interface/wifi cap` — ap_initial.rsc.j2
-#     still ships LEGACY `/interface wireless cap set enabled=yes` and MUST be
-#     rewritten to the modern syntax during cutover prep (stale until HD-232
-#     implementation).
+#     required); APs join as CAPs via `/interface wifi cap` — ap_initial.rsc.j2
+#     ships MODERN `/interface wifi cap` syntax; validate-live noted at cutover.
+#   - Steady-state SSIDs ship as `capsman_steady-state.rsc.j2` (secrets from the
+#     five wifi-kogler* 1Password items at render; datapath VLAN tagging under
+#     the modern wifi config objects per HD-232). The legacy per-SSID plans below
+#     (security-profiles/configuration/access-list/provisioning) are KEPT as
+#     history + the field-set reference the rsc mirrors.
 #   - Per-SSID objects, all IaC-owned via api_modify (paths under /interface/wireless):
 #       1. security-profiles   — one per SSID; mode=dynamic-keys,
 #                                authentication-types=wpa2-psk,

@@ -40,8 +40,15 @@ tags: [network, vlan, firewall]
 | `cfg-kogler-guest` | 30 | Kogler guest |
 | `cfg-kogler-kids` | 40 | Kogler Kids |
 
-- **Mode:** `local-forwarding=no` — all traffic tunneled to router for VLAN tagging
+- **Mode:** `local-forwarding=no` (data-path) — all traffic tunneled to the router for VLAN tagging
 - All APs wired, no mesh
+- **Delivery (owner decision, 2026-08-24 / task 8):** steady-state CAPsMAN ships as a **rendered rsc**
+  (`IaC/router/templates/capsman_steady-state.rsc.j2`) uploaded at the cutover — **not** ansible
+  `api_modify`. MODERN `wifi-qcom-ac` fleet-wide (HD-232): VLAN tagging under the wifi config
+  objects (`datapath.vlan-mode=use-tag` + `vlan-id`), WPA2-PSK passphrases from the five
+  `wifi-kogler*` 1Password items at render. ap_initial.rsc.j2 uses modern `/interface wifi cap`.
+  **Human-gated at cutover:** ① dnevna swap (spare hAP ac² → dnevna), ② garage replacement
+  wifi-qcom-ac-capable. Validate-live TODOs are marked in the templates (fail-loud).
 
 ---
 

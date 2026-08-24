@@ -785,6 +785,26 @@
 - **`group_vars/switch.yml`:** `nas-eno1`/`nas-eno2` `vlan:` blank → `10` (Home, per R-1 resolution); removed the stale duplicate `# NAS eno1` comment above nas-eno2.
 - Validators: YAML parse OK, `validate-docker-services.py` PASS (50), `check_doc_ips.py` OK. No live gear touched (read-only repo edits).
 - Secrets values touched: none.
+
+### 2026-08-24 — Phase 1.5 · CAPsMAN steady-state as modern wifi-qcom-ac rsc (task 8 — authoring only, no deploy) `[AI]`
+
+- Owner decisions recap: steady-state CAPsMAN is a **rendered rsc** (not ansible api_modify); whole fleet MODERN
+  `wifi-qcom-ac` (HD-232). **Human-gated at cutover:** ① dnevna swap (spare hAP ac² → dnevna slot), ② garage
+  replacement wifi-qcom-ac-capable. No gear touched — offline IaC authoring only.
+- **Created `IaC/router/templates/capsman_steady-state.rsc.j2`**: `/interface wifi` security profiles (WPA2-PSK,
+  passphrase from the five `wifi-kogler*` 1Password items at render) + config objects with datapath VLAN tagging
+  (`datapath.vlan-mode=use-tag` + `vlan-id` per SSID/vlan SSOT) + one provisioning rule (master `cfg-kogler`,
+  slaves IoT/Internet/Guest/Kids). SSIDs are quote-wrapped (`ssid="Kogler IOT"`) so multi-word SSIDs import cleanly.
+- **render-routeros.yml** extended to also render `capsman_steady-state.rsc` into IaC/router/rendered/ (same
+  pattern as the bootstrap scripts; upload-after-bootstrap + `/import capsman_steady-state.rsc` — NOT a reset).
+- `capsman.yml` header + `group_vars/router.yml` + `network-vlans.md` updated to document rsc-upload delivery;
+  `routeros_capsman_enabled` comment notes the flag stays false (rsc replaces api_modify).
+- `ap_initial.rsc.j2`: stale legacy `/interface wireless cap` → modern `/interface wifi cap` with a validate-live
+  TODO (exact wifi-qcom-ac cap fields confirmed against the live AP at cutover).
+- **TODO validate-live (fail-loud, cutover-prep session, HD-229):** wifi-qcom-ac field names in the rsc
+  (`datapath.*`, `provisioning add` params, security-profile passphrase field) to confirm against the LIVE
+  manager — unverified guesses would silently no-op or brick the bootstrap window.
+- Secrets values touched: none (lookups only, never rendered VALUES into the repo).
 ### 2026-08-24 — Phase 1 · Rotate shared headscale OIDC client secret + encode “never a secret VALUE in output” hygiene rule (HD-235) `[AI]`
 
 - **Stimulus:** an operating probe exposed the shared `headscale_api` OIDC client_secret to the

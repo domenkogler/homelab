@@ -75,7 +75,11 @@ dns_primary_ip: "{{ hostvars['oldsrv.kogler.si'].dns_primary_ip }}"    # 10.10.1
 dns_secondary_ip: "{{ hostvars['pi.kogler.si'].dns_secondary_ip | default('10.10.1.20') }}"    # 10.10.1.20
 # ==== CAPsMAN WiFi map (HD-228 / network-vlans.md SSID mapping) ====
 # SSOT for cfg names/SSIDs/VLANs/passphrase items. Items must exist in
-# 1Password BEFORE flipping routeros_capsman_enabled (role lookups fail loud).
+# 1Password BEFORE rendering capsman_steady-state.rsc (render lookups fail loud).
+# DELIVERY (owner decision 2026-08-24 / task 8): steady-state WiFi = rendered rsc
+# (IaC/router/templates/capsman_steady-state.rsc.j2), NOT ansible api_modify. MODERN
+# wifi-qcom-ac (HD-232); datapath VLAN tagging in the config objects. This flag stays
+# false — the rsc replaces the api_modify path entirely.
 # IoT configs must stay 2.4 GHz-friendly (QCA4002 + Gen1 Shelly chips, HD-228);
 # passphrases alphanumeric only (HD-228 constraint).
 routeros_capsman_enabled: false

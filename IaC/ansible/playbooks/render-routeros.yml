@@ -15,10 +15,13 @@
 #   RB4011 router  -> IaC/router/rendered/rb4011_initial.rsc
 #   CRS328 switch  -> IaC/router/rendered/crs328_initial.rsc
 #   hAP/wAP APs    -> IaC/router/rendered/ap_initial.rsc (UNIVERSAL — one for all)
+#   CAPsMAN WiFi   -> IaC/router/rendered/capsman_steady-state.rsc (MODERN wifi-qcom-ac, task 8)
 #
 # Then upload each rendered .rsc (+ admin.pub / ansible.pub) to the device's
 # Files and set:
-#   /system reset-configuration no-defaults=yes run-after-reset=<file>
+#   - bootstrap scripts: /system reset-configuration no-defaults=yes run-after-reset=<file>
+#   - capsman_steady-state: /import capsman_steady-state.rsc (AFTER bootstrap + router role,
+#     NOT a reset; passphrases injected from the wifi-kogler* 1Password items at render)
 - name: Render RouterOS bootstrap .rsc (secrets-injected, never committed)
   hosts: localhost
   connection: local
@@ -54,10 +57,16 @@
         src: "{{ playbook_dir }}/../../router/templates/ap_initial.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/ap_initial.rsc"
 
+    - name: Render capsman_steady-state.rsc (MODERN wifi-qcom-ac, task 8)
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/capsman_steady-state.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/capsman_steady-state.rsc"
+
     - name: Report rendered files (upload, never commit)
       debug:
         msg:
           - "Upload IaC/router/rendered/rb4011_initial.rsc + admin.pub + ansible.pub to the RB4011"
           - "Upload IaC/router/rendered/crs328_initial.rsc + admin.pub + ansible.pub to the CRS328"
           - "Upload IaC/router/rendered/ap_initial.rsc + admin.pub + ansible.pub to EACH AP"
-          - "Then per device: /system reset-configuration no-defaults=yes run-after-reset=<file>"
+          - "Upload IaC/router/rendered/capsman_steady-state.rsc to the RB4011, then /import capsman_steady-state.rsc (AFTER bootstrap + router role — NOT a reset)"
+          - "Then per bootstrap device: /system reset-configuration no-defaults=yes run-after-reset=<file>"

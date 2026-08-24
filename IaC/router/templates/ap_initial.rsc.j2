@@ -50,11 +50,13 @@
 
 /ip dhcp-client add interface=bridge disabled=no comment="Mgmt IP via router DHCP (static reservation: VLAN {{ mgmt.id }})"
 
-# ---- CAP Mode (SSIDs provisioned by the router CAPsMAN later) ----
+# ---- CAP Mode (SSIDs provisioned by the router CAPsMAN — MODERN wifi-qcom-ac, HD-232/task 8) ----
 
-/interface wireless cap set \
+# TODO validate-live (cutover-prep, HD-229): confirm the wifi-qcom-ac cap field set on the live
+# AP against the manager (legacy `wireless cap` is gone). Interfaces may need the radio list
+# (wlan1/wlan2) vs a discovery-interfaces only; verify /interface/wifi cap print after import.
+/interface wifi cap set \
     enabled=yes \
-    interfaces=wlan1,wlan2 \
     discovery-interfaces=bridge
 
 # ---- Services ----

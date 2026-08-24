@@ -1,0 +1,73 @@
+{#- CAPsMAN steady-state WiFi — MODERN wifi-qcom-ac — rendered by render-routeros.yml.
+    Manager = RB4011 (HD-232: wifi-qcom-ac package, radios NOT required). APs join
+    as CAPs via /interface wifi cap (ap_initial.rsc.j2). SSIDs/VLANs/passphrase
+    items from group_vars/router.yml routeros_capsman_ssids (SSOT). Secrets from
+    1Password at render time. NEVER commit rendered/ or secret literals. -#}
+# =============================================================================
+# CAPsMAN — Kogler Homelab — Steady-State WiFi (MODERN wifi-qcom-ac)
+# Source template: IaC/router/templates/capsman_steady-state.rsc.j2
+# =============================================================================
+# Purpose: Per-SSID WiFi provisioning on the RB4011 CAPsMAN manager. Delivered as
+#          a rendered .rsc and uploaded at the Phase 1.5 cutover (owner decision:
+#          NOT ansible api_modify). HD-232 = modern wifi-qcom-ac; datapath VLAN
+#          tagging lives in the wifi config objects, not the legacy access-list.
+#
+# How:     Upload to the RB4011 Files, then run:
+#            /import capsman_steady-state.rsc
+#          AFTER the router bootstrap (rb4011_initial.rsc) + Ansible router role
+#          have established bridge/VLANs/DHCP/firewall. NOT a reset script.
+#
+# NOTE:    NO secrets in the repo — passphrases injected from 1Password at render.
+#          Fail-loud: a missing wifi-kogler* item aborts the render.
+#
+# TODO validate-live (cutover-prep, HD-229): exact wifi-qcom-ac field names and
+#   defaults are pinned from MikroTik's wifi-qcom-ac reference; confirm each
+#   against the LIVE RouterOS 7 manager before uploading — the fail-loud culture
+#   forbids guessing that silently no-ops or bricks the bootstrap window.
+# =============================================================================
+
+# ---- Security profiles (WPA2-PSK, one per SSID) ----
+
+{% for ssid in routeros_capsman_ssids %}
+/interface wifi security add \
+    name=sec-{{ ssid.cfg | replace('cfg-', '') }} \
+    authentication-types=wpa2-psk \
+    passphrase={{ lookup('community.general.onepassword', ssid.item, field='password', vault=op_vault) }} \
+    comment="{{ ssid.ssid }} WPA2-PSK ({{ ssid.item }})"
+{% endfor %}
+
+# ---- Wifi config objects (datapath VLAN tagging — HD-232) ----
+
+{% for ssid in routeros_capsman_ssids %}
+/interface wifi configuration add \
+    name={{ ssid.cfg }} \
+    ssid="{{ ssid.ssid | replace('\\"', '\\\\"') }}" \
+    security=sec-{{ ssid.cfg | replace('cfg-', '') }} \
+    mode=ap \
+    datapath.bridge=bridge-lan \
+    datapath.vlan-mode=use-tag \
+    datapath.vlan-id={{ ssid.vlan }} \
+    comment="VLAN {{ ssid.vlan }} ({{ ssid.item }})"
+{% endfor %}
+
+# ---- Provisioning rule (manager -> APs) ----
+# master = cfg-kogler (default for all APs); the rest as slaves. Refine per-radio
+# band steering only if needed (band-steering is NOT in scope for this cutover).
+# TODO validate-live: confirm 'provisioning add' param names on wifi-qcom-ac
+# (legacy wireless used master-configuration/slave-configurations; the modern
+# path may differ — check 'wifi provisioning print' on the live manager).
+
+/interface wifi provisioning add \
+    action=create-dynamic-enabled \
+    master-configuration=cfg-kogler \
+    slave-configurations=cfg-kogler-iot,cfg-kogler-iot-wan,cfg-kogler-guest,cfg-kogler-kids \
+    comment="Provision all APs (master cfg-kogler, slaves IoT/Internet/Guest/Kids)"
+
+# ---- End ----
+# After import, verify on the router:
+#   1. /interface wifi configuration print        -> 5 config objects (cfg-kogler*)
+#   2. /interface wifi security print             -> sec-kogler* profiles
+#   3. /interface wifi registration-table print   -> clients appear per SSID
+#   4. /interface wifi provisioning print         -> dynamic CAP entries created
+# Devices must re-join the correct SSID (Kogler / Kogler IOT / Kogler IOT WAN /
+#   Kogler guest / Kogler Kids) to land on their VLAN (10/20/21/30/40).
