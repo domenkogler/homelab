@@ -756,6 +756,37 @@
 - **DECISION (owner): CAPsMAN flavor flips LEGACY → MODERN `wifi-qcom-ac`** — supersedes the 2026-08-23 legacy pin. The wAP ac was one of two MIPSBE blockers; its death resolves revisit-condition ②. Remaining conditions for the modern fleet: ① dnevna swap executes per owner plan 2026-08-23 (spare hAP ac² C4:AD:34:42:F0:B9 takes the dnevna slot; classic MIPSBE unit retires — no MIPSBE device may remain in the managed fleet); ② garage replacement hardware must be wifi-qcom-ac-capable. Pinned in capsman.yml header; ap_initial.rsc.j2 must move to modern `/interface/wifi` cap syntax at cutover prep (legacy `/interface wireless cap` line now stale). Implementation still fail-loud/live-validated per the scaffold's culture — no speculative field-level tasks shipped.
 - Secrets values touched: none.
 
+### 2026-08-24 — Phase 1 · Headplane admin UI for Headscale at `vpn.kogler.si/admin` (HD-233) `[AI]`
+
+- **Context / root cause:** `https://vpn.kogler.si` returns 200 with a 123-byte empty shell.
+  Verified live (headers `x-frame-options: DENY` + `content-security-policy` + `content-length: 123`
+  are headscale's own) and against upstream source: that is stock headscale's `BlankPage()`
+  template — headscale has **no built-in admin UI**; `/health` 200, `/windows` + `/apple` 200,
+  `/oidc/callback` 400 (route live) all confirmed healthy.
+- **Decision:** co-deploy **Headplane** (ghcr.io/tale/headplane, pinned `0.7.0` — GHCR tags are bare
+  semver; `v0.7.0` 404s, verified) as a second service in the headscale compose project; dashboard
+  served by headplane itself under `/admin`, `server.base_url` = public root WITHOUT the suffix
+  (upstream contract, v0.7.0 docs). Traefik router `Host(vpn.kogler.si) && PathPrefix(/admin)` —
+  the longer rule wins priority without touching the control plane (`/ts2021`, DERP, `/oidc/*`);
+  crowdsec-only tier like headscale.
+- **OIDC:** deliberately the **same Authentik client as headscale** (upstream best practice: identical
+  `client_id`) — ks-oidc.yml `provider_headscale` gained a second redirect URI
+  `https://vpn.kogler.si/admin/oidc/callback`, both entries pinned (HD-231 array-wipe lesson).
+  First login bootstraps the owner; later users get `default_role: member`.
+- **Secrets touched:** none (values only). Required NEW 1Password items (owner):
+  `headplane_api` = Headscale API key (`docker exec headscale headscale apikeys create --expiration 8760d`),
+  `headplane_session` = cookie secret, exactly 32 chars (`openssl rand -hex 16`).
+- **Settings chosen:** `headscale.url: http://headscale:8080` (internal, NOT gRPC); `config_path: /etc/headscale/config.yaml`
+  mounted `:ro` → read-only Settings view in the UI; `disable_api_key_login: false` (recovery path until
+  first OIDC login verified); docker-socket integration deliberately NOT enabled (hardening candidate).
+- **Template plumbing:** `_extra_templates` in role defaults gained `headscale → headplane-config.yaml.j2`
+  so the new config renders alongside the compose file (existing mechanism, no role changes).
+- **Remaining (deploy-gated):** owner creates `headplane_api` + `headplane_session` → converge
+  (`services` tag; blueprints one-shot apply adds the redirect; 9P gate first) → browser-verify
+  `vpn.kogler.si/admin` login; hardening candidates afterwards (`use_pkce: true`, flip
+  `disable_api_key_login`).
+- **Deviations:** none.
+
 *(no entries yet)*
 
 ## Phase 2 — NAS

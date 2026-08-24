@@ -70,6 +70,29 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
   `tag:kogler` may reach the family mesh (`tag:kogler:*`), and only the mesh admin (`autogroup:admin`)
   can apply that tag. Untagged / rogue auto-joined nodes are denied by default.
 
+### Admin UI: Headplane (HD-233, `https://vpn.kogler.si/admin`)
+
+> Stock Headscale has **no built-in web UI** — visiting `https://vpn.kogler.si` returns a 123-byte
+> empty shell (`BlankPage()` template, upstream by design). Administration happens through
+> [Headplane](https://github.com/tale/headplane), co-deployed as a second service in the same
+> compose project (service DNS `http://headscale:8080`, no extra exposure).
+
+- **URL:** `https://vpn.kogler.si/admin` (dashboard prefix is built into headplane; Traefik routes
+  `Host(vpn.kogler.si) && PathPrefix(/admin)` — longer rule wins priority over the control-plane
+  router, so `/ts2021`, DERP and `/oidc/*` are untouched). Same crowdsec-only tier.
+- **Auth:** OIDC via Authentik, deliberately the **same OAuth client as Headscale itself**
+  (upstream best practice: identical `client_id`) — the `ks-oidc.yml` provider gained a second
+  redirect URI `…/admin/oidc/callback`. First login becomes the Headplane **owner**; later users
+  get `default_role: member`.
+- **Headscale API key (required for OIDC mode):** mint ONCE on the VPS —
+  `docker exec headscale headscale apikeys create --expiration 8760d` — store in 1Password
+  `headplane_api`.`credential`. Cookie secret (32 chars) lives in `headplane_session`.`credential`.
+- **Capabilities:** node/user management, pre-auth keys, read-only Settings view (headscale's
+  rendered `config.yaml` is mounted `:ro`). Docker-socket integration (DNS editing from the UI,
+  restart headscale on change) deliberately NOT wired — future hardening with a socket proxy.
+- **Hardening candidates:** `use_pkce: true`, flip `disable_api_key_login: true` after first
+  verified OIDC login.
+
 ### Transition
 1. Deploy Headscale on the VPS (public edge; remote nodes reach it directly)
 2. Family installs the Tailscale app (one-by-one migration from the removed road-warrior / travel-router paths)

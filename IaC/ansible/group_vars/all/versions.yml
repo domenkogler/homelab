@@ -25,6 +25,11 @@ authentik_version: "2026.5.6"      # ghcr.io/goauthentik/server + ldap (GoAuthen
 
 # ==== Tunnels / DNS ====
 headscale_version: "0.29.3"         # headscale/headscale (docker tag strips `v`)
+# Headplane — admin UI for headscale (vpn.kogler.si/admin), co-deployed in the SAME
+# compose project so `http://headscale:8080` service DNS works (HD-233).
+# ghcr.io/tale/headplane tags carry NO `v` prefix (registry-verified 2026-08-24:
+# manifest probe `0.7.0`=200, `v0.7.0`=404).
+headplane_version: "0.7.0"
 
 # ==== HA failover (keepalived) ====
 # osixia/keepalived image tag — shared by Pi primary + oldsrv standby (HD-124/KOPS-053).

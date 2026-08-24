@@ -99,7 +99,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 |--------------|-------------------|-----------------------|----------|
 | `login`      | Login             | `password`            | SMTP/SMTP-relay creds (`smtp_login`), admin accounts (`mikrotik-admin_login`, `grafana_login`, `authentik_login`), any username+password combo |
 | `password`   | Password          | `password`            | shared / opaque secrets with no username: webhook HMAC (`doco-cd_password` — retired HD-150), VRRP (`ha-vrrp_password`), upsmon (`nut_password`), repo master (`kopia_password`), Django `SECRET_KEY` (`authentik_password`), WireGuard private key (`wg_password`), Matrix bootstrap shared secret (`matrix_password`) |
-| `api`        | API Credential    | `credential`          | tokens & keys: Cloudflare (`cloudflare_api`), Forgejo (`forgejo_api`), HA long-lived (`ha_api`), HA failover trigger (`ha-failover_api`), headscale OIDC (`headscale_api`), 1Password service-account (`op_api`), signal-cli (`signal_api`), PrivadoVPN WireGuard client key (`privado-vpn_api`), Matrix/Authentik OIDC client (`matrix_api`), Meteoblue weather key (`meteoblue_api`) |
+| `api`        | API Credential    | `credential`          | tokens & keys: Cloudflare (`cloudflare_api`), Forgejo (`forgejo_api`), HA long-lived (`ha_api`), HA failover trigger (`ha-failover_api`), headscale OIDC (`headscale_api`), Headplane admin key + session secret (`headplane_api`, `headplane_session`), 1Password service-account (`op_api`), signal-cli (`signal_api`), PrivadoVPN WireGuard client key (`privado-vpn_api`), Matrix/Authentik OIDC client (`matrix_api`), Meteoblue weather key (`meteoblue_api`) |
 | `oidc`       | API Credential    | `username`=`client_id`, `credential`=`client_secret` | **OAuth2/OIDC client credentials** — the 1Password item holds the Authentik-generated client_id (in `username`) + client_secret (in `credential`), seeded by the secret-egress glue (HD-143). e.g. `immich_oidc`, `opencloud_oidc`, `forgejo_oidc`, `metabase_oidc`. **Use `oidc`, NOT `api`**, for a service's OIDC *client* — this keeps it distinct from service API tokens (e.g. `forgejo_api` = the renovate git token, vs `forgejo_oidc` = the Authentik login client). Items older than this rule (`matrix_api`, `headscale_api`, `openwebui_api` for OIDC) are grandfathered under `api`; do not rename them. |
 | `db`         | Database          | `password` (also `username`) | platform DBs: `authentik_db`, `opencloud_db`, `immich_db`, `forgejo_db`, `onlyoffice_db` — Database item holds both `username` (DB user) and `password` |
 | `ssh`        | SSH Key           | `private_key` / `public_key` | `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh` — item stores both halves; read whichever the consumer needs |
@@ -156,6 +156,8 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `crowdsec-bouncer_api` | `credential` | CrowdSec LAPI bouncer key for the Traefik bouncer plugin (`cscli bouncers add traefik-bouncer`; Wave-3 R5, 2026-08-22) |
 | `meteoblue_api` | `credential` | Home Assistant core `meteoblue` weather integration (HD-22) — Meteoblue model API key |
 | `headscale_api` | `credential` | headscale (OIDC client secret; `username` = client id) |
+| `headplane_api` | `credential` | Headplane → **Headscale API key** (REQUIRED for Headplane OIDC mode, HD-233). Mint ONCE on the VPS: `docker exec headscale headscale apikeys create --expiration 8760d` |
+| `headplane_session` | `credential` | Headplane cookie/session signing secret — exactly 32 chars (`openssl rand -hex 16`), HD-233 |
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
 | `nut-exporter_password` | `password` | nut_exporter → upsd read-only auth (dedicated `upsmon slave` user on the NUT master) |
 | `network-snmp_api` | `credential` | router + switch — MikroTik SNMP **read-only community** for Alloy polling (HD-53/Option A); `credential` = the RO community string |
@@ -221,6 +223,8 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `ha_api_key` / `ha_exporter_token` / `ha_prometheus_token` / `long_lived_token` | `ha_api` |
 | `ha_vrrp_password` | `ha-vrrp_password` |
 | `headscale_oidc_secret` | `headscale_api` |
+| `headplane_headscale_api_key` / `headplane_api_key` | `headplane_api` |
+| `headplane_cookie_secret` | `headplane_session` |
 | `upsmon_password` / `nut_upsmon_password` | `nut_password` |
 | `smtp_notify_creds` / `nut_notify_email` / `nut_smtp_user` / `nut_smtp_pass` | `smtp_login` |
 | `snmp_ro_community` (snmp.yml.j2 auth) | `network-snmp_api` |

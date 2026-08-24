@@ -29,6 +29,8 @@ _extra_templates:
     - prometheus.yml.j2
     - prometheus-web-config.yml.j2   # HD-59 Basic Auth for the scrape endpoint
   headscale:
+    - headplane-config.yaml.j2       # HD-233 admin UI (Headplane) config, rendered next to compose
+  headscale:
     - config.yaml.j2
     - policy.hujson.j2
   traefik:
