@@ -1,0 +1,141 @@
+# zipline docker-compose.yml — public file bin / URL shortener / QR (bin.kogler.si)
+#   HD-112 (decided 2026-08-24): ONE public host on the crowdsec-only@file tier
+#   (never zero edge protection; PairDrop precedent). Viewer/shortener routes and the
+#   FOLDER-GUEST upload API are anonymous BY DESIGN; the dashboard is gated by Zipline
+#   NATIVE OIDC against Authentik (provider `zipline` declared in ks-oidc.yml, family-
+#   group binding only). Forward-Auth deliberately NOT stacked (double-auth avoided;
+#   Immich/OpenCloud precedent).
+#
+#   Storage (HD-131-compliant): LOCAL filesystem datasource on VPS NVMe — no S3.
+#     - /srv/docker/zipline/uploads   → datasource (ephemeral guest drops + private files)
+#     - /srv/docker/zipline/postgres  → metadata DB (db-backup DB05)
+#   Backup split: the uploads tree is EXCLUDED from the Kopia VPS snapshot policy
+#   (6h-TTL drops are regenerable-by-design; persistent private files ride the same
+#   policy decision — see docs/backup.md); the DB is dumped by db-backup like the rest.
+#
+#   Guestbin quota-split (the no-login dropzone): a dedicated Zipline-LOCAL user
+#   `guestbin` (NO Authentik identity — it exists ONLY inside Zipline's own DB and can
+#   never reach any other service) owns a `dropzone` folder with allowUploads=true.
+#   Anonymous visitors POST unauthenticated with headers:
+#       x-zipline-folder: <dropzone id>     x-zipline-deletes-at: 6h
+#   Files attribute to guestbin and consume ITS small quota -> the PUBLIC side is
+#   bounded by that quota + 6h TTL + rate limit + CrowdSec, NOT by global caps:
+#   FILES_MAX_FILE_SIZE stays generous and NO type/extension blockers are configured
+#   (owner stores executables privately). Global default expiration stays UNSET so
+#   private uploads default permanent.
+#
+#   DEPLOY-GATE (CONVENTIONS §5 step 9) — post-up manual seeding (runtime-editable,
+#   Server Settings/admin UI — nothing here is a one-way door):
+#     1. First-boot admin: browse https://bin.kogler.si/auth/setup (local admin).
+#     2. OIDC verify: login via Authentik (first OIDC login auto-creates the account,
+#        FEATURES_OAUTH_REGISTRATION=true; family-only because the Authentik app is
+#        bound to the family group). After verify, flip OAUTH bypass-local-login ON in
+#        Server Settings (kept OFF here until the local break-glass account is proven).
+#     3. Create user `guestbin` (admin panel; set a small storage quota ~100 MB; NO
+#        password minted into any vault — it must never log in), then folder `dropzone`
+#        with allowUploads=true. Paste its folder id into the family drop script.
+#     4. Verify: anonymous upload w/ both headers returns a short URL; viewer route
+#        serves it logged-out; file is gone after 6h (tasks.deleteInterval sweep).
+#
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
+#     zipline_password (Password: CORE_SECRET — session/config secret)
+#     zipline_db       (Database: username/password for the bundled Postgres)
+#     zipline_oidc     (api: username=client_id, credential=client_secret — seeded by glue)
+services:
+  zipline:
+    image: ghcr.io/diced/zipline:{{ zipline_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - SETGID
+      - SETUID
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: zipline
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - db-internal
+    volumes:
+      - /srv/docker/zipline/uploads:/uploads
+    depends_on:
+      zipline-db:
+        condition: service_healthy
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      CORE_HOSTNAME: 0.0.0.0
+      CORE_PORT: "3000"
+      # Session/config secret (fail-loud: no default(), HD-65)
+      CORE_SECRET: >-
+        {{ lookup('community.general.onepassword', 'zipline_password', field='password', vault=op_vault) }}
+      CORE_TRUST_PROXY: "true"            # behind Traefik (real client IP for rate limit)
+      CORE_RETURN_HTTPS_URLS: "true"
+      CORE_DEFAULT_DOMAIN: bin.kogler.si  # short URLs / shares return this host
+      DATABASE_URL: >-
+        postgres://{{ lookup('community.general.onepassword', 'zipline_db', field='username', vault=op_vault) }}:{{ lookup('community.general.onepassword', 'zipline_db', field='password', vault=op_vault) }}@zipline-db:5432/zipline
+      DATASOURCE_TYPE: local
+      DATASOURCE_LOCAL_DIRECTORY: /uploads
+      # Generous GLOBAL cap on purpose (HD-112): the anonymous side is bounded by the
+      # guestbin user's quota + 6h TTL, not by size caps. No disabled types/extensions.
+      FILES_MAX_FILE_SIZE: 1gb
+      FEATURES_USER_REGISTRATION: "false"   # no local signup form
+      FEATURES_OAUTH_REGISTRATION: "true"   # first Authentik OIDC login creates the account
+      # Native OIDC (Authentik provider `zipline`, blueprint-declared; creds via glue)
+      OAUTH_OIDC_CLIENT_ID: "{{ lookup('community.general.onepassword', 'zipline_oidc', field='username', vault=op_vault) }}"
+      OAUTH_OIDC_CLIENT_SECRET: >-
+        {{ lookup('community.general.onepassword', 'zipline_oidc', field='credential', vault=op_vault) }}
+      OAUTH_OIDC_AUTHORIZE_URL: https://sso.kogler.si/application/o/zipline/authorize
+      OAUTH_OIDC_TOKEN_URL: https://sso.kogler.si/application/o/zipline/token
+      OAUTH_OIDC_USERINFO_URL: https://sso.kogler.si/application/o/zipline/userinfo
+      OAUTH_OIDC_REDIRECT_URI: https://bin.kogler.si/api/auth/oauth/oidc
+      # NOTE: OAUTH_BYPASS_LOCAL_LOGIN intentionally NOT set here — flip it ON in
+      # Server Settings AFTER the local admin + first OIDC login are verified live.
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.zipline.rule: "Host(`bin.kogler.si`)"
+      traefik.http.routers.zipline.entrypoints: websecure
+      {{ 'traefik.http.routers.zipline.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      traefik.http.routers.zipline.middlewares: crowdsec-only@file
+      traefik.http.services.zipline.loadbalancer.server.port: "3000"
+
+  zipline-db:
+    image: postgres:{{ zipline_db_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETUID
+      - SETGID
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
+    container_name: zipline-db
+    restart: unless-stopped
+    networks:
+      - db-internal
+    volumes:
+      - /srv/docker/zipline/postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: zipline
+      POSTGRES_USER: "{{ lookup('community.general.onepassword', 'zipline_db', field='username', vault=op_vault) }}"
+      POSTGRES_PASSWORD: >-
+        {{ lookup('community.general.onepassword', 'zipline_db', field='password', vault=op_vault) }}
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  traefik-public:
+    external: true
+  db-internal:
+    external: true

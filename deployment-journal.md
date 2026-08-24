@@ -1137,6 +1137,48 @@
   with HD-236 residual ① (zero spurious restarts on unchanged extras) as a converge-time check.
 - Probes used throwaway temp scripts outside all checkouts, deleted after capture.
 
+### 2026-08-24 — Phase 1 · HD-112 Zipline: brainstorm → decisions locked → full IaC authored (deploy-gated) `[AI]`
+
+- Entry point: owner chat brainstorm (no prior prompt.md task) that flowed straight into an
+  implementation session. Worktree `../homelab-wt-20260824-2233`, branch
+  `session-20260824-hd112-zipline` — commits `9bc84be` (decision docs) + `746ae97` (IaC)
+  + this close-out.
+- **Design source verification (read-only upstream, no live probing):** every load-bearing
+  mechanism verified against the Zipline v4 trunk source before deciding — anonymous upload is
+  FOLDER-scoped (`Folder.allowUploads`; unauthenticated `POST /api/upload` with
+  `x-zipline-folder`; file attributed to the folder OWNER and draws ITS quota; flagged
+  `anonymous`); expiry header is `x-zipline-deletes-at` (human time like `6h` / `date=<ISO>` /
+  `never`; optional `maxExpiration` cap knob exists); OIDC callback path is
+  `${origin}/api/auth/oauth/oidc` (route source); shortener API `POST /api/user/urls` + dashboard
+  QR modal exist natively; stable release = **v4.7.0** (2026-08-16, tag has `v`). An earlier
+  external answer suggesting `EXPOSE_NOT_FOUND` / `WEB_SHORTENER_DISABLED` envs and a
+  `X-Zipline-Expiration` header was checked against source and REJECTED as hallucinated.
+- **Decisions locked** (changelog decision row): ONE public host `bin.kogler.si` on
+  `crowdsec-only@file`; dashboard gated by native-OIDC provider `zipline` (blueprint-declared,
+  family-group binding; Forward-Auth NOT stacked); **guestbin quota-split** — dedicated
+  Zipline-local user (no Authentik identity, never logs in) owns the `dropzone` folder
+  (`allowUploads=true`) so the public side is bounded by QUOTA + 6h TTL instead of global caps →
+  NO type/extension blockers (owner stores executables privately), generous
+  `FILES_MAX_FILE_SIZE=1gb`; uploads tree Kopia-excluded, metadata DB dumped via db-backup DB05;
+  Phase-2 `/drop` static glue page deferred.
+- **IaC authored:** compose template `docker_services/zipline/` (v4.7.0 + postgres sidecar,
+  db-internal only, read_only + cap_drop ALL, healthcheck-gated depends_on, deploy-gate checklist
+  in header comment); vps.yml registry w/ `db_role_sync`; ks-oidc.yml `provider_zipline`/
+  `app_zipline` (strict callback; grant_types + property_mappings pinned per HD-231); glue
+  PROVIDERS += `zipline:zipline_oidc`; vault catalog rows (`zipline_oidc`/`zipline_db`/
+  `zipline_password`); CNAME `bin`; versions pins; validator `WEB_SERVICES += zipline`;
+  backup.md payload row; utilities doc flipped 🟢 IaC done ⏳; todo Stage 9/10 trimmed tail.
+- **Verification:** validate-all.sh green on BOTH commits. First IaC run failed with
+  `[zipline] non-web service should not set traefik.enable: true` — resolved by registering
+  zipline in the validator's explicit `WEB_SERVICES` allowlist (the intended registration path,
+  not an exemption).
+- **Deviations:** none live — NO gear touched; everything ⏳ deploy-gated to the Phase-1 wave.
+  Owner pre-deploy action: create 1Password items `zipline_password` + `zipline_db` (the glue
+  seeds ONLY `zipline_oidc` from Authentik). Post-up seeding per compose-header runbook:
+  local admin `/auth/setup` → OIDC verify → flip bypass-local-login in Server Settings →
+  seed `guestbin` (small quota, no password) + `dropzone` folder → anonymous round-trip +
+  6h sweep verify → family drop script + manual guide.
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).

@@ -78,6 +78,7 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 | `sso` | Authentik |
 | `foto` | Immich |
 | `file` | OpenCloud |
+| `bin` | Zipline (HD-112) — public viewer/share routes + guest dropzone uploads; dashboard native OIDC; `crowdsec-only` tier |
 | `office` | ONLYOFFICE — browser editor UI via Traefik (WOPI helper, JWT-auth, no user auth itself — HD-166) |
 | `ai` | Open WebUI — AI chat/RAG, public, Authentik OIDC + CrowdSec-only (HD-101) |
 | `git` | Forgejo |

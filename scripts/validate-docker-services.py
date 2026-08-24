@@ -83,6 +83,7 @@ WEB_SERVICES = {
     "dozzle",
     "pairdrop",
     "stirling-pdf",
+    "zipline",
     "open-webui",
     "technitium", "pihole", "n8n",
     "actual-budget",   # budget.kogler.si UI + :5006 API leg over WG (HD-57)
