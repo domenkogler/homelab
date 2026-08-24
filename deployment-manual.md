@@ -478,6 +478,15 @@ First-boot notes:
 - **db-backup**: trigger + verify the first dump manually —
   `docker exec db-backup backup01-now`, then confirm `/backup` fills inside the container.
 
+The **opencloud ↔ onlyoffice-docs WOPI editor layer** (file.kogler.si `.docx` → `office.kogler.si` in-browser editor, HD-166) has FOUR hard requirements. Until ALL are true, files fall back to "download instead" or 401. Verify in order (9P-gated converge first, then these probes — hash/sec values only, never print values):
+1. **`collaboration` service RUNNING**: `docker exec opencloud opencloud list | grep collaboration`.
+   Env must have `OC_ADD_RUN_SERVICES=collaboration` and `OC_EXCLUDE_RUN_SERVICES` that does NOT list it (i.e. `idp` only). Both set → EXCLUDE nets it out (7.4 semantics = defaults − EXCLUDE + ADD).
+2. **DS WOPI enabled**: `docker exec onlyoffice-docs sh -c "grep -oE '\"wopi\"[^}]*enable[^,]*' /etc/onlyoffice/documentserver/local.json"` shows `enable: true`; `curl -s -o /dev/null -w '%{http_code}' https://office.kogler.si/hosting/discovery` = 200. Env `WOPI_ENABLED=true` (DS image defaults OFF).
+3. **WOPI secret set**: opencloud env has `COLLABORATION_WOPI_SECRET` (mints/verifies the WOPI JWT + encrypts/decrypts the embedded REVA token). If unset → 401.
+4. **SYSTEM JWT secret consistent — the split-brain**: every OpenCloud service must use the SAME `token_manager.jwt_secret`. Set **`OC_JWT_SECRET`** env on the opencloud compose to the shared value (also mirrored as `COLLABORATION_JWT_SECRET`/`COLLABORATION_WOPI_SECRET` and ONLYOFFICE `JWT_SECRET`, all from 1P `opencloud-collab_password`). If `OC_JWT_SECRET` is unset, the yaml auto-gen secret (rendered at first `opencloud init`) mints REVA tokens but collaboration verifies with the env value → "token signature is invalid" / 401 "Invalid access token".
+   - Gotcha: `opencloud.yaml` is a persistent bind mount at `/srv/docker/opencloud/config/opencloud.yaml`; idempotent `opencloud init` does NOT regenerate an existing file. Env (envdecode) is the override path — verify the running service picked it up, and **users must RE-LOGIN** after any JWT-secret change (old REVA tokens die).
+- Full diagnosis record: [deployment-journal.md](deployment-journal.md) HD-166 pt.2/pt.3/pt.4.
+
 ### 1.10 Manual recovery patterns (non-Ansible)
 
 - **nftables restart wipes docker NAT** (`flush ruleset` at top of ruleset): any manual
@@ -494,4 +503,8 @@ First-boot notes:
   `docker compose -f /opt/renovate/docker-compose.yml run --rm -e LOG_LEVEL=debug renovate`
 - **Stale compose env:** container env older than rendered file (compose sees no change):
   `docker compose -f /opt/<svc>/docker-compose.yml up -d --force-recreate`.
+- **`.docx` editor fails at one of the four WOPI layers** — see §1.9 Verification step. Quick triage by symptom:
+  - "No preview available … download instead" → layer 1 or 2 (collaboration not running, or DS WOPI off).
+  - "Invalid access token" (401) → layer 3 or 4 (WOPI secret unset, or JWT split-brain — set `OC_JWT_SECRET` = shared, converge, **user re-login**).
+  - Check both sides: `docker logs opencloud "/wopi/files"` + `docker logs onlyoffice-docs "checkFileInfo"`.
 *Last updated 2026-08-23 · Phases 0 + 0.5 + 1a complete (incl. 1a.0 pool bootstrap as executed); Phase 1 written from the settled 2026-08-22 initialization path (stack live, Verify evidence pass pending two owner inputs).*
