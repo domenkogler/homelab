@@ -11,7 +11,7 @@ tags: [services, authentik, sso, oidc]
 > **Links to:** `services-traefik.md`, `deployment-secrets.md`, `deployment-compose.md`, `deployment-oidc.md`, `deployment-ansible.md`
 > **Linked from:** `services.md`, `deployment-compose.md`, `index.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Authentik is IaC-authored (`docker_services` templates + `ks-oidc.yml` Blueprint + secret-egress glue) but **not live** — it deploys on the VPS during Phase 1 (HD-40A), and the OIDC provisioning chain (Blueprint + glue) is deploy-gated ⏳ (HD-142/143/147/149). Decisions below are the authoring spec, not a live system.
+> 🟢 **Live since 2026-08-22** (Phase 1): Authentik server + worker up on the VPS; the OIDC provisioning chain is proven live — all 15 expected providers exist via the deterministic blueprint one-shot (`apply-authentik-blueprints.yml`, HD-230b). ⏳ deploy-gated tails below where flagged (e.g. LDAP authoring HD-132). Sections below remain the implementation spec.
 
 ---
 

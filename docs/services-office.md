@@ -12,7 +12,7 @@ tags: [services, llm, ollama, office]
 > **Links to:** `hardware-gpu.md`, `services-ai.md`, `services-authentik.md`, `services-traefik.md`
 > **Linked from:** `services.md`, `index.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The office/AI toolchain (ONLYOFFICE on oldsrv desktop, Open WebUI MCP for Word/Excel/PPT) depends on oldsrv being live (Phase 3) and the AI stack (HD-100…111); this is the authoring spec, not a live system.
+> 🟢 **Server side live since 2026-08-22**, chain closed & owner-verified 2026-08-24: OpenCloud (`file.kogler.si`) + ONLYOFFICE WOPI integration (HD-166 pts.1–6: collaboration service enabled, WOPI discovery, REVA JWT split-brain, CSP mixed-content fix → owner `.docx` round-trip PASS incl. two-browser co-editing). ⏳ deploy-gated/future: the oldsrv desktop toolchain (Phase 3) and the Office MCP bridge on client PCs (HD-108/111) — this doc remains the spec for those parts.
 
 ---
 

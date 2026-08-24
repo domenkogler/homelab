@@ -11,7 +11,7 @@ tags: [services, admin, ops, gitops, security, backup]
 > **Links to:** `services-traefik.md`, `services-authentik.md`, `backup.md`, `deployment-renovate.md`, `observability.md`, `services.md`
 > **Linked from:** `services.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Admin services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
+> 🟢 **VPS members live since 2026-08-22** (Phase 1): Forgejo (healed 2026-08-23 after the postgres role-password rotation fix, HD-220a), CrowdSec, Metabase, Headscale + Headplane admin UI, kopia-server, db-backup, Renovate. ⏳ deploy-gated: kopia-agent (oldsrv, Phase 3) plus owner tails surfaced in todo.md (Forgejo repo creation/migration, kopia seed/wiring decisions — HD-230).
 
 ---
 

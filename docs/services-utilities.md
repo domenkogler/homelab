@@ -11,7 +11,7 @@ tags: [services, utilities, tools, automation]
 > **Links to:** `services-office.md`, `observability.md`, `services-authentik.md`, `services.md`
 > **Linked from:** `services.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Utility services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
+> 🟢 **VPS members live since 2026-08-22**: n8n (`auto.kogler.si`, the alert brain), PairDrop (public crowdsec-only tier on both subdomains per HD-230a), Stirling-PDF. ⏳ deploy-gated: signal-cli-rest-api (oldsrv, Phase 3 — reaches n8n over WG S2S once that tunnel is up, HD-03).
 
 ---
 

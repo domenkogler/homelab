@@ -11,7 +11,7 @@ tags: [services, traefik, proxy, ssl]
 > **Links to:** `services-authentik.md`, `services.md`
 > **Linked from:** `services.md`, `deployment-compose.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Traefik is IaC-authored (compose templates + middleware chains) but **not live** — it deploys on the VPS edge during Phase 1 (HD-40A) and on oldsrv internally later (Phase 3). The wildcard cert + CrowdSec wiring is deploy-gated ⏳ (HD-03/60). Decisions below are the authoring spec, not a live system.
+> 🟢 **Live since 2026-08-22** on the VPS edge (Phase 1, HD-40A): wildcard `*.kogler.si` LE cert issued, middleware chains deployed, all enabled services routed. ⏳ deploy-gated: oldsrv-internal Traefik (Phase 3), `traefik-ha` Pi edge (HD-17), router-side wiring (HD-03/60). Sections below remain the implementation spec.
 
 ---
 

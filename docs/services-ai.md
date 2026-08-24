@@ -2,7 +2,7 @@
 title: AI Platform — Chat, RAG & Agents (LiteLLM / Open WebUI / OpenClaw / Docling / PGVector)
 role: detail
 domain: services
-status: planning
+status: active
 tags: [services, ai, llm, llm-gateway, rag, agents]
 ---
 # AI Platform — Chat, RAG & Agents
@@ -15,7 +15,9 @@ tags: [services, ai, llm, llm-gateway, rag, agents]
 > `deployment-secrets.md`, `services.md`
 > **Linked from:** `services.md`, `index.md`
 
-> **Status:** Planning — nothing deployed yet. Supersedes the AnythingLLM path in `services-office.md`
+> **Status:** VPS platform **live since 2026-08-22** (Phase 1): LiteLLM spine, Open WebUI (`ai.kogler.si`), Docling,
+> PGVector, OpenClaw up on the VPS. ⏳ deploy-gated: Ollama + Immich-ML on the oldsrv GPU (Phase 3) and the
+> RAG/agent live-tuning behind them. Supersedes the AnythingLLM path in `services-office.md`
 > for the family web UI (AnythingLLM **removed**; **LocPilot kept** for Windows-Word inline only).
 > Tracked via `todo.md` HD-1xx (`source: services-ai`).
 

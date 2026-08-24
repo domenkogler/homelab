@@ -11,7 +11,7 @@ tags: [observability, grafana, prometheus, monitoring]
 > **Links to:** `interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`, `services.md`
 > **Linked from:** `index.md`, `interfaces.md`, `services.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The stack is IaC-authored (monitoring role + compose templates) but **not live** — the backend deploys on the VPS (HD-135), oldsrv/Pi Alloy collectors come online with their hosts (Phase 3/4). Alerting/retention below is the authoring spec; live-verify items are ⏳ deploy-gated (HD-08, Grafana rules, Alloy instance labels).
+> 🟢 **Backend live since 2026-08-22** (Phase 1, VPS): prometheus / loki / grafana / blackbox-exporter deployed and converged — grafana↔prometheus auth gap fixed and datasource verified HTTP 200 (HD-220b). ⏳ deploy-gated: oldsrv/Pi **Alloy collectors** (come online with their hosts, Phase 3/4), alerting/contact-point live-verify (HD-08; contactpoint/datasource passwords sit in the HD-211 rotation batch), device-side SNMP enable (HD-03 cutover). Alerting/retention sections below remain the authoring spec for those gated parts.
 
 ---
 
