@@ -10,7 +10,7 @@ Renovate re-enable = file-edit only (other session runs playbooks) · headplane/
 |---|------|-------------|------|-------|
 | R-1 | Reconcilation Option A + Pi-DNS | decision artifact + all.yml/host_vars/inventory/docs | 4 | ✅ committed `7a29199` |
 | R-2 | Reservations from inventory + switch-map fixes | network_static_hosts + router loop + switch.yml + render | 2 | ✅ committed `3167885` |
-| 1 | file.kogler.si editor round-trip verify | verify report (collab svc, WOPI, JWT both sides, CSP) | 2 | ⬜ |
+| 1 | file.kogler.si editor round-trip verify | verify report (collab svc, WOPI, JWT both sides, CSP) | 2 | ✅ committed `f1d75b8` (owner round-trip = only remaining gate) |
 | 2 | Switch completeness (switch_port_map SSOT from Rack.canvas) | filled SSOT + role de-gap + validate | 4 | ⬜ |
 | 3 | Firewall matrix verification plan | e2e test script (cross-VLAN, Kids bedtime, forced DNS) | 3 | ⬜ |
 | 4 | Conflict cleanup (HD-207 dup, AP-dnevna dup, todo §1 stale, deploy-gated trim) | curated todo/changelog/inventory | 2 | ⬜ (AP-dnevna dup part done in R-1) |
