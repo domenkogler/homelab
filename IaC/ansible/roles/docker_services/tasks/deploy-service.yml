@@ -57,6 +57,12 @@
   loop_control:
     label: "{{ extra | replace('.j2', '') }}"
     loop_var: extra
+  # Registered for the post-up restart-on-config-change guard below. Sufficient by
+  # itself: every _extra_templates entry today is a .j2 render that OVERWRITES the raw
+  # copy step's unrendered file, so this task is the only place an extras change can
+  # surface. If a static (non-.j2) extra is ever added, extend the guard to also watch
+  # the copy step's result.
+  register: extra_templates_result
 
 # ---- First-boot guard (HD-185): home-assistant-primary bind-mount sources ----
 # Render-first order (HD-204: home_assistant BEFORE docker_services on the Pi) means
@@ -107,6 +113,36 @@
     project_src: "{{ docker_compose_dir }}/{{ svc.name }}"
     state: present
 
+# ---- Restart-on-config-change guard (extras are bind-mounted) ----
+# `docker compose up -d` recreates containers ONLY when their SPEC changes; a changed
+# bind-mounted file's CONTENT is invisible to it. Without this guard a rendered extra
+# (opencloud csp.yaml HD-144, matrix tuwunel.toml, litellm config.yaml, element-web
+# config.json, loki loki.yaml, prometheus scrape config + web-config basic auth) would
+# sit unapplied on disk after converge until an unrelated restart picked it up.
+# Exclusions:
+#   * .env.j2 extras (kopia-server/agent): compose ${} INTERPOLATION source — a value
+#     change alters container specs, so `up -d` above already recreated; restarting
+#     again would be a pointless double bounce.
+#   * traefik / traefik-ha: dynamic/*.yml land in the file-provider watch dir and
+#     hot-reload in-process; a restart would only add downtime (and drop edge traffic).
+# Prometheus restart is accepted deliberately: scrape-target churn costs one short gap,
+# while prometheus-web-config.yml (basic auth, HD-59) is read at startup ONLY.
+# First-boot safe: `up` just created the containers, so a restart finds them running;
+# idempotent converges never fire it (no render change -> no restart).
+- name: "Restart {{ svc.name }} stack to apply changed extra config"
+  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  tags: "{{ svc.name }}"
+  when:
+    - svc.name not in ['traefik', 'traefik-ha']
+    # any CHANGED non-.env extra (loop results carry .item = template filename)
+    - >-
+      extra_templates_result.results
+      | selectattr('changed')
+      | map(attribute='item') | list
+      | reject('search', '\.env\.j2$') | list | length > 0
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker_compose_dir }}/{{ svc.name }}"
+    state: restarted
 
 - name: "Enable systemd service docker-compose@{{ svc.name }} (boot auto-start)"
   # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
