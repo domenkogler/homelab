@@ -1179,6 +1179,22 @@
   seed `guestbin` (small quota, no password) + `dropzone` folder → anonymous round-trip +
   6h sweep verify → family drop script + manual guide.
 
+### 2026-08-24 — Phase 1 · HD-112 follow-up: vault items made script-seedable; go-live sequence pinned `[AI]`
+
+- **Owner-spotted gap closed (merge `56c2fe9`):** the handoff said "create 1Password items
+  manually" while `scripts/provision-secrets.py` maintains a generated-item CATALOG (+
+  `provision-vault.sh` wrapper, `check-vault-items.sh` coverage diff). Added `zipline_db`
+  (Database) + `zipline_password` (CORE_SECRET) to CATALOG and to NOT_AUTO_ROTATABLE (init-once
+  DB password / session-invalidating secret classes); verified via `--list` showing both entries
+  flagged `[manual rotate]`. Root README §6 quick-refs gained the missing `scripts/README.md`
+  link (its "Linked from" header claimed README.md but never had it).
+- **Go-live sequence pinned** (prompt.md §3b + compose-header DEPLOY-GATE preamble):
+  provision-vault.sh → 9P gate + human-gated dry-run → vps.yml converge → **dns.yml** (the `bin`
+  CNAME applies ONLY there — Traefik route alone is unreachable) → compose-header post-up
+  seeding → round-trip + 6h sweep verify → HD-112 closes at Stage 10/10.
+- Repo-only lanes, no gear touched. Worktree `../homelab-wt-20260824-2312` merged green;
+  this entry closes the session.
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).
