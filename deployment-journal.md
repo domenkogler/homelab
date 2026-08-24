@@ -1050,6 +1050,45 @@
 - **Changelog:** HD-216 R2 row appended.
 - **Deviations:** none.
 
+### 2026-08-24 — Phase 1 · B-queue small engineering batch closed via parallel isolated workers (HD-236) `[AI]`
+
+- **Execution model:** orchestrator session ran three prompt.md §3b items as parallel subagent
+  workers, each in its own managed git worktree off main; shared index files (changelog/journal/
+  todo/prompt) reserved for the orchestrator so three branches could never conflict; lanes kept
+  disjoint from the concurrent HD-216 session (authentik docs untouched).
+- **(a) collaboration.app.insecure = FALSE ALARM:** parent fetched upstream source live from
+  github.com/opencloud-eu/opencloud tag v7.4.0 (image pin `opencloudeu/opencloud-rolling:7.4.0`):
+  `app.go` maps `COLLABORATION_APP_INSECURE` → `collaboration.app.insecure`; `parse.go` decodes
+  env LAST over file+defaults; `defaultconfig.go` hardcodes default false with NO `OC_INSECURE`
+  coupling → the yaml `true` seen during HD-166 pt.3/pt.5 forensics was a non-authoritative
+  snapshot (stale scaffolded config / pre-env container / HD-212-class 9P stale read). Kept
+  `"false"` (= verify edge LE cert); compose TODO rewritten with sources; services-office.md
+  verified bullet added. Residual: one-time live probe of the EFFECTIVE runtime value.
+- **(b) extras restart-on-change guard:** root cause — rendered extras are bind-mounted and
+  compose up -d sees SPEC changes only. deploy-service.yml registers the extra-render loop result;
+  a guarded post-up task runs `docker_compose_v2 state: restarted` for that one service when any
+  non-`.env` extra actually changed. Exclusions reasoned in comments (`.env.j2` interpolation
+  class; traefik/traefik-ha file-provider hot reload); prometheus restart accepted deliberately
+  (web-config basic auth is startup-only). Raw-copy step deliberately NOT registered (every
+  current extra is a .j2 render overwriting the raw copy) — noted in-task for future static extras.
+- **(c) --tags union semantics:** verified against vps.yml/main.yml/deploy-service.yml wiring:
+  union never narrows; dynamic `include_tasks` gate their FILE by own effective tags and do NOT
+  cascade into contents → per-service filtering needs `--tags "docker_services,<service>"`,
+  service-tag-alone is a SILENT NO-OP; handlers are tag-filtered too (`reload systemd` untagged —
+  LATENT GAP flagged for a future batch, not fixed here); playbooks without role-level tags can't
+  be surgically filtered today; canonical invocation tables in deployment-manual.md How-to-use +
+  deployment-ansible.md §Tags & surgical runs; wrong Targeted Mode examples fixed; stale
+  pre-HD-220 parenthetical removed.
+- **Process lessons (tooling, not repo rules):** (1) workflow teardown on an intercom-detached
+  child killed two in-flight workers before commit → relaunched standalone with an explicit
+  `git branch keep/<item>` survival ref; (2) a completed worker's branch can vanish with managed-
+  worktree cleanup — the commit object survived and was re-pinned to `keep/collab-insecure`
+  before merging; (3) untracked research temp files in the primary checkout block managed-worktree
+  creation (clean-tree requirement) — cleaned before relaunch.
+- **Validation:** validate-all.sh green after each merge (final run on fully merged main).
+- **Deviations:** none requiring owner input; ⏳ residuals recorded in changelog HD-236 row
+  (first-converge restart observation + effective-env live probe).
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).
