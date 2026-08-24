@@ -96,7 +96,7 @@
 | HD-58 | 3 | AI | 3 | **Stirling PDF service** — Stage 4/10; ✅ IaC done (pinned `stirling_pdf_version`, OCR `slv`, Forward-Auth, internal-only). ⏳ re-render `services-inventory-generated.md`; live-verify OCR + Forward-Auth chain. · [services.md](docs/services.md) |
 | HD-112 | 4 | AI | 2 | **Zipline + OpenCloud file share** — ⚠ TENSION: row assumes S3ng bucket, but HD-131 = WebDAV/filesystem — re-examine Zipline writes vs WebDAV before build. Stage 1/10; OIDC SSO. · [services.md](docs/services.md), [storage.md](docs/storage.md) |
 | HD-113 | 2 | AI | 3 | **PairDrop P2P file share** — Stage 4/10; ✅ IaC done (pinned `pairdrop_version`, Forward-Auth, internal-only). ⏳ re-render inventory; live-verify WebRTC/signaling through Traefik (may need STUN/TURN). · [services.md](docs/services.md) |
-| HD-166 | 2 | AI | 1 | **Deploy ONLYOFFICE Docs Server (OpenCloud browser editor, WOPI)** — Stage 6/10; no family logins (background worker, JWT shared w/ OpenCloud). ✅ IaC done (verified vs docs.opencloud.eu; pinned + opencloud collaboration + CSP). ⏳ create `opencloud-collab_password`; VPS Phase 1; live-verify editor iframe. · [services-office.md](docs/services-office.md), [services.md](docs/services.md) |
+| HD-166 | 2 | AI | 1 | **Deploy ONLYOFFICE Docs Server (OpenCloud browser editor, WOPI)** — Stage 6/10; no family logins (background worker, JWT shared w/ OpenCloud). ✅ IaC + DEPLOYED; live-verified 2026-08-24: `.docx` fixes (collaboration EXCLUDE + WOPI_ENABLED) applied; `/hosting/discovery` 200; ⏳ owner browser `.docx` round-trip re-test (closing gate). · [services-office.md](docs/services-office.md), [services.md](docs/services.md) |
 
 ### 2.6 Smart Home — HA primary/standby, Homematic, voice, devices
 

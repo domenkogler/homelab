@@ -856,6 +856,22 @@
 - **Secret-hygiene:** only env names/id lengths captured; no secret values printed. The earlier `insecure: true` render observation stands but no secret material is repeated here.
 
 
+#### HD-166 pt.3 — second root cause: ONLYOFFICE DS had WOPI disabled → `/hosting/discovery` 404; fixed via `WOPI_ENABLED=true`, verified live (2026-08-24) `[AI]`
+
+- **After pt.2's fix** (`collaboration` removed from EXCLUDE, container recreated), `opencloud list` showed `collaboration` running, but the service logged a persistent WOPI-discovery failure:
+  `WopiDiscovery: wopi app url failed ... https://office.kogler.si/hosting/discovery ... HttpCode 404`.
+- **Second root cause:** ONLYOFFICE Docs (DS) had **WOPI disabled**. The DS image's `run-document-server.sh` line 127 reads `WOPI_ENABLED=${WOPI_ENABLED:-false}` — default OFF. Our `onlyoffice-docs` compose env had no WOPI env, so `/etc/onlyoffice/documentserver/local.json` got `wopi: { enable: false }` and DS never served the WOPI discovery XML → OpenCloud's collaboration service polled `/hosting/discovery`, got 404, and could not register the editor for office MIME.
+- **Fix (Lane A2 IaC):** add `WOPI_ENABLED: "true"` to `onlyoffice-docs` compose (`IaC/ansible/templates/docker_services/onlyoffice-docs/docker-compose.yml.j2`). The DS script then writes `wopi.enable=true` and auto-generates the WOPI public/private keypair (modulus/exponent) into `local.json` on first boot — regenerable, no literal secret to store.
+- **Live verification (2026-08-24 after converge, 9P gate ✓):**
+  - `onlyoffice-docs` recreated (Up, all sidecars healthy).
+  - `https://office.kogler.si/hosting/discovery` → **200** with a real `wopi-discovery` XML (Word/Excel/PowerPoint actions, `urlsrc=https://office.kogler.si/hosting/wopi/word/view?&<rs=...>&<wopisrc=WOPI_SOURCE>`).
+  - `opencloud list` still shows `collaboration` running.
+  - `opencloud` logs: **no new discovery/collaboration errors** after the DS recreate (the 404 loop stopped).
+- **Still pending:** owner browser round-trip on a real `.docx` in file.kogler.si (should now open in the ONLYOFFICE editor) — the definitive close gate.
+- **Open follow-up (unchanged):** rendered `collaboration.app.insecure: true` in opencloud.yaml vs env `COLLABORATION_APP_INSECURE: false` — env→schema map for this flag still not confirmed in 7.4 rolling; confirm behavior post-editor-test.
+- **Secret-hygiene incident (must-flag, HD-235):** one probe on this session inadvertently dumped the ONLYOFFICE container's `local.json` (DB password, AMQP URI with credentials, WOPI private key, JWT strings) into a transcript. No rotation performed; values belong in container config. **Recommend adding the involved secrets to the HD-211 rotation batch** (onlyoffice_db, onlyoffice-rabbitmq_login, opencloud-collab_password, and the generated WOPI keypair — regenerateable via container regenerate).
+
+
 ### 2026-08-24 — Phase 1 · Headplane admin UI for Headscale at `vpn.kogler.si/admin` (HD-233) `[AI]`
 
 - **Context / root cause:** `https://vpn.kogler.si` returns 200 with a 123-byte empty shell.
