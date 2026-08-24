@@ -32,11 +32,22 @@ to Read First" for task-specific dispatch. Do **not** bulk-read the repo.
 
 ---
 
-## 2. State of the world (as of 2026-08-20)
+## 2. State of the world (as of 2026-08-24)
 
-- **Planning phase — nothing is deployed live yet.** VPS bought + provisioned; home hosts
-  (`oldsrv`, `nas`, `pi`) unprovisioned. Do **not** assume live behavior; treat every deploy as
-  *deploy-gated*. Verify against `deployment-tasks.md` before any "run".
+- **Phase 1 (VPS edge) is live.** The VPS runs its full enabled `docker_services` set — Traefik,
+  Authentik, the observability backend (prometheus/loki/grafana/blackbox), etc. Convergence and
+  incident-fix evidence: [`deployment-journal.md`](deployment-journal.md) Phase 1 (2026-08-22/23
+  waves). Home hosts (`nas`, `oldsrv`, `pi`) are still **unprovisioned** (Phases 2–4): anything
+  below the VPS tier remains *deploy-gated*; verify against [`deployment-tasks.md`](deployment-tasks.md)
+  before any "run".
+- **How to check what is live vs authored-only (check in this order):**
+  1. [`deployment-journal.md`](deployment-journal.md) — dated deploy/verify evidence per phase;
+     this is the proof of what actually ran (SSOT for liveness).
+  2. [`todo.md`](todo.md) §3c → [`deployment-tasks.md`](deployment-tasks.md) — the ⏳ deploy-gated
+     verification checklist per phase.
+  3. Doc status banners (`🟢 IaC done, not yet live — ⏳ deploy-gated`) are **hints, not proof** —
+     several still say "not live" for VPS-tier services that went live 2026-08-22/23. Trust the
+     journal over banners until the owning docs catch up.
 - **Hosts:** single namespace `kogler.si` → `oldsrv`, `nas`, `pi`, `router`, `switch`, `vps`.
   Canonical list + naming/IP conventions: `docs/index.md` → Conventions.
 - **Recommended next tasks:** see the latest `prompt-*.md` handoff (date-stamped) — it names the
