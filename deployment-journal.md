@@ -805,6 +805,20 @@
   (`datapath.*`, `provisioning add` params, security-profile passphrase field) to confirm against the LIVE
   manager — unverified guesses would silently no-op or brick the bootstrap window.
 - Secrets values touched: none (lookups only, never rendered VALUES into the repo).
+
+### 2026-08-24 — Phase 1.5 · migration-inventory unknowns refresh — read-only live lease dump (task 6) `[AI]`
+
+- **Read-only RouterOS API probe** (`skills/mikrotik/scripts/mikrotik-read.py --op-env-file skills/mikrotik/.env.op /ip/dhcp-server/lease`, MSYS_NO_PATHCONV=1) against the live flat-LAN router — 32 leases captured. No mutation; lease data only (MAC/hostname/comment).
+- **Resolved from OUI + repo cross-reference:**
+  - `0003B5F29AFDC36` (00:1A:22:1E:F7:FD) → **HMIP-HAP HomeMatic AP** — MAC matches router.yml ether9 + Rack.canvas + rack-connections.json exactly; static-lease hostname = its device ID. → WIRED to **VLAN 21 IoT-Internet** per network-vlans Port Type Reference (cloud-bound HAP needs internet).
+  - `48:B0:2D:09:6F:90` → NVIDIA Shield (already R-2/D2); lease confirms still hostname-less.
+- **Remaining PENDING-IDENTIFY (owner):**
+  - `deblab` (00:15:5D:01:67:1E) — Microsoft Hyper-V OUI confirmed; hostname `deblab` live. Likely a Hyper-V VM on a Windows host (laptop `Domen_P14s`?) — owner to confirm host + role.
+  - `truenas` (92:47:15:04:EB:49) — **locally-administered MAC** (no vendor OUI), still live, no owning doc anywhere — owner to identify hardware/role.
+- Also captured/lodged: Bosch hostnames confirmed (`BOSCH-CSG656RB7…` etc.), Valentina tablet (30:56:84:35:00:DC), `Naprava-A54-uporabnika-Domen` (34:F0:43:73:96:35), Domen_P14s laptop (48:2A:E3:9D:31:85).
+- Validators: `check_doc_ips.py` OK (no IP literals added to prose). No secret values touched; no live mutation.
+
+### 2026-08-24 — Phase 1 · Rotate shared headscale-a31b2f85-b928-4107-be43-c95c97150802-s0-0
 ### 2026-08-24 — Phase 1 · Rotate shared headscale OIDC client secret + encode “never a secret VALUE in output” hygiene rule (HD-235) `[AI]`
 
 - **Stimulus:** an operating probe exposed the shared `headscale_api` OIDC client_secret to the

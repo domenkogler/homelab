@@ -55,15 +55,15 @@ tags: [network, vlan, migration]
 |---|---|---|---|---|
 | Canon TS9550 printer ("Tiskalnik") | 74:BF:C0:CD:33:0B | 10 (Home) | — | reservation; web UI family-reachable by design (same VLAN) |
 | Reolink camera (garage) | EC:71:DB:5F:BC:C1 | 20 (IoT) | — | **stay IoT(20)** — RTSP/ONVIF consumed by **Frigate on oldsrv** (trusted-admin → IoT new-connection accept already covers it); family viewing via HA/Frigate UI, no direct camera access. Frigate integration planned on oldsrv (HD-tracked); camera stays on internet-blocked IoT (privacy) |
-| Family phones/tablets (Martina, Domen ×2, Valentina tablet) | various | 10 (Home) | Kogler | plain clients |
-| "deblab" (Hyper-V VM NIC) | 00:15:5D:01:67:1E | ? | — | ⚠ identify — Hyper-V virtual MAC, host unknown |
-| "truenas" | 92:47:15:04:EB:49 | ? | — | ⚠ identify — not in any owning doc (heritage TrueNAS box?) |
-| NVIDIA Shield (Media) | 48:B0:2D:09:6F:90 | 50 (Media) | — | **D2-confirmed: NVIDIA Shield on Media(50)** — resolves the earlier ⚠ unknown (`switch_port_map` had it already at ether20) |
-| 0003B5F29AFDC36 | 00:1A:22:1E:F7:FD | ? | — | ⚠ identify (static lease) |
+| Family phones/tablets (Martina, Domen ×2, Valentina tablet) | various | 10 (Home) | Kogler | plain clients. Live lease (2026-08-24) confirms Valentina tablet (30:56:84:35:00:DC) + `Naprava-A54-uporabnika-Domen` (34:F0:43:73:96:35) — likely one of Domen's devices; confirm on cutover. |
+| "deblab" (Hyper-V VM NIC) | 00:15:5D:01:67:1E | ? | — | **Hyper-V virtual NIC confirmed** (00:15:5D = Microsoft OUI); hostname `deblab` live on the flat LAN (2026-08-24 lease). Almost certainly a Hyper-V VM on a Windows host (laptop `Domen_P14s`?). ⚠ **PENDING-IDENTIFY**: which Windows host runs it + what the VM is. Park on VLAN 10. |
+| "truenas" | 92:47:15:04:EB:49 | ? | — | **Locally-administered MAC** (byte0 0x92 = local/admin bit — no vendor OUI; consistent with a TrueNAS NIC or randomized MAC). **Still live** on the flat LAN (2026-08-24 lease), hostname `truenas`. No owning doc anywhere. ⚠ **PENDING-IDENTIFY (owner):** what hardware/role is this? Park on VLAN 10 until identified. |
+| NVIDIA Shield (Media) | 48:B0:2D:09:6F:90 | 50 (Media) | — | **D2-confirmed: NVIDIA Shield on Media(50)** — resolves the earlier ⚠ unknown (`switch_port_map` had it at ether20; live lease still hostname-less) |
+| `0003B5F29AFDC36` → **HMIP-HAP HomeMatic AP** | 00:1A:22:1E:F7:FD | 20 (IoT) | — | **RESOLVED (task-6, live lease 2026-08-24):** this IS the eQ-3 HMIP-HAP HomeMatic Access Point — MAC matches router.yml ether9 + Rack.canvas + rack-connections.json exactly; static lease hostname = its device ID. Wire to IoT (HomeMatic cloud path per HD-228). |
 
 ## Cutover-night order (derived)
 
 1. Infra first: router baseline → switch → APs join CAPsMAN (SSIDs appear).
 2. Servers onto trunk/access ports; verify management reachability from laptop (VLAN 99 native path).
 3. Wired per-device ports per tables above; WiFi devices re-join their SSID (Shelly fleet via the shelly skill `wifi rotate`, LG ACs per smart-home.md §Cloud Appliances, Bosch via Home Connect app re-pair if needed).
-4. Unknowns (⚠ rows) stay parked on VLAN 10 until identified.
+4. Unknowns (⚠ rows) stay parked on VLAN 10 until identified —**still pending after task-6:** `deblab` (Hyper-V vNIC, host unknown — likely laptop/CAP) and `truenas` (locally-administered MAC, no owning doc — owner to identify). `0003B5F29AFDC36` (HomeMatic HAP) and the Shield were resolved in task-6 / R-2.
