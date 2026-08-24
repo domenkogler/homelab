@@ -1,39 +1,22 @@
 # Grafana datasources — provisioned by the monitoring role (step 3)
 # Target: /srv/docker/grafana/provisioning/datasources/datasources.yml
-# Both backends live on db-internal (container-name DNS from Grafana, which is
-# attached to traefik-public + db-internal — see grafana compose template).
-# UIDs are stable tokens referenced by alert rules + dashboards.
+# Both backends live on db-internal (container-name DNS).
+#
+# HD-240 (2026-08-24): ONLY Loki is file-provisioned here. The Prometheus datasource
+# moved to API seeding (roles/monitoring/tasks -> "Seed prometheus datasource via API")
+# because grafana 13.2.0 file-provisioning stores a secureJsonData blob it cannot
+# resolve at query time ("Authentication to data source failed" / anonymous queries)
+# even though the rendered file itself parses correctly — wire-capture proven during
+# HD-240. Loki carries NO secrets, so file-provisioning stays safe for it.
 apiVersion: 1
 
 datasources:
-  - name: Prometheus
-    uid: prometheus
-    type: prometheus
-    access: proxy
-    url: http://prometheus:9090
-    # HD-240 (2026-08-24): without this flag grafana NEVER SENDS the basic-auth header
-    # (queries go out anonymously -> prometheus 401) even with user+password set below.
-    # Wire-capture proof: health-check POST /api/v1/query carried no Authorization header.
-    basicAuth: true
-    # HD-59 completion (gap found live 2026-08-23): prometheus enforces basic auth via
-    # --web.config.file, but this datasource shipped WITHOUT credentials -> every grafana
-    # query/alert rule 401-ed since first deploy. Same vault item prometheus-web-config
-    # renders its htpasswd from (plaintext field; bcrypt side lives in the web-config).
-    basicAuthUser: "{{ lookup('community.general.onepassword', 'prometheus-internal_api', field='username', vault=op_vault) }}"
-    secureJsonData:
-      # >- block scalar per CONVENTIONS §2 (HD-233 lesson): 1P secrets can contain YAML-
-      # breaking chars; also NOTE — Grafana provisioning does NOT overwrite secureJsonData
-      # on an EXISTING datasource (stale DB secret survives re-renders; seen live 2026-08-24).
-      # A rotated password needs a datasource delete+recreate (same uid) or API update.
-      basicAuthPassword: >-
-        {{ lookup('community.general.onepassword', 'prometheus-internal_api', field='password', vault=op_vault) }}
-    isDefault: true
-    editable: false
   - name: Loki
     uid: loki
     type: loki
     access: proxy
     url: http://loki:3100
     editable: false
+    isDefault: false
     jsonData:
       tenantId: "logs"   # HD-115 / KOPS-023/051: Loki multi-tenant mode — queries need the tenant ID
