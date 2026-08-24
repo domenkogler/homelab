@@ -79,7 +79,7 @@ docker_services:
   - { name: metabase,       template_dir: metabase,  subdomain: sec, enabled: true }  # CrowdSec dashboard
   - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, enabled: true }   # PUBLIC P2P share — dual-host pairdrop+drop, crowdsec-only tier, NO forward-auth (HD-230)
   - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, enabled: true }
-  - { name: renovate,       template_dir: renovate,  enabled: false }  # co-located with Forgejo/GitOps. DISABLED 2026-08-23: forgejo instance has NO repos yet (install wizard pending owner) -> renovate crash-looped on 'Repository has unknown error' for domen/homelab. Flip to true once the repo exists on Forgejo.
+  - { name: renovate,       template_dir: renovate,  enabled: true }  # co-located with Forgejo/GitOps. RE-ENABLED 2026-08-24 (task 5): domen/homelab not migrated yet, so RENOVATE_REPOSITORIES currently points at domen/test temporarily (template) — switch back to domen/homelab when that repo lands. Playbook run is OWNED by the other session; do NOT converge here.
 
 # Single cert issuer (HD-178/HD-181): THIS host is the only ACME (DNS-01) issuer for
 # *.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host

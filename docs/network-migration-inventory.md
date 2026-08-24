@@ -54,7 +54,7 @@ tags: [network, vlan, migration]
 | Device | MAC (reservation key) | → VLAN | SSID | Notes |
 |---|---|---|---|---|
 | Canon TS9550 printer ("Tiskalnik") | 74:BF:C0:CD:33:0B | 10 (Home) | — | reservation; web UI family-reachable by design (same VLAN) |
-| Reolink camera (garage) | EC:71:DB:5F:BC:C1 | 20 (IoT) | — | ⚠ viewing from family devices then ONLY via trusted hosts/HA — confirm acceptable, else move to 10 |
+| Reolink camera (garage) | EC:71:DB:5F:BC:C1 | 20 (IoT) | — | **stay IoT(20)** — RTSP/ONVIF consumed by **Frigate on oldsrv** (trusted-admin → IoT new-connection accept already covers it); family viewing via HA/Frigate UI, no direct camera access. Frigate integration planned on oldsrv (HD-tracked); camera stays on internet-blocked IoT (privacy) |
 | Family phones/tablets (Martina, Domen ×2, Valentina tablet) | various | 10 (Home) | Kogler | plain clients |
 | "deblab" (Hyper-V VM NIC) | 00:15:5D:01:67:1E | ? | — | ⚠ identify — Hyper-V virtual MAC, host unknown |
 | "truenas" | 92:47:15:04:EB:49 | ? | — | ⚠ identify — not in any owning doc (heritage TrueNAS box?) |

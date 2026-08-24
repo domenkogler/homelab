@@ -56,14 +56,14 @@ tags: [deployment, renovate, updates]
 
 > SSOT is the rendered template
 > [IaC/ansible/templates/docker_services/renovate/docker-compose.yml.j2](../IaC/ansible/templates/docker_services/renovate/docker-compose.yml.j2)
-> — the block below mirrors it as of 2026-08-23.
+> — the block below mirrors it as of 2026-08-24 (task 5).
 >
-> **Prerequisite:** the repository MUST exist on Forgejo as `domen/homelab`. The
-> instance is installed (admin account exists) but has **no repos yet** (GitHub
-> migration/create pending owner), which made renovate 404 on every API call →
-> "Repository has unknown error" crash-loop; the service is therefore
-> `enabled: false` in group_vars until the repo lands. The token itself verified
-> valid (200 as `domen`, 2026-08-23 debug one-shot).
+> **Prerequisite / status:** Renovate was DISABLED (service `enabled: false` in group_vars) because the
+> Forgejo instance had no repos and renovate 404'd → "Repository has unknown error" crash-loop. **Re-enabled
+> 2026-08-24 (task 5):** `domen/test` exists (verified 200) but `domen/homelab` is not yet migrated, so
+> `RENOVATE_REPOSITORIES` TEMPORARILY points at `domen/test` (compose env). Switch back to `domen/homelab`
+> when that repo lands on Forgejo (owner). The playbook converge is OWNED by the other session — this repo
+> change is a file-edit only. The token itself verified valid (200 as `domen`, 2026-08-23 debug one-shot).
 
 ```yaml
 services:
@@ -74,7 +74,7 @@ services:
       RENOVATE_PLATFORM: gitea                       # forgejo value unsupported < image 37
       RENOVATE_ENDPOINT: http://forgejo:3000         # INTERNAL — public URL sits behind forward-auth
       RENOVATE_TOKEN: "{{ lookup('community.general.onepassword', 'forgejo_api', field='credential', vault=op_vault) }}"
-      RENOVATE_REPOSITORIES: "domen/homelab"
+      RENOVATE_REPOSITORIES: "domen/test"   # TEMPORARY — domen/homelab pending migration (task 5)
       RENOVATE_ONBOARDING: "false"
     networks:
       - services-internal
