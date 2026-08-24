@@ -70,6 +70,35 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
   `tag:kogler` may reach the family mesh (`tag:kogler:*`), and only the mesh admin (`autogroup:admin`)
   can apply that tag. Untagged / rogue auto-joined nodes are denied by default.
 
+### Admin UI: Headplane (HD-233, `https://vpn.kogler.si/admin`)
+
+> Stock Headscale has **no built-in web UI** — visiting `https://vpn.kogler.si` returns a 123-byte
+> empty shell (`BlankPage()` template, upstream by design). Administration happens through
+> [Headplane](https://github.com/tale/headplane), co-deployed as a second service in the same
+> compose project (service DNS `http://headscale:8080`, no extra exposure).
+
+- **URL:** `https://vpn.kogler.si/admin` (dashboard prefix is built into headplane; Traefik routes
+  `Host(vpn.kogler.si) && PathPrefix(/admin)` — longer rule wins priority over the control-plane
+  router, so `/ts2021`, DERP and `/oidc/*` are untouched). Same crowdsec-only tier.
+- **Auth:** OIDC via Authentik, deliberately the **same OAuth client as Headscale itself**
+  (upstream best practice: identical `client_id`) — the `ks-oidc.yml` provider gained a second
+  redirect URI `…/admin/oidc/callback`. First login becomes the Headplane **owner**; later users
+  get `default_role: member`. **LIVE-VERIFIED 2026-08-24** (owner SSO login works);
+  `disable_api_key_login: true` (API-key field removed — recovery = temporarily set false +
+  re-render if the IdP ever breaks).
+- **Headscale API key (required for OIDC mode):** mint ONCE on the VPS —
+  `docker exec headscale headscale apikeys create --expiration 8760d` — store in 1Password
+  `headplane_api`.`credential`. Cookie secret (32 chars) lives in `headplane_password`.`password`
+  (**Password category → lookup `field='password'`, NOT `credential`** — migrated during HD-233/235;
+  a `credential` lookup returns empty → headplane crash-loops on `missing required fields`).
+- **Capabilities:** node/user management, pre-auth keys, read-only Settings view (headscale's
+  rendered `config.yaml` is mounted `:ro`). Docker-socket integration (DNS editing from the UI,
+  restart headscale on change) deliberately NOT wired — future hardening with a socket proxy.
+- **Config = YAML-safe block scalar `>-` for every secret** (client_secret, cookie_secret, api_key) —
+  live lesson HD-233: the rotated `headscale_api` secret contains `:` `"` `'` `?` which broke
+  inline-quoted configs (`YAMLException`/`EISDIR` crash-loops on BOTH headscale + headplane). See
+  `deployment-secrets.md` "Rendering a secret into a YAML config file" + CONVENTIONS §2.
+
 ### Transition
 1. Deploy Headscale on the VPS (public edge; remote nodes reach it directly)
 2. Family installs the Tailscale app (one-by-one migration from the removed road-warrior / travel-router paths)

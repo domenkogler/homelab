@@ -1,12 +1,15 @@
 # headscale docker-compose.yml — Tailscale coordination server (vpn.kogler.si)
-#   Web UI on port 8080, gRPC metrics on port 9090 (internal).
+#   Control plane on port 8080, gRPC metrics on port 9090 (internal). The root page is
+#   stock headscale's BlankPage() (no built-in admin UI) — Headplane below serves /admin.
 #   OIDC via config.yaml (Authentik provider declared in ks-oidc.yml Blueprint, HD-142).
 #
 #   Config is mounted from config.yaml.j2 (rendered alongside this compose file).
 #   Data persistence in /srv/docker/headscale/data/.
 #
 #   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
-#     headscale_api    (API Credential: username=<OIDC client_id>, credential=<OIDC client_secret>)
+#     headscale_api      (API Credential: username=<OIDC client_id>, credential=<OIDC client_secret>)
+#     headplane_api      (API Credential: Headscale API key for the admin UI, HD-233)
+#     headplane_password  (Password: Headplane cookie secret, exactly 32 chars, HD-233)
 services:
   headscale:
     image: headscale/headscale:{{ headscale_version }}
@@ -43,6 +46,39 @@ services:
       # would break enrolment. UI protected by its own OIDC login.
       traefik.http.routers.headscale.middlewares: crowdsec-only@file
       traefik.http.services.headscale.loadbalancer.server.port: "8080"
+
+  # Admin UI for headscale (HD-233). Headplane serves its dashboard under /admin by
+  # itself; this router rule is LONGER than headscale's Host-only rule, so Traefik's
+  # rule-length priority sends /admin* here while the control plane (/ts2021, DERP,
+  # /oidc/*) stays untouched. crowdsec-only tier like headscale — the UI sits behind
+  # its own OIDC login (sso.kogler.si). Docker-socket integration deliberately NOT
+  # wired (minimal attack surface; candidate future hardening: integration.docker for
+  # DNS/tailnet editing from the UI, would need a socket proxy).
+  headplane:
+    image: ghcr.io/tale/headplane:{{ headplane_version }}
+    container_name: headplane
+    restart: unless-stopped
+    # HD-202 container-hardening law: distroless node image runs as root by default
+    # (no USER directive) -> drop ALL capabilities; read-only FS + tmpfs anyway.
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - traefik-public
+    volumes:
+      - /srv/docker/headplane/data:/var/lib/headplane
+      - ./headplane-config.yaml:/etc/headplane/config.yaml:ro
+      - ./config.yaml:/etc/headscale/config.yaml:ro   # read-only Settings view in the UI
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.headplane.rule: "Host(`vpn.kogler.si`) && PathPrefix(`/admin`)"
+      traefik.http.routers.headplane.entrypoints: websecure
+      {{ 'traefik.http.routers.headplane.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      traefik.http.routers.headplane.middlewares: crowdsec-only@file
+      traefik.http.services.headplane.loadbalancer.server.port: "3000"
+
 networks:
   traefik-public:
     external: true

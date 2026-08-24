@@ -695,7 +695,6 @@
 - **HD-231 pt.6 (opencloud client reshape):** docs.opencloud.eu external-idp spec — web is a PUBLIC PKCE client with PREDEFINED id `web` (WebFinger default), redirects `/oidc-callback.html` + `/oidc-silent-redirect.html`. Provider reshaped live via ORM then pinned in ks-oidc.yml (client_type public + both redirects; client_id itself set via ORM only — serializer treats it read-only, upsert preserves unlisted attrs). GOTCHA recorded: a converge launched mid-rebase applied the STALE blueprint and upserted old uris back over the ORM reshape (pipe-masked rebase failure hid it); re-running apply from the corrected branch restored state — blueprint must always be applied from the commit you intend.
 - **HD-231 pt.2 (second layer of the same hotfix):** after grant_types landed, callback still 500'd — forgejo log: `Non-200 response from UserInfo: 403 insufficient_scope`. Cause: `property_mappings` ALSO wiped to [] by the same upsert mechanism (proxy providers had the full default set, native providers none) → access tokens carried no resolvable scopes. Live ORM fix assigned the three defaults (openid/email/profile ScopeMappings) to all 8 native providers; `property_mappings:` pinned via !Find in every ks-oidc.yml entry; post-apply regression check confirms BOTH fields survive re-apply. Combined lesson recorded above.
 - **HD-231 pt.5 (file.kogler.si login stuck):** browser blocked oidc-client-ts discovery fetch (`connect-src` violation). THREE stacked wiring faults: (1) env name wrong — image binary knows `PROXY_CSP_CONFIG_FILE_LOCATION`, not `CSP_CONFIG_FILE`; (2) schema — csp.yaml needs ALL directives nested under top-level `directives:` (flat map parses silently into nothing); (3) ops caveat — proxy reads CSP ONCE AT STARTUP and csp.yaml is a bind mount, so content-only changes need an explicit opencloud restart (converge recreate does NOT trigger on bind-mount content; candidate for a deploy-service restart-on-change task). Template rewritten as full baseline (stock captured live + sso/office additions); served header verified containing sso.kogler.si from box AND laptop.
->>>>>>> 81c0de9 (journal: HD-231 pt.5 — opencloud CSP triple fault (env name, directives wrapper, startup-only reload); live-verified)
 - **HD-231 RESOLVED END-TO-END (owner-confirmed):** first-ever successful file.kogler.si browser login (autoprovision created the account; editor iframe = office route). Note: an interim `LDAP9236_CLOSED` reading was a BUSYBOX false negative (`/dev/tcp` unsupported in its sh); `netstat` shows idm LISTENing on 127.0.0.1:9236 — trust netstat/-S probes, not /dev/tcp, in this image.
 - **HOTFIX HD-231 (owner-reported, same session):** "Prijava z Authentik" on forgejo errored (`invalid_request: The request is otherwise malformed`) AND file.kogler.si login stalled at /login — ONE root cause: authentik 2026.5 OAuth2Provider carries a per-provider `grant_types` allowlist; ks-oidc.yml never set it, so every blueprint apply/upsert wrote `[]`, killing the `authorization_code` grant on ALL 8 native-OIDC providers (forward-* proxy providers were unaffected — populated via their own creation path — masking the gap until now; authentik-server log: `Invalid grant_type for provider, grant_type=authorization_code`). Fix: live ORM one-shot set `[authorization_code, refresh_token]` on all 8 + `grant_types:` pinned explicitly in every ks-oidc.yml entry; post-apply regression check confirms values SURVIVE blueprint re-apply. Lesson: blueprint serializer writes EMPTY for absent array attrs — pin arrays you care about.
 - **Deviations:** none unplanned beyond documented cap_drop relaxation + COMPRESSION retention rationale (both commented in-file); converges c1–c11 all gate-first, failures were template/CLI-syntax iterations caught by fail-loud gates.
@@ -755,6 +754,77 @@
 - **wAP ac (AP-garaza, 6C:3B:6B:7D:B9:C5) → hardware-fault verdict.** Diagnosed live over the RouterOS API + CRS328 logs (read-only): PHY links 1G on switch `ether7` with healthy PoE (dual PSU 26.4 V/52.8 V, 17.7 W total draw), but the board boot-loops (link self-drops every ~50 s), then goes **totally silent after network init** — no DHCP renew, no MNDP, no ARP answers. Config reset (15 s+ button) and Netinstall/Etherboot attempted: device answered BOOTP exactly once (2026-08-24 00:40) then went mute; Netinstall never listed it again even with Npcap installed, firewall off, wired NIC. Clean cold boot with uninterrupted power reproduced the hang → corrupt flash or failing SoC/RAM power path. Switch-side PoE auto-on `current_too_low` cutoffs during its hangs were a *symptom* (idle draw below threshold), not the cause. Documented in [network-migration-inventory.md](docs/network-migration-inventory.md).
 - **DECISION (owner): CAPsMAN flavor flips LEGACY → MODERN `wifi-qcom-ac`** — supersedes the 2026-08-23 legacy pin. The wAP ac was one of two MIPSBE blockers; its death resolves revisit-condition ②. Remaining conditions for the modern fleet: ① dnevna swap executes per owner plan 2026-08-23 (spare hAP ac² C4:AD:34:42:F0:B9 takes the dnevna slot; classic MIPSBE unit retires — no MIPSBE device may remain in the managed fleet); ② garage replacement hardware must be wifi-qcom-ac-capable. Pinned in capsman.yml header; ap_initial.rsc.j2 must move to modern `/interface/wifi` cap syntax at cutover prep (legacy `/interface wireless cap` line now stale). Implementation still fail-loud/live-validated per the scaffold's culture — no speculative field-level tasks shipped.
 - Secrets values touched: none.
+
+### 2026-08-24 — Phase 1 · Headplane admin UI for Headscale at `vpn.kogler.si/admin` (HD-233) `[AI]`
+
+- **Context / root cause:** `https://vpn.kogler.si` returns 200 with a 123-byte empty shell.
+  Verified live (headers `x-frame-options: DENY` + `content-security-policy` + `content-length: 123`
+  are headscale's own) and against upstream source: that is stock headscale's `BlankPage()`
+  template — headscale has **no built-in admin UI**; `/health` 200, `/windows` + `/apple` 200,
+  `/oidc/callback` 400 (route live) all confirmed healthy.
+- **Decision:** co-deploy **Headplane** (ghcr.io/tale/headplane, pinned `0.7.0` — GHCR tags are bare
+  semver; `v0.7.0` 404s, verified) as a second service in the headscale compose project; dashboard
+  served by headplane itself under `/admin`, `server.base_url` = public root WITHOUT the suffix
+  (upstream contract, v0.7.0 docs). Traefik router `Host(vpn.kogler.si) && PathPrefix(/admin)` —
+  the longer rule wins priority without touching the control plane (`/ts2021`, DERP, `/oidc/*`);
+  crowdsec-only tier like headscale.
+- **OIDC:** deliberately the **same Authentik client as headscale** (upstream best practice: identical
+  `client_id`) — ks-oidc.yml `provider_headscale` gained a second redirect URI
+  `https://vpn.kogler.si/admin/oidc/callback`, both entries pinned (HD-231 array-wipe lesson).
+  First login bootstraps the owner; later users get `default_role: member`.
+- **Secrets touched:** none (values only). Required NEW 1Password items (owner):
+  `headplane_api` = Headscale API key (`docker exec headscale headscale apikeys create --expiration 8760d`),
+  `headplane_password` = cookie secret, exactly 32 chars (`openssl rand -hex 16`).
+- **Settings chosen:** `headscale.url: http://headscale:8080` (internal, NOT gRPC); `config_path: /etc/headscale/config.yaml`
+  mounted `:ro` → read-only Settings view in the UI; `disable_api_key_login: false` (recovery path until
+  first OIDC login verified); docker-socket integration deliberately NOT enabled (hardening candidate).
+- **Template plumbing:** `_extra_templates` in role defaults gained `headscale → headplane-config.yaml.j2`
+  so the new config renders alongside the compose file (existing mechanism, no role changes).
+- **Remaining (deploy-gated):** owner creates `headplane_api` + `headplane_password` → converge
+  (`services` tag; blueprints one-shot apply adds the redirect; 9P gate first) → browser-verify
+  `vpn.kogler.si/admin` login; hardening candidates afterwards (`use_pkce: true`, flip
+  `disable_api_key_login`).
+- **Deviations:** none.
+
+### 2026-08-24 — Phase 1 · Headplane DEPLOYED + live-verified; YAML-block-scalar convention + three crash-loop lessons (HD-233 deploy / HD-235 follow-up) `[AI]`
+
+- **Deploy** `--tags docker_services` from the worktree (9P gate ✓): headplane + headscale compose
+  rendered onto the VPS; headplane initially **crash-looped** through THREE distinct bugs, each
+  found live:
+  1. **Dir-vs-file:** `_extra_templates` had a DUPLICATE `headscale:` key (headplane-config +
+     config/policy) — YAML duplicate-mapping only kept ONE, so the copy step dropped
+     `headplane-config.yaml.j2` unrendered and a stale `headplane.yaml/` DIRECTORY shadowed the
+     render → `EISDIR`. Fix: merge into one list (`headplane-config.yaml.j2, config.yaml.j2,
+     policy.hujson.j2`), point the compose mount at `./headplane-config.yaml`, remove the stale dir.
+  2. **Block-scalar indentation:** in the FIRST block-scalar edit the value was NOT indented deeper
+     than `>` (col 0) → `could not find expected ':'`. Block scalar content must be indented MORE
+     than the key. Fix: re-indent to 6 (list item `- api_key:` → value at 6).
+  3. **Wrong 1P field for Password item:** `headplane_password` is a **Password** category item (value
+     in `password` field), but the template rendered `field='credential'` → empty `cookie_secret` →
+     headplane `missing required fields`. Fix: `field='password'`. **Lesson: `<service>_password` items
+     read `field='password'`; `<service>_api` items read `field='credential'`.**
+- **YAML-safe block scalar convention (user-requested “make it the default”):** every secret
+   rendered into a YAML config file must be a folded block scalar `>-` (never inline `"{{ … }}"`),
+   because 1P secrets can contain `:` `"` `'` `?` `@` `!` (the rotated `headscale_api` value literally
+   breaks quoted scalars on restart). Applied to `headscale/config.yaml`, `headplane` config,
+   `recyclarr.yml`, `prometheus-web-config`, `traefik/dynamic/middlewares.yml`; TOML
+   (`tuwunel.toml`) uses basic-string Jinja escaping instead (`replace('','\')|
+   replace('"','\"')`) since TOML has no `>-`. Exempt: Docker `env:` strings + keepalived (not
+   YAML-parsed). Convention documented in deployment-secrets.md + CONVENTIONS §2/§6.
+- **Verified live:** headplane `Up (healthy)`, `Connected to Headscale 0.29.3`, `/admin/` → 302,
+   owner SSO login works → **deploy-gate CLOSED**. `disable_api_key_login` flipped `true`
+   (API-key field removed).
+- **Log scrub (HD-235 follow-up):** the crash-loop json.logs contained the rotated `headscale_api`
+   client_secret fragment in the YAML exception. Scrub: `sudo bash -c ': > …-json.log'` for
+   headplane + headscale container logs (values never in git/chat — only lengths/IDs).
+- **Secrets touched:** `headplane_api.credential` (87, live-key), `headplane_password.password` (32),
+   `headscale_api.credential` (128, rotated HD-235). No other items exposed; no re-rotation needed.
+- **Deviations:** none.
+- **Commands (verified):** `docker exec headscale headscale apikeys create --expiration 8760d`;
+  `op item create/get/edit … < /dev/null` (non-TTY stdin fix).
+
+
+*(no entries yet)*
 
 ### 2026-08-24 — Phase 1 · Rotate shared headscale OIDC client secret + encode “never a secret VALUE in output” hygiene rule (HD-235) `[AI]`
 

@@ -21,7 +21,7 @@ allow_registration = false
 # The Synapse-style /_synapse/admin/v1/register endpoint stays available (enabled by
 # this shared secret) for out-of-band account creation + admin promotion — e.g. to
 # bootstrap the first admin. No config edits required for day-to-day operation.
-registration_shared_secret = "{{ lookup('community.general.onepassword', 'matrix_password', field='password', vault=op_vault) }}"
+registration_shared_secret = "{{ lookup('community.general.onepassword', 'matrix_password', field='password', vault=op_vault) | replace('\\','\\\\') | replace('"','\\"') }}"
 
 # --- Federation posture (HD-122 / KOPS-033 — DECIDED 2026-08-18) ---
 # Open federation is intentionally kept (matches the recorded KOPS-033 acceptance in
@@ -62,7 +62,7 @@ server = "matrix.kogler.si:443"
 [[global.identity_provider]]
 brand = "Authentik"
 client_id = "{{ lookup('community.general.onepassword', 'matrix_api', field='username', vault=op_vault) }}"
-client_secret = "{{ lookup('community.general.onepassword', 'matrix_api', field='credential', vault=op_vault) }}"
+client_secret = "{{ lookup('community.general.onepassword', 'matrix_api', field='credential', vault=op_vault) | replace('\\','\\\\') | replace('"','\\"') }}"
 issuer_url = "https://sso.kogler.si/application/o/matrix/"   # adjust <slug> to Authentik app
 callback_url = "https://matrix.kogler.si/_matrix/client/unstable/login/sso/callback/{{ lookup('community.general.onepassword', 'matrix_api', field='username', vault=op_vault) }}"
 scope = ["openid", "profile", "email"]

@@ -1,0 +1,45 @@
+{{ ansible_managed | comment }}
+# Headplane configuration — admin UI for Headscale, served under https://vpn.kogler.si/admin
+# (the /admin dashboard prefix is built into headplane itself; server.base_url carries NO
+# /admin suffix — upstream contract, tale/headplane v0.7.0 docs/features/sso.md).
+# Schema per upstream v0.7.0 config.example.yaml.
+#
+# Secrets via 1Password lookup at render (fail-closed, HD-91):
+#   headplane_password.credential       -> server.cookie_secret (exactly 32 chars,
+#                                         `openssl rand -hex 16`)
+#   headplane_api.credential           -> Headscale API key — REQUIRED for OIDC auth mode;
+#                                         mint ONCE on the VPS:
+#                                         docker exec headscale headscale apikeys create --expiration 8760d
+#   headscale_api.username/.credential -> OIDC client — deliberately the SAME Authentik
+#                                         client as headscale itself (upstream SSO best
+#                                         practice: identical client_id); the blueprint
+#                                         registers the extra /admin/oidc/callback redirect.
+server:
+  host: 0.0.0.0
+  port: 3000
+  base_url: https://vpn.kogler.si          # public URL WITHOUT the /admin prefix
+  cookie_secret: >-
+    {{ lookup('community.general.onepassword', 'headplane_password', field='password', vault=op_vault) }}
+  # Terminated at Traefik (websecure) -> cookies must be marked Secure.
+  cookie_secure: true
+  data_path: /var/lib/headplane            # bind-mounted from /srv/docker/headplane/data
+
+headscale:
+  # Internal HTTP endpoint (same compose project => service DNS), NOT the gRPC port.
+  url: http://headscale:8080
+  public_url: https://vpn.kogler.si
+  # Read-only mount of headscale's rendered config => Settings view in the UI shows
+  # the live configuration but cannot change it (config.yaml is :ro by design).
+  config_path: /etc/headscale/config.yaml
+  api_key: >-
+    {{ lookup('community.general.onepassword', 'headplane_api', field='credential', vault=op_vault) }}
+
+oidc:
+  enabled: true
+  issuer: https://sso.kogler.si/application/o/headscale/
+  client_id: "{{ lookup('community.general.onepassword', 'headscale_api', field='username', vault=op_vault) }}"
+  client_secret: >-
+    {{ lookup('community.general.onepassword', 'headscale_api', field='credential', vault=op_vault) }}
+  # First OIDC login verified live (owner, 2026-08-24) -> API-key login disabled;
+  # recovery path = temporarily set false + re-render if the IdP ever breaks.
+  disable_api_key_login: true
