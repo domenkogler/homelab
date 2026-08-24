@@ -72,6 +72,59 @@ tags: [deployment, ansible, iac]
   tags: "{{ item.name }}"
   ```
 
+### Tags & surgical runs (HD-220 wiring)
+
+How `--tags` actually behaves in THIS repo — verified against `site.yml`,
+`playbooks/vps.yml`, `roles/docker_services/tasks/{main,deploy-service}.yml`:
+
+- **Selection is a UNION.** A filtered run executes every task carrying ANY requested tag
+  (plus every task tagged `always`; tasks tagged `never` run only when explicitly named).
+  Adding tags to the filter can only ADD work — it never narrows a broader tag.
+- **Inheritance stops at dynamic includes.** Tags attach downward from play → role → block,
+  but `include_tasks:` is evaluated as ONE task: its own effective tags gate WHETHER the file
+  loads at all, and they do NOT cascade into the included file's contents. (`import_tasks:`
+  would inherit/cascade — this role uses `include_tasks:` everywhere.) Inside
+  `docker_services`, that means:
+  - role-level tag `[docker_services]` (`vps.yml`) + explicit `tags: docker_services` on the
+    include lines reach all **direct** `main.yml` tasks (asserts, networks `[docker_services,
+    networks]`, teardown, homepage block `[homepage, docker_services]`) AND fire all six
+    include lines under `--tags docker_services`;
+  - contents of `deploy-service.yml` carry ONLY their per-service tags — all 13 tasks are
+    tagged `"{{ svc.name }}"` (dirs, bind-dir pre-create, copy/template/extra-render, compose
+    config-validate, compose up, systemd enable, db-role-sync, forgejo syncs, OIDC source);
+    nothing inside runs unless the filter names that service;
+  - authentik-lane includes have UNtagged include lines (pre-pass, blueprint one-shot, glue) —
+    they still fire via inherited `[docker_services]`, but their contents self-filter:
+    blueprint apply is `[authentik, docker_services]` (runs on every `docker_services` pass),
+    pre-pass/glue tasks are `[authentik, secret-egress]` (need those tags requested).
+- **Consequences / gotchas:**
+  - `--tags <service>` alone (e.g. `--tags opencloud`) matches no include line → SILENT
+    NO-OP. Always pair role + service: `--tags "docker_services,opencloud"`.
+  - Union cannot narrow: `--tags "docker_services,opencloud"` runs ALL direct-role tasks plus
+    the opencloud service chain — not an opencloud-only run.
+  - Handlers are tag-filtered too: a handler must match the filter (or carry `tags: always`)
+    or it is skipped even when notified by a task that ran — the monitoring handlers carry
+    `tags: always` for exactly this reason (HD-220). `docker_services`'s `reload systemd`
+    handler is currently UNTAGGED (latent gap; flagged, not fixed here).
+  - Filtered runs skip untagged top-level tasks: e.g. `site.yml`'s pre-flight admin-user
+    assert and any playbook whose roles have no role-level tags (`home_servers.yml`,
+    `raspberry_pi.yml`, `router.yml`, …) can only ever run their `always`-tagged tasks under
+    `--tags`. Only `vps.yml` (and `all.yml`'s `[hosts]`) supports role-surgical filtering today.
+  - Partial application is the failure mode to fear (renders without up, service changed but
+    its Traefik routes stale): prefer the canonical forms below and verify with
+    `--list-tasks --tags <filter>` before running.
+- **Canonical invocations:**
+
+  | Goal | Command |
+  |------|---------|
+  | Full converge | `ansible-run.sh site.yml` (or the group playbook) |
+  | Single VPS role | `ansible-run.sh playbooks/vps.yml --tags monitoring` |
+  | Single compose service | `ansible-run.sh playbooks/vps.yml --tags "docker_services,<service>"` |
+  | Service + edge/dynamic-file companions | `--tags "docker_services,onlyoffice-docs,traefik"` |
+  | Include Authentik pre-pass/glue lanes | append `,authentik,secret-egress` |
+  | Resume after a failing step | `--start-at-task="<task name>"` (no `--tags` → everything from there runs) |
+  | Discovery | `--list-tags` / `--list-tasks --tags "<filter>"` |
+
 ### Compose templates (`templates/docker_services/`)
 - **One directory per service.** Files inside: `docker-compose.yml.j2` (always),
   plus extra configs (e.g. `dynamic/routes.yml.j2`, `tuwunel.toml.j2`).
@@ -133,8 +186,10 @@ Used for: initial setup, new hardware, full rebuild.
 
 ### Targeted Mode
 ```bash
-ansible-playbook site.yml --tags ollama    # Single service
-ansible-playbook site.yml --tags immich-ml # GPU service
+# Per-service filtering requires BOTH the role tag and the service tag (union semantics,
+# see §Tags & surgical runs above) — a service tag alone matches nothing:
+ansible-playbook site.yml --tags "docker_services,ollama"
+ansible-playbook site.yml --tags "docker_services,immich-ml"
 ```
 
 ---

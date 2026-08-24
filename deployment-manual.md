@@ -31,7 +31,23 @@
   3. Both fail to clear → migrate the runner clone natively into WSL (pre-authorized, no re-ask).
 - Quick turnover while iterating on a failing step: re-run from a named task —
   `bash scripts/ansible-run.sh playbooks/<playbook>.yml --start-at-task="<task name>"`.
-  (Per-role `--tags` need role tags in the playbook — none exist today except `wireguard`.)
+- **Surgical `--tags` runs — union semantics (HD-220 wiring):** tag selection is a UNION across
+  every task carrying ANY requested tag; adding tags only ADDS work, it never narrows it.
+  Role-level tags (`vps.yml`: `[common] [docker] [hardening] [network] [cifs] [wireguard]
+  [docker_services] [monitoring]`) attach to all tasks directly in the role but do NOT cascade
+  through dynamic `include_tasks:` into file contents — so inside `docker_services`, per-service
+  tasks (tagged `{{ svc.name }}`) are reachable ONLY when the filter names BOTH the role and the
+  service. A service tag alone (`--tags opencloud`) matches nothing and is a SILENT NO-OP.
+  Canonical forms:
+  - whole VPS converge: no `--tags`
+  - one role: `--tags monitoring`
+  - one compose service (+ its edge/dynamic-file companions):
+    `--tags "docker_services,<service>"` — add `,traefik` whenever Traefik dynamic-file
+    templates changed (routes/middlewares/tls live under the `traefik` service dir), e.g.
+    `--tags "docker_services,onlyoffice-docs,traefik"`;
+    add `,authentik` / `,secret-egress` to include the Authentik pre-pass/glue lanes
+  - discovery first: `--list-tags`, `--list-tasks --tags <filter>` (confirm what WILL run)
+  Full semantics, wiring map and gotchas: [docs/deployment-ansible.md](docs/deployment-ansible.md) §Tags & surgical runs.
 
 ---
 
