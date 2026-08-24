@@ -130,13 +130,92 @@
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, grafana]
 
-- name: Provision Grafana datasources (Prometheus + Loki)
+- name: Provision Grafana datasources file (Loki only — see HD-240)
   ansible.builtin.template:
     src: grafana-datasources.yml.j2
     dest: /srv/docker/grafana/provisioning/datasources/datasources.yml
     mode: '0644'
   notify: restart grafana
   when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, grafana]
+
+# HD-240 (2026-08-24): the Prometheus datasource is seeded via the Grafana HTTP API,
+# NOT the provisioning file — grafana 13.2.0 file-provisioning stores a secureJsonData
+# blob it cannot resolve at query time (wire-capture proof: queries left WITHOUT the
+# Authorization header / "Authentication to data source failed"), while API-created
+# secrets are proven correct. Idempotent: created only when absent. ROTATION of
+# prometheus-internal_api = delete the datasource (API/UI) then re-run this role.
+- name: Read grafana admin password from container env
+  ansible.builtin.command:
+    cmd: docker exec grafana printenv GF_SECURITY_ADMIN_PASSWORD
+  register: gf_admin_password
+  changed_when: false
+  no_log: true
+  when: inventory_hostname in groups['vps']
+  tags: [monitoring, grafana]
+
+- name: Resolve grafana container IPs for API calls
+  ansible.builtin.command:
+    cmd: docker exec grafana hostname -i
+  register: gf_api_ip
+  changed_when: false
+  when: inventory_hostname in groups['vps']
+  tags: [monitoring, grafana]
+
+- name: Check whether the prometheus datasource already exists
+  ansible.builtin.uri:
+    url: "http://{{ gf_api_ip.stdout.split() | select('match', '^172\\.20\\.') | first }}:3000/api/datasources/uid/prometheus"
+    url_username: admin
+    url_password: "{{ gf_admin_password.stdout }}"
+    force_basic_auth: true
+    status_code: [200, 404]
+  register: gf_ds_state
+  changed_when: false
+  no_log: true
+  when: inventory_hostname in groups['vps']
+  tags: [monitoring, grafana]
+
+- name: Seed prometheus datasource via API (create-only)
+  ansible.builtin.uri:
+    url: "http://{{ gf_api_ip.stdout.split(' ') | first }}:3000/api/datasources"
+    method: POST
+    url_username: admin
+    url_password: "{{ gf_admin_password.stdout }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: Prometheus
+      uid: prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus:9090
+      isDefault: true
+      editable: false
+      basicAuth: true
+      basicAuthUser: "{{ lookup('community.general.onepassword', 'prometheus-internal_api', field='username', vault=op_vault) }}"
+      secureJsonData:
+        basicAuthPassword: "{{ lookup('community.general.onepassword', 'prometheus-internal_api', field='password', vault=op_vault) }}"
+    status_code: [200]
+  register: gf_ds_seed
+  no_log: true
+  when:
+    - inventory_hostname in groups['vps']
+    - gf_ds_state.status is defined and gf_ds_state.status == 404
+  tags: [monitoring, grafana]
+
+- name: Verify prometheus datasource health through grafana
+  ansible.builtin.uri:
+    url: "http://{{ gf_api_ip.stdout.split(' ') | first }}:3000/api/datasources/uid/prometheus/health"
+    method: POST
+    url_username: admin
+    url_password: "{{ gf_admin_password.stdout }}"
+    force_basic_auth: true
+  register: gf_ds_health
+  retries: 3
+  delay: 5
+  until: gf_ds_health.json.status is defined and gf_ds_health.json.status == 'OK'
+  changed_when: false
+  when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
 - name: Provision Grafana dashboard provider
