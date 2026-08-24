@@ -1248,6 +1248,12 @@
 - **doc updated:** docs/observability.md (Access & login path section), deployment-tasks.md
   (HD-240 ledger item).
 
+### 2026-08-25 — Phase 1 · HD-246 · Secret-lifecycle rules promoted into CONVENTIONS §2 `[AI]`
+
+- Owner prompt: "is secrets-creation knowledge documented well enough? Should it be part of conventions?" Audit found the four-path creation taxonomy, seed-before-converge invariant, rotation-propagation contract and scanner-coverage contract lived only in changelog precedents + session memory.
+- Landed: 4 binding rows in CONVENTIONS.md §2 (index level) + full mechanics section "Creation & Rotation Workflow" in docs/deployment-secrets.md (owning spec).
+- Docs/rules only; no gear, no vault changes. Worktree ../homelab-wt-20260825-0114 merged green.
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).
