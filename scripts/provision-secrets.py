@@ -74,6 +74,7 @@ CATALOG = [
     ("Database",    "forgejo_db",             lambda: [f"username=forgejo",   f"password={gen_pw()}"]),
     ("Database",    "onlyoffice_db",          lambda: [f"username=onlyoffice", f"password={gen_pw()}"]),
     ("Database",    "pgvector_db",            lambda: [f"username=pgvector",  f"password={gen_pw()}"]),
+    ("Database",    "zipline_db",             lambda: [f"username=zipline",   f"password={gen_pw()}"]),   # HD-112
     # --- Password items ---
     ("Password",    "authentik_password",     lambda: [f"password={gen_pw()}"]),
     ("Password",    "kopia_password",         lambda: [f"password={gen_pw()}"]),
@@ -83,6 +84,7 @@ CATALOG = [
     ("Password",    "n8n_password",           lambda: [f"password={gen_pw()}"]),
     ("Password",    "matrix_password",        lambda: [f"password={gen_pw()}"]),
     ("Password",    "opencloud-collab_password", lambda: [f"password={gen_pw()}"]),
+    ("Password",    "zipline_password",          lambda: [f"password={gen_pw()}"]),   # CORE_SECRET (HD-112)
     ("Login",       "onlyoffice-rabbitmq_login", lambda: [f"username=onlyoffice", f"password={gen_pw()}"]),
     ("Password",    "openwebui_secret",       lambda: [f"password={gen_pw()}"]),
     # --- API Credential ---
@@ -120,6 +122,8 @@ NOT_AUTO_ROTATABLE = {
     "matrix_password",      # Matrix shared secret — reissue breaks rooms/sessions
     "authentik_db", "opencloud_db", "immich_db", "forgejo_db", "pgvector_db",  # running Postgres
     "onlyoffice_db",           # running Postgres (sidecar cluster init-once password)
+    "zipline_db",             # running Postgres sidecar — init-once password (HD-112)
+    "zipline_password",       # Zipline CORE_SECRET — rotation invalidates all sessions
     "onlyoffice-rabbitmq_login",  # RABBITMQ_DEFAULT_* applies at first mnesia init; AMQP_URI couples both sides
     "authentik_password",   # Django SECRET_KEY — invalidates the running instance
     "kopia_password",       # repo master password on live repo

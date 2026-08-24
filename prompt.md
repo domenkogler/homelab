@@ -67,9 +67,11 @@
 ## 3. Next-session execution order
 
 ### 3a. Owner-action chase (reminders, not blockers)
-- **NEW — Zipline pre-deploy:** create 1Password items `zipline_password` (Password → `CORE_SECRET`)
-  and `zipline_db` (Database → username+password); pick the starting guestbin quota (~100 MB
-  suggested; runtime-editable later). `zipline_oidc` is glue-seeded — nothing to do there.
+- **NEW — Zipline pre-deploy:** seed the vault items by script — `bash scripts/provision-vault.sh`
+  (or `provision-secrets.py --create --yes`) creates `zipline_password` + `zipline_db`
+  automatically (added to the generated-item catalog, HD-112; `check-vault-items.sh` flags them
+  if missing); owner input is only the starting guestbin quota (~100 MB suggested,
+  runtime-editable later). `zipline_oidc` is glue-seeded — nothing to do there.
 - **NEW — after first Zipline converge:** walk the compose-header deploy gate (local admin
   `/auth/setup` → OIDC login verify → flip bypass-local-login in Server Settings → seed `guestbin`
   user w/ small quota + `dropzone` folder `allowUploads=true`) → anonymous upload→short-URL→viewer
