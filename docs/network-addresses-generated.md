@@ -51,6 +51,17 @@
 | 30 | 10.10.30.1 | router | Guest gateway |
 | 40 | 10.10.40.1 | router | Kids gateway |
 | 50 | 10.10.50.1 | router | Media gateway |
+| 10 | 10.10.1.13 | canon-ts9550 | Canon TS9550 printer (family web UI) |
+| 20 | 10.10.20.10 | knx-x1 | GIRA X1 KNX controller |
+| 20 | 10.10.20.11 | knx-ip | GIRA IP router (KNX bus) |
+| 20 | 10.10.20.12 | reolink-garage | Reolink camera (garage) |
+| 21 | 10.10.21.10 | bosch-dishwash | Bosch SMV88TX36E dishwasher |
+| 21 | 10.10.21.11 | bosch-oven | Bosch HNG6764B6 oven |
+| 21 | 10.10.21.12 | bosch-cooktop | Bosch CSG656RB7... cooktop |
+| 21 | 10.10.21.13 | lg-ac1 | LG AC klima #1 (QCA4002) |
+| 21 | 10.10.21.14 | lg-ac2 | LG AC klima #2 (QCA4002) |
+| 50 | 10.10.50.10 | nvidia-shield | NVIDIA Shield (Media) — D2-confirmed |
+| 50 | 10.10.50.11 | nintendo-switch | Nintendo Switch 2 (Media, D3) |
 
 ## Infrastructure networks
 
@@ -84,4 +95,4 @@
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-08-23T19:11:31Z
+> Last generated: 2026-08-24T08:25:49Z

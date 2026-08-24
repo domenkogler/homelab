@@ -759,20 +759,21 @@
 ### 2026-08-24 — Phase 1.5 · reconcile home-server VLAN/IP/DNS model to Option A (R-1) `[AI]`
 
 - Decision (owner): **Option A — pi & oldsrv dual-homed (trunk 10+99, mgmt 99 addr + home 10 addr);
-  nas single-Home (10.10.1.10) with iLO4 on 99.** No live gear touched — IaC/SSOT + doc reconciliation only.
+  nas single-Home (VLAN 10) with iLO4 on 99.** No live gear touched — IaC/SSOT + doc reconciliation only.
 - Verified SSOT `group_vars/all.yml` already models pi/oldsrv/nas dual; migration inventory lists
   pi/oldsrv trunk 10+99, nas Home. Router role skips VLAN-99 DHCP (pools/net/servers `id not in [1,99]`)
   and reserves only AP MACs → all 99 hosts are static IPs from preseed/host_vars. Option A holds without
   reservation churn.
 - **Patches applied in worktree `homelab-wt-20260824-0958`:**
-  - `host_vars/pi.kogler.si.yml` — added `mgmt_ip: 10.10.99.20` (static reg on the mgmt plane, dual-homed);
-    kept `ansible_host: 10.10.1.20` Home (SSH/VPN anchor).
+  - `host_vars/pi.kogler.si.yml` — added `mgmt_ip` for the pi mgmt plane (SSOT VLAN-99 address, dual-homed);
+    kept `ansible_host` on the Home VLAN (SSH/VPN anchor).
   - `docs/network-migration-inventory.md` — removed duplicate AP-dnevna row (same MAC/plan repeated twice;
     R-4 leftover coalesced here); nas row already single-Home ✓.
-- DNS invariant unchanged: oldsrv Technitium primary `10.10.1.30` + pi secondary `10.10.1.20` stay on
-  Home (they bind the node IP); router keeps the tertiary `/ip dns`. No mgmt-IP moves for DNS.
+- DNS invariant unchanged: oldsrv Technitium primary + pi secondary stay on the Home VLAN (they bind the
+  node IP, per network-dns.md); router keeps the tertiary `/ip dns`. No mgmt-IP moves for DNS.
 - Switch-port finding deferred to R-2 (below): `nvidia-shield` MAC `48:B0:2D:09:6F:90` conflicts with the
   inventory ⚠ unknown; Nintendo Switch listed VLAN 21 vs Media(50) in the plan; `nas-eno1/eno2` vlan blank.
+- Secrets values touched: none.
 - Secrets values touched: none.
 
 ### 2026-08-24 — Phase 1 · Rotate shared headscale OIDC client secret + encode “never a secret VALUE in output” hygiene rule (HD-235) `[AI]`

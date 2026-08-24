@@ -175,6 +175,19 @@ network_static_hosts:
   - { name: router, vlan: 40, ip: "10.10.40.1",  role: "Kids gateway" }
   - { name: router, vlan: 50, ip: "10.10.50.1",  role: "Media gateway" }
 
+  # --- Reservation targets (R-2, migration inventory) — DHCP-reserved static IPs ---
+  # IPs sit below each VLAN's DHCP pool start (.100): Home-.13, IoT-.10/.11, IoT-Internet-.10/.14, Media-.10/.11
+  - { name: canon-ts9550,        vlan: 10, ip: "10.10.1.13",  mac: "74:BF:C0:CD:33:0B", role: "Canon TS9550 printer (family web UI)" }
+  - { name: knx-x1,              vlan: 20, ip: "10.10.20.10", mac: "00:0A:B3:29:2C:9E", role: "GIRA X1 KNX controller" }
+  - { name: knx-ip,              vlan: 20, ip: "10.10.20.11", mac: "00:0A:B3:27:5F:8B", role: "GIRA IP router (KNX bus)" }
+  - { name: reolink-garage,      vlan: 20, ip: "10.10.20.12", mac: "EC:71:DB:5F:BC:C1", role: "Reolink camera (garage)" }
+  - { name: bosch-dishwash,      vlan: 21, ip: "10.10.21.10", mac: "68:A4:0E:0B:E5:81", role: "Bosch SMV88TX36E dishwasher" }
+  - { name: bosch-oven,          vlan: 21, ip: "10.10.21.11", mac: "68:A4:0E:2F:46:87", role: "Bosch HNG6764B6 oven" }
+  - { name: bosch-cooktop,       vlan: 21, ip: "10.10.21.12", mac: "68:A4:0E:2E:65:AE", role: "Bosch CSG656RB7... cooktop" }
+  - { name: lg-ac1,              vlan: 21, ip: "10.10.21.13", mac: "2C:2B:F9:23:41:EC", role: "LG AC klima #1 (QCA4002)" }
+  - { name: lg-ac2,              vlan: 21, ip: "10.10.21.14", mac: "2C:2B:F9:22:BA:DD", role: "LG AC klima #2 (QCA4002)" }
+  - { name: nvidia-shield,       vlan: 50, ip: "10.10.50.10", mac: "48:B0:2D:09:6F:90", role: "NVIDIA Shield (Media) — D2-confirmed" }
+  - { name: nintendo-switch,     vlan: 50, ip: "10.10.50.11", mac: "E0:EF:BF:74:CE:07", role: "Nintendo Switch 2 (Media, D3)" }
 # Infrastructure / non-VLAN ranges (tunnels, overlays, Docker bridges) — rendered to
 # docs/network-addresses-generated.md §Infrastructure networks. Names are stable tokens used in
 # docs/runbooks (e.g. `wg-s2s`, `ha-vip`); values are hand-edited here only.

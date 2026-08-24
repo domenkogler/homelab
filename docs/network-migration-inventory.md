@@ -58,7 +58,7 @@ tags: [network, vlan, migration]
 | Family phones/tablets (Martina, Domen ×2, Valentina tablet) | various | 10 (Home) | Kogler | plain clients |
 | "deblab" (Hyper-V VM NIC) | 00:15:5D:01:67:1E | ? | — | ⚠ identify — Hyper-V virtual MAC, host unknown |
 | "truenas" | 92:47:15:04:EB:49 | ? | — | ⚠ identify — not in any owning doc (heritage TrueNAS box?) |
-| *(no hostname)* | 48:B0:2D:09:6F:90 | ? | — | ⚠ identify |
+| NVIDIA Shield (Media) | 48:B0:2D:09:6F:90 | 50 (Media) | — | **D2-confirmed: NVIDIA Shield on Media(50)** — resolves the earlier ⚠ unknown (`switch_port_map` had it already at ether20) |
 | 0003B5F29AFDC36 | 00:1A:22:1E:F7:FD | ? | — | ⚠ identify (static lease) |
 
 ## Cutover-night order (derived)

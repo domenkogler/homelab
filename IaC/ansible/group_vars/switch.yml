@@ -81,10 +81,10 @@ switch_port_map:
     poe: false
     mac: "74:BF:C0:CD:33:0B"
 
-  # Nintendo Switch (IoT-Internet VLAN 21) - no PoE
+  # Nintendo Switch 2 (Media VLAN 50, D3) - no PoE
   nintendo-switch:
     port: ether14 
-    vlan: 21
+    vlan: 50
     poe: false
     mac: "E0:EF:BF:74:CE:07"
 

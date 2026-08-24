@@ -182,9 +182,15 @@
 
 
 # -------------------------------------------------------------------------
-# DHCP Static Reservations for APs
+# DHCP Static Reservations
 # -------------------------------------------------------------------------
-- name: Configure DHCP static reservations for APs
+# NOTE (R-2 live-finding): the steady-state role creates DHCP servers named `dhcp-<vlan>`
+# for VLANs 10/20/21/30/40/50 (loop below excludes 1 and 99), but the management plane's
+# DHCP server is `dhcp-mgmt` (named in the BOOTSTRAP, not recreated here) — so the original
+# AP reservation block below (server: `dhcp-99`) could never match a real server and APs fell
+# back to dynamic mgmt-pool IPs. Flagged for the cutover-prep session; NOT silent-reworked here.
+
+- name: Configure DHCP static reservations for APs (unchanged legacy behavior)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -201,6 +207,29 @@
         comment: "AP {{ item.name }} static reservation"
   loop: "{{ network_static_hosts | selectattr('name', 'startswith', 'ap-') | selectattr('mac', 'defined') | selectattr('vlan', '==', 99) | list }}"
   when: item.vlan == 99
+
+- name: Configure DHCP static reservations for non-mgmt reserved devices (R-2)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip dhcp-server lease
+    handle_absent_entries: ignore
+    data:
+      - server: "dhcp-{{ item.vlan }}"
+        address: "{{ item.ip }}"
+        mac-address: "{{ item.mac }}"
+        comment: "{{ item.name }} static reservation (R-2)"
+  loop: "{{ network_static_hosts \
+         | selectattr('mac', 'defined') \
+         | selectattr('vlan', 'not in', [99]) \
+         | selectattr('name', 'not in', ['router']) \
+         | rejectattr('name', 'search', 'ap-') \
+         | list }}"
+  when: item.mac is defined and item.vlan != 99
 
 
 # -------------------------------------------------------------------------
