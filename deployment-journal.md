@@ -1034,6 +1034,22 @@
   flagged for future LDAP bind users (HD-132 authoring).
 - **Deviations:** none.
 
+### 2026-08-24 — Phase 1 · HD-216 close-up: owning-doc sweep, stale provision-token refs fixed `[AI]`
+
+- **Audit:** repo-wide greps for stale minting advice, "root cause unidentified" wording and
+  all HD-216 mentions — the mechanism itself was already fully documented in
+  services-authentik.md; historical journal/changelog statements stay as records (append-only,
+  corrected by newer entries, never edited).
+- **Gaps fixed (same change):** `deployment-secrets.md` tombstone rationale updated (identified
+  root cause + recipe pointer); `deployment-oidc.md` blueprint-apply step and fail-closed
+  paragraph de-staled (retired `authentik-provision_api` references → deterministic blueprint
+  one-shot per HD-230b + ephemeral-mint description); `todo.md` HD-211 row refocused (moot
+  retired-item rotation step dropped; `expiring=False` rule for any persisted Authentik token
+  in the batch + the one-time `authentik-api_token` verification now tracked where work will
+  actually happen).
+- **Changelog:** HD-216 R2 row appended.
+- **Deviations:** none.
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).

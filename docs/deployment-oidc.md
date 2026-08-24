@@ -39,8 +39,10 @@ file (`docker compose -f … validate`) before `up`. See
 [`deployment-ansible.md`](deployment-ansible.md) §`docker_services`.
 
 1. Deploy `authentik` (+ bundled pg/redis/ldap) — `docker compose up -d`.
-2. **Apply the Blueprint** (`ks-oidc.yml`) — via Authentik API (`authentik-provision_api`) or the
-   bundled blueprint on container start.
+2. **Apply the Blueprint** (`ks-oidc.yml`) — via the deterministic one-shot
+   `apply-authentik-blueprints.yml` step wired into `docker_services` main.yml (HD-230b: blueprint
+   discovery never registers `/blueprints/custom/*` as instances, so hash-reapply never fires on
+   its own); NOT hand-created in the UI.
 3. **Run the secret-egress glue** — for each declared provider, `GET /api/v3/core/providers/oauth2/`
    → seed the 1Password item (`openwebui_api`, `headscale_api`, `matrix_api`, `openclaw_api`,
    `opencloud_oidc`, `immich_oidc`, `forgejo_oidc`, `metabase_oidc`). (The OpenCloud Graph-API
@@ -48,8 +50,13 @@ file (`docker compose -f … validate`) before `up`. See
    `sync-authentik-users` rework, HD-145.)
 4. Deploy the **OIDC consumers** — their compose `lookup()` now resolves real client creds.
 
-Fail-closed (HD-65/91): the glue aborts loudly if `authentik-provision_api` is missing, rather than
-rendering a consumer with an empty/placeholder OIDC secret.
+Fail-closed (HD-65/91): the glue aborts loudly instead of rendering a consumer with an
+empty/placeholder OIDC secret. It authenticates with an EPHEMERAL api-intent token minted per
+run via `ak shell` and revoked on exit — NOT a persisted provision token: the former
+`authentik-provision_api` was retired 2026-08-22 because authentik AUTO-ROTATES expiring
+api-intent tokens (HD-216; any vault-stored copy dies within minutes). A durable persisted
+token is possible only with `expiring=False` — recipe + mechanism:
+[services-authentik.md](services-authentik.md) *API-token auto-rotation*.
 
 ### OpenCloud native-OIDC switch (HD-52)
 For OpenCloud, native OIDC (desktop/mobile client) requires, in the `opencloud` compose:
