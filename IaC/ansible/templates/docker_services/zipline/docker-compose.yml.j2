@@ -62,7 +62,7 @@ services:
       - traefik-public
       - db-internal
     volumes:
-      - /srv/docker/zipline/uploads:/uploads
+      - /srv/docker/zipline/uploads:/zipline/uploads
     depends_on:
       zipline-db:
         condition: service_healthy
@@ -82,7 +82,7 @@ services:
       DATABASE_URL: >-
         postgres://{{ lookup('community.general.onepassword', 'zipline_db', field='username', vault=op_vault) | urlencode }}:{{ lookup('community.general.onepassword', 'zipline_db', field='password', vault=op_vault) | urlencode }}@zipline-db:5432/zipline
       DATASOURCE_TYPE: local
-      DATASOURCE_LOCAL_DIRECTORY: /uploads
+      DATASOURCE_LOCAL_DIRECTORY: /zipline/uploads
       # Generous GLOBAL cap on purpose (HD-112): the anonymous side is bounded by the
       # guestbin user's quota + 6h TTL, not by size caps. No disabled types/extensions.
       FILES_MAX_FILE_SIZE: 1gb
