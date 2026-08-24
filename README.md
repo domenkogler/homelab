@@ -98,7 +98,7 @@ to Read First" for task-specific dispatch. Do **not** bulk-read the repo.
 
 ## 6. Context quick-refs
 
-`CONVENTIONS.md` (root) · `docs/index.md` · `IaC/README.md` · `todo.md` · `changelog.md`
+`CONVENTIONS.md` (root) · `docs/index.md` · `IaC/README.md` · [`scripts/README.md`](scripts/README.md) (validators, renderers, vault-seeding utilities) · `todo.md` · `changelog.md`
 
 ---
 
