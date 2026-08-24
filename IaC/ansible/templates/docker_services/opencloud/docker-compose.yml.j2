@@ -131,6 +131,13 @@ services:
       # WOPI callback + live-typing sync store (default nats-js-kv; node addr via
       # OC_CACHE_STORE_NODES per docs — not COLLABORATION_STORE_NODES)
       COLLABORATION_WOPI_SRC: "https://file.kogler.si"
+      # COLLABORATION_WOPI_SECRET (OpenCloud docs): used to mint and verify the WOPI
+      # JWT tokens, and to encrypt and decrypt the REVA JWT token embedded in the WOPI
+      # JWT token. It MUST be stable. This is set to the SAME shared opencloud-collab_password
+      # value as COLLABORATION_JWT_SECRET (single-secret WOPI chain). WITHOUT it OpenCloud
+      # cannot validate the embedded REVA token and the /wopi/files callback returns 401
+      # "Invalid access token" (found live 2026-08-24).
+      COLLABORATION_WOPI_SECRET: "{{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}"
       COLLABORATION_STORE: "nats-js-kv"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
