@@ -109,7 +109,16 @@ Found live 2026-08-22 while restoring VPS access (deployment-journal Phase 1.0 /
 | `op vault list` only shows some vaults | Service account lacks read grant on the needed vault |
 | `Permission denied (publickey)` to a host | Runner's SSH key not authorized in that host's `authorized_keys` |
 | `invalid JSON provided` / `invalid JSON in piped input` on `op item create/edit` | Non-TTY stdin: op interprets piped input as a JSON item template. Run with `< /dev/null` in scripts, ansible shell tasks, ssh one-liners, cron (provisioner + secret-egress glue precedents, Phase 1 2026-08-22) |
+| **Secret VALUE leaked into chat/transcript via `op item get --reveal`** | Rotate the affected secret immediately (see Output hygiene above); if it's a shared Authentik client (`headscale_api`), regenerate the provider client_secret in Authentik, `op item edit` the 1P item, and re-render the consuming services; **never** inspect further in plaintext |
 | `Failed to change ownership of the temporary files` | `acl` package (`setfacl`) missing on the target host — added to the `common` role prereqs |
 
 > **Secrets rule (CONVENTIONS §6):** never put token/item values in docs or git. This file
 > documents *where* and *how*; the values stay in 1Password and the `0600` runner file.
+>
+> **Output hygiene (CONVENTIONS §2, HD-234):** when a probe/rotation touches a secret, print
+> **lengths / prefixes / item IDs / hashes only** — never a full value. `op item get … --reveal`
+> into a shell that echoes to a session/transcript log is how live client_secrets leak into
+> chat (HD-233 incident). Rotating a shared Authentik client: regenerate the secret in the
+> provider ORM (providers don't expose `generate_client_id`; `authentik.lib.generators` has
+> `generate_id`/`generate_key`/`generate_code_fixed_length`), persist to the 1P item, then
+> re-render the consuming services (headscale + headplane read `headscale_api`) and verify.

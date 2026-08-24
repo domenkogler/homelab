@@ -44,6 +44,7 @@
 | Ansible roles | 1 entry point (`tasks/main.yml` → `include_tasks:`); assert admin user top; idempotent by default; tag every loop item | [docs/deployment-ansible.md](docs/deployment-ansible.md) (IaC Authoring Conventions) |
 | Ansible vars | service/arch values → `group_vars/`, not role defaults | [docs/deployment-ansible.md](docs/deployment-ansible.md) |
 | Ansible secrets | `lookup('community.general.onepassword', …, field=…)` only, `op_vault`, no literals | [docs/deployment-ansible.md](docs/deployment-ansible.md), [docs/deployment-secrets.md](docs/deployment-secrets.md) |
+| Secret output hygiene | **never write a secret VALUE to stdout / chat / git / transcripts** — `op item get` / `ak shell` probes that print a value must print only **lengths, prefixes, item IDs, or hashes**; never run a bare `op item get … --reveal` into a shell that echoes to a session log. Rotation of a shared Authentik client = regenerate in Authentik, persist to the 1P item, re-render consuming services (headscale + headplane), verify | [docs/1password.md](docs/1password.md), [docs/deployment-secrets.md](docs/deployment-secrets.md) |
 | Compose location | one dir per service under `templates/docker_services/<service>/` | [docs/deployment-compose.md](docs/deployment-compose.md) (File Location) |
 | Compose networks | `external: true` (traefik-public, services-internal, db-internal) created by the role | [docs/deployment-compose.md](docs/deployment-compose.md) (Network Assignment) |
 | Compose security | `cap_drop: ALL` + minimal `cap_add`, `read_only`, `tmpfs`; no host ports unless justified; internal services need auth tokens (`<service>-internal_api`) | [docs/deployment-compose.md](docs/deployment-compose.md) (Container Security), [docs/security.md](docs/security.md) (Flaw C/D) |
@@ -102,6 +103,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 - Headers: every doc starts with `> **Role:**` and `> **Linked from:**` — enforced by convention.
 - Relative links only — markdown relatives to `docs/*.md`.
 - Secrets never in docs — 1Password `Homelab-ansible` vault only.
+- **Never print a secret VALUE to stdout / chat / git / transcripts** — probes show **lengths / prefixes / item IDs / hashes** only (rotation + readback precedents, HD-233/HD-234).
 - Generated files use the **`-generated` filename suffix** and are rendered, never hand-edited (§8.2). The legacy **★** marker in `docs/index.md` is a display aid only, **not** the convention.
 - **Don't chase cosmetic tweaks** during planning phase (ASCII alignment, spacing); substantive, consistent edits only.
 - **Git worktrees (owning rule — CONVENTIONS is SSOT):** **every** session creates its own fresh

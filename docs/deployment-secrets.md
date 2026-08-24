@@ -221,6 +221,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `ha_api_key` / `ha_exporter_token` / `ha_prometheus_token` / `long_lived_token` | `ha_api` |
 | `ha_vrrp_password` | `ha-vrrp_password` |
 | `headscale_oidc_secret` | `headscale_api` |
+| `headscale_client_secret` (rotated HD-235) | `headscale_api` |
 | `upsmon_password` / `nut_upsmon_password` | `nut_password` |
 | `smtp_notify_creds` / `nut_notify_email` / `nut_smtp_user` / `nut_smtp_pass` | `smtp_login` |
 | `snmp_ro_community` (snmp.yml.j2 auth) | `network-snmp_api` |

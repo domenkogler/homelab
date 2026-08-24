@@ -756,9 +756,32 @@
 - **DECISION (owner): CAPsMAN flavor flips LEGACY → MODERN `wifi-qcom-ac`** — supersedes the 2026-08-23 legacy pin. The wAP ac was one of two MIPSBE blockers; its death resolves revisit-condition ②. Remaining conditions for the modern fleet: ① dnevna swap executes per owner plan 2026-08-23 (spare hAP ac² C4:AD:34:42:F0:B9 takes the dnevna slot; classic MIPSBE unit retires — no MIPSBE device may remain in the managed fleet); ② garage replacement hardware must be wifi-qcom-ac-capable. Pinned in capsman.yml header; ap_initial.rsc.j2 must move to modern `/interface/wifi` cap syntax at cutover prep (legacy `/interface wireless cap` line now stale). Implementation still fail-loud/live-validated per the scaffold's culture — no speculative field-level tasks shipped.
 - Secrets values touched: none.
 
-*(no entries yet)*
+### 2026-08-24 — Phase 1 · Rotate shared headscale OIDC client secret + encode “never a secret VALUE in output” hygiene rule (HD-235) `[AI]`
 
-## Phase 2 — NAS
+- **Stimulus:** an operating probe exposed the shared `headscale_api` OIDC client_secret to the
+  chat transcript (HD-233 implementation). Rotated AND turned the lesson into a convention so it
+  never recurs from automation.
+- **Rotation (values never printed — lengths/IDs only):**
+  - Authentik ORM in `authentik-worker` (`ak shell` heredoc): provider `headscale` (pk 13)
+    `client_secret` regenerated via `authentik.lib.generators.generate_key()` (128 chars);
+    `client_id` left stable (no `generate_client_id` symbol exists in that module).
+  - Persisted into `headscale_api` (`Homelab-ansible`, item `k6ehl32qrogcqhxu4efb42ft24`)
+    `credential` field via `op item edit` with the write token from `/etc/op/provision-token`
+    (the VPS-hosted SA, same path `provision-vault.sh` uses); `< /dev/null` (non-TTY stdin
+    otherwise parsed as JSON template).
+  - Verified readback: `username` 40, `credential` 128.
+- **Convention fix (same change):**
+  - CONVENTIONS §2: new “Secret output hygiene” row — never a secret VALUE in stdout/chat/git/
+    transcripts; probes print length/prefix/item-ID/hash only; rotation sequence for a shared
+    Authentik client.
+  - CONVENTIONS §6: matching short bullet.
+  - docs/1password.md: Output-hygiene note next to the existing Secrets-rule callout + a
+    troubleshooting row for a leaked-value incident (rotate immediately, keep inspecting in
+    plaintext off).
+- **Remaining:** re-render headscale + headplane (converge `services` tag) so both consumers
+  pick up the rotated secret; verify `vpn.kogler.si` control plane + `vpn.kogler.si/admin` login.
+- **Secrets touched:** `headscale_api.credential` (rotated; value → vault only), `headscale_api.username` (unchanged). No values committed/logged.
+- **Deviations:** none.
 
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
