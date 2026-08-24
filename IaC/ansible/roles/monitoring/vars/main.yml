@@ -64,12 +64,16 @@ grafana_alert_rules:
     - uid: ups-on-battery
       title: UPS on battery
       for: 1m
-      expr: "(nut_ups_status & 2) > 0"
+      # HD-240: PromQL has NO bitwise-AND operator — the original `(nut_ups_status & 2) > 0`
+      # never parsed (masked for weeks by the datasource auth failure). Modulo test = same
+      # bitmask semantics: bit set ⇔ (status mod 2^(n+1)) >= 2^n.
+      expr: "(nut_ups_status % 4) >= 2"
       summary: "UPS is on battery — mains lost (auto-clears on return)"
     - uid: ups-battery-replace
       title: UPS battery needs replacement
       for: 10m
-      expr: "(nut_ups_status & 16) > 0"
+      # HD-240: see ups-on-battery — modulo bitmask test replaces invalid bitwise &.
+      expr: "(nut_ups_status % 32) >= 16"
       summary: "UPS reports Replace-Battery flag"
     - uid: mikrotik-link-down
       title: MikroTik link down
