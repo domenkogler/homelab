@@ -137,7 +137,7 @@ def _load_ssot_ctx():
         "crowdsec_collections", "wildcard_cert_file", "wildcard_cert_key_file",
         "wildcard_cert_domain", "ha_vip", "ha_vip_cidr", "network_ranges",
         "kopia_sftp_host", "kopia_sftp_port", "kopia_sftp_user", "kopia_sftp_path",
-        "traefik_edge_ips",
+        "traefik_edge_ips", "traefik_edge_ip_pin",
     ):
         if k in data:
             ctx[k] = data[k]

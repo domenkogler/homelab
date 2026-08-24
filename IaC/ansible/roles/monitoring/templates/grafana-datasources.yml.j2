@@ -17,7 +17,12 @@ datasources:
     # renders its htpasswd from (plaintext field; bcrypt side lives in the web-config).
     basicAuthUser: "{{ lookup('community.general.onepassword', 'prometheus-internal_api', field='username', vault=op_vault) }}"
     secureJsonData:
-      basicAuthPassword: "{{ lookup('community.general.onepassword', 'prometheus-internal_api', field='password', vault=op_vault) }}"
+      # >- block scalar per CONVENTIONS §2 (HD-233 lesson): 1P secrets can contain YAML-
+      # breaking chars; also NOTE — Grafana provisioning does NOT overwrite secureJsonData
+      # on an EXISTING datasource (stale DB secret survives re-renders; seen live 2026-08-24).
+      # A rotated password needs a datasource delete+recreate (same uid) or API update.
+      basicAuthPassword: >-
+        {{ lookup('community.general.onepassword', 'prometheus-internal_api', field='password', vault=op_vault) }}
     isDefault: true
     editable: false
   - name: Loki
