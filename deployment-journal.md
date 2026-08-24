@@ -840,6 +840,21 @@
   probes MUST redact secret/password/token/bind_password values.
 - Secrets values touched: none (values were not committed; transcript-only, per HD-235 do-not-print).
 
+#### HD-166 pt.2 — root cause found: collaboration service excluded via `OC_EXCLUDE_RUN_SERVICES` (2026-08-24, live diagnostics) `[AI]`
+
+- **Symptom recap:** `.docx` in file.kogler.si shows “No preview available … download instead”; the ONLYOFFICE editor never opens office MIME. The prior entry's theory pinned this on “no NATS broker → collaboration has no registry/store to announce office authoring” — **that theory is now DISPROVEN.**
+- **Evidence (read-only probes, opencloud 7.4.0 rolling):**
+  - Container env sets BOTH `OC_ADD_RUN_SERVICES=collaboration` AND `OC_EXCLUDE_RUN_SERVICES=collaboration,idp`.
+  - `opencloud list` on the live box shows **no `collaboration` service**; `nats` (embedded), app-registry, app-provider, gateway, frontend all run.
+  - `opencloud collaboration server/health/version` subcommands exist, so the service is runnable — it is simply not being started.
+  - Embedded NATS at the default node IS running, so a separate NATS container is not required for `collaboration`; the earlier “no NATS broker” theory was wrong.
+  - Rendered `/etc/opencloud/opencloud.yaml` shows `collaboration.app.insecure: true` despite env `COLLABORATION_APP_INSECURE: "false"` — env→schema map does not appear to take effect for this flag in 7.4 rolling (secondary, open).
+- **Corrected service-set semantics:** the running set is `(defaults − EXCLUDE + ADD)`. A service named in `OC_EXCLUDE_RUN_SERVICES` is NOT started even if also listed in `OC_ADD_RUN_SERVICES`. Earlier journal/changelog text claiming “ADD wins; EXCLUDE inert” is wrong.
+- **Effect chain:** `collaboration` (never started) → never registers its WOPI app with app-registry → web UI has no editor for `application/vnd.*` → `.docx` falls to “download instead.”
+- **Fix (Lane A IaC, in-flight):** remove `collaboration` from `OC_EXCLUDE_RUN_SERVICES` (keep `idp`); then **converge + live re-test the `.docx` round-trip — PENDING.**
+- **Follow-up:** confirm `COLLABORATION_APP_INSECURE` env→schema takes effect after convergence (the `insecure: true` render may surface once the service starts).
+- **Secret-hygiene:** only env names/id lengths captured; no secret values printed. The earlier `insecure: true` render observation stands but no secret material is repeated here.
+
 
 ### 2026-08-24 — Phase 1 · Headplane admin UI for Headscale at `vpn.kogler.si/admin` (HD-233) `[AI]`
 
