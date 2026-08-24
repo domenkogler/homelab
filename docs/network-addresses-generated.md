@@ -59,6 +59,7 @@
 | 21 | 10.10.21.11 | bosch-oven | Bosch HNG6764B6 oven |
 | 21 | 10.10.21.12 | bosch-cooktop | Bosch CSG656RB7... cooktop |
 | 21 | 10.10.21.13 | lg-ac1 | LG AC klima #1 (QCA4002) |
+| 21 | 10.10.21.15 | homematic-hap | HMIP-HAP HomeMatic AP (cloud) — resolved task-6; wired to IoT-Internet per network-vlans (cloud-bound) |
 | 21 | 10.10.21.14 | lg-ac2 | LG AC klima #2 (QCA4002) |
 | 50 | 10.10.50.10 | nvidia-shield | NVIDIA Shield (Media) — D2-confirmed |
 | 50 | 10.10.50.11 | nintendo-switch | Nintendo Switch 2 (Media, D3) |
@@ -95,4 +96,4 @@
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-08-24T08:25:49Z
+> Last generated: 2026-08-24T09:05:17Z

@@ -185,6 +185,7 @@ network_static_hosts:
   - { name: bosch-oven,          vlan: 21, ip: "10.10.21.11", mac: "68:A4:0E:2F:46:87", role: "Bosch HNG6764B6 oven" }
   - { name: bosch-cooktop,       vlan: 21, ip: "10.10.21.12", mac: "68:A4:0E:2E:65:AE", role: "Bosch CSG656RB7... cooktop" }
   - { name: lg-ac1,              vlan: 21, ip: "10.10.21.13", mac: "2C:2B:F9:23:41:EC", role: "LG AC klima #1 (QCA4002)" }
+  - { name: homematic-hap,       vlan: 21, ip: "10.10.21.15", mac: "00:1A:22:1E:F7:FD", role: "HMIP-HAP HomeMatic AP (cloud) — resolved task-6; wired to IoT-Internet per network-vlans (cloud-bound)" }
   - { name: lg-ac2,              vlan: 21, ip: "10.10.21.14", mac: "2C:2B:F9:22:BA:DD", role: "LG AC klima #2 (QCA4002)" }
   - { name: nvidia-shield,       vlan: 50, ip: "10.10.50.10", mac: "48:B0:2D:09:6F:90", role: "NVIDIA Shield (Media) — D2-confirmed" }
   - { name: nintendo-switch,     vlan: 50, ip: "10.10.50.11", mac: "E0:EF:BF:74:CE:07", role: "Nintendo Switch 2 (Media, D3)" }

@@ -59,7 +59,7 @@ tags: [network, vlan, migration]
 | "deblab" (Hyper-V VM NIC) | 00:15:5D:01:67:1E | ? | — | **Hyper-V virtual NIC confirmed** (00:15:5D = Microsoft OUI); hostname `deblab` live on the flat LAN (2026-08-24 lease). Almost certainly a Hyper-V VM on a Windows host (laptop `Domen_P14s`?). ⚠ **PENDING-IDENTIFY**: which Windows host runs it + what the VM is. Park on VLAN 10. |
 | "truenas" | 92:47:15:04:EB:49 | ? | — | **Locally-administered MAC** (byte0 0x92 = local/admin bit — no vendor OUI; consistent with a TrueNAS NIC or randomized MAC). **Still live** on the flat LAN (2026-08-24 lease), hostname `truenas`. No owning doc anywhere. ⚠ **PENDING-IDENTIFY (owner):** what hardware/role is this? Park on VLAN 10 until identified. |
 | NVIDIA Shield (Media) | 48:B0:2D:09:6F:90 | 50 (Media) | — | **D2-confirmed: NVIDIA Shield on Media(50)** — resolves the earlier ⚠ unknown (`switch_port_map` had it at ether20; live lease still hostname-less) |
-| `0003B5F29AFDC36` → **HMIP-HAP HomeMatic AP** | 00:1A:22:1E:F7:FD | 20 (IoT) | — | **RESOLVED (task-6, live lease 2026-08-24):** this IS the eQ-3 HMIP-HAP HomeMatic Access Point — MAC matches router.yml ether9 + Rack.canvas + rack-connections.json exactly; static lease hostname = its device ID. Wire to IoT (HomeMatic cloud path per HD-228). |
+| `0003B5F29AFDC36` → **HMIP-HAP HomeMatic AP** | 00:1A:22:1E:F7:FD | 21 (IoT-Internet) | — | **RESOLVED (task-6, live lease 2026-08-24):** this IS the eQ-3 HMIP-HAP HomeMatic Access Point — MAC matches router.yml ether9 + Rack.canvas + rack-connections.json exactly; static lease hostname = its device ID. **VLAN 21 IoT-Internet** per network-vlans Port Type Reference (cloud-bound HAP needs internet; IoT(20) would drop its WAN path). |
 
 ## Cutover-night order (derived)
 
