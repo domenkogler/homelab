@@ -73,7 +73,14 @@ services:
       # + mobile. Provider declared in the Authentik Blueprint (ks-oidc.yml, HD-142); client
       # creds seeded into `opencloud_oidc` by the secret-egress glue (HD-143). Keeping this
       # behind Forward-Auth blocks the desktop client's OAuth/WebDAV, so native OIDC is used.
-      OC_EXCLUDE_RUN_SERVICES: "idm"
+      # HD-231 pt.7 (2026-08-24, found live): with an EXTERNAL IdP exclude the BUILT-IN
+      # 'idp' service (docs external-idp) but KEEP 'idm' — its LDAP (:9236) backs
+      # users/graph; a stale "exclude idm" left LDAP dead -> graph/v1.0/me 500 after
+      # otherwise-successful OIDC login.
+      OC_EXCLUDE_RUN_SERVICES: "collaboration,idp"
+      # Autoprovision=true: first OIDC login creates the user in idm's writable LDAP
+      # (docs external-idp; without it graph/me 500s for never-locally-created users).
+      PROXY_AUTOPROVISION_ACCOUNTS: "true"
       OC_OIDC_ISSUER: "https://sso.kogler.si/application/o/opencloud/"
       PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD: "jwt"
       PROXY_OIDC_REWRITE_WELLKNOWN: "true"
