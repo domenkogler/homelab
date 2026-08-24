@@ -1,22 +1,29 @@
 ---
-# vps-hardening handlers
+# vps-hardening handlers. tags: always = handlers are tag-filtered like tasks; without it a
+# notified handler is silently skipped under surgical runs, e.g. --tags hardening
+# (HD-220 finding, HD-237 sweep).
+
 - name: restart fail2ban
   systemd:
     name: fail2ban
     state: restarted
     daemon_reload: true
+  tags: always
 
 - name: reload nftables
   systemd:
     name: nftables
     state: reloaded
+  tags: always
 
 - name: restart docker
   systemd:
     name: docker
     state: restarted
     daemon_reload: true
+  tags: always
 
 - name: daemon reload
   systemd:
     daemon_reload: true
+  tags: always

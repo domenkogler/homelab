@@ -1,8 +1,13 @@
 ---
+# amd_rocm role handlers. tags: always = handlers are tag-filtered like tasks; without it a
+# notified udev reload/trigger is silently skipped under filtered runs (HD-220 finding, HD-237 sweep).
+
 - name: reload udev
   ansible.builtin.command: udevadm control --reload-rules
   changed_when: false
+  tags: always
 
 - name: trigger udev
   ansible.builtin.command: udevadm trigger
   changed_when: false
+  tags: always

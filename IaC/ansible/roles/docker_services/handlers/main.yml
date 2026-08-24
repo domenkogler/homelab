@@ -1,6 +1,12 @@
 ---
-# docker_services role handlers
+# docker_services role handlers.
+# Handlers are tag-filtered exactly like tasks: under a surgical run
+# (--tags "docker_services,<service>") an UNTAGGED handler is silently skipped even when a
+# task that ran notified it — the flagged latent gap closed by HD-237 (monitoring carried
+# tags: always since HD-220). Every handler below carries tags: always so a notification
+# fired inside a filtered run can never be dropped.
 
 - name: reload systemd
   ansible.builtin.systemd:
     daemon_reload: true
+  tags: always
