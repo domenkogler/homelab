@@ -203,8 +203,10 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
   extra argv (pass parameters via `docker exec -e VAR=...`, options before the container name).
   When driving over ssh, base64-wrap non-trivial python to survive quoting layers
   (`scripts/ak-shell.sh` wraps all of this). Token minting:
-  `Token.objects.create(user=…, identifier=…, intent="api")` - then `.update(expires=None)` via a
-  queryset (a bare create gets a short default expiry).
+  `Token.objects.create(user=…, identifier=…, intent="api", expiring=False)` for a PERSISTED
+  token — see *API-token auto-rotation* below: an ORM create defaults to `expiring=True`, so the
+  background sweep ROTATES it on its first ≈5-min pass even with `expires` left NULL (the earlier
+  `.update(expires=None)` advice did NOT protect against this).
 - **Provision-token issuance until the Authentik UI exists:** mint via ak-shell (above, user
   `akadmin`) and store in vault item `authentik-provision_api.credential`. Scoping it down to
   issuer/app/flow/outpost-only (catalog's least-privilege target) stays a post-green hygiene step
@@ -219,12 +221,47 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 - **Ephemeral glue token (NOT a secret anywhere):** the OIDC secret-egress glue mints its own
   api-intent token via `ak shell` per run (identifier `egress-glue-<pid>-<ts>`, revoked on exit).
   Rationale: persisted ORM tokens were observed being rotated/invalidated server-side within
-  minutes (Phase 1, 2026-08-22 — root cause unidentified, **HD-216**), silently killing any
-  vault-stored copy; the former `authentik-provision_api` vault item was RETIRED because of it.
+  minutes (Phase 1, 2026-08-22) — root cause since IDENTIFIED as upstream auto-rotation
+  (**HD-216**, mechanism below), which silently killed any vault-stored copy; the former
+  `authentik-provision_api` vault item was RETIRED because of it.
   Trade-off note: the minted token carries akadmin's full rights for its seconds-long life —
   equivalent to the existing trust model (glue already requires root on the VPS), but NOT the
-  least-privilege scope the old catalog row aspired to; revisit if a scoped RBAC role + persisted
-  token becomes necessary.
+  least-privilege scope the old catalog row aspired to. A scoped RBAC role + PERSISTED token is
+  now viable whenever wanted via the `expiring=False` recipe below (unblocks the HD-211 batch).
+
+#### API-token auto-rotation (HD-216 — identified & documented; offline source read, no live probing)
+
+Expiring API tokens are **auto-ROTATED by authentik itself** — a legitimate security feature,
+not an attack or bug (upstream docs: service accounts → "Expiring API tokens are rotated by
+authentik"; source branch `version-2026.5`, pinned image 2026.5.6 = same minor):
+
+- **Scheduler:** `clean_expired_models` runs on crontab `2-59/5 * * * *` (≈ every 5 min;
+  `core/apps.py`) over all `ExpiringModel` subclasses, selecting rows with `expiring=True`
+  AND `expires<=now()` — note an ORM-created token defaults to `expiring=True`, so one with
+  `expires=NULL` also matches and is swept on the FIRST pass.
+- **`Token.expire_action()` override (`core/models.py`):** intent `api` → NEW key + fresh expiry
+  (`now() + tenant.default_token_duration`; upstream default **`days=1`**) + a `SECRET_ROTATE`
+  audit event ("Token <identifier>'s secret was rotated.") — never deleted. Intents
+  `recovery` / `verification` / `app_password` → simply DELETED at expiry (app passwords from
+  the service-account wizard default to 360-day expiry — LDAP bind users must be created
+  non-expiring or get a renewal runbook before Phase-3 LDAP use).
+- **API serializer:** for api-intent it FORCE-SETS `expires = default_token_duration()`
+  ("expires cannot be overridden") and takes `expiring` from the owner-user attribute
+  `goauthentik.io/user/token-expires` (default `true`).
+
+Durable-persisted-token rules for this homelab:
+
+1. A persisted Authentik API token survives ONLY with **`expiring=False`** — never selected by
+   the sweep, never rotated/deleted. Recipe: ORM `... , expiring=False)`, or set user attribute
+   `goauthentik.io/user/token-expires: false` BEFORE creating the token via UI/API.
+2. Tenant setting `default_token_duration` (Admin → System → Tenants) only SLOWS rotation
+   (rotated tokens live that long per cycle) — it never prevents it.
+3. Audit trail: Events filtered to `SECRET_ROTATE` show every rotation — the read-only
+   verification path if this ever needs re-confirming live (no DB probing).
+
+Consequences applied here: the glue's ephemeral mint stays (immune by construction); a future
+scoped persisted `authentik-provision_api` (HD-211) follows rule 1; `authentik-api_token`
+(sync-authentik-users glue) gets a one-time `expiring=False` verification at its next live touch.
 
 ### What stays manual (only two, one-time)
 - Creating/re-issuing the **1Password write-scoped service account** (`vps-op-write_api`) in the

@@ -1006,6 +1006,34 @@
 - **Secrets touched:** `headscale_api.credential` (rotated; value → vault only), `headscale_api.username` (unchanged). No values committed/logged.
 - **Deviations:** none.
 
+### 2026-08-24 — Phase 1 · Authentik background token rotator identified: upstream auto-rotation of expiring API tokens (HD-216) `[AI]`
+
+- **Stimulus:** close HD-216 (Phase-1 mystery: persisted api-intent ORM tokens rewritten
+  server-side within minutes, no local actor) via OFFLINE research only — upstream docs plus a
+  source read of branch `version-2026.5` (pinned image 2026.5.6 = same minor); NO live DB/API
+  probing (out-of-band SQL incident precedent).
+- **Evidence fetched:** docs.goauthentik.io service-accounts / oauth2-provider /
+  proxy-header-authentication pages; raw source `core/tasks.py`, `core/apps.py`,
+  `core/models.py`, `core/api/tokens.py`, `lib/models.py`, `tenants/models.py`
+  (+ sparse clone for cross-greps).
+- **Root cause (feature, not bug):** scheduled task `clean_expired_models` (crontab
+  `2-59/5 * * * *`, ≈ every 5 min) sweeps rows with `expiring=True AND expires<=now()`;
+  `Token.expire_action()` ROTATES api-intent tokens (new key + fresh expiry =
+  `now() + tenant.default_token_duration`, upstream default `days=1`) and writes a
+  `SECRET_ROTATE` event instead of deleting; recovery/verification/app_password intents are
+  deleted at expiry. Bare ORM creates default `expiring=True`, so even an `expires=NULL` token
+  is rotated on the first sweep — the previously documented `.update(expires=None)` minting
+  trick was ineffective (doc corrected in the same change). Only `expiring=False` is exempt.
+- **Doc changes (same commit):** docs/services-authentik.md — new *API-token auto-rotation*
+  section (mechanism + durable-persisted-token rules); ephemeral-glue rationale updated;
+  ak-shell minting recipe fixed to `expiring=False`. todo.md row deleted per lifecycle
+  (fully done → changelog-only record); changelog row appended.
+- **Follow-ups surfaced:** one-time `expiring=False` verification for `authentik-api_token`
+  (sync-authentik-users glue) at its next live touch; HD-211 scoped persisted
+  `authentik-provision_api` re-issue unblocked via rule 1; app-password vanish-at-expiry
+  flagged for future LDAP bind users (HD-132 authoring).
+- **Deviations:** none.
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).
