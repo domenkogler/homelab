@@ -76,8 +76,11 @@ services:
       CORE_TRUST_PROXY: "true"            # behind Traefik (real client IP for rate limit)
       CORE_RETURN_HTTPS_URLS: "true"
       CORE_DEFAULT_DOMAIN: bin.kogler.si  # short URLs / shares return this host
+      # HD-112/HD-240 (2026-08-25): credentials MUST be urlencoded — the generated vault
+      # password contained `#` (plus other URL-hostile chars), which truncated the DSN at
+      # the fragment marker → Prisma P1013 "invalid port number" → crash-loop.
       DATABASE_URL: >-
-        postgres://{{ lookup('community.general.onepassword', 'zipline_db', field='username', vault=op_vault) }}:{{ lookup('community.general.onepassword', 'zipline_db', field='password', vault=op_vault) }}@zipline-db:5432/zipline
+        postgres://{{ lookup('community.general.onepassword', 'zipline_db', field='username', vault=op_vault) | urlencode }}:{{ lookup('community.general.onepassword', 'zipline_db', field='password', vault=op_vault) | urlencode }}@zipline-db:5432/zipline
       DATASOURCE_TYPE: local
       DATASOURCE_LOCAL_DIRECTORY: /uploads
       # Generous GLOBAL cap on purpose (HD-112): the anonymous side is bounded by the
