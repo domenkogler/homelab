@@ -103,9 +103,10 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   - Union cannot narrow: `--tags "docker_services,opencloud"` runs ALL direct-role tasks plus
     the opencloud service chain — not an opencloud-only run.
   - Handlers are tag-filtered too: a handler must match the filter (or carry `tags: always`)
-    or it is skipped even when notified by a task that ran — the monitoring handlers carry
-    `tags: always` for exactly this reason (HD-220). `docker_services`'s `reload systemd`
-    handler is currently UNTAGGED (latent gap; flagged, not fixed here).
+    or it is skipped even when notified by a task that ran — since HD-237 EVERY role handler
+    carries `tags: always` (all 22 across 9 roles; monitoring was first, HD-220), so a
+    notification fired inside a filtered run can never be silently dropped. Keep it that way:
+    any new handler must carry `tags: always`.
   - Filtered runs skip untagged top-level tasks: e.g. `site.yml`'s pre-flight admin-user
     assert and any playbook whose roles have no role-level tags (`home_servers.yml`,
     `raspberry_pi.yml`, `router.yml`, …) can only ever run their `always`-tagged tasks under

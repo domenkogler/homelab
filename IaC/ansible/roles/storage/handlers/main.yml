@@ -1,33 +1,41 @@
 ---
-# storage role handlers.
+# storage role handlers. tags: always = handlers are tag-filtered like tasks; without it a
+# notified handler is silently skipped under filtered runs (HD-220 finding, HD-237 sweep).
+
 - name: restart zfs_exporter
   ansible.builtin.systemd:
     name: zfs_exporter
     state: restarted
     daemon_reload: true
+  tags: always
 
 - name: Restart sanoid timers
   ansible.builtin.systemd:
     name: sanoid.timer
     daemon_reload: true
     state: restarted
+  tags: always
 
 - name: Restart syncoid timer
   ansible.builtin.systemd:
     name: storage-syncoid.timer
     daemon_reload: true
     state: restarted
+  tags: always
 
 - name: Reload NFS exports
   ansible.builtin.command: exportfs -ra
   changed_when: false
+  tags: always
 
 - name: Reload systemd
   ansible.builtin.systemd:
     daemon_reload: true
+  tags: always
 
 - name: Restart Samba
   ansible.builtin.systemd:
     name: "{{ 'smbd' if ansible_os_family == 'Debian' else 'smb' }}"
     state: restarted
     daemon_reload: true
+  tags: always

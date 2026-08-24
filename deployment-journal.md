@@ -1089,6 +1089,54 @@
 - **Deviations:** none requiring owner input; ⏳ residuals recorded in changelog HD-236 row
   (first-converge restart observation + effective-env live probe).
 
+### 2026-08-24 — Phase 1 · HD-237 tagged-handler hygiene sweep: all 22 role handlers carry `tags: always` `[AI]`
+
+- Closes the latent gap flagged during HD-236c (journal entry above + deployment-ansible.md
+  gotcha bullet): handlers are tag-filtered exactly like tasks — under a surgical run such as
+  `--tags "docker_services,<service>"` on `vps.yml`, an UNTAGGED notified handler is skipped
+  even though the notifying task ran. `docker_services`'s `reload systemd` was the live-risk
+  instance: a unit-file change inside a filtered run would drop the notification and leave
+  stale units.
+- **Audit first:** enumerated every `roles/*/handlers/main.yml` (9 roles, 22 handlers) + every
+  `notify:` reference. Findings: notifications are strictly 1:1 within their own role, no inline
+  handler blocks, no cross-role notifies; only `monitoring` carried `tags: always` (HD-220);
+  the other 8 roles' 21 handlers were untagged. Roles reachable under surgical runs via
+  `vps.yml` role tags (`docker`, `hardening`, `wireguard`, `docker_services`, `monitoring`)
+  were the acute exposure; home-lane roles (nut/storage/home_assistant/amd_rocm) fixed too for
+  uniformity — their playbooks have no role tags today, but the invariant costs nothing and
+  prevents regression if role tags are ever added there.
+- **Fix:** `tags: always` on every handler + one rationale comment per file (HD-220 finding,
+  HD-237 sweep). No task files touched — notify names unchanged.
+- **Verification:** py-yaml parse of all 9 handler files → `BAD: 0`, `total handlers: 22, all
+  tagged always`; validate-all.sh green; `--list-tasks` spot-check not needed (no structural
+  change). IaC-only change — handler definitions are controller-side and take effect at the
+  next notify; NO converge required and nothing deploy-gated. The next filtered run that hits a
+  changed unit file is the implicit live proof (watch for `RUNNING HANDLER [reload systemd]`).
+- **Doc updated:** docs/deployment-ansible.md gotcha bullet now states the fixed invariant and
+  the rule for new handlers (must carry `tags: always`).
+
+### 2026-08-24 — Phase 1 · HD-236 residual ② CLOSED live + HD-230b blueprint one-shot state probed `[AI]`
+
+- **Residual ② (effective runtime env) — CLOSED.** Read-only probe (temp script → WSL →
+  `ssh -o BatchMode=yes ansible-admin@vps.kogler.si` → `sudo -n bash -s`, boolean output only):
+  container `opencloud` (`Up 3 hours`, i.e. started under the current converged compose env) reads
+  `COLLABORATION_APP_INSECURE=false` at runtime — exactly the IaC value; the on-disk yaml snapshot
+  showing `true` is confirmed non-authoritative stale scaffold content, matching the HD-236(a)
+  upstream-source analysis. No other env values printed.
+- **HD-230b blueprint one-shot state — mechanism PROVEN, per-run firing still ride-along.**
+  `ak-shell.sh` probe of `BlueprintInstance`: `custom instances: 0 / total: 28` — EXPECTED, this IS
+  the documented discovery gap; `ak apply_blueprint <path>` applies content without registering an
+  instance row, so 0-custom is not a failure signal. End-to-end content proof: the server-side
+  `headscale` OAuth2 provider carries redirect `/admin/oidc/callback` — present ONLY if
+  `ks-oidc.yml` applied after HD-233 added it (hand-created providers are forbidden by convention,
+  so the blueprint path is the only sanctioned source). All 15 expected providers exist.
+- Inconclusive leg: `docker logs authentik-worker --since 5h | grep -i 'blueprint|apply'` → no hits;
+  worker itself up since 2026-08-23T20:35Z (the ~3h-ago converge was surgical/opencloud-only), and
+  log retention/level may hide successful applies. Decisive per-run evidence = next docker_services
+  converge output (`== applying ks-forward-auth.yml / ks-oidc.yml ==` + Applied markers), folded in
+  with HD-236 residual ① (zero spurious restarts on unchanged extras) as a converge-time check.
+- Probes used throwaway temp scripts outside all checkouts, deleted after capture.
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).

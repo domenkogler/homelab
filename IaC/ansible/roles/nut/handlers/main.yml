@@ -1,4 +1,7 @@
 ---
+# nut role handlers. tags: always = handlers are tag-filtered like tasks; without it a notified
+# restart is silently skipped under filtered runs (HD-220 finding, HD-237 sweep).
+
 - name: restart nut services
   systemd:
     name: "{{ item }}"
@@ -8,6 +11,7 @@
     - nut-server
     - nut-monitor
   when: nut_mode == 'master'
+  tags: always
 
 - name: restart nut-monitor (client)
   systemd:
@@ -15,6 +19,7 @@
     state: restarted
     daemon_reload: true
   when: nut_mode == 'client'
+  tags: always
 
 - name: restart nut_exporter
   systemd:
@@ -22,3 +27,4 @@
     state: restarted
     daemon_reload: true
   when: nut_exporter
+  tags: always
