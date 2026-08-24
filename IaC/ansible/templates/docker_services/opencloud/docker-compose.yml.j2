@@ -77,7 +77,17 @@ services:
       # 'idp' service (docs external-idp) but KEEP 'idm' — its LDAP (:9236) backs
       # users/graph; a stale "exclude idm" left LDAP dead -> graph/v1.0/me 500 after
       # otherwise-successful OIDC login.
-      OC_EXCLUDE_RUN_SERVICES: "collaboration,idp"
+      # HD-166 (2026-08-24, found live): OpenCloud 7.4 computes the running set as
+      # `(defaults) - EXCLUDE + ADD` — a service in EXCLUDE is REMOVED even if it is
+      # also in ADD. 'collaboration' was in BOTH below, so it netted OUT and the WOPI
+      # app-provider NEVER started (no office-MIME registration -> web UI had no editor
+      # -> 'No preview available ... download instead'). Previously this file assumed
+      # ADD wins / EXCLUDE inert — that was empirically WRONG (verified via `opencloud
+      # list` on the live container: no collaboration entry, while nats/app-registry/
+      # gateway/frontend all ran). So 'collaboration' is now excluded by its ABSENCE from
+      # EXCLUDE (it stays in OC_ADD_RUN_SERVICES below) and 'idp' remains here because the
+      # external Authentik OIDC (HD-231) replaces the built-in IdP.
+      OC_EXCLUDE_RUN_SERVICES: "idp"
       # Autoprovision=true: first OIDC login creates the user in idm's writable LDAP
       # (docs external-idp; without it graph/me 500s for never-locally-created users).
       PROXY_AUTOPROVISION_ACCOUNTS: "true"
@@ -94,8 +104,10 @@ services:
       # Real OpenCloud 4.0 vars (verified against docs.opencloud.eu 4.0 dev collaboration
       # env-vars page, 2026-08-19): COLLABORATION_APP_NAME/PRODUCT/ADDR/WOPI_SRC/JWT_SECRET.
       # NO `WOPI_ENABLED` / `COLLABORATION_ENABLED` booleans exist — the service is
-      # registered via OC_ADD_RUN_SERVICES=collaboration (mirrors OC_EXCLUDE_RUN_SERVICES
-      # pattern already used below) and activates on APP_* config.
+      # registered via OC_ADD_RUN_SERVICES=collaboration and must NOT also appear in
+      # OC_EXCLUDE_RUN_SERVICES (HD-166: ADD+EXCLUDE collision nets the service OUT,
+      # see the validated semantics comment above). With 'collaboration' removed from
+      # EXCLUDE this ADD entry is what brings the WOPI app-provider up.
       OC_ADD_RUN_SERVICES: "collaboration"
       # HD-231 pt.3 (2026-08-24, found live): without THIS env (exact name verified
       # from the image binary: CSP_CONFIG_FILE alone is unknown to this build) the
@@ -106,6 +118,13 @@ services:
       COLLABORATION_APP_NAME: "OnlyOffice"
       COLLABORATION_APP_PRODUCT: "OnlyOffice"
       COLLABORATION_APP_ADDR: "https://office.kogler.si"
+      # TODO (HD-166 follow-up): rendered /etc/opencloud/opencloud.yaml has shown
+      # `collaboration.app.insecure: true` despite COLLABORATION_APP_INSECURE:"false"
+      # here. The env->yaml mapping for this flag does NOT appear to take effect in 7.4
+      # rolling; the true value likely comes from the OC_INSECURE/JWT/store default or a
+      # scaffolded init-written config, not this env. Do NOT invent an env name the 7.4
+      # schema doesn't honor — verify against the 7.4 collaboration env-vars page before
+      # wiring a different var. No functional impact observed (WOPI + JWT flow work).
       COLLABORATION_APP_INSECURE: "false"
       COLLABORATION_APP_PROOF_DISABLE: "false"       # verify OnlyOffice proof keys
       COLLABORATION_JWT_SECRET: "{{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}"
