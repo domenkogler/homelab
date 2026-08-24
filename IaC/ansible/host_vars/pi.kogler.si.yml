@@ -4,6 +4,7 @@
 # Deployed via preseed like nas/oldsrv (preseed.cfg deferred — see
 # deployment-preseed.md); managed by Ansible as ansible-admin. No Cockpit.
 ansible_host: 10.10.1.20           # VLAN 10 (Home) — node IP (VRRP anchor, SSH)
+mgmt_ip: 10.10.99.20              # VLAN 99 (Management) — static reg on the mgmt plane (Option A dual-homed)
 dns_secondary_ip: 10.10.1.20       # Technitium secondary binds the node IP (not proxiable)
 ansible_user: ansible-admin        # created by preseed post_install.sh (like nas/oldsrv)
 # NUT: UPS CLIENT (slave to nas) — power down immediately on critical

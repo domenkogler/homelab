@@ -756,6 +756,25 @@
 - **DECISION (owner): CAPsMAN flavor flips LEGACY → MODERN `wifi-qcom-ac`** — supersedes the 2026-08-23 legacy pin. The wAP ac was one of two MIPSBE blockers; its death resolves revisit-condition ②. Remaining conditions for the modern fleet: ① dnevna swap executes per owner plan 2026-08-23 (spare hAP ac² C4:AD:34:42:F0:B9 takes the dnevna slot; classic MIPSBE unit retires — no MIPSBE device may remain in the managed fleet); ② garage replacement hardware must be wifi-qcom-ac-capable. Pinned in capsman.yml header; ap_initial.rsc.j2 must move to modern `/interface/wifi` cap syntax at cutover prep (legacy `/interface wireless cap` line now stale). Implementation still fail-loud/live-validated per the scaffold's culture — no speculative field-level tasks shipped.
 - Secrets values touched: none.
 
+### 2026-08-24 — Phase 1.5 · reconcile home-server VLAN/IP/DNS model to Option A (R-1) `[AI]`
+
+- Decision (owner): **Option A — pi & oldsrv dual-homed (trunk 10+99, mgmt 99 addr + home 10 addr);
+  nas single-Home (10.10.1.10) with iLO4 on 99.** No live gear touched — IaC/SSOT + doc reconciliation only.
+- Verified SSOT `group_vars/all.yml` already models pi/oldsrv/nas dual; migration inventory lists
+  pi/oldsrv trunk 10+99, nas Home. Router role skips VLAN-99 DHCP (pools/net/servers `id not in [1,99]`)
+  and reserves only AP MACs → all 99 hosts are static IPs from preseed/host_vars. Option A holds without
+  reservation churn.
+- **Patches applied in worktree `homelab-wt-20260824-0958`:**
+  - `host_vars/pi.kogler.si.yml` — added `mgmt_ip: 10.10.99.20` (static reg on the mgmt plane, dual-homed);
+    kept `ansible_host: 10.10.1.20` Home (SSH/VPN anchor).
+  - `docs/network-migration-inventory.md` — removed duplicate AP-dnevna row (same MAC/plan repeated twice;
+    R-4 leftover coalesced here); nas row already single-Home ✓.
+- DNS invariant unchanged: oldsrv Technitium primary `10.10.1.30` + pi secondary `10.10.1.20` stay on
+  Home (they bind the node IP); router keeps the tertiary `/ip dns`. No mgmt-IP moves for DNS.
+- Switch-port finding deferred to R-2 (below): `nvidia-shield` MAC `48:B0:2D:09:6F:90` conflicts with the
+  inventory ⚠ unknown; Nintendo Switch listed VLAN 21 vs Media(50) in the plan; `nas-eno1/eno2` vlan blank.
+- Secrets values touched: none.
+
 ### 2026-08-24 — Phase 1 · Rotate shared headscale OIDC client secret + encode “never a secret VALUE in output” hygiene rule (HD-235) `[AI]`
 
 - **Stimulus:** an operating probe exposed the shared `headscale_api` OIDC client_secret to the
