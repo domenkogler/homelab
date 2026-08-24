@@ -61,6 +61,12 @@
   see journal Incident A) · grafana restarted several times during datasource surgery · grafana
   DB `data_source` row for prometheus replaced by API-seeded equivalent (uid/name/url unchanged;
   dashboards + alert rules unaffected) · new user `domen` (org Admin).
+- **Round 2 (after owner retest bounced):** REAL login blocker was traefik dropping the map-form
+  `authResponseHeaders` field entirely → identity headers never reached grafana; list-form fix
+  converged + decode-verified live. Ride-alongs fixed: db_ro_sync `stdin` nesting (blocked ALL
+  docker_services runs), zipline pin → `4.6.5` (v4.7.0 never existed upstream), DATABASE_URL
+  credentials urlencoded (`#` truncated DSN), uploads mount `/zipline/uploads` → **zipline 4.6.5
+  is UP**; remaining HD-112 legs = dns.yml `bin` CNAME + compose-header checklist.
 - Parallel lane same night (HD-241/242/243): Metabase operationalized — env-driven smtp2go SMTP
   (IaC SSOT), CrowdSec-SQLite + Forgejo-PG read-only data sources (`db_ro_sync` mechanism, new
   `metabase-forgejo_ro` vault item), LDAP option parked; ⏳ converge-gated tails in todo §2.4.
@@ -90,6 +96,8 @@
   an agent transcript TWICE now (2026-08-23 probe + 2026-08-24 quoting failure). Rotation is
   trivial post-HD-240: rotate the vault item → re-run `--tags monitoring` (API seed task only
   fires when DS absent → delete the DS first via UI/API, or extend the task with a rotate mode).
+  **+ `crowdsec-bouncer_api` LAPI key** (exposed into transcript via a traefik debug config dump,
+  2026-08-25 ~00:45).
   Also still open from before: `openrouter_api`, `cohere_api`, `forgejo_api`,
   `opencloud-collab_password` window, persisted-Authentik-token `expiring=False` sweep.
 - **Zipline pre-deploy:** seed the vault items by script — `bash scripts/provision-vault.sh`
@@ -105,14 +113,12 @@
 - **HD-238** oldsrv→VPS DR runbook for non-GPU services (todo §2.9) — laptop-doable authoring task;
   pairs naturally with the next backup.md touch (which now also carries the HD-112 uploads-
   exclusion row).
-- **HD-112 go-live rides the NEXT Phase-1 converge — full sequence:** ① `bash
-  scripts/provision-vault.sh` (seeds `zipline_password` + `zipline_db`; render fails loud without)
-  ② 9P gate → human-gated dry-run → converge `vps.yml` — plain registry entry, authentik
-  precedence guarantees blueprint + glue fire ③ **run `dns.yml` too** — the `bin` CNAME is
-  IaC-tracked but applied ONLY by dns.yml; without it `bin.kogler.si` does not resolve ④ walk the
-  compose-header checklist (`/auth/setup` admin → OIDC verify → flip bypass-local-login → seed
-  `guestbin` + `dropzone`) ⑤ anonymous round-trip + 6h sweep verify → trim the HD-112 ⏳ tail.
-  Journal the post-up steps as-run.
+- **HD-112 go-live — partially DONE 2026-08-25:** vault seeded; converge deployed the stack
+  (pin corrected to `4.6.5`, DSN credentials urlencoded, uploads mounted at `/zipline/uploads`;
+  container Up, server listening on :3000). REMAINING: ① **run dns.yml** (the `bin` CNAME applies
+  ONLY there — without it bin.kogler.si does not resolve) ② compose-header checklist
+  (`/auth/setup` admin → OIDC verify → flip bypass-local-login → seed `guestbin` + `dropzone`)
+  ③ anonymous round-trip + 6h sweep verify → trim the HD-112 ⏳ tail.
 - Converge ride-along checks (fold into any upcoming docker_services converge): observe residual ①
   (extras restart guard behavior) + confirm blueprint one-shot task output green in the same run;
   journal both, then trim the ⏳ tails via an append-only R-row.
