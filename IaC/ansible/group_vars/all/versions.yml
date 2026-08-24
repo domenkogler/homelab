@@ -135,7 +135,7 @@ kopia_version: "0.23.1"             # kopia/kopia (server on the VPS + oldsrv ag
 n8n_version: "2.35.3"               # n8nio/n8n
 immich_version: "v3.1.0"            # ghcr.io/immich-app/immich-server (tag has `v`)
 opencloud_version: "7.4.0"          # ghcr.io/opencloud-eu/opencloud (docker tag strips `v`)
-zipline_version: "v4.7.0"           # ghcr.io/diced/zipline (HD-112; tag has `v`; registry-verified 2026-08-24)
+zipline_version: "v4"               # ghcr.io/diced/zipline (HD-112; §7 fluid-tag exception: upstream ships NO version tags for v4 — only rolling `v4` + `v4-<sha>` builds + `latest`; their own compose uses `latest`. Verified live 2026-08-25: v4.7.0/v4.7.0/4.7.0 all 404. Renovate tracks the v4 line.)
 zipline_db_version: "16.15-alpine"  # postgres 16 line (forgejo-db / onlyoffice-pg series)
 # ONLYOFFICE Docs Server — WOPI helper for OpenCloud browser editing (HD-166). Registry-verified
 # 2026-08-19: Docker Hub `onlyoffice/documentserver` latest stable 9.3.x is 9.3.0.1 (patch of 9.3.0).
