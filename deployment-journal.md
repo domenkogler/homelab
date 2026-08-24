@@ -1254,6 +1254,36 @@
 - Landed: 4 binding rows in CONVENTIONS.md §2 (index level) + full mechanics section "Creation & Rotation Workflow" in docs/deployment-secrets.md (owning spec).
 - Docs/rules only; no gear, no vault changes. Worktree ../homelab-wt-20260825-0114 merged green.
 
+### 2026-08-25 — Phase 1 · HD-240 round 2: THE login blocker found (authResponseHeaders dropped by traefik) + zipline bring-up ride-alongs
+
+- **Owner retest after round 1 still landed on bare `/login`.** Grafana request log showed
+  `userId=0 uname=` with `remote_addr=<owner public IP>` — anonymous through-and-through.
+- **Root cause ④ (the real browser-flow blocker):** `middlewares.yml.j2` rendered
+  `forwardAuth.authResponseHeaders` as a YAML MAP (`X-authentik-email: email`); Traefik's schema
+  wants a LIST of header names. Traefik silently DROPPED the field (no error) → identity headers
+  were NEVER copied onto proxied requests since authoring → every header consumer saw anonymous
+  traffic. Proof: throwaway `traefik:v3.7.11` config dump decoded the middleware WITHOUT the
+  field; after the list-form fix the decode shows all six X-authentik-* names.
+- **Fix:** list form in template; converged `--tags docker_services,traefik`; live decode verified.
+- **Ride-along fixes (parallel-lane defects blocking/impacting deploys):**
+  - `deploy-service.yml` db_ro_sync task: `stdin:` placed beside the action read as a conflicting
+    action statement → blocked EVERY docker_services run; nested into the module args (+ block
+    indentation).
+  - zipline pin `v4.7.0` does not exist upstream (404-proven; upstream ships only rolling
+    `v4`/`v4-<sha>` builds + `latest`, no semver for v4) → owner-corrected to `4.6.5`
+    (registry-verified 200).
+  - zipline DATABASE_URL crash-looped (Prisma P1013): vault-generated password contains `#` +
+    other URL-hostile chars, truncating the DSN → credentials now urlencoded at render.
+  - uploads mount moved `/uploads` → `/zipline/uploads` (app's built-in path; mkdir ENOENT
+    otherwise). Result: zipline 4.6.5 UP, server started on :3000, db healthy.
+- **Verification:** converge green ×3 (ok=241 failed=0 last run); middleware live-decode shows the
+  full header list; grafana ds-health 200; stats edge still 302-gated. Owner browser click-test
+  still pending (final HD-240 leg).
+- **Secrets exposed to transcript this session (rotation batch HD-211 — raised priority):**
+  `prometheus-internal_api` password (quoting failure, ~23:05), `crowdsec-bouncer_api` LAPI key
+  (traefik debug config dump, ~00:45). Nothing else printed; both items already vault-managed.
+- **Deviations:** none further (doc updated: docs/observability.md access-path section).
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).
