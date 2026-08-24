@@ -222,13 +222,15 @@
       - >-
         psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
         -v rouser="$ROSYNC_USER" -v ropass="$ROSYNC_PASS" -f -
-  stdin: |
-    SELECT format('CREATE ROLE %I LOGIN', :'rouser')
-    WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'rouser')\gexec
-    ALTER ROLE :"rouser" WITH LOGIN PASSWORD :'ropass';
-    GRANT USAGE ON SCHEMA public TO :"rouser";
-    GRANT SELECT ON ALL TABLES IN SCHEMA public TO :"rouser";
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO :"rouser";
+    # stdin is a MODULE argument and must live INSIDE the action block — placed beside it,
+    # the task parser reads two conflicting action statements (live-found HD-240 ride-along).
+    stdin: |
+      SELECT format('CREATE ROLE %I LOGIN', :'rouser')
+      WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'rouser')\gexec
+      ALTER ROLE :"rouser" WITH LOGIN PASSWORD :'ropass';
+      GRANT USAGE ON SCHEMA public TO :"rouser";
+      GRANT SELECT ON ALL TABLES IN SCHEMA public TO :"rouser";
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO :"rouser";
   register: db_ro_sync_result
   no_log: true
   changed_when: "'ALTER ROLE' in db_ro_sync_result.stdout or 'CREATE ROLE' in db_ro_sync_result.stdout"
