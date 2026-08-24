@@ -44,6 +44,7 @@
 | Ansible roles | 1 entry point (`tasks/main.yml` → `include_tasks:`); assert admin user top; idempotent by default; tag every loop item | [docs/deployment-ansible.md](docs/deployment-ansible.md) (IaC Authoring Conventions) |
 | Ansible vars | service/arch values → `group_vars/`, not role defaults | [docs/deployment-ansible.md](docs/deployment-ansible.md) |
 | Ansible secrets | `lookup('community.general.onepassword', …, field=…)` only, `op_vault`, no literals | [docs/deployment-ansible.md](docs/deployment-ansible.md), [docs/deployment-secrets.md](docs/deployment-secrets.md) |
+| Secret → YAML rendering | a secret VALUE rendered into a YAML/TOML config file must use the **folded block scalar `>-`** (never inline `"{{ … }}"`) — 1P secrets can contain `:` `"` `'` `@` etc. which break quoted scalars and crash-loop the app (HD-233 live incident: rotated `headscale_api` broke headscale+headplane). Docker `env:` strings exempt (not YAML-parsed). | [docs/deployment-secrets.md](docs/deployment-secrets.md) (Rendering a secret into a YAML config file) |
 | Compose location | one dir per service under `templates/docker_services/<service>/` | [docs/deployment-compose.md](docs/deployment-compose.md) (File Location) |
 | Compose networks | `external: true` (traefik-public, services-internal, db-internal) created by the role | [docs/deployment-compose.md](docs/deployment-compose.md) (Network Assignment) |
 | Compose security | `cap_drop: ALL` + minimal `cap_add`, `read_only`, `tmpfs`; no host ports unless justified; internal services need auth tokens (`<service>-internal_api`) | [docs/deployment-compose.md](docs/deployment-compose.md) (Container Security), [docs/security.md](docs/security.md) (Flaw C/D) |
@@ -102,6 +103,8 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 - Headers: every doc starts with `> **Role:**` and `> **Linked from:**` — enforced by convention.
 - Relative links only — markdown relatives to `docs/*.md`.
 - Secrets never in docs — 1Password `Homelab-ansible` vault only.
+- **Secret → YAML config = block scalar `>-` by default** (never inline-quote a 1P secret into a
+  YAML/TOML file the app parses) — HD-233 live lesson; see `deployment-secrets.md` Rendering section.
 - Generated files use the **`-generated` filename suffix** and are rendered, never hand-edited (§8.2). The legacy **★** marker in `docs/index.md` is a display aid only, **not** the convention.
 - **Don't chase cosmetic tweaks** during planning phase (ASCII alignment, spacing); substantive, consistent edits only.
 - **Git worktrees (owning rule — CONVENTIONS is SSOT):** **every** session creates its own fresh

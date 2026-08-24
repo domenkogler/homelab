@@ -69,7 +69,7 @@ services:
       - traefik-public
     volumes:
       - /srv/docker/headplane/data:/var/lib/headplane
-      - ./headplane.yaml:/etc/headplane/config.yaml:ro
+      - ./headplane-config.yaml:/etc/headplane/config.yaml:ro
       - ./config.yaml:/etc/headscale/config.yaml:ro   # read-only Settings view in the UI
     labels:
       traefik.enable: "true"

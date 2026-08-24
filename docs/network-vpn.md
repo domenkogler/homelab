@@ -83,15 +83,21 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 - **Auth:** OIDC via Authentik, deliberately the **same OAuth client as Headscale itself**
   (upstream best practice: identical `client_id`) — the `ks-oidc.yml` provider gained a second
   redirect URI `…/admin/oidc/callback`. First login becomes the Headplane **owner**; later users
-  get `default_role: member`.
+  get `default_role: member`. **LIVE-VERIFIED 2026-08-24** (owner SSO login works);
+  `disable_api_key_login: true` (API-key field removed — recovery = temporarily set false +
+  re-render if the IdP ever breaks).
 - **Headscale API key (required for OIDC mode):** mint ONCE on the VPS —
   `docker exec headscale headscale apikeys create --expiration 8760d` — store in 1Password
-  `headplane_api`.`credential`. Cookie secret (32 chars) lives in `headplane_password`.`credential`.
+  `headplane_api`.`credential`. Cookie secret (32 chars) lives in `headplane_password`.`password`
+  (**Password category → lookup `field='password'`, NOT `credential`** — migrated during HD-233/235;
+  a `credential` lookup returns empty → headplane crash-loops on `missing required fields`).
 - **Capabilities:** node/user management, pre-auth keys, read-only Settings view (headscale's
   rendered `config.yaml` is mounted `:ro`). Docker-socket integration (DNS editing from the UI,
   restart headscale on change) deliberately NOT wired — future hardening with a socket proxy.
-- **Hardening candidates:** `use_pkce: true`, flip `disable_api_key_login: true` after first
-  verified OIDC login.
+- **Config = YAML-safe block scalar `>-` for every secret** (client_secret, cookie_secret, api_key) —
+  live lesson HD-233: the rotated `headscale_api` secret contains `:` `"` `'` `?` which broke
+  inline-quoted configs (`YAMLException`/`EISDIR` crash-loops on BOTH headscale + headplane). See
+  `deployment-secrets.md` "Rendering a secret into a YAML config file" + CONVENTIONS §2.
 
 ### Transition
 1. Deploy Headscale on the VPS (public edge; remote nodes reach it directly)

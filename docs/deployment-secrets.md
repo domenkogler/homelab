@@ -88,6 +88,39 @@ boundary — a leaked automation token never exposes break-glass credentials.
 lookup('community.general.onepassword', '<service>_<type>', field='<field>', vault=op_vault)
 ```
 
+### Rendering a secret into a YAML config file — block scalar is the default (HD-233 lesson)
+
+> When a secret VALUE lands as a **mapping value in a rendered YAML/TOML config** (not a Docker
+> `KEY: "{{ … }}"` env assignment — those aren't parsed as YAML by the app), render it as a
+> **folded block scalar `>-` and NEVER a quoted inline `"{{ … }}"`.** An Authentik/OIDC
+> `client_secret` (or any 1P `credential`/`password`) can contain `:`, `"`, `'`, backtick, `@`, `#`,
+> `&`, `*`, `[`, `]`, `!`, `?`, `<`, `>` … which a quoted scalar does **not** escape — the inline form
+> breaks YAML parse and crash-loops the app (**live incident 2026-08-24:** the rotated `headscale_api`
+> secret broke BOTH headscale and headplane on restart with `YAMLException` / `EISDIR`).
+>
+> **Pattern (YAML-safe):**
+>
+> ```yaml
+> oidc:
+>   client_secret: >-
+>     {{ lookup('community.general.onepassword', 'headscale_api', field='credential', vault=op_vault) }}
+> ```
+>
+> **Do NOT render this way for a secret that may contain special char** (breaks on `:`/`"`):
+>
+> ```yaml
+>   client_secret: "{{ … }}"   # BROKEN if the value contains : " ' etc.
+> ```
+>
+> Scope: required for any file the consuming app parses as structured config (YAML/TOML/JSON) and the
+> value is a 1Password secret — e.g. `headscale/config.yaml`, `headplane` config, `prometheus-web-config`,
+> a Blueprint, `recyclarr.yml`. Docker `env:` strings and shell scripts stay inline-quoted (not YAML-parsed
+> by the app) — but when in doubt use `>-`. **TOML:** has no `>-`; use a basic string with Jinja escaping
+> (`| replace('\\','\\\\') | replace('"','\\"')`) so a value containing `"` or `\` still parses
+> (`tuwunel.toml` precedent). Validators: `validate-docker-services.py` mocks lookups, so
+> it does not catch a secret-as-inline-quote; the audit is `grep` across `templates/**/*.j2` for
+> `: "{{ lookup('community.general.onepassword'` in a *config* (non-compose) file (HD-233).
+
 ---
 
 ## Type Map — one per `<type>`, with canonical examples

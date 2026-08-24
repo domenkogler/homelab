@@ -787,6 +787,44 @@
   `disable_api_key_login`).
 - **Deviations:** none.
 
+### 2026-08-24 — Phase 1 · Headplane DEPLOYED + live-verified; YAML-block-scalar convention + three crash-loop lessons (HD-233 deploy / HD-235 follow-up) `[AI]`
+
+- **Deploy** `--tags docker_services` from the worktree (9P gate ✓): headplane + headscale compose
+  rendered onto the VPS; headplane initially **crash-looped** through THREE distinct bugs, each
+  found live:
+  1. **Dir-vs-file:** `_extra_templates` had a DUPLICATE `headscale:` key (headplane-config +
+     config/policy) — YAML duplicate-mapping only kept ONE, so the copy step dropped
+     `headplane-config.yaml.j2` unrendered and a stale `headplane.yaml/` DIRECTORY shadowed the
+     render → `EISDIR`. Fix: merge into one list (`headplane-config.yaml.j2, config.yaml.j2,
+     policy.hujson.j2`), point the compose mount at `./headplane-config.yaml`, remove the stale dir.
+  2. **Block-scalar indentation:** in the FIRST block-scalar edit the value was NOT indented deeper
+     than `>` (col 0) → `could not find expected ':'`. Block scalar content must be indented MORE
+     than the key. Fix: re-indent to 6 (list item `- api_key:` → value at 6).
+  3. **Wrong 1P field for Password item:** `headplane_password` is a **Password** category item (value
+     in `password` field), but the template rendered `field='credential'` → empty `cookie_secret` →
+     headplane `missing required fields`. Fix: `field='password'`. **Lesson: `<service>_password` items
+     read `field='password'`; `<service>_api` items read `field='credential'`.**
+- **YAML-safe block scalar convention (user-requested “make it the default”):** every secret
+   rendered into a YAML config file must be a folded block scalar `>-` (never inline `"{{ … }}"`),
+   because 1P secrets can contain `:` `"` `'` `?` `@` `!` (the rotated `headscale_api` value literally
+   breaks quoted scalars on restart). Applied to `headscale/config.yaml`, `headplane` config,
+   `recyclarr.yml`, `prometheus-web-config`, `traefik/dynamic/middlewares.yml`; TOML
+   (`tuwunel.toml`) uses basic-string Jinja escaping instead (`replace('','\')|
+   replace('"','\"')`) since TOML has no `>-`. Exempt: Docker `env:` strings + keepalived (not
+   YAML-parsed). Convention documented in deployment-secrets.md + CONVENTIONS §2/§6.
+- **Verified live:** headplane `Up (healthy)`, `Connected to Headscale 0.29.3`, `/admin/` → 302,
+   owner SSO login works → **deploy-gate CLOSED**. `disable_api_key_login` flipped `true`
+   (API-key field removed).
+- **Log scrub (HD-235 follow-up):** the crash-loop json.logs contained the rotated `headscale_api`
+   client_secret fragment in the YAML exception. Scrub: `sudo bash -c ': > …-json.log'` for
+   headplane + headscale container logs (values never in git/chat — only lengths/IDs).
+- **Secrets touched:** `headplane_api.credential` (87, live-key), `headplane_password.password` (32),
+   `headscale_api.credential` (128, rotated HD-235). No other items exposed; no re-rotation needed.
+- **Deviations:** none.
+- **Commands (verified):** `docker exec headscale headscale apikeys create --expiration 8760d`;
+  `op item create/get/edit … < /dev/null` (non-TTY stdin fix).
+
+
 *(no entries yet)*
 
 ## Phase 2 — NAS
