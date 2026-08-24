@@ -138,6 +138,9 @@ def _load_ssot_ctx():
         "wildcard_cert_domain", "ha_vip", "ha_vip_cidr", "network_ranges",
         "kopia_sftp_host", "kopia_sftp_port", "kopia_sftp_user", "kopia_sftp_path",
         "traefik_edge_ips", "traefik_edge_ip_pin",
+        # smtp2go relay connection SSOT (HD-54) — consumed by metabase MB_EMAIL_SMTP_*
+        # (HD-241); grafana/nut render their own copies via role vars/defaults.
+        "smtp2go_host", "smtp2go_port",
     ):
         if k in data:
             ctx[k] = data[k]

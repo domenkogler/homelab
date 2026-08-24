@@ -165,7 +165,11 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   `ALTER ROLE ... WITH PASSWORD` executed via `docker exec` into the pg container AFTER the
   stack is up — the password source is the SAME vault item (no_log; IaC-only, no hand-run
   SQL against managed DBs). Set all three keys on any service entry whose template bundles
-  its own postgres container.
+  its own postgres container. Sibling opt-in **`db_ro_sync` + `db_ro_item` +
+  `db_pg_container`** (HD-242): ensures a dedicated READ-ONLY login role (CREATE-if-absent,
+  then password + `SELECT`-only grants on schema `public` incl. default privileges,
+  re-applied every converge) in ANOTHER stack's pg container — consumer-side key set, e.g.
+  Metabase → forgejo-db via `metabase-forgejo_ro`; vault rotation propagates automatically.
 - **Lazy loop_var shadowing (HD-185 pattern, generalized):** `vars: { svc: "{{ item }}" }` on an
   `include_tasks` loop is LAZY - any INNER loop in the included file re-resolves `item` in its own
   context, so `svc` collapses to that inner string ('str' has no attribute 'name', found live on

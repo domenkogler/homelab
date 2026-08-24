@@ -1195,6 +1195,14 @@
 - Repo-only lanes, no gear touched. Worktree `../homelab-wt-20260824-2312` merged green;
   this entry closes the session.
 
+### 2026-08-25 — Phase 1 · HD-241/HD-242 · Metabase operationalization: env-driven SMTP + data-source IaC `[AI]`
+
+- Owner walked the Metabase first-boot wizard manually 2026-08-24 (settings recorded in services-admin.md Notes; admin `admin@kogler.si`; forward-auth logout round-trip verified live by the owner).
+- HD-241: SMTP moved to compose env (`MB_EMAIL_SMTP_*` + `MB_FROM_ADDRESS`) off the shared smtp2go SSOT + `smtp_login` lookups — owner's "must this be manual?" assumption corrected; env-set settings lock UI fields.
+- HD-242: crowdsec sqlite bind into metabase (RW per WAL-recovery reasoning); new generic `db_ro_sync` opt-in in deploy-service.yml ensures the read-only `metabase_ro` role in forgejo-db every converge; `metabase-forgejo_ro` added to the vault catalog.
+- LDAP option evaluated against the Authentik outpost and PARKED as HD-243 (second login form, no MFA passthrough, HD-186 outpost binding) — owner decision: local-admin-only until a second real user appears.
+- No gear touched; nothing live changed yet. Worktree `../homelab-wt-20260825-0031` merged green; ⏳ tails ride the next docker_services converge (seed `metabase-forgejo_ro` first).
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).

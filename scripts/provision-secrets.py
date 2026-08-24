@@ -105,6 +105,9 @@ CATALOG = [
     ("API Credential", "cohere_api",              lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "openclaw_gateway_token",  lambda: [f"password={gen_pw()}"]),
     ("API Credential", "openclaw-opencloud_api",  lambda: [f"username=openclaw", f"credential={gen_pw()}"]),
+    # metabase-forgejo_ro: read-only analytics role in forgejo-db (HD-242). Rotation-safe by
+    # design: the deploy-service db_ro_sync task re-applies password + grants every converge.
+    ("Login",          "metabase-forgejo_ro",      lambda: [f"username=metabase_ro", f"password={gen_pw()}"]),
     # grafana_login: Grafana admin password — generated (no external source);
     # the SMTP relay creds are the shared `smtp_login` item (not auto-gen here).
     ("Login",       "grafana_login",              lambda: [f"password={gen_pw()}"]),

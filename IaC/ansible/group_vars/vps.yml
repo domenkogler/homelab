@@ -80,7 +80,8 @@ docker_services:
   - { name: chat,           template_dir: element-web, subdomain: chat, enabled: true }
   # === Edge accessories (moved from oldsrv — VPS residency, HD-135 deliberations) ===
   - { name: headscale,      template_dir: headscale, subdomain: vpn, enabled: true }  # public coordination (rev. network-vpn.md)
-  - { name: metabase,       template_dir: metabase,  subdomain: sec, enabled: true }  # CrowdSec dashboard
+  - { name: metabase,       template_dir: metabase,  subdomain: sec, enabled: true,    # CrowdSec dashboard (sec.kogler.si); HD-242 read-only analytics role
+      db_ro_sync: true, db_ro_item: metabase-forgejo_ro, db_pg_container: forgejo-db }
   - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, enabled: true }   # PUBLIC P2P share — dual-host pairdrop+drop, crowdsec-only tier, NO forward-auth (HD-230)
   - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, enabled: true }
   - { name: renovate,       template_dir: renovate,  enabled: true }  # co-located with Forgejo/GitOps. RE-ENABLED 2026-08-24 (task 5): domen/homelab not migrated yet, so RENOVATE_REPOSITORIES currently points at domen/test temporarily (template) — switch back to domen/homelab when that repo lands. Playbook run is OWNED by the other session; do NOT converge here.

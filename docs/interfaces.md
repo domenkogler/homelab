@@ -80,7 +80,7 @@ tags: [services, interfaces, dashboards]
 ## Metabase / CrowdSec Dashboard — Analytics & Learning
 
 - **Purpose:** CrowdSec dashboard view **and** a Metabase learning/analytics sandbox — one instance
-- **Access:** `sec.kogler.si`, **internal-only**, Authentik OIDC (admin)
+- **Access:** `sec.kogler.si`, **internal-only**, Authentik **Forward-Auth** at the edge (HD-148 — Metabase OSS has no OIDC/SSO; Enterprise-only) + local Metabase admin
 - **Why one instance:** latest-version Metabase (not CrowdSec's pinned bundle) gives upgrade/experiment freedom while the same instance serves the CrowdSec dashboard
 
 ---

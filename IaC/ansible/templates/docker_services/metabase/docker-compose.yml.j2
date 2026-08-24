@@ -1,12 +1,29 @@
 # metabase docker-compose.yml — CrowdSec dashboard view + analytics sandbox (sec.kogler.si)
 #   ONE instance serves both (latest Metabase, NOT CrowdSec's pinned bundle).
-#   Internal-only. NOTES (HD-148): Metabase OSS (free, `metabase/metabase:latest`) does NOT
-#   support OIDC/SSO — that is a paid Enterprise feature. So auth stays Traefik Forward-Auth
-#   (free, works). The Authentik OIDC provider + `metabase_oidc` item are declared (Blueprints),
-#   but active only if Metabase Enterprise is ever licensed — then switch this route to
-#   crowdsec-only and enable MB_OIDC_*. Default H2 app DB with a named volume — upgrade/
-#   experiment freedom without data loss. Secrets via
-#   1Password lookup at render: onepassword('<name>', field=..., vault=op_vault) — none needed here.
+#   Internal-only. NOTES (HD-148): Metabase OSS does NOT support OIDC/SSO — paid Enterprise
+#   feature. Auth stays Traefik Forward-Auth; the OIDC provider + `metabase_oidc` item remain
+#   dormant for a hypothetical future Enterprise license. LDAP auth IS included in OSS against
+#   the Authentik outpost — deliberately DEFERRED (HD-243): it would still render a second
+#   login form (no SSO/MFA passthrough) and needs an outpost-binding decision (HD-186 blast
+#   radius); trigger to revisit = second regular human user.
+#
+#   SMTP (HD-241, env-driven): MB_EMAIL_SMTP_* consumes the shared smtp2go SSOT vars
+#   (`smtp2go_host`/`smtp2go_port`, group_vars/all/main.yml — HD-54) + the SHARED `smtp_login`
+#   creds via 1Password lookup. Env-set settings override AND lock the Admin-UI fields → IaC
+#   stays the single source of truth; changing mail config = converge, not clicks.
+#   From address notify@kogler.si = the smtp2go account identity (verified sender);
+#   grafana@kogler.si precedent shows domain senders deliver once domain DKIM is in place.
+#
+#   Data sources (HD-242): ① CrowdSec SQLite — host bind /srv/docker/crowdsec/db mounted RW:
+#   SQLite WAL/journal recovery must be able to write on first open after an unclean crowdsec
+#   shutdown (:ro would 500 the source until crowdsec itself reopens); Metabase only SELECTs,
+#   same pattern as the official CrowdSec dashboards. In Metabase add a database of type
+#   "SQLite" with path /var/lib/crowdsec/data/crowdsec.db and load the official dashboard
+#   JSONs. ② Forgejo Postgres — db-internal join + dedicated READ-ONLY login role ensured by
+#   deploy-service.yml (db_ro_sync keys on the vps.yml metabase entry; vault item
+#   `metabase-forgejo_ro`; SELECT-only incl. default privileges). ③ Zipline Postgres joins
+#   post-HD-112-first-deploy, same pattern.
+#   Default H2 app DB on a named volume — upgrade/experiment freedom without data loss.
 services:
   metabase:
     image: metabase/metabase:{{ metabase_version }}
@@ -22,18 +39,31 @@ services:
     environment:
       MB_DB_FILE: /metabase.db/metabase.db
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # ---- SMTP (HD-241): shared smtp2go relay SSOT; creds = shared smtp_login item ----
+      MB_EMAIL_SMTP_HOST: "{{ smtp2go_host }}"
+      MB_EMAIL_SMTP_PORT: "{{ smtp2go_port }}"
+      MB_EMAIL_SMTP_SECURITY: starttls
+      MB_EMAIL_SMTP_USERNAME: >-
+        {{ lookup('community.general.onepassword', 'smtp_login', field='username', vault=op_vault) }}
+      MB_EMAIL_SMTP_PASSWORD: >-
+        {{ lookup('community.general.onepassword', 'smtp_login', field='password', vault=op_vault) }}
+      MB_FROM_ADDRESS: notify@kogler.si
     networks:
       - traefik-public
       - services-internal
+      - db-internal
     volumes:
       - metabase-data:/metabase.db
+      # CrowdSec decisions/alerts SQLite (HD-242①) — rw per the WAL-recovery note above;
+      # identical in-container path keeps the documented connection URL self-explanatory.
+      - /srv/docker/crowdsec/db:/var/lib/crowdsec/data
     labels:
       traefik.enable: "true"
       traefik.http.routers.metabase.rule: "Host(`sec.kogler.si`)"
       traefik.http.routers.metabase.entrypoints: websecure
       {{ 'traefik.http.routers.metabase.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
-      # HD-148: Metabase OSS has NO OIDC (paid feature) -> stays behind Forward-Auth (free,
-      # works). Only switch to crowdsec-only + MB_OIDC_* if Metabase Enterprise is licensed.
+      # HD-148: OSS has NO OIDC (paid feature) -> stays behind Forward-Auth. Switch route to
+      # crowdsec-only + enable MB_OIDC_* ONLY if Metabase Enterprise is ever licensed.
       traefik.http.routers.metabase.middlewares: authentik-forward-auth@file
 volumes:
   metabase-data:
@@ -41,4 +71,6 @@ networks:
   services-internal:
     external: true
   traefik-public:
+    external: true
+  db-internal:
     external: true

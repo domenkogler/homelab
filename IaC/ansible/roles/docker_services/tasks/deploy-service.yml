@@ -192,6 +192,49 @@
   failed_when: db_role_sync_result.rc != 0
   tags: "{{ svc.name }}"
 
+# ---- Read-only analytics role ensure (HD-242) ----
+# Services consuming ANOTHER stack's Postgres read-only (Metabase -> forgejo-db; zipline-db
+# post-HD-112) opt in on their OWN svc entry via db_ro_sync/db_ro_item/db_pg_container. The
+# target stack deploys earlier in the registry order, so its container is already up here.
+# Idempotent: CREATE-if-absent, then password + SELECT-only grants re-applied EVERY converge —
+# vault rotations propagate automatically (same contract as the drift guard above; IaC-only:
+# no hand-run SQL against managed DBs). Grants are schema-scoped to `public` only.
+- name: "Ensure read-only analytics role ({{ svc.name }})"
+  when: svc.db_ro_sync | default(false)
+  vars:
+    _ro_user: "{{ lookup('community.general.onepassword', svc.db_ro_item, field='username', vault=op_vault) }}"
+    _ro_pass: "{{ lookup('community.general.onepassword', svc.db_ro_item, field='password', vault=op_vault) }}"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - -i
+      - -e
+      - "ROSYNC_USER={{ _ro_user }}"
+      - -e
+      - "ROSYNC_PASS={{ _ro_pass }}"
+      - "{{ svc.db_pg_container }}"
+      - sh
+      - -c
+      # NOTE: psql performs NO :var interpolation in -c mode — SQL goes via STDIN (-f -).
+      # Identifier needs :"var", literal needs :'var'. ON_ERROR_STOP is MANDATORY here
+      # (same live-proven reason as the drift guard above).
+      - >-
+        psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+        -v rouser="$ROSYNC_USER" -v ropass="$ROSYNC_PASS" -f -
+  stdin: |
+    SELECT format('CREATE ROLE %I LOGIN', :'rouser')
+    WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'rouser')\gexec
+    ALTER ROLE :"rouser" WITH LOGIN PASSWORD :'ropass';
+    GRANT USAGE ON SCHEMA public TO :"rouser";
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO :"rouser";
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO :"rouser";
+  register: db_ro_sync_result
+  no_log: true
+  changed_when: "'ALTER ROLE' in db_ro_sync_result.stdout or 'CREATE ROLE' in db_ro_sync_result.stdout"
+  failed_when: db_ro_sync_result.rc != 0
+  tags: "{{ svc.name }}"
+
 # ---- Forgejo app.ini DB-password drift guard (HD-220) ----
 # The one-time wizard (deployment-manual §1.7) bakes the DB password into
 # /data/gitea/conf/app.ini, and gitea/forgejo gives ini values precedence over
