@@ -1283,6 +1283,7 @@
   `prometheus-internal_api` password (quoting failure, ~23:05), `crowdsec-bouncer_api` LAPI key
   (traefik debug config dump, ~00:45). Nothing else printed; both items already vault-managed.
 - **Deviations:** none further (doc updated: docs/observability.md access-path section).
+- **Close-out (2026-08-25):** owner confirmed the browser round-trip — SSO dashboard → Grafana UI lands directly, no bare `/login`. HD-240 FULLY closed; todo row deleted (changelog row is the record); HD-190 deploy-gate closure stands.
 
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
