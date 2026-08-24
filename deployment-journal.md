@@ -818,6 +818,23 @@
 - Also captured/lodged: Bosch hostnames confirmed (`BOSCH-CSG656RB7…` etc.), Valentina tablet (30:56:84:35:00:DC), `Naprava-A54-uporabnika-Domen` (34:F0:43:73:96:35), Domen_P14s laptop (48:2A:E3:9D:31:85).
 - Validators: `check_doc_ips.py` OK (no IP literals added to prose). No secret values touched; no live mutation.
 
+### 2026-08-24 — Phase 1.5 · ONLYOFFICE/OpenCloud editor round-trip VERIFIED live (task 1 close) `[AI]`
+
+- Owner performed the docx round-trip in the file.kogler.si UI (two browsers). **Result: PASS.**
+  - Editor iframe loads; editing and Save work; updates persist (reopen shows the new version).
+  - Observed "This file was updated outside this window" — a save-conflict guard (expected when 2 sessions
+    touch the same doc), not an error.
+  - No cross-browser LIVE typing (had to reopen to see the other browser's edit) — consistent with the config.
+- **Why no live-sync:** `COLLABORATION_STORE: "nats-js-kv"` but NO NATS broker is deployed (no nats container;
+  not documented anywhere as a feature — services-office.md defines the UX as open/edit/save + desktop sync).
+  So save-based sync works; real-time co-edit is OFF and is NOT a documented requirement → **no NATS container needed**.
+- **Corrected task-1 suspicion (harmless, no change needed):** `OC_EXCLUDE_RUN_SERVICES` also lists `collaboration`,
+  yet the service clearly runs (editor works) → `OC_ADD_RUN_SERVICES` takes precedence; the EXCLUDE mention is inert.
+- **Anomaly logged (not acting):** the container's rendered opencloud.yaml shows `collaboration.app.insecure: true`
+  despite env `COLLABORATION_APP_INSECURE: "false"` — WOPI secret + edit flow work, so the insecure flag is not
+  affecting functionality; noted for a later IaC check (env-vs-schema path), not a blocker.
+- Task 1 (HD-166 tail) is now CLOSED as live-verified. Secrets values touched: none.
+
 ### 2026-08-24 — Phase 1 · Rotate shared headscale-a31b2f85-b928-4107-be43-c95c97150802-s0-0
 ### 2026-08-24 — Phase 1 · Rotate shared headscale OIDC client secret + encode “never a secret VALUE in output” hygiene rule (HD-235) `[AI]`
 

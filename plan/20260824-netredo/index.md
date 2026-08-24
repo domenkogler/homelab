@@ -12,7 +12,7 @@ Renovate re-enable = file-edit only (other session runs playbooks) · headplane/
 | R-2 | Reservations from inventory + switch-map fixes | network_static_hosts + router loop + switch.yml + render | 2 | ✅ committed `3167885` |
 | 1 | file.kogler.si editor round-trip verify | verify report (collab svc, WOPI, JWT both sides, CSP) | 2 | ✅ committed `f1d75b8` (owner round-trip = only remaining gate) |
 | 2 | Switch completeness (switch_port_map SSOT from Rack.canvas) | filled SSOT + role de-gap + validate | 4 | ✅ committed `231c564` (VLAN 20/21 blocks + nas-eno→Home) |
-| 3 | Firewall matrix verification plan | e2e test script (cross-VLAN, Kids bedtime, forced DNS) | 3 | ⬜ |
+| 3 | Firewall matrix verification plan | e2e test script (cross-VLAN, Kids bedtime, forced DNS) | 3 | ✅ merged `fa74174` (t3 doc: cross-check + A–J tests + script + deferred bedtime) |
 | 4 | Conflict cleanup (per-plan) | curated todo/changelog/inventory | 2 | ✅ merged `6042775` (HD-207 dup merged; §1 pointer; changelog pipes) |
 | 5 | Renovate re-enable (file-edit only, no playbook) | flip flag + deployment-renovate.md refresh | 2 | ✅ committed `c845d58` (flip enabled + RENOVATE_REPOSITORIES=domen/test temporary; other session runs playbook) |
 | 6 | Migration-inventory refresh (read-only live probes) | updated inventory + unknowns | 3 | ✅ merged `953041d`+`d6f5763` (HAP→VLAN21 + reservation; deblab/truenas PENDING-IDENTIFY) |
