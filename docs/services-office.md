@@ -58,6 +58,8 @@ path to Ollama/upstream providers; this doc covers only the office slice. VRAM m
 - **ONLYOFFICE** is a **background worker**: it never sees family logins. OpenCloud and ONLYOFFICE trust each other over **cryptographically signed WOPI calls** (shared `OC_JWT_SECRET`), so no `office_*` Authentik client is needed and the route is **not** behind Forward-Auth (it would break the editor's iframe/API calls).
 - **Consequence for IaC (HD-166):** clear the Authentik Blueprint path — no provider, no app, no secret-egress item. Implemented: Traefik cert (``Host(`office.kogler.si`)``) + pinned `onlyoffice_version` (`9.3.0.1`) + `OC_ADD_RUN_SERVICES: collaboration` + `COLLABORATION_APP_*`/`WOPI_SRC` env on the opencloud compose + `opencloud-collab_password` (shared JWT, 1Password, same value on BOTH sides) + CSP `office.kogler.si` in frame-src/connect-src.
 
+- **Live status 2026-08-24 (HD-166 tail, NOT closed):** stack deployed + healthy (onlyoffice-docs up, JWT+WOPI+collab env set, `office.kogler.si` 200), but owner round-trip shows `.txt` preview/edit/save works while **`.docx` fails — “No preview available … download instead”** (ONLYOFFICE editor never opens office docs). Suspected: OpenCloud `frontend.app_handler`/app-provider not authoring office MIME; `COLLABORATION_STORE=nats-js-kv` with **no NATS broker** (no registry/store); and rendered `collaboration.app.insecure: true` despite env `false`. See deployment-journal.md Phase 1.5 + plan/20260824-netredo/t1-report.md for the fix path (NATS/app-provider for office MIME, then re-test `.docx`).
+
 ### Phase 1: ONLYOFFICE on Debian Desktop
 
 oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:

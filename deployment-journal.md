@@ -817,22 +817,28 @@
 - Also captured/lodged: Bosch hostnames confirmed (`BOSCH-CSG656RB7…` etc.), Valentina tablet (30:56:84:35:00:DC), `Naprava-A54-uporabnika-Domen` (34:F0:43:73:96:35), Domen_P14s laptop (48:2A:E3:9D:31:85).
 - Validators: `check_doc_ips.py` OK (no IP literals added to prose). No secret values touched; no live mutation.
 
-### 2026-08-24 — Phase 1.5 · ONLYOFFICE/OpenCloud editor round-trip VERIFIED live (task 1 close) `[AI]`
+### 2026-08-24 — Phase 1.5 · ONLYOFFICE/OpenCloud editor round-trip — PARTIAL: .txt works, .docx BROKEN (HD-166 tail) `[AI]`
 
-- Owner performed the docx round-trip in the file.kogler.si UI (two browsers). **Result: PASS.**
-  - Editor iframe loads; editing and Save work; updates persist (reopen shows the new version).
-  - Observed "This file was updated outside this window" — a save-conflict guard (expected when 2 sessions
-    touch the same doc), not an error.
-  - No cross-browser LIVE typing (had to reopen to see the other browser's edit) — consistent with the config.
-- **Why no live-sync:** `COLLABORATION_STORE: "nats-js-kv"` but NO NATS broker is deployed (no nats container;
-  not documented anywhere as a feature — services-office.md defines the UX as open/edit/save + desktop sync).
-  So save-based sync works; real-time co-edit is OFF and is NOT a documented requirement → **no NATS container needed**.
-- **Corrected task-1 suspicion (harmless, no change needed):** `OC_EXCLUDE_RUN_SERVICES` also lists `collaboration`,
-  yet the service clearly runs (editor works) → `OC_ADD_RUN_SERVICES` takes precedence; the EXCLUDE mention is inert.
-- **Anomaly logged (not acting):** the container's rendered opencloud.yaml shows `collaboration.app.insecure: true`
-  despite env `COLLABORATION_APP_INSECURE: "false"` — WOPI secret + edit flow work, so the insecure flag is not
-  affecting functionality; noted for a later IaC check (env-vs-schema path), not a blocker.
-- Task 1 (HD-166 tail) is now CLOSED as live-verified. Secrets values touched: none.
+- Owner round-trip test in the file.kogler.si UI (two browsers):
+  - **.txt: PASS** — preview + editor load, edit + Save work, updates persist on reopen. “updated outside this
+    window” = save-conflict guard, not an error.
+  - **.docx: FAIL** — “No preview available … download instead.” The ONLYOFFICE editor does NOT open real office
+    documents (previously reported as PASS was an OVER-OPTIMISTIC reading based on .txt only — corrected here).
+- **Root cause (high confidence):** `.txt` uses OpenCloud’s NATIVE text preview — it never invokes ONLYOFFICE/WOPI.
+  Office docs fall through to “download” because the `frontend.app_handler` / app-provider is NOT authoring
+  office MIME (`application/vnd.*`) → OnlyOffice for the editor link.
+  - Likely: `COLLABORATION_STORE=nats-js-kv` but **NO NATS broker container** exists → the collaboration svc has no
+    registry/store to announce office-MIME authoring. (Earlier “no NATS needed for .docx” was WRONG — it’s not live
+    typing, it’s the app-provider registry.)
+  - Also: rendered opencloud.yaml shows `collaboration.app.insecure: true` despite env `COLLABORATION_APP_INSECURE:
+    "false"` (env→schema map may not take effect).
+  - `OC_ADD`+`OC_EXCLUDE` both list `collaboration` — ADD wins (editor/health work); EXCLUDE inert, not the blocker.
+- **Task 1 verdict: NOT done.** Needs a real fix (app-provider/NATS/store for office MIME + verify INSECURE flag),
+  then re-test `.docx`. Handed to next session — see plan/20260824-netredo/t1-report.md.
+- **Secret-hygiene note (HD-235):** one probe on this session inadvertently dumped real secret VALUES from the
+  container's opencloud.yaml to a transcript. No rotation needed (they belong in container config) but future
+  probes MUST redact secret/password/token/bind_password values.
+- Secrets values touched: none (values were not committed; transcript-only, per HD-235 do-not-print).
 
 
 ### 2026-08-24 — Phase 1 · Headplane admin UI for Headscale at `vpn.kogler.si/admin` (HD-233) `[AI]`
