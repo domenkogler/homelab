@@ -68,6 +68,15 @@ services:
       # bundled example app — WITHOUT it OpenCloud's collaboration service cannot
       # register the editor (discovery 404, found live). Image default is disabled.
       EXAMPLE_ENABLED: "true"
+      # HD-166: WOPI_ENABLED=true is what makes DS serve the WOPI discovery XML at
+      # /hosting/discovery (the endpoint OpenCloud's collaboration service polls to
+      # register the editor; without it discovery 404s and .docx falls back to
+      # download). Image default is OFF (run-document-server.sh reads WOPI_ENABLED,
+      # defaults false). With WOPI_ENABLED=true the DS script writes wopi.enable=true
+      # and auto-generates a public/private WOPI keypair (modulus/exponent) into
+      # /etc/onlyoffice/documentserver/local.json on first boot — REGENERABLE, no
+      # literal secret to store (never put key material here).
+      WOPI_ENABLED: "true"
       # Shared WOPI JWT — MUST match OpenCloud's COLLABORATION_JWT_SECRET exactly.
       # 1Password lookup on both sides; fail-loud if absent (HD-65).
       JWT_ENABLED: "true"
