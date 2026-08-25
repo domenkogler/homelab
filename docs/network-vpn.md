@@ -106,6 +106,33 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 
 ---
 
+## Tailnet-exposed services (management plane)
+
+> **Policy (security.md §10 Capability-tiering):** internet-facing surfaces hold only limited-capability
+> credentials; full-power access requires tailnet membership. **New admin/UI surfaces default tailscale-first**
+> -- never Traefik-public unless explicitly decided. Mechanism below; first application = AI stack v2 ([services-ai.md](services-ai.md)).
+
+### Pattern A -- loopback-capable apps (preferred)
+App binds `127.0.0.1` only; tailscale sidecar shares its network namespace (`network_mode: service:<app>`) and
+`tailscale serve` proxies the tailnet socket to the loopback port. **Nothing listens on shared overlay networks**
+-- nothing on `services-internal` can even reach it. Live example planned: DSH cockpit (:3080).
+
+### Pattern B -- apps bound to `0.0.0.0`
+Dedicated per-service docker network containing ONLY app + tailscale sidecar (never `services-internal` for the UI leg);
+sidecar serves to the app over that private network. Functional service-to-service legs stay on their own overlays.
+
+| Node | Serves | App-level auth | ACL tag |
+|------|--------|----------------|---------|
+| dsh | cockpit :3080 | **none** (ACL is the gate) | tag:dsh |
+| litellm-ui | admin :4000/ui | bearer keys | tag:litellm |
+| owui-int (`ai.kogler.si`, HD-248) | internal OWUI | Authentik OIDC | tag:owui-int |
+| openclaw | control/gateway | gateway token | tag:openclaw |
+| headplane (HD-251 candidate) | mesh admin `/admin` | OIDC | tag:mgmt |
+
+- Serve mode: plain TCP forward is simplest (WireGuard already encrypts); HTTPS mode needs Headscale TLS config -- verify at deploy.
+- ACL defaults: inbound-only per node (e.g., DSH needs ZERO outbound tailnet destinations); tag hygiene audit quarterly.
+- Rollout: HD-251 (phase-2 fleet rework); first applications: litellm-ui + owui-int (HD-247/248), dsh (HD-250).
+
 ## Family Usage Scenarios
 
 | Situation | How to Connect |

@@ -34,7 +34,7 @@ homeserver with **Element Web** as the web client. Runs on the **VPS** (public/f
 | Component | FQDN / role | Notes |
 |-----------|-------------|-------|
 | **Tuwunel** (homeserver) | `matrix.kogler.si` | Rust homeserver — official successor to Conduwuit. Handles `/_matrix/*` (client-server + federation). **Public + federated.** |
-| **Element Web** (web client) | `chat.kogler.si` | Static web client. **Matrix-native SSO → Authentik.** |
+| **Element Web** (web client) | `chat.kogler.si` | Static web client. **Matrix-native SSO → Authentik.** ⏳ Renaming to `msg.kogler.si` (HD-248 -- subdomain goes to the public OWUI family chat). |
 
 - **Container:** homeserver + Element Web on the **VPS** (`traefik-public` + `services-internal`; placement per `group_vars/vps.yml`, HD-139).
 - **Storage:** Tuwunel uses a **RocksDB file store** (`database_path`, includes media) — **no external Postgres**; bind-mounted to `/srv/docker/matrix` on the VPS and included in ZFS/Kopia backup (**HD-49**).

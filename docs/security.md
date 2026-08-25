@@ -229,3 +229,17 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
 >
 > Owning docs: [network-vpn.md](network-vpn.md), [services-vps.md](services-vps.md), `router.yml`, `all.yml`
 > (`wg_s2s_vps.allowed_ips`). **HD-155 (IaC + ACL), HD-03 (deploy-gate).**
+
+## 10. Capability-tiering / management-plane separation (HD-247/248/251)
+
+> **Invariant:** internet-facing surfaces hold ONLY limited-capability credentials (budget-capped, model-scoped,
+> no agent access). Full-power credentials -- agent-capable LiteLLM keys, coding cockpits, automation engines with
+> AI nodes -- exist exclusively behind tailnet membership. A compromise of any public box yields bounded spend and
+> bounded data, never capability escalation.
+
+- New admin/UI surfaces default **tailscale-first** (Patterns A/B in [network-vpn.md](network-vpn.md) §Tailnet-exposed
+  services); going public requires an explicit recorded decision.
+- Enforcement is structural, not behavioral: scoped virtual keys minted once via bootstrap glue (HD-247), separate
+  RAG databases per exposure tier (`rag_public`/`rag_internal`), public knowledge restricted to the shared manuals KB.
+- First application: AI stack v2 ([services-ai.md](services-ai.md) §6) -- OWUI split into `chat.` (public,
+  limited) and `ai.` (internal, full power); DSH + OpenClaw control planes tailnet-only.

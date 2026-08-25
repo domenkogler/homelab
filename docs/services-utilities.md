@@ -29,6 +29,7 @@ tags: [services, utilities, tools, automation]
 
 - **n8n** is the alert **router** (dedup / tier / format) from Grafana Alerting — see [`observability.md`](observability.md).
 - **signal-cli** is the Signal delivery leg that n8n drives ("Homelab Alerts" group).
+- ⏳ **HD-249 (planned, v2):** n8n moves INTERNAL -- `auto.kogler.si` public route dropped, editor via tailnet-sidecar Pattern B, scoped LiteLLM key (+ budget cap) for AI workflow nodes. Prerequisite: audit external webhook dependencies before cutting the route.
 - n8n also runs **office automation** flows — see [`services-office.md`](services-office.md).
 
 ## Zipline — public bin & shortener (HD-112)

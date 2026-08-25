@@ -15,7 +15,7 @@ tags: [services, ai, llm, llm-gateway, rag, agents]
 > `deployment-secrets.md`, `services.md`
 > **Linked from:** `services.md`, `index.md`
 
-> **Status:** VPS platform **live since 2026-08-22** (Phase 1): LiteLLM spine, Open WebUI (`ai.kogler.si`), Docling,
+> **Status:** VPS platform **live since 2026-08-22** (Phase 1): LiteLLM spine, Open WebUI x2 (`chat.kogler.si` public family / `ai.kogler.si` internal tailnet-only -- v2 split, HD-248), Docling,
 > PGVector, OpenClaw up on the VPS. ⏳ deploy-gated: Ollama + Immich-ML on the oldsrv GPU (Phase 3) and the
 > RAG/agent live-tuning behind them. Supersedes the AnythingLLM path in `services-office.md`
 > for the family web UI (AnythingLLM **removed**; **LocPilot kept** for Windows-Word inline only).
@@ -36,25 +36,22 @@ in one place.
 ## 2. Architecture
 
 ```
-         family browsers (ai.kogler.si)   ← public, Authentik OIDC + crowdsec-only
-                      │
-                      ▼
-                 Open WebUI  ──RAG──▶  PGVector (db-internal)
-                   │   │                ▲        ▲
-   chat / tools    │   │  Docling OCR  │  embed │  (ingest family docs)
-        │          │   └───────────────┤   _v4  │
-        ▼          ▼                   │ (Cohere)│
-    OpenClaw ──▶ LiteLLM (spine)  ─────┘        │
-      │            │  └──▶ OpenRouter (openrouter_api) — all external LLM gen
-      │            │  └──▶ Cohere embed-v4 (cohere_api) — embeddings only
-      │            │
-      └── OpenCloud (read/write family files, WebDAV)
+  chat.kogler.si (PUBLIC: CrowdSec + Authentik OIDC)     TAILNET (Headscale ACLs, Patterns A/B)
+        | family browsers -- LIMITED keys only              | full-power keys (you + wife)
+        v                                                  v
+   OWUI-public --RAG--> PGVector.rag_public          OWUI-internal --RAG--> PGVector.rag_internal
+        |            (Family Manuals KB ONLY)               |       (personal + wife work KBs)
+        |                                                  |
+        +------------> LiteLLM spine (:4000/v1) <-----------+-- DSH cockpit . OpenClaw gateway
+                            |           |                  (all consumers: SCOPED virtual keys,
+                            v           v                   master_key retired post-HD-247)
+                      OpenRouter     Ollama* (llm-backend, Phase 3)
+                      + Cohere embed/rerank   Docling (OCR ingestion, services-internal)
+
+* Tailnet-exposed admin surfaces: litellm-ui . dsh . openclaw control . headplane (Patterns A/B -> network-vpn.md)
 ```
 
-**Docker networks:** Open WebUI on `traefik-public` (via the `ai` route); LiteLLM, OpenClaw, Docling
-on `services-internal`; PGVector on `db-internal`; **Ollama on `llm-backend`** (HD-59). **No host
-`0.0.0.0` port binds** — everything is reached over the overlay networks + Traefik (Flaw C / HD-62).
-Loopback-only if a raw port is ever required.
+**Docker networks (v2):** OWUI-public on `traefik-public` (the `chat` route); OWUI-internal NOT edge-routed -- tailscale-sidecar Pattern A; DSH on `services-internal` (planned HD-250); LiteLLM, OpenClaw, Docling on `services-internal`; PGVector on `db-internal`; **Ollama on `llm-backend`** (HD-59). **No host `0.0.0.0` port binds** — overlays + Traefik for the public plane, tailscale serve for the management plane (Flaw C / HD-62; Patterns A/B in [network-vpn.md](network-vpn.md)).
 
 > **Ollama isolation (HD-59):** Ollama has no native server auth, so it sits on the dedicated
 > `llm-backend` overlay reachable **only by LiteLLM** (the spine), NOT on the flat `services-internal`
@@ -67,18 +64,18 @@ Loopback-only if a raw port is ever required.
 | Service | Role | Network | Notes |
 |---------|------|---------|-------|
 | **LiteLLM** | LLM gateway / router | `services-internal` **+ `llm-backend`** | OpenAI-compatible spine. Own small DB (SQLite volume) for keys/spend. Only component holding upstream keys. Joins `llm-backend` to reach Ollama. |
-| **Open WebUI** (`ai.kogler.si`) | Family chat + RAG UI | `traefik-public` | Auth = Authentik **OIDC** (per-user chat/history). Model backend = LiteLLM. |
+| **Open WebUI x2** (v2, HD-248): `chat.kogler.si` PUBLIC (family, limited keys, Family-Manuals-only KB) + `ai.kogler.si` INTERNAL (tailnet-served; you+wife, agent-capable keys, `rag_internal`) | chat + RAG UI | `traefik-public` / tailnet sidecar | Auth = Authentik OIDC both; model backend = LiteLLM scoped keys each. |
 | **PGVector** | RAG vector store | `db-internal` | Dedicated `pgvector/pgvector:pg16`. Add DBxx block to `db-backup`. |
 | **Ollama** | Local LLM inference | **`llm-backend`** | GPU (RX 7600). Isolated from `services-internal` — reachable only by LiteLLM (HD-59). |
 | **Docling** | OCR / document understanding | `services-internal` | Runs on **CPU** (spares the dGPU). Multilingual OCR (Slovenian scans). |
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Python framework (ex-Clawd). Models → LiteLLM. **Version pinned** (young project). |
+| **DSH -- DeepSeek Harness** *(planned, HD-250)* | DevOps/IaC coding cockpit (pi.dev replacement) | `services-internal` + tailnet sidecar | Models via LiteLLM scoped key; Forgejo PAT PR-only/no-merge; 443 egress accepted. |
 
 ---
 
 ## 4. LLM routing & keys
 
-- **One endpoint:** Open WebUI and OpenClaw authenticate to **LiteLLM only** (`litellm_master_key`).
-  They never hold `openrouter_api` or `cohere_api`.
+- **One endpoint:** Open WebUI, DSH and OpenClaw authenticate to **LiteLLM only**, via per-consumer **scoped virtual keys** (HD-247) -- they never hold `openrouter_api`, `cohere_api`, or the master key.
 - **Generation → Open Router:** one `openrouter_api` key (api → credential) reused for **all** external
   chat/LLM models, declared in LiteLLM's `config.yaml`.
 - **Embeddings → Cohere:** `cohere_api` (api → credential). Cohere embed-v4 **multilingual** chosen
@@ -110,6 +107,18 @@ boundary trim; this doc is the platform SSOT for model guidance):
 > **Fail-closed secrets:** no `default('')` on any of these — a missing item fails the render loudly
 > (HD-65/76).
 >
+**Scoped consumer keys (v2 plan, HD-247):** LiteLLM runs Postgres-backed (`STORE_MODEL_IN_DB`) so models are edited in its Admin UI at runtime; Ansible owns bootstrap config only. One-time bootstrap glue mints per-consumer virtual keys into 1Password (fail-closed lookups thereafter):
+
+| Key | Consumer | Scope |
+|-----|----------|-------|
+| `owui-public-chat` | OWUI-public | chat models (`ollama/*` + mid-tier cloud), budget caps, no agents |
+| `owui-public-rag` | OWUI-public RAG | `cohere/embed-v4` only |
+| `owui-int-wife` | OWUI-internal (wife) | agents + mid-tier cloud; capped |
+| `owui-int-owner` | OWUI-internal (owner) | full incl. agent models |
+| `dsh` | DeepSeek Harness | coding-model scope, budgeted |
+| `openclaw` | OpenClaw gateway | agent scope, budgeted |
+| `rag-int-svc` | OWUI-internal RAG | `cohere/embed-v4` only |
+
 > 📋 **Deploy checklist:** see [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) for the
 > step-by-step 1Password item-creation + Authentik OIDC wiring runbook (HD-105).
 
@@ -139,6 +148,7 @@ boundary trim; this doc is the platform SSOT for model guidance):
 | Retrieval K | `RAG_TOP_K_RERANKER=20` candidates → rerank → `RAG_TOP_K=5`, `RAG_RELEVANCE_THRESHOLD=0.0` | OW env |
 | Chunking | **token-based**: `RAG_TEXT_SPLITTER=token` (mandatory — otherwise CHUNK_SIZE counts *characters*), `CHUNK_SIZE=512`, `CHUNK_OVERLAP=64` (Cohere sweet spot) | OW env |
 | Config ownership | `ENABLE_PERSISTENT_CONFIG=false` — rendered env vars are the SSOT; Admin-UI edits do NOT persist (the live DB would otherwise silently win over later env changes) | OW compose env |
+| Knowledge split (v2, HD-248) | Public instance ingests **Family Manuals KB ONLY** (admin-only; user knowledge-creation disabled) -- same source folder also ingested on the internal instance into `rag_internal` (dual re-index step in this task) | OW env + UI ACLs |
 | PGVector index | HNSW `vector_cosine_ops` @ 1536 — idempotent Ansible task, `no_log`, no hand-SQL (HD-220 rule), runs after OW schema init | deploy-service post-up task |
 
 > **Dimension lock-in:** the PGVector vector column dimension freezes at first ingest — changing the
@@ -152,10 +162,10 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 
 ## 6. Auth & exposure
 
-- **`ai.kogler.si` is public** (decision 2026-08-16), behind **Authentik OIDC** (native SSO, per-person)
-  + **`crowdsec-only`** middleware at the Traefik edge (internet-facing → Flaw A / HD-60).
-- Per-person chat/history follows the HD-51 identity model (users = Authentik identities). No shared
-  admin login exposed; admin surface is the OIDC account only.
+- **`chat.kogler.si` is public** (renamed from `ai.` -- v2, HD-248), behind **Authentik OIDC** (native SSO, per-person) + **`crowdsec-only`** middleware at the Traefik edge (internet-facing → Flaw A / HD-60). Holds ONLY capability-limited credentials: family-chat + embed keys, no agents.
+- **`ai.kogler.si` is the INTERNAL instance** (tailnet-served via Pattern-A sidecar; public DNS record dropped/repointed). You + wife; agent-capable keys; `rag_internal`.
+- **Capability-tiering posture:** internet-facing surfaces hold limited-capability credentials only; full power requires tailnet membership. New admin/UI surfaces default tailscale-first -- see [security.md](security.md) §Capability-tiering and [network-vpn.md](network-vpn.md) §Tailnet-exposed services (Patterns A/B).
+- Per-person chat/history follows the HD-51 identity model (users = Authentik identities). No shared admin login exposed; admin surface is the OIDC account only.
 
 ---
 
@@ -163,7 +173,8 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 
 | Integration | How |
 |-------------|-----|
-| **Open WebUI ↔ OpenClaw** | Register OpenClaw as a **model/provider in LiteLLM** → chatting to the "OpenClaw" model in the UI invokes the agent. No bespoke glue. |
+| **Open WebUI ↔ OpenClaw** | Register OpenClaw as a **model/provider in LiteLLM** → chatting to the "OpenClaw" model in the UI invokes the agent (**internal instance only; public keys exclude agents**). No bespoke glue. |
+| **DSH ↔ LiteLLM/Forgejo** *(planned, HD-250)* | Coding cockpit consumes a scoped LiteLLM key; proposes homelab changes via Forgejo PRs only (branch-protected main, service account without merge rights). |
 | **Open WebUI ↔ OpenCloud** | Family documents from the **live Hetzner Box (WebDAV, HD-135)** mounted **read-only** into Open WebUI RAG ingestion; documents live in OpenCloud, Open WebUI indexes them. |
 | **OpenClaw ↔ OpenCloud** | OpenClaw **WebDAV skill** reads/writes family files (summarize, organize, OCR a scan via Docling, draft replies). |
 | **Open WebUI ↔ MS Office** | Office MCP bridges (Windows 11 clients) surface Word/Excel/PowerPoint as **tools** into Open WebUI over the Headscale tunnel — live COM edits; server-side python-docx/pptx/openpyxl path for Linux. See [`services-office.md`](services-office.md) (HD-106–111). |
@@ -196,6 +207,13 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 | 8 | **Office MCP bridges are native Windows per-client** (no Docker), Headscale-only + token-auth, version-pinned (HD-106/109). | 2026-08-16 |
 | 9 | **Docling-only OCR ingestion** — SPDF/Tesseract out of the RAG path (searchable-PDF artifact tool only); chat-time image reading = LiteLLM vision models, never an ingestion OCR. | 2026-08-25 |
 | 10 | **RAG stack locked:** cohere/embed-v4.0 @1536 direct-Cohere · Cohere rerank v4.0-pro external via LiteLLM · hybrid BM25+vector ON (weight 0.5) · retrieve 20 → top 5 · token chunks 512/64 · `ENABLE_PERSISTENT_CONFIG=false` (env = SSOT). Implementation: HD-246. | 2026-08-25 |
+| 11 | **Two-instance OWUI split** -- `chat.kogler.si` public (limited keys, Family-Manuals-only KB) / `ai.kogler.si` internal tailnet-served (full power); Element Web → `msg.kogler.si`. HD-248. | 2026-08-26 |
+| 12 | **Capability-tiering posture** -- internet-facing surfaces hold limited-capability credentials only; agent-capable keys tailnet-only; new admin surfaces tailscale-first (security.md §10, network-vpn.md Patterns A/B). | 2026-08-26 |
+| 13 | **LiteLLM v2** -- Postgres-backed runtime, models UI-managed (drift accepted); scoped consumer keys; master_key retired from templates (HD-247). | 2026-08-26 |
+| 14 | **Public OWUI knowledge = Family Manuals KB only**, admin-only ingestion; user knowledge-creation disabled there. | 2026-08-26 |
+| 15 | **n8n → internal tier** + scoped LiteLLM key with budget cap; webhook dependency audit first (HD-249). | 2026-08-26 |
+| 16 | **DSH replaces Hermes placeholder** as DevOps/IaC cockpit; netns serve pattern; 443 egress accepted; Forgejo PAT PR-only/no-merge (HD-250). | 2026-08-26 |
+| 17 | **Embeddings uniform** cohere/embed-v4 @1536; public corpus = Family Manuals only; wife's public-work corpora internal-only. | 2026-08-26 |
 
 ---
 

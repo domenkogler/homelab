@@ -1285,6 +1285,14 @@
 - **Deviations:** none further (doc updated: docs/observability.md access-path section).
 - **Close-out (2026-08-25):** owner confirmed the browser round-trip — SSO dashboard → Grafana UI lands directly, no bare `/login`. HD-240 FULLY closed; todo row deleted (changelog row is the record); HD-190 deploy-gate closure stands.
 
+### 2026-08-26 — Phase 1 · AI stack v2 architecture LOCKED (owner brainstorm session — docs-only, no IaC/no deploy) `[DECISION]`
+
+
+- **Session:** owner brainstorm on the AI stack — where OWUI state/admin lives, LiteLLM integration & UI exposure, OpenClaw onboarding, DeepSeek Harness feasibility. Claims live-verified against repo + upstream (DeepSeek Harness: MIT/TS-Cordis, no official Dockerfile, loopback-only Web UI).
+- **Decisions locked with owner** (substance in owning docs + changelog `HD-247–251` 2026-08-26 — NOT duplicated here): two-instance OWUI split (`chat.` public-limited / `ai.` internal-full-power) + Element→`msg.` · capability-tiering posture (security.md §10, network-vpn.md Patterns A/B) · LiteLLM v2 spine (HD-247: Postgres + `STORE_MODEL_IN_DB`, scoped consumer keys, master_key retirement) · n8n internal (HD-249) · DSH DevOps/IaC cockpit replaces Hermes (HD-250) · embeddings uniform (HD-246 amendment).
+- **Docs touched:** todo.md (HD-247/248/249/250/251 + HD-104/HD-246 amendments), changelog.md (decision bundle), docs/services-ai.md (§2/§4/§5/§6/§7/§9), docs/security.md (§10), docs/network-vpn.md (Tailnet section), docs/services-utilities.md (n8n note), docs/services-matrix.md (Element rename pointer), prompt.md → handoff #17. **IaC untouched — all deploy-gated/planned.** validate-all GREEN.
+- **Secrets touched:** none. **Deviations:** none (all docs-only).
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).

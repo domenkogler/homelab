@@ -1,148 +1,54 @@
-# prompt.md — Deployment Execution Handoff #16 — HD-240 stats.kogler.si SSO dead-end FIXED & OWNER-VERIFIED (edge pin + datasource auth chain + header-injection fix); zipline 4.6.5 live
+# prompt.md — Deployment Execution Handoff #17 — AI stack v2 architecture LOCKED (docs-only); next: plan-task the HD-247→251 cutover chain
 
-> **Role:** Entry point for the next session. This session (2026-08-24 late night → 08-25)
-> diagnosed and LIVE-fixed the "Grafana on the SSO dashboard lands on a logo-only bare `/login`"
-> dead-end (HD-240). Three stacked root causes: ① traefik edge container IP had drifted off the
-> whitelisted `traefik_edge_ips` /32 → now PINNED via compose `ipv4_address` = new
-> `traefik_edge_ip_pin` group_var; ② grafana datasource never sent basic-auth (`basicAuth: true`
-> flag missing since birth) AND grafana 13.2.0 file-provisioning stores an unresolvable
-> secureJsonData blob → Prometheus datasource moved to idempotent **API seeding** in the
-> monitoring role; ③ UPS alert rules used invalid PromQL bitwise-& → modulo bitmask tests; ④ the actual
-> browser blocker: traefik silently DROPPED the map-form `authResponseHeaders` field → identity headers
-> never reached grafana; fixed to list form. Owner mapped into Grafana as Admin via break-glass API. 
-> Verified live AND **owner browser round-trip confirmed 2026-08-25** — HD-240 fully closed. Ride-alongs:
-> db_ro_sync stdin nesting (was blocking all docker_services runs), zipline pinned `4.6.5` + DSN urlencode +
-> uploads mount → zipline UP (remaining HD-112 legs: dns.yml + compose-header checklist).
-> **Late addition (2026-08-25, separate mini-session):** HD-101 Open WebUI OIDC root cause FIXED
-> (invented `ENABLE_OIDC`/`OIDC_*` env names never read by the app → template reworked to real
-> `OPENID_PROVIDER_URL`/`OAUTH_CLIENT_*` + signup posture hardening; changelog row + todo tail
-> updated). ⏳ Rides the NEXT converge: see §3a/§3b "HD-101 verify".
-> **Linked from:** [README.md](README.md) §2 · owning doc:
-> [docs/observability.md](docs/observability.md) (new *Access & login path* section) ·
-> changelog row **HD-240** · journal entry 2026-08-24/25 Phase 1.
+> **Role:** Entry point for the next session. This session (2026-08-26) was a **docs-only decision/brainstorm session** on the AI stack. Verified claims live (including DeepSeek Harness upstream — MIT/TS-Cordis, no official Dockerfile, loopback-only Web UI) and locked **AI stack v2**: two capability-tiered Open WebUI instances, LiteLLM Postgres-backed spine with scoped per-consumer keys, n8n and DeepSeek Harness (DSH) as internal-tier services. **NO IaC / NO deploy was touched** — everything is planned and deploy-gated (HD-247 → HD-251). The next session SHOULD `plan-task` the cutover chain (difficulty-2→3, live-deploy, multi-service) before executing.
+> **Linked from:** [README.md](README.md) §2 · owning docs: [docs/services-ai.md](docs/services-ai.md) (v2 arch), [docs/security.md](docs/security.md) §10 Capability-tiering, [docs/network-vpn.md](docs/network-vpn.md) §Tailnet-exposed services (Patterns A/B) · changelog bundle **HD-247–251 (2026-08-26)** · journal entry 2026-08-26.
 
 ---
 
 ## 0. Mandatory context (read in this order)
 
-1. [CONVENTIONS.md](CONVENTIONS.md) — §2 secret-output hygiene + secret→YAML `>-` rendering,
-   §4 journal loop + post-task housekeeping, §5 service-onboarding checklist, §6 worktree discipline.
-2. [docs/observability.md](docs/observability.md) — **Access & login path** section: how
-   stats.kogler.si auth works (forward-auth → `[auth.proxy]` header trust from the pinned edge IP),
-   why a bare logo-only `/login` means rejection, and the two operational caveats learned live.
-3. [changelog.md](changelog.md) — **HD-240** row (+ carried **HD-112**, **HD-57**, **HD-239**).
-4. [deployment-journal.md](deployment-journal.md) — 2026-08-24/25 Phase-1 entry (evidence +
-   both incidents, incl. a self-reported secret exposure → HD-211 priority).
-5. [docs/services-authentik.md](docs/services-authentik.md) — *API-token auto-rotation* (HD-216).
+1. [CONVENTIONS.md](CONVENTIONS.md) — §2 secret-output hygiene + secret→YAML `>-` rendering, §4 journal loop + post-task housekeeping, §5 service-onboarding checklist, §6 worktree discipline.
+2. [docs/services-ai.md](docs/services-ai.md) — **THE v2 architecture doc** (new §2 topology diagram, §4 scoped-key inventory table, §5 knowledge split, §6 exposure posture, §9 decisions #11–17).
+3. [docs/security.md](docs/security.md) — **§10 Capability-tiering / management-plane separation** (the master invariant).
+4. [docs/network-vpn.md](docs/network-vpn.md) — **§Tailnet-exposed services**: Patterns A/B recipes + node/tag table.
+5. [changelog.md](changelog.md) — **HD-247–251** decision bundle (+ existing **HD-246** RAG lock).
+6. [deployment-journal.md](deployment-journal.md) — 2026-08-26 entry (decision session).
 
 ## 1. Environment (Windows 11 laptop)
 
-- Repo ops + validators: **git-bash**, forward-slash paths, `py -3`, UTF-8 no-BOM, LF.
-- Ansible runner: **WSL Debian** via script-file indirection ONLY (`scripts/ansible-run.sh`,
-  `scripts/ak-shell.sh`); NEVER inline through wsl.exe from git-bash (MSYS mangles leading-`/`
-  args); probes = throwaway temp script outside all checkouts → delete after capture.
-- ⚠ **9P gate MANDATORY before every playbook run**: `git ls-files -z | xargs -0 md5sum --text |
-  md5sum` EQUAL on BOTH sides (worktree gitdir translation per deployment-manual if needed).
-- Read-only probes: `ssh -o BatchMode=yes vps` (config alias! bare hostnames offer too many
-  agent keys); sudo via stdin-fed scripts (`ssh vps 'sudo -n bash -s' < script`) — **never pass
-  secrets through argv/quoting layers** (HD-240 Incident B: one broken inline probe echoed
-  `prometheus-internal_api` into a transcript; stdin-scripts only since).
-- ⚠ Template comments/tasks must not contain literal `{{` Go-template sequences where Ansible
-  parses them (docker `--format` needs indirection — use `hostname -i` style instead).
+Same as handoff #16 (unchanged): git-bash, forward-slash, `py -3`, UTF-8 no-BOM, LF; Ansible via WSL + 9P gate before every run; Secrets → 1Password item.field only, `>-` for YAML renders; **new self-learned rule (2026-08-26): do NOT use multi-line bash heredocs containing backslashes/backticks on this host (mangled through `bash -c`) — write patch scripts to a temp file via the `write` tool and run them instead.**
 
-## 2. State snapshot (end of session)
+## 2. State snapshot (start of next session)
 
-- **main == origin/main? verify at close** @ handoff #16 closing commit (worktree
-  `homelab-wt-20260824-2321`, branch `session/stats-grafana-fix`, merged back green ×4 merges;
-  note: three OTHER lanes also merged during this session — hd112 closeout et al. — no conflicts).
-- Closed: **HD-240 ✅ FULLY closed** (IaC + live ops + owner browser verification 2026-08-25;
-  todo row deleted, changelog row is the record) · **HD-190 deploy-gate closed** (forged-header
-  rejection verified live; closure recorded in the HD-240 changelog row) · zipline 4.6.5 live
-  (HD-112 partially: dns.yml + compose-header checklist remain).
-- **Live changes made:** traefik recreated at pinned `.2` (~2 min edge flap during first attempt,
-  see journal Incident A) · grafana restarted several times during datasource surgery · grafana
-  DB `data_source` row for prometheus replaced by API-seeded equivalent (uid/name/url unchanged;
-  dashboards + alert rules unaffected) · new user `domen` (org Admin).
-- **Round 2 (after owner retest bounced):** REAL login blocker was traefik dropping the map-form
-  `authResponseHeaders` field entirely → identity headers never reached grafana; list-form fix
-  converged + decode-verified live. Ride-alongs fixed: db_ro_sync `stdin` nesting (blocked ALL
-  docker_services runs), zipline pin → `4.6.5` (v4.7.0 never existed upstream), DATABASE_URL
-  credentials urlencoded (`#` truncated DSN), uploads mount `/zipline/uploads` → **zipline 4.6.5
-  is UP**; remaining HD-112 legs = dns.yml `bin` CNAME + compose-header checklist.
-- Parallel lane same night (HD-241/242/243): Metabase operationalized — env-driven smtp2go SMTP
-  (IaC SSOT), CrowdSec-SQLite + Forgejo-PG read-only data sources (`db_ro_sync` mechanism, new
-  `metabase-forgejo_ro` vault item), LDAP option parked; ⏳ converge-gated tails in todo §2.4.
-- **Still open at next converge (ride-along checks, no standalone session needed):**
-  ① zero spurious restarts on unchanged extras / exactly one per changed extra (HD-236 guard);
-  ② direct per-run proof that `apply-authentik-blueprints.yml` fired green;
-  ③ open-webui container RECREATED with the corrected OIDC env (HD-101 template fix — verify
-  `docker exec open-webui printenv OPENID_PROVIDER_URL` non-empty post-up), then walk §3a HD-101
-  verify.
-- **ID registry:** next free = **HD-247** (max=HD-246; re-derive at write time per
-  CONVENTIONS §1 — never re-type this pointer).
-- **Coordination:** do NOT touch headplane/headscale (separate lane). Primary checkout owns main.
+- **main, docs-only changes uncommitted in the working tree** from handoff #17's decision session: `todo.md` (5 new HD rows HD-247–251 + HD-104/HD-246 amendments), `changelog.md` (decision bundle), `docs/services-ai.md`, `docs/security.md`, `docs/network-vpn.md`, `docs/services-utilities.md`, `docs/services-matrix.md`, `deployment-journal.md`. **Commit + push these first** (validate green already run).
+- **AI stack v2 is PLANNED, not built.** Key dependencies/prereqs to respect:
+  - **HD-247 (spine, first):** pin `litellm_version` semver (drop `main-stable` fluid tag) → LiteLLM Postgres + `STORE_MODEL_IN_DB` → migrate models to DB → bootstrap-keys glue (7 scoped keys → 1P) → swap consumers off `master_key` (retire it from all templates). *Everything else depends on HD-247.*
+  - **HD-248:** parametrize open-webui compose to render twice; `chat.kogler.si` public / `ai.kogler.si` internal (drop public `ai.` DNS) + Element→`msg.kogler.si`; public-KB restriction pins.
+  - **HD-249:** n8n internal (audit webhook deps first).
+  - **HD-250:** DSH (depends HD-247; verify `tailscale serve` TCP-mode works on your Headscale).
+  - **HD-251:** fleet exposure rework phase-2 (Headplane → tailnet, review Dozzle/Metabase/Grafana/traefik-dash).
+- **Still-open legacy (from #16, unchanged):** HD-101 verify (next converge), HD-211 rotation batch: **Zipline pre-deploy:** seed vault items via `bash scripts/provision-vault.sh` (creates `zipline_password` + `zipline_db`; owner input = starting guestbin quota ~100 MB) · **HD-112 go-live legs** (below) · Kopia `/backup` decision · **LDAP HD-132 authoring** · **Forgejo `domen/homelab` repo creation** (renovate flip) · **HD-238 DR runbook** · HD-57 human legs (bank tokens / Enable-Banking app).
+- **HD-211 rotation batch (full, priority):** `openrouter_api`, `cohere_api`, `forgejo_api` (real values); **`prometheus-internal_api` password exposed into an agent transcript TWICE now** (2026-08-23 probe + 2026-08-24 quoting failure) — rotate vault item then re-run `--tags monitoring` (API seed task only fires when DS absent → delete the DS first via UI/API, or extend the task with a rotate mode); **`crowdsec-bouncer_api` LAPI key** (exposed via traefik debug config dump, 2026-08-25 ~00:45); **`opencloud-collab_password` window**; **persisted-Authentik-token `expiring=False` sweep** (HD-216).
+- **ID registry:** next free = **HD-252** (max=HD-251; re-derive at write time per CONVENTIONS §1).
+- **Coordination:** do NOT touch headplane/headscale unless the owner asks (separate lane; HD-251 is planned but not started).
 
 ## 3. Next-session execution order
 
-### 3a. Owner-action chase (reminders, not blockers)
-- **NEW — HD-101 verify (after the open-webui template fix converges):** ① "Continue with
-  Authentik" button renders on ai.kogler.si ② owner SSO round-trip LINKS the existing local
-  admin by email (`OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true` — no duplicate account) ③ family-side
-  sanity: local signup rejected, SSO-created accounts land `pending` ④ LiteLLM completion test
-  + RAG verify → trim the HD-101 ⏳ tail + changelog close-out.
-- **PRIORITY — HD-211 rotation batch grew:** `prometheus-internal_api` password was exposed into
-  an agent transcript TWICE now (2026-08-23 probe + 2026-08-24 quoting failure). Rotation is
-  trivial post-HD-240: rotate the vault item → re-run `--tags monitoring` (API seed task only
-  fires when DS absent → delete the DS first via UI/API, or extend the task with a rotate mode).
-  **+ `crowdsec-bouncer_api` LAPI key** (exposed into transcript via a traefik debug config dump,
-  2026-08-25 ~00:45).
-  Also still open from before: `openrouter_api`, `cohere_api`, `forgejo_api`,
-  `opencloud-collab_password` window, persisted-Authentik-token `expiring=False` sweep.
-- **Zipline pre-deploy:** seed the vault items by script — `bash scripts/provision-vault.sh`
-  creates `zipline_password` + `zipline_db`; owner input = starting guestbin quota (~100 MB).
-- **After first Zipline converge:** walk the compose-header deploy gate (`/auth/setup` admin →
-  OIDC verify → flip bypass-local-login → seed `guestbin` + `dropzone`) → anonymous round-trip →
-  6h sweep → family drop script + guide. Trim the HD-112 ⏳ tail.
-- Carried: Kopia `/backup` source-wiring decision; LDAP **HD-132** authoring; Forgejo
-  `domen/homelab` repo creation (renovate flip); Phase 1.5 cutover (dnevna/garage swaps + capsman
-  rsc); HD-57 human legs (bank tokens / Enable-Banking app).
+### 3a. First: commit the decision-session docs (validated green already)
+Commit the working-tree docs-only changes from handoff #17 (single commit, green). Then decide with the owner: **plan-task the HD-247→251 cutover** (chain ①pin → ②Postgres/STORE_MODEL_IN_DB → ③sidecars+ACL → ④keys → ⑤consumers → ⑥owui-int → ⑦KB dual-ingest → ⑧dsh → ⑨openclaw onboard → ⑩dsh deploy → ⑪headplane). This is the recommended next step.
 
-### 3b. Remaining engineering queue
-- **HD-238** oldsrv→VPS DR runbook for non-GPU services (todo §2.9) — laptop-doable authoring task;
-  pairs naturally with the next backup.md touch (which now also carries the HD-112 uploads-
-  exclusion row).
-- **HD-246 RAG retrieval wiring (decided 2026-08-25, docs-only so far):** brainstorm locked the
-  stack in [services-ai.md](docs/services-ai.md) §5 (Docling-only OCR ingestion · cohere/embed-v4.0
-  @1536 direct-Cohere via LiteLLM · rerank v4.0-pro external via LiteLLM `/rerank` · hybrid BM25+vector
-  ON · retrieve 20→top 5 · token chunks 512/64 · `ENABLE_PERSISTENT_CONFIG=false` · PGVector HNSW
-  `vector_cosine_ops`@1536). Implementation = **todo.md HD-246**: litellm embed-pin fix (incl. the
-  discovered `embed-english-v3.0` mis-pin under name `cohere/embed-v4`) + rerank entry + OW compose
-  env pins + idempotent HNSW index task; decision record = changelog HD-246. Pairs naturally with
-  the HD-101 verify converge (same service, same render).
-- **HD-112 go-live — partially DONE 2026-08-25:** vault seeded; converge deployed the stack
-  (pin corrected to `4.6.5`, DSN credentials urlencoded, uploads mounted at `/zipline/uploads`;
-  container Up, server listening on :3000). REMAINING: ① **run dns.yml** (the `bin` CNAME applies
-  ONLY there — without it bin.kogler.si does not resolve) ② compose-header checklist
-  (`/auth/setup` admin → OIDC verify → flip bypass-local-login → seed `guestbin` + `dropzone`)
-  ③ anonymous round-trip + 6h sweep verify → trim the HD-112 ⏳ tail.
-- Converge ride-along checks (fold into any upcoming docker_services converge): observe residual ①
-  (extras restart guard behavior) + confirm blueprint one-shot task output green in the same run;
-  journal both, then trim the ⏳ tails via an append-only R-row.
-- Phase-2 backlog note: Zipline `/drop` static glue page (Traefik PathPrefix-priority router,
-  same-origin) — only if the owner asks; NOT queued.
-- Headplane hardening (separate lane — only if its owning session asks).
+### 3b. Owner-action chase (unchanged from #16, non-blocking)
+- **HD-101 verify after the open-webui OIDC template converges:** ① "Continue with Authentik" button renders on ai.kogler.si ② owner SSO round-trip LINKS the existing local admin by email (`OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true` — no duplicate account) ③ family-side sanity: local signup rejected, SSO-created accounts land `pending` ④ LiteLLM completion test + RAG verify → trim HD-101 ⏳ tail + changelog close-out.
+- **HD-211 rotation batch** (see §2).
+- **HD-112 go-live — partially DONE 2026-08-25** (vault seeded, stack deployed, zipline UP on :3000). REMAINING legs: ① **run dns.yml** (the `bin` CNAME applies ONLY there — without it bin.kogler.si does not resolve) ② walk the compose-header deploy gate (`/auth/setup` admin → OIDC verify → flip bypass-local-login → seed `guestbin` + `dropzone`) ③ anonymous round-trip + 6h sweep verify → family drop script + guide → trim the HD-112 ⏳ tail.
+- Carried owner decisions: **Kopia `/backup` source wiring**; **LDAP HD-132 authoring** (base DN/bind mode/TLS/UIDs + authentik-ldap_bind.password decoupling); **Forgejo `domen/homelab` repo** (renovate flip); Phase 1.5 cutover (dnevna/garage swaps + capsman rsc); **HD-57 bank/virtual-token legs**.
 
-## 4. Working rules (binding)
+### 3c. Engineering queue (continue from #16; note AI-stack HDs now supersede HD-246's "pending" as they absorb it)
+- **HD-246 RAG retrieval wiring (decided 2026-08-25, absorbed into the HD-247/248 plan)** — litellm embed-pin fix (incl. the discovered `embed-english-v3.0` mis-pin under name `cohere/embed-v4`) + rerank entry + OW compose env pins (`ENABLE_PERSISTENT_CONFIG=false`, docling extraction, Cohere embed via LiteLLM, external reranker, hybrid ON, 20→top 5, token chunks 512/64) + idempotent PGVector HNSW index task (`vector_cosine_ops`@1536; no hand-SQL per HD-220) + dual Family-Manuals ingestion.
+- **HD-238** oldsrv→VPS DR runbook for non-GPU services (todo §2.9) — laptop-doable authoring; pairs with next backup.md touch (which also carries the HD-112 uploads-exclusion row).
+- **HD-112 / HD-252 backlog** as they read. **Phase-2 backlog note:** Zipline `/drop` static glue page (Traefik PathPrefix-priority router, same-origin) — only if the owner asks; NOT queued.
+- **Converge ride-along checks** (fold into any upcoming docker_services converge): observe residual ① extras-restart guard behavior (zero spurious restarts on unchanged extras / exactly one per changed extra, HD-236) + ② confirm the `apply-authentik-blueprints.yml` one-shot task fired green in the same run; journal both, then trim the ⏳ tails via an append-only R-row.
 
-- Fresh worktree per session before ANY edit (`../homelab-wt-<date>-<HHMM>`); merge back only
-  committed+green; primary checkout owns main; remove own worktree via `git worktree remove`.
-- Converges: 9P gate first, surgical `--tags` preferred — canonical tables in
-  [deployment-manual.md](deployment-manual.md)/[docs/deployment-ansible.md] (role+service tags BOTH
-  required; traefik dynamic-file changes need the `traefik` tag too). Handlers always carry
-  `tags: always` (HD-237 invariant).
-- Secrets: 1Password item.field names only — NEVER values anywhere; `>-` block scalar for ALL
-  1P-sourced YAML/compose-env renders. Probes print hashes/lengths/prefixes only — feed anything
-  secret-touching via stdin scripts, never argv.
-- **Persisted Authentik API tokens: ALWAYS `expiring=False`** (HD-216).
-- Journal append-only; owning doc + changelog row(s) in the same change; English prose; relative links.
-- Authentik blueprint: pin array attrs (HD-231). Do not touch headplane/headscale unless asked.
+## 4. Working rules (binding) — unchanged from #16
+
+Fresh worktree per session; 9P gate before every converge; surgical `--tags`; secrets 1P-item.field only + `>-` for YAML; persisted Authentik tokens always `expiring=False` (HD-216); journal append-only; owning doc + changelog row in same change; English; relative links; Authentik blueprint pin array attrs (HD-231); don't touch headplane/headscale unless asked. **+ new (2026-08-26): no multi-line bash heredocs with backslashes/backticks — write+run temp script files instead.**
