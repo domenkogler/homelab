@@ -111,6 +111,14 @@
 - **HD-238** oldsrv→VPS DR runbook for non-GPU services (todo §2.9) — laptop-doable authoring task;
   pairs naturally with the next backup.md touch (which now also carries the HD-112 uploads-
   exclusion row).
+- **HD-246 RAG retrieval wiring (decided 2026-08-25, docs-only so far):** brainstorm locked the
+  stack in [services-ai.md](docs/services-ai.md) §5 (Docling-only OCR ingestion · cohere/embed-v4.0
+  @1536 direct-Cohere via LiteLLM · rerank v4.0-pro external via LiteLLM `/rerank` · hybrid BM25+vector
+  ON · retrieve 20→top 5 · token chunks 512/64 · `ENABLE_PERSISTENT_CONFIG=false` · PGVector HNSW
+  `vector_cosine_ops`@1536). Implementation = **todo.md HD-246**: litellm embed-pin fix (incl. the
+  discovered `embed-english-v3.0` mis-pin under name `cohere/embed-v4`) + rerank entry + OW compose
+  env pins + idempotent HNSW index task; decision record = changelog HD-246. Pairs naturally with
+  the HD-101 verify converge (same service, same render).
 - **HD-112 go-live — partially DONE 2026-08-25:** vault seeded; converge deployed the stack
   (pin corrected to `4.6.5`, DSN credentials urlencoded, uploads mounted at `/zipline/uploads`;
   container Up, server listening on :3000). REMAINING: ① **run dns.yml** (the `bin` CNAME applies
