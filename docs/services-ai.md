@@ -119,9 +119,30 @@ boundary trim; this doc is the platform SSOT for model guidance):
 
 1. **Ingest:** family documents from **OpenCloud** (WebDAV/CIFS on the live Hetzner Box, mounted read-only,
    owned by the neutral `media` uid per HD-51/94).
-2. **OCR / structure:** **Docling** converts scans + PDFs (layout, tables, reading order) → markdown.
-3. **Index:** chunk → embed via **Cohere embed-v4 multilingual** → store in **PGVector** (`db-internal`).
-4. **Retrieve + answer:** Open WebUI queries PGVector, sends context + prompt to LiteLLM model.
+2. **OCR / structure:** **Docling only** — converts scans, PDFs **and images** (JPEG/PNG/TIFF/BMP/WEBP are
+   first-class inputs; layout, tables, reading order) → markdown. SPDF/Tesseract is deliberately OUT of
+   the RAG path (`pdf.kogler.si` stays the searchable-PDF-artifact tool); vision models read images at
+   chat time but are NOT an ingestion OCR path.
+3. **Index:** chunk → embed via **cohere/embed-v4.0** (1536 dims, direct Cohere through LiteLLM —
+   OpenRouter carries no embeddings endpoint) → store in **PGVector** (`db-internal`).
+4. **Retrieve + answer:** hybrid BM25+vector search → Cohere rerank v4.0-pro → context + prompt to the
+   LiteLLM model.
+
+**Decided retrieval/ingestion parameters** (owner brainstorm 2026-08-25; implementation = HD-246):
+
+| Parameter | Decided value | Lives in |
+|-----------|---------------|----------|
+| Extraction engine | Docling only — `CONTENT_EXTRACTION_ENGINE=docling`, `DOCLING_SERVER_URL=http://docling:5001` | open-webui compose env |
+| Embeddings | `cohere/embed-v4.0`, **1536 dims** (v4 default, untruncated), `RAG_EMBEDDING_ENGINE=openai` → `http://litellm:4000/v1` (key = `litellm_master_key`) | litellm `config.yaml.j2` + OW env |
+| Reranker | Cohere **rerank v4.0-pro**, external engine via LiteLLM `/rerank` (`RAG_RERANKING_ENGINE=external`; exact LiteLLM id string registry-verified at render) | litellm `config.yaml.j2` + OW env |
+| Hybrid search | ON — `ENABLE_RAG_HYBRID_SEARCH=true`, `RAG_HYBRID_BM25_WEIGHT=0.5` (starting value) | OW env |
+| Retrieval K | `RAG_TOP_K_RERANKER=20` candidates → rerank → `RAG_TOP_K=5`, `RAG_RELEVANCE_THRESHOLD=0.0` | OW env |
+| Chunking | **token-based**: `RAG_TEXT_SPLITTER=token` (mandatory — otherwise CHUNK_SIZE counts *characters*), `CHUNK_SIZE=512`, `CHUNK_OVERLAP=64` (Cohere sweet spot) | OW env |
+| Config ownership | `ENABLE_PERSISTENT_CONFIG=false` — rendered env vars are the SSOT; Admin-UI edits do NOT persist (the live DB would otherwise silently win over later env changes) | OW compose env |
+| PGVector index | HNSW `vector_cosine_ops` @ 1536 — idempotent Ansible task, `no_log`, no hand-SQL (HD-220 rule), runs after OW schema init | deploy-service post-up task |
+
+> **Dimension lock-in:** the PGVector vector column dimension freezes at first ingest — changing the
+> embedding model or dims later means full re-ingest + re-index. 1536 chosen deliberately (untruncated v4).
 
 **Backup:** the PGVector DB holds the RAG index + chat history — the same "irretrievable metadata"
 risk class as Immich (KOPS-026). Add a `DBxx` block to `db-backup` and include the volume in Kopia.
@@ -173,6 +194,8 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 | 6 | **LocPilot kept; AnythingLLM removed.** | 2026-08-16 |
 | 7 | **OpenCloud = file SSOT · Open WebUI = chat/UX SSOT** — Office via MCP tools, not add-ins (HD-108). | 2026-08-16 |
 | 8 | **Office MCP bridges are native Windows per-client** (no Docker), Headscale-only + token-auth, version-pinned (HD-106/109). | 2026-08-16 |
+| 9 | **Docling-only OCR ingestion** — SPDF/Tesseract out of the RAG path (searchable-PDF artifact tool only); chat-time image reading = LiteLLM vision models, never an ingestion OCR. | 2026-08-25 |
+| 10 | **RAG stack locked:** cohere/embed-v4.0 @1536 direct-Cohere · Cohere rerank v4.0-pro external via LiteLLM · hybrid BM25+vector ON (weight 0.5) · retrieve 20 → top 5 · token chunks 512/64 · `ENABLE_PERSISTENT_CONFIG=false` (env = SSOT). Implementation: HD-246. | 2026-08-25 |
 
 ---
 
@@ -181,4 +204,5 @@ Open WebUI + OpenClaw config/state → Kopia as well.
 Depends on: oldsrv GPU operational + Ollama live · LiteLLM (spine) first · `openrouter_api` +
 `cohere_api` + `litellm_master_key` in 1Password · Authentik OIDC provider for Open WebUI ·
 OpenCloud + neutral `media` owner (HD-51) · PGVector DB + db-backup row · OpenClaw pinned.
-See `todo.md` HD-1xx (`source: services-ai`).
+See `todo.md` HD-1xx (`source: services-ai`). RAG retrieval wiring (OW env pins, litellm
+rerank/embed-model fix, PGVector HNSW index): **HD-246**.
