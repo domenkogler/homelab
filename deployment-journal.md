@@ -591,6 +591,14 @@
 - **Verification:** live config valid YAML, `email_verified_required=False`, `allowed_domains=['kogler.si']`; headscale restarted + `/health` 200; the `config.yaml` bind-mount is re-read on restart so the running headscale has the new value. Owner retries the phone in the Tailscale app.
 - **Secrets touched:** none NEW this entry; the on-box `client_secret` surfaced again while dumping the oidc block — still queued for rotation per secret-hygiene (HD-211/HD-235 note); do NOT persist it. **Deviations:** relaxing headscale's default email-validation is a deliberate, documented security-posture choice for family-trusted users behind `allowed_domains`; the strict-default restoration is tracked as an Authentik-side fix.
 
+### 2026-08-26 — Phase 1 · HD-252 CORE DONE: first-ever successful OIDC callback — phone enrolled + owner cleanup (users/nodes) `[AI]`
+
+- **Milestone reached (2026-08-26):** the first-ever successful `/oidc/callback` — the phone added via the Tailscale app with NO error, landing under the OIDC-linked account. Logs: `17:43:30 GET /register/hskey-authreq-… 302` → `17:44:05 POST /register/confirm/hskey-authreq-… 200` → `17:44:06 INF node connected … node.name="Naprava A54 uporabnika Domen" user.name=domen@kogler.si node.online=true`. This closes HD-252 ② core (the row's core: first successful callback + device auto-provisioned under an OIDC-linked user).
+- **Owner action (③ resolved):** owner deleted the hand-created user ID 1 (no email/provider_identifier) in Headplane. Confirmed live: only user ID 2 `domen@kogler.si` (email `domen@kogler.si`) remains — the OIDC-linked account is correct.
+- **Cleanup side-effect to redo (⏳):** deleting the old user removed the laptop node (node 1 `Domen_P14s`) and the owner separately removed the just-added phone (node 3) — `headscale nodes list` is now EMPTY. The OIDC flow is proven working, so re-enrolling both devices is quick: they re-join under `domen@kogler.si`. Keep the interim ACL `*:*` until both are back (HD-252 ④ TIGHTEN-at-first-enrolment promise applies once real OIDC identities are present).
+- **Health after all changes:** headscale/headplane healthy, edge `https://vpn.kogler.si/health` 200, only 2 benign ERR in logs (the pre-fix 16:57:40 unverified-email + the expected 17:46:57 disconnect-after-delete `node not found: 3`).
+- **Secrets touched:** none. **Deviations:** none beyond the already-documented `email_verified_required: false` relaxation (family-trusted users behind `allowed_domains`).
+
 ## Phase 1a — Parallel Track: NAS Pools + Host Installs
 
 ### 2026-08-23 — Phase 1a · oldsrv reinstalled interactively — preseed automation bypassed after four delivery failures `[MANUAL]`
