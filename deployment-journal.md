@@ -1047,7 +1047,24 @@
   `op item create/get/edit … < /dev/null` (non-TTY stdin fix).
 
 
-*(no entries yet)*
+### 2026-08-26 — deploy-speed class: profile_tasks + bulk 1Password pre-pass (HD-257/258/259) — live surgical converge
+
+- Plan ref: todo HD-257/HD-258/HD-259 (Ansible deploy-speed audit); owning docs `docs/deployment-ansible.md` (bulk pre-pass), `scripts/README.md`, `deployment-manual.md` (ext4 runner HD-259 in effect).
+- **Commands run (as executed, on the WSL ext4 runner `/home/domen/source/homelab`):**
+  ```bash
+  # HD-257: callbacks_enabled = ansible.builtin.profile_tasks added to IaC/ansible/ansible.cfg
+  # HD-258 live surgical converge (one service, renders from the vault dict):
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=headscale --limit vps
+  ssh ansible-admin@vps.kogler.si 'docker ps --filter name=headscale --format "{{.Names}} {{.Status}}"; docker exec headscale headscale health'
+  ```
+- **Settings chosen:**
+  - `callbacks_enabled = ansible.builtin.profile_tasks` (per-run top-task timing, HD-257)
+  - `scripts/op-vault-export.py --derive`: expand enabled docker_services' `template_dir` -> `_template_vault_items` -> fetch each item once concurrently (`op item get --reveal`); ~34 items in 2.4s (vs ~160 sequential per-template `op` spawns)
+  - `fetch-vault-pass.yml`: delegate_to localhost, run_once, no_log, become:false; derive (default) or explicit list mode; merges into a `vault` fact
+  - static pre-pass runs BEFORE the authentik lane; litellm scoped keys (`litellm_scoped_keys.vault_item`) excluded from static and fetched in a post-litellm bootstrap refresh
+- **Secrets touched:** `Homelab-ansible` items READ only (names logged, values no_log) — none rotated this session.
+- **Verify:** `validate-all.sh` green; `ansible-playbook --syntax-check` green; live headscale converge RC=0 (`ok=28 changed=4 failed=0`); headscale container `Up` + `/health` OK.
+- **Deviations:** `deploy-service.yml` DB-sync guard lookups left on direct lookup (dynamic `svc.db_item`, rare/non-loop) — documented in the owning doc. HD-259 = runner already on WSL ext4 primary; docs de-staled.
 
 
 ### 2026-08-24 — Phase 1 · Rotate shared headscale OIDC client secret + encode “never a secret VALUE in output” hygiene rule (HD-235) `[AI]`
