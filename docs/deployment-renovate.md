@@ -122,3 +122,21 @@ Does NOT scan:
 - System packages (handled by `unattended-upgrades` on Debian)
 - RouterOS firmware (manual check)
 - The repo's build/test tools in `scripts/*.py` (no declared dependency manifest — the pip manager tracks `requirements*.txt` only)
+
+---
+
+## Run model & triggers (HD-264 sandbox, 2026-08-26)
+
+Renovate needs **no push webhook and no job scheduler** to detect updates — it **polls** the configured
+repos on its own cadence (the renovate CLI is pull-based). Two things are therefore **optional**, NOT
+required for correctness:
+- A **push webhook** would only make detection *instant* after a push; it is not needed for Renovate to
+  work.
+- A `schedule`/cron (`RENOVATE_CRON` / `schedule` in config) only gates **when** runs are allowed
+  (e.g. nightly, avoid work hours) to limit noisy PRs/CI churn — optional policy, not a correctness need.
+
+**Container run-model (the actual fix for the exit-0 restart churn):** Renovate is a *run-once* image —
+it does one pass then exits 0. Combined with `restart: unless-stopped` and no schedule, Docker restarts it
+immediately → tight loop (`RestartCount=3392` live). Correct models: (a) long-running daemon/sidecar that
+keeps sleeping between polls, (b) a systemd timer / cron that invokes it on a cadence, or (c) run-on-demand.
+HD-264 (todo) builds a working model plus the `domen/test` sandbox; GitHub migration stays the LAST step.
