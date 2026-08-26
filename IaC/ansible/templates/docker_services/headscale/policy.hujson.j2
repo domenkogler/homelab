@@ -4,35 +4,47 @@
 // This is the *traffic* policy for the kogler.si mobile mesh (Headscale).
 // Behaviour note: OIDC-authenticated clients are AUTO-APPROVED (there is no separate
 // registration gate in config.yaml), so this file is the enforcement boundary:
-// it decides what an auto-joined family node may reach. The policy below is a
-// genuine ACL (non-empty `acl_policy_path`), not the `""` default which allowed
-// unrestricted `*:*` traffic that the old "requires admin approval" comment
-// wrongly claimed to prevent.
+// it decides what an auto-joined family node may reach.
 //
-// Default posture: only nodes carrying the `tag:kogler` tag (applied by the
-// mesh admin via `headscale nodes tag`) may talk to the rest of the mesh.
-// Untagged / rogue auto-joined nodes are denied by default.
+// Default posture (TIGHTENED, HD-252 ④): deny-by-default. A node may talk ONLY to
+// nodes owned by a listed family user — see the `acls` list below. Rogue/untagged
+// nodes (e.g. auto-joined via a leaked pre-auth key or an unknown OIDC subject) are
+// denied by headscale's empty-default for anything not explicitly accepted.
+//
+// User reference format (verified against headscale v0.29.3 policy v2 tests + docs):
+//   src  = the OIDC user's email, e.g. "domen@kogler.si"
+//   dst  = same email + ":<port>", e.g. "domen@kogler.si:*" (:* = all ports)
+// Headscale resolves these against each user's Email field. The localpart form
+// ("domen@") also works for src; the full email is used here for explicitness.
+//
+// NOTE on tags (the older HD-84 target): headscale v2 requires tags to be DECLARED
+// in tagOwners before ACLs may reference them, and there is no autogroup:admin source
+// here (admin username only exists post-OIDC). tagOwners is therefore intentionally
+// left EMPTY and ACLs are user-EMAIL-based rather than tag-based. If/when more family
+// members join and we want shared-service nodes (tag:kogler), add the tag + owner here
+// and switch these rules to tag:*, e.g. src:["tag:kogler"] dst:["tag:kogler:*"].
+//
+// Adding a family member: add one accept rule per user mirroring the layout below.
 {
   "groups": {},
 
-  // Only the mesh administrator may apply the kogler tag. Headscale v2 has no
-  // autogroup:admin here (Wave-3 R5) and the admin's headscale username only exists after
-  // first OIDC login - so tagOwners stays EMPTY: tagging happens server-side via
+  // Only the mesh administrator may apply a kogler tag. Headscale v2 has no
+  // autogroup:admin here (Wave-3 R5) and the admin username only exists after OIDC
+  // login — so tagOwners stays EMPTY: tagging happens server-side via
   // `headscale nodes tag` (CLI on the VPS, no policy check). Populate with the admin's
   // username ONLY if self-service advertise-tags is ever wanted.
   "tagOwners": {},
 
-  // INTERIM (Wave-3 R5, 2026-08-22): headscale v2 requires tags to be DECLARED (via
-  // tagOwners) before ACLs may reference them, and has no autogroup:admin source. Real
-  // usernames only exist after first OIDC login, so the tag-based deny-by-default design
-  // cannot be expressed yet. Interim: any ENROLLED node reaches any other - enrolment
-  // itself is gated by Authentik OIDC. TIGHTEN at first enrolment: replace src/dst with
-  // the real admin/family usernames (or declared tags) per the HD-84 posture.
+  // REAL ACL — TIGHTENED at first enrolment (HD-84 / HD-252 ④, 2026-08-26).
+  // Family mesh is currently a single user (domen@kogler.si, OIDC-linked). Each member
+  // may reach their OWN nodes; everything else is denied by default. Extend the list
+  // as family members join (add one {"src":["<user>@kogler.si"],"dst":["<user>@kogler.si:*"]}
+  // entry per member).
   "acls": [
     {
       "action": "accept",
-      "src": ["*"],
-      "dst": ["*:*"]
+      "src": ["domen@kogler.si"],
+      "dst": ["domen@kogler.si:*"]
     }
   ]
 }

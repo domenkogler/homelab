@@ -599,6 +599,24 @@
 - **Health after all changes:** headscale/headplane healthy, edge `https://vpn.kogler.si/health` 200, only 2 benign ERR in logs (the pre-fix 16:57:40 unverified-email + the expected 17:46:57 disconnect-after-delete `node not found: 3`).
 - **Secrets touched:** none. **Deviations:** none beyond the already-documented `email_verified_required: false` relaxation (family-trusted users behind `allowed_domains`).
 
+### 2026-08-26 — Phase 1 · HD-252 ④ DONE: ACL tightened at first enrolment — `*:*` → deny-by-default user-based `policy.hujson` `[AI]`
+
+- **Objective ④ (HD-84 TIGHTEN-promise) closed.** Both devices now enrolled under the OIDC-linked user `domen@kogler.si` (laptop node 4 `Domen_P14s`, phone node 5 `Naprava A54` — CGNAT overlay IPs per SSOT). Replaced the interim `*:*` in `policy.hujson.j2` with a deny-by-default user-based policy:
+  ```json
+  {"acls":[{"action":"accept","src":["domen@kogler.si"],"dst":["domen@kogler.si:*"]}]}
+  ```
+  (User-reference format verified against headscale v0.29.3 policy v2 tests + docs: `src`=OIDC email, `dst`=email+`:port`; `tagOwners` left empty because headscale v2 requires tags be declared before ACLs may reference them and there is no `autogroup:admin` source here.)
+- **Applied live + validated, then restarted headscale:**
+  ```bash
+  sudo cp policy.hujson /tmp/policy.hujson.bak
+  sudo cp /tmp/new_policy.hujson policy.hujson        # new content written over the bind-mount
+  echo y | docker exec -i headscale headscale policy check --bypass-grpc-and-access-database-directly --file /etc/headscale/policy.hujson   # -> "Policy is valid" (resolves domen@kogler.si vs live DB)
+  docker compose restart headscale
+  docker exec headscale headscale policy get   # effective ACL = the new deny-by-default rule
+  ```
+- **Verification:** `policy check --bypass-grpc` = **Policy is valid** (user reference resolved against the live DB); restarted for headscale 200; Node node `Naprava A54` reconnected **online** at 18:20:05Z under the tightened policy; **0** deny/unauthorized log lines; `/health` 200. Laptop `Domen_P14s` shows offline because its Tailscale nx client is currently disconnected (client-side, not a policy denial).
+- **Docs pulled in same change:** network-vpn.md layer-2 contract + registration/ACL stanza rewritten (interim `*:*` → tightened; tag-based model documented as the later option). `tagOwners` empty + rationale recorded in template comments. **Secrets touched:** none. **Deviations:** none — this is the documented HD-84 TIGHTEN-at-first-enrolment.
+
 ## Phase 1a — Parallel Track: NAS Pools + Host Installs
 
 ### 2026-08-23 — Phase 1a · oldsrv reinstalled interactively — preseed automation bypassed after four delivery failures `[MANUAL]`

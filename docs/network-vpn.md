@@ -54,9 +54,11 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 > **Naming + policy contract (Wave-3 R5, 2026-08-22):** headscale ≥ 0.24 REJECTS a
 > `server_url` inside `base_domain`, so node names live under the dedicated subtree
 > **`<node>.ts.kogler.si`** (`base_domain: ts.kogler.si`); the control plane stays
-> `https://vpn.kogler.si`. Reversible until the first client enrols. Interim ACL =
-> `*:*` (enrolment itself is Authentik-OIDC-gated); TIGHTEN to named users/tags at first
-> enrolment per the HD-84 posture — see `policy.hujson.j2`.
+> `https://vpn.kogler.si`. **ACL TIGHTENED at first enrolment (HD-252 ④, 2026-08-26):**
+> the interim `*:*` is replaced by a deny-by-default policy — each family user (by OIDC
+> email) may reach only their OWN nodes (see `policy.hujson.j2`; currently single user
+> `domen@kogler.si`). Enrolment itself remains Authentik-OIDC-gated; add one accept rule
+> per family member as they join.
 
 - Runs on the **VPS** as a Docker container (HD-135: public coordination server, VPS residency)
 - Overlay subnet: `headscale` (CIDR per SSOT)
@@ -66,9 +68,13 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 - Mesh clients → VPS Headscale (public, its purpose) → over S2S → home LAN; each node has an ACL-gated path home
 - **Registration & ACL (HD-84 / KOPS-022):** OIDC-authenticated clients are **auto-approved** by
   Headscale (no separate registration gate in `config.yaml`). The traffic boundary is therefore a **real
-  ACL policy** (`policy.hujson`, rendered alongside `config.yaml`): only nodes carrying the admin-applied
-  `tag:kogler` may reach the family mesh (`tag:kogler:*`), and only the mesh admin (`autogroup:admin`)
-  can apply that tag. Untagged / rogue auto-joined nodes are denied by default.
+  ACL policy** (`policy.hujson`, rendered alongside `config.yaml`). **User-based (current, HD-252 ④):**
+  deny-by-default — each OIDC user's email may reach only that user's own nodes; `tagOwners` stays empty
+  because headscale v2 requires tags be DECLARED before an ACL may reference them and there is no
+  `autogroup:admin` source here, so ACLs are user-email-based. **Tag model for later (original HD-84
+target):** if/when a shared-service `tag:kogler` is wanted, declare it + its owner in `tagOwners` and
+  switch these rules to `tag:kogler:*` (only the mesh admin applies the tag; untagged/rogue nodes are
+  denied by default).
 
 ### Admin UI: Headplane (HD-233, `https://vpn.kogler.si/admin`)
 
