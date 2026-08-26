@@ -263,6 +263,66 @@ Consequences applied here: the glue's ephemeral mint stays (immune by constructi
 scoped persisted `authentik-provision_api` (HD-211) follows rule 1; `authentik-api_token`
 (sync-authentik-users glue) gets a one-time `expiring=False` verification at its next live touch.
 
+#### Rotating a shared Authentik OIDC client secret (runbook; verified 2026-08-26)
+
+The recipe the CONVENTIONS §2 *Secret output hygiene* row points at for a shared OIDC
+client (`headscale_api` = headscale + headplane; pattern generalizes to any glue-seeded
+`*_oidc` / grandfathered client). The whole value-transfer runs **on the VPS host**, so the
+secret never reaches the runner session / argv / git. **Hashes & lengths only** in any output.
+
+```bash
+# 0) Pre-flight state: confirm the split (DB already has the NEW value, vault holds OLD).
+#    Read the provider secret on-box, hash-only:
+bash scripts/ak-shell.sh 'from authentik.providers.oauth2.models import OAuth2Provider
+import hashlib
+p = OAuth2Provider.objects.get(pk=13)
+print(hashlib.sha256(p.client_secret.encode()).hexdigest())'
+op read "op://Homelab-ansible/headscale_api/credential" | sha256sum   # compare to above
+
+# 1) Drop the NEW DB secret into the worker container /tmp (ak-shell is the sanctioned write path;
+#    the worker container cannot reach /media — root-owned, uid 1000 gets EACCES):
+bash scripts/ak-shell.sh 'from authentik.providers.oauth2.models import OAuth2Provider
+p = OAuth2Provider.objects.get(pk=13)
+open("/tmp/hs_new_secret.txt","w").write(p.client_secret)'
+
+# 2) Worker -> VPS host temp file. **Do NOT use `docker cp` — it is broken on this host**
+#    ("Could not find the file" despite `docker exec ls` showing it). Use `docker exec cat`:
+ssh ansible-admin@vps.kogler.si \
+  'sudo docker exec authentik-worker cat /tmp/hs_new_secret.txt > /tmp/hs_secret_raw.txt \
+   && tr -d "\n" </tmp/hs_secret_raw.txt > /tmp/hs_secret.txt'
+
+# 3) (on VPS) fail-closed hash-assert crawled value == DB secret, then apply to 1Password.
+#    **`op item edit` cannot combine --template with stdin** ("cannot edit an item from template
+#    and stdin at the same time") — so `op item get` to a base file first, then edit from the file.
+ssh ansible-admin@vps.kogler.si '
+set -e
+[ "$(sha256sum /tmp/hs_secret.txt | awk "{print \$1}")" = "<DB sha256>" ] || exit 3
+export OP_SERVICE_ACCOUNT_TOKEN="$(sudo cat /etc/op/provision-token)"
+op item get headscale_api --vault Homelab-ansible --format json --reveal > /tmp/hs_item_base.json
+NEWSEC_VALUE="$(cat /tmp/hs_secret.txt)" SECRET_FILE=/tmp/hs_secret.txt python3 -c \
+  "import json,os; it=json.load(open('/tmp/hs_item_base.json'));
+   [f.update(value=open(os.environ['SECRET_FILE']).read()) for f in it['fields'] if f['id']=='credential'];
+   print(json.dumps(it))" > /tmp/hs_item_new.json
+op item edit headscale_api --vault Homelab-ansible --template /tmp/hs_item_new.json < /dev/null
+# verify stored hash == DB (hash-only), then rm the temp files + worker /tmp file'
+
+# 4) Re-render + restart the consumers (both share the SAME item; converges both):
+bash scripts/ansible-run.sh playbooks/vps.yml \
+  --tags docker_services -e docker_services_scope=headscale --limit vps
+#    -> /opt/headscale/config.yaml + headplane-config.yaml re-rendered to the new secret;
+#       restart-on-config-change guard fires (changed extra -> restart).
+
+# 5) Verify: token-endpoint replay (dummy code -> `invalid_grant` = client auth OK),
+#    `/health` HTTP 200, `docker exec headscale headscale health` rc=0.
+```
+
+> Gotchas learned live (2026-08-26):
+> - `docker cp authentik-worker:/tmp/...` fails on this box — use `docker exec cat` instead.
+> - `op item edit --template` + stdin are mutually exclusive — `op item get` to a file first,
+>   then hand `--template <file>` and redirect stdin from `/dev/null`.
+> - The worker can't write to `/media` (root-owned); its `/tmp` IS writable. The worker /tmp file
+>   is the reliable host-visible channel only via `docker exec cat` (docker cp can't see it).
+
 ### What stays manual (only two, one-time)
 - Creating/re-issuing the **1Password write-scoped service account** (`vps-op-write_api`) in the
   1Password admin console (show-once secret; item history can also restore a prior value).

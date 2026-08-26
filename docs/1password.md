@@ -121,4 +121,6 @@ Found live 2026-08-22 while restoring VPS access (deployment-journal Phase 1.0 /
 > chat (HD-233 incident). Rotating a shared Authentik client: regenerate the secret in the
 > provider ORM (providers don't expose `generate_client_id`; `authentik.lib.generators` has
 > `generate_id`/`generate_key`/`generate_code_fixed_length`), persist to the 1P item, then
-> re-render the consuming services (headscale + headplane read `headscale_api`) and verify.
+> re-render the consuming services (headscale + headplane read `headscale_api`) and verify —
+> full step-by-step (incl. the `docker cp`-broken + `op --template`-stdin gotchas) lives in
+> [`services-authentik.md`](services-authentik.md) *Rotating a shared Authentik OIDC client secret* runbook.
