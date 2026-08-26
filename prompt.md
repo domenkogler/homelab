@@ -1,19 +1,19 @@
-# prompt.md — Deployment Execution Handoff #17 — AI stack v2 architecture LOCKED (docs-only); next: plan-task the HD-247→251 cutover chain
+# prompt.md — Deployment Execution Handoff #18 — HD-253 session-discipline enforcement SHIPPED (guard live); next: plan-task the HD-247→251 cutover chain
 
-> **Active lanes:** hd253-enforcement — todo.md, changelog.md, prompt.md, README.md, CONVENTIONS.md, scripts/guard-session.sh, scripts/validate-all.sh, scripts/README.md, process-improvements-draft.md, prompt-workflow.md — since 2026-08-26 10:18
+> **Active lanes:** none
 
-> **Role:** Entry point for the next session. This session (2026-08-26) was a **docs-only decision/brainstorm session** on the AI stack. Verified claims live (including DeepSeek Harness upstream — MIT/TS-Cordis, no official Dockerfile, loopback-only Web UI) and locked **AI stack v2**: two capability-tiered Open WebUI instances, LiteLLM Postgres-backed spine with scoped per-consumer keys, n8n and DeepSeek Harness (DSH) as internal-tier services. **NO IaC / NO deploy was touched** — everything is planned and deploy-gated (HD-247 → HD-251). The next session SHOULD `plan-task` the cutover chain (difficulty-2→3, live-deploy, multi-service) before executing.
-> **Linked from:** [README.md](README.md) §2 · owning docs: [docs/services-ai.md](docs/services-ai.md) (v2 arch), [docs/security.md](docs/security.md) §10 Capability-tiering, [docs/network-vpn.md](docs/network-vpn.md) §Tailnet-exposed services (Patterns A/B) · changelog bundle **HD-247–251 (2026-08-26)** · journal entry 2026-08-26.
+> **Role:** Entry point for the next session. This session (2026-08-26) implemented **HD-253** mechanically per its locked decisions: `scripts/guard-session.sh` worktree guard (refuses edit-context on primary+main; `--validate-mode` hard-fails primary+main+DIRTY) wired into `validate-all.sh` with a sandboxed self-test, README §0 intent-routed start sequence, CONVENTIONS §4/§6 amendments (diff-rule, derived-values ban, branch-per-session checkbox, merge-station definition), and handoff restorations per the new diff-rule. Local tooling/docs only — NO IaC / NO deploy was touched. Source draft `process-improvements-draft.md` and `prompt-workflow.md` were deleted in the closing change (lifecycle §4). The AI-stack v2 planning from handoff #17 remains LOCKED but unbuilt — next session SHOULD `plan-task` the cutover chain before executing.
+> **Linked from:** [README.md](README.md) §0/§2 · [CONVENTIONS.md](CONVENTIONS.md) §4/§6 · [scripts/guard-session.sh](scripts/guard-session.sh) · [changelog.md](changelog.md) rows HD-253 + HD-247–251 · owning docs: [docs/services-ai.md](docs/services-ai.md) (v2 arch), [docs/security.md](docs/security.md) §10, [docs/network-vpn.md](docs/network-vpn.md) §Tailnet-exposed services.
 
 ---
 
 ## 0. Mandatory context (read in this order)
 
-1. [CONVENTIONS.md](CONVENTIONS.md) — §2 secret-output hygiene + secret→YAML `>-` rendering, §4 journal loop + post-task housekeeping, §5 service-onboarding checklist, §6 worktree discipline.
-2. [docs/services-ai.md](docs/services-ai.md) — **THE v2 architecture doc** (new §2 topology diagram, §4 scoped-key inventory table, §5 knowledge split, §6 exposure posture, §9 decisions #11–17).
+1. [CONVENTIONS.md](CONVENTIONS.md) — §6 worktree discipline (**now MECHANICALLY enforced** by `scripts/guard-session.sh` + validate-all hard-gate), §4 journal loop + post-task housekeeping + new close-out items ⑤–⑦, §2 secret-output hygiene + secret→YAML `>-` rendering, §5 service-onboarding checklist.
+2. [docs/services-ai.md](docs/services-ai.md) — **THE v2 architecture doc** (§2 topology diagram, §4 scoped-key inventory table, §5 knowledge split, §6 exposure posture, §9 decisions #11–17).
 3. [docs/security.md](docs/security.md) — **§10 Capability-tiering / management-plane separation** (the master invariant).
 4. [docs/network-vpn.md](docs/network-vpn.md) — **§Tailnet-exposed services**: Patterns A/B recipes + node/tag table.
-5. [changelog.md](changelog.md) — **HD-247–251** decision bundle (+ existing **HD-246** RAG lock).
+5. [changelog.md](changelog.md) — **HD-247–251** decision bundle (+ existing **HD-246** RAG lock) + fresh **HD-253** implementation record.
 6. [deployment-journal.md](deployment-journal.md) — 2026-08-26 entry (decision session).
 
 ## 1. Environment (Windows 11 laptop)
@@ -22,7 +22,8 @@ Same as handoff #16 (unchanged): git-bash, forward-slash, `py -3`, UTF-8 no-BOM,
 
 ## 2. State snapshot (start of next session)
 
-- **main, docs-only changes uncommitted in the working tree** from handoff #17's decision session: `todo.md` (5 new HD rows HD-247–251 + HD-104/HD-246 amendments), `changelog.md` (decision bundle), `docs/services-ai.md`, `docs/security.md`, `docs/network-vpn.md`, `docs/services-utilities.md`, `docs/services-matrix.md`, `deployment-journal.md`. **Commit + push these first** (validate green already run).
+- **main carries the two HD-253 commits (feature `c13dd44` + close-out) NOT YET PUSHED** — pushing is OWNER's call. The session ran in worktree `homelab-wt-20260826-1018`, branch `session/hd253-workflow-enforcement`, merged back ff-only.
+- **The worktree rule is now ENFORCED:** a session starting on the primary checkout gets refused by `guard-session.sh`; `validate-all.sh` fails on primary+main+DIRTY. Start every session with the worktree ritual (README §0).
 - **AI stack v2 is PLANNED, not built.** Key dependencies/prereqs to respect:
   - **HD-247 (spine, first):** pin `litellm_version` semver (drop `main-stable` fluid tag) → LiteLLM Postgres + `STORE_MODEL_IN_DB` → migrate models to DB → bootstrap-keys glue (7 scoped keys → 1P) → swap consumers off `master_key` (retire it from all templates). *Everything else depends on HD-247.*
   - **HD-248:** parametrize open-webui compose to render twice; `chat.kogler.si` public / `ai.kogler.si` internal (drop public `ai.` DNS) + Element→`msg.kogler.si`; public-KB restriction pins.
@@ -36,8 +37,7 @@ Same as handoff #16 (unchanged): git-bash, forward-slash, `py -3`, UTF-8 no-BOM,
 
 ## 3. Next-session execution order
 
-### 3a. First: commit the decision-session docs (validated green already)
-Commit the working-tree docs-only changes from handoff #17 (single commit, green). Then decide with the owner: **plan-task the HD-247→251 cutover** (chain ①pin → ②Postgres/STORE_MODEL_IN_DB → ③sidecars+ACL → ④keys → ⑤consumers → ⑥owui-int → ⑦KB dual-ingest → ⑧dsh → ⑨openclaw onboard → ⑩dsh deploy → ⑪headplane). This is the recommended next step.
+### 3a. First: decide with the owner — **plan-task the HD-247→251 cutover** (chain ①pin → ②Postgres/STORE_MODEL_IN_DB → ③sidecars+ACL → ④keys → ⑤consumers → ⑥owui-int → ⑦KB dual-ingest → ⑧dsh → ⑨openclaw onboard → ⑩dsh deploy → ⑪headplane). This is the recommended next step. (The #17 docs-commit prerequisite is DONE.)
 
 ### 3b. Owner-action chase (unchanged from #16, non-blocking)
 - **HD-101 verify after the open-webui OIDC template converges:** ① "Continue with Authentik" button renders on ai.kogler.si ② owner SSO round-trip LINKS the existing local admin by email (`OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true` — no duplicate account) ③ family-side sanity: local signup rejected, SSO-created accounts land `pending` ④ LiteLLM completion test + RAG verify → trim HD-101 ⏳ tail + changelog close-out.
@@ -51,6 +51,6 @@ Commit the working-tree docs-only changes from handoff #17 (single commit, green
 - **HD-112 / HD-252 backlog** as they read. **Phase-2 backlog note:** Zipline `/drop` static glue page (Traefik PathPrefix-priority router, same-origin) — only if the owner asks; NOT queued.
 - **Converge ride-along checks** (fold into any upcoming docker_services converge): observe residual ① extras-restart guard behavior (zero spurious restarts on unchanged extras / exactly one per changed extra, HD-236) + ② confirm the `apply-authentik-blueprints.yml` one-shot task fired green in the same run + ③ open-webui container RECREATED with the corrected OIDC env (verify `docker exec open-webui printenv OPENID_PROVIDER_URL` non-empty post-up), then walk §3b HD-101 verify; journal all three, then trim the ⏳ tails via an append-only R-row.
 
-## 4. Working rules (binding) — unchanged from #16
+## 4. Working rules (binding)
 
-Fresh worktree per session; 9P gate before every converge; surgical `--tags`; secrets 1P-item.field only + `>-` for YAML; persisted Authentik tokens always `expiring=False` (HD-216); journal append-only; owning doc + changelog row in same change; English; relative links; Authentik blueprint pin array attrs (HD-231); don't touch headplane/headscale unless asked. **+ new (2026-08-26): no multi-line bash heredocs with backslashes/backticks — write+run temp script files instead.**
+Fresh worktree per session BEFORE any edit — now mechanically enforced (`bash scripts/guard-session.sh` refuses edits on primary+main; `validate-all.sh` hard-fails primary+main+DIRTY); merge back only committed+green, ff-only; primary = merge station only. 9P gate before every converge; surgical `--tags`; secrets 1P-item.field only + `>-` for YAML; persisted Authentik tokens always `expiring=False` (HD-216); journal append-only; owning doc + changelog row in same change; English; relative links; Authentik blueprint pin array attrs (HD-231); don't touch headplane/headscale unless asked. **Handoff diff-rule (CONVENTIONS §4): edit the previous handoff, never rewrite from scratch; computable pointers are derived at write time, never typed.** No multi-line bash heredocs with backslashes/backticks on this host — write+run temp script files instead.
