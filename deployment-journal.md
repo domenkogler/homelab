@@ -554,6 +554,69 @@
 - **Lanes A+B shipped to main:** scanner (`f1e9eee`), litellm spine (`5388dda` + `5ebdcb8`), close-out/bookkeeping (`4901a9b`), scanner v2 (`6493126`), seed-note (`b4158de`) — all ff-merged from session branches in per-session worktrees, pushed; worktrees pruned.
 - Notes: renovate stays pointed at `domen/test` until the owner migrates `domen/homelab` (delayed); HD-252 Lane D will VERIFY the owner's manual domen↔OIDC provider_identifier link rather than re-migrate.
 
+### 2026-08-26 — Phase 1 · HD-252 Lane D: headscale OIDC recovery + container recycle, surgical-converge blocker found `[AI]`
+
+- Plan ref: todo HD-252 ①②; prompt.md §3b Lane D; owning docs docs/network-vpn.md, docs/deployment-oidc.md. 9P sync gate green BOTH sides (`309a6782…` = `309a6782…`) against the session worktree (`homelab-wt-20260826-1600`, branch `session-headscale-oidc`); WSL Ansible runner reachable (ansible `ping` on `vps.kogler.si` = pong); direct SSH via the Windows OpenSSH `vps-ansible` alias.
+- **Root cause re-confirmed live:** headscale container started `2026-08-23T20:36Z` (RestartCount 8, pre-HD-235-rotation) — process memory held the STALE pre-rotation OIDC client_secret, so every enrolment died `invalid_client`; the on-disk `config.yaml` (same 128-char secret, block-scalar `>-` rendered correctly) was already good — headplane (restarted `2026-08-24T08:47Z`) shared the new secret and worked.
+- **Fix (commands as run, surgical — headscale container ONLY, no other lane folds):**
+  ```bash
+  ssh vps-ansible
+  cd /opt/headscale
+  docker compose up -d --no-deps headscale          # NO-OP: spec unchanged, container left running (root cause of the gap)
+  docker compose up -d --no-deps --force-recreate headscale   # forces recycle -> new process reads the good config
+  docker ps --filter name=headscale --format '{{.Names}}: {{.Status}}'   # headscale: Up …  Started 2026-08-26T14:05:00Z, RestartCount 0
+  ```
+- **Verification (secrets never printed — lengths/codes only):**
+  - token-endpoint replay on the VPS (python3 yaml-parse on-disk creds → POST `https://sso.kogler.si/application/o/token/` with a DUMMY code): previous `invalid_client` → now **`HTTP 400 / error = invalid_grant`** (= client auth OK; the exact HD-252 success criterion). `client_id` 40, `client_secret` 128.
+  - control plane healthy: `/health` 200, `/api/v1/node` + `/api/v1/user` 200 (headplane polling every minute), zero errors in logs since recycle.
+  - clients: laptop node `Domen_P14s` reconnected **online 2026-08-26 14:05:03Z** (right after the recycle); phone `Naprava A54` offline (pre-existing); both no tags (interim `*:*` ACL intact).
+- **New blocking finding (→ todo HD-255):** the documented surgical converge `--tags "docker_services,headscale"` does **NOT** filter per-service — a `--check` run executed ALL services' tasks (compose up + restart guard for authentik/traefik/crowdsec/opencloud/onlyoffice/immich/forgejo/zipline/litellm/traefik…): the `Deploy each enabled service` include's `tags: docker_services` cascades into inner-task effective tags, so per-service `{{ svc.name }}` tags give no narrowing. Additionally the extras restart-on-change guard in `deploy-service.yml` (`Restart … to apply changed extra config`) aborts with `Error evaluating conditional: object of type 'dict' has no attribute 'item'` on a service whose template-result lacks `item` — likely why the Aug-24 re-render never restarted headscale. Tracked as NEW HD-255 (authoring fix, not a live blocker).
+- **Session execution model:** change happened via direct host ops (least blast radius), iterated repo discipline in the session worktree (todo HD-252 updated, HD-255 added, this journal entry, prompt.md §3b ref), `bash scripts/validate-all.sh` green before close.
+- **Owner device-gated remainders:** HD-252 ② full browser `/register`→sso→`/oidc/callback` round-trip (server leg verified; needs a logged-in browser + Tailscale app); ③ LIVE VERIFY FAILED — headscale user `domen` (ID 1, 2026-08-25) has empty email and NO provider_identifier (hand-created; `headscale users list` shows no OIDC link), so the Lane-D path is: owner deletes the hand-created `domen` user and re-enrolls ONE device through the now-working OIDC flow (or explicitly accepts hand-created); ④ tighten interim ACL `*:*` in `policy.hujson.j2` per TIGHTEN promise once ③ yields a real OIDC identity.
+- **Secrets touched:** none written to git/chat; `headscale_api.credential` read on-box via yaml+probe only for the replay (lengths reported, never value). **Deviations:** none — the documented Lane-D surgical fix executed directly because the documented surgical-tag converge is (separately, HD-255) broken. **Follow-up same session → next entry:** OIDC login still 401 — Authentik hardcodes `email_verified: False`; fixed via headscale `oidc.email_verified_required: false`.
+
+### 2026-08-26 — Phase 1 · HD-252 follow-up: OIDC login still 401 — root cause = Authentik hardcodes `email_verified: False`; fix `oidc.email_verified_required` `[AI]`
+
+- **Stimulus:** owner tried adding the phone via the Tailscale Android app → `/oidc/callback` **401 Unauthorized: You are not authorized**. Headscale logs showed `ERR user msg: unverified email error="authenticated principal has an unverified email" code=401` at 16:57:40Z.
+- **Root cause (verified against upstream source, both sides):** headscale v0.29.3 defaults `oidc.email_verified_required: true` (`config-example.yaml` l.417; `doOIDCAuthorization` in `hscontrol/oidc.go` — with `allowed_domains` set and `!emailVerified`, it short-circuits to `401 unverified email`). The Authentik 2026.5.6 default `OpenID 'email'` scope mapping **hardcodes `email_verified: False`** (verified in source + the provider's bound ScopeMappings: pk `fc468837…` returns `{"email": request.user.email, "email_verified": False}`). So every OIDC consumer gets `email_verified: false`; headscale (strict default) rejects all logins. The prior recycle fixed the `invalid_client` half; this was the second-half blocker.
+- **Fix (surgical, headscale config only — family-trusted internal users, `allowed_domains: kogler.si` still enforced):**
+  ```bash
+  # live (/opt/headscale/config.yaml, root-owned -> sudo; .bak in /tmp)
+  sudo awk '{print} /^[[:space:]]*- kogler\.si$/{print "  email_verified_required: false"}' config.yaml | sudo tee config.yaml.new >/dev/null && sudo mv config.yaml.new config.yaml
+  docker compose restart headscale
+  # verify: grep email_verified_required; python3 yaml -> oidc.email_verified_required == False, allowed_domains==['kogler.si']
+  # status: headscale Up, edge https://vpn.kogler.si/health 200, headplane healthy (1 transient 'failed to poll nodes' during restart only), laptop node online
+  ```
+  IaC template `IaC/ansible/templates/docker_services/headscale/config.yaml.j2` updated the same way with a comment explaining the why + the `allowed_domains` mitigation + the upstream-correct alternative. Tracked in todo HD-255 as a follow-up (a provider-scoped Authentik scope mapping emitting `email_verified: True` would restore headscale's strict default without weakening it).
+- **Verification:** live config valid YAML, `email_verified_required=False`, `allowed_domains=['kogler.si']`; headscale restarted + `/health` 200; the `config.yaml` bind-mount is re-read on restart so the running headscale has the new value. Owner retries the phone in the Tailscale app.
+- **Secrets touched:** none NEW this entry; the on-box `client_secret` surfaced again while dumping the oidc block — still queued for rotation per secret-hygiene (HD-211/HD-235 note); do NOT persist it. **Deviations:** relaxing headscale's default email-validation is a deliberate, documented security-posture choice for family-trusted users behind `allowed_domains`; the strict-default restoration is tracked as an Authentik-side fix.
+
+### 2026-08-26 — Phase 1 · HD-252 CORE DONE: first-ever successful OIDC callback — phone enrolled + owner cleanup (users/nodes) `[AI]`
+
+- **Milestone reached (2026-08-26):** the first-ever successful `/oidc/callback` — the phone added via the Tailscale app with NO error, landing under the OIDC-linked account. Logs: `17:43:30 GET /register/hskey-authreq-… 302` → `17:44:05 POST /register/confirm/hskey-authreq-… 200` → `17:44:06 INF node connected … node.name="Naprava A54 uporabnika Domen" user.name=domen@kogler.si node.online=true`. This closes HD-252 ② core (the row's core: first successful callback + device auto-provisioned under an OIDC-linked user).
+- **Owner action (③ resolved):** owner deleted the hand-created user ID 1 (no email/provider_identifier) in Headplane. Confirmed live: only user ID 2 `domen@kogler.si` (email `domen@kogler.si`) remains — the OIDC-linked account is correct.
+- **Cleanup side-effect to redo (⏳):** deleting the old user removed the laptop node (node 1 `Domen_P14s`) and the owner separately removed the just-added phone (node 3) — `headscale nodes list` is now EMPTY. The OIDC flow is proven working, so re-enrolling both devices is quick: they re-join under `domen@kogler.si`. Keep the interim ACL `*:*` until both are back (HD-252 ④ TIGHTEN-at-first-enrolment promise applies once real OIDC identities are present).
+- **Health after all changes:** headscale/headplane healthy, edge `https://vpn.kogler.si/health` 200, only 2 benign ERR in logs (the pre-fix 16:57:40 unverified-email + the expected 17:46:57 disconnect-after-delete `node not found: 3`).
+- **Secrets touched:** none. **Deviations:** none beyond the already-documented `email_verified_required: false` relaxation (family-trusted users behind `allowed_domains`).
+
+### 2026-08-26 — Phase 1 · HD-252 ④ DONE: ACL tightened at first enrolment — `*:*` → deny-by-default user-based `policy.hujson` `[AI]`
+
+- **Objective ④ (HD-84 TIGHTEN-promise) closed.** Both devices now enrolled under the OIDC-linked user `domen@kogler.si` (laptop node 4 `Domen_P14s`, phone node 5 `Naprava A54` — CGNAT overlay IPs per SSOT). Replaced the interim `*:*` in `policy.hujson.j2` with a deny-by-default user-based policy:
+  ```json
+  {"acls":[{"action":"accept","src":["domen@kogler.si"],"dst":["domen@kogler.si:*"]}]}
+  ```
+  (User-reference format verified against headscale v0.29.3 policy v2 tests + docs: `src`=OIDC email, `dst`=email+`:port`; `tagOwners` left empty because headscale v2 requires tags be declared before ACLs may reference them and there is no `autogroup:admin` source here.)
+- **Applied live + validated, then restarted headscale:**
+  ```bash
+  sudo cp policy.hujson /tmp/policy.hujson.bak
+  sudo cp /tmp/new_policy.hujson policy.hujson        # new content written over the bind-mount
+  echo y | docker exec -i headscale headscale policy check --bypass-grpc-and-access-database-directly --file /etc/headscale/policy.hujson   # -> "Policy is valid" (resolves domen@kogler.si vs live DB)
+  docker compose restart headscale
+  docker exec headscale headscale policy get   # effective ACL = the new deny-by-default rule
+  ```
+- **Verification:** `policy check --bypass-grpc` = **Policy is valid** (user reference resolved against the live DB); restarted for headscale 200; Node node `Naprava A54` reconnected **online** at 18:20:05Z under the tightened policy; **0** deny/unauthorized log lines; `/health` 200. Laptop `Domen_P14s` shows offline because its Tailscale nx client is currently disconnected (client-side, not a policy denial).
+- **Docs pulled in same change:** network-vpn.md layer-2 contract + registration/ACL stanza rewritten (interim `*:*` → tightened; tag-based model documented as the later option). `tagOwners` empty + rationale recorded in template comments. **Secrets touched:** none. **Deviations:** none — this is the documented HD-84 TIGHTEN-at-first-enrolment.
+
 ## Phase 1a — Parallel Track: NAS Pools + Host Installs
 
 ### 2026-08-23 — Phase 1a · oldsrv reinstalled interactively — preseed automation bypassed after four delivery failures `[MANUAL]`
