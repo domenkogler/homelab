@@ -55,6 +55,11 @@ tags: [deployment, ansible, iac]
 - **The `field=` parameter is mandatory.** The lookup defaults to `password`, which is
   NOT always the right field (API credentials use `credential`; Database items also carry
   `username`).
+- **Bulk-fetch mode (HD-258):** to avoid re-spawning `op` per lookup (≈160/converge), the
+  `docker_services` role batches the needed item set into a `vault: {...}` dict once and
+  renders from it (see the §docker_services *Bulk 1Password pre-pass*). New templates may
+  consume the dict (`vault['<item>'].<field>`) instead of a raw lookup; keep the fail-closed
+  contract either way.
 
 ### Role structure
 - **One entry point:** `tasks/main.yml` → `include_tasks:` for sub-files
@@ -480,6 +485,27 @@ domain_local: kogler.si
   6. `docker compose up -d` (systemd unit `docker-compose@{{ item.name }}`)
 - **Post-deploy:** Template Homepage config, inventory docs, reload Homepage, commit to Git
 - **Tags:** Each service task tagged with `{{ item.name }}`
+- **Bulk 1Password pre-pass (HD-258 — deploy speed):** each `community.general.onepassword`
+  `lookup()` spawns the `op` CLI on the control node (≈160 spawns per VPS converge across
+  compose/extras templates + `deploy-service.yml` guards + `monitoring` + role defaults).
+  Batch them: one pre-pass fetches the **needed item set once** (`delegate_to: localhost`,
+  `run_once`, `no_log`) into a `vault: {<name> -> {username,password,credential}}` dict, then
+  renders read from the dict instead of re-invoking `op` per template:
+  ```yaml
+  - name: Fetch all vault items once
+    ansible.builtin.shell:
+      cmd: op item get "{{ item }}" --vault "{{ op_vault }}" --format json
+    loop: "{{ op_items_needed }}"
+    register: op_items
+    no_log: true
+    changed_when: false
+  ```
+  then `vault: {...}` via `set_fact`, and templates/guards switch from
+  `lookup('community.general.onepassword', ...)` to `{{ vault['headscale_api'].username }}` etc.
+  **Fail-closed contract (HD-91/HD-65) must hold:** no `default('')`, assert the backend is up,
+  assert every needed name resolves (absent name → loud failure). Do it **incrementally per
+  template_dir** — each service's render switches to the dict; the dict is populated only for
+  names that exist. Expected: tens of seconds off each full converge, seconds off surgical runs.
 ### `monitoring`
 - **Alloy:** host agent (Ansible-installed, not containerized) — host metrics, container logs (`docker.sock`), SNMP scrape
 - **Prometheus:** sole metrics backend, retention 30d, `db-internal`
