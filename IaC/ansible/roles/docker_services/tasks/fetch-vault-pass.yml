@@ -3,49 +3,64 @@
 #-----------------------------------------------------------------------------
 # Builds the `vault: {<item>: {username,password,credential,bcrypt_hash}}` dict
 # that every docker_services compose/config template now reads instead of calling
-# `community.general.onepassword` per template field. The heavy lifting is in
-# scripts/op-vault-export.py — ONE `op item get --reveal` per item (locally
-# parsed), replacing ~160 per-render `op` CLI spawns with ~55 (one per item).
+# `community.general.onepassword` per template field. scripts/op-vault-export.py
+# runs ONE `op item get --reveal` per item concurrently. In --derive mode it
+# derives the needed item set from the host's ENABLED services' template_dir ->
+# items map and fetches it; replaces ~160 per-render `op` spawns with ~50
+# concurrent one-per-item fetches.
 #
-# Invocation (in main.yml, after the op-CLI assert):
+# Invocation (in main.yml / deploy-service.yml, after the op-CLI assert):
 #   - include_tasks: fetch-vault-pass.yml
 #     vars:
-#       op_item_list: "[item1, item2, …]"   # jinja list of item names
+#       op_export_script: "<abs path to scripts/op-vault-export.py>"  # REQUIRED
+#       op_vault: "<1Password vault>"                                  # group_vars op_vault
+#       # derive mode (recommended):
+#       op_derive_spec: >-
+#         {{ {'services': <list of enabled template_dirs>,
+#             'map': _template_vault_items,
+#             'glue': <items to exclude, e.g. litellm scoped keys>} }}
+#       # (spec contains ONLY item names + map — NO secret values)
+#       # OR explicit list mode:
+#       op_item_list: "[name1, name2, …]"
 #
-# Contract (HD-91/HD-65): FAIL-CLOSED — every named item MUST resolve; a missing
-# item / down backend makes the helper exit non-zero -> task fails loudly
-# (NO default('')). Runs on the CONTROL node (delegate_to: localhost), run_once,
-# no_log (the stdin carries secret VALUES via the pipe; stdout into set_fact is
-# no_log). Idempotent: re-fetching re-reads current vault values every converge.
+# Contract (HD-91/HD-65): FAIL-CLOSED — every needed item MUST resolve; a missing
+# item / down backend makes the exporter exit non-zero -> task fails loudly
+# (NO default('')). delegate_to localhost, run_once, no_log (the pipe carries
+# secret VALUES; stdout into set_fact is no_log). Idempotent each converge.
+# also: become: false (the exporter + jq read the SA token on the control node;
+# no root). Idempotent each converge (rotation-safe).
 #
-# Result: a `vault` dict fact ({name -> {username,password,credential,bcrypt_hash}})
-# on the control host, visible to every template this role renders after the pass.
-- name: "HD-258 bulk 1Password pre-pass — export {{ op_item_list | length }} items into `vault`"
+# Result: `vault` dict fact on the control host, visible to every template render.
+- name: "HD-258 bulk 1Password pre-pass — export secrets into `vault`"
   delegate_to: localhost
   run_once: true
   no_log: true
-  changed_when: false
   vars:
-    # op-vault-export.py lives at the repo root under scripts/. playbook_dir =
-    # <repo>/IaC/ansible/playbooks when invoked via ansible-run.sh -> three
-    # levels up (playbooks->ansible->IaC) is <repo>. Robust to cwd.
-    export_script: "{{ playbook_dir }}/../../../scripts/op-vault-export.py"
-    item_list: "{{ op_item_list }}"
+    _derive: "{{ op_derive_spec is defined }}"
   block:
-    - name: "Run op-vault-export for the needed item set"
+    - name: "Run op-vault-export ({{ 'derive' if _derive else 'list' }})"
       ansible.builtin.shell:
         cmd: |
-          printf '%s\n' "{{ item_list | join('\n') }}" \
-            | python3 "{{ export_script }}" --vault="{{ op_vault }}"
+          if [ "{{ 'derive' if _derive else 'list' }}" = "derive" ]; then
+            printf '%s\n' '{{ op_derive_spec | to_json }}' \
+              | python3 {{ op_export_script }} --vault="{{ op_vault }}" --derive
+          else
+            printf '%s\n' {{ (op_item_list | default([])) | join(' ') }} \
+              | python3 {{ op_export_script }} --vault="{{ op_vault }}"
+          fi
         executable: /bin/bash
+      become: false
       register: op_vault_out
       no_log: true
       changed_when: false
       failed_when: op_vault_out.rc != 0
 
-    - name: "Set vault dict fact from the export"
+    - name: "Set vault dict fact from the export (merge)"
       ansible.builtin.set_fact:
-        vault: "{{ op_vault_out.stdout | from_json }}"
+        vault: "{{ (vault | default({})) | combine(op_vault_out.stdout | from_json) }}"
+      become: false
       no_log: true
       changed_when: false
-  when: (op_item_list | default([])) | length > 0
+  when: >
+    (op_derive_spec is defined and (op_derive_spec | length) > 0)
+    or (op_item_list is defined and (op_item_list | length) > 0)

@@ -355,3 +355,19 @@
   failed_when: lk_glue.rc != 0      # rc 2 stale-secret / rc 4 alias conflict abort loudly
   no_log: true
   tags: "{{ svc.name }}"
+
+# HD-258: after litellm's bootstrap glue mints the scoped virtual keys into
+# 1Password, refresh the `vault` dict with those items SO the open-webui/compat
+# consumers that follow litellm in the loop render against the real keys (they
+# are glue-created mid-deploy and were deliberately EXCLUDED from the static and
+# authentik-glue pre-passes, which run before they exist). Fail-closed: any
+# scoped key that did not get minted aborts loudly here.
+- name: "Refresh vault dict with litellm scoped keys ({{ svc.name }})"
+  when: svc.bootstrap_keys | default(false)
+  ansible.builtin.include_tasks:
+    file: fetch-vault-pass.yml
+  vars:
+    op_item_list: >-
+      {{ litellm_scoped_keys | default([]) | map(attribute='vault_item') | list }}
+    op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"
+  tags: "{{ svc.name }}"

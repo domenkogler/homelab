@@ -57,65 +57,48 @@ _extra_templates:
 # (synced wildcard pair via its pull timer; serves TLS from the default store,
 # dynamic/tls.yml.j2). Override to true ONLY in group_vars/vps.yml.
 traefik_acme_issuer: false
-# ---- HD-258: bulk 1Password pre-pass item sets ----
-# The compose/config templates under templates/docker_services read their secrets
-# from a `vault: {name: {field: value}}` dict that fetch-vault-pass.yml builds with
-# ONE `op item get --reveal` per item (scripts/op-vault-export.py parses local
-# fields), replacing the old per-template field lookups (~160 -> ~55 op spawns).
-#
-# Item NAMES mirror docs/deployment-secrets.md; when a template gains/loses a
-# lookup, update the matching list here.
-#
-# Static set (fetched before the authentik lane — present in the vault on every
-# host). Non-OIDC, pre-existing secrets referenced by the docker_services
-# templates (derived from the template scan; see fetch-vault-pass.yml).
-_bulk_op_static:
-  - authentik_db
-  - authentik-ldap_bind
-  - authentik_login
-  - authentik_password
-  - cloudflare_api
-  - cohere_api
-  - crowdsec-bouncer_api
-  - forgejo_api
-  - forgejo_db
-  - grafana_login
-  - ha-vrrp_password
-  - headplane_api
-  - headplane_password
-  - immich_db
-  - immich-ml-internal_api
-  - kopia_password
-  - kopia-server-internal_api
-  - litellm_db
-  - litellm_master_key
-  - matrix_password
-  - n8n_password
-  - n8n-webhook_api
-  - onlyoffice_db
-  - onlyoffice-rabbitmq_login
-  - openclaw_gateway_token
-  - openclaw-opencloud_api
-  - opencloud-collab_password
-  - opencloud_login
-  - openrouter_api
-  - openwebui_secret
-  - owui-public-chat_api
-  - pgvector_db
-  - pihole_password
-  - privado-vpn_api
-  - prometheus-internal_api
-  - radarr_api
-  - signal_api
-  - signal-internal_api
-  - smtp_login
-  - sonarr_api
-  - zipline_db
-  - zipline_password
 
-# Glue-seeded set (fetched AFTER the authentik secret-egress glue): the OIDC /
-# client items the glue persists mid-deploy. On a fresh host they only exist after
-# the glue; on the live VPS they already do (safe to fetch late as well).
+# ---- HD-258: bulk 1Password pre-pass item sets (per-template map) ----
+# The compose/config templates reference `vault: {name: {field}}` items which
+# fetch-vault-pass.yml + scripts/op-vault-export.py fetch ONCE per item (one op
+# spawn), replacing ~160 per-template lookups. Per-host needed set is DERIVED
+# from the host's ENABLED docker_services (each contributes its template_dir's
+# item names below) plus the shared glue set — a host that doesn't run a
+# service never fetches (nor fails on) that service's items (e.g. pihole isn't
+# on the VPS; owui-public-chat_api is a litellm glue-minted key). When a
+# template gains/loses a secret, update its line here (mirrors
+# docs/deployment-secrets.md).
+_template_vault_items:
+  authentik: {'authentik_password', 'authentik_login', 'authentik-ldap_bind', 'authentik_db'}
+  db-backup: {'pgvector_db', 'forgejo_db', 'immich_db', 'authentik_db', 'litellm_db'}
+  forgejo: {'forgejo_db'}
+  grafana: {'smtp_login', 'grafana_login'}
+  headscale: {'headplane_password', 'headscale_api', 'headplane_api'}
+  home-assistant-standby: {'ha-vrrp_password'}
+  immich-app: {'immich_oidc', 'immich-ml-internal_api', 'immich_db'}
+  immich-ml: {'immich-ml-internal_api'}
+  kopia-agent: {'kopia_password', 'kopia-server-internal_api'}
+  kopia-server: {'kopia_password', 'kopia-server-internal_api'}
+  litellm: {'litellm_master_key', 'cohere_api', 'litellm_db', 'openrouter_api'}
+  matrix: {'matrix_api', 'matrix_password'}
+  metabase: {'smtp_login'}
+  n8n: {'n8n-webhook_api', 'n8n_password'}
+  onlyoffice-docs: {'onlyoffice_db', 'onlyoffice-rabbitmq_login', 'opencloud-collab_password'}
+  open-webui: {'openwebui_api', 'openwebui_secret', 'owui-public-chat_api'}
+  openclaw: {'openclaw_gateway_token', 'openclaw-opencloud_api'}
+  opencloud: {'opencloud_login', 'opencloud-collab_password'}
+  pgvector: {'pgvector_db'}
+  pihole: {'pihole_password'}
+  prometheus: {'prometheus-internal_api'}
+  qbittorrent: {'privado-vpn_api'}
+  recyclarr: {'sonarr_api', 'radarr_api'}
+  renovate: {'forgejo_api'}
+  signal-cli-rest-api: {'signal-internal_api', 'signal_api'}
+  traefik: {'cloudflare_api', 'crowdsec-bouncer_api'}
+  zipline: {'zipline_password', 'zipline_oidc', 'zipline_db'}
+
+# Glue-seeded items (fetched AFTER the authentik secret-egress / litellm
+# bootstrap glue — they don't exist before the glue on a fresh host).
 _bulk_op_glue:
   - headscale_api
   - matrix_api
