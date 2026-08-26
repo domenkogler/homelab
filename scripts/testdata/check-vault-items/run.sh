@@ -57,7 +57,7 @@ expect_eq "case1 gap+informational exits 0" "$rc" "0"
 expect_eq "case1 exactly one missing item" "$(printf '%s\n' "$items" | grep -c .)" "1"
 expect_contains "case1 lists metabase-forgejo_ro (registry-key-only ref)" "$items" "metabase-forgejo_ro"
 expect_eq "case1 enabled services = 2 (disabled entry filtered)" "$(echo "$counts" | awk '{print $1}')" "2"
-expect_eq "case1 needed set = 5 (no dupes, no extras)" "$(echo "$counts" | awk '{print $2}')" "5"
+expect_eq "case1 needed set = 7 (5 base + 2 HD-247 spec items, no dupes)" "$(echo "$counts" | awk '{print $2}')" "7"
 
 # --- Case 2: no-false-positive on a complete vault --------------------------
 out="$(bash "$MAIN" --root "$FIXTURE" --fake-vault "$FIXTURE/vault-complete.txt")"
@@ -79,6 +79,30 @@ expect_contains "case3 still lists metabase-forgejo_ro in strict mode" "$(missin
 bash "$MAIN" --root "$FIXTURE" --fake-vault "$FIXTURE/vault-complete.txt" --strict >/dev/null
 rc=$?
 expect_eq "case4 complete+strict exits 0" "$rc" "0"
+
+# --- Case 5: HD-247 scoped-key class is glue-seeded => never MISSING ----------
+out="$(bash "$MAIN" --root "$FIXTURE" --fake-vault "$FIXTURE/vault-gap.txt")"
+items="$(missing_items "$out")"
+expect_absent "case5 consumer-referenced scoped item not MISSING (lk_demo_chat_api)" "$items" "lk_demo_chat_api"
+expect_absent "case5 spec-only scoped item not MISSING (lk_demo_rag_api)" "$items" "lk_demo_rag_api"
+
+# --- Case 6: VISIBILITY PROOF — without the glue file both items surface ------
+# Copies the fixture tree WITHOUT the glue template: now the scanner has no glue-seed
+# exclusion, so the same two items MUST appear as MISSING — proving the consumer-literal
+# path AND the entry-record `vault_item:` rule actually parse them (not silently ignored).
+TMPD="$(mktemp -d)"
+trap 'rm -rf "$TMPD"' EXIT
+cp -r "$FIXTURE/." "$TMPD/"
+rm "$TMPD/IaC/ansible/roles/docker_services/templates/litellm-bootstrap-keys.sh.j2"
+out="$(bash "$MAIN" --root "$TMPD" --fake-vault "$FIXTURE/vault-gap.txt")"
+rc=$?
+items="$(missing_items "$out")"
+expect_eq "case6 no-glue exits 0 (informational)" "$rc" "0"
+expect_eq "case6 exactly three missing (ro + 2 scoped)" "$(printf '%s
+' "$items" | grep -c .)" "3"
+expect_contains "case6 consumer-path visibility (lk_demo_chat_api listed)" "$items" "lk_demo_chat_api"
+expect_contains "case6 entry-record visibility (lk_demo_rag_api listed)" "$items" "lk_demo_rag_api"
+expect_contains "case6 regression guard intact (metabase-forgejo_ro still missing)" "$items" "metabase-forgejo_ro"
 
 # --- Summary ------------------------------------------------------------------
 echo "check-vault-items self-test: $pass passed, $fail failed"

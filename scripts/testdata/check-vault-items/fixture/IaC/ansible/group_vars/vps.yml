@@ -9,3 +9,8 @@ docker_services:
   # deliberately no templates/demo-gluehost dir: exercises the tolerate-missing-dir path
   - { name: off-demo,      template_dir: off-demo, enabled: false,
       db_item: disabled_should_never_appear }
+# HD-247 shape: scoped-key SPEC records (not docker_services entries) whose `vault_item:`
+# scalars must be captured by the entry-record rule, then EXCLUDED via the glue-marker list.
+litellm_scoped_keys:
+  - { alias: demo-chat, vault_item: lk_demo_chat_api, models: "m1,m2", max_budget: "10", budget_duration: "30d" }
+  - { alias: demo-rag, vault_item: lk_demo_rag_api, models: "", max_budget: "", budget_duration: "" }

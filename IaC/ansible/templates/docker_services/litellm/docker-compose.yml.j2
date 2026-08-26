@@ -1,18 +1,36 @@
-# litellm docker-compose.yml — LLM gateway/router spine (docs/services-ai.md, HD-100)
+# litellm docker-compose.yml — LLM gateway/router spine (docs/services-ai.md, HD-100/HD-247)
 #   Single OpenAI-compatible endpoint for the whole AI stack (Open WebUI, OpenClaw).
 #   THE only component holding upstream keys (openrouter_api, cohere_api). Local models
 #   -> Ollama on `llm-backend`; consumers reach LiteLLM on `services-internal`. Joins
-#   BOTH networks (per HD-59 Ollama-isolation design). No host port binds (HD-62).
+#   services-internal + llm-backend + db-internal (DB below). No public host port binds
+#   (HD-62); management API reached ONLY via `docker exec` from the bootstrap glue.
 #
-#   Auth: clients authenticate with LITELLM_MASTER_KEY (1Password `litellm_master_key`);
-#   config.yaml.j2 defines the exposed model_list. Keys/spend stored in a SQLite volume
-#   (ai-stack design — "own small DB"), not Postgres.
+#   v2 cutover (HD-247): keys/models/spend live in the bundled Postgres
+#   (`STORE_MODEL_IN_DB=true`) — model_list is NO LONGER rendered into config.yaml;
+#   models are Admin-UI-managed at runtime (git drift accepted by owner decision,
+#   services-ai.md §9 decision 13). Consumers authenticate with SCOPED virtual keys
+#   minted by the bootstrap-keys glue into 1Password; `litellm_master_key` remains the
+#   admin/bootstrap credential and is consumed by NOTHING else (retired from all
+#   consumer templates — grep-clean per HD-247).
+#
+#   FIRST-DEPLOY RUNBOOK (deploy-gate; mirrors zipline compose-header style):
+#     1. Converge renders this stack; litellm-db initializes from the litellm_db item.
+#     2. Recreate the former model entries in the Admin UI (or /model/new) — use the
+#        HD-246-corrected parameters: cohere/embed-v4.0 @1536 dims (NOT embed-english-v3.0)
+#        and cohere/rerank-v4.0-pro; ollama/* names as pulled on the RX 7600.
+#     3. The bootstrap-keys glue runs automatically in the same converge AFTER this stack
+#        is healthy (deploy-service.yml, svc.bootstrap_keys) and mints every scoped key
+#        into its 1P item — BEFORE open-webui/openclaw render (registry order).
+#     4. Verify: scoped-key auth works (curl -H "Authorization: Bearer <sk>" .../v1/models),
+#        master key rejected for a scoped consumer's normal route set is EXPECTED behavior.
 #
 #   Secrets (all fail-closed, HD-65):
-#     litellm_master_key (api -> credential), openrouter_api (api -> credential),
-#     cohere_api (api -> credential)
-#   Image: docker.litellm.ai/berriai/litellm:{{ litellm_version }} (see versions.yml for
-#   the MUST-pin note). Serves the OpenAI-compatible API on port 4000.
+#     litellm_master_key (api -> credential)      — admin/bootstrap only
+#     openrouter_api | cohere_api (credential)    — upstream providers
+#     litellm_db (username/password)              — bundled Postgres (init-once password,
+#                                                   NOT_AUTO_ROTATABLE; db_role_sync guard)
+#   Images: docker.litellm.ai/berriai/litellm:{{ litellm_version }} (registry-verified pin,
+#   versions.yml) + postgres:{{ litellm_db_version }}.
 services:
   litellm:
     image: docker.litellm.ai/berriai/litellm:{{ litellm_version }}
@@ -26,22 +44,68 @@ services:
     networks:
       - services-internal
       - llm-backend                 # reach Ollama (local models); see HD-59 design
+      - db-internal                 # reach litellm-db (keys/models/spend runtime DB)
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-      - /srv/docker/litellm:/app/.data            # SQLite keys/spend + settings (stateful: include in Kopia scope)
+      - /srv/docker/litellm:/app/.data            # misc app state (no longer the keys/DB of record — that is litellm-db; keep in Kopia scope)
+    depends_on:
+      litellm-db:
+        condition: service_healthy
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       LITELLM_MASTER_KEY: "{{ lookup('community.general.onepassword', 'litellm_master_key', field='credential', vault=op_vault) }}"
       OPENROUTER_API_KEY: "{{ lookup('community.general.onepassword', 'openrouter_api', field='credential', vault=op_vault) }}"
       COHERE_API_KEY: "{{ lookup('community.general.onepassword', 'cohere_api', field='credential', vault=op_vault) }}"
+      # Models-in-DB (HD-247): Prisma-backed runtime store (litellm proxy_server reads
+      # DATABASE_URL when STORE_MODEL_IN_DB=true). Folded scalars per the HD-233 rule —
+      # vault-generated values can contain YAML-hostile characters.
+      STORE_MODEL_IN_DB: "true"
+      DATABASE_URL: >-
+        postgres://{{ lookup('community.general.onepassword', 'litellm_db', field='username', vault=op_vault) | urlencode }}:{{ lookup('community.general.onepassword', 'litellm_db', field='password', vault=op_vault) | urlencode }}@litellm-db:5432/litellm
     command: ["--config", "/app/config.yaml"]
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://localhost:4000/health/liveliness')\""]
       interval: 10s
       timeout: 10s
       retries: 12
+
+  litellm-db:
+    image: postgres:{{ litellm_db_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETUID
+      - SETGID
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
+    container_name: litellm-db
+    restart: unless-stopped
+    networks:
+      - db-internal           # NOT on services-internal: no direct sibling access
+    volumes:
+      - /srv/docker/litellm/postgres:/var/lib/postgresql/data   # CRITICAL state (HD-247): holds keys/models/spend — db-backup DB06 + Kopia scope
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: "{{ lookup('community.general.onepassword', 'litellm_db', field='username', vault=op_vault) }}"
+      POSTGRES_PASSWORD: >-
+        {{ lookup('community.general.onepassword', 'litellm_db', field='password', vault=op_vault) }}
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 networks:
   services-internal:
     external: true
   llm-backend:
+    external: true
+  db-internal:
     external: true

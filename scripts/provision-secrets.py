@@ -75,6 +75,7 @@ CATALOG = [
     ("Database",    "onlyoffice_db",          lambda: [f"username=onlyoffice", f"password={gen_pw()}"]),
     ("Database",    "pgvector_db",            lambda: [f"username=pgvector",  f"password={gen_pw()}"]),
     ("Database",    "zipline_db",             lambda: [f"username=zipline",   f"password={gen_pw()}"]),   # HD-112
+    ("Database",    "litellm_db",             lambda: [f"username=litellm",   f"password={gen_pw()}"]),   # HD-247 LiteLLM runtime DB (STORE_MODEL_IN_DB) — keys/models/spend live here; CRITICAL state, dumped via db-backup DB06
     # --- Password items ---
     ("Password",    "authentik_password",     lambda: [f"password={gen_pw()}"]),
     ("Password",    "kopia_password",         lambda: [f"password={gen_pw()}"]),
@@ -126,6 +127,7 @@ NOT_AUTO_ROTATABLE = {
     "authentik_db", "opencloud_db", "immich_db", "forgejo_db", "pgvector_db",  # running Postgres
     "onlyoffice_db",           # running Postgres (sidecar cluster init-once password)
     "zipline_db",             # running Postgres sidecar — init-once password (HD-112)
+    "litellm_db",             # running Postgres sidecar — init-once password (HD-247); holds the virtual-key/model runtime (models-in-DB), so rotation = re-init = data loss without a dump/restore cycle
     "zipline_password",       # Zipline CORE_SECRET — rotation invalidates all sessions
     "onlyoffice-rabbitmq_login",  # RABBITMQ_DEFAULT_* applies at first mnesia init; AMQP_URI couples both sides
     "authentik_password",   # Django SECRET_KEY — invalidates the running instance

@@ -1,0 +1,190 @@
+#!/bin/bash
+# =============================================================================
+# litellm-bootstrap-keys.sh — LiteLLM -> 1Password virtual-key egress glue (HD-247)
+# Managed by Ansible (docker_services role). Runs on the **VPS** during the litellm
+# service's deploy-service pass, AFTER the litellm stack is healthy and BEFORE the
+# key consumers (open-webui, openclaw) render their compose files — registry order
+# guarantees this (same contract as prepass-authentik.yml for OIDC items).
+#
+# Idempotent create-if-absent, VAULT-STATE-FIRST: for every scoped-key spec
+# (group_vars/vps.yml `litellm_scoped_keys`) the CURRENT vault value decides:
+#   1. vault field EMPTY            -> mint POST /key/generate, write sk into the item
+#   2. vault field set + probe 200  -> keep (skip silently)
+#   3. vault field set + probe 401  -> STALE SECRET: ABORT loudly (rc 2). The sk is
+#      hashed at rest server-side and CANNOT be re-read — manual remediation only:
+#      clear the item's credential field in 1Password AND delete the server-side key
+#      by its alias in the Admin UI (or paste a still-valid sk), then re-run.
+#      We deliberately NEVER auto-delete/mint-over an existing secret.
+#
+# Why docker exec instead of a published port: the proxy binds NO host ports (HD-62).
+# All HTTP goes through `docker exec litellm python3 -c …` against 127.0.0.1:4000
+# INSIDE the container — zero new network exposure (secret-env passthrough precedent:
+# deploy-service.yml db_role_sync/db_ro_sync PGSYNC/ROSYNC envs).
+#
+# API contract VERIFIED against pinned image v1.83.10-stable source
+# (litellm/proxy/management_endpoints/key_management_endpoints.py):
+#   - POST /key/generate accepts {key_alias, models[], max_budget, budget_duration};
+#     `_enforce_unique_key_alias` (called at generate, ~line 724) rejects duplicates
+#     with HTTP 400 param="key_alias", message "Key with alias '<x>' already exists…"
+#     -> matched below and surfaced as a hard ABORT (rc 4), never auto-resolved.
+#   - Response carries the raw sk under JSON field "key" (return {"key": key, …},
+#     ~line 2311). GET /key/info accepts ONLY a raw token (hashed lookup, no alias
+#     filter) — hence the vault-first + live-probe design above.
+#
+# Secrets policy: values exist only inside captured vars / container env; the script
+# echoes aliases/items/status ONLY, never key material (CONVENTIONS §6 output hygiene).
+# `op item edit/create` receive the value as argv — accepted because the task runs
+# no_log under Ansible on a single-admin root box (db_role_sync env precedent).
+#
+# Exit codes: 0 ok · 3 transient (stack not ready / upstream 5xx — retryable)
+#             2 stale secret · 4 unique-alias conflict · 1 usage/environment error
+# =============================================================================
+set -uo pipefail
+
+OP_VAULT="${OP_VAULT:-Homelab-ansible}"
+LITELLM_CONTAINER="${LITELLM_CONTAINER:-litellm}"
+
+log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
+
+# --- resolve credentials -----------------------------------------------------
+[ -r /etc/op/provision-token ] && export OP_SERVICE_ACCOUNT_TOKEN="$(cat /etc/op/provision-token)"
+command -v op >/dev/null || { echo "FATAL: op CLI not found" >&2; exit 1; }
+
+MASTER_KEY="$(op item get litellm_master_key --fields credential --vault "$OP_VAULT" 2>/dev/null)"
+[ -n "${MASTER_KEY:-}" ] || { echo "FATAL: litellm_master_key empty/unreadable — cannot administer keys" >&2; exit 1; }
+
+# Scoped-key specs are RENDERED statically from group_vars/vps.yml litellm_scoped_keys
+# (SSOT — the scanner reads the same records). Format: alias|item|models_csv|max_budget|budget_duration
+KEYS=(
+{% for k in litellm_scoped_keys %}
+  "{{ k.alias }}|{{ k.vault_item }}|{{ k.models }}|{{ k.max_budget }}|{{ k.budget_duration }}"
+{% endfor %}
+)
+[ "${#KEYS[@]}" -gt 0 ] || { echo "FATAL: no scoped-key specs rendered" >&2; exit 1; }
+
+# GLUE-SEEDED items (hd247) — "<service>:<item>" pairs consumed by scripts/check-vault-items.sh
+# (glue-seeded exclusion list; do NOT remove or the pre-seed diff starts demanding these):
+{% for k in litellm_scoped_keys %}
+#   "litellm:{{ k.vault_item }}"
+{% endfor %}
+
+# --- helpers -----------------------------------------------------------------
+# health: proxy reachable? (inside-container call, no auth needed)
+healthy() {
+    docker exec "$LITELLM_CONTAINER" python3 - <<'PYEOF' >/dev/null 2>&1
+import urllib.request,sys
+try:
+    urllib.request.urlopen("http://127.0.0.1:4000/health/liveliness", timeout=10)
+except Exception as e:
+    sys.exit(1)
+PYEOF
+}
+
+# probe <sk> : echo HTTP code of GET /v1/models authorized BY THE SCOPED KEY ITSELF
+probe_key() {
+    local tok="$1" out
+    out="$(docker exec \
+        -e LK_TOKEN="$tok" "$LITELLM_CONTAINER" python3 - <<'PYEOF' 2>/dev/null
+import urllib.request,os,sys
+req=urllib.request.Request("http://127.0.0.1:4000/v1/models",
+    headers={"Authorization":"Bearer "+os.environ["LK_TOKEN"]})
+try:
+    print(urllib.request.urlopen(req,timeout=15).status)
+except urllib.error.HTTPError as e:
+    print(e.code)
+except Exception:
+    print("000")
+PYEOF
+)" || { echo "000"; return; }
+    printf '%s' "$out"
+}
+
+# mint <alias> <models_csv> <max_budget> <budget_duration> : prints sk or fails rc 1/4
+mint_key() {
+    local alias="$1" models_csv="$2" mb="$3" bd="$4" body="" parts=() out err rc
+    [ -n "$models_csv" ] && {
+        IFS=',' read -ra parts <<<"$models_csv"
+        local json_models="["
+        local first=1 p
+        for p in "${parts[@]}"; do
+            p="$(printf '%s' "$p" | sed 's/^ *//; s/ *$//')"
+            [ -n "$p" ] || continue
+            $first && first=0 || json_models+=","
+            json_models+="\"$p\""
+        done
+        json_models+="]"
+        [ "$json_models" != "[]" ] && body="\"models\": $json_models,"
+    }
+    [ -n "$mb" ] && body="$body \"max_budget\": $mb,"
+    [ -n "$bd" ] && body="$body \"budget_duration\": \"$bd\","
+    body="{${body%,} \"key_alias\": \"$alias\"}"
+
+    err="$(docker exec \
+        -e LK_MASTER="$MASTER_KEY" -e LK_BODY="$body" "$LITELLM_CONTAINER" python3 - <<'PYEOF' 2>&1
+import urllib.request,urllib.error,json,os,sys
+req=urllib.request.Request("http://127.0.0.1:4000/key/generate",
+    data=os.environ["LK_BODY"].encode(),
+    headers={"Authorization":"Bearer "+os.environ["LK_MASTER"],
+             "Content-Type":"application/json"})
+try:
+    resp=json.load(urllib.request.urlopen(req,timeout=30))
+except urllib.error.HTTPError as e:
+    print("HTTPERR",e.code,e.read().decode(errors="replace")[:400])
+    sys.exit(1)
+print("SK:"+str(resp.get("key","")))
+PYEOF
+)" ; rc=$?
+    if [ "$rc" -eq 0 ] && [ "${err#SK:}" != "$err" ]; then
+        printf '%s' "${err#SK:}"
+        return 0
+    fi
+    if printf '%s' "$err" | grep -q 'HTTPERR 400' && printf '%s' "$err" | grep -qi 'already exists'; then
+        # _enforce_unique_key_alias rejection (pinned source ~line 724): server-side key
+        # exists under this alias but the vault item is EMPTY — cannot recover the sk.
+        log "ABORT(rc4): alias '$alias' already exists server-side but its vault item is EMPTY."
+        log "  Manual remediation: Admin UI -> Virtual Keys -> delete the '$alias' key, then re-run."
+        exit 4
+    fi
+    log "transient mint failure for '$alias': $err"
+    return 3
+}
+
+# vault_write <item> <value> : edit existing item, else create api-credential item
+vault_write() {
+    local item="$1" val="$2"
+    if op item get "$item" --vault "$OP_VAULT" >/dev/null 2>&1; then
+        op item edit "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null
+    else
+        op item create --category api-credential --title "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null
+    fi
+}
+
+# --- main loop ---------------------------------------------------------------
+# Single pass; any ABORT exits immediately so partial state never confuses the operator.
+until healthy; do log "waiting for litellm stack to become healthy…"; sleep 10; done
+
+for spec in "${KEYS[@]}"; do
+    IFS='|' read -r alias item models_csv maxb bd <<<"$spec"
+    cur="$(op item get "$item" --fields credential --vault "$OP_VAULT" 2>/dev/null || true)"
+    if [ -n "$cur" ]; then
+        code="$(probe_key "$cur")"
+        case "$code" in
+            200) log "keep  $alias ($item): existing key valid" ;;
+            401|403)
+                log "ABORT(rc2): STALE SECRET for '$alias'. Clear credential of '$item' + delete server key '$alias', re-run."
+                exit 2 ;;
+            *)   log "transient probe failure for '$alias' (code $code)"; exit 3 ;;
+        esac
+    else
+        if ! sk="$(mint_key "$alias" "$models_csv" "$maxb" "$bd")"; then
+            rc=$?
+            [ "$rc" -eq 4 ] && exit 4
+            exit 3
+        fi
+        [ -n "$sk" ] || { log "empty sk minted for '$alias'" >&2; exit 3; }
+        vault_write "$item" "$sk"
+        log "created $alias ($item): minted + stored (len $(printf '%s' "$sk" | wc -c))"
+    fi
+done
+
+exit 0

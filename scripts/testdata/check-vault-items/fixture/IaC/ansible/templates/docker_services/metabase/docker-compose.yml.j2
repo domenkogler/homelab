@@ -2,3 +2,5 @@
 # Per-service compose template carrying a literal onepassword() lookup.
 secrets:
   metabase_password: "{{ lookup('community.general.onepassword', 'demo_plain_api', field='password', vault=op_vault) }}"
+  # HD-247 shape: CONSUMER-side lookup of an item that is ALSO glue-seeded (both paths).
+  backend_key: "{{ lookup('community.general.onepassword', 'lk_demo_chat_api', field='credential', vault=op_vault) }}"

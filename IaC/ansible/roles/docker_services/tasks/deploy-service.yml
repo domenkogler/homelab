@@ -314,3 +314,38 @@
 # The glue is no longer a per-loop side-iteration on the `authentik` entry. It now runs
 # once in the explicit pre-pass (tasks/prepass-authentik.yml) BEFORE the deploy loop,
 # seeding 1Password ahead of the OIDC-consumer renders — see deployment-compose.md ordering.
+# ---- LiteLLM virtual-key bootstrap glue (HD-247) ----
+# Renders + runs litellm-bootstrap-keys.sh DURING the litellm service pass: the registry
+# order in vps.yml guarantees litellm deploys BEFORE its key consumers (open-webui,
+# openclaw), so their compose renders find seeded vault items — same ordering contract as
+# prepass-authentik.yml for OIDC items (authentik precedes consumers, HD-146).
+# The script is idempotent VAULT-FIRST: empty item -> mint POST /key/generate and store
+# the sk; non-empty -> live-probe the stored sk and ABORT loudly on 401 (stale secret —
+# sks are hashed at rest server-side and can never be re-read). Values never echoed;
+# everything runs no_log. Requires the host-side write-scoped op SA token deployed by
+# prepass-authentik.yml (/etc/op/provision-token) for the 1Password writes.
+- name: "Render LiteLLM bootstrap-keys glue ({{ svc.name }})"
+  when: svc.bootstrap_keys | default(false)
+  ansible.builtin.template:
+    src: litellm-bootstrap-keys.sh.j2   # role templates/ dir
+    dest: /usr/local/sbin/litellm-bootstrap-keys.sh
+    mode: '0755'
+  tags: "{{ svc.name }}"
+
+- name: "Run LiteLLM bootstrap-keys glue ({{ svc.name }})"
+  when: svc.bootstrap_keys | default(false)
+  ansible.builtin.shell:
+    cmd: |
+      if [ -r /etc/op/provision-token ]; then
+        export OP_SERVICE_ACCOUNT_TOKEN="$(cat /etc/op/provision-token)"
+      fi
+      exec /usr/local/sbin/litellm-bootstrap-keys.sh
+    executable: /bin/bash
+  register: lk_glue
+  until: lk_glue.rc == 0            # rc 3 = stack not ready / transient upstream
+  retries: 12
+  delay: 10
+  changed_when: "'created' in (lk_glue.stdout | default(''))"
+  failed_when: lk_glue.rc != 0      # rc 2 stale-secret / rc 4 alias conflict abort loudly
+  no_log: true
+  tags: "{{ svc.name }}"

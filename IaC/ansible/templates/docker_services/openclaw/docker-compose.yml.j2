@@ -10,7 +10,8 @@
 #   template. This compose provides the pinned gateway + state volumes; onboarding is the
 #   deploy-gated step.
 #
-#   Secrets (fail-closed): litellm_master_key (backend auth), openclaw_gateway_token
+#   Secrets (fail-closed): openclaw_gateway_token, openclaw-opencloud_api; LiteLLM auth =
+#     scoped virtual key `openclaw-litellm_api` (HD-247; NOT litellm_master_key)
 #   (gateway/Control-UI auth), openclaw-opencloud_api (OpenCloud WebDAV credential, HD-160).
 #   Image pinned via openclaw_version (GHCR; young project).
 services:
@@ -43,8 +44,10 @@ services:
       # Consumed by `openclaw onboard` / `openclaw.json` WebDAV block at deploy; fail-loud.
       OPENCLOUD_WEBDAV_USERNAME: "{{ lookup('community.general.onepassword', 'openclaw-opencloud_api', field='username', vault=op_vault) }}"
       OPENCLOUD_WEBDAV_PASSWORD: "{{ lookup('community.general.onepassword', 'openclaw-opencloud_api', field='credential', vault=op_vault) }}"
-      # Model backend = LiteLLM (spine). OpenClaw talks to LitLLM as an OpenAI-compatible
-      # provider; full binding set in openclaw.json at deploy (LITELLM_MASTER_KEY auth).
+      # Model backend = LiteLLM (spine). OpenClaw talks to LiteLLM as an OpenAI-compatible
+      # provider; full binding set in openclaw.json at deploy — credential = the SCOPED
+      # virtual key minted into `openclaw-litellm_api` by the HD-247 bootstrap glue
+      # (agent-scope, budget-capped). The master key is never used here.
       # No host ports (HD-62); Control UI reachable via services-internal only.
     volumes:
       - /srv/docker/openclaw:/home/node/.openclaw            # config + state (openclaw.json; include in Kopia scope)

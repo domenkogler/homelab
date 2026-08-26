@@ -138,10 +138,15 @@ else
         python3 -c "import json,sys; [print(i['title']) for i in json.load(sys.stdin)]" | sort -u > "$TMP/have.txt"
 fi
 
-# items the secret-egress glue auto-seeds (skip them)
-grep -oE '"[a-z0-9_-]+:[a-z0-9_-]+"' \
-    IaC/ansible/roles/docker_services/templates/authentik-secret-egress.sh.j2 |
-    cut -d: -f2 | tr -d '"' | sort -u > "$TMP/glue.txt"
+# items the secret-egress glue auto-seeds (skip them). Two glue scripts:
+#   authentik-secret-egress.sh.j2  — OIDC client creds (HD-143)
+#   litellm-bootstrap-keys.sh.j2   — LiteLLM scoped virtual keys (HD-247; specs SSOT
+#                                    litellm_scoped_keys in vps.yml, vault_item: parsed
+#                                    from those records by the entry-record rule above)
+grep -hoE '"[a-z0-9_-]+:[a-z0-9_-]+"' \
+    IaC/ansible/roles/docker_services/templates/authentik-secret-egress.sh.j2 \
+    IaC/ansible/roles/docker_services/templates/litellm-bootstrap-keys.sh.j2 2>/dev/null \
+    | cut -d: -f2 | tr -d '"' | sort -u > "$TMP/glue.txt"
 
 echo "== enabled services: $(wc -l < "$TMP/enabled.txt") | needed items: $(wc -l < "$TMP/needed.txt") | in vault: $(wc -l < "$TMP/have.txt") =="
 echo "== MISSING and NOT glue-seeded => create these =="

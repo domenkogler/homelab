@@ -9,7 +9,9 @@
 #
 #   Secrets (fail-closed, HD-65):
 #     openwebui_secret (password -> password)  — WEBUI_SECRET_KEY (session/encryption)
-#     litellm_master_key (api -> credential)   — backend auth to LiteLLM
+#     owui-public-chat_api (api -> credential) — backend auth to LiteLLM (HD-247 scoped
+#     virtual key, minted by the bootstrap-keys glue; chat/completion models only,
+#     budget-capped. RAG embedding/rerank envs land with HD-246 using owui-public-rag_api)
 #     openwebui_api (api -> username/credential) — Authentik OIDC client_id/secret; seeded by the
 #     secret-egress glue (HD-143) from the Blueprint-declared provider (ks-oidc.yml, HD-142)
 #   Image: openwebui/open-webui pinned via openwebui_version (HD-61/KOPS-053 convention).
@@ -31,8 +33,9 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       WEBUI_SECRET_KEY: "{{ lookup('community.general.onepassword', 'openwebui_secret', field='password', vault=op_vault) }}"
       # Model backend = LiteLLM (the spine, HD-100). LiteLLM = OpenAI-compatible at :4000/v1.
+      # HD-247: scoped VIRTUAL key (chat scope, capped) — never the master key.
       OPENAI_API_BASE_URL: "http://litellm:4000/v1"
-      OPENAI_API_KEY: "{{ lookup('community.general.onepassword', 'litellm_master_key', field='credential', vault=op_vault) }}"
+      OPENAI_API_KEY: "{{ lookup('community.general.onepassword', 'owui-public-chat_api', field='credential', vault=op_vault) }}"
       # Default model shown in the UI (a LiteLLM-exposed model from config.yaml)
       DEFAULT_MODELS: "ollama/qwen2.5,openrouter/gpt-4o-mini"
       # Authentik OIDC (per-user login). Env names VERIFIED against open-webui 0.11.0

@@ -110,11 +110,15 @@ pgvector_version: "0.8.6-pg16-trixie"
 # Docling Serve (quay.io/docling-project/docling-serve) CPU image tag — AI-stack OCR (HD-103).
 # CPU-only torch build; pinned to a verified release; Renovate docker datasource tracks it.
 docling_version: "v1.30.0"
-# LiteLLM (LLM gateway spine) image tag — AI-stack (HD-100). LiteLLM publishes fluid
-# build tags; `main-stable` is the documented stable tag used by their official compose.
-# MUST pin to a verified semver (main-vX.Y.Z) at first deploy — see HD-121 precedent
-# for the fluid-tag policy; Renovate tracks it once a resolvable tag is chosen.
-litellm_version: main-stable
+# LiteLLM (LLM gateway spine) image tag — AI-stack (HD-100/HD-247). Registry-verified
+# pin: tag exists on ghcr.io/berriai/litellm AND resolves through the docker.litellm.ai
+# pull path the compose uses (manifest GET 200, digest sha256:6c82d338…, verified
+# 2026-08-26). Current upstream stable-release scheme is plain `vX.Y.Z-stable`; Renovate
+# docker datasource tracks it.
+litellm_version: "v1.83.10-stable"
+# Bundled LiteLLM Postgres sidecar image tag (HD-247, STORE_MODEL_IN_DB) — postgres 16
+# line, same series as forgejo-db/onlyoffice-pg/zipline-db. Renovate-tracked.
+litellm_db_version: "16.15-alpine"
 # Open WebUI (AI-stack chat + RAG UI) image tag — HD-101. Pinned to a verified semver;
 # Renovate docker datasource tracks it. Base image connects to LiteLLM as an external
 # OpenAI-compatible backend (no bundled CUDA variant needed).
