@@ -30,6 +30,15 @@ oidc:
   scope: ["openid", "profile", "email"]
   allowed_domains:
     - kogler.si
+  # Authentik's default 'email' scope mapping hardcodes email_verified: False (verified
+  # 2026-08-26 against authentik 2026.5.6 source), and headscale defaults
+  # email_verified_required: true -> every OIDC login died 'unverified email' (HD-252,
+  # live log 2026-08-26). Access is still gated by allowed_domains: kogler.si below and
+  # the users are internal family accounts with real @kogler.si emails; the strict
+  # default is relaxed for THIS OIDC client only (headscale+headplane share it). The
+  # 'correct' fix (Authentik emitting verified=true) is tracked separately; see todo HD-255
+  # / this template header for the provider-scoped-scope-mapping option.
+  email_verified_required: false
 
 # DNS configuration — schema migrated for headscale >= 0.24 (pinned 0.29.3; Wave-2
 # triage 2026-08-22): dns_config: -> dns:, acl_policy_path: -> policy.path.
