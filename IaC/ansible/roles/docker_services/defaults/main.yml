@@ -57,3 +57,69 @@ _extra_templates:
 # (synced wildcard pair via its pull timer; serves TLS from the default store,
 # dynamic/tls.yml.j2). Override to true ONLY in group_vars/vps.yml.
 traefik_acme_issuer: false
+# ---- HD-258: bulk 1Password pre-pass item sets ----
+# The compose/config templates under templates/docker_services read their secrets
+# from a `vault: {name: {field: value}}` dict that fetch-vault-pass.yml builds with
+# ONE `op item get --reveal` per item (scripts/op-vault-export.py parses local
+# fields), replacing the old per-template field lookups (~160 -> ~55 op spawns).
+#
+# Item NAMES mirror docs/deployment-secrets.md; when a template gains/loses a
+# lookup, update the matching list here.
+#
+# Static set (fetched before the authentik lane — present in the vault on every
+# host). Non-OIDC, pre-existing secrets referenced by the docker_services
+# templates (derived from the template scan; see fetch-vault-pass.yml).
+_bulk_op_static:
+  - authentik_db
+  - authentik-ldap_bind
+  - authentik_login
+  - authentik_password
+  - cloudflare_api
+  - cohere_api
+  - crowdsec-bouncer_api
+  - forgejo_api
+  - forgejo_db
+  - grafana_login
+  - ha-vrrp_password
+  - headplane_api
+  - headplane_password
+  - immich_db
+  - immich-ml-internal_api
+  - kopia_password
+  - kopia-server-internal_api
+  - litellm_db
+  - litellm_master_key
+  - matrix_password
+  - n8n_password
+  - n8n-webhook_api
+  - onlyoffice_db
+  - onlyoffice-rabbitmq_login
+  - openclaw_gateway_token
+  - openclaw-opencloud_api
+  - opencloud-collab_password
+  - opencloud_login
+  - openrouter_api
+  - openwebui_secret
+  - owui-public-chat_api
+  - pgvector_db
+  - pihole_password
+  - privado-vpn_api
+  - prometheus-internal_api
+  - radarr_api
+  - signal_api
+  - signal-internal_api
+  - smtp_login
+  - sonarr_api
+  - zipline_db
+  - zipline_password
+
+# Glue-seeded set (fetched AFTER the authentik secret-egress glue): the OIDC /
+# client items the glue persists mid-deploy. On a fresh host they only exist after
+# the glue; on the live VPS they already do (safe to fetch late as well).
+_bulk_op_glue:
+  - headscale_api
+  - matrix_api
+  - openwebui_api
+  - immich_oidc
+  - forgejo_oidc
+  - zipline_oidc

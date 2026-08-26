@@ -73,7 +73,7 @@ services:
       - /srv/docker/kopia-server/config:/app/config
       - /srv/docker/kopia-server/cache:/app/cache
     environment:
-      KOPIA_PASSWORD: "{{ lookup('community.general.onepassword', 'kopia_password', field='password', vault=op_vault) }}"
+      KOPIA_PASSWORD: "{{ vault['kopia_password'].password }}"
       # Backup box SFTP connection (Hetzner Storage Box backup, u653424, port 23, SSH-key auth).
       # kopia_sftp_* values in group_vars/all.yml; NO kopia-s3_api anymore (iDrive dropped, HD-31).
       KOPIA_SFTP_USER: "{{ kopia_sftp_user | default('u653424') }}"
@@ -82,8 +82,8 @@ services:
       KOPIA_SFTP_PATH: "{{ kopia_sftp_path | default('/kopia') }}"
       # Server auth (HD-59): user@host + password for the htpasswd file. No default('') —
       # a missing 1Password item must abort render (fail-loud, HD-65).
-      KOPIA_SERVER_USER: "{{ lookup('community.general.onepassword', 'kopia-server-internal_api', field='username', vault=op_vault) }}"
-      KOPIA_SERVER_PASSWORD: "{{ lookup('community.general.onepassword', 'kopia-server-internal_api', field='credential', vault=op_vault) }}"
+      KOPIA_SERVER_USER: "{{ vault['kopia-server-internal_api'].username }}"
+      KOPIA_SERVER_PASSWORD: "{{ vault['kopia-server-internal_api'].credential }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 networks:
   services-internal:

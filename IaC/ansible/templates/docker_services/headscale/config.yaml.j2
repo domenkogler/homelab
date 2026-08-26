@@ -21,12 +21,12 @@ database:
 # OIDC via Authentik (provider declared in ks-oidc.yml Blueprint; creds seeded by glue, HD-142/143)
 oidc:
   issuer: "https://sso.kogler.si/application/o/headscale/"
-  client_id: "{{ lookup('community.general.onepassword', 'headscale_api', field='username', vault=op_vault) }}"
+  client_id: "{{ vault['headscale_api'].username }}"
   # client_secret may contain : " ' or YAML-special chars (HD-233 lesson: the rotated
   # headscale_api value broke headscale/headplane on restart) -> block scalar >- is the
   # YAML-safe default for secrets from 1Password.
   client_secret: >-
-    {{ lookup('community.general.onepassword', 'headscale_api', field='credential', vault=op_vault) }}
+    {{ vault['headscale_api'].credential }}
   scope: ["openid", "profile", "email"]
   allowed_domains:
     - kogler.si

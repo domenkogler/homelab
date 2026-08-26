@@ -53,15 +53,15 @@ services:
         condition: service_healthy
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      LITELLM_MASTER_KEY: "{{ lookup('community.general.onepassword', 'litellm_master_key', field='credential', vault=op_vault) }}"
-      OPENROUTER_API_KEY: "{{ lookup('community.general.onepassword', 'openrouter_api', field='credential', vault=op_vault) }}"
-      COHERE_API_KEY: "{{ lookup('community.general.onepassword', 'cohere_api', field='credential', vault=op_vault) }}"
+      LITELLM_MASTER_KEY: "{{ vault['litellm_master_key'].credential }}"
+      OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential }}"
+      COHERE_API_KEY: "{{ vault['cohere_api'].credential }}"
       # Models-in-DB (HD-247): Prisma-backed runtime store (litellm proxy_server reads
       # DATABASE_URL when STORE_MODEL_IN_DB=true). Folded scalars per the HD-233 rule —
       # vault-generated values can contain YAML-hostile characters.
       STORE_MODEL_IN_DB: "true"
       DATABASE_URL: >-
-        postgres://{{ lookup('community.general.onepassword', 'litellm_db', field='username', vault=op_vault) | urlencode }}:{{ lookup('community.general.onepassword', 'litellm_db', field='password', vault=op_vault) | urlencode }}@litellm-db:5432/litellm
+        postgres://{{ vault['litellm_db'].username | urlencode }}:{{ vault['litellm_db'].password | urlencode }}@litellm-db:5432/litellm
     command: ["--config", "/app/config.yaml"]
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://localhost:4000/health/liveliness')\""]
@@ -91,9 +91,9 @@ services:
       - /srv/docker/litellm/postgres:/var/lib/postgresql/data   # CRITICAL state (HD-247): holds keys/models/spend — db-backup DB06 + Kopia scope
     environment:
       POSTGRES_DB: litellm
-      POSTGRES_USER: "{{ lookup('community.general.onepassword', 'litellm_db', field='username', vault=op_vault) }}"
+      POSTGRES_USER: "{{ vault['litellm_db'].username }}"
       POSTGRES_PASSWORD: >-
-        {{ lookup('community.general.onepassword', 'litellm_db', field='password', vault=op_vault) }}
+        {{ vault['litellm_db'].password }}
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]

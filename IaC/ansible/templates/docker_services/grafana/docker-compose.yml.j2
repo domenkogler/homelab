@@ -30,7 +30,7 @@ services:
       # Admin account — behind Authentik Forward-Auth (admin uses Forward-Auth SSO,
       # this account is the break-glass / provisioning owner).
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: "{{ lookup('community.general.onepassword', 'grafana_login', field='password', vault=op_vault) }}"
+      GF_SECURITY_ADMIN_PASSWORD: "{{ vault['grafana_login'].password }}"
       GF_SECURITY_DISABLE_GRAVATAR: "true"
       # Single auth path (KOPS-008 / HD-82): force every login through the Authentik
       # Forward-Auth proxy — the Grafana login form is disabled so the admin account
@@ -61,8 +61,8 @@ services:
       # SMTP — fail-safe contact point (parallel to n8n → Signal)
       GF_SMTP_ENABLED: "true"
       GF_SMTP_HOST: "{{ grafana_smtp_host | default('localhost:25') }}"
-      GF_SMTP_USER: "{{ lookup('community.general.onepassword', 'smtp_login', field='username', vault=op_vault) }}"
-      GF_SMTP_PASSWORD: "{{ lookup('community.general.onepassword', 'smtp_login', field='password', vault=op_vault) }}"
+      GF_SMTP_USER: "{{ vault['smtp_login'].username }}"
+      GF_SMTP_PASSWORD: "{{ vault['smtp_login'].password }}"
       GF_SMTP_FROM_ADDRESS: "grafana@kogler.si"
       GF_SMTP_FROM_NAME: Grafana
       # No OIDC env vars — auth is handled by Authentik Forward-Auth in Traefik.

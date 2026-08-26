@@ -19,7 +19,7 @@ server:
   port: 3000
   base_url: https://vpn.kogler.si          # public URL WITHOUT the /admin prefix
   cookie_secret: >-
-    {{ lookup('community.general.onepassword', 'headplane_password', field='password', vault=op_vault) }}
+    {{ vault['headplane_password'].password }}
   # Terminated at Traefik (websecure) -> cookies must be marked Secure.
   cookie_secure: true
   data_path: /var/lib/headplane            # bind-mounted from /srv/docker/headplane/data
@@ -32,14 +32,14 @@ headscale:
   # the live configuration but cannot change it (config.yaml is :ro by design).
   config_path: /etc/headscale/config.yaml
   api_key: >-
-    {{ lookup('community.general.onepassword', 'headplane_api', field='credential', vault=op_vault) }}
+    {{ vault['headplane_api'].credential }}
 
 oidc:
   enabled: true
   issuer: https://sso.kogler.si/application/o/headscale/
-  client_id: "{{ lookup('community.general.onepassword', 'headscale_api', field='username', vault=op_vault) }}"
+  client_id: "{{ vault['headscale_api'].username }}"
   client_secret: >-
-    {{ lookup('community.general.onepassword', 'headscale_api', field='credential', vault=op_vault) }}
+    {{ vault['headscale_api'].credential }}
   # First OIDC login verified live (owner, 2026-08-24) -> API-key login disabled;
   # recovery path = temporarily set false + re-render if the IdP ever breaks.
   disable_api_key_login: true

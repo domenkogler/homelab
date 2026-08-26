@@ -5,9 +5,9 @@
 sonarr:
   - base_url: http://sonarr:8989
     api_key: >-
-      {{ lookup('community.general.onepassword', 'sonarr_api', field='credential', vault=op_vault) }}
+      {{ vault['sonarr_api'].credential }}
 
 radarr:
   - base_url: http://radarr:7878
     api_key: >-
-      {{ lookup('community.general.onepassword', 'radarr_api', field='credential', vault=op_vault) }}
+      {{ vault['radarr_api'].credential }}

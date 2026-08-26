@@ -34,11 +34,11 @@ services:
       N8N_PROTOCOL: https
       N8N_HOST: auto.kogler.si
       WEBHOOK_URL: https://auto.kogler.si
-      N8N_ENCRYPTION_KEY: "{{ lookup('community.general.onepassword', 'n8n_password', field='password', vault=op_vault) }}"
+      N8N_ENCRYPTION_KEY: "{{ vault['n8n_password'].password }}"
       # Webhook/API auth — separate, rotatable token from the encryption key (KOPS-031 / HD-77).
       N8N_BASIC_AUTH_ACTIVE: "true"
       N8N_BASIC_AUTH_USER: grafana
-      N8N_BASIC_AUTH_PASSWORD: "{{ lookup('community.general.onepassword', 'n8n-webhook_api', field='credential', vault=op_vault) }}"
+      N8N_BASIC_AUTH_PASSWORD: "{{ vault['n8n-webhook_api'].credential }}"
       N8N_METRICS: "true"
       DB_TYPE: sqlite
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"

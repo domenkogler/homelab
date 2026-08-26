@@ -25,7 +25,7 @@ services:
       # Same pattern applies to the Phase-5 Forgejo Actions runner. Revisit ONLY if
       # renovate ever moves off this host.
       RENOVATE_ENDPOINT: http://forgejo:3000
-      RENOVATE_TOKEN: "{{ lookup('community.general.onepassword', 'forgejo_api', field='credential', vault=op_vault) }}"
+      RENOVATE_TOKEN: "{{ vault['forgejo_api'].credential }}"
       RENOVATE_REPOSITORIES: "domen/test"   # TEMPORARY (task 5, 2026-08-24): domen/homelab not migrated yet; switch back to domen/homelab when it lands
       # PREREQUISITE (2026-08-23 debug one-shot): the repo MUST exist on Forgejo as
       # `domen/homelab` — the instance has an admin account but NO repos yet (GitHub

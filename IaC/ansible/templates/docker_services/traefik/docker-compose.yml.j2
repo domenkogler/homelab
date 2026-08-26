@@ -54,7 +54,7 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       # Cloudflare DNS-01 credential for the wildcard cert (scoped API token).
-      CF_DNS_API_TOKEN: "{{ lookup('community.general.onepassword', 'cloudflare_api', field='credential', vault=op_vault) }}"
+      CF_DNS_API_TOKEN: "{{ vault['cloudflare_api'].credential }}"
 {% endif %}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

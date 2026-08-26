@@ -44,9 +44,9 @@ services:
       MB_EMAIL_SMTP_PORT: "{{ smtp2go_port }}"
       MB_EMAIL_SMTP_SECURITY: starttls
       MB_EMAIL_SMTP_USERNAME: >-
-        {{ lookup('community.general.onepassword', 'smtp_login', field='username', vault=op_vault) }}
+        {{ vault['smtp_login'].username }}
       MB_EMAIL_SMTP_PASSWORD: >-
-        {{ lookup('community.general.onepassword', 'smtp_login', field='password', vault=op_vault) }}
+        {{ vault['smtp_login'].password }}
       MB_FROM_ADDRESS: notify@kogler.si
     networks:
       - traefik-public

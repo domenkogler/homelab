@@ -22,7 +22,7 @@ services:
     environment:
       VPN_SERVICE_PROVIDER: privado
       VPN_TYPE: wireguard
-      WIREGUARD_PRIVATE_KEY: "{{ lookup('community.general.onepassword', 'privado-vpn_api', field='credential', vault=op_vault) }}"
+      WIREGUARD_PRIVATE_KEY: "{{ vault['privado-vpn_api'].credential }}"
       SERVER_COUNTRIES: Netherlands
     labels:
       traefik.enable: "true"

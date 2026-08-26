@@ -53,6 +53,25 @@
       host and re-run.
   tags: [docker_services]
 
+# ---- HD-258: bulk 1Password pre-pass (static items) ----
+# Fetch every vault item the docker_services compose/config templates reference
+# ONCE (one `op` call per item, parsed locally) into a `vault` dict, instead of
+# each template field spawning its own `op` during the render loop (~160 -> ~55
+# spawns per converge). Run BEFORE the authentik lane because the authentik
+# compose itself renders from the dict. The OIDC/glue-seeded items (head…_api,
+# *_oidc) are fetched in a SECOND pre-pass AFTER the secret-egress glue below
+# (they don't exist until the glue mints them on a fresh host; on this live VPS
+# they already exist). Static-only here to preserve fresh-boot ordering.
+#
+# Contract (HD-91/65): fail-closed — any missing item makes the export abort
+# loudly (no default('')). delegate localhost, run_once, no_log (secret payloads).
+- name: "Bulk 1Password pre-pass (static) — export {{ _bulk_op_static | length }} items into `vault`"
+  ansible.builtin.include_tasks:
+    file: fetch-vault-pass.yml
+  vars:
+    op_item_list: "{{ _bulk_op_static }}"
+  tags: [docker_services, secrets]
+
 - name: Create systemd template unit for Docker Compose services
   ansible.builtin.template:
     src: docker-compose@.service.j2
@@ -117,6 +136,20 @@
     - "'authentik' in (docker_services | map(attribute='name') | list)"
     - docker_services_scope | default('all') == 'all'
   tags: docker_services
+
+# HD-258 second pre-pass: fetch the glue-seeded OIDC items AFTER the glue has
+# persisted them (they don't exist before it on a fresh host; on this live VPS
+# merge is a no-op refresh). Combines into the same `vault` dict from the static
+# pre-pass above.
+- name: "Bulk 1Password pre-pass (glue OIDC) — export {{ _bulk_op_glue | length }} items into `vault`"
+  ansible.builtin.include_tasks:
+    file: fetch-vault-pass.yml
+  vars:
+    op_item_list: "{{ _bulk_op_glue }}"
+  when:
+    - "'authentik' in (docker_services | map(attribute='name') | list)"
+    - docker_services_scope | default('all') == 'all'
+  tags: [docker_services, secrets]
 
 - name: Deploy each enabled service
   ansible.builtin.include_tasks:

@@ -69,8 +69,8 @@ services:
     environment:
       # VPS peer address on the wg-s2s /30 (SSOT: group_vars/all.yml wg_s2s_vps.ip).
       KOPIA_SERVER_ADDR: "{{ wg_s2s_vps.ip }}:51515"
-      KOPIA_SERVER_USER: "{{ lookup('community.general.onepassword', 'kopia-server-internal_api', field='username', vault=op_vault) }}"
-      KOPIA_SERVER_PASSWORD: "{{ lookup('community.general.onepassword', 'kopia-server-internal_api', field='credential', vault=op_vault) }}"
+      KOPIA_SERVER_USER: "{{ vault['kopia-server-internal_api'].username }}"
+      KOPIA_SERVER_PASSWORD: "{{ vault['kopia-server-internal_api'].credential }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 volumes:
   signal-cli-data:

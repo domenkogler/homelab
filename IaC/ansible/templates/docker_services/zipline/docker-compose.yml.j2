@@ -72,7 +72,7 @@ services:
       CORE_PORT: "3000"
       # Session/config secret (fail-loud: no default(), HD-65)
       CORE_SECRET: >-
-        {{ lookup('community.general.onepassword', 'zipline_password', field='password', vault=op_vault) }}
+        {{ vault['zipline_password'].password }}
       CORE_TRUST_PROXY: "true"            # behind Traefik (real client IP for rate limit)
       CORE_RETURN_HTTPS_URLS: "true"
       CORE_DEFAULT_DOMAIN: bin.kogler.si  # short URLs / shares return this host
@@ -80,7 +80,7 @@ services:
       # password contained `#` (plus other URL-hostile chars), which truncated the DSN at
       # the fragment marker → Prisma P1013 "invalid port number" → crash-loop.
       DATABASE_URL: >-
-        postgres://{{ lookup('community.general.onepassword', 'zipline_db', field='username', vault=op_vault) | urlencode }}:{{ lookup('community.general.onepassword', 'zipline_db', field='password', vault=op_vault) | urlencode }}@zipline-db:5432/zipline
+        postgres://{{ vault['zipline_db'].username | urlencode }}:{{ vault['zipline_db'].password | urlencode }}@zipline-db:5432/zipline
       DATASOURCE_TYPE: local
       DATASOURCE_LOCAL_DIRECTORY: /zipline/uploads
       # Generous GLOBAL cap on purpose (HD-112): the anonymous side is bounded by the
@@ -89,9 +89,9 @@ services:
       FEATURES_USER_REGISTRATION: "false"   # no local signup form
       FEATURES_OAUTH_REGISTRATION: "true"   # first Authentik OIDC login creates the account
       # Native OIDC (Authentik provider `zipline`, blueprint-declared; creds via glue)
-      OAUTH_OIDC_CLIENT_ID: "{{ lookup('community.general.onepassword', 'zipline_oidc', field='username', vault=op_vault) }}"
+      OAUTH_OIDC_CLIENT_ID: "{{ vault['zipline_oidc'].username }}"
       OAUTH_OIDC_CLIENT_SECRET: >-
-        {{ lookup('community.general.onepassword', 'zipline_oidc', field='credential', vault=op_vault) }}
+        {{ vault['zipline_oidc'].credential }}
       OAUTH_OIDC_AUTHORIZE_URL: https://sso.kogler.si/application/o/zipline/authorize
       OAUTH_OIDC_TOKEN_URL: https://sso.kogler.si/application/o/zipline/token
       OAUTH_OIDC_USERINFO_URL: https://sso.kogler.si/application/o/zipline/userinfo
@@ -128,9 +128,9 @@ services:
       - /srv/docker/zipline/postgres:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: zipline
-      POSTGRES_USER: "{{ lookup('community.general.onepassword', 'zipline_db', field='username', vault=op_vault) }}"
+      POSTGRES_USER: "{{ vault['zipline_db'].username }}"
       POSTGRES_PASSWORD: >-
-        {{ lookup('community.general.onepassword', 'zipline_db', field='password', vault=op_vault) }}
+        {{ vault['zipline_db'].password }}
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]

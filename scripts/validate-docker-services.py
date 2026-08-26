@@ -214,6 +214,20 @@ def mock_lookup(*args, **kwargs):
     return f"<secret:{name}>"
 
 
+def _mock_vault_fields(name):
+    """HD-258: a mocked 1Password item for the `vault` dict pre-pass. Every
+    field maps to the same byte-identical stub `'<secret:NAME>'` that mock_lookup
+    returned — so a template using `vault['NAME'].field` renders EXACTLY the same
+    bytes as the predecessor `lookup('NAME', field='field')`. This is what makes
+    the bulk-pre-pass refactor provably render-equivalent offline."""
+    return {
+        "username": f"<secret:{name}>",
+        "password": f"<secret:{name}>",
+        "credential": f"<secret:{name}>",
+        "bcrypt_hash": f"<secret:{name}>",
+    }
+
+
 def mock_default(value, default="", boolean=False):
     """Mock Jinja2 default filter (handles boolean 3rd arg)."""
     if value is None or (boolean and not value):
@@ -236,6 +250,18 @@ def build_env():
     env.globals["lookup"] = mock_lookup
     env.filters["default"] = mock_default
     env.filters["comment"] = ansible_comment
+    # HD-258: bulk pre-pass leaves a `vault: {NAME: {field: val}}` dict in scope
+    # instead of per-template `lookup()`. Mock it here so the gate renders the
+    # post-refactor templates offline — every field is the same `'<secret:NAME>'`
+    # stub the old lookup produced, so output is byte-identical by construction.
+    # auto-materialize any requested item via __missing__ so templates that
+    # reference `vault['NAME']` render offline without pre-populating the dict.
+    class _Vault(dict):
+        def __missing__(self, key):
+            item = _mock_vault_fields(key)
+            self[key] = item
+            return item
+    env.globals["vault"] = _Vault()
     return env
 
 

@@ -31,19 +31,19 @@ services:
       - db-internal              # PGVector (RAG vector store)
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      WEBUI_SECRET_KEY: "{{ lookup('community.general.onepassword', 'openwebui_secret', field='password', vault=op_vault) }}"
+      WEBUI_SECRET_KEY: "{{ vault['openwebui_secret'].password }}"
       # Model backend = LiteLLM (the spine, HD-100). LiteLLM = OpenAI-compatible at :4000/v1.
       # HD-247: scoped VIRTUAL key (chat scope, capped) — never the master key.
       OPENAI_API_BASE_URL: "http://litellm:4000/v1"
-      OPENAI_API_KEY: "{{ lookup('community.general.onepassword', 'owui-public-chat_api', field='credential', vault=op_vault) }}"
+      OPENAI_API_KEY: "{{ vault['owui-public-chat_api'].credential }}"
       # Default model shown in the UI (a LiteLLM-exposed model from config.yaml)
       DEFAULT_MODELS: "ollama/qwen2.5,openrouter/gpt-4o-mini"
       # Authentik OIDC (per-user login). Env names VERIFIED against open-webui 0.11.0
       # backend config.py (HD-101 live-verify root cause, 2026-08-25: the previous
       # ENABLE_OIDC/OIDC_* names are NOT read by the app — the SSO button never rendered).
       # The provider registers only when OPENID_PROVIDER_URL + client id/secret are set.
-      OAUTH_CLIENT_ID: "{{ lookup('community.general.onepassword', 'openwebui_api', field='username', vault=op_vault) }}"
-      OAUTH_CLIENT_SECRET: "{{ lookup('community.general.onepassword', 'openwebui_api', field='credential', vault=op_vault) }}"
+      OAUTH_CLIENT_ID: "{{ vault['openwebui_api'].username }}"
+      OAUTH_CLIENT_SECRET: "{{ vault['openwebui_api'].credential }}"
       OPENID_PROVIDER_URL: "https://sso.kogler.si/application/o/openwebui/.well-known/openid-configuration"
       OPENID_REDIRECT_URI: "https://ai.kogler.si/oauth2/callback"   # must match ks-oidc.yml redirect_uris
       OAUTH_PROVIDER_NAME: "Authentik"       # SSO button label on the login page

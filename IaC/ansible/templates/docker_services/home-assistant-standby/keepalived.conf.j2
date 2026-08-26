@@ -15,7 +15,7 @@ vrrp_instance HA_VIP {
     nopreempt                 # do NOT auto-steal the VIP back → prevents split-brain
     authentication {
         auth_type PASS
-        auth_pass {{ lookup('community.general.onepassword', 'ha-vrrp_password', field='password', vault=op_vault) }}
+        auth_pass {{ vault['ha-vrrp_password'].password }}
     }
     virtual_ipaddress {
         {{ ha_vip }}/{{ ha_vip_cidr }}        # HA VIP — same on primary + standby

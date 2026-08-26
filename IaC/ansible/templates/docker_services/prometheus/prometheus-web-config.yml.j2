@@ -10,5 +10,5 @@
 #   rendered from the 1Password field). The repo's fail-loud rule applies: if the field is
 #   absent the render aborts rather than shipping an open scrape endpoint.
 basic_auth_users:
-  {{ lookup('community.general.onepassword', 'prometheus-internal_api', field='username', vault=op_vault) }}: >-
-    {{ lookup('community.general.onepassword', 'prometheus-internal_api', field='bcrypt_hash', vault=op_vault) }}
+  {{ vault['prometheus-internal_api'].username }}: >-
+    {{ vault['prometheus-internal_api'].bcrypt_hash }}

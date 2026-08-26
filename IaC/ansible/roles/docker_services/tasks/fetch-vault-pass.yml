@@ -1,0 +1,51 @@
+---
+# fetch-vault-pass.yml — HD-258: bulk 1Password pre-pass (one `op` fetch per item)
+#-----------------------------------------------------------------------------
+# Builds the `vault: {<item>: {username,password,credential,bcrypt_hash}}` dict
+# that every docker_services compose/config template now reads instead of calling
+# `community.general.onepassword` per template field. The heavy lifting is in
+# scripts/op-vault-export.py — ONE `op item get --reveal` per item (locally
+# parsed), replacing ~160 per-render `op` CLI spawns with ~55 (one per item).
+#
+# Invocation (in main.yml, after the op-CLI assert):
+#   - include_tasks: fetch-vault-pass.yml
+#     vars:
+#       op_item_list: "[item1, item2, …]"   # jinja list of item names
+#
+# Contract (HD-91/HD-65): FAIL-CLOSED — every named item MUST resolve; a missing
+# item / down backend makes the helper exit non-zero -> task fails loudly
+# (NO default('')). Runs on the CONTROL node (delegate_to: localhost), run_once,
+# no_log (the stdin carries secret VALUES via the pipe; stdout into set_fact is
+# no_log). Idempotent: re-fetching re-reads current vault values every converge.
+#
+# Result: a `vault` dict fact ({name -> {username,password,credential,bcrypt_hash}})
+# on the control host, visible to every template this role renders after the pass.
+- name: "HD-258 bulk 1Password pre-pass — export {{ op_item_list | length }} items into `vault`"
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+  changed_when: false
+  vars:
+    # op-vault-export.py lives at the repo root under scripts/. playbook_dir =
+    # <repo>/IaC/ansible/playbooks when invoked via ansible-run.sh -> three
+    # levels up (playbooks->ansible->IaC) is <repo>. Robust to cwd.
+    export_script: "{{ playbook_dir }}/../../../scripts/op-vault-export.py"
+    item_list: "{{ op_item_list }}"
+  block:
+    - name: "Run op-vault-export for the needed item set"
+      ansible.builtin.shell:
+        cmd: |
+          printf '%s\n' "{{ item_list | join('\n') }}" \
+            | python3 "{{ export_script }}" --vault="{{ op_vault }}"
+        executable: /bin/bash
+      register: op_vault_out
+      no_log: true
+      changed_when: false
+      failed_when: op_vault_out.rc != 0
+
+    - name: "Set vault dict fact from the export"
+      ansible.builtin.set_fact:
+        vault: "{{ op_vault_out.stdout | from_json }}"
+      no_log: true
+      changed_when: false
+  when: (op_item_list | default([])) | length > 0

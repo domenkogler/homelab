@@ -34,7 +34,7 @@ services:
       IMMICH_PORT: "3003"
       IMMICH_HOST: "0.0.0.0"
       # HD-160: require the shared ML API key from immich-app (fail-loud lookup).
-      IMMICH_API_KEY: "{{ lookup('community.general.onepassword', 'immich-ml-internal_api', field='credential', vault=op_vault) }}"
+      IMMICH_API_KEY: "{{ vault['immich-ml-internal_api'].credential }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 networks:
   services-internal:

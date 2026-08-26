@@ -83,20 +83,20 @@ services:
       # in the 1P value must not break the RENDERED compose file.
       JWT_ENABLED: "true"
       JWT_SECRET: >-
-        {{ lookup('community.general.onepassword', 'opencloud-collab_password', field='password', vault=op_vault) }}
+        {{ vault['opencloud-collab_password'].password }}
       JWT_HEADER: "Authorization"
       # --- external PostgreSQL (sidecar) ---
       DB_TYPE: postgres
       DB_HOST: onlyoffice-postgres
       DB_PORT: "5432"
       DB_NAME: onlyoffice
-      DB_USER: "{{ lookup('community.general.onepassword', 'onlyoffice_db', field='username', vault=op_vault) }}"
-      DB_PWD: "{{ lookup('community.general.onepassword', 'onlyoffice_db', field='password', vault=op_vault) }}"
+      DB_USER: "{{ vault['onlyoffice_db'].username }}"
+      DB_PWD: "{{ vault['onlyoffice_db'].password }}"
       # --- external Redis (sidecar) ---
       REDIS_SERVER_HOST: onlyoffice-redis
       REDIS_SERVER_PORT: "6379"
       # --- external RabbitMQ (sidecar); urlencode: generated passwords may contain URI-hostile chars
-      AMQP_URI: "amqp://{{ lookup('community.general.onepassword', 'onlyoffice-rabbitmq_login', field='username', vault=op_vault) }}:{{ lookup('community.general.onepassword', 'onlyoffice-rabbitmq_login', field='password', vault=op_vault) | urlencode }}@onlyoffice-rabbitmq:5672"
+      AMQP_URI: "amqp://{{ vault['onlyoffice-rabbitmq_login'].username }}:{{ vault['onlyoffice-rabbitmq_login'].password | urlencode }}@onlyoffice-rabbitmq:5672"
     volumes:
       - /srv/docker/onlyoffice-docs:/var/lib/onlyoffice
     labels:
@@ -148,8 +148,8 @@ services:
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       POSTGRES_DB: onlyoffice
-      POSTGRES_USER: "{{ lookup('community.general.onepassword', 'onlyoffice_db', field='username', vault=op_vault) }}"
-      POSTGRES_PASSWORD: "{{ lookup('community.general.onepassword', 'onlyoffice_db', field='password', vault=op_vault) }}"
+      POSTGRES_USER: "{{ vault['onlyoffice_db'].username }}"
+      POSTGRES_PASSWORD: "{{ vault['onlyoffice_db'].password }}"
 
   onlyoffice-redis:
     image: redis:{{ onlyoffice_redis_version }}
@@ -201,8 +201,8 @@ services:
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # Applied at FIRST mnesia init only (rotation => manual, see NOT_AUTO_ROTATABLE)
-      RABBITMQ_DEFAULT_USER: "{{ lookup('community.general.onepassword', 'onlyoffice-rabbitmq_login', field='username', vault=op_vault) }}"
-      RABBITMQ_DEFAULT_PASS: "{{ lookup('community.general.onepassword', 'onlyoffice-rabbitmq_login', field='password', vault=op_vault) }}"
+      RABBITMQ_DEFAULT_USER: "{{ vault['onlyoffice-rabbitmq_login'].username }}"
+      RABBITMQ_DEFAULT_PASS: "{{ vault['onlyoffice-rabbitmq_login'].password }}"
 
 networks:
   traefik-public:
