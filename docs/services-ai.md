@@ -100,7 +100,9 @@ boundary trim; this doc is the platform SSOT for model guidance):
 |------|-----------------|---------|
 | `openrouter_api` | api → `credential` | LiteLLM (all external LLM generation) |
 | `cohere_api` | api → `credential` | LiteLLM (Cohere embed-v4, embeddings only) |
-| `litellm_master_key` | api → `credential` | Open WebUI + OpenClaw authenticate to LiteLLM |
+| `litellm_master_key` | api → `credential` | **admin/bootstrap ONLY** (HD-247): litellm's own env + the bootstrap-keys glue; retired from every consumer template (grep-clean) |
+| `litellm_db` | db → `password` (`username`=DB user) | litellm-db runtime DB (HD-247 models-in-DB; init-once password, NOT_AUTO_ROTATABLE; dumped via db-backup **DB06**) |
+| scoped virtual keys (`owui-public-chat_api`, `owui-public-rag_api`, `owui-int-wife_api`, `owui-int-owner_api`, `dsh_api`, `openclaw-litellm_api`, `rag-int-svc_api`) | api → `credential` | per-consumer LiteLLM auth — **glue-generated at bootstrap** by `litellm-bootstrap-keys.sh` (create-if-absent; sks are hashed at rest server-side and can never be re-read, so a cleared item + deleted server key = re-mint) — see the table below |
 | `openwebui_secret` | password → `password` | Open WebUI session/encryption secret (optional) |
 | `pgvector_db` | db → `password` (`username`=DB user) | PGVector (optional if dedicated) |
 
@@ -109,15 +111,19 @@ boundary trim; this doc is the platform SSOT for model guidance):
 >
 **Scoped consumer keys (v2 plan, HD-247):** LiteLLM runs Postgres-backed (`STORE_MODEL_IN_DB`) so models are edited in its Admin UI at runtime; Ansible owns bootstrap config only. One-time bootstrap glue mints per-consumer virtual keys into 1Password (fail-closed lookups thereafter):
 
-| Key | Consumer | Scope |
+| Key alias → 1P item | Consumer | Scope |
 |-----|----------|-------|
-| `owui-public-chat` | OWUI-public | chat models (`ollama/*` + mid-tier cloud), budget caps, no agents |
-| `owui-public-rag` | OWUI-public RAG | `cohere/embed-v4` only |
-| `owui-int-wife` | OWUI-internal (wife) | agents + mid-tier cloud; capped |
-| `owui-int-owner` | OWUI-internal (owner) | full incl. agent models |
-| `dsh` | DeepSeek Harness | coding-model scope, budgeted |
-| `openclaw` | OpenClaw gateway | agent scope, budgeted |
-| `rag-int-svc` | OWUI-internal RAG | `cohere/embed-v4` only |
+| `owui-public-chat` → `owui-public-chat_api` | OWUI-public | chat models (`ollama/*` + mid-tier cloud), budget caps, no agents |
+| `owui-public-rag` → `owui-public-rag_api` | OWUI-public RAG | `cohere/embed-v4.0` + `cohere/rerank-v4.0-pro` ⚠ DEVIATION vs "embed-only": HD-246 routes `/rerank` through this same key — embed-only would hard-break the decided pipeline |
+| `owui-int-wife` → `owui-int-wife_api` | OWUI-internal (wife) | agents + mid-tier cloud; capped |
+| `owui-int-owner` → `owui-int-owner_api` | OWUI-internal (owner) | full incl. agent models |
+| `dsh` → `dsh_api` | DeepSeek Harness | coding-model scope, budgeted |
+| `openclaw-litellm` → `openclaw-litellm_api` | OpenClaw gateway | agent scope, budgeted. NOT `openclaw_api` — taken by the OpenClaw OIDC client (secret-egress glue); follows the `openclaw-opencloud_api` precedent |
+| `rag-int-svc` → `rag-int-svc_api` | OWUI-internal RAG | same rerank deviation as owui-public-rag |
+
+> Specs are SSOT'd in `group_vars/vps.yml` `litellm_scoped_keys` (consumed by BOTH the glue and
+> `check-vault-items.sh`; items are glue-seeded ⇒ never appear in the pre-seed MISSING diff).
+> Starting budgets/durations are Admin-UI-editable at runtime.
 
 > 📋 **Deploy checklist:** see [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) for the
 > step-by-step 1Password item-creation + Authentik OIDC wiring runbook (HD-105).
@@ -142,8 +148,8 @@ boundary trim; this doc is the platform SSOT for model guidance):
 | Parameter | Decided value | Lives in |
 |-----------|---------------|----------|
 | Extraction engine | Docling only — `CONTENT_EXTRACTION_ENGINE=docling`, `DOCLING_SERVER_URL=http://docling:5001` | open-webui compose env |
-| Embeddings | `cohere/embed-v4.0`, **1536 dims** (v4 default, untruncated), `RAG_EMBEDDING_ENGINE=openai` → `http://litellm:4000/v1` (key = `litellm_master_key`) | litellm `config.yaml.j2` + OW env |
-| Reranker | Cohere **rerank v4.0-pro**, external engine via LiteLLM `/rerank` (`RAG_RERANKING_ENGINE=external`; exact LiteLLM id string registry-verified at render) | litellm `config.yaml.j2` + OW env |
+| Embeddings | `cohere/embed-v4.0`, **1536 dims** (v4 default, untruncated), `RAG_EMBEDDING_ENGINE=openai` → `http://litellm:4000/v1` (key = scoped `owui-public-rag_api`, HD-247) | open-webui compose env (lands with HD-246) |
+| Reranker | Cohere **rerank v4.0-pro**, external engine via LiteLLM `/rerank` (`RAG_RERANKING_ENGINE=external`; exact LiteLLM id string registry-verified at render) — SAME scoped key as embeddings: that is why `owui-public-rag_api` carries both models (deviation recorded HD-247) | open-webui compose env (lands with HD-246) |
 | Hybrid search | ON — `ENABLE_RAG_HYBRID_SEARCH=true`, `RAG_HYBRID_BM25_WEIGHT=0.5` (starting value) | OW env |
 | Retrieval K | `RAG_TOP_K_RERANKER=20` candidates → rerank → `RAG_TOP_K=5`, `RAG_RELEVANCE_THRESHOLD=0.0` | OW env |
 | Chunking | **token-based**: `RAG_TEXT_SPLITTER=token` (mandatory — otherwise CHUNK_SIZE counts *characters*), `CHUNK_SIZE=512`, `CHUNK_OVERLAP=64` (Cohere sweet spot) | OW env |

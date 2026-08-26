@@ -80,9 +80,9 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | Data | Location | Method | Target |
 |------|----------|--------|--------|
-| PostgreSQL DBs (Authentik, Immich, Forgejo, **PGVector** — HD-102, **Zipline** — HD-112; all bundled on the **VPS**, `db-backup` DB01–05) | VPS NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** Hetzner Storage Box (backup) (Kopia) |
+| PostgreSQL DBs (Authentik, Immich, Forgejo, **PGVector** — HD-102, **Zipline** — HD-112, **LiteLLM runtime** — HD-247; all bundled on the **VPS**, `db-backup` DB01–04 + **DB06**) | VPS NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** Hetzner Storage Box (backup) (Kopia) |
 | Docker Compose files / systemd units / configs | Git repo + host `/opt/*` (**VPS + oldsrv**) | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box (backup) |
-| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend** — HD-100, **OpenClaw config/state** — HD-104 on the **VPS**; **Seerr config + `seerr.db`** — HD-130/KOPS-059 on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
+| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend → moved into litellm-db Postgres, dumped via db-backup DB06** (HD-247 models-in-DB: the DB is the critical state, `/srv/docker/litellm` keeps only misc app state), **OpenClaw config/state** — HD-104 on the **VPS**; **Seerr config + `seerr.db`** — HD-130/KOPS-059 on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
 | **Zipline file payloads** (`/srv/docker/zipline/uploads` — datasource; HD-112) | VPS NVMe | **Kopia-EXCLUDED by design**: anonymous dropzone drops self-destruct at ≤ 6h TTL (guestbin quota-bounded); private-account files are owner-managed | — *(ephemeral/regenerable-by-design — observability-TSDB precedent)*. The metadata DB IS dumped (`db-backup` DB05). |
 | Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |
 | Router configs (`*.rsc`) | Git repo | Git + Kopia | Hetzner Storage Box (backup) |
