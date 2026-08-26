@@ -554,6 +554,27 @@
 - **Lanes A+B shipped to main:** scanner (`f1e9eee`), litellm spine (`5388dda` + `5ebdcb8`), close-out/bookkeeping (`4901a9b`), scanner v2 (`6493126`), seed-note (`b4158de`) — all ff-merged from session branches in per-session worktrees, pushed; worktrees pruned.
 - Notes: renovate stays pointed at `domen/test` until the owner migrates `domen/homelab` (delayed); HD-252 Lane D will VERIFY the owner's manual domen↔OIDC provider_identifier link rather than re-migrate.
 
+### 2026-08-26 — Phase 1 · HD-252 Lane D: headscale OIDC recovery + container recycle, surgical-converge blocker found `[AI]`
+
+- Plan ref: todo HD-252 ①②; prompt.md §3b Lane D; owning docs docs/network-vpn.md, docs/deployment-oidc.md. 9P sync gate green BOTH sides (`309a6782…` = `309a6782…`) against the session worktree (`homelab-wt-20260826-1600`, branch `session-headscale-oidc`); WSL Ansible runner reachable (ansible `ping` on `vps.kogler.si` = pong); direct SSH via the Windows OpenSSH `vps-ansible` alias.
+- **Root cause re-confirmed live:** headscale container started `2026-08-23T20:36Z` (RestartCount 8, pre-HD-235-rotation) — process memory held the STALE pre-rotation OIDC client_secret, so every enrolment died `invalid_client`; the on-disk `config.yaml` (same 128-char secret, block-scalar `>-` rendered correctly) was already good — headplane (restarted `2026-08-24T08:47Z`) shared the new secret and worked.
+- **Fix (commands as run, surgical — headscale container ONLY, no other lane folds):**
+  ```bash
+  ssh vps-ansible
+  cd /opt/headscale
+  docker compose up -d --no-deps headscale          # NO-OP: spec unchanged, container left running (root cause of the gap)
+  docker compose up -d --no-deps --force-recreate headscale   # forces recycle -> new process reads the good config
+  docker ps --filter name=headscale --format '{{.Names}}: {{.Status}}'   # headscale: Up …  Started 2026-08-26T14:05:00Z, RestartCount 0
+  ```
+- **Verification (secrets never printed — lengths/codes only):**
+  - token-endpoint replay on the VPS (python3 yaml-parse on-disk creds → POST `https://sso.kogler.si/application/o/token/` with a DUMMY code): previous `invalid_client` → now **`HTTP 400 / error = invalid_grant`** (= client auth OK; the exact HD-252 success criterion). `client_id` 40, `client_secret` 128.
+  - control plane healthy: `/health` 200, `/api/v1/node` + `/api/v1/user` 200 (headplane polling every minute), zero errors in logs since recycle.
+  - clients: laptop node `Domen_P14s` reconnected **online 2026-08-26 14:05:03Z** (right after the recycle); phone `Naprava A54` offline (pre-existing); both no tags (interim `*:*` ACL intact).
+- **New blocking finding (→ todo HD-255):** the documented surgical converge `--tags "docker_services,headscale"` does **NOT** filter per-service — a `--check` run executed ALL services' tasks (compose up + restart guard for authentik/traefik/crowdsec/opencloud/onlyoffice/immich/forgejo/zipline/litellm/traefik…): the `Deploy each enabled service` include's `tags: docker_services` cascades into inner-task effective tags, so per-service `{{ svc.name }}` tags give no narrowing. Additionally the extras restart-on-change guard in `deploy-service.yml` (`Restart … to apply changed extra config`) aborts with `Error evaluating conditional: object of type 'dict' has no attribute 'item'` on a service whose template-result lacks `item` — likely why the Aug-24 re-render never restarted headscale. Tracked as NEW HD-255 (authoring fix, not a live blocker).
+- **Session execution model:** change happened via direct host ops (least blast radius), iterated repo discipline in the session worktree (todo HD-252 updated, HD-255 added, this journal entry, prompt.md §3b ref), `bash scripts/validate-all.sh` green before close.
+- **Owner device-gated remainders:** HD-252 ② full browser `/register`→sso→`/oidc/callback` round-trip (server leg verified; needs a logged-in browser + Tailscale app); ③ LIVE VERIFY FAILED — headscale user `domen` (ID 1, 2026-08-25) has empty email and NO provider_identifier (hand-created; `headscale users list` shows no OIDC link), so the Lane-D path is: owner deletes the hand-created `domen` user and re-enrolls ONE device through the now-working OIDC flow (or explicitly accepts hand-created); ④ tighten interim ACL `*:*` in `policy.hujson.j2` per TIGHTEN promise once ③ yields a real OIDC identity.
+- **Secrets touched:** none written to git/chat; `headscale_api.credential` read on-box via yaml+probe only for the replay (lengths reported, never value). **Deviations:** none — the documented Lane-D surgical fix executed directly because the documented surgical-tag converge is (separately, HD-255) broken.
+
 ## Phase 1a — Parallel Track: NAS Pools + Host Installs
 
 ### 2026-08-23 — Phase 1a · oldsrv reinstalled interactively — preseed automation bypassed after four delivery failures `[MANUAL]`

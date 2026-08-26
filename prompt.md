@@ -55,7 +55,7 @@ One orchestrated pass over the deploy-gated stack, following the proven diagnost
 
 ### 3b. THEN: Lane D — Headscale (separate lane, do NOT fold into C)
 
-Surgical converge of headscale/headplane ONLY → first-ever successful `/oidc/callback` → **VERIFY the owner's manual `domen`↔OIDC connection actually set provider_identifier** (hand-connected ≠ OIDC-linked; fix via delete+re-enroll if absent) → tighten interim ACL `*:*` → named users/tags per policy.hujson.j2 TIGHTEN promise (HD-84) → trim HD-252 tail.
+✅ **① container recycle DONE live 2026-08-26** (branch `session-headscale-oidc`): headscale force-recreated (`up -d --no-deps --force-recreate headscale`, Started 2026-08-26T14:05Z, RestartCount 0); on-disk already carried the 128-char rotated secret; token-endpoint replay now `invalid_grant` (client auth OK, was `invalid_client`) + `/health` 200 + laptop node `Domen_P14s` reconnected online. Full evidence: journal entry 2026-08-26 HD-252 Lane D. ⚠ New blocker HD-255: `--tags "docker_services,<service>"` does NOT per-service filter (include-tag cascades) AND the extras restart guard aborts on `selectattr('item')` — authoring fix tracked; a true surgical converge is not possible today, so on-host direct ops were the lane-correct path. Remaining: ② browser `/register`→sso→`/oidc/callback` round-trip (owner device); ③ LIVE VERIFY FAILED — the manual `domen` user has empty email/no provider_identifier (headscale `users list`), so owner deletes + re-enrolls one device via the fixed OIDC flow; ④ tighten ACL `*:*` → named users/tags in `policy.hujson.j2` per TIGHTEN promise once a real OIDC identity exists.
 
 ### 3c. Carried queue (non-blocking)
 
