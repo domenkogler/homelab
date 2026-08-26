@@ -546,6 +546,14 @@
   pipe masked the script exit code. Fixed next commit (f6d2d41); lesson: capture rc before the
   pipe, never trust the pipe's status.
 
+### 2026-08-26 — Phase 1 · Vault completion + vault-coverage scanner live-confirm (HD-244/245/247 prep)
+
+- Plan refs: todo HD-244/HD-245 (scanner contract), HD-247 ⏳ gate legs; owning docs `scripts/README.md`, `docs/services-ai.md` §4, `docs/deployment-secrets.md`.
+- **Vault seeded** via `bash scripts/provision-vault.sh` (WSL Debian runner, HD-212 sync gate green both sides): created exactly **one** item — `litellm_db` (Database class, username `litellm`, generated password, NOT_AUTO_ROTATABLE) — skipped 35 existing, confirming owner-side presence of real `openrouter_api`/`cohere_api`/`forgejo_api` values, `metabase-forgejo_ro`, `zipline_password`/`zipline_db`. Output printed names/status only — no secret values.
+- **Scanner live-confirm (HD-244 tail closed):** pre-fix run flagged the 7 HD-247 scoped keys MISSING-and-not-glue — fixture had masked the gap (fixture glue template carries literal "name:field" pairs; the real `litellm-bootstrap-keys.sh.j2` is Jinja-rendered, `spec.vault_item`). Same-day fixes (`4113897`, `6493126`): specs inside a top-level `*_scoped_keys:` list route to GLUE; `db_item`/`db_ro_item` on service entries stay NEEDED (owner-seeded catalog); glue-minted names finally subtracted from NEEDED because they ALSO enter via literal consumer lookups. Post-fix live run: **needed items 36 | in vault 63 | MISSING = `ha-failover_api` ONLY** (Phase-4 scope behind disabled homepage button — expected). Self-test extended to 24 asserts incl. case 7 control/scoped mutate-copy pair.
+- **Lanes A+B shipped to main:** scanner (`f1e9eee`), litellm spine (`5388dda` + `5ebdcb8`), close-out/bookkeeping (`4901a9b`), scanner v2 (`6493126`), seed-note (`b4158de`) — all ff-merged from session branches in per-session worktrees, pushed; worktrees pruned.
+- Notes: renovate stays pointed at `domen/test` until the owner migrates `domen/homelab` (delayed); HD-252 Lane D will VERIFY the owner's manual domen↔OIDC provider_identifier link rather than re-migrate.
+
 ## Phase 1a — Parallel Track: NAS Pools + Host Installs
 
 ### 2026-08-23 — Phase 1a · oldsrv reinstalled interactively — preseed automation bypassed after four delivery failures `[MANUAL]`

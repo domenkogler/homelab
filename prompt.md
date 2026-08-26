@@ -1,8 +1,8 @@
-# prompt.md — Deployment Execution Handoff #18 — HD-253 session-discipline enforcement SHIPPED (guard live); next: plan-task the HD-247→251 cutover chain
+# prompt.md — Deployment Execution Handoff #19 — HD-244/245 scanner hardened + HD-247 spine cutover AUTHORED (deploy-gated) + vault complete; next: Lane C converge wave
 
-> **Active lanes:** none
+> **Active lanes:** Lane C (Phase-1 converge wave, VPS) QUEUED — needs owner at gates; Lane D (Headscale, separate lane) after C.
 
-> **Role:** Entry point for the next session. This session (2026-08-26) implemented **HD-253** mechanically per its locked decisions: `scripts/guard-session.sh` worktree guard (refuses edit-context on primary+main; `--validate-mode` hard-fails primary+main+DIRTY) wired into `validate-all.sh` with a sandboxed self-test, README §0 intent-routed start sequence, CONVENTIONS §4/§6 amendments (diff-rule, derived-values ban, branch-per-session checkbox, merge-station definition), and handoff restorations per the new diff-rule. Local tooling/docs only — NO IaC / NO deploy was touched. Source draft `process-improvements-draft.md` and `prompt-workflow.md` were deleted in the closing change (lifecycle §4). The AI-stack v2 planning from handoff #17 remains LOCKED but unbuilt — next session SHOULD `plan-task` the cutover chain before executing.
+> **Role:** Entry point for the next session. Session 2026-08-26 shipped three things, ALL laptop-side — zero converges ran. **(1) HD-244+HD-245** — `check-vault-items.sh` now parses scalar `*_item:`/`vault_item:` values from enabled group_vars service entries AND routes specs inside top-level `*_scoped_keys:` lists to a GLUE set (the litellm bootstrap-keys glue is Jinja-rendered — its item names are never greppable literals), subtracts glue-minted names from NEEDED at the end (they also enter via literal consumer-template lookups), and gained `--strict` + a committed self-test (case 7 control/scoped pair proves classification rides the block name; 24 asserts). Live-confirmed against the real vault: **needed 36 / MISSING = `ha-failover_api` ONLY** (Phase-4, expected) — closes HD-244's "re-run green once present" tail. **(2) HD-247** authored end-to-end as deploy-gated IaC: pin `litellm_version v1.83.10-stable` (+`litellm_db_version 16.15-alpine`, registry-verified w/ digest), bundled litellm-db Postgres + `STORE_MODEL_IN_DB=true` (`model_list` REMOVED from config.yaml.j2 — Admin-UI recreation is a first-deploy runbook step), DB06 db-backup block + backup.md critical-state row, `bootstrap-keys` glue (vault-first idempotent: empty item → POST /key/generate → sk into 1P; stale-secret probe abort rc2; unique-alias conflict abort rc4; docker-exec HTTP @127.0.0.1:4000, no new host ports; runs BEFORE open-webui/openclaw render like prepass-authentik), scoped-key SSOT `litellm_scoped_keys` in vps.yml, master_key demoted to admin/bootstrap-only (zero consumer hits). Recorded deviations: `openclaw-litellm_api` name (collision with openclaw-opencloud_api convention); rag keys carry rerank-v4.0-pro (HD-246 routes /rerank through the same key). **(3) Vault completed**: provision-vault.sh created exactly `litellm_db`; all other catalog items confirmed present incl. real `openrouter_api`/`cohere_api`/`forgejo_api` values and `metabase-forgejo_ro`. Owner decisions logged: Forgejo install wizard DONE + `domen/test` repo exists → renovate validation targets the test repo, `domen/homelab` flip DELAYED; HD-252 laptop user `domen` was manually linked to the OIDC account → Lane D VERIFYs the provider_identifier link instead of migrating; HD-30 purchase delayed.
 > **Linked from:** [README.md](README.md) §0/§2 · [CONVENTIONS.md](CONVENTIONS.md) §4/§6 · [scripts/guard-session.sh](scripts/guard-session.sh) · [changelog.md](changelog.md) rows HD-253 + HD-247–251 · owning docs: [docs/services-ai.md](docs/services-ai.md) (v2 arch), [docs/security.md](docs/security.md) §10, [docs/network-vpn.md](docs/network-vpn.md) §Tailnet-exposed services.
 
 ---
@@ -13,43 +13,56 @@
 2. [docs/services-ai.md](docs/services-ai.md) — **THE v2 architecture doc** (§2 topology diagram, §4 scoped-key inventory table, §5 knowledge split, §6 exposure posture, §9 decisions #11–17).
 3. [docs/security.md](docs/security.md) — **§10 Capability-tiering / management-plane separation** (the master invariant).
 4. [docs/network-vpn.md](docs/network-vpn.md) — **§Tailnet-exposed services**: Patterns A/B recipes + node/tag table.
-5. [changelog.md](changelog.md) — **HD-247–251** decision bundle (+ existing **HD-246** RAG lock) + fresh **HD-253** implementation record.
-6. [deployment-journal.md](deployment-journal.md) — 2026-08-26 entry (decision session).
+5. [changelog.md](changelog.md) — **HD-247–251** decision bundle (+ existing **HD-246** RAG lock) + **HD-253** implementation record + fresh **hd244+hd245** and **HD-247** Done rows (2026-08-26).
+6. [deployment-journal.md](deployment-journal.md) — 2026-08-26 entries (decision session + vault seeding / scanner live-confirm).
 
 ## 1. Environment (Windows 11 laptop)
 
-Same as handoff #16 (unchanged): git-bash, forward-slash, `py -3`, UTF-8 no-BOM, LF; Ansible via WSL + 9P gate before every run; Secrets → 1Password item.field only, `>-` for YAML renders; **new self-learned rule (2026-08-26): do NOT use multi-line bash heredocs containing backslashes/backticks on this host (mangled through `bash -c`) — write patch scripts to a temp file via the `write` tool and run them instead.**
+Same as handoff #16 (unchanged): git-bash, forward-slash, `py -3`, UTF-8 no-BOM, LF; Ansible via WSL + 9P gate before every run; Secrets → 1Password item.field only, `>-` for YAML renders; **new self-learned rule (2026-08-26): do NOT use multi-line bash heredocs containing backslashes/backticks on this host (mangled through `bash -c`) — write patch scripts to a temp file via the `write` tool and run them instead. Second (2026-08-26): `wsl.exe` invoked from git-bash mangles `/mnt/...` arguments into `C:/Program Files/Git/mnt/...` — always prefix with `MSYS_NO_PATHCONV=1`.**
 
 ## 2. State snapshot (start of next session)
 
-- **main carries the two HD-253 commits (feature `c13dd44` + close-out) NOT YET PUSHED** — pushing is OWNER's call. The session ran in worktree `homelab-wt-20260826-1018`, branch `session/hd253-workflow-enforcement`, merged back ff-only.
-- **The worktree rule is now ENFORCED:** a session starting on the primary checkout gets refused by `guard-session.sh`; `validate-all.sh` fails on primary+main+DIRTY. Start every session with the worktree ritual (README §0).
-- **AI stack v2 is PLANNED, not built.** Key dependencies/prereqs to respect:
-  - **HD-247 (spine, first):** pin `litellm_version` semver (drop `main-stable` fluid tag) → LiteLLM Postgres + `STORE_MODEL_IN_DB` → migrate models to DB → bootstrap-keys glue (7 scoped keys → 1P) → swap consumers off `master_key` (retire it from all templates). *Everything else depends on HD-247.*
+- **main @ `b4158de`, fully pushed** — nothing unpushed; all session worktrees pruned, branches ff-merged green (guard ritual followed throughout).
+- **Worktree rule ENFORCED** (unchanged from #18): start every session with the worktree ritual (README §0).
+- **AI stack v2: HD-247 is BUILT (IaC, deploy-gated); HD-248–251 remain planned-not-built.**
+  - **HD-247 remaining ⏳ legs (Lane C):** converge vps.yml → bootstrap-keys glue mints the 7 scoped sks into 1P → Admin-UI model recreation (compose-header runbook step, incl. HD-246-corrected embed-v4.0@1536/rerank-v4.0-pro params) → live-verify scoped keys + open-webui/openclaw against them → trim tail. Unblocks HD-250/HD-248.
   - **HD-248:** parametrize open-webui compose to render twice; `chat.kogler.si` public / `ai.kogler.si` internal (drop public `ai.` DNS) + Element→`msg.kogler.si`; public-KB restriction pins.
-  - **HD-249:** n8n internal (audit webhook deps first).
-  - **HD-250:** DSH (depends HD-247; verify `tailscale serve` TCP-mode works on your Headscale).
-  - **HD-251:** fleet exposure rework phase-2 (Headplane → tailnet, review Dozzle/Metabase/Grafana/traefik-dash).
-- **Still-open legacy (from #16, unchanged):** HD-101 verify (next converge), HD-211 rotation batch: **Zipline pre-deploy:** seed vault items via `bash scripts/provision-vault.sh` (creates `zipline_password` + `zipline_db`; owner input = starting guestbin quota ~100 MB) · **HD-112 go-live legs** (below) · Kopia `/backup` decision · **LDAP HD-132 authoring** · **Forgejo `domen/homelab` repo creation** (renovate flip) · **HD-238 DR runbook** · HD-57 human legs (bank tokens / Enable-Banking app).
-- **HD-211 rotation batch (full, priority):** `openrouter_api`, `cohere_api`, `forgejo_api` (real values); **`prometheus-internal_api` password exposed into an agent transcript TWICE now** (2026-08-23 probe + 2026-08-24 quoting failure) — rotate vault item then re-run `--tags monitoring` (API seed task only fires when DS absent → delete the DS first via UI/API, or extend the task with a rotate mode); **`crowdsec-bouncer_api` LAPI key** (exposed via traefik debug config dump, 2026-08-25 ~00:45); **`opencloud-collab_password` window**; **persisted-Authentik-token `expiring=False` sweep** (HD-216).
-- **ID registry:** next free = max(HD)+1 in [todo.md](todo.md) — always re-derived at write time per CONVENTIONS §1; NEVER type a literal number here (the typed "next free = HD-247"/"= HD-252" pointers went stale within hours — the HD-253 lesson now codified as a §4 close-out ban).
-- **Coordination:** do NOT touch headplane/headscale unless the owner asks (separate lane; HD-251 is planned but not started).
+  - **HD-249:** n8n internal (audit webhook deps first). **HD-250:** DSH (depends HD-247; verify `tailscale serve` TCP-mode works on your Headscale). **HD-251:** fleet exposure phase-2.
+- **Vault state (confirmed 2026-08-26):** provision-vault.sh idempotent run created ONLY `litellm_db`; 35 others skipped-as-existing — real `openrouter_api`/`cohere_api`/`forgejo_api` values IN PLACE (HD-211 core resolved), `metabase-forgejo_ro` present, zipline items present. Scanner live baseline: needed 36 / MISSING `ha-failover_api` only.
+- **Renovate:** Forgejo install wizard DONE; `domen/test` repo exists → Lane C re-enables renovate pointed at the test repo and validates PR creation; flip to `domen/homelab` when the owner migrates it (DELAYED by decision).
+- **Still-open HD-211 tails:** `prometheus-internal_api` password exposed into an agent transcript TWICE (rotate → delete DS → re-run `--tags monitoring`); **`crowdsec-bouncer_api` LAPI key** (exposed via traefik debug dump 2026-08-25); `opencloud-collab_password` exposure window; persisted-Authentik-token `expiring=False` sweep (HD-216).
+- **Carried legacy (from #16/#18):** HD-112 go-live legs (below) · Kopia source wiring (**HD-230d framing: agent-on-VPS vs server-managed; orchestrator recommends option (a) kopia-agent mirroring HD-191 — awaiting owner sign-off**) · LDAP HD-132 authoring · Phase 1.5 cutover (dnevna/garage swaps + capsman rsc) · HD-238 DR runbook · HD-57 bank-token legs · HD-30 purchase (delayed).
+- **ID registry:** next free = max(HD)+1 in [todo.md](todo.md) — always re-derived at write time per CONVENTIONS §1; NEVER type a literal number here (the HD-253 lesson, codified as a §4 close-out ban).
+- **Coordination:** headplane/headscale = SEPARATE lane (D) — coordinate, never fold into other converges.
 
 ## 3. Next-session execution order
 
-### 3a. First: decide with the owner — **plan-task the HD-247→251 cutover** (chain ①pin → ②Postgres/STORE_MODEL_IN_DB → ③sidecars+ACL → ④keys → ⑤consumers → ⑥owui-int → ⑦KB dual-ingest → ⑧dsh → ⑨openclaw onboard → ⑩dsh deploy → ⑪headplane). This is the recommended next step. (The #17 docs-commit prerequisite is DONE.)
+### 3a. FIRST: Lane C — Phase-1 converge wave on the VPS (owner-gated, interactive)
 
-### 3b. Owner-action chase (unchanged from #16, non-blocking)
-- **HD-101 verify after the open-webui OIDC template converges:** ① "Continue with Authentik" button renders on ai.kogler.si ② owner SSO round-trip LINKS the existing local admin by email (`OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true` — no duplicate account) ③ family-side sanity: local signup rejected, SSO-created accounts land `pending` ④ LiteLLM completion test + RAG verify → trim HD-101 ⏳ tail + changelog close-out.
-- **HD-211 rotation batch** (see §2).
-- **HD-112 go-live — partially DONE 2026-08-25** (stack deployed, zipline UP on :3000). FULL legs restored from handoff #16 per the new diff-rule (CONVENTIONS §4 close-out ⑤): ⓪ **pre-deploy vault seeding** via `bash scripts/provision-vault.sh` (creates `zipline_password` + `zipline_db`; owner input = starting guestbin quota ~100 MB) · ① **run dns.yml** (the `bin` CNAME applies ONLY there — without it bin.kogler.si does not resolve) · ② **walk the compose-header deploy gate** (`/auth/setup` admin → OIDC verify → flip bypass-local-login in Server Settings → seed `guestbin` user (small quota, no password) + `dropzone` folder `allowUploads=true`) · ③ logged-out anonymous upload→short-URL→viewer round-trip · ④ 6h sweep verify · ⑤ family drop script + manual guide entry → trim the HD-112 ⏳ tail.
-- Carried owner decisions: **Kopia `/backup` source wiring**; **LDAP HD-132 authoring** (base DN/bind mode/TLS/UIDs + authentik-ldap_bind.password decoupling); **Forgejo `domen/homelab` repo** (renovate flip); Phase 1.5 cutover (dnevna/garage swaps + capsman rsc); **HD-57 bank/virtual-token legs**.
+One orchestrated pass over the deploy-gated stack, following the proven diagnostics→serial-edit→surgical-converge pattern (9P gate before every run; journal each wave; tick the ledger):
+- **HD-230g** disabled-service teardown loop verify + blueprint one-shot fired (ride-along checks below).
+- **HD-220** db_role_sync rotation-drift guards fire on converge.
+- **HD-218 Wave-3 residue** container-state re-sample.
+- **HD-181** first wildcard issuance + consumer pull-key authorization (Pi ha-sync / oldsrv traefik-cert-sync pubkeys) + sync-timer delivery verify.
+- **HD-183** homepage renders on the VPS edge (`kogler.si`/`home` aliases).
+- **HD-184** immich-app→immich-ml round-trip over WG (smart-search job completes).
+- **HD-112 go-live legs:** ⓪ vault seeding DONE (items exist) · ① run dns.yml (the `bin` CNAME applies ONLY there) · ② walk the compose-header deploy gate (`/auth/setup` admin → OIDC verify → flip bypass-local-login in Server Settings → seed `guestbin` user (small quota ~100 MB, no password) + `dropzone` folder `allowUploads=true`) · ③ logged-out anonymous upload→short-URL→viewer round-trip · ④ 6h sweep verify · ⑤ family drop script + manual guide entry → trim the HD-112 ⏳ tail.
+- **HD-241/242 metabase gates:** Send test email; connect CrowdSec SQLite + Forgejo PG sources; import official dashboards; SELECT-only proof (write attempt must fail). `metabase-forgejo_ro` already seeded.
+- **HD-101 verify ride-along:** "Continue with Authentik" button on ai.kogler.si → SSO round-trip LINKS local admin by email (`OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true`) → family sanity (local signup rejected, SSO accounts land `pending`) → LiteLLM completion + RAG smoke → trim HD-101 ⏳ tail.
+- **Renovate vs `domen/test`:** re-enable renovate scoped to the test repo; verify a PR opens against it; homelab-repo flip stays delayed.
+- **HD-230d Kopia wiring** if owner approves option (a): add kopia-agent service entry covering the dumps volume (+ retention), mirroring HD-191.
+- Converge ride-along checks (from #18, still binding): extras-restart guard behavior (zero spurious restarts / exactly one per changed extra, HD-236) + `apply-authentik-blueprints.yml` one-shot green in the same run + open-webui recreated with non-empty `OPENID_PROVIDER_URL`; then walk HD-101 verify; journal all three, trim ⏳ tails via an append-only R-row.
 
-### 3c. Engineering queue (continue from #16; note AI-stack HDs now supersede HD-246's "pending" as they absorb it)
-- **HD-246 RAG retrieval wiring (decided 2026-08-25, absorbed into the HD-247/248 plan)** — litellm embed-pin fix (incl. the discovered `embed-english-v3.0` mis-pin under name `cohere/embed-v4`) + rerank entry + OW compose env pins (`ENABLE_PERSISTENT_CONFIG=false`, docling extraction, Cohere embed via LiteLLM, external reranker, hybrid ON, 20→top 5, token chunks 512/64) + idempotent PGVector HNSW index task (`vector_cosine_ops`@1536; no hand-SQL per HD-220) + dual Family-Manuals ingestion.
-- **HD-238** oldsrv→VPS DR runbook for non-GPU services (todo §2.9) — laptop-doable authoring; pairs with next backup.md touch (which also carries the HD-112 uploads-exclusion row).
-- **HD-112 / HD-252 backlog** as they read. **Phase-2 backlog note:** Zipline `/drop` static glue page (Traefik PathPrefix-priority router, same-origin) — only if the owner asks; NOT queued.
-- **Converge ride-along checks** (fold into any upcoming docker_services converge): observe residual ① extras-restart guard behavior (zero spurious restarts on unchanged extras / exactly one per changed extra, HD-236) + ② confirm the `apply-authentik-blueprints.yml` one-shot task fired green in the same run + ③ open-webui container RECREATED with the corrected OIDC env (verify `docker exec open-webui printenv OPENID_PROVIDER_URL` non-empty post-up), then walk §3b HD-101 verify; journal all three, then trim the ⏳ tails via an append-only R-row.
+### 3b. THEN: Lane D — Headscale (separate lane, do NOT fold into C)
+
+Surgical converge of headscale/headplane ONLY → first-ever successful `/oidc/callback` → **VERIFY the owner's manual `domen`↔OIDC connection actually set provider_identifier** (hand-connected ≠ OIDC-linked; fix via delete+re-enroll if absent) → tighten interim ACL `*:*` → named users/tags per policy.hujson.j2 TIGHTEN promise (HD-84) → trim HD-252 tail.
+
+### 3c. Carried queue (non-blocking)
+
+- **HD-238** oldsrv→VPS DR runbook authoring for non-GPU services (todo §2.9) — laptop-doable; pairs with next backup.md touch.
+- **HD-246** RAG env pins land WITH HD-247's first converge (absorbed; details live in todo row + services-ai.md §5).
+- Zipline `/drop` static glue page — Phase 2, only if the owner asks; NOT queued.
+- Owner-action chase (still open): prometheus-internal_api + crowdsec-bouncer_api rotations, expiring=False sweep, LDAP HD-132 authoring, Phase 1.5 hardware swaps, HD-57 bank legs, HD-30 (delayed), homelab repo migration (delayed).
 
 ## 4. Working rules (binding)
 
