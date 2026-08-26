@@ -6,6 +6,16 @@
 # Base directory for all Docker Compose projects.
 docker_compose_dir: /opt
 
+# Surgical-deploy scope (HD-255/HD-260). `all` (default) = full converge and is
+# UNCHANGED from the pre-scope behavior. Setting it to a single service name makes
+# a `--tags docker_services` run deploy ONLY that service:
+#   ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=headscale
+# The per-service inner tags in deploy-service.yml still narrow the task list, but
+# the direct-role platform tasks in main.yml (networks, teardown, homepage,
+# cert-pull, authentik-lane) otherwise run on every docker_services run because the
+# include lines carry `tags: docker_services` (union selection) — the scope gate
+# below keeps a surgical run to genuinely one service + its hard companions.
+
 # Extra .j2 template files (beyond docker-compose.yml.j2) per service.
 # Keyed by template_dir (must match docker_services[].template_dir).
 # The copy step copies the entire template dir first; these are then rendered

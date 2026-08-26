@@ -105,8 +105,12 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
 - **Consequences / gotchas:**
   - `--tags <service>` alone (e.g. `--tags opencloud`) matches no include line → SILENT
     NO-OP. Always pair role + service: `--tags "docker_services,opencloud"`.
-  - Union cannot narrow: `--tags "docker_services,opencloud"` runs ALL direct-role tasks plus
-    the opencloud service chain — not an opencloud-only run.
+  - TRUE single-service convergence needs the **`docker_services_scope`** var (HD-255/HD-260):
+    `--tags docker_services -e docker_services_scope=<service>`. Without it, the include lines'
+    `tags: docker_services` (union selection) run every direct-role `main.yml` task (networks,
+    teardown, homepage, cert-pull, authentik-lane) even when only one inner service is matched —
+    the scope var gates those platform tasks AND collapses the deploy loop to the one service,
+    so a surgical run is genuinely single-service (nothing else even iterates).
   - Handlers are tag-filtered too: a handler must match the filter (or carry `tags: always`)
     or it is skipped even when notified by a task that ran — since HD-237 EVERY role handler
     carries `tags: always` (all 22 across 9 roles; monitoring was first, HD-220), so a
@@ -125,8 +129,8 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   |------|---------|
   | Full converge | `ansible-run.sh site.yml` (or the group playbook) |
   | Single VPS role | `ansible-run.sh playbooks/vps.yml --tags monitoring` |
-  | Single compose service | `ansible-run.sh playbooks/vps.yml --tags "docker_services,<service>"` |
-  | Service + edge/dynamic-file companions | `--tags "docker_services,onlyoffice-docs,traefik"` |
+  | Single service (recommended) | `ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=<service>` |
+  | Service + edge/dynamic-file companions | `--tags "docker_services,<service>,traefik"` |
   | Include Authentik pre-pass/glue lanes | append `,authentik,secret-egress` |
   | Resume after a failing step | `--start-at-task="<task name>"` (no `--tags` → everything from there runs) |
   | Discovery | `--list-tags` / `--list-tasks --tags "<filter>"` |
@@ -196,10 +200,10 @@ Used for: initial setup, new hardware, full rebuild.
 
 ### Targeted Mode
 ```bash
-# Per-service filtering requires BOTH the role tag and the service tag (union semantics,
-# see §Tags & surgical runs above) — a service tag alone matches nothing:
-ansible-playbook site.yml --tags "docker_services,ollama"
-ansible-playbook site.yml --tags "docker_services,immich-ml"
+# Single-service converge: role tag + the docker_services_scope var (union semantics
+# alone can't narrow the direct-role main.yml tasks — see §Tags & surgical runs above).
+ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich-ml
+# A service tag alone matches nothing; keep the role tag (union semantics).
 ```
 
 ---

@@ -134,11 +134,17 @@
   tags: "{{ svc.name }}"
   when:
     - svc.name not in ['traefik', 'traefik-ha']
-    # any CHANGED non-.env extra (loop results carry .item = template filename)
+    # Corrected (HD-255/HD-260): the extra .j2 loop uses `loop_var: extra`, so the
+    # registered loop results carry the key `extra` (the template filename) — NOT
+    # `item`. The old `map(attribute='item')` raised "object of type 'dict' has no
+    # attribute 'item'" on the very first surgical converge (HD-260 live evidence:
+    # ok=117 changed=21 then FAILED), which also made the headscale config re-render
+    # never restart the container. `default([])` guards the honestly-absent case
+    # (task skipped / no extras registered). Match the actual key and exclude .env.
     - >-
-      extra_templates_result.results
+      (extra_templates_result.results | default([]))
       | selectattr('changed')
-      | map(attribute='item') | list
+      | map(attribute='extra') | list
       | reject('search', '\.env\.j2$') | list | length > 0
   community.docker.docker_compose_v2:
     project_src: "{{ docker_compose_dir }}/{{ svc.name }}"
