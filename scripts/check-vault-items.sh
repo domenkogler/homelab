@@ -99,14 +99,18 @@ grep -rhoE "onepassword', '[a-z0-9_-]+'" \
 for f in "$GV/vps.yml" "$GV/home_servers.yml"; do
     [ -f "$f" ] || continue
     awk '
-        function flush(   s, v) {
+        function flush(   s, v, g) {
             if (!inrec) return
             if (buf !~ /enabled:[[:space:]]*false/) {
+                # HD-247 glue class: records flagged `bootstrap_keys: true` mint their
+                # *_item/vault_item targets at converge time (bootstrap-keys glue) -
+                # emit them G|-prefixed so they land in the GLUE set, not NEEDED.
+                g = (buf ~ /bootstrap_keys:[[:space:]]*true/) ? "G|" : ""
                 s = buf
                 while (match(s, /[a-z0-9_]+_item:[[:space:]]*[a-z0-9_-]+/)) {
                     v = substr(s, RSTART, RLENGTH)
                     sub(/.*:[[:space:]]*/, "", v)
-                    print v
+                    print g v
                     s = substr(s, RSTART + RLENGTH)
                 }
             }
@@ -123,7 +127,9 @@ for f in "$GV/vps.yml" "$GV/home_servers.yml"; do
             if (line ~ /\}[[:space:]]*$/) flush()
         }
         END { flush() }
-    ' "$f" >> "$TMP/needed.txt"
+    ' "$f" > "$TMP/rec_items.txt"
+    grep -v '^G|' "$TMP/rec_items.txt" >> "$TMP/needed.txt"
+    { grep '^G|' "$TMP/rec_items.txt" || true; } | sed 's/^G|//' | sort -u >> "$TMP/glue_entry.txt"
 done
 
 sort -u "$TMP/needed.txt" -o "$TMP/needed.txt"
@@ -138,15 +144,23 @@ else
         python3 -c "import json,sys; [print(i['title']) for i in json.load(sys.stdin)]" | sort -u > "$TMP/have.txt"
 fi
 
-# items the secret-egress glue auto-seeds (skip them). Two glue scripts:
-#   authentik-secret-egress.sh.j2  — OIDC client creds (HD-143)
-#   litellm-bootstrap-keys.sh.j2   — LiteLLM scoped virtual keys (HD-247; specs SSOT
-#                                    litellm_scoped_keys in vps.yml, vault_item: parsed
-#                                    from those records by the entry-record rule above)
+# items the deploy-time glues auto-create/auto-seed (skip them):
+#   authentik-secret-egress.sh.j2  — OIDC client creds (HD-143); literal name pairs
+#                                    in the template are greppable directly
+#   litellm-bootstrap-keys.sh.j2   — LiteLLM scoped virtual keys (HD-247): item names
+#                                    are Jinja-rendered (spec.vault_item), so NO literal
+#                                    exists — instead, every enabled service record
+#                                    flagged `bootstrap_keys: true` routes its parsed
+#                                    *_item/vault_item values into this GLUE set
+#                                    (entry-record rule above; live-found gap 2026-08-26)
 grep -hoE '"[a-z0-9_-]+:[a-z0-9_-]+"' \
     IaC/ansible/roles/docker_services/templates/authentik-secret-egress.sh.j2 \
     IaC/ansible/roles/docker_services/templates/litellm-bootstrap-keys.sh.j2 2>/dev/null \
-    | cut -d: -f2 | tr -d '"' | sort -u > "$TMP/glue.txt"
+    | cut -d: -f2 | tr -d '"' > "$TMP/glue.txt"
+# entry-record glue class (bootstrap_keys:true records) — names come from the
+# group_vars SSOT, never from literals inside the (Jinja) glue template:
+[ -f "$TMP/glue_entry.txt" ] && cat "$TMP/glue_entry.txt" >> "$TMP/glue.txt"
+sort -u "$TMP/glue.txt" -o "$TMP/glue.txt"
 
 echo "== enabled services: $(wc -l < "$TMP/enabled.txt") | needed items: $(wc -l < "$TMP/needed.txt") | in vault: $(wc -l < "$TMP/have.txt") =="
 echo "== MISSING and NOT glue-seeded => create these =="

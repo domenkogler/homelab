@@ -104,6 +104,28 @@ expect_contains "case6 consumer-path visibility (lk_demo_chat_api listed)" "$ite
 expect_contains "case6 entry-record visibility (lk_demo_rag_api listed)" "$items" "lk_demo_rag_api"
 expect_contains "case6 regression guard intact (metabase-forgejo_ro still missing)" "$items" "metabase-forgejo_ro"
 
+# --- Case 7: bootstrap_keys:true record => its vault_item is GLUE, never MISSING --
+# Mutate-copy approach: append a one-line gated entry to a COPY of the fixture tree.
+# Control (no flag) must list bdemo_key_api as MISSING; gated run must not — proving
+# the routing is driven by the flag on the group_vars record, not by template literals
+# (the real litellm glue template has NO literal names: Jinja spec.vault_item).
+mk_copy() { # $1 = extra entry fields -> echoes copy dir
+    local d; d="$(mktemp -d)"
+    cp -r "$FIXTURE/." "$d/"
+    printf '%s\n' "- { name: bdemo, image: bdemo:1, enabled: true, $1 vault_item: bdemo_key_api }" \
+        >> "$d/IaC/ansible/group_vars/vps.yml"
+    printf '%s\n' "$d"
+}
+CTRL="$(mk_copy '')"; GATED="$(mk_copy 'bootstrap_keys: true,')"
+out="$(bash "$MAIN" --root "$CTRL" --fake-vault "$FIXTURE/vault-gap.txt")"
+expect_contains "case7 control (no flag): bdemo_key_api listed MISSING" "$(missing_items "$out")" "bdemo_key_api"
+out="$(bash "$MAIN" --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt")"
+expect_eq "case7 gated: informational exit 0" "$?" "0"
+expect_absent "case7 gated: bdemo_key_api routed to GLUE (never MISSING)" "$(missing_items "$out")" "bdemo_key_api"
+out="$(bash "$MAIN" --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt" --strict)"
+expect_eq "case7 gated+strict: exactly 1 missing remains (metabase gap only)" "$(missing_items "$out" | grep -c .)" "1"
+rm -rf "$CTRL" "$GATED"
+
 # --- Summary ------------------------------------------------------------------
 echo "check-vault-items self-test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
