@@ -216,7 +216,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 - `vps-op-write_api` — 1Password **SERVICE ACCOUNT token (write-scoped)**, deployed by the pre-pass
   to VPS `/etc/op/provision-token`; authenticates the HOST-side `op` CLI the glue uses to seed the
   OIDC client-cred items.
-- `authentik-api_token` — **read-only** Authentik-issued API token; the Authentik→NAS provisioning
+- `authentik-nas_api` — **read-only** Authentik-issued API token, minted durable (`expiring=False`) at NAS provisioning; the Authentik→NAS provisioning
   glue (`sync-authentik-users.sh`, D5/HD-131) uses this to *read* the `family` group.
 - **Ephemeral glue token (NOT a secret anywhere):** the OIDC secret-egress glue mints its own
   api-intent token via `ak shell` per run (identifier `egress-glue-<pid>-<ts>`, revoked on exit).
@@ -260,7 +260,7 @@ Durable-persisted-token rules for this homelab:
    verification path if this ever needs re-confirming live (no DB probing).
 
 Consequences applied here: the glue's ephemeral mint stays (immune by construction); a future
-scoped persisted `authentik-provision_api` (HD-211) follows rule 1; `authentik-api_token`
+scoped persisted `authentik-provision_api` (HD-211) follows rule 1; `authentik-nas_api`
 (sync-authentik-users glue) gets a one-time `expiring=False` verification at its next live touch.
 
 #### Rotating a shared Authentik OIDC client secret (runbook; verified 2026-08-26)

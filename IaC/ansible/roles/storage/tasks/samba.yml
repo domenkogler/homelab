@@ -86,7 +86,7 @@
 # Authentik → NAS/OpenCloud provisioning glue (D5/HD-131). Runs on nas via a
 # systemd timer: reads the Authentik 'family' group and provisions NAS user +
 # dataset + Samba account (+ OpenCloud) for each new member. The `op` CLI must be
-# available+authd at run time (1Password). auth token from 'authentik-api_token'.
+# available+authd at run time (1Password). auth token from 'authentik-nas_api'.
 # ---------------------------------------------------------------------------
 - name: Render Authentik→NAS sync script + units
   ansible.builtin.template:

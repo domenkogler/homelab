@@ -25,7 +25,7 @@ FAMILY_GROUP_NAME="family"
 USERS_ROOT="${USERS_ROOT:-/tank/data/users}"
 STORAGE_GID="${STORAGE_GID:-1005}"
 
-get_ak_token() { op read "op://Homelab-ansible/authentik-api_token/credential"; }
+get_ak_token() { op read "op://Homelab-ansible/authentik-nas_api/credential"; }
 # OpenCloud provisioning uses the dedicated least-privilege SERVICE ACCOUNT
 # (opencloud-service_api), NOT the interactive admin (`opencloud_login`). The
 # service account must exist (HD-141/HD-145 requirement).

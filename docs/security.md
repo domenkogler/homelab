@@ -127,7 +127,7 @@ Owning docs: [backup.md](backup.md), [storage.md](storage.md). **Tracked: HD-63.
   unprotected service (**HD-65**; evidence KOPS-010). Owning doc: [deployment-secrets.md](deployment-secrets.md).
 - **Authentik provisioning token least-privilege** — the **write-scoped** `authentik-provision_api`
   (Blueprint apply + secret-egress glue) must be scoped to issuer/app/flow/outpost endpoints *only*;
-  the **read-only** `authentik-api_token` (NAS glue) must never be granted write scope. See
+  the **read-only** `authentik-nas_api` (NAS glue) must never be granted write scope. See
   [`services-authentik.md`](services-authentik.md) *OIDC client provisioning* / [`deployment-secrets.md`](deployment-secrets.md).
 - **Preseed defaults / post_install** — dedupe the `sshd_config` append (**HD-88**; evidence KOPS-012).
 
