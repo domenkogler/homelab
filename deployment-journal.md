@@ -1381,6 +1381,30 @@
 - **Docs touched:** todo.md (HD-247/248/249/250/251 + HD-104/HD-246 amendments), changelog.md (decision bundle), docs/services-ai.md (§2/§4/§5/§6/§7/§9), docs/security.md (§10), docs/network-vpn.md (Tailnet section), docs/services-utilities.md (n8n note), docs/services-matrix.md (Element rename pointer), prompt.md → handoff #17. **IaC untouched — all deploy-gated/planned.** validate-all GREEN.
 - **Secrets touched:** none. **Deviations:** none (all docs-only).
 
+### 2026-08-26 — Phase 1 · complete the mid-flight headscale_api OIDC client_secret rotation (HD-235 / handoff #20) `[AI]`
+
+- **Stimulus:** handoff #20 flagged the headscale_api rotation MID-FLIGHT: Authentik provider pk 13 `headscale` `client_secret` had been regenerated in the DB, but 1Password `headscale_api.credential` still held the OLD value and headscale/headplane had NOT been re-rendered/restarted → new OIDC enrollments would fail `invalid_client` until finished.
+- **Pre-write state (hashes only):** Authentik DB client_secret sha256 `28f53d33…` (NEW); 1Password `headscale_api.credential` sha256 `d28741dd…` (OLD, matched handoff); `client_id` unchanged (sha256 `220719ad…`) in both; on-disk `/opt/headscale/config.yaml` + `headplane-config.yaml` both still held the OLD secret (`d28741dd…`).
+- **Commands run (as executed, on the WSL ext4 runner):**
+  ```bash
+  # 1) read the new DB secret into the authentik-worker container /tmp (ak-shell sanctioned path)
+  bash scripts/ak-shell.sh 'from authentik.providers.oauth2.models import OAuth2Provider
+  p = OAuth2Provider.objects.get(pk=13)
+  open("/tmp/hs_new_secret.txt","w").write(p.client_secret)'
+
+  # 2) VPS-side pipeline: worker /tmp -> host temp file (docker exec cat, NOT docker cp — cp is
+  #    broken on this host), fail-closed hash-assert == DB secret, then apply to 1Password via
+  #    op item edit --template (value only in the file, never argv / my session log)
+  #    (whole flow ran in one /tmp/finish_hs_v3.sh on the VPS; value never returned to session)
+
+  # 3) surgical converge re-renders headscale + headplane configs from the vault dict and restarts:
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=headscale --limit vps
+  #    ok=29 changed=6 failed=0 (incl. "Restart headscale stack to apply changed extra config")
+  ```
+- **Verify:** vault `headscale_api.credential` sha256 now `28f53d33…` == Authentik DB; on-disk headscale + headplane configs both re-rendered to `28f53d33…`; headscale + headplane restarted (`Up 16s` / `Up 11s (healthy)`); token-endpoint replay (dummy code) → `HTTP 400 error: invalid_grant` = client auth OK (HD-252 criterion); `/health` HTTP 200; `headscale health` rc=0.
+- **Secrets touched:** `headscale_api.credential` (rotated to the DB value, value → vault only). No values committed/logged; hashes/lengths only.
+- **Deviations:** `docker cp` and `docker exec python3` value-transfer paths are broken on this host (handoff #20 already noted); used `docker exec cat` → host temp file instead. Secret value routed through host temp files + `op --template` stdin, never argv/session.
+
 ### 2026-08-21 — Phase 2.0 · tank topology locked + Pool-Creation Runbook authored `[MANUAL]` *(decision session — execution pending)*
 
 - Plan ref: HD-206 (runbook authored, preseed serials filled) + HD-207 (execution + redistribution).
