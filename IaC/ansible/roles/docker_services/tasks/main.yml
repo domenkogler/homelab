@@ -68,6 +68,7 @@
     ipam_config:
       - subnet: "{{ item.cidr }}"
   loop: "{{ network_ranges | selectattr('name', 'in', ['traefik-public', 'services-internal', 'db-internal', 'llm-backend']) | list }}"
+  when: docker_services_scope | default('all') == 'all'
   tags: [docker_services, networks]
 
 # Authentik OIDC pre-pass (HD-162) — on hosts where `authentik` is in docker_services
@@ -83,7 +84,10 @@
 - name: Authentik OIDC secret-egress pre-pass (render + token)
   ansible.builtin.include_tasks:
     file: prepass-authentik.yml
-  when: "'authentik' in (docker_services | map(attribute='name') | list)"
+  when:
+    - "'authentik' in (docker_services | map(attribute='name') | list)"
+    - docker_services_scope | default('all') == 'all'
+  tags: docker_services
 
 - name: Deploy authentik FIRST (its API must be live before the glue can harvest)
   ansible.builtin.include_tasks:
@@ -101,12 +105,18 @@
 - name: Apply custom blueprints one-shot (discovery never registers /blueprints/custom — HD-230)
   ansible.builtin.include_tasks:
     file: apply-authentik-blueprints.yml
-  when: "'authentik' in (docker_services | map(attribute='name') | list)"
+  when:
+    - "'authentik' in (docker_services | map(attribute='name') | list)"
+    - docker_services_scope | default('all') == 'all'
+  tags: docker_services
 
 - name: Run the secret-egress glue (after authentik is up)
   ansible.builtin.include_tasks:
     file: run-authentik-glue.yml
-  when: "'authentik' in (docker_services | map(attribute='name') | list)"
+  when:
+    - "'authentik' in (docker_services | map(attribute='name') | list)"
+    - docker_services_scope | default('all') == 'all'
+  tags: docker_services
 
 - name: Deploy each enabled service
   ansible.builtin.include_tasks:
@@ -118,6 +128,11 @@
   when:
     - svc_entry.enabled | default(true)
     - svc_entry.name != 'authentik'
+    # HD-255 surgical scope: full converge (scope=all) deploys every enabled
+    # service; a named scope deploys ONLY that service — the per-service tags in
+    # deploy-service.yml already narrow the task list, this collapses the loop so
+    # nothing else even iterates (true single-service converge).
+    - docker_services_scope | default('all') == 'all' or svc_entry.name == (docker_services_scope | default('all'))
   loop_control:
     label: "{{ svc_entry.name }}"
     loop_var: svc_entry
@@ -138,6 +153,7 @@
   # would otherwise leave flipped-to-false stacks running outside IaC control).
   loop: "{{ docker_services }}"
   when:
+    - docker_services_scope | default('all') == 'all'
     - item.enabled is defined
     - not item.enabled
     - item.name != 'authentik'
@@ -157,6 +173,7 @@
 # (restricted options recommended, cf. the Pi ha-sync wrapper precedent).
 - name: Traefik cert-pull consumer wiring (non-issuer hosts)
   when:
+    - docker_services_scope | default('all') == 'all'
     - "'traefik' in (docker_services | map(attribute='name') | list)"
     - not (traefik_acme_issuer | default(false))
   block:
@@ -188,7 +205,9 @@
         state: started
 
 - name: Render Homepage config (post-deploy, after all services up)
-  when: "'homepage' in (docker_services | map(attribute='name') | list)"
+  when:
+    - docker_services_scope | default('all') == 'all'
+    - "'homepage' in (docker_services | map(attribute='name') | list)"
   block:
     - name: Ensure homepage config directory exists
       ansible.builtin.file:
