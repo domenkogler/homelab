@@ -8,12 +8,28 @@
 
 ---
 
-## 0. How to use this file
+## 0. How every session starts (intent-routed, HD-253)
 
-A new task starts with: **"read README.md, then <task>"**. This file is the bootstrapper; it points to
-the mandatory context that carries all background so the task needs no extra briefing.
-Read §1 below, then §2 mandatory context **in order**. After §2, use `docs/index.md` → "Which Document
-to Read First" for task-specific dispatch. Do **not** bulk-read the repo.
+The human ALWAYS starts a session with the universal phrase **"read README.md"** followed by ONE
+free-form intent sentence (e.g. *"read README.md — zipline uploads stopped working"*). This file
+is the bootstrapper; it carries all background so the intent sentence needs no extra briefing.
+The agent then routes the intent — there is NO keyword routing table:
+
+1. **Step-0 ritual, UNCONDITIONAL:** `git status` sanity check + fresh session worktree
+   (`../homelab-wt-<date>-<HHMM>`, CONVENTIONS §6) BEFORE any edit — enforced mechanically by
+   [`scripts/guard-session.sh`](scripts/guard-session.sh) + a hard gate inside
+   [`scripts/validate-all.sh`](scripts/validate-all.sh).
+2. **Semantic prior-art sweep:** search todo.md / changelog.md / docs/ — including
+   `<domain>-review.md`, `<domain>-rejected.md` and `brainstorming/` — and REPORT the prior art
+   found BEFORE proposing any new HD row (side-effect: enforces the §8.3 rejected-check and the
+   changelog re-decide ban).
+3. **Depth markers** ("quickly", "just do X") reduce ANALYSIS verbosity only — NEVER safety ritual
+   (worktree, validate-all, journal/changelog discipline always applies).
+4. **Ambiguous intent → ask exactly ONE clarifying question**, then proceed.
+
+Routing changes ORDER/emphasis only — it never eliminates context. Read §1 below, then §2 mandatory
+context **in order**. After §2, use `docs/index.md` → "Which Document to Read First" for
+task-specific dispatch. Do **not** bulk-read the repo.
 
 ---
 

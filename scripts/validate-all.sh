@@ -12,6 +12,10 @@
 #   7. check_generated_suffix.py    — every machine-generated doc carries the -generated suffix
 #   8. check_vault_name.py          — vault is 'Homelab-ansible' (no bare Homelab refs, HD-189)
 #   9. check_placeholders.py        — placeholder tokens only in designated bootstrap files (HD-201)
+#  10. guard-session.sh             — session-discipline hard-gate + sandboxed self-test (HD-253):
+#                                     --validate-mode fails on primary+main+DIRTY; clean-main
+#                                     merge-station runs pass silently; self-test fixture asserts
+#                                     the guard contract inside throwaway temp repos
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -29,6 +33,12 @@ else
   exit 1
 fi
 export PYTHONUTF8=1
+
+echo "== guard-session.sh --validate-mode (session-discipline hard gate, HD-253) =="
+bash scripts/guard-session.sh --validate-mode
+
+echo "== guard-session.sh --self-test (sandboxed guard fixture, HD-253) =="
+bash scripts/guard-session.sh --self-test
 
 echo "== validate-docker-services.py =="
 $PY scripts/validate-docker-services.py

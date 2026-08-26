@@ -1,11 +1,11 @@
-# Proposed process improvements — AI v2 session review (2026-08-26) — DRAFT, NOT COMMITTED
+# Proposed process improvements — AI v2 session review (2026-08-26)
 
 > **Role:** Owner-review draft. Three defects surfaced during the 2026-08-26 AI v2 session:
 > (1) edits happened on `main` without a session worktree (CONVENTIONS §6 violation, by BOTH
 > sessions); (2) `prompt.md` was rewritten from scratch → dropped existing open items (handoff
 > regression); (3) three entry points (README.md / prompt.md / prompt-journal.md) were used
 > inconsistently → state fragmentation. This file proposes concrete, mechanical fixes.
-> **Status:** ✅ Folded into HD-253 (2026-08-26) — owner decisions locked, see [prompt-workflow.md](prompt-workflow.md). Scheduled for deletion at HD-253 close-out (audit-report lifecycle §4).
+> **Status:** folded into HD-253 — scheduled for deletion at close-out (owner decisions locked 2026-08-26, see [prompt-workflow.md](prompt-workflow.md); audit-report lifecycle §4).
 
 ---
 

@@ -17,7 +17,7 @@ Every script here is part of one of three groups: **validation** (the fail-close
 
 | Script | What it checks | Owning spec |
 |--------|----------------|-------------|
-| [`validate-all.sh`](validate-all.sh) | **Repo gate** — runs all 9 validators in order (`set -e`, stops at first failure). Run `bash scripts/validate-all.sh`. | `CONVENTIONS.md` §4, `docs/index.md` Conventions |
+| [`validate-all.sh`](validate-all.sh) | **Repo gate** — runs all validators in order (`set -e`, stops at first failure), incl. the HD-253 session-discipline hard-gate + self-test. Run `bash scripts/validate-all.sh`. | `CONVENTIONS.md` §4, `docs/index.md` Conventions |
 | [`validate-docker-services.py`](validate-docker-services.py) | **Compose templates** — every `docker_services` template referenced by a group_vars list (count derived, orphan-dir lint): file exists, Jinja renders (mocked 1Password; context loaded from `versions.yml` + `all.yml` SSOT so it cannot drift, HD-189), YAML parses, structural checks (external networks, Traefik labels), source-level bug scan (`default=` param, host-net vs `network_mode: host`). Fail-loud on malformed group_vars YAML. | `docs/deployment-compose.md`, `docs/services.md` |
 | [`validate_blueprints.py`](validate_blueprints.py) | **Authentik Blueprint shape** — local loader for custom YAML tags (`!KeyOf`, `!Find`, …) + structural checks (flow slugs `default-` prefixed, provider↔app binding). HD-149. | `docs/services-authentik.md` |
 | [`check_doc_ips.py`](check_doc_ips.py) | **No IP literals outside the SSOT** — internal IPv4 ranges live only in `docs/network-addresses-generated.md` + IaC; every other doc refers by hostname/role. HD-152. | `docs/index.md` Conventions, `docs/network-addresses-generated.md` |
@@ -27,6 +27,7 @@ Every script here is part of one of three groups: **validation** (the fail-close
 | [`check_generated_suffix.py`](check_generated_suffix.py) | **`-generated` suffix discipline** — every machine-produced doc carries `-generated.md`, no hand-authored doc carries it. Keeps `EXPECTED_GENERATED` in sync with `docs/index.md` map. | `CONVENTIONS.md` §8.2 |
 | [`check_vault_name.py`](check_vault_name.py) | **Vault name = `Homelab-ansible`** — flags a bare `Homelab` vault reference (prose/comments/op:// URIs) in canonical docs, IaC yml/j2 and scripts/*.py; changelog.md exempt (append-only history). HD-189. | `docs/deployment-secrets.md`, `CONVENTIONS.md` §1 |
 | [`check_placeholders.py`](check_placeholders.py) | **Placeholder discipline (B5)** — greppable bootstrap placeholder tokens (the B5 set: `REPLACE_ME`-style markers, disk-serial stubs, 1Password pubkey stubs — full list in the script) may appear only in the designated bootstrap artifacts + the owning spec that quotes them (`docs/deployment-preseed.md`; the round-2 audit reports that also quoted the set were fold+deleted by HD-203); anywhere else fails the gate. Mirrors the runtime assertions in `IaC/host/post_install.sh` + `pi/first-boot-config.sh`. HD-201. | `docs/deployment-preseed.md` |
+| [`guard-session.sh`](guard-session.sh) | **Session-discipline gate (HD-253)** — pre-edit guard refuses ANY edit-context while the PRIMARY checkout (`git-dir == git-common-dir`) sits on `main`; `--validate-mode` (wired into `validate-all.sh`) hard-fails only on primary+main+DIRTY; clean-main merge-station exempt; session worktrees + detached HEAD/CI pass through. Refusals print the exact `git worktree add ../homelab-wt-<date>-<HHMM>` remediation with live timestamp + coordination info (status, per-file last-commit). `--self-test` runs a sandboxed fixture (temp repos) inside the gate. Owning rule: CONVENTIONS §6. | `CONVENTIONS.md` §6 |
 | `ansible-playbook --syntax-check` (in `validate-all.sh`) | **Playbook syntax gate** — every playbook must parse + resolve modules. WSL/CI-gated: skipped with a note when ansible is absent or broken natively on Windows (WinError 87). HD-197. | `docs/deployment-ansible.md` |
 
 ---
@@ -81,4 +82,4 @@ inputs, not tools. `collect-smart.ps1` is the Windows PowerShell sibling of
 
 ---
 
-*Last updated 2026-08-23 · scripts/ has no separate CI hook beyond `validate-all.sh`.*
+*Last updated 2026-08-26 · scripts/ has no separate CI hook beyond `validate-all.sh`.*
