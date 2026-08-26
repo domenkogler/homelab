@@ -57,7 +57,7 @@ expect_eq "case1 gap+informational exits 0" "$rc" "0"
 expect_eq "case1 exactly one missing item" "$(printf '%s\n' "$items" | grep -c .)" "1"
 expect_contains "case1 lists metabase-forgejo_ro (registry-key-only ref)" "$items" "metabase-forgejo_ro"
 expect_eq "case1 enabled services = 2 (disabled entry filtered)" "$(echo "$counts" | awk '{print $1}')" "2"
-expect_eq "case1 needed set = 7 (5 base + 2 HD-247 spec items, no dupes)" "$(echo "$counts" | awk '{print $2}')" "7"
+expect_eq "case1 needed set = 4 (owner-seedable only; demo_oidc + the 2 HD-247 spec items are GLUE-class)" "$(echo "$counts" | awk '{print $2}')" "4"
 
 # --- Case 2: no-false-positive on a complete vault --------------------------
 out="$(bash "$MAIN" --root "$FIXTURE" --fake-vault "$FIXTURE/vault-complete.txt")"
@@ -86,14 +86,16 @@ items="$(missing_items "$out")"
 expect_absent "case5 consumer-referenced scoped item not MISSING (lk_demo_chat_api)" "$items" "lk_demo_chat_api"
 expect_absent "case5 spec-only scoped item not MISSING (lk_demo_rag_api)" "$items" "lk_demo_rag_api"
 
-# --- Case 6: VISIBILITY PROOF — without the glue file both items surface ------
-# Copies the fixture tree WITHOUT the glue template: now the scanner has no glue-seed
-# exclusion, so the same two items MUST appear as MISSING — proving the consumer-literal
-# path AND the entry-record `vault_item:` rule actually parse them (not silently ignored).
+# --- Case 6: VISIBILITY PROOF — de-classify the block, both spec items surface ------
+# Copies the fixture tree and RENAMES the scoped-keys block header (breaking the SSOT
+# naming convention) AND removes the glue template: now NOTHING classifies the two
+# items as glue, so they MUST appear as MISSING — proving the entry-record rule really
+# captures the vault_item: scalars and that classification rides the block name.
 TMPD="$(mktemp -d)"
 trap 'rm -rf "$TMPD"' EXIT
 cp -r "$FIXTURE/." "$TMPD/"
 rm "$TMPD/IaC/ansible/roles/docker_services/templates/litellm-bootstrap-keys.sh.j2"
+sed -i 's/^litellm_scoped_keys:/litellm_keys:/' "$TMPD/IaC/ansible/group_vars/vps.yml"
 out="$(bash "$MAIN" --root "$TMPD" --fake-vault "$FIXTURE/vault-gap.txt")"
 rc=$?
 items="$(missing_items "$out")"
@@ -104,26 +106,31 @@ expect_contains "case6 consumer-path visibility (lk_demo_chat_api listed)" "$ite
 expect_contains "case6 entry-record visibility (lk_demo_rag_api listed)" "$items" "lk_demo_rag_api"
 expect_contains "case6 regression guard intact (metabase-forgejo_ro still missing)" "$items" "metabase-forgejo_ro"
 
-# --- Case 7: bootstrap_keys:true record => its vault_item is GLUE, never MISSING --
-# Mutate-copy approach: append a one-line gated entry to a COPY of the fixture tree.
-# Control (no flag) must list bdemo_key_api as MISSING; gated run must not — proving
-# the routing is driven by the flag on the group_vars record, not by template literals
-# (the real litellm glue template has NO literal names: Jinja spec.vault_item).
-mk_copy() { # $1 = extra entry fields -> echoes copy dir
+# --- Case 7: specs inside a top-level `*_scoped_keys:` list => GLUE, never MISSING --
+# Mutate-copy approach: append a block to a COPY of the fixture tree. A correctly-named
+# `bdemo_scoped_keys:` block must route bdemo_key_api to GLUE (never MISSING); the same
+# records under a non-conventional name (`bdemo_keys:`) must stay NEEDED — proving the
+# classification rides the SSOT list-name convention, not template literals or entry flags.
+mk_copy() { # $1 = "ctrl" | "scoped" -> echoes copy dir
     local d; d="$(mktemp -d)"
     cp -r "$FIXTURE/." "$d/"
-    printf '%s\n' "- { name: bdemo, image: bdemo:1, enabled: true, $1 vault_item: bdemo_key_api }" \
-        >> "$d/IaC/ansible/group_vars/vps.yml"
+    if [ "$1" = "scoped" ]; then
+        printf '%s\n%s\n' 'bdemo_scoped_keys:' '  - { alias: bdemo, vault_item: bdemo_key_api, models: "", max_budget: "", budget_duration: "" }' \
+            >> "$d/IaC/ansible/group_vars/vps.yml"
+    else
+        printf '%s\n%s\n' 'bdemo_keys:' '  - { alias: bdemo, vault_item: bdemo_key_api, models: "", max_budget: "", budget_duration: "" }' \
+            >> "$d/IaC/ansible/group_vars/vps.yml"
+    fi
     printf '%s\n' "$d"
 }
-CTRL="$(mk_copy '')"; GATED="$(mk_copy 'bootstrap_keys: true,')"
+CTRL="$(mk_copy ctrl)"; GATED="$(mk_copy scoped)"
 out="$(bash "$MAIN" --root "$CTRL" --fake-vault "$FIXTURE/vault-gap.txt")"
-expect_contains "case7 control (no flag): bdemo_key_api listed MISSING" "$(missing_items "$out")" "bdemo_key_api"
+expect_contains "case7 control (non-scoped name): bdemo_key_api listed MISSING" "$(missing_items "$out")" "bdemo_key_api"
 out="$(bash "$MAIN" --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt")"
-expect_eq "case7 gated: informational exit 0" "$?" "0"
-expect_absent "case7 gated: bdemo_key_api routed to GLUE (never MISSING)" "$(missing_items "$out")" "bdemo_key_api"
+expect_eq "case7 scoped block: informational exit 0" "$?" "0"
+expect_absent "case7 scoped block: bdemo_key_api routed to GLUE (never MISSING)" "$(missing_items "$out")" "bdemo_key_api"
 out="$(bash "$MAIN" --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt" --strict)"
-expect_eq "case7 gated+strict: exactly 1 missing remains (metabase gap only)" "$(missing_items "$out" | grep -c .)" "1"
+expect_eq "case7 scoped+strict: exactly 1 missing remains (metabase gap only)" "$(missing_items "$out" | grep -c .)" "1"
 rm -rf "$CTRL" "$GATED"
 
 # --- Summary ------------------------------------------------------------------

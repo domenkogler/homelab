@@ -102,10 +102,13 @@ for f in "$GV/vps.yml" "$GV/home_servers.yml"; do
         function flush(   s, v, g) {
             if (!inrec) return
             if (buf !~ /enabled:[[:space:]]*false/) {
-                # HD-247 glue class: records flagged `bootstrap_keys: true` mint their
-                # *_item/vault_item targets at converge time (bootstrap-keys glue) -
-                # emit them G|-prefixed so they land in the GLUE set, not NEEDED.
-                g = (buf ~ /bootstrap_keys:[[:space:]]*true/) ? "G|" : ""
+                # HD-247 glue class: spec records living inside a top-level
+                # `*_scoped_keys:` list are MINTED by the bootstrap-keys glue at
+                # converge time - emit them G|-prefixed so they land in the GLUE
+                # set, not NEEDED. Service-entry registry keys (db_item/db_ro_item)
+                # are owner-seeded catalog items and stay NEEDED - the flag lives on
+                # the BLOCK name, never on individual entry records.
+                g = inscoped ? "G|" : ""
                 s = buf
                 while (match(s, /[a-z0-9_]+_item:[[:space:]]*[a-z0-9_-]+/)) {
                     v = substr(s, RSTART, RLENGTH)
@@ -117,6 +120,8 @@ for f in "$GV/vps.yml" "$GV/home_servers.yml"; do
             inrec = 0; buf = ""
         }
         {
+            if ($0 ~ /^[A-Za-z0-9_]+_scoped_keys:/) { inscoped = 1; next }
+            if (inscoped && $0 !~ /^[ \t]/ && $0 !~ /^[ \t]*#/ && $0 !~ /^[ \t]*$/) inscoped = 0
             if (!inrec) {
                 if ($0 !~ /^[[:space:]]*-[[:space:]]*\{/) next
                 inrec = 1; buf = ""
@@ -149,10 +154,11 @@ fi
 #                                    in the template are greppable directly
 #   litellm-bootstrap-keys.sh.j2   — LiteLLM scoped virtual keys (HD-247): item names
 #                                    are Jinja-rendered (spec.vault_item), so NO literal
-#                                    exists — instead, every enabled service record
-#                                    flagged `bootstrap_keys: true` routes its parsed
-#                                    *_item/vault_item values into this GLUE set
-#                                    (entry-record rule above; live-found gap 2026-08-26)
+#                                    exists — instead, spec records inside a top-level
+#                                    `*_scoped_keys:` list (the group_vars SSOT) route
+#                                    into this GLUE set (entry-record rule above;
+#                                    live-found gap 2026-08-26). db_item/db_ro_item on
+#                                    service entries stay NEEDED (owner-seeded catalog).
 grep -hoE '"[a-z0-9_-]+:[a-z0-9_-]+"' \
     IaC/ansible/roles/docker_services/templates/authentik-secret-egress.sh.j2 \
     IaC/ansible/roles/docker_services/templates/litellm-bootstrap-keys.sh.j2 2>/dev/null \
@@ -161,6 +167,12 @@ grep -hoE '"[a-z0-9_-]+:[a-z0-9_-]+"' \
 # group_vars SSOT, never from literals inside the (Jinja) glue template:
 [ -f "$TMP/glue_entry.txt" ] && cat "$TMP/glue_entry.txt" >> "$TMP/glue.txt"
 sort -u "$TMP/glue.txt" -o "$TMP/glue.txt"
+
+# Glue-minted items are never owner-seedable: drop them from NEEDED entirely.
+# They can enter via MULTIPLE capture paths (spec blocks above AND literal
+# consumer-template lookups), so subtract once at the end, not per-path.
+comm -23 "$TMP/needed.txt" "$TMP/glue.txt" > "$TMP/needed_owner.txt"
+mv "$TMP/needed_owner.txt" "$TMP/needed.txt"
 
 echo "== enabled services: $(wc -l < "$TMP/enabled.txt") | needed items: $(wc -l < "$TMP/needed.txt") | in vault: $(wc -l < "$TMP/have.txt") =="
 echo "== MISSING and NOT glue-seeded => create these =="
