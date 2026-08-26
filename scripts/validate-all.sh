@@ -16,6 +16,9 @@
 #                                     --validate-mode fails on primary+main+DIRTY; clean-main
 #                                     merge-station runs pass silently; self-test fixture asserts
 #                                     the guard contract inside throwaway temp repos
+#  11. testdata/check-vault-items/run.sh — check-vault-items.sh scanner self-test
+#                                     (HD-244/245): *_item registry-key parsing + --strict
+#                                     contract asserted on a committed synthetic mini-tree
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -66,6 +69,9 @@ $PY scripts/check_vault_name.py
 
 echo "== check_placeholders.py =="
 $PY scripts/check_placeholders.py
+
+echo "== testdata/check-vault-items/run.sh (scanner self-test, HD-244/245) =="
+bash scripts/testdata/check-vault-items/run.sh
 
 echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="
 # HD-197: catch unresolvable modules / broken YAML in every playbook at gate time.

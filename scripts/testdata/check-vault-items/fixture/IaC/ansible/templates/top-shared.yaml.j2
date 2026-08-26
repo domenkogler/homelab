@@ -1,0 +1,3 @@
+# SYNTHETIC FIXTURE for scripts/testdata/check-vault-items/ (HD-244/245) - NOT real IaC.
+# Shared top-level template (the Wave-2 blind-spot class).
+shared_probe: "{{ lookup('community.general.onepassword', 'shared_top_api', field='credential', vault=op_vault) }}"

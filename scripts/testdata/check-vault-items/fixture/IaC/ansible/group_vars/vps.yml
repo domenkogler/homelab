@@ -1,0 +1,11 @@
+# SYNTHETIC FIXTURE for scripts/testdata/check-vault-items/ (HD-244/245) - NOT real IaC.
+# Mirrors group_vars/vps.yml entry shape: multi-line flow maps, db_* registry keys on
+# continuation lines, `enabled: false` on the first line of disabled entries.
+docker_services:
+  - { name: metabase,      template_dir: metabase, subdomain: sec, enabled: true,
+      db_ro_sync: true, db_ro_item: metabase-forgejo_ro, db_pg_container: forgejo-db }
+  - { name: demo-gluehost, template_dir: demo-gluehost, enabled: true,
+      db_item: demo_oidc }
+  # deliberately no templates/demo-gluehost dir: exercises the tolerate-missing-dir path
+  - { name: off-demo,      template_dir: off-demo, enabled: false,
+      db_item: disabled_should_never_appear }

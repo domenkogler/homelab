@@ -1,0 +1,6 @@
+# SYNTHETIC FIXTURE for scripts/testdata/check-vault-items/ (HD-244/245) - NOT real IaC.
+home_server_services:
+  # templated `enabled:` value counts as enabled; record must still close correctly
+  # at end-of-line despite the embedded `}}`.
+  - { name: hs-demo,       template_dir: hs-demo, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}",
+      db_item: hs_demo_db }
