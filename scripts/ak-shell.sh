@@ -9,8 +9,8 @@
 # inline commands through wsl.exe), pass the Python as ONE argument or via stdin.
 #
 # Usage (from Windows, script-file indirection):
-#   wsl -d Debian -- bash /mnt/d/source/domenkogler/homelab/scripts/ak-shell.sh '<python>'
-#   echo '<python>' | wsl -d Debian -- bash /mnt/d/source/domenkogler/homelab/scripts/ak-shell.sh -
+#   wsl -d Debian -- bash /home/domen/source/homelab/scripts/ak-shell.sh '<python>'
+#   echo '<python>' | wsl -d Debian -- bash /home/domen/source/homelab/scripts/ak-shell.sh -
 # Examples:
 #   ak-shell.sh 'from authentik.core.models import User; print([u.username for u in User.objects.all()])'
 #   ak-shell.sh - <<'PY'

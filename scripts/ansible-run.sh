@@ -12,7 +12,7 @@
 #
 # From Windows (git-bash or PowerShell), invoke through wsl.exe — pass this
 # SCRIPT FILE, never inline commands (MSYS mangles wsl.exe arguments):
-#   cmd //c "wsl -d Debian -- bash /mnt/d/source/domenkogler/homelab/scripts/ansible-run.sh playbooks/vps.yml"
+#   cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible-run.sh playbooks/vps.yml"
 #
 # Requires Phase 0 bootstrap: ~/ansible-venv + ~/.config/op/homelab-sa-token.
 # =====================================================================

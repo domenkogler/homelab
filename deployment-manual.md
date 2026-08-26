@@ -21,10 +21,12 @@
 - Shells: repo ops + validators from **git-bash** (Windows laptop); Ansible runs ONLY on the
   **WSL Debian runner** through [scripts/ansible-run.sh](scripts/README.md) — never pass inline
   commands to wsl.exe.
-- ⚠ **9P staleness — mandatory sync gate before ANY playbook run (HD-212, decided 2026-08-22):** the
-  runner reads the repo over `/mnt/d`; Windows-side writes can be served stale to WSL for minutes.
+- ⚠ **9P staleness — sync gate before playbook runs (HD-212, decided 2026-08-22):** the
+  runner reads the repo **natively under WSL ext4 now (HD-259 primary `/home/domen/source/homelab`)** — the
+  `/mnt/d` drvfs 9P staleness window is closed, so the whole-tree hash compare is no longer required before
+  every playbook run. Retained only for the residual case of a `/mnt/d` working copy:
   1. Whole-tree compare from the repo root on BOTH sides — must be equal:
-     `git ls-files -z | xargs -0 md5sum --text | md5sum`
+     `git ls-files -z | xargs -0 md5sum --text | md5sum`  
   2. Mismatch → force-invalidate, re-hash after each:
      `wsl -d Debian -u root -- bash -c 'echo 3 > /proc/sys/vm/drop_caches'`; still stale → inside WSL
      `sudo umount /mnt/d && sudo mount -t drvfs D: /mnt/d`.
@@ -68,15 +70,17 @@ wsl --install -d Debian
 
 Create the local user `domen`, then set its password (`passwd`) and store it as item
 `laptop-domen-wsl-debian_login` (field `password`) in the **Homelab** 1Password vault.
-The repo is **reused** from the Windows checkout at
-`/mnt/d/source/domenkogler/homelab` (single working copy — no second clone inside WSL).
+The repo is **reused** from the WSL ext4 primary checkout at
+`/home/domen/source/homelab` (single working copy — the Debian ext4 primary, per HD-259;
+`scripts/git-bootstrap.sh` sets this up and its session worktrees live as
+siblings `../homelab-wt-*`. No second clone; the old `/mnt/d` drvfs path is retired).
 
 ✔ `wsl -l -v` lists Debian; inside WSL `whoami` → `domen`.
 
 ### 0.2 Bootstrap tooling, service-account token, sudo
 
 ```bash
-cd /mnt/d/source/domenkogler/homelab/IaC/bootstrap-ansible-client && bash bootstrap.sh
+cd /home/domen/source/homelab/IaC/bootstrap-ansible-client && bash bootstrap.sh
 source ~/.bashrc
 ```
 
@@ -90,7 +94,7 @@ ansible + collections from `requirements.yml`, stores the token at `~/.config/op
 ### 0.3 Canonical runner identity + 1Password/Ansible connectivity check
 
 ```bash
-cd /mnt/d/source/domenkogler/homelab && bash scripts/restore-runner-key.sh
+cd /home/domen/source/homelab && bash scripts/restore-runner-key.sh
 bash scripts/ansible-run.sh IaC/ansible/test-1password.yml
 ```
 
@@ -347,7 +351,7 @@ The interactive path skips the preseed's `post_install.sh`, so reproduce its eff
 ### 1.2 First deploy
 
 ```bash
-cmd //c "wsl -d Debian -- bash /mnt/d/source/domenkogler/homelab/scripts/ansible-run.sh playbooks/vps.yml"
+cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible-run.sh playbooks/vps.yml"
 ```
 
 Anchor until green (`failed=0`).
@@ -355,7 +359,7 @@ Anchor until green (`failed=0`).
 ### 1.3 Publish public DNS
 
 ```bash
-cmd //c "wsl -d Debian -- bash /mnt/d/source/domenkogler/homelab/scripts/ansible-run.sh playbooks/dns.yml"
+cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible-run.sh playbooks/dns.yml"
 ```
 
 Runs from home egress (token IP filter). Records: `vps` A/AAAA + apex/app CNAMEs
