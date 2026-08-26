@@ -8,9 +8,10 @@
 # ONE sanctioned indirection: call it INSIDE WSL (script-file invocation, never
 # inline commands through wsl.exe), pass the Python as ONE argument or via stdin.
 #
-# Usage (from Windows, script-file indirection):
-#   wsl -d Debian -- bash /home/domen/source/homelab/scripts/ak-shell.sh '<python>'
-#   echo '<python>' | wsl -d Debian -- bash /home/domen/source/homelab/scripts/ak-shell.sh -
+# Usage (from Windows, script-file indirection; $REPO = the repo root, self-derived
+#   from this script's own path — on this machine /home/domen/source/homelab):
+#   wsl -d Debian -- bash $REPO/scripts/ak-shell.sh '<python>'
+#   echo '<python>' | wsl -d Debian -- bash $REPO/scripts/ak-shell.sh -
 # Examples:
 #   ak-shell.sh 'from authentik.core.models import User; print([u.username for u in User.objects.all()])'
 #   ak-shell.sh - <<'PY'

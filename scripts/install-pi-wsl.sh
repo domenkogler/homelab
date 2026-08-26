@@ -25,7 +25,8 @@
 #
 # Env overrides: REPO (default: $PWD repo root via script path),
 #   PI_PACKAGES (space-separated, default below). Run INSIDE WSL Debian
-#   (`wsl -d Debian -- bash /home/domen/source/homelab/scripts/install-pi-wsl.sh` works too).
+#   (`wsl -d Debian -- bash $REPO/scripts/install-pi-wsl.sh` works too, where $REPO =
+#    the repo root self-derived from this script's path — /home/domen/source/homelab).
 #
 # Requires: curl, bash. Read-only clone/sync needs no GitHub auth.
 # Owner: user (pi.dev-in-WSL tooling, HD-259 companion) — record in changelog if adopted.
