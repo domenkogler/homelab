@@ -93,7 +93,7 @@ User → Traefik (port 443)
 The two concerns are split at their natural seam — **shape** (Blueprints) vs **credentials**
 (glue) — so each goes to the mechanism natively better at it. Deploy ordering + the blueprint
 volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is referenced in
-`deployment-ansible.md`.
+`deployment-ansible.md`. Mechanic/implementation detail (the parallel fan-out + concurrency budget) lives in [`scripts/README.md`](../scripts/README.md) §Parallel 1Password operations; the SSOT routing index for **all** secret-glue steps (who provisions / how to rotate) is [`deployment-secrets.md`](deployment-secrets.md) §"Glue-routing index".
 
 ### Blueprint authoring notes (verified against Authentik source, 2026-08-19 — HD-149)
 

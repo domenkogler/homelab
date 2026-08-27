@@ -8,7 +8,7 @@ tags: [deployment, secrets, 1password]
 # Secrets Management & Passwordless Philosophy
 
 > **Role:** Detail — 1Password as sole secrets backend, self-documenting philosophy, passwordless-first design.
-> **Links to:** `services-authentik.md`, `backup.md`, `manual/README.md`
+> **Links to:** `deployment-oidc.md` (OIDC client + egress glue), `services-authentik.md` (OIDC secret rotation runbook), `deployment-ai-stack-secrets.md` (AI items + LiteLLM glue), `scripts/README.md` (parallel-1P contract), `backup.md`, `manual/README.md`
 > **Linked from:** `deployment.md`, `deployment-ansible.md`, `deployment-compose.md`, `index.md`
 
 ---
@@ -168,6 +168,18 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 
 **4. Coverage contract:** when a change introduces a NEW group_vars key class that references a vault item (e.g. `db_ro_item`), the same change extends `check-vault-items.sh` to scan that key class — scanner blind spots defeat the fail-loud chain (HD-244).
 
+**5. Glue concurrency & 1P budget (HD-269):** the two bootstrap glues (`authentik-secret-egress`, `litellm-bootstrap-keys`) both fan out their vault reads/probes in parallel under a shared 1Password rate-limit budget (`OP_PARALLEL`, default 6 — never exceed ~6 concurrent `op` calls; only curl/docker-exec HTTP probes may go wider; hosted 1P rate-limits can block 15min+). Authentik may parallel-write distinct *oidc* items; LiteLLM keeps mint/store serial (unique-alias invariant). The full mechanism × layer × direction table + extensibility rule lives in [`scripts/README.md`](../scripts/README.md) §Parallel 1Password operations. If a third glue loop is ever added, copy that bounded fan-out pattern — do NOT merge the scripts.
+
+**6. Glue-routing index — which doc owns which secret-glue step (SSOT for findability):**
+
+| Lookup | Owning doc | What it covers |
+|--------|-----------|----------------|
+| Configure / create OIDC clients + Blueprint | [`deployment-oidc.md`](deployment-oidc.md) | Authentik Blueprint + egress-glue mechanics (procedural) — the secret-egress glue step (`deployment-oidc.md` §3), deploy ordering, per-service OIDC recipes |
+| Rotate an OIDC client secret | [`services-authentik.md`](services-authentik.md) §"Rotating a shared Authentik OIDC client secret" | the on-host rotation runbook (verify + edit + re-render consumers) |
+| AI-stack items + LiteLLM scoped-key glue | [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) | AI 1P item creation, OIDC wiring, LiteLLM bootstrap-keys rotation/rollback (HD-105) |
+| The two glue scripts' parallel implementation + concurrency budget | [`scripts/README.md`](../scripts/README.md) §Parallel 1Password operations | layer × direction × concurrency table, the 1P budget, extensibility rule |
+
+> Findability rule: if you search for "which glue / who provisions / how to rotate" a secret, start here; the row routes you to the owning doc. Do NOT re-author glue mechanics in multiple docs — each row is a single source.
 ---
 
 ## Master Secret List (canonical)
