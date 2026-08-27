@@ -102,11 +102,10 @@ except Exception:
     print("000")
 PYEOF
 )"
-    if [ -n "$out" ] && [ "${out##000}" != "$out" ]; then
+    if [ -n "$out" ] && [ "$out" != "000" ]; then
         printf '%s' "$out"
     else
         echo "000"
-        return
     fi
 }
 
