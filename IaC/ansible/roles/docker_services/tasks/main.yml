@@ -68,6 +68,7 @@
   ansible.builtin.include_tasks:
     file: fetch-vault-pass.yml
   vars:
+    op_mode: "derive"
     op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"
     op_derive_services: >-
       {{ docker_services | selectattr('enabled', 'truthy') | map(attribute='template_dir') | list }}
@@ -126,13 +127,18 @@
   when: svc_entry.enabled | default(true)
   tags: docker_services
 
-- name: Apply custom blueprints one-shot (discovery never registers /blueprints/custom — HD-230)
-  ansible.builtin.include_tasks:
-    file: apply-authentik-blueprints.yml
-  when:
-    - "'authentik' in (docker_services | map(attribute='name') | list)"
-    - docker_services_scope | default('all') == 'all'
-  tags: docker_services
+- name: Apply custom Authentik blueprints one-shot (HD-230) — now EXTERNALIZED
+  # Blueprints change rarely (integration wiring only), and a one-shot `docker exec
+  # ak apply_blueprint` takes ~45s per converge. Per owner decision (2026-08-27) this
+  # step moved OUT of the routine docker_services lane into the dedicated playbook
+  # `playbooks/authentik-blueprints.yml` — run it only when a blueprint file changes.
+  # The secret-egress glue (next) is idempotent-fast once blueprints are applied, so it
+  # stays here.
+  ansible.builtin.debug:
+    msg: >-
+      Blueprints are applied via the dedicated playbook
+      `playbooks/authentik-blueprints.yml` (externalized from the deploy lane, HD-268)
+      — not run during routine docker_services converges.
 
 - name: Run the secret-egress glue (after authentik is up)
   ansible.builtin.include_tasks:
@@ -150,6 +156,7 @@
   ansible.builtin.include_tasks:
     file: fetch-vault-pass.yml
   vars:
+    op_mode: "list"
     op_item_list: "{{ _bulk_op_glue }}"
   when:
     - "'authentik' in (docker_services | map(attribute='name') | list)"

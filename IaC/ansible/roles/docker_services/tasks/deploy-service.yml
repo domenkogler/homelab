@@ -367,6 +367,8 @@
   ansible.builtin.include_tasks:
     file: fetch-vault-pass.yml
   vars:
+    op_mode: "list"
+    op_item_list: >-
     op_item_list: >-
       {{ litellm_scoped_keys | default([]) | map(attribute='vault_item') | list }}
     op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"

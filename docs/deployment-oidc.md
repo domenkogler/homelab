@@ -39,10 +39,12 @@ file (`docker compose -f … validate`) before `up`. See
 [`deployment-ansible.md`](deployment-ansible.md) §`docker_services`.
 
 1. Deploy `authentik` (+ bundled pg/redis/ldap) — `docker compose up -d`.
-2. **Apply the Blueprint** (`ks-oidc.yml`) — via the deterministic one-shot
-   `apply-authentik-blueprints.yml` step wired into `docker_services` main.yml (HD-230b: blueprint
-   discovery never registers `/blueprints/custom/*` as instances, so hash-reapply never fires on
-   its own); NOT hand-created in the UI.
+2. **Apply the Blueprint** (`ks-oidc.yml`) — via the dedicated, externalized playbook
+   `playbooks/authentik-blueprints.yml` (owner decision 2026-08-27: blueprints are rarely-changed
+   integration wiring, so the ~45s one-shot was moved OUT of the routine docker_services lane; run
+   this playbook explicitly when a blueprint file is edited, HD-230b/HD-268). Blueprint discovery
+   never registers `/blueprints/custom/*` as instances, so hash-reapply never fires on its own;
+   do NOT hand-create in the UI.
 3. **Run the secret-egress glue** — for each declared provider, `GET /api/v3/core/providers/oauth2/`
    → seed the 1Password item (`openwebui_api`, `headscale_api`, `matrix_api`, `openclaw_api`,
    `opencloud_oidc`, `immich_oidc`, `forgejo_oidc`, `metabase_oidc`). (The OpenCloud Graph-API

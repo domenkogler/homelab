@@ -36,18 +36,21 @@
   run_once: true
   no_log: true
   vars:
-    _derive: "{{ op_derive_spec is defined }}"
+    # Mode is passed EXPLICITLY by the caller ("derive" | "list") — do NOT infer it from
+    # `op_derive_spec is defined`. `include_tasks` vars leak across sibling includes on this
+    # same file, and a shell-level `if` cannot prevent Jinja from rendering BOTH branches.
+    _mode: "{{ op_mode | default('list') }}"
   block:
-    - name: "Run op-vault-export ({{ 'derive' if _derive else 'list' }})"
+    - name: "Run op-vault-export ({{ _mode }} mode)"
       ansible.builtin.shell:
         cmd: |
-          if [ "{{ 'derive' if _derive else 'list' }}" = "derive" ]; then
-            printf '%s\n' '{{ op_derive_spec | to_json }}' \
-              | python3 {{ op_export_script }} --vault="{{ op_vault }}" --derive
-          else
-            printf '%s\n' {{ (op_item_list | default([])) | join(' ') }} \
-              | python3 {{ op_export_script }} --vault="{{ op_vault }}"
-          fi
+          {% if _mode == 'derive' %}
+          printf '%s\n' '{{ op_derive_spec | to_json }}' \
+            | python3 {{ op_export_script }} --vault="{{ op_vault }}" --derive
+          {% else %}
+          printf '%s\n' {{ (op_item_list | default([])) | join(' ') }} \
+            | python3 {{ op_export_script }} --vault="{{ op_vault }}"
+          {% endif %}
         executable: /bin/bash
       become: false
       register: op_vault_out
@@ -62,5 +65,5 @@
       no_log: true
       changed_when: false
   when: >
-    (op_derive_spec is defined and (op_derive_spec | length) > 0)
-    or (op_item_list is defined and (op_item_list | length) > 0)
+    (op_mode == 'derive' and op_derive_spec is defined and (op_derive_spec | length) > 0)
+    or (op_mode != 'derive' and op_item_list is defined and (op_item_list | length) > 0)

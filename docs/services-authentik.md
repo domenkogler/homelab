@@ -11,7 +11,7 @@ tags: [services, authentik, sso, oidc]
 > **Links to:** `services-traefik.md`, `deployment-secrets.md`, `deployment-compose.md`, `deployment-oidc.md`, `deployment-ansible.md`
 > **Linked from:** `services.md`, `deployment-compose.md`, `index.md`
 
-> 🟢 **Live since 2026-08-22** (Phase 1): Authentik server + worker up on the VPS; the OIDC provisioning chain is proven live — all 15 expected providers exist via the deterministic blueprint one-shot (`apply-authentik-blueprints.yml`, HD-230b). ⏳ deploy-gated tails below where flagged (e.g. LDAP authoring HD-132). Sections below remain the implementation spec.
+> 🟢 **Live since 2026-08-22** (Phase 1): Authentik server + worker up on the VPS; the OIDC provisioning chain is proven live — all 15 expected providers exist via the deterministic, now-externalized blueprint one-shot (`playbooks/authentik-blueprints.yml`, HD-230b/HD-268). ⏳ deploy-gated tails below where flagged (e.g. LDAP authoring HD-132). Sections below remain the implementation spec.
 
 ---
 
@@ -138,8 +138,9 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
    **MANDATORY for EVERY custom-blueprint edit since HD-230 (2026-08-23):** discovery has never
    registered `/blueprints/custom/*` as BlueprintInstances (28 instances, 0 custom — hourly
    `blueprints_discovery` runs complete 'done' but skip them), so the file-hash re-apply machinery
-   NEVER fires for our blueprints. The docker_services role now runs the one-shot applies
-   deterministically (`tasks/apply-authentik-blueprints.yml`, wired into main.yml before the glue).
+   does NOT fire for our blueprints. The one-shot applies are EXTERNALIZED (owner decision
+   2026-08-27): run `bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml` whenever a
+   blueprint file changes — the routine docker_services lane no longer applies them every converge.
    Layer-2 cause of discovery non-registration still unknown — follow-up investigation pending.
    Remember: apply = UPSERT; removing a blueprint entry does NOT delete the server-side object —
    intentional deletions need ak-shell ORM one-shots in the same change.
