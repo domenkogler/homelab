@@ -1487,7 +1487,7 @@
 
 ### 2026-08-27 — Phase 1 · HD-269 Step 1: parallelize the two serial egress glue loops `[AI]`
 
-- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2; owning doc `docs/deployment-ansible.md` §Tags & surgical runs; handoff `prompt-ansible-time-gains.md` Step 1.
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2; owning doc `docs/deployment-ansible.md` §Tags & surgical runs.
 - **Stimulus:** full-converge baseline ~204s has ~35s in 3 serial glue loops (Authentik secret-egress ~21-22s, LiteLLM bootstrap-keys ~8s, op-vault-export ~5s). Both egress loops' sub-operations are independent per provider/key — parallelize reads/probes, keep writes ordered/serial.
 - **Commands run:** `git worktree add ../homelab-wt-20260827-2335 -b session/hd269-parallelize-glue`; edited the two rendered `*.sh.j2` templates; `validate-all.sh` green; sandbox tests (below). No live secret writes — the parallel logic was proven in a sandbox against stub `op`/`docker`/`curl`.
 - **Settings chosen:**
@@ -1499,7 +1499,7 @@
 
 ### 2026-08-28 — Phase 1 · HD-269 Step 1 live re-baseline + full-converge warning audit `[AI]`
 
-- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2; owning doc `docs/deployment-ansible.md` §Tags & surgical runs; handoff `prompt-ansible-time-gains.md` Step 1; log `/tmp/fullconverge2.log`.
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2; owning doc `docs/deployment-ansible.md` §Tags & surgical runs; log `/tmp/fullconverge2.log`.
 - **Stimulus:** close the Step-1 “live full-converge re-baseline still pending” item from last session, and pivot the found warnings into tracked backlog before proceeding to the Step-4 tier modulariser.
 - **Commands run:** ran the full converge `bash scripts/ansible-run.sh playbooks/vps.yml` (log: `/tmp/fullconverge2.log`, 2934 lines); no code edits in this session (read-only audit + doc/backlog work only, in worktree `homelab-wt-20260828-0035`). For the audit: `grep -n 'WARNING|DEPRECATION WARNING' /tmp/fullconverge2.log` then ±2-line context each.
 - **Result / baseline (live re-measure):** `ok=311 changed=45 failed=0 skipped=381`, last cumulative ~3:13. **Authentik secret-egress glue: 21-22s → 11.94s** — the $xargs$-`P` parallel sink is a shipped, live win. **LiteLLM bootstrap-keys glue: PARALLEL attempt FAILED live (rc 3, 12 retries, ~155s):** its `probe_key` reads the probe via a `docker exec -i … <<'PYEOF'` heredoc, whose stdin is a broken pipe under `xargs -P` fan-out → probe returns 000/hangs → transient failure. Reverted to the **serial main loop** (identical to the pre-parallel a57e128 version). Lesson ossified in `scripts/README.md` §Parallel-1P: a fan-out worker may use `curl`/`op`/plain subprocess, but a worker whose body pipes a heredoc into `docker exec -i`/`ssh` runs SERIALLY (or gets a stdin-neutral invocation). Authentik parallel survives because its workers only `curl` + `op read` and never feed stdin.
