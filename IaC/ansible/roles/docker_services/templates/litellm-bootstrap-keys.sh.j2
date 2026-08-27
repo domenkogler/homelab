@@ -52,7 +52,7 @@ if ! command -v op >/dev/null 2>&1; then
   echo "FATAL: op CLI not found" >&2; exit 1
 fi
 
-MASTER_KEY="$(op item get litellm_master_key --fields credential --vault "$OP_VAULT" 2>/dev/null)"
+MASTER_KEY="$(op item get litellm_master_key --reveal --fields credential --vault "$OP_VAULT" 2>/dev/null)"
 if [ -z "${MASTER_KEY:-}" ]; then
   echo "FATAL: litellm_master_key empty/unreadable — cannot administer keys" >&2; exit 1
 fi
@@ -184,7 +184,7 @@ until healthy; do log "waiting for litellm stack to become healthy…"; sleep 10
 
 for spec in "${KEYS[@]}"; do
     IFS='|' read -r alias item models_csv maxb bd <<<"$spec"
-    cur="$(op item get "$item" --fields credential --vault "$OP_VAULT" 2>/dev/null || true)"
+    cur="$(op item get "$item" --reveal --fields credential --vault "$OP_VAULT" 2>/dev/null || true)"
     if [ -n "$cur" ]; then
         code="$(probe_key "$cur")"
         case "$code" in
