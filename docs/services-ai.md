@@ -109,7 +109,10 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 - **One endpoint:** Open WebUI ×2, OpenClaw, pi.dev, DSH, and Qdrant's embed/rerank authenticate to
   **LiteLLM only**, via per-consumer **scoped virtual keys** (HD-247) — they never hold `openrouter_api`,
   `cohere_api`, or the master key.
-- **Generation → Open Router:** one `openrouter_api` key (api → credential) for all external LLM models.
+- **Generation → Open Router:** one `openrouter_api` key (api → credential) reused for **all** external
+  chat/LLM models, declared in LiteLLM's `config.yaml`. The coding-embed path specifically routes
+  **DeepSeek via OpenRouter** (the brainstorm's pi serve / DSH backend) + local Ollama; any model listed
+  on OpenRouter is selectable through the one LiteLLM dropdown.
 - **Embeddings → Cohere:** `cohere_api` (api → credential). Cohere embed-v4 **multilingual** chosen for
   Slovenian; only embedded vectors leave (accepted, 2026-08-16).
 - **Rerank → Cohere:** `cohere/rerank-v4.0-pro` external via LiteLLM `/rerank`.
@@ -193,6 +196,34 @@ the per-consumer virtual keys (fail-closed lookups thereafter), specs SSOT in `g
 > so backup focuses on git + the raw-asset ingress; Qdrant is re-indexed from the wiki on loss. Still add a
 > Qdrant snapshot seam for iteration speed, but it is NOT the metadata-fate risk class it was under
 > PGVector. Open WebUI + OpenClaw config/state → Kopia.
+
+### 5c. Workflows (operational recipes)
+
+The AI layer is a **swappable shell over a git-SSOT + vector-cache floor** — three canonical flows:
+
+**A) Ingest a large document (automated, n8n):**
+1. Drop a 300-page manual into an OpenCloud **“import to RAG”** folder.
+2. **n8n** detects the file and copies it into the `/sources/` dir of the target wiki repo on Forgejo.
+3. n8n (or a hook) chunks it, embeds via **LiteLLM** (cohere/embed-v4.0), and writes the **dense+sparse**
+   vectors to Qdrant tagged with the project ID — ready for hybrid search immediately.
+
+**B) Edit docs from the web (HITL, human-in-the-loop):**
+1. Log into **Open WebUI** (WAN/Tailscale + Authentik), pick a **pi-agent** model.
+2. Prompt eg. “*V @wiki-sluzba dodaj nov konfiguracijski port 9090 v indeks*”.
+3. OWUI calls **pi serve** over the internal network.
+4. The agent edits the `.md`, **lints the OKF header** (title/type/tags/generated_at), then opens a
+   **Pull Request via Forgejo MCP** on your local Forgejo.
+5. You later `git pull` on your WSL laptop, visually accept the PR and **deploy with Ansible** to prod VPS.
+
+**C) Identity-aware orchestration (OWUI as orchestrator):**
+- OWUI reads the Authentik JWT and **dynamically shows only the MCP tools + wikis the logged-in group is
+  allowed** (e.g. `groups: ["admin", "sluzba"]` → role-filtered tools). Open WebUI is not a monolithic
+  app but a router over the permissioned corpus. (Detail from the brainstorm — mechanism is a follow-up
+  task under HD-307.)
+
+**Elastic survival:** because knowledge is plain OKF `.md` in git and the index is a rebuildable Qdrant
+cache, if Open WebUI goes away tomorrow the whole structure + hybrid RAG + coding agents keep working via
+the WSL pi.dev terminal.
 
 ---
 
