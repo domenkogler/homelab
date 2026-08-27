@@ -47,10 +47,10 @@
         cmd: |
           {% if _mode == 'derive' %}
           printf '%s\n' '{{ op_derive_spec | to_json }}' \
-            | python3 {{ op_export_script }} --vault="{{ op_vault }}" --derive
+            | python3 {{ op_export_script }} --vault="{{ op_vault }}" --derive --workers={{ op_vault_workers | default(6) }}
           {% else %}
           printf '%s\n' {{ (op_item_list | default([])) | join(' ') }} \
-            | python3 {{ op_export_script }} --vault="{{ op_vault }}"
+            | python3 {{ op_export_script }} --vault="{{ op_vault }}" --workers={{ op_vault_workers | default(6) }}
           {% endif %}
         executable: /bin/bash
       become: false

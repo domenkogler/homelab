@@ -11,6 +11,11 @@ docker_compose_dir: /opt
 # re-pass per caller (the list-mode/glue branch failed with 'op_export_script is
 # undefined' once the Jinja {% if %} made mode explicit).
 op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"
+# HD-258/HD-268: concurrency for the bulk `op item get` pre-pass. Kept conservative (6) —
+# a higher number (15+) bursts many op calls at once and can trip hosted-1P rate limits during
+# repeated/debug converges (rate-limit block can last 15min+). Settle low. Overridable via
+# `-e op_vault_workers=N` or a group_var.
+op_vault_workers: 6
 
 # Surgical-deploy scope (HD-255/HD-260). `all` (default) = full converge and is
 # UNCHANGED from the pre-scope behavior. Setting it to a single service name makes
