@@ -80,7 +80,7 @@ siblings `../homelab-wt-*`. No second clone; the old `/mnt/d` drvfs path is reti
 ### 0.2 Bootstrap tooling, service-account token, sudo
 
 ```bash
-cd /home/domen/source/homelab/IaC/bootstrap-ansible-client && bash bootstrap.sh
+cd /home/domen/source/homelab && bash scripts/bootstrap-runner.sh
 source ~/.bashrc
 ```
 
@@ -151,7 +151,7 @@ return `ansible-admin` with no password prompt.
 On the WSL runner (working `op` session):
 
 ```bash
-cd IaC/host/vps && ./gen-custom-script.sh
+bash scripts/gen-custom-script.sh
 ```
 
 Builds the git-ignored `post_install_with_secrets.sh` (0600): injects both real public keys into a
@@ -312,7 +312,7 @@ ls /dev/disk/by-id/ | grep usb
 
 The interactive path skips the preseed's `post_install.sh`, so reproduce its effect:
 
-1. Laptop: build the keyed script — `cd IaC/host && ./gen-media-post-install.sh` (writes git-ignored `post_install_with_secrets.sh`, three pubkeys from 1Password).
+1. Laptop: build the keyed script — `bash scripts/gen-media-post-install.sh` (writes git-ignored `post_install_with_secrets.sh`, three pubkeys from 1Password).
 2. Serve it: `py -3 -m http.server 8000 --directory <dir>` from the folder containing the script (first inbound connection triggers a Windows firewall prompt → Allow; or pre-open with elevated
    `netsh advfirewall firewall add rule name="preseed-http-8000" dir=in action=allow protocol=TCP localport=8000`).
 3. Target (as the local user):

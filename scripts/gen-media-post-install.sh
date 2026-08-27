@@ -12,17 +12,18 @@
 # preseed.cfg). DELETE the generated file after copying it to the stick.
 #
 # Run on the management runner (WSL Debian — needs a working `op` session):
-#   cd IaC/host && ./gen-media-post-install.sh [/media/usb0]   # mountpoint optional
+#   bash scripts/gen-media-post-install.sh [/media/usb0]   # mountpoint optional
 #
 # Wrong-script guard (see deployment-preseed.md): the VPS uses its OWN
 # two-key post_install (no ai-debug on a public box). This generator is for
 # the LAN hosts only and injects all THREE keys.
 # =====================================================================
 set -euo pipefail
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-OUT=post_install_with_secrets.sh
-SRC=post_install.sh
+OUT="$REPO/IaC/host/post_install_with_secrets.sh"
+SRC="$REPO/IaC/host/post_install.sh"
 
 command -v op >/dev/null || { echo "FAIL: op CLI not found"; exit 1; }
 
@@ -66,5 +67,5 @@ if [ $# -ge 1 ]; then
 else
     echo "  Next: copy it onto the USB media as preseed/post_install.sh (next to"
     echo "  IaC/host/oldsrv/preseed.cfg), then DELETE this file:  rm -- $OUT"
-    echo "  Or re-run with the mountpoint:  ./gen-media-post-install.sh /media/<usb>"
+    echo "  Or re-run with the mountpoint:  bash scripts/gen-media-post-install.sh /media/<usb>"
 fi

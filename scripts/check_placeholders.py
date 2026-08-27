@@ -53,8 +53,8 @@ ALLOWLIST = {
     "IaC/host/oldsrv/preseed.cfg",
     "IaC/host/vps/preseed.cfg",
     "IaC/host/vps/post_install.sh",
-    "IaC/host/vps/gen-custom-script.sh",   # generator — matches the tokens by design (sed injection)
-    "IaC/host/gen-media-post-install.sh",  # generator (homelab USB media) — matches the tokens by design (sed injection)
+    "scripts/gen-custom-script.sh",   # generator — matches the tokens by design (sed injection)
+    "scripts/gen-media-post-install.sh",  # generator (homelab USB media) — matches the tokens by design (sed injection)
     "IaC/host/post_install_with_secrets.sh",  # EPHEMERAL generator output (git-ignored, deleted after USB copy) — carries the same runtime assertion block
     "IaC/host/pi/first-boot-config.sh",
     "docs/deployment-preseed.md",   # owning spec — quotes the tokens

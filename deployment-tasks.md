@@ -104,9 +104,9 @@
 > **Continuation:** once verified, you can run Ansible and the 1Password test; nothing else.
 > **Step-by-step runbook:** [deployment-manual.md](deployment-manual.md) §Phase 0 (true-zero rebuild incl. canonical key restore).
 
-1. Clone the repo; run the client bootstrap:
+1. Clone the repo; run the runner bootstrap (relocated to `scripts/`, HD-256):
    ```bash
-   cd IaC/bootstrap-ansible-client && bash bootstrap.sh
+   bash scripts/bootstrap-runner.sh
    source ~/.bashrc
    ```
 2. Verify tooling: `ansible --version`, `op --version`.

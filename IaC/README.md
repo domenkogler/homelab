@@ -10,7 +10,7 @@
 | Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation), `storage`, `router`, `switch` (HD-03), `home_assistant`, `docker_services` (HD-50), `monitoring`, `amd_rocm`, `desktop`, `office`, `cifs`, `cloudflare_dns`, `wireguard`, `vps-hardening` (HD-154) — count = `ls roles/`, never hand-entered | `proxmox` (TODO, Phase 2) |
 | Docker compose templates | implemented set = `templates/docker_services/` (count derived from the directory; count-lint enforced by `validate-docker-services.py`) | — |
 | RouterOS bootstrap scripts | `IaC/router/templates/{rb4011,crs328,ap}_initial.rsc.j2` (3) — rendered with secrets via `playbooks/render-routeros.yml` into gitignored `IaC/router/rendered/`; never import the raw template | — |
-| Bootstrap | `bootstrap.sh`, `post_install.sh`, `pi/first-boot-config.sh` (3) | — |
+| Bootstrap | runner setup relocated to `scripts/bootstrap-runner.sh`; `post_install.sh`, `pi/first-boot-config.sh` stay in `IaC/host/` (deploy payloads) | — |
 
 > `network` role: static-IP + VLAN trunk provisioning is a scoped TODO until the host network config manager (systemd-networkd vs netplan) is decided — see `roles/network/tasks/main.yml`.
 > `network` role: static-IP + VLAN trunk provisioning is a scoped TODO until the host network config manager (systemd-networkd vs netplan) is decided — see `roles/network/tasks/main.yml`.
@@ -108,8 +108,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │           ├── tasks/main.yml
 │   │           └── files/ai-diag
 │   ├── bootstrap-ansible-client/
-│   │   ├── bootstrap.sh                     # Management laptop setup
-│   │   └── ansible.md                       # WSL2 Debian install guide
+│   │   └── ansible.md                       # WSL2 Debian install guide (runner setup script moved to scripts/bootstrap-runner.sh)
 │   ├── host/
 │   │   ├── post_install.sh                 # SHARED bootstrap: ansible-admin + ai-debug + sshd hardening
 │   │   ├── nas/                            # preseed.cfg for nas.kogler.si (HP MicroServer)

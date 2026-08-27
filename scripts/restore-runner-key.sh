@@ -3,7 +3,7 @@
 # restore-runner-key.sh — restore the canonical ansible-admin_ssh key into
 # the WSL runner's ~/.ssh/id_ed25519[.pub] (1Password = source of truth).
 #
-# Run AFTER a true-zero WSL rebuild (deployment-tasks Phase 0): bootstrap.sh
+# Run AFTER a true-zero WSL rebuild (deployment-tasks Phase 0): bootstrap-runner.sh
 # generates a THROWAWAY key that must be replaced so SSH to managed hosts
 # works. Verifies the fingerprint at the end (expect SHA256:1uKzmwf…).
 #
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 [ -f "$HOME/.config/op/homelab-sa-token" ] || {
-    echo "FAIL: SA token file missing — run IaC/bootstrap-ansible-client/bootstrap.sh first" >&2
+    echo "FAIL: SA token file missing — run scripts/bootstrap-runner.sh first" >&2
     exit 1
 }
 chmod 700 "$HOME/.config/op"   # op refuses world-accessible config dirs

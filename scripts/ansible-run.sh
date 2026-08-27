@@ -28,7 +28,7 @@ if [ -f "$HOME/.config/op/homelab-sa-token" ]; then
     # shellcheck disable=SC1091
     source "$HOME/.config/op/homelab-sa-token"
 else
-    echo "FAIL: $HOME/.config/op/homelab-sa-token missing — run IaC/bootstrap-ansible-client/bootstrap.sh first" >&2
+    echo "FAIL: $HOME/.config/op/homelab-sa-token missing — run scripts/bootstrap-runner.sh first" >&2
     exit 1
 fi
 
@@ -36,7 +36,7 @@ if [ -d "$HOME/ansible-venv" ]; then
     # shellcheck disable=SC1091
     source "$HOME/ansible-venv/bin/activate"
 else
-    echo "FAIL: ~/ansible-venv missing — run IaC/bootstrap-ansible-client/bootstrap.sh first" >&2
+    echo "FAIL: ~/ansible-venv missing — run scripts/bootstrap-runner.sh first" >&2
     exit 1
 fi
 

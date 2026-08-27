@@ -51,12 +51,33 @@ import argparse
 import json
 import os
 import secrets
+import shutil
 import string
 import subprocess
 import sys
 
 VAULT = "Homelab-ansible"
-BCRYPT_PY = os.environ.get("BCRYPT_PY", "py -3")  # temp venv python that has `bcrypt`
+
+
+def _detect_bcrypt_py() -> list[str]:
+    """Resolve the python to run the bcrypt snippet with.
+
+    The generated `bcrypt` bcrypt_hash field is computed by shelling out to a
+    python that has `bcrypt` installed (a temp bootstrap venv), because this
+    repo's `op` target may not. Prefer `BCRYPT_PY` (env override, e.g. to point
+    at a specific temp venv) -> else `python3` (Debian/WSL primary), else `py -3`
+    (Windows launcher fallback), else this process's own interpreter.
+    """
+    env = os.environ.get("BCRYPT_PY")
+    if env:
+        return env.split()
+    for cand in ("python3", "py -3"):
+        if shutil.which(cand.split()[0]) is not None:
+            return cand.split()
+    return [sys.executable]
+
+
+BCRYPT_PY = _detect_bcrypt_py()  # temp venv python
 
 # ---------------------------------------------------------------------------
 # Item catalog. DISABLED BY DEFAULT: it is only consulted when an explicit
@@ -184,7 +205,7 @@ def existing_items() -> dict[str, str]:
 
 
 def bcrypt_hash(password: str) -> str:
-    py = BCRYPT_PY.split()
+    py = BCRYPT_PY
     r = subprocess.run(
         py + ["-c",
               "import bcrypt,sys; print(bcrypt.hashpw(sys.argv[1].encode(), bcrypt.gensalt(rounds=12)).decode())",

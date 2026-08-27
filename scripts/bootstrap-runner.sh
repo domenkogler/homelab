@@ -1,5 +1,5 @@
 #!/bin/bash
-# bootstrap.sh - Fully idempotent setup for any management laptop
+# bootstrap-runner.sh — fully idempotent setup for any management laptop / WSL Debian runner (relocated from IaC/, HD-256)
 set -e
 
 echo "=== 1. System update and prerequisites ==="
@@ -33,7 +33,9 @@ pip install ansible
 # Install collections (Galaxy handles idempotency and skips re-installs).
 # SSOT = requirements.yml (Renovate-tracked, HD-90) — covers community.general,
 # community.docker AND community.routeros (router/switch roles need it).
-ansible-galaxy collection install -r "$(dirname "$0")/../ansible/requirements.yml"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+ansible-galaxy collection install -r "$REPO/IaC/ansible/requirements.yml"
 
 echo "=== 4. Idempotent SSH key generation ==="
 if [ ! -f ~/.ssh/id_ed25519 ]; then
@@ -69,6 +71,21 @@ grep -q "homelab-sa-token" ~/.bashrc || printf '\n[ -f %s ] && source %s\n' "$OP
 # the plaintext token there; the restricted file above is the only sanctioned location.
 # Last assignment wins in bash, so a leftover inline export shadows or duplicates the file.
 sed -i '/^export OP_SERVICE_ACCOUNT_TOKEN=/d' ~/.bashrc
+
+# Make the systemd ssh-agent socket (if present) the default SSH agent for git commit
+# signing + SSH auth (HD-265). Guarded: only exported when the socket actually exists.
+# Kept here (host environment, not git-bootstrap) so every shell can use the loaded keys.
+if ! grep -q 'SSH_AUTH_SOCK=.*openssh_agent' ~/.bashrc; then
+  cat >> ~/.bashrc <<'BASHRC_SSH'
+# 1Password-op-managed SSH agent (systemd socket) for git commit signing + SSH auth (HD-265).
+if [ -S /run/user/$(id -u)/openssh_agent ]; then
+    export SSH_AUTH_SOCK=/run/user/$(id -u)/openssh_agent
+fi
+BASHRC_SSH
+  echo "✔ SSH_AUTH_SOCK set in ~/.bashrc (systemd ssh-agent socket)."
+else
+  echo "ℹ SSH_AUTH_SOCK line already in ~/.bashrc."
+fi
 
 echo "=== 6. Idempotent passwordless sudo for local WSL ==="
 if [ ! -f /etc/sudoers.d/$USER ]; then

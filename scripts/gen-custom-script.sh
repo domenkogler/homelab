@@ -9,13 +9,14 @@
 # DELETED after pasting into the netcup SCP field.
 #
 # Run on the management runner (WSL Debian — needs a working `op` session):
-#   cd IaC/host/vps && ./gen-custom-script.sh
+#   bash scripts/gen-custom-script.sh
 # =====================================================================
 set -euo pipefail
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-OUT=post_install_with_secrets.sh
-SRC=post_install.sh
+OUT="$REPO/IaC/host/vps/post_install_with_secrets.sh"
+SRC="$REPO/IaC/host/vps/post_install.sh"
 
 command -v op >/dev/null || { echo "FAIL: op CLI not found"; exit 1; }
 

@@ -92,15 +92,14 @@ it is refreshed from this repo.
 |------|---------|
 | [`IaC/README.md`](IaC/README.md) | Ansible implementation specification — roles, templates, build order, **conventions** |
 | [`IaC/ansible/`](IaC/ansible/) | Ansible playbooks, roles, inventory, group vars |
-| [`IaC/bootstrap-ansible-client/`](IaC/bootstrap-ansible-client/) | Management laptop setup script |
+| [`scripts/bootstrap-runner.sh`](scripts/bootstrap-runner.sh) | Management laptop setup script |
 | [`IaC/router/`](IaC/router/) | RouterOS `.rsc` (rb4011, ap) |
 
 ### Bootstrap (Management Laptop)
 
 ```bash
 git clone <this-repo>
-cd IaC/bootstrap-ansible-client
-bash bootstrap.sh
+bash scripts/bootstrap-runner.sh
 source ~/.bashrc
 ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 ```
