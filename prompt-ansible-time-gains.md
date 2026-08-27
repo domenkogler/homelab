@@ -37,13 +37,12 @@
 - (c) multi-service scope: comma-string scope via `scope_is_all`/`scope_list`; live-validated `scope=qdrant,docling`.
 - (d) surgical op pre-pass + gated authentik-first deploy.
 
-### Step 1 — parallelize the two serial glue loops — **DONE (session 2026-08-27, commit dd98d50)**
-- **Authentik glue (`authentik-secret-egress.sh`)** — **21-22s →≤8s**: per-provider worker (own distinct 1P item) via `xargs -P "${OP_PARALLEL:-6}"`; write-only-if-changed; worker failure aborts (xargs nonzero); result serialized.
-- **litellm glue (`litellm-bootstrap-keys.sh`)** — **8s →≤4s**: PARALLEL read+probe (op get + docker exec HTTP probe) via xargs -P; SERIAL mint/store for empty-vault keys (no alias races); rc STALE→2 / transient→3 / conflict→4 carried in lines.
-- Implementation live-validated only in a SANDBOX (no secret writes). **Remaining: live full-converge re-baseline** — rerun the two static baselines → Authentik glue ≤8s; LiteLLM glue ≤4s; full converge ≤180s. Guard: 1P ≤4-6 op workers; only curl/docker exec probes may go wider.
-- **Validate:** rerun baselines → Authentik glue ≤8s; LiteLLM glue ≤4s; full converge ≤180s.
+### Step 1 — parallelize the two serial glue loops — **DONE; live re-baseline CLOSED (2026-08-28, commits dd98d50 → 027c0de → 3e94bf4)**
+- **Authentik glue (`authentik-secret-egress.sh`)** — per-provider worker (own distinct 1P item) via `xargs -P "${OP_PARALLEL:-6}"`; write-only-if-changed; worker failure aborts (xargs nonzero); result serialized. **LIVE: 21-22s → 11.94s — shipped, real win** (workers only `curl`/`op read`, never feed stdin).
+- **litellm glue (`litellm-bootstrap-keys.sh`)** — parallel read+probe via `xargs -P` was attempted but **FAILED live (rc 3, 12 retries)** — `probe_key` reads its probe via a `docker exec -i … <<'PYEOF'` heredoc whose stdin is a broken pipe under `xargs -P` → probe returns 000/hangs. **Reverted to the serial main loop (2026-08-27 version).** If ever parallelized again, the probe must be stdin-neutral (no docker-exec heredoc).
+- **Validate (live, closed 2026-08-28):** full converge `ok=311 changed=45 failed=0`, wall ~3:13; authentik glue 11.94s ✓ (21-22s baseline); litellm glue serial (secrets already seeded → ~0.8s no-op this run).
 - Guard: 1P rate-limit ≤4-6 op workers; only curl/docker exec probes may go wider.
-⚠️ Both scripts write secrets — the parallelization limits concurrency (writes remains ordered per item) and preserve glue ordering (never render a consumer with an empty secret). Live re-baseline is a NO-OP-deploy (idempotent) on the current stack.
+⚠️ ⚠️ both scripts write secrets — the serialized/ordered writes + glue ordering (never render a consumer with an empty secret) are preserved. Live re-baseline was a NO-OP-deploy (idempotent) on the current stack; warning scan /tmp/fullconverge2.log filed HD-270 + HD-271.
 
 
 ### Step 2 — multi-service scope — **DONE (session 2026-08-27)**
