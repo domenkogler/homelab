@@ -65,15 +65,29 @@
 # Contract (HD-91/65): fail-closed — the exporter aborts loudly on any needed
 # item that does not resolve (no default('')). delegate localhost, run_once, no_log.
 - name: "Bulk 1Password pre-pass (static) — export enabled-services' items into `vault`"
+  # HD-269 / scoped-run fix: the pre-pass derives from the ENABLED services that are
+  # actually IN THE LOOP — full converge (scope=all) exports every enabled template_dir's
+  # items; a DEPLOY-scoped run (docker_services_scope=<svc>) exports ONLY that service's
+  # items instead of paying the full all-services export (was ~5.7s of waste on a
+  # single-service run).
   ansible.builtin.include_tasks:
     file: fetch-vault-pass.yml
   vars:
     op_mode: "derive"
+    _scope: "{{ docker_services_scope | default('all') }}"
     op_derive_services: >-
-    op_derive_services: >-
-      {{ docker_services | selectattr('enabled', 'truthy') | map(attribute='template_dir') | list }}
+      {{ (_scope == 'all') | ternary(
+           docker_services | selectattr('enabled', 'truthy') | map(attribute='template_dir') | list,
+           docker_services | selectattr('name', 'equalto', _scope) | map(attribute='template_dir') | list) }}
+    # On a FULL converge the litellm-scoped keys (dsh_api, pi-harness_openai_api, …) are
+    # deliberately EXCLUDED here — they're minted by the litellm bootstrap glue later in the
+    # loop and fetched via the post-glue list pre-pass (they don't exist before it on a fresh
+    # host). On a DEPLOYED run the target service may be a CONSUMER of those very keys
+    # (e.g. pi-dev/dsh reference a litellm-scoped key), and litellm is NOT in the loop — so
+    # we fetch the scoped service's FULL item set directly. On an already-provisioned host
+    # those keys exist; fail-closed still aborts if a genuinely-missing key is referenced.
     op_derive_glue: >-
-      {{ (litellm_scoped_keys | default([]) | map(attribute='vault_item') | list) }}
+      {{ (_scope == 'all') | ternary(litellm_scoped_keys | default([]) | map(attribute='vault_item') | list, []) }}
     op_derive_spec: >-
       {{ {'services': op_derive_services, 'map': _template_vault_items, 'glue': op_derive_glue} }}
   tags: [docker_services, secrets]
@@ -115,6 +129,10 @@
   tags: docker_services
 
 - name: Deploy authentik FIRST (its API must be live before the glue can harvest)
+  # HD-269 / scoped-run fix: scope-gate this so a deploy-scoped run (scope!=all AND
+  # scope!=authentik) does NOT deploy authentik — its items are intentionally excluded
+  # from the scoped pre-pass, so attempting its render would fail-closed on a missing
+  # secret. Only scope=all (full converge) or an explicit scope=authentik deploys it.
   ansible.builtin.include_tasks:
     file: deploy-service.yml
   vars:
@@ -124,7 +142,9 @@
   loop: "{{ docker_services | selectattr('name', 'equalto', 'authentik') | list }}"
   loop_control:
     loop_var: svc_entry
-  when: svc_entry.enabled | default(true)
+  when:
+    - (docker_services_scope | default('all')) == 'all' or (docker_services_scope | default('all')) == 'authentik'
+    - svc_entry.enabled | default(true)
   tags: docker_services
 
 - name: Apply custom Authentik blueprints one-shot (HD-230) — now EXTERNALIZED
