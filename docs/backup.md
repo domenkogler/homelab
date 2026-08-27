@@ -52,12 +52,19 @@ the immich upload/thumb dir, and the signal-cli state volume.
 
 ```
 tiredofit/db-backup (local scratch) →  Kopia agent (VPS + oldsrv) →  Hetzner Storage Box (backup) SSH/SFTP :23
-   + service state + face thumbs       (encrypted, dedup)       (far-DC: Helsinki/Falkenstein)
+   + service state + face thumbs       (encrypted, dedup)       (far-DC: Helsinki/Falkenstein — SB-Backup HEL1-BX186)
 ```
 
 > **Off-site (HD-29/31, 2026-08-18): two Hetzner Storage Boxes.** **Live** box (nearest DC) serves
 > Immich originals **+ encoded-video** and the family SMB/WebDAV drives (CIFS, **not S3** — HD-135); **backup** box (far DC) hosts the Kopia repo.
 > **iDrive e2 dropped** (Hetzner cheaper per TB + SMB/WebDAV; single-provider risk accepted).
+>
+> **Box identifiers (Hetzner Storage Box console → robot.hetzner.com):**
+>
+> | Box | Hetzner identifier | Location | Purpose |
+> |-----|--------------------|----------|---------|
+> | **live** | **SB-Data** · `FSN1-BX2190` | **Falkenstein, Germany** (`eu-central`) | originals store (Immich + OpenCloud over CIFS/WebDAV, `//u653411.../backup`) |
+> | **backup** | **SB-Backup** · `HEL1-BX186` | **Helsinki, Finland** (`eu-central`) | Kopia off-site repo (SSH/SFTP :23) |
 
 DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then pushed to
 `tank/data/db-dumps` for the ZFS path — the two layers are independent.
@@ -123,9 +130,9 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | Copy | Location | Medium | Transport |
 |------|----------|--------|-----------|
 | **Live data** | netcup VPS NVMe (Immich DB, thumbs, configs) | SSD | — |
-| **Originals store** | Hetzner Storage Box **live** (`//u653411.../backup`, CIFS-mounted to VPS) | Cloud | CIFS/SMB + WebDAV |
+| **Originals store** | Hetzner Storage Box **live** — **SB-Data** (`FSN1-BX2190`, Falkenstein, Germany · `eu-central`; `//u653411.../backup`, CIFS-mounted to VPS) | Cloud | CIFS/SMB + WebDAV |
 | **Local backup** | home NAS (snapshot / nightly push) | HDD | LAN (fast restore) |
-| **Off-site backup** | Hetzner Storage Box **backup** (Kopia over **SSH/SFTP**, port 23, encrypted, NAS-independent) | Cloud | SSH/SFTP (port 23) |
+| **Off-site backup** | Hetzner Storage Box **backup** — **SB-Backup** (`HEL1-BX186`, Helsinki, Finland · `eu-central`) (Kopia over **SSH/SFTP**, port 23, encrypted, NAS-independent) | Cloud | SSH/SFTP (port 23) |
 
 > **Media is the deliberate exception** to 3-2-1: `bulk/media` is redownloadable, so 0-1-0 suffices
 > (RAIDZ2 redundancy, no backup copy) — see [`storage.md`](storage.md).

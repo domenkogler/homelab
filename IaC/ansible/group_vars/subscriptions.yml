@@ -127,6 +127,8 @@ subscriptions:
     url: https://robot.hetzner.com
     icon: fa-server
     secret: Hertzner-SB-Data    # 1Password Homelab-ansible, server (URL/user/password) — SMB/CIFS + WebDAV
+    location: |              # Hetzner Storage Box SB-Data — live (originals) host
+      FSN1-BX2190 · Falkenstein, Germany · eu-central
     calendar_url: null
     notify: [signal]
     status: active              # HD-31 redirect — live Immich originals + family SMB/WebDAV drives (CIFS, NOT S3)
@@ -142,6 +144,8 @@ subscriptions:
     url: https://robot.hetzner.com
     icon: fa-cloud
     secret: Hertzner-SB-Backup  # 1Password Homelab-ansible, connection ref (URL/username only, no password — SSH-key auth)
+    location: |              # Hetzner Storage Box SB-Backup — off-site (Kopia) host
+      HEL1-BX186 · Helsinki, Finland · eu-central
     calendar_url: null
     notify: [signal]
     status: active              # OFF-SITE backup leg (house-loss). SSH/SFTP-only, port 23, reuse existing Hetzner SSH key — no password

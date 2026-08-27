@@ -132,6 +132,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | Since | 2026-08-18 |
 | 🔑 Secret | `Hertzner-SB-Data` (1Password `Homelab-ansible`, server: URL/username/password) |
 | Host | `653411.your-storagebox.de` (server 653411) |
+| Location | **SB-Data** — `FSN1-BX2190` · Falkenstein, Germany · `eu-central` |
 | SMB/CIFS share | `//u653411.your-storagebox.de/backup` |
 | SSH/SFTP | port **23** — SSH key + password in 1Password |
 | Protocols | SMB/CIFS, WebDAV, SSH (external reachability) |
@@ -153,6 +154,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | Since | 2026-08-18 |
 | 🔑 Secret | `Hertzner-SB-Backup` (1Password `Homelab-ansible` — connection ref: URL/username only, **no password**) |
 | Host | `u653424.your-storagebox.de` (server/u 653424) |
+| Location | **SB-Backup** — `HEL1-BX186` · Helsinki, Finland (Host: HEL1 · eu-central) |
 | SSH/SFTP | port **23** — **reuse existing Hetzner SSH key**, no password |
 | Protocols | SSH/SFTP only (SMB/WebDAV not enabled) |
 | Purpose | Kopia off-site encrypted snapshots (DBs, configs, Immich originals) — survives house loss alongside VPS |

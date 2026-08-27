@@ -23,7 +23,7 @@ tags: [storage, zfs, datasets, backup, media, nfs]
    model weights, TSDB (Prometheus/Loki), and the media library are deliberately **not** backup targets.
 3. **Live data is local.** DBs and service runtime state live on the host's NVMe/SSD — never on NFS.
    The NAS holds **backup artifacts** (dumps, state pushes). **OpenCloud user files + Immich originals live
-   on the live Hetzner Box (CIFS/WebDAV)**, not the NAS (HD-135) — the NAS keeps only ZFS snapshots/replicas
+   on the live Hetzner Box (CIFS/WebDAV — **SB-Data** `FSN1-BX2190`, Falkenstein, DE)**, not the NAS (HD-135) — the NAS keeps only ZFS snapshots/replicas
    of the box-facing datasets where retained.
 4. **TRaSH hardlinks need one filesystem.** `downloads/` and `media/` live in a **single dataset**
    (`bulk/media`) — ZFS hardlinks cannot cross dataset boundaries.
@@ -161,7 +161,7 @@ deployed by the Ansible `storage` role.
 
 ---
 
-## Kopia Policy (oldsrv agent → Hetzner Storage Box, backup)
+## Kopia Policy (oldsrv agent → Hetzner Storage Box **SB-Backup** `HEL1-BX186`, Helsinki — off-site)
 
 **Sources (all local, none on NAS):**
 - `/srv/dumps` (SQL dump scratch)

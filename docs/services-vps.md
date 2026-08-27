@@ -47,7 +47,7 @@ tags: [services, vps, netcup]
 |------|----------|-------|------|
 | VPS | **netcup RS 2000 G12** (root server) | **AMD EPYC™ 9645** · **8 dedicated cores** · **16 GB DDR5 ECC** · **512 GB NVMe SSD** · **2,5 GBit/s** iface (flatrate) | **263,52 €/12 mo** (21,96 €/mo) |
 | Local Block Storage | netcup add-on | Expandable up to **8 TB** (candidate bulk tier alongside Hetzner Storage Box) | *variable* |
-| Bulk Storage | **Hetzner Storage Box** (live) — **BX11 1 TB**, bought 2026-08-18 (`Hertzner-SB-Data`) | CIFS-mounted for photos/files, served from VPS | **3,90 €/mo** |
+| Bulk Storage | **Hetzner Storage Box** (live) — **SB-Data** BX11 1 TB · `FSN1-BX2190` (Falkenstein, DE, `eu-central`), bought 2026-08-18 (`Hertzner-SB-Data`) | CIFS-mounted for photos/files, served from VPS | **3,90 €/mo** |
 
 > **Why netcup RS over Hetzner dedicated:** A root server gives dedicated compute for 4+4 users
 > without the overhead/pricing of a full Hetzner dedicated box. Storage Box handles bulk files economically.
