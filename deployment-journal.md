@@ -1429,6 +1429,34 @@
 - **Secrets touched:** none. **Deviations:** none — live behavior matched the sandbox tests (baseline-clean → push → clean); the two-sided path confirmed working against the real deploy target.
 - **Bookkeeping:** todo.md HD-254 row deleted (§4 fully-done close-out; changelog row retains the history). The changelog row's `⏳ deploy-gated` tail updated to `✅ live` in this same session.
 
+### 2026-08-27 — Phase 1 · HD-268 full converge + DSH live — Qdrant / pi-dev / dsh all running; baseline captured `[AI]`
+
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2 (VPS stack converge); owning docs `docs/services-ai.md` (HD-267/268), `docs/network-vpn.md` (§Tailnet Pattern A). Continues the `prompt-FULL_CONVERGE.md` handoff: dsh `{{ }}` comment blocker (already fixed in `main` at session start) + DSH image + first live converge + baseline second run.
+- **Stimulus:** prior session authored the HD-268 AI IaC (Qdrant swap, dual pi.dev+DSH harness) with one remaining deploy blocker (Jinja `{{ }}` in a dsh-sidecar comment) that broke the dsh compose render; that blocker was already landed in `main` (`44a8bbc`) before this session resumed.
+- **Commands run (as executed, on the WSL Debian runner):**
+  ```bash
+  # (0) handoff said apply the dsh comment fix; it was already committed — clean state verified;
+  bash scripts/validate-all.sh             # green (exit 0)
+  # (1) first full converge — dsh now RENDERS (blocker gone) but image pull failed:
+  bash scripts/ansible-run.sh playbooks/vps.yml    # failed=1: docker pull access denied runzhliu/deepseek-harness-docker (image repo 404)
+  # (2) fix image repo: runzhliu/deepseek-harness (NOT -docker) — verified tag 0.1.1-rc.2 on Docker Hub
+  bash scripts/validate-all.sh                    # green
+  bash scripts/ansible-run.sh playbooks/vps.yml    # ok=311 changed=60 failed=0 — dsh pulled + started BUT crash-loop
+  # verify: docker ps -> dsh Restarting(1); logs = ENOENT mkdir /home/node/.dsh/profiles (read-only root)
+  # (3) fix crash-loop — read_only:true but DSH_HOME=/home/node/.dsh was on the RO root FS:
+  #   + named volume 'dsh-home:/home/node/.dsh' + top-level 'volumes:' + shm_size 1gb (Chromium)
+  bash scripts/ansible-run.sh playbooks/vps.yml    # ok=311 failed=0; dsh now 'Up', logs: dsh web http://127.0.0.1:3080
+  # BASELINE SECOND RUN (user-requested static cost, nothing changed):
+  bash scripts/ansible-run.sh playbooks/vps.yml    # ok=311 changed=45 failed=0, wall ~203s
+  ```
+- **Settings chosen:**
+  - `dsh_version`: `0.1.1-rc.2` (repo corrected to `runzhliu/deepseek-harness`; tag verified present 2026-08-27; digest pin still TODO)
+  - dsh compose: `read_only:true` + `cap_drop ALL` + DSH home named volume `dsh-home:/home/node/.dsh` + `shm_size 1gb` (browser desktop); Pattern-A tailnet sidecar still **commented/disabled** (needs `tailscale_dsh` item + uncomment at deploy)
+- **Secrets touched:** `qdrant_db` (created by provision-vault.sh), `dsh_api`/`pi-harness_openai_api` + 6 other glue-minted LiteLLM scoped keys (len 26) — values to 1P vault only. 1P rate-limit headroom comfortable (token read 83/1000 used).
+- **Verify:** (1) `validate-all.sh` green; (2) `docker_services : Docker compose up -d for dsh` → ok (image pull, then fast 1.7s steady); (3) `docker ps` dsh = `Up` (was `Restarting(1)`), logs show the WebUI line; (4) dsh Web UI `curl 127.0.0.1:3080` returns http 000 from the host — **expected**: UI binds inside the container only, exposed only via the still-disabled tailnet sidecar (by design).
+- **Deviations:** dsh container image repo corrected (authoring had used the GitHub source repo name). The `--tags dsh` surgical run only hit guard tasks (include_tasks tag not inherited) — full converge is the reliable path. A `localhost` + duplicate `op_derive_services` map-key warning persists in validate output (warning, not a failure).
+- **Bookkeeping:** main pushed to `d33ab44`. DSH/Qdrant/pi-dev on-live; remaining deploy-gated tailnet sidecar wiring + live-verify Qdrant embed/rerank + re-index tracked in todo.md HD-268 tail.
+
 ## Phase 3 — oldsrv
 
 *(no entries yet)*
