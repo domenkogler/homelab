@@ -1,61 +1,89 @@
 ---
-title: AI Platform — Chat, RAG & Agents (LiteLLM / Open WebUI / OpenClaw / Docling / PGVector)
+title: AI Platform — Chat, RAG & Agents (LiteLLM / Open WebUI / OpenClaw / Docling / Qdrant)
 role: detail
 domain: services
 status: active
-tags: [services, ai, llm, llm-gateway, rag, agents]
+tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 ---
-# AI Platform — Chat, RAG & Agents
+# AI Platform — Family Web AI Layer
 
-> **Role:** Stack doc (detail) — family web AI platform: LLM routing (LiteLLM), chat + RAG UI (Open WebUI),
-> agent orchestration (OpenClaw), OCR document ingestion (Docling), and the PGVector vector store.
-> This is the **family-facing web AI layer**. Desktop/office AI (ONLYOFFICE, LocPilot, Word, email,
-> presentations) stays in [`services-office.md`](services-office.md); this doc covers everything browser-facing.
+> **Role:** Stack doc (detail) — the family-facing web AI platform. LLM routing (LiteLLM), chat + RAG UI
+> (Open WebUI ×2), agent orchestration (OpenClaw + dual coding harness), OCR ingestion (Docling), and the
+> **Qdrant** vector store. This is the canonical owner for the **2026-08-27 AI modularisation decisions
+> (HD-267)**: Qdrant-instead-of-PGVector · Forgejo-OKF wiki as knowledge SSOT · dual pi.dev+DSH harness.
+> It is the **single merged view** that replaces both `ai-brainstorming.md` (deleted, folded here) and the
+> pre-HD-267 PGVector-centric v2 text.
+>
+> Desktop/office AI (ONLYOFFICE, LocPilot, Word, email, presentations) stays in
+> [`services-office.md`](services-office.md); this doc covers everything browser/agent-facing.
+>
 > **Links to:** `services-office.md`, `hardware-gpu.md`, `services-authentik.md`, `services-traefik.md`,
 > `deployment-secrets.md`, `services.md`
 > **Linked from:** `services.md`, `index.md`
 
-> **Status:** VPS platform **live since 2026-08-22** (Phase 1): LiteLLM spine, Open WebUI x2 (`chat.kogler.si` public family / `ai.kogler.si` internal tailnet-only -- v2 split, HD-248), Docling,
-> PGVector, OpenClaw up on the VPS. ⏳ deploy-gated: Ollama + Immich-ML on the oldsrv GPU (Phase 3) and the
-> RAG/agent live-tuning behind them. Supersedes the AnythingLLM path in `services-office.md`
-> for the family web UI (AnythingLLM **removed**; **LocPilot kept** for Windows-Word inline only).
+> **Status:** VPS platform **live since 2026-08-22** (Phase 1): LiteLLM spine, Open WebUI x2
+> (`chat.kogler.si` public family / `ai.kogler.si` internal tailnet-only -- v2/Hi-248 split), Docling,
+> OpenClaw up on the VPS. **PGVector is being replaced by Qdrant** (HD-267; ⏳ migration/backtest +
+> re-index before the live swap). ⏳ deploy-gated: Ollama + Immich-ML on the oldsrv GPU (Phase 3), Qdrant
+> cutover, the OKF-wiki repos, and the RAG/agent live-tuning behind them. Supersedes the AnythingLLM path.
 > Tracked via `todo.md` HD-1xx (`source: services-ai`).
 
 ---
 
 ## 1. Philosophy
 
-One **LiteLLM endpoint** is the spine. Every consumer (Open WebUI, OpenClaw) talks to it and **never
-sees an upstream provider key**. All external **generation** uses a single `openrouter_api` key;
-**embeddings** are the one exception (Cohere embed-v4 needs its own `cohere_api` — OpenRouter carries
-no embedding models). Model routing, cost, rate limits, and credential management are centralized
-in one place.
+One **LiteLLM endpoint** is the spine. Every consumer (Open WebUI ×2, OpenClaw, Qdrant's embed/rerank,
+the dual coding harness) talks to it and **never sees an upstream provider key**. All external
+**generation** uses a single `openrouter_api` key; **embeddings** are the one exception (Cohere embed-v4
+needs its own `cohere_api` — OpenRouter carries no embedding models). Model routing, cost, rate limits,
+and credential management are centralized in one place.
+
+**Two further invariants from HD-267:**
+- **The vector store is independent of Open WebUI.** Qdrant stands alone (hybrid dense+sparse BM25) so the
+  retrieval layer is not locked to any single UI — an AI interface is just a swappable shell (HD-267 ①).
+- **Git is the source of truth for knowledge; the index is a rebuildable cache.** Forgejo OKF-llm-wiki
+  repos hold the canonical `.md`; Qdrant indexes them and can always be rebuilt from the git floor
+  (HD-267 ②).
 
 ---
 
 ## 2. Architecture
 
-```
-  chat.kogler.si (PUBLIC: CrowdSec + Authentik OIDC)     TAILNET (Headscale ACLs, Patterns A/B)
-        | family browsers -- LIMITED keys only              | full-power keys (you + wife)
-        v                                                  v
-   OWUI-public --RAG--> PGVector.rag_public          OWUI-internal --RAG--> PGVector.rag_internal
-        |            (Family Manuals KB ONLY)               |       (personal + wife work KBs)
-        |                                                  |
-        +------------> LiteLLM spine (:4000/v1) <-----------+-- DSH cockpit . OpenClaw gateway
-                            |           |                  (all consumers: SCOPED virtual keys,
-                            v           v                   master_key retired post-HD-247)
-                      OpenRouter     Ollama* (llm-backend, Phase 3)
-                      + Cohere embed/rerank   Docling (OCR ingestion, services-internal)
+The system is split into **three strictly isolated network zones** on the VPS (no AI container touches the
+host OS directly):
 
-* Tailnet-exposed admin surfaces: litellm-ui . dsh . openclaw control . headplane (Patterns A/B -> network-vpn.md)
+```
+    [ PUBLIC INTERNET / WAN ]   (all ports closed except 443)
+        │
+        ▼
+ ┌──────────────────────────────────────────────────────────────┐
+ │ ZONE 1 — EDGE (public network)                               │
+ │   Traefik (SSL, certs, routing)  ·  Authentik (OIDC, 2FA)    │
+ └───────────────┬──────────────────────────────────────────────┘
+                 ▼  (verified JWT identity)
+ ┌──────────────────────────────────────────────────────────────┐
+ │ ZONE 2 — DATA CORE (db-internal + Forgejo + OpenCloud)       │
+ │   Forgejo Git  (canonical .md knowledge, OKF repos)          │
+ │   OpenCloud    (raw asset ingress: PDFs, scans, docs)        │
+ └───────────────┬──────────────────────────────────────────────┘
+                 ▼  (internal API / MCP)
+ ┌──────────────────────────────────────────────────────────────┐
+ │ ZONE 3 — AI SANDBOX (services-internal)                      │
+ │   Open WebUI ×2  ·  pi.dev  ·  DSH  ·  LiteLLM               │
+ │   Qdrant (hybrid vector)  ·  rag-mcp (reader)  ·  Forgejo MCP │
+ └──────────────────────────────────────────────────────────────┘
 ```
 
-**Docker networks (v2):** OWUI-public on `traefik-public` (the `chat` route); OWUI-internal NOT edge-routed -- tailscale-sidecar Pattern A; DSH on `services-internal` (planned HD-250); LiteLLM, OpenClaw, Docling on `services-internal`; PGVector on `db-internal`; **Ollama on `llm-backend`** (HD-59). **No host `0.0.0.0` port binds** — overlays + Traefik for the public plane, tailscale serve for the management plane (Flaw C / HD-62; Patterns A/B in [network-vpn.md](network-vpn.md)).
+**Docker networks (HD-307):** OWUI-public on `traefik-public` (the `chat` route); OWUI-internal NOT
+edge-routed -- tailscale-sidecar Pattern A; the AI harnesses (pi.dev, DSH) on `services-internal` via
+netns tailscale serve (Pattern A); OpenClaw, Docling on `services-internal`; **Qdrant** on `db-internal`
+(alongside the postgres/litellm-db); **Ollama on `llm-backend`** (HD-59). No host `0.0.0.0` port binds —
+overlays + Traefik for the public plane, tailscale serve for the management plane (Flaw C / HD-62;
+Patterns A/B in [network-vpn.md](network-vpn.md)).
 
 > **Ollama isolation (HD-59):** Ollama has no native server auth, so it sits on the dedicated
 > `llm-backend` overlay reachable **only by LiteLLM** (the spine), NOT on the flat `services-internal`
-> network. LiteLLM's future compose joins `services-internal` (consumers) **+ `llm-backend`** (→ Ollama).
+> network.
 
 ---
 
@@ -63,26 +91,30 @@ in one place.
 
 | Service | Role | Network | Notes |
 |---------|------|---------|-------|
-| **LiteLLM** | LLM gateway / router | `services-internal` **+ `llm-backend`** | OpenAI-compatible spine. Own small DB (SQLite volume) for keys/spend. Only component holding upstream keys. Joins `llm-backend` to reach Ollama. |
-| **Open WebUI x2** (v2, HD-248): `chat.kogler.si` PUBLIC (family, limited keys, Family-Manuals-only KB) + `ai.kogler.si` INTERNAL (tailnet-served; you+wife, agent-capable keys, `rag_internal`) | chat + RAG UI | `traefik-public` / tailnet sidecar | Auth = Authentik OIDC both; model backend = LiteLLM scoped keys each. |
-| **PGVector** | RAG vector store | `db-internal` | Dedicated `pgvector/pgvector:pg16`. Add DBxx block to `db-backup`. |
-| **Ollama** | Local LLM inference | **`llm-backend`** | GPU (RX 7600). Isolated from `services-internal` — reachable only by LiteLLM (HD-59). |
-| **Docling** | OCR / document understanding | `services-internal` | Runs on **CPU** (spares the dGPU). Multilingual OCR (Slovenian scans). |
-| **OpenClaw** | AI agent / orchestration | `services-internal` | Python framework (ex-Clawd). Models → LiteLLM. **Version pinned** (young project). |
-| **DSH -- DeepSeek Harness** *(planned, HD-250)* | DevOps/IaC coding cockpit (pi.dev replacement) | `services-internal` + tailnet sidecar | Models via LiteLLM scoped key; Forgejo PAT PR-only/no-merge; 443 egress accepted. |
+| **LiteLLM** | LLM gateway / router | `services-internal` **+ `llm-backend`** | OpenAI-compatible spine (v2, Postgres-backed, HD-247). Only component holding upstream keys. Joins `llm-backend` to reach Ollama; serves embed/rerank to Qdrant/rag-mcp. |
+| **Open WebUI ×2** (v2, HD-248) | chat + RAG UI | `traefik-public` / tailnet sidecar | `chat.kogler.si` PUBLIC (family, limited keys, **OKF Family-Manuals KB only**); `ai.kogler.si` INTERNAL (tailnet-served; you+wife, agent keys, `rag_internal`). Auth = Authentik OIDC both. |
+| **Qdrant** | **hybrid vector store (HD-307)** | `db-internal` | Standalone Rust DB (dense+sparse BM25), **independent of OWUI built-in RAG**. Replaces PGVector. Vector dimension locks at first ingest (1536). Add a snapshot/backup seam. |
+| **Forgejo (wiki repos)** | **knowledge SSOT** (HD-307) | `db-internal` / git | OKF `.md` repos per owner; git = truth; Qdrant = rebuildable cache. |
+| **kapa-inspired-rag-mcp** *(planned)* | MCP hybrid reader | `services-internal` | On @wiki-<x> query: hybrid search in Qdrant → top-20 → Cohere rerank (via LiteLLM) → top-5 clean markdown. |
+| **Forgejo MCP** *(planned)* | MCP read/write `.md` | `services-internal` | Bridge to the OKF wiki repos; agents read/write notes + open PRs. |
+| **Ollama** | Local LLM inference | **`llm-backend`** | GPU (RX 7600). Isolated — reachable only by LiteLLM. |
+| **Docling** | OCR / document understanding | `services-internal` | CPU. Multilingual OCR (Slovenian scans). |
+| **OpenClaw** | AI agent / orchestration | `services-internal` | Version pinned. Models → LiteLLM scoped key. |
+| **pi.dev + DSH** *(dual harness, HD-307)* | DevOps/IaC coding cockpits (C# + IaC) | `services-internal` + tailnet sidecar | **Both run side-by-side** (supersedes HD-250's "DSH replaces pi.dev"). Each consumes a scoped LiteLLM key; propose homelab via Forgejo PRs (PR-only, no-merge); 443 egress accepted (recorded risk). Compared by feature-keyed bake-off. |
 
 ---
 
 ## 4. LLM routing & keys
 
-- **One endpoint:** Open WebUI, DSH and OpenClaw authenticate to **LiteLLM only**, via per-consumer **scoped virtual keys** (HD-247) -- they never hold `openrouter_api`, `cohere_api`, or the master key.
-- **Generation → Open Router:** one `openrouter_api` key (api → credential) reused for **all** external
-  chat/LLM models, declared in LiteLLM's `config.yaml`.
-- **Embeddings → Cohere:** `cohere_api` (api → credential). Cohere embed-v4 **multilingual** chosen
-  deliberately for state-of-the-art multilingual embeddings (strong for Slovenian). Cloud call is an
-  **accepted** trade-off (decision 2026-08-16) — only embedded vectors, not documents/chats, leave.
-- **Local models:** LiteLLM also lists local Ollama models (RX 7600) so the family sees local + cloud
-  models through one dropdown; local is default where privacy/offline matters.
+- **One endpoint:** Open WebUI ×2, OpenClaw, pi.dev, DSH, and Qdrant's embed/rerank authenticate to
+  **LiteLLM only**, via per-consumer **scoped virtual keys** (HD-247) — they never hold `openrouter_api`,
+  `cohere_api`, or the master key.
+- **Generation → Open Router:** one `openrouter_api` key (api → credential) for all external LLM models.
+- **Embeddings → Cohere:** `cohere_api` (api → credential). Cohere embed-v4 **multilingual** chosen for
+  Slovenian; only embedded vectors leave (accepted, 2026-08-16).
+- **Rerank → Cohere:** `cohere/rerank-v4.0-pro` external via LiteLLM `/rerank`.
+- **Local models:** Ollama listed via LiteLLM so family sees local + cloud in one dropdown; local is
+  default where privacy/offline matters.
 
 **Local model recommendations** (office/voice workloads, moved from `services-office.md` — HD-199
 boundary trim; this doc is the platform SSOT for model guidance):
@@ -94,139 +126,120 @@ boundary trim; this doc is the platform SSOT for model guidance):
 | **Phi-4 14B** | ~10 GB | Reasoning, logic, Microsoft workflow drop-in |
 | **Qwen 2.5-Coder 32B** | ~24 GB | Heavy programming (Phase 2 GPU) |
 
-1Password (`Homelab-ansible` vault) items — see [`deployment-secrets.md`](deployment-secrets.md):
+**1Password (`Homelab-ansible`) items — see [`deployment-secrets.md`](deployment-secrets.md):**
 
 | Item | type → `field=` | Used by |
 |------|-----------------|---------|
 | `openrouter_api` | api → `credential` | LiteLLM (all external LLM generation) |
 | `cohere_api` | api → `credential` | LiteLLM (Cohere embed-v4, embeddings only) |
-| `litellm_master_key` | api → `credential` | **admin/bootstrap ONLY** (HD-247): litellm's own env + the bootstrap-keys glue; retired from every consumer template (grep-clean) |
-| `litellm_db` | db → `password` (`username`=DB user) | litellm-db runtime DB (HD-247 models-in-DB; init-once password, NOT_AUTO_ROTATABLE; dumped via db-backup **DB06**) |
-| scoped virtual keys (`owui-public-chat_api`, `owui-public-rag_api`, `owui-int-wife_api`, `owui-int-owner_api`, `dsh_api`, `openclaw-litellm_api`, `rag-int-svc_api`) | api → `credential` | per-consumer LiteLLM auth — **glue-generated at bootstrap** by `litellm-bootstrap-keys.sh` (create-if-absent; sks are hashed at rest server-side and can never be re-read, so a cleared item + deleted server key = re-mint) — see the table below |
-| `openwebui_secret` | password → `password` | Open WebUI session/encryption secret (optional) |
-| `pgvector_db` | db → `password` (`username`=DB user) | PGVector (optional if dedicated) |
+| `litellm_master_key` | api → `credential` | admin/bootstrap ONLY (HD-247) |
+| `litellm_db` | db → `password` | litellm-db runtime DB (models-in-DB) |
+| scoped keys (`owui-public-chat_api`, `owui-public-rag_api`, `owui-int-wife_api`, `owui-int-owner_api`, `dsh_api`, `openclaw-litellm_api`, `rag-int-svc_api`) | api → `credential` | per-consumer glow-minted keys (HD-247) |
+| `openwebui_secret` | password → `password` | Open WebUI session/encryption secret |
+| `qdrant_db` *(pending* | db → `password` | Qdrant (HD-307; replaces `pgvector_db`) |
+| `pgvector_db` | db → `password` | **legacy / pending PGVector→Qdrant cutover** (HD-246 → HD-307) |
 
-> **Fail-closed secrets:** no `default('')` on any of these — a missing item fails the render loudly
-> (HD-65/76).
->
-**Scoped consumer keys (v2 plan, HD-247):** LiteLLM runs Postgres-backed (`STORE_MODEL_IN_DB`) so models are edited in its Admin UI at runtime; Ansible owns bootstrap config only. One-time bootstrap glue mints per-consumer virtual keys into 1Password (fail-closed lookups thereafter):
+> Fail-closed secrets: no `default('')` — a missing item fails the render loudly (HD-65/76).
 
-| Key alias → 1P item | Consumer | Scope |
-|-----|----------|-------|
-| `owui-public-chat` → `owui-public-chat_api` | OWUI-public | chat models (`ollama/*` + mid-tier cloud), budget caps, no agents |
-| `owui-public-rag` → `owui-public-rag_api` | OWUI-public RAG | `cohere/embed-v4.0` + `cohere/rerank-v4.0-pro` ⚠ DEVIATION vs "embed-only": HD-246 routes `/rerank` through this same key — embed-only would hard-break the decided pipeline |
-| `owui-int-wife` → `owui-int-wife_api` | OWUI-internal (wife) | agents + mid-tier cloud; capped |
-| `owui-int-owner` → `owui-int-owner_api` | OWUI-internal (owner) | full incl. agent models |
-| `dsh` → `dsh_api` | DeepSeek Harness | coding-model scope, budgeted |
-| `openclaw-litellm` → `openclaw-litellm_api` | OpenClaw gateway | agent scope, budgeted. NOT `openclaw_api` — taken by the OpenClaw OIDC client (secret-egress glue); follows the `openclaw-opencloud_api` precedent |
-| `rag-int-svc` → `rag-int-svc_api` | OWUI-internal RAG | same rerank deviation as owui-public-rag |
+**Scoped consumer keys (v2, HD-247)** — Postgres-backed, models Admin-UI-managed; bootstrap glue mints
+the per-consumer virtual keys (fail-closed lookups thereafter), specs SSOT in `group_vars/vps.yml`:
+`owui-public-chat_api` (OWUI-public chat) · `owui-public-rag_api` (public RAG, embed+rerank) ·
+`owui-int-wife_api` / `owui-int-owner_api` (internal) · `dsh_api` (DSH) · `openclaw-litellm_api`
+(OpenClaw) · `rag-int-svc_api` (OWUI-internal RAG). Starting budgets/durations Admin-UI-editable.
 
-> Specs are SSOT'd in `group_vars/vps.yml` `litellm_scoped_keys` (consumed by BOTH the glue and
-> `check-vault-items.sh`; items are glue-seeded ⇒ never appear in the pre-seed MISSING diff).
-> Starting budgets/durations are Admin-UI-editable at runtime.
-
-> 📋 **Deploy checklist:** see [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) for the
-> step-by-step 1Password item-creation + Authentik OIDC wiring runbook (HD-105).
+> 📋 Deploy checklist: [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md).
 
 ---
 
-## 5. RAG pipeline
+## 5. Knowledge SSOT & RAG pipeline (HD-267)
 
-1. **Ingest:** family documents from **OpenCloud** (WebDAV/CIFS on the live Hetzner Box, mounted read-only,
-   owned by the neutral `media` uid per HD-51/94).
-2. **OCR / structure:** **Docling only** — converts scans, PDFs **and images** (JPEG/PNG/TIFF/BMP/WEBP are
-   first-class inputs; layout, tables, reading order) → markdown. SPDF/Tesseract is deliberately OUT of
-   the RAG path (`pdf.kogler.si` stays the searchable-PDF-artifact tool); vision models read images at
-   chat time but are NOT an ingestion OCR path.
-3. **Index:** chunk → embed via **cohere/embed-v4.0** (1536 dims, direct Cohere through LiteLLM —
-   OpenRouter carries no embeddings endpoint) → store in **PGVector** (`db-internal`).
-4. **Retrieve + answer:** hybrid BM25+vector search → Cohere rerank v4.0-pro → context + prompt to the
-   LiteLLM model.
+### 5a. Knowledge SSOT = Forgejo OKF-llm-wiki (HD-267 ②)
+- **Git is the source of truth** for `.md` knowledge. Private per-owner repos under Forgejo:
+  `wiki-druzina` (family) · `wiki-osebno-moj` (owner-personal) · `wiki-sluzba-moj` (owner-work) ·
+  `wiki-osebno-zena` (wife-personal) + a public KB cohort.
+- **Every record = one `.md`** with OKF YAML front-matter: `title`, `type`, `tags`, `generated_at`.
+- **`*-generated.md` are explicitly outside the corpus** (generated docs are never indexed as source).
+- **OpenCloud remains the raw-asset ingress** (PDFs, scans, docs) — the *source* of documents, not the
+  index SSOT. Large binaries are referenced, not embedded in the wiki.
+- **The vector index / Qdrant is a rebuildable cache** over that git floor — it can always be rebuilt;
+  it is never the source of truth.
 
-**Decided retrieval/ingestion parameters** (owner brainstorm 2026-08-25; implementation = HD-246):
+### 5b. Retrieval RAG results (rebuildable cache)
+1. **Ingest:** raw assets from **OpenCloud** (WebDAV/CIFS live Box) → optional **Docling** OCR →
+   canonical `.md` lands in the Forgejo wiki repo (git front-matter).
+2. **Index:** chunk → embed via **cohere/embed-v4.0** (1536 dims) through LiteLLM → write dense+sparse
+   vectors to **Qdrant**.
+3. **Retrieve:** hybrid BM25+vector query → kapa-inspired-mcp reads Qdrant → top-20 candidates → **Cohere
+   rerank v4.0-pro** via LiteLLM → **top-5 clean markdown** context → LiteLLM model answers.
 
-| Parameter | Decided value | Lives in |
-|-----------|---------------|----------|
-| Extraction engine | Docling only — `CONTENT_EXTRACTION_ENGINE=docling`, `DOCLING_SERVER_URL=http://docling:5001` | open-webui compose env |
-| Embeddings | `cohere/embed-v4.0`, **1536 dims** (v4 default, untruncated), `RAG_EMBEDDING_ENGINE=openai` → `http://litellm:4000/v1` (key = scoped `owui-public-rag_api`, HD-247) | open-webui compose env (lands with HD-246) |
-| Reranker | Cohere **rerank v4.0-pro**, external engine via LiteLLM `/rerank` (`RAG_RERANKING_ENGINE=external`; exact LiteLLM id string registry-verified at render) — SAME scoped key as embeddings: that is why `owui-public-rag_api` carries both models (deviation recorded HD-247) | open-webui compose env (lands with HD-246) |
-| Hybrid search | ON — `ENABLE_RAG_HYBRID_SEARCH=true`, `RAG_HYBRID_BM25_WEIGHT=0.5` (starting value) | OW env |
-| Retrieval K | `RAG_TOP_K_RERANKER=20` candidates → rerank → `RAG_TOP_K=5`, `RAG_RELEVANCE_THRESHOLD=0.0` | OW env |
-| Chunking | **token-based**: `RAG_TEXT_SPLITTER=token` (mandatory — otherwise CHUNK_SIZE counts *characters*), `CHUNK_SIZE=512`, `CHUNK_OVERLAP=64` (Cohere sweet spot) | OW env |
-| Config ownership | `ENABLE_PERSISTENT_CONFIG=false` — rendered env vars are the SSOT; Admin-UI edits do NOT persist (the live DB would otherwise silently win over later env changes) | OW compose env |
-| Knowledge split (v2, HD-248) | Public instance ingests **Family Manuals KB ONLY** (admin-only; user knowledge-creation disabled) -- same source folder also ingested on the internal instance into `rag_internal` (dual re-index step in this task) | OW env + UI ACLs |
-| PGVector index | HNSW `vector_cosine_ops` @ 1536 — idempotent Ansible task, `no_log`, no hand-SQL (HD-220 rule), runs after OW schema init | deploy-service post-up task |
+**Decided retrieval/ingestion parameters** (RAG knobs):
+| Parameter | Decided value |
+|-----------|---------------|
+| Extraction | Docling only (`CONTENT_EXTRACTION_ENGINE=docling`, `DOCLING_SERVER_URL=http://docling:5001`) |
+| Embeddings | `cohere/embed-v4.0`, **1536 dims**, via LiteLLM openai-compat, scoped rag key |
+| Reranker | Cohere rerank v4.0-pro external via LiteLLM `/rerank` — same scoped key |
+| Hybrid | ON default (dense+sparse BM25) |
+| Retrieval | 20 candidates → rerank → top 5, threshold 0 |
+| Chunking | token-based 512/64 (`RAG_TEXT_SPLITTER=token` mandatory) |
+| Config ownership | `ENABLE_PERSISTENT_CONFIG=false` (env = SSOT) |
+| Knowledge split | Public = Family-Manuals KB only; internal = personal/wife-work corpus |
+| Vector index | Qdrant, 1536-dim dense (+sparse), dimension locks at first ingest |
 
-> **Dimension lock-in:** the PGVector vector column dimension freezes at first ingest — changing the
-> embedding model or dims later means full re-ingest + re-index. 1536 chosen deliberately (untruncated v4).
+> **Dimension lock-in (HD-267 / ported from HD-246):** the vector dimension freezes at first ingest;
+> changing embedding model/dims later = full re-ingest + backtest. 1536 chosen (untruncated v4).
 
-**Backup:** the PGVector DB holds the RAG index + chat history — the same "irretrievable metadata"
-risk class as Immich (KOPS-026). Add a `DBxx` block to `db-backup` and include the volume in Kopia.
-Open WebUI + OpenClaw config/state → Kopia as well.
+> **Backup (HD-307):** Qdrant is a **rebuildable cache** — so its backup policy is *relaxed* vs PGVector
+> (PGVector held "irretrievable metadata"). The irrecoverable source is the **Forgejo OKF wiki** (the SS),
+> so backup focuses on git + the raw-asset ingress; Qdrant is re-indexed from the wiki on loss. Still add a
+> Qdrant snapshot seam for iteration speed, but it is NOT the metadata-fate risk class it was under
+> PGVector. Open WebUI + OpenClaw config/state → Kopia.
 
 ---
 
 ## 6. Auth & exposure
-
-- **`chat.kogler.si` is public** (renamed from `ai.` -- v2, HD-248), behind **Authentik OIDC** (native SSO, per-person) + **`crowdsec-only`** middleware at the Traefik edge (internet-facing → Flaw A / HD-60). Holds ONLY capability-limited credentials: family-chat + embed keys, no agents.
-- **`ai.kogler.si` is the INTERNAL instance** (tailnet-served via Pattern-A sidecar; public DNS record dropped/repointed). You + wife; agent-capable keys; `rag_internal`.
-- **Capability-tiering posture:** internet-facing surfaces hold limited-capability credentials only; full power requires tailnet membership. New admin/UI surfaces default tailscale-first -- see [security.md](security.md) §Capability-tiering and [network-vpn.md](network-vpn.md) §Tailnet-exposed services (Patterns A/B).
-- Per-person chat/history follows the HD-51 identity model (users = Authentik identities). No shared admin login exposed; admin surface is the OIDC account only.
-
----
+- **`chat.kogler.si` is public** (renamed from `ai.` -- v2, HD-248), behind **Authentik OIDC** (native
+  SSO, per-person) + **`crowdsec-only`** middleware at the Traefik edge (internet-facing → Flaw A /
+  HD-60). Holds ONLY capability-limited credentials: family-chat + embed keys, no agents.
+- **`ai.kogler.si` is the INTERNAL instance** (tailnet-served via Pattern-A sidecar; public DNS record
+  dropped/repointed). You + wife; agent-capable keys; `rag_internal`.
+- **Capability-tiering posture:** internet-facing = limited capability only; full power behind tailnet.
+  New admin/UI surfaces default tailscale-first ([security.md](security.md) §Capability-tiering,
+  [network-vpn.md](network-vpn.md) Patterns A/B).
+- Per-person history follows the HD-51 identity model; no shared admin login.
 
 ## 7. Integrations
-
 | Integration | How |
 |-------------|-----|
-| **Open WebUI ↔ OpenClaw** | Register OpenClaw as a **model/provider in LiteLLM** → chatting to the "OpenClaw" model in the UI invokes the agent (**internal instance only; public keys exclude agents**). No bespoke glue. |
-| **DSH ↔ LiteLLM/Forgejo** *(planned, HD-250)* | Coding cockpit consumes a scoped LiteLLM key; proposes homelab changes via Forgejo PRs only (branch-protected main, service account without merge rights). |
-| **Open WebUI ↔ OpenCloud** | Family documents from the **live Hetzner Box (WebDAV, HD-135)** mounted **read-only** into Open WebUI RAG ingestion; documents live in OpenCloud, Open WebUI indexes them. |
-| **OpenClaw ↔ OpenCloud** | OpenClaw **WebDAV skill** reads/writes family files (summarize, organize, OCR a scan via Docling, draft replies). |
-| **Open WebUI ↔ MS Office** | Office MCP bridges (Windows 11 clients) surface Word/Excel/PowerPoint as **tools** into Open WebUI over the Headscale tunnel — live COM edits; server-side python-docx/pptx/openpyxl path for Linux. See [`services-office.md`](services-office.md) (HD-106–111). |
-
----
+| **Open WebUI ↔ OpenClaw** | Register OpenClaw as a LiteLLM model/provider → chatting to the “OpenClaw” model in the UI invokes the agent (**internal instance only; public keys exclude agents**). No bespoke glue. |
+| **pi.dev / DSH ↔ LiteLLM/Forgejo** *(dual)* | Each harness consumes a scoped LiteLLM key; propose via Forgejo PRs only (branch-protected main, no merge rights). |
+| **Qdrant ↔ rag-mcp ↔ OWUI** (HD-307) | kapa-mcp retrieves via Qdrant + Cohere rerank, returns top-5 markdown to OWUI |
+| **Forgejo MCP ↔ wiki** | agents read/write OKF `.md`, open PRs; never arbitrary FS access |
+| **OpenCloud ↔ RAG ingress** | raw assets (live Box WebDAV, read-only) → Docling → wiki (git floor) |
+| **OpenClaw ↔ OpenCloud** | **WebDAV skill** reads/writes family files (summarize, organize, OCR a scan via Docling, draft replies). |
+| **Open WebUI ↔ MS Office** | Office MCP bridges (Windows 11 clients) surface Word/Excel/PowerPoint as **tools** into OWUI over the Headscale tunnel — live COM edits; server-side python-docx/pptx/openpyxl path for Linux. See [`services-office.md`](services-office.md) (HD-106–111). |
 
 ## 8. Security & operating notes
-
-- **No host port binds** (Flaw C / HD-62): overlay networks + Traefik only; loopback-only if needed.
-- **Version pinning** (Flaw B / HD-61/71): pin LiteLLM, Open WebUI, Docling, PGVector, and **OpenClaw**
-  (a young, fast-moving project — treat like Tuwunel, KOPS-030). Keep Renovate tracking.
-- **VRAM/RAM budget:** RX 7600 = 8 GB VRAM, shared with Ollama + immich-ML + voice. Docling on **CPU**
-  by default; size chat models ~7–8B q4; keep `keep_alive` sensible (see `hardware-gpu.md`).
-- **AnythingLLM + LocPilot removed** for the family web UI — replaced by the **MS Office MCP path** in
-  Open WebUI (HD-108), reflected in `services-office.md`.
-
----
+- **No host port binds** (Flaw C / HD-62): overlays + Traefik only; loopback-only if ever needed.
+- **Version pinning** (HD-61/71): pin LiteLLM, Open WebUI, Docling, **Qdrant**, OpenClaw (young project).
+  Keep Renovate tracking.
+- **VRAM/RAM:** RX 7600 = 8 GB, shared with Ollama + immich-ML + voice; Docling on CPU; size chat models
+  ~7–8B q4; keep `keep_alive` sensible (see `hardware-gpu.md`).
+- **AnythingLLM + LocPilot removed** for the family web UI — replaced by MS Office MCP path (HD-108).
 
 ## 9. Decision log
-
 | # | Decision | Date |
 |---|----------|------|
-| 1 | Cohere embed-v4 **multilingual** (paid, cloud) for embeddings — SOTA chosen; cloud acceptable. | 2026-08-16 |
-| 2 | `ai.kogler.si` **public**, Authentik OIDC + CrowdSec. | 2026-08-16 |
-| 3 | OpenClaw **kept**, **version pinned** (supply-chain risk accepted). | 2026-08-16 |
-| 4 | No host `0.0.0.0` port binds (loopback-only if ever needed). | 2026-08-16 |
-| 5 | Single `openrouter_api` for all external LLM gen; **`cohere_api` separate** (embeddings not on OpenRouter). | 2026-08-16 |
-| 6 | **LocPilot kept; AnythingLLM removed.** | 2026-08-16 |
-| 7 | **OpenCloud = file SSOT · Open WebUI = chat/UX SSOT** — Office via MCP tools, not add-ins (HD-108). | 2026-08-16 |
-| 8 | **Office MCP bridges are native Windows per-client** (no Docker), Headscale-only + token-auth, version-pinned (HD-106/109). | 2026-08-16 |
-| 9 | **Docling-only OCR ingestion** — SPDF/Tesseract out of the RAG path (searchable-PDF artifact tool only); chat-time image reading = LiteLLM vision models, never an ingestion OCR. | 2026-08-25 |
-| 10 | **RAG stack locked:** cohere/embed-v4.0 @1536 direct-Cohere · Cohere rerank v4.0-pro external via LiteLLM · hybrid BM25+vector ON (weight 0.5) · retrieve 20 → top 5 · token chunks 512/64 · `ENABLE_PERSISTENT_CONFIG=false` (env = SSOT). Implementation: HD-246. | 2026-08-25 |
-| 11 | **Two-instance OWUI split** -- `chat.kogler.si` public (limited keys, Family-Manuals-only KB) / `ai.kogler.si` internal tailnet-served (full power); Element Web → `msg.kogler.si`. HD-248. | 2026-08-26 |
-| 12 | **Capability-tiering posture** -- internet-facing surfaces hold limited-capability credentials only; agent-capable keys tailnet-only; new admin surfaces tailscale-first (security.md §10, network-vpn.md Patterns A/B). | 2026-08-26 |
-| 13 | **LiteLLM v2** -- Postgres-backed runtime, models UI-managed (drift accepted); scoped consumer keys; master_key retired from templates (HD-247). | 2026-08-26 |
-| 14 | **Public OWUI knowledge = Family Manuals KB only**, admin-only ingestion; user knowledge-creation disabled there. | 2026-08-26 |
-| 15 | **n8n → internal tier** + scoped LiteLLM key with budget cap; webhook dependency audit first (HD-249). | 2026-08-26 |
-| 16 | **DSH replaces Hermes placeholder** as DevOps/IaC cockpit; netns serve pattern; 443 egress accepted; Forgejo PAT PR-only/no-merge (HD-250). | 2026-08-26 |
-| 17 | **Embeddings uniform** cohere/embed-v4 @1536; public corpus = Family Manuals only; wife's public-work corpora internal-only. | 2026-08-26 |
+| 1–17 | (original v2 lock) — Cohere embed-v4 multilingual · `ai.`→public→internal · OpenClaw pinned · no host binds · single openrouter · LocPilot kept/AnythingLLM removed · OpenCloud file SSOT · Office MCP · Docling-only OCR · RAG stack locked (PGVector) · two-instance OWUI · capability-tiering · LiteLLM v2 spine · public=Family Manuals · n8n internal · DSH · embeddings uniform. | 2026-08-16 → 08-26 |
+| **18** | **Vector store = Qdrant** (hybrid dense+sparse, standalone Rust) — **replaces PGVector**; re-opens HD-246 store. Independent of OWUI. | 2026-08-27 |
+| **19** | **Forgejo OKF-llm-wiki = knowledge SSOT**; Qdrant = rebuildable cache; per-owner private repos; OKF YAML front-matter; `*-generated.md` outside corpus. | 2026-08-27 |
+| **20** | **Dual harness pi.dev + DSH** (supersedes HD-250's "DSH replaces pi.dev"); feature-keyed bake-off; agents via MCP-git/wiki, never FS. | 2026-08-27 |
+| **21** | IO/embedding stay cohere/embed-v4 @1536; public corpus = Family Manuals only; wife-work corp internal-only. | 2026-08-26/27 |
 
----
+> The whole 3-zone / OKF / Qdrant / MCP architecture (previously `ai-brainstorming.md`) is **folded into
+> this doc**; that file is **deleted** (HD-307 lifecycle).
 
 ## 10. Not yet implemented
-
-Depends on: oldsrv GPU operational + Ollama live · LiteLLM (spine) first · `openrouter_api` +
-`cohere_api` + `litellm_master_key` in 1Password · Authentik OIDC provider for Open WebUI ·
-OpenCloud + neutral `media` owner (HD-51) · PGVector DB + db-backup row · OpenClaw pinned.
-See `todo.md` HD-1xx (`source: services-ai`). RAG retrieval wiring (OW env pins, litellm
-rerank/embed-model fix, PGVector HNSW index): **HD-246**.
+Depends on: oldsrv GPU + Ollama live · LiteLLM spine + `openrouter_api`/`cohere_api`/`litellm_master_key`
+in 1Password · Authentik OIDC for OWUI · OpenCloud + `media` owner (HD-51) · **Qdrant service + `qdrant_db`
+item (replacing PGVector)** · **Forge OKF wiki repos + Forgejo/pi MCP** · **dual harness bring-up**.
+Implementation tasks: **HD-307** (doc + tails) / **HD-268** (IaC: Qdrant swap + OKF repos + dual harness) — see the repo [`todo.md`](../todo.md) backlog.
