@@ -1414,6 +1414,21 @@
   - `IaC/host/nas/preseed.cfg` real by-ids filled (boot SSD `ata-Crucial_CT525MX300SSD4_173818D02FF0`, USB `usb-Generic_Flash_Disk_C3EB7FE7-0:0`) — closes the HD-201 placeholder class for nas.
 - **Execution NOT yet run** — when the runbook executes (pre-reinstall bootstrap), copy the commands **as run** (with real by-id paths + `zpool status` output) into a NEW entry here; the runbook text stays the plan.
 
+### 2026-08-27 — Phase 1 · HD-254 live deploy: `sync-skills.sh --push` on the WSL ext4 primary + verify `[AI]`
+
+- **Stimulus:** HD-254 (skill-sync guard `scripts/sync-skills.sh`) authored + wired into `validate-all.sh` as item 13 (guarded to SKIP when no `~/.pi/agent/skills`), but the changelog row still read `⏳ deploy-gated` — one live two-sided push against the real `~/.pi` remained to close it.
+- **Commands run (as executed, on the WSL ext4 runner):**
+  ```bash
+  # pre-flight: repo skills vs deployed (baseline — should be clean)
+  bash scripts/sync-skills.sh --check --strict        # exit 0: repo == ~/.pi, no drift, no encoding violations
+  # canonical deploy direction (repo = SSOT -> ~/.pi)
+  bash scripts/sync-skills.sh --push                  # pushed 5 skill(s): mikrotik plan-task platform-env run-task shelly
+  bash scripts/sync-skills.sh --check --strict        # exit 0 again: in sync after push
+  ```
+- **Verify:** (1) `--check --strict` BEFORE and AFTER both exit 0 (repo == `~/.pi/agent/skills`, no drift, no encoding violations); (2) `diff -r --exclude=__pycache__ --exclude=net.json skills ~/.pi/agent/skills` → **IDENTICAL**; (3) no runtime artifacts shipped to the deploy side: 0 `net.json`, 0 `__pycache__`, 0 zero-byte skill-name markers; (4) `sync-skills.sh --check --strict` still PASS inside the full `validate-all.sh` (green).
+- **Secrets touched:** none. **Deviations:** none — live behavior matched the sandbox tests (baseline-clean → push → clean); the two-sided path confirmed working against the real deploy target.
+- **Bookkeeping:** todo.md HD-254 row deleted (§4 fully-done close-out; changelog row retains the history). The changelog row's `⏳ deploy-gated` tail updated to `✅ live` in this same session.
+
 ## Phase 3 — oldsrv
 
 *(no entries yet)*

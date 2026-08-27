@@ -105,6 +105,26 @@ truth); `test-1password.yml` then proves the lookup path end-to-end.
 ✔ `restore-runner-key.sh` prints `pair-consistent: yes` with the fingerprint matching the canonical
 one it prints · `test-1password.yml` ends `PLAY RECAP: ok=2 failed=0` (reads `kopia_password`).
 
+### 0.3.5 Skill sync: repo `skills/` → pi agent `~/.pi/agent/skills` (repo = SSOT)
+
+```bash
+bash scripts/sync-skills.sh --push            # deploy repo skills/ -> ~/.pi/agent/skills (canonical)
+bash scripts/sync-skills.sh --check --strict  # confirm no drift / no encoding violations
+```
+
+`sync-skills.sh` (HD-254) deploys from the repo (single source of truth) to `~/.pi/agent/skills` and prunes
+runtime artifacts (`net.json`, `__pycache__/**`, zero-byte skill-name markers). `--check --strict` exits
+nonzero on any drift and is wired into `validate-all.sh` as a gate (SKIPs when `~/.pi` is absent, so
+a bare CI / non-pi laptop never breaks validation). A UTF-8-BOM/CRLF encoding violation blocks `--push`.
+To capture a post-session self-learn back into the repo (copy-only, never auto-commits), use `--pull` then
+commit per CONVENTIONS §6.
+
+Prerequisite: pi must already be installed — on this host `scripts/install-pi-wsl.sh` installs pi + the
+other SSOT content (`pi-agent/`, packages); once pi is present, `sync-skills.sh` keeps only the skills tree
+in drift-free sync. On a TRUE-ZERO runner without pi, `sync-skills.sh --check` SKIPs and `--push` populates
+`~/.pi/agent/skills` for the first time.
+
+
 ### 0.4 Windows-side interactive SSH *(one-time, recommended — not required by the runner)*
 
 > Nothing automated depends on this step: the Ansible runner (WSL) presents the canonical
