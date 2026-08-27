@@ -37,12 +37,13 @@
 - (c) multi-service scope: comma-string scope via `scope_is_all`/`scope_list`; live-validated `scope=qdrant,docling`.
 - (d) surgical op pre-pass + gated authentik-first deploy.
 
-### Step 1 — parallelize the two serial glue loops (~35s → target ~15s across the full converge)
-- **Authentik glue (`authentik-secret-egress.sh`)** — **21-22s** block: 9 providers × (1 curl API + 2 `op read`). Parallelize the fetch+compare per-provider with `xargs -P` (keep write step per-provider ordered).
-- **litellm glue (`litellm-bootstrap-keys.sh`)** — **8s** block: 8 keys × (1 `op item get` + 1 `docker exec` HTTP probe). Parallelize the probe fast-path (always safe), keep mint/store serial (avoid alias races).
+### Step 1 — parallelize the two serial glue loops — **DONE (session 2026-08-27, commit dd98d50)**
+- **Authentik glue (`authentik-secret-egress.sh`)** — **21-22s →≤8s**: per-provider worker (own distinct 1P item) via `xargs -P "${OP_PARALLEL:-6}"`; write-only-if-changed; worker failure aborts (xargs nonzero); result serialized.
+- **litellm glue (`litellm-bootstrap-keys.sh`)** — **8s →≤4s**: PARALLEL read+probe (op get + docker exec HTTP probe) via xargs -P; SERIAL mint/store for empty-vault keys (no alias races); rc STALE→2 / transient→3 / conflict→4 carried in lines.
+- Implementation live-validated only in a SANDBOX (no secret writes). **Remaining: live full-converge re-baseline** — rerun the two static baselines → Authentik glue ≤8s; LiteLLM glue ≤4s; full converge ≤180s. Guard: 1P ≤4-6 op workers; only curl/docker exec probes may go wider.
 - **Validate:** rerun baselines → Authentik glue ≤8s; LiteLLM glue ≤4s; full converge ≤180s.
 - Guard: 1P rate-limit ≤4-6 op workers; only curl/docker exec probes may go wider.
-- **⚠️ These scripts are fail-closed and write secrets — parallelize only reads/probes, keep writes ordered, preserve glue ordering (never render a consumer with an empty secret).**
+⚠️ Both scripts write secrets — the parallelization limits concurrency (writes remains ordered per item) and preserve glue ordering (never render a consumer with an empty secret). Live re-baseline is a NO-OP-deploy (idempotent) on the current stack.
 
 
 ### Step 2 — multi-service scope — **DONE (session 2026-08-27)**

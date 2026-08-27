@@ -141,8 +141,24 @@ These run **on target hosts** (or are Ansible-deployed) and are consumed by path
 | `IaC/host/pi/first-boot-config.sh` | Pi 4 first-boot SSH enable + key stub | raspi.debian.net image | `docs/deployment-preseed.md`, HD-201 |
 | `ai-diag` (`roles/ai_diag/files/ai-diag`) | restricted diagnostic dispatcher (ai-debug user) | ai_diag role | `docs/security.md` |
 | `ha-failover-api.py`, `ha-sync-rsync` (`roles/home_assistant/files/`) | HA failover HTTP trigger + restricted rsync wrapper | home_assistant role | `docs/smart-home-failover.md` |
-| `roles/*/templates/*.j2` (authentik-secret-egress, litellm-bootstrap-keys, traefik-cert-pull, ha-cert-sync, ha-config-sync, ha-failover*, upssched-cmd, push-services, sync-authentik-users, syncoid-run, certs-rename) | Jinja-rendered payloads run on hosts | Ansible converge / docker-compose | respective owning docs |
+| `roles/*/templates/*.j2` (`authentik-secret-egress`, `litellm-bootstrap-keys`, `traefik-cert-pull`, `ha-cert-sync`, `ha-config-sync`, `ha-failover*`, `upssched-cmd`, `push-services`, `sync-authentik-users`, `syncoid-run`, `certs-rename`) | Jinja-rendered payloads run on hosts | Ansible converge / docker-compose | respective owning docs |
+| [`authentik-secret-egress.sh.j2`](../IaC/ansible/roles/docker_services/templates/authentik-secret-egress.sh.j2) | secret-egress **sink** glue — reads OIDC client creds from the Authentik API and writes them down into 1Password items (write-only-if-changed); per-provider fetch+compare+write parallelized via `xargs -P` (each worker owns one distinct item) | docker_services role (`prepass-authentik.yml`) | `docs/deployment-ansible.md` (§Tags & surgical, HD-146/162), `docs/services-authentik.md` |
+| [`litellm-bootstrap-keys.sh.j2`](../IaC/ansible/roles/docker_services/templates/litellm-bootstrap-keys.sh.j2) | LiteLLM virtual-key **source** glue — vault-state-first: reads each 1P item, probes the live LiteLLM key, mints+stores only when the vault value is absent. Reads/probes parallel via `xargs -P`; mint/store phase SERIAL (unique-alias invariant) | docker_services role (litellm service deploy pass) | `docs/deployment-ansible.md` (§Tags & secrets), `docs/services-ai.md` (LiteLLM spine) |
+### Parallel 1Password operations — the concurrency contract (HD-269)
+
+Three distinct mechanisms touch 1Password concurrently. They are NOT alternatives — they are a **pipeline across runtime layers**, and each parallelizes a different direction. They share one invariant: the **1Password rate-limit budget**. Keep them three; if a FOURTH egress/glue loop ever appears, copy the bounded fan-out pattern below (not merge the scripts).
+
+| Mechanism | Layer | Direction | Concurrency | Rate/limit knob | Purpose |
+|---|---|---|---|---|---|
+| `scripts/op-vault-export.py` | **control-node** (Python, `ThreadPoolExecutor`) | bulk **read** of static vault items into the `vault` dict | parallel per-item `op item get --reveal` | `op_vault_workers` (default 6) | HD-257/258 bulk pre-pass — ONE pass replaces ~160 per-template `op` lookups |
+| `authentik-secret-egress.sh.j2` | **host** (bash, `xargs -P`) | **write** (sink): Authentik API → 1Password OIDC items | per-provider fetch+compare+write; **each worker owns a DISTINCT item** so parallel item-writes are safe | `OP_PARALLEL` (default 6) | HD-146/162 secret-egress OIDC cred seeding (write-only-if-changed) |
+| `litellm-bootstrap-keys.sh.j2` | **host** (bash, `xargs -P`) | **read + mint** (source): 1Password → LiteLLM probe → mint back to 1Password | reads/probes parallel; **mint/store SERIAL** (`_enforce_unique_key_alias` global race) | `OP_PARALLEL` (default 6) | HD-247 LiteLLM scoped virtual-key bootstrap (vault-state-first) |
+
+**The shared budget (persisted lesson, HD-268 15→6):** keep concurrent `op` calls ≤ **6 reads** (default), ≤ **4–6** when a run also mutates; only `curl`/`docker exec` HTTP **probes** may fan out wider. Never exceed this on a live converge — hosted 1P rate-limits can block for **15min+**.
+
+**Extensibility rule:** to add a THIRD service/glue that touches 1P, copy the fan-out harness (bounded `xargs -P "${OP_PARALLEL:-6}"`, `export -f <worker>`, worker writes an outcome **line** to a shared temp file, aggregate AFTER all workers finish — never read exit codes for the rc taxonomy, carry it in the lines). Do NOT extract a shared code file: these three render to self-contained `/usr/local/sbin/*.sh` on hosts where a lib dependency is a recovery risk, and each has a different write-concurrency/safety model. Duplication buys host-resilience; ossify the pattern HERE instead.
+
 
 ---
 
-*Last updated 2026-08-26 · scripts/ has no separate CI hook beyond `validate-all.sh`.*
+*Last updated 2026-08-27 · scripts/ has no separate CI hook beyond `validate-all.sh`.*

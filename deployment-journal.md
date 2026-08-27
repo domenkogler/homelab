@@ -1485,6 +1485,18 @@
 - **Verify:** `scope=pi-dev` → `ok=20 changed=1 failed=0` ~5-6s, pi-dev container Up; `scope=qdrant,docling` → `ok=27 changed=3 failed=0` only those two; validate-all green.
 - **Deviations:** none. The handoff's Step-2/Step-3 fix respects `docker_services_scope` being the surgical mechanism (HD-255/260) and keeps fail-closed secret resolution.
 
+### 2026-08-27 — Phase 1 · HD-269 Step 1: parallelize the two serial egress glue loops `[AI]`
+
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2; owning doc `docs/deployment-ansible.md` §Tags & surgical runs; handoff `prompt-ansible-time-gains.md` Step 1.
+- **Stimulus:** full-converge baseline ~204s has ~35s in 3 serial glue loops (Authentik secret-egress ~21-22s, LiteLLM bootstrap-keys ~8s, op-vault-export ~5s). Both egress loops' sub-operations are independent per provider/key — parallelize reads/probes, keep writes ordered/serial.
+- **Commands run:** `git worktree add ../homelab-wt-20260827-2335 -b session/hd269-parallelize-glue`; edited the two rendered `*.sh.j2` templates; `validate-all.sh` green; sandbox tests (below). No live secret writes — the parallel logic was proven in a sandbox against stub `op`/`docker`/`curl`.
+- **Settings chosen:**
+  - `authentik-secret-egress.sh.j2`: per-provider worker `sync_provider`, `xargs -P "${OP_PARALLEL:-6}"`; each worker owns a DIFFERENT 1P item (safe parallel writes); write-only-if-changed retained; worker nonzero -> xargs nonzero -> abort (rc 1); provider-not-found -> rc 3; result lines serialized via a shared `$RESULTS` file read once after all workers finish.
+  - `litellm-bootstrap-keys.sh.j2`: new Phase-1 PARALLEL read+probe (`op item get` + `docker exec` HTTP probe) via `xargs -P`; Phase-2 SERIAL mint/store for empty-vault keys only (avoids `_enforce_unique_key_alias` races). rc taxonomy carried in worker LINES (not exit code): STALE→2, TRANSIENT→3, alias-conflict→4.
+- **Verify (sandbox, no real 1P/containers):** authentik 5-provider run -> all 5 found, exit 0; litellm -> stale key aborted rc 2, and all-valid yielded MINT for empty + KEEP for present, exit 0. export -f + xargs fork/export concurrency, fail-closed, and result aggregation all confirmed. `validate-all.sh` green; both templates render to valid bash.
+- **Secrets touched:** none executed live (sandbox stubs only); the parallel logic does not relocate or re-print secret values.
+- **Deviations:** none from the handoff's Step-1 design (reads parallel, writes ordered; 1P rate-limit bounded by OP_PARALLEL). Live full-converge timing re-baseline still pending (flagged in todo HD-269).
+
 ## Phase 3 — oldsrv
 
 *(no entries yet)*
