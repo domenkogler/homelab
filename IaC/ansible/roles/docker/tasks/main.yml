@@ -16,13 +16,14 @@
     mode: '0755'
 
 - name: Download official Docker GPG key
-  get_url:
-    url: https://download.docker.com/linux/debian/gpg
-    dest: /etc/apt/keyrings/docker.asc
-    mode: '0644'
-    # force: false keeps the 22s docker.com fetch off every routine converge — the
-    # key only changes on Docker's side (rare); idempotent by existence.
-    force: false
+  # get_url (python urllib) hangs ~24s on this endpoint (IPv6->IPv4 fallback stall to
+  # CloudFront; curl -4 does it in ~0.25s). Use curl -4 with creates so it is idempotent
+  # AND fast: skips entirely once the key exists, IPv4-forced on first fetch.
+  ansible.builtin.command:
+    cmd: curl -4fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    creates: /etc/apt/keyrings/docker.asc
+    warn: false
+  become: true
 - name: Add official Docker repository via DEB822 standard
   deb822_repository:
     name: docker
