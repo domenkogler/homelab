@@ -48,10 +48,14 @@ log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 
 # --- resolve credentials -----------------------------------------------------
 [ -r /etc/op/provision-token ] && export OP_SERVICE_ACCOUNT_TOKEN="$(cat /etc/op/provision-token)"
-command -v op >/dev/null || { echo "FATAL: op CLI not found" >&2; exit 1; }
+if ! command -v op >/dev/null 2>&1; then
+  echo "FATAL: op CLI not found" >&2; exit 1
+fi
 
 MASTER_KEY="$(op item get litellm_master_key --fields credential --vault "$OP_VAULT" 2>/dev/null)"
-[ -n "${MASTER_KEY:-}" ] || { echo "FATAL: litellm_master_key empty/unreadable — cannot administer keys" >&2; exit 1; }
+if [ -z "${MASTER_KEY:-}" ]; then
+  echo "FATAL: litellm_master_key empty/unreadable — cannot administer keys" >&2; exit 1
+fi
 
 # Scoped-key specs are RENDERED statically from group_vars/vps.yml litellm_scoped_keys
 # (SSOT — the scanner reads the same records). Format: alias|item|models_csv|max_budget|budget_duration
@@ -60,7 +64,9 @@ KEYS=(
   "{{ k.alias }}|{{ k.vault_item }}|{{ k.models }}|{{ k.max_budget }}|{{ k.budget_duration }}"
 {% endfor %}
 )
-[ "${#KEYS[@]}" -gt 0 ] || { echo "FATAL: no scoped-key specs rendered" >&2; exit 1; }
+if [ -z "${KEYS[*]:-}" ]; then
+  echo "FATAL: no scoped-key specs rendered" >&2; exit 1
+fi
 
 # GLUE-SEEDED items (hd247) — "<service>:<item>" pairs consumed by scripts/check-vault-items.sh
 # (glue-seeded exclusion list; do NOT remove or the pre-seed diff starts demanding these):
@@ -95,8 +101,13 @@ except urllib.error.HTTPError as e:
 except Exception:
     print("000")
 PYEOF
-)" || { echo "000"; return; }
-    printf '%s' "$out"
+)"
+    if [ -n "$out" ] && [ "${out##000}" != "$out" ]; then
+        printf '%s' "$out"
+    else
+        echo "000"
+        return
+    fi
 }
 
 # mint <alias> <models_csv> <max_budget> <budget_duration> : prints sk or fails rc 1/4
