@@ -1431,7 +1431,7 @@
 
 ### 2026-08-27 — Phase 1 · HD-268 full converge + DSH live — Qdrant / pi-dev / dsh all running; baseline captured `[AI]`
 
-- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2 (VPS stack converge); owning docs `docs/services-ai.md` (HD-267/268), `docs/network-vpn.md` (§Tailnet Pattern A). Continues the `prompt-FULL_CONVERGE.md` handoff: dsh `{{ }}` comment blocker (already fixed in `main` at session start) + DSH image + first live converge + baseline second run.
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2 (VPS stack converge); owning docs `docs/services-ai.md` (HD-267/268), `docs/network-vpn.md` (§Tailnet Pattern A). Continues the (now-closed) HD-268 deploy handoff: dsh `{{ }}` comment blocker (already fixed in `main` at session start) + DSH image + first live converge + baseline second run.
 - **Stimulus:** prior session authored the HD-268 AI IaC (Qdrant swap, dual pi.dev+DSH harness) with one remaining deploy blocker (Jinja `{{ }}` in a dsh-sidecar comment) that broke the dsh compose render; that blocker was already landed in `main` (`44a8bbc`) before this session resumed.
 - **Commands run (as executed, on the WSL Debian runner):**
   ```bash
