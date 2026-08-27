@@ -1,9 +1,11 @@
 # dsh docker-compose.yml — DeepSeek Harness (DSH) — the "DSH" half of the dual AI
 #   harness (HD-268c). DevOps/IaC coding cascade in a container; the other half is
 #   pi-dev (pi coding agent). docs/services-ai.md §2/§3, docs/services.md.
-#   Decided 2026-08-27 (HD-268c + HD-250): use `runzhliu/deepseek-harness-docker`,
-#   community packaging of the official `@deepseek-ai/dsh` (no source mod, non-root,
-#   version-tagged — deliberately NOT `latest`). research live-verified 2026-08-26.
+#   Decided 2026-08-27 (HD-268c + HD-250): use `runzhliu/deepseek-harness`,
+#   the community Docker-Hub image published from the runzhliu/deepseek-harness-docker
+#   source repo, packaging the official `@deepseek/dsh` (no source mod, non-root,
+#   version-tagged — deliberately NOT `latest`). research live-verified 2026-08-26,
+#   repo verified 2026-08-27 (Docker Hub `runzhliu/deepseek-harness` tags: 0.1.1-rc.2).
 #
 #   ⚠️ SECURITY (HD-250 + the received DSH caveats): DSH is an UNSANDBOXED,
 #   bare-filesystem agent framework in minimal mode. It can "escape" the intended
@@ -26,12 +28,12 @@
 #       DSH supports any OpenAI-compatible provider — it points at LiteLLM :4000/v1.
 #     dsh_forgejo_api (api -> credential) — Forgejo service-account token, PR-ONLY,
 #       NO merge rights, on the homelab repo only. Proposals via PR; never push/merge.
-#   Image: runzhliu/deepseek-harness-docker, tag pinned via dsh_version.
+#   Image: runzhliu/deepseek-harness, tag pinned via dsh_version.
 #     TODO(deploy): verify this exact tag + capture the image DIGEST at first live
 #     converge (no docker here) and replace `dsh_version` with the digest pin.
 services:
   dsh:
-    image: runzhliu/deepseek-harness-docker:{{ dsh_version }}
+    image: runzhliu/deepseek-harness:{{ dsh_version }}
     cap_drop:
       - ALL
     read_only: true

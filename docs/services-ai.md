@@ -100,7 +100,7 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **Ollama** | Local LLM inference | **`llm-backend`** | GPU (RX 7600). Isolated — reachable only by LiteLLM. |
 | **Docling** | OCR / document understanding | `services-internal` | CPU. Multilingual OCR (Slovenian scans). |
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Version pinned. Models → LiteLLM scoped key. |
-| **pi.dev + DSH** *(dual harness, HD-307)* | DevOps/IaC coding cockpits (C# + IaC) | `services-internal` + tailnet sidecar | Concrete IaC services: **`pi-dev`** (pi coding-agent container, npm `@earendil-works/pi-coding-agent` + `pi-web-access`) and **`dsh`** (DeepSeek Harness `runzhliu/deepseek-harness-docker`). **Both run side-by-side** (supersedes HD-250's "DSH replaces pi.dev"). Each consumes a scoped LiteLLM key (`pi-harness_openai_api` + `dsh_api`) + a PR-only Forgejo token; propose homelab via Forgejo PRs (PR-only, no-merge); 443 egress accepted (recorded risk). DSH WebUI = Pattern-A tailnet serve (:3080); pi = TUI/CLI (no web port). Compared by feature-keyed bake-off. |
+| **pi.dev + DSH** *(dual harness, HD-307)* | DevOps/IaC coding cockpits (C# + IaC) | `services-internal` + tailnet sidecar | Concrete IaC services: **`pi-dev`** (pi coding-agent container, npm `@earendil-works/pi-coding-agent` + `pi-web-access`) and **`dsh`** (DeepSeek Harness `runzhliu/deepseek-harness`). **Both run side-by-side** (supersedes HD-250's "DSH replaces pi.dev"). Each consumes a scoped LiteLLM key (`pi-harness_openai_api` + `dsh_api`) + a PR-only Forgejo token; propose homelab via Forgejo PRs (PR-only, no-merge); 443 egress accepted (recorded risk). DSH WebUI = Pattern-A tailnet serve (:3080); pi = TUI/CLI (no web port). Compared by feature-keyed bake-off. |
 
 ---
 

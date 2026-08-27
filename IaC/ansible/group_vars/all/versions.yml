@@ -137,9 +137,10 @@ pi_dev_npm_package: "@earendil-works/pi-coding-agent"  # pi CLI (containerizatio
 pi_dev_npm_version: "0.84.3"                # pi verified against the installed pi (2026-08-27)
 pi_web_access_version: "0.25.0"             # pi-web-access extension (web search/URL fetch)
 pi_web_ui_version: "0.44.0"                   # pi-web-ui — Web chat UI for the pi agent (server on :8787, logs; verified npm 2026-08-27)
-# DSH (DeepSeek Harness, HD-250) — runzhliu/deepseek-harness-docker (community packaging of
-# @deepseek-ai/dsh, non-root, version-tagged). TODO(deploy): verify tag stream + digest at
-# first live converge; replace with `dsh_version` = "<tag>@<digest>" (deliberately NOT latest).
+# DSH (DeepSeek Harness, HD-250) — image runzhliu/deepseek-harness (Docker Hub repo published
+# from runzhliu/deepseek-harness-docker source; community packaging of official @deepseek/dsh,
+# non-root, version-tagged). Repo+tag verified 2026-08-27 (0.1.1-rc.2 exists; Docker Hub
+# `deepseek-harness-docker` 404s). TODO(deploy): pin digest; replace `dsh_version` = "<tag>@<digest>".
 dsh_version: "0.1.1-rc.2"
 
 # ==== Platform / records / tasks ====
