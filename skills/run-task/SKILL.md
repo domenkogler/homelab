@@ -9,6 +9,9 @@ description: |
   ORCHESTRATOR: you launch workers, own index.md progress, and decide scheduling.
   Supports sequential AND concurrent execution (concurrency is opt-in, asked at
   the start). Use after plan-task has produced and the human has reviewed a plan.
+# NOTE: explicit-only skill. Invoke it via /skill:run-task or by naming it; it is
+# hidden from automatic model invocation (disable-model-invocation: true).
+disable-model-invocation: true
 ---
 
 # run-task — executor / driver

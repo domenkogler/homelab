@@ -8,6 +8,9 @@ description: |
   "reorganize X", "prepare an execution plan", "split into tasks", or wants a
   reviewable plan with verifiable endpoints before anything is executed. Pairs
   with the run-task skill, which executes the produced plan.
+# NOTE: explicit-only skill. Invoke it via /skill:plan-task or by naming it; it is
+# hidden from automatic model invocation (disable-model-invocation: true).
+disable-model-invocation: true
 ---
 
 # plan-task — producer
