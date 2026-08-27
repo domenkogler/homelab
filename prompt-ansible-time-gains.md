@@ -49,7 +49,9 @@
 
 ### Step 3 — surgical op pre-pass + conditional glue lanes — **DONE (session 2026-08-27)**
 
-### Step 4 — decide the rare/base tier (final modulariser)
+### Step 4 — decide the rare/base tier (final modulariser) — **DONE (2026-08-28, commit 6606670)**
+`vps.yml` gives the six rarely-changing bootstrap roles (`common`, `docker`, `vps-hardening`, `network`, `cifs`, `wireguard`) an **additive `base` tag** beside their role tag. UNION semantics mean `--tags base` runs exactly that tier as one unit, an ordinary `--tags docker_services,monitoring` run skips it untouched, and a full converge is unchanged. Docs: canonical-invocation table + base-tier note in `docs/deployment-ansible.md`. Remaining: Step 5 close-out + the measured-timing runbook (Step f).
+
 
 ### Step 5 — close-out (CONVENTIONS §4)
 - Append the 2026-08-27 session's measured numbers + parallelization deltas to `deployment-journal.md` (still pending).
