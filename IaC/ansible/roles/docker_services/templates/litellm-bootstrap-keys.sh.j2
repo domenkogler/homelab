@@ -181,28 +181,66 @@ vault_write() {
 # Single pass; any ABORT exits immediately so partial state never confuses the operator.
 until healthy; do log "waiting for litellm stack to become healthy…"; sleep 10; done
 
-for spec in "${KEYS[@]}"; do
+# -- HD-269 Step 1: parallel existing-key probe, serial mint ------------------
+# Phase 1 (parallel, SAFE): for every key spec, read current vault value + HTTP-probe
+# it. Bounded at OP_PARALLEL (default 6) — each probe is a read-only `docker exec
+# python3` GET against 127.0.0.1:4000 plus one `op item get`. Nothing is minted or
+# stored here. Phase 2 (SERIAL): keys with an EMPTY vault value are minted + stored
+# one at a time (avoids `_enforce_unique_key_alias` races on generate).
+# Fail-closed preserved exactly (carried in the worker's line, not exit code, so the
+# rc taxonomy survives parallel fan-out): stale secret -> STALE (parent rc 2);
+# transient probe -> TRANSIENT (parent rc 3); alias-conflict mint -> rc 4. A worker
+# returns NONZERO only on a hard infrastructure failure (op / docker exec unavailable
+# or genuinely broken), which aborts the whole run (HD-65/91).
+CHECKING="$(mktemp "${TMPDIR:-/tmp}/litellm-check.XXXXXX")"
+export CHECKING OP_VAULT
+check_spec() {
+  local spec="$1" alias item models_csv maxb bd cur code
+  IFS='|' read -r alias item models_csv maxb bd <<<"$spec"
+  cur="$(op item get "$item" --reveal --fields credential --vault "$OP_VAULT" 2>/dev/null || true)"
+  if [ -n "$cur" ]; then
+    code="$(probe_key "$cur")"
+    case "$code" in
+      200)      printf 'KEEP:%s:%s\n' "$alias" "$item"        >> "$CHECKING" ;;
+      401|403)  printf 'STALE:%s:%s\n' "$alias" "$item"        >> "$CHECKING" ;;
+      *)        printf 'TRANSIENT:%s:%s:%s\n' "$alias" "$item" "$code" >> "$CHECKING" ;;
+    esac
+  else
+    printf 'MINT:%s\n' "$spec" >> "$CHECKING"
+  fi
+  return 0
+}
+export -f check_spec probe_key 2>/dev/null || true
+
+# Phase 1: parallel read+probe. A worker returning nonzero = hard infra failure -> abort.
+printf '%s\n' "${KEYS[@]}" | \
+  xargs -P "${OP_PARALLEL:-6}" -I{} bash -c 'check_spec "$1"' _ {} || {
+    echo "FATAL: key-check hard failure (op/container probe unavailable?); see above." >&2
+    rm -f "$CHECKING"; exit 3; }
+
+# Reap: emit status, gather MINT specs, abort on STALE/TRANSIENT.
+declare -a MINT_SPECS=()
+while IFS= read -r line; do
+  case "$line" in
+    KEEP:*)      log "keep  ${line#KEEP:}" ;;
+    STALE:*)     log "ABORT(rc2): STALE SECRET for '${line#STALE:}'"; rm -f "$CHECKING"; exit 2 ;;
+    TRANSIENT:*) log "transient probe failure: ${line#TRANSIENT:}";   rm -f "$CHECKING"; exit 3 ;;
+    MINT:*)      MINT_SPECS+=("${line#MINT:}") ;;
+  esac
+done < "$CHECKING"
+rm -f "$CHECKING"
+
+# Phase 2 (serial): mint + store each empty-key spec one at a time.
+for spec in "${MINT_SPECS[@]}"; do
     IFS='|' read -r alias item models_csv maxb bd <<<"$spec"
-    cur="$(op item get "$item" --reveal --fields credential --vault "$OP_VAULT" 2>/dev/null || true)"
-    if [ -n "$cur" ]; then
-        code="$(probe_key "$cur")"
-        case "$code" in
-            200) log "keep  $alias ($item): existing key valid" ;;
-            401|403)
-                log "ABORT(rc2): STALE SECRET for '$alias'. Clear credential of '$item' + delete server key '$alias', re-run."
-                exit 2 ;;
-            *)   log "transient probe failure for '$alias' (code $code)"; exit 3 ;;
-        esac
-    else
-        if ! sk="$(mint_key "$alias" "$models_csv" "$maxb" "$bd")"; then
-            rc=$?
-            [ "$rc" -eq 4 ] && exit 4
-            exit 3
-        fi
-        [ -n "$sk" ] || { log "empty sk minted for '$alias'" >&2; exit 3; }
-        vault_write "$item" "$sk"
-        log "created $alias ($item): minted + stored (len $(printf '%s' "$sk" | wc -c))"
+    if ! sk="$(mint_key "$alias" "$models_csv" "$maxb" "$bd")"; then
+        rc=$?
+        [ "$rc" -eq 4 ] && exit 4
+        exit 3
     fi
+    [ -n "$sk" ] || { log "empty sk minted for '$alias'" >&2; exit 3; }
+    vault_write "$item" "$sk"
+    log "created $alias ($item): minted + stored (len $(printf '%s' "$sk" | wc -c))"
 done
 
 exit 0
