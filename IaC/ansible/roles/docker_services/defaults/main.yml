@@ -18,14 +18,27 @@ op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"
 op_vault_workers: 6
 
 # Surgical-deploy scope (HD-255/HD-260). `all` (default) = full converge and is
-# UNCHANGED from the pre-scope behavior. Setting it to a single service name makes
-# a `--tags docker_services` run deploy ONLY that service:
+# UNCHANGED from the pre-scope behavior. Setting it to one or more service names
+# makes a `--tags docker_services` run deploy ONLY those services:
 #   ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=headscale
-# The per-service inner tags in deploy-service.yml still narrow the task list, but
+#   ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope="forgejo,traefik"
+# The per-service list tags in deploy-service.yml still narrow the task list, but
 # the direct-role platform tasks in main.yml (networks, teardown, homepage,
 # cert-pull, authentik-lane) otherwise run on every docker_services run because the
 # include lines carry `tags: docker_services` (union selection) — the scope gate
-# below keeps a surgical run to genuinely one service + its hard companions.
+# below keeps a surgical run to genuinely the scoped services + their hard companions.
+#
+# HD-269: docker_services_scope may be a single service name OR a comma-separated
+# list (space tolerant). Computed once here into a repeatable form for every consumer.
+_scope_raw: "{{ docker_services_scope | default('all') }}"
+# `true` iff a full converge (scope=all). Every platform/glue gate tests this.
+scope_is_all: "{{ _scope_raw == 'all' }}"
+# The scoped service-name list (`all` or a comma-list split); empty iff scope=all
+# is the semantic — scoped branches use `svc_entry.name in scope_list`.
+scope_list: >-
+  {{ (_scope_raw == 'all') | ternary(
+       [],
+       (_scope_raw | split(',') | map('trim') | list)) }}
 
 # Extra .j2 template files (beyond docker-compose.yml.j2) per service.
 # Keyed by template_dir (must match docker_services[].template_dir).

@@ -74,11 +74,10 @@
     file: fetch-vault-pass.yml
   vars:
     op_mode: "derive"
-    _scope: "{{ docker_services_scope | default('all') }}"
     op_derive_services: >-
-      {{ (_scope == 'all') | ternary(
+      {{ scope_is_all | ternary(
            docker_services | selectattr('enabled', 'truthy') | map(attribute='template_dir') | list,
-           docker_services | selectattr('name', 'equalto', _scope) | map(attribute='template_dir') | list) }}
+           docker_services | selectattr('enabled', 'truthy') | selectattr('name', 'in', scope_list) | map(attribute='template_dir') | list) }}
     # On a FULL converge the litellm-scoped keys (dsh_api, pi-harness_openai_api, …) are
     # deliberately EXCLUDED here — they're minted by the litellm bootstrap glue later in the
     # loop and fetched via the post-glue list pre-pass (they don't exist before it on a fresh
@@ -87,7 +86,7 @@
     # we fetch the scoped service's FULL item set directly. On an already-provisioned host
     # those keys exist; fail-closed still aborts if a genuinely-missing key is referenced.
     op_derive_glue: >-
-      {{ (_scope == 'all') | ternary(litellm_scoped_keys | default([]) | map(attribute='vault_item') | list, []) }}
+      {{ scope_is_all | ternary(litellm_scoped_keys | default([]) | map(attribute='vault_item') | list, []) }}
     op_derive_spec: >-
       {{ {'services': op_derive_services, 'map': _template_vault_items, 'glue': op_derive_glue} }}
   tags: [docker_services, secrets]
@@ -107,7 +106,7 @@
     ipam_config:
       - subnet: "{{ item.cidr }}"
   loop: "{{ network_ranges | selectattr('name', 'in', ['traefik-public', 'services-internal', 'db-internal', 'llm-backend']) | list }}"
-  when: docker_services_scope | default('all') == 'all'
+  when: scope_is_all
   tags: [docker_services, networks]
 
 # Authentik OIDC pre-pass (HD-162) — on hosts where `authentik` is in docker_services
@@ -125,7 +124,7 @@
     file: prepass-authentik.yml
   when:
     - "'authentik' in (docker_services | map(attribute='name') | list)"
-    - docker_services_scope | default('all') == 'all'
+    - scope_is_all
   tags: docker_services
 
 - name: Deploy authentik FIRST (its API must be live before the glue can harvest)
@@ -143,7 +142,7 @@
   loop_control:
     loop_var: svc_entry
   when:
-    - (docker_services_scope | default('all')) == 'all' or (docker_services_scope | default('all')) == 'authentik'
+    - scope_is_all or 'authentik' in scope_list
     - svc_entry.enabled | default(true)
   tags: docker_services
 
@@ -165,7 +164,7 @@
     file: run-authentik-glue.yml
   when:
     - "'authentik' in (docker_services | map(attribute='name') | list)"
-    - docker_services_scope | default('all') == 'all'
+    - scope_is_all
   tags: docker_services
 
 # HD-258 second pre-pass: fetch the glue-seeded OIDC items AFTER the glue has
@@ -180,7 +179,7 @@
     op_item_list: "{{ _bulk_op_glue }}"
   when:
     - "'authentik' in (docker_services | map(attribute='name') | list)"
-    - docker_services_scope | default('all') == 'all'
+    - scope_is_all
   tags: [docker_services, secrets]
 
 - name: Deploy each enabled service
@@ -193,11 +192,11 @@
   when:
     - svc_entry.enabled | default(true)
     - svc_entry.name != 'authentik'
-    # HD-255 surgical scope: full converge (scope=all) deploys every enabled
-    # service; a named scope deploys ONLY that service — the per-service tags in
+    # HD-255/HD-269 surgical scope: full converge (scope=all) deploys every enabled
+    # service; a named scope deploys ONLY those in the list — the per-service tags in
     # deploy-service.yml already narrow the task list, this collapses the loop so
-    # nothing else even iterates (true single-service converge).
-    - docker_services_scope | default('all') == 'all' or svc_entry.name == (docker_services_scope | default('all'))
+    # nothing else even iterates (true scoped converge).
+    - scope_is_all or svc_entry.name in scope_list
   loop_control:
     label: "{{ svc_entry.name }}"
     loop_var: svc_entry
@@ -218,7 +217,7 @@
   # would otherwise leave flipped-to-false stacks running outside IaC control).
   loop: "{{ docker_services }}"
   when:
-    - docker_services_scope | default('all') == 'all'
+    - scope_is_all
     - item.enabled is defined
     - not item.enabled
     - item.name != 'authentik'
@@ -238,7 +237,7 @@
 # (restricted options recommended, cf. the Pi ha-sync wrapper precedent).
 - name: Traefik cert-pull consumer wiring (non-issuer hosts)
   when:
-    - docker_services_scope | default('all') == 'all'
+    - scope_is_all
     - "'traefik' in (docker_services | map(attribute='name') | list)"
     - not (traefik_acme_issuer | default(false))
   block:
@@ -271,7 +270,7 @@
 
 - name: Render Homepage config (post-deploy, after all services up)
   when:
-    - docker_services_scope | default('all') == 'all'
+    - scope_is_all
     - "'homepage' in (docker_services | map(attribute='name') | list)"
   block:
     - name: Ensure homepage config directory exists
