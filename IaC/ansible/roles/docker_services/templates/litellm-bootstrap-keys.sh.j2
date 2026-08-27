@@ -128,7 +128,15 @@ mint_key() {
     }
     [ -n "$mb" ] && body="$body \"max_budget\": $mb,"
     [ -n "$bd" ] && body="$body \"budget_duration\": \"$bd\","
-    body="{${body%,} \"key_alias\": \"$alias\"}"
+    # Build the JSON request body: strip the trailing comma left by the last accumulated
+    # field, then append key_alias with a comma. Empty-body case (e.g. owui-int-owner
+    # full-access key with no models/budget) must NOT emit a leading comma — else invalid
+    # JSON ('{"key_alias"...}').
+    if [ -n "$body" ]; then
+      body="{${body%,},\"key_alias\": \"$alias\"}"
+    else
+      body={\"key_alias\": \"$alias\"}
+    fi
 
     err="$(docker exec \
         -e LK_MASTER="$MASTER_KEY" -e LK_BODY="$body" "$LITELLM_CONTAINER" python3 - <<'PYEOF' 2>&1
