@@ -20,7 +20,9 @@
     url: https://download.docker.com/linux/debian/gpg
     dest: /etc/apt/keyrings/docker.asc
     mode: '0644'
-
+    # force: false keeps the 22s docker.com fetch off every routine converge — the
+    # key only changes on Docker's side (rare); idempotent by existence.
+    force: false
 - name: Add official Docker repository via DEB822 standard
   deb822_repository:
     name: docker
