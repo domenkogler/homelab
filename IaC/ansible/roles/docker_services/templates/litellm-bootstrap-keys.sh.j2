@@ -171,10 +171,10 @@ PYEOF
 # vault_write <item> <value> : edit existing item, else create api-credential item
 vault_write() {
     local item="$1" val="$2"
-    if op item get "$item" --vault "$OP_VAULT" >/dev/null 2>&1; then
-        op item edit "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null
+    if op item get "$item" --vault "$OP_VAULT" >/dev/null 2>&1 </dev/null; then
+        op item edit "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null </dev/null
     else
-        op item create --category api-credential --title "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null
+        op item create --category "API Credential" --title "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null </dev/null
     fi
 }
 
