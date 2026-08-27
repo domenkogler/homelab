@@ -617,3 +617,73 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 9 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) **and** `nut` (needs nut_exporter) |
 | 10 | `router` | `network` (IPs/VLANs defined) |
 | 11 | `proxmox` (Phase 2) | `network` |
+
+---
+
+## Deploy Timing Runbook (HD-269, Step f — measured)
+
+> **Role:** where the speed budget lives. These are **measured** numbers from the live full
+> converge (`vps.yml`, 2026-08-28, log `/tmp/fullconverge2.log`, `profile_tasks` enabled by
+> `ansible.cfg`). Re-measure with `ansible-run.sh playbooks/vps.yml` — the same run that
+> regenerates this page — whenever a change claims to affect deploy time.
+
+### Full-converge baseline (measured 2026-08-28)
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Wall accumulate (TASKS RECAP) | **~193s (3:13)** | `profile_tasks` cumulative; ≈ wall. Prior baseline ~204s (2026-08-27) |
+| Result | `ok=311 changed=45 failed=0 skipped=381` | idempotent converge, no functional change |
+| Slowest glue | **Authentik secret-egress 11.94s** | was ~21-22s; parallel win (HD-269) |
+| 2nd | **LiteLLM bootstrap-keys 8.07s** | **serial** (reverted 2026-08-28); paid only on the `litellm` pass |
+| 3rd | **op-vault-export (derive) 4.62s** | bulk 1P read; scoped runs ≈0.8s |
+
+### Measured cost ledger (TASKS RECAP, 2026-08-28)
+
+Top tasks by elapsed time:
+
+| Task | Elapsed | Lane |
+|------|---------|------|
+| `docker_services : Run Authentik secret-egress glue` | **11.94s** | glue · parallel (win) |
+| `docker_services : Run LiteLLM bootstrap-keys glue (litellm)` | **8.07s** | glue · serial |
+| `docker_services : Run op-vault-export (derive mode)` | **4.62s** | pre-pass · parallel read |
+| `docker_services : Register Authentik OIDC source (Forgejo)` | 2.77s | docker_services |
+| `cifs : Write CIFS credentials file` | 2.75s | **base tier** |
+| `docker_services : Copy template files for traefik` | 2.51s | docker_services |
+| `docker_services : Template extra .j2 for traefik` | 2.24s | docker_services |
+| `docker_services : Copy template files for headscale` | 2.00s | docker_services |
+| `docker_services : Template extra .j2 for headscale` | 1.80s | docker_services |
+| `monitoring : Provision Grafana alert contact points` | 1.78s | monitoring |
+| `common : Update apt + install prerequisites` | 1.74s | **base tier** |
+| `docker_services : Deploy provision token (op)` | 1.71s | docker_services |
+| `docker_services : Create external networks` | 1.68s | docker_services |
+| `docker : Install Docker components` | 1.59s | **base tier** |
+| `docker_services : compose up authentik` | 1.57s | docker_services |
+| `vps-hardening : Install fail2ban` | 1.57s | **base tier** |
+| `docker_services : Copy template files for prometheus` | 1.55s | docker_services |
+| … | ~1.4s each | remainder ≈150 tasks under 1s |
+
+### The three deploy-speed mechanisms (when to use each)
+
+1. **`docker_services_scope` (HD-255/260/269)** — TRUE surgical run of one/many services; the
+   op pre-pass drops to ~0.8s + only the named service iterates. Use for a single-service fix.
+2. **`--tags base` (HD-269 Step 4)** — run ONLY the rare bootstrap tier
+   (`common`/`docker`/`hardening`/`network`/`cifs`/`wireguard`) as one unit. Use for a rare infra
+   change; excludes all docker_services/monitoring.
+3. **Parallel glue (HD-269)** — authentik egress is `xargs -P` (11.94s vs 21-22s); litellm stays
+   **serial** — the `docker exec -i` heredoc probe can't be fanned out (see §Tags & surgical).
+
+### Expected timing map
+
+```
+Full converge                       ~193s   (baseline ~204s)
+├─ base tier (common/docker/…/wg)    ~8s      (--tags base)
+├─ op glue (3 loops)                ~25s     (authentik 11.9 + litellm 8 + derive 4.6)
+├─ docker_services core loop         ~most   (copy/template/up per ~28 services)
+└─ monitoring / other                few s
+```
+
+A surgical single-service run (`--tags docker_services -e docker_services_scope=<svc>`) is
+**~5-6s**; a base-tier run (`--tags base`) avoids the docker_services/monitoring cost entirely.
+Deploy times drift with image versions/service count — re-measure per the top of this page.
+`profile_tasks` prints the recap to every run; keep it in `ansible.cfg` (it's the arbitrage tool
+for any future speed change, HD-257).
