@@ -137,6 +137,25 @@ there is no `domen` account on managed hosts.
 ✔ Once a provisioned host exists (Phase 0.5): `ssh vps whoami` and `ssh vps-ansible whoami` both
 return `ansible-admin` with no password prompt.
 
+### 0.4b Windows-side GitHub SSH auth + commit signing *(one-time; HD-265 win companion)*
+
+> Handled by [scripts/git-bootstrap-win11.sh](scripts/git-bootstrap-win11.sh) (`--ssh-auth`, idempotent). The
+> Windows desktop laptop differs from the WSL runner: the **1Password desktop app** owns the GitHub
+> SSH keys (`GitHub auth` + `GitHub sign` items) and serves them over the Windows named pipe
+> `\\.\\pipe\\openssh-ssh-agent`. There is **no `~/.ssh/config` `Host github.com` block and no
+> `~/.1password/agent.sock`** on Windows — the CLI-only `op` key-pull path is Linux/WSL-only.
+>
+> What this does (idempotent):
+> 1. Points git at **Windows OpenSSH** — `core.sshCommand = C:/Windows/System32/OpenSSH/ssh.exe` in
+>    `.gitconfig-windows` — so git reaches the named-pipe agent automatically. Removing the bogus
+>    `-I …/op-ssh-sign.dll` and a dead `IdentityAgent ~/.1password/agent.sock` is part of it (that DLL
+>    path does not exist on this laptop; the real signer is
+>    `~/AppData/Local/Microsoft/WindowsApps/op-ssh-sign.exe`).
+> 2. Ensures `.gitconfig-windows` has `gpg.ssh.program` set to that desktop signer.
+> 3. Flips `origin` HTTPS→SSH so the `.gitconfig-github` includeIf (`gpg.format=ssh` /
+>    `commit.gpgsign` / `user.signingkey`) fires.
+>
+
 ---
 
 ## Phase 0.5 — VPS (re-)provisioning (netcup SCP)

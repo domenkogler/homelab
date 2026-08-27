@@ -94,7 +94,7 @@ else
   echo "==> On branch: $current"
 fi
 
-# --- SSH auth + commit signing (HD-64): opt-in, idempotent, desktop-app path ----
+# --- SSH auth + commit signing (HD-265): opt-in, idempotent, desktop-app path ----
 if [ "$SSH_AUTH" = 1 ]; then
   echo "==> SSH auth/signing setup (1Password desktop agent; no op key-pull)"
   command -v "$WINSH" >/dev/null 2>&1 || [ -f "/c/Windows/System32/OpenSSH/ssh.exe" ] || {
