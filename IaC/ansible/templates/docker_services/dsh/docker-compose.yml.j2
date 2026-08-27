@@ -67,7 +67,7 @@ services:
   #   container_name: dsh-tailscale
   #   restart: unless-stopped
   #   environment:
-  #     TS_AUTHKEY: "{{ vault['tailscale_...'].credential }}"
+  #     TS_AUTHKEY: "vault item tailscale_dsh.credential"   # 1P tailscale auth-key item (uncomment + wire at deploy)
   #     TS_SERVE_CONFIG: /config/serve.json   # tailscale serve to 127.0.0.1:3080
   #     TS_STATE_DIR: /var/lib/tailscale
   #     TS_USERSPACE: "true"
