@@ -170,8 +170,12 @@
 - name: "Sync postgres role password with vault ({{ svc.name }})"
   when: svc.db_role_sync | default(false)
   vars:
-    _db_user: "{{ lookup('community.general.onepassword', svc.db_item, field='username', vault=op_vault) }}"
-    _db_pass: "{{ lookup('community.general.onepassword', svc.db_item, field='password', vault=op_vault) }}"
+    # Read from the HD-258 bulk `vault` dict (built ONCE per converge by fetch-vault-pass),
+    # NOT per-task community.general.onepassword lookups — each lookup was an `op` spawn,
+    # and every db_role_sync service paid ~2.6s. Same fail-closed contract; the item is in
+    # the derive set (its owning template_dir is in _template_vault_items).
+    _db_user: "{{ vault[svc.db_item].username }}"
+    _db_pass: "{{ vault[svc.db_item].password }}"
   ansible.builtin.command:
     argv:
       - docker
@@ -208,8 +212,9 @@
 - name: "Ensure read-only analytics role ({{ svc.name }})"
   when: svc.db_ro_sync | default(false)
   vars:
-    _ro_user: "{{ lookup('community.general.onepassword', svc.db_ro_item, field='username', vault=op_vault) }}"
-    _ro_pass: "{{ lookup('community.general.onepassword', svc.db_ro_item, field='password', vault=op_vault) }}"
+    # HD-268 opt: read from the HD-258 `vault` dict (single fetches), not per-task lookups.
+    _ro_user: "{{ vault[svc.db_ro_item].username }}"
+    _ro_pass: "{{ vault[svc.db_ro_item].password }}"
   ansible.builtin.command:
     argv:
       - docker
@@ -253,7 +258,8 @@
 - name: "Sync forgejo app.ini DB password with vault"
   when: svc.name == 'forgejo'
   vars:
-    _ini_db_pass: "{{ lookup('community.general.onepassword', svc.db_item, field='password', vault=op_vault) }}"
+    # HD-268 opt: read from the HD-258 `vault` dict, not a per-task lookup.
+    _ini_db_pass: "{{ vault[svc.db_item].password }}"
   # Section-scoped ini_file is the CORRECT writer here (2026-08-23 lesson: an interim
   # lineinfile attempt with a bare ^PASSWD regexp failed to match and APPENDED a second
   # PASSWD at EOF - gitea reads the first occurrence under [database], so the stale original

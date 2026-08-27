@@ -87,7 +87,7 @@ _template_vault_items:
   kopia-server: {'kopia_password', 'kopia-server-internal_api'}
   litellm: {'litellm_master_key', 'cohere_api', 'litellm_db', 'openrouter_api'}
   matrix: {'matrix_api', 'matrix_password'}
-  metabase: {'smtp_login'}
+  metabase: {'smtp_login', 'metabase-forgejo_ro'}   # forgejo_ro needed by the db_ro_sync task (vault-dict read, HD-268)
   n8n: {'n8n-webhook_api', 'n8n_password'}
   onlyoffice-docs: {'onlyoffice_db', 'onlyoffice-rabbitmq_login', 'opencloud-collab_password'}
   open-webui: {'openwebui_api', 'openwebui_secret', 'owui-public-chat_api'}
