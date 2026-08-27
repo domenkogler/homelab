@@ -22,7 +22,6 @@
   ansible.builtin.command:
     cmd: curl -4fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
     creates: /etc/apt/keyrings/docker.asc
-    warn: false
   become: true
 - name: Add official Docker repository via DEB822 standard
   deb822_repository:
