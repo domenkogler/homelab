@@ -39,6 +39,11 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    # Chromium (browser-desktop plugin) needs /dev/shm for renderer processes —
+    # mirrors the runtime setting from the upstream runzhliu/deepseek-harness
+    # compose (docker-antigravity-derived); without it Chromium segfaults in the
+    # noVNC desktop. Real working directory is /workspace (HOME=/workspace).
+    shm_size: 1gb
     container_name: dsh
     restart: unless-stopped
     # DSH binds 127.0.0.1 ONLY for its Web UI (loopback). It needs workspace access.
@@ -58,6 +63,11 @@ services:
     volumes:
       # Isolated DSH sandbox ONLY — never host dirs (DSH escape warning; HD-268c).
       - /srv/docker/dsh/workspace:/workspace
+      # DSH profile home (DSH_HOME=/home/node/.dsh). read_only:true root means this
+      # MUST be a writable mount or DSH crash-loops (ENOENT mkdir /home/node/.dsh/profiles).
+      # Named volume (rebuildable-cache class, Kopia scope) — matches upstream compose.
+      # chrome-profile (browser-desktop) + node_modules live here too.
+      - dsh-home:/home/node/.dsh
   # Pattern-A tailnet serve sidecar (docs/network-vpn.md §Pattern A): shares the dsh
   # network namespace; `tailscale serve` forwards the tailnet socket to the loopback
   # Web UI so it is reachable tailnet-only tagged tag:dsh. HD-250: no socat bridge,
@@ -84,3 +94,6 @@ services:
 networks:
   services-internal:
     external: true
+
+volumes:
+  dsh-home:
