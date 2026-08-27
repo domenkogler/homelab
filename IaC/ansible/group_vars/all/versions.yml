@@ -132,7 +132,7 @@ openclaw_version: "2026.7.1"
 # ==== AI coding harness (HD-268c: dual = pi-dev + DSH) ====
 # pi-dev: runtime is the pinned Node OCI image; the pi coding-agent is installed from npm
 # at container start (pinned below; engine node>=22.19.0).
-pi_dev_node_version: "24-alpine"            # node:24-alpine base — pi agent-engine node>=22.19.0
+pi_dev_node_version: "24"                    # node:24 base (template appends -alpine) — pi agent-engine node>=22.19.0
 pi_dev_npm_package: "@earendil-works/pi-coding-agent"  # pi CLI (containerization "Plain Docker")
 pi_dev_npm_version: "0.84.3"                # pi verified against the installed pi (2026-08-27)
 pi_web_access_version: "0.25.0"             # pi-web-access extension (web search/URL fetch)
