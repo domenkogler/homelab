@@ -1457,6 +1457,34 @@
 - **Deviations:** dsh container image repo corrected (authoring had used the GitHub source repo name). The `--tags dsh` surgical run only hit guard tasks (include_tasks tag not inherited) — full converge is the reliable path. A `localhost` + duplicate `op_derive_services` map-key warning persists in validate output (warning, not a failure).
 - **Bookkeeping:** main pushed to `d33ab44`. DSH/Qdrant/pi-dev on-live; remaining deploy-gated tailnet sidecar wiring + live-verify Qdrant embed/rerank + re-index tracked in todo.md HD-268 tail.
 
+### 2026-08-27 — Phase 1 · HD-269 deploy-speed surgery: scoped + multi-service docker_services_scope `[AI]`
+
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2; owning docs `docs/deployment-ansible.md` (§Tags & surgical runs) + this lane's handoff. Baseline (from the HD-268 session): full converge ~204s, ok=311 changed=45 failed=0 (static).
+- **Stimulus:** HD-269 lane — make one-service and several-service surgical deploys work AND fast. The handoff Step-0 measurement revealed the primitives were broken for glue-consuming scopes.
+- **Commands run:**
+  ```bash
+  # 1) measure ~ broken pi-dev scoped run (original behavior, session-first run on primary)
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=pi-dev
+  #   → FAILED, object of type 'dict' has no attribute 'pi-harness_openai_api'
+  #   → root cause: scoped op pre-pass excluded litellm-scoped keys (op_derive_glue) and litellm
+  #     bootstrap glue never ran (scope=pi-dev, litellm not in loop). pi-dev/dsh consume those keys.
+  # 2. edit IaC role defaults + main.yml (see git diff / changelog HD-269) in session worktree
+  #    homelab-wt-20260827-2311 (session/hd269-scope-transitive-deps)
+  # 3. re-run scoped pi-dev converge (post-fix)
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=pi-dev
+  #   → ok=20 changed=1 failed=0, ~5-6s wall; op-pre-pass 5.79→0.78s; pi-dev container Up
+  # 4. multi-service scope validate
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope='qdrant,docling'
+  #   → ok=27 changed=3 failed=0, only qdrant+docling deploy, all others skipped; op pre-pass 0.78s;
+  bash scripts/validate-all.sh  # all green
+  ```
+- **Settings chosen:**
+  - `docker_services_scope`: now a comma-string (`svc1,svc2`); role default computes `scope_is_all` + `scope_list`.
+  - Scoped op derive: fetch the scoped service's full item-set (incl. existing glue-seeded keys) — `op_derive_glue` empty when not `all`.
+- **Secrets touched:** n/a (no new secret; existing litellm-scoped keys read from vault on the provisioned host).
+- **Verify:** `scope=pi-dev` → `ok=20 changed=1 failed=0` ~5-6s, pi-dev container Up; `scope=qdrant,docling` → `ok=27 changed=3 failed=0` only those two; validate-all green.
+- **Deviations:** none. The handoff's Step-2/Step-3 fix respects `docker_services_scope` being the surgical mechanism (HD-255/260) and keeps fail-closed secret resolution.
+
 ## Phase 3 — oldsrv
 
 *(no entries yet)*

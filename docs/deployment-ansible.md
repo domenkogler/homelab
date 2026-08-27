@@ -105,12 +105,13 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
 - **Consequences / gotchas:**
   - `--tags <service>` alone (e.g. `--tags opencloud`) matches no include line → SILENT
     NO-OP. Always pair role + service: `--tags "docker_services,opencloud"`.
-  - TRUE single-service convergence needs the **`docker_services_scope`** var (HD-255/HD-260):
-    `--tags docker_services -e docker_services_scope=<service>`. Without it, the include lines'
-    `tags: docker_services` (union selection) run every direct-role `main.yml` task (networks,
-    teardown, homepage, cert-pull, authentik-lane) even when only one inner service is matched —
-    the scope var gates those platform tasks AND collapses the deploy loop to the one service,
-    so a surgical run is genuinely single-service (nothing else even iterates).
+  - TRUE surgical convergence needs the **`docker_services_scope`** var (HD-255/HD-260, extended HD-269):
+    `--tags docker_services -e docker_services_scope=<service>` deploys a single service, or a
+    comma-list for several: `-e docker_services_scope="forgejo,traefik"`. Without it, the include
+    lines' `tags: docker_services` (union selection) run every direct-role `main.yml` task
+    (networks, teardown, homepage, cert-pull, authentik-lane) even when only one inner service is
+    matched — the scope var gates those platform tasks AND collapses the deploy loop to the scoped
+    service(s), so a surgical run is genuinely scoped (nothing else even iterates).
   - Handlers are tag-filtered too: a handler must match the filter (or carry `tags: always`)
     or it is skipped even when notified by a task that ran — since HD-237 EVERY role handler
     carries `tags: always` (all 22 across 9 roles; monitoring was first, HD-220), so a
@@ -130,6 +131,7 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   | Full converge | `ansible-run.sh site.yml` (or the group playbook) |
   | Single VPS role | `ansible-run.sh playbooks/vps.yml --tags monitoring` |
   | Single service (recommended) | `ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=<service>` |
+  | Several services (HD-269) | `--tags docker_services -e docker_services_scope="<svc1>,<svc2>"` |
   | Service + edge/dynamic-file companions | `--tags "docker_services,<service>,traefik"` |
   | Include Authentik pre-pass/glue lanes | append `,authentik,secret-egress` |
   | Resume after a failing step | `--start-at-task="<task name>"` (no `--tags` → everything from there runs) |
