@@ -100,7 +100,7 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **Ollama** | Local LLM inference | **`llm-backend`** | GPU (RX 7600). Isolated — reachable only by LiteLLM. |
 | **Docling** | OCR / document understanding | `services-internal` | CPU. Multilingual OCR (Slovenian scans). |
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Version pinned. Models → LiteLLM scoped key. |
-| **pi.dev + DSH** *(dual harness, HD-307)* | DevOps/IaC coding cockpits (C# + IaC) | `services-internal` + tailnet sidecar | **Both run side-by-side** (supersedes HD-250's "DSH replaces pi.dev"). Each consumes a scoped LiteLLM key; propose homelab via Forgejo PRs (PR-only, no-merge); 443 egress accepted (recorded risk). Compared by feature-keyed bake-off. |
+| **pi.dev + DSH** *(dual harness, HD-307)* | DevOps/IaC coding cockpits (C# + IaC) | `services-internal` + tailnet sidecar | Concrete IaC services: **`pi-dev`** (pi coding-agent container, npm `@earendil-works/pi-coding-agent` + `pi-web-access`) and **`dsh`** (DeepSeek Harness `runzhliu/deepseek-harness-docker`). **Both run side-by-side** (supersedes HD-250's "DSH replaces pi.dev"). Each consumes a scoped LiteLLM key (`pi-harness_openai_api` + `dsh_api`) + a PR-only Forgejo token; propose homelab via Forgejo PRs (PR-only, no-merge); 443 egress accepted (recorded risk). DSH WebUI = Pattern-A tailnet serve (:3080); pi = TUI/CLI (no web port). Compared by feature-keyed bake-off. |
 
 ---
 
@@ -139,8 +139,7 @@ boundary trim; this doc is the platform SSOT for model guidance):
 | `litellm_db` | db → `password` | litellm-db runtime DB (models-in-DB) |
 | scoped keys (`owui-public-chat_api`, `owui-public-rag_api`, `owui-int-wife_api`, `owui-int-owner_api`, `dsh_api`, `openclaw-litellm_api`, `rag-int-svc_api`) | api → `credential` | per-consumer glow-minted keys (HD-247) |
 | `openwebui_secret` | password → `password` | Open WebUI session/encryption secret |
-| `qdrant_db` *(pending* | db → `password` | Qdrant (HD-307; replaces `pgvector_db`) |
-| `pgvector_db` | db → `password` | **legacy / pending PGVector→Qdrant cutover** (HD-246 → HD-307) |
+| `qdrant_db` | api → `credential` | Qdrant hybrid vector store (HD-268; no username, single static API key via `QDRANT__SERVICE__API_KEY`) |
 
 > Fail-closed secrets: no `default('')` — a missing item fails the render loudly (HD-65/76).
 

@@ -1,0 +1,127 @@
+# pi-dev docker-compose.yml — pi coding-agent container (the "pi.dev" half of the
+#   dual AI harness — HD-268c). DevOps/IaC coding cascade in a container; the other
+#   half is DSH (DeepSeek Harness). docs/services-ai.md §2/§3, docs/services.md.
+#   Decided 2026-08-27 (HD-268c): pi.dev runs as a CONTAINER built from the official
+#   `@earendil-works/pi-coding-agent` npm package (pi.dev/docs/latest/containerization
+#   "Plain Docker"), plus the `pi-web-access` extension (agent web/search tools) and
+#   the `pi-web-ui` Web chat UI (server on :8080).
+#
+#   pi is a TUI/CLI agent; its Web UI is provided by `pi-web-ui` (a web chat for the pi
+#   agent, runs in-process via the pi SDK, streams over WebSocket; server default :8787,
+#   here set to :8080, loopback-only unless PI_WEB_HOST=0.0.0.0). Inside the container the
+#   server binds 0.0.0.0 (so the Pattern-A sidecar can reach it) BUT it is exposed ONLY
+#   over the tailnet via the `pi-dev-tailscale` sidecar (Pattern-A tailnet serve,
+#   docs/network-vpn.md §Pattern A) — never a host/service-internal port bind.
+#
+#   pi-dev also reaches LiteLLM (models) + Forgejo (PR proposals) on `services-internal`.
+#
+#   IMAGE security note: pi.dev is installed AT CONTAINER START from the official npm
+#   registry (`npm install -g --ignore-scripts @earendil-works/pi-coding-agent@{{ pi_dev_npm_version }}`)
+#   on a pinned Node runtime base. This keeps the OCI pull stable while the agent ship
+#   is pinned by npm version ({{ pi_dev_npm_version }}, engine node>=22.19.0). The image
+#   base is `node:{{ pi_dev_node_version }}-alpine`. The `-g` npm install + pi-web-access
+#   extension install run once at (re)start; sessions persist in the workspace volume.
+#
+#   Secrets (fail-closed, HD-65 — all via 1Password vault refs, never literals):
+#     pi-harness_openai_api (api -> credential) — scoped LiteLLM virtual key for pi's
+#       model backend (HD-247 pattern; minted by the litellm bootstrap glue). NOT the
+#       LiteLLM master key. Model routing: pi talks to LiteLLM as an
+#       OpenAI-compatible endpoint (pi.dev supports any OpenAI-compatible provider).
+#     pi-harness_forgejo_api (api -> credential) — Forgejo service-account token,
+#       PR-ONLY, NO merge rights (see docs/services-ai.md §7 dual-harness row).
+#       Agents propose via Forgejo PRs against the protected `main` branch; they never
+#       push/merge. Secret access = the isolated workspace only.
+#
+#   Workspace isolation (SECURITY, HD-250-parity): pi may execute arbitrary commands,
+#   so it mounts ONLY the dedicated /srv/docker/pi-dev/workspace — NEVER /home, /root
+#   or any host source tree. Like DSH, treat as un-sandboxed by default; keep the
+#   permission tier Workspace/Read-Only until trusted. The workspace root is the only
+#   mutable mount.
+#
+#   Sandbox mounts live under /srv/docker (VPS NVMe) and are included in the Kopia
+#   service-state scope (docs/backup.md) — pi-dev workspace IS NOT disposable: repo
+#   checkouts + agent sessions there are the usable state, though it is rebuildable
+#   (always re-cloneable from Forgejo).
+services:
+  pi-dev:
+    image: node:{{ pi_dev_node_version }}-alpine
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    container_name: pi-dev
+    restart: unless-stopped
+    working_dir: /workspace
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        set -eu
+        # Install pi (pinned npm version) at container start; the version is pinned in
+        # group_vars/all/versions.yml (pi_dev_npm_version). npm -g install is required for
+        # the `pi` binary; --ignore-scripts keeps postinstall from running (security margin).
+        npm install -g --ignore-scripts @earendil-works/pi-coding-agent@{{ pi_dev_npm_version }}
+        # pi-web-access: web search / URL fetch / extraction extension for the agent
+        # (installed unconditionally — a pi binary exists but the package still needs install).
+        npm install -g --ignore-scripts pi-web-access@{{ pi_web_access_version }}
+        # pi-web-ui: Web chat UI for pi (serve :8080). Install pinned; fail-loud on error so
+        # monitoring sees a broken UI rather than a silently-idling container.
+        if ! npm install -g --ignore-scripts pi-web-ui@{{ pi_web_ui_version }}; then
+          echo "pi-web-ui install failed" >&2; exit 1
+        fi
+        # Serve the pi Web UI in the foreground. PI_WEB_HOST=0.0.0.0 binds inside the container
+        # (needed by the Pattern-A tailnet sidecar); the sidecar is the ONLY exposure.
+        # PORT is set via the PI_WEB_PORT env; --no-browser for a headless container.
+        exec pi-web-ui --port 8080 --no-browser
+    networks:
+      - services-internal
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # pi model backend = LiteLLM (the spine). pi talks OpenAI-compatible to LiteLLM;
+      # the credential is the SCOPED virtual key minted into pi-harness_openai_api by the
+      # HD-247 bootstrap glue (agent scope, budget-capped) — never the master key.
+      PI_MODEL_PROVIDER_BASE_URL: "http://litellm:4000/v1"
+      # Folded scalar (HD-233): 1P-sourced values can carry YAML-hostile chars.
+      PI_MODEL_API_KEY: >-
+        {{ vault['pi-harness_openai_api'].credential }}
+      # Forgejo PR-only git credential (HD-268c): pi proposes via Forgejo PRs against
+      # the protected `main`; token has PR-only scope, NO merge rights. Injected at
+      # deploy into the workspace clone's git remote (docs/services-ai.md §7).
+      FORGEJO_PR_TOKEN: >-
+        {{ vault['pi-harness_forgejo_api'].credential }}
+#      pi-web-access needs no API key by default (zero-config Exa) — docs/deployment-secrets.md.
+      # Web UI: bind 0.0.0.0 inside the container so the Pattern-A tailnet sidecar reaches :8080.
+      # The only exposure is via the tailscale sidecar; never a host/service-internal bind.
+      PI_WEB_HOST: "0.0.0.0"
+      PI_WEB_PORT: "8080"
+    volumes:
+      # Isolated agent workspace ONLY — never host dirs (HD-268c sandbox rule).
+      - /srv/docker/pi-dev/workspace:/workspace
+  # Pattern-A tailnet serve sidecar (docs/network-vpn.md §Pattern A): shares the pi-dev
+  # network namespace; `tailscale serve` proxies the tailnet socket to the loopback Web UI
+  # (127.0.0.1:8080). pi-web-ui verifies WebSocket Origin against Host — the sidecar must
+  # forward the original Host. ACL tag tag:pi-dev. NO socat bridge; UI NOT on services-internal.
+  # NOTE: enable at deploy by uncommenting + adding the tailscale auth-key item (mirror the
+  # dsh sidecar which serves :3080; this one serves :8080).
+  # pi-dev-tailscale:
+  #   image: tailscale/tailscale:TAILSCALE_VERSION   # pin a tagged tailscale image at deploy
+  #   network_mode: service:pi-dev
+  #   container_name: pi-dev-tailscale
+  #   restart: unless-stopped
+  #   environment:
+  #     TS_AUTHKEY: "vault tailscale_pi_dev.credential"   # 1P tailscale auth-key item (uncomment + wire at deploy)
+  #     TS_STATE_DIR: /var/lib/tailscale
+  #     TS_USERSPACE: "true"
+  #   profiles:
+  #     - tailscale
+  #   command:
+  #     - tailscaled
+  #     - --tun=userspace-networking
+  #     - tailscale serve tcp:8080 --bg
+  #   cap_add:
+  #     - NET_ADMIN
+  #   volumes:
+  #     - /srv/docker/pi-dev/tailscale:/var/lib/tailscale
+networks:
+  services-internal:
+    external: true

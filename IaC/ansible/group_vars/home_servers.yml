@@ -108,7 +108,7 @@ docker_services:
   - { name: kopia-agent,    template_dir: kopia-agent }
 
   # --- Services MOVED to the VPS (group_vars/vps.yml) — not deployed on oldsrv ---
-  # opencloud/immich-app/forgejo/litellm/pgvector/docling/open-webui/openclaw,
+  # opencloud/immich-app/forgejo/litellm/qdrant/docling/open-webui/openclaw,
   # prometheus/loki/grafana/blackbox-exporter (backend on VPS), n8n, kopia-server,
   # db-backup, matrix, chat, headscale, metabase, pairdrop, stirling-pdf, renovate,
   # homepage (HD-180/HD-183 — family launchpad at the public edge).

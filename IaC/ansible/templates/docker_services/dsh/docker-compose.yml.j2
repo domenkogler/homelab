@@ -1,0 +1,84 @@
+# dsh docker-compose.yml — DeepSeek Harness (DSH) — the "DSH" half of the dual AI
+#   harness (HD-268c). DevOps/IaC coding cascade in a container; the other half is
+#   pi-dev (pi coding agent). docs/services-ai.md §2/§3, docs/services.md.
+#   Decided 2026-08-27 (HD-268c + HD-250): use `runzhliu/deepseek-harness-docker`,
+#   community packaging of the official `@deepseek-ai/dsh` (no source mod, non-root,
+#   version-tagged — deliberately NOT `latest`). research live-verified 2026-08-26.
+#
+#   ⚠️ SECURITY (HD-250 + the received DSH caveats): DSH is an UNSANDBOXED,
+#   bare-filesystem agent framework in minimal mode. It can "escape" the intended
+#   project dir and read/modify adjacent host files if given too much access. Therefore:
+#     • mount ONLY the dedicated /srv/docker/dsh/workspace sandbox — NEVER /home, /root,
+#       or any host source tree;
+#     • set the DSH permission tier to Workspace or Read-Only in the UI during first
+#       setup; avoid "Full Access" until the agent is fully trusted.
+#
+#   UI exposure = Pattern-A tailnet serve (docs/network-vpn.md §Pattern A): DSH's Web UI
+#   binds 127.0.0.1 ONLY (DeepSeek.app rejects `--host 0.0.0.0`), so the `dsh-tailscale`
+#   sidecar shares its network namespace (`network_mode: service:dsh`) and runs
+#   `tailscale serve` to proxy the tailnet socket to the loopback port.
+#   HD-250: there is NO socat bridge and the UI does NOT listen on `services-internal` —
+#   only the tailscale sidecar exposes it, over the tailnet, ACL-tagged tag:dsh.
+#
+#   Secrets (fail-closed, HD-65 — all via 1Password vault refs, never literals):
+#     dsh_api (api -> credential) — scoped LiteLLM virtual key for DSH's model backend
+#       (HD-247; minted by the litellm bootstrap glue). NOT the LiteLLM master key.
+#       DSH supports any OpenAI-compatible provider — it points at LiteLLM :4000/v1.
+#     dsh_forgejo_api (api -> credential) — Forgejo service-account token, PR-ONLY,
+#       NO merge rights, on the homelab repo only. Proposals via PR; never push/merge.
+#   Image: runzhliu/deepseek-harness-docker, tag pinned via dsh_version.
+#     TODO(deploy): verify this exact tag + capture the image DIGEST at first live
+#     converge (no docker here) and replace `dsh_version` with the digest pin.
+services:
+  dsh:
+    image: runzhliu/deepseek-harness-docker:{{ dsh_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: dsh
+    restart: unless-stopped
+    # DSH binds 127.0.0.1 ONLY for its Web UI (loopback). It needs workspace access.
+    networks:
+      - services-internal       # LiteLLM (models) + Forgejo (PR proposals)
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # Model backend = LiteLLM (the spine). DSH connects as an OpenAI-compatible
+      # provider to LiteLLM; credential = scoped virtual key from the HD-247 glue.
+      # Folded scalar (HD-233): 1P-sourced values can carry YAML-hostile chars.
+      OPENAI_BASE_URL: "http://litellm:4000/v1"
+      OPENAI_API_KEY: >-
+        {{ vault['dsh_api'].credential }}
+      # Forgejo PR-only git identity (HD-268c). No literals.
+      FORGEJO_PR_TOKEN: >-
+        {{ vault['dsh_forgejo_api'].credential }}
+    volumes:
+      # Isolated DSH sandbox ONLY — never host dirs (DSH escape warning; HD-268c).
+      - /srv/docker/dsh/workspace:/workspace
+  # Pattern-A tailnet serve sidecar (docs/network-vpn.md §Pattern A): shares the dsh
+  # network namespace; `tailscale serve` forwards the tailnet socket to the loopback
+  # Web UI so it is reachable tailnet-only tagged tag:dsh. HD-250: no socat bridge,
+  # and the UI is NOT on services-internal. NOTE: ENABLED at deploy by uncommenting
+  # this service + adding the tailscale auth key item; the DSH UI is :3080.
+  # dsh-tailscale:
+  #   image: tailscale/tailscale:stable   # pin to a tagged tailscale image at deploy (Pattern-A sidecar, HD-268c)
+  #   network_mode: service:dsh
+  #   container_name: dsh-tailscale
+  #   restart: unless-stopped
+  #   environment:
+  #     TS_AUTHKEY: "{{ vault['tailscale_...'].credential }}"
+  #     TS_SERVE_CONFIG: /config/serve.json   # tailscale serve to 127.0.0.1:3080
+  #     TS_STATE_DIR: /var/lib/tailscale
+  #     TS_USERSPACE: "true"
+  #   command:
+  #     - tailscaled
+  #     - --tun=userspace-networking
+  #     - tailscale serve tcp:3080 --bg
+  #   cap_add:
+  #     - NET_ADMIN
+  #   volumes:
+  #     - /srv/docker/dsh/tailscale:/var/lib/tailscale
+networks:
+  services-internal:
+    external: true

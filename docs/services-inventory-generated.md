@@ -25,25 +25,26 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 6 | onlyoffice-docs | office | `https://office.kogler.si` | enabled |
 | 7 | immich-app | foto | `https://foto.kogler.si` | enabled |
 | 8 | forgejo | git | `https://git.kogler.si` | enabled |
-| 9 | litellm | litellm | `https://litellm.kogler.si` | enabled |
-| 10 | pgvector | pgvector | `https://pgvector.kogler.si` | enabled |
-| 11 | docling | docling | `https://docling.kogler.si` | enabled |
-| 12 | open-webui | ai | `https://ai.kogler.si` | enabled |
-| 13 | openclaw | openclaw | `https://openclaw.kogler.si` | enabled |
-| 14 | prometheus | prometheus | `https://prometheus.kogler.si` | enabled |
-| 15 | loki | loki | `https://loki.kogler.si` | enabled |
-| 16 | grafana | stats | `https://stats.kogler.si` | enabled |
-| 17 | blackbox-exporter | blackbox-exporter | `https://blackbox-exporter.kogler.si` | enabled |
-| 18 | n8n | auto | `https://auto.kogler.si` | enabled |
-| 19 | kopia-server | kopia-server | `https://kopia-server.kogler.si` | enabled |
-| 20 | db-backup | db-backup | `https://db-backup.kogler.si` | enabled |
-| 21 | matrix | matrix | `https://matrix.kogler.si` | enabled |
-| 22 | chat | chat | `https://chat.kogler.si` | enabled |
-| 23 | headscale | vpn | `https://vpn.kogler.si` | enabled |
-| 24 | metabase | sec | `https://sec.kogler.si` | enabled |
-| 25 | pairdrop | drop | `https://drop.kogler.si` | enabled |
-| 26 | stirling-pdf | pdf | `https://pdf.kogler.si` | enabled |
-| 27 | renovate | renovate | `https://renovate.kogler.si` | disabled |
+| 9 | zipline | bin | `https://bin.kogler.si` | enabled |
+| 10 | litellm | litellm | `https://litellm.kogler.si` | enabled |
+| 11 | qdrant | qdrant | `https://qdrant.kogler.si` | enabled |
+| 12 | docling | docling | `https://docling.kogler.si` | enabled |
+| 13 | open-webui | ai | `https://ai.kogler.si` | enabled |
+| 14 | openclaw | openclaw | `https://openclaw.kogler.si` | enabled |
+| 15 | prometheus | prometheus | `https://prometheus.kogler.si` | enabled |
+| 16 | loki | loki | `https://loki.kogler.si` | enabled |
+| 17 | grafana | stats | `https://stats.kogler.si` | enabled |
+| 18 | blackbox-exporter | blackbox-exporter | `https://blackbox-exporter.kogler.si` | enabled |
+| 19 | n8n | auto | `https://auto.kogler.si` | enabled |
+| 20 | kopia-server | kopia-server | `https://kopia-server.kogler.si` | enabled |
+| 21 | db-backup | db-backup | `https://db-backup.kogler.si` | enabled |
+| 22 | matrix | matrix | `https://matrix.kogler.si` | enabled |
+| 23 | chat | chat | `https://chat.kogler.si` | enabled |
+| 24 | headscale | vpn | `https://vpn.kogler.si` | enabled |
+| 25 | metabase | sec | `https://sec.kogler.si` | enabled |
+| 26 | pairdrop | drop | `https://drop.kogler.si` | enabled |
+| 27 | stirling-pdf | pdf | `https://pdf.kogler.si` | enabled |
+| 28 | renovate | renovate | `https://renovate.kogler.si` | enabled |
 
 ## oldsrv.kogler.si
 
@@ -68,7 +69,8 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 17 | qbittorrent | torrent | `https://torrent.kogler.si` | enabled |
 | 18 | profilarr | profilarr | `https://profilarr.kogler.si` | enabled |
 | 19 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
-| 20 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
+| 20 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
+| 21 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
 
 ## pi.kogler.si
 
@@ -80,4 +82,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-08-23T19:11:31Z
+> Generated from the `docker_services` lists | 2026-08-27T17:46:29Z

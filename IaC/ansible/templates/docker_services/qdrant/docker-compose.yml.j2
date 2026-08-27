@@ -1,0 +1,49 @@
+# qdrant docker-compose.yml — AI-stack hybrid vector store (Qdrant)
+#   Standalone Rust vector DB (dense+sparse BM25) for the AI RAG path (docs/services-ai.md,
+#   HD-267/HD-268). Replaces the retired PGVector store — independent of Open WebUI's built-in
+#   RAG. On `db-internal` (fully isolated overlay, same precedent as the other DBs); reachable
+#   only by the consuming AI services once deployed.
+#
+#   Vector dimension locks at FIRST INGEST (cohere/embed-v4.0 @ 1536). Changing the embedding
+#   model/dims later = full re-ingest + backtest (docs/services-ai.md §5b). This store is a
+#   rebuildable cache over the Forgejo OKF-git knowledge floor — it can always be rebuilt.
+#
+#   Image: qdrant/qdrant pinned via qdrant_version (HD-61/KOPS-053 convention). HTTP API port
+#   (6333) stays on the overlay — NO host port (HD-62).
+#
+#   Secrets via 1Password lookup at render (fail-closed, HD-65):
+#     qdrant_db (API Credential: credential=<api key>) — the Qdrant API key. Qdrant has no
+#       username; auth is a single static API-key secret, rendered as QDRANT__SERVICE__API_KEY.
+#
+#   Backup seam: Qdrant is a REBUILDABLE cache (docs/backup.md, services-ai.md §5b) → NOT a
+#   db-backup DBxx Postgres target. Snapshot/export via /snapshots REST (iteration speed); the
+#   host bind below gives Kopia the index/snapshot dir. Correctness restored by re-index from
+#   the git floor on loss.
+#
+#   Item-render note: field is `credential` (no username) — consistent with provision-secrets.py
+#   CATALOG + defaults/main.yml map.
+services:
+  qdrant:
+    image: qdrant/qdrant:{{ qdrant_version }}
+    container_name: qdrant
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - db-internal
+    volumes:
+      - /srv/docker/qdrant:/qdrant/storage   # vector index + snapshot/export dir (rebuildable cache; Kopia-backed)
+    environment:
+      QDRANT__SERVICE__API_KEY: "{{ vault['qdrant_db'].credential }}"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333 && echo ready >&3 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+networks:
+  db-internal:
+    external: true

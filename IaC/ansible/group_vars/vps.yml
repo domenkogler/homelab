@@ -59,10 +59,16 @@ docker_services:
   - { name: litellm,        template_dir: litellm,   enabled: true,    # llm-backend -> oldsrv ollama over WG
       bootstrap_keys: true,
       db_role_sync: true, db_item: litellm_db, db_pg_container: litellm-db }
-  - { name: pgvector,       template_dir: pgvector,  enabled: true,  # RAG vector store (db-internal)
-      db_role_sync: true, db_item: pgvector_db, db_pg_container: pgvector }
+  - { name: qdrant, template_dir: qdrant, enabled: true }  # AI RAG hybrid vector store on db-internal (HD-267/268; replaces PGVector — not postgres, so NO db_role_sync/db_item/db_pg_container)
   - { name: docling,        template_dir: docling,   enabled: true }  # OCR (services-internal)
   - { name: open-webui,     template_dir: open-webui, subdomain: ai, enabled: true }
+  # === AI dual coding harness (HD-268c): pi + DSH sharing services-internal, each
+  # consuming a scoped LiteLLM key + a PR-only Forgejo key; propose via Forgejo PRs only. ===
+  - { name: pi-dev,         template_dir: pi-dev,    enabled: true }  # pi coding-agent container (npm @earendil-works/pi-coding-agent)
+  - { name: dsh,            template_dir: dsh,       enabled: true }  # DeepSeek Harness (runzhliu/image) — WebUI = Pattern-A tailnet (:3080)
+  # === AI MCP stubs (HD-268b) — placeholders; do not yet deploy a runnable unit ===
+  - { name: rag-mcp,        template_dir: rag-mcp,   enabled: false }  # TODO(impl) kapa-style hybrid reader (Qdrant→rerank→top5)
+  - { name: forgejo-mcp,    template_dir: forgejo-mcp, enabled: false }  # TODO(impl) Forgejo OKF-wiki read/write bridge
   # bind_owner_uid/bind_dirs (Wave-2 triage 2026-08-22): Docker auto-created these host
   # bind dirs root-owned; the images run non-root (grafana=472, n8n/openclaw=1000 node)
   # and crashed with EACCES. deploy-service.yml pre-creates/chowns them (Class-A fix).
@@ -106,6 +112,7 @@ litellm_scoped_keys:
   - { alias: owui-int-wife, vault_item: owui-int-wife_api, models: "ollama/*,openrouter/*", max_budget: "40", budget_duration: "30d" }
   - { alias: owui-int-owner, vault_item: owui-int-owner_api, models: "", max_budget: "", budget_duration: "" }  # full access (models unset = all)
   - { alias: dsh, vault_item: dsh_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }
+  - { alias: pi-harness, vault_item: pi-harness_openai_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }  # HD-268 pi scoped LiteLLM key (dual harness): minted by the same HD-247 bootstrap glue
   - { alias: openclaw-litellm, vault_item: openclaw-litellm_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }  # NOT openclaw_api — that name is TAKEN by the OpenClaw OIDC client (secret-egress glue PROVIDERS)
   - { alias: rag-int-svc, vault_item: rag-int-svc_api, models: "cohere/embed-v4.0,cohere/rerank-v4.0-pro", max_budget: "5", budget_duration: "30d" }
 

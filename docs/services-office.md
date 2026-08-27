@@ -143,7 +143,7 @@ Model choice + routing are owned by the AI platform SSOT — see [`services-ai.m
 
 - All documents, emails, and presentations **never leave the home network**
 - n8n workflows are self-hosted
-- Open WebUI + PGVector = RAG; OpenCloud = file store; Office MCP bridges are Headscale-only
+- Open WebUI + Qdrant = RAG; OpenCloud = file store; Office MCP bridges are Headscale-only
 - No API keys, no subscription costs, no data sharing
 
 ---

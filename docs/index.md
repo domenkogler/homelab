@@ -125,7 +125,7 @@ docs/
 │
 ├── services-office.md                          Local LLM, office tools, ONLYOFFICE, n8n
 
-├── services-ai.md                         ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, PGVector
+├── services-ai.md                         ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, Qdrant
 │
 ├── storage.md                         ★ ZFS dataset tree, properties, replication (SSOT — authoring spec for the `storage` role)
 ├── storage-review.md                    Storage intake queue

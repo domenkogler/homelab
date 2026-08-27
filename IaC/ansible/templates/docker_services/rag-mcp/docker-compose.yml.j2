@@ -1,0 +1,11 @@
+# TODO: define service — rag-mcp (HD-268b MCP stub) — placeholder for the kapa-inspired
+#   hybrid-reader MCP service (docs/services-ai.md §5b/§7). STUB ONLY, not implemented:
+#   this file documents the intended shape and does not yet deploy a runnable container.
+#   Intended spec (when implemented):
+#     - Role: on @wiki-<x> query, hybrid search Qdrant -> top-20 -> Cohere rerank (via
+#       LiteLLM /rerank) -> top-5 clean markdown to the calling agent/OWUI.
+#     - Network: services-internal (reach Qdrant on db-internal + LiteLLM + Forgejo.
+#     - Secrets: scoped LiteLLM key (rag-int-svc_api or a dedicated rag-mcp key).
+#   Before implementation: fold into docs/services-ai.md §3 table + onboarding checklist
+#   (CONVENTIONS §5). Left as a STUB intentionally (HD-268 keeps it minimal).
+# TODO: define service

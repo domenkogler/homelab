@@ -104,9 +104,10 @@ pairdrop_version: "1.11.2"
 stirling_pdf_version: "2.14.3-fat"
 
 # ==== AI stack ====
-# pgvector (postgres + vector extension) image tag — AI-stack RAG vector store (HD-102).
-# Pinned to pg16 on Debian 13 (trixie) to match host base; Renovate docker datasource tracks it.
-pgvector_version: "0.8.6-pg16-trixie"
+# Qdrant hybrid vector store image tag — AI-stack RAG vector store (HD-267/HD-268, replaces
+# PGVector). Standalone Rust DB; dense+sparse BM25. Verify the exact tag against the Qdrant
+# release stream at first live converge (orchestrator-owned); Renovate docker datasource tracks.
+qdrant_version: "v1.12.4"
 # Docling Serve (quay.io/docling-project/docling-serve) CPU image tag — AI-stack OCR (HD-103).
 # CPU-only torch build; pinned to a verified release; Renovate docker datasource tracks it.
 docling_version: "v1.30.0"
@@ -127,6 +128,19 @@ openwebui_version: "0.11.0"
 # stable release (date-based versioning); young project, MUST re-verify at deploy.
 # GHCR is the primary registry for release automation/provenance.
 openclaw_version: "2026.7.1"
+
+# ==== AI coding harness (HD-268c: dual = pi-dev + DSH) ====
+# pi-dev: runtime is the pinned Node OCI image; the pi coding-agent is installed from npm
+# at container start (pinned below; engine node>=22.19.0).
+pi_dev_node_version: "24-alpine"            # node:24-alpine base — pi agent-engine node>=22.19.0
+pi_dev_npm_package: "@earendil-works/pi-coding-agent"  # pi CLI (containerization "Plain Docker")
+pi_dev_npm_version: "0.84.3"                # pi verified against the installed pi (2026-08-27)
+pi_web_access_version: "0.25.0"             # pi-web-access extension (web search/URL fetch)
+pi_web_ui_version: "0.44.0"                   # pi-web-ui — Web chat UI for the pi agent (server on :8787, logs; verified npm 2026-08-27)
+# DSH (DeepSeek Harness, HD-250) — runzhliu/deepseek-harness-docker (community packaging of
+# @deepseek-ai/dsh, non-root, version-tagged). TODO(deploy): verify tag stream + digest at
+# first live converge; replace with `dsh_version` = "<tag>@<digest>" (deliberately NOT latest).
+dsh_version: "0.1.1-rc.2"
 
 # ==== Platform / records / tasks ====
 # HD-134 / KOPS-030: pinned semvers for core services that previously fell back to

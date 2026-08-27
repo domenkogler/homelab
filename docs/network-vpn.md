@@ -130,6 +130,7 @@ sidecar serves to the app over that private network. Functional service-to-servi
 | Node | Serves | App-level auth | ACL tag |
 |------|--------|----------------|---------|
 | dsh | cockpit :3080 | **none** (ACL is the gate) | tag:dsh |
+| pi-dev | TUI/CLI agent (`services-internal`) | scoped LiteLLM key + PR-only Forgejo | tag:pi-harness |
 | litellm-ui | admin :4000/ui | bearer keys | tag:litellm |
 | owui-int (`ai.kogler.si`, HD-248) | internal OWUI | Authentik OIDC | tag:owui-int |
 | openclaw | control/gateway | gateway token | tag:openclaw |

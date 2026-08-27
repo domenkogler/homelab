@@ -87,16 +87,11 @@ services:
       DB03_PASS: "{{ vault['immich_db'].password }}"
       DB03_NAME: immich
 
-      # PGVector (AI-stack RAG vector store, HD-102) — on db-internal; RAG index + chat
-      # history = irretrievable metadata (KOPS-026 class) so it must be dumped too.
-      DB04_TYPE: postgresql
-      DB04_HOST: pgvector
-      DB04_PORT: "5432"
-      DB04_USER: "{{ vault['pgvector_db'].username }}"
-      DB04_PASS: "{{ vault['pgvector_db'].password }}"
-      DB04_NAME: pgvector
-
-      # LiteLLM runtime DB (HD-247): STORE_MODEL_IN_DB means keys/models/spend live HERE,
+      # Qdrant (HD-268) — the AI RAG vector store is a REBUILDABLE CACHE over the git floor (not
+      # irrecoverable metadata, docs/backup.md) AND a non-Postgres store. Therefore it is
+      # deliberately NOT a DBxx block here: no pgvector/qdrant Postgres target exists to dump.
+      # Its snapshot/state dir is a Kopia-backed host bind (/srv/docker/qdrant); correctness is
+      # restored on loss by re-indexing from the Forgejo OKF wiki repos (services-ai.md §5b). (HD-247): STORE_MODEL_IN_DB means keys/models/spend live HERE,
       # not in git config — irretrievable-metadata class (KOPS-026); CRITICAL state.
       # NOTE: DB05 stays reserved for zipline-db (HD-112, lands with its first deploy).
       DB06_TYPE: postgresql

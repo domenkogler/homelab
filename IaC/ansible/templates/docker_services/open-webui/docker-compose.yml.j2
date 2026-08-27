@@ -3,7 +3,7 @@
 #   Authentik OIDC (per-user chat/history) + crowdsec-only at the Traefik edge.
 #
 #   Model backend = LiteLLM (spine, HD-100) over services-internal. RAG reaches:
-#     PGVector (db-internal)  — vector store (HD-102)
+#     Qdrant (db-internal) — hybrid vector store (HD-267/268)
 #     Docling (services-internal) — OCR ingestion (HD-103)
 #   So this service joins traefik-public + services-internal + db-internal.
 #
@@ -28,7 +28,7 @@ services:
     networks:
       - traefik-public
       - services-internal        # LiteLLM (models) + Docling (OCR)
-      - db-internal              # PGVector (RAG vector store)
+      - db-internal              # Qdrant (hybrid RAG vector store)
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       WEBUI_SECRET_KEY: "{{ vault['openwebui_secret'].password }}"
@@ -55,8 +55,9 @@ services:
       ENABLE_OAUTH_SIGNUP: "true"
       OAUTH_MERGE_ACCOUNTS_BY_EMAIL: "true"  # links an existing local account to its SSO identity (same email)
       ENABLE_SIGNUP: "false"
-      # RAG store (PGVector on db-internal) — connector configured in UI/settings at deploy;
-      # Docling (services-internal) used as the OCR pipeline.
+      # RAG store (Qdrant on db-internal, HD-268) — hybrid dense+sparse BM25; connector
+      # configured in UI/settings at deploy; Docling (services-internal) = the OCR pipeline.
+      # Vector dim locks at first ingest (@1536, docs/services-ai.md §5b).
     volumes:
       - /srv/docker/open-webui:/app/backend/data   # users, chat history, settings (stateful; include in Kopia scope)
     labels:

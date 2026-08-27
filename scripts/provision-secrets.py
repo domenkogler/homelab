@@ -94,7 +94,7 @@ CATALOG = [
     ("Database",    "immich_db",              lambda: [f"username=immich",    f"password={gen_pw()}"]),
     ("Database",    "forgejo_db",             lambda: [f"username=forgejo",   f"password={gen_pw()}"]),
     ("Database",    "onlyoffice_db",          lambda: [f"username=onlyoffice", f"password={gen_pw()}"]),
-    ("Database",    "pgvector_db",            lambda: [f"username=pgvector",  f"password={gen_pw()}"]),
+    ("API Credential", "qdrant_db",             lambda: [f"credential={gen_pw()}"]),   # HD-268 Qdrant vector-store API key (replaces PGVector; no username, single static key) — QDRANT__SERVICE__API_KEY
     ("Database",    "zipline_db",             lambda: [f"username=zipline",   f"password={gen_pw()}"]),   # HD-112
     ("Database",    "litellm_db",             lambda: [f"username=litellm",   f"password={gen_pw()}"]),   # HD-247 LiteLLM runtime DB (STORE_MODEL_IN_DB) — keys/models/spend live here; CRITICAL state, dumped via db-backup DB06
     # --- Password items ---
@@ -127,6 +127,12 @@ CATALOG = [
     ("API Credential", "cohere_api",              lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "openclaw_gateway_token",  lambda: [f"password={gen_pw()}"]),
     ("API Credential", "openclaw-opencloud_api",  lambda: [f"username=openclaw", f"credential={gen_pw()}"]),
+    # HD-268c dual harness: Forgejo service-account PR-only tokens (per-agent) — issued by
+    # the Forgejo UI after boot, same class as `forgejo_api`. Granting scoped PR-only on the
+    # homelab repo, NO merge rights. `dsh_api` / `pi-harness_openai_api` are NOT here — they
+    # are LiteLLM glue-minted scoped virtual keys (HD-247, defined in litellm_scoped_keys).
+    ("API Credential", "pi-harness_forgejo_api",    lambda: [f"credential={gen_pw()}"]),   # pi PR-only Forgejo PAT
+    ("API Credential", "dsh_forgejo_api",           lambda: [f"credential={gen_pw()}"]),   # DSH PR-only Forgejo PAT
     # metabase-forgejo_ro: read-only analytics role in forgejo-db (HD-242). Rotation-safe by
     # design: the deploy-service db_ro_sync task re-applies password + grants every converge.
     ("Login",          "metabase-forgejo_ro",      lambda: [f"username=metabase_ro", f"password={gen_pw()}"]),
@@ -145,7 +151,7 @@ NOT_AUTO_ROTATABLE = {
                              # NEVER generated as a random password by this tool (it is also
                              # absent from CATALOG).
     "matrix_password",      # Matrix shared secret — reissue breaks rooms/sessions
-    "authentik_db", "opencloud_db", "immich_db", "forgejo_db", "pgvector_db",  # running Postgres
+    "authentik_db", "opencloud_db", "immich_db", "forgejo_db",  # running Postgres
     "onlyoffice_db",           # running Postgres (sidecar cluster init-once password)
     "zipline_db",             # running Postgres sidecar — init-once password (HD-112)
     "litellm_db",             # running Postgres sidecar — init-once password (HD-247); holds the virtual-key/model runtime (models-in-DB), so rotation = re-init = data loss without a dump/restore cycle
@@ -162,6 +168,8 @@ NOT_AUTO_ROTATABLE = {
     "cohere_api",           # external provider API key
     "openclaw_gateway_token",   # consumed by the running gateway
     "openclaw-opencloud_api",   # OpenCloud app-password pair
+    "pi-harness_forgejo_api",   # pi-dev PR-only Forgejo token (HD-268c)
+    "dsh_forgejo_api",            # DSH PR-only Forgejo token (HD-268c)
     "opencloud_login",      # admin login created at first boot
 }
 

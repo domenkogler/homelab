@@ -70,7 +70,7 @@ traefik_acme_issuer: false
 # docs/deployment-secrets.md).
 _template_vault_items:
   authentik: {'authentik_password', 'authentik_login', 'authentik-ldap_bind', 'authentik_db'}
-  db-backup: {'pgvector_db', 'forgejo_db', 'immich_db', 'authentik_db', 'litellm_db'}
+  db-backup: {'forgejo_db', 'immich_db', 'authentik_db', 'litellm_db'}
   forgejo: {'forgejo_db'}
   grafana: {'smtp_login', 'grafana_login'}
   headscale: {'headplane_password', 'headscale_api', 'headplane_api'}
@@ -86,8 +86,10 @@ _template_vault_items:
   onlyoffice-docs: {'onlyoffice_db', 'onlyoffice-rabbitmq_login', 'opencloud-collab_password'}
   open-webui: {'openwebui_api', 'openwebui_secret', 'owui-public-chat_api'}
   openclaw: {'openclaw_gateway_token', 'openclaw-opencloud_api'}
+  pi-dev: {'pi-harness_openai_api', 'pi-harness_forgejo_api'}
+  dsh: {'dsh_api', 'dsh_forgejo_api'}
   opencloud: {'opencloud_login', 'opencloud-collab_password'}
-  pgvector: {'pgvector_db'}
+  qdrant: {'qdrant_db'}
   pihole: {'pihole_password'}
   prometheus: {'prometheus-internal_api'}
   qbittorrent: {'privado-vpn_api'}
