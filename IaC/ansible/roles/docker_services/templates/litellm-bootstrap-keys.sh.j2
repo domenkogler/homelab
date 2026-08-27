@@ -120,7 +120,7 @@ mint_key() {
         for p in "${parts[@]}"; do
             p="$(printf '%s' "$p" | sed 's/^ *//; s/ *$//')"
             [ -n "$p" ] || continue
-            $first && first=0 || json_models+=","
+            if [ "$first" -eq 1 ]; then first=0; else json_models+=","; fi
             json_models+="\"$p\""
         done
         json_models+="]"
