@@ -23,6 +23,11 @@
 #                                     (all scripts/*.py), so scripts cannot regress on the
 #                                     Debian/WSL ext4 primary (HD-256); bash -n is a no-op on
 #                                     hosts without bash (CI/Linux only, never Windows)
+#  13. sync-skills.sh --check --strict — skill drift gate (HD-254): repo skills/ must equal
+#                                     ~/.pi/agent/skills (repo = SSOT). Guarded: when
+#                                     $HOME/.pi/agent/skills is absent (bare CI / non-pi laptop)
+#                                     the gate SKIPs so a pi-less host never breaks validation;
+#                                     on a pi-configured runner deploy is via sync-skills.sh --push.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -110,6 +115,17 @@ if command -v python3 >/dev/null 2>&1; then
   echo "OK: all scripts/*.py compile under python3"
 else
   echo "SKIP: python3 not on PATH — py_compile sweep skipped"
+fi
+
+echo "== sync-skills.sh --check --strict (skill drift gate, HD-254) =="
+# repo skills/ must equal ~/.pi/agent/skills (repo = SSOT). Guarded: a host without a
+# pi agent (bare CI / non-pi laptop) has no ~/.pi/agent/skills — the gate SKIPs there so
+# it never breaks validation on a stateless runner; on a pi-configured primary the check
+# is real and deploy is an explicit 'sync-skills.sh --push'.
+if [ -d "$HOME/.pi/agent/skills" ]; then
+  bash scripts/sync-skills.sh --check --strict
+else
+  echo "SKIP: no ~/.pi/agent/skills on this host (bare CI / non-pi laptop) — skill gate runs where pi is configured"
 fi
 
 echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="
