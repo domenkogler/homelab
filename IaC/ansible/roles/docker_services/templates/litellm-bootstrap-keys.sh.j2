@@ -77,7 +77,7 @@ fi
 # --- helpers -----------------------------------------------------------------
 # health: proxy reachable? (inside-container call, no auth needed)
 healthy() {
-    docker exec "$LITELLM_CONTAINER" python3 - <<'PYEOF' >/dev/null 2>&1
+    docker exec -i "$LITELLM_CONTAINER" python3 - <<'PYEOF' >/dev/null 2>&1
 import urllib.request,sys
 try:
     urllib.request.urlopen("http://127.0.0.1:4000/health/liveliness", timeout=10)
@@ -89,7 +89,7 @@ PYEOF
 # probe <sk> : echo HTTP code of GET /v1/models authorized BY THE SCOPED KEY ITSELF
 probe_key() {
     local tok="$1" out
-    out="$(docker exec \
+    out="$(docker exec -i \
         -e LK_TOKEN="$tok" "$LITELLM_CONTAINER" python3 - <<'PYEOF' 2>/dev/null
 import urllib.request,os,sys
 req=urllib.request.Request("http://127.0.0.1:4000/v1/models",
@@ -135,10 +135,10 @@ mint_key() {
     if [ -n "$body" ]; then
       body="{${body%,},\"key_alias\": \"$alias\"}"
     else
-      body={\"key_alias\": \"$alias\"}
+      body="{\"key_alias\": \"$alias\"}"
     fi
 
-    err="$(docker exec \
+    err="$(docker exec -i \
         -e LK_MASTER="$MASTER_KEY" -e LK_BODY="$body" "$LITELLM_CONTAINER" python3 - <<'PYEOF' 2>&1
 import urllib.request,urllib.error,json,os,sys
 req=urllib.request.Request("http://127.0.0.1:4000/key/generate",
