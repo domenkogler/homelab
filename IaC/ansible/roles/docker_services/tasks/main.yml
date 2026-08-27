@@ -69,7 +69,7 @@
     file: fetch-vault-pass.yml
   vars:
     op_mode: "derive"
-    op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"
+    op_derive_services: >-
     op_derive_services: >-
       {{ docker_services | selectattr('enabled', 'truthy') | map(attribute='template_dir') | list }}
     op_derive_glue: >-

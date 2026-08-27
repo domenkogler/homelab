@@ -6,6 +6,12 @@
 # Base directory for all Docker Compose projects.
 docker_compose_dir: /opt
 
+# HD-258 bulk 1Password pre-pass exporter path — always defined here so every caller of
+# fetch-vault-pass.yml (static, authentik-glue, litellm-bootstrap) resolves it; do NOT
+# re-pass per caller (the list-mode/glue branch failed with 'op_export_script is
+# undefined' once the Jinja {% if %} made mode explicit).
+op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"
+
 # Surgical-deploy scope (HD-255/HD-260). `all` (default) = full converge and is
 # UNCHANGED from the pre-scope behavior. Setting it to a single service name makes
 # a `--tags docker_services` run deploy ONLY that service:

@@ -12,8 +12,9 @@
 # Invocation (in main.yml / deploy-service.yml, after the op-CLI assert):
 #   - include_tasks: fetch-vault-pass.yml
 #     vars:
-#       op_export_script: "<abs path to scripts/op-vault-export.py>"  # REQUIRED
-#       op_vault: "<1Password vault>"                                  # group_vars op_vault
+#       (op_export_script is a ROLE DEFAULT — do not re-pass it)
+#       op_vault: "<1Password vault>"  # group_vars op_vault (omit if already set)
+#       # derive mode (recommended):
 #       # derive mode (recommended):
 #       op_derive_spec: >-
 #         {{ {'services': <list of enabled template_dirs>,
