@@ -120,7 +120,18 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   - Filtered runs skip untagged top-level tasks: e.g. `site.yml`'s pre-flight admin-user
     assert and any playbook whose roles have no role-level tags (`home_servers.yml`,
     `raspberry_pi.yml`, `router.yml`, …) can only ever run their `always`-tagged tasks under
+  - Filtered runs skip untagged top-level tasks: e.g. `site.yml`'s pre-flight admin-user
+    assert and any playbook whose roles have no role-level tags (`home_servers.yml`,
+    `raspberry_pi.yml`, `router.yml`, …) can only ever run their `always`-tagged tasks under
     `--tags`. Only `vps.yml` (and `all.yml`'s `[hosts]`) supports role-surgical filtering today.
+  - **Base bootstrap tier (HD-269 Step 4):** the rarely-changing roles (`common`, `docker`,
+    `hardening`, `network`, `cifs`, `wireguard`) each carry an **additive `base` tag** alongside
+    their own role tag. Because selection is a UNION, naming `base` groups all six as ONE
+    runnable unit (`--tags base`) while a services-only run (`--tags docker_services,monitoring`)
+    still works untouched — the `base` tag simply isn't in that filter, so nothing from those
+    roles runs. The tier is never a *skip-default*: a full converge (no `--tags`) runs everything
+    in order; `base` only makes the rare roles *selectable as a set*. Roles keep their own tags
+    so they can still be run individually (`--tags common`).
   - Partial application is the failure mode to fear (renders without up, service changed but
     its Traefik routes stale): prefer the canonical forms below and verify with
     `--list-tasks --tags <filter>` before running.
@@ -135,6 +146,7 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   | Service + edge/dynamic-file companions | `--tags "docker_services,<service>,traefik"` |
   | Include Authentik pre-pass/glue lanes | append `,authentik,secret-egress` |
   | Resume after a failing step | `--start-at-task="<task name>"` (no `--tags` → everything from there runs) |
+  | Run the rare base bootstrap tier (HD-269 Step 4) | `--tags base` — runs `common`, `docker`, `hardening`, `network`, `cifs`, `wireguard` only (first-boot / a rare infra change); `docker_services` & `monitoring` excluded |
   | Discovery | `--list-tags` / `--list-tasks --tags "<filter>"` |
 
 ### Compose templates (`templates/docker_services/`)
