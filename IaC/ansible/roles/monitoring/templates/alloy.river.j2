@@ -19,37 +19,58 @@ prometheus.exporter.unix "host" {
     ]
 }
 
-// ---- Docker container logs (via docker.sock) ----
-// discovery.docker discovers running containers; loki.source.docker reads their logs.
-// (Alloy 1.19: loki.source.docker needs explicit targets from a discovery component —
-// targets=[] was a no-op -> no container logs shipped.)
-discovery.docker "containers" {
-    host = "unix:///var/run/docker.sock"
+// ---- Docker container logs (via Docker JSON log files, port-independent) ----
+// DISCOVERY: Alloy's `discovery.docker` only emits targets for containers with host
+// port mappings — our fleet is internal-only (no published ports), so it found 0.
+// Instead, discover the Docker daemon's JSON log files on disk directly (they exist
+// for every container regardless of ports). The `alloy` user reads them via the
+// `docker` group (monitoring role grants g+rX on /var/lib/docker/containers).
+discovery.file "docker_log_files" {
+    path_targets = [{
+        __path__ = "/var/lib/docker/containers/*/*-json.log",
+    }]
 }
-// discovery.docker only emits targets with a host-mapped `__address__`; our containers
-// are internal (no published ports), so force the docker socket address for every
-// discovered container (keyed by container id) and feed that to loki.source.docker.
-discovery.relabel "docker_logs" {
-    targets = discovery.docker.containers.targets
+
+// Parse the 64-char container ID out of the log-file path.
+discovery.relabel "parse_container_id" {
+    targets = discovery.file.docker_log_files.targets
+
     rule {
-        source_labels = ["__meta_docker_container_id"]
-        regex         = "(.+)"
-        replacement   = "unix:///var/run/docker.sock"
-        target_label  = "__address__"
-        action        = "replace"
+        source_labels = ["__path__"]
+        regex         = ".*/containers/([0-9a-f]{64})/.*-json.log"
+        target_label  = "container_id"
     }
 }
-loki.source.docker "container_logs" {
-    host = "unix:///var/run/docker.sock"
-    targets = discovery.relabel.docker_logs.output
+
+// Tail the files; Docker JSON lines are {"log": "...", "stream": "...", "time": "..."},
+// so extract the message + stream label + timestamp.
+loki.source.file "container_logs" {
+    targets    = discovery.relabel.parse_container_id.output
     forward_to = [loki.process.cleanup.receiver]
 }
 
-// Clean up log entries — remove noisy fields, parse standard formats
+// Clean up log entries — remove noisy fields, parse the Docker JSON envelope.
 loki.process "cleanup" {
+    stage.json {
+        expressions = {
+            message = "log",
+            stream  = "stream",
+            ts      = "time",
+        }
+    }
+    stage.timestamp {
+        source = "ts"
+        format = "RFC3339Nano"
+    }
+    stage.labels {
+        values = {
+            container_id = null,
+            stream       = null,
+        }
+    }
     stage.drop {
-        source = "container_name"
-        value  = "loki"
+        source = "message"
+        value  = ""
     }
     forward_to = [loki.write.local.receiver]
 }
