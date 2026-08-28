@@ -1507,6 +1507,17 @@
 - **Secrets touched:** none (no secret values printed; truncation class logged as lengths/patterns, not values).
 - **Deviations:** none from the design; the Step-1 validate went from “parallel + live-rebaseline pending” to “parallel only for authentik (real win), litellm restored to serial (revert).” [scripts/README.md](scripts/README.md) updated so the parallel-concurrency contract reflects the shipped state; `todo.md` HD-269 🚧 collapsed + HD-270/HD-271 filed.
 
+### 2026-08-28 — Phase 1 · HD-271-followup live-found fixes: qdrant + kopia-server crash-loops `[AI]`
+
+- **Plan ref:** the HD-270/HD-271 follow-up lane (live deploy-health); owning docs `docs/services-ai.md` §5b (qdrant rebuildable cache) + `docs/backup.md` (kopia). Worktree `homelab-wt-20260828-1626hd271` (branch `session/hd271-ansible224`).
+- **Stimulus:** after the HD-271 deprecation commit, a live deploy-health rollup (`docker ps`) showed **two services crash-looping with real bugs** (plus two known/expected loops — authentik-ldap is the known HD-186 “no ldap provider defined” state, renovate is the known HD-264 churn).
+- **qdrant (crash-loop `Restarting (101)` — `Can't create Snapshots directory: Read-only file system` at `toc/mod.rs:100`):** the compose sets `read_only: true` with only a `/qdrant/storage` bind; qdrant 1.12.4 creates its snapshots dir at startup and the RO rootfs blocks it. **Fix:** add `QDRANT__STORAGE__SNAPSHOTS_PATH: "/qdrant/storage/snapshots"` (inside the writable storage bind). Verified live: standalone run with that env starts clean (`Access web UI`, HTTP 6333 + gRPC 6334, graceful shutdown RC=0); after the surgical deploy `qdrant` = `Up (healthy)`, `RestartCount=0`, `/srv/docker/qdrant/snapshots` created. Commit `d90f0e2`.
+- **kopia-server (crash-loop `found existing data in storage location` + “Creating SFTP repository”):** the first-run gate checked `if [ ! -f /app/config/config.json ]`, but `config.json` is an unrelated technitium zone file — kopia's repo-connection file is **`repository.config`** (present since the 2026-08-23 create). With a repo already on the backup box, every boot re-ran `kopia repository create sftp` → failed `found existing data in storage location` → `set -e` exit → restart loop. **Fix:** gate on `repository.config` instead. Verified live after surgical deploy: `kopia-server` = `Up`, logs show `SERVER ADDRESS: http://[::]:51515` + normal maintenance/GC against the existing repo, no more create loop. Commit `d90f0e2`.
+- **Commands run:** `docker ps` health rollup; `docker logs` on each looping service; the qdrant fix verified via throwaway `docker run --rm -e QDRANT__STORAGE__SNAPSHOTS_PATH=… --workdir /qdrant qdrant/qdrant:v1.12.4 ./entrypoint.sh` (`tail`); deploys: `bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=qdrant` (`ok=20 changed=4 failed=0`) and `…-e docker_services_scope=kopia-server` (`ok=20 changed=4 failed=0`). `validate-all.sh` green before each.
+- **Secrets touched:** none printed (the qdrant `QDRANT__SERVICE__API_KEY` value stayed inside the vault dict/template; the test-1password read of the SA token prints a sample but it's the runner's own read-scope SA, not a service secret).
+- **Deviations:** none from design — the two fixes are the documented rebuildable-cache/backup-seam behavior made actually startable. `todo.md`/`changelog.md`/`prompt.md` HD-271 row updated to note the follow-up fixes.
+
+
 
 ## Phase 3 — oldsrv
 
