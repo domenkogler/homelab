@@ -39,6 +39,8 @@ services:
       - ALL
     cap_add:
       - CHOWN
+      - SETUID
+      - SETGID
 
     tmpfs:
       - /tmp
