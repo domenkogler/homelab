@@ -131,6 +131,12 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   live timestamp (`git worktree add ../homelab-wt-YYYYMMDD-HHMM`). **Primary definition:** the primary
   checkout is a **merge station only** — all edits happen on a session branch inside a session worktree;
   main receives only fast-forward merges of committed, green results.
+- **Commit signing (HD-265/270):** every commit is signed (`commit.gpgsign=true`, `gpg.format=ssh`,
+  `user.signingkey` = the GitHub-sign key from the `Private` vault, served via the SSH agent). A fresh
+  shell that reports `Couldn't find key in agent` → load the keys once: `ssh-add ~/.ssh/github_signing
+  ~/.ssh/github_auth` (they persist after `git-bootstrap.sh --ssh-auth`). Verify a commit is signed
+  with `git log -1 --format='%G?'` (G = good). Only when re-reading the `Private` vault is needed (new
+  key pull) does a human `op` sign-in apply. See `scripts/README.md` git-bootstrap row + HD-270 doc.
 - **Collapsible `<details>` sections:** human/family-facing browser-rendered docs only (`readme-humans.md`, `docs/manual/*`) and only for optional asides (troubleshooting, FAQ) — **never** in agent-facing docs (owning specs, runbooks incl. `deployment-manual.md`, ledger/journal, todo/changelog): the primary readers are AI agents working on raw text, where folds hurt grep-ability and add noise. Blank lines between the HTML tags and the inner Markdown are mandatory, else fences/tables render as raw text. Precedent: `readme-humans.md` §Za družino troubleshooting fold.
 
 ---
