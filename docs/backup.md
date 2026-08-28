@@ -50,6 +50,13 @@ never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach
 S2S ACL (HD-155). Agent sources are oldsrv-local, read-only: `/opt/*` configs, `/srv/dumps` scratch,
 the immich upload/thumb dir, and the signal-cli state volume.
 
+> **kopia-server first-run gate gotcha (HD-271-followup, live 2026-08-28):** the server's first-run
+> bootstrap (`kopia repository create sftp`) must be gated on **`repository.config`** (kopia's
+> repo-connection file) — NOT `config.json` (an unrelated technitium zone file). With the wrong gate
+> and a repo already on the backup Box, every boot re-ran `create` → `found existing data in storage
+> location` → `set -e` exit → crash-loop. Gate on `/app/config/repository.config` (create only when
+> absent) and the server starts against the existing repo (maintenance/GC run normally).
+
 ```
 tiredofit/db-backup (local scratch) →  Kopia agent (VPS + oldsrv) →  Hetzner Storage Box (backup) SSH/SFTP :23
    + service state + face thumbs       (encrypted, dedup)       (far-DC: Helsinki/Falkenstein — SB-Backup HEL1-BX186)

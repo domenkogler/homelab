@@ -196,6 +196,14 @@ the per-consumer virtual keys (fail-closed lookups thereafter), specs SSOT in `g
 > Qdrant snapshot seam for iteration speed, but it is NOT the metadata-fate risk class it was under
 > PGVector. Open WebUI + OpenClaw config/state → Kopia.
 
+> **Qdrant `read_only` snapshots gotcha (HD-271-followup, live 2026-08-28):** the compose sets
+> `read_only: true` (container-hardening, HD-202), so qdrant 1.12.4 **cannot create its snapshots dir
+> at startup in the RO rootfs** → panic `Can't create Snapshots directory: Read-only file system` at
+> `toc/mod.rs:100` → crash-loop (`Restarting(101)`). Fix: point the snapshots dir INSIDE the writable
+> storage bind via `QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/storage/snapshots` (verified live: starts
+> clean, `Up (healthy)`; dir auto-created on the bind). Keep `/snapshots` REST export + Kopia-backed
+> host bind as the backup seam (backup.md): this env must stay in the compose template.
+
 ### 5c. Workflows (operational recipes)
 
 The AI layer is a **swappable shell over a git-SSOT + vector-cache floor** — three canonical flows:
