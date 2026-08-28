@@ -32,10 +32,13 @@
 services:
   crowdsec-web-ui:
     image: ghcr.io/theduffman85/crowdsec-web-ui:{{ crowdsec_web_ui_version }}
-    # Class-B precedent (crowdsec/metabase): the image chowns /app/data at every boot,
-    # so read_only is dropped (same as crowdsec) — keeps cap_drop ALL + tmpfs /tmp.
+    # Class-B precedent (crowdsec/metabase + onlyoffice/stirling-pdf): the image chowns
+    # /app/data at every boot; read_only dropped AND CHOWN restored (cap_drop ALL strips
+    # CHOWN -> root can't chown -> crash). Keeps cap_drop ALL + tmpfs /tmp + cap_add CHOWN.
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
 
     tmpfs:
       - /tmp
