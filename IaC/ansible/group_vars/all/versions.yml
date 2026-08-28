@@ -173,3 +173,4 @@ onlyoffice_rabbitmq_version: "3.13.7-alpine" # last 3.x — ONLYOFFICE-supported
 prometheus_version: "v3.14.0"        # prom/prometheus (Docker Hub tag has a `v`)
 loki_version: "3.7.6"                # grafana/loki (Docker Hub tag strips `v`)
 blackbox_exporter_version: "v0.28.0"  # prom/blackbox-exporter (Docker Hub tag has a `v`)
+tailscale_version: "v1.80.2"        # tailscale/tailscale (Docker Hub tag has a `v`) — HD-135b sidecar
