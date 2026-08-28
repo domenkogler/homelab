@@ -116,7 +116,14 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 
 > **Policy (security.md §10 Capability-tiering):** internet-facing surfaces hold only limited-capability
 > credentials; full-power access requires tailnet membership. **New admin/UI surfaces default tailscale-first**
-> -- never Traefik-public unless explicitly decided. Mechanism below; first application = AI stack v2 ([services-ai.md](services-ai.md)).
+> -- never Traefik-public unless explicitly decided. Mechanism below; first application = AI stack v2
+> ([services-ai.md](services-ai.md)); **observability admin dashboards (HD-135b follow-up, 2026-08-28) are
+> the second live application** — stats/sec/traefik/logs/n8n are now tailnet-only, no public records.
+>
+> **Laptop access:** with the Tailscale app connected, the dashboards resolve on the tailnet (the sidecar
+> serves them under its tailnet hostname; the TL-Serve HTTPS form may need a DNS/MagicDNS name). If you
+> keep a local DNS name, add it to the laptop's hosts/Tailscale MagicDNS — there is NO public `*.kogler.si`
+> record for these. See the `tailscale-sidecar` compose template for the exact serve ports.
 
 ### Pattern A -- loopback-capable apps (preferred)
 App binds `127.0.0.1` only; tailscale sidecar shares its network namespace (`network_mode: service:<app>`) and
@@ -130,6 +137,7 @@ sidecar serves to the app over that private network. Functional service-to-servi
 | Node | Serves | App-level auth | ACL tag |
 |------|--------|----------------|---------|
 | dsh | cockpit :3080 | **none** (ACL is the gate) | tag:dsh |
+| vps-obs (`tailscale-sidecar`, HD-135b) | stats :8080 · sec :8081 · traefik :8082 · logs :8083 · n8n :8084 · headplane :8085 — all over headscale | Authentik Forward-Auth at each app (none on the sidecar) | tag:sidecar |
 | pi-dev | TUI/CLI agent (`services-internal`) | scoped LiteLLM key + PR-only Forgejo | tag:pi-harness |
 | litellm-ui | admin :4000/ui | bearer keys | tag:litellm |
 | owui-int (`ai.kogler.si`, HD-248) | internal OWUI | Authentik OIDC | tag:owui-int |
@@ -138,7 +146,7 @@ sidecar serves to the app over that private network. Functional service-to-servi
 
 - Serve mode: plain TCP forward is simplest (WireGuard already encrypts); HTTPS mode needs Headscale TLS config -- verify at deploy.
 - ACL defaults: inbound-only per node (e.g., DSH needs ZERO outbound tailnet destinations); tag hygiene audit quarterly.
-- Rollout: HD-251 (phase-2 fleet rework); first applications: litellm-ui + owui-int (HD-247/248), dsh (HD-250).
+- Rollout: HD-251 (phase-2 fleet rework); first applications: litellm-ui + owui-int (HD-247/248), dsh (HD-250); **observability sidecar (HD-135b) — skeleton authored 2026-08-28, deploy-gated (auth key + enable)**, see `docker_services/tailscale-sidecar` + `policy.hujson.j2`.
 
 ## Family Usage Scenarios
 

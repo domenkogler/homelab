@@ -1,0 +1,61 @@
+# tailscale-sidecar docker-compose.yml — Pattern-B tailnet sidecar for admin UIs (HD-135b)
+#   Serves the internal-only observability dashboards over the headscale tailnet so the
+#   owner's laptop/phone can reach them WITHOUT any public DNS record or WAN exposure.
+#   Tailscale joins the kogler tailnet and `tailscale serve` proxies tailnet hostname:port
+#   → the app's traefik-public service port (Pattern B — apps bind 0.0.0.0 there).
+#
+#   PATTERN B (docs/network-vpn.md §Tailnet-exposed services): a dedicated sidecar joins the
+#   traefik-public overlay. It is the ONLY tailnet-facing surface for these apps; nothing
+#   else listens on the tailnet. Uses USERSpace networking (TS_USERSPACE=true +
+#   --tun=userspace-networking) — mirrors the pi-dev/dsh sidecar idiom (pi-dev compose), no
+#   NET_RAW/SYS_MODULE needed.
+#
+#   SKELETON STATUS (2026-08-28, HD-135b follow-up): authored + validated, but DISABLED
+#   (vps.yml entry has enabled: false). To activate:
+#     1. Seed the 1Password item `tailscale-sidecar_api` (Credential: auth key) in the
+#        Homelab-ansible vault — a reusable pre-auth key, ideally tag-scoped `tag:sidecar`.
+#     2. Flip vps.yml to enabled: true + converge (scoped: docker_services_scope=tailscale-sidecar).
+#     3. Verify from the laptop: `https://<tailnode>:8080` (stats) / :8081 (sec) / :8082 (traefik)
+#        / :8083 (logs) / :8084 (n8n) — each app still behind Authentik Forward-Auth.
+#
+#   Secrets via 1Password lookup at render (pre-pass `vault` dict, HD-258):
+#     tailscale-sidecar_api  (Credential: tailscale auth key, fail-loud — no default)
+services:
+  tailscale-sidecar:
+    image: tailscale/tailscale:{{ tailscale_version }}
+    container_name: tailscale-sidecar
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/tailscale
+    networks:
+      - traefik-public
+    volumes:
+      - /srv/docker/tailscale-sidecar/data:/var/lib/tailscale
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      TS_AUTHKEY: "{{ vault['tailscale-sidecar_api'].credential | replace('$','$$') }}"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"   # userspace networking, no tun (mirrors pi-dev/dsh sidecar)
+      TS_EXTRA_ARGS: "--hostname=vps-obs"
+    profiles:
+      - tailscale
+    command:
+      - tailscaled
+      - --tun=userspace-networking
+      - tailscale serve --bg --https=8080 http://grafana:3000
+      - tailscale serve --bg --https=8081 http://metabase:3000
+      - tailscale serve --bg --https=8082 http://traefik:8080
+      - tailscale serve --bg --https=8083 http://dozzle:8080
+      - tailscale serve --bg --https=8084 http://n8n:5678
+      - tailscale serve --bg --https=8085 http://headplane:3000
+      - sleep
+      - infinity
+networks:
+  traefik-public:
+    external: true

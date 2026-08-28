@@ -296,6 +296,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `prometheus-internal_api` | `username` + `bcrypt_hash` | prometheus Basic Auth (HD-59) — `username` = user, `bcrypt_hash` = bcrypt hash for `basic_auth_users` (generate via `scripts/gen-htpasswd.py`). Grafana + Alloy consume this endpoint |
 | `immich-ml-internal_api` | `credential` | **ML API-key auth (HD-160)** — shared secret between `immich-app` (sends as ML-auth header) and `immich-ml` (validates it). Fail-loud (HD-65). Exact Immich v3 env var names deploy-verified. |
 | `openclaw-opencloud_api` | `username` + `credential` | **OpenClaw → OpenCloud WebDAV (HD-160)** — `username` = OpenCloud service user, `credential` = app-specific password; consumed by `openclaw onboard` / `openclaw.json` WebDAV block. Scoped, rotatable, fail-loud. |
+| `tailscale-sidecar_api` | `credential` | **(HD-135b skeleton)** Tailscale auth key for the VPS observability sidecar (`TS_AUTHKEY`, Pattern B) — a reusable pre-auth key or tag-scoped key carrying `tag:sidecar`. Seed before flipping `tailscale-sidecar` to enabled. Fail-loud render. |
 | ~~`doco-cd_password`~~ | ~~`password`~~ | **retired (HD-150): Doco-CD dropped** — single Ansible-only deploy/upgrade path. No webhook HMAC needed. |
 | `sonarr_api` | `credential` | Sonarr API key — recyclarr syncs quality profiles from this instance |
 | `radarr_api` | `credential` | Radarr API key — recyclarr syncs quality profiles from this instance |

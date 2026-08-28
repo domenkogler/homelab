@@ -57,7 +57,7 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 
 ## Traefik Dashboard
 
-- **URL:** `traefik.kogler.si` — **internal-only** (no public DNS record; WAN-blocked)
+- **URL:** `traefik.kogler.si` — **tailnet-only** (headscale; no public DNS record; WAN-blocked) — HD-135b follow-up
 - **Auth:** behind **Authentik Forward-Auth** (admin only)
 - **Config:** enable the API + dashboard and expose the `api@internal` service as an internal backend:
   ```yaml

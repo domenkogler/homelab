@@ -85,6 +85,10 @@ docker_services:
   - { name: grafana,        template_dir: grafana,    subdomain: stats, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
   - { name: blackbox-exporter, template_dir: blackbox-exporter, enabled: true }
   - { name: dozzle,         template_dir: dozzle,        subdomain: logs, enabled: true }   # HD-135b: live per-container log viewer moved from oldsrv (logs.kogler.si)
+  # HD-135b follow-up: admin dashboards are TAILNET-ONLY. This Pattern-B sidecar serves
+  # stats/sec/traefik/logs/n8n over headscale (no public records). SKELETON — disabled:
+  # seed 1Password `tailscale-sidecar_api` (auth key) + flip to enabled: true + converge.
+  - { name: tailscale-sidecar, template_dir: tailscale-sidecar, enabled: false }
   # === Alert brain (WG-down -> net mail/Signal; independent of tunnel) ===
   - { name: n8n,            template_dir: n8n,       subdomain: auto, enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
   # === Backup agents (Kopia -> backup Box; db-backup dumps) ===

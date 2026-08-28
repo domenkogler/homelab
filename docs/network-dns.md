@@ -78,7 +78,7 @@ Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
 
 - **Local (Technitium):** authoritative for `*.kogler.si` internally — resolves hosts/services to internal IPs, and auto-creates records from DHCP leases.
 - **Public (Cloudflare):** publishes **only** the internet-facing subset — the human-readable mirror is [`services.md`](services.md) §Domain & Subdomain Plan (`kogler.si` root + `home`, `sso`, `foto`, `file`, `office`, `ai`, `git`, `ha`, `vpn`, `matrix`, `chat`). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
-- Internal-only services/hosts (stats, dns, ad, auto, logs, cockpit-*, router, switch, nas, oldsrv) have **no public record**; WAN firewall blocks them (defense in depth).
+- Internal-only services/hosts (stats, dns, ad, auto, logs, cockpit-*, router, switch, nas, oldsrv) have **no public record**; WAN firewall blocks them (defense in depth). **The observability admin dashboards (stats/sec/traefik/auto) are tailnet-only** (HD-135b follow-up, 2026-08-28): they were briefly published with public CNAMEs during the Phase-1 wave; those records are **removed from the IaC SSOT** (`cloudflare_dns/vars/main.yml`) and must be **deleted from the Cloudflare zone** by the owner (deploy-gated — the Ansible role only ensures `state: present`, it does not delete live records). Reach them via the **headscale tailnet** (see [`network-vpn.md`](network-vpn.md) §Tailnet-exposed services).
 - **TLS:** a single wildcard `*.kogler.si` certificate, issued via ACME **DNS-01** with a Cloudflare API token (1Password `Homelab-ansible`) — covers internal and public hostnames alike.
 
 ### A / AAAA policy
