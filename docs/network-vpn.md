@@ -66,9 +66,14 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 - **Home RB4011:** static route + firewall rules so the Headscale overlay reaches the Home VLAN
 - **MagicDNS (HD-135b follow-up, 2026-08-28):** `dns.extra_records` maps the tailnet dashboard
   subdomains (`stats/logs/csui/sec/traefik/auto` **and** their `*.ts.kogler.si` twins) to the
-  `vps-obs` tailnet IP (`tailnet_sidecar_ip`, group_vars/vps.yml), and `dns.search_domains:
-  [kogler.si]` makes MagicDNS answer the plain `*.kogler.si` names for tailnet clients too — the
-  owner's devices resolve `https://stats.kogler.si` directly on the tailnet (no local hosts file).
+  `vps-obs` tailnet IP (`tailnet_sidecar_ip`, group_vars/vps.yml).
+  **Answer scope (verified live 2026-08-28):** Tailscale client MagicDNS ANSWERS only its
+  `base_domain` (`ts.kogler.si`) — the `*.ts.kogler.si` twins work out of the box. For a FQDN
+  matching a `search_domain` (`kogler.si`), the client queries its **configured nameserver for
+  that domain** (Technitium), NOT MagicDNS — so the plain `*.kogler.si` names require the
+  **Technitium A records → 100.64.0.1 on BOTH instances** (see [`network-dns.md`](network-dns.md)
+  static-records section). `dns.search_domains: [kogler.si]` is still set (helps short-name
+  resolution) but does NOT make MagicDNS serve the plain names.
 - **VPS:** routes the home `site` + `wg-vps-services` over the S2S tunnel to reach home resources
 - Mesh clients → VPS Headscale (public, its purpose) → over S2S → home LAN; each node has an ACL-gated path home
 - **Registration & ACL (HD-84 / KOPS-022):** OIDC-authenticated clients are **auto-approved** by
@@ -127,10 +132,11 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 >
 > **Laptop access:** with the Tailscale app connected, the dashboards resolve on the tailnet — headscale
 > **MagicDNS** on the `ts.kogler.si` base domain answers the `*.ts.kogler.si` twin names (e.g.
-> `stats.ts.kogler.si`) and `dns.search_domains: [kogler.si]` (HD-135b follow-up) makes MagicDNS answer the
-> plain `*.kogler.si` names too — so the owner's laptop/phone reach the dashboards with the SAME clean
-> subdomain URLs they already know (`https://stats.kogler.si`, `https://logs.kogler.si`, …). There is NO
-> public `*.kogler.si` record for these. The tailnet Traefik edge (`traefik-tailnet`, node `vps-obs`) is the
+> `stats.ts.kogler.si`). The **plain `*.kogler.si` names resolve via the tailnet's configured nameserver
+> for `kogler.si` (Technitium)** — requires the static **Technitium A records → `100.64.0.1` on BOTH
+> instances** ([`network-dns.md`](network-dns.md) static-records section; without them the plain names
+> NXDOMAIN on tailnet devices while the `.ts` twins work). There is NO public `*.kogler.si` record for
+> these. The tailnet Traefik edge (`traefik-tailnet`, node `vps-obs`) is the
 > only tailnet surface for the admin dashboards (see the compose template
 > `docker_services/traefik-tailnet` for the routing + serve details).
 
