@@ -37,7 +37,7 @@ GROUP_VARS_DIR = ROOT / "IaC" / "ansible" / "group_vars"
 # docs/deployment-compose.md.
 
 # Services that don't need Traefik labels (are their own reverse proxy)
-NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent"}  # qbittorrent labels are on gluetun sidecar
+NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent", "traefik-tailnet"}  # qbittorrent labels are on gluetun sidecar; traefik-tailnet is file-provider-only (dynamic/routes.yml, no docker provider)
 
 # HD-134 / KOPS-030 convention: pinned tags (never bare `latest`). A compose image that
 # RESOLVES to bare `latest` (either a literal `:latest` or an undefined *_version var falling
@@ -86,10 +86,11 @@ WEB_SERVICES = {
     "zipline",
     "open-webui",
     "crowdsec-web-ui",   # HD-272 CrowdSec Web UI (csui.kogler.si)
-    "technitium", "pihole", "n8n",
+    "technitium", "pihole",
     "actual-budget",   # budget.kogler.si UI + :5006 API leg over WG (HD-57)
     "chat",
     "onlyoffice-docs",
+    "traefik-tailnet",  # HD-135b follow-up: tailnet Traefik edge (dashboard label, file-provider routes)
 }
 
 HOST_NET_SERVICES = {"traefik-ha"}

@@ -111,6 +111,84 @@ entries:
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
 
+  # --- HD-135b follow-up (2026-08-28): *.ts.kogler.si twins (tailnet-only traefik-
+  # tailnet edge). Authentik forward_single matches EXACTLY one external_host, so the
+  # tailnet .ts names need their OWN forward-auth providers (same internal backend) —
+  # otherwise a request with Host: stats.ts.kogler.si matches nothing and 404s.
+  # These providers are ONLY reachable over the tailnet (the traefik-tailnet edge).
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_stats_ts
+    identifiers:
+      name: forward-stats-ts
+    attrs:
+      mode: forward_single
+      external_host: https://stats.ts.kogler.si
+      internal_host: http://grafana:3000
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_sec_ts
+    identifiers:
+      name: forward-sec-ts
+    attrs:
+      mode: forward_single
+      external_host: https://sec.ts.kogler.si
+      internal_host: http://metabase:3000
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_auto_ts
+    identifiers:
+      name: forward-auto-ts
+    attrs:
+      mode: forward_single
+      external_host: https://auto.ts.kogler.si
+      internal_host: http://n8n:5678
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_traefik_dash_ts
+    identifiers:
+      name: forward-traefik-dash-ts
+    attrs:
+      mode: forward_single
+      external_host: https://traefik.ts.kogler.si
+      internal_host: https://traefik.kogler.si
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_logs_ts
+    identifiers:
+      name: forward-logs-ts
+    attrs:
+      mode: forward_single
+      external_host: https://logs.ts.kogler.si
+      internal_host: http://dozzle:8080
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_csui_ts
+    identifiers:
+      name: forward-csui-ts
+    attrs:
+      mode: forward_single
+      external_host: https://csui.ts.kogler.si
+      internal_host: http://crowdsec-web-ui:3000
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+
   - model: authentik_core.application
     id: app_edge_stats
     identifiers:
@@ -168,6 +246,56 @@ entries:
       meta_launch_url: https://traefik.kogler.si
       provider: !KeyOf provider_edge_traefik_dash
 
+  # --- HD-135b follow-up: applications for the *.ts.kogler.si twins (tailnet edge) ---
+  - model: authentik_core.application
+    id: app_edge_stats_ts
+    identifiers:
+      slug: edge-grafana-ts
+    attrs:
+      name: Grafana (tailnet ts)
+      meta_launch_url: https://stats.ts.kogler.si
+      provider: !KeyOf provider_edge_stats_ts
+  - model: authentik_core.application
+    id: app_edge_sec_ts
+    identifiers:
+      slug: edge-metabase-ts
+    attrs:
+      name: Metabase (tailnet ts)
+      meta_launch_url: https://sec.ts.kogler.si
+      provider: !KeyOf provider_edge_sec_ts
+  - model: authentik_core.application
+    id: app_edge_auto_ts
+    identifiers:
+      slug: edge-n8n-ts
+    attrs:
+      name: n8n (tailnet ts)
+      meta_launch_url: https://auto.ts.kogler.si
+      provider: !KeyOf provider_edge_auto_ts
+  - model: authentik_core.application
+    id: app_edge_traefik_dash_ts
+    identifiers:
+      slug: edge-traefik-dash-ts
+    attrs:
+      name: Traefik Dashboard (tailnet ts)
+      meta_launch_url: https://traefik.ts.kogler.si
+      provider: !KeyOf provider_edge_traefik_dash_ts
+  - model: authentik_core.application
+    id: app_edge_logs_ts
+    identifiers:
+      slug: edge-dozzle-ts
+    attrs:
+      name: Dozzle (tailnet ts)
+      meta_launch_url: https://logs.ts.kogler.si
+      provider: !KeyOf provider_edge_logs_ts
+  - model: authentik_core.application
+    id: app_edge_csui_ts
+    identifiers:
+      slug: edge-crowdsec-ui-ts
+    attrs:
+      name: CrowdSec UI (tailnet ts)
+      meta_launch_url: https://csui.ts.kogler.si
+      provider: !KeyOf provider_edge_csui_ts
+
   - model: authentik_outposts.outpost
     id: outpost_embedded
     identifiers:
@@ -183,3 +311,9 @@ entries:
         - !KeyOf provider_edge_home
         - !KeyOf provider_edge_home_home
         - !KeyOf provider_edge_traefik_dash
+        - !KeyOf provider_edge_stats_ts
+        - !KeyOf provider_edge_sec_ts
+        - !KeyOf provider_edge_auto_ts
+        - !KeyOf provider_edge_traefik_dash_ts
+        - !KeyOf provider_edge_logs_ts
+        - !KeyOf provider_edge_csui_ts

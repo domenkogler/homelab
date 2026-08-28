@@ -1,0 +1,26 @@
+# traefik-tailnet dynamic/tls.yml — consumer default-store TLS (HD-181/HD-204)
+#   Same pattern as the main traefik consumer edges: NO ACME resolver on this
+#   edge; the wildcard *.kogler.si pair is served from the DEFAULT store below,
+#   sourced from /opt/traefik/certs (the main VPS issuer's certs-dumper output,
+#   bind-mounted read-only — see docker-compose.yml.j2). Routers without an
+#   explicit certResolver fall back to this store, so every route below
+#   (stats/logs/csui/sec/traefik/auto and their *.ts.kogler.si twins) gets TLS.
+#   File names come from the shared wildcard_cert_file / wildcard_cert_key_file
+#   vars (group_vars/all.yml) so the issuer, the dumper and this config can
+#   never drift.
+tls:
+  certificates:
+    - certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
+      keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"
+    # HD-135b follow-up: the *.ts.kogler.si wildcard (requested alongside *.kogler.si on
+    # the issuer — dash router tls.domains[1]) is copied by certs-rename.sh to the fixed
+    # ts.kogler.si.pem / ts.kogler.si-key.pem names (see certs-rename.sh.j2). Serve both
+    # pairs here so the .ts twins (stats.ts.kogler.si …) get a valid cert from the DEFAULT
+    # store on this tailnet edge.
+    - certFile: "/etc/traefik/certs/ts.kogler.si.pem"
+      keyFile: "/etc/traefik/certs/ts.kogler.si-key.pem"
+  stores:
+    default:
+      defaultCertificate:
+        certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
+        keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"

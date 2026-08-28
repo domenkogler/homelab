@@ -1,0 +1,144 @@
+# traefik-tailnet docker-compose.yml — tailnet-only Traefik edge + tailscale sidecar
+#   Serves the admin/observability dashboards over the headscale tailnet with
+#   CLEAN SUBDOMAIN URLs (https://stats.kogler.si, https://logs.kogler.si,
+#   https://csui.kogler.si, https://sec.kogler.si, https://traefik.kogler.si,
+#   https://auto.kogler.si — and their `*.ts.kogler.si` twins). No port numbers,
+#   no new public DNS record, no WAN exposure (docs/network-vpn.md
+#   §Tailnet-exposed services; HD-135b follow-up).
+#
+#   PATTERN B (docs/network-vpn.md): the `tailscale-sidecar` service (below) joins
+#   the tailnet as node `vps-obs` (tag:sidecar) and SHARES this traefik's network
+#   namespace (`network_mode: service:traefik-tailnet`). This traefik binds :443
+#   inside the shared namespace → tailnet clients reach it at the sidecar's
+#   tailnet IP without any `tailscale serve` port proxies (the old
+#   --https=8080..8085 design is replaced by this edge).
+#   The sidecar must be in the SAME compose file (compose v2 restricts
+#   `network_mode: service:X` to same-project services), so the tailnet edge is
+#   ONE docker_services entry (`traefik-tailnet`) with two services — replacing
+#   the former standalone `tailscale-sidecar` dir/entry (removed).
+#
+#   Networking: traefik-tailnet joins the external `traefik-public` overlay so it
+#   can reach the apps (grafana:3000, dozzle:8080, crowdsec_web_ui:3000,
+#   metabase:3000, n8n:5678) by service name; the sidecar inherits that namespace
+#   and rides the same overlay for its outbound tailnet control traffic.
+#   Userspace networking (TS_USERSPACE=true + --tun=userspace-networking) on the
+#   sidecar — no NET_RAW/SYS_MODULE needed (pi-dev/dsh idiom).
+#
+#   Edge IP pin (HD-240 pattern): this edge terminates the header-trust chain
+#   (grafana GF_AUTH_PROXY_WHITELIST, authentik AUTHENTIK_TRUSTED_PROXIES read
+#   `traefik_edge_ips`), so its container IP on traefik-public is PINNED to
+#   `172.20.0.250` and that /32 is appended to `traefik_edge_ips`
+#   (group_vars/all/main.yml) — a drifted assignment would silently reject the
+#   X-authentik-* headers (live lesson 2026-08-24). 172.20.0.250 is far above the
+#   sequential .3+ allocation so no live container collides.
+#
+#   TLS: consumer mode (HD-181/HD-204) — NO ACME resolver. Serves the synced
+#   wildcard pair from the MAIN traefik issuer via the DEFAULT store
+#   (dynamic/tls.yml.j2). On the VPS the certs live in /opt/traefik/certs
+#   (traefik-certs-dumper output); this project bind-mounts that SAME directory
+#   read-only — no separate pull timer needed.
+#
+#   Middlewares/routes: file provider (./dynamic → /etc/traefik/dynamic):
+#   routes.yml (Host() routers per subdomain incl. the *.ts twins), middlewares.yml
+#   (authentik-forward-auth + crowdsec-only chains, per-instance copies — file
+#   provider definitions are NOT shared across traefik instances) and tls.yml
+#   (default store). No docker provider here: the apps' labels belong to the
+#   MAIN public traefik; this edge routes by file.
+#
+#   Secrets via 1Password lookup at render (pre-pass `vault` dict, HD-258):
+#     tailscale-sidecar_api  (Credential: tailscale auth key, fail-loud — no default)
+#     crowdsec-bouncer_api   (crowdsec-only middleware LAPI key, same as main edge)
+#   ACTIVE at deploy (owner seeded the auth key 2026-08-28).
+services:
+  traefik-tailnet:
+    image: traefik:{{ traefik_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+      # EXPERIMENTAL plugins load into /plugins-storage at start; under read_only
+      # the manager failed -> crowdsec-bouncer middleware dead. tmpfs keeps the
+      # hardening (same fix as the main traefik template, Wave-3 R5).
+      - /plugins-storage
+    container_name: traefik-tailnet
+    restart: unless-stopped
+    networks:
+      traefik-public:
+        # HD-240 pattern: pin this edge's IP so the header-trust whitelist
+        # (traefik_edge_ips) stays valid (see header above).
+        ipv4_address: 172.20.0.250
+    volumes:
+      - ./dynamic:/etc/traefik/dynamic:ro   # routes.yml + middlewares.yml + tls.yml (file provider)
+      - /opt/traefik/certs:/etc/traefik/certs:ro   # wildcard pair from the main VPS issuer (HD-181/204)
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    # Dashboard router is a file-provider route in dynamic/routes.yml (Host(traefik.kogler.si)
+    # / Host(traefik.ts.kogler.si) → api@internal) — NO Docker-label router here, so the
+    # tailnet edge is the single owner of the dashboard host on the tailnet.
+    command:
+      - "--log.level=INFO"
+      # File provider ONLY (this edge routes by file; the apps' Docker labels
+      # belong to the main public traefik — a docker provider here would create
+      # duplicate/conflicting routers for the same Host()s).
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      # API dashboard (internal, behind Forward-Auth)
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # CrowdSec bouncer plugin (WAF) — same as the main edge; needed by the
+      # crowdsec-only middleware chain in dynamic/middlewares.yml.
+      - "--experimental.plugins.crowdsec-bouncer.moduleName=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
+      - "--experimental.plugins.crowdsec-bouncer.version={{ crowdsec_bouncer_plugin_version }}"
+
+  # Pattern-A sidecar (docs/network-vpn.md): joins the tailnet as `vps-obs`,
+  # rides THIS service's namespace. No networks/ports of its own — it appends to
+  # the traefik-tailnet namespace inside traefik-public.
+  tailscale-sidecar:
+    image: tailscale/tailscale:{{ tailscale_version }}
+    container_name: tailscale-sidecar
+    restart: unless-stopped
+    network_mode: service:traefik-tailnet
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/tailscale
+    volumes:
+      - /srv/docker/tailscale-sidecar/data:/var/lib/tailscale
+      - ./serve.json:/config/serve.json:ro   # ipn.ServeConfig JSON — TCP(443) -> 127.0.0.1:443 (see serve.json.j2)
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      TS_AUTHKEY: "{{ vault['tailscale-sidecar_api'].credential | replace('$','$$') }}"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"   # userspace networking, no tun (mirrors pi-dev/dsh sidecar)
+      TS_HOSTNAME: vps-obs    # node name on the tailnet (containerboot TS_HOSTNAME, NOT TS_EXTRA_ARGS)
+      TS_ACCEPT_DNS: "true"   # use the tailnet's MagicDNS (headscale dns.extra_records) for *.ts.kogler.si
+      TS_EXTRA_ARGS: "--login-server=https://vpn.kogler.si"   # CRITICAL: point at OUR headscale, not public controlplane.tailscale.com
+      TS_SERVE_CONFIG: /config/serve.json   # containerboot applies + watches this (TCP:443 -> 127.0.0.1:443) — survives recreate
+      TS_AUTH_ONCE: "true"   # containerboot: only auth if not already logged in (reusable key, no forced re-login)
+    depends_on:
+      - traefik-tailnet
+    # NO command override — the official image ENTRYPOINT is `containerboot`
+    # (/usr/local/bin/containerboot build_docker.sh), which reads the TS_* env and
+    # runs `tailscaled --tun=userspace-networking` + `tailscale up --authkey=...`
+    # then BLOCKS foreground. An explicit `command: [tailscaled, ...]` would
+    # REPLACE the entrypoint, skipping containerboot -> tailscale up never runs
+    # -> sidecar never joins the tailnet (verified against upstream Dockerfile +
+    # cmd/containerboot/main.go 2026-08-28).
+    # NOTE: WITHOUT --login-server the client defaults to the PUBLIC Tailscale
+    # control plane and rejects our headscale authkey (live failure 2026-08-28:
+    # "invalid key: unable to validate API key" + control server key from
+    # controlplane.tailscale.com). --login-server MUST point at the headscale
+    # coordination URL (group_vars/all main.yml headscale server_url).
+
+networks:
+  traefik-public:
+    external: true

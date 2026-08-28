@@ -402,6 +402,32 @@ window slide, then one clean restart. DNS-01 propagation checks query the CONTAI
 resolvers — netcup negative cache requires the pinned `dns: [1.1.1.1, 8.8.8.8]` (already in
 traefik + headscale services).
 
+### 1.4b Tailnet dashboard edge (HD-135b follow-up) — tailnet-only admin dashboards
+
+Converged by Ansible like every other compose service (`docker_services` row `traefik-tailnet`
+in `group_vars/vps.yml`, enabled). Imperative facts a from-scratch deploy needs:
+
+1. **Seed the tailscale auth key BEFORE the first converge** (fail-loud render if absent):
+   `Homelab-ansible` item `tailscale-sidecar_api`, field `credential` = a headscale preauth key
+   scoped to `tag:sidecar` — mint on the VPS:
+   ```bash
+   docker exec headscale headscale preauthkeys create --user 2 --tags tag:sidecar --reusable --expiration 8760h -o json
+   ```
+2. **`tailnet_sidecar_ip`** (`group_vars/vps.yml`) must hold the sidecar node's tailnet IPv4
+   (read from `headscale nodes list` after the first join — value per SSOT/`tailnet_sidecar_ip`). Empty →
+   headscale renders no `extra_records` (dashboards won't resolve on the tailnet).
+3. **Certificate pairs:** the issuer requests `*.kogler.si` AND `*.ts.kogler.si`
+   (Traefik dash router `tls.domains[0]/[1]`); `certs-rename.sh` copies both pairs to
+   `/opt/traefik/certs/` (`kogler.si.pem` + `ts.kogler.si.pem`). The tailnet edge serves both
+   from the DEFAULT store — no per-edge ACME.
+4. **Serve passthrough:** the sidecar's `TS_SERVE_CONFIG` (`serve.json`) runs
+   `tailscale serve --tcp=443 → 127.0.0.1:443`; the edge shares traefik-tailnet's netns
+   (`network_mode: service:traefik-tailnet`) — recreate the PROJECT together (compose
+   down+up) if the netns goes stale, then re-apply the serve config.
+
+Verify from a tailnet device: `https://stats.kogler.si` (forward-auth → SSO) and
+`https://stats.ts.kogler.si` (ACL-gated, tailnet-only).
+
 ### 1.5 Authentik first login
 
 - `akadmin` / `authentik_login` password — works FIRST TRY on a fresh install (bootstrap env

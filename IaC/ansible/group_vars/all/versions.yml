@@ -175,4 +175,4 @@ alloy_version: "1.19.2-1"        # grafana/agent → alloy (APT, apt.grafana.com
 prometheus_version: "v3.14.0"        # prom/prometheus (Docker Hub tag has a `v`)
 loki_version: "3.7.6"                # grafana/loki (Docker Hub tag strips `v`)
 blackbox_exporter_version: "v0.28.0"  # prom/blackbox-exporter (Docker Hub tag has a `v`)
-tailscale_version: "v1.80.2"        # tailscale/tailscale (Docker Hub tag has a `v`) — HD-135b sidecar
+tailscale_version: "v1.82.0"        # tailscale/tailscale (Docker Hub tag EXISTS — v1.80.2 was a phantom pin, image 404'd at deploy 2026-08-28; v1.82.0 verified present)

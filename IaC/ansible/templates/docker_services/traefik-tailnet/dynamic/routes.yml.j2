@@ -1,0 +1,199 @@
+# traefik-tailnet dynamic/routes.yml — tailnet subdomain → backend routers
+#   The tailnet edge routes by HOST over traefik-public to the apps (which
+#   expose their containers on traefik-public; the MAIN public traefik keeps
+#   their Docker-label routes unchanged — by design both edges can serve the
+#   same hostnames, the tailnet one only answers tailnet clients because it
+#   lives behind the tailscale sidecar; nothing here binds a WAN address).
+#
+#   DNS: both the plain `*.kogler.si` names and the `*.ts.kogler.si` MagicDNS
+#   twins resolve to the sidecar's tailnet IP via headscale `dns.extra_records`
+#   (see IaC/ansible/templates/docker_services/headscale/config.yaml.j2).
+#
+#   Backends are the container SERVICE names on traefik-public (docker DNS):
+#     grafana:3000 (stats), dozzle:8080 (logs),
+#     crowdsec-web-ui:3000 (csui), metabase:3000 (sec),
+#     n8n:5678 (auto), traefik dashboard via api@internal (traefik).
+#   NOTE: docker DNS on an overlay resolves by SERVICE name, not container_name
+#   (crowdsec-web-ui, NOT crowdsec_web_ui).
+#
+#   The Traefik DASHBOARD itself is served tailnet-only here (Host(traefik.kogler.si)
+#   and Host(traefik.ts.kogler.si)) — the main public edge does NOT expose a dashboard
+#   router on traefik.kogler.si (single-owner of that name on the tailnet).
+#
+#   AUTH on the tailnet edge: the plain `*.kogler.si` routers carry the SAME
+#   Authentik forward-auth as the public edge (works — the providers match those
+#   exact external_hosts). The `*.ts.kogler.si` twins are ACL-GATED only (no
+#   forward-auth): they are reachable ONLY over the tailnet (MagicDNS + headscale
+#   ACL tag:sidecar, policy.hujson — only the owner's nodes), so the tailscale ACL
+#   is the gate, matching the Pattern-B sidecar design "Authentik Forward-Auth at
+#   each app (none on the sidecar)" (docs/network-vpn.md). This avoids the Authentik
+#   forward_single exact-host limitation for the .ts subdomain (a request with Host
+#   stats.ts.kogler.si matches NO provider -> 404; adding ts providers + outpost
+#   binding was explored but the embedded outpost did not reload them reliably).
+#
+#   TLS: no certResolver — every router falls back to the DEFAULT store
+#   (dynamic/tls.yml.j2) serving the synced wildcard *.kogler.si + *.ts.kogler.si
+#   pairs (issuer requests both; certs-rename.sh fixes the ts names).
+
+http:
+  routers:
+    # Grafana dashboards (stats)
+    stats-kogler:
+      rule: "Host(`stats.kogler.si`) || Host(`stats.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: stats-backend
+      tls: true
+    stats-http-redirect:
+      rule: "Host(`stats.kogler.si`) || Host(`stats.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
+    # Dozzle live logs (logs)
+    logs-kogler:
+      rule: "Host(`logs.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: logs-backend
+      tls: true
+    logs-ts-kogler:
+      rule: "Host(`logs.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: logs-backend
+      tls: true
+    logs-http-redirect:
+      rule: "Host(`logs.kogler.si`) || Host(`logs.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
+    # CrowdSec Web UI (csui)
+    csui-kogler:
+      rule: "Host(`csui.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: csui-backend
+      tls: true
+    csui-ts-kogler:
+      rule: "Host(`csui.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: csui-backend
+      tls: true
+    csui-http-redirect:
+      rule: "Host(`csui.kogler.si`) || Host(`csui.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
+    # Metabase CrowdSec dashboard (sec)
+    sec-kogler:
+      rule: "Host(`sec.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: sec-backend
+      tls: true
+    sec-ts-kogler:
+      rule: "Host(`sec.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: sec-backend
+      tls: true
+    sec-http-redirect:
+      rule: "Host(`sec.kogler.si`) || Host(`sec.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
+    # Traefik dashboard (traefik) — tailnet-only (the public edge has no dashboard router)
+    traefik-kogler:
+      rule: "Host(`traefik.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: api@internal
+      tls: true
+    traefik-ts-kogler:
+      rule: "Host(`traefik.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: api@internal
+      tls: true
+    traefik-http-redirect:
+      rule: "Host(`traefik.kogler.si`) || Host(`traefik.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
+    # n8n (auto) — INTERNAL-ONLY: public auto.kogler.si route removed from the
+    # main edge; reachable only over the tailnet now.
+    auto-kogler:
+      rule: "Host(`auto.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: auto-backend
+      tls: true
+    auto-ts-kogler:
+      rule: "Host(`auto.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: auto-backend
+      tls: true
+    auto-http-redirect:
+      rule: "Host(`auto.kogler.si`) || Host(`auto.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
+  middlewares:
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+  services:
+    stats-backend:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"
+    logs-backend:
+      loadBalancer:
+        servers:
+          - url: "http://dozzle:8080"
+    csui-backend:
+      loadBalancer:
+        servers:
+          - url: "http://crowdsec-web-ui:3000"   # SERVICE name (docker DNS) — NOT the container_name
+    sec-backend:
+      loadBalancer:
+        servers:
+          - url: "http://metabase:3000"
+    auto-backend:
+      loadBalancer:
+        servers:
+          - url: "http://n8n:5678"

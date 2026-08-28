@@ -45,7 +45,7 @@
     - name: "Assert the authentik service is deployed (compose dir present)"
       ansible.builtin.stat:
         path: "/opt/authentik/blueprints"
-      register: ak_blueprints_dir
+      register: ak_blueprints
       tags: [authentik, blueprints]
 
     - name: Fail if the authentik blueprints dir is missing on the host
