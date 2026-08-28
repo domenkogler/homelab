@@ -290,10 +290,16 @@ IaC/ansible/
 
 `ansible.cfg` sets `inject_facts_as_vars: false` (the default True is deprecated and removed
 at core 2.24): tasks must reference facts via `ansible_facts['service_mgr']` (never bare
-`ansible_service_mgr`). The two WireGuard pubkey lookups in `group_vars` keep their guarded
-`lookup('vars', …)` form — group_vars load before facts exist, so they must stay
-`vars`-based, not move to `ansible_facts` (the parenthesized guard is the 2.24-clean
-membership syntax).
+`ansible_service_mgr`). The two WireGuard pubkey lookups in `group_vars` use `lookup('vars',
+'<key>', default='')` — previously they guarded with `'key' in vars`, but the internal `vars`
+dict is itself deprecated at 2.24 (verified live in core 2.21.3: the membership check still
+emits `[DEPRECATION WARNING] The internal "vars" dictionary is deprecated`; the deprecation
+help text prescribes the `vars`/`varnames` **lookups** instead). The `default=''` fallback
+preserves the fail-closed load-time empty value. A runtime `assert` in the wireguard/router
+roles still fails-closed on a blank peer at deploy — so `default=''` here does NOT violate
+HD-65's no-`default('')` rule, which applies to **1Password secret lookups**; these pubkeys are
+structural vars with a "provision at deploy" lifecycle (the repo's own `vps.yml` gate + role
+asserts already use `| default('')` on them).
 
 ---
 
