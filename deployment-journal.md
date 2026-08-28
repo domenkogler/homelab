@@ -617,6 +617,34 @@
 - **Verification:** `policy check --bypass-grpc` = **Policy is valid** (user reference resolved against the live DB); restarted for headscale 200; Node node `Naprava A54` reconnected **online** at 18:20:05Z under the tightened policy; **0** deny/unauthorized log lines; `/health` 200. Laptop `Domen_P14s` shows offline because its Tailscale nx client is currently disconnected (client-side, not a policy denial).
 - **Docs pulled in same change:** network-vpn.md layer-2 contract + registration/ACL stanza rewritten (interim `*:*` → tightened; tag-based model documented as the later option). `tagOwners` empty + rationale recorded in template comments. **Secrets touched:** none. **Deviations:** none — this is the documented HD-84 TIGHTEN-at-first-enrolment.
 
+### 2026-08-28 — Phase 1 · VPS observability LIVE: Alloy ships container logs → Loki; Dozzle on VPS; CrowdSec Web UI + watcher; prometheus-internal_api rotation `[AI]`
+
+- **Plan ref:** HD-135b (VPS self-observability) deploy/verify + L3 (internal-only/tailnet) + HD-272 (CrowdSec Web UI) + L2 rotation; main `3178806`.
+- **Commands run (worktree `session/hd135b-vps-obs`, then on main):**
+  ```bash
+  # Alloy: fixed 6 Alloy-1.19 bugs in roles/monitoring/templates/alloy.river.j2 —
+  # duplicate prometheus.exporter.unix "host", dead 9998 scrape, forward_to .receiver
+  # exports, unix:// docker host, removed retry block, and discovery.docker port-mapping
+  # limitation (internal-only fleet) -> replaced with file-based:
+  #   loki.source.file "container_logs" { targets=[{__path__="/var/lib/docker/containers/*/*-json.log"}] file_match{enabled=true} }
+  #   loki.process "cleanup" { stage.docker {} }
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags monitoring   # ok=22 changed=3 failed=0; alloy active
+  # perms for alloy to read docker JSON logs:
+  sudo chmod 750 /var/lib/docker/containers && sudo chgrp docker /var/lib/docker/containers && sudo chmod -R g+rX /var/lib/docker/containers
+  # Dozzle (HD-135b): scoped converge
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=dozzle  # ok=20 changed=6 failed=0; dozzle Up
+  # CrowdSec Web UI (HD-272): 3 template fixes, then converge + watcher
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=crowdsec-web-ui
+  docker exec crowdsec cscli machines add crowdsec-web-ui --password '<crowdsec-webui_lapi_api credential>' -f /dev/null
+  # rotation (L2): full converge redeployed provision token (scope_is_all-gated); UUID rotate + deploy
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services   # ok=267 changed=59 failed=0; token re-deployed
+  op item edit <uuid> --vault "Homelab-ansible" 'password=<new>' 'bcrypt_hash=<new>'
+  ```
+- **Settings chosen:** alloy_version `1.19.2-1`; tailscale_version `v1.80.2`; crowdsec_web_ui_version `2026.8.2`; Dozzle on VPS `logs.kogler.si`; CrowdSec UI `csui.kogler.si` internal Forward-Auth.
+- **Verify (live):** alloy `active`; `loki_source_file_files_active_total=48`; **Loki streams 18 across 13 containers** (`stream=stdout`, `filename=…-json.log`, `detected_level`); crowdsec_web_ui `Up (healthy)` + backend :3000 + watcher registered; prometheus auth 200-new/401-old; Grafana DS proxied query returns series.
+- **Secrets touched:** `prometheus-internal_api` (rotated: old hash `$2b$12$qL0Iu…` retired, new `$2b$12$8UYC…`, values to vault only); `crowdsec-webui_lapi_api` (created, url-safe 32-char watcher pw); `vps-op-write_api` (re-deployed valid token to /etc/op/provision-token).
+- **Deviations:** alloy container-log shipping uses **file-based** `loki.source.file`+`stage.docker` (not `discovery.docker` — it requires host port mappings; internal-only fleet proved 0 targets); alloy read on `/var/lib/docker/containers` via `docker` group grant. (docs updated: alloy.river.j2 comments.)
+
 ## Phase 1a — Parallel Track: NAS Pools + Host Installs
 
 ### 2026-08-23 — Phase 1a · oldsrv reinstalled interactively — preseed automation bypassed after four delivery failures `[MANUAL]`
