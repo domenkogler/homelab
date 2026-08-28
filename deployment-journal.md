@@ -1517,6 +1517,19 @@
 - **Secrets touched:** none printed (the qdrant `QDRANT__SERVICE__API_KEY` value stayed inside the vault dict/template; the test-1password read of the SA token prints a sample but it's the runner's own read-scope SA, not a service secret).
 - **Deviations:** none from design — the two fixes are the documented rebuildable-cache/backup-seam behavior made actually startable. `todo.md`/`changelog.md`/`prompt.md` HD-271 row updated to note the follow-up fixes.
 
+### 2026-08-28 — Phase 1 · HD-270 live re-render verify (6 services, `$`-truncation) `[AI]`
+
+- **Plan ref:** the HD-270 deploy-gated tail (todo HD-270 ⏳): after the `| replace('$','$$')` fix (commit 96f0043), re-render the 6 services and confirm `docker inspect` env == vault. Worktree `homelab-wt-20260828-1626hd271`.
+- **Method (length + tail compare, no value print):** measure each secret env value's length + last-3 chars live (`docker inspect`) vs the vault (`op read`, `printf %s | wc -c` to exclude the newline). Truncation signature = value shorter than vault / `$`-fragment cut.
+- **Pre-render evidence:** disk compose carried **single `$`** in vault-value exprs (authentik `…3q6f$^_o…`, zipline `…$JP8…`, pi-dev `…$DWeR…`, openclaw `…$TY4…`) — the blanking source; kopia carried `…$P…` (+ its non-JSON warning).
+- **The 5-service re-render** (kopia already re-rendered in the qdrant/kopia fix): `bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope="authentik,zipline,litellm,pi-dev,openclaw"` → `ok=58 changed=23 failed=0` (pi-dev 20.25s, zipline 15.51s, authentik 9.30s, litellm 9.20s incl. bootstrap-keys glue interleave).
+- **Verify — all 5 now vault-exact (length + tail):** authentik `SECRET_KEY`/`BOOTSTRAP_PASSWORD`/`POSTGRESQL__PASSWORD` 32 (tail `=>x`/`9We`/`YMT`) == vault; zipline `OAUTH_OIDC_CLIENT_SECRET` 128 == vault (129 was the `wc -c` newline artifact); litellm `MASTER_KEY`/`OPENROUTER`/`COHERE` 32/73/40 (tails `Uj>`/`f65`/`2j4`) == vault; pi-dev `FORGEJO_PR_TOKEN` 32 == vault (was 19 pre-render!); openclaw `GATEWAY_TOKEN`/`WEBDAV_PASSWORD` 32 == vault (was 28 pre-render). Disk compose now `$$`-escaped (``cFQ#9>3q6f$$^_o``, `…$$JP8…`, `…$$DWeR…`, `…$$TY4…`).
+- **Clarification:** litellm was never actually truncated live (no literal `$` in its secrets — re-checked); its disk compose is now `$$`-correct defensively. The genuinely-fixed (`$`-bearing) services are authentik, zipline, pi-dev, openclaw (+ kopia from the previous fix). pi-dev went 19→32 and openclaw 28→32, proving real truncation was present and is now gone.
+- **Commands run:** `docker inspect <c> --format '{{range .Config.Env}}…'` for env lengths/tails; `docker ps` health; `grep -E 'replace|\$\$' /opt/<s>/docker-compose.yml` for the `$$` evidence; the converge above. `validate-all.sh` green before (commit `d90f0e2`-era tree).
+- **Secrets touched:** none printed (lengths + last-3-char tails only, per repo secret hygiene); the vault `op read` values stayed in the pipeline.
+- **Deviations:** none—this is exactly the HD-270 tail close-out. `todo.md` HD-270 ⏳ resolved; `changelog.md` HD-270 entry updated.
+
+
 
 
 ## Phase 3 — oldsrv
