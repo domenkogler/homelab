@@ -32,10 +32,11 @@
 services:
   crowdsec-web-ui:
     image: ghcr.io/theduffman85/crowdsec-web-ui:{{ crowdsec_web_ui_version }}
-    # Class-A/B hardening precedent (dozzle/matrix): cap_drop ALL + read_only + tmpfs /tmp.
+    # Class-B precedent (crowdsec/metabase): the image chowns /app/data at every boot,
+    # so read_only is dropped (same as crowdsec) — keeps cap_drop ALL + tmpfs /tmp.
     cap_drop:
       - ALL
-    read_only: true
+
     tmpfs:
       - /tmp
     container_name: crowdsec_web_ui
@@ -43,7 +44,7 @@ services:
     networks:
       - traefik-public
     volumes:
-      - crowdsec-webui-data:/data
+      - crowdsec-webui-data:/app/data
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       CONFIG_INSTANCE_LAPI_URL: http://crowdsec:8080
