@@ -23,7 +23,7 @@ prometheus.exporter.unix "host" {
 loki.source.docker "container_logs" {
     host = "/var/run/docker.sock"
     targets = []
-    forward_to = [loki.process.cleanup]
+    forward_to = [loki.process.cleanup.receiver]
 }
 
 // Clean up log entries — remove noisy fields, parse standard formats
@@ -32,7 +32,7 @@ loki.process "cleanup" {
         source = "container_name"
         value  = "loki"
     }
-    forward_to = [loki.write.local]
+    forward_to = [loki.write.local.receiver]
 }
 
 // ---- Prometheus remote write (metrics → Prometheus) ----
