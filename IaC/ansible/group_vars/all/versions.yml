@@ -170,6 +170,8 @@ onlyoffice_redis_version: "7.4.11-alpine"    # last 7.4.x alpine
 onlyoffice_rabbitmq_version: "3.13.7-alpine" # last 3.x — ONLYOFFICE-supported broker series
 
 # ==== Observability infra ====
+# Alloy is the DELIBERATE exception (host-APT, not Docker) — decision 2026-08-28 (Option A).
+alloy_version: "1.19.2-1"        # grafana/agent → alloy (APT, apt.grafana.com stable; amd64)
 prometheus_version: "v3.14.0"        # prom/prometheus (Docker Hub tag has a `v`)
 loki_version: "3.7.6"                # grafana/loki (Docker Hub tag strips `v`)
 blackbox_exporter_version: "v0.28.0"  # prom/blackbox-exporter (Docker Hub tag has a `v`)
