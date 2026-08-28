@@ -67,15 +67,15 @@ services:
       DB01_TYPE: postgresql
       DB01_HOST: authentik-postgres
       DB01_PORT: "5432"
-      DB01_USER: "{{ vault['authentik_db'].username }}"
-      DB01_PASS: "{{ vault['authentik_db'].password }}"
+      DB01_USER: "{{ vault['authentik_db'].username | replace('$','$$') }}"
+      DB01_PASS: "{{ vault['authentik_db'].password | replace('$','$$') }}"
       DB01_NAME: authentik
 
       DB02_TYPE: postgresql
       DB02_HOST: forgejo-db
       DB02_PORT: "5432"
-      DB02_USER: "{{ vault['forgejo_db'].username }}"
-      DB02_PASS: "{{ vault['forgejo_db'].password }}"
+      DB02_USER: "{{ vault['forgejo_db'].username | replace('$','$$') }}"
+      DB02_PASS: "{{ vault['forgejo_db'].password | replace('$','$$') }}"
       DB02_NAME: forgejo
 
       # Immich Postgres — on db-internal (real service name is `immich-postgres`, not
@@ -83,8 +83,8 @@ services:
       DB03_TYPE: postgresql
       DB03_HOST: immich-postgres
       DB03_PORT: "5432"
-      DB03_USER: "{{ vault['immich_db'].username }}"
-      DB03_PASS: "{{ vault['immich_db'].password }}"
+      DB03_USER: "{{ vault['immich_db'].username | replace('$','$$') }}"
+      DB03_PASS: "{{ vault['immich_db'].password | replace('$','$$') }}"
       DB03_NAME: immich
 
       # Qdrant (HD-268) — the AI RAG vector store is a REBUILDABLE CACHE over the git floor (not
@@ -97,8 +97,8 @@ services:
       DB06_TYPE: postgresql
       DB06_HOST: litellm-db
       DB06_PORT: "5432"
-      DB06_USER: "{{ vault['litellm_db'].username }}"
-      DB06_PASS: "{{ vault['litellm_db'].password }}"
+      DB06_USER: "{{ vault['litellm_db'].username | replace('$','$$') }}"
+      DB06_PASS: "{{ vault['litellm_db'].password | replace('$','$$') }}"
       DB06_NAME: litellm
 
       # OpenCloud uses an EMBEDDED database (no external Postgres) — it is NOT a DBxx

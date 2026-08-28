@@ -175,7 +175,11 @@ NOT_AUTO_ROTATABLE = {
 
 
 def gen_pw(n: int = 32) -> str:
-    pool = string.ascii_letters + string.digits + "!@#$%^&*()-_=+[]{}<>"
+    # NO '$' in the pool (HD-270): docker compose interpolates a literal `$` in a rendered compose
+    # file BEFORE YAML parse, silently truncating the secret at the `$`. Keeping `$` out of generated
+    # values makes every rotation natively compose-safe. Escaping at render (| replace('$','$$'))
+    # stays as the defensive layer for hand/vendor-sourced values (see docs/deployment-secrets.md).
+    pool = string.ascii_letters + string.digits + "!@#%^&*()-_=+[]{}<>"
     return "".join(secrets.choice(pool) for _ in range(n))
 
 

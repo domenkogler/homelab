@@ -37,7 +37,7 @@ services:
     volumes:
       - /srv/docker/qdrant:/qdrant/storage   # vector index + snapshot/export dir (rebuildable cache; Kopia-backed)
     environment:
-      QDRANT__SERVICE__API_KEY: "{{ vault['qdrant_db'].credential }}"
+      QDRANT__SERVICE__API_KEY: "{{ vault['qdrant_db'].credential | replace('$','$$') }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333 && echo ready >&3 || exit 1"]

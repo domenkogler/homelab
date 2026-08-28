@@ -35,8 +35,8 @@ services:
       - /srv/docker/authentik/postgres:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: "{{ authentik_db_name | default('authentik') }}"
-      POSTGRES_USER: "{{ vault['authentik_db'].username }}"
-      POSTGRES_PASSWORD: "{{ vault['authentik_db'].password }}"
+      POSTGRES_USER: "{{ vault['authentik_db'].username | replace('$','$$') }}"
+      POSTGRES_PASSWORD: "{{ vault['authentik_db'].password | replace('$','$$') }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
@@ -103,15 +103,15 @@ services:
       # is a subdir), so /blueprints/custom is picked up normally.
       - ./blueprints:/blueprints/custom
     environment:
-      AUTHENTIK_SECRET_KEY: "{{ vault['authentik_password'].password }}"
+      AUTHENTIK_SECRET_KEY: "{{ vault['authentik_password'].password | replace('$','$$') }}"
       AUTHENTIK_TOKEN_LENGTH: "86"
       AUTHENTIK_DISABLE_STARTUP_ANALYTICS: "true"
       AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
       AUTHENTIK_POSTGRESQL__NAME: "{{ authentik_db_name | default('authentik') }}"
-      AUTHENTIK_POSTGRESQL__USER: "{{ vault['authentik_db'].username }}"
-      AUTHENTIK_POSTGRESQL__PASSWORD: "{{ vault['authentik_db'].password }}"
+      AUTHENTIK_POSTGRESQL__USER: "{{ vault['authentik_db'].username | replace('$','$$') }}"
+      AUTHENTIK_POSTGRESQL__PASSWORD: "{{ vault['authentik_db'].password | replace('$','$$') }}"
       AUTHENTIK_REDIS__HOST: authentik-redis
-      AUTHENTIK_BOOTSTRAP_PASSWORD: "{{ vault['authentik_login'].password }}"
+      AUTHENTIK_BOOTSTRAP_PASSWORD: "{{ vault['authentik_login'].password | replace('$','$$') }}"
       AUTHENTIK_BOOTSTRAP_EMAIL: admin@kogler.si
       # Header trust pinned to the Traefik edge container IPs only (S15/HD-190, HD-81
       # precedent) — NEVER the whole traefik-public /16: a spoofed X-Forwarded-For from
@@ -170,12 +170,12 @@ services:
       # /blueprints/custom mount so file-based blueprints are discovered+applied.
       - ./blueprints:/blueprints/custom
     environment:
-      AUTHENTIK_SECRET_KEY: "{{ vault['authentik_password'].password }}"
+      AUTHENTIK_SECRET_KEY: "{{ vault['authentik_password'].password | replace('$','$$') }}"
       AUTHENTIK_DISABLE_STARTUP_ANALYTICS: "true"
       AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
       AUTHENTIK_POSTGRESQL__NAME: "{{ authentik_db_name | default('authentik') }}"
-      AUTHENTIK_POSTGRESQL__USER: "{{ vault['authentik_db'].username }}"
-      AUTHENTIK_POSTGRESQL__PASSWORD: "{{ vault['authentik_db'].password }}"
+      AUTHENTIK_POSTGRESQL__USER: "{{ vault['authentik_db'].username | replace('$','$$') }}"
+      AUTHENTIK_POSTGRESQL__PASSWORD: "{{ vault['authentik_db'].password | replace('$','$$') }}"
       AUTHENTIK_REDIS__HOST: authentik-redis
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     depends_on:
@@ -210,7 +210,7 @@ services:
     environment:
       AUTHENTIK_HOST: http://authentik-server:9000
       AUTHENTIK_INSECURE: "true"   # internal HTTP to authentik-server on services-internal only
-      AUTHENTIK_TOKEN: "{{ vault['authentik-ldap_bind'].password }}"
+      AUTHENTIK_TOKEN: "{{ vault['authentik-ldap_bind'].password | replace('$','$$') }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     ports:
       - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:3389:3389"   # LDAP (outpost binds providers' LDAP port); WG-only bind — Samba (nas) pulls over the S2S tunnel (HD-186); no WAN exposure

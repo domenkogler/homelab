@@ -56,10 +56,10 @@ services:
       # Folded scalar (HD-233): 1P-sourced values can carry YAML-hostile chars.
       OPENAI_BASE_URL: "http://litellm:4000/v1"
       OPENAI_API_KEY: >-
-        {{ vault['dsh_api'].credential }}
+        {{ vault['dsh_api'].credential | replace('$','$$') }}
       # Forgejo PR-only git identity (HD-268c). No literals.
       FORGEJO_PR_TOKEN: >-
-        {{ vault['dsh_forgejo_api'].credential }}
+        {{ vault['dsh_forgejo_api'].credential | replace('$','$$') }}
     volumes:
       # Isolated DSH sandbox ONLY — never host dirs (DSH escape warning; HD-268c).
       - /srv/docker/dsh/workspace:/workspace

@@ -83,12 +83,12 @@ services:
       PI_MODEL_PROVIDER_BASE_URL: "http://litellm:4000/v1"
       # Folded scalar (HD-233): 1P-sourced values can carry YAML-hostile chars.
       PI_MODEL_API_KEY: >-
-        {{ vault['pi-harness_openai_api'].credential }}
+        {{ vault['pi-harness_openai_api'].credential | replace('$','$$') }}
       # Forgejo PR-only git credential (HD-268c): pi proposes via Forgejo PRs against
       # the protected `main`; token has PR-only scope, NO merge rights. Injected at
       # deploy into the workspace clone's git remote (docs/services-ai.md §7).
       FORGEJO_PR_TOKEN: >-
-        {{ vault['pi-harness_forgejo_api'].credential }}
+        {{ vault['pi-harness_forgejo_api'].credential | replace('$','$$') }}
 #      pi-web-access needs no API key by default (zero-config Exa) — docs/deployment-secrets.md.
       # Web UI: bind 0.0.0.0 inside the container so the Pattern-A tailnet sidecar reaches :8080.
       # The only exposure is via the tailscale sidecar; never a host/service-internal bind.

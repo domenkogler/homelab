@@ -122,6 +122,50 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 > (`tuwunel.toml` precedent). Validators: `validate-docker-services.py` mocks lookups, so
 > it does not catch a secret-as-inline-quote; the audit is `grep` across `templates/**/*.j2` for
 > `: "{{ lookup('community.general.onepassword'` in a *config* (non-compose) file (HD-233).
+>
+> **Compose `$`-interpolation — escape `$` → `$$`, and only in compose-parsed text (HD-270):**
+>
+> `docker compose` performs raw-text `$`-interpolation (`${VAR}` / `$VAR`) over the **whole rendered
+> compose file BEFORE YAML parsing** — YAML quoting, `>-` folding and block scalars do **NOT** protect
+> a literal `$` in a value. A 1Password secret whose value contains a `$` (e.g. `…$PoZcG…`) is therefore
+> parsed as compose variable `PoZcG` → defaulted to blank → the running config is **silently truncated**
+> at the `$`. The `docker compose config --quiet` validation only *warns + blanks*, never fails, so it
+> misses the drift (**live incident: HD-270, 2026-08-28 full-converge log**, 6×
+> `The "<token>" variable is not set. Defaulting to a blank string.`).
+>
+> **Fix, Layer 1 (source, primary):** prefer generators whose alphabet **excludes `$`**, so rotated
+> values are natively safe forever — `provision-secrets.py` `gen_pw()` dropped `$` from its pool
+> (2026-08-28). `gen_token()`/`gen_wg_key()` never emit `$`. This makes every future rotation through
+> `--rotate`/`--rotate-all` `$`-free at birth.
+>
+> **Fix, Layer 2 (defensive, at render):** escape a 1Password field **only when it lands in compose-parsed
+> text** — append `| replace('$','$$')` to the Jinja expression:
+>
+> ```yaml
+> SECRET: >-
+>   {{ vault['secret'].password | mandatory | replace('$', '$$') }}
+> ```
+>
+> `$$` is the Compose escape ("prevents Compose from interpolating a value"); YAML parses it back to
+> a literal `$`. This is safe against **any** future secret source (hand-pasted, vendor-rotated, OIDC
+> glue) regardless of rotation-by-hand.
+>
+> **Scope — escape ONLY in compose text, NEVER in a plain config file (HD-270):**  interpolation applies
+> only to docker-compose-parsed YAML. In a **non-compose** config template (`config.yaml`, `keepalived.conf`,
+> `middlewares.yml`, `tuwunel.toml`, `prometheus-web-config.yml`, `recyclarr.yml`) the value is read by the
+> app **as-is** — a `$$` there would be a **literal `$` you did not want** and would corrupt the secret.
+> So the rule is **not** "escape every vault ref":
+>
+> - **Escape** every vault ref inside a `docker-compose.yml.j2` (Population A — compose interpolates it).
+> - **Do NOT escape** vault refs inside non-compose config templates (Population B).
+> - **Exempt the two composed `DATABASE_URL` values** (`zipline`, `litellm`) — their secret halves are
+>   already `urlencode`'d, and `urlencode` writes `$` as `%24`, so no `$` survives; adding `replace`
+>   would corrupt the URL.
+>
+> **Idempotency note:** `replace('$','$$')` is a single-layer escape. Applied once to a value the pool
+> already keeps `$`-free it's a no-op; never chain the filter (it would double a pre-existing `$$`).
+> Validator coverage: `validate-docker-services.py` unit-CI fixtures should be extended to assert the
+> escaped vs un-escaped render; the live check is `docker inspect` env equal to the vault value.
 
 ---
 

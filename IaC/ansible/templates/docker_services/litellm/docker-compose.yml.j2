@@ -53,9 +53,9 @@ services:
         condition: service_healthy
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      LITELLM_MASTER_KEY: "{{ vault['litellm_master_key'].credential }}"
-      OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential }}"
-      COHERE_API_KEY: "{{ vault['cohere_api'].credential }}"
+      LITELLM_MASTER_KEY: "{{ vault['litellm_master_key'].credential | replace('$','$$') }}"
+      OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential | replace('$','$$') }}"
+      COHERE_API_KEY: "{{ vault['cohere_api'].credential | replace('$','$$') }}"
       # Models-in-DB (HD-247): Prisma-backed runtime store (litellm proxy_server reads
       # DATABASE_URL when STORE_MODEL_IN_DB=true). Folded scalars per the HD-233 rule —
       # vault-generated values can contain YAML-hostile characters.
@@ -91,9 +91,9 @@ services:
       - /srv/docker/litellm/postgres:/var/lib/postgresql/data   # CRITICAL state (HD-247): holds keys/models/spend — db-backup DB06 + Kopia scope
     environment:
       POSTGRES_DB: litellm
-      POSTGRES_USER: "{{ vault['litellm_db'].username }}"
+      POSTGRES_USER: "{{ vault['litellm_db'].username | replace('$','$$') }}"
       POSTGRES_PASSWORD: >-
-        {{ vault['litellm_db'].password }}
+        {{ vault['litellm_db'].password | replace('$','$$') }}
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]

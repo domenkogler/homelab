@@ -47,8 +47,8 @@ services:
       FORGEJO__database__DB_TYPE: postgres
       FORGEJO__database__HOST: forgejo-db:5432
       FORGEJO__database__NAME: forgejo
-      FORGEJO__database__USER: "{{ vault['forgejo_db'].username }}"
-      FORGEJO__database__PASSWD: "{{ vault['forgejo_db'].password }}"
+      FORGEJO__database__USER: "{{ vault['forgejo_db'].username | replace('$','$$') }}"
+      FORGEJO__database__PASSWD: "{{ vault['forgejo_db'].password | replace('$','$$') }}"
       # Server identity (Wave-3 R5): without these the first-boot wizard defaulted
       # AppURL to http://localhost:3000, breaking links/mail/OIDC callbacks.
       FORGEJO__server__DOMAIN: git.kogler.si
@@ -94,8 +94,8 @@ services:
       - /srv/docker/forgejo/postgres:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: forgejo
-      POSTGRES_USER: "{{ vault['forgejo_db'].username }}"
-      POSTGRES_PASSWORD: "{{ vault['forgejo_db'].password }}"
+      POSTGRES_USER: "{{ vault['forgejo_db'].username | replace('$','$$') }}"
+      POSTGRES_PASSWORD: "{{ vault['forgejo_db'].password | replace('$','$$') }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
