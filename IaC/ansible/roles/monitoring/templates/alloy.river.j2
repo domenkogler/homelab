@@ -20,9 +20,15 @@ prometheus.exporter.unix "host" {
 }
 
 // ---- Docker container logs (via docker.sock) ----
+// discovery.docker discovers running containers; loki.source.docker reads their logs.
+// (Alloy 1.19: loki.source.docker needs explicit targets from a discovery component —
+// targets=[] was a no-op -> no container logs shipped.)
+discovery.docker "containers" {
+    host = "unix:///var/run/docker.sock"
+}
 loki.source.docker "container_logs" {
     host = "unix:///var/run/docker.sock"
-    targets = []
+    targets = discovery.docker.containers.targets
     forward_to = [loki.process.cleanup.receiver]
 }
 
