@@ -95,6 +95,7 @@ CATALOG = [
     ("Database",    "forgejo_db",             lambda: [f"username=forgejo",   f"password={gen_pw()}"]),
     ("Database",    "onlyoffice_db",          lambda: [f"username=onlyoffice", f"password={gen_pw()}"]),
     ("API Credential", "qdrant_db",             lambda: [f"credential={gen_pw()}"]),   # HD-268 Qdrant vector-store API key (replaces PGVector; no username, single static key) — QDRANT__SERVICE__API_KEY
+    ("API Credential", "crowdsec-webui_lapi_api", lambda: [f"credential={gen_token()}"]),  # HD-272 CrowdSec Web UI LAPI watcher password (cscli machines add crowdsec-web-ui --password ... -f /dev/null); url-safe token, not externally-coupled
     ("Database",    "zipline_db",             lambda: [f"username=zipline",   f"password={gen_pw()}"]),   # HD-112
     ("Database",    "litellm_db",             lambda: [f"username=litellm",   f"password={gen_pw()}"]),   # HD-247 LiteLLM runtime DB (STORE_MODEL_IN_DB) — keys/models/spend live here; CRITICAL state, dumped via db-backup DB06
     # --- Password items ---

@@ -57,7 +57,7 @@ tags: [services, interfaces, dashboards]
 
 - **Purpose:** Time-series data for Domen (admin)
 - **Data sources:** Prometheus (metrics: Alloy/SNMP/service scrape/HA exporter/blackbox) + Loki (logs)
-- **Access:** `stats.kogler.si` — **tailnet-only** (headscale), no public record (HD-135b follow-up), Authentik OIDC, **admin-only**
+- **Access:** `stats.kogler.si`, **internal-only** (LAN/VPN), Authentik OIDC, **admin-only**
 - **Network:** `traefik-public` (frontend) + `db-internal` (backends) — cross-network access is intentional
 - **Planned graphs:**
   - MikroTik traffic (24h — SNMP poll 5–15 s, dashboard refresh near real-time)
@@ -72,7 +72,7 @@ tags: [services, interfaces, dashboards]
 ## Traefik Dashboard — Routing & Debug
 
 - **Purpose:** Inspect Traefik routing, middleware chain, certificate status
-- **Access:** `traefik.kogler.si` — **tailnet-only** (headscale), no public record (HD-135b follow-up), Authentik OIDC (admin)
+- **Access:** `traefik.kogler.si`, **internal-only** (LAN/VPN), Authentik OIDC (admin)
 - **Config:** Traefik `--api` + `api@internal` service (see [`services-traefik.md`](services-traefik.md))
 
 ---
@@ -80,8 +80,16 @@ tags: [services, interfaces, dashboards]
 ## Metabase / CrowdSec Dashboard — Analytics & Learning
 
 - **Purpose:** CrowdSec dashboard view **and** a Metabase learning/analytics sandbox — one instance
-- **Access:** `sec.kogler.si` — **tailnet-only** (headscale), no public record (HD-135b follow-up), Authentik **Forward-Auth** at the edge (HD-148 — Metabase OSS has no OIDC/SSO; Enterprise-only) + local Metabase admin
+- **Access:** `sec.kogler.si`, **internal-only**, Authentik **Forward-Auth** at the edge (HD-148 — Metabase OSS has no OIDC/SSO; Enterprise-only) + local Metabase admin
 - **Why one instance:** latest-version Metabase (not CrowdSec's pinned bundle) gives upgrade/experiment freedom while the same instance serves the CrowdSec dashboard
+
+---
+
+## CrowdSec Web UI — Ops Dashboard (`csui.kogler.si`, HD-272)
+
+- **Purpose:** richer CrowdSec ops surface (alerts, decisions, metrics, notifications, multi-LAPI) alongside the Metabase analytics view
+- **Access:** `csui.kogler.si`, **internal-only** (no public CNAME), Authentik **Forward-Auth** at the edge
+- **Auth to LAPI:** a dedicated **watcher machine** (`crowdsec-web-ui`, password from `crowdsec-webui_lapi_api`), register deploy-gated: `docker exec crowdsec cscli machines add crowdsec-web-ui --password '<pw>' -f /dev/null`
 
 ---
 

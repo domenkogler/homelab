@@ -95,6 +95,7 @@ traefik_acme_issuer: false
 _template_vault_items:
   authentik: {'authentik_password', 'authentik_login', 'authentik-ldap_bind', 'authentik_db'}
   db-backup: {'forgejo_db', 'immich_db', 'authentik_db', 'litellm_db'}
+  crowdsec-web-ui: {'crowdsec-webui_lapi_api'}   # HD-272 LAPI watcher password (vault-dict read at render)
   forgejo: {'forgejo_db'}
   grafana: {'smtp_login', 'grafana_login'}
   headscale: {'headplane_password', 'headscale_api', 'headplane_api'}

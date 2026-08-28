@@ -39,14 +39,14 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 20 | loki | loki | `https://loki.kogler.si` | enabled |
 | 21 | grafana | stats | `https://stats.kogler.si` | enabled |
 | 22 | blackbox-exporter | blackbox-exporter | `https://blackbox-exporter.kogler.si` | enabled |
-| 23 | dozzle | logs | `https://logs.kogler.si` | enabled |
-| 24 | n8n | auto | `https://auto.kogler.si` | enabled |
-| 25 | kopia-server | kopia-server | `https://kopia-server.kogler.si` | enabled |
-| 26 | db-backup | db-backup | `https://db-backup.kogler.si` | enabled |
-| 27 | matrix | matrix | `https://matrix.kogler.si` | enabled |
-| 28 | chat | chat | `https://chat.kogler.si` | enabled |
-| 29 | headscale | vpn | `https://vpn.kogler.si` | enabled |
-| 30 | metabase | sec | `https://sec.kogler.si` | enabled |
+| 23 | n8n | auto | `https://auto.kogler.si` | enabled |
+| 24 | kopia-server | kopia-server | `https://kopia-server.kogler.si` | enabled |
+| 25 | db-backup | db-backup | `https://db-backup.kogler.si` | enabled |
+| 26 | matrix | matrix | `https://matrix.kogler.si` | enabled |
+| 27 | chat | chat | `https://chat.kogler.si` | enabled |
+| 28 | headscale | vpn | `https://vpn.kogler.si` | enabled |
+| 29 | metabase | sec | `https://sec.kogler.si` | enabled |
+| 30 | crowdsec-web-ui | csui | `https://csui.kogler.si` | enabled |
 | 31 | pairdrop | drop | `https://drop.kogler.si` | enabled |
 | 32 | stirling-pdf | pdf | `https://pdf.kogler.si` | enabled |
 | 33 | renovate | renovate | `https://renovate.kogler.si` | enabled |
@@ -87,4 +87,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-08-28T17:17:32Z
+> Generated from the `docker_services` lists | 2026-08-28T17:58:22Z

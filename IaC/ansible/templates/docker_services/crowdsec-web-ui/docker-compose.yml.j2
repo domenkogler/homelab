@@ -1,0 +1,64 @@
+# crowdsec-web-ui docker-compose.yml — CrowdSec Web UI (csui.kogler.si, HD-272)
+#   TheDuffman85/crowdsec-web-ui — self-hosted CrowdSec dashboard (alerts, decisions,
+#   metrics, notifications, multi-LAPI, OIDC SSO, read-only mode). RICHER ops surface
+#   alongside the Metabase CrowdSec view (sec.kogler.si, HD-242).
+#
+#   INTERNAL-ONLY (HD-272, matches the observability-internal decision this session):
+#   NO public Cloudflare record — reached from LAN/VPN only, behind Authentik
+#   Forward-Auth at the Traefik edge (repo-standard for internal ops UIs). Do NOT add
+#   a cloudflare_dns CNAME for this service without an owner decision.
+#
+#   AUTH: Forward-Auth (authentik-forward-auth@file) at the edge — consistent with
+#   metabase/dozzle/grafana. This UI ALSO supports native OIDC, but the repo's
+#   standard for internal admin UIs is Forward-Auth (no second login form, full SSO
+#   + MFA passthrough). Keep Forward-Auth; native OIDC stays a hypothetical upgrade.
+#
+#   LAPI WATCHER AUTH (HD-272): the UI talks to the CrowdSec LAPI as a WATCHER MACHINE
+#   with password auth (NOT the bouncer key). DEPLOY-GATED (owner, live, do NOT run
+#   from IaC): register the watcher on the VPS once, after first converge:
+#       docker exec crowdsec cscli machines add crowdsec-web-ui --password '<pw>' -f /dev/null
+#   (the '-f /dev/null' is REQUIRED — it registers the machine without overwriting the
+#   container's existing credentials file). The password = the 'crowdsec-webui_lapi_api'
+#   1Password item (credential field). If the watcher is re-created, also
+#   'cscli machines remove crowdsec-web-ui' first.
+#
+#   DATA: the app persists admin accounts/settings in a Docker named volume
+#   (crowdsec-webui-data). No host bind needed (no bind_owner_uid). State is small +
+#   regenerable (admin/settings); NOT in Kopia/db-backup scope yet — see todo HD-272
+#   deploy-gated tail (add to backup scope when it carries real user state).
+#
+#   SECRET: crowdsec-webui_lapi_api (credential) via the bulk vault pre-pass (vault
+#   dict). Fail-loud: missing/down item aborts the render (no default(''), HD-91/HD-65).
+services:
+  crowdsec-web-ui:
+    image: ghcr.io/theduffman85/crowdsec-web-ui:{{ crowdsec_web_ui_version }}
+    # Class-A/B hardening precedent (dozzle/matrix): cap_drop ALL + read_only + tmpfs /tmp.
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: crowdsec_web_ui
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    volumes:
+      - crowdsec-webui-data:/data
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      CONFIG_INSTANCE_LAPI_URL: http://crowdsec:8080
+      CONFIG_INSTANCE_LAPI_AUTH_USERNAME: crowdsec-web-ui
+      CONFIG_INSTANCE_LAPI_AUTH_PASSWORD: >-
+        {{ vault['crowdsec-webui_lapi_api'].credential | replace('$','$$') }}
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.crowdsec-web-ui.rule: "Host(`csui.kogler.si`)"
+      traefik.http.routers.crowdsec-web-ui.entrypoints: websecure
+      {{ 'traefik.http.routers.crowdsec-web-ui.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      traefik.http.routers.crowdsec-web-ui.middlewares: authentik-forward-auth@file
+      traefik.http.services.crowdsec-web-ui.loadbalancer.server.port: "3000"
+volumes:
+  crowdsec-webui-data:
+networks:
+  traefik-public:
+    external: true

@@ -85,6 +85,7 @@ WEB_SERVICES = {
     "stirling-pdf",
     "zipline",
     "open-webui",
+    "crowdsec-web-ui",   # HD-272 CrowdSec Web UI (csui.kogler.si)
     "technitium", "pihole", "n8n",
     "actual-budget",   # budget.kogler.si UI + :5006 API leg over WG (HD-57)
     "chat",

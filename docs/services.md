@@ -89,9 +89,7 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 
 > Note: `office` (ONLYOFFICE) and `git` (Forgejo) belong to `services-office.md` and `services-admin.md` resp. — subdomains shared here are cross-cutting.
 
-**Admin Dashboards decision:** Traefik Dashboard included, internal-only (`traefik.kogler.si`, see `services-traefik.md`); CrowdSec Dashboard included, internal-only `sec.kogler.si` via Metabase (admin stack). **Portainer / Dockge — excluded** (single Ansible-templated compose model).
-
-**Observability dashboards are tailnet-only (HD-135b follow-up, 2026-08-28):** `stats` (Grafana), `sec` (Metabase), `traefik` (Traefik dashboard) and `auto` (n8n) have **no public record** and are **not WAN-reachable** — they sit behind Authentik on the internal edge and are reached **only over the headscale tailnet** from admin devices (see [`network-vpn.md`](network-vpn.md) §Tailnet-exposed services). They were briefly published during the Phase-1 wave; the public CNAMEs are removed from the IaC SSOT and are deleted from Cloudflare at deploy time (owner action). `logs` (Dozzle) is internal-only too (no record).
+**Admin Dashboards decision:** Traefik Dashboard included, internal-only (`traefik.kogler.si`, see `services-traefik.md`); CrowdSec Dashboard included, internal-only `sec.kogler.si` via Metabase + **CrowdSec Web UI** `csui.kogler.si` (HD-272, internal-only, Forward-Auth) — admin stack. **Portainer / Dockge — excluded** (single Ansible-templated compose model).
 
 ---
 
