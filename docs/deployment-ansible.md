@@ -286,6 +286,15 @@ IaC/ansible/
     └── nut/                         # nut.conf.j2, ups.conf.j2, upsd.users.j2, upsmon.conf.j2, upssched.conf.j2
 ```
 
+### ansible-core 2.24 readiness (HD-271)
+
+`ansible.cfg` sets `inject_facts_as_vars: false` (the default True is deprecated and removed
+at core 2.24): tasks must reference facts via `ansible_facts['service_mgr']` (never bare
+`ansible_service_mgr`). The two WireGuard pubkey lookups in `group_vars` keep their guarded
+`lookup('vars', …)` form — group_vars load before facts exist, so they must stay
+`vars`-based, not move to `ansible_facts` (the parenthesized guard is the 2.24-clean
+membership syntax).
+
 ---
 
 ## Inventory

@@ -103,7 +103,7 @@
 - name: "Validate rendered compose file for {{ svc.name }} (HD-162)"
   ansible.builtin.shell:
     cmd: "docker compose -f {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml config --quiet"   # `compose validate` does not exist (found live Phase 1)
-  when: ansible_service_mgr == 'systemd'   # docker available; catch a bad render before compose up
+  when: ansible_facts['service_mgr'] == 'systemd'   # docker available; catch a bad render before compose up
   tags: "{{ svc.name }}"
 
 - name: "Docker compose up -d for {{ svc.name }}"
@@ -157,7 +157,7 @@
     name: "docker-compose@{{ svc.name }}"
     enabled: true
     state: started
-  when: ansible_service_mgr == 'systemd'
+  when: ansible_facts['service_mgr'] == 'systemd'
 
 # ---- Postgres role-password drift guard (2026-08-23 incident) ----
 # The official postgres image applies POSTGRES_PASSWORD ONLY at first cluster init;
