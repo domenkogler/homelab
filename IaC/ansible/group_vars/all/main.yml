@@ -227,7 +227,7 @@ wg_s2s_vps:
   router_ip: "10.255.40.1"
   listen_port: 51820
   endpoint: ""                        # home WAN endpoint (dynamic); the VPS initiates here — set at deploy
-  peer_public_key: "{{ lookup('vars', 'wg_s2s_router_public_key') if ('wg_s2s_router_public_key' in vars) else '' }}"  # router(PubKey), provisioned at deploy
+  peer_public_key: "{{ lookup('vars', 'wg_s2s_router_public_key', default='') }}"  # router(PubKey), provisioned at deploy  (HD-271: lookup default — no `in vars` membership; the internal vars dict is deprecated at 2.24)
   # AllowedIPs — LEAST-ACCESS (HD-155): the VPS may reach ONLY the scoped home
   # targets below (exporter/VIP/probe + oldsrv backends when wired), NOT the whole
   # `site` /16. Derived from network_static_hosts by name (never literal IPs). The
