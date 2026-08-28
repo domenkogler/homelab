@@ -73,11 +73,18 @@ docker_services:
   # bind dirs root-owned; the images run non-root (grafana=472, n8n/openclaw=1000 node)
   # and crashed with EACCES. deploy-service.yml pre-creates/chowns them (Class-A fix).
   - { name: openclaw,       template_dir: openclaw,  enabled: true, bind_owner_uid: "1000", bind_dirs: ['.', 'workspace', 'auth'] }
-  # === Observability backend (VPS = reliable tier; oldsrv Alloy forwards over WG) ===
+  # === Observability: VPS backend + VPS self-observability (HD-135b) ===
+  # HD-135b (2026-08-28): the VPS is now self-sufficient for ITS OWN observability —
+  # its host Alloy (monitoring role, [monitoring] group) ships VPS container logs +
+  # metrics to loopback Prometheus/Loki on the SAME host (no tunnel), and Dozzle
+  # (logs viewer) moved HERE from oldsrv. oldsrv/Pi keep their own thin Alloy
+  # collectors streaming home telemetry over wg-s2s — that tunnel dependency applies
+  # only to HOME data, not the VPS's own stack. See docs/observability.md §Placement.
   - { name: prometheus,     template_dir: prometheus, enabled: true }
   - { name: loki,           template_dir: loki,       enabled: true }
   - { name: grafana,        template_dir: grafana,    subdomain: stats, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
   - { name: blackbox-exporter, template_dir: blackbox-exporter, enabled: true }
+  - { name: dozzle,         template_dir: dozzle,        subdomain: logs, enabled: true }   # HD-135b: live per-container log viewer moved from oldsrv (logs.kogler.si)
   # === Alert brain (WG-down -> net mail/Signal; independent of tunnel) ===
   - { name: n8n,            template_dir: n8n,       subdomain: auto, enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
   # === Backup agents (Kopia -> backup Box; db-backup dumps) ===

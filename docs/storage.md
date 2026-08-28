@@ -197,7 +197,7 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
 ├── nvme/docker-layers       /var/lib/docker        128K lz4   no snapshots (images re-pullable)
 ├── nvme/docker              /srv/docker (container, canmount=off)
 │   ├── nvme/docker/immich   /srv/docker/immich     128K lz4   thumbs read by immich-ml (kept, HD-151)
-│   └── nvme/docker/services /srv/docker/services   128K zstd  remaining local service state (post-HD-135 the public apps/DBs run on the VPS — oldsrv keeps the LAN core: DNS, dozzle, signal-cli, media stack state)
+│   └── nvme/docker/services /srv/docker/services   128K zstd  remaining local service state (post-HD-135 the public apps/DBs run on the VPS — oldsrv keeps the LAN core: DNS, signal-cli, media stack state; dozzle moved to VPS per HD-135b)
 ├── nvme/models              /srv/models 128K off   no snapshots, no backup (ollama + immich-ml weights)  (TSDB moved to VPS — HD-135)
 └── nvme/dumps               /srv/dumps  128K zstd  db-backup scratch → Kopia + push → tank/data/db-dumps
 ```

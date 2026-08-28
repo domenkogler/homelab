@@ -47,7 +47,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Observe (Prometheus, Loki) | `db-internal` |
 | Observe (Grafana) | `traefik-public` **+** `db-internal` (needs to query backends) |
 | Observe (blackbox-exporter) | `services-internal` |
-| Observe logs viewer (Dozzle) | `traefik-public` (read-only `docker.sock`) |
+| Observe logs viewer (Dozzle) | `traefik-public` (read-only `docker.sock`) · on the **VPS** (HD-135b) |
 | Alert (n8n) | `services-internal` |
 | CD (Ansible via Forgejo Actions) | host SSH (no Docker-socket agent) |
 | Update (Renovate) | `services-internal` |
@@ -153,7 +153,7 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   SABnzbd stays on the plain LAN (Eweka usenet is a licensed service).
 - **Auth:** admin UIs behind `authentik-forward-auth@file` with built-in logins disabled;
   Jellyfin + Seerr use their own login (client apps / family portal).
-- **Dozzle** is an observability viewer (all containers), not part of the *arr stack — see `observability.md`.
+- **Dozzle** is an observability viewer (all containers), not part of the *arr stack — see `observability.md`. Runs on the **VPS** (HD-135b) so log viewing is independent of home hosts.
 
 ### Immich (v3) — Server + Postgres + Valkey (microservices merged into server)
 

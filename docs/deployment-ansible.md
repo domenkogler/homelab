@@ -397,7 +397,7 @@ dns_secondary_ip: 10.10.1.20     # Technitium secondary binds node IP
 > modifiers and per-host gates) lives only in [`group_vars/home_servers.yml`](../IaC/ansible/group_vars/home_servers.yml)
 > — derived data, never re-typed in docs (CONVENTIONS §2). Post-HD-135, oldsrv keeps the
 > **GPU / LAN / storage-bound core** (ollama, immich-ml, technitium-primary, pihole,
-> home-assistant-standby, dozzle, signal-cli-rest-api, sunshine [desktop-gated], jellyfin + seerr
+> home-assistant-standby, signal-cli-rest-api, sunshine [desktop-gated], jellyfin + seerr
 > + the *arr stack, kopia-agent); the public edge, public apps, AI stack, observability backend and
 > n8n live on the VPS (`group_vars/vps.yml`). Human catalog: [`services.md`](services.md).
 

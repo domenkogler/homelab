@@ -87,16 +87,16 @@ Containers start at boot via systemd units **before any user logs in**:
 ## Docker Services (HD-135 split — oldsrv = GPU/LAN core)
 
 > **Single source of truth:** the canonical service catalog is [`services.md`](services.md).
-> Per the HD-135 split, `oldsrv` runs the **GPU/LAN/storage-bound core** (ollama, immich-ml, jellyfin/*arr, sunshine, DNS, HA standby, homepage, dozzle, signal-cli); the public edge + live-data apps + observability backend + GitOps moved to the VPS. See [`services-vps.md`](services-vps.md).
+> Per the HD-135 split, `oldsrv` runs the **GPU/LAN/storage-bound core** (ollama, immich-ml, jellyfin/*arr, sunshine, DNS, HA standby, homepage, signal-cli); the public edge + live-data apps + observability backend + GitOps moved to the VPS. **HD-135b (2026-08-28): Dozzle also moved to the VPS** (logs viewer independent of home hosts) — see [`observability.md`](observability.md) §Placement.
 > GPU-enabled containers (Ollama, Immich-ML, Sunshine) are noted in `hardware-gpu.md`.
 
 ---
 
 ## Observability Storage & Notes
 
-- **TSDB storage:** the observability **backend moved to the VPS (HD-135)** — Prometheus/Loki live on **VPS NVMe** (`/srv/tsdb` on the VPS, or equivalent `prometheus`/`loki` service volumes), not on oldsrv. Oldsrv runs only the thin **Alloy collector** (host metrics + logs) forwarding over the `wg-s2s` tunnel (`alloy_backend_host`). Metrics/logs remain **regenerable**, ~10–20 GB at 30d/14d retention, not backed up. See `observability.md` §Placement.
+- **TSDB storage:** the observability **backend moved to the VPS (HD-135)** — Prometheus/Loki live on **VPS NVMe** (`/srv/tsdb` on the VPS, or equivalent `prometheus`/`loki` service volumes), not on oldsrv. Oldsrv runs only the thin **Alloy collector** (host metrics + logs) forwarding over the `wg-s2s` tunnel (`alloy_backend_host`). Metrics/logs remain **regenerable**, ~10–20 GB at 30d/14d retention, not backed up. See `observability.md` §Placement. **HD-135b: the VPS runs its OWN Alloy** (loopback → local Prometheus/Loki) + own Dozzle — it does not depend on oldsrv for its own observability.
 - **Disk headroom:** monitor the `nvme` pool (oldsrv) + OS disk **and** the VPS NVMe in Grafana — pool ≥70% Warning / ≥80% Critical (see `observability.md`), OS disk ≥90% Critical.
-- **SPOF (accepted, HD-135):** the observability **backend** now lives on the **VPS** — if the VPS (or the home↔VPS `wg-s2s` tunnel) is down, live home metrics/logs are unavailable in Grafana (aggregation is buffered/replayed on reconnect). NUT-side `notifycmd`/`upssched-cmd` on nas remains the independent power-loss alert path. Documented in `observability.md` §Placement.
+- **SPOF (accepted, HD-135, narrowed HD-135b):** the observability **backend** now lives on the **VPS** — if the VPS (or the home↔VPS `wg-s2s` tunnel) is down, *home* metrics/logs are unavailable in Grafana (aggregation is buffered/replayed on reconnect; the VPS's own stack stays observable locally via its loopback Alloy + Dozzle). NUT-side `notifycmd`/`upssched-cmd` on nas remains the independent power-loss alert path. Documented in `observability.md` §Placement.
 - Adds RAM weight vs original: n8n + Loki are the main additions; i7-7700K / 48 GB handles the collector side.
 
 ---
