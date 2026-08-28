@@ -26,9 +26,22 @@ prometheus.exporter.unix "host" {
 discovery.docker "containers" {
     host = "unix:///var/run/docker.sock"
 }
+// discovery.docker only emits targets with a host-mapped `__address__`; our containers
+// are internal (no published ports), so force the docker socket address for every
+// discovered container (keyed by container id) and feed that to loki.source.docker.
+discovery.relabel "docker_logs" {
+    targets = discovery.docker.containers.targets
+    rule {
+        source_labels = ["__meta_docker_container_id"]
+        regex         = "(.+)"
+        replacement   = "unix:///var/run/docker.sock"
+        target_label  = "__address__"
+        action        = "replace"
+    }
+}
 loki.source.docker "container_logs" {
     host = "unix:///var/run/docker.sock"
-    targets = discovery.docker.containers.targets
+    targets = discovery.relabel.docker_logs.output
     forward_to = [loki.process.cleanup.receiver]
 }
 
