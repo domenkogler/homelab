@@ -73,11 +73,16 @@ docker_services:
   # bind dirs root-owned; the images run non-root (grafana=472, n8n/openclaw=1000 node)
   # and crashed with EACCES. deploy-service.yml pre-creates/chowns them (Class-A fix).
   - { name: openclaw,       template_dir: openclaw,  enabled: true, bind_owner_uid: "1000", bind_dirs: ['.', 'workspace', 'auth'] }
-  # === Observability backend (VPS = reliable tier; oldsrv Alloy forwards over WG) ===
+  # === Observability backend (VPS = reliable tier; VPS self-observes loopback, HD-135b) ===
   - { name: prometheus,     template_dir: prometheus, enabled: true }
   - { name: loki,           template_dir: loki,       enabled: true }
   - { name: grafana,        template_dir: grafana,    subdomain: stats, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
   - { name: blackbox-exporter, template_dir: blackbox-exporter, enabled: true }
+  - { name: dozzle,         template_dir: dozzle,        subdomain: logs, enabled: true }   # HD-135b: live per-container log viewer moved from oldsrv (logs.kogler.si)
+  # HD-135b follow-up: admin dashboards are TAILNET-ONLY. This Pattern-B sidecar serves
+  # stats/sec/traefik/logs/n8n over headscale (no public records). SKELETON — disabled:
+  # seed 1Password `tailscale-sidecar_api` (auth key) + flip to enabled: true + converge.
+  - { name: tailscale-sidecar, template_dir: tailscale-sidecar, enabled: false }
   # === Alert brain (WG-down -> net mail/Signal; independent of tunnel) ===
   - { name: n8n,            template_dir: n8n,       subdomain: auto, enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
   # === Backup agents (Kopia -> backup Box; db-backup dumps) ===
