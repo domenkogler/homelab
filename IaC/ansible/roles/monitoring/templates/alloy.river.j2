@@ -81,17 +81,14 @@ prometheus.exporter.snmp "mikrotik" {
 }
 {% endif %}
 
-
-// ---- Host metrics → remote_write ----
-prometheus.scrape "host_metrics" {
+// ---- Alloy host metrics (own /metrics) → remote_write ----
+// The unix exporter (top of file) exposes host metrics on Alloy's OWN HTTP server
+// /metrics (default listen 127.0.0.1:12345 — server.http.listen-addr). Scrape that
+// inside the same process and remote-write the series to the VPS Prometheus. There is
+// NO per-exporter scrape port (the old `:9998` target was a phantom).
+prometheus.scrape "alloy_self" {
     targets = [
-        {"__address__" = "127.0.0.1:{{ alloy_host_metrics_port | default(9998) }}", "job" = "alloy-host", "instance" = "{{ inventory_hostname }}"},
+        {"__address__" = "127.0.0.1:{{ alloy_metrics_port | default(12345) }}", "job" = "alloy", "instance" = "{{ inventory_hostname }}"},
     ]
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
-
-// Wire the unix exporter into the scrape chain
-prometheus.exporter.unix "host" {
-    // This is wired into the scrape above via port
-}
-// Note: the unix exporter's listen port is set via CLI flag in the systemd service
