@@ -37,29 +37,11 @@ loki.source.file "container_logs" {
     }
 }
 
-// Clean up log entries — remove noisy fields, parse the Docker JSON envelope.
+// Clean up log entries: stage.docker is the purpose-built parser for Docker JSON
+// log files — it unpacks `log` (becomes the line), `stream` (label), `time`
+// (timestamp), and rewrites the entry. Nothing to hand-parse.
 loki.process "cleanup" {
-    stage.json {
-        expressions = {
-            message = "log",
-            stream  = "stream",
-            ts      = "time",
-        }
-    }
-    stage.timestamp {
-        source = "ts"
-        format = "RFC3339Nano"
-    }
-    stage.labels {
-        values = {
-            container_id = null,
-            stream       = null,
-        }
-    }
-    stage.drop {
-        source = "message"
-        value  = ""
-    }
+    stage.docker {}
     forward_to = [loki.write.local.receiver]
 }
 
