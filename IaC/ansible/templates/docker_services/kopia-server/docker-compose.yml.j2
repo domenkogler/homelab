@@ -49,7 +49,7 @@ services:
         # Write the htpasswd file (plaintext form accepted by tg123/go-htpasswd), 0600.
         printf '%s:%s\n' "${KOPIA_SERVER_USER}" "${KOPIA_SERVER_PASSWORD}" > /app/config/server.htpasswd
         chmod 600 /app/config/server.htpasswd
-        if [ ! -f /app/config/config.json ]; then
+        if [ ! -f /app/config/repository.config ]; then
           echo "Creating SFTP repository on backup box..."
           # Hetzner Storage Box backup (u653424) = SSH/SFTP only port 23, SSH-key auth (no password).
           # Strict pinning (KOPS-050): --keyfile/--known-hosts point at two files SEEDED into the
@@ -57,6 +57,10 @@ services:
           # in kopia 0.23.1): /srv/docker/kopia-server/config/sftp_key = private key of the
           # backup-box SSH identity (1Password, 0600); .../config/known_hosts = ssh-keyscan -p 23
           # <backup-box-host> output. Repo path under the box home; sole consumer (Hetzner model).
+          # NOTE: the gate file is `repository.config` (kopia's repo-connection file written by
+          # `kopia repository create`), NOT config.json (an unrelated technitium zone file) —
+          # HD-271-followup: the old config.json gate re-created an existing repo every boot and
+          # crash-looped with "found existing data in storage location" once the repo existed.
           kopia repository create sftp \
             --username="${KOPIA_SFTP_USER:?}" \
             --host="${KOPIA_SFTP_HOST:?}" \
