@@ -22,9 +22,9 @@ tags: [services, interfaces, dashboards]
 | **Homepage Launcher** | Entire family | `services.yaml`, `widgets.yaml` | Navigation: `kogler.si`, app bookmarks, health dots, reachability status widgets |
 | **HA Dashboard (native)** | Family / Guests | YAML (HA `lovelace`, templated) | Smart home: lights, blinds, RGBW, security · replaces TileBoard (HD-24) |
 | **Element Web (Matrix)** | Family | Matrix-native SSO → Authentik | Messaging: family chat (`chat.kogler.si`, native-only; see [`services-matrix.md`](services-matrix.md)) |
-| **Grafana Dashboard** | Domen (admin) | Provisioned JSON | Observability: analytics, logs, resource metrics |
-| **Traefik Dashboard** | Domen (admin) | API/labels | Routing/debug: middleware chain, cert status (`traefik.kogler.si`) |
-| **Metabase / CrowdSec Dashboard** | Domen (admin) | SQL/JSON | Analytics: CrowdSec view + Metabase learning sandbox (`sec.kogler.si`) |
+| **Grafana Dashboard** | Domen (admin) | Provisioned JSON | Observability: analytics, logs, resource metrics — tailnet-only (`stats.kogler.si` / `stats.ts.kogler.si`) |
+| **Traefik Dashboard** | Domen (admin) | API/labels | Routing/debug: middleware chain, cert status — tailnet-only (`traefik.kogler.si` / `traefik.ts.kogler.si`) |
+| **Metabase / CrowdSec Dashboard** | Domen (admin) | SQL/JSON | Analytics: CrowdSec view + Metabase learning sandbox — tailnet-only (`sec.kogler.si` / `sec.ts.kogler.si`) |
 | **Obsidian Desktop** | Domen (admin) | Local `.md` folder (repo clone) | Knowledge base: docs, runbooks, Canvas diagrams |
 
 ---
@@ -57,7 +57,7 @@ tags: [services, interfaces, dashboards]
 
 - **Purpose:** Time-series data for Domen (admin)
 - **Data sources:** Prometheus (metrics: Alloy/SNMP/service scrape/HA exporter/blackbox) + Loki (logs)
-- **Access:** `stats.kogler.si`, **internal-only** (LAN/VPN), Authentik OIDC, **admin-only**
+- **Access:** `stats.kogler.si` / `stats.ts.kogler.si`, **tailnet-only** (headscale via the `traefik-tailnet` edge), Authentik OIDC, **admin-only**
 - **Network:** `traefik-public` (frontend) + `db-internal` (backends) — cross-network access is intentional
 - **Planned graphs:**
   - MikroTik traffic (24h — SNMP poll 5–15 s, dashboard refresh near real-time)
@@ -72,15 +72,15 @@ tags: [services, interfaces, dashboards]
 ## Traefik Dashboard — Routing & Debug
 
 - **Purpose:** Inspect Traefik routing, middleware chain, certificate status
-- **Access:** `traefik.kogler.si`, **internal-only** (LAN/VPN), Authentik OIDC (admin)
-- **Config:** Traefik `--api` + `api@internal` service (see [`services-traefik.md`](services-traefik.md))
+- **Access:** `traefik.kogler.si` / `traefik.ts.kogler.si`, **tailnet-only**, Authentik OIDC (admin)
+- **Config:** Traefik `--api` + `api@internal` service; on the tailnet edge this route lives in `traefik-tailnet` dynamic/routes.yml (see [`services-traefik.md`](services-traefik.md) → traefik-tailnet)
 
 ---
 
 ## Metabase / CrowdSec Dashboard — Analytics & Learning
 
 - **Purpose:** CrowdSec dashboard view **and** a Metabase learning/analytics sandbox — one instance
-- **Access:** `sec.kogler.si`, **internal-only**, Authentik **Forward-Auth** at the edge (HD-148 — Metabase OSS has no OIDC/SSO; Enterprise-only) + local Metabase admin
+- **Access:** `sec.kogler.si` / `sec.ts.kogler.si`, **tailnet-only** (headscale via `traefik-tailnet`), Authentik **Forward-Auth** on the plain name + local Metabase admin (HD-148 — Metabase OSS has no OIDC/SSO; Enterprise-only)
 - **Why one instance:** latest-version Metabase (not CrowdSec's pinned bundle) gives upgrade/experiment freedom while the same instance serves the CrowdSec dashboard
 
 ---
@@ -88,7 +88,7 @@ tags: [services, interfaces, dashboards]
 ## CrowdSec Web UI — Ops Dashboard (`csui.kogler.si`, HD-272)
 
 - **Purpose:** richer CrowdSec ops surface (alerts, decisions, metrics, notifications, multi-LAPI) alongside the Metabase analytics view
-- **Access:** `csui.kogler.si`, **internal-only** (no public CNAME), Authentik **Forward-Auth** at the edge
+- **Access:** `csui.kogler.si` / `csui.ts.kogler.si`, **tailnet-only** (no public CNAME), Authentik **Forward-Auth** on the plain name at the edge
 - **Auth to LAPI:** a dedicated **watcher machine** (`crowdsec-web-ui`, password from `crowdsec-webui_lapi_api`), register deploy-gated: `docker exec crowdsec cscli machines add crowdsec-web-ui --password '<pw>' -f /dev/null`
 
 ---

@@ -79,12 +79,18 @@ docker_services:
   - { name: grafana,        template_dir: grafana,    subdomain: stats, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
   - { name: blackbox-exporter, template_dir: blackbox-exporter, enabled: true }
   - { name: dozzle,         template_dir: dozzle,        subdomain: logs, enabled: true }   # HD-135b: live per-container log viewer moved from oldsrv (logs.kogler.si)
-  # HD-135b follow-up: admin dashboards are TAILNET-ONLY. This Pattern-B sidecar serves
-  # stats/sec/traefik/logs/n8n over headscale (no public records). SKELETON — disabled:
-  # seed 1Password `tailscale-sidecar_api` (auth key) + flip to enabled: true + converge.
-  - { name: tailscale-sidecar, template_dir: tailscale-sidecar, enabled: false }
+  # HD-135b follow-up: admin dashboards are TAILNET-ONLY. traefik-tailnet = the
+  # tailnet Traefik edge + its tailscale sidecar (vps-obs, tag:sidecar) in ONE project
+  # (compose v2 requires network_mode: service:X to be same-file). It serves
+  # stats/sec/traefik/logs/csui/auto (and *.ts.kogler.si twins) over headscale with
+  # clean subdomain URLs — NO public records, NO port-number `tailscale serve`.
+  # The auth key (tailscale-sidecar_api) is owner-seeded (2026-08-28); edge IP pinned
+  # to 172.20.0.250 (traefik_edge_ips in group_vars/all/main.yml) for header-trust.
+  - { name: traefik-tailnet, template_dir: traefik-tailnet, enabled: true }
   # === Alert brain (WG-down -> net mail/Signal; independent of tunnel) ===
-  - { name: n8n,            template_dir: n8n,       subdomain: auto, enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
+  # n8n INTERNAL-ONLY (HD-135b follow-up): public auto.kogler.si route removed from
+  # the main edge labels; served only by traefik-tailnet over the tailnet.
+  - { name: n8n,            template_dir: n8n,       enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
   # === Backup agents (Kopia -> backup Box; db-backup dumps) ===
   - { name: kopia-server,   template_dir: kopia-server, enabled: true }
   - { name: db-backup,      template_dir: db-backup,    enabled: true }
@@ -135,3 +141,23 @@ homepage_failover_button: false
 # render) and ha_vip serves no HA yet - a live job would just fail. Flip true at HD-04 with
 # the HA long-lived-token item seeded.
 prometheus_ha_exporter: false
+
+# HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge (traefik-tailnet)
+# is served on the headscale sidecar node `vps-obs` (tag:sidecar). headscale
+# `dns.extra_records` maps the clean subdomain names (stats/logs/csui/sec/traefik/auto
+# AND their *.ts.kogler.si twins) to this node's tailnet IPv4.
+# Tailnet IPv4s are assigned SEQUENTIALLY by headscale at node join — current known
+# nodes: 100.64.0.3 laptop, 100.64.0.4 phone. This value is filled at deploy time from
+# `headscale nodes list` after the sidecar joins (empty → headscale renders no
+# extra_records).
+tailnet_sidecar_ip: "100.64.0.1"
+
+# Subdomains served by the tailnet edge (watched by headscale config.yaml.j2
+# extra_records render). Keep in sync with traefik-tailnet dynamic/routes.yml.
+tailnet_subdomains:
+  - stats
+  - logs
+  - csui
+  - sec
+  - traefik
+  - auto

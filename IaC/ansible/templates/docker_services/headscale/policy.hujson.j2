@@ -36,10 +36,13 @@
   //
   // EXCEPTION (HD-135b, 2026-08-28): the VPS observability sidecar advertises
   // `tag:sidecar` (see docker_services/tailscale-sidecar) so the tailnet can reach the
-  // admin dashboards. It is a service node, not a user, so the admin username is the
+  // admin dashboards. It is a service node, not a user, so the admin email is the
   // tag owner. Any node carrying tag:sidecar is by construction the VPS sidecar.
+  // NOTE: headscale v0.29.3 tagOwners require the owner as FULL EMAIL (post-OIDC
+  // "domen@kogler.si") — the bare username "domen" fails policy parse with
+  // 'invalid owner format' and crash-loops headscale (live 2026-08-28).
   "tagOwners": {
-    "tag:sidecar": ["domen"]
+    "tag:sidecar": ["domen@kogler.si"]
   },
 
   // REAL ACL — TIGHTENED at first enrolment (HD-84 / HD-252 ④, 2026-08-26).
@@ -53,13 +56,15 @@
       "src": ["domen@kogler.si"],
       "dst": ["domen@kogler.si:*"]
     },
-    // HD-135b follow-up (2026-08-28): the owner's devices may reach the VPS observability
-    // sidecar (tag:sidecar) on the admin-dashboard serve ports. Keep deny-by-default for
-    // everything else — the sidecar is the ONLY tailnet surface for these apps.
+    // HD-135b follow-up (2026-08-28): the owner's devices may reach the VPS
+    // traefik-tailnet edge (tag:sidecar) on port 443 — the tailnet Traefik HTTPS
+    // listener for the admin dashboards (stats/logs/csui/sec/traefik/auto, + *.ts
+    // twins). The old tailscale-serve ports 8080..8085 are GONE. Keep deny-by-default
+    // for everything else — the sidecar is the ONLY tailnet surface for these apps.
     {
       "action": "accept",
       "src": ["domen@kogler.si"],
-      "dst": ["tag:sidecar:8080", "tag:sidecar:8081", "tag:sidecar:8082", "tag:sidecar:8083", "tag:sidecar:8084", "tag:sidecar:8085"]
+      "dst": ["tag:sidecar:443"]
     }
   ]
 }

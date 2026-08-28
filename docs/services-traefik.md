@@ -81,6 +81,27 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 - Useful for tracing the routing/middleware chain; service metrics still flow to Prometheus (see [`observability.md`](observability.md)).
 - Decision: **included**; Portainer/Dockge **excluded** (see [`services.md`](services.md)).
 
+## Traefik-tailnet — the tailnet edge for admin dashboards (HD-135b follow-up, 2026-08-28)
+
+- **What:** a SECOND Traefik instance (`traefik-tailnet`, `docker_services/traefik-tailnet`) that serves the
+  admin/observability dashboards over the **headscale tailnet** with clean subdomain URLs — **no public DNS,
+  no port numbers** (the old `tailscale serve :8080..8085` sidecar skeleton is replaced by this edge).
+- **Layout:** one compose project on the VPS = `traefik-tailnet` (consumer-mode Traefik, binds :443/:80 in
+  its own netns, joins `traefik-public` pinned to the tailnet-edge IP (SSOT `network-addresses-generated.md` / the compose `ipv4_address`)) + a `tailscale-sidecar` userspace tailnet node
+  (`vps-obs`, `tag:sidecar`) that shares the traefik netns (`network_mode: service:traefik-tailnet`) and runs
+  `tailscale serve --tcp=443 → 127.0.0.1:443` (raw passthrough, so Traefik does its own TLS+SNI).
+- **TLS/consumer mode (HD-181/HD-204):** NO ACME resolver on this edge. It serves the **synced wildcard
+  pair(s)** from the VPS issuer (`/opt/traefik/certs/...` bind-mounted read-only); the issuer now also
+  requests `*.ts.kogler.si` (dash router `tls.domains[1]`) so the MagicDNS twins get a valid cert.
+- **Routes (file provider `dynamic/routes.yml`):** `stats`/`logs`/`csui`/`sec`/`traefik`/`auto`
+  (`*.kogler.si` **and** `*.ts.kogler.si` each). The plain names carry **Authentik Forward-Auth**
+  (same middleware definitions, per-instance copies); the `*.ts` names are **ACL-gated** (no forward-auth —
+  the headscale ACL `tag:sidecar:443` is the gate, see [`network-vpn.md`](network-vpn.md)).
+- **Dashboard:** this edge also serves the Traefik dashboard on `traefik.kogler.si` / `traefik.ts.kogler.si`
+  (the public edge has no dashboard router — single owner of that name on the tailnet).
+- **Auth key/secrets:** `tailscale-sidecar_api` (API Credential, `credential` = reusable tagged preauth key)
+  in 1Password; fail-loud render (`_template_vault_items`).
+
 ## Cockpit Routes (file-provider, no Forward-Auth)
 
 Cockpit is a host service (not a Docker container), so its routes are a Traefik

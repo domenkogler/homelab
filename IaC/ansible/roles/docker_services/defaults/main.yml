@@ -71,6 +71,11 @@ _extra_templates:
     - dynamic/middlewares.yml.j2
     - dynamic/tls.yml.j2        # HD-181 — consumer default-store TLS (renders empty on the issuer)
     - certs-rename.sh.j2        # Wave-2 triage 2026-08-22 — wildcard pair rename (entrypoint + post-hook)
+  traefik-tailnet:
+    - dynamic/routes.yml.j2     # tailnet subdomain → backend routers (file provider)
+    - dynamic/middlewares.yml.j2
+    - dynamic/tls.yml.j2        # consumer default-store TLS (wildcard pair from the main issuer)
+    - serve.json.j2             # tailscale ipn.ServeConfig — TCP 443 -> 127.0.0.1:443 (persistent serve)
   traefik-ha:
     - dynamic/routes.yml.j2
   recyclarr:
@@ -122,6 +127,7 @@ _template_vault_items:
   renovate: {'forgejo_api'}
   signal-cli-rest-api: {'signal-internal_api', 'signal_api'}
   traefik: {'cloudflare_api', 'crowdsec-bouncer_api'}
+  traefik-tailnet: {'crowdsec-bouncer_api', 'tailscale-sidecar_api'}   # middlewares LAPI key + sidecar auth key (HD-258)
   zipline: {'zipline_password', 'zipline_oidc', 'zipline_db'}
 
 # Glue-seeded items (fetched AFTER the authentik secret-egress / litellm

@@ -50,9 +50,47 @@ dns:
   base_domain: ts.kogler.si
   magic_dns: true
   override_local_dns: false
+  # HD-135b follow-up (2026-08-28): make MagicDNS answer the PLAIN `*.kogler.si` names
+  # too (stats/logs/csui/sec/traefik/auto), not just the *.ts.kogler.si base_domain.
+  # headscale appends search_domains to its MagicDNS local domains (hscontrol/types/
+  # config.go:918/1010 -> cfg.Domains = append(cfg.Domains, dns.SearchDomains...)), so
+  # the extra_records below are answered by MagicDNS for BOTH namespaces without
+  # touching Technitium (which has no records for the VPS-hosted dashboards).
+  # The client's search list gains `kogler.si`; extra_records for stats.kogler.si etc.
+  # then resolve through MagicDNS, not the system resolver (verified live 2026-08-28:
+  # without this, plain *.kogler.si went to the system resolver -> NXDOMAIN).
+  search_domains:
+    - "{{ wildcard_cert_domain }}"   # kogler.si
   nameservers:
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium primary (oldsrv)
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium secondary (Pi)
+  # HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge serves
+  # stats/logs/csui/sec/traefik/auto (and their *.ts.kogler.si MagicDNS twins) on
+  # the sidecar node `vps-obs` (tag:sidecar). These custom A records make the CLEAN
+  # subdomain names resolve for tailnet clients via MagicDNS — both namespaces are
+  # declared here so `stats.kogler.si` AND `stats.ts.kogler.si` work. headscale ≥0.24
+  # schema (pinned 0.29.3): `dns.extra_records` = [{name, type, value}].
+  # The target IP is the sidecar's tailnet IPv4, assigned SEQUENTIALLY by headscale
+  # at node join (current nodes: 100.64.0.3 laptop, 100.64.0.4 phone). It is NOT
+  # known at authoring time → rendered from `tailnet_sidecar_ip` (group_vars/vps.yml,
+  # default ""). Deploy step: read `headscale nodes list` after the sidecar joins,
+  # set `tailnet_sidecar_ip`, re-converge + restart headscale. Leave empty → no
+  # extra_records (fail-loud render guard below).
+  extra_records:
+{% if tailnet_sidecar_ip | default('', true) %}
+{% for sub in tailnet_subdomains | default(['stats','logs','csui','sec','traefik','auto']) %}
+    - name: "{{ sub }}.kogler.si"
+      type: "A"
+      value: "{{ tailnet_sidecar_ip }}"
+    - name: "{{ sub }}.ts.kogler.si"
+      type: "A"
+      value: "{{ tailnet_sidecar_ip }}"
+{% endfor %}
+{% else %}
+    # tailnet_sidecar_ip unset -> no extra_records (deploy step fills it from
+    # `headscale nodes list` after the sidecar joins; see header comment above)
+    []
+{% endif %}
 
 # ACL/traffic policy (HD-84 / KOPS-022): points at the rendered policy.hujson
 # mounted next to this config. NOTE: OIDC-authenticated clients are AUTO-APPROVED

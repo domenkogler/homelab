@@ -16,4 +16,19 @@ if [ -z "$CRT" ] || [ -z "$KEY" ]; then
 fi
 cp "$CRT" "/output/{{ wildcard_cert_file }}"
 cp "$KEY" "/output/{{ wildcard_cert_key_file }}"
+
+# HD-135b follow-up (2026-08-28): the issuer also requests *.ts.{{ wildcard_cert_domain }}
+# (dash router tls.domains[1]) so the tailnet .ts twins are covered. The dumper writes
+# it as _.ts.{{ wildcard_cert_domain }}.crt/key; copy it to a fixed ts.* pair consumed by
+# traefik-tailnet tls.yml. Do NOT glob for the first matching *kogler.si* pair — that
+# would be ambiguous once two wildcard pairs exist. The wildcard_domain glob above stays
+# exact (*kogler.si* matches only the first single-level pair).
+CRT_TS=$(ls /output/dump/certs/*.ts.{{ wildcard_cert_domain }}.crt 2>/dev/null | head -n 1)
+KEY_TS=$(ls /output/dump/private/*.ts.{{ wildcard_cert_domain }}.key 2>/dev/null | head -n 1)
+if [ -n "$CRT_TS" ] && [ -n "$KEY_TS" ]; then
+    cp "$CRT_TS" "/output/ts.{{ wildcard_cert_domain }}.pem"
+    cp "$KEY_TS" "/output/ts.{{ wildcard_cert_domain }}-key.pem"
+    echo "certs-rename: installed ts.{{ wildcard_cert_domain }}.pem + ts.{{ wildcard_cert_domain }}-key.pem"
+fi
+
 echo "certs-rename: installed {{ wildcard_cert_file }} + {{ wildcard_cert_key_file }}"

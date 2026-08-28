@@ -1559,6 +1559,34 @@
 
 
 
+### 2026-08-28 — Phase 1 · Tailnet Traefik edge for admin dashboards (HD-135b follow-up IMPLEMENTED; clean subdomain URLs on the tailnet) `[AI]`
+
+- **Plan ref:** HD-135b-followup deploy-gated tail (docs/network-vpn.md §Tailnet-exposed services); the old port-based `tailscale-sidecar` skeleton (:8080..8085) got REPLACED in-flight by a second Traefik edge. Worktree `homelab-wt-20260828-2057` / branch `session/tailnet-obs-tls`.
+- **Commands run:**
+  ```bash
+  # 1) seed the sidecar auth key (tag:sidecar preauth, reusable, 8760h) into 1Password:
+  docker exec headscale headscale preauthkeys create --user 2 --tags tag:sidecar --reusable --expiration 8760h -o json
+  # write-scoped SA token (the repo-seeding path, /etc/op/provision-token) -> Homelab-ansible item tailscale-sidecar_api
+  # 2) converged the new pieces on the VPS:
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=traefik        # issuer: *.ts.kogler.si SAN added
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=traefik-tailnet # edge + sidecar
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=headscale       # extra_records + search_domains + ACL
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=authentik       # ks-forward-auth ts providers (later unused)
+  # blueprint apply (externalized playbook has a var bug — see Deviations):
+  docker exec authentik-worker ak apply_blueprint /blueprints/custom/ks-forward-auth.yml
+  docker restart headscale; docker restart authentik-server   # pick up new DNS/policy + outpost config
+  # 3) verify:
+  docker exec headscale headscale nodes list                  # vps-obs online, 100.64.0.1, tag:sidecar
+  curl -sk --resolve <h>:443:172.20.0.250 https://<h>/ -o /dev/null -w "%{http_code}\n"
+  ```
+- **Settings chosen:** `tailnet_sidecar_ip: 100.64.0.1` · `tailnet_subdomains: [stats, logs, csui, sec, traefik, auto]` · `traefik_edge_ips` += `172.20.0.250/32` · headscale `dns.extra_records` (both namespaces) + `dns.search_domains: [kogler.si]` · ACL `dst: [tag:sidecar:443]` · `tailscale_version: v1.82.0`.
+- **Secrets touched:** `tailscale-sidecar_api.credential` (seeded; preauth key length/prefix only, value → vault only).
+- **Verify (live):** `vps-obs` online (100.64.0.1, tag:sidecar); traefik-tailnet + tailscale-sidecar Up; headscale Up; SNI `stats.ts.kogler.si` → `CN=*.ts.kogler.si`, `stats.kogler.si` → `CN=*.kogler.si`; HTTP codes from the VPS host at 172.20.0.250:443 — plain `*.kogler.si` → **302** (Authentik forward-auth), `*.ts.kogler.si` → **200** for logs/csui/sec/auto, 302 for stats/traefik (app-level redirect = correct). TLS certs: `*.kogler.si` AND `*.ts.kogler.si` issued + synced.
+- **Deviations:** (1) the `.ts` twins are **ACL-gated without forward-auth** — Authentik `forward_single` matches exactly one `external_host`, so `Host: stats.ts.kogler.si` matched no provider → 404; ts proxy providers + apps + outpost binding were added to `ks-forward-auth.yml` and applied, but the **embedded outpost never reloaded them** (only original hosts loaded after restart + force-push) → pivot to ACL-gated ts (headscale `tag:sidecar:443` is the gate), matching the documented Pattern-B design. (doc updated: docs/network-vpn.md, docs/observability.md). (2) `tailscale_version` pin `v1.80.2` does not exist on Docker Hub (pull 404) → `v1.82.0` (registry-verified). (3) headscale 0.29.3 `tagOwners` requires the FULL EMAIL `domen@kogler.si` (bare `domen` → crash-loop `invalid owner format`); fixed in `policy.hujson.j2`. (4) userspace sidecar: `network_mode: service:` netns sharing is stale if the app container is recreated without the sidecar — compose down+up together restores it; and `tailscale serve --tcp=443` (persisted via `TS_SERVE_CONFIG`) is REQUIRED for inbound (userspace netstack does not auto-forward tailnet-IP→localhost without serve). (5) **pre-existing playbook bug:** `playbooks/authentik-blueprints.yml` registered `ak_blueprints_dir` but asserted `ak_blueprints.stat.exists` (`ak_blueprints` undefined → playbook fails). Worked around live by running `ak apply_blueprint` directly; the playbook var name was fixed in this same change (doc updated: `playbooks/authentik-blueprints.yml`). (6) `--check` runs fail on the vault-dict parse (pre-existing check-mode limitation of the op-vault-export pass, reproduced on a clean tree).
+
+
+
+
 
 ## Phase 3 — oldsrv
 

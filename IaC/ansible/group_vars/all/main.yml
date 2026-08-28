@@ -130,6 +130,7 @@ ha_trusted_proxies:
 # header-consuming service.
 traefik_edge_ips:
   - 172.20.0.2/32            # vps traefik — pinned via traefik_edge_ip_pin (HD-240), verified live 2026-08-24
+  - 172.20.0.250/32          # vps traefik-tailnet (HD-135b follow-up) — pinned in the traefik-tailnet compose
 # Static edge-container IP pinned by the traefik compose template (ipv4_address on each
 # host's local traefik-public bridge, HD-240). Same value on every host BY CONVENTION
 # (bridge default `.2`); every host whose edge fronts a header-consuming service must

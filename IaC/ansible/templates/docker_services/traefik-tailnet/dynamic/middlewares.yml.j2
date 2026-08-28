@@ -1,0 +1,56 @@
+# traefik-tailnet dynamic/middlewares.yml — file-provider middlewares (tailnet edge)
+#   Same middleware definitions as the MAIN traefik edge (dynamic/middlewares.yml
+#   of the public traefik). Each traefik instance owns its own file-provider
+#   definitions — they are NOT shared across instances — so the tailnet edge
+#   carries its own copies of:
+#     1. authentik-forward-auth chain  → CrowdSec bouncer + Authentik Forward-Auth
+#     2. crowdsec-only chain           → CrowdSec bouncer alone
+#   The CrowdSec bouncer plugin is registered in THIS traefik's static config
+#   (docker-compose.yml.j2 command flags, same version as the main edge).
+#   The Authentik outpost endpoint (authentik-server:9000) is reachable over
+#   traefik-public, exactly like the main edge.
+#
+#   NOTE: authResponseHeaders MUST be the LIST of header names (Traefik schema,
+#   HD-240 live lesson) — the map form is silently dropped and header-consuming
+#   backends (grafana [auth.proxy]) would see anonymous requests.
+
+http:
+  middlewares:
+    # Chain: CrowdSec → Authentik. Services reference this by name.
+    authentik-forward-auth:
+      chain:
+        middlewares:
+          - crowdsec-bouncer
+          - authentik-forward-auth-inner
+
+    # CrowdSec-only: for routes that must NOT use Forward-Auth (own login / SSO
+    # that breaks under a Forward-Auth proxy) but still need CrowdSec blocklist
+    # protection.
+    crowdsec-only:
+      chain:
+        middlewares:
+          - crowdsec-bouncer
+
+    # CrowdSec bouncer plugin — checks the client IP against CrowdSec's
+    # blocklist (LAPI). Same key as the public edge (crowdsec-bouncer_api).
+    crowdsec-bouncer:
+      plugin:
+        crowdsec-bouncer:
+          lapi_url: http://crowdsec:8080
+          crowdsecLapiKey: >-
+            {{ vault['crowdsec-bouncer_api'].credential }}
+          update_interval: 10s
+
+    # Authentik Forward-Auth — validates the user session, redirects to
+    # sso.kogler.si if not authenticated. Passes user info as headers.
+    authentik-forward-auth-inner:
+      forwardAuth:
+        address: "http://authentik-server:9000/outpost.goauthentik.io/auth/traefik"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-authentik-username
+          - X-authentik-groups
+          - X-authentik-email
+          - X-authentik-name
+          - X-authentik-uid
+          - X-authentik-jwt

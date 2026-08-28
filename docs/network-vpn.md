@@ -64,6 +64,11 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 - Overlay subnet: `headscale` (CIDR per SSOT)
 - Clients: Android/iOS Tailscale app, laptops
 - **Home RB4011:** static route + firewall rules so the Headscale overlay reaches the Home VLAN
+- **MagicDNS (HD-135b follow-up, 2026-08-28):** `dns.extra_records` maps the tailnet dashboard
+  subdomains (`stats/logs/csui/sec/traefik/auto` **and** their `*.ts.kogler.si` twins) to the
+  `vps-obs` tailnet IP (`tailnet_sidecar_ip`, group_vars/vps.yml), and `dns.search_domains:
+  [kogler.si]` makes MagicDNS answer the plain `*.kogler.si` names for tailnet clients too — the
+  owner's devices resolve `https://stats.kogler.si` directly on the tailnet (no local hosts file).
 - **VPS:** routes the home `site` + `wg-vps-services` over the S2S tunnel to reach home resources
 - Mesh clients → VPS Headscale (public, its purpose) → over S2S → home LAN; each node has an ACL-gated path home
 - **Registration & ACL (HD-84 / KOPS-022):** OIDC-authenticated clients are **auto-approved** by
@@ -120,10 +125,14 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 > ([services-ai.md](services-ai.md)); **observability admin dashboards (HD-135b follow-up, 2026-08-28) are
 > the second live application** — stats/sec/traefik/logs/n8n are now tailnet-only, no public records.
 >
-> **Laptop access:** with the Tailscale app connected, the dashboards resolve on the tailnet (the sidecar
-> serves them under its tailnet hostname; the TL-Serve HTTPS form may need a DNS/MagicDNS name). If you
-> keep a local DNS name, add it to the laptop's hosts/Tailscale MagicDNS — there is NO public `*.kogler.si`
-> record for these. See the `tailscale-sidecar` compose template for the exact serve ports.
+> **Laptop access:** with the Tailscale app connected, the dashboards resolve on the tailnet — headscale
+> **MagicDNS** on the `ts.kogler.si` base domain answers the `*.ts.kogler.si` twin names (e.g.
+> `stats.ts.kogler.si`) and `dns.search_domains: [kogler.si]` (HD-135b follow-up) makes MagicDNS answer the
+> plain `*.kogler.si` names too — so the owner's laptop/phone reach the dashboards with the SAME clean
+> subdomain URLs they already know (`https://stats.kogler.si`, `https://logs.kogler.si`, …). There is NO
+> public `*.kogler.si` record for these. The tailnet Traefik edge (`traefik-tailnet`, node `vps-obs`) is the
+> only tailnet surface for the admin dashboards (see the compose template
+> `docker_services/traefik-tailnet` for the routing + serve details).
 
 ### Pattern A -- loopback-capable apps (preferred)
 App binds `127.0.0.1` only; tailscale sidecar shares its network namespace (`network_mode: service:<app>`) and
@@ -137,7 +146,7 @@ sidecar serves to the app over that private network. Functional service-to-servi
 | Node | Serves | App-level auth | ACL tag |
 |------|--------|----------------|---------|
 | dsh | cockpit :3080 | **none** (ACL is the gate) | tag:dsh |
-| vps-obs (`tailscale-sidecar`, HD-135b) | stats :8080 · sec :8081 · traefik :8082 · logs :8083 · n8n :8084 · headplane :8085 — all over headscale | Authentik Forward-Auth at each app (none on the sidecar) | tag:sidecar |
+| vps-obs (`traefik-tailnet` + its userspace sidecar, HD-135b follow-up) | **clean subdomain URLs over the tailnet** — `stats`, `sec`, `traefik`, `logs`, `csui`, `auto` (n8n) and their `*.ts.kogler.si` twins: `https://stats.kogler.si` / `https://stats.ts.kogler.si`, `https://logs.kogler.si`, `https://csui.kogler.si`, `https://sec.kogler.si`, `https://traefik.kogler.si`, `https://auto.kogler.si` — **no ports** (wildcard certs + second Traefik edge) | plain `*.kogler.si` = Authentik Forward-Auth; **`*.ts.kogler.si` = ACL-gated** (tailnet-only names, `tag:sidecar:443` is the gate) | tag:sidecar |
 | pi-dev | TUI/CLI agent (`services-internal`) | scoped LiteLLM key + PR-only Forgejo | tag:pi-harness |
 | litellm-ui | admin :4000/ui | bearer keys | tag:litellm |
 | owui-int (`ai.kogler.si`, HD-248) | internal OWUI | Authentik OIDC | tag:owui-int |
@@ -146,7 +155,7 @@ sidecar serves to the app over that private network. Functional service-to-servi
 
 - Serve mode: plain TCP forward is simplest (WireGuard already encrypts); HTTPS mode needs Headscale TLS config -- verify at deploy.
 - ACL defaults: inbound-only per node (e.g., DSH needs ZERO outbound tailnet destinations); tag hygiene audit quarterly.
-- Rollout: HD-251 (phase-2 fleet rework); first applications: litellm-ui + owui-int (HD-247/248), dsh (HD-250); **observability sidecar (HD-135b) — skeleton authored 2026-08-28, deploy-gated (auth key + enable)**, see `docker_services/tailscale-sidecar` + `policy.hujson.j2`.
+- Rollout: HD-251 (phase-2 fleet rework); first applications: litellm-ui + owui-int (HD-247/248), dsh (HD-250); **tailnet dashboard edge (HD-135b follow-up) LIVE 2026-08-28** — `traefik-tailnet` (consumer-mode Traefik + a userspace tailscale sidecar sharing its netns, node `vps-obs`) serves the admin dashboards over the tailnet with clean subdomain URLs on port 443 (`tailscale serve --tcp=443` → the edge's TLS listener), see `docker_services/traefik-tailnet` + `policy.hujson.j2`. The old port-based skeleton (`tailscale-sidecar` dir, :8080–8085) is removed.
 
 ## Family Usage Scenarios
 
