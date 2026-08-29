@@ -645,7 +645,30 @@
 - **Secrets touched:** `prometheus-internal_api` (rotated: old hash `$2b$12$qL0Iu…` retired, new `$2b$12$8UYC…`, values to vault only); `crowdsec-webui_lapi_api` (created, url-safe 32-char watcher pw); `vps-op-write_api` (re-deployed valid token to /etc/op/provision-token).
 - **Deviations:** alloy container-log shipping uses **file-based** `loki.source.file`+`stage.docker` (not `discovery.docker` — it requires host port mappings; internal-only fleet proved 0 targets); alloy read on `/var/lib/docker/containers` via `docker` group grant. (docs updated: alloy.river.j2 comments.)
 
-## Phase 1a — Parallel Track: NAS Pools + Host Installs
+### 2026-08-29 — Phase 1 · Live-verify batch: surgical converge (HD-255/260), HD-270 env==vault, HD-271 directive gap + activate, HD-252 ACL tail, HD-220 health, HD-272 crowdsec-web-ui on-board, HD-242 metabase RO `[AI]`
+
+- Plan ref: deployment-tasks Phase 1 Deploy-gated verification; note: all rows remain open (journal is the liveness SSOT).
+- **Commands run (orchestrator, WSL Debian ext4 primary):**
+  ```bash
+  # Lane d0 — live-verify evidence (parallel lanes; read-only + one surgical converge)
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=headscale   # HD-255/260 gate
+  # HD-272 on-board
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=crowdsec-web-ui  # ok=20 changed=1 failed=0
+  docker exec crowdsec cscli machines add crowdsec-web-ui --password '<crowdsec-webui_lapi_api credential>' -f /dev/null  # (already registered — idempotent "user already exist")
+  # HD-242 metabase RO
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=metabase   # ok=20 changed=1 failed=0
+  ```
+- **Settings chosen:** none new (all from owning docs/group_vars).
+- **Secrets touched:** `crowdsec-webui_lapi_api` (watcher machine, existing item); `metabase-forgejo_ro` (RO role password, existing item); no rotations.
+- **Verify (live):**
+  - HD-255/260: `docker_services_scope=headscale` **genuinely single-service** — `ok=21 changed=1 failed=0`, wall ~18s, only headscale tasks, no unrelated renders, **HD-260 extras guard crash NOT present**.
+  - HD-270: env==vault on authentik/zipline/litellm/openclaw/kopia (32/128/32/32/32); DATABASE_URL urlencoded 89; pi-dev PR_TOKEN absent (HD-268 pending, not a regression); kopia non-JSON warning gone.
+  - HD-252 tail: `headscale policy get` = deny-by-default ACL (`domen@kogler.si → domen@kogler.si:*` + `tag:sidecar:443`); nodes all online (Domen_P14s, Naprava A54, vps-obs) — cleanup redo confirmed.
+  - HD-271: surgical converge **zero deprecation warnings**; fact-prefixed refs live. **GAP:** `inject_facts_as_vars` was comment-only in ansible.cfg → **fixed this session** (activated `= False`, signed commit `ca7b7c4`, validate-all green).
+  - HD-220: `docker ps -a` 50 containers, all Up except `renovate Restarting(0)` (HD-264 known churn, out of scope this batch).
+  - HD-272: crowdsec-web-ui container `Up (healthy)`, backend :3000 serving; LAPI watcher machine live (`crowdsec-web-ui password`, heartbeat 2s); UI HTML serves via internal edge.
+  - HD-242: `metabase_ro` role exists in forgejo-db (rolsuper=f, rolcanlogin=t); **public-schema privilege = SELECT only** (no INSERT/UPDATE/DELETE); crowdsec-db bind mounted in metabase (`/srv/docker/crowdsec/db → /var/lib/crowdsec/data`); MB_EMAIL_SMTP_* env all set.
+- **Deviations:** (1) HD-271 was **not actually enforced** pre-fix (commit b12de08 only touched comments); activated now — changelog wording corrected by the commit. (2) HD-272 watcher machine already existed (converge handled it; `cscli machines add` is idempotent). (3) HD-242 RO role verified SELECT-only; dashboard JSON import + Zipline source remain owner/HD-112-gated. (doc updated: IaC/ansible/ansible.cfg).
 
 ### 2026-08-23 — Phase 1a · oldsrv reinstalled interactively — preseed automation bypassed after four delivery failures `[MANUAL]`
 
