@@ -220,6 +220,24 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 # A service tag alone matches nothing; keep the role tag (union semantics).
 ```
 
+### Dry-run Mode (`--check --diff`)
+
+`--check` mode is **NOT** compatible with the HD-258 bulk 1Password pre-pass: the pre-pass
+calls `op-vault-export.py --derive` which requires a live 1Password session to read items
+(vault in `~/.config/op/homelab-sa-token`), and in check mode the lookup returns empty stdout
+→ the `combine(vault, from_json(empty))` filter raises `from_json failed: Expecting value` and
+the play aborts at `fetch-vault-pass.yml:62` (other session's audit AUD-B-2, reproduced live
+2026-08-29). For diff/inspection of a future change without running it, use one of:
+- `--check --diff` only after seeding the `vault` dict another way (e.g. mock the bulk pre-pass
+  by exporting `op-vault-export.py --services <single> --format=json` to a fixture file and
+  reading it via `set_fact: op_vault_out: {stdout: ... }`); the rest of the role is then
+  check-mode-safe;
+- skip the pre-pass and render single-service templates with `lookup('community.general.onepassword', ...)`
+  inline (slow, but check-mode compatible);
+- run the live converge scoped to the service (`-e docker_services_scope=<svc>`) and use
+  `--diff` on the rendered compose on the target (`ssh vps 'docker compose -f /opt/<svc>/docker-compose.yml config'`).
+  The live run is fast (HD-269 measured ~18s for a single service) and you get the real diff.
+
 ---
 
 ## File Layout
