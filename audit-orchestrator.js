@@ -268,9 +268,11 @@ mismatch), Enabled_Not_Converged (service enabled but container not Up).
 
 `;
 
-// Each lane gets a DISTINCT model provider so 5 parallel lanes do not share one
-// upstream rate-limit pool (the first run all hit openrouter/minimax/minimax-m3:free
-// 429 simultaneously; retry uses 5 different provider pools).
+// Each lane gets a DISTINCT model provider so provider rate-limits are spread.
+// 5 in-flight simultaneously is refused (openrouter 402 in_flight_budget_exhausted);
+// we run lanes SEQUENTIALLY via runs.run chained (one in-flight at a time). The
+// audit's "parallel lanes" pattern is the recommended shape, but the spec is
+// satisfied by serial: the 5 track reports are the deliverable, not parallelism.
 const lanes = [
   {
     key: 'audit-docs',
@@ -319,16 +321,28 @@ const lanes = [
   },
 ];
 
-// Launch all 5 lanes in parallel; each gets its OWN worktree via worktree:true.
-// The runner branches each lane's worktree from HEAD (commit ${AUDIT_COMMIT}) on a
-// per-lane branch, isolated from this orchestrator's worktree and from the other
-// instance's worktree (homelab-wt-2026-08-29-1652).
+// Run lanes SEQUENTIALLY (one in-flight at a time). The OpenRouter account has a
+// shared in-flight budget; 5 parallel lanes hit 402 in_flight_budget_exhausted.
+// Sequential satisfies the deliverable (5 track reports) without the budget cap.
+// Each lane still gets its own worktree via worktree:true (one writer per worktree).
+// On failure of a lane, we record the failure and continue (the parent aggregates
+// whatever reports landed).
 
-const results = await runs.all(lanes);
-return results.map(r => ({
-  key: r.key,
-  status: r.status,
-  artifactPaths: r.artifactPaths,
-  outputReference: r.outputReference,
-  runId: r.runId,
-}));
+const results = [];
+for (const lane of lanes) {
+  console.log(`[orchestrator] starting lane ${lane.key} on model ${lane.model}`);
+  try {
+    const r = await runs.run(lane.key, lane);
+    results.push({
+      key: lane.key,
+      status: r.status,
+      artifactPaths: r.artifactPaths,
+      outputReference: r.outputReference,
+      runId: r.runId,
+    });
+  } catch (e) {
+    console.log(`[orchestrator] lane ${lane.key} threw: ${e && e.message ? e.message : e}`);
+    results.push({ key: lane.key, status: 'failed', error: String(e) });
+  }
+}
+return results;
