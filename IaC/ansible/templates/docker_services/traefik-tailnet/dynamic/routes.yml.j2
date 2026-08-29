@@ -9,12 +9,16 @@
 #   twins resolve to the sidecar's tailnet IP via headscale `dns.extra_records`
 #   (see IaC/ansible/templates/docker_services/headscale/config.yaml.j2).
 #
-#   Backends are the container SERVICE names on traefik-public (docker DNS):
-#     grafana:3000 (stats), dozzle:8080 (logs),
-#     crowdsec-web-ui:3000 (csui), metabase:3000 (sec),
-#     n8n:5678 (auto), traefik dashboard via api@internal (traefik).
+#   Backends are the container SERVICE names on their respective overlays (docker DNS):
+#     traefik-public: grafana:3000 (stats), dozzle:8080 (logs),
+#       crowdsec-web-ui:3000 (csui), metabase:3000 (sec), n8n:5678 (auto),
+#       traefik dashboard via api@internal (traefik).
+#     tailnet-apps (HD-296, 172.24.0.0/16): dsh:3080 (dsh, HD-268c),
+#       pi-dev:8080 (pi, HD-268c). The dsh + pi apps join tailnet-apps so this
+#       edge can reach them via Docker DNS; the dsh-tailscale / pi-dev-tailscale
+#       sidecars inherit the new overlay via `network_mode: service:<app>`.
 #   NOTE: docker DNS on an overlay resolves by SERVICE name, not container_name
-#   (crowdsec-web-ui, NOT crowdsec_web_ui).
+#   (crowdsec-web-ui, NOT crowdsec_web_ui; pi-dev, NOT pi_dev).
 #
 #   The Traefik DASHBOARD itself is served tailnet-only here (Host(traefik.kogler.si)
 #   and Host(traefik.ts.kogler.si)) — the main public edge does NOT expose a dashboard
@@ -146,6 +150,64 @@ http:
         - redirect-to-https
       service: noop@internal
 
+    # DSH Web UI (dsh) — HD-296. Pattern-A sidecar UI (HD-268c): dsh binds
+    # 127.0.0.1:3080 INSIDE the dsh container netns; dsh-tailscale (sharing the
+    # dsh netns via network_mode: service:dsh) exposes it on the tailnet. To
+    # get a clean URL (`https://dsh.ts.kogler.si` with no port number, real
+    # TLS via the wildcard cert) we add the dsh app to the new `tailnet-apps`
+    # overlay (172.24.0.0/16, group_vars/all/main.yml network_ranges; allowlist
+    # in roles/docker_services/tasks/main.yml) and route the file-provider
+    # routers below. Backends use Docker DNS service names (NOT container_name).
+    dsh-kogler:
+      rule: "Host(`dsh.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: dsh-backend
+      tls: true
+    dsh-ts-kogler:
+      rule: "Host(`dsh.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: dsh-backend
+      tls: true
+    dsh-http-redirect:
+      rule: "Host(`dsh.kogler.si`) || Host(`dsh.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
+    # pi Web UI (pi) — HD-296. Pattern-A sidecar UI (HD-268c): pi-dev binds
+    # 127.0.0.1:8080 INSIDE the pi-dev netns; pi-dev-tailscale (sharing the
+    # pi-dev netns via network_mode: service:pi-dev) exposes it on the tailnet.
+    # Same tailnet-apps overlay mechanism as dsh. ACL gate (headscale
+    # `tag:pi-dev` → family user `domen@kogler.si:*`) — see dsh/HD-268c
+    # comment for the full model.
+    pi-kogler:
+      rule: "Host(`pi.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: pi-backend
+      tls: true
+    pi-ts-kogler:
+      rule: "Host(`pi.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: pi-backend
+      tls: true
+    pi-http-redirect:
+      rule: "Host(`pi.kogler.si`) || Host(`pi.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
     # n8n (auto) — INTERNAL-ONLY: public auto.kogler.si route removed from the
     # main edge; reachable only over the tailnet now.
     auto-kogler:
@@ -181,6 +243,20 @@ http:
       loadBalancer:
         servers:
           - url: "http://grafana:3000"
+    # HD-296: dsh + pi backends live on the new `tailnet-apps` overlay
+    # (172.24.0.0/16), resolved via Docker DNS. The MAIN public traefik
+    # does NOT have these routes (single-owner of dsh.kogler.si / pi.kogler.si
+    # on the tailnet edge), so the wildcard cert is only served on this
+    # edge for the *.ts.kogler.si names — which is correct (the *.kogler.si
+    # names need Forward-Auth, the *.ts.kogler.si names are ACL-gated only).
+    dsh-backend:
+      loadBalancer:
+        servers:
+          - url: "http://dsh:3080"
+    pi-backend:
+      loadBalancer:
+        servers:
+          - url: "http://pi-dev:8080"
     logs-backend:
       loadBalancer:
         servers:

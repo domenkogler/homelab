@@ -19,8 +19,14 @@
 #   binds 127.0.0.1 ONLY (DeepSeek.app rejects `--host 0.0.0.0`), so the `dsh-tailscale`
 #   sidecar shares its network namespace (`network_mode: service:dsh`) and runs
 #   `tailscale serve` to proxy the tailnet socket to the loopback port.
-#   HD-250: there is NO socat bridge and the UI does NOT listen on `services-internal` —
-#   only the tailscale sidecar exposes it, over the tailnet, ACL-tagged tag:dsh.
+#   HD-250: there is NO socat bridge and the UI does NOT listen on `services-internal`
+#   from a SOC perspective (no public Traefik label routes here; the dsh app's
+#   `services-internal` membership exists only for its app-to-app legs to
+#   LiteLLM + Forgejo per HD-250/HD-268c). The UI is exposed to the tailnet
+#   two ways: (a) the sidecar's `tailscale serve` on :3080/443 (raw TCP), and
+#   (b) the new `tailnet-apps` overlay (HD-296) carrying the dsh app to
+#   `traefik-tailnet`, which serves clean URLs (`https://dsh.ts.kogler.si`)
+#   via the wildcard cert + ACL-gated `*.ts` router. ACL tag:dsh.
 #
 #   Secrets (fail-closed, HD-65 — all via 1Password vault refs, never literals):
 #     dsh_api (api -> credential) — scoped LiteLLM virtual key for DSH's model backend
@@ -47,8 +53,14 @@ services:
     container_name: dsh
     restart: unless-stopped
     # DSH binds 127.0.0.1 ONLY for its Web UI (loopback). It needs workspace access.
+    # HD-296: also joins `tailnet-apps` so the tailnet Traefik edge can route the
+    # clean URL `https://dsh.ts.kogler.si` → `dsh:3080` via Docker DNS on the
+    # new overlay (the dsh-tailscale sidecar inherits this network via
+    # `network_mode: service:dsh` — see the sidecar block + HD-268c for the
+    # full model).
     networks:
       - services-internal       # LiteLLM (models) + Forgejo (PR proposals)
+      - tailnet-apps            # HD-296: dsh Web UI → tailnet Traefik edge
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # Model backend = LiteLLM (the spine). DSH connects as an OpenAI-compatible
@@ -119,6 +131,17 @@ services:
 {% endif %}
 networks:
   services-internal:
+    external: true
+  # HD-296: tailnet-apps overlay (172.24.0.0/16) — carries the dsh Web UI to
+  # the tailnet Traefik edge (traefik-tailnet) so the file-provider router
+  # `dsh-kogler` in dynamic/routes.yml.j2 can resolve `dsh:3080` via Docker
+  # DNS. The dsh-tailscale sidecar inherits this network via
+  # `network_mode: service:dsh` (shares the dsh netns). The headscale ACL
+  # (`tag:dsh` → family user `domen@kogler.si:*`) is the effective gate
+  # — only tailnet clients on the dsh sidecar can reach this anyway, and
+  # only the dsh sidecar exposes it on the tailnet. See HD-268c for the
+  # sidecar + ACL story.
+  tailnet-apps:
     external: true
 
 volumes:

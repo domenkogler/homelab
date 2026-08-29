@@ -14,6 +14,12 @@
 #   docs/network-vpn.md §Pattern A) — never a host/service-internal port bind.
 #
 #   pi-dev also reaches LiteLLM (models) + Forgejo (PR proposals) on `services-internal`.
+#   HD-296: the new `tailnet-apps` overlay (172.24.0.0/16) carries the pi Web
+#   UI to the tailnet Traefik edge (traefik-tailnet) for the clean-URL
+#   route `https://pi.ts.kogler.si` (wildcard cert, ACL-gated *.ts router,
+#   tag:pi-dev). The pi-dev-tailscale sidecar inherits both networks via
+#   `network_mode: service:pi-dev` (sharing the pi-dev netns). Same model
+#   as dsh — see dsh/docker-compose.yml.j2 + HD-268c + HD-296.
 #
 #   IMAGE security note: pi.dev is installed AT CONTAINER START from the official npm
 #   registry (`npm install -g --ignore-scripts @earendil-works/pi-coding-agent@{{ pi_dev_npm_version }}`)
@@ -74,7 +80,11 @@ services:
         # PORT is set via the PI_WEB_PORT env; --no-browser for a headless container.
         exec pi-web-ui --port 8080 --no-browser
     networks:
-      - services-internal
+      - services-internal       # LiteLLM (models) + Forgejo (PR proposals)
+      # HD-296: also joins `tailnet-apps` so the tailnet Traefik edge can route
+      # the clean URL `https://pi.ts.kogler.si` → `pi-dev:8080` via Docker DNS
+      # (the pi-dev-tailscale sidecar inherits via `network_mode: service:pi-dev`).
+      - tailnet-apps
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # pi model backend = LiteLLM (the spine). pi talks OpenAI-compatible to LiteLLM;
@@ -143,4 +153,13 @@ services:
 {% endif %}
 networks:
   services-internal:
+    external: true
+  # HD-296: tailnet-apps overlay (172.24.0.0/16) — carries the pi Web UI to
+  # the tailnet Traefik edge (traefik-tailnet) so the file-provider router
+  # `pi-kogler` in dynamic/routes.yml.j2 can resolve `pi-dev:8080` via
+  # Docker DNS. The pi-dev-tailscale sidecar inherits this network via
+  # `network_mode: service:pi-dev` (shares the pi-dev netns). Same ACL
+  # rationale as the dsh sidecar (see dsh/docker-compose.yml.j2 for the
+  # long form + HD-268c + HD-296).
+  tailnet-apps:
     external: true

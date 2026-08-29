@@ -17,10 +17,22 @@
 #   ONE docker_services entry (`traefik-tailnet`) with two services — replacing
 #   the former standalone `tailscale-sidecar` dir/entry (removed).
 #
-#   Networking: traefik-tailnet joins the external `traefik-public` overlay so it
-#   can reach the apps (grafana:3000, dozzle:8080, crowdsec_web_ui:3000,
-#   metabase:3000, n8n:5678) by service name; the sidecar inherits that namespace
-#   and rides the same overlay for its outbound tailnet control traffic.
+#   Networking: traefik-tailnet joins TWO external overlays:
+#     - `traefik-public` (172.20.0.0/16) — the apps on the main public edge
+#       (grafana:3000, dozzle:8080, crowdsec-web-ui:3000, metabase:3000, n8n:5678)
+#       resolve by service name on this overlay; the sidecar inherits it via the
+#       shared `network_mode: service:traefik-tailnet` namespace and rides it
+#       for outbound tailnet control traffic.
+#     - `tailnet-apps` (172.24.0.0/16, HD-296) — NEW overlay added to carry
+#       the Pattern-A sidecar UIs (dsh:3080, pi-dev:8080) so this edge can
+#       route clean URLs (`https://dsh.ts.kogler.si` / `https://pi.ts.kogler.si`)
+#       to them via Docker DNS. The dsh + pi-dev apps join tailnet-apps in
+#       addition to services-internal; their tailscale sidecars inherit both
+#       networks via `network_mode: service:<app>`. ISO from traefik-public
+#       (defense in depth — the tailnet edge can't reach the main public
+#       apps' Docker DNS) and from services-internal (dsh/pi-dev UIs bind
+#       loopback-only; the tailnet edge must reach them via the new overlay
+#       DNS, not by joining services-internal directly).
 #   Userspace networking (TS_USERSPACE=true + --tun=userspace-networking) on the
 #   sidecar — no NET_RAW/SYS_MODULE needed (pi-dev/dsh idiom).
 #
@@ -70,6 +82,18 @@ services:
         # HD-240 pattern: pin this edge's IP so the header-trust whitelist
         # (traefik_edge_ips) stays valid (see header above).
         ipv4_address: 172.20.0.250
+      # HD-296: tailnet-apps overlay (172.24.0.0/16, group_vars/all/main.yml network_ranges)
+      # carries the Pattern-A sidecar UIs (dsh + pi-dev) so the file-provider routers
+      # in dynamic/routes.yml.j2 can resolve them via Docker DNS. NOT traefik-public
+      # (the main public edge's apps live there; the tailnet edge must not be able to
+      # reach them — defense in depth) and NOT services-internal (dsh + pi-dev UIs
+      # bind loopback-only inside their containers; only the sidecar proxies them).
+      tailnet-apps:
+        # No IP pin — Traefik's file-provider routes use Docker DNS for backend
+        # service discovery (e.g. `dsh:3080` resolves via the new overlay's
+        # embedded DNS), not a fixed backend IP.
+        aliases:
+          - traefik-tailnet-apps
     volumes:
       - ./dynamic:/etc/traefik/dynamic:ro   # routes.yml + middlewares.yml + tls.yml (file provider)
       - /opt/traefik/certs:/etc/traefik/certs:ro   # wildcard pair from the main VPS issuer (HD-181/204)
@@ -141,4 +165,12 @@ services:
 
 networks:
   traefik-public:
+    external: true
+  # HD-296: tailnet-apps overlay (172.24.0.0/16) — joins traefik-tailnet + the
+  # Pattern-A sidecar UIs (dsh + pi-dev). See services-internal definition below
+  # for the reverse direction (the apps stay on services-internal; tailnet-apps
+  # is the SHARED bridge between the tailnet edge and the sidecar netns via Docker
+  # DNS — the apps don't actually join tailnet-apps because the sidecar shares
+  # the app's netns via network_mode: service:<app>).
+  tailnet-apps:
     external: true

@@ -78,6 +78,7 @@
 | services-internal | 172.21.0.0/16 | Docker bridge — app ↔ app communication |
 | db-internal | 172.22.0.0/16 | Docker bridge — databases (fully isolated) |
 | llm-backend | 172.23.0.0/16 | Docker bridge — LLM backend (Ollama) ↔ LiteLLM only, fully isolated (HD-59) |
+| tailnet-apps | 172.24.0.0/16 | Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't |
 | site | 10.10.0.0/16 | Whole homelab site — all VLANs (10.10.x.0/24) |
 | nfs-clients | 10.10.1.30/32 | NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP) |
 
@@ -96,4 +97,4 @@
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-08-28T17:58:22Z
+> Last generated: 2026-08-29T21:03:09Z
