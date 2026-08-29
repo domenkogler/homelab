@@ -268,6 +268,9 @@ mismatch), Enabled_Not_Converged (service enabled but container not Up).
 
 `;
 
+// Each lane gets a DISTINCT model provider so 5 parallel lanes do not share one
+// upstream rate-limit pool (the first run all hit openrouter/minimax/minimax-m3:free
+// 429 simultaneously; retry uses 5 different provider pools).
 const lanes = [
   {
     key: 'audit-docs',
@@ -276,6 +279,7 @@ const lanes = [
     output: 'reports/audit-track-A-docs.md',
     timeoutMs: 1800000,
     worktree: true,
+    model: 'openrouter/anthropic/claude-sonnet-4.5',
   },
   {
     key: 'audit-iac',
@@ -284,6 +288,7 @@ const lanes = [
     output: 'reports/audit-track-B-iac.md',
     timeoutMs: 1800000,
     worktree: true,
+    model: 'openrouter/google/gemini-2.5-pro',
   },
   {
     key: 'audit-scripts',
@@ -292,6 +297,7 @@ const lanes = [
     output: 'reports/audit-track-C-scripts.md',
     timeoutMs: 1800000,
     worktree: true,
+    model: 'openrouter/deepseek/deepseek-chat-v3.1',
   },
   {
     key: 'audit-conformance',
@@ -300,6 +306,7 @@ const lanes = [
     output: 'reports/audit-track-D-conformance.md',
     timeoutMs: 1800000,
     worktree: true,
+    model: 'openrouter/anthropic/claude-haiku-4.5',
   },
   {
     key: 'audit-live',
@@ -308,6 +315,7 @@ const lanes = [
     output: 'reports/audit-track-E-live.md',
     timeoutMs: 1800000,
     worktree: true,
+    model: 'openrouter/openai/gpt-4o',
   },
 ];
 
