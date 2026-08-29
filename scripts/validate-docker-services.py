@@ -371,9 +371,13 @@ def validate_render(name, j2_path, env, service):
                         f"to ALLOWED_LATEST with a MUST-pin comment."
                     )
 
-        # restart policy
+        # restart policy (HD-264 fix): the docker-compose v2 restart spec allows
+        # bare `on-failure` AND `on-failure:<max-retries>` (https://docs.docker.com/
+        # compose/compose-file/compose-file-v3/#restart); the original whitelist
+        # missed both forms — bare Renovate churn (HD-264) needed `on-failure:5`
+        # to land, so the validator gained the two forms together.
         restart = svc_def.get("restart", "")
-        if restart and restart not in ("always", "unless-stopped", "no", ""):
+        if restart and restart not in ("always", "unless-stopped", "no", "") and not restart.startswith("on-failure"):
             errors.append(f"{prefix} invalid restart policy: '{restart}'")
 
         # HD-202 backstop: container-hardening law (deployment-compose.md §Container
