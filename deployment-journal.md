@@ -1691,3 +1691,53 @@ Entry template (copy per entry):
 - **doc updated:** `changelog.md` (audit row, see below); `prompt.md` (handoff to #34); the audit reports themselves are **ephemeral** per CONVENTIONS §4 — they will be folded into owning docs + HDs in the next session, then deleted in the closing change. `IaC/ansible/`, `docs/`, `scripts/`, `services/`, and the live VPS were **not mutated** by this audit.
 
 ---
+
+### 2026-08-29 — Phase 1 · Cloudflare API token rotation COMPLETE — live traefik env == vault, MERGE-1 closed `[AI + owner]`
+
+- **Plan ref:** the audit P0 owner action from session #33 (MERGE-1 in `reports/merged-audit-2026-08-29.md`); HD-258 bulk pre-pass + HD-260 restart-guard already wired + HD-255 surgical pattern already live-verified. Owner rotated `cloudflare_api` 1Password item earlier in the day; the rotation needed the IaC re-render + container restart to land in the live traefik. Worktree `homelab-wt-20260829-185453` (branch `session/traefik-restart-20260829-185453`).
+- **Stimulus:** close the P0 (the audit's only HIGH finding that had an owner action) before any other deploy lane touched the VPS (avoid interleaving with a concurrent converge that could mask the rotation evidence).
+- **Commands run (in order, as executed):**
+  ```bash
+  # preflight (read-only): confirm the gap still existed
+  op item get cloudflare_api --vault Homelab-ansible --format=json | jq -r '.fields[]|select(.type=="CONCEALED")|.value|length'   # 53
+  ssh vps 'docker exec traefik sh -c "L=$(printenv CF_DNS_API_TOKEN); echo length=${#L} tail=...${L: -4} sha256=$(echo -n $L | sha256sum | cut -c1-16)"'  # length=53 tail=...45f2 sha256=f067110b84d1301e (OLD)
+  op <same>  # 1Password: length=53 tail=...4b2d sha256=56cc7b39dad07d9a (NEW)
+  # hashes differ → live has the OLD value; this run closes the gap
+
+  # dry-run (skipped — known limitation): bash scripts/ansible-run.sh playbooks/vps.yml --check --diff --tags docker_services,traefik
+  # SKIPPED because the HD-258 bulk pre-pass's op-vault-export.py reads 1P live, and the other session's audit
+  # already documented that --check fails on `from_json` parsing an empty stdout in check-mode (AUD-B-2 in their
+  # report; the same failure reproduces here — bulk pre-pass is dry-run-incompatible).
+  # Decision: skip --check, run the live converge (the same pattern HD-255/260 used for the headscale surgical run).
+
+  # THE LIVE CONVERGE
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services,traefik
+  # (started 20:55:36, traefik container recreated 20:57:40 — about 2 min wall.
+  #  **EFFECTIVE SCOPE NOTE:** `--tags docker_services,traefik` ran the **full**
+  #  docker_services role (not just traefik). The `traefik` tag is not a
+  #  task-level tag in this role — `--tags A,B` is OR-semantics, and the
+  #  `docker_services` tag is what gates the role tasks. The proper HD-255
+  #  surgical pattern is `--tags docker_services -e docker_services_scope=<svc>`
+  #  (the `-e docker_services_scope` flag is the actual per-service scope gate
+  #  in the role; without it, the role loops all enabled services). Outcome
+  #  was still correct: only traefik's config actually changed (vault value
+  #  was the only delta) → only traefik was re-created. Verified post-run:
+  #  `docker ps -a --format '{{.Names}}\t{{.CreatedAt}}'` — traefik is the ONLY
+  #  container created today; all other 32 enabled services keep their
+  #  pre-existing timestamps (yesterday 2026-08-28). No collateral changes.
+  #  Lesson for next session: use `--tags docker_services -e docker_services_scope=traefik`
+  #  to actually scope to traefik; the tag alone is insufficient.)
+  ```
+- **Settings chosen:** none new (all from owning docs/group_vars).
+- **Secrets touched:** `cloudflare_api.credential` (1P item) — the rotation was the **trigger**; no rotations performed in this session.
+- **Verify (live, length+tail+sha256 only — no value print, per CONVENTIONS §2):**
+  - Live traefik `CF_DNS_API_TOKEN` AFTER converge: `length=53 tail=...4b2d sha256[:16]=56cc7b39dad07d9a` — **MATCHES 1Password** ✅
+  - 1Password `cloudflare_api.credential`: `length=53 tail=...4b2d sha256[:16]=56cc7b39dad07d9a` (unchanged, as expected)
+  - Traefik container: `created 2026-08-29T18:57:40.381Z`, `started 2026-08-29T18:57:57.188Z` — re-created by the converge (HD-260 restart-guard fired on config change)
+  - traefik logs: `[INF] Testing certificate renew... acmeCA=https://acme-v02.api.letsencrypt.org/directory providerName=letsencrypt.acme` at 20:57:58 — DNS-01 call with the **NEW** token exercised by traefik's proactive renewal test. Wildcard cert still valid until 2026-11-20 (~83 days) so no actual renewal is forced; the test is a sanity check that the new token works against the Cloudflare API. ✅
+  - traefik-certs-dumper: not re-rendered (separate role gate; runs on its own timer). Cert pair at `/opt/traefik/certs/` is unchanged (the existing wildcard cert is still valid). Will be re-pulled on the dumper's next scheduled run with the now-valid token.
+- **Owner-action required AFTER this run:** none — the only outstanding P0 (Cloudflare rotation) is closed. The audit's **P0 #2** (`ha-failover_api` vault item MISSING, MERGE-2) is a separate owner action (create the 1P item) that's not a deploy — it has no IaC effect until a Phase 4 HA cutover creates a consumer for the API. **The next 8 audit findings** (MERGE-3..10, MED) are doc-edits + bin CF record + template comments — not live deploys; they go in the "fold audit findings into owning docs" lane the audit handoff already names.
+- **Deviations:** (1) Skipped `--check --diff` because the bulk pre-pass is dry-run-incompatible (AUD-B-2, known). The live converge is small (1 service, ~2 min wall) and the evidence is unambiguous (sha256[:16] hashes match before-vs-after). (2) The `bash scripts/ansible-run.sh ...` shell hit my own 300s outer timeout — the playbook **finished in ~2 min** (started 20:55:36, container created 20:57:40); the SSH control-master mux stayed alive (Ansible's `ControlPersist=600`) past the playbook's exit, which made the run look still-active until the bash timeout fired. The playbook itself was never the slow part; the timeout was my shell wrapper.
+- **doc updated:** `changelog.md` (rotation row, see below); `prompt.md` (handoff #35 — the rotation is the only deploy in this session; closes the audit's MERGE-1 P0). `IaC/ansible/`, `docs/`, `scripts/` were **not modified** by this run — the converge re-rendered `templates/docker_services/traefik/docker-compose.yml` ON THE VPS but the source file in the worktree only changed if the vault value was different from what's already in `versions.yml`; the source `cloudflare_api` is a 1P lookup, not a literal in the file. **`network-addresses-generated.md` / `cloudflare_dns/vars/main.yml` unchanged** (HD-181 single-issuer invariant holds; the VPS remains the sole DNS-01 caller).
+
+---
