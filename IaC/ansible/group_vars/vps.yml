@@ -173,13 +173,41 @@ prometheus_ha_exporter: false
 # `headscale nodes list` after the sidecar joins (empty → headscale renders no
 # extra_records).
 tailnet_sidecar_ip: "100.64.0.1"
+# HD-268c (2026-08-29): Pattern-A tailnet sidecar IPs (vps-dsh / vps-pi-dev).
+# These IPs are assigned SEQUENTIALLY by headscale at node join; the values
+# below are the LIVE-observed tailnet IPv4s after the dsh + pi-dev sidecars
+# joined the mesh. The deploy flow (per the existing `tailnet_sidecar_ip`
+# comment above) is: read `headscale nodes list` after each sidecar joins,
+# set the corresponding group_var, re-converge + restart headscale. Leave
+# empty -> headscale renders no extra_records for that sidecar (fail-loud
+# render guard in config.yaml.j2).
+tailnet_dsh_ip: "100.64.0.2"
+tailnet_pi_dev_ip: "100.64.0.5"
 
 # Subdomains served by the tailnet edge (watched by headscale config.yaml.j2
-# extra_records render). Keep in sync with traefik-tailnet dynamic/routes.yml.
+# extra_records render). Each entry is `{name: <sub>, ip: <tailnet IPv4>}`.
+# `ip` defaults to `tailnet_sidecar_ip` (the traefik-tailnet observability
+# edge on `vps-obs`) when omitted — keeps the existing observability entries
+# free of redundant IP noise. For Pattern-A sidecars (HD-268c), pin the IP
+# to the sidecar's own tailnet IPv4 so the FQDN resolves to the right node.
+#
+# NOTE: the `ip` value is a LITERAL tailnet IPv4 (NOT a Jinja var reference).
+# Ansible's group_vars loader treats YAML scalars as-is (no second Jinja pass);
+# if `ip` were `{{ tailnet_dsh_ip }}` it would render as the literal string
+# `{{ tailnet_dsh_ip }}` in the headscale config, NOT the variable's value.
+# The deploy step MUST keep each per-sub IP in sync with the corresponding
+# `tailnet_<svc>_ip` group_var (same deploy-time constraint as
+# `tailnet_sidecar_ip`); the two values are the same live number today.
+# Keep in sync with traefik-tailnet dynamic/routes.yml (obs edge) +
+# the sidecar compose templates (Pattern-A: dsh + pi-dev).
 tailnet_subdomains:
-  - stats
-  - logs
-  - csui
-  - sec
-  - traefik
-  - auto
+  # --- traefik-tailnet observability edge (vps-obs, tailnet_sidecar_ip) ---
+  - { name: stats }
+  - { name: logs }
+  - { name: csui }
+  - { name: sec }
+  - { name: traefik }
+  - { name: auto }
+  # --- Pattern-A sidecars (HD-268c) — KEEP IN SYNC with tailnet_dsh_ip / tailnet_pi_dev_ip above ---
+  - { name: dsh,    ip: "100.64.0.2" }   # vps-dsh   :3080  (DSH Web UI)  == tailnet_dsh_ip
+  - { name: pi,     ip: "100.64.0.5" }   # vps-pi-dev:8080  (pi  Web UI) == tailnet_pi_dev_ip

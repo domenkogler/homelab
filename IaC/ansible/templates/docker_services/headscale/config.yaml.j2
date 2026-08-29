@@ -76,19 +76,27 @@ dns:
   # default ""). Deploy step: read `headscale nodes list` after the sidecar joins,
   # set `tailnet_sidecar_ip`, re-converge + restart headscale. Leave empty → no
   # extra_records (fail-loud render guard below).
+  #
+  # HD-268c (2026-08-29): the schema is now {name, ip} dicts. `ip` defaults to
+  # `tailnet_sidecar_ip` when omitted (the observability entries stay terse), and
+  # the Pattern-A sidecars (HD-268c) pin their own tailnet IP. Records render
+  # for BOTH the plain `*.kogler.si` and the `*.ts.kogler.si` namespaces —
+  # identical pattern for both observability edge and Pattern-A sidecars.
   extra_records:
-{% if tailnet_sidecar_ip | default('', true) %}
-{% for sub in tailnet_subdomains | default(['stats','logs','csui','sec','traefik','auto']) %}
-    - name: "{{ sub }}.kogler.si"
+{% set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_dsh_ip | default('', true) or tailnet_pi_dev_ip | default('', true) %}
+{% if _any_ip %}
+{% for sub in tailnet_subdomains | default([{'name':'stats'},{'name':'logs'},{'name':'csui'},{'name':'sec'},{'name':'traefik'},{'name':'auto'}]) %}
+{% set _ip = sub.ip | default(tailnet_sidecar_ip) %}
+    - name: "{{ sub.name }}.kogler.si"
       type: "A"
-      value: "{{ tailnet_sidecar_ip }}"
-    - name: "{{ sub }}.ts.kogler.si"
+      value: "{{ _ip }}"
+    - name: "{{ sub.name }}.ts.kogler.si"
       type: "A"
-      value: "{{ tailnet_sidecar_ip }}"
+      value: "{{ _ip }}"
 {% endfor %}
 {% else %}
-    # tailnet_sidecar_ip unset -> no extra_records (deploy step fills it from
-    # `headscale nodes list` after the sidecar joins; see header comment above)
+    # All tailnet_*_ip unset -> no extra_records (deploy step fills them from
+    # `headscale nodes list` after each sidecar joins; see header comment above)
     []
 {% endif %}
 
