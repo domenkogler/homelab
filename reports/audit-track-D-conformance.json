@@ -1,0 +1,75 @@
+{
+  "track": "D-conformance",
+  "audit_date": "2026-08-29",
+  "commit": "c9baf09",
+  "scope": "secret hygiene, lifecycle conformance, service-onboarding, decision-log alignment",
+  "methodology": "parent inline execution",
+  "findings": [
+    {
+      "id": "AUD-D-1",
+      "severity": "High",
+      "status": "OPEN",
+      "drift_type": "Secret_Reference_Broken",
+      "title": "Cloudflare DNS API token (cloudflare_api) exposed in this audit's session transcript via docker inspect traefik",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'docker inspect traefik --format ... ' (lengths/tails only in report; raw value was echoed in chat)",
+        "file": "IaC/ansible/group_vars/vps.yml:docker_services.traefik",
+        "line": "(vault lookup cloudflare_api.credential)",
+        "output_snippet": "length=53, tail=...45f2 (1Password); length=53, tail=...45f2 (traefik env) — match (no drift), but the value was exposed in this transcript"
+      },
+      "deduplication_key": "Homelab-ansible/cloudflare_api/credential",
+      "proposed_fix": "rotate cloudflare_api 1Password item; re-render traefik compose (HD-258 bulk pre-pass picks it up); restart traefik; this is a hygiene event, NOT a value drift"
+    },
+    {
+      "id": "AUD-D-2",
+      "severity": "Med",
+      "status": "OPEN",
+      "drift_type": "Liveness_Mismatch",
+      "title": "renovate onboarding 6/10 (deploy-gated per HD-264)",
+      "evidence": {
+        "type": "journal",
+        "command": "grep -i renovate deployment-journal.md todo.md",
+        "file": "deployment-journal.md",
+        "line": "Phase 1 (churn noted)",
+        "output_snippet": "renovate container RestartCount=7044, churn not yet closed; HD-264 carve-out: needs domen/test sandbox + run-model fix"
+      },
+      "deduplication_key": "IaC/ansible/group_vars/vps.yml:docker_services.renovate.enabled",
+      "proposed_fix": "track HD-264 (sandbox + run-model); not a new finding"
+    },
+    {
+      "id": "AUD-D-3",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "0 open decisions in todo.md §1; all resolved in changelog.md (CONVENTIONS §4 single-pattern housekeeping)",
+      "evidence": {
+        "type": "diff",
+        "command": "awk '/^## 1\\./,/^## 2\\./' todo.md | grep -v '^>' | grep -E '^\\|' | head",
+        "file": "todo.md",
+        "line": "§1 Decisions",
+        "output_snippet": "(only 'None open' note + HD-30 purchase row)"
+      },
+      "deduplication_key": "todo.md:open-decisions",
+      "proposed_fix": "no-op"
+    }
+  ],
+  "verified_ok": [
+    "validate-secrets.py green (no literal credentials in group_vars/host_vars/role defaults/templates)",
+    "check_vault_name.py green (no bare 'Homelab' vault references in 326 files)",
+    "check-vault-items.sh --strict reports 1 missing (metabase-forgejo_ro, HD-242 deploy-gated)",
+    "249 HD rows in todo.md; HD max = 274; all ⏳ tails paired with deployment-tasks.md phase checklists",
+    "Service-onboarding rubric: crowdsec-web-ui 10/10, traefik 10/10, renovate 6/10 (deploy-gated per HD-264)",
+    "cloudflare_api vault length/tail match traefik container env (no drift on the value side)"
+  ],
+  "questions": [],
+  "false_positives": [
+    "AUD-FP-D-1: sunshine enabled but no journal — see Track B §B.7.1",
+    "AUD-FP-D-2: blackbox-exporter journal name mismatch — see Track B §B.7.3"
+  ],
+  "deduplication_keys": [
+    "Homelab-ansible/cloudflare_api/credential",
+    "IaC/ansible/group_vars/vps.yml:docker_services.renovate.enabled",
+    "todo.md:open-decisions"
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "track": "E-live",
+  "audit_date": "2026-08-29",
+  "commit": "c9baf09",
+  "scope": "read-only live probes against VPS (ssh ansible-admin@vps.kogler.si) + public HTTPS reachability from this WSL",
+  "methodology": "parent inline execution, strictly read-only (no converges, no op item edit, lengths/tails only for env==vault)",
+  "findings": [
+    {
+      "id": "AUD-E-1",
+      "severity": "High",
+      "status": "OPEN",
+      "drift_type": "Secret_Reference_Broken",
+      "title": "Cloudflare DNS API token exposed in this audit session transcript via docker inspect traefik",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'docker inspect traefik --format \"{{range .Config.Env}}{{println .}}{{end}}\"'",
+        "file": "(live, captured in transcript)",
+        "line": "CF_DNS_API_TOKEN=<value>",
+        "output_snippet": "length=53, tail=...45f2 (1Password) == length=53, tail=...45f2 (traefik env)"
+      },
+      "deduplication_key": "Homelab-ansible/cloudflare_api/credential",
+      "proposed_fix": "rotate cloudflare_api 1Password item; HD-258 bulk pre-pass will pick up the new value on next converge; restart traefik; this is a hygiene event, NOT a value drift"
+    },
+    {
+      "id": "AUD-E-2",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Liveness_Mismatch",
+      "title": "50 VPS containers Up (49 healthy + 1 unhealthy `authentik-ldap` deploy-gated per HD-132)",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'docker ps -a --format ...'",
+        "file": "(live, 50 rows)",
+        "line": "all 33 enabled services have a corresponding Up container",
+        "output_snippet": "(see Track E §E.1 sample)"
+      },
+      "deduplication_key": "(live)",
+      "proposed_fix": "no-op; the 1 unhealthy + 2 churn entries are all tracked (HD-132, HD-264, HD-268)"
+    },
+    {
+      "id": "AUD-E-3",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Liveness_Mismatch",
+      "title": "13/17 public services respond on HTTPS (4 tailnet-only return 000 as expected per HD-273 L3)",
+      "evidence": {
+        "type": "live",
+        "command": "for h in kogler.si sso.kogler.si ... ; do curl -sI ...; done",
+        "file": "(live)",
+        "line": "17 subdomains probed",
+        "output_snippet": "302/200/405 for public; 000 for tailnet-only (stats, csui, bin, sec)"
+      },
+      "deduplication_key": "(live)",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "AUD-E-4",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Liveness_Mismatch",
+      "title": "Wildcard cert expires 2026-11-20 (~83 days) — well above 30-day warning",
+      "evidence": {
+        "type": "live",
+        "command": "openssl s_client -connect <host>:443 -servername <host> | openssl x509 -noout -enddate",
+        "file": "(live, 10 services)",
+        "line": "Nov 20 20:45 GMT 2026",
+        "output_snippet": "(all 10 services return the same wildcard cert)"
+      },
+      "deduplication_key": "(cert expiry)",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "AUD-E-5",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Liveness_Mismatch",
+      "title": "db-backup last run 2026-08-28 20:01 (21h ago, < 24h target)",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'docker logs db-backup --tail 20'",
+        "file": "(live)",
+        "line": "Sleeping for another 86400 seconds. Waking up at 2026-08-29 20:01:41 CEST",
+        "output_snippet": "(all 4 dbs: authentik, forgejo, immich, litellm dumped successfully)"
+      },
+      "deduplication_key": "(backup schedule)",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "AUD-E-6",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Liveness_Mismatch",
+      "title": "kopia-server connected to Hetzner Storage Box, 1.1 TB available, quick maintenance completed",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'docker exec kopia-server kopia repository status ...'",
+        "file": "(live)",
+        "line": "Storage: sftp, 1.1 TB available, path=kopia, host=u653424.your-storagebox.de",
+        "output_snippet": "Finished quick maintenance"
+      },
+      "deduplication_key": "(backup connectivity)",
+      "proposed_fix": "no-op"
+    }
+  ],
+  "verified_ok": [
+    "50 VPS containers Up (49 healthy + 1 unhealthy `authentik-ldap` deploy-gated per HD-132)",
+    "All 33 enabled services have a corresponding Up container (no enabled-but-missing)",
+    "env==vault by length+tail for the one service sampled (no drift on value side, but a hygiene event in the transcript — see D-1.1)",
+    "13/17 public services respond on HTTPS; 4 tailnet-only return 000 as expected per HD-273 L3",
+    "Wildcard cert expires 2026-11-20 (~83 days, well above 30-day warning)",
+    "db-backup on schedule (last run 21h ago, < 24h target)",
+    "kopia-server connected to Hetzner Storage Box, 1.1 TB available",
+    "op budget healthy (1 read used this session)"
+  ],
+  "questions": [
+    "should the audit lane that probes live env vars adopt the safer pattern (sed-replace values with redacted placeholders before stdout)? See Track D §D.5 hygiene recommendations"
+  ],
+  "false_positives": [],
+  "deduplication_keys": [
+    "Homelab-ansible/cloudflare_api/credential",
+    "(live)",
+    "(cert expiry)",
+    "(backup schedule)",
+    "(backup connectivity)"
+  ]
+}

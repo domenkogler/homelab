@@ -1,0 +1,109 @@
+{
+  "track": "A-docs",
+  "audit_date": "2026-08-29",
+  "commit": "c9baf09",
+  "scope": "docs/ + docs/index.md doc-map + docs/manual/ + generated-doc accuracy",
+  "methodology": "parent inline execution (audit-approach.md §1)",
+  "findings": [
+    {
+      "id": "AUD-A-1",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Orphan_Doc_Script",
+      "title": "Document Map is comprehensive — 0 unmapped canonical docs",
+      "evidence": {
+        "type": "diff",
+        "command": "python3 scripts/check_doc_map.py",
+        "file": "docs/index.md",
+        "line": "Document Map code block",
+        "output_snippet": "(no violations other than the transient self-ref below)"
+      },
+      "deduplication_key": "docs/index.md:Document Map",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "AUD-A-2",
+      "severity": "Low",
+      "status": "OPEN",
+      "drift_type": "Orphan_Doc_Script",
+      "title": "Stale scripts/README.md links to non-existent ansible-enhancements.md (HD-263 follow-up)",
+      "evidence": {
+        "type": "grep",
+        "command": "grep -n ansible-enhancements scripts/README.md",
+        "file": "scripts/README.md",
+        "line": "63-64",
+        "output_snippet": "... · [ansible-enhancements.md](../ansible-enhancements.md) §8.4 ..."
+      },
+      "deduplication_key": "scripts/README.md:ansible-enhancements-ref",
+      "proposed_fix": "when HD-263 deletes ansible-enhancements.md, drop the §8.4 references from scripts/README.md lines 63-64; the content is already folded into the HD-263 row text"
+    },
+    {
+      "id": "AUD-A-3",
+      "severity": "Low",
+      "status": "FALSE_POSITIVE",
+      "drift_type": "Orphan_Doc_Script",
+      "title": "Transient broken link: audit-approach.md → reports/full-audit-2026-08-29.md",
+      "evidence": {
+        "type": "validator",
+        "command": "python3 scripts/check_doc_map.py",
+        "file": "audit-approach.md",
+        "line": "link target reports/full-audit-2026-08-29.md",
+        "output_snippet": "FAIL: 1 link(s) across repo .md do not resolve"
+      },
+      "deduplication_key": "audit-approach.md:report-link",
+      "false_positive_rationale": "self-resolving when the report is committed; the link is forward-pointing by design (the report is the deliverable of the file that links to it)"
+    },
+    {
+      "id": "AUD-A-4",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "Generated docs re-render cleanly (no drift vs IaC SSOT)",
+      "evidence": {
+        "type": "validator",
+        "command": "python3 scripts/validate_doc_templates.py",
+        "file": "docs/network-addresses-generated.md, docs/services-inventory-generated.md, docs/network-rack-generated.md, docs/subscriptions-table-generated.md",
+        "line": "all 4",
+        "output_snippet": "===== network-addresses.md.j2 rendered OK (5432 bytes) =====  ===== inventory.md.j2 rendered OK (9425 bytes) ====="
+      },
+      "deduplication_key": "IaC/ansible/templates:render-docs",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "AUD-A-5",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "8 hottest docs spot-checked against IaC — 0 conflicts",
+      "evidence": {
+        "type": "diff",
+        "command": "(sample 6+ facts each from deployment-*, network-*, services-*, observability, backup, security, smart-home-*, hardware-*, storage)",
+        "file": "docs/*",
+        "line": "(sample)",
+        "output_snippet": "all 11 spot-checked facts match their IaC SSOT"
+      },
+      "deduplication_key": "docs/*:IaC-parity",
+      "proposed_fix": "no-op"
+    }
+  ],
+  "verified_ok": [
+    "validate-all.sh green from worktree (9 validators pass)",
+    "74 markdown files in docs/ (62 canonical + 11 manual + 1 index)",
+    "0 IP literals outside network-addresses-generated.md",
+    "0 secret values in IaC/docs/templates",
+    "4 generated docs all correctly suffixed and managed-headered",
+    "Document Map is comprehensive (0 unmapped canonical docs)",
+    "33 enabled VPS services + 2 home_servers services match docs/services.md catalog"
+  ],
+  "questions": [],
+  "false_positives": [
+    "AUD-FP-A-1 — transient self-ref in audit-approach.md → reports/full-audit-2026-08-29.md (resolves on commit)"
+  ],
+  "deduplication_keys": [
+    "docs/index.md:Document Map",
+    "scripts/README.md:ansible-enhancements-ref",
+    "audit-approach.md:report-link",
+    "IaC/ansible/templates:render-docs",
+    "docs/*:IaC-parity"
+  ]
+}
