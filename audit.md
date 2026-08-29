@@ -35,6 +35,20 @@ drift, never cosmetic noise.
 
 ---
 
+## 1.5 Drift Definition (binding for all tracks)
+
+| Drift Type | Example | Severity | Evidence Required |
+|------------|---------|----------|-------------------|
+| **SSOT Conflict** | `group_vars/vps.yml` port 8080 vs `docs/services.md` port 9090 | High | Both file:line refs |
+| **Liveness Mismatch** | Doc banner `⏳ deploy-gated` but `deployment-journal.md` shows `✅ Live since 2026-08-22` | Medium | Journal entry date + doc line |
+| **Secret Reference Broken** | Template `vault[item.field]` but 1P item missing/renamed | High | `check-vault-items.sh --strict` output |
+| **Enabled Not Converged** | `enabled: true` in group_vars, no journal entry for converge | High | `deployment-journal.md` grep result |
+| **Validator Gap** | Injected `default('')` not caught by `validate-all.sh` | High | Validator name + injected fault |
+| **Orphan Doc/Script** | File exists but not in `docs/index.md` or `scripts/README.md` | Low | `git ls-files` vs registry diff |
+| **Cosmetic/Stale Text** | "TODO: define service" in a Live doc | Low | File:line + context |
+
+---
+
 ## 1. Audit inputs (read-only ground truth)
 
 | Input | Role | How to read |
@@ -46,6 +60,7 @@ drift, never cosmetic noise.
 | `docs/index.md` | Document map + dispatcher | The audit verifies every doc is reachable from here (and vice-versa) + every map row resolves. |
 | `scripts/README.md` | Script registry | The audit verifies registry accuracy (scripts exist, portability status matches, no orphan/undocumented scripts). |
 | `CONVENTIONS.md` | Rule index (§0-8) | The audit samples conformance of docs/IaC/scripts to the rules (naming, secrets, SSOT, lifecycle, onboarding §5). |
+| `rack-connections.json` | Physical/topology SSOT | Cross-check for all IP/hostname claims in docs/IaC; source of truth for `network-addresses-generated.md`. |
 | LIVE VPS | `ssh ansible-admin@vps.kogler.si` (read-only mostly) | Only for liveness cross-checks (containers Up, watchers, config==vault lengths). No convergent mutations unless a checklist explicitly says so. |
 
 ---
@@ -60,19 +75,31 @@ drift, never cosmetic noise.
 3. **SSOT discipline**: no IP literals outside `network-addresses-generated.md`/IaC (gate checks); no secret values; no `*-generated.md` hand-edits (git-blame them); no stale "TODO: define service" placeholder language.
 4. **Docs-vs-IaC parity**: for the hot owning docs (`deployment-*`, `network-*`, `services-*`, `observability`, `backup`, `security`, `smart-home*`, `hardware-*`, `storage`): each value/fact the doc quotes (service names, subdomains, image versions, ports, hostnames, addresses) must match the SSOT it cites (`group_vars/*.yml`, `host_vars/*.yml`). Sample-don't-exhaust: pick the 8 hottest docs; for each, spot-check ≥6 concrete facts.
 5. **Manual/ (family guides)**: `docs/manual/` — status fields (`status: wip`?), file count vs `manual/README.md` index, language consistent with its own spec, no technical secrets.
+6. **Generated-doc accuracy**: verify `network-addresses-generated.md` IPs match `rack-connections.json` + `host_vars/*.yml` `ansible_host` for all 6 hosts. Also spot-check `docs/hardware-topology.md` and `docs/network-topology.md` against `rack-connections.json`.
 
 ### Track B — IaC (Ansible) consistency & health
 1. **Inventory ↔ group_vars ↔ host_vars ↔ playbooks**: every host in `inventory.ini` has a host_vars file with an `ansible_host`; every playbook's host pattern matches the inventory groups; no dead/duplicate vars; `group_vars/all/` vs per-group precedence sane.
 2. **Role health**: each of the 19 roles — exists under `roles/`, referenced by a playbook, `defaults/`+`tasks/`+`handlers/`(+`templates/`) shaped, no orphan role, no role that a playbook references but is missing. `requirements.yml` collections resolve (they're installed in `~/ansible-venv`).
 3. **docker_services registry ↔ templates ↔ vault**: every `enabled: true` entry in `group_vars/{vps,home_servers}.yml` has a `template_dir` that exists under `templates/docker_services/`; every template dir has a `docker-compose.yml.j2`; every `_template_vault_items` / `vault[...]` reference resolves to a 1P item or a glue-seeded item (re-run `bash scripts/check-vault-items.sh --strict` on the live tree for the MISSING list; exclude the documented glue items). Cross-check service list vs `docs/services.md` catalog + `docs/network-addresses-generated.md`.
 4. **Compose template rules** (`docs/deployment-compose.md`): external networks, Traefik label conventions, no host-net/privileged port binds unless documented, pins (`_version` vars, no bare `latest`), the `| replace('$','$$')` compose-escaping rule (HD-270) applied on every vault-value expr, no `default('')` **anywhere in templates/group_vars** (fail-loud rule HD-65/HD-91).
+   **HD-270 Escape Verification**: grep for `vault\[` in all `templates/docker_services/**/*.j2` — every occurrence must have `| replace('$','$$')` or be in a context where escaping is not needed (document why).
 5. **Playbook tag/surgical hygiene** (`docs/deployment-ansible.md` §Tags & surgical): every playbook's role tags are declared; `docker_services_scope` semantics not violated; the rare `base` tier additive (not a skip-default); nothing renders/updates off-path.
 6. **IaC ↔ docs parity**: the hot IaC values (subdomains, ports, image pins, IPs) match the owning docs; where they diverge, one is stale — the audit REPORT says which direction.
+7. **Convergence verification**: for every `enabled: true` in `group_vars/{vps,home_servers}.yml`, verify:
+   - A `deployment-journal.md` entry exists with "converged" / "verified" / "deployed" language for that service.
+   - The corresponding `deployment-tasks.md` phase checklist has the service ticked (✅).
+   - If missing → finding `AUD-B-<n>` High: "Service X enabled but no convergence evidence".
+8. **Ansible idempotency check**: run `ansible-playbook -i inventory.ini site.yml --check --diff --limit vps` (and per-playbook for home_servers when provisioned) — report any "changed" tasks that should be idempotent. These indicate config drift between IaC and live state.
 
 ### Track C — Scripts & tooling consistency (scripts/)
 1. **Registry vs filesystem**: every file in `scripts/` is in `scripts/README.md` (and vice-versa, cross-check `git ls-files scripts/`); portability status table matches reality (each script portable per its shebang + a `bash -n`/`python3 -m py_compile` smoke on the worktree).
 2. **Gate exercise**: `bash scripts/validate-all.sh` from the worktree — must end green; note any validator that does NOT actually run (silent skip) or runs but exits 0 while reporting an error.
 3. **Validator coverage**: do the validators actually catch the classes they claim (sample: introduce a deliberate `default('')` or bare `latest` in a scratch template, see if the gate fails)? Report coverage gaps.
+   **Validator Effectiveness Scoring**: for each validator in `validate-all.sh`, record:
+   - `catches_injected_fault (Y/N)` — test with a deliberate fault in a scratch file
+   - `false_positive_rate (0-3)` — 0=never, 1=rare, 2=occasional, 3=frequent
+   - `runtime_ms` — execution time
+   This builds a validator health dashboard over time.
 4. **Deploy tooling**: `provision-secrets.py` catalog == `docs/deployment-secrets.md` generated-item list; `provision-vault.sh`/`op-vault-export.py`/`check-vault-items.sh` contracts match `scripts/README.md`; `ansible-run.sh`/`guard-session.sh`/`git-bootstrap.sh` match the CONVENTIONS §6/§8 rules; `next-hd.sh` returns max(HD)+1 (used for any new HD).
 5. **Dead/orphan scripts**: any script not referenced by the gate/README/owning docs (e.g. leftover `collect-*.ps1` siblings, superseded helpers) → propose retire/move (A3 style: only with a decision, never silent).
 
@@ -80,7 +107,23 @@ drift, never cosmetic noise.
 1. **Secret hygiene**: `bash scripts/check-vault-name.py` + `validate-secrets.py` green on the worktree; a human grep for the B5 placeholder tokens + any raw `password:`/`token:` literal in group_vars/templates (gate checks; the audit adds a second human layer).
 2. **Lifecycle conformance**: open HD rows map to owning docs; `⏳` tails exist only where `deployment-tasks.md` has a matching deploy-gated checklist; no fully-done row still living in todo (should be changelog-only); no row whose ⏳ is stale vs the journal (like the HD-271 comment-only gap caught in the live-verify session).
 3. **Service-onboarding (CONVENTIONS §5)**: for a sample of 3 enabled services (e.g. a recent on-board like crowdsec-web-ui, a core like traefik/authentik, and one still-⏳ like renovate) — walk the 10-step checklist and report which steps are done/gapped.
+   **Onboarding Rubric** (per service):
+   | Step | Required? | Evidence | Status (✅/⚠️/❌/N/A) |
+   |------|-----------|----------|------------------------|
+   | 1. Service catalog entry | Y/N | file:line | |
+   | 2. Vault items created | Y/N | 1P item name | |
+   | 3. Compose template | Y/N | template dir | |
+   | 4. group_vars entry | Y/N | group_vars file:line | |
+   | 5. DNS/TLS configured | Y/N | zone + cert | |
+   | 6. Observability (metrics/logs) | Y/N | dashboard/alert | |
+   | 7. Backup policy | Y/N | borg/restic config | |
+   | 8. Deployment journal entry | Y/N | journal date | |
+   | 9. deployment-tasks.md checklist | Y/N | phase item | |
+   | 10. Doc status banner updated | Y/N | doc file:line | |
 4. **Decision-log alignment**: no open decision in `todo.md` §1 that `changelog.md` already resolved; no decision re-argued in a doc without a changelog row.
+5. **False Positive Log**: for any finding that *looks* like drift but is intentional (e.g., a service `enabled:true` but deliberately not converged yet), record:
+   `AUD-FP-<n> | finding | why it's intentional | owner confirmation needed?`
+   This prevents re-flagging known intentional state in future audits.
 
 ---
 
@@ -92,6 +135,13 @@ Sampled against the live VPS (only where a report claim depends on it):
 - `headscale policy get` + `nodes list` (tailnet edge role matches docs).
 - `curl -sI https://<service>.kogler.si` for a representative subset (2-4) — expect 200/302 per the route tier docs.
 - `op service-account ratelimit` — sanity (never exceed the ≤6-read / ≤4-6-write concurrency budget when the audit DOES occasionally run a scoped converge).
+- **Ansible drift detection (read-only)**: `ansible-playbook -i inventory.ini site.yml --check --diff --limit vps` — report any "changed" tasks. These indicate config drift between IaC and live state. **Do not apply**.
+- **Secret value spot-check**: For 3 enabled services (traefik, authentik, crowdsec), compare `docker inspect <container> --format '{{.Config.Env}}'` env var *lengths* against `op item get <item> --fields <field> --format=json | jq '.value | length'`. Report length mismatches as High.
+- **Certificate expiry**: `curl -sI https://<service>.kogler.si` → check `expire` date via `openssl s_client -connect <host>:443 -servername <host> < /dev/null 2>/dev/null | openssl x509 -noout -dates`. Flag < 30 days.
+- **DNS/Traefik route parity**: for each `enabled:true` service with a subdomain, verify DNS resolves + Traefik router exists + TLS cert valid.
+- **Observability stack health**: verify Prometheus targets Up, Loki ingesting, Grafana dashboards loading, Alertmanager routes firing.
+- **Backup/restore validation**: verify `borg`/`restic` repos exist, last backup timestamp < 24h, test restore of one file (read-only).
+- **Hardware health (SMART, temps, UPS)**: `smartctl -a`, `sensors`, `apcaccess` on `nas`/`oldsrv`/`pi` (if provisioned).
 - Report live-vs-authored mismatches as findings, NOT as bootstrapping mutations.
 
 ## 3b. Orchestration model (pi-subagents) — run the audit as parallel lanes
@@ -112,6 +162,7 @@ tracks as isolated lanes (see `skills/pi-subagents/SKILL.md` + `references/multi
 ### Launch rules (from `pi-subagents` — binding)
 - **One top-level async `workflowScript`** with `runs.all([...])` for the five lanes — do NOT launch
   children from separate top-level calls; the workflow aggregates into an ordered array.
+- **Reference workflow file**: `agents-workflow.js` (in repo root) — the canonical pi-subagents workflow script for this audit. Use `workflowScriptPath: "agents-workflow.js"` when launching. This file contains the exact lane definitions, task prompts, and output paths.
 - **Each lane gets a lane-specific prompt** (not clones): its own track, its own source seam
   (docs/index for A, group_vars/inventory for B, scripts/README for C, CONVENTIONS for D), its
   own evidence file, and the shared contract below. Prefer **fresh-context** lanes so each starts
@@ -134,14 +185,36 @@ tracks as isolated lanes (see `skills/pi-subagents/SKILL.md` + `references/multi
 You are an audit lane in the Kogler Homelab repo (audit 2026-08-29).
 ENV: debian WSL ext4 · bash · worktree {lane} (clean, no commits) · read-only.
 Read: this audit.md (§0-§2 + your track) + the owning docs it cites + the SSOT it cites.
-Scope: ONLY {track}. Do NOT fix files; report findings. Write exactly ONE artifact:
-  reports/audit-{track-suffix}.md in your worktree with sections:
-  - Findings: table of AUD-<n> | severity (High/Med/Low) | status | evidence (file:line/link) | proposed fix (bounded, points to SSOT/owning doc)
-  - Verified-OK: short list
-  - Open questions for the owner (genuine blockers only)
-Secrets: item NAMES / lengths / tails only, never values. No git commit.
+Scope: ONLY {track}. Do NOT fix files; report findings.
+
+MANDATORY PRIOR ART:
+- Read `reports/audit-analysis.md` (AUD-01..13 all done) — do NOT report these as new findings.
+- Read `changelog.md` recent (last 20 entries) — do NOT re-open decided items.
+- Note any `brainstorming/audit-prompt.md` items relevant to your track.
+
+Write exactly ONE artifact pair in your worktree:
+  reports/audit-{track-suffix}.md    (human-readable)
+  reports/audit-{track-suffix}.json  (structured: findings[], verified_ok[], questions[], false_positives[], deduplication_keys[])
+
+Findings schema (JSON):
+  - id: "AUD-<track>-<n>"
+  - severity: "High|Med|Low"
+  - status: "OPEN|OK|OBSOLETE|NOTE|FALSE_POSITIVE"
+  - evidence: { type: "grep|journal|live|diff|validator", file, line, command, output_snippet }
+  - deduplication_key: "<SSOT_file>:<key>"  # e.g. "group_vars/vps.yml:docker_services.crowdsec.enabled"
+  - proposed_fix: "bounded, points to owning doc/SSOT"
+  - false_positive_rationale: "..."  # if status=FALSE_POSITIVE
+
+Secrets: item NAMES / lengths / tails only, never values. `op item get --reveal` FORBIDDEN. Use `--format=json` and extract `.value | length` only. No git commit.
 Return: your findings summary as final output (<=3k tokens).
 ```
+
+### Resumability & Quick Mode
+- **Checkpoint file**: `.audit-state.json` in the parent worktree, updated after each lane completes:
+  ```json
+  { "tracks_completed": ["A","B"], "live_checks_done": true, "lanes_launched": ["audit-docs","audit-iac"], "started_at": "2026-08-29T10:00:00Z" }
+  ```
+- **Quick Mode** (`AUDIT_MODE=quick` env var): runs only Track A.1, B.3, C.2, D.2, and §3 live checks for services in `git diff HEAD~5 -- group_vars/`. Document this in `scripts/README.md` under "Audit helpers".
 
 ### After the lanes
 1. Parent aggregates the five `reports/audit-track-*.md` into `reports/full-audit-2026-08-29.md`
@@ -168,9 +241,27 @@ Produce in the session worktree (do NOT commit findings inside a service config 
    - **F. Consolidated action plan**: High/Med/Low, each tied to a new HD row (use `scripts/next-hd.sh`) or an existing open HD; **do NOT re-decide** — where a fix contradicts a changelog decision, mark it `needs-owner-decision` with the prior decision cited.
    - **G. Open questions** for the owner (only genuine blockers, not resolved ones).
 
-2. **A bounded set of follow-up rows** — the session may (with green gate + signed commit + journal entry) fix **trivially-safe** items only (broken relative links, a stale banner whose journal evidence is unambiguous, a README/scripts README registry line, an obviously-dead script reference). Everything else lands as a `todo.md` HD row + a note in the report. **Never** mutate a live service config or a changelog decision without a journal/log entry and (if it touches enabled services) a scoped converge + verify.
+   **Evidence Standard** (for every finding in sections A–E):
+   - `evidence_type`: `grep|journal|live|diff|validator`
+   - `command_run`: the exact command that produced the evidence
+   - `output_snippet`: ≤200 chars, redacted (lengths/tails only for secrets)
+   This makes findings verifiable without re-running the audit.
 
-3. **Handoff update** — after the audit, update `prompt.md` (diff-edit to #33, per the handoff diff-rule) naming the audit outcomes + the concrete next task(s) the report opens.
+2. **Machine-readable aggregate**: `reports/full-audit-2026-08-29.json` with schema:
+   ```json
+   {
+     "audit_date": "2026-08-29",
+     "commit": "969597d",
+     "tracks": { "A": {...}, "B": {...}, "C": {...}, "D": {...}, "E": {...} },
+     "consolidated_findings": [ { "id": "AUD-001", "track": "B", "severity": "High", "deduplication_key": "group_vars/vps.yml:docker_services.traefik.enabled", ... } ],
+     "action_plan": [ { "hd": "HD-XXX", "title": "...", "severity": "High", "owning_doc": "docs/...", "source": "full-audit-2026-08-29" } ],
+     "open_questions": [ ... ]
+   }
+   ```
+
+3. **A bounded set of follow-up rows** — the session may (with green gate + signed commit + journal entry) fix **trivially-safe** items only (broken relative links, a stale banner whose journal evidence is unambiguous, a README/scripts README registry line, an obviously-dead script reference). Everything else lands as a `todo.md` HD row + a note in the report. **Never** mutate a live service config or a changelog decision without a journal/log entry and (if it touches enabled services) a scoped converge + verify.
+
+4. **Handoff update** — after the audit, update `prompt.md` (diff-edit to #33, per the handoff diff-rule) naming the audit outcomes + the concrete next task(s) the report opens.
 
 **Verify (definition of done):**
 - `bash scripts/validate-all.sh` green from the worktree.
@@ -178,6 +269,25 @@ Produce in the session worktree (do NOT commit findings inside a service config 
 - Every new HD row uses `scripts/next-hd.sh`, links its owning doc, and carries a `source: full-audit-2026-08-29` tag.
 - Any live fix performed was journaled + ticked + committed signed; nothing re-decided silently.
 - `git status --short` clean in the primary; worktree merged back green + pushed (or the report is committed and the worktree state is explicit in the handoff).
+- Both `reports/full-audit-2026-08-29.md` and `reports/full-audit-2026-08-29.json` exist and are consistent.
+
+---
+
+## 5. Severity Calibration Matrix (reference for all lanes)
+
+| Severity | Criteria | Examples |
+|----------|----------|----------|
+| **High** | Secret exposed; service down but `enabled:true`; SSOT conflict (two sources disagree on same fact); validator gap that permits secret leak; enabled service not converged | `default('')` in template; vault ref broken; `enabled:true` no journal entry |
+| **Med** | Banner stale; link broken; doc/IaC parity drift on non-critical fact; orphan script; cert < 30 days; backup > 24h | Doc says ⏳ but journal ✅; dead script in scripts/ |
+| **Low** | Cosmetic; naming inconsistency; missing manual guide status; stale TODO placeholder | ASCII alignment; wording polish |
+
+---
+
+## 6. Security / Secret Handling Hardening
+
+- **Rate limiting**: `op` calls in Live lane MUST use `bash scripts/op-rate-limited.sh` (create if missing) that enforces ≤6 reads / ≤4–6 writes per minute with token bucket.
+- **No reveal**: `op item get --reveal` FORBIDDEN in all lanes. Use `--format=json` and extract `.value | length` only.
+- **Vault path redaction**: In reports, 1P item names may be included but **vault paths** (e.g., `Homelab-ansible/traefik/acme`) must be redacted to `Homelab-ansible/<service>/<purpose>` unless the finding is specifically about vault structure.
 
 ---
 
@@ -196,3 +306,12 @@ Produce in the session worktree (do NOT commit findings inside a service config 
 > running 33 services). The highest-value output is an accurate, evidence-backed drift map —
 > which the next working sessions then execute via normal HD/plan/worktree flow. Prefer
 > *flagging* over *fixing*; where you do fix, do it the repo's way (SSOT → gate → journal → signed commit).
+>
+> **This audit produces a *drift map*, not a fix list.** Fixes follow normal HD/plan/worktree flow.
+>
+> **Quick reference for lanes:**
+> - Prior Qwen audits: `reports/audit-analysis.md` (AUD-01..13 all done) — tag any similar pattern as `known-resolved:AUD-XX`.
+> - Physical topology SSOT: `rack-connections.json` — cross-check for all IP/hostname claims.
+> - HD-270 compose escaping: verify `| replace('$','$$')` on *every* vault expr in templates.
+> - Convergence evidence: every `enabled:true` must have journal entry + deployment-tasks.md tick.
+> - Quick Mode: `AUDIT_MODE=quick` runs only A.1, B.3, C.2, D.2, and §3 live checks for changed services.
