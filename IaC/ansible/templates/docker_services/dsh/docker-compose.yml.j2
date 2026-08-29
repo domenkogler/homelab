@@ -68,6 +68,7 @@ services:
       # Named volume (rebuildable-cache class, Kopia scope) — matches upstream compose.
       # chrome-profile (browser-desktop) + node_modules live here too.
       - dsh-home:/home/node/.dsh
+
   # Pattern-A tailnet serve sidecar (docs/network-vpn.md §Pattern A): shares the dsh
   # network namespace; `tailscale serve` forwards the tailnet socket to the loopback
   # Web UI so it is reachable tailnet-only tagged tag:dsh. HD-250: no socat bridge,

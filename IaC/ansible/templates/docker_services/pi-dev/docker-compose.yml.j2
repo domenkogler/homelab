@@ -97,6 +97,7 @@ services:
     volumes:
       # Isolated agent workspace ONLY — never host dirs (HD-268c sandbox rule).
       - /srv/docker/pi-dev/workspace:/workspace
+
   # Pattern-A tailnet serve sidecar (docs/network-vpn.md §Pattern A): shares the pi-dev
   # network namespace; `tailscale serve` proxies the tailnet socket to the loopback Web UI
   # (127.0.0.1:8080). pi-web-ui verifies WebSocket Origin against Host — the sidecar must
