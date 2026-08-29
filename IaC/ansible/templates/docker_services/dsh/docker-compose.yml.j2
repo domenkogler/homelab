@@ -79,7 +79,13 @@ services:
   # via TS_AUTH_ONCE, --login-server pointed at our headscale (NOT public control plane —
   # live lesson 2026-08-28: a missing --login-server makes the client default to
   # controlplane.tailscale.com and reject our headscale key). The DSH UI is :3080.
-  {% if dsh_tailnet_sidecar_enabled is defined and dsh_tailnet_sidecar_enabled %}
+  # NOTE: the `if ... endif` Jinja block is intentionally at indent 0 — Ansible's
+  # template module uses `trim_blocks=True` which preserves the LEADING WHITESPACE
+  # of a tag line; placing the tag at indent 0 means its leaked whitespace is empty,
+  # and the sidecar block below renders at the correct indent 2 inside `services:`
+  # (without this, the leading-2-sp leak + the sidecar's own 2-sp indent would
+  # combine to indent 4, pushing the sidecar OUT of the `services:` block).
+{% if dsh_tailnet_sidecar_enabled is defined and dsh_tailnet_sidecar_enabled %}
   dsh-tailscale:
     image: tailscale/tailscale:{{ tailscale_version }}
     container_name: dsh-tailscale
@@ -110,7 +116,7 @@ services:
       TS_EXTRA_ARGS: "--login-server=https://vpn.kogler.si"
       TS_SERVE_CONFIG: /config/serve.json
       TS_AUTH_ONCE: "true"
-  {% endif %}
+{% endif %}
 networks:
   services-internal:
     external: true

@@ -106,7 +106,11 @@ services:
   # Mirrors the working traefik-tailnet sidecar (HD-135b): userspace networking, reusable
   # authkey via TS_AUTH_ONCE, --login-server pointed at our headscale (NOT public control
   # plane — live lesson 2026-08-28). pi Web UI is :8080.
-  {% if pi_dev_tailnet_sidecar_enabled is defined and pi_dev_tailnet_sidecar_enabled %}
+  # NOTE: the `if ... endif` Jinja block is intentionally at indent 0 — see
+  # dsh/docker-compose.yml.j2 for the rationale (Ansible's trim_blocks preserves
+  # leading whitespace of tag lines; placing the tag at indent 0 means zero leaked
+  # whitespace, sidecar renders at the correct indent 2 inside `services:`).
+{% if pi_dev_tailnet_sidecar_enabled is defined and pi_dev_tailnet_sidecar_enabled %}
   pi-dev-tailscale:
     image: tailscale/tailscale:{{ tailscale_version }}
     container_name: pi-dev-tailscale
@@ -136,7 +140,7 @@ services:
       TS_EXTRA_ARGS: "--login-server=https://vpn.kogler.si"
       TS_SERVE_CONFIG: /config/serve.json
       TS_AUTH_ONCE: "true"
-  {% endif %}
+{% endif %}
 networks:
   services-internal:
     external: true
