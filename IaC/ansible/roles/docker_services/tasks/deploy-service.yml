@@ -46,6 +46,22 @@
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml"
     mode: '0644'
 
+- name: "Remove stub dirs at extra-template dest paths for {{ svc.name }} (HD-268c)"
+  # HD-268c: when a service bind-mounts a source file from the template dir
+  # (e.g. ./serve.json:/config/serve.json:ro) and the file does NOT yet exist,
+  # docker compose up auto-creates the source as an EMPTY DIRECTORY (its default
+  # behaviour for missing bind-mount sources). On subsequent converges, the template
+  # task refuses to overwrite a directory at dest. Pre-remove any such stub so the
+  # render lands as a regular file.
+  tags: "{{ svc.name }}"
+  ansible.builtin.file:
+    path: "{{ docker_compose_dir }}/{{ svc.name }}/{{ extra | replace('.j2', '') }}"
+    state: absent
+  loop: "{{ _extra_templates[svc.template_dir] | default([]) }}"
+  loop_control:
+    label: "{{ extra | replace('.j2', '') }}"
+    loop_var: extra
+
 - name: "Template extra .j2 files for {{ svc.name }}"
   # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
   tags: "{{ svc.name }}"
