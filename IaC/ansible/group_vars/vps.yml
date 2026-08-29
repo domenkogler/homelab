@@ -127,8 +127,8 @@ docker_services:
 #      client `curl https://vps-dsh:3080` (and `vps-pi-dev:8080`) lands on the UI.
 # The ACL (policy.hujson) gates `tag:dsh` / `tag:pi-dev` to the family users only —
 # the sidecars never expose the Web UIs to other tailnet nodes.
-dsh_tailnet_sidecar_enabled: false
-pi_dev_tailnet_sidecar_enabled: false
+dsh_tailnet_sidecar_enabled: true
+pi_dev_tailnet_sidecar_enabled: true
 
 # Single cert issuer (HD-178/HD-181): THIS host is the only ACME (DNS-01) issuer for
 # *.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host
