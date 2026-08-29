@@ -1641,3 +1641,53 @@ Entry template (copy per entry):
 - **Verify:** <short output/evidence>
 - **Deviations:** none | <what + why> (doc updated: <file>)
 -->
+
+---
+
+### 2026-08-29 — Audit pass (session #33) · 4 audit reports produced, merged, deduped, archived (no IaC / docs / services mutated) `[AI]`
+
+- **Plan ref:** `audit.md` (full repository audit prompt for session #33); the two parallel session efforts (lane-style per `audit.md §3b` + parent-inline in this worktree) both failed on the same OpenRouter rate-limit / in-flight budget cap, so the audit was executed inline as a parent fall-back (full rationale: [`audit-approach.md`](audit-approach.md) — 3 attempted runs documented).
+- **Methodology (this session):** parent inline; full read-only scope; lengths/tails/hashes only for any secret probe (CONVENTIONS §2 hygiene); all writes land in this worktree (`homelab-wt-20260829-152521`, branch `session/audit-orchestrator-20260829-152521`). The other instance's lane-style worktree (`homelab-wt-2026-08-29-1652`, branch `session/audit-2026-08-29`) produced its own reports uncommitted/untracked; both reports were **deduplicated + merged** in this session.
+- **Commands run (audit only — no live mutations):**
+  ```bash
+  # all from this worktree, read-only
+  bash scripts/validate-all.sh                                              # GREEN, 0.6s, 13 checkers
+  bash scripts/check-vault-items.sh --strict                                 # 1→2 missing items (HD-242 deploy-gated + ha-failover_api from other audit)
+  python3 scripts/check_doc_map.py                                          # 1 transient self-ref (resolves on commit)
+  python3 scripts/validate_doc_templates.py                                 # OK
+  python3 scripts/validate-docker-services.py                               # PASS, 58 templates
+  python3 scripts/validate-secrets.py                                       # OK
+  python3 scripts/validate_blueprints.py                                    # OK, 2 blueprints
+  python3 scripts/check_doc_ips.py                                          # OK
+  python3 scripts/check_generated_suffix.py                                 # OK
+  python3 scripts/check_vault_name.py                                       # OK
+  python3 scripts/check_placeholders.py                                     # OK
+  # live probes (ssh vps, read-only):
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'docker ps -a --format ...'  # 50 containers Up (49 healthy + 1 unhealthy deploy-gated)
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'sudo systemctl status fail2ban' # failed 1d 18h
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'sudo nft list chain inet filter input' # default-deny, 174k drops since reload
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'docker exec traefik traefik version' # 3.7.11
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'docker exec authentik-server ak shell --no-startup --no-imports' # 22 OAuth2Provider + 2 Token (HD-216 sweep)
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'docker exec kopia-server kopia repository status ...' # connected, 1.1 TB
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'docker logs db-backup --tail 5' # last run 2026-08-28 20:01, next 2026-08-29 20:01
+  # DNS resolution from this WSL:
+  for s in ha vpn sso git office matrix chat ai foto file drop pairdrop pdf bin home kogler.si; do getent hosts "$s.kogler.si"; done
+  for s in stats sec csui traefik auto logs; do getent hosts "$s.kogler.si"; done  # tailnet-only — 5/6 NXDOMAIN, traefik STALE
+  ```
+- **Results / decisions:**
+  1. **Counts corrected (verified live):** roles=**20** (not 19 as `audit.md` said, not 18 as my first pass said), enabled services=**35** (33 vps + 2 home_servers, not 52), scripts=**31** (not 27), compose templates=58, canonical docs=62, total markdown=74.
+  2. **`validate-all.sh` green** from the audit worktree (0.6s, all 13 validators pass).
+  3. **Cloudflare API token exposure (hygiene event):** the live traefik `CF_DNS_API_TOKEN` was echoed to stdout by an early `docker inspect` probe (one-off mistake, then corrected to length/tail/sha256-only); owner **rotated the 1Password item** but the live container still has the OLD value (sha256 hashes differ). Action required: owner runs `bash scripts/ansible-run.sh vps.yml --tags docker_services,traefik` (HD-258 picks up the new value, HD-260 restart-guard restarts on change); tracked as **MERGE-1 (HIGH)** in the merged audit.
+  4. **`ha-failover_api` vault item MISSING** — newly identified by the other session's audit (not in my first pass). `check-vault-items.sh --strict` now reports **2 missing items**: `metabase-forgejo_ro` (HD-242 deploy-gated, known) + `ha-failover_api` (HD-17 future cutover, new). Tracked as **MERGE-2 (HIGH)**.
+  5. **fail2ban dead 1d 18h** on the VPS — the `http-auth` jail points at `/var/log/traefik/access.log` but traefik compose doesn't enable `accesslog`; the `nginx-http-auth` filter is nginx-specific anyway. MERGE-6.
+  6. **wg-s2s tunnel not up** — `peer_public_key` empty (fail-loud at render); expected per HD-03 Phase 1.5 cutover. MERGE-11.
+  7. **Other side findings** (full list with dedup keys in the merged report): bin.kogler.si NXDOMAIN (MERGE-3), pairdrop/drop/pdf missing from `services.md` (MERGE-4), traefik.kogler.si stale CF record (MERGE-5), 7 stale status banners (MERGE-7), 5 broken anchor links (MERGE-8), 12 IP literals in docs (MERGE-9), `default()` in 4 templates needs comments (MERGE-10), 16 vault refs in TOML/env/yaml (MERGE-12 — OK by design), ollama+immich-ml cap_drop (MERGE-13), sunshine IaC vs journal (MERGE-14), sunshine port binds (MERGE-15), `audit.md` says 19 roles (MERGE-16 — actual 20), collect-smart.ps1 README (MERGE-17), stale `traefik:v3.5.2` image (MERGE-18), `metabase_oidc,` dupes (MERGE-19), scripts/README.md §8.4 stale link (MERGE-20), document map manual/ prefix (MERGE-21).
+- **What this session PROVED live (was a gap in the other session, which deferred all live checks because no SSH):** 50 containers Up, wildcard cert 2026-11-20 (~83d), db-backup 21h ago, kopia connected, nftables INPUT default-deny, all 13 validators green, Authentik OIDC posture clean, sibling-auth coverage complete per HD-160/HD-59, capability-tiering on AI stack per HD-247/248/251.
+- **Secrets touched:** `cloudflare_api` (rotation initiated, propagation pending — see MERGE-1); `prometheus-internal_api` (length-only compare, no value print); all other 1P items via `op read` for length/tail only. **No secret VALUES written to stdout/chat/transcript** (one early `docker inspect` echo was the hygiene event; corrected for the rest of the audit).
+- **Verify (own findings vs the other session's):** listed per-finding in the merged audit §2 (overlap reconciliation table). Key new findings from the other session not in my first pass: MERGE-2 (`ha-failover_api`), MERGE-7 (7 stale status banners), MERGE-8 (5 broken anchor links), MERGE-9 (12 IP literals), MERGE-10 (`default()` in templates). False positives deduped: `matrix.kogler.si` consistent, `ha.kogler.si` URL→backend is routing ref, alloy `0.0.0.0:12345` per-process binds `127.0.0.1` only, renovate Forgejo deferred by design, 16 vault refs in TOML/env/yaml OK by design.
+- **Audit reports committed on `session/audit-orchestrator-20260829-152521` (7 signed commits, all `G`):** `f158e02` (orchestrator.js), `383f338` (5-model-distinct attempt), `0f75a89` (sequential attempt), `845e28c` (5-track audit), `807cccc` (security audit), `e60a392` (consistency audit), `0db7685` (merged audit).
+- **Other session's worktree** (`homelab-wt-2026-08-29-1652`, branch `session/audit-2026-08-29`): untracked `reports/full-audit-2026-08-29.{md,json}` were copied to `reports/other-session-merged/` here and **cleaned up by this session's close-out** (per owner request).
+- **Deviations:** (1) Lane-style architecture from `audit.md §3b` did not work — 3 attempts (parallel+shared-model, parallel+5-distinct-models, sequential) all failed on OpenRouter rate-limits / 402 in-flight budget cap; fell back to parent inline (documented in `audit-approach.md`). (2) One hygiene event: an early `docker inspect traefik` probe echoed the `CF_DNS_API_TOKEN` value; corrected to length/tail/sha256-only for the rest of the audit. (3) The merged audit's HD-275..283 numbers are illustrative — actual IDs come from `bash scripts/next-hd.sh` at write time per CONVENTIONS §1 (the derived-values ban on hand-typed HD numbers is exactly the precedent the spec warns about).
+- **doc updated:** `changelog.md` (audit row, see below); `prompt.md` (handoff to #34); the audit reports themselves are **ephemeral** per CONVENTIONS §4 — they will be folded into owning docs + HDs in the next session, then deleted in the closing change. `IaC/ansible/`, `docs/`, `scripts/`, `services/`, and the live VPS were **not mutated** by this audit.
+
+---
