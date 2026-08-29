@@ -108,6 +108,28 @@ docker_services:
   - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, enabled: true }
   - { name: renovate,       template_dir: renovate,  enabled: true }  # co-located with Forgejo/GitOps. RE-ENABLED 2026-08-24 (task 5): domen/homelab not migrated yet, so RENOVATE_REPOSITORIES currently points at domen/test temporarily (template) — switch back to domen/homelab when that repo lands. Playbook run is OWNED by the other session; do NOT converge here.
 
+# HD-268 tailnet sidecar opt-ins: render the `*-tailscale` Pattern-A sidecar only
+# when these flags are true. Default false keeps the live compose byte-identical
+# (the sidecars were authored + commented out 2026-08-27; HD-268 closes them now).
+# DEPLOY-GATED (owner action) — to enable EITHER sidecar the owner must first:
+#   1. Mint a headscale preauth key with the matching ACL tag (dsh / pi-dev) and
+#      `reusable: true` — via the headscale container (or headplane UI).
+#   2. Seed the 1Password vault item:
+#        - `tailscale_dsh_api`   (API Credential; credential = the preauth key)
+#        - `tailscale_pi_dev_api` (API Credential; credential = the preauth key)
+#      These are NOT in provision-secrets.py CATALOG (preauth keys are minted by
+#      headscale, not generated). They live in NOT_AUTO_ROTATABLE so `--rotate-all`
+#      cannot clobber them. Re-mint + vault-edit + redeploy on rotation (rare).
+#   3. Flip the matching flag below to `true`, commit, run the scoped converge:
+#        bash scripts/ansible-run.sh vps.yml \
+#          --tags docker_services -e docker_services_scope=dsh     # or pi-dev
+#   4. Verify: `docker exec dsh-tailscale tailscale status` online; from a tailnet
+#      client `curl https://vps-dsh:3080` (and `vps-pi-dev:8080`) lands on the UI.
+# The ACL (policy.hujson) gates `tag:dsh` / `tag:pi-dev` to the family users only —
+# the sidecars never expose the Web UIs to other tailnet nodes.
+dsh_tailnet_sidecar_enabled: false
+pi_dev_tailnet_sidecar_enabled: false
+
 # Single cert issuer (HD-178/HD-181): THIS host is the only ACME (DNS-01) issuer for
 # *.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host
 # consumes the synced pair (role default false, see roles/docker_services/defaults).

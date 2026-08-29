@@ -101,27 +101,41 @@ services:
   # network namespace; `tailscale serve` proxies the tailnet socket to the loopback Web UI
   # (127.0.0.1:8080). pi-web-ui verifies WebSocket Origin against Host — the sidecar must
   # forward the original Host. ACL tag tag:pi-dev. NO socat bridge; UI NOT on services-internal.
-  # NOTE: enable at deploy by uncommenting + adding the tailscale auth-key item (mirror the
-  # dsh sidecar which serves :3080; this one serves :8080).
-  # pi-dev-tailscale:
-  #   image: tailscale/tailscale:TAILSCALE_VERSION   # pin a tagged tailscale image at deploy
-  #   network_mode: service:pi-dev
-  #   container_name: pi-dev-tailscale
-  #   restart: unless-stopped
-  #   environment:
-  #     TS_AUTHKEY: "vault tailscale_pi_dev.credential"   # 1P tailscale auth-key item (uncomment + wire at deploy)
-  #     TS_STATE_DIR: /var/lib/tailscale
-  #     TS_USERSPACE: "true"
-  #   profiles:
-  #     - tailscale
-  #   command:
-  #     - tailscaled
-  #     - --tun=userspace-networking
-  #     - tailscale serve tcp:8080 --bg
-  #   cap_add:
-  #     - NET_ADMIN
-  #   volumes:
-  #     - /srv/docker/pi-dev/tailscale:/var/lib/tailscale
+  # Gated by `pi_dev_tailnet_sidecar_enabled` (HD-268, deploy-gated) — mirror of dsh sidecar.
+  # Mirrors the working traefik-tailnet sidecar (HD-135b): userspace networking, reusable
+  # authkey via TS_AUTH_ONCE, --login-server pointed at our headscale (NOT public control
+  # plane — live lesson 2026-08-28). pi Web UI is :8080.
+  {% if pi_dev_tailnet_sidecar_enabled is defined and pi_dev_tailnet_sidecar_enabled %}
+  pi-dev-tailscale:
+    image: tailscale/tailscale:{{ tailscale_version }}
+    container_name: pi-dev-tailscale
+    restart: unless-stopped
+    network_mode: service:pi-dev
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/tailscale
+    volumes:
+      - /srv/docker/pi-dev/tailscale:/var/lib/tailscale
+      - ./serve.json:/config/serve.json:ro
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # Fail-closed (HD-65): no `default('')` — missing item aborts render loudly. Owner
+      # seeds tailscale_pi_dev_api in 1Password with a headscale preauth key (tag:pi-dev,
+      # reusable). NOT auto-rotatable: preauth keys are minted by the running headscale.
+      TS_AUTHKEY: "{{ vault['tailscale_pi_dev_api'].credential | replace('$','$$') }}"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_HOSTNAME: vps-pi-dev   # node name on the tailnet (containerboot TS_HOSTNAME)
+      TS_ACCEPT_DNS: "true"
+      TS_EXTRA_ARGS: "--login-server=https://vpn.kogler.si"
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_AUTH_ONCE: "true"
+  {% endif %}
 networks:
   services-internal:
     external: true

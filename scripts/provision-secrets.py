@@ -172,6 +172,16 @@ NOT_AUTO_ROTATABLE = {
     "pi-harness_forgejo_api",   # pi-dev PR-only Forgejo token (HD-268c)
     "dsh_forgejo_api",            # DSH PR-only Forgejo token (HD-268c)
     "opencloud_login",      # admin login created at first boot
+    # HD-268 tailnet sidecars: headscale preauth keys (mint via the running
+    # headscale: `docker exec headscale headscale preauthkeys create --reusable
+    # --expiration 90d --tags tag:dsh`; paste the value into 1Password manually).
+    # NOT in CATALOG -- provision-secrets.py never auto-creates these (random
+    # strings would not be valid headscale keys). Re-mint + 1Password edit on
+    # rotation; rare. The compose templates reference them via
+    # `vault['tailscale_<svc>_api'].credential` only when the matching
+    # `<svc>_tailnet_sidecar_enabled` flag is true (see group_vars/vps.yml).
+    "tailscale_dsh_api",
+    "tailscale_pi_dev_api",
 }
 
 

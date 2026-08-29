@@ -116,8 +116,8 @@ _template_vault_items:
   onlyoffice-docs: {'onlyoffice_db', 'onlyoffice-rabbitmq_login', 'opencloud-collab_password'}
   open-webui: {'openwebui_api', 'openwebui_secret', 'owui-public-chat_api'}
   openclaw: {'openclaw_gateway_token', 'openclaw-opencloud_api'}
-  pi-dev: {'pi-harness_openai_api', 'pi-harness_forgejo_api'}
-  dsh: {'dsh_api', 'dsh_forgejo_api'}
+  pi-dev: {'pi-harness_openai_api', 'pi-harness_forgejo_api', 'tailscale_pi_dev_api'}   # HD-268 Pattern-A tailnet sidecar auth key (preauth-key, owner-seeded)
+  dsh: {'dsh_api', 'dsh_forgejo_api', 'tailscale_dsh_api'}   # HD-268 Pattern-A tailnet sidecar auth key (preauth-key, owner-seeded)
   opencloud: {'opencloud_login', 'opencloud-collab_password'}
   qdrant: {'qdrant_db'}
   pihole: {'pihole_password'}
