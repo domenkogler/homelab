@@ -45,6 +45,10 @@ scope_list: >-
 # The copy step copies the entire template dir first; these are then rendered
 # (overwriting the raw .j2 copy with the rendered version, stripping .j2 suffix).
 _extra_templates:
+  dsh:
+    - serve.json.j2         # HD-268c Pattern-A tailnet serve config (TCP:3080 → loopback); explicitly rendered so the file exists BEFORE docker compose bind-mounts it (avoids Docker auto-creating ./serve.json as a directory)
+  pi-dev:
+    - serve.json.j2         # HD-268c Pattern-A tailnet serve config (TCP:8080 → loopback); same rationale as dsh
   kopia-server:
     - .env.j2               # compose ${KOPIA_SERVER_*} interpolation (1Password render)
   kopia-agent:
