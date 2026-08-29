@@ -1,0 +1,408 @@
+{
+  "audit_date": "2026-08-29",
+  "commit": "c9baf09",
+  "scope": "security.md §1-§10 + HD-216 + HD-154 + HD-155 + HD-186 + Authentik OIDC + 1P hygiene + live probes",
+  "methodology": "parent inline execution, read-only, lengths/tails/hashes only for secrets",
+  "post_condition": "Cloudflare API token rotation incomplete in live traefik — IaC re-render required",
+  "findings": [
+    {
+      "id": "SEC-0",
+      "severity": "High",
+      "status": "OPEN",
+      "drift_type": "Secret_Reference_Broken",
+      "title": "Cloudflare API token rotation incomplete in live traefik container",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'docker exec traefik printenv CF_DNS_API_TOKEN' | sha256sum; op item get cloudflare_api --vault Homelab-ansible --fields credential | sha256sum",
+        "file": "(live, hash compare only)",
+        "line": "CF_DNS_API_TOKEN",
+        "output_snippet": "1P sha256[:16]=56cc7b39dad07d9a (length 53, tail ...4b2d); live sha256[:16]=ab0dea98454dc4c4 (length 53, tail ...45f2) — mismatch, live has OLD value"
+      },
+      "deduplication_key": "Homelab-ansible/cloudflare_api/credential",
+      "proposed_fix": "re-run bash scripts/ansible-run.sh vps.yml --tags docker_services,traefik (HD-258 bulk pre-pass picks up the new value, HD-260 restart-guard restarts the container on config change); verify via re-hash; journal entry; changelog HD-276"
+    },
+    {
+      "id": "SEC-1",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "Edge WAF coverage: 33/33 traefik routers carry at least one auth tier (security.md §1)",
+      "evidence": {
+        "type": "grep",
+        "command": "scan templates/docker_services/**/*.{yml,j2} for traefik.http.routers.<name>.middlewares with authentik-forward-auth or crowdsec-only",
+        "file": "IaC/ansible/templates/docker_services/**",
+        "line": "(all)",
+        "output_snippet": "33 routers, 14 with authentik-forward-auth, 11 with crowdsec-only, 1 mixed (onlyoffice), 0 without"
+      },
+      "deduplication_key": "IaC/ansible/templates/docker_services:**:waf",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "SEC-2",
+      "severity": "Low",
+      "status": "OPEN",
+      "drift_type": "Cosmetic_Stale_Text",
+      "title": "Stale traefik:v3.5.2 Docker image on VPS (11 months old, not in active use)",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'docker images --format \"{{.Repository}}:{{.Tag}}\\t{{.CreatedSince}}\"' | grep traefik",
+        "file": "(VPS host)",
+        "line": "traefik:v3.5.2 (11 months ago)",
+        "output_snippet": "active traefik is v3.7.11 (10 days ago); v3.5.2 is the previous version, no longer used"
+      },
+      "deduplication_key": "VPS-host:docker-images",
+      "proposed_fix": "ssh vps 'docker image prune -a --filter until=720h' (or weekly cron); HD-284"
+    },
+    {
+      "id": "SEC-3",
+      "severity": "Low",
+      "status": "OPEN",
+      "drift_type": "Liveness_Mismatch",
+      "title": "sunshine host port binds 47989-48010 to 0.0.0.0 (should be Home VLAN IP per security.md §3 / HD-62)",
+      "evidence": {
+        "type": "file",
+        "command": "grep -A4 '^    ports:' IaC/ansible/templates/docker_services/sunshine/docker-compose.yml.j2",
+        "file": "IaC/ansible/templates/docker_services/sunshine/docker-compose.yml.j2",
+        "line": "ports block",
+        "output_snippet": "- 47989:47989/tcp, 47990:47990/tcp, 47991:47991/udp, 48010:48010/udp (no IP prefix = 0.0.0.0)"
+      },
+      "deduplication_key": "IaC/ansible/templates/docker_services/sunshine/docker-compose.yml.j2:ports",
+      "proposed_fix": "bind to {{ oldsrv_home_ip }}:47989-48010 (mirroring actual-budget pattern); HD-282; Phase 2/3 oldsrv bring-up"
+    },
+    {
+      "id": "SEC-4",
+      "severity": "Med",
+      "status": "OPEN",
+      "drift_type": "Validator_Gap",
+      "title": "ollama and immich-ml lack cap_drop: ALL (defense-in-depth; mitigated by network isolation + HD-160 sibling auth)",
+      "evidence": {
+        "type": "file",
+        "command": "grep -E 'cap_drop|cap_add' IaC/ansible/templates/docker_services/{ollama,immich-ml}/docker-compose.yml.j2",
+        "file": "IaC/ansible/templates/docker_services/{ollama,immich-ml}/docker-compose.yml.j2",
+        "line": "(no cap_drop declared)",
+        "output_snippet": "ollama: cap_drop ABSENT (needs amdkfd /dev/dri /dev/kfd); immich-ml: cap_drop ABSENT (same); both in ALLOWED_NO_CAP_DROP allowlist (mitigated by overlay isolation)"
+      },
+      "deduplication_key": "IaC/ansible/templates/docker_services/{ollama,immich-ml}/docker-compose.yml.j2",
+      "proposed_fix": "add cap_drop: ALL + targeted cap_add (SYS_RAWIO or similar) for amdkfd access; HD-280; verify in test"
+    },
+    {
+      "id": "SEC-5",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Liveness_Mismatch",
+      "title": "Backup coverage: db-backup on schedule (last 21h ago, 4 DBs), kopia-server connected to Hetzner Storage Box",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'docker logs db-backup --tail 5' ; ssh vps 'docker exec kopia-server kopia repository status'",
+        "file": "(live)",
+        "line": "(auth, forgejo, immich, litellm dbs dumped 2026-08-28 20:01)",
+        "output_snippet": "kopia: Storage type sftp, 1.1 TB available, path kopia, host u653424.your-storagebox.de"
+      },
+      "deduplication_key": "(backup schedule)",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "SEC-6",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "Bootstrap hygiene: live sshd_config has PasswordAuth no, PermitRootLogin no, MaxAuthTries 3 (HD-208 fix in place)",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'sudo grep -E \"MaxAuthTries|PasswordAuthentication|PermitRootLogin\" /etc/ssh/sshd_config'",
+        "file": "(live)",
+        "line": "/etc/ssh/sshd_config",
+        "output_snippet": "PasswordAuthentication no; PermitRootLogin no; MaxAuthTries 3"
+      },
+      "deduplication_key": "IaC/host/vps/post_install.sh:sshd-config",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "SEC-7",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "Sibling auth coverage complete per HD-160 / HD-59 (immich-ml, kopia, openclaw, prometheus, litellm)",
+      "evidence": {
+        "type": "file",
+        "command": "(review deployment-compose.md §Sibling-auth coverage map)",
+        "file": "docs/deployment-compose.md",
+        "line": "§Container Security → Sibling-auth coverage map",
+        "output_snippet": "7/7 data-writing pairs covered; ollama + docling deliberately isolated on overlays"
+      },
+      "deduplication_key": "docs/deployment-compose.md:sibling-auth",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "SEC-8",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "Decision log: 6 settled decisions match changelog.md, no re-decide attempts",
+      "evidence": {
+        "type": "diff",
+        "command": "diff <(awk '/^## 7\\./,/^## 8\\./' docs/security.md) <(grep HD-122,HD-53,KOPS-050,KOPS-058,KOPS-059,HD-160 changelog.md)",
+        "file": "docs/security.md §7",
+        "line": "(all 6)",
+        "output_snippet": "consistent"
+      },
+      "deduplication_key": "docs/security.md:decision-log",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "SEC-9",
+      "severity": "Med",
+      "status": "OPEN",
+      "drift_type": "Validator_Gap",
+      "title": "fail2ban not running on VPS (1d 18h since crash) — http-auth jail points at non-existent traefik access log",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'sudo systemctl status fail2ban'",
+        "file": "(live)",
+        "line": "Active: failed since 2026-08-28 00:13:44 CEST",
+        "output_snippet": "ERROR Failed during configuration: Have not found any log file for http-auth jail"
+      },
+      "deduplication_key": "IaC/ansible/roles/vps-hardening/tasks/main.yml:fail2ban",
+      "proposed_fix": "(a) add traefik accesslog + volume mount for /var/log/traefik/; (b) drop the http-auth jail; (c) write a traefik-aware filter (regex for status=401/403). HD-281. See also SEC-17."
+    },
+    {
+      "id": "SEC-10",
+      "severity": "Med",
+      "status": "OPEN",
+      "drift_type": "Enabled_Not_Converged",
+      "title": "wg-s2s WireGuard interface not up on VPS (peer_public_key empty, deploy-gated on Phase 1.5 per HD-03)",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'ip link show wg-s2s'",
+        "file": "(live)",
+        "line": "Device 'wg-s2s' does not exist",
+        "output_snippet": "no wg-s2s interface; default wg_s2s_router_public_key is empty (fail-loud at render); HD-03 cutover Phase 1.5 not yet"
+      },
+      "deduplication_key": "IaC/ansible/group_vars/all/main.yml:wg_s2s_vps.peer_public_key",
+      "proposed_fix": "phase 1.5 cutover: provision router WG pubkey into VPS vault, run wireguard role; verify blackbox wg_icmp probe via tailnet"
+    },
+    {
+      "id": "SEC-11",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "Capability-tiering on AI stack (HD-247/248/251): public chat.kogler.si uses limited scoped keys, internal ai.kogler.si uses full owner keys",
+      "evidence": {
+        "type": "file",
+        "command": "grep -E 'owui-|RENOVATE_|openrouter' IaC/ansible/group_vars/vps.yml IaC/ansible/templates/docker_services/open-webui/",
+        "file": "IaC/ansible/group_vars/vps.yml",
+        "line": "(AI stack entries)",
+        "output_snippet": "owui-public-chat_api, owui-public-rag_api (limited); owui-int-owner_api, owui-int-wife_api (full)"
+      },
+      "deduplication_key": "IaC/ansible/templates/docker_services/open-webui/**",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "SEC-12",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Secret_Reference_Broken",
+      "title": "Authentik OIDC posture clean: 22 providers, all confidential (except opencloud public), all 1h tokens; 2 API tokens, 1 ephemeral + 1 persisted with expiring=False (HD-216 satisfied)",
+      "evidence": {
+        "type": "live",
+        "command": "ssh vps 'docker exec authentik-server ak shell --no-startup --no-imports' (Python introspection)",
+        "file": "(live)",
+        "line": "OAuth2Provider.objects.all(); Token.objects.all()",
+        "output_snippet": "22 providers; 2 tokens (provision-glue expiring=True in 16min, ak-outpost-...-api expiring=False)"
+      },
+      "deduplication_key": "Authentik:OAuth2Provider+Token",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "SEC-13",
+      "severity": "Low",
+      "status": "OPEN",
+      "drift_type": "Cosmetic_Stale_Text",
+      "title": "2 duplicate metabase_oidc, items in 1Password (trailing comma in title)",
+      "evidence": {
+        "type": "live",
+        "command": "op item get 'metabase_oidc,' --vault Homelab-ansible (returns 2 items)",
+        "file": "1Password Homelab-ansible vault",
+        "line": "(item titles)",
+        "output_snippet": "2 items named 'metabase_oidc,' (id 57fm6e5etefyfireiy253zmdzi + r7xsh3glxablaaj32zr5grueli); canonical 'metabase_oidc' (id fzw22hqoxzhni3f3hltqrs5ce4) used by IaC"
+      },
+      "deduplication_key": "1Password:metabase_oidc-dupes",
+      "proposed_fix": "archive the 2 comma-suffixed items, keep canonical metabase_oidc; HD-283"
+    },
+    {
+      "id": "SEC-14",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Liveness_Mismatch",
+      "title": "Attack surface: 13/17 public services respond on HTTPS, 4 tailnet-only (expected per HD-273 L3); VPS opens only :22 :80 :443, all other ports loopback or wg-s2s bound",
+      "evidence": {
+        "type": "live",
+        "command": "for h in kogler.si sso.kogler.si ...; do curl -sI https://$h; done; ssh vps 'sudo ss -tlnp'",
+        "file": "(live)",
+        "line": "20 subdomains + 9 listening ports",
+        "output_snippet": "13/17 public reachable; 4 tailnet-only 000; VPS opens 22, 80, 443 to 0.0.0.0; everything else loopback (127.0.0.1) or wg-only"
+      },
+      "deduplication_key": "(attack surface)",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "SEC-15",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "renovate endpoint is internal (http://forgejo:3000), not the public https://git.kogler.si behind forward-auth (HD-220(c))",
+      "evidence": {
+        "type": "file",
+        "command": "grep -E 'RENOVATE_ENDPOINT' IaC/ansible/templates/docker_services/renovate/docker-compose.yml.j2",
+        "file": "IaC/ansible/templates/docker_services/renovate/docker-compose.yml.j2",
+        "line": "RENOVATE_ENDPOINT",
+        "output_snippet": "RENOVATE_ENDPOINT: http://forgejo:3000"
+      },
+      "deduplication_key": "IaC/ansible/templates/docker_services/renovate/docker-compose.yml.j2",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "SEC-16",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "grafana↔prometheus auth gap closed (HD-220(b)): datasource carries basicAuthUser + secureJsonData from prometheus-internal_api",
+      "evidence": {
+        "type": "file",
+        "command": "grep -E 'basicAuth|prometheus-internal_api' IaC/ansible/templates/docker_services/grafana/datasources.yml.j2",
+        "file": "IaC/ansible/templates/docker_services/grafana/datasources.yml.j2",
+        "line": "(datasource config)",
+        "output_snippet": "basicAuthUser + secureJsonData from prometheus-internal_api.username + .bcrypt_hash"
+      },
+      "deduplication_key": "IaC/ansible/templates/docker_services/grafana/datasources.yml.j2",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "SEC-17",
+      "severity": "Med",
+      "status": "OPEN",
+      "drift_type": "Validator_Gap",
+      "title": "fail2ban nginx-http-auth filter is nginx-specific; would not match traefik log format even with accesslog enabled",
+      "evidence": {
+        "type": "file",
+        "command": "grep -A3 'http-auth' IaC/ansible/roles/vps-hardening/tasks/main.yml; cat /etc/fail2ban/filter.d/nginx-http-auth.conf",
+        "file": "IaC/ansible/roles/vps-hardening/tasks/main.yml",
+        "line": "jail.local http-auth block",
+        "output_snippet": "filter = nginx-http-auth (regex expects nginx auth_basic log lines; traefik uses its own format with ForwardAuth middleware)"
+      },
+      "deduplication_key": "IaC/ansible/roles/vps-hardening/tasks/main.yml:http-auth",
+      "proposed_fix": "write a traefik-aware filter (regex for status=401/403 with ForwardAuth); or drop the http-auth jail; HD-281 (related to SEC-9)"
+    },
+    {
+      "id": "SEC-18",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "CrowdSec bouncer configured per HD-87 (plugin enabled, API key wired); live API probe deferred (WSL vantage can't reach 8082 from here)",
+      "evidence": {
+        "type": "file",
+        "command": "grep -E 'crowdsec-bouncer' IaC/ansible/templates/docker_services/traefik/docker-compose.yml.j2",
+        "file": "IaC/ansible/templates/docker_services/traefik/docker-compose.yml.j2",
+        "line": "plugin section",
+        "output_snippet": "CrowdSec bouncer plugin enabled; API key from crowdsec-bouncer_api"
+      },
+      "deduplication_key": "IaC/ansible/templates/docker_services/traefik/docker-compose.yml.j2",
+      "proposed_fix": "no-op (live probe deferred to LAN-vantage session)"
+    }
+  ],
+  "verified_ok": [
+    "Edge WAF: 33/33 traefik routers carry at least one auth tier (security.md §1)",
+    "Version pinning: tuwunel + profilarr in ALLOWED_LATEST with MUST-pin justification; all others pinned in versions.yml (security.md §2)",
+    "Bootstrap: live sshd_config has PasswordAuth no, PermitRootLogin no, MaxAuthTries 3 (HD-208 fix in place)",
+    "Sibling auth: 7/7 data-writing pairs covered (HD-160); ollama + docling deliberately isolated (HD-59)",
+    "Decision log: 6 settled decisions consistent with changelog.md (re-decide ban holds)",
+    "Capability-tiering: AI stack v2 split (HD-247/248/251) in place",
+    "Authentik OIDC: 22 providers, all confidential except opencloud, all 1h tokens; HD-216 persisted-token sweep passes",
+    "Backup coverage: 4/4 DBs in db-backup, kopia connected to Hetzner Storage Box",
+    "renovate endpoint internal (HD-220(c))",
+    "grafana↔prometheus auth closed (HD-220(b))",
+    "Attack surface: 13/17 public reachable, 4 tailnet-only (expected per HD-273 L3); VPS opens only 22, 80, 443 externally",
+    "CrowdSec bouncer configured (HD-87)"
+  ],
+  "questions": [
+    "SEC-0: confirm the IaC re-render path for traefik — owner: run bash scripts/ansible-run.sh vps.yml --tags docker_services,traefik (HD-258 picks up the new cloudflare_api value, HD-260 restarts on config change)",
+    "SEC-9/SEC-17: which fix path for fail2ban — (a) add traefik accesslog + write a traefik-aware filter, or (b) drop the http-auth jail? (a) is the better long-term answer",
+    "SEC-10: phase 1.5 cutover prerequisite — when does the wg_s2s_router_public_key get provisioned into the VPS vault? (current default '' is fail-loud at render; HD-03 Phase 1.5)"
+  ],
+  "false_positives": [
+    "alloy /metrics on 0.0.0.0:12345 — per-process /proc/.../net/tcp confirms 127.0.0.1:12345 only; ss aggregates namespaces (misleading); not a finding"
+  ],
+  "action_plan": [
+    {
+      "hd": "HD-276 (use next-hd.sh at write time)",
+      "title": "Complete Cloudflare API token rotation: re-render traefik + restart",
+      "severity": "High",
+      "owning_doc": "docs/deployment-secrets.md",
+      "source": "security-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-280 (illustrative)",
+      "title": "Add cap_drop: ALL + targeted cap_add to ollama + immich-ml (defense-in-depth)",
+      "severity": "Med",
+      "owning_doc": "docs/deployment-compose.md + docs/security.md §4",
+      "source": "security-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-281 (illustrative)",
+      "title": "fail2ban fix: add traefik accesslog + traefik-aware filter (or drop the http-auth jail)",
+      "severity": "Med",
+      "owning_doc": "IaC/ansible/roles/vps-hardening/tasks/main.yml + docs/deployment-compose.md",
+      "source": "security-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-282 (illustrative)",
+      "title": "sunshine host port binding restricted to Home VLAN IP (Phase 2/3 oldsrv bring-up)",
+      "severity": "Low",
+      "owning_doc": "IaC/ansible/templates/docker_services/sunshine/docker-compose.yml.j2",
+      "source": "security-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-283 (illustrative)",
+      "title": "Cleanup 2 duplicate metabase_oidc, 1P items",
+      "severity": "Low",
+      "owning_doc": "docs/deployment-secrets.md",
+      "source": "security-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-284 (illustrative)",
+      "title": "docker image prune for stale traefik:v3.5.2 on VPS",
+      "severity": "Low",
+      "owning_doc": "(operational)",
+      "source": "security-audit-2026-08-29"
+    }
+  ],
+  "open_questions": [
+    "SEC-0 rotation completion path — see action plan",
+    "SEC-9/SEC-17 fail2ban fix path (a vs b) — see action plan",
+    "SEC-10 phase 1.5 cutover prerequisite — see action plan"
+  ],
+  "false_positives_list": [
+    "alloy /metrics on 0.0.0.0:12345 — see SEC-9 false positive"
+  ],
+  "deduplication_keys": [
+    "Homelab-ansible/cloudflare_api/credential",
+    "IaC/ansible/templates/docker_services:**:waf",
+    "VPS-host:docker-images",
+    "IaC/ansible/templates/docker_services/sunshine/docker-compose.yml.j2:ports",
+    "IaC/ansible/templates/docker_services/{ollama,immich-ml}/docker-compose.yml.j2",
+    "(backup schedule)",
+    "IaC/host/vps/post_install.sh:sshd-config",
+    "docs/deployment-compose.md:sibling-auth",
+    "docs/security.md:decision-log",
+    "IaC/ansible/roles/vps-hardening/tasks/main.yml:fail2ban",
+    "IaC/ansible/roles/vps-hardening/tasks/main.yml:http-auth",
+    "IaC/ansible/group_vars/all/main.yml:wg_s2s_vps.peer_public_key",
+    "IaC/ansible/templates/docker_services/open-webui/**",
+    "Authentik:OAuth2Provider+Token",
+    "1Password:metabase_oidc-dupes",
+    "(attack surface)",
+    "IaC/ansible/templates/docker_services/renovate/docker-compose.yml.j2",
+    "IaC/ansible/templates/docker_services/grafana/datasources.yml.j2",
+    "IaC/ansible/templates/docker_services/traefik/docker-compose.yml.j2"
+  ]
+}
