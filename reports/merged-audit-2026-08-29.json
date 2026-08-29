@@ -1,0 +1,87 @@
+{
+  "audit_date": "2026-08-29",
+  "commit": "c9baf09",
+  "merge_sources": [
+    "5-track audit (commit 845e28c)",
+    "security audit (commit 807cccc)",
+    "consistency audit (commit e60a392)",
+    "other session's parallel-lanes audit (archived at reports/other-session-merged/)"
+  ],
+  "counts_corrected": {
+    "roles": {"mine_was": 18, "theirs_was": 19, "actual": 20},
+    "compose_templates": {"actual": 58},
+    "enabled_services_vps": {"actual": 33},
+    "enabled_services_home_servers": {"actual": 2},
+    "total_enabled": {"theirs_was": 52, "actual": 35},
+    "scripts_total": {"theirs_was": 27, "actual": 31},
+    "canonical_docs": {"actual": 62},
+    "total_markdown_incl_manual": {"actual": 74},
+    "vps_containers_up": {"actual": 50, "healthy": 49, "unhealthy_deploy_gated": 1},
+    "wildcard_cert_expiry": {"date": "2026-11-20", "days_remaining": 83}
+  },
+  "consolidated_findings": [
+    {"id": "MERGE-1", "track": "E", "severity": "High", "status": "OPEN", "drift_type": "Secret_Reference_Broken", "title": "Cloudflare API token rotation incomplete in live traefik", "evidence": "1P sha256[:16]=56cc7b39dad07d9a, length 53, tail ...4b2d (NEW); live sha256[:16]=ab0dea98454dc4c4, length 53, tail ...45f2 (OLD) — mismatch", "deduplication_key": "Homelab-ansible/cloudflare_api/credential", "proposed_fix": "owner: bash scripts/ansible-run.sh vps.yml --tags docker_services,traefik (HD-258 picks up new value, HD-260 restarts on change); verify re-hash; journal + changelog"},
+    {"id": "MERGE-2", "track": "B", "severity": "High", "status": "OPEN", "drift_type": "Secret_Reference_Broken", "title": "ha-failover_api vault item MISSING (HD-17 future cutover)", "evidence": "check-vault-items.sh --strict reports 'MISSING and NOT glue-seeded => create these: ha-failover_api'", "deduplication_key": "scripts/check-vault-items.sh:ha-failover_api", "proposed_fix": "owner creates ha-failover_api in 1Password Homelab-ansible (api credential type) before Phase 4 HA cutover. Note: combined with metabase-forgejo_ro (HD-242), check-vault-items.sh now reports 2 missing"},
+    {"id": "MERGE-3", "track": "E", "severity": "Med", "status": "OPEN", "drift_type": "Liveness_Mismatch", "title": "bin.kogler.si NXDOMAIN (live) despite IaC + doc claim public", "evidence": "getent hosts bin.kogler.si → NXDOMAIN; IaC cloudflare_dns_records includes bin; docs/services.md public table includes bin", "deduplication_key": "IaC/ansible/roles/cloudflare_dns/vars/main.yml:bin", "proposed_fix": "owner: bash scripts/ansible-run.sh dns.yml from home control plane (token IP-filtered to 193.77.156.222)"},
+    {"id": "MERGE-4", "track": "A", "severity": "Med", "status": "OPEN", "drift_type": "Orphan_Doc_Script", "title": "pairdrop/drop/pdf in IaC CF records but NOT in docs/services.md public table", "evidence": "IaC has 3 records (Wave-3 HD-218); doc public table has 13 rows; all 3 resolve live to VPS", "deduplication_key": "docs/services.md:PUBLIC-table", "proposed_fix": "add 3 missing rows to docs/services.md PUBLIC table"},
+    {"id": "MERGE-5", "track": "A", "severity": "Med", "status": "OPEN", "drift_type": "Liveness_Mismatch", "title": "traefik.kogler.si STALE Cloudflare record (resolves but should be tailnet-only)", "evidence": "getent hosts traefik.kogler.si → 2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5 (resolves to VPS); IaC no longer has it; doc says tailnet-only; per IaC comment owner was supposed to delete at deploy time", "deduplication_key": "IaC/ansible/roles/cloudflare_dns/vars/main.yml:stale-records", "proposed_fix": "owner manually deletes `traefik` (and any other admin tailnet records) from Cloudflare zone at the apex"},
+    {"id": "MERGE-6", "track": "B", "severity": "Med", "status": "OPEN", "drift_type": "Validator_Gap", "title": "fail2ban not running on VPS (1d 18h) — http-auth jail points at non-existent traefik access log", "evidence": "systemctl status fail2ban: failed since 2026-08-28 00:13:44 CEST; ERROR 'Have not found any log file for http-auth jail'", "deduplication_key": "IaC/ansible/roles/vps-hardening/tasks/main.yml:fail2ban", "proposed_fix": "(a) add traefik accesslog + write a traefik-aware filter, or (b) drop the http-auth jail"},
+    {"id": "MERGE-7", "track": "A", "severity": "Med", "status": "OPEN", "drift_type": "Liveness_Mismatch", "title": "7 status banners show ⏳ deploy-gated while journal confirms services live since 2026-08-22", "evidence": "observability backend, Traefik, Authentik, services-admin VPS members, services-utilities VPS members, services-matrix, services-traefik — all live in journal 2026-08-22", "deduplication_key": "docs/observability.md:status-banner + 6 more", "proposed_fix": "update banners to ✅ Live since 2026-08-22 per README §2 (journal is SSOT for liveness)"},
+    {"id": "MERGE-8", "track": "A", "severity": "Med", "status": "OPEN", "drift_type": "Orphan_Doc_Script", "title": "5 broken anchor links in services-media / services-downloads", "evidence": "anchors like services.md#docker-networks, services.md#domain--subdomain-plan (GFM -- collapse), services-media.md#storage--import-media--arr — header-id mismatch", "deduplication_key": "docs/services-media.md:anchor-links", "proposed_fix": "fix the anchors to match actual header IDs"},
+    {"id": "MERGE-9", "track": "A", "severity": "Med", "status": "OPEN", "drift_type": "SSOT_Conflict", "title": "12 IP literals in docs outside SSOT", "evidence": "docs/home-assistant-current.md:221 (10.10.99.9 in strikethrough), docs/deployment-secrets.md:383 (10.10.0.0/16 SSH example), docs/deployment-ansible.md (10 SSOT-documenting IPs)", "deduplication_key": "docs/deployment-ansible.md:ip-literals", "proposed_fix": "review each and update; my check_doc_ips.py was narrower than the full grep — they caught what mine missed"},
+    {"id": "MERGE-10", "track": "B", "severity": "Med", "status": "OPEN", "drift_type": "Validator_Gap", "title": "default() in 4 compose templates (non-secret conditional; should be commented)", "evidence": "loki, authentik, prometheus, kopia-server templates use '127.0.0.1' fallback in wg_s2s_vps conditional — not secret, but uncommented", "deduplication_key": "IaC/ansible/roles/vps-hardening/tasks/main.yml:default-fallbacks", "proposed_fix": "add inline comments to clarify non-secret usage; my check only validated `default('')` for secrets"},
+    {"id": "MERGE-11", "track": "E", "severity": "Med", "status": "OPEN", "drift_type": "Enabled_Not_Converged", "title": "wg-s2s WireGuard tunnel not up (Phase 1.5 deploy-gated per HD-03, expected)", "evidence": "ip link show wg-s2s → Device does not exist; wg_s2s_router_public_key empty (fail-loud at render)", "deduplication_key": "IaC/ansible/group_vars/all/main.yml:wg_s2s_vps.peer_public_key", "proposed_fix": "Phase 1.5 cutover: provision router WG pubkey, run wireguard role"},
+    {"id": "MERGE-12", "track": "B", "severity": "Med", "status": "NOTE", "drift_type": "Validator_Gap", "title": "16 vault refs without `| replace('$','$$')` in TOML/env/yaml (OK by design, but worth documenting)", "evidence": "their audit flagged 16 occurrences in non-compose files; my analysis: TOML/env/yaml are NOT interpolated by docker compose, so escape NOT needed. URL contexts use urlencode (safe). Their blanket grep vs my context-aware analysis differ", "deduplication_key": "IaC/ansible/templates/docker_services:**:vault-escape-context", "proposed_fix": "add one-line comments in TOML/env/yaml template headers to make this explicit for future readers"},
+    {"id": "MERGE-13", "track": "B", "severity": "Med", "status": "OPEN", "drift_type": "Validator_Gap", "title": "ollama + immich-ml lack cap_drop: ALL (defense-in-depth)", "evidence": "in ALLOWED_NO_CAP_DROP allowlist; GPU device services; mitigated by overlay isolation (HD-59) + HD-160 sibling auth", "deduplication_key": "IaC/ansible/templates/docker_services/{ollama,immich-ml}/docker-compose.yml.j2", "proposed_fix": "add cap_drop: ALL + targeted cap_add (e.g., SYS_RAWIO) for amdkfd; hardening opportunity"},
+    {"id": "MERGE-14", "track": "B", "severity": "Low", "status": "OPEN", "drift_type": "Liveness_Mismatch", "title": "sunshine enabled in home_servers but no journal entry on oldsrv", "evidence": "enabled: \"{{ homelab_mode == 'desktop' }}\" (true), no journal convergence entry", "deduplication_key": "IaC/ansible/group_vars/home_servers.yml:docker_services.sunshine.enabled", "proposed_fix": "owner decision: deploy on Phase 2/3 or set enabled: false"},
+    {"id": "MERGE-15", "track": "B", "severity": "Low", "status": "OPEN", "drift_type": "SSOT_Conflict", "title": "sunshine host port binds 47989-48010 to 0.0.0.0 (should be Home VLAN IP per HD-62)", "evidence": "ports block has no IP prefix", "deduplication_key": "IaC/ansible/templates/docker_services/sunshine/docker-compose.yml.j2:ports", "proposed_fix": "bind to {{ oldsrv_home_ip }} (Phase 2/3 oldsrv bring-up)"},
+    {"id": "MERGE-16", "track": "B", "severity": "Low", "status": "OPEN", "drift_type": "Cosmetic_Stale_Text", "title": "audit.md says '19 roles', repo has 20 (both prior audits wrong)", "evidence": "ls IaC/ansible/roles/ | wc -l → 20", "deduplication_key": "audit.md:role-count", "proposed_fix": "update audit.md §2.2.2 to '20 roles'. Their audit said 19, mine said 18 — both wrong; actual is 20"},
+    {"id": "MERGE-17", "track": "C", "severity": "Low", "status": "OPEN", "drift_type": "Orphan_Doc_Script", "title": "collect-smart.ps1 not in scripts/README.md registry (Windows-only sibling)", "evidence": "Windows-only sibling of collect-smart-live.sh exists in scripts/ but not documented", "deduplication_key": "scripts/collect-smart.ps1:registry-gap", "proposed_fix": "add a 'Windows-only sibling' note in scripts/README.md"},
+    {"id": "MERGE-18", "track": "E", "severity": "Low", "status": "OPEN", "drift_type": "Cosmetic_Stale_Text", "title": "Stale traefik:v3.5.2 Docker image on VPS (11 months old, not in use)", "evidence": "docker images shows traefik:v3.5.2 from 11 months ago; active is v3.7.11", "deduplication_key": "VPS-host:docker-images", "proposed_fix": "docker image prune (operational)"},
+    {"id": "MERGE-19", "track": "D", "severity": "Low", "status": "OPEN", "drift_type": "Cosmetic_Stale_Text", "title": "2 duplicate metabase_oidc, items in 1Password (trailing comma)", "evidence": "2 items named 'metabase_oidc,' (id 57fm6e5etefyfireiy253zmdzi + r7xsh3glxablaaj32zr5grueli); canonical 'metabase_oidc' (id fzw22hqoxzhni3f3hltqrs5ce4) used by IaC", "deduplication_key": "1Password:metabase_oidc-dupes", "proposed_fix": "archive the 2 comma-suffixed items"},
+    {"id": "MERGE-20", "track": "C", "severity": "Low", "status": "OPEN", "drift_type": "Orphan_Doc_Script", "title": "scripts/README.md §8.4 stale link to non-existent ansible-enhancements.md (HD-263 follow-up)", "evidence": "lines 63-64 reference ../ansible-enhancements.md which does not exist; HD-263 deletes that file", "deduplication_key": "scripts/README.md:ansible-enhancements-ref", "proposed_fix": "drop the §8.4 references when HD-263 closes"},
+    {"id": "MERGE-21", "track": "A", "severity": "Low", "status": "OPEN", "drift_type": "Cosmetic_Stale_Text", "title": "Document map tree lists manual/ guides without prefix (convention check)", "evidence": "Document Map tree in docs/index.md lists e.g. 'chat.md' (not 'manual/chat.md'); check_doc_map.py OK because manual/ excluded by convention", "deduplication_key": "docs/index.md:document-map-tree", "proposed_fix": "owner decision: add manual/ prefix for clarity, OR keep current convention"}
+  ],
+  "verified_ok_consolidated": [
+    "All 9 in-gate validators green (validate-all.sh 0.6s)",
+    "33 enabled VPS services + 2 home_servers = 35 total — 58 compose templates, all PASS",
+    "20 roles (corrected from both prior audits: 18 and 19 were both wrong)",
+    "31 scripts (16 sh + 15 py) — corrected from 27",
+    "62 canonical docs reachable from index (0 unmapped); 74 markdown total",
+    "HD-270 escape fully covered (0 unescaped compose vault refs outside URL urlencode contexts)",
+    "Edge WAF: 33/33 traefik routers carry at least one auth tier",
+    "Sibling auth: 7/7 data-writing pairs covered (HD-160); ollama + docling deliberately isolated (HD-59)",
+    "Authentik OIDC: 22 providers, all confidential except opencloud, all 1h tokens; HD-216 persisted-token sweep passes",
+    "Capability-tiering: AI stack v2 split in place (HD-247/248/251)",
+    "Decision log: 6 settled decisions consistent with changelog.md",
+    "50 VPS containers Up (49 healthy + 1 unhealthy `authentik-ldap` deploy-gated per HD-132)",
+    "Wildcard cert expires 2026-11-20 (~83 days, healthy)",
+    "db-backup on schedule (last run 21h ago, < 24h target); kopia connected to Hetzner Storage Box"
+  ],
+  "open_questions": [
+    "Document map convention: manual/chat.md vs chat.md? (owner decision)",
+    "IP literal exception in IaC docs: does docs/deployment-ansible.md qualify as 'IaC'?",
+    "Status banner policy: proactive vs opportunistic?",
+    "Bulk pre-pass in check-mode: mock or document as limitation?",
+    "Vault escape context: my analysis says TOML/env/yaml don't need escape; theirs blanket-flagged. Add template-header comments?",
+    "metabase-forgejo_ro + ha-failover_api: both missing; at different deploy gates. When to seed each?",
+    "fail2ban fix path: (a) add traefik accesslog + traefik-aware filter, or (b) drop the http-auth jail?",
+    "When to schedule Phase 1.5 cutover (wg-s2s) and Phase 4 (HA failover with ha-failover_api)?",
+    "Consolidated next-hd.sh: which HD numbers to assign for the 23 action items? (currently next free ≈ 275)"
+  ],
+  "false_positives_consolidated": [
+    "matrix.kogler.si in services.md public table — fully consistent (doc=public, IaC=CF record, live=resolves, matrix compose has Host label)",
+    "ha.kogler.si in URL→backend table — doc is a routing reference, not a public DNS claim. IaC explicitly excludes ha. Live NXDOMAIN. Consistent.",
+    "alloy /metrics on 0.0.0.0:12345 — per-process /proc/.../net/tcp confirms 127.0.0.1 only; ss aggregates namespaces misleadingly",
+    "renovate enabled:true but Forgejo not created (HD-264 sandbox — by design)",
+    "testdata/ directory not in scripts/README.md (by design — test data correctly excluded)",
+    "16 vault refs without escape in TOML/env/yaml — OK by design (not compose-interpolated)"
+  ],
+  "action_plan_consolidated": "see merged-audit-2026-08-29.md §5 — 23 action items (1 high, 1 high, 6 med, 4 low + meta-items). HD numbers illustrative; use next-hd.sh at write time.",
+  "source_attribution": {
+    "5-track audit": {"file": "reports/full-audit-2026-08-29.md", "commit": "845e28c"},
+    "security audit": {"file": "reports/security-audit-2026-08-29.md", "commit": "807cccc"},
+    "consistency audit": {"file": "reports/consistency-audit-2026-08-29.md", "commit": "e60a392"},
+    "other session (parallel lanes)": {"file": "reports/other-session-merged/other-session-full-audit.md", "note": "untracked in their worktree; archived here for traceability"}
+  }
+}

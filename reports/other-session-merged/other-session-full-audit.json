@@ -1,0 +1,270 @@
+{
+  "audit_date": "2026-08-29",
+  "commit": "969597d",
+  "tracks": {
+    "A": {
+      "findings": 10,
+      "high": 0,
+      "medium": 3,
+      "low": 7,
+      "open": 4,
+      "ok": 6,
+      "false_positive": 0
+    },
+    "B": {
+      "findings": 11,
+      "high": 2,
+      "medium": 3,
+      "low": 6,
+      "open": 4,
+      "ok": 7,
+      "false_positive": 2
+    },
+    "C": {
+      "findings": 6,
+      "high": 0,
+      "medium": 0,
+      "low": 6,
+      "open": 2,
+      "ok": 4,
+      "false_positive": 0
+    },
+    "D": {
+      "findings": 5,
+      "high": 0,
+      "medium": 1,
+      "low": 4,
+      "open": 2,
+      "ok": 3,
+      "false_positive": 4
+    },
+    "E": {
+      "findings": 8,
+      "high": 1,
+      "medium": 4,
+      "low": 3,
+      "open": 7,
+      "ok": 1,
+      "false_positive": 1
+    }
+  },
+  "consolidated_findings": [
+    {
+      "id": "AUD-A-1",
+      "track": "A",
+      "severity": "Low",
+      "status": "OPEN",
+      "deduplication_key": "docs/index.md:document-map-tree",
+      "evidence": {
+        "type": "grep",
+        "file": "docs/index.md",
+        "command": "grep -n 'manual/' docs/index.md",
+        "output_snippet": "manual guides listed without prefix"
+      },
+      "proposed_fix": "Update document map tree to use correct relative paths for manual/ guides"
+    },
+    {
+      "id": "AUD-A-2",
+      "track": "A",
+      "severity": "Medium",
+      "status": "OPEN",
+      "deduplication_key": "docs/services-media.md:anchor-links",
+      "evidence": {
+        "type": "grep",
+        "file": "docs/services-media.md",
+        "command": "grep -n 'services.md#' docs/services-media.md docs/services-downloads.md",
+        "output_snippet": "5 broken anchors: docker-networks, domain--subdomain-plan, storage--import-media--arr"
+      },
+      "proposed_fix": "Fix anchor links to match actual header IDs in target files"
+    },
+    {
+      "id": "AUD-A-3",
+      "track": "A",
+      "severity": "Medium",
+      "status": "OPEN",
+      "deduplication_key": "docs/deployment-ansible.md:ip-literals",
+      "evidence": {
+        "type": "grep",
+        "file": "docs/deployment-ansible.md",
+        "command": "grep -E '10\\.10\\.[0-9]+\\.[0-9]+' docs/deployment-ansible.md docs/deployment-secrets.md docs/home-assistant-current.md",
+        "output_snippet": "12 IP literals outside SSOT locations"
+      },
+      "proposed_fix": "Replace IP literals with references to network-addresses-generated.md or hostname references"
+    },
+    {
+      "id": "AUD-A-4",
+      "track": "A",
+      "severity": "Low",
+      "status": "OPEN",
+      "deduplication_key": "docs/observability.md:status-banner",
+      "evidence": {
+        "type": "journal",
+        "file": "deployment-journal.md",
+        "command": "grep -c '2026-08-22' deployment-journal.md",
+        "output_snippet": "7 services live since 2026-08-22 but banners show ⏳ deploy-gated"
+      },
+      "proposed_fix": "Update status banners to ✅ Live since 2026-08-22 where journal confirms liveness"
+    },
+    {
+      "id": "AUD-B-1",
+      "track": "B",
+      "severity": "High",
+      "status": "OPEN",
+      "deduplication_key": "scripts/check-vault-items.sh:ha-failover_api",
+      "evidence": {
+        "type": "validator",
+        "file": "scripts/check-vault-items.sh",
+        "command": "bash scripts/check-vault-items.sh --strict",
+        "output_snippet": "MISSING and NOT glue-seeded => create these: ha-failover_api"
+      },
+      "proposed_fix": "Create ha-failover_api in 1Password Homelab-ansible vault (api credential type) before Phase 4 HA cutover"
+    },
+    {
+      "id": "AUD-B-3",
+      "track": "B",
+      "severity": "Medium",
+      "status": "OPEN",
+      "deduplication_key": "templates/docker_services/**/vault-escaping",
+      "evidence": {
+        "type": "grep",
+        "file": "IaC/ansible/templates/docker_services/",
+        "command": "grep -r \"vault\\[\" IaC/ansible/templates/docker_services/ --include=\"*.j2\" | grep -v \"replace('\\$','\\$\\$')\"",
+        "output_snippet": "16 occurrences without replace('$','$$') - some use urlencode, some in TOML/env"
+      },
+      "proposed_fix": "Verify each: urlencode acceptable for URL contexts; TOML/env may not need replace. Document exceptions."
+    },
+    {
+      "id": "AUD-C-5",
+      "track": "C",
+      "severity": "Low",
+      "status": "OPEN",
+      "deduplication_key": "scripts/collect-smart.ps1:registry-gap",
+      "evidence": {
+        "type": "diff",
+        "file": "scripts/README.md",
+        "command": "diff <(git ls-files scripts/ | grep -v __pycache__ | sort) <(grep -E 'scripts/|`\\`' scripts/README.md | grep -v testdata | sed 's/.*\\[`\\(.*\\)\\`\\].*/\\1/' | sort -u)",
+        "output_snippet": "collect-smart.ps1 in filesystem but not in README.md registry"
+      },
+      "proposed_fix": "Document in scripts/README.md as Windows-only sibling of collect-smart-live.sh"
+    },
+    {
+      "id": "AUD-D-3",
+      "track": "D",
+      "severity": "Medium",
+      "status": "OPEN",
+      "deduplication_key": "group_vars/vps.yml:docker_services.renovate.enabled",
+      "evidence": {
+        "type": "grep",
+        "file": "group_vars/vps.yml",
+        "command": "grep -A 20 'renovate' IaC/ansible/group_vars/vps.yml",
+        "output_snippet": "renovate enabled but Forgejo repo not created, 6/10 onboarding steps missing"
+      },
+      "proposed_fix": "Track gaps under HD-264 (Renovate sandbox). Document in services-admin.md"
+    },
+    {
+      "id": "AUD-FP-1",
+      "track": "D",
+      "severity": "Low",
+      "status": "FALSE_POSITIVE",
+      "deduplication_key": "group_vars/vps.yml:docker_services.renovate.enabled",
+      "evidence": {
+        "type": "grep",
+        "file": "todo.md",
+        "command": "grep -A 5 'HD-264' todo.md",
+        "output_snippet": "renovate enabled: false until domen/homelab created on Forgejo"
+      },
+      "proposed_fix": "No fix — intentional. Record in False Positive Log.",
+      "false_positive_rationale": "HD-264 explicitly defers Forgejo migration; renovate sandbox on domen/test is the test path"
+    },
+    {
+      "id": "AUD-FP-2",
+      "track": "D",
+      "severity": "Low",
+      "status": "FALSE_POSITIVE",
+      "deduplication_key": "group_vars/vps.yml:docker_services.traefik-tailnet.tailnet_sidecar_ip",
+      "evidence": {
+        "type": "grep",
+        "file": "group_vars/vps.yml",
+        "command": "grep 'tailnet_sidecar_ip' IaC/ansible/group_vars/vps.yml",
+        "output_snippet": "tailnet_sidecar_ip: \"100.64.0.1\" with comment 'filled at deploy time'"
+      },
+      "proposed_fix": "No fix — intentional. Record in False Positive Log.",
+      "false_positive_rationale": "Value filled at deploy time from headscale nodes list after sidecar joins"
+    }
+  ],
+  "action_plan": [
+    {
+      "hd": "HD-275",
+      "title": "Create ha-failover_api vault item for HA failover",
+      "severity": "High",
+      "owning_doc": "docs/deployment-secrets.md",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-276",
+      "title": "Fix 5 broken anchor links in services-media/downloads",
+      "severity": "High",
+      "owning_doc": "docs/services-media.md, docs/services-downloads.md",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-277",
+      "title": "Replace 12 IP literals in docs with SSOT references",
+      "severity": "Medium",
+      "owning_doc": "docs/deployment-ansible.md, docs/deployment-secrets.md, docs/home-assistant-current.md",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-278",
+      "title": "Update status banners for 7 live services to ✅ Live since 2026-08-22",
+      "severity": "Medium",
+      "owning_doc": "docs/observability.md, docs/services-traefik.md, docs/services-authentik.md, docs/services-admin.md, docs/services-utilities.md, docs/services-matrix.md",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-279",
+      "title": "Document vault escaping exceptions for TOML/env files",
+      "severity": "Medium",
+      "owning_doc": "docs/deployment-compose.md",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-280",
+      "title": "Document collect-smart.ps1 as Windows-only sibling in scripts/README.md",
+      "severity": "Medium",
+      "owning_doc": "scripts/README.md",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-281",
+      "title": "Update document map tree for manual/ guides with correct paths",
+      "severity": "Low",
+      "owning_doc": "docs/index.md",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-282",
+      "title": "Add False Positive Log entries for 4 intentional items",
+      "severity": "Low",
+      "owning_doc": "todo.md",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-283",
+      "title": "Track renovate onboarding gaps (6 missing steps) under HD-264",
+      "severity": "Low",
+      "owning_doc": "docs/services-admin.md",
+      "source": "full-audit-2026-08-29"
+    }
+  ],
+  "open_questions": [
+    "AUD-A-1: Document map tree convention for manual/ guides — with or without manual/ prefix?",
+    "AUD-A-3: docs/deployment-ansible.md — qualifies as \"IaC\" for IP literal exception?",
+    "AUD-A-4: Status banner update policy — proactive vs. opportunistic?",
+    "AUD-B-2: Bulk pre-pass mocking in check-mode — implement or document as limitation?",
+    "AUD-B-3: Vault escaping for TOML/env — urlencode sufficient?",
+    "AUD-C-5: collect-smart.ps1 registry entry — add Windows-only note?",
+    "AUD-D-3: Renovate onboarding gaps — separate HDs or under HD-264?",
+    "AUD-E: All live checks require VPS SSH + 1P session — schedule dedicated live-verify session"
+  ]
+}
