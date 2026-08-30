@@ -91,17 +91,20 @@ cloudflare_dns_records:
   - { name: office,    type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: foto,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: ai,        type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
-  - { name: stats,     type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
-  - { name: sec,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: pdf,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: vpn,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: drop,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: pairdrop,  type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # KEPT + IaC-tracked (HD-230): pairdrop.kogler.si stays live alongside drop
   - { name: bin,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-112: Zipline public bin/shortener
   - { name: home,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-230: was missing from CF entirely (route 000 since HD-219 wave)
-  - { name: traefik,   type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-230: dashboard route hostname (forward-auth protected)
-  - { name: auto,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
 #
+# OBSERVABILITY IS TAILNET-ONLY (HD-135b follow-up, 2026-08-28): stats / sec / traefik /
+# auto had public CNAMEs here from the Phase-1 wave, contradicting the internal-only docs.
+# They are REMOVED from this SSOT — the observability dashboards (Grafana/Metabase/Traefik-
+# dash/n8n) are admin-only and reachable over the tailnet (headscale), never from WAN.
+# NOTE: this file only manages state:present — it does NOT delete already-live records.
+# The owner must DELETE stats/sec/traefik/auto from the Cloudflare zone at deploy time
+# (deploy-gated; see docs/network-dns.md + docs/security.md).
 # Example (once foto.kogler.si is served by VPS Traefik):
 #   - name: foto
 #     type: A

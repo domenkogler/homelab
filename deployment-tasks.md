@@ -86,7 +86,7 @@
 | `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Homelab (human) vault | ✓ |
 
 > **Provisioning note:** the generated items — the DB items `authentik_db`/`opencloud_db`/`immich_db`/`forgejo_db`/
-> `pgvector_db`, the secrets `authentik_password`/`nut_password`/`nut-exporter_password`/`kopia_password`/
+> `qdrant_db`, the secrets `authentik_password`/`nut_password`/`nut-exporter_password`/`kopia_password`/
 > `ha-vrrp_password`/`n8n_password`/`matrix_password`/`opencloud-collab_password`/`openwebui_secret`, and the
 > API creds `litellm_master_key`/`immich-ml-internal_api`/`n8n-webhook_api`/`signal-internal_api`/
 > `kopia-server-internal_api`/`prometheus-internal_api` — are seeded automatically into `Homelab-ansible` by the
@@ -313,10 +313,10 @@
 - Wildcard `*.kogler.si` cert: issued on the **VPS** (Phase 1, HD-178) — oldsrv serves internal routes from the synced pair (pulled from the VPS by its own timer, HD-181); no ACME logs expected on oldsrv.
 
 **Deploy-gated verification (Phase 3):**
-- **HD-105** — **AI-stack pre-deploy gate:** create the 7 1Password items (`openrouter_api`, `cohere_api`, `litellm_master_key`, `openwebui_secret`, `openwebui_api`, `pgvector_db`, `openclaw_gateway_token`) + Authentik OIDC providers per [`deployment-ai-stack-secrets.md`](docs/deployment-ai-stack-secrets.md); blocks HD-100→104. · [deployment-secrets.md](docs/deployment-secrets.md)
+- **HD-105** — **AI-stack pre-deploy gate:** create the 7 1Password items (`openrouter_api`, `cohere_api`, `litellm_master_key`, `openwebui_secret`, `openwebui_api`, `qdrant_db`, `openclaw_gateway_token`) + Authentik OIDC providers per [`deployment-ai-stack-secrets.md`](docs/deployment-ai-stack-secrets.md); blocks HD-100→104. · [deployment-secrets.md](docs/deployment-secrets.md)
 - **HD-100** — LiteLLM live: create `litellm_master_key`/`openrouter_api`/`cohere_api`; MUST pin `litellm_version` semver; OpenAI-compatible completion + embed respond. · [services-ai.md](docs/services-ai.md)
 - **HD-101** — Open Web UI live: `openwebui_secret` + `openwebui_api` (Authentik OIDC, redirect `https://ai.kogler.si/oauth2/callback`); OIDC login + LiteLLM completion + RAG. · [services-ai.md](docs/services-ai.md)
-- **HD-102** — PGVector live: `pgvector_db`; extension init + db-backup DB04 dump. · [services-ai.md](docs/services-ai.md)
+- **HD-102** — RAG vector store live: `qdrant_db` resolves; Qdrant `/healthz` on `db-internal`; vector dimension lock @1536 at first ingest (HD-268, replaces PGVector). · [services-ai.md](docs/services-ai.md)
 - **HD-103** — Docling live: first start downloads HF models (multi-GB); v1 API converts a Slovenian scan. · [services-ai.md](docs/services-ai.md)
 - **HD-104** — OpenClaw live: `openclaw_gateway_token`; `openclaw onboard` → schema-valid `openclaw.json` (LiteLLM + WebDAV); Open WebUI ↔ OpenClaw ↔ OpenCloud round-trip. · [services-ai.md](docs/services-ai.md)
 - **HD-58** — Stirling PDF: re-render `services-inventory-generated.md`; OCR `slv` + Forward-Auth chain live-verify. · [services.md](docs/services.md)

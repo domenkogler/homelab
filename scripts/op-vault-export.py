@@ -91,7 +91,8 @@ def main():
                     help="derive the needed set from services/map/glue (JSON on stdin or --spec-file)")
     ap.add_argument("--spec-file", help="read the {services,map,glue} spec JSON from this file")
     ap.add_argument("--all-fields", action="store_true")
-    ap.add_argument("--workers", type=int, default=15)
+    ap.add_argument("--workers", type=int, default=6,
+                    help="concurrency for op item get (default 6; see HD-268 — 15 sparks heavy bursts that can trip hosted 1P rate-limits during repeated debug converges)")
     args, _ = ap.parse_known_args()
 
     vault = args.vault or ""

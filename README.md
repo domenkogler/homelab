@@ -97,6 +97,7 @@ task-specific dispatch. Do **not** bulk-read the repo.
 4. open the owning doc via `docs/index.md`
 5. update `todo.md` (pick/register an HD-XX; open a new HD if none exists)
 6. implement → `bash scripts/validate-all.sh` green → update `todo.md` / `changelog.md` per lifecycle
+   → commit signed (if `Couldn't find key in agent`: `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth`, then commit; CONVENTIONS §6)
 7. if it's a planned / multi-step / multi-host / live-deploy change → produce a `plan/` (plan-task)
    and honor its `## Environment` note
 

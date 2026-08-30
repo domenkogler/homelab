@@ -56,7 +56,7 @@ services:
       PROXY_HTTP_ADDR: 0.0.0.0:9200
       PROXY_TLS: "false"
       # Admin
-      IDM_ADMIN_PASSWORD: "{{ vault['opencloud_login'].password }}"
+      IDM_ADMIN_PASSWORD: "{{ vault['opencloud_login'].password | replace('$','$$') }}"
       IDM_CREATE_DEMO_USERS: "false"
       # Logging
       OC_LOG_LEVEL: "{{ opencloud_log_level | default('info') }}"
@@ -148,9 +148,9 @@ services:
       # 1P value may contain quote or backslash characters that terminate a double-quoted
       # YAML scalar and break the RENDERED compose file at docker-compose parse time.
       OC_JWT_SECRET: >-
-        {{ vault['opencloud-collab_password'].password }}
+        {{ vault['opencloud-collab_password'].password | replace('$','$$') }}
       COLLABORATION_JWT_SECRET: >-
-        {{ vault['opencloud-collab_password'].password }}
+        {{ vault['opencloud-collab_password'].password | replace('$','$$') }}
       # WOPI callback + live-typing sync store (default nats-js-kv; node addr via
       # OC_CACHE_STORE_NODES per docs — not COLLABORATION_STORE_NODES)
       COLLABORATION_WOPI_SRC: "https://file.kogler.si"
@@ -161,7 +161,7 @@ services:
       # cannot validate the embedded REVA token and the /wopi/files callback returns 401
       # "Invalid access token" (found live 2026-08-24).
       COLLABORATION_WOPI_SECRET: >-
-        {{ vault['opencloud-collab_password'].password }}
+        {{ vault['opencloud-collab_password'].password | replace('$','$$') }}
       COLLABORATION_STORE: "nats-js-kv"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:

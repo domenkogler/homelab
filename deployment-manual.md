@@ -105,6 +105,26 @@ truth); `test-1password.yml` then proves the lookup path end-to-end.
 ✔ `restore-runner-key.sh` prints `pair-consistent: yes` with the fingerprint matching the canonical
 one it prints · `test-1password.yml` ends `PLAY RECAP: ok=2 failed=0` (reads `kopia_password`).
 
+### 0.3.5 Skill sync: repo `skills/` → pi agent `~/.pi/agent/skills` (repo = SSOT)
+
+```bash
+bash scripts/sync-skills.sh --push            # deploy repo skills/ -> ~/.pi/agent/skills (canonical)
+bash scripts/sync-skills.sh --check --strict  # confirm no drift / no encoding violations
+```
+
+`sync-skills.sh` (HD-254) deploys from the repo (single source of truth) to `~/.pi/agent/skills` and prunes
+runtime artifacts (`net.json`, `__pycache__/**`, zero-byte skill-name markers). `--check --strict` exits
+nonzero on any drift and is wired into `validate-all.sh` as a gate (SKIPs when `~/.pi` is absent, so
+a bare CI / non-pi laptop never breaks validation). A UTF-8-BOM/CRLF encoding violation blocks `--push`.
+To capture a post-session self-learn back into the repo (copy-only, never auto-commits), use `--pull` then
+commit per CONVENTIONS §6.
+
+Prerequisite: pi must already be installed — on this host `scripts/install-pi-wsl.sh` installs pi + the
+other SSOT content (`pi-agent/`, packages); once pi is present, `sync-skills.sh` keeps only the skills tree
+in drift-free sync. On a TRUE-ZERO runner without pi, `sync-skills.sh --check` SKIPs and `--push` populates
+`~/.pi/agent/skills` for the first time.
+
+
 ### 0.4 Windows-side interactive SSH *(one-time, recommended — not required by the runner)*
 
 > Nothing automated depends on this step: the Ansible runner (WSL) presents the canonical
@@ -400,6 +420,32 @@ CIDR — see [deployment-secrets.md](docs/deployment-secrets.md) `cloudflare_api
 window slide, then one clean restart. DNS-01 propagation checks query the CONTAINER's
 resolvers — netcup negative cache requires the pinned `dns: [1.1.1.1, 8.8.8.8]` (already in
 traefik + headscale services).
+
+### 1.4b Tailnet dashboard edge (HD-135b follow-up) — tailnet-only admin dashboards
+
+Converged by Ansible like every other compose service (`docker_services` row `traefik-tailnet`
+in `group_vars/vps.yml`, enabled). Imperative facts a from-scratch deploy needs:
+
+1. **Seed the tailscale auth key BEFORE the first converge** (fail-loud render if absent):
+   `Homelab-ansible` item `tailscale-sidecar_api`, field `credential` = a headscale preauth key
+   scoped to `tag:sidecar` — mint on the VPS:
+   ```bash
+   docker exec headscale headscale preauthkeys create --user 2 --tags tag:sidecar --reusable --expiration 8760h -o json
+   ```
+2. **`tailnet_sidecar_ip`** (`group_vars/vps.yml`) must hold the sidecar node's tailnet IPv4
+   (read from `headscale nodes list` after the first join — value per SSOT/`tailnet_sidecar_ip`). Empty →
+   headscale renders no `extra_records` (dashboards won't resolve on the tailnet).
+3. **Certificate pairs:** the issuer requests `*.kogler.si` AND `*.ts.kogler.si`
+   (Traefik dash router `tls.domains[0]/[1]`); `certs-rename.sh` copies both pairs to
+   `/opt/traefik/certs/` (`kogler.si.pem` + `ts.kogler.si.pem`). The tailnet edge serves both
+   from the DEFAULT store — no per-edge ACME.
+4. **Serve passthrough:** the sidecar's `TS_SERVE_CONFIG` (`serve.json`) runs
+   `tailscale serve --tcp=443 → 127.0.0.1:443`; the edge shares traefik-tailnet's netns
+   (`network_mode: service:traefik-tailnet`) — recreate the PROJECT together (compose
+   down+up) if the netns goes stale, then re-apply the serve config.
+
+Verify from a tailnet device: `https://stats.kogler.si` (forward-auth → SSO) and
+`https://stats.ts.kogler.si` (ACL-gated, tailnet-only).
 
 ### 1.5 Authentik first login
 

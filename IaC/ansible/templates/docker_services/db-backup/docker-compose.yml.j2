@@ -67,15 +67,15 @@ services:
       DB01_TYPE: postgresql
       DB01_HOST: authentik-postgres
       DB01_PORT: "5432"
-      DB01_USER: "{{ vault['authentik_db'].username }}"
-      DB01_PASS: "{{ vault['authentik_db'].password }}"
+      DB01_USER: "{{ vault['authentik_db'].username | replace('$','$$') }}"
+      DB01_PASS: "{{ vault['authentik_db'].password | replace('$','$$') }}"
       DB01_NAME: authentik
 
       DB02_TYPE: postgresql
       DB02_HOST: forgejo-db
       DB02_PORT: "5432"
-      DB02_USER: "{{ vault['forgejo_db'].username }}"
-      DB02_PASS: "{{ vault['forgejo_db'].password }}"
+      DB02_USER: "{{ vault['forgejo_db'].username | replace('$','$$') }}"
+      DB02_PASS: "{{ vault['forgejo_db'].password | replace('$','$$') }}"
       DB02_NAME: forgejo
 
       # Immich Postgres — on db-internal (real service name is `immich-postgres`, not
@@ -83,27 +83,22 @@ services:
       DB03_TYPE: postgresql
       DB03_HOST: immich-postgres
       DB03_PORT: "5432"
-      DB03_USER: "{{ vault['immich_db'].username }}"
-      DB03_PASS: "{{ vault['immich_db'].password }}"
+      DB03_USER: "{{ vault['immich_db'].username | replace('$','$$') }}"
+      DB03_PASS: "{{ vault['immich_db'].password | replace('$','$$') }}"
       DB03_NAME: immich
 
-      # PGVector (AI-stack RAG vector store, HD-102) — on db-internal; RAG index + chat
-      # history = irretrievable metadata (KOPS-026 class) so it must be dumped too.
-      DB04_TYPE: postgresql
-      DB04_HOST: pgvector
-      DB04_PORT: "5432"
-      DB04_USER: "{{ vault['pgvector_db'].username }}"
-      DB04_PASS: "{{ vault['pgvector_db'].password }}"
-      DB04_NAME: pgvector
-
-      # LiteLLM runtime DB (HD-247): STORE_MODEL_IN_DB means keys/models/spend live HERE,
+      # Qdrant (HD-268) — the AI RAG vector store is a REBUILDABLE CACHE over the git floor (not
+      # irrecoverable metadata, docs/backup.md) AND a non-Postgres store. Therefore it is
+      # deliberately NOT a DBxx block here: no pgvector/qdrant Postgres target exists to dump.
+      # Its snapshot/state dir is a Kopia-backed host bind (/srv/docker/qdrant); correctness is
+      # restored on loss by re-indexing from the Forgejo OKF wiki repos (services-ai.md §5b). (HD-247): STORE_MODEL_IN_DB means keys/models/spend live HERE,
       # not in git config — irretrievable-metadata class (KOPS-026); CRITICAL state.
       # NOTE: DB05 stays reserved for zipline-db (HD-112, lands with its first deploy).
       DB06_TYPE: postgresql
       DB06_HOST: litellm-db
       DB06_PORT: "5432"
-      DB06_USER: "{{ vault['litellm_db'].username }}"
-      DB06_PASS: "{{ vault['litellm_db'].password }}"
+      DB06_USER: "{{ vault['litellm_db'].username | replace('$','$$') }}"
+      DB06_PASS: "{{ vault['litellm_db'].password | replace('$','$$') }}"
       DB06_NAME: litellm
 
       # OpenCloud uses an EMBEDDED database (no external Postgres) — it is NOT a DBxx

@@ -41,8 +41,8 @@ services:
       - /srv/docker/immich/upload:/data               # local NVMe: thumbs, encoded-video (NOT originals)
       - /etc/localtime:/etc/localtime:ro
     environment:
-      DB_USERNAME: "{{ vault['immich_db'].username }}"
-      DB_PASSWORD: "{{ vault['immich_db'].password }}"
+      DB_USERNAME: "{{ vault['immich_db'].username | replace('$','$$') }}"
+      DB_PASSWORD: "{{ vault['immich_db'].password | replace('$','$$') }}"
       DB_DATABASE_NAME: immich
       DB_HOSTNAME: immich-postgres   # upstream var IS DB_HOSTNAME (DB_HOST is silently ignored - Wave-2 triage 2026-08-22)
       DB_PORT: "5432"
@@ -52,7 +52,7 @@ services:
       IMMICH_MACHINE_LEARNING_URL: "{{ immich_ml_url }}"
       # HD-160: ML API-key auth — immich-ml validates this header so only immich-app can
       # drive ML inference (fail-loud: missing item aborts render). Shared with immich-ml.
-      IMMICH_MACHINE_LEARNING_KEY: "{{ vault['immich-ml-internal_api'].credential }}"
+      IMMICH_MACHINE_LEARNING_KEY: "{{ vault['immich-ml-internal_api'].credential | replace('$','$$') }}"
       # (Immich originals + encoded-video -> live Hetzner Box CIFS via the Immich storage
       # template, HD-135; thumbs/DB stay on local /data. MinIO/S3 retired — minio_login removed.)
 
@@ -61,8 +61,8 @@ services:
       # Authentik Blueprint (ks-oidc.yml, HD-142); client creds seeded into `immich_oidc` by the
       # secret-egress glue (HD-143). Must be Authorization Code (Confidential client), never implicit.
       IMMICH_OAUTH_ISSUER_URL: "https://sso.kogler.si/application/o/immich/"
-      IMMICH_OAUTH_CLIENT_ID: "{{ vault['immich_oidc'].username }}"
-      IMMICH_OAUTH_CLIENT_SECRET: "{{ vault['immich_oidc'].credential }}"
+      IMMICH_OAUTH_CLIENT_ID: "{{ vault['immich_oidc'].username | replace('$','$$') }}"
+      IMMICH_OAUTH_CLIENT_SECRET: "{{ vault['immich_oidc'].credential | replace('$','$$') }}"
       IMMICH_OAUTH_SCOPE: "openid profile email"
       IMMICH_OAUTH_STORAGE_LABEL_CLAIM: preferred_username
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
@@ -104,8 +104,8 @@ services:
     volumes:
       - /srv/docker/immich/postgres:/var/lib/postgresql/data
     environment:
-      POSTGRES_USER: "{{ vault['immich_db'].username }}"
-      POSTGRES_PASSWORD: "{{ vault['immich_db'].password }}"
+      POSTGRES_USER: "{{ vault['immich_db'].username | replace('$','$$') }}"
+      POSTGRES_PASSWORD: "{{ vault['immich_db'].password | replace('$','$$') }}"
       POSTGRES_DB: immich
       POSTGRES_INITDB_ARGS: "--data-checksums"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"

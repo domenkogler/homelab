@@ -1,0 +1,80 @@
+---
+# authentik-blueprints.yml — apply custom Authentik blueprints deterministically (HD-230).
+#
+# EXTERNALIZED from the routine docker_services deploy lane (owner decision 2026-08-27,
+# HD-268): blueprints are integration wiring that changes rarely, and each one-shot
+# `docker exec authentik-worker ak apply_blueprint` takes ~45s. Running them on EVERY
+# converge wastes ~a minute on unchanged files. Run this playbook explicitly whenever a
+# tracked blueprint file (templates/docker_services/authentik/blueprints/*.yml) is edited.
+#
+# WHY this exists at all: authentik's blueprints_discovery has NEVER registered
+# /blueprints/custom/* as BlueprintInstances (found live 2026-08-23: 28 instances exist,
+# 0 custom; hourly discovery runs 'done' but skip them). Its file-hash re-apply machinery
+# (instance last_applied_hash vs file sha256) therefore never fires — a local blueprint
+# edit stays inert until applied via `ak apply_blueprint` one-shot. Until that upstream
+# discovery behavior is understood/fixed, every edited blueprint must be applied here.
+#
+# Idempotency: apply_blueprint upserts by identifier — safe to run repeatedly.
+# NOTE: upsert semantics = REMOVING an entry from a blueprint does NOT delete the
+# server-side object; intentional deletions go through ak-shell ORM one-shots (see
+# docs/services-authentik.md).
+#
+# Usage (WSL Debian runner):
+#   bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml        # all blueprints
+#   bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml -e blueprint=ks-oidc.yml
+#
+# The compose deploy dir on the host (docker_services role) renders the blueprint files
+# from templates/docker_services/authentik/blueprints/* into /opt/authentik/blueprints/
+# and mounts them at /blueprints/custom (the deploy-service template step). This playbook
+# picks them up from that deployed path and pushes each into authentik-worker.
+
+- name: Apply custom Authentik blueprints (externalized, HD-230/HD-268)
+  hosts: vps
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Assert safe execution context (blueprints apply only as an allowed admin)
+      ansible.builtin.assert:
+        that:
+          - ansible_user in ansible_admin_users
+        fail_msg: >-
+          authentik blueprints apply must only run as an allowed admin user
+          ({{ ansible_admin_users | join(', ') }}).
+      tags: [authentik, blueprints]
+
+    - name: "Assert the authentik service is deployed (compose dir present)"
+      ansible.builtin.stat:
+        path: "/opt/authentik/blueprints"
+      register: ak_blueprints
+      tags: [authentik, blueprints]
+
+    - name: Fail if the authentik blueprints dir is missing on the host
+      ansible.builtin.assert:
+        that:
+          - ak_blueprints.stat.exists
+        fail_msg: >-
+          /opt/authentik/blueprints not found on {{ inventory_hostname }}. Deploy the
+          docker_services (authentik) lane first so its rendered blueprints land there,
+          then run this playbook.
+      tags: [authentik, blueprints]
+
+    # Target list: default blueprints shipped in the composable set; override per file
+    # with -e blueprint=<name>.yml if only one changed.
+    - name: "Apply custom Authentik blueprints (default set)"
+      ansible.builtin.shell:
+        cmd: |
+          rc=0
+          # NOTE: "$bp" is a SHELL variable. Do NOT write bp in Jinja-brace form here:
+          # Ansible resolves those at task-arg time ('bp' undefined -> task fails),
+          # even inside this comment.
+          for bp in ks-forward-auth.yml ks-oidc.yml; do
+            echo "== applying $bp =="
+            docker exec authentik-worker ak apply_blueprint "/blueprints/custom/$bp"
+            this_rc=$?
+            if [ $this_rc -ne 0 ]; then rc=$this_rc; fi
+          done
+          exit $rc
+        executable: /bin/bash
+      changed_when: "'Applied' in applied_bps.stdout or 'applied' in applied_bps.stdout"
+      register: applied_bps
+      tags: [authentik, blueprints]

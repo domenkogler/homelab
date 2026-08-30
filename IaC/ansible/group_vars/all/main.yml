@@ -130,6 +130,7 @@ ha_trusted_proxies:
 # header-consuming service.
 traefik_edge_ips:
   - 172.20.0.2/32            # vps traefik — pinned via traefik_edge_ip_pin (HD-240), verified live 2026-08-24
+  - 172.20.0.250/32          # vps traefik-tailnet (HD-135b follow-up) — pinned in the traefik-tailnet compose
 # Static edge-container IP pinned by the traefik compose template (ipv4_address on each
 # host's local traefik-public bridge, HD-240). Same value on every host BY CONVENTION
 # (bridge default `.2`); every host whose edge fronts a header-consuming service must
@@ -210,6 +211,7 @@ network_ranges:
   - { name: services-internal, cidr: "172.21.0.0/16",  purpose: "Docker bridge — app ↔ app communication" }
   - { name: db-internal,       cidr: "172.22.0.0/16",  purpose: "Docker bridge — databases (fully isolated)" }
   - { name: llm-backend,       cidr: "172.23.0.0/16",  purpose: "Docker bridge — LLM backend (Ollama) ↔ LiteLLM only, fully isolated (HD-59)" }
+  - { name: tailnet-apps,      cidr: "172.24.0.0/16",  purpose: "Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't" }
   - { name: site,              cidr: "10.10.0.0/16",   purpose: "Whole homelab site — all VLANs (10.10.x.0/24)" }
   - { name: nfs-clients,       cidr: "10.10.1.30/32",  purpose: "NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP)" }
 
@@ -227,7 +229,7 @@ wg_s2s_vps:
   router_ip: "10.255.40.1"
   listen_port: 51820
   endpoint: ""                        # home WAN endpoint (dynamic); the VPS initiates here — set at deploy
-  peer_public_key: "{{ lookup('vars', 'wg_s2s_router_public_key') if 'wg_s2s_router_public_key' in vars else '' }}"  # router(PubKey), provisioned at deploy
+  peer_public_key: "{{ lookup('vars', 'wg_s2s_router_public_key', default='') }}"  # router(PubKey), provisioned at deploy  (HD-271: lookup default — no `in vars` membership; the internal vars dict is deprecated at 2.24)
   # AllowedIPs — LEAST-ACCESS (HD-155): the VPS may reach ONLY the scoped home
   # targets below (exporter/VIP/probe + oldsrv backends when wired), NOT the whole
   # `site` /16. Derived from network_static_hosts by name (never literal IPs). The

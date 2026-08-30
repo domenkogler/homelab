@@ -1,0 +1,130 @@
+{
+  "audit_date": "2026-08-29",
+  "commit": "c9baf09",
+  "scope": "docs/ vs IaC (IaC/ansible/) vs live VPS state — subdomain catalog, port bindings, image versions, hostname conventions",
+  "methodology": "parent inline execution, read-only, lengths/tails only for secrets",
+  "findings": [
+    {
+      "id": "CONS-1",
+      "severity": "High",
+      "status": "OPEN",
+      "drift_type": "Liveness_Mismatch",
+      "title": "bin.kogler.si NXDOMAIN (live) despite IaC + doc claim public",
+      "evidence": {
+        "type": "live",
+        "command": "getent hosts bin.kogler.si",
+        "file": "(live DNS)",
+        "line": "bin.kogler.si",
+        "output_snippet": "NXDOMAIN (unresolved)"
+      },
+      "deduplication_key": "IaC/ansible/roles/cloudflare_dns/vars/main.yml:cloudflare_dns_records[name=bin]",
+      "proposed_fix": "owner: run `bash scripts/ansible-run.sh dns.yml` from the home control plane (the cloudflare_api token is IP-filtered to 193.77.156.222 per the IaC comment). Then bin.kogler.si will resolve to vps.kogler.si CNAME."
+    },
+    {
+      "id": "CONS-2",
+      "severity": "Med",
+      "status": "OPEN",
+      "drift_type": "Orphan_Doc_Script",
+      "title": "pairdrop, drop, pdf.kogler.si in IaC CF records but NOT in docs/services.md public table",
+      "evidence": {
+        "type": "file",
+        "command": "grep -B1 -A1 'name: pairdrop\\|name: drop\\|name: pdf' IaC/ansible/roles/cloudflare_dns/vars/main.yml",
+        "file": "IaC/ansible/roles/cloudflare_dns/vars/main.yml",
+        "line": "Wave-3 additions 2026-08-22 (HD-218 loop)",
+        "output_snippet": "pairdrop, drop, pdf CNAMEs in cloudflare_dns_records; docs/services.md public table does NOT list them"
+      },
+      "deduplication_key": "docs/services.md:PUBLIC-table",
+      "proposed_fix": "add 3 missing rows to docs/services.md PUBLIC table (HD-286), OR remove from IaC if the intent was to keep them off the public DNS (likely: add to doc — pairdrop is PUBLIC by design per HD-230)"
+    },
+    {
+      "id": "CONS-3",
+      "severity": "Med",
+      "status": "OPEN",
+      "drift_type": "Liveness_Mismatch",
+      "title": "traefik.kogler.si RESOLVES (live) despite IaC + doc saying tailnet-only — STALE Cloudflare record",
+      "evidence": {
+        "type": "live",
+        "command": "getent hosts traefik.kogler.si",
+        "file": "(live DNS)",
+        "line": "traefik.kogler.si",
+        "output_snippet": "2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5 (resolves to VPS — STALE Phase-1 record)"
+      },
+      "deduplication_key": "IaC/ansible/roles/cloudflare_dns/vars/main.yml:stale-records",
+      "proposed_fix": "owner: manual delete `traefik` (and any other admin-tailnet-only records) from Cloudflare zone at the apex. The IaC SSOT no longer has them (Wave-3 removed) but live Cloudflare still has the Phase-1 record. HD-285."
+    },
+    {
+      "id": "CONS-4",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Cosmetic_Stale_Text",
+      "title": "audit.md says 19 roles, repo has 18 (also 5-track audit HD-278)",
+      "evidence": {
+        "type": "diff",
+        "command": "ls IaC/ansible/roles/ | wc -l",
+        "file": "audit.md",
+        "line": "§2.2.2 'each of the 19 roles'",
+        "output_snippet": "18 (counted)"
+      },
+      "deduplication_key": "audit.md:role-count",
+      "proposed_fix": "update audit.md to 18 — already tracked as HD-278 from 5-track audit"
+    }
+  ],
+  "verified_ok": [
+    "33 enabled VPS services + 2 home_servers = 35 total (matches all references)",
+    "58 compose templates, 18 roles (audit.md count drift is a known follow-up)",
+    "Inventory ↔ host_vars ↔ group_vars ↔ playbooks coherent (router/switch no host_vars is by design)",
+    "All 6 hosts have ansible_host where expected (vps=159.195.111.66, oldsrv=10.10.99.30, nas=10.10.1.10, pi=10.10.1.20, router/switch = network devices)",
+    "Image versions in versions.yml match live running images (traefik v3.7.11, authentik 2026.5.6, headscale 0.29.3, crowdsec v1.7.8, traefik-certs-dumper v2.11.4, crowdsec-web-ui 2026.8.2)",
+    "Port bindings: only traefik 80/443, technitium 53, sunshine 47989-48010 are 0.0.0.0 (sunshine is the one finding — HD-282). Everything else is loopback or wg-only bind (HD-62/HD-143/HD-186/HD-191)",
+    "Live ss -tlnp matches doc policy: 22/80/443 on 0.0.0.0 (public edge), all other ports on 127.0.0.1",
+    "Manual/ is Slovenian, status: wip",
+    "matrix.kogler.si is consistent across doc + IaC + live (fully public per HD-46/47)",
+    "ha.kogler.si is in URL→backend table as a routing reference, NOT in the public table — consistent with IaC comment 'STAYS unpublished until Phase-4 HA cutover'"
+  ],
+  "questions": [
+    "CONS-2: should docs/services.md PUBLIC table include pairdrop/drop/pdf? (likely yes — they're public per IaC, but doc is the SSOT for 'what is the public surface' so the doc table is the one to update)"
+  ],
+  "false_positives": [
+    "ha.kogler.si: doc URL→backend table is a routing reference, not a public DNS claim. IaC explicitly excludes ha from CF records. Live NXDOMAIN. Consistent.",
+    "matrix.kogler.si: fully consistent (doc=public, IaC=CF record, live=resolves, matrix compose has Host label)",
+    "alloy /metrics on 0.0.0.0:12345: per-process /proc/.../net/tcp confirms 127.0.0.1 only; ss aggregates namespaces misleadingly"
+  ],
+  "action_plan": [
+    {
+      "hd": "HD-285 (use next-hd.sh at write time)",
+      "title": "Cloudflare stale-record cleanup: delete traefik A/AAAA at apex (and any other admin-tailnet-only records left from Phase-1 wave)",
+      "severity": "Med",
+      "owning_doc": "docs/network-dns.md + docs/security.md",
+      "source": "consistency-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-286 (illustrative)",
+      "title": "docs/services.md PUBLIC table: add 3 missing rows (pairdrop, drop, pdf) — they're in IaC CF records but not in the doc",
+      "severity": "Med",
+      "owning_doc": "docs/services.md",
+      "source": "consistency-audit-2026-08-29"
+    },
+    {
+      "hd": "(continuation of HD-276 from full-audit)",
+      "title": "bin.kogler.si: owner runs `bash scripts/ansible-run.sh dns.yml` from home control plane",
+      "severity": "High",
+      "owning_doc": "IaC/ansible/roles/cloudflare_dns/vars/main.yml",
+      "source": "consistency-audit-2026-08-29"
+    }
+  ],
+  "open_questions": [
+    "CONS-2: see questions list",
+    "Do other admin-tailnet-only records (stats, sec, logs, csui, auto) need to be checked for stale CF records too? (live DNS shows NXDOMAIN for 5 of them, so they're already gone — only traefik remains)"
+  ],
+  "false_positives_list": [
+    "ha.kogler.si in doc URL→backend table",
+    "matrix.kogler.si in doc public table",
+    "alloy 0.0.0.0:12345"
+  ],
+  "deduplication_keys": [
+    "IaC/ansible/roles/cloudflare_dns/vars/main.yml:cloudflare_dns_records[name=bin]",
+    "docs/services.md:PUBLIC-table",
+    "IaC/ansible/roles/cloudflare_dns/vars/main.yml:stale-records",
+    "audit.md:role-count"
+  ]
+}

@@ -54,7 +54,7 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       # Cloudflare DNS-01 credential for the wildcard cert (scoped API token).
-      CF_DNS_API_TOKEN: "{{ vault['cloudflare_api'].credential }}"
+      CF_DNS_API_TOKEN: "{{ vault['cloudflare_api'].credential | replace('$','$$') }}"
 {% endif %}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -80,8 +80,15 @@ services:
       # Wildcard REQUEST (Wave-2 triage 2026-08-22): until now nothing asked LE for
       # *.kogler.si - only per-router hostnames got issued, so certs-dumper never had the
       # wildcard pair the consumer-pull contract needs. sans covers the apex route.
+      # HD-135b follow-up (2026-08-28): ALSO request *.ts.kogler.si (the headscale
+      # MagicDNS base_subdomain) so the tailnet traefik twins (stats.ts.kogler.si etc.)
+      # are covered by the SAME synced wildcard pair — the .ts twins are NOT covered by
+      # the single-level *.kogler.si wildcard. certs-dumper dumps all certs matching
+      # *kogler.si* (certs-rename.sh glob), so the *.ts.kogler.si cert lands as a second
+      # pair; traefik-tailnet tls.yml serves BOTH pairs from the DEFAULT store.
       traefik.http.routers.traefik-dash.tls.domains[0].main: "*.{{ wildcard_cert_domain }}"
       traefik.http.routers.traefik-dash.tls.domains[0].sans: "{{ wildcard_cert_domain }}"
+      traefik.http.routers.traefik-dash.tls.domains[1].main: "*.ts.{{ wildcard_cert_domain }}"
 {% endif %}
       traefik.http.routers.traefik-dash.middlewares: authentik-forward-auth@file
       traefik.http.routers.traefik-dash.service: api@internal

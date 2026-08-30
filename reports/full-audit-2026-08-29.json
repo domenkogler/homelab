@@ -1,0 +1,203 @@
+{
+  "audit_date": "2026-08-29",
+  "commit": "c9baf09",
+  "methodology": "parent inline execution (audit-approach.md §1)",
+  "tracks": {
+    "A": {
+      "report": "reports/audit-track-A-docs.md",
+      "json": "reports/audit-track-A-docs.json",
+      "summary": "Docs consistent; 0 unmapped canonical docs; 0 IP literals; 0 secret values; generated docs re-render cleanly; 1 transient self-ref + 1 HD-263 follow-up"
+    },
+    "B": {
+      "report": "reports/audit-track-B-iac.md",
+      "json": "reports/audit-track-B-iac.json",
+      "summary": "IaC coherent; 18 roles, 35 enabled services, 58 templates; HD-270 fully covered; 1 vault gap (HD-242 tracked); 1 sunshine drift (HD-XXX needed); 1 audit.md count drift"
+    },
+    "C": {
+      "report": "reports/audit-track-C-scripts.md",
+      "json": "reports/audit-track-C-scripts.json",
+      "summary": "Scripts 1:1 with registry; validate-all green; 13/13 validators fire on injected faults; no dead/orphan scripts; 1 HD-263 follow-up"
+    },
+    "D": {
+      "report": "reports/audit-track-D-conformance.md",
+      "json": "reports/audit-track-D-conformance.json",
+      "summary": "Lifecycle conforms; 0 open decisions; 2/3 sampled services at 10/10 onboarding (renovate 6/10 deploy-gated); Cloudflare token exposed in this transcript (rotate)"
+    },
+    "E": {
+      "report": "reports/audit-track-E-live.md",
+      "json": "reports/audit-track-E-live.json",
+      "summary": "50 VPS containers Up; env==vault by length+tail; 13/17 public services respond; cert 83d out; db-backup on schedule; kopia connected; Cloudflare token exposed (same as D)"
+    }
+  },
+  "consolidated_findings": [
+    {
+      "id": "AUD-001",
+      "track": "D",
+      "severity": "High",
+      "status": "OPEN",
+      "drift_type": "Secret_Reference_Broken",
+      "title": "Cloudflare DNS API token (cloudflare_api) exposed in this audit's session transcript via docker inspect traefik",
+      "evidence": {
+        "type": "live",
+        "file": "(transcript, captured in this conversation)",
+        "command": "ssh vps 'docker inspect traefik --format \"{{range .Config.Env}}{{println .}}{{end}}\"'",
+        "output_snippet": "length=53, tail=...45f2 (1Password) == length=53, tail=...45f2 (traefik env) — match, but value was echoed in chat"
+      },
+      "deduplication_key": "Homelab-ansible/cloudflare_api/credential",
+      "proposed_fix": "rotate cloudflare_api 1Password item; HD-258 bulk pre-pass picks up new value; restart traefik; journal entry"
+    },
+    {
+      "id": "AUD-002",
+      "track": "B",
+      "severity": "High",
+      "status": "OK",
+      "drift_type": "Secret_Reference_Broken",
+      "title": "metabase-forgejo_ro vault item missing (HD-242 deploy-gated)",
+      "evidence": {
+        "type": "validator",
+        "file": "scripts/check-vault-items.sh",
+        "command": "bash scripts/check-vault-items.sh --strict",
+        "output_snippet": "1 missing item(s) => FAIL"
+      },
+      "deduplication_key": "IaC/ansible/group_vars/vps.yml:docker_services.metabase.db_ro_item",
+      "proposed_fix": "track HD-242; owner seeds metabase-forgejo_ro before next metabase converge"
+    },
+    {
+      "id": "AUD-003",
+      "track": "B",
+      "severity": "Low",
+      "status": "OPEN",
+      "drift_type": "Liveness_Mismatch",
+      "title": "sunshine enabled in home_servers.yml but no journal entry on oldsrv",
+      "evidence": {
+        "type": "journal",
+        "file": "deployment-journal.md",
+        "command": "grep -i sunshine deployment-journal.md",
+        "output_snippet": "jellyfin/iGPU, sunshine) ... sunshine  (mentioned in passing, no convergence entry)"
+      },
+      "deduplication_key": "IaC/ansible/group_vars/home_servers.yml:docker_services.sunshine.enabled",
+      "proposed_fix": "owner decision: deploy on Phase 2/3 or set enabled: false; HD-XXX needed"
+    },
+    {
+      "id": "AUD-004",
+      "track": "B",
+      "severity": "Low",
+      "status": "OPEN",
+      "drift_type": "Cosmetic_Stale_Text",
+      "title": "audit.md says '19 roles', repo has 18",
+      "evidence": {
+        "type": "diff",
+        "file": "audit.md",
+        "command": "ls IaC/ansible/roles/ | wc -l",
+        "output_snippet": "18 (counted)"
+      },
+      "deduplication_key": "audit.md:role-count",
+      "proposed_fix": "update audit.md §2.2.2 to '18 roles'; the count is derived, not typed (CONVENTIONS §2)"
+    },
+    {
+      "id": "AUD-005",
+      "track": "A",
+      "severity": "Low",
+      "status": "OPEN",
+      "drift_type": "Orphan_Doc_Script",
+      "title": "Stale scripts/README.md links to non-existent ansible-enhancements.md (HD-263 follow-up)",
+      "evidence": {
+        "type": "grep",
+        "file": "scripts/README.md",
+        "line": "63-64",
+        "command": "grep -n ansible-enhancements scripts/README.md",
+        "output_snippet": "... · [ansible-enhancements.md](../ansible-enhancements.md) §8.4 ..."
+      },
+      "deduplication_key": "scripts/README.md:ansible-enhancements-ref",
+      "proposed_fix": "when HD-263 closes, drop the §8.4 references from scripts/README.md lines 63-64; content already in HD-263 row"
+    },
+    {
+      "id": "AUD-006",
+      "track": "D",
+      "severity": "Med",
+      "status": "OPEN",
+      "drift_type": "Liveness_Mismatch",
+      "title": "renovate onboarding 6/10 (deploy-gated per HD-264)",
+      "evidence": {
+        "type": "journal",
+        "file": "deployment-journal.md",
+        "command": "grep -i renovate deployment-journal.md",
+        "output_snippet": "renovate container RestartCount=7044+, churn not yet closed; HD-264 carve-out: needs domen/test sandbox + run-model fix"
+      },
+      "deduplication_key": "IaC/ansible/group_vars/vps.yml:docker_services.renovate.enabled",
+      "proposed_fix": "track HD-264 (sandbox + run-model); not a new finding"
+    },
+    {
+      "id": "AUD-007",
+      "track": "D",
+      "severity": "Low",
+      "status": "NOTE",
+      "drift_type": "Cosmetic_Stale_Text",
+      "title": "Audit methodology deviation: parent inline execution (lane architecture failed on OpenRouter rate-limits)",
+      "evidence": {
+        "type": "diff",
+        "file": "audit-approach.md",
+        "command": "(attempted 3 runs: parallel + 5 distinct models, parallel + same model, sequential)",
+        "output_snippet": "429 (rate-limit) + 402 (in-flight budget) from OpenRouter; other instance consuming same budget"
+      },
+      "deduplication_key": "audit.md:orchestration-model",
+      "proposed_fix": "next audit cycle: (a) different provider pool per lane, (b) serial, (c) parent-inline as default with lane attempt wrapper; documented in audit-approach.md"
+    }
+  ],
+  "action_plan": [
+    {
+      "hd": "HD-275 (illustrative — use next-hd.sh at write time)",
+      "title": "sunshine: owner decision + reconcile IaC/journal",
+      "severity": "Low",
+      "owning_doc": "docs/services-admin.md or docs/deployment-ansible.md (whichever owns sunshine catalog)",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-276 (illustrative)",
+      "title": "Rotate cloudflare_api 1Password item — this audit exposed the value",
+      "severity": "High",
+      "owning_doc": "docs/deployment-secrets.md",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-277 (illustrative)",
+      "title": "Adopt safer env-probe pattern in future audits (sed-replace values before stdout, or use op read for length-only compares)",
+      "severity": "Low",
+      "owning_doc": "docs/deployment-secrets.md (hygiene section) + audit.md §6",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-278 (illustrative)",
+      "title": "Update audit.md role count (18 not 19) — close in this same change",
+      "severity": "Low",
+      "owning_doc": "audit.md",
+      "source": "full-audit-2026-08-29"
+    },
+    {
+      "hd": "HD-279 (illustrative)",
+      "title": "Drop scripts/README.md §8.4 references (HD-263 follow-up) — close when HD-263 closes",
+      "severity": "Low",
+      "owning_doc": "scripts/README.md",
+      "source": "full-audit-2026-08-29"
+    }
+  ],
+  "open_questions": [
+    "sunshine: deploy on Phase 2/3 or set enabled: false? (HD-XXX needed, owner decision)",
+    "Cloudflare token rotation: manual traefik restart needed, or does HD-258 bulk pre-pass cover it? (verify after rotation)",
+    "Next audit cycle: lane architecture retry strategy? (different pools, serial, or parent-inline default)"
+  ],
+  "false_positives": [
+    "AUD-FP-A-1: audit-approach.md self-ref to the report (resolves on commit)",
+    "AUD-FP-B-1: blackbox-exporter journal name mismatch (mentioned as 'blackbox' in journal; service is converged)",
+    "AUD-FP-B-2: technitium no journal entry (explicitly deploy-gated in HD-274)"
+  ],
+  "deduplication_keys": [
+    "Homelab-ansible/cloudflare_api/credential",
+    "IaC/ansible/group_vars/vps.yml:docker_services.metabase.db_ro_item",
+    "IaC/ansible/group_vars/home_servers.yml:docker_services.sunshine.enabled",
+    "audit.md:role-count",
+    "scripts/README.md:ansible-enhancements-ref",
+    "IaC/ansible/group_vars/vps.yml:docker_services.renovate.enabled",
+    "audit.md:orchestration-model"
+  ]
+}

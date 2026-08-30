@@ -6,24 +6,37 @@
     # previously impossible — gap noted there 2026-08-23). Per-SERVICE tags live inside
     # docker_services/deploy-service.yml (`tags: "{{ svc.name }}"`); combine e.g.:
     #   ansible-run.sh playbooks/vps.yml --tags "docker_services,monitoring,renovate,grafana"
+    #
+    # HD-269 Step 4 (rare base tier): the rarely-changing bootstrap roles (common, docker,
+    # vps-hardening, network, cifs, wireguard) carry an extra `base` tier tag in ADDITION to
+    # their own role tag. Ansible tags are a UNION, so this makes the tier GROUPABLE without
+    # changing skip semantics:
+    #   * `--tags base`            -> run ONLY the rare bootstrap tier (e.g. first-boot / a
+    #                                rare infra change), no docker_services cost.
+    #   * `--tags docker_services,monitoring` -> base roles are SKIPPED (no `base` tag in
+    #                                the filter => union selects nothing from them).
+    #   * full converge (no --tags) -> everything still runs, order preserved.
+    # Keep base roles FIRST (common/docker/hardening/network/cifs/wg precede services).
     - role: common
-      tags: [common]
+      tags: [common, base]
     - role: docker
-      tags: [docker]
+      tags: [docker, base]
     - role: vps-hardening
-      tags: [hardening]   # HD-154: mandatory VPS pre-deploy hardening (fail2ban, nftables default-deny, docker daemon) — BEFORE docker_services
+      tags: [hardening, base]   # HD-154: mandatory VPS pre-hardening (fail2ban, nftables default-deny, docker daemon) — BEFORE docker_services
     - role: network
-      tags: [network]
+      tags: [network, base]
     - role: cifs
-      tags: [cifs]        # live Box CIFS mount at /mnt/storagebox (Immich/OpenCloud originals)
+      tags: [cifs, base]        # live Box CIFS mount at /mnt/storagebox (Immich/OpenCloud originals)
     # wg-s2s (VPS↔home router tunnel) is a follow-on, NOT a hard prerequisite: the VPS
     # edges + observability backend deploy standalone — prometheus/loki fall back to
-    # 127.0.0.1 and the VPS Alloy self-observes on loopback. The tunnel applies once the
-    # router peer public key is provisioned (fail-closed guard is in the role). Bring it
-    # up explicitly with: ansible-playbook playbooks/vps.yml --check --tags wireguard
+    # 127.0.0.1 and the VPS Alloy self-observes on loopback (HD-135b: VPS self-sufficient
+    # for its OWN observability; Dozzle log viewer also lives here now). The tunnel
+    # applies once the router peer public key is provisioned (fail-closed guard is in the
+    # role) — and then only for HOME telemetry (oldsrv/Pi collectors). Bring it up
+    # explicitly with: ansible-playbook playbooks/vps.yml --check --tags wireguard
     - role: wireguard
       when: wg_s2s_vps.peer_public_key | default('') | length > 0
-      tags: [wireguard]
+      tags: [wireguard, base]
     - role: docker_services
       tags: [docker_services]
     - role: monitoring

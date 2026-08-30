@@ -43,6 +43,7 @@ EXEMPT_FILES = {
     "docs/home-assistant-current.md",
     "deployment-tasks.md",
     "changelog.md",                    # append-only history (HD-197 F5)
+    "deployment-journal.md",            # append-only as-built record (same class as changelog); IPs appear as command/verify evidence
 }
 
 # Ephemeral round-2 audit reports at repo root were fold+deleted by HD-203 (A3

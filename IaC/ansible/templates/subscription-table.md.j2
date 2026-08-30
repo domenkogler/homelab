@@ -10,9 +10,9 @@
 > Column **Valid until** doubles as the renewal reminder trigger (⏰ set a reminder ~1 month before expiry).
 > **SSOT:** `group_vars/subscriptions.yml` (single source; Homepage tiles + calendar + n8n read the same list).
 
-| Service | € / month | Valid until ⏰ |
-|---------|-----------|----------------|
-{% for s in subscriptions | selectattr('status', 'equalto', 'active') | list %}{% set cost = ('%.2f' | format(s.cost_eur)).replace('.', ',') %}| {{ s.name }} | {{ cost if s.cost_eur and s.cost_eur > 0 else '0,00' }} €{% if s.cost_eur == 0 %} (free){% endif %} | {% if s.valid_until %}{{ s.valid_until }}{% else %}— (monthly){% endif %} |
+| Service | € / month | Location | Valid until ⏰ |
+|---------|-----------|----------|----------------|
+{% for s in subscriptions | selectattr('status', 'equalto', 'active') | list %}{% set cost = ('%.2f' | format(s.cost_eur)).replace('.', ',') %}| {{ s.name }} | {{ cost if s.cost_eur and s.cost_eur > 0 else '0,00' }} €{% if s.cost_eur == 0 %} (free){% endif %} | {{ (s.get('location') or '—') | trim }} | {% if s.valid_until %}{{ s.valid_until }}{% else %}— (monthly){% endif %} |
 {% endfor %}
 ## Planned Subscriptions
 

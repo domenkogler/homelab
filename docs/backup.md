@@ -50,14 +50,28 @@ never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach
 S2S ACL (HD-155). Agent sources are oldsrv-local, read-only: `/opt/*` configs, `/srv/dumps` scratch,
 the immich upload/thumb dir, and the signal-cli state volume.
 
+> **kopia-server first-run gate gotcha (HD-271-followup, live 2026-08-28):** the server's first-run
+> bootstrap (`kopia repository create sftp`) must be gated on **`repository.config`** (kopia's
+> repo-connection file) — NOT `config.json` (an unrelated technitium zone file). With the wrong gate
+> and a repo already on the backup Box, every boot re-ran `create` → `found existing data in storage
+> location` → `set -e` exit → crash-loop. Gate on `/app/config/repository.config` (create only when
+> absent) and the server starts against the existing repo (maintenance/GC run normally).
+
 ```
 tiredofit/db-backup (local scratch) →  Kopia agent (VPS + oldsrv) →  Hetzner Storage Box (backup) SSH/SFTP :23
-   + service state + face thumbs       (encrypted, dedup)       (far-DC: Helsinki/Falkenstein)
+   + service state + face thumbs       (encrypted, dedup)       (far-DC: Helsinki/Falkenstein — SB-Backup HEL1-BX186)
 ```
 
 > **Off-site (HD-29/31, 2026-08-18): two Hetzner Storage Boxes.** **Live** box (nearest DC) serves
 > Immich originals **+ encoded-video** and the family SMB/WebDAV drives (CIFS, **not S3** — HD-135); **backup** box (far DC) hosts the Kopia repo.
 > **iDrive e2 dropped** (Hetzner cheaper per TB + SMB/WebDAV; single-provider risk accepted).
+>
+> **Box identifiers (Hetzner Storage Box console → robot.hetzner.com):**
+>
+> | Box | Hetzner identifier | Location | Purpose |
+> |-----|--------------------|----------|---------|
+> | **live** | **SB-Data** · `FSN1-BX2190` | **Falkenstein, Germany** (`eu-central`) | originals store (Immich + OpenCloud over CIFS/WebDAV, `//u653411.../backup`) |
+> | **backup** | **SB-Backup** · `HEL1-BX186` | **Helsinki, Finland** (`eu-central`) | Kopia off-site repo (SSH/SFTP :23) |
 
 DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then pushed to
 `tank/data/db-dumps` for the ZFS path — the two layers are independent.
@@ -80,9 +94,10 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | Data | Location | Method | Target |
 |------|----------|--------|--------|
-| PostgreSQL DBs (Authentik, Immich, Forgejo, **PGVector** — HD-102, **Zipline** — HD-112, **LiteLLM runtime** — HD-247; all bundled on the **VPS**, `db-backup` DB01–04 + **DB06**) | VPS NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** Hetzner Storage Box (backup) (Kopia) |
+| PostgreSQL DBs (Authentik, Immich, Forgejo, **Zipline** — HD-112, **LiteLLM runtime** — HD-247; all bundled on the **VPS**, `db-backup` DB01–04 + **DB06**) | VPS NVMe | daily dumps → **local scratch** → push | `tank/data/db-dumps` (ZFS) **and** Hetzner Storage Box (backup) (Kopia) |
+| **Qdrant** vector store (`/srv/docker/qdrant`), HD-267/268 | VPS NVMe | **rebuildable cache** (docs/services-ai.md §5b) — snapshot/export via Qdrant REST `/snapshots` + Kopia-backed host bind; **not** a db-backup Postgres dump | `tank/data/services` (ZFS) + Hetzner Storage Box (Kopia) |
 | Docker Compose files / systemd units / configs | Git repo + host `/opt/*` (**VPS + oldsrv**) | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box (backup) |
-| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend → moved into litellm-db Postgres, dumped via db-backup DB06** (HD-247 models-in-DB: the DB is the critical state, `/srv/docker/litellm` keeps only misc app state), **OpenClaw config/state** — HD-104 on the **VPS**; **Seerr config + `seerr.db`** — HD-130/KOPS-059 on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
+| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend → moved into litellm-db Postgres, dumped via db-backup DB06** (HD-247 models-in-DB: the DB is the critical state, `/srv/docker/litellm` keeps only misc app state), **OpenClaw config/state** — HD-104 on the **VPS**; **AI harness (pi-dev + DSH) workspaces** (`/srv/docker/pi-dev/workspace`, `/srv/docker/dsh/workspace`, HD-268c); **Seerr config + `seerr.db`** — HD-130/KOPS-059 on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | nightly push + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
 | **Zipline file payloads** (`/srv/docker/zipline/uploads` — datasource; HD-112) | VPS NVMe | **Kopia-EXCLUDED by design**: anonymous dropzone drops self-destruct at ≤ 6h TTL (guestbin quota-bounded); private-account files are owner-managed | — *(ephemeral/regenerable-by-design — observability-TSDB precedent)*. The metadata DB IS dumped (`db-backup` DB05). |
 | Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |
 | Router configs (`*.rsc`) | Git repo | Git + Kopia | Hetzner Storage Box (backup) |
@@ -123,9 +138,9 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | Copy | Location | Medium | Transport |
 |------|----------|--------|-----------|
 | **Live data** | netcup VPS NVMe (Immich DB, thumbs, configs) | SSD | — |
-| **Originals store** | Hetzner Storage Box **live** (`//u653411.../backup`, CIFS-mounted to VPS) | Cloud | CIFS/SMB + WebDAV |
+| **Originals store** | Hetzner Storage Box **live** — **SB-Data** (`FSN1-BX2190`, Falkenstein, Germany · `eu-central`; `//u653411.../backup`, CIFS-mounted to VPS) | Cloud | CIFS/SMB + WebDAV |
 | **Local backup** | home NAS (snapshot / nightly push) | HDD | LAN (fast restore) |
-| **Off-site backup** | Hetzner Storage Box **backup** (Kopia over **SSH/SFTP**, port 23, encrypted, NAS-independent) | Cloud | SSH/SFTP (port 23) |
+| **Off-site backup** | Hetzner Storage Box **backup** — **SB-Backup** (`HEL1-BX186`, Helsinki, Finland · `eu-central`) (Kopia over **SSH/SFTP**, port 23, encrypted, NAS-independent) | Cloud | SSH/SFTP (port 23) |
 
 > **Media is the deliberate exception** to 3-2-1: `bulk/media` is redownloadable, so 0-1-0 suffices
 > (RAIDZ2 redundancy, no backup copy) — see [`storage.md`](storage.md).

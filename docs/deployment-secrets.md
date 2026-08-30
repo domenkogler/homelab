@@ -8,7 +8,7 @@ tags: [deployment, secrets, 1password]
 # Secrets Management & Passwordless Philosophy
 
 > **Role:** Detail — 1Password as sole secrets backend, self-documenting philosophy, passwordless-first design.
-> **Links to:** `services-authentik.md`, `backup.md`, `manual/README.md`
+> **Links to:** `deployment-oidc.md` (OIDC client + egress glue), `services-authentik.md` (OIDC secret rotation runbook), `deployment-ai-stack-secrets.md` (AI items + LiteLLM glue), `scripts/README.md` (parallel-1P contract), `backup.md`, `manual/README.md`
 > **Linked from:** `deployment.md`, `deployment-ansible.md`, `deployment-compose.md`, `index.md`
 
 ---
@@ -122,6 +122,50 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 > (`tuwunel.toml` precedent). Validators: `validate-docker-services.py` mocks lookups, so
 > it does not catch a secret-as-inline-quote; the audit is `grep` across `templates/**/*.j2` for
 > `: "{{ lookup('community.general.onepassword'` in a *config* (non-compose) file (HD-233).
+>
+> **Compose `$`-interpolation — escape `$` → `$$`, and only in compose-parsed text (HD-270):**
+>
+> `docker compose` performs raw-text `$`-interpolation (`${VAR}` / `$VAR`) over the **whole rendered
+> compose file BEFORE YAML parsing** — YAML quoting, `>-` folding and block scalars do **NOT** protect
+> a literal `$` in a value. A 1Password secret whose value contains a `$` (e.g. `…$PoZcG…`) is therefore
+> parsed as compose variable `PoZcG` → defaulted to blank → the running config is **silently truncated**
+> at the `$`. The `docker compose config --quiet` validation only *warns + blanks*, never fails, so it
+> misses the drift (**live incident: HD-270, 2026-08-28 full-converge log**, 6×
+> `The "<token>" variable is not set. Defaulting to a blank string.`).
+>
+> **Fix, Layer 1 (source, primary):** prefer generators whose alphabet **excludes `$`**, so rotated
+> values are natively safe forever — `provision-secrets.py` `gen_pw()` dropped `$` from its pool
+> (2026-08-28). `gen_token()`/`gen_wg_key()` never emit `$`. This makes every future rotation through
+> `--rotate`/`--rotate-all` `$`-free at birth.
+>
+> **Fix, Layer 2 (defensive, at render):** escape a 1Password field **only when it lands in compose-parsed
+> text** — append `| replace('$','$$')` to the Jinja expression:
+>
+> ```yaml
+> SECRET: >-
+>   {{ vault['secret'].password | mandatory | replace('$', '$$') }}
+> ```
+>
+> `$$` is the Compose escape ("prevents Compose from interpolating a value"); YAML parses it back to
+> a literal `$`. This is safe against **any** future secret source (hand-pasted, vendor-rotated, OIDC
+> glue) regardless of rotation-by-hand.
+>
+> **Scope — escape ONLY in compose text, NEVER in a plain config file (HD-270):**  interpolation applies
+> only to docker-compose-parsed YAML. In a **non-compose** config template (`config.yaml`, `keepalived.conf`,
+> `middlewares.yml`, `tuwunel.toml`, `prometheus-web-config.yml`, `recyclarr.yml`) the value is read by the
+> app **as-is** — a `$$` there would be a **literal `$` you did not want** and would corrupt the secret.
+> So the rule is **not** "escape every vault ref":
+>
+> - **Escape** every vault ref inside a `docker-compose.yml.j2` (Population A — compose interpolates it).
+> - **Do NOT escape** vault refs inside non-compose config templates (Population B).
+> - **Exempt the two composed `DATABASE_URL` values** (`zipline`, `litellm`) — their secret halves are
+>   already `urlencode`'d, and `urlencode` writes `$` as `%24`, so no `$` survives; adding `replace`
+>   would corrupt the URL.
+>
+> **Idempotency note:** `replace('$','$$')` is a single-layer escape. Applied once to a value the pool
+> already keeps `$`-free it's a no-op; never chain the filter (it would double a pre-existing `$$`).
+> Validator coverage: `validate-docker-services.py` unit-CI fixtures should be extended to assert the
+> escaped vs un-escaped render; the live check is `docker inspect` env equal to the vault value.
 
 ---
 
@@ -168,6 +212,18 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 
 **4. Coverage contract:** when a change introduces a NEW group_vars key class that references a vault item (e.g. `db_ro_item`), the same change extends `check-vault-items.sh` to scan that key class — scanner blind spots defeat the fail-loud chain (HD-244).
 
+**5. Glue concurrency & 1P budget (HD-269):** the two bootstrap glues (`authentik-secret-egress`, `litellm-bootstrap-keys`) both fan out their vault reads/probes in parallel under a shared 1Password rate-limit budget (`OP_PARALLEL`, default 6 — never exceed ~6 concurrent `op` calls; only curl/docker-exec HTTP probes may go wider; hosted 1P rate-limits can block 15min+). Authentik may parallel-write distinct *oidc* items; LiteLLM keeps mint/store serial (unique-alias invariant). The full mechanism × layer × direction table + extensibility rule lives in [`scripts/README.md`](../scripts/README.md) §Parallel 1Password operations. If a third glue loop is ever added, copy that bounded fan-out pattern — do NOT merge the scripts.
+
+**6. Glue-routing index — which doc owns which secret-glue step (SSOT for findability):**
+
+| Lookup | Owning doc | What it covers |
+|--------|-----------|----------------|
+| Configure / create OIDC clients + Blueprint | [`deployment-oidc.md`](deployment-oidc.md) | Authentik Blueprint + egress-glue mechanics (procedural) — the secret-egress glue step (`deployment-oidc.md` §3), deploy ordering, per-service OIDC recipes |
+| Rotate an OIDC client secret | [`services-authentik.md`](services-authentik.md) §"Rotating a shared Authentik OIDC client secret" | the on-host rotation runbook (verify + edit + re-render consumers) |
+| AI-stack items + LiteLLM scoped-key glue | [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) | AI 1P item creation, OIDC wiring, LiteLLM bootstrap-keys rotation/rollback (HD-105) |
+| The two glue scripts' parallel implementation + concurrency budget | [`scripts/README.md`](../scripts/README.md) §Parallel 1Password operations | layer × direction × concurrency table, the 1P budget, extensibility rule |
+
+> Findability rule: if you search for "which glue / who provisions / how to rotate" a secret, start here; the row routes you to the owning doc. Do NOT re-author glue mechanics in multiple docs — each row is a single source.
 ---
 
 ## Master Secret List (canonical)
@@ -219,6 +275,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `headscale_api` | `credential` | headscale (OIDC client secret; `username` = client id) |
 | `headplane_api` | `credential` | Headplane → **Headscale API key** (REQUIRED for Headplane OIDC mode, HD-233). Mint ONCE on the VPS: `docker exec headscale headscale apikeys create --expiration 8760d` |
 | `headplane_password` | `password` | Headplane cookie/session signing secret — exactly 32 chars (`openssl rand -hex 16`), HD-233. **Password category** (c.f. `authentik_password`) — not under `api`. |
+| `tailscale-sidecar_api` | `credential` | tailscale-sidecar (HD-135b follow-up) — **Tailscale/Headscale preauth key** for the `vps-obs` sidecar node, scoped to `tag:sidecar` (`docker exec headscale headscale preauthkeys create --user 2 --tags tag:sidecar --reusable --expiration 8760h -o json`), consumed by the `traefik-tailnet` compose `TS_AUTHKEY`. API-Credential type (`credential` field). |
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
 | `nut-exporter_password` | `password` | nut_exporter → upsd read-only auth (dedicated `upsmon slave` user on the NUT master) |
 | `network-snmp_api` | `credential` | router + switch — MikroTik SNMP **read-only community** for Alloy polling (HD-53/Option A); `credential` = the RO community string |
@@ -238,6 +295,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `signal-internal_api` | `credential` | signal-cli-rest-api — API token auth (`SIGNAL_CLI_API_TOKEN`; requests require `X-Api-Key` header) so no container on services-internal can send Signal as Domen's number without it (KOPS-002 / HD-125). n8n sends this in its webhook call |
 | `kopia-server-internal_api` | `username` + `credential` | kopia-server auth (HD-59) — `username` = the `user@host` identity backup clients present via HTTP Basic Auth, `credential` = password; written to the in-container `server.htpasswd` (plaintext, 0600). Replaces the old `--without-password` |
 | `prometheus-internal_api` | `username` + `bcrypt_hash` | prometheus Basic Auth (HD-59) — `username` = user, `bcrypt_hash` = bcrypt hash for `basic_auth_users` (generate via `scripts/gen-htpasswd.py`). Grafana + Alloy consume this endpoint |
+| `crowdsec-webui_lapi_api` | `credential` | CrowdSec Web UI LAPI **watcher machine** password (HD-272) — `docker exec crowdsec cscli machines add crowdsec-web-ui --password '<credential>' -f /dev/null` (deploy-gated owner step). Separate from the `crowdsec-bouncer_api` bouncer key. url-safe token, rotatable (not externally-coupled). |
 | `immich-ml-internal_api` | `credential` | **ML API-key auth (HD-160)** — shared secret between `immich-app` (sends as ML-auth header) and `immich-ml` (validates it). Fail-loud (HD-65). Exact Immich v3 env var names deploy-verified. |
 | `openclaw-opencloud_api` | `username` + `credential` | **OpenClaw → OpenCloud WebDAV (HD-160)** — `username` = OpenCloud service user, `credential` = app-specific password; consumed by `openclaw onboard` / `openclaw.json` WebDAV block. Scoped, rotatable, fail-loud. |
 | ~~`doco-cd_password`~~ | ~~`password`~~ | **retired (HD-150): Doco-CD dropped** — single Ansible-only deploy/upgrade path. No webhook HMAC needed. |
@@ -253,7 +311,9 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `litellm_master_key` | `credential` | **AI stack** — LiteLLM master key that Open WebUI + OpenClaw use to authenticate (they never hold upstream keys). |
 | `openwebui_secret` | `password` | **AI stack** — Open WebUI session/encryption secret (optional). |
 | `openwebui_api` | `credential` (`username` = client_id) | **AI stack** — Open WebUI **Authentik OIDC client** (`client_id` = username, `client_secret` = credential); redirect URI `https://ai.kogler.si/oauth2/callback` registered in the Authentik provider (HD-101) |
-| `pgvector_db` | `password` (`username` = DB user) | **AI stack** — Open WebUI RAG vector DB (PGVector). Either this dedicated item or reuse a `db` pattern for the `pgvector` postgres. |
+| `qdrant_db` | `credential` (API key; no username) | **AI stack** — Qdrant hybrid vector store (HD-268, replaces PGVector). Rebuildable cache (docs/services-ai.md §5b); single static API key served via `QDRANT__SERVICE__API_KEY`. No db-backup DBxx block (not Postgres). |
+| `pi-harness_forgejo_api` | `credential` | **AI stack / dual harness (HD-268c)** — pi.dev Forgejo service-account **PR-only** token (propose-via-PR, NO merge, no FS access). Issued by the Forgejo UI; NOT_AUTO_ROTATABLE. |
+| `dsh_forgejo_api` | `credential` | **AI stack / dual harness (HD-268c)** — DSH Forgejo service-account **PR-only** token (propose-via-PR, NO merge, no FS access). Issued by the Forgejo UI; NOT_AUTO_ROTATABLE. |
 | `openclaw_gateway_token` | `password` | **AI stack** — OpenClaw gateway/Control-UI auth token (HD-104); generated by `openclaw onboard`, stored here fail-closed |
 | `openwebui_api` *(see runbook)* | — | AI-stack OIDC wiring + full item-creation checklist: [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) (HD-105) |
 

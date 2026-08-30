@@ -59,21 +59,38 @@ docker_services:
   - { name: litellm,        template_dir: litellm,   enabled: true,    # llm-backend -> oldsrv ollama over WG
       bootstrap_keys: true,
       db_role_sync: true, db_item: litellm_db, db_pg_container: litellm-db }
-  - { name: pgvector,       template_dir: pgvector,  enabled: true,  # RAG vector store (db-internal)
-      db_role_sync: true, db_item: pgvector_db, db_pg_container: pgvector }
+  - { name: qdrant, template_dir: qdrant, enabled: true }  # AI RAG hybrid vector store on db-internal (HD-267/268; replaces PGVector — not postgres, so NO db_role_sync/db_item/db_pg_container)
   - { name: docling,        template_dir: docling,   enabled: true }  # OCR (services-internal)
   - { name: open-webui,     template_dir: open-webui, subdomain: ai, enabled: true }
+  # === AI dual coding harness (HD-268c): pi + DSH sharing services-internal, each
+  # consuming a scoped LiteLLM key + a PR-only Forgejo key; propose via Forgejo PRs only. ===
+  - { name: pi-dev,         template_dir: pi-dev,    enabled: true }  # pi coding-agent container (npm @earendil-works/pi-coding-agent)
+  - { name: dsh,            template_dir: dsh,       enabled: true }  # DeepSeek Harness (runzhliu/image) — WebUI = Pattern-A tailnet (:3080)
+  # === AI MCP stubs (HD-268b) — placeholders; do not yet deploy a runnable unit ===
+  - { name: rag-mcp,        template_dir: rag-mcp,   enabled: false }  # TODO(impl) kapa-style hybrid reader (Qdrant→rerank→top5)
+  - { name: forgejo-mcp,    template_dir: forgejo-mcp, enabled: false }  # TODO(impl) Forgejo OKF-wiki read/write bridge
   # bind_owner_uid/bind_dirs (Wave-2 triage 2026-08-22): Docker auto-created these host
   # bind dirs root-owned; the images run non-root (grafana=472, n8n/openclaw=1000 node)
   # and crashed with EACCES. deploy-service.yml pre-creates/chowns them (Class-A fix).
   - { name: openclaw,       template_dir: openclaw,  enabled: true, bind_owner_uid: "1000", bind_dirs: ['.', 'workspace', 'auth'] }
-  # === Observability backend (VPS = reliable tier; oldsrv Alloy forwards over WG) ===
+  # === Observability backend (VPS = reliable tier; VPS self-observes loopback, HD-135b) ===
   - { name: prometheus,     template_dir: prometheus, enabled: true }
   - { name: loki,           template_dir: loki,       enabled: true }
   - { name: grafana,        template_dir: grafana,    subdomain: stats, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
   - { name: blackbox-exporter, template_dir: blackbox-exporter, enabled: true }
+  - { name: dozzle,         template_dir: dozzle,        subdomain: logs, enabled: true }   # HD-135b: live per-container log viewer moved from oldsrv (logs.kogler.si)
+  # HD-135b follow-up: admin dashboards are TAILNET-ONLY. traefik-tailnet = the
+  # tailnet Traefik edge + its tailscale sidecar (vps-obs, tag:sidecar) in ONE project
+  # (compose v2 requires network_mode: service:X to be same-file). It serves
+  # stats/sec/traefik/logs/csui/auto (and *.ts.kogler.si twins) over headscale with
+  # clean subdomain URLs — NO public records, NO port-number `tailscale serve`.
+  # The auth key (tailscale-sidecar_api) is owner-seeded (2026-08-28); edge IP pinned
+  # to 172.20.0.250 (traefik_edge_ips in group_vars/all/main.yml) for header-trust.
+  - { name: traefik-tailnet, template_dir: traefik-tailnet, enabled: true }
   # === Alert brain (WG-down -> net mail/Signal; independent of tunnel) ===
-  - { name: n8n,            template_dir: n8n,       subdomain: auto, enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
+  # n8n INTERNAL-ONLY (HD-135b follow-up): public auto.kogler.si route removed from
+  # the main edge labels; served only by traefik-tailnet over the tailnet.
+  - { name: n8n,            template_dir: n8n,       enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
   # === Backup agents (Kopia -> backup Box; db-backup dumps) ===
   - { name: kopia-server,   template_dir: kopia-server, enabled: true }
   - { name: db-backup,      template_dir: db-backup,    enabled: true }
@@ -84,9 +101,34 @@ docker_services:
   - { name: headscale,      template_dir: headscale, subdomain: vpn, enabled: true }  # public coordination (rev. network-vpn.md)
   - { name: metabase,       template_dir: metabase,  subdomain: sec, enabled: true,    # CrowdSec dashboard (sec.kogler.si); HD-242 read-only analytics role
       db_ro_sync: true, db_ro_item: metabase-forgejo_ro, db_pg_container: forgejo-db }
+  # HD-272: CrowdSec Web UI (csui.kogler.si) — richer ops surface alongside Metabase.
+  # INTERNAL-ONLY (NO public CNAME); Forward-Auth; LAPI watcher auth (crowdsec-webui_lapi_api).
+  - { name: crowdsec-web-ui, template_dir: crowdsec-web-ui, subdomain: csui, enabled: true }
   - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, enabled: true }   # PUBLIC P2P share — dual-host pairdrop+drop, crowdsec-only tier, NO forward-auth (HD-230)
   - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, enabled: true }
   - { name: renovate,       template_dir: renovate,  enabled: true }  # co-located with Forgejo/GitOps. RE-ENABLED 2026-08-24 (task 5): domen/homelab not migrated yet, so RENOVATE_REPOSITORIES currently points at domen/test temporarily (template) — switch back to domen/homelab when that repo lands. Playbook run is OWNED by the other session; do NOT converge here.
+
+# HD-268 tailnet sidecar opt-ins: render the `*-tailscale` Pattern-A sidecar only
+# when these flags are true. Default false keeps the live compose byte-identical
+# (the sidecars were authored + commented out 2026-08-27; HD-268 closes them now).
+# DEPLOY-GATED (owner action) — to enable EITHER sidecar the owner must first:
+#   1. Mint a headscale preauth key with the matching ACL tag (dsh / pi-dev) and
+#      `reusable: true` — via the headscale container (or headplane UI).
+#   2. Seed the 1Password vault item:
+#        - `tailscale_dsh_api`   (API Credential; credential = the preauth key)
+#        - `tailscale_pi_dev_api` (API Credential; credential = the preauth key)
+#      These are NOT in provision-secrets.py CATALOG (preauth keys are minted by
+#      headscale, not generated). They live in NOT_AUTO_ROTATABLE so `--rotate-all`
+#      cannot clobber them. Re-mint + vault-edit + redeploy on rotation (rare).
+#   3. Flip the matching flag below to `true`, commit, run the scoped converge:
+#        bash scripts/ansible-run.sh vps.yml \
+#          --tags docker_services -e docker_services_scope=dsh     # or pi-dev
+#   4. Verify: `docker exec dsh-tailscale tailscale status` online; from a tailnet
+#      client `curl https://vps-dsh:3080` (and `vps-pi-dev:8080`) lands on the UI.
+# The ACL (policy.hujson) gates `tag:dsh` / `tag:pi-dev` to the family users only —
+# the sidecars never expose the Web UIs to other tailnet nodes.
+dsh_tailnet_sidecar_enabled: true
+pi_dev_tailnet_sidecar_enabled: true
 
 # Single cert issuer (HD-178/HD-181): THIS host is the only ACME (DNS-01) issuer for
 # *.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host
@@ -106,6 +148,7 @@ litellm_scoped_keys:
   - { alias: owui-int-wife, vault_item: owui-int-wife_api, models: "ollama/*,openrouter/*", max_budget: "40", budget_duration: "30d" }
   - { alias: owui-int-owner, vault_item: owui-int-owner_api, models: "", max_budget: "", budget_duration: "" }  # full access (models unset = all)
   - { alias: dsh, vault_item: dsh_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }
+  - { alias: pi-harness, vault_item: pi-harness_openai_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }  # HD-268 pi scoped LiteLLM key (dual harness): minted by the same HD-247 bootstrap glue
   - { alias: openclaw-litellm, vault_item: openclaw-litellm_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }  # NOT openclaw_api — that name is TAKEN by the OpenClaw OIDC client (secret-egress glue PROVIDERS)
   - { alias: rag-int-svc, vault_item: rag-int-svc_api, models: "cohere/embed-v4.0,cohere/rerank-v4.0-pro", max_budget: "5", budget_duration: "30d" }
 
@@ -120,3 +163,51 @@ homepage_failover_button: false
 # render) and ha_vip serves no HA yet - a live job would just fail. Flip true at HD-04 with
 # the HA long-lived-token item seeded.
 prometheus_ha_exporter: false
+
+# HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge (traefik-tailnet)
+# is served on the headscale sidecar node `vps-obs` (tag:sidecar). headscale
+# `dns.extra_records` maps the clean subdomain names (stats/logs/csui/sec/traefik/auto
+# AND their *.ts.kogler.si twins) to this node's tailnet IPv4.
+# Tailnet IPv4s are assigned SEQUENTIALLY by headscale at node join — current known
+# nodes: 100.64.0.3 laptop, 100.64.0.4 phone. This value is filled at deploy time from
+# `headscale nodes list` after the sidecar joins (empty → headscale renders no
+# extra_records).
+tailnet_sidecar_ip: "100.64.0.1"
+# HD-268c (2026-08-29): Pattern-A tailnet sidecar IPs (vps-dsh / vps-pi-dev).
+# These IPs are assigned SEQUENTIALLY by headscale at node join; the values
+# below are the LIVE-observed tailnet IPv4s after the dsh + pi-dev sidecars
+# joined the mesh. The deploy flow (per the existing `tailnet_sidecar_ip`
+# comment above) is: read `headscale nodes list` after each sidecar joins,
+# set the corresponding group_var, re-converge + restart headscale. Leave
+# empty -> headscale renders no extra_records for that sidecar (fail-loud
+# render guard in config.yaml.j2).
+tailnet_dsh_ip: "100.64.0.2"
+tailnet_pi_dev_ip: "100.64.0.5"
+
+# Subdomains served by the tailnet edge (watched by headscale config.yaml.j2
+# extra_records render). Each entry is `{name: <sub>, ip: <tailnet IPv4>}`.
+# `ip` defaults to `tailnet_sidecar_ip` (the traefik-tailnet observability
+# edge on `vps-obs`) when omitted — keeps the existing observability entries
+# free of redundant IP noise. For Pattern-A sidecars (HD-268c), pin the IP
+# to the sidecar's own tailnet IPv4 so the FQDN resolves to the right node.
+#
+# NOTE: the `ip` value is a LITERAL tailnet IPv4 (NOT a Jinja var reference).
+# Ansible's group_vars loader treats YAML scalars as-is (no second Jinja pass);
+# if `ip` were `{{ tailnet_dsh_ip }}` it would render as the literal string
+# `{{ tailnet_dsh_ip }}` in the headscale config, NOT the variable's value.
+# The deploy step MUST keep each per-sub IP in sync with the corresponding
+# `tailnet_<svc>_ip` group_var (same deploy-time constraint as
+# `tailnet_sidecar_ip`); the two values are the same live number today.
+# Keep in sync with traefik-tailnet dynamic/routes.yml (obs edge) +
+# the sidecar compose templates (Pattern-A: dsh + pi-dev).
+tailnet_subdomains:
+  # --- traefik-tailnet observability edge (vps-obs, tailnet_sidecar_ip) ---
+  - { name: stats }
+  - { name: logs }
+  - { name: csui }
+  - { name: sec }
+  - { name: traefik }
+  - { name: auto }
+  # --- Pattern-A sidecars (HD-268c) — KEEP IN SYNC with tailnet_dsh_ip / tailnet_pi_dev_ip above ---
+  - { name: dsh,    ip: "100.64.0.2" }   # vps-dsh   :3080  (DSH Web UI)  == tailnet_dsh_ip
+  - { name: pi,     ip: "100.64.0.5" }   # vps-pi-dev:8080  (pi  Web UI) == tailnet_pi_dev_ip

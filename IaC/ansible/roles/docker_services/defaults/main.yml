@@ -6,21 +6,49 @@
 # Base directory for all Docker Compose projects.
 docker_compose_dir: /opt
 
+# HD-258 bulk 1Password pre-pass exporter path — always defined here so every caller of
+# fetch-vault-pass.yml (static, authentik-glue, litellm-bootstrap) resolves it; do NOT
+# re-pass per caller (the list-mode/glue branch failed with 'op_export_script is
+# undefined' once the Jinja {% if %} made mode explicit).
+op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"
+# HD-258/HD-268: concurrency for the bulk `op item get` pre-pass. Kept conservative (6) —
+# a higher number (15+) bursts many op calls at once and can trip hosted-1P rate limits during
+# repeated/debug converges (rate-limit block can last 15min+). Settle low. Overridable via
+# `-e op_vault_workers=N` or a group_var.
+op_vault_workers: 6
+
 # Surgical-deploy scope (HD-255/HD-260). `all` (default) = full converge and is
-# UNCHANGED from the pre-scope behavior. Setting it to a single service name makes
-# a `--tags docker_services` run deploy ONLY that service:
+# UNCHANGED from the pre-scope behavior. Setting it to one or more service names
+# makes a `--tags docker_services` run deploy ONLY those services:
 #   ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=headscale
-# The per-service inner tags in deploy-service.yml still narrow the task list, but
+#   ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope="forgejo,traefik"
+# The per-service list tags in deploy-service.yml still narrow the task list, but
 # the direct-role platform tasks in main.yml (networks, teardown, homepage,
 # cert-pull, authentik-lane) otherwise run on every docker_services run because the
 # include lines carry `tags: docker_services` (union selection) — the scope gate
-# below keeps a surgical run to genuinely one service + its hard companions.
+# below keeps a surgical run to genuinely the scoped services + their hard companions.
+#
+# HD-269: docker_services_scope may be a single service name OR a comma-separated
+# list (space tolerant). Computed once here into a repeatable form for every consumer.
+_scope_raw: "{{ docker_services_scope | default('all') }}"
+# `true` iff a full converge (scope=all). Every platform/glue gate tests this.
+scope_is_all: "{{ _scope_raw == 'all' }}"
+# The scoped service-name list (`all` or a comma-list split); empty iff scope=all
+# is the semantic — scoped branches use `svc_entry.name in scope_list`.
+scope_list: >-
+  {{ (_scope_raw == 'all') | ternary(
+       [],
+       (_scope_raw | split(',') | map('trim') | list)) }}
 
 # Extra .j2 template files (beyond docker-compose.yml.j2) per service.
 # Keyed by template_dir (must match docker_services[].template_dir).
 # The copy step copies the entire template dir first; these are then rendered
 # (overwriting the raw .j2 copy with the rendered version, stripping .j2 suffix).
 _extra_templates:
+  dsh:
+    - serve.json.j2         # HD-268c Pattern-A tailnet serve config (TCP:3080 → loopback); explicitly rendered so the file exists BEFORE docker compose bind-mounts it (avoids Docker auto-creating ./serve.json as a directory)
+  pi-dev:
+    - serve.json.j2         # HD-268c Pattern-A tailnet serve config (TCP:8080 → loopback); same rationale as dsh
   kopia-server:
     - .env.j2               # compose ${KOPIA_SERVER_*} interpolation (1Password render)
   kopia-agent:
@@ -47,6 +75,11 @@ _extra_templates:
     - dynamic/middlewares.yml.j2
     - dynamic/tls.yml.j2        # HD-181 — consumer default-store TLS (renders empty on the issuer)
     - certs-rename.sh.j2        # Wave-2 triage 2026-08-22 — wildcard pair rename (entrypoint + post-hook)
+  traefik-tailnet:
+    - dynamic/routes.yml.j2     # tailnet subdomain → backend routers (file provider)
+    - dynamic/middlewares.yml.j2
+    - dynamic/tls.yml.j2        # consumer default-store TLS (wildcard pair from the main issuer)
+    - serve.json.j2             # tailscale ipn.ServeConfig — TCP 443 -> 127.0.0.1:443 (persistent serve)
   traefik-ha:
     - dynamic/routes.yml.j2
   recyclarr:
@@ -70,7 +103,8 @@ traefik_acme_issuer: false
 # docs/deployment-secrets.md).
 _template_vault_items:
   authentik: {'authentik_password', 'authentik_login', 'authentik-ldap_bind', 'authentik_db'}
-  db-backup: {'pgvector_db', 'forgejo_db', 'immich_db', 'authentik_db', 'litellm_db'}
+  db-backup: {'forgejo_db', 'immich_db', 'authentik_db', 'litellm_db'}
+  crowdsec-web-ui: {'crowdsec-webui_lapi_api'}   # HD-272 LAPI watcher password (vault-dict read at render)
   forgejo: {'forgejo_db'}
   grafana: {'smtp_login', 'grafana_login'}
   headscale: {'headplane_password', 'headscale_api', 'headplane_api'}
@@ -81,13 +115,15 @@ _template_vault_items:
   kopia-server: {'kopia_password', 'kopia-server-internal_api'}
   litellm: {'litellm_master_key', 'cohere_api', 'litellm_db', 'openrouter_api'}
   matrix: {'matrix_api', 'matrix_password'}
-  metabase: {'smtp_login'}
+  metabase: {'smtp_login', 'metabase-forgejo_ro'}   # forgejo_ro needed by the db_ro_sync task (vault-dict read, HD-268)
   n8n: {'n8n-webhook_api', 'n8n_password'}
   onlyoffice-docs: {'onlyoffice_db', 'onlyoffice-rabbitmq_login', 'opencloud-collab_password'}
   open-webui: {'openwebui_api', 'openwebui_secret', 'owui-public-chat_api'}
   openclaw: {'openclaw_gateway_token', 'openclaw-opencloud_api'}
+  pi-dev: {'pi-harness_openai_api', 'pi-harness_forgejo_api', 'tailscale_pi_dev_api'}   # HD-268 Pattern-A tailnet sidecar auth key (preauth-key, owner-seeded)
+  dsh: {'dsh_api', 'dsh_forgejo_api', 'tailscale_dsh_api'}   # HD-268 Pattern-A tailnet sidecar auth key (preauth-key, owner-seeded)
   opencloud: {'opencloud_login', 'opencloud-collab_password'}
-  pgvector: {'pgvector_db'}
+  qdrant: {'qdrant_db'}
   pihole: {'pihole_password'}
   prometheus: {'prometheus-internal_api'}
   qbittorrent: {'privado-vpn_api'}
@@ -95,6 +131,7 @@ _template_vault_items:
   renovate: {'forgejo_api'}
   signal-cli-rest-api: {'signal-internal_api', 'signal_api'}
   traefik: {'cloudflare_api', 'crowdsec-bouncer_api'}
+  traefik-tailnet: {'crowdsec-bouncer_api', 'tailscale-sidecar_api'}   # middlewares LAPI key + sidecar auth key (HD-258)
   zipline: {'zipline_password', 'zipline_oidc', 'zipline_db'}
 
 # Glue-seeded items (fetched AFTER the authentik secret-egress / litellm

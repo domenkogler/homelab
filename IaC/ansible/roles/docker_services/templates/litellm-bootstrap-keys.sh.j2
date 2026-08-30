@@ -48,10 +48,14 @@ log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 
 # --- resolve credentials -----------------------------------------------------
 [ -r /etc/op/provision-token ] && export OP_SERVICE_ACCOUNT_TOKEN="$(cat /etc/op/provision-token)"
-command -v op >/dev/null || { echo "FATAL: op CLI not found" >&2; exit 1; }
+if ! command -v op >/dev/null 2>&1; then
+  echo "FATAL: op CLI not found" >&2; exit 1
+fi
 
-MASTER_KEY="$(op item get litellm_master_key --fields credential --vault "$OP_VAULT" 2>/dev/null)"
-[ -n "${MASTER_KEY:-}" ] || { echo "FATAL: litellm_master_key empty/unreadable — cannot administer keys" >&2; exit 1; }
+MASTER_KEY="$(op item get litellm_master_key --reveal --fields credential --vault "$OP_VAULT" 2>/dev/null)"
+if [ -z "${MASTER_KEY:-}" ]; then
+  echo "FATAL: litellm_master_key empty/unreadable — cannot administer keys" >&2; exit 1
+fi
 
 # Scoped-key specs are RENDERED statically from group_vars/vps.yml litellm_scoped_keys
 # (SSOT — the scanner reads the same records). Format: alias|item|models_csv|max_budget|budget_duration
@@ -60,7 +64,9 @@ KEYS=(
   "{{ k.alias }}|{{ k.vault_item }}|{{ k.models }}|{{ k.max_budget }}|{{ k.budget_duration }}"
 {% endfor %}
 )
-[ "${#KEYS[@]}" -gt 0 ] || { echo "FATAL: no scoped-key specs rendered" >&2; exit 1; }
+if [ -z "${KEYS[*]:-}" ]; then
+  echo "FATAL: no scoped-key specs rendered" >&2; exit 1
+fi
 
 # GLUE-SEEDED items (hd247) — "<service>:<item>" pairs consumed by scripts/check-vault-items.sh
 # (glue-seeded exclusion list; do NOT remove or the pre-seed diff starts demanding these):
@@ -71,7 +77,7 @@ KEYS=(
 # --- helpers -----------------------------------------------------------------
 # health: proxy reachable? (inside-container call, no auth needed)
 healthy() {
-    docker exec "$LITELLM_CONTAINER" python3 - <<'PYEOF' >/dev/null 2>&1
+    docker exec -i "$LITELLM_CONTAINER" python3 - <<'PYEOF' >/dev/null 2>&1
 import urllib.request,sys
 try:
     urllib.request.urlopen("http://127.0.0.1:4000/health/liveliness", timeout=10)
@@ -83,7 +89,7 @@ PYEOF
 # probe <sk> : echo HTTP code of GET /v1/models authorized BY THE SCOPED KEY ITSELF
 probe_key() {
     local tok="$1" out
-    out="$(docker exec \
+    out="$(docker exec -i \
         -e LK_TOKEN="$tok" "$LITELLM_CONTAINER" python3 - <<'PYEOF' 2>/dev/null
 import urllib.request,os,sys
 req=urllib.request.Request("http://127.0.0.1:4000/v1/models",
@@ -95,8 +101,12 @@ except urllib.error.HTTPError as e:
 except Exception:
     print("000")
 PYEOF
-)" || { echo "000"; return; }
-    printf '%s' "$out"
+)"
+    if [ -n "$out" ] && [ "$out" != "000" ]; then
+        printf '%s' "$out"
+    else
+        echo "000"
+    fi
 }
 
 # mint <alias> <models_csv> <max_budget> <budget_duration> : prints sk or fails rc 1/4
@@ -109,7 +119,7 @@ mint_key() {
         for p in "${parts[@]}"; do
             p="$(printf '%s' "$p" | sed 's/^ *//; s/ *$//')"
             [ -n "$p" ] || continue
-            $first && first=0 || json_models+=","
+            if [ "$first" -eq 1 ]; then first=0; else json_models+=","; fi
             json_models+="\"$p\""
         done
         json_models+="]"
@@ -117,9 +127,17 @@ mint_key() {
     }
     [ -n "$mb" ] && body="$body \"max_budget\": $mb,"
     [ -n "$bd" ] && body="$body \"budget_duration\": \"$bd\","
-    body="{${body%,} \"key_alias\": \"$alias\"}"
+    # Build the JSON request body: strip the trailing comma left by the last accumulated
+    # field, then append key_alias with a comma. Empty-body case (e.g. owui-int-owner
+    # full-access key with no models/budget) must NOT emit a leading comma — else invalid
+    # JSON ('{"key_alias"...}').
+    if [ -n "$body" ]; then
+      body="{${body%,},\"key_alias\": \"$alias\"}"
+    else
+      body="{\"key_alias\": \"$alias\"}"
+    fi
 
-    err="$(docker exec \
+    err="$(docker exec -i \
         -e LK_MASTER="$MASTER_KEY" -e LK_BODY="$body" "$LITELLM_CONTAINER" python3 - <<'PYEOF' 2>&1
 import urllib.request,urllib.error,json,os,sys
 req=urllib.request.Request("http://127.0.0.1:4000/key/generate",
@@ -152,10 +170,10 @@ PYEOF
 # vault_write <item> <value> : edit existing item, else create api-credential item
 vault_write() {
     local item="$1" val="$2"
-    if op item get "$item" --vault "$OP_VAULT" >/dev/null 2>&1; then
-        op item edit "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null
+    if op item get "$item" --vault "$OP_VAULT" >/dev/null 2>&1 </dev/null; then
+        op item edit "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null </dev/null
     else
-        op item create --category api-credential --title "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null
+        op item create --category "API Credential" --title "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null </dev/null
     fi
 }
 
@@ -165,7 +183,7 @@ until healthy; do log "waiting for litellm stack to become healthy…"; sleep 10
 
 for spec in "${KEYS[@]}"; do
     IFS='|' read -r alias item models_csv maxb bd <<<"$spec"
-    cur="$(op item get "$item" --fields credential --vault "$OP_VAULT" 2>/dev/null || true)"
+    cur="$(op item get "$item" --reveal --fields credential --vault "$OP_VAULT" 2>/dev/null || true)"
     if [ -n "$cur" ]; then
         code="$(probe_key "$cur")"
         case "$code" in

@@ -105,12 +105,13 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
 - **Consequences / gotchas:**
   - `--tags <service>` alone (e.g. `--tags opencloud`) matches no include line → SILENT
     NO-OP. Always pair role + service: `--tags "docker_services,opencloud"`.
-  - TRUE single-service convergence needs the **`docker_services_scope`** var (HD-255/HD-260):
-    `--tags docker_services -e docker_services_scope=<service>`. Without it, the include lines'
-    `tags: docker_services` (union selection) run every direct-role `main.yml` task (networks,
-    teardown, homepage, cert-pull, authentik-lane) even when only one inner service is matched —
-    the scope var gates those platform tasks AND collapses the deploy loop to the one service,
-    so a surgical run is genuinely single-service (nothing else even iterates).
+  - TRUE surgical convergence needs the **`docker_services_scope`** var (HD-255/HD-260, extended HD-269):
+    `--tags docker_services -e docker_services_scope=<service>` deploys a single service, or a
+    comma-list for several: `-e docker_services_scope="forgejo,traefik"`. Without it, the include
+    lines' `tags: docker_services` (union selection) run every direct-role `main.yml` task
+    (networks, teardown, homepage, cert-pull, authentik-lane) even when only one inner service is
+    matched — the scope var gates those platform tasks AND collapses the deploy loop to the scoped
+    service(s), so a surgical run is genuinely scoped (nothing else even iterates).
   - Handlers are tag-filtered too: a handler must match the filter (or carry `tags: always`)
     or it is skipped even when notified by a task that ran — since HD-237 EVERY role handler
     carries `tags: always` (all 22 across 9 roles; monitoring was first, HD-220), so a
@@ -119,7 +120,18 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   - Filtered runs skip untagged top-level tasks: e.g. `site.yml`'s pre-flight admin-user
     assert and any playbook whose roles have no role-level tags (`home_servers.yml`,
     `raspberry_pi.yml`, `router.yml`, …) can only ever run their `always`-tagged tasks under
+  - Filtered runs skip untagged top-level tasks: e.g. `site.yml`'s pre-flight admin-user
+    assert and any playbook whose roles have no role-level tags (`home_servers.yml`,
+    `raspberry_pi.yml`, `router.yml`, …) can only ever run their `always`-tagged tasks under
     `--tags`. Only `vps.yml` (and `all.yml`'s `[hosts]`) supports role-surgical filtering today.
+  - **Base bootstrap tier (HD-269 Step 4):** the rarely-changing roles (`common`, `docker`,
+    `hardening`, `network`, `cifs`, `wireguard`) each carry an **additive `base` tag** alongside
+    their own role tag. Because selection is a UNION, naming `base` groups all six as ONE
+    runnable unit (`--tags base`) while a services-only run (`--tags docker_services,monitoring`)
+    still works untouched — the `base` tag simply isn't in that filter, so nothing from those
+    roles runs. The tier is never a *skip-default*: a full converge (no `--tags`) runs everything
+    in order; `base` only makes the rare roles *selectable as a set*. Roles keep their own tags
+    so they can still be run individually (`--tags common`).
   - Partial application is the failure mode to fear (renders without up, service changed but
     its Traefik routes stale): prefer the canonical forms below and verify with
     `--list-tasks --tags <filter>` before running.
@@ -130,9 +142,11 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   | Full converge | `ansible-run.sh site.yml` (or the group playbook) |
   | Single VPS role | `ansible-run.sh playbooks/vps.yml --tags monitoring` |
   | Single service (recommended) | `ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=<service>` |
+  | Several services (HD-269) | `--tags docker_services -e docker_services_scope="<svc1>,<svc2>"` |
   | Service + edge/dynamic-file companions | `--tags "docker_services,<service>,traefik"` |
   | Include Authentik pre-pass/glue lanes | append `,authentik,secret-egress` |
   | Resume after a failing step | `--start-at-task="<task name>"` (no `--tags` → everything from there runs) |
+  | Run the rare base bootstrap tier (HD-269 Step 4) | `--tags base` — runs `common`, `docker`, `hardening`, `network`, `cifs`, `wireguard` only (first-boot / a rare infra change); `docker_services` & `monitoring` excluded |
   | Discovery | `--list-tags` / `--list-tasks --tags "<filter>"` |
 
 ### Compose templates (`templates/docker_services/`)
@@ -206,6 +220,24 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 # A service tag alone matches nothing; keep the role tag (union semantics).
 ```
 
+### Dry-run Mode (`--check --diff`)
+
+`--check` mode is **NOT** compatible with the HD-258 bulk 1Password pre-pass: the pre-pass
+calls `op-vault-export.py --derive` which requires a live 1Password session to read items
+(vault in `~/.config/op/homelab-sa-token`), and in check mode the lookup returns empty stdout
+→ the `combine(vault, from_json(empty))` filter raises `from_json failed: Expecting value` and
+the play aborts at `fetch-vault-pass.yml:62` (other session's audit AUD-B-2, reproduced live
+2026-08-29). For diff/inspection of a future change without running it, use one of:
+- `--check --diff` only after seeding the `vault` dict another way (e.g. mock the bulk pre-pass
+  by exporting `op-vault-export.py --services <single> --format=json` to a fixture file and
+  reading it via `set_fact: op_vault_out: {stdout: ... }`); the rest of the role is then
+  check-mode-safe;
+- skip the pre-pass and render single-service templates with `lookup('community.general.onepassword', ...)`
+  inline (slow, but check-mode compatible);
+- run the live converge scoped to the service (`-e docker_services_scope=<svc>`) and use
+  `--diff` on the rendered compose on the target (`ssh vps 'docker compose -f /opt/<svc>/docker-compose.yml config'`).
+  The live run is fast (HD-269 measured ~18s for a single service) and you get the real diff.
+
 ---
 
 ## File Layout
@@ -271,6 +303,21 @@ IaC/ansible/
     ├── inventory.md.j2
     └── nut/                         # nut.conf.j2, ups.conf.j2, upsd.users.j2, upsmon.conf.j2, upssched.conf.j2
 ```
+
+### ansible-core 2.24 readiness (HD-271)
+
+`ansible.cfg` sets `inject_facts_as_vars: false` (the default True is deprecated and removed
+at core 2.24): tasks must reference facts via `ansible_facts['service_mgr']` (never bare
+`ansible_service_mgr`). The two WireGuard pubkey lookups in `group_vars` use `lookup('vars',
+'<key>', default='')` — previously they guarded with `'key' in vars`, but the internal `vars`
+dict is itself deprecated at 2.24 (verified live in core 2.21.3: the membership check still
+emits `[DEPRECATION WARNING] The internal "vars" dictionary is deprecated`; the deprecation
+help text prescribes the `vars`/`varnames` **lookups** instead). The `default=''` fallback
+preserves the fail-closed load-time empty value. A runtime `assert` in the wireguard/router
+roles still fails-closed on a blank peer at deploy — so `default=''` here does NOT violate
+HD-65's no-`default('')` rule, which applies to **1Password secret lookups**; these pubkeys are
+structural vars with a "provision at deploy" lifecycle (the repo's own `vps.yml` gate + role
+asserts already use `| default('')` on them).
 
 ---
 
@@ -368,7 +415,7 @@ dns_secondary_ip: 10.10.1.20     # Technitium secondary binds node IP
 > modifiers and per-host gates) lives only in [`group_vars/home_servers.yml`](../IaC/ansible/group_vars/home_servers.yml)
 > — derived data, never re-typed in docs (CONVENTIONS §2). Post-HD-135, oldsrv keeps the
 > **GPU / LAN / storage-bound core** (ollama, immich-ml, technitium-primary, pihole,
-> home-assistant-standby, dozzle, signal-cli-rest-api, sunshine [desktop-gated], jellyfin + seerr
+> home-assistant-standby, signal-cli-rest-api, sunshine [desktop-gated], jellyfin + seerr
 > + the *arr stack, kopia-agent); the public edge, public apps, AI stack, observability backend and
 > n8n live on the VPS (`group_vars/vps.yml`). Human catalog: [`services.md`](services.md).
 
@@ -603,3 +650,73 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 9 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) **and** `nut` (needs nut_exporter) |
 | 10 | `router` | `network` (IPs/VLANs defined) |
 | 11 | `proxmox` (Phase 2) | `network` |
+
+---
+
+## Deploy Timing Runbook (HD-269, Step f — measured)
+
+> **Role:** where the speed budget lives. These are **measured** numbers from the live full
+> converge (`vps.yml`, 2026-08-28, log `/tmp/fullconverge2.log`, `profile_tasks` enabled by
+> `ansible.cfg`). Re-measure with `ansible-run.sh playbooks/vps.yml` — the same run that
+> regenerates this page — whenever a change claims to affect deploy time.
+
+### Full-converge baseline (measured 2026-08-28)
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Wall accumulate (TASKS RECAP) | **~193s (3:13)** | `profile_tasks` cumulative; ≈ wall. Prior baseline ~204s (2026-08-27) |
+| Result | `ok=311 changed=45 failed=0 skipped=381` | idempotent converge, no functional change |
+| Slowest glue | **Authentik secret-egress 11.94s** | was ~21-22s; parallel win (HD-269) |
+| 2nd | **LiteLLM bootstrap-keys 8.07s** | **serial** (reverted 2026-08-28); paid only on the `litellm` pass |
+| 3rd | **op-vault-export (derive) 4.62s** | bulk 1P read; scoped runs ≈0.8s |
+
+### Measured cost ledger (TASKS RECAP, 2026-08-28)
+
+Top tasks by elapsed time:
+
+| Task | Elapsed | Lane |
+|------|---------|------|
+| `docker_services : Run Authentik secret-egress glue` | **11.94s** | glue · parallel (win) |
+| `docker_services : Run LiteLLM bootstrap-keys glue (litellm)` | **8.07s** | glue · serial |
+| `docker_services : Run op-vault-export (derive mode)` | **4.62s** | pre-pass · parallel read |
+| `docker_services : Register Authentik OIDC source (Forgejo)` | 2.77s | docker_services |
+| `cifs : Write CIFS credentials file` | 2.75s | **base tier** |
+| `docker_services : Copy template files for traefik` | 2.51s | docker_services |
+| `docker_services : Template extra .j2 for traefik` | 2.24s | docker_services |
+| `docker_services : Copy template files for headscale` | 2.00s | docker_services |
+| `docker_services : Template extra .j2 for headscale` | 1.80s | docker_services |
+| `monitoring : Provision Grafana alert contact points` | 1.78s | monitoring |
+| `common : Update apt + install prerequisites` | 1.74s | **base tier** |
+| `docker_services : Deploy provision token (op)` | 1.71s | docker_services |
+| `docker_services : Create external networks` | 1.68s | docker_services |
+| `docker : Install Docker components` | 1.59s | **base tier** |
+| `docker_services : compose up authentik` | 1.57s | docker_services |
+| `vps-hardening : Install fail2ban` | 1.57s | **base tier** |
+| `docker_services : Copy template files for prometheus` | 1.55s | docker_services |
+| … | ~1.4s each | remainder ≈150 tasks under 1s |
+
+### The three deploy-speed mechanisms (when to use each)
+
+1. **`docker_services_scope` (HD-255/260/269)** — TRUE surgical run of one/many services; the
+   op pre-pass drops to ~0.8s + only the named service iterates. Use for a single-service fix.
+2. **`--tags base` (HD-269 Step 4)** — run ONLY the rare bootstrap tier
+   (`common`/`docker`/`hardening`/`network`/`cifs`/`wireguard`) as one unit. Use for a rare infra
+   change; excludes all docker_services/monitoring.
+3. **Parallel glue (HD-269)** — authentik egress is `xargs -P` (11.94s vs 21-22s); litellm stays
+   **serial** — the `docker exec -i` heredoc probe can't be fanned out (see §Tags & surgical).
+
+### Expected timing map
+
+```
+Full converge                       ~193s   (baseline ~204s)
+├─ base tier (common/docker/…/wg)    ~8s      (--tags base)
+├─ op glue (3 loops)                ~25s     (authentik 11.9 + litellm 8 + derive 4.6)
+├─ docker_services core loop         ~most   (copy/template/up per ~28 services)
+└─ monitoring / other                few s
+```
+
+A surgical single-service run (`--tags docker_services -e docker_services_scope=<svc>`) is
+**~5-6s**; a base-tier run (`--tags base`) avoids the docker_services/monitoring cost entirely.
+Deploy times drift with image versions/service count — re-measure per the top of this page.
+`profile_tasks` prints the recap to every run; keep it in `ansible.cfg` (it's the arbitrage tool
+for any future speed change, HD-257).

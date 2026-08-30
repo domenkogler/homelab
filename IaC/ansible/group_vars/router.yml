@@ -55,7 +55,7 @@ wireguard_s2s_vps:
   # VPS public key (derived from the VPS wireguard private key), needed for the router
   # peer. Fail-closed when unset at deploy; the shared `wg_password` here is the router's
   # private key. Single-private-key-per-S2S-family means each side derives its own pubkey.
-  vps_public_key: "{{ lookup('vars', 'wg_s2s_vps_public_key') if 'wg_s2s_vps_public_key' in vars else '' }}"
+  vps_public_key: "{{ lookup('vars', 'wg_s2s_vps_public_key', default='') }}"  # HD-271: lookup default — no `in vars` membership (internal vars dict deprecated at 2.24)
   # LEAST-ACCESS (HD-155): the router accepts from the VPS peer only the scoped home
   # targets (exporter/VIP/probe + oldsrv backends) + wg-vps-services — NOT the whole
   # `site` /16. DERIVED from the SSOT list `wg_s2s_vps.allowed_ips` (group_vars/all.yml,

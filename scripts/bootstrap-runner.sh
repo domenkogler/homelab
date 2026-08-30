@@ -87,6 +87,27 @@ else
   echo "ℹ SSH_AUTH_SOCK line already in ~/.bashrc."
 fi
 
+# Auto-load the commit-signing + GitHub auth SSH keys into the agent on every shell start
+# (HD-300). ssh-agent keeps keys in memory only (security by design), so each new agent
+# process loses them on restart; this block re-adds the on-disk keys when the agent is
+# reachable but empty. Idempotent: ssh-add -l + grep is a no-op when both keys are
+# already loaded. Pairs with the SSH_AUTH_SOCK line above — one agent socket + one
+# auto-load is enough. Guarded by the grep -q marker so re-runs are safe.
+if ! grep -q 'hd300-github-keys-autoload' ~/.bashrc; then
+  cat >> ~/.bashrc <<'BASHRC_KEYS'
+# hd300-github-keys-autoload: re-add github_signing + github_auth to the ssh-agent
+# when the agent is reachable but the keys are missing (ssh-agent is non-persistent).
+if [ -S "$SSH_AUTH_SOCK" ] && [ -f "$HOME/.ssh/github_signing" ] && [ -f "$HOME/.ssh/github_auth" ]; then
+    if ! ssh-add -l 2>/dev/null | grep -q 'github_signing'; then
+        ssh-add "$HOME/.ssh/github_signing" "$HOME/.ssh/github_auth" 2>/dev/null
+    fi
+fi
+BASHRC_KEYS
+  echo "✔ GitHub keys auto-load block set in ~/.bashrc (HD-300)."
+else
+  echo "ℹ GitHub keys auto-load block already in ~/.bashrc."
+fi
+
 echo "=== 6. Idempotent passwordless sudo for local WSL ==="
 if [ ! -f /etc/sudoers.d/$USER ]; then
     echo "$USER ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/$USER > /dev/null

@@ -1,0 +1,71 @@
+{
+  "track": "C-scripts",
+  "audit_date": "2026-08-29",
+  "commit": "c9baf09",
+  "scope": "scripts/ + scripts/README.md registry + scripts/validate-all.sh gate",
+  "methodology": "parent inline execution + read-only smoke tests",
+  "findings": [
+    {
+      "id": "AUD-C-1",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Orphan_Doc_Script",
+      "title": "scripts/README.md is 1:1 with filesystem (31 entries, all referenced)",
+      "evidence": {
+        "type": "diff",
+        "command": "ls scripts/*.{sh,py} 2>/dev/null | wc -l ; diff <(ls scripts/*.{sh,py} | xargs -n1 basename) <(grep -oE '\\`[a-z_-]+\\.(sh|py)\\`' scripts/README.md | tr -d '`' | sort -u)",
+        "file": "scripts/README.md",
+        "line": "(all sections)",
+        "output_snippet": "(no drift)"
+      },
+      "deduplication_key": "scripts/README.md:registry",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "AUD-C-2",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Validator_Gap",
+      "title": "validate-all.sh runs all 13 checks green in 0.6s",
+      "evidence": {
+        "type": "validator",
+        "command": "bash scripts/validate-all.sh",
+        "file": "scripts/validate-all.sh",
+        "line": "(all)",
+        "output_snippet": "OK: all validators passed (real 0.6s wall)"
+      },
+      "deduplication_key": "scripts/validate-all.sh:coverage",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "AUD-C-3",
+      "severity": "Low",
+      "status": "OPEN",
+      "drift_type": "Orphan_Doc_Script",
+      "title": "Stale scripts/README.md links to non-existent ansible-enhancements.md (HD-263 follow-up)",
+      "evidence": {
+        "type": "grep",
+        "command": "grep -n ansible-enhancements scripts/README.md",
+        "file": "scripts/README.md",
+        "line": "63-64",
+        "output_snippet": "... · [ansible-enhancements.md](../ansible-enhancements.md) §8.4 ..."
+      },
+      "deduplication_key": "scripts/README.md:ansible-enhancements-ref",
+      "proposed_fix": "when HD-263 closes (deletes ansible-enhancements.md), drop the §8.4 references from scripts/README.md lines 63-64; the content is already folded into the HD-263 row text"
+    }
+  ],
+  "verified_ok": [
+    "scripts/ registry is complete and 1:1 with filesystem (31 entries, all portable or portability-noted)",
+    "validate-all.sh runs all 13 checks green in 0.6s",
+    "Validator coverage is complete: all 13 checks fire on injected faults (tested: default(''), bare latest, IP literals, broken links, hand-authored -generated doc, bare Homelab refs, placeholder tokens, malformed Blueprint, render mismatch, guard-session violations, vault item drift, skills drift, playbook syntax)",
+    "Deploy tooling contracts (provision-secrets, check-vault-items, op-vault-export --derive, ansible-run, guard-session, git-bootstrap --ssh-auth, next-hd) all match docs",
+    "No dead/orphan scripts"
+  ],
+  "questions": [],
+  "false_positives": [],
+  "deduplication_keys": [
+    "scripts/README.md:registry",
+    "scripts/validate-all.sh:coverage",
+    "scripts/README.md:ansible-enhancements-ref"
+  ]
+}

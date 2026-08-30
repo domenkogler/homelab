@@ -1,0 +1,128 @@
+{
+  "track": "B-iac",
+  "audit_date": "2026-08-29",
+  "commit": "c9baf09",
+  "scope": "IaC/ansible/{inventory,group_vars,host_vars,playbooks,roles,templates/docker_services}",
+  "methodology": "parent inline execution",
+  "findings": [
+    {
+      "id": "AUD-B-1",
+      "severity": "High",
+      "status": "OK",
+      "drift_type": "Secret_Reference_Broken",
+      "title": "metabase-forgejo_ro vault item missing (HD-242 deploy-gated)",
+      "evidence": {
+        "type": "validator",
+        "command": "bash scripts/check-vault-items.sh --strict",
+        "file": "scripts/check-vault-items.sh",
+        "line": "(1 missing item)",
+        "output_snippet": "1 missing item(s) => FAIL"
+      },
+      "deduplication_key": "IaC/ansible/group_vars/vps.yml:docker_services.metabase.db_ro_item",
+      "proposed_fix": "already tracked: HD-242 owner action — seed metabase-forgejo_ro before next metabase converge"
+    },
+    {
+      "id": "AUD-B-2",
+      "severity": "Low",
+      "status": "OPEN",
+      "drift_type": "Liveness_Mismatch",
+      "title": "sunshine enabled in home_servers.yml but no journal entry on oldsrv",
+      "evidence": {
+        "type": "journal",
+        "command": "grep -i sunshine deployment-journal.md",
+        "file": "deployment-journal.md",
+        "line": "(mentioned in change-of-mind row text, no convergence entry)",
+        "output_snippet": "jellyfin/iGPU, sunshine), HA standby ... sunshine  (mentioned in passing)"
+      },
+      "deduplication_key": "IaC/ansible/group_vars/home_servers.yml:docker_services.sunshine.enabled",
+      "proposed_fix": "either: (a) add journal entry 'sunshine deferred to Phase 2/3, see HD-XXX', or (b) move to enabled: false with explicit deferral note; owner decision"
+    },
+    {
+      "id": "AUD-B-3",
+      "severity": "Low",
+      "status": "OPEN",
+      "drift_type": "Cosmetic_Stale_Text",
+      "title": "audit.md says '19 roles', repo has 18",
+      "evidence": {
+        "type": "diff",
+        "command": "ls IaC/ansible/roles/ | wc -l",
+        "file": "audit.md",
+        "line": "§2.2.2 'each of the 19 roles'",
+        "output_snippet": "18 (counted)"
+      },
+      "deduplication_key": "audit.md:role-count",
+      "proposed_fix": "update audit.md §2.2.2 line 2 to '18 roles'; the count is a derived value, not a typed number (CONVENTIONS §2 derived-values ban)"
+    },
+    {
+      "id": "AUD-B-4",
+      "severity": "High",
+      "status": "OK",
+      "drift_type": "SSOT_Conflict",
+      "title": "HD-270 escape verification — 0 unescaped compose vault refs (excluding URL urlencode contexts)",
+      "evidence": {
+        "type": "grep",
+        "command": "scan templates/docker_services/**/docker-compose.yml.j2 for vault[ without | replace('$','$$') and not in URL",
+        "file": "IaC/ansible/templates/docker_services/*/docker-compose.yml.j2",
+        "line": "(all templates)",
+        "output_snippet": "0 violations (litellm 5+1urlencode, onlyoffice-docs 7+1urlencode, all others 1:1)"
+      },
+      "deduplication_key": "IaC/ansible/templates/docker_services:**:vault-escape",
+      "proposed_fix": "no-op"
+    },
+    {
+      "id": "AUD-B-5",
+      "severity": "Med",
+      "status": "OK",
+      "drift_type": "Enabled_Not_Converged",
+      "title": "technitium enabled in home_servers but not yet deployed — explicitly tracked in HD-274",
+      "evidence": {
+        "type": "journal",
+        "command": "grep technitium todo.md deployment-journal.md",
+        "file": "todo.md",
+        "line": "HD-274",
+        "output_snippet": "Deploy-gated on Technitium being up (Phase 2/3 hosts)"
+      },
+      "deduplication_key": "IaC/ansible/group_vars/home_servers.yml:docker_services.technitium.enabled",
+      "proposed_fix": "no-op — already in HD-274 tail"
+    },
+    {
+      "id": "AUD-B-6",
+      "severity": "Low",
+      "status": "OK",
+      "drift_type": "Enabled_Not_Converged",
+      "title": "blackbox-exporter journal name mismatch (mentioned as 'blackbox' not '-exporter') — service is converged",
+      "evidence": {
+        "type": "journal",
+        "command": "grep -i blackbox deployment-journal.md",
+        "file": "deployment-journal.md",
+        "line": "Phase 1 list (mentioned as 'blackbox')",
+        "output_snippet": "authentik + ... + blackbox + loki +"
+      },
+      "deduplication_key": "IaC/ansible/group_vars/vps.yml:docker_services.blackbox-exporter.enabled",
+      "proposed_fix": "no-op — service converged (HD-159 live-verify task)"
+    }
+  ],
+  "verified_ok": [
+    "Inventory ↔ group_vars ↔ host_vars ↔ playbooks: coherent (router/switch absence in host_vars is by design — community.routeros API)",
+    "18 roles (not 19 — see AUD-B-3) all shaped correctly; ansible-playbook --syntax-check OK",
+    "33 enabled VPS services + 2 home_servers = 35 total; 58 compose templates all PASS validate-docker-services.py",
+    "HD-270 escape fully covered (0 unescaped compose vault refs outside URL urlencode contexts)",
+    "No default('') anywhere (HD-65/HD-91 fail-loud) — validate-secrets.py green",
+    "Bulk 1P pre-pass (HD-258) + surgical tag scope (HD-255) + restart-guard fix (HD-260) all live-verified"
+  ],
+  "questions": [
+    "sunshine: enable on home_servers but no journal — owner decision: deploy on Phase 2/3 or set enabled: false? (HD-XXX needed)"
+  ],
+  "false_positives": [
+    "AUD-FP-B-1: blackbox-exporter journal search miss (service is converged, named 'blackbox' in journal)",
+    "AUD-FP-B-2: technitium no journal (explicitly deploy-gated in HD-274)"
+  ],
+  "deduplication_keys": [
+    "IaC/ansible/group_vars/vps.yml:docker_services.metabase.db_ro_item",
+    "IaC/ansible/group_vars/home_servers.yml:docker_services.sunshine.enabled",
+    "audit.md:role-count",
+    "IaC/ansible/templates/docker_services:**:vault-escape",
+    "IaC/ansible/group_vars/home_servers.yml:docker_services.technitium.enabled",
+    "IaC/ansible/group_vars/vps.yml:docker_services.blackbox-exporter.enabled"
+  ]
+}

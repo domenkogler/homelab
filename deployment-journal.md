@@ -617,7 +617,58 @@
 - **Verification:** `policy check --bypass-grpc` = **Policy is valid** (user reference resolved against the live DB); restarted for headscale 200; Node node `Naprava A54` reconnected **online** at 18:20:05Z under the tightened policy; **0** deny/unauthorized log lines; `/health` 200. Laptop `Domen_P14s` shows offline because its Tailscale nx client is currently disconnected (client-side, not a policy denial).
 - **Docs pulled in same change:** network-vpn.md layer-2 contract + registration/ACL stanza rewritten (interim `*:*` → tightened; tag-based model documented as the later option). `tagOwners` empty + rationale recorded in template comments. **Secrets touched:** none. **Deviations:** none — this is the documented HD-84 TIGHTEN-at-first-enrolment.
 
-## Phase 1a — Parallel Track: NAS Pools + Host Installs
+### 2026-08-28 — Phase 1 · VPS observability LIVE: Alloy ships container logs → Loki; Dozzle on VPS; CrowdSec Web UI + watcher; prometheus-internal_api rotation `[AI]`
+
+- **Plan ref:** HD-135b (VPS self-observability) deploy/verify + L3 (internal-only/tailnet) + HD-272 (CrowdSec Web UI) + L2 rotation; main `3178806`.
+- **Commands run (worktree `session/hd135b-vps-obs`, then on main):**
+  ```bash
+  # Alloy: fixed 6 Alloy-1.19 bugs in roles/monitoring/templates/alloy.river.j2 —
+  # duplicate prometheus.exporter.unix "host", dead 9998 scrape, forward_to .receiver
+  # exports, unix:// docker host, removed retry block, and discovery.docker port-mapping
+  # limitation (internal-only fleet) -> replaced with file-based:
+  #   loki.source.file "container_logs" { targets=[{__path__="/var/lib/docker/containers/*/*-json.log"}] file_match{enabled=true} }
+  #   loki.process "cleanup" { stage.docker {} }
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags monitoring   # ok=22 changed=3 failed=0; alloy active
+  # perms for alloy to read docker JSON logs:
+  sudo chmod 750 /var/lib/docker/containers && sudo chgrp docker /var/lib/docker/containers && sudo chmod -R g+rX /var/lib/docker/containers
+  # Dozzle (HD-135b): scoped converge
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=dozzle  # ok=20 changed=6 failed=0; dozzle Up
+  # CrowdSec Web UI (HD-272): 3 template fixes, then converge + watcher
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=crowdsec-web-ui
+  docker exec crowdsec cscli machines add crowdsec-web-ui --password '<crowdsec-webui_lapi_api credential>' -f /dev/null
+  # rotation (L2): full converge redeployed provision token (scope_is_all-gated); UUID rotate + deploy
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services   # ok=267 changed=59 failed=0; token re-deployed
+  op item edit <uuid> --vault "Homelab-ansible" 'password=<new>' 'bcrypt_hash=<new>'
+  ```
+- **Settings chosen:** alloy_version `1.19.2-1`; tailscale_version `v1.80.2`; crowdsec_web_ui_version `2026.8.2`; Dozzle on VPS `logs.kogler.si`; CrowdSec UI `csui.kogler.si` internal Forward-Auth.
+- **Verify (live):** alloy `active`; `loki_source_file_files_active_total=48`; **Loki streams 18 across 13 containers** (`stream=stdout`, `filename=…-json.log`, `detected_level`); crowdsec_web_ui `Up (healthy)` + backend :3000 + watcher registered; prometheus auth 200-new/401-old; Grafana DS proxied query returns series.
+- **Secrets touched:** `prometheus-internal_api` (rotated: old hash `$2b$12$qL0Iu…` retired, new `$2b$12$8UYC…`, values to vault only); `crowdsec-webui_lapi_api` (created, url-safe 32-char watcher pw); `vps-op-write_api` (re-deployed valid token to /etc/op/provision-token).
+- **Deviations:** alloy container-log shipping uses **file-based** `loki.source.file`+`stage.docker` (not `discovery.docker` — it requires host port mappings; internal-only fleet proved 0 targets); alloy read on `/var/lib/docker/containers` via `docker` group grant. (docs updated: alloy.river.j2 comments.)
+
+### 2026-08-29 — Phase 1 · Live-verify batch: surgical converge (HD-255/260), HD-270 env==vault, HD-271 directive gap + activate, HD-252 ACL tail, HD-220 health, HD-272 crowdsec-web-ui on-board, HD-242 metabase RO `[AI]`
+
+- Plan ref: deployment-tasks Phase 1 Deploy-gated verification; note: all rows remain open (journal is the liveness SSOT).
+- **Commands run (orchestrator, WSL Debian ext4 primary):**
+  ```bash
+  # Lane d0 — live-verify evidence (parallel lanes; read-only + one surgical converge)
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=headscale   # HD-255/260 gate
+  # HD-272 on-board
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=crowdsec-web-ui  # ok=20 changed=1 failed=0
+  docker exec crowdsec cscli machines add crowdsec-web-ui --password '<crowdsec-webui_lapi_api credential>' -f /dev/null  # (already registered — idempotent "user already exist")
+  # HD-242 metabase RO
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=metabase   # ok=20 changed=1 failed=0
+  ```
+- **Settings chosen:** none new (all from owning docs/group_vars).
+- **Secrets touched:** `crowdsec-webui_lapi_api` (watcher machine, existing item); `metabase-forgejo_ro` (RO role password, existing item); no rotations.
+- **Verify (live):**
+  - HD-255/260: `docker_services_scope=headscale` **genuinely single-service** — `ok=21 changed=1 failed=0`, wall ~18s, only headscale tasks, no unrelated renders, **HD-260 extras guard crash NOT present**.
+  - HD-270: env==vault on authentik/zipline/litellm/openclaw/kopia (32/128/32/32/32); DATABASE_URL urlencoded 89; pi-dev PR_TOKEN absent (HD-268 pending, not a regression); kopia non-JSON warning gone.
+  - HD-252 tail: `headscale policy get` = deny-by-default ACL (`domen@kogler.si → domen@kogler.si:*` + `tag:sidecar:443`); nodes all online (Domen_P14s, Naprava A54, vps-obs) — cleanup redo confirmed.
+  - HD-271: surgical converge **zero deprecation warnings**; fact-prefixed refs live. **GAP:** `inject_facts_as_vars` was comment-only in ansible.cfg → **fixed this session** (activated `= False`, signed commit `ca7b7c4`, validate-all green).
+  - HD-220: `docker ps -a` 50 containers, all Up except `renovate Restarting(0)` (HD-264 known churn, out of scope this batch).
+  - HD-272: crowdsec-web-ui container `Up (healthy)`, backend :3000 serving; LAPI watcher machine live (`crowdsec-web-ui password`, heartbeat 2s); UI HTML serves via internal edge.
+  - HD-242: `metabase_ro` role exists in forgejo-db (rolsuper=f, rolcanlogin=t); **public-schema privilege = SELECT only** (no INSERT/UPDATE/DELETE); crowdsec-db bind mounted in metabase (`/srv/docker/crowdsec/db → /var/lib/crowdsec/data`); MB_EMAIL_SMTP_* env all set.
+- **Deviations:** (1) HD-271 was **not actually enforced** pre-fix (commit b12de08 only touched comments); activated now — changelog wording corrected by the commit. (2) HD-272 watcher machine already existed (converge handled it; `cscli machines add` is idempotent). (3) HD-242 RO role verified SELECT-only; dashboard JSON import + Zipline source remain owner/HD-112-gated. (doc updated: IaC/ansible/ansible.cfg).
 
 ### 2026-08-23 — Phase 1a · oldsrv reinstalled interactively — preseed automation bypassed after four delivery failures `[MANUAL]`
 
@@ -1414,6 +1465,152 @@
   - `IaC/host/nas/preseed.cfg` real by-ids filled (boot SSD `ata-Crucial_CT525MX300SSD4_173818D02FF0`, USB `usb-Generic_Flash_Disk_C3EB7FE7-0:0`) — closes the HD-201 placeholder class for nas.
 - **Execution NOT yet run** — when the runbook executes (pre-reinstall bootstrap), copy the commands **as run** (with real by-id paths + `zpool status` output) into a NEW entry here; the runbook text stays the plan.
 
+### 2026-08-27 — Phase 1 · HD-254 live deploy: `sync-skills.sh --push` on the WSL ext4 primary + verify `[AI]`
+
+- **Stimulus:** HD-254 (skill-sync guard `scripts/sync-skills.sh`) authored + wired into `validate-all.sh` as item 13 (guarded to SKIP when no `~/.pi/agent/skills`), but the changelog row still read `⏳ deploy-gated` — one live two-sided push against the real `~/.pi` remained to close it.
+- **Commands run (as executed, on the WSL ext4 runner):**
+  ```bash
+  # pre-flight: repo skills vs deployed (baseline — should be clean)
+  bash scripts/sync-skills.sh --check --strict        # exit 0: repo == ~/.pi, no drift, no encoding violations
+  # canonical deploy direction (repo = SSOT -> ~/.pi)
+  bash scripts/sync-skills.sh --push                  # pushed 5 skill(s): mikrotik plan-task platform-env run-task shelly
+  bash scripts/sync-skills.sh --check --strict        # exit 0 again: in sync after push
+  ```
+- **Verify:** (1) `--check --strict` BEFORE and AFTER both exit 0 (repo == `~/.pi/agent/skills`, no drift, no encoding violations); (2) `diff -r --exclude=__pycache__ --exclude=net.json skills ~/.pi/agent/skills` → **IDENTICAL**; (3) no runtime artifacts shipped to the deploy side: 0 `net.json`, 0 `__pycache__`, 0 zero-byte skill-name markers; (4) `sync-skills.sh --check --strict` still PASS inside the full `validate-all.sh` (green).
+- **Secrets touched:** none. **Deviations:** none — live behavior matched the sandbox tests (baseline-clean → push → clean); the two-sided path confirmed working against the real deploy target.
+- **Bookkeeping:** todo.md HD-254 row deleted (§4 fully-done close-out; changelog row retains the history). The changelog row's `⏳ deploy-gated` tail updated to `✅ live` in this same session.
+
+### 2026-08-27 — Phase 1 · HD-268 full converge + DSH live — Qdrant / pi-dev / dsh all running; baseline captured `[AI]`
+
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2 (VPS stack converge); owning docs `docs/services-ai.md` (HD-267/268), `docs/network-vpn.md` (§Tailnet Pattern A). Continues the (now-closed) HD-268 deploy handoff: dsh `{{ }}` comment blocker (already fixed in `main` at session start) + DSH image + first live converge + baseline second run.
+- **Stimulus:** prior session authored the HD-268 AI IaC (Qdrant swap, dual pi.dev+DSH harness) with one remaining deploy blocker (Jinja `{{ }}` in a dsh-sidecar comment) that broke the dsh compose render; that blocker was already landed in `main` (`44a8bbc`) before this session resumed.
+- **Commands run (as executed, on the WSL Debian runner):**
+  ```bash
+  # (0) handoff said apply the dsh comment fix; it was already committed — clean state verified;
+  bash scripts/validate-all.sh             # green (exit 0)
+  # (1) first full converge — dsh now RENDERS (blocker gone) but image pull failed:
+  bash scripts/ansible-run.sh playbooks/vps.yml    # failed=1: docker pull access denied runzhliu/deepseek-harness-docker (image repo 404)
+  # (2) fix image repo: runzhliu/deepseek-harness (NOT -docker) — verified tag 0.1.1-rc.2 on Docker Hub
+  bash scripts/validate-all.sh                    # green
+  bash scripts/ansible-run.sh playbooks/vps.yml    # ok=311 changed=60 failed=0 — dsh pulled + started BUT crash-loop
+  # verify: docker ps -> dsh Restarting(1); logs = ENOENT mkdir /home/node/.dsh/profiles (read-only root)
+  # (3) fix crash-loop — read_only:true but DSH_HOME=/home/node/.dsh was on the RO root FS:
+  #   + named volume 'dsh-home:/home/node/.dsh' + top-level 'volumes:' + shm_size 1gb (Chromium)
+  bash scripts/ansible-run.sh playbooks/vps.yml    # ok=311 failed=0; dsh now 'Up', logs: dsh web http://127.0.0.1:3080
+  # BASELINE SECOND RUN (user-requested static cost, nothing changed):
+  bash scripts/ansible-run.sh playbooks/vps.yml    # ok=311 changed=45 failed=0, wall ~203s
+  ```
+- **Settings chosen:**
+  - `dsh_version`: `0.1.1-rc.2` (repo corrected to `runzhliu/deepseek-harness`; tag verified present 2026-08-27; digest pin still TODO)
+  - dsh compose: `read_only:true` + `cap_drop ALL` + DSH home named volume `dsh-home:/home/node/.dsh` + `shm_size 1gb` (browser desktop); Pattern-A tailnet sidecar still **commented/disabled** (needs `tailscale_dsh` item + uncomment at deploy)
+- **Secrets touched:** `qdrant_db` (created by provision-vault.sh), `dsh_api`/`pi-harness_openai_api` + 6 other glue-minted LiteLLM scoped keys (len 26) — values to 1P vault only. 1P rate-limit headroom comfortable (token read 83/1000 used).
+- **Verify:** (1) `validate-all.sh` green; (2) `docker_services : Docker compose up -d for dsh` → ok (image pull, then fast 1.7s steady); (3) `docker ps` dsh = `Up` (was `Restarting(1)`), logs show the WebUI line; (4) dsh Web UI `curl 127.0.0.1:3080` returns http 000 from the host — **expected**: UI binds inside the container only, exposed only via the still-disabled tailnet sidecar (by design).
+- **Deviations:** dsh container image repo corrected (authoring had used the GitHub source repo name). The `--tags dsh` surgical run only hit guard tasks (include_tasks tag not inherited) — full converge is the reliable path. A `localhost` + duplicate `op_derive_services` map-key warning persists in validate output (warning, not a failure).
+- **Bookkeeping:** main pushed to `d33ab44`. DSH/Qdrant/pi-dev on-live; remaining deploy-gated tailnet sidecar wiring + live-verify Qdrant embed/rerank + re-index tracked in todo.md HD-268 tail.
+
+### 2026-08-27 — Phase 1 · HD-269 deploy-speed surgery: scoped + multi-service docker_services_scope `[AI]`
+
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2; owning docs `docs/deployment-ansible.md` (§Tags & surgical runs) + this lane's handoff. Baseline (from the HD-268 session): full converge ~204s, ok=311 changed=45 failed=0 (static).
+- **Stimulus:** HD-269 lane — make one-service and several-service surgical deploys work AND fast. The handoff Step-0 measurement revealed the primitives were broken for glue-consuming scopes.
+- **Commands run:**
+  ```bash
+  # 1) measure ~ broken pi-dev scoped run (original behavior, session-first run on primary)
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=pi-dev
+  #   → FAILED, object of type 'dict' has no attribute 'pi-harness_openai_api'
+  #   → root cause: scoped op pre-pass excluded litellm-scoped keys (op_derive_glue) and litellm
+  #     bootstrap glue never ran (scope=pi-dev, litellm not in loop). pi-dev/dsh consume those keys.
+  # 2. edit IaC role defaults + main.yml (see git diff / changelog HD-269) in session worktree
+  #    homelab-wt-20260827-2311 (session/hd269-scope-transitive-deps)
+  # 3. re-run scoped pi-dev converge (post-fix)
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=pi-dev
+  #   → ok=20 changed=1 failed=0, ~5-6s wall; op-pre-pass 5.79→0.78s; pi-dev container Up
+  # 4. multi-service scope validate
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope='qdrant,docling'
+  #   → ok=27 changed=3 failed=0, only qdrant+docling deploy, all others skipped; op pre-pass 0.78s;
+  bash scripts/validate-all.sh  # all green
+  ```
+- **Settings chosen:**
+  - `docker_services_scope`: now a comma-string (`svc1,svc2`); role default computes `scope_is_all` + `scope_list`.
+  - Scoped op derive: fetch the scoped service's full item-set (incl. existing glue-seeded keys) — `op_derive_glue` empty when not `all`.
+- **Secrets touched:** n/a (no new secret; existing litellm-scoped keys read from vault on the provisioned host).
+- **Verify:** `scope=pi-dev` → `ok=20 changed=1 failed=0` ~5-6s, pi-dev container Up; `scope=qdrant,docling` → `ok=27 changed=3 failed=0` only those two; validate-all green.
+- **Deviations:** none. The handoff's Step-2/Step-3 fix respects `docker_services_scope` being the surgical mechanism (HD-255/260) and keeps fail-closed secret resolution.
+
+### 2026-08-27 — Phase 1 · HD-269 Step 1: parallelize the two serial egress glue loops `[AI]`
+
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2; owning doc `docs/deployment-ansible.md` §Tags & surgical runs.
+- **Stimulus:** full-converge baseline ~204s has ~35s in 3 serial glue loops (Authentik secret-egress ~21-22s, LiteLLM bootstrap-keys ~8s, op-vault-export ~5s). Both egress loops' sub-operations are independent per provider/key — parallelize reads/probes, keep writes ordered/serial.
+- **Commands run:** `git worktree add ../homelab-wt-20260827-2335 -b session/hd269-parallelize-glue`; edited the two rendered `*.sh.j2` templates; `validate-all.sh` green; sandbox tests (below). No live secret writes — the parallel logic was proven in a sandbox against stub `op`/`docker`/`curl`.
+- **Settings chosen:**
+  - `authentik-secret-egress.sh.j2`: per-provider worker `sync_provider`, `xargs -P "${OP_PARALLEL:-6}"`; each worker owns a DIFFERENT 1P item (safe parallel writes); write-only-if-changed retained; worker nonzero -> xargs nonzero -> abort (rc 1); provider-not-found -> rc 3; result lines serialized via a shared `$RESULTS` file read once after all workers finish.
+  - `litellm-bootstrap-keys.sh.j2`: new Phase-1 PARALLEL read+probe (`op item get` + `docker exec` HTTP probe) via `xargs -P`; Phase-2 SERIAL mint/store for empty-vault keys only (avoids `_enforce_unique_key_alias` races). rc taxonomy carried in worker LINES (not exit code): STALE→2, TRANSIENT→3, alias-conflict→4.
+- **Verify (sandbox, no real 1P/containers):** authentik 5-provider run -> all 5 found, exit 0; litellm -> stale key aborted rc 2, and all-valid yielded MINT for empty + KEEP for present, exit 0. export -f + xargs fork/export concurrency, fail-closed, and result aggregation all confirmed. `validate-all.sh` green; both templates render to valid bash.
+- **Secrets touched:** none executed live (sandbox stubs only); the parallel logic does not relocate or re-print secret values.
+- **Deviations:** none from the handoff's Step-1 design (reads parallel, writes ordered; 1P rate-limit bounded by OP_PARALLEL). Live full-converge timing re-baseline still pending (flagged in todo HD-269).
+
+### 2026-08-28 — Phase 1 · HD-269 Step 1 live re-baseline + full-converge warning audit `[AI]`
+
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) Phase 1 step 2; owning doc `docs/deployment-ansible.md` §Tags & surgical runs; log `/tmp/fullconverge2.log`.
+- **Stimulus:** close the Step-1 “live full-converge re-baseline still pending” item from last session, and pivot the found warnings into tracked backlog before proceeding to the Step-4 tier modulariser.
+- **Commands run:** ran the full converge `bash scripts/ansible-run.sh playbooks/vps.yml` (log: `/tmp/fullconverge2.log`, 2934 lines); no code edits in this session (read-only audit + doc/backlog work only, in worktree `homelab-wt-20260828-0035`). For the audit: `grep -n 'WARNING|DEPRECATION WARNING' /tmp/fullconverge2.log` then ±2-line context each.
+- **Result / baseline (live re-measure):** `ok=311 changed=45 failed=0 skipped=381`, last cumulative ~3:13. **Authentik secret-egress glue: 21-22s → 11.94s** — the $xargs$-`P` parallel sink is a shipped, live win. **LiteLLM bootstrap-keys glue: PARALLEL attempt FAILED live (rc 3, 12 retries, ~155s):** its `probe_key` reads the probe via a `docker exec -i … <<'PYEOF'` heredoc, whose stdin is a broken pipe under `xargs -P` fan-out → probe returns 000/hangs → transient failure. Reverted to the **serial main loop** (identical to the pre-parallel a57e128 version). Lesson ossified in `scripts/README.md` §Parallel-1P: a fan-out worker may use `curl`/`op`/plain subprocess, but a worker whose body pipes a heredoc into `docker exec -i`/`ssh` runs SERIALLY (or gets a stdin-neutral invocation). Authentik parallel survives because its workers only `curl` + `op read` and never feed stdin.
+- **Warning scan → new backlog (todo HD-270/271):** ① **HD-270 silent-secret-truncation bug (P1):** 6× `The \"<token>\" variable is not set. Defaulting to a blank string.` in compose `up` (authentik `z`, zipline `JP8`, litellm `PoZcG`, pi-dev `DWeRfADjDd6h`, openclaw `TY4`, kopia-server `P` + its `Cannot parse event from non-JSON line`). Tokens are fragments of 1P values that contain `$`; compose `${}`/`$VAR`-interpolates the whole file pre-YAML-parse and blanks them → **values silently truncated at the `$` in the running config**; `--quiet` validate never fails. Fix deferred (todo HD-270). ② **HD-271 `ansible-core 2.24 deprecations` (todo HD-271):** `INJECT_FACTS_AS_VARS` (deploy-service.yml:106/160) + internal `vars` dict (group_vars/all:230, router.yml:58). ③ note-only: `localhost` group+host clash.
+- **Secrets touched:** none (no secret values printed; truncation class logged as lengths/patterns, not values).
+- **Deviations:** none from the design; the Step-1 validate went from “parallel + live-rebaseline pending” to “parallel only for authentik (real win), litellm restored to serial (revert).” [scripts/README.md](scripts/README.md) updated so the parallel-concurrency contract reflects the shipped state; `todo.md` HD-269 🚧 collapsed + HD-270/HD-271 filed.
+
+### 2026-08-28 — Phase 1 · HD-271-followup live-found fixes: qdrant + kopia-server crash-loops `[AI]`
+
+- **Plan ref:** the HD-270/HD-271 follow-up lane (live deploy-health); owning docs `docs/services-ai.md` §5b (qdrant rebuildable cache) + `docs/backup.md` (kopia). Worktree `homelab-wt-20260828-1626hd271` (branch `session/hd271-ansible224`).
+- **Stimulus:** after the HD-271 deprecation commit, a live deploy-health rollup (`docker ps`) showed **two services crash-looping with real bugs** (plus two known/expected loops — authentik-ldap is the known HD-186 “no ldap provider defined” state, renovate is the known HD-264 churn).
+- **qdrant (crash-loop `Restarting (101)` — `Can't create Snapshots directory: Read-only file system` at `toc/mod.rs:100`):** the compose sets `read_only: true` with only a `/qdrant/storage` bind; qdrant 1.12.4 creates its snapshots dir at startup and the RO rootfs blocks it. **Fix:** add `QDRANT__STORAGE__SNAPSHOTS_PATH: "/qdrant/storage/snapshots"` (inside the writable storage bind). Verified live: standalone run with that env starts clean (`Access web UI`, HTTP 6333 + gRPC 6334, graceful shutdown RC=0); after the surgical deploy `qdrant` = `Up (healthy)`, `RestartCount=0`, `/srv/docker/qdrant/snapshots` created. Commit `d90f0e2`.
+- **kopia-server (crash-loop `found existing data in storage location` + “Creating SFTP repository”):** the first-run gate checked `if [ ! -f /app/config/config.json ]`, but `config.json` is an unrelated technitium zone file — kopia's repo-connection file is **`repository.config`** (present since the 2026-08-23 create). With a repo already on the backup box, every boot re-ran `kopia repository create sftp` → failed `found existing data in storage location` → `set -e` exit → restart loop. **Fix:** gate on `repository.config` instead. Verified live after surgical deploy: `kopia-server` = `Up`, logs show `SERVER ADDRESS: http://[::]:51515` + normal maintenance/GC against the existing repo, no more create loop. Commit `d90f0e2`.
+- **Commands run:** `docker ps` health rollup; `docker logs` on each looping service; the qdrant fix verified via throwaway `docker run --rm -e QDRANT__STORAGE__SNAPSHOTS_PATH=… --workdir /qdrant qdrant/qdrant:v1.12.4 ./entrypoint.sh` (`tail`); deploys: `bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=qdrant` (`ok=20 changed=4 failed=0`) and `…-e docker_services_scope=kopia-server` (`ok=20 changed=4 failed=0`). `validate-all.sh` green before each.
+- **Secrets touched:** none printed (the qdrant `QDRANT__SERVICE__API_KEY` value stayed inside the vault dict/template; the test-1password read of the SA token prints a sample but it's the runner's own read-scope SA, not a service secret).
+- **Deviations:** none from design — the two fixes are the documented rebuildable-cache/backup-seam behavior made actually startable. `todo.md`/`changelog.md`/`prompt.md` HD-271 row updated to note the follow-up fixes.
+
+### 2026-08-28 — Phase 1 · HD-270 live re-render verify (6 services, `$`-truncation) `[AI]`
+
+- **Plan ref:** the HD-270 deploy-gated tail (todo HD-270 ⏳): after the `| replace('$','$$')` fix (commit 96f0043), re-render the 6 services and confirm `docker inspect` env == vault. Worktree `homelab-wt-20260828-1626hd271`.
+- **Method (length + tail compare, no value print):** measure each secret env value's length + last-3 chars live (`docker inspect`) vs the vault (`op read`, `printf %s | wc -c` to exclude the newline). Truncation signature = value shorter than vault / `$`-fragment cut.
+- **Pre-render evidence:** disk compose carried **single `$`** in vault-value exprs (authentik `…3q6f$^_o…`, zipline `…$JP8…`, pi-dev `…$DWeR…`, openclaw `…$TY4…`) — the blanking source; kopia carried `…$P…` (+ its non-JSON warning).
+- **The 5-service re-render** (kopia already re-rendered in the qdrant/kopia fix): `bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope="authentik,zipline,litellm,pi-dev,openclaw"` → `ok=58 changed=23 failed=0` (pi-dev 20.25s, zipline 15.51s, authentik 9.30s, litellm 9.20s incl. bootstrap-keys glue interleave).
+- **Verify — all 5 now vault-exact (length + tail):** authentik `SECRET_KEY`/`BOOTSTRAP_PASSWORD`/`POSTGRESQL__PASSWORD` 32 (tail `=>x`/`9We`/`YMT`) == vault; zipline `OAUTH_OIDC_CLIENT_SECRET` 128 == vault (129 was the `wc -c` newline artifact); litellm `MASTER_KEY`/`OPENROUTER`/`COHERE` 32/73/40 (tails `Uj>`/`f65`/`2j4`) == vault; pi-dev `FORGEJO_PR_TOKEN` 32 == vault (was 19 pre-render!); openclaw `GATEWAY_TOKEN`/`WEBDAV_PASSWORD` 32 == vault (was 28 pre-render). Disk compose now `$$`-escaped (``cFQ#9>3q6f$$^_o``, `…$$JP8…`, `…$$DWeR…`, `…$$TY4…`).
+- **Clarification:** litellm was never actually truncated live (no literal `$` in its secrets — re-checked); its disk compose is now `$$`-correct defensively. The genuinely-fixed (`$`-bearing) services are authentik, zipline, pi-dev, openclaw (+ kopia from the previous fix). pi-dev went 19→32 and openclaw 28→32, proving real truncation was present and is now gone.
+- **Commands run:** `docker inspect <c> --format '{{range .Config.Env}}…'` for env lengths/tails; `docker ps` health; `grep -E 'replace|\$\$' /opt/<s>/docker-compose.yml` for the `$$` evidence; the converge above. `validate-all.sh` green before (commit `d90f0e2`-era tree).
+- **Secrets touched:** none printed (lengths + last-3-char tails only, per repo secret hygiene); the vault `op read` values stayed in the pipeline.
+- **Deviations:** none—this is exactly the HD-270 tail close-out. `todo.md` HD-270 ⏳ resolved; `changelog.md` HD-270 entry updated.
+
+
+
+### 2026-08-28 — Phase 1 · Tailnet Traefik edge for admin dashboards (HD-135b follow-up IMPLEMENTED; clean subdomain URLs on the tailnet) `[AI]`
+
+- **Plan ref:** HD-135b-followup deploy-gated tail (docs/network-vpn.md §Tailnet-exposed services); the old port-based `tailscale-sidecar` skeleton (:8080..8085) got REPLACED in-flight by a second Traefik edge. Worktree `homelab-wt-20260828-2057` / branch `session/tailnet-obs-tls`.
+- **Commands run:**
+  ```bash
+  # 1) seed the sidecar auth key (tag:sidecar preauth, reusable, 8760h) into 1Password:
+  docker exec headscale headscale preauthkeys create --user 2 --tags tag:sidecar --reusable --expiration 8760h -o json
+  # write-scoped SA token (the repo-seeding path, /etc/op/provision-token) -> Homelab-ansible item tailscale-sidecar_api
+  # 2) converged the new pieces on the VPS:
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=traefik        # issuer: *.ts.kogler.si SAN added
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=traefik-tailnet # edge + sidecar
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=headscale       # extra_records + search_domains + ACL
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=authentik       # ks-forward-auth ts providers (later unused)
+  # blueprint apply (externalized playbook has a var bug — see Deviations):
+  docker exec authentik-worker ak apply_blueprint /blueprints/custom/ks-forward-auth.yml
+  docker restart headscale; docker restart authentik-server   # pick up new DNS/policy + outpost config
+  # 3) verify:
+  docker exec headscale headscale nodes list                  # vps-obs online, 100.64.0.1, tag:sidecar
+  curl -sk --resolve <h>:443:172.20.0.250 https://<h>/ -o /dev/null -w "%{http_code}\n"
+  ```
+- **Settings chosen:** `tailnet_sidecar_ip: 100.64.0.1` · `tailnet_subdomains: [stats, logs, csui, sec, traefik, auto]` · `traefik_edge_ips` += `172.20.0.250/32` · headscale `dns.extra_records` (both namespaces) + `dns.search_domains: [kogler.si]` · ACL `dst: [tag:sidecar:443]` · `tailscale_version: v1.82.0`.
+- **Secrets touched:** `tailscale-sidecar_api.credential` (seeded; preauth key length/prefix only, value → vault only).
+- **Verify (live):** `vps-obs` online (100.64.0.1, tag:sidecar); traefik-tailnet + tailscale-sidecar Up; headscale Up; SNI `stats.ts.kogler.si` → `CN=*.ts.kogler.si`, `stats.kogler.si` → `CN=*.kogler.si`; HTTP codes from the VPS host at 172.20.0.250:443 — plain `*.kogler.si` → **302** (Authentik forward-auth), `*.ts.kogler.si` → **200** for logs/csui/sec/auto, 302 for stats/traefik (app-level redirect = correct). TLS certs: `*.kogler.si` AND `*.ts.kogler.si` issued + synced.
+- **Deviations:** (1) the `.ts` twins are **ACL-gated without forward-auth** — Authentik `forward_single` matches exactly one `external_host`, so `Host: stats.ts.kogler.si` matched no provider → 404; ts proxy providers + apps + outpost binding were added to `ks-forward-auth.yml` and applied, but the **embedded outpost never reloaded them** (only original hosts loaded after restart + force-push) → pivot to ACL-gated ts (headscale `tag:sidecar:443` is the gate), matching the documented Pattern-B design. (doc updated: docs/network-vpn.md, docs/observability.md). (2) `tailscale_version` pin `v1.80.2` does not exist on Docker Hub (pull 404) → `v1.82.0` (registry-verified). (3) headscale 0.29.3 `tagOwners` requires the FULL EMAIL `domen@kogler.si` (bare `domen` → crash-loop `invalid owner format`); fixed in `policy.hujson.j2`. (4) userspace sidecar: `network_mode: service:` netns sharing is stale if the app container is recreated without the sidecar — compose down+up together restores it; and `tailscale serve --tcp=443` (persisted via `TS_SERVE_CONFIG`) is REQUIRED for inbound (userspace netstack does not auto-forward tailnet-IP→localhost without serve). (5) **pre-existing playbook bug:** `playbooks/authentik-blueprints.yml` registered `ak_blueprints_dir` but asserted `ak_blueprints.stat.exists` (`ak_blueprints` undefined → playbook fails). Worked around live by running `ak apply_blueprint` directly; the playbook var name was fixed in this same change (doc updated: `playbooks/authentik-blueprints.yml`). (6) `--check` runs fail on the vault-dict parse (pre-existing check-mode limitation of the op-vault-export pass, reproduced on a clean tree).
+
+
+
+
+
 ## Phase 3 — oldsrv
 
 *(no entries yet)*
@@ -1444,3 +1641,103 @@ Entry template (copy per entry):
 - **Verify:** <short output/evidence>
 - **Deviations:** none | <what + why> (doc updated: <file>)
 -->
+
+---
+
+### 2026-08-29 — Audit pass (session #33) · 4 audit reports produced, merged, deduped, archived (no IaC / docs / services mutated) `[AI]`
+
+- **Plan ref:** `audit.md` (full repository audit prompt for session #33); the two parallel session efforts (lane-style per `audit.md §3b` + parent-inline in this worktree) both failed on the same OpenRouter rate-limit / in-flight budget cap, so the audit was executed inline as a parent fall-back (full rationale: [`audit-approach.md`](audit-approach.md) — 3 attempted runs documented).
+- **Methodology (this session):** parent inline; full read-only scope; lengths/tails/hashes only for any secret probe (CONVENTIONS §2 hygiene); all writes land in this worktree (`homelab-wt-20260829-152521`, branch `session/audit-orchestrator-20260829-152521`). The other instance's lane-style worktree (`homelab-wt-2026-08-29-1652`, branch `session/audit-2026-08-29`) produced its own reports uncommitted/untracked; both reports were **deduplicated + merged** in this session.
+- **Commands run (audit only — no live mutations):**
+  ```bash
+  # all from this worktree, read-only
+  bash scripts/validate-all.sh                                              # GREEN, 0.6s, 13 checkers
+  bash scripts/check-vault-items.sh --strict                                 # 1→2 missing items (HD-242 deploy-gated + ha-failover_api from other audit)
+  python3 scripts/check_doc_map.py                                          # 1 transient self-ref (resolves on commit)
+  python3 scripts/validate_doc_templates.py                                 # OK
+  python3 scripts/validate-docker-services.py                               # PASS, 58 templates
+  python3 scripts/validate-secrets.py                                       # OK
+  python3 scripts/validate_blueprints.py                                    # OK, 2 blueprints
+  python3 scripts/check_doc_ips.py                                          # OK
+  python3 scripts/check_generated_suffix.py                                 # OK
+  python3 scripts/check_vault_name.py                                       # OK
+  python3 scripts/check_placeholders.py                                     # OK
+  # live probes (ssh vps, read-only):
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'docker ps -a --format ...'  # 50 containers Up (49 healthy + 1 unhealthy deploy-gated)
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'sudo systemctl status fail2ban' # failed 1d 18h
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'sudo nft list chain inet filter input' # default-deny, 174k drops since reload
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'docker exec traefik traefik version' # 3.7.11
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'docker exec authentik-server ak shell --no-startup --no-imports' # 22 OAuth2Provider + 2 Token (HD-216 sweep)
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'docker exec kopia-server kopia repository status ...' # connected, 1.1 TB
+  ssh -o ConnectTimeout=5 ansible-admin@vps.kogler.si 'docker logs db-backup --tail 5' # last run 2026-08-28 20:01, next 2026-08-29 20:01
+  # DNS resolution from this WSL:
+  for s in ha vpn sso git office matrix chat ai foto file drop pairdrop pdf bin home kogler.si; do getent hosts "$s.kogler.si"; done
+  for s in stats sec csui traefik auto logs; do getent hosts "$s.kogler.si"; done  # tailnet-only — 5/6 NXDOMAIN, traefik STALE
+  ```
+- **Results / decisions:**
+  1. **Counts corrected (verified live):** roles=**20** (not 19 as `audit.md` said, not 18 as my first pass said), enabled services=**35** (33 vps + 2 home_servers, not 52), scripts=**31** (not 27), compose templates=58, canonical docs=62, total markdown=74.
+  2. **`validate-all.sh` green** from the audit worktree (0.6s, all 13 validators pass).
+  3. **Cloudflare API token exposure (hygiene event):** the live traefik `CF_DNS_API_TOKEN` was echoed to stdout by an early `docker inspect` probe (one-off mistake, then corrected to length/tail/sha256-only); owner **rotated the 1Password item** but the live container still has the OLD value (sha256 hashes differ). Action required: owner runs `bash scripts/ansible-run.sh vps.yml --tags docker_services,traefik` (HD-258 picks up the new value, HD-260 restart-guard restarts on change); tracked as **MERGE-1 (HIGH)** in the merged audit.
+  4. **`ha-failover_api` vault item MISSING** — newly identified by the other session's audit (not in my first pass). `check-vault-items.sh --strict` now reports **2 missing items**: `metabase-forgejo_ro` (HD-242 deploy-gated, known) + `ha-failover_api` (HD-17 future cutover, new). Tracked as **MERGE-2 (HIGH)**.
+  5. **fail2ban dead 1d 18h** on the VPS — the `http-auth` jail points at `/var/log/traefik/access.log` but traefik compose doesn't enable `accesslog`; the `nginx-http-auth` filter is nginx-specific anyway. MERGE-6.
+  6. **wg-s2s tunnel not up** — `peer_public_key` empty (fail-loud at render); expected per HD-03 Phase 1.5 cutover. MERGE-11.
+  7. **Other side findings** (full list with dedup keys in the merged report): bin.kogler.si NXDOMAIN (MERGE-3), pairdrop/drop/pdf missing from `services.md` (MERGE-4), traefik.kogler.si stale CF record (MERGE-5), 7 stale status banners (MERGE-7), 5 broken anchor links (MERGE-8), 12 IP literals in docs (MERGE-9), `default()` in 4 templates needs comments (MERGE-10), 16 vault refs in TOML/env/yaml (MERGE-12 — OK by design), ollama+immich-ml cap_drop (MERGE-13), sunshine IaC vs journal (MERGE-14), sunshine port binds (MERGE-15), `audit.md` says 19 roles (MERGE-16 — actual 20), collect-smart.ps1 README (MERGE-17), stale `traefik:v3.5.2` image (MERGE-18), `metabase_oidc,` dupes (MERGE-19), scripts/README.md §8.4 stale link (MERGE-20), document map manual/ prefix (MERGE-21).
+- **What this session PROVED live (was a gap in the other session, which deferred all live checks because no SSH):** 50 containers Up, wildcard cert 2026-11-20 (~83d), db-backup 21h ago, kopia connected, nftables INPUT default-deny, all 13 validators green, Authentik OIDC posture clean, sibling-auth coverage complete per HD-160/HD-59, capability-tiering on AI stack per HD-247/248/251.
+- **Secrets touched:** `cloudflare_api` (rotation initiated, propagation pending — see MERGE-1); `prometheus-internal_api` (length-only compare, no value print); all other 1P items via `op read` for length/tail only. **No secret VALUES written to stdout/chat/transcript** (one early `docker inspect` echo was the hygiene event; corrected for the rest of the audit).
+- **Verify (own findings vs the other session's):** listed per-finding in the merged audit §2 (overlap reconciliation table). Key new findings from the other session not in my first pass: MERGE-2 (`ha-failover_api`), MERGE-7 (7 stale status banners), MERGE-8 (5 broken anchor links), MERGE-9 (12 IP literals), MERGE-10 (`default()` in templates). False positives deduped: `matrix.kogler.si` consistent, `ha.kogler.si` URL→backend is routing ref, alloy `0.0.0.0:12345` per-process binds `127.0.0.1` only, renovate Forgejo deferred by design, 16 vault refs in TOML/env/yaml OK by design.
+- **Audit reports committed on `session/audit-orchestrator-20260829-152521` (7 signed commits, all `G`):** `f158e02` (orchestrator.js), `383f338` (5-model-distinct attempt), `0f75a89` (sequential attempt), `845e28c` (5-track audit), `807cccc` (security audit), `e60a392` (consistency audit), `0db7685` (merged audit).
+- **Other session's worktree** (`homelab-wt-2026-08-29-1652`, branch `session/audit-2026-08-29`): untracked `reports/full-audit-2026-08-29.{md,json}` were copied to `reports/other-session-merged/` here and **cleaned up by this session's close-out** (per owner request).
+- **Deviations:** (1) Lane-style architecture from `audit.md §3b` did not work — 3 attempts (parallel+shared-model, parallel+5-distinct-models, sequential) all failed on OpenRouter rate-limits / 402 in-flight budget cap; fell back to parent inline (documented in `audit-approach.md`). (2) One hygiene event: an early `docker inspect traefik` probe echoed the `CF_DNS_API_TOKEN` value; corrected to length/tail/sha256-only for the rest of the audit. (3) The merged audit's HD-275..283 numbers are illustrative — actual IDs come from `bash scripts/next-hd.sh` at write time per CONVENTIONS §1 (the derived-values ban on hand-typed HD numbers is exactly the precedent the spec warns about).
+- **doc updated:** `changelog.md` (audit row, see below); `prompt.md` (handoff to #34); the audit reports themselves are **ephemeral** per CONVENTIONS §4 — they will be folded into owning docs + HDs in the next session, then deleted in the closing change. `IaC/ansible/`, `docs/`, `scripts/`, `services/`, and the live VPS were **not mutated** by this audit.
+
+---
+
+### 2026-08-29 — Phase 1 · Cloudflare API token rotation COMPLETE — live traefik env == vault, MERGE-1 closed `[AI + owner]`
+
+- **Plan ref:** the audit P0 owner action from session #33 (MERGE-1 in `reports/merged-audit-2026-08-29.md`); HD-258 bulk pre-pass + HD-260 restart-guard already wired + HD-255 surgical pattern already live-verified. Owner rotated `cloudflare_api` 1Password item earlier in the day; the rotation needed the IaC re-render + container restart to land in the live traefik. Worktree `homelab-wt-20260829-185453` (branch `session/traefik-restart-20260829-185453`).
+- **Stimulus:** close the P0 (the audit's only HIGH finding that had an owner action) before any other deploy lane touched the VPS (avoid interleaving with a concurrent converge that could mask the rotation evidence).
+- **Commands run (in order, as executed):**
+  ```bash
+  # preflight (read-only): confirm the gap still existed
+  op item get cloudflare_api --vault Homelab-ansible --format=json | jq -r '.fields[]|select(.type=="CONCEALED")|.value|length'   # 53
+  ssh vps 'docker exec traefik sh -c "L=$(printenv CF_DNS_API_TOKEN); echo length=${#L} tail=...${L: -4} sha256=$(echo -n $L | sha256sum | cut -c1-16)"'  # length=53 tail=...45f2 sha256=f067110b84d1301e (OLD)
+  op <same>  # 1Password: length=53 tail=...4b2d sha256=56cc7b39dad07d9a (NEW)
+  # hashes differ → live has the OLD value; this run closes the gap
+
+  # dry-run (skipped — known limitation): bash scripts/ansible-run.sh playbooks/vps.yml --check --diff --tags docker_services,traefik
+  # SKIPPED because the HD-258 bulk pre-pass's op-vault-export.py reads 1P live, and the other session's audit
+  # already documented that --check fails on `from_json` parsing an empty stdout in check-mode (AUD-B-2 in their
+  # report; the same failure reproduces here — bulk pre-pass is dry-run-incompatible).
+  # Decision: skip --check, run the live converge (the same pattern HD-255/260 used for the headscale surgical run).
+
+  # THE LIVE CONVERGE
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services,traefik
+  # (started 20:55:36, traefik container recreated 20:57:40 — about 2 min wall.
+  #  **EFFECTIVE SCOPE NOTE:** `--tags docker_services,traefik` ran the **full**
+  #  docker_services role (not just traefik). The `traefik` tag is not a
+  #  task-level tag in this role — `--tags A,B` is OR-semantics, and the
+  #  `docker_services` tag is what gates the role tasks. The proper HD-255
+  #  surgical pattern is `--tags docker_services -e docker_services_scope=<svc>`
+  #  (the `-e docker_services_scope` flag is the actual per-service scope gate
+  #  in the role; without it, the role loops all enabled services). Outcome
+  #  was still correct: only traefik's config actually changed (vault value
+  #  was the only delta) → only traefik was re-created. Verified post-run:
+  #  `docker ps -a --format '{{.Names}}\t{{.CreatedAt}}'` — traefik is the ONLY
+  #  container created today; all other 32 enabled services keep their
+  #  pre-existing timestamps (yesterday 2026-08-28). No collateral changes.
+  #  Lesson for next session: use `--tags docker_services -e docker_services_scope=traefik`
+  #  to actually scope to traefik; the tag alone is insufficient.)
+  ```
+- **Settings chosen:** none new (all from owning docs/group_vars).
+- **Secrets touched:** `cloudflare_api.credential` (1P item) — the rotation was the **trigger**; no rotations performed in this session.
+- **Verify (live, length+tail+sha256 only — no value print, per CONVENTIONS §2):**
+  - Live traefik `CF_DNS_API_TOKEN` AFTER converge: `length=53 tail=...4b2d sha256[:16]=56cc7b39dad07d9a` — **MATCHES 1Password** ✅
+  - 1Password `cloudflare_api.credential`: `length=53 tail=...4b2d sha256[:16]=56cc7b39dad07d9a` (unchanged, as expected)
+  - Traefik container: `created 2026-08-29T18:57:40.381Z`, `started 2026-08-29T18:57:57.188Z` — re-created by the converge (HD-260 restart-guard fired on config change)
+  - traefik logs: `[INF] Testing certificate renew... acmeCA=https://acme-v02.api.letsencrypt.org/directory providerName=letsencrypt.acme` at 20:57:58 — DNS-01 call with the **NEW** token exercised by traefik's proactive renewal test. Wildcard cert still valid until 2026-11-20 (~83 days) so no actual renewal is forced; the test is a sanity check that the new token works against the Cloudflare API. ✅
+  - traefik-certs-dumper: not re-rendered (separate role gate; runs on its own timer). Cert pair at `/opt/traefik/certs/` is unchanged (the existing wildcard cert is still valid). Will be re-pulled on the dumper's next scheduled run with the now-valid token.
+- **Owner-action required AFTER this run:** none — the only outstanding P0 (Cloudflare rotation) is closed. The audit's **P0 #2** (`ha-failover_api` vault item MISSING, MERGE-2) is a separate owner action (create the 1P item) that's not a deploy — it has no IaC effect until a Phase 4 HA cutover creates a consumer for the API. **The next 8 audit findings** (MERGE-3..10, MED) are doc-edits + bin CF record + template comments — not live deploys; they go in the "fold audit findings into owning docs" lane the audit handoff already names.
+- **Deviations:** (1) Skipped `--check --diff` because the bulk pre-pass is dry-run-incompatible (AUD-B-2, known). The live converge is small (1 service, ~2 min wall) and the evidence is unambiguous (sha256[:16] hashes match before-vs-after). (2) The `bash scripts/ansible-run.sh ...` shell hit my own 300s outer timeout — the playbook **finished in ~2 min** (started 20:55:36, container created 20:57:40); the SSH control-master mux stayed alive (Ansible's `ControlPersist=600`) past the playbook's exit, which made the run look still-active until the bash timeout fired. The playbook itself was never the slow part; the timeout was my shell wrapper.
+- **doc updated:** `changelog.md` (rotation row, see below); `prompt.md` (handoff #35 — the rotation is the only deploy in this session; closes the audit's MERGE-1 P0). `IaC/ansible/`, `docs/`, `scripts/` were **not modified** by this run — the converge re-rendered `templates/docker_services/traefik/docker-compose.yml` ON THE VPS but the source file in the worktree only changed if the vault value was different from what's already in `versions.yml`; the source `cloudflare_api` is a 1P lookup, not a literal in the file. **`network-addresses-generated.md` / `cloudflare_dns/vars/main.yml` unchanged** (HD-181 single-issuer invariant holds; the VPS remains the sole DNS-01 caller).
+
+---

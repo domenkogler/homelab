@@ -3,6 +3,12 @@
 #   Also handles office automation workflows.
 #   Renewal-reminder workflow: docs/automation-renewals.md (infra; create post-deploy).
 #
+#   INTERNAL-ONLY (HD-135b follow-up): the public `auto.kogler.si` route (main
+#   Traefik labels) is REMOVED — n8n is reachable ONLY over the tailnet via the
+#   traefik-tailnet edge (auto.kogler.si / auto.ts.kogler.si, headscale extra_records).
+#   The compose still binds traefik-public (the tailnet edge reaches it by service
+#   name); the service itself owns NO public route.
+#
 #   SQLite database (no external Postgres). Web UI protected by Authentik Forward-Auth.
 #
 #   Secrets (docs/deployment-secrets.md master list):
@@ -34,21 +40,17 @@ services:
       N8N_PROTOCOL: https
       N8N_HOST: auto.kogler.si
       WEBHOOK_URL: https://auto.kogler.si
-      N8N_ENCRYPTION_KEY: "{{ vault['n8n_password'].password }}"
+      N8N_ENCRYPTION_KEY: "{{ vault['n8n_password'].password | replace('$','$$') }}"
       # Webhook/API auth — separate, rotatable token from the encryption key (KOPS-031 / HD-77).
       N8N_BASIC_AUTH_ACTIVE: "true"
       N8N_BASIC_AUTH_USER: grafana
-      N8N_BASIC_AUTH_PASSWORD: "{{ vault['n8n-webhook_api'].credential }}"
+      N8N_BASIC_AUTH_PASSWORD: "{{ vault['n8n-webhook_api'].credential | replace('$','$$') }}"
       N8N_METRICS: "true"
       DB_TYPE: sqlite
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-    labels:
-      traefik.enable: "true"
-      traefik.http.routers.n8n.rule: "Host(`auto.kogler.si`)"
-      traefik.http.routers.n8n.entrypoints: websecure
-      {{ 'traefik.http.routers.n8n.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
-      traefik.http.routers.n8n.middlewares: authentik-forward-auth@file
-      traefik.http.services.n8n.loadbalancer.server.port: "5678"
+    labels: {}   # INTERNAL-ONLY (HD-135b follow-up): no public Traefik route on the main
+                  # edge — n8n is served over the tailnet by the traefik-tailnet edge
+                  # (auto.kogler.si / auto.ts.kogler.si).
 networks:
   traefik-public:
     external: true

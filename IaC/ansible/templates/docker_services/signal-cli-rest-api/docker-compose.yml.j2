@@ -15,16 +15,16 @@ services:
     container_name: signal-cli-rest-api
     restart: unless-stopped
     environment:
-      SIGNAL_CLI_PHONE_NUMBER: "{{ vault['signal_api'].username }}"
+      SIGNAL_CLI_PHONE_NUMBER: "{{ vault['signal_api'].username | replace('$','$$') }}"
       # INTENTIONAL default('', true) (HD-202): the Signal captcha token is an OPTIONAL
       # anti-bot value — signal-cli starts and receives fine without it; a missing 1Password
       # field must not abort the whole render (fail-loud law applies to REQUIRED secrets only).
-      SIGNAL_CLI_CAPTCHA: "{{ vault['signal_api'].credential | default('', true) }}"
+      SIGNAL_CLI_CAPTCHA: "{{ vault['signal_api'].credential | default('', true) | replace('$','$$') }}"
       MODE: json-rpc
       # API token auth (KOPS-002 / HD-125): require an X-Api-Key header so no container on
       # services-internal can send Signal messages as Domen's number without the token.
       # n8n sends the token in its webhook call. Token from `signal-internal_api` (SSOT).
-      SIGNAL_CLI_API_TOKEN: "{{ vault['signal-internal_api'].credential }}"
+      SIGNAL_CLI_API_TOKEN: "{{ vault['signal-internal_api'].credential | replace('$','$$') }}"
     networks:
       - services-internal
     volumes:

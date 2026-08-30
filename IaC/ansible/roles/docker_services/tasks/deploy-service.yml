@@ -46,6 +46,22 @@
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml"
     mode: '0644'
 
+- name: "Remove stub dirs at extra-template dest paths for {{ svc.name }} (HD-268c)"
+  # HD-268c: when a service bind-mounts a source file from the template dir
+  # (e.g. ./serve.json:/config/serve.json:ro) and the file does NOT yet exist,
+  # docker compose up auto-creates the source as an EMPTY DIRECTORY (its default
+  # behaviour for missing bind-mount sources). On subsequent converges, the template
+  # task refuses to overwrite a directory at dest. Pre-remove any such stub so the
+  # render lands as a regular file.
+  tags: "{{ svc.name }}"
+  ansible.builtin.file:
+    path: "{{ docker_compose_dir }}/{{ svc.name }}/{{ extra | replace('.j2', '') }}"
+    state: absent
+  loop: "{{ _extra_templates[svc.template_dir] | default([]) }}"
+  loop_control:
+    label: "{{ extra | replace('.j2', '') }}"
+    loop_var: extra
+
 - name: "Template extra .j2 files for {{ svc.name }}"
   # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
   tags: "{{ svc.name }}"
@@ -103,7 +119,7 @@
 - name: "Validate rendered compose file for {{ svc.name }} (HD-162)"
   ansible.builtin.shell:
     cmd: "docker compose -f {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml config --quiet"   # `compose validate` does not exist (found live Phase 1)
-  when: ansible_service_mgr == 'systemd'   # docker available; catch a bad render before compose up
+  when: ansible_facts['service_mgr'] == 'systemd'   # docker available; catch a bad render before compose up
   tags: "{{ svc.name }}"
 
 - name: "Docker compose up -d for {{ svc.name }}"
@@ -157,7 +173,7 @@
     name: "docker-compose@{{ svc.name }}"
     enabled: true
     state: started
-  when: ansible_service_mgr == 'systemd'
+  when: ansible_facts['service_mgr'] == 'systemd'
 
 # ---- Postgres role-password drift guard (2026-08-23 incident) ----
 # The official postgres image applies POSTGRES_PASSWORD ONLY at first cluster init;
@@ -170,8 +186,12 @@
 - name: "Sync postgres role password with vault ({{ svc.name }})"
   when: svc.db_role_sync | default(false)
   vars:
-    _db_user: "{{ lookup('community.general.onepassword', svc.db_item, field='username', vault=op_vault) }}"
-    _db_pass: "{{ lookup('community.general.onepassword', svc.db_item, field='password', vault=op_vault) }}"
+    # Read from the HD-258 bulk `vault` dict (built ONCE per converge by fetch-vault-pass),
+    # NOT per-task community.general.onepassword lookups — each lookup was an `op` spawn,
+    # and every db_role_sync service paid ~2.6s. Same fail-closed contract; the item is in
+    # the derive set (its owning template_dir is in _template_vault_items).
+    _db_user: "{{ vault[svc.db_item].username }}"
+    _db_pass: "{{ vault[svc.db_item].password }}"
   ansible.builtin.command:
     argv:
       - docker
@@ -208,8 +228,9 @@
 - name: "Ensure read-only analytics role ({{ svc.name }})"
   when: svc.db_ro_sync | default(false)
   vars:
-    _ro_user: "{{ lookup('community.general.onepassword', svc.db_ro_item, field='username', vault=op_vault) }}"
-    _ro_pass: "{{ lookup('community.general.onepassword', svc.db_ro_item, field='password', vault=op_vault) }}"
+    # HD-268 opt: read from the HD-258 `vault` dict (single fetches), not per-task lookups.
+    _ro_user: "{{ vault[svc.db_ro_item].username }}"
+    _ro_pass: "{{ vault[svc.db_ro_item].password }}"
   ansible.builtin.command:
     argv:
       - docker
@@ -253,7 +274,8 @@
 - name: "Sync forgejo app.ini DB password with vault"
   when: svc.name == 'forgejo'
   vars:
-    _ini_db_pass: "{{ lookup('community.general.onepassword', svc.db_item, field='password', vault=op_vault) }}"
+    # HD-268 opt: read from the HD-258 `vault` dict, not a per-task lookup.
+    _ini_db_pass: "{{ vault[svc.db_item].password }}"
   # Section-scoped ini_file is the CORRECT writer here (2026-08-23 lesson: an interim
   # lineinfile attempt with a bare ^PASSWD regexp failed to match and APPENDED a second
   # PASSWD at EOF - gitea reads the first occurrence under [database], so the stale original
@@ -367,7 +389,7 @@
   ansible.builtin.include_tasks:
     file: fetch-vault-pass.yml
   vars:
+    op_mode: "list"
     op_item_list: >-
       {{ litellm_scoped_keys | default([]) | map(attribute='vault_item') | list }}
-    op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"
   tags: "{{ svc.name }}"

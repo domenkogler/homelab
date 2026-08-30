@@ -23,7 +23,7 @@ tags: [storage, zfs, datasets, backup, media, nfs]
    model weights, TSDB (Prometheus/Loki), and the media library are deliberately **not** backup targets.
 3. **Live data is local.** DBs and service runtime state live on the host's NVMe/SSD — never on NFS.
    The NAS holds **backup artifacts** (dumps, state pushes). **OpenCloud user files + Immich originals live
-   on the live Hetzner Box (CIFS/WebDAV)**, not the NAS (HD-135) — the NAS keeps only ZFS snapshots/replicas
+   on the live Hetzner Box (CIFS/WebDAV — **SB-Data** `FSN1-BX2190`, Falkenstein, DE)**, not the NAS (HD-135) — the NAS keeps only ZFS snapshots/replicas
    of the box-facing datasets where retained.
 4. **TRaSH hardlinks need one filesystem.** `downloads/` and `media/` live in a **single dataset**
    (`bulk/media`) — ZFS hardlinks cannot cross dataset boundaries.
@@ -161,7 +161,7 @@ deployed by the Ansible `storage` role.
 
 ---
 
-## Kopia Policy (oldsrv agent → Hetzner Storage Box, backup)
+## Kopia Policy (oldsrv agent → Hetzner Storage Box **SB-Backup** `HEL1-BX186`, Helsinki — off-site)
 
 **Sources (all local, none on NAS):**
 - `/srv/dumps` (SQL dump scratch)
@@ -197,7 +197,7 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
 ├── nvme/docker-layers       /var/lib/docker        128K lz4   no snapshots (images re-pullable)
 ├── nvme/docker              /srv/docker (container, canmount=off)
 │   ├── nvme/docker/immich   /srv/docker/immich     128K lz4   thumbs read by immich-ml (kept, HD-151)
-│   └── nvme/docker/services /srv/docker/services   128K zstd  remaining local service state (post-HD-135 the public apps/DBs run on the VPS — oldsrv keeps the LAN core: DNS, dozzle, signal-cli, media stack state)
+│   └── nvme/docker/services /srv/docker/services   128K zstd  remaining local service state (post-HD-135 the public apps/DBs run on the VPS — oldsrv keeps the LAN core: DNS, signal-cli, media stack state; dozzle moved to VPS per HD-135b)
 ├── nvme/models              /srv/models 128K off   no snapshots, no backup (ollama + immich-ml weights)  (TSDB moved to VPS — HD-135)
 └── nvme/dumps               /srv/dumps  128K zstd  db-backup scratch → Kopia + push → tank/data/db-dumps
 ```

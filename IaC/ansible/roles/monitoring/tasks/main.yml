@@ -14,6 +14,10 @@
 # Backend moves: Prometheus/Loki/Grafana now run on the VPS (reliable tier). old-srv
 # keeps a thin Alloy collector that forwards home telemetry over the wg-s2s tunnel
 # (alloy_backend_host); the VPS runs its own Alloy + the Grafana provisioning.
+# HD-135b (2026-08-28): the VPS Alloy self-observes on loopback (alloy_backend_host
+# defaults to 127.0.0.1) — VPS container logs/metrics stay local, no tunnel. The WG
+# tunnel dependency applies only to HOME telemetry (oldsrv/Pi collectors), not the
+# VPS's own stack. Dozzle (log viewer) also moved to the VPS (group_vars/vps.yml).
 #
 # This role handles:
 #   1. HA Prometheus API bearer token (from 1Password ha_api)
@@ -68,9 +72,9 @@
   changed_when: false
   tags: [monitoring, alloy]
 
-- name: Install Alloy
+- name: Install Alloy (pinned, host-APT — deliberate exception, see group_vars/all/versions.yml)
   ansible.builtin.apt:
-    name: alloy
+    name: "alloy={{ alloy_version }}"
     state: present
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]

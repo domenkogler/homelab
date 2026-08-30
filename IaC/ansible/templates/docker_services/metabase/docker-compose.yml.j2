@@ -44,9 +44,9 @@ services:
       MB_EMAIL_SMTP_PORT: "{{ smtp2go_port }}"
       MB_EMAIL_SMTP_SECURITY: starttls
       MB_EMAIL_SMTP_USERNAME: >-
-        {{ vault['smtp_login'].username }}
+        {{ vault['smtp_login'].username | replace('$','$$') }}
       MB_EMAIL_SMTP_PASSWORD: >-
-        {{ vault['smtp_login'].password }}
+        {{ vault['smtp_login'].password | replace('$','$$') }}
       MB_FROM_ADDRESS: notify@kogler.si
     networks:
       - traefik-public

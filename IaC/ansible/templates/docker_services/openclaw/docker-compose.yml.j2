@@ -39,11 +39,11 @@ services:
       OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
       OPENCLAW_CONFIG_DIR: /home/node/.openclaw
       OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
-      OPENCLAW_GATEWAY_TOKEN: "{{ vault['openclaw_gateway_token'].password }}"
+      OPENCLAW_GATEWAY_TOKEN: "{{ vault['openclaw_gateway_token'].password | replace('$','$$') }}"
       # HD-160: OpenCloud WebDAV credential (app-specific password, scoped service user).
       # Consumed by `openclaw onboard` / `openclaw.json` WebDAV block at deploy; fail-loud.
-      OPENCLOUD_WEBDAV_USERNAME: "{{ vault['openclaw-opencloud_api'].username }}"
-      OPENCLOUD_WEBDAV_PASSWORD: "{{ vault['openclaw-opencloud_api'].credential }}"
+      OPENCLOUD_WEBDAV_USERNAME: "{{ vault['openclaw-opencloud_api'].username | replace('$','$$') }}"
+      OPENCLOUD_WEBDAV_PASSWORD: "{{ vault['openclaw-opencloud_api'].credential | replace('$','$$') }}"
       # Model backend = LiteLLM (spine). OpenClaw talks to LiteLLM as an OpenAI-compatible
       # provider; full binding set in openclaw.json at deploy — credential = the SCOPED
       # virtual key minted into `openclaw-litellm_api` by the HD-247 bootstrap glue

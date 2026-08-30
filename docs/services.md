@@ -27,7 +27,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 | [Utilities](services-utilities.md) | n8n, signal-cli, PairDrop, Stirling PDF | detail |
 | [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Metabase, Headscale, Kopia, DB Backup | detail |
 | [Office](services-office.md) | ONLYOFFICE, OpenCloud, office bridge (cross-cutting) | detail |
-| [AI Platform](services-ai.md) | LiteLLM, Open WebUI, Docling, OpenClaw, PGVector, Ollama, Immich-ML | detail |
+| [AI Platform](services-ai.md) | LiteLLM, Open WebUI, Docling, OpenClaw, Qdrant, Ollama, Immich-ML | detail |
 | [Matrix](services-matrix.md) | Tuwunel, Element Web | detail |
 | [Finance](services-finance.md) | Actual Budget | detail |
 | [Traefik — Reverse Proxy & Edge](services-traefik.md) | Traefik | detail |
@@ -80,16 +80,19 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 | `file` | OpenCloud |
 | `bin` | Zipline (HD-112) — public viewer/share routes + guest dropzone uploads; dashboard native OIDC; `crowdsec-only` tier |
 | `office` | ONLYOFFICE — browser editor UI via Traefik (WOPI helper, JWT-auth, no user auth itself — HD-166) |
+| `pairdrop` | PairDrop public (HD-230) — P2P browser file transfer (signaling-only server), `crowdsec-only` tier (no Forward-Auth) |
+| `pdf` | Stirling PDF — public, `authentik-forward-auth` (SSO login) |
 | `ai` | Open WebUI — AI chat/RAG, public, Authentik OIDC + CrowdSec-only (HD-101) |
 | `git` | Forgejo |
 | `ha` | Home Assistant (VIP, HA-native auth) |
 | `vpn` | Headscale |
 | `matrix` | Tuwunel homeserver — public/federated, `/_matrix/*` no Forward-Auth (Matrix-native SSO → Authentik) |
 | `chat` | Element Web — Matrix-native SSO → Authentik |
+| `drop` | PairDrop public alt-host (HD-230) — same instance as `pairdrop.kogler.si`; P2P browser file transfer, `crowdsec-only` tier (no Forward-Auth, abuse-guard by CrowdSec + built-in rate limit) |
 
 > Note: `office` (ONLYOFFICE) and `git` (Forgejo) belong to `services-office.md` and `services-admin.md` resp. — subdomains shared here are cross-cutting.
 
-**Admin Dashboards decision:** Traefik Dashboard included, internal-only (`traefik.kogler.si`, see `services-traefik.md`); CrowdSec Dashboard included, internal-only `sec.kogler.si` via Metabase (admin stack). **Portainer / Dockge — excluded** (single Ansible-templated compose model).
+**Admin Dashboards decision:** Traefik Dashboard included, tailnet-only (`traefik.kogler.si` / `traefik.ts.kogler.si`, see `services-traefik.md` → **traefik-tailnet**); CrowdSec Dashboard included, tailnet-only `sec.kogler.si` via Metabase + **CrowdSec Web UI** `csui.kogler.si` (HD-272, tailnet-only) — admin stack. **All six admin dashboards** (`stats` Grafana / `sec` Metabase / `traefik` dashboard / `logs` Dozzle / `csui` CrowdSec-UI / `auto` n8n) are **tailnet-only** over the `traefik-tailnet` edge (HD-135b follow-up, 2026-08-28) — no public records, reached at `https://<app>.kogler.si` or `https://<app>.ts.kogler.si` on the tailnet. **Portainer / Dockge — excluded** (single Ansible-templated compose model).
 
 ---
 
