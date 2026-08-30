@@ -14,7 +14,7 @@ Audit the **current** repository (2026-08-29, main `969597d`) — NOT the 2025-0
 The Qwen audits (61 KOPS findings + architecture audit + low-fruits) were fully reconciled into
 the canonical system on 2025-08-16 (`reports/audit-analysis.md`, AUD-01..13 all `(done)`), and the
 repo has since: gone live on the VPS (Phase 1), grown to 33 enabled services, 62 docs, 31 scripts,
-19 roles, 58 compose templates. This audit measures **drift between authored state and reality** —
+20 roles, 58 compose templates. This audit measures **drift between authored state and reality** —
 the README §2 three-step check is the liveness SSOT (`deployment-journal.md` > `deployment-tasks.md`
 ⏳ checklists > doc banners as hints only).
 
@@ -79,7 +79,7 @@ drift, never cosmetic noise.
 
 ### Track B — IaC (Ansible) consistency & health
 1. **Inventory ↔ group_vars ↔ host_vars ↔ playbooks**: every host in `inventory.ini` has a host_vars file with an `ansible_host`; every playbook's host pattern matches the inventory groups; no dead/duplicate vars; `group_vars/all/` vs per-group precedence sane.
-2. **Role health**: each of the 19 roles — exists under `roles/`, referenced by a playbook, `defaults/`+`tasks/`+`handlers/`(+`templates/`) shaped, no orphan role, no role that a playbook references but is missing. `requirements.yml` collections resolve (they're installed in `~/ansible-venv`).
+2. **Role health**: each of the 20 roles — exists under `roles/`, referenced by a playbook, `defaults/`+`tasks/`+`handlers/`(+`templates/`) shaped, no orphan role, no role that a playbook references but is missing. `requirements.yml` collections resolve (they're installed in `~/ansible-venv`).
 3. **docker_services registry ↔ templates ↔ vault**: every `enabled: true` entry in `group_vars/{vps,home_servers}.yml` has a `template_dir` that exists under `templates/docker_services/`; every template dir has a `docker-compose.yml.j2`; every `_template_vault_items` / `vault[...]` reference resolves to a 1P item or a glue-seeded item (re-run `bash scripts/check-vault-items.sh --strict` on the live tree for the MISSING list; exclude the documented glue items). Cross-check service list vs `docs/services.md` catalog + `docs/network-addresses-generated.md`.
 4. **Compose template rules** (`docs/deployment-compose.md`): external networks, Traefik label conventions, no host-net/privileged port binds unless documented, pins (`_version` vars, no bare `latest`), the `| replace('$','$$')` compose-escaping rule (HD-270) applied on every vault-value expr, no `default('')` **anywhere in templates/group_vars** (fail-loud rule HD-65/HD-91).
    **HD-270 Escape Verification**: grep for `vault\[` in all `templates/docker_services/**/*.j2` — every occurrence must have `| replace('$','$$')` or be in a context where escaping is not needed (document why).

@@ -1,4 +1,7 @@
 # traefik-tailnet dynamic/middlewares.yml — file-provider middlewares (tailnet edge)
+#   Vault-escape note: this file is consumed by Traefik's file-provider (NOT `docker compose`
+#   interpolation), so `{{ vault['…'] }}` values pass through unchanged. Compose's `$`-substitution
+#   only applies to compose files (HD-270/HD-233 lesson). Raw vault creds here are safe.
 #   Same middleware definitions as the MAIN traefik edge (dynamic/middlewares.yml
 #   of the public traefik). Each traefik instance owns its own file-provider
 #   definitions — they are NOT shared across instances — so the tailnet edge

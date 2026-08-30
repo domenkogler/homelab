@@ -36,6 +36,9 @@ services:
     ports:
       # HD-191: WG-only reach for the oldsrv agent. Fail-loud guard mirrors the
       # authentik LDAP bind (HD-186): unprovisioned router pubkey -> loopback only.
+      # Non-secret `default('')` (CONVENTIONS §3): structural fallback for the WG peer-key
+      # gate; `else '127.0.0.1'` is a loopback IP, NOT a 1Password secret — fail-loud would
+      # be wrong here. See HD-62 + HD-186 precedent (loki/prometheus/authentik LDAP line).
       - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:51515:51515"
     command:
       - sh

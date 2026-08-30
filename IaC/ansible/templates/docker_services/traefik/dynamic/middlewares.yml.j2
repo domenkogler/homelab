@@ -1,5 +1,9 @@
 # traefik — file-provider middlewares (deployed as /opt/traefik/dynamic/middlewares.yml)
 #
+# Vault-escape note: this file is consumed by Traefik's file-provider (NOT `docker compose`
+# interpolation), so `{{ vault['…'] }}` values pass through unchanged. Compose's `$`-substitution
+# only applies to compose files (HD-270/HD-233 lesson). Raw `vault['crowdsec-bouncer_api'].credential`
+# here is safe — no `| replace('$','$$')` needed.
 # Middleware chain for public services:
 #   1. CrowdSec bouncer plugin — queries CrowdSec LAPI, blocks malicious IPs
 #   2. Authentik Forward-Auth — delegates auth to the SSO provider
