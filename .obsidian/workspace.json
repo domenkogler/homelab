@@ -11,12 +11,17 @@
             "id": "9db10c86e7a90837",
             "type": "leaf",
             "state": {
-              "type": "mermaid-view",
+              "type": "canvas",
               "state": {
-                "file": "docs/rack-layout.mmd"
+                "file": "docs/assets/Rack.canvas",
+                "viewState": {
+                  "x": -1587.4182343988152,
+                  "y": -2097.262717117287,
+                  "zoom": 0.0002028513879891447
+                }
               },
-              "icon": "git-branch",
-              "title": "rack-layout"
+              "icon": "lucide-layout-dashboard",
+              "title": "Rack"
             }
           }
         ]
@@ -94,7 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/rack-layout.mmd",
+                "file": "docs/assets/Rack.canvas",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -184,10 +189,12 @@
   },
   "active": "9db10c86e7a90837",
   "lastOpenFiles": [
+    "docs/assets/images/wAP-ac.png",
+    "docs/assets/Network-Devices.canvas",
+    "docs/rack-layout.mmd",
     "docs/rack-connections.md",
     "docs/network-rack.md",
     "docs/assets/Rack.canvas",
-    "docs/rack-layout.mmd",
     "scripts/render_rack_connections.py",
     "docs/rack-connections.json",
     "prompt.md",
@@ -200,7 +207,6 @@
     "IaC/ansible/playbooks/render-routeros.yml",
     "sedaohfuo",
     "docs/assets/images/rack.jpg",
-    "docs/assets/Network-Devices.canvas",
     "docs/assets/images/Comtrend-GRG-4260us.png",
     "docs/assets/images/CRS328.png",
     "docs/assets/images/hAP-ac.png",
@@ -226,10 +232,8 @@
     "skills/run-task/SKILL.md",
     "skills/plan-task/references/manifest-template.md",
     "docs/deployment-preseed.md",
-    "docs/assets/images/wAP-ac.png",
     "docs/assets/images/RB4011.png",
     "skills/plan-task/_fixture_good.md",
-    "docs/deployment-ansible.md",
     "docs/assets/images/HMIP-HAP.png"
   ]
 }
