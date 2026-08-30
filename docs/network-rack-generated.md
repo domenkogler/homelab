@@ -24,7 +24,7 @@ Each row = one physical link. Patch-panel targets show the wall-side room/device
 
 | Interface | Connected to | Note |
 |-----------|--------------|------|
-| `eth1` | **Panel A / port 2** → AP · Mikrotik wAP ac `6C:3B:6B:7D:B9:C5` | reversal: eth1->A2 |
+| `eth1` | **Panel A / port 2** → AP · ☠️ Mikrotik wAP ac (DEAD 2026-08-24, HD-232 — port reserved for replacement; replacement must be wifi-qcom-ac-capable) `6C:3B:6B:7D:B9:C5` | reversal: eth1->A2 |
 | `eth2` | **Panel A / port 1** → kamera · Reolink RLC-420-5MP `EC:71:DB:5F:BC:C1` | reversal: eth2->A1 |
 | `eth3` | **Panel A / port 4** → rack · no device _— (no MAC)_ | reversal |
 | `eth4` | **Panel A / port 3** → rack / UPS · PowerWalker VFI 3000 ICR IoT `00:20:85:C0:92:FA` | reversal |
@@ -82,7 +82,7 @@ _No modelled connections (appears in canvas but wiring unknown)._
 | Port | Patched from | Room / end | Device | MAC |
 |------|--------------|------------|--------|-----|
 | ✔ 1 | CRS328-24P-4S+ Switch `eth2` | garaža kamera | Reolink RLC-420-5MP | `EC:71:DB:5F:BC:C1` |
-| ✔ 2 | CRS328-24P-4S+ Switch `eth1` | garaža AP | Mikrotik wAP ac | `6C:3B:6B:7D:B9:C5` |
+| ✗ 2 | CRS328-24P-4S+ Switch `eth1` | garaža AP | ☠️ Mikrotik wAP ac (DEAD 2026-08-24, HD-232 — port reserved for replacement; replacement must be wifi-qcom-ac-capable) | `6C:3B:6B:7D:B9:C5` |
 | ✔ 3 | CRS328-24P-4S+ Switch `eth4` | predsoba rack / UPS | PowerWalker VFI 3000 ICR IoT | `00:20:85:C0:92:FA` |
 | ✗ 4 | CRS328-24P-4S+ Switch `eth3` | predsoba rack | — | `—` |
 | ✗ 5 | — | hodnik domofon | — | `—` |

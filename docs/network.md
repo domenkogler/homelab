@@ -44,8 +44,9 @@ Internet → ONT → router ether1 (WAN)
         ┌───────────┼───────────┐
         │           │           │
     APs (PoE)   Wired devices  oldsrv (trunk)
-  wAP ac + 2× hAP  (access ports) VLAN 10,20,50 tagged
-                               VLAN 99 native (Mgmt)
+  2× hAP (access ports) VLAN 10,20,50 tagged
+                       VLAN 99 native (Mgmt)
+  (☠️ garage AP DEAD 2026-08-24, ether1 reserved for replacement)
 ```
 
 - **oldsrv** uses single UTP (Intel i350-T2) to switch as VLAN trunk — all VLANs over one cable

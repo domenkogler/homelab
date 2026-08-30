@@ -75,7 +75,7 @@ Visual layout is maintained in **[Rack.canvas](assets/Rack.canvas)** — open wi
 | HMIP-HAP | [`assets/images/HMIP-HAP.png`](assets/images/HMIP-HAP.png) |
 | hAP ac | [`assets/images/hAP-ac.png`](assets/images/hAP-ac.png) |
 | hAP ac² | [`assets/images/hAP-ac2.png`](assets/images/hAP-ac2.png) |
-| wAP ac | [`assets/images/wAP-ac.png`](assets/images/wAP-ac.png) |
+| ~~wAP ac~~ ☠️ DEAD 2026-08-24 | (image removed; see [network-migration-inventory.md](network-migration-inventory.md) for diagnosis; replacement pending, must be wifi-qcom-ac-capable per HD-232) |
 
 ---
 

@@ -158,7 +158,10 @@ network_static_hosts:
   # Management VLAN 99
   - { name: router,   vlan: 99, ip: "10.10.99.1",  role: "RB4011 gateway" }
   - { name: switch,   vlan: 99, ip: "10.10.99.2",  role: "CRS328 mgmt" }
-  - { name: ap-garage,  vlan: 99, ip: "10.10.99.3", mac: "6C:3B:6B:7D:B9:C5", role: "wAP ac (garaža)" }
+  # ap-garage: ☠️ DEAD 2026-08-24 (wAP ac hardware fault, HD-232). IP/MAC preserved
+  # for the replacement unit (must be wifi-qcom-ac-capable per HD-232 modern fleet
+  # decision). See docs/network-migration-inventory.md + IaC/router/templates/.
+  - { name: ap-garage,  vlan: 99, ip: "10.10.99.3", mac: "6C:3B:6B:7D:B9:C5", role: "☠️ wAP ac DEAD 2026-08-24 (lease reserved for replacement)" }
   - { name: ap-spalnica, vlan: 99, ip: "10.10.99.4", mac: "C4:AD:34:42:F1:7D", role: "hAP ac² (spalnica)" }
   - { name: ap-dnevna, vlan: 99, ip: "10.10.99.5", mac: "64:D1:54:AA:24:D1", role: "hAP ac (dnevna)" }
   - { name: ap-spare,  vlan: 99, ip: "10.10.99.6", role: "hAP ac² spare" }

@@ -101,7 +101,7 @@
       "rack_unit": "U18",
       "ports": {
         "1": {"room": "garaža", "ends_at": "kamera", "device": "Reolink RLC-420-5MP", "mac": "EC:71:DB:5F:BC:C1", "used": true},
-        "2": {"room": "garaža", "ends_at": "AP", "device": "Mikrotik wAP ac", "mac": "6C:3B:6B:7D:B9:C5", "used": true},
+        "2": {"room": "garaža", "ends_at": "AP", "device": "☠️ Mikrotik wAP ac (DEAD 2026-08-24, HD-232 — port reserved for replacement; replacement must be wifi-qcom-ac-capable)", "mac": "6C:3B:6B:7D:B9:C5", "used": false},
         "3": {"room": "predsoba", "ends_at": "rack / UPS", "device": "PowerWalker VFI 3000 ICR IoT", "mac": "00:20:85:C0:92:FA", "used": true},
         "4": {"room": "predsoba", "ends_at": "rack", "device": null, "mac": null, "used": false, "note": "patch cord terminated, no device"},
         "5": {"room": "hodnik", "ends_at": "domofon", "device": null, "mac": null, "used": false},

@@ -54,10 +54,13 @@ are added by the **Ansible `router` role** (not the router template). AP → IP 
 
 | AP | MAC | IP |
 |----|-----|-----|
-| ap-garage | `6C:3B:6B:7D:B9:C5` | per `network_static_hosts` (all.yml) |
+| ap-garage ☠️ | `6C:3B:6B:7D:B9:C5` (dead) | per `network_static_hosts` (all.yml) — lease reserved for replacement |
 | ap-spalnica | `C4:AD:34:42:F1:7D` | per `network_static_hosts` (all.yml) |
 | ap-dnevna | `64:D1:54:AA:24:D1` | per `network_static_hosts` (all.yml) |
 | ap-spare | (TBD) | per `network_static_hosts` (all.yml) |
+
+> **ap-garage DEAD 2026-08-24 (HD-232):** wAP ac hardware fault. MAC + lease preserved
+> for the replacement unit (must be wifi-qcom-ac-capable per HD-232 modern fleet).
 
 ## Secrets referenced (1Password `Homelab-ansible` vault)
 
