@@ -52,9 +52,10 @@ wireguard_s2s_vps:
   remote_ip: 10.255.40.2/30
   remote_endpoint: "{{ hostvars['vps.kogler.si'].ansible_host }}"
   port: 51820
-  # VPS public key (derived from the VPS wireguard private key), needed for the router
-  # peer. Fail-closed when unset at deploy; the shared `wg_password` here is the router's
-  # private key. Single-private-key-per-S2S-family means each side derives its own pubkey.
+  # VPS public key (derived from the shared `wg_password` private key), needed for the router
+  # peer. Fail-closed when unset at deploy; both sides share one private key (`wg_password`),
+  # so each side derives its own pubkey from it — pinned in group_vars/all.yml
+  # (`wg_s2s_router_public_key` / `wg_s2s_vps_public_key`).
   vps_public_key: "{{ lookup('vars', 'wg_s2s_vps_public_key', default='') }}"  # HD-271: lookup default — no `in vars` membership (internal vars dict deprecated at 2.24)
   # LEAST-ACCESS (HD-155): the router accepts from the VPS peer only the scoped home
   # targets (exporter/VIP/probe + oldsrv backends) + wg-vps-services — NOT the whole

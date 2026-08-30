@@ -166,7 +166,16 @@ def _lint_file(path: Path) -> list[str]:
         # Bare-identifier on a bare `secret:` key = 1Password item reference.
         if _is_pointer_value(key, val):
             continue
-        # A credential that survived placeholder & jinja checks is a violation.
+        # WireGuard/SSH *public* keys are NOT credentials — they are derived from the
+        # private key (kept in 1Password) and are meant to be committed/rendered (e.g.
+        # `wg_s2s_router_public_key`, the WG S2S peer pubkey on both sides). The private
+        # half still trips `_PEM` above. Match:
+        #   * 44-char base64 WG pubkey (WireGuard)
+        #   * `ssh-ed25519 AAAA...` / `ssh-rsa AAAA...` OpenSSH public-key line
+        if re.search(r"public[_-]?key", key, re.IGNORECASE) and re.search(
+            r"(?:ssh-(?:ed25519|rsa|ecdsa|dss)\s+AAAA|[A-Za-z0-9+/]{43}=)\s*$", val
+        ):
+            continue
         # A credential that survived placeholder & jinja checks is a violation.
         violations.append(
             f"{path.relative_to(ROOT)}:{lno}: possible literal credential on "

@@ -28,6 +28,17 @@
   gather_facts: false
   run_once: true
   vars:
+    # --- SSOT-derived context the templates reference (must be defined or render empties silently) ---
+    # Management VLAN dict = the VLAN 99 entry from network_vlans (all.yml).
+    mgmt: "{{ network_vlans | selectattr('id', '==', 99) | list | first }}"
+    # Router / switch Management-plane IPs (from network_static_hosts, all.yml).
+    router99: "{{ network_static_hosts | selectattr('vlan', '==', 99) | selectattr('name', '==', 'router') | list | first }}"
+    switch99: "{{ network_static_hosts | selectattr('vlan', '==', 99) | selectattr('name', '==', 'switch') | list | first }}"
+    # NOTE: timezone + bootstrap_dns_servers come from group_vars/all.yml (inventory-visible
+    # for localhost) — do NOT re-declare here or you get a recursion loop.
+    # CAPsMAN SSID list lives in group_vars/router.yml (router-host var, NOT loaded for localhost) —
+    # pulled explicitly so capsman_steady-state.rsc renders.
+    routeros_capsman_ssids: "{{ hostvars['router.kogler.si'].routeros_capsman_ssids }}"
     # --- Secrets — resolved from 1Password at render time only ---
     pppoe_login_user: "{{ lookup('community.general.onepassword', 'pppoe_login', field='username', vault=op_vault) }}"
     pppoe_login_password: "{{ lookup('community.general.onepassword', 'pppoe_login', field='password', vault=op_vault) }}"

@@ -31,14 +31,6 @@ routeros_expected_identity: "switch.kogler.si"
 switch_port_map:
   # AP ports (VLAN 99, Management) - PoE enabled
   # MAC addresses from network_static_hosts in group_vars/all.yml
-  # ☠️ AP-garaza wAP ac DEAD 2026-08-24 (HD-232). Port config preserved for the
-  # replacement unit (ether1 cable still in place; PoE reserved for the new AP).
-  # The replacement must be wifi-qcom-ac-capable per HD-232 modern fleet decision.
-  ap-garage:
-    port: ether1
-    vlan: 99
-    poe: true  # reserved for replacement
-    mac: "6C:3B:6B:7D:B9:C5"  # dead unit's MAC; new AP will have its own
   ap-spalnica:
     port: ether12
     vlan: 99
@@ -48,7 +40,7 @@ switch_port_map:
     port: ether11
     vlan: 99
     poe: true
-    mac: "64:D1:54:AA:24:D1"
+    mac: "C4:AD:34:42:F0:B9"
 
   # UPS Management (VLAN 99) - no PoE
   ups:

@@ -54,13 +54,13 @@ are added by the **Ansible `router` role** (not the router template). AP → IP 
 
 | AP | MAC | IP |
 |----|-----|-----|
-| ap-garage ☠️ | `6C:3B:6B:7D:B9:C5` (dead) | per `network_static_hosts` (all.yml) — lease reserved for replacement |
 | ap-spalnica | `C4:AD:34:42:F1:7D` | per `network_static_hosts` (all.yml) |
-| ap-dnevna | `64:D1:54:AA:24:D1` | per `network_static_hosts` (all.yml) |
+| ap-dnevna | `C4:AD:34:42:F0:B9` | per `network_static_hosts` (all.yml) |
 | ap-spare | (TBD) | per `network_static_hosts` (all.yml) |
 
-> **ap-garage DEAD 2026-08-24 (HD-232):** wAP ac hardware fault. MAC + lease preserved
-> for the replacement unit (must be wifi-qcom-ac-capable per HD-232 modern fleet).
+> **ap-garage REMOVED 2026-08-30:** ☠️ wAP ac DEAD 2026-08-24 (hardware fault) — removed from
+> the canvas + `network_static_hosts` + `switch_port_map` (Phase 1.5 prep); CRS328 `ether1` is
+> now EMPTY. Any future replacement gets a fresh AP entry + PoE port config.
 
 ## Secrets referenced (1Password `Homelab-ansible` vault)
 

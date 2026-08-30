@@ -30,9 +30,8 @@
 |------|----|------|------|
 | 99 | 10.10.99.1 | router | RB4011 gateway |
 | 99 | 10.10.99.2 | switch | CRS328 mgmt |
-| 99 | 10.10.99.3 | ap-garage | ☠️ wAP ac DEAD 2026-08-24 (lease reserved for replacement) |
 | 99 | 10.10.99.4 | ap-spalnica | hAP ac² (spalnica) |
-| 99 | 10.10.99.5 | ap-dnevna | hAP ac (dnevna) |
+| 99 | 10.10.99.5 | ap-dnevna | hAP ac² (dnevna) |
 | 99 | 10.10.99.6 | ap-spare | hAP ac² spare |
 | 99 | 10.10.99.9 | ups | PowerWalker VFI 3000 IoT |
 | 99 | 10.10.99.10 | nas | HP MicroServer Gen8 |
@@ -97,4 +96,4 @@
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-08-30T11:49:09Z
+> Last generated: 2026-08-30T11:57:43Z

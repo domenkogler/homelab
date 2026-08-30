@@ -158,12 +158,11 @@ network_static_hosts:
   # Management VLAN 99
   - { name: router,   vlan: 99, ip: "10.10.99.1",  role: "RB4011 gateway" }
   - { name: switch,   vlan: 99, ip: "10.10.99.2",  role: "CRS328 mgmt" }
-  # ap-garage: ☠️ DEAD 2026-08-24 (wAP ac hardware fault, HD-232). IP/MAC preserved
-  # for the replacement unit (must be wifi-qcom-ac-capable per HD-232 modern fleet
-  # decision). See docs/network-migration-inventory.md + IaC/router/templates/.
-  - { name: ap-garage,  vlan: 99, ip: "10.10.99.3", mac: "6C:3B:6B:7D:B9:C5", role: "☠️ wAP ac DEAD 2026-08-24 (lease reserved for replacement)" }
+  # ap-garage REMOVED 2026-08-30 (HD-03/Phase 1.5 prep): ☠️ DEAD 2026-08-24 (wAP ac
+  # hardware fault), removed from canvas — ether1 on CRS328 is EMPTY. No reserved slot;
+  # any future replacement gets a fresh entry here + switch_port_map.
   - { name: ap-spalnica, vlan: 99, ip: "10.10.99.4", mac: "C4:AD:34:42:F1:7D", role: "hAP ac² (spalnica)" }
-  - { name: ap-dnevna, vlan: 99, ip: "10.10.99.5", mac: "64:D1:54:AA:24:D1", role: "hAP ac (dnevna)" }
+  - { name: ap-dnevna, vlan: 99, ip: "10.10.99.5", mac: "C4:AD:34:42:F0:B9", role: "hAP ac² (dnevna)" }
   - { name: ap-spare,  vlan: 99, ip: "10.10.99.6", role: "hAP ac² spare" }
   - { name: ups,      vlan: 99, ip: "10.10.99.9",  role: "PowerWalker VFI 3000 IoT" }
   - { name: nas,      vlan: 99, ip: "10.10.99.10", role: "HP MicroServer Gen8" }
@@ -248,6 +247,13 @@ wg_s2s_vps:
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
     - "{{ (network_ranges | selectattr('name', 'equalto', 'wg-vps-services') | first).cidr }}"
+
+# ---- WireGuard S2S public keys (both sides mirror the same shared `wg_password`; pubkeys are derived, not secret) ----
+# Derived from `wg_password` (private key) — the SAME key on both ends (single-private-key-per-S2S-family
+# design, HD-135/HD-155). Needed by the networkd .netdev role one side, RouterOS peer the other;
+# fail-closed asserts if blank. Stored outside the wg_s2s_vps block (still plain group_vars).
+wg_s2s_router_public_key: "gwXAk+550CDfybOg64+v+QUFv1sW0wnGrIiI+EWFhUk="   # RB4011 side = shared wg_password pubkey
+wg_s2s_vps_public_key: "gwXAk+550CDfybOg64+v+QUFv1sW0wnGrIiI+EWFhUk="   # VPS side = same shared wg_password pubkey
 
 # ==== Observability backend target for Alloy (HD-135) ====
 # Forward target derived from `wg_s2s_vps.ip` (SSOT) — no literal IP embedded here.

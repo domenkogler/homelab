@@ -24,14 +24,14 @@ Each row = one physical link. Patch-panel targets show the wall-side room/device
 
 | Interface | Connected to | Note |
 |-----------|--------------|------|
-| `eth1` | **Panel A / port 2** → AP · ☠️ Mikrotik wAP ac (DEAD 2026-08-24, HD-232 — port reserved for replacement; replacement must be wifi-qcom-ac-capable) `6C:3B:6B:7D:B9:C5` | reversal: eth1->A2 |
+| `eth1` | **Panel A / port 2** → — · no device _— (no MAC)_ | reversal: eth1->A2 |
 | `eth2` | **Panel A / port 1** → kamera · Reolink RLC-420-5MP `EC:71:DB:5F:BC:C1` | reversal: eth2->A1 |
 | `eth3` | **Panel A / port 4** → rack · no device _— (no MAC)_ | reversal |
 | `eth4` | **Panel A / port 3** → rack / UPS · PowerWalker VFI 3000 ICR IoT `00:20:85:C0:92:FA` | reversal |
 | `eth6` | **Panel B / port 3** → levo / printer · Canon TS9550 `74:BF:C0:CD:33:0B` | reversal |
 | `eth9` | **HP Gen 8 server** eno2 `1C:98:EC:0E:0D:39` |  |
 | `eth10` | **HP Gen 8 server** eno1 `1C:98:EC:0E:0D:38` |  |
-| `eth11` | **Panel B / port 12** → omara / AP · Mikrotik hAP ac `64:D1:54:AA:24:D1` | reversal |
+| `eth11` | **Panel B / port 12** → omara / AP · Mikrotik hAP ac2 `C4:AD:34:42:F0:B9` | reversal |
 | `eth12` | **Panel A / port 10** → garderoba / AP · Mikrotik hAP ac2 `C4:AD:34:42:F1:7D` | reversal |
 | `eth14` | **Panel B / port 14** → pod TV / konzola · Nintendo Switch 2 `E0:EF:BF:74:CE:07` | reversal |
 | `eth15` | **Panel A / port 16** → miza · no device _— (no MAC)_ | reversal |
@@ -82,7 +82,7 @@ _No modelled connections (appears in canvas but wiring unknown)._
 | Port | Patched from | Room / end | Device | MAC |
 |------|--------------|------------|--------|-----|
 | ✔ 1 | CRS328-24P-4S+ Switch `eth2` | garaža kamera | Reolink RLC-420-5MP | `EC:71:DB:5F:BC:C1` |
-| ✗ 2 | CRS328-24P-4S+ Switch `eth1` | garaža AP | ☠️ Mikrotik wAP ac (DEAD 2026-08-24, HD-232 — port reserved for replacement; replacement must be wifi-qcom-ac-capable) | `6C:3B:6B:7D:B9:C5` |
+| ✗ 2 | CRS328-24P-4S+ Switch `eth1` | garaža — | — | `—` |
 | ✔ 3 | CRS328-24P-4S+ Switch `eth4` | predsoba rack / UPS | PowerWalker VFI 3000 ICR IoT | `00:20:85:C0:92:FA` |
 | ✗ 4 | CRS328-24P-4S+ Switch `eth3` | predsoba rack | — | `—` |
 | ✗ 5 | — | hodnik domofon | — | `—` |
@@ -121,7 +121,7 @@ _No modelled connections (appears in canvas but wiring unknown)._
 | ✗ 9 | — | dnevna klima | — | `—` |
 | ✗ 10 | — | dnevna klima | — | `—` |
 | ✗ 11 | — | dnevna omara | — | `—` |
-| ✔ 12 | CRS328-24P-4S+ Switch `eth11` | dnevna omara / AP | Mikrotik hAP ac | `64:D1:54:AA:24:D1` |
+| ✔ 12 | CRS328-24P-4S+ Switch `eth11` | dnevna omara / AP | Mikrotik hAP ac2 | `C4:AD:34:42:F0:B9` |
 | ✗ 13 | — | dnevna pod TV | — | `—` |
 | ✔ 14 | CRS328-24P-4S+ Switch `eth14` | dnevna pod TV / konzola | Nintendo Switch 2 | `E0:EF:BF:74:CE:07` |
 | ✗ 15 | — | dnevna pod TV | — | `—` |
