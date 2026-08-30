@@ -1,13 +1,16 @@
 {
 	"nodes":[
 		{"id":"bc392a4a9c786c1e","type":"group","x":-3020,"y":-2560,"width":820,"height":200,"color":"6","label":"MikroTik hAP ac2"},
+		{"id":"90f88625cab1e299","type":"group","x":-3020,"y":-2840,"width":820,"height":200,"color":"6","label":"MikroTik hAP ac2"},
 		{"id":"9a2f4c756fcdbcc0","type":"group","x":-3020,"y":-2280,"width":460,"height":200,"color":"6","label":"MikroTik hAP ac"},
 		{"id":"fb083ddf41ecb23b","type":"group","x":-3020,"y":-2000,"width":460,"height":200,"color":"6","label":"Nintendo Switch 2"},
-		{"id":"7d1a1bd88e9b5674","type":"text","text":"\n\n|        1        |\n| :-------------: |\n| RB4011<br>eth 4 |\n\n\n","x":-3003,"y":-2239,"width":126,"height":120},
 		{"id":"0be75e286e173a12","type":"text","text":"\n\n|        eth        |       Wifi        |\n| :---------------: | :---------------: |\n|  Patch panel B18  |    Kogler IOT     |\n| E0:EF:BF:74:CE:07 | C8:48:05:F1:E8:EE |\n\n\n","x":-3001,"y":-1980,"width":341,"height":140},
-		{"id":"8b29ca0d5eb78c72","type":"text","text":"\n\n|        1        |\n| :-------------: |\n| RB4011<br>eth 3 |\n\n\n","x":-3001,"y":-2535,"width":126,"height":120},
-		{"id":"eebefb56ccd195cb","type":"file","file":"docs/assets/images/hAP-ac2.png","x":-2844,"y":-2534,"width":623,"height":117},
-		{"id":"da7a5ae181587059","type":"file","file":"docs/assets/images/hAP-ac.png","x":-2860,"y":-2262,"width":268,"height":167}
+		{"id":"7d1a1bd88e9b5674","type":"text","text":"\n\n|  1   |\n| :--: |\n| <br> |\n\n\n","x":-3003,"y":-2239,"width":126,"height":120},
+		{"id":"da7a5ae181587059","type":"file","file":"docs/assets/images/hAP-ac.png","x":-2860,"y":-2262,"width":268,"height":167},
+		{"id":"8b29ca0d5eb78c72","type":"text","text":"\n\n|    1    |\n| :-----: |\n| CRS328  |\n| ether12 |\n\n\n","x":-3001,"y":-2816,"width":126,"height":120},
+		{"id":"eebefb56ccd195cb","type":"file","file":"docs/assets/images/hAP-ac2.png","x":-2844,"y":-2815,"width":623,"height":117},
+		{"id":"3a9764b2a67deb8d","type":"text","text":"\n\n|    1    |\n| :-----: |\n| CRS328  |\n| ether11 |\n\n\n","x":-3001,"y":-2520,"width":126,"height":120},
+		{"id":"d1e539c1511cb718","type":"file","file":"docs/assets/images/hAP ac2-B9.jpg","x":-2830,"y":-2520,"width":546,"height":120}
 	],
 	"edges":[]
 }

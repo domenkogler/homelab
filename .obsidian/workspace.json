@@ -15,9 +15,9 @@
               "state": {
                 "file": "docs/assets/Rack.canvas",
                 "viewState": {
-                  "x": -1587.4182343988152,
-                  "y": -2097.262717117287,
-                  "zoom": 0.0002028513879891447
+                  "x": -761.4215732456179,
+                  "y": -1571.6444035748214,
+                  "zoom": -0.6664638152786775
                 }
               },
               "icon": "lucide-layout-dashboard",
@@ -189,12 +189,17 @@
   },
   "active": "9db10c86e7a90837",
   "lastOpenFiles": [
-    "docs/assets/images/wAP-ac.png",
     "docs/assets/Network-Devices.canvas",
+    "docs/assets/Rack.canvas",
+    "docs/assets/images/hAP ac2-B9.jpg",
+    "docs/assets/images/hAP-ac2.png",
+    "docs/assets/hAP ac2-B9.jpg",
+    "docs/assets/Unconfirmed 657151.crdownload",
+    "Pasted image 20260830132111.png",
+    "docs/assets/images/wAP-ac.png",
     "docs/rack-layout.mmd",
     "docs/rack-connections.md",
     "docs/network-rack.md",
-    "docs/assets/Rack.canvas",
     "scripts/render_rack_connections.py",
     "docs/rack-connections.json",
     "prompt.md",
@@ -205,12 +210,10 @@
     "IaC/router/templates/rb4011_initial.rsc.j2",
     "IaC/router/templates",
     "IaC/ansible/playbooks/render-routeros.yml",
-    "sedaohfuo",
     "docs/assets/images/rack.jpg",
     "docs/assets/images/Comtrend-GRG-4260us.png",
     "docs/assets/images/CRS328.png",
     "docs/assets/images/hAP-ac.png",
-    "docs/assets/images/hAP-ac2.png",
     "docs/assets/images/TP-Link TL-SG108E.jpg",
     "plan/2026-08-06-docs-obsidian-reorg/T1.md",
     "plan/2026-08-06-docs-obsidian-reorg.md",
@@ -232,8 +235,6 @@
     "skills/run-task/SKILL.md",
     "skills/plan-task/references/manifest-template.md",
     "docs/deployment-preseed.md",
-    "docs/assets/images/RB4011.png",
-    "skills/plan-task/_fixture_good.md",
-    "docs/assets/images/HMIP-HAP.png"
+    "skills/plan-task/_fixture_good.md"
   ]
 }
