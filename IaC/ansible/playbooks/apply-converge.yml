@@ -76,6 +76,24 @@
       become: false
       no_log: true
 
+    # Verify the key actually loads BEFORE the SCP round-trip. The onepassword
+    # lookup returns the field value directly (no shell-quote wrapper), but a
+    # wrong/mangled vault field would otherwise surface only as OpenSSH's
+    # cryptic `error in libcrypto` at the SCP task. Fail loud here instead.
+    # (Same guard as scripts/routeros-apply-delta.sh, HD-309.)
+    - name: Verify the ansible SSH key loads (ssh-keygen)
+      command: ssh-keygen -y -f "{{ ros_ssh_key_file }}"
+      changed_when: false
+      delegate_to: localhost
+      become: false
+      no_log: true
+      register: key_verify
+      failed_when: >-
+        key_verify.rc != 0 or 'ssh-keygen: ' in key_verify.stderr or
+        'error in libcrypto' in key_verify.stderr
+      # NOTE: `ssh-keygen -y` prints the derived PUBLIC key (not secret), but
+      # no_log keeps the task output clean.
+
     - name: Upload rsc to router via SCP (ansible SSH identity, pinned host key)
       ansible.builtin.copy:
         src: "{{ rendered_path }}"
