@@ -216,8 +216,6 @@
 | HD-45 | 3 | AI | *(Phase 2)* **Re-evaluate Homelable (topology/rack visualizer)** — Pouzor/homelable, MIT, young project; network + rack canvas + nmap scan + live health + MCP; potential successor to `Rack.canvas` visual/Homepage reachability widget. Keep deferred until services are live; re-check maturity. Noted in `observability.md` + `network-rack.md`. · [observability.md](docs/observability.md) |
 | HD-48 | 3 | AI + Human | **Requested-only bridges (deferred, Phase 2 best-effort)** — WhatsApp/Messenger/Signal bridges are **out of Phase 1 scope** (every bridge risks a real external account). Revisit **only if family asks**, and then only against **dedicated** numbers, accepting re-pairing/ban. · [services-matrix.md](docs/services-matrix.md) |
 | HD-129 | 2 | AI | **Router DHCP → use internal resolver** — bootstrap assigns 1.1.1.1 not the internal resolver (KOPS-028); same outcome as HD-03 DNS setup, so fold in at live DNS. · [network-vlans.md](docs/network-vlans.md) |
-| HD-130 | 2 | AI | **Low-severity opportunistic fixes** — Homepage docker.sock ro visibility, Seerr SQLite failure domain, pi edge cert expiry (KOPS-058/059/061). ✅ **Applied (2026-08-18):** KOPS-058 already `:ro` on the docker.sock mount (verified); KOPS-059 Seerr config+`seerr.db` added to `backup.md` Service-state scope + documented in the compose; KOPS-061 Grafana SSL-cert-expiry alert rule added (warning tier, fires <14 days out) per the KOPS-061 recommended fix. Live dashboard/cert check still at deploy. Do remaining opportunistically during service deployment. · [services.md](docs/services.md) |
-
 ## 3b. Deploy path — Ansible-only (HD-150, supersedes HD-02 Doco-CD)
 
 > **Doco-CD is DROPPED (HD-150).** Deployment + upgrades use **Ansible only** for BOTH VPS and
