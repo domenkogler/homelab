@@ -48,8 +48,14 @@
 /user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
 /user ssh-keys import public-key-file=admin.pub user=admin
 
-/user add name=ansible group=full disabled=no comment="Ansible automation (SSH-key auth)"
-/user set [find name=ansible] password=""
+# RouterOS 7: /user add REQUIRES a `password=` field, even an empty one. Setting
+# `password=""` on the add (rather than via a follow-up /user set) means the
+# script is one line shorter AND the run-after-reset pipeline doesn't see a
+# zero-password ansible user on the wire between the add and the set.
+# Live-validated 2026-08-31: the two-line form (add without password, then set
+# password="") errored with 'missing value(s) of argument(s) password' at the
+# add on RouterOS 7.16.x. Do not regress.
+/user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
 /user ssh-keys import public-key-file=ansible.pub user=ansible
 
 # ---- Management (VLAN {{ mgmt.id }} — {{ mgmt.name }}) ----

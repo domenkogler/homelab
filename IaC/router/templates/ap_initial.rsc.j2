@@ -31,8 +31,8 @@
 /user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
 /user ssh-keys import public-key-file=admin.pub user=admin
 
-/user add name=ansible group=full disabled=no comment="Ansible automation (SSH-key auth)"
-/user set [find name=ansible] password=""
+# RouterOS 7: /user add REQUIRES password= (see rb4011_initial.rsc.j2 for full rationale).
+/user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
 /user ssh-keys import public-key-file=ansible.pub user=ansible
 
 # ---- Bridge (all ports) ----
