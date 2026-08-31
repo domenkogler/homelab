@@ -1699,7 +1699,26 @@
 - **Deviations:** original row said "1-line template edit" — the real fix needed 4 layered changes (each proven); pi-dev `cap_add` is a deliberate, minimal privilege addition for the one-time node-gyp build (documented in-template).
 - **doc updated:** `todo.md` HD-298 closed (✅ Done, verify row removed); `changelog.md` HD-298 close row; this journal entry; template + versions.yml + comments already committed in 3 fix commits (ab566ac head).
 
+### 2026-09-01 — Shield (Media 50) no-WAN: L2 trunk-VLAN root cause FIXED + LIVE-VERIFIED; L3 firewall blocker found (HD-308/HD-309) `[AI]`
+
+- **Plan ref:** [todo.md HD-308](todo.md) (L2, done) · [todo.md HD-309](todo.md) (L3, open, next session) · [network-ops.md](docs/network-ops.md) (apply model)
+- **Root cause (L2):** the RB4011's bridge only trunktagged VLANs 99/10 on the SFP+ uplink to the CRS328 switch; VLANs 20/21/30/40/50 were `tagged: bridge-lan` only, so the router's `vlan-filtering` bridge dropped their frames at the trunk → empty router ARP per VLAN, static DHCP leases `waiting/never`; the Shield (Media 50) never reached its gateway → no WAN.
+- **Commands run:**
+  ```bash
+  # SSOT: edit converge template + router role to trunk-loop every network_vlans id
+  # delta (transient): render -> SCP -> /import
+  bash scripts/ansible-run.sh playbooks/render-converge.yml
+  scp IaC/router/rendered/rb4011_bridge_vlan_delta.rsc ansible@<router>:/rb4011_bridge_vlan_delta.rsc
+  ssh ansible@<router> '/import rb4011_bridge_vlan_delta.rsc'   # 'Script file loaded and executed successfully'
+  # verify: mikrotik-read.py /interface/bridge/vlan -> all 7 VLANs current-tagged=bridge-lan,sfp-sfpplus1
+  ```
+- **Live state (2026-09-01):** every VLAN (10/20/21/30/40/50/99) trunktagged on `sfp-sfpplus1`; Shield lease `10.10.50.10` bound (static reservation `nvidia-shield`), ARP `reachable` — L2 confirmed working.
+- **L3 blocker found (next session, HD-309):** Shield apps still error "network error" — the router forward chain has **no Media(50)→WAN accept rule** (only `IoT-Internet→Internet allowed` exists); docs matrix `network-vlans.md` row 73 "All (except IoT)→WAN Allowed" is not implemented for Media/Home/Guest/Mgmt. Fix: add a Media→WAN forward-ACCEPT before the default-deny (role + converge + delta), per scope decision in HD-309.
+- **Secrets touched:** `ansible-admin_ssh` (private key used for router SCP+SSH), `mikrotik-admin_login` (API read-only). No secret VALUES written to chat/git/transcripts.
+- **doc updated:** `todo.md` (HD-308 closed, HD-309 added), `changelog.md` (HD-308 close row), this journal entry, `rb4011_converge.rsc.j2` + `roles/router/tasks/main.yml` (committed in this worktree).
+
 ## Phase 3 — oldsrv
+
 
 *(no entries yet)*
 
