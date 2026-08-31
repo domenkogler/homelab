@@ -78,7 +78,7 @@ Two identity models are in use on the runner:
 
 ### Windows-desktop agent notes (interactive laptop access)
 
-Found live 2026-08-22 while restoring VPS access (deployment-journal Phase 1.0 / HD-209):
+Found live 2026-08-22 while restoring VPS access (HD-209 — live SSH restore; evidence in the commit + `deployment-tasks.md`):
 
 - **Vault allowlist:** the desktop agent serves ONLY vaults listed in 1Password's agent
   config `agent.toml` (Windows: `%LOCALAPPDATA%\1Password\config\ssh\agent.toml`; each

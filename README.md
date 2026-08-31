@@ -19,12 +19,13 @@ The agent then routes the intent — there is NO keyword routing table:
    (`../homelab-wt-<date>-<HHMM>`, CONVENTIONS §6) BEFORE any edit — enforced mechanically by
    [`scripts/guard-session.sh`](scripts/guard-session.sh) + a hard gate inside
    [`scripts/validate-all.sh`](scripts/validate-all.sh).
-2. **Semantic prior-art sweep:** search todo.md / changelog.md / docs/ — including
-   `<domain>-review.md`, `<domain>-rejected.md` and `brainstorming/` — and REPORT the prior art
-   found BEFORE proposing any new HD row (side-effect: enforces the §8.3 rejected-check and the
-   changelog re-decide ban).
+2. **Semantic prior-art sweep:** search todo.md / docs/ — including the `<domain>-rejected.md`
+   decision logs, `<domain>-review.md` and `brainstorming/` — plus `git log -S 'HD-XX'` / `git log`
+   on the owning doc, and REPORT the prior art found BEFORE proposing any new HD row (side-effect:
+   enforces the §8.3 rejected-check and the decision-log re-decide ban; the frozen
+   `reports/changelog.md`/`reports/deployment-journal.md` are archive-only).
 3. **Depth markers** ("quickly", "just do X") reduce ANALYSIS verbosity only — NEVER safety ritual
-   (worktree, validate-all, journal/changelog discipline always applies).
+   (worktree, validate-all, owning-doc/lifecycle discipline always applies).
 4. **Ambiguous intent → ask exactly ONE clarifying question**, then proceed.
 
 Routing changes ORDER/emphasis only — it never eliminates context. Read §1 below, then §2 mandatory
@@ -41,29 +42,29 @@ task-specific dispatch. Do **not** bulk-read the repo.
 | 2 | [`docs/index.md`](docs/index.md) | AI dispatcher / document map — which owning doc to open for your task | always |
 | 3 | [`IaC/README.md`](IaC/README.md) | Ansible implementation spec — roles, templates, layout, build order, status | any IaC / compose / template work |
 | 4 | [`todo.md`](todo.md) | Backlog + open decisions; §0 lifecycle (HD-XX); pick up or register work | always, before every task |
-| 5 | [`changelog.md`](changelog.md) | Decision log + done work — decision-log SSOT | before re-deciding / re-implementing anything |
 
-> A resolved/dropped decision lives in `changelog.md` **only** — never re-decide without checking it
-> (`todo.md` §1 is the compact open-decisions pointer).
+> **Decisions** live in the owning doc + the `<domain>-rejected.md` decision log (append-only, per
+> domain) — never re-decide without checking those + `git log -S 'HD-…'`. Historical rows live in
+> the frozen `reports/changelog.md` (archive-only).
 
 ---
 
 ## 2. State of the world (as of 2026-08-24)
 
 - **Phase 1 (VPS edge) is live.** The VPS runs its full enabled `docker_services` set — Traefik,
-  Authentik, the observability backend (prometheus/loki/grafana/blackbox), etc. Convergence and
-  incident-fix evidence: [`deployment-journal.md`](deployment-journal.md) Phase 1 (2026-08-22/23
-  waves). Home hosts (`nas`, `oldsrv`, `pi`) are still **unprovisioned** (Phases 2–4): anything
-  below the VPS tier remains *deploy-gated*; verify against [`deployment-tasks.md`](deployment-tasks.md)
-  before any "run".
+  Authentik, the observability backend (prometheus/loki/grafana/blackbox), etc. Evidence: the
+  owning-service docs (✅ status lines) + [`deployment-tasks.md`](deployment-tasks.md) checkbox
+  dates + git commit messages; the as-built journal and changelog were frozen 2026-09-01
+  (`reports/`, archive-only). Home hosts (`nas`, `oldsrv`, `pi`) are still **unprovisioned**
+  (Phases 2–4): anything below the VPS tier remains *deploy-gated*; verify against
+  [`deployment-tasks.md`](deployment-tasks.md) before any "run".
 - **How to check what is live vs authored-only (check in this order):**
-  1. [`deployment-journal.md`](deployment-journal.md) — dated deploy/verify evidence per phase;
-     this is the proof of what actually ran (SSOT for liveness).
-  2. [`todo.md`](todo.md) §3c → [`deployment-tasks.md`](deployment-tasks.md) — the ⏳ deploy-gated
-     verification checklist per phase.
+  1. [`todo.md`](todo.md) §0/§3c → [`deployment-tasks.md`](deployment-tasks.md) — the ⏳ deploy-gated
+     verification checklist per phase (checkbox + date when done).
+  2. Owning-service docs (`docs/services-*.md`, hardware docs) ✅ status lines + `git log` on them —
+     the dated live-verified evidence.
   3. Doc status banners (`🟢 IaC done, not yet live — ⏳ deploy-gated`) are **hints, not proof** —
-     several still say "not live" for VPS-tier services that went live 2026-08-22/23. Trust the
-     journal over banners until the owning docs catch up.
+     trust the owning-doc ✅ lines + deployment-tasks ticks over banners until the docs catch up.
 - **Hosts:** single namespace `kogler.si` → `oldsrv`, `nas`, `pi`, `router`, `switch`, `vps`.
   Canonical list + naming/IP conventions: `docs/index.md` → Conventions.
 - **Recommended next tasks:** see the latest `prompt-*.md` handoff (date-stamped) — it names the
@@ -96,7 +97,8 @@ task-specific dispatch. Do **not** bulk-read the repo.
 3. state your environment (`platform-env`) per the global `AGENTS.md`
 4. open the owning doc via `docs/index.md`
 5. update `todo.md` (pick/register an HD-XX; open a new HD if none exists)
-6. implement → `bash scripts/validate-all.sh` green → update `todo.md` / `changelog.md` per lifecycle
+6. implement → `bash scripts/validate-all.sh` green → update `todo.md` + owning `docs/*.md` per
+   lifecycle (close-out lives in the owning doc + commit; the frozen changelog/journal are archived)
    → commit signed (if `Couldn't find key in agent`: `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth`, then commit; CONVENTIONS §6)
 7. if it's a planned / multi-step / multi-host / live-deploy change → produce a `plan/` (plan-task)
    and honor its `## Environment` note
@@ -108,14 +110,14 @@ task-specific dispatch. Do **not** bulk-read the repo.
 - Is this a **planned change** worth `plan-task`? (concurrency, multi-host, live-deploy,
   unprovisioned host, irreversibility)
 - **Deploy-gated** item? Hosts not provisioned yet — verify vs `deployment-tasks.md` before running.
-- Re-deciding something? **Read `changelog.md` first.**
+- Re-deciding something? **Check the owning doc + `<domain>-rejected.md` first** (and `git log` on them).
 - Unsure which doc owns the area? Ask via `docs/index.md` map.
 
 ---
 
 ## 6. Context quick-refs
 
-`CONVENTIONS.md` (root) · `docs/index.md` · `IaC/README.md` · [`scripts/README.md`](scripts/README.md) (validators, renderers, vault-seeding utilities) · `todo.md` · `changelog.md`
+`CONVENTIONS.md` (root) · `docs/index.md` · `IaC/README.md` · [`scripts/README.md`](scripts/README.md) (validators, renderers, vault-seeding utilities) · `todo.md` · archive: `reports/changelog.md`, `reports/deployment-journal.md` (frozen)
 
 ---
 

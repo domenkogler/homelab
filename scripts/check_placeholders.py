@@ -21,8 +21,8 @@ below — the bootstrap artifacts (injection points) plus the owning-spec doc th
 quotes the token set.
 
 Scan scope: every text file in the repo except .git/, brainstorming/
-(ephemeral), reports/ (raw snapshots) and prompt-* handoffs; undecodable
-(binary) files are skipped.
+(ephemeral), reports/ (raw snapshots + frozen changelog/journal archives) and
+prompt-* handoffs; undecodable (binary) files are skipped.
 
 Run:   python scripts/check_placeholders.py
 Exit:  0 = clean, 1 = violations found.  Wired into `validate-all.sh`.
@@ -58,7 +58,6 @@ ALLOWLIST = {
     "IaC/host/post_install_with_secrets.sh",  # EPHEMERAL generator output (git-ignored, deleted after USB copy) — carries the same runtime assertion block
     "IaC/host/pi/first-boot-config.sh",
     "docs/deployment-preseed.md",   # owning spec — quotes the tokens
-    "changelog.md",                 # append-only history — exempt
 }
 
 # Directories never scanned (ephemeral / binary-heavy / raw snapshots).

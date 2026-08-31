@@ -34,7 +34,7 @@ tags: [services, utilities, tools, automation]
 
 ## Zipline — public bin & shortener (HD-112)
 
-> 🟢 **Decided + IaC authored 2026-08-24 — nothing deployed yet (⏳ deploy-gated).** Full decision record: [changelog.md](../changelog.md) (HD-112). Design source-verified against Zipline v4.7.0. Deploy-gate steps live in the compose header (`docker_services/zipline/docker-compose.yml.j2`).
+> 🟢 **Decided + IaC authored 2026-08-24 — nothing deployed yet (⏳ deploy-gated).** Decision: Zipline v4.7.0 (pin) with a single public host `bin.kogler.si` on `crowdsec-only@file` and dashboard native-OIDC. Design source-verified against Zipline v4.7.0. Deploy-gate steps live in the compose header (`docker_services/zipline/docker-compose.yml.j2`).
 
 **Purpose:** public temporary file bin (phone↔PC transfers via short link), URL shortener + QR codes; private persistent storage secondary (OpenCloud stays the family file cloud).
 

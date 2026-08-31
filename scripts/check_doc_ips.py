@@ -11,7 +11,9 @@ Exempt files (documented in the convention):
   * deployment-ansible/secrets — ★ authoring specs that define IaC values
   * docs/home-assistant-current.md     — historical decision log (strikethrough)
   * deployment-tasks.md                — legacy task log
-  * changelog.md                       — append-only history (rows stay as written)
+  * reports/changelog.md, reports/deployment-journal.md — frozen archives (they
+    contain historical IPs as command/verify evidence; archived after the 2026-09-01
+    restructure) — no live view, no maintenance
 
 Allowed anywhere: well-known external IPs (public DNS, third-party services) — the
 patterns below only match private/special-use ranges (RFC 1918 + 100.64.0.0/10 CGNAT).
@@ -42,8 +44,8 @@ EXEMPT_FILES = {
     "docs/deployment-secrets.md",
     "docs/home-assistant-current.md",
     "deployment-tasks.md",
-    "changelog.md",                    # append-only history (HD-197 F5)
-    "deployment-journal.md",            # append-only as-built record (same class as changelog); IPs appear as command/verify evidence
+    "reports/changelog.md",         # frozen archive (pre-2026-09-01); as-written
+    "reports/deployment-journal.md", # frozen archive (pre-2026-09-01)
 }
 
 # Ephemeral round-2 audit reports at repo root were fold+deleted by HD-203 (A3

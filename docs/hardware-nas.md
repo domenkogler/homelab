@@ -8,7 +8,7 @@ tags: [hardware, nas, zfs]
 # HP MicroServer Gen8
 
 > **Role:** Detail — dedicated ZFS storage server.
-> **Current state (2026-08-23):** ✅ **Debian 13 (Trixie, headless) INSTALLED 2026-08-23 — FULLY AUTOMATED via preseed** (zero interactive questions; execution record: [deployment-journal.md](../deployment-journal.md) Phase 1a). Boot mode BIOS/CSM; GRUB lives on the Generic_Flash_Disk USB carrier (HD-226 — the internal SATA port cannot boot), SanDisk was installer medium only. Pools `bulk`/`tank` exist EXPORTED (created pre-install; ZFS labels verified intact post-install) — imported only by the Phase-2 storage role. Ansible hold rule active — first playbook contact only after the Phase 1.5 cutover. Everything below describes the target state.
+> **Current state (2026-08-23):** ✅ **Debian 13 (Trixie, headless) INSTALLED 2026-08-23 — FULLY AUTOMATED via preseed** (zero interactive questions; execution record: [deployment-tasks.md §Phase 1a](../deployment-tasks.md) — the as-built evidence is the commit + this doc's status). Boot mode BIOS/CSM; GRUB lives on the Generic_Flash_Disk USB carrier (HD-226 — the internal SATA port cannot boot), SanDisk was installer medium only. Pools `bulk`/`tank` exist EXPORTED (created pre-install; ZFS labels verified intact post-install) — imported only by the Phase-2 storage role. Ansible hold rule active — first playbook contact only after the Phase 1.5 cutover. Everything below describes the target state.
 > **Links to:** `backup.md`
 > **Linked from:** `hardware.md`, `deployment-preseed.md`, `deployment-ansible.md`
 
@@ -115,7 +115,7 @@ as the **local secondary pool**: syncoid replicas of `tank/data/*` (ZFS send/rec
 
 ## Pool-Creation Runbook (one-time bootstrap, BEFORE the preseed reinstall)
 
-> ✅ **EXECUTED 2026-08-23 — see the as-built entry in [deployment-journal.md §Phase 1a](../deployment-journal.md)**
+> ✅ **EXECUTED 2026-08-23 — see the as-built evidence in [deployment-tasks.md §Phase 1a](../deployment-tasks.md) + the commit**
 > (pools created, verified, exported; installer-ready). **Canonical redeploy procedure** (pool
 > creation commands, no data migration): [deployment-manual.md §1a.0](../deployment-manual.md). Reality deltas vs the text below:
 > the legacy payload lived in pool **`new-pool`** (single disk ST4000NT001) and a second

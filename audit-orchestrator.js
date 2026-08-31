@@ -21,8 +21,8 @@ You may ONLY write the two audit artifacts listed below into your worktree's rep
 MANDATORY PRIOR ART (read FIRST, before any new finding):
 - reports/audit-analysis.md — AUD-01..13 (all done) — do NOT report these as new findings; tag any
   similar pattern as known-resolved:AUD-XX.
-- changelog.md — recent (last 20 entries) — do NOT re-open decided items; the re-decide ban is
-  binding (CONVENTIONS §4, audit.md §0).
+- reports/changelog.md — frozen decision archive (pre-2026-09-01) — do NOT re-open decided items;
+  the re-decide ban is binding (CONVENTIONS §4, audit.md §0); current decisions live in owning docs.
 - brainstorming/audit-prompt.md (the old Qwen audit) — note any items relevant to your track.
 - audit.md §0-§2 + your track section — the binding scope; do NOT re-decide settled audit rules.
 
@@ -59,8 +59,8 @@ const TASK_A = PREAMBLE + `
 YOUR TRACK: A — DOCS (Track A from audit.md §2.1).
 SCOPE: docs/ + the doc map (docs/index.md) + the manual/ family guide.
 SCOPE LIMITS: do NOT touch IaC, scripts, or compose templates.
-SOURCE SEAM: docs/index.md (dispatcher) + deployment-journal.md (liveness SSOT) +
-             deployment-tasks.md (deploy-gated checklists) + rack-connections.json (IP SSOT).
+SOURCE SEAM: docs/index.md (dispatcher) + owning-doc ✅ status lines + deployment-tasks.md
+             (deploy-gated checklists) + rack-connections.json (IP SSOT).
 OWNING DOCS for spot-checks (sample 6+ facts each against the SSOT it cites):
   - docs/deployment-*.md (compose, ansible, oidc, secrets, preseed, renovate, ai-stack-secrets)
   - docs/network-*.md (vlans, dns, vpn, ops)
@@ -73,9 +73,9 @@ OWNING DOCS for spot-checks (sample 6+ facts each against the SSOT it cites):
   - docs/storage.md
 CHECKS (audit.md §2.1):
   A.1 Map completeness: every docs/*.md reachable from docs/index.md and vice-versa; status
-       banners (🟢 / ⏳ / ✅) cross-checked vs deployment-journal.md + deployment-tasks.md per
+       banners (🟢 / ⏳ / ✅) cross-checked vs owning-doc ✅ lines + deployment-tasks.md ticks per
        README §2 (banners are hints, not proof). List every banner that says "not live" for
-       something the journal shows live (and the reverse).
+       something the owning docs/ticks show live (and the reverse).
   A.2 Link integrity: relative .md links resolve; anchors exist; no link to a deleted/moved file
        (\`git log --diff-filter=D --name-only -- 'docs/*.md' | head -50\` for recently removed docs).
   A.3 SSOT discipline: no IP literals outside network-addresses-generated.md / IaC; no secret
@@ -132,9 +132,8 @@ CHECKS (audit.md §2.2):
        owning docs; where they diverge, one is stale — the audit REPORT says which direction.
   B.7 Convergence verification: for every enabled: true in
        group_vars/{vps,home_servers}.yml, verify:
-         - A deployment-journal.md entry exists with "converged"/"verified"/"deployed"
-           language for that service.
-         - The corresponding deployment-tasks.md phase checklist has the service ticked (✅).
+         - The owning doc has a ✅ status line / the deployment-tasks.md phase checklist has
+           the service ticked (✅) with "converged"/"verified"/"deployed" evidence.
          - If missing → finding AUD-B-<n> High: "Service X enabled but no convergence evidence".
   B.8 Ansible idempotency check: run
          \`ansible-playbook -i IaC/inventory.ini IaC/playbooks/site.yml --check --diff --limit vps\`
@@ -187,15 +186,17 @@ const TASK_D = PREAMBLE + `
 YOUR TRACK: D — Cross-cutting conformance (sample-based) (Track D from audit.md §2.4).
 SCOPE: secret hygiene, lifecycle conformance, service-onboarding, decision-log alignment.
 SCOPE LIMITS: do NOT mutate. Do NOT read secret VALUES.
-SOURCE SEAM: todo.md (open HD rows) + changelog.md (decision log) + CONVENTIONS.md (§5 onboarding).
-OWNING DOCS: CONVENTIONS.md, todo.md, changelog.md, deployment-tasks.md.
+SOURCE SEAM: todo.md (open HD rows) + owning docs/
+             <domain>-rejected.md (decision-log SSOT) + CONVENTIONS.md (§5 onboarding).
+OWNING DOCS: CONVENTIONS.md, todo.md, deployment-tasks.md.
 CHECKS (audit.md §2.4):
   D.1 Secret hygiene: \`bash scripts/check-vault-name.py\` + \`validate-secrets.py\` green on
        the worktree; a human grep for the B5 placeholder tokens + any raw \`password:\` /
        \`token:\` literal in group_vars/templates. Note: secrets live in IaC/, not in repo root.
   D.2 Lifecycle conformance: open HD rows map to owning docs; ⏳ tails exist only where
        deployment-tasks.md has a matching deploy-gated checklist; no fully-done row still
-       living in todo (should be changelog-only); no row whose ⏳ is stale vs the journal.
+       living in todo (should be owning-doc + git-history record); no row whose ⏳ is stale vs
+       the owning-doc ✅ lines.
   D.3 Service-onboarding (CONVENTIONS §5): for a sample of 3 enabled services (suggest:
        crowdsec-web-ui (recent on-board), traefik (core), renovate (still-⏳)) — walk the
        10-step checklist and report which steps are done/gapped.
@@ -211,8 +212,7 @@ CHECKS (audit.md §2.4):
          | 8. Deployment journal entry | Y/N | journal date | |
          | 9. deployment-tasks.md checklist | Y/N | phase item | |
          | 10. Doc status banner updated | Y/N | doc file:line | |
-  D.4 Decision-log alignment: no open decision in todo.md §1 that changelog.md already
-       resolved; no decision re-argued in a doc without a changelog row.
+  D.4 Decision-log alignment: no open decision in todo.md §1 that the owning doc / <domain>-rejected.md / frozen changelog already resolved; no decision re-argued in a doc without an owning-doc record.
   D.5 False Positive Log: for any finding that LOOKS like drift but is intentional
        (e.g. a service enabled:true but deliberately not converged yet), record:
          AUD-FP-<n> | finding | why it's intentional | owner confirmation needed?

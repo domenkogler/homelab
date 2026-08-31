@@ -7,12 +7,12 @@ tags: [services, rejected, decision-log]
 ---
 # Services — Rejected / Dropped
 
-> **Role:** Append-only decision log — services the `services` domain evaluated and declined. Sorted by service name. Each decision mirrors the `changelog.md` decision-log SSOT (do not re-decide without checking it).
+> **Role:** Append-only decision log — services the `services` domain evaluated and declined. Sorted by service name. This log is the per-domain **decision-log SSOT**.
 > **Links to:** `services.md`, `CONVENTIONS.md` (§8.3)
 > **Linked from:** `index.md`, `services.md`
 
 > ⚠️ **Append-only.** Never edit or reorder an entry after it lands. A changed decision is a **new appended entry**, left alongside the old one — never strike/replace. Each row: `| <service> | <rejected|dropped|superseded> | <date> | <why, 1–2 lines + evidence link> |`.
-> ⚠️ **Evidence = the owning doc + changelog decision.** The link below each row points to where the decision is recorded (SSOT). Dates are the changelog/git-attribution dates (advisory, per changelog.md header).
+> ⚠️ **Evidence = the owning doc + this decision log.** The link below each row points to where the decision is recorded (SSOT). Dates are the decision dates in the owning doc / git-attribution dates (advisory).
 
 ## Decisions
 
@@ -26,4 +26,4 @@ tags: [services, rejected, decision-log]
 | TradeSight | rejected | 2026-08-14 | Unnecessary — Trade Republic offers a native structured CSV/Excel export, so no PDF-visual Ollama converter is needed. · [services-finance.md](services-finance.md) |
 
 > **Not a services-domain decision:** hypervisor / deploy / storage / network / smart-home UI rejections (Proxmox, Doco-CD, iDrive, MinIO, TileBoard, netplan…) live in their own `<domain>-rejected.md` files — see [`deployment-rejected.md`](deployment-rejected.md), [`storage-rejected.md`](storage-rejected.md), [`network-rejected.md`](network-rejected.md), [`smart-home-rejected.md`](smart-home-rejected.md).
-> **SSOT note:** this log mirrors the changelog `*(decision)*` rows for the services domain; a review may re-reference the owning doc.
+> **SSOT note:** this log is the decision-log SSOT for the services domain.

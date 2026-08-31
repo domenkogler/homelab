@@ -3,10 +3,9 @@
 > **Role:** Imperative, phase-by-phase **procedure** for redeploying the homelab from true zero —
 > exact commands, panel settings, and the verification evidence each step must produce before the
 > next step runs. Deliberately free of progress markers and fix history: progress checkboxes live in
-> [deployment-tasks.md](deployment-tasks.md) (ledger), execution history in
-> [deployment-journal.md](deployment-journal.md) (as-built), desired-state specs in the owning
-> `docs/*.md`. If reality diverges permanently, fix the procedure here (or the owning spec) in the
-> same change and journal the event.
+> [deployment-tasks.md](deployment-tasks.md) (ledger), as-built evidence in the owning-doc ✅ lines
+> + the git commit of the change. If reality diverges permanently, fix the procedure here (or the
+> owning spec) in the same change and record it in the owning doc/commit.
 > **Linked from:** [docs/index.md](docs/index.md), [docs/deployment.md](docs/deployment.md),
 > [deployment-tasks.md](deployment-tasks.md), [CONVENTIONS.md](CONVENTIONS.md) §4
 
@@ -16,40 +15,13 @@
 
 - Execute phases in order. Every step ends with a ✔-evidence check — do not proceed past red.
 - Binding working rules: `bash scripts/validate-all.sh` green before every commit; secrets by
-  1Password item+field name only (never values); every executed action gets a journal entry
-  (raw notes → the DATA feed in [prompt-journal.md](prompt-journal.md)).
+  1Password item+field name only (never values); every executed action gets an owning-doc
+  ✅ note + a commit.
 - Shells: repo ops + validators from **git-bash** (Windows laptop); Ansible runs ONLY on the
   **WSL Debian runner** through [scripts/ansible-run.sh](scripts/README.md) — never pass inline
   commands to wsl.exe.
-- ⚠ **9P staleness — sync gate before playbook runs (HD-212, decided 2026-08-22):** the
-  runner reads the repo **natively under WSL ext4 now (HD-259 primary `/home/domen/source/homelab`)** — the
-  `/mnt/d` drvfs 9P staleness window is closed, so the whole-tree hash compare is no longer required before
-  every playbook run. Retained only for the residual case of a `/mnt/d` working copy:
-  1. Whole-tree compare from the repo root on BOTH sides — must be equal:
-     `git ls-files -z | xargs -0 md5sum --text | md5sum`  
-  2. Mismatch → force-invalidate, re-hash after each:
-     `wsl -d Debian -u root -- bash -c 'echo 3 > /proc/sys/vm/drop_caches'`; still stale → inside WSL
-     `sudo umount /mnt/d && sudo mount -t drvfs D: /mnt/d`.
-  3. Both fail to clear → migrate the runner clone natively into WSL (pre-authorized, no re-ask).
-- Quick turnover while iterating on a failing step: re-run from a named task —
-  `bash scripts/ansible-run.sh playbooks/<playbook>.yml --start-at-task="<task name>"`.
-- **Surgical `--tags` runs — union semantics (HD-220 wiring):** tag selection is a UNION across
-  every task carrying ANY requested tag; adding tags only ADDS work, it never narrows it.
-  Role-level tags (`vps.yml`: `[common] [docker] [hardening] [network] [cifs] [wireguard]
-  [docker_services] [monitoring]`) attach to all tasks directly in the role but do NOT cascade
-  through dynamic `include_tasks:` into file contents — so inside `docker_services`, per-service
-  tasks (tagged `{{ svc.name }}`) are reachable ONLY when the filter names BOTH the role and the
-  service. A service tag alone (`--tags opencloud`) matches nothing and is a SILENT NO-OP.
-  Canonical forms:
-  - whole VPS converge: no `--tags`
-  - one role: `--tags monitoring`
-  - one compose service (+ its edge/dynamic-file companions):
-    `--tags "docker_services,<service>"` — add `,traefik` whenever Traefik dynamic-file
-    templates changed (routes/middlewares/tls live under the `traefik` service dir), e.g.
-    `--tags "docker_services,onlyoffice-docs,traefik"`;
-    add `,authentik` / `,secret-egress` to include the Authentik pre-pass/glue lanes
-  - discovery first: `--list-tags`, `--list-tasks --tags <filter>` (confirm what WILL run)
-  Full semantics, wiring map and gotchas: [docs/deployment-ansible.md](docs/deployment-ansible.md) §Tags & surgical runs.
+- **Ansible-run semantics** (sync gate, `--tags` surgical runs, venv interpreter): see
+  [scripts/README.md](scripts/README.md) + [docs/deployment-ansible.md](docs/deployment-ansible.md) §Tags & surgical runs.
 
 ---
 
@@ -241,22 +213,18 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 
 > **Break-glass:** locked out → netcup SCP **console** as root; the fallback password is item
 > `netcup-vps_login` (owner's personal Homelab vault — invisible to the automation service account).
-> Reusable recovery patterns from past incidents: authorized_keys repair (journal Phase 1.0,
-> HD-209) and `nft flush ruleset` for a deploy-induced firewall lockout (journal Phase 1).
+> Reusable recovery patterns from past incidents: authorized_keys repair (owning docs + git
+> history, HD-209) and `nft flush ruleset` for a deploy-induced firewall lockout.
 
 ---
 
 ## Phase 1a — Homelab host installs (oldsrv / nas)
 
-> **Official path: preseeded AUTOMATED install — RE-PROVEN 2026-08-23 on nas** (Automated entry,
-> ZERO interactive questions end-to-end incl. the keyed late_command; success factors: wired-only
-> NIC, ata-model_serial by-id resolves in d-i udev, `file=` patched entries, explicit medium choice
-> via the iLO one-time boot menu). **INTERACTIVE + catch-up script remains the proven fallback**
-> (same-day oldsrv precedent: four delivery mechanisms failed in one evening — netcfg WLAN loop,
-> `file=` mount-timing on the FAT32 layout, d-i udev lacking `nvme-eui.*` links so the seeded disk
-> path matched nothing, plus a two-sticks incident where the target booted an unrelated USB; the eui
-> trap is installer-environment-only — full udev on the installed systems resolves it fine).
-> Execution record: [deployment-journal.md](deployment-journal.md) §Phase 1a.
+> **Official path: preseeded AUTOMATED install** (Automated entry, ZERO interactive questions
+> end-to-end incl. the keyed late_command; success factors: wired-only NIC, ata-model_serial
+> by-id resolves in d-i udev, `file=` patched entries, explicit medium choice via the iLO
+> one-time boot menu). **INTERACTIVE + catch-up script remains the proven fallback.**
+> Execution record: [deployment-tasks.md §Phase 1a](deployment-tasks.md) (ledger + commit evidence).
 >
 > **Prerequisites:** owning hardware doc ([hardware-oldsrv.md](docs/hardware-oldsrv.md) /
 > [hardware-nas.md](docs/hardware-nas.md)) at hand · working `op` session on the laptop ·
@@ -264,8 +232,8 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 
 ### 1a.0 NAS ZFS pool bootstrap (one-time, BEFORE the nas installer boots) `[MANUAL]`
 
-> As executed 2026-08-23 (data-migration leg of that day's run is NOT part of a redeploy —
-> execution record: [deployment-journal.md §Phase 1a](deployment-journal.md); hardware spec +
+> As executed on 2026-08-23 (the data-migration leg is NOT part of a redeploy —
+> execution record: [deployment-tasks.md §Phase 1a](deployment-tasks.md) (ledger + commit); hardware spec +
 > by-id tables: [hardware-nas.md](docs/hardware-nas.md)). Pools are created EMPTY here; the
 > Ansible `storage` role is import-only (`allow_create: false`) and owns every dataset beyond
 > `bulk/migrate`. Gate: destructive — human approval per wipefs/pool-create block.
@@ -290,7 +258,7 @@ sudo zpool create -o ashift=12 \
     /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M101SAS
 
 # -- landing-zone parent — ONLY if legacy data will be received into bulk/migrate -------------
-#    (zfs receive does NOT create intermediate datasets — learned live 2026-08-23)
+#    (zfs receive does NOT create intermediate datasets)
 sudo zfs create -p bulk/migrate
 
 # -- tank mirror (2× 4 TB internal) -----------------------------------------------------------
@@ -326,7 +294,7 @@ ls /dev/disk/by-id/ | grep usb
 ```
 ✔ Exactly ONE `usb-*` entry and it is YOUR stick model. If anything else appears — shut down and remove the stranger first.
 
-> **nas exception (two-stick install, owner decision 2026-08-23):** the nas installs with TWO USB
+> **nas exception (two-stick install):** the nas installs with TWO USB
 > sticks by design — the **SanDisk** = installer medium you boot from, and the **Generic_Flash_Disk
 > (C3EB7FE7)** = permanent GRUB carrier that must be plugged so the preseed's `bootdev` by-id pin
 > resolves. Boot EXPLICITLY from the SanDisk (iLO one-time boot menu); if the old Generic stick's
@@ -340,7 +308,7 @@ ls /dev/disk/by-id/ | grep usb
 3. Root password: **leave blank twice** (KOPS-044 posture; the local user gets sudo automatically).
 4. Local user: real name + username + password (e.g. `domen`) — this is the LOCAL desktop/sudo identity, never a remote one.
 5. Partitioning → **Manual**: identify the OS disk BY MODEL AND SIZE from the hardware doc (never by `sdX`; data disks must not appear in any step). New empty **msdos** table → swap ~8 GB primary → ext4 `/` primary + **bootable flag** → finish & write.
-    - If asked *"Force UEFI installation?"* → **No** (keeps BIOS/CSM + MGR-in-MBR consistent with prior installs; journal the answer each time).
+    - If asked *"Force UEFI installation?"* → **No** (keeps BIOS/CSM + MGR-in-MBR consistent with prior installs; record the answer in the commit/owning doc each time).
 6. Mirror: `deb.debian.org`, defaults, no proxy.
 7. Software selection: oldsrv = **XFCE desktop + SSH server + standard system utilities**; headless hosts = **SSH server + standard system utilities**.
 8. GRUB → install to the OS disk entry matching the size above.
@@ -365,17 +333,20 @@ The interactive path skips the preseed's `post_install.sh`, so reproduce its eff
 4. Delete the secrets file on the laptop: `rm IaC/host/post_install_with_secrets.sh`.
 5. ✔ From the laptop: `ssh ansible-admin@<host>` logs in KEY-ONLY (no password prompt).
 6. ✔ Expected refusal: `ssh <localuser>@<host>` is rejected by `AllowUsers` — the local user is desktop-only **by design**.
-7. Journal entry + ledger tick in the same change (deployment-journal.md rules).
+7. Ledger tick (deployment-tasks.md) + owning-doc evidence in the same change.
 
-> **Re-proven on nas 2026-08-23:** the full hands-off chain works on the FAT32-extracted DVD layout (`file=` patched entries loaded, early_command runtime by-id resolution, static bootdev pin, keyed late_command). Still unproven: the initrd-injection route (initrd.gz rebuild worked mechanically but was never needed nor booted). Single-stick discipline vs the nas two-stick exception stands (§1a.2); preseed disk paths use model_serial by-id (never eui — d-i udev lacks those links).
+> **Proven chain:** the full hands-off preseed path works on the FAT32-extracted DVD layout (`file=`
+> patched entries loaded, early_command runtime by-id resolution, static bootdev pin, keyed
+> late_command). Still unproven: the initrd-injection route (initrd.gz rebuild works mechanically
+> but was never needed). Single-stick discipline vs the nas two-stick exception stands (§1a.2);
+> preseed disk paths use model_serial by-id (never eui — d-i udev lacks those links).
 
 ---
 
 ## Phase 1 — Deploy the VPS service stack
 
-> Stack went live 2026-08-22 (33/35 Up; journal §Phase 1 R1–R5). This section captures the
-> **settled initialization path** — what a redeployer runs beyond the playbook itself.
-> Final Verify-block evidence pass pending two owner inputs (see 1.8).
+> Stack went live 2026-08-22 (33/35 Up). This section captures the settled initialization path —
+> what a redeployer runs beyond the playbook itself.
 
 ### 1.1 Preconditions
 
@@ -452,7 +423,7 @@ Verify from a tailnet device: `https://stats.kogler.si` (forward-auth → SSO) a
 - `akadmin` / `authentik_login` password — works FIRST TRY on a fresh install (bootstrap env
   is pinned in compose and applies at user creation).
 - Enrol WebAuthn + TOTP when prompted. Optional: personal named admin for daily use.
-- **Human-user policy (owner decision 2026-08-23):** every new HUMAN user is created as **Internal
+- **Human-user policy:** every new HUMAN user is created as **Internal
   type** — never External (federated sources) or Service account (machine/API identities). Full
   setup per user: real name + real email · Active ON · membership in the **`family` group** (the
   NAS user-sync glue reads exactly this group, D5/HD-131) · WebAuthn + TOTP enrolled at first
@@ -529,8 +500,8 @@ If `/srv/docker/kopia-server/config/` is empty:
 # 1) sftp_key — backup-box PRIVATE key (Hetzner-SB-Backup 1P item), unencrypted:
 sudo nano /srv/docker/kopia-server/config/sftp_key && sudo chmod 600 /srv/docker/kopia-server/config/sftp_key
 
-# 2) known_hosts — ssh-keyscan FROM THE VPS HANGS SILENTLY on box:23 (netcup egress quirk,
-#    verified 2026-08-23). Take the entry from the LAPTOP's known_hosts instead:
+# 2) known_hosts — ssh-keyscan FROM THE VPS HANGS SILENTLY on box:23 (netcup egress quirk).
+#    Take the entry from the LAPTOP's known_hosts instead:
 #    laptop: ssh-keygen -F "[u653424.your-storagebox.de]:23"  -> copy the matching lines
 #    into /srv/docker/kopia-server/config/known_hosts (mode 644).
 
@@ -572,7 +543,7 @@ First-boot notes:
   systemctl restart nftables && sleep 2 && systemctl restart docker   # live-restore keeps containers
   # verify: nft list tables | grep inet filter ; nft list table ip nat | grep -c dnat
   ```
-  A plain docker restart does NOT wipe the inet filter table (verified 2026-08-23).
+  A plain docker restart does NOT wipe the inet filter table.
 - **VPS reboot checklist** (~2 min): `docker ps` roster complete; inet filter present with
   input policy drop; ip nat has dnat entries; sso/git return 302.
 - **Renovate repo-error diagnosis** (FATAL summary hides cause):
@@ -649,8 +620,8 @@ Per device:
 
 ### 1.5.3 Hand over to the Ansible `router` role (the take-over)
 
-From the **management laptop** (or the WSL runner — the role is the same). **Runner note
-(live-validated 2026-08-31):** `community.routeros` 3.x requires `librouteros` in the
+From the **management laptop** (or the WSL runner — the role is the same). **Runner note:**
+`community.routeros` 3.x requires `librouteros` in the
 interpreter Ansible uses for modules. `inventory.ini` pins
 `ansible_python_interpreter=/usr/bin/python3` (system), which does NOT have `librouteros` —
 the venv (`~/ansible-venv`) does. The `scripts/ansible-run.sh` wrapper hardcodes `REPO` to the
@@ -674,7 +645,7 @@ and firewall are built from scratch). The role's first task is an **identity ass
 on `bridge-lan` is the **last** task (line ~811) so a half-applied run can never blackhole
 the bridge.
 
-#### 1.5.3b Converge-.rsc escape (Phase 1.5 live-validated 2026-08-31)
+#### 1.5.3b Converge-.rsc escape
 
 If the Ansible role take-over stalls on live-found `api_modify` bugs (partial state left on
 the device), the pragmatic cutover path is a **generated full-steady-state `.rsc` import** —
@@ -742,9 +713,9 @@ The `router` role already configured the `wg-s2s` interface and the VPS peer
 (`wg_s2s_vps_public_key` in `group_vars/all/main.yml`). The VPS side has its own peer in
 `IaC/ansible/roles/wireguard/`. The tunnel is up as soon as both sides have the matching
 peer; the role asserts it. ✔-evidence:
-**Endpoint (2026-08-31 decision):** the VPS peer uses **`wg_s2s_vps.endpoint: s.kogler.si`** — a **DDNS token** (Cloudflare DNS A-record → home WAN) instead of a literal IP. The VPS initiates; `systemd-networkd` resolves the hostname at every boot, so the tunnel survives home WAN IP changes + a VPS redo without editing group_vars. `s.kogler.si` is tracked in `cloudflare_dns/vars/main.yml` (keep it updated when the home PPPoE IP changes).
+**Endpoint:** the VPS peer uses **`wg_s2s_vps.endpoint: s.kogler.si`** — a **DDNS token** (Cloudflare DNS A-record → home WAN) instead of a literal IP. The VPS initiates; `systemd-networkd` resolves the hostname at every boot, so the tunnel survives home WAN IP changes + a VPS redo without editing group_vars. `s.kogler.si` is tracked in `cloudflare_dns/vars/main.yml` (keep it updated when the home PPPoE IP changes).
 
-**Bring-up procedure (2026-08-31 live-validated up to the peer-attach step):**
+**Bring-up procedure:**
 
 ```bash
 # VPS side — wireguard role (interface + key + listen; from a session worktree, venv interpreter):
@@ -768,7 +739,7 @@ ansible-playbook -i inventory.ini playbooks/router.yml -e ansible_python_interpr
 sudo wg show wg-s2s                        ; peer with public key gwXAk+5…, latest-handshake non-zero
 ```
 
-> ⚠ **Known blocker (HD-306, 2026-08-31):** on VPS kernel `6.12.101` + systemd 257 the wireguard **peer currently does not attach** — the interface comes up (key/address/listen) but `wg show` shows no peer even after a correctly-formed `.netdev` `[WireGuardPeer]` or `wg setconf` (module refcount stays 0). See `todo.md` HD-306 for the research path; once it binds, re-run the two commands above and verify the handshake.
+> ⚠ **Known blocker (HD-306):** on VPS kernel `6.12.101` + systemd 257 the wireguard **peer currently does not attach** — the interface comes up (key/address/listen) but `wg show` shows no peer even after a correctly-formed `.netdev` `[WireGuardPeer]` or `wg setconf` (module refcount stays 0). See `todo.md` HD-306 for the research path; once it binds, re-run the two commands above and verify the handshake.
 
 Live-verify from the VPS:
 
@@ -776,18 +747,15 @@ Live-verify from the VPS:
 ping -c3 router.kogler.si   # router over the tunnel (WG S2S, mgmt-VLAN IP behind wg-s2s)
 ```
 
-**Authoring pitfalls for the wireguard role templates (2026-08-31, do not relearn):** ① Jinja newline-glue — Ansible `template` `trim_blocks` eats a literal newline after `{% endfor %}` → `AllowedIPs=…24Endpoint=…` glued on one line (peer dropped). Emit an explicit `{{ '\n' }}`. ② `.netdev` perms must be `0640` (`0600` + ACL `mask::---` → networkd `Permission denied`; networkd runs as `systemd-network`). ③ `[WireGuardPeer]` belongs in `.netdev` (`Kind=wireguard`); a `[WireGuardPeer]` section in `.network` is ignored (`Unknown section`).
+**Authoring pitfalls for the wireguard role templates (do not relearn):** ① Jinja newline-glue — Ansible `template` `trim_blocks` eats a literal newline after `{% endfor %}` → `AllowedIPs=…24Endpoint=…` glued on one line (peer dropped). Emit an explicit `{{ '\n' }}`. ② `.netdev` perms must be `0640` (`0600` + ACL `mask::---` → networkd `Permission denied`; networkd runs as `systemd-network`). ③ `[WireGuardPeer]` belongs in `.netdev` (`Kind=wireguard`); a `[WireGuardPeer]` section in `.network` is ignored (`Unknown section`).
 
 ### 1.5.6 Cutover close-out
 
 - `validate-all.sh` green from the worktree.
-- Append a `### 2026-08-31 — Phase 1.5 · network redo cutover` entry to
-  [deployment-journal.md](deployment-journal.md) (use [prompt-journal.md](prompt-journal.md) for raw
-  notes). Include device names, timestamps, evidence snippets (lease print, wireguard peer
-  print). Secrets by 1P item+field name only.
 - Tick the matching `- [x]` boxes in [deployment-tasks.md](deployment-tasks.md) Phase 1.5 (add
-  the phase there if it isn't yet). Trim the HD-285 `⏳` tail in [todo.md](todo.md); the row
-  closes when §1.5.5 handshakes.
+  the phase there if it isn't yet); in the ledger notes: device names, timestamps, evidence
+  snippets (lease print, wireguard peer print). Secrets by 1P item+field name only.
+- Trim the HD-285 `⏳` tail in [todo.md](todo.md); the row closes when §1.5.5 handshakes.
 - Commit signed (`G`) on the session branch; merge to main; remove the worktree.
 
 ---
@@ -800,7 +768,11 @@ ping -c3 router.kogler.si   # router over the tunnel (WG S2S, mgmt-VLAN IP behin
 
 ### 4.1 Flash + first-boot config `[MANUAL]`
 
-> The Pi uses **Raspberry Pi OS Lite (64-bit, headless)** — official Debian-based image, NOT the Debian Installer/preseed path of nas/oldsrv (no `d-i` to answer questions, `preseed.cfg` does not apply). **Owner decision 2026-09-01:** the previously-documented raspi.debian.net image failed with a **rainbow screen** (kernel/firmware mismatch on the Pi 4) → switched to Pi OS Lite via Raspberry Pi Imager. Authoring spec: [deployment-preseed.md → Pi Image Deployment](docs/deployment-preseed.md).
+> The Pi uses **Raspberry Pi OS Lite (64-bit, headless)** — official Debian-based image, NOT the
+> Debian Installer/preseed path of nas/oldsrv (no `d-i` to answer questions, `preseed.cfg` does
+> not apply); the raspi.debian.net image fails with a **rainbow screen** (kernel/firmware mismatch
+> on the Pi 4) → use Pi OS Lite via Raspberry Pi Imager. Authoring spec:
+> [deployment-preseed.md → Pi Image Deployment](docs/deployment-preseed.md).
 
 1. **Download** Raspberry Pi OS Lite (64-bit) from https://www.raspberrypi.com/software/operating-systems/.
 2. **Flash with Raspberry Pi Imager** to microSD (≥32 GB; 32–64 GB typical) — Imager's **⚙ advanced gear** does the headless pre-config: **Enable SSH + set user (`admin`) + preload the `ansible-admin_ssh` pubkey, hostname `pi`, timezone/locale** (writes `ssh` flag + `userconf.txt` — no manual card edit needed; the old `first-boot-config.sh` is for raspi.debian.net and **not** used here). **Do NOT boot yet.**
@@ -842,12 +814,13 @@ Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefi
 - `ha.kogler.si` resolves to the VIP (`ha-vip` per SSOT); `keepalived` MASTER on the Pi (priority 110 > oldsrv's 100).
 - Technitium (Pi node IP per SSOT) resolves `*.kogler.si` internally; primary on VPS/oldsrv per HD-299 (3-instance DNS HA still to build).
 - HA web login via Authentik **native OIDC** on the `ha` route (no Forward-Auth).
-- Manual failover Pi→oldsrv and back passes ([smart-home-failover.md](docs/smart-home-failover.md) runbook; HD-17 button + `ha-failover_api` still pending).
+- Manual failover Pi→oldsrv and back passes ([smart-home-failover.md](docs/smart-home-failover.md) runbook; HD-17 button + `ha-failover_api` pending).
 - NUT client shutdown path (master = nas) · monitoring scrape of the HA exporter (Phase 6).
 
-> **Deploy-gated:** HD-04 (HAOS→Debian+HA Container+Technitium secondary) — approved direction, not yet applied until live-verify; HD-17/124 (failover button + keepalived hardening) still pending. See [todo.md](todo.md) rows + [home-assistant-current.md](docs/home-assistant-current.md).
+> **Deploy-gated:** HD-04 (HAOS→Debian+HA Container+Technitium secondary), HD-17/124 (failover
+> button + keepalived hardening). See [todo.md](todo.md) rows + [home-assistant-current.md](docs/home-assistant-current.md).
 
 ---
 
-*Last updated 2026-09-01 · Phases 0 + 0.5 + 1a complete; Phase 1 written from the settled 2026-08-22 initialization path; **Phase 1.5 added 2026-08-31** (network redo cutover); **Phase 4 added 2026-08-31/09-01** — Pi image flash (Raspberry Pi OS Lite, Imager ⚙ pre-config) + first-boot + Ansible + verify; executed Pi first-boot + router ether10 dual-home + mgmt reservation 2026-09-01 via idempotent delta rsc import.*
+*Last updated 2026-09-01 · imperative redeploy procedure (true zero → live) for Phases 0 + 0.5 + 1a + 1 + 1.5 + 4. Progress/history lives in [deployment-tasks.md](deployment-tasks.md) + owning docs.*
 

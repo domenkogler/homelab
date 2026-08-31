@@ -165,7 +165,7 @@ container — no separate `immich-microservices` service needed.
 
 > Superseded by **HD-135** (VPS era): Immich app + DB + thumbs run on the **VPS**, originals + encoded-video
 > on the **live Hetzner Box** (CIFS), ML offloaded to oldsrv — layout in [`storage.md`](storage.md), decision
-> history in [changelog.md](../changelog.md) (HD-135/HD-151). The old NAS-NFS mount plan lives in git history.
+> history in [deployment-ansible.md](deployment-ansible.md) (HD-135/HD-151). The old NAS-NFS mount plan lives in git history.
 
 ---
 

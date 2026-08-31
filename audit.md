@@ -15,11 +15,11 @@ The Qwen audits (61 KOPS findings + architecture audit + low-fruits) were fully 
 the canonical system on 2025-08-16 (`reports/audit-analysis.md`, AUD-01..13 all `(done)`), and the
 repo has since: gone live on the VPS (Phase 1), grown to 33 enabled services, 62 docs, 31 scripts,
 20 roles, 58 compose templates. This audit measures **drift between authored state and reality** —
-the README §2 three-step check is the liveness SSOT (`deployment-journal.md` > `deployment-tasks.md`
+the README §2 three-step check is the liveness SSOT (`deployment-tasks.md` ticks + owning-doc ✅ status lines + `git log`; the changelog/journal were frozen → `reports/`, archive-only)
 ⏳ checklists > doc banners as hints only).
 
 **The session starts by reading (in order):** `README.md` §0-2 → `CONVENTIONS.md` §0-8 →
-`docs/index.md` → `todo.md` → `changelog.md` (recent rows) → `deployment-journal.md` (Phase 1
+`docs/index.md` → `todo.md` → `reports/changelog.md` (frozen archive) → `reports/deployment-journal.md` (frozen) → owning docs (live)
 tail) → `deployment-tasks.md`. Then it follows the plan below. It does NOT bulk-read or
 random-edit; it audits **by checklists drawn from the canonical docs** and reports only genuine
 drift, never cosmetic noise.
@@ -28,8 +28,8 @@ drift, never cosmetic noise.
 - **Session discipline:** fresh worktree `../homelab-wt-<date>-<HHMM>` (branch `session/…`) BEFORE any edit; `scripts/guard-session.sh` refuses primary+main edits; `validate-all.sh` must end green before commit; merge back only green, signed (`ssh-add ~/.ssh/github_signing ~/.ssh/github_auth` if fresh shell).
 - **SSOT direction:** values live in IaC (`group_vars/*.yml`, `host_vars/*.yml`, `rack-connections.json`); generated `*-generated.md` are render views — never hand-edit; scripts never parse generated MD.
 - **Secrets:** 1Password `Homelab-ansible` item.field refs only, never literal; fail-loud (no `default('')`); never write a secret VALUE to stdout/chat/git/transcripts (lengths/tails/hashes only).
-- **Append-only discipline:** `changelog.md` + `deployment-journal.md` never rewritten; corrections = new entries referencing the old.
-- **Derived-values ban:** next-free HD = `bash scripts/next-hd.sh` (from `todo.md` + `changelog.md`) at write time — never type a literal.
+- **Append-only discipline:** decisions/evidence live in the owning docs + `*-rejected.md` logs; the frozen `reports/changelog.md` + `reports/deployment-journal.md` are never rewritten.
+- **Derived-values ban:** next-free HD = `bash scripts/next-hd.sh` (from `todo.md` + `docs/**`; changelog archive excluded, + git-history) at write time — never type a literal.
 - **Language/links:** English (docs/manual Slovak for family only); relative `.md` links; every doc starts with `> **Role:**` / `> **Linked from:**`.
 - **Planning-phase styling:** substantive content-level edits only — no cosmetic/ASCII-alignment/wording-polish passes (park those, don't ship them).
 
@@ -40,9 +40,9 @@ drift, never cosmetic noise.
 | Drift Type | Example | Severity | Evidence Required |
 |------------|---------|----------|-------------------|
 | **SSOT Conflict** | `group_vars/vps.yml` port 8080 vs `docs/services.md` port 9090 | High | Both file:line refs |
-| **Liveness Mismatch** | Doc banner `⏳ deploy-gated` but `deployment-journal.md` shows `✅ Live since 2026-08-22` | Medium | Journal entry date + doc line |
+| **Liveness Mismatch** | Doc banner `⏳ deploy-gated` but owning-doc ✅ + `deployment-tasks.md` tick show `✅ Live since 2026-08-22` | Medium | Owning-doc line + tick date |
 | **Secret Reference Broken** | Template `vault[item.field]` but 1P item missing/renamed | High | `check-vault-items.sh --strict` output |
-| **Enabled Not Converged** | `enabled: true` in group_vars, no journal entry for converge | High | `deployment-journal.md` grep result |
+| **Enabled Not Converged** | `enabled: true` in group_vars, no owning-doc ✅ / ledger tick for converge | High | Owning-doc status + `git log` |
 | **Validator Gap** | Injected `default('')` not caught by `validate-all.sh` | High | Validator name + injected fault |
 | **Orphan Doc/Script** | File exists but not in `docs/index.md` or `scripts/README.md` | Low | `git ls-files` vs registry diff |
 | **Cosmetic/Stale Text** | "TODO: define service" in a Live doc | Low | File:line + context |
@@ -54,8 +54,8 @@ drift, never cosmetic noise.
 | Input | Role | How to read |
 |---|---|---|
 | `todo.md` | Backlog + open decisions (HD-XX) | Every open row is a **commitment** — the audit must not silently ignore or re-decide it; the audit REPORT may surface a row as stale/needs-update, but must not mutate it without a journal/log decision. |
-| `changelog.md` | Decision log + done-work SSOT | Re-decide ban: any claim that contradicts a changelog row is a **re-opened decision** → flag it, don't fix by fiat. |
-| `deployment-journal.md` | Append-only liveness proof | The audit's "is it actually live?" evidence base — read Phase 1 + Phase 1a/1.5 tails; never edit (append a new entry only if the audit SFixes something live). |
+| `reports/changelog.md` | Frozen decision archive (pre-2026-09-01) | Re-decide ban: historical decisions live here; any claim that contradicts a changelog row is a **re-opened decision** → flag it, don't fix by fiat. |
+| `reports/deployment-journal.md` | Frozen liveness/execution archive | Historical "actually live?" evidence — read for context; never edit (archived). |
 | `deployment-tasks.md` | Phase-build runbook + deploy-gated checklists | Cross-check every doc status banner against the phase checklists. |
 | `docs/index.md` | Document map + dispatcher | The audit verifies every doc is reachable from here (and vice-versa) + every map row resolves. |
 | `scripts/README.md` | Script registry | The audit verifies registry accuracy (scripts exist, portability status matches, no orphan/undocumented scripts). |
@@ -70,7 +70,7 @@ drift, never cosmetic noise.
 ### Track A — Docs consistency & liveness (docs/)
 1. **Map completeness** (`scripts/check_doc_map.py` is in the gate; the audit adds a HUMAN pass):
    - Every `docs/*.md` reachable from `docs/index.md` and vice-versa; no orphan doc, no doc the map doesn't dispatch.
-   - Every status banner (`🟢 IaC done, not yet live — ⏳ deploy-gated` / `✅ Live since …`) cross-checked against `deployment-journal.md` + `deployment-tasks.md` per README §2 (banners are hints, not proof). List every banner that says "not live" for something the journal shows live (and the reverse).
+   - Every status banner (`🟢 IaC done, not yet live — ⏳ deploy-gated` / `✅ Live since …`) cross-checked against owning-doc ✅ + `deployment-tasks.md` ticks per README §2 (banners are hints, not proof). List every banner that says "not live" for something the owning docs/ticks show live (and the reverse).
 2. **Link integrity** beyond the gate: relative `.md` links that resolve; anchors that exist; no link to a deleted/moved file (`git log --diff-filter=D` for recently removed docs).
 3. **SSOT discipline**: no IP literals outside `network-addresses-generated.md`/IaC (gate checks); no secret values; no `*-generated.md` hand-edits (git-blame them); no stale "TODO: define service" placeholder language.
 4. **Docs-vs-IaC parity**: for the hot owning docs (`deployment-*`, `network-*`, `services-*`, `observability`, `backup`, `security`, `smart-home*`, `hardware-*`, `storage`): each value/fact the doc quotes (service names, subdomains, image versions, ports, hostnames, addresses) must match the SSOT it cites (`group_vars/*.yml`, `host_vars/*.yml`). Sample-don't-exhaust: pick the 8 hottest docs; for each, spot-check ≥6 concrete facts.
@@ -86,7 +86,7 @@ drift, never cosmetic noise.
 5. **Playbook tag/surgical hygiene** (`docs/deployment-ansible.md` §Tags & surgical): every playbook's role tags are declared; `docker_services_scope` semantics not violated; the rare `base` tier additive (not a skip-default); nothing renders/updates off-path.
 6. **IaC ↔ docs parity**: the hot IaC values (subdomains, ports, image pins, IPs) match the owning docs; where they diverge, one is stale — the audit REPORT says which direction.
 7. **Convergence verification**: for every `enabled: true` in `group_vars/{vps,home_servers}.yml`, verify:
-   - A `deployment-journal.md` entry exists with "converged" / "verified" / "deployed" language for that service.
+   - The owning doc has a ✅ status line / the deployment-tasks.md phase checklist has the service ticked (✅) with "converged"/"verified"/"deployed" evidence.
    - The corresponding `deployment-tasks.md` phase checklist has the service ticked (✅).
    - If missing → finding `AUD-B-<n>` High: "Service X enabled but no convergence evidence".
 8. **Ansible idempotency check**: run `ansible-playbook -i inventory.ini site.yml --check --diff --limit vps` (and per-playbook for home_servers when provisioned) — report any "changed" tasks that should be idempotent. These indicate config drift between IaC and live state.
@@ -105,7 +105,7 @@ drift, never cosmetic noise.
 
 ### Track D — Cross-cutting conformance (sample-based)
 1. **Secret hygiene**: `bash scripts/check-vault-name.py` + `validate-secrets.py` green on the worktree; a human grep for the B5 placeholder tokens + any raw `password:`/`token:` literal in group_vars/templates (gate checks; the audit adds a second human layer).
-2. **Lifecycle conformance**: open HD rows map to owning docs; `⏳` tails exist only where `deployment-tasks.md` has a matching deploy-gated checklist; no fully-done row still living in todo (should be changelog-only); no row whose ⏳ is stale vs the journal (like the HD-271 comment-only gap caught in the live-verify session).
+2. **Lifecycle conformance**: open HD rows map to owning docs; `⏳` tails exist only where `deployment-tasks.md` has a matching deploy-gated checklist; no fully-done row still living in todo (should be owning-doc + git-history record); no row whose ⏳ is stale vs the owning-doc ✅ lines.
 3. **Service-onboarding (CONVENTIONS §5)**: for a sample of 3 enabled services (e.g. a recent on-board like crowdsec-web-ui, a core like traefik/authentik, and one still-⏳ like renovate) — walk the 10-step checklist and report which steps are done/gapped.
    **Onboarding Rubric** (per service):
    | Step | Required? | Evidence | Status (✅/⚠️/❌/N/A) |
@@ -120,7 +120,7 @@ drift, never cosmetic noise.
    | 8. Deployment journal entry | Y/N | journal date | |
    | 9. deployment-tasks.md checklist | Y/N | phase item | |
    | 10. Doc status banner updated | Y/N | doc file:line | |
-4. **Decision-log alignment**: no open decision in `todo.md` §1 that `changelog.md` already resolved; no decision re-argued in a doc without a changelog row.
+4. **Decision-log alignment**: no open decision in `todo.md` §1 that the owning doc / `*-rejected.md` / frozen changelog already resolved; no decision re-argued in a doc without an owning-doc record.
 5. **False Positive Log**: for any finding that *looks* like drift but is intentional (e.g., a service `enabled:true` but deliberately not converged yet), record:
    `AUD-FP-<n> | finding | why it's intentional | owner confirmation needed?`
    This prevents re-flagging known intentional state in future audits.
@@ -189,7 +189,7 @@ Scope: ONLY {track}. Do NOT fix files; report findings.
 
 MANDATORY PRIOR ART:
 - Read `reports/audit-analysis.md` (AUD-01..13 all done) — do NOT report these as new findings.
-- Read `changelog.md` recent (last 20 entries) — do NOT re-open decided items.
+- Read the frozen `reports/changelog.md` recent rows — do NOT re-open decided items.
 - Note any `brainstorming/audit-prompt.md` items relevant to your track.
 
 Write exactly ONE artifact pair in your worktree:
@@ -238,7 +238,7 @@ Produce in the session worktree (do NOT commit findings inside a service config 
    - **C. Scripts**: findings per track (registry/gate/coverage/dead).
    - **D. Conformance**: lifecycle + onboarding + decision-log findings.
    - **E. Live-liveness**: live-vs-authored mismatch table.
-   - **F. Consolidated action plan**: High/Med/Low, each tied to a new HD row (use `scripts/next-hd.sh`) or an existing open HD; **do NOT re-decide** — where a fix contradicts a changelog decision, mark it `needs-owner-decision` with the prior decision cited.
+   - **F. Consolidated action plan**: High/Med/Low, each tied to a new HD row (use `scripts/next-hd.sh`) or an existing open HD; **do NOT re-decide** — where a fix contradicts an owning-doc/changelog decision, mark it `needs-owner-decision` with the prior decision cited.
    - **G. Open questions** for the owner (only genuine blockers, not resolved ones).
 
    **Evidence Standard** (for every finding in sections A–E):
@@ -293,7 +293,7 @@ Produce in the session worktree (do NOT commit findings inside a service config 
 
 ## 5. Session workflow reminder (from `README.md` / `CONVENTIONS.md`)
 
-1. `read README.md` (intent-routed) → read mandatory context §2 in order (CONVENTIONS → index → IaC README → todo → changelog).
+1. `read README.md` (intent-routed) → read mandatory context §2 in order (CONVENTIONS → index → IaC README → todo → owning docs).
 2. State environment (`platform-env`): debian (WSL ext4) · bash · `/home/domen/source/homelab` primary; `scripts/ansible-run.sh` for playbooks; `ssh ansible-admin@vps.kogler.si` for live.
 3. **Step-0 ritual:** `git status` + fresh worktree `../homelab-wt-<date>-<HHMM>` BEFORE any edit (guard-session enforces).
 4. Prior-art sweep (`todo.md`/`changelog.md`/`reports/audit-analysis.md` + `brainstorming/audit-prompt.md` — the old Qwen audit) and REPORT prior art before proposing any new HD row.

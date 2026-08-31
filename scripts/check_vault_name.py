@@ -9,8 +9,8 @@ comments or op:// URIs sends humans and scripts at a vault that must not exist.
 Scan scope:
   * canonical .md — same rules as check_doc_map.py's _iter_scan_files
     (docs/**, canonical root docs, IaC/**/*.md; brainstorming/, docs/assets/,
-    prompt-* handoffs excluded), MINUS changelog.md: it is append-only
-    decision history and intentionally preserves names as written.
+    prompt-* handoffs excluded), MINUS reports/changelog.md + reports/deployment-journal.md:
+    they are frozen archive and intentionally preserve names as written.
   * IaC/**/*.yml + IaC/**/*.j2 (group_vars, roles, playbooks, templates).
   * scripts/*.py (checker/render docstrings name the vault).
 
@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 
 # Canonical root docs scanned for links by check_doc_map.py (kept in sync).
-ROOT_SCAN = {"README.md", "CONVENTIONS.md", "todo.md", "changelog.md",
+ROOT_SCAN = {"README.md", "CONVENTIONS.md", "todo.md",
              "deployment-tasks.md", "readme-humans.md"}
 
 # Bare `Homelab` not followed by `-ansible` (word-boundary keeps `Homelable` out).
@@ -46,8 +46,8 @@ _VAULT_CTX = re.compile(r"vault|1 ?password|onepassword|op_vault|op://", re.IGNO
 
 
 def _iter_scan_files() -> list[Path]:
-    """Canonical .md (check_doc_map scope, minus append-only changelog.md)
-    plus every IaC yml/j2 and scripts/*.py."""
+    """Canonical .md (check_doc_map scope; frozen changelog/journal archives in
+    reports/ are excluded) plus every IaC yml/j2 and scripts/*.py."""
     files: set[Path] = set()
     if DOCS.is_dir():
         files |= {p for p in DOCS.rglob("*.md") if not p.is_symlink()}
@@ -72,8 +72,6 @@ def _iter_scan_files() -> list[Path]:
         if "brainstorming/" in rel or "/assets/" in rel:
             continue
         if f.name.startswith("prompt-"):
-            continue
-        if f.name == "changelog.md":      # append-only history — exempt
             continue
         out.append(f)
     return sorted(out)

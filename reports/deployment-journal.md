@@ -1,10 +1,10 @@
-# Deployment Journal — As-Built Record
+# Deployment Journal — As-Built Record (FROZEN)
 
-> **Role:** Append-only execution log — the **as-built** counterpart to [`deployment-tasks.md`](deployment-tasks.md)
-> (the plan) and the IaC owning docs (desired state). Records what was **actually done**: terminal commands
-> as run, settings chosen, values captured, verification evidence, and every deviation from the documented
-> procedure. Manual steps end up here even when the outcome later becomes IaC.
-> **Linked from:** [deployment-tasks.md](deployment-tasks.md), [docs/deployment.md](docs/deployment.md)
+> **Role:** FROZEN archive (2026-09-01) of the as-built execution log. **No new entries are ever
+> appended** — liveness evidence now lives in the owning docs (`docs/*.md` ✅ status lines) and
+> [`deployment-tasks.md`](deployment-tasks.md) checkbox dates; execution detail lives in git commit
+> messages + history. Retained only as a read-only historical record.
+> **Linked from:** git history + past `prompt-*.md` handoffs (historical only).
 
 ---
 

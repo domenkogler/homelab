@@ -29,7 +29,7 @@
 #    the repo root self-derived from this script's path — /home/domen/source/homelab).
 #
 # Requires: curl, bash. Read-only clone/sync needs no GitHub auth.
-# Owner: user (pi.dev-in-WSL tooling, HD-259 companion) — record in changelog if adopted.
+# Owner: user (pi.dev-in-WSL tooling, HD-259 companion) — record in the owning doc if adopted.
 # =====================================================================
 set -euo pipefail
 

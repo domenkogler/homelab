@@ -336,7 +336,7 @@ and `nvme` (oldsrv), documented above.
 
 > Superseded by the VPS-era layout above (**HD-135**, decided 2026-08-18): app + DB + thumbs on VPS NVMe,
 > originals + encoded-video on the live Hetzner Box, ML on oldsrv. The old "originals on NAS/MinIO" mount
-> plan lives in git history — see [changelog.md](../changelog.md) (HD-135/HD-151).
+> plan lives in git history — see [deployment-compose.md](deployment-compose.md) (HD-135/HD-151).
 
 ---
 

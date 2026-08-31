@@ -8,7 +8,7 @@ tags: [hardware, oldsrv, docker]
 # oldsrv — i7-7700K Docker Host
 
 > **Role:** Detail — Phase 1 primary server. Bare-metal Debian, simultaneously family desktop PC and 24/7 Docker host.
-> **Current state (2026-08-23):** ✅ **Debian 13 (Trixie, XFCE) INSTALLED 2026-08-23** (Phase 1a reinstall done — interactively, not via preseed; execution record: [deployment-journal.md](../deployment-journal.md) Phase 1a). Boot mode **BIOS/CSM** (msdos table on the 960 EVO; UEFI-force question answered No). Ansible hold rule active — first playbook contact only after the Phase 1.5 cutover. Everything below describes the target state; storage pools (ZFS `nvme`, NFS mounts) are NOT live yet.
+> **Current state (2026-08-23):** ✅ **Debian 13 (Trixie, XFCE) INSTALLED 2026-08-23** (Phase 1a reinstall done — interactively, not via preseed; execution record: [deployment-tasks.md §Phase 1a](../deployment-tasks.md) — the as-built evidence is the commit + this doc's status). Boot mode **BIOS/CSM** (msdos table on the 960 EVO; UEFI-force question answered No). Ansible hold rule active — first playbook contact only after the Phase 1.5 cutover. Everything below describes the target state; storage pools (ZFS `nvme`, NFS mounts) are NOT live yet.
 > **NIC map (verified live at install):** `enp0s31f6` = onboard Intel (cabled during install, DHCP) · `enp5s0f0` / `enp5s0f1` = Intel i350-T2 (port 2 = `enp5s0f1` is the planned VLAN trunk to CRS328) · `wlp9s0` = WLAN card present — blacklisted at install (`module_blacklist=iwlwifi` on all media boot entries); consider disabling in BIOS.
 > **Links to:** `hardware-gpu.md`, `services.md`, `network-vlans.md`
 > **Linked from:** `hardware.md`, `deployment-preseed.md`, `deployment-ansible.md`
@@ -128,4 +128,4 @@ Containers start at boot via systemd units **before any user logs in**:
 > **REJECTED (2026-08-16, HD-92):** oldsrv stays **bare-metal Debian + Docker** — no local Proxmox and no GPU
 > passthrough on the single Phase-1 box (one shared dGPU serves both desktop and AI; a single host gains no HA
 > from VMs). Proxmox defers to Phase 2 (HD-41/42) with a real second node. Full rationale + the rejected
-> `infra`/`desktop` VM split live in [changelog.md](../changelog.md) (HD-92) and git history.
+> `infra`/`desktop` VM split (blueprint decided 2026-08-19; live install used a single full-metal install — the split is a re-install option, per `hardware-oldsrv/` VM layout note) + git history.

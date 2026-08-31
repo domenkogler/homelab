@@ -28,7 +28,7 @@
 #   GitHub auth; push + signing go over SSH with `--ssh-auth`.
 #
 # See ansible-enhancements.md §8.4 for the reasoning + caveats.
-# Owner: user (this audit's proposal) — record in changelog if adopted.
+# Owner: user (this audit's proposal) — record in the owning doc if adopted.
 # =====================================================================
 set -euo pipefail
 

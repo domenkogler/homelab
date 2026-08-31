@@ -7,12 +7,12 @@ tags: [deployment, rejected, decision-log]
 ---
 # Deployment — Rejected / Dropped
 
-> **Role:** Append-only decision log — deploy-toolchain / VPS-host / hypervisor options the homelab evaluated and declined. Sorted by service name. Each decision mirrors the `changelog.md` decision-log SSOT (do not re-decide without checking it).
+> **Role:** Append-only decision log — deploy-toolchain / VPS-host / hypervisor options the homelab evaluated and declined. Sorted by service name. This log is the per-domain **decision-log SSOT**.
 > **Links to:** `deployment.md`
 > **Linked from:** `index.md`, `deployment.md`
 
 > ⚠️ **Append-only.** Never edit or reorder an entry after it lands. A changed decision is a **new appended entry** (do not strike/replace). Each row: `| <tool> | <rejected|dropped|superseded> | <date> | <why, 1–2 lines + evidence link> |`.
-> ⚠️ **Evidence = the owning doc + changelog decision.** Dates are the changelog/git-attribution dates (advisory, per changelog.md header).
+> ⚠️ **Evidence = the owning doc + this decision log.** Dates are the decision dates in the owning doc / git-attribution dates (advisory).
 
 ## Decisions
 
@@ -24,4 +24,4 @@ tags: [deployment, rejected, decision-log]
 | watchtower | rejected | 2026-08-18 | Deliberate no — would bypass the Ansible/Renovate gate + break primary/standby HA version parity; HA updates stay Renovate + `stable`. Revisit only if HA runs single-node. HD-39. · [deployment-renovate.md](deployment-renovate.md) |
 
 > **Not a deployment-domain decision:** guest-network / storage / services rejections live in their own `<domain>-rejected.md` files — see [`services-rejected.md`](services-rejected.md), [`storage-rejected.md`](storage-rejected.md), [`network-rejected.md`](network-rejected.md), [`smart-home-rejected.md`](smart-home-rejected.md).
-> **SSOT note:** this log mirrors the changelog `*(decision)*` rows for the deploy/hypervisor domain.
+> **SSOT note:** this log is the decision-log SSOT for the deploy/hypervisor domain.

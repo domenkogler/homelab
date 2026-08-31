@@ -26,7 +26,7 @@ False-positive guards (no false failures on):
   * URLs (http/https/mailto), in-page anchors (#)
   * glob/wildcard patterns in link text (e.g. `[x](*.md)` — literal prose)
   * link syntax inside inline code spans or fenced code blocks (used as
-    examples in changelog.md / todo.md when describing this very linter)
+    examples when describing this linter)
   * `manual/*` family docs (checked for resolution, not map coverage)
   * symlinks and docs/assets (binary/in-progress, excluded)
 
@@ -152,11 +152,9 @@ def main() -> int:
     # so a stale/missing target in the index is caught, as is any other link
     # across all canonical .md files.
     broken_all: list[tuple[str, str]] = []
-    # Append-only history: changelog.md rows may reference files renamed after
-    # the row was written (e.g. docs/llm-office.md -> services-office.md). Those
-    # historical links are intentionally left as written — allow them.
-    CHANGELOG_STALE = {"docs/llm-office.md", "docs/ai-stack.md",
-                       "docs/hd110-office-mcp-research.md"}
+    # Stale-link allowlist was retired with the changelog (2026-09-01): the frozen
+    # changelog/journal now live in reports/ (excluded from scanning), so no
+    # append-only stale-link special case remains.
     for f in _iter_scan_files():
         try:
             text = f.read_text(encoding="utf-8")
@@ -171,9 +169,7 @@ def main() -> int:
             path = tgt.split("#", 1)[0]
             candidate = (f.parent / path)
             if not candidate.exists():
-                # allowlist for append-only changelog rows referencing pre-rename files
-                if rel_src == "changelog.md" and path in CHANGELOG_STALE:
-                    continue
+                # allowlist retired with changelog (none scanned now)
                 broken_all.append((rel_src, tgt, str(candidate.resolve())))
 
     if broken_all:

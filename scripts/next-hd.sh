@@ -8,10 +8,12 @@
 #
 # Source of truth scanned (in increasing precedence — the *widest* superset wins):
 #   todo.md     — active/open rows (HD-267, zero-padded HD-03, ...)
-#   changelog.md — append-only decision log + done rows (fully-done rows are
-#               *deleted* from todo.md but their HD survives here; ranges like
-#               HD-247–251 and compound tags like hd244+hd245 also appear)
-# next free = max(all HD numbers across those files) + 1
+#   docs/**/*.md — owning docs carry HD-XX refs for related items, decisions, deploy-gates
+#   git history  — `git log -S 'HD-'` catches fully-closed rows deleted from todo.md
+#                 (their HD id survives only in commit messages/history). The archived
+#                 changelog was frozen → reports/changelog.md after 2026-09-01; it is NOT
+#                 scanned (archive-only).
+# next free = max(all HD numbers across those sources) + 1
 #
 # Parser intentionally lenient: matches `HD-03`, `HD-259B`, `HD-247–251`,
 # `hd244+hd245`, `HD-260`, ... and takes the largest integer. Zero-padded ids
@@ -29,10 +31,20 @@ set -u
 
 # --- resolve scan set --------------------------------------------------------
 SRC_REPO="$(cd "$(dirname "$0")/.." && pwd)"
-DEFAULT_FILES="todo.md changelog.md"
+DEFAULT_FILES="todo.md"
+GIT_SCAN=1  # also scan `git log -S 'HD-'` for closed rows (widest superset)
 FILES="${FILES:-$DEFAULT_FILES}"
 
 # --- collect every HD integer fragment from the given files -----------------
+# Warn if the optional git-history scan is skipped (closed HD ids hidden).
+if [ "${GIT_SCAN:-1}" = "1" ]; then
+  if command -v git >/dev/null 2>&1 && git -C "$SRC_REPO" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "next-hd: note: scanning git history for closed HD ids (git log -S 'HD-')" >&2
+  else
+    echo "next-hd: warn: not in a git repo — closed-row HD ids (git history) not scanned; max may undercount" >&2
+  fi
+fi
+
 extract_ids() {
   local f raw
   for f in $FILES; do

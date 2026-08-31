@@ -1,6 +1,10 @@
-# Changelog — Kogler Homelab
+# Changelog — Kogler Homelab (FROZEN)
 
-> Append-only log of completed/decided work. Migrated out of `todo.md` on 2026-08-17.
+> **Role:** FROZEN archive (2026-09-01) of the pre-2026-08-31 completed/decided-work log and
+> decision-log SSOT. **No new entries are ever appended** — the leaned-down flow keeps done work and
+> decisions in the owning docs (`docs/*.md`, `<domain>-rejected.md`) + git history; this file is
+> retained only as a read-only historical record (HD-id continuity, past decisions).
+> **Linked from:** git history + past `prompt-*.md` handoffs (historical only).
 > Dates are best-effort git attributions (module/commit dates); verify against the owning doc before
 > relying on them — they are advisory, not SSOT.
 

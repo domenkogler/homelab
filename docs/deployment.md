@@ -103,7 +103,7 @@ git push → (Forgejo Actions CI) → merge → deploy button → Ansible → de
 | ZFS storage layout & properties | [`storage.md`](storage.md) |
 | Dashboard matrix | [`interfaces.md`](interfaces.md) |
 | Deployment ledger (plan + progress) | [`../deployment-tasks.md`](../deployment-tasks.md) |
-| Deployment journal (as-built execution record) | [`../deployment-journal.md`](../deployment-journal.md) |
+| Deployment as-built (frozen archive, pre-2026-09-01) | [`../reports/deployment-journal.md`](../reports/deployment-journal.md) |
 | Deployment runbook (redeploy procedure, true zero → live) | [`../deployment-manual.md`](../deployment-manual.md) |
 
 ## Related

@@ -12,9 +12,9 @@
 > **Status tracking for sub-tasks / difficulty:** `todo.md` (HD-XX IDs).
 >
 > **Execution log:** every manual command, chosen setting, captured value and deviation is recorded
-> as-built in **[`deployment-journal.md`](deployment-journal.md)** (append-only). Steps get ticked
+> ✅ progress lives in the checkboxes; **as-built evidence** lives in the owning docs' ✅ status lines + the git commit that did the work (the changelog/journal were frozen → `reports/`, archive-only). Steps get ticked
 > `- [x]` + date here as they complete; human-only steps carry a **`[MANUAL]`** prefix.
-> **Human feed:** paste raw notes into [`prompt-journal.md`](prompt-journal.md) DATA — the AI writes the entry.
+> **Human feed:** paste raw notes into the prior `prompt-journal.md` DATA handoff (frozen process — the feed file was retired 2026-09-01).
 
 > **✅ Decisions (2026-08-16 — overriding some phase wording below):** see `todo.md` for the full
 > rationale. **HD-92:** `oldsrv` stays bare-metal Debian + Docker (no Proxmox / no GPU passthrough on the
@@ -133,13 +133,13 @@
 > brings up the internal/GPU backends; the WG S2S tunnel (Phase 1.5 / HD-03 WG VPS peer) then lets the VPS reach them.
 > **Step-by-step runbook:** [deployment-manual.md](deployment-manual.md) §Phase 0.5 (re-provisioning; §Phase 1 lands after the first green Verify block).
 
-1. - [x] **[MANUAL]** **Provision VPS (netcup SCP)** — ✅ done 2026-08-18; Custom Script confirmed applied (first key-auth login verified 2026-08-21, see deployment-journal.md). netcup boots its **pre-built Debian 13 image**; the operative install hook
+1. - [x] **[MANUAL]** **Provision VPS (netcup SCP)** — ✅ done 2026-08-18; Custom Script confirmed applied (first key-auth login verified 2026-08-21; owning-doc + commit evidence). netcup boots its **pre-built Debian 13 image**; the operative install hook
    is the **Custom Script** (netcup SCP field) = **`IaC/host/vps/post_install.sh`** (pasted as `*_with_secrets.sh`;
    no `ai-debug`, `AllowUsers ansible-admin` only — public box). **NOTE:** the `d-i` preseed lines
    (`IaC/host/vps/preseed.cfg`) do **NOT** run on netcup's image — that file is a reference/fallback only
    (see `deployment-preseed.md` → VPS Deviations). The `*_with_secrets.sh` injects the real SSH keys;
    root login disabled. Single 512 GB NVMe root (ext4, no ZFS).
-   - [x] **[MANUAL]** **Re-provision with the HD-208-fixed script** (reinstall) — ✅ done 2026-08-22: reinstalled via Custom Script (Minimal image), then console-remediated after the HD-209 pubkey-doubling bug (template fixed `a97783d`); first-boot verified — `sshd -T` = **no/no/3** from the drop-in alone, sudoers NOPASSWD, both identities authorized (see deployment-journal.md Phase 1.0).
+   - [x] **[MANUAL]** **Re-provision with the HD-208-fixed script** (reinstall) — ✅ done 2026-08-22: reinstalled via Custom Script (Minimal image), then console-remediated after the HD-209 pubkey-doubling bug (template fixed `a97783d`); first-boot verified — `sshd -T` = **no/no/3** from the drop-in alone, sudoers NOPASSWD, both identities authorized (owning-doc ✅ + commit evidence).
 2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/vps.yml`:
    `common` → `docker` → **`vps-hardening`** (HD-154: fail2ban + nftables default-deny + docker daemon) → `network` (static public IP per SSOT) → `docker_services` → `monitoring`.
 3. **Mandatory hardening checklist (HD-154, enforced by the `vps-hardening` role — NOT optional prose):**
@@ -183,7 +183,7 @@
 > their SSOT addresses include Mgmt-VLAN 99 IPs that don't exist before the router redo.
 > **Depends on:** Phase 0 (runner + vault identities). **Feeds:** Phase 2 (the storage role is
 > import-only — pools must already exist), HD-207, HD-128.
-> **Execution runbook:** [deployment-manual.md §Phase 1a](deployment-manual.md) — official path is interactive install + catch-up bootstrap (preseed automation deferred; see journal 2026-08-23).
+> **Execution runbook:** [deployment-manual.md §Phase 1a](deployment-manual.md) — official path is interactive install + catch-up bootstrap (preseed automation deferred).
 
 | Work | Why it can precede 1.5 |
 |------|------------------------|
@@ -191,9 +191,9 @@
 | **OS installs of nas/oldsrv via preseed media** | Both preseeds are DHCP-based (`netcfg` auto, no static lines) → the boxes come up fine on today's flat LAN, which IS the future VLAN-10 Home subnet (SSOT: [`network-addresses-generated.md`](docs/network-addresses-generated.md)) — planned Home IPs stay valid across the cutover. |
 | **oldsrv NVMe by-id capture** | HD-128 still waits for real `/dev/disk/by-id/nvme-…` values "at first pool create" — doing the install early unblocks that IaC fill-in. |
 
-- [x] **[MANUAL]** Execute the Pool-Creation Runbook ([docs/hardware-nas.md](docs/hardware-nas.md)) — bulk RAIDZ2 first, legacy pool migrated into `bulk/migrate`, tank mirror; export both pools before the nas installer boots. ✅ **2026-08-23** — executed on the running Debian (gen8): SMART all-pass pre-check (report archived); legacy pool = `new-pool` (~1.96 T) sent `-R` into `bulk/migrate` (57 snapshots, tree-diff + subtree diff clean); second pool `backup` destroyed as disposable (owner decision b); `tank` mirror ONLINE; both pools EXPORTED — installer-ready. As-built: deployment-journal.md §Phase 1a.
-- [x] **[MANUAL]** Reinstall oldsrv via preseed media (retires the rarely-used Windows 10 install); capture the real NVMe by-ids and fill HD-128 (`storage_nvme_data_by_id`). ✅ **2026-08-23** — installed interactively (manual partitioning; see deployment-journal.md Phase 1a entry for why automation was bypassed); by-ids verified 2026-08-22 (HD-128 closed); catch-up via `bootstrap-oldsrv.sh` (ansible-admin/ai-debug/keys/hardening) — `ssh ansible-admin@oldsrv` key-only confirmed. **Hold rule active:** no Ansible runs against oldsrv until Phase 1.5 cutover.
-- [x] **[MANUAL]** Reinstall nas via preseed media (boot-disk/USB by-ids already pinned, HD-206). ✅ **2026-08-23** — FULLY AUTOMATED install succeeded hands-off (Automated grub entry, ZERO interactive questions; early_command resolved the Crucial by-id, GRUB landed on the Generic_Flash_Disk carrier pin, late_command ran the keyed post_install) — preseed path re-proven (oldsrv had gone interactive); SanDisk booted explicitly via iLO one-time menu, pulled before reboot; Generic carrier stays (HD-226 roles). Verified post-install: `ssh ansible-admin@nas` key-only, `domen@nas` refused (AllowUsers), hostname `nas`, both Crucial by-id forms resolve, six data-disk by-ids intact (`zfs_member` labels survived untouched — pools stay exported for the Phase-2 import-only role), hardening drop-in + admin keys live. As-built: deployment-journal.md §Phase 1a. **Hold rule active:** no Ansible runs against nas until Phase 1.5 cutover.
+- [x] **[MANUAL]** Execute the Pool-Creation Runbook ([docs/hardware-nas.md](docs/hardware-nas.md)) — bulk RAIDZ2 first, legacy pool migrated into `bulk/migrate`, tank mirror; export both pools before the nas installer boots. ✅ **2026-08-23** — executed on the running Debian (gen8): SMART all-pass pre-check (report archived); legacy pool = `new-pool` (~1.96 T) sent `-R` into `bulk/migrate` (57 snapshots, tree-diff + subtree diff clean); second pool `backup` destroyed as disposable (owner decision b); `tank` mirror ONLINE; both pools EXPORTED — installer-ready. As-built: [deployment-tasks.md §Phase 1a](deployment-tasks.md) + [hardware-nas.md](docs/hardware-nas.md) (ledger + commit evidence).
+- [x] **[MANUAL]** Reinstall oldsrv via preseed media (retires the rarely-used Windows 10 install); capture the real NVMe by-ids and fill HD-128 (`storage_nvme_data_by_id`). ✅ **2026-08-23** — installed interactively (manual partitioning; see [hardware-oldsrv.md](docs/hardware-oldsrv.md) + commit for why automation was bypassed); by-ids verified 2026-08-22 (HD-128 closed); catch-up via `bootstrap-oldsrv.sh` (ansible-admin/ai-debug/keys/hardening) — `ssh ansible-admin@oldsrv` key-only confirmed. **Hold rule active:** no Ansible runs against oldsrv until Phase 1.5 cutover.
+- [x] **[MANUAL]** Reinstall nas via preseed media (boot-disk/USB by-ids already pinned, HD-206). ✅ **2026-08-23** — FULLY AUTOMATED install succeeded hands-off (Automated grub entry, ZERO interactive questions; early_command resolved the Crucial by-id, GRUB landed on the Generic_Flash_Disk carrier pin, late_command ran the keyed post_install) — preseed path re-proven (oldsrv had gone interactive); SanDisk booted explicitly via iLO one-time menu, pulled before reboot; Generic carrier stays (HD-226 roles). Verified post-install: `ssh ansible-admin@nas` key-only, `domen@nas` refused (AllowUsers), hostname `nas`, both Crucial by-id forms resolve, six data-disk by-ids intact (`zfs_member` labels survived untouched — pools stay exported for the Phase-2 import-only role), hardening drop-in + admin keys live. As-built: [deployment-tasks.md §Phase 1a](deployment-tasks.md) + [hardware-nas.md](docs/hardware-nas.md) (ledger + commit). **Hold rule active:** no Ansible runs against nas until Phase 1.5 cutover.
 - [ ] **Hold:** NO playbook runs against either host until the Phase 1.5 cutover — first Ansible contact happens with the new VLANs live.
 
 ## Phase 1.5 — Network Redo from Scratch (Router RB4011 + Switch CRS328)
