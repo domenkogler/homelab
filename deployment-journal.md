@@ -1705,7 +1705,26 @@
 
 ## Phase 4 — Pi
 
-*(no entries yet)*
+### 2026-09-01 — Pi fresh install + first-boot + network dual-home + RouterOS apply convention `[AI + owner]`
+
+- **Plan ref:** [deployment-tasks.md](deployment-tasks.md) §Phase 4 (steps 1–3) · HD-04 (Pi redo) · [deployment-manual.md](deployment-manual.md) §Phase 4 (added this session)
+- **Commands run:**
+  ```bash
+  # 1) First-boot prep on the SD card (boot partition E:/mnt/e)
+  sudo mkdir -p /mnt/e && sudo mount -t drvfs E: /mnt/e
+  # keyed first-boot-config (1P pubkeys) — placeholder gate (HD-201) passes
+  # -> Pi OS Lite flash (owner, Imager): hostname pi, user admin, SSH key preloaded
+  # 2) Router Kibble: verify Pi on network (MikroTik API read-only)
+  # 3) Apply ether10 dual-home + mgmt reservation via idempotent delta rsc:
+  scp IaC/router/rendered/rb4011_pi_delta.rsc ansible@<router>:/rb4011_pi_delta.rsc
+  ssh ansible@<router> '/import rb4011_pi_delta.rsc'   # 'loaded and executed successfully'
+  ```
+- **Settings chosen:** raspi.debian.net image initially → **rainbow screen** (bad/unsupported kernel); **switched to official Raspberry Pi OS Lite (64-bit)** via Imager (advanced gear: hostname `pi`, user `admin`, SSH key = `ansible-admin_ssh` pubkey preloaded). Image choice = owner decision after the raspi.debian.net failure.
+- **Live state (2026-09-01):** Pi online, Debian 13 trixie aarch64, user `admin` (SSH good), **mgmt `10.10.99.97`** (dynamic — moved to `.20` on renew). Router: **ether10 dual-homed** (pvid 10 + untagged VLAN-10 + mgmt-99 tagged), **`pi` reservations `10.10.99.20` (dhcp-mgmt) + `10.10.1.20` (dhcp-10)** — verified via API.
+- **Secrets touched:** `ansible-admin_ssh` (public + private key used for Pi SSH + router SCP; value → vault only), `mikrotik-admin_login` (API read-only; value → vault only). No secret VALUES written to chat/git/transcripts.
+- **Verify:** `import rb4011_pi_delta.rsc` → `Script file loaded and executed successfully`; API read-back confirms bridge-port pvid 10, vlan-10 untagged ether10, vlan-99 untagged ether10, `10.10.99.20` + `10.10.1.20` static reservations for MAC `E4:5F:01:26:EF:AA`.
+- **Deviations:** (1) raspi.debian.net → Raspberry Pi OS Lite (owner decision, image boot failure); (2) apply via **idempotent delta rsc import over SSH** instead of Ansible `api_modify` (proved more reliable; full converge `.rsc` non-idempotent → delta used) — this drove the new [network-ops.md 3-tier convention](docs/network-ops.md). (doc updated: `deployment-manual.md` Phase 4, `deployment-preseed.md` Pi section, `deployment-tasks.md` Phase 4, `docs/network-ops.md`)
+- **Not yet done (next session):** Pi's own network dual-homed config (`network` role), Docker/HA/Technitium provision, `.97` → `.20` move, HA VIP live. See [prompt.md](prompt.md) + HD-307.
 
 ## Phases 5–10
 

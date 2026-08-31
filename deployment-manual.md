@@ -792,27 +792,17 @@ ping -c3 router.kogler.si   # router over the tunnel (WG S2S, mgmt-VLAN IP behin
 
 ### 4.1 Flash + first-boot config `[MANUAL]`
 
-> The Pi uses a **pre-built image** (raspi.debian.net), NOT the Debian Installer/preseed path of nas/oldsrv — there is no `d-i` to answer questions, so `preseed.cfg` does not apply. Authoring spec: [deployment-preseed.md → Pi Image Deployment](docs/deployment-preseed.md).
+> The Pi uses **Raspberry Pi OS Lite (64-bit, headless)** — official Debian-based image, NOT the Debian Installer/preseed path of nas/oldsrv (no `d-i` to answer questions, `preseed.cfg` does not apply). **Owner decision 2026-09-01:** the previously-documented raspi.debian.net image failed with a **rainbow screen** (kernel/firmware mismatch on the Pi 4) → switched to Pi OS Lite via Raspberry Pi Imager. Authoring spec: [deployment-preseed.md → Pi Image Deployment](docs/deployment-preseed.md).
 
-1. **Download** the latest tested Pi 4 image from https://raspi.debian.net/tested-images/ — a **system image** (installs Debian + firmware; the SD card's boot partition carries `bcm2711-rpi-4-b.dtb`, `config.txt`, `cmdline.txt`, kernel/initrd).
-2. **Flash** to microSD (≥32 GB; 32–64 GB typical) with Raspberry Pi Imager / Balena Etcher / `dd`. **Do NOT boot yet.**
+1. **Download** Raspberry Pi OS Lite (64-bit) from https://www.raspberrypi.com/software/operating-systems/.
+2. **Flash with Raspberry Pi Imager** to microSD (≥32 GB; 32–64 GB typical) — Imager's **⚙ advanced gear** does the headless pre-config: **Enable SSH + set user (`admin`) + preload the `ansible-admin_ssh` pubkey, hostname `pi`, timezone/locale** (writes `ssh` flag + `userconf.txt` — no manual card edit needed; the old `first-boot-config.sh` is for raspi.debian.net and **not** used here). **Do NOT boot yet.**
 3. **Re-insert the SD card into the laptop** (USB adapter). The boot partition mounts as a drive/FAT32 (e.g. `E:`). From WSL, mount it:
    ```bash
    sudo mkdir -p /mnt/e && sudo mount -t drvfs E: /mnt/e
    ls /mnt/e/config.txt /mnt/e/cmdline.txt   # must exist — verifies it's the Pi boot partition
    ```
    ⚠ **WSL2 cannot see USB raw devices** — no `/dev/sdX` for the card, and cannot mount the ext4 **root** partition. Only the FAT32 boot partition (via the drive letter) is editable from WSL. That is sufficient: first-boot config needs only boot-partition files. To edit the root filesystem (e.g. `PermitRootLogin`), you'd need a native Linux host / live USB — **not needed** for the cloud-init path.
-4. **Run the first-boot config script** (enables SSH, writes cloud-init `user-data` with the Ansible + AI SSH keys, writes `firstboot.sh` fallback, sets hostname):
-   ```bash
-   bash IaC/host/pi/first-boot-config.sh /mnt/e
-   ```
-   - The script's **SSH key lines** are key-string stubs in the repo by design (never commit keys). Substitute the real 1Password pubkeys before running — the script's **HD-201 gate** asserts no stubs remain in the *written* files and refuses (exit 1) otherwise:
-     - `laptop-domen_ssh.public key` → `ansible-admin` (admin@laptop)
-     - `ansible-admin_ssh.public key` → `ansible-admin` (ansible)
-     - `ai_ssh.public key` → `ai-debug` (restricted: `no-agent-forwarding,no-port-forwarding,no-X11-forwarding`, scoped to the Home VLAN per the AI-user convention — the `from="…"` source restriction is authored in [first-boot-config.sh](IaC/host/pi/first-boot-config.sh) / [deployment-preseed.md](docs/deployment-preseed.md))
-   - Recommended: build a **keyed temp copy** (e.g. `/tmp/pi-keys/first-boot-config-keyed.sh`, 0700, gitignored) with real pubkeys substituted, run that against `/mnt/e`, and confirm zero stub hits in the written `user-data`/`firstboot.sh` (the gate pattern the script asserts against).
-   ✔ `[1/4] SSH enabled (boot/ssh)` · `[2/4] user-data written` · `[3/4] firstboot.sh written` · `[4/4] Hostname pi` (skips harmlessly if the root partition isn't mounted — hostname is set via cloud-init anyway) · the written `user-data`/`firstboot.sh` carry **zero** gate-pattern matches.
-5. **Eject safely** (Windows Eject, or `sudo umount /mnt/e`), insert into the Pi, power on.
+4. **Imager already pre-configured SSH + user + hostname** (step 2's ⚙ gear) — **no boot-partition edit / no `first-boot-config.sh` needed** (that script is raspi.debian.net-only). Eject safely, insert into the Pi, power on.
 
 ### 4.2 First-boot verification `[MANUAL]`
 
@@ -851,5 +841,5 @@ Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefi
 
 ---
 
-*Last updated 2026-08-31 · Phases 0 + 0.5 + 1a complete (incl. 1a.0 pool bootstrap as executed); Phase 1 written from the settled 2026-08-22 initialization path (stack live, Verify evidence pass pending two owner inputs); **Phase 1.5 added 2026-08-31** — Network redo cutover runbook (render → per-device reset → router role → CAPsMAN import → wg-s2s handshake); **Phase 4 added 2026-08-31** — Pi image flash + first-boot-config + Ansible + verify (imperative procedure, executed card prep 2026-08-31).*
+*Last updated 2026-09-01 · Phases 0 + 0.5 + 1a complete; Phase 1 written from the settled 2026-08-22 initialization path; **Phase 1.5 added 2026-08-31** (network redo cutover); **Phase 4 added 2026-08-31/09-01** — Pi image flash (Raspberry Pi OS Lite, Imager ⚙ pre-config) + first-boot + Ansible + verify; executed Pi first-boot + router ether10 dual-home + mgmt reservation 2026-09-01 via idempotent delta rsc import.*
 

@@ -274,24 +274,18 @@ IaC/host/
 
 ---
 
-## Pi Image Deployment (raspi.debian.net)
+## Pi Image Deployment (Raspberry Pi OS Lite)
 
-The Raspberry Pi 4 uses a **pre-built Debian image** from https://raspi.debian.net/tested-images/
-instead of the Debian Installer + preseed path used by nas/oldsrv. These are pre-installed system
-images — there is no `d-i` installer to answer questions, so `preseed.cfg` does not apply.
+The Raspberry Pi 4 uses **Raspberry Pi OS Lite (64-bit, headless)** — the official Debian-based image — instead of the Debian Installer + preseed path used by nas/oldsrv. These are pre-installed system images; there is no `d-i` installer to answer questions, so `preseed.cfg` does not apply.
+
+> **Owner decision 2026-09-01:** the previously-documented raspi.debian.net image failed with a **rainbow screen** (kernel/firmware mismatch on the Pi 4) → switched to Raspberry Pi OS Lite via Raspberry Pi Imager. The raspi.debian.net-specific `first-boot-config.sh` is **not** used for Pi OS Lite (Imager's advanced gear handles headless pre-config).
 
 ### Workflow
 
-1. **Download** the latest tested image for Pi 4 from raspi.debian.net.
-2. **Flash** to a microSD card (≥ 32 GB recommended; 32–64 GB is typical).
-3. **Before first boot**, run the first-boot config script on the SD card's boot partition:
-   ```bash
-   # On the management laptop (after the card is flashed and re-inserted):
-   bash IaC/host/pi/first-boot-config.sh /media/$USER/boot_fat32
-   ```
-   This enables SSH and writes cloud-init `user-data` with the Ansible + AI SSH keys.
-4. **Insert the SD card into the Pi and power on.**
-5. **Verify reachability** and run Ansible:
+1. **Download** Raspberry Pi OS Lite (64-bit).
+2. **Flash with Raspberry Pi Imager** — use the **⚙ advanced gear** for headless pre-config (**Enable SSH** + set user (e.g. `admin`) + **preload the SSH pubkey** (`ansible-admin_ssh`) + **hostname `pi`**). This writes the `ssh` flag + `userconf.txt` on the boot partition; **no manual boot-partition edit / no `first-boot-config.sh`** (that script is for raspi.debian.net only).
+3. **Insert the SD card into the Pi and power on.**
+4. **Verify reachability** and then run Ansible (`raspberry_pi.yml`) — see [network-ops.md → Router Config Lifecycle](network-ops.md) for the RouterOS apply convention.
    ```bash
    ping pi.kogler.si
    ansible-playbook -i inventory.ini playbooks/raspberry_pi.yml

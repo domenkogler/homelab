@@ -343,9 +343,7 @@
 > **Continuation:** `ha.kogler.si` → VIP becomes live here; observability (Phase 6) scrapes the HA
 > exporter and smart-home work (Phase 7) builds on this node.
 
-1. **Flash + first-boot config** — download the latest raspi.debian.net Pi 4 image, flash to microSD,
-   then run `IaC/host/pi/first-boot-config.sh` on the boot partition **before first boot**
-   (see [`deployment-preseed.md` → Pi Image Deployment](docs/deployment-preseed.md)).
+1. **Flash + first-boot config** — flash **Raspberry Pi OS Lite (64-bit)** via Imager with the ⚙ advanced gear (Enable SSH + user + `ansible-admin_ssh` pubkey + hostname `pi`); no manual boot-partition edit / no `first-boot-config.sh` (raspi.debian.net-only, replaced 2026-09-01 after a rainbow-screen boot failure)
 2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/raspberry_pi.yml`:
    `common` → `ai_diag` → `network` (static on VLAN 10, IP per SSOT) → `nut` (client,
    `shutdown_delay_seconds=0`) → `docker` → `docker_services` (Pi-specific:
