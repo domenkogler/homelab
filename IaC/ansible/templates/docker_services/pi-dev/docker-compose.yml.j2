@@ -25,8 +25,12 @@
 #   registry (`npm install -g --ignore-scripts @earendil-works/pi-coding-agent@{{ pi_dev_npm_version }}`)
 #   on a pinned Node runtime base. This keeps the OCI pull stable while the agent ship
 #   is pinned by npm version ({{ pi_dev_npm_version }}, engine node>=22.19.0). The image
-#   base is `node:{{ pi_dev_node_version }}-alpine`. The `-g` npm install + pi-web-access
-#   extension install run once at (re)start; sessions persist in the workspace volume.
+#   base is `node:{{ pi_dev_node_version }}` (glibc — NOT -alpine: HD-298. node-pty ships
+#   linux-x64 prebuilds for glibc only; on musl/alpine the postinstall falls back to
+#   node-gyp and fails (no Python/toolchain in the alpine image), crash-looping the UI.
+#   glibc node:24 installs the prebuilt binding with zero toolchain). The `-g` npm install
+#   + pi-web-access extension install run once at (re)start; sessions persist in the
+#   workspace volume.
 #
 #   Secrets (fail-closed, HD-65 — all via 1Password vault refs, never literals):
 #     pi-harness_openai_api (api -> credential) — scoped LiteLLM virtual key for pi's
@@ -50,7 +54,7 @@
 #   (always re-cloneable from Forgejo).
 services:
   pi-dev:
-    image: node:{{ pi_dev_node_version }}-alpine
+    image: node:{{ pi_dev_node_version }}
     cap_drop:
       - ALL
     tmpfs:
