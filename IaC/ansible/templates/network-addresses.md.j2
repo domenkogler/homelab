@@ -36,6 +36,18 @@
 | {{ r.name }} | {{ r.cidr }} | {{ r.purpose }} |
 {% endfor %}
 
+## WAN-side static hosts
+
+Hosts on subnets the RB4011 connects to but does NOT control (the modem's own LAN
+sits behind the ONT). These are not on any homelab VLAN and are not in the
+`network_static_hosts` loop above. The Comtrend row drives the HD-302
+`trusted-admin` reachability path for the twice-yearly PPPoE-redial dance.
+
+| IP | Host | Role | SSOT |
+|----|------|------|------|
+| 192.168.1.1 | modem.kogler.si | Comtrend GRG-4260us GPON modem web UI (PPPoE bridge) | `group_vars/router.yml` `comtrend_modem.modem_mgmt_ip` |
+| 192.168.1.2/32 | router.kogler.si (on ether1) | RB4011 /32 on the modem's LAN, routes modem web UI access (HD-302) | `group_vars/router.yml` `comtrend_modem.router_on_modem` |
+
 ## Service addresses (Home VLAN 10)
 
 | Purpose | Address | Host |

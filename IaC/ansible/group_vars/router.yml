@@ -47,6 +47,27 @@ router_port_map:
     vlan: 
     mac: "E4:5F:01:26:EF:AA"
 
+# ---- Comtrend GRG-4260us GPON modem (WAN-side, single-LAN mgmt access) ----
+# The Comtrend stays in PPPoE-bridge mode and the RB4011 dials via pppoe-telekom on
+# ether1. We give the RB4011 a /32 management address on 192.168.1.0/24 (the modem's
+# own LAN) so the Comtrend's web UI stays reachable from the homelab for the
+# twice-yearly PPPoE-redial dance — no physical cable swap needed.
+#
+# Access scope (HD-302): ONLY trusted-admin hosts (the laptop) can reach 192.168.1.1.
+# The Comtrend has a default-password web UI (consumer device) — restrict to mgmt
+# admins per the HD-78 binding floor. The FORWARD chain gets an explicit allow rule
+# (trusted-admin -> 192.168.1.1) and an explicit drop rule (everything else -> 192.168.1.0/24).
+#
+# DNS: modem.kogler.si is a private split-horizon record. Live publication depends on
+# the first Technitium instance (Phase 2/3); tracked separately, NOT in cloudflare_dns
+# (the modem is on a private RFC1918 subnet and must never go to public DNS).
+comtrend_modem:
+  enabled: true
+  iface: ether1
+  modem_subnet: 192.168.1.0/24
+  modem_mgmt_ip: 192.168.1.1        # the Comtrend's own web UI
+  router_on_modem: 192.168.1.2/32   # the RB4011's /32 on the modem's LAN
+
 wireguard_s2s_vps:
   local_ip: 10.255.40.1/30
   remote_ip: 10.255.40.2/30

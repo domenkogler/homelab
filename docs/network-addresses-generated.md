@@ -80,6 +80,19 @@
 | tailnet-apps | 172.24.0.0/16 | Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't |
 | site | 10.10.0.0/16 | Whole homelab site — all VLANs (10.10.x.0/24) |
 | nfs-clients | 10.10.1.30/32 | NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP) |
+| modem-lan | 192.168.1.0/24 | Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /32 on this subnet (192.168.1.2/32 on ether1) so the modem's web UI at 192.168.1.1 stays reachable from the homelab for the twice-yearly PPPoE-redial dance (HD-302). |
+
+## WAN-side static hosts
+
+Hosts on subnets the RB4011 connects to but does NOT control (the modem's own LAN
+sits behind the ONT). These are not on any homelab VLAN and are not in the
+`network_static_hosts` loop above. The Comtrend row drives the HD-302
+`trusted-admin` reachability path for the twice-yearly PPPoE-redial dance.
+
+| IP | Host | Role | SSOT |
+|----|------|------|------|
+| 192.168.1.1 | modem.kogler.si | Comtrend GRG-4260us GPON modem web UI (PPPoE bridge) | `group_vars/router.yml` `comtrend_modem.modem_mgmt_ip` |
+| 192.168.1.2/32 | router.kogler.si (on ether1) | RB4011 /32 on the modem's LAN, routes modem web UI access (HD-302) | `group_vars/router.yml` `comtrend_modem.router_on_modem` |
 
 ## Service addresses (Home VLAN 10)
 
@@ -96,4 +109,4 @@
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-08-30T11:57:43Z
+> Last generated: 2026-08-31T05:15:28Z

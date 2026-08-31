@@ -30,6 +30,29 @@ tags: [network, topology]
 - **IPv4:** Static public IP with domain `kogler.si`
 - **IPv6:** Fully enabled, `/56` prefix via PPPoE
 
+### Comtrend modem management path (HD-302)
+
+The Comtrend GRG-4260us is a consumer ONT in **PPPoE-bridge mode** — the RB4011
+dials the PPPoE session on `ether1` via `pppoe-telekom`. The Comtrend's own
+web UI lives on its LAN at the SSOT `comtrend_modem.modem_mgmt_ip` and is needed for the **twice-yearly
+PPPoE-redial dance** (when the ISP-side session gets sticky and needs a manual
+release). To avoid a physical cable swap every time:
+
+- The RB4011 takes a **static `/32` on the modem's LAN** (SSOT:
+  [`comtrend_modem.router_on_modem`](network-addresses-generated.md)) on `ether1`
+  so the RB4011 can route to the modem's web UI.
+- A **FORWARD rule** in the `router` Ansible role restricts access to
+  `trusted-admin` hosts only (the laptop). All other homelab hosts get an
+  explicit **default-deny** to the modem's subnet (SSOT:
+  [`comtrend_modem.modem_subnet`](network-addresses-generated.md)).
+- A planned private DNS record **`modem.kogler.si`** (SSOT:
+  [`comtrend_modem.modem_mgmt_ip`](network-addresses-generated.md)) is added to
+  Technitium (Phase 2/3) so the laptop can browse by name. The record must
+  never go to Cloudflare — the modem is on a private RFC1918 subnet.
+
+SSOT: `IaC/ansible/group_vars/router.yml` → `comtrend_modem`. The role is
+idempotent and gated by `comtrend_modem.enabled: true` for opt-out per host.
+
 ---
 
 ## Physical Topology

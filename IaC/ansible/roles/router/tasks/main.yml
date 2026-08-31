@@ -120,6 +120,30 @@
     label: "VLAN{{ item.id }} gateway"
 
 # -------------------------------------------------------------------------
+# Comtrend modem mgmt address on ether1 (HD-302)
+# -------------------------------------------------------------------------
+# Gives the RB4011 a /32 management address on the Comtrend's own LAN
+# (192.168.1.0/24) so the modem's web UI at 192.168.1.1 stays reachable from
+# the homelab for the twice-yearly PPPoE-redial dance — no physical cable swap.
+# Gated by comtrend_modem.enabled (opt-out per host). Idempotent.
+- name: Configure Comtrend modem mgmt IP on ether1
+  when: comtrend_modem.enabled | bool
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip address
+    handle_absent_entries: ignore
+    data:
+      - address: "{{ comtrend_modem.router_on_modem }}"
+        interface: "{{ comtrend_modem.iface }}"
+        comment: "HD-302: Comtrend modem mgmt subnet (single-LAN admin path)"
+        disabled: no
+
+# -------------------------------------------------------------------------
 # DHCP Pools and Servers
 # -------------------------------------------------------------------------
 - name: Configure DHCP pools for each VLAN
@@ -557,6 +581,24 @@
         dst-address-list: internal_lan
         action: drop
         comment: "Default deny inter-VLAN"
+      # --- HD-302: Comtrend modem mgmt (WAN-side single-LAN admin path) ---
+      # The Comtrend (192.168.1.1) lives on the modem's own LAN, not on any
+      # homelab VLAN. The FORWARD default is `accept` so a rule is required
+      # to *restrict* access — only trusted-admin hosts (the laptop) reach
+      # the modem's web UI; every other homelab host is dropped. The Comtrend
+      # is a consumer device with a default-password admin UI; default-deny
+      # to anything but the admin laptop.
+      - chain: forward
+        src-address-list: trusted-admin
+        dst-address: "{{ comtrend_modem.modem_mgmt_ip }}"
+        protocol: tcp
+        dst-port: 80,443
+        action: accept
+        comment: "HD-302: trusted-admin -> Comtrend modem web UI (PPPoE redial admin path)"
+      - chain: forward
+        dst-address: "{{ comtrend_modem.modem_subnet }}"
+        action: drop
+        comment: "HD-302: default-deny all other homelab hosts -> Comtrend subnet"
 
 
 # -------------------------------------------------------------------------
