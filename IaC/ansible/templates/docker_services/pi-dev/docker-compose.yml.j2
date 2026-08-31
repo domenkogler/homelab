@@ -57,6 +57,15 @@ services:
     image: node:{{ pi_dev_node_version }}
     cap_drop:
       - ALL
+    # HD-298: node-gyp (node-pty compile fallback) must download+extract Node headers
+    # with fchown during the pi-web-ui npm install at startup; cap_drop ALL strips
+    # CHOWN/FOWNER/DAC_OVERRIDE -> EPERM 'operation not permitted, fchown' -> install
+    # fails -> crash-loop. These three caps are needed ONLY for that one-time build step;
+    # runtime least-privilege is untouched (volumes are workspace-only, cap_drop ALL kept).
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - DAC_OVERRIDE
     tmpfs:
       - /tmp
     container_name: pi-dev
