@@ -934,9 +934,14 @@
 
 
 # -------------------------------------------------------------------------
-# VLAN 99 on trunk port to switch
+# Per-VLAN trunk ports to switch
 # -------------------------------------------------------------------------
-- name: Configure VLAN 99 on trunk port
+# Tag every VLAN on sfp-sfpplus1 (uplink to the CRS328 switch) so each per-VLAN
+# gateway is reachable from the switch — mirror of crs328_converge.rsc.j2 and
+# rb4011_converge.rsc.j2. Missing 20/21/30/40/50 previously dropped those VLANs
+# at the trunk (HD-308: Shield on Media(50) had no WAN — empty ARP, waiting
+# lease). VLANs 10/99 also carry untagged access members (Pi / mgmt ports).
+- name: Configure VLANs on trunk port to switch
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -948,14 +953,19 @@
     handle_absent_entries: ignore
     data:
       - bridge: bridge-lan
-        vlan-ids: 99
-        tagged: bridge-lan,sfp-sfpplus1
-        # Untagged vlan99 members = the bootstrap's mgmt-access ports (pvid 99 on
-        # bridge-lan from rb4011_initial.rsc.j2: ether2/3/7/9/10). Without these,
-        # vlan-filtering drops vlan99 between the local access ports and the trunk
-        # -> empty ARP, switch (sfp) unreachable from the laptop (live 2026-08-31).
-        untagged: ether2,ether3,ether7,ether9,ether10
-        comment: "Management VLAN on trunk"
+        vlan-ids: "{{ item.id }}"
+        tagged: "bridge-lan,sfp-sfpplus1"
+        # VLAN 10: untagged ether10 member (Pi access) in addition to the trunk
+        # tag; VLAN 99: untagged mgmt access ports (bootstrap's pvid-99 ports on
+        # bridge-lan from rb4011_initial.rsc.j2: ether2/3/7/9/10) — without these,
+        # vlan-filtering drops the VLAN between the local access ports and the
+        # trunk -> empty ARP, switch (sfp) unreachable (live 2026-08-31).
+        untagged: "{{ (['ether10'] if item.id == 10 else ['ether2', 'ether3', 'ether7', 'ether9', 'ether10'] if item.id == 99 else []) | join(',') }}"
+        comment: "{{ item.name }} VLAN on trunk"
+  loop: "{{ vlans | selectattr('unused', 'undefined') | list }}"  # skip VLAN 1 Blackhole (unused: true)
+  loop_control:
+    label: "VLAN{{ item.id }} on trunk"
+
 
 
 # -------------------------------------------------------------------------

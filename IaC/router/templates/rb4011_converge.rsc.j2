@@ -48,8 +48,20 @@
 # vlan99: tagged on trunk+self, UNTAGGED on the mgmt access ports (ether2/3/7/9/10) —
 # without the untagged members, vlan-filtering drops vlan99 to/from the access ports.
 /interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether7,ether9,ether10 comment="Management VLAN on trunk"
-# vlan10: UNTAGGED on ether10 (Pi access), tagged on trunk+self (reach the inter-VLAN gw)
-/interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether10 comment="Home VLAN access (Pi)"
+# All gateways' VLANs must be trunked to the switch (tagged on sfp-sfpplus1) so the
+# switch can reach each per-VLAN gateway — mirror of crs328_converge.rsc.j2 (which
+# trunktags every VLAN). Missing 20/21/30/40/50 previously dropped those VLANs at
+# the trunk (HD-308: Shield on Media(50) had no WAN — empty ARP, waiting lease).
+# VLAN 10 keeps its untagged ether10 (Pi access) in addition to the trunk tag.
+{% for v in network_vlans %}
+{% if v.id != 99 %}
+:if ([/interface bridge vlan find where vlan-ids={{ v.id }} and dynamic=no] = "") do={
+    /interface bridge vlan add bridge=bridge-lan vlan-ids={{ v.id }} tagged=bridge-lan,sfp-sfpplus1{% if v.id == 10 %} untagged=ether10{% endif %} comment="{{ v.name }} VLAN on trunk"
+} else={
+    /interface bridge vlan set [find where vlan-ids={{ v.id }} and dynamic=no] tagged=bridge-lan,sfp-sfpplus1{% if v.id == 10 %} untagged=ether10{% endif %} comment="{{ v.name }} VLAN on trunk"
+}
+{% endif %}
+{% endfor %}
 /interface vlan add name=vlan99-mgmt vlan-id=99 interface=bridge-lan
 
 # ---- Per-VLAN interfaces + gateways (SSOT network_vlans) ----
