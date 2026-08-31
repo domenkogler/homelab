@@ -5,15 +5,15 @@
 # The render-routeros.yml templates import two SSH public keys on every
 # device during the Phase 1.5 network-redo reset:
 #
-#   /user ssh-keys import public-key-file=admin.pub   user=admin     (human)
-#   /user ssh-keys import public-key-file=ansible.pub user=ansible   (Ansible)
+#   /user ssh-keys import public-key-file=admin.pub   user=admin     (human)     RB4011
+#   /user ssh-keys import public-key-file=ansible.pub user=ansible   (Ansible)   RB4011
+#   /user ssh-keys import public-key-file=flash/admin.pub   user=admin     (human)     CRS328 + APs
+#   /user ssh-keys import public-key-file=flash/ansible.pub user=ansible   (Ansible)   CRS328 + APs
 #
-# The `/user ssh-keys import` command reads from the device's /files/ —
-# so the operator must drop these two files onto the device in WinBox
-# Files BEFORE running the reset. The rendered .rsc files live in the
-# gitignored IaC/router/rendered/ dir; this script writes the .pub files
-# there too, so one drag-drop from that dir gets all 6 files (4 .rsc +
-# 2 .pub) onto the device.
+# FLASH-PERSISTENCE (HD-304): on the switch + APs the .pub files MUST be placed in
+# the device's flash/ folder — files in the root are WIPED on reboot, and the
+# /user ssh-keys import runs post-reset from flash/. The RB4011 boots off flash
+# and is immune, so its .pub files stay in root.
 #
 # Canonical store = 1Password vault "Homelab-ansible":
 #   admin.pub   ← item "laptop-domen_ssh"      (human admin)
@@ -110,5 +110,6 @@ fi
 
 echo ""
 echo "Wrote 2 .pub files to $OUT_DIR"
-echo "Next: drag-drop all 6 files (4 .rsc + 2 .pub) into the device Files in WinBox,"
+echo "Next (HD-304 flash-persistence): drag-drop the 4 .rsc files to device ROOT + the 2 .pub files into"
+echo "      the flash/ folder on the CRS328 + APs (RB4011: root is fine for the .pub files),"
 echo "      then run the per-device reset. See deployment-manual.md § Phase 1.5."

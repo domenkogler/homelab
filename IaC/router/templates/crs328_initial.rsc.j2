@@ -8,7 +8,10 @@
 #          plane: sfp+1 trunk to the router + all access ports on management, so
 #          Ansible can reach the switch (user=ansible, SSH-key auth) and take
 #          over ports/VLANs/PoE + move management to 10.10.99.2.
-# How:     Upload this + admin.pub + ansible.pub to the switch Files, then:
+# How:     Upload this + flash/admin.pub + flash/ansible.pub to the switch Files
+#          (the .pub files MUST live in the `flash/` folder — files in the device
+#          ROOT are wiped on reboot on the CRS328; the router boots off flash and
+#          is immune), then:
 #            /system reset-configuration no-defaults=yes run-after-reset=crs328_initial.rsc
 #          The router (rb4011_initial.rsc) must be up FIRST.
 # NOTE:    NO secrets in the repo — credentials injected from 1Password.
@@ -23,11 +26,11 @@
 # admin = password + SSH key. ansible = key-only (automation).
 
 /user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
-/user ssh-keys import public-key-file=admin.pub user=admin
+/user ssh-keys import public-key-file=flash/admin.pub user=admin
 
 # RouterOS 7: /user add REQUIRES password= (see rb4011_initial.rsc.j2 for full rationale).
 /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
-/user ssh-keys import public-key-file=ansible.pub user=ansible
+/user ssh-keys import public-key-file=flash/ansible.pub user=ansible
 
 # ---- Management (VLAN {{ mgmt.id }} — {{ mgmt.name }}) ----
 # sfp+1 = trunk to the router (mgmt tagged); all other ports = access on mgmt.

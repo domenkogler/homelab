@@ -9,7 +9,10 @@
 # Purpose: Universal bootstrap for every hAP/wAP AP. The AP is placed on a
 #          Management (VLAN {{ mgmt.id }}) access port on the CRS328 and gets its
 #          static-reserved IP via DHCP from the router — no static IP here.
-# How:     Upload this + admin.pub + ansible.pub to the AP Files, then:
+# How:     Upload this + flash/admin.pub + flash/ansible.pub to the AP Files
+#          (the .pub files MUST live in the `flash/` folder — files in the device
+#          ROOT are wiped on reboot on the APs; the router boots off flash and is
+#          immune), then:
 #            /system reset-configuration no-defaults=yes run-after-reset=ap_initial.rsc
 # NOTE:    NO secrets in the repo — credentials injected from 1Password.
 # =============================================================================
@@ -29,11 +32,11 @@
 # admin = password + SSH key. ansible = key-only (automation).
 
 /user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
-/user ssh-keys import public-key-file=admin.pub user=admin
+/user ssh-keys import public-key-file=flash/admin.pub user=admin
 
 # RouterOS 7: /user add REQUIRES password= (see rb4011_initial.rsc.j2 for full rationale).
 /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
-/user ssh-keys import public-key-file=ansible.pub user=ansible
+/user ssh-keys import public-key-file=flash/ansible.pub user=ansible
 
 # ---- Bridge (all ports) ----
 
@@ -53,8 +56,10 @@
 # ---- CAP Mode (SSIDs provisioned by the router CAPsMAN — MODERN wifi-qcom-ac, HD-232/task 8) ----
 
 # TODO validate-live (cutover-prep, HD-229): confirm the wifi-qcom-ac cap field set on the live
-# AP against the manager (legacy `wireless cap` is gone). Interfaces may need the radio list
-# (wlan1/wlan2) vs a discovery-interfaces only; verify /interface/wifi cap print after import.
+# AP against the manager (legacy `wireless cap` is gone). The AP radio interfaces on
+# RouterOS 7 are named `wifi1`/`wifi2` (modern wifi-qcom-ac package) — the bridge ports
+# above use those names; verify /interface/wifi cap print after import for the
+# discovery-interfaces only (no radio list needed — CAP discovery covers them).
 /interface wifi cap set \
     enabled=yes \
     discovery-interfaces=bridge

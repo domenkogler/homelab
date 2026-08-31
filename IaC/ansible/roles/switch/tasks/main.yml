@@ -298,9 +298,15 @@
 
 
 # -------------------------------------------------------------------------
-# Management services
+# Management services — LOCKDOWN (HD-301 parity with crs328_initial.rsc.j2)
 # -------------------------------------------------------------------------
-- name: Enable REST API service
+# The bootstrap template scopes every service to {{ mgmt.subnet }} via
+# `available-from=` and disables telnet/ftp/www/api-ssl/reverse-proxy (HD-301).
+# This role block re-declares the same state in the steady state so a converge
+# can never silently drift a service open. `available-from=` is a CIDR (RouterOS
+# 7); `interface=` is the ROS6 form (rejected with "bad parameter interface" on
+# ROS7, live-validated 2026-08-31).
+- name: Configure management services (lockdown — HD-301 parity)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -310,11 +316,56 @@
     port: "{{ routeros_api_port }}"
     path: ip service
     data:
+      - name: telnet
+        disabled: yes
+        port: 23
+        available-from: "{{ vlan_subnets[99] }}"
+      - name: ftp
+        disabled: yes
+        port: 21
+        available-from: "{{ vlan_subnets[99] }}"
+      - name: www
+        disabled: yes
+        port: 80
+        available-from: "{{ vlan_subnets[99] }}"
+      - name: api-ssl
+        disabled: yes
+        port: 8729
+        available-from: "{{ vlan_subnets[99] }}"
+        certificate: none
+      - name: reverse-proxy
+        disabled: yes
+        port: 443
+        available-from: "{{ vlan_subnets[99] }}"
+        certificate: none
       - name: api
         disabled: no
+        port: 8728
+        available-from: "{{ vlan_subnets[99] }}"
+      - name: www-ssl
+        disabled: no
+        port: 443
+        available-from: "{{ vlan_subnets[99] }}"
+        certificate: none
+      - name: ssh
+        disabled: no
+        port: 22
+        available-from: "{{ vlan_subnets[99] }}"
+      - name: winbox
+        disabled: no
+        port: 8291
+        available-from: "{{ vlan_subnets[99] }}"
 
-
-- name: Enable WinBox/Web service
+# -------------------------------------------------------------------------
+# INPUT-chain mgmt lockdown (HD-301 parity with crs328_initial.rsc.j2)
+# -------------------------------------------------------------------------
+# The CRS328 is L2-only but still exposes management services (api/www-ssl/ssh/
+# winbox on 22/8728/8729/8291/80/443); without an INPUT firewall those listen on
+# every interface. This block gates them to the Management VLAN + trusted-admin
+# hosts only, mirroring the router role's HD-78 INPUT chain. The bootstrap .rsc
+# applied the floor on the mgmt access ports; this is the steady-state input
+# policy so a converge cannot drift it open.
+- name: Ensure switch INPUT-chain mgmt-lockdown rules (HD-301 parity)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -322,11 +373,32 @@
     tls: "{{ routeros_tls }}"
     validate_certs: false
     port: "{{ routeros_api_port }}"
-    path: ip service
+    path: ip firewall filter
+    handle_absent_entries: remove
+    handle_entries_content: remove_as_much_as_possible
+    ensure_order: true
+    restrict:
+      - field: chain
+        values: [input]
     data:
-      - name: www-ssl
-        disabled: no
-
+      - chain: input
+        connection-state: established,related
+        action: accept
+        comment: "Allow established/related input (switch)"
+      - chain: input
+        dst-port: 22,8728,8729,8291,80,443
+        src-address: "{{ vlan_subnets[99] }}"
+        action: accept
+        comment: "Allow mgmt services from Management VLAN"
+      - chain: input
+        dst-port: 22,8728,8729,8291,80,443
+        src-address-list: trusted-admin
+        action: accept
+        comment: "Allow mgmt services from trusted-admin"
+      - chain: input
+        dst-port: 22,8728,8729,8291,80,443
+        action: drop
+        comment: "Drop mgmt services from non-mgmt sources"
 
 # -------------------------------------------------------------------------
 # Default route via router

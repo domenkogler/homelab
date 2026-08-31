@@ -76,8 +76,8 @@
     - name: Report rendered files (upload, never commit)
       debug:
         msg:
-          - "Upload IaC/router/rendered/rb4011_initial.rsc + admin.pub + ansible.pub to the RB4011"
-          - "Upload IaC/router/rendered/crs328_initial.rsc + admin.pub + ansible.pub to the CRS328"
-          - "Upload IaC/router/rendered/ap_initial.rsc + admin.pub + ansible.pub to EACH AP"
+          - "Upload IaC/router/rendered/rb4011_initial.rsc + admin.pub + ansible.pub to the RB4011 (root Files — router boots off flash, root files survive)"
+          - "Upload IaC/router/rendered/crs328_initial.rsc to the CRS328 root Files + admin.pub + ansible.pub into the CRS328 flash/ folder (root files are WIPED on reboot — flash/ survives)"
+          - "Upload IaC/router/rendered/ap_initial.rsc to EACH AP root Files + admin.pub + ansible.pub into each AP flash/ folder (root wiped on reboot — flash/ survives)"
           - "Upload IaC/router/rendered/capsman_steady-state.rsc to the RB4011, then /import capsman_steady-state.rsc (AFTER bootstrap + router role — NOT a reset)"
           - "Then per bootstrap device: /system reset-configuration no-defaults=yes run-after-reset=<file>"

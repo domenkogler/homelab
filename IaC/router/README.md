@@ -34,9 +34,13 @@ Scripts rendered: `rb4011_initial.rsc` (router), `crs328_initial.rsc` (switch), 
    cd IaC/ansible
    ansible-playbook playbooks/render-routeros.yml -i inventory.ini
    ```
-3. **Upload** each rendered `.rsc` + `admin.pub` + `ansible.pub` to the device's
-   Files (WinBox or `scp`).
-4. **Apply** on each device (the device resets and runs the script):
+3. **Upload** each rendered `.rsc` + the 2 `.pub` files to the device's
+   Files (WinBox or `scp`). **Flash-persistence rule (HD-304):** on the switch
+   and APs the `.pub` files MUST be placed in the `flash/` folder — files in the
+   device **root** are wiped on reboot, and the `/user ssh-keys import` runs
+   post-reset from `flash/`. The RB4011 boots off flash and is immune, so its
+   `.pub` files stay in root. The rendered bootstraps import
+   `public-key-file=flash/admin.pub` / `flash/ansible.pub` on switch+APs.
    ```text
    /system reset-configuration no-defaults=yes run-after-reset=<file>
    ```

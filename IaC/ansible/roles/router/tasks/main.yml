@@ -798,9 +798,18 @@
         disabled: no
   tags: router_wireguard
 # -------------------------------------------------------------------------
-# Management Services
+# Management Services — LOCKDOWN (HD-301 parity with rb4011_initial.rsc.j2)
 # -------------------------------------------------------------------------
-- name: Enable REST API service
+# The bootstrap template already scopes EVERY service to {{ mgmt.subnet }} via
+# `available-from=` and disables telnet/ftp/www/api-ssl/reverse-proxy (HD-301).
+# This role block re-declares the same state in the steady state so a converge
+# can never silently drift a service open (published api_modify data below is the
+# FULL expected set, matching the template's belt-and-braces rows):
+#    api / www-ssl / ssh / winbox    = enabled, bound to the mgmt subnet
+#    telnet / ftp / www / api-ssl / reverse-proxy = disabled, still bound
+# `available-from=` is a CIDR (RouterOS 7); `interface=` is the ROS6 form and is
+# rejected with "bad parameter interface" (live-validated 2026-08-31, HD-301).
+- name: Configure management services (lockdown — HD-301 parity)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -809,22 +818,49 @@
     validate_certs: false
     port: "{{ routeros_api_port }}"
     path: ip service
+    # ip service is a SETTINGS-like path (no add/remove of arbitrary rows) —
+    # handle_absent_entries defaults to ignore, matching the per-row data below.
     data:
+      - name: telnet
+        disabled: yes
+        port: 23
+        available-from: "{{ vlan_subnets[99] }}"
+      - name: ftp
+        disabled: yes
+        port: 21
+        available-from: "{{ vlan_subnets[99] }}"
+      - name: www
+        disabled: yes
+        port: 80
+        available-from: "{{ vlan_subnets[99] }}"
+      - name: api-ssl
+        disabled: yes
+        port: 8729
+        available-from: "{{ vlan_subnets[99] }}"
+        certificate: none
+      - name: reverse-proxy
+        disabled: yes
+        port: 443
+        available-from: "{{ vlan_subnets[99] }}"
+        certificate: none
       - name: api
         disabled: no
-
-- name: Enable WinBox/Web service
-  community.routeros.api_modify:
-    hostname: "{{ routeros_api_host }}"
-    username: "{{ routeros_api_user }}"
-    password: "{{ routeros_api_password }}"
-    tls: "{{ routeros_tls }}"
-    validate_certs: false
-    port: "{{ routeros_api_port }}"
-    path: ip service
-    data:
+        port: 8728
+        available-from: "{{ vlan_subnets[99] }}"
       - name: www-ssl
         disabled: no
+        port: 443
+        available-from: "{{ vlan_subnets[99] }}"
+        certificate: none
+      - name: ssh
+        disabled: no
+        port: 22
+        available-from: "{{ vlan_subnets[99] }}"
+      - name: winbox
+        disabled: no
+        port: 8291
+        available-from: "{{ vlan_subnets[99] }}"
+
 
 
 # -------------------------------------------------------------------------

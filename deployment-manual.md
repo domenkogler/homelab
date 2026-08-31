@@ -592,12 +592,22 @@ First-boot notes:
 
 ### 1.5.1 Render the 4 bootstrap scripts + materialize the 2 .pub files (laptop, from the worktree)
 
+> **Flash-persistence rule (HD-304):** on the **switch and APs**, the `.pub` files
+> MUST live in the **`flash/` folder** — files placed in the device **root** are
+> **wiped on reboot**, and the `/user ssh-keys import` in the bootstrap runs
+> post-reset from `flash/`. The **RB4011 boots off flash and is immune** — its
+> `.pub` files stay in root. The rendered `crs328_initial.rsc` / `ap_initial.rsc`
+> import `public-key-file=flash/admin.pub` / `flash/ansible.pub`; `rb4011_initial.rsc`
+> imports the bare names.
+
 ```bash
 # 1) render the 4 secrets-injected .rsc files into the gitignored rendered/ dir
 bash scripts/ansible-run.sh playbooks/render-routeros.yml -i inventory.ini
 # 2) materialize the two SSH public keys the .rsc files import on each device
 bash scripts/get-bootstrap-keys.sh
 ls -la IaC/router/rendered/   # expect 6 files: 4 .rsc (4–5KB) + 2 .pub (~80B)
+# 3) when uploading to the switch/APs, put the 2 .pub files in the device's
+#    flash/ folder (root files are wiped on reboot); RB4011 root is fine.
 ```
 
 ✔-evidence: 6 files in the gitignored `IaC/router/rendered/`; the 4 .rsc files match the
@@ -613,7 +623,8 @@ if the vault rotates. Re-render the .rsc files if any lookup fails (fail-loud).
 
 Order matters: **RB4011 first**, then **CRS328**, then the **APs** (APs need the router DHCP
 server for their mgmt lease). For each device: open WinBox → Files → drag-drop the matching
-`.rsc` + `admin.pub` + `ansible.pub` → in the terminal:
+`.rsc` (into root) + the 2 `.pub` files into the device's **flash/ folder** on switch/APs (RB4011:
+root is fine) → in the terminal:
 
 ```text
 /system reset-configuration no-defaults=yes run-after-reset=<file>
@@ -626,14 +637,15 @@ Per device:
   in [network-addresses-generated.md](docs/network-addresses-generated.md)) with services
   bound to `vlan99-mgmt`. PPPoE comes up automatically. ✔-evidence: ping the mgmt-VLAN
   router IP from the laptop (now on the same mgmt VLAN via the bootstrap access port).
-- **CRS328** — upload `crs328_initial.rsc` + the 2 pubkeys. Reset triggers the script.
-  ✔-evidence: ping the mgmt-VLAN switch IP from the laptop; the CRS328 is reachable as
-  `switch.kogler.si`.
-- **APs** (hAP/wAP, one at a time) — upload `ap_initial.rsc` + the 2 pubkeys. Each AP comes
-  up on `bridge`, joins as a CAP, and gets its static-reserved `10.10.99.x` from the
-  router's DHCP server. ✔-evidence: on the router, `/ip dhcp-server lease print` shows the
-  AP's expected MAC at its reserved `10.10.99.x` (dnevna = `C4:AD:34:42:F0:B9` after the
-  Phase 1.5 prep swap; ap-garage retired).
+- **CRS328** — upload `crs328_initial.rsc` (root) + the 2 pubkeys into `flash/`. Reset triggers
+  the script. ✔-evidence: ping the mgmt-VLAN switch IP from the laptop; the CRS328 is
+  reachable as `switch.kogler.si`.
+- **APs** (hAP/wAP, one at a time) — upload `ap_initial.rsc` (root) + the 2 pubkeys into `flash/`.
+  Each AP comes up on `bridge`, joins as a CAP, and gets its static-reserved `10.10.99.x` from
+  the router's DHCP server. (Flash-persistence: root `.pub` files were being wiped on the AP
+  reboot — the bug this phase fixed, HD-304.) ✔-evidence: on the router, `/ip dhcp-server lease
+  print` shows the AP's expected MAC at its reserved `10.10.99.x` (dnevna =
+  `C4:AD:34:42:F0:B9` after the Phase 1.5 prep swap; ap-garage retired).
 
 ### 1.5.3 Hand over to the Ansible `router` role (the take-over)
 
