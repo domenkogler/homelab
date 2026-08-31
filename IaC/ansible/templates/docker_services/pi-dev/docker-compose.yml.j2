@@ -76,11 +76,15 @@ services:
         npm install -g --ignore-scripts pi-web-access@{{ pi_web_access_version }}
         # pi-web-ui: Web chat UI for pi (serve :8080). Install pinned; fail-loud on error so
         # monitoring sees a broken UI rather than a silently-idling container.
-        # HD-298: --ignore-scripts REMOVED here ONLY — the postinstall compiles the native
-        # node-pty binding (required on current node+arch; without it the server crash-loops
-        # before ever reaching exec). Security margin kept on the pi-coding-agent +
-        # pi-web-access lines (no native postinstalls there).
-        if ! npm install -g pi-web-ui@{{ pi_web_ui_version }}; then
+        # HD-298: --ignore-scripts REMOVED here ONLY + explicit --allow-scripts — the postinstall
+        # compiles the native node-pty binding (required on current node+arch; without it the
+        # server crash-loops before ever reaching exec). npm 11.19+ blocks install scripts by
+        # default (new allowScripts gate) even without --ignore-scripts, so the three packages
+        # with scripts (node-pty prebuild, @google/genai no-op, protobufjs postinstall) must be
+        # allowed explicitly — else node-pty's prebuild-install never runs and it falls back to
+        # node-gyp (no toolchain in the image) -> crash-loop. Security margin kept on the
+        # pi-coding-agent + pi-web-access lines (no native postinstalls there).
+        if ! npm install -g --allow-scripts=node-pty,@google/genai,protobufjs pi-web-ui@{{ pi_web_ui_version }}; then
           echo "pi-web-ui install failed" >&2; exit 1
         fi
         # Serve the pi Web UI in the foreground. PI_WEB_HOST=0.0.0.0 binds inside the container
