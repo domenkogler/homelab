@@ -37,7 +37,7 @@ and list your open questions at the top of the commit message for the human to a
 
 ## DATA (human fills — raw notes, pasted outputs, half-sentences; any format goes)
 
-*(empty — paste deploy info above this line)*
+add navidrome to service review
 
 <!-- Fill between the markers, then tell the AI session: "read prompt-journal.md".
      Useful things to dump: what you did, terminal output, panel settings, dates,
