@@ -72,7 +72,11 @@ services:
         npm install -g --ignore-scripts pi-web-access@{{ pi_web_access_version }}
         # pi-web-ui: Web chat UI for pi (serve :8080). Install pinned; fail-loud on error so
         # monitoring sees a broken UI rather than a silently-idling container.
-        if ! npm install -g --ignore-scripts pi-web-ui@{{ pi_web_ui_version }}; then
+        # HD-298: --ignore-scripts REMOVED here ONLY — the postinstall compiles the native
+        # node-pty binding (required on current node+arch; without it the server crash-loops
+        # before ever reaching exec). Security margin kept on the pi-coding-agent +
+        # pi-web-access lines (no native postinstalls there).
+        if ! npm install -g pi-web-ui@{{ pi_web_ui_version }}; then
           echo "pi-web-ui install failed" >&2; exit 1
         fi
         # Serve the pi Web UI in the foreground. PI_WEB_HOST=0.0.0.0 binds inside the container

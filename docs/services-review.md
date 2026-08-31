@@ -24,6 +24,6 @@ tags: [services, review, queue]
 
 | Service | URL | Why (3 words) |
 |---------|-----|---------------|
-| — | — | — |
+| Navidrome | navidrome.com | Subsonic-API self-hosted music server — fits Lidarr downloads + Jellyfin ecosystem (research: Authentik OIDC, Jellyfin users import) |
 
 > *(Deliberately near-empty. Add a row only when a service is heard of but not yet researched; promotions and 30-day stale moves keep this thin.)*
