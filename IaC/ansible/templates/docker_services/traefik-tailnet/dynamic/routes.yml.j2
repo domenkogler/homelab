@@ -186,22 +186,22 @@ http:
     # Same tailnet-apps overlay mechanism as dsh. ACL gate (headscale
     # `tag:pi-dev` → family user `domen@kogler.si:*`) — see dsh/HD-268c
     # comment for the full model.
-    pi-kogler:
-      rule: "Host(`pi.kogler.si`)"
+    pi-dev-kogler:
+      rule: "Host(`pi-dev.kogler.si`)"
       entryPoints:
         - websecure
       middlewares:
         - authentik-forward-auth
       service: pi-backend
       tls: true
-    pi-ts-kogler:
-      rule: "Host(`pi.ts.kogler.si`)"
+    pi-dev-ts-kogler:
+      rule: "Host(`pi-dev.ts.kogler.si`)"
       entryPoints:
         - websecure
       service: pi-backend
       tls: true
-    pi-http-redirect:
-      rule: "Host(`pi.kogler.si`) || Host(`pi.ts.kogler.si`)"
+    pi-dev-http-redirect:
+      rule: "Host(`pi-dev.kogler.si`) || Host(`pi-dev.ts.kogler.si`)"
       entryPoints:
         - web
       middlewares:

@@ -181,23 +181,31 @@ tailnet_sidecar_ip: "100.64.0.1"
 # set the corresponding group_var, re-converge + restart headscale. Leave
 # empty -> headscale renders no extra_records for that sidecar (fail-loud
 # render guard in config.yaml.j2).
+# HD-297 (2026-08-31): these sidecar IPs are NOT the DNS target for the clean
+# URLs — the UI FQDNs must resolve to the traefik-tailnet EDGE (vps-obs,
+# tailnet_sidecar_ip, 100.64.0.1) which terminates TLS (wildcard cert) +
+# routes to the dsh/pi backends. The sidecar IPs serve plain HTTP (dsh:3080 /
+# pi-dev:8080) ONLY — no TLS, no Host routing. Deploy-delta fixed 2026-08-31:
+# tailnet_subdomains dsh/pi entries no longer pin `ip:` (defaults to the edge).
 tailnet_dsh_ip: "100.64.0.2"
 tailnet_pi_dev_ip: "100.64.0.5"
 
 # Subdomains served by the tailnet edge (watched by headscale config.yaml.j2
 # extra_records render). Each entry is `{name: <sub>, ip: <tailnet IPv4>}`.
 # `ip` defaults to `tailnet_sidecar_ip` (the traefik-tailnet observability
-# edge on `vps-obs`) when omitted — keeps the existing observability entries
-# free of redundant IP noise. For Pattern-A sidecars (HD-268c), pin the IP
-# to the sidecar's own tailnet IPv4 so the FQDN resolves to the right node.
+# edge on `vps-obs`, 100.64.0.1) when omitted. HD-297 (2026-08-31): EVERY
+# clean-URL FQDN (incl. dsh/pi) must resolve to this edge — it terminates TLS
+# (wildcard cert) + Host-routes to the backends. Do NOT pin the Pattern-A
+# sidecar IPs here: the sidecars only serve plain HTTP (:3080/:8080) with no
+# TLS/Host-routing, so pointing the FQDN at them breaks the clean URLs.
 #
 # NOTE: the `ip` value is a LITERAL tailnet IPv4 (NOT a Jinja var reference).
 # Ansible's group_vars loader treats YAML scalars as-is (no second Jinja pass);
-# if `ip` were `{{ tailnet_dsh_ip }}` it would render as the literal string
-# `{{ tailnet_dsh_ip }}` in the headscale config, NOT the variable's value.
+# if `ip` were `{{ tailnet_sidecar_ip }}` it would render as the literal string
+# `{{ tailnet_sidecar_ip }}` in the headscale config, NOT the variable's value.
 # The deploy step MUST keep each per-sub IP in sync with the corresponding
-# `tailnet_<svc>_ip` group_var (same deploy-time constraint as
-# `tailnet_sidecar_ip`); the two values are the same live number today.
+# `tailnet_<svc>_ip` group_var; today every entry omits `ip` -> all resolve to
+# tailnet_sidecar_ip = 100.64.0.1 (vps-obs edge).
 # Keep in sync with traefik-tailnet dynamic/routes.yml (obs edge) +
 # the sidecar compose templates (Pattern-A: dsh + pi-dev).
 tailnet_subdomains:
@@ -208,6 +216,7 @@ tailnet_subdomains:
   - { name: sec }
   - { name: traefik }
   - { name: auto }
-  # --- Pattern-A sidecars (HD-268c) — KEEP IN SYNC with tailnet_dsh_ip / tailnet_pi_dev_ip above ---
-  - { name: dsh,    ip: "100.64.0.2" }   # vps-dsh   :3080  (DSH Web UI)  == tailnet_dsh_ip
-  - { name: pi,     ip: "100.64.0.5" }   # vps-pi-dev:8080  (pi  Web UI) == tailnet_pi_dev_ip
+  # --- Pattern-A UIs (HD-297): resolve to the edge (100.64.0.1), NOT the sidecars
+  # (pi-dev named so it never collides with the Raspberry Pi device host pi.kogler.si) ---
+  - { name: dsh }     # -> edge -> dsh-backend    http://dsh:3080
+  - { name: pi-dev }  # -> edge -> pi-backend     http://pi-dev:8080

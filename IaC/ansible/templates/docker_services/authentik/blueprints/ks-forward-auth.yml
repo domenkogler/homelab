@@ -111,6 +111,34 @@ entries:
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
 
+  # --- HD-297 (2026-08-31): Pattern-A sidecar UIs on the tailnet edge — plain names
+  # carry forward-auth (SSO) like the observability apps; the *.ts twins are
+  # ACL-gated only (no provider needed — dsh-ts/pi-ts routes skip the middleware).
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_dsh
+    identifiers:
+      name: forward-dsh
+    attrs:
+      mode: forward_single
+      external_host: https://dsh.kogler.si
+      internal_host: http://dsh:3080
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_pi_dev
+    identifiers:
+      name: forward-pi-dev
+    attrs:
+      mode: forward_single
+      external_host: https://pi-dev.kogler.si
+      internal_host: http://pi-dev:8080
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+
   # --- HD-135b follow-up (2026-08-28): *.ts.kogler.si twins (tailnet-only traefik-
   # tailnet edge). Authentik forward_single matches EXACTLY one external_host, so the
   # tailnet .ts names need their OWN forward-auth providers (same internal backend) —
@@ -246,6 +274,24 @@ entries:
       meta_launch_url: https://traefik.kogler.si
       provider: !KeyOf provider_edge_traefik_dash
 
+  # --- HD-297 (2026-08-31): Pattern-A UIs on the tailnet edge (plain names only) ---
+  - model: authentik_core.application
+    id: app_edge_dsh
+    identifiers:
+      slug: edge-dsh
+    attrs:
+      name: DSH (edge)
+      meta_launch_url: https://dsh.kogler.si
+      provider: !KeyOf provider_edge_dsh
+  - model: authentik_core.application
+    id: app_edge_pi_dev
+    identifiers:
+      slug: edge-pi-dev
+    attrs:
+      name: pi web-ui (edge)
+      meta_launch_url: https://pi-dev.kogler.si
+      provider: !KeyOf provider_edge_pi_dev
+
   # --- HD-135b follow-up: applications for the *.ts.kogler.si twins (tailnet edge) ---
   - model: authentik_core.application
     id: app_edge_stats_ts
@@ -311,6 +357,8 @@ entries:
         - !KeyOf provider_edge_home
         - !KeyOf provider_edge_home_home
         - !KeyOf provider_edge_traefik_dash
+        - !KeyOf provider_edge_dsh
+        - !KeyOf provider_edge_pi_dev
         - !KeyOf provider_edge_stats_ts
         - !KeyOf provider_edge_sec_ts
         - !KeyOf provider_edge_auto_ts

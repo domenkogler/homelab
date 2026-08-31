@@ -25,7 +25,7 @@
 #       for outbound tailnet control traffic.
 #     - `tailnet-apps` (172.24.0.0/16, HD-296) — NEW overlay added to carry
 #       the Pattern-A sidecar UIs (dsh:3080, pi-dev:8080) so this edge can
-#       route clean URLs (`https://dsh.ts.kogler.si` / `https://pi.ts.kogler.si`)
+#       route clean URLs (`https://dsh.ts.kogler.si` / `https://pi-dev.ts.kogler.si`)
 #       to them via Docker DNS. The dsh + pi-dev apps join tailnet-apps in
 #       addition to services-internal; their tailscale sidecars inherit both
 #       networks via `network_mode: service:<app>`. ISO from traefik-public
