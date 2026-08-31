@@ -579,4 +579,126 @@ First-boot notes:
   `docker compose -f /opt/renovate/docker-compose.yml run --rm -e LOG_LEVEL=debug renovate`
 - **Stale compose env:** container env older than rendered file (compose sees no change):
   `docker compose -f /opt/<svc>/docker-compose.yml up -d --force-recreate`.
-*Last updated 2026-08-23 · Phases 0 + 0.5 + 1a complete (incl. 1a.0 pool bootstrap as executed); Phase 1 written from the settled 2026-08-22 initialization path (stack live, Verify evidence pass pending two owner inputs).*
+## Phase 1.5 — Network redo cutover (MikroTik RB4011 / CRS328 / APs) `[MANUAL]`
+
+> **Scope:** the post-Phase-1 home network redo. The 4 .rsc files below are
+> **rendered once** (per change) from `IaC/router/templates/*.rsc.j2`; the router role takes
+> over from there. Pre-flight: confirm `wg_s2s_router_public_key` ==
+> `wg_s2s_vps_public_key` == the pubkey of the shared `wg_password` private key in 1P
+> (`gwXAk+550CDfybOg64+v+QUFv1sW0wnGrIiI+EWFhUk=` per the prep commit), all 5
+> `wifi-kogler*` 1P items seeded, and the RB4011 flat backup saved
+> (`rb4011_flat_backup.rsc` exported from Files before the reset).
+> Backups: owner confirms each device has a current `.backup` file before starting.
+
+### 1.5.1 Render the 4 bootstrap scripts (laptop, from the worktree)
+
+```bash
+bash scripts/ansible-run.sh playbooks/render-routeros.yml -i inventory.ini
+ls -la IaC/router/rendered/   # expect 4 files, all 4KB–5KB
+```
+
+✔-evidence: 4 .rsc files in the gitignored `IaC/router/rendered/`; `ap_initial.rsc` / `capsman_steady-state.rsc` each
+contain 5 distinct `passphrase=` lengths (5 wifi-kogler items), the rb4011 file contains a
+non-empty `pppoe-telekom … user=<…> password=<…>` line, and the crs328 file binds `api`/`www-ssl`/`ssh` to
+`vlan99-mgmt`. Re-render if any lookup fails (fail-loud).
+
+### 1.5.2 Upload + run-after-reset on each device `[MANUAL]`
+
+Order matters: **RB4011 first**, then **CRS328**, then the **APs** (APs need the router DHCP
+server for their mgmt lease). For each device: open WinBox → Files → drag-drop the matching
+`.rsc` + `admin.pub` + `ansible.pub` → in the terminal:
+
+```text
+/system reset-configuration no-defaults=yes run-after-reset=<file>
+```
+
+Per device:
+
+- **RB4011** — upload `rb4011_initial.rsc` + the 2 pubkeys. Reset triggers the script. Wait
+  ~60 s; the router reappears as `router.kogler.si` on the management VLAN (SSOT gateway IP
+  in [network-addresses-generated.md](docs/network-addresses-generated.md)) with services
+  bound to `vlan99-mgmt`. PPPoE comes up automatically. ✔-evidence: ping the mgmt-VLAN
+  router IP from the laptop (now on the same mgmt VLAN via the bootstrap access port).
+- **CRS328** — upload `crs328_initial.rsc` + the 2 pubkeys. Reset triggers the script.
+  ✔-evidence: ping the mgmt-VLAN switch IP from the laptop; the CRS328 is reachable as
+  `switch.kogler.si`.
+- **APs** (hAP/wAP, one at a time) — upload `ap_initial.rsc` + the 2 pubkeys. Each AP comes
+  up on `bridge`, joins as a CAP, and gets its static-reserved `10.10.99.x` from the
+  router's DHCP server. ✔-evidence: on the router, `/ip dhcp-server lease print` shows the
+  AP's expected MAC at its reserved `10.10.99.x` (dnevna = `C4:AD:34:42:F0:B9` after the
+  Phase 1.5 prep swap; ap-garage retired).
+
+### 1.5.3 Hand over to the Ansible `router` role (the take-over)
+
+From the **management laptop** (or the WSL runner — the role is the same):
+
+```bash
+bash scripts/ansible-run.sh playbooks/router.yml
+bash scripts/ansible-run.sh playbooks/switch.yml
+```
+
+✔-evidence: `ok`/`changed` counts in the play recap are sensible (expect 1–2 changed per
+device on a re-run; expect a larger changed count on a fresh-bootstrap run because VLANs
+and firewall are built from scratch). The role's first task is an **identity assert**
+(HD-161) — a wrong-target aborts the run before any `api_modify`. The `vlan-filtering` enable
+on `bridge-lan` is the **last** task (line ~811) so a half-applied run can never blackhole
+the bridge.
+
+### 1.5.4 Apply the CAPsMAN steady-state (the `wifi-qcom-ac` package, HD-232)
+
+After §1.5.3 settles and the role is green, push WiFi back up. This is **NOT a reset** —
+the RB4011 already has the bridge/VLANs/DHCP/firewall; the import only adds the
+wifi/security/provisioning objects.
+
+```text
+# in WinBox Files on the RB4011
+/import capsman_steady-state.rsc
+```
+
+✔-evidence on the RB4011:
+
+```text
+/interface wifi configuration print        ; expect 5 cfg-kogler* rows
+/interface wifi security print             ; expect 5 sec-kogler* rows
+/interface wifi registration-table print   ; clients appear per SSID as they re-join
+/interface wifi provisioning print         ; dynamic CAP entries created for each AP
+```
+
+Devices must re-join the right SSID (Kogler / Kogler IOT / Kogler IOT WAN / Kogler guest /
+Kogler Kids) to land on their VLAN (10/20/21/30/40).
+
+### 1.5.5 Bring up the WG S2S tunnel (HD-91)
+
+The `router` role already configured the `wg-s2s` interface and the VPS peer
+(`wg_s2s_vps_public_key` in `group_vars/all/main.yml`). The VPS side has its own peer in
+`IaC/ansible/roles/wireguard/`. The tunnel is up as soon as both sides have the matching
+peer; the role asserts it. ✔-evidence:
+
+```text
+# on the RB4011
+/interface wireguard print                ; wg-s2s present, port 13231
+/interface wireguard peer print           ; peer wg-s2s-vps, latest-handshake non-zero
+# on the VPS
+sudo wg show wg-s2s                        ; peer with public key gwXAk+5…, latest-handshake non-zero
+```
+
+Live-verify from the VPS:
+
+```bash
+ping -c3 router.kogler.si   # router over the tunnel (WG S2S, mgmt-VLAN IP behind wg-s2s)
+```
+
+### 1.5.6 Cutover close-out
+
+- `validate-all.sh` green from the worktree.
+- Append a `### 2026-08-31 — Phase 1.5 · network redo cutover` entry to
+  [deployment-journal.md](deployment-journal.md) (use [prompt-journal.md](prompt-journal.md) for raw
+  notes). Include device names, timestamps, evidence snippets (lease print, wireguard peer
+  print). Secrets by 1P item+field name only.
+- Tick the matching `- [x]` boxes in [deployment-tasks.md](deployment-tasks.md) Phase 1.5 (add
+  the phase there if it isn't yet). Trim the HD-285 `⏳` tail in [todo.md](todo.md); the row
+  closes when §1.5.5 handshakes.
+- Commit signed (`G`) on the session branch; merge to main; remove the worktree.
+
+*Last updated 2026-08-31 · Phases 0 + 0.5 + 1a complete (incl. 1a.0 pool bootstrap as executed); Phase 1 written from the settled 2026-08-22 initialization path (stack live, Verify evidence pass pending two owner inputs); **Phase 1.5 added 2026-08-31** — Network redo cutover runbook (render → per-device reset → router role → CAPsMAN import → wg-s2s handshake).*
+
