@@ -15,16 +15,24 @@ tags: [network, routeros, ops]
 
 ## Router Config Lifecycle
 
-> **Apply model (decided 2026-09-01):** RouterOS config is **authored in Jinja templates (IaC, single SSOT)** and **deployed by importing a rendered `.rsc`** into the device — NOT by driving `api_modify` command-by-command for day-to-day changes. The API path is used only for **idempotent, order-independent state** (DHCP reservations that already exist, firewall lists the role owns) and for **verification** (`api_facts`/`api`) — never as the primary apply mechanism for multi-step changes.
+> **Apply model (decided 2026-09-01):** RouterOS config is **authored in Jinja templates (IaC, single SSOT)** and **deployed by importing a rendered `.rsc`** — NOT by driving `api_modify` command-by-command for day-to-day changes. The API path is used only for **idempotent, order-independent state** (DHCP reservations, firewall lists the role owns) and for **verification** (`api_facts`/`api`), never as the primary apply for multi-step changes.
 
-1. **Factory reset / true baseline** → import the **rendered** `IaC/router/rendered/rb4011_initial.rsc` via WinBox (`run-after-reset=`, or `/import`). The committed file is the TEMPLATE `IaC/router/templates/rb4011_initial.rsc.j2`; render it with `playbooks/render-routeros.yml` (secrets-injected output into the gitignored `rendered/` dir). **Never import the raw `.j2`**.
-2. **Steady-state apply = import a rendered `.rsc`** (converge or delta, below):
-   - **Full converge** (`IaC/router/templates/rb4011_converge.rsc.j2` → `rendered/rb4011_converge.rsc`) — the complete final state, self-sufficient after a reset. **Not for routine incremental changes** (many `/add` lines duplicate-abort live, see Authoring below).
-   - **Delta** (`IaC/router/templates/*_delta.rsc.j2` → `rendered/*_delta.rsc`) — a **small, idempotent** set of `/set` + guarded `/add` operations for one change (e.g. `rb4011_pi_delta.rsc`). **This is the default for a new change.**
-3. **Ansible `router` role** remains the **SSOT renderer + verifier**: it renders/validates the templates, applies idempotent state it owns (DHCP static reservations, firewall address-lists), and **verifies** live state (`api_facts`/`api`). It does **not** re-drive the multi-step bridge/VLAN mutations that a delta-import handles.
-4. **Optional:** after manual WinBox changes, export a snapshot as `IaC/router/rb4011_live.rsc` for documentation (not yet created).
+### The three tiers (roles + when each is used)
 
-Source of truth: the **Jinja templates** (`rb4011_{initial,converge,delta}.rsc.j2`) + the `router` Ansible role. The live export is documentation-only.
+1. **`*_initial.rsc` — the one-time MANUAL bootstrap** (`rb4011_initial.rsc.j2`, `crs328_initial.rsc.j2`, `ap_initial.rsc.j2`). Factory-reset / first-boot: creates users (incl. the `ansible` SSH identity), uploads SSH keys, binds mgmt services, sets the INPUT firewall floor. **Manual by design** — it hands the device over to automation. After it runs once, you never need it again.
+2. **`*_converge.rsc` — the SSOT "full" steady-state** (`rb4011_converge.rsc.j2` → `rendered/rb4011_converge.rsc`). The complete final device state. **Independent of the initial script** (self-sufficient on its own after a reset) and **idempotent** (every `/add` guarded — safe to re-import live at any time). **From the moment initial hands over, converge is the single source of truth / the apply for everything.** A change = edit the converge template → render → import.
+3. **`*_delta.rsc` — TRANSIENT only** (`*_delta.rsc.j2` → `rendered/*_delta.rsc`). A **quick patch / debug / test**, or an operator-scoped live fix with a bounded blast radius. **Always a subset of the converge (never divergent truth), and its final state must be folded back into the converge** so the converge stays the SSOT. Deltas may be deleted once folded.
+
+> **Name note:** `converge` is the "full" script. A rename to `full` was considered (2026-09-01) but **rejected** to avoid churn across ~25 files + tooling; the **concept** of converge=full is what matters, and it's stated here.
+
+### Lifecycle in practice
+
+1. **Factory reset / true baseline** → import the **rendered** `rb4011_initial.rsc` via WinBox (`run-after-reset=` or `/import`). The committed file is the TEMPLATE `rb4011_initial.rsc.j2`; render with `playbooks/render-routeros.yml` (secrets-injected output into the gitignored `rendered/`). **Never import the raw `.j2`.**
+2. **Initial hands over → Ansible + converge take over.** All subsequent config = **edit the converge template → render → /import** (the universal apply).
+3. **Deltas** are allowed for quick patch/debug/fix, but **final state lands in converge** (fold the delta in, then it's obsolete).
+4. **Optional:** export a manual snapshot as `IaC/router/rb4011_live.rsc` for documentation (not yet created).
+
+Source of truth: the **Jinja templates** (`rb4011_{initial,converge}.rsc.j2`; deltas are transient) + the `router` Ansible role. The live export is documentation-only.
 
 ### Apply workflow (imports)
 
@@ -56,7 +64,7 @@ Source of truth: the **Jinja templates** (`rb4011_{initial,converge,delta}.rsc.j
    The guard must target **static** entries (`dynamic=no` for bridge-vlan/lease) — dynamic auto-created entries can't be `set` (live 2026-09-01: `can not change dynamic`).
 2. **Never `set` a dynamic object.** DHCP leases and bridge-vlans that the router auto-creates are dynamic; guard static-only, and **add a static reservation** (it takes precedence) rather than mutating the dynamic one.
 3. **Order matters.** Import runs top-to-bottom and **aborts at the first error**. Put `/set` (safe, idempotent) before `/add`; put the least-risky, most-reversible changes first; keep the change self-contained so a failure leaves a clear, bounded state.
-4. **Delta over converge for routine changes.** A converge rsc is for resets; a delta is a bounded change. Don't re-import a full converge to make one change — it will hit unrelated duplicate-aborts.
+4. **Converge = the universal apply; delta = transient.** The converge is the full idempotent SSOT — a change goes into the converge template, not a persistent delta. A delta is a quick patch/debug that must be folded back in; don't keep deltas as a parallel long-term truth.
 5. **Secrets stay out of the repo.** The rendered `.rsc` (with `mikrotik-admin_login`, `pppoe_login`) is gitignored; the template has Jinja placeholders resolved at render. Never commit/`cat`/grep rendered files.
 6. **Every rsc change needs a counterpart in the SSOT** (the template) — the rendered file is a view, never hand-edited.
 
