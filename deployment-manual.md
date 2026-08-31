@@ -649,11 +649,22 @@ Per device:
 
 ### 1.5.3 Hand over to the Ansible `router` role (the take-over)
 
-From the **management laptop** (or the WSL runner — the role is the same):
+From the **management laptop** (or the WSL runner — the role is the same). **Runner note
+(live-validated 2026-08-31):** `community.routeros` 3.x requires `librouteros` in the
+interpreter Ansible uses for modules. `inventory.ini` pins
+`ansible_python_interpreter=/usr/bin/python3` (system), which does NOT have `librouteros` —
+the venv (`~/ansible-venv`) does. The `scripts/ansible-run.sh` wrapper hardcodes `REPO` to the
+PRIMARY checkout, so run from a **fresh session worktree** and force the venv interpreter:
 
 ```bash
-bash scripts/ansible-run.sh playbooks/router.yml
-bash scripts/ansible-run.sh playbooks/switch.yml
+# from the session worktree (NOT the primary checkout):
+cd IaC/ansible
+source ~/ansible-venv/bin/activate
+ansible-playbook -i inventory.ini playbooks/router.yml \
+  -e ansible_python_interpreter=~/ansible-venv/bin/python3
+ansible-playbook -i inventory.ini playbooks/switch.yml \
+  -e ansible_python_interpreter=~/ansible-venv/bin/python3
+# dry-run first (safe check): add --check --diff to both above
 ```
 
 ✔-evidence: `ok`/`changed` counts in the play recap are sensible (expect 1–2 changed per

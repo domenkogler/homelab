@@ -41,7 +41,7 @@
     port: "{{ routeros_api_port }}"
     tls: "{{ routeros_tls }}"
     validate_certs: false
-    path: system identity
+    gather_subset: all
   register: router_identity_facts
   tags: always
 
@@ -49,10 +49,10 @@
   assert:
     that:
       - routeros_expected_identity | length > 0
-      - (router_identity_facts.data | map(attribute='name') | list | first) == routeros_expected_identity
+      - router_identity_facts.ansible_facts.ansible_net_hostname == routeros_expected_identity
     fail_msg: >-
       Target at {{ routeros_api_host }} reports identity
-      '{{ router_identity_facts.data | map(attribute='name') | list | first }}' —
+      '{{ router_identity_facts.ansible_facts.ansible_net_hostname }}' —
       expected '{{ routeros_expected_identity }}'. Refusing to mutate the wrong device.
   tags: always
 
@@ -229,7 +229,7 @@
         address: "{{ item.ip }}"
         mac-address: "{{ item.mac }}"
         comment: "AP {{ item.name }} static reservation"
-  loop: "{{ network_static_hosts | selectattr('name', 'startswith', 'ap-') | selectattr('mac', 'defined') | selectattr('vlan', '==', 99) | list }}"
+  loop: "{{ network_static_hosts | selectattr('name', 'match', '^ap-') | selectattr('mac', 'defined') | selectattr('vlan', '==', 99) | list }}"
   when: item.vlan == 99
 
 - name: Configure DHCP static reservations for non-mgmt reserved devices (R-2)
@@ -249,8 +249,8 @@
         comment: "{{ item.name }} static reservation (R-2)"
   loop: "{{ network_static_hosts \
          | selectattr('mac', 'defined') \
-         | selectattr('vlan', 'not in', [99]) \
-         | selectattr('name', 'not in', ['router']) \
+         | rejectattr('vlan', 'in', [99]) \
+         | rejectattr('name', 'in', ['router']) \
          | rejectattr('name', 'search', 'ap-') \
          | list }}"
   when: item.mac is defined and item.vlan != 99
@@ -798,17 +798,17 @@
         disabled: no
   tags: router_wireguard
 # -------------------------------------------------------------------------
-# Management Services — LOCKDOWN (HD-301 parity with rb4011_initial.rsc.j2)
+# Management Services — lockdown state (HD-301 parity with rb4011_initial.rsc.j2)
 # -------------------------------------------------------------------------
-# The bootstrap template already scopes EVERY service to {{ mgmt.subnet }} via
-# `available-from=` and disables telnet/ftp/www/api-ssl/reverse-proxy (HD-301).
-# This role block re-declares the same state in the steady state so a converge
-# can never silently drift a service open (published api_modify data below is the
-# FULL expected set, matching the template's belt-and-braces rows):
-#    api / www-ssl / ssh / winbox    = enabled, bound to the mgmt subnet
-#    telnet / ftp / www / api-ssl / reverse-proxy = disabled, still bound
-# `available-from=` is a CIDR (RouterOS 7); `interface=` is the ROS6 form and is
-# rejected with "bad parameter interface" (live-validated 2026-08-31, HD-301).
+# The bootstrap template owns the `available-from` CIDR binding on every service
+# (community.routeros api_modify 3.x does NOT support the `available-from` field
+# for path ip service — module schema only exposes address/certificate/disabled/
+# name/port/tls-version). This role block re-declares the steady-state DISABLED
+# state + port + certificate for each service so a converge can never silently
+# drift a dangerous service back on (telnet/ftp/www/api-ssl/reverse-proxy stay
+# disabled; api/www-ssl/ssh/winbox stay enabled on their well-known ports). The
+# mgmt-subnet-only reachability is enforced by the INPUT-chain rules below + the
+# bootstrap binding — belt and braces.
 - name: Configure management services (lockdown — HD-301 parity)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -824,42 +824,33 @@
       - name: telnet
         disabled: yes
         port: 23
-        available-from: "{{ vlan_subnets[99] }}"
       - name: ftp
         disabled: yes
         port: 21
-        available-from: "{{ vlan_subnets[99] }}"
       - name: www
         disabled: yes
         port: 80
-        available-from: "{{ vlan_subnets[99] }}"
       - name: api-ssl
         disabled: yes
         port: 8729
-        available-from: "{{ vlan_subnets[99] }}"
         certificate: none
       - name: reverse-proxy
         disabled: yes
         port: 443
-        available-from: "{{ vlan_subnets[99] }}"
         certificate: none
       - name: api
         disabled: no
         port: 8728
-        available-from: "{{ vlan_subnets[99] }}"
       - name: www-ssl
         disabled: no
         port: 443
-        available-from: "{{ vlan_subnets[99] }}"
         certificate: none
       - name: ssh
         disabled: no
         port: 22
-        available-from: "{{ vlan_subnets[99] }}"
       - name: winbox
         disabled: no
         port: 8291
-        available-from: "{{ vlan_subnets[99] }}"
 
 
 

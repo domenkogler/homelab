@@ -37,7 +37,7 @@
     port: "{{ routeros_api_port }}"
     tls: "{{ routeros_tls }}"
     validate_certs: false
-    path: system identity
+    gather_subset: all
   register: switch_identity_facts
   tags: always
 
@@ -45,10 +45,10 @@
   assert:
     that:
       - routeros_expected_identity | length > 0
-      - (switch_identity_facts.data | map(attribute='name') | list | first) == routeros_expected_identity
+      - switch_identity_facts.ansible_facts.ansible_net_hostname == routeros_expected_identity
     fail_msg: >-
       Target at {{ routeros_api_host }} reports identity
-      '{{ switch_identity_facts.data | map(attribute='name') | list | first }}' —
+      '{{ switch_identity_facts.ansible_facts.ansible_net_hostname }}' —
       expected '{{ routeros_expected_identity }}'. Refusing to mutate the wrong device.
   tags: always
 
@@ -298,14 +298,14 @@
 
 
 # -------------------------------------------------------------------------
-# Management services — LOCKDOWN (HD-301 parity with crs328_initial.rsc.j2)
+# Management services — lockdown state (HD-301 parity with crs328_initial.rsc.j2)
 # -------------------------------------------------------------------------
-# The bootstrap template scopes every service to {{ mgmt.subnet }} via
-# `available-from=` and disables telnet/ftp/www/api-ssl/reverse-proxy (HD-301).
-# This role block re-declares the same state in the steady state so a converge
-# can never silently drift a service open. `available-from=` is a CIDR (RouterOS
-# 7); `interface=` is the ROS6 form (rejected with "bad parameter interface" on
-# ROS7, live-validated 2026-08-31).
+# The bootstrap template owns the `available-from` CIDR binding on every service
+# (community.routeros api_modify 3.x does NOT support `available-from` for path
+# ip service — only address/certificate/disabled/name/port/tls-version). This
+# role block re-declares the steady-state DISABLED state + port + certificate so
+# a converge can never silently drift a dangerous service back on; mgmt-subnet
+# reachability is enforced by the INPUT-chain rules below + the bootstrap.
 - name: Configure management services (lockdown — HD-301 parity)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -319,42 +319,33 @@
       - name: telnet
         disabled: yes
         port: 23
-        available-from: "{{ vlan_subnets[99] }}"
       - name: ftp
         disabled: yes
         port: 21
-        available-from: "{{ vlan_subnets[99] }}"
       - name: www
         disabled: yes
         port: 80
-        available-from: "{{ vlan_subnets[99] }}"
       - name: api-ssl
         disabled: yes
         port: 8729
-        available-from: "{{ vlan_subnets[99] }}"
         certificate: none
       - name: reverse-proxy
         disabled: yes
         port: 443
-        available-from: "{{ vlan_subnets[99] }}"
         certificate: none
       - name: api
         disabled: no
         port: 8728
-        available-from: "{{ vlan_subnets[99] }}"
       - name: www-ssl
         disabled: no
         port: 443
-        available-from: "{{ vlan_subnets[99] }}"
         certificate: none
       - name: ssh
         disabled: no
         port: 22
-        available-from: "{{ vlan_subnets[99] }}"
       - name: winbox
         disabled: no
         port: 8291
-        available-from: "{{ vlan_subnets[99] }}"
 
 # -------------------------------------------------------------------------
 # INPUT-chain mgmt lockdown (HD-301 parity with crs328_initial.rsc.j2)
@@ -440,7 +431,7 @@
 # -------------------------------------------------------------------------
 - name: Get list of configured port names
   set_fact:
-    configured_port_names: "{{ switch_port_map | dict2items | map('extract', 'value', 'port') | list }}"
+    configured_port_names: "{{ switch_port_map | dict2items | map(attribute='value') | map(attribute='port') | list }}"
 
 - name: Set unconfigured ports to management VLAN (default)
   community.routeros.api_modify:
