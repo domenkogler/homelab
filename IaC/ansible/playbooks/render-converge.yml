@@ -6,13 +6,13 @@
   tasks:
     - name: Load all group_vars (SSOT)
       include_vars:
-        file: group_vars/all/main.yml
+        file: "{{ playbook_dir }}/../group_vars/all/main.yml"
     - name: Load router group_vars (SSOT)
       include_vars:
-        file: group_vars/router.yml
+        file: "{{ playbook_dir }}/../group_vars/router.yml"
     - name: Load switch group_vars (SSOT)
       include_vars:
-        file: group_vars/switch.yml
+        file: "{{ playbook_dir }}/../group_vars/switch.yml"
     - name: Derive mgmt + router/switch 99 IPs
       set_fact:
         mgmt: "{{ network_vlans | selectattr('id', '==', 99) | list | first }}"
@@ -24,13 +24,13 @@
       no_log: true
     - name: Ensure rendered dir
       file:
-        path: "{{ playbook_dir }}/../router/rendered"
+        path: "{{ playbook_dir }}/../../router/rendered"
         state: directory
     - name: Render router-converge.rsc
       template:
-        src: "{{ playbook_dir }}/../router/templates/router_converge.rsc.j2"
-        dest: "{{ playbook_dir }}/../router/rendered/router-converge.rsc"
+        src: "{{ playbook_dir }}/../../router/templates/router_converge.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/router-converge.rsc"
     - name: Render switch-converge.rsc
       template:
-        src: "{{ playbook_dir }}/../router/templates/switch_converge.rsc.j2"
-        dest: "{{ playbook_dir }}/../router/rendered/switch-converge.rsc"
+        src: "{{ playbook_dir }}/../../router/templates/switch_converge.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/switch-converge.rsc"
