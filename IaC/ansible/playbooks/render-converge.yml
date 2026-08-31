@@ -21,6 +21,8 @@
     - name: Resolve admin password from 1Password
       set_fact:
         mikrotik_admin_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
+        pppoe_login_user: "{{ lookup('community.general.onepassword', 'pppoe_login', field='username', vault=op_vault) }}"
+        pppoe_login_password: "{{ lookup('community.general.onepassword', 'pppoe_login', field='password', vault=op_vault) }}"
       no_log: true
     - name: Ensure rendered dir
       file:

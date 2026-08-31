@@ -17,6 +17,11 @@
 /system ntp client servers add address=0.si.pool.ntp.org
 /system ntp client servers add address=1.si.pool.ntp.org
 
+# ---- WAN (internet for laptop + 1Password) — bootstrap has it; needed for standalone reset ----
+/interface pppoe-client add name=pppoe-telekom interface=ether1 \
+    user={{ pppoe_login_user }} password={{ pppoe_login_password }} \
+    add-default-route=yes use-peer-dns=no disabled=no
+
 # ---- Users (auth) ----
 /user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
 /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth)"
@@ -153,6 +158,8 @@ add chain=forward action=drop dst-address=192.168.1.0/24 comment="Drop all other
 /ip firewall filter
 add chain=input action=accept connection-state=established,related comment="Allow established/related input"
 add chain=input action=accept src-address-list=internal_lan protocol=udp dst-port=67,68 comment="Allow DHCP input from LAN"
+add chain=input action=accept in-interface=pppoe-telekom protocol=udp dst-port=67,68 comment="Accept PPPoE DHCP-renewal input (WAN)"
+add chain=input action=drop in-interface=pppoe-telekom comment="Drop all other new-from-WAN (brute-force floor)"
 add chain=input action=accept src-address=10.10.99.0/24 protocol=tcp dst-port=22,8728,8729,8291,80,443 comment="Allow mgmt services from Mgmt VLAN"
 add chain=input action=accept src-address-list=trusted-admin protocol=tcp dst-port=22,8728,8729,8291,80,443 comment="Allow mgmt services from trusted-admin"
 add chain=input action=drop protocol=tcp dst-port=22,8728,8729,8291,80,443 comment="Drop mgmt services from non-mgmt sources"
