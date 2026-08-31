@@ -31,7 +31,7 @@
 # ---- Users (bootstrap auth) ----
 # admin = password + SSH key. ansible = key-only (automation).
 
-/user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
+/user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin"
 /user ssh-keys import public-key-file=flash/admin.pub user=admin
 
 # RouterOS 7: /user add REQUIRES password= (see rb4011_initial.rsc.j2 for full rationale).
@@ -71,15 +71,15 @@
 # AP is L2-only (no WAN egress, HD-165) so the surface is small, but we still
 # disable the dangerous services defensively.
 
-/ip service set telnet disabled=yes port=23 available-from={{ mgmt.subnet }}
-/ip service set ftp disabled=yes port=21 available-from={{ mgmt.subnet }}
-/ip service set www disabled=yes port=80 available-from={{ mgmt.subnet }}
-/ip service set api-ssl disabled=yes port=8729 available-from={{ mgmt.subnet }} certificate=none
-/ip service set reverse-proxy disabled=yes port=443 available-from={{ mgmt.subnet }} certificate=none
-/ip service set api disabled=no port=8728 available-from={{ mgmt.subnet }}
-/ip service set www-ssl disabled=no port=443 available-from={{ mgmt.subnet }} certificate=none
-/ip service set ssh disabled=no port=22 available-from={{ mgmt.subnet }}
-/ip service set winbox disabled=no port=8291 available-from={{ mgmt.subnet }}
+/ip service set telnet disabled=yes port=23 available-from="{{ mgmt.subnet }}"
+/ip service set ftp disabled=yes port=21 available-from="{{ mgmt.subnet }}"
+/ip service set www disabled=yes port=80 available-from="{{ mgmt.subnet }}"
+/ip service set api-ssl disabled=yes port=8729 available-from="{{ mgmt.subnet }}" certificate=none
+/ip service set reverse-proxy disabled=yes port=443 available-from="{{ mgmt.subnet }}" certificate=none
+/ip service set api disabled=no port=8728 available-from="{{ mgmt.subnet }}"
+/ip service set www-ssl disabled=no port=443 available-from="{{ mgmt.subnet }}" certificate=none
+/ip service set ssh disabled=no port=22 available-from="{{ mgmt.subnet }}"
+/ip service set winbox disabled=no port=8291 available-from="{{ mgmt.subnet }}"
 
 # ---- End ----
 # After import, verify on the router: /ip dhcp-server lease print
