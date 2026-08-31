@@ -716,13 +716,13 @@ wifi/security/provisioning objects.
 /import capsman_steady-state.rsc
 ```
 
-> **1.5.3c Delta-rsc apply path (HD-308 Shield L2 trunk fix) — ssh-import; full procedure in [network-ops.md](docs/network-ops.md) §Apply workflow.** Render the transient delta, SCP to the device root, `/import` over SSH (ansible identity, pinned hostkey):
+> **1.5.3c Delta-rsc apply path (HD-308 Shield L2 trunk fix / HD-309) — ssh-import; full procedure in [network-ops.md](docs/network-ops.md) §Apply workflow.** Render the transient delta, SCP to the device root, `/import` over SSH (ansible identity, pinned hostkey). **Automated:** `bash scripts/routeros-apply-delta.sh <router-ip> <delta-file>` (op read → key load-verify → host-key pin → SCP → `/import`). Manual equivalent:
 > ```bash
 > ssh-keyscan -T5 -t ed25519,rsa <router> > /tmp/router_hostkeys.txt
 > scp -i <ansible-key> IaC/router/rendered/rb4011_<name>_delta.rsc ansible@<router>:/rb4011_<name>_delta.rsc
 > ssh ansible@<router> '/import rb4011_<name>_delta.rsc'   # 'loaded and executed successfully'
 > ```
-> The `apply-converge.yml` playbook's API-import step currently fails (`librouteros` missing on the system `/usr/bin/python3`) — use the ssh-import path for deltas.
+> The `apply-converge.yml` playbook (Ansible path) SCP-uploads + verifies the key (`ssh-keygen -y` load-verify, HD-309) but its final API `/import` step needs `librouteros` in the runner interpreter — if that is missing, use the SSH-import path above (`routeros-apply-delta.sh`).
 
 ✔-evidence on the RB4011:
 
