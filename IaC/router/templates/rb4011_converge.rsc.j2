@@ -14,8 +14,15 @@
 /system identity set name=router.kogler.si
 /system clock set time-zone-name=Europe/Ljubljana
 /system ntp client set enabled=yes
-/system ntp client servers add address=0.si.pool.ntp.org
-/system ntp client servers add address=1.si.pool.ntp.org
+# Add NTP servers idempotently — `/add` on an existing address is a hard failure
+# that aborts the whole import (live 2026-09-01: duplicate address stopped the
+# converge import at line 17 BEFORE reaching bridge/vlan/lease changes).
+:if ([/system ntp client servers find where address="0.si.pool.ntp.org"] = "") do={
+    /system ntp client servers add address=0.si.pool.ntp.org
+}
+:if ([/system ntp client servers find where address="1.si.pool.ntp.org"] = "") do={
+    /system ntp client servers add address=1.si.pool.ntp.org
+}
 
 # ---- WAN (internet for laptop + 1Password) — bootstrap has it; needed for standalone reset ----
 /interface pppoe-client add name=pppoe-telekom interface=ether1 \
@@ -34,11 +41,15 @@
 /interface bridge port add bridge=bridge-lan interface=ether3  pvid=99 comment="Laptop"
 /interface bridge port add bridge=bridge-lan interface=ether7  pvid=99 comment="nas iLO4"
 /interface bridge port add bridge=bridge-lan interface=ether9  pvid=99 comment="HMIP-HAP"
-/interface bridge port add bridge=bridge-lan interface=ether10 pvid=99 comment="Raspberry Pi"
+# Raspberry Pi (ether10) — DUAL-HOMED (R-2 / HD-304): VLAN-10 access + mgmt(99) tagged.
+# pvid=10 (access Home); vlan99 arrives tagged (Ansible mgmt plane).
+/interface bridge port add bridge=bridge-lan interface=ether10 pvid=10 comment="Raspberry Pi (Dual: VLAN10 + MGMT)"
 /interface bridge port add bridge=bridge-lan interface=sfp-sfpplus1 comment="trunk -> switch"
 # vlan99: tagged on trunk+self, UNTAGGED on the mgmt access ports (ether2/3/7/9/10) —
 # without the untagged members, vlan-filtering drops vlan99 to/from the access ports.
 /interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether7,ether9,ether10 comment="Management VLAN on trunk"
+# vlan10: UNTAGGED on ether10 (Pi access), tagged on trunk+self (reach the inter-VLAN gw)
+/interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether10 comment="Home VLAN access (Pi)"
 /interface vlan add name=vlan99-mgmt vlan-id=99 interface=bridge-lan
 
 # ---- Per-VLAN interfaces + gateways (SSOT network_vlans) ----
@@ -74,6 +85,8 @@
 {% for h in network_static_hosts %}
 {% if h.mac is defined and h.name.startswith('ap-') %}
 /ip dhcp-server lease add server=dhcp-mgmt address={{ h.ip }} mac-address={{ h.mac }} comment="AP {{ h.name }}"
+{% elif h.mac is defined and h.vlan == 99 and h.name not in ['router', 'switch'] and 'ap-' not in h.name %}
+/ip dhcp-server lease add server=dhcp-mgmt address={{ h.ip }} mac-address={{ h.mac }} comment="{{ h.name }} mgmt reservation"
 {% elif h.mac is defined and h.vlan != 99 and h.name not in ['router'] and 'ap-' not in h.name %}
 /ip dhcp-server lease add server=dhcp-{{ h.vlan }} address={{ h.ip }} mac-address={{ h.mac }} comment="{{ h.name }} reservation"
 {% endif %}

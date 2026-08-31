@@ -1,0 +1,120 @@
+---
+# =============================================================================
+# Apply a rendered converge .rsc to a MikroTik device via Ansible (API + SSH)
+# =============================================================================
+#
+# Purpose: Apply the rendered `IaiC/router/rendered/<device>_converge.rsc`
+#          (produced by render-converge.yml — contains live secrets, never commit)
+#          to the target RouterOS device WITHOUT manual WinBox/SCP.
+#
+# Steps:
+#   1. Upload the rendered .rsc to the device over SCP (RouterOS SSH, user `ansible`).
+#   2. Run `/import <file>.rsc` via the RouterOS API (community.routeros.command).
+#
+# Usage (from a session worktree, WSL runner venv):
+#   bash scripts/ansible-run.sh playbooks/apply-converge.yml \
+#       -e converge_rsc=rb4011_converge.rsc
+#   # or default rb4011_converge.rsc; for switch: -e converge_rsc=crs328_converge.rsc
+#
+# Security: the .rsc contains live secrets (mikrotik-admin_login, pppoe_login).
+#   - Never commit/push the rendered file or this playbook's output.
+#   - The SCP upload uses the `ansible` SSH identity (from ansible-admin_ssh private
+#     key via 1Password), NOT the admin password, so no secret is printed.
+#   - `no_log: true` on any task that might echo file contents or command output.
+#
+# Prereqs: rendered file exists (IaC/router/rendered/<file>), router reachable,
+#   `ansible` SSH user exists on device (bootstrap adds it), API creds from 1P.
+# =============================================================================
+- name: Apply rendered converge .rsc to RouterOS via Ansible
+  hosts: "{{ target | default('router') }}"
+  gather_facts: false
+  connection: local
+  vars:
+    converge_rsc: "{{ converge_rsc | default('rb4011_converge.rsc') }}"
+    # Rendered rsc lives in the gitignored rendered/ dir
+    rendered_path: "{{ playbook_dir }}/../../router/rendered/{{ converge_rsc }}"
+    # RouterOS SSH identity for the file upload (user `ansible` created by bootstrap).
+    # The private key is the ansible-admin_ssh private key (matches ansible.pub).
+    ros_ssh_user: ansible
+    ros_ssh_key: "{{ lookup('community.general.onepassword', 'ansible-admin_ssh', field='private key', vault=op_vault) }}"
+    # API connection (admin user + password from 1P)
+    ros_api_host: "{{ routeros_api_host | default(inventory_hostname) }}"
+    ros_api_user: "{{ routeros_api_user | default('admin') }}"
+    ros_api_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
+    ros_api_port: "{{ routeros_api_port | default(8728) }}"
+    # Pinned host key file (TOFU) for the SCP upload — operator must create it first
+    # (see task 1 note): ssh-keyscan -T5 -t ed25519,rsa <router> > /tmp/router_hostkeys.txt
+    # Use a literal default (NOT a self-reference — that recurses infinitely).
+    ros_ssh_known_hosts: "/tmp/router_hostkeys.txt"
+    # Temp path for the SSH private key (never inline content)
+    ros_ssh_key_file: "/tmp/ros_ansible_key"
+
+  tasks:
+    - name: Assert rendered converge rsc exists
+      ansible.builtin.stat:
+        path: "{{ rendered_path }}"
+      register: rsc_stat
+
+    - name: Fail if rendered rsc missing (run render-converge.yml first)
+      ansible.builtin.assert:
+        that:
+          - rsc_stat.stat.exists
+        fail_msg: "Rendered rsc not found at {{ rendered_path }} — run playbooks/render-converge.yml first"
+
+    # ---- Step 1: upload the rsc via SCP (RouterOS SSH, ansible identity) ----
+    # TOFU host-key pinning: fetch + pin the router's CURRENT SSH host key FIRST
+    # (the router was reset at Phase 1.5 → host key rotated). Never accept blindly.
+    #   ssh-keyscan -T 5 -t ed25519,rsa <router> > /tmp/router_hostkeys.txt
+    #   ssh-keygen -lf /tmp/router_hostkeys.txt   # verify the fingerprint
+    # Reference it via ros_ssh_known_hosts below.
+    - name: Write SSH private key to temp file (0600) for the SCP upload
+      ansible.builtin.copy:
+        content: "{{ ros_ssh_key }}"
+        dest: "{{ ros_ssh_key_file }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Upload rsc to router via SCP (ansible SSH identity, pinned host key)
+      ansible.builtin.copy:
+        src: "{{ rendered_path }}"
+        dest: "{{ converge_rsc }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      connection: ssh
+      no_log: true
+      vars:
+        ansible_host: "{{ ros_api_host }}"
+        ansible_user: "{{ ros_ssh_user }}"
+        ansible_ssh_private_key_file: "{{ ros_ssh_key_file }}"
+        ansible_ssh_common_args: >-
+          -o StrictHostKeyChecking=yes
+          -o UserKnownHostsFile={{ ros_ssh_known_hosts }}
+      changed_when: true
+      # NOTE: `copy` to a RouterOS device over SSH uses the SFTP/SCP channel;
+      # community.routeros is API-only, so we rely on the router's SSH server.
+
+    - name: Clean up temp SSH key
+      ansible.builtin.file:
+        path: "{{ ros_ssh_key_file }}"
+        state: absent
+      delegate_to: localhost
+      no_log: true
+
+    # ---- Step 2: run /import over the API ----
+    - name: Run /import of the converge rsc via RouterOS API
+      community.routeros.api:
+        hostname: "{{ ros_api_host }}"
+        username: "{{ ros_api_user }}"
+        password: "{{ ros_api_password }}"
+        port: "{{ ros_api_port }}"
+        path: ""
+        cmd: "/import {{ converge_rsc }}"
+      no_log: false
+      changed_when: true
+
+    - name: Report import issued
+      ansible.builtin.debug:
+        msg: "Imported {{ converge_rsc }} on {{ ros_api_host }}. Verify device state (leases/bridge-vlan)."

@@ -1,0 +1,35 @@
+# =============================================================================
+# RB4011 — Pi dual-home + mgmt reservation DELTA (R-2 / HD-304)
+# Rendered from SSOT. IDEMPOTENT: every /add guarded with :if-find — safe to
+# re-import (no duplicate-abort). Apply: /import rb4011_pi_delta.rsc
+# =============================================================================
+
+# --- 1. ether10 dual-home: access VLAN 10 (Home) + mgmt 99 tagged ---
+# Set the bridge port pvid to 10 (access Home); vlan99 arrives as tag on the
+# dual-homed port (kept as untagged member of vlan99 via the existing config).
+/interface bridge port set [find where interface=ether10] pvid=10 comment="Raspberry Pi (Dual: VLAN10 + MGMT)"
+
+# --- 2. vlan-10 untagged member on ether10 (Home access) ---
+# Only touch STATIC vlan-10 entries (dynamic ones can't be set — live 2026-09-01:
+# 'can not change dynamic' on an auto-created vlan10). Add a static vlan-10 only
+# if no STATIC entry exists; else set the static one.
+:if ([/interface bridge vlan find where vlan-ids=10 and dynamic=no] = "") do={
+    /interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether10 comment="Home VLAN access (Pi)"
+} else={
+    /interface bridge vlan set [find where vlan-ids=10 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1 untagged=ether10 comment="Home VLAN access (Pi)"
+}
+
+# --- 3. Pi mgmt-99 static reservation (10.10.99.20 on dhcp-mgmt) ---
+# Add a STATIC reservation if none exists for this MAC on dhcp-mgmt.
+# (A dynamic lease already exists for .97 — never `set` it; static reservation
+#  takes precedence, live lesson 2026-09-01: 'can not change dynamic lease'.)
+:if ([/ip dhcp-server lease find where mac-address=E4:5F:01:26:EF:AA and server=dhcp-mgmt and dynamic=no] = "") do={
+    /ip dhcp-server lease add server=dhcp-mgmt address=10.10.99.20 mac-address=E4:5F:01:26:EF:AA comment="pi mgmt reservation"
+}
+
+# --- 4. Pi VLAN-10 static reservation (10.10.1.20 on dhcp-10, already present — ensure) ---
+:if ([/ip dhcp-server lease find where mac-address=E4:5F:01:26:EF:AA and server=dhcp-10 and dynamic=no] = "") do={
+    /ip dhcp-server lease add server=dhcp-10 address=10.10.1.20 mac-address=E4:5F:01:26:EF:AA comment="pi static reservation (R-2)"
+}
+
+:log warning "rb4011_pi_delta.rsc applied"

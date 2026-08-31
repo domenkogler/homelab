@@ -65,9 +65,12 @@
 /interface bridge port add bridge=bridge-lan interface=ether3  pvid={{ mgmt.id }} comment="Laptop, B8"
 /interface bridge port add bridge=bridge-lan interface=ether7  pvid={{ mgmt.id }} comment="nas iLO4"
 /interface bridge port add bridge=bridge-lan interface=ether9  pvid={{ mgmt.id }} comment="HMIP-HAP"
-/interface bridge port add bridge=bridge-lan interface=ether10 pvid={{ mgmt.id }} comment="Raspberry Pi"
+# Raspberry Pi (ether10) — DUAL-HOMED (R-2 / HD-304): VLAN-10 access (Home node + HA VIP) +
+# mgmt (99) tagged (Ansible mgmt plane). pvid=10 untagged; vlan99 arrives tagged.
+/interface bridge port add bridge=bridge-lan interface=ether10 pvid=10 comment="Raspberry Pi (Dual: VLAN10 + MGMT)"
 /interface bridge port add bridge=bridge-lan interface=sfp-sfpplus1
 /interface bridge vlan add bridge=bridge-lan vlan-ids={{ mgmt.id }} tagged=bridge-lan,sfp-sfpplus1
+/interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether10 comment="Home VLAN access (Pi)"
 /interface vlan add name=vlan{{ mgmt.id }}-mgmt vlan-id={{ mgmt.id }} interface=bridge-lan
 
 /ip address add address={{ router99.ip }}/{{ mgmt.subnet.split('/')[1] }} interface=vlan{{ mgmt.id }}-mgmt \

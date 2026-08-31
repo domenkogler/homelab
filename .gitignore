@@ -16,3 +16,4 @@ IaC/host/vps/post_install_with_secrets.sh
 
 # Homelab USB media post-install with REAL SSH keys injected (never commit; delete after copy to stick)
 IaC/host/post_install_with_secrets.sh
+/skills/mikrotik/.env.op

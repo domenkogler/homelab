@@ -245,6 +245,33 @@
   loop: "{{ network_static_hosts | selectattr('name', 'match', '^ap-') | selectattr('mac', 'defined') | selectattr('vlan', '==', 99) | list }}"
   when: item.vlan == 99
 
+# Static mgmt-99 reservations for non-AP hosts that carry a MAC (e.g. pi).
+# The AP block above only handles `ap-*`. The non-mgmt block below rejects vlan 99.
+# Without this, a mgmt-99 host with a MAC (pi -> 10.10.99.20 per SSOT) falls to the
+# dynamic pool-mgmt range (e.g. .97) instead of its reserved address.
+- name: Configure DHCP static reservations for mgmt hosts with MAC (non-AP, R-2)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip dhcp-server lease
+    handle_absent_entries: ignore
+    data:
+      - server: "dhcp-mgmt"
+        address: "{{ item.ip }}"
+        mac-address: "{{ item.mac }}"
+        comment: "{{ item.name }} static reservation (mgmt, R-2)"
+  loop: "{{ network_static_hosts \
+         | selectattr('mac', 'defined') \
+         | selectattr('vlan', '==', 99) \
+         | rejectattr('name', 'match', '^ap-') \
+         | rejectattr('name', 'in', ['router', 'switch']) \
+         | list }}"
+  when: item.mac is defined and item.vlan == 99
+
 - name: Configure DHCP static reservations for non-mgmt reserved devices (R-2)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
