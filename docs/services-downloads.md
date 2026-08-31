@@ -17,7 +17,7 @@ tags: [services, downloads, usenet, torrents, vpn]
 
 ## Catalog
 
-Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](services.md#docker-networks) in `services.md`; exposure per the [Domain & Subdomain Plan](services.md#domain--subdomain-plan).
+Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](services.md#docker-networks) in `services.md`; exposure per the [Domain & Subdomain Plan](services.md#domain-subdomain-plan).
 
 | Service | Subdomain | Network | RAM (idle/peak MB) | Description |
 |---------|-----------|---------|--------------------|-------------|
@@ -33,7 +33,7 @@ Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](ser
 ## Landing & Import
 
 - Downloads land in `bulk/media/downloads/{complete,incomplete}` (TRaSH per-category save paths) — see
-  [Media Stack → Storage & Import](services-media.md#storage--import-media--arr).
+  [Media Stack → Storage & Import](services-media.md#storage-import-media-arr).
 - **Hardlink import** into `media/` is performed by Sonarr/Radarr/Lidarr in the media stack; downloads
   dir is transient scratch and pruned after import.
 

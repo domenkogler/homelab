@@ -17,7 +17,7 @@ tags: [services, media, arr, photos, streaming]
 
 ## Catalog
 
-Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I/D/W`, `host`): see [Docker Networks](services.md#docker-networks). Exposure: see the [Domain & Subdomain Plan](services.md#domain--subdomain-plan) in `services.md`.
+Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I/D/W`, `host`): see [Docker Networks](services.md#docker-networks). Exposure: see the [Domain & Subdomain Plan](services.md#domain-subdomain-plan) in `services.md`.
 
 | Service | Subdomain | Network | RAM (idle/peak MB) | Description |
 |---------|-----------|---------|--------------------|-------------|
