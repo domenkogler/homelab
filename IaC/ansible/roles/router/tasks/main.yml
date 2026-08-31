@@ -28,6 +28,16 @@
   no_log: true
 
 # -------------------------------------------------------------------------
+# VLAN interface naming (SSOT-compatible with the bootstrap, HD-304 follow-up,
+# observed live 2026-08-31): the bootstrap `.rsc` creates the mgmt VLAN interface
+# as `vlan{{ mgmt.id }}-mgmt` (e.g. vlan99-mgmt), NOT `vlan{id}-{name|lower}`
+# (vlan99-management). community.routeros api_modify matches interface-vlan
+# entries by primary key `name`; a desired name that does not equal the existing
+# one is treated as a NEW entry and re-created -> `already have such vlan` on the
+# already-bootstrapped device. Every task below therefore names the mgmt VLAN
+# `vlan<mgmt_vlan_id>-mgmt` and others `vlan<id>-<name|lower>`.
+
+# -------------------------------------------------------------------------
 # Assert-before-mutate (HD-161): read device identity once and refuse to apply
 # any api_modify if the target is not the RB4011 we expect. Guards against a
 # wrong-target or swapped-host applying router config to the wrong gear.
@@ -90,10 +100,12 @@
     path: interface vlan
     handle_absent_entries: ignore
     data:
-      - name: "vlan{{ item.id }}-{{ item.name | lower }}"
+      - name: "vlan{{ item.id }}-{{ (item.name | lower) if item.id != mgmt_vlan_id else 'mgmt' }}"
         vlan-id: "{{ item.id }}"
         interface: bridge-lan
-        disabled: no
+        # NOTE: `disabled` deliberately omitted — it defaults to False on the device and the
+        # module's entry-match (primary key name) compares ALL provided fields; passing
+        # `disabled: no` previously made the desired mgmt vlan never match the bootstrap one.
   loop: "{{ vlans | selectattr('unused', 'undefined') | list }}"  # skip VLAN 1 Blackhole (unused: true)
   loop_control:
     label: "VLAN{{ item.id }}"
@@ -113,7 +125,7 @@
     handle_absent_entries: ignore
     data:
       - address: "{{ (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | map(attribute='ip') | list | first) }}/{{ item.subnet.split('/')[1] }}"
-        interface: "vlan{{ item.id }}-{{ item.name | lower }}"
+        interface: "vlan{{ item.id }}-{{ (item.name | lower) if item.id != mgmt_vlan_id else 'mgmt' }}"
         disabled: no
   loop: "{{ network_vlans | selectattr('id', 'in', [10, 20, 21, 30, 40, 50, 99]) | list }}"
   loop_control:
@@ -212,7 +224,8 @@
 # for VLANs 10/20/21/30/40/50 (loop below excludes 1 and 99), but the management plane's
 # DHCP server is `dhcp-mgmt` (named in the BOOTSTRAP, not recreated here) — so the original
 # AP reservation block below (server: `dhcp-99`) could never match a real server and APs fell
-# back to dynamic mgmt-pool IPs. Flagged for the cutover-prep session; NOT silent-reworked here.
+# back to dynamic mgmt-pool IPs. Fixed at the Phase 1.5 cutover (2026-08-31): vlan-99 AP
+# reservations now target the bootstrap's `dhcp-mgmt`.
 
 - name: Configure DHCP static reservations for APs (unchanged legacy behavior)
   community.routeros.api_modify:
@@ -225,7 +238,7 @@
     path: ip dhcp-server lease
     handle_absent_entries: ignore
     data:
-      - server: "dhcp-{{ item.vlan }}"
+      - server: "{{ 'dhcp-mgmt' if item.vlan == 99 else 'dhcp-' ~ item.vlan }}"
         address: "{{ item.ip }}"
         mac-address: "{{ item.mac }}"
         comment: "AP {{ item.name }} static reservation"
@@ -343,7 +356,7 @@
     data:
       - address: "{{ wireguard_s2s_vps.remote_ip.split('/')[0] }}"
         list: vps_s2s_peer
-        comment: "VPS S2S peer (HD-155) — least-access source"
+        comment: "VPS S2S peer (HD-155) - least-access source"
 
 - name: Create firewall address list for the scoped home targets the VPS may reach (HD-155)
   community.routeros.api_modify:
@@ -394,7 +407,7 @@
       - chain: srcnat
         out-interface: pppoe-telekom
         action: masquerade
-        comment: "NAT masquerade → WAN"
+        comment: "NAT masquerade -> WAN"
       # --- Kids VLAN 40 forced filtered DNS (HD-182) ---
       # Hijack any DNS (53 udp/tcp) leaving the Kids VLAN — hardcoded-resolver
       # devices included — to the Technitium primary, which enforces the
@@ -408,7 +421,7 @@
         action: dst-nat
         to-addresses: "{{ dns_primary_ip }}"
         to-ports: 53
-        comment: "Kids forced filtered DNS — UDP 53 → Technitium (HD-182)"
+        comment: "Kids forced filtered DNS - UDP 53 -> Technitium (HD-182)"
       - chain: dstnat
         src-address: "{{ vlan_subnets[40] }}"
         protocol: tcp
@@ -416,7 +429,7 @@
         action: dst-nat
         to-addresses: "{{ dns_primary_ip }}"
         to-ports: 53
-        comment: "Kids forced filtered DNS — TCP 53 → Technitium (HD-182)"
+        comment: "Kids forced filtered DNS - TCP 53 -> Technitium (HD-182)"
 
 
 # -------------------------------------------------------------------------
@@ -453,95 +466,116 @@
         protocol: udp
         dst-port: 5683
         action: accept
-        comment: "IoT Shelly Gen1 CoAP push -> HA (HD-229) — narrow reverse exception"
+        comment: "IoT Shelly Gen1 CoAP push -> HA (HD-229) - narrow reverse exception"
       - chain: forward
         src-address-list: trusted-admin
         dst-address: "{{ vlan_subnets[20] }}"
         action: accept
-        comment: "Trusted admin → IoT (new, MQTT/HA)"
+        comment: "Trusted admin -> IoT (new, MQTT/HA)"
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ vlan_subnets[20] }}"
         protocol: tcp
         connection-state: established,related
         action: accept
-        comment: "Home → IoT (established/related)"
+        comment: "Home -> IoT (established/related)"
       - chain: forward
         src-address-list: trusted-admin
         dst-address: "{{ vlan_subnets[21] }}"
         action: accept
-        comment: "Trusted admin → IoT-Internet (new)"
+        comment: "Trusted admin -> IoT-Internet (new)"
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ vlan_subnets[21] }}"
         protocol: tcp
         connection-state: established,related
         action: accept
-        comment: "Home → IoT-Internet (established/related)"
+        comment: "Home -> IoT-Internet (established/related)"
       - chain: forward
         src-address-list: trusted-admin
         dst-address-list: ups_management
         protocol: tcp
         dst-port: 80,443
         action: accept
-        comment: "Trusted admin → UPS web UI (Mgmt)"
+        comment: "Trusted admin -> UPS web UI (Mgmt)"
       - chain: forward
         src-address-list: internal_lan
         dst-address: "{{ dns_primary_ip }}"
-        protocol: udp,tcp
+        protocol: udp
         dst-port: 53,853
         action: accept
-        comment: "LAN → DNS resolver (Technitium)"
+        comment: "LAN -> DNS resolver (Technitium) udp"
+      - chain: forward
+        src-address-list: internal_lan
+        dst-address: "{{ dns_primary_ip }}"
+        protocol: tcp
+        dst-port: 53,853
+        action: accept
+        comment: "LAN -> DNS resolver (Technitium) tcp"
       # Secondary-resolver parity (HD-182, network-dns.md): the Pi resolver must be
       # reachable from every VLAN exactly like the primary — without this rule the
       # default-deny below blocks it once the Pi secondary takes over.
       - chain: forward
         src-address-list: internal_lan
         dst-address: "{{ dns_secondary_ip }}"
-        protocol: udp,tcp
+        protocol: udp
         dst-port: 53,853
         action: accept
-        comment: "LAN → DNS secondary Pi (HD-182)"
+        comment: "LAN -> DNS secondary Pi (HD-182) udp"
+      - chain: forward
+        src-address-list: internal_lan
+        dst-address: "{{ dns_secondary_ip }}"
+        protocol: tcp
+        dst-port: 53,853
+        action: accept
+        comment: "LAN -> DNS secondary Pi (HD-182) tcp"
       - chain: forward
         src-address: "{{ vlan_subnets[20] }}"
         dst-address: "{{ dns_primary_ip }}"
-        protocol: udp,tcp
+        protocol: udp
         dst-port: 53,853
         action: accept
-        comment: "IoT → DNS resolver"
+        comment: "IoT -> DNS resolver udp"
+      - chain: forward
+        src-address: "{{ vlan_subnets[20] }}"
+        dst-address: "{{ dns_primary_ip }}"
+        protocol: tcp
+        dst-port: 53,853
+        action: accept
+        comment: "IoT -> DNS resolver tcp"
       - chain: forward
         src-address: "{{ vlan_subnets[21] }}"
         action: accept
-        comment: "IoT-Internet → Internet allowed"
+        comment: "IoT-Internet -> Internet allowed"
       - chain: forward
         src-address: "{{ vlan_subnets[20] }}"
         out-interface: pppoe-telekom
         action: drop
-        comment: "IoT → WAN drop (disable manually for firmware updates)"
+        comment: "IoT -> WAN drop (disable manually for firmware updates)"
       - chain: forward
         src-address-list: vps_s2s_peer
         dst-address-list: vps_scoped_home
         action: accept
-        comment: "VPS S2S → scoped home targets (HD-155)"
+        comment: "VPS S2S -> scoped home targets (HD-155)"
       - chain: forward
         src-address-list: vps_s2s_peer
         action: drop
-        comment: "VPS S2S → anything else DROP (HD-155 least-access)"
+        comment: "VPS S2S -> anything else DROP (HD-155 least-access)"
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ vlan_subnets[50] }}"
         action: accept
-        comment: "Home → Media (new allowed)"
+        comment: "Home -> Media (new allowed)"
       - chain: forward
         src-address: "{{ vlan_subnets[50] }}"
         dst-address: "{{ vlan_subnets[10] }}"
         action: accept
-        comment: "Media → Home (media server)"
+        comment: "Media -> Home (media server)"
       - chain: forward
         src-address: "{{ vlan_subnets[30] }}"
         dst-address-list: internal_lan
         action: drop
-        comment: "Guest → LAN drop"
+        comment: "Guest -> LAN drop"
       # --- Kids VLAN 40 controls (HD-182; decision HD-179 — implement at Phase 1.5) ---
       # Forced filtered DNS: plain :53 from Kids is dst-nat'ed to the Technitium
       # primary (ip firewall nat below) which enforces the Kids-Group policy
@@ -551,26 +585,35 @@
       # reach arbitrary HTTPS; upstream filtering still applies on the resolver).
       - chain: forward
         src-address: "{{ vlan_subnets[40] }}"
-        protocol: tcp,udp
+        protocol: tcp
         dst-port: 853
         action: drop
-        comment: "Kids → DoT bypass drop — DNS forced through filter (HD-182)"
+        comment: "Kids -> DoT bypass drop - DNS forced through filter (HD-182) tcp"
+      - chain: forward
+        src-address: "{{ vlan_subnets[40] }}"
+        protocol: udp
+        dst-port: 853
+        action: drop
+        comment: "Kids -> DoT bypass drop - DNS forced through filter (HD-182) udp"
       - chain: forward
         src-address: "{{ vlan_subnets[40] }}"
         dst-address: "{{ vlan_subnets[10] }}"
         action: drop
-        comment: "Kids → Home drop (HD-182)"
+        comment: "Kids -> Home drop (HD-182)"
       # Bedtime hard block (network-vlans.md matrix row). Implemented with the
       # RouterOS NATIVE time-based filter parameter, deliberately NOT a
       # /system scheduler enable/disable toggle: under declarative api_modify a
       # toggled rule's disabled flag gets reset on every re-run (a 23:00 run would
       # silently lift the block until 07:00) and the state would not survive a
       # reboot mid-window. The time= param is stateless, reboot-safe and idempotent.
+      # RouterOS 7 validates the value strictly: bare `22:00:00-07:00:00` (no weekday
+      # suffix) is rejected with `invalid value for argument time` — the weekday list
+      # (mon,tue,wed,thu,fri,sat,sun) must be present (probed live 2026-08-31).
       # ⏳ Deploy-gated: confirm the overnight span renders correctly on RouterOS 7.
       - chain: forward
         src-address: "{{ vlan_subnets[40] }}"
         out-interface: pppoe-telekom
-        time: 22:00:00-07:00:00
+        time: "22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun"
         action: drop
         comment: "Kids bedtime WAN block 22:00-07:00 (HD-182)"
       # Default deny LAST — merged into this ordered block (was a second
@@ -642,15 +685,18 @@
         comment: "Allow DHCP input from LAN"
       - chain: input
         src-address: "{{ vlan_subnets[99] }}"
+        protocol: tcp
         dst-port: 22,8728,8729,8291,80,443
         action: accept
         comment: "Allow mgmt services from Management VLAN"
       - chain: input
         src-address-list: trusted-admin
+        protocol: tcp
         dst-port: 22,8728,8729,8291,80,443
         action: accept
         comment: "Allow mgmt services from trusted-admin"
       - chain: input
+        protocol: tcp
         dst-port: 22,8728,8729,8291,80,443
         action: drop
         comment: "Drop mgmt services from non-mgmt sources (HD-78)"
@@ -672,10 +718,16 @@
       # (unfiltered last resort — accepted tradeoff documented in network-dns.md).
       - chain: input
         src-address-list: internal_lan
-        protocol: udp,tcp
+        protocol: tcp
         dst-port: 53
         action: accept
-        comment: "Allow DNS input from LAN — router resolver tertiary (HD-182)"
+        comment: "Allow DNS input from LAN - router resolver tertiary (HD-182) tcp"
+      - chain: input
+        src-address-list: internal_lan
+        protocol: udp
+        dst-port: 53
+        action: accept
+        comment: "Allow DNS input from LAN - router resolver tertiary (HD-182) udp"
 
 # The router /ip dns only answers queries with allow-remote-requests=yes
 # (RouterOS default: no) — required for the tertiary above to work.

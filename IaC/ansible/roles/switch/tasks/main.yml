@@ -53,9 +53,15 @@
   tags: always
 
 # -------------------------------------------------------------------------
-# Ensure bridge exists with VLAN filtering
+# Ensure bridge exists (VLAN filtering enabled LAST — see end of role)
 # -------------------------------------------------------------------------
-- name: Ensure bridge-lan exists with VLAN filtering
+# SAFETY ORDER (learned live 2026-08-31): enabling `vlan-filtering` on the
+# bridge BEFORE the trunk + access ports + mgmt IP are configured severs the
+# switch's own mgmt path (no ARP to its mgmt IP -> unreachable, and the play
+# times out mid-run). Mirroring the router role's guard: filtering is enabled
+# by the LAST task of this role, so a half-applied run leaves the bridge
+# filtering-off and the switch reachable.
+- name: Ensure bridge-lan exists (VLAN filtering enabled last)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -67,10 +73,9 @@
     handle_absent_entries: ignore
     data:
       - name: bridge-lan
-        vlan-filtering: yes
         protocol-mode: none
         disabled: no
-        comment: "CRS328 bridge with VLAN filtering"
+        comment: "CRS328 bridge (VLAN filtering enabled by last task)"
 
 
 # -------------------------------------------------------------------------
@@ -460,3 +465,24 @@
       Full CRS328 access-port mapping is recorded in switch_port_map (APs, UPS,
       NAS, printer, console, media, KNX) — applied by the tasks above; any port
       not listed defaults to Management VLAN 99.
+
+# -------------------------------------------------------------------------
+# LAST: enable VLAN filtering (safety order — see bridge task at top)
+# -------------------------------------------------------------------------
+# With filtering now on, the bridge tags/trunks correctly (trunk + access ports
+# + mgmt IP are all configured above), so the switch stays reachable. A crash
+# before this task leaves filtering off -> switch reachable for recovery.
+- name: Enable VLAN filtering on bridge (last, safety order)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: interface bridge
+    handle_absent_entries: ignore
+    data:
+      - name: bridge-lan
+        vlan-filtering: yes
+        comment: "CRS328 bridge with VLAN filtering enabled"
