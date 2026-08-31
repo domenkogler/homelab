@@ -26,11 +26,11 @@
       file:
         path: "{{ playbook_dir }}/../../router/rendered"
         state: directory
-    - name: Render router-converge.rsc
+    - name: Render rb4011_converge.rsc
       template:
-        src: "{{ playbook_dir }}/../../router/templates/router_converge.rsc.j2"
-        dest: "{{ playbook_dir }}/../../router/rendered/router-converge.rsc"
-    - name: Render switch-converge.rsc
+        src: "{{ playbook_dir }}/../../router/templates/rb4011_converge.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/rb4011_converge.rsc"
+    - name: Render crs328_converge.rsc
       template:
-        src: "{{ playbook_dir }}/../../router/templates/switch_converge.rsc.j2"
-        dest: "{{ playbook_dir }}/../../router/rendered/switch-converge.rsc"
+        src: "{{ playbook_dir }}/../../router/templates/crs328_converge.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/crs328_converge.rsc"

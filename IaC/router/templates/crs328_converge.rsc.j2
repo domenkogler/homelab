@@ -1,6 +1,6 @@
 # =============================================================================
 # CRS328-24P-4S+ — Kogler Homelab — CONVERGED STEADY-STATE (RENDERED — do not edit)
-# Source template: IaC/router/templates/switch_converge.rsc.j2
+# Source template: IaC/router/templates/crs328_converge.rsc.j2
 # =============================================================================
 # Purpose: Full final state for the switch — import on a device that already ran
 #          crs328_initial.rsc (or run after a reset). Idempotent-ish: `/set` safe,
@@ -9,6 +9,14 @@
 # How:     Upload + /import switch-converge.rsc in a WinBox terminal
 #          (or via SSH: scp to deviceFiles then /import).
 # =============================================================================
+
+# ---- Users (auth — mirror bootstrap; .pub keys in flash/ per HD-304) ----
+# admin = password + SSH key. ansible = key-only (automation).
+# .pub files MUST live in flash/ (root files wiped on reboot on switch/APs).
+/user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
+/user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
+/user ssh-keys import public-key-file=flash/admin.pub user=admin
+/user ssh-keys import public-key-file=flash/ansible.pub user=ansible
 
 # ---- Identity / clock ----
 /system identity set name=switch.kogler.si
