@@ -58,12 +58,12 @@
 
 # ---- Access port reassignment to their real VLANs (SSOT switch_port_map) ----
 # (bootstrap puts ALL ports on pvid 99; steady-state moves them to their role VLAN)
+# PoE: left at the device default (auto-on, per WinBox) — forcing poe-out=on broke
+# the script at import (RouterOS parser: syntax error col 41 on poe-out=on; the
+# CRS328 rejects the forced value). APs power fine under auto-on.
 {% for k, v in switch_port_map.items() %}
 # {{ k }} ({{ v.vlan }}): {{ v.port }}
 /interface bridge port set [find where interface={{ v.port }}] pvid={{ v.vlan }} comment="{{ k }} -> VLAN {{ v.vlan }}"
-{% if v.poe %}
-/interface ethernet set {{ v.port }} poe-out=on poe-priority=high comment="PoE: {{ k }}"
-{% endif %}
 {% endfor %}
 
 # ---- PoE everywhere else default = auto-on (APs explicitly on; others stay auto) ----
