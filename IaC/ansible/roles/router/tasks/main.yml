@@ -574,6 +574,38 @@
         src-address: "{{ vlan_subnets[21] }}"
         action: accept
         comment: "IoT-Internet -> Internet allowed"
+      # --- WAN egress per network-vlans.md row 73 ("All (except IoT) -> WAN
+      # Allowed (masqueraded)") ---
+      # HD-309 deep-dive (2026-09-01): the forward chain had NO explicit
+      # WAN accept for Home/Guest/Media/Mgmt (only IoT-Internet 21 was
+      # accepted; IoT 20 dropped) — but RouterOS default-accepts the
+      # unmatched, so egress "worked" accidentally. Docs row 73 says these
+      # VLANs must reach WAN (masqueraded): add explicit accepts on
+      # pppoe-telekom. EXCEPT Kids(40): its accept sits BELOW the bedtime
+      # time= drop (later in the chain) so the 22:00-07:00 block always
+      # wins; the accept only enables out-of-window egress. IoT(20) stays
+      # dropped (row 66). Mgmt(99) reaching WAN is fine — the INPUT chain
+      # still gates the router's own services.
+      - chain: forward
+        src-address: "{{ vlan_subnets[10] }}"
+        out-interface: pppoe-telekom
+        action: accept
+        comment: "Home -> WAN allowed (HD-309 row 73)"
+      - chain: forward
+        src-address: "{{ vlan_subnets[50] }}"
+        out-interface: pppoe-telekom
+        action: accept
+        comment: "Media -> WAN allowed (HD-309)"
+      - chain: forward
+        src-address: "{{ vlan_subnets[30] }}"
+        out-interface: pppoe-telekom
+        action: accept
+        comment: "Guest -> WAN allowed (HD-309 row 73)"
+      - chain: forward
+        src-address: "{{ vlan_subnets[99] }}"
+        out-interface: pppoe-telekom
+        action: accept
+        comment: "Mgmt -> WAN allowed (HD-309 row 73)"
       - chain: forward
         src-address: "{{ vlan_subnets[20] }}"
         out-interface: pppoe-telekom
@@ -643,6 +675,15 @@
         time: "22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun"
         action: drop
         comment: "Kids bedtime WAN block 22:00-07:00 (HD-182)"
+      # Kids -> WAN allowed OUT of window (HD-309 row 73). Placed BELOW the
+      # bedtime drop so the time= block always wins in-window; the accept
+      # only enables egress 07:00-22:00. DoT/DoH bypass drops for Kids sit
+      # above and still win. This closes the row-73 gap for VLAN 40.
+      - chain: forward
+        src-address: "{{ vlan_subnets[40] }}"
+        out-interface: pppoe-telekom
+        action: accept
+        comment: "Kids -> WAN allowed out-of-window (HD-309 row 73)"
       # Default deny LAST — merged into this ordered block (was a second
       # chain=forward api_modify whose handle_absent_entries: remove would have
       # deleted every rule above on each run; HD-182).
@@ -758,6 +799,10 @@
 
 # The router /ip dns only answers queries with allow-remote-requests=yes
 # (RouterOS default: no) — required for the tertiary above to work.
+# HD-309: also set upstream servers — the tertiary is per-VLAN gateway and
+# was SERVFAILing because `/ip dns servers` was EMPTY (network-dns.md line 104
+# says it must forward to "Technitium + 1.1.1.1"; 1.1.1.1/1.0.0.1 are the final
+# fallbacks until Technitium primary/secondary are live on Phases 3/4).
 # Requires community.routeros >= 2.17 (settings-path support in api_modify);
 # fails loud at deploy on older collections rather than silently skipping.
 - name: Allow the router resolver to answer LAN queries (DNS tertiary, HD-182)
@@ -771,6 +816,7 @@
     path: ip dns
     data:
       - allow-remote-requests: yes
+        servers: 1.1.1.1,1.0.0.1
 
 
 # Note: WireGuard S2S (Phase 10) and VRRP keepalived advertise input are left at

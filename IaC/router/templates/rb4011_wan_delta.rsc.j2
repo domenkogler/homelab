@@ -1,0 +1,54 @@
+# =============================================================================
+# RB4011 — (1) WAN egress forward-ACCEPTs + (2) router DNS tertiary upstreams (HD-309)
+# TRANSIENT DELTA — rendered from SSOT, apply via /import, then DELETE (network-ops.md).
+#   Apply: scp -> /import rb4011_wan_delta.rsc   (see docs/network-ops.md)
+#   Folded into: rb4011_converge.rsc.j2 + roles/router/tasks/main.yml (+ the
+#   /ip dns servers= fix mirrors network-dns.md line 104).
+# IDEMPOTENT: every /add guarded with :if-find — safe to re-import.
+# =============================================================================
+
+# ---- 1. WAN egress accepts (network-vlans.md row 73) ----
+# Owner decision 2026-09-01: implement for ALL VLANs (Home/Media/Guest/Mgmt
+# above the IoT drop; Kids BELOW the bedtime block so the block still wins).
+#
+# Placement note: these are APPENDED at the chain end. The existing chain has
+# no catch-all drop, and the "Default deny inter-VLAN" rule only matches
+# dst-address-list=internal_lan (LAN->LAN) — WAN-destined flows fall through
+# to the appended accepts, which then match and accept. The Kids accept lands
+# AFTER the bedtime time= drop (which sits mid-chain), so the block still wins
+# in-window. Every added rule is guarded so re-import is a no-op.
+
+:if ([/ip firewall filter find where chain=forward and src-address=10.10.1.0/24 and out-interface=pppoe-telekom and action=accept] = "") do={
+    /ip firewall filter add chain=forward src-address=10.10.1.0/24 out-interface=pppoe-telekom action=accept comment="Home -> WAN allowed (HD-309 row 73)"
+}
+
+:if ([/ip firewall filter find where chain=forward and src-address=10.10.50.0/24 and out-interface=pppoe-telekom and action=accept] = "") do={
+    /ip firewall filter add chain=forward src-address=10.10.50.0/24 out-interface=pppoe-telekom action=accept comment="Media -> WAN allowed (HD-309)"
+}
+
+:if ([/ip firewall filter find where chain=forward and src-address=10.10.30.0/24 and out-interface=pppoe-telekom and action=accept] = "") do={
+    /ip firewall filter add chain=forward src-address=10.10.30.0/24 out-interface=pppoe-telekom action=accept comment="Guest -> WAN allowed (HD-309 row 73)"
+}
+
+:if ([/ip firewall filter find where chain=forward and src-address=10.10.99.0/24 and out-interface=pppoe-telekom and action=accept] = "") do={
+    /ip firewall filter add chain=forward src-address=10.10.99.0/24 out-interface=pppoe-telekom action=accept comment="Mgmt -> WAN allowed (HD-309 row 73)"
+}
+
+# Kids accept — appended AFTER the bedtime drop, so the block wins in-window.
+:if ([/ip firewall filter find where chain=forward and src-address=10.10.40.0/24 and out-interface=pppoe-telekom and action=accept] = "") do={
+    /ip firewall filter add chain=forward src-address=10.10.40.0/24 out-interface=pppoe-telekom action=accept comment="Kids -> WAN allowed out-of-window (HD-309 row 73)"
+}
+
+# ---- 2. Router DNS tertiary upstreams (network-dns.md: forwards to Technitium + 1.1.1.1) ----
+# Owner decision 2026-09-01: 1.1.1.1, 1.0.0.1 final fallbacks. The DHCP-per-VLAN
+# tertiary (router gateway) was SERVFAILing because /ip dns had NO upstreams —
+# THAT is the Shield no-WAN root cause (its resolvers 10.10.1.30/.20 are not live
+# until Phases 3/4). Fix the router resolver so the tertiary actually resolves.
+:if ([/ip dns get servers] = "") do={
+    /ip dns set servers=1.1.1.1,1.0.0.1
+    :log warning "rb4011_wan_delta: /ip dns upstreams set to 1.1.1.1,1.0.0.1 (HD-309)"
+} else={
+    :log warning "rb4011_wan_delta: /ip dns servers already set (HD-309 — verify)"
+}
+
+:log warning "rb4011_wan_delta.rsc applied (HD-309)"

@@ -166,6 +166,11 @@ add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address=10.10.1.30 protocol=udp dst-port=53,853 comment="IoT -> DNS resolver udp"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address=10.10.1.30 protocol=tcp dst-port=53,853 comment="IoT -> DNS resolver tcp"
 add chain=forward action=accept src-address=10.10.21.0/24 comment="IoT-Internet -> Internet allowed"
+# WAN egress per network-vlans.md row 73 ("All (except IoT) -> WAN Allowed (masqueraded)"), HD-309
+add chain=forward action=accept src-address=10.10.1.0/24  out-interface=pppoe-telekom comment="Home -> WAN allowed (HD-309 row 73)"
+add chain=forward action=accept src-address=10.10.50.0/24 out-interface=pppoe-telekom comment="Media -> WAN allowed (HD-309)"
+add chain=forward action=accept src-address=10.10.30.0/24 out-interface=pppoe-telekom comment="Guest -> WAN allowed (HD-309 row 73)"
+add chain=forward action=accept src-address=10.10.99.0/24 out-interface=pppoe-telekom comment="Mgmt -> WAN allowed (HD-309 row 73)"
 add chain=forward action=drop src-address=10.10.20.0/24 out-interface=pppoe-telekom comment="IoT -> WAN drop (disable for firmware)"
 add chain=forward action=accept src-address-list=vps_s2s_peer dst-address-list=vps_scoped_home comment="VPS S2S -> scoped home (HD-155)"
 add chain=forward action=drop src-address-list=vps_s2s_peer comment="VPS S2S -> anything else DROP (HD-155)"
@@ -176,6 +181,7 @@ add chain=forward action=drop src-address=10.10.40.0/24 protocol=tcp dst-port=85
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=udp dst-port=853 comment="Kids -> DoT bypass drop udp"
 add chain=forward action=drop src-address=10.10.40.0/24 dst-address=10.10.1.0/24 comment="Kids -> Home drop"
 add chain=forward action=drop src-address=10.10.40.0/24 out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun comment="Kids bedtime WAN block 22:00-07:00"
+add chain=forward action=accept src-address=10.10.40.0/24 out-interface=pppoe-telekom comment="Kids -> WAN allowed out-of-window (HD-309 row 73)"
 add chain=forward action=drop src-address-list=internal_lan dst-address-list=internal_lan comment="Default deny inter-VLAN"
 # HD-302: Comtrend modem mgmt (trusted-admin only)
 add chain=forward action=accept src-address-list=trusted-admin dst-address=192.168.1.1 protocol=tcp dst-port=80,443 comment="Trusted admin -> Comtrend modem"
@@ -208,7 +214,7 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
 /ip service set winbox disabled=no port=8291 available-from=10.10.99.0/24
 
 # ---- DNS (router resolver as tertiary) ----
-/ip dns set allow-remote-requests=yes
+/ip dns set allow-remote-requests=yes servers=1.1.1.1,1.0.0.1
 
 # ---- End ----
 # Verify: /interface bridge print, /ip address print, /ip dhcp-server print, /ip route print,
