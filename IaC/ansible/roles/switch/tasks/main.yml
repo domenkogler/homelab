@@ -61,7 +61,7 @@
 # times out mid-run). Mirroring the router role's guard: filtering is enabled
 # by the LAST task of this role, so a half-applied run leaves the bridge
 # filtering-off and the switch reachable.
-- name: Ensure bridge-lan exists (VLAN filtering enabled last)
+- name: Ensure bridge exists (VLAN filtering enabled last)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -72,7 +72,7 @@
     path: interface bridge
     handle_absent_entries: ignore
     data:
-      - name: bridge-lan
+      - name: bridge
         protocol-mode: none
         disabled: no
         comment: "CRS328 bridge (VLAN filtering enabled by last task)"
@@ -92,9 +92,9 @@
     path: interface bridge vlan
     handle_absent_entries: ignore
     data:
-      - bridge: bridge-lan
+      - bridge: bridge
         vlan-ids: "{{ item.id }}"
-        tagged: "bridge-lan,{{ switch_trunk_port }}"
+        tagged: "bridge,{{ switch_trunk_port }}"
         comment: "{{ item.name }} VLAN"
   loop: "{{ switch_vlans }}"
 
@@ -114,7 +114,7 @@
     handle_absent_entries: ignore
     data:
       - interface: "{{ switch_trunk_port }}"
-        bridge: bridge-lan
+        bridge: bridge
         pvid: 1
         comment: "Uplink to RB4011 - trunk (all VLANs tagged)"
 
@@ -135,7 +135,7 @@
     handle_absent_entries: ignore
     data:
       - interface: "{{ item.value.port }}"
-        bridge: bridge-lan
+        bridge: bridge
         pvid: "{{ item.value.vlan }}"
         comment: "Management port for {{ item.key }}"
   loop: "{{ switch_port_map | dict2items | list }}"
@@ -154,7 +154,7 @@
     handle_absent_entries: ignore
     data:
       - interface: "{{ item.value.port }}"
-        bridge: bridge-lan
+        bridge: bridge
         pvid: "{{ item.value.vlan }}"
         comment: "Home VLAN port for {{ item.key }}"
   loop: "{{ switch_port_map | dict2items | list }}"
@@ -173,7 +173,7 @@
     handle_absent_entries: ignore
     data:
       - interface: "{{ item.value.port }}"
-        bridge: bridge-lan
+        bridge: bridge
         pvid: "{{ item.value.vlan }}"
         comment: "Media VLAN port for {{ item.key }}"
   loop: "{{ switch_port_map | dict2items | list }}"
@@ -192,7 +192,7 @@
     handle_absent_entries: ignore
     data:
       - interface: "{{ item.value.port }}"
-        bridge: bridge-lan
+        bridge: bridge
         pvid: "{{ item.value.vlan }}"
         comment: "IoT VLAN port for {{ item.key }}"
   loop: "{{ switch_port_map | dict2items | list }}"
@@ -211,7 +211,7 @@
     handle_absent_entries: ignore
     data:
       - interface: "{{ item.value.port }}"
-        bridge: bridge-lan
+        bridge: bridge
         pvid: "{{ item.value.vlan }}"
         comment: "IoT-Internet VLAN port for {{ item.key }}"
   loop: "{{ switch_port_map | dict2items | list }}"
@@ -233,7 +233,7 @@
     handle_absent_entries: ignore
     data:
       - interface: "sfp-sfpplus{{ item }}"
-        bridge: bridge-lan
+        bridge: bridge
         pvid: 99
         comment: "Management (VLAN 99) - SFP+ port {{ item }}"
   loop:
@@ -257,7 +257,7 @@
     handle_absent_entries: ignore
     data:
       - default-name: "{{ item.value.port }}"
-        poe-out: at-45v-fixed
+        poe-out: on
         poe-priority: high
         comment: "PoE for AP: {{ item.key }}"
   loop: "{{ switch_port_map | dict2items | list }}"
@@ -280,7 +280,7 @@
     data:
       - name: vlan99-mgmt
         vlan-id: 99
-        interface: bridge-lan
+        interface: bridge
         disabled: no
         comment: "Management VLAN 99"
 
@@ -450,7 +450,7 @@
     handle_absent_entries: ignore
     data:
       - interface: "ether{{ item }}"
-        bridge: bridge-lan
+        bridge: bridge
         pvid: 99
   loop: "{{ range(1, 25) | list }}"
   when: "'ether' + item|string not in configured_port_names"
@@ -483,6 +483,6 @@
     path: interface bridge
     handle_absent_entries: ignore
     data:
-      - name: bridge-lan
+      - name: bridge
         vlan-filtering: yes
         comment: "CRS328 bridge with VLAN filtering enabled"
