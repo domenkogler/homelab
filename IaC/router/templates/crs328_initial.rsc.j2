@@ -25,7 +25,7 @@
 # ---- Users (bootstrap auth) ----
 # admin = password + SSH key. ansible = key-only (automation).
 
-/user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
+/user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin"
 /user ssh-keys import public-key-file=flash/admin.pub user=admin
 
 # RouterOS 7: /user add REQUIRES password= (see rb4011_initial.rsc.j2 for full rationale).

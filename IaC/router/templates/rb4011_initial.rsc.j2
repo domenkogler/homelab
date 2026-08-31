@@ -45,7 +45,7 @@
 # ---- Users (bootstrap auth) ----
 # admin = password + SSH key. ansible = key-only (automation).
 
-/user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
+/user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin"
 /user ssh-keys import public-key-file=admin.pub user=admin
 
 # RouterOS 7: /user add REQUIRES a `password=` field, even an empty one. Setting
@@ -79,7 +79,7 @@
 # ---- WAN (internet for laptop + 1Password) ----
 
 /interface pppoe-client add name=pppoe-telekom interface=ether1 \
-    user={{ pppoe_login_user }} password={{ pppoe_login_password }} \
+    user="{{ pppoe_login_user }}" password="{{ pppoe_login_password }}" \
     add-default-route=yes use-peer-dns=no disabled=no
 /ip firewall nat add chain=srcnat out-interface=pppoe-telekom action=masquerade comment="Masquerade → WAN"
 

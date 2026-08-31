@@ -19,11 +19,11 @@
 
 # ---- WAN (internet for laptop + 1Password) — bootstrap has it; needed for standalone reset ----
 /interface pppoe-client add name=pppoe-telekom interface=ether1 \
-    user={{ pppoe_login_user }} password={{ pppoe_login_password }} \
+    user="{{ pppoe_login_user }}" password="{{ pppoe_login_password }}" \
     add-default-route=yes use-peer-dns=no disabled=no
 
 # ---- Users (auth) ----
-/user set [find name=admin] password={{ mikrotik_admin_password }} comment="human admin"
+/user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin"
 /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth)"
 /user ssh-keys import public-key-file=admin.pub user=admin
 /user ssh-keys import public-key-file=ansible.pub user=ansible
@@ -82,7 +82,10 @@
 # ---- WireGuard S2S (HD-91/HD-155) ----
 /interface wireguard add name=wg-s2s listen-port=51820
 /ip address add address={{ wireguard_s2s_vps.local_ip }} interface=wg-s2s
-/interface wireguard peers add interface=wg-s2s public-key={{ wireguard_s2s_vps.vps_public_key }} allowed-address={{ wireguard_s2s_vps.remote_ip }} comment="VPS S2S peer"
+/interface wireguard peers add interface=wg-s2s public-key="{{ wireguard_s2s_vps.vps_public_key }}" allowed-address="{{ wireguard_s2s_vps.remote_ip }}" comment="VPS S2S peer"
+# NOTE (live 2026-08-31): quote EVERY non-literal value sent to the script parser — the WG
+# public-key contains +/= (and the admin/pppoe passwords may contain ! or $), which RouterOS
+# mangles unquoted (user hit: wg-s2s peer add failed until public-key was quoted).
 /ip route add dst-address=10.255.40.0/30 gateway=wg-s2s
 # Address-list for the VPS peer (HD-155 least-access)
 /ip firewall address-list add address={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} list=vps_s2s_peer comment="VPS S2S peer"
