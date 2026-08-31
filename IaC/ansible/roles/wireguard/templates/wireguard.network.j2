@@ -10,10 +10,3 @@ Address={{ wg_s2s_vps.local_ip }}
 
 [Link]
 RequiredForOnline=no
-
-[WireGuardPeer]
-PublicKey={{ wg_s2s_vps.peer_public_key }}
-AllowedIPs={% for ip in wg_s2s_vps.allowed_ips %}{{ ip }}{% if not loop.last %},{% endif %}{% endfor %}
-{% if wg_s2s_vps.endpoint is defined and wg_s2s_vps.endpoint | length > 0 %}
-Endpoint={{ wg_s2s_vps.endpoint }}:{{ wg_s2s_vps.listen_port }}
-{% endif %}

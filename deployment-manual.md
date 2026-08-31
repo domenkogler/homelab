@@ -734,20 +734,41 @@ The `router` role already configured the `wg-s2s` interface and the VPS peer
 (`wg_s2s_vps_public_key` in `group_vars/all/main.yml`). The VPS side has its own peer in
 `IaC/ansible/roles/wireguard/`. The tunnel is up as soon as both sides have the matching
 peer; the role asserts it. ✔-evidence:
+**Endpoint (2026-08-31 decision):** the VPS peer uses **`wg_s2s_vps.endpoint: s.kogler.si`** — a **DDNS token** (Cloudflare DNS A-record → home WAN) instead of a literal IP. The VPS initiates; `systemd-networkd` resolves the hostname at every boot, so the tunnel survives home WAN IP changes + a VPS redo without editing group_vars. `s.kogler.si` is tracked in `cloudflare_dns/vars/main.yml` (keep it updated when the home PPPoE IP changes).
+
+**Bring-up procedure (2026-08-31 live-validated up to the peer-attach step):**
+
+```bash
+# VPS side — wireguard role (interface + key + listen; from a session worktree, venv interpreter):
+bash scripts/ansible-run.sh playbooks/vps.yml --tags wireguard
+#   expect: ok=13 changed=~5 failed=0; wg-s2s up with the wg-s2s /30 address (SSOT), key = gwXAk+…, listen 51820
+
+# Router side — router role corrects the wg interface key to the shared wg_password pubkey:
+ansible-playbook -i inventory.ini playbooks/router.yml -e ansible_python_interpreter=~/ansible-venv/bin/python3
+#   expect: ok=32 changed=16 failed=0 (fresh-bootstrap delta; re-run smaller).
+#   The converge-.rsc historically created wg-s2s WITHOUT private-key= → RouterOS auto-generates a
+#   random key; the role's private-key task re-fixes it. Verify: /interface wireguard print → gwXAk+….
+```
+
+✔-evidence (both sides must show the peer + a handshake):
 
 ```text
 # on the RB4011
-/interface wireguard print                ; wg-s2s present, port 13231
-/interface wireguard peer print           ; peer wg-s2s-vps, latest-handshake non-zero
+/interface wireguard print                ; wg-s2s present, port 51820
+/interface wireguard peer print           ; peer vps-s2s, latest-handshake non-zero
 # on the VPS
 sudo wg show wg-s2s                        ; peer with public key gwXAk+5…, latest-handshake non-zero
 ```
+
+> ⚠ **Known blocker (HD-306, 2026-08-31):** on VPS kernel `6.12.101` + systemd 257 the wireguard **peer currently does not attach** — the interface comes up (key/address/listen) but `wg show` shows no peer even after a correctly-formed `.netdev` `[WireGuardPeer]` or `wg setconf` (module refcount stays 0). See `todo.md` HD-306 for the research path; once it binds, re-run the two commands above and verify the handshake.
 
 Live-verify from the VPS:
 
 ```bash
 ping -c3 router.kogler.si   # router over the tunnel (WG S2S, mgmt-VLAN IP behind wg-s2s)
 ```
+
+**Authoring pitfalls for the wireguard role templates (2026-08-31, do not relearn):** ① Jinja newline-glue — Ansible `template` `trim_blocks` eats a literal newline after `{% endfor %}` → `AllowedIPs=…24Endpoint=…` glued on one line (peer dropped). Emit an explicit `{{ '\n' }}`. ② `.netdev` perms must be `0640` (`0600` + ACL `mask::---` → networkd `Permission denied`; networkd runs as `systemd-network`). ③ `[WireGuardPeer]` belongs in `.netdev` (`Kind=wireguard`); a `[WireGuardPeer]` section in `.network` is ignored (`Unknown section`).
 
 ### 1.5.6 Cutover close-out
 

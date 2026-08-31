@@ -50,17 +50,17 @@
     mode: '0755'
   tags: wireguard
 
-- name: Render WireGuard .netdev (interface + local private key + listen port)
+- name: Render WireGuard .netdev (interface + private key + peer + listen port)
   ansible.builtin.template:
     src: wireguard.netdev.j2
     dest: "{{ wg_netdev_dir }}/{{ wg_interface }}.netdev"
     owner: root
     group: systemd-network
-    mode: '0600'
+    mode: '0640'   # 0640 (group-readable): systemd-networkd (runas systemd-network) must READ this — 0600 + template ACL mask::--- caused 'Permission denied' on 257. TLS-private-key-like but group-read needed.
   notify: restart systemd-networkd
   tags: wireguard
 
-- name: Render WireGuard .network (Address + Peer/AllowedIPs)
+- name: Render WireGuard .network (Address only — peer moved to .netdev)
   ansible.builtin.template:
     src: wireguard.network.j2
     dest: "{{ wg_netdev_dir }}/{{ wg_interface }}.network"

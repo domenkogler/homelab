@@ -231,7 +231,7 @@ wg_s2s_vps:
   ip: "10.255.40.2"                  # bare VPS peer IP (Alloy/compose bind target)
   router_ip: "10.255.40.1"
   listen_port: 51820
-  endpoint: ""                        # home WAN endpoint (dynamic); the VPS initiates here — set at deploy
+  endpoint: "s.kogler.si"           # home WAN DDNS token (Cloudflare-tracked; VPS initiates here, resolves each boot — idempotent + VPS-redo-safe). SSOT: cloudflare_dns/vars/main.yml.
   peer_public_key: "{{ lookup('vars', 'wg_s2s_router_public_key', default='') }}"  # router(PubKey), provisioned at deploy  (HD-271: lookup default — no `in vars` membership; the internal vars dict is deprecated at 2.24)
   # AllowedIPs — LEAST-ACCESS (HD-155): the VPS may reach ONLY the scoped home
   # targets below (exporter/VIP/probe + oldsrv backends when wired), NOT the whole

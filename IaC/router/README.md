@@ -23,8 +23,11 @@ Bootstrap / initial RouterOS scripts for the homelab network gear — the route
 | `templates/*.rsc.j2` | Jinja2 source templates (**source of truth**, committed) |
 | `rendered/*.rsc` | Generated output — **gitignored**, never committed |
 
-Scripts rendered: `rb4011_initial.rsc` (router), `crs328_initial.rsc` (switch), and
-`ap_initial.rsc` (a **universal** AP script — all APs).
+Scripts rendered: `rb4011_initial.rsc` (router), `crs328_initial.rsc` (switch),
+`ap_initial.rsc` (universal AP), `capsman_steady-state.rsc` (RB4011 CAPsMAN, HD-232),
+plus the converge-escape pair `rb4011_converge.rsc` / `crs328_converge.rsc` (HD-305) —
+all via `playbooks/render-routeros.yml` / `render-converge.yml` into the gitignored
+`rendered/` dir.
 
 ## Workflow
 

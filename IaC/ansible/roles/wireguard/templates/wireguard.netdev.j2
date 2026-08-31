@@ -9,3 +9,10 @@ Description=VPS <-> home router S2S tunnel
 [WireGuard]
 PrivateKey={{ lookup('community.general.onepassword', 'wg_password', field='password', vault=op_vault) }}
 ListenPort={{ wg_s2s_vps.listen_port }}
+
+# Peer — systemd-257 networkd: [WireGuardPeer] lives in the .netdev (NOT in .network,
+# where networkd 257 reports 'Unknown section WireGuardPeer' and ignores it). Endpoint
+# resolves at boot via the system resolver (DDNS token s.kogler.si, Cloudflare-tracked).
+[WireGuardPeer]
+PublicKey={{ wg_s2s_vps.peer_public_key }}
+AllowedIPs={% for ip in wg_s2s_vps.allowed_ips %}{{ ip }}{% if not loop.last %},{% endif %}{% endfor %}{% if wg_s2s_vps.endpoint is defined and wg_s2s_vps.endpoint | length > 0 %}{{ '\n' }}Endpoint={{ wg_s2s_vps.endpoint }}:{{ wg_s2s_vps.listen_port }}{% endif %}{{ '\n' }}
