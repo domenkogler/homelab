@@ -132,20 +132,19 @@ docs/
 ├── storage-rejected.md                  Append-only storage decision log
 ├── backup.md                              LAST: ZFS + Kopia, DR, restore drills
 │
-├── manual/                                Family guides (Slovenian, ⚠️ not yet written — deferred)
-│   ├── README.md
-│   ├── wifi.md
-│   ├── desktop.md
-│   ├── immich.md
-│   ├── opencloud.md
-│   ├── vpn.md
-│   ├── server-restart.md
-│   ├── restore-backup.md
-│   ├── contacts.md
-│   ├── smart-home.md
-│   ├── chat.md
-│   └── office-ai.md
-│
+├── manual/README.md                       Family guides (Slovenian, ⚠️ not yet written — deferred)
+├── manual/wifi.md                         SSID, VLAN, password reset
+├── manual/desktop.md                      Login, password, what NOT to power off
+├── manual/immich.md                       Photo viewing, uploading, sharing
+├── manual/opencloud.md                    File storage, sharing
+├── manual/vpn.md                          Tailscale on the phone
+├── manual/server-restart.md               Physical reset procedure (with photo)
+├── manual/restore-backup.md               Backup restore (high-level)
+├── manual/contacts.md                     ISP, friends, service numbers
+├── manual/smart-home.md                   Voice / button / scene quick-refs
+├── manual/chat.md                         Element / Matrix login + rooms
+├── manual/office-ai.md                    OpenCloud + ONLYOFFICE desktop/AI
+
 └── assets/
     ├── Rack.canvas
     ├── Network-Devices.canvas
