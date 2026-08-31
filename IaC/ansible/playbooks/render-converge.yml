@@ -1,0 +1,36 @@
+---
+- name: Render the two converge .rsc scripts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load all group_vars (SSOT)
+      include_vars:
+        file: group_vars/all/main.yml
+    - name: Load router group_vars (SSOT)
+      include_vars:
+        file: group_vars/router.yml
+    - name: Load switch group_vars (SSOT)
+      include_vars:
+        file: group_vars/switch.yml
+    - name: Derive mgmt + router/switch 99 IPs
+      set_fact:
+        mgmt: "{{ network_vlans | selectattr('id', '==', 99) | list | first }}"
+        router99: "{{ network_static_hosts | selectattr('vlan', '==', 99) | selectattr('name', '==', 'router') | list | first }}"
+        switch99: "{{ network_static_hosts | selectattr('vlan', '==', 99) | selectattr('name', '==', 'switch') | list | first }}"
+    - name: Resolve admin password from 1Password
+      set_fact:
+        mikrotik_admin_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
+      no_log: true
+    - name: Ensure rendered dir
+      file:
+        path: "{{ playbook_dir }}/../router/rendered"
+        state: directory
+    - name: Render router-converge.rsc
+      template:
+        src: "{{ playbook_dir }}/../router/templates/router_converge.rsc.j2"
+        dest: "{{ playbook_dir }}/../router/rendered/router-converge.rsc"
+    - name: Render switch-converge.rsc
+      template:
+        src: "{{ playbook_dir }}/../router/templates/switch_converge.rsc.j2"
+        dest: "{{ playbook_dir }}/../router/rendered/switch-converge.rsc"

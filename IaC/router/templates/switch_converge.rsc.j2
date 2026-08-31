@@ -1,0 +1,79 @@
+# =============================================================================
+# CRS328-24P-4S+ — Kogler Homelab — CONVERGED STEADY-STATE (RENDERED — do not edit)
+# Source template: IaC/router/templates/switch_converge.rsc.j2
+# =============================================================================
+# Purpose: Full final state for the switch — import on a device that already ran
+#          crs328_initial.rsc (or run after a reset). Idempotent-ish: `/set` safe,
+#          `/add` errors on duplicates (re-import = "already have" messages OK).
+#          Authored from the SSOT (group_vars/all.yml + router.yml).
+# How:     Upload + /import switch-converge.rsc in a WinBox terminal
+#          (or via SSH: scp to deviceFiles then /import).
+# =============================================================================
+
+# ---- Identity / clock ----
+/system identity set name=switch.kogler.si
+/system clock set time-zone-name=Europe/Ljubljana
+
+# ---- Bridge + ports (bootstrap already created; re-set idempotently) ----
+# Bridge name = "bridge" (SSOT with crs328_initial.rsc.j2 — do NOT rename).
+# Remove a prior phantom `bridge-lan` if a partial run created one, then ensure `bridge`.
+/interface bridge remove [find name=bridge-lan]
+/interface bridge add name=bridge vlan-filtering=yes protocol-mode=none
+# Ensure every port is a member of the bridge (idempotent: set-if-exists via /set, add-if-absent)
+{% for n in range(1, 25) %}
+/interface bridge port add bridge=bridge interface=ether{{ n }} pvid=99
+{% endfor %}
+{% for n in range(2, 5) %}
+/interface bridge port add bridge=bridge interface=sfp-sfpplus{{ n }} pvid=99
+{% endfor %}
+# uplink first (must exist before VLANs carry it as tagged)
+/interface bridge port add bridge=bridge interface=sfp-sfpplus1 comment="uplink -> router"
+
+# ---- VLANs on the bridge (tagged trunk + per-VLAN) ----
+{% for v in network_vlans %}
+# VLAN {{ v.id }} ({{ v.name }})
+/interface bridge vlan add bridge=bridge vlan-ids={{ v.id }} tagged=bridge,sfp-sfpplus1 comment="{{ v.name }} VLAN on trunk"
+{% endfor %}
+
+# ---- VLAN interfaces (per-VLAN L3 gateways NOT on switch — switch is L2; keep only mgmt) ----
+# mgmt VLAN interface for the management IP
+/interface vlan add name=vlan99-mgmt vlan-id=99 interface=bridge
+
+# ---- Management IP + route + DNS (SSOT) ----
+/ip address add address={{ switch99.ip }}/24 interface=vlan99-mgmt comment="Management mgmt (SSOT)"
+/ip route add dst-address=0.0.0.0/0 gateway=10.10.99.1 comment="Default via router"
+/ip dns set servers=10.10.99.1
+
+# ---- Access port reassignment to their real VLANs (SSOT switch_port_map) ----
+# (bootstrap puts ALL ports on pvid 99; steady-state moves them to their role VLAN)
+{% for k, v in switch_port_map.items() %}
+# {{ k }} ({{ v.vlan }}): {{ v.port }}
+/interface bridge port set [find where interface={{ v.port }}] pvid={{ v.vlan }} comment="{{ k }} -> VLAN {{ v.vlan }}"
+{% if v.poe %}
+/interface ethernet set {{ v.port }} poe-out=on poe-priority=high comment="PoE: {{ k }}"
+{% endif %}
+{% endfor %}
+
+# ---- PoE everywhere else default = auto-on (APs explicitly on; others stay auto) ----
+
+# ---- INPUT firewall mgmt lockdown (HD-301 parity; steady-state) ----
+# Allow established/related, mgmt-VLAN services, trusted-admin; drop the rest
+/ip firewall filter
+add chain=input action=accept connection-state=established,related comment="Allow established/related input (switch)"
+add chain=input action=accept in-interface=vlan99-mgmt comment="Allow mgmt VLAN input (switch)"
+add chain=input action=drop comment="Drop all other input (switch lockdown)"
+
+# ---- Services (mgmt-scoped, dangerous disabled — HD-301) ----
+/ip service set telnet disabled=yes port=23 available-from=10.10.99.0/24
+/ip service set ftp disabled=yes port=21 available-from=10.10.99.0/24
+/ip service set www disabled=yes port=80 available-from=10.10.99.0/24
+/ip service set api-ssl disabled=yes port=8729 available-from=10.10.99.0/24 certificate=none
+/ip service set reverse-proxy disabled=yes port=443 available-from=10.10.99.0/24 certificate=none
+/ip service set api disabled=no port=8728 available-from=10.10.99.0/24
+/ip service set www-ssl disabled=no port=443 available-from=10.10.99.0/24 certificate=none
+/ip service set ssh disabled=no port=22 available-from=10.10.99.0/24
+/ip service set winbox disabled=no port=8291 available-from=10.10.99.0/24
+
+# ---- End ----
+# Verify: /interface bridge print, /interface bridge port print, /ip address print,
+#         /ip firewall filter print, /ip service print

@@ -923,6 +923,11 @@
       - bridge: bridge-lan
         vlan-ids: 99
         tagged: bridge-lan,sfp-sfpplus1
+        # Untagged vlan99 members = the bootstrap's mgmt-access ports (pvid 99 on
+        # bridge-lan from rb4011_initial.rsc.j2: ether2/3/7/9/10). Without these,
+        # vlan-filtering drops vlan99 between the local access ports and the trunk
+        # -> empty ARP, switch (sfp) unreachable from the laptop (live 2026-08-31).
+        untagged: ether2,ether3,ether7,ether9,ether10
         comment: "Management VLAN on trunk"
 
 
