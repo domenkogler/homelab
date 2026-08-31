@@ -590,17 +590,24 @@ First-boot notes:
 > (`rb4011_flat_backup.rsc` exported from Files before the reset).
 > Backups: owner confirms each device has a current `.backup` file before starting.
 
-### 1.5.1 Render the 4 bootstrap scripts (laptop, from the worktree)
+### 1.5.1 Render the 4 bootstrap scripts + materialize the 2 .pub files (laptop, from the worktree)
 
 ```bash
+# 1) render the 4 secrets-injected .rsc files into the gitignored rendered/ dir
 bash scripts/ansible-run.sh playbooks/render-routeros.yml -i inventory.ini
-ls -la IaC/router/rendered/   # expect 4 files, all 4KB–5KB
+# 2) materialize the two SSH public keys the .rsc files import on each device
+bash scripts/get-bootstrap-keys.sh
+ls -la IaC/router/rendered/   # expect 6 files: 4 .rsc (4–5KB) + 2 .pub (~80B)
 ```
 
-✔-evidence: 4 .rsc files in the gitignored `IaC/router/rendered/`; `ap_initial.rsc` / `capsman_steady-state.rsc` each
-contain 5 distinct `passphrase=` lengths (5 wifi-kogler items), the rb4011 file contains a
-non-empty `pppoe-telekom … user=<…> password=<…>` line, and the crs328 file binds `api`/`www-ssl`/`ssh` to
-`vlan99-mgmt`. Re-render if any lookup fails (fail-loud).
+✔-evidence: 6 files in the gitignored `IaC/router/rendered/`; the 4 .rsc files match the
+expected byte sizes (rb4011 4173 B, crs328 4877 B, ap 3249 B, capsman 5110 B), and the 2
+.pub files carry the expected fingerprints (asserted inside the script — `admin.pub` =
+`SHA256:XTmK3tR59IMnok1HbEW7n3ZK0v4bd7miPS+0r7lSPTA`, `ansible.pub` =
+`SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU`). The script reads from the
+1Password vault `Homelab-ansible` (items `laptop-domen_ssh` + `ansible-admin_ssh`) and
+exits non-zero on fingerprint drift — re-anchor the expected fingerprints in the script
+if the vault rotates. Re-render the .rsc files if any lookup fails (fail-loud).
 
 ### 1.5.2 Upload + run-after-reset on each device `[MANUAL]`
 
