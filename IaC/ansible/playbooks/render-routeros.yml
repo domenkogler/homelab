@@ -4,6 +4,17 @@
 # Renders the initial / bootstrap RouterOS scripts into IaC/router/rendered/
 # (GITIGNORED — never committed).
 #
+# !!! SECRET-EXPOSURE WARNING (CONVENTIONS §2, HD-233/234 lesson) !!!
+#   The rendered .rsc files contain LIVE secrets (mikrotik admin password,
+#   PPPoE login). NEVER:
+#     - commit / push them (gitignored, but guard-session won't save you if you `git add -f`),
+#     - cat / grep / echo their lines to a terminal, chat, or transcript
+#       (probes show LENGTHS / PREFIXES / HASHES only),
+#     - leave stale renders around after a rotation — re-render or delete them.
+#   After ANY rotation of mikrotik-admin_login / pppoe_login: re-run this playbook (or
+#   `rm -rf IaC/router/rendered`) so no artifact carries an old secret. Rendered files are
+#   regenerable on demand — deleting is always safe.
+#
 #   * Static IPs / VLANs come from IaC/ansible/group_vars/all.yml (SSOT).
 #   * Secrets (PPPoE login, MikroTik admin password) are resolved from the
 #     `Homelab-ansible` 1Password vault at render time and NEVER stored in the repo.

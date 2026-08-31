@@ -1,3 +1,13 @@
+# =============================================================================
+# Render the two converge .rsc scripts (SECRETS-INJECTED — never commit)
+# =============================================================================
+#
+# !!! SECRET-EXPOSURE WARNING (CONVENTIONS §2, HD-233/234 lesson) !!!
+#   Outputs (rb4011_converge.rsc / crs328_converge.rsc) contain LIVE secrets
+#   (mikrotik admin password, PPPoE login). NEVER commit/push, cat/grep/echo
+#   their contents to stdout/chat/transcripts, or keep stale renders around
+#   after a rotation. After ANY rotation of mikrotik-admin_login / pppoe_login,
+#   re-run this playbook or `rm -rf IaC/router/rendered`.
 ---
 - name: Render the two converge .rsc scripts
   hosts: localhost
