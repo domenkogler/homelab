@@ -60,10 +60,21 @@
     discovery-interfaces=bridge
 
 # ---- Services ----
-# HD-193: bound to the bridge (the AP's only mgmt L2 surface) from first boot;
-# AP is L2-only with no WAN egress (HD-165) — binding satisfies the B4 floor.
+# HD-193 + HD-301: scope every management service to the mgmt subnet from FIRST BOOT
+# (B4 binding floor). RouterOS 7 syntax: `available-from=` (NOT `interface=` —
+# rejected with "bad parameter interface" on ROS7, live-validated 2026-08-31).
+# AP is L2-only (no WAN egress, HD-165) so the surface is small, but we still
+# disable the dangerous services defensively.
 
-/ip service set ssh disabled=no port=22 interface=bridge
+/ip service set telnet disabled=yes port=23 available-from={{ mgmt.subnet }}
+/ip service set ftp disabled=yes port=21 available-from={{ mgmt.subnet }}
+/ip service set www disabled=yes port=80 available-from={{ mgmt.subnet }}
+/ip service set api-ssl disabled=yes port=8729 available-from={{ mgmt.subnet }} certificate=none
+/ip service set reverse-proxy disabled=yes port=443 available-from={{ mgmt.subnet }} certificate=none
+/ip service set api disabled=no port=8728 available-from={{ mgmt.subnet }}
+/ip service set www-ssl disabled=no port=443 available-from={{ mgmt.subnet }} certificate=none
+/ip service set ssh disabled=no port=22 available-from={{ mgmt.subnet }}
+/ip service set winbox disabled=no port=8291 available-from={{ mgmt.subnet }}
 
 # ---- End ----
 # After import, verify on the router: /ip dhcp-server lease print

@@ -55,15 +55,30 @@
 /ip dns set servers={{ router99.ip }}
 
 # ---- Services (Ansible REST/API/SSH door) ----
-# HD-193: bound to the Mgmt interface from FIRST BOOT (B4 binding floor,
-# mirrors rb4011_initial) — nothing listens on access ports during bootstrap.
+# HD-193 + HD-301: scope every management service to the mgmt subnet from FIRST BOOT
+# (B4 binding floor, mirrors rb4011_initial). RouterOS 7 syntax: `available-from=`
+# (NOT `interface=` — the latter is the RouterOS 6 form, rejected with
+# "bad parameter interface" on ROS7, live-validated 2026-08-31). The dangerous-
+# on-WAN services are disabled explicitly. Defense in depth: even if a later
+# change re-enables a disabled service, it still won't listen on the
+# access ports or WAN.
 
-/ip service set api disabled=no interface=vlan{{ mgmt.id }}-mgmt
-/ip service set www-ssl disabled=no certificate=none interface=vlan{{ mgmt.id }}-mgmt
-/ip service set ssh disabled=no port=22 interface=vlan{{ mgmt.id }}-mgmt
+/ip service set telnet disabled=yes port=23 available-from={{ mgmt.subnet }}
+/ip service set ftp disabled=yes port=21 available-from={{ mgmt.subnet }}
+/ip service set www disabled=yes port=80 available-from={{ mgmt.subnet }}
+/ip service set api-ssl disabled=yes port=8729 available-from={{ mgmt.subnet }} certificate=none
+/ip service set reverse-proxy disabled=yes port=443 available-from={{ mgmt.subnet }} certificate=none
+/ip service set api disabled=no port=8728 available-from={{ mgmt.subnet }}
+/ip service set www-ssl disabled=no port=443 available-from={{ mgmt.subnet }} certificate=none
+/ip service set ssh disabled=no port=22 available-from={{ mgmt.subnet }}
+/ip service set winbox disabled=no port=8291 available-from={{ mgmt.subnet }}
 
 # ---- End ----
 # After import, verify:
 #   1. Reachable from laptop  → ping {{ switch99.ip }}
-#   2. REST reachable         → /ip service print (api + www-ssl enabled)
-#   3. Ansible role then applies ports/VLANs/PoE + keeps mgmt on {{ switch99.ip }}.
+#   2. SSH from the laptop    → ssh -i ~/.ssh/id_ed25519 ansible@{{ switch99.ip }}
+#   3. Services are locked    → /ip service print  (api+www-ssl+ssh+winbox ON,
+#                                                AVAILABLE-FROM={{ mgmt.subnet }};
+#                                                telnet+ftp+www+api-ssl+reverse-proxy
+#                                                X = disabled)
+#   4. Ansible role then applies ports/VLANs/PoE + keeps mgmt on {{ switch99.ip }}.
