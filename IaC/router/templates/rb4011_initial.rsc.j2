@@ -17,9 +17,12 @@
 
 /system identity set name=router.kogler.si
 /system clock set time-zone-name={{ timezone }}
+# RouterOS 7: the parameter is 'address=' (not the RouterOS 6 'server=').
+# Live-validated 2026-08-31 — `server=` was rejected with 'bad parameter server'
+# because the RouterOS 7 NTP client schema only knows `address=`. Do not regress.
 /system ntp client set enabled=yes
 {% for h in ntp_servers %}
-/system ntp client servers add server={{ h }}
+/system ntp client servers add address={{ h }}
 {% endfor %}
 
 # ---- Users (bootstrap auth) ----
