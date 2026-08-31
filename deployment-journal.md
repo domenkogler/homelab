@@ -1675,6 +1675,30 @@
 - **doc updated:** `todo.md` HD-285 tail advanced + HD-306 added; `changelog.md` HD-306 row; `deployment-manual.md` §1.5.5 port fix + `IaC/router/README.md`; this journal entry.
 
 
+### 2026-08-31 — Phase 1 · HD-298 closed: pi-dev pi-web-ui crash-loop fully fixed + LIVE-verified (3-layer root cause) `[AI]`
+
+- **Plan ref:** `todo.md` HD-298 (pi-dev pty.node, surfaced during HD-297 verify) — first the "quick" `--ignore-scripts` removal, then live root-cause escalation. Worktree merge station: main @ ab566ac (3 fix commits).
+- **Root cause (3 layers, each found live, each proven in throwaway containers):**
+  1. **`--ignore-scripts`** on the `pi-web-ui` npm install line skipped node-pty's postinstall → `pty.node` native binding never built → server crash-loop before `exec pi-web-ui`. Fixed: removed the flag (security margin kept on `pi-coding-agent`/`pi-web-access`).
+  2. **alpine/musl** can't build node-pty (only darwin/win32 prebuilds shipped; linux has none) + no Python/toolchain in `node:24-alpine` → node-gyp fails. Fixed: image base `node:24-alpine` → `node:24` (glibc).
+  3. **npm 11.19+ `allowScripts` gate** blocks install scripts by default even without `--ignore-scripts` → node-pty's prebuild-install never ran. Fixed: `npm install -g --allow-scripts=node-pty,@google/genai,protobufjs pi-web-ui@…`.
+  4. **`cap_drop: [ALL]` blocked node-gyp** — node-gyp downloads+extracts Node headers with `fchown` → `EPERM: operation not permitted, fchown` (no CHOWN/FOWNER/DAC_OVERRIDE). Fixed: `cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]` on pi-dev only (needed for the one-time build step; runtime least-privilege + workspace-only volumes untouched).
+- **Commands run (laptop → WSL runner):**
+  ```bash
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=pi-dev   # ×4 (after each fix)
+  # final: ok=23 changed=7 failed=0
+  ```
+- **Verification (HD-298 closing evidence):**
+  ```bash
+  sudo docker ps --filter name=pi-dev --format '{{.Names}}	{{.Status}}	{{.Image}}'   # pi-dev Up (node:24), pi-dev-tailscale Up
+  sudo docker inspect pi-dev --format 'RestartCount={{.RestartCount}}'                   # 0
+  sudo docker exec pi-dev wget -q -O /dev/null -S http://localhost:8080/                 # HTTP/1.1 200 OK (Express)
+  sudo docker exec traefik-tailnet wget -q -O /dev/null -S http://pi-dev:8080/           # HTTP/1.1 200 OK  <- the HD-298 verify cmd, from the tailnet sidecar
+  sudo docker exec pi-dev node -e "require('/usr/local/lib/node_modules/pi-web-ui/node_modules/node-pty'); console.log('loads')"  # node-pty loads
+  ```
+- **Deviations:** original row said "1-line template edit" — the real fix needed 4 layered changes (each proven); pi-dev `cap_add` is a deliberate, minimal privilege addition for the one-time node-gyp build (documented in-template).
+- **doc updated:** `todo.md` HD-298 closed (✅ Done, verify row removed); `changelog.md` HD-298 close row; this journal entry; template + versions.yml + comments already committed in 3 fix commits (ab566ac head).
+
 ## Phase 3 — oldsrv
 
 *(no entries yet)*
