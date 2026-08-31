@@ -49,7 +49,7 @@ Source of truth: the **Jinja templates** (`rb4011_{initial,converge}.rsc.j2`; de
   ```
   - The `ansible` SSH identity (bootstrap-created, full group) is used; `admin` is password-only (never used for automation).
   - **Host-key pinning is mandatory** (the router rotated keys at every reset) — never `StrictHostKeyChecking=no` on a live edge.
-  - **Key-integrity gate (live 2026-09-01):** the `ansible-admin_ssh` private key in 1Password was found **truncated/corrupt** (OpenSSH struct parses to a 51-byte private section, missing the 32-byte seed — `ssh` fails `error in libcrypto`). `routeros-apply-delta.sh` parse-verifies the key FIRST and fails loud; the router fleet's `ansible.pub` is intact (match verified) but the private half must be **regenerated/re-imported by the owner** before any Ansible router converge or delta import succeeds again.
+  - **Key-extraction note (live 2026-09-01):** use `op read` (canonical, clean PEM), NOT `op item get --reveal` piped through shell — the latter emits an inconsistent leading `"`/`\n` wrapper that corrupts the key file and surfaces as OpenSSH's cryptic `error in libcrypto`. `routeros-apply-delta.sh` uses `op read` and verifies the key loads (ssh-keygen) before touching the device.
 - **Verify live state** afterward via the read-only API (`api_facts`, `mikrotik-read.py`) — never assume the import applied.
 
 ### Rsc authoring conventions (the rules that make imports safe)
