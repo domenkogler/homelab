@@ -674,6 +674,37 @@ and firewall are built from scratch). The role's first task is an **identity ass
 on `bridge-lan` is the **last** task (line ~811) so a half-applied run can never blackhole
 the bridge.
 
+#### 1.5.3b Converge-.rsc escape (Phase 1.5 live-validated 2026-08-31)
+
+If the Ansible role take-over stalls on live-found `api_modify` bugs (partial state left on
+the device), the pragmatic cutover path is a **generated full-steady-state `.rsc` import** —
+the same mechanism as the bootstrap. Render + import:
+
+```bash
+# from a session worktree, venv interpreter:
+ansible-playbook -i inventory.ini playbooks/render-converge.yml \
+  -e ansible_python_interpreter=~/ansible-venv/bin/python3
+# outputs IaC/router/rendered/rb4011_converge.rsc + crs328_converge.rsc (gitignored)
+```
+
+Then on each device: upload the matching `.rsc` + the `.pub` keys (rb4011: root
+`admin.pub`/`ansible.pub`; crs328: `flash/` per HD-304), `/import` in a WinBox terminal
+(or `run-after-reset=` on a clean device — the converge is self-sufficient: PPPoE + INPUT
+floor are included). **Order: crs328 first, then rb4011.** The converge is idempotent-ish
+(`/set` safe; `/add` on duplicates reports "already have" and continues).
+
+Live lessons baked into the templates: (a) **quote EVERY non-literal value** — the WG
+pubkey contains `+/=` and the admin/pppoe passwords contain `!`, all of which the RouterOS
+script parser mangles UNQUOTED (the operator hit the WG pubkey on import); (b) the crs328
+converge enables `vlan-filtering` as the LAST command (enabling it at bridge create severs
+the switch's own mgmt path — the recurring re-lock); (c) no forced `poe-out=on` (CRS328
+rejects it — `syntax error col 41`; the default `auto-on` powers APs/camera).
+
+⚠ **Secret hygiene for the converge path:** the rendered `.rsc` files contain LIVE secrets
+(admin password, PPPoE login). Never commit/push them (`IaC/router/rendered/` is
+gitignored), never cat/grep their values to a terminal/chat/transcript, and delete the
+folder or re-render after any secret rotation. CONVENTIONS §2.
+
 ### 1.5.4 Apply the CAPsMAN steady-state (the `wifi-qcom-ac` package, HD-232)
 
 After §1.5.3 settles and the role is green, push WiFi back up. This is **NOT a reset** —

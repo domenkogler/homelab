@@ -1624,6 +1624,37 @@
 - **doc updated:** `deployment-manual.md` §1.5.3 (runner note + worktree invocation + `--check` first); rest of fixes tracked in this journal entry.
 - **Todo/backlog:** todo.md HD-304 row tail updated (role compat fixes are IaC-done, deploy-gated on the live apply).
 
+### 2026-08-31 — Phase 1.5 · Router + switch LIVE converge (8 live-found bugs fixed) + converge-.rsc escape path + secret-exposure event `[AI]`
+
+- **Plan ref:** `deployment-manual.md` §1.5.3/§1.5.4/§1.5.5 (Ansible take-over + CAPsMAN + wg-s2s); this session executed the take-over and hit 8 distinct live bugs.
+- **Commands run (from session worktrees, venv interpreter):**
+  ```bash
+  # router take-over (first pass FAILED at vlan99 CREATE — bootstrap already had vlan99-mgmt):
+  ansible-playbook -i inventory.ini playbooks/router.yml -e ansible_python_interpreter=~/ansible-venv/bin/python3
+  # after fixes, router converged: ok=32 changed=9 failed=0
+  # switch take-over (FIRST pass: vlan-filtering-on-first re-locked the switch — unreachable):
+  ansible-playbook -i inventory.ini playbooks/switch.yml ...
+  # converge-.rsc escape path (operator imported via SSH/WinBox):
+  ansible-playbook -i inventory.ini playbooks/render-converge.yml   # → IaC/router/rendered/rb4011_converge.rsc + crs328_converge.rsc
+  # AP bootstrap re-render (after quote fixes):
+  ansible-playbook -i inventory.ini playbooks/render-routeros.yml
+  ```
+- **8 live-found bugs (all fixed + committed, signed `G`):**
+  1. router vlan99 name mismatch (`vlan99-mgmt` bootstrap vs `vlan99-management` role) → `already have such vlan`. Fixed role name to `vlan99-mgmt`.
+  2. router vlan-create `disabled: no` broke module entry-match (field compare) → omitted.
+  3. AP DHCP reservations referenced nonexistent `dhcp-99` → now `dhcp-mgmt` for vlan-99 APs.
+  4. non-ASCII (em-dash/arrow) in API-sent comments → librouteros ascii encode fail → ASCII equivalents (23 values).
+  5. `protocol: udp,tcp` multi-values rejected by ROS7 → split into udp/tcp rule pairs.
+  6. mgmt-service INPUT rules had `dst-port` without `protocol` (ports require tcp/udp) → added `protocol: tcp`.
+  7. Kids bedtime `time=` requires weekday suffix on ROS7 (`22:00:00-07:00:00` → `...,mon,tue,wed,thu,fri,sat,sun`).
+  8. switch phantom bridge: role configured `bridge-lan` but bootstrap made `bridge` → L2 split, switch unreachable. Renamed role refs to `bridge` + PoE `poe-out: on` (was invalid `at-45v-fixed`).
+- **Router untagged-vlan99 L2 break (2nd incident):** router `Configure VLAN 99 on trunk` was missing the untagged member list → vlan-filtering dropped vlan99 between the access ports and the sfp trunk → empty ARP, switch unreachable from laptop. Fixed: `untagged=ether2,ether3,ether7,ether9,ether10`.
+- **Converge-.rsc escape path (operator decision mid-cutover):** added `rb4011_converge.rsc.j2` + `crs328_converge.rsc.j2` (SSOT-regenerable full steady-state) + `playbooks/render-converge.yml`. Operator imported both (router + switch) after quoting the WG pubkey (see quote fix).
+- **Secrets (1P items touched, values never logged):** `mikrotik-admin_login.password`, `pppoe_login.{username,password}` — referenced by render + role lookups; used to inject the rendered `.rsc` and router PPPoE.
+- **⚠ SECRET-EXPOSURE EVENT (operator-aware, HD-233/234 precedent):** during diagnosis the session echoed secret VALUES (mikrotik admin password, pppoe creds) into the chat transcript from rendered files. Git was NOT affected (`IaC/router/rendered/` gitignored, nothing tracked — verified `git ls-files`). **Owner action (in progress):** manually rotate the MikroTik device admin passwords + update 1P `mikrotik-admin_login` + `pppoe_login`; re-render or delete `IaC/router/rendered/` after (now partially deleted). Repo-side: both render playbooks gained a secret-exposure hygiene warning (commit `5d3c0b2`).
+- **Deviations:** (1) took the converge-.rsc import path instead of completing the Ansible role take-over on the switch (role re-locked it; operator chose the rsc escape — validated as the pragmatic cutover path; role remains the drift tool post-cutover). (2) The `poe-out: on` forced value broke the crs328_converge import (`syntax error col 41`) → dropped, default `auto-on` used. (3) Added the pppoe-client interface + INPUT floor to `rb4011_converge.rsc` so it's self-sufficient for a standalone reset. (doc updated: `deployment-manual.md` will be updated in the close-out for the converge-.rsc path).
+- **Remaining (deploy-gated, this session's close):** CAPsMAN import (§1.5.4) + wg-s2s handshake verify (§1.5.5) + re-verify switch reachability from the laptop after the converge import anomalies; owner password rotation; the `validate-routeros7-syntax` linter (parked, next-free HD).
+
 
 ## Phase 3 — oldsrv
 
