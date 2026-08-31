@@ -1717,6 +1717,27 @@
 - **Secrets touched:** `ansible-admin_ssh` (private key used for router SCP+SSH), `mikrotik-admin_login` (API read-only). No secret VALUES written to chat/git/transcripts.
 - **doc updated:** `todo.md` (HD-308 closed, HD-309 added), `changelog.md` (HD-308 close row), this journal entry, `rb4011_converge.rsc.j2` + `roles/router/tasks/main.yml` (committed in this worktree).
 
+### 2026-09-01 — Shield Media-50 no-WAN L3: router DNS tertiary had no upstreams (SERVFAIL) + row-73 WAN accepts — FIXED + LIVE-VERIFIED `[AI]`
+
+- **Plan ref:** [todo.md HD-309](todo.md) (closed) · [network-ops.md](docs/network-ops.md) (apply model) · [network-dns.md](docs/network-dns.md) (tertiary upstreams)
+- **Root-cause correction:** HD-309's stated premise ("missing Media→WAN forward-ACCEPT") was NOT the blocker — the forward chain already default-accepts unmatched (no catch-all drop), proven by Mgmt egress working live (10.10.99.90: 75 established WAN conns, cloudflare 301 in 0.14 s). The true blocker: router `/ip dns servers=` was EMPTY → SERVFAIL on the per-VLAN gateway tertiary; Shield's DHCP resolvers 10.10.1.30/.20 not live until Phases 3/4 → apps failed DNS → "network error", zero WAN attempts (live conntrack: Media 64 conns all LAN).
+- **Owner decisions (2026-09-01):** ① `/ip dns servers=1.1.1.1,1.0.0.1` (network-dns.md line 104 final fallback); ② implement network-vlans.md row 73 "All (except IoT)→WAN Allowed" for ALL VLANs (Home/Media/Guest/Mgmt above IoT drop; Kids accept BELOW the bedtime `time=` drop so the block wins in-window).
+- **Commands run:**
+  ```bash
+  # IaC (committed 40802c5): roles/router/tasks/main.yml + rb4011_converge.rsc.j2
+  bash scripts/validate-all.sh   # green
+  bash scripts/ansible-run.sh playbooks/render-converge.yml   # render converge (secrets-injected, gitignored)
+  # transient delta (no Jinja) copied to rendered/, applied via the NEW helper:
+  bash scripts/routeros-apply-delta.sh 10.10.99.1 rb4011_wan_delta.rsc
+  #   -> OK: ansible key loads (fp SHA256:1uKz...) -> hostkey pinned -> SCP -> "/import rb4011_wan_delta.rsc"
+  #      -> "Script file loaded and executed successfully"
+  ```
+- **Key-extraction lesson (self-inflicted, corrected):** `op item get --reveal` piped through shell emits an inconsistent leading `"`/`\n` wrapper that corrupts the key file into OpenSSH's `error in libcrypto` — the vault key was NEVER broken (verified: `op read` clean PEM + `ssh-keygen -y` derives the exact `ansible.pub` the router trusts, fp `1uKz`). `routeros-apply-delta.sh` now uses `op read` + load-verify.
+- **Live state (2026-09-01):** forward chain rules 28–32 = Home/Media/Guest/Mgmt WAN accepts + Kids out-of-window accept; `/ip dns servers=1.1.1.1,1.0.0.1`, allow-remote=yes; router tertiary resolves `google.com`/`cloudflare.com` on both 10.10.99.1 AND 10.10.50.1 (Media gateway); Shield 10.10.50.10 now shows **6 established Media→public-WAN conns** (Google 142.251.x tcp/udp, 192.178.x, Akamai 2.22.x) — apps working.
+- **Also found (pre-existing, separate):** RB4011 clock is **12 days stale** (17:12 2026-08-20 vs real 2026-09-01 01:xx) — NTP not syncing; renders the Kids bedtime `time=` rule `invalid:true` (`inactive time`); duplex NAT has duplicate rows (converge + role both add masquerade + Kids DNS via `handle_absent_entries: ignore`) — both are follow-up HDs.
+- **Secrets touched:** `ansible-admin_ssh` (private key used for SCP; value → vault only, never printed), `mikrotik-admin_login` (API read). No secret VALUES written to chat/git/transcripts.
+- **doc updated:** `todo.md` (HD-309 closed/removed, HD-308 tail re-pointed), `changelog.md` (HD-309 close row), this journal entry, `docs/network-ops.md` (apply model + `routeros-apply-delta.sh`), `scripts/README.md` (new script row), `rb4011_converge.rsc.j2` + `roles/router/tasks/main.yml` (committed).
+
 ## Phase 3 — oldsrv
 
 
