@@ -782,5 +782,74 @@ ping -c3 router.kogler.si   # router over the tunnel (WG S2S, mgmt-VLAN IP behin
   closes when §1.5.5 handshakes.
 - Commit signed (`G`) on the session branch; merge to main; remove the worktree.
 
-*Last updated 2026-08-31 · Phases 0 + 0.5 + 1a complete (incl. 1a.0 pool bootstrap as executed); Phase 1 written from the settled 2026-08-22 initialization path (stack live, Verify evidence pass pending two owner inputs); **Phase 1.5 added 2026-08-31** — Network redo cutover runbook (render → per-device reset → router role → CAPsMAN import → wg-s2s handshake).*
+---
+
+## Phase 4 — Pi Fresh Install + HA Primary (`pi.kogler.si`)
+
+> **Depends on:** Phase 1.5 (VLANs / network reachability), Phase 2 (NAS NUT master), Phase 3 (old srv standby, Forgejo). The Pi is the HA **primary** node; oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP (`ha-vip`).
+> **1Password prerequisites:** `ha_api`, `ha-vrrp_password`, `nut_password`, `smtp_login` already exist; add `ha-mqtt_login` only if MQTT is introduced (out of scope).
+> **Continuation:** `ha.kogler.si` → VIP becomes live here; observability (Phase 6) scrapes the HA exporter and smart-home work (Phase 7) builds on this node.
+
+### 4.1 Flash + first-boot config `[MANUAL]`
+
+> The Pi uses a **pre-built image** (raspi.debian.net), NOT the Debian Installer/preseed path of nas/oldsrv — there is no `d-i` to answer questions, so `preseed.cfg` does not apply. Authoring spec: [deployment-preseed.md → Pi Image Deployment](docs/deployment-preseed.md).
+
+1. **Download** the latest tested Pi 4 image from https://raspi.debian.net/tested-images/ — a **system image** (installs Debian + firmware; the SD card's boot partition carries `bcm2711-rpi-4-b.dtb`, `config.txt`, `cmdline.txt`, kernel/initrd).
+2. **Flash** to microSD (≥32 GB; 32–64 GB typical) with Raspberry Pi Imager / Balena Etcher / `dd`. **Do NOT boot yet.**
+3. **Re-insert the SD card into the laptop** (USB adapter). The boot partition mounts as a drive/FAT32 (e.g. `E:`). From WSL, mount it:
+   ```bash
+   sudo mkdir -p /mnt/e && sudo mount -t drvfs E: /mnt/e
+   ls /mnt/e/config.txt /mnt/e/cmdline.txt   # must exist — verifies it's the Pi boot partition
+   ```
+   ⚠ **WSL2 cannot see USB raw devices** — no `/dev/sdX` for the card, and cannot mount the ext4 **root** partition. Only the FAT32 boot partition (via the drive letter) is editable from WSL. That is sufficient: first-boot config needs only boot-partition files. To edit the root filesystem (e.g. `PermitRootLogin`), you'd need a native Linux host / live USB — **not needed** for the cloud-init path.
+4. **Run the first-boot config script** (enables SSH, writes cloud-init `user-data` with the Ansible + AI SSH keys, writes `firstboot.sh` fallback, sets hostname):
+   ```bash
+   bash IaC/host/pi/first-boot-config.sh /mnt/e
+   ```
+   - The script's **SSH key lines** are key-string stubs in the repo by design (never commit keys). Substitute the real 1Password pubkeys before running — the script's **HD-201 gate** asserts no stubs remain in the *written* files and refuses (exit 1) otherwise:
+     - `laptop-domen_ssh.public key` → `ansible-admin` (admin@laptop)
+     - `ansible-admin_ssh.public key` → `ansible-admin` (ansible)
+     - `ai_ssh.public key` → `ai-debug` (restricted: `no-agent-forwarding,no-port-forwarding,no-X11-forwarding`, scoped to the Home VLAN per the AI-user convention — the `from="…"` source restriction is authored in [first-boot-config.sh](IaC/host/pi/first-boot-config.sh) / [deployment-preseed.md](docs/deployment-preseed.md))
+   - Recommended: build a **keyed temp copy** (e.g. `/tmp/pi-keys/first-boot-config-keyed.sh`, 0700, gitignored) with real pubkeys substituted, run that against `/mnt/e`, and confirm zero stub hits in the written `user-data`/`firstboot.sh` (the gate pattern the script asserts against).
+   ✔ `[1/4] SSH enabled (boot/ssh)` · `[2/4] user-data written` · `[3/4] firstboot.sh written` · `[4/4] Hostname pi` (skips harmlessly if the root partition isn't mounted — hostname is set via cloud-init anyway) · the written `user-data`/`firstboot.sh` carry **zero** gate-pattern matches.
+5. **Eject safely** (Windows Eject, or `sudo umount /mnt/e`), insert into the Pi, power on.
+
+### 4.2 First-boot verification `[MANUAL]`
+
+```bash
+ping pi.kogler.si          # node resolves to its VLAN-10 static IP per the SSOT ([network-addresses-generated.md](docs/network-addresses-generated.md))
+ssh ansible-admin@pi.kogler.si    # key-only, no password prompt
+# if cloud-init worked, users exist; otherwise on the Pi:
+sudo bash /boot/firstboot.sh
+```
+
+✔ SSH key-only login as `ansible-admin`; `ssh ai-debug@pi.kogler.si` refused from outside the Home VLAN (the `from="…"` restriction authored in the first-boot script).
+
+> ⚠ Verify the **router-side DHCP reservation** for the Pi's MAC matches the SSOT node IPs (VLAN 10 + mgmt VLAN 99 — see [network-addresses-generated.md](docs/network-addresses-generated.md)) before relying on static IPs.
+
+### 4.3 Ansible provisioning
+
+```bash
+# from the WSL Debian runner (venv), with the 9P sync gate satisfied:
+bash scripts/ansible-run.sh playbooks/raspberry_pi.yml
+# first apply human-gated: dry-run (--check --diff) then single host
+```
+
+Role order is **load-bearing** (HD-185/204 render-first decision): `common` → `ai_diag` → `network` (static VLAN-10 IP) → `nut` (client, `shutdown_delay_seconds=0`) → `docker` → **`home_assistant` → `docker_services`** → `monitoring` (Alloy only). Running `home_assistant` BEFORE `docker_services` renders `configuration.yaml` / `keepalived.conf` (+ `secrets.yaml` once its renderer lands, HD-185) as **regular files** before first `compose up` — the old KOPS-063 order made Docker auto-create bind-mount dirs and HA silently ran default config. Do not reorder.
+
+Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefik-ha` (the minimal VIP edge). **No** pihole, **no** raspberrymatic (HD-13 parked — HmIP-HAP stays in cloud mode).
+
+### 4.4 Verify
+
+- `ha.kogler.si` resolves to the VIP (`ha-vip` per SSOT); `keepalived` MASTER on the Pi (priority 110 > oldsrv's 100).
+- Technitium (Pi node IP per SSOT) resolves `*.kogler.si` internally; primary on VPS/oldsrv per HD-299 (3-instance DNS HA still to build).
+- HA web login via Authentik **native OIDC** on the `ha` route (no Forward-Auth).
+- Manual failover Pi→oldsrv and back passes ([smart-home-failover.md](docs/smart-home-failover.md) runbook; HD-17 button + `ha-failover_api` still pending).
+- NUT client shutdown path (master = nas) · monitoring scrape of the HA exporter (Phase 6).
+
+> **Deploy-gated:** HD-04 (HAOS→Debian+HA Container+Technitium secondary) — approved direction, not yet applied until live-verify; HD-17/124 (failover button + keepalived hardening) still pending. See [todo.md](todo.md) rows + [home-assistant-current.md](docs/home-assistant-current.md).
+
+---
+
+*Last updated 2026-08-31 · Phases 0 + 0.5 + 1a complete (incl. 1a.0 pool bootstrap as executed); Phase 1 written from the settled 2026-08-22 initialization path (stack live, Verify evidence pass pending two owner inputs); **Phase 1.5 added 2026-08-31** — Network redo cutover runbook (render → per-device reset → router role → CAPsMAN import → wg-s2s handshake); **Phase 4 added 2026-08-31** — Pi image flash + first-boot-config + Ansible + verify (imperative procedure, executed card prep 2026-08-31).*
 
