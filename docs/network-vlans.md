@@ -74,7 +74,11 @@ tags: [network, vlan, firewall]
 
 Implemented with **address-lists** and **interface lists** in RouterOS.
 
-> **Kids VLAN status (HD-179, decided 2026-08-21):** the Kids controls above (bedtime block, forced filtered DNS, Kids→Home drop) are **in scope for Phase 1.5** — implementation tracked **HD-182**; the router role carries a placeholder until then. Treat the three Kids rows as ⏳ planned, not implemented, when verifying the Phase 1.5 firewall matrix.
+> **Kids VLAN status (HD-179, decided 2026-08-21; impl = HD-182):** the three Kids controls above
+> (bedtime block, forced filtered DNS, Kids→Home drop) are implemented in the router role. The
+> **bedtime 22:00–07:00 `time=` drop is confirmed working on RouterOS 7** (verified live 2026-09-01;
+> `invalid=true` when read outside the 22:00–07:00 window is RouterOS's normal out-of-window display,
+> not a defect). ⏳ Still deploy-gated: the forced-DNS hijack and the Kids→Home drop live-verify.
 
 > **Router INPUT chain (HD-78 / KOPS-003/009):** the rules above are the `forward` (inter-VLAN) policy.
 > Separately, the router's **own** management service ports (`22,8728,8729,8291,80,443`) are gated by a

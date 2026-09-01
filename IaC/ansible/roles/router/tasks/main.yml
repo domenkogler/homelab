@@ -421,6 +421,12 @@
 # Firewall - NAT Masquerade
 # -------------------------------------------------------------------------
 - name: Configure NAT masquerade for outbound traffic
+  # RECONCILE (not "ignore"): converge .rsc + this role both own these 3 NAT
+  # rows. With handle_absent_entries: ignore (the old behavior) a converge-import
+  # stacked its 3 rows on top of the role's 3, and neither side removed them ->
+  # live duplex NAT (2x masquerade + 2x Kids DNS, found 2026-09-01). Mirror the
+  # forward-chain pattern so the NAT table converges to exactly these rows no
+  # matter the prior state.
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -429,7 +435,12 @@
     validate_certs: false
     port: "{{ routeros_api_port }}"
     path: ip firewall nat
-    handle_absent_entries: ignore
+    handle_absent_entries: remove
+    handle_entries_content: remove_as_much_as_possible
+    ensure_order: true
+    restrict:
+      - field: chain
+        values: [srcnat, dstnat]
     data:
       - chain: srcnat
         out-interface: pppoe-telekom
@@ -667,8 +678,15 @@
       # reboot mid-window. The time= param is stateless, reboot-safe and idempotent.
       # RouterOS 7 validates the value strictly: bare `22:00:00-07:00:00` (no weekday
       # suffix) is rejected with `invalid value for argument time` — the weekday list
-      # (mon,tue,wed,thu,fri,sat,sun) must be present (probed live 2026-08-31).
-      # ⏳ Deploy-gated: confirm the overnight span renders correctly on RouterOS 7.
+      # (mon,tue,wed,thu,fri,sat,sun) must be present (probed live 2026-08-31). The
+      # overnight (22h-7h cross-midnight) span RENDERS and WORKS on RouterOS 7 —
+      # verified live 2026-09-01. Note: a time= rule that is currently OUTSIDE its
+      # active window reads `invalid=true` / `inactive time` (normal RouterOS display,
+      # NOT a syntax error) — confirmed by a controlled live probe (a currently-active
+      # time rule reads `invalid=false`). This rule's `invalid=true` outside 22:00-07:00
+      # is expected, not a bug. (The earlier "stale clock -> inactive rule" reading was
+      # incorrect: the clock was NTP-synced and this display is time-window-based, not
+      # clock-based.)
       - chain: forward
         src-address: "{{ vlan_subnets[40] }}"
         out-interface: pppoe-telekom

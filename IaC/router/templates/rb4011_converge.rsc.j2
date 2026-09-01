@@ -125,6 +125,12 @@
 /ip address add address={{ comtrend_modem.router_on_modem }} interface=ether1 comment="Comtrend modem mgmt /32 (HD-302)"
 
 # ---- Firewall: NAT (masquerade + Kids forced DNS) ----
+# Reset both NAT chains first (re-import safety + dedup against the reconciling
+# router role, which also owns these rows). Without the reset, converge's
+# unguarded /add would re-stack duplicates on top of the role's rows (live
+# duplex NAT bug, 2026-09-01: converge + role both added masquerade + Kids DNS).
+/ip firewall nat remove [find chain=srcnat]
+/ip firewall nat remove [find chain=dstnat]
 /ip firewall nat
 add chain=srcnat out-interface=pppoe-telekom action=masquerade comment="Masquerade -> WAN"
 add chain=dstnat src-address=10.10.40.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - UDP 53 -> Technitium"
