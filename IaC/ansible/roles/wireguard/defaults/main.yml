@@ -16,3 +16,11 @@
 # systemd-networkd interface + unit basename.
 wg_interface: wg-s2s
 wg_netdev_dir: /etc/systemd/network
+
+# HD-306: systemd 257 networkd creates wg-s2s but never applies the [WireGuardPeer] to
+# the kernel (interface up, no peer). The proven reliable workaround is `wg setconf` from
+# a rendered conf file — the conf MUST omit PrivateKey (live-verified 2026-09-01: a
+# setconf conf with a PrivateKey line silently drops the peer on this kernel; the key is
+# already on the interface from the .netdev). The conf is therefore secret-free (0644).
+wg_ensure_dir: /usr/local/libexec/wireguard
+wg_conf_dir: /etc/wireguard

@@ -739,7 +739,19 @@ ansible-playbook -i inventory.ini playbooks/router.yml -e ansible_python_interpr
 sudo wg show wg-s2s                        ; peer with public key gwXAk+5…, latest-handshake non-zero
 ```
 
-> ⚠ **Known blocker (HD-306):** on VPS kernel `6.12.101` + systemd 257 the wireguard **peer currently does not attach** — the interface comes up (key/address/listen) but `wg show` shows no peer even after a correctly-formed `.netdev` `[WireGuardPeer]` or `wg setconf` (module refcount stays 0). See `todo.md` HD-306 for the research path; once it binds, re-run the two commands above and verify the handshake.
+> ✅ **HD-306 RESOLVED (2026-09-01):** on VPS kernel `6.12.101` + systemd 257 the wireguard peer does not
+> auto-attach — networkd creates `wg-s2s` (key/address/listen) but never applies the `[WireGuardPeer]` to the
+> kernel, and a `wg setconf` conf containing a `PrivateKey` line silently drops the peer. The wireguard role now
+> renders a **peer-only `wg-s2s.conf`** (no `PrivateKey` — the key comes from the `.netdev`) and ships the
+> **`wg-ensure-s2s-peer`** oneshot (`PartOf=systemd-networkd.service`), so `wg setconf` re-attaches the peer
+after networkd init/boot automatically. Verify:
+
+```bash
+systemctl status wg-ensure-s2s-peer      # active (exited) after boot / networkd restart
+sudo wg show wg-s2s                       ; peer gwXAk+5… with endpoint + allowed ips
+sudo systemctl restart systemd-networkd; sleep 4; systemctl start wg-ensure-s2s-peer
+sudo wg show wg-s2s                       ; peer re-attached (boot-path proof)
+```
 
 Live-verify from the VPS:
 
@@ -747,7 +759,7 @@ Live-verify from the VPS:
 ping -c3 router.kogler.si   # router over the tunnel (WG S2S, mgmt-VLAN IP behind wg-s2s)
 ```
 
-**Authoring pitfalls for the wireguard role templates (do not relearn):** ① Jinja newline-glue — Ansible `template` `trim_blocks` eats a literal newline after `{% endfor %}` → `AllowedIPs=…24Endpoint=…` glued on one line (peer dropped). Emit an explicit `{{ '\n' }}`. ② `.netdev` perms must be `0640` (`0600` + ACL `mask::---` → networkd `Permission denied`; networkd runs as `systemd-network`). ③ `[WireGuardPeer]` belongs in `.netdev` (`Kind=wireguard`); a `[WireGuardPeer]` section in `.network` is ignored (`Unknown section`).
+**Authoring pitfalls for the wireguard role templates (do not relearn):** ① Jinja newline-glue — Ansible `template` `trim_blocks` eats a literal newline after `{% endfor %}` → `AllowedIPs=…24Endpoint=…` glued on one line (peer dropped). Emit an explicit `{{ '\n' }}`. ② `.netdev` perms must be `0640` (`0600` + ACL `mask::---` → networkd `Permission denied`; networkd runs as `systemd-network`). ③ `[WireGuardPeer]` belongs in `.netdev` (`Kind=wireguard`); a `[WireGuardPeer]` section in `.network` is ignored (`Unknown section`). ④ **`wg setconf` conf must NOT contain a `PrivateKey` line** — on this kernel a setconf with `PrivateKey` silently drops the peer while the same conf without it attaches + persists (HD-306 live lesson); the private key stays in the `.netdev` and the interface already carries it.
 
 ### 1.5.6 Cutover close-out
 

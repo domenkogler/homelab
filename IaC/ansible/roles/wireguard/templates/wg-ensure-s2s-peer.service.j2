@@ -1,0 +1,23 @@
+# Ensure the wg-s2s peer is attached after systemd-networkd creates the interface.
+# systemd 257 networkd creates wg-s2s but does not apply the [WireGuardPeer] (HD-306).
+# This oneshot re-surfaces the peer via `wg set`; secret-free (peer public key +
+# allowed IPs + endpoint only — private key stays in the .netdev).
+#
+# Ordering: After=systemd-networkd.service (not -wait-online, which can stay stuck in
+# `activating` on this host — the script poll-waits for the interface instead).
+# PartOf=networkd re-runs the unit when networkd itself restarts, so a networkd
+# recreate of the interface re-attaches the peer automatically.
+[Unit]
+Description=Ensure wg-s2s WireGuard peer is attached (systemd-257 networkd workaround, HD-306)
+After=systemd-networkd.service
+PartOf=systemd-networkd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart={{ wg_ensure_dir }}/wg-ensure-s2s-peer.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

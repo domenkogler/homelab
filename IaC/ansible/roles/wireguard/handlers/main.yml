@@ -8,3 +8,15 @@
     state: restarted
     daemon_reload: true
   tags: always
+
+- name: daemon-reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+  tags: always
+
+# HD-306: re-apply the peer after networkd (re)creates the interface.
+- name: ensure wg-s2s peer
+  ansible.builtin.systemd:
+    name: wg-ensure-s2s-peer
+    state: restarted
+  tags: always

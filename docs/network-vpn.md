@@ -49,6 +49,15 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 > (ICMP) — **not** the whole `site` /16. The RB4011 additionally enforces a forward ACL (`vps_s2s_peer` →
 > `vps_scoped_home` accept, else drop). See [`security.md`](security.md) §9.
 
+> **HD-306 (VPS-side peer bind, RESOLVED 2026-09-01):** on VPS kernel `6.12.101` + systemd 257, networkd creates the
+> `wg-s2s` interface (key/address/listen) but **never applies the `[WireGuardPeer]` block to the kernel** — `wg show`
+> shows no peer (the module still loads; `wg setconf` silently drops the peer when the conf carries a `PrivateKey`
+> line — live-verified).**Root cause + fix:** the role renders a peer-only `wg-s2s.conf` (NO `PrivateKey` — the key
+> stays in the `.netdev`, 0640) and ships a `wg-ensure-s2s-peer` oneshot that runs `wg setconf wg-s2s
+> /etc/wireguard/wg-s2s.conf` after networkd init (`PartOf=systemd-networkd.service` → auto re-runs on networkd
+> restart/boot). Live-verified: peer attaches + persists across `networkctl reconfigure` and a networkd restart; the
+> oneshot re-attaches it automatically. Handshake still requires the **router side** (HD-285, Phase 1.5).
+
 ## Layer 2: Headscale (Mobile Mesh)
 
 > **Naming + policy contract (Wave-3 R5, 2026-08-22):** headscale ≥ 0.24 REJECTS a

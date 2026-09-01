@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Ensure the wg-s2s peer is attached to the VPS WireGuard interface.
+#
+# systemd 257 networkd creates the wg-s2s interface (from wg-s2s.netdev) but
+# never applies the [WireGuardPeer] block to the kernel — `wg show wg-s2s` shows
+# the interface with no peer (HD-306, live-verified 2026-09-01). The proven-reliable
+# workaround is `wg setconf` from a rendered conf file (plain `wg set` peer-add is
+# flaky on the networkd-owned interface). This oneshot re-applies the full conf
+# (interface key/listen + peer) after networkd init; it is idempotent.
+#
+# We deliberately do NOT depend on systemd-networkd-wait-online (it can stay
+# stuck in `activating` on this host — live-found 2026-09-01). Instead we poll
+# for the interface to appear with a bounded timeout.
+set -euo pipefail
+
+iface="{{ wg_interface }}"
+conf="{{ wg_conf_dir }}/{{ wg_interface }}.conf"
+
+# Wait for networkd to create the interface (bounded; boot race).
+waited=0
+until ip link show "${iface}" >/dev/null 2>&1; do
+    if [ "$waited" -ge 30 ]; then
+        echo "wg-ensure-s2s-peer: interface '${iface}' never appeared (waited ${waited}s)" >&2
+        exit 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+done
+
+if [ ! -r "${conf}" ]; then
+    echo "wg-ensure-s2s-peer: conf '${conf}' missing/unreadable" >&2
+    exit 1
+fi
+
+/usr/bin/wg setconf "${iface}" "${conf}"
+echo "wg-ensure-s2s-peer: applied ${conf} to ${iface} (peer attached)"

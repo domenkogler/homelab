@@ -284,7 +284,7 @@ IaC/ansible/
 │   ├── nut/                         # UPS: master (nas) + clients (oldsrv, pi) — host-level, no Docker
 │   ├── cockpit/                     # management UI + file-provider Traefik routes (HD-188)
 │   ├── cifs/                        # VPS live-Box CIFS mount
-│   ├── wireguard/                   # WG S2S VPS side (router peer lives in roles/router)
+│   ├── wireguard/                   # WG S2S VPS side (router peer lives in roles/router) — netdev + `wg-ensure-s2s-peer` oneshot (HD-306: networkd never applies the peer; a peer-only `wg setconf` re-attaches it after networkd init)
 │   ├── cloudflare_dns/              # public-record runs (vars/main.yml = IaC side of the record SSOT)
 │   ├── vps-hardening/tasks/main.yml # HD-154: VPS pre-deploy hardening — fail2ban, nftables default-deny, docker daemon (public edge only)
 │   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE

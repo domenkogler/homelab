@@ -70,9 +70,72 @@
   notify: restart systemd-networkd
   tags: wireguard
 
+# ---- HD-306: systemd 257 networkd creates wg-s2s but does NOT apply the [WireGuardPeer] ----
+# (interface up/key/address/listen, but `wg show wg-s2s` has no peer — live-verified
+# 2026-09-01). `wg setconf` from a rendered conf is the proven-reliable re-attach, and
+# the conf MUST omit PrivateKey (live-verified: a setconf conf with a PrivateKey line
+# silently drops the peer on this kernel; the key is already on the interface from the
+# .netdev). The conf is therefore secret-free (0644).
+
+- name: Create wg-ensure-s2s-peer script directory
+  ansible.builtin.file:
+    path: "{{ wg_ensure_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  tags: wireguard
+
+- name: Create wg conf directory (root-only)
+  ansible.builtin.file:
+    path: "{{ wg_conf_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  tags: wireguard
+
+- name: Render wg-ensure-s2s-peer script (wg setconf peer re-attach)
+  ansible.builtin.template:
+    src: wg-ensure-s2s-peer.sh.j2
+    dest: "{{ wg_ensure_dir }}/wg-ensure-s2s-peer.sh"
+    owner: root
+    group: root
+    mode: '0755'
+  tags: wireguard
+
+- name: Render wg-s2s.conf (wg setconf source — peer only, no PrivateKey)
+  ansible.builtin.template:
+    src: wg-s2s.conf.j2
+    dest: "{{ wg_conf_dir }}/{{ wg_interface }}.conf"
+    owner: root
+    group: root
+    mode: '0644'   # no secret (PrivateKey deliberately omitted — HD-306: a PrivateKey line breaks wg setconf peer-add); the key lives in the .netdev (0640)
+  tags: wireguard
+
+- name: Render wg-ensure-s2s-peer systemd oneshot unit
+  ansible.builtin.template:
+    src: wg-ensure-s2s-peer.service.j2
+    dest: "/etc/systemd/system/wg-ensure-s2s-peer.service"
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - daemon-reload
+    - ensure wg-s2s peer
+  tags: wireguard
+
 - name: Ensure systemd-networkd is enabled + running
   ansible.builtin.systemd:
     name: systemd-networkd
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags: wireguard
+
+- name: Enable + start wg-ensure-s2s-peer oneshot (re-attach peer after networkd init)
+  ansible.builtin.systemd:
+    name: wg-ensure-s2s-peer
     state: started
     enabled: true
     daemon_reload: true
