@@ -89,4 +89,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-08-31T21:55:34Z
+> Generated from the `docker_services` lists | 2026-09-01T19:18:09Z

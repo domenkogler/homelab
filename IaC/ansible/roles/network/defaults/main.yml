@@ -1,0 +1,16 @@
+---
+# network role — host networking foundation + SSOT doc render.
+# Role-internal knobs ONLY (architecture values live in host_vars/group_vars):
+#   - NetworkManager keyfile path + per-host dual-home toggle.
+#   - Per-host config-manager: RPi OS ships NetworkManager (Pi-uses-NM, network-rejected.md
+#     2026-09-01); desktop/VPS use systemd-networkd. This role only touches NM when the
+#     host explicitly opts in (pi_dual_home) — never installs/disables a manager.
+
+# NM keyfile directory (Debian trixie / RPi OS).
+nm_keyfile_dir: /etc/NetworkManager/system-connections
+
+# Pi (RPi OS) static dual-home via NetworkManager — enabled on pi.kogler.si only.
+# The feature is OFF for every host by default; the playbook/group_vars turns it on
+# where the host ships NetworkManager.
+nm_pi_profile: pi-eth0.nmconnection      # on-disk keyfile name (in nm_keyfile_dir)
+nm_pi_connection_id: pi-eth0             # the NM connection id (used by nmcli)

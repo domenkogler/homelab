@@ -1,0 +1,9 @@
+---
+# network role handlers. tags: always — handlers are tag-filtered like tasks; without it a
+# notified reload is silently skipped under e.g. --tags network (HD-220/HD-237 sweep).
+
+- name: reload NetworkManager
+  ansible.builtin.systemd:
+    name: NetworkManager
+    state: reloaded
+  tags: always

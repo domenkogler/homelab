@@ -12,8 +12,7 @@
 | RouterOS bootstrap scripts | `IaC/router/templates/{rb4011,crs328,ap}_initial.rsc.j2` (3) — rendered with secrets via `playbooks/render-routeros.yml` into gitignored `IaC/router/rendered/`; never import the raw template | — |
 | Bootstrap | runner setup relocated to `scripts/bootstrap-runner.sh`; `post_install.sh`, `pi/first-boot-config.sh` stay in `IaC/host/` (deploy payloads) | — |
 
-> `network` role: static-IP + VLAN trunk provisioning is a scoped TODO until the host network config manager (systemd-networkd vs netplan) is decided — see `roles/network/tasks/main.yml`.
-> `network` role: static-IP + VLAN trunk provisioning is a scoped TODO until the host network config manager (systemd-networkd vs netplan) is decided — see `roles/network/tasks/main.yml`.
+> `network` role: static-IP + VLAN trunk provisioning: **Pi (HD-307, 2026-09-01) now implemented via NetworkManager** (RPi OS ships NM; Pi-uses-NetworkManager, `network-rejected.md`); the other hosts' static/VLAN work remains a scoped TODO until each host's config-manager is settled (desktop/VPS use systemd-networkd). See `roles/network/tasks/main.yml`.
 
 ## Hostname / Domain Convention
 
@@ -158,8 +157,8 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Secrets:** None.
 
 ### `network`
-- **Current scope (foundation):** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml`.
-- **Pending:** VLAN sub-interface on trunk port, static IP (VLAN 99 for oldsrv, VLAN 10 + 99 native for nas); Pi static IP on Home VLAN. Network config-manager (systemd-networkd vs netplan) decision needed first.
+- **Current scope:** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml`; **Pi static dual-home via NetworkManager (HD-307, 2026-09-01)** — RPi OS ships NetworkManager, so the Pi gets an NM keyfile profile (`pi-eth0.nmconnection`) with Home + Mgmt static (per `network-addresses-generated.md` SSOT), default via Home, Mgmt never-default. See `network-rejected.md` (Pi-uses-NetworkManager).
+- **Pending:** static IP + VLAN trunk/sub-interface for oldsrv (VLAN 99 native + 10/20/50 tagged) and nas (VLAN 10 + 99 native) once each host's config-manager is settled (desktop/VPS use systemd-networkd).
 - **All hosts:** `/etc/hosts` template with all node entries (resolved via local DNS)
 
 ### `cockpit`

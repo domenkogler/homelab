@@ -1,18 +1,18 @@
 ---
 # network role — host networking foundation + SSOT doc render.
-# Current scope (safe, deterministic):
+# Current scope:
 #   1. assert we run as an allowed admin user (mirror of common's guard)
 #   2. sync /etc/hosts from the shared template (same source as playbooks/all.yml)
-#   3. render docs/network-addresses-generated.md from IaC via render-docs.yml (run by site.yml)
+#   3. Pi (RPi OS, NetworkManager): static dual-home on eth0 — Home 10.10.1.20 + Mgmt
+#      10.10.99.20 from host_vars (ansible_host/mgmt_ip) via an NM keyfile profile
+#      (Pi-uses-NetworkManager, network-rejected.md 2026-09-01 / HD-307; RPi OS ships NM,
+#      no systemd-networkd active). Session-safe: additive addresses, default via Home,
+#      Mgmt never-default.
+#   4. render docs/network-addresses-generated.md from IaC via render-docs.yml (run by site.yml)
 #
-# REMAINING (scoped TODO — kept out of this role until the config manager is
-# decided): static IP + VLAN trunk/sub-interface provisioning per host, using
-# `home_ip` / `mgmt_ip` / `ilo_ip` from host_vars. The host network stack manager
-# (systemd-networkd vs netplan) is still undecided.
-# Once chosen, add:
-#   - template networkd/netplan unit per host (Home access + Mgmt native + trunk
-#     for oldsrv: 10,20,50 tagged + 99 native; nas: VLAN10 + 99 native; Pi: VLAN10)
-#   - restart/verify idempotently, never severing the Ansible session.
+# REMAINING (scoped TODO): static IP + VLAN trunk/sub-interface provisioning for the other
+# hosts (oldsrv trunk 10+20+50 + 99 native; nas VLAN10 + 99) once their config-manager is
+# settled (desktop/VPS use systemd-networkd; Pi uses NetworkManager — see network-rejected.md).
 - name: Refuse network runs as ai-debug or unknown users
   assert:
     that:
@@ -30,3 +30,42 @@
     group: root
     mode: '0644'
   tags: [hosts, network]
+
+# Pi static dual-home via NetworkManager (HD-307, Pi-uses-NM decision network-rejected.md 2026-09-01).
+# RPi OS ships NetworkManager (no systemd-networkd active) — this is the Pi's manager.
+# Guarded to pi.kogler.si only: no other host opts into NM dual-home yet; desktop/VPS stay
+# systemd-networkd. Values are SSOT-derived (host_vars ansible_host/mgmt_ip + network_static_hosts).
+- name: Render Pi eth0 NetworkManager keyfile (static dual-home)
+  template:
+    src: pi-eth0.nmconnection.j2
+    dest: "{{ nm_keyfile_dir }}/{{ nm_pi_profile }}"
+    owner: root
+    group: root
+    mode: '0600'
+  when:
+    - inventory_hostname == 'pi.kogler.si'
+    - ansible_facts['service_mgr'] == 'systemd'
+    - mgmt_ip is defined
+    - ansible_host is defined
+  notify: reload NetworkManager
+  tags: [network, nm-pi]
+
+# Load the profile into NetworkManager (idempotent: `load` then `up` the connection).
+# A reload alone does not activate a NEW keyfile — NM must load it and bring eth0 up on it.
+- name: Load + activate Pi eth0 NM connection
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - connection
+      - up
+      - "{{ nm_pi_connection_id }}"
+  register: nm_pi_up
+  changed_when: "'successfully activated' in nm_pi_up.stdout or 'failed' in nm_pi_up.stdout"
+  failed_when:
+    - nm_pi_up.rc != 0
+  when:
+    - inventory_hostname == 'pi.kogler.si'
+    - ansible_facts['service_mgr'] == 'systemd'
+    - mgmt_ip is defined
+    - ansible_host is defined
+  tags: [network, nm-pi]
