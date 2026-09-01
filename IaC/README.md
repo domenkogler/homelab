@@ -157,7 +157,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Secrets:** None.
 
 ### `network`
-- **Current scope:** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml`; **Pi static dual-home via NetworkManager (HD-307, 2026-09-01)** — RPi OS ships NetworkManager, so the Pi gets an NM keyfile profile (`pi-eth0.nmconnection`) with Home + Mgmt static (per `network-addresses-generated.md` SSOT), default via Home, Mgmt never-default. See `network-rejected.md` (Pi-uses-NetworkManager).
+- **Current scope:** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml`; **Pi static dual-home via NetworkManager (HD-307, 2026-09-01)** — RPi OS ships NetworkManager, so the Pi gets an NM keyfile profile (`pi-eth0.nmconnection`) with Home + Mgmt static (per `network-addresses-generated.md` SSOT), default via Home (single gateway — no `never-default`), DNS via `bootstrap_dns_servers`. See `network-rejected.md` (Pi-uses-NetworkManager).
 - **Pending:** static IP + VLAN trunk/sub-interface for oldsrv (VLAN 99 native + 10/20/50 tagged) and nas (VLAN 10 + 99 native) once each host's config-manager is settled (desktop/VPS use systemd-networkd).
 - **All hosts:** `/etc/hosts` template with all node entries (resolved via local DNS)
 

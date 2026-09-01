@@ -105,7 +105,7 @@ Static DHCP reservations (SSOT: `group_vars/all.yml` → `network_static_hosts`,
   2026-08-31. A stale dynamic Mgmt lease (`.97`) was removed so the static reservation binds at
   the next renewal; host-side static dual-home implemented via the `network` role's
   **NetworkManager keyfile** (`pi-eth0.nmconnection`, Home + Mgmt static per SSOT, default
-  via Home, Mgmt never-default — see [network-rejected.md](network-rejected.md) Pi-uses-NM);
+  via Home — single gateway, no `never-default` — see [network-rejected.md](network-rejected.md) Pi-uses-NM);
 - **Laptop** (`laptop-domen`, added 2026-09-01): static on `dhcp-mgmt` (was dynamic `.99.90`);
   SSOT row in [network-addresses-generated.md](network-addresses-generated.md);
 - **APs** `ap-*` → `dhcp-mgmt`; other reserved devices → their VLAN's `dhcp-<id>`.

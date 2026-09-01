@@ -1,12 +1,14 @@
 # NetworkManager keyfile for the Pi (RPi OS / Debian trixie) — static dual-home.
 # Pi-uses-NetworkManager (network-rejected.md 2026-09-01, HD-307): RPi OS ships NM (no
 # systemd-networkd active), so the `network` role configures eth0 here.
-# SSOT: addresses come from host_vars (ansible_host = Home, mgmt_ip = Mgmt) and the
-# Home gateway from group_vars/all/main.yml network_static_hosts — never literals.
+# SSOT: addresses come from host_vars (ansible_host = Home, mgmt_ip = Mgmt), the Home
+# gateway from group_vars/all/main.yml network_static_hosts, the resolver from
+# bootstrap_dns_servers (public until Technitium lands — see group_vars/all.yml) —
+# never literals.
 # Session-safety: adding both addresses is additive; NM never drops the interface or
-# the Home address mid-run. Home leg carries the default route; Mgmt leg is
-# never-default (no mgmt default route) — the admin laptop reaches the Pi via the
-# router's Mgmt(99)->Home(10) accept (HD-307 router-side).
+# the Home address mid-run. Home leg carries the default route (ONE gateway = the Home
+# gateway); the Mgmt leg is a connected /24 from address2 — no separate gateway, so
+# never-default would wrongly kill the default route (do NOT set it).
 [connection]
 id={{ nm_pi_connection_id }}
 type=ethernet
@@ -18,7 +20,7 @@ method=manual
 address1={{ ansible_host }}/24
 address2={{ mgmt_ip }}/24
 gateway={{ network_static_hosts | selectattr('name','equalto','router') | selectattr('vlan','equalto',10) | map(attribute='ip') | first }}
-never-default=true
+dns={{ bootstrap_dns_servers }};
 dns-search={{ domain_local }};
 
 [ipv6]
