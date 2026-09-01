@@ -21,6 +21,11 @@ routeros_expected_identity: "router.kogler.si"
 # cannot drift (audit H2 / iac-changes §2).
 vlans: "{{ [ {'id': 1, 'name': 'Blackhole', 'subnet': '0.0.0.0/0', 'unused': True} ] + network_vlans }}"
 
+# Port model (decided 2026-09-01): untagged = primary/access VLAN (Home 10 for admin/PC/Pi),
+# tagged = secondary/admin backplane (Management 99). A single untagged port can carry only
+# ONE VLAN (untagged frames map to pvid) — so dual-homed hosts ride Home untagged + Mgmt tagged.
+# This is the fixed port model (network-vlans.md Port Type Reference); it supersedes the old
+# "Mgmt-access + single-VLAN" model that left the Pi's Home leg dead (HD-307 / HD-308 class).
 router_port_map:
   wan:
     port: ether1
@@ -28,23 +33,33 @@ router_port_map:
     mac: "1C:64:99:51:BF:92"
   old-srv:
     port: ether2
-    vlan: 
+    pvid: 10
+    tagged: [99]
+    vlan: 10
     mac: "00:1B:21:13:12:15"
   laptop-domen:
     port: ether3
-    vlan:
+    pvid: 10
+    tagged: [99]
+    vlan: 10
     mac: "48:2A:E3:9D:31:85"
   nas-ilo:
     port: ether7 
+    pvid: 99
+    tagged: []
     vlan: 99
     mac: "1C:98:EC:0E:0D:3A"
   homematic-ap:
     port: ether9
-    vlan: 
+    pvid: 99
+    tagged: []
+    vlan: 99
     mac: "00:1A:22:1E:F7:FD"  
   rpi:
     port: ether10
-    vlan: 
+    pvid: 10
+    tagged: [99]
+    vlan: 10
     mac: "E4:5F:01:26:EF:AA"
 
 # ---- Comtrend GRG-4260us GPON modem (WAN-side, single-LAN mgmt access) ----

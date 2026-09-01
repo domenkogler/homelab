@@ -35,30 +35,33 @@
 /user ssh-keys import public-key-file=admin.pub user=admin
 /user ssh-keys import public-key-file=ansible.pub user=ansible
 
-# ---- Bridge + trunk (untagged vlan99 fix — the mgmt access ports must be untagged members) ----
+# ---- Bridge + trunk (port model 2026-09-01: untagged=primary/access, tagged=secondary/Mgmt) ----
+# ADMIN/PC/PI ports: untagged Home (10) primary + tagged Mgmt (99) — dual-home.
+# A single untagged port carries ONE VLAN (untagged frames map to pvid); the secondary
+# admin plane rides TAGGED 99 on the same port. nas iLO4 + HMIP-HAP stay Mgmt-only.
 /interface bridge add name=bridge-lan vlan-filtering=yes protocol-mode=none
-/interface bridge port add bridge=bridge-lan interface=ether2  pvid=99 comment="PC (oldsrv)"
-/interface bridge port add bridge=bridge-lan interface=ether3  pvid=99 comment="Laptop"
-/interface bridge port add bridge=bridge-lan interface=ether7  pvid=99 comment="nas iLO4"
-/interface bridge port add bridge=bridge-lan interface=ether9  pvid=99 comment="HMIP-HAP"
-# Raspberry Pi (ether10) — DUAL-HOMED (R-2 / HD-304): VLAN-10 access + mgmt(99) tagged.
-# pvid=10 (access Home); vlan99 arrives tagged (Ansible mgmt plane).
-/interface bridge port add bridge=bridge-lan interface=ether10 pvid=10 comment="Raspberry Pi (Dual: VLAN10 + MGMT)"
+/interface bridge port add bridge=bridge-lan interface=ether2  pvid=10 comment="PC (oldsrv) — untagged Home + tagged Mgmt"
+/interface bridge port add bridge=bridge-lan interface=ether3  pvid=10 comment="Laptop — untagged Home + tagged Mgmt"
+/interface bridge port add bridge=bridge-lan interface=ether7  pvid=99 comment="nas iLO4 (Mgmt access)"
+/interface bridge port add bridge=bridge-lan interface=ether9  pvid=99 comment="HMIP-HAP (Mgmt access)"
+# Raspberry Pi (ether10) — DUAL-HOMED: untagged Home (10) + tagged Mgmt (99).
+/interface bridge port add bridge=bridge-lan interface=ether10 pvid=10 comment="Raspberry Pi (Dual: Home10 + MGMT99)"
 /interface bridge port add bridge=bridge-lan interface=sfp-sfpplus1 comment="trunk -> switch"
-# vlan99: tagged on trunk+self, UNTAGGED on the mgmt access ports (ether2/3/7/9/10) —
-# without the untagged members, vlan-filtering drops vlan99 to/from the access ports.
-/interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether7,ether9,ether10 comment="Management VLAN on trunk"
+# Home (10): untagged on the dual-homed ports (ether2/3/10 — the access/primary plane).
+/interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether10 comment="Home VLAN (access primary)"
+# Management (99): TAGGED on the dual-homed ports + trunk + self; UNTAGGED on the Mgmt-only access ports.
+/interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether10 untagged=ether7,ether9 comment="Management VLAN on trunk + tagged admin"
 # All gateways' VLANs must be trunked to the switch (tagged on sfp-sfpplus1) so the
 # switch can reach each per-VLAN gateway — mirror of crs328_converge.rsc.j2 (which
 # trunktags every VLAN). Missing 20/21/30/40/50 previously dropped those VLANs at
 # the trunk (HD-308: Shield on Media(50) had no WAN — empty ARP, waiting lease).
-# VLAN 10 keeps its untagged ether10 (Pi access) in addition to the trunk tag.
+# Other VLANs (20/21/30/40/50): tagged on trunk+self only.
 {% for v in network_vlans %}
-{% if v.id != 99 %}
+{% if v.id != 99 and v.id != 10 %}
 :if ([/interface bridge vlan find where vlan-ids={{ v.id }} and dynamic=no] = "") do={
-    /interface bridge vlan add bridge=bridge-lan vlan-ids={{ v.id }} tagged=bridge-lan,sfp-sfpplus1{% if v.id == 10 %} untagged=ether10{% endif %} comment="{{ v.name }} VLAN on trunk"
+    /interface bridge vlan add bridge=bridge-lan vlan-ids={{ v.id }} tagged=bridge-lan,sfp-sfpplus1 comment="{{ v.name }} VLAN on trunk"
 } else={
-    /interface bridge vlan set [find where vlan-ids={{ v.id }} and dynamic=no] tagged=bridge-lan,sfp-sfpplus1{% if v.id == 10 %} untagged=ether10{% endif %} comment="{{ v.name }} VLAN on trunk"
+    /interface bridge vlan set [find where vlan-ids={{ v.id }} and dynamic=no] tagged=bridge-lan,sfp-sfpplus1 comment="{{ v.name }} VLAN on trunk"
 }
 {% endif %}
 {% endfor %}

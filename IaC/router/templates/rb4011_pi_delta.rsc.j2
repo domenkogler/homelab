@@ -4,19 +4,29 @@
 # re-import (no duplicate-abort). Apply: /import rb4011_pi_delta.rsc
 # =============================================================================
 
-# --- 1. ether10 dual-home: access VLAN 10 (Home) + mgmt 99 tagged ---
-# Set the bridge port pvid to 10 (access Home); vlan99 arrives as tag on the
-# dual-homed port (kept as untagged member of vlan99 via the existing config).
-/interface bridge port set [find where interface=ether10] pvid=10 comment="Raspberry Pi (Dual: VLAN10 + MGMT)"
+# --- 1. ether10 dual-home: untagged Home (10) + tagged Mgmt (99) ---
+# Set the bridge port pvid to 10 (untagged Home); vlan99 arrives TAGGED on the
+# dual-homed port (port model 2026-09-01: untagged=primary, tagged=secondary).
+/interface bridge port set [find where interface=ether10] pvid=10 comment="Raspberry Pi (Dual: Home10 + MGMT99)"
 
 # --- 2. vlan-10 untagged member on ether10 (Home access) ---
 # Only touch STATIC vlan-10 entries (dynamic ones can't be set — live 2026-09-01:
 # 'can not change dynamic' on an auto-created vlan10). Add a static vlan-10 only
-# if no STATIC entry exists; else set the static one.
+# if no STATIC entry exists; else set the static one. untagged=ether10 keeps Home
+# reachable to family clients (Kogler SSID = untagged Home); Mgmt rides TAGGED 99.
 :if ([/interface bridge vlan find where vlan-ids=10 and dynamic=no] = "") do={
     /interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether10 comment="Home VLAN access (Pi)"
 } else={
     /interface bridge vlan set [find where vlan-ids=10 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1 untagged=ether10 comment="Home VLAN access (Pi)"
+}
+
+# --- 2b. vlan-99 TAGGED member on ether10 (admin/Mgmt plane) + untagged for Mgmt-only ports ---
+# ether10 carries Mgmt TAGGED (port model); ether2/3 too. ether7/9 (iLO, HMIP) are
+# Mgmt-only access → UNTAGGED. Idempotent guarded add/set like VLAN 10 above.
+:if ([/interface bridge vlan find where vlan-ids=99 and dynamic=no] = "") do={
+    /interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether10 untagged=ether7,ether9 comment="Management VLAN (tagged admin + untagged mgmt access)"
+} else={
+    /interface bridge vlan set [find where vlan-ids=99 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether10 untagged=ether7,ether9 comment="Management VLAN (tagged admin + untagged mgmt access)"
 }
 
 # --- 3. Pi mgmt-99 static reservation (10.10.99.20 on dhcp-mgmt) ---

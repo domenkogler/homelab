@@ -105,7 +105,7 @@ Static DHCP reservations (SSOT: `group_vars/all.yml` → `network_static_hosts`,
   2026-08-31. A stale dynamic Mgmt lease (`.97`) was removed so the static reservation binds at
   the next renewal; host-side static dual-home implemented via the `network` role's
   **NetworkManager keyfile** (`pi-eth0.nmconnection`, Home + Mgmt static per SSOT, default
-  via Home — single gateway, no `never-default` — see [network-rejected.md](network-rejected.md) Pi-uses-NM);
+  via Home — single gateway, no `never-default` — see [network-rejected.md](network-rejected.md) Pi-uses-NM).
 - **Laptop** (`laptop-domen`, added 2026-09-01): static on `dhcp-mgmt` (was dynamic `.99.90`);
   SSOT row in [network-addresses-generated.md](network-addresses-generated.md);
 - **APs** `ap-*` → `dhcp-mgmt`; other reserved devices → their VLAN's `dhcp-<id>`.
@@ -113,13 +113,21 @@ Static DHCP reservations (SSOT: `group_vars/all.yml` → `network_static_hosts`,
 Reservations win over the pool at the next renewal (lease-time 30 min); a device keeps its
 dynamic address until the lease turns over.
 
+> **Port model (2026-09-01): untagged = primary/access VLAN, tagged = secondary/admin (Mgmt 99).**
+> A single untagged port carries ONE VLAN (untagged frames map to `pvid`), so dual-homed hosts
+> (Pi, oldsrv, laptop) ride **Home (10) untagged + Mgmt (99) tagged** on the same port. This
+> supersedes the old "Mgmt-access + single-VLAN" model that left the Pi's Home leg dead
+> (HD-307 / HD-308 class). It does NOT change any IP — devices keep their `10.10.x`/`10.10.99.x`
+> static reservations; it changes the L2 VLAN membership/tagging only.
+
 ---
 
 ## Port Type Reference
 
 | Device type | Port config | VLAN |
 |-------------|------------|------|
-| Family PC, laptop, server | Access | 10 (Home) |
+| Family PC, laptop, server (dual-homed) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
+| Raspberry Pi (HA + DNS secondary) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
 | Shelly, KNX, ESP32-S3 | Access | 20 (IoT, no internet) |
 | Homematic HAP (cloud), Bosch IoT | Access | 21 (IoT-Internet) |
 | LG ThinQ / Bosch Home Connect appliance | Access | 21 (IoT-Internet) |
@@ -128,6 +136,6 @@ dynamic address until the lease turns over.
 | Camera | Access | 20 (IoT) |
 | Shield, console, smart TV | Access | 50 (Media) |
 | UPS management | Access | 99 (Mgmt) |
-| Laptop (admin, router ether3) | Access (native) | 99 (Mgmt) — static `laptop-domen` (added 2026-09-01, HD-307) |
-| Debian homelab PC | Trunk | 10,20,50 tagged + 99 native |
+| Laptop (admin, router ether3) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged — static `laptop-domen` (added 2026-09-01, HD-307) |
+| Debian homelab PC (oldsrv) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
 | SFP+ uplinks | Trunk | 10,20,30,40,50,99 tagged |
