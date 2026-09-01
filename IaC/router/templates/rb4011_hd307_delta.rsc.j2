@@ -1,0 +1,59 @@
+# =============================================================================
+# RB4011 — HD-307: Pi/laptop static addressing + Mgmt->Home forward allow DELTA
+# Rendered from SSOT (group_vars/all.yml network_static_hosts).
+# IDEMPOTENT: every /add guarded with :if-find — safe to re-import.
+# Apply: /import rb4011_hd307_delta.rsc
+# -----------------------------------------------------------------------------
+# What it does:
+#   1. Laptop (48:2A:E3:9D:31:85) static DHCP reservation -> 10.10.99.80 on dhcp-mgmt
+#      (was dynamic .99.90). Owner decision 2026-09-01.
+#   2. Pi mgmt-99 static reservation 10.10.99.20 (already present — ensure) and,
+#      critically, RELEASE the stale dynamic .97 lease the Pi is sitting on so the
+#      next DHCP request binds the static .99.20 (static reservation precedence).
+#   3. FORWARD accept Mgmt(99) -> Home(10) for the whole Mgmt VLAN (owner decision:
+#      whole-Mgmt scope, not per-host), placed above the default-deny inter-VLAN so
+#      the laptop can discover/provision the Pi (and reach Home hosts).
+# Idempotency notes / live lessons (2026-09-01):
+#   - A dynamic lease must never be `set` ('can not change dynamic lease'); the
+#     static reservation wins on the next renewal once the stale dynamic row is gone.
+#   - :if-find guards keep re-imports clean (no duplicate-abort).
+# =============================================================================
+
+# --- 1. Laptop static DHCP reservation (10.10.99.80 on dhcp-mgmt) ---
+:if ([/ip dhcp-server lease find where mac-address=48:2A:E3:9D:31:85 and server=dhcp-mgmt and dynamic=no] = "") do={
+    /ip dhcp-server lease add server=dhcp-mgmt address=10.10.99.80 mac-address=48:2A:E3:9D:31:85 comment="laptop-domen static reservation (HD-307)"
+}
+
+# --- 2a. Pi mgmt-99 static reservation (10.10.99.20) — ensure present ---
+:if ([/ip dhcp-server lease find where mac-address=E4:5F:01:26:EF:AA and server=dhcp-mgmt and dynamic=no] = "") do={
+    /ip dhcp-server lease add server=dhcp-mgmt address=10.10.99.20 mac-address=E4:5F:01:26:EF:AA comment="pi mgmt reservation"
+}
+
+# --- 2b. Release the stale Pi DYNAMIC lease on dhcp-mgmt (.97) so the static .99.20 binds ---
+# A dynamic lease outranks nothing — but removing it forces the Pi to renew and the
+# static reservation (above) then takes precedence. Deliberately removed (not set).
+:if ([/ip dhcp-server lease find where mac-address=E4:5F:01:26:EF:AA and server=dhcp-mgmt and dynamic=yes] != "") do={
+    :local stale [/ip dhcp-server lease find where mac-address=E4:5F:01:26:EF:AA and server=dhcp-mgmt and dynamic=yes]
+    /ip dhcp-server lease remove $stale
+}
+
+# --- 3. FORWARD accept Mgmt(99) -> Home(10) — whole-Mgmt scope above default-deny ---
+# Guarded: only add if the exact rule doesn't already exist (comment-anchored).
+:if ([/ip firewall filter find where chain=forward and src-address=10.10.99.0/24 and dst-address=10.10.1.0/24 and comment="Mgmt -> Home (laptop/Pi discovery, HD-307)"] = "") do={
+    /ip firewall filter add chain=forward action=accept src-address=10.10.99.0/24 dst-address=10.10.1.0/24 comment="Mgmt -> Home (laptop/Pi discovery, HD-307)"
+    :log warning "added Mgmt->Home rule"
+}
+
+# --- 3b. Ensure the rule sits ABOVE the default-deny inter-VLAN ---
+# RouterOS evaluates top-down; a rule appended at the end (after the default-deny)
+# would never match because the deny already dropped the packet. Move the accept
+# to sit directly before the default-deny row. Idempotent: moving an already-
+# correctly-placed row to the same destination is a no-op.
+:local mgmthome [/ip firewall filter find where chain=forward and src-address=10.10.99.0/24 and dst-address=10.10.1.0/24 and comment="Mgmt -> Home (laptop/Pi discovery, HD-307)"]
+:if ($mgmthome != "") do={
+    :local deny [/ip firewall filter find where chain=forward and action=drop and comment="Default deny inter-VLAN"]
+    /ip firewall filter move $mgmthome destination=$deny
+    :log warning "moved Mgmt->Home above default-deny"
+}
+
+:log warning "rb4011_hd307_delta.rsc applied"

@@ -169,6 +169,7 @@ network_static_hosts:
   - { name: ilo,      vlan: 99, ip: "10.10.99.11", role: "nas iLO4 BMC" }
   - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS secondary" }
   - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", role: "i7-7700K node + DNS primary" }
+  - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop (admin, Ethernet eth3 port on router)" }
   # Home VLAN 10
   - { name: router,   vlan: 10, ip: "10.10.1.1",   role: "Home gateway" }
   - { name: nas,      vlan: 10, ip: "10.10.1.10",  role: "Cockpit/NFS/NUT master" }

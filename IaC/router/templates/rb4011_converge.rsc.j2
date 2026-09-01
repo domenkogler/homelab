@@ -182,6 +182,7 @@ add chain=forward action=accept src-address-list=vps_s2s_peer dst-address-list=v
 add chain=forward action=drop src-address-list=vps_s2s_peer comment="VPS S2S -> anything else DROP (HD-155)"
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.50.0/24 comment="Home -> Media"
 add chain=forward action=accept src-address=10.10.50.0/24 dst-address=10.10.1.0/24 comment="Media -> Home"
+add chain=forward action=accept src-address=10.10.99.0/24 dst-address=10.10.1.0/24 comment="Mgmt -> Home (laptop/Pi discovery, HD-307)"
 add chain=forward action=drop src-address=10.10.30.0/24 dst-address-list=internal_lan comment="Guest -> LAN drop"
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=tcp dst-port=853 comment="Kids -> DoT bypass drop tcp"
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=udp dst-port=853 comment="Kids -> DoT bypass drop udp"

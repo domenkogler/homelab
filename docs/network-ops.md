@@ -73,6 +73,24 @@ Source of truth: the **Jinja templates** (`rb4011_{initial,converge}.rsc.j2`; de
 
 `community.routeros.api_modify` / `command` are **order- and state-sensitive**: partials, has `can not change dynamic`, needs `librouteros` in the exact interpreter, and framings for `/import` are unreliable. A single imported `.rsc` applies many commands as one atomic-ish set — much easier, reproducible, and reviewable (the diff is the template). The **API remains for verification + idempotent state**; the **rsc import is the apply**.
 
+### Ordering pitfall — a new FORWARD accept must sit ABOVE the default-deny (live 2026-09-01)
+
+RouterOS evaluates `chain=forward` **top-down**. A rule appended to the END of the forward
+chain lands **below** the "Default deny inter-VLAN" row (the repo's forward chain keeps the
+default-deny mid-list, before the Comtrend/WAN tail) — so an accept added at the tail is
+**shadowed**: the deny already dropped the packet. HD-307 hit this live: the first delta
+import left "Mgmt -> Home" at rule #33 while the deny sat at #25 (never matched).
+Fix pattern:
+```
+/ip firewall filter remove [find where chain=forward and comment="<new-rule>"]   # dedup
+/ip firewall filter add chain=forward action=accept … comment="<new-rule>"
+:local r [/ip firewall filter find where chain=forward and comment="<new-rule>"]
+:local d [/ip firewall filter find where chain=forward and action=drop and comment="Default deny inter-VLAN"]
+/ip firewall filter move $r destination=$d     # RouterOS 7 `move … destination=` places BEFORE
+```
+**Always verify position after a delta apply** (`/ip firewall filter print where chain=forward`)
+— a rule that exists but sits below the default-deny is dead weight and reads as "working".
+
 
 ## Service Binding & INPUT Firewall (HD-78 / HD-83)
 

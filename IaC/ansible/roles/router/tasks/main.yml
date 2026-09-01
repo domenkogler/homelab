@@ -641,6 +641,16 @@
         dst-address: "{{ vlan_subnets[10] }}"
         action: accept
         comment: "Media -> Home (media server)"
+      # Mgmt VLAN (99) -> Home VLAN (10) — admin/laptop access to the Pi (HD-307)
+      # and the other Home hosts (nas/oldsrv Home IPs). Whole-Mgmt-VLAN scope
+      # per owner decision 2026-09-01 (the laptop lives on eth3/VLAN99; without
+      # this rule the default-deny below blocks every cross-VLAN path to Home,
+      # including Pi discovery + HD-307 provisioning). Placed above default-deny.
+      - chain: forward
+        src-address: "{{ vlan_subnets[99] }}"
+        dst-address: "{{ vlan_subnets[10] }}"
+        action: accept
+        comment: "Mgmt -> Home (laptop/Pi discovery, HD-307)"
       - chain: forward
         src-address: "{{ vlan_subnets[30] }}"
         dst-address-list: internal_lan

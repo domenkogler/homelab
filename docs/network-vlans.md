@@ -67,6 +67,7 @@ tags: [network, vlan, firewall]
 | IoT-Internet (21) | WAN | **Allowed** (these devices need cloud/internet) |
 | IoT-Internet (21) | Home (10) | **Drop all** (only replies to Home-initiated) |
 | Media (50) | Home (10) | Accept (media server, Plex/Jellyfin) |
+| Management (99) | Home (10) | Accept (whole Mgmt VLAN — admin laptop / Pi discovery + provisioning, HD-307; owner decision 2026-09-01) |
 | Guest (30) | any LAN | **Drop all** (internet only) |
 | Kids (40) | Home (10) | Drop, DNS forced through filter |
 | Kids (40) | WAN | Drop 22:00–07:00 (bedtime — hard block at firewall) |
@@ -95,6 +96,21 @@ DHCP is handled entirely by the **RB4011 router** on each VLAN interface. This e
 
 DHCP option 15 (`domain=kogler.si`) is set on each DHCP network.
 
+Static DHCP reservations (SSOT: `group_vars/all.yml` → `network_static_hosts`, applied by
+`roles/router` + `rb4011_converge.rsc.j2`; live verification via the RouterOS API):
+
+- **Pi** (`pi`): static on BOTH legs (dual-home, HD-307) — Home VLAN on `dhcp-10` + Mgmt VLAN on
+  `dhcp-mgmt`. Its SSOT rows (incl. the MAC + static IPs) live in
+  [network-addresses-generated.md](network-addresses-generated.md); reservations applied live
+  2026-08-31. A stale dynamic Mgmt lease (`.97`) was removed so the static reservation binds at
+  the next renewal;
+- **Laptop** (`laptop-domen`, added 2026-09-01): static on `dhcp-mgmt` (was dynamic `.99.90`);
+  SSOT row in [network-addresses-generated.md](network-addresses-generated.md);
+- **APs** `ap-*` → `dhcp-mgmt`; other reserved devices → their VLAN's `dhcp-<id>`.
+
+Reservations win over the pool at the next renewal (lease-time 30 min); a device keeps its
+dynamic address until the lease turns over.
+
 ---
 
 ## Port Type Reference
@@ -110,5 +126,6 @@ DHCP option 15 (`domain=kogler.si`) is set on each DHCP network.
 | Camera | Access | 20 (IoT) |
 | Shield, console, smart TV | Access | 50 (Media) |
 | UPS management | Access | 99 (Mgmt) |
+| Laptop (admin, router ether3) | Access (native) | 99 (Mgmt) — static `laptop-domen` (added 2026-09-01, HD-307) |
 | Debian homelab PC | Trunk | 10,20,50 tagged + 99 native |
 | SFP+ uplinks | Trunk | 10,20,30,40,50,99 tagged |

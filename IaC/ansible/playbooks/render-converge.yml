@@ -46,3 +46,7 @@
       template:
         src: "{{ playbook_dir }}/../../router/templates/crs328_converge.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/crs328_converge.rsc"
+    - name: "Render rb4011_hd307_delta.rsc (HD-307: laptop/Pi static + Mgmt->Home)"
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/rb4011_hd307_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/rb4011_hd307_delta.rsc"
