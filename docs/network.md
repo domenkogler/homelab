@@ -32,6 +32,9 @@ tags: [network, topology]
 
 ### Comtrend modem management path (HD-302)
 
+> **✅ LIVE-VERIFIED 2026-09-02** — modem mgmt path fixed live: `/32`→`/24` on ether1
+> + srcnat masquerade (see bullets); laptop → modem web UI returns 401 (auth page).
+
 The Comtrend GRG-4260us is a consumer ONT in **PPPoE-bridge mode** — the RB4011
 dials the PPPoE session on `ether1` via `pppoe-telekom`. The Comtrend's own
 web UI lives on its LAN at the SSOT `comtrend_modem.modem_mgmt_ip` and is needed for the **twice-yearly
