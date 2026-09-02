@@ -3,11 +3,9 @@
 # Current scope:
 #   1. assert we run as an allowed admin user (mirror of common's guard)
 #   2. sync /etc/hosts from the shared template (same source as playbooks/all.yml)
-#   3. Pi (RPi OS, NetworkManager): static dual-home on eth0 — Home 10.10.1.20 + Mgmt
-#      10.10.99.20 from host_vars (ansible_host/mgmt_ip) via an NM keyfile profile
-#      (Pi-uses-NetworkManager, network-rejected.md 2026-09-01 / HD-307; RPi OS ships NM,
-#      no systemd-networkd active). Session-safe: additive addresses, default via Home,
-#      Mgmt never-default.
+#   3. Pi (RPi OS, NetworkManager): static dual-home on eth0 — Home 10.10.1.20 on the
+#      untagged parent + Mgmt 10.10.99.20 on the TAGGED eth0.99 sub-interface (HD-311(b));
+#      session-safe, default via Home, Mgmt never-default).
 #   4. render docs/network-addresses-generated.md from IaC via render-docs.yml (run by site.yml)
 #   5. nas/oldsrv (systemd-networkd, desktop/VPS class): static dual-home — physical .network
 #      (VLAN-10 Home address + default route), a VLAN-99 tagged sub-interface (.netdev) + its
@@ -34,7 +32,10 @@
 # RPi OS ships NetworkManager (no systemd-networkd active) — this is the Pi's manager.
 # Guarded to pi.kogler.si only: no other host opts into NM dual-home yet; desktop/VPS stay
 # systemd-networkd. Values are SSOT-derived (host_vars ansible_host/mgmt_ip + network_static_hosts).
-- name: Render Pi eth0 NetworkManager keyfile (static dual-home)
+# HD-311: the untagged parent (pi-eth0) carries HOME only; the MGMT IP rides the TAGGED
+# eth0.99 sub-interface (pi-mgmt) — its connected route on the parent hijacked 10.10.99.x
+# lookups away from the tagged leg (router99 'No route to host' live 2026-09-02).
+- name: Render Pi eth0 NetworkManager keyfile (untagged HOME parent)
   template:
     src: pi-eth0.nmconnection.j2
     dest: "{{ nm_keyfile_dir }}/{{ nm_pi_profile }}"
@@ -98,8 +99,32 @@
   tags: [network, netd]
 
 # Load the profile into NetworkManager (idempotent: `load` then `up` the connection).
+# HD-311 (b): tagged Mgmt sub-interface (eth0.99) — SAME Windows of correctness as pi-eth0:
+# render-only on pi.kogler.si; never on another host. The Mgmt plane is ONLY reachable via
+# this tagged leg from the Pi (verified live 2026-09-02: ping -I eth0.99 10.10.99.1 works).
+- name: Render Pi Mgmt tag-99 sub-interface NetworkManager keyfile (tagged Mgmt)
+  template:
+    src: pi-mgmt.nmconnection.j2
+    dest: "{{ nm_keyfile_dir }}/{{ nm_pi_mgmt_profile }}"
+    owner: root
+    group: root
+    mode: '0600'
+  when:
+    - inventory_hostname == 'pi.kogler.si'
+    - ansible_facts['service_mgr'] == 'systemd'
+    - mgmt_ip is defined
+    - ansible_host is defined
+    - nm_pi_mgmt_subnet is string
+  notify: reload NetworkManager
+  tags: [network, nm-pi-mgmt]
+
+# Load + activate the Pi eth0 NM connection (idempotent: `load` then `up` the connection).
+
 # A reload alone does not activate a NEW keyfile — NM must load it and bring eth0 up on it.
-- name: Load + activate Pi eth0 NM connection
+# HD-311 note: the tagged Mgmt sub-interface (pi-mgmt) must be brought up AFTER the parent
+# (eth0) is up — NM brings child VLANs up with their parent, but a fresh keyfile needs one
+# explicit `up` to register. Parent first, then child (ordered below).
+- name: Load + activate Pi eth0 NM connection (Home parent)
   ansible.builtin.command:
     argv:
       - nmcli
@@ -116,3 +141,25 @@
     - mgmt_ip is defined
     - ansible_host is defined
   tags: [network, nm-pi]
+
+# Also load + activate the tagged Mgmt sub-interface (pi-mgmt, eth0.99).
+# Live 2026-09-02: the tagged leg is the ONLY way the router reaches the Pi's mgmt IP.
+# never-default keeps the default route on Home; route-metric 200 keeps 10.10.99.x on
+# the tagged leg (the parent no longer carries that /24).
+- name: Load + activate Pi Mgmt tag-99 sub-interface NM connection (tagged Mgmt)
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - connection
+      - up
+      - "{{ nm_pi_mgmt_connection_id }}"
+  register: nm_pi_mgmt_up
+  changed_when: "'successfully activated' in nm_pi_mgmt_up.stdout or 'failed' in nm_pi_mgmt_up.stdout"
+  failed_when:
+    - nm_pi_mgmt_up.rc != 0
+  when:
+    - inventory_hostname == 'pi.kogler.si'
+    - ansible_facts['service_mgr'] == 'systemd'
+    - mgmt_ip is defined
+    - ansible_host is defined
+  tags: [network, nm-pi-mgmt]

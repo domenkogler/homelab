@@ -1,0 +1,34 @@
+# NetworkManager keyfile for the Pi (RPi OS / Debian trixie) — TAGGED Mgmt VLAN 99 sub-interface.
+# HD-311 / HD-310 port model: dual-homed hosts ride Home untagged (pi-eth0.nmconnection) + Mgmt
+# TAGGED on eth0.99 (this profile). A single untagged port carries ONE VLAN (pvid) — ether10 is
+# pvid=10 (untagged = Home), so Mgmt MUST ride the tagged leg for the router to reach it.
+# Live-verified 2026-09-02: `ping -I eth0.99 10.10.99.1` succeeds; the untagged parent's Mgmt
+# address + its connected route (metric 100) BROKE router99 ('No route to host', ARP INCOMPLETE
+# on eth0) — Mgmt lives HERE, never on the untagged parent.
+#
+# SSOT: mgmt_ip from host_vars (pi.kogler.si) — never a literal. never-default=true so this
+# sub-interface never steals the default route (the Home leg keeps it). route-metric for the
+# tagged leg is LOWER (higher priority) than the parent's kernel connected route would be —
+# but since the parent no longer carries a 10.10.99.0/24 route, the tagged leg is the ONLY
+# route and stays preferred.
+[connection]
+id={{ nm_pi_mgmt_connection_id }}
+type=vlan
+interface-name=eth0.99
+autoconnect=true
+
+[vlan]
+id=99
+parent=eth0
+flags=1
+
+[ipv4]
+method=manual
+address1={{ mgmt_ip }}/24
+route1={{ nm_pi_mgmt_subnet }},{{ nm_pi_mgmt_route_metric }}
+never-default=true
+
+[ipv6]
+method=auto
+
+[proxy]

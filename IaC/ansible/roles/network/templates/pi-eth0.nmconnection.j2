@@ -1,14 +1,14 @@
-# NetworkManager keyfile for the Pi (RPi OS / Debian trixie) — static dual-home.
+# NetworkManager keyfile for the Pi (RPi OS / Debian trixie) — UNTAGGED HOME parent only.
 # Pi-uses-NetworkManager (network-rejected.md 2026-09-01, HD-307): RPi OS ships NM (no
 # systemd-networkd active), so the `network` role configures eth0 here.
-# SSOT: addresses come from host_vars (ansible_host = Home, mgmt_ip = Mgmt), the Home
-# gateway from group_vars/all/main.yml network_static_hosts, the resolver from
-# bootstrap_dns_servers (public until Technitium lands — see group_vars/all.yml) —
+# SSOT: the Home address + gateway come from host_vars ansible_host + network_static_hosts,
+# the resolver from bootstrap_dns_servers (public until Technitium lands — see group_vars/all.yml) —
 # never literals.
-# Session-safety: adding both addresses is additive; NM never drops the interface or
-# the Home address mid-run. Home leg carries the default route (ONE gateway = the Home
-# gateway); the Mgmt leg is a connected /24 from address2 — no separate gateway, so
-# never-default would wrongly kill the default route (do NOT set it).
+# The Mgmt IP does NOT belong on the untagged parent: ether10 is pvid=10 (untagged = Home),
+# so an untagged Mgmt address is unreachable from the tagged Mgmt plane and its connected
+# route (metric 100) can hijack 10.10.99.x lookups AWAY from the tagged eth0.99 leg
+# (router99 failed live 2026-09-02 — 'No route to host'). Mgmt lives on the tagged
+# pi-mgmt.nmconnection (eth0.99) sub-interface instead (HD-311).
 [connection]
 id={{ nm_pi_connection_id }}
 type=ethernet
@@ -18,7 +18,6 @@ autoconnect=true
 [ipv4]
 method=manual
 address1={{ ansible_host }}/24
-address2={{ mgmt_ip }}/24
 gateway={{ network_static_hosts | selectattr('name','equalto','router') | selectattr('vlan','equalto',10) | map(attribute='ip') | first }}
 dns={{ bootstrap_dns_servers }};
 dns-search={{ domain_local }};

@@ -14,3 +14,14 @@ nm_keyfile_dir: /etc/NetworkManager/system-connections
 # where the host ships NetworkManager.
 nm_pi_profile: pi-eth0.nmconnection      # on-disk keyfile name (in nm_keyfile_dir)
 nm_pi_connection_id: pi-eth0             # the NM connection id (used by nmcli)
+
+# Pi tagged-Mgmt sub-interface (eth0.99) — the tagged leg of dual-home (HD-311).
+# SSOT-derived: the Mgmt subnet comes from network_vlans (id 99), the route metric is
+# LOWER than the untagged Home connected route so the tagged leg wins for 10.10.99.x
+# (and the untagged parent no longer carries the Mgmt /24 at all).
+nm_pi_mgmt_profile: pi-mgmt.nmconnection      # on-disk keyfile name
+nm_pi_mgmt_connection_id: pi-mgmt             # the NM connection id (used by nmcli)
+nm_pi_mgmt_vlan_id: 99                         # Mgmt VLAN id (must equal network_vlans id 99)
+nm_pi_mgmt_route_metric: 200                   # tagged leg priority (Home parent kernel route is metric 100)
+# nm_pi_mgmt_subnet is derived in the role defaults below from network_vlans (never a literal).
+nm_pi_mgmt_subnet: "{{ (network_vlans | selectattr('id', '==', nm_pi_mgmt_vlan_id) | map(attribute='subnet') | first) }}"

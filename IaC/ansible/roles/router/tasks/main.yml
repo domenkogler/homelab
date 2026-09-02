@@ -1043,6 +1043,33 @@
 
 
 # -------------------------------------------------------------------------
+# Bridge PORT membership (HD-311 a): enforce pvid + tagged VLANS per port from
+# router_port_map (SSOT — group_vars/router.yml). The converge .rsc applies this;
+# the role ALSO enforces it so a re-converge / role fix never drifts from the SSOT.
+# Port model (2026-09-01): untagged = primary/access VLAN (Home 10 for admin/PC/Pi),
+# tagged = secondary/admin backplane (Management 99). A single untagged port carries
+# ONE VLAN (pvid). This mirrors rb4011_converge.rsc.j2 exactly — the role and the
+# .rsc must never disagree (both consume router_port_map).
+# -------------------------------------------------------------------------
+- name: Enforce bridge port pvid + tagged memberships (HD-311 a, router_port_map)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: interface bridge port
+    handle_absent_entries: ignore
+    data:
+      - bridge: bridge-lan
+        interface: "{{ item.port }}"
+        pvid: "{{ item.pvid }}"
+  loop: "{{ router_port_map | dict2items | selectattr('value.port', 'defined') | selectattr('value.pvid', 'defined') | list }}"
+  tags: [network, router-port-model]
+
+
+# -------------------------------------------------------------------------
 # Enable VLAN filtering on bridge
 # -------------------------------------------------------------------------
 - name: Enable VLAN filtering on bridge

@@ -99,13 +99,16 @@ DHCP option 15 (`domain=kogler.si`) is set on each DHCP network.
 Static DHCP reservations (SSOT: `group_vars/all.yml` → `network_static_hosts`, applied by
 `roles/router` + `rb4011_converge.rsc.j2`; live verification via the RouterOS API):
 
-- **Pi** (`pi`): static on BOTH legs (dual-home, HD-307) — Home VLAN on `dhcp-10` + Mgmt VLAN on
+- **Pi** (`pi`): static on BOTH legs (dual-home, HD-307/HD-311) — Home VLAN on `dhcp-10` + Mgmt VLAN on
   `dhcp-mgmt`. Its SSOT rows (incl. the MAC + static IPs) live in
   [network-addresses-generated.md](network-addresses-generated.md); reservations applied live
   2026-08-31. A stale dynamic Mgmt lease (`.97`) was removed so the static reservation binds at
-  the next renewal; host-side static dual-home implemented via the `network` role's
-  **NetworkManager keyfile** (`pi-eth0.nmconnection`, Home + Mgmt static per SSOT, default
-  via Home — single gateway, no `never-default` — see [network-rejected.md](network-rejected.md) Pi-uses-NM).
+  the next renewal; host-side static dual-home implemented via the `network` role's **two NetworkManager
+  keyfiles**: `pi-eth0.nmconnection` = **untagged Home** on the parent (`ansible_host`, default via Home) and
+  `pi-mgmt.nmconnection` = **tagged Mgmt on `eth0.99`** (`mgmt_ip`, never-default) — the Mgmt IP lives
+  ONLY on the tagged sub-interface (HD-311(b)), never on the untagged parent (its connected route
+  hijacked `mgmt_subnet` lookups away from the tagged leg — `router99` 'No route to host' live 2026-09-02,
+  fixed + verified). See [network-rejected.md](network-rejected.md) Pi-uses-NM.
 - **Laptop** (`laptop-domen`, added 2026-09-01): static on `dhcp-mgmt` (was dynamic `.99.90`);
   SSOT row in [network-addresses-generated.md](network-addresses-generated.md);
 - **APs** `ap-*` → `dhcp-mgmt`; other reserved devices → their VLAN's `dhcp-<id>`.
