@@ -50,6 +50,12 @@
     # CAPsMAN SSID list lives in group_vars/router.yml (router-host var, NOT loaded for localhost) —
     # pulled explicitly so capsman_steady-state.rsc renders.
     routeros_capsman_ssids: "{{ hostvars['router.kogler.si'].routeros_capsman_ssids }}"
+    # Same for the mgmt-service reach var: rb4011_initial.rsc.j2 binds /ip service
+    # available-from to it. Without this, the bootstrap renders services UNBOUND
+    # (empty available-from) — the telnet brute-force exposure class this phase
+    # fixed (HD-301/303). Mirror hostvars as an SSOT-derived bootstrap context.
+    router_services_available_from: >-
+      {{ hostvars['router.kogler.si'].router_services_available_from }}
     # --- Secrets — resolved from 1Password at render time only ---
     pppoe_login_user: "{{ lookup('community.general.onepassword', 'pppoe_login', field='username', vault=op_vault) }}"
     pppoe_login_password: "{{ lookup('community.general.onepassword', 'pppoe_login', field='password', vault=op_vault) }}"

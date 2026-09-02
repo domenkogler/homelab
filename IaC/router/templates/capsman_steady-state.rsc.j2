@@ -20,10 +20,11 @@
 # NOTE:    NO secrets in the repo — passphrases injected from 1Password at render.
 #          Fail-loud: a missing wifi-kogler* item aborts the render.
 #
-# TODO validate-live (cutover-prep, HD-229): exact wifi-qcom-ac field names and
-#   defaults are pinned from MikroTik's wifi-qcom-ac reference; confirm each
-#   against the LIVE RouterOS 7 manager before uploading — the fail-loud culture
-#   forbids guessing that silently no-ops or bricks the bootstrap window.
+# VALIDATED-LIVE (2026-09-02, RouterOS 7.24.1 + wifi-qcom-ac):
+#   datapath.bridge= + datapath.vlan-id= are the live-accepted fields; the
+#   datapath.vlan-mode= property does NOT exist on 7.24.1's wifi-qcom-ac
+#   ("bad parameter datapath.vlan-mode" at import — live-probed). Tagging is
+#   driven by vlan-id alone under datapath.bridge.
 # =============================================================================
 
 # ---- Security profiles (WPA2-PSK, one per SSID) ----
@@ -45,7 +46,6 @@
     security=sec-{{ ssid.cfg | replace('cfg-', '') }} \
     mode=ap \
     datapath.bridge=bridge-lan \
-    datapath.vlan-mode=use-tag \
     datapath.vlan-id={{ ssid.vlan }} \
     comment="VLAN {{ ssid.vlan }} ({{ ssid.item }})"
 {% endfor %}
