@@ -21,7 +21,11 @@ netd_phys_description: "{{ inventory_hostname }} physical uplink — untagged Ho
 netd_vlan_description: "{{ inventory_hostname }} tagged Management VLAN (99) sub-interface"
 
 # --- SSOT-derived addresses (never literals; CONVENTIONS §2) ---
-# habitation IP per host (host_vars ansible_host / Home IP).
-host_home_ip: "{{ ansible_host }}"
-# Home VLAN gateway = the router's VLAN-10 IP from network_static_hosts.
+# habitation IP per host = the host's VLAN-10 (Home) row from network_static_hosts.
+# SSOT-derived by hostname so old-srv (whose ansible_host is the Mgmt IP, 10.10.99.30)
+# still gets its true Home address on the untagged parent (10.10.1.30); nas's Home row
+# (10.10.1.10) happens to equal its ansible_host, so no behavior change there.
+# (Phase-2/3 prep: without this, old-srv's netd-phys unit would put the Mgmt IP on the
+# untagged parent — the dual-home design's Home plane would silently carry the wrong IP.)
+host_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', inventory_hostname_short) | selectattr('vlan', 'equalto', 10) | map(attribute='ip') | list | first) }}"
 home_gateway_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 10) | map(attribute='ip') | list | first) }}"

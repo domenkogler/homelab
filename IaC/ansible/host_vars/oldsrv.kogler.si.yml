@@ -5,6 +5,7 @@ ansible_host: 10.10.99.30           # VLAN 99 (Management) — static
 # eno1 = Z270 onboard NIC -> CRS328 ether11 (SSOT switch_port_map oldsrv-eno1).
 # Port model (HD-310): Home (10) untagged + Mgmt (99) tagged on this NIC.
 netd_phys_name: eno1
+mgmt_ip: 10.10.99.30               # VLAN 99 (Management) — tagged leg (netd-vlan.network)
 home_ip: "{{ oldsrv_home_ip }}"     # VLAN 10 (Home) node IP (VRRP anchor) — SSOT-derived
                                     # from the network_static_hosts lookup in all.yml (HD-200);
                                     # no literal here to drift from the address SSOT

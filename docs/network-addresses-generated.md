@@ -38,7 +38,7 @@
 | 99 | 10.10.99.11 | ilo | nas iLO4 BMC |
 | 99 | 10.10.99.20 | pi | RPi4 node + DNS secondary |
 | 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS primary |
-| 99 | 10.10.99.80 | laptop-domen | Domen's laptop (admin, Ethernet eth3 port on router) |
+| 99 | 10.10.99.80 | laptop-domen | Domen's laptop (admin, mgmt VLAN) — reaches mgmt via tagged-99 hop (Pi eth0.99), Home->Mgmt forward removed (strict) |
 | 10 | 10.10.1.1 | router | Home gateway |
 | 10 | 10.10.1.10 | nas | Cockpit/NFS/NUT master |
 | 10 | 10.10.1.20 | pi | node + DNS secondary (VRRP anchor) |
@@ -110,4 +110,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-01T19:18:09Z
+> Last generated: 2026-09-02T16:53:21Z
