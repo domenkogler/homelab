@@ -176,10 +176,20 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 > only tailnet surface for the admin dashboards (see the compose template
 > `docker_services/traefik-tailnet` for the routing + serve details).
 >
-> **Pi-hop SSH (Mgmt VLAN from the laptop, 2026-09-02):** the laptop is untagged Home-only (Windows never
-> tags VLAN 99); the **Mgmt plane is reached via the Pi's tagged-99 leg** — preconfigured in `~/.ssh/config`:
-> `ssh pi99` (→ Pi .99.20 via ProxyJump `pi`) and `ssh router99` (→ router .99.1 via ProxyJump `pi`, user `ansible`).
-> This keeps Windows off tagged-99 (security: Home never reaches core infra by default — see network-vlans.md port model).
+> **Pi-hop SSH + Winbox tunnels (Mgmt VLAN from the laptop, 2026-09-02):** the laptop is untagged Home-only
+> (Windows never tags VLAN 99); the **Mgmt plane is reached via the Pi's tagged-99 leg** — preconfigured in
+> `~/.ssh/config` (concrete IPs: [`network-addresses-generated.md`](network-addresses-generated.md)):
+> - **SSH console:** `ssh pi99` (→ Pi tagged-99 leg via ProxyJump `pi`), `ssh router99` (→ router mgmt via
+>   ProxyJump `pi`, user `ansible`), `ssh switch` (→ switch mgmt), `ssh nas99`, `ssh ap-spalnica/dnevna/spare`.
+> - **Winbox GUI (device binds winbox 8291 to Mgmt VLAN only):** SSH into the Pi and forward from there
+>   (the Pi carries the tagged-99 leg), so the forward runs on the Pi → device. Aliases in `~/.ssh/config`:
+>   `ssh -N switch-wb` (→ `127.0.0.1:8292` → switch winbox), `ssh -N ap-spalnica-wb` (
+>   → `127.0.0.1:8294` → AP winbox), `ssh -N ap-dnevna-wb` (→ `127.0.0.1:8295` → AP winbox).
+>   Then point Winbox at `127.0.0.1:<port>`. **Why Pi-dial (not ProxyJump-to-device):** the LocalForward must
+>   run from the Pi (which has the Mgmt leg); a ProxyJump final-hop onto the RouterOS device leaves the
+>   forward hosted by RouterOS SSH, which does not carry the channel — Winbox stalls at authentication.
+>   **Design constraint:** RouterOS mgmt services bind winbox to the Mgmt VLAN only, so direct access to
+>   the device winbox port from the Home laptop is blocked — the tunnel is required.
 
 ### Pattern A -- loopback-capable apps (preferred)
 App binds `127.0.0.1` only; tailscale sidecar shares its network namespace (`network_mode: service:<app>`) and
