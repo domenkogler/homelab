@@ -54,6 +54,14 @@ tags: [network, vlan, firewall]
   passphrases from the active `wifi-kogler*` 1Password items at render (currently the two enabled
   SSIDs: wifi-kogler_password + wifi-kogler-iot_password). ap_initial.rsc.j2 uses modern
   `/interface wifi cap`.
+- **Band split (owner decision, 2026-09-03):** `Kogler IOT` is **2.4GHz-only** — provisioning is
+  split: 2.4GHz carries Kogler + Kogler IOT, 5GHz carries Kogler only (IoT devices don't need 5GHz;
+  frees the 5GHz radio).
+- **Switch AP ports (2026-09-03 live fix — 'phone disconnects' root cause):** APs do per-SSID VLAN
+  tagging, so their CRS328 ports (ether11/12) MUST be **tagged members of the wifi VLANs (10 + 20)**
+  in addition to the untagged 99 mgmt access. With access-99 only, the AP's tagged client frames
+  (VLAN 10/20) were dropped at switch ingress → clients associated but never got DHCP → 'phone
+  disconnects every few seconds'. Encoded in `wifi_ports` (group_vars/switch.yml) + the converge rsc.
   **Human-gated at cutover:** ① dnevna swap (spare hAP ac² → dnevna), ② garage replacement
   wifi-qcom-ac-capable. Validate-live TODOs are marked in the templates (fail-loud).
 

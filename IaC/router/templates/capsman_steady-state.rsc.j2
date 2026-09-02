@@ -62,16 +62,26 @@
     comment="VLAN {{ ssid.vlan }} ({{ ssid.item }})"
 {% endfor %}
 
-# ---- Provisioning rule (manager -> APs) ----
-# master = cfg-kogler (default for all APs); 2.4/5GHz auto by CAP. Slave list is
-# data-driven from routeros_capsman_ssids (all configs except the master) — trim
-# the SSOT to change which SSIDs are broadcast (2026-09-02: Kogler + Kogler IOT).
+# ---- Provisioning rules (manager -> APs) ----
+# master = cfg-kogler (default for all APs); 2.4GHz carries the IOT slave, 5GHz is
+# Kogler-only (owner decision 2026-09-03: no Kogler IOT on 5GHz). Slave list is
+# data-driven from routeros_capsman_ssids (all configs except the master).
 {% set slaves = routeros_capsman_ssids | rejectattr('cfg', 'equalto', 'cfg-kogler') | map(attribute='cfg') | list %}
+# 2.4GHz: master + enabled slave SSIDs
 /interface wifi provisioning add \
     action=create-dynamic-enabled \
     master-configuration=cfg-kogler \
+{% if slaves %}
     slave-configurations={{ slaves | join(',') }} \
-    comment="Provision all APs (master cfg-kogler, slave{{ 's' if slaves | length > 1 else '' }} {{ slaves | join(',') }})"
+{% endif %}
+    supported-bands=2ghz-n \
+    comment="2.4GHz: Kogler{% if slaves %} + {{ slaves | join(',') }}{% endif %}"
+# 5GHz: Kogler master only (no IOT on 5GHz)
+/interface wifi provisioning add \
+    action=create-dynamic-enabled \
+    master-configuration=cfg-kogler \
+    supported-bands=5ghz-ac \
+    comment="5GHz: Kogler only (no IOT on 5GHz)"
 
 # ---- End ----
 # After import, verify on the router:

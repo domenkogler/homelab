@@ -31,6 +31,9 @@ routeros_expected_identity: "switch.kogler.si"
 switch_port_map:
   # AP ports (VLAN 99, Management) - PoE enabled
   # MAC addresses from network_static_hosts in group_vars/all.yml
+  # NOTE (2026-09-03 fix): APs do per-SSID VLAN tagging on their CAP bridge, so their
+  # switch ports must ALSO carry the wifi VLANs (10 Home / 20 IOT) TAGGED — see the
+  # wifi_ports list below; the converge rsc adds them as tagged members of those VLANs.
   ap-spalnica:
     port: ether12
     vlan: 99
@@ -103,6 +106,15 @@ switch_port_map:
     vlan: 20
     poe: false
     mac: "00:0A:B3:27:5F:8B"
+
+# Wifi AP uplink ports must carry the wifi VLANs TAGGED (2026-09-03 fix): the APs
+# do per-SSID VLAN tagging on their CAP bridge, so their switch ports need tagged
+# membership of the SSID VLANs (10 Home / 20 IOT) in addition to the untagged 99
+# mgmt access — otherwise client data frames (tagged 10/20) are dropped at ingress
+# and clients associate but never get DHCP ('phone disconnects every few seconds').
+wifi_ports:
+  - ether12   # ap-spalnica
+  - ether11   # ap-dnevna
 
 # VLAN list — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all.yml), HD-200:
 # switch consumers use id + name only, so the full SSOT dicts pass through

@@ -753,7 +753,12 @@ wifi/security/provisioning objects.
 > 4. AP identities are now descriptive (`ap-spalnica`, `ap-dnevna`, `ap-spare`) via per-AP rendered
 >    `ap_initial-<name>.rsc`.
 > 5. Enabled SSIDs trimmed to **Kogler + Kogler IOT** (owner decision) — IOT-WAN/guest/kids disabled
->    at the config level + in SSOT (`routeros_capsman_ssids`).
+>    at the config level + in SSOT (`routeros_capsman_ssids`). **Kogler IOT is 2.4GHz-only** (split
+>    provisioning: 2.4GHz = Kogler+IOT, 5GHz = Kogler).
+> 6. **Switch AP ports must carry the wifi VLANs tagged** (2026-09-03 — the 'phone disconnects'
+>    cause): AP ports ether11/12 on the CRS328 need tagged membership of VLAN 10+20 (not just the
+>    untagged 99 access), or the AP's per-SSID tagged frames get dropped at switch ingress and
+>    clients associate but never DHCP. Encoded in `wifi_ports` (group_vars/switch.yml) + converge rsc.
 
 Devices must re-join the right SSID (currently Kogler → VLAN 10 / Kogler IOT → VLAN 20) to land
 on their VLAN.

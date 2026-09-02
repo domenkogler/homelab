@@ -44,7 +44,7 @@
 # ---- VLANs on the bridge (tagged trunk + per-VLAN) ----
 {% for v in network_vlans %}
 # VLAN {{ v.id }} ({{ v.name }})
-/interface bridge vlan add bridge=bridge vlan-ids={{ v.id }} tagged=bridge,sfp-sfpplus1 comment="{{ v.name }} VLAN on trunk"
+/interface bridge vlan add bridge=bridge vlan-ids={{ v.id }} tagged=bridge,sfp-sfpplus1{% if v.ssid is defined and v.ssid and wifi_ports is defined %},{{ wifi_ports | join(',') }}{% endif %} comment="{{ v.name }} VLAN on trunk{% if v.ssid is defined and v.ssid %} (+ wifi AP ports tagged for {{ v.ssid|default('') }})"{% else %}"{% endif %}
 {% endfor %}
 
 # ---- VLAN interfaces (per-VLAN L3 gateways NOT on switch — switch is L2; keep only mgmt) ----
