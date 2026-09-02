@@ -111,3 +111,32 @@ Fix pattern:
 - **Assert-before-mutate (HD-161):** both the router and switch Ansible roles start with a `community.routeros.api_facts` read of `/system identity` and assert the target matches the per-gear `routeros_expected_identity` from `group_vars/` (fail-loud — a blank identity aborts). This runs **once per role run**, before any `api_modify`, so a wrong-target or swapped-host can never receive config meant for another device.
 - **Router API TLS (HD-161 Part B):** the management API is moved to **`api-ssl` (:8729) with a self-signed device cert** and `validate_certs: false` in Ansible — TLS encryption on a private Mgmt-VLAN link, **no public CA / no Let's Encrypt dependency**. Enabled via the role (cert creation + `api-ssl` enable), then plaintext `api` (:8728) retired by a manual WinBox cutover. See `rb4011_initial.rsc.j2` / `crs328_initial.rsc.j2`.
 - **Shared RouterOS admin credential (HD-165):** because all management binds to Mgmt-VLAN 99 (above), the **same `mikrotik-admin_login` password is deliberately shared** across RB4011 + CRS328 + APs as an **accepted** risk — it cannot be reached from WAN or any non-Mgmt VLAN. Revisit per-gear items only if a device gains WAN-exposed management or this ACL changes. See [deployment-secrets.md](deployment-secrets.md).
+
+---
+
+## Incident: 2026-09-02 — router mgmt plane lost after a full router.yml converge (recovered)
+
+> **Symptom:** after the 20:08 `router.yml` re-converge (added nas/oldsrv DHCP reservations), the router's
+> management plane became unreachable from the Pi's tagged-99 leg: `10.10.99.1` ARP FAILED on `eth0.99` and
+> the API/SSH reset. Home ICMP to `10.10.99.1` worked but TCP services refused (`available-from` mgmt-subnet
+> lockdown, HD-301). WinBox from the laptop still worked.
+
+**Root cause (evidence):** the converge's `changed` tasks included *Enable VLAN filtering on bridge* and
+*Ensure bridge-lan bridge exists* — same two were `ok` (unchanged) in every prior dry-run. Re-asserting the
+bridge after a converge left VLAN-99's tagged memberships missing on the Pi's port (ether10), so the mgmt
+plane's only real client (Pi `eth0.99`) lost the router; the mgmt IP answered ICMP on the untagged plane.
+
+**Recovery (idempotent delta, no secrets):**
+```
+# render from SSOT (secret-free template):
+bash scripts/ansible-run.sh playbooks/render-converge.yml   # or ad-hoc render of rb4011_pi_delta
+# import in WinBox terminal (or /import the file):
+/import rb4011_pi_delta.rsc
+```
+The delta re-sets `vlan-99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether10 untagged=ether7,ether9` + correct
+`pvid` on ether10 — matching `router_port_map` / `rb4011_converge.rsc.j2`. Verified live: Pi `eth0.99` →
+`10.10.99.1` 0% loss, ARP REACHABLE, API via Pi-hop tunnel works, nas/oldsrv reservations bound.
+
+**Lesson (fold into apply workflow):** a full `router.yml` converge can disturb bridge VLAN memberships on the
+mgmt plane. Prefer **surgical deltas** for mgmt-plane-sensitive changes, and keep `rb4011_pi_delta.rsc.j2`
+as the canonical idempotent recovery (always re-render before use — it is SSOT-derived).
