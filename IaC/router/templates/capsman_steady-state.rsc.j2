@@ -62,15 +62,37 @@
     comment="VLAN {{ ssid.vlan }} ({{ ssid.item }})"
 {% endfor %}
 
+# ---- Per-band Kogler master configs (2026-09-03: non-DFS 5GHz + band split) ----
+# A phone (Samsung) could not associate with the CAPsMAN auto-selected DFS 5GHz
+# channels (5500/5580) — pinned to non-DFS channel 36 (5180). The master config is
+# split per band so the 5GHz channel pin never touches the 2.4GHz provisioning
+# (a shared cfg-kogler with channel.frequency confused the 2.4GHz IOT slaves -
+# live-probed). IOT is 2.4GHz-only (owner decision).
+/interface wifi configuration add \
+    name=cfg-kogler-24 \
+    ssid="Kogler" \
+    security=sec-kogler \
+    mode=ap \
+    datapath=DP_AC \
+    comment="Kogler 2.4GHz master (no channel pin)"
+/interface wifi configuration add \
+    name=cfg-kogler-5 \
+    ssid="Kogler" \
+    security=sec-kogler \
+    mode=ap \
+    datapath=DP_AC \
+    channel.band=5ghz-ac \
+    channel.frequency=5180 \
+    comment="Kogler 5GHz master (ch36 non-DFS)"
+
 # ---- Provisioning rules (manager -> APs) ----
-# master = cfg-kogler (default for all APs); 2.4GHz carries the IOT slave, 5GHz is
-# Kogler-only (owner decision 2026-09-03: no Kogler IOT on 5GHz). Slave list is
-# data-driven from routeros_capsman_ssids (all configs except the master).
+# 2.4GHz master = cfg-kogler-24 + IOT slaves; 5GHz master = cfg-kogler-5 (Kogler
+# only). Slave list is data-driven from routeros_capsman_ssids (all except master).
 {% set slaves = routeros_capsman_ssids | rejectattr('cfg', 'equalto', 'cfg-kogler') | map(attribute='cfg') | list %}
 # 2.4GHz: master + enabled slave SSIDs
 /interface wifi provisioning add \
     action=create-dynamic-enabled \
-    master-configuration=cfg-kogler \
+    master-configuration=cfg-kogler-24 \
 {% if slaves %}
     slave-configurations={{ slaves | join(',') }} \
 {% endif %}
@@ -79,7 +101,7 @@
 # 5GHz: Kogler master only (no IOT on 5GHz)
 /interface wifi provisioning add \
     action=create-dynamic-enabled \
-    master-configuration=cfg-kogler \
+    master-configuration=cfg-kogler-5 \
     supported-bands=5ghz-ac \
     comment="5GHz: Kogler only (no IOT on 5GHz)"
 

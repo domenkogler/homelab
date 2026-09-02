@@ -57,6 +57,11 @@ tags: [network, vlan, firewall]
 - **Band split (owner decision, 2026-09-03):** `Kogler IOT` is **2.4GHz-only** — provisioning is
   split: 2.4GHz carries Kogler + Kogler IOT, 5GHz carries Kogler only (IoT devices don't need 5GHz;
   frees the 5GHz radio).
+- **5GHz non-DFS channel (2026-09-03 fix — 'phone won't connect to 5GHz'):** CAPsMAN auto-selected
+  DFS channels (5500/5580) which many phones (esp. Samsung) can't associate with. 5GHz is now pinned
+  to **channel 36 (5180, non-DFS)** via a dedicated per-band master config `cfg-kogler-5`
+  (`channel.band=5ghz-ac channel.frequency=5180`); 2.4GHz uses `cfg-kogler-24` (no channel pin) so
+  the pin never disturbs the IOT slaves (live-probed: a shared config with the pin broke them).
 - **Switch AP ports (2026-09-03 live fix — 'phone disconnects' root cause):** APs do per-SSID VLAN
   tagging, so their CRS328 ports (ether11/12) MUST be **tagged members of the wifi VLANs (10 + 20)**
   in addition to the untagged 99 mgmt access. With access-99 only, the AP's tagged client frames
