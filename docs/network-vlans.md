@@ -32,14 +32,31 @@ tags: [network, vlan, firewall]
 
 ## CAPsMAN SSID-to-VLAN Mapping
 
-| CAPsMAN Config | VLAN ID | SSID |
-|----------------|---------|------|
-| `cfg-kogler` | 10 | Kogler |
-| `cfg-kogler-iot` | 20 | Kogler IOT |
+> **LIVE (2026-09-02/03):** `Kogler` + `Kogler IOT` are the only two broadcast (IOT-WAN/guest/kids
+> disabled). **HD-312 TARGET (2026-09-03 decision, supersedes per-purpose SSIDs):** consolidate to
+> **3 SSIDs** — Kogler (family+kids, VLAN 10), IOT (VLAN 20, client-isolation, per-MAC WAN), Kogler
+> guest (VLAN 30, 5GHz, client-isolation). Table below reflects the target; live rows marked `live`.
 
-> **Active SSIDs only (owner decision, 2026-09-02):** `Kogler` + `Kogler IOT` are the only two
-> broadcast. `Kogler IOT WAN` (21), `Kogler guest` (30), `Kogler Kids` (40) are **disabled** — kept
-> in the SSOT (`routeros_capsman_ssids`, commented out) + 1Password, ready to re-enable.
+| CAPsMAN Config | VLAN ID | SSID | Band | Isolation / note |
+|----------------|---------|------|------|------------------|
+| `cfg-kogler` | 10 | Kogler | 2.4 + 5 | **none** — family sees each other; kids devices join here (kids controls = firewall MAC-address-list, NOT a VLAN) |
+| `cfg-kogler-iot` | 20 | Kogler IOT | 2.4 only | **client-isolation yes** — IoT devices can't see each other; cloud-IoT (Bosch/LG/HAP) get WAN via `iot-wan-allow` MAC list |
+| `cfg-kogler-guest` | 30 | Kogler guest | 5 only | **client-isolation yes** + firewall drop-to-LAN — internet-only |
+
+> **3-SSID rationale (HD-312, 2026-09-03 — see [network-rejected.md](network-rejected.md) row):**
+> the 2.4GHz band had 5 SSIDs = wasted airtime; all devices have static MACs in
+> `network_static_hosts`, so per-MAC control (CAPsMAN `access-list` vlan-id + firewall
+> MAC-address-lists) beats SSID-per-purpose. Kids merge into Kogler (same network). IoT + IoT-WAN
+> merge into IOT (cloud-IoT permanent-WAN + firmware-window temporary WAN both via `iot-wan-allow`).
+> Guest stays its own SSID (unknown clients can't be MAC-mapped).
+>
+> **Static-IP requirement (HD-312, 2026-09-03):** the per-MAC model + MAC-address-list firewall
+> rules only work predictably if every controlled device's **IP is static** — each IoT/kids/cloud-IoT
+> device gets a **static DHCP reservation** (MAC → IP) in `network_static_hosts` (SSOT), so the
+> firewall MAC-lists, the CAPsMAN vlan-id ACL, and the n8n firmware automation all reference a stable
+> identity. Devices without a reservation are treated as untrusted (Guest-style). This is a
+> prerequisite for HD-312 implementation — `network_static_hosts` gains a `static_ip: true` marker
+> (or the reservation IS the marker) per controlled device during implementation.
 
 - **Mode:** `local-forwarding=no` (data-path) — all traffic tunneled to the router for VLAN tagging
   (network-vlans.md's CAPsMAN section is the SSOT; per-SSID VLAN tagging rides the CAP's **bridge**
@@ -51,17 +68,21 @@ tags: [network, vlan, firewall]
   `api_modify`. MODERN `wifi-qcom-ac` fleet-wide (HD-232): VLAN tagging under the CAP's bridge
   (per-SSID pvid + tagged uplink on the AP — NOT manager datapath vlan-id, which wifi-qcom-ac CAPs
   reject with 'does not support assigning vlans'; live-verified + fixed 2026-09-02), WPA2-PSK
-  passphrases from the active `wifi-kogler*` 1Password items at render (currently the two enabled
-  SSIDs: wifi-kogler_password + wifi-kogler-iot_password). ap_initial.rsc.j2 uses modern
+  passphrases from the active `wifi-kogler*` 1Password items at render. ap_initial.rsc.j2 uses modern
   `/interface wifi cap`.
+- **Per-MAC VLAN / policy (HD-312 target):** CAPsMAN `/interface wifi access-list` on wifi-qcom-ac
+  7.24.1 supports per-MAC `vlan-id` override (live-verified add), so one SSID can serve multiple VLANs
+  per client. It CANNOT move a client to another SSID (only override vlan-id/passphrase/client-isolation
+  on the SSID joined), and needs the CAP bridge access-port pvid model (already live). The firewall
+  side uses MAC-address-lists (`iot-wan-allow`, `kids-*`) rendered from `network_static_hosts`.
 - **Band split (owner decision, 2026-09-03):** `Kogler IOT` is **2.4GHz-only** — provisioning is
   split: 2.4GHz carries Kogler + Kogler IOT, 5GHz carries Kogler only (IoT devices don't need 5GHz;
-  frees the 5GHz radio).
+  frees the 5GHz radio). Target: guest = 5GHz-only.
 - **5GHz non-DFS channel (2026-09-03 fix — 'phone won't connect to 5GHz'):** CAPsMAN auto-selected
   DFS channels (5500/5580) which many phones (esp. Samsung) can't associate with. 5GHz is now pinned
-  to **channel 36 (5180, non-DFS)** via a dedicated per-band master config `cfg-kogler-5`
-  (`channel.band=5ghz-ac channel.frequency=5180`); 2.4GHz uses `cfg-kogler-24` (no channel pin) so
-  the pin never disturbs the IOT slaves (live-probed: a shared config with the pin broke them).
+  to **channel 36 (5180, non-DFS)** via per-band master configs `cfg-kogler-24`/`cfg-kogler-5`
+  (`channel.band=5ghz-ac channel.frequency=5180` on the 5GHz config; 2.4GHz has no pin so it never
+  disturbs the IOT slaves — live-probed: a shared config with the pin broke them).
 - **Switch AP ports (2026-09-03 live fix — 'phone disconnects' root cause):** APs do per-SSID VLAN
   tagging, so their CRS328 ports (ether11/12) MUST be **tagged members of the wifi VLANs (10 + 20)**
   in addition to the untagged 99 mgmt access. With access-99 only, the AP's tagged client frames
