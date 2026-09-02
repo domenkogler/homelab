@@ -179,8 +179,10 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 > **Pi-hop SSH + Winbox tunnels (Mgmt VLAN from the laptop, 2026-09-02):** the laptop is untagged Home-only
 > (Windows never tags VLAN 99); the **Mgmt plane is reached via the Pi's tagged-99 leg** — preconfigured in
 > `~/.ssh/config` (concrete IPs: [`network-addresses-generated.md`](network-addresses-generated.md)):
-> - **SSH console:** `ssh pi99` (→ Pi tagged-99 leg via ProxyJump `pi`), `ssh router99` (→ router mgmt via
->   ProxyJump `pi`, user `ansible`), `ssh switch` (→ switch mgmt), `ssh nas99`, `ssh ap-spalnica/dnevna/spare`.
+> - **SSH console:** `ssh pi99` (→ Pi tagged-99 leg .99.20 via ProxyJump `pi`), `ssh router99` (→ router mgmt
+>   .99.1 via ProxyJump `pi`, user `ansible`), `ssh switch` (→ CRS328 mgmt .99.2), `ssh nas99` (→ .99.10,
+>   offline until Phase 2), `ssh ap-spalnica/ap-dnevna/ap-spare` (→ APs .99.4/.5/.6). All via ProxyJump `pi`,
+>   user `ansible`/`ansible-admin`.
 > - **Winbox GUI (device binds winbox 8291 to Mgmt VLAN only):** SSH into the Pi and forward from there
 >   (the Pi carries the tagged-99 leg), so the forward runs on the Pi → device. Aliases in `~/.ssh/config`:
 >   `ssh -N switch-wb` (→ `127.0.0.1:8292` → switch winbox), `ssh -N ap-spalnica-wb` (
