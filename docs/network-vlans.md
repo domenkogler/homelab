@@ -148,6 +148,6 @@ dynamic address until the lease turns over.
 | Camera | Access | 20 (IoT) |
 | Shield, console, smart TV | Access | 50 (Media) |
 | UPS management | Access | 99 (Mgmt) |
-| Laptop (admin, router ether3) | Access (Home only) | **10 (Home) untagged only** — mgmt via Pi tagged-99 hop (`~/.ssh/config` `pi99`/`router99` ProxyJump); static `laptop-domen` (2026-09-01, HD-307) |
+| Laptop (admin, router ether3) | Access (Home only) | **10 (Home) untagged only** — mgmt via Pi tagged-99 hop (`~/.ssh/config` `pi99`/`router99` + `switch`/`ap-*`/`nas99` ProxyJump); static `laptop-domen` (2026-09-01, HD-307) |
 | Debian homelab PC (oldsrv) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
 | SFP+ uplinks | Trunk | 10,20,30,40,50,99 tagged |

@@ -643,6 +643,27 @@ bash scripts/ansible-network-hop.sh router playbooks/router.yml                 
 bash scripts/ansible-network-hop.sh switch playbooks/switch.yml
 ```
 
+**Manual mgmt from the laptop — `~/.ssh/config` aliases (2026-09-02):** for direct WinBox/SSH/
+RouterOS to switch + APs from the Home-only laptop, the same Pi-99 hop works through SSH port
+forwards/ProxyJump. Preconfigured aliases (all via ProxyJump `pi`, same `id_ed25519`):
+
+```bash
+# verify (RouterOS answers `:put`):
+ssh switch '':put OK''            # CRS328 .99.2
+ssh ap-spalnica '':put OK''       # hAP ac² .99.4
+ssh ap-dnevna '':put OK''         # hAP ac² .99.5
+# WinBox on the laptop -> localhost:8291 (device .99.2):
+#   ssh -N -L 8291:<switch .99.2>:8291 switch   (then WinBox Address=127.0.0.1:8291)
+#   ssh -N -L 8291:<ap-dnevna .99.5>:8291 ap-dnevna
+# aliases live in ~/.ssh/config:  pi99 .99.20, router99 .99.1, switch .99.2,
+# ap-spalnica .99.4, ap-dnevna .99.5, ap-spare .99.6, nas99 .99.10 (nas offline → Phase 2)
+# .99.x IPs = network-addresses-generated.md SSOT; aliases keep Windows off tagged-99 (laptop stays untagged Home-only).
+```
+
+> The aliases keep Windows off tagged-99 (the laptop stays untagged Home-only); the Pi `eth0.99`
+> leg is the only mgmt client. `nas99`/`ap-spare` may report 'No route to host' until those devices
+> are powered/provisioned (spare AP + Phase-2 NAS).
+
 > **2026-09-02 (maintenance window):** this hop unblocked the live re-converge — router
 > `ok=34 changed=5 failed=0`, switch `ok=23 changed=4 failed=0`, both through the Pi hop.
 > It also surfaced + fixed live switch-role bugs: `poe-out: on` (→ `auto-on`, the CRS328
