@@ -554,10 +554,10 @@ First-boot notes:
 
 > **Scope:** the post-Phase-1 home network redo. The 4 .rsc files below are
 > **rendered once** (per change) from `IaC/router/templates/*.rsc.j2`; the router role takes
-> over from there. Pre-flight: confirm `wg_s2s_router_public_key` ==
-> `wg_s2s_vps_public_key` == the pubkey of the shared `wg_password` private key in 1P
-> (`gwXAk+550CDfybOg64+v+QUFv1sW0wnGrIiI+EWFhUk=` per the prep commit), all 5
-> `wifi-kogler*` 1P items seeded, and the RB4011 flat backup saved
+> over from there. Pre-flight: the two WireGuard S2S keys are **distinct per side** (HD-285 fix)
+> — router `wg_password` (pub `wg_s2s_router_public_key`), VPS `wg_password_vps` (pub
+> `wg_s2s_vps_public_key`, NEW item) — verify both 1P items hold `wg genkey`-format 44-char
+> values; all 5 `wifi-kogler*` 1P items seeded; and the RB4011 flat backup saved
 > (`rb4011_flat_backup.rsc` exported from Files before the reset).
 > Backups: owner confirms each device has a current `.backup` file before starting.
 
@@ -719,59 +719,57 @@ wifi/security/provisioning objects.
 Devices must re-join the right SSID (Kogler / Kogler IOT / Kogler IOT WAN / Kogler guest /
 Kogler Kids) to land on their VLAN (10/20/21/30/40).
 
-### 1.5.5 Bring up the WG S2S tunnel (HD-91)
+### 1.5.5 Bring up the WG S2S tunnel (HD-91 / HD-285 two-key fix)
 
-The `router` role already configured the `wg-s2s` interface and the VPS peer
-(`wg_s2s_vps_public_key` in `group_vars/all/main.yml`). The VPS side has its own peer in
-`IaC/ansible/roles/wireguard/`. The tunnel is up as soon as both sides have the matching
-peer; the role asserts it. ✔-evidence:
-**Endpoint:** the VPS peer uses **`wg_s2s_vps.endpoint: s.kogler.si`** — a **DDNS token** (Cloudflare DNS A-record → home WAN) instead of a literal IP. The VPS initiates; `systemd-networkd` resolves the hostname at every boot, so the tunnel survives home WAN IP changes + a VPS redo without editing group_vars. `s.kogler.si` is tracked in `cloudflare_dns/vars/main.yml` (keep it updated when the home PPPoE IP changes).
+Each side holds a **DISTINCT** WireGuard keypair (HD-285 fix — shared key made pubkeys identical and the router tried to handshake with itself, so no handshake ever fired):
 
-**Bring-up procedure:**
+| Side | 1P key item | Own pubkey var | Peer pubkey var (the other side) |
+|------|-------------|----------------|----------------------------------|
+| Router (RB4011) | `wg_password` | `wg_s2s_router_public_key` | `wg_s2s_vps_public_key` |
+| VPS | `wg_password_vps` | `wg_s2s_vps_public_key` | `wg_s2s_router_public_key` |
+
+**Endpoints are DDNS tokens, not literal IPs:** VPS→router uses `wg_s2s_vps.endpoint: s.kogler.si`; router→VPS uses `wireguard_s2s_vps.remote_endpoint: vps.kogler.si` (Cloudflare A). `s.kogler.si` tracked in `cloudflare_dns/vars/main.yml`.
+
+**Bring-up (from a session worktree, venv interpreter):**
 
 ```bash
-# VPS side — wireguard role (interface + key + listen; from a session worktree, venv interpreter):
+# VPS side — wireguard role (distinct key + peer + the oneshot owns the iface):
 bash scripts/ansible-run.sh playbooks/vps.yml --tags wireguard
-#   expect: ok=13 changed=~5 failed=0; wg-s2s up with the wg-s2s /30 address (SSOT), key = gwXAk+…, listen 51820
+#   the wg-ensure-s2s-peer oneshot: create-if-missing iface → address → key (wg setconf key-only) → peer (wg set) → verify.
 
-# Router side — router role corrects the wg interface key to the shared wg_password pubkey:
-ansible-playbook -i inventory.ini playbooks/router.yml -e ansible_python_interpreter=~/ansible-venv/bin/python3
-#   expect: ok=32 changed=16 failed=0 (fresh-bootstrap delta; re-run smaller).
-#   The converge-.rsc historically created wg-s2s WITHOUT private-key= → RouterOS auto-generates a
-#   random key; the role's private-key task re-fixes it. Verify: /interface wireguard print → gwXAk+….
+# Router side — router role (own key from wg_password, peer = VPS key, endpoint = vps.kogler.si):
+bash scripts/ansible-network-hop.sh router playbooks/router.yml
 ```
 
-✔-evidence (both sides must show the peer + a handshake):
+**Post-converge manual fixes that the role does NOT hold (live-found 2026-09-02, imperative):**
 
 ```text
-# on the RB4011
-/interface wireguard print                ; wg-s2s present, port 51820
-/interface wireguard peer print           ; peer vps-s2s, latest-handshake non-zero
-# on the VPS
-sudo wg show wg-s2s                        ; peer with public key gwXAk+5…, latest-handshake non-zero
+# 1) If the router peer still shows the OLD/self pubkey, set it to the VPS key:
+/interface wireguard peers set [find comment="vps-s2s"] public-key="<wg_s2s_vps_public_key>"
+# 2) The HD-155 forward accept must sit ABOVE the Default deny inter-VLAN (else shadowed):
+/ip firewall filter move <vps-accept-index> destination=<default-deny-index>   ; verify order: VPS accept directly above Default deny
 ```
 
-> ✅ **HD-306 RESOLVED (2026-09-01):** on VPS kernel `6.12.101` + systemd 257 the wireguard peer does not
-> auto-attach — networkd creates `wg-s2s` (key/address/listen) but never applies the `[WireGuardPeer]` to the
-> kernel, and a `wg setconf` conf containing a `PrivateKey` line silently drops the peer. The wireguard role now
-> renders a **peer-only `wg-s2s.conf`** (no `PrivateKey` — the key comes from the `.netdev`) and ships the
-> **`wg-ensure-s2s-peer`** oneshot (`PartOf=systemd-networkd.service`), so `wg setconf` re-attaches the peer
-after networkd init/boot automatically. Verify:
+✔-evidence (both sides must show the peer + a fresh handshake):
 
-```bash
-systemctl status wg-ensure-s2s-peer      # active (exited) after boot / networkd restart
-sudo wg show wg-s2s                       ; peer gwXAk+5… with endpoint + allowed ips
-sudo systemctl restart systemd-networkd; sleep 4; systemctl start wg-ensure-s2s-peer
-sudo wg show wg-s2s                       ; peer re-attached (boot-path proof)
+```text
+# RB4011
+/interface wireguard print           ; wg-s2s, own key ≠ peer key
+/interface wireguard peer print      ; vps-s2s = VPS pubkey, endpoint vps.kogler.si, current-endpoint set
+# VPS
+sudo wg show wg-s2s                  ; peer = router pubkey, latest-handshake non-zero + renewed (keepalive 25)
+sudo wg show wg-s2s transfer         ; rx/tx moving (data plane)
+ping -c3 <router-mgmt-ip>            ; router mgmt over the tunnel (0% loss; IP = SSOT `router` mgmt row in network-addresses-generated.md)
 ```
 
-Live-verify from the VPS:
+> **HD-306/HD-285 mechanism note (imperative, from live 2026-09-02):** systemd 257 networkd applies the
+> `.netdev` `[WireGuard] PrivateKey` but **never applies `[WireGuardPeer]`**, and strips any userspace
+> `wg set peer` while it owns the iface. Fix: networkd is reduced to **create-only** (minimal `.netdev`
+> + `Unmanaged=yes` `.network`); the `wg-ensure-s2s-peer` oneshot OWNS wg-s2s (create-if-missing →
+> address from `wg_s2s_vps.local_ip` → key via `wg setconf` KEY-ONLY → peer via `wg set … peer` →
+> verify key + peer present, exit non-zero on missing). The `wg-s2s.conf` carries the VPS key (0640).
 
-```bash
-ping -c3 router.kogler.si   # router over the tunnel (WG S2S, mgmt-VLAN IP behind wg-s2s)
-```
-
-**Authoring pitfalls for the wireguard role templates (do not relearn):** ① Jinja newline-glue — Ansible `template` `trim_blocks` eats a literal newline after `{% endfor %}` → `AllowedIPs=…24Endpoint=…` glued on one line (peer dropped). Emit an explicit `{{ '\n' }}`. ② `.netdev` perms must be `0640` (`0600` + ACL `mask::---` → networkd `Permission denied`; networkd runs as `systemd-network`). ③ `[WireGuardPeer]` belongs in `.netdev` (`Kind=wireguard`); a `[WireGuardPeer]` section in `.network` is ignored (`Unknown section`). ④ **`wg setconf` conf must NOT contain a `PrivateKey` line** — on this kernel a setconf with `PrivateKey` silently drops the peer while the same conf without it attaches + persists (HD-306 live lesson); the private key stays in the `.netdev` and the interface already carries it.
+**Authoring pitfalls (do not relearn):** ① Jinja `trim_blocks` eats a newline after `{% endfor %}` → use an explicit `{{ '\n' }}`. ② `.netdev` 0640 (`0600`+ACL → networkd `Permission denied`). ③ `[WireGuardPeer]` in `.network` is ignored. ④ Never put the `PrivateKey` in a **peer-only** `wg setconf` for the router side — the two-key role handles it.
 
 ### 1.5.6 Cutover close-out
 
