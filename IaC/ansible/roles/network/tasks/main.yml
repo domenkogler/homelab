@@ -9,10 +9,9 @@
 #      no systemd-networkd active). Session-safe: additive addresses, default via Home,
 #      Mgmt never-default.
 #   4. render docs/network-addresses-generated.md from IaC via render-docs.yml (run by site.yml)
-#
-# REMAINING (scoped TODO): static IP + VLAN trunk/sub-interface provisioning for the other
-# hosts (oldsrv trunk 10+20+50 + 99 native; nas VLAN10 + 99) once their config-manager is
-# settled (desktop/VPS use systemd-networkd; Pi uses NetworkManager — see network-rejected.md).
+#   5. nas/oldsrv (systemd-networkd, desktop/VPS class): static dual-home — physical .network
+#      (VLAN-10 Home address + default route), a VLAN-99 tagged sub-interface (.netdev) + its
+#      .network (Mgmt address, connected route only). Session-safe: additive addresses.
 - name: Refuse network runs as ai-debug or unknown users
   assert:
     that:
@@ -49,6 +48,54 @@
     - ansible_host is defined
   notify: reload NetworkManager
   tags: [network, nm-pi]
+
+# ---- nas/oldsrv netd (systemd-networkd) static dual-home (HD-311) ----
+# desktop/VPS-class hosts use systemd-networkd (network-rejected.md: netplan rejected,
+# systemd-networkd the config-manager; Pi-uses-NM is the Pi exception). The port model
+# (HD-310) is untagged Home (10) + tagged Mgmt (99) on the SAME physical NIC; netd
+# units render the physical .network (Home addr + default) + a .99 VLAN sub-interface
+# (.netdev) + its .network (mgmt addr, connected route only).
+# Session-safe: rendering units is additive; networkd-reload applies them without
+# severing the existing session on the Home leg (the mgmt leg is a tagged addition).
+- name: Render systemd-networkd .network for the physical uplink (Home 10 + mgmt-99 tagged)
+  ansible.builtin.template:
+    src: netd-phys.network.j2
+    dest: "{{ netd_dir }}/20-{{ netd_phys_name }}.network"
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - netd_phys_name is defined
+    - host_home_ip is defined
+    - home_gateway_ip is defined
+  notify: reload systemd-networkd
+  tags: [network, netd]
+
+- name: Render systemd-networkd .netdev for the VLAN-99 tagged sub-interface
+  ansible.builtin.template:
+    src: netd-vlan.netdev.j2
+    dest: "{{ netd_dir }}/20-{{ netd_phys_name }}.netdev"
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - netd_phys_name is defined
+    - netd_vlan_ifname is defined
+  notify: reload systemd-networkd
+  tags: [network, netd]
+
+- name: Render systemd-networkd .network for the VLAN-99 tagged sub-interface (mgmt addr)
+  ansible.builtin.template:
+    src: netd-vlan.network.j2
+    dest: "{{ netd_dir }}/20-{{ netd_phys_name }}.99.network"
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - netd_vlan_ifname is defined
+    - mgmt_ip is defined
+  notify: reload systemd-networkd
+  tags: [network, netd]
 
 # Load the profile into NetworkManager (idempotent: `load` then `up` the connection).
 # A reload alone does not activate a NEW keyfile — NM must load it and bring eth0 up on it.

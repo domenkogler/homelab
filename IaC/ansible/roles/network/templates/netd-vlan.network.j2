@@ -1,0 +1,17 @@
+# systemd-networkd .network for the VLAN-99 (Management) tagged sub-interface on
+# systemd-managed homelab hosts (nas, oldsrv). Rendered by roles/network.
+# Do not hand-edit.
+#
+# Tagged Mgmt (99) rides the physical uplink via 802.1Q. Address = the host's
+# VLAN-99 mgmt IP from SSOT (host_vars mgmt_ip / network_static_hosts) — the
+# .99 leg is the mgmt-plane client only (never a default router), so it carries
+# the connected 10.10.99.0/24 route and NO default route of its own.
+[Match]
+Name={{ netd_vlan_ifname }}
+
+[Network]
+Description={{ netd_vlan_description }}
+DHCP=no
+Address={{ mgmt_ip }}/24
+# connected-only — no default route, no gateway. The mgmt plane is reached via
+# the 10.10.99.0/24 route; the missing default keeps mgmt from routing outside.

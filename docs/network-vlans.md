@@ -121,6 +121,13 @@ dynamic address until the lease turns over.
 > tagged leg is the only real mgmt-plane client. Supersedes the old "Mgmt-access + single-VLAN" model
 > (dead Pi Home leg, HD-307/308) AND the temporary Home→Mgmt forward (reverted 2026-09-02). It does NOT change
 > any IP — devices keep their `10.10.x`/`10.10.99.x` static reservations; it changes the L2 VLAN membership/tagging only.
+>
+> **Host-side dual-home was implemented 2026-09-02 (HD-311):** the `network` role now renders
+> systemd-networkd units for **nas + oldsrv** (desktop/VPS class) — physical `.network`
+> (untagged Home 10 + default route) + VLAN-99 tagged sub-interface (`.netdev` `eno1.99`) + its
+> `.network` (Mgmt address, connected route only, no default). The Pi keeps the NetworkManager
+> keyfile path (`pi-eth0.nmconnection`, HD-307). See [network-rejected.md](network-rejected.md)
+> and `roles/network/`.
 
 ---
 

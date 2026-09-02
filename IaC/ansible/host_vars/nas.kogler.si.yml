@@ -1,6 +1,10 @@
 ---
 # HP MicroServer Gen8 — ZFS storage server
 ansible_host: 10.10.1.10           # VLAN 10 (Home) — static (Cockpit/NFS/NUT master)
+# Physical uplink NIC for the network role netd units (systemd-networkd):
+# eno1 = HP MicroServer Gen8 onboard NIC #1 -> CRS328 ether10 (SSOT switch_port_map nas-eno1).
+# Port model (HD-310): Home (10) untagged + Mgmt (99) tagged on this NIC.
+netd_phys_name: eno1
 mgmt_ip: 10.10.99.10               # VLAN 99 (Management) — native
 ilo_ip: 10.10.99.11                # iLO4 remote mgmt
 ansible_user: ansible-admin        # created by preseed post_install.sh

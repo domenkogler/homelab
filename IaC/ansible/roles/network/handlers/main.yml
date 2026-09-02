@@ -1,9 +1,9 @@
----
-# network role handlers. tags: always — handlers are tag-filtered like tasks; without it a
-# notified reload is silently skipped under e.g. --tags network (HD-220/HD-237 sweep).
-
-- name: reload NetworkManager
+# network role handlers — restart systemd-networkd (netd units for nas/oldsrv).
+# A render of any netd unit reloads networkd; systemd-networkd is idempotent and
+# applies the new units without tearing down the physical link (the .99 VLAN
+# sub-interface is additive). The Pi (NetworkManager) uses reload NetworkManager.
+- name: reload systemd-networkd
   ansible.builtin.systemd:
-    name: NetworkManager
-    state: reloaded
-  tags: always
+    name: systemd-networkd
+    state: restarted
+    daemon_reload: true

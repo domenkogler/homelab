@@ -72,8 +72,8 @@ Internet → ONT → router ether1 (WAN)
   (☠️ garage AP DEAD 2026-08-24, ether1 reserved for replacement)
 ```
 
-- **oldsrv** uses single UTP (Intel i350-T2) to switch as VLAN trunk — all VLANs over one cable
-- **nas** connects via access port (VLAN 10 Home, VLAN 99 native for Mgmt)
+- **oldsrv** uses single UTP (Intel i350-T2) to switch as VLAN trunk — all VLANs over one cable; host-side dual-home (Home 10 untagged + Mgmt 99 tagged) via the `network` role's systemd-networkd units (HD-311)
+- **nas** connects via access port (VLAN 10 Home, VLAN 99 tagged for Mgmt — dual-home via the same netd role units, HD-311)
 
 ---
 

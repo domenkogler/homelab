@@ -467,9 +467,9 @@ domain_local: kogler.si
 - **Secrets:** None.
 
 ### `network`
-- **Home server:** VLAN sub-interface on trunk port, static IP
+- **Home server (nas/oldsrv, systemd-networkd):** static dual-home — physical `.network` (untagged Home 10 + default route) + VLAN-99 tagged sub-interface (`.netdev` `eno1.99`) + its `.network` (Mgmt address, connected route only). Rendered by the role (HD-311) under `/etc/systemd/network/`; `netd_phys_name` pinned per host in host_vars.
 - **VPS:** Static IP on services bridge
-- **Pi:** Static IP on Home VLAN
+- **Pi:** Static IP on Home VLAN (NetworkManager keyfile, HD-307)
 - **All:** `/etc/hosts` template with all nodes
 
 ### `cockpit`

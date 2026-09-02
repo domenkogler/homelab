@@ -1,0 +1,16 @@
+# systemd-networkd .netdev defining the VLAN-99 (Management) tagged sub-interface
+# on systemd-managed homelab hosts (nas, oldsrv). Rendered by roles/network.
+# Do not hand-edit.
+#
+# Kernel 802.1Q VLAN device: the physical NIC (netd_phys_name) carries Home (10)
+# untagged + Management (99) tagged per the HD-310 port model. This netdev creates
+# the `.99` sub-interface the mgmt IP binds to; the address itself is in
+# netd-vlan.network. The VLAN netdev is created by networkd itself (no
+# /etc/network/interfaces, no modprobe) — the 8021q module ships standard.
+[NetDev]
+Name={{ netd_vlan_ifname }}
+Kind=vlan
+Description={{ netd_vlan_description }}
+
+[VLAN]
+Id=99

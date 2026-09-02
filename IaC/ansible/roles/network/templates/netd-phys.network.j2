@@ -1,0 +1,25 @@
+# systemd-networkd .network for the physical uplink on systemd-managed homelab hosts
+# (nas, oldsrv — the desktop/VPS class; NOT the Pi which ships NetworkManager).
+# Rendered by roles/network (IaC/ansible/roles/network). Do not hand-edit.
+#
+# Port model (HD-310, final 2026-09-02): untagged = primary/access VLAN, tagged =
+# secondary/admin (Mgmt 99). nas + oldsrv ride Home (10) untagged + Mgmt (99) tagged
+# on the SAME physical NIC; every SSOT address/gateway below is derived from
+# network_static_hosts / network_vlans / host_vars — never literals.
+#
+# VLAN 10 (Home): the untagged/access plane — the default route lives here.
+# VLAN 99 (Management): the tagged plane, reached through the 10.10.99.0/24
+#   connected route on the VLAN sub-interface below (eno1.99) — no separate
+#   gateway, so the mgmt traffic stays scoped to the tagged leg by design.
+[Match]
+Name={{ netd_phys_name }}
+
+[Network]
+Description={{ netd_phys_description }}
+DHCP=no
+Address={{ host_home_ip }}/24
+Gateway={{ home_gateway_ip }}
+DNS={{ bootstrap_dns_servers }}
+Domains={{ domain_local }}
+# the .99 tagged sub-interface is defined by its sibling netdev + netd-vlan.network
+LLMNR=no
