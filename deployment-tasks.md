@@ -223,7 +223,7 @@
 - Rollback plan documented before starting (preserve the previous flat config as `rb4011_flat_backup.rsc`).
 
 **Deploy-gated verification (Phase 1.5):**
-- **HD-03** — Network redo live: VLANs 10/20/21/30/40/50/99 + inter-VLAN firewall + CAPsMAN SSIDs NOT yet on live gear (deploy runnable via Ansible in WSL Debian); open switch bridge-VLAN membership + CAPsMAN SSID secret items; WG S2S VPS peer (IaC present VPS `77833f1`/router `85ba6dc`) — provision both peer pubkeys + bring up tunnel. · [network-vlans.md](docs/network-vlans.md)
+- **HD-03** — Network redo: VLANs 10/20/21/30/40/50/99 + inter-VLAN firewall live; **CAPsMAN steady-state IMPORTED + verified 2026-09-02** (5 wifi configs/5 security/provisioning row — §1.5.4; `datapath.vlan-mode` removed from the template, RouterOS 7.24.1 rejected it — commit `b0bae72`). Remaining: CAP registration-table fills as APs re-join; open switch bridge-VLAN membership; **WG S2S handshake blocked on VPS networkd-257 key bug** (see docs/network-vpn.md HD-285 note). · [network-vlans.md](docs/network-vlans.md)
 - **HD-09** — UPS web-UI firewall rule (80/443 Home→Mgmt for `10.10.99.9` only) not deployed. · [hardware-ups.md](docs/hardware-ups.md)
 - **HD-89** — disable/move unused AP ethernet ports off Mgmt VLAN (wired devices currently get full Management access). · [network-vlans.md](docs/network-vlans.md)
 - **HD-161** — router/switch `api_facts` assert-before-mutate step + router API TLS decision (`routeros_api_tls`, TODO after Let's Encrypt). · [deployment-ansible.md](docs/deployment-ansible.md)
