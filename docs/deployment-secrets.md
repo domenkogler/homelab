@@ -279,7 +279,8 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
 | `nut-exporter_password` | `password` | nut_exporter → upsd read-only auth (dedicated `upsmon slave` user on the NUT master) |
 | `network-snmp_api` | `credential` | router + switch — MikroTik SNMP **read-only community** for Alloy polling (HD-53/Option A); `credential` = the RO community string |
-| `wg_password` | `password` | router (WireGuard S2S private key) |
+| `wg_password` | `password` | router (WireGuard S2S private key — router side, distinct per-side, HD-285) |
+| `wg_password_vps` | `password` | VPS (WireGuard S2S private key — VPS side, distinct per-side, HD-285; NEW 2026-09-02) |
 | `wifi-kogler_password` | `password` | CAPsMAN SSID **Kogler** (VLAN 10 Home) — router role when `routeros_capsman_enabled` flips true (HD-228/HD-03); alphanumeric only, 2.4 GHz-friendly chips on this SSID family (HD-228) |
 | `wifi-kogler-iot_password` | `password` | CAPsMAN SSID **Kogler IOT** (VLAN 20 IoT, no internet) — Gen1 Shellys live here |
 | `wifi-kogler-iot-wan_password` | `password` | CAPsMAN SSID **Kogler IOT WAN** (VLAN 21 IoT-Internet) — Bosch/LG cloud appliances (HD-228) |

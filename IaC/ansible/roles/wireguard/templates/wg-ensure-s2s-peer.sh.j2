@@ -1,36 +1,71 @@
 #!/usr/bin/env bash
-# Ensure the wg-s2s peer is attached to the VPS WireGuard interface.
+# Ensure the wg-s2s interface has BOTH a private key and the peer attached.
 #
-# systemd 257 networkd creates the wg-s2s interface (from wg-s2s.netdev) but
-# never applies the [WireGuardPeer] block to the kernel — `wg show wg-s2s` shows
-# the interface with no peer (HD-306, live-verified 2026-09-01). The proven-reliable
-# workaround is `wg setconf` from a rendered conf file (plain `wg set` peer-add is
-# flaky on the networkd-owned interface). This oneshot re-applies the full conf
-# (interface key/listen + peer) after networkd init; it is idempotent.
+# HD-285 (Phase 1.5, live-proven on systemd 257 networkd):
+#   - networkd creates wg-s2s + applies the .netdev key, but NEVER applies the
+#     [WireGuardPeer] (Peer= missing in kernel — HD-306/HD-285).
+#   - networkd OWNS wg-s2s while it manages it: any `wg set peer` (or setconf
+#     key+peer) gets its peer removed within seconds. Userspace cannot hold a
+#     peer on a networkd-managed iface.
+#   - Net result: networkd is REMOVED from wg-s2s management entirely; this
+#     oneshot OWNS the interface (creates it if missing, applies key via
+#     `wg setconf`, adds peer via `wg set`). Live-verified 2026-09-02: peer
+#     persists when the oneshot owns the iface (no networkd racing it).
 #
-# We deliberately do NOT depend on systemd-networkd-wait-online (it can stay
-# stuck in `activating` on this host — live-found 2026-09-01). Instead we poll
-# for the interface to appear with a bounded timeout.
+# We deliberately do NOT depend on systemd-networkd-wait-online (unreliable; the
+# iface is owned by this unit now).
 set -euo pipefail
 
 iface="{{ wg_interface }}"
 conf="{{ wg_conf_dir }}/{{ wg_interface }}.conf"
 
-# Wait for networkd to create the interface (bounded; boot race).
-waited=0
-until ip link show "${iface}" >/dev/null 2>&1; do
-    if [ "$waited" -ge 30 ]; then
-        echo "wg-ensure-s2s-peer: interface '${iface}' never appeared (waited ${waited}s)" >&2
-        exit 1
-    fi
-    sleep 1
-    waited=$((waited + 1))
-done
+addr="{{ wg_s2s_vps.local_ip }}"
+
+# CREATE the interface if missing (networkd no longer owns wg-s2s).
+if ! ip link show "${iface}" >/dev/null 2>&1; then
+    echo "wg-ensure-s2s-peer: creating interface ${iface}"
+    ip link add "${iface}" type wireguard
+fi
+
+# Assign the tunnel address if missing (networkd's Unmanaged .network won't).
+if ! ip addr show "${iface}" | grep -q "${addr%%/*}"; then
+    echo "wg-ensure-s2s-peer: assigning ${addr} to ${iface}"
+    ip addr add "${addr}" dev "${iface}"
+fi
 
 if [ ! -r "${conf}" ]; then
     echo "wg-ensure-s2s-peer: conf '${conf}' missing/unreadable" >&2
     exit 1
 fi
 
-/usr/bin/wg setconf "${iface}" "${conf}"
-echo "wg-ensure-s2s-peer: applied ${conf} to ${iface} (peer attached)"
+# 1) Apply the KEY only (byte-exact from the conf). Idempotent by value.
+privkey="$(grep '^PrivateKey=' "${conf}" | sed 's/^PrivateKey=//')"
+if [ -z "${privkey}" ]; then
+    echo "wg-ensure-s2s-peer: no PrivateKey in ${conf}" >&2
+    exit 1
+fi
+printf '[Interface]\nPrivateKey=%s\nListenPort=51820\n' "${privkey}" > /tmp/wg-key.conf
+chmod 600 /tmp/wg-key.conf
+/usr/bin/wg setconf "${iface}" /tmp/wg-key.conf
+rm -f /tmp/wg-key.conf
+
+# 2) Add the PEER (networkd never applied it; on the oneshot-owned iface it persists).
+#    `wg set peer` with the same pubkey is idempotent (no-op if already present).
+peer_pub="$(grep '^PublicKey=' "${conf}" | sed 's/^PublicKey=//')"
+peer_ips="$(grep '^AllowedIPs=' "${conf}" | sed 's/^AllowedIPs=//')"
+peer_ep="$(grep '^Endpoint=' "${conf}" | sed 's/^Endpoint=//')"
+peer_ka="$(grep '^PersistentKeepalive' "${conf}" | sed 's/^PersistentKeepalive[[:space:]]*=[[:space:]]*//' || true)"
+if [ -n "${peer_ka}" ]; then
+    /usr/bin/wg set "${iface}" peer "${peer_pub}" allowed-ips "${peer_ips}" endpoint "${peer_ep}" persistent-keepalive "${peer_ka}"
+else
+    /usr/bin/wg set "${iface}" peer "${peer_pub}" allowed-ips "${peer_ips}" endpoint "${peer_ep}"
+fi
+
+# Verify BOTH are now present — surface a clear failure if either is missing.
+pubkey="$(/usr/bin/wg show "${iface}" public-key 2>/dev/null || echo none)"
+peers="$(/usr/bin/wg show "${iface}" peers 2>/dev/null || echo none)"
+if [ "${pubkey}" = "none" ] || [ -z "${peers}" ]; then
+    echo "wg-ensure-s2s-peer: FAIL — after setconf public-key='${pubkey}' peers='${peers}'" >&2
+    exit 1
+fi
+echo "wg-ensure-s2s-peer: verified key + peer on ${iface}"

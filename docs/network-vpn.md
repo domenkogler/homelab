@@ -58,28 +58,32 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 > restart/boot). Live-verified: peer attaches + persists across `networkctl reconfigure` and a networkd restart; the
 > oneshot re-attaches it automatically. Handshake still requires the **router side** (HD-285, Phase 1.5).
 
-> **HD-285 bring-up attempt (2026-09-02, maintenance window) — networkd 257 key bug found:**
-> the `.netdev` `PrivateKey=` line is rendered + on disk (len 44, correct value) but **systemd 257.13 networkd NEVER
-> applies it** — the running `wg-s2s` interface comes up **keyless** (`wg show wg-s2s public-key` = `(none)`) even
-> after a clean `systemctl restart systemd-networkd` + interface re-create. A keyless interface cannot handshake
-> (`ping` the SSOT `wg-s2s` router-side IP → `sendmsg: Required key not available`).
+> **HD-285 — RESOLVED 2026-09-02 (two-key design + oneshot-owned iface + firewall rule fix).**
+> Root cause was TWO layered bugs, both now fixed and live-verified (handshake UP, traffic flows):
 >
-> **Live-probed on the VPS (order matters — each op clears the other on the networkd-owned iface):**
-> - `wg setconf wg-s2s wg-s2s.conf` (peer-only, no PrivateKey) → **peer appears, key clears** (`pubkey (none)`)
-> - `wg set wg-s2s private-key` → **key appears, peer list clears** (`peers []`)
-> - `wg set wg-s2s peer …` last → rc=0 but peer **never persists** (`peers []`)
-> - The interface **cannot hold key AND peer simultaneously** via manual `wg` on networkd-257 — the two are
->   mutually exclusive. So the HD-306 peer-only setconf path alone can never establish a handshake: the key is
->   missing from the kernel.
+> **(a) Shared-key design flaw (the real reason no handshake ever fired):** the SSOT used ONE key
+> (`wg_password`) on BOTH ends — so the router's interface pubkey AND its VPS peer pubkey were
+> identical (`gwXAk+…`), and WireGuard refuses to handshake with your own key. **Fix:** distinct
+> per-side keypairs — router uses `wg_password` (pub `wg_s2s_router_public_key`), VPS uses its own
+> `wg_password_vps` (NEW 1P item, pub `wg_s2s_vps_public_key`); each side's peer = the OTHER side's pubkey.
 >
-> **Blocker:** the tunnel (HD-285/§1.5.5) is **NOT up** until this is fixed. Options (not yet done):
-> 1. **Upstream/skip:** check systemd ≥ 257.14+ or a networkd patch that applies `.netdev` PrivateKey; or
-> 2. **Drop-in:** make the oneshot own the iface fully (stop networkd managing wg-s2s, oneshot config key+peer last); or
-> 3. **Use networkd-recommended `[WireGuard] Peer=` (config) instead of `[WireGuardPeer]`** (networkd 257 may apply
->    the whole config atomically — untested).
-> Until then the VPS side is: interface up, peer attached (keepalive 25 — SSOT `wg-s2s.conf.j2` now has it), **no key**,
-> no handshake. Router side: `wg-s2s` up + `vps-s2s` peer + INPUT UDP 51820 accept now live (converge + role).
-> Owned by: HD-285; update this note when resolved.
+> **(b) networkd 257 netdev quirks on the VPS:** networkd applies the `.netdev` `[WireGuard] PrivateKey`
+> but silently NEVER applies `[WireGuardPeer]`; and while networkd owns the iface it strips any manual
+> `wg set peer`. **Fix:** networkd only CREATES wg-s2s (minimal .netdev + Unmanaged .network); the
+> `wg-ensure-s2s-peer` oneshot OWNS it (create-if-missing → assign address → key via `wg setconf`
+> key-only → peer via `wg set … peer`), verified every run.
+>
+> **(c) Router forward-rule ordering (HD-155):** the `VPS S2S -> scoped home targets` accept sat BELOW the
+> `Default deny inter-VLAN` and was shadowed. **Fix:** moved above the deny (rule 29 · before 30).
+>
+> **Live evidence (all verified 2026-09-02):** VPS `wg show wg-s2s` — fresh handshake (keepalive-25
+> maintained, ts renewed), peer = router key `gwXAk+…`, endpoint home WAN; router peer `vps-s2s` =
+> VPS key `NeEeWi…`, `rx/tx` counters moving. VPS → the router mgmt IP (`router` host) pings 0% loss over the
+> tunnel. `nas` (host) not answering = nas is Phase-2 gated, unrelated.
+>
+> The tunnel (§1.5.5) is UP. Router side re-converged via the role (public-key + endpoint = SSOT
+> `vps.kogler.si` FQDN now, not a literal IP).
+> Owned by: HD-285 (closed).
 
 ## Layer 2: Headscale (Mobile Mesh)
 

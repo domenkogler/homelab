@@ -1,12 +1,13 @@
 # WireGuard .network for the site-to-site tunnel (wg-s2s) — VPS side.
-# Local address = VPS .2/30; peer = home RB4011 (.1). AllowedIPs routes the home `site`
-# (10.10.0.0/16) + wg-vps-services through this tunnel, so VPS Prometheus reaches home
-# targets and cross-host backends. The VPS initiates to the home router's WAN endpoint.
+# HD-285: networkd must NOT configure wg-s2s — the wg-ensure-s2s-peer oneshot
+# owns the interface (create-if-missing, key + peer). This .network marks it
+# Unmanaged so networkd never re-applies a peer-less config. The /30 address is
+# applied by the oneshot too (from the conf); not here.
 [Match]
 Name={{ wg_interface }}
 
 [Network]
-Address={{ wg_s2s_vps.local_ip }}
+Unmanaged=yes
 
 [Link]
 RequiredForOnline=no

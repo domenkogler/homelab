@@ -94,12 +94,12 @@ comtrend_modem:
 wireguard_s2s_vps:
   local_ip: 10.255.40.1/30
   remote_ip: 10.255.40.2/30
-  remote_endpoint: "{{ hostvars['vps.kogler.si'].ansible_host }}"
+  remote_endpoint: "vps.kogler.si"   # SSOT-stable VPS endpoint (public A record in cloudflare_dns/vars/main.yml) — resolves at boot, survives VPS IP changes without a re-render; mirrors the VPS side's `s.kogler.si` DDNS token pattern.
   port: 51820
-  # VPS public key (derived from the shared `wg_password` private key), needed for the router
-  # peer. Fail-closed when unset at deploy; both sides share one private key (`wg_password`),
-  # so each side derives its own pubkey from it — pinned in group_vars/all.yml
-  # (`wg_s2s_router_public_key` / `wg_s2s_vps_public_key`).
+  # VPS public key (VPS's OWN distinct key `wg_password_vps`, NOT shared — HD-285 fix),
+  # needed for the router peer. Fail-closed when unset at deploy; router and VPS each
+  # hold their own private key (`wg_password` / `wg_password_vps`) and derive their own
+  # pubkey — pinned in group_vars/all.yml (`wg_s2s_router_public_key` / `wg_s2s_vps_public_key`).
   vps_public_key: "{{ lookup('vars', 'wg_s2s_vps_public_key', default='') }}"  # HD-271: lookup default — no `in vars` membership (internal vars dict deprecated at 2.24)
   # LEAST-ACCESS (HD-155): the router accepts from the VPS peer only the scoped home
   # targets (exporter/VIP/probe + oldsrv backends) + wg-vps-services — NOT the whole

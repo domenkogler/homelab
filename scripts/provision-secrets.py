@@ -147,10 +147,8 @@ CATALOG = [
 # Items never auto-rotated by this tool (external/app coupling). Kept here as a
 # guard list so `--rotate-all`/`--rotate` cannot clobber them.
 NOT_AUTO_ROTATABLE = {
-    "wg_password",          # WireGuard S2S private key — BOTH router (.rsc) + VPS (.netdev)
-                             # consume it as a WG key. Stored manually with a `wg genkey` value;
-                             # NEVER generated as a random password by this tool (it is also
-                             # absent from CATALOG).
+    "wg_password",          # WireGuard S2S private key (ROUTER side) — stored manually with a `wg genkey` value; NEVER generated as a random password by this tool (it is also absent from CATALOG).
+    "wg_password_vps",       # WireGuard S2S private key (VPS side) — HD-285 fix: distinct per-side key. Same manual `wg genkey` discipline; not in CATALOG.
     "matrix_password",      # Matrix shared secret — reissue breaks rooms/sessions
     "authentik_db", "opencloud_db", "immich_db", "forgejo_db",  # running Postgres
     "onlyoffice_db",           # running Postgres (sidecar cluster init-once password)

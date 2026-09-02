@@ -880,7 +880,8 @@
 # The VPS side is configured by the `wireguard` role (systemd-networkd). This role
 # configures the home RB4011 side via api_modify (per HD-137: the declarative
 # `community.routeros_interface_wireguard*` modules do not exist, so use api_modify
-# path-based calls). Private key = shared `wg_password` (1Password) for the S2S family.
+# path-based calls). Private key = `wg_password` (router's OWN distinct key — HD-285
+# fix: WireGuard needs distinct keys per side; the VPS uses its own `wg_password_vps`).
 
 - name: Assert the VPS WG public key is available (fail-closed, HD-65/HD-91)
   assert:

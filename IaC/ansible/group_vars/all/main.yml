@@ -224,7 +224,7 @@ network_ranges:
 # routes `wg-vps-services` via the VPS S2S peer; the VPS routes `site` (10.10.0.0/16)
 # via the home S2S peer. Router-side addressing/port is in group_vars/router.yml
 # (`wireguard_s2s_vps`); this is the VPS-side peer var (the tunnel config lives in the
-# wireguard role). Keys: shared `wg_password` (1Password) private key.
+# wireguard role). Keys: `wg_password` (router) + `wg_password_vps` (VPS) — DISTINCT per side (HD-285 fix).
 wg_s2s_vps:
   # Peer addresses on the `wg-s2s` /30 (10.255.40.0/30): VPS is .2, router is .1.
   # This is the single SSOT for the VPS peer; templates reference these, never literals.
@@ -250,12 +250,15 @@ wg_s2s_vps:
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
     - "{{ (network_ranges | selectattr('name', 'equalto', 'wg-vps-services') | first).cidr }}"
 
-# ---- WireGuard S2S public keys (both sides mirror the same shared `wg_password`; pubkeys are derived, not secret) ----
-# Derived from `wg_password` (private key) — the SAME key on both ends (single-private-key-per-S2S-family
-# design, HD-135/HD-155). Needed by the networkd .netdev role one side, RouterOS peer the other;
-# fail-closed asserts if blank. Stored outside the wg_s2s_vps block (still plain group_vars).
-wg_s2s_router_public_key: "gwXAk+550CDfybOg64+v+QUFv1sW0wnGrIiI+EWFhUk="   # RB4011 side = shared wg_password pubkey
-wg_s2s_vps_public_key: "gwXAk+550CDfybOg64+v+QUFv1sW0wnGrIiI+EWFhUk="   # VPS side = same shared wg_password pubkey
+# ---- WireGuard S2S public keys (DISTINCT per side — HD-285 fix, 2026-09-02) ----
+# WireGuard requires EACH side to have its OWN keypair: a router cannot peer with a
+# key equal to its own. The old "shared wg_password on both ends" design made both
+# sides' pubkeys identical (`gwXAk+…`) → the router tried to handshake with itself →
+# no handshake ever. Now: router uses `wg_password` (`wg_s2s_router_public_key`), the
+# VPS uses its OWN keypair stored as `wg_password_vps` (`wg_s2s_vps_public_key`); each
+# side's peer = the OTHER side's pubkey (never its own).
+wg_s2s_router_public_key: "gwXAk+550CDfybOg64+v+QUFv1sW0wnGrIiI+EWFhUk="   # RB4011 side = wg_password (router's own private key)
+wg_s2s_vps_public_key: "NeEeWiEdcPfA4N8R0biRffkY4hQPNOtq8z87mr6I/0I="   # VPS side = wg_password_vps (VPS's own private key, NEW item)
 
 # ==== Observability backend target for Alloy (HD-135) ====
 # Forward target derived from `wg_s2s_vps.ip` (SSOT) — no literal IP embedded here.

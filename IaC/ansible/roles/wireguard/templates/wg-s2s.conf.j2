@@ -1,15 +1,16 @@
-# wg setconf configuration for the wg-s2s site-to-site tunnel (VPS side).
-# Rendered by the wireguard role from the same SSOT as the .netdev (wg_s2s_vps,
-# group_vars/all/main.yml). HD-306: systemd 257 networkd creates wg-s2s but does not
-# apply the peer — the wg-ensure-s2s-peer oneshot applies THIS file with `wg setconf`.
+# wg setconf configuration for the wg-s2s site-to-site tunnel (VPS side) — VPS's OWN
+# distinct keypair (wg_password_vps, HD-285 two-key fix). Rendered by the wireguard
+# role from the same SSOT as the peer (wg_s2s_vps, group_vars/all/main.yml). The
+# wg-ensure-s2s-peer oneshot applies the KEY via a KEY-ONLY `wg setconf` and adds the
+# PEER via `wg set … peer` (live-proven order on systemd 257 networkd: the oneshot owns
+# the interface, networkd only creates it) — see the script for the sequence.
 #
-# Deliberately NO PrivateKey line: the private key is already set on the interface by
-# systemd-networkd from wg-s2s.netdev (group-read 0640). Live-verified 2026-09-01: a
-# setconf conf containing `PrivateKey` silently DROPS the peer on this kernel (wgtools
-# sets the key via a separate netlink op that breaks the subsequent peer-add); the same
-# conf without PrivateKey attaches + persists. This file therefore carries no secret.
+# ***** THIS FILE CARRIES THE PRIVATE KEY — 0640 root:root, never 0666/644 *****
+# (the old comment claimed it was secret-free peer-only; since HD-285 it must hold
+# the key, so it is a secret and the conf dir is root-only 0700.)
 [Interface]
 ListenPort={{ wg_s2s_vps.listen_port }}
+PrivateKey={{ lookup('community.general.onepassword', 'wg_password_vps', field='password', vault=op_vault) }}
 
 [Peer]
 PublicKey={{ wg_s2s_vps.peer_public_key }}
