@@ -109,15 +109,15 @@ add chain=input action=accept comment="HD-301: accept all from other (LAN) inter
 # on ROS7, live-validated 2026-08-31). Belt-and-braces: every service is
 # also bound to its well-known port, and the dangerous-on-WAN services
 # (telnet, ftp, www, api-ssl, reverse-proxy) are disabled explicitly.
-/ip service set telnet disabled=yes port=23 available-from={{ mgmt.subnet }}
-/ip service set ftp disabled=yes port=21 available-from={{ mgmt.subnet }}
-/ip service set www disabled=yes port=80 available-from={{ mgmt.subnet }}
-/ip service set api-ssl disabled=yes port=8729 available-from={{ mgmt.subnet }} certificate=none
-/ip service set reverse-proxy disabled=yes port=443 available-from={{ mgmt.subnet }} certificate=none
-/ip service set api disabled=no port=8728 available-from={{ mgmt.subnet }}
-/ip service set www-ssl disabled=no port=443 available-from={{ mgmt.subnet }} certificate=none
-/ip service set ssh disabled=no port=22 available-from={{ mgmt.subnet }}
-/ip service set winbox disabled=no port=8291 available-from={{ mgmt.subnet }}
+/ip service set telnet disabled=yes port=23 available-from={{ router_services_available_from }}
+/ip service set ftp disabled=yes port=21 available-from={{ router_services_available_from }}
+/ip service set www disabled=yes port=80 available-from={{ router_services_available_from }}
+/ip service set api-ssl disabled=yes port=8729 available-from={{ router_services_available_from }} certificate=none
+/ip service set reverse-proxy disabled=yes port=443 available-from={{ router_services_available_from }} certificate=none
+/ip service set api disabled=no port=8728 available-from={{ router_services_available_from }}
+/ip service set www-ssl disabled=no port=443 available-from={{ router_services_available_from }} certificate=none
+/ip service set ssh disabled=no port=22 available-from={{ router_services_available_from }}
+/ip service set winbox disabled=no port=8291 available-from={{ router_services_available_from }}
 
 # ---- End ----
 # After import, verify:

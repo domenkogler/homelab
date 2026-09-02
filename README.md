@@ -100,15 +100,15 @@ task-specific dispatch. Do **not** bulk-read the repo.
 6. implement → `bash scripts/validate-all.sh` green → update `todo.md` + owning `docs/*.md` per
    lifecycle (close-out lives in the owning doc + commit; the frozen changelog/journal are archived)
    → commit signed (if `Couldn't find key in agent`: `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth`, then commit; CONVENTIONS §6)
-7. if it's a planned / multi-step / multi-host / live-deploy change → produce a `plan/` (plan-task)
-   and honor its `## Environment` note
+7. if it's a planned / multi-step / multi-host / live-deploy change → use the **orchestrator pattern**: a single parent session co-ordinates subagents/parallel lanes with an explicit lane map (see pi-subagents skill), and records the runbook in the owning `docs/*.md` — no separate `plan/` ceremony required
 
 ---
 
 ## 5. Ask-if-unsure checklist (gate)
 
-- Is this a **planned change** worth `plan-task`? (concurrency, multi-host, live-deploy,
-  unprovisioned host, irreversibility)
+- Is this a **planned change** worth the orchestrator pattern? (concurrency, multi-host, live-deploy,
+  unprovisioned host, irreversibility) — if so, co-ordinate via subagent lanes (pi-subagents) and
+  record the runbook in the owning doc, not a throwaway `plan/` folder
 - **Deploy-gated** item? Hosts not provisioned yet — verify vs `deployment-tasks.md` before running.
 - Re-deciding something? **Check the owning doc + `<domain>-rejected.md` first** (and `git log` on them).
 - Unsure which doc owns the area? Ask via `docs/index.md` map.

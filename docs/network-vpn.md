@@ -148,6 +148,11 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 > these. The tailnet Traefik edge (`traefik-tailnet`, node `vps-obs`) is the
 > only tailnet surface for the admin dashboards (see the compose template
 > `docker_services/traefik-tailnet` for the routing + serve details).
+>
+> **Pi-hop SSH (Mgmt VLAN from the laptop, 2026-09-02):** the laptop is untagged Home-only (Windows never
+> tags VLAN 99); the **Mgmt plane is reached via the Pi's tagged-99 leg** — preconfigured in `~/.ssh/config`:
+> `ssh pi99` (→ Pi .99.20 via ProxyJump `pi`) and `ssh router99` (→ router .99.1 via ProxyJump `pi`, user `ansible`).
+> This keeps Windows off tagged-99 (security: Home never reaches core infra by default — see network-vlans.md port model).
 
 ### Pattern A -- loopback-capable apps (preferred)
 App binds `127.0.0.1` only; tailscale sidecar shares its network namespace (`network_mode: service:<app>`) and

@@ -26,6 +26,14 @@ vlans: "{{ [ {'id': 1, 'name': 'Blackhole', 'subnet': '0.0.0.0/0', 'unused': Tru
 # ONE VLAN (untagged frames map to pvid) — so dual-homed hosts ride Home untagged + Mgmt tagged.
 # This is the fixed port model (network-vlans.md Port Type Reference); it supersedes the old
 # "Mgmt-access + single-VLAN" model that left the Pi's Home leg dead (HD-307 / HD-308 class).
+
+# Management-service reach — STRICT: bind router mgmt services to the Management VLAN only.
+# The admin laptop/Pi reach the control plane via the TAGGED Mgmt sub-interface (eth0.99 on the
+# Pi; laptop hops through the Pi or uses its tagged leg) — NOT from untagged Home (HD-310 design:
+# untagged Home = user plane; tagged 99 = admin plane). Home->Mgmt forward is DROPPED (reverted
+# 2026-09-02 — defense-in-depth: Home must never reach core infra by default).
+router_services_available_from: >-
+  {{ network_vlans | selectattr('id', '==', 99) | map(attribute='subnet') | first }}
 router_port_map:
   wan:
     port: ether1
@@ -40,7 +48,7 @@ router_port_map:
   laptop-domen:
     port: ether3
     pvid: 10
-    tagged: [99]
+    tagged: []
     vlan: 10
     mac: "48:2A:E3:9D:31:85"
   nas-ilo:
