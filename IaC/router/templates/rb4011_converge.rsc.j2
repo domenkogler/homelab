@@ -125,7 +125,10 @@
 {% endfor %}
 
 # ---- Comtrend modem mgmt (HD-302) ----
-/ip address add address={{ comtrend_modem.router_on_modem }} interface=ether1 comment="Comtrend modem mgmt /32 (HD-302)"
+# The RB4011 holds the modem-LAN address (now /24 so a connected route to the
+# modem subnet exists). Live fix 2026-09-02: was /32 -> modem unreachable via
+# forward (no route) even though the modem itself answered; /24 restores it.
+/ip address add address={{ comtrend_modem.router_on_modem }} interface=ether1 comment="Comtrend modem mgmt /24 (HD-302)"
 
 # ---- Firewall: NAT (masquerade + Kids forced DNS) ----
 # Reset both NAT chains first (re-import safety + dedup against the reconciling
@@ -136,6 +139,12 @@
 /ip firewall nat remove [find chain=dstnat]
 /ip firewall nat
 add chain=srcnat out-interface=pppoe-telekom action=masquerade comment="Masquerade -> WAN"
+# HD-302: the Comtrend (consumer ONT) only answers its web UI to its directly-
+# connected peer on the modem link (the RB4011). Forwarded HTTP/HTTPS from lan
+# hosts is silently ignored (conn tracker syn-sent, 0 repl). Masquerade trusted-
+# admin traffic out ether1 as the router's own modem-LAN address so the modem
+# answers. Live-verified 2026-09-02 (laptop -> modem UI returns 401 auth page).
+add chain=srcnat out-interface={{ comtrend_modem.iface }} protocol=tcp dst-address={{ comtrend_modem.modem_mgmt_ip }} dst-port=80,443 action=masquerade comment="HD-302: modem UI via router SNAT (trusted-admin)"
 add chain=dstnat src-address=10.10.40.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - UDP 53 -> Technitium"
 add chain=dstnat src-address=10.10.40.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - TCP 53 -> Technitium"
 

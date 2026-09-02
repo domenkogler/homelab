@@ -38,9 +38,20 @@ web UI lives on its LAN at the SSOT `comtrend_modem.modem_mgmt_ip` and is needed
 PPPoE-redial dance** (when the ISP-side session gets sticky and needs a manual
 release). To avoid a physical cable swap every time:
 
-- The RB4011 takes a **static `/32` on the modem's LAN** (SSOT:
+- The RB4011 takes a **static `/24` on the modem's LAN** (SSOT:
   [`comtrend_modem.router_on_modem`](network-addresses-generated.md)) on `ether1`
-  so the RB4011 can route to the modem's web UI.
+  so the RB4011 can route to the modem's web UI. **Live fix 2026-09-02:** was
+  `/32` — no connected route to the modem subnet meant forwarded laptop traffic
+  hit the PPPoE default instead of `ether1`; `/24` restores the route.
+- A **srcnat masquerade** (SSOT: `comtrend_modem.modem_mgmt_ip`,
+  `comtrend_modem.iface` — `out-interface=<iface> dst-address=<modem mgmt IP>
+  protocol=tcp dst-port=80,443`) is REQUIRED: the consumer ONT only answers its
+  web UI to its directly-connected LAN peer (the router's own modem-LAN
+  address, SSOT `comtrend_modem.router_on_modem`) and silently ignores forwarded
+  HTTP from deeper LAN subnets (connection tracker showed `syn-sent` with 0
+  reply packets). The router presents trusted-admin traffic to the modem as its
+  own modem-LAN address. Live-verified 2026-09-02: laptop → modem UI returns
+  401 (auth page).
 - A **FORWARD rule** in the `router` Ansible role restricts access to
   `trusted-admin` hosts only (the laptop). All other homelab hosts get an
   explicit **default-deny** to the modem's subnet (SSOT:

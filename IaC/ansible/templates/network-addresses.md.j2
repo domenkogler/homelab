@@ -46,7 +46,7 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 | IP | Host | Role | SSOT |
 |----|------|------|------|
 | 192.168.1.1 | modem.kogler.si | Comtrend GRG-4260us GPON modem web UI (PPPoE bridge) | `group_vars/router.yml` `comtrend_modem.modem_mgmt_ip` |
-| 192.168.1.2/32 | router.kogler.si (on ether1) | RB4011 /32 on the modem's LAN, routes modem web UI access (HD-302) | `group_vars/router.yml` `comtrend_modem.router_on_modem` |
+| 192.168.1.2/24 | router.kogler.si (on ether1) | RB4011 /24 on the modem's LAN, connected route to the modem subnet + srcnat masquerade for trusted-admin (HD-302) | `group_vars/router.yml` `comtrend_modem.router_on_modem` |
 
 ## Service addresses (Home VLAN 10)
 

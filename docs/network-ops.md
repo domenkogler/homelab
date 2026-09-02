@@ -117,8 +117,9 @@ Fix pattern:
 ## Incident: 2026-09-02 — router mgmt plane lost after a full router.yml converge (recovered)
 
 > **Symptom:** after the 20:08 `router.yml` re-converge (added nas/oldsrv DHCP reservations), the router's
-> management plane became unreachable from the Pi's tagged-99 leg: `10.10.99.1` ARP FAILED on `eth0.99` and
-> the API/SSH reset. Home ICMP to `10.10.99.1` worked but TCP services refused (`available-from` mgmt-subnet
+> management plane became unreachable from the Pi's tagged-99 leg: the router mgmt IP (SSOT
+> [`network-addresses-generated.md`](network-addresses-generated.md) → `router`) ARP FAILED on `eth0.99` and
+> the API/SSH reset. Home ICMP to the router worked but TCP services refused (`available-from` mgmt-subnet
 > lockdown, HD-301). WinBox from the laptop still worked.
 
 **Root cause (evidence):** the converge's `changed` tasks included *Enable VLAN filtering on bridge* and
@@ -135,7 +136,8 @@ bash scripts/ansible-run.sh playbooks/render-converge.yml   # or ad-hoc render o
 ```
 The delta re-sets `vlan-99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether10 untagged=ether7,ether9` + correct
 `pvid` on ether10 — matching `router_port_map` / `rb4011_converge.rsc.j2`. Verified live: Pi `eth0.99` →
-`10.10.99.1` 0% loss, ARP REACHABLE, API via Pi-hop tunnel works, nas/oldsrv reservations bound.
+router mgmt IP (SSOT [`network-addresses-generated.md`](network-addresses-generated.md) → `router`) 0% loss,
+ARP REACHABLE, API via Pi-hop tunnel works, nas/oldsrv reservations bound.
 
 **Lesson (fold into apply workflow):** a full `router.yml` converge can disturb bridge VLAN memberships on the
 mgmt plane. Prefer **surgical deltas** for mgmt-plane-sensitive changes, and keep `rb4011_pi_delta.rsc.j2`

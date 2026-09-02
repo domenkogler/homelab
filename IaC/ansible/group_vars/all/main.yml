@@ -217,7 +217,7 @@ network_ranges:
   - { name: tailnet-apps,      cidr: "172.24.0.0/16",  purpose: "Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't" }
   - { name: site,              cidr: "10.10.0.0/16",   purpose: "Whole homelab site — all VLANs (10.10.x.0/24)" }
   - { name: nfs-clients,       cidr: "10.10.1.30/32",  purpose: "NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP)" }
-  - { name: modem-lan,         cidr: "192.168.1.0/24", purpose: "Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /32 on this subnet (192.168.1.2/32 on ether1) so the modem's web UI at 192.168.1.1 stays reachable from the homelab for the twice-yearly PPPoE-redial dance (HD-302)." }
+  - { name: modem-lan,         cidr: "192.168.1.0/24", purpose: "Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /24 on this subnet (192.168.1.2/24 on ether1, connected route to the modem subnet) so the modem's web UI at 192.168.1.1 stays reachable from the homelab — the router presents trusted-admin traffic via srcnat masquerade (HD-302, live-fixed 2026-09-02 from the /32 that had no route) — for the twice-yearly PPPoE-redial dance." }
 
 # ==== WireGuard S2S: VPS ↔ router (wg-s2s, 10.255.40.0/30) — HD-03 / network-vpn.md ====
 # Single site-to-site tunnel: home RB4011 (peer .1) ↔ VPS (peer .2). The home router

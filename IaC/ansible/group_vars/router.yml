@@ -72,7 +72,7 @@ router_port_map:
 
 # ---- Comtrend GRG-4260us GPON modem (WAN-side, single-LAN mgmt access) ----
 # The Comtrend stays in PPPoE-bridge mode and the RB4011 dials via pppoe-telekom on
-# ether1. We give the RB4011 a /32 management address on 192.168.1.0/24 (the modem's
+# ether1. We give the RB4011 a /24 management address on 192.168.1.0/24 (the modem's
 # own LAN) so the Comtrend's web UI stays reachable from the homelab for the
 # twice-yearly PPPoE-redial dance — no physical cable swap needed.
 #
@@ -80,6 +80,13 @@ router_port_map:
 # The Comtrend has a default-password web UI (consumer device) — restrict to mgmt
 # admins per the HD-78 binding floor. The FORWARD chain gets an explicit allow rule
 # (trusted-admin -> 192.168.1.1) and an explicit drop rule (everything else -> 192.168.1.0/24).
+#
+# The Comtrend (consumer ONT) only answers its web UI to its directly-connected LAN
+# peer on the modem's own link (the RB4011 at 192.168.1.2). Forwarded HTTP/HTTPS from
+# deeper LAN subnets (10.10.x) is silently ignored (connection tracker shows syn-sent
+# with 0 repl packets). So a srcnat masquerade out ether1 is REQUIRED: the router
+# presents trusted-admin traffic to the modem as its own 192.168.1.2 address.
+# Live-verified 2026-09-02: laptop -> modem UI returns 401 (auth page) via this SNAT.
 #
 # DNS: modem.kogler.si is a private split-horizon record. Live publication depends on
 # the first Technitium instance (Phase 2/3); tracked separately, NOT in cloudflare_dns
@@ -89,7 +96,7 @@ comtrend_modem:
   iface: ether1
   modem_subnet: 192.168.1.0/24
   modem_mgmt_ip: 192.168.1.1        # the Comtrend's own web UI
-  router_on_modem: 192.168.1.2/32   # the RB4011's /32 on the modem's LAN
+  router_on_modem: 192.168.1.2/24   # the RB4011's /24 on the modem's LAN (connected route to the modem subnet)
 
 wireguard_s2s_vps:
   local_ip: 10.255.40.1/30
