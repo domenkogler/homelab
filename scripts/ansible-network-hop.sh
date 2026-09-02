@@ -75,11 +75,42 @@ if [ -z "$DEVICE_IP" ]; then
     exit 2
 fi
 
-# --- 2. open the hop tunnel through Pi (mgmt-sourced) ---
-# Stable local bind port so multiple tunnels can coexist; traffic egresses the
-# Pi's eth0.99 (Mgmt) so available-from + INPUT lockdown both pass.
-ssh -o ConnectTimeout=6 -o ExitOnForwardFailure=yes -N -f \
-    -L "$LOOPBACK_PORT:$DEVICE_IP:8728" pi
+# --- 2. open the hop tunnel through Pi (mgmt-sourced), DYNAMIC local port ---
+# Traffic egresses the Pi's eth0.99 (Mgmt) so available-from + INPUT lockdown
+# both pass. The local bind port is DYNAMIC (OS-assigned): a FIXED port
+# (18728/28728) caused a persistent cross-session failure — ssh would not bind
+# while stale TIME_WAIT sockets from a previous run's API calls sat on that
+# port (no listener, but ssh's bind check is strict), so the first tunnel of a
+# later session died with 'Address already in use'. An OS-assigned ephemeral
+# port is never re-used while sockets linger, and a lockfile serializes
+# concurrent runs of the same target (no double tunnels).
+LOCKDIR="${TMPDIR:-/tmp}/ansible-network-hop-locks"
+mkdir -p "$LOCKDIR"
+LOCKFILE="$LOCKDIR/$TARGET.lock"
+exec 9>"$LOCKFILE"
+flock 9          # wait for a concurrent same-target run, then proceed
+
+# OS-assigned free local port (python: bind socket to port 0 → free ephemeral).
+# A fixed port is what broke across sessions — ssh's listen bind is strict and
+# stale TIME_WAIT sockets on the fixed port from a previous run's API calls
+# made it fail 'Address already in use'. Dynamic ports are never re-bound while
+# sockets linger; the tiny bind-close-bind race on 127.0.0.1 is acceptable and
+# fails loudly (never silently persists).
+LOOPBACK_PORT="$("$HOME/ansible-venv/bin/python3" - <<'PY'
+import socket
+s = socket.socket()
+s.bind(('127.0.0.1', 0))            # OS-assigned free port
+print(s.getsockname()[1])
+s.close()
+PY
+)"
+SOCK="$LOCKDIR/$TARGET.ctl"       # ssh control socket (per target)
+# ssh -f backgrounds the tunnel; ControlMaster + ControlPersist=no means the
+# control master is a single deterministic process we can close with `-O exit`
+# on EXIT — nothing detached survives to block a later session.
+ssh -f -o ConnectTimeout=6 -o ExitOnForwardFailure=yes \
+    -o ControlMaster=yes -o ControlPath="$SOCK" -o ControlPersist=no \
+    -N -L "127.0.0.1:$LOOPBACK_PORT:$DEVICE_IP:8728" pi
 for _ in 1 2 3 4 5; do
   if (exec 3<>/dev/tcp/127.0.0.1/"$LOOPBACK_PORT") 2>/dev/null; then exec 3>&- 3<&-; break; fi
   sleep 0.3
@@ -88,7 +119,9 @@ done
 # --- 3. run the playbook via ansible-run.sh with hop overrides ---
 # Must also force the venv interpreter (librouteros lives there; inventory.ini
 # pins /usr/bin/python3 which lacks it — deployment-manual §1.5.3).
-trap 'pkill -f "ssh.*-$LOOPBACK_PORT:.*pi" 2>/dev/null || true' EXIT
+# Deterministic teardown: close the ssh control master (kills the forwarded
+# connection) and release the lock — always, on any exit path.
+trap 'ssh -S "$SOCK" -O exit pi 2>/dev/null || true; rm -f "$LOCKFILE" 2>/dev/null || true' EXIT
 bash "$REPO/scripts/ansible-run.sh" "$PLAYBOOK" \
     -e "routeros_api_host=127.0.0.1" \
     -e "routeros_api_port=$LOOPBACK_PORT" \
