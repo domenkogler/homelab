@@ -25,7 +25,7 @@
 
 # ---- System ----
 
-/system identity set name={{ ap_identity }}
+/system identity set name={{ ap_name }}
 /system clock set time-zone-name={{ timezone }}
 
 # ---- Users (bootstrap auth) ----
@@ -54,15 +54,43 @@
 /ip dhcp-client add interface=bridge disabled=no comment="Mgmt IP via router DHCP (static reservation: VLAN {{ mgmt.id }})"
 
 # ---- CAP Mode (SSIDs provisioned by the router CAPsMAN — MODERN wifi-qcom-ac, HD-232/task 8) ----
-
-# TODO validate-live (cutover-prep, HD-229): confirm the wifi-qcom-ac cap field set on the live
-# AP against the manager (legacy `wireless cap` is gone). The AP radio interfaces on
-# RouterOS 7 are named `wifi1`/`wifi2` (modern wifi-qcom-ac package) — the bridge ports
-# above use those names; verify /interface/wifi cap print after import for the
-# discovery-interfaces only (no radio list needed — CAP discovery covers them).
+# LIVE-VERIFIED 2026-09-02 (RouterOS 7.24.1 + wifi-qcom-ac): bootstrapping the radios
+# into CAP mode REQUIRES (per MikroTik wifi docs, and the live probe below):
+#   1. configuration.manager=capsman on the radios (default manager=local leaves them
+#      as locally-configured masters — they never join the manager).
+#   2. disabled=no (interfaces default disabled=yes → radio never comes up).
+# The manager side (capsman_steady-state.rsc.j2) must be enabled + use a datapath
+# WITHOUT vlan-id (wifi-qcom-ac cannot assign datapath vlans on the CAP → the
+# 'vlan-id configured, but interface does not support assigning vlans' disconnect
+# loop, live-probed). Per-SSID VLAN assignment is done by the CAP's bridge (pvid per
+# slave interface + tagged uplink) — see the post-provision bridge block below.
+/interface wifi set [ find default-name=wifi1 ] configuration.manager=capsman disabled=no
+/interface wifi set [ find default-name=wifi2 ] configuration.manager=capsman disabled=no
 /interface wifi cap set \
     enabled=yes \
-    discovery-interfaces=bridge
+    discovery-interfaces=bridge \
+    slaves-static=yes
+
+# ---- Bridge VLAN mapping (per-SSID pvid + tagged uplink — LIVE-VERIFIED 2026-09-02) ----
+# wifi-qcom-ac does VLAN tagging on the CAP's BRIDGE, not manager datapath. The radios
+# master SSIDs (Kogler) go to VLAN 10; each provisioned slave SSID gets its own bridge
+# access port with pvid=<SSID vlan>, and the uplink (ether1) carries them tagged.
+# Slave interface names are dynamic (wifi3..wifi20 per radio/provisioning), so the pvid
+# mapping must be applied AFTER CAPsMAN provisions them. The Ansible/router role or a
+# post-provision step applies:
+#   /interface bridge set bridge vlan-filtering=yes
+#   /interface bridge port set [find interface=wifi1] pvid=10
+#   /interface bridge port set [find interface=wifi2] pvid=10
+#   # per provisioned slave (IOT=20, WAN=21, guest=30, kids=40):
+#   /interface bridge port add bridge=bridge interface=<slave> pvid=<vlan>
+#   /interface bridge vlan add bridge=bridge vlan-ids=<vlan> tagged=ether1 untagged=<slave>
+# Bootstrap sets the static parts now (vlan-filtering + master pvids are name-stable):
+/interface bridge set bridge vlan-filtering=yes
+/interface bridge port set [find interface=wifi1] pvid=10
+/interface bridge port set [find interface=wifi2] pvid=10
+{% for ssid in routeros_capsman_ssids %}
+#   SSID {{ ssid.ssid }} -> VLAN {{ ssid.vlan }} (provisioned slave pvid applied post-provision)
+{% endfor %}
 
 # ---- Services ----
 # HD-193 + HD-301: scope every management service to the mgmt subnet from FIRST BOOT

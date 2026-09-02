@@ -25,7 +25,20 @@
 #   datapath.vlan-mode= property does NOT exist on 7.24.1's wifi-qcom-ac
 #   ("bad parameter datapath.vlan-mode" at import — live-probed). Tagging is
 #   driven by vlan-id alone under datapath.bridge.
+# FIX (2026-09-02 live-apply): wifi-qcom-ac CAPs CANNOT honor datapath vlan-id —
+#   the CAP logs 'vlan-id configured, but interface does not support assigning
+#   vlans' and clients loop-disconnect. Per-SSID VLAN tagging must ride the CAP's
+#   BRIDGE (pvid per slave interface + tagged uplink), NOT the manager datapath.
+#   So: configs use a NAMED datapath (DP_AC, bridge-lan, NO vlan-id), and the
+#   manager is enabled here (was missing — the #1 'APs not working' cause).
 # =============================================================================
+
+# ---- Enable the CAPsMAN manager (was missing — APs never provisioned) ----
+# interfaces defaults to 'all' (listens on the bridge the CAPs discover on).
+/interface wifi capsman set enabled=yes
+
+# ---- Datapath (bridge-lan, NO vlan-id — wifi-qcom-ac CAP VLAN via CAP bridge) ----
+/interface wifi datapath add name=DP_AC bridge=bridge-lan comment="CAP datapath (no vlan-id; per-SSID VLAN via CAP bridge pvid)"
 
 # ---- Security profiles (WPA2-PSK, one per SSID) ----
 
@@ -37,7 +50,7 @@
     comment="{{ ssid.ssid }} WPA2-PSK ({{ ssid.item }})"
 {% endfor %}
 
-# ---- Wifi config objects (datapath VLAN tagging — HD-232) ----
+# ---- Wifi config objects (datapath = DP_AC, NO vlan-id — HD-232 + 2026-09-02 fix) ----
 
 {% for ssid in routeros_capsman_ssids %}
 /interface wifi configuration add \
@@ -45,29 +58,26 @@
     ssid="{{ ssid.ssid | replace('\\"', '\\\\"') }}" \
     security=sec-{{ ssid.cfg | replace('cfg-', '') }} \
     mode=ap \
-    datapath.bridge=bridge-lan \
-    datapath.vlan-id={{ ssid.vlan }} \
+    datapath=DP_AC \
     comment="VLAN {{ ssid.vlan }} ({{ ssid.item }})"
 {% endfor %}
 
 # ---- Provisioning rule (manager -> APs) ----
-# master = cfg-kogler (default for all APs); the rest as slaves. Refine per-radio
-# band steering only if needed (band-steering is NOT in scope for this cutover).
-# TODO validate-live: confirm 'provisioning add' param names on wifi-qcom-ac
-# (legacy wireless used master-configuration/slave-configurations; the modern
-# path may differ — check 'wifi provisioning print' on the live manager).
-
+# master = cfg-kogler (default for all APs); 2.4/5GHz auto by CAP. Slave list is
+# data-driven from routeros_capsman_ssids (all configs except the master) — trim
+# the SSOT to change which SSIDs are broadcast (2026-09-02: Kogler + Kogler IOT).
+{% set slaves = routeros_capsman_ssids | rejectattr('cfg', 'equalto', 'cfg-kogler') | map(attribute='cfg') | list %}
 /interface wifi provisioning add \
     action=create-dynamic-enabled \
     master-configuration=cfg-kogler \
-    slave-configurations=cfg-kogler-iot,cfg-kogler-iot-wan,cfg-kogler-guest,cfg-kogler-kids \
-    comment="Provision all APs (master cfg-kogler, slaves IoT/Internet/Guest/Kids)"
+    slave-configurations={{ slaves | join(',') }} \
+    comment="Provision all APs (master cfg-kogler, slave{{ 's' if slaves | length > 1 else '' }} {{ slaves | join(',') }})"
 
 # ---- End ----
 # After import, verify on the router:
-#   1. /interface wifi configuration print        -> 5 config objects (cfg-kogler*)
+#   1. /interface wifi configuration print        -> 1 config per enabled SSID (cfg-kogler*)
 #   2. /interface wifi security print             -> sec-kogler* profiles
 #   3. /interface wifi registration-table print   -> clients appear per SSID
 #   4. /interface wifi provisioning print         -> dynamic CAP entries created
-# Devices must re-join the correct SSID (Kogler / Kogler IOT / Kogler IOT WAN /
-#   Kogler guest / Kogler Kids) to land on their VLAN (10/20/21/30/40).
+# Enabled SSIDs land on their VLAN (Kogler -> 10, Kogler IOT -> 20; re-enable more
+# from routeros_capsman_ssids in group_vars/router.yml to broadcast them again).

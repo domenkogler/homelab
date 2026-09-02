@@ -36,17 +36,24 @@ tags: [network, vlan, firewall]
 |----------------|---------|------|
 | `cfg-kogler` | 10 | Kogler |
 | `cfg-kogler-iot` | 20 | Kogler IOT |
-| `cfg-kogler-iot-wan` | 21 | Kogler IOT WAN |
-| `cfg-kogler-guest` | 30 | Kogler guest |
-| `cfg-kogler-kids` | 40 | Kogler Kids |
+
+> **Active SSIDs only (owner decision, 2026-09-02):** `Kogler` + `Kogler IOT` are the only two
+> broadcast. `Kogler IOT WAN` (21), `Kogler guest` (30), `Kogler Kids` (40) are **disabled** — kept
+> in the SSOT (`routeros_capsman_ssids`, commented out) + 1Password, ready to re-enable.
 
 - **Mode:** `local-forwarding=no` (data-path) — all traffic tunneled to the router for VLAN tagging
+  (network-vlans.md's CAPsMAN section is the SSOT; per-SSID VLAN tagging rides the CAP's **bridge**
+  pvid/tagged-uplink — wifi-qcom-ac does NOT support manager datapath vlan-id on the CAP, live-verified
+  + fixed 2026-09-02).
 - All APs wired, no mesh
 - **Delivery (owner decision, 2026-08-24 / task 8):** steady-state CAPsMAN ships as a **rendered rsc**
   (`IaC/router/templates/capsman_steady-state.rsc.j2`) uploaded at the cutover — **not** ansible
-  `api_modify`. MODERN `wifi-qcom-ac` fleet-wide (HD-232): VLAN tagging under the wifi config
-  objects (`datapath.vlan-mode=use-tag` + `vlan-id`), WPA2-PSK passphrases from the five
-  `wifi-kogler*` 1Password items at render. ap_initial.rsc.j2 uses modern `/interface wifi cap`.
+  `api_modify`. MODERN `wifi-qcom-ac` fleet-wide (HD-232): VLAN tagging under the CAP's bridge
+  (per-SSID pvid + tagged uplink on the AP — NOT manager datapath vlan-id, which wifi-qcom-ac CAPs
+  reject with 'does not support assigning vlans'; live-verified + fixed 2026-09-02), WPA2-PSK
+  passphrases from the active `wifi-kogler*` 1Password items at render (currently the two enabled
+  SSIDs: wifi-kogler_password + wifi-kogler-iot_password). ap_initial.rsc.j2 uses modern
+  `/interface wifi cap`.
   **Human-gated at cutover:** ① dnevna swap (spare hAP ac² → dnevna), ② garage replacement
   wifi-qcom-ac-capable. Validate-live TODOs are marked in the templates (fail-loud).
 

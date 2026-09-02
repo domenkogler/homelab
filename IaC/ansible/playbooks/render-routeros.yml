@@ -61,7 +61,10 @@
     pppoe_login_password: "{{ lookup('community.general.onepassword', 'pppoe_login', field='password', vault=op_vault) }}"
     mikrotik_admin_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
     # --- Universal AP script knob ---
-    ap_identity: ap   # override per-AP if you want distinct identities
+    # Rendered per-AP so each bootstrap sets a descriptive identity (ap-spalnica /
+    # ap-dnevna / ap-spare) instead of the generic 'ap' (owner request 2026-09-02).
+    # AP list from SSOT network_static_hosts (vlan==99, name~ap-*).
+    ap_hosts: "{{ network_static_hosts | selectattr('vlan', '==', 99) | selectattr('name', 'match', '^ap-') | list }}"
     # AP MAC -> IP reservations are read from group_vars/all.yml (SSOT) inside the
     # ap_initial template loop — no per-AP literals here.
   tasks:
@@ -80,10 +83,13 @@
         src: "{{ playbook_dir }}/../../router/templates/crs328_initial.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/crs328_initial.rsc"
 
-    - name: Render ap_initial.rsc (universal — all APs)
+    - name: Render ap_initial.rsc (per-AP — universal template, descriptive identity)
       template:
         src: "{{ playbook_dir }}/../../router/templates/ap_initial.rsc.j2"
-        dest: "{{ playbook_dir }}/../../router/rendered/ap_initial.rsc"
+        dest: "{{ playbook_dir }}/../../router/rendered/ap_initial-{{ item.name }}.rsc"
+      loop: "{{ ap_hosts }}"
+      vars:
+        ap_name: "{{ item.name }}"
 
     - name: Render capsman_steady-state.rsc (MODERN wifi-qcom-ac, task 8)
       template:
@@ -95,6 +101,6 @@
         msg:
           - "Upload IaC/router/rendered/rb4011_initial.rsc + admin.pub + ansible.pub to the RB4011 (root Files — router boots off flash, root files survive)"
           - "Upload IaC/router/rendered/crs328_initial.rsc to the CRS328 root Files + admin.pub + ansible.pub into the CRS328 flash/ folder (root files are WIPED on reboot — flash/ survives)"
-          - "Upload IaC/router/rendered/ap_initial.rsc to EACH AP root Files + admin.pub + ansible.pub into each AP flash/ folder (root wiped on reboot — flash/ survives)"
+          - "Upload each rendered ap_initial-<name>.rsc to ITS AP root Files + admin.pub + ansible.pub into each AP flash/ folder (root wiped on reboot — flash/ survives)"
           - "Upload IaC/router/rendered/capsman_steady-state.rsc to the RB4011, then /import capsman_steady-state.rsc (AFTER bootstrap + router role — NOT a reset)"
           - "Then per bootstrap device: /system reset-configuration no-defaults=yes run-after-reset=<file>"

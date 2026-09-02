@@ -611,12 +611,15 @@ Per device:
 - **CRS328** — upload `crs328_initial.rsc` (root) + the 2 pubkeys into `flash/`. Reset triggers
   the script. ✔-evidence: ping the mgmt-VLAN switch IP from the laptop; the CRS328 is
   reachable as `switch.kogler.si`.
-- **APs** (hAP/wAP, one at a time) — upload `ap_initial.rsc` (root) + the 2 pubkeys into `flash/`.
-  Each AP comes up on `bridge`, joins as a CAP, and gets its static-reserved `10.10.99.x` from
-  the router's DHCP server. (Flash-persistence: root `.pub` files were being wiped on the AP
+- **APs** (hAP/wAP, one at a time) — upload the per-AP `ap_initial-<name>.rsc` (root; rendered
+  per-AP since 2026-09-02 so the identity is `ap-spalnica`/`ap-dnevna`/`ap-spare`) + the 2 pubkeys
+  into `flash/`. Each AP comes up on `bridge`, joins as a CAP (manager: radio config
+  `configuration.manager=capsman`, `slaves-static=yes`), and gets its static-reserved `10.10.99.x`
+  from the router's DHCP server. (Flash-persistence: root `.pub` files were being wiped on the AP
   reboot — the bug this phase fixed, HD-304.) ✔-evidence: on the router, `/ip dhcp-server lease
   print` shows the AP's expected MAC at its reserved `10.10.99.x` (dnevna =
-  `C4:AD:34:42:F0:B9` after the Phase 1.5 prep swap; ap-garage retired).
+  `C4:AD:34:42:F0:B9` after the Phase 1.5 prep swap; ap-garage retired); `:put
+  [/system identity get name]` on the AP returns `ap-<name>`.
 
 ### 1.5.3 Hand over to the Ansible `router` role (the take-over)
 
@@ -731,14 +734,29 @@ wifi/security/provisioning objects.
 ✔-evidence on the RB4011:
 
 ```text
-/interface wifi configuration print        ; expect 5 cfg-kogler* rows
-/interface wifi security print             ; expect 5 sec-kogler* rows
+/interface wifi configuration print        ; expect the ENABLED cfg-kogler* rows (currently 2: cfg-kogler + cfg-kogler-iot)
+/interface wifi capsman print              ; 'enabled: yes' (was the missing piece — APs never provisioned)
+/interface wifi security print             ; expect sec-kogler* profiles (currently 2)
 /interface wifi registration-table print   ; clients appear per SSID as they re-join
 /interface wifi provisioning print         ; dynamic CAP entries created for each AP
 ```
 
-Devices must re-join the right SSID (Kogler / Kogler IOT / Kogler IOT WAN / Kogler guest /
-Kogler Kids) to land on their VLAN (10/20/21/30/40).
+> **2026-09-02/03 live fix recap (the 'APs not functioning' bug):**
+> 1. The rendered rsc **never enabled the manager** — `/interface wifi capsman set enabled=yes` is now
+>    the first line (configs existed but the manager sat `enabled=no`, so no AP ever provisioned).
+> 2. wifi-qcom-ac CAPs **cannot honor datapath vlan-id** — configs now use a named datapath `DP_AC`
+>    (bridge-lan, NO vlan-id); per-SSID VLAN rides the CAP's **bridge** (pvid per provisioned slave
+>    interface + tagged uplink `ether1`).
+> 3. AP radios need `configuration.manager=capsman` + `disabled=no` + CAP `slaves-static=yes`
+>    (ap_initial.rsc.j2 carries this; a plain `cap set enabled=yes` alone left them locally-configured
+>    masters that never joined — the `MBX` state).
+> 4. AP identities are now descriptive (`ap-spalnica`, `ap-dnevna`, `ap-spare`) via per-AP rendered
+>    `ap_initial-<name>.rsc`.
+> 5. Enabled SSIDs trimmed to **Kogler + Kogler IOT** (owner decision) — IOT-WAN/guest/kids disabled
+>    at the config level + in SSOT (`routeros_capsman_ssids`).
+
+Devices must re-join the right SSID (currently Kogler → VLAN 10 / Kogler IOT → VLAN 20) to land
+on their VLAN.
 
 ### 1.5.5 Bring up the WG S2S tunnel (HD-91 / HD-285 two-key fix)
 
