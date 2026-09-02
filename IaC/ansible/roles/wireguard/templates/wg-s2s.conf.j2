@@ -14,3 +14,7 @@ ListenPort={{ wg_s2s_vps.listen_port }}
 [Peer]
 PublicKey={{ wg_s2s_vps.peer_public_key }}
 AllowedIPs={% for ip in wg_s2s_vps.allowed_ips %}{{ ip }}{% if not loop.last %},{% endif %}{% endfor %}{{ '\n' }}Endpoint={{ wg_s2s_vps.endpoint }}:{{ wg_s2s_vps.listen_port }}
+# HD-285: keepalive keeps the NAT-traversed S2S tunnel alive (home PPPoE WAN is
+# behind CGNAT-ish/stateful NAT — without it WireGuard never initiates the
+# handshake unless app traffic flows, so the tunnel stayed down silently).
+PersistentKeepalive = {{ wg_persistent_keepalive }}

@@ -824,6 +824,15 @@
         dst-port: 53
         action: accept
         comment: "Allow DNS input from LAN - router resolver tertiary (HD-182) udp"
+      # --- WireGuard S2S (HD-285): accept the handshake/input on the wg listen
+      # port. MUST stay above any full default-deny input (the converge template's
+      # PPPoE brute-force floor drops new-WAN; without this the VPS-initiated
+      # handshake never completes). Port = wg_s2s_vps.listen_port (SSOT).
+      - chain: input
+        protocol: udp
+        dst-port: "{{ wg_s2s_vps.listen_port }}"
+        action: accept
+        comment: "Allow WireGuard S2S handshake/input (HD-285)"
 
 # The router /ip dns only answers queries with allow-remote-requests=yes
 # (RouterOS default: no) — required for the tertiary above to work.

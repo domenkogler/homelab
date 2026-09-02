@@ -201,6 +201,7 @@ add chain=forward action=drop dst-address=192.168.1.0/24 comment="Drop all other
 /ip firewall filter remove [find chain=input]
 /ip firewall filter
 add chain=input action=accept connection-state=established,related comment="Allow established/related input"
+add chain=input action=accept protocol=udp dst-port={{ wg_s2s_vps.listen_port }} comment="Allow WireGuard S2S handshake/input (HD-285)"
 add chain=input action=accept src-address-list=internal_lan protocol=udp dst-port=67,68 comment="Allow DHCP input from LAN"
 add chain=input action=accept in-interface=pppoe-telekom protocol=udp dst-port=67,68 comment="Accept PPPoE DHCP-renewal input (WAN)"
 add chain=input action=drop in-interface=pppoe-telekom comment="Drop all other new-from-WAN (brute-force floor)"

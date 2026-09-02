@@ -24,3 +24,9 @@ wg_netdev_dir: /etc/systemd/network
 # already on the interface from the .netdev). The conf is therefore secret-free (0644).
 wg_ensure_dir: /usr/local/libexec/wireguard
 wg_conf_dir: /etc/wireguard
+
+# PersistentKeepalive for the wg-s2s peer (HD-285): the home router WAN is behind
+# stateful NAT/CGNAT — without a keepalive WireGuard never initiates the handshake
+# unless app traffic flows, so the tunnel sits down silently. 25 s is the standard
+# NAT-traversal interval. Applied both in the .netdev (boot) and wg-s2s.conf (oneshot).
+wg_persistent_keepalive: 25

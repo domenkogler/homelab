@@ -58,6 +58,29 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 > restart/boot). Live-verified: peer attaches + persists across `networkctl reconfigure` and a networkd restart; the
 > oneshot re-attaches it automatically. Handshake still requires the **router side** (HD-285, Phase 1.5).
 
+> **HD-285 bring-up attempt (2026-09-02, maintenance window) — networkd 257 key bug found:**
+> the `.netdev` `PrivateKey=` line is rendered + on disk (len 44, correct value) but **systemd 257.13 networkd NEVER
+> applies it** — the running `wg-s2s` interface comes up **keyless** (`wg show wg-s2s public-key` = `(none)`) even
+> after a clean `systemctl restart systemd-networkd` + interface re-create. A keyless interface cannot handshake
+> (`ping` the SSOT `wg-s2s` router-side IP → `sendmsg: Required key not available`).
+>
+> **Live-probed on the VPS (order matters — each op clears the other on the networkd-owned iface):**
+> - `wg setconf wg-s2s wg-s2s.conf` (peer-only, no PrivateKey) → **peer appears, key clears** (`pubkey (none)`)
+> - `wg set wg-s2s private-key` → **key appears, peer list clears** (`peers []`)
+> - `wg set wg-s2s peer …` last → rc=0 but peer **never persists** (`peers []`)
+> - The interface **cannot hold key AND peer simultaneously** via manual `wg` on networkd-257 — the two are
+>   mutually exclusive. So the HD-306 peer-only setconf path alone can never establish a handshake: the key is
+>   missing from the kernel.
+>
+> **Blocker:** the tunnel (HD-285/§1.5.5) is **NOT up** until this is fixed. Options (not yet done):
+> 1. **Upstream/skip:** check systemd ≥ 257.14+ or a networkd patch that applies `.netdev` PrivateKey; or
+> 2. **Drop-in:** make the oneshot own the iface fully (stop networkd managing wg-s2s, oneshot config key+peer last); or
+> 3. **Use networkd-recommended `[WireGuard] Peer=` (config) instead of `[WireGuardPeer]`** (networkd 257 may apply
+>    the whole config atomically — untested).
+> Until then the VPS side is: interface up, peer attached (keepalive 25 — SSOT `wg-s2s.conf.j2` now has it), **no key**,
+> no handshake. Router side: `wg-s2s` up + `vps-s2s` peer + INPUT UDP 51820 accept now live (converge + role).
+> Owned by: HD-285; update this note when resolved.
+
 ## Layer 2: Headscale (Mobile Mesh)
 
 > **Naming + policy contract (Wave-3 R5, 2026-08-22):** headscale ≥ 0.24 REJECTS a
