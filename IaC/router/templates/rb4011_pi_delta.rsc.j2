@@ -21,12 +21,12 @@
 }
 
 # --- 2b. vlan-99 TAGGED member on ether10 (admin/Mgmt plane) + untagged for Mgmt-only ports ---
-# ether10 carries Mgmt TAGGED (port model); ether2/3 too. ether7/9 (iLO, HMIP) are
+# ether10 carries Mgmt TAGGED (port model); ether2 too. ether7/9 (iLO, HMIP) are
 # Mgmt-only access → UNTAGGED. Idempotent guarded add/set like VLAN 10 above.
 :if ([/interface bridge vlan find where vlan-ids=99 and dynamic=no] = "") do={
-    /interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether10 untagged=ether7,ether9 comment="Management VLAN (tagged admin + untagged mgmt access)"
+    /interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether10 untagged=ether7,ether9 comment="Management VLAN (tagged admin + untagged mgmt access)"
 } else={
-    /interface bridge vlan set [find where vlan-ids=99 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether10 untagged=ether7,ether9 comment="Management VLAN (tagged admin + untagged mgmt access)"
+    /interface bridge vlan set [find where vlan-ids=99 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1,ether2,ether10 untagged=ether7,ether9 comment="Management VLAN (tagged admin + untagged mgmt access)"
 }
 
 # --- 3. Pi mgmt-99 static reservation (10.10.99.20 on dhcp-mgmt) ---
