@@ -1072,8 +1072,8 @@
     handle_absent_entries: ignore
     data:
       - bridge: bridge-lan
-        interface: "{{ item.port }}"
-        pvid: "{{ item.pvid }}"
+        interface: "{{ item.value.port }}"
+        pvid: "{{ item.value.pvid }}"
   loop: "{{ router_port_map | dict2items | selectattr('value.port', 'defined') | selectattr('value.pvid', 'defined') | list }}"
   tags: [network, router-port-model]
 

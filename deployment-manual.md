@@ -625,18 +625,30 @@ From the **management laptop** (or the WSL runner — the role is the same). **R
 interpreter Ansible uses for modules. `inventory.ini` pins
 `ansible_python_interpreter=/usr/bin/python3` (system), which does NOT have `librouteros` —
 the venv (`~/ansible-venv`) does. The `scripts/ansible-run.sh` wrapper hardcodes `REPO` to the
-PRIMARY checkout, so run from a **fresh session worktree** and force the venv interpreter:
+PRIMARY checkout, so run from a **fresh session worktree** and force the venv interpreter.
+
+**Laptop runner is Home-only → use the Pi-99 hop wrapper (2026-09-02, HD-285):** the WSL
+runner sits on VLAN 10; its direct connection to `routeros_api_host` on the Mgmt VLAN loses
+at both lockdown layers (forward `Default deny inter-VLAN` + `/ip service available-from =
+mgmt`). The Pi (`eth0.99` tagged Mgmt) is the only real mgmt client. Use
+[`scripts/ansible-network-hop.sh`](scripts/ansible-network-hop.sh) — it SSH-local-forwards
+the device API through `pi` (traffic originates mgmt-sourced, passes both gates with zero
+firewall surface) and execs `ansible-run.sh` with the loopback host/port + venv interpreter:
 
 ```bash
 # from the session worktree (NOT the primary checkout):
-cd IaC/ansible
-source ~/ansible-venv/bin/activate
-ansible-playbook -i inventory.ini playbooks/router.yml \
-  -e ansible_python_interpreter=~/ansible-venv/bin/python3
-ansible-playbook -i inventory.ini playbooks/switch.yml \
-  -e ansible_python_interpreter=~/ansible-venv/bin/python3
-# dry-run first (safe check): add --check --diff to both above
+bash scripts/ansible-network-hop.sh router playbooks/router.yml --check --diff   # dry-run first
+bash scripts/ansible-network-hop.sh switch playbooks/switch.yml --check --diff
+bash scripts/ansible-network-hop.sh router playbooks/router.yml                  # real
+bash scripts/ansible-network-hop.sh switch playbooks/switch.yml
 ```
+
+> **2026-09-02 (maintenance window):** this hop unblocked the live re-converge — router
+> `ok=34 changed=5 failed=0`, switch `ok=23 changed=4 failed=0`, both through the Pi hop.
+> It also surfaced + fixed live switch-role bugs: `poe-out: on` (→ `auto-on`, the CRS328
+> rejects `on`), `poe-priority: high` (invalid value), INPUT firewall `dst-port` without
+> `protocol: tcp` (RouterOS requires it). And a router-role `router_port_map` dict2items
+> bug (`item.port` → `item.value.port`).
 
 ✔-evidence: `ok`/`changed` counts in the play recap are sensible (expect 1–2 changed per
 device on a re-run; expect a larger changed count on a fresh-bootstrap run because VLANs

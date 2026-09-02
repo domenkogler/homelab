@@ -257,8 +257,7 @@
     handle_absent_entries: ignore
     data:
       - default-name: "{{ item.value.port }}"
-        poe-out: on
-        poe-priority: high
+        poe-out: auto-on
         comment: "PoE for AP: {{ item.key }}"
   loop: "{{ switch_port_map | dict2items | list }}"
   when: item.value.poe | bool
@@ -383,16 +382,19 @@
         comment: "Allow established/related input (switch)"
       - chain: input
         dst-port: 22,8728,8729,8291,80,443
+        protocol: tcp
         src-address: "{{ vlan_subnets[99] }}"
         action: accept
         comment: "Allow mgmt services from Management VLAN"
       - chain: input
         dst-port: 22,8728,8729,8291,80,443
+        protocol: tcp
         src-address-list: trusted-admin
         action: accept
         comment: "Allow mgmt services from trusted-admin"
       - chain: input
         dst-port: 22,8728,8729,8291,80,443
+        protocol: tcp
         action: drop
         comment: "Drop mgmt services from non-mgmt sources"
 
