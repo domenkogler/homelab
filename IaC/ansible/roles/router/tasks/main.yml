@@ -385,6 +385,57 @@
         list: vps_s2s_peer
         comment: "VPS S2S peer (HD-155) - least-access source"
 
+# --- HD-312 phase 3: per-MAC firewall lists rendered from SSOT ---
+# iot-wan-allow          = cloud-IoT devices (LG/Bosch/HAP) that may reach WAN from
+#                          VLAN 20 (IOT); they DO have MACs in network_static_hosts
+#                          (they were on the IOT-WAN SSID, moved to Kogler IOT VLAN 20
+#                          on 2026-09-03 when IOT-WAN was deleted; WAN is now cut for them
+#                          — phase 3's forward rule restores it via this MAC list).
+#                          Permanent membership (these stay in the list): selectattr vlan==21.
+#                          Temporary (n8n firmware-window, HD-312d): to be driven by the
+#                          router API user (HD-313) — never hand-edit.
+# kids-*                 = kids-control MAC-address-list (kids devices join Home VLAN 10
+#                          per HD-312; list sherds reserved: kids-bedtime/kids-filter/kids-wan)
+#                          — NOT yet implemented (owner: define kids device set).
+- name: Create firewall MAC-address-list iot-wan-allow (HD-312 phase 3, from SSOT)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip firewall address-list
+    handle_absent_entries: ignore
+    data:
+      - address: "{{ item.mac }}"
+        list: iot-wan-allow
+        comment: "HD-312 cloud-IoT WAN (MAC): {{ item.name }}"
+  loop: "{{ network_static_hosts | selectattr('mac', 'defined') | selectattr('vlan', 'equalto', 21) | list }}"
+  loop_control:
+    label: "{{ item.name }} MAC -> iot-wan-allow"
+  tags: [network]
+
+- name: Reserve kids-* firewall MAC-address-lists (HD-312 phase 3, from SSOT)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip firewall address-list
+    handle_absent_entries: ignore
+    data:
+      - address: "{{ item.mac }}"
+        list: "kids-{{ item.role | lower | regex_replace('[^a-z0-9-]+', '-') }}"
+        comment: "HD-312 kids-control (MAC): {{ item.name }}"
+  loop: "{{ network_static_hosts | selectattr('mac', 'defined') | selectattr('vlan', 'equalto', 10) | selectattr('name', 'match', '^(tablet|phone)-') | list }}"
+  loop_control:
+    label: "{{ item.name }} MAC -> kids list"
+  when: false  # ⏳ HD-312 phase 3 kids-control not yet active — list sherds reserved, no firewall rules reference them yet
+  tags: [network]
+
 - name: Create firewall address list for the scoped home targets the VPS may reach (HD-155)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -402,6 +453,19 @@
       - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'ha-vip') | selectattr('vlan', 'equalto', 10) | first).ip }}"
         list: vps_scoped_home
         comment: "HD-155: HA VIP (exporter)"
+      - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+        list: vps_scoped_home
+        comment: "HD-155: oldsrv (backends when wired)"
+      - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+        list: vps_scoped_home
+        comment: "HD-155: pi (probe)"
+      - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}"
+        list: vps_scoped_home
+        comment: "HD-155: router (probe)"
+      - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}"
+        list: vps_scoped_home
+        comment: "HD-155: switch (probe)"
+
       - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
         list: vps_scoped_home
         comment: "HD-155: oldsrv (backends when wired)"
@@ -622,11 +686,14 @@
         out-interface: pppoe-telekom
         action: drop
         comment: "IoT -> WAN drop (disable manually for firmware updates)"
+
+
       - chain: forward
         src-address-list: vps_s2s_peer
         dst-address-list: vps_scoped_home
         action: accept
         comment: "VPS S2S -> scoped home targets (HD-155)"
+
       - chain: forward
         src-address-list: vps_s2s_peer
         action: drop
@@ -739,6 +806,40 @@
         action: drop
         comment: "HD-302: default-deny all other homelab hosts -> Comtrend subnet"
 
+# HD-312 phase 3: cloud-IoT per-MAC WAN egress (iot-wan-allow, 2026-09-03).
+# The IOT-WAN SSID was deleted (3-SSID consolidation) — the LG/Bosch/HAP cloud
+# devices now ride VLAN 20 (Kogler IOT) where the IoT drop above cuts their WAN.
+# This accept (rendered per MAC in iot-wan-allow) restores internet for exactly
+# those devices: permanent membership = SSOT network_static_hosts vlan 21 rows;
+# temporary = n8n firmware-window via the router API (HD-312d). Uses
+# handle_absent_entries: ignore (never removes the main forward chain's rules —
+# the HD-182 single-remove-api_modify constraint is preserved). First-match-wins:
+# this accept is matched before the VLAN-wide default-deny, so the IoT drop above
+# stays the fallback for every other device on VLAN 20.
+- name: Ensure per-MAC IoT cloud-device WAN egress accepts (HD-312 phase 3 iot-wan-allow)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip firewall filter
+    handle_absent_entries: ignore
+    restrict:
+      - field: chain
+        values: [forward]
+    data:
+      - chain: forward
+        src-address: "{{ vlan_subnets[20] }}"
+        src-mac-address: "{{ item.mac }}"
+        out-interface: pppoe-telekom
+        action: accept
+        comment: "IoT cloud device -> WAN allowed via iot-wan-allow (HD-312): {{ item.name }}"
+  loop: "{{ network_static_hosts | selectattr('mac', 'defined') | selectattr('vlan', 'equalto', 21) | list }}"
+  loop_control:
+    label: "HD-312 iot-wan-allow accept for {{ item.name }}"
+  tags: [network]
 
 # -------------------------------------------------------------------------
 # Firewall - INPUT Chain (router management planes)  (HD-78 / KOPS-003/009)

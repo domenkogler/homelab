@@ -41,7 +41,7 @@ VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.
 | Management | — | Local system | Infrastructure isolation |
 | Home (10) | Main-Group | **Pi-hole** | Aggressive ad-blocking |
 | Kids (40) | Kids-Group | **Cloudflare Families** (1.1.1.3) | Adult content + porn filtering |
-| IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking |
+| IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking — cloud-IoT devices in `iot-wan-allow` (HD-312 phase 3) still resolve via this row; they only gain WAN egress, not a DNS bypass |
 | Guest (30) | Guest-Group | Standard public (1.1.1.1) | No filtering needed |
 
 ---
