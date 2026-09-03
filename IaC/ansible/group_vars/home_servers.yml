@@ -64,8 +64,12 @@ docker_services:
   - { name: ollama,          template_dir: ollama }
   - { name: immich-ml,       template_dir: immich-ml }   # ML offload for immich-app on VPS (over WG)
 
-  # --- DNS (LAN split-horizon primary on oldsrv; secondary on Pi) ---
-  - { name: technitium,      template_dir: technitium, subdomain: dns, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
+  # --- DNS (HD-299, VPS-primary 2026-09-03): oldsrv is now the SECONDARY resolver ---
+  #   PRIMARY = VPS (group_vars/vps.yml), SECONDARY = oldsrv (this entry, instance:
+  #   secondary, no web-UI labels — the dns.kogler.si UI lives on the VPS primary),
+  #   TERTIARY = Pi (raspberry_pi.yml). LAN DHCP chain + router rules + tailnet
+  #   headscale nameservers all list VPS-primary first (see docs/network-dns.md).
+  - { name: technitium,      template_dir: technitium, instance: secondary, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: pihole,          template_dir: pihole,     subdomain: ad }
 
   # --- Smart home failover: standby HA + keepalived VIP on oldsrv ---

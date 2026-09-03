@@ -67,6 +67,56 @@
     state: started
     enabled: true
 
+# HD-299 (Option A): the DNS primary resolver for LAN/tailnet is the VPS public IP.
+# The nftables input allow for home-WAN DNS uses a `dns-allow-home` set populated
+# from the home DDNS record (s.kogler.si, the router's WAN IP). A small timer
+# re-resolves it every 5 minutes so a DDNS change doesn't strand home DNS queries.
+- name: Deploy DNS-allow home-DDNS refresh systemd unit + timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/dns-allow-refresh.service
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Refresh home-WAN source IP in nftables dns-allow-home set (HD-299)
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/dns-allow-refresh.sh
+- name: Deploy dns-allow-refresh timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/dns-allow-refresh.timer
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Refresh home-WAN source IP in nftables dns-allow-home set (5 min)
+
+      [Timer]
+      OnBootSec=1min
+      OnUnitActiveSec=5min
+      Unit=dns-allow-refresh.service
+
+      [Install]
+      WantedBy=timers.target
+- name: Deploy dns-allow-refresh script
+  ansible.builtin.copy:
+    dest: /usr/local/sbin/dns-allow-refresh.sh
+    mode: '0755'
+    content: |
+      #!/bin/sh
+      # Re-resolve the home WAN DDNS record and refresh the nftables dns-allow-home
+      # set (HD-299 Option A). Fails silently if the record is unreachable (keeps
+      # the previous address; the timer retries).
+      set -eu
+      ip=$(getent ahostsv4 s.kogler.si | awk 'NR==1{print $1}')
+      [ -n "$ip" ] || exit 0
+      nft flush set inet filter dns-allow-home
+      nft add element inet filter dns-allow-home { "$ip" }
+- name: Enable + start dns-allow-refresh timer
+  ansible.builtin.systemd:
+    name: dns-allow-refresh.timer
+    state: started
+    enabled: true
+
 # HD-230 (2026-08-23, found live): Debian's stock nftables.service ships
 # ExecStop=/usr/sbin/nft flush ruleset — every stop/restart WIPED docker-programmed
 # nat/filter tables even with the scoped ruleset file below (the wipe came from the

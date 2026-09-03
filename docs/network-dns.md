@@ -13,21 +13,22 @@ tags: [network, dns, technitium, pihole]
 
 ---
 
-## Design: Technitium as Central DNS Router (Primary + Secondary)
+## Design: Technitium as Central DNS Router (Primary + Secondary + Tertiary)
 
-Technitium runs as a Docker container on oldsrv (primary) and a **second instance on the Raspberry Pi** (`pi.kogler.si` — secondary; `ha.kogler.si` is the VIP) — two separate physical hosts so a DNS outage does not depend on a single failure domain. Both serve the same per-subnet policy and internal `*.kogler.si` records. See the HA-failover tie-in in [`smart-home-failover.md`](smart-home-failover.md).
+Technitium runs as a Docker container on the **VPS (primary, HD-299/2026-09-03)** and two home instances — **oldsrv (secondary)** and the **Raspberry Pi (tertiary; `ha.kogler.si` is the VIP)** — three separate physical hosts so a DNS outage does not depend on a single failure domain. The VPS is always-on + WAN-reachable, so it is the primary resolver for LAN + tailnet (client address = the VPS public IP, `dns_primary_ip`); oldsrv + Pi cover the home-WAN-out / VPS-down cases from the LAN. All serve the same per-subnet policy and internal `*.kogler.si` records. See the HA-failover tie-in in [`smart-home-failover.md`](smart-home-failover.md).
 
 ```
-              ┌────────────────────────────┐
-              │ Technitium DNS router      │
-              │ PRIMARY  (oldsrv)          │
-              │ + SECONDARY (Pi/ha.kogler) │
-              └──────┬──────────┬─────────┘
-                     │          │
-            ┌────────┴───┐  ┌───┴────────┐
-            │  per-subnet│  │  internal  │
-            │  upstream  │  │ *.kogler.si│
-            └────────────┘  └────────────┘
+                ┌────────────────────────────────┐
+                │ Technitium DNS router         │
+                │ PRIMARY   (VPS, dns_primary_ip)│
+                │ + SECONDARY (oldsrv)          │
+                │ + TERTIARY  (Pi/ha.kogler)    │
+                └──────┬──────────┬────────────┘
+                       │          │
+              ┌────────┴───┐  ┌───┴────────┐
+              │ per-subnet │  │  internal  │
+              │  upstream  │  │ *.kogler.si│
+              └────────────┘  └────────────┘
 ```
 
 ---
@@ -49,27 +50,36 @@ VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.
 ## DNS Flow
 
 ```
-Client → Technitium PRIMARY (oldsrv)     ← DHCP lists this first
-        → Technitium SECONDARY (pi)
-        → Router /ip dns (tertiary, per-VLAN gateway) → 1.1.1.1 (final fallback)
+Client → Technitium PRIMARY (VPS public IP)  ← DHCP lists this first
+        → Technitium SECONDARY (oldsrv)
+        → Technitium TERTIARY (Pi)
+        → Router /ip dns (final fallback, per-VLAN gateway) → 1.1.1.1
 ```
 
-- DHCP hands clients **both** Technitium servers first (oldsrv, then pi — addresses per SSOT),
-  then the router's IP as tertiary — so per-subnet filtering is enforced (Technitium
-  sees the source subnet, not the router). All three bind **Home**-VLAN addresses.
-- If oldsrv is down: the **secondary on the Pi** still resolves local `*.kogler.si`
-  and enforces per-subnet filtering; 1.1.1.1 is only a last resort (unfiltered)
-- The **secondary is a true failure-domain split** — the Pi is a different physical box from oldsrv
-- `ha.kogler.si` resolves to the **VIP** on both secondary and primary (see [`smart-home-failover.md`](smart-home-failover.md)) so DNS is never the thing that breaks HA lookup
+- DHCP hands clients the **full resolver chain** (VPS public IP first, then oldsrv, then
+  Pi — addresses per SSOT `dns_primary_ip`/`dns_secondary_ip`/`dns_tertiary_ip`), then the
+  router's IP as final fallback — so per-subnet filtering is enforced (Technitium sees the
+  source subnet, not the router). The VPS primary is reached from the LAN through the
+  existing Home/Media/Guest/Mgmt→WAN egress (HD-309) and from tailnet via its public IP;
+  the VPS nftables source-allow blocks everything else (tailnet CGNAT + home WAN only, HD-299).
+- **Resilience chain (the point of the 3-instance tier):**
+  - VPS always-on → normal path (LAN + tailnet). If the WG tunnel drops, LAN clients still
+    reach the VPS primary over the public WAN (it does not depend on the tunnel).
+  - If the VPS is down **or WAN is out**: timeout/failover → oldsrv (secondary), then Pi
+    (tertiary) — both on the LAN, keep resolving local `*.kogler.si` + per-subnet filtering;
+    1.1.1.1 is only a last resort (unfiltered).
+- The **secondary/tertiary are a true failure-domain split** — oldsrv, Pi, and VPS are all
+  different physical boxes.
+- `ha.kogler.si` resolves to the **VIP** on every instance (see [`smart-home-failover.md`](smart-home-failover.md)) so DNS is never the thing that breaks HA lookup.
 - **The VIP's `:443` edge is served by whichever keepalived node owns the VIP:** in normal mode the Pi's minimal **`traefik-ha`** edge serves `ha.kogler.si`; after a forward takeover oldsrv's `traefik` takes over. Both serve an identical `ha` route → VIP:8123, so `ha.kogler.si → VIP` is always served by the active HA node (**no DNS flip on failover**). See [`smart-home-failover.md`](smart-home-failover.md).
-- **Web UIs:** primary on `dns.kogler.si` (oldsrv, Forward-Auth). The **secondary** on the Pi at **`dns-pi.kogler.si`** — FQDN shape only borrowed from the cockpit naming; like `ha` it resolves to the **VIP (`ha-vip`)** and is served by the Pi's `traefik-ha` edge → local `pi:5380` (IP per SSOT), so it keeps working **when oldsrv is down** (internal-only, no Forward-Auth). Direct fallback `pi:5380` on the LAN.
-- **Static records (do not forget):** `ha.kogler.si → VIP` and `dns-pi.kogler.si → VIP` (VIP = `ha-vip`, value per SSOT) must be created as **A records on BOTH Technitium instances** (primary + secondary). DHCP auto-creation only covers leases, and the VIP is **not** a lease — without these static records the edges are unreachable by name.
+- **Web UIs:** primary web UI on `dns.kogler.si` (VPS, Forward-Auth; **no host 5380** — served via the VPS Traefik overlay). The Pi tertiary has **`dns-pi.kogler.si`** — FQDN shape only borrowed from the cockpit naming; like `ha` it resolves to the **VIP (`ha-vip`)** and is served by the Pi's `traefik-ha` edge → local `pi:5380` (IP per SSOT), so it stays reachable when oldsrv is down (internal-only, no Forward-Auth). Direct fallback `pi:5380` on the LAN. oldsrv's UI is not exposed (primary UI lives on the VPS).
+- **Static records (do not forget):** `ha.kogler.si → VIP` and `dns-pi.kogler.si → VIP` (VIP = `ha-vip`, value per SSOT) must be created as **A records on EVERY Technitium instance** (VPS primary + oldsrv secondary + Pi tertiary). DHCP auto-creation only covers leases, and the VIP is **not** a lease — without them the traefik-ha / oldsrv edges are unreachable by name.
 - **Static records — tailnet admin dashboards (HD-135b follow-up / HD-273, 2026-08-28):** the **plain `*.kogler.si`** admin names (`stats`, `logs`, `csui`, `sec`, `traefik`, `auto`) must be **A records on BOTH Technitium instances → the `vps-obs` tailnet IP** (the `tailnet_sidecar_ip` group_var, `group_vars/vps.yml` — the traefik-tailnet edge). **Why:** Tailscale client MagicDNS only ANSWERS its `base_domain` (`ts.kogler.si`); for a FQDN matching a search domain (`kogler.si`), the client queries its **configured nameserver for that domain** — here Technitium — so without these records the plain names NXDOMAIN on tailnet devices (the `.ts.kogler.si` twins work via MagicDNS extra_records; the plain set needs the Technitium split-horizon, exactly like `ha`). The value is a **tailnet IP** so ONLY tailnet clients can reach it (LAN-only clients resolve it but fail to connect — correct, tailnet-only).
-- **Static records — *arr stack (both instances → oldsrv Traefik edge):** `seerr`, `sonarr`,
+- **Static records — *arr stack (every instance → oldsrv Traefik edge):** `seerr`, `sonarr`,
   `radarr`, `lidarr`, `prowlarr`, `bazarr`, `sab`, `torrent`, `media`, `profilarr`, `logs` (all
   `*.kogler.si`). Recyclarr has no hostname (scheduled worker, no UI). All are **internal-only** —
   no public (Cloudflare) record, WAN-blocked (see `services.md`).
-- **Coupling tradeoff (accepted):** the Pi also hosts primary HA. A Pi failure takes the DNS secondary down **with** it — but the DNS **primary** (oldsrv) survives, and oldsrv is exactly the box HA fails over to, so resolution is never the thing that breaks HA in the Pi-down scenario.
+- **Coupling tradeoff (accepted):** the Pi also hosts primary HA. A Pi failure takes the DNS **tertiary** down **with** it — but the DNS primary (VPS, HD-299) and secondary (oldsrv) survive, and oldsrv is exactly the box HA fails over to, so resolution is never the thing that breaks HA in the Pi-down scenario.
 
 ---
 
@@ -94,12 +104,15 @@ Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
 
 ## MikroTik Firewall Rules for DNS
 
-Technitium binds **Home**-VLAN addresses (oldsrv primary, pi secondary — values per
-SSOT). Clients on every other VLAN reach them via explicit **forward** rules,
-plus the router's own resolver is open on UDP/TCP 53 (input) as a tertiary.
+Technitium instances bind resolver addresses (VPS public IP primary, oldsrv secondary, Pi tertiary — values per
+SSOT `dns_primary_ip`/`dns_secondary_ip`/`dns_tertiary_ip`). Clients on every other VLAN reach them via explicit
+**forward** rules, plus the router's own resolver is open on UDP/TCP 53 (input) as a final fallback.
 
 - Forward, above the inter-VLAN drop: from `in-interface-list=LAN` →
-  `dst-address=<oldsrv IP>` **and** `<pi IP>` (per SSOT), UDP 53 (+ DoT 853).
+  `dst-address=<oldsrv IP>` **and** `<pi IP>` (per SSOT), UDP 53 (+ DoT 853). **The VPS
+  primary is NOT a LAN forward target** — LAN clients reach it via the approved
+  Home/Media/Guest/Mgmt→WAN egress (HD-309) to the VPS public IP; the VPS nftables
+  source-allow (tailnet CGNAT + home WAN only) is the control (HD-299).
 - Input: `in-interface-list=LAN` UDP/TCP 53 → router `/ip dns` (tertiary), which itself
   forwards to Technitium + 1.1.1.1.
 - Global inter-VLAN drop rule sits **below** these exceptions.
@@ -110,7 +123,7 @@ plus the router's own resolver is open on UDP/TCP 53 (input) as a tertiary.
 
 ## Local Name Resolution & mDNS
 
-- **DHCP lease integration:** Technitium queries RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records. Technitium primary binds the **Home**-VLAN IP of oldsrv and secondary that of the Pi (per SSOT) — cross-VLAN DNS is permitted by the forward rules above.
+- **DHCP lease integration:** Technitium queries RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records. The VPS primary binds the **public** IP; the home secondaries bind the **Home**-VLAN IPs of oldsrv + Pi (per SSOT) — cross-VLAN DNS is permitted by the forward rules above.
 - **mDNS reflector:** Technitium bridges `.local` names across all VLANs (RouterOS built-in mDNS is bridge-wide only, cannot cross VLANs)
 
 ---

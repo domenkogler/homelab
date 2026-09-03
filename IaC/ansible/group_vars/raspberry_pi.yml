@@ -29,5 +29,5 @@ ha_primary_peer_priority: 90  # failback peer mode — below standby (100/120), 
 #     and fill the USB by-id into host_vars/pi.kogler.si.yml.
 docker_services:
   - { name: home-assistant-primary, template_dir: home-assistant-primary }
-  - { name: technitium-secondary,  template_dir: technitium, instance: secondary }
+  - { name: technitium-secondary,  template_dir: technitium, instance: secondary-pi }
   - { name: traefik-ha,            template_dir: traefik-ha, enabled: "{{ ha_edge_enabled }}" }   # HA edge, VIP-bound (oldsrv-down gap)

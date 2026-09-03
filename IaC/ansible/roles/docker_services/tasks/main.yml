@@ -105,7 +105,7 @@
     driver: bridge
     ipam_config:
       - subnet: "{{ item.cidr }}"
-  loop: "{{ network_ranges | selectattr('name', 'in', ['traefik-public', 'services-internal', 'db-internal', 'llm-backend', 'tailnet-apps']) | list }}"
+  loop: "{{ network_ranges | selectattr('name', 'in', ['traefik-public', 'services-internal', 'db-internal', 'llm-backend', 'tailnet-apps', 'dns-servers']) | list }}"
   when: scope_is_all
   tags: [docker_services, networks]
 
