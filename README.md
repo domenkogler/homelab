@@ -73,8 +73,10 @@ task-specific dispatch. Do **not** bulk-read the repo.
   current most-valuable, laptop-doable items. **HD-312 3-SSID WiFi + per-MAC cloud-IoT WAN is LIVE
   (2026-09-03)** — the cloud-IoT appliances (LG/Bosch/HAP) regain WAN as leases turn over; the phantom
   **VLAN 21 (IoT-Internet) was DELETED (HD-325, 2026-09-04)** — cloud-IoT moved to VLAN 20 with a
-  per-device `wan_allow` flag (SSOT = live). Remaining tails (`kids-*` lists, n8n firmware automation) are in
-  [`todo.md`](todo.md) HD-312. **HD-317 Technitium DNS-primary on the VPS is LIVE** (3-instance DNS
+  per-device `wan_allow` flag (SSOT = live). **Kids device set DEFINED (HD-326, 2026-09-04)** =
+  `tablet-valentina` + `tablet-ipad` — per-MAC kids controls (bedtime/DoT/DNS-filter) are the next
+  implement item. Remaining tails (kids-* controls, n8n firmware automation) are in
+  [`todo.md`](todo.md) HD-312/HD-326. **HD-317 Technitium DNS-primary on the VPS is LIVE** (3-instance DNS
   HA); the split-horizon A-record **seed is DONE + LIVE on the VPS primary AND Pi tertiary**
   (HD-324, 2026-09-03 — VPS admin recreated to the 1P value via the documented API; the seed
   role now idempotent). oldsrv secondary seeds automatically once its Phase-3 admin is up.
