@@ -177,6 +177,9 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 ### Live-deploy findings — authentik 2026.5.6 image & API (Phase 1, 2026-08-22)
 
 - **Blueprint upsert EMPTIES absent array attrs (HD-231, 2026-08-24):** applying a blueprint that omits `grant_types` / `property_mappings` writes `[]` over them — killing the `authorization_code` grant and all token scopes while authorize/token still look healthy (UserInfo then 403 `insufficient_scope`). Pin EVERY array attr explicitly in ks-oidc.yml / ks-forward-auth.yml entries; the docker_services one-shot apply runs on every converge.
+- **Outpost `providers` m2m is NOT merged by blueprint upsert (HD-317, 2026-09-03):** adding a NEW provider to the embedded outpost's `providers:` list in `ks-forward-auth.yml` and re-applying does NOT bind it — the blueprint updates the outpost row but leaves the existing m2m untouched (the already-bound providers were bound at outpost CREATE time). A provider added later must be bound via ORM one-shot:
+  `ak shell -c "from authentik.outposts.models import Outpost; from authentik.providers.proxy.models import ProxyProvider; o=Outpost.objects.first(); o.providers.add(ProxyProvider.objects.get(name='forward-dns')); o.save()"`
+  (the outpost controller reloads on save). Live evidence: `https://dns.kogler.si/` 404'd until `forward-dns` was ORM-bound — the provider existed in the DB but the embedded outpost wouldn't serve it.
 - **`AUTHENTIK_BOOTSTRAP_*` applies ONLY at user creation** (Phase 1 R5, 2026-08-22): if the DB was
   initialized before the bootstrap env landed in compose, `akadmin` keeps its creation-time
   defaults (email `root@example.com`, no vault password) and later env changes are silently
