@@ -100,7 +100,11 @@
     - name: Upload rsc to router via SCP (ansible SSH identity, pinned host key)
       ansible.builtin.copy:
         src: "{{ rendered_path }}"
-        dest: "{{ converge_rsc }}"
+        dest: "/{{ converge_rsc }}"          # ABSOLUTE RouterOS remote path — a relative dest
+                                             # makes Ansible resolve it on the controller and
+                                             # leak a rendered rsc (secrets) into
+                                             # IaC/ansible/playbooks/ (2026-09-03). RouterOS
+                                             # /import + this repo's deltas use the root path.
         mode: "0600"
       delegate_to: localhost
       become: false
