@@ -16,14 +16,18 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 > `home-assistant-current.md` (live HAOS inventory), `network-addresses-generated.md` (IPs)
 > **Linked from:** `index.md`, `deployment-manual.md`
 
-> 🟢 **Partially provisioned as of 2026-09-03 — this runbook drives the COMPLETE provision.** Live
-> state (verified this session via SSH): Debian 13 trixie ✅ · Docker 29.7.2 + Compose v5.5.0 ✅ ·
-> network dual-home live (`pi-eth0` = Home 10.10.1.20, `pi-mgmt` = tagged-99 10.10.99.20) ✅ ·
-> `/opt/home-assistant-primary/` has `config/configuration.yaml` (**stale — pre-KNX/lovelace**),
-> `secrets.yaml` (**stale/empty — pre-renderer**), keepalived renders · **missing:** the
-> `docker-compose@.service` unit + all containers, the KNX entities, the lovelace dashboard, the
-> `technitium-secondary` + `traefik-ha` services. So the Pi needs a **full re-run of `raspberry_pi.yml`**
-> with the session's updated roles.
+> ✅ **FULLY PROVISIONED + LIVE as of 2026-09-03 (HD-307/HD-310/HD-04).** `raspberry_pi.yml` full run
+> ended `failed=0`; all three services live + verified on `pi.kogler.si`:
+> Debian 13 trixie + Docker 29.7.2 + Compose v5.5.0 · network dual-home
+> (`pi-eth0` Home 10.10.1.20 + `pi-mgmt` tagged-99 10.10.99.20) ·
+> **home-assistant-primary** (HA 2026.8.1 + keepalived MASTER on VIP `ha-vip` 10.10.1.200) ·
+> **technitium-secondary** (DNS :53 alive) · **traefik-ha** (TLS `*.kogler.si` valid,
+> Verify 0). KNX/dashboard/secrets render; HA boots with **0 config errors**;
+> `https://ha.kogler.si/` via traefik-ha → **302** (login). Live-fixed this session:
+> docker_services enabled-set crash, first-boot guard loop_var, technitium read_only + cap_add,
+> knx-entities `knx:` wrapper, meteoblue-not-in-2026.8, trusted_proxies + stale `.storage/http`,
+> ha-cert-sync `dump/` exclusion + VPS rsync/key auth. **Remaining (owner steps):** KNX UI
+> config-flow import, Authentik OIDC, `ha.kogler.si` DNS cutover → VIP.
 
 ---
 
@@ -151,17 +155,18 @@ ssh ansible-admin@10.10.1.20 'docker logs home-assistant-primary-keepalived-1 2>
 
 ## 6. Success criteria
 
-- [ ] `docker compose ps` on the Pi: `home-assistant-primary` (HA + keepalived) healthy,
-      `technitium-secondary` healthy, `traefik-ha` healthy.
-- [ ] `configuration.yaml` on the Pi includes `knx: !include knx-entities.yaml`,
-      `lovelace-stanovanje` (YAML mode), the radiator-timer scripts.
-- [ ] `secrets.yaml` on the Pi has `meteoblue_api`, `smtp_login`, `smtp_password`,
-      `ha-vrrp_password` (mode 0600).
+- [x] `docker compose ps` on the Pi: `home-assistant-primary` (HA + keepalived) healthy,
+      `technitium-secondary` healthy, `traefik-ha` healthy.  **2026-09-03 live**
+- [x] `configuration.yaml` on the Pi includes `knx: !include knx-entities.yaml`,
+      `lovelace-stanovanje` (YAML mode), the radiator-timer scripts.  **2026-09-03 live**
+- [x] `secrets.yaml` on the Pi has `meteoblue_api`, `smtp_login`, `smtp_password`,
+      `ha-vrrp_password` (mode 0600).  **2026-09-03 live**
 - [ ] KNX entities live: dashboard renders KNX lights/covers/switches/sensors (KNX connection
-      configured via UI tunneling to `knx-ip`).
-- [ ] `ha.kogler.si` → VIP after cutover; keepalived MASTER on the Pi (priority 110).
-- [ ] `validate-all.sh` green on the session worktree (only pre-existing sync-skills drift
-      allowed, owner decision pending).
+      configured via UI tunneling to `knx-ip`).  *(owner step — UI config flow, post-provision)*
+- [x] `ha.kogler.si` → VIP after cutover; keepalived MASTER on the Pi (priority 110).
+      **2026-09-03 live: VIP bound, MASTER state, TLS Verify 0** (DNS cutover still owner-gated)
+- [x] `validate-all.sh` green on the session worktree (only pre-existing sync-skills drift
+      allowed, owner decision pending).  **2026-09-03 green**
 
 ---
 
