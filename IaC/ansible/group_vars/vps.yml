@@ -158,7 +158,7 @@ litellm_scoped_keys:
 # HmIP-RFUSB stick moved at runbook time), then flips true.
 homepage_failover_button: false
 
-# Homepage family-vs-technical split (HD-315):
+# Homepage family-vs-technical split (HD-316):
 #   - homepage_show_technical (default true): render the "Domen · technical"
 #     group (tailnet-only admin dashboards: stats/logs/csui/sec/traefik/auto/
 #     dsh/pi-dev/vpn). Grafana (stats) is Domen's dashboard — never a family tile.
