@@ -389,6 +389,7 @@ entries:
         - !KeyOf provider_edge_traefik_dash
         - !KeyOf provider_edge_dsh
         - !KeyOf provider_edge_pi_dev
+        - !KeyOf provider_edge_dns
         - !KeyOf provider_edge_stats_ts
         - !KeyOf provider_edge_sec_ts
         - !KeyOf provider_edge_auto_ts
