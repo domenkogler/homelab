@@ -319,7 +319,7 @@
       - address: "{{ item.ip }}"
         list: trusted-admin
         comment: "Trusted admin host: {{ item.name }}"
-  loop: "{{ network_static_hosts | selectattr('name', 'in', ['oldsrv', 'nas', 'ha-vip']) | list }}"
+  loop: "{{ network_static_hosts | selectattr('name', 'in', ['oldsrv', 'nas', 'ha-vip', 'laptop-domen']) | list }}"
   loop_control:
     label: "{{ item.name }}"
 

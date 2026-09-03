@@ -1,0 +1,60 @@
+{#- RB4011 — HD-319/HD-320 HA-node cross-VLAN DELTA (KNX tunnel + Shelly REST).
+    Live delta applied via /import — idempotent (:if-find guards, safe to re-import).
+    Why a delta instead of the full converge: HD-322 — a full re-import of
+    rb4011_converge.rsc still aborts on /user add; the steady-state role apply
+    (router.yml api_modify) is the authoritative path and was NOT re-run since
+    commit 683b6ff (HD-320 authored the Shelly rule; the KNX rule from HD-319 was
+    applied live earlier but is absent from the converge template — parity fix
+    landed in rb4011_converge.rsc.j2 as well).
+    What it does (two narrow new-connect accepts for the HA Pi node 10.10.1.20,
+    which is NOT in trusted-admin per HD-310 Mgmt-strict posture):
+      1. Home (10) -> KNX-IP (10.10.20.11) udp/3671  — HA KNXnet/IP tunnel (HD-319)
+      2. Home (10) -> IoT (20) tcp/80                 — HA -> 4x Shelly RGBW2 REST (HD-320)
+    Both are comment-anchored to match the router role's api_modify rows exactly
+    (so a later role reconcile converges to the same single set of rules).
+    Apply: /import rb4011_ha_iot_delta.rsc
+    Verify: /ip firewall filter print where comment~"KNX router|Shelly RGBW2 REST"
+    SSOT: group_vars/all/main.yml network_static_hosts (knx-ip, shelly-rgbw2-*) + vlan_subnets. -#}
+# =============================================================================
+# RB4011 — HA node cross-VLAN: KNX tunnel + Shelly REST (HD-319/HD-320)
+# =============================================================================
+
+# ---- 1. Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP (HD-319) ----
+# Pi (HA) nodes the KNX bus via the GIRA IP router on IoT. Guarded by comment ONLY
+# (live lesson 2026-09-03/HD-322: RouterOS 7 `find where dst-address=...` does NOT
+# match the stored CIDR — returns empty; the hd307/guest deltas anchor on comment).
+:if ([/ip firewall filter find where chain=forward and comment="Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"] = "") do={
+    /ip firewall filter add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.11 protocol=udp dst-port=3671 comment="Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"
+    :log warning "added Home->KNX udp/3671 accept"
+}
+
+# ---- 2. Home Pi (HA) -> Shelly RGBW2 REST (new TCP) - dst-port 80 (HD-320) ----
+:if ([/ip firewall filter find where chain=forward and comment="Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"] = "") do={
+    /ip firewall filter add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=tcp dst-port=80 comment="Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"
+    :log warning "added Home->Shelly tcp/80 accept"
+}
+
+# ---- 3. Ensure both rules sit ABOVE the default-deny inter-VLAN ----
+# RouterOS evaluates top-down; rules appended after the default-deny would never
+# match. Move each accept directly before the default-deny row. Idempotent: moving
+# an already-correctly-placed row to the same destination is a no-op.
+:local knx [/ip firewall filter find where chain=forward and comment="Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"]
+:if ($knx != "") do={
+    :local deny [/ip firewall filter find where chain=forward and action=drop and comment="Default deny inter-VLAN"]
+    /ip firewall filter move $knx destination=$deny
+    :log warning "moved Home->KNX above default-deny"
+}
+:local shelly [/ip firewall filter find where chain=forward and comment="Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"]
+:if ($shelly != "") do={
+    :local deny [/ip firewall filter find where chain=forward and action=drop and comment="Default deny inter-VLAN"]
+    /ip firewall filter move $shelly destination=$deny
+    :log warning "moved Home->Shelly above default-deny"
+}
+
+:log warning "rb4011_ha_iot_delta.rsc applied"
+
+# ---- End ----
+# Verify:
+#   /ip firewall filter print where chain=forward and comment~"KNX router|Shelly RGBW2 REST"
+#   /ping from the Pi (HA host): curl http://10.10.20.13/shelly  -> 200
+#   /ip firewall filter print stats  -> matching rows show increasing packets

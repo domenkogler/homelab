@@ -41,26 +41,68 @@
 
 # ---- Users (auth) ----
 /user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin"
-/user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth)"
-/user ssh-keys import public-key-file=admin.pub user=admin
-/user ssh-keys import public-key-file=ansible.pub user=ansible
+# IDEMPOTENT GUARD (HD-322): a re-import aborts with 'user with the same name already
+# exists' on the bare /user add — the first hard stop of the old converge. Set the
+# existing user instead of re-adding.
+:if ([/user find where name=ansible] = "") do={
+    /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth)"
+} else={
+    /user set [find name=ansible] group=full disabled=no comment="Ansible automation (SSH-key auth)"
+}
+# SSH-key imports are bootstrap-only: admin.pub/ansible.pub exist on a fresh flash
+# (uploaded by rb4011_initial.rsc) but are cleaned up in steady state — a re-import
+# here aborts with 'input does not match any value of public-key-file' (HD-322 live
+# lesson). Guard on the file existing; skip silently when it does not (steady-state
+# already has the keys from bootstrap).
+:if ([/file find where name=admin.pub] != "") do={
+    /user ssh-keys import public-key-file=admin.pub user=admin
+}
+:if ([/file find where name=ansible.pub] != "") do={
+    /user ssh-keys import public-key-file=ansible.pub user=ansible
+}
 
 # ---- Bridge + trunk (port model 2026-09-01: untagged=primary/access, tagged=secondary/Mgmt) ----
 # ADMIN/PC/PI ports: untagged Home (10) primary + tagged Mgmt (99) — dual-home.
 # A single untagged port carries ONE VLAN (untagged frames map to pvid); the secondary
 # admin plane rides TAGGED 99 on the same port. nas iLO4 + HMIP-HAP stay Mgmt-only.
-/interface bridge add name=bridge-lan vlan-filtering=yes protocol-mode=none
-/interface bridge port add bridge=bridge-lan interface=ether2  pvid=10 comment="PC (oldsrv) — untagged Home + tagged Mgmt"
-/interface bridge port add bridge=bridge-lan interface=ether3  pvid=10 comment="Laptop (mgmt via Pi hop — Home untagged only)"
-/interface bridge port add bridge=bridge-lan interface=ether7  pvid=99 comment="nas iLO4 (Mgmt access)"
-/interface bridge port add bridge=bridge-lan interface=ether9  pvid=99 comment="HMIP-HAP (Mgmt access)"
+# IDEMPOTENT (HD-322): /interface bridge add on an existing bridge errors — guard it.
+:if ([/interface bridge find where name=bridge-lan] = "") do={
+    /interface bridge add name=bridge-lan vlan-filtering=yes protocol-mode=none
+}
+# Bridge ports — guard each (HD-322): re-import aborts on 'interface already added'.
+:if ([/interface bridge port find where bridge=bridge-lan and interface=ether2] = "") do={
+    /interface bridge port add bridge=bridge-lan interface=ether2  pvid=10 comment="PC (oldsrv) — untagged Home + tagged Mgmt"
+}
+:if ([/interface bridge port find where bridge=bridge-lan and interface=ether3] = "") do={
+    /interface bridge port add bridge=bridge-lan interface=ether3  pvid=10 comment="Laptop (mgmt via Pi hop — Home untagged only)"
+}
+:if ([/interface bridge port find where bridge=bridge-lan and interface=ether7] = "") do={
+    /interface bridge port add bridge=bridge-lan interface=ether7  pvid=99 comment="nas iLO4 (Mgmt access)"
+}
+:if ([/interface bridge port find where bridge=bridge-lan and interface=ether9] = "") do={
+    /interface bridge port add bridge=bridge-lan interface=ether9  pvid=99 comment="HMIP-HAP (Mgmt access)"
+}
 # Raspberry Pi (ether10) — DUAL-HOMED: untagged Home (10) + tagged Mgmt (99).
-/interface bridge port add bridge=bridge-lan interface=ether10 pvid=10 comment="Raspberry Pi (Dual: Home10 + MGMT99)"
-/interface bridge port add bridge=bridge-lan interface=sfp-sfpplus1 comment="trunk -> switch"
+:if ([/interface bridge port find where bridge=bridge-lan and interface=ether10] = "") do={
+    /interface bridge port add bridge=bridge-lan interface=ether10 pvid=10 comment="Raspberry Pi (Dual: Home10 + MGMT99)"
+}
+:if ([/interface bridge port find where bridge=bridge-lan and interface=sfp-sfpplus1] = "") do={
+    /interface bridge port add bridge=bridge-lan interface=sfp-sfpplus1 comment="trunk -> switch"
+}
 # Home (10): untagged on the dual-homed ports (ether2/3/10 — the access/primary plane).
-/interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether10 comment="Home VLAN (access primary)"
+# IDEMPOTENT (HD-322): guard against duplicate bridge-vlan on re-import (dynamic entries
+# are excluded — a static add is the SSOT row).
+:if ([/interface bridge vlan find where bridge=bridge-lan and vlan-ids=10 and dynamic=no] = "") do={
+    /interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether10 comment="Home VLAN (access primary)"
+} else={
+    /interface bridge vlan set [find where bridge=bridge-lan and vlan-ids=10 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether10 comment="Home VLAN (access primary)"
+}
 # Management (99): TAGGED on the dual-homed ports + trunk + self; UNTAGGED on the Mgmt-only access ports.
-/interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether10 untagged=ether7,ether9 comment="Management VLAN on trunk + tagged admin"
+:if ([/interface bridge vlan find where bridge=bridge-lan and vlan-ids=99 and dynamic=no] = "") do={
+    /interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether10 untagged=ether7,ether9 comment="Management VLAN on trunk + tagged admin"
+} else={
+    /interface bridge vlan set [find where bridge=bridge-lan and vlan-ids=99 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1,ether2,ether10 untagged=ether7,ether9 comment="Management VLAN on trunk + tagged admin"
+}
 # All gateways' VLANs must be trunked to the switch (tagged on sfp-sfpplus1) so the
 # switch can reach each per-VLAN gateway — mirror of crs328_converge.rsc.j2 (which
 # trunktags every VLAN). Missing 20/21/30/40/50 previously dropped those VLANs at
@@ -75,62 +117,122 @@
 }
 {% endif %}
 {% endfor %}
-/interface vlan add name=vlan99-mgmt vlan-id=99 interface=bridge-lan
+:if ([/interface vlan find where name=vlan99-mgmt] = "") do={
+    /interface vlan add name=vlan99-mgmt vlan-id=99 interface=bridge-lan
+}
 
 # ---- Per-VLAN interfaces + gateways (SSOT network_vlans) ----
 # NOTE: vlan 99 (mgmt) is created ABOVE as `vlan99-mgmt` (bootstrap-compatible
 # name); the loop skips it to avoid a duplicate `vlan99-management`.
 {% for v in network_vlans %}
 {% if v.id != 99 %}
-/interface vlan add name=vlan{{ v.id }}-{{ v.name|lower }} vlan-id={{ v.id }} interface=bridge-lan
+:if ([/interface vlan find where name=vlan{{ v.id }}-{{ v.name|lower }}] = "") do={
+    /interface vlan add name=vlan{{ v.id }}-{{ v.name|lower }} vlan-id={{ v.id }} interface=bridge-lan
+}
 {% endif %}
 {% endfor %}
 {% for v in network_vlans %}
 {% if v.id != 99 %}
-/ip address add address={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}/{{ v.subnet.split('/')[1] }} interface=vlan{{ v.id }}-{{ v.name|lower }} comment="{{ v.name }} gateway"
+:if ([/ip address find where interface=vlan{{ v.id }}-{{ v.name|lower }}] = "") do={
+    /ip address add address={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}/{{ v.subnet.split('/')[1] }} interface=vlan{{ v.id }}-{{ v.name|lower }} comment="{{ v.name }} gateway"
+} else={
+    /ip address set [find where interface=vlan{{ v.id }}-{{ v.name|lower }}] address={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}/{{ v.subnet.split('/')[1] }} comment="{{ v.name }} gateway"
+}
 {% else %}
-/ip address add address={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}/{{ v.subnet.split('/')[1] }} interface=vlan99-mgmt comment="Management gateway"
+:if ([/ip address find where interface=vlan99-mgmt] = "") do={
+    /ip address add address={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}/{{ v.subnet.split('/')[1] }} interface=vlan99-mgmt comment="Management gateway"
+} else={
+    /ip address set [find where interface=vlan99-mgmt] address={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}/{{ v.subnet.split('/')[1] }} comment="Management gateway"
+}
 {% endif %}
 {% endfor %}
 
 # ---- DHCP: pools + servers + networks (mgmt server = dhcp-mgmt, named in bootstrap) ----
+# RouterOS caps dhcp-server network at 3 dns-servers; router /ip dns upstream is the
+# 4th/final fallback (HD-317). Guarded (HD-322) — re-import never duplicate-aborts.
 # mgmt pool/server (bootstrap) — keep; add the rest
-/ip pool add name=pool-mgmt ranges={{ mgmt.pool }}
-/ip dhcp-server add name=dhcp-mgmt interface=vlan99-mgmt address-pool=pool-mgmt disabled=no
-/ip dhcp-server network add address={{ mgmt.subnet }} gateway=10.10.99.1 dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}   # RouterOS caps dhcp-server network at 3 dns-servers; router /ip dns upstream is the 4th/final fallback (HD-317)
+:if ([/ip pool find where name=pool-mgmt] = "") do={
+    /ip pool add name=pool-mgmt ranges={{ mgmt.pool }}
+} else={
+    /ip pool set [find where name=pool-mgmt] ranges={{ mgmt.pool }}
+}
+:if ([/ip dhcp-server find where name=dhcp-mgmt] = "") do={
+    /ip dhcp-server add name=dhcp-mgmt interface=vlan99-mgmt address-pool=pool-mgmt disabled=no
+} else={
+    /ip dhcp-server set [find where name=dhcp-mgmt] interface=vlan99-mgmt address-pool=pool-mgmt disabled=no
+}
+:if ([/ip dhcp-server network find where gateway=10.10.99.1] = "") do={
+    /ip dhcp-server network add address={{ mgmt.subnet }} gateway=10.10.99.1 dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
+} else={
+    /ip dhcp-server network set [find where gateway=10.10.99.1] gateway=10.10.99.1 dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
+}
 {% for v in network_vlans %}
 {% if v.id != 99 %}
-/ip pool add name=pool-vlan{{ v.id }} ranges={{ v.pool }}
-/ip dhcp-server add name=dhcp-{{ v.id }} interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} disabled=no
-/ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}   # RouterOS caps dhcp-server network at 3 dns-servers; router /ip dns upstream is the 4th/final fallback (HD-317)
+:if ([/ip pool find where name=pool-vlan{{ v.id }}] = "") do={
+    /ip pool add name=pool-vlan{{ v.id }} ranges={{ v.pool }}
+} else={
+    /ip pool set [find where name=pool-vlan{{ v.id }}] ranges={{ v.pool }}
+}
+:if ([/ip dhcp-server find where name=dhcp-{{ v.id }}] = "") do={
+    /ip dhcp-server add name=dhcp-{{ v.id }} interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} disabled=no
+} else={
+    /ip dhcp-server set [find where name=dhcp-{{ v.id }}] interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} disabled=no
+}
+:if ([/ip dhcp-server network find where gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}] = "") do={
+    /ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
+} else={
+    /ip dhcp-server network set [find where gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}] gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
+}
 {% endif %}
 {% endfor %}
 
 # ---- DHCP static reservations (APs on vlan99 -> dhcp-mgmt; other reserved devices -> their VLAN server) ----
 {% for h in network_static_hosts %}
 {% if h.mac is defined and h.name.startswith('ap-') %}
-/ip dhcp-server lease add server=dhcp-mgmt address={{ h.ip }} mac-address={{ h.mac }} comment="AP {{ h.name }}"
+:if ([/ip dhcp-server lease find where server=dhcp-mgmt and mac-address={{ h.mac }} and dynamic=no] = "") do={
+    /ip dhcp-server lease add server=dhcp-mgmt address={{ h.ip }} mac-address={{ h.mac }} comment="AP {{ h.name }}"
+}
 {% elif h.mac is defined and h.vlan == 99 and h.name not in ['router', 'switch'] and 'ap-' not in h.name %}
-/ip dhcp-server lease add server=dhcp-mgmt address={{ h.ip }} mac-address={{ h.mac }} comment="{{ h.name }} mgmt reservation"
+:if ([/ip dhcp-server lease find where server=dhcp-mgmt and mac-address={{ h.mac }} and dynamic=no] = "") do={
+    /ip dhcp-server lease add server=dhcp-mgmt address={{ h.ip }} mac-address={{ h.mac }} comment="{{ h.name }} mgmt reservation"
+}
 {% elif h.mac is defined and h.vlan != 99 and h.name not in ['router'] and 'ap-' not in h.name %}
-/ip dhcp-server lease add server=dhcp-{{ h.vlan }} address={{ h.ip }} mac-address={{ h.mac }} comment="{{ h.name }} reservation"
+:if ([/ip dhcp-server lease find where server=dhcp-{{ h.vlan }} and mac-address={{ h.mac }} and dynamic=no] = "") do={
+    /ip dhcp-server lease add server=dhcp-{{ h.vlan }} address={{ h.ip }} mac-address={{ h.mac }} comment="{{ h.name }} reservation"
+}
 {% endif %}
 {% endfor %}
 
 # ---- WireGuard S2S (HD-91/HD-155) ----
-/interface wireguard add name=wg-s2s listen-port=51820
-/ip address add address={{ wireguard_s2s_vps.local_ip }} interface=wg-s2s
-/interface wireguard peers add interface=wg-s2s public-key="{{ wireguard_s2s_vps.vps_public_key }}" allowed-address="{{ wireguard_s2s_vps.remote_ip }}" comment="VPS S2S peer"
+:if ([/interface wireguard find where name=wg-s2s] = "") do={
+    /interface wireguard add name=wg-s2s listen-port=51820
+} else={
+    /interface wireguard set [find where name=wg-s2s] listen-port=51820
+}
+:if ([/ip address find where interface=wg-s2s] = "") do={
+    /ip address add address={{ wireguard_s2s_vps.local_ip }} interface=wg-s2s
+}
+:if ([/interface wireguard peers find where interface=wg-s2s] = "") do={
+    /interface wireguard peers add interface=wg-s2s public-key="{{ wireguard_s2s_vps.vps_public_key }}" allowed-address="{{ wireguard_s2s_vps.remote_ip }}" comment="VPS S2S peer"
+} else={
+    /interface wireguard peers set [find where interface=wg-s2s] public-key="{{ wireguard_s2s_vps.vps_public_key }}" allowed-address="{{ wireguard_s2s_vps.remote_ip }}" comment="VPS S2S peer"
+}
 # NOTE (live 2026-08-31): quote EVERY non-literal value sent to the script parser — the WG
 # public-key contains +/= (and the admin/pppoe passwords may contain ! or $), which RouterOS
 # mangles unquoted (user hit: wg-s2s peer add failed until public-key was quoted).
-/ip route add dst-address=10.255.40.0/30 gateway=wg-s2s
+:if ([/ip route find where dst-address=10.255.40.0/30 and gateway=wg-s2s] = "") do={
+    /ip route add dst-address=10.255.40.0/30 gateway=wg-s2s
+}
 # Address-list for the VPS peer (HD-155 least-access)
-/ip firewall address-list add address={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} list=vps_s2s_peer comment="VPS S2S peer"
+:if ([/ip firewall address-list find where list=vps_s2s_peer] = "") do={
+    /ip firewall address-list add address={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} list=vps_s2s_peer comment="VPS S2S peer"
+}
 # Scoped home targets the VPS may reach (HD-155)
 {% for h in network_static_hosts %}
 {% if h.name in ['nas','ha-vip','oldsrv','pi','router','switch'] %}
-/ip firewall address-list add address={{ h.ip }} list=vps_scoped_home comment="HD-155: {{ h.name }}"
+:if ([/ip firewall address-list find where list=vps_scoped_home and address={{ h.ip }}] = "") do={
+    /ip firewall address-list add address={{ h.ip }} list=vps_scoped_home comment="HD-155: {{ h.name }}"
+}
 {% endif %}
 {% endfor %}
 
@@ -138,7 +240,9 @@
 # The RB4011 holds the modem-LAN address (now /24 so a connected route to the
 # modem subnet exists). Live fix 2026-09-02: was /32 -> modem unreachable via
 # forward (no route) even though the modem itself answered; /24 restores it.
-/ip address add address={{ comtrend_modem.router_on_modem }} interface=ether1 comment="Comtrend modem mgmt /24 (HD-302)"
+:if ([/ip address find where interface=ether1] = "") do={
+    /ip address add address={{ comtrend_modem.router_on_modem }} interface=ether1 comment="Comtrend modem mgmt /24 (HD-302)"
+}
 
 # ---- Firewall: NAT (masquerade + Kids forced DNS) ----
 # Reset both NAT chains first (re-import safety + dedup against the reconciling
@@ -159,9 +263,15 @@ add chain=dstnat src-address=10.10.40.0/24 protocol=udp dst-port=53 action=dst-n
 add chain=dstnat src-address=10.10.40.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - TCP 53 -> Technitium"
 
 # ---- Firewall: address lists ----
+# Reset first (HD-322): a re-import without the reset STACKS duplicate rows for
+# trusted-admin/trusted-ha/internal_lan on top of the previous import (the role's
+# api_modify handles absents, but the converge must own the same single set).
+/ip firewall address-list remove [find list=trusted-admin]
+/ip firewall address-list remove [find list=trusted-ha]
+/ip firewall address-list remove [find list=internal_lan]
 /ip firewall address-list
 {% for h in network_static_hosts %}
-{% if h.name in ['oldsrv','nas','ha-vip'] %}
+{% if h.name in ['oldsrv','nas','ha-vip','laptop-domen'] %}
 add address={{ h.ip }} list=trusted-admin comment="Trusted admin host: {{ h.name }}"
 {% endif %}
 {% if h.name in ['oldsrv','ha-vip'] %}
@@ -184,6 +294,18 @@ add chain=forward action=accept connection-state=established,related comment="Al
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address-list=trusted-ha protocol=udp dst-port=5683 comment="IoT Shelly CoAP push -> HA"
 add chain=forward action=accept src-address-list=trusted-admin dst-address=10.10.20.0/24 comment="Trusted admin -> IoT (new)"
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=tcp connection-state=established,related comment="Home -> IoT (est/rel)"
+# KNXnet/IP tunneling (HA on the Pi -> GIRA IP router on IoT): the Pi is NOT
+# in trusted-admin (node, not admin host -- HD-310 Mgmt-strict posture), so
+# HA's KNX tunnel needs its own narrow new-UDP exception. Same pattern as the
+# CoAP 5683 reverse exception above. dst = knx-ip 10.10.20.11 (SSOT, VLAN 20).
+add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.11 protocol=udp dst-port=3671 comment="Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"
+# Shelly Gen1 RGBW2 REST (HA on the Pi -> Shelly fleet on IoT): same reason
+# as the KNX exception above -- the Pi is a node, NOT in trusted-admin
+# (HD-310 Mgmt-strict posture), so HA's outbound new-TCP to the Shelly HTTP
+# API needs its own narrow exception. dst-port 80 only (Gen1 REST; the CoAP
+# 5683 push path is the reverse direction, already covered by trusted-ha
+# above). Same pattern as the KNX narrow exception (HD-319).
+add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=tcp dst-port=80 comment="Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"
 add chain=forward action=accept src-address-list=trusted-admin dst-address=10.10.21.0/24 comment="Trusted admin -> IoT-Internet (new)"
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.21.0/24 protocol=tcp connection-state=established,related comment="Home -> IoT-Internet (est/rel)"
 add chain=forward action=accept src-address-list=trusted-admin dst-port=80,443 protocol=tcp dst-address-list=ups_management comment="Trusted admin -> UPS web UI"

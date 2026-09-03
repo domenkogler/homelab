@@ -68,6 +68,15 @@ Source of truth: the **Jinja templates** (`rb4011_{initial,converge}.rsc.j2`; de
 4. **Converge = the universal apply; delta = transient.** The converge is the full idempotent SSOT — a change goes into the converge template, not a persistent delta. A delta is a quick patch/debug that must be folded back in; don't keep deltas as a parallel long-term truth.
 5. **Secrets stay out of the repo.** The rendered `.rsc` (with `mikrotik-admin_login`, `pppoe_login`) is gitignored; the template has Jinja placeholders resolved at render. Never commit/`cat`/grep rendered files.
 6. **Every rsc change needs a counterpart in the SSOT** (the template) — the rendered file is a view, never hand-edited.
+7. **Which `find` predicates actually match on RouterOS 7 (HD-322 live lessons, 2026-09-03):**
+   - ✅ `/ip address find where interface=X` — `address=` does **NOT** match the stored CIDR (empty even for an existing row)
+   - ✅ `/ip dhcp-server network find where gateway=X` — `address=` does **NOT** match
+   - ✅ `/ip firewall address-list find where list=X` (and `list=X and address=Y`)
+   - ✅ `/interface bridge port find where interface=X`, `/interface vlan find where name=X`, `/interface bridge vlan find where vlan-ids=N and dynamic=no`, `/ip pool find where name=X`, `/ip dhcp-server find where name=X`, `/ip route find where dst-address=X`, `/interface wireguard peers find where interface=X`, `/user find where name=X`, `/interface bridge find where name=X`
+   - ❌ `/ip firewall filter find where dst-address=CIDR` — empty (use `comment=`)
+8. **Inline `# comments` inside `:if do={ }` blocks break the parser (HD-322, 2026-09-03):** a `asdf # comment` on a guarded `/add`/`/set` line inside an `:if`/`else` block errors with `expected end of command`. Put the comment on its own line above; never inline `#` within a block body.
+9. **Bootstrap-only steps must guard on the file existing (HD-322, 2026-09-03):** `/user ssh-keys import public-key-file=admin.pub` fails on a steady-state re-import because the bootstrap `.pub` files are gone from `/file` (cleaned after flash bootstrap). Guard `:if ([/file find where name=admin.pub] != "") do={ … }`.
+10. **Chain-reset sections are inherently idempotent; address-lists are not.** `/ip firewall nat remove [find chain=…]` / `/ip firewall filter remove [find chain=…]` make NAT/forward/input re-imports land exactly once. But `/ip firewall address-list` has NO reset — a re-import STACKS duplicates (fixed HD-322: `remove [find list=trusted-admin]` / `trusted-ha` / `internal_lan` first).
 
 ### Why this model (2026-09-01)
 

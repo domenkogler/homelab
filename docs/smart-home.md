@@ -105,7 +105,7 @@ shows up as HA entities going unavailable while the AC itself still works from t
 
 > **Failover design → [`smart-home-failover.md`](smart-home-failover.md).** Both nodes share a VIP (keepalived/VRRP); `ha.kogler.si` routes to the VIP so takeover needs no DNS flip or per-device reconfig. WAN loss is NOT a trigger (HA is local); failover is only for Pi failure and must work offline.
 - **Entity list:** Not yet exported — needed for HA Dashboard `lovelace` + Grafana generation (enable HA Prometheus exporter: see `observability.md`)
-- **Shelly integration (HA on the Pi):** the 4× Gen1 RGBW2 (`shelly-rgbw2-*`, IoT VLAN 20 — SSOT `network-addresses-generated.md`) need the **narrow new-TCP tcp/80 exception** logged in [`network-vlans.md`](network-vlans.md) (same pattern as the KNX HD-319 exception — the Pi is a node, not `trusted-admin`). The **device add itself is a HUMAN step**: HA's Shelly integration is config-flow (UI) only, added by IP (no mDNS across VLANs). Dashboard cards are authored in the lovelace views and bind once the devices are added.
+- **Shelly integration (HA on the Pi):** the 4× Gen1 RGBW2 (`shelly-rgbw2-*`, IoT VLAN 20 — SSOT `network-addresses-generated.md`) — the **narrow new-TCP tcp/80 exception** is **LIVE (2026-09-03)** (same pattern as the KNX HD-319 exception; the Pi is a node, not `trusted-admin`) — verified from the HA container: all 4 Shellys answer `HTTP 200` on tcp/80. Inbound CoAP push udp/5683 → `trusted-ha` is also allowed (HD-229). **The device add itself is a HUMAN step**: HA's Shelly integration is config-flow (UI) only, added by IP (no mDNS across VLANs). Dashboard cards are authored in the lovelace views and bind once the devices are added.
 
 ### Remote access & SSO (ha.kogler.si)
 

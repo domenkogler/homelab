@@ -1,0 +1,60 @@
+# =============================================================================
+# RB4011 — REPAIR delta: clean up the HD-319/HD-320 apply residue (2026-09-03)
+# -----------------------------------------------------------------------------
+# The FIRST import of rb4011_ha_iot_delta.rsc used dst-address in the find
+# guards — RouterOS 7 `find where dst-address=<CIDR>` returns EMPTY (does not
+# match the stored value), so:
+#   - the KNX add-guard missed an EXISTING row (rule 14 from HD-319) -> DUPLICATE (50)
+#   - the move-guards saw empty ids -> Shelly (51) left BELOW the default-deny (dead)
+# This script repairs to the intended single-row, above-denied state, comment-anchored
+# only (the pattern that works — see rb4011_hd307_delta.rsc). Idempotent by design:
+#   - KNX: keep exactly ONE row; remove extras, move the survivor above default-deny.
+#   - Shelly: ensure ONE row above default-deny (add only if missing).
+# Apply: /import rb4011_ha_iot_repair.rsc
+# =============================================================================
+
+# ---- 1. KNX tunnel (Home -> 10.10.20.11 udp/3671) — dedupe to ONE row ----
+:local knxRows [/ip firewall filter find where chain=forward and comment="Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"]
+:local knxCount [:len $knxRows]
+:if ($knxCount > 1) do={
+    # Remove all but the FIRST (the original, positioned from HD-319 apply)
+    :local idx 1
+    :while ($idx < $knxCount) do={
+        /ip firewall filter remove ($knxRows->$idx)
+        :set knxRows [/ip firewall filter find where chain=forward and comment="Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"]
+        :set knxCount [:len $knxRows]
+    }
+    :log warning "HD-322 repair: removed duplicate KNX rows"
+}
+:local knxFinal [/ip firewall filter find where chain=forward and comment="Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"]
+:if ($knxFinal != "") do={
+    :local deny [/ip firewall filter find where chain=forward and action=drop and comment="Default deny inter-VLAN"]
+    /ip firewall filter move $knxFinal destination=$deny
+    :log warning "HD-322 repair: KNX row moved above default-deny"
+}
+
+# ---- 2. Shelly REST (Home -> IoT 10.10.20.0/24 tcp/80) — ensure ONE row, above deny ----
+:local shellyRows [/ip firewall filter find where chain=forward and comment="Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"]
+:if ([:len $shellyRows] > 1) do={
+    :local idx 1
+    :while ($idx < [:len $shellyRows]) do={
+        /ip firewall filter remove ($shellyRows->$idx)
+        :set shellyRows [/ip firewall filter find where chain=forward and comment="Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"]
+    }
+    :log warning "HD-322 repair: removed duplicate Shelly rows"
+}
+:if ([:len $shellyRows] = 0) do={
+    /ip firewall filter add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=tcp dst-port=80 comment="Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"
+    :log warning "HD-322 repair: re-added Shelly rule"
+}
+:local shellyFinal [/ip firewall filter find where chain=forward and comment="Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"]
+:if ($shellyFinal != "") do={
+    :local deny [/ip firewall filter find where chain=forward and action=drop and comment="Default deny inter-VLAN"]
+    /ip firewall filter move $shellyFinal destination=$deny
+    :log warning "HD-322 repair: Shelly row moved above default-deny"
+}
+
+:log warning "rb4011_ha_iot_repair.rsc applied"
+
+# ---- End ----
+# Verify: /ip firewall filter print -> exactly one KNX (above deny) + one Shelly (above deny)

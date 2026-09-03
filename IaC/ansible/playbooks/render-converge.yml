@@ -58,6 +58,10 @@
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_guest_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_guest_delta.rsc"
+    - name: "Render rb4011_ha_iot_delta.rsc (HD-319/HD-320: HA node -> KNX udp/3671 + Shelly tcp/80)"
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/rb4011_ha_iot_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/rb4011_ha_iot_delta.rsc"
     - name: "Render crs328_guest_delta.rsc (HD-312: switch AP-port VLAN 30)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/crs328_guest_delta.rsc.j2"
