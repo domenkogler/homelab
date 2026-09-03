@@ -6,8 +6,8 @@
 # peer address is the only accepted source), writing to the file CrowdSec tails
 # (/var/log/remote-syslog/routeros.log). Ansible-managed — do not hand-edit.
 #
-# NOTE: this role does not install rsyslog — Debian's stock rsyslog is enabled
-# by default on the VPS boot image. If rsyslog is absent, install it (apt) first.
+# NOTE: this role installs rsyslog (see tasks) — the netcup minimal boot image
+# does NOT ship it (live 2026-09-03); apt is idempotent.
 module(load="imudp")
 input(type="imudp" port="514" address="{{ wg_s2s_vps.local_ip.split('/')[0] }}" ruleset="routeros")
 

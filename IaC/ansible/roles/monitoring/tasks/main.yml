@@ -122,10 +122,18 @@
 #   The RB4011 forwards RFC5424 syslog over wg-s2s to the VPS. rsyslog on the
 #   VPS is the UDP/514 listener writing /var/log/remote-syslog/routeros.log,
 #   which CrowdSec tails (acquis.d) and Loki/Alloy ingest. Only the VPS
-#   (monitoring group) runs this receiver; Debian's stock rsyslog exists on
-#   the VPS boot image (unused). Idempotent: config + dir idempotent; restart
-#   only on change.
+#   (monitoring group) runs this receiver. rsyslog is installed by this role
+#   (netcup minimal boot image ships WITHOUT rsyslog — live 2026-09-03; the old
+#   comment claimed Debian stock rsyslog exists, which was wrong on this image).
+#   Idempotent: apt + config + dir idempotent; restart only on change.
 # -------------------------------------------------------------------------
+- name: Install rsyslog (UDP/514 receiver for RouterOS logs, HD-313)
+  ansible.builtin.apt:
+    name: rsyslog
+    state: present
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, routeros-syslog]
+
 - name: Create remote-syslog directory
   ansible.builtin.file:
     path: /var/log/remote-syslog
