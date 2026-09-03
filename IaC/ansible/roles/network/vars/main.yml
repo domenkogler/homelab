@@ -33,4 +33,10 @@ home_gateway_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'rout
 # DHCP client-id strategy per host (HD-314), derived from the SSOT row: dhcp_client: mac on
 # nas/oldsrv rows tells the host to present its interface MAC as client-id so the RouterOS
 # reservation (mac: field) binds. Undefined -> 'none' on static hosts (Pi/VPS) — no DHCP client.
+# `dhcp_client_optin` gates the MAC client-id block (assert + dhcpcd/NM tasks) to hosts that
+# actually opt in via the SSOT marker — static hosts (Pi/VPS) carry the var (defined fallback
+# 'none') but must NOT trip the assert (326b08f regression: the vars-file now defines it for
+# every host, so `when: dhcp_client is defined` became a tautology and the assert failed on
+# any static-host converge, e.g. vps.yml 2026-09-03).
 dhcp_client: "{{ (network_static_hosts | selectattr('name', 'equalto', inventory_hostname_short) | selectattr('vlan', 'equalto', 10) | selectattr('dhcp_client', 'defined') | map(attribute='dhcp_client') | list | first) | default('none') }}"
+dhcp_client_optin: "{{ dhcp_client == 'mac' }}"

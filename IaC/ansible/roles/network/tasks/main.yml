@@ -113,9 +113,9 @@
 - name: Assert dhcp_client marker resolves for any host opting in
   assert:
     that:
-      - dhcp_client | default('none') == 'mac'
+      - dhcp_client_optin
     fail_msg: "dhcp_client marker on {{ inventory_hostname }} is not 'mac' (SSOT) HD-314"
-  when: dhcp_client is defined
+  when: dhcp_client_optin
   tags: [network, dhcp-client]
 
 - name: dhcpcd disable the RFC4361 DUID (nas; dhcpcd managed by ifupdown)
@@ -127,7 +127,7 @@
     create: false
   register: dhcpcd_duid
   when:
-    - dhcp_client | default('none') == 'mac'
+    - dhcp_client_optin
     - inventory_hostname == 'nas.kogler.si'
   notify: reload dhcpcd
   tags: [network, dhcp-client]
@@ -140,7 +140,7 @@
     line: 'clientid mac'
     create: false
   when:
-    - dhcp_client | default('none') == 'mac'
+    - dhcp_client_optin
     - inventory_hostname == 'nas.kogler.si'
   notify: reload dhcpcd
   tags: [network, dhcp-client]
@@ -155,7 +155,7 @@
       - ipv4.dhcp-client-id
       - mac
   when:
-    - dhcp_client | default('none') == 'mac'
+    - dhcp_client_optin
     - inventory_hostname == 'oldsrv.kogler.si'
   changed_when: false
   tags: [network, dhcp-client]
