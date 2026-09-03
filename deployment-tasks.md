@@ -265,6 +265,7 @@
 
 > **Depends on:** Phase 1.5 (VLAN 99 native + tags), Phase 2 (NAS NUT master for the `nut` client),
 > Phase 1 (VPS edge + Authentik live).
+> **Status (2026-09-03):** ✅ oldsrv **static IP + tagged Mgmt leg applied** (pre-Ansible first-contact prep; see the execution note in step 1 below). ⚠ **BLOCKED on the live tagged-99 mgmt-plane outage** (router SSH down both legs; SSOT `router`/`switch`/`ups` rows ARP-FAILED from the Pi's tagged leg — [network-ops.md](docs/network-ops.md) incident 2026-09-03) + a **`switch_port_map` gap** (no oldsrv entry; `ether11` assigned to `ap-dnevna` — wiring comment says oldsrv's `eno1` → `ether11`). 6 oldsrv 1P items missing (auto: `sonarr_api`/`radarr_api`/`pihole_password`; human: `privado-vpn_api`/`signal_api`/`ha_api`).
 > oldsrv is the **internal/GPU/LAN compute host**: the GPU + storage-bound backends (ollama, immich-ml,
 > jellyfin/iGPU, sunshine), HA **standby**, DNS, media/*arr, observability, and an **internal** Traefik edge
 > (the `ha` VIP + internal routes). The **public edge + stateless/live-data public apps live on the VPS**
@@ -275,6 +276,14 @@
 
 1. **Preseed install** — boot from `IaC/host/oldsrv/preseed.cfg` (NVMe partitions; iGPU-primary, dGPU RX 7600
    reserved for compute) + shared `post_install.sh`.
+   ✅ **2026-08-23:** installed interactively (Phase 1a).
+   ✅ **2026-09-03 (pre-Ansible, first-contact prep):** oldsrv was on a DHCP lease (`.101`), but `host_vars`
+   pins `ansible_host` = SSOT `oldsrv` Mgmt row (tagged-99) → the lease fallback made the pinned static unreachable.
+   **Applied directly via NetworkManager** (host runs NM — the role's netd/systemd-networkd units only land during
+   provision): `Wired connection 1` → `manual` (SSOT `oldsrv` Home row + gateway, DNS 1.1.1.1/1.0.0.1,
+   `ipv4.dhcp-client-id=mac`) + new NM VLAN profile `VLAN 99 Mgmt` (`enp0s31f6.99`, SSOT `oldsrv` Mgmt row,
+   `never-default`). Host verified reachable at the Home row — `.99` Mgmt bound but not reachable while the
+   mgmt plane is down.
 2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/home_servers.yml` (ordered):
    `common` → `ai_diag` → `docker` → `network` (trunk VLAN 99 native + 10/20/50 tagged) → `nut` (client,
    `shutdown_delay_seconds=60` → `powerwalker@nas`) → `amd_rocm` (ROCm stack, udev, `OLLAMA_KEEP_ALIVE=5m`)

@@ -172,3 +172,35 @@ ARP REACHABLE, API via Pi-hop tunnel works, nas/oldsrv reservations bound.
 **Lesson (fold into apply workflow):** a full `router.yml` converge can disturb bridge VLAN memberships on the
 mgmt plane. Prefer **surgical deltas** for mgmt-plane-sensitive changes, and keep `rb4011_pi_delta.rsc.j2`
 as the canonical idempotent recovery (always re-render before use — it is SSOT-derived).
+
+---
+
+## Incident: 2026-09-03 — tagged-99 mgmt plane CLUSTER-WIDE DOWN (router SSH down on both legs) — UNRESOLVED
+
+> **Symptom (found during oldsrv Phase-3 prep):** the entire tagged-99 Management plane is unreachable at the
+> host level. From the Pi's `eth0.99` (verified working 2026-09-02) — SSOT `router` (mgmt), `switch` (mgmt),
+> `ups` (mgmt) rows are **all ARP-FAILED**; router mgmt SSH via the Pi-hop (`router99`) fails
+> `No route to host`; the **router's SSH is DOWN on BOTH legs**: the router's Home row → `kex_exchange_identification:
+> read: Connection reset by peer`, Mgmt row → unreachable. ICMP on Home works (router up on the untagged
+> plane), but TCP services refuse (`available-from` = Mgmt-only lockdown, HD-301). oldsrv's new tagged Mgmt leg
+> also ARP-FAILED against the router — consistent: **no device can reach any other device on the
+> tagged-99 plane** right now.
+
+**Scope:** this is a **second occurrence** of the 2026-09-02 mgmt-plane loss (see incident above), now
+cluster-wide. Both times the tagged-99 leg stopped delivering frames after a **full `router.yml`/converge**
+changed bridge VLAN memberships on the mgmt plane. The difference: 2026-09-02 the Pi still had WinBox + one
+tagged leg; now the whole plane (router + switch + UPS + all tagged clients incl. the Pi) is dark.
+
+**Root cause hypothesis:** a converge (the 2026-09-03 full `router.yml` run, or the Pi/Technitium-homepage
+lanes' bridge touching) left the **router's VLAN-99 tagged memberships missing/incomplete on the tagged legs**
+(rb4011 converge rsc expects `vlan-99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether10`). That matches the
+09-02 pattern exactly. The switch (CRS328) L2-only has no mgmt path to inspect remotely right now.
+
+**Recovery (idempotent delta, no secrets — same as 09-02, re-render first):**
+```
+bash scripts/ansible-run.sh playbooks/render-converge.yml   # or ad-hoc render of rb4011_pi_delta.rsc
+# import in WinBox terminal (or /import the file) — MUST be a path that still reaches the router
+/import rb4011_pi_delta.rsc     # re-sets vlan-99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether10 + pvid ether10
+```
+Window for the router: **only via the Home leg or laptop/WinBox** — the SSH service is Mgmt-only and Mgmt is
+dark. After recovery, verify `router99` and every mgmt client ARP before continuing Phase 3/4.
