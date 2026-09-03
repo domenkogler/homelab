@@ -42,10 +42,23 @@
 /interface bridge port add bridge=bridge interface=sfp-sfpplus1 comment="uplink -> router"
 
 # ---- VLANs on the bridge (tagged trunk + per-VLAN) ----
+# HD-328: every access port from switch_port_map must ALSO be an untagged member of
+# its role VLAN on the bridge — a CRS328 with ingress-filtering on the bridge DROPS
+# traffic from an access port whose VLAN has no untagged membership (pvid alone does
+# NOT make the port forward: Shield/console on VLAN 50 had empty ARP + no WAN — the
+# HD-308 signature — because VLAN 50 had no untagged member at all).
 {% for v in network_vlans %}
 # VLAN {{ v.id }} ({{ v.name }})
-/interface bridge vlan add bridge=bridge vlan-ids={{ v.id }} tagged=bridge,sfp-sfpplus1{% if v.ssid is defined and v.ssid and wifi_ports is defined %},{{ wifi_ports | join(',') }}{% endif %} comment="{{ v.name }} VLAN on trunk{% if v.ssid is defined and v.ssid %} (+ wifi AP ports tagged for {{ v.ssid|default('') }})"{% else %}"{% endif %}
+{% set access = switch_port_map.items() | selectattr('1.vlan', 'equalto', v.id) | map(attribute='1.port') | list %}
+/interface bridge vlan add bridge=bridge vlan-ids={{ v.id }} tagged=bridge,sfp-sfpplus1{% if v.ssid is defined and v.ssid and wifi_ports is defined %},{{ wifi_ports | join(',') }}{% endif %}{% if access | length > 0 %},untagged={{ access | join(',') }}{% endif %} comment="{{ v.name }} VLAN on trunk{% if v.ssid is defined and v.ssid %} (+ wifi AP ports tagged for {{ v.ssid|default('') }}){% endif %}{% if access | length > 0 %} (+ access ports {{ access | join(',') }} untagged){% endif %}"
 {% endfor %}
+
+# ---- Stale phantom VLAN 21 bridge-vlan cleanup (HD-325 / HD-328) ----
+# VLAN 21 (IoT-Internet) was deleted in HD-325; a stale bridge-vlan entry can
+# survive a pre-HD-325 converge (live-found 2026-09-04: `21 bridge,sfp-sfpplus1`
+# on the switch). Harmless (no client can frame it), but keep the L2 table
+# matching the SSOT. Idempotent: remove only if present.
+:if ([/interface bridge vlan find where bridge=bridge and vlan-ids=21 and dynamic=no] != "") do={ /interface bridge vlan remove [find where bridge=bridge and vlan-ids=21 and dynamic=no] }
 
 # ---- VLAN interfaces (per-VLAN L3 gateways NOT on switch — switch is L2; keep only mgmt) ----
 # mgmt VLAN interface for the management IP

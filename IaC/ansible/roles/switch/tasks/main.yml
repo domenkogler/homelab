@@ -185,6 +185,42 @@
   when: item.value.vlan == 50
 
 
+# -------------------------------------------------------------------------
+# Access ports are UNTAGGED members of their role VLAN (HD-328)
+# -------------------------------------------------------------------------
+# A CRS328 access port with ingress-filtering on the bridge only forwards frames
+# for VLANs it is a member of — pvid alone is NOT enough. On this fleet the pvid
+# access ports (Home 10 printer/nas, IoT 20 KNX, Media 50 Shield/console) must
+# ALSO be untagged members of the matching bridge VLAN. Previously only the wifi
+# AP ports (wifi_ports) were added tagged; the Media/console/other access ports
+# were pvid-set but never membership-added -> traffic dropped at ingress -> empty
+# ARP + no WAN (HD-308 signature, re-hit on Shield 2026-09-04). This loops over
+# switch_port_map and adds one bridge-VLAN entry per role VLAN carrying its ports.
+- name: Add access ports as untagged members of their role VLAN (HD-328)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: interface bridge vlan
+    handle_absent_entries: ignore
+    data:
+      - bridge: bridge
+        vlan-ids: "{{ item_key }}"
+        tagged: "bridge,{{ switch_trunk_port }}"
+        untagged: "{{ item_ports | join(',') }}"
+        comment: "{{ item_name }} access ports untagged (HD-328)"
+  loop: "{{ switch_vlans }}"
+  loop_control:
+    loop_var: item
+  when: item_ports | length > 0
+  vars:
+    item_key: "{{ item.id }}"
+    item_name: "{{ item.name }}"
+    item_ports: "{{ switch_port_map | dict2items | selectattr('value.vlan', 'equalto', item.id) | map(attribute='value.port') | list }}"
+
 - name: Configure access port for IoT VLAN (20)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"

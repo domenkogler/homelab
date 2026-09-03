@@ -105,9 +105,10 @@
 }
 # All gateways' VLANs must be trunked to the switch (tagged on sfp-sfpplus1) so the
 # switch can reach each per-VLAN gateway — mirror of crs328_converge.rsc.j2 (which
-# trunktags every VLAN). Missing 20/21/30/40/50 previously dropped those VLANs at
-# the trunk (HD-308: Shield on Media(50) had no WAN — empty ARP, waiting lease).
-# Other VLANs (20/21/30/40/50): tagged on trunk+self only.
+# trunktags every VLAN). Missing 20/30/40/50 previously dropped those VLANs at the
+# trunk (HD-308: Shield on Media(50) had no WAN — empty ARP, waiting lease). VLAN
+# 21 (IoT-Internet) no longer exists (HD-325) — cleaned below if it survives live.
+# Other VLANs (20/30/40/50): tagged on trunk+self only.
 {% for v in network_vlans %}
 {% if v.id != 99 and v.id != 10 %}
 :if ([/interface bridge vlan find where vlan-ids={{ v.id }} and dynamic=no] = "") do={
@@ -185,6 +186,21 @@
 }
 {% endif %}
 {% endfor %}
+
+# ---- Stale phantom VLAN 21 cleanup (HD-325 / HD-328) ----
+# VLAN 21 (IoT-Internet) was deleted from the SSOT in HD-325, but a live
+# `vlan21-iot-internet` interface + dhcp-21 server/pool/network can survive on
+# devices that ran a pre-HD-325 delta and were never re-converged (live-found
+# 2026-09-04: the interface list still shows vlan21). It is unreachable dead
+# state (no Wi-Fi client can tag per-MAC to it anyway), but it must not persist.
+# Cleanup is idempotent — each remove is guarded on existence. Order matters:
+# remove dependent objects (lease/pool/network/server) before the interface.
+:if ([/ip dhcp-server lease find where server=dhcp-21] != "") do={ /ip dhcp-server lease remove [find where server=dhcp-21] }
+:if ([/ip dhcp-server network find where gateway=10.10.21.1] != "") do={ /ip dhcp-server network remove [find where gateway=10.10.21.1] }
+:if ([/ip dhcp-server find where name=dhcp-21] != "") do={ /ip dhcp-server remove [find where name=dhcp-21] }
+:if ([/ip pool find where name=pool-vlan21] != "") do={ /ip pool remove [find where name=pool-vlan21] }
+:if ([/ip address find where interface=vlan21-iot-internet] != "") do={ /ip address remove [find where interface=vlan21-iot-internet] }
+:if ([/interface vlan find where name=vlan21-iot-internet] != "") do={ /interface vlan remove [find where name=vlan21-iot-internet] }
 
 # ---- DHCP static reservations (APs on vlan99 -> dhcp-mgmt; other reserved devices -> their VLAN server) ----
 {% for h in network_static_hosts %}
