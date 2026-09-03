@@ -31,7 +31,7 @@ tags: [services, interfaces, dashboards]
 
 ## Homepage — Family Launchpad
 
-- **Access:** `kogler.si` (root), Authentik Forward Auth
+- **Access:** `kogler.si` (root), Authentik Forward Auth — **LIVE 2026-09-03**: `home.kogler.si` → 302 Authentik SSO; `services.yaml`/`widgets.yaml` rendered + homepage restarted by the VPS converge. Owner verify: family sees live apps green, Domen technical section restricted.
 - **Placement:** the **VPS**, next to the public edge (HD-180/HD-183) — the route is the compose's Docker-provider labels
 - **Content:** Grid of service tiles with green/red health dots
 - **Health checks:** widget/probe-based reachability — siteMonitor probes per tile + blackbox `probe_success` on the status widget; no Docker socket (on the VPS it would only see VPS containers)

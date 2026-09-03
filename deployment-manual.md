@@ -941,7 +941,7 @@ Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefi
 ### 4.4 Verify
 
 - `ha.kogler.si` resolves to the VIP (`ha-vip` per SSOT); `keepalived` MASTER on the Pi (priority 110 > oldsrv's 100).
-- Technitium resolves `*.kogler.si` internally — **3-instance DNS HA: VPS primary (resolver = VPS public IP) / oldsrv secondary / Pi tertiary** (HD-317, 2026-09-03; IaC landland + deploy-gated — option A: single VPS-public resolver + VPS nftables source-allow + DDNS-refresh timer).
+- Technitium resolves `*.kogler.si` internally — **3-instance DNS HA: VPS primary (resolver = VPS public IP) / oldsrv secondary / Pi tertiary** (HD-317, 2026-09-03; option A: single VPS-public resolver + VPS nftables source-allow + DDNS-refresh timer). **VPS primary LIVE 2026-09-03** (`:53/udp+tcp` published; container joins dns-servers pin + traefik-public; web UI serves on the overlay). **⏳ remaining:** seed the split-horizon static A records on all 3 instances (needs a Technitium admin credential in 1Password — item currently absent) + the RB4011 DHCP/resolver ordering + `dig / tailnet` owner verify.
 - HA web login via Authentik **native OIDC** on the `ha` route (no Forward-Auth).
 - Manual failover Pi→oldsrv and back passes ([smart-home-failover.md](docs/smart-home-failover.md) runbook; HD-17 button + `ha-failover_api` pending).
 - NUT client shutdown path (master = nas) · monitoring scrape of the HA exporter (Phase 6).

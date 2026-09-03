@@ -191,7 +191,7 @@ oldsrv is on NVMe and mostly unaffected):
 
 ## Dashboards
 
-> _Provisioned via the monitoring role (`files/dashboards/*.json` → `/etc/grafana/provisioning/dashboards`, 30s hot-reload by the file provider). Datasource uid = `prometheus` (API-seeded by the monitoring role — see `tasks/main.yml`). Rendered live at the next VPS `monitoring` converge (deploy-gated; no new services)._
+> _Provisioned via the monitoring role (`files/dashboards/*.json` → `/etc/grafana/provisioning/dashboards`, 30s hot-reload by the file provider). Datasource uid = `prometheus` (API-seeded by the monitoring role — see `tasks/main.yml`). **LIVE 2026-09-03** — the 5 HD-315 dashboards + ups were copied to `/srv/docker/grafana/provisioning/dashboards/` by the VPS monitoring converge; remaining owner step is panel render verification._
 
 | Dashboard | uid | View | Panels back on |
 |-----------|-----|------|----------------|
