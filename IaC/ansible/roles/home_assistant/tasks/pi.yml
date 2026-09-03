@@ -18,6 +18,21 @@
     mode: '0644'
   tags: [ha_recorder, hd19]
 
+# ---- secrets.yaml (HD-185/HD-204 pending renderer) ----
+# Render the 1Password-backed secrets file BEFORE docker_services brings the
+# compose up (render-first order). Values resolve via inline community.general.onepassword
+# lookups — the same mechanism configuration.yaml.j2 uses — because the docker_services
+# `vault` dict is NOT yet populated on the Pi (home_assistant runs before docker_services;
+# HD-204 render-first). Fail-closed per HD-91: a missing 1Password item aborts the render
+# loudly (no default('')). Each field uses block-scalar `>-` (HD-233) so characters in the
+# 1Password value (:, ", #, $, …) can never break HA's YAML parse.
+- name: Render HA secrets.yaml (1Password-backed, block-scalar, fail-closed)
+  ansible.builtin.template:
+    src: secrets.yaml.j2
+    dest: /opt/home-assistant-primary/secrets.yaml
+    mode: '0600'
+  tags: [ha_render, hd185, hd204]
+
 # ---- keepalived PRIMARY (VIP owner in normal mode) ----
 # Variants: master.conf (MASTER/{{ ha_primary_priority }}) + peer.conf
 # (BACKUP/{{ ha_primary_peer_priority }} for reverse failback). The ACTIVE

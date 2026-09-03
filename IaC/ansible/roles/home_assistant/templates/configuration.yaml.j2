@@ -38,10 +38,12 @@ recorder:
 # ---- Weather (HD-22) ----
 # Single authoritative weather source = HA core `meteoblue` (models Slovenia well,
 # hourly + daily forecast). Replaces the third-party HACS "Weather 2000" and drop core
-# `met` (weather.forecast_dom). api key from 1Password Homelab-ansible.
+# `met` (weather.forecast_dom). The api key lives in secrets.yaml (rendered by the
+# home_assistant role, secrets.yaml.j2) — HA resolves it via !secret (single source,
+# HD-204 render-first; the value itself never lands inline in configuration.yaml).
 weather:
   - platform: meteoblue
-    api_key: "{{ lookup('community.general.onepassword', 'meteoblue_api', field='credential', vault=op_vault) }}"
+    api_key: !secret meteoblue_api
     name: Meteoblue kogler.si (Maribor)
     latitude: {{ home_latitude }}
     longitude: {{ home_longitude }}

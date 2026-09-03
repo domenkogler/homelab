@@ -16,6 +16,19 @@
     mode: '0644'
   tags: [ha_failover, hd17]
 
+# ---- secrets.yaml (standby) — 1Password-rendered copy ----
+# The standby compose mounts ./secrets.yaml separately (excluded from the Pi→standby
+# config rsync). Rendered from the same template as the primary (identical secrets —
+# both nodes need the same integration credentials). Values resolve via inline
+# community.general.onepassword lookups (same as configuration.yaml.j2) — fail-closed
+# per HD-91, block-scalar per HD-233.
+- name: Render standby secrets.yaml (1Password-backed, block-scalar, fail-closed)
+  ansible.builtin.template:
+    src: secrets.yaml.j2
+    dest: "{{ ha_standby_path }}/secrets.yaml"
+    mode: '0600'
+  tags: [ha_failover, hd17]
+
 - name: Render standby keepalived config (failover — MASTER, higher priority)
   ansible.builtin.template:
     src: keepalived.failover.conf.j2

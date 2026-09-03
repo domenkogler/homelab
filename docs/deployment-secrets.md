@@ -114,7 +114,10 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 >
 > Scope: required for any file the consuming app parses as structured config (YAML/TOML/JSON) and the
 > value is a 1Password secret — e.g. `headscale/config.yaml`, `headplane` config, `prometheus-web-config`,
-> a Blueprint, `recyclarr.yml`. Shell scripts stay inline-quoted (never YAML-parsed). Rendered
+> a Blueprint, `recyclarr.yml`, and the `home_assistant` role's **`secrets.yaml.j2`** (rendered to
+> `/opt/home-assistant-primary/secrets.yaml` + `{{ ha_standby_path }}/secrets.yaml`, fenced with `>-`
+> block scalars per HD-233; HA resolves the values via `!secret` refs from `configuration.yaml.j2`).
+> Shell scripts stay inline-quoted (never YAML-parsed). Rendered
 > **compose files are still YAML** — `docker compose` parses them at deploy — so 1P-sourced
 > `env:` values use `>-` there TOO (HD-166: a `"` in the value breaks the entire rendered file;
 > plain non-secret env strings stay quoted). **TOML:** has no `>-`; use a basic string with Jinja escaping
