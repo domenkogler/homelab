@@ -752,16 +752,25 @@ wifi/security/provisioning objects.
 >    masters that never joined — the `MBX` state).
 > 4. AP identities are now descriptive (`ap-spalnica`, `ap-dnevna`, `ap-spare`) via per-AP rendered
 >    `ap_initial-<name>.rsc`.
-> 5. Enabled SSIDs trimmed to **Kogler + Kogler IOT** (owner decision) — IOT-WAN/guest/kids disabled
->    at the config level + in SSOT (`routeros_capsman_ssids`). **Kogler IOT is 2.4GHz-only** (split
->    provisioning: 2.4GHz = Kogler+IOT, 5GHz = Kogler).
+> 5. Enabled SSIDs = **Kogler + Kogler IOT + Kogler guest** (HD-312 3-SSID, owner decision 2026-09-03).
+>    **Kogler IOT is 2.4GHz-only; Kogler guest is 5GHz-only** (band-split provisioning by SSID `band:`
+>    in `routeros_capsman_ssids` SSOT: 2.4GHz = Kogler+IOT, 5GHz = Kogler+guest). IOT-WAN + Kids SSIDs
+>    were **deleted** 2026-09-03 (configs + security profiles removed; kids-control → firewall
+>    MAC-list per HD-312).
 > 6. **Switch AP ports must carry the wifi VLANs tagged** (2026-09-03 — the 'phone disconnects'
->    cause): AP ports ether11/12 on the CRS328 need tagged membership of VLAN 10+20 (not just the
->    untagged 99 access), or the AP's per-SSID tagged frames get dropped at switch ingress and
->    clients associate but never DHCP. Encoded in `wifi_ports` (group_vars/switch.yml) + converge rsc.
+>    cause): AP ports ether11/12 on the CRS328 need tagged membership of the wifi VLANs (10+20,
+>    and 30 since guest went live) not just the untagged 99 access, or the AP's per-SSID tagged
+>    frames get dropped at switch ingress and clients associate but never DHCP. Encoded in
+>    `wifi_ports` (group_vars/switch.yml) + converge rsc.
+> 7. **A new slave SSID does NOT auto-materialize at the CAP on provisioning change alone**
+>    (live 2026-09-03, guest turn-up): after adding a slave to a provisioning rule, kick the CAPsMAN
+>    manager (`/interface wifi capsman set enabled=no` then `=yes`) so the CAP re-pulls and creates
+>    the slave (wifi27 spalnica / wifi8 dnevna for guest), then add the CAP bridge VLAN entry
+>    (`/interface bridge vlan add vlan-ids=30 tagged=ether1 untagged=<slave>` + port pvid=30).
+>    See `ap_guest_delta.rsc.j2` (the idempotent, guarded delta).
 
-Devices must re-join the right SSID (currently Kogler → VLAN 10 / Kogler IOT → VLAN 20) to land
-on their VLAN.
+Devices must re-join the right SSID (Kogler → VLAN 10 / Kogler IOT → VLAN 20 / Kogler guest → VLAN
+30) to land on their VLAN.
 
 ### 1.5.5 Bring up the WG S2S tunnel (HD-91 / HD-285 two-key fix)
 
