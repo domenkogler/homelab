@@ -47,9 +47,6 @@
 - name: Import pool (no mount yet) — never touches data
   ansible.builtin.command: zpool import -N {{ item.item.name }}
   changed_when: false
-  failed_when:
-    - item.rc is defined and item.rc != 0
-    - not (item.item.allow_create | default(false))   # fresh-build create: missing pool is benign — the create task owns it
   register: _pool_import
   loop: "{{ _pool_list.results }}"
   loop_control:
@@ -57,6 +54,7 @@
   when:
     - (item.rc | default(0)) != 0
     - item.item.name in storage_own_pools[_host_short] | default([])
+    - not (item.item.allow_create | default(false))   # fresh-build create: skip import — the create task owns a missing pool
 
 # ---------------------------------------------------------------------------
 # Pools — fail hard unless a fresh build explicitly allows creating the pool
@@ -68,11 +66,10 @@
       Refusing to create it — this must never overwrite data. On a VERIFIED
       fresh disk set storage_allow_pool_create=true and provide vdevs in
       storage_pools.
-  loop: "{{ _pool_import.results }}"
+  loop: "{{ _pool_list.results }}"
   loop_control:
     label: "{{ item.item.name }}"
   when:
-    - not (item.skipped | default(false))
     - (item.rc | default(0)) != 0
     - item.item.name in storage_own_pools[_host_short] | default([])
     - not (item.item.allow_create | default(false))
@@ -85,11 +82,10 @@
       Fill the REAL /dev/disk/by-id path (SSOT: storage_nvme_data_by_id in
       host_vars/oldsrv.kogler.si.yml, read from the deployed host) before creating.
       Never create a pool against an unresolved/UNDEFINED device.
-  loop: "{{ _pool_import.results }}"
+  loop: "{{ _pool_list.results }}"
   loop_control:
     label: "{{ item.item.name }}"
   when:
-    - not (item.skipped | default(false))
     - (item.rc | default(0)) != 0
     - item.item.allow_create | default(false)
     - item.item.name in storage_own_pools[_host_short] | default([])
@@ -101,11 +97,10 @@
     state: present
     vdevs: "{{ item.item.vdevs }}"
     force: no
-  loop: "{{ _pool_import.results }}"
+  loop: "{{ _pool_list.results }}"
   loop_control:
     label: "{{ item.item.name }}"
   when:
-    - not (item.skipped | default(false))
     - (item.rc | default(0)) != 0
     - item.item.allow_create | default(false)
     - item.item.vdevs | length > 0
