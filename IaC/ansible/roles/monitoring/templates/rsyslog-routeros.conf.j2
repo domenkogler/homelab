@@ -1,0 +1,19 @@
+# rsyslog remote syslog receiver for RouterOS (HD-313)
+#
+# The RB4011 (and switch/APs) forward RFC5424 syslog over the wg-s2s tunnel
+# to the VPS wg address. This config makes rsyslog the UDP/514 listener on the
+# wg-s2s VPS address (SSOT `wg_s2s_vps` — never a public/LAN bind; the router
+# peer address is the only accepted source), writing to the file CrowdSec tails
+# (/var/log/remote-syslog/routeros.log). Ansible-managed — do not hand-edit.
+#
+# NOTE: this role does not install rsyslog — Debian's stock rsyslog is enabled
+# by default on the VPS boot image. If rsyslog is absent, install it (apt) first.
+module(load="imudp")
+input(type="imudp" port="514" address="{{ wg_s2s_vps.local_ip.split('/')[0] }}" ruleset="routeros")
+
+ruleset(name="routeros") {
+    if $fromhost-ip == "{{ wg_s2s_vps.router_ip }}" then {
+        action(type="omfile" file="/var/log/remote-syslog/routeros.log")
+    }
+    stop
+}

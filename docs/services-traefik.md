@@ -48,7 +48,7 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 ## CrowdSec
 
 - Parses Authentik + Traefik logs
-- **Collections (HD-85 / KOPS-041, `crowdsec_collections` group_var):** `traefik` + `linux` baseline, plus the exposed auth-surfaces `home-assistant`, `matrix` (Synapse/Tuwunel OIDC login brute-force), and `grafana`. Each collection only pays off where its logs reach CrowdSec via `docker.sock` container-log parsing (docker Acquis) — extend the var as more services are exposed.
+- **Collections (HD-85 / KOPS-041, `crowdsec_collections` group_var):** `traefik` + `linux` baseline, plus the exposed auth-surfaces `home-assistant`, `matrix` (Synapse/Tuwunel OIDC login brute-force), and `grafana`. **HD-313:** + `crowdsecurity/syslog-logs` + `a1ad/mikrotik` (parser + `mikrotik-bf` + `mikrotik-scan-multi_ports`) for the RB4011/switch/AP remote RFC5424 syslog stream. Each collection only pays off where its logs reach CrowdSec via `docker.sock` container-log parsing (docker Acquis) or the syslog receiver (HD-313) — extend the var as more services are exposed.
 - Community blocklist (IPs that attacked others)
 - Free for personal use
 - Container on `traefik-public` network

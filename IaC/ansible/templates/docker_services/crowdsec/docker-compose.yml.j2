@@ -1,12 +1,17 @@
 # crowdsec docker-compose.yml — WAF & brute-force protection
 #   Parses Traefik + Authentik logs, maintains a community blocklist,
-#   and feeds the CrowdSec bouncer middleware in Traefik.
+#   and feeds the CrowdSec bouncer middleware in Traefik. Since HD-313 it
+#   also ingests RouterOS logs (remote RFC5424 syslog from the RB4011) for
+#   auth-failure + port-scan detection (a1ad/mikrotik collection) — see
+#   docs/network-ops.md §Central logging.
 #
 #   No web UI — the CrowdSec dashboard is served via the Metabase
 #   container (sec.kogler.si) which queries the CrowdSec LAPI.
 #
 #   Docker socket access enables container-log parsing (Traefik logs).
-#   No 1Password secrets required for basic operation.
+#   The RouterOS syslog stream lands on the HOST at /var/log/remote-syslog/
+#   (the host rsyslog tcp/udp receiver is the syslog listener; CrowdSec
+#   tails the file via acquis.d).
 #   See docs/services-traefik.md §CrowdSec.
 services:
   crowdsec:
@@ -27,6 +32,10 @@ services:
       - /srv/docker/crowdsec/config:/etc/crowdsec
       - /srv/docker/crowdsec/db:/var/lib/crowdsec/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # HD-313: RouterOS RFC5424 syslog receiver (host rsyslog) -> CrowdSec tail.
+      # The host rsyslog UDP/514 receiver writes /var/log/remote-syslog/routeros.log
+      # (provisioned by the monitoring role); CrowdSec acquis.d tails it.
+      - /var/log/remote-syslog:/var/log/remote-syslog:ro
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       COLLECTIONS: "{{ crowdsec_collections }}"

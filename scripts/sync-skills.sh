@@ -14,6 +14,7 @@
 # Artifact ignore-list (never compared, never deployed — runtime/local state,
 # not content, so it must never look like drift):
 #   - net.json               (mikrotik runtime host map)
+#   - .env.op                (mikrotik op:// credential file — giteignored local runtime state)
 #   - __pycache__/**          (python bytecode)
 #   - zero-byte skill-name markers  (e.g. skills/plan-task/plan-task)
 # Mirrors the artifact-prune in scripts/install-pi-wsl.sh.
@@ -77,6 +78,7 @@ is_artifact() {
   local name="$1" rel="$2" abs="$3"
   case "$rel" in
     net.json) return 0 ;;
+    .env.op) return 0 ;;   # mikrotik op:// credential file — local runtime state (giteignored)
     __pycache__|__pycache__/*|*/__pycache__/*) return 0 ;;
   esac
   # zero-byte skill-name marker: empty file whose basename == skill name.
@@ -198,6 +200,7 @@ do_push() {
     cp -a "$sk/." "$DEPLOY/$name/"
     find "$DEPLOY/$name" -name "__pycache__" -type d -prune -exec rm -rf {} + 2>/dev/null || true
     find "$DEPLOY/$name" -name "net.json" -type f -delete 2>/dev/null || true
+    find "$DEPLOY/$name" -name ".env.op" -type f -delete 2>/dev/null || true
     rm -f "$DEPLOY/$name/$name" 2>/dev/null || true
     deployed=$((deployed+1))
   done

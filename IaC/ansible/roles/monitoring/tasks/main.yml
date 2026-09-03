@@ -117,6 +117,40 @@
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
+# -------------------------------------------------------------------------
+# Host rsyslog remote-syslog receiver (HD-313)
+#   The RB4011 forwards RFC5424 syslog over wg-s2s to the VPS. rsyslog on the
+#   VPS is the UDP/514 listener writing /var/log/remote-syslog/routeros.log,
+#   which CrowdSec tails (acquis.d) and Loki/Alloy ingest. Only the VPS
+#   (monitoring group) runs this receiver; Debian's stock rsyslog exists on
+#   the VPS boot image (unused). Idempotent: config + dir idempotent; restart
+#   only on change.
+# -------------------------------------------------------------------------
+- name: Create remote-syslog directory
+  ansible.builtin.file:
+    path: /var/log/remote-syslog
+    state: directory
+    mode: '0755'
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, routeros-syslog]
+
+- name: Install rsyslog receiver config (RouterOS RFC5424)
+  ansible.builtin.template:
+    src: rsyslog-routeros.conf.j2
+    dest: /etc/rsyslog.d/30-routeros.conf
+    mode: '0644'
+  notify: restart rsyslog
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, routeros-syslog]
+
+- name: Ensure rsyslog is enabled and running
+  ansible.builtin.systemd:
+    name: rsyslog
+    state: started
+    enabled: true
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, routeros-syslog]
+
 # ---- Grafana provisioning (step 3: datasources, dashboards, alerting) ----
 # Grafana compose mounts /srv/docker/grafana/provisioning → /etc/grafana/provisioning:ro
 # (templates/docker_services/grafana/docker-compose.yml.j2). Files are read at

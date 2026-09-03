@@ -39,13 +39,16 @@ gpu_video_gid: 44
 letsencrypt_email: domen@kogler.si
 # CrowdSec collections to install (HD-85 / KOPS-041): which app logs CrowdSec
 # parses for WAF/brute-force. Included: traefik + linux (baseline) + home-assistant.
+# HD-313: + crowdsecurity/syslog-logs + a1ad/mikrotik (parser + mikrotik-bf +
+# mikrotik-scan-multi_ports scenarios) for the RB4011/switch/AP remote RFC5424
+# syslog stream (host rsyslog receiver -> /var/log/remote-syslog/routeros.log).
 # Extend here as services are exposed
 # (qBittorrent, jellyfin, n8n …) — a collection only does something if its logs are
 # ALSO sent to CrowdSec (docker.sock container-log parsing).
 # NOTE (Wave-1/3 triage 2026-08-22): crowdsecurity/matrix AND crowdsecurity/grafana do
 # NOT exist upstream — their failed installs abort container startup every boot. Matrix
 # and Grafana log parsing is dropped until collections exist upstream or are authored.
-crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/home-assistant"
+crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/home-assistant crowdsecurity/syslog-logs a1ad/mikrotik"
 # Wildcard *.kogler.si cert pair file names — shared by the issuer and ALL consumer
 # edges so the VPS ACME issuer, the consumer pull timers and the Traefik configs can
 # never drift. Paths:

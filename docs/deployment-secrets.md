@@ -279,6 +279,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
 | `nut-exporter_password` | `password` | nut_exporter → upsd read-only auth (dedicated `upsmon slave` user on the NUT master) |
 | `network-snmp_api` | `credential` | router + switch — MikroTik SNMP **read-only community** for Alloy polling (HD-53/Option A); `credential` = the RO community string |
+| `mikrotik-logpipe_api` | `password` | router — **scoped read-only RouterOS API user `logpipe`** (HD-313): remote syslog/API read for log shipping + central monitoring; `password` = the user's password. `read` group = read-only to all config paths, no write. Mgmt-VLAN only. Also reused later by the n8n firmware window (HD-312d) for the temp `iot-wan-allow` toggles. |
 | `wg_password` | `password` | router (WireGuard S2S private key — router side, distinct per-side, HD-285) |
 | `wg_password_vps` | `password` | VPS (WireGuard S2S private key — VPS side, distinct per-side, HD-285; NEW 2026-09-02) |
 | `wifi-kogler_password` | `password` | CAPsMAN SSID **Kogler** (VLAN 10 Home) — router role when `routeros_capsman_enabled` flips true (HD-228/HD-03); alphanumeric only, 2.4 GHz-friendly chips on this SSID family (HD-228) |

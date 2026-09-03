@@ -1099,6 +1099,84 @@
         comment: "Bridge with VLAN filtering enabled"
 
 # -------------------------------------------------------------------------
+# Central syslog / log shipping (HD-313) — RouterOS logs -> VPS CrowdSec+Loki
+# -------------------------------------------------------------------------
+# RouterOS 7 remote logging action (RFC5424, UDP/514). Target = the VPS side
+# of the wg-s2s /30 (10.255.40.2) — the VPS CrowdSec instance listens there as
+# the syslog collector. `src-address` ties the source to wg-s2s (mgmt-plane
+# reach only; never WAN). Fail-loud: any missing SSOT value aborts the render.
+# The 'error' topic is what carries login failures (a1ad/mikrotik-logs parser
+# requires it). No secrets in this block.
+- name: Ensure central syslog logging action exists (HD-313)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: system logging action
+    handle_absent_entries: ignore
+    data:
+      - name: central-syslog
+        target: remote
+        remote: "{{ wireguard_s2s_vps.remote_ip.split('/')[0] }}"
+        remote-port: 514
+        src-address: "{{ wireguard_s2s_vps.local_ip.split('/')[0] }}"
+        syslog-severity: auto
+        syslog-facility: local0
+        comment: "HD-313: RFC5424 syslog -> VPS CrowdSec/Loki (wg-s2s)"
+  tags: [network, router-logging]
+
+- name: Ensure logging rules forward security topics to central-syslog (HD-313)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: system logging
+    handle_absent_entries: ignore
+    data:
+      - topics: error
+        action: central-syslog
+        comment: "HD-313: login/API failures (a1ad parser needs 'error')"
+      - topics: firewall
+        action: central-syslog
+        comment: "HD-313: firewall drops (port-scan scenario)"
+      - topics: critical
+        action: central-syslog
+        comment: "HD-313: critical system events"
+      - topics: warning
+        action: central-syslog
+        comment: "HD-313: warnings"
+  tags: [network, router-logging]
+
+# -------------------------------------------------------------------------
+# Scoped logpipe API user (HD-313) — read-only, Mgmt-plane only.
+# Backwards compatible with the read-only API pattern of the MikroTik skill;
+# reused by the n8n firmware automation (HD-312d) when that lands.
+# -------------------------------------------------------------------------
+- name: Ensure scoped logpipe API user exists (HD-313)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: user
+    handle_absent_entries: ignore
+    data:
+      - name: logpipe
+        group: read
+        password: "{{ lookup('community.general.onepassword', 'mikrotik-logpipe_api', field='password', vault=op_vault) }}"
+        disabled: "no"
+        comment: "HD-313: read-only log/API access (remote syslog + n8n)"
+  tags: [network, router-logging]
+
+# -------------------------------------------------------------------------
 # CAPsMAN steady-state WiFi (guarded scaffold — HD-228/HD-03/HD-229)
 # -------------------------------------------------------------------------
 # Included ONLY when routeros_capsman_enabled: true (group_vars/router.yml).

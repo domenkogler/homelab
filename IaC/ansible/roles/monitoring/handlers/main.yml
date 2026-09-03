@@ -6,6 +6,13 @@
     daemon_reload: true
   tags: always   # handlers are tag-filtered too — without this, --tagged runs skip the restart (HD-220)
 
+- name: restart rsyslog
+  systemd:
+    name: rsyslog
+    state: restarted
+    daemon_reload: true
+  tags: always
+
 - name: restart grafana
   # NO home_servers guard here (live bug found 2026-08-23): `inventory_hostname in
   # groups['home_servers']` is False on the VPS — exactly where grafana lives — so the

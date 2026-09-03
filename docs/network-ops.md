@@ -114,6 +114,36 @@ Fix pattern:
 
 ---
 
+## Central log shipping (HD-313) — RouterOS logs → VPS CrowdSec + Loki
+
+The RB4011 (and switch/APs, once the switch/AP logging actions exist) forward their logs as
+**RFC5424 syslog over the `wg-s2s` tunnel** to the VPS; CrowdSec parses them for failed-login +
+port-scan detection and the same stream is available to Loki for central search.
+
+- **RouterOS side (router role, `router-logging` tag):** `/system logging action central-syslog`
+  (`target=remote`, `remote=<vps wg-s2s address>:514` — SSOT `wg_s2s_vps.remote_ip`, `src-address=wg-s2s`),
+  plus `/system logging` rules forwarding topics `error` (login/API failures — the a1ad parser requires
+  it), `firewall` (drops → port-scan scenario), `critical`, `warning` → `central-syslog`. `src-address` ties
+  the source to the wg-s2s interface (Mgmt-plane only; never WAN). Fail-loud: any missing SSOT value
+  aborts the render.
+- **Scoped `logpipe` API user (r/o, `read` group):** created by the role with the `mikrotik-logpipe_api`
+  1Password credential; only the Mgmt plane reaches it. Reused later by the n8n firmware window
+  (HD-312d) for the temp `iot-wan-allow` list toggles.
+- **Receiver (monitoring role, `routeros-syslog` tag, VPS only):** `rsyslog` UDP/514 on the **wg-s2s VPS
+  address** (SSOT `wg_s2s_vps.local_ip`) accepts RFC5424 from the router peer only and writes
+  `/var/log/remote-syslog/routeros.log`. Debian's stock rsyslog is already enabled on the VPS.
+- **CrowdSec (docker_services `crowdsec` service):** compose binds `/var/log/remote-syslog` (ro); an
+  `acquis-routeros.yml` (extra template, `_extra_templates` `crowdsec:`) tells CrowdSec to tail the
+  file as `type: mikrotik`. `crowdsec_collections` gains **`a1ad/mikrotik`** (parser + `mikrotik-bf` +
+  `mikrotik-scan-multi_ports` scenarios) — the upstream-blessed remote-syslog pattern.
+- **Loki (search surface):** the same `/var/log/remote-syslog/routeros.log` is a Loki log source; log
+  search lives in Loki (14d), Grafana the query surface — no second log backend.
+- **Deploy-gated:** the RB4011/switch/AP-side `system/logging` + `logpipe` user land at the next router
+  converge; the VPS-side rsyslog/CrowdSec config lands when `monitoring`/`docker_services` next deploy.
+  See [observability.md](observability.md) and [services-traefik.md](services-traefik.md) §CrowdSec.
+
+---
+
 ## Incident: 2026-09-02 — router mgmt plane lost after a full router.yml converge (recovered)
 
 > **Symptom:** after the 20:08 `router.yml` re-converge (added nas/oldsrv DHCP reservations), the router's

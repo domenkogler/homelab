@@ -1,0 +1,14 @@
+# CrowdSec acquisition — RouterOS (MikroTik) logs (HD-313)
+#
+# The RB4011 (and switch/APs) forward RFC5424 syslog to the VPS host rsyslog
+# UDP/514 receiver, which writes /var/log/remote-syslog/routeros.log (host
+# filesystem). CrowdSec tails that file; the a1ad/mikrotik-logs parser
+# (installed via the `a1ad/mikrotik` collection) extracts auth failures +
+# firewall drops for the mikrotik-bf / mikrotik-scan-multi_ports scenarios.
+# Upstream-blessed pattern (a1ad/mikrotik collection README):
+#   source: syslog (remote rsyslog) -> CrowdSec file acquisition
+---
+filenames:
+  - /var/log/remote-syslog/routeros.log
+labels:
+  type: mikrotik

@@ -116,6 +116,10 @@ CATALOG = [
     ("API Credential", "n8n-webhook_api",         lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "signal-internal_api",     lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "network-snmp_api",       lambda: [f"credential={gen_pw()}"]),
+    # HD-313: router read-only logpipe API user — Password item (role reads field='password',
+    # the RouterOS /user password; NOT an API-Credential like network-snmp). Non-VPS role item,
+    # outside check-vault-items docker_services scope — seed via provision-vault.sh.
+    ("Password",       "mikrotik-logpipe_api",    lambda: [f"password={gen_pw()}"]),
     # Phase 1 first-deploy additions (found live 2026-08-22 — render failed on missing items):
     # generated placeholders where the real value arrives later (forgejo token after the
     # Forgejo UI is up; openrouter/cohere keys from the provider dashboards — swap in the
