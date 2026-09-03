@@ -54,9 +54,21 @@ tags: [network, vlan, firewall]
 > rules only work predictably if every controlled device's **IP is static** — each IoT/kids/cloud-IoT
 > device gets a **static DHCP reservation** (MAC → IP) in `network_static_hosts` (SSOT), so the
 > firewall MAC-lists, the CAPsMAN vlan-id ACL, and the n8n firmware automation all reference a stable
-> identity. Devices without a reservation are treated as untrusted (Guest-style). This is a
-> prerequisite for HD-312 implementation — `network_static_hosts` gains a `static_ip: true` marker
-> (or the reservation IS the marker) per controlled device during implementation.
+> identity. Devices without a reservation are treated as untrusted (Guest-style).
+>
+> ✅ **PHASE 1 (static-IP sweep) DONE 2026-09-03** (SSOT + render; router-role/`converge.rsc` pick
+> the rows up automatically — live-apply at the next router converge/cutover):
+> - **Shelly fleet** — the 4× Shelly RGBW2 (VLAN 20, n8n firmware targets) now carry MAC +
+>   static reservations in `network_static_hosts` (`shelly-rgbw2-{kuhinja,wc,orhideje,kopalnica}`),
+>   plus the 3 family WiFi clients static on Home
+>   (`tablet-valentina`, `phone-domen` A54, `phone-martina` A55) for the kids-control MAC-list.
+> - **UPS + iLO fixed:** their SSOT rows lacked a MAC → the router never bound them (dynamic lease
+>   instead of their reserved SSOT addresses). MACs added (`00:20:85:C0:92:FA` /
+>   `1C:98:EC:0E:0D:3A`) — they now bind their reserved addresses.
+> - The reservation **is** the marker: a row with a `mac:` is a controlled device; no separate
+>   `static_ip: true` flag needed (HD-312 decision).
+> - ⏳ Live-apply is **router-converge-gated** (Phase 1.5 cutover / next `router.yml` converge);
+>   devices hold their current dynamic address until the lease turns over after the reservation lands.
 
 - **Mode:** `local-forwarding=no` (data-path) — all traffic tunneled to the router for VLAN tagging
   (network-vlans.md's CAPsMAN section is the SSOT; per-SSID VLAN tagging rides the CAP's **bridge**

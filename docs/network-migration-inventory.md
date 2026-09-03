@@ -36,10 +36,10 @@ tags: [network, vlan, migration]
 
 | Device | MAC (reservation key) | → VLAN | SSID | Notes |
 |---|---|---|---|---|
-| Shelly RGBW2 (kuhinja) | 50:02:91:B0:AD:A6 | 20 (IoT) | Kogler IOT | Gen1 — CoAP push rule HD-229 |
-| Shelly RGBW2 (WC, white 4-ch) | 50:02:91:B0:B2:4E | 20 (IoT) | Kogler IOT | „ |
-| Shelly RGBW2 (orhideje) | 50:02:91:B0:AF:05 | 20 (IoT) | Kogler IOT | „ |
-| Shelly RGBW2 (kopalnica) | 50:02:91:B0:DE:C4 | 20 (IoT) | Kogler IOT | „ |
+| Shelly RGBW2 (kuhinja) | 50:02:91:B0:AD:A6 | 20 (IoT) | Kogler IOT | Gen1 — CoAP push rule HD-229; ✅ **static reserved 2026-09-03 (HD-312)** → SSOT row `shelly-rgbw2-kuhinja` (n8n firmware target) |
+| Shelly RGBW2 (WC, white 4-ch) | 50:02:91:B0:B2:4E | 20 (IoT) | Kogler IOT | „ — ✅ **static reserved 2026-09-03 (HD-312)** → SSOT row `shelly-rgbw2-wc` |
+| Shelly RGBW2 (orhideje) | 50:02:91:B0:AF:05 | 20 (IoT) | Kogler IOT | „ — ✅ **static reserved 2026-09-03 (HD-312)** → SSOT row `shelly-rgbw2-orhideje` |
+| Shelly RGBW2 (kopalnica) | 50:02:91:B0:DE:C4 | 20 (IoT) | Kogler IOT | „ — ✅ **static reserved 2026-09-03 (HD-312)** → SSOT row `shelly-rgbw2-kopalnica` |
 | Shelly DW2 flood sensor | 10:52:1C:07:8E:D5 | 20 (IoT) | Kogler IOT | Gen1 CoAP as well |
 | GIRA X1 (KNX) | 00:0A:B3:29:2C:9E | 20 (IoT) | — | reachable from HA via trusted-admin→IoT |
 | GIRA IP Router (KNX bus) | 00:0A:B3:27:5F:8B | 20 (IoT) | — | „ |
@@ -55,7 +55,7 @@ tags: [network, vlan, migration]
 |---|---|---|---|---|
 | Canon TS9550 printer ("Tiskalnik") | 74:BF:C0:CD:33:0B | 10 (Home) | — | reservation; web UI family-reachable by design (same VLAN) |
 | Reolink camera (garage) | EC:71:DB:5F:BC:C1 | 20 (IoT) | — | **stay IoT(20)** — RTSP/ONVIF consumed by **Frigate on oldsrv** (trusted-admin → IoT new-connection accept already covers it); family viewing via HA/Frigate UI, no direct camera access. Frigate integration planned on oldsrv (HD-tracked); camera stays on internet-blocked IoT (privacy) |
-| Family phones/tablets (Martina, Domen ×2, Valentina tablet) | various | 10 (Home) | Kogler | plain clients. Live lease (2026-08-24) confirms Valentina tablet (30:56:84:35:00:DC) + `Naprava-A54-uporabnika-Domen` (34:F0:43:73:96:35) — likely one of Domen's devices; confirm on cutover. |
+| Family phones/tablets (Martina, Domen ×2, Valentina tablet) | various | 10 (Home) | Kogler | plain clients. Live lease (2026-08-24) confirms Valentina tablet (30:56:84:35:00:DC) + `Naprava-A54-uporabnika-Domen` (34:F0:43:73:96:35) — likely one of Domen's devices; confirm on cutover. ✅ **static reserved 2026-09-03 (HD-312):** SSOT rows `tablet-valentina` / `phone-domen` (A54) / `phone-martina` (A55, `BE:64:F1:1A:23:38`) on Home — the kids-control MAC-list (phase 3) references these by MAC. |
 | ~~"deblab" (Hyper-V VM NIC)~~ | ~~00:15:5D:01:67:1E~~ | — | — | **DISPOSED (2026-08-24, owner):** Hyper-V VM deleted; no longer on network, removed from scope. |
 | ~~"truenas"~~ | ~~92:47:15:04:EB:49~~ | — | — | **DISPOSED (2026-08-24, owner):** VM no longer exists (locally-administered MAC, never owned); removed from scope. |
 | NVIDIA Shield (Media) | 48:B0:2D:09:6F:90 | 50 (Media) | — | **D2-confirmed: NVIDIA Shield on Media(50)** — resolves the earlier ⚠ unknown (`switch_port_map` had it at ether20; live lease still hostname-less) |

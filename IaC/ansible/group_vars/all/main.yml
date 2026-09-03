@@ -164,9 +164,9 @@ network_static_hosts:
   - { name: ap-spalnica, vlan: 99, ip: "10.10.99.4", mac: "C4:AD:34:42:F1:7D", role: "hAP ac² (spalnica)" }
   - { name: ap-dnevna, vlan: 99, ip: "10.10.99.5", mac: "C4:AD:34:42:F0:B9", role: "hAP ac² (dnevna)" }
   - { name: ap-spare,  vlan: 99, ip: "10.10.99.6", role: "hAP ac² spare" }
-  - { name: ups,      vlan: 99, ip: "10.10.99.9",  role: "PowerWalker VFI 3000 IoT" }
+  - { name: ups,      vlan: 99, ip: "10.10.99.9",  mac: "00:20:85:C0:92:FA", role: "PowerWalker VFI 3000 IoT" }
   - { name: nas,      vlan: 99, ip: "10.10.99.10", mac: "1C:98:EC:0E:0D:38", role: "HP MicroServer Gen8" }
-  - { name: ilo,      vlan: 99, ip: "10.10.99.11", role: "nas iLO4 BMC" }
+  - { name: ilo,      vlan: 99, ip: "10.10.99.11", mac: "1C:98:EC:0E:0D:3A", role: "nas iLO4 BMC" }
   - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS secondary" }
   - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", role: "i7-7700K node + DNS primary" }
   - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop (admin, mgmt VLAN) — reaches mgmt via tagged-99 hop (Pi eth0.99), Home->Mgmt forward removed (strict)" }
@@ -178,6 +178,12 @@ network_static_hosts:
   - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
   - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
   - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }
+  # --- HD-312 static-IP sweep: family/kids WiFi clients (Kogler SSID, VLAN 10) ---
+  # These are the *controlled* family devices — kids-control MAC-address-list (phase 3)
+  # references them by MAC from here. Live-identified 2026-09-03 (lease dump + migration inventory).
+  - { name: tablet-valentina, vlan: 10, ip: "10.10.1.60",  mac: "30:56:84:35:00:DC", role: "Valentina tablet (family, Kogler SSID)" }
+  - { name: phone-domen,      vlan: 10, ip: "10.10.1.61",  mac: "34:F0:43:73:96:35", role: "Domen's phone A54 (family, Kogler SSID)" }
+  - { name: phone-martina,    vlan: 10, ip: "10.10.1.62",  mac: "BE:64:F1:1A:23:38", role: "Martina's phone A55 (family, Kogler SSID)" }
 
   # Router gateways on the remaining VLANs — RB4011 is the .1 inter-VLAN gateway on each.
   - { name: router, vlan: 20, ip: "10.10.20.1",  role: "IoT gateway" }
@@ -187,11 +193,18 @@ network_static_hosts:
   - { name: router, vlan: 50, ip: "10.10.50.1",  role: "Media gateway" }
 
   # --- Reservation targets (R-2, migration inventory) — DHCP-reserved static IPs ---
-  # IPs sit below each VLAN's DHCP pool start (.100): Home-.13, IoT-.10/.11, IoT-Internet-.10/.14, Media-.10/.11
+  # IPs sit below each VLAN's DHCP pool start (.100): Home-.13/.60-.62 (HD-312), IoT-.10/.13-.16 (HD-312),
+  # IoT-Internet-.10/.14, Media-.10/.11
   - { name: canon-ts9550,        vlan: 10, ip: "10.10.1.13",  mac: "74:BF:C0:CD:33:0B", role: "Canon TS9550 printer (family web UI)" }
   - { name: knx-x1,              vlan: 20, ip: "10.10.20.10", mac: "00:0A:B3:29:2C:9E", role: "GIRA X1 KNX controller" }
   - { name: knx-ip,              vlan: 20, ip: "10.10.20.11", mac: "00:0A:B3:27:5F:8B", role: "GIRA IP router (KNX bus)" }
   - { name: reolink-garage,      vlan: 20, ip: "10.10.20.12", mac: "EC:71:DB:5F:BC:C1", role: "Reolink camera (garage)" }
+  # --- HD-312 static-IP sweep: Shelly RGBW2 fleet (VLAN 20, n8n firmware targets) ---
+  # Live MACs from lease dump 2026-09-03; locations per network-migration-inventory.md.
+  - { name: shelly-rgbw2-kuhinja,   vlan: 20, ip: "10.10.20.13", mac: "50:02:91:B0:AD:A6", role: "Shelly RGBW2 (kuhinja) — n8n firmware target" }
+  - { name: shelly-rgbw2-wc,        vlan: 20, ip: "10.10.20.14", mac: "50:02:91:B0:B2:4E", role: "Shelly RGBW2 (WC white 4-ch) — n8n firmware target" }
+  - { name: shelly-rgbw2-orhideje,  vlan: 20, ip: "10.10.20.15", mac: "50:02:91:B0:AF:05", role: "Shelly RGBW2 (orhideje) — n8n firmware target" }
+  - { name: shelly-rgbw2-kopalnica, vlan: 20, ip: "10.10.20.16", mac: "50:02:91:B0:DE:C4", role: "Shelly RGBW2 (kopalnica) — n8n firmware target" }
   - { name: bosch-dishwash,      vlan: 21, ip: "10.10.21.10", mac: "68:A4:0E:0B:E5:81", role: "Bosch SMV88TX36E dishwasher" }
   - { name: bosch-oven,          vlan: 21, ip: "10.10.21.11", mac: "68:A4:0E:2F:46:87", role: "Bosch HNG6764B6 oven" }
   - { name: bosch-cooktop,       vlan: 21, ip: "10.10.21.12", mac: "68:A4:0E:2E:65:AE", role: "Bosch CSG656RB7... cooktop" }

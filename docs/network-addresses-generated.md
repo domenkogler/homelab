@@ -46,6 +46,9 @@
 | 10 | 10.10.1.50 | homematic-ccu-pi | RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought |
 | 10 | 10.10.1.51 | homematic-ccu-oldsrv | RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought |
 | 10 | 10.10.1.200 | ha-vip | keepalived VIP — ha.kogler.si |
+| 10 | 10.10.1.60 | tablet-valentina | Valentina tablet (family, Kogler SSID) |
+| 10 | 10.10.1.61 | phone-domen | Domen's phone A54 (family, Kogler SSID) |
+| 10 | 10.10.1.62 | phone-martina | Martina's phone A55 (family, Kogler SSID) |
 | 20 | 10.10.20.1 | router | IoT gateway |
 | 21 | 10.10.21.1 | router | IoT-Internet gateway |
 | 30 | 10.10.30.1 | router | Guest gateway |
@@ -55,6 +58,10 @@
 | 20 | 10.10.20.10 | knx-x1 | GIRA X1 KNX controller |
 | 20 | 10.10.20.11 | knx-ip | GIRA IP router (KNX bus) |
 | 20 | 10.10.20.12 | reolink-garage | Reolink camera (garage) |
+| 20 | 10.10.20.13 | shelly-rgbw2-kuhinja | Shelly RGBW2 (kuhinja) — n8n firmware target |
+| 20 | 10.10.20.14 | shelly-rgbw2-wc | Shelly RGBW2 (WC white 4-ch) — n8n firmware target |
+| 20 | 10.10.20.15 | shelly-rgbw2-orhideje | Shelly RGBW2 (orhideje) — n8n firmware target |
+| 20 | 10.10.20.16 | shelly-rgbw2-kopalnica | Shelly RGBW2 (kopalnica) — n8n firmware target |
 | 21 | 10.10.21.10 | bosch-dishwash | Bosch SMV88TX36E dishwasher |
 | 21 | 10.10.21.11 | bosch-oven | Bosch HNG6764B6 oven |
 | 21 | 10.10.21.12 | bosch-cooktop | Bosch CSG656RB7... cooktop |
@@ -110,4 +117,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-02T20:49:34Z
+> Last generated: 2026-09-03T05:40:47Z
