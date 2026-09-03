@@ -5,7 +5,10 @@
 # deployment-preseed.md); managed by Ansible as ansible-admin. No Cockpit.
 ansible_host: 10.10.1.20           # VLAN 10 (Home) — node IP (VRRP anchor, SSH)
 mgmt_ip: 10.10.99.20              # VLAN 99 (Management) — static reg on the mgmt plane (Option A dual-homed)
-dns_secondary_ip: 10.10.1.20       # Technitium secondary binds the node IP (not proxiable)
+# DNS tier (HD-299): resolver addresses are a SINGLE SSOT in group_vars/all/main.yml
+# (dns_primary_ip = VPS public, dns_secondary_ip = oldsrv, dns_tertiary_ip = Pi).
+# Pi is the TERTIARY now (the old dns_secondary_ip host var was removed — it would
+# shadow the Group Var on this host and reintroduce the stale Pi-secondary value).
 ansible_user: ansible-admin        # created by preseed post_install.sh (like nas/oldsrv)
 # NUT: UPS CLIENT (slave to nas) — power down immediately on critical
 nut_mode: client

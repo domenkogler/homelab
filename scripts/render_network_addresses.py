@@ -31,11 +31,20 @@ def load_yml(path: Path) -> dict:
 def main() -> int:
     all_yml = load_yml(ANSIBLE / "group_vars" / "all" / "main.yml")
 
-    # DNS host_vars used by the template (with template-default fallbacks)
-    oldsrv_vars = load_yml(ANSIBLE / "host_vars" / "oldsrv.kogler.si.yml") or {}
-    pi_vars = load_yml(ANSIBLE / "host_vars" / "pi.kogler.si.yml") or {}
-    dns_primary = oldsrv_vars.get("dns_primary_ip") or "10.10.1.30"
-    dns_secondary = pi_vars.get("dns_secondary_ip") or "10.10.1.20"
+    # DNS tier (HD-299, VPS-primary 2026-09-03): the resolver trio is a SINGLE SSOT in
+    # group_vars/all/main.yml (dns_primary_ip = VPS public IP; dns_secondary_ip/tertiary
+    # are Jinja expressions over network_static_hosts by name+vlan). This standalone
+    # renderer is not a Templar, so resolve the two expressions here by looking up the
+    # same SSOT rows (oldsrv vlan10 = secondary, pi vlan10 = tertiary) → literal IPs for
+    # the generated doc.
+    def _static_ip(name, vlan):
+        for h in all_yml["network_static_hosts"]:
+            if h.get("name") == name and h.get("vlan") == vlan:
+                return str(h["ip"])
+        raise KeyError(f"network_static_hosts missing {name}/{vlan}")
+    dns_primary = str(all_yml["dns_primary_ip"])
+    dns_secondary = _static_ip("oldsrv", 10)
+    dns_tertiary = _static_ip("pi", 10)
 
     ctx = {
         "ansible_managed": "Ansible managed",
@@ -46,11 +55,10 @@ def main() -> int:
         "network_static_hosts": all_yml["network_static_hosts"],
         "network_ranges": all_yml["network_ranges"],
         "ha_vip": str(all_yml["ha_vip"]),
-        "technitium_secondary_ip": dns_secondary,  # Technitium secondary == Pi node IP
-        "hostvars": {
-            "oldsrv.kogler.si": {"dns_primary_ip": dns_primary},
-            "pi.kogler.si": {"dns_secondary_ip": dns_secondary},
-        },
+        "dns_primary_ip": dns_primary,
+        "dns_secondary_ip": dns_secondary,
+        "dns_tertiary_ip": dns_tertiary,
+        "technitium_secondary_ip": dns_tertiary,  # Pi web-UI backend (== Pi node IP)
     }
 
     env = Environment(undefined=StrictUndefined, trim_blocks=True, lstrip_blocks=True)

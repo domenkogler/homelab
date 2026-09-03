@@ -9,7 +9,10 @@ mgmt_ip: 10.10.99.30               # VLAN 99 (Management) — tagged leg (netd-v
 home_ip: "{{ oldsrv_home_ip }}"     # VLAN 10 (Home) node IP (VRRP anchor) — SSOT-derived
                                     # from the network_static_hosts lookup in all.yml (HD-200);
                                     # no literal here to drift from the address SSOT
-dns_primary_ip: 10.10.1.30          # Technitium primary binds the node IP
+# DNS tier (HD-299): resolver addresses are a SINGLE SSOT in group_vars/all/main.yml
+# (dns_primary_ip = VPS public, dns_secondary_ip = oldsrv, dns_tertiary_ip = Pi).
+# oldsrv is the SECONDARY now (the old dns_primary_ip host var was removed — it would
+# shadow the Group Var on this host and reintroduce the stale oldsrv-primary value).
 ansible_user: ansible-admin        # created by preseed post_install.sh
 homelab_mode: desktop
 # NUT: UPS CLIENT (slave to nas) — delayed so alerts flush before powerdown

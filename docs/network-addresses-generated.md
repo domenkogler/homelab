@@ -36,13 +36,13 @@
 | 99 | 10.10.99.9 | ups | PowerWalker VFI 3000 IoT |
 | 99 | 10.10.99.10 | nas | HP MicroServer Gen8 |
 | 99 | 10.10.99.11 | ilo | nas iLO4 BMC |
-| 99 | 10.10.99.20 | pi | RPi4 node + DNS secondary |
-| 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS primary |
+| 99 | 10.10.99.20 | pi | RPi4 node + DNS tertiary (HD-299) |
+| 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS secondary (HD-299) |
 | 99 | 10.10.99.80 | laptop-domen | Domen's laptop (admin, mgmt VLAN) — reaches mgmt via tagged-99 hop (Pi eth0.99), Home->Mgmt forward removed (strict) |
 | 10 | 10.10.1.1 | router | Home gateway |
 | 10 | 10.10.1.10 | nas | Cockpit/NFS/NUT master |
-| 10 | 10.10.1.20 | pi | node + DNS secondary (VRRP anchor) |
-| 10 | 10.10.1.30 | oldsrv | node + DNS primary (VRRP anchor) |
+| 10 | 10.10.1.20 | pi | node + DNS tertiary (HD-299; VRRP anchor) |
+| 10 | 10.10.1.30 | oldsrv | node + DNS secondary (HD-299; VRRP anchor) |
 | 10 | 10.10.1.50 | homematic-ccu-pi | RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought |
 | 10 | 10.10.1.51 | homematic-ccu-oldsrv | RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought |
 | 10 | 10.10.1.200 | ha-vip | keepalived VIP — ha.kogler.si |
@@ -108,8 +108,9 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 
 | Purpose | Address | Host |
 |---------|---------|------|
-| DNS primary (Technitium) | 10.10.1.30 | oldsrv |
-| DNS secondary (Technitium) | 10.10.1.20 | pi |
+| DNS primary (Technitium) | 159.195.111.66 (VPS public) | vps |
+| DNS secondary (Technitium) | 10.10.1.30 | oldsrv |
+| DNS tertiary (Technitium) | 10.10.1.20 | pi |
 | DNS secondary web UI (`dns-pi.kogler.si`) | VIP `10.10.1.200` (edge) → `10.10.1.20:5380` | pi |
 | Home Assistant VIP (`ha.kogler.si`) | 10.10.1.200 | pi ↔ oldsrv (keepalived) |
 
@@ -119,4 +120,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-03T09:16:10Z
+> Last generated: 2026-09-03T09:32:34Z
