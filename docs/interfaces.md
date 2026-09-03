@@ -37,6 +37,7 @@ tags: [services, interfaces, dashboards]
 - **Health checks:** widget/probe-based reachability — siteMonitor probes per tile + blackbox `probe_success` on the status widget; no Docker socket (on the VPS it would only see VPS containers)
 - **Auto-generated:** the Ansible post-deploy hook regenerates `services.yaml` + `widgets.yaml`
 - **Local-only links resolve on LAN/VPN only** (split-horizon)
+- **Family dashboard split (HD-315, 2026-09-0X):** `home.kogler.si` is the **family** launchpad — family groups (Photos/Files/Docs/Chat/Git/AI/Tools/Accounts) tile only the **live public** apps with siteMonitor health dots; a separate **Domen · technical** group (tailnet-only admin dashboards: Grafana `stats`/Dozzle `logs`/Traefik `traefik`/CrowdSec `csui`/Metabase `sec`/n8n `auto`/VPN `vpn`/dsh/pi-dev) is **hidden by default from family** (gated by `homepage_show_technical`, default true); a **Soon** group shows deploy-gated apps (Phase 3/4) as non-clickable roadmap tiles (gated by `homepage_show_soon`, default true). Grafana is **Domen's technical dashboard** — never a family tile. siteMonitor is used only for public CNAMEs the homepage container can resolve (tailnet-only names are NOT probed — they would render false-red dots; their health lives in Grafana itself).
 
 ---
 
