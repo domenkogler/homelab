@@ -72,6 +72,12 @@ scrape_configs:
       module: [icmp]
 
   - job_name: nut_exporter
+    # DRuggeri/nut_exporter v3: emits ONLY on /ups_metrics?ups=<name> (plain /metrics is
+    # empty) — README-blessed path. Metric names are network_ups_tools_* (2026-09-04 fix:
+    # the old nut_* names + bitmask status never matched this exporter).
+    metrics_path: /ups_metrics
+    params:
+      ups: ["{{ nut_ups_name | default('powerwalker') }}"]
     static_configs:
       - targets: ["{{ nut_exporter_host }}:{{ nut_exporter_port }}"]
   # zfs_exporter (single SSOT ZFS exporter — host binary on nas, storage role)

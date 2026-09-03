@@ -12,12 +12,12 @@ grafana_alert_rules:
     - uid: ups-battery-low
       title: UPS battery low
       for: 1m
-      expr: "nut_battery_charge_percent < 20"
+      expr: "network_ups_tools_battery_charge < 20"
       summary: "UPS battery below 20% — impending shutdown"
     - uid: ups-runtime-low
       title: UPS runtime low
       for: 1m
-      expr: "nut_battery_runtime_seconds < 300"
+      expr: "network_ups_tools_battery_runtime < 300"
       summary: "UPS runtime below 5 min — impending shutdown"
     - uid: public-service-down
       title: Public service unreachable
@@ -64,16 +64,14 @@ grafana_alert_rules:
     - uid: ups-on-battery
       title: UPS on battery
       for: 1m
-      # HD-240: PromQL has NO bitwise-AND operator — the original `(nut_ups_status & 2) > 0`
-      # never parsed (masked for weeks by the datasource auth failure). Modulo test = same
-      # bitmask semantics: bit set ⇔ (status mod 2^(n+1)) >= 2^n.
-      expr: "(nut_ups_status % 4) >= 2"
+      # DRuggeri/nut_exporter v3: status is per-flag labels — {flag="OB"}=1 on battery.
+      # (The old modulo-bitmask expr was for a different exporter's nut_ups_status int.)
+      expr: "network_ups_tools_ups_status{flag=\"OB\"} == 1"
       summary: "UPS is on battery — mains lost (auto-clears on return)"
     - uid: ups-battery-replace
       title: UPS battery needs replacement
       for: 10m
-      # HD-240: see ups-on-battery — modulo bitmask test replaces invalid bitwise &.
-      expr: "(nut_ups_status % 32) >= 16"
+      expr: "network_ups_tools_ups_status{flag=\"RB\"} == 1"
       summary: "UPS reports Replace-Battery flag"
     - uid: mikrotik-link-down
       title: MikroTik link down

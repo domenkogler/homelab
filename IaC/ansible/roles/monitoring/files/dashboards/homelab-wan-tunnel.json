@@ -41,7 +41,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
-        { "refId": "A", "expr": "sum(increase(traefik_requests_total[5m]))", "instant": true }
+        { "refId": "A", "expr": "sum(increase(traefik_entrypoint_requests_total[5m]))", "instant": true }
       ]
     },
     {
@@ -61,7 +61,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "reqps" } },
       "targets": [
-        { "refId": "A", "expr": "sum(rate(traefik_requests_total[5m])) by (code)", "legendFormat": "{{code}}" }
+        { "refId": "A", "expr": "sum(rate(traefik_entrypoint_requests_total[5m])) by (code)", "legendFormat": "{{code}}" }
       ]
     },
     {

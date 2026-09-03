@@ -70,6 +70,9 @@ services:
         # edge IPs (traefik_edge_ips, HD-190), so a drifted bridge assignment silently
         # breaks every auth-proxy consumer (grafana 401 -> bare /login, 2026-08-24).
         ipv4_address: "{{ traefik_edge_ip_pin }}"
+      db-internal: {}   # HD-315 (2026-09-04): Prometheus scrapes traefik:8082 here — the
+                        # metrics entryPoint is reachable ONLY inside db-internal (never
+                        # published on a host port; keeps the edge's expose surface minimal).
     # Dashboard at traefik.kogler.si (behind Forward-Auth, admin only).
     labels:
       traefik.enable: "true"
@@ -124,11 +127,12 @@ services:
       - "--experimental.plugins.crowdsec-bouncer.version={{ crowdsec_bouncer_plugin_version }}"
       # Prometheus metrics (HD-315 gap, 2026-09-04): scrape job targets traefik:8082
       # (prometheus.yml.j2) but no metrics endpoint was enabled -> traefik_requests_total
-      # was empty and up{job="traefik"} showed 0 (selfmonitoring red row). Bind to the
-      # loopback so 8082 is overlay-reachable only (never published on the host WAN);
-      # scraped inside traefik-public where the Prometheus container sits.
+      # was empty and up{job="traefik"} showed 0 (selfmonitoring red row). Exposed on the
+      # dedicated internal `metrics` entryPoint (:8082, declared above) — never published
+      # on a host port; overlay-reachable only, scraped inside traefik-public.
+      # NOTE: v3 has NO --metrics.prometheus.addr flag (field-not-found crash 2026-09-04) —
+      # the address comes exclusively from the entryPoint declaration.
       - "--metrics.prometheus=true"
-      - "--metrics.prometheus.addr=:8082"
       - "--metrics.prometheus.entryPoint=metrics"
 
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
@@ -163,4 +167,6 @@ services:
 
 networks:
   traefik-public:
+    external: true
+  db-internal:
     external: true

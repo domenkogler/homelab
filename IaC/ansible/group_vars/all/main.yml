@@ -91,6 +91,9 @@ technitium_secondary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto
 # from the address SSOT below (nas @ VLAN 10); port matches the nut role's `nut_exporter_listen`.
 nut_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 # nut_exporter_listen in roles/nut/defaults/main.yml (:9199); keep in sync.
+# UPS name served by upsd on nas (ups.conf) — the exporter's /ups_metrics?ups=<name>
+# path; must match the nut role's ups.conf `UPS <name>` (2026-09-04, default powerwalker).
+nut_ups_name: powerwalker
 nut_exporter_port: 9199
 
 # ==== SMTP2Go relay — single connection SSOT (HD-54, Option B) ====

@@ -7,7 +7,7 @@
   "refresh": "30s",
   "time": { "from": "now-6h", "to": "now" },
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "panels": [
     {
       "type": "stat",
@@ -24,7 +24,7 @@
           ]}
         }
       },
-      "targets": [{ "refId": "A", "expr": "nut_battery_charge_percent", "instant": true }]
+      "targets": [{ "refId": "A", "expr": "network_ups_tools_battery_charge", "instant": true }]
     },
     {
       "type": "stat",
@@ -41,7 +41,7 @@
           ]}
         }
       },
-      "targets": [{ "refId": "A", "expr": "nut_battery_runtime_seconds / 60", "instant": true }]
+      "targets": [{ "refId": "A", "expr": "network_ups_tools_battery_runtime / 60", "instant": true }]
     },
     {
       "type": "gauge",
@@ -59,44 +59,36 @@
           ]}
         }
       },
-      "targets": [{ "refId": "A", "expr": "nut_ups_load_percent", "instant": true }]
-    },
-    {
-      "type": "stat",
-      "title": "Input voltage",
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "volt" } },
-      "targets": [{ "refId": "A", "expr": "nut_input_voltage", "instant": true }]
+      "targets": [{ "refId": "A", "expr": "network_ups_tools_ups_load", "instant": true }]
     },
     {
       "type": "stat",
       "title": "Output voltage",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "volt" } },
+      "targets": [{ "refId": "A", "expr": "network_ups_tools_output_voltage", "instant": true }]
+    },
+    {
+      "type": "stat",
+      "title": "Battery voltage",
       "gridPos": { "h": 4, "w": 4, "x": 4, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "volt" } },
-      "targets": [{ "refId": "A", "expr": "nut_output_voltage", "instant": true }]
+      "targets": [{ "refId": "A", "expr": "network_ups_tools_battery_voltage", "instant": true }]
     },
     {
       "type": "stat",
-      "title": "Real power",
+      "title": "Status",
       "gridPos": { "h": 4, "w": 4, "x": 8, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "watt" } },
-      "targets": [{ "refId": "A", "expr": "nut_ups_realpower_watts", "instant": true }]
-    },
-    {
-      "type": "stat",
-      "title": "UPS status",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "noValue": "unknown",
           "thresholds": { "mode": "absolute", "steps": [
             { "color": "green", "value": null },
-            { "color": "yellow", "value": 80 },
-            { "color": "red", "value": 100 }
+            { "color": "yellow", "value": 0 },
+            { "color": "red", "value": 1 }
           ]}
         },
         "overrides": [
@@ -109,17 +101,23 @@
           }
         ]
       },
-      "targets": [{ "refId": "A", "expr": "nut_ups_status", "instant": true }]
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (flag) (network_ups_tools_ups_status{flag=~\"OL|OB|LB|RB\"})",
+          "legendFormat": "{{flag}}",
+          "instant": true
+        }
+      ]
     },
     {
       "type": "timeseries",
-      "title": "Input vs output voltage",
+      "title": "Output voltage over time",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "volt" } },
       "targets": [
-        { "refId": "A", "expr": "nut_input_voltage" },
-        { "refId": "B", "expr": "nut_output_voltage" }
+        { "refId": "A", "expr": "network_ups_tools_output_voltage", "legendFormat": "output" }
       ]
     }
   ]
