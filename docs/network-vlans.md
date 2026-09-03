@@ -71,12 +71,7 @@ tags: [network, vlan, firewall]
 >   devices hold their current dynamic address until the lease turns over after the reservation lands.
 >
 > ✅ **PHASE 3 (firewall MAC-address-lists) IA-C DONE 2026-09-03** (router role, deploy-gated —
-> [todo.md HD-312](../todo.md) row): the router role now renders the **`iot-wan-allow`** MAC-address-list
-> from `network_static_hosts` (permanent members = the `vlan: 21` cloud-IoT rows: 2× LG, 3× Bosch,
-> HAP — exactly the devices who lost WAN when the IOT-WAN SSID was deleted 2026-09-03) + one
-> `src-mac-address` forward-accept per member above the IoT→WAN drop, restoring their internet after
-> the next router converge. The `kids-*` MAC-address-lists are **reserved** (sherds from the same SSOT:
-> `kids-{role}` per controlled family device) but gated `when: false` — no firewall rules reference
+> [todo.md HD-312](../todo.md) row): the router role now renders **one `src-mac-address` forward-accept per cloud-IoT device** (the `vlan: 21` rows: 2× LG, 3× Bosch, HAP — exactly the devices who lost WAN when the IOT-WAN SSID was deleted 2026-09-03) above the IoT→WAN drop, restoring their internet. (NOTE live 2026-09-03: RouterOS `/ip firewall address-list` is IP/CIDR-only, so the per-MAC rule must be `src-mac-address` in the forward filter, NOT an address-list — the earlier MAC-address-list task was removed.) The `kids-*` MAC-address-lists are **reserved** (sherds from the same SSOT: `kids-{role}` per controlled family device) but gated `when: false` — no firewall rules reference
 > them yet (owner: define the kids device set).
 
 
@@ -127,7 +122,7 @@ tags: [network, vlan, firewall]
 | Home (10) | Management (99) | Accept SSH/WinBox/API (22,8291,8728)/HTTPS · **80/443 (UPS web UI)** from trusted Home servers (`trusted-admin`: nas/oldsrv/HA-VIP) |
 | Home (10) | Media (50) | Accept (remote control, casting) |
 | IoT (20) | Home (10) | **Drop all** (only replies to Home-initiated) — EXCEPT CoAP **udp/5683 → `trusted-ha`** (Gen1 Shelly push, HD-229) |
-| IoT (20) | WAN | **Drop all** — EXCEPT cloud-IoT devices in the **`iot-wan-allow` MAC-address-list** (2× LG, 3× Bosch, HAP — per-SSOT `vlan: 21` rows; HD-312 phase 3) get their own per-MAC accept above the drop; n8n firmware-window MACs ride the same list temporarily (HD-312d) |
+| IoT (20) | WAN | **Drop all** — EXCEPT cloud-IoT devices (2× LG, 3× Bosch, HAP — per-SSOT `vlan: 21` rows; HD-312 phase 3) get a per-MAC `src-mac-address` accept above the drop; n8n firmware-window MACs ride the same per-MAC accepts temporarily (HD-312d) |
 | IoT-Internet (21) | WAN | **Allowed** (these devices need cloud/internet) |
 | IoT-Internet (21) | Home (10) | **Drop all** (only replies to Home-initiated) |
 | Media (50) | Home (10) | Accept (media server, Plex/Jellyfin) |
