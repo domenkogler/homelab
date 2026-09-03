@@ -84,25 +84,26 @@
       failed_when: _tech_zone.json is not defined or (_tech_zone.json.status not in ['ok', 'error'])
       # 'error' tolerated when the zone already exists (idempotent)
 
-    - name: "Technitium: set recursionNetworkACL (home LAN + tailnet + home WAN) — API-settable"
+    - name: "Technitium: set recursion policy + ACL (Allow all networks for home LAN + tailnet) — fully API-managed"
       ansible.builtin.uri:
         url: "{{ _tech_api }}/api/settings/set?token={{ _tech_token }}"
         method: POST
         body_format: form-urlencoded
         body:
+          allowRecursion: 'true'
+          allowRecursionOnlyForPrivateNetworks: 'false'
           recursionNetworkACL: >-
             {{ network_vlans | selectattr('id', 'in', [10, 20, 30, 40, 50, 99]) | map(attribute='subnet') | join(',') }},
             100.64.0.0/10,127.0.0.0/8,172.16.0.0/12,192.168.0.0/16
       register: _tech_acl
       no_log: true
       changed_when: false
-      # Idempotent: Technitium union-adds ACL CIDRs; re-sending the same set is a no-op.
-      # NOTE (recursion POLICY is API-immutable in 15.4): the `recursion` policy itself
-      # (AllowOnlyForPrivateNetworks -> AllowAllNetworks) is NOT settable via /api/settings/set
-      # (verified live 2026-09-03). It must be flipped ONCE in the Technitium web UI
-      # (dns.kogler.si -> Settings -> Recursion -> "Allow recursion for all networks").
-      # Until that UI flip, home-WAN/hairpin and tailnet CGNAT clients are REFUSED recursion
-      # even with this ACL (AllowOnlyForPrivateNetworks overrides the ACL for PUBLIC sources).
+      # Fully API-managed (verified live 2026-09-03): the recursion policy is set via the
+      # BOOLEAN fields `allowRecursion` + `allowRecursionOnlyForPrivateNetworks` (NOT the
+      # read-only `recursion` string enum). allowRecursion=true + onlyForPrivate=false =
+      # "Allow all networks" recursion; the recursionNetworkACL is the least-privilege
+      # allow-list (home VLAN subnets + tailnet CGNAT + loopback). This makes the whole
+      # recursion posture self-managing - NO manual UI step required.
       failed_when: _tech_acl.json is not defined or _tech_acl.json.status not in ['ok', 'error']
 
     - name: "Technitium: ensure split-horizon A records"
