@@ -66,7 +66,19 @@ Client → Technitium PRIMARY (VPS public IP)  ← DHCP lists this first
   the final fallback only (unfiltered last resort). The VPS primary is reached from
   the LAN through the existing Home/Media/Guest/Mgmt→WAN egress (HD-309) and from
   tailnet via its public IP; the VPS nftables source-allow blocks everything else
-  (tailnet CGNAT + home WAN only, HD-299). .rsc/role parity: the DHCP dns-server is
+  (tailnet CGNAT + home WAN only, HD-299).
+  **🔴 Recursion policy (HD-317 follow-up, 2026-09-03):** Technitium default
+  `recursion` is `AllowOnlyForPrivateNetworks` — REFUSES recursion for any PUBLIC
+  source, incl. home-WAN/hairpin (src = home WAN IP) AND tailnet CGNAT
+  (the 100.64/10 range is not RFC1918) → home WSL/laptop + Windows Tailscale DNS broke (REFUSED) while
+  VPS-local tests passed. `recursion` is API-immutable in 15.4 (verified live — only
+  `recursionNetworkACL` is settable via `/api/settings/set`). **Fix is TWO parts:**
+  1. `technitium-seed.yml` sets `recursionNetworkACL` = home LAN subnets (SSOT
+     `network_vlans`) + tailnet CGNAT + loopback (API-settable, idempotent).
+  2. **One-time UI flip** (cannot be automated): `dns.kogler.si` → Settings →
+     Recursion → **"Allow recursion for all networks"** (`AllowAllNetworks`).
+     Until flipped, home clients are REFUSED even with the ACL (policy overrides
+     it for public sources). .rsc/role parity: the DHCP dns-server is
   rendered from the same SSOT in both `roles/router/tasks/main.yml` and
   `rb4011_converge.rsc.j2`; the router /ip dns upstream mirrors the same chain first
   + Cloudflare 1.1.1.1/1.0.0.1 last (its WAN egress is what the VPS dns-allow-home
