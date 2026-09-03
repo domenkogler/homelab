@@ -21,7 +21,10 @@
 #   ha.kogler.si -> {{ ha_vip }}        (10.10.1.200)
 #   dns-pi.kogler.si -> {{ ha_vip }}    (same VIP; the Pi traefik-ha edge)
 #   stats/logs/csui/sec/traefik/auto -> {{ tailnet_sidecar_ip }} (100.64.0.1)
+#   sso.kogler.si -> {{ dns_primary_ip }} (VPS public IP; Authentik edge — same as public CNAME, split-horizon parity)
 # The same records on EVERY instance (VPS primary + oldsrv secondary + Pi tertiary).
+# NOTE: `modem.kogler.si` (comtrend_modem.modem_mgmt_ip) is NOT here — the Comtrend UI is LAN/router-only
+# and must NEVER resolve from the VPS/internet; treat as a router-side / LAN-only record (HD-302).
 
 - name: "Technitium: assert container reachable on local API ({{ svc.name }})"
   when:
@@ -101,6 +104,7 @@
         - { name: "sec.kogler.si",     ip: "{{ tailnet_sidecar_ip }}" }
         - { name: "traefik.kogler.si", ip: "{{ tailnet_sidecar_ip }}" }
         - { name: "auto.kogler.si",    ip: "{{ tailnet_sidecar_ip }}" }
+        - { name: "sso.kogler.si",     ip: "{{ dns_primary_ip }}" }
       register: _tech_record
       no_log: true
       changed_when: false
