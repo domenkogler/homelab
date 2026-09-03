@@ -97,12 +97,12 @@
 # mgmt pool/server (bootstrap) — keep; add the rest
 /ip pool add name=pool-mgmt ranges={{ mgmt.pool }}
 /ip dhcp-server add name=dhcp-mgmt interface=vlan99-mgmt address-pool=pool-mgmt disabled=no
-/ip dhcp-server network add address={{ mgmt.subnet }} gateway=10.10.99.1 dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},10.10.99.1
+/ip dhcp-server network add address={{ mgmt.subnet }} gateway=10.10.99.1 dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}   # RouterOS caps dhcp-server network at 3 dns-servers; router /ip dns upstream is the 4th/final fallback (HD-317)
 {% for v in network_vlans %}
 {% if v.id != 99 %}
 /ip pool add name=pool-vlan{{ v.id }} ranges={{ v.pool }}
 /ip dhcp-server add name=dhcp-{{ v.id }} interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} disabled=no
-/ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},{{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}
+/ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}   # RouterOS caps dhcp-server network at 3 dns-servers; router /ip dns upstream is the 4th/final fallback (HD-317)
 {% endif %}
 {% endfor %}
 

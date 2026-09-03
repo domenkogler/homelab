@@ -189,16 +189,17 @@
         gateway: >-
           {{ (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | list | first).ip }}
         # Resolver chain per network-dns.md (HD-182 parity + HD-317 3-instance):
-        # Technitium PRIMARY (VPS) -> SECONDARY (oldsrv) -> TERTIARY (Pi) ->
-        # the router /ip dns last (final unfiltered fallback). Direct-to-Technitium
-        # is REQUIRED so per-subnet filtering works (Technitium sees the source
-        # VLAN, not the router — RouterOS /ip dns is a single global resolver
-        # and cannot differentiate per subnet). All three are SSOT-derived.
+        # Technitium PRIMARY (VPS) -> SECONDARY (oldsrv) -> TERTIARY (Pi).
+        # RouterOS /ip dhcp-server network caps dns-server at 3 values (a 4th is
+        # silently dropped — the earlier 4-entry render dropped Pi), so the router
+        # /ip dns is NOT in the DHCP list; it's the implicit final fallback via its
+        # own upstream (see the /ip dns task). Direct-to-Technitium is REQUIRED so
+        # per-subnet filtering works (Technitium sees the source VLAN, not the
+        # router). All three are SSOT-derived.
         dns-server: >-
           {{ [dns_primary_ip,
               dns_secondary_ip | default(''),
-              dns_tertiary_ip | default(''),
-              (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | list | first).ip]
+              dns_tertiary_ip | default('')]
              | select('string') | unique | join(',') }}
   loop: "{{ network_vlans }}"
   when: item.id not in [1, 99]
