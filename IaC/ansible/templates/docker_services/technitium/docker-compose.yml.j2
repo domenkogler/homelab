@@ -64,7 +64,17 @@ services:
     ports:
       - "53:53/udp"                # required: clients query DNS on the standard port — network-wide by design (HD-62)
       - "53:53/tcp"
-    # NO host 5380 — the web UI is served via Traefik on the overlay network (HD-62).
+{% if _inst != 'primary' %}
+      # TERTIARY (Pi) web UI: host :5380 — the Pi traefik-ha edge (network_mode: host)
+      # routes dns-pi.kogler.si -> http://{{ technitium_secondary_ip }}:5380, so without
+      # this publish that route 502s (live verdict 2026-09-03). Oldsrv (secondary) UI is
+      # NOT exposed (primary web UI lives on the VPS) — the port stays unpublished there.
+      - "5380:5380/tcp"
+{% endif %}
+    # PRIMARY (VPS): NO host 5380 — the web UI is served via the VPS Traefik overlay
+    # (dns.kogler.si, Forward-Auth) — the container's internal 5380 is overlay-reachable only (HD-62).
+    # SECONDARY (oldsrv): no UI exposure (no route publishes it).
+    # TERTIARY (Pi): host 5380 published above for the traefik-ha dns-pi route.
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:

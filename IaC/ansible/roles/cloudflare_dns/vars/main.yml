@@ -93,6 +93,7 @@ cloudflare_dns_records:
   - { name: ai,        type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: pdf,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: vpn,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
+  - { name: dns,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-317: Technitium web UI (bootstrap path to the VPS DNS admin; the user added the CNAME live 2026-09-03 — now under IaC per HD-198 incremental)
   - { name: drop,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: pairdrop,  type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # KEPT + IaC-tracked (HD-230): pairdrop.kogler.si stays live alongside drop
   - { name: bin,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-112: Zipline public bin/shortener

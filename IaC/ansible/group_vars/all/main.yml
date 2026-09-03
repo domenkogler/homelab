@@ -67,7 +67,9 @@ wildcard_cert_domain: "kogler.si"
 # All three are separate physical hosts (failure-domain split preserved) and all three
 # publish on host :53/udp+tcp. `dns_primary_ip` (below) is the single SSOT for "the
 # primary resolver address" consumed by router rules / DHCP / pihole conditional
-# forwarding / tailnet headscale nameservers.
+# forwarding / tailnet headscale nameservers. DHCP (router role + converge rsc) hands
+# out the FULL chain primary->secondary->tertiary->router/IP, and the router /ip dns
+# upstream mirrors the same chain first + Cloudflare last (documented final fallback).
 # DECISION (supervisor, Option A): the primary resolver address is the VPS PUBLIC IP
 # (159.195.111.66) — LAN clients hairpin through the existing Home/Media/Guest/Mgmt→WAN
 # egress (HD-309), tailnet resolves it too, and it survives a WG-tunnel drop (unlike a

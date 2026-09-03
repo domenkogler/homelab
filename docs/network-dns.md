@@ -56,12 +56,21 @@ Client → Technitium PRIMARY (VPS public IP)  ← DHCP lists this first
         → Router /ip dns (final fallback, per-VLAN gateway) → 1.1.1.1
 ```
 
-- DHCP hands clients the **full resolver chain** (VPS public IP first, then oldsrv, then
-  Pi — addresses per SSOT `dns_primary_ip`/`dns_secondary_ip`/`dns_tertiary_ip`), then the
-  router's IP as final fallback — so per-subnet filtering is enforced (Technitium sees the
-  source subnet, not the router). The VPS primary is reached from the LAN through the
-  existing Home/Media/Guest/Mgmt→WAN egress (HD-309) and from tailnet via its public IP;
-  the VPS nftables source-allow blocks everything else (tailnet CGNAT + home WAN only, HD-299).
+- DHCP hands clients the **full resolver chain** (VPS primary first, then oldsrv, then
+  Pi, then the router IP last — addresses per SSOT `dns_primary_ip`/`dns_secondary_ip`/
+  `dns_tertiary_ip`), so per-subnet filtering is enforced (Technitium sees the
+  source subnet, not the router). Clients query the Technitium instances DIRECTLY —
+  do NOT point DHCP at the router and let /ip dns forward: RouterOS /ip dns is a
+  single global resolver/cache and cannot differentiate per-VLAN, so the per-subnet
+  policy above would collapse into one upstream. The router IP in the DHCP chain is
+  the final fallback only (unfiltered last resort). The VPS primary is reached from
+  the LAN through the existing Home/Media/Guest/Mgmt→WAN egress (HD-309) and from
+  tailnet via its public IP; the VPS nftables source-allow blocks everything else
+  (tailnet CGNAT + home WAN only, HD-299). .rsc/role parity: the DHCP dns-server is
+  rendered from the same SSOT in both `roles/router/tasks/main.yml` and
+  `rb4011_converge.rsc.j2`; the router /ip dns upstream mirrors the same chain first
+  + Cloudflare 1.1.1.1/1.0.0.1 last (its WAN egress is what the VPS dns-allow-home
+  nft set permits).
 - **Resilience chain (the point of the 3-instance tier):**
   - VPS always-on → normal path (LAN + tailnet). If the WG tunnel drops, LAN clients still
     reach the VPS primary over the public WAN (it does not depend on the tunnel).
@@ -72,7 +81,7 @@ Client → Technitium PRIMARY (VPS public IP)  ← DHCP lists this first
   different physical boxes.
 - `ha.kogler.si` resolves to the **VIP** on every instance (see [`smart-home-failover.md`](smart-home-failover.md)) so DNS is never the thing that breaks HA lookup.
 - **The VIP's `:443` edge is served by whichever keepalived node owns the VIP:** in normal mode the Pi's minimal **`traefik-ha`** edge serves `ha.kogler.si`; after a forward takeover oldsrv's `traefik` takes over. Both serve an identical `ha` route → VIP:8123, so `ha.kogler.si → VIP` is always served by the active HA node (**no DNS flip on failover**). See [`smart-home-failover.md`](smart-home-failover.md).
-- **Web UIs:** primary web UI on `dns.kogler.si` (VPS, Forward-Auth; **no host 5380** — served via the VPS Traefik overlay). The Pi tertiary has **`dns-pi.kogler.si`** — FQDN shape only borrowed from the cockpit naming; like `ha` it resolves to the **VIP (`ha-vip`)** and is served by the Pi's `traefik-ha` edge → local `pi:5380` (IP per SSOT), so it stays reachable when oldsrv is down (internal-only, no Forward-Auth). Direct fallback `pi:5380` on the LAN. oldsrv's UI is not exposed (primary UI lives on the VPS).
+- **Web UIs:** primary web UI on `dns.kogler.si` (VPS, Forward-Auth; **no host 5380** — served via the VPS Traefik overlay). The Pi tertiary has **`dns-pi.kogler.si`** — FQDN shape only borrowed from the cockpit naming; like `ha` it resolves to the **VIP (`ha-vip`)** and is served by the Pi's `traefik-ha` edge → local `pi:5380` (IP per SSOT), so it stays reachable when oldsrv is down (internal-only, no Forward-Auth). **The 5380 publish is now TERTIARY-ONLY** (fixed 2026-09-03): the Pi Technitium container publishes `5380:5380/tcp` so the traefik-ha `dns-pi` route (network_mode: host → http://{{ technitium_secondary_ip }}:5380) actually answers (was 502 — the port wasn't listening); oldsrv (secondary) stays unexposed and the VPS primary stays overlay-only. Direct fallback `pi:5380` on the LAN. oldsrv's UI is not exposed (primary UI lives on the VPS).
 - **Static records (do not forget):** `ha.kogler.si → VIP` and `dns-pi.kogler.si → VIP` (VIP = `ha-vip`, value per SSOT) must be created as **A records on EVERY Technitium instance** (VPS primary + oldsrv secondary + Pi tertiary). DHCP auto-creation only covers leases, and the VIP is **not** a lease — without them the traefik-ha / oldsrv edges are unreachable by name. **SEEDED 2026-09-03:** Pi instance verified live (`dig @<pi Home IP per SSOT>`); VPS primary + oldsrv secondary get them via the new `technitium-seed` Ansible role (runs on every `docker_services` converge, reads `technitium_login`/`technitium_api` from 1Password) once their admin is bootstrapped.
 - **Static records — tailnet admin dashboards (HD-135b follow-up / HD-273, 2026-08-28):** the **plain `*.kogler.si`** admin names (`stats`, `logs`, `csui`, `sec`, `traefik`, `auto`) must be **A records on BOTH Technitium instances → the `vps-obs` tailnet IP** (the `tailnet_sidecar_ip` group_var, `group_vars/vps.yml` — the traefik-tailnet edge). **Why:** Tailscale client MagicDNS only ANSWERS its `base_domain` (`ts.kogler.si`); for a FQDN matching a search domain (`kogler.si`), the client queries its **configured nameserver for that domain** — here Technitium — so without these records the plain names NXDOMAIN on tailnet devices (the `.ts.kogler.si` twins work via MagicDNS extra_records; the plain set needs the Technitium split-horizon, exactly like `ha`). The value is a **tailnet IP** so ONLY tailnet clients can reach it (LAN-only clients resolve it but fail to connect — correct, tailnet-only). **SEEDED 2026-09-03:** on the Pi instance (verified live); VPS primary + oldsrv secondary via the seed role once their admin is up.
 - **Static records — *arr stack (every instance → oldsrv Traefik edge):** `seerr`, `sonarr`,
@@ -88,8 +97,8 @@ Client → Technitium PRIMARY (VPS public IP)  ← DHCP lists this first
 Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
 
 - **Local (Technitium):** authoritative for `*.kogler.si` internally — resolves hosts/services to internal IPs, and auto-creates records from DHCP leases.
-- **Public (Cloudflare):** publishes **only** the internet-facing subset — the human-readable mirror is [`services.md`](services.md) §Domain & Subdomain Plan (`kogler.si` root + `home`, `sso`, `foto`, `file`, `office`, `ai`, `git`, `ha`, `vpn`, `matrix`, `chat`). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
-- Internal-only services/hosts (stats, dns, ad, auto, logs, cockpit-*, router, switch, nas, oldsrv) have **no public record**; WAN firewall blocks them (defense in depth). **The observability admin dashboards (stats/sec/traefik/logs/csui/auto) are tailnet-only** (HD-135b follow-up, 2026-08-28): the Phase-1 public CNAMEs are removed from the IaC SSOT (`cloudflare_dns/vars/main.yml`) and must be **deleted from the Cloudflare zone** by the owner (deploy-gated — the Ansible role only ensures `state: present`, it does not delete live records). On the tailnet they resolve via **headscale MagicDNS** — `dns.extra_records` maps each dashboard subdomain (and its `*.ts.kogler.si` twin) to the `vps-obs` tailnet IP, and `dns.search_domains: [kogler.si]` extends MagicDNS to the plain `*.kogler.si` names — so the owner's tailnet devices reach `https://stats.kogler.si`, `https://logs.kogler.si`, … directly (see [`network-vpn.md`](network-vpn.md) §Tailnet-exposed services). Technitium (the LAN resolver) carries **no** record for these — plain-LAN clients cannot route to the VPS tailnet IP anyway.
+- **Public (Cloudflare):** publishes **only** the internet-facing subset — the human-readable mirror is [`services.md`](services.md) §Domain & Subdomain Plan (`kogler.si` root + `home`, `sso`, `dns`, `foto`, `file`, `office`, `ai`, `git`, `ha`, `vpn`, `matrix`, `chat`). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik. **`dns` (the Technitium web UI) is the ONE admin-surface exception** (added 2026-09-03, now in the IaC SSOT `cloudflare_dns/vars/main.yml` per HD-198): `dns.kogler.si` → `vps.kogler.si` is needed as the public bootstrap path to the VPS DNS admin (and for the owner to recreate the VPS admin + finish seed), even though the UI itself sits behind Authentik Forward-Auth.
+- Internal-only services/hosts (stats, ad, auto, logs, cockpit-*, router, switch, nas, oldsrv) have **no public record**; WAN firewall blocks them (defense in depth). **The observability admin dashboards (stats/sec/traefik/logs/csui/auto) are tailnet-only** (HD-135b follow-up, 2026-08-28): the Phase-1 public CNAMEs are removed from the IaC SSOT (`cloudflare_dns/vars/main.yml`) and must be **deleted from the Cloudflare zone** by the owner (deploy-gated — the Ansible role only ensures `state: present`, it does not delete live records). On the tailnet they resolve via **headscale MagicDNS** — `dns.extra_records` maps each dashboard subdomain (and its `*.ts.kogler.si` twin) to the `vps-obs` tailnet IP, and `dns.search_domains: [kogler.si]` extends MagicDNS to the plain `*.kogler.si` names — so the owner's tailnet devices reach `https://stats.kogler.si`, `https://logs.kogler.si`, … directly (see [`network-vpn.md`](network-vpn.md) §Tailnet-exposed services). Technitium (the LAN resolver) carries **no** record for these — plain-LAN clients cannot route to the VPS tailnet IP anyway.
 - **TLS:** a single wildcard `*.kogler.si` certificate, issued via ACME **DNS-01** with a Cloudflare API token (1Password `Homelab-ansible`) — covers internal and public hostnames alike.
 
 ### A / AAAA policy
@@ -113,8 +122,9 @@ SSOT `dns_primary_ip`/`dns_secondary_ip`/`dns_tertiary_ip`). Clients on every ot
   primary is NOT a LAN forward target** — LAN clients reach it via the approved
   Home/Media/Guest/Mgmt→WAN egress (HD-309) to the VPS public IP; the VPS nftables
   source-allow (tailnet CGNAT + home WAN only) is the control (HD-299).
-- Input: `in-interface-list=LAN` UDP/TCP 53 → router `/ip dns` (tertiary), which itself
-  forwards to Technitium + 1.1.1.1.
+- Input: `in-interface-list=LAN` UDP/TCP 53 → router `/ip dns` (final fallback), which itself
+  forwards to the same Technitium chain first (VPS→oldsrv→Pi) + 1.1.1.1/1.0.0.1 last
+  (upstream mirror of the DHCP list, HD-317).
 - Global inter-VLAN drop rule sits **below** these exceptions.
 - There is **no** "allow DNS on the Management VLAN" rule — Technitium is **not** on the
   Management VLAN; the old Mgmt-placement wording predates the Home-based move.

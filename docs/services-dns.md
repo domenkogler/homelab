@@ -11,7 +11,7 @@ tags: [services, dns, technitium, pihole]
 > **Links to:** `network-dns.md`, `network-vlans.md`, `services.md`
 > **Linked from:** `services.md`, `network-dns.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** DNS services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
+> 🟢 **IaC done + VPS/oldsrv/Pi reconcile + Pi/dns-pi live; VPS admin recreate + oldsrv DNS pending.** DNS services are IaC-authored; the VPS primary + Pi tertiary are live, the VPS admin recreate + oldsrv (secondary) DNS deploy are still pending. Deploy progress vs [`deployment-tasks.md`](../deployment-tasks.md).
 
 ---
 
@@ -24,8 +24,9 @@ tags: [services, dns, technitium, pihole]
 
 ## DNS Redundancy
 
-- **Technitium primary** on oldsrv (Docker, `services-internal`).
-- **Technitium secondary** on the **Raspberry Pi (`pi.kogler.si`)** — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when oldsrv is down (see [`network-dns.md`](network-dns.md) + [`smart-home-failover.md`]).
+- **Technitium primary** on the VPS (Docker, `dns-servers` overlay; web UI `dns.kogler.si`).
+- **Technitium secondary** on **oldsrv** — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when the VPS is down.
+- **Technitium tertiary** on the **Raspberry Pi (`pi.kogler.si`)** — web UI `dns-pi.kogler.si` via the Pi `traefik-ha` edge (host :5380 published, see [network-dns.md](network-dns.md)).
 
 ## Pi-hole Configuration
 

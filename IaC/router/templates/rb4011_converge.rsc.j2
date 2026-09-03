@@ -87,12 +87,12 @@
 # mgmt pool/server (bootstrap) — keep; add the rest
 /ip pool add name=pool-mgmt ranges={{ mgmt.pool }}
 /ip dhcp-server add name=dhcp-mgmt interface=vlan99-mgmt address-pool=pool-mgmt disabled=no
-/ip dhcp-server network add address={{ mgmt.subnet }} gateway=10.10.99.1 dns-server=10.10.1.30,10.10.1.20,1.1.1.1
+/ip dhcp-server network add address={{ mgmt.subnet }} gateway=10.10.99.1 dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},10.10.99.1
 {% for v in network_vlans %}
 {% if v.id != 99 %}
 /ip pool add name=pool-vlan{{ v.id }} ranges={{ v.pool }}
 /ip dhcp-server add name=dhcp-{{ v.id }} interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} disabled=no
-/ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server=10.10.1.30,10.10.1.20,1.1.1.1
+/ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},{{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}
 {% endif %}
 {% endfor %}
 
@@ -234,7 +234,13 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
 /ip service set winbox disabled=no port=8291 available-from={{ router_services_available_from }}
 
 # ---- DNS (router resolver as tertiary) ----
-/ip dns set allow-remote-requests=yes servers=1.1.1.1,1.0.0.1
+# Upstream = the same Technitium chain the DHCP hands out (VPS->oldsrv->Pi), so
+# the router forwards to them first and only falls back to raw Cloudflare when
+# all are unreachable (RouterOS queries listed servers concurrently + takes the
+# first reply). The router's WAN egress IP is exactly what the VPS nftables
+# dns-allow-home set permits (HD-317). Final fallback stays unfiltered (accepted
+# tradeoff, network-dns.md).
+/ip dns set allow-remote-requests=yes servers={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},1.1.1.1,1.0.0.1
 
 # ---- End ----
 # Verify: /interface bridge print, /ip address print, /ip dhcp-server print, /ip route print,
