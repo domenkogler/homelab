@@ -18,7 +18,21 @@
 # deb822 .sources directly (the deb822_repository module no-ops on this ansible-core in the
 # runner venv — reported changed, wrote nothing; live-repaired by direct write 2026-09-03).
 # Canonical trixie main/contrib/non-free-firmware + security + updates.
-- name: Ensure Debian trixie apt sources exist (fresh-install gap)
+#
+# HD-317 (2026-09-04, live fix): a stock Debian trixie install already ships
+# /etc/apt/sources.list.d/debian.sources (deb822, Signed-By: …debian-archive-keyring.pgp)
+# covering trixie + trixie-security. Writing the .gpg-Signed-By duplicates below beside it
+# makes apt FAIL with "Conflicting values set for option Signed-By" (live on the Pi
+# 2026-09-04 — blocked the whole converge until the dup files were removed). The role only
+# writes these fragments on hosts that LACK the stock sources file.
+- name: Assert stock Debian deb822 sources are ABSENT (trixie .sources landed by the OS)
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list.d/debian.sources
+  register: _stock_deb822
+  when: ansible_facts['distribution'] == 'Debian' and ansible_facts['distribution_major_version'] | int >= 13
+  tags: always
+
+- name: Ensure Debian trixie apt sources exist (fresh-install gap — stock debian.sources ABSENT only)
   ansible.builtin.copy:
     dest: /etc/apt/sources.list.d/debian-trixie.sources
     content: |
@@ -29,10 +43,12 @@
       Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
     mode: '0644'
   register: apt_sources
-  when: ansible_facts['distribution'] == 'Debian' and ansible_facts['distribution_major_version'] | int >= 13
+  when:
+    - ansible_facts['distribution'] == 'Debian' and ansible_facts['distribution_major_version'] | int >= 13
+    - not (_stock_deb822.stat.exists if (_stock_deb822 is defined and _stock_deb822.stat is defined) else true)
   tags: always
 
-- name: Ensure Debian trixie-security apt sources exist
+- name: Ensure Debian trixie-security apt sources exist (stock debian.sources ABSENT only)
   ansible.builtin.copy:
     dest: /etc/apt/sources.list.d/debian-trixie-security.sources
     content: |
@@ -43,7 +59,9 @@
       Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
     mode: '0644'
   register: apt_security_sources
-  when: ansible_facts['distribution'] == 'Debian' and ansible_facts['distribution_major_version'] | int >= 13
+  when:
+    - ansible_facts['distribution'] == 'Debian' and ansible_facts['distribution_major_version'] | int >= 13
+    - not (_stock_deb822.stat.exists if (_stock_deb822 is defined and _stock_deb822.stat is defined) else true)
   tags: always
 
 - name: Update apt repositories and install prerequisites

@@ -17,10 +17,13 @@ nut_listen_ip: 10.10.1.10        # nas Home-VLAN IP — upsd listens here (intra
 # shutdown_delay_seconds: 60     # oldsrv — flush Grafana→n8n→Signal before powerdown
 
 # --- nut_exporter (single SSOT exporter, run as a HOST binary on master;
-# nas has no Docker). `@latest` resolves the most recent GitHub release at
-# deploy; pin a tag (e.g. "v3.3.0") to freeze it.
+# nas has no Docker). PINNED to v3.3.0 (HD-315, 2026-09-04): the earlier
+# `@latest` drifted onto a `(devel)` build; v3.3.0 is the latest tagged
+# release (2026-05-15) and the binary is already deployed on nas. Renovate
+# trails this tag (version-review single-sheet, HD-156).
 nut_exporter: true
-nut_exporter_release: "@latest"    # or a pinned tag like "v3.3.0"
+nut_exporter_release: "v3.3.0"
+# nut_exporter_arch/listen/vars keep the defaults below (amd64/:9199).
 nut_exporter_arch: amd64         # nas is x86_64
 nut_exporter_listen: ":9199"
 # Exporter `--nut.vars_enable` — must include battery.runtime (+ .low) so the

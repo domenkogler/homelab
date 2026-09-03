@@ -26,6 +26,20 @@
 # NOTE: `modem.kogler.si` (comtrend_modem.modem_mgmt_ip) is NOT here — the Comtrend UI is LAN/router-only
 # and must NEVER resolve from the VPS/internet; treat as a router-side / LAN-only record (HD-302).
 
+# Instance-derived container name — MUST mirror the compose template
+# (templates/docker_services/technitium/docker-compose.yml.j2):
+#   primary -> technitium, secondary -> technitium-oldsrv, secondary-pi -> technitium-pi
+# The service entry (e.g. raspberry_pi.yml `technitium-secondary` instance: secondary-pi)
+# carries NO container_name field, so the old `svc.container_name | default('technitium')`
+# fell back to 'technitium' on the Pi -> docker inspect found nothing -> _tech_api stayed
+# 127.0.0.1:5380 -> login failed (live 2026-09-04). Derive from the instance instead.
+- name: "Technitium: derive container name from instance ({{ svc.name }})"
+  ansible.builtin.set_fact:
+    _tech_container_name: >-
+      {{ {'primary': 'technitium', 'secondary': 'technitium-oldsrv', 'secondary-pi': 'technitium-pi'}
+         [svc.instance | default('primary')] }}
+  when: svc.template_dir | default('') == 'technitium'
+
 - name: "Technitium: assert container reachable on local API ({{ svc.name }})"
   when:
     - svc.template_dir | default('') == 'technitium'
@@ -39,10 +53,14 @@
 
     - name: "Technitium: discover container IP on {{ svc.name }}"
       ansible.builtin.shell:
+        # One IP per line (the container can be on several networks — Pi: traefik-public +
+        # services-internal). The old single-line `range` format GLUED the two IPs together
+        # (e.g. 172.21.0.3172.20.0.2) and the login hit a garbage URL. Newlines let
+        # `awk NR==1` pick the first clean IP deterministically.
         cmd: >-
-          docker inspect {{ svc.container_name | default('technitium') }}
-          --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }} {{ '{{' }}end{{ '}}' }}'
-          | awk '{ print $1 }'
+          docker inspect {{ _tech_container_name | default('technitium') }}
+          --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }}\n{{ '{{' }}end{{ '}}' }}'
+          | awk 'NR==1 { print $1 }'
         executable: /bin/bash
       register: _tech_ip
       changed_when: false

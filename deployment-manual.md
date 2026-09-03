@@ -496,6 +496,26 @@ all answer. The **default `admin`/`admin` is retired after this** (verify it FAI
 must also remember the `dns` router needs `traefik.http.services.dns.loadbalancer.server.port="5380"`
 (else the post-SSO leg 502s — Traefik auto-picks port 53).
 
+**Pi tertiary (secondary-pi) — same admin-align + seed (HD-317, 2026-09-04):** the Pi's Technitium
+container is named `technitium-pi` (not `technitium`) and sits on TWO networks, so run the
+one-liner against `technitium-pi` and take the FIRST IP:
+
+```bash
+# on the Pi (creds never leave it):
+CTR_IP=$(sudo docker inspect technitium-pi --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}\n{{end}}' | awk 'NR==1{print $1}')
+TOK=$(curl -sS -X POST "http://$CTR_IP:5380/api/user/login" --data-urlencode 'user=admin' --data-urlencode 'pass=admin' | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+curl -sS -X POST "http://$CTR_IP:5380/api/user/changePassword" -H "Authorization: Bearer $TOK" --data-urlencode 'pass=admin' --data-urlencode 'newPass=<1P technitium_login password>'
+```
+
+Then the Pi seed converge (idempotent):
+
+```bash
+bash scripts/ansible-run.sh playbooks/raspberry_pi.yml -e docker_services_scope=technitium-secondary
+```
+
+Verify: `dig @<Pi Home IP per SSOT> ha.kogler.si` → VIP and `dns-pi.kogler.si` → VIP. The 5380 publish on
+the Pi is already live (2026-09-04, `technitium-pi` → `pi:5380` HTTP 200).
+
 ### 1.5 Authentik first login
 
 - `akadmin` / `authentik_login` password — works FIRST TRY on a fresh install (bootstrap env
