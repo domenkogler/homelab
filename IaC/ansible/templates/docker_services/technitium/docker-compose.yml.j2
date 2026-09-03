@@ -20,15 +20,18 @@ services:
     image: technitium/dns-server:{{ technitium_version }}
     cap_drop:
       - ALL
-    cap_add:
+    cap_add:             # merged — NET_BIND_SERVICE (DNS 53) + NET_ADMIN (DHCP/interface control)
       - NET_BIND_SERVICE
-    read_only: true
+      - NET_ADMIN
+    # read_only REMOVED (Wave-2 triage parity, forgejo precedent 2026-08-22): Technitium
+    # writes runtime state at boot to /etc/dns/{zones,blocklists} + /var/log/technitium —
+    # a read-only rootfs crash-loops it (live 2026-09-03). cap_drop: ALL + minimal caps
+    # + no host ports (only 53, DNS-standard) keep the hardening posture.
+    read_only: false
     tmpfs:
       - /tmp
-    container_name: technitium
+      - /etc/dns
     restart: unless-stopped
-    cap_add:
-      - NET_ADMIN          # needed for the built-in DHCP / interface control
     networks:
       - traefik-public
       - services-internal

@@ -12,4 +12,6 @@ DST="/opt/traefik-ha/certs/"
 SSH="ssh -i /root/.ssh/ha-sync -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
 
 mkdir -p "$DST"
-rsync -az --delete -e "$SSH" "$SRC" "$DST"
+# Exclude dump/ — ACME private keys live there (root-only, must never leave the
+# issuer, HD-178 single-issuer); the Pi edge serves TLS from the public .pem pair only.
+rsync -az --delete --exclude='dump/' -e "$SSH" "$SRC" "$DST"
