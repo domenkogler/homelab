@@ -81,7 +81,7 @@
 #   /interface bridge set bridge vlan-filtering=yes
 #   /interface bridge port set [find interface=wifi1] pvid=10
 #   /interface bridge port set [find interface=wifi2] pvid=10
-#   # per provisioned slave (IOT=20, WAN=21, guest=30, kids=40):
+#   # per provisioned slave (IOT=20, guest=30 — WAN=21/kids=40 deleted 2026-09-03, HD-312):
 #   /interface bridge port add bridge=bridge interface=<slave> pvid=<vlan>
 #   /interface bridge vlan add bridge=bridge vlan-ids=<vlan> tagged=ether1 untagged=<slave>
 # Bootstrap sets the static parts now (vlan-filtering + master pvids are name-stable):

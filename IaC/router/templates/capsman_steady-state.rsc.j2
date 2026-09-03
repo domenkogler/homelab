@@ -86,24 +86,29 @@
     comment="Kogler 5GHz master (ch36 non-DFS)"
 
 # ---- Provisioning rules (manager -> APs) ----
-# 2.4GHz master = cfg-kogler-24 + IOT slaves; 5GHz master = cfg-kogler-5 (Kogler
-# only). Slave list is data-driven from routeros_capsman_ssids (all except master).
-{% set slaves = routeros_capsman_ssids | rejectattr('cfg', 'equalto', 'cfg-kogler') | map(attribute='cfg') | list %}
+# Band split (owner decision 2026-09-03, HD-312): 2.4GHz master = cfg-kogler-24 + the
+# 2.4GHz slaves; 5GHz master = cfg-kogler-5 + the 5GHz-only slaves (guest). A slave is
+# routed 5GHz by `band: 5` in routeros_capsman_ssids (SSOT), else 2.4GHz.
+{% set slaves24 = routeros_capsman_ssids | rejectattr('cfg', 'equalto', 'cfg-kogler') | rejectattr('band', 'equalto', 5) | map(attribute='cfg') | list %}
+{% set slaves5  = routeros_capsman_ssids | rejectattr('cfg', 'equalto', 'cfg-kogler') | selectattr('band', 'equalto', 5) | map(attribute='cfg') | list %}
 # 2.4GHz: master + enabled slave SSIDs
 /interface wifi provisioning add \
     action=create-dynamic-enabled \
     master-configuration=cfg-kogler-24 \
-{% if slaves %}
-    slave-configurations={{ slaves | join(',') }} \
+{% if slaves24 %}
+    slave-configurations={{ slaves24 | join(',') }} \
 {% endif %}
     supported-bands=2ghz-n \
-    comment="2.4GHz: Kogler{% if slaves %} + {{ slaves | join(',') }}{% endif %}"
-# 5GHz: Kogler master only (no IOT on 5GHz)
+    comment="2.4GHz: Kogler{% if slaves24 %} + {{ slaves24 | join(',') }}{% endif %}"
+# 5GHz: Kogler master + 5GHz-only slaves (guest)
 /interface wifi provisioning add \
     action=create-dynamic-enabled \
     master-configuration=cfg-kogler-5 \
+{% if slaves5 %}
+    slave-configurations={{ slaves5 | join(',') }} \
+{% endif %}
     supported-bands=5ghz-ac \
-    comment="5GHz: Kogler only (no IOT on 5GHz)"
+    comment="5GHz: Kogler{% if slaves5 %} + {{ slaves5 | join(',') }}{% endif %}"
 
 # ---- End ----
 # After import, verify on the router:

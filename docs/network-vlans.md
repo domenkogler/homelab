@@ -32,10 +32,9 @@ tags: [network, vlan, firewall]
 
 ## CAPsMAN SSID-to-VLAN Mapping
 
-> **LIVE (2026-09-02/03):** `Kogler` + `Kogler IOT` are the only two broadcast (IOT-WAN/guest/kids
-> disabled). **HD-312 TARGET (2026-09-03 decision, supersedes per-purpose SSIDs):** consolidate to
-> **3 SSIDs** — Kogler (family+kids, VLAN 10), IOT (VLAN 20, client-isolation, per-MAC WAN), Kogler
-> guest (VLAN 30, 5GHz, client-isolation). Table below reflects the target; live rows marked `live`.
+> **LIVE (2026-09-03):** `Kogler` + `Kogler IOT` + **`Kogler guest`** broadcast (3-SSID per HD-312;
+> IOT-WAN + Kids SSIDs DELETED live + from SSOT 2026-09-03 — guest took VLAN 30, kids-control
+> migrates to the firewall MAC-address-list per HD-312). Table below reflects the live state.
 
 | CAPsMAN Config | VLAN ID | SSID | Band | Isolation / note |
 |----------------|---------|------|------|------------------|
@@ -88,9 +87,10 @@ tags: [network, vlan, firewall]
   per client. It CANNOT move a client to another SSID (only override vlan-id/passphrase/client-isolation
   on the SSID joined), and needs the CAP bridge access-port pvid model (already live). The firewall
   side uses MAC-address-lists (`iot-wan-allow`, `kids-*`) rendered from `network_static_hosts`.
-- **Band split (owner decision, 2026-09-03):** `Kogler IOT` is **2.4GHz-only** — provisioning is
-  split: 2.4GHz carries Kogler + Kogler IOT, 5GHz carries Kogler only (IoT devices don't need 5GHz;
-  frees the 5GHz radio). Target: guest = 5GHz-only.
+- **Band split (owner decision, 2026-09-03):** `Kogler IOT` is **2.4GHz-only**; `Kogler guest` is
+  **5GHz-only** — provisioning is split by SSID band (`band: 5` in `routeros_capsman_ssids` SSOT):
+  2.4GHz carries Kogler + Kogler IOT, 5GHz carries Kogler + Kogler guest (IoT devices don't need
+  5GHz; guests get the freed 5GHz radio).
 - **5GHz non-DFS channel (2026-09-03 fix — 'phone won't connect to 5GHz'):** CAPsMAN auto-selected
   DFS channels (5500/5580) which many phones (esp. Samsung) can't associate with. 5GHz is now pinned
   to **channel 36 (5180, non-DFS)** via per-band master configs `cfg-kogler-24`/`cfg-kogler-5`

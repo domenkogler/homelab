@@ -1,0 +1,20 @@
+{#- CRS328 — HD-312 guest turn-up DELTA: tag VLAN 30 on the AP uplink ports (2026-09-03).
+    The guest SSID frames on the AP's tagged uplink (ether1) must reach the router — a
+    switch AP-port carrying only VLAN 10/20 would DROP the guest tagged frames at ingress
+    (HD-229 lesson: phone disconnects / no DHCP). The converge re-import does this from
+    SSOT (wifi_ports + network_vlans ssid); this is the immediate-delta equivalent.
+    NOTE (live 2026-09-03): VLAN 30 already exists as trunk-only (tagged=bridge,
+    sfp-sfpplus1) from the converge — this delta must SET it, not add (add would fail
+    'vlan already added'). Idempotent: checks tagged~ether11 before setting. -#}
+# =============================================================================
+# HD-312 guest — CRS328 switch AP-port VLAN 30 tagged DELTA
+# =============================================================================
+
+:if ([/interface bridge vlan find where bridge=bridge vlan-ids=30 and tagged~"ether11"] = "") do={
+    /interface bridge vlan set [find where vlan-ids=30] \
+        tagged=bridge,sfp-sfpplus1,ether11,ether12 \
+        comment="Guest VLAN on trunk (+ wifi AP ports tagged, HD-312)"
+}
+
+# ---- End ----
+# Verify: /interface bridge vlan print -> vlan-ids=30 tagged=bridge,sfp-sfpplus1,ether11,ether12

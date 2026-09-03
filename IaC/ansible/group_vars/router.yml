@@ -137,10 +137,11 @@ dns_secondary_ip: "{{ hostvars['pi.kogler.si'].dns_secondary_ip | default('10.10
 routeros_capsman_enabled: false
 routeros_capsman_implemented: false   # flips true when capsman.yml tasks are written against the live manager
 routeros_capsman_ssids:
-  # Only Kogler (Home, VLAN 10) + Kogler IOT (VLAN 20) are enabled (owner decision 2026-09-02 —
-  # the IOT-WAN/guest/kids SSIDs are temporarily not broadcast; kept in 1Password if re-enabled).
-  - { cfg: cfg-kogler,        ssid: Kogler,         vlan: 10, item: wifi-kogler_password }
-  - { cfg: cfg-kogler-iot,    ssid: Kogler IOT,     vlan: 20, item: wifi-kogler-iot_password }
-  # - { cfg: cfg-kogler-iot-wan, ssid: "Kogler IOT WAN", vlan: 21, item: wifi-kogler-iot-wan_password }
-  # - { cfg: cfg-kogler-guest,  ssid: Kogler guest,   vlan: 30, item: wifi-kogler-guest_password }
-  # - { cfg: cfg-kogler-kids,   ssid: Kogler Kids,    vlan: 40, item: wifi-kogler-kids_password }
+  # Enabled set (owner decision 2026-09-03 — HD-312 3-SSID consolidation):
+  # Kogler (Home, VLAN 10) + Kogler IOT (VLAN 20) + Kogler guest (VLAN 30, 5GHz-only).
+  # IOT-WAN and Kids SSIDs were DELETED (configs removed live 2026-09-03 — guest took
+  # over VLAN 30; kids-control migrates to firewall MAC-address-list per HD-312).
+  # `band` routes the SSID to a band master: `24` = 2.4GHz (Kogler/IOT), `5` = 5GHz (guest).
+  - { cfg: cfg-kogler,        ssid: Kogler,         vlan: 10, item: wifi-kogler_password,        band: 24 }
+  - { cfg: cfg-kogler-iot,    ssid: Kogler IOT,     vlan: 20, item: wifi-kogler-iot_password,    band: 24 }
+  - { cfg: cfg-kogler-guest,  ssid: Kogler guest,   vlan: 30, item: wifi-kogler-guest_password,  band: 5 }

@@ -1,0 +1,64 @@
+{#- RB4011 — HD-312 guest turn-up + IOT-WAN/Kids removal DELTA (2026-09-03).
+    Live CRITICAL delta applied via /import — idempotent (:if-find guards, safe to re-import).
+    Targets: RB4011 CAPsMAN manager only.
+    Owner decision 2026-09-03: turn up 'Kogler guest' (VLAN 30, 5GHz-only), DELETE the
+    'Kogler IOT WAN' (VLAN 21) and 'Kogler Kids' (VLAN 40) SSID configurations.
+    SSOT: group_vars/router.yml routeros_capsman_ssids (+ band: 5 for guest).
+    NOTE: NO secrets — passphrases already live in the security profiles from the
+    steady-state render; this delta only toggles configs + provisioning.
+    Apply: /import rb4011_guest_delta.rsc
+    Companion deltas: crs328_guest_delta.rsc (switch AP-port VLAN 30) +
+    ap_guest_delta.rsc (per-AP bridge VLAN 30 post-provision). -#}
+# =============================================================================
+# HD-312 guest turn-up + IOT-WAN/Kids removal — RB4011 CAPsMAN DELTA
+# =============================================================================
+
+# ---- 1. Enable the guest wifi config (cfg-kogler-guest: VLAN 30, 5GHz) ----
+:if ([/interface wifi configuration find where name=cfg-kogler-guest] != "") do={
+    /interface wifi configuration set [find where name=cfg-kogler-guest] disabled=no
+} else={
+    :error "HD-312 delta: cfg-kogler-guest missing — steady-state rsc not imported?"
+}
+
+# ---- 2. DELETE the IOT-WAN + Kids SSID configurations ----
+# (config objects first — the profiles below are removed once nothing references them)
+:if ([/interface wifi configuration find where name=cfg-kogler-iot-wan] != "") do={
+    /interface wifi configuration remove [find where name=cfg-kogler-iot-wan]
+}
+:if ([/interface wifi configuration find where name=cfg-kogler-kids] != "") do={
+    /interface wifi configuration remove [find where name=cfg-kogler-kids]
+}
+
+# ---- 3. DELETE the IOT-WAN + Kids security profiles (no longer referenced) ----
+:if ([/interface wifi security find where name=sec-kogler-iot-wan] != "") do={
+    /interface wifi security remove [find where name=sec-kogler-iot-wan]
+}
+:if ([/interface wifi security find where name=sec-kogler-kids] != "") do={
+    /interface wifi security remove [find where name=sec-kogler-kids]
+}
+
+# ---- 4. Add guest to the 5GHz provisioning (master cfg-kogler-5) ----
+# The 5GHz master already exists (cfg-kogler-5, ch36 non-DFS). Extend its slave list
+# with cfg-kogler-guest. NOTE (live 2026-09-03): `get slave-configurations` returns nil
+# on the 5GHz rule, so the idempotent read-check is unreliable — a plain `set` is safe
+# (re-setting the same slave is a no-op on RouterOS 7.24).
+:local fiveGHz [/interface wifi provisioning find where master-configuration=cfg-kogler-5]
+:if ($fiveGHz != "") do={
+    /interface wifi provisioning set $fiveGHz slave-configurations=cfg-kogler-guest
+} else={
+    :error "HD-312 delta: 5GHz provisioning rule (master=cfg-kogler-5) missing"
+}
+
+# ---- 5. CAP re-provision kick (the 5GHz slave materializes at the CAP) ----
+# Without this, the guest slave may not appear on the CAP despite slaves-static=yes
+# (live-verified 2026-09-03: guest slave only materialized after the CAP reloaded).
+/interface wifi capsman set enabled=no
+/interface wifi capsman set enabled=yes
+
+# ---- End ----
+# Verify:
+#   /interface wifi configuration print   -> cfg-kogler-guest enabled, iot-wan/kids gone
+#   /interface wifi security print        -> sec-kogler-guest present, iot-wan/kids gone
+#   /interface wifi provisioning print    -> 5GHz rule now has slave cfg-kogler-guest
+#   AP: /interface wifi print             -> 'Kogler guest' slave present
+#   AP: /interface bridge vlan print      -> VLAN 30 tagged ether1 untagged <guest slave>

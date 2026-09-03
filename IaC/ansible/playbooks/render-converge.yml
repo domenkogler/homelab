@@ -50,3 +50,15 @@
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_hd307_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_hd307_delta.rsc"
+    - name: "Render rb4011_guest_delta.rsc (HD-312: guest turn-up + IOT-WAN/Kids removal)"
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/rb4011_guest_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/rb4011_guest_delta.rsc"
+    - name: "Render crs328_guest_delta.rsc (HD-312: switch AP-port VLAN 30)"
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/crs328_guest_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/crs328_guest_delta.rsc"
+    - name: "Render ap_guest_delta.rsc (HD-312: CAP bridge VLAN 30, per-AP)"
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/ap_guest_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/ap_guest_delta.rsc"
