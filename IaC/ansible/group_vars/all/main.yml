@@ -112,6 +112,10 @@ kopia_sftp_path: kopia           # RELATIVE to box home (2026-08-23: Hetzner SFT
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
 ha_vip_cidr: 24                    # VIP prefix — shared by primary + standby keepalived
 ha_keepalived_vrid: 51            # VRRP virtual_router_id — MUST match on both HA nodes
+# KNX bus router (SSOT static host `knx-ip` on VLAN 20): the GIRA IP router the HA KNX
+# integration tunnels to. Connection is configured in the KNX config-flow UI (current HA
+# has no YAML connection key), so this var documents + renders the IP used there.
+knx_router_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'knx-ip') | first).ip }}"
 # HA reverse-proxy trust (KOPS-039 / HD-81): only specific Traefik edge container IPs are
 # trusted for X-Forwarded-For, NOT the whole traefik-public /16. Each host runs its OWN
 # traefik-public Docker bridge; fill the exact container IPs (default/`172.20.0.2/32` on the

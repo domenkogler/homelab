@@ -32,16 +32,57 @@ recorder:
       - binary_sensor.*_status
 
 # ---- Integrations ----
-# Configure additional integrations via the HA UI (stored in .storage/).
-# See docs/smart-home.md for architecture.
+# KNX (docs/smart-home.md): ETS project file is the SSOT; entity maps are generated
+# from it (scripts/knx-hass-gen.py → knx-entities.yaml). The knxproj itself is
+# deployed to /config/knx/ for the KNX panel import (Group Monitor names + triggers).
+# The KNX/IP connection (tunneling to the GIRA IP router {{ knx_router_ip }}) is
+# configured in the UI config flow (Settings → Connectivity → KNX) — current HA has
+# no YAML key for the connection.
+knx: !include knx-entities.yaml
+
+# ---- Lovelace (dashboard_stanovanje, YAML mode) ----
+# Modernized from the old dashboard_stanovanje.yaml; views includes live under
+# /config/lovelace/. The dashboard renders the KNX entities generated from the
+# ETS project (same namespace as configuration.yaml's knx: block).
+lovelace:
+  mode: storage
+  dashboards:
+    lovelace-stanovanje:
+      mode: yaml
+      title: Stanovanje
+      show_in_sidebar: true
+      icon: mdi:home
+      filename: /config/lovelace/dashboard_stanovanje.yaml
+
+# ---- Radiator timers (ported from old-ha scripts.yaml; target the KNX radiator
+#      switches by their generated entity IDs — stable). ----
+script:
+  kopalnica_radiator_za_1h:
+    alias: "Kopalnica radiator za 1h"
+    sequence:
+      - action: switch.turn_on
+        target: { entity_id: switch.kopalnica_radiator }
+      - delay: "01:00:00"
+      - action: switch.turn_off
+        target: { entity_id: switch.kopalnica_radiator }
+  wc_radiator_za_1h:
+    alias: "WC radiator za 1h"
+    sequence:
+      - action: switch.turn_on
+        target: { entity_id: switch.wc_radiator }
+      - delay: "01:00:00"
+      - action: switch.turn_off
+        target: { entity_id: switch.wc_radiator }
 
 # ---- Weather (HD-22) ----
 # Single authoritative weather source = HA core `meteoblue` (models Slovenia well,
 # hourly + daily forecast). Replaces the third-party HACS "Weather 2000" and drop core
-# `met` (weather.forecast_dom). api key from 1Password Homelab-ansible.
+# `met` (weather.forecast_dom). The api key lives in secrets.yaml (rendered by the
+# home_assistant role, secrets.yaml.j2) — HA resolves it via !secret (single source,
+# HD-204 render-first; the value itself never lands inline in configuration.yaml).
 weather:
   - platform: meteoblue
-    api_key: "{{ lookup('community.general.onepassword', 'meteoblue_api', field='credential', vault=op_vault) }}"
+    api_key: !secret meteoblue_api
     name: Meteoblue kogler.si (Maribor)
     latitude: {{ home_latitude }}
     longitude: {{ home_longitude }}

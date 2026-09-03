@@ -108,19 +108,26 @@
 
 # --- nut_exporter: single SSOT exporter, HOST binary on the master ---
 # Resolve the release tag: pinned tag used as-is; '' / '@latest' → latest GitHub release.
-- name: Resolve nut_exporter release tag from GitHub (when not pinned)
+# Guards: this is MASTER-ONLY (client hosts — Pi/oldsrv — never run the exporter; resolving
+# on a client crashed the Pi provision dry-run 2026-09-03: `_nut_exporter_latest` unregistered
+# → `'dict' has no attribute 'json'`). The uri result is parsed from `content` (no `body_format`),
+# so `.json` is NOT available — parse explicitly.
+- name: Resolve nut_exporter release tag from GitHub (master only, when not pinned)
   uri:
     url: https://api.github.com/repos/DRuggeri/nut_exporter/releases/latest
     return_content: true
   register: _nut_exporter_latest
-  when: nut_exporter_release in ['', '@latest']
+  when:
+    - nut_mode == 'master'
+    - nut_exporter_release in ['', '@latest']
   tags: [nut_exporter]
 
-- name: Determine final nut_exporter release tag
+- name: Determine final nut_exporter release tag (master only)
   set_fact:
     _nut_exporter_release: >-
       {{ nut_exporter_release if nut_exporter_release not in ['', '@latest']
-         else _nut_exporter_latest.json.tag_name }}
+         else (_nut_exporter_latest.content | from_json).tag_name }}
+  when: nut_mode == 'master'
   tags: [nut_exporter]
 
 - name: Download nut_exporter binary (master, host — nas has no Docker)

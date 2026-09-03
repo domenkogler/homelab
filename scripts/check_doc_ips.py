@@ -43,6 +43,7 @@ EXEMPT_FILES = {
     "docs/deployment-ansible.md",
     "docs/deployment-secrets.md",
     "docs/home-assistant-current.md",
+    "docs/deployment-pi-provision.md",   # Phase-4 runbook — imperative exec of the SSOT rows (exact IPs for ssh/ping/curl)
     "deployment-tasks.md",
     "reports/changelog.md",         # frozen archive (pre-2026-09-01); as-written
     "reports/deployment-journal.md", # frozen archive (pre-2026-09-01)
