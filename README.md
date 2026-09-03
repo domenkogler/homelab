@@ -49,14 +49,16 @@ task-specific dispatch. Do **not** bulk-read the repo.
 
 ---
 
-## 2. State of the world (as of 2026-08-24)
+## 2. State of the world (as of 2026-09-04)
 
 - **Phase 1 (VPS edge) is live.** The VPS runs its full enabled `docker_services` set — Traefik,
-  Authentik, the observability backend (prometheus/loki/grafana/blackbox), etc. Evidence: the
-  owning-service docs (✅ status lines) + [`deployment-tasks.md`](deployment-tasks.md) checkbox
+  Authentik, the observability backend (prometheus/loki/grafana/blackbox), Technitium DNS primary, etc.
+  Evidence: the owning-service docs (✅ status lines) + [`deployment-tasks.md`](deployment-tasks.md) checkbox
   dates + git commit messages; the as-built journal and changelog were frozen 2026-09-01
-  (`reports/`, archive-only). Home hosts (`nas`, `oldsrv`, `pi`) are still **unprovisioned**
-  (Phases 2–4): anything below the VPS tier remains *deploy-gated*; verify against
+  (`reports/`, archive-only). **Phase 2 (nas) and Phase 4 (Pi) are provisioned + LIVE (2026-09-03).**
+  **oldsrv (Phase 3) is IN PROGRESS — BLOCKED on the `office` ONLYOFFICE repo/key, `amd_rocm` ROCm pins,
+  and 3 missing 1P vault items** (HD-318; `docker_services` big deploy gated on them); anything below
+  the VPS tier that is not yet live remains *deploy-gated*; verify against
   [`deployment-tasks.md`](deployment-tasks.md) before any "run".
 - **How to check what is live vs authored-only (check in this order):**
   1. [`todo.md`](todo.md) §0/§3c → [`deployment-tasks.md`](deployment-tasks.md) — the ⏳ deploy-gated
@@ -68,9 +70,13 @@ task-specific dispatch. Do **not** bulk-read the repo.
 - **Hosts:** single namespace `kogler.si` → `oldsrv`, `nas`, `pi`, `router`, `switch`, `vps`.
   Canonical list + naming/IP conventions: `docs/index.md` → Conventions.
 - **Recommended next tasks:** see the latest `prompt-*.md` handoff (date-stamped) — it names the
-  current most-valuable, laptop-doable items. **HD-312 phase 3 (iot-wan-allow per-MAC firewall
-  MAC-list + WAN egress) IaC is DONE (2026-09-03, `8442be7`) — deploy-gated on the next router
-  converge**; it un-blocks the cloud-IoT appliances (LG/Bosch/HAP) currently isolated on VLAN 20.
+  current most-valuable, laptop-doable items. **HD-312 3-SSID WiFi + per-MAC cloud-IoT WAN is LIVE
+  (2026-09-03)** — the cloud-IoT appliances (LG/Bosch/HAP) regain WAN as leases turn over; remaining
+  tails (CAPsMAN per-MAC `access-list`, `kids-*` lists, n8n firmware automation) are in
+  [`todo.md`](todo.md) HD-312. **HD-317 Technitium DNS-primary on the VPS is LIVE** (3-instance DNS
+  HA); the split-horizon A-record **seed role is DONE (Pi seeded live)** — VPS primary + oldsrv
+  secondaries seed automatically once the VPS admin is recreated (owner step; pending Traefik
+  @file-middleware fix). Detail: [`todo.md`](todo.md) HD-317.
 
 ---
 
