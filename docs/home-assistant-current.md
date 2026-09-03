@@ -32,7 +32,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 > 2. **Homematic IP:** *(deferred 2026-08-18 / HD-13 parked)* the intended local **HmIP-RFUSB + RaspberryMatic** on the Pi (`homematic` XML-RPC 2001/2010) is **held until an HmIP-RFUSB is bought**; meanwhile the **HmIP-HAP stays in cloud mode**. No USB placeholder step at Pi deployment; no physical stick-move failover yet. (When/if added, failover = physically moving the stick to oldsrv, pairing stored on the stick.)
 > 3. **Technitium secondary DNS** moves from nas → the Pi (now a Debian host).
 > 4. **Dev add-ons** (SSH / File editor / Studio Code Server) + Supervisor-only services are replaced by standalone containers or host tools in the Docker deployment; HAOS-only auto-backup replaced per `backup.md`.
-> This file remains a point-in-time inventory of the *current* live instance; the bullets above are the approved direction, not yet applied.
+> This file remains a point-in-time inventory of the *current* live instance. **The primary redo above was EXECUTED + LIVE 2026-09-03** — the Pi now runs Debian + HA Container + Technitium secondary (see `deployment-pi-provision.md` for the as-built runbook; items 1–4 are what changed).
 
 ---
 

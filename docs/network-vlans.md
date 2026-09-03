@@ -80,7 +80,7 @@ tags: [network, vlan, firewall]
 >
 > ✅ **PHASE 3 (firewall MAC-address-lists) IA-C DONE 2026-09-03** (router role, deploy-gated —
 > [todo.md HD-312](../todo.md) row): the router role now renders **one `src-mac-address` forward-accept per cloud-IoT device** (the `wan_allow: true` rows: 2× LG, 3× Bosch, HAP — exactly the devices who lost WAN when the IOT-WAN SSID was deleted 2026-09-03; pre-HD-325 these were the `vlan: 21` rows) above the IoT→WAN drop, restoring their internet. (NOTE live 2026-09-03: RouterOS `/ip firewall address-list` is IP/CIDR-only, so the per-MAC rule must be `src-mac-address` in the forward filter, NOT an address-list — the earlier MAC-address-list task was removed; HD-325 moved the list source from `vlan: 21` rows to the `wan_allow` flag.) The `kids-*` MAC-address-lists are **reserved** (sherds from the same SSOT: `kids-{role}` per controlled family device) but gated `when: false` — no firewall rules reference
-> them yet (owner: define the kids device set).
+> them yet (owner: define the kids device set). **HD-326 2026-09-04 — kids set DEFINED + iPad fixed-MAC decision:** the set = `tablet-valentina` + `tablet-ipad`, both static on Home/VLAN 10; the iPad currently uses an iOS **randomized "Private Wi-Fi Address"** (`F6:9B:E2:B9:26:F9` — locally-administered/randomized per-SSID), which would break per-MAC rules if it rotated → **owner decision: disable "Private Wi-Fi Address" on the iPad for the Kogler SSID**, then **update the SSOT `tablet-ipad` MAC to the real hardware MAC** (the reserved one is the randomized value and will stop matching).
 
 
 - **Mode:** `local-forwarding=no` (data-path) — all traffic tunneled to the router for VLAN tagging

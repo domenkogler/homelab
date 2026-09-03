@@ -10,7 +10,7 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 > **Role:** Detail — imperative, step-by-step runbook to provision (or re-provision) the
 > Raspberry Pi 4 as the **Home Assistant primary** node. It is the concrete executor for
 > `deployment-manual.md` §Phase 4 / `deployment-tasks.md` §Phase 4 / HD-04 / HD-307 /
-> HD-313, and includes the KNX + dashboard pieces that landed 2026-09-03.
+> HD-319, and includes the KNX + dashboard pieces that landed 2026-09-03.
 > **Links to:** `deployment-manual.md` (§Phase 4), `deployment-tasks.md` (§Phase 4),
 > `smart-home.md` (KNX decision), `smart-home-failover.md` (VIP/failover),
 > `home-assistant-current.md` (live HAOS inventory), `network-addresses-generated.md` (IPs)
