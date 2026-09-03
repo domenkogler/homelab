@@ -1,0 +1,57 @@
+# Žaluzije (Covers) — position sliders per room.
+title: Žaluzije
+type: sections
+icon: mdi:blinds
+path: zaluzije
+max_columns: 2
+
+sections:
+  - type: grid
+    title: Dnevna soba
+    cards:
+      - type: tile
+        entity: cover.dnevna_soba_zaluzije_z5
+        icon: mdi:blinds
+        show_entity_picture: true
+
+  - type: grid
+    title: Hodnik
+    cards:
+      - type: tile
+        entity: cover.hodnik_zaluzije_z1
+
+  - type: grid
+    title: Kuhinja
+    cards:
+      - type: tile
+        entity: cover.kuhinja_zaluzije_z4
+
+  - type: grid
+    title: Kopalnica
+    cards:
+      - type: tile
+        entity: cover.kopalnica_zaluzije_z3
+
+  - type: grid
+    title: Kabinet
+    cards:
+      - type: tile
+        entity: cover.kabinet_zaluzije_z6
+
+  - type: grid
+    title: Spalnica
+    cards:
+      - type: tile
+        entity: cover.spalnica_zaluzije_z2
+
+  - type: grid
+    title: Soba 1
+    cards:
+      - type: tile
+        entity: cover.soba1_zaluzije_z8
+
+  - type: grid
+    title: Soba 2
+    cards:
+      - type: tile
+        entity: cover.soba2_zaluzije_z7

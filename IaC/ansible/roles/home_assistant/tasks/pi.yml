@@ -18,6 +18,65 @@
     mode: '0644'
   tags: [ha_recorder, hd19]
 
+# ---- Lovelace dashboard (Stanovanje, YAML mode) ----
+# Root + views are rendered under /config/lovelace/ (relative !include resolution).
+- name: Create lovelace directory
+  ansible.builtin.file:
+    path: /opt/home-assistant-primary/config/lovelace
+    state: directory
+    mode: '0755'
+  tags: [ha_render, lovelace]
+
+- name: Render Stanovanje dashboard root
+  ansible.builtin.copy:
+    src: lovelace/dashboard_stanovanje.yaml
+    dest: /opt/home-assistant-primary/config/lovelace/dashboard_stanovanje.yaml
+    mode: '0644'
+  tags: [ha_render, lovelace]
+
+- name: Render Stanovanje dashboard views (Pregled/Luci/Žaluzije/Ogrevanje)
+  ansible.builtin.copy:
+    src: "lovelace/{{ item }}"
+    dest: "/opt/home-assistant-primary/config/lovelace/{{ item }}"
+    mode: '0644'
+  loop:
+    - view_pregled.yaml
+    - view_luci.yaml
+    - view_zaluzije.yaml
+    - view_ogrevanje.yaml
+  tags: [ha_render, lovelace]
+
+
+
+# ---- KNX (docs/smart-home.md): ETS project file SSOT ----
+# knx-entities.yaml is generated from the .knxproj (scripts/knx-hass-gen.py) — the
+# configuration.yaml.j2 `knx: !include knx-entities.yaml` needs the file at
+# /config/knx-entities.yaml. The .knxproj itself is deployed to /config/knx/ so the
+# KNX panel can import it (Group Monitor names + knx.telegram destination_name).
+# Both files are static (no Jinja), copied not templated.
+- name: Deploy KNX entities file (generated from ETS project)
+  ansible.builtin.copy:
+    src: knx-entities.yaml
+    dest: /opt/home-assistant-primary/config/knx-entities.yaml
+    mode: '0644'
+  tags: [ha_render, knx]
+
+- name: Create KNX project directory
+  ansible.builtin.file:
+    path: /opt/home-assistant-primary/config/knx
+    state: directory
+    mode: '0755'
+  tags: [ha_render, knx]
+
+- name: Deploy ETS project file (StanovanjeKogler_v1_0.knxproj — KNX panel import)
+  ansible.builtin.copy:
+    src: "{{ role_path }}/files/StanovanjeKogler_v1_0.knxproj"
+    dest: /opt/home-assistant-primary/config/knx/StanovanjeKogler_v1_0.knxproj
+    mode: '0644'
+  tags: [ha_render, knx]
+
+
+
 # ---- secrets.yaml (HD-185/HD-204 pending renderer) ----
 # Render the 1Password-backed secrets file BEFORE docker_services brings the
 # compose up (render-first order). Values resolve via inline community.general.onepassword

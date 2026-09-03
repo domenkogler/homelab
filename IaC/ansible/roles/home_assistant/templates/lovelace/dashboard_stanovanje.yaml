@@ -1,0 +1,9 @@
+# Lovelace dashboard — Stanovanje (YAML mode). Modernized from the old
+# dashboard_stanovanje.yaml (docs/assets/references/old-ha/), room structure kept,
+# upgraded to HA sections/tiles. Rendered by the home_assistant role.
+title: Stanovanje
+views:
+  - !include lovelace/view_pregled.yaml
+  - !include lovelace/view_luci.yaml
+  - !include lovelace/view_zaluzije.yaml
+  - !include lovelace/view_ogrevanje.yaml
