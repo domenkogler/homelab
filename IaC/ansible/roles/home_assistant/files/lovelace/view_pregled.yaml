@@ -24,9 +24,6 @@ sections:
           - binary_sensor.soba2_v5_vrata
           - binary_sensor.spalnica_v8_vrata
           - binary_sensor.spalnica_v9_vrata
-      - type: weather
-        entity: weather.meteoblue_kogler_si_maribor
-        show_forecast: true
       - type: entities
         title: Rekuperator
         state_color: true
@@ -36,7 +33,9 @@ sections:
           - sensor.rekuperator_extract_temperature
           - sensor.rekuperator_exhaust_temperature
           - sensor.rekuperator_outdoor_temperature
-          - binary_sensor.rekuperator_filter_dirty
+          - sensor.rekuperator_supply_temperature
+          - sensor.rekuperator_room_humidity
+          - sensor.rekuperator_filter_replace
 
   # Dnevna soba
   - type: grid
