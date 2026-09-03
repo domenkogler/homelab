@@ -44,7 +44,7 @@ were deleted after folding — HD-153).
 - `file.kogler.si` (OpenCloud — native OIDC, HD-144)
 - `foto.kogler.si` (Immich — native OIDC, HD-148)
 - `ai.kogler.si` (Open WebUI — native OIDC, HD-101)
-- `sso.kogler.si` (Authentik itself — it IS the auth provider, so Forward-Auth would be circular; **HD-194**: the bouncer filters by source IP only and every callback path (`/application/o/<slug>/callback/`, `/outpost.goauthentik.io/*`) arrives as an ordinary browser request from a user IP — outpost↔server API traffic runs container-direct on services-internal, never through this router; brute force is additionally covered by the fail2ban `http-auth` jail)
+- `sso.kogler.si` (Authentik itself — it IS the auth provider, so Forward-Auth would be circular; **HD-194**: the bouncer filters by source IP only and every callback path (`/application/o/<slug>/callback/`, `/outpost.goauthentik.io/*`) arrives as an ordinary browser request from a user IP — outpost↔server API traffic runs container-direct on services-internal, never through this router; brute force is additionally covered by the fail2ban `http-auth` jail — **HD-280 (2026-09-04): now actually wired** — Traefik writes an accesslog (`/opt/traefik/logs/access.log`, compose dir-bind) and the jail uses a Traefik-CLF-aware filter matching 401/403 responses)
 - cockpit-nas/cockpit-oldsrv file-provider routes (own-login mgmt surface, HD-188)
 - HA standby via VIP
 
@@ -196,7 +196,9 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
 
 - **SSH hardening** ✅ — `MaxAuthTries 3`, `PasswordAuthentication no`, `PermitRootLogin no`, key-only `ansible-admin`
   (post_install.sh + role assert); **fail2ban** SSH jail (`maxretry 3`) + `http-auth` jail for public login pages
-  (n8n/Grafana/Forgejo). Owned by [deployment-preseed.md](deployment-preseed.md) (VPS) + [services-vps.md](services-vps.md)
+  (n8n/Grafana/Forgejo) — **HD-280 (2026-09-04):** the http-auth jail now reads the Traefik accesslog
+  (`/opt/traefik/logs/access.log`) via a Traefik-CLF filter (was `nginx-http-auth` on a non-existent log
+  path — dead). Owned by [deployment-preseed.md](deployment-preseed.md) (VPS) + [services-vps.md](services-vps.md)
   §VPS-Specific Firewall + `roles/vps-hardening/`. **HD-154. ✅ enforced.**
 - **Container/escape hardening** ✅ — the VPS `docker_services` compose uses `cap_drop`/`read_only`/`tmpfs` where
   possible; no public container gets `privileged` / host networking without a documented reason (§4 applies);

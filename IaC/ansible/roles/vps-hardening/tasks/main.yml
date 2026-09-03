@@ -18,7 +18,7 @@
     state: present
     update_cache: true
 
-- name: Configure fail2ban jails (SSH + nginx/Traefik http-auth)
+- name: Configure fail2ban jails (SSH + Traefik http-auth)
   copy:
     dest: /etc/fail2ban/jail.local
     mode: '0644'
@@ -34,12 +34,29 @@
       backend = systemd
       maxretry = 3
 
+      # HD-280 (2026-09-04): the old `nginx-http-auth` filter never matched Traefik's
+      # CLF accesslog format (and no accesslog was even enabled — the jail was dead).
+      # Traefik now writes /opt/traefik/logs/access.log (compose dir-bind ./logs ->
+      # /var/log/traefik in-container); the filter below matches the Traefik CLF line
+      # for requests that returned 401/403 (forward-auth login failures — the SSO
+      # brute-force signal). Filter ships in filter.d/traefik-http-auth.conf
+      # (deployed above this file by the same role).
       [http-auth]
       enabled = true
       port = http,https
-      filter = nginx-http-auth
-      logpath = /var/log/traefik/access.log
+      filter = traefik-http-auth
+      logpath = /opt/traefik/logs/access.log
       maxretry = 5
+  notify: restart fail2ban
+
+- name: Install fail2ban traefik-http-auth filter (HD-280)
+  copy:
+    dest: /etc/fail2ban/filter.d/traefik-http-auth.conf
+    mode: '0644'
+    content: |
+      [Definition]
+      failregex = ^<HOST> - - \[.*\] "(?:POST|GET) .*" (401|403) .*$
+      ignoreregex =
   notify: restart fail2ban
 
 - name: Ensure fail2ban is running + enabled

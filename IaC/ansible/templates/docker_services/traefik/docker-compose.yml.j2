@@ -59,6 +59,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./dynamic:/etc/traefik/dynamic:ro   # cockpit.yml + routes.yml (ha) + tls.yml — file provider
+      - ./logs:/var/log/traefik               # HD-280: fail2ban http-auth jail reads host /opt/traefik/logs/access.log
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       - ./acme:/etc/traefik/acme            # acme.json ACME state (persistent; ISSUER only)
 {% else %}
@@ -97,6 +98,15 @@ services:
       traefik.http.routers.traefik-dash.service: api@internal
     command:
       - "--log.level=INFO"
+      # HD-280 (2026-09-04): accesslog for the fail2ban http-auth jail. Traefik's
+      # default accesslog goes to stdout (docker logs); fail2ban needs a HOST file,
+      # so bind-mount a LOGS DIRECTORY (./logs -> /var/log/traefik, host path
+      # /opt/traefik/logs — Docker auto-creates a directory for a dir bind, then
+      # Traefik creates access.log inside it) and point --accesslog.filepath there.
+      # buffer=true batches writes.
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+      - "--accesslog.bufferingsize=100"
       # Docker provider — only explicitly-labelled services are exposed.
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
