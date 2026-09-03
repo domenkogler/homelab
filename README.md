@@ -68,7 +68,9 @@ task-specific dispatch. Do **not** bulk-read the repo.
 - **Hosts:** single namespace `kogler.si` → `oldsrv`, `nas`, `pi`, `router`, `switch`, `vps`.
   Canonical list + naming/IP conventions: `docs/index.md` → Conventions.
 - **Recommended next tasks:** see the latest `prompt-*.md` handoff (date-stamped) — it names the
-  current most-valuable, laptop-doable items.
+  current most-valuable, laptop-doable items. **HD-312 phase 3 (iot-wan-allow per-MAC firewall
+  MAC-list + WAN egress) IaC is DONE (2026-09-03, `8442be7`) — deploy-gated on the next router
+  converge**; it un-blocks the cloud-IoT appliances (LG/Bosch/HAP) currently isolated on VLAN 20.
 
 ---
 
