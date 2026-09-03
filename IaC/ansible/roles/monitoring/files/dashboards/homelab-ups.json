@@ -86,6 +86,32 @@
       "targets": [{ "refId": "A", "expr": "nut_ups_realpower_watts", "instant": true }]
     },
     {
+      "type": "stat",
+      "title": "UPS status",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "unknown",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 80 },
+            { "color": "red", "value": 100 }
+          ]}
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              { "id": "custom.width", "value": 0 },
+              { "id": "custom.hide", "value": true }
+            ]
+          }
+        ]
+      },
+      "targets": [{ "refId": "A", "expr": "nut_ups_status", "instant": true }]
+    },
+    {
       "type": "timeseries",
       "title": "Input vs output voltage",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },

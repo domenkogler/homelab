@@ -106,6 +106,10 @@ services:
       - "--api.insecure=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      # Metrics endpoint (HD-315, 2026-09-04): dedicated internal entrypoint for the
+      # Prometheus scrape job (traefik:8082 on traefik-public — prometheus.yml.j2).
+      # Never published on a host port; overlay-reachable only.
+      - "--entryPoints.metrics.address=:8082"
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       # ACME DNS-01 (wildcard) — single issuer for *.kogler.si (VPS ONLY, HD-178/181).
       - "--certificatesresolvers.letsencrypt.acme.email={{ letsencrypt_email }}"
@@ -118,6 +122,14 @@ services:
       # CrowdSec bouncer plugin (WAF) — blocks malicious IPs via CrowdSec LAPI.
       - "--experimental.plugins.crowdsec-bouncer.moduleName=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
       - "--experimental.plugins.crowdsec-bouncer.version={{ crowdsec_bouncer_plugin_version }}"
+      # Prometheus metrics (HD-315 gap, 2026-09-04): scrape job targets traefik:8082
+      # (prometheus.yml.j2) but no metrics endpoint was enabled -> traefik_requests_total
+      # was empty and up{job="traefik"} showed 0 (selfmonitoring red row). Bind to the
+      # loopback so 8082 is overlay-reachable only (never published on the host WAN);
+      # scraped inside traefik-public where the Prometheus container sits.
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.addr=:8082"
+      - "--metrics.prometheus.entryPoint=metrics"
 
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
   # certs-dumper sidecar — turns Traefik's acme.json into the flat PEM pair the
