@@ -114,7 +114,7 @@ storage_datasets:
   - { name: bulk/data,            props: { canmount: off, mountpoint: none } }
   - { name: bulk/data/services,   props: { recordsize: 128K, compression: zstd, <<: *common } }
   - { name: bulk/data/db-dumps,   props: { recordsize: 128K, compression: zstd, <<: *common } }
-  - { name: bulk/data/immich-thumbs, props: { recordsize: 128K, compression: lz4, <<: *common } }  # kept (HD-151): nightly face-thumbnail push target
+  - { name: bulk/data/immich-thumbs, props: { recordsize: 128K, compression: lz4, mountpoint: /bulk/data/immich-thumbs, <<: *common } }  # kept (HD-151): nightly face-thumbnail push target — explicit mountpoint (parent bulk/data is mountpoint=none; NFS export target, live-found 2026-09-03)
   # --- oldsrv pool "nvme" — compute-host data (NAS-backed or regenerable) ---
   - { name: nvme/docker-layers,   props: { recordsize: 128K, compression: lz4, atime: "off", mountpoint: /var/lib/docker } }
   - { name: nvme/docker,          props: { canmount: off, mountpoint: none } }

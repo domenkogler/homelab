@@ -24,8 +24,10 @@
   ansible.builtin.apt:
     name:
       - zfsutils-linux
-      - sanoid
-      - syncoid
+      - sanoid        # ships syncoid (replication tool) — syncoid is NOT a separate
+                      # Debian package on trixie (live-found 2026-09-03 nas provision)
+      - zfs-dkms      # builds the native zfs kernel module (stock Debian kernel lacks it;
+                      # modprobe zfs failed live 2026-09-03 — the module only arrives via DKMS)
     state: present
     update_cache: true
 
@@ -45,7 +47,7 @@
   community.general.modprobe:
     name: zfs
     state: present
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian'
 
 - include_tasks: zfs_common.yml
 - include_tasks: zfs_exporter.yml

@@ -12,6 +12,13 @@
     state: reloaded
   tags: always
 
+- name: reload dhcpcd
+  ansible.builtin.systemd:
+    name: dhcpcd
+    state: restarted
+    daemon_reload: true
+  tags: always
+
 - name: reload systemd-networkd
   ansible.builtin.systemd:
     name: systemd-networkd

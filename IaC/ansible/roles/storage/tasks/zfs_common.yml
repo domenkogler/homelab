@@ -12,12 +12,19 @@
 # NFS/SMB exports (anonuid/anongid), and the filesystem/SMB-backed service containers
 # (*arr, OpenCloud-local). uid/gid come from storage_uid/storage_gid (default 1005),
 # matching the NFS root_squash anonuid/anongid so exported trees align.
-- name: Create neutral shared-data owner (media, storage_uid/storage_gid)
+- name: Create neutral shared-data group (media, storage_gid)
+  ansible.builtin.group:
+    name: media
+    system: true
+    gid: "{{ storage_gid }}"
+  when: storage_uid is defined and storage_gid is defined
+
+- name: Create neutral shared-data user (media, storage_uid) in the media group
   ansible.builtin.user:
     name: media
     system: true
     uid: "{{ storage_uid }}"
-    group: "{{ storage_gid }}"
+    group: media
     shell: /usr/sbin/nologin
     create_home: false
   when: storage_uid is defined and storage_gid is defined

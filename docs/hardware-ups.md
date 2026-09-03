@@ -12,7 +12,7 @@ tags: [hardware, ups, power, modbus, nut]
 > **Links to:** `hardware-nas.md`, `network-rack.md`, `network-vlans.md`, `home-assistant-current.md`, `observability.md`
 > **Linked from:** `hardware.md`, `index.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** UPS hardware exists (PowerWalker on the rack); NUT monitoring does not. The PowerWalker is on the rack (VLAN 99, `ups` host per SSOT) but the NUT master (nas) + clients (oldsrv/pi) are **not live yet** — deploy-gated ⏳ (HD-06/07/08/09, hosts unprovisioned).
+> 🟢 **NUT master LIVE 2026-09-03 (HD-06/314):** the PowerWalker VFI IoT 3000 is monitored from nas (NUT master) over USB — `upsc powerwalker@localhost` returns battery 100% / runtime / Innova Unity (Phoenixtec `06da:ffff`). `upsd` :3493 + `nut_exporter` :9199 active on nas; udev perms fixed (nut group), `retrycount` removed from ups.conf (invalid for usbhid-ups in NUT 2.8.1). Clients (oldsrv/pi) still ⏳ deploy-gated (Phase 3/4).
 
 ---
 
@@ -83,7 +83,7 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 ## Monitoring & Shutdown Status
 
 ### Roadmap (implementation pending)
-- [ ] **NUT on nas** — master: `usbhid-ups` (USB path), `upsd`, `nut_exporter`, `upssched-cmd` notify (per [`deployment-ansible.md`](deployment-ansible.md) `nut` role).
+- [x] **NUT on nas — LIVE 2026-09-03** — master: `usbhid-ups` (USB path), `upsd`, `nut_exporter`, `upssched-cmd` notify (per [`deployment-ansible.md`](deployment-ansible.md) `nut` role); `upsc powerwalker@localhost` verified (battery 100%, Innova Unity). Battery-pull test ⏳ (owner/manual).
 - [x] **NUT clients** on `oldsrv` + `pi` (*slave* mode) with per-host shutdown delay (60 s / 0 / 0) — ✅ **IaC done** (client upsmon, secret-free upssched-cmd, deferred-shutdown via upssched ONBATT timer — HD-07); ⏳ live deploy pending host provisioning.
 - [ ] Wire UPS metrics + alerts into Prometheus/Grafana (see [`observability.md`](observability.md)) — Critical battery/runtime, Warning on-battery, Info transitions. ⚠ **needs research + decision:** alert rules in the monitoring role assume the DRuggeri/nut_exporter `nut_ups_status` bitmask (`1=OL, 2=OB, 16=RB`); verify the installed exporter version's status flags + metric names at deploy before relying on on-battery / replace-battery alerts. See monitoring role `vars/main.yml`.
 - [ ] Open firewall rule 80/443 Home→Mgmt for the UPS **web UI** only (Modbus **502 retired** — no consumer, see [`network-vlans.md`](network-vlans.md)).

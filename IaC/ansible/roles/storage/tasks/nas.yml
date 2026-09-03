@@ -5,6 +5,12 @@
 # ---------------------------------------------------------------------------
 # sanoid — snapshot schedules (sanoid.conf from storage_sanoid map)
 # ---------------------------------------------------------------------------
+- name: Ensure /etc/sanoid exists
+  ansible.builtin.file:
+    path: /etc/sanoid
+    state: directory
+    mode: '0755'
+
 - name: Render sanoid.conf
   ansible.builtin.template:
     src: sanoid.conf.j2

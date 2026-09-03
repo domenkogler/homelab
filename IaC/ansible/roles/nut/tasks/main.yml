@@ -44,7 +44,7 @@
     src: ups.conf.j2
     dest: /etc/nut/ups.conf
     owner: root
-    group: root
+    group: nut
     mode: '0640'
   when: nut_mode == 'master'
   notify: restart nut services
@@ -54,7 +54,7 @@
     src: upsd.conf.j2
     dest: /etc/nut/upsd.conf
     owner: root
-    group: root
+    group: nut
     mode: '0640'
   when: nut_mode == 'master'
   notify: restart nut services
@@ -64,7 +64,7 @@
     src: upsd.users.j2
     dest: /etc/nut/upsd.users
     owner: root
-    group: root
+    group: nut
     mode: '0640'
   when: nut_mode == 'master'
   notify: restart nut services
@@ -74,7 +74,7 @@
     src: upsmon.conf.j2
     dest: /etc/nut/upsmon.conf
     owner: root
-    group: root
+    group: nut
     mode: '0640'
   when: nut_mode == 'master'
   notify: restart nut services

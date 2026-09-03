@@ -37,6 +37,15 @@
   when: _zfs_exporter_release | default('') != ''
   tags: [zfs_exporter]
 
+- name: Symlink extracted zfs_exporter binary to the canonical path
+  ansible.builtin.file:
+    src: "/usr/local/bin/zfs_exporter-{{ _zfs_exporter_release | replace('v', '') }}.{{ zfs_exporter_platform }}-{{ zfs_exporter_arch }}/zfs_exporter"
+    dest: /usr/local/bin/zfs_exporter
+    state: link
+    mode: '0755'
+  when: _zfs_exporter_release | default('') != ''
+  tags: [zfs_exporter]
+
 - name: Deploy zfs_exporter systemd unit
   ansible.builtin.template:
     src: zfs_exporter.service.j2

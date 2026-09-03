@@ -172,16 +172,23 @@ network_static_hosts:
   - { name: ap-dnevna, vlan: 99, ip: "10.10.99.5", mac: "C4:AD:34:42:F0:B9", role: "hAP ac² (dnevna)" }
   - { name: ap-spare,  vlan: 99, ip: "10.10.99.6", role: "hAP ac² spare" }
   - { name: ups,      vlan: 99, ip: "10.10.99.9",  mac: "00:20:85:C0:92:FA", role: "PowerWalker VFI 3000 IoT" }
-  - { name: nas,      vlan: 99, ip: "10.10.99.10", mac: "1C:98:EC:0E:0D:38", role: "HP MicroServer Gen8" }
+  - { name: nas,      vlan: 99, ip: "10.10.99.10", mac: "1C:98:EC:0E:0D:38", dhcp_client: mac, role: "HP MicroServer Gen8" }
   - { name: ilo,      vlan: 99, ip: "10.10.99.11", mac: "1C:98:EC:0E:0D:3A", role: "nas iLO4 BMC" }
   - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS secondary" }
-  - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", role: "i7-7700K node + DNS primary" }
+  - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "i7-7700K node + DNS primary" }
   - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop (admin, mgmt VLAN) — reaches mgmt via tagged-99 hop (Pi eth0.99), Home->Mgmt forward removed (strict)" }
   # Home VLAN 10
   - { name: router,   vlan: 10, ip: "10.10.1.1",   role: "Home gateway" }
-  - { name: nas,      vlan: 10, ip: "10.10.1.10",  mac: "1C:98:EC:0E:0D:38", role: "Cockpit/NFS/NUT master" }
+  # DHCP client-id = MAC (dhcp_client: mac) for the two DHCP-only Debian hosts (nas/oldsrv):
+  # their dhcpcd/NetworkManager send an RFC4361 DUID client-id by default, which does NOT
+  # match the MAC-keyed RouterOS DHCP reservations (network_static_hosts mac: field) — they
+  # land on the dynamic pool (.100/.101) instead of their reserved statics (.10/.30). The
+  # host-side `network` role (dhcp_client == 'mac') flips the client-id to the interface MAC
+  # so the existing RouterOS reservations bind (verified working pattern: knx/bosch/ups/ilo).
+  # SSOT for the marker; converge template + network role both derive from it (HD-314).
+  - { name: nas,      vlan: 10, ip: "10.10.1.10",  mac: "1C:98:EC:0E:0D:38", dhcp_client: mac, role: "Cockpit/NFS/NUT master" }
   - { name: pi,       vlan: 10, ip: "10.10.1.20",  mac: "E4:5F:01:26:EF:AA", role: "node + DNS secondary (VRRP anchor)" }
-  - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  mac: "70:85:C2:2D:6F:04", role: "node + DNS primary (VRRP anchor)" }
+  - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "node + DNS primary (VRRP anchor)" }
   - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
   - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
   - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }

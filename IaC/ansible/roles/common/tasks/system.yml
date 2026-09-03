@@ -12,6 +12,40 @@
       run Ansible — it would gain passwordless root via this role.
   tags: always
 
+# Debian trixie apt sources — a minimal/preseed install lands with NO network sources
+# (only a commented cdrom line), so `apt` has no package index at all (nas live-found
+# 2026-09-03: 'No package matching gpg is available' = empty candidate list). We write the
+# deb822 .sources directly (the deb822_repository module no-ops on this ansible-core in the
+# runner venv — reported changed, wrote nothing; live-repaired by direct write 2026-09-03).
+# Canonical trixie main/contrib/non-free-firmware + security + updates.
+- name: Ensure Debian trixie apt sources exist (fresh-install gap)
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/debian-trixie.sources
+    content: |
+      Types: deb
+      URIs: http://deb.debian.org/debian
+      Suites: trixie trixie-updates
+      Components: main contrib non-free-firmware
+      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+    mode: '0644'
+  register: apt_sources
+  when: ansible_facts['distribution'] == 'Debian' and ansible_facts['distribution_major_version'] | int >= 13
+  tags: always
+
+- name: Ensure Debian trixie-security apt sources exist
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/debian-trixie-security.sources
+    content: |
+      Types: deb
+      URIs: http://deb.debian.org/debian-security
+      Suites: trixie-security
+      Components: main contrib non-free-firmware
+      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+    mode: '0644'
+  register: apt_security_sources
+  when: ansible_facts['distribution'] == 'Debian' and ansible_facts['distribution_major_version'] | int >= 13
+  tags: always
+
 - name: Update apt repositories and install prerequisites
   apt:
     name: [apt-transport-https, ca-certificates, curl, gpg, python3-pip, acl, python3-debian, python3-apt, jq]  # jq: authentik secret-egress glue parses API JSON host-side (found missing on the minimal image, Phase 1 2026-08-22)

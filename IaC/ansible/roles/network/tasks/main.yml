@@ -98,6 +98,67 @@
   notify: reload systemd-networkd
   tags: [network, netd]
 
+# ---- DHCP client-id = MAC (HD-314) ------------------------------------------
+# nas/oldsrv are the only DHCP-managed homelab hosts (Pi+VPS are static). Their DHCP
+# client (dhcpcd on nas, NetworkManager on oldsrv) presents an RFC4361 DUID client-id by
+# default, which does NOT match the MAC-keyed RouterOS reservations in network_static_hosts
+# (mac: field) — so they land on the dynamic VLAN-10 pool (.100/.101) instead of their
+# reserved statics (.10/.30). RouterOS matches reservations on client-id (DUID ≠ MAC pretty
+# much always), so the host must present the interface MAC as client-id.
+#
+# The marker lives in the SSOT (network_static_hosts dhcp_client: mac on nas/oldsrv rows);
+# this block applies it on the host: dhcpcd gets `clientid` (MAC/LL client-id) in its conf,
+# NetworkManager gets ipv4.dhcp-client-id=mac. The netd-phys .network unit also carries
+# ClientIdentifier=mac so the same invariant survives the eventual systemd-networkd cutover.
+- name: Assert dhcp_client marker resolves for any host opting in
+  assert:
+    that:
+      - dhcp_client | default('none') == 'mac'
+    fail_msg: "dhcp_client marker on {{ inventory_hostname }} is not 'mac' (SSOT) HD-314"
+  when: dhcp_client is defined
+  tags: [network, dhcp-client]
+
+- name: dhcpcd disable the RFC4361 DUID (nas; dhcpcd managed by ifupdown)
+  ansible.builtin.lineinfile:
+    path: /etc/dhcpcd.conf
+    # neutralize the RFC4361 DUID (the default) so the server sees only our MAC client-id
+    regexp: '^((#)?[[:space:]]*)duid([[:space:]]+.*)?$'
+    line: '# duid (disabled by HD-314: MAC client-id, see clientid below)'
+    create: false
+  register: dhcpcd_duid
+  when:
+    - dhcp_client | default('none') == 'mac'
+    - inventory_hostname == 'nas.kogler.si'
+  notify: reload dhcpcd
+  tags: [network, dhcp-client]
+
+- name: enable dhcpcd MAC client-id (nas)
+  ansible.builtin.lineinfile:
+    path: /etc/dhcpcd.conf
+    # replace any existing clientid/duid line with the MAC client-id (idempotent)
+    regexp: '^((#)?[[:space:]]*)clientid[[:space:]].*$'
+    line: 'clientid mac'
+    create: false
+  when:
+    - dhcp_client | default('none') == 'mac'
+    - inventory_hostname == 'nas.kogler.si'
+  notify: reload dhcpcd
+  tags: [network, dhcp-client]
+
+- name: NetworkManager client-id -> interface MAC (oldsrv)
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - connection
+      - modify
+      - "Wired connection 1"
+      - ipv4.dhcp-client-id
+      - mac
+  when:
+    - dhcp_client | default('none') == 'mac'
+    - inventory_hostname == 'oldsrv.kogler.si'
+  changed_when: false
+  tags: [network, dhcp-client]
 # Load the profile into NetworkManager (idempotent: `load` then `up` the connection).
 # HD-311 (b): tagged Mgmt sub-interface (eth0.99) — SAME Windows of correctness as pi-eth0:
 # render-only on pi.kogler.si; never on another host. The Mgmt plane is ONLY reachable via

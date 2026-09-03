@@ -194,7 +194,7 @@
 - [x] **[MANUAL]** Execute the Pool-Creation Runbook ([docs/hardware-nas.md](docs/hardware-nas.md)) — bulk RAIDZ2 first, legacy pool migrated into `bulk/migrate`, tank mirror; export both pools before the nas installer boots. ✅ **2026-08-23** — executed on the running Debian (gen8): SMART all-pass pre-check (report archived); legacy pool = `new-pool` (~1.96 T) sent `-R` into `bulk/migrate` (57 snapshots, tree-diff + subtree diff clean); second pool `backup` destroyed as disposable (owner decision b); `tank` mirror ONLINE; both pools EXPORTED — installer-ready. As-built: [deployment-tasks.md §Phase 1a](deployment-tasks.md) + [hardware-nas.md](docs/hardware-nas.md) (ledger + commit evidence).
 - [x] **[MANUAL]** Reinstall oldsrv via preseed media (retires the rarely-used Windows 10 install); capture the real NVMe by-ids and fill HD-128 (`storage_nvme_data_by_id`). ✅ **2026-08-23** — installed interactively (manual partitioning; see [hardware-oldsrv.md](docs/hardware-oldsrv.md) + commit for why automation was bypassed); by-ids verified 2026-08-22 (HD-128 closed); catch-up via `bootstrap-oldsrv.sh` (ansible-admin/ai-debug/keys/hardening) — `ssh ansible-admin@oldsrv` key-only confirmed. **Hold rule active:** no Ansible runs against oldsrv until Phase 1.5 cutover.
 - [x] **[MANUAL]** Reinstall nas via preseed media (boot-disk/USB by-ids already pinned, HD-206). ✅ **2026-08-23** — FULLY AUTOMATED install succeeded hands-off (Automated grub entry, ZERO interactive questions; early_command resolved the Crucial by-id, GRUB landed on the Generic_Flash_Disk carrier pin, late_command ran the keyed post_install) — preseed path re-proven (oldsrv had gone interactive); SanDisk booted explicitly via iLO one-time menu, pulled before reboot; Generic carrier stays (HD-226 roles). Verified post-install: `ssh ansible-admin@nas` key-only, `domen@nas` refused (AllowUsers), hostname `nas`, both Crucial by-id forms resolve, six data-disk by-ids intact (`zfs_member` labels survived untouched — pools stay exported for the Phase-2 import-only role), hardening drop-in + admin keys live. As-built: [deployment-tasks.md §Phase 1a](deployment-tasks.md) + [hardware-nas.md](docs/hardware-nas.md) (ledger + commit). **Hold rule active:** no Ansible runs against nas until Phase 1.5 cutover.
-- [ ] **Hold:** NO playbook runs against either host until the Phase 1.5 cutover — first Ansible contact happens with the new VLANs live.
+- [x] **Hold REMOVED 2026-09-03** — Phase 1.5 is live (VLANs + router converged); first Ansible contact happened on **nas** (Phase 2 storage.yml, 2026-09-03). oldsrv stays on DHCP until Phase 3; same holds-no-longer-apply note. — first Ansible contact happens with the new VLANs live.
 
 ## Phase 1.5 — Network Redo from Scratch (Router RB4011 + Switch CRS328)
 
@@ -239,11 +239,11 @@
 > by `post_install.sh`. **No Docker on NAS.**
 > **Continuation:** the NAS is the **NUT master** — `oldsrv` and `pi` are NUT clients and depend on it.
 
-1. **Preseed install** — boot the HP MicroServer from `IaC/host/nas/preseed.cfg`
+1. - [x] **[MANUAL]** **Preseed install** — ✅ done 2026-08-23 (Phase 1a); boot the HP MicroServer from `IaC/host/nas/preseed.cfg`
    (single-SSD boot; ZFS HDDs **not touched** by preseed) + shared `IaC/host/post_install.sh`
    (ansible-admin + ai-debug keys, sshd hardening).
-2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/storage.yml`:
-   `common` → `ai_diag` → `network` (static on VLAN 10, IP per SSOT) → `storage` (ZFS import/create, datasets, NFS exports) → `nut` (mode=master) → `cockpit`.
+2. - [x] **Ansible** — ✅ **EXECUTED 2026-09-03 (failed=0):** `ansible-playbook -i inventory.ini playbooks/storage.yml`:
+   `common` → `ai_diag` → `network` (client-id=MAC on 10.10.1.10 + tagged-99 netd units; HD-314) → `storage` (ZFS import, datasets+props, NFS exports, sanoid/syncoid, Samba, exporters) → `nut` (mode=master, LIVE) → `cockpit` (cockpit-storaged on trixie).
 3. **NUT master** — `nut-server` + `usbhid-ups` (PowerWalker USB), `upsd` listening intra-VLAN
    `nas:3493` (no inter-VLAN rule needed — see `docs/hardware-ups.md`), `nut_exporter` as a
    host binary (:9199), `upssched-cmd` email/Signal notify (`smtp_login`).

@@ -16,7 +16,10 @@
 
 - name: Install cockpit
   apt:
-    name: "{{ ['cockpit'] + (['cockpit-zfs'] if inventory_hostname == 'nas.kogler.si' else []) }}"
+    # trixie has no cockpit-zfs package (community plugin, not packaged); cockpit-storaged
+    # is the packaged storage UI and shows ZFS pools via the storaged backend (live-found
+    # 2026-09-03 nas provision — 'No package matching cockpit-zfs is available').
+    name: "{{ ['cockpit'] + (['cockpit-storaged'] if inventory_hostname == 'nas.kogler.si' else []) }}"
     state: present
     update_cache: true
 

@@ -29,3 +29,8 @@ netd_vlan_description: "{{ inventory_hostname }} tagged Management VLAN (99) sub
 # untagged parent — the dual-home design's Home plane would silently carry the wrong IP.)
 host_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', inventory_hostname_short) | selectattr('vlan', 'equalto', 10) | map(attribute='ip') | list | first) }}"
 home_gateway_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 10) | map(attribute='ip') | list | first) }}"
+
+# DHCP client-id strategy per host (HD-314), derived from the SSOT row: dhcp_client: mac on
+# nas/oldsrv rows tells the host to present its interface MAC as client-id so the RouterOS
+# reservation (mac: field) binds. Undefined -> 'none' on static hosts (Pi/VPS) — no DHCP client.
+dhcp_client: "{{ (network_static_hosts | selectattr('name', 'equalto', inventory_hostname_short) | selectattr('vlan', 'equalto', 10) | selectattr('dhcp_client', 'defined') | map(attribute='dhcp_client') | list | first) | default('none') }}"

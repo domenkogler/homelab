@@ -3,4 +3,4 @@
 # Hardlinks only ever cross within bulk/media.
 {% for e in storage_exports %}
 {{ e.path }} {{ _nfs_clients }}(rw,sync,no_subtree_check,root_squash,anonuid={{ storage_uid }},anongid={{ storage_gid }})
-{%- endfor %}
+{% endfor %}
