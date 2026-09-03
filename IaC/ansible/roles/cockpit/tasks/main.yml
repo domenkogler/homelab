@@ -37,7 +37,19 @@
   loop: "{{ ansible_admin_users }}"
 
 # Only the Traefik host (oldsrv) drops the route config. Traefik's file
-# provider must watch /opt/traefik/dynamic (see services-traefik.md).
+# provider must watch /opt/traefik/dynamic (see services-traefik.md). On a
+# fresh provision (cockpit runs BEFORE docker_services/traefik), the dir does
+# not exist yet — create it first (idempotent), else the template fails
+# 'Destination directory ... does not exist' (live 2026-09-03 oldsrv).
+- name: Ensure Traefik file-provider dynamic dir exists
+  ansible.builtin.file:
+    path: /opt/traefik/dynamic
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: inventory_hostname == 'oldsrv.kogler.si'
+
 - name: Deploy Traefik file-provider routes for cockpit subdomains
   template:
     src: cockpit-routes.yml.j2
