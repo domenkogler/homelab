@@ -2,7 +2,7 @@
 # Rendered by Ansible; secrets resolved from 1Password `Homelab-ansible` at deploy time.
 #
 # Vault-escape note: this file is consumed by Tuwunel itself (NOT `docker compose`
-# interpolation), so `{{ vault['…'] }}` values pass through unchanged. Compose's
+# interpolation), so `vault['<item>']` values pass through unchanged. Compose's
 # `$`-substitution only applies to compose files (HD-270/HD-233 lesson). TOML values
 # here use `replace('\\','\\\\') | replace('"','\\"')` for TOML escaping (single/double-
 # quote + backslash safety); `|`|replace('$','$$')` is NOT needed because compose never

@@ -1,6 +1,6 @@
 # prometheus web-config.yml — Basic Auth for the Prometheus HTTP endpoint (HD-59)
 # Vault-escape note: this file is consumed by Prometheus itself (NOT `docker compose`
-# interpolation), so `{{ vault['…'] }}` values pass through unchanged. Compose's
+# interpolation), so `vault['<item>']` values pass through unchanged. Compose's
 # `$`-substitution only applies to compose files (HD-270/HD-233 lesson). url/urlencode
 # refs already escape; raw `vault['x'].credential` here is safe — no `| replace('$','$$')`.
 #   Prometheus `--web.config.file` requires bcrypt-hashed passwords in `basic_auth_users`.
