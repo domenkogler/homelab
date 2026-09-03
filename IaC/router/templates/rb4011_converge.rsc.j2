@@ -306,6 +306,15 @@ add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.11
 # 5683 push path is the reverse direction, already covered by trusted-ha
 # above). Same pattern as the KNX narrow exception (HD-319).
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=tcp dst-port=80 comment="Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"
+# Shelly Gen1 CoIoT/CoAP client (HA -> Shelly fleet on IoT) (HD-323): the
+# Gen1 Shelly integration's config flow + runtime BlockDevice open a CoAP
+# client session TOWARD each device on udp/5683 (requests/management), in
+# ADDITION to the reverse push the device sends to HA (covered by
+# trusted-ha above). Without this forward new-UDP the config flow's
+# validate_input (BlockDevice.initialize -> CoAP GET to the device) fails
+# with "cannot_connect" and the device can't be added in the UI. Narrow:
+# Home(10) only, dst-port 5683 only.
+add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=udp dst-port=5683 comment="Home Pi (HA) -> Shelly CoIoT/CoAP client (new UDP)"
 add chain=forward action=accept src-address-list=trusted-admin dst-address=10.10.21.0/24 comment="Trusted admin -> IoT-Internet (new)"
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.21.0/24 protocol=tcp connection-state=established,related comment="Home -> IoT-Internet (est/rel)"
 add chain=forward action=accept src-address-list=trusted-admin dst-port=80,443 protocol=tcp dst-address-list=ups_management comment="Trusted admin -> UPS web UI"

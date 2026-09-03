@@ -42,6 +42,11 @@ services:
       - services-internal
     ports:
       - "8123:8123"   # VIP:8123 must keep resolving to HA (traefik-ha + prometheus)
+      - "5683:5683/udp"   # Gen1 Shelly CoIoT/CoAP push (HD-323): the CoAP server binds inside
+                          # the container; publishing udp/5683 to the host makes it reachable at
+                          # the VIP (10.10.1.200) from the IoT VLAN. Without this, the Shelly
+                          # integration could never receive device registration/state updates
+                          # (blocked the UI add in HD-320's owner tail).
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:

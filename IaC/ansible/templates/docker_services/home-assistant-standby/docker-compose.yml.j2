@@ -23,6 +23,10 @@ services:
       - ALL
     networks:
       - services-internal     # reaches Traefik via VIP; plus host/VLAN for device control
+    ports:
+      - "5683:5683/udp"   # Gen1 Shelly CoIoT/CoAP push (HD-323) — same as primary: when the
+                          # VIP moves here on takeover, the standby must also serve Shelly CoAP
+                          # at the VIP. (Cold standby, so this only binds while the container runs.)
     # Device control requires reaching the Home VLAN + IoT VLAN device IPs,
     # so network_mode/macvlan or a routed network to VLAN 10 is needed
     # (implement per deployment-compose.md conventions).
