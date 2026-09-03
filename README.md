@@ -82,10 +82,15 @@ task-specific dispatch. Do **not** bulk-read the repo.
   `tablet-valentina` + `tablet-ipad` — per-MAC kids controls (bedtime/DoT/DNS-filter) are the next
   implement item. Remaining tails (kids-* controls, n8n firmware automation) are in
   [`todo.md`](todo.md) HD-312/HD-326. **HD-317 Technitium DNS-primary on the VPS is LIVE** (3-instance DNS
-  HA); the split-horizon A-record **seed is DONE + LIVE on the VPS primary AND Pi tertiary**
-  (HD-324, 2026-09-03 — VPS admin recreated to the 1P value via the documented API; the seed
-  role now idempotent). oldsrv secondary seeds automatically once its Phase-3 admin is up.
-  Detail: [`todo.md`](todo.md) HD-317.
+  HA); the split-horizon A-record **seed is DONE + LIVE on the VPS primary** (HD-324, 2026-09-03 —
+  VPS admin recreated to the 1P value via the documented API; the seed role now idempotent).
+  **The `dns-pi` (Pi tertiary) 5380 web-UI publish is LIVE (2026-09-04, HD-317)** — `technitium-pi`
+  now publishes `5380:5380/tcp` (the 502 root cause — no listener — is gone; `pi:5380` answers HTTP 200);
+  the **Pi tertiary's A-record seed is still BLOCKED** on its admin being rotated from the default
+  `admin`/`admin` to the 1P `technitium_login` value (**HD-330**, same class as the VPS HD-324 fix) — its
+  zone is empty until then; oldsrv secondary seeds once its Phase-3 admin is up. **HD-315 (UPS exporter)
+  pinned to `v3.3.0` (2026-09-04)** — replaces the `@latest`→`(devel)` drift on nas.
+  Detail: [`todo.md`](todo.md) HD-317 / HD-330.
 
 ---
 
