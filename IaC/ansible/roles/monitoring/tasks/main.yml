@@ -159,6 +159,40 @@
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, routeros-syslog]
 
+# ---- CrowdSec RouterOS acquisition (HD-313) ----
+# The acquisition file must live in the CrowdSec config mount's acquis.d/:
+# /srv/docker/crowdsec/config -> /etc/crowdsec in-container, and CrowdSec reads
+# acquisitions from /etc/crowdsec/acquis.d/. A compose-dir extra-template copy
+# (/opt/crowdsec/) is dead — CrowdSec never reads it (live gap found 2026-09-03
+# while closing the HD-313 deploy gate). This role owns the single live copy.
+# VPS-only (the CrowdSec host). Idempotent: template + docker-compose restart
+# only when the file changes.
+- name: Create CrowdSec acquis.d directory in the config mount
+  ansible.builtin.file:
+    path: /srv/docker/crowdsec/config/acquis.d
+    state: directory
+    mode: '0755'
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, routeros-syslog]
+
+- name: Install CrowdSec RouterOS acquisition into the config mount (HD-313)
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/acquis-routeros.yml.j2"
+    dest: /srv/docker/crowdsec/config/acquis.d/acquis-routeros.yml
+    mode: '0644'
+  register: acquis_result
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, routeros-syslog]
+
+- name: Restart CrowdSec when the RouterOS acquisition changed
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker_compose_dir }}/crowdsec"
+    state: restarted
+  when:
+    - inventory_hostname in groups['monitoring']
+    - acquis_result is changed
+  tags: [monitoring, routeros-syslog]
+
 # ---- Grafana provisioning (step 3: datasources, dashboards, alerting) ----
 # Grafana compose mounts /srv/docker/grafana/provisioning → /etc/grafana/provisioning:ro
 # (templates/docker_services/grafana/docker-compose.yml.j2). Files are read at

@@ -75,8 +75,12 @@ _extra_templates:
     - dynamic/middlewares.yml.j2
     - dynamic/tls.yml.j2        # HD-181 — consumer default-store TLS (renders empty on the issuer)
     - certs-rename.sh.j2        # Wave-2 triage 2026-08-22 — wildcard pair rename (entrypoint + post-hook)
-  crowdsec:
-    - acquis-routeros.yml.j2    # HD-313 — RouterOS syslog acquisition (a1ad/mikrotik collection)
+  # crowdsec: HD-313 (2026-09-04) — no extra templates. The RouterOS acquisition
+  # now lands in the config mount via the monitoring role
+  # (acquis-routeros.yml.j2 -> /srv/docker/crowdsec/config/acquis.d/). Do NOT
+  # re-add an extra-template here: a compose-dir copy is dead — CrowdSec reads
+  # acquisitions from /etc/crowdsec/acquis.d/ only. (An empty-string entry would
+  # break the extra-template copy/remove-stub loops.)
   traefik-tailnet:
     - dynamic/routes.yml.j2     # tailnet subdomain → backend routers (file provider)
     - dynamic/middlewares.yml.j2

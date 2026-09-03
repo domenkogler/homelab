@@ -1248,11 +1248,14 @@
       - topics: firewall
         action: centralsyslog
         comment: "HD-313: firewall drops (port-scan scenario)"
+      # RouterOS 7 action-name rule (HD-313): letters+numbers only — the action is
+      # 'centralsyslog' (created above); 'central-syslog' is rejected by the API
+      # ('action may not contain -') so the rules would fail to create on converge.
       - topics: critical
-        action: central-syslog
+        action: centralsyslog
         comment: "HD-313: critical system events"
       - topics: warning
-        action: central-syslog
+        action: centralsyslog
         comment: "HD-313: warnings"
   tags: [network, router-logging]
 

@@ -45,6 +45,41 @@ loki.process "cleanup" {
     forward_to = [loki.write.local.receiver]
 }
 
+// ---- RouterOS syslog file -> Loki (HD-313) ----
+// The VPS host rsyslog receiver writes /var/log/remote-syslog/routeros.log
+// (RFC5424 from the RB4011 over wg-s2s — provisioned by the monitoring role).
+// CrowdSec tails it for WAF/port-scan; Loki must ALSO index it for search
+// (docs/observability.md SSOT matrix: RouterOS logs -> Loki 14d). Only the VPS
+// (backend host) holds the file (runs rsyslog; oldsrv collector does not).
+// The line is written by rsyslog with trailing newlines; stage.regex drops the
+// RFC5424 framing noise but keeps the raw message as the searchable body.
+{% if inventory_hostname == 'vps.kogler.si' %}
+loki.source.file "routeros_syslog" {
+    targets = [{
+        __path__ = "/var/log/remote-syslog/routeros.log",
+    }]
+    forward_to = [loki.process.routeros.receiver]
+    file_match {
+        enabled     = true
+        sync_period = "10s"
+    }
+}
+
+loki.process "routeros" {
+    // RFC5424: <PRI>VERSION TIMESTAMP HOSTNAME APP PROCID MSGID [SD] MSG
+    // Keep the whole line as body; label the source for querying (job=routeros-syslog).
+    stage.regex {
+        expression = "(?P<routeros_msg>.+)"
+    }
+    stage.labels {
+        values = {
+            job = "routeros-syslog",
+        }
+    }
+    forward_to = [loki.write.local.receiver]
+}
+{% endif %}
+
 // ---- Prometheus remote write (metrics → Prometheus) ----
 prometheus.remote_write "metrics" {
     endpoint {

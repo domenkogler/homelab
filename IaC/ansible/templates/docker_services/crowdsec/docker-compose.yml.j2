@@ -10,8 +10,10 @@
 #
 #   Docker socket access enables container-log parsing (Traefik logs).
 #   The RouterOS syslog stream lands on the HOST at /var/log/remote-syslog/
-#   (the host rsyslog tcp/udp receiver is the syslog listener; CrowdSec
-#   tails the file via acquis.d).
+#   (the host rsyslog receiver is the listener). The acquisition file lives in
+#   the config mount's acquis.d/ — provisioned by the monitoring role
+#   (NOT an extra-template; a compose-dir copy would be dead since CrowdSec
+#   reads acquisitions from /etc/crowdsec/acquis.d/).
 #   See docs/services-traefik.md §CrowdSec.
 services:
   crowdsec:
