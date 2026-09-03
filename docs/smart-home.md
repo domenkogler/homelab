@@ -39,7 +39,7 @@ tags: [smart-home, homeassistant]
 | Guition Round ESP32-S3 + Rotary Knob | Kitchen | ESPHome / Wi-Fi | Wake word mic, visual timer, rotary knob |
 | Android phones (family) | All rooms | HA Companion / Willow | Voice satellites (excellent mics) |
 | KNX devices | Whole house | KNX bus | Lights, blinds |
-| Shelly RGBW2 | Whole house | Wi-Fi | LED strip control |
+| Shelly RGBW2 | Whole house | Wi-Fi | LED strip control (4× Gen1 RGBW2 on IoT VLAN 20: kuhinja `.13`, wc `.14` 4-ch, orhideje `.15`, kopalnica `.16`) |
 | Nvidia Shield | Living room | Wi-Fi | Media playback |
 | Weather station (**HmIP-SWO-B**) | Outdoor | Homematic IP (868 MHz) | Temperature, humidity, wind, relative brightness, sunshine duration |
 | Heat-recovery ventilator (**Zehnder ComfoAir Q**) | Utility | KNX (ComfoConnect KNX-C) | Temperatures, flow rates |
@@ -105,6 +105,7 @@ shows up as HA entities going unavailable while the AC itself still works from t
 
 > **Failover design → [`smart-home-failover.md`](smart-home-failover.md).** Both nodes share a VIP (keepalived/VRRP); `ha.kogler.si` routes to the VIP so takeover needs no DNS flip or per-device reconfig. WAN loss is NOT a trigger (HA is local); failover is only for Pi failure and must work offline.
 - **Entity list:** Not yet exported — needed for HA Dashboard `lovelace` + Grafana generation (enable HA Prometheus exporter: see `observability.md`)
+- **Shelly integration (HA on the Pi):** the 4× Gen1 RGBW2 (`shelly-rgbw2-*`, IoT VLAN 20 — SSOT `network-addresses-generated.md`) need the **narrow new-TCP tcp/80 exception** logged in [`network-vlans.md`](network-vlans.md) (same pattern as the KNX HD-319 exception — the Pi is a node, not `trusted-admin`). The **device add itself is a HUMAN step**: HA's Shelly integration is config-flow (UI) only, added by IP (no mDNS across VLANs). Dashboard cards are authored in the lovelace views and bind once the devices are added.
 
 ### Remote access & SSO (ha.kogler.si)
 

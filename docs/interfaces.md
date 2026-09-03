@@ -48,7 +48,7 @@ tags: [services, interfaces, dashboards]
 - **Display surface:** Existing devices only (no purchase) — iPad (A16) + Android RT8 (both 80%-battery-capped) as wall/dash panels; family phones via **PWA / Home-screen bookmark**.
 - **Access:** `ha.kogler.si` — **local/VPN only**, `use_x_forwarded_for` + `trusted_proxies` (see `configuration.yaml.j2`). Dashboard works on iOS + Android identically (it's a browser PWA).
 - **Style:** Dark mode, modern, minimal; `card-mod` (v3.4.4) available for CSS polish.
-- **Config:** HA `lovelace` views/cards — declarative, generated via Ansible template from HA entities.
+- **Config:** HA `lovelace` views/cards — declarative, generated via Ansible template from HA entities. Views: Pregled/Luci/Žaluzije/Ogrevanje; Luci + Pregled also carry the **4× Shelly RGBW2 LED strips** (HD-320: `light.kuhinja`, `light.wc_4_channel_1..4`, `light.orhideje`, `light.kopalnica_2`) — authored, they render once the owner adds the devices in the HA UI by IP.
 - **PWA:** HA installs as a PWA from the browser → full-screen kiosk on the iPad (Guided Access) / RT8 (Companion or always-on) without an extra PWA layer.
 - **Grafana panels** can be embedded as iframe cards in the dashboard.
 

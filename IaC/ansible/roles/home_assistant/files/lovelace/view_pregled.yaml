@@ -57,6 +57,12 @@ sections:
       - type: tile
         entity: cover.dnevna_soba_zaluzije_z5
         icon: mdi:blinds
+      # Shelly RGBW2 (orhideje, VLAN 20) - LED strip
+      - type: tile
+        entity: light.orhideje
+        name: LED dnevna (orhideje)
+        icon: mdi:flower
+        color_state: true
 
   # Hodnik
   - type: grid
@@ -87,6 +93,12 @@ sections:
       - type: tile
         entity: light.kuhinja_luc_dimm_2_6
         icon: mdi:ceiling-light
+      # Shelly RGBW2 (kuhinja, VLAN 20) - LED strip
+      - type: tile
+        entity: light.kuhinja
+        name: LED kuhinja
+        icon: mdi:led-strip-variant
+        color_state: true
       - type: tile
         entity: cover.kuhinja_zaluzije_z4
         icon: mdi:blinds
@@ -136,6 +148,12 @@ sections:
       - type: tile
         entity: switch.kopalnica_radiator
         icon: mdi:radiator
+      # Shelly RGBW2 (kopalnica, VLAN 20) - LED strip
+      - type: tile
+        entity: light.kopalnica_2
+        name: Kopalnica LED
+        icon: mdi:led-strip-variant
+        color_state: true
 
   # Sobe + Kabinet + WC + Pralnica
   - type: grid
@@ -180,6 +198,23 @@ sections:
     cards:
       - type: tile
         entity: light.wc_luc_on_off_1_5
+      # Shelly RGBW2 (wc, VLAN 20) - 4-ch white LED strip
+      - type: tile
+        entity: light.wc_4_channel_1
+        icon: mdi:led-strip-variant
+        color_state: true
+      - type: tile
+        entity: light.wc_4_channel_2
+        icon: mdi:led-strip-variant
+        color_state: true
+      - type: tile
+        entity: light.wc_4_channel_3
+        icon: mdi:led-strip-variant
+        color_state: true
+      - type: tile
+        entity: light.wc_4_channel_4
+        icon: mdi:led-strip-variant
+        color_state: true
       - type: tile
         entity: switch.wc_radiator
         icon: mdi:radiator

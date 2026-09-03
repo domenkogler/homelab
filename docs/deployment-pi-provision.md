@@ -83,6 +83,10 @@ This (re)renders on the Pi:
   !include knx-entities.yaml` + `lovelace-stanovanje` + scripts**), `config/knx-entities.yaml`,
   `config/knx/StanovanjeKogler_v1_0.knxproj`, `config/lovelace/*` (4 views), **`secrets.yaml`
   (4 keys, mode 0600)** — all as **regular files** before `compose up` (HD-185 guard passes).
+  **Shelly additions (HD-320):** the lovelace views now include the 4× Shelly RGBW2 LED strips
+  (`light.kuhinja`, `light.wc_4_channel_1..4`, `light.orhideje`, `light.kopalnica_2`) — authored
+  now, they bind after the owner adds the devices in the HA UI by IP. The Pi→IoT **firewall rule**
+  (narrow new-TCP tcp/80, HD-319 pattern) lives in the `router` role / next router converge.
 - `docker_services` — installs the `docker-compose@.service` unit + brings up
   `home-assistant-primary`, `technitium-secondary`, `traefik-ha` (the HD-185 first-boot guard
   asserts `./config/configuration.yaml`, `./keepalived.conf`, `./secrets.yaml` are regular files).

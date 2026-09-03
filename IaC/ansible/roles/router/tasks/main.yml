@@ -564,6 +564,19 @@
         dst-port: 3671
         action: accept
         comment: "Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"
+      # Shelly Gen1 RGBW2 REST (HA on the Pi -> Shelly fleet on IoT): same reason
+      # as the KNX exception above — the Pi is a node, NOT in trusted-admin
+      # (HD-310 Mgmt-strict posture), so HA's outbound new-TCP to the Shelly HTTP
+      # API needs its own narrow exception. dst-port 80 only (Gen1 REST; the CoAP
+      # 5683 push path is the reverse direction, already covered by trusted-ha
+      # above). Same pattern as the KNX narrow exception (HD-319).
+      - chain: forward
+        src-address: "{{ vlan_subnets[10] }}"
+        dst-address: "{{ vlan_subnets[20] }}"
+        protocol: tcp
+        dst-port: 80
+        action: accept
+        comment: "Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"
       - chain: forward
         src-address-list: trusted-admin
         dst-address: "{{ vlan_subnets[21] }}"
