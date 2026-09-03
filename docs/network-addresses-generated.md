@@ -36,13 +36,13 @@
 | 99 | 10.10.99.9 | ups | PowerWalker VFI 3000 IoT |
 | 99 | 10.10.99.10 | nas | HP MicroServer Gen8 |
 | 99 | 10.10.99.11 | ilo | nas iLO4 BMC |
-| 99 | 10.10.99.20 | pi | RPi4 node + DNS secondary |
-| 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS primary |
+| 99 | 10.10.99.20 | pi | RPi4 node + DNS tertiary (HD-299) |
+| 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS secondary (HD-299) |
 | 99 | 10.10.99.80 | laptop-domen | Domen's laptop (admin, mgmt VLAN) — reaches mgmt via tagged-99 hop (Pi eth0.99), Home->Mgmt forward removed (strict) |
 | 10 | 10.10.1.1 | router | Home gateway |
 | 10 | 10.10.1.10 | nas | Cockpit/NFS/NUT master |
-| 10 | 10.10.1.20 | pi | node + DNS secondary (VRRP anchor) |
-| 10 | 10.10.1.30 | oldsrv | node + DNS primary (VRRP anchor) |
+| 10 | 10.10.1.20 | pi | node + DNS tertiary (HD-299; VRRP anchor) |
+| 10 | 10.10.1.30 | oldsrv | node + DNS secondary (HD-299; VRRP anchor) |
 | 10 | 10.10.1.50 | homematic-ccu-pi | RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought |
 | 10 | 10.10.1.51 | homematic-ccu-oldsrv | RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought |
 | 10 | 10.10.1.200 | ha-vip | keepalived VIP — ha.kogler.si |
@@ -87,6 +87,7 @@
 | db-internal | 172.22.0.0/16 | Docker bridge — databases (fully isolated) |
 | llm-backend | 172.23.0.0/16 | Docker bridge — LLM backend (Ollama) ↔ LiteLLM only, fully isolated (HD-59) |
 | tailnet-apps | 172.24.0.0/16 | Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't |
+| dns-servers | 172.25.0.0/24 | Docker bridge — Technitium DNS primary (VPS) ↔ its Traefik edge; the container pin is tchnitium_dns_overlay_ip (client resolver = VPS public IP, dns_primary_ip)  |
 | site | 10.10.0.0/16 | Whole homelab site — all VLANs (10.10.x.0/24) |
 | nfs-clients | 10.10.1.30/32 | NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP) |
 | modem-lan | 192.168.1.0/24 | Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /24 on this subnet (192.168.1.2/24 on ether1, connected route to the modem subnet) so the modem's web UI at 192.168.1.1 stays reachable from the homelab — the router presents trusted-admin traffic via srcnat masquerade (HD-302, live-fixed 2026-09-02 from the /32 that had no route) — for the twice-yearly PPPoE-redial dance. |
@@ -107,8 +108,9 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 
 | Purpose | Address | Host |
 |---------|---------|------|
-| DNS primary (Technitium) | 10.10.1.30 | oldsrv |
-| DNS secondary (Technitium) | 10.10.1.20 | pi |
+| DNS primary (Technitium) | 159.195.111.66 (VPS public) | vps |
+| DNS secondary (Technitium) | 10.10.1.30 | oldsrv |
+| DNS tertiary (Technitium) | 10.10.1.20 | pi |
 | DNS secondary web UI (`dns-pi.kogler.si`) | VIP `10.10.1.200` (edge) → `10.10.1.20:5380` | pi |
 | Home Assistant VIP (`ha.kogler.si`) | 10.10.1.200 | pi ↔ oldsrv (keepalived) |
 
@@ -118,4 +120,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-03T05:45:21Z
+> Last generated: 2026-09-03T09:32:34Z

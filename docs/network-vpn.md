@@ -106,8 +106,9 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
   **Answer scope (verified live 2026-08-28):** Tailscale client MagicDNS ANSWERS only its
   `base_domain` (`ts.kogler.si`) — the `*.ts.kogler.si` twins work out of the box. For a FQDN
   matching a `search_domain` (`kogler.si`), the client queries its **configured nameserver for
-  that domain** (Technitium), NOT MagicDNS — so the plain `*.kogler.si` names require the
-  **Technitium A records → `tailnet_sidecar_ip` on BOTH instances** (see [`network-dns.md`](network-dns.md)
+  that domain** (Technitium — now the VPS primary, HD-299), NOT MagicDNS — so the plain
+  `*.kogler.si` names resolve through the VPS Technitium (nameserver first entry = `dns_primary_ip`)
+  which carries the split-horizon A records → `tailnet_sidecar_ip` (see [`network-dns.md`](network-dns.md)
   static-records section). `dns.search_domains: [kogler.si]` is still set (helps short-name
   resolution) but does NOT make MagicDNS serve the plain names.
 - **VPS:** routes the home `site` + `wg-vps-services` over the S2S tunnel to reach home resources
@@ -169,10 +170,10 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 > **Laptop access:** with the Tailscale app connected, the dashboards resolve on the tailnet — headscale
 > **MagicDNS** on the `ts.kogler.si` base domain answers the `*.ts.kogler.si` twin names (e.g.
 > `stats.ts.kogler.si`). The **plain `*.kogler.si` names resolve via the tailnet's configured nameserver
-> for `kogler.si` (Technitium)** — requires the static **Technitium A records → `tailnet_sidecar_ip` on BOTH
-> instances** ([`network-dns.md`](network-dns.md) static-records section; without them the plain names
-> NXDOMAIN on tailnet devices while the `.ts` twins work). There is NO public `*.kogler.si` record for
-> these. The tailnet Traefik edge (`traefik-tailnet`, node `vps-obs`) is the
+> for `kogler.si` (Technitium VPS primary, HD-299)** — requires the static **Technitium A records →
+> `tailnet_sidecar_ip` on EVERY instance** ([`network-dns.md`](network-dns.md) static-records section;
+> without them the plain names NXDOMAIN on tailnet devices while the `.ts` twins work). There is NO public
+> `*.kogler.si` record for these. The tailnet Traefik edge (`traefik-tailnet`, node `vps-obs`) is the
 > only tailnet surface for the admin dashboards (see the compose template
 > `docker_services/traefik-tailnet` for the routing + serve details).
 >

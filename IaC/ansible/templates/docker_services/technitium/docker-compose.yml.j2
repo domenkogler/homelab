@@ -1,20 +1,28 @@
-# technitium docker-compose.yml — Central DNS (PRIMARY on oldsrv, SECONDARY on the Pi)
-#   Two instances on separate physical hosts for DNS redundancy:
-#     - PRIMARY: oldsrv (runs with this template + permissions)
-#     - SECONDARY: pi.kogler.si (Pi — same image, instance: secondary; moved from nas)
-#   Both serve per-subnet policy and internal *.kogler.si (incl. ha → VIP).
+# technitium docker-compose.yml — Central DNS (PRIMARY on VPS, SECONDARY oldsrv, TERTIARY Pi)
+#   Three instances on three separate physical hosts (HD-299, 2026-09-03):
+#     - PRIMARY:   VPS  (instance: primary — svc.instance unset/absent renders primary)
+#                  runs on the dedicated `dns-servers` overlay, pinned
+#                  {{ tchnitium_dns_overlay_ip }} (container address inside the bridge);
+#                  serves host :53/udp+tcp to LAN/tailnet clients, web UI at
+#                  dns.kogler.si behind Authentik Forward-Auth on the VPS edge.
+#                  CLIENT resolver address = VPS PUBLIC IP (dns_primary_ip, HD-299 A).
+#     - SECONDARY: oldsrv (instance: secondary) — Home-VLAN node IP, no web-UI labels.
+#     - TERTIARY:  Pi    (instance: secondary-pi) — Home-VLAN node IP, no web-UI labels;
+#                  web UI at dns-pi.kogler.si via the Pi traefik-ha edge → local :5380
+#                  (stays reachable when oldsrv is down).
+#   All three serve per-subnet policy + internal *.kogler.si (incl. ha → VIP).
 #   See docs/network-dns.md + docs/smart-home-failover.md.
 #
-#   Important: DNS primary + secondary are a FAILURE-DOMAIN split (oldsrv vs Pi).
-#   Do NOT run both on the same host — that defeats the purpose.
+#   Important: the DNS tier is a FAILURE-DOMAIN split (VPS vs oldsrv vs Pi) — do NOT
+#   co-locate any two instances on one host; that defeats the purpose.
 #
-#   STATIC RECORDS (both instances): ha.kogler.si → {{ ha_vip }} and
-#   dns-pi.kogler.si → {{ ha_vip }} MUST exist as A records on BOTH
-#   primary + secondary. DHCP auto-creation covers leases only, and the VIP is not a lease —
-#   without them the traefik-ha / oldsrv edges are unreachable by name.
+#   STATIC RECORDS (every instance): ha.kogler.si → {{ ha_vip }} and
+#   dns-pi.kogler.si → {{ ha_vip }} MUST exist as A records on ALL instances.
+#   DHCP auto-creation covers leases only, and the VIP is not a lease — without them
+#   the traefik-ha / oldsrv edges are unreachable by name.
 #
-# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
-
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
+{% set _inst = svc.instance | default('primary') %}
 services:
   technitium:
     image: technitium/dns-server:{{ technitium_version }}
@@ -31,38 +39,60 @@ services:
     tmpfs:
       - /tmp
       - /etc/dns
+    container_name: "{% if _inst == 'primary' %}technitium{% elif _inst == 'secondary' %}technitium-oldsrv{% else %}technitium-pi{% endif %}"
     restart: unless-stopped
     networks:
-      - traefik-public
-      - services-internal
+{% if _inst == 'primary' %}
+      # Primary pinned on the dns-servers overlay — container address is
+      # tchnitium_dns_overlay_ip (VPS-local bridge). This is NOT the client-facing
+      # resolver (dns_primary_ip = VPS public IP; the overlay pin only stabilizes the
+      # address for the VPS Traefik edge + local containers, HD-240 precedent).
+      dns-servers:
+        ipv4_address: "{{ tchnitium_dns_overlay_ip }}"
+{% if svc.subdomain is defined %}
+      traefik-public: {}
+{% endif %}
+{% else %}
+      traefik-public: {}
+      services-internal: {}
+{% endif %}
     ports:
-      - "53:53/udp"                # required: LAN clients query DNS on the standard port — network-wide by design (HD-62)
+      - "53:53/udp"                # required: clients query DNS on the standard port — network-wide by design (HD-62)
       - "53:53/tcp"
-    # NO host 5380 — the web UI (dns.kogler.si) is served via Traefik on the overlay network (HD-62).
+    # NO host 5380 — the web UI is served via Traefik on the overlay network (HD-62).
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       # /opt — DOCUMENTED exception to the /srv/docker/<svc> bind convention (HD-200/D10):
-      # this template renders BOTH the oldsrv primary and the Pi secondary, and the Pi has
-      # no oldsrv-style /srv/docker dataset layout; Kopia covers /opt/* so backup coverage
-      # is intact. See docs/deployment-compose.md §Volume Strategy.
+      # this template renders the VPS primary AND the oldsrv secondary AND the Pi tertiary,
+      # and the Pi has no oldsrv-style /srv/docker dataset layout; Kopia covers /opt/* so
+      # backup coverage is intact. See docs/deployment-compose.md §Volume Strategy.
       - /opt/technitium/config:/etc/technitium      # persistent DB + settings
+{% if _inst == 'primary' %}
     labels:
       traefik.enable: "true"
       traefik.http.routers.dns.rule: "Host(`dns.kogler.si`)"
       traefik.http.routers.dns.entrypoints: websecure
       {{ 'traefik.http.routers.dns.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
-      traefik.http.routers.dns.middlewares: authentik-forward-auth@file   # internal-only
+      traefik.http.routers.dns.middlewares: authentik-forward-auth@file   # internal-only (public edge rejects it; tailnet via clean names)
+{% endif %}
 
-  # SECONDARY instance (Pi/pi.kogler.si): deploy via the same template with instance name
-  # technitium-secondary, a different primary/secondary mode, and no Traefik labels
-  # (labels can't cross Docker hosts). Its web UI is reachable at dns-pi.kogler.si
-  # (resolves to the VIP, served by the Pi's traefik-ha edge → local :5380, so it stays
-  # reachable when oldsrv is down — docs/smart-home-failover.md) or directly at
-  # http://10.10.1.20:5380.
+  # SECONDARY (oldsrv) / TERTIARY (Pi): the same template renders both home instances via
+  # svc.instance — no Docker-label web UI (labels can't cross Docker hosts). oldsrv's UI
+  # is not exposed (primary web UI lives on the VPS); Pi's is dns-pi.kogler.si via the
+  # traefik-ha edge → local :5380, or directly at http://{{ dns_tertiary_ip }}:5380 (== technitium_secondary_ip).
 
 networks:
+{% if _inst == 'primary' %}
+  dns-servers:
+    external: true
+{% if svc.subdomain is defined %}
+  traefik-public:
+    external: true
+{% endif %}
+{% else %}
   traefik-public:
     external: true
   services-internal:
     external: true
+{% endif %}

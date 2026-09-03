@@ -34,9 +34,28 @@ table inet filter {
 
         # Docker containers that publish host ports (e.g. via host network) —
         # none expected on the VPS by policy (compose uses traefik-public only).
+        # DNS resolver (Technitium PRIMARY, HD-299 / Option A): the VPS publishes
+        # host :53/udp+tcp. Source-allow ONLY tailnet CGNAT (100.64.0.0/10) + home
+        # WAN (DDNS s.kogler.si — resolved + refreshed by the ansible-managed
+        # systemd timer dns-allow-refresh.service). Everything else stays dropped
+        # (abuse/amplification surface is the reason this is scoped, not open).
+        ip saddr 100.64.0.0/10 udp dport 53 accept     # tailnet (headscale CGNAT)
+        ip saddr 100.64.0.0/10 tcp dport 53 accept
+        # Home WAN source (DDNS): the timer writes the current A into the
+        # dns-allow-home set; accept matches set membership.
+        ip saddr @dns-allow-home udp dport 53 accept
+        ip saddr @dns-allow-home tcp dport 53 accept
+
         # Log dropped input at rate-limit (fail2ban / ops visibility)
         limit rate 5/minute log prefix "nft-drop-input: "
         counter drop
+    }
+
+    set dns-allow-home {
+        type ipv4_addr
+        flags interval
+        # Populated by the dns-allow-refresh systemd timer (resolves s.kogler.si
+        # DDNS A record so the home WAN source can query the DNS primary).
     }
 
     chain forward {

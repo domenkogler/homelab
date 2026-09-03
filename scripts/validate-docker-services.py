@@ -166,10 +166,15 @@ BASE_CTX = _load_ssot_ctx()
 BASE_CTX.update({
     "homematic_usb_by_id": "/dev/serial/by-id/usb-eQ-3__HmIP-RFUSB_TEST",
     "technitium_secondary_ip": "10.10.1.20",
-    # Technitium primary binds oldsrv's Home IP (host_vars/oldsrv) — same
-    # instance-specific mock class as technitium_secondary_ip above (HD-187:
-    # pihole CONDITIONAL_FORWARDING_IP renders against it).
-    "dns_primary_ip": "10.10.1.30",
+    # HD-299 (VPS-primary, 2026-09-03): the primary resolver is the VPS PUBLIC IP
+    # (dns_primary_ip, single SSOT). The VPS Technitium container pin sits inside the
+    # dns-servers overlay (tchnitium_dns_overlay_ip) — not a client-facing address.
+    # Mocks mirror the new topology (pihole CONDITIONAL_FORWARDING_IP renders against
+    # dns_primary_ip; the compose template renders the overlay pin).
+    "dns_primary_ip": "159.195.111.66",
+    "dns_secondary_ip": "10.10.1.30",
+    "dns_tertiary_ip": "10.10.1.20",
+    "tchnitium_dns_overlay_ip": "172.25.0.2",
     # Immich ML cross-host endpoint (HD-184) — derived in group_vars/all/main.yml
     # from `oldsrv_home_ip`; mocked here with the same Home-IP value.
     "immich_ml_bind": "10.10.1.30",
@@ -324,6 +329,10 @@ def validate_render(name, j2_path, env, service):
     ctx = dict(BASE_CTX)
     ctx.update({k: v for k, v in service.items() if v is not None})
     ctx["instance"] = service.get("instance", "primary")
+    # Mirror the deploy loop (deploy-service.yml): `svc` is the current docker_services
+    # entry, so templates may reference `svc.instance`/`svc.subdomain` etc. (HD-299
+    # technitium template does). The validator render must see the same var.
+    ctx["svc"] = service
 
     try:
         rendered = env.from_string(src).render(**ctx)
@@ -424,7 +433,12 @@ def validate_render(name, j2_path, env, service):
 
         # Traefik labels - only check on the MAIN service (matching template name)
         labels = svc_def.get("labels", {}) or {}
-        if svc_name == name and name not in NO_TRAEFIK_LABELS:
+        # HD-299: technitium now has 3 instances sharing one template — only the VPS
+        # primary (svc.instance unset/absent) is a labeled web UI (dns.kogler.si); the
+        # oldsrv secondary + Pi tertiary are resolver-only (no labels, like the old
+        # `secondary` skip below). Skip the web-label law for non-primary instances.
+        _inst = service.get("instance", "primary")
+        if svc_name == name and name not in NO_TRAEFIK_LABELS and _inst == "primary":
             if name in WEB_SERVICES:
                 lk = " ".join(str(k) for k in labels.keys())
                 if "traefik.enable" not in lk:
@@ -432,10 +446,8 @@ def validate_render(name, j2_path, env, service):
                 if "traefik.http.routers" not in lk:
                     errors.append(f"{prefix} web service missing 'traefik.http.routers.*'")
             elif name not in HOST_NET_SERVICES and name not in HOST_NET_CONTAINERS:
-                # Skip secondary instances
-                if service.get("instance") not in ("secondary",):
-                    if isinstance(labels, dict) and labels.get("traefik.enable") in ("true", "True", True):
-                        errors.append(f"{prefix} non-web service should not set traefik.enable: true")
+                if isinstance(labels, dict) and labels.get("traefik.enable") in ("true", "True", True):
+                    errors.append(f"{prefix} non-web service should not set traefik.enable: true")
 
         # Duplicate tls.certresolver
         if isinstance(labels, dict):

@@ -33,6 +33,11 @@ docker_services:
   # === Edge tier (self-contained public edge — HD-40A / HD-135) ===
   - { name: traefik,        template_dir: traefik,   enabled: true }
   - { name: crowdsec,       template_dir: crowdsec,  enabled: true }
+  # Technitium DNS PRIMARY on the VPS (HD-299, 2026-09-03): always-on resolver for LAN
+  # + tailnet; dedicated dns-servers overlay pinned to dns_primary_ip (172.25.0.2),
+  # host :53 published. Web UI at dns.kogler.si (Forward-Auth) via the subdomain label.
+  # oldsrv (secondary) + Pi (tertiary) keep the home-LAN failure-domain split.
+  - { name: technitium,     template_dir: technitium, subdomain: dns, enabled: true }
   # db_role_sync (2026-08-23 incident): postgres images apply POSTGRES_PASSWORD ONLY at
   # first cluster init — a rotated 1Password db item re-renders compose envs but the persisted
   # cluster keeps the OLD role password (forgejo/renovate crash-loop precedent). Opt-in per

@@ -62,8 +62,9 @@ dns:
   search_domains:
     - "{{ wildcard_cert_domain }}"   # kogler.si
   nameservers:
-    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium primary (oldsrv)
-    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium secondary (Pi)
+    - "{{ dns_primary_ip }}"   # Technitium PRIMARY (VPS, dns-servers overlay — HD-299, first in chain)
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium SECONDARY (oldsrv)
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium TERTIARY (Pi)
   # HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge serves
   # stats/logs/csui/sec/traefik/auto (and their *.ts.kogler.si MagicDNS twins) on
   # the sidecar node `vps-obs` (tag:sidecar). These custom A records make the CLEAN

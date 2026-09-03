@@ -87,6 +87,11 @@ def main() -> int:
         "network_static_hosts": gv["network_static_hosts"],
         "network_ranges": gv["network_ranges"],
         "ha_vip": gv["ha_vip"],
+        # DNS tier (HD-299, VPS-primary): the resolver trio lives in group_vars/all.yml
+        # (single SSOT) and the generated doc template references them.
+        "dns_primary_ip": gv["dns_primary_ip"],
+        "dns_secondary_ip": gv["dns_secondary_ip"],
+        "dns_tertiary_ip": gv["dns_tertiary_ip"],
         "technitium_secondary_ip": "{{ pi_home_ip }}",   # rendered literally in all.yml
         "hostvars": _derive_host_ips(gv),
         "docker_services": docker_services,

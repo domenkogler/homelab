@@ -119,12 +119,9 @@ wireguard_s2s_vps:
 # Headscale overlay for user devices (Tailscale-compatible CGNAT range).
 # WireGuard is site-to-site ONLY — user devices use Headscale, not road-warrior.
 headscale_subnet: "100.64.0.0/10"
-
-# Technitium (Traefik cannot proxy DNS — these are the resolver addresses)
-dns_primary_ip: "{{ hostvars['oldsrv.kogler.si'].dns_primary_ip }}"    # 10.10.1.30
-# secondary on Pi
-# (populated on the Pi; keep it defined here so the router references both)
-dns_secondary_ip: "{{ hostvars['pi.kogler.si'].dns_secondary_ip | default('10.10.1.20') }}"    # 10.10.1.20
+# Resolver addresses (PRIMARY VPS / SECONDARY oldsrv / TERTIARY Pi) are defined once
+# in group_vars/all.yml (dns_primary_ip / dns_secondary_ip / dns_tertiary_ip, HD-299)
+# and consumed here by the router role (DHCP chain + forward rules + Kids redirect).
 # ==== CAPsMAN WiFi map (HD-228 / network-vlans.md SSID mapping) ====
 # SSOT for cfg names/SSIDs/VLANs/passphrase items. Items must exist in
 # 1Password BEFORE rendering capsman_steady-state.rsc (render lookups fail loud).

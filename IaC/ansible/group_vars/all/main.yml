@@ -60,8 +60,28 @@ wildcard_cert_key_file: kogler.si-key.pem
 # the Pi/oldSrv edges serve all *.kogler.si hosts from the dumped pair.
 wildcard_cert_domain: "kogler.si"
 # (Doco-CD metrics port removed — Doco-CD dropped, HD-150.)
-# Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== pi_home_ip, SSOT-derived).
-technitium_secondary_ip: "{{ pi_home_ip }}"
+# Technitium DNS topology (HD-299, VPS-primary 2026-09-03):
+#   PRIMARY    = VPS  (technitium on the dedicated dns-servers overlay; resolver address = VPS PUBLIC IP)
+#   SECONDARY  = oldsrv (Home VLAN node IP)
+#   TERTIARY   = Pi    (Home VLAN node IP)
+# All three are separate physical hosts (failure-domain split preserved) and all three
+# publish on host :53/udp+tcp. `dns_primary_ip` (below) is the single SSOT for "the
+# primary resolver address" consumed by router rules / DHCP / pihole conditional
+# forwarding / tailnet headscale nameservers.
+# DECISION (supervisor, Option A): the primary resolver address is the VPS PUBLIC IP
+# (159.195.111.66) — LAN clients hairpin through the existing Home/Media/Guest/Mgmt→WAN
+# egress (HD-309), tailnet resolves it too, and it survives a WG-tunnel drop (unlike a
+# tunnel bind). Abuse surface (public UDP 53) is mitigated by the VPS nftables
+# source-allow (tailnet CGNAT 100.64.0.0/10 + home WAN DDNS s.kogler.si, refreshed by an
+# Ansible-managed systemd timer) — see vps-hardening. The dns-servers OVERLAY pin below
+# (technitium_dns_overlay_ip) is the CONTAINER address inside the VPS bridge (joinable by
+# the VPS Traefik edge + local containers only), NOT the client-facing resolver.
+dns_primary_ip: "159.195.111.66"        # Technitium PRIMARY resolver — VPS PUBLIC IP (HD-299, Option A)
+tchnitium_dns_overlay_ip: "172.25.0.2"  # Technitium container pin inside the dns-servers overlay (VPS-local)
+dns_secondary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"   # Technitium SECONDARY (oldsrv)
+dns_tertiary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium TERTIARY (Pi)
+# Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== Pi Home VLAN IP, SSOT-derived).
+technitium_secondary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 
 # ==== UPS / NUT (docs/hardware-ups.md) ====
 # Single SSOT `nut_exporter` runs as a HOST binary on the NUT master (nas, no Docker)
@@ -176,8 +196,8 @@ network_static_hosts:
   - { name: ups,      vlan: 99, ip: "10.10.99.9",  mac: "00:20:85:C0:92:FA", role: "PowerWalker VFI 3000 IoT" }
   - { name: nas,      vlan: 99, ip: "10.10.99.10", mac: "1C:98:EC:0E:0D:38", dhcp_client: mac, role: "HP MicroServer Gen8" }
   - { name: ilo,      vlan: 99, ip: "10.10.99.11", mac: "1C:98:EC:0E:0D:3A", role: "nas iLO4 BMC" }
-  - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS secondary" }
-  - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "i7-7700K node + DNS primary" }
+  - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS tertiary (HD-299)" }
+  - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "i7-7700K node + DNS secondary (HD-299)" }
   - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop (admin, mgmt VLAN) — reaches mgmt via tagged-99 hop (Pi eth0.99), Home->Mgmt forward removed (strict)" }
   # Home VLAN 10
   - { name: router,   vlan: 10, ip: "10.10.1.1",   role: "Home gateway" }
@@ -189,8 +209,8 @@ network_static_hosts:
   # so the existing RouterOS reservations bind (verified working pattern: knx/bosch/ups/ilo).
   # SSOT for the marker; converge template + network role both derive from it (HD-314).
   - { name: nas,      vlan: 10, ip: "10.10.1.10",  mac: "1C:98:EC:0E:0D:38", dhcp_client: mac, role: "Cockpit/NFS/NUT master" }
-  - { name: pi,       vlan: 10, ip: "10.10.1.20",  mac: "E4:5F:01:26:EF:AA", role: "node + DNS secondary (VRRP anchor)" }
-  - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "node + DNS primary (VRRP anchor)" }
+  - { name: pi,       vlan: 10, ip: "10.10.1.20",  mac: "E4:5F:01:26:EF:AA", role: "node + DNS tertiary (HD-299; VRRP anchor)" }
+  - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "node + DNS secondary (HD-299; VRRP anchor)" }
   - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
   - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
   - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }
@@ -245,6 +265,13 @@ network_ranges:
   - { name: db-internal,       cidr: "172.22.0.0/16",  purpose: "Docker bridge — databases (fully isolated)" }
   - { name: llm-backend,       cidr: "172.23.0.0/16",  purpose: "Docker bridge — LLM backend (Ollama) ↔ LiteLLM only, fully isolated (HD-59)" }
   - { name: tailnet-apps,      cidr: "172.24.0.0/16",  purpose: "Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't" }
+  # Technitium PRIMARY on the VPS (HD-299, 2026-09-03): DNS is a first-class public
+  # resolvable tier — the VPS (always-on, WAN-reachable) hosts the DNS primary.
+  # Dedicated overlay keeps the resolver isolated from edge/UI bridges (only the
+  # VPS Technitium + whatever joins deliberately); host :53/udp+tcp publishes to
+  # LAN/tailnet clients. oldsrv (secondary) + Pi (tertiary) are the home-LAN
+  # failure-domain split; the VPS overlay IP is the primary resolver address SSOT.
+  - { name: dns-servers,       cidr: "172.25.0.0/24",  purpose: "Docker bridge — Technitium DNS primary (VPS) ↔ its Traefik edge; the container pin is tchnitium_dns_overlay_ip (client resolver = VPS public IP, dns_primary_ip) " }
   - { name: site,              cidr: "10.10.0.0/16",   purpose: "Whole homelab site — all VLANs (10.10.x.0/24)" }
   - { name: nfs-clients,       cidr: "10.10.1.30/32",  purpose: "NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP)" }
   - { name: modem-lan,         cidr: "192.168.1.0/24", purpose: "Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /24 on this subnet (192.168.1.2/24 on ether1, connected route to the modem subnet) so the modem's web UI at 192.168.1.1 stays reachable from the homelab — the router presents trusted-admin traffic via srcnat masquerade (HD-302, live-fixed 2026-09-02 from the /32 that had no route) — for the twice-yearly PPPoE-redial dance." }
