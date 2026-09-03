@@ -223,6 +223,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 |--------|-----------|----------------|
 | Configure / create OIDC clients + Blueprint | [`deployment-oidc.md`](deployment-oidc.md) | Authentik Blueprint + egress-glue mechanics (procedural) — the secret-egress glue step (`deployment-oidc.md` §3), deploy ordering, per-service OIDC recipes |
 | Rotate an OIDC client secret | [`services-authentik.md`](services-authentik.md) §"Rotating a shared Authentik OIDC client secret" | the on-host rotation runbook (verify + edit + re-render consumers) |
+| Rotate the shared RouterOS `admin` password (`mikrotik-admin_login`) | [`network-ops.md`](network-ops.md) §Rotating the shared admin password (HD-321) | vault `old-password`/`password` update → re-render `render-converge.yml` + `render-routeros.yml` → apply per device via `routeros-apply-delta.sh`/`apply-converge.yml` → verify from a Mgmt-sourced API path |
 | AI-stack items + LiteLLM scoped-key glue | [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) | AI 1P item creation, OIDC wiring, LiteLLM bootstrap-keys rotation/rollback (HD-105) |
 | The two glue scripts' parallel implementation + concurrency budget | [`scripts/README.md`](../scripts/README.md) §Parallel 1Password operations | layer × direction × concurrency table, the 1P budget, extensibility rule |
 
