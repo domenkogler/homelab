@@ -47,6 +47,9 @@
 - name: Import pool (no mount yet) — never touches data
   ansible.builtin.command: zpool import -N {{ item.item.name }}
   changed_when: false
+  failed_when:
+    - item.rc is defined and item.rc != 0
+    - not (item.item.allow_create | default(false))   # fresh-build create: missing pool is benign — the create task owns it
   register: _pool_import
   loop: "{{ _pool_list.results }}"
   loop_control:
