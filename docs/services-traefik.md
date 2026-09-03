@@ -97,6 +97,12 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
   (`*.kogler.si` **and** `*.ts.kogler.si` each). The plain names carry **Authentik Forward-Auth**
   (same middleware definitions, per-instance copies); the `*.ts` names are **ACL-gated** (no forward-auth —
   the headscale ACL `tag:sidecar:443` is the gate, see [`network-vpn.md`](network-vpn.md)).
+  **LIVE-VERIFIED 2026-09-03:** plain `*.kogler.si` → **302 → sso.kogler.si** (Forward-Auth reachable);
+  `*.ts.kogler.si` twins → **200 / 301→https** (ACL-gated). **Root-cause note (HD-297c):** the earlier
+  `middleware "authentik-forward-auth@file" does not exist` was a **render crash, not a loop skip** — the
+  template's own comment carried a literal `{{ vault['…'] }}` bracket expression, which Jinja evaluates even
+  inside `#` comments → `dict has no attribute '…'` → the middlewares render task failed → file never landed.
+  Fixed in `fc2b0a1` (de-activate the brace to literal text; same sweep across 8 templates).
 - **Dashboard:** this edge also serves the Traefik dashboard on `traefik.kogler.si` / `traefik.ts.kogler.si`
   (the public edge has no dashboard router — single owner of that name on the tailnet).
 - **Auth key/secrets:** `tailscale-sidecar_api` (API Credential, `credential` = reusable tagged preauth key)
