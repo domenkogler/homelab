@@ -60,8 +60,9 @@ tags: [network, vlan, firewall]
 > the rows up automatically — live-apply at the next router converge/cutover):
 > - **Shelly fleet** — the 4× Shelly RGBW2 (VLAN 20, n8n firmware targets) now carry MAC +
 >   static reservations in `network_static_hosts` (`shelly-rgbw2-{kuhinja,wc,orhideje,kopalnica}`),
->   plus the 3 family WiFi clients static on Home
->   (`tablet-valentina`, `phone-domen` A54, `phone-martina` A55) for the kids-control MAC-list.
+>   plus the 4 family WiFi clients static on Home
+>   (`tablet-valentina`, `phone-domen` A54, `phone-martina` A55, `tablet-ipad`)
+>   for the kids-control MAC-list.
 > - **UPS + iLO fixed:** their SSOT rows lacked a MAC → the router never bound them (dynamic lease
 >   instead of their reserved SSOT addresses). MACs added (`00:20:85:C0:92:FA` /
 >   `1C:98:EC:0E:0D:3A`) — they now bind their reserved addresses.

@@ -184,6 +184,7 @@ network_static_hosts:
   - { name: tablet-valentina, vlan: 10, ip: "10.10.1.60",  mac: "30:56:84:35:00:DC", role: "Valentina tablet (family, Kogler SSID)" }
   - { name: phone-domen,      vlan: 10, ip: "10.10.1.61",  mac: "34:F0:43:73:96:35", role: "Domen's phone A54 (family, Kogler SSID)" }
   - { name: phone-martina,    vlan: 10, ip: "10.10.1.62",  mac: "BE:64:F1:1A:23:38", role: "Martina's phone A55 (family, Kogler SSID)" }
+  - { name: tablet-ipad,       vlan: 10, ip: "10.10.1.63",  mac: "F6:9B:E2:B9:26:F9", role: "iPad tablet (family, Kogler SSID) — locally-administered/randomized MAC (iOS default)" }
 
   # Router gateways on the remaining VLANs — RB4011 is the .1 inter-VLAN gateway on each.
   - { name: router, vlan: 20, ip: "10.10.20.1",  role: "IoT gateway" }

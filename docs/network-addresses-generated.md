@@ -49,6 +49,7 @@
 | 10 | 10.10.1.60 | tablet-valentina | Valentina tablet (family, Kogler SSID) |
 | 10 | 10.10.1.61 | phone-domen | Domen's phone A54 (family, Kogler SSID) |
 | 10 | 10.10.1.62 | phone-martina | Martina's phone A55 (family, Kogler SSID) |
+| 10 | 10.10.1.63 | tablet-ipad | iPad tablet (family, Kogler SSID) — locally-administered/randomized MAC (iOS default) |
 | 20 | 10.10.20.1 | router | IoT gateway |
 | 21 | 10.10.21.1 | router | IoT-Internet gateway |
 | 30 | 10.10.30.1 | router | Guest gateway |
@@ -117,4 +118,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-03T05:40:47Z
+> Last generated: 2026-09-03T05:45:21Z
