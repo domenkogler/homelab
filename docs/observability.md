@@ -189,6 +189,27 @@ oldsrv is on NVMe and mostly unaffected):
 
 ---
 
+## Dashboards
+
+> _Provisioned via the monitoring role (`files/dashboards/*.json` → `/etc/grafana/provisioning/dashboards`, 30s hot-reload by the file provider). Datasource uid = `prometheus` (API-seeded by the monitoring role — see `tasks/main.yml`). Rendered live at the next VPS `monitoring` converge (deploy-gated; no new services)._
+
+| Dashboard | uid | View | Panels back on |
+|-----------|-----|------|----------------|
+| **Overview** | `homelab-overview` | top-level entry point — down-counts (public/hosts/tunnel/stack), VPS CPU+mem, links to all dashboards | `probe_success{job=blackbox_*}` · `up{job=…}` · `node_*{job="alloy"}` |
+| **Host Overview** | `homelab-host-overview` | per-instance node resources: CPU, mem, load, disk (/, /srv, /var/lib/docker), network, uptime — multi-host (instance template var) | `node_cpu_seconds_total` · `node_memory_*` · `node_load*` · `node_filesystem_*` · `node_network_*` · `node_boot_time_seconds` — all `job="alloy"` |
+| **Service Reachability** | `homelab-service-reachability` | blackbox probe tables (HTTP + ICMP) + latency + TLS cert expiry | `probe_success` · `probe_duration_seconds` · `probe_ssl_earliest_cert_expiry` (`job=blackbox_*`) |
+| **WAN & Tunnel** | `homelab-wan-tunnel` | wg-s2s liveness, Traefik requests, CrowdSec decisions, stack up | `probe_success{job=wg_icmp}` · `traefik_requests_total` · `crowdsec_decisions` · `up{job=…}` |
+| **Stack Health** | `homelab-selfmonitoring` | observability self-monitoring: up() per component | `up{job=prometheus|loki|n8n|blackbox-exporter|crowdsec|traefik|alloy}` |
+| **UPS** | `homelab-ups` | (pre-existing) NUT battery/load/voltages | `nut_*` |
+
+> **Metric-name gaps (authoring-time, 2026-09-04):** the panel expression names above match the **alert-rule metric names** in the monitoring role (`vars/main.yml`) and the Prometheus scrape jobs — but several component metrics are **not yet verified live** (no running instance to scrape until the next converge):
+> - `traefik_requests_total` — Traefik template exposes `:8082` but the compose does **not** enable a Prometheus metrics endpoint (`--metrics.prometheus=true` + `:8082` entrypoint are absent). The `traefik` scrape job target exists; the series will be empty until Traefik metrics are enabled.
+> - `crowdsec_decisions` — CrowdSec exposes `:6060` metrics by default (job exists); metric name is the upstream one, exact series unverified.
+> - `node_cpu_seconds_total` / `node_uname_info` — the Alloy `unix` exporter's exact series names are node_exporter-compatible (occupying the `job="alloy"` namespace); the dashboard reads them generically, so if the exporter labels differ the panels just render empty (no alert impact).
+> These are **display-only** — alert rules are untouched and key off the same names via Grafana Alerting (independent of dashboard rendering).
+
+---
+
 ## Deferred / TODOs
 
 | Item | When | Notes |

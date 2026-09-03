@@ -1,0 +1,95 @@
+{
+  "title": "Homelab — WAN & Tunnel",
+  "uid": "homelab-wan-tunnel",
+  "tags": ["homelab", "tunnel", "traefik", "crowdsec"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "wg-s2s tunnel (home↔VPS)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]}
+        }
+      },
+      "targets": [{ "refId": "A", "expr": "probe_success{job=\"wg_icmp\"}", "instant": true }]
+    },
+    {
+      "type": "timeseries",
+      "title": "wg-s2s probe duration",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "refId": "A", "expr": "probe_duration_seconds{job=\"wg_icmp\"}", "legendFormat": "{{instance}}" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Traefik HTTP requests (total)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "refId": "A", "expr": "sum(increase(traefik_requests_total[5m]))", "instant": true }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "CrowdSec decisions (active)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "refId": "A", "expr": "sum(crowdsec_decisions{job=\"crowdsec\"})", "instant": true }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Traefik requests by code",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(traefik_requests_total[5m])) by (code)", "legendFormat": "{{code}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "CrowdSec decisions over time",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "refId": "A", "expr": "sum(crowdsec_decisions{job=\"crowdsec\"}) by (origin)", "legendFormat": "{{origin}}" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Stack up (self-scrape)",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]}
+        }
+      },
+      "targets": [
+        { "refId": "A", "expr": "up{job=~\"prometheus|loki|n8n|blackbox-exporter\"}", "instant": true }
+      ]
+    }
+  ]
+}

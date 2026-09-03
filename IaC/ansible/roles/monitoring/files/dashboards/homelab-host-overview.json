@@ -1,0 +1,197 @@
+{
+  "title": "Homelab — Host Overview",
+  "uid": "homelab-host-overview",
+  "tags": ["homelab", "host", "system"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "version": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "label": "Host",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(node_uname_info, instance)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "CPU usage",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.8 },
+            { "color": "red", "value": 0.95 }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\", instance=~\"$instance\"}[5m]))",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Memory used",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": null },
+            { "color": "red", "value": null }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemTotal_bytes{job=\"alloy\", instance=~\"$instance\"} - node_memory_MemAvailable_bytes{job=\"alloy\", instance=~\"$instance\"}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Load (1m vs cores)",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": null },
+            { "color": "red", "value": null }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_load1{job=\"alloy\", instance=~\"$instance\"}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Uptime",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - node_boot_time_seconds{job=\"alloy\", instance=~\"$instance\"}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU usage % (per instance)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 0.95 }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\", instance=~\"$instance\"}[5m])) by (instance)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory used over time",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(node_memory_MemTotal_bytes{job=\"alloy\", instance=~\"$instance\"} - node_memory_MemAvailable_bytes{job=\"alloy\", instance=~\"$instance\"})"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk usage % (/, /srv, /var/lib/docker)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.8 },
+            { "color": "red", "value": 0.9 }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - (node_filesystem_avail_bytes{mountpoint=\"/\", job=\"alloy\", instance=~\"$instance\"} / node_filesystem_size_bytes{mountpoint=\"/\", job=\"alloy\", instance=~\"$instance\"})",
+          "legendFormat": "{{mountpoint}}"
+        },
+        {
+          "refId": "B",
+          "expr": "1 - (node_filesystem_avail_bytes{mountpoint=\"/srv\", job=\"alloy\", instance=~\"$instance\"} / node_filesystem_size_bytes{mountpoint=\"/srv\", job=\"alloy\", instance=~\"$instance\"})",
+          "legendFormat": "{{mountpoint}}"
+        },
+        {
+          "refId": "C",
+          "expr": "1 - (node_filesystem_avail_bytes{mountpoint=\"/var/lib/docker\", job=\"alloy\", instance=~\"$instance\"} / node_filesystem_size_bytes{mountpoint=\"/var/lib/docker\", job=\"alloy\", instance=~\"$instance\"})",
+          "legendFormat": "{{mountpoint}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Network in/out (bytes, per instance)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(node_network_receive_bytes_total{job=\"alloy\", instance=~\"$instance\"}[5m])) by (instance)",
+          "legendFormat": "{{instance}} rx"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(node_network_transmit_bytes_total{job=\"alloy\", instance=~\"$instance\"}[5m])) by (instance)",
+          "legendFormat": "{{instance}} tx"
+        }
+      ]
+    }
+  ]
+}

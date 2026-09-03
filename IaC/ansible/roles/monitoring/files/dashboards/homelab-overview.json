@@ -1,0 +1,127 @@
+{
+  "title": "Homelab — Overview",
+  "uid": "homelab-overview",
+  "tags": ["homelab", "overview"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Public services down",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]}
+        }
+      },
+      "targets": [
+        { "refId": "A", "expr": "count(probe_success{job=\"blackbox_http_probes\"} == 0)", "instant": true }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Hosts down",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]}
+        }
+      },
+      "targets": [
+        { "refId": "A", "expr": "count(probe_success{job=\"blackbox_icmp\"} == 0)", "instant": true }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Tunnel up",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]}
+        }
+      },
+      "targets": [
+        { "refId": "A", "expr": "probe_success{job=\"wg_icmp\"}", "instant": true }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Stack down",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]}
+        }
+      },
+      "targets": [
+        { "refId": "A", "expr": "count(up{job=~\"prometheus|loki|n8n|blackbox-exporter\"} == 0)", "instant": true }
+      ]
+    },
+    {
+      "type": "links",
+      "title": "Dashboards",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 4 },
+      "links": [
+        { "title": "Host Overview", "url": "/d/homelab-host-overview", "targetBlank": false },
+        { "title": "Service Reachability", "url": "/d/homelab-service-reachability", "targetBlank": false },
+        { "title": "WAN & Tunnel", "url": "/d/homelab-wan-tunnel", "targetBlank": false },
+        { "title": "Stack Health", "url": "/d/homelab-selfmonitoring", "targetBlank": false },
+        { "title": "UPS", "url": "/d/homelab-ups", "targetBlank": false }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "VPS CPU (alloy)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 0.95 }
+          ]}
+        }
+      },
+      "targets": [
+        { "refId": "A", "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\"}[5m]))" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "VPS memory used",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [
+        { "refId": "A", "expr": "node_memory_MemTotal_bytes{job=\"alloy\"} - node_memory_MemAvailable_bytes{job=\"alloy\"}" }
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Notes",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 16 },
+      "options": { "mode": "markdown", "content": "**Homelab technical overview** — Grafana is the admin-only numbers plane (tailnet-only `stats.kogler.si`). Family launchpad = `home.kogler.si` (Homepage). Internal-only names resolve via headscale MagicDNS / Technitium split-horizon; tails `stats/logs/csui/sec/traefik/auto` are VPS-hosted on the vps-obs tailnet edge." }
+    }
+  ]
+}

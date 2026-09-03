@@ -1,0 +1,142 @@
+{
+  "title": "Homelab — Service Reachability",
+  "uid": "homelab-service-reachability",
+  "tags": ["homelab", "probes", "blackbox"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "table",
+      "title": "Public service probes (HTTP)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]},
+          "custom": { "align": "auto", "cellOptions": { "type": "color-text" } }
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "job": true },
+            "renameByName": {
+              "instance": "Target",
+              "Value": "Up",
+              "level": "level"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_success{job=\"blackbox_http_probes\"}",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Host probes (ICMP)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]}
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "job": true },
+            "renameByName": { "instance": "Host" }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_success{job=\"blackbox_icmp\"}",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Probe duration (HTTP, seconds)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_duration_seconds{job=\"blackbox_http_probes\"}",
+          "legendFormat": "{{instance}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Probe duration (ICMP, seconds)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_duration_seconds{job=\"blackbox_icmp\"}",
+          "legendFormat": "{{instance}}"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "TLS certificate expiry (days)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 14 },
+            { "color": "green", "value": 30 }
+          ]}
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "job": true },
+            "renameByName": { "instance": "Target" }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(probe_ssl_earliest_cert_expiry{job=\"blackbox_http_probes\"} - time()) / 86400",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    }
+  ]
+}
