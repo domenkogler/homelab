@@ -122,8 +122,19 @@ done
 # Deterministic teardown: close the ssh control master (kills the forwarded
 # connection) and release the lock — always, on any exit path.
 trap 'ssh -S "$SOCK" -O exit pi 2>/dev/null || true; rm -f "$LOCKFILE" 2>/dev/null || true' EXIT
+# Non-recursive converge_rsc default lives HERE (a playbook-level
+# `{{ converge_rsc | default(...) }}` self-references and recurses infinitely).
+# Inject -e converge_rsc=$DEFAULT_RSC only when the user didn't already pass one
+# (e.g. `-e converge_rsc=crs328_converge.rsc` for the switch).
+DEFAULT_RSC=rb4011_converge.rsc
+for _arg in "$@"; do
+    case "$_arg" in
+        converge_rsc=*|-e"converge_rsc=*") DEFAULT_RSC="${_arg#-e}";;   # last -e converge_rsc= wins
+    esac
+done
 bash "$REPO/scripts/ansible-run.sh" "$PLAYBOOK" \
     -e "routeros_api_host=127.0.0.1" \
     -e "routeros_api_port=$LOOPBACK_PORT" \
     -e "ansible_python_interpreter=$HOME/ansible-venv/bin/python3" \
+    -e "converge_rsc=$DEFAULT_RSC" \
     "$@"

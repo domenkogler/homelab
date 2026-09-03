@@ -38,6 +38,7 @@ set -euo pipefail
 DEVICE_HOST="${1:-}"
 DELTA_FILE="${2:-}"
 ROS_SSH_USER="${ROS_SSH_USER:-ansible}"
+ROS_SSH_PORT="${ROS_SSH_PORT:-22}"   # e.g. 12222 when tunnelling the router SSH through the Pi hop
 VAULT="Homelab-ansible"
 ITEM="ansible-admin_ssh"
 
@@ -97,8 +98,7 @@ fi
 echo "OK: ansible key loads (fingerprint: $(ssh-keygen -lf "$KEY_FILE" | awk '{print $2}'))"
 
 # --- 2. Pin the device host key (TOFU — rotates at reset) -------------------
-if ! ssh-keyscan -T 5 -t ed25519,rsa "$DEVICE_HOST" > "$HOSTKEYS" 2>/dev/null; then
-    echo "FAIL: cannot ssh-keyscan $DEVICE_HOST (unreachable?)" >&2
+if ! ssh-keyscan -T 5 -p "$ROS_SSH_PORT" -t ed25519,rsa "$DEVICE_HOST" > "$HOSTKEYS" 2>/dev/null; then
     exit 1
 fi
 if [ ! -s "$HOSTKEYS" ]; then
@@ -110,13 +110,13 @@ ssh-keygen -lf "$HOSTKEYS" 2>/dev/null | sed 's/^/  /'
 
 # --- 3. SCP the delta --------------------------------------------------------
 echo "--- uploading $DELTA_FILE to $DEVICE_HOST ---"
-scp -q -i "$KEY_FILE" \
+scp -q -i "$KEY_FILE" -P "$ROS_SSH_PORT" \
     -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOSTKEYS" \
     "$RENDERED" "${ROS_SSH_USER}@${DEVICE_HOST}:/${DELTA_FILE}"
 
 # --- 4. /import over SSH -----------------------------------------------------
 echo "--- importing on $DEVICE_HOST ---"
-ssh -i "$KEY_FILE" \
+ssh -i "$KEY_FILE" -p "$ROS_SSH_PORT" \
     -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOSTKEYS" \
     "${ROS_SSH_USER}@${DEVICE_HOST}" "/import ${DELTA_FILE}"
 

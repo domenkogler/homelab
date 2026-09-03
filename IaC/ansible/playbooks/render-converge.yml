@@ -50,6 +50,10 @@
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_hd307_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_hd307_delta.rsc"
+    - name: "Render rb4011_dns_resolver_delta.rsc (HD-317: router DNS-primary DHCP + /ip dns)"
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/rb4011_dns_resolver_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/rb4011_dns_resolver_delta.rsc"
     - name: "Render rb4011_guest_delta.rsc (HD-312: guest turn-up + IOT-WAN/Kids removal)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_guest_delta.rsc.j2"

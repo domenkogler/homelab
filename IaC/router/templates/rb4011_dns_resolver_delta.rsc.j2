@@ -1,0 +1,21 @@
+# =====================================================================
+# rb4011_dns_resolver_delta — HD-317: TECHNETIUM DNS-PRIMARY ON ROUTER (DHCP + /ip dns)
+# ---------------------------------------------------------------------
+# Transient delta (network-ops.md 3-tier): sets the DHCP dns-server chain to
+# PRIMARY(VPS) -> SECONDARY(oldsrv) -> TERTIARY(Pi) -> router fallback, and the
+# router /ip dns upstream to the same chain + Cloudflare last.
+# Final state is also folded into rb4011_converge.rsc.j2 (idempotency there is
+# partial by design — /add dupes abort re-imports before the DNS section).
+# Render: playbooks/render-converge.yml; apply: scripts/routeros-apply-delta.sh.
+# =====================================================================
+# DHCP — every VLAN network: dns-server = VPS,oldsrv,Pi,<gateway>
+/ip dhcp-server network set [find where address=10.10.1.0/24]    dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},10.10.1.1
+/ip dhcp-server network set [find where address=10.10.20.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},10.10.20.1
+/ip dhcp-server network set [find where address=10.10.21.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},10.10.21.1
+/ip dhcp-server network set [find where address=10.10.30.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},10.10.30.1
+/ip dhcp-server network set [find where address=10.10.40.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},10.10.40.1
+/ip dhcp-server network set [find where address=10.10.50.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},10.10.50.1
+/ip dhcp-server network set [find where address=10.10.99.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},10.10.99.1
+# Router resolver upstream — same chain + public fallback (final unfiltered resort)
+/ip dns set allow-remote-requests=yes servers={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},1.1.1.1,1.0.0.1
+# =====================================================================

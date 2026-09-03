@@ -30,7 +30,10 @@
   gather_facts: false
   connection: local
   vars:
-    converge_rsc: "{{ converge_rsc | default('rb4011_converge.rsc') }}"
+    # Default lives in scripts/ansible-network-hop.sh (a playbook-level
+    # {{ converge_rsc | default(...) }} self-references and recurses). Keep this a
+    # plain literal so -e overrides work and bare runs don't recurse.
+    converge_rsc: "rb4011_converge.rsc"
     # Rendered rsc lives in the gitignored rendered/ dir
     rendered_path: "{{ playbook_dir }}/../../router/rendered/{{ converge_rsc }}"
     # RouterOS SSH identity for the file upload (user `ansible` created by bootstrap).
@@ -129,7 +132,10 @@
         password: "{{ ros_api_password }}"
         port: "{{ ros_api_port }}"
         path: ""
-        cmd: "/import {{ converge_rsc }}"
+        # cmd is type:str split on spaces; the first word is the cmd, the rest are
+        # key=value pairs (module doc: `run .id=*03`). So `/import <file>` MUST be
+        # `file=<file>` — a bare filename breaks the parser (missing '=').
+        cmd: "/import file={{ converge_rsc }}"
       no_log: false
       changed_when: true
 
