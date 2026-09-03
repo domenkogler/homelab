@@ -1,0 +1,106 @@
+---
+# technitium-seed.yml — bootstrap + seed Technitium instances idempotently (HD-317/HD-04)
+# Runs from docker_services/main.yml AFTER the technitium container is up.
+#
+# Design:
+#   * auth + zones + records live under /etc/dns, which is now a PERSISTENT bind
+#     (/opt/technitium/dns on VPS primary, /opt/technitium/dns on home secondaries
+#     via the same template). First boot after a fresh bind = EMPTY auth.config.
+#   * Technitium creates the admin on the FIRST successful /api/user/login (the
+#     UI "create administrator" flow). So the seed simply LOGS IN with the
+#     1Password technitium_login credentials; if auth.config is empty this
+#     bootstraps the admin (and persists it now that /etc/dns is durable).
+#   * Session token comes back as JSON {"token": ...}; API calls use
+#     ?token=<session> (X-Api-Token is for long-lived API tokens only).
+#   * Then ensure the kogler.si primary zone + the split-horizon A records.
+#
+# Secrets: read from the HD-258 `vault` dict (fetched once per converge, no per-task
+# op spawns); `no_log` so values never hit the task log.
+#
+# Record list mirrors the network-dns.md static-records contract (per-instance):
+#   ha.kogler.si -> {{ ha_vip }}        (10.10.1.200)
+#   dns-pi.kogler.si -> {{ ha_vip }}    (same VIP; the Pi traefik-ha edge)
+#   stats/logs/csui/sec/traefik/auto -> {{ tailnet_sidecar_ip }} (100.64.0.1)
+# The same records on EVERY instance (VPS primary + oldsrv secondary + Pi tertiary).
+
+- name: "Technitium: assert container reachable on local API ({{ svc.name }})"
+  when:
+    - svc.template_dir | default('') == 'technitium'
+    - svc.name in (docker_services | map(attribute='name') | list)
+  block:
+    - name: "Technitium: build container API base ({{ svc.name }})"
+      ansible.builtin.set_fact:
+        _tech_api: "http://{{ hostvars[inventory_hostname]['_tech_container_ip'] | default('127.0.0.1') }}:5380"
+      # We resolve the container IP at runtime via docker inspect; 127.0.0.1 fallback
+      # only for a sidecar/host-network shape. Real path uses the overlay IP.
+
+    - name: "Technitium: discover container IP on {{ svc.name }}"
+      ansible.builtin.shell:
+        cmd: >-
+          docker inspect {{ svc.container_name | default('technitium') }}
+          --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }} {{ '{{' }}end{{ '}}' }}'
+          | awk '{ print $1 }'
+        executable: /bin/bash
+      register: _tech_ip
+      changed_when: false
+
+    - name: "Technitium: set _tech_api to the container IP"
+      ansible.builtin.set_fact:
+        _tech_api: "http://{{ (_tech_ip.stdout | trim | split('\n') | first) }}:5380"
+      when: _tech_ip.stdout | trim | length > 0
+
+    - name: "Technitium: login (bootstraps admin on first-boot; persists now /etc/dns is durable)"
+      ansible.builtin.uri:
+        url: "{{ _tech_api }}/api/user/login"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          user: "{{ vault['technitium_login'].username | default('admin') }}"
+          pass: "{{ vault['technitium_login'].password }}"
+      register: _tech_login
+      no_log: true
+      changed_when: false
+      failed_when: _tech_login.json is not defined or _tech_login.json.status != 'ok'
+
+    - name: "Technitium: extract session token"
+      ansible.builtin.set_fact:
+        _tech_token: "{{ _tech_login.json.token }}"
+      no_log: true
+
+    - name: "Technitium: ensure primary zone kogler.si exists"
+      ansible.builtin.uri:
+        url: "{{ _tech_api }}/api/zones/create?token={{ _tech_token }}"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          zone: "kogler.si"
+          type: Primary
+      register: _tech_zone
+      no_log: true
+      changed_when: false
+      failed_when: _tech_zone.json is not defined or (_tech_zone.json.status not in ['ok', 'error'])
+      # 'error' tolerated when the zone already exists (idempotent)
+
+    - name: "Technitium: ensure split-horizon A records"
+      ansible.builtin.uri:
+        url: "{{ _tech_api }}/api/zones/records/add?token={{ _tech_token }}"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          zone: "kogler.si"
+          domain: "{{ item.name }}"
+          type: A
+          ipAddress: "{{ item.ip }}"
+          ttl: 300
+      loop:
+        - { name: "ha.kogler.si",      ip: "{{ ha_vip }}" }
+        - { name: "dns-pi.kogler.si",  ip: "{{ ha_vip }}" }
+        - { name: "stats.kogler.si",   ip: "{{ tailnet_sidecar_ip }}" }
+        - { name: "logs.kogler.si",    ip: "{{ tailnet_sidecar_ip }}" }
+        - { name: "csui.kogler.si",    ip: "{{ tailnet_sidecar_ip }}" }
+        - { name: "sec.kogler.si",     ip: "{{ tailnet_sidecar_ip }}" }
+        - { name: "traefik.kogler.si", ip: "{{ tailnet_sidecar_ip }}" }
+        - { name: "auto.kogler.si",    ip: "{{ tailnet_sidecar_ip }}" }
+      no_log: true
+      changed_when: false
+      failed_when: item_resp.json is not defined or item_resp.json.status not in ['ok', 'error']

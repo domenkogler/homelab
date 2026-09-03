@@ -109,8 +109,12 @@
       set -eu
       ip=$(getent ahostsv4 s.kogler.si | awk 'NR==1{print $1}')
       [ -n "$ip" ] || exit 0
-      nft flush set inet filter dns-allow-home
-      nft add element inet filter dns-allow-home { "$ip" }
+      # HD-317 live fix (2026-09-03): use the ABSOLUTE nft path — systemd services
+      # run with a minimal PATH that lacks /usr/sbin, so the timer was failing
+      # with 'nft: not found' and the dns-allow-home set was never populated
+      # (home WAN could not query the VPS DNS primary).
+      /usr/sbin/nft flush set inet filter dns-allow-home
+      /usr/sbin/nft add element inet filter dns-allow-home { "$ip" }
 - name: Enable + start dns-allow-refresh timer
   ansible.builtin.systemd:
     name: dns-allow-refresh.timer

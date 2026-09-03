@@ -132,6 +132,7 @@ _template_vault_items:
   recyclarr: {'sonarr_api', 'radarr_api'}
   renovate: {'forgejo_api'}
   signal-cli-rest-api: {'signal-internal_api', 'signal_api'}
+  technitium: {'technitium_login', 'technitium_api'}
   traefik: {'cloudflare_api', 'crowdsec-bouncer_api'}
   traefik-tailnet: {'crowdsec-bouncer_api', 'tailscale-sidecar_api'}   # middlewares LAPI key + sidecar auth key (HD-258)
   zipline: {'zipline_password', 'zipline_oidc', 'zipline_db'}

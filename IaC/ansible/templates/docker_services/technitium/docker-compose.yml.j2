@@ -38,7 +38,12 @@ services:
     read_only: false
     tmpfs:
       - /tmp
-      - /etc/dns
+    # DURABILITY (HD-317 fix, 2026-09-03): Technitium persists ALL runtime state
+    # (zones, auth/admin, records, settings) under /etc/dns — a tmpfs there wiped
+    # them on every restart (the reason admin/zones kept vanishing). Bind it to a
+    # persistent host dir instead: VPS /opt/technitium/dns (primary),
+    # /opt/technitium-dns on Pi/oldsrv (secondary/tertiary). Still read-write;
+    # Kopia already covers /opt/* (see Volume Strategy note below).
     container_name: "{% if _inst == 'primary' %}technitium{% elif _inst == 'secondary' %}technitium-oldsrv{% else %}technitium-pi{% endif %}"
     restart: unless-stopped
     networks:
@@ -68,6 +73,7 @@ services:
       # and the Pi has no oldsrv-style /srv/docker dataset layout; Kopia covers /opt/* so
       # backup coverage is intact. See docs/deployment-compose.md §Volume Strategy.
       - /opt/technitium/config:/etc/technitium      # persistent DB + settings
+      - /opt/technitium/dns:/etc/dns                # DURABLE: zones/auth/records (was tmpfs — HD-317)
 {% if _inst == 'primary' %}
     labels:
       traefik.enable: "true"

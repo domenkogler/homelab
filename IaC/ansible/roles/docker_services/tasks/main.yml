@@ -213,6 +213,25 @@
     loop_var: svc_entry
   tags: docker_services
 
+# HD-317: Technitium seed — after the technitium container is up, bootstrap the
+# admin (first login on the now-persistent /etc/dns) + ensure the kogler.si zone
+# and split-horizon A records. Runs for every technitium instance that was in the
+# deploy loop (VPS primary, oldsrv secondary, Pi tertiary).
+- name: Seed Technitium instances (HD-317 admin bootstrap + split-horizon records)
+  ansible.builtin.include_tasks:
+    file: technitium-seed.yml
+  vars:
+    svc: "{{ svc_entry }}"
+  loop: "{{ docker_services }}"
+  when:
+    - svc_entry.enabled | default(true)
+    - svc_entry.template_dir | default('') == 'technitium'
+    - scope_is_all or svc_entry.name in scope_list
+  loop_control:
+    label: "{{ svc_entry.name }}"
+    loop_var: svc_entry
+  tags: [docker_services, technitium_seed]
+
 # Disabled services get TORN DOWN (not just skipped) — otherwise a flipped-to-false
 # entry leaves its containers running outside IaC control (2026-08-23: renovate was
 # disabled for the missing-Forgejo-repo crash-loop and would have kept restart-looping
