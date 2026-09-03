@@ -107,9 +107,20 @@ def emit_switch(fn, name):
 
 
 def emit_binary_sensor(fn, name):
-    """FT-0 door-contact -> HA binary_sensor (1.001 contact)."""
+    """FT-0 door-contact -> HA binary_sensor (1.001 contact).
+
+    `invert: true` — the ETS door contact telegrams are inverted on the bus
+    (1 = closed / 0 = open; live-verified 2026-09-03 on the vrata contacts,
+    all showed `off` while the doors were open). This keeps HA's
+    `device_class: door` rendering (on=Open, off=Closed) aligned with reality.
+    """
     addrs = list(fn['group_addresses'].keys())
-    return {"name": name, "state_address": addrs[0], "device_class": "door"}
+    return {
+        "name": name,
+        "state_address": addrs[0],
+        "device_class": "door",
+        "invert": True,
+    }
 
 
 def build(proj):
@@ -196,6 +207,8 @@ def render_yaml(lights, covers, switches, binary_sensors, sensors):
             lines.append(f"    - name: \"{bs['name']}\"")
             lines.append(f"      state_address: \"{bs['state_address']}\"")
             lines.append(f"      device_class: {bs['device_class']}")
+            if bs.get('invert'):
+                lines.append(f"      invert: true")
     if sensors:
         lines.append("  sensor:")
         for sn in sensors:
