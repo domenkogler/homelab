@@ -44,15 +44,21 @@ tags: [network, vlan, firewall]
 
 > **3-SSID rationale (HD-312, 2026-09-03 — see [network-rejected.md](network-rejected.md) row):**
 > the 2.4GHz band had 5 SSIDs = wasted airtime; all devices have static MACs in
-> `network_static_hosts`, so per-MAC control (CAPsMAN `access-list` vlan-id + firewall
-> MAC-address-lists) beats SSID-per-purpose. Kids merge into Kogler (same network). IoT + IoT-WAN
+> `network_static_hosts`, so per-MAC control (firewall MAC-address-lists + per-device
+> `src-mac-address` forward rules) beats SSID-per-purpose. Kids merge into Kogler (same network). IoT + IoT-WAN
 > merge into IOT (cloud-IoT permanent-WAN + firmware-window temporary WAN both via `iot-wan-allow`).
 > Guest stays its own SSID (unknown clients can't be MAC-mapped).
+> ⚠ **Per-MAC vlan-id caveat (2026-09-04):** the original rationale mentioned a CAPsMAN `access-list`
+> `vlan-id` override — **that capability does NOT exist on wifi-qcom-ac** (802.11ac chipsets cannot do
+> per-client vlan tagging, per the MikroTik WiFi wiki; the legacy `/interface wireless access-list`
+> vlan-id does not apply to the modern stack). VLAN assignment on this fleet rides the **CAP bridge
+> access-port pvid model** only; per-device network control = firewall MAC-lists (see
+> [network-rejected.md](network-rejected.md) HD-312 2b row).
 >
 > **Static-IP requirement (HD-312, 2026-09-03):** the per-MAC model + MAC-address-list firewall
 > rules only work predictably if every controlled device's **IP is static** — each IoT/kids/cloud-IoT
 > device gets a **static DHCP reservation** (MAC → IP) in `network_static_hosts` (SSOT), so the
-> firewall MAC-lists, the CAPsMAN vlan-id ACL, and the n8n firmware automation all reference a stable
+> firewall MAC-lists (iot-wan-allow, kids-*) and the n8n firmware automation all reference a stable
 > identity. Devices without a reservation are treated as untrusted (Guest-style).
 >
 > ✅ **PHASE 1 (static-IP sweep) DONE 2026-09-03** (SSOT + render; router-role/`converge.rsc` pick
@@ -87,11 +93,11 @@ tags: [network, vlan, firewall]
   reject with 'does not support assigning vlans'; live-verified + fixed 2026-09-02), WPA2-PSK
   passphrases from the active `wifi-kogler*` 1Password items at render. ap_initial.rsc.j2 uses modern
   `/interface wifi cap`.
-- **Per-MAC VLAN / policy (HD-312 target):** CAPsMAN `/interface wifi access-list` on wifi-qcom-ac
-  7.24.1 supports per-MAC `vlan-id` override (live-verified add), so one SSID can serve multiple VLANs
-  per client. It CANNOT move a client to another SSID (only override vlan-id/passphrase/client-isolation
-  on the SSID joined), and needs the CAP bridge access-port pvid model (already live). The firewall
-  side uses MAC-address-lists (`iot-wan-allow`, `kids-*`) rendered from `network_static_hosts`.
+- **Per-MAC VLAN / policy (HD-312 target):** per-device network control = **firewall MAC-address-lists**
+  (`iot-wan-allow`, `kids-*`) rendered from `network_static_hosts` — see the 3-SSID rationale note above;
+  a CAPsMAN `access-list` `vlan-id` per-MAC override is **NOT supported on wifi-qcom-ac** (802.11ac cannot
+  do per-client vlan tagging — [network-rejected.md](network-rejected.md) HD-312 2b). VLAN assignment on
+  this fleet rides the CAP bridge access-port pvid model (already live).
 - **Band split (owner decision, 2026-09-03):** `Kogler IOT` is **2.4GHz-only**; `Kogler guest` is
   **5GHz-only** — provisioning is split by SSID band (`band: 5` in `routeros_capsman_ssids` SSOT):
   2.4GHz carries Kogler + Kogler IOT, 5GHz carries Kogler + Kogler guest (IoT devices don't need
