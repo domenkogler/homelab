@@ -25,6 +25,10 @@ tags: [services, dns, technitium, pihole]
 ## DNS Redundancy
 
 - **Technitium primary** on the VPS (Docker, `dns-servers` overlay; web UI `dns.kogler.si`).
+  **Access (2026-09-03):** `dns.kogler.si` resolves to the VPS edge and is behind **Authentik
+  Forward-Auth** — its `forward-dns` ProxyProvider lives in `ks-forward-auth.yml` (blueprint,
+  applied via `playbooks/authentik-blueprints.yml`); the route label is on the primary
+  technitium compose (`Host(dns.kogler.si)` + `authentik-forward-auth@file`).
 - **Technitium secondary** on **oldsrv** — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when the VPS is down.
 - **Technitium tertiary** on the **Raspberry Pi (`pi.kogler.si`)** — web UI `dns-pi.kogler.si` via the Pi `traefik-ha` edge (host :5380 published, see [network-dns.md](network-dns.md)).
 

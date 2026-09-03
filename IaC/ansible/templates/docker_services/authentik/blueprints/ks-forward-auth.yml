@@ -19,7 +19,9 @@
 #   forgejo/git — NATIVE OIDC since HD-230 (2026-08-23, owner decision): SSO via
 #   ks-oidc.yml provider_forgejo (declared since HD-148); forward-git removed here
 #   and deleted server-side via ak-shell ORM one-shots after the converge.
-# 7 protected routes remain.
+# 10 plain forward_single routes (stats, sec, auto, pdf, homepage-apex, homepage-home,
+# traefik-dash, dsh, pi-dev, dns [HD-317, 2026-09-03]) + 6 tailnet .ts twins
+# (stats/sec/auto/traefik-dash/logs/csui) = 16 providers/apps total.
 # forward_single ONLY — forward_domain would swallow sibling subdomains.
 # ==================================================================================
 version: 1
@@ -134,6 +136,25 @@ entries:
       mode: forward_single
       external_host: https://pi-dev.kogler.si
       internal_host: http://pi-dev:8080
+      internal_host_ssl_validation: false
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+
+  # --- HD-317 (2026-09-03): the VPS Technitium primary web UI. The technitium
+  # compose's Docker-label route (Host(dns.kogler.si), authentik-forward-auth@file)
+  # has existed since HD-62, but its Authentik forward provider was never added to
+  # this blueprint — so forward-auth returned 404 for Host: dns.kogler.si and
+  # https://dns.kogler.si/ was unreachable (live 2026-09-03). internal_host resolves
+  # the container on traefik-public (service name, docker DNS).
+  - model: authentik_providers_proxy.proxyprovider
+    id: provider_edge_dns
+    identifiers:
+      name: forward-dns
+    attrs:
+      mode: forward_single
+      external_host: https://dns.kogler.si
+      internal_host: http://technitium:5380
       internal_host_ssl_validation: false
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
@@ -291,6 +312,15 @@ entries:
       name: pi web-ui (edge)
       meta_launch_url: https://pi-dev.kogler.si
       provider: !KeyOf provider_edge_pi_dev
+  # HD-317 (2026-09-03): the VPS Technitium primary web UI application.
+  - model: authentik_core.application
+    id: app_edge_dns
+    identifiers:
+      slug: edge-technitium
+    attrs:
+      name: Technitium DNS (edge)
+      meta_launch_url: https://dns.kogler.si
+      provider: !KeyOf provider_edge_dns
 
   # --- HD-135b follow-up: applications for the *.ts.kogler.si twins (tailnet edge) ---
   - model: authentik_core.application
