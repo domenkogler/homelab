@@ -28,7 +28,8 @@
 #
 # Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   - ha-vrrp_password — keepalived auth (rendered into keepalived.conf by the role)
-#   - ./secrets.yaml is 1Password-rendered (home_assistant role, pending)
+#   - ./secrets.yaml — rendered by the home_assistant role (secrets.yaml.j2 →
+#     /opt/home-assistant-primary/secrets.yaml, mode 0600); compose mounts it ro.
 
 services:
   home-assistant:

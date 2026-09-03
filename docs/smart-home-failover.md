@@ -75,7 +75,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - **Technitium secondary DNS moved from nas → Pi** (`pi.kogler.si`, now a Debian host; `ha.kogler.si` = VIP). Primary stays on oldsrv. See `network-dns.md`.
 
 - **Identical config from one source:** both nodes render the **same `configuration.yaml`** from the repo (`use_x_forwarded_for: true`, `trusted_proxies: <Traefik>`), including the `owner` recovery account and Authentik OIDC settings.
-- **Role/playbook:** `raspberry_pi.yml` (common → network → docker → home_assistant → docker_services → monitoring) configures the Pi as primary (incl. RaspberryMatic + Technitium secondary). The `home_assistant` role on `home_servers` renders the standby + RaspberryMatic-standby containers on oldsrv.
+- **Secrets via one renderer:** the `home_assistant` role renders **`secrets.yaml.j2`** into `/opt/home-assistant-primary/secrets.yaml` (Pi) and `{{ ha_standby_path }}/secrets.yaml` (oldsrv) — inline `community.general.onepassword` lookups, fail-closed per HD-91, block-scalar per HD-233. `configuration.yaml.j2` references the values via `!secret <name>` (single source; HA resolves at YAML load). Each node keeps its OWN 1Password-rendered copy: `secrets.yaml` is excluded from the Pi→standby config rsync (`ha-config-sync.sh.j2`). `ha_api` is NOT part of HA's secrets.yaml — the `monitoring` role writes the Prometheus bearer to `/etc/prometheus/ha_token` under the `prometheus_ha_exporter` gate.
 - **Update policy:** **Renovate + `stable` tag** (controlled/gated: Renovate → PR → review → deploy). **No watchtower** (HD-39) — preserves primary/standby version parity and the repo's deliberate update gating.
 
 ### Homematic macvlan network (prerequisite on both hosts)

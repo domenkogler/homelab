@@ -1,0 +1,94 @@
+# Luci (Lights) — room-grouped sections view.
+title: Luci
+type: sections
+icon: mdi:lightbulb-group
+path: luci
+max_columns: 3
+
+sections:
+  - type: grid
+    title: Dnevna soba
+    cards:
+      - type: tile
+        entity: light.dnevna_soba_luc_dimm_2_8
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_9
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_10
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_11
+
+  - type: grid
+    title: Hodnik
+    cards:
+      - type: tile
+        entity: light.hodnik_luc_on_off_1_1
+      - type: tile
+        entity: light.hodnik_luc_dimm_1_2
+      - type: tile
+        entity: light.hodnik_luc_dimm_1_3
+
+  - type: grid
+    title: Kuhinja
+    cards:
+      - type: tile
+        entity: light.kuhinja_luc_dimm_2_5
+      - type: tile
+        entity: light.kuhinja_luc_dimm_2_6
+
+  - type: grid
+    title: Spalnica
+    cards:
+      - type: tile
+        entity: light.spalnica_luc_on_off_2_1
+      - type: tile
+        entity: light.spalnica_luc_dimm_2_2
+      - type: tile
+        entity: light.spalnica_luc_on_off_2_3
+      - type: tile
+        entity: light.spalnica_luc_on_off_2_4
+
+  - type: grid
+    title: Kopalnica
+    cards:
+      - type: tile
+        entity: light.kopalnica_luc_dimm_1_6
+      - type: tile
+        entity: light.kopalnica_luc_dimm_1_7
+
+  - type: grid
+    title: Kabinet
+    cards:
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_9
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_10
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_11
+
+  - type: grid
+    title: Sobe
+    cards:
+      - type: tile
+        entity: light.soba1_luc_dimm_1_8
+      - type: tile
+        entity: light.soba1_luc_dimm_1_9
+      - type: tile
+        entity: light.soba1_luc_on_off_1_10
+      - type: tile
+        entity: light.soba2_luc_dimm_1_11
+      - type: tile
+        entity: light.soba2_luc_dimm_1_12
+      - type: tile
+        entity: light.soba2_luc_on_off_1_13
+
+  - type: grid
+    title: Ostalo
+    cards:
+      - type: tile
+        entity: light.wc_luc_on_off_1_5
+      - type: tile
+        entity: light.jedilnica_luc_dimm_2_7
+      - type: tile
+        entity: light.pralnica_luc_on_off_1_4

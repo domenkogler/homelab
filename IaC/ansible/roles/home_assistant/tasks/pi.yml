@@ -18,6 +18,80 @@
     mode: '0644'
   tags: [ha_recorder, hd19]
 
+# ---- Lovelace dashboard (Stanovanje, YAML mode) ----
+# Root + views are rendered under /config/lovelace/ (relative !include resolution).
+- name: Create lovelace directory
+  ansible.builtin.file:
+    path: /opt/home-assistant-primary/config/lovelace
+    state: directory
+    mode: '0755'
+  tags: [ha_render, lovelace]
+
+- name: Render Stanovanje dashboard root
+  ansible.builtin.copy:
+    src: lovelace/dashboard_stanovanje.yaml
+    dest: /opt/home-assistant-primary/config/lovelace/dashboard_stanovanje.yaml
+    mode: '0644'
+  tags: [ha_render, lovelace]
+
+- name: Render Stanovanje dashboard views (Pregled/Luci/Žaluzije/Ogrevanje)
+  ansible.builtin.copy:
+    src: "lovelace/{{ item }}"
+    dest: "/opt/home-assistant-primary/config/lovelace/{{ item }}"
+    mode: '0644'
+  loop:
+    - view_pregled.yaml
+    - view_luci.yaml
+    - view_zaluzije.yaml
+    - view_ogrevanje.yaml
+  tags: [ha_render, lovelace]
+
+
+
+# ---- KNX (docs/smart-home.md): ETS project file SSOT ----
+# knx-entities.yaml is generated from the .knxproj (scripts/knx-hass-gen.py) — the
+# configuration.yaml.j2 `knx: !include knx-entities.yaml` needs the file at
+# /config/knx-entities.yaml. The .knxproj itself is deployed to /config/knx/ so the
+# KNX panel can import it (Group Monitor names + knx.telegram destination_name).
+# Both files are static (no Jinja), copied not templated.
+- name: Deploy KNX entities file (generated from ETS project)
+  ansible.builtin.copy:
+    src: knx-entities.yaml
+    dest: /opt/home-assistant-primary/config/knx-entities.yaml
+    mode: '0644'
+  tags: [ha_render, knx]
+
+- name: Create KNX project directory
+  ansible.builtin.file:
+    path: /opt/home-assistant-primary/config/knx
+    state: directory
+    mode: '0755'
+  tags: [ha_render, knx]
+
+- name: Deploy ETS project file (StanovanjeKogler_v1_0.knxproj — KNX panel import)
+  ansible.builtin.copy:
+    src: "{{ role_path }}/files/StanovanjeKogler_v1_0.knxproj"
+    dest: /opt/home-assistant-primary/config/knx/StanovanjeKogler_v1_0.knxproj
+    mode: '0644'
+  tags: [ha_render, knx]
+
+
+
+# ---- secrets.yaml (HD-185/HD-204 pending renderer) ----
+# Render the 1Password-backed secrets file BEFORE docker_services brings the
+# compose up (render-first order). Values resolve via inline community.general.onepassword
+# lookups — the same mechanism configuration.yaml.j2 uses — because the docker_services
+# `vault` dict is NOT yet populated on the Pi (home_assistant runs before docker_services;
+# HD-204 render-first). Fail-closed per HD-91: a missing 1Password item aborts the render
+# loudly (no default('')). Each field uses block-scalar `>-` (HD-233) so characters in the
+# 1Password value (:, ", #, $, …) can never break HA's YAML parse.
+- name: Render HA secrets.yaml (1Password-backed, block-scalar, fail-closed)
+  ansible.builtin.template:
+    src: secrets.yaml.j2
+    dest: /opt/home-assistant-primary/secrets.yaml
+    mode: '0600'
+  tags: [ha_render, hd185, hd204]
+
 # ---- keepalived PRIMARY (VIP owner in normal mode) ----
 # Variants: master.conf (MASTER/{{ ha_primary_priority }}) + peer.conf
 # (BACKUP/{{ ha_primary_peer_priority }} for reverse failback). The ACTIVE
@@ -40,7 +114,7 @@
 
 - name: Create active keepalived.conf from MASTER (first deploy only)
   ansible.builtin.copy:
-    src: keepalived.master.conf
+    src: /opt/home-assistant-primary/keepalived.master.conf   # rendered above; remote_src needs the ABSOLUTE path (relative src would look under role files/)
     dest: /opt/home-assistant-primary/keepalived.conf
     remote_src: true
     force: false                # never clobber a manual master/peer swap

@@ -1,0 +1,192 @@
+# Pregled (Overview) — status first, then per-room controls.
+title: Pregled
+type: sections
+icon: mdi:home
+path: pregled
+max_columns: 4
+
+# Top row: status badges (doors, weather, rekuperator)
+sections:
+  - type: grid
+    title: Status
+    column_span: 4
+    cards:
+      - type: entities
+        title: Vrata
+        state_color: true
+        entities:
+          - binary_sensor.hodnik_v1_vrata
+          - binary_sensor.hodnik_v2_vrata
+          - binary_sensor.hodnik_v3_vrata
+          - binary_sensor.hodnik_v4_vrata
+          - binary_sensor.hodnik_v6_vrata
+          - binary_sensor.hodnik_v7_vrata
+          - binary_sensor.soba2_v5_vrata
+          - binary_sensor.spalnica_v8_vrata
+          - binary_sensor.spalnica_v9_vrata
+      - type: weather
+        entity: weather.meteoblue_kogler_si_maribor
+        show_forecast: true
+      - type: entities
+        title: Rekuperator
+        state_color: true
+        entities:
+          - sensor.rekuperator_airflow
+          - sensor.rekuperator_room_temperature
+          - sensor.rekuperator_extract_temperature
+          - sensor.rekuperator_exhaust_temperature
+          - sensor.rekuperator_outdoor_temperature
+          - binary_sensor.rekuperator_filter_dirty
+
+  # Dnevna soba
+  - type: grid
+    title: Dnevna soba
+    icon: mdi:sofa
+    cards:
+      - type: tile
+        entity: light.dnevna_soba_luc_dimm_2_8
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_9
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_10
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_11
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: cover.dnevna_soba_zaluzije_z5
+        icon: mdi:blinds
+
+  # Hodnik
+  - type: grid
+    title: Hodnik
+    icon: mdi:door
+    cards:
+      - type: tile
+        entity: light.hodnik_luc_on_off_1_1
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.hodnik_luc_dimm_1_2
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.hodnik_luc_dimm_1_3
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: cover.hodnik_zaluzije_z1
+        icon: mdi:blinds
+
+  # Kuhinja
+  - type: grid
+    title: Kuhinja
+    icon: mdi:countertop
+    cards:
+      - type: tile
+        entity: light.kuhinja_luc_dimm_2_5
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.kuhinja_luc_dimm_2_6
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: cover.kuhinja_zaluzije_z4
+        icon: mdi:blinds
+      - type: entities
+        title: Aparati
+        state_color: true
+        entities:
+          - switch.kuhinja_pecica1
+          - switch.kuhinja_pecica2
+          - switch.kuhinja_pomivalni_stroj
+
+  # Spalnica
+  - type: grid
+    title: Spalnica
+    icon: mdi:bed
+    cards:
+      - type: tile
+        entity: light.spalnica_luc_on_off_2_1
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.spalnica_luc_on_off_2_3
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.spalnica_luc_on_off_2_4
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.spalnica_luc_dimm_2_2
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: cover.spalnica_zaluzije_z2
+        icon: mdi:blinds
+
+  # Kopalnica
+  - type: grid
+    title: Kopalnica
+    icon: mdi:shower
+    cards:
+      - type: tile
+        entity: light.kopalnica_luc_dimm_1_6
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: light.kopalnica_luc_dimm_1_7
+        icon: mdi:ceiling-light
+      - type: tile
+        entity: cover.kopalnica_zaluzije_z3
+        icon: mdi:blinds
+      - type: tile
+        entity: switch.kopalnica_radiator
+        icon: mdi:radiator
+
+  # Sobe + Kabinet + WC + Pralnica
+  - type: grid
+    title: Sobe
+    icon: mdi:bed-double
+    cards:
+      - type: tile
+        entity: light.soba1_luc_dimm_1_8
+      - type: tile
+        entity: light.soba1_luc_dimm_1_9
+      - type: tile
+        entity: light.soba1_luc_on_off_1_10
+      - type: tile
+        entity: cover.soba1_zaluzije_z8
+      - type: tile
+        entity: light.soba2_luc_dimm_1_11
+      - type: tile
+        entity: light.soba2_luc_dimm_1_12
+      - type: tile
+        entity: light.soba2_luc_on_off_1_13
+      - type: tile
+        entity: cover.soba2_zaluzije_z7
+
+  - type: grid
+    title: Kabinet & Jedilnica
+    icon: mdi:desk
+    cards:
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_9
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_10
+      - type: tile
+        entity: light.kabinet_luc_dimm_2_11
+      - type: tile
+        entity: cover.kabinet_zaluzije_z6
+      - type: tile
+        entity: light.jedilnica_luc_dimm_2_7
+
+  - type: grid
+    title: WC & Pralnica
+    icon: mdi:toilet
+    cards:
+      - type: tile
+        entity: light.wc_luc_on_off_1_5
+      - type: tile
+        entity: switch.wc_radiator
+        icon: mdi:radiator
+      - type: tile
+        entity: light.pralnica_luc_on_off_1_4
+      - type: tile
+        entity: switch.pralnica_pralni_stroj
+      - type: tile
+        entity: switch.pralnica_susilni_stroj

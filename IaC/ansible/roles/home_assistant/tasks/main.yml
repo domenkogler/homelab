@@ -23,6 +23,10 @@
 #    - Install Home Assistant Container (Debian + docker): image ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}  ✅
 #    - Render /config/configuration.yaml from repo template (use_x_forwarded_for: true,
 #      trusted_proxies: <Pi traefik-ha + oldsrv traefik — both edges must be trusted>)
+#    - Render ./secrets.yaml (secrets.yaml.j2 → /opt/home-assistant-primary/secrets.yaml,
+#      mode 0600; standby renders the same template to {{ ha_standby_path }}/secrets.yaml) —
+#      inline community.general.onepassword lookups (same convention as configuration.yaml.j2),
+#      fail-closed per HD-91, block-scalar per HD-233 (landed HD-185/HD-204)
 #    - Render other configs (integrations: knx via GIRA IP Router .118, homematic [XML-RPC 2001/2010 via local RaspberryMatic], shelly native)
 #    - Run "owner" recovery account; Authentik OIDC; NO Forward-Auth on ha route
 #    - keepalived PRIMARY: owns VIP 10.10.1.200 (state MASTER, priority higher than standby)  ✅ HD-17

@@ -16,6 +16,19 @@
     mode: '0644'
   tags: [ha_failover, hd17]
 
+# ---- secrets.yaml (standby) — 1Password-rendered copy ----
+# The standby compose mounts ./secrets.yaml separately (excluded from the Pi→standby
+# config rsync). Rendered from the same template as the primary (identical secrets —
+# both nodes need the same integration credentials). Values resolve via inline
+# community.general.onepassword lookups (same as configuration.yaml.j2) — fail-closed
+# per HD-91, block-scalar per HD-233.
+- name: Render standby secrets.yaml (1Password-backed, block-scalar, fail-closed)
+  ansible.builtin.template:
+    src: secrets.yaml.j2
+    dest: "{{ ha_standby_path }}/secrets.yaml"
+    mode: '0600'
+  tags: [ha_failover, hd17]
+
 - name: Render standby keepalived config (failover — MASTER, higher priority)
   ansible.builtin.template:
     src: keepalived.failover.conf.j2
@@ -101,9 +114,60 @@
 - name: Render standby configuration.yaml (same source as Pi; sync refreshes it)
   ansible.builtin.template:
     src: configuration.yaml.j2
-    dest: /opt/home-assistant-standby/config/configuration.yaml
+    dest: "{{ ha_standby_path }}/config/configuration.yaml"
     mode: '0644'
   tags: [ha_failover, hd17]
+
+# ---- Lovelace dashboard (standby — same as Pi, cold-render) ----
+- name: Create lovelace directory (standby)
+  ansible.builtin.file:
+    path: "{{ ha_standby_path }}/config/lovelace"
+    state: directory
+    mode: '0755'
+  tags: [ha_failover, knx, lovelace]
+
+- name: Render Stanovanje dashboard root (standby)
+  ansible.builtin.copy:
+    src: lovelace/dashboard_stanovanje.yaml
+    dest: "{{ ha_standby_path }}/config/lovelace/dashboard_stanovanje.yaml"
+    mode: '0644'
+  tags: [ha_failover, knx, lovelace]
+
+- name: Render Stanovanje dashboard views (standby)
+  ansible.builtin.copy:
+    src: "lovelace/{{ item }}"
+    dest: "{{ ha_standby_path }}/config/lovelace/{{ item }}"
+    mode: '0644'
+  loop:
+    - view_pregled.yaml
+    - view_luci.yaml
+    - view_zaluzije.yaml
+    - view_ogrevanje.yaml
+  tags: [ha_failover, knx, lovelace]
+
+
+
+# ---- KNX (same as Pi): needed for the standby to render the same config ----
+- name: Deploy KNX entities file (standby — from ETS project)
+  ansible.builtin.copy:
+    src: knx-entities.yaml
+    dest: "{{ ha_standby_path }}/config/knx-entities.yaml"
+    mode: '0644'
+  tags: [ha_failover, knx]
+
+- name: Create KNX project directory (standby)
+  ansible.builtin.file:
+    path: "{{ ha_standby_path }}/config/knx"
+    state: directory
+    mode: '0755'
+  tags: [ha_failover, knx]
+
+- name: Deploy ETS project file (standby — KNX panel import)
+  ansible.builtin.copy:
+    src: "{{ role_path }}/files/StanovanjeKogler_v1_0.knxproj"
+    dest: "{{ ha_standby_path }}/config/knx/StanovanjeKogler_v1_0.knxproj"
+    mode: '0644'
+  tags: [ha_failover, knx]
 
 - name: Deploy ha-sync rsync-only SSH wrapper
   ansible.builtin.copy:

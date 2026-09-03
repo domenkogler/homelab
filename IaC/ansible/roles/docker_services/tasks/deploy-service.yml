@@ -96,7 +96,7 @@
       loop:
         - config/configuration.yaml   # rendered by home_assistant (render-first order)
         - keepalived.conf             # rendered by home_assistant (first-deploy copy)
-        - secrets.yaml                # 1Password-rendered (renderer still pending)
+        - secrets.yaml                # 1Password-rendered (home_assistant role)
       loop_control:
         loop_var: ha_src_file         # NOT `item` — shadows the outer include's lazy
                                       # `svc: "{{ item }}"` and turns svc into a string
@@ -114,7 +114,8 @@
           Docker auto-created the bind-mount source as a directory. Remediation: stop the stack
           (`docker compose down`), delete the auto-created path(s), then re-run so that
           home_assistant renders BEFORE docker_services (HD-204 render-first order). Note:
-          secrets.yaml additionally requires its pending 1Password render task to land first.
+          secrets.yaml is rendered by the home_assistant role (secrets.yaml.j2) on both nodes
+          (primary /opt/home-assistant-primary, standby {{ ha_standby_path }}).
   tags: ["{{ svc.name }}", home_assistant, hd185]
 - name: "Validate rendered compose file for {{ svc.name }} (HD-162)"
   ansible.builtin.shell:

@@ -1,0 +1,37 @@
+# Ogrevanje (Heating) — radiator switches + rekuperator status.
+title: Ogrevanje
+type: sections
+icon: mdi:radiator
+path: ogrevanje
+max_columns: 2
+
+sections:
+  - type: grid
+    title: Radiatorji
+    cards:
+      - type: entities
+        title: Kopalnica
+        state_color: true
+        entities:
+          - switch.kopalnica_radiator
+          - script.kopalnica_radiator_za_1h
+      - type: entities
+        title: WC
+        state_color: true
+        entities:
+          - switch.wc_radiator
+          - script.wc_radiator_za_1h
+
+  - type: grid
+    title: Rekuperator (ComfoAir Q)
+    cards:
+      - type: entities
+        title: Pretok & Temperature
+        state_color: true
+        entities:
+          - sensor.rekuperator_airflow
+          - sensor.rekuperator_room_temperature
+          - sensor.rekuperator_extract_temperature
+          - sensor.rekuperator_exhaust_temperature
+          - sensor.rekuperator_outdoor_temperature
+          - binary_sensor.rekuperator_filter_dirty
