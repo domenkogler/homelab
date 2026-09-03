@@ -5,10 +5,22 @@
 # All *.kogler.si hostnames are resolved by Technitium DNS (split-horizon).
 # Static entries below are bootstrap-only — keep in sync with inventory.ini.
 # See docs/network-dns.md for the full DNS architecture.
-
+# SSOT: network_static_hosts (group_vars/all/main.yml) — per-host IP by short
+# name + preferred VLAN (Home 10 for LAN hosts, Mgmt 99 for network gear), so
+# this renders correctly regardless of which hosts Ansible gathered in a
+# --limit run (hostvars ansible_host leaks a per-run override to every entry —
+# live bug 2026-09-03 oldsrv provision: nas resolved to oldsrv's own IP and
+# NFS failed 'Connection refused').
 {% for host in groups['all'] %}
-{% if host != 'localhost' and hostvars[host].ansible_host is defined %}
-{% set fqdn = host if '.' in host else host ~ '.' ~ domain_public %}
-{{ hostvars[host].ansible_host }}  {{ fqdn }} {{ fqdn.split('.')[0] }}
+{% if host != 'localhost' %}
+{% set short = host.split('.')[0] %}
+{% if short == 'router' or short == 'switch' or short == 'ups' or short == 'ilo' %}
+{% set ns = network_static_hosts | selectattr('name', 'equalto', short) | selectattr('vlan', 'equalto', 99) | list %}
+{% else %}
+{% set ns = network_static_hosts | selectattr('name', 'equalto', short) | selectattr('vlan', 'equalto', 10) | list %}
+{% endif %}
+{% if ns | length > 0 %}
+{{ ns[0].ip }}  {{ host }} {{ short }}
+{% endif %}
 {% endif %}
 {% endfor %}
