@@ -123,7 +123,9 @@ knx_router_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'knx-ip
 # SAME configuration.yaml is rendered on primary + standby.
 ha_trusted_proxies:
   - 172.20.0.2/32            # oldsrv traefik (traefik-public bridge default .2) — verify at deploy
-  # - <pi-traefik-ha-ip>/32  # Pi traefik-ha edge container IP — uncomment/verify per host
+  - 10.10.1.20/32            # Pi traefik-ha edge — host networking (network_mode: host), so its
+                             # source IP is the Pi host IP itself; no container IP exists to trust
+                             # (live 2026-09-03)
 # Overlay-wide header trust (S15/S16 / HD-190): SAME contract as ha_trusted_proxies
 # (KOPS-039/HD-81) — services that consume forwarded headers must trust ONLY the exact
 # Traefik edge container IPs, never the whole traefik-public /16 (any compromised

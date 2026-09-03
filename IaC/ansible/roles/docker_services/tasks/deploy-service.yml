@@ -92,7 +92,7 @@
   block:
     - name: "Stat {{ svc.name }} bind-mount sources"
       ansible.builtin.stat:
-        path: "{{ docker_compose_dir }}/{{ svc.name }}/{{ item }}"
+        path: "{{ docker_compose_dir }}/{{ svc.name }}/{{ ha_src_file }}"
       loop:
         - config/configuration.yaml   # rendered by home_assistant (render-first order)
         - keepalived.conf             # rendered by home_assistant (first-deploy copy)
@@ -105,17 +105,15 @@
     - name: "Assert {{ svc.name }} bind-mount sources pre-exist as regular files"
       ansible.builtin.assert:
         that:
-          - ha_src_file.stat.exists
-          - ha_src_file.stat.isreg
+          - ha_primary_sources.results | selectattr('stat.exists', 'equalto', true) | list | length == 3
         fail_msg: >-
-          {{ ha_src_file.item }} under {{ docker_compose_dir }}/{{ svc.name }}/ is missing or not a
-          regular file. An empty DIRECTORY here means an earlier deploy ran `docker compose up`
+          {{ ha_primary_sources.results | map(attribute='ha_src_file') | join(', ') }} bind-mount source(s) under
+          {{ docker_compose_dir }}/{{ svc.name }}/ are missing or not regular files. An empty DIRECTORY
+          here means an earlier deploy ran `docker compose up`
           for home-assistant-primary BEFORE the home_assistant role rendered its configs —
           Docker auto-created the bind-mount source as a directory. Remediation: stop the stack
           (`docker compose down`), delete the auto-created path(s), then re-run so that
-          home_assistant renders BEFORE docker_services (HD-204 render-first order). Note:
-          secrets.yaml is rendered by the home_assistant role (secrets.yaml.j2) on both nodes
-          (primary /opt/home-assistant-primary, standby {{ ha_standby_path }}).
+          home_assistant renders BEFORE docker_services (HD-204 render-first order).
   tags: ["{{ svc.name }}", home_assistant, hd185]
 - name: "Validate rendered compose file for {{ svc.name }} (HD-162)"
   ansible.builtin.shell:

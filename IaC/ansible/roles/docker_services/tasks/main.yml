@@ -74,10 +74,21 @@
     file: fetch-vault-pass.yml
   vars:
     op_mode: "derive"
+    # Enabled-set semantics must MATCH the main deploy loop (default-enabled when
+    # `enabled:` is absent — list entry = runs, `enabled: false` = opt-out).
+    # `selectattr('enabled','truthy')` CRASHES on entries without the key (Jinja
+    # raises "dict has no attribute 'enabled'"). Build the enabled set as:
+    #   defined+truthy  UNION  missing-key (implicitly enabled)  = default(true).
+    # HD-307/310: the Pi entries home-assistant-primary /
+    # technitium-secondary omit `enabled:` entirely.
+    _pi_enabled_dirs: >-
+      {{ (docker_services | selectattr('enabled','defined') | selectattr('enabled') | map(attribute='template_dir') | list)
+         + (docker_services | rejectattr('enabled','defined') | map(attribute='template_dir') | list) }}
     op_derive_services: >-
       {{ scope_is_all | ternary(
-           docker_services | selectattr('enabled', 'truthy') | map(attribute='template_dir') | list,
-           docker_services | selectattr('enabled', 'truthy') | selectattr('name', 'in', scope_list) | map(attribute='template_dir') | list) }}
+           _pi_enabled_dirs,
+           (docker_services | selectattr('enabled','defined') | selectattr('enabled') | selectattr('name','in',scope_list) | map(attribute='template_dir') | list)
+           + (docker_services | rejectattr('enabled','defined') | selectattr('name','in',scope_list) | map(attribute='template_dir') | list)) }}
     # On a FULL converge the litellm-scoped keys (dsh_api, pi-harness_openai_api, …) are
     # deliberately EXCLUDED here — they're minted by the litellm bootstrap glue later in the
     # loop and fetched via the post-glue list pre-pass (they don't exist before it on a fresh
