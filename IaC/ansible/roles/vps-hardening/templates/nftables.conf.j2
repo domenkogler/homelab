@@ -34,6 +34,13 @@ table inet filter {
 
         # Docker containers that publish host ports (e.g. via host network) —
         # none expected on the VPS by policy (compose uses traefik-public only).
+        # RouterOS remote syslog receiver (HD-313): rsyslog binds UDP/514 on the
+        # wg-s2s VPS address (wg_s2s_vps.ip) and the RB4011 forwards RFC5424
+        # syslog there over the tunnel (src = wg_s2s_vps.router_ip, the router
+        # wg-s2s side). Scoped: UDP/514 accepted ONLY from that tunnel peer —
+        # everything else still dropped (no public/loose syslog surface).
+        iifname "wg-s2s" ip saddr {{ wg_s2s_vps.router_ip }} udp dport 514 accept
+
         # DNS resolver (Technitium PRIMARY, HD-299 / Option A): the VPS publishes
         # host :53/udp+tcp. Source-allow ONLY tailnet CGNAT (100.64.0.0/10) + home
         # WAN (DDNS s.kogler.si — resolved + refreshed by the ansible-managed

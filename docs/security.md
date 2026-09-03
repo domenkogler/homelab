@@ -198,7 +198,11 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
   (post_install.sh + role assert); **fail2ban** SSH jail (`maxretry 3`) + `http-auth` jail for public login pages
   (n8n/Grafana/Forgejo) — **HD-280 (2026-09-04):** the http-auth jail now reads the Traefik accesslog
   (`/opt/traefik/logs/access.log`) via a Traefik-CLF filter (was `nginx-http-auth` on a non-existent log
-  path — dead). Owned by [deployment-preseed.md](deployment-preseed.md) (VPS) + [services-vps.md](services-vps.md)
+  path — dead). **Deployed + LIVE 2026-09-04:** Traefik `--accesslog` active (file streaming CLF);
+  fail2ban jails `http-auth` + `sshd` both running (SSH jail already counting failed attempts).
+  Deploy-order note (live): the jail crash-loops with `Have not found any log file for http-auth` until
+  the accesslog FILE exists — Traefik re-render FIRST, then start fail2ban.
+  Owned by [deployment-preseed.md](deployment-preseed.md) (VPS) + [services-vps.md](services-vps.md)
   §VPS-Specific Firewall + `roles/vps-hardening/`. **HD-154. ✅ enforced.**
 - **Container/escape hardening** ✅ — the VPS `docker_services` compose uses `cap_drop`/`read_only`/`tmpfs` where
   possible; no public container gets `privileged` / host networking without a documented reason (§4 applies);

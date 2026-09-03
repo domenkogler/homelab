@@ -136,6 +136,30 @@ port-scan detection and the same stream is available to Loki for central search.
 > (`/srv/docker/crowdsec/config/acquis.d/` — the compose-dir extra-template copy was dead,
 > CrowdSec reads acquisitions from `acquis.d/` only), and the VPS Alloy
 > `loki.source.file`/`loki.process.routeros` push (`routeros.log` → Loki, `job=routeros-syslog`).
+> **Live session 2026-09-04:** router side APPLIED + VERIFIED live (action `centralsyslog`
+> `remote={{ wg_s2s_vps.ip }}:514 src-address={{ wg_s2s_vps.router_ip }}`, rules 6–9, `logpipe` user — all on-device
+> via the Pi-99 hop); VPS side APPLIED (rsyslog `{{ wg_s2s_vps.ip }}:514` active, acquis in config
+> mount, CrowdSec restarted, Alloy re-rendered with `routeros_syslog`). **Two IaC gaps found +
+> fixed this session:** ① the router/switch roles' `routeros_api_password` `set_fact` was
+> untagged → ANY surgical `--tags` router/switch converge failed on an undefined password;
+> tagged it `always` in both roles (the HD-161 identity assert is `always`). ② the VPS
+> vps-hardening nftables input (default-deny) had **no allow for UDP/514 from the router wg
+> peer** → rsyslog bound the address but the input policy silently dropped every syslog
+> packet; added `iifname "wg-s2s" ip saddr {{ wg_s2s_vps.router_ip }} udp dport 514 accept`
+> (SSOT-derived, live-verified in the ruleset).
+>
+> **⚠ BLOCKED (end-to-end log flow, live session 2026-09-04):** with the config correct + live
+> on BOTH ends, the RB4011 (RouterOS 7.24.1) **emits ZERO UDP/514 packets** — verified via
+> router sniffer (`/tool sniffer quick interface=wg-s2s ip-protocol=udp port=514`), live
+> listeners on the VPS wg address across ports 514/1514, multiple action variants (custom
+> `centralsyslog` AND the canonical default `remote` action, `remote-log-format=default`/`syslog`,
+> `src-address` set/unset, iso8601, `:log info` synthetic events), all while `/log print` shows
+> the events in memory. This matches the reported RouterOS 7.18–7.24 remote-syslog **egress
+> bug family** on RB4011/RB5009 (forum.mikrotik.com: "no packets on port 514 although syslog
+> server reachable"; one user's workaround = re-add the action config, another = IP-vs-hostname;
+> MikroTik confirmed a 7.17+ FQDN-related regression and said a fix is pending). Config alone
+> cannot close this gate; pending: RouterOS upgrade/re-add workaround on the device, then
+> re-verify end-to-end. Switch/AP forwarding stays future work (CRS328 has no wg tunnel).
 
 - **RouterOS side (router role, `router-logging` tag):** `/system logging action centralsyslog`
   (`target=remote`, `remote=<vps wg-s2s address>:514` — SSOT `wg_s2s_vps.remote_ip`, `src-address=wg-s2s`),

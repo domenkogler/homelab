@@ -22,6 +22,11 @@
   set_fact:
     routeros_api_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
   no_log: true
+  # Same tag discipline as the router role (HD-313 deploy-gate fix): every
+  # api_facts/api_modify here references routeros_api_password and the HD-161
+  # identity assert is `tags: always`; an untagged set_fact is skipped by any
+  # surgical --tags filter. Tagged always = prerequisite tier.
+  tags: always
 
 # -------------------------------------------------------------------------
 # Assert-before-mutate (HD-161): read device identity once and refuse to apply

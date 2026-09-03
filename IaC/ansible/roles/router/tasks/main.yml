@@ -26,6 +26,13 @@
   set_fact:
     routeros_api_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
   no_log: true
+  # HD-313 deploy-gate fix (2026-09-03): must run under ANY --tags filter — every
+  # api_facts/api_modify in this role references routeros_api_password, and the
+  # HD-161 identity assert is `tags: always`; an untagged set_fact is skipped by
+  # surgical (`--tags network,router-logging`) runs and the assert fails on an
+  # undefined password. Tagging it `always` (prerequisite tier, like the admin
+  # assert above) resolves the password no matter the filter.
+  tags: always
 
 # -------------------------------------------------------------------------
 # VLAN interface naming (SSOT-compatible with the bootstrap, HD-304 follow-up,

@@ -59,6 +59,19 @@
       ignoreregex =
   notify: restart fail2ban
 
+- name: Pre-create Traefik accesslog dir + file (HD-280 order trap)
+  ansible.builtin.file:
+    path: /opt/traefik/logs/access.log
+    state: touch
+    mode: '0644'
+  # The fail2ban http-auth jail requires its logpath FILE to exist or the
+  # service crash-loops ('Have not found any log file for http-auth jail').
+  # Traefik creates the file only after its compose re-render (~docker_services
+  # tier), which runs AFTER this role. Touching the path here (and keeping it
+  # 0644 so fail2ban can read it while Traefik appends) makes any converge
+  # order safe.
+  changed_when: false
+
 - name: Ensure fail2ban is running + enabled
   systemd:
     name: fail2ban
