@@ -158,6 +158,16 @@ litellm_scoped_keys:
 # HmIP-RFUSB stick moved at runbook time), then flips true.
 homepage_failover_button: false
 
+# Homepage family-vs-technical split (HD-316):
+#   - homepage_show_technical (default true): render the "Domen · technical"
+#     group (tailnet-only admin dashboards: stats/logs/csui/sec/traefik/auto/
+#     dsh/pi-dev/vpn). Grafana (stats) is Domen's dashboard — never a family tile.
+#   - homepage_show_soon (default true): render the "Soon" roadmap group
+#     (Phase 3/4 deploy-gated apps as non-clickable description tiles).
+# Family groups (Photos/Files/Docs/Chat/Git/AI/Tools/Accounts) are always shown.
+homepage_show_technical: true
+homepage_show_soon: true
+
 # Prometheus HA-exporter scrape job (prometheus.yml.j2): OFF until the Phase-4 HA cutover
 # (HD-04). Today nothing can populate /etc/prometheus/ha_token (no vault item, no monitoring
 # render) and ha_vip serves no HA yet - a live job would just fail. Flip true at HD-04 with
