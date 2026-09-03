@@ -28,6 +28,10 @@
                       # Debian package on trixie (live-found 2026-09-03 nas provision)
       - zfs-dkms      # builds the native zfs kernel module (stock Debian kernel lacks it;
                       # modprobe zfs failed live 2026-09-03 — the module only arrives via DKMS)
+      - linux-headers-amd64   # headers for the RUNNING kernel — DKMS cannot build the zfs
+                      # module for /lib/modules/<running> without them (live-found 2026-09-03
+                      # oldsrv provision: modprobe zfs FATAL on kernel 6.12.101 — nas had
+                      # linux-headers-* present, oldsrv had none)
     state: present
     update_cache: true
 
