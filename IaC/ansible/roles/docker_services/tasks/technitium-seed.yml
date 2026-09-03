@@ -101,6 +101,10 @@
         - { name: "sec.kogler.si",     ip: "{{ tailnet_sidecar_ip }}" }
         - { name: "traefik.kogler.si", ip: "{{ tailnet_sidecar_ip }}" }
         - { name: "auto.kogler.si",    ip: "{{ tailnet_sidecar_ip }}" }
+      register: _tech_record
       no_log: true
       changed_when: false
-      failed_when: item_resp.json is not defined or item_resp.json.status not in ['ok', 'error']
+      # HD-324: register the loop result (was missing -> `item_resp` undefined -> every
+      # record-add failed closed even when the API returned status:error (idempotent
+      # "already exists"). Now tolerate error as idempotent, like the zone task.
+      failed_when: _tech_record.json is not defined or _tech_record.json.status not in ['ok', 'error']

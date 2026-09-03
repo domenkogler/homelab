@@ -91,6 +91,11 @@ services:
       traefik.http.routers.dns.entrypoints: websecure
       {{ 'traefik.http.routers.dns.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.dns.middlewares: authentik-forward-auth@file   # internal-only (public edge rejects it; tailnet via clean names)
+      # HD-324: pin the web-UI backend port — the container exposes both 53/tcp and 5380/tcp,
+      # and Traefik would otherwise auto-pick the LOWEST exposed numeric port (53 = the DNS
+      # port), proxying HTTP to it → 502 on the authenticated leg (live 2026-09-03, after the
+      # SSO login). Every other overlay-served service pins loadbalancer.server.port.
+      traefik.http.services.dns.loadbalancer.server.port: "5380"
 {% endif %}
 
   # SECONDARY (oldsrv) / TERTIARY (Pi): the same template renders both home instances via
