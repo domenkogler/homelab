@@ -131,7 +131,8 @@ port-scan detection and the same stream is available to Loki for central search.
   (HD-312d) for the temp `iot-wan-allow` list toggles.
 - **Receiver (monitoring role, `routeros-syslog` tag, VPS only):** `rsyslog` UDP/514 on the **wg-s2s VPS
   address** (SSOT `wg_s2s_vps.local_ip`) accepts RFC5424 from the router peer only and writes
-  `/var/log/remote-syslog/routeros.log`. Debian's stock rsyslog is already enabled on the VPS.
+  `/var/log/remote-syslog/routeros.log`. rsyslog is installed by the monitoring role (the
+  netcup minimal image does NOT ship it — 2026-09-03 live fix).
 - **CrowdSec (docker_services `crowdsec` service):** compose binds `/var/log/remote-syslog` (ro); an
   `acquis-routeros.yml` (extra template, `_extra_templates` `crowdsec:`) tells CrowdSec to tail the
   file as `type: mikrotik`. `crowdsec_collections` gains **`a1ad/mikrotik`** (parser + `mikrotik-bf` +
