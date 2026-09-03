@@ -11,7 +11,7 @@ tags: [services, dns, technitium, pihole]
 > **Links to:** `network-dns.md`, `network-vlans.md`, `services.md`
 > **Linked from:** `services.md`, `network-dns.md`
 
-> 🟢 **IaC done + VPS/oldsrv/Pi reconcile + Pi/dns-pi live; VPS admin recreate + oldsrv DNS pending.** DNS services are IaC-authored; the VPS primary + Pi tertiary are live, the VPS admin recreate + oldsrv (secondary) DNS deploy are still pending. Deploy progress vs [`deployment-tasks.md`](../deployment-tasks.md).
+> 🟢 **IaC done + VPS primary SEEDED + LIVE (HD-324, 2026-09-03); Pi/dns-pi live; oldsrv (secondary) DNS pending (Phase 3).** The VPS primary Technitium zone + split-horizon records are live-verified; oldsrv's secondary seeds via the same `technitium-seed` role once its admin is up. Deploy progress vs [`deployment-tasks.md`](../deployment-tasks.md).
 
 ---
 

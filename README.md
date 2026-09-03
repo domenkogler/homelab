@@ -74,9 +74,10 @@ task-specific dispatch. Do **not** bulk-read the repo.
   (2026-09-03)** — the cloud-IoT appliances (LG/Bosch/HAP) regain WAN as leases turn over; remaining
   tails (CAPsMAN per-MAC `access-list`, `kids-*` lists, n8n firmware automation) are in
   [`todo.md`](todo.md) HD-312. **HD-317 Technitium DNS-primary on the VPS is LIVE** (3-instance DNS
-  HA); the split-horizon A-record **seed role is DONE (Pi seeded live)** — VPS primary + oldsrv
-  secondaries seed automatically once the VPS admin is recreated (owner step; pending Traefik
-  @file-middleware fix). Detail: [`todo.md`](todo.md) HD-317.
+  HA); the split-horizon A-record **seed is DONE + LIVE on the VPS primary AND Pi tertiary**
+  (HD-324, 2026-09-03 — VPS admin recreated to the 1P value via the documented API; the seed
+  role now idempotent). oldsrv secondary seeds automatically once its Phase-3 admin is up.
+  Detail: [`todo.md`](todo.md) HD-317.
 
 ---
 

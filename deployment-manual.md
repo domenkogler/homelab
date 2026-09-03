@@ -466,6 +466,36 @@ in `group_vars/vps.yml`, enabled). Imperative facts a from-scratch deploy needs:
 Verify from a tailnet device: `https://stats.kogler.si` (forward-auth → SSO) and
 `https://stats.ts.kogler.si` (ACL-gated, tailnet-only).
 
+### 1.4c Technitium primary admin bootstrap + seed (VPS, HD-324)
+
+A from-scratch VPS deploy starts Technitium with a **default `admin` user whose password is
+`admin`** (the app seeds it on first boot — the container regens `auth.config`/`cache.bin`
+from the image, so deleting them does NOT reset it; that's why the seed role's "empty
+auth.config → bootstrap" premise only works on a truly-fresh instance). To make the
+`technitium-seed` role (which logs in with the 1P `technitium_login` item) succeed, set the
+admin to the 1P value via the documented API:
+
+```bash
+# on the VPS (creds never leave it):
+CTR_IP=$(docker inspect technitium --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' | awk '{print $1}')
+TOK=$(curl -sS -X POST "http://$CTR_IP:5380/api/user/login" --data-urlencode 'user=admin' --data-urlencode 'pass=admin' | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+curl -sS -X POST "http://$CTR_IP:5380/api/user/changePassword" \
+  -H "Authorization: Bearer $TOK" \
+  --data-urlencode 'pass=admin' --data-urlencode 'newPass=<1P technitium_login password>'
+```
+
+Then run the seed converge:
+
+```bash
+bash scripts/ansible-run.sh playbooks/vps.yml -l vps -t docker_services -e docker_services_scope=technitium
+```
+
+The seed creates the `kogler.si` zone + the split-horizon A records (`ha`/`dns-pi` → VIP,
+dashboards → `tailnet_sidecar_ip`). Verify: `dig @159.195.111.66 {ha,dns-pi,stats,logs,csui,sec,traefik,auto}.kogler.si`
+all answer. The **default `admin`/`admin` is retired after this** (verify it FAILS). A redeployer
+must also remember the `dns` router needs `traefik.http.services.dns.loadbalancer.server.port="5380"`
+(else the post-SSO leg 502s — Traefik auto-picks port 53).
+
 ### 1.5 Authentik first login
 
 - `akadmin` / `authentik_login` password — works FIRST TRY on a fresh install (bootstrap env
