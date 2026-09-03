@@ -28,6 +28,7 @@ tags: [index, dispatcher, ai]
 | **Deploy a new machine** | [`deployment-preseed.md`](deployment-preseed.md) | `hardware*.md` for target, `network-vlans.md` |
 | **Deployment progress / as-built record** (what did I run, what did I choose) | [`../deployment-tasks.md`](../deployment-tasks.md) (ledger) + owning-doc ✅ status lines + `git log` | [`../reports/deployment-journal.md`](../reports/deployment-journal.md) (frozen archive) |
 | **Redeploy a host from true zero (step-by-step runbook)** | [`../deployment-manual.md`](../deployment-manual.md) | [`../deployment-tasks.md`](../deployment-tasks.md), [`deployment-preseed.md`](deployment-preseed.md), [`../scripts/README.md`](../scripts/README.md) |
+| **Provision the Pi as HA primary (Phase 4, current runbook)** | [`deployment-pi-provision.md`](deployment-pi-provision.md) | `deployment-manual.md`, `deployment-tasks.md`, `smart-home.md`, `smart-home-failover.md` |
 | **Understand service layout** | [`services.md`](services.md) | `services-*.md` stack docs (media/downloads/dns/utilities/admin), `services-traefik.md`, `services-authentik.md`, [`network-addresses-generated.md`](network-addresses-generated.md) |
 | **Triage a candidate service / check past rejections** | [`services-review.md`](services-review.md) + [`services-rejected.md`](services-rejected.md) | `services.md`, `CONVENTIONS.md` §8.3 |
 | **Triage a storage candidate / check past rejections** | [`storage-review.md`](storage-review.md) + [`storage-rejected.md`](storage-rejected.md) | `storage.md`, `CONVENTIONS.md` §8.3 |
@@ -105,6 +106,7 @@ docs/
 ├── deployment-compose.md                  ★ Docker compose conventions
 ├── deployment-oidc.md                     ★ Authentik OIDC provisioning: Blueprint + secret-egress glue, per-service native-OIDC recipes
 ├── deployment-secrets.md                  1Password backend, passwordless-first
+├── deployment-pi-provision.md              Pi HA-primary provision runbook (Phase 4: network/docker/HA/KNX/dashboard)
 ├── 1password.md                           1Password CLI + SSH agent runner setup (SA token, vaults, ssh keys)
 ├── deployment-ai-stack-secrets.md         ★ AI-stack 1Password item-creation + OIDC wiring runbook (HD-105)
 ├── deployment-renovate.md                 Renovate Bot & update lifecycle

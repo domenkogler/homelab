@@ -2,7 +2,7 @@
 Description=15-min wildcard cert sync (traefik-ha offline-safe certs)
 
 [Timer]
-OnCalendar=:0/15
+OnCalendar=*:0/15
 RandomizedDelaySec=60
 Persistent=true
 

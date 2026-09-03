@@ -114,7 +114,7 @@
 
 - name: Create active keepalived.conf from MASTER (first deploy only)
   ansible.builtin.copy:
-    src: keepalived.master.conf
+    src: /opt/home-assistant-primary/keepalived.master.conf   # rendered above; remote_src needs the ABSOLUTE path (relative src would look under role files/)
     dest: /opt/home-assistant-primary/keepalived.conf
     remote_src: true
     force: false                # never clobber a manual master/peer swap
