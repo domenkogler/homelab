@@ -176,7 +176,7 @@ as the canonical idempotent recovery (always re-render before use — it is SSOT
 
 ---
 
-## Incident: 2026-09-03 — tagged-99 mgmt plane CLUSTER-WIDE DOWN (router SSH down on both legs) — UNRESOLVED
+## Incident: 2026-09-03 — tagged-99 mgmt plane CLUSTER-WIDE DOWN (router SSH down on both legs) — RESOLVED 2026-09-03
 
 > **Symptom (found during oldsrv Phase-3 prep):** the entire tagged-99 Management plane is unreachable at the
 > host level. From the Pi's `eth0.99` (verified working 2026-09-02) — SSOT `router` (mgmt), `switch` (mgmt),
@@ -205,3 +205,15 @@ bash scripts/ansible-run.sh playbooks/render-converge.yml   # or ad-hoc render o
 ```
 Window for the router: **only via the Home leg or laptop/WinBox** — the SSH service is Mgmt-only and Mgmt is
 dark. After recovery, verify `router99` and every mgmt client ARP before continuing Phase 3/4.
+
+**RESOLUTION (2026-09-03):** confirmed via WinBox — the root-cause hypothesis was correct. The vlan-99 bridge
+entry had `ether10` (and `ether2`) in the **UNTAGGED** column instead of **TAGGED** (a stale/broken converge
+had flipped them to untagged access ports), so the Pi's **tagged** Mgmt frames on `eth0.99` were dropped before
+the router saw them → ARP FAILED → entire tagged-99 plane appeared dark. The fix (`/interface bridge vlan
+set [find where vlan-ids=99 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1,ether2,ether10
+ untagged=ether7,ether9`) restored TAGGED on ether2/ether10 → mgmt-plane back: Pi → router mgmt ping 0% loss,
+ARP REACHABLE, router99 SSH + API over the Pi hop work. The `rb4011_pi_delta.rsc` import did NOT apply its
+vlan-99 block (comment/state mismatch) — the manual one-liner was the effective recovery. A later full
+`router.yml` converge (same session) re-applied and verified the tagged memberships + KNX rule live.
+PERMANENT FIX: the converge-template/role vlan-99 memberships are correct (tagged=ether2,ether10); the
+broken state came from a prior partial converge — monitor the first converge after any future bridge change.
