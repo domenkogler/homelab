@@ -1,0 +1,89 @@
+{
+  "title": "Homelab — Observability Stack Health",
+  "uid": "homelab-selfmonitoring",
+  "tags": ["homelab", "observability", "self-monitoring"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "table",
+      "title": "Stack component up (last scrape)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]},
+          "custom": { "align": "auto", "cellOptions": { "type": "color-text" } }
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": {
+              "job": "Component",
+              "instance": "Instance",
+              "Value": "Up"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"prometheus|loki|n8n|blackbox-exporter|crowdsec|traefik\"}",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Components down (count)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]}
+        }
+      },
+      "targets": [
+        { "refId": "A", "expr": "count(up{job=~\"prometheus|loki|n8n|blackbox-exporter|crowdsec|traefik\"} == 0)", "instant": true }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "up() over time per component",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"prometheus|loki|n8n|blackbox-exporter|crowdsec|traefik\"}",
+          "legendFormat": "{{job}}/{{instance}}"
+        }
+      ]
+    }
+  ]
+}
