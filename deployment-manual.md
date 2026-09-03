@@ -343,6 +343,54 @@ The interactive path skips the preseed's `post_install.sh`, so reproduce its eff
 
 ---
 
+## Phase 2 — NAS runbook (`nas.kogler.si`): provision + UPS master
+
+> **Depends on:** preinstall (Phase 1a), network cutover (Phase 1.5), the ZFS pools already
+> created + exported (hardware-nas.md Pool-Creation Runbook / HD-207 — the storage role is
+> import-only). Ledger: deployment-tasks.md §Phase 2.
+
+1. **DHCP client-id = MAC (one-time, host pre-Ansible):** a fresh Debian install sends an
+   RFC4361 DUID client-id that does NOT match the RouterOS MAC reservation → the host takes a
+   dynamic pool address instead of its reserved static. The `network` role sets this via
+   dhcpcd (`clientid mac`) / NM (`ipv4.dhcp-client-id=mac`) **on the first playbook run**, but
+   until then the ansible_host (the reserved static) is unreachable. So before the first run,
+   fix it by hand on the host (or run against the transient lease address):
+   ```sh
+   # dhcpcd (nas): comment out `duid`, add `clientid mac`
+   sudo sed -i '/^duid/d' /etc/dhcpcd.conf && echo 'clientid mac' | sudo tee -a /etc/dhcpcd.conf
+   sudo pkill -HUP dhcpcd        # re-request → binds the MAC reservation
+   # verify: ip -br addr (should show the SSOT reserved Home IP)
+   ```
+   (oldsrv uses NetworkManager: `nmcli con mod "Wired connection 1" ipv4.dhcp-client-id mac`.)
+
+2. **Ansible provision:**
+   ```bash
+   bash scripts/ansible-run.sh playbooks/storage.yml --check   # dry-run first
+   bash scripts/ansible-run.sh playbooks/storage.yml
+   ```
+   Roles: `common` → `ai_diag` → `network` (netd units: untagged Home + tagged-99) → `storage`
+   (import tank/bulk, datasets+props, NFS exports, sanoid/syncoid, Samba, exporters) → `nut`
+   (master) → `cockpit`.
+
+3. **ZFS kernel module (trixie):** the stock Debian kernel has no `zfs` module until `zfs-dkms`
+   builds it — and DKMS needs the RUNNING kernel's headers. The role installs both, but if
+   `modprobe zfs` fails first run: `apt-get install -y linux-headers-$(uname -r)` then
+   `dkms autoinstall` (the meta `linux-headers-amd64` only gives the NEWEST kernel, not the
+   booted one).
+
+4. **UPS USB permissions (NUT):** the PowerWalker USB (Phoenixtec `06da:ffff`) node must be
+   readable by the `nut` group. If `nut-driver@powerwalker.service` fails with "Access denied
+   (insufficient permissions)": `sudo udevadm control --reload-rules && sudo udevadm trigger
+   --subsystem-match=usb --subsystem-match=usb_device` (the stock NUT rules then set
+   `root:nut 664`). Also: `retrycount` is NOT valid for `usbhid-ups` (NUT 2.8.1) — the role's
+   ups.conf.j2 no longer emits it.
+
+5. **Verify:** `zpool status` (tank mirror + bulk raidz2 ONLINE), `upsc powerwalker@localhost`
+   (battery %/runtime), `exportfs` shows the 3 shares → oldsrv, `ss -tlnp | grep 9199`
+   (nut_exporter), cockpit at cockpit-nas.kogler.si.
+
+---
+
 ## Phase 1 — Deploy the VPS service stack
 
 > Stack went live 2026-08-22 (33/35 Up). This section captures the settled initialization path —
