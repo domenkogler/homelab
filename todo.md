@@ -154,6 +154,7 @@
 | HD-337 | 2 | AI | 2 | **spark bring-up — execute the HD-335 node plan** — spec in [`hardware-spark.md`](docs/hardware-spark.md) §Bring-up plan, NOT here (pointer only). DGX OS → Ansible role + `network_static_hosts` placement → **HD-155 wg-s2s AllowedIPs leg + router forward-accept** → Triton (container-native, `triton-backend` overlay, LiteLLM-only) → model serve (voice pinned, gen/embed on-demand) → **embedding cutover bge-m3/1024 + Cohere retirement + Qdrant re-index** → Mem0 + OpenHands. · [hardware-spark.md](docs/hardware-spark.md) · [services-ai.md](docs/services-ai.md) · [todo.md HD-335](todo.md) |
 | HD-296  | 3  | AI + Human  | 1  | *(HD-268c sub-task)* **Add `dsh` + `pi-dev` tailnet subdomains to headscale `dns.extra_records`** — ✅ (a) IaC CLOSED 2026-08-29 (group_vars `tailnet_subdomains` + `tailnet_dsh_ip`/`tailnet_pi_dev_ip` + config.yaml.j2; validate green). ⏳ (b) DEPLOY (owner): scoped converge `-e docker_services_scope=headscale` → MagicDNS picks up the A-records. ⏳ (c) DEPLOY-VERIFY (owner): `dig dsh.kogler.si`/`dsh.ts.kogler.si`/`pi-dev.kogler.si`/`pi-dev.ts.kogler.si` resolve to the tailnet IPv4s (edge `tailnet_sidecar_ip`); reach `vps-dsh.ts.kogler.si:3080` + `vps-pi-dev.ts.kogler.si:8080`. IPs assigned sequentially at node join — if sidecars rejoin, refresh group_vars from `headscale nodes list`. CLI-instruction detail: [docs/network-vpn.md](docs/network-vpn.md) §Pattern A. · [group_vars/vps.yml]
 
+
 ### 2.8 Security & Secrets — secrets hygiene, privilege, firewall, preseed hardening
 
 | ID | D | Exec | P | Item |
