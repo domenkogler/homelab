@@ -122,7 +122,7 @@ tags: [network, vlan, firewall]
 
 | Source VLAN | Destination VLAN | Rule |
 |-------------|-----------------|------|
-| Home (10) | IoT (20) | Accept established/related + new from trusted IPs (MQTT/HA) |
+| Home (10) | IoT (20) | Accept established/related + new from trusted IPs (MQTT/HA) · **KNXnet/IP udp/3671 → `knx-ip` (GIRA IP router)** — HA on the Pi tunnels to the KNX bus (HD-319; the Pi is a node, not `trusted-admin`, so the KNX tunnel gets its own narrow new-UDP exception) |
 | Home (10) | IoT-Internet (21) | Accept established/related + new from trusted IPs (HA→HAP, Prometheus→HA) |
 | Home (10) | Management (99) | Accept SSH/WinBox/API (22,8291,8728)/HTTPS · **80/443 (UPS web UI)** from trusted Home servers (`trusted-admin`: nas/oldsrv/HA-VIP) |
 | Home (10) | Media (50) | Accept (remote control, casting) |

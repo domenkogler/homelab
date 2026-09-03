@@ -581,6 +581,17 @@
         connection-state: established,related
         action: accept
         comment: "Home -> IoT (established/related)"
+      # KNXnet/IP tunneling (HA on the Pi -> GIRA IP router on IoT): the Pi is NOT
+      # in trusted-admin (node, not admin host — HD-310 Mgmt-strict posture), so
+      # HA's KNX tunnel needs its own narrow new-UDP exception. Same pattern as the
+      # CoAP 5683 reverse exception above. dst = knx_router_ip (SSOT, VLAN 20).
+      - chain: forward
+        src-address: "{{ vlan_subnets[10] }}"
+        dst-address: "{{ knx_router_ip }}"
+        protocol: udp
+        dst-port: 3671
+        action: accept
+        comment: "Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"
       - chain: forward
         src-address-list: trusted-admin
         dst-address: "{{ vlan_subnets[21] }}"
