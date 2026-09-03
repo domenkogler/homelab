@@ -183,7 +183,6 @@ pi_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | se
 network_vlans:
   - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }
-  - { id: 21, name: IoT-Internet, subnet: "10.10.21.0/24", pool: "10.10.21.100-10.10.21.199", ssid: "Kogler IOT WAN" }
   - { id: 30, name: Guest,        subnet: "10.10.30.0/24", pool: "10.10.30.100-10.10.30.199", ssid: "Kogler guest" }
   - { id: 40, name: Kids,         subnet: "10.10.40.0/24", pool: "10.10.40.100-10.10.40.199", ssid: "Kogler Kids" }
   - { id: 50, name: Media,        subnet: "10.10.50.0/24", pool: "10.10.50.100-10.10.50.199", ssid: "" }
@@ -229,14 +228,13 @@ network_static_hosts:
 
   # Router gateways on the remaining VLANs — RB4011 is the .1 inter-VLAN gateway on each.
   - { name: router, vlan: 20, ip: "10.10.20.1",  role: "IoT gateway" }
-  - { name: router, vlan: 21, ip: "10.10.21.1",  role: "IoT-Internet gateway" }
   - { name: router, vlan: 30, ip: "10.10.30.1",  role: "Guest gateway" }
   - { name: router, vlan: 40, ip: "10.10.40.1",  role: "Kids gateway" }
   - { name: router, vlan: 50, ip: "10.10.50.1",  role: "Media gateway" }
 
   # --- Reservation targets (R-2, migration inventory) — DHCP-reserved static IPs ---
-  # IPs sit below each VLAN's DHCP pool start (.100): Home-.13/.60-.62 (HD-312), IoT-.10/.13-.16 (HD-312),
-  # IoT-Internet-.10/.14, Media-.10/.11
+  # IPs sit below each VLAN's DHCP pool start (.100): Home-.13/.60-.62 (HD-312), IoT-.10/.16 + cloud-IoT-.20/.25 (HD-325),
+  # Media-.10/.11
   - { name: canon-ts9550,        vlan: 10, ip: "10.10.1.13",  mac: "74:BF:C0:CD:33:0B", role: "Canon TS9550 printer (family web UI)" }
   - { name: knx-x1,              vlan: 20, ip: "10.10.20.10", mac: "00:0A:B3:29:2C:9E", role: "GIRA X1 KNX controller" }
   - { name: knx-ip,              vlan: 20, ip: "10.10.20.11", mac: "00:0A:B3:27:5F:8B", role: "GIRA IP router (KNX bus)" }
@@ -247,12 +245,19 @@ network_static_hosts:
   - { name: shelly-rgbw2-wc,        vlan: 20, ip: "10.10.20.14", mac: "50:02:91:B0:B2:4E", role: "Shelly RGBW2 (WC white 4-ch) — n8n firmware target" }
   - { name: shelly-rgbw2-orhideje,  vlan: 20, ip: "10.10.20.15", mac: "50:02:91:B0:AF:05", role: "Shelly RGBW2 (orhideje) — n8n firmware target" }
   - { name: shelly-rgbw2-kopalnica, vlan: 20, ip: "10.10.20.16", mac: "50:02:91:B0:DE:C4", role: "Shelly RGBW2 (kopalnica) — n8n firmware target" }
-  - { name: bosch-dishwash,      vlan: 21, ip: "10.10.21.10", mac: "68:A4:0E:0B:E5:81", role: "Bosch SMV88TX36E dishwasher" }
-  - { name: bosch-oven,          vlan: 21, ip: "10.10.21.11", mac: "68:A4:0E:2F:46:87", role: "Bosch HNG6764B6 oven" }
-  - { name: bosch-cooktop,       vlan: 21, ip: "10.10.21.12", mac: "68:A4:0E:2E:65:AE", role: "Bosch CSG656RB7... cooktop" }
-  - { name: lg-ac1,              vlan: 21, ip: "10.10.21.13", mac: "2C:2B:F9:23:41:EC", role: "LG AC klima #1 (QCA4002)" }
-  - { name: homematic-hap,       vlan: 21, ip: "10.10.21.15", mac: "00:1A:22:1E:F7:FD", role: "HMIP-HAP HomeMatic AP (cloud) — resolved task-6; wired to IoT-Internet per network-vlans (cloud-bound)" }
-  - { name: lg-ac2,              vlan: 21, ip: "10.10.21.14", mac: "2C:2B:F9:22:BA:DD", role: "LG AC klima #2 (QCA4002)" }
+  # --- Cloud-IoT appliances (2×LG, 3×Bosch, HAP) — VLAN 21 REMOVED 2026-09-04 (HD-325) ---
+  # VLAN 21 (IoT-Internet) is deleted: cloud-IoT devices join the IOT SSID on VLAN 20 like
+  # every other IoT device, and get WAN egress ONLY via the per-device `wan_allow` flag
+  # (router role renders one src-mac-address forward-accept per such device — iot-wan-allow).
+  # Same net effect as before (cloud devices keep internet), but no phantom VLAN:
+  # wifi-qcom-ac cannot do per-client VLAN tagging (per-MAC vlan-id is not a capability),
+  # so "VLAN 21" was never reachable by these Wi-Fi clients anyway (HD-312 2b rejection).
+  - { name: bosch-dishwash,      vlan: 20, ip: "10.10.20.20", mac: "68:A4:0E:0B:E5:81", wan_allow: true, role: "Bosch SMV88TX36E dishwasher (cloud-IoT, WAN via flag)" }
+  - { name: bosch-oven,          vlan: 20, ip: "10.10.20.21", mac: "68:A4:0E:2F:46:87", wan_allow: true, role: "Bosch HNG6764B6 oven (cloud-IoT, WAN via flag)" }
+  - { name: bosch-cooktop,       vlan: 20, ip: "10.10.20.22", mac: "68:A4:0E:2E:65:AE", wan_allow: true, role: "Bosch CSG656RB7... cooktop (cloud-IoT, WAN via flag)" }
+  - { name: lg-ac1,              vlan: 20, ip: "10.10.20.23", mac: "2C:2B:F9:23:41:EC", wan_allow: true, role: "LG AC klima #1 (QCA4002) (cloud-IoT, WAN via flag)" }
+  - { name: lg-ac2,              vlan: 20, ip: "10.10.20.24", mac: "2C:2B:F9:22:BA:DD", wan_allow: true, role: "LG AC klima #2 (QCA4002) (cloud-IoT, WAN via flag)" }
+  - { name: homematic-hap,       vlan: 20, ip: "10.10.20.25", mac: "00:1A:22:1E:F7:FD", wan_allow: true, role: "HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9, HD-325)" }
   - { name: nvidia-shield,       vlan: 50, ip: "10.10.50.10", mac: "48:B0:2D:09:6F:90", role: "NVIDIA Shield (Media) — D2-confirmed" }
   - { name: nintendo-switch,     vlan: 50, ip: "10.10.50.11", mac: "E0:EF:BF:74:CE:07", role: "Nintendo Switch 2 (Media, D3)" }
 # Infrastructure / non-VLAN ranges (tunnels, overlays, Docker bridges) — rendered to

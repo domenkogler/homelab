@@ -199,25 +199,6 @@
   when: item.value.vlan == 20
 
 
-- name: Configure access port for IoT-Internet VLAN (21)
-  community.routeros.api_modify:
-    hostname: "{{ routeros_api_host }}"
-    username: "{{ routeros_api_user }}"
-    password: "{{ routeros_api_password }}"
-    tls: "{{ routeros_tls }}"
-    validate_certs: false
-    port: "{{ routeros_api_port }}"
-    path: interface bridge port
-    handle_absent_entries: ignore
-    data:
-      - interface: "{{ item.value.port }}"
-        bridge: bridge
-        pvid: "{{ item.value.vlan }}"
-        comment: "IoT-Internet VLAN port for {{ item.key }}"
-  loop: "{{ switch_port_map | dict2items | list }}"
-  when: item.value.vlan == 21
-
-
 # ------------------------------------------------------------------------
 # Configure SFP+ ports as management (VLAN 99 native)
 # -------------------------------------------------------------------------

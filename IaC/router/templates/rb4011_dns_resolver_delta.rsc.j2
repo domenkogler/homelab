@@ -15,7 +15,6 @@
 # DHCP — every VLAN network: dns-server = VPS,oldsrv,Pi  (3 max)
 /ip dhcp-server network set [find where address=10.10.1.0/24]    dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
 /ip dhcp-server network set [find where address=10.10.20.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
-/ip dhcp-server network set [find where address=10.10.21.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
 /ip dhcp-server network set [find where address=10.10.30.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
 /ip dhcp-server network set [find where address=10.10.40.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
 /ip dhcp-server network set [find where address=10.10.50.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}

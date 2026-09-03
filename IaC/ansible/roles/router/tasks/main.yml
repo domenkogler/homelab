@@ -127,7 +127,7 @@
       - address: "{{ (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | map(attribute='ip') | list | first) }}/{{ item.subnet.split('/')[1] }}"
         interface: "vlan{{ item.id }}-{{ (item.name | lower) if item.id != mgmt_vlan_id else 'mgmt' }}"
         disabled: no
-  loop: "{{ network_vlans | selectattr('id', 'in', [10, 20, 21, 30, 40, 50, 99]) | list }}"
+  loop: "{{ network_vlans | selectattr('id', 'in', [10, 20, 30, 40, 50, 99]) | list }}"
   loop_control:
     label: "VLAN{{ item.id }} gateway"
 
@@ -227,7 +227,7 @@
 # DHCP Static Reservations
 # -------------------------------------------------------------------------
 # NOTE (R-2 live-finding): the steady-state role creates DHCP servers named `dhcp-<vlan>`
-# for VLANs 10/20/21/30/40/50 (loop below excludes 1 and 99), but the management plane's
+# for VLANs 10/20/30/40/50 (loop below excludes 1 and 99; VLAN 21 removed HD-325), but the management plane's
 # DHCP server is `dhcp-mgmt` (named in the BOOTSTRAP, not recreated here) — so the original
 # AP reservation block below (server: `dhcp-99`) could never match a real server and APs fell
 # back to dynamic mgmt-pool IPs. Fixed at the Phase 1.5 cutover (2026-08-31): vlan-99 AP
@@ -397,7 +397,8 @@
 #                          (they were on the IOT-WAN SSID, moved to Kogler IOT VLAN 20
 #                          on 2026-09-03 when IOT-WAN was deleted; WAN is now cut for them
 #                          — phase 3's forward rule restores it via src-mac-address).
-#                          Permanent membership (these stay): selectattr vlan==21.
+#                          Permanent membership (these stay): SSOT rows with wan_allow: true
+#                          (cloud-IoT, HD-325 — was selectattr vlan==21 pre-HD-325).
 #                          Temporary (n8n firmware-window, HD-312d): to be driven by the
 #                          router API user (HD-313) — never hand-edit.
 # NOTE (live 2026-09-03): RouterOS /ip firewall address-list accepts IP/CIDR only —
@@ -583,18 +584,12 @@
         dst-port: 80
         action: accept
         comment: "Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"
-      - chain: forward
-        src-address-list: trusted-admin
-        dst-address: "{{ vlan_subnets[21] }}"
-        action: accept
-        comment: "Trusted admin -> IoT-Internet (new)"
-      - chain: forward
-        src-address: "{{ vlan_subnets[10] }}"
-        dst-address: "{{ vlan_subnets[21] }}"
-        protocol: tcp
-        connection-state: established,related
-        action: accept
-        comment: "Home -> IoT-Internet (established/related)"
+      # (VLAN 21 / IoT-Internet removed HD-325: the former "Trusted admin ->
+      # IoT-Internet (new)" and "Home -> IoT-Internet (est/rel)" accepts are
+      # deleted with the VLAN. Cloud-IoT devices now live on VLAN 20 and get
+      # WAN via the per-MAC iot-wan-allow accepts below; no inter-VLAN
+      # Home/trusted-admin -> 10.10.21.0/24 reach is needed — the devices were
+      # never reachable-from-Home by design (cloud-bound, IoT tier).)
       - chain: forward
         src-address-list: trusted-admin
         dst-address-list: ups_management
@@ -647,14 +642,10 @@
         dst-port: 53,853
         action: accept
         comment: "IoT -> DNS resolver tcp"
-      - chain: forward
-        src-address: "{{ vlan_subnets[21] }}"
-        action: accept
-        comment: "IoT-Internet -> Internet allowed"
       # --- WAN egress per network-vlans.md row 73 ("All (except IoT) -> WAN
       # Allowed (masqueraded)") ---
       # HD-309 deep-dive (2026-09-01): the forward chain had NO explicit
-      # WAN accept for Home/Guest/Media/Mgmt (only IoT-Internet 21 was
+      # WAN accept for Home/Guest/Media/Mgmt (only VLAN 21 was
       # accepted; IoT 20 dropped) — but RouterOS default-accepts the
       # unmatched, so egress "worked" accidentally. Docs row 73 says these
       # VLANs must reach WAN (masqueraded): add explicit accepts on
@@ -812,13 +803,14 @@
 # The IOT-WAN SSID was deleted (3-SSID consolidation) — the LG/Bosch/HAP cloud
 # devices now ride VLAN 20 (Kogler IOT) where the IoT drop above cuts their WAN.
 # This accept (rendered per MAC in iot-wan-allow) restores internet for exactly
-# those devices: permanent membership = SSOT network_static_hosts vlan 21 rows;
-# temporary = n8n firmware-window via the router API (HD-312d). Uses
+# those devices: permanent membership = SSOT network_static_hosts rows with wan_allow: true
+# (cloud-IoT; pre-HD-325 this was selectattr vlan==21); temporary = n8n firmware-window via the
+# router API (HD-312d). Uses
 # handle_absent_entries: ignore (never removes the main forward chain's rules —
 # the HD-182 single-remove-api_modify constraint is preserved). First-match-wins:
 # this accept is matched before the VLAN-wide default-deny, so the IoT drop above
 # stays the fallback for every other device on VLAN 20.
-- name: Ensure per-MAC IoT cloud-device WAN egress accepts (HD-312 phase 3 iot-wan-allow)
+- name: Ensure per-MAC IoT cloud-device WAN egress accepts (HD-312 phase 3 / HD-325 wan_allow)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -837,10 +829,10 @@
         src-mac-address: "{{ item.mac }}"
         out-interface: pppoe-telekom
         action: accept
-        comment: "IoT cloud device -> WAN allowed via iot-wan-allow (HD-312): {{ item.name }}"
-  loop: "{{ network_static_hosts | selectattr('mac', 'defined') | selectattr('vlan', 'equalto', 21) | list }}"
+        comment: "IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ item.name }}"
+  loop: "{{ network_static_hosts | selectattr('mac', 'defined') | selectattr('vlan', 'equalto', 20) | selectattr('wan_allow', 'equalto', true) | list }}"
   loop_control:
-    label: "HD-312 iot-wan-allow accept for {{ item.name }}"
+    label: "HD-312/325 iot-wan-allow accept for {{ item.name }}"
   tags: [network]
 
 # -------------------------------------------------------------------------

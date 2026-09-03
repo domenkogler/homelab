@@ -43,16 +43,18 @@ tags: [smart-home, homeassistant]
 | Nvidia Shield | Living room | Wi-Fi | Media playback |
 | Weather station (**HmIP-SWO-B**) | Outdoor | Homematic IP (868 MHz) | Temperature, humidity, wind, relative brightness, sunshine duration |
 | Heat-recovery ventilator (**Zehnder ComfoAir Q**) | Utility | KNX (ComfoConnect KNX-C) | Temperatures, flow rates |
-| LG air conditioners (**ThinQ**, QCA4002 Wi-Fi module) | Rooms | Wi-Fi 2.4 GHz — **cloud-to-cloud** (VLAN 21 tier) | Climate control via HA ThinQ integration (PAT) |
-| Bosch appliances (**Home Connect**) | Kitchen/utility | Wi-Fi 2.4 GHz — **cloud-to-cloud** (VLAN 21 tier) | via HA `home_connect` integration (OAuth) |
+| LG air conditioners (**ThinQ**, QCA4002 Wi-Fi module) | Rooms | Wi-Fi 2.4 GHz — **cloud-to-cloud** (VLAN 20 + `iot-wan-allow`) | Climate control via HA ThinQ integration (PAT) |
+| Bosch appliances (**Home Connect**) | Kitchen/utility | Wi-Fi 2.4 GHz — **cloud-to-cloud** (VLAN 20 + `iot-wan-allow`) | via HA `home_connect` integration (OAuth) |
 
 ---
 
 ## Cloud Appliances — LG ThinQ & Bosch Home Connect
 
-> **Placement decision (HD-228, 2026-08-23):** cloud-dependent appliances live on **VLAN 21
-> (IoT-Internet)** — the deliberate cloud exception to the otherwise local-first smart home (same
-> tier as the HmIP-HAP cloud phase, HD-13). Both platforms are strictly **cloud-to-cloud**: the
+> **Placement decision (HD-228, 2026-08-23; amended HD-325, 2026-09-04):** cloud-dependent appliances live on **VLAN 20 (IOT)** with a per-device WAN **`wan_allow`** flag — the deliberate cloud exception to the otherwise local-first smart home (same
+> tier as the HmIP-HAP cloud phase, HD-13). Originally they were on **VLAN 21 (IoT-Internet)**, a dedicated
+> allow-all-WAN VLAN; **HD-325 deleted VLAN 21** because wifi-qcom-ac cannot do per-client VLAN tagging —
+> the Wi-Fi appliances join the IOT SSID (VLAN 20) and get WAN only via the per-MAC `iot-wan-allow` accepts
+> rendered from `network_static_hosts` `wan_allow: true` rows. Both platforms are strictly **cloud-to-cloud**: the
 > appliance keeps an outbound TLS session to the vendor cloud, and HA talks to that cloud API
 > (ThinQ via PAT, Home Connect via OAuth). There is **NO local network path** to these devices —
 > when the internet or vendor cloud is down they hold last state and physical controls still work.
@@ -60,10 +62,11 @@ tags: [smart-home, homeassistant]
 
 ### Network implications (RouterOS IaC)
 
-- **Outbound:** VLAN 21 → WAN is allow-all by design (`network-vlans.md` matrix) — deliberately NOT
-  port-tightened, because the stacks need more than HTTPS: Bosch also speaks **TCP/8080** to Home
+- **Outbound:** the cloud-IoT devices' WAN egress is the per-MAC `iot-wan-allow` `src-mac-address` forward-accept
+  (SSOT `wan_allow: true`; **not** a whole-VLAN allow — VLAN 21's allow-all is gone with the VLAN, HD-325).
+  Deliberately NOT port-tightened, because the stacks need more than HTTPS: Bosch also speaks **TCP/8080** to Home
   Connect servers; both need **UDP/123 NTP** (a drifted clock breaks TLS certificate validation and
-  looks like a mysterious outage) plus working DNS. If 21 egress is ever tightened, keep at minimum
+  looks like a mysterious outage) plus working DNS. If the `iot-wan-allow` scope is ever narrowed, keep at minimum
   80+443/tcp, 8080/tcp, 123/udp and resolver reachability.
 - **Cross-VLAN: nothing to open.** No mDNS reflection, no multicast routing between VLANs —
   discovery/pairing runs through the vendor apps while the phone sits on the appliance SSID, and HA

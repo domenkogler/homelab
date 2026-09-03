@@ -191,7 +191,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 
 ### `router`
 - Method: REST API (preferred) or templated `.rsc` push
-- Configs: VLAN interfaces (10/20/21/30/40/50/99), DHCP, firewall, WireGuard, CAPsMAN (SSIDs incl. `Kogler IOT WAN`), DNS forwarding
+- Configs: VLAN interfaces (10/20/30/40/50/99 — VLAN 21 removed HD-325), DHCP, firewall, WireGuard, CAPsMAN (SSIDs `Kogler`, `Kogler IOT`, `Kogler guest`), DNS forwarding
 - Secrets: RouterOS admin password, WireGuard keys
 
 ### `proxmox`

@@ -280,7 +280,6 @@ add address={{ h.ip }} list=trusted-ha comment="Trusted HA host: {{ h.name }}"
 {% endfor %}
 add address=10.10.1.0/24 list=internal_lan comment="Home VLAN"
 add address=10.10.20.0/24 list=internal_lan comment="IoT VLAN"
-add address=10.10.21.0/24 list=internal_lan comment="IoT-Internet VLAN"
 add address=10.10.30.0/24 list=internal_lan comment="Guest VLAN"
 add address=10.10.40.0/24 list=internal_lan comment="Kids VLAN"
 add address=10.10.50.0/24 list=internal_lan comment="Media VLAN"
@@ -315,8 +314,6 @@ add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/
 # with "cannot_connect" and the device can't be added in the UI. Narrow:
 # Home(10) only, dst-port 5683 only.
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=udp dst-port=5683 comment="Home Pi (HA) -> Shelly CoIoT/CoAP client (new UDP)"
-add chain=forward action=accept src-address-list=trusted-admin dst-address=10.10.21.0/24 comment="Trusted admin -> IoT-Internet (new)"
-add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.21.0/24 protocol=tcp connection-state=established,related comment="Home -> IoT-Internet (est/rel)"
 add chain=forward action=accept src-address-list=trusted-admin dst-port=80,443 protocol=tcp dst-address-list=ups_management comment="Trusted admin -> UPS web UI"
 add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.1.30 protocol=udp dst-port=53,853 comment="LAN -> DNS resolver udp"
 add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.1.30 protocol=tcp dst-port=53,853 comment="LAN -> DNS resolver tcp"
@@ -324,7 +321,6 @@ add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.
 add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.1.20 protocol=tcp dst-port=53,853 comment="LAN -> DNS secondary Pi tcp"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address=10.10.1.30 protocol=udp dst-port=53,853 comment="IoT -> DNS resolver udp"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address=10.10.1.30 protocol=tcp dst-port=53,853 comment="IoT -> DNS resolver tcp"
-add chain=forward action=accept src-address=10.10.21.0/24 comment="IoT-Internet -> Internet allowed"
 # WAN egress per network-vlans.md row 73 ("All (except IoT) -> WAN Allowed (masqueraded)"), HD-309
 add chain=forward action=accept src-address=10.10.1.0/24  out-interface=pppoe-telekom comment="Home -> WAN allowed (HD-309 row 73)"
 add chain=forward action=accept src-address=10.10.50.0/24 out-interface=pppoe-telekom comment="Media -> WAN allowed (HD-309)"

@@ -207,10 +207,10 @@
 > **Continuation:** next phases require the router serving DHCP on VLANs 10 + 99 (and 20/21/30/40/50 as configured).
 
 1. **Router baseline** — factory-reset the RB4011 and apply `IaC/router/rb4011_initial.rsc`:
-   - VLANs: 10 Home, 20 IoT, 21 IoT-Internet, 30 Guest, 40 Kids, 50 Media, 99 Management
+   - VLANs: 10 Home, 20 IoT, 30 Guest, 40 Kids, 50 Media, 99 Management (VLAN 21 removed HD-325)
    - Inter-VLAN firewall (default-deny; address-lists `trusted-ha`/`trusted-admin`; the UPS web rule on 99)
    - DHCP per VLAN (option 15 `domain=kogler.si`), WireGuard S2S (key from `wg_password`)
-   - CAPsMAN: SSIDs `Kogler`, `Kogler IOT`, `Kogler IOT WAN`, `Kogler guest`, `Kogler Kids`, `local-forwarding=no`
+   - CAPsMAN: SSIDs `Kogler`, `Kogler IOT`, `Kogler guest`, `local-forwarding=no` (IOT-WAN/Kids deleted HD-312; VLAN 21 deleted HD-325)
    - DNS forwarder → Technitium (on oldsrv, Phase 3); fallback `1.1.1.1`
    - Config is stored/versioned via `docs/network-ops.md`.
 2. **AP + switch** — apply `IaC/router/ap_initial.rsc` (CAP-mode); configure the CRS328 as L2 trunk + PoE.

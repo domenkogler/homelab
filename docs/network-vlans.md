@@ -21,8 +21,7 @@ tags: [network, vlan, firewall]
 |---------|------|---------|
 | 1 | — | Blackhole (unused) |
 | 10 | Home | Trusted family devices, phones, servers, HA |
-| 20 | IoT | Smart-home (KNX, Shelly, ESP32-S3), no internet |
-| 21 | IoT-Internet | Internet-needing IoT (HAP during cloud phase, Bosch appliances) |
+| 20 | IoT | Smart-home (KNX, Shelly, ESP32-S3) + **cloud-IoT (Bosch/LG/HAP)** — cloud devices get WAN via per-MAC `iot-wan-allow` (HD-325), no internet for the rest |
 | 30 | Guest | Internet-only, client isolation |
 | 40 | Kids | Filtered DNS, restricted access, time-blocked 22:00–07:00 |
 | 50 | Media | NVIDIA Shield, gaming consoles, smart TV |
@@ -33,13 +32,14 @@ tags: [network, vlan, firewall]
 ## CAPsMAN SSID-to-VLAN Mapping
 
 > **LIVE (2026-09-03):** `Kogler` + `Kogler IOT` + **`Kogler guest`** broadcast (3-SSID per HD-312;
-> IOT-WAN + Kids SSIDs DELETED live + from SSOT 2026-09-03 — guest took VLAN 30, kids-control
+> IOT-WAN + Kids SSIDs DELETED live + from SSOT 2026-09-03; **VLAN 21 (IoT-Internet) DELETED 2026-09-04
+> (HD-325)** — cloud-IoT joined VLAN 20 with per-MAC WAN egress; guest took VLAN 30, kids-control
 > migrates to the firewall MAC-address-list per HD-312). Table below reflects the live state.
 
 | CAPsMAN Config | VLAN ID | SSID | Band | Isolation / note |
 |----------------|---------|------|------|------------------|
 | `cfg-kogler` | 10 | Kogler | 2.4 + 5 | **none** — family sees each other; kids devices join here (kids controls = firewall MAC-address-list, NOT a VLAN) |
-| `cfg-kogler-iot` | 20 | Kogler IOT | 2.4 only | **client-isolation yes** — IoT devices can't see each other; cloud-IoT (Bosch/LG/HAP) get WAN via `iot-wan-allow` MAC list |
+| `cfg-kogler-iot` | 20 | Kogler IOT | 2.4 only | **client-isolation yes** — IoT devices can't see each other; cloud-IoT (Bosch/LG/HAP) get WAN via `iot-wan-allow` per-MAC accepts (HD-325) |
 | `cfg-kogler-guest` | 30 | Kogler guest | 5 only | **client-isolation yes** + firewall drop-to-LAN — internet-only |
 
 > **3-SSID rationale (HD-312, 2026-09-03 — see [network-rejected.md](network-rejected.md) row):**
@@ -53,7 +53,9 @@ tags: [network, vlan, firewall]
 > per-client vlan tagging, per the MikroTik WiFi wiki; the legacy `/interface wireless access-list`
 > vlan-id does not apply to the modern stack). VLAN assignment on this fleet rides the **CAP bridge
 > access-port pvid model** only; per-device network control = firewall MAC-lists (see
-> [network-rejected.md](network-rejected.md) HD-312 2b row).
+> [network-rejected.md](network-rejected.md) HD-312 2b row). **HD-325 (2026-09-04) drew the conclusion:**
+> VLAN 21 (IoT-Internet) is DELETED — it was never reachable by wifi clients (no per-client VLAN), so
+> `vlan: 21` rows moved to VLAN 20 with a per-device `wan_allow` flag (cloud-IoT egress).
 >
 > **Static-IP requirement (HD-312, 2026-09-03):** the per-MAC model + MAC-address-list firewall
 > rules only work predictably if every controlled device's **IP is static** — each IoT/kids/cloud-IoT
@@ -77,7 +79,7 @@ tags: [network, vlan, firewall]
 >   devices hold their current dynamic address until the lease turns over after the reservation lands.
 >
 > ✅ **PHASE 3 (firewall MAC-address-lists) IA-C DONE 2026-09-03** (router role, deploy-gated —
-> [todo.md HD-312](../todo.md) row): the router role now renders **one `src-mac-address` forward-accept per cloud-IoT device** (the `vlan: 21` rows: 2× LG, 3× Bosch, HAP — exactly the devices who lost WAN when the IOT-WAN SSID was deleted 2026-09-03) above the IoT→WAN drop, restoring their internet. (NOTE live 2026-09-03: RouterOS `/ip firewall address-list` is IP/CIDR-only, so the per-MAC rule must be `src-mac-address` in the forward filter, NOT an address-list — the earlier MAC-address-list task was removed.) The `kids-*` MAC-address-lists are **reserved** (sherds from the same SSOT: `kids-{role}` per controlled family device) but gated `when: false` — no firewall rules reference
+> [todo.md HD-312](../todo.md) row): the router role now renders **one `src-mac-address` forward-accept per cloud-IoT device** (the `wan_allow: true` rows: 2× LG, 3× Bosch, HAP — exactly the devices who lost WAN when the IOT-WAN SSID was deleted 2026-09-03; pre-HD-325 these were the `vlan: 21` rows) above the IoT→WAN drop, restoring their internet. (NOTE live 2026-09-03: RouterOS `/ip firewall address-list` is IP/CIDR-only, so the per-MAC rule must be `src-mac-address` in the forward filter, NOT an address-list — the earlier MAC-address-list task was removed; HD-325 moved the list source from `vlan: 21` rows to the `wan_allow` flag.) The `kids-*` MAC-address-lists are **reserved** (sherds from the same SSOT: `kids-{role}` per controlled family device) but gated `when: false` — no firewall rules reference
 > them yet (owner: define the kids device set).
 
 
@@ -124,13 +126,10 @@ tags: [network, vlan, firewall]
 | Source VLAN | Destination VLAN | Rule |
 |-------------|-----------------|------|
 | Home (10) | IoT (20) | Accept established/related + new from trusted IPs (MQTT/HA) · **KNXnet/IP udp/3671 → `knx-ip` (GIRA IP router)** — HA on the Pi tunnels to the KNX bus (HD-319 ✅ LIVE 2026-09-03, verified via router API + KNX integration loads real entities; the Pi is a node, not `trusted-admin`, so the KNX tunnel gets its own narrow new-UDP exception) · **Shelly Gen1 RGBW2 REST tcp/80 → IoT (20)** — HA on the Pi polls the Shelly HTTP API (same narrow pattern as the KNX exception; the Pi is a node, not `trusted-admin`) · **Shelly Gen1 CoIoT/CoAP client udp/5683 → IoT (20)** — HA's config flow + runtime `BlockDevice` opens a CoAP client session toward each device; without this forward new-UDP the “add by IP” flow aborted `cannot_connect` (HD-323 ✅ LIVE 2026-09-03; the reverse CoAP udp/5683 push to `trusted-ha` is the separate row below) |
-| Home (10) | IoT-Internet (21) | Accept established/related + new from trusted IPs (HA→HAP, Prometheus→HA) |
 | Home (10) | Management (99) | Accept SSH/WinBox/API (22,8291,8728)/HTTPS · **80/443 (UPS web UI)** from trusted Home servers (`trusted-admin`: nas/oldsrv/HA-VIP) |
 | Home (10) | Media (50) | Accept (remote control, casting) |
 | IoT (20) | Home (10) | **Drop all** (only replies to Home-initiated) — EXCEPT CoAP **udp/5683 → `trusted-ha`** (Gen1 Shelly push, HD-229; **HA must be LISTENING on udp/5683** — the CoAP server lives inside the HA container and is published to the host/VIP via `5683:5683/udp` in the compose so the Shellys can actually reach it, HD-323) |
-| IoT (20) | WAN | **Drop all** — EXCEPT cloud-IoT devices (2× LG, 3× Bosch, HAP — per-SSOT `vlan: 21` rows; HD-312 phase 3) get a per-MAC `src-mac-address` accept above the drop; n8n firmware-window MACs ride the same per-MAC accepts temporarily (HD-312d) |
-| IoT-Internet (21) | WAN | **Allowed** (these devices need cloud/internet) |
-| IoT-Internet (21) | Home (10) | **Drop all** (only replies to Home-initiated) |
+| IoT (20) | WAN | **Drop all** — EXCEPT cloud-IoT devices (2× LG, 3× Bosch, HAP — SSOT `wan_allow: true` rows; HD-312 phase 3 + HD-325) get a per-MAC `src-mac-address` accept above the drop; n8n firmware-window MACs ride the same per-MAC accepts temporarily (HD-312d) |
 | Media (50) | Home (10) | Accept (media server, Plex/Jellyfin) |
 | Management (99) | Home (10) | Accept (whole Mgmt VLAN — admin laptop / Pi discovery + provisioning, HD-307; owner decision 2026-09-01) |
 | Guest (30) | any LAN | **Drop all** (internet only) |
@@ -206,8 +205,7 @@ dynamic address until the lease turns over.
 | Family PC, laptop, server (dual-homed) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
 | Raspberry Pi (HA + DNS secondary) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
 | Shelly, KNX, ESP32-S3 | Access | 20 (IoT, no internet) |
-| Homematic HAP (cloud), Bosch IoT | Access | 21 (IoT-Internet) |
-| LG ThinQ / Bosch Home Connect appliance | Access | 21 (IoT-Internet) |
+| Homematic HAP (cloud), Bosch/LG appliances | Access | **20 (IoT) + `wan_allow`** — cloud devices on the IOT SSID get WAN via per-MAC `iot-wan-allow` accepts (HD-325; VLAN 21 deleted) |
 | AP (hAP ac/ac²) | Access | 99 (Mgmt) |
 | Printer | Access | 10 (Home) |
 | Camera | Access | 20 (IoT) |

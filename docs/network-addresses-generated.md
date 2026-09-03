@@ -18,7 +18,6 @@
 |------|------|--------|-----------|------|
 | 10 | Home | 10.10.1.0/24 | 10.10.1.100-10.10.1.199 | Kogler |
 | 20 | IoT | 10.10.20.0/24 | 10.10.20.100-10.10.20.199 | Kogler IOT |
-| 21 | IoT-Internet | 10.10.21.0/24 | 10.10.21.100-10.10.21.199 | Kogler IOT WAN |
 | 30 | Guest | 10.10.30.0/24 | 10.10.30.100-10.10.30.199 | Kogler guest |
 | 40 | Kids | 10.10.40.0/24 | 10.10.40.100-10.10.40.199 | Kogler Kids |
 | 50 | Media | 10.10.50.0/24 | 10.10.50.100-10.10.50.199 |  |
@@ -51,7 +50,6 @@
 | 10 | 10.10.1.62 | phone-martina | Martina's phone A55 (family, Kogler SSID) |
 | 10 | 10.10.1.63 | tablet-ipad | iPad tablet (family, Kogler SSID) — locally-administered/randomized MAC (iOS default) |
 | 20 | 10.10.20.1 | router | IoT gateway |
-| 21 | 10.10.21.1 | router | IoT-Internet gateway |
 | 30 | 10.10.30.1 | router | Guest gateway |
 | 40 | 10.10.40.1 | router | Kids gateway |
 | 50 | 10.10.50.1 | router | Media gateway |
@@ -63,12 +61,12 @@
 | 20 | 10.10.20.14 | shelly-rgbw2-wc | Shelly RGBW2 (WC white 4-ch) — n8n firmware target |
 | 20 | 10.10.20.15 | shelly-rgbw2-orhideje | Shelly RGBW2 (orhideje) — n8n firmware target |
 | 20 | 10.10.20.16 | shelly-rgbw2-kopalnica | Shelly RGBW2 (kopalnica) — n8n firmware target |
-| 21 | 10.10.21.10 | bosch-dishwash | Bosch SMV88TX36E dishwasher |
-| 21 | 10.10.21.11 | bosch-oven | Bosch HNG6764B6 oven |
-| 21 | 10.10.21.12 | bosch-cooktop | Bosch CSG656RB7... cooktop |
-| 21 | 10.10.21.13 | lg-ac1 | LG AC klima #1 (QCA4002) |
-| 21 | 10.10.21.15 | homematic-hap | HMIP-HAP HomeMatic AP (cloud) — resolved task-6; wired to IoT-Internet per network-vlans (cloud-bound) |
-| 21 | 10.10.21.14 | lg-ac2 | LG AC klima #2 (QCA4002) |
+| 20 | 10.10.20.20 | bosch-dishwash | Bosch SMV88TX36E dishwasher (cloud-IoT, WAN via flag) |
+| 20 | 10.10.20.21 | bosch-oven | Bosch HNG6764B6 oven (cloud-IoT, WAN via flag) |
+| 20 | 10.10.20.22 | bosch-cooktop | Bosch CSG656RB7... cooktop (cloud-IoT, WAN via flag) |
+| 20 | 10.10.20.23 | lg-ac1 | LG AC klima #1 (QCA4002) (cloud-IoT, WAN via flag) |
+| 20 | 10.10.20.24 | lg-ac2 | LG AC klima #2 (QCA4002) (cloud-IoT, WAN via flag) |
+| 20 | 10.10.20.25 | homematic-hap | HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9, HD-325) |
 | 50 | 10.10.50.10 | nvidia-shield | NVIDIA Shield (Media) — D2-confirmed |
 | 50 | 10.10.50.11 | nintendo-switch | Nintendo Switch 2 (Media, D3) |
 
@@ -120,4 +118,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-03T09:32:34Z
+> Last generated: 2026-09-03T17:04:54Z

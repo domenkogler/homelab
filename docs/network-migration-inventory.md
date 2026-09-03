@@ -43,11 +43,11 @@ tags: [network, vlan, migration]
 | Shelly DW2 flood sensor | 10:52:1C:07:8E:D5 | 20 (IoT) | Kogler IOT | Gen1 CoAP as well |
 | GIRA X1 (KNX) | 00:0A:B3:29:2C:9E | 20 (IoT) | — | reachable from HA via trusted-admin→IoT |
 | GIRA IP Router (KNX bus) | 00:0A:B3:27:5F:8B | 20 (IoT) | — | „ |
-| LG AC klima (QCA4002) #1 | 2C:2B:F9:23:41:EC | 21 (IoT-Internet) | Kogler IOT WAN | cloud-only, HD-228 runbook |
-| LG AC klima (QCA4002) #2 | 2C:2B:F9:22:BA:DD | 21 (IoT-Internet) | Kogler IOT WAN | „ |
-| Bosch CSG656RB7… (Home Connect) | 68:A4:0E:2E:65:AE | 21 (IoT-Internet) | Kogler IOT WAN | make reservation (dynamic lease today) |
-| Bosch SMV88TX36E (dishwasher) | 68:A4:0E:0B:E5:81 | 21 (IoT-Internet) | Kogler IOT WAN | „ |
-| Bosch HNG6764B6 (oven) | 68:A4:0E:2F:46:87 | 21 (IoT-Internet) | Kogler IOT WAN | „ |
+| LG AC klima (QCA4002) #1 | 2C:2B:F9:23:41:EC | 20 (IOT) + `wan_allow` | Kogler IOT | cloud-only, HD-228 runbook (VLAN 21 → 20, HD-325) |
+| LG AC klima (QCA4002) #2 | 2C:2B:F9:22:BA:DD | 20 (IOT) + `wan_allow` | Kogler IOT | „ |
+| Bosch CSG656RB7… (Home Connect) | 68:A4:0E:2E:65:AE | 20 (IOT) + `wan_allow` | Kogler IOT | HD-325: reservation moves to the IoT pool (SSOT) |
+| Bosch SMV88TX36E (dishwasher) | 68:A4:0E:0B:E5:81 | 20 (IOT) + `wan_allow` | Kogler IOT | HD-325: reservation moves to the IoT pool (SSOT) |
+| Bosch HNG6764B6 (oven) | 68:A4:0E:2F:46:87 | 20 (IOT) + `wan_allow` | Kogler IOT | HD-325: reservation moves to the IoT pool (SSOT) |
 
 ## Family & misc
 
@@ -59,11 +59,11 @@ tags: [network, vlan, migration]
 | ~~"deblab" (Hyper-V VM NIC)~~ | ~~00:15:5D:01:67:1E~~ | — | — | **DISPOSED (2026-08-24, owner):** Hyper-V VM deleted; no longer on network, removed from scope. |
 | ~~"truenas"~~ | ~~92:47:15:04:EB:49~~ | — | — | **DISPOSED (2026-08-24, owner):** VM no longer exists (locally-administered MAC, never owned); removed from scope. |
 | NVIDIA Shield (Media) | 48:B0:2D:09:6F:90 | 50 (Media) | — | **D2-confirmed: NVIDIA Shield on Media(50)** — resolves the earlier ⚠ unknown (`switch_port_map` had it at ether20; live lease still hostname-less) |
-| `0003B5F29AFDC36` → **HMIP-HAP HomeMatic AP** | 00:1A:22:1E:F7:FD | 21 (IoT-Internet) | — | **RESOLVED (task-6, live lease 2026-08-24):** this IS the eQ-3 HMIP-HAP HomeMatic Access Point — MAC matches router.yml ether9 + Rack.canvas + rack-connections.json exactly; static lease hostname = its device ID. **VLAN 21 IoT-Internet** per network-vlans Port Type Reference (cloud-bound HAP needs internet; IoT(20) would drop its WAN path). |
+| `0003B5F29AFDC36` → **HMIP-HAP HomeMatic AP** | 00:1A:22:1E:F7:FD | 20 (IOT) + `wan_allow` | — | **RESOLVED (task-6, live lease 2026-08-24):** this IS the eQ-3 HMIP-HAP HomeMatic Access Point — MAC matches router.yml ether9 + Rack.canvas + rack-connections.json exactly; static lease hostname = its device ID. **HD-325: moved from VLAN 21 → VLAN 20 with `wan_allow` (router ether9)** — cloud-bound HAP keeps WAN via the per-MAC accept.
 
 ## Cutover-night order (derived)
 
 1. Infra first: router baseline → switch → APs join CAPsMAN (SSIDs appear).
 2. Servers onto trunk/access ports; verify management reachability from laptop (VLAN 99 native path).
 3. Wired per-device ports per tables above; WiFi devices re-join their SSID (Shelly fleet via the shelly skill `wifi rotate`, LG ACs per smart-home.md §Cloud Appliances, Bosch via Home Connect app re-pair if needed).
-4. Unknowns (⚠ rows) stay parked on VLAN 10 until identified. **Resolved 2026-08-24 (task 6):** `0003B5F29AFDC36` = HomeMatic HAP (→ VLAN 21), NVIDIA Shield (→ Media 50). **Disposed 2026-08-24 (owner):** `deblab` + `truenas` VMs deleted — removed from scope. No unknowns remain open.
+4. Unknowns (⚠ rows) stay parked on VLAN 10 until identified. **Resolved 2026-08-24 (task 6):** `0003B5F29AFDC36` = HomeMatic HAP (→ VLAN 21, moved to VLAN 20+/`wan_allow` HD-325), NVIDIA Shield (→ Media 50). **Disposed 2026-08-24 (owner):** `deblab` + `truenas` VMs deleted — removed from scope. No unknowns remain open.
