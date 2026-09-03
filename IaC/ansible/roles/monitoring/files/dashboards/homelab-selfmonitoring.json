@@ -39,7 +39,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "up{job=~\"prometheus|loki|n8n|blackbox-exporter|crowdsec|traefik|alloy\"}",
+          "expr": "up{job=~\"prometheus|loki|n8n|blackbox-exporter|crowdsec|traefik\"}",
           "format": "table",
           "instant": true
         }
@@ -59,7 +59,7 @@
         }
       },
       "targets": [
-        { "refId": "A", "expr": "count(up{job=~\"prometheus|loki|n8n|blackbox-exporter|crowdsec|traefik|alloy\"} == 0)", "instant": true }
+        { "refId": "A", "expr": "count(up{job=~\"prometheus|loki|n8n|blackbox-exporter|crowdsec|traefik\"} == 0)", "instant": true }
       ]
     },
     {
@@ -80,7 +80,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "up{job=~\"prometheus|loki|n8n|blackbox-exporter|crowdsec|traefik|alloy\"}",
+          "expr": "up{job=~\"prometheus|loki|n8n|blackbox-exporter|crowdsec|traefik\"}",
           "legendFormat": "{{job}}/{{instance}}"
         }
       ]
