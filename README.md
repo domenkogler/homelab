@@ -90,6 +90,11 @@ task-specific dispatch. Do **not** bulk-read the repo.
   `admin`/`admin` to the 1P `technitium_login` value (**HD-330**, same class as the VPS HD-324 fix) — its
   zone is empty until then; oldsrv secondary seeds once its Phase-3 admin is up. **HD-315 (UPS exporter)
   pinned to `v3.3.0` (2026-09-04)** — replaces the `@latest`→`(devel)` drift on nas.
+  **Edge model DECIDED (Option A, 2026-09-04, HD-331):** one **public edge** (WAN-only, public apps) + one
+  **internal all-app edge** (every app, public + internal) over Headscale tailnet + WG-S2S; the DNS stays the
+  settled 3-instance Technitium (VPS-primary) split-horizon. Implement via HD-332 (catalog `public:` flag +
+  internal-edge growth), HD-333 (WG + tailnet reach + ACL), HD-334 (per-device DNS via Pi-first VLAN-10 +
+  seed `vpn`/`home`/`dns` records).
   Detail: [`todo.md`](todo.md) HD-317 / HD-330.
 
 ---

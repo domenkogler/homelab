@@ -108,6 +108,39 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 - **Auth key/secrets:** `tailscale-sidecar_api` (API Credential, `credential` = reusable tagged preauth key)
   in 1Password; fail-loud render (`_template_vault_items`).
 
+## Edge model — "One public + One internal all-app edge" (Option A, DECIDED 2026-09-04, HD-331)
+
+> **Decision (owner + AI, 2026-09-04):** long-term reverse-proxy architecture = **one PUBLIC edge (WAN-only,
+> public apps) + one INTERNAL all-app edge (serves EVERY app, public + internal) reached over Headscale
+> tailnet AND WireGuard site-to-site**. Recorded here as the owning-doc decision; the `<domain>-rejected.md`
+> log entry locks it against re-decide (HD-331).
+
+- **Public edge (unchanged):** the main `traefik` on the **VPS** — Docker-labels (docker provider),
+  single ACME issuer (`traefik_acme_issuer: true`), Cloudflare A records, Forward-Auth + CrowdSec. Serves
+  **only** the public `*.kogler.si` apps (per the catalog `public:` flag).
+- **Internal all-app edge (growth of `traefik-tailnet`):** the SAME VPS instance (`traefik-tailnet`, or a
+  VPS sibling) routes **every** service — public apps (identical rules, but no WAN) **and** internal-only apps.
+  Reached over the **tailnet (existing)** and the **WireGuard S2S** (add a second listener bound to the
+  `wg-s2s` VPS side + firewall allow). File-provider routes (no Docker-labels) keep the public/`-public`
+  Docker-network separation intact.
+- **Same-zone split-horizon = same names, different reach:** `ha.kogler.si` / `stats.kogler.si` /
+  `home.kogler.si` resolve the same inside + on tailnet/WG; reachability is gated by topology/firewall,
+  **not** by which name resolves. The settled DNS (one `kogler.si` zone, 3 Technitium instances, VPS primary)
+  stays EXACTLY as decided (HD-317/HD-299 + HD-329 + HD-331).
+- **No `.ts` twins needed:** headscale `search_domains: [kogler.si]` + the VPS-primary split-horizon already
+  resolve the plain `*.kogler.si` to the tailnet edge — once every instance carries the full split-horizon
+  set (HD-274 tail), the `*.ts` names become pure legacy.
+- **`traefik-ha` (Pi + oldsrv) stays** — a physical failover edge for the HA VIP, NOT the internal all-app edge.
+- **Why VPS (not Pi/oldsrv):** this mesh has only one always-on public host (VPS); home nodes are Phase-3
+  unprovisioned; WG-S2S + tailnet already route to the VPS. When oldsrv is live, the internal edge can be
+  **extended** there (same rendering) for home-fast paths — but the single-internal-edge design holds.
+- **Alternatives considered (documented, rejected in the decision log):** (B) home-host internal edge
+  (Pi/oldsrv) as the base — better home latency but needs the router to hairpin home clients + oldsrv live
+  + complicates certs/one-instance; (C) keep the 3 edges as-is — leaves `ha` broken with Tailscale on.
+- **Implementation HDs:** HD-332 (catalog `public:` flag + internal-edge growth), HD-333 (WG + tailnet reach
+  + ACL), HD-334 (per-device DNS visibility via Pi-first for VLAN-10 + seed `vpn`/`home`/`dns` records).
+
+## Cockpit Routes (file-provider, no Forward-Auth)
 ## Cockpit Routes (file-provider, no Forward-Auth)
 
 Cockpit is a host service (not a Docker container), so its routes are a Traefik
