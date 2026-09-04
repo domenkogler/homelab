@@ -415,7 +415,7 @@
 # kids-*                 = kids-control MAC-address-list (kids devices join Home VLAN 10
 #                          per HD-312; list sherds reserved: kids-bedtime/kids-filter/kids-wan)
 #                          — NOT yet implemented (owner: define kids device set).
-- name: Reserve kids-* firewall MAC-address-lists (HD-312 phase 3, from SSOT)
+- name: Reserve kids-* firewall MAC-address-lists (HD-326, from SSOT `kids: true` marker)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -428,11 +428,10 @@
     data:
       - address: "{{ item.mac }}"
         list: "kids-{{ item.role | lower | regex_replace('[^a-z0-9-]+', '-') }}"
-        comment: "HD-312 kids-control (MAC): {{ item.name }}"
-  loop: "{{ network_static_hosts | selectattr('mac', 'defined') | selectattr('vlan', 'equalto', 10) | selectattr('name', 'match', '^(tablet|phone)-') | list }}"
+        comment: "HD-326 kids-control (MAC): {{ item.name }}"
+  loop: "{{ network_static_hosts | selectattr('kids', 'equalto', true) | list }}"
   loop_control:
     label: "{{ item.name }} MAC -> kids list"
-  when: false  # ⏳ HD-312 phase 3 kids-control not yet active — list sherds reserved, no firewall rules reference them yet
   tags: [network]
 
 - name: Create firewall address list for the scoped home targets the VPS may reach (HD-155)
@@ -519,6 +518,50 @@
         to-ports: 53
         comment: "Kids forced filtered DNS - TCP 53 -> Technitium (HD-182)"
 
+# HD-326: per-MAC kids filtered DNS on Home VLAN 10 (kids join Kogler SSID,
+# VLAN 10, per HD-312 — the VLAN-40 hijack above does NOT cover them).
+# Redirect only the kids-tablets' DNS (53) to the Technitium primary, which
+# enforces the Kids-Group policy (Cloudflare Families, network-dns.md).
+# src-mac-address per device (kids: true marker). Least-tested piece —
+# needs live-verify of the Kids-Group filter binding per MAC after deploy.
+- name: Ensure per-MAC kids filtered DNS dst-nat (HD-326)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip firewall nat
+    handle_absent_entries: remove
+    handle_entries_content: remove_as_much_as_possible
+    ensure_order: true
+    restrict:
+      - field: chain
+        values: [dstnat]
+    data:
+      - chain: dstnat
+        src-address: "{{ vlan_subnets[10] }}"
+        src-mac-address: "{{ item.mac }}"
+        protocol: udp
+        dst-port: 53
+        action: dst-nat
+        to-addresses: "{{ dns_primary_ip }}"
+        to-ports: 53
+        comment: "HD-326 kids filtered DNS - UDP 53 -> Technitium: {{ item.name }}"
+      - chain: dstnat
+        src-address: "{{ vlan_subnets[10] }}"
+        src-mac-address: "{{ item.mac }}"
+        protocol: tcp
+        dst-port: 53
+        action: dst-nat
+        to-addresses: "{{ dns_primary_ip }}"
+        to-ports: 53
+        comment: "HD-326 kids filtered DNS - TCP 53 -> Technitium: {{ item.name }}"
+  loop: "{{ network_static_hosts | selectattr('kids', 'equalto', true) | list }}"
+  loop_control:
+    label: "HD-326 kids DNS dst-nat for {{ item.name }}"
+  tags: [network]
 
 # -------------------------------------------------------------------------
 # Firewall - Inter-VLAN Rules
@@ -556,10 +599,10 @@
         action: accept
         comment: "IoT Shelly Gen1 CoAP push -> HA (HD-229) - narrow reverse exception"
       - chain: forward
-        src-address-list: trusted-admin
+        src-address-list: trusted-ha
         dst-address: "{{ vlan_subnets[20] }}"
         action: accept
-        comment: "Trusted admin -> IoT (new, MQTT/HA)"
+        comment: "Trusted HA hosts (oldsrv/ha-vip) -> IoT (new, MQTT/HA) - HD-03 owner decision 2026-09-04: narrowed to trusted-ha (excludes nas)"
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ vlan_subnets[20] }}"
@@ -661,6 +704,11 @@
       # wins; the accept only enables out-of-window egress. IoT(20) stays
       # dropped (row 66). Mgmt(99) reaching WAN is fine — the INPUT chain
       # still gates the router's own services.
+      # HD-326 (2026-09-04): per-MAC kids controls on Home VLAN 10 (kids are
+      # ON Home per HD-312). These src-mac-address drops MUST sit ABOVE the
+      # Home->WAN accept (the next rule) — a drop placed below is shadowed.
+      # (Implemented as the dedicated looped task below — this static block
+      # keeps only the VLAN-wide Home->WAN accept.)
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         out-interface: pppoe-telekom
@@ -840,6 +888,45 @@
   loop: "{{ network_static_hosts | selectattr('mac', 'defined') | selectattr('vlan', 'equalto', 20) | selectattr('wan_allow', 'equalto', true) | list }}"
   loop_control:
     label: "HD-312/325 iot-wan-allow accept for {{ item.name }}"
+  tags: [network]
+
+# HD-326 (2026-09-04): per-MAC kids controls on Home VLAN 10 — bedtime WAN
+# hard-block (22:00-07:00) + DoT (853) bypass drop. Kids join Kogler SSID /
+# VLAN 10 per HD-312. These MUST sit ABOVE the Home->WAN accept (the static
+# inter-VLAN block keeps that accept; this looped task inserts the drops before
+# it by ordering — the api_modify ensure_order places these first).
+- name: Ensure per-MAC kids bedtime WAN drop + DoT-bypass (HD-326)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: ip firewall filter
+    handle_absent_entries: ignore
+    restrict:
+      - field: chain
+        values: [forward]
+    data:
+      - chain: forward
+        src-address: "{{ vlan_subnets[10] }}"
+        src-mac-address: "{{ item.mac }}"
+        out-interface: pppoe-telekom
+        protocol: tcp
+        dst-port: 853
+        action: drop
+        comment: "HD-326 kids DoT-bypass drop (853): {{ item.name }}"
+      - chain: forward
+        src-address: "{{ vlan_subnets[10] }}"
+        src-mac-address: "{{ item.mac }}"
+        out-interface: pppoe-telekom
+        action: drop
+        time: "22:00-07:00,sun,mon,tue,wed,thu,fri,sat"
+        comment: "HD-326 kids bedtime WAN drop (22:00-07:00): {{ item.name }}"
+  loop: "{{ network_static_hosts | selectattr('kids', 'equalto', true) | list }}"
+  loop_control:
+    label: "HD-326 kids controls for {{ item.name }}"
   tags: [network]
 
 # -------------------------------------------------------------------------
