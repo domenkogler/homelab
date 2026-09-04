@@ -139,6 +139,16 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
   + complicates certs/one-instance; (C) keep the 3 edges as-is — leaves `ha` broken with Tailscale on.
 - **Implementation HDs:** HD-332 (catalog `public:` flag + internal-edge growth), HD-333 (WG + tailnet reach
   + ACL), HD-334 (per-device DNS visibility via Pi-first for VLAN-10 + seed `vpn`/`home`/`dns` records).
+- **Implementation spec (HD-332, this doc is the SSOT):
+  - **Catalog `public:` flag:** every `docker_services` entry in `group_vars/*.yml` gains a `public:` bool —
+    `public: true` = served by the PUBLIC edge (Docker-labels, single ACME issuer `traefik_acme_issuer`, Forward-Auth + CrowdSec, Cloudflare record); `public: false`/absent = internal-only.
+  - **Public edge (unchanged):** the VPS `traefik` — Docker provider, labels only for `public: true` apps.
+  - **Internal edge = growth of `traefik-tailnet`** (same VPS instance): routes EVERY app (public + internal) via
+    **file-provider routes only — NO Docker-labels** (avoids router conflicts with the public edge's labels on the
+    same compose host). Public apps get identical rules but no WAN exposure; internal apps get their internal rules.
+  - **Reach:** tailnet (existing) + WG-S2S second listener (HD-333); same-zone split-horizon names (no `.ts` twins — HD-334/seed).
+  - **Deploy-gated verify:** VPS converge → public edge serves public-only; internal edge serves all; home
+    (router-side WG) + tailnet device reach the internal edge.
 
 ## Cockpit Routes (file-provider, no Forward-Auth)
 ## Cockpit Routes (file-provider, no Forward-Auth)

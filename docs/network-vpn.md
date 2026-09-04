@@ -216,6 +216,10 @@ sidecar serves to the app over that private network. Functional service-to-servi
 - Serve mode: plain TCP forward is simplest (WireGuard already encrypts); HTTPS mode needs Headscale TLS config -- verify at deploy.
 - ACL defaults: inbound-only per node (e.g., DSH needs ZERO outbound tailnet destinations); tag hygiene audit quarterly.
 - Rollout: HD-251 (phase-2 fleet rework); first applications: litellm-ui + owui-int (HD-247/248), dsh (HD-250); **tailnet dashboard edge (HD-135b follow-up) LIVE 2026-08-28** — `traefik-tailnet` (consumer-mode Traefik + a userspace tailscale sidecar sharing its netns, node `vps-obs`) serves the admin dashboards over the tailnet with clean subdomain URLs on port 443 (`tailscale serve --tcp=443` → the edge's TLS listener), see `docker_services/traefik-tailnet` + `policy.hujson.j2`. The old port-based skeleton (`tailscale-sidecar` dir, :8080–8085) is removed.
+- **HD-333 spec (WG/tailnet reach for the internal edge — this doc is the SSOT):** the internal all-app edge (`traefik-tailnet` growth, HD-331/332) is reached two ways:
+  - **Tailnet (existing):** the `vps-obs` userspace sidecar already serves `--tcp=443` → the edge's TLS listener; family nodes are ACL-allowed (`policy.hujson`, deny-by-default + per-user own nodes). No change unless the ACL needs extending for a new family member.
+  - **WireGuard S2S:** add a **second listener bound to the `wg-s2s` VPS side** for the internal edge (same host, second port or same 443 via the tunnel) + an **nftables input allow** (the vps-hardening pattern from HD-313: `iifname "wg-s2s" … accept`) so a home host (router-side WG) reaches `http(s)://<wg-s2s VPS IP>:<edge>`.
+  - **Deploy-gated verify:** home host over WG + a tailnet device both reach the internal edge; heading home with Tailscale on reaches `ha.kogler.si` via the LAN (Option A).
 
 ## Family Usage Scenarios
 
