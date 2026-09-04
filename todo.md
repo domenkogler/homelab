@@ -45,7 +45,7 @@
 
 ### 2.1a Consolidated work packages — what can be done together (2026-09-04)
 
-> **Batching rationale:** nearly every row below is an edit to the SAME SSOT set (`network_static_hosts`, `rb4011_converge.rsc.j2`, `roles/router`) applied by ONE render → ONE `/import`; DNS rows share the `technitium-seed` role + `technitium_login`. Run each package as one SSOT render + one apply + an immediate tagged-99 membership verify (two full-converge mgmt-plane incidents recorded in `network-ops.md`) — never many small touches. Packages A and B stay separable (A = behavior, B = lockdown) for blame-free rollback.
+> **Batching rationale:** nearly every row below is an edit to the SAME SSOT set (`network_static_hosts`, `rb4011_converge.rsc.j2`, `roles/router`) applied by ONE render → ONE `/import`; DNS rows share the `technitium-seed` role + `technitium_login`. Run each package as one SSOT render + one apply + an immediate tagged-99 membership verify (two full-converge mgmt-plane incidents recorded in `network-ops.md`) — never many small touches. Packages A and B stay separable (A = behavior, B = lockdown) for blame-free rollback. **F is the decided (HD-331, locked) Traefik/DNS edge-model change** — VPS/tailnet-side, not the router SSOT, so it is a separate package; it shares the `technitium-seed` role with C/D (Pi-first DNS in HD-334) and reuses the existing tailnet building blocks (HD-248/249/296/297).
 
 | Pkg | Rows folded | Runs together | Gates |
 |-----|-------------|---------------|-------|
@@ -54,6 +54,7 @@
 | **C — DNS 3-instance seed completion** | HD-330 + HD-317 tail + HD-299 verify | After Pi admin-align: `raspberry_pi.yml -e docker_services_scope=technitium-secondary` → seed idempotent → verify battery (`dig @pi {ha,dns-pi}`, LAN resolv.conf order, WAN-out failover) | owner: Pi admin-align (HD-330); oldsrv leg gated on HD-318 |
 | **D — oldsrv dual-home + DNS secondary** | HD-311 + HD-317 (oldsrv) + HD-299 (oldsrv) | One Phase-3 slice: networkd tagged-99 units apply → technitium-secondary seed → WG/DNS failover verify | fully blocked on HD-318 |
 | **E — HA/owner tail** | HD-310 remaining (HD-04 umbrella) | Owner session: Authentik OIDC on `ha` route, `external_url`, failover runbook | owner-only, not AI-runnable |
+| **F — Edge model (Option A): internal all-app edge** | **HD-331** (decided, locked) + **HD-332** (catalog `public:` flag + internal-edge routes) + **HD-333** (WG/tailnet reach + ACL) + **HD-334** (per-device DNS Pi-first + seed `vpn`/`home`/`dns`) | Sequence: HD-331 decision → HD-332 (catalog flag + `traefik-tailnet` growth, VPS converge) → HD-333 (2nd `wg-s2s` listener + nftables allow + tailnet ACL) → HD-334 (Pi-first VLAN-10 DHCP DNS + seed records; **depends HD-330**) → verify: public edge serves public-only, internal edge serves all, home/tailnet reach, `dig @<pi> vpn/home/dns` | owner: Pi admin-align (HD-330) gates HD-334; re-add HD-331-334 rows (removed by `ae13c5c`; README §2 still references them) |
 
 ### 2.1b Human / owner decisions & work — what blocks what (2026-09-04)
 
@@ -62,7 +63,7 @@
 | 1 | iPad: disable iOS "Private Wi-Fi Address" for Kogler SSID; update `tablet-ipad` MAC in SSOT if the fixed MAC differs (current `F6:9B:E2:B9:26:F9`) | ✅ decided 2026-09-04; device step pending | HD-326 per-MAC rules for the iPad (Pkg A) |
 | 2 | HD-03 Home→IoT gating − narrower `trusted-ha` (oldsrv/ha-vip, nas excluded) | ✅ **DECIDED 2026-09-04 + IaC applied**; live-apply at next router converge | Pkg B matrix final |
 | 3 | MikroTik admin password rotation | ✅ DONE (HD-321, 2026-09-03); ⏳ next-reset `flash/` re-upload | Pkg B close-out |
-| 4 | **Pi Technitium admin-align (HD-330)** — recreate admin to 1P `technitium_login` (deployment-manual §1.4c) | ⏳ pending | Pi zone seed → Pkg C, `dns-pi` web UI |
+| 4 | **Pi Technitium admin-align (HD-330)** — recreate admin to 1P `technitium_login` (deployment-manual §1.4c) | ⏳ pending | Pi zone seed → Pkg C; **Pkg F / HD-334** (per-device DNS Pi-first + seed `vpn`/`home`/`dns`); `dns-pi` web UI |
 | 5 | oldsrv Phase-3 blockers (HD-318): ① ONLYOFFICE repo/key, ② ROCm pins decision, ③ 1P `pihole_password`/`sonarr_api`/`radarr_api` | ⏳ pending | Pkg D (HD-311, DNS secondary), heavy services |
 | 6 | RB4011 RouterOS 7.24.1 syslog egress bug (HD-313): upgrade / workaround on-device | ⏳ pending (MT fix upstream) | Central log shipping end-to-end (Pkg B) |
 | 7 | n8n firmware workflow (HD-312(4)) — scoping + flow authoring (reuses `logpipe` RO user) | later, joint AI+owner | — |
