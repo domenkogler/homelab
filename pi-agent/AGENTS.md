@@ -33,7 +33,6 @@ human, and only with explicit sign-off append it to the matching platform doc un
 
 ## 3. When producing or running plans
 
-- `plan-task` records the detected environment in the plan's **`## Environment`**
-  section; honor it.
-- `run-task` reads that section and passes the env note + repo-root CWD to every
-  worker; workers must follow it (do not re-derive the OS on your own).
+The `platform-env` environment note is the standard the agent carries into any
+plan/execution context; workers inherit the detected environment and do not
+re-derive the OS on their own (plan-task/run-task skills retired 2026-09-06).

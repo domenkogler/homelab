@@ -46,8 +46,6 @@ it is refreshed from this repo.
 | Skill | Purpose |
 |-------|---------|
 | `platform-env` | Detect OS/shell once and apply platform assumptions (paths, `\` vs `/`, `/tmp`, `~`, `py -3` vs `python3`, UTF-8, CRLF/LF, `&&`). Run at session start and when producing plans; re-consult only on an env failure. Self-learning: records new platform traps into its reference docs. |
-| `plan-task` | Produce a reviewable execution-plan directory from a goal (records the detected environment in the plan). |
-| `run-task` | Execute a plan one task at a time (honors the plan's Environment + per-task models). |
 | `mikrotik` | Read RouterOS config/state via the RouterOS API. |
 | `shelly` | Manage WiFi Shelly devices (switch, dim, colors, WiFi). |
 

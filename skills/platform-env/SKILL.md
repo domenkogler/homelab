@@ -21,8 +21,8 @@ confused silently breaks commands.
 
 **Run this skill ONCE, at a defined checkpoint — not before every command:**
 - **Session start** (via the global `AGENTS.md` instruction, or `/start`).
-- **plan-task**: at the Scope-check step (records an `## Environment` section).
-- **run-task**: at startup (reads the plan's Environment, passes a note to workers).
+- **Producing/executing plans**: at plan scope-check / task startup, so the detected
+  environment carries into subagents (plan-task/run-task retired 2026-09-06).
 
 After the checkpoint, the constraints are **established** and applied to every
 command *without re-reading the docs*. Do **not** re-load this skill as a
@@ -45,7 +45,7 @@ environment is known.
    the 3–5 constraints that actually bite in this session) before acting.
 4. **Apply** those constraints to every command you run from then on.
 
-When you produce **plans** (see `plan-task`), you additionally **emit an
+When you produce **plans**, you additionally **emit an
 `## Environment` section into the plan** (index + a one-line note in each task's
 executor prompt) so subagents inherit the same assumptions.
 
@@ -82,10 +82,10 @@ Full procedure: `references/self-learn.md`.
 
 - **Session start:** a global `AGENTS.md` instruction tells the agent to run
   this skill first (option: also `/skill:platform-env` on demand).
-- **plans (plan-task):** plan-task loads this skill at the Scope-check step and
-  records the detected environment in the plan's `## Environment` section so
-  run-task and its subagents inherit the correct assumptions instead of
-  re-deriving them (and getting them wrong).
+- **Plans:** the skill is loaded at plan scope-check and records the detected
+  environment in the plan's `## Environment` section so workers and subagents
+  inherit the correct assumptions instead of re-deriving them (plan-task/run-task
+  retired 2026-09-06).
 
 ## References
 

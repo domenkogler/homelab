@@ -8,8 +8,6 @@ volta install @earendil-works/pi-coding-agent
 pi update --extensions
 
 set "PI_SKILLS=%USERPROFILE%\.pi\agent\skills"
-robocopy "%~dp0skills\plan-task"     "%PI_SKILLS%\plan-task"     /E /NFL /NDL /NJH /NJS
-robocopy "%~dp0skills\run-task"       "%PI_SKILLS%\run-task"       /E /NFL /NDL /NJH /NJS
 robocopy "%~dp0skills\platform-env"   "%PI_SKILLS%\platform-env"   /E /NFL /NDL /NJH /NJS
 robocopy "%~dp0skills\mikrotik"       "%PI_SKILLS%\mikrotik"       /E /NFL /NDL /NJH /NJS
 robocopy "%~dp0skills\shelly"         "%PI_SKILLS%\shelly"         /E /NFL /NDL /NJH /NJS

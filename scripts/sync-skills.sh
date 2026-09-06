@@ -16,7 +16,7 @@
 #   - net.json               (mikrotik runtime host map)
 #   - .env.op                (mikrotik op:// credential file — giteignored local runtime state)
 #   - __pycache__/**          (python bytecode)
-#   - zero-byte skill-name markers  (e.g. skills/plan-task/plan-task)
+#   - zero-byte skill-name markers  (e.g. skills/mikrotik/mikrotik)
 # Mirrors the artifact-prune in scripts/install-pi-wsl.sh.
 #
 # Byte-compare is exact (`cmp -s`), so a CRLF or UTF-8-BOM difference reads as a
