@@ -34,9 +34,9 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 
 One **LiteLLM endpoint** is the spine. Every consumer (Open WebUI ×2, OpenClaw, Qdrant's embed/rerank,
 the dual coding harness) talks to it and **never sees an upstream provider key**. All external
-**generation** uses a single `openrouter_api` key; **embeddings** are the one exception (Cohere embed-v4
-needs its own `cohere_api` — OpenRouter carries no embedding models). Model routing, cost, rate limits,
-and credential management are centralized in one place.
+**generation** uses a single `openrouter_api` key; **embeddings/rerank are local on spark** (bge-m3
+1024-dim + bge-reranker-v2-m3 via Triton, 2026-09-06 — Cohere subscription retired). Model routing,
+cost, rate limits, and credential management are centralized in one place.
 
 **Two further invariants from HD-267:**
 - **The vector store is independent of Open WebUI.** Qdrant stands alone (hybrid dense+sparse BM25) so the
@@ -77,13 +77,13 @@ host OS directly):
 **Docker networks (HD-307):** OWUI-public on `traefik-public` (the `chat` route); OWUI-internal NOT
 edge-routed -- tailscale-sidecar Pattern A; the AI harnesses (pi.dev, DSH) on `services-internal` via
 netns tailscale serve (Pattern A); OpenClaw, Docling on `services-internal`; **Qdrant** on `db-internal`
-(alongside the postgres/litellm-db); **Ollama on `llm-backend`** (HD-59). No host `0.0.0.0` port binds —
+(alongside the postgres/litellm-db); ~~Ollama on `llm-backend`~~ (HD-59, **removed 2026-09-06** — inference on spark). No host `0.0.0.0` port binds —
 overlays + Traefik for the public plane, tailscale serve for the management plane (Flaw C / HD-62;
 Patterns A/B in [network-vpn.md](network-vpn.md)).
 
 > **Ollama isolation (HD-59):** Ollama has no native server auth, so it sits on the dedicated
-> `llm-backend` overlay reachable **only by LiteLLM** (the spine), NOT on the flat `services-internal`
-> network.
+> `triton-backend` overlay reachable **only by LiteLLM** (the spine), NOT on the flat `services-internal`
+> network (same isolation as the removed Ollama, HD-59).
 
 ---
 
@@ -97,8 +97,8 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **Forgejo (wiki repos)** | **knowledge SSOT** (HD-307) | `db-internal` / git | OKF `.md` repos per owner; git = truth; Qdrant = rebuildable cache. |
 | **kapa-inspired-rag-mcp** *(planned)* | MCP hybrid reader | `services-internal` | On @wiki-<x> query: hybrid search in Qdrant → top-20 → Cohere rerank (via LiteLLM) → top-5 clean markdown. |
 | **Forgejo MCP** *(planned)* | MCP read/write `.md` | `services-internal` | Bridge to the OKF wiki repos; agents read/write notes + open PRs. |
-| **Ollama** | Local LLM inference | **`llm-backend`** | GPU (RX 7600). Isolated — reachable only by LiteLLM. |
-| **Triton Inference Server** *(planned, spark)* | NVFP4 local inference | `llm-backend` (or `triton-backend`) | On the **spark** GB10 node (HD-335). Serves the NVFP4 model set (Nemotron-30B, Qwen3-Next-80B, Llama-3.3-70B, Qwen3-Coder-Next-80B) + bge-m3/reranker + Whisper + XTTS/Piper. Reachable only by LiteLLM — same isolation as Ollama (HD-59). |
+| ~~Ollama~~ *(removed 2026-09-06)* | ~~Local LLM inference~~ | ~~`llm-backend`~~ | **Removed** — inference consolidated on spark (Triton). No Ollama/ROCm on oldsrv. |
+| **Triton Inference Server** *(planned, spark)* | NVFP4 local inference | `triton-backend` | On the **spark** GB10 node (HD-335) — **the sole local-inference tier** (2026-09-06). Serves the NVFP4 model set (Nemotron-30B, Qwen3-Next-80B, Llama-3.3-70B, Qwen3-Coder-Next-80B) + bge-m3/reranker + Whisper + XTTS/Piper. Reachable only by LiteLLM — same isolation as the removed Ollama (HD-59). GB10 bring-up reference: [`dgx-spark-ml-guide`](https://github.com/martimramos/dgx-spark-ml-guide). |
 | **Mem0** *(planned, spark)* | Long-term memory for OWUI | `services-internal` | Backed by **Qdrant** (HD-267/268). Per-user/per-project scoping via `user_id = <openwebui-user-id>-<model-id>`; `mem0.search(query=…, user_id=…)`. |
 | **OpenHands** *(planned, spark)* | Agentic coding harness | tailnet sidecar | A third coding cockpit alongside pi.dev + DSH (HD-307/250); scoped LiteLLM key + PR-only Forgejo token. |
 | **Docling** | OCR / document understanding | `services-internal` | CPU. Multilingual OCR (Slovenian scans). |
@@ -116,8 +116,8 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
   chat/LLM models, declared in LiteLLM's `config.yaml`. The coding-embed path specifically routes
   **DeepSeek via OpenRouter** (the brainstorm's pi serve / DSH backend) + local Ollama; any model listed
   on OpenRouter is selectable through the one LiteLLM dropdown.
-- **Embeddings → Cohere:** `cohere_api` (api → credential). Cohere embed-v4 **multilingual** chosen for
-  Slovenian; only embedded vectors leave (accepted, 2026-08-16).
+- **Embeddings → local spark (2026-09-06):** bge-m3 (1024-dim) via Triton; Cohere subscription retired.
+  Previously Cohere embed-v4 multilingual @1536 (accepted 2026-08-16 — superseded).
 - **Rerank → Cohere:** `cohere/rerank-v4.0-pro` external via LiteLLM `/rerank`.
 - **Local models:** Ollama listed via LiteLLM so family sees local + cloud in one dropdown; local is
   default where privacy/offline matters. **spark (HD-335)** adds the **Triton** NVFP4 set + local embeddings
@@ -138,7 +138,7 @@ boundary trim; this doc is the platform SSOT for model guidance):
 | Item | type → `field=` | Used by |
 |------|-----------------|---------|
 | `openrouter_api` | api → `credential` | LiteLLM (all external LLM generation) |
-| `cohere_api` | api → `credential` | LiteLLM (Cohere embed-v4, embeddings only) |
+| ~~`cohere_api`~~ *retired 2026-09-06* | — | **Removed** — embeddings/rerank local on spark (bge-m3/1024 + bge-reranker), Cohere subscription cancelled. |
 | `litellm_master_key` | api → `credential` | admin/bootstrap ONLY (HD-247) |
 | `litellm_db` | db → `password` | litellm-db runtime DB (models-in-DB) |
 | scoped keys (`owui-public-chat_api`, `owui-public-rag_api`, `owui-int-wife_api`, `owui-int-owner_api`, `dsh_api`, `openclaw-litellm_api`, `rag-int-svc_api`) | api → `credential` | per-consumer glow-minted keys (HD-247) |
@@ -173,7 +173,7 @@ the per-consumer virtual keys (fail-closed lookups thereafter), specs SSOT in `g
 ### 5b. Retrieval RAG results (rebuildable cache)
 1. **Ingest:** raw assets from **OpenCloud** (WebDAV/CIFS live Box) → optional **Docling** OCR →
    canonical `.md` lands in the Forgejo wiki repo (git front-matter).
-2. **Index:** chunk → embed via **cohere/embed-v4.0** (1536 dims) through LiteLLM → write dense+sparse
+2. **Index:** chunk → embed via **bge-m3 (1024 dims)** on spark (Triton) through LiteLLM → write dense+sparse
    vectors to **Qdrant**.
 3. **Retrieve:** hybrid BM25+vector query → kapa-inspired-mcp reads Qdrant → top-20 candidates → **Cohere
    rerank v4.0-pro** via LiteLLM → **top-5 clean markdown** context → LiteLLM model answers.
@@ -182,17 +182,17 @@ the per-consumer virtual keys (fail-closed lookups thereafter), specs SSOT in `g
 | Parameter | Decided value |
 |-----------|---------------|
 | Extraction | Docling only (`CONTENT_EXTRACTION_ENGINE=docling`, `DOCLING_SERVER_URL=http://docling:5001`) |
-| Embeddings | `cohere/embed-v4.0`, **1536 dims**, via LiteLLM openai-compat, scoped rag key |
+| Embeddings | **bge-m3, 1024 dims**, via Triton on spark (LiteLLM openai-compat, scoped rag key) — Cohere retired |
 | Reranker | Cohere rerank v4.0-pro external via LiteLLM `/rerank` — same scoped key |
 | Hybrid | ON default (dense+sparse BM25) |
 | Retrieval | 20 candidates → rerank → top 5, threshold 0 |
 | Chunking | token-based 512/64 (`RAG_TEXT_SPLITTER=token` mandatory) |
 | Config ownership | `ENABLE_PERSISTENT_CONFIG=false` (env = SSOT) |
 | Knowledge split | Public = Family-Manuals KB only; internal = personal/wife-work corpus |
-| Vector index | Qdrant, 1536-dim dense (+sparse), dimension locks at first ingest |
+| Vector index | Qdrant, **1024-dim** dense (+sparse), dimension locks at first ingest (1536→1024 free: nothing RAG'd yet) |
 
 > **Dimension lock-in (HD-267 / ported from HD-246):** the vector dimension freezes at first ingest;
-> changing embedding model/dims later = full re-ingest + backtest. 1536 chosen (untruncated v4).
+> changing embedding model/dims later = full re-ingest + backtest. **1024 chosen (bge-m3) — 2026-09-06**; 1536 Cohere superseded.
 
 > **Backup (HD-307):** Qdrant is a **rebuildable cache** — so its backup policy is *relaxed* vs PGVector
 > (PGVector held "irretrievable metadata"). The irrecoverable source is the **Forgejo OKF wiki** (the SS),
@@ -278,7 +278,7 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 - **No host port binds** (Flaw C / HD-62): overlays + Traefik only; loopback-only if ever needed.
 - **Version pinning** (HD-61/71): pin LiteLLM, Open WebUI, Docling, **Qdrant**, OpenClaw (young project).
   Keep Renovate tracking.
-- **VRAM/RAM:** RX 7600 = 8 GB, shared with Ollama + immich-ML + voice; Docling on CPU; size chat models
+- **VRAM/RAM:** spark = 128 GB unified (sole inference tier); oldsrv RX 7600 = Sunshine encode only; Docling on CPU; size chat models
   ~7–8B q4; keep `keep_alive` sensible (see `hardware-gpu.md`).
 - **AnythingLLM + LocPilot removed** for the family web UI — replaced by MS Office MCP path (HD-108).
 
@@ -291,6 +291,7 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 | **20** | **Dual harness pi.dev + DSH** (supersedes HD-250's "DSH replaces pi.dev"); feature-keyed bake-off; agents via MCP-git/wiki, never FS. | 2026-08-27 |
 | **21** | IO/embedding stay cohere/embed-v4 @1536; public corpus = Family Manuals only; wife-work corp internal-only. | 2026-08-26/27 |
 | **22** | **spark (ThinkStation PGX / GB10) replaces the old Phase-2 Ryzen/R9700 build (HD-42 superseded).** Headless Triton inference node + NVFP4 model set + local bge embeddings; **Mem0** (OWUI memory on Qdrant) + **OpenHands** (agentic coding) onboard on spark. HD-335. | 2026-09-06 |
+| **23** | **Inference consolidated on spark — single local-inference tier (2026-09-06).** All generation/embeddings/rerank/STT/TTS run on spark (Triton, GB10). **No Ollama/ROCm on oldsrv** (amd_rocm role dies, HD-318 unblocks); oldsrv GPU = Sunshine gaming encode only; immich-ML on oldsrv CPU. **Cohere subscription retired** — bge-m3 (1024) + bge-reranker-v2-m3 replace embed-v4/rerank (Qdrant 1536→1024 free: nothing RAG'd yet). Voice = whisper-turbo + XTTS/Piper **pinned resident on spark, no fallback**. | 2026-09-06 |
 
 > The whole 3-zone / OKF / Qdrant / MCP architecture (previously `ai-brainstorming.md`) is **folded into
 > this doc**; that file is **deleted** (HD-307 lifecycle).

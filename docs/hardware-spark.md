@@ -48,8 +48,10 @@ decision log (`deployment-rejected.md`) + git history.
 
 `spark` runs headless (no monitor, no desktop) as the homelab's **local LLM/inference tier** behind
 the **NVIDIA Triton Inference Server** (`nvidia/tritonserver`), serving the NVFP4 model set below.
-It complements — it does not replace — the existing VPS AI spine (LiteLLM/Qdrant/OWUI) and the
-oldsrv Ollama GPU tier.
+**Spark is the homelab's single AI-inference tier** (2026-09-06 decision): all local inference —
+generation, embeddings, rerank, STT, TTS — runs here via Triton. It complements — does not replace —
+the VPS AI *spine* (LiteLLM/Qdrant/OWUI), but it **replaces** the oldsrv Ollama GPU tier (no Ollama/
+ROCm on oldsrv; oldsrv GPU = Sunshine gaming encode only).
 
 ### Model set (NVFP4 / local, all fit within 128 GB unified memory)
 
@@ -63,9 +65,9 @@ oldsrv Ollama GPU tier.
 | **Whisper-large-v3-turbo + Whisper-large-v3** | STT | speech-to-text |
 | **XTTS v2 + Piper TTS** | TTS | text-to-speech |
 
-> **Embedding note:** bge-m3/bge-reranker-v2-m3 running locally on spark are the planned path to
-> drop the external `cohere_api` for embeddings/rerank (see `services-ai.md` §4 / §5). Dimension
-> lock-in (HD-267) means this is a deliberate, backtested change before any live swap.
+> **Embeddings (2026-09-06):** bge-m3 (1024-dim) + bge-reranker-v2-m3 on spark **replace Cohere
+> entirely** — the `cohere_api` subscription is retired. **Nothing is RAG'd yet**, so the Qdrant
+> dimension lock (1536→1024) costs nothing now; embed/rerank become local on spark.
 
 ## Planned services
 
@@ -87,6 +89,9 @@ Two new service-onboarding candidates land with spark (see `services-ai.md`):
 ## Remote management
 
 - Headless by design: no display, no local desktop. Managed over the LAN (SSH/Ansible) + the mgmt plane.
+- **GB10 bring-up reference:** [`martimramos/dgx-spark-ml-guide`](https://github.com/martimramos/dgx-spark-ml-guide) —
+  PyTorch-nightly (sm_121), no ARM64 wheels, CPU/Python gotchas; run ML **container-native** (Docker
+  isolates CUDA/Python — the guide's own recommended path).
 - 240 W USB-C PD power; check UPS coverage on the rack (PowerWalker VFI ICT/ICR IoT 3000, `hardware-ups.md`).
 
 ## Document Map

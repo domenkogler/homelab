@@ -14,7 +14,7 @@ tags: [hardware, gpu, rocm, cross-cutting]
 
 ---
 
-## Phase 1: AMD Radeon RX 7600
+## Phase 1: AMD Radeon RX 7600 — gaming encode ONLY (no AI)
 
 | Spec | Value |
 |------|-------|
@@ -26,7 +26,8 @@ tags: [hardware, gpu, rocm, cross-cutting]
 ### Dual GPU Topology
 
 - **Intel HD 630 (iGPU):** Xorg primary — monitor on motherboard output. Family desktop compositing.
-- **Radeon RX 7600 (dGPU):** No monitor. Reserved for Docker containers.
+- **Radeon RX 7600 (dGPU):** No monitor. **Sunshine game-streaming encode only** (non-AI).
+  All AI inference moved to spark (2026-09-06). No ROCm/Ollama.
 - Xorg config fragment in `/etc/X11/xorg.conf.d/10-igpu-primary.conf` forces iGPU, excludes dGPU.
 
 ---
@@ -90,10 +91,9 @@ swapping is Triton/KeepAlive-driven, not a manual gaming preempt.
 
 ## Priority Rules
 
-- **LLM always has priority over gaming**
-- Gaming: user manually runs `docker compose stop ollama immich-ml` to free VRAM
-- After gaming: `docker compose up -d ollama immich-ml` restores AI
-- No automated preemption — manual switch
+- **GPU = gaming encode only** (2026-09-06); no AI competes for it (AI is on spark).
+- Sunshine is manual-start (`restart: "no"`); when not streaming the GPU idles (~5 W).
+- No automated preemption needed — no AI container shares the dGPU anymore.
 
 ---
 

@@ -94,6 +94,7 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ## Observability Storage & Notes
 
+- **GPU (RX 7600, 2026-09-06):** **Sunshine gaming-encode only** — no AI/ROCm/Ollama (inference consolidated on spark).
 - **TSDB storage:** the observability **backend moved to the VPS (HD-135)** — Prometheus/Loki live on **VPS NVMe** (`/srv/tsdb` on the VPS, or equivalent `prometheus`/`loki` service volumes), not on oldsrv. Oldsrv runs only the thin **Alloy collector** (host metrics + logs) forwarding over the `wg-s2s` tunnel (`alloy_backend_host`). Metrics/logs remain **regenerable**, ~10–20 GB at 30d/14d retention, not backed up. See `observability.md` §Placement. **HD-135b: the VPS runs its OWN Alloy** (loopback → local Prometheus/Loki) + own Dozzle — it does not depend on oldsrv for its own observability.
 - **Disk headroom:** monitor the `nvme` pool (oldsrv) + OS disk **and** the VPS NVMe in Grafana — pool ≥70% Warning / ≥80% Critical (see `observability.md`), OS disk ≥90% Critical.
 - **SPOF (accepted, HD-135, narrowed HD-135b):** the observability **backend** now lives on the **VPS** — if the VPS (or the home↔VPS `wg-s2s` tunnel) is down, *home* metrics/logs are unavailable in Grafana (aggregation is buffered/replayed on reconnect; the VPS's own stack stays observable locally via its loopback Alloy + Dozzle). NUT-side `notifycmd`/`upssched-cmd` on nas remains the independent power-loss alert path. Documented in `observability.md` §Placement.

@@ -27,7 +27,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 | [Utilities](services-utilities.md) | n8n, signal-cli, PairDrop, Stirling PDF | detail |
 | [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Metabase, Headscale, Kopia, DB Backup | detail |
 | [Office](services-office.md) | ONLYOFFICE, OpenCloud, office bridge (cross-cutting) | detail |
-| [AI Platform](services-ai.md) | LiteLLM, Open WebUI, Docling, OpenClaw, Qdrant, Ollama, Immich-ML | detail |
+| [AI Platform](services-ai.md) | LiteLLM, Open WebUI, Docling, OpenClaw, Qdrant, **spark (Triton, GB10 — sole local inference)**, Immich-ML (oldsrv CPU) | detail |
 | [Matrix](services-matrix.md) | Tuwunel, Element Web | detail |
 | [Finance](services-finance.md) | Actual Budget | detail |
 | [Traefik — Reverse Proxy & Edge](services-traefik.md) | Traefik | detail |
@@ -36,7 +36,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 
 **Standalone (owned here, no stack doc):**
 - **Homepage** (family launchpad, `kogler.si` root + `home`) — public Forward-Auth; status widget. **Moved to the VPS** (HD-180; implemented **HD-183** ✅ 2026-08-21): the route is the compose's Docker-provider labels, live on the VPS edge; reachability is widget/probe-based (no Docker socket).
-- **Sunshine** — game streaming (manual start), AMD dGPU/VRAM.
+- **Sunshine** — game streaming (manual start, `restart: "no"`), AMD dGPU **gaming-encode only** (no AI; idle ~5 W when not streaming).
 
 **Non-services (link out to owning domain):**
 - **Home Assistant standby** + **RaspberryMatic standby** → [`smart-home-failover.md`](smart-home-failover.md) (failover, not services catalog).
