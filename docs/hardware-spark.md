@@ -104,6 +104,22 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337 is the poin
      `versions.yml`), not deployment.
    - **Staging**: `/srv/models/spark/` (regenerable from repo floor + staged weights; not backed up —
      same pattern as oldsrv `/srv/models/immich-ml`).
+
+6. **Model-catalog sync (`litellm-model-sync`) — git ↔ LiteLLM DB reconciled (2026-09-06).** The
+   **git SSOT is the source of truth for Triton models** (`group_vars/all/models.yml`: name, triton
+   repo, litellm name, backend, dims, residency). A sync glue reconciles **git → LiteLLM DB**:
+   - **Onboard** (model enters `models.yml` + Triton repo) → glue **upserts** it into the LiteLLM DB
+     (`POST /model/new`, idempotent, vault-first — `bootstrap-keys` glue pattern).
+   - **Offboard** (model leaves `models.yml` + Triton repo) → glue **deletes it from the LiteLLM DB**
+     (it must not stay advertised when gone from Triton), **and** the model's allowlist entry is
+     removed from `litellm_scoped_keys` (vps.yml) in the **same change** (same-change rule; a scoped
+     key must not still authorize a model that no longer exists).
+   - **Manual/OpenRouter models are NEVER touched by the glue** — the delete is **scoped** to names
+     the glue previously synced (tracked in a `litellm_synced_models` state), so a hand-added
+     OpenRouter model can never be clobbered, even on name collision.
+   - **Per-user availability** stays `litellm_scoped_keys` (vps.yml): a model is reachable by a user
+     **iff** it matches that key's `models:` allowlist (+ budget). Git = what exists on spark;
+     DB + scoped keys = what/whom is available.
 6. **Embedding cutover (Cohere retirement)**: switch LiteLLM embed/rerank → bge-m3,
    Qdrant 1536→1024 (free — nothing RAG'd yet), drop `cohere_api` + cancel Cohere subscription.
 7. **Mem0 (OWUI)** + **OpenHands** onboarding.
