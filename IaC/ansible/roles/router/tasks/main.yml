@@ -415,7 +415,7 @@
 # kids-*                 = kids-control MAC-address-list (kids devices join Home VLAN 10
 #                          per HD-312; list sherds reserved: kids-bedtime/kids-filter/kids-wan)
 #                          — NOT yet implemented (owner: define kids device set).
-- name: Reserve kids-* firewall MAC-address-lists (HD-326, from SSOT `kids: true` marker)
+- name: 'Reserve kids-* firewall MAC-address-lists (HD-326, from SSOT `kids: true` marker)'
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
