@@ -26,8 +26,8 @@ tags: [hardware, gpu, rocm, cross-cutting]
 ### Dual GPU Topology
 
 - **Intel HD 630 (iGPU):** Xorg primary — monitor on motherboard output. Family desktop compositing.
-- **Radeon RX 7600 (dGPU):** No monitor. **Sunshine game-streaming encode only** (non-AI).
-  All AI inference moved to spark (2026-09-06). No ROCm/Ollama.
+- **Radeon RX 7600 (dGPU):** No monitor. **Sunshine game-streaming encode first** + **immich-ML batch**
+  (pause-able GPU consumer, 2026-09-06). No ROCm/Ollama (LLM inference consolidated on spark).
 - Xorg config fragment in `/etc/X11/xorg.conf.d/10-igpu-primary.conf` forces iGPU, excludes dGPU.
 
 ---
@@ -91,9 +91,14 @@ swapping is Triton/KeepAlive-driven, not a manual gaming preempt.
 
 ## Priority Rules
 
-- **GPU = gaming encode only** (2026-09-06); no AI competes for it (AI is on spark).
-- Sunshine is manual-start (`restart: "no"`); when not streaming the GPU idles (~5 W).
-- No automated preemption needed — no AI container shares the dGPU anymore.
+- **Gaming-first (2026-09-06):** Sunshine owns the GPU for streams; immich-ML batch runs in
+  free-GPU time. Sunshine prep-commands `docker pause/unpause immich-ml` freeze/resume ML at
+  stream start/end — **no lost work, instant resume** (kernel freeze).
+- Sunshine `restart: "no"` (manual-start); idle GPU ~5 W when neither gaming nor ML-active.
+- `docker pause` frees compute instantly; VRAM stays allocated until the process re-runs
+  (non-issue at 8 GB/3–5 GB ML footprint).
+- No automated preemption beyond the pause-mechanism; CPU fallback for immich-ML only if
+  ONNX-GPU proves fragile (not the default).
 
 ---
 

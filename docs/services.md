@@ -36,7 +36,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 
 **Standalone (owned here, no stack doc):**
 - **Homepage** (family launchpad, `kogler.si` root + `home`) — public Forward-Auth; status widget. **Moved to the VPS** (HD-180; implemented **HD-183** ✅ 2026-08-21): the route is the compose's Docker-provider labels, live on the VPS edge; reachability is widget/probe-based (no Docker socket).
-- **Sunshine** — game streaming (manual start, `restart: "no"`), AMD dGPU **gaming-encode only** (no AI; idle ~5 W when not streaming).
+- **Sunshine** — game streaming (manual start, `restart: "no"`), AMD dGPU **gaming-encode first**; immich-ML batch is pause-able GPU consumer (prep-commands). Idle ~5 W when neither gaming nor ML.
 
 **Non-services (link out to owning domain):**
 - **Home Assistant standby** + **RaspberryMatic standby** → [`smart-home-failover.md`](smart-home-failover.md) (failover, not services catalog).
