@@ -296,6 +296,35 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 > The whole 3-zone / OKF / Qdrant / MCP architecture (previously `ai-brainstorming.md`) is **folded into
 > this doc**; that file is **deleted** (HD-307 lifecycle).
 
+## 9b. Coding plane — agent memory + orchestration (HD-336, 2026-09-06)
+
+The **coding plane** (your dev work: IaC/Ansible, C#, React/Vue, homelab epics) is a **separate
+plane from the family research plane** (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**
+(managed from the laptop), not the laptop itself.
+
+### Memory — agent-memory.dev (per-project)
+
+- **Decision (2026-09-06): agent-memory.dev = the coding-memory plane**; OpenViking deferred
+  (AGPL-accepted, Docker-only, future unified-context candidate); Mem0 stays OWUI-plane.
+- **One instance per project** (project = 1+ repos); records tagged project+repo.
+- **Cross-project recall = opt-in, not default** (one-instance scoped; no collision).
+- Runs on **oldsrv** (where coding agents live); data dirs under `~/.agentmemory/<project>`,
+  ports 3111+N; MCP = `@agentmemory/mcp`; consolidation LLM key → **LiteLLM scoped key**.
+- **Skills = git SSOT** (`skills/` + `sync-skills.sh`, HD-254), never a service.
+
+### Runners / automation
+
+- **ZeroClaw = system-management agent** (laptop primary + oldsrv standby; NOT VPS — too risky;
+  oldsrv does NOT self-provision). Supervised approvals; MCP → agentmemory.
+- **CrewAI = long/epic homelab coding orchestration with human-signaling** (every decision point
+  = a mandatory stop). **Pilot starts only when the homelab is fully finished** (kill criteria:
+  2-week vertical slice or abandon).
+- OpenHands commits to **spark** (HD-335).
+
+### VPS runner: rejected
+
+A ZeroClaw agent on the VPS with fleet credentials = the largest attack-surface increase in the
+homelab (contradicts §10 capability-tiering). Rejected 2026-09-06; oldsrv is the remote runner.
 ## 10. Not yet implemented
 Depends on: oldsrv GPU + Ollama live · LiteLLM spine + `openrouter_api`/`cohere_api`/`litellm_master_key`
 in 1Password · Authentik OIDC for OWUI · OpenCloud + `media` owner (HD-51) · **Qdrant service + `qdrant_db`

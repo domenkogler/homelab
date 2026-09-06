@@ -77,6 +77,26 @@ Two new service-onboarding candidates land with spark (see `services-ai.md`):
    (HD-267/268). Per-user/per-project scoping via a custom `user_id` = `<openwebui_user_id>-<model_id>`.
 2. **OpenHands** — agentic coding harness (a third coding cockpit alongside pi.dev + DSH, HD-307/250).
 
+## Bring-up plan (HD-337, 2026-09-06)
+
+Order of execution at node bring-up (spec lives here; todo.md HD-337 is the pointer):
+
+1. **DGX OS / Ubuntu Base OS install** (headless; CUDA 13, GB10 sm_121 — see bring-up guide above).
+2. **Ansible role + placement**: add to `network_static_hosts` (never hardcode); Rack residency,
+   UPS coverage (PowerWalker), 10 GbE to LAN.
+3. **Reachability**: HD-155 `wg-s2s` AllowedIPs + router forward-accept delta to add **spark**
+   (VPS/LiteLLM → spark over the tunnel). This is a network change, not just inference config.
+4. **Triton Inference Server** (container-native; Docker isolates CUDA/Python per bring-up guide)
+   on a `triton-backend` overlay, reachable **only by LiteLLM** (HD-59 isolation).
+5. **Model serve**: NVFP4 gen set + bge-m3/1024 + bge-reranker + whisper-turbo + XTTS/Piper.
+   **Voice pinned resident (no fallback)**; gen/embed on-demand.
+6. **Embedding cutover (Cohere retirement)**: switch LiteLLM embed/rerank → bge-m3,
+   Qdrant 1536→1024 (free — nothing RAG'd yet), drop `cohere_api` + cancel Cohere subscription.
+7. **Mem0 (OWUI)** + **OpenHands** onboarding.
+
+### Not on spark
+- immich-ML (oldsrv GPU, pause-able — see `hardware-gpu.md`). No second GPU stack.
+- No RTMP/host venv inference — container-native only.
 ## Network / placement
 
 - Hostname **`spark.kogler.si`** — headless LAN GPU tier.

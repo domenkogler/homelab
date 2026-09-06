@@ -69,6 +69,10 @@
 | `grafana_login` | login → `password` (admin) | Phase 3 | ✓ |
 | `ha_api` | api → `credential` (long-lived HA token) | Phase 3 | ✗ |
 | `headscale_api` | api → `credential` (OIDC client secret) | Phase 3 | ✗ |
+
+- **HD-336 (coding plane)** — agent-memory.dev per-project on oldsrv (MCP + LiteLLM key); ZeroClaw system-mgmt runner (laptop+oldsrv); CrewAI pilot gated on homelab-finished. Spec: `docs/services-ai.md` §9b.
+- **HD-337 (spark bring-up)** — execute HD-335: DGX OS → placement → HD-155 spark leg → Triton → models → Cohere retirement/embed cutover → Mem0+OpenHands. Spec: `docs/hardware-spark.md` §Bring-up.
+
 | `signal_api` | api → `credential` (`username`=phone number) | Phase 3 | ✗ |
 
 #### B) Account / connection refs — NOT consumed by Ansible (human maintenance / break-glass)

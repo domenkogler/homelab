@@ -76,3 +76,28 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 ## 4. Working rules (binding)
 
 Fresh worktree per session BEFORE any edit — mechanically enforced (`bash scripts/guard-session.sh`; `validate-all.sh` hard-fails primary+main+DIRTY); merge back only committed+green, ff-only; primary = merge station only. **9P gate: N/A on the WSL Debian primary (repo moved to ext4 — no /mnt/d drvfs staleness; the gate is legacy from the Windows-runner era).** Surgical `--tags docker_services -e docker_services_scope=<svc>`; secrets 1P-item.field only + `>-` for YAML; persisted Authentik tokens always `expiring=False` (HD-216); owning doc + todo update in same change; English; relative links; Authentik blueprint pin array attrs (HD-231); don't touch headplane/headscale unless asked. No multi-line bash heredocs with backslashes/backticks — write+run temp script files instead. (changelog/journal frozen → `reports/`, archive-only.)
+
+
+## 4. Session close-out — 2026-09-06 (inference/sunshine/agent-memory brainstorm + SSOT)
+
+Decisions locked this session (recorded in owning docs + commits; see prior §2/§3 pointers):
+
+- **Inference consolidated on spark (2026-09-06)** — spark = sole local-inference tier (Triton/GB10):
+  gen/embeddings/rerank/voice. Voice pinned resident (whisper-turbo + XTTS/Piper), no fallback.
+  No Ollama/ROCm on oldsrv (amd_rocm role targeted for removal, HD-318 unblocks); oldsrv GPU =
+  Sunshine gaming-encode FIRST + immich-ML as pause-able GPU batch consumer (prep-commands
+  `docker pause/unpause immich-ml`; `release-rocm` image). Cohere retired → bge-m3/1024 +
+  bge-reranker (Qdrant 1536→1024 free: nothing RAG'd yet). DGX bring-up guide in SSOT.
+- **HD-336 (coding plane)**: agent-memory.dev per-project on oldsrv (MCP + LiteLLM key, opt-in
+  cross-project); skills stay git SSOT; ZeroClaw = system-mgmt runner (laptop+oldsrv, VPS rejected);
+  CrewAI epic orchestration pilot gated on homelab-finished; OpenHands on spark (HD-335).
+  Agent-memory pi wiring left for later (outside repo domain); OpenClaw stays for office work.
+- **HD-337 (spark bring-up)**: execute HD-335; spec in hardware-spark.md §Bring-up (incl. HD-155
+  spark leg). Embedding cutover + Cohere retirement gated on it.
+- **Pkg-F WIP worktree (`homelab-wt-20260904-0950`)**: left as-is per owner (5 uncommitted files:
+  public: field dead, routes.yml duplicate middlewares key, Pi-first DNS, WG 4443). Not merged.
+
+SSOT changes committed on `session/inference-sunshine-20260906` (3 commits: ad34cac, 1408003, + this
+closeout): `services-ai.md` (§9b + decision row 23 ×2), `hardware-spark.md` (+bring-up +guide),
+`hardware-gpu.md`, `hardware-oldsrv.md`, `services.md`, `deployment-ansible.md`, `todo.md` (HD-336/337),
+`deployment-tasks.md` (ledger), `prompt.md` (this block).
