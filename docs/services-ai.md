@@ -98,6 +98,9 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **kapa-inspired-rag-mcp** *(planned)* | MCP hybrid reader | `services-internal` | On @wiki-<x> query: hybrid search in Qdrant → top-20 → Cohere rerank (via LiteLLM) → top-5 clean markdown. |
 | **Forgejo MCP** *(planned)* | MCP read/write `.md` | `services-internal` | Bridge to the OKF wiki repos; agents read/write notes + open PRs. |
 | **Ollama** | Local LLM inference | **`llm-backend`** | GPU (RX 7600). Isolated — reachable only by LiteLLM. |
+| **Triton Inference Server** *(planned, spark)* | NVFP4 local inference | `llm-backend` (or `triton-backend`) | On the **spark** GB10 node (HD-335). Serves the NVFP4 model set (Nemotron-30B, Qwen3-Next-80B, Llama-3.3-70B, Qwen3-Coder-Next-80B) + bge-m3/reranker + Whisper + XTTS/Piper. Reachable only by LiteLLM — same isolation as Ollama (HD-59). |
+| **Mem0** *(planned, spark)* | Long-term memory for OWUI | `services-internal` | Backed by **Qdrant** (HD-267/268). Per-user/per-project scoping via `user_id = <openwebui-user-id>-<model-id>`; `mem0.search(query=…, user_id=…)`. |
+| **OpenHands** *(planned, spark)* | Agentic coding harness | tailnet sidecar | A third coding cockpit alongside pi.dev + DSH (HD-307/250); scoped LiteLLM key + PR-only Forgejo token. |
 | **Docling** | OCR / document understanding | `services-internal` | CPU. Multilingual OCR (Slovenian scans). |
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Version pinned. Models → LiteLLM scoped key. |
 | **pi.dev + DSH** *(dual harness, HD-307)* | DevOps/IaC coding cockpits (C# + IaC) | `services-internal` + tailnet sidecar | Concrete IaC services: **`pi-dev`** (pi coding-agent container, npm `@earendil-works/pi-coding-agent` + `pi-web-access`) and **`dsh`** (DeepSeek Harness `runzhliu/deepseek-harness`). **Both run side-by-side** (supersedes HD-250's "DSH replaces pi.dev"). Each consumes a scoped LiteLLM key (`pi-harness_openai_api` + `dsh_api`) + a PR-only Forgejo token; propose homelab via Forgejo PRs (PR-only, no-merge); 443 egress accepted (recorded risk). DSH WebUI = Pattern-A tailnet serve (:3080); pi = TUI/CLI (no web port). Compared by feature-keyed bake-off. |
@@ -117,17 +120,18 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
   Slovenian; only embedded vectors leave (accepted, 2026-08-16).
 - **Rerank → Cohere:** `cohere/rerank-v4.0-pro` external via LiteLLM `/rerank`.
 - **Local models:** Ollama listed via LiteLLM so family sees local + cloud in one dropdown; local is
-  default where privacy/offline matters.
+  default where privacy/offline matters. **spark (HD-335)** adds the **Triton** NVFP4 set + local embeddings
+  (bge-m3/reranker) as further LiteLLM backends (details in [`hardware-spark.md`](hardware-spark.md)).
 
 **Local model recommendations** (office/voice workloads, moved from `services-office.md` — HD-199
 boundary trim; this doc is the platform SSOT for model guidance):
 
 | Model | VRAM | Best For |
 |-------|------|----------|
-| **Llama 3.1/3.2 8B** | ~6 GB | Everyday office, email drafting, summarization |
-| **Qwen 2.5/3.5 7B–14B** | ~6–12 GB | Complex document structuring, code generation |
-| **Phi-4 14B** | ~10 GB | Reasoning, logic, Microsoft workflow drop-in |
-| **Qwen 2.5-Coder 32B** | ~24 GB | Heavy programming (Phase 2 GPU) |
+| **Llama 3.1/3.2 8B** | ~6 GB | Everyday office, email drafting, summarization (oldsrv RX 7600) |
+| **Qwen 2.5/3.5 7B–14B** | ~6–12 GB | Complex document structuring, code generation (oldsrv RX 7600) |
+| **Phi-4 14B** | ~10 GB | Reasoning, logic, Microsoft workflow drop-in (oldsrv RX 7600) |
+| **NVFP4 30–80B set (Nemotron-Lightning-30B, Qwen3-Next-80B, Llama-3.3-70B, Qwen3-Coder-Next-80B)** | fits in **spark 128 GB unified** | Heavy programming / local reasoning — served by **Triton** on `spark` (HD-335, [`hardware-spark.md`](hardware-spark.md)) |
 
 **1Password (`Homelab-ansible`) items — see [`deployment-secrets.md`](deployment-secrets.md):**
 
@@ -232,6 +236,20 @@ The AI layer is a **swappable shell over a git-SSOT + vector-cache floor** — t
 cache, if Open WebUI goes away tomorrow the whole structure + hybrid RAG + coding agents keep working via
 the WSL pi.dev terminal.
 
+**D) Mem0 long-term memory (planned, spark — HD-335):** user-scoped memory for Open WebUI,
+backed by **Qdrant** (HD-267/268). Per-user/per-project isolation via the OWUI identity split:
+
+```python
+user_id = body.get("user", {}).get("id")        # OWUI user id (Authentik identity)
+model_id = body.get("model")                     # current Persona/Project (model) id
+mem0_custom_user_id = f"{user_id}-{model_id}"     # per-user × per-project memory scope
+mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant context
+```
+
+- Scoping: each (user, model) pair gets its own memory namespace — no cross-user/project leakage.
+- Store: Qdrant collection; rebuildable (same cache class as the RAG index under HD-267 ②).
+- Full onboarding (compose/registry/edge) is tracked under HD-335.
+
 ---
 
 ## 6. Auth & exposure
@@ -272,6 +290,7 @@ the WSL pi.dev terminal.
 | **19** | **Forgejo OKF-llm-wiki = knowledge SSOT**; Qdrant = rebuildable cache; per-owner private repos; OKF YAML front-matter; `*-generated.md` outside corpus. | 2026-08-27 |
 | **20** | **Dual harness pi.dev + DSH** (supersedes HD-250's "DSH replaces pi.dev"); feature-keyed bake-off; agents via MCP-git/wiki, never FS. | 2026-08-27 |
 | **21** | IO/embedding stay cohere/embed-v4 @1536; public corpus = Family Manuals only; wife-work corp internal-only. | 2026-08-26/27 |
+| **22** | **spark (ThinkStation PGX / GB10) replaces the old Phase-2 Ryzen/R9700 build (HD-42 superseded).** Headless Triton inference node + NVFP4 model set + local bge embeddings; **Mem0** (OWUI memory on Qdrant) + **OpenHands** (agentic coding) onboard on spark. HD-335. | 2026-09-06 |
 
 > The whole 3-zone / OKF / Qdrant / MCP architecture (previously `ai-brainstorming.md`) is **folded into
 > this doc**; that file is **deleted** (HD-307 lifecycle).

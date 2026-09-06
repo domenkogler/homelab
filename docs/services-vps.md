@@ -126,7 +126,7 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 - Raw photos on Hetzner Storage Box (CIFS)
 - **Machine learning offloaded to home server GPU** via Immich remote ML feature
 - Phase 1: targets oldsrv immich-ml container (RX 7600)
-- Phase 2: targets Proxmox LXC (R9700)
+- Phase 2: targets **spark** (ThinkStation PGX / GB10 — [`hardware-spark.md`](hardware-spark.md), HD-335; supersedes the old Proxmox-R9700 plan)
 
 ---
 

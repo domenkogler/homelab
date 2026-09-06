@@ -8,7 +8,7 @@ tags: [hardware, phases]
 # Hardware Overview
 
 > **Role:** Index — the hardware domain hub. Machine roster, phase strategy, and links to each `hardware-*.md` stack doc.
-> **Links to:** `hardware-oldsrv.md`, `hardware-gpu.md`, `hardware-nas.md`, `hardware-ups.md`, `hardware-phase2.md`
+> **Links to:** `hardware-oldsrv.md`, `hardware-gpu.md`, `hardware-nas.md`, `hardware-ups.md`, `hardware-spark.md`
 > **Linked from:** `index.md`
 
 ---
@@ -18,7 +18,7 @@ tags: [hardware, phases]
 - **Centralized LLM:** All AI/ML workloads run on the primary server GPU
 - **Phased approach:**
   1. **Phase 1 (Immediate, HD-93 day-one-edge):** existing hardware (i7-7700K as GPU/LAN host, HP MicroServer Gen8 as ZFS storage) **+ the netcup VPS** (active from day one as the public/observability tier). No other purchases.
-  2. **Phase 2 (Scale-up):** if insufficient → dedicated Ryzen/Proxmox server ([`hardware-phase2.md`](hardware-phase2.md)).
+  2. **Phase 2 (Scale-up):** dedicated NVIDIA GB10 **spark** node ([`hardware-spark.md`](hardware-spark.md)) — replaces the earlier planned Ryzen/Proxmox build (HD-42, superseded).
   3. **Co-existence:** services migrate selectively. Compose files and deployment config are host-agnostic — same Git repo, same Ansible.
 
 ---
@@ -32,7 +32,7 @@ tags: [hardware, phases]
 | **SilverStone TS43xx** | Attached to nas via miniSAS — 4× 3 TB HDDs | Same |
 | **Raspberry Pi 4** | Home Assistant (primary, Debian+HA Container) + RaspberryMatic/HmIP-RFUSB + Technitium secondary DNS | Stays primary HA |
 | **VPS (netcup)** | **Public edge + live-data apps + observability backend** (HD-93/HD-40A, active day one) | Public tier + more |
-| **custom** (Ryzen 9 + R9700) | *Not built* | Proxmox hypervisor |
+| **spark** (ThinkStation PGX, NVIDIA GB10, 128 GB) | *Headless AI inference node (purchased, not yet provisioned)* | **Triton + NVFP4 model set** (replaces the planned Ryzen/R9700 build) |
 | **PowerWalker VFI ICT/ICR IoT 3000** (UPS) | Protects nas + rack infra (see [`hardware-ups.md`](hardware-ups.md)) | Same |
 
 ---
@@ -80,7 +80,7 @@ nas (rack) — Debian 13, ZFS
 | Shared GPU resource (VRAM, topology) | [`hardware-gpu.md`](hardware-gpu.md) |
 | NAS ZFS storage server (+ external SilverStone case) | [`hardware-nas.md`](hardware-nas.md) |
 | Rack UPS — links, Modbus TCP, NUT/shutdown status | [`hardware-ups.md`](hardware-ups.md) |
-| Phase 2 Ryzen/Proxmox build | [`hardware-phase2.md`](hardware-phase2.md) |
+| NVIDIA GB10 Triton node (spark) | [`hardware-spark.md`](hardware-spark.md) |
 | Subscriptions & costs | [`subscription.md`](subscription.md) |
 
 ## Related
@@ -89,4 +89,4 @@ nas (rack) — Debian 13, ZFS
 - [Shared GPU Resource](hardware-gpu.md)
 - [HP MicroServer Gen8](hardware-nas.md)
 - [PowerWalker VFI ICT/ICR IoT 3000 (UPS)](hardware-ups.md)
-- [Phase 2 Target Build (Ryzen + Proxmox)](hardware-phase2.md)
+- [spark — NVIDIA GB10 Triton node](hardware-spark.md)

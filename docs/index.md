@@ -75,7 +75,7 @@ docs/
 ├── hardware-gpu.md                        Shared GPU resource (cross-cutting)
 ├── hardware-nas.md                       HP MicroServer Gen8 ZFS storage (+ external SilverStone case)
 ├── hardware-ups.md                       PowerWalker VFI ICT/ICR IoT 3000 (UPS) — links, Modbus TCP, NUT status
-├── hardware-phase2.md                     Ryzen 9 + R9700 Phase 2 build
+├── hardware-spark.md                       NVIDIA GB10 Triton inference node (spark.kogler.si) — replaces the old Phase-2 Ryzen/R9700 build (archived in decision log + git)
 │
 ├── services-finance.md                    Personal finance: Actual Budget, Enable Banking, account import strategy, AI categorization
 │
@@ -168,6 +168,7 @@ docs/
   | Host | FQDN | Role |
   |------|------|------|
   | Old desktop + Docker host | `oldsrv.kogler.si` | internal/GPU/LAN host (ollama, immich-ml, jellyfin/*arr, DNS, HA standby) |
+  | Lenovo ThinkStation PGX | `spark.kogler.si` | **headless NVIDIA GB10 (GB10 Grace Blackwell) AI inference node** — Triton + NVFP4 model set (planned) |
   | HP MicroServer NAS | `nas.kogler.si` | ZFS storage server |
   | Raspberry Pi 4 | `pi.kogler.si` | Home Assistant primary node (HA service = VIP `ha.kogler.si`) |
   | MikroTik Router | `router.kogler.si` | PPPoE, VLAN routing, firewall, WireGuard, CAPsMAN |

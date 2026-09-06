@@ -10,7 +10,7 @@ tags: [hardware, gpu, rocm, cross-cutting]
 
 > **Role:** Cross-cutting detail — GPU used by LLM, voice, vision, and gaming across multiple domains.
 > **Links to:** `services-office.md`, `smart-home-voice.md`, `services.md`
-> **Linked from:** `hardware-oldsrv.md`, `hardware-phase2.md`, `deployment-compose.md`
+> **Linked from:** `hardware-oldsrv.md`, `hardware-spark.md`, `deployment-compose.md`
 
 ---
 
@@ -31,14 +31,19 @@ tags: [hardware, gpu, rocm, cross-cutting]
 
 ---
 
-## Phase 2: AMD Radeon AI PRO R9700
+## Phase 2: NVIDIA GB10 Grace Blackwell (spark)
+
+The old planned Phase 2 GPU (AMD Radeon AI PRO R9700 32 GB, Ryzen build) is **superseded** by the
+NVIDIA **GB10 Grace Blackwell** superchip in the ThinkStation PGX (`hardware-spark.md`). Not a
+discrete GPU — a unified CPU+GPU superchip with **128 GB shared LPDDR5x** memory (no separate VRAM
+division) and **1 PFLOP FP4**.
 
 | Spec | Value |
 |------|-------|
-| VRAM | 32 GB |
-| Form | Blower, 2-slot |
-| Motherboard | ASUS ProArt B850-Creator WiFi NEO (PCIe x8/x8) |
-| Future | Second GPU possible (x8/x8 dual-GPU support) |
+| Superchip | NVIDIA GB10 Grace Blackwell (20-core Arm + Blackwell GPU) |
+| Unified memory | **128 GB** LPDDR5x (shared CPU/GPU, 256-bit, 273 GB/s) |
+| AI performance | **1000 TOPS · 1 PFLOP (FP4)** |
+| Node | `spark.kogler.si` — ThinkStation PGX SFF |
 
 ---
 
@@ -55,14 +60,19 @@ tags: [hardware, gpu, rocm, cross-cutting]
 | **Idle** | None (after 5 min) | ~0 GB (GPU ~12 W) | No activity for 5 minutes |
 | **Gaming** | None (Ollama + Immich-ML stopped) | 0 GB | User manually stops AI containers → launches Sunshine |
 
-### Phase 2 Modes (R9700, 32 GB)
+### Phase 2 Modes (spark — GB10, 128 GB unified)
 
-| Mode | Active Models | VRAM Usage | Trigger |
-|------|--------------|------------|---------|
-| **Programming** | Qwen 2.5-Coder 32B | ~24 GB | Heavy coding session |
-| **Family Home** | Whisper + HA LLM + Piper TTS | ~7 GB | Voice commands |
-| **Idle** | None (after 5 min) | ~0 GB (~12 W) | No activity |
-| **Gaming** | None | 0 GB | Manual stop AI → Sunshine |
+`spark` runs the **Triton Inference Server** with the NVFP4 model set (see `hardware-spark.md`).
+With 128 GB unified memory there is no tight VRAM budget — models load concurrently; model
+swapping is Triton/KeepAlive-driven, not a manual gaming preempt.
+
+| Mode | Active Models | Memory (approx) | Trigger |
+|------|--------------|-----------------|---------|
+| **Programming / Coding** | Qwen3-Coder-Next-80B | ~50 GB (NVFP4) | Coding session |
+| **Family Chat / RAG** | Nemotron-Lightning-30B or Llama-3.3-70B + bge-m3 | ~15–40 GB | Chat / retrieval |
+| **Voice** | Whisper-large-v3(-turbo) STT + XTTS/Piper TTS | ~10 GB | Voice commands |
+| **Embed/Rerank** | bge-m3 + bge-reranker-v2-m3 | ~5 GB | RAG ingest/query |
+| **Idle** | None (Triton model swap / KeepAlive) | ~0–few GB | No activity |
 
 ---
 

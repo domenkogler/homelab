@@ -469,7 +469,7 @@
 > **1Password prerequisites (future):** `proxmox_login` (VM lab), etc.
 
 - Proxmox role + VM lab (bridges, storage, VMs) — **HD-41**
-- Phase-2 hardware build (Ryzen 9, open-frame chassis) — **HD-42**
+- Phase-2 hardware build (Ryzen 9, open-frame chassis) — **HD-42** (**superseded 2026-09-06** by the ThinkStation PGX purchase, HD-335 / `hardware-spark.md`; archived)
 
 ---
 

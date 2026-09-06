@@ -78,6 +78,7 @@ it is refreshed from this repo.
 | Host | Role |
 |------|------|
 | `oldsrv.kogler.si` | Old i7-7700K desktop → family PC + Docker host |
+| `spark.kogler.si` | Lenovo ThinkStation PGX — NVIDIA GB10 AI inference node (headless; planned) |
 | `nas.kogler.si` | HP MicroServer ZFS storage (+ external SilverStone case) |
 | `pi.kogler.si` | Raspberry Pi 4 — Home Assistant **primary node** (`ha.kogler.si` = the VIP; standby on oldsrv), + RaspberryMatic/HmIP-RFUSB, + Technitium secondary DNS (see [`docs/smart-home-failover.md`](docs/smart-home-failover.md)) |
 | `router.kogler.si` | MikroTik RB4011 — routing/firewall/VPN/CAPsMAN |

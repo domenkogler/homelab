@@ -68,8 +68,10 @@ task-specific dispatch. Do **not** bulk-read the repo.
      the dated live-verified evidence.
   3. Doc status banners (`🟢 IaC done, not yet live — ⏳ deploy-gated`) are **hints, not proof** —
      trust the owning-doc ✅ lines + deployment-tasks ticks over banners until the docs catch up.
-- **Hosts:** single namespace `kogler.si` → `oldsrv`, `nas`, `pi`, `router`, `switch`, `vps`.
-  Canonical list + naming/IP conventions: `docs/index.md` → Conventions.
+- **Hosts:** single namespace `kogler.si` → `oldsrv`, `spark`, `nas`, `pi`, `router`, `switch`, `vps`.
+  Canonical list + naming/IP conventions: `docs/index.md` → Conventions. Purchased but **not yet
+  provisioned**: Lenovo ThinkStation PGX (`spark.kogler.si`), the headless NVIDIA GB10 inference node
+  replacing the old Phase-2 Ryzen/Proxmox plan (HD-335, [`docs/hardware-spark.md`](docs/hardware-spark.md)).
 - **Recommended next tasks:** see the latest `prompt-*.md` handoff (date-stamped) — it names the
   current most-valuable, laptop-doable items. **HD-312 3-SSID WiFi + per-MAC cloud-IoT WAN is LIVE
   (2026-09-03)** — the cloud-IoT appliances (LG/Bosch/HAP) regain WAN as leases turn over; the phantom

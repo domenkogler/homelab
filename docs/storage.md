@@ -259,8 +259,8 @@ Pi microSD (ext4 — 128 GB, no ZFS, no backup surface)
 | `bulk` (6 TB) | media + replicas ≈ 1.5–2 TB | media grows fastest | **tight side** — ~2.5 TB media headroom yr 1, sliding to full by ~yr 4 |
 
 Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Critical **≥ 80%** (both `tank`,
-`bulk`; per-pool, see `observability.md`). When `bulk` hits ~80%, offload `bulk/media` → **Phase 2 4 TB NVMe**
-(`hardware-phase2.md`) — the planned media growth path. `tank` data stays put (mirror is the best disks).
+`bulk`; per-pool, see `observability.md`). When `bulk` hits ~80%, offload `bulk/media` → a future 4 TB NVMe
+(`hardware-spark.md`) — the planned media growth path. `tank` data stays put (mirror is the best disks).
 
 ---
 
