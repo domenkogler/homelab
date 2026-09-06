@@ -87,9 +87,23 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337 is the poin
 3. **Reachability**: HD-155 `wg-s2s` AllowedIPs + router forward-accept delta to add **spark**
    (VPS/LiteLLM → spark over the tunnel). This is a network change, not just inference config.
 4. **Triton Inference Server** (container-native; Docker isolates CUDA/Python per bring-up guide)
-   on a `triton-backend` overlay, reachable **only by LiteLLM** (HD-59 isolation).
-5. **Model serve**: NVFP4 gen set + bge-m3/1024 + bge-reranker + whisper-turbo + XTTS/Piper.
-   **Voice pinned resident (no fallback)**; gen/embed on-demand.
+   on a `triton-backend` overlay, reachable **only by LiteLLM** (HD-59 isolation). The server is a
+   standard `docker_services` entry (`template_dir: triton`, pinned image tag in `versions.yml`,
+   Renovate-tracked) — same management as every other service.
+5. **Model serve — the model repository is Ansible-managed** (this is the role's core job): NVFP4 gen
+   set + bge-m3/1024 + bge-reranker + whisper-turbo + XTTS/Piper.
+   - **Strict repo layout** rendered by the role: `/srv/models/spark/triton/<model>/1/{model.nvfp4,…}`
+     (version dir `1/`), per-model `config.pbtxt` as **J2 templates** (backend: tensorrt_llm/vllm vs
+     ONNX; input/output tensor names, `max_batch_size`, instance_group, dynamic batching — version-
+     sensitive, error-prone-by-hand → must be rendered, never hand-touched).
+   - **Conversion pipeline**: role pulls base weights → runs NVFP4/engine converter (llm-compressor/
+     TensorRT-LLM) **idempotently** (skip if engine artifact exists), tagged per model — a heavy,
+     human-gated first-boot step (like render→review→apply), not a blind one-shot.
+   - **Residency policy** (voice pinned resident / gen-embed on-demand) rendered into `config.pbtxt`
+     scheduling + Triton model-control config — the role owns the baseline; tuning is config (like
+     `versions.yml`), not deployment.
+   - **Staging**: `/srv/models/spark/` (regenerable from repo floor + staged weights; not backed up —
+     same pattern as oldsrv `/srv/models/immich-ml`).
 6. **Embedding cutover (Cohere retirement)**: switch LiteLLM embed/rerank → bge-m3,
    Qdrant 1536→1024 (free — nothing RAG'd yet), drop `cohere_api` + cancel Cohere subscription.
 7. **Mem0 (OWUI)** + **OpenHands** onboarding.
