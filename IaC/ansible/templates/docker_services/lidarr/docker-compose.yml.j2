@@ -12,7 +12,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      - /run
+      - /run:exec
     container_name: lidarr
     restart: unless-stopped
     networks:
