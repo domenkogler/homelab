@@ -76,7 +76,7 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 
 **0a. HD-335 — spark node bring-up (NEW, 2026-09-06).** Hardware purchased, SSOT spec done (docs only). ⏳ Next: DGX OS install on the ThinkStation PGX → Ansible role + placement/IP reservation (`network_static_hosts`, never hardcoded) → Triton + NVFP4 model serve → Mem0 (OWUI/Qdrant, §5c-D) + OpenHands onboarding (10-step). · [todo.md HD-335](todo.md) · [hardware-spark.md](docs/hardware-spark.md) · [services-ai.md](docs/services-ai.md) · [deployment-tasks.md](deployment-tasks.md)
 
-0. **oldsrv Phase 3 — ⏳ in progress (HD-318, HEAVILY UNBLOCKED 2026-09-07).** oldsrv first Ansible contact reached `office`; mgmt-plane RESOLVED; docker/network/storage (nvme ZFS pool + NFS)/nut/cockpit/desktop live. ✅ **Unblocked:** office key (Ascensio), amd_rocm Debian-native (noble repo removed), ollama disabled, `pihole_password`/`sonarr_api`/`radarr_api` 1P items created (sonarr/radarr overwritten with real config.xml keys), media-library layout, pihole `DNSMASQ_USER`, seerr bind-owner, *arr s6 fixes (`/run:exec` + caps + drop read_only) → **sonarr/radarr/lidarr/prowlarr/bazarr/sabnzbd + recyclarr UP on oldsrv**. ⏳ **Remaining:** (a) re-converge oldsrv so the running *arr adopt the final compose (read_only removed) + recyclarr re-renders with real keys; (b) HD-340 (oldsrv Technitium admin-align + seed — the converge's `failed=1`); (c) qbit gluetun needs owner PrivadoVPN endpoint (`privado` provider dropped → `custom`); (d) seerr/jellyfin/actual-budget/kopia-agent RO-path fixes; (e) HD-341 re-seed VPS+Pi. oldsrv becomes the DNS secondary (HD-317/340) + heavy services. · [todo.md HD-318](todo.md) · [deployment-tasks.md](deployment-tasks.md) §Phase 3
+0. **oldsrv Phase 3 — ⏳ in progress (HD-318, HEAVILY UNBLOCKED 2026-09-07).** oldsrv first Ansible contact reached `office`; mgmt-plane RESOLVED; docker/network/storage (nvme ZFS pool + NFS)/nut/cockpit/desktop live. ✅ **Unblocked:** office key (Ascensio), amd_rocm Debian-native (noble repo removed), ollama disabled, `pihole_password`/`sonarr_api`/`radarr_api` 1P items created (sonarr/radarr overwritten with real config.xml keys), media-library layout, pihole `DNSMASQ_USER`, seerr bind-owner, *arr s6 fixes (`/run:exec` + caps + drop read_only) → **sonarr/radarr/lidarr/prowlarr/bazarr/sabnzbd + recyclarr UP on oldsrv**. ⏳ **Remaining:** (a) re-converge oldsrv so the running *arr adopt the final compose (read_only removed) + recyclarr re-renders with real keys; (b) HD-340 (oldsrv Technitium admin-align + seed — the converge's `failed=1`); (c) qbit gluetun needs owner PrivadoVPN endpoint (`privado` provider dropped → `custom`); (d) seerr/jellyfin/actual-budget/kopia-agent RO-path fixes; (e) HD-341 re-seed VPS+Pi ✅ DONE (this session, 2026-09-07). oldsrv becomes the DNS secondary (HD-317/340) + heavy services. · [todo.md HD-318](todo.md) · [deployment-tasks.md](deployment-tasks.md) §Phase 3
 
 1. **HD-312 — 3-SSID WiFi + per-MAC control (phases 1+2a+3 DONE + LIVE; 2b/3b/4 next).** ⏳ Remaining: (2b) CAPsMAN per-MAC `access-list` vlan-id; (3b) `kids-*` lists active + kids-control off VLAN 40 (owner: define kids device set); (4) n8n firmware workflow + scoped router API user. · [todo.md HD-312](todo.md) · [network-vlans.md](docs/network-vlans.md) §3-SSID
 
@@ -240,7 +240,27 @@ closeout): `services-ai.md` (§9b + decision row 23 ×2), `hardware-spark.md` (+
 ### Absolute next action (this session's handoff)
 1. Re-run oldsrv converge → the *arr adopt the final compose + recyclarr re-renders with real keys → verify `recyclarr sync` (quality profiles).
 2. HD-340 align oldsrv Technitium admin → re-run `technitium` scope → seed.
-3. Re-seed VPS + Pi for the HD-341 public-record set.
 4. Owner: PrivadoVPN endpoint for gluetun; accept/close the other RO-path services.
 
 **Scenario note:** the oldsrv converge is long; run `bash scripts/ansible-run.sh playbooks/home_servers.yml` from main. Verify with `docker ps` on oldsrv + `docker logs recyclarr`. The `storage` media-layout task is idempotent.
+
+
+## 4. Session close-out — 2026-09-07 (HD-341 + HD-342 live-deployed: DNS parity + IoT DNS visibility)
+
+**Branch / worktree:** ran on `main`-detached worktree `../homelab-wt-hd342-20260907-2340` (HD-342 commit `b6dfc15`) then merged to `main` (`7b17b86` m, `9d1e2db`, `78ec044`, `c86a21b`); ALL work delivered live + committed; validate-all green; tree clean.
+
+### What landed + is LIVE (verified)
+- **HD-341 — single-namespace split-horizon record parity: CLOSED (row deleted).** Re-seeded **VPS primary + Pi tertiary** (`docker_services_scope=technitium` / `technitium-secondary`, both `failed=0`); `dig @159.195.111.66` + `dig @<pi>` now answer `file/foto/git/bin/ai/home/office/pdf/chat/matrix/drop` → `dns_primary_ip`. Fixes `ERR_NAME_NOT_RESOLVED` on those names for home/tailnet clients (VPS-primary-first chain). oldsrv leg remains gated on HD-340 (its own row).
+- **HD-342 — IoT/WAN device DNS visibility: CLOSED (row deleted).** Router now has `IoT forced DNS - :53 → Pi (HD-342)` dst-nat (VLAN 20 plain :53 → `10.10.1.20`, the Pi Technitium, per-source-IP logged) + `IoT -> DoT bypass drop` 853 tcp+udp. Applied via **`scripts/routeros-apply-delta.sh`** (raw `scp` + `/import`) — the `ansible.builtin.copy`-module SCP in `apply-converge.yml` FAILS on RouterOS ("Destination / not writable" — the module's stat-based writability check vs raw scp). **Live-verified** on the router (`/ip firewall nat print where comment~"HD-342"` → entries 2,3; filter → 853 drops).
+- **Bonus blocker fixed:** removed the **dead HD-326 kids MAC address-list task** (`roles/router/tasks/main.yml`) — `/ip firewall address-list` rejects MACs ("not a valid dns name") → it failed EVERY `--tags network` converge, silently blocking all firewall/NAT rules after it. **SSOT parity:** HD-342 rules mirrored into `rb4011_converge.rsc.j2` (network-ops.md "edit BOTH or NEITHER" rule).
+
+### Operational lessons (recorded in owning docs + git)
+- **RouterOS apply:** the working device-apply path is `scripts/routeros-apply-delta.sh` (raw scp → `/import`). The Ansible `copy`-module SCP (`apply-converge.yml`) fails with "Destination / not writable" on RouterOS even though raw scp to `/` succeeds — the module's stat-based dir-writability check isn't RouterOS-compatible. Use the `.sh` for any device file upload.
+- **`--tags network` converge was blocked** by the dead HD-326 task; now unblocked (exit 0, `failed=0`).
+- **Cosmetic:** 2 duplicate HD-342 DoT-drop rules remain on the router after a double import (identical tcp/udp drops — harmless; reconcile on next full converge).
+
+### Handoff state for next session (unchanged items carry over)
+- **HD-318 oldsrv Phase-3** still in progress (re-converge for final compose, HD-340 DNS align, qbit gluetun `custom` provider needs owner PrivadoVPN endpoint, RO-path fixes for seerr/jellyfin/actual-budget/kopia-agent).
+- **HD-335 spark** node bring-up, **HD-312** (2b/3b/4), **HD-313** log-shipping device-side, audit-fold owner actions, etc. — all unchanged, rows in [todo.md](todo.md).
+- **`dns-oldsrv.kogler.si` deliberately NOT created** — oldsrv's DNS secondary is a resolver, not a UI (view via `dns-pi` / `dns` by SSOT design).
+- Next free HD: derive via `bash scripts/next-hd.sh`.
