@@ -140,6 +140,7 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 - **Implementation HDs:** HD-332 (catalog `public:` flag + internal-edge growth), HD-333 (WG + tailnet reach
   + ACL), HD-334 (per-device DNS visibility via Pi-first for VLAN-10 + seed `vpn`/`home`/`dns` records).
 - **Implementation spec (HD-332, this doc is the SSOT):
+  - **Status: IAC-AUTHORED (2026-09-07, not yet live — deploy-gated on VPS `docker_services` converge).** The `public:` catalog flag (IaC `group_vars/vps.yml`), the label gate on grafana/dozzle/metabase/crowdsec-web-ui (`public: false` → `traefik.enable: false`, internal-only), the internal-edge file-provider routes, and the `sso` internal router are all written and `validate-all` green. This is the NEW internal-edge/publish work; the public edge line above (`Live since 2026-08-22`) remains live and unchanged. Until the VPS converge lands, the live state is unchanged.
   - **Catalog `public:` flag:** every `docker_services` entry in `group_vars/*.yml` gains a `public:` bool —
     `public: true` = served by the PUBLIC edge (Docker-labels, single ACME issuer `traefik_acme_issuer`, Forward-Auth + CrowdSec, Cloudflare record); `public: false`/absent = internal-only.
   - **Public edge (unchanged):** the VPS `traefik` — Docker provider, labels only for `public: true` apps.

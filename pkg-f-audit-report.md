@@ -132,3 +132,13 @@ Implementer: subagent (deepseek-v4-flash, Lane B). Do NOT commit (per task). val
 - **Reach scope:** the VPS WG peer `allowed_ips` (HD-155 least-access: nas/ha-vip/oldsrv/pi/router/switch) means the internal edge via WG is reachable ONLY from those scoped home infra hosts. **End-user devices (laptop/phone/tablet) use the tailnet path** (sidecar + headscale ACL) — WG is the infra/automation path, not the family path. If family-from-home-over-WG is ever wanted, that is a separate allowed_ips/ACL decision (do NOT broaden silently).
 - **Deploy touchpoints:** VPS converge with `--tags docker_services,hardening` (traefik-tailnet + nftables apply). No router converge needed. No live host was touched.
 - **Validator:** added mocks keep `validate-docker-services.py` green (58 templates valid).
+
+---
+
+## Docs + todo lifecycle update (2026-09-07, docs lane — uncommitted)
+
+Docs/todo lifecycle for Pkg F (HD-331-334), reflecting **IaC-authored + validate-green + reviewer-approved but NOT yet live** (commits 3e9385d/50a7336/9fbe58e). validate-all **green** (incl. check_doc_map 75 docs all links resolve, check_generated_suffix 4 generated OK, no `-generated.md` touched). Files changed:
+- `docs/services-traefik.md` — §Edge model / implementation-spec: added "**Status: IAC-AUTHORED (not yet live — deploy-gated on VPS `docker_services` converge)**" line documenting the `public:` flag + label gate + internal-edge routes + sso router; kept the existing `Live since 2026-08-22` public-edge line intact (that part is live; only the NEW internal-edge/publish work is deploy-gated).
+- `docs/network-vpn.md` — §HD-333: marked **IAC-AUTHORED (not yet live — deploy-gated on VPS `docker_services` + `vps-hardening` converge)**; the impl + deploy-gated verify checklist (added in 9fbe58e) is retained.
+- `todo.md` — HD-332 + HD-333 rows: status now "**IAC DONE 2026-09-07, deploy-gated on VPS converge**" with authored details (label gate, sso router, :4443 publish, nftables rule, SSOT vars) + ⏳ marked **pending LIVE CONVERGE**. HD-334 row: "**IAC AUTHORED 2026-09-07, deploy-gated on VPS + router + Pi converge**" (Pi-first VLAN-10 DNS + `vpn`/`home`/`dns` seed records) — ⏳ pending LIVE CONVERGE + `dig @<pi> vpn/home/dns` verify. Pkg F §2.1a table row: HD-332/333 = IAC DONE, HD-334 = IaC authored, deploy = VPS+router+Pi converges. HD-331 unchanged (DECIDED, locked). No rows closed/deleted; depend links preserved.
+- `README.md` / `prompt.md` — NOT touched (no Pkg F pointer in README; prompt.md is another handoff's ownership per default).
