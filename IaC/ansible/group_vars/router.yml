@@ -48,7 +48,7 @@ router_port_map:
   laptop-domen:
     port: ether3
     pvid: 10
-    tagged: []
+    tagged: [99]
     vlan: 10
     mac: "48:2A:E3:9D:31:85"
   nas-ilo:

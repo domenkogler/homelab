@@ -37,7 +37,7 @@
 | 99 | 10.10.99.11 | ilo | nas iLO4 BMC |
 | 99 | 10.10.99.20 | pi | RPi4 node + DNS tertiary (HD-299) |
 | 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS secondary (HD-299) |
-| 99 | 10.10.99.80 | laptop-domen | Domen's laptop (admin, mgmt VLAN) — reaches mgmt via tagged-99 hop (Pi eth0.99), Home->Mgmt forward removed (strict) |
+| 99 | 10.10.99.80 | laptop-domen | Domen's laptop (admin, mgmt VLAN) — Windows Home-untagged-only; WSL Debian uses a tagged-99 leg (ether3 now carries Mgmt tagged, 2026-09-07) |
 | 10 | 10.10.1.1 | router | Home gateway |
 | 10 | 10.10.1.10 | nas | Cockpit/NFS/NUT master |
 | 10 | 10.10.1.20 | pi | node + DNS tertiary (HD-299; VRRP anchor) |
@@ -118,4 +118,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-04T07:07:12Z
+> Last generated: 2026-09-07T08:04:57Z

@@ -182,8 +182,8 @@ dynamic address until the lease turns over.
 
 > **Port model (2026-09-01, final 2026-09-02): untagged = primary/access VLAN, tagged = secondary/admin (Mgmt 99).**
 > A single untagged port carries ONE VLAN (untagged frames map to `pvid`), so dual-homed hosts
-> (oldsrv, Pi) ride **Home (10) untagged + Mgmt (99) tagged** on the same port. The **laptop is Home-untagged ONLY**
-> (mgmt reached via the Pi's tagged-99 hop — Windows never touches tagged 99). This is the strict,
+> (oldsrv, Pi, laptop) ride **Home (10) untagged + Mgmt (99) tagged** on the same port. The **laptop's Windows side is Home-untagged ONLY**
+> (mgmt reached via the Pi's tagged-99 hop — Windows never touches tagged 99); **WSL Debian on the laptop uses the tagged 99 leg** (`eth0.99`) so it gets a Mgmt-plane client without Windows seeing it. This is the strict,
 > defense-in-depth decision: **Home never reaches core infra (Mgmt VLAN) by default**; the Pi's `eth0.99`
 > tagged leg is the only real mgmt-plane client. Supersedes the old "Mgmt-access + single-VLAN" model
 > (dead Pi Home leg, HD-307/308) AND the temporary Home→Mgmt forward (reverted 2026-09-02). It does NOT change
@@ -211,7 +211,7 @@ dynamic address until the lease turns over.
 | Camera | Access | 20 (IoT) |
 | Shield, console, smart TV | Access | 50 (Media) |
 | UPS management | Access | 99 (Mgmt) |
-| Laptop (admin, router ether3) | Access (Home only) | **10 (Home) untagged only** — mgmt via Pi tagged-99 hop (`~/.ssh/config` `pi99`/`router99` + `switch`/`ap-*`/`nas99` ProxyJump); static `laptop-domen` (2026-09-01, HD-307) |
+| Laptop (admin, router ether3) | Access + tagged | **10 (Home) untagged** (Windows) + **99 (Mgmt) tagged for WSL Debian** (`eth0.99`; Proxymap/jump via tagged-99 hop unchanged); static `laptop-domen` (2026-09-01, HD-307 / 2026-09-07 tagged) |
 | Debian homelab PC (oldsrv) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
 | SFP+ uplinks | Trunk | 10,20,30,40,50,99 tagged |
 
