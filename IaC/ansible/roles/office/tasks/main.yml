@@ -41,21 +41,30 @@
   # owner is trusted — fail closed if a different key arrives. NO `creates:` guard:
   # a stale key file from an earlier partial Phase-3 attempt must be refreshed, so
   # the shell re-verifies the fingerprint every converge (cheap, idempotent).
+  # NOTE (live, 2026-09-07): `cmd: |` literal (NOT `>-`) — the folded block collapsed
+  # the if/then/fi newlines and /bin/sh failed with 'if: not found'. GNUPGHOME is set
+  # explicitly to a writable temp dir because the task runs as ROOT (become) whose
+  # /root/.gnupg cannot be written by the dirmngr (keyserver fetch failed without it).
   ansible.builtin.shell:
-    cmd: >-
+    cmd: |
+      set -e
       tmp=$(mktemp -d)
-      if ! gpg --no-default-keyring --keyring "$tmp/oo.kg"
-          --batch --quiet --with-colons --import-options show-only
-          --import /etc/apt/keyrings/onlyoffice.asc 2>/dev/null |
+      export GNUPGHOME="$tmp/gh"
+      mkdir -p "$GNUPGHOME"
+      chmod 700 "$GNUPGHOME"
+      if ! gpg --no-default-keyring --keyring "$tmp/oo.kg" \
+          --batch --quiet --with-colons --import-options show-only \
+          --import /etc/apt/keyrings/onlyoffice.asc 2>/dev/null | \
           grep -q '^fpr:::::::::E09CA29F6E178040EF22B4098320CA65CB2DE8E5:'
       then
-        gpg --no-default-keyring --keyring "$tmp/oo.kg"
-            --keyserver keyserver.ubuntu.com
-            --recv-keys E09CA29F6E178040EF22B4098320CA65CB2DE8E5 &&
-        gpg --no-default-keyring --keyring "$tmp/oo.kg"
-            --export E09CA29F6E178040EF22B4098320CA65CB2DE8E5 >
+        gpg --no-default-keyring --keyring "$tmp/oo.kg" \
+            --batch --keyserver keyserver.ubuntu.com \
+            --recv-keys E09CA29F6E178040EF22B4098320CA65CB2DE8E5 && \
+        gpg --no-default-keyring --keyring "$tmp/oo.kg" \
+            --export E09CA29F6E178040EF22B4098320CA65CB2DE8E5 > \
             /etc/apt/keyrings/onlyoffice.asc
       fi
+      test -s /etc/apt/keyrings/onlyoffice.asc
       chmod 0644 /etc/apt/keyrings/onlyoffice.asc
       rm -rf "$tmp"
   tags: [office]
