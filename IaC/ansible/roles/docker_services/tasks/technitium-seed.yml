@@ -163,10 +163,28 @@
         - { name: "sec.kogler.si",     ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
         - { name: "traefik.kogler.si", ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
         - { name: "auto.kogler.si",    ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
-        - { name: "sso.kogler.si",     ip: "{{ dns_primary_ip }}" }
-        - { name: "vpn.kogler.si",     ip: "{{ dns_primary_ip }}" }   # HD-334: headscale coordination URL (control-plane)
-        - { name: "home.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-334: family launchpad login
-        - { name: "dns.kogler.si",     ip: "{{ dns_primary_ip }}" }  # HD-334: Technitium web UI
+        # --- Single-namespace public set (HD-341): the split-horizon zone must carry
+        # the SAME record set that Cloudflare serves publicly, so LAN/tailnet clients
+        # resolve *.kogler.si consistently (the authoritative VPS primary answers
+        # NOERROR/0-answer = NODATA for names missing here -> ERR_NAME_NOT_RESOLVED
+        # on LAN clients, live 2026-09-07). These A records point at the VPS public IP
+        # (dns_primary_ip) — identical target to their public CNAMEs (= vps.kogler.si
+        # -> dns_primary_ip). Seeded on EVERY instance.
+        - { name: "kogler.si",        ip: "{{ dns_primary_ip }}" }  # root — family launchpad (home.kogler.si alias)
+        - { name: "home.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-334 kept; alias of root
+        - { name: "vpn.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-334: headscale coordination URL (control-plane)
+        - { name: "dns.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-334: Technitium web UI
+        - { name: "sso.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-329: Authentik edge (kept)
+        - { name: "file.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-341: OpenCloud
+        - { name: "foto.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-341: Immich
+        - { name: "git.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-341: Forgejo
+        - { name: "bin.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-341: Zipline
+        - { name: "ai.kogler.si",     ip: "{{ dns_primary_ip }}" }  # HD-341: Open WebUI (tailnet reach; resolves public)
+        - { name: "office.kogler.si", ip: "{{ dns_primary_ip }}" }  # HD-341: ONLYOFFICE
+        - { name: "pdf.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-341: Stirling PDF
+        - { name: "chat.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-341: Element
+        - { name: "matrix.kogler.si", ip: "{{ dns_primary_ip }}" }  # HD-341: Matrix
+        - { name: "drop.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-341: PairDrop
       register: _tech_record
       no_log: true
       changed_when: false
