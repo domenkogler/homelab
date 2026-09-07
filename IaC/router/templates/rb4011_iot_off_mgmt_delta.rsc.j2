@@ -1,0 +1,60 @@
+# =============================================================================
+# RB4011 — IoT-devices-off-Mgmt + laptop tagged-99 DELTA (HD-338 / HD-310)
+# Rendered from SSOT. IDEMPOTENT: every change guarded / set-if-exists — safe
+# to re-import. Apply: /import rb4011_iot_off_mgmt_delta.rsc
+#
+# Scope (one converge, 2026-09-07):
+#   A) ether3 (laptop-domen) — add VLAN-99 TAGGED membership (HD-310 WSL leg;
+#      SSOT tagged:[99]; live port was untagged-Home-only).
+#   B) ether9 (HMIP-HAP) — MOVE off Mgmt: pvid 99 → 20, untagged-20 member,
+#      REMOVE from VLAN-99 untagged (IoT cloud device w/ wan_allow; port map
+#      stale at pvid-99).
+#   C) VLAN-99 untagged shrinks: ether7,ether9 → ether7 (iLO only).
+#   D) UPS web-UI forward rule (trusted-admin -> ups_management 80/443) DELETED
+#      — UPS NIC moved to IoT 20 no-WAN (NUT/USB only). ups_management list is
+#      now empty (SSOT row is vlan 20), so the rule has no target; remove it.
+# =============================================================================
+
+# --- A. ether3: add VLAN-99 TAGGED membership (HD-310 laptop/WSL leg) ---
+# Port model 2026-09-01: untagged=primary (Home 10, pvid), tagged=secondary (Mgmt 99).
+:if ([/interface bridge vlan find where vlan-ids=99 and dynamic=no] = "") do={
+    /interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether10 untagged=ether7 comment="Management VLAN (tagged admin + untagged mgmt access)"
+} else={
+    /interface bridge vlan set [find where vlan-ids=99 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether10 untagged=ether7 comment="Management VLAN (tagged admin + untagged mgmt access)"
+}
+
+# --- B. ether9 (HMIP-HAP): pvid 99 → 20 (IoT), untagged-20 member ---
+/interface bridge port set [find where interface=ether9] pvid=20 comment="HMIP-HAP (IoT VLAN 20 + WAN via flag)"
+# Add VLAN-20 untagged member for ether9 (access port; pvid alone does not forward).
+:if ([/interface bridge vlan find where vlan-ids=20 and dynamic=no] = "") do={
+    /interface bridge vlan add bridge=bridge-lan vlan-ids=20 tagged=bridge-lan,sfp-sfpplus1 untagged=ether9 comment="IoT VLAN on trunk (+ ether9 HMIP-HAP access)"
+} else={
+    /interface bridge vlan set [find where vlan-ids=20 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1 untagged=ether9 comment="IoT VLAN on trunk (+ ether9 HMIP-HAP access)"
+}
+# NOTE: if VLAN-20 already exists with other untagged members, the /set above
+# REPLACES untagged with ether9 only. Add ether2/3/etc if Live shows more. The
+# full converge re-adds any missing members; this delta targets the current set.
+
+# --- C. VLAN-99 untagged: ether7 only (ether9 leaves Mgmt) ---
+# (already handled in A's add/set — A sets untagged=ether7)
+
+# --- D. Remove the trusted-admin -> UPS web UI forward rule ---
+# The UPS NIC moved to IoT 20 no-WAN; ups_management list is empty (no target).
+:if ([/ip firewall filter find where comment="Trusted admin -> UPS web UI"] != "") do={
+    /ip firewall filter remove [find where comment="Trusted admin -> UPS web UI"]
+}
+
+# --- E. UPS DHCP reservation: drop the stale dhcp-mgmt lease, add dhcp-20 ---
+# The UPS NIC moved to IoT VLAN 20 (SSOT 10.10.20.9). Its old static reservation
+# on dhcp-mgmt (10.10.99.9) must be REMOVED (the role uses handle_absent_entries:
+# ignore on leases, so a stale lease survives a converge — live-found 2026-09-07).
+:if ([/ip dhcp-server lease find where mac-address=00:20:85:C0:92:FA and server=dhcp-mgmt] != "") do={
+    /ip dhcp-server lease remove [find where mac-address=00:20:85:C0:92:FA and server=dhcp-mgmt]
+}
+# Add the new IoT-20 reservation (idempotent: only if absent).
+:if ([/ip dhcp-server lease find where mac-address=00:20:85:C0:92:FA and server=dhcp-20] = "") do={
+    /ip dhcp-server lease add server=dhcp-20 address=10.10.20.9 mac-address=00:20:85:C0:92:FA comment="ups static reservation (IoT 20, HD-338)"
+}
+
+:log warning "rb4011_iot_off_mgmt_delta.rsc applied"
+:log warning "rb4011_iot_off_mgmt_delta.rsc applied"

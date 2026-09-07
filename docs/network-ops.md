@@ -16,6 +16,8 @@ tags: [network, routeros, ops]
 ## Router Config Lifecycle
 
 > **Apply model (decided 2026-09-01):** RouterOS config is **authored in Jinja templates (IaC, single SSOT)** and **deployed by importing a rendered `.rsc`** — NOT by driving `api_modify` command-by-command for day-to-day changes. The API path is used only for **idempotent, order-independent state** (DHCP reservations, firewall lists the role owns) and for **verification** (`api_facts`/`api`), never as the primary apply for multi-step changes.
+>
+> **⚠️ Role ↔ `.rsc` parity (HD-338, 2026-09-07):** the `router` Ansible role still contains a handful of `api_modify` tasks that mirror converge state (the trunk `interface bridge vlan` task and the port-model `interface bridge port` task). These are the **only** places where the role carries day-to-day apply logic, and they are a **drift risk**: the trunk task's VLAN-99 `untagged` set drifted from the template (held `ether7,ether9` after HD-310 changed the template to `ether7`) and a converge would have dropped ether2/3/10 off the tagged-99 backplane. **Rule: any `api_modify` task that mirrors converge state must stay byte-identical to `rb4011_converge.rsc.j2` — edit BOTH or NEITHER.** When in doubt, drop the role task and rely on the import. The header of `roles/router/tasks/main.yml` + the two L2 tasks carry this warning inline.
 
 ### The three tiers (roles + when each is used)
 

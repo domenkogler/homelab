@@ -244,7 +244,7 @@ If not present, run the `docker network create` command for oldsrv first.
 - **Reservation:** single `/32`, **no reserved block**. Home DHCP pool stays ≤ `.199` (pool per SSOT); never extend it into the VIP or assign `ha-vip` as a normal static lease.
 - **Naming:** canonical name **`ha-vip`** everywhere (SSOT host row, keepalived, Technitium A records, docs). Ansible vars **`ha_vip`** + **`ha_vip_cidr: 24`** live in `group_vars/all.yml` only; all templates consume `{{ ha_vip }}` — the literal value appears only in `group_vars/all.yml` and the rendered SSOT.
 - **Firewall IP-sets (RouterOS):** the VIP belongs to the **existing** address-lists in `rb4011_initial.rsc`:
-  - `trusted-admin` — Home→Mgmt rules (SSH/WinBox/API + UPS web 80/443)
+  - `trusted-admin` — Home→Mgmt rules (SSH/WinBox/API; ~~UPS web 80/443~~ removed HD-338 — UPS on IoT 20 no-WAN)
   - `trusted-ha` — Home→IoT rules (MQTT/HA, KNX/Shelly trusted-IP). No dedicated `ha-vip` list.
 
 ---

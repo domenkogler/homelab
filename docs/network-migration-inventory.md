@@ -30,7 +30,7 @@ tags: [network, vlan, migration]
 | nas (gen8) | 1C:98:EC:0E:0D:38 | 10 (Home) | — | fresh install 2026-08-23; pools exported |
 | gen8 iLO4 | 1C:98:EC:0E:0D:3A | 99 (Mgmt) | — | SSOT `ilo` address post-cutover |
 | pi ("homeassistant") | E4:5F:01:26:EF:AA | trunk 10+99 | — | HA primary; Phase 4 redo pending |
-| UPS PowerWalker VFI 3000 | 00:20:85:C0:92:FA | 99 (Mgmt) | — | `ups_management` list; web UI rule HD-09; NUT master talks USB-local |
+| UPS PowerWalker VFI 3000 | 00:20:85:C0:92:FA | 20 (IoT, no WAN) | — | moved off Mgmt HD-338; `ups_management` web-UI rule removed; NUT master talks USB-local |
 
 ## Smart-home devices
 

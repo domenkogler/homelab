@@ -45,10 +45,10 @@ switch_port_map:
     poe: true
     mac: "C4:AD:34:42:F0:B9"
 
-  # UPS Management (VLAN 99) - no PoE
+  # UPS NIC (IoT VLAN 20, no WAN — NUT/USB monitoring; HD-338)
   ups:
     port: ether4
-    vlan: 99
+    vlan: 20
     poe: false
     mac: "00:20:85:C0:92:FA"
 

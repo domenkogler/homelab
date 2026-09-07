@@ -50,7 +50,9 @@
 {% for v in network_vlans %}
 # VLAN {{ v.id }} ({{ v.name }})
 {% set access = switch_port_map.items() | selectattr('1.vlan', 'equalto', v.id) | map(attribute='1.port') | list %}
-/interface bridge vlan add bridge=bridge vlan-ids={{ v.id }} tagged=bridge,sfp-sfpplus1{% if v.ssid is defined and v.ssid and wifi_ports is defined %},{{ wifi_ports | join(',') }}{% endif %}{% if access | length > 0 %},untagged={{ access | join(',') }}{% endif %} comment="{{ v.name }} VLAN on trunk{% if v.ssid is defined and v.ssid %} (+ wifi AP ports tagged for {{ v.ssid|default('') }}){% endif %}{% if access | length > 0 %} (+ access ports {{ access | join(',') }} untagged){% endif %}"
+# FIX 2026-09-07 (HD-338): untagged= was comma-concatenated into tagged= (RouterOS
+# reads it as a tagged member name). Separate params: `tagged=... untagged=...`.
+/interface bridge vlan add bridge=bridge vlan-ids={{ v.id }} tagged=bridge,sfp-sfpplus1{% if v.ssid is defined and v.ssid and wifi_ports is defined %},{{ wifi_ports | join(',') }}{% endif %}{% if access | length > 0 %} untagged={{ access | join(',') }}{% endif %} comment="{{ v.name }} VLAN on trunk{% if v.ssid is defined and v.ssid %} (+ wifi AP ports tagged for {{ v.ssid|default('') }}){% endif %}{% if access | length > 0 %} (+ access ports {{ access | join(',') }} untagged){% endif %}"
 {% endfor %}
 
 # ---- Stale phantom VLAN 21 bridge-vlan cleanup (HD-325 / HD-328) ----

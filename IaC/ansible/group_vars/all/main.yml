@@ -197,7 +197,7 @@ network_static_hosts:
   - { name: ap-spalnica, vlan: 99, ip: "10.10.99.4", mac: "C4:AD:34:42:F1:7D", role: "hAP ac² (spalnica)" }
   - { name: ap-dnevna, vlan: 99, ip: "10.10.99.5", mac: "C4:AD:34:42:F0:B9", role: "hAP ac² (dnevna)" }
   - { name: ap-spare,  vlan: 99, ip: "10.10.99.6", role: "hAP ac² spare" }
-  - { name: ups,      vlan: 99, ip: "10.10.99.9",  mac: "00:20:85:C0:92:FA", role: "PowerWalker VFI 3000 IoT" }
+  - { name: ups,      vlan: 20, ip: "10.10.20.9", mac: "00:20:85:C0:92:FA", role: "PowerWalker VFI 3000 IoT (USB NUT monitoring; NIC on IoT 20 no-WAN, HD-338)" }
   - { name: nas,      vlan: 99, ip: "10.10.99.10", mac: "1C:98:EC:0E:0D:38", dhcp_client: mac, role: "HP MicroServer Gen8" }
   - { name: ilo,      vlan: 99, ip: "10.10.99.11", mac: "1C:98:EC:0E:0D:3A", role: "nas iLO4 BMC" }
   - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS tertiary (HD-299)" }
@@ -258,7 +258,7 @@ network_static_hosts:
   - { name: bosch-cooktop,       vlan: 20, ip: "10.10.20.22", mac: "68:A4:0E:2E:65:AE", wan_allow: true, role: "Bosch CSG656RB7... cooktop (cloud-IoT, WAN via flag)" }
   - { name: lg-ac1,              vlan: 20, ip: "10.10.20.23", mac: "2C:2B:F9:23:41:EC", wan_allow: true, role: "LG AC klima #1 (QCA4002) (cloud-IoT, WAN via flag)" }
   - { name: lg-ac2,              vlan: 20, ip: "10.10.20.24", mac: "2C:2B:F9:22:BA:DD", wan_allow: true, role: "LG AC klima #2 (QCA4002) (cloud-IoT, WAN via flag)" }
-  - { name: homematic-hap,       vlan: 20, ip: "10.10.20.25", mac: "00:1A:22:1E:F7:FD", wan_allow: true, role: "HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9, HD-325)" }
+  - { name: homematic-hap,       vlan: 20, ip: "10.10.20.25", mac: "00:1A:22:1E:F7:FD", wan_allow: true, role: "HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9 pvid20, HD-325)" }
   - { name: nvidia-shield,       vlan: 50, ip: "10.10.50.10", mac: "48:B0:2D:09:6F:90", role: "NVIDIA Shield (Media) — D2-confirmed" }
   - { name: nintendo-switch,     vlan: 50, ip: "10.10.50.11", mac: "E0:EF:BF:74:CE:07", role: "Nintendo Switch 2 (Media, D3)" }
 # Infrastructure / non-VLAN ranges (tunnels, overlays, Docker bridges) — rendered to

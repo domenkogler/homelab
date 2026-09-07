@@ -59,9 +59,9 @@ router_port_map:
     mac: "1C:98:EC:0E:0D:3A"
   homematic-ap:
     port: ether9
-    pvid: 99
+    pvid: 20
     tagged: []
-    vlan: 99
+    vlan: 20
     mac: "00:1A:22:1E:F7:FD"  
   rpi:
     port: ether10

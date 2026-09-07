@@ -39,7 +39,7 @@ tags: [hardware, ups, power, modbus, nut]
 | Link | To | Detail |
 |------|----|--------|
 | **USB HID** | gen8 (`nas`) | `/dev/hidraw0`, `/dev/usb/hiddev0` — currently the **only live data link** to a host |
-| **Ethernet (RJ45)** | LAN (Mgmt VLAN 99) | Network card, static IP (per SSOT) — hosts web UI + Modbus TCP |
+| **Ethernet (RJ45)** | LAN (IoT VLAN 20) — no consumer; web UI/Modbus not used (NUT USB), NIC kept isolated |
 
 The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) port.
 
@@ -52,7 +52,7 @@ The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) 
 | **Modbus TCP** | **502** | ✅ Open, working (unit ID 1). Responds to Read Holding Registers (fn `0x03`); register block 0 starts with the ASCII strings `PHOENIXTEC` then `RT 3K` (model). |
 | Web UI (HTTP) | 80 | ✅ Open |
 | Web UI (HTTPS) | 443 | ✅ Open |
-| SNMP | 161 (UDP) | ⚠️ **Untestable from agent host** — TCP probe closed; UDP reachable only from the Mgmt VLAN (99). Monitoring is NUT/USB (no SNMP consumer), so this is informational only. |
+| SNMP | 161 (UDP) | ⚠️ **Untestable from agent host** — TCP probe closed; UDP reachable only from the IoT VLAN (20). Monitoring is NUT/USB (no SNMP consumer), so this is informational only. |
 
 ### Modbus TCP notes
 - Unit ID **1**, function **0x03** (Read Holding Registers) confirmed working over the LAN.
@@ -86,13 +86,13 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 - [x] **NUT on nas — LIVE 2026-09-03** — master: `usbhid-ups` (USB path), `upsd`, `nut_exporter`, `upssched-cmd` notify (per [`deployment-ansible.md`](deployment-ansible.md) `nut` role); `upsc powerwalker@localhost` verified (battery 100%, Innova Unity). Battery-pull test ⏳ (owner/manual).
 - [x] **NUT clients** on `oldsrv` + `pi` (*slave* mode) with per-host shutdown delay (60 s / 0 / 0) — ✅ **IaC done** (client upsmon, secret-free upssched-cmd, deferred-shutdown via upssched ONBATT timer — HD-07); ⏳ live deploy pending host provisioning.
 - [ ] Wire UPS metrics + alerts into Prometheus/Grafana (see [`observability.md`](observability.md)) — Critical battery/runtime, Warning on-battery, Info transitions. ✅ **Metric shape RESOLVED 2026-09-04:** the exporter is DRuggeri/nut_exporter v3, emitted over `/ups_metrics?ups=powerwalker` as **`network_ups_tools_*`** with per-flag `network_ups_tools_ups_status{flag=...}` labels (OL/OB/RB…) — NOT `nut_*` bitmask. Alert rules + dashboard + Prometheus scrape (`metrics_path: /ups_metrics`, `params.ups`) updated to match. ⏳ **Remaining:** live-verify after the next Prometheus + monitoring converge that `network_ups_tools_battery_charge` etc. land + alerts fire (exporter was running a `(devel)` build — pin a tagged release in the nut role). See monitoring role `vars/main.yml` + `prometheus.yml.j2`.
-- [ ] Open firewall rule 80/443 Home→Mgmt for the UPS **web UI** only (Modbus **502 retired** — no consumer, see [`network-vlans.md`](network-vlans.md)).
+- [x] ~~Open firewall rule 80/443 Home→Mgmt for the UPS **web UI**~~ **SUPERSEDED HD-338 (2026-09-07):** UPS NIC moved to IoT VLAN 20 (no WAN); the trusted-admin→UPS web forward rule was REMOVED (no consumer — NUT/USB is the only monitoring path). |
 
 ---
 
 ## Open Items
 
-- [ ] **SNMP UDP** — Mgmt-VLAN-only: the `ups` host is unreachable from the agent/LAN network segment (the Management VLAN is intentionally isolated — its gateway reports destination unreachable), so the probe must run from a Management-VLAN host (or via the management-side route) at deploy. Even if the NIC serves SNMP (161/udp), **no consumer uses it** — UPS monitoring is exclusively NUT over USB (`hardware-ups` topology above), so this is confirmational only. (HD-26 attempted 2026-08-18: blocked by Mgmt-VLAN isolation.)
+- [ ] **SNMP UDP** — IoT-VLAN-only: the `ups` host sits on IoT 20 (isolated, no WAN). No consumer uses it — monitoring is NUT/USB. Informational only.
 
 > Modbus TCP register-map item **removed (retired):** HA Modbus UPS sensors were removed;
 > UPS monitoring is NUT/USB via `nut_exporter` (`hardware-ups` topology above).
@@ -103,6 +103,6 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 
 - [HP MicroServer Gen8 (nas)](hardware-nas.md) — the protected host
 - [Rack Layout](network-rack.md) — physical placement + manual PDF
-- [VLAN Plan](network-vlans.md) — UPS mgmt on VLAN 99
+- [VLAN Plan](network-vlans.md) — UPS NIC on IoT VLAN 20 (no WAN); monitoring NUT/USB on Home VLAN 10
 - [Home Assistant — current instance](home-assistant-current.md) — HA (UPS via NUT now, not Modbus)
 - [Observability](observability.md) — where UPS metrics would land

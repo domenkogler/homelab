@@ -126,7 +126,7 @@ tags: [network, vlan, firewall]
 | Source VLAN | Destination VLAN | Rule |
 |-------------|-----------------|------|
 | Home (10) | IoT (20) | Accept established/related + new from trusted IPs (MQTT/HA) · **KNXnet/IP udp/3671 → `knx-ip` (GIRA IP router)** — HA on the Pi tunnels to the KNX bus (HD-319 ✅ LIVE 2026-09-03, verified via router API + KNX integration loads real entities; the Pi is a node, not `trusted-admin`, so the KNX tunnel gets its own narrow new-UDP exception) · **Shelly Gen1 RGBW2 REST tcp/80 → IoT (20)** — HA on the Pi polls the Shelly HTTP API (same narrow pattern as the KNX exception; the Pi is a node, not `trusted-admin`) · **Shelly Gen1 CoIoT/CoAP client udp/5683 → IoT (20)** — HA's config flow + runtime `BlockDevice` opens a CoAP client session toward each device; without this forward new-UDP the “add by IP” flow aborted `cannot_connect` (HD-323 ✅ LIVE 2026-09-03; the reverse CoAP udp/5683 push to `trusted-ha` is the separate row below) · **Home→IoT new-connections gating = `trusted-ha` ONLY** (owner decision 2026-09-04, HD-03): `oldsrv` + `ha-vip` — **`nas` excluded** (narrower than the old `trusted-admin` scope) |
-| Home (10) | Management (99) | Accept SSH/WinBox/API (22,8291,8728)/HTTPS · **80/443 (UPS web UI)** from trusted Home servers (`trusted-admin`: nas/oldsrv/HA-VIP) |
+| Home (10) | Management (99) | Accept SSH/WinBox/API (22,8291,8728)/HTTPS from trusted Home servers (`trusted-admin`: nas/oldsrv/HA-VIP) — ~~80/443 UPS web UI~~ **removed (HD-338):** UPS NIC moved to IoT 20 no-WAN; NUT/USB only |
 | Home (10) | Media (50) | Accept (remote control, casting) |
 | IoT (20) | Home (10) | **Drop all** (only replies to Home-initiated) — EXCEPT CoAP **udp/5683 → `trusted-ha`** (Gen1 Shelly push, HD-229; **HA must be LISTENING on udp/5683** — the CoAP server lives inside the HA container and is published to the host/VIP via `5683:5683/udp` in the compose so the Shellys can actually reach it, HD-323) |
 | IoT (20) | WAN | **Drop all** — EXCEPT cloud-IoT devices (2× LG, 3× Bosch, HAP — SSOT `wan_allow: true` rows; HD-312 phase 3 + HD-325) get a per-MAC `src-mac-address` accept above the drop; n8n firmware-window MACs ride the same per-MAC accepts temporarily (HD-312d) |
@@ -150,7 +150,7 @@ Implemented with **address-lists** and **interface lists** in RouterOS.
 > `chain: input` firewall: reachable **only from the Management VLAN (99) and `trusted-admin` hosts**
 > (nas/oldsrv/ha-vip), dropped from all other sources. See [`network-ops.md`](network-ops.md).
 
-> **UPS / NUT note:** the NUT master (`nas`) and clients (`oldsrv`, `ha`) are all on VLAN 10 (Home), so **3493/tcp (NUT) is intra-VLAN — no inter-VLAN rule needed**. The UPS itself is managed on VLAN 99 (Mgmt); only Modbus TCP (`502`) and web (`80/443`) are reachable from the monitoring hosts per the rule above (see [`hardware-ups.md`](hardware-ups.md)).
+> **UPS / NUT note:** the NUT master (`nas`) and clients (`oldsrv`, `ha`) are all on VLAN 10 (Home), so **3493/tcp (NUT) is intra-VLAN — no inter-VLAN rule needed**. The UPS NIC is on **IoT VLAN 20 (no WAN)** — no consumer (NUT/USB only); the former Modbus TCP/web reach was RETIRED with the move (HD-338). See [`hardware-ups.md`](hardware-ups.md).
 
 ---
 
@@ -210,9 +210,9 @@ dynamic address until the lease turns over.
 | Printer | Access | 10 (Home) |
 | Camera | Access | 20 (IoT) |
 | Shield, console, smart TV | Access | 50 (Media) |
-| UPS management | Access | 99 (Mgmt) |
+| UPS NIC | Access | 20 (IoT, no WAN) — NUT/USB only, **off Mgmt (HD-338)** |
 | Laptop (admin, router ether3) | Access + tagged | **10 (Home) untagged** (Windows) + **99 (Mgmt) tagged for WSL Debian** (`eth0.99`; Proxymap/jump via tagged-99 hop unchanged); static `laptop-domen` (2026-09-01, HD-307 / 2026-09-07 tagged) |
 | Debian homelab PC (oldsrv) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
 | SFP+ uplinks | Trunk | 10,20,30,40,50,99 tagged |
 
-> ✅ **Access-port untagged membership (HD-328, LIVE 2026-09-04)** — a CRS328 access port with `ingress-filtering` on the bridge only forwards frames for VLANs it is a **member** of; `pvid` alone is NOT enough. Every `switch_port_map` access port is therefore an **untagged member** of its role VLAN on the bridge (Media 50 → `untagged=ether14,ether20`; Home 10 → printer/nas; IoT 20 → KNX/camera; Mgmt 99 → UPS/APs) — encoded in `crs328_converge.rsc.j2` + the switch role. Without this, the Shield/console on VLAN 50 had frames dropped at switch ingress → router never saw the MAC → empty ARP + no DHCP/WAN (live-found 2026-09-04, fixed + Shield online). The 2026-09-03 wifi fix added the APs as **tagged** members (wifi_ports); the access ports were the missing half.
+> ✅ **Access-port untagged membership (HD-328, LIVE 2026-09-04)** — a CRS328 access port with `ingress-filtering` on the bridge only forwards frames for VLANs it is a **member** of; `pvid` alone is NOT enough. Every `switch_port_map` access port is therefore an **untagged member** of its role VLAN on the bridge (Media 50 → `untagged=ether14,ether20`; Home 10 → printer/nas; IoT 20 → KNX/camera/UPS-ether4; Mgmt 99 → APs ether11/12 only — UPS moved off Mgmt HD-338) — encoded in `crs328_converge.rsc.j2` + the switch role. Without this, the Shield/console on VLAN 50 had frames dropped at switch ingress → router never saw the MAC → empty ARP + no DHCP/WAN (live-found 2026-09-04, fixed + Shield online). The 2026-09-03 wifi fix added the APs as **tagged** members (wifi_ports); the access ports were the missing half.

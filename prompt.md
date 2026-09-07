@@ -45,7 +45,7 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
   it); WSL Debian still needs the `eth0.99` sub-interface + its own Mgmt address config (host-side, not yet done).
 - **SESSION 2026-09-07 — WSL runner networking + Windows signing fixed (host-local, not repo):** ① WSL `mirrored`
   mode was wedged (ARP `FAILED` / `No route to host` while Windows healthy) — `.wslconfig` switched to
-  `networkingMode=Nat` → eth0 = 172.17.7.3/20, LAN/WAN healthy; `/etc/resolv.conf` = homelab chain
+  `networkingMode=Nat` → eth0 = a Default-Switch NAT IP, LAN/WAN healthy; `/etc/resolv.conf` = homelab chain
   (Pi→oldsrv→router); `generateResolvConf=false` keeps it durable (procedures now in deployment-manual §0.4b).
   ② Windows commit signing: repo-local `user.signingkey` was a private-key FILE path → 1Password `op-ssh-sign`
   failed (`invalid ssh public key`); fixed by setting `signingkey` to the **pub-key string** (same as

@@ -2,6 +2,19 @@
 # router role — MikroTik RouterOS configuration via REST API
 # Implements: VLAN interfaces, DHCP, firewall, CAPsMAN, WireGuard, AP DHCP reservations
 #
+# ⚠️ APPLY-MODEL BOUNDARY (network-ops.md §Apply model, HD-338):
+#   The **converge .rsc import is the apply of record** for RouterOS multi-step
+#   state (bridges, VLANs, trunk/port memberships, firewall chains). This role
+#   exists for (a) IDEMPOTENT single-object state (DHCP leases/reservations,
+#   firewall address-lists), (b) fail-loud identity assert (HD-161), and
+#   (c) VERIFICATION via api_facts/api. Do NOT add day-to-day apply logic here
+#   as api_modify tasks — edit the converge template (rb4011_converge.rsc.j2)
+#   and import. Any api_modify task in this role that mirrors converge state
+#   MUST stay byte-identical to the template; a drift here regresses the live
+#   device on the next converge (live lesson 2026-09-07: the trunk task's
+#   untagged VLAN-99 membership had drifted and would have dropped ether2/3/10
+#   off the tagged-99 backplane). Parity rule: edit BOTH or NEITHER.
+#
 # Connection/auth decision:
 # The bootstrap creates `ansible` (SSH-key only, empty password) and `admin` (password + key).
 # For community.routeros modules, we use the RouterOS API (username+password).
@@ -368,7 +381,7 @@
   when: item.id not in [1, 99]
 
 
-- name: Set UPS management IP in address list
+- name: Set UPS management IP in address list (RETIRED — UPS moved to IoT VLAN 20, no mgmt web UI; list kept empty for backward compat)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -378,10 +391,7 @@
     port: "{{ routeros_api_port }}"
     path: ip firewall address-list
     handle_absent_entries: ignore
-    data:
-      - address: "{{ (network_static_hosts | selectattr('name', '==', 'ups') | list | first).ip }}"
-        list: ups_management
-        comment: "UPS management host"
+    data: []
 
 - name: Create firewall address list for the VPS S2S peer (HD-155 least-access)
   community.routeros.api_modify:
@@ -429,7 +439,7 @@
       - address: "{{ item.mac }}"
         list: "kids-{{ item.role | lower | regex_replace('[^a-z0-9-]+', '-') }}"
         comment: "HD-326 kids-control (MAC): {{ item.name }}"
-  loop: "{{ network_static_hosts | selectattr('kids', 'equalto', true) | list }}"
+  loop: "{{ network_static_hosts | selectattr('kids', 'defined') | selectattr('kids', 'equalto', true) | list }}"
   loop_control:
     label: "{{ item.name }} MAC -> kids list"
   tags: [network]
@@ -558,7 +568,7 @@
         to-addresses: "{{ dns_primary_ip }}"
         to-ports: 53
         comment: "HD-326 kids filtered DNS - TCP 53 -> Technitium: {{ item.name }}"
-  loop: "{{ network_static_hosts | selectattr('kids', 'equalto', true) | list }}"
+  loop: "{{ network_static_hosts | selectattr('kids', 'defined') | selectattr('kids', 'equalto', true) | list }}"
   loop_control:
     label: "HD-326 kids DNS dst-nat for {{ item.name }}"
   tags: [network]
@@ -640,13 +650,10 @@
       # WAN via the per-MAC iot-wan-allow accepts below; no inter-VLAN
       # Home/trusted-admin -> 10.10.21.0/24 reach is needed — the devices were
       # never reachable-from-Home by design (cloud-bound, IoT tier).)
+      # UPS moved to IoT VLAN 20 (no wan_allow) — the former trusted-admin -> UPS
+      # web UI forward (ups_management) is DELETED (no consumer; NUT/USB is the
+      # monitoring path, hardware-ups.md).
       - chain: forward
-        src-address-list: trusted-admin
-        dst-address-list: ups_management
-        protocol: tcp
-        dst-port: 80,443
-        action: accept
-        comment: "Trusted admin -> UPS web UI (Mgmt)"
       - chain: forward
         src-address-list: internal_lan
         dst-address: "{{ dns_primary_ip }}"
@@ -885,7 +892,7 @@
         out-interface: pppoe-telekom
         action: accept
         comment: "IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ item.name }}"
-  loop: "{{ network_static_hosts | selectattr('mac', 'defined') | selectattr('vlan', 'equalto', 20) | selectattr('wan_allow', 'equalto', true) | list }}"
+  loop: "{{ network_static_hosts | selectattr('mac', 'defined') | selectattr('vlan', 'equalto', 20) | selectattr('wan_allow', 'defined') | selectattr('wan_allow', 'equalto', true) | list }}"
   loop_control:
     label: "HD-312/325 iot-wan-allow accept for {{ item.name }}"
   tags: [network]
@@ -924,7 +931,7 @@
         action: drop
         time: "22:00-07:00,sun,mon,tue,wed,thu,fri,sat"
         comment: "HD-326 kids bedtime WAN drop (22:00-07:00): {{ item.name }}"
-  loop: "{{ network_static_hosts | selectattr('kids', 'equalto', true) | list }}"
+  loop: "{{ network_static_hosts | selectattr('kids', 'defined') | selectattr('kids', 'equalto', true) | list }}"
   loop_control:
     label: "HD-326 kids controls for {{ item.name }}"
   tags: [network]
@@ -1209,6 +1216,11 @@
 # -------------------------------------------------------------------------
 # Per-VLAN trunk ports to switch
 # -------------------------------------------------------------------------
+# ⚠️ PARITY WARNING (HD-338): this task mirrors rb4011_converge.rsc.j2 §Bridge+trunk.
+# The converge .rsc import is the apply of record; this api_modify must stay
+# BYTE-IDENTICAL to the template's tagged/untagged sets or the next converge
+# regresses the device (2026-09-07: VLAN-99 untagged here drifted to
+# ether7,ether9 before the fix). Edit BOTH or NEITHER.
 # Tag every VLAN on sfp-sfpplus1 (uplink to the CRS328 switch) so each per-VLAN
 # gateway is reachable from the switch — mirror of crs328_converge.rsc.j2 and
 # rb4011_converge.rsc.j2. Missing 20/21/30/40/50 previously dropped those VLANs
@@ -1229,11 +1241,14 @@
         vlan-ids: "{{ item.id }}"
         tagged: "bridge-lan,sfp-sfpplus1"
         # VLAN 10: untagged ether10 member (Pi access) in addition to the trunk
-        # tag; VLAN 99: untagged mgmt access ports (bootstrap's pvid-99 ports on
-        # bridge-lan from rb4011_initial.rsc.j2: ether2/3/7/9/10) — without these,
-        # vlan-filtering drops the VLAN between the local access ports and the
-        # trunk -> empty ARP, switch (sfp) unreachable (live 2026-08-31).
-        untagged: "{{ (['ether10'] if item.id == 10 else ['ether2', 'ether3', 'ether7', 'ether9', 'ether10'] if item.id == 99 else []) | join(',') }}"
+        # tag; VLAN 99: untagged mgmt access ports — bootstrap's pvid-99 ports on
+        # bridge-lan from rb4011_initial.rsc.j2 (ether2/3/7/9/10 after the
+        # HD-310/HD-338 leg: ether7 iLO is the only remaining mgmt-only access port;
+        # ether9 HAP moved to IoT 20) — without these, vlan-filtering drops the
+        # VLAN between the local access ports and the trunk -> empty ARP, switch
+        # (sfp) unreachable (live 2026-08-31).
+        # VLAN 20 (IoT): untagged ether9 (HMIP-HAP access).
+        untagged: "{{ (['ether10'] if item.id == 10 else ['ether7'] if item.id == 99 else ['ether9'] if item.id == 20 else []) | join(',') }}"
         comment: "{{ item.name }} VLAN on trunk"
   loop: "{{ vlans | selectattr('unused', 'undefined') | list }}"  # skip VLAN 1 Blackhole (unused: true)
   loop_control:

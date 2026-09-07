@@ -1,4 +1,6 @@
+#
 # Ansible managed
+#
 <!-- Network address plan — auto-generated from IaC/ansible/group_vars/all.yml. -->
 <!-- Do NOT hand-edit. Change group_vars/all.yml and re-render. -->
 <!-- Re-render (Windows / no Ansible):  python scripts/render_network_addresses.py -->
@@ -32,7 +34,7 @@
 | 99 | 10.10.99.4 | ap-spalnica | hAP ac² (spalnica) |
 | 99 | 10.10.99.5 | ap-dnevna | hAP ac² (dnevna) |
 | 99 | 10.10.99.6 | ap-spare | hAP ac² spare |
-| 99 | 10.10.99.9 | ups | PowerWalker VFI 3000 IoT |
+| 20 | 10.10.20.9 | ups | PowerWalker VFI 3000 IoT (USB NUT monitoring; NIC on IoT 20 no-WAN, HD-338) |
 | 99 | 10.10.99.10 | nas | HP MicroServer Gen8 |
 | 99 | 10.10.99.11 | ilo | nas iLO4 BMC |
 | 99 | 10.10.99.20 | pi | RPi4 node + DNS tertiary (HD-299) |
@@ -66,7 +68,7 @@
 | 20 | 10.10.20.22 | bosch-cooktop | Bosch CSG656RB7... cooktop (cloud-IoT, WAN via flag) |
 | 20 | 10.10.20.23 | lg-ac1 | LG AC klima #1 (QCA4002) (cloud-IoT, WAN via flag) |
 | 20 | 10.10.20.24 | lg-ac2 | LG AC klima #2 (QCA4002) (cloud-IoT, WAN via flag) |
-| 20 | 10.10.20.25 | homematic-hap | HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9, HD-325) |
+| 20 | 10.10.20.25 | homematic-hap | HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9 pvid20, HD-325) |
 | 50 | 10.10.50.10 | nvidia-shield | NVIDIA Shield (Media) — D2-confirmed |
 | 50 | 10.10.50.11 | nintendo-switch | Nintendo Switch 2 (Media, D3) |
 
@@ -116,6 +118,6 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > stays ≤ `10.10.1.199` — never extend it into the VIP or assign `10.10.1.200` statically.
 
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
-> · UPS web 80/443 (`10.10.99.9`) · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
+> · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-07T08:04:57Z
+> Last generated: 2026-09-07T00:00:00Z

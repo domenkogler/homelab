@@ -101,7 +101,7 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 > **Rule of thumb:** every HTTP(S) service is `https://<sub>.kogler.si` (port 443, wildcard cert via Traefik) — **no ports in URLs**. Backends bind private overlay addresses, never exposed directly.
 
 - **Rule C (HTTP/S):** Traefik only, hostname-based, no ports.
-- **Rule D (non-HTTP, bypass Traefik — direct IP + firewall):** DNS 53 · NUT 3493 · UPS web 80/443 · SNMP 161 · WireGuard · SSH/WinBox (Mgmt, trusted). Host IPs per [`network-addresses-generated.md`](network-addresses-generated.md) (SSOT).
+- **Rule D (non-HTTP, bypass Traefik — direct IP + firewall):** DNS 53 · NUT 3493 · SNMP 161 · WireGuard · SSH/WinBox (Mgmt, trusted) — ~~UPS web 80/443~~ **removed (HD-338):** UPS NIC on IoT 20 no-WAN, NUT/USB only. Host IPs per [`network-addresses-generated.md`](network-addresses-generated.md) (SSOT).
 
 ### URL → backend (edge cases only)
 

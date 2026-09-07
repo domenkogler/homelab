@@ -161,9 +161,9 @@ return `ansible-admin` with no password prompt.
 > ⚠ Runner networking gotcha (live 2026-09-07): if WSL's `mirrored` networking wedges (eth0 ARP `FAILED`
 > for the gateway, `No route to host` even after `wsl --shutdown`, while Windows itself is healthy), the
 > reliable fix is `.wslconfig` → `networkingMode=Nat` (NOT `default` — WSL accepts `Nat`) + `wsl --shutdown`.
-> NAT brings eth0 up on the Default Switch (e.g. 172.17.x.x) with healthy LAN/WAN. Then set `/etc/resolv.conf`
-> to the homelab chain (`nameserver 10.10.1.20` Pi-tertiary → `10.10.1.30` oldsrv-secondary → `10.10.1.1`
-> router fallback; `generateResolvConf=false` in `wsl.conf` makes it durable). Everything (git push, DNS,
+> NAT brings eth0 up on the Default Switch (a `172.17.x.x`-style tunnel IP) with healthy LAN/WAN. Then set `/etc/resolv.conf`
+> to the homelab chain (`nameserver` Pi-tertiary → oldsrv-secondary → router fallback per
+> [`network-addresses-generated.md`](docs/network-addresses-generated.md); `generateResolvConf=false` in `wsl.conf` makes it durable). Everything (git push, DNS,
 > op vault, ping) works again under NAT.
 >
 
