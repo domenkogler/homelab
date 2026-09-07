@@ -36,11 +36,34 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 - **Vault state:** `check-vault-items.sh --strict` → **all needed items present, MISSING list empty** (exit 0; includes `technitium_login`/`technitium_api` created 2026-09-03 with the seed role — count re-derive at write time per derived-values ban).
 - **ID registry:** next free = max(HD)+1 in [todo.md](todo.md) — always re-derived at write time (CONVENTIONS §1/§4); NEVER type a literal (newest rows: HD-310, HD-311, HD-335, registered 2026-09-06).
 - **Coordination:** headplane/headscale = SEPARATE lane (D) — coordinate, never fold into other converges.
+- **SESSION 2026-09-07 — laptop-domen tagged-99 leg (commit `90a897a`, pushed main):** `router_port_map.laptop-domen`
+  → `tagged: [99]` (dual-home: untagged Home 10 + tagged Mgmt 99 for WSL Debian; Windows stays Home-untagged-only);
+  `rb4011_converge.rsc.j2` VLAN-99 tagged set now includes **ether3** (add + set branches) + port comment updated;
+  `all/main.yml` role text + re-rendered `network-addresses-generated.md` + `network-vlans.md` (port-model note +
+  port-type table) + `todo.md` (HD-310/HD-311 rows) updated. Validated green, signed, merged fast-forward, pushed.
+  ⏳ Remaining: **router converge required to make the tagged leg live on the device** (next converge applies
+  it); WSL Debian still needs the `eth0.99` sub-interface + its own Mgmt address config (host-side, not yet done).
+- **SESSION 2026-09-07 — WSL runner networking + Windows signing fixed (host-local, not repo):** ① WSL `mirrored`
+  mode was wedged (ARP `FAILED` / `No route to host` while Windows healthy) — `.wslconfig` switched to
+  `networkingMode=Nat` → eth0 = 172.17.7.3/20, LAN/WAN healthy; `/etc/resolv.conf` = homelab chain
+  (Pi→oldsrv→router); `generateResolvConf=false` keeps it durable (procedures now in deployment-manual §0.4b).
+  ② Windows commit signing: repo-local `user.signingkey` was a private-key FILE path → 1Password `op-ssh-sign`
+  failed (`invalid ssh public key`); fixed by setting `signingkey` to the **pub-key string** (same as
+  `.gitconfig-github`). Verified: signed commit works from git-bash via 1Password.
+- **DNS still Pkg-F gated:** the `vpn/home/dns.kogler.si` NXDOMAIN class + per-device DNS visibility remain
+  blocked on **HD-330** (Pi Technitium admin-align) → **Pkg F (HD-331→334)**. The homelab chain works for
+  general resolution now; the split-horizon records complete under Pkg F. Tailscale `vpn.kogler.si` login
+  still needs the Pkg-F seed (this session merely restored basic WSL DNS).
 
 ## 3. Next-session execution order (pointers — row bodies in todo.md)
 
 
 ### 3-N. NEXT (priority order)
+
+**-0a. HD-310 tail — laptop tagged-99 leg (commit `90a897a` on main):** ⏳ **router converge** to make
+  ether3's VLAN-99 tagged membership live on the device + **WSL Debian host-step** (`eth0.99` sub-interface
+  + Mgmt address, never-default route). SSOT + template + docs already committed; only the live apply + host
+  config remain. · [todo.md HD-310](todo.md) · [network-vlans.md](docs/network-vlans.md) · [router.yml](IaC/ansible/group_vars/router.yml) `router_port_map`
 
 **0a. HD-335 — spark node bring-up (NEW, 2026-09-06).** Hardware purchased, SSOT spec done (docs only). ⏳ Next: DGX OS install on the ThinkStation PGX → Ansible role + placement/IP reservation (`network_static_hosts`, never hardcoded) → Triton + NVFP4 model serve → Mem0 (OWUI/Qdrant, §5c-D) + OpenHands onboarding (10-step). · [todo.md HD-335](todo.md) · [hardware-spark.md](docs/hardware-spark.md) · [services-ai.md](docs/services-ai.md) · [deployment-tasks.md](deployment-tasks.md)
 

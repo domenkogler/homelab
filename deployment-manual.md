@@ -146,6 +146,25 @@ return `ansible-admin` with no password prompt.
 > 2. Ensures `.gitconfig-windows` has `gpg.ssh.program` set to that desktop signer.
 > 3. Flips `origin` HTTPS→SSH so the `.gitconfig-github` includeIf (`gpg.format=ssh` /
 >    `commit.gpgsign` / `user.signingkey`) fires.
+> 3. Flips `origin` HTTPS→SSH so the `.gitconfig-github` includeIf (`gpg.format=ssh` /
+>    `commit.gpgsign` / `user.signingkey`) fires.
+>
+> ⚠ **Signing gotcha (live 2026-09-07):** the 1Password `op-ssh-sign.exe` resolves the signing key by its
+> **public-key string** (`ssh-ed25519 AAAAC3…` as in `.gitconfig-github`), so a repo-local override of
+> `user.signingkey` to a **private-key FILE path** (`C:/Users/domen/.ssh/github_signing`) makes it fail with
+> `error: 1Password: invalid ssh public key` (it parses the private PEM as a pub). Fix: repo-local
+> `git config user.signingkey "ssh-ed25519 <pub-string>"` (the same string the includeIf sets) — never the
+> private path. Verified: a signed commit succeeds via `op-ssh-sign` once `signingkey` is the pub-string.
+> The `.pub` halves (`github_signing.pub`/`github_auth.pub`) should exist in Windows `~/.ssh` for the
+> agent lookup; the private halves stay in WSL `~/.ssh`.
+>
+> ⚠ Runner networking gotcha (live 2026-09-07): if WSL's `mirrored` networking wedges (eth0 ARP `FAILED`
+> for the gateway, `No route to host` even after `wsl --shutdown`, while Windows itself is healthy), the
+> reliable fix is `.wslconfig` → `networkingMode=Nat` (NOT `default` — WSL accepts `Nat`) + `wsl --shutdown`.
+> NAT brings eth0 up on the Default Switch (e.g. 172.17.x.x) with healthy LAN/WAN. Then set `/etc/resolv.conf`
+> to the homelab chain (`nameserver 10.10.1.20` Pi-tertiary → `10.10.1.30` oldsrv-secondary → `10.10.1.1`
+> router fallback; `generateResolvConf=false` in `wsl.conf` makes it durable). Everything (git push, DNS,
+> op vault, ping) works again under NAT.
 >
 
 ---
