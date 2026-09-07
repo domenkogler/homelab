@@ -531,6 +531,28 @@
         to-addresses: "{{ dns_primary_ip }}"
         to-ports: 53
         comment: "Kids forced filtered DNS - TCP 53 -> Technitium (HD-182)"
+      # --- HD-342: IoT VLAN 20 DNS visibility (owner, 2026-09-07) ---
+      # Per-device DNS visibility for IoT/WAN devices: hijack plain :53 from
+      # VLAN 20 to the PI tertiary (dns_tertiary_ip = Pi Technitium, which the
+      # owner reads via dns-pi.kogler.si) so each IoT device's queries are logged
+      # per-source-IP in the Pi query log (instead of the VPS-primary / WAN egress
+      # collapsing them). DoT(853) bypass is dropped in the filter chain below.
+      - chain: dstnat
+        src-address: "{{ vlan_subnets[20] }}"
+        protocol: udp
+        dst-port: 53
+        action: dst-nat
+        to-addresses: "{{ dns_tertiary_ip }}"
+        to-ports: 53
+        comment: "IoT forced DNS - UDP 53 -> Pi (HD-342 DNS visibility)"
+      - chain: dstnat
+        src-address: "{{ vlan_subnets[20] }}"
+        protocol: tcp
+        dst-port: 53
+        action: dst-nat
+        to-addresses: "{{ dns_tertiary_ip }}"
+        to-ports: 53
+        comment: "IoT forced DNS - TCP 53 -> Pi (HD-342 DNS visibility)"
 
 # HD-326: per-MAC kids filtered DNS on Home VLAN 10 (kids join Kogler SSID,
 # VLAN 10, per HD-312 — the VLAN-40 hijack above does NOT cover them).
@@ -782,6 +804,24 @@
         dst-address-list: internal_lan
         action: drop
         comment: "Guest -> LAN drop"
+      # --- HD-342: IoT VLAN 20 DoT (853) bypass drop (owner, 2026-09-07) ---
+      # Same pattern as the Kids DoT drop below: encrypted DoT (853) to anything
+      # but the Pi resolver (accepted above) is dropped so IoT/WAN devices cannot
+      # bypass the forced-DNS visibility path (their plain :53 is dst-nat'ed to the
+      # Pi by HD-342 above). Residual bypass: DoH/443 (accepted — can't filter
+      # arbitrary HTTPS without TLS interception, same accepted residual as Kids).
+      - chain: forward
+        src-address: "{{ vlan_subnets[20] }}"
+        protocol: tcp
+        dst-port: 853
+        action: drop
+        comment: "IoT -> DoT bypass drop - forced DNS to Pi (HD-342) tcp"
+      - chain: forward
+        src-address: "{{ vlan_subnets[20] }}"
+        protocol: udp
+        dst-port: 853
+        action: drop
+        comment: "IoT -> DoT bypass drop - forced DNS to Pi (HD-342) udp"
       # --- Kids VLAN 40 controls (HD-182; decision HD-179 — implement at Phase 1.5) ---
       # Forced filtered DNS: plain :53 from Kids is dst-nat'ed to the Technitium
       # primary (ip firewall nat below) which enforces the Kids-Group policy
