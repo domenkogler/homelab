@@ -80,9 +80,15 @@ oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
 > ⚠ **HD-52 (Debian 13 only):** the official OpenCloud sync client (`opencloud-eu/desktop`) ships as an **AppImage only** — no apt repo. **Decision (2026-08-18):** install the company manually per client; Ansible preps **`libfuse2t64`** (FUSE). Auth via native **OIDC → Authentik** (multi-redirect provider + CSP), not Traefik Forward-Auth.
 | **ttf-mscorefonts-installer** | Calibri, Cambria for document fidelity |
 
+> ⚠ **HD-318 repo fix (2026-09-07):** the ONLYOFFICE apt repo now signs `squeeze/Release` with the
+> **Ascensio key `E09C A29F 6E17 8040 EF22 B409 8320 CA65 CB2D E8E5`** (rsa4096, good-signature verified
+> against `dists/squeeze/InRelease`). The published `onlyoffice.key` file only carries the two 2014 keys
+> and does NOT include Ascensio — so the `office` role now fetches it from a keyserver instead of the
+> stale key file. `squeeze` codename itself is CORRECT (ONLYOFFICE uses it for all Debian).
+
 - No Wine, no VM, no Windows license — fully native Debian
 - Zero cloud dependency for editing (works offline)
-- AI queries route through the LiteLLM spine ([`services-ai.md`](services-ai.md)) to local Ollama — consumers never call Ollama directly
+- AI queries route through the LiteLLM spine ([`services-ai.md`](services-ai.md)) to local inference on **spark** (Triton) — consumers never call LLMs directly (Ollama on oldsrv disabled 2026-09-07)
 
 ### MS Office via Open WebUI MCP Tools (Windows 11 Clients)
 

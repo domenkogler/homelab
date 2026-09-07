@@ -101,6 +101,7 @@ CATALOG = [
     # --- Password items ---
     ("Password",    "authentik_password",     lambda: [f"password={gen_pw()}"]),
     ("Password",    "kopia_password",         lambda: [f"password={gen_pw()}"]),
+    ("Password",    "pihole_password",        lambda: [f"password={gen_pw()}"]),   # HD-318 Pi-hole admin WEBPASSWORD (catalog-generated, owner-authorized 2026-09-07)
     ("Password",    "ha-vrrp_password",       lambda: [f"password={gen_pw()}"]),
     ("Password",    "nut_password",           lambda: [f"password={gen_pw()}"]),
     ("Password",    "nut-exporter_password",  lambda: [f"password={gen_pw()}"]),
@@ -130,6 +131,12 @@ CATALOG = [
     ("API Credential", "forgejo_api",             lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "openrouter_api",          lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "cohere_api",              lambda: [f"credential={gen_pw()}"]),
+    # HD-318: sonarr/radarr API keys — catalog-created PLACEHOLDER so the Phase-3
+    # render (recyclarr needs them) can run before the services are up. After first
+    # boot, OVERWRITE the vault value with the instance's real config.xml ApiKey and
+    # re-run recyclarr (same pattern as forgejo_api above).
+    ("API Credential", "sonarr_api",              lambda: [f"credential={gen_pw()}"]),
+    ("API Credential", "radarr_api",              lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "openclaw_gateway_token",  lambda: [f"password={gen_pw()}"]),
     ("API Credential", "openclaw-opencloud_api",  lambda: [f"username=openclaw", f"credential={gen_pw()}"]),
     # HD-268c dual harness: Forgejo service-account PR-only tokens (per-agent) — issued by
@@ -169,6 +176,8 @@ NOT_AUTO_ROTATABLE = {
     "forgejo_api",          # real token issued by the Forgejo UI after first boot
     "openrouter_api",       # external provider API key
     "cohere_api",           # external provider API key
+    "sonarr_api",           # real key issued by the Sonarr instance config.xml after first boot (HD-318)
+    "radarr_api",           # real key issued by the Radarr instance config.xml after first boot (HD-318)
     "openclaw_gateway_token",   # consumed by the running gateway
     "openclaw-opencloud_api",   # OpenCloud app-password pair
     "pi-harness_forgejo_api",   # pi-dev PR-only Forgejo token (HD-268c)

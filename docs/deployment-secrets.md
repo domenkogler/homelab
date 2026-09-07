@@ -305,9 +305,9 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `immich-ml-internal_api` | `credential` | **ML API-key auth (HD-160)** — shared secret between `immich-app` (sends as ML-auth header) and `immich-ml` (validates it). Fail-loud (HD-65). Exact Immich v3 env var names deploy-verified. |
 | `openclaw-opencloud_api` | `username` + `credential` | **OpenClaw → OpenCloud WebDAV (HD-160)** — `username` = OpenCloud service user, `credential` = app-specific password; consumed by `openclaw onboard` / `openclaw.json` WebDAV block. Scoped, rotatable, fail-loud. |
 | ~~`doco-cd_password`~~ | ~~`password`~~ | **retired (HD-150): Doco-CD dropped** — single Ansible-only deploy/upgrade path. No webhook HMAC needed. |
-| `sonarr_api` | `credential` | Sonarr API key — recyclarr syncs quality profiles from this instance |
-| `radarr_api` | `credential` | Radarr API key — recyclarr syncs quality profiles from this instance |
-| `pihole_password` | `password` | Pi-hole admin UI (`WEBPASSWORD`) — optional; empty = no password set via web UI |
+| `sonarr_api` | `credential` | Sonarr API key — recyclarr syncs quality profiles from this instance. **HD-318:** catalog-created placeholder at Phase-3 seed; OVERWRITE with the instance's real `config.xml` ApiKey after first boot (manual-value class), then re-run recyclarr. **NOT auto-rotatable** (externally-coupled to the running instance). |
+| `radarr_api` | `credential` | Radarr API key — recyclarr syncs quality profiles from this instance. **HD-318:** catalog-created placeholder at Phase-3 seed; OVERWRITE with the instance's real `config.xml` ApiKey after first boot (manual-value class), then re-run recyclarr. **NOT auto-rotatable** (externally-coupled to the running instance). |
+| `pihole_password` | `password` | Pi-hole admin UI (`WEBPASSWORD`) — catalog-generated (HD-318). Optional; empty = no password set via web UI |
 | `matrix_api` | `credential` (`username` = client_id) | Tuwunel Matrix — Authentik OIDC client (`client_id` = username, `client_secret` = credential); callback URI registered in Authentik provider |
 | `matrix_password` | `password` | Tuwunel Matrix — `registration_shared_secret` (bootstrap via `/_synapse/admin/v1/register`; keep a copy with the server identity/backups — HD-49) |
 | `n8n_password` | `password` | n8n — `N8N_ENCRYPTION_KEY` (workflow encryption; long-lived, immutable — rotating means re-encrypting stored credentials). NOT used for webhook auth (see `n8n-webhook_api`) · HD-77 |

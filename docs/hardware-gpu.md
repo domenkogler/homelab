@@ -27,7 +27,10 @@ tags: [hardware, gpu, rocm, cross-cutting]
 
 - **Intel HD 630 (iGPU):** Xorg primary — monitor on motherboard output. Family desktop compositing.
 - **Radeon RX 7600 (dGPU):** No monitor. **Sunshine game-streaming encode first** + **immich-ML batch**
-  (pause-able GPU consumer, 2026-09-06). No ROCm/Ollama (LLM inference consolidated on spark).
+  (pause-able GPU consumer, 2026-09-06). No Ollama on oldsrv (disabled 2026-09-07 — inference on
+  spark/Triton). **Host ROCm = Debian-trixie-native tooling only** (`rocm-opencl-icd`/`rocminfo` / `hipcc`,
+  no external AMD repo — HD-318 2026-09-07: the Ubuntu-noble AMD repo is incompatible with trixie; GPU
+  containers [immich-ml] bundle their own ROCm runtime and only need `/dev/dri`+`/dev/kfd`+udev).
 - Xorg config fragment in `/etc/X11/xorg.conf.d/10-igpu-primary.conf` forces iGPU, excludes dGPU.
 
 ---

@@ -2,7 +2,7 @@
 # Home server configuration — OLDSRV (bare-metal Debian + Docker, RX 7600, 48 GB RAM)
 #
 # === Service placement (HD-135 split, 2026-08-18) ===
-# Old-srv keeps the GPU / LAN / storage-bound core (ollama, immich-ml, jellyfin,
+# Old-srv keeps the GPU / LAN / storage-bound core (immich-ml, jellyfin,
 # sunshine, media/*arr, DNS, ha-standby) + the thin Alloy collector (dozzle moved to VPS, HD-135b).
 # The public edge + live-data apps + AI stack + observability backend + alert brain
 # (n8n) + backup agents moved to the VPS (group_vars/vps.yml). See docs/services.md.
@@ -12,15 +12,12 @@ gpu_vendor: amd
 ollama_keep_alive: 5m
 
 # AMD ROCm host userspace (roles/amd_rocm, docs/hardware-gpu.md)
-# Official AMD repo, "latest" track — AMD publishes Ubuntu suites only (jammy/noble),
-# so the noble suite is installed on Debian (decision: track latest). In-tree amdgpu
-# driver + firmware-amd-graphics; no amdgpu-dkms. Flip to Debian-native ROCm blocks
-# (rocm-opencl-icd/hipcc) by pointing amd_rocm_repo/amd_rocm_suite elsewhere.
-amd_rocm_repo: https://repo.radeon.com/rocm/apt/latest
-amd_rocm_suite: noble
+# HD-318 (2026-09-07): Ubuntu-noble AMD repo INCOMPATIBLE with Debian trixie
+# (rocm-cmake/hipcc dep conflicts). External AMD repo REMOVED — Debian trixie ships
+# rocm-opencl-icd/hipcc/rocminfo in main. Host userland = tooling/inspection only;
+# GPU containers bundle their own ROCm (immich-ml; ollama disabled 2026-09-07).
 amd_rocm_packages:
-  - rocm-hip-sdk
-  - rocm-opencl-sdk
+  - rocm-opencl-icd
   - rocminfo
 # Home Assistant failover (docs/smart-home-failover.md)
 # ha_vip / ha_vip_cidr are defined once in group_vars/all.yml (SSOT).
@@ -61,7 +58,9 @@ docker_services:
   # Prometheus/Loki over the wg-vps-services tunnel.
 
   # --- Compute / GPU backend (cannot leave the GPU box) ---
-  - { name: ollama,          template_dir: ollama }
+  # ollama: DISABLED (owner 2026-09-07) — inference consolidated on spark/Triton
+  # (docs/services-ai.md row 23). Role + template kept; only the deploy entry is off.
+  - { name: ollama,          template_dir: ollama, enabled: false }
   - { name: immich-ml,       template_dir: immich-ml }   # ML offload for immich-app on VPS (over WG)
 
   # --- DNS (HD-299, VPS-primary 2026-09-03): oldsrv is now the SECONDARY resolver ---

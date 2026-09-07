@@ -31,11 +31,33 @@
     mode: '0755'
   tags: [office]
 
-- name: Download official ONLYOFFICE GPG key
-  ansible.builtin.get_url:
-    url: https://download.onlyoffice.com/repo/onlyoffice.key
-    dest: /etc/apt/keyrings/onlyoffice.asc
-    mode: '0644'
+- name: Download official ONLYOFFICE signing key (Ascensio, HD-318 fix)
+  # HD-318 (2026-09-07): the published `onlyoffice.key` file is STALE — it only
+  # contains the 2014 keys (C9E5…/629E…) and does NOT sign the repo's `squeeze`
+  # suite. The key that ACTUALLY signs squeeze/Release is Ascensio rsa4096
+  # E09C A29F 6E17 8040 EF22 B409 8320 CA65 CB2D E8E5 (Good signature verified
+  # 2026-09-07 over download.onlyoffice.com/repo/debian/dists/squeeze/InRelease).
+  # Fetch it from a keyserver instead of the stale key file. Only the fingerprint
+  # owner is trusted — fail closed if a different key arrives. NO `creates:` guard:
+  # a stale key file from an earlier partial Phase-3 attempt must be refreshed, so
+  # the shell re-verifies the fingerprint every converge (cheap, idempotent).
+  ansible.builtin.shell:
+    cmd: >-
+      tmp=$(mktemp -d)
+      if ! gpg --no-default-keyring --keyring "$tmp/oo.kg"
+          --batch --quiet --with-colons --import-options show-only
+          --import /etc/apt/keyrings/onlyoffice.asc 2>/dev/null |
+          grep -q '^fpr:::::::::E09CA29F6E178040EF22B4098320CA65CB2DE8E5:'
+      then
+        gpg --no-default-keyring --keyring "$tmp/oo.kg"
+            --keyserver keyserver.ubuntu.com
+            --recv-keys E09CA29F6E178040EF22B4098320CA65CB2DE8E5 &&
+        gpg --no-default-keyring --keyring "$tmp/oo.kg"
+            --export E09CA29F6E178040EF22B4098320CA65CB2DE8E5 >
+            /etc/apt/keyrings/onlyoffice.asc
+      fi
+      chmod 0644 /etc/apt/keyrings/onlyoffice.asc
+      rm -rf "$tmp"
   tags: [office]
 
 - name: Add official ONLYOFFICE repository
