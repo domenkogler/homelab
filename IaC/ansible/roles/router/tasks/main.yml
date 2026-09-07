@@ -422,31 +422,12 @@
 #                          (cloud-IoT, HD-325 — was selectattr vlan==21 pre-HD-325).
 #                          Temporary (n8n firmware-window, HD-312d): to be driven by the
 #                          router API user (HD-313) — never hand-edit.
-# NOTE (live 2026-09-03): RouterOS /ip firewall address-list accepts IP/CIDR only —
+# NOTE (live 2026-09-07): RouterOS /ip firewall address-list accepts IP/CIDR only —
 # MACs are NOT valid there ('not a valid dns name'). The per-MAC mechanism is the
 # src-mac-address forward-accept below (Ensure per-MAC IoT cloud-device WAN egress
-# accepts), NOT an address-list. The old address-list task was removed (broken).
-# kids-*                 = kids-control MAC-address-list (kids devices join Home VLAN 10
-#                          per HD-312; list sherds reserved: kids-bedtime/kids-filter/kids-wan)
-#                          — NOT yet implemented (owner: define kids device set).
-- name: 'Reserve kids-* firewall MAC-address-lists (HD-326, from SSOT `kids: true` marker)'
-  community.routeros.api_modify:
-    hostname: "{{ routeros_api_host }}"
-    username: "{{ routeros_api_user }}"
-    password: "{{ routeros_api_password }}"
-    tls: "{{ routeros_tls }}"
-    validate_certs: false
-    port: "{{ routeros_api_port }}"
-    path: ip firewall address-list
-    handle_absent_entries: ignore
-    data:
-      - address: "{{ item.mac }}"
-        list: "kids-{{ item.role | lower | regex_replace('[^a-z0-9-]+', '-') }}"
-        comment: "HD-326 kids-control (MAC): {{ item.name }}"
-  loop: "{{ network_static_hosts | selectattr('kids', 'defined') | selectattr('kids', 'equalto', true) | list }}"
-  loop_control:
-    label: "{{ item.name }} MAC -> kids list"
-  tags: [network]
+# accepts), NOT an address-list. The old kids-* address-list task is REMOVED (HD-326
+# lived here and failed every --tags network converge, blocking the NAT/filter rules
+# after it). kids controls use the src-mac-address dst-nat/drop below, same as iot-wan-allow.
 
 - name: Create firewall address list for the scoped home targets the VPS may reach (HD-155)
   community.routeros.api_modify:
