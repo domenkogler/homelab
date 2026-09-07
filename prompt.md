@@ -131,3 +131,45 @@ SSOT changes committed on `session/inference-sunshine-20260906` (3 commits: ad34
 closeout): `services-ai.md` (§9b + decision row 23 ×2), `hardware-spark.md` (+bring-up +guide),
 `hardware-gpu.md`, `hardware-oldsrv.md`, `services.md`, `deployment-ansible.md`, `todo.md` (HD-336/337),
 `deployment-tasks.md` (ledger), `prompt.md` (this block).
+
+
+## 4. Session close-out — 2026-09-07 (HD-339 closed + HD-330 done + HA mobile_app fixed)
+
+**Decisions locked this session (recorded in owning docs + commits `2e9610a`, `7e49aea`, `5011051`):**
+
+- **HD-339 CLOSED (deleted row per CONVENTIONS §4).** WiFi AP-tagged regression + KNX dimmer
+  `brightness_address` (DPT 3.7→5.1) + `route_back: true` — all fixed live + SSOT parity (previous
+  session's commits `255ccf4`/`85b2e99`). Owner confirmed the rekuperator room-temp −10°C is a
+  **physical ComfoConnect probe fault** — no config action. Record: `docs/home-assistant-current.md`,
+  `docs/network-vlans.md`.
+- **HA = WAN-independent + local-auth; Authentik is never a gate (owner decision).** `ha` route has NO
+  Forward-Auth on either edge (HD-118/KOPS-004); native-OIDC (Authentik *inside* HA) is optional later
+  **alongside** `type: homeassistant`, never replacing it. Access matrix: home WiFi (local login) +
+  tailnet (local login; path not built yet) + browser SSO optional. `auth_providers` invariant: always
+  keep `homeassistant` — dropping it causes "Enable mobile clients" for any untrusted network.
+  Record: `docs/smart-home-failover.md` + `docs/home-assistant-current.md`.
+- **HD-330 DONE + LIVE (Pi Technitium admin-align + seed).** Admin recreated to the 1P
+  `technitium_login` value (was default `admin`/`admin`) → `raspberry_pi.yml -e
+  docker_services_scope=technitium-secondary` failed=0 → `kogler.si.zone` + split-horizon records
+  (`ha`/`dns-pi` → VIP, dashboards → `tailnet_sidecar_ip`, `sso` → VPS). Verified `getent hosts
+  ha.kogler.si` → VIP; `dig @<Pi>`, `dig @<VPS>` both answer. **Fixed 2 seed IaC bugs en route:**
+  ① container-IP discovery emitted literal `\n` from docker `--format` (Go template) → `_tech_api` glued
+  both IPs → login failed; fixed with space-delim + `tr` + `awk NF` first-line. ② records loop used
+  VPS-only `tailnet_sidecar_ip` → undefined on Pi; fixed `default(tailnet_sidecar_ip, true)`.
+- **HA Android Companion app FIXED.** Rendered `configuration.yaml` had **no `mobile_app:`** (and no
+  `default_config:`) → `/api/mobile_app/registrations` 404 → app aborted at "enable the mobile app
+  integration". Added `mobile_app:` to `configuration.yaml.j2` (minimal explicit include — NOT
+  `default_config:`, NOT host networking; compose is correct) → HA restart → endpoint now **401**
+  (integration live) → **app registers and works (owner confirmed)**.
+
+**Handoff state for next session:**
+- HD-310 row remains open but its tail is the HD-04 umbrella (Authentik OIDC on `ha` optional,
+  `external_url` still null, failover runbook). `external_url` set = recommended next owner action
+  (Robustness for the App: notifications + reconnect use the right URL) — UI: Settings → System →
+  Network → URL.
+- **Mobile-over-Tailscale (away-from-home) path is NOT built** (mesh is CGNAT-only, no subnet route /
+  `ha.ts.kogler.si`). Small separate change (can ride Pkg F). This is the only remaining gap for
+  "phone works everywhere".
+- oldsrv Phase-3 still blocked (HD-318: ONLYOFFICE repo/key, ROCm pins, 3 1P items).
+- Pkg F / HD-334 now **unblocked on the Pi leg** (Pi DNS seeded).
+- Session branch `session/hd339-close-ha-oidc` merged to main (3 commits); worktree removed.
