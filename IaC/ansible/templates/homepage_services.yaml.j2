@@ -45,7 +45,7 @@
 # ---- Family: Photos ----
 - Photos:
     - Immich:
-        icon: fa-images
+        icon: mdi-image-multiple
         href: "https://foto.{{ d }}"
         description: Family photo & video library
         siteMonitor: "https://foto.{{ d }}"
@@ -53,7 +53,7 @@
 # ---- Family: Files ----
 - Files:
     - OpenCloud:
-        icon: fa-folder-open
+        icon: mdi-folder-open
         href: "https://file.{{ d }}"
         description: Family files, documents & shares
         siteMonitor: "https://file.{{ d }}"
@@ -61,12 +61,12 @@
 # ---- Family: Docs ----
 - Docs:
     - ONLYOFFICE:
-        icon: fa-file
+        icon: mdi-file
         href: "https://office.{{ d }}"
         description: Online editor — documents, sheets, presentations
         siteMonitor: "https://office.{{ d }}"
     - Stirling PDF:
-        icon: fa-file-pdf
+        icon: mdi-file-pdf-box
         href: "https://pdf.{{ d }}"
         description: PDF tools — merge, split, OCR, sign
         siteMonitor: "https://pdf.{{ d }}"
@@ -74,7 +74,7 @@
 # ---- Family: Chat ----
 - Chat:
     - Element:
-        icon: fa-comments
+        icon: mdi-comment-text-outline
         href: "https://chat.{{ d }}"
         description: Family messenger (Matrix)
         siteMonitor: "https://chat.{{ d }}"
@@ -82,7 +82,7 @@
 # ---- Family: Git ----
 - Git:
     - Forgejo:
-        icon: fa-git
+        icon: mdi-git
         href: "https://git.{{ d }}"
         description: Code, configs & Git hosting
         siteMonitor: "https://git.{{ d }}"
@@ -92,19 +92,19 @@
 # no siteMonitor (homepage container cannot reach it; red-dot false alarm).
 - AI:
     - Open WebUI:
-        icon: fa-robot
+        icon: mdi-robot
         href: "https://ai.{{ d }}"
         description: AI chat assistant (reachable over the tailnet)
 
 # ---- Family: Tools ----
 - Tools:
     - PairDrop:
-        icon: fa-upload
+        icon: mdi-upload
         href: "https://drop.{{ d }}"
         description: Drag-and-drop files between your devices (P2P)
         siteMonitor: "https://drop.{{ d }}"
     - Zipline:
-        icon: fa-link
+        icon: mdi-link
         href: "https://bin.{{ d }}"
         description: Short links, file shares & QR codes
         siteMonitor: "https://bin.{{ d }}"
@@ -112,12 +112,12 @@
 # ---- Family: Accounts ----
 - Accounts:
     - Sign in (Authentik):
-        icon: fa-user-lock
+        icon: mdi-account-lock
         href: "https://sso.{{ d }}"
         description: Your access for all the apps above
         siteMonitor: "https://sso.{{ d }}"
     - 1Password:
-        icon: fa-key
+        icon: mdi-key
         href: "https://my.1password.com"
         description: Family password manager
         siteMonitor: "https://my.1password.com"
@@ -129,40 +129,40 @@
 {% if homepage_show_technical | default(true) %}
 - Domen · technical:
     - Grafana:
-        icon: fa-chart-line
+        icon: mdi-chart-line
         href: "https://stats.{{ d }}"          # tailnet-only
         description: Metrics, dashboards & alerts (the numbers plane)
     - Live logs (Dozzle):
-        icon: fa-terminal
+        icon: mdi-console
         href: "https://logs.{{ d }}"           # tailnet-only
         description: Per-container log viewer
     - Traefik:
-        icon: fa-route
+        icon: mdi-route
         href: "https://traefik.{{ d }}"        # tailnet-only
         description: Routing & certificate status
     - CrowdSec:
-        icon: fa-shield-alt
+        icon: mdi-shield-check
         href: "https://csui.{{ d }}"           # tailnet-only
         description: Security decisions & blocked IPs
     - Metabase:
-        icon: fa-database
+        icon: mdi-database
         href: "https://sec.{{ d }}"            # tailnet-only
         description: Analytics sandbox
     - n8n:
-        icon: fa-cogs
+        icon: mdi-cog
         href: "https://auto.{{ d }}"           # tailnet-only
         description: Automation workflows (alert routing, office)
     - Headscale / VPN:
-        icon: fa-network-wired
+        icon: mdi-lan
         href: "https://vpn.{{ d }}"
         description: Tailnet control plane (+ admin UI)
         siteMonitor: "https://vpn.{{ d }}"
     - dsh:
-        icon: fa-code
+        icon: mdi-code-tags
         href: "https://dsh.{{ d }}"            # tailnet-only
         description: DevOps / IaC cockpit
     - pi-dev:
-        icon: fa-code
+        icon: mdi-code-tags
         href: "https://pi-dev.{{ d }}"         # tailnet-only
         description: Coding agent UI
 {% endif %}
@@ -175,15 +175,15 @@
 {% if homepage_show_soon | default(true) %}
 - Soon:
     - Home Assistant:
-        icon: fa-home
+        icon: mdi-home
         href: "#"
         description: Smart home control — arrives with Phase 4 (ha.kogler.si)
     - Homematic:
-        icon: fa-wifi
+        icon: mdi-wifi
         href: "#"
         description: Local smart-home radios — after the HmIP-RFUSB stick (HD-13)
     - Media & GPU:
-        icon: fa-film
+        icon: mdi-film
         href: "#"
         description: Jellyfin & AI backends on oldsrv — arrives with Phase 3
 {% endif %}
