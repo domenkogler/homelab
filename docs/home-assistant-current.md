@@ -103,6 +103,9 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 > on DNS ordering; mobile-over-Tailscale path is not built yet).
 
 - **Currently only ONE auth provider:** `homeassistant` (local user accounts — `domen` owner + local `admin` on the new Pi). **Home Assistant Cloud** is loaded but no external URL set.
+- **Mobile App (Companion) integration ENABLED 2026-09-07 (HD-330 close-out):** added `mobile_app:` to the rendered
+  `configuration.yaml` (it was missing — no `default_config:` either) → `/api/mobile_app/registrations` went 404 →
+  **401** (live). Android app registration now works (was aborting at "enable the mobile app integration").
 - **No Authentik/OIDC connected live yet** — `oidc`/`openid_connect` absent from loaded components; the Authentik native-OIDC wiring is the pending HD-04/HD-310 tail.
 - **Mobile / Companion app — do NOT disable the local `homeassistant` provider.** The native OIDC (`openid_connect`) provider is the piece that makes the *web* login use Authentik while leaving the **Companion app + mobile clients** on local HA credentials. If you configure `auth_providers` with only `openid_connect` (dropping `type: homeassistant`), the app loses its login entirely and HA shows *"Enable mobile clients"* — the local provider must stay for the app to work.
 - One `owner` account (`domen`) used for this audit. A local recovery owner account is retained as designed in `smart-home-failover.md`.

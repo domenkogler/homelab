@@ -32,6 +32,14 @@ recorder:
       - binary_sensor.*_status
 
 # ---- Integrations ----
+# Mobile App/Companion integration (Android/iOS). Required for the HA Companion
+# app registration — without it POST /api/mobile_app/registrations 404s and the
+# app aborts at the "name the device" step with "enable the mobile app
+# integration". Added 2026-09-07 (HD-330 close-out): minimal explicit include
+# (NOT default_config: — that pulls in cloud/energy/dlna/etc. we deliberately
+# omit; the config stays hand-picked).
+mobile_app:
+
 # KNX (docs/smart-home.md): ETS project file is the SSOT; entity maps are generated
 # from it (scripts/knx-hass-gen.py → knx-entities.yaml). The knxproj itself is
 # deployed to /config/knx/ for the KNX panel import (Group Monitor names + triggers).
