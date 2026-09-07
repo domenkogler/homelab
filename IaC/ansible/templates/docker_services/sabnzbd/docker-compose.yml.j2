@@ -13,7 +13,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      - /run
+      - /run:exec
     container_name: sabnzbd
     restart: unless-stopped
     networks:
