@@ -37,12 +37,10 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 - **ID registry:** next free = max(HD)+1 in [todo.md](todo.md) — always re-derived at write time (CONVENTIONS §1/§4); NEVER type a literal (newest rows: HD-310, HD-311, HD-335, registered 2026-09-06).
 - **Coordination:** headplane/headscale = SEPARATE lane (D) — coordinate, never fold into other converges.
 - **SESSION 2026-09-07 — laptop-domen tagged-99 leg (commit `90a897a`, pushed main):** `router_port_map.laptop-domen`
-  → `tagged: [99]` (dual-home: untagged Home 10 + tagged Mgmt 99 for WSL Debian; Windows stays Home-untagged-only);
-  `rb4011_converge.rsc.j2` VLAN-99 tagged set now includes **ether3** (add + set branches) + port comment updated;
+  → `tagged: [99]` (dual-home: untagged Home 10 + tagged Mgmt 99); `rb4011_converge.rsc.j2` VLAN-99 tagged set now includes **ether3** (add + set branches) + port comment updated;
   `all/main.yml` role text + re-rendered `network-addresses-generated.md` + `network-vlans.md` (port-model note +
   port-type table) + `todo.md` (HD-310/HD-311 rows) updated. Validated green, signed, merged fast-forward, pushed.
-  ✅ router converge applied in HD-338 (`9b69911`) — tagged-99 live on the device. ⏳ WSL Debian `eth0.99` host-step
-  (sub-interface + Mgmt address + never-default route) still pending — BLOCKED under NAT, owner set `mirrored`; test next session after WSL reboot (see -0a).
+  ✅ router converge applied in HD-338 (`9b69911`) — tagged-99 live on the device. ✅ **WSL host-step DONE 2026-09-07 (route-through-Windows):** WSL2 cannot tag its own 99 leg (vNIC trunking impossible; mirrored = view-only ARP-FAIL) → **Debian routes the Mgmt subnet (`mgmt_subnet`) via Windows**: Windows Home `laptop-domen` Home IP (DHCP) + Mgmt99 static `laptop-domen` Mgmt IP (Access 99, no gw) + **IP forwarding ON**; Debian `eth0` static `laptop-wsl` Home IP (systemd-networkd) with route Mgmt-net → Windows Home IP. Reusable: `scripts/wsl-vlan-trunk.ps1` (idempotent, admin). SSOT `laptop-domen`/`laptop-wsl` rows.
 - **SESSION 2026-09-07 — WSL runner networking + Windows signing fixed (host-local, not repo):** ① WSL `mirrored`
   mode was wedged (ARP `FAILED` / `No route to host` while Windows healthy) — `.wslconfig` switched to
   `networkingMode=Nat` → eth0 = a Default-Switch NAT IP, LAN/WAN healthy; `/etc/resolv.conf` = homelab chain
@@ -50,7 +48,7 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
   ② Windows commit signing: repo-local `user.signingkey` was a private-key FILE path → 1Password `op-ssh-sign`
   failed (`invalid ssh public key`); fixed by setting `signingkey` to the **pub-key string** (same as
   `.gitconfig-github`). Verified: signed commit works from git-bash via 1Password.
-- **SESSION 2026-09-07 (HD-338, commit `9b69911`, pushed main) — IoT devices OFF the Mgmt VLAN + laptop tagged-99 leg LIVE; role↔.rsc parity enforced; WSL eth0.99 BLOCKED by WSL2 NAT → owner flipped `.wslconfig` to `networkingMode=mirrored`, PENDING restart+retry.**
+- **SESSION 2026-09-07 (HD-338, commit `9b69911`, pushed main) — IoT devices OFF the Mgmt VLAN + laptop tagged-99 leg LIVE; role↔.rsc parity enforced; WSL 99 access via route-through-Windows (DONE 2026-09-07 — see -a).**
   - **UPS NIC → IoT VLAN 20** (new `ups` SSOT row — see [network-addresses-generated.md](docs/network-addresses-generated.md); switch ether4 pvid20, untagged-20, **NO wan_allow** — NUT/USB is the monitoring path): trusted-admin→UPS web 80/443 forward rule + `ups_management` list REMOVED; stale dhcp-mgmt lease removed, dhcp-20 reservation added.
   - **HMIP-HAP → router ether9 pvid20** untagged-20 (was pvid99 Mgmt; SSOT VLAN 20 + wan_allow already) — port map/template/role trunk task were stale at pvid-99.
   - **WSL laptop tagged-99 leg LIVE on the router** — VLAN-99 tagged now `bridge-lan,sfp-sfpplus1,ether2,ether3,ether10`, untagged `ether7`; ether3 pvid10 + tagged99.

@@ -182,10 +182,7 @@ dynamic address until the lease turns over.
 
 > **Port model (2026-09-01, final 2026-09-02): untagged = primary/access VLAN, tagged = secondary/admin (Mgmt 99).**
 > A single untagged port carries ONE VLAN (untagged frames map to `pvid`), so dual-homed hosts
-> (oldsrv, Pi, laptop) ride **Home (10) untagged + Mgmt (99) tagged** on the same port. The **laptop's Windows side is Home-untagged ONLY**
-> (mgmt reached via the Pi's tagged-99 hop — Windows never touches tagged 99); **WSL Debian on the laptop uses the tagged 99 leg** (`eth0.99`) so it gets a Mgmt-plane client without Windows seeing it. This is the strict,
-> defense-in-depth decision: **Home never reaches core infra (Mgmt VLAN) by default**; the Pi's `eth0.99`
-> tagged leg is the only real mgmt-plane client. Supersedes the old "Mgmt-access + single-VLAN" model
+> (oldsrv, Pi, laptop) ride **Home (10) untagged + Mgmt (99) tagged** on the same port. The **laptop's Windows side is Home-untagged + Mgmt99 tagged** (Mgmt99 vNIC = static `laptop-domen` Mgmt IP, no default gw); **WSL Debian does NOT tag its own 99 leg** — WSL2's hyper-v vNIC can't carry tagged 99 (vNIC trunking impossible; mirrored = view-only, ARP FAIL), so **WSL reaches the Mgmt plane via the Windows host as gateway** (`laptop-domen` Home IP as next-hop, Windows IP forwarding ON; Debian `eth0` static `laptop-wsl` Home IP). This is the defense-in-depth decision: **Home never reaches core infra (Mgmt VLAN) by default**; the Pi's `eth0.99` tagged leg + Windows' Mgmt99 are the mgmt-plane clients (`laptop-domen` `.80`, `laptop-wsl` routes via it). Supersedes the old "Mgmt-access + single-VLAN" model
 > (dead Pi Home leg, HD-307/308) AND the temporary Home→Mgmt forward (reverted 2026-09-02). It does NOT change
 > any IP — devices keep their `10.10.x`/`10.10.99.x` static reservations; it changes the L2 VLAN membership/tagging only.
 >
@@ -211,7 +208,7 @@ dynamic address until the lease turns over.
 | Camera | Access | 20 (IoT) |
 | Shield, console, smart TV | Access | 50 (Media) |
 | UPS NIC | Access | 20 (IoT, no WAN) — NUT/USB only, **off Mgmt (HD-338)** |
-| Laptop (admin, router ether3) | Access + tagged | **10 (Home) untagged** (Windows) + **99 (Mgmt) tagged for WSL Debian** (`eth0.99`; Proxymap/jump via tagged-99 hop unchanged); static `laptop-domen` (2026-09-01, HD-307 / 2026-09-07 tagged) |
+| Laptop (admin, router ether3) | Access + tagged | **10 (Home) untagged** (Windows Home IP `laptop-domen` SSOT) + **99 (Mgmt) tagged on Windows Mgmt99 vNIC** (`laptop-domen` Mgmt IP, no gw); **WSL Debian does not tag 99 itself** — it routes the Mgmt subnet via Windows (Home IP, IP forwarding ON; Debian `eth0` static `laptop-wsl` Home IP). SSOT rows `laptop-domen`/`laptop-wsl` (2026-09-07) |
 | Debian homelab PC (oldsrv) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
 | SFP+ uplinks | Trunk | 10,20,30,40,50,99 tagged |
 
