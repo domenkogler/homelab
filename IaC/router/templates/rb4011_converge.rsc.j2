@@ -279,6 +279,12 @@ add chain=srcnat out-interface=pppoe-telekom action=masquerade comment="Masquera
 add chain=srcnat out-interface={{ comtrend_modem.iface }} protocol=tcp dst-address={{ comtrend_modem.modem_mgmt_ip }} dst-port=80,443 action=masquerade comment="HD-302: modem UI via router SNAT (trusted-admin)"
 add chain=dstnat src-address=10.10.40.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - UDP 53 -> Technitium"
 add chain=dstnat src-address=10.10.40.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - TCP 53 -> Technitium"
+# HD-342 (2026-09-07): IoT VLAN 20 per-device DNS visibility — hijack plain :53
+# from IoT to the PI tertiary (dns_tertiary_ip => 10.10.1.20, the Pi Technitium
+# read via dns-pi.kogler.si) so each IoT device's queries land per-source-IP in
+# the Pi query log. Mirrored in roles/router/tasks/main.yml (both own these rows).
+add chain=dstnat src-address=10.10.20.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - UDP 53 -> Pi (HD-342)"
+add chain=dstnat src-address=10.10.20.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - TCP 53 -> Pi (HD-342)"
 
 # ---- Firewall: address lists ----
 # Reset first (HD-322): a re-import without the reset STACKS duplicate rows for
@@ -353,6 +359,11 @@ add chain=forward action=accept src-address=10.10.99.0/24 dst-address=10.10.1.0/
 add chain=forward action=drop src-address=10.10.30.0/24 dst-address-list=internal_lan comment="Guest -> LAN drop"
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=tcp dst-port=853 comment="Kids -> DoT bypass drop tcp"
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=udp dst-port=853 comment="Kids -> DoT bypass drop udp"
+# HD-342 (2026-09-07): IoT VLAN 20 DoT(853) bypass drop — mirror of the Kids drop,
+# so encrypted DNS cannot bypass the forced-DNS visibility path (plain :53 -> Pi
+# above). Residual DoH/443 accepted (can't filter HTTPS without TLS interception).
+add chain=forward action=drop src-address=10.10.20.0/24 protocol=tcp dst-port=853 comment="IoT -> DoT bypass drop tcp (HD-342)"
+add chain=forward action=drop src-address=10.10.20.0/24 protocol=udp dst-port=853 comment="IoT -> DoT bypass drop udp (HD-342)"
 add chain=forward action=drop src-address=10.10.40.0/24 dst-address=10.10.1.0/24 comment="Kids -> Home drop"
 add chain=forward action=drop src-address=10.10.40.0/24 out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun comment="Kids bedtime WAN block 22:00-07:00"
 add chain=forward action=accept src-address=10.10.40.0/24 out-interface=pppoe-telekom comment="Kids -> WAN allowed out-of-window (HD-309 row 73)"
