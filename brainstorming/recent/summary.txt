@@ -1,0 +1,111 @@
+Lenovo ThinkStation PGX GB10
+
+ - izklop ui namizja:
+ 
+sudo systemctl set-default multi-user.target
+sudo systemctl isolate multi-user.target
+
+Za popolno dvojezično izkušnjo na vašem GB10 predlagam naslednje natančne modele:
+
+1.  **Pisarna / Dokumenti**: `NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4` (z obveznim sistemskim navodilom za slovenščino), Qwen3-Next-80B (MoE) – Moje absolutno prvo priporočilo, Llama-3.3-70B-Instruct (NVFP4 različica)
+2.  **Kodiranje**: `Qwen3-Coder-Next-80B`
+3.  **Vektorsko iskanje (RAG)**: `bge-m3` (Vlaganje) + `bge-reranker-v2-m3` (Preurejanje)
+4.  **Govor v tekst**: `Whisper-large-v3-turbo` ali Whisper-large-v3
+5.  **Tekst v govor**: `XTTS v2` ali preverjeni `Piper TTS (sl_SI)`
+
+
+pi install npm:pi-voice-stt
+
+OpenHands + TypeWhisper
+
+Open WebUI + n8n + OpenOfficeAI
+OpenWhispr, Open-Office-AI
+
+Kako poteka idealen delovni proces za vašo ženo?
+
+Uvoz virov: Žena odpre svoj Open WebUI račun. V klepet preprosto odloži (drag-and-drop) službene PDF-je in dokumente, iz katerih želi črpati vsebino. (Tukaj Docling v ozadju instantno izvleče ves tekst in tabele).
+
+Govorni ukaz: Klikne na mikrofon v Open WebUI (preko svojega OpenWhispr sistema) in reče:
+
+"Preglej te dokumente in mi iz njih sestavi PowerPoint predstavitev o prodajnih rezultatih za leto 2026. Uporabi najino uradno predlogo."
+Analiza in strukturiranje: Vaš domači težki Qwen model analizira gradivo in ga strukturira v točno določeno obliko za prosojnice: naslov prosojnice, glavne točke (bullet points) in opombe za govornika.
+
+Pametno vstavljanje v predlogo (n8n): Open WebUI te podatke potisne v n8n. V n8n teče Python skripta (z uporabo knjižnice python-pptx), ki ima dostop do njene uradne službene predloge (datoteke .potx ali .pptx). Skripta odpre predlogo, ustvari nove prosojnice in besedilo samodejno vbrizga v točno določena mesta (placeholders) za naslove in vsebino.
+
+Končni prenos: V manj kot minuti vaša žena v Open WebUI klepetu prejme pripravljeno datoteko .pptx za prenos. Ko jo odpre, je predstavitev že v uradnih službenih barvah in pisavah, pripravljena za morebitne manjše ročne popravke.
+
+
+Tukaj je točna konfiguracija za LiteLLM, ki jo preprosto prekopirate v svojo datoteko. Uporabila bova model Qwen3-Next-80B, ki ga znotraj vaših Office aplikacij poimenujemo office-ai:
+model_list:
+  - model_name: office-ai
+    litellm_params:
+      api_base: http://triton-server:8001            # Klic na vaš Triton strežnik
+      model: triton/qwen3_next_80b_nvfp4             # Ime vašega prevedenega modela
+
+      # SKRITO NAVODILO (SYSTEM PROMPT) ZA VRHUNSKO OFFICE DELO:
+      initial_prompt: |
+        Ti si vrhunski, visoko profesionalni pisarniški pomočnik za korporativno delo (Word, Outlook, PowerPoint).
+        Uporabnik ti bo pošiljal obstoječe tekste in navodila za spremembe (preko narekovanja).
+
+        STRIKTNA NAVODILA ZA DELO:
+        1. Če uporabnik želi spremembo (npr. "dodaj informacijo v drugi odstavek"), vrni celotno posodobljeno besedilo z vključeno spremembo.
+        2. Če uporabnik narekuje e-pošto, jo oblikuj z ustreznim pozdravom, jedrom in zaključkom v brezhibnem poslovnem tonu.
+        3. Vedno piši v jeziku, v katerem je bil dan ukaz (primarno v brezhibni slovenščini ali angleščini).
+        4. Bodi izjemno pozoren na slovensko slovnico, sklanjanje in ločila.
+        5. VAŽNO: Vrni SAMO in IZKLJUČNO končni tekst, ki je pripravljen za kopiranje v Word ali Outlook. Nikoli ne dodajaj svojih komentarjev, uvodov (npr. "Tukaj je vaš popravljen tekst:") ali zaključkov. Tvoj izhod gre neposredno pod uporabnikov kurzor.
+		
+		
+		model_list:
+  # VLOGA 1: Pisarniški pomočnik za vašo ženo (Zavezana poslovnemu tonu)
+  - model_name: office-ai
+    litellm_params:
+      api_base: http://triton-server:8001
+      model: triton/qwen3_next_80b_nvfp4
+      initial_prompt: |
+        Ti si vrhunski pisarniški pomočnik za Word, Outlook in PowerPoint.
+        Vrni SAMO in IZKLJUČNO končno spolirano poslovno besedilo v slovenščini ali angleščini.
+        Nikoli ne dodajaj svojih komentarjev ali uvodov, saj tvoj tekst prileti direktno pod uporabnikov kurzor.
+
+  # VLOGA 2: Vrhunski programerski in DevOps ekspert za vas (Za OpenHands in TypeWhisper)
+  - model_name: coder-ai
+    litellm_params:
+      api_base: http://triton-server:8001
+      model: triton/qwen3_next_80b_nvfp4
+      initial_prompt: |
+        Ti si svetovni strokovnjak za programiranje, sistemsko administracijo in DevOps (specializiran za Linux, Docker in Ansible IaC).
+        Tvoje naloge so:
+        1. Piši čisto, optimizirano in varno kodo z ustreznimi komentarji.
+        2. Ko spreminjaš kodo (npr. Ansible playbooke), vrni celotno popravljeno datoteko ali natančne bloke kode, ki jih zahteva agent.
+        3. Pomagaj orkestrirati sistemske naloge in bodi izjemno natančen pri IP naslovih ter konfiguracijah.
+		
+		
+# Shranite ali posodobite traefik-office-ai.yaml na vašem VPS strežniku
+
+http:
+  routers:
+    # Usmerjevalnik za ženin službeni API dostop in vaše delo na poti
+    office-ai-router:
+      rule: "Host(`office-ai.vas-homelab.si`)"
+      entryPoints:
+        - websecure
+      # TUKAJ VKLOPIMO CROWDSEC:
+      middlewares:
+        - crowdsec-bouncer@file  # Predpostavljamo, da imate CrowdSec bouncer definiran globalno v Traefiku
+      service: office-ai-home-service
+      tls:
+        certResolver: myresolver
+
+  services:
+    # Storitev, ki preusmeri varen promet skozi S2S WireGuard domov
+    office-ai-home-service:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.50:4000"  # Lokalni LAN IP vaše naprave Lenovo (LiteLLM)
+		  
+# Primer CrowdSec whitelist konfiguracije
+name: sluzba-zena-whitelist
+description: "Spusti skozi promet iz ženine službe brez preverjanja reputacije"
+whitelist:
+  reason: "Službeni IP naslov žene"
+  ip:
+    - "212.93.XX.XX"  # Vpišite javni IP naslov njenega podjetja
