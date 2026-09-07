@@ -41,11 +41,13 @@
       {{ {'primary': 'technitium', 'secondary': 'technitium-oldsrv', 'secondary-pi': 'technitium-pi'}
          [svc.instance | default('primary')] }}
   when: svc.template_dir | default('') == 'technitium'
+  tags: [docker_services, technitium_seed]
 
 - name: "Technitium: assert container reachable on local API ({{ svc.name }})"
   when:
     - svc.template_dir | default('') == 'technitium'
     - svc.name in (docker_services | map(attribute='name') | list)
+  tags: [docker_services, technitium_seed]
   block:
     - name: "Technitium: build container API base ({{ svc.name }})"
       ansible.builtin.set_fact:
@@ -83,8 +85,13 @@
         method: POST
         body_format: form-urlencoded
         body:
-          user: "{{ vault['technitium_login'].username | default('admin') }}"
-          pass: "{{ vault['technitium_login'].password }}"
+          # Onepassword lookup resolves on the CONTROL node (deploy-service.yml / HD-258
+          # precedent) — the HD-258 `vault` dict is set on localhost and is NOT visible
+          # to TARGET-side tasks (live 2026-09-07, Pi seed: bare `vault` and
+          # hostvars['localhost']['vault'] both undefined on the target; HD-324 VPS
+          # seed only succeeded earlier because the dict was in play scope then).
+          user: "{{ lookup('community.general.onepassword', 'technitium_login', field='username', vault=op_vault) }}"
+          pass: "{{ lookup('community.general.onepassword', 'technitium_login', field='password', vault=op_vault) }}"
       register: _tech_login
       no_log: true
       changed_when: false

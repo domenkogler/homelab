@@ -65,6 +65,11 @@
       become: false
       no_log: true
       changed_when: false
+      # cacheable: true — broadcast the localhost-set vault fact into hostvars so
+      # TARGET-side tasks (e.g. the technitium-seed uri calls) can read it via
+      # hostvars['localhost']['vault'] (live 2026-09-07: without it the seed's login
+      # failed — non-cacheable set_fact on localhost never reaches target hostvars).
+  tags: [docker_services, secrets]
   when: >
     (op_mode == 'derive' and op_derive_spec is defined and (op_derive_spec | length) > 0)
     or (op_mode != 'derive' and op_item_list is defined and (op_item_list | length) > 0)

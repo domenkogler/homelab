@@ -41,6 +41,7 @@
   become: false            # no escalation locally — play-level become:true would break the tmp-dir perms
   delegate_to: localhost   # lookups resolve on the CONTROL node — never probe the target for op (found live Phase 1, 2026-08-22)
   run_once: true
+  tags: [docker_services]
 
 - name: Fail if 1Password CLI (op) is not on this host
   ansible.builtin.assert:
