@@ -63,15 +63,26 @@ def addr_list_first(fn, roles):
 
 
 def emit_light(fn, name):
-    """FT-1 (switchable) / FT-6 (dimmable) -> HA light map."""
+    """FT-1 (switchable) / FT-6 (dimmable) -> HA light map.
+
+    brightness_address MUST be the ABSOLUTE dimming GA (DPT 5.001, role
+    'DimmingValue'), NOT the relative step-dim GA ('DimmingControl', DPT 3.007,
+    used for brief up/down presses). HA's KNX light writes an absolute 0-255 value
+    to brightness_address to set brightness AND to turn OFF (brightness=0). A
+    DPT 3.007 GA ignores absolute values -> OFF/ON brightness commands go nowhere
+    while the state_address echo keeps HA stuck (light.jedilnica: could ON but
+    never OFF — live 2026-09-07). xknxproject exposes the ETS roles per function:
+    SwitchOnOff / InfoOnOff / DimmingControl (3.007) / InfoDimmingValue (5.001) /
+    DimmingValue (5.001).
+    """
     sw = role_addr(fn, 'SwitchOnOff')
     st = role_addr(fn, 'InfoOnOff')
-    dim = role_addr(fn, 'DimmingControl')
-    info_dim = role_addr(fn, 'InfoDimmingValue')
+    dim_val = role_addr(fn, 'DimmingValue')        # absolute brightness write (DPT 5.001)
+    info_dim = role_addr(fn, 'InfoDimmingValue')    # absolute brightness state (DPT 5.001)
     out = {"name": name, "address": sw, "state_address": st}
-    if dim:
-        out["brightness_address"] = dim
-        out["brightness_state_address"] = info_dim or dim
+    if dim_val:
+        out["brightness_address"] = dim_val
+        out["brightness_state_address"] = info_dim or dim_val
     return out
 
 
@@ -215,6 +226,42 @@ def render_yaml(lights, covers, switches, binary_sensors, sensors):
             lines.append(f"    - name: \"{sn['name']}\"")
             lines.append(f"      state_address: \"{sn['state_address']}\"")
             lines.append(f"      type: {sn['type']}")
+    # ---- Appendix: sensors whose GAs are in the project but NOT inside an
+    # FT-1/6/7 function (ComfoConnect rekuperator + appliance current clamps).
+    # DPTs verified from the .knxproj group_addresses (12/1/13 = 13.002,
+    # 12/1/14-18 = 9.001, 12/1/19-23 = 5.001, 12/1/24 = 7.007 '(h)'). The
+    # current clamps (ElektricniTok Status) have no DPT in ETS but are mA
+    # (legacy live-config type). Kept here so regeneration never drops them.
+    appendix_sensors = [
+        ("Rekuperator Airflow",         "12/1/13", "flow_rate_m3h"),
+        ("Rekuperator Room Temperature",  "12/1/14", "temperature"),
+        ("Rekuperator Extract Temperature","12/1/15", "temperature"),
+        ("Rekuperator Exhaust Temperature","12/1/16", "temperature"),
+        ("Rekuperator Outdoor Temperature","12/1/17", "temperature"),
+        ("Rekuperator Supply Temperature", "12/1/18", "temperature"),
+        ("Rekuperator Room Humidity",     "12/1/19", "percent"),
+        ("Rekuperator Extract Humidity",  "12/1/20", "percent"),
+        ("Rekuperator Exhaust Humidity",  "12/1/21", "percent"),
+        ("Rekuperator Outdoor Humidity",  "12/1/22", "percent"),
+        ("Rekuperator Supply Humidity",   "12/1/23", "percent"),
+        ("Rekuperator Filter Replace",    "12/1/24", "delta_time_hrs"),
+        ("Kopalnica Radiator Current",    "4/4/3",   "current"),
+        ("WC Radiator Current",           "10/4/3",  "current"),
+        ("Pecica velika Current",         "5/4/2",   "current"),
+        ("Pecica mala Current",           "5/4/5",   "current"),
+        ("Pomivalni stroj Current",       "5/4/8",   "current"),
+        ("Pralni stroj Current",          "6/4/2",   "current"),
+        ("Susilni stroj Current",         "6/4/5",   "current"),
+    ]
+    if appendix_sensors:
+        lines.append("  sensor:")
+        for name, addr, t in appendix_sensors:
+            lines.append(f"    - name: \"{name}\"")
+            lines.append(f"      state_address: \"{addr}\"")
+            lines.append(f"      type: {t}")
+            # KNX tunnel has route_back=false -> poll these status GAs so values
+            # refresh (ComfoConnect/appliance don't push status to the tunnel).
+            lines.append("      sync_state: every 30")
     lines.append("")
     return "\n".join(lines)
 
@@ -226,7 +273,10 @@ def main():
     from xknxproject import XKNXProj
     proj = XKNXProj(args.knxproj).parse()
     lights, covers, switches, binary_sensors, sensors = build(proj)
-    sys.stdout.write(render_yaml(lights, covers, switches, binary_sensors, sensors))
+    out = render_yaml(lights, covers, switches, binary_sensors, sensors)
+    # Encode UTF-8 + LF explicitly (Windows console/stdout mangles the em-dash to
+    # cp1252 0x97 and adds CRLF; repo convention = UTF-8/LF).
+    sys.stdout.buffer.write(out.encode('utf-8'))
 
 
 if __name__ == '__main__':
