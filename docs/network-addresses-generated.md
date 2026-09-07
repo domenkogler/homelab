@@ -37,8 +37,8 @@
 | 99 | 10.10.99.11 | ilo | nas iLO4 BMC |
 | 99 | 10.10.99.20 | pi | RPi4 node + DNS tertiary (HD-299) |
 | 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS secondary (HD-299) |
-| 99 | 10.10.99.80 | laptop-domen | Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), 2026-09-07 |
-| 10 | 10.10.1.81 | laptop-wsl | Domen's WSL Debian — static Home (systemd-networkd eth0); mgmt 99 via Windows gateway 10.10.1.80, 2026-09-07 |
+| 99 | 10.10.99.80 | laptop-domen | Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra, 2026-09-07 |
+| 10 | 10.10.1.81 | laptop-wsl | Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback, 2026-09-07 |
 | 10 | 10.10.1.1 | router | Home gateway |
 | 10 | 10.10.1.10 | nas | Cockpit/NFS/NUT master |
 | 10 | 10.10.1.20 | pi | node + DNS tertiary (HD-299; VRRP anchor) |
@@ -119,4 +119,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-07T11:19:12Z
+> Last generated: 2026-09-07T16:11:48Z

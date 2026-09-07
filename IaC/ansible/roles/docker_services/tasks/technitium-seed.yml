@@ -57,10 +57,15 @@
         # services-internal). The old single-line `range` format GLUED the two IPs together
         # (e.g. 172.21.0.3172.20.0.2) and the login hit a garbage URL. Newlines let
         # `awk NR==1` pick the first clean IP deterministically.
+        # HD-330 live 2026-09-07: the docker `--format` Go template emits a literal
+        # backslash-n (NOT a real newline) on the shell, so `awk NR==1` never split and
+        # `_tech_api` became `http://172.21.0.3\n172.20.0.2\n:5380` → login failed.
+        # Fixed: space-delimit the IPs in the template, then `tr` the spaces to newlines
+        # and take the first non-empty line (single IP, no trailing newline).
         cmd: >-
           docker inspect {{ _tech_container_name | default('technitium') }}
-          --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }}\n{{ '{{' }}end{{ '}}' }}'
-          | awk 'NR==1 { print $1 }'
+          --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }} {{ '{{' }}end{{ '}}' }}'
+          | tr ' ' '\n' | awk 'NF{print $1; exit}'
         executable: /bin/bash
       register: _tech_ip
       changed_when: false
@@ -138,12 +143,17 @@
       loop:
         - { name: "ha.kogler.si",      ip: "{{ ha_vip }}" }
         - { name: "dns-pi.kogler.si",  ip: "{{ ha_vip }}" }
-        - { name: "stats.kogler.si",   ip: "{{ tailnet_sidecar_ip }}" }
-        - { name: "logs.kogler.si",    ip: "{{ tailnet_sidecar_ip }}" }
-        - { name: "csui.kogler.si",    ip: "{{ tailnet_sidecar_ip }}" }
-        - { name: "sec.kogler.si",     ip: "{{ tailnet_sidecar_ip }}" }
-        - { name: "traefik.kogler.si", ip: "{{ tailnet_sidecar_ip }}" }
-        - { name: "auto.kogler.si",    ip: "{{ tailnet_sidecar_ip }}" }
+        # HD-330 live 2026-09-07: `tailnet_sidecar_ip` lives in group_vars/vps.yml
+        # (VPS-only) but the seed runs on EVERY instance (VPS/oldsrv/Pi). The
+        # dashboard records target the VPS tailnet sidecar (100.64.0.1) — a cluster
+        # constant, identical on all instances — so fall back to the VPS value with
+        # `default('', true)` (true = undefined var is OK) to keep Pi/oldsrv renders green.
+        - { name: "stats.kogler.si",   ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
+        - { name: "logs.kogler.si",    ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
+        - { name: "csui.kogler.si",    ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
+        - { name: "sec.kogler.si",     ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
+        - { name: "traefik.kogler.si", ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
+        - { name: "auto.kogler.si",    ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
         - { name: "sso.kogler.si",     ip: "{{ dns_primary_ip }}" }
       register: _tech_record
       no_log: true
