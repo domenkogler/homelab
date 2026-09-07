@@ -439,12 +439,29 @@ def validate_render(name, j2_path, env, service):
         # `secondary` skip below). Skip the web-label law for non-primary instances.
         _inst = service.get("instance", "primary")
         if svc_name == name and name not in NO_TRAEFIK_LABELS and _inst == "primary":
-            if name in WEB_SERVICES:
+            # HD-331/332 (Pkg F): `public: true` = public-edge labels; `public: false`/
+            # absent = internal-only. The compose template gates labels on
+            # `svc.public is defined and svc.public` (see grafana/dozzle/… templates),
+            # so the validator must mirror that: only the edge itself (`traefik`)
+            # and explicitly `public: true` apps carry the web-label law. Internal-only
+            # web apps render traefik.enable: "false" and are served by the
+            # traefik-tailnet internal edge (file-provider routes).
+            _public = service.get("public", "absent")
+            if name in WEB_SERVICES and (_public is True or _public == "absent"):
+                # public or legacy (flag not yet rolled out) web app — the web-label
+                # law applies unchanged (legacy arr-stack compose labels stay valid).
                 lk = " ".join(str(k) for k in labels.keys())
                 if "traefik.enable" not in lk:
                     errors.append(f"{prefix} web service missing 'traefik.enable: true'")
                 if "traefik.http.routers" not in lk:
                     errors.append(f"{prefix} web service missing 'traefik.http.routers.*'")
+            elif name in WEB_SERVICES and _public is False:
+                # internal-only (public: false FLAG EXPLICIT) — labels must NOT expose a
+                # public router; enforce the inverse so a stale public label can't
+                # silently ride a later broaden (HD-331/332). Absent on legacy
+                # (home_servers arr-stack) entries = unchanged legacy behavior.
+                if isinstance(labels, dict) and labels.get("traefik.enable") in ("true", "True", True):
+                    errors.append(f"{prefix} public:false web service renders traefik.enable: true (must be internal-only)")
             elif name not in HOST_NET_SERVICES and name not in HOST_NET_CONTAINERS:
                 if isinstance(labels, dict) and labels.get("traefik.enable") in ("true", "True", True):
                     errors.append(f"{prefix} non-web service should not set traefik.enable: true")

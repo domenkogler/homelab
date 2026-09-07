@@ -58,6 +58,7 @@ services:
       # identical in-container path keeps the documented connection URL self-explanatory.
       - /srv/docker/crowdsec/db:/var/lib/crowdsec/data
     labels:
+{% if not (svc.public is defined and not svc.public) %}
       traefik.enable: "true"
       traefik.http.routers.metabase.rule: "Host(`sec.kogler.si`)"
       traefik.http.routers.metabase.entrypoints: websecure
@@ -65,6 +66,11 @@ services:
       # HD-148: OSS has NO OIDC (paid feature) -> stays behind Forward-Auth. Switch route to
       # crowdsec-only + enable MB_OIDC_* ONLY if Metabase Enterprise is ever licensed.
       traefik.http.routers.metabase.middlewares: authentik-forward-auth@file
+{% else %}
+      # INTERNAL-ONLY (public: false — HD-331/332): no public-edge route; served
+      # only by the traefik-tailnet internal edge (sec.kogler.si / sec.ts).
+      traefik.enable: "false"
+{% endif %}
 volumes:
   metabase-data:
 networks:

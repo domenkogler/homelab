@@ -449,8 +449,26 @@ http:
       middlewares:
         - redirect-to-https
       service: noop@internal
+    # Authentik (sso) — crowdsec-only (own login; same tier as the public edge).
+    # The internal edge's forward-auth chains redirect unauthenticated users here
+    # (provider external_hosts = sso.kogler.si), so the internal edge MUST also
+    # serve sso — otherwise internal users bounce to the PUBLIC sso over WAN.
+    sso-int-kogler:
+      rule: "Host(`sso.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: authentik-backend
+      tls: true
+    sso-int-http-redirect:
+      rule: "Host(`sso.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
 
-  middlewares:
   middlewares:
     redirect-to-https:
       redirectScheme:
@@ -548,3 +566,7 @@ http:
       loadBalancer:
         servers:
           - url: "http://stirling-pdf:8080"
+    authentik-backend:
+      loadBalancer:
+        servers:
+          - url: "http://authentik-server:9000"

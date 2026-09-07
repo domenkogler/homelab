@@ -69,12 +69,18 @@ services:
       # OIDC can be configured via provisioning if needed later.
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
+{% if not (svc.public is defined and not svc.public) %}
       traefik.enable: "true"
       traefik.http.routers.grafana.rule: "Host(`stats.kogler.si`)"
       traefik.http.routers.grafana.entrypoints: websecure
       {{ 'traefik.http.routers.grafana.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.grafana.middlewares: authentik-forward-auth@file
       traefik.http.services.grafana.loadbalancer.server.port: "3000"
+{% else %}
+      # INTERNAL-ONLY (public: false — HD-331/332): no public-edge route; served
+      # only by the traefik-tailnet internal edge (stats.kogler.si / stats.ts).
+      traefik.enable: "false"
+{% endif %}
 networks:
   traefik-public:
     external: true
