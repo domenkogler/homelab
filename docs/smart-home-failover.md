@@ -75,10 +75,11 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 >   - Tailnet (away): Companion App via tailnet path (subnet route or tailnet DNS/`ha.ts.kogler.si` + ACL)
 >     — still local login, **no Authentik in the path**.
 >   - Browser SSO via Authentik native OIDC **only** as an add-on; never a hard gate.
-> - **Follow-ups tracked:** (1) fix Pi `traefik-ha` TLS (`ha-cert-sync` stale/corrupt cert on the Pi —
->   `failed to find any PEM data` since 2026-09-03), (2) Pi Technitium admin-align + seed so
->   `ha.kogler.si`→VIP resolves on ALL 3 DNS instances (HD-330), (3) mobile-over-Tailscale path
->   (subnet router / tailnet DNS + ACL) — currently **not built** (mesh is CGNAT-only, no subnet routes).
+> - **Follow-ups tracked:** (1) Pi Technitium admin-align + seed so `ha.kogler.si`→VIP resolves on ALL
+>   3 DNS instances (HD-330) — removes the DNS-ordering dependency (phone on Wifi Kogler already works
+>   via the VPS primary; the Pi tertiary zone is empty), (2) mobile-over-Tailscale path (subnet router /
+>   tailnet DNS + ACL) — currently **not built** (mesh is CGNAT-only, no subnet routes). TLS on the Pi
+>   edge was verified fine 2026-09-07 (valid Let's-Encrypt cert served by traefik-ha).
 - **VRRP auth constraint (HD-124 / KOPS-020):** keepalived uses `auth_type PASS` (an 8-char password from `ha-vrrp_password`, truncated identically on both nodes). VRRP has **no stronger in-protocol auth** — VRRPv2 offers only PASS (plaintext) or AH (discontinued), and VRRPv3 (RFC 5798) **removed Authentication Header entirely** — so `auth_type PASS` is the maximum the protocol provides, not an oversight to "fix" with a stronger cipher. The real mitigation is **network trust**: VRRP multicast runs only on the Home VLAN (10), isolated from the Management/IoT planes. Do not chase a "real auth mechanism" here (none exists); rely on VLAN isolation instead. (Likewise, keepalived image is pinned to `keepalived_version` — HD-124/KOPS-053.)
 
 > ⚠ **VRRP requires a controllable host on both sides.** This is only possible once the Pi runs **Debian + HA Container** (see Decision: HA OS vs Debian/Docker below). If the Pi ever runs HA OS again, VRRP on it is not feasible → fall back to manual DNS/NAT steering (slower, still workable).

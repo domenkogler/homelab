@@ -96,9 +96,11 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 
 > **2026-09-07 live finding (owner + AI):** `ha.kogler.si` does **not** resolve on the LAN/tailnet yet — the
 > Pi Technitium tertiary has an **EMPTY zone** (seed blocked on the non-1P admin, HD-330) while the VPS
-> primary resolves it → VIP. Pi `traefik-ha` also serves a **broken TLS cert** (`failed to find any PEM
-> data` since 2026-09-03; the pulled `kogler.si.pem` is unreadable by Traefik) → `https://ha.kogler.si`
-> is 000/404 while `http://<VIP>:8123` is 200. Follow-ups tracked in `todo.md` (HD-330/HD-181 tail).
+> primary resolves it → VIP. Pi `traefik-ha` TLS is **fine** (`openssl s_client` → valid Let's-Encrypt
+> `*.kogler.si`, `Verify return code: 0`; the log lines `failed to find any PEM data` were old 2026-09-03
+> container-start errors, since fixed by the cert-sync timer) — `https://ha.kogler.si` works from home WiFi.
+> Follow-ups tracked in `todo.md` (HD-330: seed the Pi Technitium tertiary so resolution does not depend
+> on DNS ordering; mobile-over-Tailscale path is not built yet).
 
 - **Currently only ONE auth provider:** `homeassistant` (local user accounts — `domen` owner + local `admin` on the new Pi). **Home Assistant Cloud** is loaded but no external URL set.
 - **No Authentik/OIDC connected live yet** — `oidc`/`openid_connect` absent from loaded components; the Authentik native-OIDC wiring is the pending HD-04/HD-310 tail.
