@@ -33,6 +33,8 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 > 3. **Technitium secondary DNS** moves from nas → the Pi (now a Debian host).
 > 4. **Dev add-ons** (SSH / File editor / Studio Code Server) + Supervisor-only services are replaced by standalone containers or host tools in the Docker deployment; HAOS-only auto-backup replaced per `backup.md`.
 > This file remains a point-in-time inventory of the *current* live instance. **The primary redo above was EXECUTED + LIVE 2026-09-03** — the Pi now runs Debian + HA Container + Technitium secondary (see `deployment-pi-provision.md` for the as-built runbook; items 1–4 are what changed).
+>
+> 🔧 **2026-09-07 live KNX fixes (HD-339):** ① **KNX tunneling `route_back` was false** → the DALI/ComfoConnect gateways' spontaneous status telegrams (InfoOnOff/InfoDimmingValue/humidity) never reached HA → light *state* never synced (looked 'already off' → OFF re-sent ON) + rekuperator humidity read unknown. Flipped `route_back: true` on the Pi KNX config entry + restarted HA → **state now tracks live** (Jedilnica off→on→off verified), all 6 rekuperator humidity now read. ② **generator `emit_light()` used `DimmingControl` (DPT 3.7 relative) as `brightness_address`** — HA writes absolute 0-255 there (0=OFF) → OFF ignored. Fixed to use `DimmingValue` (DPT 5.1); regenerated all 16 DIMM lights + re-deployed to Pi; **only remaining known issue: Rekuperator Room Temperature reads −10°C** — a genuine ComfoConnect sensor probe fault (GA 12/1/14 bus value 0x8418 = −7.68°C; all other temps 23–27°C; not a config/DPT issue — owner: check the ComfoConnect probe). Filter `4320 h` = 180 days (correct; DPT 7.7 '(h)'; optional display-in-days template).
 
 ---
 

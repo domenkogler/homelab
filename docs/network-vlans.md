@@ -114,6 +114,13 @@ tags: [network, vlan, firewall]
   in addition to the untagged 99 mgmt access. With access-99 only, the AP's tagged client frames
   (VLAN 10/20) were dropped at switch ingress → clients associated but never got DHCP → 'phone
   disconnects every few seconds'. Encoded in `wifi_ports` (group_vars/switch.yml) + the converge rsc.
+  **⚠ REGRESSION hit again 2026-09-07 (HD-339):** the HD-338 converge rewrite dropped `ether11/12`
+  from the SSID-VLAN tagged membership (only untagged-99 left) → same signature (all WiFi clients
+  associate but no DHCP; Shellys unreachable over VLAN 20; KNX lagged on the shared VLAN-20 path).
+  Fixed live (VLAN 10/20/30/40 `tagged=bridge,sfp-sfpplus1,ether11,ether12`) + **switch role gets a
+  parity `api_modify` task** (`roles/switch/tasks/main.yml` HD-339) so the HD-338 edit-both-or-neither
+  rule now covers the SSID-VLAN membership too. Verified: 4× Shelly ARP dynamic on `vlan20-iot` +
+  Pi→Shelly HTTP 200 + phone/Shelly DHCP on renewal.
   **Human-gated at cutover:** ① dnevna swap (spare hAP ac² → dnevna), ② garage replacement
   wifi-qcom-ac-capable. Validate-live TODOs are marked in the templates (fail-loud).
 
