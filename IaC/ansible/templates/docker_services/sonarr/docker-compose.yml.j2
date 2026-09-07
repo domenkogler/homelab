@@ -12,6 +12,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /run
     container_name: sonarr
     restart: unless-stopped
     networks:
