@@ -221,6 +221,36 @@
     item_name: "{{ item.name }}"
     item_ports: "{{ switch_port_map | dict2items | selectattr('value.vlan', 'equalto', item.id) | map(attribute='value.port') | list }}"
 
+
+# -------------------------------------------------------------------------
+# Wifi AP uplink ports are TAGGED members of the wifi SSID VLANs (HD-339)
+# -------------------------------------------------------------------------
+# The APs do per-SSID VLAN tagging on their CAP bridge (wifi3 -> pvid20, wifi8 ->
+# pvid30, etc). Their switch uplink ports (wifi_ports: ether11=ap-dnevna,
+# ether12=ap-spalnica) MUST be TAGGED members of those VLANs or the client's
+# tagged frames are dropped at switch ingress -> clients associate + authenticate
+# but never get DHCP ('phone/Shelly disconnect', empty ARP, KNX lag on VLAN 20).
+# PVID alone (untagged-99) is NOT enough for tagged traffic. Parity with
+# crs328_converge.rsc.j2 (HD-338 rule: edit BOTH or NEITHER; live-applied
+# 2026-09-07 delta on the CRS328, folded here).
+- name: Add wifi AP ports as tagged members of wifi SSID VLANs (HD-339)
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: interface bridge vlan
+    handle_absent_entries: ignore
+    data:
+      - bridge: bridge
+        vlan-ids: "{{ item.id }}"
+        tagged: "bridge,{{ switch_trunk_port }},{{ wifi_ports | join(',') }}"
+        comment: "{{ item.name }} wifi VLAN on trunk (+ AP ports tagged) (HD-339)"
+  loop: "{{ switch_vlans }}"
+  when: item.ssid is defined and item.ssid and wifi_ports is defined and (wifi_ports | length) > 0
+
 - name: Configure access port for IoT VLAN (20)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
