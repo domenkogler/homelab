@@ -11,7 +11,7 @@ tags: [network, vlan, firewall]
 > **Links to:** `network-dns.md`, `network-addresses-generated.md`
 > **Linked from:** `network.md`, `index.md`
 
-> **Status (planning):** the network is **currently flat (single Home-VLAN subnet)** — VLAN segmentation below is **planned**, not yet live. Docs that historically implied devices are already isolated are being corrected (see live DHCP notes in `network-dns.md`). Subnets, DHCP pools and SSIDs are SSOT data: see [`network-addresses-generated.md`](network-addresses-generated.md).
+> **Status (2026-09-07):** VLAN segmentation below is **LIVE** (executed via HD-229/HD-285/HD-310/HD-312). Docs that historically implied the network was flat are stale — treat this doc's definitions as the live plan; `network-addresses-generated.md` is the SSOT for subnets/DHCP/SSIDs. HD-339's WiFi + KNX regressions were **fixed live 2026-09-07 + SSOT commits** (see note under Switch AP ports below); its only remaining owner item (rekuperator room-temp probe) is a device fault, not network config.
 
 ---
 
@@ -120,7 +120,9 @@ tags: [network, vlan, firewall]
   Fixed live (VLAN 10/20/30/40 `tagged=bridge,sfp-sfpplus1,ether11,ether12`) + **switch role gets a
   parity `api_modify` task** (`roles/switch/tasks/main.yml` HD-339) so the HD-338 edit-both-or-neither
   rule now covers the SSID-VLAN membership too. Verified: 4× Shelly ARP dynamic on `vlan20-iot` +
-  Pi→Shelly HTTP 200 + phone/Shelly DHCP on renewal.
+  Pi→Shelly HTTP 200 + phone/Shelly DHCP on renewal. **HD-339 CLOSED 2026-09-07** (owner confirmed the
+  rekuperator room-temp −10°C is a physical ComfoConnect probe fault; no network action needed — see
+  [home-assistant-current.md](home-assistant-current.md)).
   **Human-gated at cutover:** ① dnevna swap (spare hAP ac² → dnevna), ② garage replacement
   wifi-qcom-ac-capable. Validate-live TODOs are marked in the templates (fail-loud).
 
