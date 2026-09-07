@@ -42,7 +42,7 @@ VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.
 | Management | — | Local system | Infrastructure isolation |
 | Home (10) | Main-Group | **Pi-hole** | Aggressive ad-blocking — **HD-326 (2026-09-04): the two kids tablets are per-MAC dst-nat'd to the Kids-Group resolver** (router NAT redirects their :53 to Technitium, which applies the Kids-Group policy — Cloudflare Families; see the Kids row) |
 | Kids (40) | Kids-Group | **Cloudflare Families** (1.1.1.3) | Adult content + porn filtering — the VLAN-40 hijack (HD-182) covers the (now unused) Kids VLAN; the Home-VLAN kids tablets get the same policy via the per-MAC dst-nat (HD-326) |
-| IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking — cloud-IoT devices in `iot-wan-allow` (HD-312 phase 3) still resolve via this row; they only gain WAN egress, not a DNS bypass |
+| IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking — cloud-IoT devices in `iot-wan-allow` (HD-312 phase 3) still resolve via this row; they only gain WAN egress, not a DNS bypass. **HD-342 (2026-09-07):** IoT plain :53 is dst-nat'd to the Pi tertiary (`dns_tertiary_ip`) so per-device query visibility lands on the Pi's log (`dns-pi.kogler.si`); DoT(853) bypass is dropped (router role). The Pi's IoT-Group chain still applies the Quad9 upstream.
 | Guest (30) | Guest-Group | Standard public (1.1.1.1) | No filtering needed |
 
 ---
