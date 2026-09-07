@@ -158,14 +158,20 @@ return `ansible-admin` with no password prompt.
 > The `.pub` halves (`github_signing.pub`/`github_auth.pub`) should exist in Windows `~/.ssh` for the
 > agent lookup; the private halves stay in WSL `~/.ssh`.
 >
-> ⚠ Runner networking gotcha (live 2026-09-07): if WSL's `mirrored` networking wedges (eth0 ARP `FAILED`
-> for the gateway, `No route to host` even after `wsl --shutdown`, while Windows itself is healthy), the
-> reliable fix is `.wslconfig` → `networkingMode=Nat` (NOT `default` — WSL accepts `Nat`) + `wsl --shutdown`.
-> NAT brings eth0 up on the Default Switch (a `172.17.x.x`-style tunnel IP) with healthy LAN/WAN. Then set `/etc/resolv.conf`
-> to the homelab chain (`nameserver` Pi-tertiary → oldsrv-secondary → router fallback per
-> [`network-addresses-generated.md`](docs/network-addresses-generated.md); `generateResolvConf=false` in `wsl.conf` makes it durable). Everything (git push, DNS,
-> op vault, ping) works again under NAT.
->
+> ⚠ **Runner networking (live 2026-09-07 — NAT + auto-resolv is the durable, network-type-independent state):**
+> WSL2's `mirrored` mode can wedge (eth0 ARP `FAILED` for the gateway, `No route to host` even after
+> `wsl --shutdown`, while Windows itself is healthy), and the older **Bridged** topology (`networkingMode=Bridged`
+> on `vmSwitch=VLAN-Switch`) **pins `eth0` to the homelab static IP + the vSwitch to a wired NIC** — on WiFi or a
+> mobile hotspot that NIC has no carrier → `eth0` comes up with NO address and NO route (`Network is unreachable`)
+> and the hardcoded homelab `resolv.conf` points at unreachable DNS. The **reliable fix (replaces the bridged
+> route-through script) is `scripts/wsl-nat-resolv.ps1`** (admin, idempotent): it sets `.wslconfig` →
+> `networkingMode=Nat` (NOT `default` — WSL accepts `Nat`), drops `generateResolvConf=false` from `/etc/wsl.conf`
+> so WSL regenerates `/etc/resolv.conf` every boot from the Windows/default-switch resolver, and disables the
+> static `10-eth0.network` unit. Net effect: **Debian follows whatever network Windows is on** — at home the
+> homelab DHCP chain, on a hotspot the hotspot's DNS — with zero per-network edits. Re-run the script any time
+> to restore the same state (it skips the WSL restart when nothing changed). Everything (git push, DNS, op vault,
+> ping) works under NAT on any network. The old `wsl-vlan-trunk.ps1` bridged/Mgmt-99 route-through only worked
+> on the wired home LAN and is superseded.
 
 ---
 
