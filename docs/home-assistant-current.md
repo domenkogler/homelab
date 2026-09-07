@@ -102,7 +102,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 > Follow-ups tracked in `todo.md` (HD-330: seed the Pi Technitium tertiary so resolution does not depend
 > on DNS ordering; mobile-over-Tailscale path is not built yet).
 
-- **Currently only ONE auth provider:** `homeassistant` (local user accounts — `domen` owner + local `admin` on the new Pi). **Home Assistant Cloud** is loaded but no external URL set.
+- **Currently only ONE auth provider:** `homeassistant` (local user accounts — `domen` owner + local `admin` on the new Pi). **Home Assistant Cloud** loaded. **`external_url` = `https://ha.kogler.si` SET (owner, 2026-09-07).** Authentik native-OIDC **NOT wanted** (owner decision) — HA stays local-auth, WAN-independent.
 - **Mobile App (Companion) integration ENABLED 2026-09-07 (HD-330 close-out):** added `mobile_app:` to the rendered
   `configuration.yaml` (it was missing — no `default_config:` either) → `/api/mobile_app/registrations` went 404 →
   **401** (live). Android app registration now works (was aborting at "enable the mobile app integration").

@@ -64,14 +64,14 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 > - **`ha` is NOT behind Authentik Forward-Auth** on either edge (`traefik-ha` Pi + `traefik` oldsrv carry
 >   `# NOTE: no authentik-forward-auth@file middleware on the ha route` — HD-118/KOPS-004: the
 >   Companion WebSocket/token flow breaks behind a proxy gate).
-> - **Native-OIDC (Authentik *inside* HA) is optional later (HD-04/HD-310 tail)** and must be added
->   **ALONGSIDE `type: homeassistant`**, never replacing it — the local provider is what keeps the
->   Companion App + local dashboards working without WAN/IdP.
+> - **Authentik native-OIDC: NOT wanted (owner decision 2026-09-07)** — HA stays local-auth + WAN-independent.
+>   (If ever reconsidered: add it **ALONGSIDE `type: homeassistant`**, never replacing it — the local
+>   provider is what keeps the Companion App + local dashboards working without WAN/IdP.)
 > - **`auth_providers` invariant:** always keep `type: homeassistant`. If `auth_providers` were ever set
 >   to only `trusted_networks`/external, HA shows *"Enable mobile clients"* for any client from an
 >   untrusted network (incl. tailnet CGNAT / cellular) and the app can't log in.
 > - **Planned access matrix (home-only + tailnet):**
->   - Home WiFi: `http://<VIP>:8123` or `https://ha.kogler.si` (once TLS + Pi DNS are fixed) — local login.
+>   - Home WiFi: `https://ha.kogler.si` (external_url now set; local login).
 >   - Tailnet (away): Companion App via tailnet path (subnet route or tailnet DNS/`ha.ts.kogler.si` + ACL)
 >     — still local login, **no Authentik in the path**.
 >   - Browser SSO via Authentik native OIDC **only** as an add-on; never a hard gate.
