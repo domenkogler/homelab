@@ -186,6 +186,12 @@ BASE_CTX.update({
     # a mock; values mirror the documented /30 (VPS .2). Consumed by the kopia-server
     # WG-bound publish guard + the kopia-agent server address.
     "wg_s2s_vps": {"ip": "10.255.40.2", "peer_public_key": "mock-router-public-key"},
+    # HD-333 (internal all-app edge WG-S2S reach, Pkg F) — VPS group_vars/vps.yml
+    # (not in all/main.yml), consumed by the traefik-tailnet compose publish + the
+    # vps-hardening nftables allow; mocked here with the vps.yml values (port 4443,
+    # edge container IP 172.20.0.250 stripped of /32). Same class as wg_s2s_vps.
+    "wg_internal_edge_port": 4443,
+    "wg_internal_edge_target_ip": "172.20.0.250",
     "ansible_user": "ansible-admin",
     "inventory_hostname": "oldsrv.kogler.si",
     "homelab_mode": "desktop",

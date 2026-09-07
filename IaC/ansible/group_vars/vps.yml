@@ -238,11 +238,17 @@ tailnet_subdomains:
 
 # HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge
-# netns; host :443 belongs to the PUBLIC edge, so the WG path publishes the
-# internal edge on a DEDICATED port bound to the wg-s2s VPS address only
-# (`tcp/{{ wg_internal_edge_port }}` on {{ wg_s2s_vps.ip }}, DNAT -> edge
-# container IP :443, nftables input-allow from the router peer). SSOT for the
-# port + target so the traefik-tailnet compose, vps-hardening nftables and the
-# network-vpn.md spec stay in lockstep (derived-values ban: never re-type).
+# netns; host :443 belongs to the PUBLIC edge. The WG path therefore publishes the
+# internal edge on a DEDICATED port bound to the wg-s2s VPS address only, via
+# docker's compose `ports:` (host `{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}` ->
+# container 172.20.0.250:443). Docker's own PREROUTING DNAT translates host->container,
+# so NO manual nftables DNAT is required (same precedent as kopia-server :51515,
+# HD-62). An nftables input allow from the router peer (HD-313 pattern) is added
+# for defense-in-depth + spec compliance. SSOT for the port so the traefik-tailnet
+# compose, vps-hardening nftables and the network-vpn.md spec stay in lockstep
+# (derived-values ban: never re-type).
 wg_internal_edge_port: 4443
+# The internal-edge container IP on traefik-public (172.20.0.250, pinned HD-240).
+# Kept as a named SSOT var so the compose publish + nftables allow share one source
+# of truth; the /32 is stripped for the compose/docker host-facing bind.
 wg_internal_edge_target_ip: "{{ traefik_edge_ips | select('search', '172.20.0.250') | list | first | regex_replace('/32', '') }}"

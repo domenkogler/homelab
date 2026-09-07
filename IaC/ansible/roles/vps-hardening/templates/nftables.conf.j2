@@ -29,6 +29,14 @@ table inet filter {
         tcp dport 22 accept         # SSH (ansible-admin) — management path; HD-154 checklist gap found live 2026-08-22 (lockout)
         tcp dport 443 accept        # Traefik HTTPS (wildcard *.kogler.si)
         udp dport 51820 accept      # WireGuard S2S (wg-s2s, home router peer)
+        # HD-333 (internal all-app edge, WG-S2S reach, Pkg F): the traefik-tailnet
+        # internal edge publishes :4443 on the wg-s2s VPS address (docker compose
+        # ports: wg_s2s_vps.ip -> container). Docker's PREROUTING DNAT preempts this
+        # input chain, but the HD-313 vps-hardening pattern mandates an explicit
+        # input allow scoped to the tunnel peer (defense-in-depth; kopia :51515's
+        # allow rides the same docker-DNAT path). Keep in lockstep with
+        # wg_internal_edge_port (group_vars/vps.yml).
+        iifname "wg-s2s" ip saddr {{ wg_s2s_vps.router_ip }} tcp dport {{ wg_internal_edge_port }} accept
         # ICMP ping (ops sanity) — limited
         ip protocol icmp icmp type echo-request accept
 

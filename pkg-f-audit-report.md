@@ -95,3 +95,40 @@ zipline:3000. Cross-checked against each compose's service names + `loadbalancer
    behavior preserved); only explicit `public: false` gates labels. Document when the flag rolls to those sets.
 4. The validator change is SSOT-consistent but is a repo-gate change — reviewer/orchestrator should eyeball it.
 5. No commit made (per task). Full worktree diff vs main = 10 files, +398/−40.
+---
+
+## LANE B — HD-333 (WG-S2S + tailnet reach for the internal all-app edge) — 2026-09-07
+
+Implementer: subagent (deepseek-v4-flash, Lane B). Do NOT commit (per task). validate-all GREEN.
+
+### (a) What changed + files
+1. `IaC/ansible/group_vars/vps.yml` — HD-333 SSOT comment updated: design corrected from manual nftables DNAT to docker compose `ports:` publish + nftables allow; `wg_internal_edge_port: 4443` + `wg_internal_edge_target_ip` (the edge container IP, stripped of /32) kept as SSOT.
+2. `IaC/ansible/templates/docker_services/traefik-tailnet/docker-compose.yml.j2` — added `ports:` publishing the internal edge TLS listener (:443) ONLY on the wg-s2s VPS address at `{{ wg_internal_edge_port }}` (4443): `"{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:{{ wg_internal_edge_port }}:443"` — same WG-bound guard idiom as kopia-server/prometheus/loki/authentik-LDAP (binds loopback when no tunnel intended).
+3. `IaC/ansible/roles/vps-hardening/templates/nftables.conf.j2` — added input allow: `iifname "wg-s2s" ip saddr {{ wg_s2s_vps.router_ip }} tcp dport {{ wg_internal_edge_port }} accept` (HD-313 pattern, scoped to the router peer).
+4. `docs/network-vpn.md` §HD-333 — implementation description updated to the compose-publish design + deploy-gated verify checklist (SSOT-IP-free wording for check_doc_ips).
+5. `scripts/validate-docker-services.py` — BASE_CTX mocks for `wg_internal_edge_port` + `wg_internal_edge_target_ip` (VPS-only vars, same class as `wg_s2s_vps`).
+
+### (b) Second-listener wiring (mechanism, port, iface, SSOT)
+- **Mechanism:** no second WG interface. The existing `wg-s2s` tunnel is reused; the internal edge's **TLS listener is published on the wg-s2s VPS address** via docker compose `ports:` → `<wg-s2s VPS addr>:4443 → container edge-IP:443`. Docker's own PREROUTING DNAT translates host→container, so **no manual nftables DNAT** (same precedent: kopia-server :51515). Host :443 stays the PUBLIC edge; the internal edge rides a dedicated host port 4443.
+- **Port:** 4443 (SSOT `wg_internal_edge_port`, vps.yml). **Iface:** wg-s2s (VPS side, `{{ wg_s2s_vps.ip }}`). **Target:** `wg_internal_edge_target_ip` = the edge container IP (pinned, HD-240).
+- The existing 51820 listener/peer handshake is untouched (WG handshake happens on the tunnel's own UDP 51820 regardless of the TCP app port).
+
+### (c) Router-side reach analysis
+- The RB4011 peer routes the `wg-s2s` /30 out wg-s2s (converge line: `/ip route add dst-address=</30> gateway=wg-s2s`), and its forward chain has **no final catch-all drop** for home→wg (last rules are the Comtrend modem block) → RouterOS forward default-accept → home→`<wg-s2s VPS addr>:4443` naturally routes out wg-s2s.
+- **NAT:** converge srcnat only masquerades `out-interface=pppoe-telekom` (WAN). Home→wg-s2s keeps its Home-VLAN source IP; the VPS nftables allow scope is `ip saddr {{ wg_s2s_vps.router_ip }}` (the router's wg-s2s side), which is the source the tunnel delivers — works regardless of home origin. No router-side change needed.
+- **Precedent:** kopia-agent already connects home→`wg_s2s_vps.ip:51515` (same pattern), so the path is proven live.
+
+### (d) nftables rule
+`iifname "wg-s2s" ip saddr {{ wg_s2s_vps.router_ip }} tcp dport {{ wg_internal_edge_port }} accept` (4443), added in vps-hardening/templates/nftables.conf.j2 input chain — scoped to the router peer, defense-in-depth (docker DNAT is the primary path). **NOTE:** nftailes is default-deny inbound; docker-published ports on the wg address are DNAT'd pre-filter, so the rule is belt-and-suspenders per HD-313; it also documents intent.
+
+### (e) Deploy-gated verify checklist (written into docs/network-vpn.md §HD-333)
+1. `ss -ltnp | grep :{{ wg_internal_edge_port }}` → bound to the wg-s2s VPS address (after VPS `docker_services` + `vps-hardening` converge).
+2. From a scoped home host over WG (oldsrv/nas/pi): `curl -k -I https://<wg-s2s VPS addr>:4443` → HTTP/2 302 / TLS response.
+3. Split-horizon alternative once HD-334 seeds: `curl -k -I https://kogler.si` over the tunnel / `https://<edge container IP>:4443` with Host header.
+4. Tailnet path unchanged: tailnet device → `https://stats.kogler.si` / `https://<app>.ts.kogler.si`.
+5. Tailscale ACL (`policy.hujson`) already allows family nodes → `tag:sidecar:443`; no extension needed for the existing owner set.
+
+### (f) Notes for orchestrator/deploy
+- **Reach scope:** the VPS WG peer `allowed_ips` (HD-155 least-access: nas/ha-vip/oldsrv/pi/router/switch) means the internal edge via WG is reachable ONLY from those scoped home infra hosts. **End-user devices (laptop/phone/tablet) use the tailnet path** (sidecar + headscale ACL) — WG is the infra/automation path, not the family path. If family-from-home-over-WG is ever wanted, that is a separate allowed_ips/ACL decision (do NOT broaden silently).
+- **Deploy touchpoints:** VPS converge with `--tags docker_services,hardening` (traefik-tailnet + nftables apply). No router converge needed. No live host was touched.
+- **Validator:** added mocks keep `validate-docker-services.py` green (58 templates valid).
