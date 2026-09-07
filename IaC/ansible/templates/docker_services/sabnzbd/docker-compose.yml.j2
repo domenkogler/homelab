@@ -14,7 +14,9 @@ services:
       - NET_BIND_SERVICE
       - SETGID
       - SETUID
-    read_only: true
+    # read_only intentionally ABSENT (HD-318): linuxserver s6-overlay images
+    # do not support read_only root — it caused /run/s6 exec + /config/Sentry init
+    # failures. Keep cap_drop: ALL + /run:exec for the remaining hardening.
     tmpfs:
       - /tmp
       - /run:exec
