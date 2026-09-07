@@ -231,7 +231,226 @@ http:
       middlewares:
         - redirect-to-https
       service: noop@internal
+    # ----------------------------------------------------------------
+    # HD-332 (internal all-app edge growth, Pkg F): PUBLIC apps, identical
+    # rules as the main edge but served ONLY on the internal edge (no WAN).
+    # These mirror each public app's Docker-label router — same Host, same
+    # middleware tier — so family/tailnet/WG clients reach every public app
+    # through the internal edge too. Backends resolve via Docker DNS on
+    # traefik-public (all public apps attach it; the edge shares it).
+    # Middleware choice mirrors the main edge per app (forward-auth where
+    # the public edge uses it, crowdsec-only where it doesn't).
+    # ----------------------------------------------------------------
+    # Homepage (public Forward-Auth): apex + home
+    homepage-int-kogler:
+      rule: "Host(`kogler.si`) || Host(`home.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: homepage-backend
+      tls: true
+    homepage-int-http-redirect:
+      rule: "Host(`kogler.si`) || Host(`home.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # OpenCloud (file) — crowdsec-only
+    opencloud-int-kogler:
+      rule: "Host(`file.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: opencloud-backend
+      tls: true
+    opencloud-int-http-redirect:
+      rule: "Host(`file.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # ONLYOFFICE (office) — crowdsec-only + CSP (no auth surface)
+    onlyoffice-int-kogler:
+      rule: "Host(`office.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: onlyoffice-backend
+      tls: true
+    onlyoffice-int-http-redirect:
+      rule: "Host(`office.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # Immich (foto) — crowdsec-only
+    immich-int-kogler:
+      rule: "Host(`foto.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: immich-backend
+      tls: true
+    immich-int-http-redirect:
+      rule: "Host(`foto.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # Forgejo (git) — crowdsec-only
+    forgejo-int-kogler:
+      rule: "Host(`git.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: forgejo-backend
+      tls: true
+    forgejo-int-http-redirect:
+      rule: "Host(`git.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # Zipline (bin) — crowdsec-only
+    zipline-int-kogler:
+      rule: "Host(`bin.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: zipline-backend
+      tls: true
+    zipline-int-http-redirect:
+      rule: "Host(`bin.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # Open WebUI (ai) — crowdsec-only (native OIDC, HD-101)
+    open-webui-int-kogler:
+      rule: "Host(`ai.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: open-webui-backend
+      tls: true
+    open-webui-int-http-redirect:
+      rule: "Host(`ai.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # Element Web (chat) — crowdsec-only (Matrix-native SSO)
+    chat-int-kogler:
+      rule: "Host(`chat.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: chat-backend
+      tls: true
+    chat-int-http-redirect:
+      rule: "Host(`chat.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # Matrix homeserver (/_matrix/*) — no Forward-Auth (native SSO, HD-60)
+    matrix-int-kogler:
+      rule: "Host(`matrix.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: matrix-backend
+      tls: true
+    matrix-int-http-redirect:
+      rule: "Host(`matrix.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # Headscale coordination (vpn) — crowdsec-only
+    headscale-int-kogler:
+      rule: "Host(`vpn.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: headscale-backend
+      tls: true
+    headscale-int-http-redirect:
+      rule: "Host(`vpn.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # Technitium DNS UI (dns) — Forward-Auth
+    dns-int-kogler:
+      rule: "Host(`dns.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: dns-backend
+      tls: true
+    dns-int-http-redirect:
+      rule: "Host(`dns.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # PairDrop (pairdrop/drop) — crowdsec-only
+    pairdrop-int-kogler:
+      rule: "Host(`pairdrop.kogler.si`) || Host(`drop.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only
+      service: pairdrop-backend
+      tls: true
+    pairdrop-int-http-redirect:
+      rule: "Host(`pairdrop.kogler.si`) || Host(`drop.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # Stirling PDF (pdf) — Forward-Auth
+    stirling-pdf-int-kogler:
+      rule: "Host(`pdf.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - authentik-forward-auth
+      service: stirling-pdf-backend
+      tls: true
+    stirling-pdf-int-http-redirect:
+      rule: "Host(`pdf.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
 
+  middlewares:
   middlewares:
     redirect-to-https:
       redirectScheme:
@@ -273,3 +492,59 @@ http:
       loadBalancer:
         servers:
           - url: "http://n8n:5678"
+    # HD-332 (internal all-app edge, Pkg F): backends for the PUBLIC apps.
+    # All resolve via Docker DNS on traefik-public (the edge shares that
+    # overlay). The main public edge keeps its Docker-label routes for these
+    # same hosts — the internal edge serves them identically but no WAN.
+    homepage-backend:
+      loadBalancer:
+        servers:
+          - url: "http://homepage:3000"
+    opencloud-backend:
+      loadBalancer:
+        servers:
+          - url: "http://opencloud:9200"
+    onlyoffice-backend:
+      loadBalancer:
+        servers:
+          - url: "http://onlyoffice-docs:80"
+    immich-backend:
+      loadBalancer:
+        servers:
+          - url: "http://immich-server:2283"   # SERVICE name (docker DNS) — NOT the container_name
+    forgejo-backend:
+      loadBalancer:
+        servers:
+          - url: "http://forgejo:3000"
+    zipline-backend:
+      loadBalancer:
+        servers:
+          - url: "http://zipline:3000"
+    open-webui-backend:
+      loadBalancer:
+        servers:
+          - url: "http://open-webui:8080"
+    chat-backend:
+      loadBalancer:
+        servers:
+          - url: "http://chat:80"
+    matrix-backend:
+      loadBalancer:
+        servers:
+          - url: "http://matrix:8008"
+    headscale-backend:
+      loadBalancer:
+        servers:
+          - url: "http://headscale:8080"
+    dns-backend:
+      loadBalancer:
+        servers:
+          - url: "http://technitium:5380"
+    pairdrop-backend:
+      loadBalancer:
+        servers:
+          - url: "http://pairdrop:3000"
+    stirling-pdf-backend:
+      loadBalancer:
+        servers:
+          - url: "http://stirling-pdf:8080"

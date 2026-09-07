@@ -37,53 +37,53 @@ docker_services:
   # + tailnet; dedicated dns-servers overlay pinned to dns_primary_ip (172.25.0.2),
   # host :53 published. Web UI at dns.kogler.si (Forward-Auth) via the subdomain label.
   # oldsrv (secondary) + Pi (tertiary) keep the home-LAN failure-domain split.
-  - { name: technitium,     template_dir: technitium, subdomain: dns, enabled: true }
+  - { name: technitium,     template_dir: technitium, subdomain: dns, public: true, enabled: true }
   # db_role_sync (2026-08-23 incident): postgres images apply POSTGRES_PASSWORD ONLY at
   # first cluster init — a rotated 1Password db item re-renders compose envs but the persisted
   # cluster keeps the OLD role password (forgejo/renovate crash-loop precedent). Opt-in per
   # service: deploy-service.yml re-syncs the ROLE password from the same vault item post-up.
-  - { name: authentik,      template_dir: authentik, subdomain: sso, enabled: true,
+  - { name: authentik,      template_dir: authentik, subdomain: sso, public: true, enabled: true,
       db_role_sync: true, db_item: authentik_db, db_pg_container: authentik-postgres }  # + bundled pg/redis
   # Family launchpad at the public edge (HD-180/HD-183): kogler.si root + home alias via
   # the compose's Docker-provider labels; Forward-Auth consumer (not native OIDC), so it
   # may sit anywhere after authentik.
-  - { name: homepage,       template_dir: homepage, subdomain: home, enabled: true }
+  - { name: homepage,       template_dir: homepage, subdomain: home, public: true, enabled: true }
   # === Public live-data apps + co-located DBs (NVMe) ===
-  - { name: opencloud,      template_dir: opencloud, subdomain: file, enabled: true, bind_owner_uid: "{{ storage_uid }}", bind_dirs: ['config', 'data'] }  # + bundled db
-  - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, enabled: true,  # WOPI helper for opencloud (HD-166); NO auth surface
+  - { name: opencloud,      template_dir: opencloud, subdomain: file, public: true, enabled: true, bind_owner_uid: "{{ storage_uid }}", bind_dirs: ['config', 'data'] }  # + bundled db
+  - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, public: true, enabled: true,  # WOPI helper for opencloud (HD-166); NO auth surface
       db_role_sync: true, db_item: onlyoffice_db, db_pg_container: onlyoffice-postgres }       # rotation-drift guard. NOTE (HD-230): pg+redis moved to NAMED volumes — the old nested host binds under /srv/docker/onlyoffice-docs got chown-corrupted by DS init (uid 105 walk); no bind_owner_uid needed anymore.
-  - { name: immich-app,     template_dir: immich-app, subdomain: foto, enabled: true,  # + pg/valkey; ML->oldsrv
+  - { name: immich-app,     template_dir: immich-app, subdomain: foto, public: true, enabled: true,  # + pg/valkey; ML->oldsrv
       db_role_sync: true, db_item: immich_db, db_pg_container: immich-postgres }
-  - { name: forgejo,        template_dir: forgejo,   subdomain: git, enabled: true,   # + bundled db
+  - { name: forgejo,        template_dir: forgejo,   subdomain: git, public: true, enabled: true,   # + bundled db
       db_role_sync: true, db_item: forgejo_db, db_pg_container: forgejo-db }
   # PUBLIC bin/shortener/QR (HD-112): crowdsec-only tier, native-OIDC dashboard,
   # guestbin dropzone seeded post-deploy (compose header = deploy-gate runbook).
-  - { name: zipline,        template_dir: zipline,   subdomain: bin, enabled: true,
+  - { name: zipline,        template_dir: zipline,   subdomain: bin, public: true, enabled: true,
       db_role_sync: true, db_item: zipline_db, db_pg_container: zipline-db }
   # === AI stack (public/gateway tier — HD-100..104) ===
-  - { name: litellm,        template_dir: litellm,   enabled: true,    # llm-backend -> oldsrv ollama over WG
+  - { name: litellm,        template_dir: litellm,   public: false, enabled: true,    # llm-backend -> oldsrv ollama over WG
       bootstrap_keys: true,
       db_role_sync: true, db_item: litellm_db, db_pg_container: litellm-db }
-  - { name: qdrant, template_dir: qdrant, enabled: true }  # AI RAG hybrid vector store on db-internal (HD-267/268; replaces PGVector — not postgres, so NO db_role_sync/db_item/db_pg_container)
-  - { name: docling,        template_dir: docling,   enabled: true }  # OCR (services-internal)
-  - { name: open-webui,     template_dir: open-webui, subdomain: ai, enabled: true }
+  - { name: qdrant, template_dir: qdrant, public: false, enabled: true }  # AI RAG hybrid vector store on db-internal (HD-267/268; replaces PGVector — not postgres, so NO db_role_sync/db_item/db_pg_container)
+  - { name: docling,        template_dir: docling,   public: false, enabled: true }  # OCR (services-internal)
+  - { name: open-webui,     template_dir: open-webui, subdomain: ai, public: true, enabled: true }
   # === AI dual coding harness (HD-268c): pi + DSH sharing services-internal, each
   # consuming a scoped LiteLLM key + a PR-only Forgejo key; propose via Forgejo PRs only. ===
-  - { name: pi-dev,         template_dir: pi-dev,    enabled: true }  # pi coding-agent container (npm @earendil-works/pi-coding-agent)
-  - { name: dsh,            template_dir: dsh,       enabled: true }  # DeepSeek Harness (runzhliu/image) — WebUI = Pattern-A tailnet (:3080)
+  - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: true }  # pi coding-agent container (npm @earendil-works/pi-coding-agent)
+  - { name: dsh,            template_dir: dsh,       public: false, enabled: true }  # DeepSeek Harness (runzhliu/image) — WebUI = Pattern-A tailnet (:3080)
   # === AI MCP stubs (HD-268b) — placeholders; do not yet deploy a runnable unit ===
   - { name: rag-mcp,        template_dir: rag-mcp,   enabled: false }  # TODO(impl) kapa-style hybrid reader (Qdrant→rerank→top5)
   - { name: forgejo-mcp,    template_dir: forgejo-mcp, enabled: false }  # TODO(impl) Forgejo OKF-wiki read/write bridge
   # bind_owner_uid/bind_dirs (Wave-2 triage 2026-08-22): Docker auto-created these host
   # bind dirs root-owned; the images run non-root (grafana=472, n8n/openclaw=1000 node)
   # and crashed with EACCES. deploy-service.yml pre-creates/chowns them (Class-A fix).
-  - { name: openclaw,       template_dir: openclaw,  enabled: true, bind_owner_uid: "1000", bind_dirs: ['.', 'workspace', 'auth'] }
+  - { name: openclaw,       template_dir: openclaw,  public: false, enabled: true, bind_owner_uid: "1000", bind_dirs: ['.', 'workspace', 'auth'] }
   # === Observability backend (VPS = reliable tier; VPS self-observes loopback, HD-135b) ===
-  - { name: prometheus,     template_dir: prometheus, enabled: true }
-  - { name: loki,           template_dir: loki,       enabled: true }
-  - { name: grafana,        template_dir: grafana,    subdomain: stats, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
-  - { name: blackbox-exporter, template_dir: blackbox-exporter, enabled: true }
-  - { name: dozzle,         template_dir: dozzle,        subdomain: logs, enabled: true }   # HD-135b: live per-container log viewer moved from oldsrv (logs.kogler.si)
+  - { name: prometheus,     template_dir: prometheus, public: false, enabled: true }
+  - { name: loki,           template_dir: loki,       public: false, enabled: true }
+  - { name: grafana,        template_dir: grafana,    subdomain: stats, public: false, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
+  - { name: blackbox-exporter, template_dir: blackbox-exporter, public: false, enabled: true }
+  - { name: dozzle,         template_dir: dozzle,        subdomain: logs, public: false, enabled: true }   # HD-135b: live per-container log viewer moved from oldsrv (logs.kogler.si)
   # HD-135b follow-up: admin dashboards are TAILNET-ONLY. traefik-tailnet = the
   # tailnet Traefik edge + its tailscale sidecar (vps-obs, tag:sidecar) in ONE project
   # (compose v2 requires network_mode: service:X to be same-file). It serves
@@ -91,27 +91,27 @@ docker_services:
   # clean subdomain URLs — NO public records, NO port-number `tailscale serve`.
   # The auth key (tailscale-sidecar_api) is owner-seeded (2026-08-28); edge IP pinned
   # to 172.20.0.250 (traefik_edge_ips in group_vars/all/main.yml) for header-trust.
-  - { name: traefik-tailnet, template_dir: traefik-tailnet, enabled: true }
+  - { name: traefik-tailnet, template_dir: traefik-tailnet, public: false, enabled: true }
   # === Alert brain (WG-down -> net mail/Signal; independent of tunnel) ===
   # n8n INTERNAL-ONLY (HD-135b follow-up): public auto.kogler.si route removed from
   # the main edge labels; served only by traefik-tailnet over the tailnet.
-  - { name: n8n,            template_dir: n8n,       enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
+  - { name: n8n,            template_dir: n8n,       public: false, enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
   # === Backup agents (Kopia -> backup Box; db-backup dumps) ===
-  - { name: kopia-server,   template_dir: kopia-server, enabled: true }
-  - { name: db-backup,      template_dir: db-backup,    enabled: true }
+  - { name: kopia-server,   template_dir: kopia-server, public: false, enabled: true }
+  - { name: db-backup,      template_dir: db-backup,    public: false, enabled: true }
   # === Matrix — public + federated (HD-46/47; homeserver next to the public edge) ===
-  - { name: matrix,         template_dir: matrix,    enabled: true }
-  - { name: chat,           template_dir: element-web, subdomain: chat, enabled: true }
+  - { name: matrix,         template_dir: matrix,    public: true, enabled: true }
+  - { name: chat,           template_dir: element-web, subdomain: chat, public: true, enabled: true }
   # === Edge accessories (moved from oldsrv — VPS residency, HD-135 deliberations) ===
-  - { name: headscale,      template_dir: headscale, subdomain: vpn, enabled: true }  # public coordination (rev. network-vpn.md)
-  - { name: metabase,       template_dir: metabase,  subdomain: sec, enabled: true,    # CrowdSec dashboard (sec.kogler.si); HD-242 read-only analytics role
+  - { name: headscale,      template_dir: headscale, subdomain: vpn, public: true, enabled: true }  # public coordination (rev. network-vpn.md)
+  - { name: metabase,       template_dir: metabase,  subdomain: sec, public: false, enabled: true,    # CrowdSec dashboard (sec.kogler.si); HD-242 read-only analytics role
       db_ro_sync: true, db_ro_item: metabase-forgejo_ro, db_pg_container: forgejo-db }
   # HD-272: CrowdSec Web UI (csui.kogler.si) — richer ops surface alongside Metabase.
   # INTERNAL-ONLY (NO public CNAME); Forward-Auth; LAPI watcher auth (crowdsec-webui_lapi_api).
-  - { name: crowdsec-web-ui, template_dir: crowdsec-web-ui, subdomain: csui, enabled: true }
-  - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, enabled: true }   # PUBLIC P2P share — dual-host pairdrop+drop, crowdsec-only tier, NO forward-auth (HD-230)
-  - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, enabled: true }
-  - { name: renovate,       template_dir: renovate,  enabled: true }  # co-located with Forgejo/GitOps. RE-ENABLED 2026-08-24 (task 5): domen/homelab not migrated yet, so RENOVATE_REPOSITORIES currently points at domen/test temporarily (template) — switch back to domen/homelab when that repo lands. Playbook run is OWNED by the other session; do NOT converge here.
+  - { name: crowdsec-web-ui, template_dir: crowdsec-web-ui, subdomain: csui, public: false, enabled: true }
+  - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, public: true, enabled: true }   # PUBLIC P2P share — dual-host pairdrop+drop, crowdsec-only tier, NO forward-auth (HD-230)
+  - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, public: true, enabled: true }
+  - { name: renovate,       template_dir: renovate,  public: false, enabled: true }  # co-located with Forgejo/GitOps. RE-ENABLED 2026-08-24 (task 5): domen/homelab not migrated yet, so RENOVATE_REPOSITORIES currently points at domen/test temporarily (template) — switch back to domen/homelab when that repo lands. Playbook run is OWNED by the other session; do NOT converge here.
 
 # HD-268 tailnet sidecar opt-ins: render the `*-tailscale` Pattern-A sidecar only
 # when these flags are true. Default false keeps the live compose byte-identical
@@ -235,3 +235,14 @@ tailnet_subdomains:
   # (pi-dev named so it never collides with the Raspberry Pi device host pi.kogler.si) ---
   - { name: dsh }     # -> edge -> dsh-backend    http://dsh:3080
   - { name: pi-dev }  # -> edge -> pi-backend     http://pi-dev:8080
+
+# HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.
+# The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge
+# netns; host :443 belongs to the PUBLIC edge, so the WG path publishes the
+# internal edge on a DEDICATED port bound to the wg-s2s VPS address only
+# (`tcp/{{ wg_internal_edge_port }}` on {{ wg_s2s_vps.ip }}, DNAT -> edge
+# container IP :443, nftables input-allow from the router peer). SSOT for the
+# port + target so the traefik-tailnet compose, vps-hardening nftables and the
+# network-vpn.md spec stay in lockstep (derived-values ban: never re-type).
+wg_internal_edge_port: 4443
+wg_internal_edge_target_ip: "{{ traefik_edge_ips | select('search', '172.20.0.250') | list | first | regex_replace('/32', '') }}"

@@ -182,9 +182,9 @@
     /ip dhcp-server set [find where name=dhcp-{{ v.id }}] interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} disabled=no
 }
 :if ([/ip dhcp-server network find where gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}] = "") do={
-    /ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
+    /ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ ([dns_tertiary_ip, dns_primary_ip, dns_secondary_ip] if v.id == 10 else [dns_primary_ip, dns_secondary_ip, dns_tertiary_ip]) | join(',') }}
 } else={
-    /ip dhcp-server network set [find where gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}] gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
+    /ip dhcp-server network set [find where gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}] gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ ([dns_tertiary_ip, dns_primary_ip, dns_secondary_ip] if v.id == 10 else [dns_primary_ip, dns_secondary_ip, dns_tertiary_ip]) | join(',') }}
 }
 {% endif %}
 {% endfor %}

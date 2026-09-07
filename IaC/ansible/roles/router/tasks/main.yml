@@ -209,7 +209,11 @@
         gateway: >-
           {{ (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | list | first).ip }}
         # Resolver chain per network-dns.md (HD-182 parity + HD-317 3-instance):
-        # Technitium PRIMARY (VPS) -> SECONDARY (oldsrv) -> TERTIARY (Pi).
+        # Technitium PRIMARY (VPS) -> SECONDARY (oldsrv) -> TERTIARY (Pi) by default.
+        # HD-334: the HOME VLAN (id 10) is Pi-FIRST (TERTIARY -> PRIMARY -> SECONDARY)
+        # so per-device DNS visibility + per-MAC filtering work by resolving via the Pi
+        # (each device's IP appears in the Pi's query log). VPS-primary-first stays for
+        # the OTHER VLANs (guest/mgmt/iot/media) — they are not per-device-filtered.
         # RouterOS /ip dhcp-server network caps dns-server at 3 values (a 4th is
         # silently dropped — the earlier 4-entry render dropped Pi), so the router
         # /ip dns is NOT in the DHCP list; it's the implicit final fallback via its
@@ -217,9 +221,9 @@
         # per-subnet filtering works (Technitium sees the source VLAN, not the
         # router). All three are SSOT-derived.
         dns-server: >-
-          {{ [dns_primary_ip,
-              dns_secondary_ip | default(''),
-              dns_tertiary_ip | default('')]
+          {{ ([dns_tertiary_ip, dns_primary_ip, dns_secondary_ip]
+              if item.id == 10
+              else [dns_primary_ip, dns_secondary_ip, dns_tertiary_ip])
              | select('string') | unique | join(',') }}
   loop: "{{ network_vlans }}"
   when: item.id not in [1, 99]
