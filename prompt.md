@@ -176,3 +176,38 @@ closeout): `services-ai.md` (§9b + decision row 23 ×2), `hardware-spark.md` (+
 - Pkg F / HD-334 now **unblocked on the Pi leg** (Pi DNS seeded).
 - Session branch `session/hd339-close-ha-oidc` merged to main (3 commits); worktree removed.
 - **HD-310 CLOSED (row deleted):** owner set `external_url` = https://ha.kogler.si and decided **no Authentik with HA**. New **HD-340** = oldsrv Technitium secondary admin-align + seed (mirror of HD-330), deploy-gated on HD-318 — closes the DNS 3-instance seed battery (Pkg C). HD-04 umbrella remains (failover runbook etc.).
+
+---
+
+## 4. Session close-out — 2026-09-07 (Pkg F orchestrated authoring + live-deploy WIP; VPS SSH incident)
+
+**Branch / worktree:** `session/pkg-f-20260904-0950` (@ `/home/domen/source/homelab-wt-20260904-0950`), 4 commits ahead of `main`, validate-all **green**, working tree **clean**, NOT merged to main.
+
+**This session (orchestrated with `deepseek-v4-flash` subagent lanes):**
+1. **Rebased the parked Pkg-F WIP onto current main** (23-commit gap bridged; HD-330/338 fixes preserved — semantic-clean).
+2. **Commit `3e9385d`** — base: `public:` flags (vps.yml), internal-edge routes (routes.yml.j2), Pi-first VLAN-10 DNS (router role + rb4011 converge), `vpn/home/dns` seed records (technitium-seed).
+3. **Commit `50a7336`** (HD-332, Lane A + verify): `public: false` wired into edge labels — grafana/dozzle/metabase/crowdsec-web-ui render `traefik.enable:false` (internal-only; was **latent live exposure** but DNS records already absent → cleanup not a cut); collapsed duplicate `middlewares:` (file-provider schema defect); added missing `sso-int-kogler` internal router + `authentik-backend`. Validator updated.
+4. **Commit `9fbe58e`** (HD-333, Lane B + **reviewer APPROVE**, no P0/P1): WG-S2S reach — `traefik-tailnet` compose publishes `:4443` bound to wg-s2s VPS addr (`wg_s2s_vps.ip`) → container :443; `vps-hardening` nftables `iifname "wg-s2s" ip saddr router_ip tcp dport 4443 accept`; SSOT vars; validator mocks.
+5. **Commit `23fc4fa`** (Lane C, docs): services-traefik §Edge-model + network-vpn §HD-333 + todo.md marked **IAC-AUTHORED / deploy-gated** (HD-332/333 IAC DONE-deploy-gated, HD-334 authored, HD-331 locked). HD-334 seed records authored (vpn/home/dns → dns_primary_ip).
+
+### ⚠ VPS live-deploy STATUS — SSH to VPS currently unreachable from home
+**Do NOT treat the VPS as converged-live.** Partial applies DID land, but **VPS SSH `:22` is unreachable from the entire home network right now** (port 22 "Connection refused" from WSL AND from the Pi; VPS answers ICMP). Almost certainly **fail2ban on the home WAN IP (`193.77.156.222`)**, triggered by my own auth-failure probing (`root@`/`admin@` attempts this session; sshd jail `maxretry=5, bantime=10m`). **The VPS is healthy (ICMP 8.6ms); this is a temporary ban that needs ~10 min of no SSH-auth attempts to clear.**
+
+**What partially applied already (before the ban):**
+- VPS `docker_services` converge: **ok=70 changed=10 failed=0** — applied technitium seed records (HD-334), traefik-tailnet restart (HD-333 :4443 + HD-332 routes), 4 label-gate services restarted.
+- VPS `hardening` converge: **ok=20 changed=0 failed=0** — nftables ruleset deployed (the nftables.conf was already byte-identical incl. HD-333 4443 line, so `notify: reload` was a no-op-content change; HD-333 rule verified in template).
+
+### NEXT SESSION (in priority order)
+1. **Wait for fail2ban ban to lapse (~10m of no auth attempts), then VERIFY the VPS deployed state before any further change.** Clean approach (no auth-failure probing): use the SA-token ansible path via `bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=...` (this succeeded earlier, so it works once the ban clears) OR take `ansible-admin` SSH via `ProxyJump=pi` from the **home router's** unbanned path. Confirm: `ss -ltnp | grep 4443` → bound to `10.255.40.2`; `nft list chain inet filter input | grep 4443`; `docker inspect grafana/dozzle/metabase/crowdsec-web-ui --format ...traefik.enable` → `false`; `curl -k -I https://<wg-s2s VPS addr>:4443` → 302/200.
+2. **Router converge LAST (per owner):** `rb4011_converge.rsc` render → `/import` to land HD-334 Pi-first VLAN-10 DHCP DNS. (Do not run until VPS + Pi legs verified; router last to avoid losing steering connection.)
+3. **Pi converge:** `raspberry_pi.yml -e docker_services_scope=technitium-secondary` to land the seed records + Pi DNS.
+4. **Final live verify:** public edge serves public-only, internal edge serves all (`stats/logs/sec/csui` → internal-only), home (router WG) + tailnet reach internal edge, `dig @<pi> vpn/home/dns`.
+5. **Close out:** update todo.md (HD-332/333 → LIVE-DONE; HD-334 → LIVE; mark Pkg F complete), owning docs status lines ✅, merge `session/pkg-f-20260904-0950` → main (ff-only, validate-green), delete worktree.
+
+**Operational notes for next session:**
+- VPS public IP `159.195.111.66`, ansible via `host_vars/vps.kogler.si.yml`: `ansible_user=ansible-admin`, SSH identity via 1Password SA-token/agent (NOT `~/.ssh/id_ed25519` — that only has github keys). Interactive `ssh vps` uses `HostName vps.kogler.si` which **does not resolve from WSL** (WSL DNS = `10.255.255.254` tailscale forwarder) — use the SA-token ansible path or the raw IP.
+- **Never probe VPS SSH with wrong users/`root`/`admin`** — it instantly triggers the fail2ban sshd jail (`maxretry=5, bantime=10m`) and bans the whole home WAN IP (WSL + Pi egress the same `193.77.156.222`).
+- HD-333 reviewer's top note: rely on Docker PREROUTING DNAT + the wg-s2s-address-bound publish as enforcement; the nftables rule is defense-in-depth. Deploy check = `ss -ltnp | grep 4443` bound to wg addr.
+- VPS `hardening`/`vps-hardening` role tag is **`hardening`** (not `vps-hardening`).
+- The 4 admin apps (`stats/logs/sec/csui`) were **already** tailnet-only at DNS (no public records); the Pkg-F label gate only removes latent public-edge labels — owner-delete of stray Cloudflare CNAMEs for these confirmed absent today.
+- Audit report: `pkg-f-audit-report.md` in the worktree (Lanes A/B/C findings + edits, IP literals scrubbed).
