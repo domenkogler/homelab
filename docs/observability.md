@@ -210,6 +210,83 @@ oldsrv is on NVMe and mostly unaffected):
 
 ---
 
+## Network Clients Dashboard (HD-343)
+
+> **Role:** design SSOT (authoring spec) for the “all network clients, grouped per VLAN”
+> Grafana dashboard at `stats.kogler.si`. Registered as HD-343 in `todo.md` §2.3.
+> Authoring-phase — IaC/gates below are NOT implemented or deployed.
+
+**Goal.** One dashboard showing *every* client on the homelab, grouped by VLAN
+(10 Home / 20 IoT / 30 Guest / 40 Kids / 50 Media / 99 Management).
+
+**Why 5 data sources — no single one covers “all clients”.** DHCP leases alone miss the
+~static-IP hosts (router/switch/APs, nas/oldsrv/pi, shelly/KNX/printers — all static per
+`network_static_hosts`, SSOT `group_vars/all/main.yml`). The dashboard is a **join**:
+
+| RouterOS source (live API) | Path | Covers | VLAN classifier |
+|---------------------------|------|--------|-----------------|
+| DHCP leases | `/ip/dhcp-server/lease` | DHCP-issued clients (hostname, mac, address, status) | lease `server` → pool → subnet → VLAN |
+| ARP table | `/ip/arp` | any host that has talked (IP+MAC) | ARP row's interface name (`vlan10-home` → 10) |
+| Bridge host table (FDB) | `/interface/bridge/host` | L2-attached MACs, wired + wireless | bridge/vlan attribute |
+| WiFi registration | `/interface/wifi/registration-table` (modern wifi-qcom-ac, HD-232) | active wireless clients (mac, ssid, iface, signal) | SSID/interface → VLAN |
+| SSOT static hosts (not scraped) | `network_static_hosts` | every static host + its true VLAN | `vlan` attr — naming/VLAN ground truth |
+
+**Data path decision (HD-343).** A small **RouterOS-API collector on `oldsrv`** is the
+primary pipe, not SNMP and not the VPS:
+
+- **VPS → router API direct: rejected** — the router INPUT firewall accepts mgmt services
+  (`22,8728,8729,8291,80,443`) and SNMP/161 **only from the Mgmt VLAN + `trusted-admin`**
+  (`roles/router/tasks/main.yml`, HD-78/HD-53), then drops everything else (including the
+  wg-s2s side). Opening wg-s2s to mgmt ports is a security regression.
+- **SNMP extension (walk ARP `1.3.6.1.2.1.4.22` + FDB `1.3.6.1.2.1.17.4.3` + MikroTik DHCP
+  MIB in `snmp.yml.j2`): kept as a **backstop only**.** Already-plumbed (the
+  `prometheus.exporter.snmp` block already runs on oldsrv, `alloy.river.j2` L111),
+  but gives no lease hostname/status richness and **no wifi-qcom-ac client data at all**
+  (registration lives in the API path only). Device-side SNMP stays HD-03 deploy-gated.
+- **Loki log-derivation: rejected** — brittle string-parsing; router logs don't emit every
+  lease/ARP event with structured fields.
+- **API collector on oldsrv (chosen).** oldsrv is on the Mgmt plane + tunnel legs, so the
+  API is INPUT-legal — the same reachability that already justifies its SNMP exporter.
+  Reuses the existing read-only API pattern: `skills/mikrotik/scripts/mikrotik-read.py` on
+  RouterOS API `:8728` with a scoped `read`-group user (the `logpipe` precedent,
+  `roles/router/tasks/main.yml` L1405). Exposes Prometheus metrics; the existing oldsrv
+  Alloy `remote_write`s them over `wg-s2s` → VPS Prometheus (same channel as SNMP). **No
+  new firewall open, no VPS reachability change.**
+
+**Metric shape.** One gauge series, info-card style, enriched at authoring time from the
+rendered SSOT (`network_static_hosts` is available to the Ansible-rendered exporter):
+
+```
+mikrotik_client{dhcp_status="bound", vlan="10", hostname="phone-domen", mac="AA:BB:…", ip="<ip from SSOT row>", source="dhcp|arp|fdb|wifi|static"} 1
+```
+
+- Union leases + ARP + FDB + wifi-reg, de-duped by MAC; `source` records which view found it.
+- Static SSOT rows are emitted once as `mikrotik_static_host{vlan,hostname,ip}` (or matched
+  at query time) — they never change and need no scrape; they are the naming/VLAN ground truth.
+- Scrape interval ~30–60 s; exporter placed alongside the SNMP block, scoped
+  `{% if inventory_hostname == 'oldsrv.kogler.si' %}`.
+
+**Dashboard.** New `homelab-network-clients` in the monitoring role (folder `Homelab`, uid
+convention `homelab-*`, datasource uid `prometheus` — same as HD-315 dashboards):
+
+| Panel | View | Query basis |
+|-------|------|-------------|
+| All clients table | one row per MAC: VLAN badge, hostname (SSOT name else lease hostname), IP, MAC, source | `mikrotik_client` + `mikrotik_static_host` |
+| Per-VLAN breakdown | grouped by `vlan` — template variable `vlan` (`label_values`) + sort | `count by (vlan)` |
+| VLAN distribution stat | 6 stacked counts (10/20/30/40/50/99) | `count by (vlan)` |
+| WiFi vs wired | optional breakdown | `source=wifi` vs others |
+
+**Gates before implementation.**
+- `todo.md` HD-343 row exists (this design).
+- Confirm live wifi path: modern `wifi-qcom-ac` registers under `/interface/wifi/registration-table`
+  (legacy `/interface/wireless/registration-table` in `skills/mikrotik` is the old path).
+- Router API reachable from oldsrv (Mgmt) — already the case for the SNMP exporter; re-verify with
+  a read-only `mikrotik-read.py` call at implement time.
+- Device-side SNMP enable (“if used as backstop”) stays HD-03 deploy-gated; the API collector
+  needs only the API service (`/ip/service set api disabled=no`), already INPUT-scoped to Mgmt.
+
+---
+
 ## Deferred / TODOs
 
 | Item | When | Notes |
