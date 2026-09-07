@@ -76,7 +76,7 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 
 **0a. HD-335 — spark node bring-up (NEW, 2026-09-06).** Hardware purchased, SSOT spec done (docs only). ⏳ Next: DGX OS install on the ThinkStation PGX → Ansible role + placement/IP reservation (`network_static_hosts`, never hardcoded) → Triton + NVFP4 model serve → Mem0 (OWUI/Qdrant, §5c-D) + OpenHands onboarding (10-step). · [todo.md HD-335](todo.md) · [hardware-spark.md](docs/hardware-spark.md) · [services-ai.md](docs/services-ai.md) · [deployment-tasks.md](deployment-tasks.md)
 
-0. **oldsrv Phase 3 — ⚠ BLOCKED (HD-318, carryover from #66).** oldsrv first Ansible contact reached the `office` role; mgmt-plane outage RESOLVED; docker/network/storage (nvme ZFS pool + NFS)/nut/cockpit/desktop live. ⚠ **BLOCKED (exact stop-points):** ① `office` role — ONLYOFFICE apt repo `squeeze` suite + GPG key mismatch (`E09C…DE8E5` missing) — needs repo/key fix; ② `amd_rocm` — ROCm noble-on-trixie dep conflict (distro `rocm-cmake`/`hipcc` vs ROCm pins) — needs pinning/removal decision; ③ `pihole_password`/`sonarr_api`/`radarr_api` 1P items still MISSING (owner-created) — `docker_services` big-service deploy gated on them. oldsrv becomes the DNS secondary (Technitium, HD-317) + NUT client + heavy services. · [todo.md HD-318](todo.md) · [deployment-tasks.md](deployment-tasks.md) §Phase 3
+0. **oldsrv Phase 3 — ⏳ in progress (HD-318, HEAVILY UNBLOCKED 2026-09-07).** oldsrv first Ansible contact reached `office`; mgmt-plane RESOLVED; docker/network/storage (nvme ZFS pool + NFS)/nut/cockpit/desktop live. ✅ **Unblocked:** office key (Ascensio), amd_rocm Debian-native (noble repo removed), ollama disabled, `pihole_password`/`sonarr_api`/`radarr_api` 1P items created (sonarr/radarr overwritten with real config.xml keys), media-library layout, pihole `DNSMASQ_USER`, seerr bind-owner, *arr s6 fixes (`/run:exec` + caps + drop read_only) → **sonarr/radarr/lidarr/prowlarr/bazarr/sabnzbd + recyclarr UP on oldsrv**. ⏳ **Remaining:** (a) re-converge oldsrv so the running *arr adopt the final compose (read_only removed) + recyclarr re-renders with real keys; (b) HD-340 (oldsrv Technitium admin-align + seed — the converge's `failed=1`); (c) qbit gluetun needs owner PrivadoVPN endpoint (`privado` provider dropped → `custom`); (d) seerr/jellyfin/actual-budget/kopia-agent RO-path fixes; (e) HD-341 re-seed VPS+Pi. oldsrv becomes the DNS secondary (HD-317/340) + heavy services. · [todo.md HD-318](todo.md) · [deployment-tasks.md](deployment-tasks.md) §Phase 3
 
 1. **HD-312 — 3-SSID WiFi + per-MAC control (phases 1+2a+3 DONE + LIVE; 2b/3b/4 next).** ⏳ Remaining: (2b) CAPsMAN per-MAC `access-list` vlan-id; (3b) `kids-*` lists active + kids-control off VLAN 40 (owner: define kids device set); (4) n8n firmware workflow + scoped router API user. · [todo.md HD-312](todo.md) · [network-vlans.md](docs/network-vlans.md) §3-SSID
 
@@ -211,3 +211,36 @@ closeout): `services-ai.md` (§9b + decision row 23 ×2), `hardware-spark.md` (+
 - VPS `hardening`/`vps-hardening` role tag is **`hardening`** (not `vps-hardening`).
 - The 4 admin apps (`stats/logs/sec/csui`) were **already** tailnet-only at DNS (no public records); the Pkg-F label gate only removes latent public-edge labels — owner-delete of stray Cloudflare CNAMEs for these confirmed absent today.
 - Audit report: `pkg-f-audit-report.md` in the worktree (Lanes A/B/C findings + edits, IP literals scrubbed).
+
+---
+
+## 4. Session close-out — 2026-09-07 (HD-318 oldsrv Phase-3 unblocked + converge run; HD-341 parity; owner closes)
+
+**Session ran on `session/` branches + worktrees, all merged to `main` green + worktrees removed.** Final main: `4d2109d`, validate-all green, tree clean.
+
+**Commits merged (in order):** `4eff802` (HD-318 unblock: office key, ROCm Debian-native, ollama off, 1P items) → `8974569` (office key literal-block + GNUPGHOME fix) → `1fab61b` (media-layout IaC + pihole/seerr fixes + close HD-321/326/313) → `5d7e006` (s6 `/run:exec`) → `1bcad10` (s6 SETGID/SETUID caps) → `ffe1c66` (drop read_only on s6 *arr, live-verified) → `4d2109d` (HD-341 single-namespace parity + homepage icons).
+
+### What landed / is live
+- **ONLYOFFICE repo key** fixed (stale `onlyoffice.key` → Ascensio `E09C…DE8E5` keyserver, fingerprint-gated task; `cmd: |` literal + GNUPGHOME for root — live-fixed + validated).
+- **amd_rocm** Debian-native (Ubuntu-noble AMD repo REMOVED — trixie conflict); host userland = tooling only; immich-ml (container-bundled ROCm) kept.
+- **ollama DISABLED** on oldsrv (owner; inference on spark/Triton).
+- **1P items:** `pihole_password` (Password, catalog), `sonarr_api`/`radarr_api` (API Credential placeholders → now overwritten with REAL keys from config.xml: sonarr `5d9431bba53749c4b3bf7608349d4350`, radarr `2be10ce791d64719abbc8694c0c44667` via VPS write-token path).
+- **oldsrv converge-driven host/IaC fixes (all live-verified on oldsrv):** media-library layout (`storage` role; `/bulk/media/{media,downloads}` + host provisioned), pihole `DNSMASQ_USER: root`, seerr `bind_owner_uid: 1000`, linuxserver *arr s6 (`/run:exec` tmpfs + SETGID/SETUID caps + **drop read_only**) — sonarr/radarr/lidarr/prowlarr/bazarr/sabnzbd **UP**, recyclarr up, immich-ml/technitium/pihole/sunshine up. Radarr config.xml written with real key after read_only drop.
+- **HD-341** single-namespace split-horizon parity (`technitium-seed` loop now carries the FULL public record set — live finding: VPS-primary NODATA for un-seeded names; must re-seed VPS+Pi+oldsrv) + homepage icons `fa-*`→`mdi-*`.
+- **Closes (owner-validated):** HD-321 (router rotation done, procedure SSOT in network-ops §HD-165/322), HD-325 iPad fixed-MAC done (live DHCP binds SSOT MAC, no drift); HD-313 trimmed (static wg IP confirmed NOT an FQDN — meets the ROS 7.17+ FQDN-regression workaround; end-to-end still gated on the ROS 7.24.1 egress bug).
+
+### ⚠ Known remaining (owner input or next session)
+1. **Re-converge oldsrv so the running *arr containers use the FINAL compose** (read_only removed in `ffe1c66` — live state still has the OLD RO compose for sonarr/radarr; the `failed=1` remains the known Technitium login step = HD-340 align).
+2. **DO NOT re-run recyclarr sync validation until a converge re-renders recyclarr with the real keys** — keys ARE in 1P now but the running recyclarr compose was rendered with PLACEHOLDER keys (will fail auth until re-rendered).
+3. **Owner-needed:** qBittorrent gluetun — `VPN_SERVICE_PROVIDER: privado` was REMOVED from upstream gluetun (must be `custom` + WireGuard endpoint/address from PrivadoVPN — the `privado-vpn_api` item has the private key but empty hostname/address; **owner provide endpoint + internal address**, then template fix). Also seerr/jellyfin/actual-budget/kopia-agent still restarting (RO-path perms on their /config; the read_only drop did NOT include them today — future fix).
+4. **HD-341 re-seed** VPS primary + Pi (+ oldsrv post-HD-340).
+5. **HD-340** oldsrv Technitium admin-align + seed (the converge's `failed=1`).
+6. **HD-335** spark node bring-up (unchanged, still next major).
+
+### Absolute next action (this session's handoff)
+1. Re-run oldsrv converge → the *arr adopt the final compose + recyclarr re-renders with real keys → verify `recyclarr sync` (quality profiles).
+2. HD-340 align oldsrv Technitium admin → re-run `technitium` scope → seed.
+3. Re-seed VPS + Pi for the HD-341 public-record set.
+4. Owner: PrivadoVPN endpoint for gluetun; accept/close the other RO-path services.
+
+**Scenario note:** the oldsrv converge is long; run `bash scripts/ansible-run.sh playbooks/home_servers.yml` from main. Verify with `docker ps` on oldsrv + `docker logs recyclarr`. The `storage` media-layout task is idempotent.
