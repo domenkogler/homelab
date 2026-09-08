@@ -1,13 +1,13 @@
-# Todo Split — Pure AI vs Blocked/Owner (planning view)
+# Todo Split — AI-Runnable vs Human-Gated (planning view)
 
-> **Role:** hand-curated planning view of [`todo.md`](todo.md) split into (A) tasks an AI can execute now with no owner step and (B) tasks ⏳ blocked on an owner action — "what to do next" at a glance. **`todo.md` stays the registry SSOT** (row deleted when fully done, CONVENTIONS §4(a)); this table only cross-links owning-doc status blocks and must be kept in sync with todo.md on every backlog change. Content reflects the 2026-09-08 handoff state (re-synced after the oldsrv **Phase-3 complete** close-out: HD-318a kopia tail CLOSED; HD-160/287 gates met → Table A; HD-211 = done, owner-only on-exposure rotation); authoritative detail lives in `todo.md` rows + owning docs.
+> **Role:** hand-curated planning view of [`todo.md`](todo.md) split into (A) tasks an AI can execute (the last Table-A chapter holds the rows whose **deploy is AI but wait on a human prerequisite** — they run as soon as Table C clears), and (C) tasks **🚧 human-gated** (need an owner step first). — "what to do next" at a glance. **`todo.md` stays the registry SSOT** (row deleted when fully done, CONVENTIONS §4(a)); this table only cross-links owning-doc status blocks and must be kept in sync with todo.md on every backlog change. Content reflects the 2026-09-08 handoff state (re-synced after the oldsrv **Phase-3 complete** close-out: HD-318a kopia tail CLOSED; HD-160/287 gates met → Table A; HD-211 = done, owner-only on-exposure rotation); authoritative detail lives in `todo.md` rows + owning docs.
 > **Linked from:** [`todo.md`](todo.md) · [`prompt.md`](prompt.md) · [`README.md`](README.md)
 
 ---
 
-## Table A — Pure AI / unblocked (no owner step needed)
+## Table A — AI-runnable (no AI-side blocker)
 
-Rows where the AI can act **now** without any new human input. Inline notes flag the only soft gates (maintenance windows / deploy points).
+Rows the AI can execute: either **now** (no prerequisite) or the **⏳ deploy-gated chapter at the bottom** (AI does the deploy/verify; only a Table-C human step is missing). Inline notes flag the only soft gates (maintenance windows / deploy points).
 
 | HD | P | Task | Why AI can do it now |
 |----|---|------|----------------------|
@@ -30,7 +30,7 @@ Rows where the AI can act **now** without any new human input. Inline notes flag
 | HD-249 | 3 | n8n: audit external webhooks + scoped budget-capped LiteLLM key | AI |
 | HD-250 | 2 | DSH onboarding: thin image, compose, Forgejo PAT, headscale serve | AI (depends HD-247) |
 | HD-251 | 3 | Fleet-exposure phase-2 rollout (tailscale-first) | Doc policy already landed; rollout is AI |
-| HD-336 | 2 | agent-memory.dev per-project on oldsrv | oldsrv live; AI (CrewAI pilot is owner-gated → Table B) |
+| HD-336 | 2 | agent-memory.dev per-project on oldsrv | oldsrv live; AI (CrewAI pilot is owner-gated → Table C) |
 | **Smart Home** ||||
 | HD-14 | 2 | Enable HA Prometheus exporter (entity list) | AI — the "wait for observability" gate is gone (Victoria stack + Alloy live, HD-342) |
 | HD-17 | 2 | Create `ha-failover_api` + deploy failover button | RFUSB-move tail is **obsolete (HD-13 rejected)**; standby is already rendered live (HD-318c) |
@@ -38,7 +38,7 @@ Rows where the AI can act **now** without any new human input. Inline notes flag
 | **Obs / security / backup / docs** ||||
 | HD-342 | 2 | Kopia client wiring for `/srv/docker/victoria-*/data` | AI; oldsrv MCP tail = HD-344 (Table A now) |
 | HD-344 | 3 | MCP Victoria servers on oldsrv (pi/OWUI/OpenClaw registration) | Gate met (oldsrv Phase-3 + VPS Victoria backend live) — enable + oldsrv converge + register in pi/OWUI/OpenClaw is AI; only the future tailnet sidecar redo is owner |
-| HD-343 | 2 | Network Clients: wifi-path verify (`registration-table` vs legacy) + VPS Grafana converge | Router-side + converge are AI; **panel render-verify is owner** (Table B) |
+| HD-343 | 2 | Network Clients: wifi-path verify (`registration-table` vs legacy) + VPS Grafana converge | Router-side + converge are AI; **panel render-verify is owner** (Table C) |
 | HD-318(b) | 1 | recyclarr quality-profile sync verify (all *arr + recyclarr Up 2026-09-08) | AI observation — confirm the @daily profile sync landed |
 | HD-280 | 2 | Confirm a 401/403 triggers a fail2ban ban | Observation job — waits for natural SSO brute-force (no work product) |
 | HD-49 | 3 | Matrix identity/media backup policy | AI doc (policy before live deploy) |
@@ -47,17 +47,25 @@ Rows where the AI can act **now** without any new human input. Inline notes flag
 | HD-133 | 3 | Subscription renewal reminders (SSOT + Homepage + n8n) | AI |
 | HD-40A/40B/135, HD-43/44, HD-46/47/122 | 1–4 | VPS-edge / media-ops / Matrix tails | Read **stale** vs the 2026-09-08 world (Phases 1/2/3/4 all live) — worth a close-out audit pass rather than new work; Matrix deploys now chain on owner OIDC records (HD-147), not host provisioning |
 
+**⏳ Deploy-gated chapter — waiting on a Table-C prerequisite (AI does the deploy/verify as soon as it clears)**
+The deploy/verify here is **fully AI** — the only reason the row isn't already moving is a human prerequisite listed in Table C. When the human step lands, pick these up first.
+
+| HD | P | Task | AI part (runs on gate-clear) | Prerequisite (Table C) |
+|----|---|------|------------------------------|------------------------|
+| HD-46 / HD-122 | 4/2 | Matrix IaC deploy + federation live-verify | Deploy from `vps.yml` (enabled:true) + federation live-verify + HD-122 hardening verify | Owner OIDC records + provider/redirect URIs — **HD-147** |
+| HD-230 | 1 | Phase-1 wave-2 batch | Kopia client wiring + surgical converge + verifies | Owner **kopia source-wiring decision** (owner part of HD-230) |
+| HD-57 | 3 | Finance: Actual Budget / Enable Banking | WG-scope the :5006 API leg + deploy + live-verify | Human **tokens + EB app creation** (owner part of HD-57) |
+
 ---
 
-## Table B — ⏳ Blocked / needs an owner step
+## Table C — 🚧 Human-gated / needs an owner step
 
-Grouped by *why* it's blocked. The first two groups are the real unblockers — clearing them cascades to the rest.
+Grouped by *why* it's blocked. These are the real unblockers — clearing them cascades to Table A (including its deploy-gated chapter).
 
 | HD | P | Task | Owner step required |
 |----|---|------|---------------------|
 | **Group 1 — owner-manual tails on the (now-live) oldsrv GPU leg** ||||
 | HD-288 | 3 | Sunshine live-verify (Moonlight round-trip) | ⏳ oldsrv GPU leg is live, but this is an owner **manual-start gaming window** + Moonlight client round-trip — owner keeps the button; AI can pre-verify Sunshine is Up/healthy |
-| HD-46 / HD-122 | 4/2 | Matrix IaC deploy + federation live-verify | Chains on Phase-3 hosts + owner OIDC records (HD-147) |
 | **Group 2 — owner manual / physical / browser / 1P seeding** ||||
 | HD-08 / HD-06 | 1/2 | UPS battery-pull test | Owner **physical** test — all client legs (nas/oldsrv/pi) now ACTIVE (2026-09-08), so the pull exercises OB/RB + alerts end-to-end |
 | HD-319 | 1 | Confirm 3 rekuperator GAs (12/1/*) answer on the KNX bus | Owner verify (HA UI / panel warnings) |
@@ -67,13 +75,13 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 | HD-242 | 2 | Metabase SELECT-only feeds | Owner seeds `metabase-forgejo_ro` **first** (fail-loud otherwise) → then AI converge + verify |
 | HD-112 | 2 | Zipline public bin | **First deploy human-gated** + local-admin → OIDC login → flip bypass-local-login (then AI round-trip verify) |
 | HD-101 | 2 | OWUI SSO → Authentik round-trip → local-admin linked | Owner **browser login** step after AI deploy |
-| HD-147 | 1 | OIDC live-verify: matrix / claw / cloud / foto / immich / forgejo-register | Owner **browser logins** (Phase-3-gated for the host-side parts) |
+| HD-147 | 1 | OIDC live-verify: matrix / claw / cloud / foto / immich / forgejo-register | Owner **browser logins** (Phase-3-gated for the host-side parts) — **also the prerequisite for the Table-A Matrix deploy (HD-46/122)** |
 | HD-194 | 1 | `sso` middleware: confirm login + one OIDC callback e2e at deploy | Owner browser confirmation |
 | HD-219 | 1 | Forgejo install wizard | Owner **browser** (renovate/kopia tails then close) |
 | HD-220 | 1 | Renovate token validity check | Owner confirms once Forgejo green (kopia seed is AI — Table A) |
-| HD-230 | 1 | Phase-1 wave-2 batch | Kopia **source-wiring decision** (owner); the rest is converge/verify = AI |
 | HD-211 | 1 | Secret hygiene | ✅ rotation + `expiring=False` audit done (2026-09-08) — only on-exposure re-rotation of `vps-op-write_api` remains (owner, no-op today) |
-| HD-57 | 3 | Finance: Actual Budget / Enable Banking | Owner: **human tokens + EB app creation** (then AI WG scope + deploy at Phase 3) |
+| HD-230 (owner part) | 1 | Phase-1 wave-2 — **kopia source-wiring decision** | Owner decides which data sources kopia backs up → then the AI deploys/verifies the batch (Table A) |
+| HD-57 (owner part) | 3 | Finance — **human tokens + EB app creation** | Owner creates the bank tokens + Actual Budget/Enable Banking app → then the AI WG-scopes + deploys (Table A) |
 | HD-296 | 1 | `dsh` / `pi-dev` tailnet A-records | Row is **labeled owner**: scoped converge `docker_services_scope=headscale` + `dig` verify |
 | HD-268 | 1 | Tailnet sidecar enable-flow (Qdrant swap, pi-dev/DSH UIs) | Owner 4-step: mint preauth keys → seed 1P → flip flags → converge → verify UIs (then AI embed/re-index) |
 | HD-264 | 2 | Renovate → real repos | Owner: commit versioned manifest to `domen/test`, verify PR path, **flip `RENOVATE_REPOSITORIES`** |
@@ -92,5 +100,5 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 ## Bottom line
 
 - **Best pure-AI starters right now:** HD-03 + HD-182 (router read-only audit/verify using the mikrotik skill — zero risk), HD-100 + HD-247 (LiteLLM 1P wiring + scoped-key cutover), HD-342 (Victoria kopia tail).
-- **The single highest-leverage owner step** is now the **HD-318-responsive owner batch**: ① signal-cli phone registration (oldsrv tail), ② the 1P seeds in HD-242/268/296 (`metabase-forgejo_ro`, preauth keys, headscale A-records) that unblock the rest of the deploy-gated batch, ③ HD-312(4) n8n firmware-flow authoring (joint) — since oldsrv Phase-3 is **complete** (HD-318), the old ONLYOFFICE/ROCm/1P blocker list is retired.
+- **The single highest-leverage owner (Table C) step** is the **HD-318-responsive owner batch**: ① signal-cli phone registration (oldsrv tail), ② the 1P seeds in HD-242/268/296 (`metabase-forgejo_ro`, preauth keys, headscale A-records) that unblock the rest of the deploy-gated batch, ③ HD-312(4) n8n firmware-flow authoring (joint) — since oldsrv Phase-3 is **complete** (HD-318), the old ONLYOFFICE/ROCm/1P blocker list is retired. Clearing **HD-147 (OIDC records)** also unblocks the Table-A Matrix deploy (HD-46/122).
 - **Stale rows note:** HD-40A/40B/135/43/44 read stale versus the README's "state of the world" (Phases 1/2/3/4 all live) — an AI close-out audit (verify live state, then delete/trim per todo.md §4(a)) is itself a good pure-AI table-A task.
