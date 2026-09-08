@@ -162,6 +162,23 @@ prometheus.exporter.snmp "mikrotik" {
         {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}", "auth" = "kogler_ro_v2", "module" = "mikrotik"},
         {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}", "auth" = "kogler_ro_v2", "module" = "mikrotik"},
     ]
+}
+
+// Consume the SNMP exporter so it actually runs (Alloy components are LAZY — an
+// unconsumed exporter evaluates nothing and its metrics never reach VM; the old
+// config put `forward_to` inside prometheus.exporter.snmp which is invalid in
+// Alloy and crashed the whole service). Tag the series with job="alloy-snmp" + the
+// target's instance so the SNMP panels (mikrotik-link-down etc.) match.
+discovery.relabel "snmp_mikrotik" {
+    targets = prometheus.exporter.snmp.mikrotik.targets
+    rule {
+        target_label = "job"
+        replacement  = "alloy-snmp"
+    }
+}
+
+prometheus.scrape "snmp_mikrotik" {
+    targets    = discovery.relabel.snmp_mikrotik.output
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
