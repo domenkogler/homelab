@@ -117,7 +117,7 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 
 10. **Metabase data sources (HD-242):** connect CrowdSec + Forgejo + import dashboards + SELECT-only proof. · [todo.md HD-242](todo.md)
 
-11. **AI stack pre-deploy gates:** HD-105 secrets + OIDC providers (blocks HD-100/101/103/104); then HD-101 SSO verify ride-along, HD-247 (scoped keys — HD-102 PGVector superseded by HD-267/268 Qdrant), HD-248 OWUI split (depends HD-247), HD-103 docling, HD-104 openclaw onboard. · [todo.md HD-105](todo.md) · [docs/deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md)
+11. **AI stack — HD-105 secrets+OIDC ✅ RESOLVED (2026-09-08, live-verified):** the 9 1P items (`openrouter_api`, `cohere_api`, `litellm_master_key`, `litellm_db`, `openwebui_secret`, `openwebui_api`, `qdrant_db`, `openclaw_gateway_token`, `immich-ml-internal_api`, `openclaw-opencloud_api`) are populated in `Homelab-ansible` (no placeholders) + the Authentik OIDC providers declared in `ks-oidc.yml` (openwebui redirect `https://ai.kogler.si/oauth2/callback` matches the runbook; glue-seeded client creds in `openwebui_api`/`openclaw_api`). Row deleted from todo; recorded in [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md). **Remaining AI-stack:** HD-101 SSO verify ride-along, HD-247 (scoped keys — HD-102 PGVector superseded by HD-267/268 Qdrant), HD-248 OWUI split (depends HD-247), HD-103 docling, HD-104 openclaw onboard. · [todo.md HD-100](todo.md) · [docs/deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md)
 
 12. **HD-112 Zipline go-live legs** (first deploy human-gated; post-up seeding runbook in compose header; family drop script). · [todo.md HD-112](todo.md)
 
