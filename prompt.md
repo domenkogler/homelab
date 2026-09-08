@@ -32,7 +32,7 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 |----|----------------------|-------------|
 | HD-342 | Victoria stack deploy (VPS) LIVE; remaining tails: kopia client wiring for Victoria data, oldsrv MCP (HD-344) | [observability.md](docs/observability.md) · [todo.md HD-342](todo.md) |
 | HD-344 | MCP AI-debugging servers on oldsrv (register in pi/OWUI/OpenClaw + tailnet redo) | [observability.md](docs/observability.md) §MCP · [todo.md HD-344](todo.md) |
-| HD-318 | oldsrv Phase-3 provision in progress (kopia-agent VPS-gated; recyclarr @daily verify) | [hardware-oldsrv.md](docs/hardware-oldsrv.md) · [todo.md HD-318](todo.md) |
+| HD-318 | oldsrv Phase-3 provision — **kopia-agent DONE + LIVE 2026-09-08 (HD-318a):** agent Up over HTTPS+fingerprint, snapshots flowing; remaining = recyclarr @daily verify | [hardware-oldsrv.md](docs/hardware-oldsrv.md) · [todo.md HD-318](todo.md) |
 | HD-03 | Inter-VLAN residual audit + Kids forced-DNS/Home-drop live-verify | [network-vlans.md](docs/network-vlans.md) · [todo.md HD-03](todo.md) |
 | HD-343 | Network Clients dashboard — owner verify (wifi path, panels, stats.kogler.si) | [observability.md](docs/observability.md) §Network Clients Dashboard · [todo.md HD-343](todo.md) |
 | HD-315 | Grafana dashboard render-verify with data (**data now flowing** — all 4 hosts + probes; owner visual verify) | [observability.md](docs/observability.md) §Dashboards · [todo.md HD-315](todo.md) |
@@ -40,3 +40,5 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 | HD-08 | UPS battery-pull test (owner manual; feeds HD-06/07) | [hardware-ups.md](docs/hardware-ups.md) · [todo.md HD-08](todo.md) |
 
 **Recent sessions (history — see owning docs/commits):** 2026-09-08 Victoria migration authored+merged (@`4ba5ac9`), oldsrv/nas/pi converges (HD-318b/c/343/08, `d476aba`), backlog sweep + worktree/branch cleanup (`9674f65`), **observability fix+deploy session (HD-346): per-node Alloy on all 4 hosts (vps/oldsrv/nas/pi) live + Host Overview populated; MikroTik SNMP RO enabled on router+switch (HD-53) + consolidated `fixboot`; blackbox probe family fixed; nas eno2/ether9 route fix; n8n router API user provisioned (HD-312(4))** — all merged to `main`, worktrees removed. Do not re-open; the commit history + docs hold the records.
+
+**HD-318a/kopia + platform/secrets session (2026-09-08, `94f6231` + `98d4720`):** kopia-agent auth fixed end-to-end (htpasswd user@host entries + repo-user provisioned with the repo master password + compose `$$`-escaping) — agent **LIVE + snapshotting**; HD-134 matrix pinned `v1.9.0`; HD-59 `prometheus-internal_api` retired (Victoria); HD-286 vault-escape comments; HD-218 re-sample (zero residue, orphaned loki/prom/renovate removed); HD-211 Authentik expiring=False audit passed. todo.md/todo-table.md updated at close-out.
