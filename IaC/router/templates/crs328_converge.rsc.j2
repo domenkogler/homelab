@@ -138,6 +138,15 @@ add chain=input action=drop comment="Drop all other input (switch lockdown)"
     /system logging action set [find where name=centralsyslog] target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514
 }
 
+# ---- Logging rules: ship error/firewall/critical/warning to the VPS (mirror router) ----
+# The action alone forwards nothing — rules bind topics to it (router has exactly these
+# four topics -> centralsyslog; info stays local). Idempotent: remove-by-comment then add.
+/system logging remove [find where action=centralsyslog]
+/system logging add topics=error action=centralsyslog
+/system logging add topics=firewall action=centralsyslog
+/system logging add topics=critical action=centralsyslog
+/system logging add topics=warning action=centralsyslog
+
 # ---- Boot resilience (fixboot): re-assert syslog + SNMP after boot (HD-346) ----
 # ONE startup script for both concerns (consolidated from fixsyslog + fixsnmp).
 # Re-asserts the centralsyslog VPS target + /snmp enabled + RO community ~10s post-boot.
