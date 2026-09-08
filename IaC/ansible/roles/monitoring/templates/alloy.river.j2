@@ -159,8 +159,8 @@ prometheus.exporter.snmp "mikrotik" {
     config_file = "/etc/alloy/snmp.yml"
 
     targets = [
-        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}", "auth" = "kogler_ro_v2", "module" = "mikrotik"},
-        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}", "auth" = "kogler_ro_v2", "module" = "mikrotik"},
+        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}", "name" = "router", "auth" = "kogler_ro_v2", "module" = "mikrotik"},
+        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}", "name" = "switch", "auth" = "kogler_ro_v2", "module" = "mikrotik"},
     ]
 }
 
