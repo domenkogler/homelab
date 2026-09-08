@@ -28,6 +28,10 @@
 #                                     $HOME/.pi/agent/skills is absent (bare CI / non-pi laptop)
 #                                     the gate SKIPs so a pi-less host never breaks validation;
 #                                     on a pi-configured runner deploy is via sync-skills.sh --push.
+#  14. check_todo_done.py            — todo.md §4(a) sweep: flag rows marked DONE/✅ that were
+#                                     not deleted (fully-done rows must be removed; only
+#                                     deploy-gated rows with a real ⏳ tail stay), and stale ⏳
+#                                     markers inside struck/rejected/parked fragments (2026-09-08)
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -78,6 +82,9 @@ $PY scripts/check_vault_name.py
 
 echo "== check_placeholders.py =="
 $PY scripts/check_placeholders.py
+
+echo "== check_todo_done.py (CONVENTIONS §4(a) done-row sweep) =="
+$PY scripts/check_todo_done.py
 
 echo "== testdata/check-vault-items/run.sh (scanner self-test, HD-244/245) =="
 bash scripts/testdata/check-vault-items/run.sh
