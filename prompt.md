@@ -18,14 +18,18 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 
 ## 2. Current open work (handoff state — next session starts here)
 
-> Only items with a **real `⏳` tail in [todo.md](todo.md)** are listed. Done items are deleted from todo.md (record in owning docs + git history); anything marked done here must match todo.md's open rows.
+> Pointer index only: each open HD links its owning-doc status block (the SSOT) and its
+> [todo.md](todo.md) row (the registry — a row is deleted when fully done, §4(a)).
+> For "what to do next" also see [todo-table.md](todo-table.md) (planning view: AI-runnable vs owner-blocked).
 
-- **HD-342 — Victoria stack deploy (VPS): ✅ LIVE CUTOVER COMPLETED 2026-09-08 (this session).** VictoriaMetrics (:8428) + VictoriaLogs (:9428) deployed; seeded `victoria-metrics_api`/`victoria-logs_api` (+ `kopia-server_fingerprint`); converged VPS (`docker_services,monitoring`); **Grafana datasources migrated to Victoria** (uid `prometheus`→VM, uid `loki`→VL via API-seed after removing the stale read-only Loki datasource; VL healthcheck bug fixed — tool-less image has no `wget`); **Alloy restarted** to load Victoria remote_write targets (it had been running the old config since Sep 3 — was the reason VM had no series); old `prometheus` + `loki` containers stopped; datasource healths OK, VM has 13 `up` series, alert rules evaluate with **0 errors**. ⏳ **Remaining tails:** kopia client wiring for `/srv/docker/victoria-*/data`, oldsrv MCP (HD-344). [observability.md](docs/observability.md) · [todo.md HD-342](todo.md)
-- **HD-344 — MCP AI-debugging servers (oldsrv).** ⏳ oldsrv converge (Phase-3/HD-318) + VPS Victoria backend live (HD-342), then register MCP in pi/OWUI/OpenClaw + tailnet redo. [observability.md](docs/observability.md) §MCP
-- **HD-318 — oldsrv Phase-3 provision (in progress).** ⏳ (a) kopia-agent crash-loop **VPS-gated (HD-318a)** — 1P `kopia-server_fingerprint` unseedable until VPS kopia-server leg converges; ⏳ (b) recyclarr profile-sync verify at next @daily run. [hardware-oldsrv.md](docs/hardware-oldsrv.md)
-- **HD-311 — oldsrv dual-home tagged-99.** ⏳ apply the oldsrv tagged-99 sub-interface (deploy-gated on host provision). [network-vlans.md](docs/network-vlans.md)
-- **HD-03 — inter-VLAN residual audit.** ⏳ final inter-VLAN matrix audit + Kids forced-DNS/Home-drop live-verify. Pkg B lockdown + modem-DNS items all **CLOSED 2026-09-08** (AP wired-port disable + INPUT firewall live; modem DNS record live on Pi+oldsrv; rows deleted per §4(a), records in owning docs). [network-vlans.md](docs/network-vlans.md)
-- **HD-343 — Network Clients dashboard.** ⏳ owner verify: wifi registration-table vs legacy path, panels render after Victoria provision, `stats.kogler.si` shows it. [observability.md](docs/observability.md) §Network Clients Dashboard
-- **HD-08 — UPS battery-pull test.** ⏳ owner manual test (feeds the HD-06/07 chain). [hardware-ups.md](docs/hardware-ups.md)
+| HD | Open item (one line) | Detail SSOT |
+|----|----------------------|-------------|
+| HD-342 | Victoria stack deploy (VPS) LIVE; remaining tails: kopia client wiring for Victoria data, oldsrv MCP (HD-344) | [observability.md](docs/observability.md) · [todo.md HD-342](todo.md) |
+| HD-344 | MCP AI-debugging servers on oldsrv (register in pi/OWUI/OpenClaw + tailnet redo) | [observability.md](docs/observability.md) §MCP · [todo.md HD-344](todo.md) |
+| HD-318 | oldsrv Phase-3 provision in progress (kopia-agent VPS-gated; recyclarr @daily verify) | [hardware-oldsrv.md](docs/hardware-oldsrv.md) · [todo.md HD-318](todo.md) |
+| HD-311 | oldsrv dual-home tagged-99 sub-interface apply | [network-vlans.md](docs/network-vlans.md) · [todo.md HD-311](todo.md) |
+| HD-03 | Inter-VLAN residual audit + Kids forced-DNS/Home-drop live-verify | [network-vlans.md](docs/network-vlans.md) · [todo.md HD-03](todo.md) |
+| HD-343 | Network Clients dashboard — owner verify (wifi path, panels, stats.kogler.si) | [observability.md](docs/observability.md) §Network Clients Dashboard · [todo.md HD-343](todo.md) |
+| HD-08 | UPS battery-pull test (owner manual; feeds HD-06/07) | [hardware-ups.md](docs/hardware-ups.md) · [todo.md HD-08](todo.md) |
 
 **Recent sessions (history — see owning docs/commits):** 2026-09-08 Victoria migration authored+merged (@`4ba5ac9`), oldsrv/nas/pi converges (HD-318b/c/343/08, `d476aba`), backlog sweep + worktree/branch cleanup (`9674f65`) — all merged to `main`, worktrees removed. Do not re-open; the commit history + docs hold the records.
