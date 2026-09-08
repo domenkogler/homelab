@@ -26,6 +26,9 @@ services:
     networks:
       - db-internal
     ports:
+      # Non-secret `default('')` (CONVENTIONS §3): WG peer-key gate — the loopback fallback
+      # is structural wiring, NOT a 1Password secret (HD-62); the prometheus-internal_api
+      # lookup above carries no default (fail-loud, HD-65).
       - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:9090:9090"   # binds WG addr (oldsrv Alloy) only when tunnel intended; else loopback (HD-62)
 
     volumes:
