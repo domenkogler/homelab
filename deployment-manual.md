@@ -45,7 +45,7 @@ Create the local user `domen`, then set its password (`passwd`) and store it as 
 The repo is **reused** from the WSL ext4 primary checkout at
 `/home/domen/source/homelab` (single working copy — the Debian ext4 primary, per HD-259;
 `scripts/git-bootstrap.sh` sets this up and its session worktrees live as
-siblings `../homelab-wt-*`. No second clone; the old `/mnt/d` drvfs path is retired).
+siblings `../homelab-wt-*`. No second clone; the old `/mnt/d` drvfs path is retired. *(HD-263 close-out: the former `ansible-enhancements.md` §8.4 rationale for the ext4-primary/git-bootstrap move lives here in §0.1 + CONVENTIONS §6.)*
 
 ✔ `wsl -l -v` lists Debian; inside WSL `whoami` → `domen`.
 

@@ -27,7 +27,7 @@
 #   Requires: git, op (Phase-0 prereq of bootstrap-runner.sh). Read-only pull needs no
 #   GitHub auth; push + signing go over SSH with `--ssh-auth`.
 #
-# See ansible-enhancements.md §8.4 for the reasoning + caveats.
+# See CONVENTIONS §6 (worktree/merge-station discipline) + deployment-manual.md §0.1 (ext4 primary) for the reasoning.
 # Owner: user (this audit's proposal) — record in the owning doc if adopted.
 # =====================================================================
 set -euo pipefail

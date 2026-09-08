@@ -8,7 +8,7 @@
 #
 # Why (not the /mnt/c Volta copy): pi.dev must run against a *native* ext4
 # node + ~/.pi so sessions/worktrees stay on WSL ext4 (git-bootstrap.sh's
-# primary-repo move, ansible-enhancements.md §8.1/§8.4 / HD-259) instead of
+# primary-repo move per deployment-manual.md §0.1 (HD-259) instead of
 # leaking back onto slow drvfs. The Windows Volta install on the PATH is the
 # wrong target for a WSL-native pi.
 #
