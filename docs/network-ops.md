@@ -162,8 +162,31 @@ port-scan detection and the same stream is available to Loki for central search.
 > bug family** on RB4011/RB5009 (forum.mikrotik.com: "no packets on port 514 although syslog
 > server reachable"; one user's workaround = re-add the action config, another = IP-vs-hostname;
 > MikroTik confirmed a 7.17+ FQDN-related regression and said a fix is pending). Config alone
-> cannot close this gate; pending: RouterOS upgrade/re-add workaround on the device, then
-> re-verify end-to-end. Switch/AP forwarding stays future work (CRS328 has no wg tunnel).
+> seemed unable to close this gate.
+>
+> **✅ RESOLVED 2026-09-08 — the blocker was NOT the RouterOS logging stack, it was the
+> WireGuard HD-155 least-access AllowedIPs on the VPS peer missing the router's OWN tunnel
+> address.** Root-cause method: a synchronized test (router-side `/tool sniffer` filter on
+> wg-s2s udp/514 + VPS-side UDP listener on the wg address) proved the router **was** emitting
+> syslog (packets visible on `wg-s2s`), but the VPS listener saw nothing — the packet died
+> INSIDE the tunnel. WireGuard silently drops any inner packet whose source IP is not in the
+> peer's `AllowedIPs`; the VPS peer entry listed only the home RIPE-1918 subnets + `wg-vps-services`,
+> NOT the router's own wg address (`wg_s2s_vps.router_ip`). All other home traffic (sources
+> `10.10.*`) was in the list, so the tunnel looked healthy (handshake + big transfer counters)
+> while every syslog packet (sourced from the router's wg address by `src-address=wg-s2s`) was
+> silently dropped at the VPS tunnel endpoint. Fix: added `{{ wg_s2s_vps.router_ip }}/32` to
+> `wg_s2s_vps.allowed_ips` (group_vars/all.yml, the single SSOT consumed by both tunnel sides
+> per HD-200), re-rendered the VPS `wg-s2s.conf`, and re-ran the `wg-ensure-s2s-peer` oneshot
+> to apply `wg setconf` live. **Live-verified end-to-end:** RB4011 → wg-s2s → VPS rsyslog
+> (bound on the wg address) → `/var/log/remote-syslog/routeros.log` (file created + entries
+> timestamped) — then the same feed serves CrowdSec (`acquis.d/acquis-routeros.yml`, type
+> `mikrotik`) and Loki (`job=routeros-syslog`).
+>
+> **Retained safety net:** a `/system script` + startup scheduler (`fixsyslog`) on the RB4011
+> re-applies the `centralsyslog` action target 10s post-boot (toggle remote → back). It was NOT
+> the fix (the forum workaround family was a red herring for this symptom) but is harmless and
+> self-healing insurance if RouterOS ever truly fails to (re)init the action on a boot; the
+> converge template folds it in. Switch/AP forwarding stays future work (CRS328 has no wg tunnel).
 
 - **RouterOS side (router role, `router-logging` tag):** `/system logging action centralsyslog`
   (`target=remote`, `remote=<vps wg-s2s address>:514` — SSOT `wg_s2s_vps.remote_ip`, `src-address=wg-s2s`),
@@ -188,12 +211,14 @@ port-scan detection and the same stream is available to Loki for central search.
 - **Loki (search surface):** the VPS Alloy tails `/var/log/remote-syslog/routeros.log`
   (`loki.source.file "routeros_syslog"` + `loki.process.routeros`, `job=routeros-syslog`) → Loki (14d);
   Grafana the query surface — no second log backend.
-- **Deploy-gated:** the RB4011-side `system/logging` + `logpipe` user land at the next router
-  converge; the VPS-side rsyslog (live), CrowdSec acquis + Alloy re-render land at the next
-  `monitoring` converge (+ surgical crowdsec re-render). **Switch/AP forwarding** is a documented
-  future expansion: the CRS328 has no wg tunnel and the rsyslog receiver only accepts the router wg
-  peer — a routed path (receiver LAN-source allow or a switch-side tunnel) is needed before enabling
-  them. See [observability.md](observability.md) and [services-traefik.md](services-traefik.md) §CrowdSec.
+- **Deploy-gated → LIVE 2026-09-08:** the RB4011-side `system/logging` + `logpipe` user are
+  live; the VPS-side rsyslog (live), CrowdSec acquis + Alloy are live and the end-to-end log
+  path is verified (see the RESOLVED note above). The `wg_s2s_vps.allowed_ips` SSOT now
+  carries the router tunnel address — re-render + re-run `wg-ensure-s2s-peer` whenever that
+  list changes. **Switch/AP forwarding** is still a documented future expansion: the CRS328
+  has no wg tunnel and the rsyslog receiver only accepts the router wg peer — a routed path
+  (receiver LAN-source allow or a switch-side tunnel) is needed before enabling them. See
+  [observability.md](observability.md) and [services-traefik.md](services-traefik.md) §CrowdSec.
 
 ---
 
