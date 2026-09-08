@@ -4,6 +4,12 @@ modules:
     prober: http
     timeout: 10s
     http:
+      preferred_ip_protocol: "ip4"     # container has no IPv6 route; probing the AAAA
+                                         # caused "connect: network is unreachable" → every
+                                         # HTTP probe failed with status 0 (Service
+                                         # Reachability empty). Force IPv4 for all probes.
+                                         # (kogler.si publishes an AAAA to the VPS itself.)
+      ip_protocol_fallback: false
       valid_status_codes: [200, 301, 302]  # drop 401/403 so an auth-walled/broken endpoint is flagged, not counted up (KOPS-035 / HD-116)
       follow_redirects: true
   icmp:
