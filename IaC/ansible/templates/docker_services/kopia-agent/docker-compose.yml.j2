@@ -28,6 +28,12 @@ services:
     # are the bind dirs (below); /app/logs must be writable on the layer.
     tmpfs:
       - /tmp
+      - /app/logs   # image sets KOPIA_LOG_DIR=/app/logs - EROFS under read_only without it (kopia-server precedent)
+    # Wave-2 triage 2026-08-22 (kopia-server precedent): image ENTRYPOINT is /bin/kopia;
+    # without clearing it the command below resolved to `kopia sh -c ...` and died
+    # instantly ("expected command but got sh"). entrypoint: [] makes the sh -c
+    # bootstrap script PID 1 argv.
+    entrypoint: []
     container_name: kopia-agent
     restart: unless-stopped
     # No overlay network: the agent egresses via the host's default bridge to the

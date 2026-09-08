@@ -9,6 +9,8 @@ services:
     image: bbernhard/signal-cli-rest-api:{{ signal_cli_rest_api_version }}
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN   # HD-318 live: entrypoint runs chown 1000:1000 on the data volume; cap_drop ALL strips CHOWN → "Operation not permitted" (crowdsec-web-ui precedent f4c3216)
     # read_only intentionally ABSENT (HD-318): the entrypoint runs usermod/groupmod
     # (to align the signal-api uid) before exec; read_only root made `groupmod: cannot
     # lock /etc/group` fatal. Keep cap_drop: ALL.

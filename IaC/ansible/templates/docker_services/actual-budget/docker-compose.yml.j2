@@ -43,7 +43,13 @@ services:
       # inside the overlay consumers use http://actual-budget:5006 (services-internal).
       - "{{ oldsrv_home_ip }}:5006:5006"
     volumes:
-      - /srv/docker/actual-budget/data:/app/data   # SQLite DB + user files + built-in backups
+      # HD-318 live: the actual-budget image's real data dir is /data (owned by the
+      # `actual` user, uid 1001) — /app/data does not exist in the image. Mounting to
+      # /app/data left the app writing into the IMAGE's writable layer at /data, and
+      # the EACCES came from /srv/docker/actual-budget/data being root:root while the
+      # migration drops to uid 1001. Fix: target /data + bind_owner_uid: 1001 in the
+      # group_vars entry (dir pre-created 1001-owned).
+      - /srv/docker/actual-budget/data:/data   # SQLite DB + user files + built-in backups
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:

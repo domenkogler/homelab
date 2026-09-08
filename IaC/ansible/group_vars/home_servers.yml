@@ -125,7 +125,7 @@ docker_services:
   # --- Finance: Actual Budget (HD-57, decision 2026-08-24) — internal-only P+I;
   #     stable pin + n8n EB bridge (docs/services-finance.md). API leg :5006 published
   #     on oldsrv_home_ip for n8n over WG (immich-ml precedent).
-  - { name: actual-budget,   template_dir: actual-budget }
+  - { name: actual-budget,   template_dir: actual-budget, bind_owner_uid: 1001, bind_dirs: ['data'] }   # HD-318: the image's data dir is /data owned by `actual` (uid 1001); bind_owner_uid + bind_dirs pre-create /srv/docker/actual-budget/data 1001-owned so the migration's uid-1001 mkdir succeeds
 
   # --- Backup: off-site agent (HD-191) — client of kopia-server on the VPS ---
   # Snapshots oldsrv-LOCAL state (configs, dumps scratch, thumbs, signal state) to
