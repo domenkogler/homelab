@@ -670,6 +670,14 @@ sudo ssh -i /srv/docker/kopia-server/config/sftp_key -p 23 \
 sudo docker restart kopia-server && sleep 30 && sudo docker logs --tail 10 kopia-server
 ```
 
+**TLS (HD-318a, 2026-09-08):** the server boot now also generates a persisted self-signed
+`tls.crt`/`tls.key` under the config bind (one-time) and serves **HTTPS** on :51515 — the oldsrv
+agent rejects plain-http. The container writes `tls-sha256` (the trust-anchor fingerprint); the
+`kopia-fingerprint-sync.yml` docker_services task seeds it into 1Password
+(`kopia-server_fingerprint`) and the agent pins it. On a **fresh volume** all of this happens
+automatically on first start — no manual step; if you ever need to fingerprint-check:
+`sudo cat /srv/docker/kopia-server/config/tls-sha256`.
+
 `kopia_sftp_path` stays RELATIVE (`kopia`) — absolute paths break create-path on Hetzner.
 If the crowdsec volume is also fresh: regenerate the bouncer key (`sudo docker exec crowdsec
 cscli bouncers add traefik-bouncer -o raw`) and update 1Password item `crowdsec-bouncer_api`

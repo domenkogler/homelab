@@ -76,8 +76,9 @@ services:
           _enc_user=$$(_urlenc "$$KOPIA_SERVER_USER")
           _enc_pass=$$(_urlenc "$$KOPIA_SERVER_PASSWORD")
           kopia repository connect server \
-            --url="http://$${_enc_user}:$${_enc_pass}@$${KOPIA_SERVER_ADDR}" \
+            --url="https://$${_enc_user}:$${_enc_pass}@$${KOPIA_SERVER_ADDR}" \
             --password="$${KOPIA_PASSWORD}" \
+            --server-cert-fingerprint="$${KOPIA_SERVER_FINGERPRINT}" \
             --override-hostname=oldsrv.kogler.si \
             --override-username=oldsrv-agent
         fi
@@ -103,6 +104,14 @@ services:
     environment:
       # VPS peer address on the wg-s2s /30 (SSOT: group_vars/all.yml wg_s2s_vps.ip).
       KOPIA_SERVER_ADDR: "{{ wg_s2s_vps.ip }}:51515"
+      # HD-318a: kopia 0.23.x only connects to https:// servers; the self-signed
+      # kopia-server cert lives under /srv/docker/kopia-server/config/tls.crt and is
+      # pinned here by its stable SHA-256 fingerprint (lowercase hex). The fingerprint
+      # is a service identity, NOT a user secret — but it is a trust anchor, so it is
+      # kept in 1Password (`kopia-server_fingerprint`, catalog-generated) and read via
+      # the same vault dict the compose uses. Changing the cert REQUIRES re-seeding the
+      # fingerprint 1P item + re-render (NOT_AUTO_ROTATABLE, see provision-secrets.py).
+      KOPIA_SERVER_FINGERPRINT: "{{ vault['kopia-server_fingerprint'].password | replace('$','$$') }}"
       KOPIA_SERVER_USER: "{{ vault['kopia-server-internal_api'].username | replace('$','$$') }}"
       KOPIA_SERVER_PASSWORD: "{{ vault['kopia-server-internal_api'].credential | replace('$','$$') }}"
       KOPIA_PASSWORD: "{{ vault['kopia_password'].password | replace('$','$$') }}"   # repo master password (kopia-server precedent)

@@ -73,7 +73,40 @@ services:
             --keyfile=/app/config/sftp_key \
             --password="${KOPIA_PASSWORD:?}"
         fi
-        exec kopia server start --address=0.0.0.0:51515 --insecure --htpasswd-file=/app/config/server.htpasswd  # no without-password (HD-59)
+        # --- TLS transport (HD-318a): plain-HTTP is HARD-REJECTED by `kopia repository
+        # connect server` in 0.23.x ("invalid server address, must be 'https://host:port'") —
+        # no client-side --insecure exists, and a version pin to an http-accepting kopia
+        # is not viable (verified in source + live 2026-09-08). kopia's OWN
+        # `--tls-generate-cert` (in-memory) regenerates a FRESH cert every restart, so the
+        # pinned fingerprint would change and the oldsrv agent would break after the first
+        # server bounce. The durable fix = a PERSISTED self-signed cert+key pair (generated
+        # once, never regenerated — kopia's maybeGenerateTLS refuses to overwrite existing
+        # files) with the agent pinned to its stable SHA-256 fingerprint.
+        #   The files live on the host config bind (/srv/docker/kopia-server/config/) so
+        # they survive container rebuilds. If absent (fresh/recovered volume), generate
+        # them here with a SAN covering the wg-s2s address + loopback; the agent pins the
+        # fingerprint, so transport security DOES NOT depend on trusting any CA.
+        if [ ! -f /app/config/tls.crt ] || [ ! -f /app/config/tls.key ]; then
+          echo "Generating persisted TLS certificate for kopia-server..."
+          openssl req -x509 -newkey rsa:4096 -nodes \
+            -keyout /app/config/tls.key \
+            -out /app/config/tls.crt \
+            -days 3650 \
+            -subj "/CN=kopia-server" \
+            -addext "subjectAltName=IP:${KOPIA_SERVER_ADDR_HOST:-127.0.0.1},IP:127.0.0.1" \
+            >/dev/null 2>&1
+          chmod 600 /app/config/tls.key
+        fi
+        # Print the fingerprint once (owner/agent pinning reference).
+        echo "kopia-server TLS fingerprint (sha256):"
+        openssl x509 -in /app/config/tls.crt -noout -fingerprint -sha256 | sed 's/.*=//; s/://g' | tr 'A-Z' 'a-z'
+        if [ ! -f /app/config/tls-sha256 ]; then
+          openssl x509 -in /app/config/tls.crt -noout -fingerprint -sha256 | sed 's/.*=//; s/://g' | tr 'A-Z' 'a-z' > /app/config/tls-sha256
+        fi
+        exec kopia server start --address=0.0.0.0:51515 \
+          --tls-cert-file=/app/config/tls.crt \
+          --tls-key-file=/app/config/tls.key \
+          --htpasswd-file=/app/config/server.htpasswd  # no without-password (HD-59)
     networks:
       - services-internal
     volumes:
@@ -89,6 +122,8 @@ services:
       KOPIA_SFTP_PATH: "{{ kopia_sftp_path | default('/kopia') }}"
       # Server auth (HD-59): user@host + password for the htpasswd file. No default('') —
       # a missing 1Password item must abort render (fail-loud, HD-65).
+      # (HD-318a: the TLS SAN host is supplied via .env.j2 — compose interpolates it into
+      #  the boot command at parse time; a runtime env var is unnecessary and would confuse.)
       KOPIA_SERVER_USER: "{{ vault['kopia-server-internal_api'].username | replace('$','$$') }}"
       KOPIA_SERVER_PASSWORD: "{{ vault['kopia-server-internal_api'].credential | replace('$','$$') }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"

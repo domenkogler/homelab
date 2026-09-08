@@ -169,6 +169,13 @@ CATALOG = [
     # the SMTP relay creds are the shared `smtp_login` item (not auto-gen here).
     ("Login",       "grafana_login",              lambda: [f"password={gen_pw()}"]),
     ("API Credential", "kopia-server-internal_api", lambda: [f"username=kopia@{gen_token(16)}", f"credential={gen_pw()}"]),
+    # HD-318a: kopia-server TLS trust anchor — NOT a generated password: it is the SHA-256
+    # fingerprint of the persisted self-signed cert under /srv/docker/kopia-server/config/tls.crt
+    # (lowercase hex). The catalog CANNOT generate it (it must equal the live cert's fingerprint) —
+    # provision-vault.sh seeds it by RE-READING the host file after the server cert is in place.
+    # Kept in the catalog as a Password item for vault-lineage/NOT_AUTO_ROTATABLE bookkeeping;
+    # --create would fail the fingerprint-must-match-live-cert assertion, so it is guarded.
+    ("Password", "kopia-server_fingerprint", lambda: []),  # value seeded from the host cert, not generated
     # prometheus-internal_api: username + password + bcrypt_hash rotate together.
     ("API Credential", "prometheus-internal_api", lambda: bcrypt_item()),
     # HD-341/342 Victoria* migration: VictoriaMetrics + VictoriaLogs replace Prometheus +
@@ -193,6 +200,7 @@ NOT_AUTO_ROTATABLE = {
     "onlyoffice-rabbitmq_login",  # RABBITMQ_DEFAULT_* applies at first mnesia init; AMQP_URI couples both sides
     "authentik_password",   # Django SECRET_KEY — invalidates the running instance
     "kopia_password",       # repo master password on live repo
+    "kopia-server_fingerprint",  # HD-318a: TLS trust anchor — must match the live kopia-server cert; rotate = regenerate cert + re-pin BOTH sides manually
     # Phase 1 additions (2026-08-22): external/app-coupled — rotate via vault + redeploy,
     # never auto-regenerate:
     "authentik_login",      # bootstrap admin — created at Authentik first boot from this value

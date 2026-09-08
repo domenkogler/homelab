@@ -112,8 +112,8 @@ _template_vault_items:
   home-assistant-standby: {'ha-vrrp_password'}
   immich-app: {'immich_oidc', 'immich-ml-internal_api', 'immich_db'}
   immich-ml: {'immich-ml-internal_api'}
-  kopia-agent: {'kopia_password', 'kopia-server-internal_api'}
-  kopia-server: {'kopia_password', 'kopia-server-internal_api'}
+  kopia-agent: {'kopia_password', 'kopia-server-internal_api', 'kopia-server_fingerprint'}
+  kopia-server: {'kopia_password', 'kopia-server-internal_api'}   # NB: kopia-server_fingerprint NOT fetched here — cannot exist before kopia-server first start seeds it (HD-318a); only the AGENT (oldsrv, later play) consumes it
   litellm: {'litellm_master_key', 'cohere_api', 'litellm_db', 'openrouter_api'}
   mcp-victoriametrics: {'victoria-metrics_api'}   # HD-344 — MCP→VM basic auth (username/password)
   mcp-victorialogs: {'victoria-logs_api'}         # HD-344 — MCP→VL basic auth (username/password)

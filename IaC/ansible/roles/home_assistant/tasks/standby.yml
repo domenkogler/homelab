@@ -50,6 +50,20 @@
     mode: '0644'
   tags: [ha_failover, hd17]
 
+# HD-318(c): bootstrap ACTIVE keepalived.conf (BACKUP) so the standby compose's bind
+# mount ./keepalived.conf:ro is a REAL FILE from render time (not an empty dir Docker
+# auto-creates). Mirrors the Pi's `force: false` from-MASTER copy (pi.yml): first deploy
+# only — ha-failover.sh swaps .standby/.failover into this name at failover runtime and
+# re-converges must never clobber a live swap.
+- name: Create active standby keepalived.conf from BACKUP (first deploy only)
+  ansible.builtin.copy:
+    src: /opt/home-assistant-standby/keepalived.standby.conf   # rendered above; remote_src needs the ABSOLUTE path
+    dest: /opt/home-assistant-standby/keepalived.conf
+    remote_src: true
+    force: false       # never clobber a live failover swap
+    mode: '0644'
+  tags: [ha_failover, hd17]
+
 - name: Deploy ha-failover.sh orchestrator (forward + reverse)
   ansible.builtin.template:
     src: ha-failover.sh.j2

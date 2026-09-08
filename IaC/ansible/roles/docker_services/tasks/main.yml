@@ -214,6 +214,15 @@
     loop_var: svc_entry
   tags: docker_services
 
+# HD-318a: kopia-server TLS trust anchor sync (VPS only). After kopia-server first
+# start wrote tls.crt/tls.key + tls-sha256 to its config bind, keep the 1Password
+# `kopia-server_fingerprint` item in sync — the oldsrv agent + (server) compose read
+# it via the shared `vault` dict. Idempotent; no-op when already in sync.
+- name: Sync kopia-server TLS fingerprint to 1Password (HD-318a)
+  ansible.builtin.include_tasks:
+    file: kopia-fingerprint-sync.yml
+  tags: [docker_services, kopia_server, kopia_fingerprint]
+
 # HD-317: Technitium seed — after the technitium container is up, bootstrap the
 # admin (first login on the now-persistent /etc/dns) + ensure the kogler.si zone
 # and split-horizon A records. Runs for every technitium instance that was in the
