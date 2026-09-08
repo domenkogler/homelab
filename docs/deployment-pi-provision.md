@@ -26,8 +26,12 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 > `https://ha.kogler.si/` via traefik-ha → **302** (login). Live-fixed this session:
 > docker_services enabled-set crash, first-boot guard loop_var, technitium read_only + cap_add,
 > knx-entities `knx:` wrapper, meteoblue-not-in-2026.8, trusted_proxies + stale `.storage/http`,
-> ha-cert-sync `dump/` exclusion + VPS rsync/key auth. **Remaining (owner steps):** KNX UI
-> config-flow import, Authentik OIDC, `ha.kogler.si` DNS cutover → VIP.
+> ha-cert-sync `dump/` exclusion + VPS rsync/key auth. **HD-307 CLOSED 2026-09-08** (row deleted; all
+> residual verify items resolved elsewhere — KNX UI config-flow DONE 2026-09-03, `ha.kogler.si` DNS
+> cutover → VIP DONE, Authentik OIDC on `ha` explicitly NOT wanted (owner, HD-310 close 2026-09-07);
+> the only true remainder, the failover runbook, belongs to the **HD-04 umbrella** (owner-gated, blocked
+> on oldsrv/HD-318). Live re-verify 2026-09-08: keepalived MASTER, HA :8123 200, traefik-ha :443 200,
+> dual-home up.)
 
 ---
 

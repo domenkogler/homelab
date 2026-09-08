@@ -57,7 +57,7 @@ chain), HD-72 (HA caps). *Evidence: KOPS-004/018/047/025.*
 > pin defined as a variable in `group_vars/*.yml`, tracked by Renovate — never `latest`, never a mutable
 > alias such as `-rocm`.
 
-- **Traefik** — pinned `traefik_version: v3.5.2` (HD-61, done).
+- **Traefik** — pinned `traefik_version` (currently `v3.7.11`, per `group_vars/all/versions.yml` SSOT; HD-61 done, stale `v3.5.2` image pruned by the version bump straight to `v3.7.11` — HD-292 closed 2026-09-08, no prune needed).
 - **Every `:latest`** across the compose templates → pinned var. **HD-192 (done 2026-08-21):** all
   templates now render `{{ *_version }}` pins from `group_vars/all/versions.yml` (registry-verified);
   the only remaining `latest` renders are the documented fluid exceptions (tuwunel HD-121,
