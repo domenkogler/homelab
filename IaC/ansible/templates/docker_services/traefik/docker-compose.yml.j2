@@ -46,6 +46,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      # HD-342 (Victoria migration): loopback publish of the internal metrics entryPoint
+      # (:8082) so the VPS host-APT Alloy can scrape traefik metrics. Loopback-only —
+      # never WAN/LAN (keeps the edge's expose surface minimal; authentik HD-143 precedent).
+      - "127.0.0.1:8082:8082"
     # Public resolvers (Wave-3 R5): lego's DNS-01 propagation self-check queried the docker
     # forwarder -> netcup resolvers, whose negative cache held _acme-challenge.* NXDOMAIN
     # from the blocked era -> every validation check timed out. Same fix as headscale.

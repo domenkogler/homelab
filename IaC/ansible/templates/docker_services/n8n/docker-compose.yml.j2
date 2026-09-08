@@ -30,6 +30,11 @@ services:
       - /tmp
     container_name: n8n
     restart: unless-stopped
+    ports:
+      # HD-342 (Victoria migration): loopback publish of the metrics endpoint (:5678,
+      # N8N_METRICS) so the VPS host-APT Alloy can scrape n8n /metrics. Loopback-only
+      # (authentik HD-143 precedent); n8n itself stays tailnet-only via traefik-tailnet.
+      - "127.0.0.1:5678:5678"
     networks:
       - traefik-public
       - services-internal

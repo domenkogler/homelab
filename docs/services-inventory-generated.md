@@ -36,8 +36,8 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 17 | rag-mcp | rag-mcp | `https://rag-mcp.kogler.si` | disabled |
 | 18 | forgejo-mcp | forgejo-mcp | `https://forgejo-mcp.kogler.si` | disabled |
 | 19 | openclaw | openclaw | `https://openclaw.kogler.si` | enabled |
-| 20 | prometheus | prometheus | `https://prometheus.kogler.si` | enabled |
-| 21 | loki | loki | `https://loki.kogler.si` | enabled |
+| 20 | victoria-metrics | victoria-metrics | `https://victoria-metrics.kogler.si` | enabled |
+| 21 | victoria-logs | victoria-logs | `https://victoria-logs.kogler.si` | enabled |
 | 22 | grafana | stats | `https://stats.kogler.si` | enabled |
 | 23 | blackbox-exporter | blackbox-exporter | `https://blackbox-exporter.kogler.si` | enabled |
 | 24 | dozzle | logs | `https://logs.kogler.si` | enabled |
@@ -90,4 +90,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-09-08T09:09:34Z
+> Generated from the `docker_services` lists | 2026-09-08T13:57:18Z

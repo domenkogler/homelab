@@ -55,17 +55,12 @@ _extra_templates:
     - .env.j2               # same mechanism — Phase 3 host, fixed while live here
   element-web:
     - config.json.j2
-  loki:
-    - loki.yaml.j2
   matrix:
     - tuwunel.toml.j2
   opencloud:
     - csp.yaml.j2        # HD-144 — Authentik SSO domain in connect-src/frame-src
   litellm:
     - config.yaml.j2   # HD-100 LLM gateway model_list/config
-  prometheus:
-    - prometheus.yml.j2
-    - prometheus-web-config.yml.j2   # HD-59 Basic Auth for the scrape endpoint
   headscale:
     - headplane-config.yaml.j2       # HD-233 admin UI (Headplane) config, rendered next to compose
     - config.yaml.j2
@@ -131,7 +126,8 @@ _template_vault_items:
   opencloud: {'opencloud_login', 'opencloud-collab_password'}
   qdrant: {'qdrant_db'}
   pihole: {'pihole_password'}
-  prometheus: {'prometheus-internal_api'}
+  victoria-metrics: {'victoria-metrics_api'}   # Victoria* basic auth (HD-341/342), HYPHENATED <service>_<type>
+  victoria-logs: {'victoria-logs_api'}         # Victoria* basic auth (HD-341/342)
   qbittorrent: {'privado-vpn_api'}
   recyclarr: {'sonarr_api', 'radarr_api'}
   renovate: {'forgejo_api'}

@@ -344,16 +344,17 @@ wg_s2s_vps_public_key: "NeEeWiEdcPfA4N8R0biRffkY4hQPNOtq8z87mr6I/0I="   # VPS si
 alloy_backend_host: "{% if inventory_hostname == 'oldsrv.kogler.si' %}{{ wg_s2s_vps.ip }}{% else %}127.0.0.1{% endif %}"
 
 # ==== Victoria* observability backend (HD-341/342 — replaces Prometheus+Loki on the VPS) ====
-# Single Victoria stack on the VPS: VictoriaMetrics (metrics, :8428) + VictoriaLogs
-# (logs, :9428). Alloy (host/SNMP/exporter remote_write + log push) and Grafana stay;
-# Prometheus + Loki containers/configs are dropped. Retention is longer than the old
+# Single Victoria stack on the VPS: VictoriaMetrics (metrics, :8428, pure storage/query —
+# Alloy does ALL scraping, topology (B)) + VictoriaLogs (logs, :9428). Alloy (host/SNMP/
+# exporter remote_write + log push) and Grafana stay; Prometheus + Loki containers/configs
+# are dropped. Retention 365d / 90d (owner decision 2026-09-08) — longer than the old
 # Prometheus 30d / Loki 14d because Victoria compresses far better; the volumes are
 # Kopia-backed (docs/observability.md) — unlike the old regenerable TSDB doctrine.
 # MCP AI-debugging servers (HD-344) live on oldsrv and reach these VPS endpoints over
 # the tailnet (owner plans a full s2s-wg → tailnet redo; MCP leg uses tailnet).
-# 1Password basic-auth items: victoria-metrics_api / victoria-logs_api (new, HD-341),
-# field=username + field=password (Victoria flags are -httpAuth.username/password —
-# plaintext, NOT bcrypt like prometheus-internal_api).
+# 1Password basic-auth items (HYPHENATED <service>_<type>, CONVENTIONS §1):
+#   victoria-metrics_api  — username + password (plaintext Victoria -httpAuth, NOT bcrypt)
+#   victoria-logs_api     — username + password (plaintext Victoria -httpAuth)
 # NOTE (HD-341): Alloy/exporters still reach the VPS over wg-s2s today; the MCP leg is
 # the first tailnet consumer. If the VPS Victoria endpoints must also listen on a VPS
 # tailnet address for MCP, that is a publish-address addition owned by the impl leg.

@@ -84,8 +84,10 @@ docker_services:
   # and crashed with EACCES. deploy-service.yml pre-creates/chowns them (Class-A fix).
   - { name: openclaw,       template_dir: openclaw,  public: false, enabled: true, bind_owner_uid: "1000", bind_dirs: ['.', 'workspace', 'auth'] }
   # === Observability backend (VPS = reliable tier; VPS self-observes loopback, HD-135b) ===
-  - { name: prometheus,     template_dir: prometheus, public: false, enabled: true }
-  - { name: loki,           template_dir: loki,       public: false, enabled: true }
+  # Victoria* stack replaces Prometheus/Loki (HD-341/342): VM = metrics (pure storage, Alloy scrapes),
+  # VL = logs. Grafana + Dozzle + blackbox-exporter stay.
+  - { name: victoria-metrics, template_dir: victoria-metrics, public: false, enabled: true }
+  - { name: victoria-logs,    template_dir: victoria-logs,    public: false, enabled: true }
   - { name: grafana,        template_dir: grafana,    subdomain: stats, public: false, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
   - { name: blackbox-exporter, template_dir: blackbox-exporter, public: false, enabled: true }
   - { name: dozzle,         template_dir: dozzle,        subdomain: logs, public: false, enabled: true }   # HD-135b: live per-container log viewer moved from oldsrv (logs.kogler.si)

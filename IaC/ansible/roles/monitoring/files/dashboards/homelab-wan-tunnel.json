@@ -88,7 +88,7 @@
         }
       },
       "targets": [
-        { "refId": "A", "expr": "up{job=~\"prometheus|loki|n8n|blackbox-exporter\"}", "instant": true }
+        { "refId": "A", "expr": "up{job=~\"victoria-metrics|victoria-logs|n8n|blackbox-exporter\"}", "instant": true }
       ]
     }
   ]
