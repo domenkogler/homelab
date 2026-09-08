@@ -801,6 +801,11 @@ mgmt`). The Pi (`eth0.99` tagged Mgmt) is the only real mgmt client. Use
 the device API through `pi` (traffic originates mgmt-sourced, passes both gates with zero
 firewall surface) and execs `ansible-run.sh` with the loopback host/port + venv interpreter:
 
+> ⚠️ **2026-09-08: this hop is OBSOLETE — playbooks now run DIRECT against the .99 mgmt IPs**
+> (the laptop reaches Mgmt-99 via the Windows Mgmt99 vNIC, `wsl-nat-resolv.ps1 -EnableMgmt99`).
+> `ansible-run.sh playbooks/router.yml` / `playbooks/switch.yml` connect straight to the device
+> mgmt IP (network.yml derives it). The hop script is kept for history/fallback only.
+
 ```bash
 # from the session worktree (NOT the primary checkout):
 bash scripts/ansible-network-hop.sh router playbooks/router.yml --check --diff   # dry-run first
@@ -809,26 +814,25 @@ bash scripts/ansible-network-hop.sh router playbooks/router.yml                 
 bash scripts/ansible-network-hop.sh switch playbooks/switch.yml
 ```
 
-**Manual mgmt from the laptop — `~/.ssh/config` aliases (2026-09-02):** for direct WinBox/SSH/
-RouterOS to switch + APs from the Home-only laptop, the same Pi-99 hop works through SSH port
-forwards/ProxyJump. Preconfigured aliases (all via ProxyJump `pi`, same `id_ed25519`):
+**Manual mgmt from the laptop — `~/.ssh/config` aliases (2026-09-08, direct-`.99`):** the laptop reaches the
+Mgmt plane **directly** via the Windows Mgmt99 vNIC (`wsl-nat-resolv.ps1 -EnableMgmt99`) — **no ProxyJump `pi`
+hop needed anymore.** Preconfigured aliases (single `id_ed25519`/`ansible-admin_ssh.pub`, direct):
 
 ```bash
 # verify (RouterOS answers `:put`):
+ssh router '':put OK''            # RB4011 .99.1
 ssh switch '':put OK''            # CRS328 .99.2
-ssh ap-spalnica '':put OK''       # hAP ac² .99.4
-ssh ap-dnevna '':put OK''         # hAP ac² .99.5
-# WinBox on the laptop -> localhost:8291 (device .99.2):
-#   ssh -N -L 8291:<switch .99.2>:8291 switch   (then WinBox Address=127.0.0.1:8291)
-#   ssh -N -L 8291:<ap-dnevna .99.5>:8291 ap-dnevna
-# aliases live in ~/.ssh/config:  pi99 .99.20, router99 .99.1, switch .99.2,
-# ap-spalnica .99.4, ap-dnevna .99.5, ap-spare .99.6, nas99 .99.10 (nas offline → Phase 2)
-# .99.x IPs = network-addresses-generated.md SSOT; aliases keep Windows off tagged-99 (laptop stays untagged Home-only).
+ssh oldsrv echo OK                # .99.30
+ssh pi99 echo OK                  # Pi Mgmt .99.20 (pi = Home .1.20; the one dual-leg exception)
+# WinBox: point at the device Mgmt IP directly — see .99.x in network-addresses-generated.md
+#   WinBox Address=<switch .99>  (CRS328)  | <ap-dnevna .99>  etc.
+# aliases live in ~/.ssh/config:  pi .1.20, pi99 .99.20, router .99.1, switch .99.2, oldsrv .99.30,
+# ap-spalnica .99.4, ap-dnevna .99.5, ap-spare .99.6, nas .1.10
+# .99.x IPs = network-addresses-generated.md SSOT; the hop aliases were removed + deduped (2026-09-08).
 ```
 
-> The aliases keep Windows off tagged-99 (the laptop stays untagged Home-only); the Pi `eth0.99`
-> leg is the only mgmt client. `nas99`/`ap-spare` may report 'No route to host' until those devices
-> are powered/provisioned (spare AP + Phase-2 NAS).
+> The aliases keep Windows ON tagged-99 via the Mgmt99 vNIC — direct. `nas` (Home .1.10) may report
+> 'No route to host' until Phase 2; `ap-spare` is a spare (offline until powered).
 
 > **2026-09-02 (maintenance window):** this hop unblocked the live re-converge — router
 > `ok=34 changed=5 failed=0`, switch `ok=23 changed=4 failed=0`, both through the Pi hop.

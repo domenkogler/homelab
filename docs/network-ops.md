@@ -39,7 +39,7 @@ Source of truth: the **Jinja templates** (`rb4011_{initial,converge}.rsc.j2`; de
 ### Apply workflow (imports)
 
 - **Render from SSOT:** `bash scripts/ansible-run.sh playbooks/render-converge.yml` renders `rb4011_converge.rsc` (+ `crs328_converge.rsc`); any `*_delta.rsc.j2` renders to `IaC/router/rendered/` the same way. Rendered files are **gitignored** (they contain live secrets from 1Password).
-- **Apply via SSH (ansible identity, pinned host key)** — the sanctioned non-WinBox path. **Automated (HD-309):** `bash scripts/routeros-apply-delta.sh <router-ip> <delta-file>` performs key pull + parse-verify + host-key pin + SCP + `/import` in one step (see [scripts/README.md](../scripts/README.md)). Manual equivalent (the classic loop it replaces):
+- **Apply via SSH (ansible identity, pinned host key)** — the sanctioned non-WinBox path. **Direct on .99 (2026-09-08):** the laptop reaches the Mgmt plane directly (Windows Mgmt99 vNIC), so the device host is its **.99 mgmt IP** (`<router-ip>` below = the router's `mgmt` row in [`network-addresses-generated.md`](network-addresses-generated.md); the old ProxyJump-`pi` hop is obsolete). **Automated (HD-309):** `bash scripts/routeros-apply-delta.sh <router-ip> <delta-file>` performs key pull + parse-verify + host-key pin + SCP + `/import` in one step (see [scripts/README.md](../scripts/README.md)). Manual equivalent (the classic loop it replaces):
   ```bash
   # pin the router's CURRENT host key (rotated at reset; TOFU):
   ssh-keyscan -T 5 -t ed25519,rsa <router-ip> > /tmp/router_hostkeys.txt
@@ -258,7 +258,7 @@ as the canonical idempotent recovery (always re-render before use — it is SSOT
 
 > **Symptom (found during oldsrv Phase-3 prep):** the entire tagged-99 Management plane is unreachable at the
 > host level. From the Pi's `eth0.99` (verified working 2026-09-02) — SSOT `router` (mgmt), `switch` (mgmt),
-> `ups` (mgmt) rows are **all ARP-FAILED**; router mgmt SSH via the Pi-hop (`router99`) fails
+> `ups` (mgmt) rows are **all ARP-FAILED**; router mgmt SSH via the old Pi-hop (`router99`) fails
 > `No route to host`; the **router's SSH is DOWN on BOTH legs**: the router's Home row → `kex_exchange_identification:
 > read: Connection reset by peer`, Mgmt row → unreachable. ICMP on Home works (router up on the untagged
 > plane), but TCP services refuse (`available-from` = Mgmt-only lockdown, HD-301). oldsrv's new tagged Mgmt leg
@@ -283,6 +283,8 @@ bash scripts/ansible-run.sh playbooks/render-converge.yml   # or ad-hoc render o
 ```
 Window for the router: **only via the Home leg or laptop/WinBox** — the SSH service is Mgmt-only and Mgmt is
 dark. After recovery, verify `router99` and every mgmt client ARP before continuing Phase 3/4.
+> *(Historical note 2026-09-08: this section describes the ProxyJump-`pi` hop era; the laptop now reaches the
+> Mgmt plane directly via the Windows Mgmt99 vNIC — aliases `router`/`switch`/`oldsrv` direct, no hop.)*
 
 **RESOLUTION (2026-09-03):** confirmed via WinBox — the root-cause hypothesis was correct. The vlan-99 bridge
 entry had `ether10` (and `ether2`) in the **UNTAGGED** column instead of **TAGGED** (a stale/broken converge
@@ -295,3 +297,5 @@ vlan-99 block (comment/state mismatch) — the manual one-liner was the effectiv
 `router.yml` converge (same session) re-applied and verified the tagged memberships + KNX rule live.
 PERMANENT FIX: the converge-template/role vlan-99 memberships are correct (tagged=ether2,ether10); the
 broken state came from a prior partial converge — monitor the first converge after any future bridge change.
+*(On 2026-09-08 the direct-Mgmt path from the laptop (no hop) was verified — `router`/`switch`/`oldsrv` SSH
+work direct on .99; this incident is historical.)*

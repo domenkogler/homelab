@@ -177,21 +177,17 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 > only tailnet surface for the admin dashboards (see the compose template
 > `docker_services/traefik-tailnet` for the routing + serve details).
 >
-> **Pi-hop SSH + Winbox tunnels (Mgmt VLAN from the laptop, 2026-09-02):** the laptop is untagged Home-only
-> (Windows never tags VLAN 99); the **Mgmt plane is reached via the Pi's tagged-99 leg** — preconfigured in
-> `~/.ssh/config` (concrete IPs: [`network-addresses-generated.md`](network-addresses-generated.md)):
-> - **SSH console:** `ssh pi99` (→ Pi tagged-99 leg .99.20 via ProxyJump `pi`), `ssh router99` (→ router mgmt
->   .99.1 via ProxyJump `pi`, user `ansible`), `ssh switch` (→ CRS328 mgmt .99.2), `ssh nas99` (→ .99.10,
->   offline until Phase 2), `ssh ap-spalnica/ap-dnevna/ap-spare` (→ APs .99.4/.5/.6). All via ProxyJump `pi`,
->   user `ansible`/`ansible-admin`.
-> - **Winbox GUI (device binds winbox 8291 to Mgmt VLAN only):** SSH into the Pi and forward from there
->   (the Pi carries the tagged-99 leg), so the forward runs on the Pi → device. Aliases in `~/.ssh/config`:
->   `ssh -N switch-wb` (→ `127.0.0.1:8292` → switch winbox), `ssh -N ap-spalnica-wb` (
->   → `127.0.0.1:8294` → AP winbox), `ssh -N ap-dnevna-wb` (→ `127.0.0.1:8295` → AP winbox).
->   Then point Winbox at `127.0.0.1:<port>`. **Why Pi-dial (not ProxyJump-to-device):** the LocalForward must
->   run from the Pi (which has the Mgmt leg); a ProxyJump final-hop onto the RouterOS device leaves the
->   forward hosted by RouterOS SSH, which does not carry the channel — Winbox stalls at authentication.
->   **Design constraint:** RouterOS mgmt services bind winbox to the Mgmt VLAN only, so direct access to
+> **Mgmt-99 SSH from the laptop — direct (2026-09-08, replaces the Pi-hop):** the laptop now reaches the Mgmt
+> plane **directly** via the Windows **Mgmt99 vNIC** (`wsl-nat-resolv.ps1 -EnableMgmt99`: `.99.80` + forwarding),
+> so **no ProxyJump `pi` hop is needed anymore**. Preconfigured `~/.ssh/config` aliases (concrete IPs:
+> [`network-addresses-generated.md`](network-addresses-generated.md)):
+> - **SSH console:** `ssh router` (→ router mgmt .99.1, user `ansible`), `ssh switch` (→ CRS328 mgmt .99.2),
+>   `ssh oldsrv` (→ .99.30), `ssh pi` / `ssh pi99` (→ Pi Home .1.20 / Mgmt .99.20 — the one dual-leg exception),
+>   `ssh ap-spalnica/ap-dnevna/ap-spare` (→ APs .99.4/.5/.6). **All direct — no ProxyJump.**
+> - **Winbox GUI (device binds winbox 8291 to Mgmt VLAN only):** because the Mgmt plane is reachable from the
+>   laptop directly, point Winbox at the device Mgmt IP (`.99.x` per [`network-addresses-generated.md`](network-addresses-generated.md)) — no tunnel needed
+>   (the old `switch-wb`/`ap-*-wb` LocalForward aliases were removed; the Pi-dial pattern is retired).
+>   **Design constraint (unchanged):** RouterOS mgmt services bind winbox to the Mgmt VLAN only, so direct access to
 >   the device winbox port from the Home laptop is blocked — the tunnel is required.
 
 ### Pattern A -- loopback-capable apps (preferred)

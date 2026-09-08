@@ -14,10 +14,6 @@ Rows where the AI can act **now** without any new human input. Inline notes flag
 | **Network** ||||
 | HD-03 | 1 | Final inter-VLAN matrix audit + Kids forced-DNS / Home-drop live-verify | Read-only router audit + live-verify via RouterOS API — no owner action |
 | HD-182 | 2 | Kids VLAN firewall live-verify (forced-DNS hijack, Kids→Home drop) | Rules are IaC'd; verify against live RB4011 via API |
-| HD-33 | 3 | Export `rb4011_live.rsc` | One-time read-only export (mikrotik skill) |
-| HD-26 | 3 | Confirm UPS SNMP 161/udp (no consumer; probe from a Mgmt-99 host) | AI-runnable if a Mgmt-VLAN host is reachable; else trivial defer |
-| HD-303 | 1 | Re-render RouterOS templates (`/user add` → one-line `password=""`) | Pure render + regression-guard comment; lands on next `/import` |
-| HD-311 | 2 | Apply oldsrv tagged-99 sub-interface | oldsrv is provisioned/live — apply at next oldsrv converge |
 | HD-217 | 2 | Homepage failover-button gate off on next green vps.yml | The IaC + owner sign-off are done; just render/deploy |
 | HD-159 | 2 | `wg-s2s-down` alert live-verify | AI can run the deliberate `wg down` test (needs a brief planned tunnel-down window) |
 | **Storage / UPS** ||||
@@ -79,13 +75,11 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 | **Group 1 — oldsrv Phase-3 blockers (the big chain)** ||||
 | HD-318 | 1 | oldsrv Phase-3 provision | ① ONLYOFFICE repo/key, ② **ROCm pins decision**, ③ 1P `pihole_password` / `sonarr_api` / `radarr_api`. (kopia tail auto-unblocks once the VPS leg converges — post-Victoria) |
 | HD-318a | 1 | kopia-agent crash-loop | **VPS-gated** (auto): 1P `kopia-server_fingerprint` seedable only after VPS kopia-server converge |
-| HD-311 | 2 | oldsrv tagged-99 apply | Chains on Phase-3 completion (host-side apply itself is AI) |
 | HD-344 | 3 | MCP Victoria servers on oldsrv (pi/OWUI/OpenClaw registration) | Chains on oldsrv Phase-3 + HD-342 backend |
 | HD-288 | 3 | Sunshine live-verify (Moonlight round-trip) | Chains on oldsrv Phase-3 (manual-start test) |
 | HD-46 / HD-122 | 4/2 | Matrix IaC deploy + federation live-verify | Chains on Phase-3 hosts + owner OIDC records (HD-147) |
 | **Group 2 — owner manual / physical / browser / 1P seeding** ||||
 | HD-08 / HD-06 | 1/2 | UPS battery-pull test | Owner **physical** test (feeds HD-06/07/08 close-out) |
-| HD-26 | 3 | UPS SNMP probe from Mgmt-99 | Only if AI can't reach a Mgmt-VLAN host — else AI |
 | HD-319 | 1 | Confirm 3 rekuperator GAs (12/1/*) answer on the KNX bus | Owner verify (HA UI / panel warnings) |
 | HD-316 | 1 | Homepage launchpad — family sees apps green; technical section renders | Owner **visual** verify |
 | HD-315 | 1 | Grafana dashboard render-verify with data (post-Victoria) | Owner **visual** verify (panels + data sanity; gated on HD-342) |
@@ -117,6 +111,6 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 
 ## Bottom line
 
-- **Best pure-AI starters right now:** HD-286 (5-min doc fix), HD-33 + HD-03 + HD-182 (router read-only audit/verify using the mikrotik skill — zero risk), HD-211/59/160 (1P + auth wiring), HD-288's security.md fix, HD-345 + HD-342 (Victoria follow-ups).
-- **The single highest-leverage owner step** is HD-318 group: ① ONLYOFFICE repo/key, ② ROCm pins decision, ③ the three 1P items — it cascades to HD-311, HD-344, HD-288, HD-46/122, HD-101, HD-147. After that, the 1P seeds in HD-242/268/296 unblock the rest of the deploy-gated batch.
+- **Best pure-AI starters right now:** HD-286 (5-min doc fix), HD-03 + HD-182 (router read-only audit/verify using the mikrotik skill — zero risk), HD-211/59/160 (1P + auth wiring), HD-288's security.md fix, HD-345 + HD-342 (Victoria follow-ups).
+- **The single highest-leverage owner step** is HD-318 group: ① ONLYOFFICE repo/key, ② ROCm pins decision, ③ the three 1P items — it cascades to HD-344, HD-288, HD-46/122, HD-101, HD-147. After that, the 1P seeds in HD-242/268/296 unblock the rest of the deploy-gated batch.
 - **Stale rows note:** HD-40A/40B/135/43/44 read stale versus the README's "state of the world" (Phase 1 live, Phase 2/4 live) — an AI close-out audit (verify live state, then delete/trim per todo.md §4(a)) is itself a good pure-AI table-A task.

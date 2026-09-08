@@ -92,7 +92,7 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 
 ## Open Items
 
-- [ ] **SNMP UDP** — IoT-VLAN-only: the `ups` host sits on IoT 20 (isolated, no WAN). No consumer uses it — monitoring is NUT/USB. Informational only.
+- [x] **SNMP UDP — CLOSED 2026-09-08 (HD-26):** probed from a Mgmt-99 host (oldsrv `.99.30`) — **no reply on 161/UDP (filtered)**, while **Modbus TCP 502 is open** + ICMP reaches the `ups` host. So the UPS NIC simply does **not answer SNMP**; **no consumer uses it anyway** — monitoring is NUT/USB. The old "Informational only / untested" checkbox is swept; the SNMP row in the protocol table below stays as-is (informational).
 
 > Modbus TCP register-map item **removed (retired):** HA Modbus UPS sensors were removed;
 > UPS monitoring is NUT/USB via `nut_exporter` (`hardware-ups` topology above).

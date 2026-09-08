@@ -234,7 +234,6 @@
 - **HD-09** — UPS web-UI firewall rule (80/443 Home→Mgmt for `10.10.99.9` only) not deployed. · [hardware-ups.md](docs/hardware-ups.md)
 - **HD-89** — disable/move unused AP ethernet ports off Mgmt VLAN (wired devices currently get full Management access). · [network-vlans.md](docs/network-vlans.md)
 - **HD-161** — router/switch `api_facts` assert-before-mutate step + router API TLS decision (`routeros_api_tls`, TODO after Let's Encrypt). · [deployment-ansible.md](docs/deployment-ansible.md)
-- **HD-26** — confirmantional UPS SNMP UDP (161/udp) probe must run from a Mgmt-VLAN (99) host; even if present, no consumer uses it (NUT/USB is the monitor). · [hardware-ups.md](docs/hardware-ups.md)
 
 ---
 
@@ -466,7 +465,6 @@
 > **1Password prerequisites:** `mikrotik-admin_login` (export the live config).
 
 - Write family guides `docs/manual/*` (10 Slovenian files, `status: wip`) — **HD-32**
-- Export live router config `rb4011_live.rsc` (RouterOS export) — **HD-33**
 
 ---
 

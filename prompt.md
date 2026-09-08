@@ -21,13 +21,18 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 > Pointer index only: each open HD links its owning-doc status block (the SSOT) and its
 > [todo.md](todo.md) row (the registry — a row is deleted when fully done, §4(a)).
 > For "what to do next" also see [todo-table.md](todo-table.md) (planning view: AI-runnable vs owner-blocked).
+>
+> **2026-09-08 Mgmt-99 direct cleanup:** the laptop/WSL now reaches the Mgmt VLAN **directly** via the Windows
+> Mgmt99 vNIC (`wsl-nat-resolv.ps1 -EnableMgmt99`) — SSH aliases `router`/`switch`/`oldsrv`/`pi99` are **direct
+> (no ProxyJump `pi`)**, the hop aliases (`pi99`-via-`pi`, `router99`, `oldsrv99`, `nas99`) were removed + deduped,
+> HD-33/26/303/311 closed. `ansible-network-hop.sh` is kept but **obsolete** (scripts/README). `pi`/`pi99` are the
+> one dual-leg exception.
 
 | HD | Open item (one line) | Detail SSOT |
 |----|----------------------|-------------|
 | HD-342 | Victoria stack deploy (VPS) LIVE; remaining tails: kopia client wiring for Victoria data, oldsrv MCP (HD-344) | [observability.md](docs/observability.md) · [todo.md HD-342](todo.md) |
 | HD-344 | MCP AI-debugging servers on oldsrv (register in pi/OWUI/OpenClaw + tailnet redo) | [observability.md](docs/observability.md) §MCP · [todo.md HD-344](todo.md) |
 | HD-318 | oldsrv Phase-3 provision in progress (kopia-agent VPS-gated; recyclarr @daily verify) | [hardware-oldsrv.md](docs/hardware-oldsrv.md) · [todo.md HD-318](todo.md) |
-| HD-311 | oldsrv dual-home tagged-99 sub-interface apply | [network-vlans.md](docs/network-vlans.md) · [todo.md HD-311](todo.md) |
 | HD-03 | Inter-VLAN residual audit + Kids forced-DNS/Home-drop live-verify | [network-vlans.md](docs/network-vlans.md) · [todo.md HD-03](todo.md) |
 | HD-343 | Network Clients dashboard — owner verify (wifi path, panels, stats.kogler.si) | [observability.md](docs/observability.md) §Network Clients Dashboard · [todo.md HD-343](todo.md) |
 | HD-08 | UPS battery-pull test (owner manual; feeds HD-06/07) | [hardware-ups.md](docs/hardware-ups.md) · [todo.md HD-08](todo.md) |
