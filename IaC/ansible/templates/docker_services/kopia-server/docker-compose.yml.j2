@@ -6,10 +6,13 @@
 #
 #   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     kopia_password       (Password: repository master password)
-#     kopia-server-internal_api (API Credential: username=<user@host>, credential=<password>)
-#                              — server auth (HD-59): replaces `--without-password`. The `username`
-#                              MUST be the exact `user@host` identity backup clients present via HTTP
-#                              Basic Auth; password is written plaintext to server.htpasswd at 0600.
+#     kopia-server-internal_api (API Credential: username=<server-admin-user@host>, credential=<password>)
+#                              — server auth (HD-59/HD-318a): replaces `--without-password`. The htpasswd
+#                              gets BOTH the generic admin entry AND the per-client user@host the backup
+#                              agent presents (`kopia_agent_user`, group_vars/all.yml — see the boot script).
+#                              The repo user (`kopia server users add`) password MUST equal the repo master
+#                              password (kopia quirk, verified live 2026-09-08); password is written
+#                              plaintext to server.htpasswd at 0600.
 #   Backup-box SFTP connection (NOT a secret item): SSH-key auth via `Hertzner-SB-Backup` (1Password connection
 #   ref); host/user/port/path from `kopia_sftp_*` in group_vars/all.yml. No kopia-sftp_api item, and the legacy
 #   kopia-s3_api (iDrive e2 S3) is retired.
