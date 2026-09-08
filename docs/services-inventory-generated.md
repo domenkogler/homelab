@@ -58,7 +58,7 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 | # | Service | Subdomain | URL | Status |
 |---|---------|-----------|-----|--------|
-| 1 | ollama | ollama | `https://ollama.kogler.si` | enabled |
+| 1 | ollama | ollama | `https://ollama.kogler.si` | disabled |
 | 2 | immich-ml | immich-ml | `https://immich-ml.kogler.si` | enabled |
 | 3 | technitium (secondary) | technitium | `https://technitium.kogler.si` | enabled |
 | 4 | pihole | ad | `https://ad.kogler.si` | enabled |
@@ -90,4 +90,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-09-07T11:19:12Z
+> Generated from the `docker_services` lists | 2026-09-08T09:09:34Z

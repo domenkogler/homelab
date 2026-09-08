@@ -90,7 +90,7 @@ Client → Technitium PRIMARY (VPS public IP)  ← DHCP lists this first
   different physical boxes.
 - `ha.kogler.si` resolves to the **VIP** on every instance (see [`smart-home-failover.md`](smart-home-failover.md)) so DNS is never the thing that breaks HA lookup.
 - **The VIP's `:443` edge is served by whichever keepalived node owns the VIP:** in normal mode the Pi's minimal **`traefik-ha`** edge serves `ha.kogler.si`; after a forward takeover oldsrv's `traefik` takes over. Both serve an identical `ha` route → VIP:8123, so `ha.kogler.si → VIP` is always served by the active HA node (**no DNS flip on failover**). See [`smart-home-failover.md`](smart-home-failover.md).
-- **Web UIs:** primary web UI on `dns.kogler.si` (VPS, Forward-Auth; **no host 5380** — served via the VPS Traefik overlay).
+- **Web UIs:** primary web UI on `dns.kogler.si` (VPS, Forward-Auth; **no host 5380** — served via the VPS Traefik overlay). **Note: Forward-Auth only GATES the edge — Technitium has its OWN local `admin` login (1P `technitium_login`) behind it; SSO never logs you into Technitium** (confirmed live 2026-09-08).
   **🔴 404 fixed 2026-09-03:** `https://dns.kogler.si/` returned 404 because the `forward-dns`
   Authentik ProxyProvider was missing from `ks-forward-auth.yml` (the route + forward-auth label
   existed since HD-62; the outpost 404'd on the unmatched Host). Added `provider_edge_dns` +

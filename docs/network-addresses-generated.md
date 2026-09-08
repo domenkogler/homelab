@@ -119,4 +119,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-07T16:11:48Z
+> Last generated: 2026-09-08T09:09:34Z

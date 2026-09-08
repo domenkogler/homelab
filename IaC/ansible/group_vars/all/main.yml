@@ -104,10 +104,11 @@ nut_exporter_port: 9199
 #   SMTP server: mail-eu.smtp2go.com; SMTP port 2525 (default); alternative
 #   ports 8025, 587, 80, 25 — TLS available on the same ports (STARTTLS).
 #   SSL only on 465, 8465, 443.
-# We use mail-eu.smtp2go.com:587 + STARTTLS (587 is a TLS port; the NUT
-# template requires STARTTLS on the same host).
+# We use mail-eu.smtp2go.com:2525 + STARTTLS (the SMTP2Go default; 587 was blocked from the
+# VPS egress — only 2525/8025 open live 2026-09-08 — so 2525 is the port used by every consumer).
 smtp2go_host: mail-eu.smtp2go.com
-smtp2go_port: 587                   # TLS/STARTTLS port (alternatives: 2525/8025/80/25)
+smtp2go_port: 2525                  # STARTTLS port (default; alternates 8025/587/80/25). 587 is BLOCKED from the VPS egress
+                                     # (only 2525/8025 open — live-verified 2026-09-08); LAN egress reaches both. Use 2525 everywhere.
 smtp2go_ssl_ports: [465, 8465, 443]  # SSL-only ports (not used)
 smtp2go_smtp_ports: [2525, 8025, 587, 80, 25]  # SMTP ports with TLS available
 
