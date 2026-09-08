@@ -88,6 +88,8 @@
 /ip firewall filter
 add chain=input action=accept connection-state=established,related comment="Allow established/related input (switch)"
 add chain=input action=accept in-interface=vlan99-mgmt comment="Allow mgmt VLAN input (switch)"
+add chain=input action=accept src-address={{ mgmt.subnet }} protocol=udp dst-port=161 comment="Allow SNMP from Mgmt VLAN (HD-53)"
+add chain=input action=drop protocol=udp dst-port=161 comment="Drop SNMP from non-mgmt (HD-53)"
 add chain=input action=drop comment="Drop all other input (switch lockdown)"
 
 # ---- Services (mgmt-scoped, dangerous disabled — HD-301) ----
@@ -101,6 +103,27 @@ add chain=input action=drop comment="Drop all other input (switch lockdown)"
 /ip service set ssh disabled=no port=22 available-from=10.10.99.0/24
 /ip service set winbox disabled=no port=8291 available-from=10.10.99.0/24
 
+# ---- SNMP (HD-53): RO, Mgmt-scoped — config so it survives steady-state converges ----
+# The RO community (network-snmp_api) is injected at render as snmp_ro_community; the
+# community `name=` IS the shared secret string (must match the Alloy snmp.yml auth
+# community) and is scoped to the Mgmt subnet only, read-only. Idempotent: set enabled,
+# then set the named community if present else add it. Firewall above allows udp/161
+# from Mgmt VLAN + drops the rest.
+/snmp set enabled=yes
+:if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+} else={
+    /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
+}
+
+# ---- SNMP resilience (fixsnmp): re-assert after boot (mirrors fixsyslog) ----
+:if ([/system script find where name=fixsnmp] = "") do={
+    /system script add name=fixsnmp source=":delay 5s; /snmp set enabled=yes; :delay 1s; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
+}
+:if ([/system scheduler find where name=fixsnmp] = "") do={
+    /system scheduler add name=fixsnmp on-event=fixsnmp start-time=startup interval=0 policy=read,write,test
+}
+
 # ---- LAST: enable VLAN filtering (safety order — see bridge add at top) ----
 # With the trunk + access ports + mgmt IP + vlan99 all in place ABOVE, enabling
 # filtering now keeps the switch reachable. If this step errors, the switch stays
@@ -109,4 +132,5 @@ add chain=input action=drop comment="Drop all other input (switch lockdown)"
 
 # ---- End ----
 # Verify: /interface bridge print, /interface bridge port print, /ip address print,
-#         /ip firewall filter print, /ip service print
+#         /ip firewall filter print, /ip service print, /snmp print, /snmp community print,
+#         /system script print, /system scheduler print
