@@ -146,6 +146,22 @@ def _load_ssot_ctx():
     ):
         if k in data:
             ctx[k] = data[k]
+    # PrivadoVPN WireGuard endpoint SSOT (HD-318c) — plain non-secret values live in
+    # group_vars/home_servers.yml (oldsrv), consumed by the qbittorrent gluetun
+    # compose template. Loaded from the SSOT here (not mock) so the validator render
+    # cannot drift from the real group_vars (HD-189 principle).
+    hp = GROUP_VARS_DIR / "home_servers.yml"
+    try:
+        hdata = yaml.safe_load(hp.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as e:
+        print(f"FAIL: cannot read group_vars/home_servers.yml ({hp}): {e}", file=sys.stderr)
+        sys.exit(1)
+    for k in (
+        "privado_vpn_endpoint_ip", "privado_vpn_endpoint_port",
+        "privado_vpn_public_key", "privado_vpn_address", "privado_vpn_cidr",
+    ):
+        if k in hdata:
+            ctx[k] = hdata[k]
     # Neutral shared-data owner (HD-94) — SSOT: roles/storage/defaults/main.yml.
     sp = ROOT / "IaC" / "ansible" / "roles" / "storage" / "defaults" / "main.yml"
     try:

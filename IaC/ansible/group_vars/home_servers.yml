@@ -46,6 +46,26 @@ grafana_alert_email: domen@kogler.si
 # The n8n workflow 'homelab-alerts' on this route must exist before the first
 # alert (created at n8n setup; URL is internal, traefik-public network).
 grafana_alert_webhook_url: "http://n8n:5678/webhook/homelab-alerts"
+# PrivadoVPN WireGuard egress for the qbittorrent gluetun sidecar (HD-318c).
+# SSOT for the NON-secret endpoint config of the VPN tunnel; gluetun runs the
+# provider in `custom` WireGuard mode (gluetun dropped the native `privado`
+# provider — HD-318c) so these values are supplied explicitly instead of via
+# a `SERVER_COUNTRIES`/`privado` server pick. The client private key is the
+# ONLY secret — it lives in 1Password `privado-vpn_api` (field `credential`)
+# and is looked up at render time by the docker_services role (never a literal).
+# Source of the values: the PrivadoVPN WireGuard config handed over by the owner.
+# Spec: docs/services-downloads.md §VPN & Ingress.
+privado_vpn_endpoint_ip: 91.148.247.8      # [Peer] Endpoint host (gluetun custom requires an IP, no DNS)
+privado_vpn_endpoint_port: 51820            # [Peer] Endpoint :port
+privado_vpn_public_key: "KgTUh3KLijVluDvNpzDCJJfrJ7EyLzYLmdHCksG4sRg="   # [Peer] server public key
+privado_vpn_address: 100.64.18.145          # [Interface] client tunnel address
+privado_vpn_cidr: 32                         # [Interface] Address prefix (WG /32)
+# [Interface] DNS Privado hands out (198.18.0.1/2). NOTE: gluetun runs its own
+# internal DNS resolver by default and does NOT consume provider-assigned DNS;
+# recorded here for the docs/owner reference, not rendered into gluetun.
+# [Peer] AllowedIPs is 0.0.0.0/0 (full tunnel) — gluetun custom defaults to full
+# egress through the tunnel; not rendered as a separate env.
+
 # subdomain (optional): overrides the auto-generated URL hostname.
 # When omitted, the service name is used (e.g. traefik → traefik.kogler.si).
 # Required for services whose subdomain ≠ name (e.g. grafana → stats.kogler.si).

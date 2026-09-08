@@ -130,21 +130,24 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   - Bazarr: library dirs (writes subtitles next to media)
   - `Use Hardlinks: ON` in Sonarr/Radarr/Lidarr
   - Full layout + dataset properties: [`storage.md`](storage.md)
-- **Downloader egress:** only qBittorrent routes through gluetun:
+- **Downloader egress:** only qBittorrent routes through gluetun. **HD-318c:** gluetun runs `custom` WireGuard because the native `privado` provider was dropped; the endpoint/address config is non-secret and comes from `group_vars/home_servers.yml` (`privado_vpn_*`), the client private key from 1Password:
   ```yaml
   services:
     gluetun:
-      image: qm12/gluetun:latest
+      image: qmcgaw/gluetun:{{ gluetun_version }}   # upstream (qm12 fork is gone, HD-192)
       cap_add: [NET_ADMIN]
       devices:
         - /dev/net/tun:/dev/net/tun
       environment:
-        VPN_SERVICE_PROVIDER: privado
+        VPN_SERVICE_PROVIDER: custom        # gluetun dropped `privado` (HD-318c)
         VPN_TYPE: wireguard
-        WIREGUARD_PRIVATE_KEY: "{{ lookup('community.general.onepassword', 'privado-vpn_api', field='credential', vault=op_vault) }}"
-        SERVER_COUNTRIES: Netherlands
+        WIREGUARD_ENDPOINT_IP: "{{ privado_vpn_endpoint_ip }}"
+        WIREGUARD_ENDPOINT_PORT: "{{ privado_vpn_endpoint_port }}"
+        WIREGUARD_PUBLIC_KEY: "{{ privado_vpn_public_key }}"
+        WIREGUARD_PRIVATE_KEY: "{{ vault['privado-vpn_api'].credential | replace('$','$$') }}"
+        WIREGUARD_ADDRESSES: "{{ privado_vpn_address }}/{{ privado_vpn_cidr }}"
     qbittorrent:
-      image: linuxserver/qbittorrent:latest
+      image: linuxserver/qbittorrent:{{ qbittorrent_version }}
       network_mode: "service:gluetun"      # no own network — shares gluetun namespace
       depends_on: [gluetun]
   # gluetun must be on traefik-public + services-internal so the qBittorrent
