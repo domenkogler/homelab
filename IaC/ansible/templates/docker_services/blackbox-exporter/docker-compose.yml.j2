@@ -16,10 +16,14 @@ services:
     restart: unless-stopped
     networks:
       - services-internal
+      - db-internal    # 2026-09-08: Prometheus scrapes blackbox-exporter:9115/metrics + /probe targets here.
+                       # Same pattern as traefik joining db-internal for its metrics entryPoint.
     volumes:
       - ./blackbox.yml:/etc/blackbox_exporter/blackbox.yml:ro
     command:
       - "--config.file=/etc/blackbox_exporter/blackbox.yml"
 networks:
   services-internal:
+    external: true
+  db-internal:
     external: true

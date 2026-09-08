@@ -30,6 +30,8 @@ services:
     restart: unless-stopped
     networks:
       - traefik-public
+      - db-internal    # 2026-09-08: Prometheus scrapes crowdsec:6060/metrics here.
+                       # Same pattern as traefik joining db-internal for its metrics entryPoint.
     volumes:
       - /srv/docker/crowdsec/config:/etc/crowdsec
       - /srv/docker/crowdsec/db:/var/lib/crowdsec/data
@@ -45,4 +47,6 @@ services:
       # No Traefik labels — CrowdSec is not a web-facing service.
 networks:
   traefik-public:
+    external: true
+  db-internal:
     external: true

@@ -18,6 +18,8 @@ scrape_configs:
         target_label: __param_target
       - source_labels: [__param_target]
         target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
       - source_labels: [__param_module]
         target_label: __param_module
     params:
@@ -38,6 +40,8 @@ scrape_configs:
         target_label: __param_target
       - source_labels: [__param_target]
         target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
       - source_labels: [__param_module]
         target_label: __param_module
     params:
@@ -57,6 +61,8 @@ scrape_configs:
         target_label: __param_target
       - source_labels: [__param_target]
         target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
       - source_labels: [__param_module]
         target_label: __param_module
     params:
@@ -107,9 +113,6 @@ scrape_configs:
     static_configs:
       - targets: ["loki:3100"]
   - job_name: n8n
-    basic_auth:
-      username: "{{ vault['prometheus-internal_api'].username }}"
-      password: "{{ vault['prometheus-internal_api'].password }}"
     static_configs:
       - targets: ["n8n:5678"]
   # Prometheus Alertmanager is NOT in Phase 1 — Grafana Alerting covers it (observability.md),

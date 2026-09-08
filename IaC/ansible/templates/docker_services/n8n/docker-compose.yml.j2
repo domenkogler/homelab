@@ -33,6 +33,8 @@ services:
     networks:
       - traefik-public
       - services-internal
+      - db-internal    # 2026-09-08: Prometheus scrapes n8n:5678/metrics here (N8N_METRICS)
+                       # — same pattern as traefik joining db-internal for its metrics entryPoint.
     volumes:
       - /srv/docker/n8n/data:/home/node/.n8n
     environment:
@@ -55,4 +57,6 @@ networks:
   traefik-public:
     external: true
   services-internal:
+    external: true
+  db-internal:
     external: true
