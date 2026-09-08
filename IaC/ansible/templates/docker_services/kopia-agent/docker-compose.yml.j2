@@ -45,8 +45,8 @@ services:
         set -e
         # Fail loud: server auth identity is REQUIRED (HD-59 / HD-65) — never run an
         # agent that would silently skip auth (the server would reject it anyway).
-        : "${KOPIA_SERVER_USER:? kopia-server-internal_api.username missing — aborting}"
-        : "${KOPIA_SERVER_PASSWORD:? kopia-server-internal_api.credential missing — aborting}"
+        : "$${KOPIA_SERVER_USER:? kopia-server-internal_api.username missing — aborting}"
+        : "$${KOPIA_SERVER_PASSWORD:? kopia-server-internal_api.credential missing — aborting}"
         if [ ! -f /app/config/repository.config ]; then
           echo "Connecting to kopia-server over the WG S2S tunnel..."
           # kopia 0.23.1 dropped --server-username/--server-password: HTTP Basic auth
@@ -55,39 +55,39 @@ services:
           # encode it or the URL parser rejects it ("invalid character } in host
           # name", live 2026-09-08). Pure-bash encoder (no perl URI::Escape in the
           # kopia image, and Jinja chokes on the open-brace-hash sequence — verified 2026-09-08).
-          # NOTE: docker compose interpolates $NAME in the command block — every
+          # NOTE: docker compose interpolates $$NAME in the command block — every
           # bash var stays a simple name (compose warns "variable is not set" and
           # blanks it, which is harmless at compose-parse time; the bash runtime
-          # re-reads $NAME from the environment at exec). The ONLY hard error is the
-          # ${var:offset} substring form (invalid interpolation format) — avoided.
-          # fold is present in the kopia image (verified 2026-09-08). All $NAME
-          # forms are simple names: docker compose interpolates unknown $NAMEs to a
+          # re-reads $$NAME from the environment at exec). The ONLY hard error is the
+          # $${var:offset} substring form (invalid interpolation format) — avoided.
+          # fold is present in the kopia image (verified 2026-09-08). All $$NAME
+          # forms are simple names: docker compose interpolates unknown $$NAMEs to a
           # harmless blank at parse time (the bash runtime re-reads them from env at
-          # exec), and we avoid ${var:...} substring syntax entirely (that is the
+          # exec), and we avoid $${var:...} substring syntax entirely (that is the
           # only form that hard-errors compose: "invalid interpolation format").
           _urlenc() {
-            printf '%s' "$1" | fold -w1 | while IFS= read -r c; do
-              case "$c" in
-                [A-Za-z0-9._~-]) printf '%s' "$c" ;;
-                *) printf '%%%02X' "'$c" ;;
+            printf '%s' "$$1" | fold -w1 | while IFS= read -r c; do
+              case "$$c" in
+                [A-Za-z0-9._~-]) printf '%s' "$$c" ;;
+                *) printf '%%%02X' "'$$c" ;;
               esac
             done
           }
-          _enc_user=$(_urlenc "$KOPIA_SERVER_USER")
-          _enc_pass=$(_urlenc "$KOPIA_SERVER_PASSWORD")
+          _enc_user=$$(_urlenc "$$KOPIA_SERVER_USER")
+          _enc_pass=$$(_urlenc "$$KOPIA_SERVER_PASSWORD")
           kopia repository connect server \
-            --url="http://${_enc_user}:${_enc_pass}@${KOPIA_SERVER_ADDR}" \
-            --password="${KOPIA_PASSWORD}" \
+            --url="http://$${_enc_user}:$${_enc_pass}@$${KOPIA_SERVER_ADDR}" \
+            --password="$${KOPIA_PASSWORD}" \
             --override-hostname=oldsrv.kogler.si \
             --override-username=oldsrv-agent
         fi
         # Scheduled worker (no UI): snapshot loop, first pass at start-up. Interval
         # is env-tunable; exact window + server-side policy tuning = deploy-gated.
         while :; do
-          echo "[kopia-agent] snapshot create $(date -u +%FT%TZ)"
+          echo "[kopia-agent] snapshot create $$(date -u +%FT%TZ)"
           kopia snapshot create /mnt/src/opt /mnt/src/dumps /mnt/src/immich-upload || echo "[kopia-agent] snapshot create FAILED — retrying next interval"
           kopia snapshot create /mnt/src/signal-cli-data || echo "[kopia-agent] signal state snapshot FAILED — retrying next interval"
-          sleep "${KOPIA_SNAPSHOT_INTERVAL_SECONDS:-86400}"
+          sleep "$${KOPIA_SNAPSHOT_INTERVAL_SECONDS:-86400}"
         done
     volumes:
       # --- Sources (READ-ONLY, oldsrv-local only — backup.md §Layer 2 policy) ---
