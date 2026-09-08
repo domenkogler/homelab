@@ -10,8 +10,8 @@
 #   (`oldsrv_home_ip`, actual-budget :5006 / immich-ml :3003 precedent) so LAN/tailnet
 #   AI clients can reach it; the future s2s-wg→tailnet redo adds a Pattern-A sidecar.
 #   The MCP server in `http` mode has NO native auth — the data gate is the bearer
-#   token this container sends to VictoriaMetrics (`VM_INSTANCE_BEARER_TOKEN`), the
-#   Home-VLAN-only bind, and (future) the tailnet ACL. Do NOT add traefik-public labels.
+#   token this container sends to VictoriaMetrics (`VM_INSTANCE_HEADERS`, Basic auth) +
+#   the Home-VLAN-only bind, and (future) the tailnet ACL. Do NOT add traefik-public labels.
 #
 # Secrets via the HD-258 bulk vault pre-pass (`vault['victoria-metrics_api']`, the
 #   1Password basic-auth item for the VictoriaMetrics backend — username/password).
