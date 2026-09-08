@@ -24,8 +24,7 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 - **HD-344 — MCP AI-debugging servers (oldsrv).** ⏳ oldsrv converge (Phase-3/HD-318) + VPS Victoria backend live (HD-342), then register MCP in pi/OWUI/OpenClaw + tailnet redo. [observability.md](docs/observability.md) §MCP
 - **HD-318 — oldsrv Phase-3 provision (in progress).** ⏳ (a) kopia-agent crash-loop **VPS-gated (HD-318a)** — 1P `kopia-server_fingerprint` unseedable until VPS kopia-server leg converges; ⏳ (b) recyclarr profile-sync verify at next @daily run. [hardware-oldsrv.md](docs/hardware-oldsrv.md)
 - **HD-311 — oldsrv dual-home tagged-99.** ⏳ apply the oldsrv tagged-99 sub-interface (deploy-gated on host provision). [network-vlans.md](docs/network-vlans.md)
-- **HD-03 — inter-VLAN residual audit.** ⏳ final inter-VLAN matrix audit (Pkg B: HD-304/89/03 apply). [network-vlans.md](docs/network-vlans.md)
-- **HD-302 — modem DNS record.** ⏳ add private split-horizon `modem.kogler.si` → `comtrend_modem.modem_mgmt_ip` to the technitium-seed loop (never Cloudflare). [network.md](docs/network.md) §Comtrend
+- **HD-03 — inter-VLAN residual audit.** ⏳ final inter-VLAN matrix audit + Kids forced-DNS/Home-drop live-verify. Pkg B lockdown + modem-DNS items all **CLOSED 2026-09-08** (AP wired-port disable + INPUT firewall live; modem DNS record live on Pi+oldsrv; rows deleted per §4(a), records in owning docs). [network-vlans.md](docs/network-vlans.md)
 - **HD-343 — Network Clients dashboard.** ⏳ owner verify: wifi registration-table vs legacy path, panels render after Victoria provision, `stats.kogler.si` shows it. [observability.md](docs/observability.md) §Network Clients Dashboard
 - **HD-08 — UPS battery-pull test.** ⏳ owner manual test (feeds the HD-06/07 chain). [hardware-ups.md](docs/hardware-ups.md)
 

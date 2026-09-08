@@ -63,6 +63,13 @@ release). To avoid a physical cable swap every time:
   [`comtrend_modem.modem_mgmt_ip`](network-addresses-generated.md)) is added to
   Technitium (Phase 2/3) so the laptop can browse by name. The record must
   never go to Cloudflare — the modem is on a private RFC1918 subnet.
+  **IaC (2026-09-08, HD-302):** `modem.kogler.si` →
+  [`comtrend_modem.modem_mgmt_ip`](network-addresses-generated.md) is seeded on the
+  **home instances only** (Pi tertiary `secondary-pi` + oldsrv secondary `secondary`), gated
+  OFF the VPS primary in `technitium-seed.yml` — it must never resolve from VPS/internet.
+  **LIVE + VERIFIED 2026-09-08:** `dig @<pi>` / `dig @<oldsrv>` →
+  the SSOT modem IP ([`comtrend_modem.modem_mgmt_ip`](network-addresses-generated.md));
+  VPS primary does NOT answer it.
 
 SSOT: `IaC/ansible/group_vars/router.yml` → `comtrend_modem`. The role is
 idempotent and gated by `comtrend_modem.enabled: true` for opt-out per host.

@@ -152,6 +152,15 @@
       loop:
         - { name: "ha.kogler.si",      ip: "{{ ha_vip }}" }
         - { name: "dns-pi.kogler.si",  ip: "{{ ha_vip }}" }
+        # HD-302 (2026-09-08): `modem.kogler.si` is a LAN-only private record for the
+        # Comtrend modem UI — seeded ONLY on the HOME instances (Pi tertiary `secondary-pi`
+        # + oldsrv secondary `secondary`), NEVER on the VPS primary (`primary`): the modem
+        # sits on a private RFC1918 subnet and must never resolve from VPS/internet.
+        # Constant literal (not comtrend_modem, which is router.yml-only) — same pattern
+        # as tailnet_sidecar_ip above (undefined on non-VPS hosts is fine because the
+        # modem row itself is skipped everywhere except pi/oldsrv). Value must always
+        # mirror group_vars/router.yml comtrend_modem.modem_mgmt_ip.
+        - { name: "modem.kogler.si",   ip: "192.168.1.1" } # HD-302: LAN-only (Pi+oldsrv); never VPS
         # HD-330 live 2026-09-07: `tailnet_sidecar_ip` lives in group_vars/vps.yml
         # (VPS-only) but the seed runs on EVERY instance (VPS/oldsrv/Pi). The
         # dashboard records target the VPS tailnet sidecar (100.64.0.1) — a cluster
@@ -192,4 +201,10 @@
       # HD-324: register the loop result (was missing -> `item_resp` undefined -> every
       # record-add failed closed even when the API returned status:error (idempotent
       # "already exists"). Now tolerate error as idempotent, like the zone task.
+      # HD-302: `modem.kogler.si` must only be seeded on the HOME instances (Pi tertiary
+      # `secondary-pi` + oldsrv secondary `secondary`), NEVER on the VPS primary (`primary`)
+      # — the modem is LAN-only (RFC1918) and must never resolve from VPS/internet.
+      # This `when` is evaluated PER-LOOP-ITEM (Ansible runs the task-level `when` for each
+      # item when the task has a `loop`), so `item` is defined here.
+      when: item.name != "modem.kogler.si" or svc.instance | default('primary') in ['secondary', 'secondary-pi']
       failed_when: _tech_record.json is not defined or _tech_record.json.status not in ['ok', 'error']

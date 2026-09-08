@@ -97,6 +97,11 @@
         src: "{{ playbook_dir }}/../../router/templates/capsman_steady-state.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/capsman_steady-state.rsc"
 
+    - name: Render ap_lockdown_delta.rsc (HD-304 Part 2 / HD-89 — disable wired ports + AP INPUT firewall)
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/ap_lockdown_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/ap_lockdown_delta.rsc"
+
     - name: Report rendered files (upload, never commit)
       debug:
         msg:
@@ -104,4 +109,5 @@
           - "Upload IaC/router/rendered/crs328_initial.rsc to the CRS328 root Files + admin.pub + ansible.pub into the CRS328 flash/ folder (root files are WIPED on reboot — flash/ survives)"
           - "Upload each rendered ap_initial-<name>.rsc to ITS AP root Files + admin.pub + ansible.pub into each AP flash/ folder (root wiped on reboot — flash/ survives)"
           - "Upload IaC/router/rendered/capsman_steady-state.rsc to the RB4011, then /import capsman_steady-state.rsc (AFTER bootstrap + router role — NOT a reset)"
+          - "Upload IaC/router/rendered/ap_lockdown_delta.rsc to each AP root Files, then /import (HD-304 Part 2 / HD-89 — disables wired ports ether2-5 + applies the AP INPUT lockdown)"
           - "Then per bootstrap device: /system reset-configuration no-defaults=yes run-after-reset=<file>"
