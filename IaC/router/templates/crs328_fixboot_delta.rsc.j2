@@ -19,6 +19,13 @@
     /system logging action set [find where name=centralsyslog] target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514
 }
 
+# ---- Logging rules: ship error/firewall/critical/warning to the VPS (mirror router) ----
+/system logging remove [find where action=centralsyslog]
+/system logging add topics=error action=centralsyslog
+/system logging add topics=firewall action=centralsyslog
+/system logging add topics=critical action=centralsyslog
+/system logging add topics=warning action=centralsyslog
+
 # ---- Boot resilience (fixboot): re-assert syslog + SNMP after boot ----
 :if ([/system script find where name=fixboot] = "") do={
     /system script add name=fixboot source=":delay 10s; /system logging action set [find where name=centralsyslog] remote=0.0.0.0; :delay 1s; /system logging action set [find where name=centralsyslog] remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }}; /snmp set enabled=yes; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
