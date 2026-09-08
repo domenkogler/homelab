@@ -351,6 +351,44 @@ wg_s2s_vps_public_key: "NeEeWiEdcPfA4N8R0biRffkY4hQPNOtq8z87mr6I/0I="   # VPS si
 # Forward target derived from `wg_s2s_vps.ip` (SSOT) — no literal IP embedded here.
 alloy_backend_host: "{% if inventory_hostname == 'oldsrv.kogler.si' %}{{ wg_s2s_vps.ip }}{% else %}127.0.0.1{% endif %}"
 
+# ==== Victoria* observability backend (HD-341/342 — replaces Prometheus+Loki on the VPS) ====
+# Single Victoria stack on the VPS: VictoriaMetrics (metrics, :8428, pure storage/query —
+# Alloy does ALL scraping, topology (B)) + VictoriaLogs (logs, :9428). Alloy (host/SNMP/
+# exporter remote_write + log push) and Grafana stay; Prometheus + Loki containers/configs
+# are dropped. Retention 365d / 90d (owner decision 2026-09-08) — longer than the old
+# Prometheus 30d / Loki 14d because Victoria compresses far better; the volumes are
+# Kopia-backed (docs/observability.md) — unlike the old regenerable TSDB doctrine.
+# MCP AI-debugging servers (HD-344) live on oldsrv and reach these VPS endpoints over
+# the tailnet (owner plans a full s2s-wg → tailnet redo; MCP leg uses tailnet).
+# 1Password basic-auth items (HYPHENATED <service>_<type>, CONVENTIONS §1):
+#   victoria-metrics_api  — username + password (plaintext Victoria -httpAuth, NOT bcrypt)
+#   victoria-logs_api     — username + password (plaintext Victoria -httpAuth)
+# NOTE (HD-341): Alloy/exporters still reach the VPS over wg-s2s today; the MCP leg is
+# the first tailnet consumer. If the VPS Victoria endpoints must also listen on a VPS
+# tailnet address for MCP, that is a publish-address addition owned by the impl leg.
+victoria_metrics_port: 8428              # VictoriaMetrics HTTP endpoint / api/v1/* (query+write+admin)
+victoria_logs_port: 9428                # VictoriaLogs HTTP endpoint /insert/... + /select/...
+victoria_metrics_retention_days: 365    # -retentionPeriod; Kopia-backed (docs/observability.md)
+victoria_logs_retention_days: 90        # -retentionPeriod; Kopia-backed (docs/observability.md)
+victoria_metrics_item: victoria-metrics_api  # 1Password basic-auth item (username + password)
+victoria_logs_item: victoria-logs_api         # 1Password basic-auth item (username + password)
+
+# ==== Victoria backend reach target for the oldsrv MCP AI servers (HD-344) ====
+# The MCP servers (mcp-victoriametrics / mcp-victorialogs on oldsrv) point at the
+# VPS Victoria backend over wg-s2s TODAY — the same guaranteed-reachable tunnel the
+# Alloy collector uses (`wg_s2s_vps.ip`). Owner plans a full s2s-wg → tailnet redo
+# (future HD): that redo re-plumbs this ONE var to the VPS tailnet address and the
+# MCP compose templates need no other change. No VPS tailnet IP exists in the SSOT
+# yet — do NOT invent one here (check docs/network-vpn.md before the redo).
+victoria_backend_host: "{{ wg_s2s_vps.ip }}"   # MCP → Victoria backend host (wg-s2s now, tailnet later)
+
+# MCP server listen ports on OLDSRV (HD-344). The upstream images bind `MCP_LISTEN_ADDR`
+# (default localhost:8080 metrics / :8081 logs); inside Docker we set :8080/:8081 and
+# publish them loopback-only for the local AI clients (pi/OWUI/OpenClaw on the LAN +
+# tailnet). Distinct per server; never expose on the WAN/public edge.
+mcp_metrics_port: 8080
+mcp_logs_port: 8081
+
 # ==== Immich ML cross-host endpoint (HD-184) ====
 # immich-app runs on the VPS; immich-ml (GPU) stays on oldsrv. Docker DNS cannot
 # resolve across hosts, so the app targets oldsrv's Home-VLAN address over the WG

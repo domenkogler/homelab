@@ -58,7 +58,7 @@ tags: [services, interfaces, dashboards]
 ## Grafana — Admin Analytics
 
 - **Purpose:** Time-series data for Domen (admin)
-- **Data sources:** Prometheus (metrics: Alloy/SNMP/service scrape/HA exporter/blackbox) + Loki (logs)
+- **Data sources:** VictoriaMetrics (metrics: Alloy/SNMP/service scrape/HA exporter/blackbox) + VictoriaLogs (logs)
 - **Access:** `stats.kogler.si` / `stats.ts.kogler.si`, **tailnet-only** (headscale via the `traefik-tailnet` edge), Authentik OIDC, **admin-only**
 - **Network:** `traefik-public` (frontend) + `db-internal` (backends) — cross-network access is intentional
 - **Planned graphs:**

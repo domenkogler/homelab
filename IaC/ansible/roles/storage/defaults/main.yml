@@ -16,7 +16,7 @@ storage_allow_pool_create: false
 # ---------------------------------------------------------------------
 # zfs_exporter — host binary on nas (no Docker), mirrors roles/nut nut_exporter.
 # Metrics: zfs_pool_allocated / zfs_pool_size / zfs_pool_health per pool.
-# Scrape job + port in prometheus.yml.j2 / group_vars/all.yml (zfs_exporter_port).
+# Scrape job + port in alloy.river.j2 / group_vars/all.yml (zfs_exporter_port).
 # ---------------------------------------------------------------------
 zfs_exporter: true
 zfs_exporter_release: "v2.4.1"    # pinned — verified linux-amd64 asset; bump deliberately

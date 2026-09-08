@@ -19,8 +19,9 @@ tags: [storage, zfs, datasets, backup, media, nfs]
 
 1. **Config lives in Git, secrets in 1Password, media is redownloadable.** Only **data** gets backed up.
 2. **"Data" = everything that persists and is not Git / 1Password / re-pullable** — user files, DB dumps,
-   service state (Forgejo, n8n), Immich originals and face thumbnails. Docker images, packages, Ollama/ML
-   model weights, TSDB (Prometheus/Loki), and the media library are deliberately **not** backup targets.
+   service state (Forgejo, n8n), Immich originals and face thumbnails, **the VictoriaMetrics/VictoriaLogs
+   observability TSDB (owner decision HD-341/342 — now Kopia-backed)**, Docker images, packages, Ollama/ML
+   model weights, and the media library are deliberately **not** backup targets.
 3. **Live data is local.** DBs and service runtime state live on the host's NVMe/SSD — never on NFS.
    The NAS holds **backup artifacts** (dumps, state pushes). **OpenCloud user files + Immich originals live
    on the live Hetzner Box (CIFS/WebDAV — **SB-Data** `FSN1-BX2190`, Falkenstein, DE)**, not the NAS (HD-135) — the NAS keeps only ZFS snapshots/replicas
@@ -169,8 +170,11 @@ deployed by the Ansible `storage` role.
 - Immich face thumbnails (`thumbs/`)
 - configs: `/opt/*` compose dirs, systemd units, HA config (/ etc — plus Git for the repo itself)
 
-**Excluded:** Prometheus/Loki TSDB, docker named volumes (raw), Ollama models, Immich-ML weights,
+**Excluded:** docker named volumes (raw), Ollama models, Immich-ML weights,
 `/mnt/nas/*` mounts entirely (NAS independence), `bulk/media` (not backed up by design).
+> **Observability TSDB (VictoriaMetrics/VictoriaLogs) is Kopia-BACKED** (HD-341/342) — the old
+> "Prometheus/Loki TSDB regenerable, not backed up" doctrine was reversed by the owner; VM/VL volumes
+> are host binds under `/srv/docker/victoria-*/data`, snapshotted by the VPS kopia client.
 
 ---
 
@@ -219,7 +223,7 @@ already mirrored by the Pi→standby sync.
 
 > **MicroSD wear is minimised separately** (HA recorder + Docker/OS logs), see
 > [`observability.md`](observability.md) → *Pi SD-card wear strategy*: recorder is **trimmed, not disabled**
-> (keeps Logbook / Energy-Dashboard LTS / history_stats); Pi logs are **streamed to Loki** with only a tiny
+> (keeps Logbook / Energy-Dashboard LTS / history_stats); Pi logs are **streamed to VictoriaLogs** with only a tiny
 > bounded Docker-log buffer (`local`, 10m×2); `/var/log` + journald run on **tmpfs/RAM**.
 
 **Pi filesystem layout on microSD (ext4, single partition):**
@@ -227,7 +231,7 @@ already mirrored by the Pi→standby sync.
 ```
 Pi microSD (ext4 — 128 GB, no ZFS, no backup surface)
 ├── /                    ext4 (raspi.debian.net image, regenerable)
-├── /var/log             tmpfs (RAM; `journald Storage=volatile`, OS logs lost on reboot → Loki retains them)
+├── /var/log             tmpfs (RAM; `journald Storage=volatile`, OS logs lost on reboot → VictoriaLogs retains them)
 ├── /var/lib/docker      ext4 (overlay2 on microSD — images/containers; log driver capped to avoid heavy SD writes)
 └── /opt/<svc>/          ext4 (Docker service configs + small state — see tree below)
 ```

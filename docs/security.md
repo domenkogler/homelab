@@ -76,7 +76,7 @@ Owning docs: [deployment-compose.md](deployment-compose.md),
 > (`127.0.0.1:p:p`) or a specific VLAN IP.
 
 - **Signal CLI** `8080:8080` — remove the host bind (n8n reaches it by name). **HD-62** *(evidence: KOPS-002)*.
-- **Prometheus** `9090:9090` — bind loopback. **HD-62** *(evidence: KOPS-017)*.
+- **VictoriaMetrics / VictoriaLogs** `8428:8428` / `9428:9428` — bind loopback + wg-s2s. **HD-62** *(evidence: KOPS-017)*.
 - **Technitium** `53:53` — **VPS primary**: this is the ONE intentional public publish (the LAN/tailnet resolver is the VPS public IP, HD-299); the open-resolver exposure it created is closed at the nftables FORWARD chain (source-restricted to tailnet CGNAT + home WAN, see §8). **HD-62** + 2026-09-08 gate. *(evidence: KOPS-015/064)*.
 - **Sunshine** `47989-48010` — restrict to Home VLAN IP. **HD-62** *(evidence: KOPS-007)*.
 

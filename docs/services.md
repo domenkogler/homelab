@@ -32,7 +32,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 | [Finance](services-finance.md) | Actual Budget | detail |
 | [Traefik — Reverse Proxy & Edge](services-traefik.md) | Traefik | detail |
 | [Authentik — Identity & SSO](services-authentik.md) | Authentik | detail |
-| [Observability](observability.md) | Alloy, Prometheus, Loki, Grafana, blackbox, Dozzle | — |
+| [Observability](observability.md) | Alloy, VictoriaMetrics, VictoriaLogs, Grafana, blackbox, Dozzle · **mcp-victoriametrics / mcp-victorialogs (HD-344, oldsrv, deploy-gated)** | — |
 
 **Standalone (owned here, no stack doc):**
 - **Homepage** (family launchpad, `kogler.si` root + `home`) — public Forward-Auth; status widget. **Moved to the VPS** (HD-180; implemented **HD-183** ✅ 2026-08-21): the route is the compose's Docker-provider labels, live on the VPS edge; reachability is widget/probe-based (no Docker socket).

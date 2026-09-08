@@ -69,7 +69,7 @@ UPS (USB physical link → nas only)
   └─ nas = NUT MASTER
        ├─ usbhid-ups driver        (USB)
        ├─ upsd on :3493 (homelab-only)
-       └─ nut_exporter ──▶ Prometheus   (single source of metrics)
+       └─ nut_exporter ──▶ VictoriaMetrics (single source of metrics)
       ▲ NUT network (upsmon SLAVE, :3493)
    ┌──┴───────────────────┐
 oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
@@ -85,7 +85,7 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 ### Roadmap (implementation pending)
 - [x] **NUT on nas — LIVE 2026-09-03** — master: `usbhid-ups` (USB path), `upsd`, `nut_exporter`, `upssched-cmd` notify (per [`deployment-ansible.md`](deployment-ansible.md) `nut` role); `upsc powerwalker@localhost` verified (battery 100%, Innova Unity). Battery-pull test ⏳ (owner/manual).
 - [x] **NUT clients** on `oldsrv` + `pi` (*slave* mode) with per-host shutdown delay (60 s / 0 / 0) — ✅ **IaC done** (client upsmon, secret-free upssched-cmd, deferred-shutdown via upssched ONBATT timer — HD-07); ⏳ live deploy pending host provisioning.
-- [ ] Wire UPS metrics + alerts into Prometheus/Grafana (see [`observability.md`](observability.md)) — Critical battery/runtime, Warning on-battery, Info transitions. ✅ **Metric shape RESOLVED 2026-09-04:** the exporter is DRuggeri/nut_exporter v3, emitted over `/ups_metrics?ups=powerwalker` as **`network_ups_tools_*`** with per-flag `network_ups_tools_ups_status{flag=...}` labels (OL/OB/RB…) — NOT `nut_*` bitmask. Alert rules + dashboard + Prometheus scrape (`metrics_path: /ups_metrics`, `params.ups`) updated to match. ⏳ **Remaining:** live-verify after the next Prometheus + monitoring converge that `network_ups_tools_battery_charge` etc. land + alerts fire (exporter was running a `(devel)` build — pin a tagged release in the nut role). See monitoring role `vars/main.yml` + `prometheus.yml.j2`.
+- [ ] Wire UPS metrics + alerts into VictoriaMetrics/Grafana (see [`observability.md`](observability.md)) — Critical battery/runtime, Warning on-battery, Info transitions. ✅ **Metric shape RESOLVED 2026-09-04:** the exporter is DRuggeri/nut_exporter v3, emitted over `/ups_metrics?ups=powerwalker` as **`network_ups_tools_*`** with per-flag `network_ups_tools_ups_status{flag=...}` labels (OL/OB/RB…) — NOT `nut_*` bitmask. Alert rules + dashboard + Alloy scrape (`metrics_path: /ups_metrics`, `params.ups`) updated to match (topology B). ⏳ **Remaining:** live-verify after the next monitoring converge that `network_ups_tools_battery_charge` etc. land + alerts fire (exporter was running a `(devel)` build — pin a tagged release in the nut role). See monitoring role `vars/main.yml` + `alloy.river.j2`.
 - [x] ~~Open firewall rule 80/443 Home→Mgmt for the UPS **web UI**~~ **SUPERSEDED HD-338 (2026-09-07):** UPS NIC moved to IoT VLAN 20 (no WAN); the trusted-admin→UPS web forward rule was REMOVED (no consumer — NUT/USB is the only monitoring path). |
 
 ---

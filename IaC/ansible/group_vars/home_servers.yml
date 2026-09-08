@@ -140,6 +140,13 @@ docker_services:
   # mounts (backup.md invariant). Scheduled worker, no UI.
   - { name: kopia-agent,    template_dir: kopia-agent }
 
+  # --- Observability AI-debugging MCP servers (HD-344) — oldsrv (≈600–700 MB RAM each) ---
+  # Front-ends to the VPS Victoria backends (VM :8428 / VL :9428) over wg-s2s
+  # (victoria_backend_host). Tailnet/LAN-only, never public. ⏳ deploy-gated: oldsrv
+  # is Phase-3/HD-318 + needs the VPS Victoria backend live (HD-342). See docs/observability.md.
+  - { name: mcp-victoriametrics, template_dir: mcp-victoriametrics, public: false, enabled: false }
+  - { name: mcp-victorialogs,    template_dir: mcp-victorialogs,    public: false, enabled: false }
+
   # --- Services MOVED to the VPS (group_vars/vps.yml) — not deployed on oldsrv ---
   # opencloud/immich-app/forgejo/litellm/qdrant/docling/open-webui/openclaw,
   # prometheus/loki/grafana/blackbox-exporter (backend on VPS), n8n, kopia-server,

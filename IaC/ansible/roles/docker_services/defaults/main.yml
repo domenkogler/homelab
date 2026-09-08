@@ -55,17 +55,12 @@ _extra_templates:
     - .env.j2               # same mechanism — Phase 3 host, fixed while live here
   element-web:
     - config.json.j2
-  loki:
-    - loki.yaml.j2
   matrix:
     - tuwunel.toml.j2
   opencloud:
     - csp.yaml.j2        # HD-144 — Authentik SSO domain in connect-src/frame-src
   litellm:
     - config.yaml.j2   # HD-100 LLM gateway model_list/config
-  prometheus:
-    - prometheus.yml.j2
-    - prometheus-web-config.yml.j2   # HD-59 Basic Auth for the scrape endpoint
   headscale:
     - headplane-config.yaml.j2       # HD-233 admin UI (Headplane) config, rendered next to compose
     - config.yaml.j2
@@ -120,6 +115,8 @@ _template_vault_items:
   kopia-agent: {'kopia_password', 'kopia-server-internal_api', 'kopia-server_fingerprint'}
   kopia-server: {'kopia_password', 'kopia-server-internal_api'}   # NB: kopia-server_fingerprint NOT fetched here — cannot exist before kopia-server first start seeds it (HD-318a); only the AGENT (oldsrv, later play) consumes it
   litellm: {'litellm_master_key', 'cohere_api', 'litellm_db', 'openrouter_api'}
+  mcp-victoriametrics: {'victoria-metrics_api'}   # HD-344 — MCP→VM basic auth (username/password)
+  mcp-victorialogs: {'victoria-logs_api'}         # HD-344 — MCP→VL basic auth (username/password)
   matrix: {'matrix_api', 'matrix_password'}
   metabase: {'smtp_login', 'metabase-forgejo_ro'}   # forgejo_ro needed by the db_ro_sync task (vault-dict read, HD-268)
   n8n: {'n8n-webhook_api', 'n8n_password'}
@@ -131,7 +128,8 @@ _template_vault_items:
   opencloud: {'opencloud_login', 'opencloud-collab_password'}
   qdrant: {'qdrant_db'}
   pihole: {'pihole_password'}
-  prometheus: {'prometheus-internal_api'}
+  victoria-metrics: {'victoria-metrics_api'}   # Victoria* basic auth (HD-341/342), HYPHENATED <service>_<type>
+  victoria-logs: {'victoria-logs_api'}         # Victoria* basic auth (HD-341/342)
   qbittorrent: {'privado-vpn_api'}
   recyclarr: {'sonarr_api', 'radarr_api'}
   renovate: {'forgejo_api'}

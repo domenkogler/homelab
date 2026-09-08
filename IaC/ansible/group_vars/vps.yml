@@ -84,8 +84,10 @@ docker_services:
   # and crashed with EACCES. deploy-service.yml pre-creates/chowns them (Class-A fix).
   - { name: openclaw,       template_dir: openclaw,  public: false, enabled: true, bind_owner_uid: "1000", bind_dirs: ['.', 'workspace', 'auth'] }
   # === Observability backend (VPS = reliable tier; VPS self-observes loopback, HD-135b) ===
-  - { name: prometheus,     template_dir: prometheus, public: false, enabled: true }
-  - { name: loki,           template_dir: loki,       public: false, enabled: true }
+  # Victoria* stack replaces Prometheus/Loki (HD-341/342): VM = metrics (pure storage, Alloy scrapes),
+  # VL = logs. Grafana + Dozzle + blackbox-exporter stay.
+  - { name: victoria-metrics, template_dir: victoria-metrics, public: false, enabled: true }
+  - { name: victoria-logs,    template_dir: victoria-logs,    public: false, enabled: true }
   - { name: grafana,        template_dir: grafana,    subdomain: stats, public: false, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
   - { name: blackbox-exporter, template_dir: blackbox-exporter, public: false, enabled: true }
   - { name: dozzle,         template_dir: dozzle,        subdomain: logs, public: false, enabled: true }   # HD-135b: live per-container log viewer moved from oldsrv (logs.kogler.si)
@@ -178,10 +180,10 @@ homepage_failover_button: false
 homepage_show_technical: true
 homepage_show_soon: true
 
-# Prometheus HA-exporter scrape job (prometheus.yml.j2): OFF until the Phase-4 HA cutover
-# (HD-04). Today nothing can populate /etc/prometheus/ha_token (no vault item, no monitoring
-# render) and ha_vip serves no HA yet - a live job would just fail. Flip true at HD-04 with
-# the HA long-lived-token item seeded.
+# HA-exporter scrape job (Alloy `ha_exporter` block, topology B): OFF until the Phase-4 HA
+# cutover (HD-04). Today nothing can populate /etc/prometheus/ha_token (no vault item, no
+# monitoring render) and ha_vip serves no HA yet - a live job would just fail. Flip true at
+# HD-04 with the HA long-lived-token item seeded.
 prometheus_ha_exporter: false
 
 # HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge (traefik-tailnet)

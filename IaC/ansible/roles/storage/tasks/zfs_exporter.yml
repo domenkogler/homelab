@@ -1,7 +1,7 @@
 ---
 # zfs_exporter — host binary on nas (no Docker), mirrors roles/nut/nut_exporter.
 # Single SSOT ZFS pool exporter: scraped by Prometheus on oldsrv (zfs_exporter
-# job in prometheus.yml.j2). Metrics: zfs_pool_allocated/size/health per pool
+# job in alloy.river.j2). Metrics: zfs_pool_allocated/size/health per pool
 # (pdf/zfs_exporter). Feeds the pool-usage + degraded alert rules (monitoring
 # role vars/main.yml) — closes the observability.md ZFS alerting gap.
 

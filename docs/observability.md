@@ -7,7 +7,7 @@ tags: [observability, grafana, prometheus, monitoring]
 ---
 # Observability
 
-> **Role:** Single source of truth — the complete observability stack as a domain (Prometheus/Loki/Grafana + Alloy/exporters + alerting).
+> **Role:** Single source of truth — the complete observability stack as a domain (VictoriaMetrics/VictoriaLogs/Grafana + Alloy/exporters + alerting).
 > **Links to:** `interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`, `services.md`
 > **Linked from:** `index.md`, `interfaces.md`, `services.md`
 
@@ -18,23 +18,24 @@ tags: [observability, grafana, prometheus, monitoring]
 ## Architecture
 
 ```
-Alloy (host agent: metrics + logs + SNMP, has docker.sock)
-   ├─ remote_write ──▶ Prometheus  (THE metrics store, 30d)
-   └─ push ──────────▶ Loki        (logs, 14d)
+Alloy (host agent: metrics + logs + SNMP, has docker.sock)  ← the SINGLE scrape tier (topology B)
+   ├─ remote_write ──▶ VictoriaMetrics (THE metrics store, 365d)
+   └─ push ──────────▶ VictoriaLogs   (logs, 90d)
 Dozzle (read-only docker.sock) ─────▶ live per-container log tail (ops, no storage)
-Home Assistant (SWO-B + ComfoAir) ──Prometheus exporter──▶ Prometheus
-MikroTik (SNMP, 5–15s poll) ─────────────────────────────▶ Prometheus
-blackbox_exporter (external reachability) ───────────────▶ Prometheus  (probe_success)
-nut_exporter (UPS, on nas) ──────────────────────────────▶ Prometheus  (battery/runtime/voltage)
+Home Assistant (SWO-B + ComfoAir) ──HA exporter──▶ Alloy scrape ──▶ VictoriaMetrics
+MikroTik (SNMP, 5–15s poll) ─────────────────────────────▶ Alloy scrape ──▶ VictoriaMetrics
+blackbox_exporter (external reachability) ───────────────▶ Alloy scrape ──▶ VictoriaMetrics  (probe_success)
+nut_exporter (UPS, on nas) ──────────────────────────────▶ Alloy scrape ──▶ VictoriaMetrics  (battery/runtime/voltage)
 
-                        Prometheus ──▶ Grafana (stats.kogler.si, internal, Authentik admin-only)
-                                          │  webhook
-                                          ▼
-                                        n8n (alert router: dedup / tier / format)
-                                          ├──▶ signal-cli → Signal "Homelab Alerts" group
-                                          └──▶ SMTP → email
+                        VictoriaMetrics ──▶ Grafana (stats.kogler.si, internal, Authentik admin-only)
+                                                  │  webhook
+                                                  ▼
+                                                n8n (alert router: dedup / tier / format)
+                                                  ├──▶ signal-cli → Signal "Homelab Alerts" group
+                                                  └──▶ SMTP → email
                                Grafana-native SMTP = fail-safe, parallel
 ```
+> ⏳ **Deploy-gated:** the Victoria stack replaces Prometheus/Loki on the VPS at the HD-342 converge; until then the live stack is still Prometheus/Loki. This diagram is the target.
 
 - **Single source of truth** for every type of data; no redundant backends.
 - **Display:** Grafana (admin analytics) + Homepage (status widget — reachability eyeball view).
@@ -58,7 +59,52 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
 
 - **Writers stay on home infra** (oldsrv/Pi Alloy + exporters), buffering over wg-s2s; the **single backend is on the VPS** (reliability, same as today).
 - **MCP AI servers on oldsrv** (≈600–700 MB RAM each) — NOT on the VPS/Pi.
-- Drop: Prometheus, Loki, Dozzle (VictoriaLogs covers live + stored logs).
+- Drop: Prometheus + Loki (replaced by VictoriaMetrics/VictoriaLogs). **Dozzle is KEPT** (live per-container tail convenience — the earlier "drop Dozzle" wording was reverted by the owner; VictoriaLogs adds stored-log search).
+
+### MCP AI-debugging servers on oldsrv (HD-344) — implemented form
+
+> **2026-09-08 (HD-344 IaC authored, deploy-gated):** two Docker compose services on **oldsrv** —
+> `mcp-victoriametrics` (:8080) + `mcp-victorialogs` (:8081) — fronting the VPS Victoria
+> backend for AI tools (**pi, Open WebUI, OpenClaw** for now). ⏳ **Deploy-gated:** oldsrv is
+> Phase-3/HD-318 **and** needs the VPS Victoria backend live (HD-342).
+
+- **Endpoint reachability — wg-s2s now, tailnet later.** The MCP servers point at the VPS
+  backend via `victoria_backend_host` (group_vars/all/main.yml), which **defaults to
+  `wg_s2s_vps.ip`** — the same guaranteed-reachable tunnel the Alloy collector uses. The
+  owner plans a full s2s-wg→tailnet redo (future HD): that redo re-plumbs **this one var**
+  to the VPS tailnet address and the compose needs no other change. **No VPS tailnet IP
+  exists in the SSOT yet — do not invent one** (see network-vpn.md before the redo).
+- **Exposure — LAN/tailnet-only, never public/WAN.** Ports publish on oldsrv's Home-VLAN
+  address (`oldsrv_home_ip`, actual-budget :5006 / immich-ml :3003 precedent); the future
+  tailnet redo adds a Pattern-A sidecar. **No traefik-public labels, no `public: true`.**
+- **Auth — Basic to the backend, network gate to the client.** The MCP server (`http` mode)
+  has **no native auth**; each container sends `Authorization: Basic <b64(user:pass)>` to
+  the VPS backend from the `victoria-metrics_api` / `victoria-logs_api` 1P items
+  (`VM_INSTANCE_HEADERS` / `VL_INSTANCE_HEADERS`). The client-facing gate is the
+  Home-VLAN-only bind + (future) tailnet ACL — **do not expose on the WAN edge**.
+- **Images (pinned, CONVENTIONS §7):** `mcp_victoriametrics:v1.18.0` +
+  `mcp_victorialogs:v1.8.0` (GHCR-tag verified 2026-09-08; Renovate-tracked).
+- **Registry:** oldsrv `docker_services` rows (`enabled: false` until HD-318 + HD-342 live).
+
+#### Wiring AI tools (pi, Open WebUI, OpenClaw)
+
+Each AI client registers the MCP server as a **Streamable HTTP** MCP endpoint pointing at
+the oldsrv MCP listen address (`http://oldsrv:8080` metrics / `:8081` logs). The MCP
+servers carry the backend auth themselves, so the client config carries **no secrets**.
+All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
+
+- **pi (pi.dev)** — add an MCP server entry in the pi agent config pointing at
+  `http://oldsrv:8080` (metrics) / `http://oldsrv:8081` (logs), transport `http` (SSE
+  alias for Streamable HTTP). Exact config lives in `pi-agent/` prompts/extension docs
+  once the service is live; authoring placeholder here (HD-344 tail).
+- **Open WebUI** — register both as **Tools** (Admin → Tools → MCP) with `url:
+  http://oldsrv:8080` / `http://oldsrv:8081` (Streamable HTTP), tagged for the internal
+  `ai.kogler.si` instance so agent-role users can query metrics/logs.
+- **OpenClaw** — add both MCP servers to the OpenClaw MCP config (`http://oldsrv:8080` /
+  `:8081`), gated to the same tailnet/LAN path.
+- ⏳ **Concrete client config files are authored here once the backend (HD-342) + oldsrv
+  (HD-318) are live** — the URLs above are the SSOT contract; the client-side config is
+  environment-specific and lives with each tool (services-ai.md).
 
 ---
 
@@ -67,11 +113,11 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
 | Layer | Service | Role | Network | Retention |
 |-------|---------|------|---------|-----------|
 | Agent | **Alloy** | Host metrics + logs + SNMP; replaces Promtail/Telegraf/scraper | host (`docker.sock`) → `services-internal` | — |
-| Backend | **Prometheus** | Sole metrics store | `db-internal` | 30d |
-| Backend | **Loki** | Log aggregation, single-node/SSD | `db-internal` | 14d |
-| Exporter | **blackbox** | External reachability (`probe_success`) | `services-internal` | in Prometheus |
-| Exporter | **HA Prometheus exporter** | HA entities → Prometheus | `services-internal` | in Prometheus |
-| Exporter | **nut_exporter** | UPS status (battery/runtime/voltage/load) → Prometheus · single instance on **nas** (NUT master) | `services-internal` | in Prometheus |
+| Backend | **VictoriaMetrics** | Sole metrics store (pure storage/query — Alloy does ALL scraping, topology B) | `db-internal` | 365d (Kopia-backed) |
+| Backend | **VictoriaLogs** | Log aggregation, single-node/SSD | `db-internal` | 90d (Kopia-backed) |
+| Exporter | **blackbox** | External reachability (`probe_success`) | `services-internal` | in VictoriaMetrics |
+| Exporter | **HA exporter** | HA entities → VictoriaMetrics (Alloy scrape, gated `prometheus_ha_exporter`) | `services-internal` | in VictoriaMetrics |
+| Exporter | **nut_exporter** | UPS status (battery/runtime/voltage/load) → VictoriaMetrics · single instance on **nas** (NUT master) | `services-internal` | in VictoriaMetrics |
 | ~~Exporter~~ | ~~**minio_exporter**~~ | ~~MinIO S3 store~~ — **retired (HD-135): Immich originals = live Hetzner Box (CIFS), not S3/MinIO** | — | — |
 | UI | **Grafana** | Dashboards, `stats.kogler.si` (**internal**) | `traefik-public` **+** `db-internal` | — |
 | Router | **n8n** | Alert routing/dedup → Signal/email | `services-internal` | — |
@@ -81,7 +127,7 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
 ## Access & login path (stats.kogler.si)
 
 **Tailnet-only (HD-135b follow-up, 2026-08-28):** the observability dashboards (`stats`/`sec`/`traefik`/`logs`/`csui`/`auto`
-and by extension the underlying prometheus/loki/blackbox) have **no public DNS record** and are **not
+and by extension the underlying victoria-metrics/victoria-logs/blackbox) have **no public DNS record** and are **not
 WAN-reachable**. They are reached over the **headscale tailnet** from admin devices via the
 **`traefik-tailnet` edge** (node `vps-obs`) — a consumer-mode Traefik (+ userspace tailscale sidecar
 sharing its netns) that serves the dashboards with **clean subdomain URLs** and no port numbers
@@ -121,14 +167,14 @@ update, or queries keep 401-ing despite correct rendered files.
 
 | Data | Owner | Where it lives |
 |------|-------|----------------|
-| Host + SNMP metrics | Alloy → Prometheus | Prometheus (30d) |
-| Service scrape (Traefik, CrowdSec) | Alloy/Prometheus | Prometheus (30d) |
-| HA entity metrics (weather, ComfoAir) | HA exporter → Prometheus | Prometheus (30d) |
-| External reachability | blackbox → `probe_success` | Prometheus (30d) |
-| UPS status (battery, runtime, voltage, load, online/on-batt) | nut_exporter (on nas) → Prometheus | Prometheus (30d) |
+| Host + SNMP metrics | Alloy → VictoriaMetrics | VictoriaMetrics (365d, Kopia) |
+| Service scrape (Traefik, CrowdSec) | Alloy (VPS loopback) → VictoriaMetrics | VictoriaMetrics (365d) |
+| HA entity metrics (weather, ComfoAir) | HA exporter → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
+| External reachability | blackbox → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
+| UPS status (battery, runtime, voltage, load, online/on-batt) | nut_exporter (on nas) → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
 | ~~MinIO S3 store health/usage (Immich originals)~~ | ~~minio_exporter (on oldsrv) → Prometheus~~ — retired (HD-135, CIFS) | — |
-| Logs | Alloy → Loki | Loki (14d) |
-| RouterOS logs (RB4011/switch/AP) | RFC5424 syslog → VPS rsyslog → CrowdSec/Loki | Loki (14d) (HD-313) |
+| Logs | Alloy → VictoriaLogs | VictoriaLogs (90d, Kopia) |
+| RouterOS logs (RB4011/switch/AP) | RFC5424 syslog → VPS rsyslog → CrowdSec/VictoriaLogs | VictoriaLogs (90d) (HD-313) |
 | Live logs (ops day-to-day tail) | Dozzle (read-only viewer, no storage) | ephemeral — nothing persisted |
 | Alerts | Grafana Alerting → n8n → Signal/email | alert delivery |
 | Display | Grafana + Homepage | — |
@@ -160,13 +206,13 @@ update, or queries keep 401-ing despite correct rendered files.
 | **Info** | transient / everything else · **UPS online ↔ on-battery transitions / restored** | logged only | no push |
 
 - **Poke/throttle:** re-send only if still firing after ~30 min (prevents overnight alert floods).
-- **Self-monitoring:** the observability stack itself (Prometheus/Loki/n8n down) must alert — otherwise the alert channel dies silently.
+- **Self-monitoring:** the observability stack itself (VictoriaMetrics/VictoriaLogs/n8n down) must alert — otherwise the alert channel dies silently.
 
 ---
 
 ## UPS / Power-Loss Monitoring (NUT)
 
-- **Metrics (single source):** one **nut_exporter** on **nas** (the NUT master) reads local `upsd` → Prometheus. Other hosts do **not** re-export identical UPS data (avoids redundancy).
+- **Metrics (single source):** one **nut_exporter** on **nas** (the NUT master) reads local `upsd` → VictoriaMetrics (via Alloy scrape). Other hosts do **not** re-export identical UPS data (avoids redundancy).
 - **Shutdown:** **NUT owns local shutdown** on `nas`, `oldsrv`, and `ha` (Raspberry Pi). Grafana/n8n are **alert-only** — there is **no shutdown action from Grafana** (the observability **backend is on the VPS**, so it must never be the thing that halts the NAS during a power cut; only the host NUT agents power their own box).
 - **Notification ordering & delay:** on mains loss the **Warning "on-battery" alerts at t=0** (WAN still up via router/ONT on UPS → Signal + email deliver). At **Critical**, `oldsrv` is **delayed ~60 s** before powerdown (via NUT `upssched`) so its own Grafana→n8n→Signal/email pipeline flushes the Critical alert, then it powers off. `nas` + `ha` power down immediately.
 - **Guaranteed fallback:** a **NUT-side `notifycmd`/`upssched-cmd` script on nas** emails + sends Signal directly on `ONBATT` and `LOWBATT`, independent of Grafana/n8n — so a pre-shutdown notification is sent even if the observability stack is already degraded.
@@ -179,9 +225,9 @@ update, or queries keep 401-ing despite correct rendered files.
 - **MikroTik SNMP:** poll at **5–15 s**; the "1s" in dashboards is a *refresh* interval, not a poll.
 - **Retention is deliberate:** 30d metrics / 14d logs. TSDB data is **regenerable and not backed up** (see [backup.md](backup.md)); long-term metric history is a deferred option (remote-write/downsampling).
 - **Placement (HD-135 + HD-135b):** the observability **backend** (Prometheus/Loki/Grafana) runs on the **VPS** (reliable tier). **HD-135b (2026-08-28): the VPS is self-sufficient for its own observability** — the VPS host runs its own **Alloy** (`[monitoring]` group, `alloy_backend_host` defaults to `127.0.0.1` → loopback Prometheus/Loki on the same host, no tunnel) and its own **Dozzle** live-log viewer (`logs.kogler.si`, moved from oldsrv). oldsrv/Pi keep thin **Alloy collectors** forwarding *home* telemetry over the `wg-s2s` tunnel. **Dashboards are tailnet-only** (HD-135b follow-up) — no public exposure; access is over the headscale mesh via the **`traefik-tailnet` edge** (`stats`/`sec`/`traefik`/`logs`/`csui`/`auto`, clean subdomain URLs on 443 — see [Access & login path](#access--login-path-statskoglersi) below). **n8n (`auto`) is internal-only** (public route removed from the main edge; reached over the tailnet). The n8n alert brain is on the VPS and emails/Signals over the public net — independent of the tunnel. **SPOF (narrowed):** if the home↔VPS tunnel or the VPS itself is down, *home* metrics/logs are unavailable in Grafana (the nesting is graceful: buffered, replayed on reconnect; NUT-side `notifycmd`/`upssched-cmd` on nas is the grounds for power-loss alerts independent of the stack). The **VPS's own** metrics/logs remain available locally even with the tunnel down (loopback Alloy → local Prometheus/Loki → local grafana/dozzle).
-- **Dozzle is not a second log backend** — it streams live logs straight from the Docker API (read-only socket) and persists nothing. Loki stays the single stored-log source (14d) and Grafana the search/alert surface.
+- **Dozzle is not a second log backend** — it streams live logs straight from the Docker API (read-only socket) and persists nothing. VictoriaLogs stays the single stored-log source (90d) and Grafana the search/alert surface.
 - **Loki access control (HD-115 / KOPS-023/051):** Loki runs with `auth_enabled: true` (multi-tenant) — pushes and queries must carry the `logs` tenant ID, wired through Alloy (`tenant_id = "logs"`) and the Grafana datasource (`jsonData.tenantId`). The **write** path is loopback-only (Alloy → `127.0.0.1:3100`, no db-internal requirement) and **reads** come only from Grafana on `db-internal`; Loki is never exposed on traefik-public or any LAN bind. **Accepted caveat:** Loki-native `auth_enabled` is tenant *isolation*, not a password gate — a compromised db-internal container could forge a tenant header. Acceptable for the trusted-`db-internal` Phase-1 set; re-evaluate (real credential gateway / separate write+read tenants) if more members join `db-internal`.
-- **Pi keeps only a tiny bounded local log buffer.** The Raspberry Pi primary holds **no durable log store** — Docker uses log driver `local` (`max-size: 10m, max-file: 2`) as RAM/disk resilience when oldsrv/Loki is down; the durable, searchable copy lives in Loki. Host OS logs run on tmpfs (`journald Storage=volatile` + `/var/log` tmpfs). See [Pi SD-card wear strategy](#pi-sd-card-wear-strategy).
+- **Pi keeps only a tiny bounded local log buffer.** The Raspberry Pi primary holds **no durable log store** — Docker uses log driver `local` (`max-size: 10m, max-file: 2`) as RAM/disk resilience when oldsrv/VictoriaLogs is down; the durable, searchable copy lives in VictoriaLogs. Host OS logs run on tmpfs (`journald Storage=volatile` + `/var/log` tmpfs). See [Pi SD-card wear strategy](#pi-sd-card-wear-strategy).
 - **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
 - **Decided (no longer open):** per-host Alloy `instance` label = `{{ inventory_hostname }}` — implemented in `alloy.river.j2` (**HD-116** / KOPS-036, closes HD-55), so series no longer collide across hosts. MikroTik SNMP community = dedicated read-only **`network-snmp_api`** (1Password, fail-loud lookup in `snmp.yml.j2`) + Mgmt-VLAN-only INPUT ACL — decided **HD-53** / KOPS-034; the device-side `/snmp enable` + community set stays an HD-03 deploy step.
 
@@ -193,7 +239,7 @@ The Raspberry Pi 4 primary runs HA from a **microSD** (`storage.md`), so the dom
 source is **HA's recorder DB**, plus rolling Docker/OS logs. Strategy (HD-19, applies to the Pi; the standby on
 oldsrv is on NVMe and mostly unaffected):
 
-1. **HA recorder → trim, NOT disable.** Grafana (central Prometheus, 30d) replaces HA for *long-term analytics*,
+1. **HA recorder → trim, NOT disable.** Grafana (central VictoriaMetrics, 365d) replaces HA for *long-term analytics*,
    so raw state history can be short: `recorder: { purge_keep_days: 1–2, commit_interval: 2–5, … }` plus
    `exclude:` for noisy domains you only need in Grafana. Keeping the recorder **enabled** is deliberate — it still
    powers the **Logbook**, the **Energy Dashboard (long-term-statistics tables)** (e.g. KNX appliance-current
@@ -201,10 +247,10 @@ oldsrv is on NVMe and mostly unaffected):
    which Grafana covers. LTS writes are hourly min/max/mean per entity — negligible SD cost. **Do NOT disable** the
    recorder, and do NOT move HA to Postgres (worse microSD wear + failover coupling — see `smart-home.md`).
 2. **Docker container logs → stream + bounded local buffer.** Docker log driver `local`, `max-size: 10m, max-file: 2`
-   on the Pi (and standby): small RAM/disk buffer survives an oldsrv/Loki outage, while **Alloy ships logs → Loki
+   on the Pi (and standby): small RAM/disk buffer survives an oldsrv/VictoriaLogs outage, while **Alloy ships logs → VictoriaLogs
    (14d, VPS NVMe)** and Dozzle streams live — no durable on-Pi log store.
 3. **OS logs off the SD.** `journald Storage=volatile` + `/var/log` mounted as tmpfs (fstab) — host OS logs live in
-   RAM, lost on reboot (acceptable; Loki retains the useful logs). Cheap, well-tested Pi-SD saver.
+   RAM, lost on reboot (acceptable; VictoriaLogs retains the useful logs). Cheap, well-tested Pi-SD saver.
 4. *(Optional)* **Docker *log* directory on tmpfs** to guarantee zero *transient* SD writes — must stay hard-capped
    (`max-size`/`max-file`); **never** tmpfs the Docker data-root (`/var/lib/docker`/overlay2, that holds images &
    containers), only the log portion. Only if the 4 GB RAM budget (shared with HA/RaspberryMatic/Technitium) allows.
@@ -225,7 +271,7 @@ oldsrv is on NVMe and mostly unaffected):
 | **Host Overview** | `homelab-host-overview` | per-instance node resources: CPU, mem, load, disk (/, /srv, /var/lib/docker), network, uptime — multi-host (instance template var) | `node_cpu_seconds_total` · `node_memory_*` · `node_load*` · `node_filesystem_*` · `node_network_*` · `node_boot_time_seconds` — all `job="alloy"` |
 | **Service Reachability** | `homelab-service-reachability` | blackbox probe tables (HTTP + ICMP) + latency + TLS cert expiry | `probe_success` · `probe_duration_seconds` · `probe_ssl_earliest_cert_expiry` (`job=blackbox_*`) |
 | **WAN & Tunnel** | `homelab-wan-tunnel` | wg-s2s liveness, Traefik requests, CrowdSec decisions, stack up | `probe_success{job=wg_icmp}` · `traefik_entrypoint_requests_total` · **`cs_active_decisions`** (NOT `crowdsec_decisions` — real CrowdSec metric, labels `origin`/`action`/`reason`) · `up{job=…}` |
-| **Stack Health** | `homelab-selfmonitoring` | observability self-monitoring: up() per component | `up{job=prometheus\|loki\|n8n\|blackbox-exporter\|crowdsec\|traefik}` — **no alloy**: Alloy remote-writes its own series; Prometheus never synthesizes `up` for remote-written data, so `up{job="alloy"}` has no series by design |
+| **Stack Health** | `homelab-selfmonitoring` | observability self-monitoring: up() per component | `up{job=victoria-metrics\|victoria-logs\|n8n\|blackbox-exporter\|crowdsec\|traefik}` (Alloy self-scrapes VM/VL /metrics; topology B) — **no alloy**: Alloy remote-writes its own series, so `up{job="alloy"}` has no series by design |
 | **UPS** | `homelab-ups` | (pre-existing) NUT battery/load/voltages + status flags panel + **over-time: Output voltage, Load, Runtime, Battery charge** | `network_ups_tools_*` (DRuggeri/nut_exporter v3) |
 
 > **Metric-name gaps (authoring-time, 2026-09-04):** the panel expression names above match the **alert-rule metric names** in the monitoring role (`vars/main.yml`) and the Prometheus scrape jobs — but several component metrics are **not yet verified live** (no running instance to scrape until the next converge):
@@ -286,8 +332,8 @@ primary pipe, not SNMP and not the VPS:
   API is INPUT-legal — the same reachability that already justifies its SNMP exporter.
   Reuses the existing read-only API pattern: `skills/mikrotik/scripts/mikrotik-read.py` on
   RouterOS API `:8728` with a scoped `read`-group user (the `logpipe` precedent,
-  `roles/router/tasks/main.yml` L1405). Exposes Prometheus metrics; the existing oldsrv
-  Alloy `remote_write`s them over `wg-s2s` → VPS Prometheus (same channel as SNMP). **No
+  `roles/router/tasks/main.yml` L1405). Exposes Prometheus-format metrics; the existing oldsrv
+  Alloy `remote_write`s them over `wg-s2s` → VPS VictoriaMetrics (same channel as SNMP). **No
   new firewall open, no VPS reachability change.**
 
 **Metric shape.** One gauge series, info-card style, enriched at authoring time from the
@@ -331,13 +377,13 @@ convention `homelab-*`, datasource uid `prometheus` — same as HD-315 dashboard
 
 | Item | When | Notes |
 |------|------|-------|
-| Pi recorder trim + log strategy | after observability live (HD-19) | recorder trimmed, **not disabled** (keep Logbook/Energy-Dashboard LTS/history_stats); Pi logs → Loki + `local` driver buffer + `/var/log` tmpfs — see [Pi SD-card wear strategy](#pi-sd-card-wear-strategy)
+| Pi recorder trim + log strategy | after observability live (HD-19) | recorder trimmed, **not disabled** (keep Logbook/Energy-Dashboard LTS/history_stats); Pi logs → VictoriaLogs + `local` driver buffer + `/var/log` tmpfs — see [Pi SD-card wear strategy](#pi-sd-card-wear-strategy)
 | Long-term metric retention (remote-write, downsampling) | if ever needed | escape hatch = Thanos/VictoriaMetrics |
-| Prometheus Alertmanager | only if Grafana-outage resilience demanded | Grafana Alerting covers Phase 1 |
+| Alertmanager | only if Grafana-outage resilience demanded (Prometheus Alertmanager moot — Prometheus retired, HD-342) | Grafana Alerting covers Phase 1 |
 | Homematic full-local (HmIP-RFUSB + RaspberryMatic on Pi) | **parked (HD-13)** — HmIP-HAP stays in cloud mode until an HmIP-RFUSB is bought | see `smart-home.md` — affects HAP/HA integration, not metrics flow |
-| Container memory working-set metrics (Docker API → Prometheus) | with the *arr stack | validates the `services.md` RAM budget with real numbers, not estimates |
+| Container memory working-set metrics (Docker API → VictoriaMetrics) | with the *arr stack | validates the `services.md` RAM budget with real numbers, not estimates |
 | **Homelable** (interactive topology/rack visualizer) | Phase 2 — once services are live | MIT · Pouzor/homelable · young project (re-evaluate maturity before adopting). Live health-check map + rack canvas w/ port patching + nmap scan + MCP server. Could replace the Obsidian `Rack.canvas` as the *live* visual and subsume the Homepage reachability widget. **Not** a metrics/logs/alert backend. · [`network-rack.md`](network-rack.md), [`todo.md`](../todo.md) |
 | Route alerts to a **Matrix room** (`#homelab`) | with the Matrix stack (HD-46) | optional consolidation — alongside the Signal + SMTP fail-safe; homeserver/exporter only. · [`services-matrix.md`](services-matrix.md) |
 | **Home-side tunnel check** (S14) | after Phase 1.5 cutover | blackbox `wg_icmp` probes run FROM the VPS (HD-159); add a router-side netwatch → SNMP trap (or equivalent) so a home↔VPS outage is also observable from home when the VPS path is the broken side |
-| **Monitoring role split** (W6) | only when dashboard/rule iteration gets slow | Alloy+Prometheus+Loki+Grafana live in one `monitoring` role — any rule tweak redeploys the chain; split into `tasks/{alloy,prometheus,loki,grafana}.yml` includes + tags (no structural move needed until it hurts) |
+| **Monitoring role split** (W6) | only when dashboard/rule iteration gets slow | Alloy+VictoriaMetrics+VictoriaLogs+Grafana live in one `monitoring` role — any rule tweak redeploys the chain; split into `tasks/{alloy,victoria-metrics,victoria-logs,grafana}.yml` includes + tags (no structural move needed until it hurts) |
 | **Grafana alert-rule provisioning schema** (monitoring role `grafana-rules.yml.j2`) | first deploy of the monitoring role | ⚠ **needs live check:** query+threshold data-model + folder auto-creation unverified against a running Grafana — confirm rules load (Grafana logs) and fire once before trusting alerting |

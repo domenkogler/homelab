@@ -28,6 +28,11 @@ services:
       - /tmp
     container_name: crowdsec
     restart: unless-stopped
+    ports:
+      # HD-342 (Victoria migration): loopback publish of the metrics endpoint (:6060)
+      # so the VPS host-APT Alloy can scrape CrowdSec /metrics. Loopback-only (authentik
+      # HD-143 precedent). CrowdSec LAPI (:8080) stays overlay-only (Metabase queries it).
+      - "127.0.0.1:6060:6060"
     networks:
       - traefik-public
       - db-internal    # 2026-09-08: Prometheus scrapes crowdsec:6060/metrics here.

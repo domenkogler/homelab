@@ -114,7 +114,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | Immich **face thumbnails** | oldsrv NVMe | nightly rsync + Kopia | `bulk/data/immich-thumbs` + Hetzner Storage Box (backup) |
 | **Media library** (movies/tv/music) | **nas `bulk/media`** | **NOT backed up** | redownloadable via usenet/torrents |
 
-> **Excluded — by design:** observability TSDB (Prometheus 30d + Loki 14d) is **regenerable and NOT backed up**. It lives on the **VPS NVMe** (HD-135 backend placement); losing it loses only rolling metric/log history. See [`observability.md`](observability.md).
+> **Victoria* observability (HD-342, 2026-09-08):** the VictoriaMetrics (VM, 365d metrics) + VictoriaLogs (VL, 90d logs) volumes are **Kopia-backed** (owner decision — reverses the old "regenerable, NOT backed up" doctrine for Prometheus 30d/Loki 14d). They live on the **VPS NVMe** (HD-135 backend placement) at `/srv/docker/victoria-metrics/data` + `/srv/docker/victoria-logs/data` (host binds, snapshotted by the VPS kopia client to the Hetzner backup Box). ⚠ **VPS-side kopia client wiring for these (and other `/srv/docker` service state) is a tracked gap — see backup.md §VPS kopia client note.**
 
 > **Excluded — media + *arr scratch:** `bulk/media` (library **and** `downloads/`) is partially or fully
 > redownloadable via usenet/torrents, so the whole dataset is **unbacked** — no sanoid snapshots, no
