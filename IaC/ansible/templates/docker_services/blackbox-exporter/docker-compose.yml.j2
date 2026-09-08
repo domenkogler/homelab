@@ -1,7 +1,7 @@
 # blackbox-exporter docker-compose.yml — external reachability (probe_success)
-#   Scraped by Prometheus (services-internal, :9115); no web UI, no Traefik labels.
-#   Probe modules: http_2xx (TLS cert expiry + status), icmp, tcp, dns.
-#   Scrape targets are defined in Prometheus' prometheus.yml (see T6), NOT here.
+#   Scraped by the VPS host-APT Alloy (loopback :9115 /metrics + /probe, topology B);
+#   no web UI, no Traefik labels. Probe modules: http_2xx (TLS cert expiry + status),
+#   icmp, tcp, dns. Probe targets are defined in Alloy (alloy.river.j2), NOT here.
 #   See docs/observability.md. Secrets via
 #   1Password lookup at render: onepassword('<name>', field=..., vault=op_vault) — none needed here.
 services:
@@ -23,6 +23,11 @@ services:
       - services-internal
       - db-internal    # 2026-09-08: Prometheus scrapes blackbox-exporter:9115/metrics + /probe targets here.
                        # Same pattern as traefik joining db-internal for its metrics entryPoint.
+      - traefik-public # external reachability (HD-135): blackbox probes targets on the WAN — the
+                       # internal bridges (services-internal/db-internal) have no internet egress, so
+                       # every probe failed with status 0 / connect error. traefik-public is the
+                       # repo pattern for VPS containers that must reach the internet (authentik,
+                       # crowdsec, n8n, dozzle...).
     volumes:
       - ./blackbox.yml:/etc/blackbox_exporter/blackbox.yml:ro
     command:
@@ -31,4 +36,6 @@ networks:
   services-internal:
     external: true
   db-internal:
+    external: true
+  traefik-public:
     external: true

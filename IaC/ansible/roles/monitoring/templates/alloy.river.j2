@@ -34,6 +34,28 @@ prometheus.exporter.unix "host" {
     ]
 }
 
+// Consume the host exporter so it actually runs. Alloy components are LAZY: an
+// unconsumed exporter collects nothing, which is why VM had zero node_* series
+// and Host Overview rendered empty despite `alloy_self` scraping the server
+// /metrics. Tag job="alloy" + instance=<host> to match the dashboards
+// (node_*{job="alloy"}) and the $instance template variable.
+discovery.relabel "host_metrics" {
+    targets = prometheus.exporter.unix.host.targets
+    rule {
+        target_label = "job"
+        replacement  = "alloy"
+    }
+    rule {
+        target_label = "instance"
+        replacement  = "{{ inventory_hostname }}"
+    }
+}
+
+prometheus.scrape "host_metrics" {
+    targets    = discovery.relabel.host_metrics.output
+    forward_to = [prometheus.remote_write.metrics.receiver]
+}
+
 // ---- Docker container logs (via Docker JSON log files, port-independent) ----
 // DISCOVERY: Alloy's `discovery.docker` only emits targets for containers with host
 // port mappings — our fleet is internal-only (no published ports), so it found 0.
@@ -212,31 +234,34 @@ prometheus.scrape "blackbox_exporter" {
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
-// HTTP probes for web services (via blackbox-exporter :9115 /probe)
+// HTTP probes for web services (via blackbox-exporter :9115 /probe) — valid blackbox
+// target pattern: __address__ = the blackbox exporter, params.target = the probed URL.
+// (The old config used the URL as __address__ → Alloy rejected it as an invalid
+// hostname, so no http/2xx probe ever ran → Service Reachability empty.)
 prometheus.scrape "blackbox_http_probes" {
     targets = [
-        {"__address__" = "https://kogler.si", "job" = "blackbox_http_probes"},
-        {"__address__" = "https://sso.kogler.si", "job" = "blackbox_http_probes"},
-        {"__address__" = "https://foto.kogler.si", "job" = "blackbox_http_probes"},
-        {"__address__" = "https://file.kogler.si", "job" = "blackbox_http_probes"},
-        {"__address__" = "https://git.kogler.si", "job" = "blackbox_http_probes"},
-        {"__address__" = "https://ha.kogler.si", "job" = "blackbox_http_probes"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "__param_target" = "https://kogler.si", "__param_module" = "http_2xx"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "__param_target" = "https://sso.kogler.si", "__param_module" = "http_2xx"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "__param_target" = "https://foto.kogler.si", "__param_module" = "http_2xx"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "__param_target" = "https://file.kogler.si", "__param_module" = "http_2xx"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "__param_target" = "https://git.kogler.si", "__param_module" = "http_2xx"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_http_probes", "__param_target" = "https://ha.kogler.si", "__param_module" = "http_2xx"},
     ]
     metrics_path = "/probe"
-    params = {
-        module = ["http_2xx"],
-    }
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
 // ICMP probes (router + switch on Mgmt VLAN; nas/oldsrv/pi on Home VLAN — IPs from SSOT)
+// Valid blackbox pattern: __address__ = the blackbox exporter, __param_target = the IP.
+// (Old config used the device IP as __address__ → Alloy scraped the device:9115 and
+// failed → up{job=blackbox_icmp}=0, no probe_* series.)
 prometheus.scrape "blackbox_icmp" {
     targets = [
 {% for hostname in ['router', 'switch'] %}
-        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', hostname) | selectattr('vlan', 'equalto', 99) | first).ip }}", "job" = "blackbox_icmp"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_icmp", "__param_target" = "{{ (network_static_hosts | selectattr('name', 'equalto', hostname) | selectattr('vlan', 'equalto', 99) | first).ip }}"},
 {% endfor %}
 {% for hostname in ['nas', 'oldsrv', 'pi'] %}
-        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', hostname) | selectattr('vlan', 'equalto', 10) | first).ip }}", "job" = "blackbox_icmp"},
+        {"__address__" = "127.0.0.1:9115", "job" = "blackbox_icmp", "__param_target" = "{{ (network_static_hosts | selectattr('name', 'equalto', hostname) | selectattr('vlan', 'equalto', 10) | first).ip }}"},
 {% endfor %}
     ]
     metrics_path = "/probe"
@@ -249,7 +274,7 @@ prometheus.scrape "blackbox_icmp" {
 // wg-s2s tunnel-liveness (HD-159): single ICMP probe to the home router's WG-side peer IP.
 prometheus.scrape "wg_icmp" {
     targets = [
-        {"__address__" = "{{ wg_s2s_vps.router_ip }}", "job" = "wg_icmp"},
+        {"__address__" = "127.0.0.1:9115", "job" = "wg_icmp", "__param_target" = "{{ wg_s2s_vps.router_ip }}"},
     ]
     metrics_path = "/probe"
     params = {
