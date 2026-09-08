@@ -11,7 +11,7 @@ tags: [services, downloads, usenet, torrents, vpn]
 > **Links to:** `services-media.md`, `storage.md`, `services-traefik.md`, `deployment-compose.md`
 > **Linked from:** `services.md`, `services-media.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Downloads services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`.
+> 🟢 **LIVE 2026-09-08 (oldsrv Phase-3 converge)** — SABnzbd, qBittorrent (+ gluetun WireGuard sidecar) all Up + healthy on oldsrv; gluetun runs `custom` mode with the fixed PrivadoVPN endpoint (HD-318).
 
 ---
 
