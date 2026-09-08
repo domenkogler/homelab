@@ -4,6 +4,9 @@
 # bootstrap-only: system hardening, /etc/hosts, host networking, and the
 # NUT UPS master. The observability backend (Prometheus/Grafana/n8n) lives on the
 # VPS (HD-135) and scrapes nas's nut_exporter over the WG S2S tunnel (see observability.md).
+# Per-node model (HD-135b/HD-341): nas runs its OWN Alloy host-exporter (the monitoring
+# role installs Alloy via APT — no Docker requirement; nas ships node_* to the VPS
+# Victoria backend over wg-s2s), while oldsrv still scrapes nas's nut/zfs exporters.
 - hosts: storage
   become: true
   roles:
@@ -13,3 +16,4 @@
     - storage        # ZFS: import tank/bulk, datasets+props, sanoid/syncoid, NFS exports (docs/storage.md)
     - nut             # UPS master (usbhid-ups + upsd + nut_exporter on the host)
     - cockpit         # management UI (nas) + cockpit-zfs — own login, NOT behind Authentik
+    - monitoring      # per-node Alloy host-exporter (apt-installed, no Docker) — ships nas node_* to VM on VPS
