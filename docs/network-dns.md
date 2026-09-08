@@ -86,6 +86,11 @@ Client → Technitium PRIMARY (VPS public IP)  ← DHCP lists this first
   - If the VPS is down **or WAN is out**: timeout/failover → oldsrv (secondary), then Pi
     (tertiary) — both on the LAN, keep resolving local `*.kogler.si` + per-subnet filtering;
     1.1.1.1 is only a last resort (unfiltered).
+  - **✅ WAN-out failover test PASSED 2026-09-08 (owner, PPPoE disabled on the router):** with the
+    home WAN down, `dig @159.195.111.66` (VPS primary) timed out while the **LAN-local Pi answered
+    the full `*.kogler.si` set** and HA/dns-pi stayed 200; clean immediate recovery on PPPoE
+    re-enable (no negative caching). This proved the **Pi leg**; the oldsrv leg completes once its
+    Technitium is seeded (HD-340, gated on HD-318).
 - The **secondary/tertiary are a true failure-domain split** — oldsrv, Pi, and VPS are all
   different physical boxes.
 - `ha.kogler.si` resolves to the **VIP** on every instance (see [`smart-home-failover.md`](smart-home-failover.md)) so DNS is never the thing that breaks HA lookup.
