@@ -13,10 +13,21 @@
 # ---- Users (auth — mirror bootstrap; .pub keys in flash/ per HD-304) ----
 # admin = password + SSH key. ansible = key-only (automation).
 # .pub files MUST live in flash/ (root files wiped on reboot on switch/APs).
+# IDEMPOTENT (HD-346): guard the add with :if find like the router converge — a bare
+# /user add on a re-converge fails with "user with the same name already exists" and
+# ABORTS the whole /import before the SNMP/firewall blocks apply (live 2026-09-08).
 /user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin"
-/user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
-/user ssh-keys import public-key-file=flash/admin.pub user=admin
-/user ssh-keys import public-key-file=flash/ansible.pub user=ansible
+:if ([/user find where name=ansible] = "") do={
+    /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
+} else={
+    /user set [find name=ansible] group=full disabled=no comment="Ansible automation (SSH-key auth, key-only)"
+}
+:if ([/file find where name=flash/admin.pub] != "") do={
+    /user ssh-keys import public-key-file=flash/admin.pub user=admin
+}
+:if ([/file find where name=flash/ansible.pub] != "") do={
+    /user ssh-keys import public-key-file=flash/ansible.pub user=ansible
+}
 
 # ---- Identity / clock ----
 /system identity set name=switch.kogler.si
