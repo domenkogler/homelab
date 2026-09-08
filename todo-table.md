@@ -22,17 +22,17 @@ Rows where the AI can act **now** without any new human input. Inline notes flag
 | HD-207 | 1 | Landing-zone redistribution **mechanics** | Moving data is AI-work; only the final *media rename vs personal-files* call is owner (split) |
 | HD-191 | 2 | oldsrv Kopia agent — first snapshot + volume-name pin verify | Chains on VPS kopia-server → HD-318a (Table B) once the VPS leg converges |
 | **Platform / secrets** ||||
-| HD-286 | 2 | Vault-escape doc comments in TOML/env/yaml template headers | Pure doc edit + validate-all |
-| HD-211 | 1 | `expiring=False` verification of every persisted Authentik API token | Authentik API audit — no owner |
-| HD-218 | 1 | Container-state re-sample, confirm no crash-loop residue | Status sweep across VPS / nas / oldsrv / Pi |
-| HD-59 | 3 | Create `kopia-server-internal_api` + `prometheus-internal_api`, wire consumers | 1P item creation + IaC wiring |
-| HD-160 | 2 | Create `immich-ml-internal_api` + `openclaw-opencloud_api`, verify Immich v3 env names | 1P + env verification; live-verify rides oldsrv (live) |
-| HD-134 | 2 | Pin remaining fluid `latest` tags at first deploy | AI, registry-verified |
-| HD-154 | 1 | VPS hardening verify: fail2ban, `nft list ruleset`, `sshd -T`, `docker info` | Live checks via SSH — VPS is live |
-| HD-155 | 1 | WG blast-radius verify: peer pubkeys + scoped ACL + DROP test | Tunnel is live; AI-runnable |
-| HD-186 | 1 | S1 verify: `nc` on :3389 refuses, `ldapsearch` over WG works, nftables state | All shell-verifiable on the live VPS |
-| HD-280 | 2 | Confirm a 401/403 triggers a fail2ban ban | Observation — wait for natural SSO brute-force (no work product) |
-| HD-287 | 2 | `cap_drop: ALL` live cap verification (ollama / immich-ml) | Deploy-time experiment then encode verified set |
+| HD-286 | 2 | Vault-escape doc comments in TOML/env/yaml template headers | ✅ Done 2026-09-08 — comments added to every TOML/env/yaml header rendering vault values |
+| HD-211 | 1 | `expiring=False` verification of every persisted Authentik API token | ✅ Done 2026-09-08 (Authentik API audit) — only on-exposure rotation of `vps-op-write_api` remains = owner, Table B |
+| HD-218 | 1 | Container-state re-sample, confirm no crash-loop residue | Status sweep across VPS / nas / oldsrv / Pi — **only kopia-agent on oldsrv is a documented HD-318a known (VPS leg done, oldsrv re-render pending)**; rest clean |
+| HD-59 | 3 | ~~Create `kopia-server-internal_api` + `prometheus-internal_api`~~ | ✅ items created; `prometheus-internal_api` **retired** with Victoria (HD-342) — item + catalog row dropped |
+| HD-160 | 2 | Create `immich-ml-internal_api` + `openclaw-opencloud_api`, verify Immich v3 env names | ✅ items created + env verified; ⏳ live-verify round-trips ride oldsrv GPU leg → **Table B** |
+| HD-134 | 1 | Pin remaining fluid `latest` tags at first deploy | ✅ matrix pinned `v1.9.0` (registry-verified == live); only `profilarr` stays fluid (no upstream semver) |
+| HD-154 | 1 | VPS hardening verify | ✅ done+live (HD-40A deploy; re-verified 2026-09-08) — **row closed** |
+| HD-155 | 1 | WG blast-radius verify | ✅ done+live (2026-09-02) — **row closed** |
+| HD-186 | 1 | S1 verify | ✅ done+live (2026-09-08, external :3389 REFUSED, :53 fwd-scoped) — **row closed** |
+| HD-280 | 2 | Confirm a 401/403 triggers a fail2ban ban | Observation job — waits for natural SSO brute-force (no work product) |
+| HD-287 | 2 | `cap_drop: ALL` live cap verification | **Re-scoped**: ollama removed (spark); immich-ml is deploy-gated on the oldsrv GPU leg → **Table B** |
 | **Services / edge** ||||
 | HD-181 | 1 | Authorize oldsrv `traefik-cert-pull` pubkey + verify sync timer | SSH/IaC + timer check |
 | HD-184 | 1 | immich-app→immich-ml round-trip live-verify (smart-search completes) | oldsrv/ML is live |
@@ -53,7 +53,7 @@ Rows where the AI can act **now** without any new human input. Inline notes flag
 | **Smart Home** ||||
 | HD-14 | 2 | Enable HA Prometheus exporter (entity list) | AI |
 | HD-17 | 2 | Create `ha-failover_api` + deploy failover button | RFUSB-move tail is **obsolete (HD-13 rejected)**; standby is already rendered live (HD-318c) |
-| HD-185 / HD-124 | 1/2 | secrets.yaml renderer + keepalived deploy-verify | Deploy-gated only — AI at Pi/keepalived deploy |
+| HD-185 / HD-124 | 1/2 | secrets.yaml renderer + keepalived deploy-verify | ✅ done+live (Pi Phase-4 2026-09-03; re-verified) — verify tails closed |
 | **Obs / backup / docs** ||||
 | HD-342 | 2 | Kopia client wiring for `/srv/docker/victoria-*/data` | AI; oldsrv MCP tail = HD-344 (Table B) |
 | HD-345 | 2 | `noDataState: OK` rules deploy + verify on next monitoring converge | AI (sits on the Victoria migration) |
@@ -74,7 +74,7 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 |----|---|------|---------------------|
 | **Group 1 — oldsrv Phase-3 blockers (the big chain)** ||||
 | HD-318 | 1 | oldsrv Phase-3 provision | ① ONLYOFFICE repo/key, ② **ROCm pins decision**, ③ 1P `pihole_password` / `sonarr_api` / `radarr_api`. (kopia tail auto-unblocks once the VPS leg converges — post-Victoria) |
-| HD-318a | 1 | kopia-agent crash-loop | **VPS-gated** (auto): 1P `kopia-server_fingerprint` seedable only after VPS kopia-server converge |
+| HD-318a | 1 | kopia-agent crash-loop | ✅ **VPS leg done** (fingerprint seeded 2026-09-08, kopia-server Up); ⏳ **oldsrv re-render pending** — scoped `docker_services_scope=kopia-agent` converge → live-verify Up + first snapshot
 | HD-344 | 3 | MCP Victoria servers on oldsrv (pi/OWUI/OpenClaw registration) | Chains on oldsrv Phase-3 + HD-342 backend |
 | HD-288 | 3 | Sunshine live-verify (Moonlight round-trip) | Chains on oldsrv Phase-3 (manual-start test) |
 | HD-46 / HD-122 | 4/2 | Matrix IaC deploy + federation live-verify | Chains on Phase-3 hosts + owner OIDC records (HD-147) |
@@ -92,7 +92,7 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 | HD-219 | 1 | Forgejo install wizard | Owner **browser** (renovate/kopia tails then close) |
 | HD-220 | 1 | Renovate token validity check | Owner confirms once Forgejo green (kopia seed is AI — Table A) |
 | HD-230 | 1 | Phase-1 wave-2 batch | Kopia **source-wiring decision** (owner); the rest is converge/verify = AI |
-| HD-211 | 1 | Secret hygiene | Rotation already done; only `expiring=False` audit remains = AI — kept here only if owner wants to re-rotate `vps-op-write_api` |
+| HD-211 | 1 | Secret hygiene | ✅ rotation + `expiring=False` audit done (2026-09-08) — only on-exposure re-rotation of `vps-op-write_api` remains (owner, no-op today) |
 | HD-57 | 3 | Finance: Actual Budget / Enable Banking | Owner: **human tokens + EB app creation** (then AI WG scope + deploy at Phase 3) |
 | HD-296 | 1 | `dsh` / `pi-dev` tailnet A-records | Row is **labeled owner**: scoped converge `docker_services_scope=headscale` + `dig` verify |
 | HD-268 | 1 | Tailnet sidecar enable-flow (Qdrant swap, pi-dev/DSH UIs) | Owner 4-step: mint preauth keys → seed 1P → flip flags → converge → verify UIs (then AI embed/re-index) |
