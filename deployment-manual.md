@@ -541,6 +541,38 @@ bash scripts/ansible-run.sh playbooks/raspberry_pi.yml -e docker_services_scope=
 Verify: `dig @<Pi Home IP per SSOT> ha.kogler.si` → VIP and `dns-pi.kogler.si` → VIP. The 5380 publish on
 the Pi is already live (2026-09-04, `technitium-pi` → `pi:5380` HTTP 200).
 
+**oldsrv secondary — same admin-align + seed (HD-340, DONE + LIVE 2026-09-08):** the oldsrv Technitium
+container is `technitium-oldsrv` (instance `secondary`), **not published on 5380** — the API is reachable
+only on its overlay IPs. The container also lacks `curl`/`python` and host `curl` mis-reads Technitium's
+chunked responses (resets), so use the container's bash `/dev/tcp` + a small HTTP helper instead:
+
+```bash
+# on oldsrv — copy a bash /dev/tcp HTTP client into the container first
+# (GET/POST + Content-Length + chunked body decode; no curl dependency):
+cat > /tmp/tech_login.sh <<'OUTER'
+#!/bin/bash
+host=127.0.0.1; port=5380; method=$1; path=$2; body="$3"
+[ -n "$body" ] && clen=$(printf '%s' "$body" | wc -c) || clen=0
+req="$method $path HTTP/1.1\r\nHost: $host\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: $clen\r\nConnection: close\r\n\r\n$body"
+exec 3<>/dev/tcp/$host/$port; printf '%b' "$req" >&3
+out=$(timeout 5 cat <&3 2>/dev/null)
+printf '%s' "$out" | sed -n '/^\r\{0,1\}$/,$p' | tail -n +2 | perl -0777 -ne '$b=$_; $b =~ s/^[0-9a-fA-F]+\r?\n//mg if $b =~ /^[0-9a-fA-F]+\r?\n/; print $b'
+OUTER
+docker cp /tmp/tech_login.sh technitium-oldsrv:/tech_login.sh
+# login as the DEFAULT admin/admin (still bootstrapped on a fresh /etc/dns) -> token
+TOK=$(docker exec technitium-oldsrv bash /tech_login.sh POST "/api/user/login" "user=admin&pass=admin" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+# set the admin to the 1P technitium_login value (creds never leave oldsrv)
+docker exec technitium-oldsrv bash /tech_login.sh POST "/api/user/changePassword?token=$TOK" "pass=admin&newPass=<1P technitium_login password>"
+```
+
+Then the oldsrv seed converge (idempotent):
+
+```bash
+bash scripts/ansible-run.sh playbooks/home_servers.yml -e docker_services_scope=technitium
+```
+
+Verify: `dig @127.0.0.1 {ha,dns-pi,stats,logs,csui,sec,traefik,auto,vps,home,vpn,dns,sso,file,foto,git,bin,ai,office,pdf,chat,matrix,drop}.kogler.si` on oldsrv all answer (ha/dns-pi → VIP, dashboards → `tailnet_sidecar_ip`, public → VPS public IP). The default `admin`/`admin` is retired after this. **Container-IP reach caveat (live 2026-09-08):** if the seed's `_tech_api` connect fails with "No route to host", check for **orphaned duplicate-subnet docker bridges** (stale `br-*` from a docker recreate that steal the kernel route — `docker network ls` IDs won't match `ip link` bridge IDs); `sudo ip link del br-<orphan>` restores host→container routing.
+
 ### 1.5 Authentik first login
 
 - `akadmin` / `authentik_login` password — works FIRST TRY on a fresh install (bootstrap env

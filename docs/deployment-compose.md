@@ -365,6 +365,22 @@ services:
       - /tmp
 ```
 
+> **`read_only` is NOT universal — drop it where the image's startup writes (HD-318 live lesson, 2026-09-08).**
+> The hardening default above is the target, but the following image families **cannot** run `read_only: true`
+> without crash-looping (each found live on oldsrv during Phase-3):
+> - **linuxserver s6-overlay images** (`linuxserver/*`): s6 init writes `/run/s6` + `/config` as root before
+>   the PUID drop → drop `read_only`, keep `cap_drop: ALL` + `tmpfs: /run:exec` + `cap_add SETGID/SETUID`
+>   (sonarr/radarr/qbittorrent precedent — the *arr templates carry the inline note).
+> - **Images whose entrypoint ends in `setpriv`/`su-exec`** (signal-cli-rest-api, profilarr): need
+>   `cap_add CHOWN,SETGID,SETUID` (privilege-drop) and, where a helper persists into a uid-owned volume
+>   (signal-cli `jsonrpc2-helper`), also `DAC_OVERRIDE,FOWNER`.
+> - **Images with a real data dir ≠ the mounted path** (actual-budget: `/data` owned by uid 1001, NOT
+>   `/app/data`): mount the correct target + `bind_owner_uid`/`bind_dirs` on the docker_services entry
+>   (deploy-service.yml Class-A pre-create).
+> - **kopia image**: entrypoint is `/bin/kopia` (clear with `entrypoint: []` before a `command: sh -c`);
+>   needs writable `/app/logs`; `connect server` in 0.23.1 requires `https://` (server runs `--insecure`
+>   http — scheme/version decision pending HD-318 tail).
+
 ### Internal Service Authentication
 
 Even trusted containers on shared Docker networks should have independent auth. A supply-chain
