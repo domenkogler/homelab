@@ -16,6 +16,8 @@ services:
       - ALL
     cap_add:
       - CHOWN   # HD-318: cap_drop ALL strips CHOWN; init chown on /config fails otherwise (crowdsec-web-ui precedent f4c3216)
+      - SETGID
+      - SETUID   # HD-318 live: the init ends in `su-exec <uid>` to drop privileges; without SETUID/SETGID it dies "su-exec: setgroups: Operation not permitted"
     # read_only intentionally ABSENT (HD-318): the profilarr init runs chown on
     # /config as root before dropping privileges; read_only root made the chown fail
     # ("Operation not permitted"). Dir ownership via bind_owner_uid on the entry.
@@ -52,6 +54,8 @@ services:
       - ALL
     cap_add:
       - CHOWN   # HD-318: same chown-under-cap_drop-ALL fix as profilarr
+      - SETGID
+      - SETUID   # HD-318: same su-exec privilege-drop path as profilarr
     # read_only intentionally ABSENT (HD-318): same rationale as profilarr — the
     # Deno runtime needs a writable /run + config scratch at startup.
     tmpfs:

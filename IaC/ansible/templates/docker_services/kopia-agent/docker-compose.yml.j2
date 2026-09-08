@@ -49,10 +49,11 @@ services:
         : "${KOPIA_SERVER_PASSWORD:? kopia-server-internal_api.credential missing — aborting}"
         if [ ! -f /app/config/repository.config ]; then
           echo "Connecting to kopia-server over the WG S2S tunnel..."
+          # kopia 0.23.1 dropped --server-username/--server-password: HTTP Basic auth
+          # is carried in the URL userinfo, and the repo master password on -p.
           kopia repository connect server \
-            --url="http://${KOPIA_SERVER_ADDR}" \
-            --server-username="${KOPIA_SERVER_USER}" \
-            --server-password="${KOPIA_SERVER_PASSWORD}" \
+            --url="http://${KOPIA_SERVER_USER}:${KOPIA_SERVER_PASSWORD}@${KOPIA_SERVER_ADDR}" \
+            --password="${KOPIA_PASSWORD}" \
             --override-hostname=oldsrv.kogler.si \
             --override-username=oldsrv-agent
         fi
@@ -80,6 +81,7 @@ services:
       KOPIA_SERVER_ADDR: "{{ wg_s2s_vps.ip }}:51515"
       KOPIA_SERVER_USER: "{{ vault['kopia-server-internal_api'].username | replace('$','$$') }}"
       KOPIA_SERVER_PASSWORD: "{{ vault['kopia-server-internal_api'].credential | replace('$','$$') }}"
+      KOPIA_PASSWORD: "{{ vault['kopia_password'].password | replace('$','$$') }}"   # repo master password (kopia-server precedent)
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 volumes:
   signal-cli-data:
