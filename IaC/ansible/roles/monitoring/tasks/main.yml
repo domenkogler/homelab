@@ -3,31 +3,30 @@
 #
 # Targets: the `monitoring` inventory group (oldsrv collector + vps backend host).
 #
-# Architecture (docs/observability.md, HD-135 split):
-#   Alloy (host agent: metrics + logs + SNMP) ──remote_write──▶ Prometheus (on VPS)
-#   Alloy (container logs via docker.sock) ────push──────────▶ Loki (on VPS)
-#   HA exporter /api/prometheus ────────────────scrape────────▶ Prometheus  (bearer token)
-#   blackbox_exporter (services-internal) ──────scrape────────▶ Prometheus
-#   nut_exporter (nas, host binary) ────────────scrape────────▶ Prometheus
-#   SNMP (MikroTik router + switch) ────────────Alloy────────▶ Prometheus
+# Architecture (docs/observability.md, HD-135 split + HD-342 Victoria migration):
+#   Alloy (host agent: metrics + logs + SNMP) ──remote_write──▶ VictoriaMetrics (on VPS)
+#   Alloy (container logs via docker.sock) ────push──────────▶ VictoriaLogs (on VPS)
+#   Alloy scrapes EVERYTHING (topology B): HA exporter, blackbox, nut/zfs exporters,
+#   SNMP, VPS-container loopback metrics, VM/VL self — VM is pure storage/query.
 #
-# Backend moves: Prometheus/Loki/Grafana now run on the VPS (reliable tier). old-srv
-# keeps a thin Alloy collector that forwards home telemetry over the wg-s2s tunnel
-# (alloy_backend_host); the VPS runs its own Alloy + the Grafana provisioning.
+# Backend: VictoriaMetrics + VictoriaLogs + Grafana run on the VPS (reliable tier).
+# old-srv keeps a thin Alloy collector that forwards home telemetry over the wg-s2s
+# tunnel (alloy_backend_host); the VPS runs its own Alloy + the Grafana provisioning.
 # HD-135b (2026-08-28): the VPS Alloy self-observes on loopback (alloy_backend_host
 # defaults to 127.0.0.1) — VPS container logs/metrics stay local, no tunnel. The WG
 # tunnel dependency applies only to HOME telemetry (oldsrv/Pi collectors), not the
 # VPS's own stack. Dozzle (log viewer) also moved to the VPS (group_vars/vps.yml).
 #
 # This role handles:
-#   1. HA Prometheus API bearer token (from 1Password ha_api)
+#   1. HA API bearer token (from 1Password ha_api)
 #   2. Alloy installation + config (host metrics, container logs, SNMP, remote_write)
 #   3. Grafana provisioning (datasources, dashboards, alert rules)
 #
 # Secrets (1Password vault 'Homelab-ansible'):
-#   ha_api (credential) — HA long-lived API token for Prometheus scraping
+#   ha_api (credential) — HA long-lived API token
+#   victoria-metrics_api / victoria-logs_api — Victoria backend basic auth (HD-341/342)
 #
-# Ordering: after docker_services (needs Grafana, Prometheus, Loki containers up)
+# Ordering: after docker_services (needs Grafana, VictoriaMetrics, VictoriaLogs containers up)
 
 - name: Refuse Ansible runs as ai-debug or unknown users
   assert:
@@ -297,9 +296,16 @@
   when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
-- name: Check whether the prometheus datasource already exists
+# HD-240 (2026-08-24) + HD-342 (Victoria migration): BOTH Victoria* datasources carry
+# basic-auth secrets, so they are API-seeded (file-provisioning stores a secureJsonData
+# blob it cannot resolve at query time). Two datasources, each API-seeded create-only:
+#   uid prometheus (type prometheus) -> VictoriaMetrics http://victoria-metrics:8428
+#   uid loki        (type victoriametrics-logs-datasource) -> VictoriaLogs http://victoria-logs:9428
+# ROTATION of victoria-metrics_api/victoria-logs_api = delete the datasource (API/UI) then
+# re-run this role.
+- name: Check whether the observability datasource already exists
   ansible.builtin.uri:
-    url: "http://{{ gf_api_ip.stdout.split() | select('match', '^172\\.20\\.') | first }}:3000/api/datasources/uid/prometheus"
+    url: "http://{{ gf_api_ip.stdout.split() | select('match', '^172\\.20\\.') | first }}:3000/api/datasources/uid/{{ item.uid }}"
     url_username: admin
     url_password: "{{ gf_admin_password.stdout }}"
     force_basic_auth: true
@@ -307,10 +313,13 @@
   register: gf_ds_state
   changed_when: false
   no_log: true
+  loop:
+    - { uid: prometheus }
+    - { uid: loki }
   when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
-- name: Seed prometheus datasource via API (create-only)
+- name: Seed observability datasource via API (create-only)
   ansible.builtin.uri:
     url: "http://{{ gf_api_ip.stdout.split(' ') | first }}:3000/api/datasources"
     method: POST
@@ -319,28 +328,41 @@
     force_basic_auth: true
     body_format: json
     body:
-      name: Prometheus
-      uid: prometheus
-      type: prometheus
+      name: "{{ item.name }}"
+      uid: "{{ item.uid }}"
+      type: "{{ item.type }}"
       access: proxy
-      url: http://prometheus:9090
-      isDefault: true
+      url: "{{ item.url }}"
+      isDefault: "{{ item.isDefault }}"
       editable: false
       basicAuth: true
-      basicAuthUser: "{{ lookup('community.general.onepassword', 'prometheus-internal_api', field='username', vault=op_vault) }}"
+      basicAuthUser: "{{ lookup('community.general.onepassword', item.vault_item, field='username', vault=op_vault) }}"
       secureJsonData:
-        basicAuthPassword: "{{ lookup('community.general.onepassword', 'prometheus-internal_api', field='password', vault=op_vault) }}"
+        basicAuthPassword: "{{ lookup('community.general.onepassword', item.vault_item, field='password', vault=op_vault) }}"
     status_code: [200]
   register: gf_ds_seed
   no_log: true
   when:
     - inventory_hostname in groups['vps']
-    - gf_ds_state.status is defined and gf_ds_state.status == 404
+    - (gf_ds_state.results | selectattr('item.uid', 'equalto', item.uid) | first).status == 404
+  loop:
+    - name: VictoriaMetrics
+      uid: prometheus
+      type: prometheus
+      url: http://victoria-metrics:8428
+      isDefault: true
+      vault_item: victoria-metrics_api
+    - name: VictoriaLogs
+      uid: loki
+      type: victoriametrics-logs-datasource
+      url: http://victoria-logs:9428
+      isDefault: false
+      vault_item: victoria-logs_api
   tags: [monitoring, grafana]
 
-- name: Verify prometheus datasource health through grafana
+- name: Verify observability datasource health through grafana
   ansible.builtin.uri:
-    url: "http://{{ gf_api_ip.stdout.split(' ') | first }}:3000/api/datasources/uid/prometheus/health"
+    url: "http://{{ gf_api_ip.stdout.split(' ') | first }}:3000/api/datasources/uid/{{ item.uid }}/health"
     method: POST
     url_username: admin
     url_password: "{{ gf_admin_password.stdout }}"
@@ -350,6 +372,9 @@
   delay: 5
   until: gf_ds_health.json.status is defined and gf_ds_health.json.status == 'OK'
   changed_when: false
+  loop:
+    - { uid: prometheus }
+    - { uid: loki }
   when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
