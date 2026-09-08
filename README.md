@@ -80,7 +80,11 @@ task-specific dispatch. Do **not** bulk-read the repo.
   [`todo.md`](todo.md) HD-312. **HD-317 Technitium DNS-primary on the VPS is LIVE** (3-instance DNS
   HA); the split-horizon A-record **seed is DONE + LIVE on the VPS primary AND Pi tertiary**
   (HD-324, 2026-09-03 — VPS admin recreated to the 1P value via the documented API; the seed
-  role now idempotent). oldsrv secondary seeds automatically once its Phase-3 admin is up.
+  role now idempotent). **Open-resolver exposure FIXED 2026-09-08:** the `:53` publish is now
+  source-restricted at the nftables FORWARD chain (tailnet CGNAT + home-WAN `@dns-allow-home`
+  only; external scanners dropped) — the input source-allow alone could not gate Docker
+  published-port traffic (see network-dns.md).
+  oldsrv secondary seeds automatically once its Phase-3 admin is up.
   Detail: [`todo.md`](todo.md) HD-317.
 
 ---

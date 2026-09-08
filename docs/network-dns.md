@@ -67,6 +67,26 @@ Client → Technitium PRIMARY (VPS public IP)  ← DHCP lists this first
   the LAN through the existing Home/Media/Guest/Mgmt→WAN egress (HD-309) and from
   tailnet via its public IP; the VPS nftables source-allow blocks everything else
   (tailnet CGNAT + home WAN only, HD-299).
+  **🔴 2026-09-08 open-resolver exposure (fixed):** the INPUT source-allow alone was
+  NOT the control — Docker's published-port `53:53` DNAT happens in PREROUTING and is
+  then FORWARDED to the container bridge, so those packets never traverse the INPUT
+  chain's `ip saddr @dns-allow-home … dport 53 accept`. They were matched by the
+  generic `oifname "br-*" accept` in the nft FORWARD chain, so ANY external source
+  reached the resolver (confirmed live: scanners `reposify.net`/`pfcloud.network`/
+  AWS/GCP hit it, and it answered recursion from a non-ACL source). **Fix:** the
+  FORWARD chain now source-restricts the DNS primary published port (`:53 →
+  {{ tchnitium_dns_overlay_ip }}`) to the same allow set (tailnet CGNAT `100.64/10`
+  + home WAN `@dns-allow-home`), dropping everything else to the container — a FORWARD
+  drop is authoritative over Docker's iptables accept (proven by the 2026-08-23
+  isolation incident). Template: `vps-hardening/templates/nftables.conf.j2`; apply via
+  `playbooks/vps.yml --tags hardening`.
+  **🔴 Recursion-policy gap (2026-09-08):** the seed sets `allowRecursion=true` +
+  `allowRecursionOnlyForPrivateNetworks=false` ("allow all networks") and intends the
+  `recursionNetworkACL` (home subnets + tailnet CGNAT + loopback) as the real gate, but
+  that ACL did NOT enforce from an external source (a non-ACL source got full
+  `ra`/NOERROR answers, verified live). The FORWARD-chain gate above is now the
+  authoritative network-level control; the ACL remains defense-in-depth (keep the
+  allow-list).
   **🔴 Recursion policy (HD-317 follow-up, 2026-09-03, FULLY API-managed):** Technitium
   default `recursion` is `AllowOnlyForPrivateNetworks` — refuses recursion for any PUBLIC
   source, incl. home-WAN/hairpin (src = home WAN IP) and tailnet CGNAT (100.64/10 is not

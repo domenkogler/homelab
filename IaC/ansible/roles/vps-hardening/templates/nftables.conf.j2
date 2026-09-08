@@ -76,6 +76,23 @@ table inet filter {
     chain forward {
         type filter hook forward priority filter; policy drop;
 
+        # DNS PRIMARY published port (:53 -> container) is SOURCE-RESTRICTED here
+        # (2026-09-08, open-resolver exposure). Docker's published-port DNAT is
+        # applied in PREROUTING and then FORWARDED to the container bridge, so the
+        # host INPUT source-allow rules below can NEVER see those packets — external
+        # traffic reaches the resolver via the generic `oifname "br-*" accept` below.
+        # Gate it here instead (a drop in this chain is authoritative over Docker's
+        # iptables accept — proven by the 2026-08-23 fleet-wide isolation incident).
+        # Allow ONLY tailnet CGNAT + home WAN (dns-allow-home set); drop the rest
+        # (scanners / open-resolver probes / amplification source). Mirror of the
+        # input rules; identical allow set.
+        iifname != "br-*" oifname "br-*" ip daddr {{ tchnitium_dns_overlay_ip }} udp dport 53 ip saddr 100.64.0.0/10 accept
+        iifname != "br-*" oifname "br-*" ip daddr {{ tchnitium_dns_overlay_ip }} tcp dport 53 ip saddr 100.64.0.0/10 accept
+        iifname != "br-*" oifname "br-*" ip daddr {{ tchnitium_dns_overlay_ip }} udp dport 53 ip saddr @dns-allow-home accept
+        iifname != "br-*" oifname "br-*" ip daddr {{ tchnitium_dns_overlay_ip }} tcp dport 53 ip saddr @dns-allow-home accept
+        iifname != "br-*" oifname "br-*" ip daddr {{ tchnitium_dns_overlay_ip }} udp dport 53 counter drop
+        iifname != "br-*" oifname "br-*" ip daddr {{ tchnitium_dns_overlay_ip }} tcp dport 53 counter drop
+
         # Docker bridge forwarding (incident 2026-08-23): with br_netfilter loaded,
         # bridge-nf-call-iptables=1 routes CONTAINER↔CONTAINER frames through THIS
         # chain. Docker's custom bridges are named br-<hash> (compose/role-created),

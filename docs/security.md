@@ -77,7 +77,7 @@ Owning docs: [deployment-compose.md](deployment-compose.md),
 
 - **Signal CLI** `8080:8080` — remove the host bind (n8n reaches it by name). **HD-62** *(evidence: KOPS-002)*.
 - **Prometheus** `9090:9090` — bind loopback. **HD-62** *(evidence: KOPS-017)*.
-- **Technitium** `53:53` — bind a specific VLAN IP. **HD-62** *(evidence: KOPS-015/064)*.
+- **Technitium** `53:53` — **VPS primary**: this is the ONE intentional public publish (the LAN/tailnet resolver is the VPS public IP, HD-299); the open-resolver exposure it created is closed at the nftables FORWARD chain (source-restricted to tailnet CGNAT + home WAN, see §8). **HD-62** + 2026-09-08 gate. *(evidence: KOPS-015/064)*.
 - **Sunshine** `47989-48010` — restrict to Home VLAN IP. **HD-62** *(evidence: KOPS-007)*.
 
 Owning doc: [deployment-compose.md](deployment-compose.md). **Tracked: HD-62.**
@@ -209,6 +209,7 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
   daemon `userland-proxy: false` + `live-restore: true`. **HD-154. ✅ enforced (daemon) + compose-policy.**
 - **VPS firewall default-deny** ✅ — inbound **deny-all except :22 (SSH) + :443 + :51820 (WG)** via the `vps-hardening` role's
 - **Published-port bypass closed (S1, HD-186):** docker-published ports traverse the *forward* chain (`oifname "docker*" accept`), so the input default-deny does not cover them. **Implemented (decided HD-204): no public publishes** — authentik's all-interfaces LDAP `3389` publish was removed; the outpost binds only the WG S2S address (prometheus/loki precedent), and Samba (nas, the client) pulls over the tunnel. Verify row added to the `services-vps.md` §VPS-Specific Firewall checklist (external `nc`/`ldapsearch` must refuse; WG-side must connect). Documented future-hardening option if a public publish is ever required: a **DOCKER-USER filter chain** restricting forwarded dports (443 from any; specific ports from the WG peer only) — implement only then, as its own gated task. **HD-186. ✅ IaC; ⏳ live-verify at deploy.**
+- **DNS primary published-port gate (2026-09-08):** the Technitium `53:53` publish is the ONE intentionally-public host publish (the LAN/tailnet resolver is the VPS public IP, HD-299). Because input default-deny cannot see published-port traffic (same S1 bypass as above), the `:53 → {{ tchnitium_dns_overlay_ip }}` forward path is **source-restricted in the nftables FORWARD chain** (tailnet CGNAT `100.64/10` + home-WAN `@dns-allow-home` set; everything else dropped) — a FORWARD drop is authoritative over Docker's accept (proven by the 2026-08-23 isolation incident). Template `vps-hardening/templates/nftables.conf.j2`; apply `playbooks/vps.yml --tags hardening`. Same allow-set as the input rules. **SSOT doc: `network-dns.md`; security: this §8.**
   `/etc/nftables.conf` (nftables, input policy drop). Committed as executable checklist, not prose. **HD-154. ✅ enforced.**
 - **SSO on VPS admission** ✅ — the netcup `post_install.sh` SSH config matches the preseed defaults; root-login
   disabled, per-host keys (Domen + Ansible), no `ai-debug` on a public box
