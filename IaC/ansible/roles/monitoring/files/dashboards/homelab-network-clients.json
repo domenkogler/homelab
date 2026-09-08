@@ -1,0 +1,148 @@
+{
+  "title": "Homelab — Network Clients",
+  "uid": "homelab-network-clients",
+  "tags": ["homelab", "network", "clients", "vlan"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "version": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "vlan",
+        "label": "VLAN",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(mikrotik_client, vlan)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "table",
+      "title": "All clients",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }
+          ]},
+          "custom": { "align": "auto", "cellOptions": { "type": "color-background" } }
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true },
+            "renameByName": {
+              "mac": "MAC",
+              "hostname": "Hostname",
+              "ip": "IP",
+              "vlan": "VLAN",
+              "dhcp_status": "DHCP",
+              "source": "Source",
+              "Value": ""
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mikrotik_client{vlan=~\"$vlan\"}",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Per-VLAN breakdown",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }
+          ]},
+          "custom": { "align": "auto", "cellOptions": { "type": "color-text" } }
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true },
+            "renameByName": { "vlan": "VLAN", "Value": "Clients" }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by (vlan) (mikrotik_client{vlan=~\"$vlan\"})",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "VLAN distribution",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }
+          ]},
+          "custom": { "displayMode": "gradient", "orientation": "auto" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by (vlan) (mikrotik_client{vlan=~\"$vlan\"})",
+          "legendFormat": "VLAN {{vlan}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "WiFi vs wired",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }
+          ]},
+          "custom": { "displayMode": "gradient", "orientation": "auto" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by (source) (mikrotik_client{vlan=~\"$vlan\"})",
+          "legendFormat": "{{source}}",
+          "instant": true
+        }
+      ]
+    }
+  ]
+}

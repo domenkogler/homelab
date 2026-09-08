@@ -215,6 +215,10 @@ oldsrv is on NVMe and mostly unaffected):
 > **Role:** design SSOT (authoring spec) for the “all network clients, grouped per VLAN”
 > Grafana dashboard at `stats.kogler.si`. Registered as HD-343 in `todo.md` §2.3.
 > Authoring-phase — IaC/gates below are NOT implemented or deployed.
+> **2026-09-08 (HD-343): exporter role + dashboard JSON AUTHORED** in
+> `IaC/ansible/roles/monitoring/` (host-binary `network-clients-exporter` on oldsrv +
+> `homelab-network-clients` dashboard). ⏳ **Deploy-gated:** oldsrv converge (Phase 3/HD-318),
+> live wifi-path verify (`/interface/wifi/registration-table` vs legacy), owner render-verify.
 
 **Goal.** One dashboard showing *every* client on the homelab, grouped by VLAN
 (10 Home / 20 IoT / 30 Guest / 40 Kids / 50 Media / 99 Management).
@@ -277,12 +281,15 @@ convention `homelab-*`, datasource uid `prometheus` — same as HD-315 dashboard
 | WiFi vs wired | optional breakdown | `source=wifi` vs others |
 
 **Gates before implementation.**
-- `todo.md` HD-343 row exists (this design).
-- Confirm live wifi path: modern `wifi-qcom-ac` registers under `/interface/wifi/registration-table`
+- ✅ `todo.md` HD-343 row exists (this design).
+- ✅ **2026-09-08: exporter role + dashboard JSON authored** in `IaC/ansible/roles/monitoring/`
+  (`network-clients-exporter.py.j2` host binary + systemd unit + Alloy `prometheus.scrape`
+  `network_clients` + `homelab-network-clients.json` dashboard).
+- ⏳ Confirm live wifi path: modern `wifi-qcom-ac` registers under `/interface/wifi/registration-table`
   (legacy `/interface/wireless/registration-table` in `skills/mikrotik` is the old path).
-- Router API reachable from oldsrv (Mgmt) — already the case for the SNMP exporter; re-verify with
-  a read-only `mikrotik-read.py` call at implement time.
-- Device-side SNMP enable (“if used as backstop”) stays HD-03 deploy-gated; the API collector
+- ⏳ Router API reachable from oldsrv (Mgmt) — already the case for the SNMP exporter; re-verify with
+  a read-only `mikrotik-read.py` call at deploy time.
+- ⏳ Device-side SNMP enable (“if used as backstop”) stays HD-03 deploy-gated; the API collector
   needs only the API service (`/ip/service set api disabled=no`), already INPUT-scoped to Mgmt.
 
 ---

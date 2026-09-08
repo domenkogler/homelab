@@ -117,6 +117,19 @@ prometheus.exporter.snmp "mikrotik" {
     ]
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
+
+// ---- Network-clients exporter (HD-343) — RouterOS-API collector on oldsrv ----
+// The network-clients-exporter host binary polls the router read-only API and
+// exposes mikrotik_client / mikrotik_static_host on 127.0.0.1:9097. Scrape it
+// inside the same process and remote-write to the VPS backend (same channel as SNMP).
+prometheus.scrape "network_clients" {
+    targets = [{
+        "__address__" = "127.0.0.1:{{ network_clients_listen | default(9097) }}",
+        "job" = "network-clients",
+        "instance" = "{{ inventory_hostname }}",
+    }]
+    forward_to = [prometheus.remote_write.metrics.receiver]
+}
 {% endif %}
 
 // ---- Alloy host metrics (own /metrics) → remote_write ----

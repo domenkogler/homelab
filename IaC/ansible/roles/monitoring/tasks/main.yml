@@ -193,6 +193,61 @@
     - acquis_result is changed
   tags: [monitoring, routeros-syslog]
 
+# -------------------------------------------------------------------------
+# Network-clients exporter (HD-343) — RouterOS-API collector on oldsrv
+#   Host binary (like nut_exporter) reusing the read-only `logpipe` API user
+#   (HD-313). Polls DHCP/ARP/FDB/wifi registration, emits mikrotik_client +
+#   mikrotik_static_host; the oldsrv Alloy scrapes it and remote_writes to the
+#   VPS Prometheus (same channel as SNMP). oldsrv-only (Mgmt-plane reach).
+#   Design SSOT: docs/observability.md §Network Clients Dashboard.
+# -------------------------------------------------------------------------
+- name: Install python3-routeros-api (network-clients exporter dep)
+  ansible.builtin.apt:
+    name: python3-routeros-api
+    state: present
+  when: inventory_hostname == 'oldsrv.kogler.si'
+  tags: [monitoring, network-clients]
+
+- name: Create network-clients exporter user (no shell)
+  ansible.builtin.user:
+    name: networkclients
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+  when: inventory_hostname == 'oldsrv.kogler.si'
+  tags: [monitoring, network-clients]
+
+- name: Deploy network-clients exporter script (root-owned, 0700 — carries the logpipe credential)
+  ansible.builtin.template:
+    src: network-clients-exporter.py.j2
+    dest: /usr/local/bin/network-clients-exporter
+    owner: root
+    group: root
+    mode: '0700'
+  when: inventory_hostname == 'oldsrv.kogler.si'
+  notify: restart network-clients exporter
+  tags: [monitoring, network-clients]
+
+- name: Deploy network-clients exporter systemd unit
+  ansible.builtin.template:
+    src: network-clients-exporter.service.j2
+    dest: /etc/systemd/system/network-clients-exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: inventory_hostname == 'oldsrv.kogler.si'
+  notify: restart network-clients exporter
+  tags: [monitoring, network-clients]
+
+- name: Enable network-clients exporter
+  ansible.builtin.systemd:
+    name: network-clients-exporter
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: inventory_hostname == 'oldsrv.kogler.si'
+  tags: [monitoring, network-clients]
+
 # ---- Grafana provisioning (step 3: datasources, dashboards, alerting) ----
 # Grafana compose mounts /srv/docker/grafana/provisioning → /etc/grafana/provisioning:ro
 # (templates/docker_services/grafana/docker-compose.yml.j2). Files are read at

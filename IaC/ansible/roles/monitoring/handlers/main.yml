@@ -6,6 +6,13 @@
     daemon_reload: true
   tags: always   # handlers are tag-filtered too — without this, --tagged runs skip the restart (HD-220)
 
+- name: restart network-clients exporter
+  ansible.builtin.systemd:
+    name: network-clients-exporter
+    state: restarted
+    daemon_reload: true
+  tags: always   # handlers are tag-filtered too — without this, --tagged runs skip the restart (HD-220)
+
 - name: restart rsyslog
   systemd:
     name: rsyslog

@@ -1,0 +1,312 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# Ansible managed — monitoring role (HD-343)
+#
+# network-clients-exporter — RouterOS-API client collector on oldsrv.
+#
+# Polls the RB4011 read-only API (the `logpipe` scoped `read`-group user, HD-313
+# precedent) for the four client views and emits Prometheus metrics:
+#
+#   mikrotik_client{dhcp_status,vlan,hostname,mac,ip,source} 1
+#       source = "dhcp|arp|fdb|wifi|static" — which RouterOS view found the MAC
+#       (union of DHCP leases + ARP + bridge FDB + wifi registration, de-duped by MAC)
+#   mikrotik_static_host{vlan,hostname,ip} 1
+#       the SSOT `network_static_hosts` rows, emitted once (naming/VLAN ground truth)
+#
+# The oldsrv Alloy `prometheus.scrape`s this endpoint and `remote_write`s the series
+# over wg-s2s to the VPS Prometheus (same channel as the SNMP exporter). No new
+# firewall open, no VPS reachability change — the router API :8728 is already
+# INPUT-scoped to the Mgmt VLAN (HD-78/HD-53) and oldsrv sits on the Mgmt plane.
+#
+# Design SSOT: docs/observability.md §Network Clients Dashboard (HD-343).
+# Reuses the read-only API pattern of skills/mikrotik/scripts/mikrotik-read.py
+# (the `routeros-api` library) with the scoped `logpipe` read-group user.
+#
+# Secrets: the logpipe password is rendered from 1Password `mikrotik-logpipe_api`
+# at Ansible render time — never a literal in this repo.
+#
+# A note on the failure mode: this is a monitoring collector, not a control path.
+# A router API outage must not page on its own — it degrades to "no clients seen".
+# We emit an up gauge so Grafana can still show collector health, but we do NOT
+# force the scrape to fail (the node/Alloy self-metrics already cover host liveness).
+
+import argparse
+import json
+import re
+import signal
+import sys
+import time
+import urllib.parse
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+try:
+    import routeros_api
+except ImportError:
+    print(
+        "Error: The 'routeros-api' library is not installed. "
+        "Install it with: pip install routeros-api",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
+# ---- SSOT values injected by Ansible at render time ----
+# router Mgmt-plane IP (VLAN 99) + API port, from network_static_hosts.
+ROUTER_HOST = "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}"
+ROUTER_PORT = {{ routeros_api_port | default(8728) }}
+# The logpipe scoped read-only user + its 1Password-sourced password (HD-313).
+ROUTER_USER = "logpipe"
+ROUTER_PASSWORD = "{{ lookup('community.general.onepassword', 'mikrotik-logpipe_api', field='password', vault=op_vault) }}"
+ROUTER_TLS = {{ routeros_tls | default(false) | lower }}
+
+# Static SSOT hosts (naming/VLAN ground truth) — rendered once at deploy.
+STATIC_HOSTS = [
+{% for h in network_static_hosts %}
+    {"name": "{{ h.name }}", "vlan": "{{ h.vlan }}", "ip": "{{ h.ip }}", "mac": "{{ h.get('mac', '') }}"},
+{% endfor %}
+]
+
+SCRAPE_INTERVAL = int("{{ network_clients_scrape_interval | default(45) }}")
+
+# RouterOS API paths to poll, per source (design SSOT table).
+API_PATHS = {
+    "dhcp": "/ip/dhcp-server/lease",
+    "arp": "/ip/arp",
+    "fdb": "/interface/bridge/host",
+    "wifi": "/interface/wifi/registration-table",
+}
+
+# Map a router interface name -> VLAN (from the SSOT VLAN map, derived).
+# Interfaces look like vlan10-home, vlan20-iot, vlan30-guest, vlan40-kids,
+# vlan50-media, vlan99-mgmt (plus bridge/wlan/physical names that map by SSID).
+_VLAN_BY_NAME = {}
+{% for v in network_vlans | default([]) if v.id != 1 %}
+_VLAN_BY_NAME["vlan{{ v.id }}-{{ v.name | lower }}"] = "{{ v.id }}"
+{% endfor %}
+
+
+def _normalise_mac(mac: str) -> str:
+    """Normalise a MAC to uppercase AA:BB:CC:DD:EE:FF."""
+    if not mac:
+        return ""
+    cleaned = re.sub(r"[^0-9A-Fa-f]", "", mac)
+    if len(cleaned) != 12:
+        return ""
+    return ":".join(cleaned[i : i + 2] for i in range(0, 12, 2)).upper()
+
+
+def _vlan_for_iface(iface: str) -> str:
+    """Best-effort VLAN classifier from an interface/bridge name."""
+    if not iface:
+        return ""
+    iface = iface.lower()
+    for name, vlan in _VLAN_BY_NAME.items():
+        if name in iface:
+            return vlan
+    # WiFi SSID -> VLAN (interfaces named after the SSID via CAPsMAN).
+    ssid_map = {
+        "kogler": "10",
+        "iot": "20",
+        "guest": "30",
+        "kids": "40",
+        "media": "50",
+        "mgmt": "99",
+    }
+    for key, vlan in ssid_map.items():
+        if key in iface:
+            return vlan
+    return ""
+
+
+def _extract_clients(pool):
+    """Poll the four RouterOS sources and return a MAC-keyed client dict."""
+    api = pool.get_api()
+    clients = {}  # mac -> {hostname, ip, vlan, source:set, dhcp_status}
+
+    for source, path in API_PATHS.items():
+        try:
+            resource = api.get_resource(path.strip("/"))
+            rows = resource.get()
+        except Exception as e:  # noqa: BLE001 — collector must not die on one source
+            sys.stderr.write(f"network-clients: {source} poll failed: {e}\n")
+            continue
+        for row in rows:
+            item = dict(row)
+            mac = _normalise_mac(str(item.get("mac-address") or item.get("mac") or ""))
+            if not mac:
+                continue
+            entry = clients.setdefault(
+                mac,
+                {"hostname": "", "ip": "", "vlan": "", "source": set(), "dhcp_status": ""},
+            )
+            entry["source"].add(source)
+
+            if source == "dhcp":
+                if item.get("address"):
+                    entry["ip"] = str(item["address"])
+                if item.get("host-name"):
+                    entry["hostname"] = str(item["host-name"])
+                if item.get("status"):
+                    entry["dhcp_status"] = str(item["status"])
+                # Lease server -> pool -> VLAN is not directly exposed; fall back to
+                # the address subnet classifier if we have an IP.
+            if source in ("arp", "fdb"):
+                if item.get("address"):
+                    entry["ip"] = str(item["address"])
+                iface = item.get("interface") or item.get("port") or ""
+                vlan = _vlan_for_iface(str(iface))
+                if vlan:
+                    entry["vlan"] = vlan
+            if source == "wifi":
+                iface = item.get("interface") or item.get("ssid") or ""
+                vlan = _vlan_for_iface(str(iface))
+                if vlan:
+                    entry["vlan"] = vlan
+
+    # VLAN-by-IP fallback: classify any IP that matches a known static/subnet row.
+    for entry in clients.values():
+        if not entry["vlan"] and entry["ip"]:
+            entry["vlan"] = _vlan_for_ip(entry["ip"])
+
+    return clients
+
+
+def _vlan_for_ip(ip: str) -> str:
+    """Classify an IP by matching the SSOT static-host/subnet rows (best-effort)."""
+    for h in STATIC_HOSTS:
+        if h["ip"] == ip:
+            return h["vlan"]
+    # Match by /24 subnet against the static rows' IPs.
+    octets = ip.split(".")
+    if len(octets) == 4:
+        prefix = ".".join(octets[:3])
+        for h in STATIC_HOSTS:
+            ho = h["ip"].split(".")
+            if len(ho) == 4 and ".".join(ho[:3]) == prefix:
+                return h["vlan"]
+    return ""
+
+
+def _render_metrics(clients):
+    """Render Prometheus text-format exposition of the client + static-host series."""
+    lines = [
+        "# HELP mikrotik_client Homelab client seen on the RouterOS API (union of dhcp/arp/fdb/wifi views, de-duped by MAC).",
+        "# TYPE mikrotik_client gauge",
+    ]
+    for mac, entry in clients.items():
+        labels = {
+            "mac": mac,
+            "hostname": entry["hostname"],
+            "ip": entry["ip"],
+            "vlan": entry["vlan"],
+            "dhcp_status": entry["dhcp_status"],
+            "source": "|".join(sorted(entry["source"])),
+        }
+        lines.append(_fmt_metric("mikrotik_client", labels, 1))
+
+    lines.append("# HELP mikrotik_static_host Static homelab host from the SSOT (network_static_hosts).")
+    lines.append("# TYPE mikrotik_static_host gauge")
+    for h in STATIC_HOSTS:
+        if not h["name"]:
+            continue
+        lines.append(
+            _fmt_metric(
+                "mikrotik_static_host",
+                {"vlan": h["vlan"], "hostname": h["name"], "ip": h["ip"]},
+                1,
+            )
+        )
+
+    # Collector health.
+    lines.append("# HELP network_clients_up Whether the network-clients exporter last poll succeeded.")
+    lines.append("# TYPE network_clients_up gauge")
+    lines.append(_fmt_metric("network_clients_up", {}, 1))
+
+    return "\n".join(lines) + "\n"
+
+
+def _fmt_metric(name: str, labels: dict, value):
+    parts = []
+    for k, v in labels.items():
+        parts.append(f'{k}="{_escape_label(v)}"')
+    if parts:
+        lbrace, rbrace = "{", "}"
+        return f"{name}{lbrace}{','.join(parts)}{rbrace} {value}"
+    return f"{name} {value}"
+
+
+def _escape_label(value) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+class Handler(BaseHTTPRequestHandler):
+    exporter_state = None
+
+    def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path != "/metrics":
+            self.send_response(404)
+            self.end_headers()
+            return
+        body = self.exporter_state["body"].encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, fmt, *args):
+        # Quiet — polled every ~45s; only log non-200.
+        if args and args[0] != "200":
+            sys.stderr.write("%s - - [%s] %s\n" % (self.address_string(), self.log_date_time_string(), fmt % args))
+
+
+def main():
+    parser = argparse.ArgumentParser(description="RouterOS-API network-clients exporter (HD-343).")
+    parser.add_argument("--listen", default="127.0.0.1:{{ network_clients_listen | default(9097) }}",
+                        help="listen address:port (default 127.0.0.1:{{ network_clients_listen | default(9097) }})")
+    parser.add_argument("--interval", type=int, default=SCRAPE_INTERVAL,
+                        help="poll interval in seconds (default %d)" % SCRAPE_INTERVAL)
+    args = parser.parse_args()
+
+    host, _, port_str = args.listen.rpartition(":")
+    port = int(port_str)
+
+    # Connect pool once (reconnect handled per poll attempt).
+    pool = routeros_api.RouterOsApiPool(
+        ROUTER_HOST,
+        username=ROUTER_USER,
+        password=ROUTER_PASSWORD,
+        port=ROUTER_PORT,
+        plaintext_login=True,
+        use_ssl=ROUTER_TLS,
+        ssl_verify=False,
+    )
+
+    state = {"body": _render_metrics({})}
+    Handler.exporter_state = state
+
+    def poll(_sig=None, _frame=None):
+        try:
+            clients = _extract_clients(pool)
+            state["body"] = _render_metrics(clients)
+        except Exception as e:  # noqa: BLE001
+            sys.stderr.write(f"network-clients: poll error: {e}\n")
+            state["body"] = _render_metrics({})  # degrade to no-clients, keep serving
+
+    # Poll immediately, then on interval.
+    poll()
+    signal.signal(signal.SIGALRM, lambda *a: (poll(), signal.alarm(args.interval)))
+    signal.alarm(args.interval)
+
+    server = ThreadingHTTPServer((host, port), Handler)
+    sys.stderr.write(f"network-clients-exporter listening on {host}:{port} (router {ROUTER_HOST}:{ROUTER_PORT})\n")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()

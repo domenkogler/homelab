@@ -1,4 +1,9 @@
 ---
+# Network-clients exporter (HD-343) — host binary on oldsrv, Mgmt-plane collector.
+# Listen is loopback-only (the local Alloy scrapes it; nothing publishes it).
+network_clients_listen: 9097
+network_clients_scrape_interval: 45
+
 # Alert rule definitions — consumed by grafana-rules.yml.j2 (monitoring step 3).
 # !unsafe (Wave-3 triage 2026-08-22): summaries carrying Go-template vars
 # ({{ $labels.* }} / {{ $values.* }}) must NOT be re-templated by Ansible at render.

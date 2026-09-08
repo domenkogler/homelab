@@ -1,0 +1,18 @@
+# managed by Ansible — monitoring role (HD-343) — network-clients exporter systemd unit
+[Unit]
+Description=Prometheus network-clients exporter (RouterOS-API, HD-343)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Dedicated unprivileged user (no login shell) — the rendered script carries the
+# logpipe credential, so it is root-owned 0700 and runs as this non-root user.
+User=networkclients
+Group=networkclients
+ExecStart=/usr/local/bin/network-clients-exporter --listen=127.0.0.1:{{ network_clients_listen | default(9097) }} --interval={{ network_clients_scrape_interval | default(45) }}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
