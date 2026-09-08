@@ -76,6 +76,10 @@
       template:
         src: "{{ playbook_dir }}/../../router/templates/crs328_converge.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/crs328_converge.rsc"
+    - name: Render crs328_snmp_delta.rsc — switch SNMP RO delta
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/crs328_snmp_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/crs328_snmp_delta.rsc"
     - name: "Render rb4011_hd307_delta.rsc (HD-307: laptop/Pi static + Mgmt->Home)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_hd307_delta.rsc.j2"
