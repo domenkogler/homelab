@@ -349,7 +349,10 @@ wg_s2s_vps_public_key: "NeEeWiEdcPfA4N8R0biRffkY4hQPNOtq8z87mr6I/0I="   # VPS si
 
 # ==== Observability backend target for Alloy (HD-135) ====
 # Forward target derived from `wg_s2s_vps.ip` (SSOT) — no literal IP embedded here.
-alloy_backend_host: "{% if inventory_hostname == 'oldsrv.kogler.si' %}{{ wg_s2s_vps.ip }}{% else %}127.0.0.1{% endif %}"
+# Per-node model (HD-135b/HD-341): every non-backend Alloy (oldsrv, nas, pi) remote_writes
+# to the VPS Victoria backend over the wg-s2s tunnel; only the VPS (the backend host with
+# VM/VL running locally) uses loopback.
+alloy_backend_host: "{% if inventory_hostname == 'vps.kogler.si' %}127.0.0.1{% else %}{{ wg_s2s_vps.ip }}{% endif %}"
 
 # ==== Victoria* observability backend (HD-341/342 — replaces Prometheus+Loki on the VPS) ====
 # Single Victoria stack on the VPS: VictoriaMetrics (metrics, :8428, pure storage/query —
