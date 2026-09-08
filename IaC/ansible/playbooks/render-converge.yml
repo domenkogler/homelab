@@ -78,3 +78,15 @@
       template:
         src: "{{ playbook_dir }}/../../router/templates/ap_guest_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/ap_guest_delta.rsc"
+    - name: "Render rb4011_fixsyslog_delta.rsc (HD-313: remote-syslog egress refresh-on-boot workaround)"
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/rb4011_fixsyslog_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/rb4011_fixsyslog_delta.rsc"
+    - name: "Render mikrotik_admin_rotate_delta.rsc (HD-321: shared admin password rotation)"
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/mikrotik_admin_rotate_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/mikrotik_admin_rotate_delta.rsc"
+    - name: "Render rb4011_egress_probe_delta.rsc (HD-313: syslog egress test probe)"
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/rb4011_egress_probe_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/rb4011_egress_probe_delta.rsc"

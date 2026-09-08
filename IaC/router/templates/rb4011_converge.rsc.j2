@@ -408,6 +408,22 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
 # tradeoff, network-dns.md).
 /ip dns set allow-remote-requests=yes servers={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},1.1.1.1,1.0.0.1
 
+# ---- HD-313 SAFETY NET: remote-syslog egress refresh-on-boot (script+scheduler) ----
+# Root-cause note (2026-09-08): the HD-313 "zero UDP/514" blocker was actually the VPS
+# WireGuard peer AllowedIPs missing the router's own wg address (SSOT: wg_s2s_vps.allowed_ips
+# in group_vars/all.yml) — NOT a RouterOS logging fault. This script+scheduler is therefore
+# NOT the fix; it is retained as harmless self-healing insurance in case RouterOS ever fails
+# to (re)init the action on a boot: it re-applies the centralsyslog target 10s post-boot.
+# The VPS target is SSOT-derived ({{ wireguard_s2s_vps.remote_ip }}). Names are
+# letters+numbers-only (HD-313 rule) -> `fixsyslog` (the action carrying the flow is
+# `centralsyslog`, NOT the unused bundled `remote` default at 0.0.0.0).
+:if ([/system script find where name=fixsyslog] = "") do={
+    /system script add name=fixsyslog source=":delay 10s; /system logging action set [find name=centralsyslog] remote=0.0.0.0; :delay 1s; /system logging action set [find name=centralsyslog] remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }};"
+}
+:if ([/system scheduler find where name=fixsyslog] = "") do={
+    /system scheduler add name=fixsyslog on-event=fixsyslog start-time=startup interval=0 policy=read,write,test
+}
+
 # ---- End ----
 # Verify: /interface bridge print, /ip address print, /ip dhcp-server print, /ip route print,
 #         /ip firewall filter print, /ip firewall nat print, /ip service print, /interface wireguard print

@@ -308,9 +308,18 @@ wg_s2s_vps:
   # `site` /16. Derived from network_static_hosts by name (never literal IPs). The
   # wg-vps-services range stays (VPS-resident services on the other side of the peer).
   # A compromised VPS can thus only reach nut/zfs/HA + ICMP + the named app backends.
+  #
+  # HD-313 live-lesson (2026-09-08): the router's OWN wg-s2s tunnel address
+  # (`10.255.40.1`, `router_ip` above) MUST also be in this list. RouterOS remote
+  # syslog sends with src-address=10.255.40.1 (the action's src-address); WireGuard
+  # silently drops any inner packet whose source IP is not in the peer's AllowedIPs.
+  # That drop is what the HD-313 "zero UDP/514 egress" symptom really was — the
+  # fixsyslog toggle could never help. Keep both the tunnel addr (here) and the
+  # mgmt-99 addr (row below) so ALL router-sourced traffic is permitted.
   # SSOT for BOTH tunnel sides: the router-side peer list (`wireguard_s2s_vps.allowed_ips`,
   # group_vars/router.yml) derives from this list (HD-200) — edit here only.
   allowed_ips:
+    - "{{ wg_s2s_vps.router_ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'ha-vip') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
