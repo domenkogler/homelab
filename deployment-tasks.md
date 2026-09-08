@@ -43,6 +43,9 @@
 > manual/deploy-provisioned tokens or keys, break-glass vaults, and connection refs. Auto-generatable items are
 > seeded by [`scripts/provision-secrets.py`](../scripts/provision-secrets.py) and are **not repeated here**.
 > `✓` = item already present. Ansible-consumed vs account/ref-only are split into two tables below.
+> **HD-205 reconciliation:** `network-snmp_api`'s *value* is catalog-`--create`d (auto-generated), so it is not a
+> human-gated *value* — but its device-side `/snmp community` apply is a manual HD-03 step, so it sits in the
+> provisioner's `NOT_AUTO_ROTATABLE` guard. It is kept in table A only as a "needed before the phase" reminder.
 
 #### A) Ansible-consumed secrets (rendered into IaC — need a value in `Homelab-ansible` before the phase runs)
 
@@ -57,7 +60,7 @@
 | `Hertzner-SB-Data` | — (connection ref; CIFS/SMB/WebDAV live box, `cifs` role) | Phase 1 (VPS) | ✓ |
 | **Phase 1.5** | | | |
 | `mikrotik-admin_login` | login → `password` | Phase 1.5 | ✓ |
-| `network-snmp_api` | api → `credential` (SNMP RO community) | Phase 1.5 | ✓ |
+| `network-snmp_api` | api → `credential` (SNMP RO community; value catalog-auto-generated, device `/snmp community` applied manually HD-03, not auto-rotatable — HD-205) | Phase 1.5 | ✓ |
 | `pppoe_login` | login → `password` (`username`=PPPoE user) | Phase 1.5 (router) | ✓ |
 | `wg_password` | password → `password` (**WireGuard S2S private key** — a `wg genkey` value, never a random password; the auto-tool does not write it) | Phase 1.5 | ✓ |
 | **Phase 2** | | | |

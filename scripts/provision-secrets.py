@@ -59,21 +59,38 @@ import sys
 VAULT = "Homelab-ansible"
 
 
+def _bcrypt_ok(py: list[str]) -> bool:
+    """Return True if `py` can actually `import bcrypt`."""
+    try:
+        r = subprocess.run(py + ["-c", "import bcrypt"],
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.returncode == 0
+
+
 def _detect_bcrypt_py() -> list[str]:
     """Resolve the python to run the bcrypt snippet with.
 
     The generated `bcrypt` bcrypt_hash field is computed by shelling out to a
     python that has `bcrypt` installed (a temp bootstrap venv), because this
     repo's `op` target may not. Prefer `BCRYPT_PY` (env override, e.g. to point
-    at a specific temp venv) -> else `python3` (Debian/WSL primary), else `py -3`
-    (Windows launcher fallback), else this process's own interpreter.
+    at a specific temp venv) -> else the first of `python3`, `py -3` that BOTH
+    exists AND can `import bcrypt`. `py -3` is the Windows launcher and fails
+    on the WSL/Debian primary even when `python3` is present (HD-205), so
+    `python3` is probed first. Falls back to this process's own interpreter.
     """
     env = os.environ.get("BCRYPT_PY")
     if env:
-        return env.split()
+        cand = env.split()
+        if _bcrypt_ok(cand):
+            return cand
+        print(f"warning: BCRYPT_PY '{env}' cannot import bcrypt; probing others",
+              file=sys.stderr)
     for cand in ("python3", "py -3"):
-        if shutil.which(cand.split()[0]) is not None:
-            return cand.split()
+        argv = cand.split()
+        if shutil.which(argv[0]) is not None and _bcrypt_ok(argv):
+            return argv
     return [sys.executable]
 
 
@@ -116,7 +133,7 @@ CATALOG = [
     ("API Credential", "immich-ml-internal_api",  lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "n8n-webhook_api",         lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "signal-internal_api",     lambda: [f"credential={gen_pw()}"]),
-    ("API Credential", "network-snmp_api",       lambda: [f"credential={gen_pw()}"]),
+    ("API Credential", "network-snmp_api",       lambda: [f"credential={gen_pw()}"]),   # HD-205: catalog-created ONCE, but NOT_AUTO_ROTATABLE — the RO community is applied to the router/switch as a manual `/snmp community` step (HD-03); auto-rotating the vault value alone would silently diverge from the live device (deployment-secrets §3 rotation contract)
     # HD-313: router read-only logpipe API user — Password item (role reads field='password',
     # the RouterOS /user password; NOT an API-Credential like network-snmp). Non-VPS role item,
     # outside check-vault-items docker_services scope — seed via provision-vault.sh.
@@ -160,6 +177,7 @@ CATALOG = [
 NOT_AUTO_ROTATABLE = {
     "wg_password",          # WireGuard S2S private key (ROUTER side) — stored manually with a `wg genkey` value; NEVER generated as a random password by this tool (it is also absent from CATALOG).
     "wg_password_vps",       # WireGuard S2S private key (VPS side) — HD-285 fix: distinct per-side key. Same manual `wg genkey` discipline; not in CATALOG.
+    "network-snmp_api",      # MikroTik SNMP RO community — catalog-created ONCE (HD-205), but the value is applied to the router/switch as a MANUAL `/snmp community` step (HD-03, snmp.yml.j2 header); auto-rotating the vault value alone would silently diverge from the live device. Rotate via vault edit + manual device re-apply.
     "matrix_password",      # Matrix shared secret — reissue breaks rooms/sessions
     "authentik_db", "opencloud_db", "immich_db", "forgejo_db",  # running Postgres
     "onlyoffice_db",           # running Postgres (sidecar cluster init-once password)
@@ -210,14 +228,6 @@ def gen_token(n: int = 32) -> str:
     return "".join(secrets.choice(al) for _ in range(n))
 
 
-def gen_wg_key() -> str:
-    """Generate a valid WireGuard private key (base64 of 32 random bytes) — same
-    format `wg genkey` emits. Used ONLY for a manual `op item edit wg_password`;
-    the provisioner itself never writes `wg_password` (see NOT_AUTO_ROTATABLE)."""
-    import base64
-    return base64.b64encode(os.urandom(32)).decode()
-
-
 def op(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["op", *args], capture_output=True, text=True)
 
@@ -229,22 +239,33 @@ def require_write_token() -> int:
     return 0
 
 
-def existing_items() -> dict[str, str]:
-    """Return {title: id} for the vault."""
+def existing_items() -> dict[str, str] | None:
+    """Return {title: id} for the vault, or None if the lookup FAILED.
+
+    A failed lookup is FATAL for any write command (HD-205): proceeding with an
+    empty map would make `--create` try to create EVERY item and `--rotate-all`
+    skip everything — both silently masking an auth/scope/vault problem. So a
+    failure returns None and every caller ABORTS loudly instead of proceeding.
+    """
     r = op("item", "list", "--vault", VAULT, "--format", "json")
     if r.returncode != 0:
-        print(f"warning: cannot list items: {r.stderr.strip()}", file=sys.stderr)
-        return {}
+        print(f"error: cannot list items in vault '{VAULT}': {r.stderr.strip()}",
+              file=sys.stderr)
+        print("  check OP_SERVICE_ACCOUNT_TOKEN scope and vault name", file=sys.stderr)
+        return None
     return {it["title"]: it["id"] for it in json.loads(r.stdout)}
 
 
 def bcrypt_hash(password: str) -> str:
+    """Return a bcrypt hash of `password` via a separate python with bcrypt.
+
+    The password is passed over STDIN (not argv) so it never appears in the
+    process list or shell history (HD-205)."""
     py = BCRYPT_PY
     r = subprocess.run(
         py + ["-c",
-              "import bcrypt,sys; print(bcrypt.hashpw(sys.argv[1].encode(), bcrypt.gensalt(rounds=12)).decode())",
-              password],
-        capture_output=True, text=True)
+              "import bcrypt,sys; print(bcrypt.hashpw(sys.stdin.read().encode(), bcrypt.gensalt(rounds=12)).decode())"],
+        input=password, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"bcrypt failed: {r.stderr.strip()}")
     return r.stdout.strip()
@@ -297,6 +318,8 @@ def cmd_create(_args) -> int:
     if require_write_token():
         return 1
     existing = existing_items()
+    if existing is None:
+        return 1  # loud abort already printed
     created, skipped, failed = [], [], 0
     print(f"Vault: {VAULT}")
     for cat, name, fb in CATALOG:
@@ -320,6 +343,8 @@ def cmd_rotate(args) -> int:
         print("error: --yes required to rotate", file=sys.stderr)
         return 1
     existing = existing_items()
+    if existing is None:
+        return 1  # loud abort already printed
     if args.rotate_all:
         if not args.yes:
             print("error: --yes required for --rotate-all", file=sys.stderr)

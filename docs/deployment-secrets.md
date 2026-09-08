@@ -138,8 +138,9 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 >
 > **Fix, Layer 1 (source, primary):** prefer generators whose alphabet **excludes `$`**, so rotated
 > values are natively safe forever — `provision-secrets.py` `gen_pw()` dropped `$` from its pool
-> (2026-08-28). `gen_token()`/`gen_wg_key()` never emit `$`. This makes every future rotation through
-> `--rotate`/`--rotate-all` `$`-free at birth.
+> (2026-08-28). `gen_token()` never emits `$`. This makes every future rotation through
+> `--rotate`/`--rotate-all` `$`-free at birth. (The dead `gen_wg_key()` helper was removed 2026-09-08
+> in HD-205 — `wg genkey` is the authoritative source for the wg private keys.)
 >
 > **Fix, Layer 2 (defensive, at render):** escape a 1Password field **only when it lands in compose-parsed
 > text** — append `| replace('$','$$')` to the Jinja expression:
