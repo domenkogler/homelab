@@ -1,0 +1,48 @@
+# mcp-victorialogs docker-compose.yml — VictoriaLogs MCP AI-debugging server (HD-344)
+#   MCP server (ghcr.io/victoriametrics-community/mcp-victorialogs) giving AI tools
+#   (pi, Open WebUI, OpenClaw) read-only query access to the VPS VictoriaLogs backend.
+#   Runs on OLDSRV (≈600–700 MB RAM — the VPS/Pi don't host it, HD-341 decision).
+#   Connects to the VictoriaLogs backend over wg-s2s (`victoria_backend_host`,
+#   wg-s2s-now/tailnet-later — see group_vars/all/main.yml HD-344 block). Logs + metrics
+#   STAY on the VPS; oldsrv only fronts queries.
+#
+#   Exposure: NOT public, NOT WAN. Published ONLY on oldsrv's Home-VLAN address
+#   (`oldsrv_home_ip`, actual-budget :5006 / immich-ml :3003 precedent) so LAN/tailnet
+#   AI clients can reach it; the future s2s-wg→tailnet redo adds a Pattern-A sidecar.
+#   The MCP server in `http` mode has NO native auth — the data gate is the bearer
+#   token this container sends to VictoriaLogs (`VL_INSTANCE_HEADERS`, Basic auth) +
+#   the Home-VLAN-only bind + (future) tailnet ACL. Do NOT add traefik-public labels.
+#
+# Secrets via the HD-258 bulk vault pre-pass (`vault['victoria-logs_api']`, the
+#   1Password basic-auth item for the VictoriaLogs backend — username/password).
+services:
+  mcp-victorialogs:
+    image: ghcr.io/victoriametrics-community/mcp-victorialogs:{{ mcp_victorialogs_version }}
+    container_name: mcp-victorialogs
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    # read_only absent: same rationale as mcp-victoriametrics (Alpine-root upstream,
+    # no USER; verify read_only boot before enabling — HD-318 live lessons).
+    tmpfs:
+      - /tmp
+    networks:
+      - services-internal
+    ports:
+      # MCP Streamable HTTP endpoint — bound to oldsrv's Home IP (SSOT-derived), not
+      # 0.0.0.0. Reach is scoped by the LAN + (future) tailnet ACL; never WAN/public.
+      - "{{ oldsrv_home_ip }}:{{ mcp_logs_port }}:{{ mcp_logs_port }}"
+    environment:
+      # VictoriaLogs backend URL (root / of the single-node instance).
+      VL_INSTANCE_ENTRYPOINT: "http://{{ victoria_backend_host }}:9428"
+      # Basic-auth to the VL backend (vault item username:password) — the MCP server
+      # sends it as the Authorization header on every query (HD-344). The upstream
+      # always sets `Authorization: Bearer <token>` first, so this header (applied
+      # after) overrides it with the Basic credential the backend actually accepts.
+      VL_INSTANCE_HEADERS: "Authorization=Basic {{ (vault['victoria-logs_api'].username ~ ':' ~ vault['victoria-logs_api'].password) | b64encode }}"
+      # Streamable HTTP mode (upstream: MCP_SERVER_MODE=http enables it).
+      MCP_SERVER_MODE: "http"
+      MCP_LISTEN_ADDR: ":{{ mcp_logs_port }}"
+networks:
+  services-internal:
+    external: true

@@ -179,3 +179,10 @@ victoria_metrics_version: "v1.151.0"  # victoriametrics/victoria-metrics (single
 victoria_logs_version: "v1.52.0"      # victoriametrics/victoria-logs (Docker Hub tag has a `v`) — replaces loki (HD-342), registry-verified 2026-09-08
 blackbox_exporter_version: "v0.28.0"  # prom/blackbox-exporter (Docker Hub tag has a `v`)
 tailscale_version: "v1.82.0"        # tailscale/tailscale (Docker Hub tag EXISTS — v1.80.2 was a phantom pin, image 404'd at deploy 2026-08-28; v1.82.0 verified present)
+# VictoriaMetrics MCP servers (HD-344) — oldsrv AI-debugging front-ends to the VPS
+# Victoria backends. Images: ghcr.io/victoriametrics-community/*. Tags registry-verified
+# 2026-09-08 via the GHCR token API (v1.18.0 / v1.8.0 = latest release lines; the
+# `latest`/`1.x` unv-prefixed tags are mutable aliases — NEVER use them, §7). Renovate
+# docker datasource tracks each; re-verify at first oldsrv deploy (HD-344 deploy-gated).
+mcp_victoriametrics_version: "v1.18.0"
+mcp_victorialogs_version: "v1.8.0"
