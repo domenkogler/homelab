@@ -12,7 +12,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 > `deployment-ansible.md`, `services.md`, `backup.md`
 > **Linked from:** `smart-home.md`, `index.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The failover design + runbooks are authored but **not live** — the Pi primary + oldsrv standby + keepalived VIP deploy during Phase 4 (HD-04) / Phase 3 (HD-17); HmIP-RFUSB local-Homematic is parked (HD-13). Runbooks below are the spec to be executed at takeover time, not a live system. The Homepage failover buttons are **gated** (HD-217): they render only when group_var `homepage_failover_button: true` (false until HD-17 goes live), so the live dashboard carries no dead buttons meanwhile.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The failover design + runbooks are authored but **not live** — the Pi primary + oldsrv standby + keepalived VIP deploy during Phase 4 (HD-04) / Phase 3 (HD-17). **Local-RF Homematic is rejected (HD-18, 2026-09-08)** — no HmIP-RFUSB purchase; the HmIP-HAP stays cloud-mode ([smart-home-rejected.md](smart-home-rejected.md)). Runbooks below are the spec to be executed at takeover time, not a live system. The Homepage failover buttons are **gated** (HD-217): they render only when group_var `homepage_failover_button: true` (false until HD-17 goes live), so the live dashboard carries no dead buttons meanwhile.
 
 ---
 
@@ -29,7 +29,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - Supervision: **manual** trigger + **manual** failback (accepted design — no false negatives from automation).
 - Stale state on takeover is acceptable: HA re-polls devices on startup (target: controlling again in 1–3 min).
 - **Homematic IP RF is physically bound to the `HmIP-RFUSB` stick (on the Pi).** Taking over Homematic **requires physically moving the stick to oldsrv** — the only non-automatable step. KNX/Shelly are IP-based and fail over purely via the VIP with no physical action.
-- **Local-RF scope deferred (2026-08-18 / HD-13 parked):** until an **HmIP-RFUSB is bought**, the **HmIP-HAP stays in cloud mode** — there is no stick to move. During this interim, *IP devices (KNX, Shelly) fail over via the VIP as described; Homematic rides the cloud HmIP-HAP rather than a local RaspberryMatic.* The HmIP-RFUSB stick-move steps in the runbooks below (HD-17/HD-18) and the RaspberryMatic container pairing are **inactive/parked** until the RFUSB purchase happens.
+- **Local-RF scope REJECTED (2026-09-08 / HD-18):** the **HmIP-RFUSB stick will not be purchased** ([smart-home-rejected.md](smart-home-rejected.md)) — there is no stick to move and no RaspberryMatic. **The HmIP-HAP stays in cloud mode** permanently: *IP devices (KNX, Shelly) fail over via the VIP as described; Homematic rides the cloud HmIP-HAP rather than a local RaspberryMatic.* The HmIP-RFUSB stick-move steps in the runbooks below (HD-17/HD-18) and the RaspberryMatic container pairing are **inactive/rejected** — the active `ha-failover.sh` is the IP-only path.
 ---
 
 ## Architecture Overview
@@ -202,9 +202,9 @@ rescue them. This is an **HA/DNS availability** change, not general service fail
 (created once during initial setup — see [Homematic macvlan network](#homematic-macvlan-network-prerequisite-on-both-hosts)).
 If not present, run the `docker network create` command for oldsrv first.
 
-> 📌 **HD-13 parked (2026-08-18):** this forward-takeover runbook below is the **local-Homematic (full)** path — it assumes the HmIP-RFUSB stick + RaspberryMatic-standby exist. **Currently the HmIP-HAP stays in cloud mode** (no stick, no RMat), so the ACTIVE `ha-failover.sh` skips steps 2 and 3a/3b entirely: failover is just *confirm Pi down → press button → VIP moves → HA-standby starts* (IP devices only). The full-with-RMat flow below (and `ha-failover.full.sh.j2`) is preserved for when the RFUSB is bought. See the deferral note at the top of this doc and [`smart-home.md`](smart-home.md).
+> 📌 **HD-18 REJECTED (2026-09-08):** this forward-takeover runbook below is the **local-Homematic (full)** path — it assumes the HmIP-RFUSB stick + RaspberryMatic-standby exist. **The stick will NOT be purchased** ([smart-home-rejected.md](smart-home-rejected.md)), **the HmIP-HAP stays in cloud mode**, and the ACTIVE `ha-failover.sh` is the IP-only path: *confirm Pi down → press button → VIP moves → HA-standby starts*. The full-with-RMat flow below (and `ha-failover.full.sh.j2`) is **preserved as reference only** (not a supported option). See the decision log and [`smart-home.md`](smart-home.md).
 
-**Two manual actions total (local-Homematic path):** (1) physically move the HmIP-RFUSB stick, and (2) press **one** failover button on Homepage (`kogler.si`). Everything after the button is a single orchestrated script — no separate VIP / standby steps.
+**Two manual actions total (IP-only path):** (1) confirm Pi down, and (2) press **one** failover button on Homepage (`kogler.si`). Everything after the button is a single orchestrated script — no VIP / standby / stick steps. (The local-Homematic path's two-actions framing is moot — HD-18 rejected).
 
 1. **Confirm Pi is down** (human verifies — power, SD, OS, network).
 2. **Physically move the HmIP-RFUSB** from the Pi to oldsrv (hot-plug; if the Pi is powered-but-dying, power-cycle it first). Pairing lives on the stick → **no re-pairing** needed.
@@ -216,7 +216,7 @@ If not present, run the `docker network create` command for oldsrv first.
    (If the VIP path is ever unavailable — HA OS fallback — the script additionally flips the Technitium `ha.kogler.si` record + the Traefik `ha` endpoint.)
 4. Verify HmIP devices reconstructed (same EUI/entity IDs) + a live control command; notify n8n → Signal/email and log the event (see `observability.md`).
 
-> **Homematic RF note:** until the stick physically reaches oldsrv, Homematic stays down. IP devices (KNX, Shelly) fail over cleanly via the VIP **without** the stick move — only the RF subset waits on a human being physically present.
+> **Homematic RF note (HD-18 rejected):** there is no RF stick — Homematic rides the cloud HAP, so failover covers IP devices (KNX, Shelly) cleanly via the VIP. No human stick-move is ever required.
 
 ---
 
@@ -278,7 +278,7 @@ If not present, run the `docker network create` command for oldsrv first.
 - [x] WAN access in fallback = **not required** (LAN/VPN only).
 - [x] Pi confirmed running **HAOS** (see `home-assistant-current.md`); redo target = **Debian + HA Container**.
 - [ ] Implement the **single failover button** + `ha-failover.sh` orchestrator (RMat → wait → VIP → standby) on Homepage.
-- [ ] **Once**, test HmIP-RFUSB pairing transfer + entity reconstruction across the stick move.
+- [x] **HmIP-RFUSB pairing-transfer test (HD-18) — REJECTED (2026-09-08):** the stick will not be purchased, so this never-run test is moot; local-RF Homematic is closed out ([smart-home-rejected.md](smart-home-rejected.md)).
 - [x] **VIP address / notation + firewall IP-set** — **decided:** `ha-vip` (`/32`), DHCP pool stays ≤ `.199` (per SSOT); router lists `trusted-ha` + `trusted-admin`. See **Decided — HA VIP** above.
 - [x] ~~Whether to add `watchtower` for the Pi's HA container update automation.~~ **Decided (HD-39):** no watchtower — keep Renovate + `stable` tag (controlled/gated), preserve primary/standby version parity.
 

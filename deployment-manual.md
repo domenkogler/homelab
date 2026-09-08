@@ -924,10 +924,6 @@ bash scripts/ansible-network-hop.sh router playbooks/router.yml
 /interface wireguard peers set [find comment="vps-s2s"] public-key="<wg_s2s_vps_public_key>"
 # 2) The HD-155 forward accept must sit ABOVE the Default deny inter-VLAN (else shadowed):
 /ip firewall filter move <vps-accept-index> destination=<default-deny-index>   ; verify order: VPS accept directly above Default deny
-# 3) After ANY edit to `wg_s2s_vps.allowed_ips` (SSOT, group_vars/all.yml), the VPS peer's
-#    live AllowedIPs does NOT refresh by itself — the role renders the conf (changed) but the
-#    static oneshot was already-started, so re-apply it live (HD-313 root cause, 2026-09-08):
-sudo systemctl restart wg-ensure-s2s-peer && sudo wg show wg-s2s | grep -A4 "peer:"   ; verify the new entries + a fresh handshake
 ```
 
 ✔-evidence (both sides must show the peer + a fresh handshake):
