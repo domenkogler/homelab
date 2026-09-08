@@ -60,6 +60,51 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
 - **MCP AI servers on oldsrv** (≈600–700 MB RAM each) — NOT on the VPS/Pi.
 - Drop: Prometheus, Loki, Dozzle (VictoriaLogs covers live + stored logs).
 
+### MCP AI-debugging servers on oldsrv (HD-344) — implemented form
+
+> **2026-09-08 (HD-344 IaC authored, deploy-gated):** two Docker compose services on **oldsrv** —
+> `mcp-victoriametrics` (:8080) + `mcp-victorialogs` (:8081) — fronting the VPS Victoria
+> backend for AI tools (**pi, Open WebUI, OpenClaw** for now). ⏳ **Deploy-gated:** oldsrv is
+> Phase-3/HD-318 **and** needs the VPS Victoria backend live (HD-342).
+
+- **Endpoint reachability — wg-s2s now, tailnet later.** The MCP servers point at the VPS
+  backend via `victoria_backend_host` (group_vars/all/main.yml), which **defaults to
+  `wg_s2s_vps.ip`** — the same guaranteed-reachable tunnel the Alloy collector uses. The
+  owner plans a full s2s-wg→tailnet redo (future HD): that redo re-plumbs **this one var**
+  to the VPS tailnet address and the compose needs no other change. **No VPS tailnet IP
+  exists in the SSOT yet — do not invent one** (see network-vpn.md before the redo).
+- **Exposure — LAN/tailnet-only, never public/WAN.** Ports publish on oldsrv's Home-VLAN
+  address (`oldsrv_home_ip`, actual-budget :5006 / immich-ml :3003 precedent); the future
+  tailnet redo adds a Pattern-A sidecar. **No traefik-public labels, no `public: true`.**
+- **Auth — Basic to the backend, network gate to the client.** The MCP server (`http` mode)
+  has **no native auth**; each container sends `Authorization: Basic <b64(user:pass)>` to
+  the VPS backend from the `victoria-metrics_api` / `victoria-logs_api` 1P items
+  (`VM_INSTANCE_HEADERS` / `VL_INSTANCE_HEADERS`). The client-facing gate is the
+  Home-VLAN-only bind + (future) tailnet ACL — **do not expose on the WAN edge**.
+- **Images (pinned, CONVENTIONS §7):** `mcp_victoriametrics:v1.18.0` +
+  `mcp_victorialogs:v1.8.0` (GHCR-tag verified 2026-09-08; Renovate-tracked).
+- **Registry:** oldsrv `docker_services` rows (`enabled: false` until HD-318 + HD-342 live).
+
+#### Wiring AI tools (pi, Open WebUI, OpenClaw)
+
+Each AI client registers the MCP server as a **Streamable HTTP** MCP endpoint pointing at
+the oldsrv MCP listen address (`http://oldsrv:8080` metrics / `:8081` logs). The MCP
+servers carry the backend auth themselves, so the client config carries **no secrets**.
+All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
+
+- **pi (pi.dev)** — add an MCP server entry in the pi agent config pointing at
+  `http://oldsrv:8080` (metrics) / `http://oldsrv:8081` (logs), transport `http` (SSE
+  alias for Streamable HTTP). Exact config lives in `pi-agent/` prompts/extension docs
+  once the service is live; authoring placeholder here (HD-344 tail).
+- **Open WebUI** — register both as **Tools** (Admin → Tools → MCP) with `url:
+  http://oldsrv:8080` / `http://oldsrv:8081` (Streamable HTTP), tagged for the internal
+  `ai.kogler.si` instance so agent-role users can query metrics/logs.
+- **OpenClaw** — add both MCP servers to the OpenClaw MCP config (`http://oldsrv:8080` /
+  `:8081`), gated to the same tailnet/LAN path.
+- ⏳ **Concrete client config files are authored here once the backend (HD-342) + oldsrv
+  (HD-318) are live** — the URLs above are the SSOT contract; the client-side config is
+  environment-specific and lives with each tool (services-ai.md).
+
 ---
 
 ## Component Table
