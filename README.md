@@ -119,6 +119,27 @@ task-specific dispatch. Do **not** bulk-read the repo.
    → commit signed (if `Couldn't find key in agent`: `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth`, then commit; CONVENTIONS §6)
 7. if it's a planned / multi-step / multi-host / live-deploy change → use the **orchestrator pattern**: a single parent session co-ordinates subagents/parallel lanes with an explicit lane map (see pi-subagents skill), and records the runbook in the owning `docs/*.md` — no separate `plan/` ceremony required
 
+### Orchestrator + reviewer discipline (lane hygiene, HD-346 lesson)
+
+When co-ordinating subagent lanes (item 7), keep children **bounded and focused** — an over-scoped,
+verbose child is worse than none. Live lesson (2026-09-08): a `reviewer` handed two full IaC branches
++ the whole render pipeline + todo claims, on a thinking-heavy model, ran 35+ min and never produced
+a verdict — the parent had already verified the final state itself. Rules:
+
+- **Scope each child to ONE deliverable** with an explicit acceptance micro-format. For a reviewer:
+  `APPROVE / REQUEST_CHANGES` + a bounded list (`blocking` / `non-blocking`), file:line where useful.
+  Say what is **out of scope** (e.g. "do not re-audit the render pipeline — it is known-good").
+- **Give the reviewer the parent's verification notes**: the parent holds authority; a pre-merge review
+  is a second opinion, not a fresh audit. State "the parent has already verified X, Y, Z — confirm or
+  flag only what contradicts."
+- **Timebox long-hanging reviews**: prefer a fast, capable model; if a child exceeds ~10 min with no
+  verdict, steer it to wrap up with what it has; abort and self-verify if it becomes a bottleneck
+  (the parent's own validation + `validate-all.sh` green is the real gate).
+- **Prefer fresh-context single-purpose children** over broad multi-commit audits; if a review is big,
+  split it per commit/branch and run them in parallel.
+- Keep the parent as arbiter: children implement/review within their lane; the parent merges,
+  runs `validate-all.sh`, records the runbook, and owns final acceptance.
+
 ---
 
 ## 5. Ask-if-unsure checklist (gate)
