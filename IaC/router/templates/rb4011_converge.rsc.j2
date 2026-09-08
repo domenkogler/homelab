@@ -450,19 +450,36 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
     /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
 }
 
-# ---- SNMP resilience (fixsnmp): re-assert after boot (mirrors fixsyslog) ----
-# RouterOS /snmp is config, not runtime state, but a stray change or boot edge can
-# leave it off; a startup scheduler re-asserts enabled + the RO community scoped to
-# Mgmt. Names letters+numbers-only (HD-313 rule). Single-line quoted source keeps the
-# /import parser happy.
-:if ([/system script find where name=fixsnmp] = "") do={
-    /system script add name=fixsnmp source=":delay 5s; /snmp set enabled=yes; :delay 1s; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
+# ---- Boot resilience (fixboot): re-assert syslog + SNMP after boot ----
+# ONE startup script+scheduler for both concerns (HD-346 consolidation — these were
+# two scripts fixsyslog + fixsnmp; merged). RouterOS settings are config, not runtime
+# state, but a stray change or boot edge can leave the syslog remote target or SNMP
+# off; a startup scheduler re-asserts both ~10s post-boot (after wg-s2s/route bring-up):
+#   * centralsyslog -> the VPS rsyslog target (HD-313; target = wireguard_s2s_vps.remote_ip)
+#   * /snmp enabled + RO community scoped to Mgmt (HD-53/HD-346)
+# Names letters+numbers-only (HD-313 rule) -> `fixboot`. Single-line quoted source keeps
+# the /import parser happy.
+:if ([/system script find where name=fixboot] = "") do={
+    /system script add name=fixboot source=":delay 10s; /system logging action set [find where name=centralsyslog] remote=0.0.0.0; :delay 1s; /system logging action set [find where name=centralsyslog] remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }}; /snmp set enabled=yes; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
 }
-:if ([/system scheduler find where name=fixsnmp] = "") do={
-    /system scheduler add name=fixsnmp on-event=fixsnmp start-time=startup interval=0 policy=read,write,test
+:if ([/system scheduler find where name=fixboot] = "") do={
+    /system scheduler add name=fixboot on-event=fixboot start-time=startup interval=0 policy=read,write,test
+}
+# Cleanup: the old two-script split (fixsyslog + fixsnmp) is superseded — remove if present.
+:if ([/system script find where name=fixsyslog] != "") do={
+    /system script remove [find where name=fixsyslog]
+}
+:if ([/system scheduler find where name=fixsyslog] != "") do={
+    /system scheduler remove [find where name=fixsyslog]
+}
+:if ([/system script find where name=fixsnmp] != "") do={
+    /system script remove [find where name=fixsnmp]
+}
+:if ([/system scheduler find where name=fixsnmp] != "") do={
+    /system scheduler remove [find where name=fixsnmp]
 }
 
-# ---- DNS (router resolver as tertiary) ----
+# ---- End ----
 # Upstream = the same Technitium chain the DHCP hands out (VPS->oldsrv->Pi), so
 # the router forwards to them first and only falls back to raw Cloudflare when
 # all are unreachable (RouterOS queries listed servers concurrently + takes the
@@ -470,22 +487,6 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
 # dns-allow-home set permits (HD-317). Final fallback stays unfiltered (accepted
 # tradeoff, network-dns.md).
 /ip dns set allow-remote-requests=yes servers={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},1.1.1.1,1.0.0.1
-
-# ---- HD-313 SAFETY NET: remote-syslog egress refresh-on-boot (script+scheduler) ----
-# Root-cause note (2026-09-08): the HD-313 "zero UDP/514" blocker was actually the VPS
-# WireGuard peer AllowedIPs missing the router's own wg address (SSOT: wg_s2s_vps.allowed_ips
-# in group_vars/all.yml) — NOT a RouterOS logging fault. This script+scheduler is therefore
-# NOT the fix; it is retained as harmless self-healing insurance in case RouterOS ever fails
-# to (re)init the action on a boot: it re-applies the centralsyslog target 10s post-boot.
-# The VPS target is SSOT-derived ({{ wireguard_s2s_vps.remote_ip }}). Names are
-# letters+numbers-only (HD-313 rule) -> `fixsyslog` (the action carrying the flow is
-# `centralsyslog`, NOT the unused bundled `remote` default at 0.0.0.0).
-:if ([/system script find where name=fixsyslog] = "") do={
-    /system script add name=fixsyslog source=":delay 10s; /system logging action set [find name=centralsyslog] remote=0.0.0.0; :delay 1s; /system logging action set [find name=centralsyslog] remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }};"
-}
-:if ([/system scheduler find where name=fixsyslog] = "") do={
-    /system scheduler add name=fixsyslog on-event=fixsyslog start-time=startup interval=0 policy=read,write,test
-}
 
 # ---- End ----
 # Verify: /interface bridge print, /ip address print, /ip dhcp-server print, /ip route print,

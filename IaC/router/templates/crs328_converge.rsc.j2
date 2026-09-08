@@ -127,12 +127,38 @@ add chain=input action=drop comment="Drop all other input (switch lockdown)"
     /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
 }
 
-# ---- SNMP resilience (fixsnmp): re-assert after boot (mirrors fixsyslog) ----
-:if ([/system script find where name=fixsnmp] = "") do={
-    /system script add name=fixsnmp source=":delay 5s; /snmp set enabled=yes; :delay 1s; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
+# ---- Remote syslog to the VPS (HD-313): centralsyslog action (config, not re-assert) ----
+# SSOT matrix (observability.md): RouterOS logs (RB4011/switch/AP) -> VPS rsyslog ->
+# VictoriaLogs. The switch was never wired (only the router had this — live 2026-09-08
+# the switch's default `remote` action sat at 0.0.0.0). Create the dedicated action once;
+# fixboot below re-asserts its target after boot.
+:if ([/system logging action find where name=centralsyslog] = "") do={
+    /system logging action add name=centralsyslog target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514 protocol=udp
+} else={
+    /system logging action set [find where name=centralsyslog] target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514 protocol=udp
 }
-:if ([/system scheduler find where name=fixsnmp] = "") do={
-    /system scheduler add name=fixsnmp on-event=fixsnmp start-time=startup interval=0 policy=read,write,test
+
+# ---- Boot resilience (fixboot): re-assert syslog + SNMP after boot (HD-346) ----
+# ONE startup script for both concerns (consolidated from fixsyslog + fixsnmp).
+# Re-asserts the centralsyslog VPS target + /snmp enabled + RO community ~10s post-boot.
+:if ([/system script find where name=fixboot] = "") do={
+    /system script add name=fixboot source=":delay 10s; /system logging action set [find where name=centralsyslog] remote=0.0.0.0; :delay 1s; /system logging action set [find where name=centralsyslog] remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }}; /snmp set enabled=yes; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
+}
+:if ([/system scheduler find where name=fixboot] = "") do={
+    /system scheduler add name=fixboot on-event=fixboot start-time=startup interval=0 policy=read,write,test
+}
+# Cleanup: superseded two-script split.
+:if ([/system script find where name=fixsyslog] != "") do={
+    /system script remove [find where name=fixsyslog]
+}
+:if ([/system scheduler find where name=fixsyslog] != "") do={
+    /system scheduler remove [find where name=fixsyslog]
+}
+:if ([/system script find where name=fixsnmp] != "") do={
+    /system script remove [find where name=fixsnmp]
+}
+:if ([/system scheduler find where name=fixsnmp] != "") do={
+    /system scheduler remove [find where name=fixsnmp]
 }
 
 # ---- LAST: enable VLAN filtering (safety order — see bridge add at top) ----
@@ -144,4 +170,4 @@ add chain=input action=drop comment="Drop all other input (switch lockdown)"
 # ---- End ----
 # Verify: /interface bridge print, /interface bridge port print, /ip address print,
 #         /ip firewall filter print, /ip service print, /snmp print, /snmp community print,
-#         /system script print, /system scheduler print
+#         /system script print, /system scheduler print, /system logging action print
