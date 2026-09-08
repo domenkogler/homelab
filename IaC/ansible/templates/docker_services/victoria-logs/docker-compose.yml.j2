@@ -40,12 +40,13 @@ services:
       # retention (90d) is backed up per owner decision, host bind under /srv/docker for
       # the VPS kopia client to snapshot (backup.md).
       - /srv/docker/victoria-logs/data:/victoria-logs-data
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9428/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+    # NO container healthcheck: the victoriametrics/victoria-logs image is tool-less
+    # (ships ONLY /victoria-logs-prod — no sh/wget/curl/nc), so a CMD healthcheck
+    # (e.g. `wget -qO- .../health`) fails to exec and Docker flags the container
+    # `unhealthy` even though it serves fine (live 2026-09-08). Connectivity is verified
+    # by (a) the Grafana VictoriaLogs datasource API health-check in the monitoring role
+    # and (b) the self-monitoring alert rule `up{job="victoria-logs"}` (Alloy self-scrape
+    # of /metrics) — both cover liveness without a container healthcheck.
 networks:
   db-internal:
     external: true
