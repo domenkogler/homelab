@@ -35,16 +35,17 @@ services:
       # Loopback bind: the VPS host-APT Alloy self-scrape + any localhost consumer (HD-342).
       - "127.0.0.1:9428:9428"
     volumes:
-      # Named volume — VictoriaLogs data (90d retention). Kopia-backed (docs/backup.md).
-      - victoria-logs-data:/victoria-logs-data
+      # Host bind-mount (stateful=bind-mount convention) — VL data, Kopia-backed (HD-342).
+      # Reverses the old Loki named-volume 'regenerable, NOT backed up' exception: VL
+      # retention (90d) is backed up per owner decision, host bind under /srv/docker for
+      # the VPS kopia client to snapshot (backup.md).
+      - /srv/docker/victoria-logs/data:/victoria-logs-data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9428/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
-volumes:
-  victoria-logs-data:
 networks:
   db-internal:
     external: true

@@ -38,16 +38,17 @@ services:
       # Loopback bind: the VPS host-APT Alloy self-scrape + any localhost consumer (HD-342).
       - "127.0.0.1:8428:8428"
     volumes:
-      # Named volume — VictoriaMetrics data (365d retention). Kopia-backed (docs/backup.md).
-      - victoria-metrics-data:/victoria-metrics-data
+      # Host bind-mount (stateful=bind-mount convention) — VM data, Kopia-backed (HD-342).
+      # Reverses the old Prometheus named-volume 'regenerable, NOT backed up' exception:
+      # the owner decided VM retention (365d) is worth backing up, so the data dir is a
+      # host bind under /srv/docker for the VPS kopia client to snapshot (backup.md).
+      - /srv/docker/victoria-metrics/data:/victoria-metrics-data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8428/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
-volumes:
-  victoria-metrics-data:
 networks:
   db-internal:
     external: true
