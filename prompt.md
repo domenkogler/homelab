@@ -325,6 +325,28 @@ closeout): `services-ai.md` (§9b + decision row 23 ×2), `hardware-spark.md` (+
 - Rejected-device row (HD-18) belongs in the domain **decision log** (`smart-home-rejected.md`) with the tool/status/date/why format; keep historical "deferred/parked" doc language consistent by updating owning docs to the new decision.
 
 ### Handoff state for next session (unchanged items carry over)
-- **HD-343 implement tail**, **HD-318 oldsrv Phase-3**, **HD-335 spark**, **HD-312** (2b/3b/4 + n8n `logpipe` reuse — the logpipe API user came out of now-closed HD-313 but stays a live mgmt resource), **HD-317** DNS remaining verifies, audit-fold owner actions — rows in [todo.md](todo.md).
+- **HD-343 implement tail**, **HD-318 oldsrv Phase-3**, **HD-335 spark**, **HD-312** (remaining = (4) n8n firmware workflow + `logpipe` reuse only — (1)(3) + HD-326 CLOSED 2026-09-08), **HD-317** DNS remaining verifies, audit-fold owner actions — rows in [todo.md](todo.md).
 - Switch/AP syslog forwarding stays future (CRS328 has no wg tunnel — needs a routed path or switch-side tunnel first).
 - **Push reminder (carried):** local `main` was 27+ commits ahead of the stale local `origin/main` ref — close-out commits should be pushed with the rest.
+
+## 4. Session close-out — 2026-09-08 (HD-326 + HD-312(1)(3) live + SSOT parity; done rows deleted)
+
+**Branch / worktree:** `session/hd326-kids-live` @ `../homelab-wt-20260908-0858` (own worktree, CONVENTIONS §6) — merged no-ff to main (`fcbdbe3`), worktree removed, branch deleted.
+
+### What landed + is LIVE (verified on the RB4011)
+- **HD-326 CLOSED (row deleted).** iPad fixed-MAC (owner, 2026-09-08): on Kogler/cap-wifi2 with `F6:9B:E2:B9:26:F9`, lease binds the `tablet-ipad` static reservation. Live apply (`rb4011_hd326_fix_delta.rsc` via routeros-apply-delta.sh): per-MAC kids bedtime/DoT drops + `iot-wan-allow` accepts were appended BELOW the Home/IoT WAN accepts → **shadowed (first-match-wins)** → kids controls inert + cloud-IoT WAN blocked. Re-added ABOVE the accepts/drops (kids ind 13-16, iot-wan ind 21-26), deduped (4 bedtime + 2 DoT), added missing `tablet-valentina` filtered-DNS NAT, cleaned double iPad NAT.
+- **HD-312 (1)(3) VERIFIED-LIVE:** cloud-IoT (LG/Bosch/HAP) established WAN conns to AWS/Azure; HD-312 row trimmed to (4) n8n only.
+- **SSOT parity (apply-of-record):** `rb4011_converge.rsc.j2` was missing ALL `src-mac-address` rules — added the full iot-wan-allow + kids forward set + per-MAC kids NAT (loops over `network_static_hosts`) in correct order; **role forward-chain tasks GATED OFF (`when: false`)** — forward-chain state belongs to the converge template only (network-ops apply-model); NAT kids task kept (idempotent dstnat).
+- **todo.md:** HD-326 row deleted (done, no tail); HD-312 row trimmed; Pkg A + items 1/7 updated; **HD-344 + HD-338 rows deleted** (fully live, no `⏳` — records in network-dns/network-vlans).
+- **prompt.md:** §2 session bullet + §3 HD-312 pointer trimmed; §4 this section.
+- check_doc_ips clean (IP literals in docs/todo replaced with SSOT refs). validate-all green. Signed commits; **pushed to origin/main** (11 commits, incl. the concurrent HD-313 closeout session).
+
+### Process notes / lessons
+- **Role `api_modify` append-at-end shadows forward-chain rules** (first-match-wins): a separate api_modify task targeting `ip firewall filter chain=forward` lands new rules BELOW the existing accepts/drops → behaviorally inert but silently broken. Forward-chain day-to-day state must be **owned by the converge template** (apply-of-record); role tasks that mirror it must be byte-identical or gated off.
+- **Concurrent sessions:** main advanced twice mid-session (`30f3455` then `7ed6038`) — rebased my branch each time before applying; verified the other session's live change (fixsyslog syslog action) didn't touch the firewall chains; only applied after the owner's explicit go.
+- A live apply to the router via `routeros-apply-delta.sh` uses comment-driven `:if` guards + cursor-based `move destination=` (ordered placement); duplicate rows from a double-import reconcile on the next full converge.
+
+### Handoff state for next session (unchanged items carry over)
+- **HD-343 implement tail**, **HD-318 oldsrv Phase-3**, **HD-335 spark**, **HD-312 (4) n8n + `logpipe` reuse**, **HD-317** DNS remaining verifies, audit-fold owner actions — rows in [todo.md](todo.md).
+- **Time-gated observation** (nothing to do): bedtime 22:00 window firing + Kids-Group filtered-DNS binding `dig` check (todo item 7).
+- **Push:** main is in sync with origin (pushed at close).
