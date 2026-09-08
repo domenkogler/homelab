@@ -133,9 +133,9 @@ add chain=input action=drop comment="Drop all other input (switch lockdown)"
 # the switch's default `remote` action sat at 0.0.0.0). Create the dedicated action once;
 # fixboot below re-asserts its target after boot.
 :if ([/system logging action find where name=centralsyslog] = "") do={
-    /system logging action add name=centralsyslog target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514 protocol=udp
+    /system logging action add name=centralsyslog target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514
 } else={
-    /system logging action set [find where name=centralsyslog] target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514 protocol=udp
+    /system logging action set [find where name=centralsyslog] target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514
 }
 
 # ---- Boot resilience (fixboot): re-assert syslog + SNMP after boot (HD-346) ----
