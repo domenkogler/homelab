@@ -29,7 +29,8 @@ services:
     image: actualbudget/actual-server:{{ actual_budget_version }}
     cap_drop:
       - ALL
-    read_only: true
+    # read_only intentionally ABSENT (HD-318): actual-server (node) creates
+    # /app/data/server-files on first boot; read_only root blocked the mkdir.
     tmpfs:
       - /tmp
     container_name: actual-budget

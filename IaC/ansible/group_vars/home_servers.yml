@@ -111,7 +111,7 @@ docker_services:
 
   # --- Media / *arr stack — internal-only, documents/services.md ---
   - { name: jellyfin,     template_dir: jellyfin,     subdomain: media }
-  - { name: seerr,        template_dir: seerr, bind_owner_uid: 1000 }   # HD-318: Docker auto-creates /srv/docker/seerr/config as root; container runs uid 1000 → crash-loop without bind-owner
+  - { name: seerr,        template_dir: seerr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-318: Docker auto-creates /srv/docker/seerr/config as root; container runs uid 1000 → crash-loop without bind-owner + bind_dirs (the dir must be pre-created 1000-owned)
   - { name: sonarr,       template_dir: sonarr }
   - { name: radarr,       template_dir: radarr }
   - { name: lidarr,       template_dir: lidarr }

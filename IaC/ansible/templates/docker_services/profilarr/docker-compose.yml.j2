@@ -14,7 +14,9 @@ services:
     image: ghcr.io/dictionarry-hub/profilarr:latest
     cap_drop:
       - ALL
-    read_only: true
+    # read_only intentionally ABSENT (HD-318): the profilarr init runs chown on
+    # /config as root before dropping privileges; read_only root made the chown fail
+    # ("Operation not permitted"). Dir ownership via bind_owner_uid on the entry.
     tmpfs:
       - /tmp
     container_name: profilarr
@@ -46,9 +48,11 @@ services:
     image: ghcr.io/dictionarry-hub/profilarr-parser:latest
     cap_drop:
       - ALL
-    read_only: true
+    # read_only intentionally ABSENT (HD-318): same rationale as profilarr — the
+    # Deno runtime needs a writable /run + config scratch at startup.
     tmpfs:
       - /tmp
+      - /run
     container_name: profilarr-parser
     restart: unless-stopped
     networks:

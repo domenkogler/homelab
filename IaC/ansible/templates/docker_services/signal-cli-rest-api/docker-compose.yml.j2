@@ -9,7 +9,9 @@ services:
     image: bbernhard/signal-cli-rest-api:{{ signal_cli_rest_api_version }}
     cap_drop:
       - ALL
-    read_only: true
+    # read_only intentionally ABSENT (HD-318): the entrypoint runs usermod/groupmod
+    # (to align the signal-api uid) before exec; read_only root made `groupmod: cannot
+    # lock /etc/group` fatal. Keep cap_drop: ALL.
     tmpfs:
       - /tmp
     container_name: signal-cli-rest-api

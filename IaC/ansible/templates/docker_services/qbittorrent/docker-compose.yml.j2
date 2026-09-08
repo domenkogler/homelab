@@ -48,9 +48,16 @@ services:
     image: linuxserver/qbittorrent:{{ qbittorrent_version }}
     cap_drop:
       - ALL
-    read_only: true
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+    # read_only intentionally ABSENT (HD-318): linuxserver s6-overlay images
+    # do not support read_only root — it caused /run/s6 exec failures. Keep
+    # cap_drop: ALL + /run:exec for the remaining hardening (sonarr precedent).
     tmpfs:
       - /tmp
+      - /run:exec
     container_name: qbittorrent
     restart: unless-stopped
     network_mode: "service:gluetun"          # no own network — shares gluetun namespace
