@@ -170,6 +170,7 @@
         # on LAN clients, live 2026-09-07). These A records point at the VPS public IP
         # (dns_primary_ip) — identical target to their public CNAMEs (= vps.kogler.si
         # -> dns_primary_ip). Seeded on EVERY instance.
+        - { name: "vps.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-344: the apex HOST record every public CNAME flattens to (Cloudflare A + AAAA in cloudflare_dns/vars/main.yml). Missing since HD-317 bootstrap -> authoritative NXDOMAIN on the VPS primary -> `ssh vps` / `vps.kogler.si` failed on the home WSL+Windows resolvers (VPS-primary-first). A-only here (seed loop is IPv4; the public AAAA covers v6).
         - { name: "kogler.si",        ip: "{{ dns_primary_ip }}" }  # root — family launchpad (home.kogler.si alias)
         - { name: "home.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-334 kept; alias of root
         - { name: "vpn.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-334: headscale coordination URL (control-plane)
