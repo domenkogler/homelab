@@ -233,7 +233,11 @@ def gen_pw(n: int = 32) -> str:
     # file BEFORE YAML parse, silently truncating the secret at the `$`. Keeping `$` out of generated
     # values makes every rotation natively compose-safe. Escaping at render (| replace('$','$$'))
     # stays as the defensive layer for hand/vendor-sourced values (see docs/deployment-secrets.md).
-    pool = string.ascii_letters + string.digits + "!@#%^&*()-_=+[]{}<>"
+    # NO '&' in the pool (HD-346): RouterOS /import treats `&` as a command separator — a community/
+    # password containing `&` fails the .rsc import with "expected end of command" (live 2026-09-08:
+    # network-snmp_api community broke the converge import). Keeping `&` out of generated values makes
+    # every rotation RouterOS-import-safe at the generator level.
+    pool = string.ascii_letters + string.digits + "!@#%^*()-_=+[]{}<>"
     return "".join(secrets.choice(pool) for _ in range(n))
 
 
