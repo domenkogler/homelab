@@ -20,6 +20,7 @@ Usage:
 """
 import sys
 import re
+import base64
 from pathlib import Path
 from jinja2 import Environment, StrictUndefined
 import yaml
@@ -143,6 +144,13 @@ def _load_ssot_ctx():
         # smtp2go relay connection SSOT (HD-54) — consumed by metabase MB_EMAIL_SMTP_*
         # (HD-241); grafana/nut render their own copies via role vars/defaults.
         "smtp2go_host", "smtp2go_port",
+        # Victoria MCP endpoint SSOT (HD-344) — plain non-secret ports consumed by the
+        # oldsrv mcp-victoriametrics / mcp-victorialogs compose templates (listen ports).
+        "mcp_metrics_port", "mcp_logs_port",
+        # Victoria MCP backend host (HD-344) — plain var defaulting to wg_s2s_vps.ip at
+        # the group_vars level; loaded from SSOT so the validator can't drift from the
+        # real render (HD-189 principle).
+        "victoria_backend_host",
     ):
         if k in data:
             ctx[k] = data[k]
@@ -279,6 +287,11 @@ def build_env():
     env.globals["lookup"] = mock_lookup
     env.filters["default"] = mock_default
     env.filters["comment"] = ansible_comment
+    # HD-344: mcp-victoriametrics composes a Basic-auth header for the VM backend
+    # via `| b64encode` (Ansible core filter at real deploy — home_assistant uses
+    # `| b64decode` on the same principle). Register it so the offline render is
+    # byte-equivalent instead of failing StrictUndefined on an unknown filter.
+    env.filters["b64encode"] = lambda s: base64.b64encode(s.encode()).decode()
     # HD-258: bulk pre-pass leaves a `vault: {NAME: {field: val}}` dict in scope
     # instead of per-template `lookup()`. Mock it here so the gate renders the
     # post-refactor templates offline — every field is the same `'<secret:NAME>'`
