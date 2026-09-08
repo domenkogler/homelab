@@ -14,8 +14,8 @@ auths:
   kogler_ro_v2:
     community: "{{ lookup('community.general.onepassword', 'network-snmp_api', field='credential', vault=op_vault) }}"
     version: 2
-    timeout: 5s
-    retries: 2
+    # Note: timeout/retries are NOT valid auth keys in Alloy's snmp_exporter config —
+    # they belong at the exporter/module level. Defaults apply (5s / 3 retries).
 modules:
   mikrotik:
     walk:
