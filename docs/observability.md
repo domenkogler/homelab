@@ -241,11 +241,17 @@ oldsrv is on NVMe and mostly unaffected):
 
 > **Role:** design SSOT (authoring spec) for the “all network clients, grouped per VLAN”
 > Grafana dashboard at `stats.kogler.si`. Registered as HD-343 in `todo.md` §2.3.
-> Authoring-phase — IaC/gates below are NOT implemented or deployed.
-> **2026-09-08 (HD-343): exporter role + dashboard JSON AUTHORED** in
-> `IaC/ansible/roles/monitoring/` (host-binary `network-clients-exporter` on oldsrv +
-> `homelab-network-clients` dashboard). ⏳ **Deploy-gated:** oldsrv converge (Phase 3/HD-318),
-> live wifi-path verify (`/interface/wifi/registration-table` vs legacy), owner render-verify.
+> **2026-09-08 (HD-343): exporter role + dashboard JSON AUTHORED in
+> `IaC/ansible/roles/monitoring/`** (host-binary `network-clients-exporter` on oldsrv +
+> `homelab-network-clients` dashboard). **LIVE 2026-09-08 (oldsrv converge):** exporter
+> deployed + verified — runs as `networkclients` (0750 root:networkclients), pinned
+> `routeros-api==0.21.0` in `/opt/network-clients-exporter` venv (trixie has no
+> `python3-routeros-api` apt pkg; the exporter imports PyPI `routeros_api`), `ROUTER_TLS`
+> bool-render fixed; unit active, `/metrics` serves real `mikrotik_client` union
+> (DHCP/ARP/FDB/wifi from the RB4011 `logpipe` read-only user). ⏳ **Owner/verify steps:**
+> live wifi-path verify (`/interface/wifi/registration-table` vs legacy), owner
+> render-verify, dashboard reachable on `stats.kogler.si` after the VPS Grafana
+> provisioning converge (VPS-side, post-Victoria).
 
 **Goal.** One dashboard showing *every* client on the homelab, grouped by VLAN
 (10 Home / 20 IoT / 30 Guest / 40 Kids / 50 Media / 99 Management).

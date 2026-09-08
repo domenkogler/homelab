@@ -52,6 +52,13 @@ serves a persisted self-signed cert and the agent pins its stable SHA-256 finger
 scoped by the S2S ACL (HD-155). Agent sources are oldsrv-local, read-only: `/opt/*` configs,
 `/srv/dumps` scratch, the immich upload/thumb dir, and the signal-cli state volume.
 
+> **Deployment state (2026-09-08, oldsrv converge):** the oldsrv `kopia-agent` compose + config are
+> converged and the agent keeps retrying (`restart: unless-stopped`) — it CANNOT connect until the
+> **VPS leg is live**: kopia-server serving HTTPS with the persisted cert, and the
+> `kopia-server_fingerprint` 1P item seeded by `kopia-fingerprint-sync.yml` (VPS-only task, waits on
+> the live `tls-sha256` file). VPS converge is deferred until the Victoria migration (HD-341/342) is off
+> main; until then the agent stays in retry (expected, harmless).
+
 > **kopia-server first-run gate gotcha (HD-271-followup, live 2026-08-28):** the server's first-run
 > bootstrap (`kopia repository create sftp`) must be gated on **`repository.config`** (kopia's
 > repo-connection file) — NOT `config.json` (an unrelated technitium zone file). With the wrong gate
