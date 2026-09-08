@@ -1399,7 +1399,8 @@
 # -------------------------------------------------------------------------
 # Scoped logpipe API user (HD-313) — read-only, Mgmt-plane only.
 # Backwards compatible with the read-only API pattern of the MikroTik skill;
-# reused by the n8n firmware automation (HD-312d) when that lands.
+# the n8n firmware automation (HD-312(4)) uses a dedicated `n8n` scoped read-only
+# user (same pattern, separate credential) defined below.
 # -------------------------------------------------------------------------
 - name: Ensure scoped logpipe API user exists (HD-313)
   community.routeros.api_modify:
@@ -1417,6 +1418,30 @@
         password: "{{ lookup('community.general.onepassword', 'mikrotik-logpipe_api', field='password', vault=op_vault) }}"
         disabled: "no"
         comment: "HD-313: read-only log/API access (remote syslog + n8n)"
+  tags: [network, router-logging]
+
+# -------------------------------------------------------------------------
+# Scoped n8n API user (HD-312(4)) — read-only, Mgmt-plane only, logpipe precedent.
+# The n8n firmware-workflow automation polls router state via this read-only user;
+# temporary iot-wan-allow membership toggles stay OWNER-GATED in the n8n flow
+# authoring (never hand-edit). Backwards compatible with the read-only API pattern.
+# -------------------------------------------------------------------------
+- name: Ensure scoped n8n API user exists (HD-312(4))
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: user
+    handle_absent_entries: ignore
+    data:
+      - name: n8n
+        group: read
+        password: "{{ lookup('community.general.onepassword', 'mikrotik-n8n_api', field='password', vault=op_vault) }}"
+        disabled: "no"
+        comment: "HD-312(4): read-only API for n8n firmware automation"
   tags: [network, router-logging]
 
 # -------------------------------------------------------------------------

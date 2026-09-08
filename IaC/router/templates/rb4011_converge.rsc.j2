@@ -49,6 +49,14 @@
 } else={
     /user set [find name=ansible] group=full disabled=no comment="Ansible automation (SSH-key auth)"
 }
+# Scoped read-only API user for n8n firmware automation (HD-312(4)) — logpipe
+# precedent (group=read = read-only to all config paths, no write). Password is
+# injected from 1Password at render (mikrotik-n8n_api, see render-routeros.yml).
+:if ([/user find where name=n8n] = "") do={
+    /user add name=n8n group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="HD-312(4): read-only API for n8n firmware automation"
+} else={
+    /user set [find name=n8n] group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="HD-312(4): read-only API for n8n firmware automation"
+}
 # SSH-key imports are bootstrap-only: admin.pub/ansible.pub exist on a fresh flash
 # (uploaded by rb4011_initial.rsc) but are cleaned up in steady state — a re-import
 # here aborts with 'input does not match any value of public-key-file' (HD-322 live

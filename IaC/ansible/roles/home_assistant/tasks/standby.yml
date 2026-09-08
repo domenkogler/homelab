@@ -8,6 +8,20 @@
 # Normal (BACKUP) + failover (MASTER) variants land in /opt/home-assistant-standby/;
 # the standby compose's `keepalived` service mounts ./keepalived.conf. ha-failover.sh
 # swaps to the .failover variant and restarts keepalived on manual forward takeover.
+#
+# HD-318(c): /opt/home-assistant-standby is a COLD render target owned by this role
+# (docker_services skips it — home-assistant-standby is enabled:false, HD-17). Pre-create
+# it so the keepalived/compose/secret renders below never fail on a missing dir; the
+# nested /config target (created later) syncs from the Pi. Idempotent (state: directory).
+- name: Create cold-standby home-assistant directory (HD-318c)
+  ansible.builtin.file:
+    path: "{{ ha_standby_path }}"
+    state: directory
+    owner: ansible-admin
+    group: ansible-admin
+    mode: '0755'
+  tags: [ha_failover, hd17]
+
 
 - name: Render standby keepalived config (normal — BACKUP)
   ansible.builtin.template:
