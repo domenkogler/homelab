@@ -678,6 +678,20 @@ agent rejects plain-http. The container writes `tls-sha256` (the trust-anchor fi
 automatically on first start — no manual step; if you ever need to fingerprint-check:
 `sudo cat /srv/docker/kopia-server/config/tls-sha256`.
 
+**Client auth (HD-318a, 2026-09-08) — happens automatically in the boot script, verify-only:**
+kopia's server-auth model needs the backup client's identity (`oldsrv-agent@oldsrv.kogler.si`) to
+exist BOTH in the htpasswd (`--htpasswd-file` = allowed `user@hostname` entries; the boot script
+writes the server-admin entry + `kopia_agent_user`) AND as a repo user (`kopia server users add`)
+whose password equals the **REPO MASTER password** (`kopia_password` — a non-repo-password user is
+`access denied` at the session stage even with a matching htpasswd entry; live-verified 2026-09-08).
+The boot script provisions/re-seeds the repo user idempotently (add → set fallback). If the agent
+reports `access denied for oldsrv-agent@oldsrv.kogler.si`:
+```bash
+sudo docker exec kopia-server kopia server users add oldsrv-agent@oldsrv.kogler.si \
+  --user-password="$(sudo docker exec kopia-server printenv KOPIA_PASSWORD)"
+sudo docker restart kopia-server
+```
+
 `kopia_sftp_path` stays RELATIVE (`kopia`) — absolute paths break create-path on Hetzner.
 If the crowdsec volume is also fresh: regenerate the bouncer key (`sudo docker exec crowdsec
 cscli bouncers add traefik-bouncer -o raw`) and update 1Password item `crowdsec-bouncer_api`
