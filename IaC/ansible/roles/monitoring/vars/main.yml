@@ -9,7 +9,9 @@ network_clients_scrape_interval: 45
 # ({{ $labels.* }} / {{ $values.* }}) must NOT be re-templated by Ansible at render.
 # Tiers + thresholds per docs/observability.md. Exprs are PromQL over metrics
 # that exist today (nut_* from DRuggeri/nut_exporter, node_* from Alloy,
-# probe_success from blackbox, up from the self-scrape jobs in prometheus.yml.j2).
+# probe_success from blackbox, up from the self-scrape jobs in alloy.river.j2).
+# HD-342: the self-monitoring rules key off up{job="victoria-metrics"}/up{job="victoria-logs"}
+# (VM/VL self-scrape by the VPS Alloy), replacing the old prometheus/loki job names.
 # noDataState/execErrState: Alerting only on self-monitoring rules (a dead data
 # source must still page).
 grafana_alert_rules:
@@ -48,18 +50,18 @@ grafana_alert_rules:
       summary: "Host disk ≥ 90% used"
       # noData=OK: if the host-metrics (Alloy) series aren't present, that is
       # NOT a disk-full condition — it means the data source is missing, which is
-      # the self-monitoring rules' job (prometheus-down), not a disk alert; and
+      # the self-monitoring rules' job (victoria-metrics-down), not a disk alert; and
       # no-data must not leave the rule stuck in a pending/alerting state.
       noDataState: OK
       execErrState: Error
-    - uid: prometheus-down
-      title: Prometheus is down
+    - uid: victoria-metrics-down
+      title: VictoriaMetrics is down
       for: 2m
-      expr: 'up{job="prometheus"} == 0'
-      summary: "Prometheus self-scrape failed — alerting data source is dead"
-      # up{job=prometheus} is a REAL series now (basic_auth on the self-scrape),
-      # so it goes 0 only when Prometheus is genuinely down — noData=OK prevents
-      # a transient scrape gap from falsely firing an Alerting state.
+      expr: 'up{job="victoria-metrics"} == 0'
+      summary: "VictoriaMetrics self-scrape failed — alerting data source is dead"
+      # up{job=victoria-metrics} is a REAL series now (VM self-scrape /metrics on 8428,
+      # HD-342), so it goes 0 only when VM is genuinely down — noData=OK prevents a
+      # transient scrape gap from falsely firing an Alerting state.
       noDataState: OK
       execErrState: Alerting
     - uid: zfs-pool-full
@@ -127,13 +129,13 @@ grafana_alert_rules:
       # noData=OK: absent node_* series (Alloy not reporting) isn't a load spike.
       noDataState: OK
       execErrState: Error
-    - uid: loki-down
-      title: Loki is down
+    - uid: victoria-logs-down
+      title: VictoriaLogs is down
       for: 2m
-      expr: 'up{job="loki"} == 0'
-      summary: "Loki self-scrape failed — log store is dead"
-      # up{job=loki} is currently 1 (Loki healthy) — this rule must not fire on
-      # eval-time no-data: only fire when the series explicitly goes 0.
+      expr: 'up{job="victoria-logs"} == 0'
+      summary: "VictoriaLogs self-scrape failed — log store is dead"
+      # up{job=victoria-logs} is a REAL series now (VL self-scrape /metrics on 9428,
+      # HD-342) — only fire when the series explicitly goes 0.
       noDataState: OK
       execErrState: Error
     - uid: n8n-down
