@@ -80,6 +80,14 @@ Client → Technitium PRIMARY (VPS public IP)  ← DHCP lists this first
   drop is authoritative over Docker's iptables accept (proven by the 2026-08-23
   isolation incident). Template: `vps-hardening/templates/nftables.conf.j2`; apply via
   `playbooks/vps.yml --tags hardening`.
+  **✅ Post-fix verification 2026-09-08 (all three access classes live-tested):** ① LAN
+  VLAN-10 (Pi-first) resolves the full `*.kogler.si` set; ② home-WAN → VPS primary
+  (`@dns-allow-home` = home WAN IP) resolves incl. recursion (`example.com`); ③ tailnet
+  CGNAT → VPS primary verified from a real tailnet node (`tailscale-sidecar` @
+  CGNAT range : `nslookup {ha,sso,dns,vps,stats}.kogler.si <VPS resolver per SSOT>` all answer,
+  `stats` → the `tailnet_sidecar_ip` edge). The FORWARD-chain drop counters stayed at 43 UDP / 0 TCP
+  during the CGNAT queries (traffic went through the allow, not the drop), proving the
+  gate permits exactly the two allowed classes and rejects the rest.
   **🔴 Recursion-policy gap (2026-09-08):** the seed sets `allowRecursion=true` +
   `allowRecursionOnlyForPrivateNetworks=false` ("allow all networks") and intends the
   `recursionNetworkACL` (home subnets + tailnet CGNAT + loopback) as the real gate, but
