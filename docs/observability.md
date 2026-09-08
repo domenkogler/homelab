@@ -40,6 +40,26 @@ nut_exporter (UPS, on nas) ─────────────────�
 - **Display:** Grafana (admin analytics) + Homepage (status widget — reachability eyeball view).
 - **Removed from earlier drafts:** InfluxDB, Telegraf, Promtail, Uptime Kuma — none are used.
 
+### Victoria* migration decision (HD-341, 2026-09-08) — target state
+
+> **Decision (owner, 2026-09-08):** replace the Prometheus + Loki backends with a **single Victoria stack on the VPS** — one **VictoriaMetrics** (metrics, `victoriametrics:8428`) + one **VictoriaLogs** (logs, `victoriametrics-logs:9428`) — with **multiple writers** (Alloy collectors on oldsrv/Pi/VPS, blackbox/nut/zfs exporters, MikroTik syslog) remote-writing into the single VPS instance. **Grafana stays** (add VM + VictoriaLogs datasources; drop Prometheus/Loki/Dozzle). **MCP AI-debugging servers live on oldsrv** (much more RAM there) pointed at the VPS endpoints over wg-s2s/tailnet — **logs + metrics stay on the VPS** (reliability). Prior research + rationale: [`brainstorming/recent/Prometheus-Vs-victoriastack.md`](../brainstorming/recent/Prometheus-Vs-victoriastack.md). Target state below; implementation = HD-342 (IaC), MCP = HD-343.
+
+```
+Alloy (host agent: metrics + logs + SNMP) ──remote_write──▶ VictoriaMetrics (VPS, metrics)
+Alloy (logs) ───────────────────────────────push─────────▶ VictoriaLogs   (VPS, logs)
+MikroTik (SNMP / syslog) ────────────────────────────────▶ VictoriaMetrics / VictoriaLogs
+blackbox / nut / zfs exporters ─────────────scrape/remote─▶ VictoriaMetrics
+
+VictoriaMetrics ──▶ Grafana (stats.kogler.si)  ──webhook──▶ n8n → Signal + email
+VictoriaLogs    ──▶ Grafana (logs datasource)
+
+mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet──▶ VPS Victoria endpoints
+```
+
+- **Writers stay on home infra** (oldsrv/Pi Alloy + exporters), buffering over wg-s2s; the **single backend is on the VPS** (reliability, same as today).
+- **MCP AI servers on oldsrv** (≈600–700 MB RAM each) — NOT on the VPS/Pi.
+- Drop: Prometheus, Loki, Dozzle (VictoriaLogs covers live + stored logs).
+
 ---
 
 ## Component Table
