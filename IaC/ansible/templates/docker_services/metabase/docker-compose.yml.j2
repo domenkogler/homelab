@@ -47,7 +47,7 @@ services:
         {{ vault['smtp_login'].username | replace('$','$$') }}
       MB_EMAIL_SMTP_PASSWORD: >-
         {{ vault['smtp_login'].password | replace('$','$$') }}
-      MB_FROM_ADDRESS: notify@kogler.si
+      MB_EMAIL_FROM_ADDRESS: notify@kogler.si   # correct var (was MB_FROM_ADDRESS — ignored → Metabase fell back to notifications@metabase.com, smtp2go rejected unverified domain)
     networks:
       - traefik-public
       - services-internal
