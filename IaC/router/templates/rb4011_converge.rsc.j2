@@ -52,11 +52,18 @@
 # Scoped read-only API user for n8n firmware automation (HD-312(4)) — logpipe
 # precedent (group=read = read-only to all config paths, no write). Password is
 # injected from 1Password at render (mikrotik-n8n_api, see render-routeros.yml).
+# GATED on the vault item EXISTING: mikrotik-n8n_api was never created (owner-side
+# gap — docs claimed done); a bare lookup would abort the render, so when absent we
+# emit a loud DEFERRED comment instead of a blank password (fail-loud, no default).
+{% if mikrotik_n8n_present | default(false) %}
 :if ([/user find where name=n8n] = "") do={
     /user add name=n8n group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="HD-312(4): read-only API for n8n firmware automation"
 } else={
     /user set [find name=n8n] group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="HD-312(4): read-only API for n8n firmware automation"
 }
+{% else %}
+# HD-312(4) n8n user DEFERRED — mikrotik-n8n_api 1P item missing (owner creates it, then re-render + re-converge)
+{% endif %}
 # SSH-key imports are bootstrap-only: admin.pub/ansible.pub exist on a fresh flash
 # (uploaded by rb4011_initial.rsc) but are cleaned up in steady state — a re-import
 # here aborts with 'input does not match any value of public-key-file' (HD-322 live
@@ -430,6 +437,31 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
 /ip service set ssh disabled=no port=22 available-from={{ router_services_available_from }}
 /ip service set winbox disabled=no port=8291 available-from={{ router_services_available_from }}
 
+# ---- SNMP (HD-53): RO, Mgmt-scoped — config so it survives steady-state converges ----
+# The RO community (network-snmp_api) is injected at render as snmp_ro_community; the
+# community `name=` IS the shared secret string (must match the Alloy snmp.yml auth
+# community) and is scoped to the Mgmt subnet only, read-only. Idempotent: set enabled,
+# then set the named community if present else add it. Firewall already allows udp/161
+# from Mgmt VLAN + drops the rest (above).
+/snmp set enabled=yes
+:if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+} else={
+    /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
+}
+
+# ---- SNMP resilience (fixsnmp): re-assert after boot (mirrors fixsyslog) ----
+# RouterOS /snmp is config, not runtime state, but a stray change or boot edge can
+# leave it off; a startup scheduler re-asserts enabled + the RO community scoped to
+# Mgmt. Names letters+numbers-only (HD-313 rule). Single-line quoted source keeps the
+# /import parser happy.
+:if ([/system script find where name=fixsnmp] = "") do={
+    /system script add name=fixsnmp source=":delay 5s; /snmp set enabled=yes; :delay 1s; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
+}
+:if ([/system scheduler find where name=fixsnmp] = "") do={
+    /system scheduler add name=fixsnmp on-event=fixsnmp start-time=startup interval=0 policy=read,write,test
+}
+
 # ---- DNS (router resolver as tertiary) ----
 # Upstream = the same Technitium chain the DHCP hands out (VPS->oldsrv->Pi), so
 # the router forwards to them first and only falls back to raw Cloudflare when
@@ -457,4 +489,5 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
 
 # ---- End ----
 # Verify: /interface bridge print, /ip address print, /ip dhcp-server print, /ip route print,
-#         /ip firewall filter print, /ip firewall nat print, /ip service print, /interface wireguard print
+#         /ip firewall filter print, /ip firewall nat print, /ip service print, /interface wireguard print,
+#         /snmp print, /snmp community print, /system script print, /system scheduler print

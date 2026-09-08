@@ -119,6 +119,17 @@ add chain=input action=accept comment="HD-301: accept all from other (LAN) inter
 /ip service set ssh disabled=no port=22 available-from={{ router_services_available_from }}
 /ip service set winbox disabled=no port=8291 available-from={{ router_services_available_from }}
 
+# ---- SNMP (HD-53): RO, Mgmt-scoped — survives factory reset via run-after-reset ----
+# The RO community (network-snmp_api) is injected at render as snmp_ro_community; the
+# community `name=` IS the shared secret string (must match the Alloy snmp.yml auth
+# community) and is scoped to the Mgmt subnet only, read-only.
+/snmp set enabled=yes
+:if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+} else={
+    /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
+}
+
 # ---- End ----
 # After import, verify:
 #   1. PPPoE connects          → /interface pppoe-client monitor pppoe-telekom
@@ -129,5 +140,6 @@ add chain=input action=accept comment="HD-301: accept all from other (LAN) inter
 #                                               X = disabled; the DYNAMIC rows
 #                                               3/4/6/9/10 are normal)
 #   4. INPUT chain is set      → /ip firewall filter print  (HD-301 floor visible)
-#   5. SSH from the laptop     → ssh -i ~/.ssh/id_ed25519 ansible@10.10.99.1
+#   5. SNMP enabled + RO community scoped to Mgmt → /snmp print, /snmp community print
+#   6. SSH from the laptop     → ssh -i ~/.ssh/id_ed25519 ansible@10.10.99.1
 #   6. Ansible `router` role then applies the real VLAN/firewall/CAPsMAN config.

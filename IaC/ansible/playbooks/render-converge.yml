@@ -33,6 +33,26 @@
         mikrotik_admin_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
         pppoe_login_user: "{{ lookup('community.general.onepassword', 'pppoe_login', field='username', vault=op_vault) }}"
         pppoe_login_password: "{{ lookup('community.general.onepassword', 'pppoe_login', field='password', vault=op_vault) }}"
+        # SNMP RO community (HD-53): read-only, Mgmt-scoped — resolved at render so the
+        # converge templates can reference it without a secret in the repo.
+        snmp_ro_community: "{{ lookup('community.general.onepassword', 'network-snmp_api', field='credential', vault=op_vault) }}"
+      no_log: true
+
+    - name: Detect n8n router API item (HD-312/4) — absence must not fail the render
+      # The vault lacks mikrotik-n8n_api (owner-side gap, docs claimed done): a bare
+      # lookup would abort the whole converge render. Wrap in onepassword presence
+      # detection so rb4011_converge emits a loud DEFERRED comment instead of a blank
+      # password (fail-loud, no default('')). Owner creates the item per HD-105 then
+      # re-render provisions the n8n user.
+      command: op item get 'mikrotik-n8n_api' --vault {{ op_vault }} --format json
+      register: mikrotik_n8n_item
+      changed_when: false
+      ignore_errors: true
+      no_log: true
+
+    - name: Set n8n item presence fact
+      set_fact:
+        mikrotik_n8n_present: "{{ mikrotik_n8n_item.rc is defined and mikrotik_n8n_item.rc == 0 and mikrotik_n8n_item.stdout | length > 0 }}"
       no_log: true
     - name: Ensure rendered dir
       file:
