@@ -56,7 +56,6 @@ Rows where the AI can act **now** without any new human input. Inline notes flag
 | HD-185 / HD-124 | 1/2 | secrets.yaml renderer + keepalived deploy-verify | ✅ done+live (Pi Phase-4 2026-09-03; re-verified) — verify tails closed |
 | **Obs / backup / docs** ||||
 | HD-342 | 2 | Kopia client wiring for `/srv/docker/victoria-*/data` | AI; oldsrv MCP tail = HD-344 (Table B) |
-| HD-345 | 2 | `noDataState: OK` rules deploy + verify on next monitoring converge | AI (sits on the Victoria migration) |
 | HD-343 | 2 | Network Clients: wifi-path verify (`registration-table` vs legacy) + VPS Grafana converge | Router-side + converge are AI; **panel render-verify is owner** (Table B) |
 | HD-49 | 3 | Matrix identity/media backup policy | AI doc (policy before live deploy) |
 | HD-238 | 3 | oldsrv→VPS DR runbook for non-GPU services | AI doc |
@@ -82,7 +81,7 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 | HD-08 / HD-06 | 1/2 | UPS battery-pull test | Owner **physical** test (feeds HD-06/07/08 close-out) |
 | HD-319 | 1 | Confirm 3 rekuperator GAs (12/1/*) answer on the KNX bus | Owner verify (HA UI / panel warnings) |
 | HD-316 | 1 | Homepage launchpad — family sees apps green; technical section renders | Owner **visual** verify |
-| HD-315 | 1 | Grafana dashboard render-verify with data (post-Victoria) | Owner **visual** verify (panels + data sanity; gated on HD-342) |
+| HD-315 | 1 | Grafana dashboard render-verify with data (post-Victoria) | Owner **visual** verify (panels + data sanity; **data now flowing** — all 4 hosts + probes, HD-346 closeout) |
 | HD-343 | 2 | Network Clients dashboard — panels render + visible on `stats.kogler.si` | Owner **visual** verify (pre-work is AI — Table A) |
 | HD-242 | 2 | Metabase SELECT-only feeds | Owner seeds `metabase-forgejo_ro` **first** (fail-loud otherwise) → then AI converge + verify |
 | HD-112 | 2 | Zipline public bin | **First deploy human-gated** + local-admin → OIDC login → flip bypass-local-login (then AI round-trip verify) |
@@ -100,7 +99,7 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 | HD-207 | 1 | Landing-zone redistribution | Owner: final **media rename vs personal-files** decision (mechanics = AI, Table A) |
 | **Group 3 — owner-gated / high-risk / hardware / parked** ||||
 | HD-04 | 1 | Pi redo: HAOS → Debian + HA Container (in-use migration) | **Owner-gated execution** — live-family HA; needs a scheduled window + sign-off |
-| HD-312(4) | 2 | n8n firmware workflow — flow authoring (temp `iot-wan-allow` toggles) | **OWNER-GATED, joint AI+owner** (IaC for the `n8n` user is done; lands at next converge = AI) |
+| HD-312(4) | 2 | n8n firmware workflow — flow authoring (temp `iot-wan-allow` toggles) | **OWNER-GATED, joint AI+owner** (the `n8n` router API user is **LIVE** — 1P item created + router converged, HD-312(4) closeout) |
 | HD-335 / HD-337 | 2 | spark (ThinkStation PGX / GB10) bring-up | Owner **physical**: DGX OS install → then AI role/placement/Triton/Mem0 |
 | HD-336 | 2 | CrewAI epic orchestration pilot | Owner milestone gate ("homelab-finished") — agent-memory part is AI (Table A) |
 | HD-34 | 4 | Kopia Web GUI vs CLI assessment | At the owner-run yearly restore drill |
@@ -111,6 +110,6 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 
 ## Bottom line
 
-- **Best pure-AI starters right now:** HD-286 (5-min doc fix), HD-03 + HD-182 (router read-only audit/verify using the mikrotik skill — zero risk), HD-211/59/160 (1P + auth wiring), HD-288's security.md fix, HD-345 + HD-342 (Victoria follow-ups).
+- **Best pure-AI starters right now:** HD-286 (5-min doc fix), HD-03 + HD-182 (router read-only audit/verify using the mikrotik skill — zero risk), HD-211/59/160 (1P + auth wiring), HD-288's security.md fix, HD-342 (Victoria kopia tail).
 - **The single highest-leverage owner step** is HD-318 group: ① ONLYOFFICE repo/key, ② ROCm pins decision, ③ the three 1P items — it cascades to HD-344, HD-288, HD-46/122, HD-101, HD-147. After that, the 1P seeds in HD-242/268/296 unblock the rest of the deploy-gated batch.
 - **Stale rows note:** HD-40A/40B/135/43/44 read stale versus the README's "state of the world" (Phase 1 live, Phase 2/4 live) — an AI close-out audit (verify live state, then delete/trim per todo.md §4(a)) is itself a good pure-AI table-A task.
