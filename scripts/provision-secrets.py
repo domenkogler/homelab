@@ -237,7 +237,14 @@ def gen_pw(n: int = 32) -> str:
     # password containing `&` fails the .rsc import with "expected end of command" (live 2026-09-08:
     # network-snmp_api community broke the converge import). Keeping `&` out of generated values makes
     # every rotation RouterOS-import-safe at the generator level.
-    pool = string.ascii_letters + string.digits + "!@#%^*()-_=+[]{}<>"
+    # NO '#' in the pool (live 2026-09-08 HD-06 pre-req): NUT/INI-style configs (upsd.users,
+    # upsmon.conf MONITOR line, upssched-cmd) treat `#` as a comment marker — a password with `#`
+    # truncates the MONITOR line to 5 args and NUT 2.8.1 hard-fails:
+    #   "Unable to use old-style MONITOR line without a username" (<numargs==5> check in upsmon.c).
+    # Both nas (master) and oldsrv (client) upsmon were down with exactly this. Excluding `#`
+    # makes every generated value NUT-config-safe at the generator level (same class as $/&).
+    # (`{`/`}`/`!` stay: they are fine in NUT config as long as no `#` truncates the line.)
+    pool = string.ascii_letters + string.digits + "!@%^*()-_=+[]{}<>"
     return "".join(secrets.choice(pool) for _ in range(n))
 
 
