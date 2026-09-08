@@ -50,16 +50,21 @@ task-specific dispatch. Do **not** bulk-read the repo.
 
 ---
 
-## 2. State of the world (as of 2026-09-04)
+## 2. State of the world (as of 2026-09-08)
 
 - **Phase 1 (VPS edge) is live.** The VPS runs its full enabled `docker_services` set — Traefik,
-  Authentik, the observability backend (victoria-metrics/victoria-logs/grafana/blackbox — Victoria migration HD-341/342 IaC authored, deploy-gated), Technitium DNS primary, etc.
+  Authentik, the observability backend (**VictoriaMetrics/VictoriaLogs/Grafana/blackbox — Victoria
+  migration HD-341/342 DONE + LIVE 2026-09-08**, replacing Prometheus/Loki; Alloy = single scrape
+  tier on all 4 hosts), Technitium DNS primary, etc.
   Evidence: the owning-service docs (✅ status lines) + [`deployment-tasks.md`](deployment-tasks.md) checkbox
   dates + git commit messages; the as-built journal and changelog were frozen 2026-09-01
   (`reports/`, archive-only). **Phase 2 (nas) and Phase 4 (Pi) are provisioned + LIVE (2026-09-03).**
-  **oldsrv (Phase 3) is IN PROGRESS — BLOCKED on the `office` ONLYOFFICE repo/key, `amd_rocm` ROCm pins,
-  and 3 missing 1P vault items** (HD-318; `docker_services` big deploy gated on them); anything below
-  the VPS tier that is not yet live remains *deploy-gated*; verify against
+  **oldsrv (Phase 3) is COMPLETE + LIVE (2026-09-08).** All original blockers cleared — ONLYOFFICE
+  repo/key fixed, ROCm pins moot (spark = sole inference tier, HD-335; `amd_rocm` kept as
+  Debian-trixie-native host userland only), 1P vault strict check green; full `home_servers.yml`
+  converge failed=0 with the whole `docker_services` set Up + healthy (media/*arr/DNS/smart-home/
+  kopia-agent + signal-cli, home-assistant standby, HD-318). Remaining tails are owner-manual
+  (signal-cli phone registration) or already in `todo.md`; verify live-state evidence against
   [`deployment-tasks.md`](deployment-tasks.md) before any "run".
 - **How to check what is live vs authored-only (check in this order):**
   1. [`todo.md`](todo.md) §0/§3c → [`deployment-tasks.md`](deployment-tasks.md) — the ⏳ deploy-gated
