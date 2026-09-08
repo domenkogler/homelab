@@ -171,6 +171,12 @@ CATALOG = [
     ("API Credential", "kopia-server-internal_api", lambda: [f"username=kopia@{gen_token(16)}", f"credential={gen_pw()}"]),
     # prometheus-internal_api: username + password + bcrypt_hash rotate together.
     ("API Credential", "prometheus-internal_api", lambda: bcrypt_item()),
+    # HD-341/342 Victoria* migration: VictoriaMetrics + VictoriaLogs replace Prometheus +
+    # Loki on the VPS. Both use Victoria's OWN -httpAuth.username / -httpAuth.password
+    # (plaintext basic-auth — NOT bcrypt like prometheus's web.yml), so the items carry
+    # username + password only. Rotatable (no external/app coupling beyond the re-render).
+    ("API Credential", "victoria_metrics_api",   lambda: [f"username=victoria", f"password={gen_pw()}"]),
+    ("API Credential", "victoria_logs_api",      lambda: [f"username=victoria", f"password={gen_pw()}"]),
 ]
 # Items never auto-rotated by this tool (external/app coupling). Kept here as a
 # guard list so `--rotate-all`/`--rotate` cannot clobber them.
