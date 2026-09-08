@@ -54,6 +54,16 @@
       set_fact:
         mikrotik_n8n_present: "{{ mikrotik_n8n_item.rc is defined and mikrotik_n8n_item.rc == 0 and mikrotik_n8n_item.stdout | length > 0 }}"
       no_log: true
+
+    - name: Resolve n8n password when the item exists
+      # Now that mikrotik-n8n_api exists (create-it rule: provision-secrets-style manual
+      # item, HD-105 pattern, matching mikrotik-logpipe_api), read its password ONLY in
+      # the present branch so the converge can actually create the n8n user. When absent
+      # the var stays undefined -> template falls to the DEFERRED comment (fail-loud).
+      set_fact:
+        mikrotik_n8n_password: "{{ lookup('community.general.onepassword', 'mikrotik-n8n_api', field='password', vault=op_vault) }}"
+      when: mikrotik_n8n_present | default(false)
+      no_log: true
     - name: Ensure rendered dir
       file:
         path: "{{ playbook_dir }}/../../router/rendered"
