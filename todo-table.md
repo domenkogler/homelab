@@ -24,7 +24,6 @@ Rows where the AI can act **now** without any new human input. Inline notes flag
 | HD-286 | 2 | Vault-escape doc comments in TOML/env/yaml template headers | ✅ Done 2026-09-08 — comments added to every TOML/env/yaml header rendering vault values |
 | HD-211 | 1 | `expiring=False` verification of every persisted Authentik API token | ✅ Done 2026-09-08 (Authentik API audit) — only on-exposure rotation of `vps-op-write_api` remains = owner, Table B |
 | HD-218 | 1 | Container-state re-sample, confirm no crash-loop residue | Status sweep across VPS / nas / oldsrv / Pi — **only kopia-agent on oldsrv is a documented HD-318a known (VPS leg done, oldsrv re-render pending)**; rest clean |
-| HD-59 | 3 | ~~Create `kopia-server-internal_api` + `prometheus-internal_api`~~ | ✅ items created; `prometheus-internal_api` **retired** with Victoria (HD-342) — item + catalog row dropped |
 | HD-160 | 2 | Create `immich-ml-internal_api` + `openclaw-opencloud_api`, verify Immich v3 env names | ✅ items created + env verified; ⏳ live-verify round-trips ride oldsrv GPU leg → **Table B** |
 | HD-134 | 1 | Pin remaining fluid `latest` tags at first deploy | ✅ matrix pinned `v1.9.0` (registry-verified == live); only `profilarr` stays fluid (no upstream semver) |
 | HD-154 | 1 | VPS hardening verify | ✅ done+live (HD-40A deploy; re-verified 2026-09-08) — **row closed** |
