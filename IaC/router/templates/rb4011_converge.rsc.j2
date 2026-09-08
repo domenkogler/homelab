@@ -279,6 +279,14 @@ add chain=srcnat out-interface=pppoe-telekom action=masquerade comment="Masquera
 add chain=srcnat out-interface={{ comtrend_modem.iface }} protocol=tcp dst-address={{ comtrend_modem.modem_mgmt_ip }} dst-port=80,443 action=masquerade comment="HD-302: modem UI via router SNAT (trusted-admin)"
 add chain=dstnat src-address=10.10.40.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - UDP 53 -> Technitium"
 add chain=dstnat src-address=10.10.40.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - TCP 53 -> Technitium"
+# HD-326: per-MAC kids filtered DNS on Home VLAN 10 (kids join Kogler SSID / VLAN 10 per
+# HD-312 — the VLAN-40 hijack above does NOT cover them). Redirect each kids-tablet's DNS
+# (53) to the Technitium primary, which enforces the Kids-Group policy (Cloudflare
+# Families). Mirrors roles/router/tasks/main.yml (both own these rows).
+{% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
+add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="HD-326 kids filtered DNS - UDP 53 -> Technitium: {{ h.name }}"
+add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="HD-326 kids filtered DNS - TCP 53 -> Technitium: {{ h.name }}"
+{% endif %}{% endfor %}
 # HD-342 (2026-09-07): IoT VLAN 20 per-device DNS visibility — hijack plain :53
 # from IoT to the PI tertiary (dns_tertiary_ip => 10.10.1.20, the Pi Technitium
 # read via dns-pi.kogler.si) so each IoT device's queries land per-source-IP in
@@ -345,6 +353,21 @@ add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.
 add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.1.20 protocol=tcp dst-port=53,853 comment="LAN -> DNS secondary Pi tcp"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address=10.10.1.30 protocol=udp dst-port=53,853 comment="IoT -> DNS resolver udp"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address=10.10.1.30 protocol=tcp dst-port=53,853 comment="IoT -> DNS resolver tcp"
+# HD-312 phase 3 / HD-325: cloud-IoT per-MAC WAN egress (iot-wan-allow). The IOT-WAN
+# SSID was deleted — the LG/Bosch/HAP cloud devices ride VLAN 20 where the IoT->WAN
+# drop below cuts their WAN; these src-mac-address accepts restore internet for
+# exactly the SSOT rows with wan_allow: true. MUST sit ABOVE the IoT->WAN drop.
+{% for h in network_static_hosts %}{% if h.mac is defined and h.vlan == 20 and h.wan_allow is defined and h.wan_allow %}
+add chain=forward action=accept src-address=10.10.20.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom comment="IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ h.name }}"
+{% endif %}{% endfor %}
+# HD-326 (2026-09-04): per-MAC kids controls on Home VLAN 10 (kids join Kogler SSID /
+# VLAN 10 per HD-312). The kids-tablets' bedtime WAN hard-block (22:00-07:00) + DoT(853)
+# bypass drop, rendered per SSOT row with kids: true. MUST sit ABOVE the Home->WAN accept
+# below — a drop placed below the Home accept is shadowed (first-match-wins).
+{% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
+add chain=forward action=drop src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom protocol=tcp dst-port=853 comment="HD-326 kids DoT-bypass drop (853): {{ h.name }}"
+add chain=forward action=drop src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun comment="HD-326 kids bedtime WAN drop (22:00-07:00): {{ h.name }}"
+{% endif %}{% endfor %}
 # WAN egress per network-vlans.md row 73 ("All (except IoT) -> WAN Allowed (masqueraded)"), HD-309
 add chain=forward action=accept src-address=10.10.1.0/24  out-interface=pppoe-telekom comment="Home -> WAN allowed (HD-309 row 73)"
 add chain=forward action=accept src-address=10.10.50.0/24 out-interface=pppoe-telekom comment="Media -> WAN allowed (HD-309)"

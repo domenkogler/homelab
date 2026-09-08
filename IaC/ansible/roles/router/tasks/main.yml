@@ -886,18 +886,23 @@
         action: drop
         comment: "HD-302: default-deny all other homelab hosts -> Comtrend subnet"
 
+# -------------------------------------------------------------------------
 # HD-312 phase 3: cloud-IoT per-MAC WAN egress (iot-wan-allow, 2026-09-03).
 # The IOT-WAN SSID was deleted (3-SSID consolidation) — the LG/Bosch/HAP cloud
 # devices now ride VLAN 20 (Kogler IOT) where the IoT drop above cuts their WAN.
-# This accept (rendered per MAC in iot-wan-allow) restores internet for exactly
-# those devices: permanent membership = SSOT network_static_hosts rows with wan_allow: true
-# (cloud-IoT; pre-HD-325 this was selectattr vlan==21); temporary = n8n firmware-window via the
-# router API (HD-312d). Uses
-# handle_absent_entries: ignore (never removes the main forward chain's rules —
-# the HD-182 single-remove-api_modify constraint is preserved). First-match-wins:
-# this accept is matched before the VLAN-wide default-deny, so the IoT drop above
-# stays the fallback for every other device on VLAN 20.
+# This accept (rendered per MAC) restores internet for exactly those devices:
+# permanent membership = SSOT rows with wan_allow: true; temporary = n8n
+# firmware-window via the router API (HD-312d).
+#
+# ⚠️ APPLY-MODEL (2026-09-08): the FORWARD-chain accept rows are owned by the
+# CONVERGE template (rb4011_converge.rsc.j2) — the apply of record. A role
+# api_modify append-at-end is what created the live-shadowed placement below the
+# IoT->WAN drop (2026-09-08 diagnosis; now fixed live + in converge). The role
+# does NOT own forward-chain day-to-day state (network-ops §Apply model). This
+# task is GATED OFF — VERIFICATION + the converge import are the only paths.
+# When in doubt: drop the role task and rely on the import (network-ops).
 - name: Ensure per-MAC IoT cloud-device WAN egress accepts (HD-312 phase 3 / HD-325 wan_allow)
+  when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -924,10 +929,16 @@
 
 # HD-326 (2026-09-04): per-MAC kids controls on Home VLAN 10 — bedtime WAN
 # hard-block (22:00-07:00) + DoT (853) bypass drop. Kids join Kogler SSID /
-# VLAN 10 per HD-312. These MUST sit ABOVE the Home->WAN accept (the static
-# inter-VLAN block keeps that accept; this looped task inserts the drops before
-# it by ordering — the api_modify ensure_order places these first).
+# VLAN 10 per HD-312. These MUST sit ABOVE the Home->WAN accept — a drop
+# placed below is shadowed (first-match-wins, live-found 2026-09-08).
+#
+# ⚠️ APPLY-MODEL (2026-09-08): the FORWARD-chain drops are owned by the CONVERGE
+# template (rb4011_converge.rsc.j2, add chain=forward ... src-mac-address ...
+# ABOVE the Home->WAN accept) — the apply of record. A role api_modify
+# append-at-end was the live-broken mechanism (rules landed below the accept).
+# This task is GATED OFF — VERIFICATION + the converge import are the only paths.
 - name: Ensure per-MAC kids bedtime WAN drop + DoT-bypass (HD-326)
+  when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"

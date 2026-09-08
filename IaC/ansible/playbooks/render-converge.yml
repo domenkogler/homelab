@@ -74,6 +74,10 @@
       template:
         src: "{{ playbook_dir }}/../../router/templates/crs328_guest_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/crs328_guest_delta.rsc"
+    - name: "Render rb4011_hd326_fix_delta.rsc (HD-326/HD-312: per-MAC kids + cloud-IoT WAN live-apply)"
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/rb4011_hd326_fix_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/rb4011_hd326_fix_delta.rsc"
     - name: "Render ap_guest_delta.rsc (HD-312: CAP bridge VLAN 30, per-AP)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/ap_guest_delta.rsc.j2"
