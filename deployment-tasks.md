@@ -329,7 +329,7 @@
 - Wildcard `*.kogler.si` cert: issued on the **VPS** (Phase 1, HD-178) — oldsrv serves internal routes from the synced pair (pulled from the VPS by its own timer, HD-181); no ACME logs expected on oldsrv.
 
 **Deploy-gated verification (Phase 3):**
-- **HD-105** — **AI-stack pre-deploy gate:** create the 7 1Password items (`openrouter_api`, `cohere_api`, `litellm_master_key`, `openwebui_secret`, `openwebui_api`, `qdrant_db`, `openclaw_gateway_token`) + Authentik OIDC providers per [`deployment-ai-stack-secrets.md`](docs/deployment-ai-stack-secrets.md); blocks HD-100→104. · [deployment-secrets.md](docs/deployment-secrets.md)
+
 - **HD-100** — LiteLLM live: create `litellm_master_key`/`openrouter_api`/`cohere_api`; MUST pin `litellm_version` semver; OpenAI-compatible completion + embed respond. · [services-ai.md](docs/services-ai.md)
 - **HD-101** — Open Web UI live: `openwebui_secret` + `openwebui_api` (Authentik OIDC, redirect `https://ai.kogler.si/oauth2/callback`); OIDC login + LiteLLM completion + RAG. · [services-ai.md](docs/services-ai.md)
 - **HD-102** — RAG vector store live: `qdrant_db` resolves; Qdrant `/healthz` on `db-internal`; vector dimension lock @1536 at first ingest (HD-268, replaces PGVector). · [services-ai.md](docs/services-ai.md)
