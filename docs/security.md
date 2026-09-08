@@ -78,7 +78,7 @@ Owning docs: [deployment-compose.md](deployment-compose.md),
 - **Signal CLI** `8080:8080` — remove the host bind (n8n reaches it by name). **HD-62** *(evidence: KOPS-002)*.
 - **VictoriaMetrics / VictoriaLogs** `8428:8428` / `9428:9428` — bind loopback + wg-s2s. **HD-62** *(evidence: KOPS-017)*.
 - **Technitium** `53:53` — **VPS primary**: this is the ONE intentional public publish (the LAN/tailnet resolver is the VPS public IP, HD-299); the open-resolver exposure it created is closed at the nftables FORWARD chain (source-restricted to tailnet CGNAT + home WAN, see §8). **HD-62** + 2026-09-08 gate. *(evidence: KOPS-015/064)*.
-- **Sunshine** `47989-48010` — restrict to Home VLAN IP. **HD-62** *(evidence: KOPS-007)*.
+- **Sunshine** `47989-48010` — host ports kept on all interfaces **by design (HD-62)**: Moonlight clients connect from LAN/VPN, so loopback/drop would break streaming. Exposure is time-limited (`restart: "no"` = manual-start gaming timer); if a narrower bind is ever wanted, bind the LAN/Headscale interface. *(evidence: KOPS-007)*.
 
 Owning doc: [deployment-compose.md](deployment-compose.md). **Tracked: HD-62.**
 

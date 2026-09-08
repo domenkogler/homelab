@@ -11,7 +11,7 @@ tags: [services, utilities, tools, automation]
 > **Links to:** `services-office.md`, `observability.md`, `services-authentik.md`, `services.md`
 > **Linked from:** `services.md`
 
-> 🟢 **VPS members live since 2026-08-22**: n8n (`auto.kogler.si`, the alert brain), PairDrop (public crowdsec-only tier on both subdomains per HD-230a), Stirling-PDF. ⏳ deploy-gated: signal-cli-rest-api (oldsrv, Phase 3 — reaches n8n over WG S2S once that tunnel is up, HD-03) · **Zipline** (HD-112 — IaC complete 2026-08-24, NOT deployed; deploy-gate runbook = the compose header checklist).
+> 🟢 **VPS members live since 2026-08-22**: n8n (`auto.kogler.si`, the alert brain), PairDrop (public crowdsec-only tier on both subdomains per HD-230a), Stirling-PDF. **HD-58 + HD-113 live-verified 2026-09-08**: stirling-pdf container healthy + `pdf.kogler.si` 302 Forward-Auth chain + OCR `eng+slv`; pairdrop container healthy + `drop.kogler.si` 200 public crowdsec-only (WebRTC signaling). Inventory re-render already landed via HD-342 (2026-09-08). ⏳ deploy-gated: signal-cli-rest-api (oldsrv, Phase 3 — reaches n8n over WG S2S once that tunnel is up, HD-03) · **Zipline** (HD-112 — IaC complete 2026-08-24, NOT deployed; deploy-gate runbook = the compose header checklist).
 
 ---
 
@@ -21,8 +21,8 @@ tags: [services, utilities, tools, automation]
 |---------|-----------|---------|--------------------|-------------|
 | n8n | auto | I | 200–400 / 700 | Alert router → Signal/email (also office automation) |
 | signal-cli | — | I | 80–150 / 250 | Signal delivery (linked device, "Homelab Alerts") |
-| PairDrop | pairdrop | P | 100–180 / 300 | **P2P file share** (HD-230, supersedes HD-113) — browser WebRTC "AirDrop-style" transfers; PUBLIC since 2026-08-23 on `pairdrop.kogler.si` + `drop.kogler.si` via crowdsec-only tier (no Forward-Auth), traefik-public-only network isolation, built-in RATE_LIMIT (linuxserver image; no data persisted to disk) |
-| Stirling PDF | pdf | I | 150–400 / 800 | **PDF toolkit** (HD-58) — merge/split/compress/convert/number/OCR (Tesseract `eng+slv`); anonymous mode + Forward-Auth, internal-only; no local online-PDF-editor dependency; **stateless (in-memory, no disk/backup)** |
+| PairDrop | pairdrop | P | 100–180 / 300 | **P2P file share** (HD-230, supersedes HD-113) — browser WebRTC "AirDrop-style" transfers; PUBLIC since 2026-08-23 on `pairdrop.kogler.si` + `drop.kogler.si` via crowdsec-only tier (no Forward-Auth), traefik-public-only network isolation, built-in RATE_LIMIT (linuxserver image; no data persisted to disk). ✅ **live-verified 2026-09-08** (HD-113): container healthy, `drop.kogler.si` → 200 crowdsec-only, signaling/WebRTC routed through Traefik |
+| Stirling PDF | pdf | P | 150–400 / 800 | **PDF toolkit** (HD-58) — merge/split/compress/convert/number/OCR (Tesseract `eng+slv`, `-fat` image bundles all langs); anonymous mode inside app + Authentik Forward-Auth at the Traefik edge (public `pdf.kogler.si`, SSO-gated); no local online-PDF-editor dependency; **stateless (in-memory, no disk/backup)**. ✅ **live-verified 2026-09-08** (HD-58): container healthy, `pdf.kogler.si` → 302 Forward-Auth chain, OCR `eng+slv` |
 | Zipline | bin | P | ~200–350 / 700 (est.) | **Public bin + URL shortener + QR** (HD-112) — v4.7.0 pin, VPS, local datasource; `crowdsec-only` tier; native-OIDC dashboard; guestbin dropzone (no-login uploads, 6h TTL, quota-bounded); 🟢 IaC done ⏳ deploy-gated |
 
 ## Automation & Alerting

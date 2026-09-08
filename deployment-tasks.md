@@ -311,7 +311,7 @@
 4. **HA standby** — `home-assistant-standby` compose + keepalived (`ha-vrrp_password`); disabled by default.
 
 **New 1Password prerequisites (Phase 3):**
-- ~~`cloudflare_api` (api→`credential`) — wildcard cert~~ — **moved to Phase 1 (VPS)**: the wildcard is issued by the VPS Traefik (HD-178); oldsrv consumes synced certs via its own pull timer (HD-181, decided HD-204).
+- ~~`cloudflare_api` (api→`credential`) — wildcard cert~~ — **moved to Phase 1 (VPS)**: the wildcard is issued by the VPS Traefik (HD-178); **cert consumers = the VPS `traefik-tailnet` internal edge (bind-mount) + the Pi `traefik-ha` edge (ha-cert-sync pull timer)** (HD-181; oldsrv runs NO Traefik — superseded by HD-331, 2026-09-04).
 - `kopia_password` (password) — Kopia off-site = **backup Box over SSH/SFTP (port 23)** (`kopia_sftp_*` in `group_vars/all/main.yml`; SSH key in `Hertzner-SB-Backup`; **no password secret item**). ~~`kopia-s3_api`~~ retired (iDrive e2 dropped).
 - `authentik_db` (db→`password`), `authentik_password` (password→`password`), `authentik_login` (login→`password`)
 - `opencloud_db`, `immich_db`, `forgejo_db` (db→`password` each)
@@ -325,7 +325,7 @@
 **Verify:**
 - `docker compose ps` for every service is healthy; `systemctl status docker-compose@<service>`.
 - Homepage (`home.kogler.si`) reachable after Authentik SSO (moves to the VPS per HD-180; until HD-183 lands it still renders on oldsrv). Grafana/Forgejo are VPS-edge services — verify via their public URLs in Phase 1, not here.
-- Wildcard `*.kogler.si` cert: issued on the **VPS** (Phase 1, HD-178) — oldsrv serves internal routes from the synced pair (pulled from the VPS by its own timer, HD-181); no ACME logs expected on oldsrv.
+- Wildcard `*.kogler.si` cert: issued on the **VPS** (Phase 1, HD-178) — consumers = VPS `traefik-tailnet` internal edge (bind-mount `/opt/traefik/certs`) + Pi `traefik-ha` (ha-cert-sync); oldsrv serves **no** Traefik/ACME (HD-331 supersedes the old internal-edge plan).
 
 **Deploy-gated verification (Phase 3):**
 
@@ -334,8 +334,8 @@
 - **HD-102** — RAG vector store live: `qdrant_db` resolves; Qdrant `/healthz` on `db-internal`; vector dimension lock @1536 at first ingest (HD-268, replaces PGVector). · [services-ai.md](docs/services-ai.md)
 - **HD-103** — Docling live: first start downloads HF models (multi-GB); v1 API converts a Slovenian scan. · [services-ai.md](docs/services-ai.md)
 - **HD-104** — OpenClaw live: `openclaw_gateway_token`; `openclaw onboard` → schema-valid `openclaw.json` (LiteLLM + WebDAV); Open WebUI ↔ OpenClaw ↔ OpenCloud round-trip. · [services-ai.md](docs/services-ai.md)
-- **HD-58** — Stirling PDF: re-render `services-inventory-generated.md`; OCR `slv` + Forward-Auth chain live-verify. · [services.md](docs/services.md)
-- **HD-113** — PairDrop: re-render `services-inventory-generated.md`; WebRTC/signaling through Traefik (may need `RTC_CONFIG` STUN/TURN). · [services.md](docs/services.md)
+- ~~**HD-58**~~ — Stirling PDF live on the VPS: container healthy, `pdf.kogler.si` → 302 Forward-Auth, OCR `eng+slv` — ✅ **verified 2026-09-08** (see [services-utilities.md](docs/services-utilities.md)).
+- ~~**HD-113**~~ — PairDrop live on the VPS: container healthy, `drop.kogler.si` → 200 crowdsec-only, signaling/WebRTC through Traefik — ✅ **verified 2026-09-08** (see [services-utilities.md](docs/services-utilities.md)).
 - **HD-46** — Matrix live: hosts provisioned; needs HD-47 records + Authentik OIDC provider/redirect URI; verify profile endpoints require auth (HD-122). · [services-matrix.md](docs/services-matrix.md)
 - **HD-47** — Matrix public records + `_matrix` well-known/SRV delegation; WAN 443 (8448 optional). · [services-traefik.md](docs/services-traefik.md)
 - **HD-122** — Matrix federation hardening live-verify that profile endpoints require auth at first deploy. · [services-matrix.md](docs/services-matrix.md)

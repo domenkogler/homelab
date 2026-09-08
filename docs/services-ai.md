@@ -23,9 +23,14 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 
 > **Status:** VPS platform **live since 2026-08-22** (Phase 1): LiteLLM spine, Open WebUI x2
 > (`chat.kogler.si` public family / `ai.kogler.si` internal tailnet-only -- v2/Hi-248 split), Docling,
-> OpenClaw up on the VPS. **PGVector is being replaced by Qdrant** (HD-267; ⏳ migration/backtest +
-> re-index before the live swap). ⏳ deploy-gated: Ollama + Immich-ML on the oldsrv GPU (Phase 3), Qdrant
-> cutover, the OKF-wiki repos, and the RAG/agent live-tuning behind them. Supersedes the AnythingLLM path.
+> OpenClaw up on the VPS. **Immich-ML is LIVE on oldsrv (Phase 3) and the `immich-app→immich-ml`
+> cross-host round-trip is VERIFIED (2026-09-08)** — the VPS server health-checks the oldsrv ML
+> endpoint over WG S2S (SSOT-derived `immich_ml_url` → oldsrv Home IP, HD-184; app log "Machine
+> learning server became healthy", `/ping` 200 from the VPS over `wg-s2s`). Ollama is **disabled** —
+> inference consolidated on spark (Triton/GB10, decision #23, 2026-09-06). **PGVector is being
+> replaced by Qdrant** (HD-267; ⏳ migration/backtest + re-index before the live swap). ⏳ deploy-gated:
+> Qdrant cutover, the OKF-wiki repos, and the RAG/agent live-tuning behind them. Supersedes the
+> AnythingLLM path.
 > Tracked via `todo.md` HD-1xx (`source: services-ai`).
 
 ---

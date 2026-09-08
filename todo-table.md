@@ -34,11 +34,11 @@ Rows where the AI can act **now** without any new human input. Inline notes flag
 | HD-280 | 2 | Confirm a 401/403 triggers a fail2ban ban | Observation job — waits for natural SSO brute-force (no work product) |
 | HD-287 | 2 | `cap_drop: ALL` live cap verification | **Re-scoped**: ollama removed (spark); immich-ml is deploy-gated on the oldsrv GPU leg → **Table B** |
 | **Services / edge** ||||
-| HD-181 | 1 | Authorize oldsrv `traefik-cert-pull` pubkey + verify sync timer | SSH/IaC + timer check |
-| HD-184 | 1 | immich-app→immich-ml round-trip live-verify (smart-search completes) | oldsrv/ML is live |
-| HD-58 | 3 | Stirling PDF: re-render inventory + live-verify OCR / forward-auth | AI |
-| HD-113 | 3 | PairDrop: re-render + live-verify WebRTC through Traefik | AI |
-| HD-288 | 3 | Reconcile stale `security.md` §3 port note | **Pure AI doc fix** (live-verify part is Phase-3-gated → Table B) |
+| ~~HD-181~~ | 1 | ~~Authorize oldsrv `traefik-cert-pull` pubkey + verify sync timer~~ — **SUPERSEDED 2026-09-08 (HD-331): no oldsrv/internal-home Traefik** — internal all-app edge = VPS `traefik-tailnet` live; row → delete-done pass §4(a) | Edge model re-decided HD-331; consumers = traefik-tailnet + Pi traefik-ha |
+| ~~HD-184~~ | 1 | ~~immich-app→immich-ml round-trip live-verify~~ — ✅ **DONE 2026-09-08**: app `Machine learning server became healthy`, ML `/ping` 200 over wg-s2s | oldsrv/ML live; health round-trip verified; real smart-search needs owner assets (DB empty) → Table B owner tail |
+| ~~HD-58~~ | 3 | ~~Stirling PDF: re-render inventory + live-verify OCR / forward-auth~~ — ✅ **live-verified 2026-09-08** (VPS): container healthy, `pdf.kogler.si` → 302 Forward-Auth, OCR `eng+slv`; inventory re-render done via HD-342 | AI; VPS service (not Phase-3-gated) |
+| ~~HD-113~~ | 3 | ~~PairDrop: re-render + live-verify WebRTC through Traefik~~ — ✅ **live-verified 2026-09-08** (VPS): container healthy, `drop.kogler.si` → 200 crowdsec-only, dual-host HD-230; inventory re-render done via HD-342 | AI; VPS service (not Phase-3-gated) |
+| HD-288 | 1 | Reconcile stale `security.md` §3 port note — ✅ **DONE 2026-09-08** (security.md §3 now matches in-template HD-62: all-interface host ports by design, time-limited manual-start) | Pure AI doc fix done; Sunshine live-verify (gaming timer + Moonlight round-trip) stays Phase-3-gated → Table B |
 | **AI / Office** ||||
 | HD-100 | 2 | Create `litellm_master_key` + pin `litellm_version` (+ live-verify completions) | Provider keys were confirmed real in HD-211; item creation is AI |
 | HD-247 | 1 | LiteLLM scoped-keys cutover: seed db → converge → model recreation → live-verify | All AI (ollama backend rides oldsrv Phase 3) |
@@ -112,4 +112,4 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 
 - **Best pure-AI starters right now:** HD-286 (5-min doc fix), HD-03 + HD-182 (router read-only audit/verify using the mikrotik skill — zero risk), HD-211/59/160 (1P + auth wiring), HD-288's security.md fix, HD-342 (Victoria kopia tail).
 - **The single highest-leverage owner step** is HD-318 group: ① ONLYOFFICE repo/key, ② ROCm pins decision, ③ the three 1P items — it cascades to HD-344, HD-288, HD-46/122, HD-101, HD-147. After that, the 1P seeds in HD-242/268/296 unblock the rest of the deploy-gated batch.
-- **Stale rows note:** HD-40A/40B/135/43/44 read stale versus the README's "state of the world" (Phase 1 live, Phase 2/4 live) — an AI close-out audit (verify live state, then delete/trim per todo.md §4(a)) is itself a good pure-AI table-A task.
+- **Stale rows note:** HD-40A/40B/135/43/44 read stale versus the README's "state of the world" (Phase 1 live, Phase 2/4 live) — an AI close-out audit (verify live state, then delete/trim per todo.md §4(a)) is itself a good pure-AI table-A task. **2026-09-08 services/edge lane:** HD-181 superseded (HD-331), HD-184/58/113 live-verified, HD-288 doc-fix done — rows above reflect this (deletion deferred to §4(a) pass).

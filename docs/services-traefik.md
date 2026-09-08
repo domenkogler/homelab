@@ -11,7 +11,7 @@ tags: [services, traefik, proxy, ssl]
 > **Links to:** `services-authentik.md`, `services.md`
 > **Linked from:** `services.md`, `deployment-compose.md`
 
-> 🟢 **Live since 2026-08-22** on the VPS edge (Phase 1, HD-40A): wildcard `*.kogler.si` LE cert issued, middleware chains deployed, all enabled services routed. ⏳ deploy-gated: oldsrv-internal Traefik (Phase 3), `traefik-ha` Pi edge (HD-17), router-side wiring (HD-03/60). Sections below remain the implementation spec.
+> 🟢 **Live since 2026-08-22** on the VPS edge (Phase 1, HD-40A): wildcard `*.kogler.si` LE cert issued, middleware chains deployed, all enabled services routed. **Internal all-app edge = the VPS `traefik-tailnet` instance (HD-331 decision, live 2026-09-07) — no home-host internal edge** (alternatives B/C rejected in `services-rejected.md`). ⏳ deploy-gated: `traefik-ha` Pi edge (HD-17), router-side wiring (HD-03/60). Sections below remain the implementation spec.
 
 ---
 
@@ -191,7 +191,7 @@ Cloudflare is used as the **DNS provider only** (registrar: domenca.com; nameser
 
 - Public records: only the internet-facing subset (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`, **`matrix`**, **`chat`**).
 - Internal-only hosts/services: **no public record**; WAN firewall blocks them (split-horizon).
-- Certificates: wildcard `*.kogler.si` via ACME **DNS-01** (Cloudflare API token in 1Password `Homelab-ansible`). **Issuer = the VPS Traefik** (HD-178 — the single issuer; oldsrv's internal edge and the Pi `traefik-ha` consume the synced pair; single-issuer enforced in templates by `traefik_acme_issuer`, HD-181).
+- Certificates: wildcard `*.kogler.si` via ACME **DNS-01** (Cloudflare API token in 1Password `Homelab-ansible`). **Issuer = the VPS Traefik** (HD-178 — the single issuer; consumers of the synced pair = the VPS `traefik-tailnet` internal edge (bind-mounted `/opt/traefik/certs`, HD-181/HD-204) and the Pi `traefik-ha` edge (ha-cert-sync pull timer); single-issuer enforced in templates by `traefik_acme_issuer`, HD-181).
 - No orange-cloud/DDoS/geo-WAF layer — Traefik + CrowdSec handle edge security.
 
 Alternative (rejected): direct exposure without Cloudflare DNS — same result, no benefit.
