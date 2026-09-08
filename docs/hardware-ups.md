@@ -12,7 +12,7 @@ tags: [hardware, ups, power, modbus, nut]
 > **Links to:** `hardware-nas.md`, `network-rack.md`, `network-vlans.md`, `home-assistant-current.md`, `observability.md`
 > **Linked from:** `hardware.md`, `index.md`
 
-> 🟢 **NUT master LIVE 2026-09-03 (HD-06/314):** the PowerWalker VFI IoT 3000 is monitored from nas (NUT master) over USB — `upsc powerwalker@localhost` returns battery 100% / runtime / Innova Unity (Phoenixtec `06da:ffff`). `upsd` :3493 + `nut_exporter` :9199 active on nas; udev perms fixed (nut group), `retrycount` removed from ups.conf (invalid for usbhid-ups in NUT 2.8.1). Clients (oldsrv/pi) still ⏳ deploy-gated (Phase 3/4).
+> 🟢 **NUT master LIVE 2026-09-03 (HD-06/314):** the PowerWalker VFI IoT 3000 is monitored from nas (NUT master) over USB — `upsc powerwalker@localhost` returns battery 100% / runtime / Innova Unity (Phoenixtec `06da:ffff`). `upsd` :3493 + `nut_exporter` :9199 (pinned v3.3.0, 2026-09-08) active on nas; udev perms fixed (nut group), `retrycount` removed from ups.conf (invalid for usbhid-ups in NUT 2.8.1). **Clients (oldsrv/pi) LIVE 2026-09-08** — oldsrvs + pi converged (HD-318/HD-307), both NUT clients active (slave to nas, deferred shutdown via `upssched`). ⏳ battery-pull test (owner, HD-06).
 
 ---
 

@@ -11,7 +11,7 @@ tags: [services, media, arr, photos, streaming]
 > **Links to:** `services-downloads.md`, `services-authentik.md`, `services-traefik.md`, `storage.md`, `observability.md`
 > **Linked from:** `services.md`, `storage.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Media services are IaC-authored but **not live**; deploy-gated against `deployment-tasks.md`. Hosts (`oldsrv`, `nas`) are not provisioned.
+> 🟢 **LIVE 2026-09-08 (oldsrv Phase-3 converge)** — Jellyfin, Seerr, sonarr/radarr/lidarr/prowlarr/bazarr, profilarr(+parser), recyclarr, immich-ml all Up + healthy on oldsrv; NFS mounts to nas live (`/mnt/nas/media`, `/mnt/nas/data`, `/mnt/nas/thumbs`). immich-ml bundled-ROCm ready for the whole-collection import (separate later task).
 
 ---
 
