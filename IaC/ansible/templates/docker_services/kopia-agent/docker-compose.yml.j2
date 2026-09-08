@@ -53,9 +53,15 @@ services:
           # is carried in the URL userinfo, and the repo master password on -p.
           # The server password may contain URL-hostile chars ((){}@ etc.) — percent-
           # encode it or the URL parser rejects it ("invalid character } in host
-          # name", live 2026-09-08). perl URI::Escape is in the kopia image.
-          _enc_user=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0], "^A-Za-z0-9\-._~")' "$KOPIA_SERVER_USER")
-          _enc_pass=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0], "^A-Za-z0-9\-._~")' "$KOPIA_SERVER_PASSWORD")
+          # name", live 2026-09-08). Pure-bash encoder (no perl URI::Escape in the
+          # kopia image — verified 2026-09-08).
+          _urlenc() { local s="$1" c out=""; local i; for ((i=0; i<${#s}; i++)); do
+              c="${s:i:1}"; case "$c" in
+                [A-Za-z0-9._~-]) out+="$c" ;;
+                *) printf -v c '%%%02X' "'$c"; out+="$c" ;;
+              esac; done; printf '%s' "$out"; }
+          _enc_user=$(_urlenc "$KOPIA_SERVER_USER")
+          _enc_pass=$(_urlenc "$KOPIA_SERVER_PASSWORD")
           kopia repository connect server \
             --url="http://${_enc_user}:${_enc_pass}@${KOPIA_SERVER_ADDR}" \
             --password="${KOPIA_PASSWORD}" \
