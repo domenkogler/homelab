@@ -124,7 +124,7 @@ services:
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       # Metrics endpoint (HD-315, 2026-09-04): dedicated internal entrypoint for the
-      # Prometheus scrape job (traefik:8082 on traefik-public — prometheus.yml.j2).
+      # Alloy scrape job (traefik:8082 on traefik-public, topology B — alloy.river.j2).
       # Never published on a host port; overlay-reachable only.
       - "--entryPoints.metrics.address=:8082"
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
@@ -140,7 +140,7 @@ services:
       - "--experimental.plugins.crowdsec-bouncer.moduleName=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
       - "--experimental.plugins.crowdsec-bouncer.version={{ crowdsec_bouncer_plugin_version }}"
       # Prometheus metrics (HD-315 gap, 2026-09-04): scrape job targets traefik:8082
-      # (prometheus.yml.j2) but no metrics endpoint was enabled -> traefik_requests_total
+      # (alloy.river.j2) but no metrics endpoint was enabled -> traefik_entrypoint_requests_total
       # was empty and up{job="traefik"} showed 0 (selfmonitoring red row). Exposed on the
       # dedicated internal `metrics` entryPoint (:8082, declared above) — never published
       # on a host port; overlay-reachable only, scraped inside traefik-public.

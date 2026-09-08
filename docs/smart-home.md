@@ -107,7 +107,7 @@ shows up as HA entities going unavailable while the AC itself still works from t
 - **Configs:** In this homelab repo (moved from HA's own GitHub repo)
 
 > **Failover design → [`smart-home-failover.md`](smart-home-failover.md).** Both nodes share a VIP (keepalived/VRRP); `ha.kogler.si` routes to the VIP so takeover needs no DNS flip or per-device reconfig. WAN loss is NOT a trigger (HA is local); failover is only for Pi failure and must work offline.
-- **Entity list:** Not yet exported — needed for HA Dashboard `lovelace` + Grafana generation (enable HA Prometheus exporter: see `observability.md`)
+- **Entity list:** Not yet exported — needed for HA Dashboard `lovelace` + Grafana generation (enable HA exporter: see `observability.md`)
 - **Shelly integration (HA on the Pi):** the 4× Gen1 RGBW2 (`shelly-rgbw2-*`, IoT VLAN 20 — SSOT `network-addresses-generated.md`) — **LIVE + devices added (2026-09-03, HD-320/HD-323):** narrow new-TCP tcp/80 exception (Home→IoT REST), **forward Home→IoT udp/5683 CoAP-client rule** (the Gen1 config flow's `BlockDevice.initialize` opens a CoAP client session toward each device — without this forward rule the flow aborted `cannot_connect`, the real blocker behind the stuck “add by IP” step), and the **reverse IoT→`trusted-ha` udp/5683 push** (HD-229). The HA CoAP server binds *inside* the container, so `home-assistant-primary`/`-standby` compose publish `5683:5683/udp`; devices' CoIoT peer = `ha-vip` (SSOT). **LIVE: all 4 added** (Kuhinja/WC 4/Orhideje/Kopalnica), entities `light.kuhinja` / `light.wc_4_channel_1..4` / `light.orhideje` / `light.kopalnica_2`, control verified, both CoAP directions flowing. Dashboard cards in the lovelace views bind once the devices are added.
 
 ### Remote access & SSO (ha.kogler.si)
@@ -137,7 +137,7 @@ shows up as HA entities going unavailable while the AC itself still works from t
   The other 4 contacts (`0/3/0`, `0/3/1`, `0/3/2`, `9/3/1`) are **unused/spare contacts on the bus** — **disabled in the HA entity registry** (`disabled_by: user`) so they don't clutter the dashboard; the ETS labels for then are "Hodnik V1/V2/V3" + "Spalnica V9". The friendly names were set via the entity registry (UI-level), NOT in `knx-entities.yaml` — the generator emits the raw ETS names; do not expect the `invert`/`name` mapping in the generated file.
 - **Local RF plan (deferred 2026-08-18 → REJECTED 2026-09-08 / HD-18):** the intended HmIP-RFUSB stick + RaspberryMatic on the Pi (Debian/Docker) for full-local-ish Homematic **will not happen — the stick will not be purchased** (decision log: [smart-home-rejected.md](smart-home-rejected.md)). **The HmIP-HAP stays in cloud mode** (`homematicip_cloud`); HA keeps talking to the HAP. Local-RF Homematic (RaspberryMatic over `homematic` XML-RPC 2001/2010) is closed out; the stick-move pairing-transfer test (HD-18) is moot. Failover of Homematic is cloud-bound (below).
 - **Failover of Homematic (cloud-HAP):** because HmIP-HAP is the cloud AP, its failover story is cloud-bound rather than a physical stick move — Homematic follows the cloud HAP, not the HA VIP. The stick-move step (HD-18) is **rejected** (the stick will not be bought — [smart-home-rejected.md](smart-home-rejected.md)). IP devices (KNX, Shelly) fail over purely via the VIP as before. See [`smart-home-failover.md`](smart-home-failover.md).
-- **HA recorder:** after observability is live, **trim, NOT disable, recorder history** (`purge_keep_days: 1–2`, `commit_interval` up, `exclude` noisy domains) to cut Raspberry Pi microSD writes — Grafana reads central Prometheus for long-term graphs. **Kept enabled** deliberately: it still powers the **Logbook**, **Energy Dashboard (long-term statistics)** (KNX appliance-current sensors → kWh), and `history_stats` / `history()` templates that Grafana doesn't cover. Full Pi SD-wear strategy (recorder + Docker-log driver + tmpfs `/var/log`): [`observability.md`](observability.md) → *Pi SD-card wear strategy*.
+- **HA recorder:** after observability is live, **trim, NOT disable, recorder history** (`purge_keep_days: 1–2`, `commit_interval` up, `exclude` noisy domains) to cut Raspberry Pi microSD writes — Grafana reads VictoriaMetrics for long-term graphs. **Kept enabled** deliberately: it still powers the **Logbook**, **Energy Dashboard (long-term statistics)** (KNX appliance-current sensors → kWh), and `history_stats` / `history()` templates that Grafana doesn't cover. Full Pi SD-wear strategy (recorder + Docker-log driver + tmpfs `/var/log`): [`observability.md`](observability.md) → *Pi SD-card wear strategy*.
 
 ---
 
@@ -170,7 +170,7 @@ shows up as HA entities going unavailable while the AC itself still works from t
 
 ## Open Questions
 
-- Home Assistant entity list (needed for HA Dashboard **lovelace** + Grafana generation; enable HA Prometheus exporter: see `observability.md`)
+- Home Assistant entity list (needed for HA Dashboard **lovelace** + Grafana generation; enable HA exporter: see `observability.md`)
 - Wall-surface Dashboard: native HA Dashboard on existing devices (iPad A16 + Android RT8, 80% capped) — **TileBoard retired (HD-24)**
 - Wake word final approval ("Assistant" — approved 2026-08-18, HD-25; changeable later)
 - Confirmed HmIP-SWO-B channels: no rain / wind-direction (not part of this sensor)

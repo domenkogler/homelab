@@ -128,18 +128,18 @@ Fix pattern:
 
 ---
 
-## Central log shipping (HD-313) — RouterOS logs → VPS CrowdSec + Loki
+## Central log shipping (HD-313) — RouterOS logs → VPS CrowdSec + VictoriaLogs
 
 The RB4011 forwards its logs as **RFC5424 syslog over the `wg-s2s` tunnel** to the VPS;
 CrowdSec parses them for failed-login +
-port-scan detection and the same stream is available to Loki for central search.
+port-scan detection and the same stream is available to VictoriaLogs for central search.
 
 > **Deploy-gate IaC status (2026-09-03→04):** convergence fixes + acquisition wiring landed —
 > the `central-syslog` → `centralsyslog` action-name typo (was the rule-creation error on
 > converge), the `acquis-routeros.yml` copy into the CrowdSec **config mount**
 > (`/srv/docker/crowdsec/config/acquis.d/` — the compose-dir extra-template copy was dead,
 > CrowdSec reads acquisitions from `acquis.d/` only), and the VPS Alloy
-> `loki.source.file`/`loki.process.routeros` push (`routeros.log` → Loki, `job=routeros-syslog`).
+> `loki.source.file`/`loki.process.routeros` push (`routeros.log` → VictoriaLogs via Alloy, `job=routeros-syslog`).
 > **Live session 2026-09-04:** router side APPLIED + VERIFIED live (action `centralsyslog`
 > `remote={{ wg_s2s_vps.ip }}:514 src-address={{ wg_s2s_vps.router_ip }}`, rules 6–9, `logpipe` user — all on-device
 > via the Pi-99 hop); VPS side APPLIED (rsyslog `{{ wg_s2s_vps.ip }}:514` active, acquis in config
@@ -180,7 +180,7 @@ port-scan detection and the same stream is available to Loki for central search.
 > to apply `wg setconf` live. **Live-verified end-to-end:** RB4011 → wg-s2s → VPS rsyslog
 > (bound on the wg address) → `/var/log/remote-syslog/routeros.log` (file created + entries
 > timestamped) — then the same feed serves CrowdSec (`acquis.d/acquis-routeros.yml`, type
-> `mikrotik`) and Loki (`job=routeros-syslog`).
+> `mikrotik`) and VictoriaLogs (`job=routeros-syslog`).
 >
 > **Retained safety net:** a `/system script` + startup scheduler (`fixsyslog`) on the RB4011
 > re-applies the `centralsyslog` action target 10s post-boot (toggle remote → back). It was NOT
@@ -209,8 +209,8 @@ port-scan detection and the same stream is available to Loki for central search.
   `mikrotik-scan-multi_ports` scenarios) — the upstream-blessed remote-syslog pattern.
   ⚠ Live lesson: the acquis must live in the **config mount's `acquis.d/`** (`/etc/crowdsec/acquis.d/`
   in-container) — a compose-dir extra-template copy is dead; CrowdSec never reads it.
-- **Loki (search surface):** the VPS Alloy tails `/var/log/remote-syslog/routeros.log`
-  (`loki.source.file "routeros_syslog"` + `loki.process.routeros`, `job=routeros-syslog`) → Loki (14d);
+- **VictoriaLogs (search surface):** the VPS Alloy tails `/var/log/remote-syslog/routeros.log`
+  (`loki.source.file "routeros_syslog"` + `loki.process.routeros`, `job=routeros-syslog`) → VictoriaLogs (90d);
   Grafana the query surface — no second log backend.
 - **Deploy-gated → LIVE 2026-09-08:** the RB4011-side `system/logging` + `logpipe` user are
   live; the VPS-side rsyslog (live), CrowdSec acquis + Alloy are live and the end-to-end log

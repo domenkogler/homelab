@@ -44,7 +44,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Dashboard (Homepage) | `traefik-public` |
 | Dashboard (Metabase) | `traefik-public` **+** `services-internal` |
 | Observe (Alloy) | host (`docker.sock`) + `services-internal` |
-| Observe (Prometheus, Loki) | `db-internal` |
+| Observe (VictoriaMetrics, VictoriaLogs) | `db-internal` |
 | Observe (Grafana) | `traefik-public` **+** `db-internal` (needs to query backends) |
 | Observe (blackbox-exporter) | `services-internal` |
 | Observe logs viewer (Dozzle) | `traefik-public` (read-only `docker.sock`) · on the **VPS** (HD-135b) |
@@ -225,9 +225,9 @@ deploy-service.yml and are BIND-MOUNTED into the containers. Two consequences, b
 2. **Exclusions are semantic, not arbitrary:** `.env.j2` extras (kopia-server/agent) feed compose
    `${}` interpolation, where a change IS a spec change and `up -d` already recreated — restarting
    again would be a double bounce. `traefik` / `traefik-ha` dynamic files sit in the file-provider
-   watch dir and hot-reload in-process; restarting Traefik would only drop edge traffic. Prometheus
-   is restarted deliberately: its scrape-config churn costs one short gap, while the web-config
-   (basic auth, HD-59) is read at startup only.
+   watch dir and hot-reload in-process; restarting Traefik would only drop edge traffic. VictoriaMetrics
+   (and VictoriaLogs) is restarted deliberately: its config churn costs one short gap, while the HTTP
+   auth (basic auth via victoria-metrics_api/victoria-logs_api, HD-341) is read at startup only.
 
 If a future extra must NOT trigger this restart, extend the guard's exclusion list in
 deploy-service.yml rather than bypassing the render registration.
@@ -254,12 +254,12 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the naming convention.
 
 ## Observability / TSDB Retention
 
-- **Prometheus:** retention 30d, data on oldsrv local disk
-- **Loki:** single-node/SSD, retention 14d, compaction on, filesystem/TSDB store
+- **VictoriaMetrics:** retention 365d (metrics, pure storage), `db-internal`
+- **VictoriaLogs:** retention 90d (logs), `db-internal`
 - **Grafana:** attached to **both** `traefik-public` + `db-internal`
-- **Alloy:** host-installed (Ansible), mounts `docker.sock` for container logs
-- **HA exporter:** HA exposes `/api/prometheus` (bearer token); Prometheus scrapes it — entities become metrics
-- TSDB data is **regenerable, not backed up** (see `backup.md`); retention is deliberate
+- **Alloy:** host-installed (Ansible), mounts `docker.sock` for container logs; **the single scrape tier** (topology B)
+- **HA exporter:** HA exposes `/api/prometheus` (bearer token); Alloy scrapes it — entities become metrics
+- TSDB data is **Kopia-backed** (VM/VL volumes, see `backup.md`); retention is deliberate (365d/90d)
 
 ## Common Patterns
 
@@ -334,10 +334,9 @@ services:
   BOTH the oldsrv primary and the Pi secondary, and the Pi has no oldsrv-style `/srv/docker` ZFS dataset
   layout; Kopia covers `/opt/*`, so backup coverage is intact. Revisit only if per-host state paths are
   ever introduced.
-- `prometheus` keeps its TSDB in the named volume `prometheus-data` — regenerable data (scrape/
-  remote_write sources re-send after loss), deliberately NOT backed up ([backup.md](backup.md)), growth
-  bounded by 30d retention. That places it on the ephemeral/utility side of the named-volume rule, not
-  the stateful/backed-up side.
+- `victoria-metrics` keeps its TSDB in the host bind `/srv/docker/victoria-metrics/data` — **Kopia-backed**
+  (per the HD-341/342 owner decision reversing the old regenerable-TSDB doctrine; see `backup.md`), growth
+  bounded by 365d retention.
 
 ---
 
@@ -393,7 +392,9 @@ sibling services have no auth. Apply minimum auth per service:
 
 - **Services accepting API requests:** require token/key/header where the service supports it (n8n API key). **Ollama has NO native server auth** (`OLLAMA_AUTH_*` applies only to ollama.com cloud, not the local API) — the control instead is **network isolation**: Ollama sits on the dedicated **`llm-backend`** overlay reachable only by LiteLLM (HD-59), not `services-internal`.
 - **Backup servers:** always require server auth. **Kopia uses `--htpasswd-file`** (the server has **no `--password` flag** — `--password`/`--without-password` are repo/at-rest vs network concerns). Kopia's htpasswd parser accepts plaintext `user:password` (0600); secret = `kopia-server-internal_api`. Never `--without-password` (HD-59).
-- **Observability UIs:** protect scrape/config endpoints — Prometheus `--web.config.file` with **bcrypt** `basic_auth_users` (`prometheus-internal_api`; hash via `scripts/gen-htpasswd.py`); endpoint stays loopback-only (HD-62) (HD-59).
+- **VictoriaMetrics / VictoriaLogs:** protect the HTTP endpoints — their own `-httpAuth.username`/
+  `-httpAuth.password` (plaintext basic auth, HD-341) via `victoria-metrics_api`/`victoria-logs_api`;
+  endpoints stay loopback + wg-s2s-bound (HD-62).
 - **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
 
 #### Sibling-auth coverage map (HD-160)
@@ -407,7 +408,7 @@ overlay can't write to a sibling (extends HD-59). Cross-host reaches (`immich-ap
 |---|---|---|---|---|
 | n8n → signal-cli | VPS → oldsrv (WG) | `X-Api-Key` (`SIGNAL_CLI_API_TOKEN`) | `signal-internal_api` | ✅ HD-125 |
 | backup clients → kopia | VPS (WG) | `--htpasswd-file` Basic | `kopia-server-internal_api` | ✅ HD-59 |
-| grafana/alloy → prometheus | VPS | `--web.config.file` bcrypt | `prometheus-internal_api` | ✅ HD-59 |
+| VictoriaMetrics/VictoriaLogs auth | VPS | `-httpAuth` plaintext basic auth | `victoria-metrics_api` / `victoria-logs_api` | ✅ HD-341/342 |
 | litellm → ollama | VPS → oldsrv (WG) | **network isolation** (`llm-backend`, no native auth) | — | ✅ HD-59 |
 | open-webui / openclaw → litellm | VPS | `LITELLM_MASTER_KEY` bearer | `litellm_master_key` | ✅ HD-100 |
 | openclaw → opencloud (WebDAV) | VPS | OpenCloud **app-specific password** (scoped service user) | `openclaw-opencloud_api` | ✅ IaC (HD-160) |

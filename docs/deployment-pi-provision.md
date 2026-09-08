@@ -39,7 +39,7 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 
 | # | Check | How to verify |
 |---|-------|---------------|
-| 1 | Vault items present | `ha-vrrp_password`, `smtp_login`, `meteoblue_api`, `ha-failover_api` (standby-only) — **all confirmed present** 2026-09-03. `ha_api` is **NOT required** for the Pi (it gates the `monitoring` role's Prometheus scrape token via `prometheus_ha_exporter`; not a HA YAML secret). |
+| 1 | Vault items present | `ha-vrrp_password`, `smtp_login`, `meteoblue_api`, `ha-failover_api` (standby-only) — **all confirmed present** 2026-09-03. `ha_api` is **NOT required** for the Pi (it gates the `monitoring` role's Alloy HA-exporter scrape token via `prometheus_ha_exporter`; not a HA YAML secret). |
 | 2 | Pi reachable | `ping 10.10.1.20` + `ssh ansible-admin@10.10.1.20 'echo ok'` (SSH via 1Password SSH agent / `~/.ssh/config`). Verified live this session. |
 | 3 | Router static reservations | Pi Home `10.10.1.20` + Mgmt `10.10.99.20` bound (SSOT `network_static_hosts`; live-verified 2026-09-01/02). |
 | 4 | Oldsrv standby config renders (cold) | `home_servers.yml` on oldsrv already renders `/opt/home-assistant-standby/` (cold; not started). Not a blocker for the Pi. |

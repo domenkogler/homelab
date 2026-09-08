@@ -278,7 +278,7 @@
 # blob it cannot resolve at query time (wire-capture proof: queries left WITHOUT the
 # Authorization header / "Authentication to data source failed"), while API-created
 # secrets are proven correct. Idempotent: created only when absent. ROTATION of
-# prometheus-internal_api = delete the datasource (API/UI) then re-run this role.
+# victoria-metrics_api = delete the datasource (API/UI) then re-run this role.
 - name: Read grafana admin password from container env
   ansible.builtin.command:
     cmd: docker exec grafana printenv GF_SECURITY_ADMIN_PASSWORD

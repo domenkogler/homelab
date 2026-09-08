@@ -180,10 +180,10 @@ homepage_failover_button: false
 homepage_show_technical: true
 homepage_show_soon: true
 
-# Prometheus HA-exporter scrape job (prometheus.yml.j2): OFF until the Phase-4 HA cutover
-# (HD-04). Today nothing can populate /etc/prometheus/ha_token (no vault item, no monitoring
-# render) and ha_vip serves no HA yet - a live job would just fail. Flip true at HD-04 with
-# the HA long-lived-token item seeded.
+# HA-exporter scrape job (Alloy `ha_exporter` block, topology B): OFF until the Phase-4 HA
+# cutover (HD-04). Today nothing can populate /etc/prometheus/ha_token (no vault item, no
+# monitoring render) and ha_vip serves no HA yet - a live job would just fail. Flip true at
+# HD-04 with the HA long-lived-token item seeded.
 prometheus_ha_exporter: false
 
 # HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge (traefik-tailnet)

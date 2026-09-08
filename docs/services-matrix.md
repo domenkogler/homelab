@@ -113,7 +113,7 @@ Phones / Element X ─────────────  same homeserver /log
 
 ## Observability & Alerting (optional consolidation)
 
-- Homeserver exposes metrics; scrape into Prometheus (`/metrics`) as part of the stack.
+- Homeserver exposes metrics; Alloy scrapes into VictoriaMetrics (`/metrics`) as part of the stack.
 - **Optional:** expose a `#homelab` room and route Grafana alerts to it so alerting can also reach
   Matrix — alongside the existing Signal + SMTP fail-safe. See [`observability.md`](observability.md).
 

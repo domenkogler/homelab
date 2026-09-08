@@ -78,7 +78,7 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
     traefik.http.routers.traefik-dash.service: api@internal
     traefik.http.routers.traefik-dash.middlewares: authentik-forward-auth@file
   ```
-- Useful for tracing the routing/middleware chain; service metrics still flow to Prometheus (see [`observability.md`](observability.md)).
+- Useful for tracing the routing/middleware chain; service metrics still flow to VictoriaMetrics (see [`observability.md`](observability.md)).
 - Decision: **included**; Portainer/Dockge **excluded** (see [`services.md`](services.md)).
 
 ## Traefik-tailnet — the tailnet edge for admin dashboards (HD-135b follow-up, 2026-08-28)
