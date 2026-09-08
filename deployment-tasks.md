@@ -408,9 +408,10 @@
 
 ## Phase 6 — Observability & Alerting Hardening
 
-> **Depends on:** Phase 3 (monitoring role, Prometheus/Loki/Grafana central), Phase 4 (HA exporter).
+> **Depends on:** Phase 3 (monitoring role — VictoriaMetrics/VictoriaLogs/Grafana central, HD-342), Phase 4 (HA exporter).
 > **1Password prerequisites:** existing — `ha_api` (HA bearer), `smtp_login`,
-> `signal_api` (Signal notify via n8n). **Runs in parallel with Phase 5+.**
+> `signal_api` (Signal notify via n8n). **Runs in parallel with Phase 5+.
+> **Victoria* migration (HD-341/342/344, 2026-09-08):** IaC authored + merged (VM/VL replace Prometheus/Loki, Alloy scrapes all — topology B, retention 365d/90d, MCP on oldsrv). **Deploy-gated:** seed `victoria-metrics_api`/`victoria-logs_api` (1P), converge VPS → verify datasources/dashboards/alerts, then oldsrv MCP (HD-344). See `todo.md` §2.12 + `docs/observability.md`.****
 
 - UPS metrics + alerts in Grafana (Critical battery/runtime, Warning on-battery, Info transitions) — **HD-08**
 - UPS web-UI firewall rule (80/443 Home→Mgmt for the `ups` host only, + touches Phase 1.5 firewall) — **HD-09**

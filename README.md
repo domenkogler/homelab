@@ -53,7 +53,7 @@ task-specific dispatch. Do **not** bulk-read the repo.
 ## 2. State of the world (as of 2026-09-04)
 
 - **Phase 1 (VPS edge) is live.** The VPS runs its full enabled `docker_services` set — Traefik,
-  Authentik, the observability backend (prometheus/loki/grafana/blackbox), Technitium DNS primary, etc.
+  Authentik, the observability backend (victoria-metrics/victoria-logs/grafana/blackbox — Victoria migration HD-341/342 IaC authored, deploy-gated), Technitium DNS primary, etc.
   Evidence: the owning-service docs (✅ status lines) + [`deployment-tasks.md`](deployment-tasks.md) checkbox
   dates + git commit messages; the as-built journal and changelog were frozen 2026-09-01
   (`reports/`, archive-only). **Phase 2 (nas) and Phase 4 (Pi) are provisioned + LIVE (2026-09-03).**
