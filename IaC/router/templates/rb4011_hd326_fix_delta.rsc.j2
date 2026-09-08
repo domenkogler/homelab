@@ -1,0 +1,117 @@
+{#- RB4011 — HD-326/HD-312 live apply DELTA (2026-09-08).
+    Purpose: converge the live router's firewall to SSOT for the HD-326 per-MAC
+    kids controls + HD-312/325 cloud-IoT WAN egress, without a full converge import.
+
+    Live state found 2026-09-08 (before this delta):
+      FORWARD chain tail (rules ~44-61) appended AFTER the Home->WAN accept (13)
+      and the Default deny (29) — so the HD-326 bedtime/DoT drops, the
+      iot-wan-allow accepts, and the HD-342 DoT drops were ALL placed BELOW the
+      Home->WAN accept / IoT->WAN drop that already permits egress → first-match
+      wins → the per-MAC machinery was INERT (cloud-IoT WAN still blocked; kids
+      bedtime/DoT not enforced).
+      Also: 4 duplicate HD-326 bedtime WAN-drop rules + 2 duplicate HD-342
+      DoT-drop rules (from double imports, 2026-09-07), and the HD-326
+      tablet-valentina filtered-DNS NAT was MISSING (only tablet-ipad present).
+
+    This delta (idempotent, comment-driven, safe to re-import):
+      A) REMOVE the duplicate bedtime WAN drops (comment match, keep one per MAC
+         at the CORRECT position below).
+      B) REMOVE the duplicate HD-342 DoT drops (keep one tcp + one udp).
+      C) REMOVE the stray below-position HD-326/iotean rules, then RE-ADD the
+         SSOT set ABOVE the Home->WAN accept / IoT->WAN drop (correct order).
+      D) ADD the missing tablet-valentina filtered-DNS NAT (UDP+TCP) + keep the
+         iPad NAT (idempotent guard).
+
+    Apply: /import rb4011_hd326_fix_delta.rsc  (via scripts/routeros-apply-delta.sh)
+    Fold-back: the SSOT converge template rb4011_converge.rsc.j2 now carries the
+    full set + order (2026-09-08); this delta is TRANSIENT and is deleted once the
+    converge import is the live state (network-ops.md 3-tier).
+-#}
+# =============================================================================
+# RB4011 — HD-326 kids + HD-312/325 cloud-IoT WAN live-apply DELTA (2026-09-08)
+# =============================================================================
+:log warning "rb4011_hd326_fix_delta.rsc: start"
+
+# ---- A. Remove DUPLICATE HD-326 bedtime WAN drops (keep the SSOT set below) ----
+# The live device has 4 extra bedtime rules (double-import residue). Remove every
+# HD-326 bedtime rule, then re-add exactly the SSOT set at the correct position.
+/ip firewall filter remove [find where comment~"HD-326 kids bedtime WAN drop"]
+# ---- B. Remove DUPLICATE HD-342 DoT drops (keep one tcp + one udp) ----
+/ip firewall filter remove [find where comment~"IoT -> DoT bypass drop" and chain=forward]
+# (re-added below with the HD-342 row, matching the converge position)
+
+# ---- C. Remove the stray below-position rules + re-add the SSOT set ABOVE WAN accepts ----
+# Remove ALL HD-326 per-MAC filter rules (they were below the Home->WAN accept),
+# then re-add them in the correct position (right after the DNS accepts, before
+# the Home->WAN accept). Same for the iot-wan-allow accepts (must sit above the
+# IoT->WAN drop) and the HD-342 DoT drops (must sit above the Default deny).
+/ip firewall filter remove [find where comment~"HD-326 kids DoT-bypass drop"]
+/ip firewall filter remove [find where comment~"HD-326 kids bedtime WAN drop"]
+/ip firewall filter remove [find where comment~"IoT cloud device -> WAN allowed via iot-wan-allow"]
+/ip firewall filter remove [find where comment~"IoT -> DoT bypass drop" and chain=forward]
+
+# ---- C1. iot-wan-allow: cloud-IoT per-MAC WAN egress ABOVE the IoT->WAN drop ----
+# Target row: insert BEFORE the rule with comment "IoT -> WAN drop (disable for firmware)".
+:local iotDrop [/ip firewall filter find where chain=forward and comment="IoT -> WAN drop (disable for firmware)"]
+:if ($iotDrop = "") do={ :error "HD-326 delta: IoT->WAN drop rule not found — aborting" }
+{% for h in network_static_hosts %}{% if h.mac is defined and h.vlan == 20 and h.wan_allow is defined and h.wan_allow %}
+/ip firewall filter add chain=forward src-address=10.10.20.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom action=accept comment="IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ h.name }}"
+{% endif %}{% endfor %}
+# Move them ABOVE the IoT->WAN drop (first-match: accept before the drop).
+{% for h in network_static_hosts %}{% if h.mac is defined and h.vlan == 20 and h.wan_allow is defined and h.wan_allow %}
+:local r {{ loop.index0 }}
+:local acc [/ip firewall filter find where chain=forward and comment="IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ h.name }}"]
+:if ($acc != "") do={ /ip firewall filter move $acc destination=$iotDrop }
+{% endif %}{% endfor %}
+
+# ---- C2. HD-326 kids controls ABOVE the Home->WAN accept ----
+# Target row: the rule BEFORE which the kids rules must sit = the rule just above
+# the Home->WAN accept (the DNS-accept block). Easier: insert ABOVE the
+# Home->WAN accept itself.
+:local homeWan [/ip firewall filter find where chain=forward and comment="Home -> WAN allowed (HD-309 row 73)"]
+:if ($homeWan = "") do={ :error "HD-326 delta: Home->WAN accept rule not found — aborting" }
+{% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
+/ip firewall filter add chain=forward src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom protocol=tcp dst-port=853 action=drop comment="HD-326 kids DoT-bypass drop (853): {{ h.name }}"
+/ip firewall filter add chain=forward src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun action=drop comment="HD-326 kids bedtime WAN drop (22:00-07:00): {{ h.name }}"
+{% endif %}{% endfor %}
+# Move them ABOVE the Home->WAN accept (first-match: drop before the accept).
+{% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
+:local r {{ loop.index0 }}
+:local dot [/ip firewall filter find where chain=forward and comment="HD-326 kids DoT-bypass drop (853): {{ h.name }}"]
+:if ($dot != "") do={ /ip firewall filter move $dot destination=$homeWan }
+:local bed [/ip firewall filter find where chain=forward and comment="HD-326 kids bedtime WAN drop (22:00-07:00): {{ h.name }}"]
+:if ($bed != "") do={ /ip firewall filter move $bed destination=$homeWan }
+{% endif %}{% endfor %}
+
+# ---- C3. HD-342 DoT drops (IoT, one UDP + one TCP) ABOVE the Default deny ----
+:local defDeny [/ip firewall filter find where chain=forward and comment="Default deny inter-VLAN"]
+:local iotDotTcp [/ip firewall filter find where chain=forward and src-address=10.10.20.0/24 and protocol=tcp and dst-port=853]
+:local iotDotUdp [/ip firewall filter find where chain=forward and src-address=10.10.20.0/24 and protocol=udp and dst-port=853]
+:if ($iotDotTcp = "") do={ /ip firewall filter add chain=forward src-address=10.10.20.0/24 protocol=tcp dst-port=853 action=drop comment="IoT -> DoT bypass drop tcp (HD-342)" }
+:if ($iotDotUdp = "") do={ /ip firewall filter add chain=forward src-address=10.10.20.0/24 protocol=udp dst-port=853 action=drop comment="IoT -> DoT bypass drop udp (HD-342)" }
+:if ($defDeny != "") do={
+  :local t [/ip firewall filter find where chain=forward and comment="IoT -> DoT bypass drop tcp (HD-342)"]
+  :if ($t != "") do={ /ip firewall filter move $t destination=$defDeny }
+  :local u [/ip firewall filter find where chain=forward and comment="IoT -> DoT bypass drop udp (HD-342)"]
+  :if ($u != "") do={ /ip firewall filter move $u destination=$defDeny }
+}
+
+# ---- D. NAT: ensure per-MAC kids filtered DNS for BOTH kids devices ----
+# The live NAT only had the iPad (tablet-ipad); add the missing tablet-valentina.
+:local vip {{ dns_primary_ip }}
+{% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
+:if ([/ip firewall nat find where chain=dstnat and src-address=10.10.1.0/24 and src-mac-address={{ h.mac }} and protocol=udp and dst-port=53] = "") do={
+  /ip firewall nat add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=udp dst-port=53 action=dst-nat to-addresses=$vip to-ports=53 comment="HD-326 kids filtered DNS - UDP 53 -> Technitium: {{ h.name }}"
+}
+:if ([/ip firewall nat find where chain=dstnat and src-address=10.10.1.0/24 and src-mac-address={{ h.mac }} and protocol=tcp and dst-port=53] = "") do={
+  /ip firewall nat add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=tcp dst-port=53 action=dst-nat to-addresses=$vip to-ports=53 comment="HD-326 kids filtered DNS - TCP 53 -> Technitium: {{ h.name }}"
+}
+{% endif %}{% endfor %}
+
+:log warning "rb4011_hd326_fix_delta.rsc: done"
+# =============================================================================
+# Verify:
+#   /ip firewall filter print where chain=forward sequence=... (kids + iot-wan ABOVE
+#     the Home->WAN accept / IoT->WAN drop; DEFAULT deny LAST)
+#   /ip firewall nat print -> 4 dstnat rows (2 kids devices x udp+tcp)
+# =============================================================================
