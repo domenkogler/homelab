@@ -20,6 +20,11 @@ vps_host:
     iface_gbit: 2.5          # flatrate traffic; throttled to 300 MBit/s if >3 TB rolling / 24 h
   # SSH connection facts (ansible_user, ansible_host) live in host_vars/vps.kogler.si.yml.
 
+# Grafana SMTP relay (HD-241 companion fix 2026-09-08): the VPS is its own group (not home_servers),
+# so the home_servers.yml `grafana_smtp_host` never applied — VPS Grafana fell back to `localhost:25`
+# (dead). Derive from the smtp2go SSOT (2525) so VPS Grafana can send alerts/emails.
+grafana_smtp_host: "{{ smtp2go_host }}:{{ smtp2go_port }}"
+
 docker_services:
   # ORDERING CONSTRAINT (HD-146): `authentik` MUST appear before every native-OIDC consumer
   # (opencloud, immich-app, forgejo, open-webui, matrix, headscale…). The docker_services
