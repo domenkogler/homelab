@@ -117,8 +117,8 @@ _template_vault_items:
   home-assistant-standby: {'ha-vrrp_password'}
   immich-app: {'immich_oidc', 'immich-ml-internal_api', 'immich_db'}
   immich-ml: {'immich-ml-internal_api'}
-  kopia-agent: {'kopia_password', 'kopia-server-internal_api'}
-  kopia-server: {'kopia_password', 'kopia-server-internal_api'}
+  kopia-agent: {'kopia_password', 'kopia-server-internal_api', 'kopia-server_fingerprint'}
+  kopia-server: {'kopia_password', 'kopia-server-internal_api'}   # NB: kopia-server_fingerprint NOT fetched here — cannot exist before kopia-server first start seeds it (HD-318a); only the AGENT (oldsrv, later play) consumes it
   litellm: {'litellm_master_key', 'cohere_api', 'litellm_db', 'openrouter_api'}
   matrix: {'matrix_api', 'matrix_password'}
   metabase: {'smtp_login', 'metabase-forgejo_ro'}   # forgejo_ro needed by the db_ro_sync task (vault-dict read, HD-268)

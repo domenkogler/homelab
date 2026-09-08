@@ -45,10 +45,12 @@ Kopia targets the **backup Box over SSH/SFTP (port 23)** — the Hetzner Storage
 only, NOT S3** (HD-31/HD-135); iDrive e2 S3 was dropped.
 
 The **oldsrv agent runs containerized** (HD-191/HD-204): it connects to `kopia-server` on the VPS over
-the **WG S2S tunnel** — server port 51515 is bound **only to the VPS tunnel address** (`wg_s2s_vps.ip`,
-never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach stays scoped by the
-S2S ACL (HD-155). Agent sources are oldsrv-local, read-only: `/opt/*` configs, `/srv/dumps` scratch,
-the immich upload/thumb dir, and the signal-cli state volume.
+**HTTPS on the WG S2S tunnel** (HD-318a, live 2026-09-08: kopia 0.23.x rejects `http://`; the server
+serves a persisted self-signed cert and the agent pins its stable SHA-256 fingerprint
+`kopia-server_fingerprint` 1P item) — server port 51515 is bound **only to the VPS tunnel address**
+(`wg_s2s_vps.ip`, never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach stays
+scoped by the S2S ACL (HD-155). Agent sources are oldsrv-local, read-only: `/opt/*` configs,
+`/srv/dumps` scratch, the immich upload/thumb dir, and the signal-cli state volume.
 
 > **kopia-server first-run gate gotcha (HD-271-followup, live 2026-08-28):** the server's first-run
 > bootstrap (`kopia repository create sftp`) must be gated on **`repository.config`** (kopia's

@@ -129,6 +129,14 @@ kopia_sftp_port: 23          # non-standard Hetzner SSH/SFTP port
 kopia_sftp_user: u653424     # SSH key auth (no password) — key in 1Password Hertzner-SB-Backup
 kopia_sftp_path: kopia           # RELATIVE to box home (2026-08-23: Hetzner SFTP returns SSH_FX_FAILURE for the "/" component of absolute paths, breaking kopia create-path even when the dir pre-exists)
 
+# HD-318a: kopia-server TLS trust anchor — the SHA-256 (DER) fingerprint of the persisted
+# self-signed cert under /srv/docker/kopia-server/config/tls.crt, lowercase hex, recomputed on
+# first start and stored in 1Password `kopia-server_fingerprint` (catalog-generated, NOT auto-
+# rotatable). The oldsrv agent pins it (`kopia repository connect server --server-cert-fingerprint`)
+# because kopia 0.23.x rejects plain-http:// and an in-memory generated cert would change the
+# fingerprint on every restart. See docs/backup.md and deployment-compose.md.
+kopia_server_fingerprint_item: kopia-server_fingerprint   # 1P item (Password) holding the trust anchor
+
 # ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses-generated.md) ====
 # Hand-edit here ONLY; regenerate docs/network-addresses-generated.md after changes.
 #

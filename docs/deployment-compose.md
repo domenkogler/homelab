@@ -378,8 +378,12 @@ services:
 >   `/app/data`): mount the correct target + `bind_owner_uid`/`bind_dirs` on the docker_services entry
 >   (deploy-service.yml Class-A pre-create).
 > - **kopia image**: entrypoint is `/bin/kopia` (clear with `entrypoint: []` before a `command: sh -c`);
->   needs writable `/app/logs`; `connect server` in 0.23.1 requires `https://` (server runs `--insecure`
->   http — scheme/version decision pending HD-318 tail).
+>   needs writable `/app/logs`. **TLS (HD-318a, RESOLVED 2026-09-08):** `kopia repository connect server`
+>   in 0.23.x hard-requires `https://` (no client-side `--insecure`) — the server serves a PERSISTED
+>   self-signed cert (`--tls-cert-file`/`--tls-key-file`, generated once under
+>   `/srv/docker/kopia-server/config/`) and the agent pins its stable SHA-256 fingerprint
+>   (`--server-cert-fingerprint`, 1P `kopia-server_fingerprint`). kopia's own `--tls-generate-cert`
+>   (in-memory) would change the fingerprint on every restart — never use it here.
 
 ### Internal Service Authentication
 
