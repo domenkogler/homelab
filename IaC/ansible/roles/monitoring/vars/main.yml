@@ -21,16 +21,27 @@ grafana_alert_rules:
       for: 1m
       expr: "network_ups_tools_battery_charge < 20"
       summary: "UPS battery below 20% — impending shutdown"
+      # noData=OK: battery_charge has a live series (nut_exporter, nas) — when it is
+      # absent that is a collection gap, not a low battery; no-data must not page.
+      noDataState: OK
+      execErrState: Error
     - uid: ups-runtime-low
       title: UPS runtime low
       for: 1m
       expr: "network_ups_tools_battery_runtime < 300"
       summary: "UPS runtime below 5 min — impending shutdown"
+      # noData=OK: same as ups-battery-low — collection gap ≠ low runtime.
+      noDataState: OK
+      execErrState: Error
     - uid: public-service-down
       title: Public service unreachable
       for: 2m
       expr: 'probe_success{job="blackbox_http_probes"} == 0'
       summary: "Unreachable public service (probe_success = 0)"
+      # noData=OK: if blackbox_http_probes produces no series (config/job gap), that is
+      # NOT every public service being down — only fire when a series exists and is 0.
+      noDataState: OK
+      execErrState: Error
     - uid: host-unreachable
       title: Host unreachable
       for: 2m
@@ -99,21 +110,37 @@ grafana_alert_rules:
       # (The old modulo-bitmask expr was for a different exporter's nut_ups_status int.)
       expr: "network_ups_tools_ups_status{flag=\"OB\"} == 1"
       summary: "UPS is on battery — mains lost (auto-clears on return)"
+      # noData=OK: the status flag series exists (15 flag labels) — absent series = no
+      # status, not on-battery; only fire when OB=1 explicitly.
+      noDataState: OK
+      execErrState: Error
     - uid: ups-battery-replace
       title: UPS battery needs replacement
       for: 10m
       expr: "network_ups_tools_ups_status{flag=\"RB\"} == 1"
       summary: "UPS reports Replace-Battery flag"
+      # noData=OK: absent series = no status, not a replace-battery condition.
+      noDataState: OK
+      execErrState: Error
     - uid: mikrotik-link-down
       title: MikroTik link down
       for: 1m
       expr: 'ifOperStatus{job="alloy-snmp"} == 2 and on(instance, ifIndex) ifAdminStatus{job="alloy-snmp"} == 1'
       summary: !unsafe "MikroTik interface {{ $labels.ifName }} is down (oper down, admin up)"
+      # noData=OK: live ifOperStatus/alloy-snmp has ZERO series today (the SNMP export on
+      # this backend is not shipping) — that is NOT every MikroTik interface being down;
+      # only fire when a series exists and reports oper-down on an admin-up link.
+      noDataState: OK
+      execErrState: Error
     - uid: ha-unreachable
       title: Home Assistant unreachable
       for: 1m
       expr: 'probe_success{job="blackbox_http_probes", instance="https://ha.kogler.si"} == 0'
       summary: "ha.kogler.si HTTP probe failed"
+      # noData=OK: absent probe_success series ≠ HA down; only fire when the probe runs
+      # and reports 0 (same class as host-unreachable).
+      noDataState: OK
+      execErrState: Error
     - uid: ssl-cert-expiring
       title: TLS certificate expiring soon
       for: 5m
@@ -121,6 +148,11 @@ grafana_alert_rules:
       summary: !unsafe "TLS cert on {{ $labels.instance }} expires in under 14 days"
       # KOPS-061: the Pi traefik-ha edge serves a pulled wildcard cert (ACME disabled) —
       # alert before expiry so it is renewed on the VPS (the single ACME issuer) while it is up.
+      # noData=OK: probe_ssl_earliest_cert_expiry has ZERO series live (blackbox isn't
+      # emitting SSL expiry for these probes) — no-data must not fire "cert expiring".
+      # (This rule only becomes meaningful once blackbox emits the SSL series.)
+      noDataState: OK
+      execErrState: Error
     - uid: host-load-high
       title: Host load high
       for: 5m
