@@ -17,10 +17,9 @@ Rows where the AI can act **now** without any new human input. Inline notes flag
 | HD-217 | 2 | Homepage failover-button gate off on next green vps.yml | The IaC + owner sign-off are done; just render/deploy |
 | HD-159 | 2 | `wg-s2s-down` alert live-verify | AI can run the deliberate `wg down` test (needs a brief planned tunnel-down window) |
 | **Storage / UPS** ||||
-| HD-220 | 1 | Kopia seed (config dir still empty) | 1P item + converge — no owner input (renovate token check **is** owner: see Table B) |
 | HD-132 | 2 | Authentik-LDAP provider + outpost + seed `authentik-ldap_bind` + live-verify Samba | nas (Phase 2) is live; provider/outpost creation + seeding are API/1P work |
 | HD-207 | 1 | Landing-zone redistribution **mechanics** | Moving data is AI-work; only the final *media rename vs personal-files* call is owner (split) |
-| HD-191 | 2 | oldsrv Kopia agent — first snapshot + volume-name pin verify | Chains on VPS kopia-server → HD-318a (Table B) once the VPS leg converges |
+| HD-191 | 2 | oldsrv Kopia **restore drill** + volume-name pin (first snapshot DONE 2026-09-08) | Machine-recover one snapshot; owner confirms the restore target |
 | **Platform / secrets** ||||
 | HD-286 | 2 | Vault-escape doc comments in TOML/env/yaml template headers | ✅ Done 2026-09-08 — comments added to every TOML/env/yaml header rendering vault values |
 | HD-211 | 1 | `expiring=False` verification of every persisted Authentik API token | ✅ Done 2026-09-08 (Authentik API audit) — only on-exposure rotation of `vps-op-write_api` remains = owner, Table B |
@@ -78,7 +77,7 @@ Grouped by *why* it's blocked. The first two groups are the real unblockers — 
 | HD-288 | 3 | Sunshine live-verify (Moonlight round-trip) | Chains on oldsrv Phase-3 (manual-start test) |
 | HD-46 / HD-122 | 4/2 | Matrix IaC deploy + federation live-verify | Chains on Phase-3 hosts + owner OIDC records (HD-147) |
 | **Group 2 — owner manual / physical / browser / 1P seeding** ||||
-| HD-08 / HD-06 | 1/2 | UPS battery-pull test | Owner **physical** test (feeds HD-06/07/08 close-out) |
+| HD-08 / HD-06 | 1/2 | UPS battery-pull test | Owner **physical** test — all client legs (nas/oldsrv/pi) now ACTIVE (2026-09-08), so the pull exercises OB/RB + alerts end-to-end |
 | HD-319 | 1 | Confirm 3 rekuperator GAs (12/1/*) answer on the KNX bus | Owner verify (HA UI / panel warnings) |
 | HD-316 | 1 | Homepage launchpad — family sees apps green; technical section renders | Owner **visual** verify |
 | HD-315 | 1 | Grafana dashboard render-verify with data (post-Victoria) | Owner **visual** verify (panels + data sanity; **data now flowing** — all 4 hosts + probes, HD-346 closeout) |
