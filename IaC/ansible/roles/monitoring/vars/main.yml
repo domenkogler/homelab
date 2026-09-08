@@ -34,6 +34,10 @@ grafana_alert_rules:
       for: 2m
       expr: 'probe_success{job="blackbox_icmp"} == 0'
       summary: "Host unreachable (ICMP probe failed)"
+      # noData=NoData: when blackbox_icmp produces NO series at all (e.g. config
+      # issue), that is NOT a host-down — only fire when a series exists and is 0.
+      noDataState: NoData
+      execErrState: Error
     - uid: host-disk-full
       title: Host disk nearly full
       for: 5m
@@ -41,11 +45,18 @@ grafana_alert_rules:
         (node_filesystem_avail_bytes{mountpoint=~"/|/srv|/var/lib/docker"}
         / node_filesystem_size_bytes{mountpoint=~"/|/srv|/var/lib/docker"}) < 0.10
       summary: "Host disk ≥ 90% used"
+      # noData=NoData: if the host-metrics (Alloy) series aren't present, that is
+      # NOT a disk-full condition — it means the data source is missing, which is
+      # the self-monitoring rules' job (prometheus-down), not a disk alert.
+      noDataState: NoData
+      execErrState: Error
     - uid: prometheus-down
       title: Prometheus is down
       for: 2m
       expr: 'up{job="prometheus"} == 0'
       summary: "Prometheus self-scrape failed — alerting data source is dead"
+      # with basic_auth wired on the self-scrape, up{job=prometheus} is real;
+      # keep noData=Alerting as backstop so a dead probe still pages.
       noDataState: Alerting
       execErrState: Alerting
     - uid: zfs-pool-full
@@ -53,16 +64,24 @@ grafana_alert_rules:
       for: 5m
       expr: "(zfs_pool_allocated / zfs_pool_size) * 100 >= 80"
       summary: !unsafe "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥80% used (Critical)"
+      # noData=NoData: an absent pool series is not a pool-full condition.
+      noDataState: NoData
+      execErrState: Error
     - uid: zfs-pool-degraded
       title: ZFS pool degraded
       for: 5m
       expr: "zfs_pool_health == 1"
       summary: !unsafe "ZFS pool {{ $labels.pool }} is DEGRADED"
+      # health=0 means OK; ==1 is degraded. No series = no pool, not degraded.
+      noDataState: NoData
+      execErrState: Error
     - uid: wg-s2s-down
       title: Home<->VPS WireGuard tunnel down
       for: 2m
       expr: 'probe_success{job="wg_icmp"} == 0'
       summary: "wg-s2s tunnel down — home reachable only if the WG link is up"
+      # noData=Alerting only because the probe is essential; if the probe never
+      # produced series (e.g. blackbox_icmp config error), that is also worth paging.
       noDataState: Alerting
       execErrState: Alerting
   warning:
@@ -100,22 +119,31 @@ grafana_alert_rules:
       for: 5m
       expr: "(node_load1 / count(node_cpu_seconds_total)) > 0.85"
       summary: "Host load average above 85% of CPU count"
+      # noData=NoData: absent node_* series (Alloy not reporting) isn't a load spike.
+      noDataState: NoData
+      execErrState: Error
     - uid: loki-down
       title: Loki is down
       for: 2m
       expr: 'up{job="loki"} == 0'
       summary: "Loki self-scrape failed — log store is dead"
-      noDataState: Alerting
-      execErrState: Alerting
+      # up{job=loki} is currently 1 (Loki healthy) — this rule must not fire on
+      # eval-time no-data: only fire when the series explicitly goes 0.
+      noDataState: NoData
+      execErrState: Error
     - uid: n8n-down
       title: n8n is down
       for: 2m
       expr: 'up{job="n8n"} == 0'
       summary: "n8n self-scrape failed — alert router is dead (SMTP failsafe still active)"
-      noDataState: Alerting
-      execErrState: Alerting
+      # with basic_auth on the n8n self-scrape, up{job=n8n} becomes real;
+      # noData=NoData prevents a permanently-missing series from paging.
+      noDataState: NoData
+      execErrState: Error
     - uid: zfs-pool-warn
       title: ZFS pool usage high
       for: 5m
       expr: "(zfs_pool_allocated / zfs_pool_size) * 100 >= 70"
       summary: !unsafe "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥70% used"
+      noDataState: NoData
+      execErrState: Error
