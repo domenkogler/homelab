@@ -1,0 +1,50 @@
+# victoria-logs docker-compose.yml — VictoriaLogs single-node log store (90d, db-internal)
+#   Replaces Loki (HD-342). Receives log pushes from the host Alloy agents
+#   (roles/monitoring templates/alloy.river.j2) at the Loki-compatible ingest endpoint
+#   POST /insert/loki/api/v1/push. Grafana queries VL over db-internal (VictoriaLogs
+#   datasource, uid `loki`).
+#   Retention 90d (owner decision 2026-09-08). Volume is Kopia-backed (docs/backup.md).
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
+#     victoria-logs_api — Basic Auth (plaintext -httpAuth.username/-httpAuth.password) for
+#       the ingest + query endpoints (HD-342). Consumed by Alloy (push) + Grafana (query).
+#       Fail-loud (no default), HD-65.
+#   See docs/observability.md.
+services:
+  victoria-logs:
+    image: victoriametrics/victoria-logs:{{ victoria_logs_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: victoria-logs
+    restart: unless-stopped
+    command:
+      - "-retentionPeriod={{ victoria_logs_retention_days }}d"
+      - "-httpAuth.username={{ vault['victoria-logs_api'].username | replace('$','$$') }}"
+      - "-httpAuth.password={{ vault['victoria-logs_api'].password | replace('$','$$') }}"
+      - "-storageDataPath=/victoria-logs-data"
+    networks:
+      - db-internal
+    ports:
+      # Non-secret `default('')` (CONVENTIONS §3): WG peer-key gate — the loopback fallback
+      # is structural wiring, NOT a 1Password secret (HD-62); the victoria-logs_api
+      # lookup above carries no default (fail-loud, HD-65).
+      # WG bind: oldsrv Alloy log push + future MCP (HD-344) reach VL over wg-s2s.
+      - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:9428:9428"
+      # Loopback bind: the VPS host-APT Alloy self-scrape + any localhost consumer (HD-342).
+      - "127.0.0.1:9428:9428"
+    volumes:
+      # Named volume — VictoriaLogs data (90d retention). Kopia-backed (docs/backup.md).
+      - victoria-logs-data:/victoria-logs-data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9428/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+volumes:
+  victoria-logs-data:
+networks:
+  db-internal:
+    external: true
