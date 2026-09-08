@@ -32,8 +32,8 @@ affected containers. No repo change, no manual templating. The Renovate ->
 Forgejo Actions -> Ansible path applies the same way after a rotation.
 
 CAVEATS (by design):
-  * Coupled fields rotate together: e.g. prometheus-internal_api regenerates
-    its `password` AND its `bcrypt_hash` in lockstep.
+  * Coupled fields rotate together: e.g. the victoria-metrics_api/victoria-logs_api pairs
+    regenerate their `username` + `password` in lockstep.
   * Externally-coupled items (`wg_password`, `matrix_password`, and the OIDC /
     Authentik / DB items) are NOT auto-rotatable by this tool — they have
     consumers outside 1Password (router/VPS tunnel, Matrix shared secret, the
@@ -176,12 +176,10 @@ CATALOG = [
     # Kept in the catalog as a Password item for vault-lineage/NOT_AUTO_ROTATABLE bookkeeping;
     # --create would fail the fingerprint-must-match-live-cert assertion, so it is guarded.
     ("Password", "kopia-server_fingerprint", lambda: []),  # value seeded from the host cert, not generated
-    # prometheus-internal_api: username + password + bcrypt_hash rotate together.
-    ("API Credential", "prometheus-internal_api", lambda: bcrypt_item()),
     # HD-341/342 Victoria* migration: VictoriaMetrics + VictoriaLogs replace Prometheus +
     # Loki on the VPS. Both use Victoria's OWN -httpAuth.username / -httpAuth.password
-    # (plaintext basic-auth — NOT bcrypt like prometheus's web.yml), so the items carry
-    # username + password only. Rotatable (no external/app coupling beyond the re-render).
+    # (plaintext basic-auth — NOT bcrypt like the retired prometheus web.yml), so the items
+    # carry username + password only. Rotatable (no external/app coupling beyond the re-render).
     ("API Credential", "victoria-metrics_api",  lambda: [f"username=victoria", f"password={gen_pw()}"]),
     ("API Credential", "victoria-logs_api",     lambda: [f"username=victoria", f"password={gen_pw()}"]),
 ]
@@ -294,11 +292,6 @@ def bcrypt_hash(password: str) -> str:
     if r.returncode != 0:
         raise RuntimeError(f"bcrypt failed: {r.stderr.strip()}")
     return r.stdout.strip()
-
-
-def bcrypt_item() -> list[str]:
-    pw = gen_pw()
-    return [f"username=prometheus", f"password={pw}", f"bcrypt_hash={bcrypt_hash(pw)}"]
 
 
 def create(category: str, title: str, fields: list[str]) -> bool:

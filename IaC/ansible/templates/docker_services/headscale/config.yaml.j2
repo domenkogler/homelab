@@ -1,5 +1,7 @@
 {{ ansible_managed | comment }}
 # headscale configuration — auto-generated from template.
+# Vault-escape note: this YAML is consumed directly (NOT via `docker compose`
+# interpolation) — vault values pass through unchanged, no `| replace('$','$$')` (HD-270).
 # OIDC provider is declared in the Authentik Blueprint (ks-oidc.yml, HD-142); client
 # creds (`username`=client_id, `credential`=client_secret) are seeded into `headscale_api`
 # by the secret-egress glue (HD-143).

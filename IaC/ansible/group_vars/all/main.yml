@@ -129,6 +129,12 @@ kopia_sftp_port: 23          # non-standard Hetzner SSH/SFTP port
 kopia_sftp_user: u653424     # SSH key auth (no password) — key in 1Password Hertzner-SB-Backup
 kopia_sftp_path: kopia           # RELATIVE to box home (2026-08-23: Hetzner SFTP returns SSH_FX_FAILURE for the "/" component of absolute paths, breaking kopia create-path even when the dir pre-exists)
 
+# HD-318a: the per-client user@host identity the oldsrv backup agent presents
+# (`--override-username=oldsrv-agent --override-hostname=oldsrv.kogler.si`). It must
+# exist in the kopia-server htpasswd as `user@host` (kopia's allowed-entries model),
+# otherwise the agent session is denied. Same credential as kopia-server-internal_api.
+kopia_agent_user: oldsrv-agent@oldsrv.kogler.si
+
 # HD-318a: kopia-server TLS trust anchor — the SHA-256 (DER) fingerprint of the persisted
 # self-signed cert under /srv/docker/kopia-server/config/tls.crt, lowercase hex, recomputed on
 # first start and stored in 1Password `kopia-server_fingerprint` (catalog-generated, NOT auto-

@@ -47,10 +47,18 @@ services:
         set -e
         # Fail loud: server auth identity is REQUIRED (HD-59 / HD-65) — never start an
         # unauthenticated Kopia server on services-internal.
-        : "${KOPIA_SERVER_USER:? kopia-server_internal_api.username missing — aborting}"
-        : "${KOPIA_SERVER_PASSWORD:? kopia-server_internal_api.credential missing — aborting}"
+        : "$${KOPIA_SERVER_USER:? kopia-server_internal_api.username missing — aborting}"
+        : "$${KOPIA_SERVER_PASSWORD:? kopia-server_internal_api.credential missing — aborting}"
         # Write the htpasswd file (plaintext form accepted by tg123/go-htpasswd), 0600.
-        printf '%s:%s\n' "${KOPIA_SERVER_USER}" "${KOPIA_SERVER_PASSWORD}" > /app/config/server.htpasswd
+        # HD-59: the generic `kopia-server-internal_api.username` entry (server admin /
+        # UI identity) AND the per-client `oldsrv-agent@oldsrv.kogler.si` identity the
+        # backup agent presents via `--override-username/--override-hostname` (kopia's
+        # htpasswd-file = allowed `user@hostname` entries; a client whose presented
+        # user@host is absent gets `access denied` — HD-318a live). Both share the same
+        # credential (kopia-server-internal_api.credential); it must match the agent
+        # URL userinfo exactly.
+        printf '%s:%s\n' "$${KOPIA_SERVER_USER}" "$${KOPIA_SERVER_PASSWORD}" > /app/config/server.htpasswd
+        printf '%s:%s\n' "$${KOPIA_AGENT_USER}" "$${KOPIA_SERVER_PASSWORD}" >> /app/config/server.htpasswd
         chmod 600 /app/config/server.htpasswd
         if [ ! -f /app/config/repository.config ]; then
           echo "Creating SFTP repository on backup box..."
@@ -65,13 +73,13 @@ services:
           # HD-271-followup: the old config.json gate re-created an existing repo every boot and
           # crash-looped with "found existing data in storage location" once the repo existed.
           kopia repository create sftp \
-            --username="${KOPIA_SFTP_USER:?}" \
-            --host="${KOPIA_SFTP_HOST:?}" \
-            --port="${KOPIA_SFTP_PORT:?}" \
-            --path="${KOPIA_SFTP_PATH:?}" \
+            --username="$${KOPIA_SFTP_USER:?}" \
+            --host="$${KOPIA_SFTP_HOST:?}" \
+            --port="$${KOPIA_SFTP_PORT:?}" \
+            --path="$${KOPIA_SFTP_PATH:?}" \
             --known-hosts=/app/config/known_hosts \
             --keyfile=/app/config/sftp_key \
-            --password="${KOPIA_PASSWORD:?}"
+            --password="$${KOPIA_PASSWORD:?}"
         fi
         # --- TLS transport (HD-318a): plain-HTTP is HARD-REJECTED by `kopia repository
         # connect server` in 0.23.x ("invalid server address, must be 'https://host:port'") —
@@ -93,7 +101,7 @@ services:
             -out /app/config/tls.crt \
             -days 3650 \
             -subj "/CN=kopia-server" \
-            -addext "subjectAltName=IP:${KOPIA_SERVER_ADDR_HOST:-127.0.0.1},IP:127.0.0.1" \
+            -addext "subjectAltName=IP:$${KOPIA_SERVER_ADDR_HOST:-127.0.0.1},IP:127.0.0.1" \
             >/dev/null 2>&1
           chmod 600 /app/config/tls.key
         fi
@@ -102,6 +110,22 @@ services:
         openssl x509 -in /app/config/tls.crt -noout -fingerprint -sha256 | sed 's/.*=//; s/://g' | tr 'A-Z' 'a-z'
         if [ ! -f /app/config/tls-sha256 ]; then
           openssl x509 -in /app/config/tls.crt -noout -fingerprint -sha256 | sed 's/.*=//; s/://g' | tr 'A-Z' 'a-z' > /app/config/tls-sha256
+        fi
+        # HD-318a: provision the backup-client repository user (kopia's server-auth model:
+        # "Server will allow connections from users whose accounts are stored in the
+        # repository" — the htpasswd alone is NOT sufficient for session auth; the repo
+        # user (user@host) must exist in the users store). The user password is the REPO
+        # MASTER password (KOPIA_PASSWORD) — the same the client uses for `connect server
+        # --password=` (kopia quirk: the per-user password must equal the repo password;
+        # verified live 2026-09-08 — a non-repo-password user was 'access denied' at the
+        # session stage even with a matching htpasswd entry). Idempotent: users add fails
+        # if the user exists, so try set-after-add.
+        if ! kopia server users list | grep -q "^$${KOPIA_AGENT_USER}$"; then
+          echo "Adding kopia repo user $${KOPIA_AGENT_USER}..."
+          kopia server users add "$${KOPIA_AGENT_USER}" --user-password="$${KOPIA_PASSWORD}"
+        else
+          # keep the password in sync with the repo password (idempotent re-seed)
+          kopia server users set "$${KOPIA_AGENT_USER}" --user-password="$${KOPIA_PASSWORD}" || true
         fi
         exec kopia server start --address=0.0.0.0:51515 \
           --tls-cert-file=/app/config/tls.crt \
@@ -126,6 +150,9 @@ services:
       #  the boot command at parse time; a runtime env var is unnecessary and would confuse.)
       KOPIA_SERVER_USER: "{{ vault['kopia-server-internal_api'].username | replace('$','$$') }}"
       KOPIA_SERVER_PASSWORD: "{{ vault['kopia-server-internal_api'].credential | replace('$','$$') }}"
+      # HD-318a: the per-client identity the oldsrv backup agent presents (must exist
+      # in the htpasswd as user@host). Same credential as the server admin entry.
+      KOPIA_AGENT_USER: "{{ kopia_agent_user }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 networks:
   services-internal:

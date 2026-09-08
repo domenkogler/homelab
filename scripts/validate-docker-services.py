@@ -48,9 +48,6 @@ NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent", "traefik-tailnet"}  # qbittorr
 # upstream survive, each with a MUST-pin justification. Everything else was pinned into
 # group_vars/all/versions.yml (registry-verified 2026-08-21).
 ALLOWED_LATEST = {
-    # HD-121 precedent: obscure single-maintainer image facing public federation;
-    # MUST pin to a registry-verified tag at first deploy (tuwunel_version: latest).
-    "matrix",
     # profilarr + profilarr-parser: upstream publishes NO versioned tags (only
     # develop/buildcache/sha256 — probe 2026-08-21); fluid by upstream design,
     # documented in the compose header + versions.yml comment.
@@ -140,6 +137,7 @@ def _load_ssot_ctx():
         "crowdsec_collections", "wildcard_cert_file", "wildcard_cert_key_file",
         "wildcard_cert_domain", "ha_vip", "ha_vip_cidr", "network_ranges",
         "kopia_sftp_host", "kopia_sftp_port", "kopia_sftp_user", "kopia_sftp_path",
+        "kopia_agent_user",
         "traefik_edge_ips", "traefik_edge_ip_pin",
         # Victoria* observability backend (HD-341/342) — plain retention-day vars from
         # all.yml, consumed by the victoria-metrics/victoria-logs compose templates.

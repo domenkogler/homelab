@@ -73,7 +73,7 @@ services:
               esac
             done
           }
-          _enc_user=$$(_urlenc "$$KOPIA_SERVER_USER")
+          _enc_user=$$(_urlenc "$$KOPIA_AGENT_USER")
           _enc_pass=$$(_urlenc "$$KOPIA_SERVER_PASSWORD")
           kopia repository connect server \
             --url="https://$${_enc_user}:$${_enc_pass}@$${KOPIA_SERVER_ADDR}" \
@@ -114,6 +114,11 @@ services:
       KOPIA_SERVER_FINGERPRINT: "{{ vault['kopia-server_fingerprint'].password | replace('$','$$') }}"
       KOPIA_SERVER_USER: "{{ vault['kopia-server-internal_api'].username | replace('$','$$') }}"
       KOPIA_SERVER_PASSWORD: "{{ vault['kopia-server-internal_api'].credential | replace('$','$$') }}"
+      # HD-318a: the URL userinfo identity must be the SAME user@host the session
+      # presents (--override-username/--override-hostname), i.e. the kopia-server
+      # htpasswd entry — otherwise the server rejects the session ('access denied'
+      # for <user@host>). kopia_agent_user is the group_vars SSOT (all.yml).
+      KOPIA_AGENT_USER: "{{ kopia_agent_user | replace('$','$$') }}"
       KOPIA_PASSWORD: "{{ vault['kopia_password'].password | replace('$','$$') }}"   # repo master password (kopia-server precedent)
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 volumes:
