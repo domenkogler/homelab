@@ -11,6 +11,13 @@ homelab_mode: desktop          # 'desktop' for Phase 1, 'proxmox' for Phase 2
 gpu_vendor: amd
 ollama_keep_alive: 5m
 
+# HA container pin (HD-192/HD-39): the PRIMARY (Pi, raspberry_pi.yml) and the
+# STANDBY (this host) MUST run the same version for clean manual failover. The
+# standby compose renders ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}
+# (standby.yml / home-assistant-standby template) — undefined here caused the
+# standby render to fail on oldsrv (2026-09-08). Keep in sync with raspberry_pi.yml.
+home_assistant_version: "2026.8.1"
+
 # AMD ROCm host userspace (roles/amd_rocm, docs/hardware-gpu.md)
 # HD-318 (2026-09-07): Ubuntu-noble AMD repo INCOMPATIBLE with Debian trixie
 # (rocm-cmake/hipcc dep conflicts). External AMD repo REMOVED — Debian trixie ships

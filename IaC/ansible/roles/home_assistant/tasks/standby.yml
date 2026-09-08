@@ -90,6 +90,19 @@
     mode: '0755'
   tags: [ha_failover, hd17]
 
+- name: Create ha-failover config directory
+  # Missing-prereq fix (2026-09-08 oldsrv converge): the api.env template below
+  # writes /etc/ha-failover/api.env but no task created the dir — the standby
+  # render failed with "Destination directory /etc/ha-failover does not exist"
+  # on a fresh converge. Root-only (contains the failover trigger token).
+  ansible.builtin.file:
+    path: /etc/ha-failover
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  tags: [ha_failover, hd17]
+
 - name: Deploy ha-failover-api env (token + port, root-only)
   ansible.builtin.template:
     src: api.env.j2

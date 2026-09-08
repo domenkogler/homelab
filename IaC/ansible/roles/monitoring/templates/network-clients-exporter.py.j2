@@ -58,7 +58,7 @@ ROUTER_PORT = {{ routeros_api_port | default(8728) }}
 # The logpipe scoped read-only user + its 1Password-sourced password (HD-313).
 ROUTER_USER = "logpipe"
 ROUTER_PASSWORD = "{{ lookup('community.general.onepassword', 'mikrotik-logpipe_api', field='password', vault=op_vault) }}"
-ROUTER_TLS = {{ routeros_tls | default(false) | lower }}
+ROUTER_TLS = {{ 'True' if (routeros_tls | default(false)) else 'False' }}
 
 # Static SSOT hosts (naming/VLAN ground truth) — rendered once at deploy.
 STATIC_HOSTS = [

@@ -10,7 +10,9 @@ Type=simple
 # logpipe credential, so it is root-owned 0700 and runs as this non-root user.
 User=networkclients
 Group=networkclients
-ExecStart=/usr/local/bin/network-clients-exporter --listen=127.0.0.1:{{ network_clients_listen | default(9097) }} --interval={{ network_clients_scrape_interval | default(45) }}
+# HD-343 fix (2026-09-08): use the exporter venv python — the Debian system
+# python lacks the pinned `routeros_api` module (trixie has no python3-routeros-api).
+ExecStart=/opt/network-clients-exporter/venv/bin/python3 /usr/local/bin/network-clients-exporter --listen=127.0.0.1:{{ network_clients_listen | default(9097) }} --interval={{ network_clients_scrape_interval | default(45) }}
 Restart=on-failure
 RestartSec=5
 

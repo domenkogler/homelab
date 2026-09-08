@@ -165,14 +165,17 @@
 # acquisitions from /etc/crowdsec/acquis.d/. A compose-dir extra-template copy
 # (/opt/crowdsec/) is dead — CrowdSec never reads it (live gap found 2026-09-03
 # while closing the HD-313 deploy gate). This role owns the single live copy.
-# VPS-only (the CrowdSec host). Idempotent: template + docker-compose restart
-# only when the file changes.
+# VPS-only (the CrowdSec host) — the `monitoring` group spans BOTH the oldsrv
+# collector and the VPS backend, but the CrowdSec container + its config mount
+# live on the VPS only; on oldsrv `/opt/crowdsec` does not exist and the restart
+# would fail (live gap 2026-09-08, oldsrv converge). Gate explicitly to groups['vps'].
+# Idempotent: template + docker-compose restart only when the file changes.
 - name: Create CrowdSec acquis.d directory in the config mount
   ansible.builtin.file:
     path: /srv/docker/crowdsec/config/acquis.d
     state: directory
     mode: '0755'
-  when: inventory_hostname in groups['monitoring']
+  when: inventory_hostname in groups['vps']
   tags: [monitoring, routeros-syslog]
 
 - name: Install CrowdSec RouterOS acquisition into the config mount (HD-313)
@@ -181,7 +184,7 @@
     dest: /srv/docker/crowdsec/config/acquis.d/acquis-routeros.yml
     mode: '0644'
   register: acquis_result
-  when: inventory_hostname in groups['monitoring']
+  when: inventory_hostname in groups['vps']
   tags: [monitoring, routeros-syslog]
 
 - name: Restart CrowdSec when the RouterOS acquisition changed
@@ -201,10 +204,43 @@
 #   VPS Prometheus (same channel as SNMP). oldsrv-only (Mgmt-plane reach).
 #   Design SSOT: docs/observability.md §Network Clients Dashboard.
 # -------------------------------------------------------------------------
-- name: Install python3-routeros-api (network-clients exporter dep)
+- name: Install python3-venv (exporter venv prerequisite)
   ansible.builtin.apt:
-    name: python3-routeros-api
+    name: python3-venv
     state: present
+    update_cache: true
+  when: inventory_hostname == 'oldsrv.kogler.si'
+  tags: [monitoring, network-clients]
+
+- name: Create network-clients exporter venv dir
+  ansible.builtin.file:
+    path: /opt/network-clients-exporter
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  when: inventory_hostname == 'oldsrv.kogler.si'
+  tags: [monitoring, network-clients]
+
+- name: Create network-clients exporter venv (routeros-api from PyPI)
+  # HD-318/HD-343 (2026-09-08): Debian trixie has NO `python3-routeros-api`
+  # package (the apt name was wrong — trixie ships `python3-librouteros`, whose
+  # `librouteros` module API differs from what the exporter script imports). The
+  # script imports `routeros_api` (PyPI `routeros-api`), so pin that into a
+  # dedicated root-owned venv — reproducible, matches nut_exporter's
+  # pinned-release pattern. Version pin lives in group_vars/all/versions.yml.
+  ansible.builtin.command:
+    cmd: "/usr/bin/python3 -m venv /opt/network-clients-exporter/venv"
+    creates: /opt/network-clients-exporter/venv/pyvenv.cfg
+  when: inventory_hostname == 'oldsrv.kogler.si'
+  tags: [monitoring, network-clients]
+
+- name: Install pinned routeros-api into the exporter venv
+  # Use the venv's own pip via command (the ansible pip module's virtualenv option
+  # requires the separate `virtualenv` CLI package — the venv pip needs nothing extra).
+  ansible.builtin.command:
+    cmd: "/opt/network-clients-exporter/venv/bin/pip install --quiet 'routeros-api=={{ routeros_api_version }}'"
+    creates: /opt/network-clients-exporter/venv/lib/python*/site-packages/routeros_api
   when: inventory_hostname == 'oldsrv.kogler.si'
   tags: [monitoring, network-clients]
 
@@ -217,13 +253,17 @@
   when: inventory_hostname == 'oldsrv.kogler.si'
   tags: [monitoring, network-clients]
 
-- name: Deploy network-clients exporter script (root-owned, 0700 — carries the logpipe credential)
+- name: Deploy network-clients exporter script (root-owned 0750 networkclients — carries the logpipe credential)
+  # HD-343 fix (2026-09-08): the exporter runs as the unprivileged `networkclients`
+  # user (systemd unit), so a root-0700 file gave "Permission denied" opening it,
+  # status=2 crash-loop. Group-read lets the service user read it while the logpipe
+  # credential stays protected from everyone else (mode 0750 root:networkclients).
   ansible.builtin.template:
     src: network-clients-exporter.py.j2
     dest: /usr/local/bin/network-clients-exporter
     owner: root
-    group: root
-    mode: '0700'
+    group: networkclients
+    mode: '0750'
   when: inventory_hostname == 'oldsrv.kogler.si'
   notify: restart network-clients exporter
   tags: [monitoring, network-clients]
@@ -252,6 +292,11 @@
 # Grafana compose mounts /srv/docker/grafana/provisioning → /etc/grafana/provisioning:ro
 # (templates/docker_services/grafana/docker-compose.yml.j2). Files are read at
 # container start; we write them then restart grafana so provisioning loads.
+# VPS-only gate (2026-09-08 oldsrv-converge fix): the `monitoring` group spans BOTH
+# oldsrv (collector) and the VPS (backend), but Grafana runs ONLY on the VPS. On
+# oldsrv these wrote /srv/docker/grafana and `notify: restart grafana` fired
+# `docker restart grafana` → "No such container". Handler stays unconditional (the
+# 2026-08-23 VPS fix, HD-240) because only VPS tasks notify it now.
 
 - name: Create Grafana provisioning directories
   ansible.builtin.file:
@@ -262,7 +307,7 @@
     - datasources
     - dashboards
     - alerting
-  when: inventory_hostname in groups['monitoring']
+  when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
 - name: Provision Grafana datasources file (Loki only — see HD-240)
@@ -271,7 +316,7 @@
     dest: /srv/docker/grafana/provisioning/datasources/datasources.yml
     mode: '0644'
   notify: restart grafana
-  when: inventory_hostname in groups['monitoring']
+  when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
 # HD-240 (2026-08-24): the Prometheus datasource is seeded via the Grafana HTTP API,
@@ -359,7 +404,7 @@
     dest: /srv/docker/grafana/provisioning/dashboards/dashboards.yml
     mode: '0644'
   notify: restart grafana
-  when: inventory_hostname in groups['monitoring']
+  when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
 - name: Copy Grafana dashboards
@@ -367,7 +412,7 @@
     src: dashboards/
     dest: /srv/docker/grafana/provisioning/dashboards/
     mode: '0644'
-  when: inventory_hostname in groups['monitoring']
+  when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
 - name: Provision Grafana alert contact points
@@ -376,7 +421,7 @@
     dest: /srv/docker/grafana/provisioning/alerting/contactpoints.yml
     mode: '0644'
   notify: restart grafana
-  when: inventory_hostname in groups['monitoring']
+  when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
 - name: Provision Grafana alert notification policy
@@ -385,7 +430,7 @@
     dest: /srv/docker/grafana/provisioning/alerting/policies.yml
     mode: '0644'
   notify: restart grafana
-  when: inventory_hostname in groups['monitoring']
+  when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
 - name: Provision Grafana alert rules
@@ -394,5 +439,5 @@
     dest: /srv/docker/grafana/provisioning/alerting/rules.yml
     mode: '0644'
   notify: restart grafana
-  when: inventory_hostname in groups['monitoring']
+  when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
