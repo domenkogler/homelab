@@ -13,6 +13,8 @@ services:
       - CHOWN   # HD-318 live: entrypoint chowns the data volume; cap_drop ALL strips CHOWN (crowdsec-web-ui precedent f4c3216)
       - SETGID
       - SETUID   # HD-318 live: the entrypoint ends in `setpriv --reuid --regid --init-groups`; without SETUID/SETGID it dies "setresuid: Operation not permitted" (linuxserver s6 precedent)
+      - DAC_OVERRIDE
+      - FOWNER   # HD-318 live: jsonrpc2-helper persists jsonrpc2.yml into the 1000-owned volume; under cap_drop ALL it died "Couldn't persist jsonrpc2.yaml: permission denied" (probed: root without DAC_OVERRIDE/FOWNER can't write a file it doesn't own)
     # read_only intentionally ABSENT (HD-318): the entrypoint runs usermod/groupmod
     # (to align the signal-api uid) before exec; read_only root made `groupmod: cannot
     # lock /etc/group` fatal. Keep cap_drop: ALL.

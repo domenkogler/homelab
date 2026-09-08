@@ -51,8 +51,13 @@ services:
           echo "Connecting to kopia-server over the WG S2S tunnel..."
           # kopia 0.23.1 dropped --server-username/--server-password: HTTP Basic auth
           # is carried in the URL userinfo, and the repo master password on -p.
+          # The server password may contain URL-hostile chars ((){}@ etc.) — percent-
+          # encode it or the URL parser rejects it ("invalid character } in host
+          # name", live 2026-09-08). perl URI::Escape is in the kopia image.
+          _enc_user=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0], "^A-Za-z0-9\-._~")' "$KOPIA_SERVER_USER")
+          _enc_pass=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0], "^A-Za-z0-9\-._~")' "$KOPIA_SERVER_PASSWORD")
           kopia repository connect server \
-            --url="http://${KOPIA_SERVER_USER}:${KOPIA_SERVER_PASSWORD}@${KOPIA_SERVER_ADDR}" \
+            --url="http://${_enc_user}:${_enc_pass}@${KOPIA_SERVER_ADDR}" \
             --password="${KOPIA_PASSWORD}" \
             --override-hostname=oldsrv.kogler.si \
             --override-username=oldsrv-agent
