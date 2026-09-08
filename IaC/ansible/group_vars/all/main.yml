@@ -351,7 +351,7 @@ alloy_backend_host: "{% if inventory_hostname == 'oldsrv.kogler.si' %}{{ wg_s2s_
 # Kopia-backed (docs/observability.md) — unlike the old regenerable TSDB doctrine.
 # MCP AI-debugging servers (HD-344) live on oldsrv and reach these VPS endpoints over
 # the tailnet (owner plans a full s2s-wg → tailnet redo; MCP leg uses tailnet).
-# 1Password basic-auth items: victoria_metrics_api / victoria_logs_api (new, HD-341),
+# 1Password basic-auth items: victoria-metrics_api / victoria-logs_api (new, HD-341),
 # field=username + field=password (Victoria flags are -httpAuth.username/password —
 # plaintext, NOT bcrypt like prometheus-internal_api).
 # NOTE (HD-341): Alloy/exporters still reach the VPS over wg-s2s today; the MCP leg is
@@ -361,8 +361,8 @@ victoria_metrics_port: 8428              # VictoriaMetrics HTTP endpoint / api/v
 victoria_logs_port: 9428                # VictoriaLogs HTTP endpoint /insert/... + /select/...
 victoria_metrics_retention_days: 365    # -retentionPeriod; Kopia-backed (docs/observability.md)
 victoria_logs_retention_days: 90        # -retentionPeriod; Kopia-backed (docs/observability.md)
-victoria_metrics_item: victoria_metrics_api   # 1Password basic-auth item (username + password)
-victoria_logs_item: victoria_logs_api         # 1Password basic-auth item (username + password)
+victoria_metrics_item: victoria-metrics_api  # 1Password basic-auth item (username + password)
+victoria_logs_item: victoria-logs_api         # 1Password basic-auth item (username + password)
 
 # ==== Immich ML cross-host endpoint (HD-184) ====
 # immich-app runs on the VPS; immich-ml (GPU) stays on oldsrv. Docker DNS cannot
