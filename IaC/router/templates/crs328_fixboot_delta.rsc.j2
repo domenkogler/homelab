@@ -14,9 +14,9 @@
 
 # ---- Remote syslog to the VPS (HD-313): centralsyslog action (config) ----
 :if ([/system logging action find where name=centralsyslog] = "") do={
-    /system logging action add name=centralsyslog target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514 protocol=udp
+    /system logging action add name=centralsyslog target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514
 } else={
-    /system logging action set [find where name=centralsyslog] target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514 protocol=udp
+    /system logging action set [find where name=centralsyslog] target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514
 }
 
 # ---- Boot resilience (fixboot): re-assert syslog + SNMP after boot ----
