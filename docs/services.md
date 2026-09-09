@@ -25,7 +25,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 | [Downloads](services-downloads.md) | SABnzbd, qBittorrent, gluetun — USENET/torrent ingress + VPN | detail |
 | [DNS](services-dns.md) | Technitium, Pi-hole | detail |
 | [Utilities](services-utilities.md) | n8n, signal-cli, PairDrop, Stirling PDF | detail |
-| [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Metabase, Headscale, Kopia, DB Backup | detail |
+| [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Metabase, Headscale, Kopia, DB Backup · **Homelable (HD-45, oldsrv, deploy-gated)** | detail |
 | [Office](services-office.md) | ONLYOFFICE, OpenCloud, office bridge (cross-cutting) | detail |
 | [AI Platform](services-ai.md) | LiteLLM, Open WebUI, Docling, OpenClaw, Qdrant, **spark (Triton, GB10 — sole local inference)**, Immich-ML (oldsrv CPU) | detail |
 | [Matrix](services-matrix.md) | Tuwunel, Element Web | detail |
@@ -93,6 +93,8 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 > Note: `office` (ONLYOFFICE) and `git` (Forgejo) belong to `services-office.md` and `services-admin.md` resp. — subdomains shared here are cross-cutting.
 
 **Admin Dashboards decision:** Traefik Dashboard included, tailnet-only (`traefik.kogler.si` / `traefik.ts.kogler.si`, see `services-traefik.md` → **traefik-tailnet**); CrowdSec Dashboard included, tailnet-only `sec.kogler.si` via Metabase + **CrowdSec Web UI** `csui.kogler.si` (HD-272, tailnet-only) — admin stack. **All six admin dashboards** (`stats` Grafana / `sec` Metabase / `traefik` dashboard / `logs` Dozzle / `csui` CrowdSec-UI / `auto` n8n) are **tailnet-only** over the `traefik-tailnet` edge (HD-135b follow-up, 2026-08-28) — no public records, reached at `https://<app>.kogler.si` or `https://<app>.ts.kogler.si` on the tailnet. **Portainer / Dockge — excluded** (single Ansible-templated compose model).
+>
+> **Homelable** (HD-45) — the network/rack *topology* visualizer, on **oldsrv** and internal-only (no public record; it must sit on the LAN to scan it). Reached at `http://<oldsrv-home-ip>:3000` on the LAN (tailnet route = future tail, see [`services-admin.md`](services-admin.md) §Homelable). Not one of the tailnet-edge dashboards above — those run on the VPS; Homelable runs where the network is. Deployment spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable.
 
 ---
 

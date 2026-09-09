@@ -276,6 +276,9 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `ha_api` | `credential` | HA long-lived token → Traefik/Companion, `/api/prometheus` bearer for Prometheus |
 | `ha-vrrp_password` | `password` | keepalived (VIP `ha.kogler.si`) shared auth |
 | `ha-failover_api` | `credential` | HA failover trigger API (HD-17) — Homepage buttons + `ha-failover-api` token |
+| `homelable_login` | `username`, `password`, `bcrypt_hash` | Homelable admin login (HD-45) — `username`/`password` = the local admin creds; `bcrypt_hash` = bcrypt(password), rendered as the backend `AUTH_PASSWORD_HASH`. Catalog-generated (Login + bcrypt_hash pair, see `homelable_login_item()` in provision-secrets.py). Rotation rewrites password + hash together. |
+| `homelable_secret` | `password` | Homelable `SECRET_KEY` (JWT/session signing, ≥32 bytes) + shared `MCP_SERVICE_KEY` source when the MCP container is enabled (HD-45). Catalog-generated. |
+| `homelable_mcp` | `credential` | Homelable MCP server `MCP_API_KEY` (HD-45, optional container) — AI-tool topology read/write. Catalog-generated; unused while `homelable_mcp_enabled` is false. |
 | `crowdsec-bouncer_api` | `credential` | CrowdSec LAPI bouncer key for the Traefik bouncer plugin (`cscli bouncers add traefik-bouncer`; Wave-3 R5, 2026-08-22) |
 | `meteoblue_api` | `credential` | Home Assistant core `meteoblue` weather integration (HD-22) — Meteoblue model API key |
 | `headscale_api` | `credential` | headscale (OIDC client secret; `username` = client id) |
@@ -285,8 +288,8 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
 | `nut-exporter_password` | `password` | nut_exporter → upsd read-only auth (dedicated `upsmon slave` user on the NUT master) |
 | `network-snmp_api` | `credential` | router + switch — MikroTik SNMP **read-only community** for Alloy polling (HD-53/Option A); `credential` = the RO community string |
-| `mikrotik-logpipe_api` | `password` | router — **scoped read-only RouterOS API user `logpipe`** (HD-313): remote syslog/API read for log shipping + central monitoring; `password` = the user's password. `read` group = read-only to all config paths, no write. Mgmt-VLAN only. Also reused later by the n8n firmware window (HD-312d) for the temp `iot-wan-allow` toggles. |
-| `mikrotik-n8n_api` | `password` | router — **scoped read-only RouterOS API user `n8n`** (HD-312(4)): the n8n firmware-workflow automation polls router/device state with this read-only `read`-group user (`logpipe` precedent). `password` = the user's password; Mgmt-VLAN only. Temporary `iot-wan-allow` membership toggles stay owner-gated in n8n flow authoring (not this item's scope). |
+| `mikrotik-logpipe_api` | `password` | router — **scoped read-only RouterOS API user `logpipe`** (HD-313): remote syslog/API read for log shipping + central monitoring; `password` = the user's password. `read` group = read-only to all config paths, no write. Mgmt-VLAN only. (Superseded 2026-09-09: the n8n firmware window HD-312d is closed — permanent `wan_allow` covers firmware WAN.) |
+| `mikrotik-n8n_api` | `password` | router — **scoped read-only RouterOS API user `n8n`** (HD-312(4)): provisioned for the n8n firmware-workflow automation; `password` = the user's password; Mgmt-VLAN only. **Superseded 2026-09-09:** the temp `iot-wan-allow` flow is not needed (permanent `wan_allow`), the user stays provisioned for future admin uses. |
 | `wg_password` | `password` | router (WireGuard S2S private key — router side, distinct per-side, HD-285) |
 | `wg_password_vps` | `password` | VPS (WireGuard S2S private key — VPS side, distinct per-side, HD-285; NEW 2026-09-02) |
 | `wifi-kogler_password` | `password` | CAPsMAN SSID **Kogler** (VLAN 10 Home) — router role when `routeros_capsman_enabled` flips true (HD-228/HD-03); alphanumeric only, 2.4 GHz-friendly chips on this SSID family (HD-228) |
