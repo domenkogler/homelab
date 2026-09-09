@@ -149,6 +149,7 @@ These run **on target hosts** (or are Ansible-deployed) and are consumed by path
 
 | Script | Purpose / runs on | Deployed by | Owning spec |
 |--------|-------------------|-------------|-------------|
+| [`client/office-bridge/`](../client/office-bridge/) | **Native Windows/COM Office MCP bridge** (Word/Excel/PPT live-edit tools into Open WebUI) — NOT a runner tool; a first-class tracked repo component (HD-106). Version-pinned (`requirements.txt` + `excelcli.exe` SHA256), Renovate-tracked (`pip_requirements`). Runs on each **Windows 11 client** next to the running Office app. | per-client `install.ps1`/`update.ps1` over the Headscale tunnel — **not Ansible** (by design; Ansible manages server Docker) | `docs/services-office.md` (HD-106–111), folder README |
 | [`IaC/host/post_install.sh`](../IaC/host/post_install.sh) | shared host bootstrap (ansible-admin + ai-debug + sshd); placeholder-only | preseed `late_command` / media | `docs/deployment-preseed.md` |
 | `IaC/host/vps/post_install.sh` | VPS bootstrap (two keys, no ai-debug) | netcup SCP Custom-Script | `docs/deployment-preseed.md` §netcup |
 | `IaC/host/pi/first-boot-config.sh` | Pi 4 first-boot SSH enable + key stub | raspi.debian.net image | `docs/deployment-preseed.md`, HD-201 |

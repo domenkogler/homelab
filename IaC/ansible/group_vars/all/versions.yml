@@ -192,3 +192,12 @@ tailscale_version: "v1.82.0"        # tailscale/tailscale (Docker Hub tag EXISTS
 # docker datasource tracks each; re-verify at first oldsrv deploy (HD-344 deploy-gated).
 mcp_victoriametrics_version: "v1.18.0"
 mcp_victorialogs_version: "v1.8.0"
+# Homelable (Pouzor/homelable) — self-hosted network/rack topology visualizer + live
+# healthchecks (HD-45, re-scoped 2026-09-09). OLDSRV, deploy-gated (enabled:false).
+# Images: ghcr.io/pouzor/homelable-{backend,frontend,mcp}. Tags: `X.Y.Z` (no `v`) —
+# registry-verified 2026-09-09 via the GHCR token API: 3.4.1 exists on all three (latest
+# GitHub release = v3.4.1, published 2026-09-07). Renovate docker datasource tracks each;
+# re-verify at first oldsrv deploy (HD-45 deploy-gate). MCP service is OPTIONAL (enabled
+# via homelable_mcp_enabled — the MCP container is only for AI-tool read/write of the
+# topology; leave off until the topology is curated).
+homelable_version: "3.4.1"

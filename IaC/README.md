@@ -123,6 +123,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │
 ├── docs/                                   # Architecture documentation (canonical)
 ├── manual/                                 # Family guides (Slovenian) — see docs/manual/
+├── client/office-bridge/                   # Native Windows/COM Office MCP bridge (HD-106) — first-class tracked repo component; deployed per-client (not via Ansible); SSOT spec docs/services-office.md
 └── README.md                               # Repo root (you are here)
 ```
 

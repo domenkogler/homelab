@@ -8,29 +8,38 @@ tags: [hardware, gpu, rocm, cross-cutting]
 ---
 # Shared GPU Resource
 
-> **Role:** Cross-cutting detail — GPU used by LLM, voice, vision, and gaming across multiple domains.
+> **Role:** Cross-cutting detail — shared GPU resource across AI/vision (immich-ML), voice, and gaming. oldsrv RX 7600 = Sunshine encode + immich-ML batch; spark (GB10) is the separate local-LLM/voice inference tier.
 > **Links to:** `services-office.md`, `smart-home-voice.md`, `services.md`
 > **Linked from:** `hardware-oldsrv.md`, `hardware-spark.md`, `deployment-compose.md`
 
 ---
 
-## Phase 1: AMD Radeon RX 7600 — gaming encode ONLY (no AI)
+## Phase 1: AMD Radeon RX 7600 — Sunshine gaming encode + immich-ML batch inference (AI)
+
+> **Corrected 2026-09-09 (owner):** the RX 7600 is **NOT "gaming encode only / no AI."** It serves
+> **both** (a) Sunshine game-streaming encode **and** (b) **immich-ML batch inference** — the container
+> bundles its own ROCm runtime and needs only `/dev/dri` + `/dev/kfd`. What is *excluded* from the
+> dGPU is **host LLM inference**: Ollama is disabled on oldsrv and generation/embeddings/rerank/STT/TTS
+> are consolidated on **spark** (Triton, GB10 — HD-335). `amd_rocm` host userland stays
+> Debian-trixie-native tooling only (no external AMD repo, HD-318).
 
 | Spec | Value |
 |------|-------|
 | VRAM | 8 GB GDDR6 |
 | Interface | PCIe 4.0 x8 |
 | Docker access | `/dev/dri`, `/dev/kfd` |
-| Host GPU | Intel HD 630 (iGPU, desktop only) |
+| GPU workloads | **Sunshine gaming-encode** + **immich-ML batch inference (AI)** — container-bundled ROCm |
+| Host GPU | Intel HD 630 (iGPU, desktop only) — Xorg primary |
 
 ### Dual GPU Topology
 
 - **Intel HD 630 (iGPU):** Xorg primary — monitor on motherboard output. Family desktop compositing.
-- **Radeon RX 7600 (dGPU):** No monitor. **Sunshine game-streaming encode first** + **immich-ML batch**
-  (pause-able GPU consumer, 2026-09-06). No Ollama on oldsrv (disabled 2026-09-07 — inference on
-  spark/Triton). **Host ROCm = Debian-trixie-native tooling only** (`rocm-opencl-icd`/`rocminfo` / `hipcc`,
-  no external AMD repo — HD-318 2026-09-07: the Ubuntu-noble AMD repo is incompatible with trixie; GPU
-  containers [immich-ml] bundle their own ROCm runtime and only need `/dev/dri`+`/dev/kfd`+udev).
+- **Radeon RX 7600 (dGPU):** No monitor. **Sunshine game-streaming encode** + **immich-ML batch
+  inference (AI)** — immich-ML is a pause-able GPU consumer (2026-09-06) whose container bundles its own
+  ROCm runtime and only needs `/dev/dri`+`/dev/kfd`+udev. No **Ollama/LLM** on oldsrv (disabled
+  2026-09-07 — generation/embeddings on spark/Triton, HD-335). **Host ROCm = Debian-trixie-native
+  tooling only** (`rocm-opencl-icd`/`rocminfo`/`hipcc`, no external AMD repo — HD-318 2026-09-07: the
+  Ubuntu-noble AMD repo is incompatible with trixie).
 - Xorg config fragment in `/etc/X11/xorg.conf.d/10-igpu-primary.conf` forces iGPU, excludes dGPU.
 
 ---
@@ -53,16 +62,17 @@ division) and **1 PFLOP FP4**.
 
 ## VRAM Management
 
-`OLLAMA_KEEP_ALIVE=5m` set in `/etc/environment` — model unloads after 5 min of LLM inactivity.
+> **Legacy note:** `OLLAMA_KEEP_ALIVE`/Ollama-era modes were removed (Ollama disabled on oldsrv
+> 2026-09-07). Current dGPU consumers = Sunshine (gaming) + immich-ML (batch); LLM inference runs on
+> spark (GB10).
 
 ### Phase 1 Modes (RX 7600, 8 GB)
 
 | Mode | Active Models | VRAM Usage | Trigger |
 |------|--------------|------------|---------|
-| **LLM Active** | Qwen 2.5-Coder 14B or Llama 3.1 8B | 6–8 GB (near full) | API request received |
-| **Voice + Vision** | Whisper STT + Piper TTS + Immich-ML | ~3–5 GB | Voice command or photo upload |
-| **Idle** | None (after 5 min) | ~0 GB (GPU ~12 W) | No activity for 5 minutes |
-| **Gaming** | None (Ollama + Immich-ML stopped) | 0 GB | User manually stops AI containers → launches Sunshine |
+| **Immich-ML batch (AI)** | Immich-ML (face/object recognition, container ROCm) | ~3–5 GB | Photo/ML job — pause-able (Sunshine prep-command) |
+| **Gaming** | None (Sunshine active) | 0 GB (immich-ML paused) | User launches Sunshine (manual) |
+| **Idle** | None | ~0 GB (GPU ~5 W) | No Sunshine stream, no immich-ML job |
 
 ### Phase 2 Modes (spark — GB10, 128 GB unified)
 
@@ -84,11 +94,14 @@ swapping is Triton/KeepAlive-driven, not a manual gaming preempt.
 
 | Consumer | Domain | Doc |
 |----------|--------|-----|
-| Ollama | LLM inference | [`services-office.md`](services-office.md) |
-| Whisper STT | Voice (speech-to-text) | [`smart-home-voice.md`](smart-home-voice.md) |
-| Piper TTS | Voice (text-to-speech) | [`smart-home-voice.md`](smart-home-voice.md) |
-| Immich-ML | Photo face recognition | [`services.md`](services.md) |
-| Sunshine | Game streaming (manual, secondary) | [`hardware-oldsrv.md`](hardware-oldsrv.md) |
+| ~~Ollama~~ | ~~LLM inference~~ — **removed from oldsrv** (disabled 2026-09-07; inference on spark/Triton, HD-335) | [`services-ai.md`](services-ai.md) |
+| Whisper STT | Voice (speech-to-text) — **spark GB10** (Triton, HD-335) | [`smart-home-voice.md`](smart-home-voice.md) |
+| Piper TTS | Voice (text-to-speech) — **spark GB10** (Triton, HD-335) | [`smart-home-voice.md`](smart-home-voice.md) |
+| **Immich-ML** | **Photo face recognition / ML batch inference (AI)** — container-bundled ROCm | [`services.md`](services.md) |
+| **Sunshine** | Game streaming (manual start) — gaming-encode | [`hardware-oldsrv.md`](hardware-oldsrv.md) |
+
+> oldsrv RX 7600 GPU consumers = **Sunshine (gaming encode) + Immich-ML (AI batch)**. Spark (GB10) is
+> the separate, **sole local inference tier** for LLM/embeddings/rerank/STT/TTS.
 
 ---
 
@@ -108,7 +121,7 @@ swapping is Triton/KeepAlive-driven, not a manual gaming preempt.
 ## Docker Device Mappings
 
 ```yaml
-# For GPU-enabled containers (ollama, immich-ml, sunshine):
+# For GPU-enabled containers (immich-ml, sunshine):
 devices:
   - /dev/dri:/dev/dri
   - /dev/kfd:/dev/kfd

@@ -133,9 +133,9 @@ boundary trim; this doc is the platform SSOT for model guidance):
 
 | Model | VRAM | Best For |
 |-------|------|----------|
-| **Llama 3.1/3.2 8B** | ~6 GB | Everyday office, email drafting, summarization (oldsrv RX 7600) |
-| **Qwen 2.5/3.5 7B–14B** | ~6–12 GB | Complex document structuring, code generation (oldsrv RX 7600) |
-| **Phi-4 14B** | ~10 GB | Reasoning, logic, Microsoft workflow drop-in (oldsrv RX 7600) |
+| **Llama 3.1/3.2 8B** | ~6 GB | Everyday office, email drafting, summarization (via LiteLLM — OpenRouter today; local when spark/Triton is provisioned, HD-335) |
+| **Qwen 2.5/3.5 7B–14B** | ~6–12 GB | Complex document structuring, code generation (via LiteLLM) |
+| **Phi-4 14B** | ~10 GB | Reasoning, logic, Microsoft workflow drop-in (via LiteLLM) |
 | **NVFP4 30–80B set (Nemotron-Lightning-30B, Qwen3-Next-80B, Llama-3.3-70B, Qwen3-Coder-Next-80B)** | fits in **spark 128 GB unified** | Heavy programming / local reasoning — served by **Triton** on `spark` (HD-335, [`hardware-spark.md`](hardware-spark.md)) |
 
 **1Password (`Homelab-ansible`) items — see [`deployment-secrets.md`](deployment-secrets.md):**
@@ -283,7 +283,7 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 - **No host port binds** (Flaw C / HD-62): overlays + Traefik only; loopback-only if ever needed.
 - **Version pinning** (HD-61/71): pin LiteLLM, Open WebUI, Docling, **Qdrant**, OpenClaw (young project).
   Keep Renovate tracking.
-- **VRAM/RAM:** spark = 128 GB unified (sole inference tier); oldsrv RX 7600 = Sunshine encode only; Docling on CPU; size chat models
+- **VRAM/RAM:** spark = 128 GB unified (sole local inference tier for LLM/embeddings/rerank/STT/TTS); oldsrv RX 7600 dGPU = **Sunshine gaming encode + immich-ML batch inference (AI)**; Docling on CPU; size chat models
   ~7–8B q4; keep `keep_alive` sensible (see `hardware-gpu.md`).
 - **AnythingLLM + LocPilot removed** for the family web UI — replaced by MS Office MCP path (HD-108).
 

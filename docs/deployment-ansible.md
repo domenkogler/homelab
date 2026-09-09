@@ -287,7 +287,7 @@ IaC/ansible/
 │   ├── wireguard/                   # WG S2S VPS side (router peer lives in roles/router) — netdev + `wg-ensure-s2s-peer` oneshot (HD-306: networkd never applies the peer; a peer-only `wg setconf` re-attaches it after networkd init)
 │   ├── cloudflare_dns/              # public-record runs (vars/main.yml = IaC side of the record SSOT)
 │   ├── vps-hardening/tasks/main.yml # HD-154: VPS pre-deploy hardening — fail2ban, nftables default-deny, docker daemon (public edge only)
-│   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE  (**targeted for removal 2026-09-06**: no AI on oldsrv)
+│   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE  (**host LLM removed 2026-09-06**: Ollama off oldsrv — inference on spark/Triton, HD-335; RX 7600 keeps Sunshine encode + immich-ML container ROCm)
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
 │   ├── router/                      # RouterOS api_modify: VLANs, DHCP, firewall, CAPsMAN, Kids rules, address lists
@@ -720,3 +720,14 @@ A surgical single-service run (`--tags docker_services -e docker_services_scope=
 Deploy times drift with image versions/service count — re-measure per the top of this page.
 `profile_tasks` prints the recap to every run; keep it in `ansible.cfg` (it's the arbitrage tool
 for any future speed change, HD-257).
+
+### Speed tooling — REJECTED options (HD-261 / HD-262, owner decision 2026-09-09)
+
+- **Mitogen (HD-261)** — rejected/closed. The gate ("only if `profile_tasks` shows a large executor floor")
+  never fired: the Bulk 1Password pre-pass (HD-258) removed the op-lookup cost and VPS converges are live
+  (~193s full, ~5-6s surgical). Revisit only if a `profile_tasks` trace actually shows SSH-transport-bound
+  time dominating. Decision log: [deployment-rejected.md](deployment-rejected.md).
+- **Yacht web UI (HD-262)** — rejected/closed. Ops-comfort tool, not a speedup; drift + attack-surface
+  concerns (extra VPS web surface) and it is unaware of the `docker-compose@.service` guards / single
+  Ansible compose model. Cheaper alt: `scripts/docker-restart.sh <service>` or cockpit container views.
+  Decision log: [deployment-rejected.md](deployment-rejected.md).

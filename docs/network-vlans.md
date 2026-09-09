@@ -63,6 +63,12 @@ tags: [network, vlan, firewall]
 > firewall MAC-lists (iot-wan-allow, kids-*) and the n8n firmware automation all reference a stable
 > identity. Devices without a reservation are treated as untrusted (Guest-style).
 >
+> ✅ **n8n firmware automation SUPERSEDED (HD-312(4), owner decision 2026-09-09):** the temp-toggle
+> n8n flow is **not needed** — the per-device `wan_allow: true` flag (HD-325, live 2026-09-08) gives
+> the cloud-IoT appliances **permanent WAN**; firmware updates happen over that standing egress. The
+> dedicated `n8n` RouterOS API user (`mikrotik-n8n_api`) stays provisioned for future admin uses, but
+> no flow authoring for temporary WAN toggles will be done. Decision log: [network-rejected.md](network-rejected.md) HD-312(4).
+>
 > ✅ **PHASE 1 (static-IP sweep) DONE 2026-09-03** (SSOT + render; router-role/`converge.rsc` pick
 > the rows up automatically — live-apply at the next router converge/cutover):
 > - **Shelly fleet** — the 4× Shelly RGBW2 (VLAN 20, n8n firmware targets) now carry MAC +

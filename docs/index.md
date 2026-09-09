@@ -38,6 +38,7 @@ tags: [index, dispatcher, ai]
 | **Find a script / validation gate / renderer** | [`../scripts/README.md`](../scripts/README.md) | `CONVENTIONS.md` §8, [`validate-all.sh`](../scripts/validate-all.sh) |
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `services-office.md`, `deployment-compose.md` |
 | **Understand the security posture / hardening** | [`security.md`](security.md) | `services-traefik.md`, `deployment-secrets.md`, `deployment-preseed.md`, `network-ops.md` |
+| **Network / rack topology dashboard (Homelable)** | [`services-admin.md`](services-admin.md) §Homelable | `observability.md` (§Network Clients Dashboard HD-343), `network-rack.md`, `deployment-compose.md`, `deployment-secrets.md` |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
 | **Understand / build the AI stack (chat + RAG + agents)** | [`services-ai.md`](services-ai.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook, HD-105), `hardware-gpu.md` |
 | **Live MS Office via Open WebUI (Word/Excel/PPT)** | [`services-office.md`](services-office.md) | `services-ai.md`, [`client/office-bridge/`](../client/office-bridge/) (HD-106–111) |
@@ -84,7 +85,7 @@ docs/
 ├── services-downloads.md                  Usenet/torrent ingress (SABnzbd, qBittorrent, gluetun)
 ├── services-dns.md                        DNS services (Technitium, Pi-hole)
 ├── services-utilities.md                  Utility sidekicks (n8n, signal-cli, PairDrop, Stirling)
-├── services-admin.md                      Ops/GitOps/security/backup (Forgejo, Renovate, CrowdSec, Metabase, Headscale, Kopia, DB Backup)
+├── services-admin.md                      Ops/GitOps/security/backup (Forgejo, Renovate, CrowdSec, Metabase, Headscale, Kopia, DB Backup) · **Homelable topology dashboard (HD-45)**
 ├── observability.md                        Observability domain — stack, alerting, retention
 ├── services-traefik.md                    Reverse proxy edge, CrowdSec, SSL
 ├── services-authentik.md                  OIDC SSO, WebAuthn, Forward Auth, Blueprint + glue provisioning
@@ -155,6 +156,13 @@ docs/
     └── manuals/                            Hardware manuals (PDF)
 ```
 
+> **First-class tracked components outside `docs/`:**
+> - [`client/office-bridge/`](../client/office-bridge/) — native Windows/COM **Office MCP bridge** SSOT
+>   package (HD-106–111): version-pinned, Renovate-tracked (`pip_requirements`), deployed per-client over
+>   the Headscale tunnel by `install.ps1`/`update.ps1` — **NOT an Ansible-managed server service** (Ansible
+>   manages server Docker, not Windows endpoints). Canonical spec: [`services-office.md`](services-office.md).
+>   Tracked in `scripts/README.md` + `IaC/README.md`; do not treat it as an untracked/adjacent folder.
+
 ---
 
 ## Conventions
@@ -167,7 +175,7 @@ docs/
 
   | Host | FQDN | Role |
   |------|------|------|
-  | Old desktop + Docker host | `oldsrv.kogler.si` | internal/GPU/LAN host (ollama, immich-ml, jellyfin/*arr, DNS, HA standby) |
+  | Old desktop + Docker host | `oldsrv.kogler.si` | internal/GPU/LAN host (immich-ml, jellyfin/*arr, DNS, HA standby; Sunshine + immich-ML GPU — Ollama removed to spark) |
   | Lenovo ThinkStation PGX | `spark.kogler.si` | **headless NVIDIA GB10 (GB10 Grace Blackwell) AI inference node** — Triton + NVFP4 model set (planned) |
   | HP MicroServer NAS | `nas.kogler.si` | ZFS storage server |
   | Raspberry Pi 4 | `pi.kogler.si` | Home Assistant primary node (HA service = VIP `ha.kogler.si`) |

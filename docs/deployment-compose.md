@@ -78,16 +78,14 @@ networks:
 
 ## GPU-Enabled Containers
 
-Services that need GPU access: **Ollama, Immich-ML, Sunshine** (+ **Jellyfin** — iGPU transcode, not the AMD dGPU).
+Services that need GPU access on oldsrv: **Immich-ML + Sunshine** (AMD RX 7600 dGPU; Ollama removed — LLM inference consolidated on spark/Triton, HD-335) and **Jellyfin** (Intel HD 630 iGPU transcode, not the AMD dGPU). Immich-ML bundles its own ROCm runtime and needs only `/dev/dri` + `/dev/kfd`.
 
 ```yaml
 services:
-  ollama:
+  immich-ml:
     devices:
       - /dev/dri:/dev/dri
       - /dev/kfd:/dev/kfd
-    environment:
-      OLLAMA_KEEP_ALIVE: 5m
     group_add:
       - "{{ gpu_render_gid }}"    # render group
       - "{{ gpu_video_gid }}"     # video group

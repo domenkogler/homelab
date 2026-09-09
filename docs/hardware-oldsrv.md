@@ -94,7 +94,10 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ## Observability Storage & Notes
 
-- **GPU (RX 7600, 2026-09-06):** **Sunshine gaming-encode only** — no AI/ROCm/Ollama (inference consolidated on spark).
+- **GPU (RX 7600, 2026-09-06, owner-corrected 2026-09-09):** **Sunshine gaming-encode + immich-ML batch
+  inference (AI)** — the immich-ml container bundles its own ROCm runtime and uses `/dev/dri`+`/dev/kfd`;
+  Sunshine prep-commands pause/unpause it (gaming-first). No **host LLM/Ollama** on oldsrv (inference
+  consolidated on spark/Triton, HD-335); `amd_rocm` host userland stays Debian-trixie-native tooling only.
 - **TSDB storage:** the observability **backend moved to the VPS (HD-135)** — VictoriaMetrics/VictoriaLogs live on **VPS NVMe** (`/srv/docker/victoria-metrics/data` + `/srv/docker/victoria-logs/data`), not on oldsrv. Oldsrv runs only the thin **Alloy collector** (host metrics + logs) forwarding over the `wg-s2s` tunnel (`alloy_backend_host`). Metrics/logs are **Kopia-backed** (owner decision HD-341/342; host binds under `/srv/docker/victoria-*/data`). See `observability.md` §Placement. **HD-135b: the VPS runs its OWN Alloy** (loopback → local VictoriaMetrics/VictoriaLogs) + own Dozzle — it does not depend on oldsrv for its own observability.
 - **Disk headroom:** monitor the `nvme` pool (oldsrv) + OS disk **and** the VPS NVMe in Grafana — pool ≥70% Warning / ≥80% Critical (see `observability.md`), OS disk ≥90% Critical.
 - **SPOF (accepted, HD-135, narrowed HD-135b):** the observability **backend** now lives on the **VPS** — if the VPS (or the home↔VPS `wg-s2s` tunnel) is down, *home* metrics/logs are unavailable in Grafana (aggregation is buffered/replayed on reconnect; the VPS's own stack stays observable locally via its loopback Alloy + Dozzle). NUT-side `notifycmd`/`upssched-cmd` on nas remains the independent power-loss alert path. Documented in `observability.md` §Placement.

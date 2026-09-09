@@ -45,6 +45,8 @@ scope_list: >-
 # The copy step copies the entire template dir first; these are then rendered
 # (overwriting the raw .j2 copy with the rendered version, stripping .j2 suffix).
 _extra_templates:
+  homelable:
+    - nginx.conf.j2          # HD-45 host-net frontend: proxy /api → loopback backend, listen only on the Home-VLAN IP
   dsh:
     - serve.json.j2         # HD-268c Pattern-A tailnet serve config (TCP:3080 → loopback); explicitly rendered so the file exists BEFORE docker compose bind-mounts it (avoids Docker auto-creating ./serve.json as a directory)
   pi-dev:
@@ -109,6 +111,7 @@ _template_vault_items:
   forgejo: {'forgejo_db'}
   grafana: {'smtp_login', 'grafana_login'}
   headscale: {'headplane_password', 'headscale_api', 'headplane_api'}
+  homelable: {'homelable_login', 'homelable_secret', 'homelable_mcp'}   # HD-45 — mcp item is catalog-created unconditionally (unused while homelable_mcp_enabled=false) so flipping the flag never needs a derive-map edit; the compose only references it in the mcp if-block
   home-assistant-standby: {'ha-vrrp_password'}
   immich-app: {'immich_oidc', 'immich-ml-internal_api', 'immich_db'}
   immich-ml: {'immich-ml-internal_api'}
