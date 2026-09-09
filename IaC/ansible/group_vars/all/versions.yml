@@ -72,9 +72,7 @@ pihole_version: "2026.07.2"                # pihole/pihole (calver v6 line)
 dozzle_version: "v10.7.3"                  # amir20/dozzle
 homepage_version: "v1.4.5"                 # ghcr.io/gethomepage/homepage
 metabase_version: "v0.63.14.1"             # metabase/metabase
-signal_cli_rest_api_version: "0.202-dev"   # bbernhard/signal-cli-rest-api — upstream only publishes
-                                           # -dev-scheme tags now (probe 2026-08-21); specific dev tag
-                                           # beats bare latest; REGISTRY-VERIFY at first deploy.
+signal_cli_rest_api_version: "0.203-dev"   # bbernhard/signal-cli-rest-api — upstream only publishes
 renovate_version: "35.10.0"                # ghcr.io/renovatebot/renovate — GHCR tag list truncated
                                            # (1000-tag page); REGISTRY-VERIFY at first deploy.
 element_web_version: "v1.11.96"            # ghcr.io/element-hq/element-web (vectorim org is GONE —

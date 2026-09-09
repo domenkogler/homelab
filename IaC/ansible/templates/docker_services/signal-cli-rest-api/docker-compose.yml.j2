@@ -18,9 +18,12 @@ services:
     # read_only intentionally ABSENT (HD-318): the entrypoint runs usermod/groupmod
     # (to align the signal-api uid) before exec; read_only root made `groupmod: cannot
     # lock /etc/group` fatal. Keep cap_drop: ALL.
+    # tmpfs /tmp MUST be exec (signal-cli/libsignal-client native lib extraction):
+    # signal-cli 0.14.x extracts libsignal_jni_*.so to /tmp and mmap-execs it. Docker's
+    # bare-tmpfs default is noexec,nodev,nosuid -> "failed to map segment from shared
+    # object" -> the daemon never starts and the REST API never comes up (live 2026-09-09).
     tmpfs:
-      - /tmp
-    container_name: signal-cli-rest-api
+      - /tmp:exec
     restart: unless-stopped
     environment:
       SIGNAL_CLI_PHONE_NUMBER: "{{ vault['signal_api'].username | replace('$','$$') }}"
