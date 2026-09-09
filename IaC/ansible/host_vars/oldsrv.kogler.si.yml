@@ -19,6 +19,9 @@ homelab_mode: desktop
 nut_mode: client
 nut_host: nas.kogler.si             # NUT master endpoint
 shutdown_delay_seconds: 60          # flush Grafana→n8n→Signal before critical shutdown
+# oldsrv is the biggest UPS load — halt at 75% charge to preserve battery for
+# nas/pi (which ride to critical 20%). Policy: docs/hardware-ups.md.
+ut_shutdown_charge_threshold: 75
 # HA failover (docs/smart-home-failover.md): the Home-VLAN (10) interface keepalived
 # VRRP runs on. Live layout (verified 2026-09-09): oldsrv's Home IP 10.10.1.30/24 sits
 # on the PARENT NIC enp0s31f6 (untagged Home); only Mgmt is a VLAN child

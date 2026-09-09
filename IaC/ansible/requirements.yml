@@ -5,3 +5,4 @@ collections:
   - name: community.routeros      # MikroTik RouterOS REST API modules (vlan, dhcp, firewall, etc.)
   - name: community.docker        # docker_network, docker_compose_v2 modules (docker_services role)
   - name: community.dns           # DNS utilities — nameserver/hetzner/hosttech modules (net-dns tooling)
+  - name: ansible.posix          # acl module — clear stray ACL on NUT upssched-cmd (HD-06 fix)

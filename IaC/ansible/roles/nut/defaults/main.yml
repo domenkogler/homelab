@@ -16,6 +16,14 @@ nut_listen_ip: 10.10.1.10        # nas Home-VLAN IP — upsd listens here (intra
 # shutdown_delay_seconds: 0      # nas/ha power down immediately
 # shutdown_delay_seconds: 60     # oldsrv — flush Grafana→n8n→Signal before powerdown
 
+# --- Per-host charge threshold for shutdown (percent) ---
+# While on battery, halt this host once battery.charge drops to <= this value.
+#   oldsrv = 75  (the power hog — halts early to preserve battery for nas/pi)
+#   nas/pi  = 0  (default — never halt on charge; rely on the upsmon LOWBATT
+#                 SHUTDOWNCMD = critical-only policy, battery <20% / runtime <5min)
+# 0 also disables the upssched charge-poll timer for that host.
+nut_shutdown_charge_threshold: 0
+
 # --- nut_exporter (single SSOT exporter, run as a HOST binary on master;
 # nas has no Docker). PINNED to v3.3.0 (HD-315, 2026-09-04): the earlier
 # `@latest` drifted onto a `(devel)` build; v3.3.0 is the latest tagged

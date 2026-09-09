@@ -106,6 +106,31 @@
     group: nut
     mode: '0750'        # 0750: not world-readable — master's copy embeds SMTP creds at render time; nut (group) must execute it.
 
+# Remove any stray ACL on upssched-cmd. A hand-applied ACL (group::r--) strips the
+# group-execute bit even though the mode is 0750, which breaks `nut` running the
+# script (exec_cmd 126 — HD-06 live drill 2026-09-09). Mode bits alone must rule.
+- name: Clear stray ACL on upssched-cmd (group nut must execute)
+  ansible.posix.acl:
+    path: /etc/nut/upssched-cmd
+    state: absent
+  when: nut_mode is defined
+  tags: always
+
+# --- Shutdown execution — nut must be able to halt the host ---
+# upsmon/upssched run as `nut` (RUN_AS_USER nut). nut has no polkit rights to
+# /sbin/shutdown (verified live 2026-09-09: "Call to PowerOff failed: Interactive
+# authentication required"). Without this entry the shutdown path can never fire.
+- name: Allow nut to halt the host (sudoers)
+  copy:
+    content: "nut ALL=(root) NOPASSWD: /sbin/shutdown\n"
+    dest: /etc/sudoers.d/nut
+    owner: root
+    group: root
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'
+  when: nut_mode is defined
+  tags: always
+
 # --- nut_exporter: single SSOT exporter, HOST binary on the master ---
 # Resolve the release tag: pinned tag used as-is; '' / '@latest' → latest GitHub release.
 # Guards: this is MASTER-ONLY (client hosts — Pi/oldsrv — never run the exporter; resolving
