@@ -79,6 +79,9 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 19 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
 | 20 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
 | 21 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
+| 22 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | disabled |
+| 23 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | disabled |
+| 24 | homelable | homelable | `https://homelable.kogler.si` | disabled |
 
 ## pi.kogler.si
 
@@ -90,4 +93,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-09-08T13:57:18Z
+> Generated from the `docker_services` lists | 2026-09-09T14:35:52Z

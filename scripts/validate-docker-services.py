@@ -21,6 +21,7 @@ Usage:
 import sys
 import re
 import base64
+import json
 from pathlib import Path
 from jinja2 import Environment, StrictUndefined
 import yaml
@@ -171,6 +172,11 @@ def _load_ssot_ctx():
     for k in (
         "privado_vpn_endpoint_ip", "privado_vpn_endpoint_port",
         "privado_vpn_public_key", "privado_vpn_address", "privado_vpn_cidr",
+        # Homelable (HD-45) — plain non-secret scanner/knob vars from home_servers.yml,
+        # consumed by the homelable compose template (SCANNER_RANGES etc.). Loaded from
+        # the SSOT (HD-189 principle) so the validator render cannot drift.
+        "homelable_scanner_ranges_json", "homelable_status_checker_interval",
+        "homelable_deep_scan_ranges_json", "homelable_mcp_enabled",
     ):
         if k in hdata:
             ctx[k] = hdata[k]
@@ -296,6 +302,10 @@ def build_env():
     # `| b64decode` on the same principle). Register it so the offline render is
     # byte-equivalent instead of failing StrictUndefined on an unknown filter.
     env.filters["b64encode"] = lambda s: base64.b64encode(s.encode()).decode()
+    # HD-45 (homelable compose): SCANNER_RANGES / SCANNER_HTTP_RANGES render a JSON-array
+    # string via Ansible's `to_json` filter. Register the same offline mock so the gate
+    # renders byte-equivalent (Ansible to_json = compact json.dumps with ensure_ascii).
+    env.filters["to_json"] = lambda s: json.dumps(s, ensure_ascii=False, separators=(",", ":"))
     # HD-258: bulk pre-pass leaves a `vault: {NAME: {field: val}}` dict in scope
     # instead of per-template `lookup()`. Mock it here so the gate renders the
     # post-refactor templates offline — every field is the same `'<secret:NAME>'`

@@ -128,15 +128,19 @@
 # ---- HA sync channel: standby side (sync is Pi-initiated) ----
 # The Pi generates /root/.ssh/ha-sync and pushes config + pulls certs over LAN;
 # oldsrv hosts the rsync-only wrapper + authorizes the key (source-restricted).
-# Requires the Pi reachable (full site.yml run) — the sync cannot be set up
-# otherwise.
+# NOTE (2026-09-09, failover prep): the sync runs as ROOT on oldsrv — the standby's
+# /config is root-owned (same as the Pi primary) so the root-running HA standby can
+# write .ha_run.lock/.storage and the root rsync can overwrite it. The key is
+# authorized in /root/.ssh/authorized_keys (not ansible-admin) with the same
+# rsync-only command= wrapper. Requires the Pi reachable (full site.yml run) — the
+# sync cannot be set up otherwise.
 
-- name: Create standby HA config directory (sync target, ansible-admin writable)
+- name: Create standby HA config directory (sync target, root-owned)
   ansible.builtin.file:
     path: /opt/home-assistant-standby/config
     state: directory
-    owner: ansible-admin
-    group: ansible-admin
+    owner: root
+    group: root
     mode: '0755'
   tags: [ha_failover, hd17]
 
@@ -160,10 +164,18 @@
   tags: [ha_failover, hd17]
 
 # ---- Lovelace dashboard (standby — same as Pi, cold-render) ----
+# owner/group: root — SAME as the Pi primary (/opt/home-assistant-primary/config is
+# root:root) because the HA container runs as ROOT (image default User=""). If these
+# were ansible-admin-owned (uid 1001) the root HA process could not write
+# .ha_run.lock/.storage → standby HA exits "Permission denied: '/config/.ha_run.lock'"
+# (2026-09-09 failover prep live finding). The Pi→standby config sync runs as root
+# (root@oldsrv ha-sync key) so it can overwrite root-owned files.
 - name: Create lovelace directory (standby)
   ansible.builtin.file:
     path: "{{ ha_standby_path }}/config/lovelace"
     state: directory
+    owner: root
+    group: root
     mode: '0755'
   tags: [ha_failover, knx, lovelace]
 
@@ -171,6 +183,8 @@
   ansible.builtin.copy:
     src: lovelace/dashboard_stanovanje.yaml
     dest: "{{ ha_standby_path }}/config/lovelace/dashboard_stanovanje.yaml"
+    owner: root
+    group: root
     mode: '0644'
   tags: [ha_failover, knx, lovelace]
 
@@ -178,6 +192,8 @@
   ansible.builtin.copy:
     src: "lovelace/{{ item }}"
     dest: "{{ ha_standby_path }}/config/lovelace/{{ item }}"
+    owner: root
+    group: root
     mode: '0644'
   loop:
     - view_pregled.yaml
@@ -193,6 +209,8 @@
   ansible.builtin.copy:
     src: knx-entities.yaml
     dest: "{{ ha_standby_path }}/config/knx-entities.yaml"
+    owner: root
+    group: root
     mode: '0644'
   tags: [ha_failover, knx]
 
@@ -200,6 +218,8 @@
   ansible.builtin.file:
     path: "{{ ha_standby_path }}/config/knx"
     state: directory
+    owner: root
+    group: root
     mode: '0755'
   tags: [ha_failover, knx]
 
@@ -207,6 +227,8 @@
   ansible.builtin.copy:
     src: "{{ role_path }}/files/StanovanjeKogler_v1_0.knxproj"
     dest: "{{ ha_standby_path }}/config/knx/StanovanjeKogler_v1_0.knxproj"
+    owner: root
+    group: root
     mode: '0644'
   tags: [ha_failover, knx]
 
@@ -224,13 +246,15 @@
   register: ha_sync_pubkey
   tags: [ha_failover, hd17]
 
-- name: Authorize Pi ha-sync key (rsync-only, Home-VLAN source only)
+- name: Authorize Pi ha-sync key (rsync-only, Home-VLAN source only) — ansible-admin
   ansible.builtin.authorized_key:
     user: ansible-admin
     key: "{{ ha_sync_pubkey['content'] | b64decode }}"
+    # IMPORTANT (2026-09-09, failover prep): OpenSSH authorized_keys options are
+    # comma-separated with NO spaces — a "command=..., no-pty, from=..." line is
+    # silently dropped by sshd (ssh-keygen -lf shows 2 of 3 keys) → publickey auth
+    # fails → ha-config-sync never runs. Keep every option glued with commas.
     key_options: >-
-      command="/usr/local/sbin/ha-sync-rsync",
-      no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty,
-      from="{{ pi_home_ip }}"
+      command="/usr/local/sbin/ha-sync-rsync",no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty,from="{{ pi_home_ip }}"
     comment: ha-sync@pi.kogler.si
   tags: [ha_failover, hd17]

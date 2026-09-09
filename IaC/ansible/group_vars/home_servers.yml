@@ -77,6 +77,25 @@ privado_vpn_cidr: 32                         # [Interface] Address prefix (WG /3
 # When omitted, the service name is used (e.g. traefik → traefik.kogler.si).
 # Required for services whose subdomain ≠ name (e.g. grafana → stats.kogler.si).
 
+# --- Homelable (HD-45, re-scoped 2026-09-09): network/rack topology visualizer ---
+# Internal-only dashboard on OLDSRV (Home VLAN 10). Scanner target ranges + knobs;
+# the compose template (docker_services/homelable/) renders these into the backend env.
+# `homelable_scanner_ranges_json` = the VLAN subnets the nmap discovery sweeps (site
+# SSOT, network_ranges above), as a JSON-array STRING (Homelable reads SCANNER_RANGES as
+# a JSON env var — the compose env value is a string; keep it JSON-quoted). Keep scans
+# scoped to the LAN the owner curates; do NOT scan the modem-LAN / WAN. The owner approves
+# discovered devices into the canvas (Homelable Pending-Devices queue) — never auto-adds.
+homelable_scanner_ranges_json: '["10.10.1.0/24","10.10.20.0/24","10.10.30.0/24","10.10.40.0/24","10.10.50.0/24","10.10.99.0/24"]'
+# Live healthcheck poll interval (seconds) Homelable uses for every node's check method.
+homelable_status_checker_interval: 60
+# Optional deep-scan JSON port list (SCANNER_HTTP_RANGES, service-ID probes). Empty = off.
+# Only enable when a custom-port device is missed (e.g. '["9000-9100"]').
+homelable_deep_scan_ranges_json: ''
+# MCP sub-container (AI-tool topology read/write). OFF by default — the canvas is
+# curated first; turn on after the topology is populated + the owner approves AI write
+# (needs the homelable_mcp 1P item + a tailnet Pattern-A route for remote AI clients).
+homelable_mcp_enabled: false
+
 docker_services:
   # === This is OLDSRV — GPU / LAN / storage-bound services only (HD-135 split). ===
   # Public edge + live-data apps + observability backend + alert brain + backup agents
@@ -146,6 +165,15 @@ docker_services:
   # is Phase-3/HD-318 + needs the VPS Victoria backend live (HD-342). See docs/observability.md.
   - { name: mcp-victoriametrics, template_dir: mcp-victoriametrics, public: false, enabled: false }
   - { name: mcp-victorialogs,    template_dir: mcp-victorialogs,    public: false, enabled: false }
+
+  # --- Homelable (HD-45, re-scoped 2026-09-09): network/topology visualizer on oldsrv ---
+  # Self-hosted network + rack topology canvas, nmap discovery, live healthchecks + MCP
+  # (Pouzor/homelable, MIT). Internal-only dashboard — NEVER public/WAN. Access via the
+  # Home-VLAN (direct IP or a future local edge) and the tailnet; there is NO home-host
+  # Traefik edge (HD-331), and the VPS traefik-tailnet edge cannot reach back into the
+  # home LAN. ⏳ deploy-gated: owner sign-off + secrets seeded (docs/services-admin.md
+  # §Homelable). MCP sub-container is optional (homelable_mcp_enabled) — off by default.
+  - { name: homelable, template_dir: homelable, public: false, enabled: false }
 
   # --- Services MOVED to the VPS (group_vars/vps.yml) — not deployed on oldsrv ---
   # opencloud/immich-app/forgejo/litellm/qdrant/docling/open-webui/openclaw,

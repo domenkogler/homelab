@@ -19,9 +19,11 @@ homelab_mode: desktop
 nut_mode: client
 nut_host: nas.kogler.si             # NUT master endpoint
 shutdown_delay_seconds: 60          # flush Grafana→n8n→Signal before critical shutdown
-# HA failover (docs/smart-home-failover.md): Home-VLAN subinterface on the trunk —
-# must match the network role's trunk interface (eth0.10) once static-IP/trunk lands.
-ha_keepalived_interface: eth0.10
+# HA failover (docs/smart-home-failover.md): the Home-VLAN (10) interface keepalived
+# VRRP runs on. Live layout (verified 2026-09-09): oldsrv's Home IP 10.10.1.30/24 sits
+# on the PARENT NIC enp0s31f6 (untagged Home); only Mgmt is a VLAN child
+# (enp0s31f6.99). There is no eth0.10 — keepalived must bind the real Home device.
+ha_keepalived_interface: enp0s31f6
 # Desktop GPU (roles/desktop): Intel HD 630 iGPU PCI BusID (Z270 board = 00:02.0).
 desktop_igpu_busid: "PCI:0:2:0"
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

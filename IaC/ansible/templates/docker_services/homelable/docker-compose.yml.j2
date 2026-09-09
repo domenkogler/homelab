@@ -1,0 +1,121 @@
+# homelable docker-compose.yml — network/rack topology visualizer (HD-45, oldsrv)
+#   Self-hosted infrastructure visualization: interactive network + rack canvas,
+#   nmap discovery, live healthchecks (ping/http/https/tcp/ssh/prometheus/health),
+#   device inventory + per-device docs, optional MCP server for AI tools.
+#   https://github.com/Pouzor/homelable (MIT). Docs: docs/services-admin.md §Homelable.
+#
+#   PLACEMENT: OLDSRV (Home-VLAN 10). The backend must reach the LAN to discover
+#   devices (nmap scans the site VLANs) and to ping/HTTP-check them, and it needs a
+#   real L2 presence for ARP-derived MAC addresses — upstream's Docker-bridge default
+#   never sees MACs (INSTALLATION.md "Scanning from Docker"). So the backend runs with
+#   `network_mode: host` and binds ONLY oldsrv's Home-VLAN IP (10.10.1.30, SSOT
+#   `oldsrv_home_ip`) — the actual-budget :5006 / mcp-* narrow-bind precedent, NOT a
+#   0.0.0.0 publish. The frontend (nginx, ships proxying to `backend:8000`) also runs
+#   host-net with a rendered nginx.conf pointing /api at the Home-IP backend and
+#   listening only on the Home IP — the exact upstream "own reverse proxy" translation
+#   (INSTALLATION.md). No overlay for backend/frontend; no Docker `ports:` (host-net).
+#
+#   ACCESS: internal-only dashboard (HD-251 fleet-exposure policy — same posture as the
+#   tailnet-only admin dashboards). Reachable on the LAN at
+#   http://<oldsrv_home_ip>:3000 (and via the tailnet once oldsrv has a tailnet
+#   route / Pattern-A sidecar — future, HD-45 deploy tail). NO public record, NO WAN
+#   exposure, never on the VPS edges (the VPS traefik-tailnet cannot reach the home LAN).
+#   RouterOS Home-VLAN isolation keeps it off Guest/IoT/Mgmt by default.
+#
+#   AUTH = Homelable's local admin login (AUTH_USERNAME / AUTH_PASSWORD_HASH, bcrypt).
+#   Native OIDC (AUTH_MODE=oidc) is available but deliberately NOT wired initially —
+#   single-owner admin tool behind the LAN ACL keeps the surface minimal; revisit OIDC
+#   only if family members ever get accounts.
+#
+#   STATE: SQLite + uploads on a host bind under /srv/docker/homelable (kopia-agent
+#   snapshot scope, backup.md). MCP container (optional) attaches to services-internal.
+#
+#   SECRETS (1Password, fail-closed at render — HD-91/HD-65, NO default('')):
+#     homelable_login   (Login)        username = AUTH_USERNAME; password = admin
+#                                      password; bcrypt_hash = bcrypt(password) —
+#                                      consumed as AUTH_PASSWORD_HASH.
+#     homelable_secret  (Password)     SECRET_KEY (>=32 chars, JWT/session signing) +
+#                                      shared MCP_SERVICE_KEY source (if MCP on).
+#     homelable_mcp     (API Credential) MCP_API_KEY — REQUIRED only when
+#                                      homelable_mcp_enabled (off by default).
+#   Every vault[...] value passes through | replace('$','$$') (compose-escape
+#   law HD-270) — bcrypt hashes begin with `$2b$`, so this is MANDATORY for
+#   AUTH_PASSWORD_HASH; compose interpolates `$$` back to `$` at parse.
+#   Provisioning: provision-secrets.py CATALOG (Login w/ bcrypt_hash field) — the
+#   item must exist BEFORE the first converge (fail-loud). See docs/services-admin.md.
+{% if homelable_mcp_enabled is defined and homelable_mcp_enabled %}
+#   (homelable_mcp_enabled=true renders the mcp service below.)
+{% endif %}
+services:
+  homelable-backend:
+    image: ghcr.io/pouzor/homelable-backend:{{ homelable_version }}
+    network_mode: host          # L2/ARP + nmap raw visibility (see header)
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW                 # nmap SYN/OS-detect — required for useful scans
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    # Bind only the Home-VLAN address (narrow-bind law — never 0.0.0.0). The image
+    # default command binds 0.0.0.0; override the uvicorn host. Healthcheck shipped by
+    # the image curls localhost:8000 — with a non-loopback bind that healthcheck would
+    # hit nothing, so we pin the port back to the loopback too and let nginx front it:
+    # the backend is reachable at http://127.0.0.1:8000 via the frontend's
+    # nginx proxy AND (admin/API use) directly on the Home-IP:8000.
+    command: ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"]
+    environment:
+      SQLITE_PATH: /app/data/homelab.db
+      UPLOAD_DIR: /app/data/uploads
+      SECRET_KEY: "{{ vault['homelable_secret'].password | replace('$','$$') }}"
+      AUTH_MODE: "local"
+      AUTH_USERNAME: "{{ vault['homelable_login'].username | replace('$','$$') }}"
+      AUTH_PASSWORD_HASH: "{{ vault['homelable_login'].bcrypt_hash | replace('$','$$') }}"
+      SCANNER_RANGES: '{{ homelable_scanner_ranges_json }}'
+      STATUS_CHECKER_INTERVAL: "{{ homelable_status_checker_interval | default(60) }}"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+{% if homelable_deep_scan_ranges_json is defined and homelable_deep_scan_ranges_json | length > 0 %}
+      SCANNER_HTTP_RANGES: '{{ homelable_deep_scan_ranges_json }}'
+      SCANNER_HTTP_PROBE_ENABLED: "true"
+      SCANNER_HTTP_VERIFY_TLS: "false"
+{% endif %}
+    volumes:
+      - /srv/docker/homelable/data:/app/data   # SQLite DB + uploads (persistent; kopia scope)
+
+  homelable-frontend:
+    image: ghcr.io/pouzor/homelable-frontend:{{ homelable_version }}
+    network_mode: host          # nginx proxies to the loopback backend (see header)
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    # Rendered nginx conf: listen on oldsrv Home-IP:3000, proxy /api(+ws) to the
+    # loopback backend. Binds ONLY the Home VLAN address — never 0.0.0.0.
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - homelable-backend
+
+{% if homelable_mcp_enabled is defined and homelable_mcp_enabled %}
+  homelable-mcp:
+    image: ghcr.io/pouzor/homelable-mcp:{{ homelable_version }}
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    environment:
+      BACKEND_URL: "http://127.0.0.1:8000"   # host-net backend on the loopback
+      MCP_API_KEY: "{{ vault['homelable_mcp'].credential | replace('$','$$') }}"
+      MCP_SERVICE_KEY: "{{ vault['homelable_secret'].password | replace('$','$$') }}"
+    networks:
+      - services-internal
+{% endif %}
+
+# No top-level `networks:` — backend + frontend are host-net; the optional mcp service
+# attaches to the shared services-internal overlay only when enabled (declared external
+# below so compose never tries to create it — docker_services role owns the network).
+{% if homelable_mcp_enabled is defined and homelable_mcp_enabled %}
+networks:
+  services-internal:
+    external: true
+{% endif %}

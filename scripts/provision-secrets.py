@@ -182,6 +182,20 @@ CATALOG = [
     # carry username + password only. Rotatable (no external/app coupling beyond the re-render).
     ("API Credential", "victoria-metrics_api",  lambda: [f"username=victoria", f"password={gen_pw()}"]),
     ("API Credential", "victoria-logs_api",     lambda: [f"username=victoria", f"password={gen_pw()}"]),
+    # --- Homelable (HD-45, oldsrv network/rack topology visualizer) ---
+    # homelable_login: Login w/ username=admin, password=plaintext admin password, and
+    # bcrypt_hash (the value the compose renders as AUTH_PASSWORD_HASH). bcrypt_hash is
+    # generated at item-creation via homelable_login_item() (bcrypt-on-separate-python,
+    # HD-205); rotation-safe (a fresh hash is written on --rotate).
+    ("Login", "homelable_login", lambda: homelable_login_item()),
+    # homelable_secret: SECRET_KEY (JWT/session signing, >= 32 bytes) — also the shared
+    # MCP_SERVICE_KEY source when the MCP container is enabled. Rotatable (no external
+    # app coupling beyond re-render; sessions reset on rotation).
+    ("Password", "homelable_secret", lambda: [f"password={gen_pw(48)}"]),
+    # homelable_mcp: MCP_API_KEY for the optional Homelable MCP server (AI-tool topology
+    # read/write). Catalog-created so flipping homelable_mcp_enabled never needs a manual
+    # seed; unused (and unreferenced by the compose) while the flag is false.
+    ("API Credential", "homelable_mcp", lambda: [f"credential={gen_token(32)}"]),
 ]
 # Items never auto-rotated by this tool (external/app coupling). Kept here as a
 # guard list so `--rotate-all`/`--rotate` cannot clobber them.
@@ -292,6 +306,18 @@ def bcrypt_hash(password: str) -> str:
     if r.returncode != 0:
         raise RuntimeError(f"bcrypt failed: {r.stderr.strip()}")
     return r.stdout.strip()
+
+
+def homelable_login_item() -> list[str]:
+    """Homelable admin Login (HD-45): username + plaintext password + its bcrypt hash.
+
+    The Homelable backend stores AUTH_USERNAME + AUTH_PASSWORD_HASH (bcrypt) in env; the
+    compose renders the hash from the item's `bcrypt_hash` field. Keeping the plaintext
+    password alongside is what lets the owner log in (and a recoverer re-derive the hash).
+    Uses the same bcrypt-on-separate-python helper as the retired prometheus item (HD-205).
+    """
+    pw = gen_pw()
+    return [f"username=admin", f"password={pw}", f"bcrypt_hash={bcrypt_hash(pw)}"]
 
 
 def create(category: str, title: str, fields: list[str]) -> bool:
