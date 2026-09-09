@@ -42,6 +42,9 @@ grafana_alert_rules:
       # NOT every public service being down — only fire when a series exists and is 0.
       noDataState: OK
       execErrState: Error
+      # HD-347: `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
+      eval_type: lt
+      eval_params: [1]
     - uid: host-unreachable
       title: Host unreachable
       for: 2m
@@ -52,6 +55,9 @@ grafana_alert_rules:
       # no-data must not leave the rule stuck in an alerting state.
       noDataState: OK
       execErrState: Error
+      # HD-347: `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
+      eval_type: lt
+      eval_params: [1]
     - uid: host-disk-full
       title: Host disk nearly full
       for: 5m
@@ -72,9 +78,12 @@ grafana_alert_rules:
       summary: "VictoriaMetrics self-scrape failed — alerting data source is dead"
       # up{job=victoria-metrics} is a REAL series now (VM self-scrape /metrics on 8428,
       # HD-342), so it goes 0 only when VM is genuinely down — noData=OK prevents a
-      # transient scrape gap from falsely firing an Alerting state.
+      # transient scrape gap from falsely firing an Alerting state. HD-347: `== 0` needs
+      # `lt 1` evaluator (see grafana-rules.yml.j2) — the old `gt 0` made this rule dead.
       noDataState: OK
       execErrState: Alerting
+      eval_type: lt
+      eval_params: [1]
     - uid: zfs-pool-full
       title: ZFS pool nearly full
       for: 5m
@@ -99,9 +108,12 @@ grafana_alert_rules:
       summary: "wg-s2s tunnel down — home reachable only if the WG link is up"
       # probe_success{wg_icmp} is a REAL series now (blackbox relabel fixed); it
       # goes 0 only when the tunnel probe genuinely fails — noData=OK stops a
-      # transient no-data gap from falsely firing/sticking in Alerting.
+      # transient no-data gap from falsely firing/sticking in Alerting. HD-347: `== 0`
+      # needs `lt 1` evaluator.
       noDataState: OK
       execErrState: Alerting
+      eval_type: lt
+      eval_params: [1]
   warning:
     - uid: ups-on-battery
       title: UPS on battery
@@ -122,25 +134,17 @@ grafana_alert_rules:
       # noData=OK: absent series = no status, not a replace-battery condition.
       noDataState: OK
       execErrState: Error
-    - uid: mikrotik-link-down
-      title: MikroTik link down
-      for: 1m
-      expr: 'ifOperStatus{job="alloy-snmp"} == 2 and on(instance, ifIndex) ifAdminStatus{job="alloy-snmp"} == 1'
-      summary: !unsafe "MikroTik interface {{ $labels.ifName }} is down (oper down, admin up)"
-      # noData=OK: live ifOperStatus/alloy-snmp has ZERO series today (the SNMP export on
-      # this backend is not shipping) — that is NOT every MikroTik interface being down;
-      # only fire when a series exists and reports oper-down on an admin-up link.
-      noDataState: OK
-      execErrState: Error
     - uid: ha-unreachable
       title: Home Assistant unreachable
       for: 1m
       expr: 'probe_success{job="blackbox_http_probes", instance="https://ha.kogler.si"} == 0'
       summary: "ha.kogler.si HTTP probe failed"
       # noData=OK: absent probe_success series ≠ HA down; only fire when the probe runs
-      # and reports 0 (same class as host-unreachable).
+      # and reports 0 (same class as host-unreachable). HD-347: `== 0` needs `lt 1` evaluator.
       noDataState: OK
       execErrState: Error
+      eval_type: lt
+      eval_params: [1]
     - uid: ssl-cert-expiring
       title: TLS certificate expiring soon
       for: 5m
@@ -167,18 +171,24 @@ grafana_alert_rules:
       expr: 'up{job="victoria-logs"} == 0'
       summary: "VictoriaLogs self-scrape failed — log store is dead"
       # up{job=victoria-logs} is a REAL series now (VL self-scrape /metrics on 9428,
-      # HD-342) — only fire when the series explicitly goes 0.
+      # HD-342) — only fire when the series explicitly goes 0. HD-347: `== 0` needs
+      # `lt 1` evaluator; per docs the log store must alert when dead.
       noDataState: OK
       execErrState: Error
+      eval_type: lt
+      eval_params: [1]
     - uid: n8n-down
       title: n8n is down
       for: 2m
       expr: 'up{job="n8n"} == 0'
       summary: "n8n self-scrape failed — alert router is dead (SMTP failsafe still active)"
       # n8n is now on db-internal so up{job=n8n} is real (N8N_METRICS);
-      # noData=OK prevents a permanently-missing series from paging.
+      # noData=OK prevents a permanently-missing series from paging. HD-347: `== 0`
+      # needs `lt 1` evaluator.
       noDataState: OK
       execErrState: Error
+      eval_type: lt
+      eval_params: [1]
     - uid: zfs-pool-warn
       title: ZFS pool usage high
       for: 5m

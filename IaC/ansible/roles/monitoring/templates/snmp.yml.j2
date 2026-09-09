@@ -21,6 +21,7 @@ modules:
     walk:
       - 1.3.6.1.2.1.2.2.1.7    # ifAdminStatus
       - 1.3.6.1.2.1.2.2.1.8    # ifOperStatus
+      - 1.3.6.1.2.1.31.1.1.1.1 # ifName (ifXtable) — MUST be walked for the lookup below
     metrics:
       - name: ifAdminStatus
         oid: 1.3.6.1.2.1.2.2.1.7
@@ -33,6 +34,11 @@ modules:
           - labels: [ifIndex]
             labelname: ifName
             oid: 1.3.6.1.2.1.31.1.1.1.1
+            # HD-347: type DisplayString — without it snmp_exporter emits ifName as a
+            # hex string (0x65746865…) because the default decode for a lookup OID is gauge.
+            # Live-verified 2026-09-09 against RB4011 + CRS328: with this + walk present,
+            # ifName="ether3" etc. render as readable text.
+            type: DisplayString
       - name: ifOperStatus
         oid: 1.3.6.1.2.1.2.2.1.8
         type: gauge
@@ -44,3 +50,5 @@ modules:
           - labels: [ifIndex]
             labelname: ifName
             oid: 1.3.6.1.2.1.31.1.1.1.1
+            # HD-347: same DisplayString fix as ifAdminStatus (see above).
+            type: DisplayString

@@ -37,9 +37,16 @@ services:
       - services-internal
     volumes:
       - signal-cli-data:/home/.local/share/signal-cli      # identity persists across restarts
-    # No host ports: n8n reaches this on services-internal via signal-cli-rest-api:8080
-    # over the Docker overlay — a host binding would expose the unauthenticated REST API
-    # on the host net (KOPS-002 / HD-62).
+    # HD-347: n8n runs on the VPS (different host), so the old "no host ports — n8n
+    # reaches this on services-internal" comment was aspirational: the VPS n8n cannot
+    # resolve signal-cli-rest-api on oldsrv's private overlay. Publish the REST API on
+    # oldsrv's Home-VLAN address so the VPS n8n can reach it over wg-s2s — the same
+    # cross-host API leg pattern as actual-budget :5006 / immich-ml :3003 (HD-184/
+    # observability.md). Auth stays mandatory: every request needs X-Api-Key
+    # (SIGNAL_CLI_API_TOKEN, KOPS-002/HD-125) — publishing the port adds no
+    # unauthenticated surface.
+    ports:
+      - "{{ oldsrv_home_ip }}:8080:8080"
 volumes:
   signal-cli-data:
 networks:

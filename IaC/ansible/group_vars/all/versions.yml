@@ -41,9 +41,11 @@ keepalived_version: "2.3.4"
 # ==== Tuwunel (Matrix homeserver) — MUST-pin, fluid/obscure ====
 # jevolk/tuwunel image tag — obscure single-maintainer image facing public federation,
 # so `latest` is a supply-chain risk (KOPS-030 / HD-121). Pinned to the registry-verified
-# semver tag 2026-09-08 (digest sha256:295a1ceed… == the live `latest` digest on the VPS,
+# tag 2026-09-09: the real docker.io tag is **v1.9.0** (semver with `v` prefix) — bare
+# `1.9.0` returns 404 from Docker Hub. digest sha256:62339669… == the live `latest`
+# digest, v1.9.0 label. Renovate docker datasource keeps it current.
 # v1.9.0 label + created 2026-08-18). Renovate docker datasource keeps it current.
-tuwunel_version: "1.9.0"
+tuwunel_version: "v1.9.0"
 
 # ==== Media stack (HD-192, registry-verified 2026-08-21 via Docker Hub API) ====
 bazarr_version: "1.6.0"                    # linuxserver/bazarr (plain semver tag)

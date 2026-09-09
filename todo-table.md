@@ -38,6 +38,7 @@ Rows the AI can execute: either **now** (no prerequisite) or the **⏳ deploy-ga
 | **Obs / security / backup / docs** ||||
 | HD-342 | 2 | Kopia client wiring for `/srv/docker/victoria-*/data` | AI; oldsrv MCP tail = HD-344 (Table AI now) |
 | HD-344 | 3 | MCP Victoria servers on oldsrv (pi/OWUI/OpenClaw registration) | Gate met (oldsrv Phase-3 + VPS Victoria backend live) — enable + oldsrv converge + register in pi/OWUI/OpenClaw is AI; only the future tailnet sidecar redo is owner |
+| HD-347 | 1 | Observability false-alarm cleanup + alert-router wiring (SNMP ifName labels, n8n webhook workflow, remove mikrotik link-down + stale prometheus/loki rules, arm self-monitoring) | ✅ **CONVERGED + LIVE 2026-09-09** (VPS docker_services,n8n + monitoring already live): n8n SIGNAL_* env live, webhook 200; ⏳ **Signal device link + group UUID** = owner (HD-318d, Table Human) only |
 | HD-343 | 2 | Network Clients: wifi-path verify (`registration-table` vs legacy) + VPS Grafana converge | Router-side + converge are AI; **panel render-verify is owner** (Table Human) |
 | HD-318(b) | 1 | recyclarr quality-profile sync verify (all *arr + recyclarr Up 2026-09-08) | AI observation — confirm the @daily profile sync landed |
 | HD-280 | 2 | Confirm a 401/403 triggers a fail2ban ban | Observation job — waits for natural SSO brute-force (no work product) |
@@ -72,6 +73,7 @@ Grouped by *why* it's blocked. These are the real unblockers — clearing them c
 | HD-316 | 1 | Homepage launchpad — family sees apps green; technical section renders | Owner **visual** verify |
 | HD-315 | 1 | Grafana dashboard render-verify with data (post-Victoria) | Owner **visual** verify (panels + data sanity; **data now flowing** — all 4 hosts + probes, HD-346 closeout) |
 | HD-343 | 2 | Network Clients dashboard — panels render + visible on `stats.kogler.si` | Owner **visual** verify (pre-work is AI — Table AI) |
+| HD-347 (owner part) | 1 | Signal alert delivery — link the Signal device + set `signal_alert_recipients` | Owner **Signal link** (HD-318d — no device linked yet): once linked, capture the "Homelab Alerts" group UUID + fill `signal_alert_recipients` (all.yml SSOT) → then the n8n Signal leg delivers (the webhook workflow + env wiring are already live, Table AI) |
 | HD-242 | 2 | Metabase SELECT-only feeds | Owner seeds `metabase-forgejo_ro` **first** (fail-loud otherwise) → then AI converge + verify |
 | HD-112 | 2 | Zipline public bin | **First deploy human-gated** + local-admin → OIDC login → flip bypass-local-login (then AI round-trip verify) |
 | HD-101 | 2 | OWUI SSO → Authentik round-trip → local-admin linked | Owner **browser login** step after AI deploy |

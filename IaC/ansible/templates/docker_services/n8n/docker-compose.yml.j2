@@ -55,6 +55,13 @@ services:
       N8N_METRICS: "true"
       DB_TYPE: sqlite
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # HD-347: homelab-alerts workflow env — Signal delivery via signal-cli-rest-api on
+      # oldsrv (Home-VLAN publish, WG-reachable from the VPS). Values are 1P-resolved at
+      # render; the workflow JSON references these env names, not literals.
+      SIGNAL_CLI_URL: "http://{{ oldsrv_home_ip }}:8080/v2/send"
+      SIGNAL_API_TOKEN: "{{ vault['signal-internal_api'].credential | replace('$','$$') }}"
+      SIGNAL_NUMBER: "{{ vault['signal_api'].username | replace('$','$$') }}"
+      SIGNAL_RECIPIENTS: '{{ signal_alert_recipients | default('\"Homelab Alerts\"', true) | replace('$','$$') }}'
     labels: {}   # INTERNAL-ONLY (HD-135b follow-up): no public Traefik route on the main
                   # edge — n8n is served over the tailnet by the traefik-tailnet edge
                   # (auto.kogler.si / auto.ts.kogler.si).

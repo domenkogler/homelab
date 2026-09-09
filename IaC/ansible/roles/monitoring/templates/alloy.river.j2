@@ -154,33 +154,35 @@ loki.write "local" {
 // ---- MikroTik SNMP (router + switch — Mgmt VLAN 99, IPs from SSOT) ----
 // Scraped only by the OLDSRV Alloy (home LAN/Mgmt reach) to avoid duplicate collectors;
 // it forwards the SNMP series to the VPS backend like all other home telemetry.
+// HD-347: ONE exporter per device (component id = the target name) — the old single
+// exporter merged router+switch series under one flat instance, and the target `name`
+// label is NOT copied to the metrics (verified live), so an instance relabel by name is
+// impossible. Splitting gives instance="router" / instance="switch" for free (the
+// instance IS the component id).
 {% if inventory_hostname == 'oldsrv.kogler.si' %}
-prometheus.exporter.snmp "mikrotik" {
+{% for dev in ['router', 'switch'] %}
+prometheus.exporter.snmp "{{ dev }}" {
     config_file = "/etc/alloy/snmp.yml"
 
-    targets = [
-        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}", "name" = "router", "auth" = "kogler_ro_v2", "module" = "mikrotik"},
-        {"__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}", "name" = "switch", "auth" = "kogler_ro_v2", "module" = "mikrotik"},
-    ]
+    targets = [{
+        "__address__" = "{{ (network_static_hosts | selectattr('name', 'equalto', dev) | selectattr('vlan', 'equalto', 99) | first).ip }}",
+        "name" = "{{ dev }}",
+        "auth" = "kogler_ro_v2",
+        "module" = "mikrotik",
+        "job" = "alloy-snmp",
+    }]
 }
 
-// Consume the SNMP exporter so it actually runs (Alloy components are LAZY — an
-// unconsumed exporter evaluates nothing and its metrics never reach VM; the old
-// config put `forward_to` inside prometheus.exporter.snmp which is invalid in
-// Alloy and crashed the whole service). Tag the series with job="alloy-snmp" + the
-// target's instance so the SNMP panels (mikrotik-link-down etc.) match.
-discovery.relabel "snmp_mikrotik" {
-    targets = prometheus.exporter.snmp.mikrotik.targets
-    rule {
-        target_label = "job"
-        replacement  = "alloy-snmp"
-    }
-}
-
-prometheus.scrape "snmp_mikrotik" {
-    targets    = discovery.relabel.snmp_mikrotik.output
+prometheus.scrape "snmp_{{ dev }}" {
+    targets = prometheus.exporter.snmp.{{ dev }}.targets
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
+{% endfor %}
+
+
+// Consume the SNMP exporters so they actually run (Alloy components are LAZY — an
+// unconsumed exporter evaluates nothing and its metrics never reach VM). Tag the
+// series with job="alloy-snmp" + the per-device instance (from the component id).
 
 // ---- Network-clients exporter (HD-343) — RouterOS-API collector on oldsrv ----
 // The network-clients-exporter host binary polls the router read-only API and
@@ -328,20 +330,34 @@ prometheus.scrape "n8n" {
 }
 
 // Self-monitoring: VictoriaMetrics self-scrape (/metrics on 8428)
+// HD-347: the scrape needs the same basic_auth as remote_write — VM runs with
+// -httpAuth (victoria-metrics_api item), so without auth every scrape is 401 and
+// up{job="victoria-metrics"} was permanently 0 (masking the real signal; the old
+// `gt 0` evaluator hid it too — see grafana-rules.yml.j2).
 prometheus.scrape "vm_self" {
     targets = [{
         "__address__" = "127.0.0.1:8428",
         "job" = "victoria-metrics",
     }]
+    // HD-342: same victoria-metrics_api basic auth the Grafana datasource + remote_write use.
+    basic_auth {
+        username = "{{ lookup('community.general.onepassword', 'victoria-metrics_api', field='username', vault=op_vault) }}"
+        password = "{{ lookup('community.general.onepassword', 'victoria-metrics_api', field='password', vault=op_vault) }}"
+    }
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
 // Self-monitoring: VictoriaLogs self-scrape (/metrics on 9428)
+// HD-347: same basic_auth fix as vm_self — VL requires auth on /metrics.
 prometheus.scrape "vl_self" {
     targets = [{
         "__address__" = "127.0.0.1:9428",
         "job" = "victoria-logs",
     }]
+    basic_auth {
+        username = "{{ lookup('community.general.onepassword', 'victoria-logs_api', field='username', vault=op_vault) }}"
+        password = "{{ lookup('community.general.onepassword', 'victoria-logs_api', field='password', vault=op_vault) }}"
+    }
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 {% endif %}

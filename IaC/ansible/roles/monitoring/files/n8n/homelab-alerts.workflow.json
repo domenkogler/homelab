@@ -1,0 +1,152 @@
+{
+  "name": "homelab-alerts",
+  "nodes": [
+    {
+      "id": "trigger-webhook",
+      "name": "Grafana Alert Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "homelab-alerts",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "homelab-alerts"
+    },
+    {
+      "id": "route-state",
+      "name": "Route by Alert State",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "dataPropertyName": "body.state",
+        "rules": {
+          "values": [
+            {
+              "value1": "alerting",
+              "operation": "equals"
+            },
+            {
+              "value1": "resolved",
+              "operation": "equals"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fmt-alerting",
+      "name": "Format Alerting Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, -220],
+      "parameters": {
+        "jsCode": "const b = $input.first().json.body || {};\nconst title = b.title || 'Homelab alert';\nconst state = b.state || 'unknown';\nconst msg = b.message || '';\nconst labels = b.labels || {};\nlet line = `⚠️ *${title}*\\nstate: ${state}\\n`;\nif (msg) line += `\\n${msg}\\n`;\nconst obj = JSON.stringify(labels);\nif (obj && obj !== '{}') line += `\\n\\`${obj}\\``;\nreturn [{ json: { message: line } }];"
+      }
+    },
+    {
+      "id": "send-signal-alerting",
+      "name": "Send Signal (alerting)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, -220],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SIGNAL_CLI_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.SIGNAL_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "message", "value": "={{$json.message}}" },
+            { "name": "number", "value": "={{ $env.SIGNAL_NUMBER }}" },
+            { "name": "recipients", "value": "=[{{ $env.SIGNAL_RECIPIENTS }}]" }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "fmt-resolved",
+      "name": "Format Resolved Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 220],
+      "parameters": {
+        "jsCode": "const b = $input.first().json.body || {};\nconst title = b.title || 'Homelab alert';\nreturn [{ json: { message: `✅ *${title}* resolved` } }];"
+      }
+    },
+    {
+      "id": "send-signal-resolved",
+      "name": "Send Signal (resolved)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 220],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SIGNAL_CLI_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.SIGNAL_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "message", "value": "={{$json.message}}" },
+            { "name": "number", "value": "={{ $env.SIGNAL_NUMBER }}" },
+            { "name": "recipients", "value": "=[{{ $env.SIGNAL_RECIPIENTS }}]" }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Grafana Alert Webhook": {
+      "main": [
+        [{ "node": "Route by Alert State", "type": "main", "index": 0 }]
+      ]
+    },
+    "Route by Alert State": {
+      "main": [
+        [{ "node": "Format Alerting Message", "type": "main", "index": 0 }],
+        [{ "node": "Format Resolved Message", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Alerting Message": {
+      "main": [
+        [{ "node": "Send Signal (alerting)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Resolved Message": {
+      "main": [
+        [{ "node": "Send Signal (resolved)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Ljubljana"
+  }
+}

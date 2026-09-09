@@ -152,6 +152,9 @@ def _load_ssot_ctx():
         # the group_vars level; loaded from SSOT so the validator can't drift from the
         # real render (HD-189 principle).
         "victoria_backend_host",
+        # Signal alert recipients (HD-347) — plain non-secret JSON-array string consumed by
+        # the n8n compose (SIGNAL_RECIPIENTS) for the homelab-alerts workflow.
+        "signal_alert_recipients",
     ):
         if k in data:
             ctx[k] = data[k]

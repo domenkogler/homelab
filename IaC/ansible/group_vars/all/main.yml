@@ -195,6 +195,12 @@ homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto
 # source restriction. Derived from the address SSOT.
 oldsrv_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 pi_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+# Signal alert recipients — the "Homelab Alerts" Signal group (HD-347). JSON-array form
+# WITHOUT the brackets; the n8n compose wraps it: recipients = [{{ signal_alert_recipients }}].
+# Populated once the Signal device is linked (owner, HD-318d) with the group UUID or
+# phone-number list — e.g. '"+3863163xxxx",  "<group-id>"'. Non-secret SSOT (like
+# grafana_alert_email) — the Signal token itself stays in 1Password `signal-internal_api`.
+signal_alert_recipients: ""
 network_vlans:
   - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }
