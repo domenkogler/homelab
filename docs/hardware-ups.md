@@ -78,7 +78,7 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 - **Master = nas** (only host physically USB-wired). **Clients = oldsrv + ha/Pi**, each triggers its own local `shutdown` — no cross-host dependency.
 - **Single sensor of truth:** one `nut_exporter` on the master; other hosts are NUT clients only (not exporters).
 - **Shutdown policy:** Critical = battery < **20%** or runtime < **5 min**. `oldsrv` delayed **60 s** (flushes Grafana→n8n→Signal/email before powerdown); `nas`/`ha` power down immediately.
-- **Guaranteed notify:** NUT-side `upssched-cmd` on nas emails + sends Signal directly on `ONBATT`/`LOWBATT`, independent of Grafana/n8n.
+- **Guaranteed notify:** NUT-side `upssched-cmd` on nas emails + sends Signal directly on `ONBATT`/`LOWBATT`, independent of Grafana/n8n. ✅ **SMTP creds inline + rotation propagated 2026-09-09:** the `upssched-cmd` template rendered `nut_smtp_user`/`nut_smtp_pass` as shell-vars (`${nut_smtp_user}`) that nothing on the host set — SMTP auth silently failed empty (masked by `|| true`). Fixed to render the 1Password values inline (`{{ nut_smtp_user }}`/`{{ nut_smtp_pass }}`); `smtp_login` password rotated 2026-09-09 → nas re-converged, `/etc/nut/upssched-cmd` now embeds the NEW value (verified hash match vs vault).
 
 ## Monitoring & Shutdown Status
 

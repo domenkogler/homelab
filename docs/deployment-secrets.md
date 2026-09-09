@@ -272,7 +272,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `onlyoffice-rabbitmq_login` | `login` (`username`+`password`) | onlyoffice-rabbitmq sidecar — `RABBITMQ_DEFAULT_USER/PASS` (first mnesia init) + ONLYOFFICE `AMQP_URI`; NOT auto-rotatable (both sides coupled) |
 | `forgejo_api` | `credential` | renovate (`RENOVATE_TOKEN`) — Forgejo token (deploy/CI via the Forgejo Actions runner); previously also doco-cd `GIT_ACCESS_TOKEN` (doco-cd dropped, HD-150) |
 | `grafana_login` | `password` | grafana (admin user) |
-| `smtp_login` | `password` | **SMTP relay (HD-54, SMTP2Go)** — shared by Grafana (SMTP fail-safe) + NUT (UPS email notify). `username` = SMTP user + notify email; `password` = SMTP pass. |
+| `smtp_login` | `password` | **SMTP relay (HD-54, SMTP2Go)** — shared by Grafana (SMTP fail-safe) + NUT (UPS email notify) + Metabase (HD-241, env SMTP) + HA `secrets.yaml` (rendered, consumer pending). `username` = SMTP user + notify email (`notify@kogler.si`); `password` = SMTP pass. **Rotated 2026-09-09** (exposed via git history) → converged VPS/grafana+metabase, Pi+oldsrv HA secrets, NUT upssched-cmd (hash-verified live). |
 | `ha_api` | `credential` | HA long-lived token → Traefik/Companion, `/api/prometheus` bearer for Prometheus |
 | `ha-vrrp_password` | `password` | keepalived (VIP `ha.kogler.si`) shared auth |
 | `ha-failover_api` | `credential` | HA failover trigger API (HD-17) — Homepage buttons + `ha-failover-api` token |
