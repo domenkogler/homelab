@@ -109,7 +109,7 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 
 | URL | Backend | Why it's here |
 |-----|---------|---------------|
-| `https://ha.kogler.si` | VIP (`ha-vip`) :8123, keepalived | VIP edge switches nodes; never "correct" to a node IP |
+| `https://ha.kogler.si` | VIP (`ha-vip`) :8123, keepalived | VIP edge switches nodes (Pi `traefik-ha` normal → oldsrv `traefik-internal` on takeover, HD-349); never "correct" to a node IP |
 | `https://dns-pi.kogler.si` | VIP (`ha-vip`) → Pi `traefik-ha` → `pi:5380` | Pi edge — reachable when oldsrv is down |
 | `https://cockpit-nas.kogler.si` | `nas:9090` (IP per SSOT) | host service (not Docker) |
 | `https://cockpit-oldsrv.kogler.si` | `oldsrv:9090` (IP per SSOT) | host service |
