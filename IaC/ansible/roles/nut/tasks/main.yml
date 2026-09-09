@@ -96,7 +96,7 @@
     owner: root
     group: nut
     mode: '0640'
-  notify: restart nut services
+  notify: restart upsmon (all modes)
 
 - name: Deploy upssched-cmd (both modes — master notifies, all hosts do deferred shutdown)
   template:
@@ -129,7 +129,7 @@
 # authentication required"). Without this entry the shutdown path can never fire.
 - name: Allow nut to halt the host (sudoers)
   copy:
-    content: "nut ALL=(root) NOPASSWD: /sbin/shutdown\n"
+    content: "nut ALL=(root) NOPASSWD: /sbin/poweroff, /sbin/shutdown\n"
     dest: /etc/sudoers.d/nut
     owner: root
     group: root

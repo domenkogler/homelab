@@ -18,4 +18,12 @@ shutdown_delay_seconds: 0           # power down immediately on critical
 # master (nas) renders upssched-cmd that sends mail; clients keep the role default.
 # Host/port derive from the SMTP2Go connection SSOT in group_vars/all.yml (smtp2go_*).
 nut_smtp_server: "{{ smtp2go_host }}:{{ smtp2go_port }}"
+# Wake-after-recharge (WoL, master-only): when mains returns and battery recharges
+# to >= 90%, nas sends a WoL magic packet to oldsrv (halted at 75% during the outage)
+# so it comes back automatically. oldsrv NIC enp0s31f6 supports WoL (wake-on g, live
+# verified 2026-09-09); BIOS S5 WoL setting is the remaining unknown (test will tell).
+nut_wake_enabled: true
+nut_wake_charge: 80
+nut_wake_macs:
+  oldsrv: "70:85:c2:2d:6f:04"
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)

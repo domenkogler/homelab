@@ -22,3 +22,16 @@ AT charge-check * START-TIMER charge-check 30
 
 # LOWBATT direct notify (upsmon's own SHUTDOWNCMD handles the actual halt).
 AT LOWBATT * EXECUTE lowbatt
+
+{% if nut_mode == 'master' and nut_wake_enabled | default(false) %}
+# --- Wake clients after mains restore + recharge (master only) ---
+# When mains returns, poll the battery; once it recharges to >= nut_wake_charge
+# (default 90), the wake-check handler in upssched-cmd sends WoL magic packets to
+# every client that halted itself (e.g. oldsrv at 75%). This re-arms every 30 s so
+# the wake fires as soon as the battery crosses the threshold. CANCEL on ONBATT so
+# it never wakes during the next outage.
+AT ONLINE * START-TIMER wake-check 30
+AT ONBATT * CANCEL-TIMER wake-check
+AT wake-check * EXECUTE wake-check
+AT wake-check * START-TIMER wake-check 30
+{% endif %}

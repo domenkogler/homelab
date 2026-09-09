@@ -29,19 +29,32 @@ case "$1" in
     SUBJ="[Homelab UPS] Back on mains"
     BODY="Utility power restored; UPS charging. {{ nut_host }}"
     ;;
+  wake-check)
+    # Master-only: when mains is back and battery recharges to >= nut_wake_charge,
+    # wake clients that halted themselves (WoL magic packet to each configured MAC).
+    _charge=$(upsc {{ nut_host }}@{{ nut_listen_ip }} battery.charge 2>/dev/null | tr -dc '0-9')
+    if [ -n "${_charge}" ] && [ "${_charge}" -ge "{{ nut_wake_charge | default(90) }}" ]; then
+      logger -t nut-upssched "battery ${_charge}% >= {{ nut_wake_charge | default(90) }}% — sending WoL to halted clients"
+{% for _host, _mac in nut_wake_macs | default({}) | dictsort %}
+      /usr/bin/wakeonlan {{ _mac }} || true
+      logger -t nut-upssched "wakeonlan sent to {{ _host }} ({{ _mac }})"
+{% endfor %}
+    fi
+    exit 0
+    ;;
   checkcharge)
     # Poll charge (via the master's USB link) and halt at this host's threshold.
     # Uses" the master upsd so no client-side NUT auth is needed.
     _charge=$(upsc {{ nut_host }}@{{ nut_listen_ip }} battery.charge 2>/dev/null | tr -dc '0-9')
     if [ -n "${_charge}" ] && [ "${_charge}" -le "{{ nut_shutdown_charge_threshold | default(0) }}" ]; then
       logger -t nut-upssched "charge ${_charge}% <= threshold {{ nut_shutdown_charge_threshold | default(0) }}% — powering down"
-      exec sudo /sbin/shutdown -h now
+      exec sudo /sbin/poweroff
     fi
     exit 0
     ;;
   powerdown)
     logger -t nut-upssched "UPS still on battery after {{ shutdown_delay_seconds | default(0) }}s — powering down"
-    exec sudo /sbin/shutdown -h now
+    exec sudo /sbin/poweroff
     exit 0
     ;;
   *)
@@ -90,8 +103,11 @@ PYEOF
 send_mail || true
 
 # --- Optional Signal helper ---
-if [ -n "${nut_signal_helper}" ] && [ -x "${nut_signal_helper}" ]; then
-  "${nut_signal_helper}" "${SUBJ} — ${BODY}" 2>/dev/null || true
+# NOTE: `:-` guard — under `set -u` an unset ${nut_signal_helper} aborted the whole
+# script at this line (HD-06 drill: `vrstica 103: nut_signal_helper: nedoločena
+# spremenljivka`, exec_cmd returned 1). The helper stays optional/shell-defaulted.
+if [ -n "${nut_signal_helper:-}" ] && [ -x "${nut_signal_helper:-}" ]; then
+  "${nut_signal_helper:-}" "${SUBJ} — ${BODY}" 2>/dev/null || true
 fi
 {% else %}
 # --- Shutdown/log path (client) — no SMTP creds on clients ---
@@ -110,13 +126,13 @@ case "$1" in
     _charge=$(upsc {{ nut_host }} battery.charge 2>/dev/null | tr -dc '0-9')
     if [ -n "${_charge}" ] && [ "${_charge}" -le "{{ nut_shutdown_charge_threshold | default(0) }}" ]; then
       logger -t nut-upssched "charge ${_charge}% <= threshold {{ nut_shutdown_charge_threshold | default(0) }}% — powering down"
-      exec sudo /sbin/shutdown -h now
+      exec sudo /sbin/poweroff
     fi
     exit 0
     ;;
   powerdown)
     logger -t nut-upssched "UPS still on battery after {{ shutdown_delay_seconds | default(0) }}s — powering down"
-    exec sudo /sbin/shutdown -h now
+    exec sudo /sbin/poweroff
     ;;
   *)
     ;;

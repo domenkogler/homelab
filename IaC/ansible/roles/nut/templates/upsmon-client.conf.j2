@@ -4,7 +4,7 @@
 # owned by the upssched ONBATT timer (see upssched.conf.j2 → powerdown);
 # SHUTDOWNCMD here is the immediate LOWBATT path only.
 MONITOR powerwalker@{{ nut_host }} 1 upsmon {{ nut_upsmon_password }} slave
-SHUTDOWNCMD "/sbin/shutdown -h now"
+SHUTDOWNCMD "/sbin/poweroff"
 POLLFREQ 5
 POLLFREQALERT 5
 HOSTSYNC 15
