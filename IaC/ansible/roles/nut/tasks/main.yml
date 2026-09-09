@@ -106,13 +106,20 @@
     group: nut
     mode: '0750'        # 0750: not world-readable — master's copy embeds SMTP creds at render time; nut (group) must execute it.
 
-# Remove any stray ACL on upssched-cmd. A hand-applied ACL (group::r--) strips the
-# group-execute bit even though the mode is 0750, which breaks `nut` running the
-# script (exec_cmd 126 — HD-06 live drill 2026-09-09). Mode bits alone must rule.
-- name: Clear stray ACL on upssched-cmd (group nut must execute)
-  ansible.posix.acl:
-    path: /etc/nut/upssched-cmd
-    state: absent
+# Remove any stray ACL on upssched-cmd and restore the execute bits. A hand-applied
+# ACL (group::r--) strips the group-execute bit even though the mode is 0750, which
+# breaks `nut` running the script (exec_cmd 126 — HD-06 live drill 2026-09-09).
+# NOTE: `setfacl -b` alone does NOT restore group perms — it only removes ACL entries;
+# the group class stays at the last ACL value (r--) until an explicit chmod. So always
+# follow with chmod 0750 (verified live 2026-09-09: template mode:'0750' then setfacl -b
+# left the file at 0740 and nut still could not exec).
+- name: Clear stray ACL on upssched-cmd and restore mode 0750 (group nut must execute)
+  ansible.builtin.command:
+    cmd: /bin/bash -c 'setfacl -b /etc/nut/upssched-cmd; chmod 0750 /etc/nut/upssched-cmd'
+  args:
+    executable: /bin/bash
+  register: _acl_clear
+  changed_when: true
   when: nut_mode is defined
   tags: always
 
