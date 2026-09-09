@@ -30,10 +30,10 @@ Rows the AI can execute: either **now** (no prerequisite) or the **⏳ deploy-ga
 | HD-249 | 3 | n8n: audit external webhooks + scoped budget-capped LiteLLM key | AI |
 | HD-250 | 2 | DSH onboarding: thin image, compose, Forgejo PAT, headscale serve | AI (depends HD-247) |
 | HD-251 | 3 | Fleet-exposure phase-2 rollout (tailscale-first) | Doc policy already landed; rollout is AI |
-| HD-336 | 2 | agent-memory.dev per-project on oldsrv | oldsrv live; AI (CrewAI pilot is owner-gated → Table Human) |
+| HD-336 | 2 | agent-memory.dev per-project on oldsrv + ZeroClaw | oldsrv live; AI (CrewAI pilot split out → HD-336b, Table Human) |
 | **Smart Home** ||||
 | HD-14 | 2 | Enable HA Prometheus exporter (entity list) | AI — the "wait for observability" gate is gone (Victoria stack + Alloy live, HD-342) |
-| HD-17 | 2 | Create `ha-failover_api` + deploy failover button | RFUSB-move tail is **obsolete (HD-13 rejected)**; standby is already rendered live (HD-318c) |
+| HD-17 | 2 | Create `ha-failover_api` + deploy failover button | RFUSB-move tail is **obsolete (HD-13/18 rejected)**; standby is already rendered + api active (HD-318c, 2026-09-08); deploy button + run the owner test (HD-04) |
 | HD-185 / HD-124 | 1/2 | secrets.yaml renderer + keepalived deploy-verify | ✅ done+live (Pi Phase-4 2026-09-03; re-verified) — verify tails closed; the failover *exercise* stays owner (HD-04) |
 | **Obs / security / backup / docs** ||||
 | HD-342 | 2 | Kopia client wiring for `/srv/docker/victoria-*/data` | AI; oldsrv MCP tail = HD-344 (Table AI now) |
@@ -89,18 +89,18 @@ Grouped by *why* it's blocked. These are the real unblockers — clearing them c
 | HD-264 | 2 | Renovate → real repos | Owner: commit versioned manifest to `domen/test`, verify PR path, **flip `RENOVATE_REPOSITORIES`** |
 | HD-207 | 1 | Landing-zone redistribution | Owner: final **media rename vs personal-files** decision (mechanics = AI, Table AI) |
 | **Group 3 — owner-gated / high-risk / hardware / parked** ||||
-| HD-04 | 1 | Pi redo: HAOS → Debian + HA Container (in-use migration) | **Owner-gated execution** — live-family HA; needs a scheduled window + sign-off |
-| HD-312(4) | 2 | n8n firmware workflow — flow authoring (temp `iot-wan-allow` toggles) | **OWNER-GATED, joint AI+owner** (the `n8n` router API user is **LIVE** — 1P item created + router converged, HD-312(4) closeout) |
+| HD-04 | 1 | Pi redo + **owner failover test** (VIP move Pi→oldsrv + failback) | **Pi redo DONE + LIVE since 2026-09-03** — remaining = the owner **failover test** (live-HA window; short blackout OK per owner 2026-09-09); a parallel lane is finishing the button/runbook prep |
+| ~~HD-312(4)~~ | 2 | ~~n8n firmware workflow — flow authoring (temp `iot-wan-allow` toggles)~~ | **✅ SUPERSEDED 2026-09-09** — permanent `wan_allow` covers cloud-IoT firmware WAN; no flow authoring (decision log: [network-rejected.md](docs/network-rejected.md)) |
 | HD-335 / HD-337 | 2 | spark (ThinkStation PGX / GB10) bring-up | Owner **physical**: DGX OS install → then AI role/placement/Triton/Mem0 — **also gates the LiteLLM completion round-trip** (HD-100/247 Table-AI live-verify currently rides openrouter cloud) |
-| HD-336 | 2 | CrewAI epic orchestration pilot | Owner milestone gate ("homelab-finished") — agent-memory part is AI (Table AI) |
+| HD-336b | 2 | **CrewAI epic orchestration pilot — owner decision** (run 2-week pilot now / later / never) | **Owner decision only** — no AI work until answered (kill criteria: 2-week slice or abandon); does NOT gate HD-336 (agent-memory/ZeroClaw = Table AI) |
 | HD-34 | 4 | Kopia Web GUI vs CLI assessment | At the owner-run yearly restore drill |
-| HD-243 | 4 | Metabase LDAP auth | Parked — owner **trigger**: second regular human user needs Metabase |
-| HD-261 / HD-262 / HD-45 / HD-36 / HD-41 / HD-48 / HD-129 | — | Optional / Phase-2 / superseded | Deferred by design — no owner action pending |
+| ~~HD-243~~ | 4 | ~~Metabase LDAP auth~~ | **✅ REJECTED 2026-09-09** — owner is sole Metabase user; trigger never fires; stays Forward-Auth + local admin-only |
+| — | — | ~~HD-261 / HD-262 / HD-36 / HD-41 / HD-48 / HD-129~~ | **✅ CLOSED/REJECTED 2026-09-09** (Mitogen, Yacht, internal AAAA, Proxmox, Matrix bridges, DHCP-resolver) — see owning docs + decision logs; **HD-45 now OPEN as the network-dashboard + Homelable implementation (Table AI)** |
 
 ---
 
 ## Bottom line
 
 - **Best pure-AI starters right now:** HD-03 + HD-182 (router read-only audit/verify using the mikrotik skill — zero risk), HD-100 + HD-247 (LiteLLM 1P wiring + scoped-key cutover), HD-342 (Victoria kopia tail).
-- **The single highest-leverage owner (Table Human) step** is the **HD-318-responsive owner batch**: ① signal-cli phone registration (oldsrv tail), ② the 1P seeds in HD-242/268/296 (`metabase-forgejo_ro`, preauth keys, headscale A-records) that unblock the rest of the deploy-gated batch, ③ HD-312(4) n8n firmware-flow authoring (joint) — since oldsrv Phase-3 is **complete** (HD-318), the old ONLYOFFICE/ROCm/1P blocker list is retired. Clearing **HD-147 (OIDC records)** also unblocks the Table-AI Matrix deploy (HD-46/122).
+- **The single highest-leverage owner (Table Human) step** is the **HD-318-responsive owner batch**: ① signal-cli phone registration (oldsrv tail), ② the 1P seeds in HD-242/268/296 (`metabase-forgejo_ro`, preauth keys, headscale A-records) that unblock the rest of the deploy-gated batch, ③ the **HD-04 failover test** (VIP move + failback, being prepped by a parallel lane) — since oldsrv Phase-3 is **complete** (HD-318), the old ONLYOFFICE/ROCm/1P blocker list is retired. Clearing **HD-147 (OIDC records)** also unblocks the Table-AI Matrix deploy (HD-46/122).
 - **Stale rows note:** HD-40A/40B/135/43/44 read stale versus the README's "state of the world" (Phases 1/2/3/4 all live) — an AI close-out audit (verify live state, then delete/trim per todo.md §4(a)) is itself a good pure-AI Table-AI task.

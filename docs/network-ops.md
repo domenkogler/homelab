@@ -197,8 +197,9 @@ port-scan detection and the same stream is available to VictoriaLogs for central
   missing SSOT value aborts the render.
 - **Scoped `logpipe` API user (r/o, `read` group):** created by the role with the `mikrotik-logpipe_api`
   1Password credential; only the Mgmt plane reaches it. A dedicated `n8n` scoped read-only user
-  (HD-312(4), `mikrotik-n8n_api` item) follows the same pattern for the n8n firmware workflow; the temp
-  `iot-wan-allow` list toggles stay owner-gated in the n8n flow authoring.
+  (HD-312(4), `mikrotik-n8n_api` item) follows the same pattern — **the n8n firmware workflow is SUPERSEDED (2026-09-09):**
+  permanent `wan_allow` covers cloud-IoT firmware WAN; no temp `iot-wan-allow` flow authoring will be done —
+  the `n8n` user stays provisioned for future admin uses.
 - **Receiver (monitoring role, `routeros-syslog` tag, VPS only):** `rsyslog` UDP/514 on the **wg-s2s VPS
   address** (SSOT `wg_s2s_vps.local_ip`) accepts RFC5424 from the router peer only and writes
   `/var/log/remote-syslog/routeros.log`. rsyslog is installed by the monitoring role (the
