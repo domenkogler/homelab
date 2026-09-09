@@ -1,0 +1,17 @@
+# managed by Ansible — nut role (master) — persistent wake-after-recharge
+# Replaces the transient upssched wake-check (which dies when the SSH session /
+# helper exits): this systemd timer reliably polls the UPS and sends WoL to
+# clients that halted themselves (e.g. oldsrv at 75%) once the battery has
+# recharged to >= nut_wake_charge while on mains (OL).
+[Unit]
+Description=NUT wake halted UPS clients after recharge (WoL)
+After=network-online.target nut-server.service
+Wants=network-online.target
+Requires=nut-server.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/nut-wake
+# No lingering timer once fired — the timer unit starts/stops per OnCalendar
+# tick and this service runs the check each tick.

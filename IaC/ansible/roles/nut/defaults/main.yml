@@ -30,10 +30,10 @@ nut_shutdown_charge_threshold: 0
 # itself at its charge threshold (e.g. oldsrv at 75%). Disabled by default; enable
 # on the master host_vars (e.g. nas: nut_wake_enabled: true, nut_wake_macs: {oldsrv: MAC}).
 # Requires `wakeonlan` package on the master; clients need WoL from S5 (BIOS + ethtool wol g).
-ut_wake_enabled: false
+nut_wake_enabled: false
 nut_wake_charge: 90
 # hostname -> MAC address (lowercase, colons). Empty by default — no WoL sent.
-ut_wake_macs: {}
+nut_wake_macs: {}
 
 # --- nut_exporter (single SSOT exporter, run as a HOST binary on master;
 # nas has no Docker). PINNED to v3.3.0 (HD-315, 2026-09-04): the earlier
