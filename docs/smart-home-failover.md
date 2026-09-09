@@ -165,6 +165,20 @@ when the VIP is on oldsrv. Because the VIP already tracks the active HA node, th
 | Pi down (manual forward takeover) | oldsrv | **oldsrv `traefik-internal`** → VIP → standby HA |
 | oldOVs down | Pi | Pi `traefik-ha` → local HA — gap closed |
 
+### Drill verification record (live, 2026-09-09)
+
+> **Forward takeover (Pi → oldsrv) — EXECUTED LIVE 2026-09-09.** Owner pulled the Pi LAN cable; forward trigger via the local `ha-failover-api` (token from `/etc/ha-failover/api.env`, parsed like systemd EnvironmentFile — never shell-evaluated, it contains shell-special chars). Result HTTP 200 `{"event":"forward","exit":0}`.
+>
+> **✅ Proven:** VIP `ha-vip` moved Pi → oldsrv (keepalived MASTER 15:12:45 local); standby HA cold-booted and served at **VIP:8123** — after fixing a real defect: the standby compose only published `5683/udp` (Shelly CoAP), never `8123`; added `8123:8123` (commit `a3a11c0`) so the VIP contract holds on takeover. Shelly RGBW2 control verified from the standby container.
+>
+> **⚠ Two gaps found (both now tracked):**
+> 1. **KNX on the standby does not work** — the GIRA KNX router (`knx-ip`, VLAN 20) answers ICMP + web UI but **drops all KNXnet/IP** (tunnel CONNECT + multicast SEARCH) from oldsrv. Firewall allows Home→KNX:3671; packet path is correct; raw probe from oldsrv's Home-VLAN host IP gets zero response. Device-side issue: likely a GIRA tunnel-client allowlist containing only the Pi, or a wedged KNX/IP stack (power-cycle or ETS project change needed). → HD-04 tail.
+> 2. **`ha.kogler.si` HTTPS had NO edge on Pi-down** — the doc's "oldsrv `traefik` takes over" claim was stale post-HD-331 (HD-331 removed oldsrv Traefik). Fixed at the architecture level: **HD-349 edge-model re-decision + HD-350/351/352** (home-LAN `traefik-internal` on oldsrv). Until built, Pi-down = URL down (LAN `http://VIP:8123` only).
+>
+> **Bonus scenario (oldsrv-down) exercised live:** the owner's UPS battery test shut oldsrv down while the drill state was active; the **Pi took MASTER back automatically** (no competition) and `https://ha.kogler.si` → 200 restored entirely on the Pi — confirming the Pi-primary design.
+>
+> **Restore note:** after any forward takeover, oldsrv's active `keepalived.conf` holds the failover (MASTER prio 120) variant; restore the standby (BACKUP 100) conf before the next standby cold boot so the system returns to its designed rest state (HD-04 tail).
+
 **The same edge also serves the DNS-secondary web UI (`dns-pi.kogler.si`).**
 `dns-pi.kogler.si` resolves to the **VIP** (FQDN shape borrowed from the cockpit
 naming pattern, but delivery is like `ha` — NOT a file-provider route on oldsrv)
