@@ -50,8 +50,9 @@ decision log (`deployment-rejected.md`) + git history.
 the **NVIDIA Triton Inference Server** (`nvidia/tritonserver`), serving the NVFP4 model set below.
 **Spark is the homelab's single AI-inference tier** (2026-09-06 decision): all local inference —
 generation, embeddings, rerank, STT, TTS — runs here via Triton. It complements — does not replace —
-the VPS AI *spine* (LiteLLM/Qdrant/OWUI), but it **replaces** the oldsrv Ollama GPU tier (no Ollama/
-ROCm on oldsrv; oldsrv GPU = Sunshine gaming encode only).
+the VPS AI *spine* (LiteLLM/Qdrant/OWUI), but it **replaces** the oldsrv Ollama GPU tier (no host Ollama/
+AMD-noble ROCm on oldsrv). oldsrv's RX 7600 dGPU stays for **Sunshine gaming-encode + immich-ML batch
+inference (AI)** — the immich-ml container bundles its own ROCm runtime (owner correction 2026-09-09).
 
 ### Model set (NVFP4 / local, all fit within 128 GB unified memory)
 
