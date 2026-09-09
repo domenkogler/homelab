@@ -23,7 +23,7 @@ tags: [hardware, oldsrv, docker]
 | Motherboard | ASRock Z270 Extreme4 (AMI UEFI, Z270 chipset) |
 | iGPU | Intel HD 630 → dedicated to Linux desktop (family PC) |
 | dGPU | AMD Radeon RX 7600 8 GB → dedicated to Docker AI containers |
-| NIC | Intel i350-T2 (one port used — VLAN trunk to CRS328) |
+| NIC | **Onboard Intel I219-V** (`enp0s31f6`, MAC `70:85:C2:2D:6F:04`) = boot/main link on Home VLAN (IP see `network_static_hosts` SSOT), **WoL-capable** (BIOS: ACPI Config → PCIE Devices Power On + I219 LAN Power On = Enabled, Deep Sleep = Disabled; OS `wake-on g` via if-up hook) · Intel i350-T2 (`enp5s0f0/1`) — one port used, planned VLAN trunk to CRS328 |
 | RAM | 48 GB DDR4 (2×8 GB + 2×16 GB Corsair Vengeance LPX, DDR4-2400) |
 | NVMe 1 | Samsung SSD 970 EVO 1TB — **data**: ZFS pool `nvme` (DBs, service data, TSDB, models, dumps) — heavy writes live here (600 TBW, fastest) · by-id `nvme-eui.0025385b0143f12e` |
 | NVMe 2 | Samsung SSD 960 EVO 500GB — **system**: ext4 OS/root + `/opt` configs — light writes only (200 TBW) · by-id `nvme-eui.0025385c61b048c2` |

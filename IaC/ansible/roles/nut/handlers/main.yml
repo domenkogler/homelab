@@ -13,6 +13,18 @@
   when: nut_mode == 'master'
   tags: always
 
+# upsmon restart for BOTH modes — upssched.conf/upssched-cmd changes must reload
+# upssched on the client too, or the client keeps running a stale timer (HD-06 drill:
+# oldsrv shut down 60s after ANY mains loss at 84% because its OLD onbatt-delay timer
+# never got reloaded after the config deploy). The mode-split handler above would miss
+# clients, so the upssched tasks notify THIS one.
+- name: restart upsmon (all modes)
+  systemd:
+    name: nut-monitor
+    state: restarted
+    daemon_reload: true
+  tags: always
+
 - name: restart nut-monitor (client)
   systemd:
     name: nut-monitor

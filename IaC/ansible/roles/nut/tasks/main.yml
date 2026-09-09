@@ -96,7 +96,7 @@
     owner: root
     group: nut
     mode: '0640'
-  notify: restart nut services
+  notify: restart upsmon (all modes)
 
 - name: Deploy upssched-cmd (both modes — master notifies, all hosts do deferred shutdown)
   template:
@@ -105,6 +105,38 @@
     owner: root
     group: nut
     mode: '0750'        # 0750: not world-readable — master's copy embeds SMTP creds at render time; nut (group) must execute it.
+
+# Remove any stray ACL on upssched-cmd and restore the execute bits. A hand-applied
+# ACL (group::r--) strips the group-execute bit even though the mode is 0750, which
+# breaks `nut` running the script (exec_cmd 126 — HD-06 live drill 2026-09-09).
+# NOTE: `setfacl -b` alone does NOT restore group perms — it only removes ACL entries;
+# the group class stays at the last ACL value (r--) until an explicit chmod. So always
+# follow with chmod 0750 (verified live 2026-09-09: template mode:'0750' then setfacl -b
+# left the file at 0740 and nut still could not exec).
+- name: Clear stray ACL on upssched-cmd and restore mode 0750 (group nut must execute)
+  ansible.builtin.command:
+    cmd: /bin/bash -c 'setfacl -b /etc/nut/upssched-cmd; chmod 0750 /etc/nut/upssched-cmd'
+  args:
+    executable: /bin/bash
+  register: _acl_clear
+  changed_when: true
+  when: nut_mode is defined
+  tags: always
+
+# --- Shutdown execution — nut must be able to halt the host ---
+# upsmon/upssched run as `nut` (RUN_AS_USER nut). nut has no polkit rights to
+# /sbin/shutdown (verified live 2026-09-09: "Call to PowerOff failed: Interactive
+# authentication required"). Without this entry the shutdown path can never fire.
+- name: Allow nut to halt the host (sudoers)
+  copy:
+    content: "nut ALL=(root) NOPASSWD: /sbin/poweroff, /sbin/shutdown\n"
+    dest: /etc/sudoers.d/nut
+    owner: root
+    group: root
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'
+  when: nut_mode is defined
+  tags: always
 
 # --- nut_exporter: single SSOT exporter, HOST binary on the master ---
 # Resolve the release tag: pinned tag used as-is; '' / '@latest' → latest GitHub release.
@@ -158,6 +190,55 @@
     enabled: true
     daemon_reload: true
   when: nut_mode == 'master' and nut_exporter
+
+# --- Wake-after-recharge (persistent systemd timer, master only) ---
+# Replaces the transient upssched wake-check: a systemd timer polls the UPS every
+# 60 s and sends WoL to halted clients once battery >= nut_wake_charge on mains.
+- name: Install wakeonlan (master, wake enabled)
+  apt:
+    name: wakeonlan
+    state: present
+  when: nut_mode == 'master' and nut_wake_enabled | default(false)
+  tags: always
+
+- name: Deploy nut-wake script (master, wake enabled)
+  template:
+    src: nut-wake.j2
+    dest: /usr/local/sbin/nut-wake
+    owner: root
+    group: root
+    mode: '0755'
+  when: nut_mode == 'master' and nut_wake_enabled | default(false)
+  tags: always
+
+- name: Deploy nut-wake systemd service (master, wake enabled)
+  template:
+    src: nut-wake.service.j2
+    dest: /etc/systemd/system/nut-wake.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: nut_mode == 'master' and nut_wake_enabled | default(false)
+  tags: always
+
+- name: Deploy nut-wake timer (master, wake enabled)
+  template:
+    src: nut-wake.timer.j2
+    dest: /etc/systemd/system/nut-wake.timer
+    owner: root
+    group: root
+    mode: '0644'
+  when: nut_mode == 'master' and nut_wake_enabled | default(false)
+  tags: always
+
+- name: Enable and start nut-wake timer (master, wake enabled)
+  systemd:
+    name: nut-wake.timer
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: nut_mode == 'master' and nut_wake_enabled | default(false)
+  tags: always
 
 # --- Enable/start NUT daemons ---
 - name: Enable and start NUT services (master)

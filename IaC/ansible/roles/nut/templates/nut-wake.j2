@@ -1,0 +1,38 @@
+#!/bin/bash
+# managed by Ansible — nut role (master) — persistent wake-after-recharge
+# Poll the UPS; if on mains (OL), battery >= nut_wake_charge, and a configured
+# client is currently off (no ping reply), send it a WoL magic packet.
+# Runs every 60 s via nut-wake.timer (systemd) — independent of the transient
+# upssched helper, so the wake fires reliably after a real outage.
+set -u
+
+# --- render-time values (from role vars on the MASTER only) ---
+NUT_HOST={{ nut_host }}
+NUT_LISTEN_IP={{ nut_listen_ip }}
+WAKE_CHARGE={{ nut_wake_charge | default(90) }}
+{% for _host in nut_wake_macs | default({}) | dictsort %}
+IP_{{ _host[0] | upper | replace('-','_') }}={{ (network_static_hosts | selectattr('name','equalto', _host[0]) | selectattr('vlan','equalto',10) | first | default({})).ip | default(_host[0]) }}
+MAC_{{ _host[0] | upper | replace('-','_') }}={{ _host[1] }}
+{% endfor %}
+
+# The UPS must be on mains (OL) for a recharge-wake to make sense.
+STATUS=$(upsc "${NUT_HOST}@${NUT_LISTEN_IP}" ups.status 2>/dev/null | tr -d ' \r')
+if [[ "${STATUS}" != OL* ]]; then
+  exit 0   # still on battery — nothing to do
+fi
+
+CHARGE=$(upsc "${NUT_HOST}@${NUT_LISTEN_IP}" battery.charge 2>/dev/null | tr -dc '0-9')
+if [ -z "${CHARGE}" ] || [ "${CHARGE}" -lt "${WAKE_CHARGE}" ]; then
+  exit 0   # not recharged enough yet
+fi
+
+# For each configured client, only wake if it is currently offline.
+{% for _host in nut_wake_macs | default({}) | dictsort %}
+_IP={{ (network_static_hosts | selectattr('name','equalto', _host[0]) | selectattr('vlan','equalto',10) | first | default({})).ip | default(_host[0]) }}
+_MAC={{ _host[1] }}
+if ! ping -c1 -W2 "${_IP}" >/dev/null 2>&1; then
+  logger -t nut-wake "battery ${CHARGE}% >= ${WAKE_CHARGE}% and {{ _host[0] }} offline — sending WoL"
+  /usr/bin/wakeonlan "${_MAC}" || logger -t nut-wake "wakeonlan FAILED for {{ _host[0] }}"
+fi
+{% endfor %}
+exit 0

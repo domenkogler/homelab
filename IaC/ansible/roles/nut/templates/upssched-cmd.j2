@@ -5,9 +5,13 @@
 #               if the observability stack is degraded. SMTP creds render from
 #               1Password `smtp_login` on the master only — clients keep
 #               no secrets (mode 0750).
-# both:         `powerdown` — the deferred shutdown fired by the upssched
-#               ONBATT timer (shutdown_delay_seconds: nas/pi=0 immediate,
-#               oldsrv=60). upsmon's own SHUTDOWNCMD covers LOWBATT.
+# both:         `checkcharge` — polls the UPS charge while on battery and fires
+#               `powerdown` once it crosses this host's threshold
+#               (nut_shutdown_charge_threshold: oldsrv=75 — the power hog halts
+#               early to preserve battery for nas/pi; nas/pi=0 → rely on the
+#               upsmon LOWBATT SHUTDOWNCMD instead, per the critical-only policy).
+#               `powerdown` — the actual halt, executed via sudo (nut has no
+#               polkit rights to /sbin/shutdown).
 set -u
 
 {% if nut_mode == 'master' %}
@@ -15,19 +19,42 @@ set -u
 case "$1" in
   onbatt)
     SUBJ="[Homelab UPS] ON BATTERY — mains lost"
-    BODY="The PowerWalker UPS is on battery. ${nut_host}@${nut_listen_ip} — expect shutdown per NUT policy."
+    BODY="The PowerWalker UPS is on battery. {{ nut_host }}@{{ nut_listen_ip }} — expect shutdown per NUT policy."
     ;;
   lowbatt)
     SUBJ="[Homelab UPS] LOW BATTERY — imminent shutdown"
-    BODY="UPS battery critically low — hosts will shut down now (${nut_host})."
+    BODY="UPS battery critically low — hosts will shut down now ({{ nut_host }})."
     ;;
   online)
     SUBJ="[Homelab UPS] Back on mains"
-    BODY="Utility power restored; UPS charging. ${nut_host}"
+    BODY="Utility power restored; UPS charging. {{ nut_host }}"
+    ;;
+  wake-check)
+    # Master-only: when mains is back and battery recharges to >= nut_wake_charge,
+    # wake clients that halted themselves (WoL magic packet to each configured MAC).
+    _charge=$(upsc {{ nut_host }}@{{ nut_listen_ip }} battery.charge 2>/dev/null | tr -dc '0-9')
+    if [ -n "${_charge}" ] && [ "${_charge}" -ge "{{ nut_wake_charge | default(90) }}" ]; then
+      logger -t nut-upssched "battery ${_charge}% >= {{ nut_wake_charge | default(90) }}% — sending WoL to halted clients"
+{% for _host, _mac in nut_wake_macs | default({}) | dictsort %}
+      /usr/bin/wakeonlan {{ _mac }} || true
+      logger -t nut-upssched "wakeonlan sent to {{ _host }} ({{ _mac }})"
+{% endfor %}
+    fi
+    exit 0
+    ;;
+  checkcharge)
+    # Poll charge (via the master's USB link) and halt at this host's threshold.
+    # Uses" the master upsd so no client-side NUT auth is needed.
+    _charge=$(upsc {{ nut_host }}@{{ nut_listen_ip }} battery.charge 2>/dev/null | tr -dc '0-9')
+    if [ -n "${_charge}" ] && [ "${_charge}" -le "{{ nut_shutdown_charge_threshold | default(0) }}" ]; then
+      logger -t nut-upssched "charge ${_charge}% <= threshold {{ nut_shutdown_charge_threshold | default(0) }}% — powering down"
+      exec sudo /sbin/poweroff
+    fi
+    exit 0
     ;;
   powerdown)
-    logger -t nut-upssched "UPS still on battery after ${shutdown_delay_seconds}s — powering down"
-    /sbin/shutdown -h now
+    logger -t nut-upssched "UPS still on battery after {{ shutdown_delay_seconds | default(0) }}s — powering down"
+    exec sudo /sbin/poweroff
     exit 0
     ;;
   *)
@@ -76,14 +103,17 @@ PYEOF
 send_mail || true
 
 # --- Optional Signal helper ---
-if [ -n "${nut_signal_helper}" ] && [ -x "${nut_signal_helper}" ]; then
-  "${nut_signal_helper}" "${SUBJ} — ${BODY}" 2>/dev/null || true
+# NOTE: `:-` guard — under `set -u` an unset ${nut_signal_helper} aborted the whole
+# script at this line (HD-06 drill: `vrstica 103: nut_signal_helper: nedoločena
+# spremenljivka`, exec_cmd returned 1). The helper stays optional/shell-defaulted.
+if [ -n "${nut_signal_helper:-}" ] && [ -x "${nut_signal_helper:-}" ]; then
+  "${nut_signal_helper:-}" "${SUBJ} — ${BODY}" 2>/dev/null || true
 fi
 {% else %}
 # --- Shutdown/log path (client) — no SMTP creds on clients ---
 case "$1" in
   onbatt)
-    logger -t nut-upssched "UPS on battery (${nut_host}) — shutdown in ${shutdown_delay_seconds}s unless mains returns"
+    logger -t nut-upssched "UPS on battery ({{ nut_host }}) — shutdown below {{ nut_shutdown_charge_threshold | default(0) }}% charge"
     ;;
   lowbatt)
     logger -t nut-upssched "UPS battery critically low — shutting down now"
@@ -91,9 +121,18 @@ case "$1" in
   online)
     logger -t nut-upssched "UPS back on mains — shutdown cancelled"
     ;;
+  checkcharge)
+    # Poll charge from the master and halt at this host's threshold.
+    _charge=$(upsc {{ nut_host }} battery.charge 2>/dev/null | tr -dc '0-9')
+    if [ -n "${_charge}" ] && [ "${_charge}" -le "{{ nut_shutdown_charge_threshold | default(0) }}" ]; then
+      logger -t nut-upssched "charge ${_charge}% <= threshold {{ nut_shutdown_charge_threshold | default(0) }}% — powering down"
+      exec sudo /sbin/poweroff
+    fi
+    exit 0
+    ;;
   powerdown)
-    logger -t nut-upssched "UPS still on battery after ${shutdown_delay_seconds}s — powering down"
-    /sbin/shutdown -h now
+    logger -t nut-upssched "UPS still on battery after {{ shutdown_delay_seconds | default(0) }}s — powering down"
+    exec sudo /sbin/poweroff
     ;;
   *)
     ;;

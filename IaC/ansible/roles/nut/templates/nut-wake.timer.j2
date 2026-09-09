@@ -1,0 +1,17 @@
+# managed by Ansible — nut role (master) — persistent wake-after-recharge timer
+# Runs nut-wake.service every 60 s. The service sends WoL only when:
+#   - UPS status is OL (on mains), and
+#   - battery.charge >= nut_wake_charge (default 90; nas uses 80), and
+#   - the client is actually OFF (we try to ping it first — avoids spamming WoL
+#     to hosts that never halted).
+# Let the service do the charge/status gating; this is just the ticker.
+[Unit]
+Description=Poll UPS and wake halted clients after recharge (every 60 s)
+
+[Timer]
+OnCalendar=*:*:00
+Persistent=false
+Unit=nut-wake.service
+
+[Install]
+WantedBy=timers.target
