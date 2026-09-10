@@ -152,6 +152,24 @@
       loop:
         - { name: "ha.kogler.si",      ip: "{{ ha_vip }}" }
         - { name: "dns-pi.kogler.si",  ip: "{{ ha_vip }}" }
+        # --- Home-hosted internal app set (HD-350) ---
+        # On the HOME instances (oldsrv secondary + Pi tertiary) these resolve to the
+        # oldsrv LAN IP (traefik-internal home edge, host-net) so LAN clients reach them
+        # WITHOUT a VPS round-trip (WAN-out survival). The VPS PRIMARY keeps the public
+        # target (dns_primary_ip) so WAN/tailnet clients still resolve them to the VPS
+        # edge — the per-instance split. `media`/`seerr`/etc. subdomains mirror
+        # docs/services.md + services-traefik.md §Edge model routing.
+        - { name: "media.kogler.si",    ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "seerr.kogler.si",    ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "seerrng.kogler.si",  ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "sonarr.kogler.si",   ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "radarr.kogler.si",   ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "lidarr.kogler.si",   ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "prowlarr.kogler.si", ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "bazarr.kogler.si",   ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "profilarr.kogler.si",ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "sab.kogler.si",      ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "torrent.kogler.si",  ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
         # HD-302 (2026-09-08): `modem.kogler.si` is a LAN-only private record for the
         # Comtrend modem UI — seeded ONLY on the HOME instances (Pi tertiary `secondary-pi`
         # + oldsrv secondary `secondary`), NEVER on the VPS primary (`primary`): the modem

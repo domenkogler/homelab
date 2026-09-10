@@ -39,7 +39,7 @@ GROUP_VARS_DIR = ROOT / "IaC" / "ansible" / "group_vars"
 # docs/deployment-compose.md.
 
 # Services that don't need Traefik labels (are their own reverse proxy)
-NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent", "traefik-tailnet"}  # qbittorrent labels are on gluetun sidecar; traefik-tailnet is file-provider-only (dynamic/routes.yml, no docker provider)
+NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent", "traefik-tailnet", "traefik-internal"}  # qbittorrent labels are on gluetun sidecar; traefik-tailnet is file-provider-only (dynamic/routes.yml, no docker provider); traefik-internal = home-LAN edge (HD-350), file-provider-only (same pattern)
 
 # HD-134 / KOPS-030 convention: pinned tags (never bare `latest`). A compose image that
 # RESOLVES to bare `latest` (either a literal `:latest` or an undefined *_version var falling
@@ -92,7 +92,7 @@ WEB_SERVICES = {
     "traefik-tailnet",  # HD-135b follow-up: tailnet Traefik edge (dashboard label, file-provider routes)
 }
 
-HOST_NET_SERVICES = {"traefik-ha"}
+HOST_NET_SERVICES = {"traefik-ha", "traefik-internal"}   # traefik-internal: home-LAN edge on oldsrv (HD-350), host-net VIP+LAN-IP bound (same pattern as traefik-ha)
 HOST_NET_CONTAINERS = {"home-assistant-standby"}
 
 # Extra .j2 templates per service are NOT duplicated here any more (HD-189):

@@ -271,15 +271,35 @@
 # the DEFAULT store (dynamic/tls.yml.j2). The issuer (`traefik_acme_issuer: true`,
 # group_vars/vps.yml) issues locally and skips this entirely. Today the only
 # consumer host rendering the shared `traefik` template_dir is oldsrv (internal
-# edge); the Pi's `traefik-ha` keeps its own equivalent puller (home_assistant role,
-# ha-cert-sync). Key authorization on the VPS is a LIVE step: append the consumer's
-# /root/.ssh/traefik-cert-sync.pub to the VPS ansible-admin authorized_keys
-# (restricted options recommended, cf. the Pi ha-sync wrapper precedent).
+# edge); HD-350 adds traefik-internal (home-LAN edge, also on oldsrv) — its certs
+# dir is {{ docker_compose_dir }}/traefik-internal/certs (see traefik_consumer_dir
+# below), pulled by the SAME script/timer/keys. The Pi's `traefik-ha` keeps its own
+# equivalent puller (home_assistant role, ha-cert-sync). Key authorization on the
+# VPS is a LIVE step: append the consumer's /root/.ssh/traefik-cert-sync.pub to the
+# VPS ansible-admin authorized_keys (restricted options recommended, cf. the Pi
+# ha-sync wrapper precedent).
+# HD-350: the home-LAN edge (traefik-internal) must bind the VIP + LAN IP before/without
+# keepalived holding it — same requirement as the Pi's traefik-ha (home_assistant role
+# sets it there; this covers oldsrv, where keepalived runs as the standby VIP holder).
+- name: Enable net.ipv4.ip_nonlocal_bind (traefik-internal VIP/LAN binding)
+  ansible.builtin.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: '1'
+    sysctl_file: /etc/sysctl.d/60-ha-edge.conf
+    reload: true
+  when:
+    - "'traefik-internal' in (docker_services | map(attribute='name') | list)"
+  tags: [docker_services, hd17]
+
 - name: Traefik cert-pull consumer wiring (non-issuer hosts)
   when:
     - scope_is_all
-    - "'traefik' in (docker_services | map(attribute='name') | list)"
+    - "'traefik' in (docker_services | map(attribute='name') | list) or 'traefik-internal' in (docker_services | map(attribute='name') | list)"
     - not (traefik_acme_issuer | default(false))
+  vars:
+    # HD-350: which edge the cert pull targets. The shared `traefik` template dir
+    # (old default) vs the home-LAN edge. Defaults to the legacy shared dir.
+    traefik_consumer_dir: "{{ 'traefik-internal' if 'traefik-internal' in (docker_services | map(attribute='name') | list) else 'traefik' }}"
   block:
     - name: Generate traefik-cert-sync SSH keypair (consumer → VPS issuer pull)
       ansible.builtin.command:

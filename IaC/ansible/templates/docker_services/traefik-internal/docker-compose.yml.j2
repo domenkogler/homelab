@@ -1,0 +1,51 @@
+# traefik-internal docker-compose.yml — home-LAN internal all-app edge (oldsrv, HD-350)
+#   Keeps the HOME-HOSTED apps (media/*arr/downloads) + the VPS-hosted set reachable
+#   on the LAN even when WAN/VPS is down, and carries the FULL route table so the 3
+#   edges (VPS traefik-tailnet + this + Pi traefik-ha) can serve the same names.
+#
+#   - Host networking: binds the Home-VLAN VIP ({{ ha_vip }}) AND the oldsrv LAN IP
+#     ({{ oldsrv_home_ip }}) :80/:443. Requires `net.ipv4.ip_nonlocal_bind=1` on the
+#     host (set by the home-assistant role, same as the Pi) so Traefik can bind the
+#     VIP before/without keepalived holding the address.
+#   - File-provider routes ONLY (no Docker labels, no docker.sock): dynamic/routes.yml.j2
+#     carries the full home + VPS route table. No docker provider → no label conflicts,
+#     same pattern as traefik-ha / traefik-tailnet.
+#   - NO Forward-Auth, NO CrowdSec: both depend on VPS containers (Authentik, CrowdSec
+#     LAPI) and would fail exactly when this edge must survive (WAN-out). Each home app
+#     owns its login (*arr/downloaders = built-in Forms auth — deliberate reversal of
+#     "built-in logins disabled", HD-60; Jellyfin/Seerr/SeerrNG = local login).
+#   - ACME intentionally DISABLED (no certresolver): the wildcard pair is PULLED FROM
+#     THE VPS `traefik` (the single ACME issuer, HD-178/HD-181/HD-204) by the
+#     traefik-cert-pull timer to ./certs (roles/docker_services/tasks/main.yml) so both
+#     routes stay TLS-valid even when WAN is down (offline-safe).
+#   - Backends: home-hosted services are reached on the oldsrv LAN IP (host-net);
+#     VPS-hosted services are reached via the VPS traefik-tailnet edge at
+#     {{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }} (the WG-S2S bridge, HD-333).
+#
+#   Design context: docs/services-traefik.md §Edge model, docs/smart-home-failover.md.
+#   Secrets: none (certs pulled via the existing ssh-key mechanism).
+services:
+  traefik:
+    image: traefik:{{ traefik_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: traefik-internal
+    restart: unless-stopped
+    network_mode: host                 # bind VIP + LAN IP directly, reach home backends on the LAN IP
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    volumes:
+      - ./dynamic:/etc/traefik/dynamic:ro   # full route table (file provider)
+      - ./certs:/etc/traefik/certs:ro        # wildcard pair pulled from the VPS issuer (offline-safe)
+    command:
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address={{ ha_vip }}:80"
+      - "--entrypoints.websecure.address={{ ha_vip }}:443"
+      - "--entrypoints.web-lan.address={{ oldsrv_home_ip }}:80"
+      - "--entrypoints.websecure-lan.address={{ oldsrv_home_ip }}:443"

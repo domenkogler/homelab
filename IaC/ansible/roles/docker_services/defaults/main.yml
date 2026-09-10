@@ -85,6 +85,12 @@ _extra_templates:
     - serve.json.j2             # tailscale ipn.ServeConfig — TCP 443 -> 127.0.0.1:443 (persistent serve)
   traefik-ha:
     - dynamic/routes.yml.j2
+  # HD-350: home-LAN internal all-app edge (oldsrv). File-provider routes only
+  # (same pattern as traefik-ha/traefik-tailnet); the wildcard pair is pulled into
+  # ./certs by the SAME traefik-cert-pull timer (parametrized via traefik_consumer_dir)
+  # and served via the DEFAULT store (no tls.yml needed — routes.yml declares the store).
+  traefik-internal:
+    - dynamic/routes.yml.j2
   recyclarr:
     - recyclarr.yml.j2
 

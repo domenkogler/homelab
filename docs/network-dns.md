@@ -47,6 +47,22 @@ VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.
 
 ---
 
+## Per-Instance Split-Horizon (HD-350/352, 2026-09-10)
+
+The three Technitium instances serve the SAME primary zone but with **per-instance A-record targets**, so LAN clients stay on the home LAN while WAN/tailnet clients keep the VPS edge. Record table (matched by the `technitium-seed` loop, per `svc.instance`):
+
+| Record | VPS primary | oldsrv secondary + Pi tertiary |
+|---|---|---|
+| Home-hosted (`media`, `seerr`, `seerrng`, `sonarr`, `radarr`, `lidarr`, `prowlarr`, `bazarr`, `profilarr`, `sab`, `torrent`) | VPS public IP (`dns_primary_ip`) | **oldsrv LAN IP** (`oldsrv_home_ip`) — home edge, no WAN round-trip |
+| `ha` / `dns-pi` | VIP (`ha_vip`) | VIP (`ha_vip`) — same on all (DNS never breaks HA lookup) |
+| VPS-hosted (`foto`, `file`, `git`, `ai`, `office`, `pdf`, `chat`, `matrix`, `drop`, `bin`, `sso`, `dns`, `vpn`, … + root/home/vps) | VPS public IP | VPS public IP (their backends live on the VPS; the home edge reaches them via wg-s2s :4443 double-hop, HD-350) |
+| Tailnet dashboards (`stats`, `logs`, `csui`, `sec`, `traefik`, `auto`) | VPS tailnet sidecar IP | VPS tailnet sidecar IP (cluster constant) |
+| `modem` | — (never seeded on VPS) | LAN-only (HD-302) |
+
+> **Why home-hosted names are per-instance:** the home-hosted apps run on **oldsrv** (host-net backends on `oldsrv_home_ip`). Pointing them at the VPS public IP on the home instances would make every LAN hit depend on WAN (HD-349 drill finding). The home edge (`traefik-internal`, [services-traefik.md](services-traefik.md) §Edge model) serves them from `oldsrv_home_ip`; the VPS primary keeps `dns_primary_ip` so WAN/tailnet reach the VPS first.
+
+---
+
 ## DNS Flow
 
 ```

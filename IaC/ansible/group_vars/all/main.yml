@@ -163,6 +163,9 @@ knx_router_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'knx-ip
 # SAME configuration.yaml is rendered on primary + standby.
 ha_trusted_proxies:
   - 172.20.0.2/32            # oldsrv traefik (traefik-public bridge default .2) — verify at deploy
+  - 10.10.1.30/32            # HD-350: traefik-internal home-LAN edge on oldsrv — host networking
+                             # (network_mode: host), so its source IP is the oldsrv Home-VLAN IP
+                             # itself; keep in sync with oldsrv_home_ip (address SSOT)
   - 10.10.1.20/32            # Pi traefik-ha edge — host networking (network_mode: host), so its
                              # source IP is the Pi host IP itself; no container IP exists to trust
                              # (live 2026-09-03)

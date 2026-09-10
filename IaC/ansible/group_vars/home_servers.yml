@@ -117,6 +117,13 @@ docker_services:
   - { name: technitium,      template_dir: technitium, instance: secondary, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
   - { name: pihole,          template_dir: pihole,     subdomain: ad }
 
+  # --- Home-LAN internal all-app edge (HD-350): traefik-internal on OLDSRV ---
+  # Host-net, VIP + LAN-IP bound :80/:443, file-provider routes (dynamic/routes.yml.j2),
+  # NO Forward-Auth/CrowdSec (VPS-dependent — must survive WAN-out). All internal
+  # app names (*arr/media/seerr/…/ha/dns-pi + VPS-hosted via wg-s2s :4443) are served
+  # here so LAN clients stay on the home LAN regardless of WAN/VPS state.
+  - { name: traefik-internal, template_dir: traefik-internal }
+
   # --- Smart home failover: standby HA + keepalived VIP on oldsrv ---
   # COLD by design — docker_services must NOT start them (exactly one active HA). The
   # home_assistant role renders their compose files + configs; ha-failover.sh starts
