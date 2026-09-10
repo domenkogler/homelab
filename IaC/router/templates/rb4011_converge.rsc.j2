@@ -338,7 +338,7 @@ add address=10.10.99.0/24 list=internal_lan comment="Mgmt VLAN"
 /ip firewall filter
 add chain=forward action=accept connection-state=established,related comment="Allow established/related return"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address-list=trusted-ha protocol=udp dst-port=5683 comment="IoT Shelly CoAP push -> HA"
-add chain=forward action=accept src-address-list=trusted-admin dst-address=10.10.20.0/24 comment="Trusted admin -> IoT (new)"
+add chain=forward action=accept src-address-list=trusted-ha dst-address=10.10.20.0/24 comment="Trusted HA hosts (oldsrv/ha-vip) -> IoT (new) - HD-03 owner decision 2026-09-04: narrowed to trusted-ha (excludes nas)"
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=tcp connection-state=established,related comment="Home -> IoT (est/rel)"
 # KNXnet/IP tunneling (HA on the Pi -> GIRA IP router on IoT): the Pi is NOT
 # in trusted-admin (node, not admin host -- HD-310 Mgmt-strict posture), so

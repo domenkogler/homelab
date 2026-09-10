@@ -588,6 +588,16 @@
 # connections (inter-VLAN and WAN return) are permitted before the default-deny.
 
 - name: Ensure inter-VLAN forward firewall rules (idempotent, ordered)
+  # GATED OFF 2026-09-10 (HD-03 residual audit): the forward chain is OWNED BY
+  # rb4011_converge.rsc.j2 (apply-of-record, rsc import). A live role reconcile
+  # here would delete the per-MAC rows that live ONLY in the converge template
+  # (iot-wan-allow HD-312/325 + HD-326 kids tablet drops) — those rows exist in
+  # the GATED-OFF tasks below, not in this task's data, so handle_absent_entries:
+  # remove would drop them from the live chain. network-ops.md apply model: the
+  # API path is for idempotent/order-independent state only; day-to-day chain
+  # state lands in the converge template, import is the apply. Keep this task
+  # byte-synced OR gated like its siblings at @904/@940.
+  when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"

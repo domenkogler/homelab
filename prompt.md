@@ -33,7 +33,6 @@ Adapted to the WSL Debian primary (repo moved to ext4; the Windows-runner/9P-gat
 | HD-342 | Victoria stack deploy (VPS) LIVE; remaining tails: kopia client wiring for Victoria data, oldsrv MCP (HD-344) | [observability.md](docs/observability.md) · [todo.md HD-342](todo.md) |
 | HD-344 | MCP AI-debugging servers on oldsrv (register in pi/OWUI/OpenClaw + tailnet redo) | [observability.md](docs/observability.md) §MCP · [todo.md HD-344](todo.md) |
 | HD-318 | oldsrv Phase-3 provision — **kopia-agent DONE + LIVE 2026-09-08 (HD-318a):** agent Up over HTTPS+fingerprint, snapshots flowing; remaining = recyclarr @daily verify | [hardware-oldsrv.md](docs/hardware-oldsrv.md) · [todo.md HD-318](todo.md) |
-| HD-03 | Inter-VLAN residual audit + Kids forced-DNS/Home-drop live-verify | [network-vlans.md](docs/network-vlans.md) · [todo.md HD-03](todo.md) |
 | HD-343 | Network Clients dashboard — owner verify (wifi path, panels, stats.kogler.si) | [observability.md](docs/observability.md) §Network Clients Dashboard · [todo.md HD-343](todo.md) |
 | HD-315 | Grafana dashboard render-verify with data (**data now flowing** — all 4 hosts + probes; owner visual verify) | [observability.md](docs/observability.md) §Dashboards · [todo.md HD-315](todo.md) |
 | HD-345 | `ifOperStatus` SNMP series still 0 in VM (rules live, noDataState OK; SNMP now enabled — walk not yet arriving) | [observability.md](docs/observability.md) · [todo.md HD-345](todo.md) |

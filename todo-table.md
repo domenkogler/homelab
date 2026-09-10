@@ -12,8 +12,6 @@ Rows the AI can execute: either **now** (no prerequisite) or the **⏳ deploy-ga
 | HD | P | Task | Why AI can do it now |
 |----|---|------|----------------------|
 | **Network & DNS** ||||
-| HD-03 | 1 | Final inter-VLAN matrix audit + Kids forced-DNS / Home-drop live-verify | Read-only router audit + live-verify via RouterOS API — no owner action |
-| HD-182 | 2 | Kids VLAN firewall live-verify (forced-DNS hijack, Kids→Home drop) | Rules are IaC'd; verify against live RB4011 via API |
 | HD-217 | 2 | Homepage failover-button gate off on next green vps.yml | The IaC + owner sign-off are done; just render/deploy |
 | HD-159 | 2 | `wg-s2s-down` alert live-verify | AI can run the deliberate `wg down` test (needs a brief planned tunnel-down window) |
 | **Storage / UPS** ||||
@@ -101,6 +99,6 @@ Grouped by *why* it's blocked. These are the real unblockers — clearing them c
 
 ## Bottom line
 
-- **Best pure-AI starters right now:** HD-03 + HD-182 (router read-only audit/verify using the mikrotik skill — zero risk), HD-100 + HD-247 (LiteLLM 1P wiring + scoped-key cutover), HD-342 (Victoria kopia tail).
-- **The single highest-leverage owner (Table Human) step** is the **HD-318-responsive owner batch**: ① signal-cli phone registration (oldsrv tail), ② the 1P seeds in HD-242/268/296 (`metabase-forgejo_ro`, preauth keys, headscale A-records) that unblock the rest of the deploy-gated batch, ③ the **HD-04 failover test** (VIP move + failback, being prepped by a parallel lane) — since oldsrv Phase-3 is **complete** (HD-318), the old ONLYOFFICE/ROCm/1P blocker list is retired. Clearing **HD-147 (OIDC records)** also unblocks the Table-AI Matrix deploy (HD-46/122).
+- **Best pure-AI starters right now:** HD-100 + HD-247 (LiteLLM 1P wiring + scoped-key cutover), HD-342 (Victoria kopia tail), **Router steady-state batch = COMPLETE** (HD-03 audit + HD-182 Kids verify closed 2026-09-10 — the two IaC fixes landed, converge import is the single operator step).
+- **The single highest-leverage owner (Table Human) step** is the **HD-318-responsive owner batch**: ① ~~signal-cli phone registration~~ **DONE 2026-09-10** (device linked, `homelab-alerts`, delivery owner-verified — HD-318d/HD-347 closed), ② the 1P seeds in HD-242/268/296 (`metabase-forgejo_ro`, preauth keys, headscale A-records) that unblock the rest of the deploy-gated batch, ③ the **HD-04 failover test** (VIP move + failback, being prepped by a parallel lane) — since oldsrv Phase-3 is **complete** (HD-318), the old ONLYOFFICE/ROCm/1P blocker list is retired. Clearing **HD-147 (OIDC records)** also unblocks the Table-AI Matrix deploy (HD-46/122).
 - **Stale rows note:** HD-40A/40B/135/43/44 read stale versus the README's "state of the world" (Phases 1/2/3/4 all live) — an AI close-out audit (verify live state, then delete/trim per todo.md §4(a)) is itself a good pure-AI Table-AI task.

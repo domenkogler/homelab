@@ -155,11 +155,28 @@ tags: [network, vlan, firewall]
 
 Implemented with **address-lists** and **interface lists** in RouterOS.
 
+> **HD-03 residual audit (2026-09-10, read-only via Pi Mgmt-hop API — ✔️ residual drift closed):**
+> live forward chain (44 rules) vs SSOT compared rule-by-rule. Kids/matrix controls all match SSOT
+> (see Kids note above). **Two IaC-side fixes landed** (no live mutation): ① the apply-of-record
+> `rb4011_converge.rsc.j2` @341 still emitted `trusted-admin` for the Home→IoT new-connection rule
+> (owner decision 2026-09-04 narrowed it to `trusted-ha`, excludes `nas`) → corrected to `trusted-ha`;
+> ② the role's `Ensure inter-VLAN forward firewall rules` full-reconcile task was gated off (`when: false`)
+> — a live role run would have deleted the per-MAC rows that only the converge template carries
+> (iot-wan-allow HD-312/325 + HD-326 tablet drops, live rules 14–23). Live `trusted-admin`/
+> `trusted-ha`/`internal_lan` address lists match the SSOT loops (`[oldsrv,nas,ha-vip,laptop-domen]` /
+> `[oldsrv,ha-vip]` / 6 subnets). **Remaining single step (operator):** render + import the converge
+> (apply-of-record) so live rule 3 becomes `trusted-ha`. Audit codes J8/S20 referenced by the HD-03 row
+> are legacy internal IDs — no repo definition found; residual items (matrix + Kids verify) are now covered.
+
 > **Kids VLAN status (HD-179, decided 2026-08-21; impl = HD-182):** the three Kids controls above
 > (bedtime block, forced filtered DNS, Kids→Home drop) are implemented in the router role. The
 > **bedtime 22:00–07:00 `time=` drop is confirmed working on RouterOS 7** (verified live 2026-09-01;
 > `invalid=true` when read outside the 22:00–07:00 window is RouterOS's normal out-of-window display,
-> not a defect). ⏳ Still deploy-gated: the forced-DNS hijack and the Kids→Home drop live-verify.
+> not a defect). ✅ **ALL THREE LIVE-VERIFIED 2026-09-10 (HD-03 residual audit, read-only via the Pi Mgmt-hop API):**
+> live forward rules 35–36 (Kids DoT-853 drop tcp/udp), 39 (Kids→Home drop), 40 (bedtime WAN block
+> 22:00–07:00) and 41 (out-of-window accept) are present and correctly ordered BELOW the LAN→resolver
+> accepts (rules 8–11) so Kids DNS keeps working; NAT rules 3–4 force Kids :53 → Technitium primary.
+> HD-182 closed. · detail: [network-ops.md](network-ops.md) §Forward-chain ownership
 
 > **Router INPUT chain (HD-78 / KOPS-003/009):** the rules above are the `forward` (inter-VLAN) policy.
 > Separately, the router's **own** management service ports (`22,8728,8729,8291,80,443`) are gated by a
