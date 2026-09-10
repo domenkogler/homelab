@@ -121,6 +121,10 @@ docker_services:
   - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, public: true, enabled: true }   # PUBLIC P2P share — dual-host pairdrop+drop, crowdsec-only tier, NO forward-auth (HD-230)
   - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, public: true, enabled: true }
   - { name: renovate,       template_dir: renovate,  public: false, enabled: true }  # co-located with Forgejo/GitOps. RE-ENABLED 2026-08-24 (task 5): domen/homelab not migrated yet, so RENOVATE_REPOSITORIES currently points at domen/test temporarily (template) — switch back to domen/homelab when that repo lands. Playbook run is OWNED by the other session; do NOT converge here.
+  # HD-354 (2026-09-10): Navidrome (music.kogler.si) — music server on the VPS; library
+  # on the Hetzner Storage Box (CIFS /mnt/storagebox/music, no host-port publish); music
+  # moved OFF nas (hardlink→copy-import for music); INTERNAL-ONLY (no public record).
+  - { name: navidrome,      template_dir: navidrome,  subdomain: music, public: false, enabled: true }
 
 # HD-268 tailnet sidecar opt-ins: render the `*-tailscale` Pattern-A sidecar only
 # when these flags are true. HD-355 (2026-09-10): dsh + pi-dev MOVED to oldsrv and

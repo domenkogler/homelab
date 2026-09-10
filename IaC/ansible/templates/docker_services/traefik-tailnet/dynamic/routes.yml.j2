@@ -13,10 +13,10 @@
 #     traefik-public: grafana:3000 (stats), dozzle:8080 (logs),
 #       crowdsec-web-ui:3000 (csui), metabase:3000 (sec), n8n:5678 (auto),
 #       traefik dashboard via api@internal (traefik).
-#     tailnet-apps (HD-296, 172.24.0.0/16): dsh:3080 (dsh, HD-268c),
-#       pi-dev:8080 (pi, HD-268c). The dsh + pi apps join tailnet-apps so this
-#       edge can reach them via Docker DNS; the dsh-tailscale / pi-dev-tailscale
-#       sidecars inherit the new overlay via `network_mode: service:<app>`.
+#     tailnet-apps (HD-296, 172.24.0.0/16): dsh:3080 (dsh), pi-dev:8080 (pi).
+#     HD-355 (2026-09-10): dsh + pi-dev MOVED to OLDSRV — the tailnet edge now
+#     reaches their UIs over the WG S2S at {{ oldsrv_home_ip }}:3080/:8080 (no
+#     sidecars/docs; see the dsh-backend / pi-backend service entries below).
 #   NOTE: docker DNS on an overlay resolves by SERVICE name, not container_name
 #   (crowdsec-web-ui, NOT crowdsec_web_ui; pi-dev, NOT pi_dev).
 #
@@ -480,16 +480,17 @@ http:
       loadBalancer:
         servers:
           - url: "http://grafana:3000"
-    # HD-296: dsh + pi backends live on the new `tailnet-apps` overlay
-    # (172.24.0.0/16), resolved via Docker DNS. The MAIN public traefik
-    # does NOT have these routes (single-owner of dsh.kogler.si / pi.kogler.si
-    # on the tailnet edge), so the wildcard cert is only served on this
-    # edge for the *.ts.kogler.si names — which is correct (the *.kogler.si
-    # names need Forward-Auth, the *.ts.kogler.si names are ACL-gated only).
+    # HD-355 (2026-09-10): dsh + pi-dev MOVED to oldsrv (tailscale sidecars removed);
+    # the VPS edge reaches their UIs over the WG S2S on the oldsrv Home-IP ports
+    # (media-bridge pattern — same reach as actual-budget :5006 / immich-ml :3003).
     dsh-backend:
       loadBalancer:
         servers:
-          - url: "http://dsh:3080"
+          - url: "http://{{ oldsrv_home_ip }}:3080"
+    pi-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:8080"
     pi-backend:
       loadBalancer:
         servers:
