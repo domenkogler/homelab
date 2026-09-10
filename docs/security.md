@@ -28,6 +28,11 @@ were deleted after folding — HD-153).
 > **Law:** every internet- or LAN-facing route must carry **at least one** of `authentik-forward-auth@file`
 > or `crowdsec-only@file`. A service that skips Forward-Auth (because it has its own login) must **still**
 > get `crowdsec-only` — it must never be left with zero edge protection.
+> **Exception (decided 2026-09-10, HD-350 re-scope):** the **home edge (`traefik-internal` on oldsrv)**
+> carries **neither** middleware by design — Forward-Auth and CrowdSec LAPI are VPS containers, so including
+> them would fail exactly when that edge must survive (WAN-out). It serves only home-hosted apps with
+> **own local logins** (jellyfin/seerr own login, *arr built-in Forms auth). On the **VPS edges** the law
+> above continues to apply unchanged.
 
 **Middleware map:**
 - `authentik-forward-auth@file` — bundles Authentik OIDC + CrowdSec bouncer. App-facing routes with a

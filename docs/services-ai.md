@@ -79,6 +79,20 @@ host OS directly):
  └──────────────────────────────────────────────────────────────┘
 ```
 
+### AI hosting split (decided 2026-09-10) — family AI on the VPS, dev/ops AI on oldsrv
+
+The AI estate is split by **who consumes it and where the compute lives** (tier doctrine: VPS = reliable/authoritative; oldsrv = RAM+GPU-heavy, declared-disposable):
+
+| Side | Hosted on | Services | Why |
+|---|---|---|---|
+| **Family AI** | **VPS** | `open-webui` (SSO-dependent), `docling`, `qdrant`, `openclaw`, `rag-mcp`, `forgejo-mcp`, **VPS LiteLLM** | SSO-bound, reliable, backed-up — the family-facing web AI |
+| **Dev AI** | **oldsrv** (+ `spark` when provisioned) | **`dsh` + `pi-dev` (MOVED from VPS 2026-09-10, tailscale removed)**, `OpenHands` (planned, spark), `immich-ml`, `mcp-victoriametrics`, `mcp-victorialogs`, **LAN LiteLLM (NEW, deploy-gated on spark)** | RAM/GPU-hungry (oldsrv 48 GB + RX 7600); LAN-local consumers; state backs up to NAS/VPS |
+
+Consequences of the split:
+- **LiteLLM splits into two instances** (VPS + LAN) — it must sit next to its consumers (`litellm:4000` Docker-DNS only resolves same-host). VPS LiteLLM serves the family side (open-webui, openclaw, docling, qdrant, rag-mcp); **LAN LiteLLM (new)** serves the dev side (dsh, pi-dev, future OpenHands) with **spark (GB10 / Triton NVFP4)** as its local inference backend. The LAN instance is **deploy-gated on spark** (not yet provisioned). Each instance owns its own Postgres (`litellm-db`) + scoped keys, and both are Kopia-backed.
+- **dsh + pi-dev move to oldsrv** and **lose their tailscale sidecars** / `*.ts.kogler.si` tailnet-node names (mobile access restored via the VPS `traefik-tailnet` edge → WG → `oldsrv_home_ip` host ports — the same bridge as media; still Authentik forward-auth on the edge, not public).
+
+
 **Docker networks (HD-307):** OWUI-public on `traefik-public` (the `chat` route); OWUI-internal NOT
 edge-routed -- tailscale-sidecar Pattern A; the AI harnesses (pi.dev, DSH) on `services-internal` via
 netns tailscale serve (Pattern A); OpenClaw, Docling on `services-internal`; **Qdrant** on `db-internal`
@@ -105,10 +119,10 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 | ~~Ollama~~ *(removed 2026-09-06)* | ~~Local LLM inference~~ | ~~`llm-backend`~~ | **Removed** — inference consolidated on spark (Triton). No Ollama/ROCm on oldsrv. |
 | **Triton Inference Server** *(planned, spark)* | NVFP4 local inference | `triton-backend` | On the **spark** GB10 node (HD-335) — **the sole local-inference tier** (2026-09-06). Serves the NVFP4 model set (Nemotron-30B, Qwen3-Next-80B, Llama-3.3-70B, Qwen3-Coder-Next-80B) + bge-m3/reranker + Whisper + XTTS/Piper. Reachable only by LiteLLM — same isolation as the removed Ollama (HD-59). **Model repo = Ansible-managed** (per-model `config.pbtxt` J2 templates + idempotent NVFP4 conversion + strict `1/` layout, `/srv/models/spark/`; see `hardware-spark.md` §Bring-up). **Model-catalog sync = git SSOT `models.yml` → LiteLLM DB** (reconciler: onboard upserts, offboard scoped-deletes git-sourced models only + same-change `litellm_scoped_keys` cleanup; manual OpenRouter models untouched). GB10 bring-up reference: [`dgx-spark-ml-guide`](https://github.com/martimramos/dgx-spark-ml-guide). |
 | **Mem0** *(planned, spark)* | Long-term memory for OWUI | `services-internal` | Backed by **Qdrant** (HD-267/268). Per-user/per-project scoping via `user_id = <openwebui-user-id>-<model-id>`; `mem0.search(query=…, user_id=…)`. |
-| **OpenHands** *(planned, spark)* | Agentic coding harness | tailnet sidecar | A third coding cockpit alongside pi.dev + DSH (HD-307/250); scoped LiteLLM key + PR-only Forgejo token. |
+| **OpenHands** *(planned, spark)* | Agentic coding harness | oldsrv / spark | A third coding cockpit alongside pi.dev + DSH (HD-307/250); served by the **LAN LiteLLM** (scoped key) + PR-only Forgejo token.
 | **Docling** | OCR / document understanding | `services-internal` | CPU. Multilingual OCR (Slovenian scans). |
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Version pinned. Models → LiteLLM scoped key. |
-| **pi.dev + DSH** *(dual harness, HD-307)* | DevOps/IaC coding cockpits (C# + IaC) | `services-internal` + tailnet sidecar | Concrete IaC services: **`pi-dev`** (pi coding-agent container, npm `@earendil-works/pi-coding-agent` + `pi-web-access`) and **`dsh`** (DeepSeek Harness `runzhliu/deepseek-harness`). **Both run side-by-side** (supersedes HD-250's "DSH replaces pi.dev"). Each consumes a scoped LiteLLM key (`pi-harness_openai_api` + `dsh_api`) + a PR-only Forgejo token; propose homelab via Forgejo PRs (PR-only, no-merge); 443 egress accepted (recorded risk). DSH WebUI = Pattern-A tailnet serve (:3080); pi = TUI/CLI (no web port). Compared by feature-keyed bake-off. |
+| **pi.dev + DSH** *(dual harness, HD-307)* | **MOVED to oldsrv 2026-09-10** — DevOps/IaC coding cockpits (C# + IaC) | oldsrv `services-internal` (~~tailscale sidecar removed~~) | Concrete IaC services: **`pi-dev`** (pi coding-agent container, npm `@earendil-works/pi-coding-agent` + `pi-web-access`) and **`dsh`** (DeepSeek Harness `runzhliu/deepseek-harness`). **Both run side-by-side** (supersedes HD-250's "DSH replaces pi.dev"). Each consumes a scoped LAN-LiteLLM key (`pi-harness_openai_api` + `dsh_api`) + a PR-only Forgejo token; propose homelab via Forgejo PRs (PR-only, no-merge); 443 egress accepted (recorded risk). DSH WebUI = Pattern-A tailnet serve (:3080); pi = TUI/CLI (no web port). **Mobile reach (2026-09-10):** no longer direct tailnet nodes — the VPS `traefik-tailnet` edge keeps serving `dsh.ts`/`pi-dev.ts` with the backend re-pointed to `oldsrv_home_ip:<port>` over WG (media-bridge pattern); still behind Authentik forward-auth on the edge. |
 
 ---
 

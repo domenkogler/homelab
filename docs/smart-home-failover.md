@@ -173,7 +173,7 @@ when the VIP is on oldsrv. Because the VIP already tracks the active HA node, th
 >
 > **⚠ Two gaps found (both now tracked):**
 > 1. **KNX on the standby does not work** — the GIRA KNX router (`knx-ip`, VLAN 20) answers ICMP + web UI but **drops all KNXnet/IP** (tunnel CONNECT + multicast SEARCH) from oldsrv. Firewall allows Home→KNX:3671; packet path is correct; raw probe from oldsrv's Home-VLAN host IP gets zero response. Device-side issue: likely a GIRA tunnel-client allowlist containing only the Pi, or a wedged KNX/IP stack (power-cycle or ETS project change needed). → HD-04 tail.
-> 2. **`ha.kogler.si` HTTPS had NO edge on Pi-down** — the doc's "oldsrv `traefik` takes over" claim was stale post-HD-331 (HD-331 removed oldsrv Traefik). Fixed at the architecture level: **HD-349 edge-model re-decision + HD-350/351/352** (home-LAN `traefik-internal` on oldsrv). Until built, Pi-down = URL down (LAN `http://VIP:8123` only).
+> 2. **`ha.kogler.si` HTTPS had NO edge on Pi-down** — the doc's "oldsrv `traefik` takes over" claim was stale post-HD-331 (HD-331 removed oldsrv Traefik). Fixed at the architecture level: **HD-349 edge-model re-decision + HD-350 (re-scoped 2026-09-10) / HD-352 (re-scoped); HD-351 deleted** (home-LAN `traefik-internal` on oldsrv, runs always). Until built, Pi-down = URL down (LAN `http://VIP:8123` only).
 >
 > **Bonus scenario (oldsrv-down) exercised live:** the owner's UPS battery test shut oldsrv down while the drill state was active; the **Pi took MASTER back automatically** (no competition) and `https://ha.kogler.si` → 200 restored entirely on the Pi — confirming the Pi-primary design.
 >

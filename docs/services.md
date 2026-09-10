@@ -21,7 +21,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 
 | Stack doc | Scope | role |
 |-----------|-------|------|
-| [Media](services-media.md) | Jellyfin, Seerr, Immich, *arr (Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr/Recyclarr) + storage/import | detail |
+| [Media](services-media.md) | Jellyfin, Seerr, SeerrNG, Immich, Navidrome, *arr (Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr/Recyclarr) + storage/import | detail |
 | [Downloads](services-downloads.md) | SABnzbd, qBittorrent, gluetun — USENET/torrent ingress + VPN | detail |
 | [DNS](services-dns.md) | Technitium, Pi-hole | detail |
 | [Utilities](services-utilities.md) | n8n, signal-cli, PairDrop, Stirling PDF | detail |

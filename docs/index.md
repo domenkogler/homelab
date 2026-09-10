@@ -81,7 +81,7 @@ docs/
 ├── services-finance.md                    Personal finance: Actual Budget, Enable Banking, account import strategy, AI categorization
 │
 ├── services.md                            Index: catalog legend, networks, domains → services-*.md stack docs
-├── services-media.md                      Media: Jellyfin, Immich, Seerr, *arr + storage/import
+├── services-media.md                      Media: Jellyfin, Seerr, SeerrNG, Navidrome, Immich, *arr + storage/import
 ├── services-downloads.md                  Usenet/torrent ingress (SABnzbd, qBittorrent, gluetun)
 ├── services-dns.md                        DNS services (Technitium, Pi-hole)
 ├── services-utilities.md                  Utility sidekicks (n8n, signal-cli, PairDrop, Stirling)

@@ -40,7 +40,7 @@ VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.
 | Source VLAN | Technitium Group | Upstream Filter | Purpose |
 |--------------|------------------|-----------------|---------|
 | Management | — | Local system | Infrastructure isolation |
-| Home (10) | Main-Group | **Pi-hole** | Aggressive ad-blocking — **HD-326 (2026-09-04): the two kids tablets are per-MAC dst-nat'd to the Kids-Group resolver** (router NAT redirects their :53 to Technitium, which applies the Kids-Group policy — Cloudflare Families; see the Kids row) |
+| Home (10) | Main-Group | **Technitium Advanced Blocking** (ad-block lists; pihole retired 2026-09-10) | Aggressive ad-blocking — **HD-326 (2026-09-04): the two kids tablets are per-MAC dst-nat'd to the Kids-Group resolver** (router NAT redirects their :53 to Technitium, which applies the Kids-Group policy — Cloudflare Families; see the Kids row). **2026-09-10:** pihole retired — Main-Group uses Technitium's **Advanced Blocking** app (per-client groups, multiple block-list formats), keeping the filter on the reliable DNS tier (VPS/Pi) instead of oldsrv. |
 | Kids (40) | Kids-Group | **Cloudflare Families** (1.1.1.3) | Adult content + porn filtering — the VLAN-40 hijack (HD-182) covers the (now unused) Kids VLAN; the Home-VLAN kids tablets get the same policy via the per-MAC dst-nat (HD-326) |
 | IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking — cloud-IoT devices in `iot-wan-allow` (HD-312 phase 3) still resolve via this row; they only gain WAN egress, not a DNS bypass. **HD-342 (2026-09-07):** IoT plain :53 is dst-nat'd to the Pi tertiary (`dns_tertiary_ip`) so per-device query visibility lands on the Pi's log (`dns-pi.kogler.si`); DoT(853) bypass is dropped (router role). The Pi's IoT-Group chain still applies the Quad9 upstream.
 | Guest (30) | Guest-Group | Standard public (1.1.1.1) | No filtering needed |
@@ -56,8 +56,8 @@ Client → Technitium PRIMARY (VPS public IP)  ← DHCP lists this first
         → Router /ip dns (final fallback, per-VLAN gateway) → 1.1.1.1
 ```
 
-- DHCP hands clients the **full resolver chain** (VPS primary first, then oldsrv, then
-  Pi, then the router IP last — addresses per SSOT `dns_primary_ip`/`dns_secondary_ip`/
+- DHCP hands clients the **full resolver chain** (**Pi first on ALL VLANs (2026-09-10)** — home resolves locally, no WAN dependence; then VPS, then oldsrv, then the router IP last — addresses per SSOT `dns_primary_ip`/`dns_secondary_ip`/`dns_tertiary_ip`), so per-subnet filtering is enforced (Technitium sees the
+  source subnet, not the router). Clients query the Technitium instances DIRECTLY —
   `dns_tertiary_ip`), so per-subnet filtering is enforced (Technitium sees the
   source subnet, not the router). Clients query the Technitium instances DIRECTLY —
   do NOT point DHCP at the router and let /ip dns forward: RouterOS /ip dns is a

@@ -201,9 +201,9 @@ sidecar serves to the app over that private network. Functional service-to-servi
 
 | Node | Serves | App-level auth | ACL tag |
 |------|--------|----------------|---------|
-| dsh | cockpit :3080 | **none** (ACL is the gate) | tag:dsh |
+| ~~dsh~~ *(moved to oldsrv 2026-09-10)* | cockpit :3080 | **none** (ACL is the gate) | tag:dsh |
 | vps-obs (`traefik-tailnet` + its userspace sidecar, HD-135b follow-up) | **clean subdomain URLs over the tailnet** — `stats`, `sec`, `traefik`, `logs`, `csui`, `auto` (n8n) and their `*.ts.kogler.si` twins: `https://stats.kogler.si` / `https://stats.ts.kogler.si`, `https://logs.kogler.si`, `https://csui.kogler.si`, `https://sec.kogler.si`, `https://traefik.kogler.si`, `https://auto.kogler.si` — **no ports** (wildcard certs + second Traefik edge) | plain `*.kogler.si` = Authentik Forward-Auth; **`*.ts.kogler.si` = ACL-gated** (tailnet-only names, `tag:sidecar:443` is the gate) | tag:sidecar |
-| pi-dev | TUI/CLI agent (`services-internal`) | scoped LiteLLM key + PR-only Forgejo | tag:pi-harness |
+| ~~pi-dev~~ *(moved to oldsrv 2026-09-10)* | TUI/CLI agent (`services-internal`) | scoped LiteLLM key + PR-only Forgejo | tag:pi-harness |
 | litellm-ui | admin :4000/ui | bearer keys | tag:litellm |
 | owui-int (`ai.kogler.si`, HD-248) | internal OWUI | Authentik OIDC | tag:owui-int |
 | openclaw | control/gateway | gateway token | tag:openclaw |
@@ -222,6 +222,22 @@ sidecar serves to the app over that private network. Functional service-to-servi
     3. Tailnet path unchanged: tailnet device → `https://stats.kogler.si` / `https://<app>.ts.kogler.si` still works.
     4. Heading home with Tailscale on reaches `ha.kogler.si` via the LAN (Option A).
   - **Tailnet ACL:** `policy.hujson` already allows family nodes → `tag:sidecar` on :443 (deny-by-default + per-user own nodes). No extension needed for the existing owner set; extend only if a new family member node is added.
+
+## Tailnet boundary (decided 2026-09-10) — mobile devices only, via the VPS edge
+
+The tailnet is **not a home-LAN bridge**. Clients reach it as: **mobile → tailnet → VPS `traefik-tailnet` edge → (WG S2S) → home backends**. No home host runs a tailnet node (except the exit-node below, toggle-only). oldsrv/Pi/NAS stay off the tailnet so Shelly/KNX/IoT/guest devices are never tailnet-reachable, and the LAN stays the LAN.
+
+**Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the moved `dsh`/`pi-dev`) are reachable from a phone by **publishing a host port bound to `oldsrv_home_ip`** + a `traefik-tailnet` edge route proxying over WG — the `actual-budget:5006` / `immich-ml:3003` precedent. Still **behind Authentik forward-auth** on the edge (private, not public).
+
+## Slovenian exit node (decided 2026-09-10) — Pi, toggle-only
+
+**Purpose:** when abroad, reach `rtvslo.si` and other Slovenia-only content without geo-limitations — a **genuine Slovenian residential IP** (home WAN) is the most geo-acceptable egress (datacenter IPs are often blocked).
+
+- **Node:** the **Pi** (reliable tier) runs **native `tailscaled` in kernel mode** (`/dev/net/tun`) as a tailscale exit node — `tailscale up --advertise-exit-node`. **Not** the router (RouterOS has no tailscaled; would be a manual WireGuard peer, losing the app toggle) and **not** oldsrv (disposable tier — the exit node must be available exactly when travelling).
+- **Selection is client-side and toggled:** the phone/laptop picks the Pi as exit node in the Tailscale app **only when** a Slovenian IP is needed (then switches back). Not always-on — so home power/ISP is never a dependency for everyday phone traffic.
+- **Headscale double opt-in:** the Pi advertises `0.0.0.0/0`, the control server must **approve the route** (manual, headscale CLI), and the policy needs an **`autogroup:internet`** rule (new concept for the user-email-based `policy.hujson`) so tailnet members may use it.
+- **Ceiling while on:** the Pi 4 CPU + the home upload cap mobile throughput (~100–300 Mbit/s, single stream OK). Android tailscale supports **per-app split tunneling** to scope it; iOS is all-or-nothing.
+- **Alternative (future, only if home fails acceptance/speed):** a Slovenian VPS terminated at the VPS, policy-routed for RTV-bound traffic.
 
 ## Family Usage Scenarios
 

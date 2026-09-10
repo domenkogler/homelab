@@ -58,18 +58,20 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 - **Owner = neutral shared owner `storage_uid`/`storage_gid` (`media`, 1005)** across all *arr containers
   (linuxserver `PUID/PGID={{ storage_uid }}`/`PGID={{ storage_gid }}`; Jellyfin `user: "{{ storage_uid }}:{{ storage_gid }}"`,
   HD-94/HD-131). SMB/NFS ownership on nas must match.
-- **Auth:** admin UIs (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, Profilarr) = Authentik Forward-Auth,
-  built-in logins disabled. Jellyfin + Seerr = own login (client apps / family request portal would break
-  under forward-auth). Dozzle (observability) is also Forward-Auth — see [`observability.md`](observability.md).
+- **Auth (decided 2026-09-10):** *arr / downloader UIs (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, Profilarr, SABnzbd, qBittorrent) = **built-in Forms auth** on the home edge (deliberate reversal of the old "Authentik Forward-Auth, built-in logins disabled" — that served only while WAN/VPS is up; the home edge must survive WAN-out, so each admin tool owns its credentials). Jellyfin + Seerr + SeerrNG = **local login only** (client apps / family request portal would break under forward-auth; Jellyfin SSO dropped — SSO accounts can't fall back to local). API integration between the *arr (Prowlarr↔Sonarr/Radarr, Seerr↔*arr) keeps using API keys, unaffected by UI auth. Dozzle (observability) is also Forward-Auth — see [`observability.md`](observability.md).
+- **Request middleware identity:** Seerr / SeerrNG log in via **Jellyfin** (user/password validated by the Jellyfin API — home-local, works offline, no Authentik). SeerrNG (snapetech/seerrng) is a Seerr fork adding **music** — runs alongside Seerr for now (both point at the same Sonarr/Radarr backends); **books/Readarr dropped** (Readarr effectively unmaintained).
 - **FlareSolverr: deferred** — only if an indexer actually requires Cloudflare bypass.
 - All *arr subdomains are **internal-only** (not in the public set).
 
 | App | Web UI | Auth | Notes |
 |-----|--------|------|-------|
-| Jellyfin | `media.` | own login | transcode via Intel HD 630 `/dev/dri` |
-| Seerr | `seerr.` | own login | family request portal |
-| Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr | `<name>.` | Forward-Auth | linuxserver images |
-| Immich | `foto.` | own login / OIDC | photos above |
+| Jellyfin | `media.` | own login (local only) | transcode via Intel HD 630 `/dev/dri` |
+| Seerr | `seerr.` | Jellyfin login | family request portal (movies/TV) |
+| SeerrNG | `seerrng.` | Jellyfin login | Seerr fork + music (snapetech/seerrng); alongside Seerr |
+| Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr | `<name>.` | built-in Forms auth (home edge) | linuxserver images; API keys for integration |
+| Sabnzbd/Qbittorrent | `sab.`/`torrent.` | built-in Forms auth | downloads (qbitorrent through gluetun) |
+| Navidrome | `music.` | **VPS** (SSO web UI optional + local) | music server — library on Storage Box (moved off nas) |
+| Immich | `foto.` | OIDC → Authentik | photos (VPS) |
 
 ## Related
 - [Downloads stack](services-downloads.md) — SABnzbd / qBittorrent / gluetun ingress

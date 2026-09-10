@@ -48,7 +48,7 @@ bulk   (6 TB RAIDZ2 — WD Red + 3× Toshiba P300, consumer disks)  → MIXED RO
 │   ├── media/
 │   │   ├── movies/
 │   │   ├── tv/
-│   │   └── music/
+│   │   └── ~~music/~~ *(2026-09-10: music library moves to the Hetzner Storage Box as primary for Navidrome on the VPS — see Navidrome/store note below)*
 │   └── downloads/       transient scratch (hardlink-import → media/, then prune)
 │       ├── incomplete/{usenet,torrent}
 │       └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd / qBittorrent)
@@ -281,6 +281,8 @@ Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Cri
 | **Local backup tier** | NAS ZFS `tank`/`bulk` + local oldSrv NVMe | LAN | snapshots, dumps, service-state pushes, media library | *arr stack (media), VPS→NAS push timers, Kopia scratch |
 
 **Rule of thumb:** *hot/random/synchronous* on local SSD; *bulk/sequential/cold* on the live Box; *media + local backup* on the NAS.
+
+**2026-09-10 — music library → Storage Box (Navidrome on the VPS):** the **music** library moves to the Hetzner Storage Box (**`music/`** on the live Box) as the **primary** for **Navidrome** (VPS-hosted, `music.kogler.si`). Navidrome app + data must live together for the reliability goal (host + data both offsite/independent of home). Consequence: Lidarr's TRaSH **hardlink import** no longer applies to music (hardlinks can't cross hosts) — Lidarr falls back to **copy-import** for the music category (2× temporary space acceptable). The NAS `bulk/media/media/music` copy is retired from the active path.
 
 ---
 
