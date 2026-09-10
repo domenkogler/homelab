@@ -72,10 +72,12 @@ docker_services:
   - { name: qdrant, template_dir: qdrant, public: false, enabled: true }  # AI RAG hybrid vector store on db-internal (HD-267/268; replaces PGVector — not postgres, so NO db_role_sync/db_item/db_pg_container)
   - { name: docling,        template_dir: docling,   public: false, enabled: true }  # OCR (services-internal)
   - { name: open-webui,     template_dir: open-webui, subdomain: ai, public: true, enabled: true }
-  # === AI dual coding harness (HD-268c): pi + DSH sharing services-internal, each
-  # consuming a scoped LiteLLM key + a PR-only Forgejo key; propose via Forgejo PRs only. ===
-  - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: true }  # pi coding-agent container (npm @earendil-works/pi-coding-agent)
-  - { name: dsh,            template_dir: dsh,       public: false, enabled: true }  # DeepSeek Harness (runzhliu/image) — WebUI = Pattern-A tailnet (:3080)
+  # === AI dual coding harness (HD-268c → HD-355, 2026-09-10): MOVED to OLDSRV ===
+  # The dev-AI tier moved dsh + pi-dev to oldsrv (group_vars/home_servers.yml) and
+  # dropped their VPS tailscale sidecars. The names stay served on the VPS tailnet
+  # edge (traefik-tailnet -> WG -> oldsrv_home_ip) — see the DSH/pi-dev subdomain
+  # entries + route re-point under `tailnet_subdomains` / traefik-tailnet routes.
+  # (VPS entries removed; not part of the VPS container set anymore.)
   # === AI MCP stubs (HD-268b) — placeholders; do not yet deploy a runnable unit ===
   - { name: rag-mcp,        template_dir: rag-mcp,   enabled: false }  # TODO(impl) kapa-style hybrid reader (Qdrant→rerank→top5)
   - { name: forgejo-mcp,    template_dir: forgejo-mcp, enabled: false }  # TODO(impl) Forgejo OKF-wiki read/write bridge
@@ -121,26 +123,12 @@ docker_services:
   - { name: renovate,       template_dir: renovate,  public: false, enabled: true }  # co-located with Forgejo/GitOps. RE-ENABLED 2026-08-24 (task 5): domen/homelab not migrated yet, so RENOVATE_REPOSITORIES currently points at domen/test temporarily (template) — switch back to domen/homelab when that repo lands. Playbook run is OWNED by the other session; do NOT converge here.
 
 # HD-268 tailnet sidecar opt-ins: render the `*-tailscale` Pattern-A sidecar only
-# when these flags are true. Default false keeps the live compose byte-identical
-# (the sidecars were authored + commented out 2026-08-27; HD-268 closes them now).
-# DEPLOY-GATED (owner action) — to enable EITHER sidecar the owner must first:
-#   1. Mint a headscale preauth key with the matching ACL tag (dsh / pi-dev) and
-#      `reusable: true` — via the headscale container (or headplane UI).
-#   2. Seed the 1Password vault item:
-#        - `tailscale_dsh_api`   (API Credential; credential = the preauth key)
-#        - `tailscale_pi_dev_api` (API Credential; credential = the preauth key)
-#      These are NOT in provision-secrets.py CATALOG (preauth keys are minted by
-#      headscale, not generated). They live in NOT_AUTO_ROTATABLE so `--rotate-all`
-#      cannot clobber them. Re-mint + vault-edit + redeploy on rotation (rare).
-#   3. Flip the matching flag below to `true`, commit, run the scoped converge:
-#        bash scripts/ansible-run.sh vps.yml \
-#          --tags docker_services -e docker_services_scope=dsh     # or pi-dev
-#   4. Verify: `docker exec dsh-tailscale tailscale status` online; from a tailnet
-#      client `curl https://vps-dsh:3080` (and `vps-pi-dev:8080`) lands on the UI.
-# The ACL (policy.hujson) gates `tag:dsh` / `tag:pi-dev` to the family users only —
-# the sidecars never expose the Web UIs to other tailnet nodes.
-dsh_tailnet_sidecar_enabled: true
-pi_dev_tailnet_sidecar_enabled: true
+# when these flags are true. HD-355 (2026-09-10): dsh + pi-dev MOVED to oldsrv and
+# their tailscale sidecars are REMOVED — the flags are now permanently false on the
+# VPS (the names are still served by the tailnet edge over WG). They stay for the
+# historical 2026-08-27 pattern + never again accidentally re-enable the sidecars.
+dsh_tailnet_sidecar_enabled: false
+pi_dev_tailnet_sidecar_enabled: false
 
 # Single cert issuer (HD-178/HD-181): THIS host is the only ACME (DNS-01) issuer for
 # *.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host
@@ -196,19 +184,12 @@ prometheus_ha_exporter: false
 # extra_records).
 tailnet_sidecar_ip: "100.64.0.1"
 # HD-268c (2026-08-29): Pattern-A tailnet sidecar IPs (vps-dsh / vps-pi-dev).
-# These IPs are assigned SEQUENTIALLY by headscale at node join; the values
-# below are the LIVE-observed tailnet IPv4s after the dsh + pi-dev sidecars
-# joined the mesh. The deploy flow (per the existing `tailnet_sidecar_ip`
-# comment above) is: read `headscale nodes list` after each sidecar joins,
-# set the corresponding group_var, re-converge + restart headscale. Leave
-# empty -> headscale renders no extra_records for that sidecar (fail-loud
-# render guard in config.yaml.j2).
-# HD-297 (2026-08-31): these sidecar IPs are NOT the DNS target for the clean
-# URLs — the UI FQDNs must resolve to the traefik-tailnet EDGE (vps-obs,
-# tailnet_sidecar_ip, 100.64.0.1) which terminates TLS (wildcard cert) +
-# routes to the dsh/pi backends. The sidecar IPs serve plain HTTP (dsh:3080 /
-# pi-dev:8080) ONLY — no TLS, no Host routing. Deploy-delta fixed 2026-08-31:
-# tailnet_subdomains dsh/pi entries no longer pin `ip:` (defaults to the edge).
+# HD-355 (2026-09-10): the sidecars are REMOVED (dsh/pi-dev moved to oldsrv) —
+# these are now retained as historical/no-op values: the clean-URL DNS still
+# resolves to the edge (tailnet_sidecar_ip), and the edge reaches the backends
+# over WG to {{ oldsrv_home_ip }}:3080/:8080 (NOT via these sidecar IPs). They
+# stay only so any dangling config that references them resolves; do NOT rely on
+# them for routing.
 tailnet_dsh_ip: "100.64.0.2"
 tailnet_pi_dev_ip: "100.64.0.5"
 
@@ -238,10 +219,12 @@ tailnet_subdomains:
   - { name: sec }
   - { name: traefik }
   - { name: auto }
-  # --- Pattern-A UIs (HD-297): resolve to the edge (100.64.0.1), NOT the sidecars
-  # (pi-dev named so it never collides with the Raspberry Pi device host pi.kogler.si) ---
-  - { name: dsh }     # -> edge -> dsh-backend    http://dsh:3080
-  - { name: pi-dev }  # -> edge -> pi-backend     http://pi-dev:8080
+  # --- DSH / pi-dev (HD-355: resolve to the edge, hosted on OLDSRV): the tailnet
+  # edge serves the clean URLs + the *.ts twins; it reaches the backends over WG
+  # to {{ oldsrv_home_ip }}:3080/:8080 (the dsh/pi-dev route re-point lives in
+  # templates/docker_services/traefik-tailnet/dynamic/routes.yml.j2) ---
+  - { name: dsh }     # -> edge -> dsh-backend    http://{{ oldsrv_home_ip }}:3080 (over WG; old: dsh:3080)
+  - { name: pi-dev }  # -> edge -> pi-backend     http://{{ oldsrv_home_ip }}:8080 (over WG; old: pi-dev:8080)
 
 # HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge

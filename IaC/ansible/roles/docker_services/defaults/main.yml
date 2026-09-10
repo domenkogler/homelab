@@ -47,10 +47,6 @@ scope_list: >-
 _extra_templates:
   homelable:
     - nginx.conf.j2          # HD-45 host-net frontend: proxy /api → loopback backend, listen only on the Home-VLAN IP
-  dsh:
-    - serve.json.j2         # HD-268c Pattern-A tailnet serve config (TCP:3080 → loopback); explicitly rendered so the file exists BEFORE docker compose bind-mounts it (avoids Docker auto-creating ./serve.json as a directory)
-  pi-dev:
-    - serve.json.j2         # HD-268c Pattern-A tailnet serve config (TCP:8080 → loopback); same rationale as dsh
   kopia-server:
     - .env.j2               # compose ${KOPIA_SERVER_*} interpolation (1Password render)
   kopia-agent:
