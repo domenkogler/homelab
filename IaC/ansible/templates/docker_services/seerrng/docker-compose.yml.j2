@@ -1,0 +1,52 @@
+# seerrng docker-compose.yml — Seerr fork with music support (seerrng.kogler.si)
+#   snapetech/seerrng — a maintained Seerr fork adding MUSIC requests (Seerr itself
+#   is effectively unmaintained upstream; SeerrNG carries the music + pending-update
+#   work). Runs ALONGSIDE Seerr for now (2026-09-10, HD-353): both point at the same
+#   Sonarr/Radarr backends; each has its own container + own config dir, so no
+#   conflict (no host port publish — the internal edge routes by container port
+#   5055; the two services are in separate compose projects / separate containers
+#   so the ports are independent).
+#   OWN LOGIN (no Authentik Forward-Auth — family non-admin users submit requests
+#   directly). Internal-only. Logs in via Jellyfin (user/password validated by the
+#   Jellyfin API — home-local, works offline, no Authentik; see services-media.md).
+#   Music request identity = same Jellyfin login; books/Readarr dropped (unmaintained).
+#   SQLite (`seerrng.db`) lives in /app/config → host path /srv/docker/seerrng/config.
+#   KOPS-059 / HD-130: this config+DB IS in backup scope (docs/backup.md "Service state"
+#   → tank/data/services via nightly push + Kopia). Single-file SQLite; isolated per-
+#   service under /srv/docker/seerrng (same pattern as seerr).
+#
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
+#   — none needed
+services:
+  seerrng:
+    image: snapetech/seerrng:{{ seerrng_version }}
+    cap_drop:
+      - ALL
+    # read_only intentionally ABSENT (HD-318, seerr precedent): the snapetech/seerrng
+    # image runs as `node:node` (uid 1000) and needs to create /app/config/logs at
+    # startup; read_only root made the bind-mounted config dir un-writable (EACCES
+    # mkdir) on seerr. Dir ownership is enforced via bind_owner_uid: 1000 + bind_dirs
+    # on the entry (same entry shape as seerr).
+    tmpfs:
+      - /tmp
+    container_name: seerrng
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - services-internal
+    volumes:
+      - /srv/docker/seerrng/config:/app/config
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      # INTERNAL-ONLY (public: false / HD-331/332): the internal edge (traefik-tailnet
+      # routes.yml + the home traefik-internal file-provider set) serves seerrng by
+      # container port; no public router/certresolver labels. If seerrng ever gets a
+      # public route, flip to the seerr legacy shape (traefik.enable: true + crowdsec-only).
+      traefik.enable: "false"
+      traefik.http.services.seerrng.loadbalancer.server.port: "5055"
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true

@@ -24,12 +24,14 @@ Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I
 | Jellyfin | media | P+I | 250–400 / +150–350 per stream | Media server — **Intel HD 630 iGPU** QuickSync transcode, own login |
 | Immich | foto | I | 600–1,000 / 2,000 | Photo management, mobile apps (app+postgres+valkey — microservices merged into server in v3). **Originals on live Box (CIFS), docs/DB local** (HD-131 D1/D3). **Auth (HD-148): native OIDC → Authentik** (web + mobile `app.immich:///oauth-callback`); client via Blueprint + glue |
 | Seerr | seerr | P+I | 150–250 / 400 | Request portal (seerr.dev, `seerr/seerr`) — own login, Jellyfin/Plex/Emby |
+| SeerrNG | seerrng | P+I | 150–250 / 400 | Music-capable Seerr fork (snapetech/seerrng, HD-353) — own Jellyfin login; runs alongside Seerr (same Sonarr/Radarr backends) |
 | Sonarr | sonarr | P+I | 120–180 / 250 | TV series management (linuxserver) |
 | Radarr | radarr | P+I | 140–200 / 300 | Movie management (linuxserver) |
 | Lidarr | lidarr | P+I | 90–140 / 200 | Music management (linuxserver) |
 | Prowlarr | prowlarr | P+I | 70–120 / 180 | Indexer registry shared by all *arr |
 | Bazarr | bazarr | P+I | 80–150 / 250 | Subtitle management (connects to Sonarr/Radarr) |
 | Profilarr | profilarr | P+I | 50–100 / 150 | Quality-profile UI on top of Sonarr/Radarr |
+| Navidrome | music | P+I | 100–250 / 400 | Music server (deluan/navidrome, HD-354) — **on the VPS**, library on the Hetzner Storage Box; Subsonic + web UI |
 | Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (scheduled, no UI) |
 
 ## Storage & Import (Media / *arr)
@@ -43,18 +45,19 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 ├── media/
 │   ├── movies/
 │   ├── tv/
-│   └── music/
+│   └── ~~music/~~ *(2026-09-10: music library moved to the Hetzner Storage Box as Navidrome's primary — see below)*
 └── downloads/                    # transient scratch (hardlink-import → media/, then prune)
     ├── incomplete/{usenet,torrent}
-    └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd categories / qBittorrent save paths)
+    └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd / qBittorrent save paths)
 ```
 
 - **Three NFS exports:** `bulk/media` → oldsrv **`/mnt/nas/media`** (the *arr share), `tank/data` →
   `/mnt/nas/data` (immutable user data) and `bulk/data/immich-thumbs` → `/mnt/nas/thumbs` (push target) —
   two pools, three exports.
-- **Import = hardlink** (Sonarr/Radarr/Lidarr: `Use Hardlinks` ON) — instant, zero-space, atomic.
-- **Media is not backed up** — no sanoid snapshots, no syncoid, no Kopia. Lost media is re-fetched via
-  usenet/torrents. (Ingress = [`services-downloads.md`](services-downloads.md), TRaSH categories.)
+- **Import = hardlink** for **movies/TV** (Sonarr/Radarr: `Use Hardlinks` ON) — instant, zero-space, atomic. **Music** is the **Lidarr → copy-import** exception (HD-354): the music library lives on the Hetzner Storage Box as Navidrome's primary, and hardlinks can't cross hosts — so Lidarr **copies** music (2× temporary space accepted), then the Box refresh picks it up. `docs/storage.md` §Store tiering owns the layout.
+- **Media is not backed up** (movies/TV) — no sanoid snapshots, no syncoid, no Kopia; lost media is re-fetched via
+  usenet/torrents. **Music is the exception**: the library lives on the live Box (cold/bulk tier, box-side + Kopia
+  coverage per [`storage.md`](storage.md)).
 - **Owner = neutral shared owner `storage_uid`/`storage_gid` (`media`, 1005)** across all *arr containers
   (linuxserver `PUID/PGID={{ storage_uid }}`/`PGID={{ storage_gid }}`; Jellyfin `user: "{{ storage_uid }}:{{ storage_gid }}"`,
   HD-94/HD-131). SMB/NFS ownership on nas must match.
@@ -72,6 +75,18 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 | Sabnzbd/Qbittorrent | `sab.`/`torrent.` | built-in Forms auth | downloads (qbitorrent through gluetun) |
 | Navidrome | `music.` | **VPS** (SSO web UI optional + local) | music server — library on Storage Box (moved off nas) |
 | Immich | `foto.` | OIDC → Authentik | photos (VPS) |
+
+## Navidrome (music.kogler.si) — VPS + Storage Box (HD-354)
+
+- **Placement:** on the **VPS** (reliable tier) with **app + data together** — library on the live Hetzner
+  Storage Box (`/mnt/storagebox/music`, CIFS via the `cifs` role), app data + SQLite on VPS NVMe
+  (`/srv/docker/navidrome/data`, Kopia-backed). Home-independent by design (music survives WAN-out scenes
+  via the VPS edge / WG bridge; data is offsite).
+- **Auth:** local logins retained (break-glass + Subsonic clients); the web UI **SSO via Authentik is
+  optional** (deploy-gated) — `/rest/*` stays local for Subsonic clients (Symfonium, play:Sub).
+- **Clients:** any Subsonic-compatible app; web at `music.kogler.si` (internal/tailnet — no public record).
+- **Import path:** Lidarr on oldsrv → **copy-import** (hardlinks can't cross hosts once the library is on the
+  Box); `docs/storage.md` owns the tiering/consequence line.
 
 ## Related
 - [Downloads stack](services-downloads.md) — SABnzbd / qBittorrent / gluetun ingress

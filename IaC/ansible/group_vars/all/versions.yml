@@ -57,7 +57,9 @@ sabnzbd_version: "5.1.1"                   # linuxserver/sabnzbd
 sonarr_version: "4.0.19.2979-ls321"        # linuxserver/sonarr (ls build tag)
 qbittorrent_version: "5.2.3"               # linuxserver/qbittorrent
 seerr_version: "v3.4.1"                    # seerr/seerr
+seerrng_version: "v3.20.0"                  # snapetech/seerrng — Seerr fork + music (HD-353); registry-verified 2026-09-10 via Docker Hub API (latest stable v3.20.0, active digest; NEVER latest/v3 moving tags). Renovate tracks.
 recyclarr_version: "7.4.0"                 # ghcr.io/recyclarr/recyclarr
+navidrome_version: "0.63.2"                 # deluan/navidrome (HD-354, VPS); registry-verified 2026-09-10 via Docker Hub API — latest stable semver, no `v` prefix (0.63.2, 2026-07-11; develop/pr tags are NOT pinned). Renovate tracks.
 profilarr_version: latest                  # ghcr.io/dictionarry-hub/profilarr — NO versioned
                                            # tags upstream (only develop/buildcache/sha256,
                                            # probe 2026-08-21) → documented fluid exception;
