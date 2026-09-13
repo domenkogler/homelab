@@ -36,8 +36,8 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 17 | rag-mcp | rag-mcp | `https://rag-mcp.kogler.si` | disabled |
 | 18 | forgejo-mcp | forgejo-mcp | `https://forgejo-mcp.kogler.si` | disabled |
 | 19 | openclaw | openclaw | `https://openclaw.kogler.si` | enabled |
-| 20 | prometheus | prometheus | `https://prometheus.kogler.si` | enabled |
-| 21 | loki | loki | `https://loki.kogler.si` | enabled |
+| 20 | victoria-metrics | victoria-metrics | `https://victoria-metrics.kogler.si` | enabled |
+| 21 | victoria-logs | victoria-logs | `https://victoria-logs.kogler.si` | enabled |
 | 22 | grafana | stats | `https://stats.kogler.si` | enabled |
 | 23 | blackbox-exporter | blackbox-exporter | `https://blackbox-exporter.kogler.si` | enabled |
 | 24 | dozzle | logs | `https://logs.kogler.si` | enabled |
@@ -58,7 +58,7 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 | # | Service | Subdomain | URL | Status |
 |---|---------|-----------|-----|--------|
-| 1 | ollama | ollama | `https://ollama.kogler.si` | enabled |
+| 1 | ollama | ollama | `https://ollama.kogler.si` | disabled |
 | 2 | immich-ml | immich-ml | `https://immich-ml.kogler.si` | enabled |
 | 3 | technitium (secondary) | technitium | `https://technitium.kogler.si` | enabled |
 | 4 | pihole | ad | `https://ad.kogler.si` | enabled |
@@ -79,6 +79,9 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 19 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
 | 20 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
 | 21 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
+| 22 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | disabled |
+| 23 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | disabled |
+| 24 | homelable | homelable | `https://homelable.kogler.si` | disabled |
 
 ## pi.kogler.si
 
@@ -90,4 +93,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-09-07T11:19:12Z
+> Generated from the `docker_services` lists | 2026-09-09T14:35:52Z

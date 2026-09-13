@@ -1,0 +1,100 @@
+# lan-litellm docker-compose.yml — LAN LiteLLM instance (oldsrv; dev-AI tier)
+#   SECOND LiteLLM for the DEV side (dsh / pi-dev / future OpenHands), separate
+#   from the VPS family instance. Decided 2026-09-10 (HD-356): LiteLLM splits —
+#   VPS instance (family: open-webui, openclaw, docling, qdrant, rag-mcp) + LAN
+#   instance (dev: dsh + pi-dev on oldsrv) with spark (GB10 / Triton NVFP4) as its
+#   local inference backend. Each instance owns its OWN Postgres (litellm-db) +
+#   scoped keys, both Kopia-backed.
+#
+#   ⏳ DEPLOY-GATED ON SPARK (HD-335/HD-337): this service is kept `enabled: false`
+#   in group_vars/home_servers.yml until the spark node is provisioned. Do NOT
+#   flip it live. The template (mode is a thin clone of templates/docker_services/
+#   litellm/) is authored so the IaC/catalog story is complete and the deploy-gated
+#   verification checklist (deployment-tasks.md) can tick it when spark arrives.
+#
+#   Reach model (HD-356): the LAN instance listens on {{ oldsrv_home_ip }}:4000
+#   (the SAME port shape as the media-bridge publish) so dsh/pi-dev on oldsrv and
+#   the VPS family edge can reach it over the WG S2S — never a public bind.
+#   Management API stays docker-exec-only (HD-62 parallel).
+#
+#   Secrets (all fail-closed, HD-65): reuses the SAME 1Password items as the VPS
+#   instance — litellm_master_key, openrouter_api, cohere_api, litellm_db — so the
+#   scoped-key glue (dsh_api, pi-harness_openai_api) and the db_backup DB06 story
+#   apply unchanged. On spark convergence, the litellm-db POSTGRES_* values fan out
+#   from the same vault items.
+services:
+  lan-litellm:
+    image: docker.litellm.ai/berriai/litellm:{{ litellm_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: lan-litellm
+    restart: unless-stopped
+    ports:
+      - "{{ oldsrv_home_ip }}:4000:4000"     # HD-356 — oldsrv Home-IP publish; dev consumers + VPS edge over WG
+    networks:
+      - services-internal
+      - llm-backend                 # reach local inference (spark/Triton) once provisioned
+      - db-internal                 # reach lan-litellm-db
+    volumes:
+      - /srv/docker/lan-litellm:/app/.data        # misc app state (Kopia scope)
+    depends_on:
+      lan-litellm-db:
+        condition: service_healthy
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      LITELLM_MASTER_KEY: "{{ vault['litellm_master_key'].credential | replace('$','$$') }}"
+      OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential | replace('$','$$') }}"
+      COHERE_API_KEY: "{{ vault['cohere_api'].credential | replace('$','$$') }}"
+      STORE_MODEL_IN_DB: "true"
+      DATABASE_URL: >-
+        postgres://{{ vault['litellm_db'].username | urlencode }}:{{ vault['litellm_db'].password | urlencode }}@lan-litellm-db:5432/litellm
+    command: ["--config", "/app/config.yaml"]
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://localhost:4000/health/liveliness')\""]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  lan-litellm-db:
+    image: postgres:{{ litellm_db_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETUID
+      - SETGID
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    container_name: lan-litellm-db
+    restart: unless-stopped
+    networks:
+      - db-internal                 # NOT on services-internal
+    volumes:
+      - /srv/docker/lan-litellm/postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: "{{ vault['litellm_db'].username | replace('$','$$') }}"
+      POSTGRES_PASSWORD: >-
+        {{ vault['litellm_db'].password | replace('$','$$') }}
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  services-internal:
+    external: true
+  llm-backend:
+    external: true
+  db-internal:
+    external: true

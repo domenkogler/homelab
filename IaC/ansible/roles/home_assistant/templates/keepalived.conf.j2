@@ -4,8 +4,9 @@
 # The ha-failover.sh orchestrator swaps this for keepalived.conf.failover on a
 # manual forward takeover (Pi → oldsrv) — see HD-17.
 #
-# Interface: Home-VLAN subinterface on the oldsrv trunk (eth0.10) — must match the
-# network role's trunk interface once static-IP/trunk provisioning lands.
+# Interface: the standby's Home-VLAN device. oldsrv carries Home untagged on the
+# parent enp0s31f6 (only Mgmt is the .99 child) — ha_keepalived_interface is set per
+# host in host_vars (oldsrv = enp0s31f6, Pi = eth0).
 # auth_pass: VRRP PASS is limited to 8 chars — truncate the 1Password secret
 # identically on BOTH nodes (same lookup ⇒ same truncation).
 # NOTE (HD-124/KOPS-020): auth_type PASS is the MAXIMUM the VRRP protocol provides

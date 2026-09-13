@@ -1,0 +1,63 @@
+# navidrome docker-compose.yml — Music server (music.kogler.si) on the VPS
+#   Navidrome (deluan/navidrome) — web/Subsonic music server. Family music tier:
+#   VPS-hosted, library on the Hetzner Storage Box (CIFS) — HD-354 (2026-09-10):
+#   app + data live together offsite/independent of home (reliability tier).
+#   Library: /mnt/storagebox/music (live Box, mounted by the cifs role, HD-135);
+#   app data + DB on VPS NVMe (/srv/docker/navidrome/data — Kopia-backed).
+#   Lidarr import: hardlink→copy-import for music (hardlinks can't cross hosts;
+#   music downloads flow oldsrv Lidarr → live Box music/, see storage.md).
+#   Auth: local logins retained (break-glass + Subsonic clients); SSO web UI
+#   OPTIONAL via Authentik (deploy-gated; see services-media.md). /rest/* kept
+#   local for Subsonic clients (not behind forward-auth).
+#   Exposure: INTERNAL-ONLY (no public record; reachable via tailnet/WG + the
+#   VPS internal edge). The home edge (traefik-internal on oldsrv) also serves it:
+#   VPS-backed apps are reached there via the WG-s2s bridge (:4443 → traefik-tailnet)
+#   — uniform 3-edge route set (HD-350). No host port publish (Traefik-only).
+#
+# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
+#   — none needed (Navidrome local admin is created at first-run UI; DB is local
+#     SQLite under /srv/docker/navidrome/data — no separate secret item).
+services:
+  navidrome:
+    image: deluan/navidrome:{{ navidrome_version }}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETGID
+      - SETUID
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: navidrome
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - services-internal
+    volumes:
+      - /srv/docker/navidrome/data:/data          # app data + SQLite DB (Kopia-backed)
+      - /mnt/storagebox/music:/music:ro            # live Box library (CIFS; cifs role)
+    environment:
+      ND_DATAFOLDER: /data
+      ND_MUSICFOLDER: /music
+      ND_LOGLEVEL: info
+      ND_BASEURL: ""
+      ND_ADDRESS: 0.0.0.0
+      ND_PORT: "4533"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      # INTERNAL-ONLY (public: false / HD-331/332): served by the VPS internal edge
+      # (traefik-tailnet routes.yml → music_backend → navidrome:4533) + the home
+      # traefik-internal file-provider set; no public router/certresolver labels.
+      # SSO web UI optional is a RUNTIME/deploy-gated setting (services-media.md),
+      # handled at the edge (Authentik forward-auth) or app-level — not a compose
+      # label here.
+      traefik.enable: "false"
+      traefik.http.services.navidrome.loadbalancer.server.port: "4533"
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true

@@ -213,6 +213,8 @@ services:
       AUTHENTIK_TOKEN: "{{ vault['authentik-ldap_bind'].password | replace('$','$$') }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     ports:
+      # Non-secret `default()`s (CONVENTIONS §3): the WG peer-key gate below + db-name/TZ env
+      # and acme-issuer label defaults are structural wiring, never 1Password secrets (HD-65/186).
       - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:3389:3389"   # LDAP (outpost binds providers' LDAP port); WG-only bind — Samba (nas) pulls over the S2S tunnel (HD-186); no WAN exposure
     depends_on:
       - authentik-server

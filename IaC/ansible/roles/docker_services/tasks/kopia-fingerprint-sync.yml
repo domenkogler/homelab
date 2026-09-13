@@ -1,0 +1,84 @@
+---
+# kopia-fingerprint-sync.yml — HD-318a: seed/refresh the 1Password kopia-server
+# TLS trust anchor from the LIVE cert on the VPS kopia-server config bind.
+#
+# kopia 0.23.x clients (`kopia repository connect server`) hard-require https://
+# and a pinned --server-cert-fingerprint. The server serves a PERSISTED self-signed
+# cert (generated once by its boot script under /srv/docker/kopia-server/config/),
+# whose SHA-256 fingerprint is the trust anchor the oldsrv agent pins. The anchor
+# must be seeded into 1Password (`kopia-server_fingerprint`) because the two compose
+# templates read it via the shared `vault` dict — this task keeps the vault in sync
+# with the live cert (idempotent: no-op when the file matches the item).
+#
+# Runs on the VPS ONLY (kopia-server is VPS-resident) and only after the cert files
+# exist (kopia-server first start). Host-side write uses the SA token deployed by
+# prepass-authentik.yml to /etc/op/provision-token (HD-143 pattern, never in Git).
+- name: "Wait for kopia-server TLS fingerprint file (container boot writes it, HD-318a)"
+  # slurp ERRORS (does not return a result) when the file is absent, so the retry is
+  # driven by a stat that tolerates absence until the container boot script has written
+  # tls-sha256 (kopia-server first start / restart).
+  block:
+    - name: "Stat kopia-server TLS fingerprint file"
+      ansible.builtin.stat:
+        path: "/srv/docker/kopia-server/config/tls-sha256"
+      register: kopia_tls_fp_stat
+      until: kopia_tls_fp_stat.stat.exists
+      retries: 12
+      delay: 5
+
+    - name: "Read kopia-server TLS fingerprint file"
+      ansible.builtin.slurp:
+        src: "/srv/docker/kopia-server/config/tls-sha256"
+      register: kopia_tls_fp_file
+      when: kopia_tls_fp_stat.stat.exists
+  when:
+    - inventory_hostname == 'vps.kogler.si'
+    - "'kopia-server' in (docker_services | map(attribute='name') | list)"
+    - scope_is_all or 'kopia-server' in scope_list
+  tags: [docker_services, kopia_server, kopia_fingerprint]
+
+- name: "Assert kopia-server TLS fingerprint is lowercase hex (128 chars)"
+  ansible.builtin.assert:
+    that:
+      - kopia_tls_fp_file.content is defined
+      - (kopia_tls_fp_file.content | b64decode | trim | lower) is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      /srv/docker/kopia-server/config/tls-sha256 is missing or malformed. It is
+      written by the kopia-server container boot script after generating tls.crt/tls.key.
+      Redeploy kopia-server first (its first start generates the cert), then re-run.
+  when:
+    - inventory_hostname == 'vps.kogler.si'
+    - kopia_tls_fp_file is defined
+    - kopia_tls_fp_file.skipped is not defined
+
+- name: "Sync kopia-server_fingerprint 1P item from live cert (HD-318a)"
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      FP="$(cat /srv/docker/kopia-server/config/tls-sha256 | tr -d '[:space:]' | tr 'A-Z' 'a-z')"
+      if [ -r /etc/op/provision-token ]; then
+        export OP_SERVICE_ACCOUNT_TOKEN="$(cat /etc/op/provision-token)"
+      fi
+      # Compare with the current item value (no-op when already in sync).
+      CUR="$(op item get kopia-server_fingerprint --vault="Homelab-ansible" --field password --reveal 2>/dev/null | tr -d '[:space:]' || true)"
+      if [ "$CUR" = "$FP" ]; then
+        echo "kopia-server_fingerprint already in sync"
+        exit 0
+      fi
+      if op item edit kopia-server_fingerprint --vault="Homelab-ansible" "password=$FP" < /dev/null >/dev/null 2>&1; then
+        echo "updated kopia-server_fingerprint"
+      elif op item create --vault="Homelab-ansible" --category="Password" \
+          --title="kopia-server_fingerprint" "password=$FP" < /dev/null >/dev/null 2>&1; then
+        echo "created kopia-server_fingerprint"
+      else
+        echo "ERROR: could not write kopia-server_fingerprint to 1Password" >&2
+        exit 1
+      fi
+    executable: /bin/bash
+  register: kopia_fp_sync
+  changed_when: "'updated' in kopia_fp_sync.stdout or 'created' in kopia_fp_sync.stdout"
+  no_log: true   # the shell cmd reads the SA token + writes a secret-adjacent anchor
+  when:
+    - inventory_hostname == 'vps.kogler.si'
+    - kopia_tls_fp_file is defined
+    - kopia_tls_fp_file.skipped is not defined

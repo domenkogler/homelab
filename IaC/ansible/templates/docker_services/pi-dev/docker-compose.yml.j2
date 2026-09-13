@@ -8,18 +8,21 @@
 #
 #   pi is a TUI/CLI agent; its Web UI is provided by `pi-web-ui` (a web chat for the pi
 #   agent, runs in-process via the pi SDK, streams over WebSocket; server default :8787,
-#   here set to :8080, loopback-only unless PI_WEB_HOST=0.0.0.0). Inside the container the
-#   server binds 0.0.0.0 (so the Pattern-A sidecar can reach it) BUT it is exposed ONLY
-#   over the tailnet via the `pi-dev-tailscale` sidecar (Pattern-A tailnet serve,
-#   docs/network-vpn.md §Pattern A) — never a host/service-internal port bind.
+#   here set to :8080). DSH binds 127.0.0.1 only (DeepSeek.app rejects `--host 0.0.0.0`)
+#   — for pi the `PI_WEB_HOST=0.0.0.0` inside-container bind is REQUIRED so the Web UI
+#   reaches the HOST publish. HD-355 (2026-09-10): pi-dev MOVED to oldsrv (dev-AI
+#   tier); the tailscale sidecar is REMOVED (tailnet = mobile-only via the VPS edge).
+#   The UI is published on the HOST's Home-VLAN IP (`{{ oldsrv_home_ip }}:8080`,
+#   media-bridge pattern — precedent: immich-ml `{{ oldsrv_home_ip }}:3003`, verified
+#   2026-09-08); the VPS `traefik-tailnet` edge reaches it over the WG S2S
+#   (wg_s2s_vps allowed_ips carries oldsrv /32) and serves the clean URLs
+#   `pi-dev.kogler.si`/`pi-dev.ts.kogler.si` (Authentik Forward-Auth on the edge,
+#   not public).
 #
 #   pi-dev also reaches LiteLLM (models) + Forgejo (PR proposals) on `services-internal`.
-#   HD-296: the new `tailnet-apps` overlay (172.24.0.0/16) carries the pi Web
-#   UI to the tailnet Traefik edge (traefik-tailnet) for the clean-URL
-#   route `https://pi.ts.kogler.si` (wildcard cert, ACL-gated *.ts router,
-#   tag:pi-dev). The pi-dev-tailscale sidecar inherits both networks via
-#   `network_mode: service:pi-dev` (sharing the pi-dev netns). Same model
-#   as dsh — see dsh/docker-compose.yml.j2 + HD-268c + HD-296.
+#   HD-355: the tailnet-apps overlay / PI pattern-A exposure is REMOVED (clean-URL
+#   `https://pi-dev.ts.kogler.si` is now served by the VPS traefik-tailnet edge →
+#   WG → `{{ oldsrv_home_ip }}:8080`, not by a pi-dev-local tailscale serve).
 #
 #   IMAGE security note: pi.dev is installed AT CONTAINER START from the official npm
 #   registry (`npm install -g --ignore-scripts @earendil-works/pi-coding-agent@{{ pi_dev_npm_version }}`)
@@ -97,15 +100,14 @@ services:
           echo "pi-web-ui install failed" >&2; exit 1
         fi
         # Serve the pi Web UI in the foreground. PI_WEB_HOST=0.0.0.0 binds inside the container
-        # (needed by the Pattern-A tailnet sidecar); the sidecar is the ONLY exposure.
+        # so the HOST publish ({{ oldsrv_home_ip }}:8080, media-bridge) reaches it; the VPS
+        # tailnet edge reaches the publish over WG S2S (HD-355).
         # PORT is set via the PI_WEB_PORT env; --no-browser for a headless container.
         exec pi-web-ui --port 8080 --no-browser
     networks:
       - services-internal       # LiteLLM (models) + Forgejo (PR proposals)
-      # HD-296: also joins `tailnet-apps` so the tailnet Traefik edge can route
-      # the clean URL `https://pi.ts.kogler.si` → `pi-dev:8080` via Docker DNS
-      # (the pi-dev-tailscale sidecar inherits via `network_mode: service:pi-dev`).
-      - tailnet-apps
+    ports:
+      - "{{ oldsrv_home_ip }}:8080:8080"        # HD-355 — oldsrv Home-IP publish (never 0.0.0.0/127.0.0.1)
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # pi model backend = LiteLLM (the spine). pi talks OpenAI-compatible to LiteLLM;
@@ -121,66 +123,13 @@ services:
       FORGEJO_PR_TOKEN: >-
         {{ vault['pi-harness_forgejo_api'].credential | replace('$','$$') }}
 #      pi-web-access needs no API key by default (zero-config Exa) — docs/deployment-secrets.md.
-      # Web UI: bind 0.0.0.0 inside the container so the Pattern-A tailnet sidecar reaches :8080.
-      # The only exposure is via the tailscale sidecar; never a host/service-internal bind.
+      # Web UI: bind inside the container (HD-355); the HOST publish is
+      # {{ oldsrv_home_ip }}:8080 only — never 0.0.0.0 on the host.
       PI_WEB_HOST: "0.0.0.0"
       PI_WEB_PORT: "8080"
     volumes:
       # Isolated agent workspace ONLY — never host dirs (HD-268c sandbox rule).
       - /srv/docker/pi-dev/workspace:/workspace
-
-  # Pattern-A tailnet serve sidecar (docs/network-vpn.md §Pattern A): shares the pi-dev
-  # network namespace; `tailscale serve` proxies the tailnet socket to the loopback Web UI
-  # (127.0.0.1:8080). pi-web-ui verifies WebSocket Origin against Host — the sidecar must
-  # forward the original Host. ACL tag tag:pi-dev. NO socat bridge; UI NOT on services-internal.
-  # Gated by `pi_dev_tailnet_sidecar_enabled` (HD-268, deploy-gated) — mirror of dsh sidecar.
-  # Mirrors the working traefik-tailnet sidecar (HD-135b): userspace networking, reusable
-  # authkey via TS_AUTH_ONCE, --login-server pointed at our headscale (NOT public control
-  # plane — live lesson 2026-08-28). pi Web UI is :8080.
-  # NOTE: the `if ... endif` Jinja block is intentionally at indent 0 — see
-  # dsh/docker-compose.yml.j2 for the rationale (Ansible's trim_blocks preserves
-  # leading whitespace of tag lines; placing the tag at indent 0 means zero leaked
-  # whitespace, sidecar renders at the correct indent 2 inside `services:`).
-{% if pi_dev_tailnet_sidecar_enabled is defined and pi_dev_tailnet_sidecar_enabled %}
-  pi-dev-tailscale:
-    image: tailscale/tailscale:{{ tailscale_version }}
-    container_name: pi-dev-tailscale
-    restart: unless-stopped
-    network_mode: service:pi-dev
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_ADMIN
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/run/tailscale
-    volumes:
-      - /srv/docker/pi-dev/tailscale:/var/lib/tailscale
-      - ./serve.json:/config/serve.json:ro
-    environment:
-      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      # Fail-closed (HD-65): no `default('')` — missing item aborts render loudly. Owner
-      # seeds tailscale_pi_dev_api in 1Password with a headscale preauth key (tag:pi-dev,
-      # reusable). NOT auto-rotatable: preauth keys are minted by the running headscale.
-      TS_AUTHKEY: "{{ vault['tailscale_pi_dev_api'].credential | replace('$','$$') }}"
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_USERSPACE: "true"
-      TS_HOSTNAME: vps-pi-dev   # node name on the tailnet (containerboot TS_HOSTNAME)
-      TS_ACCEPT_DNS: "true"
-      TS_EXTRA_ARGS: "--login-server=https://vpn.kogler.si"
-      TS_SERVE_CONFIG: /config/serve.json
-      TS_AUTH_ONCE: "true"
-{% endif %}
 networks:
   services-internal:
-    external: true
-  # HD-296: tailnet-apps overlay (172.24.0.0/16) — carries the pi Web UI to
-  # the tailnet Traefik edge (traefik-tailnet) so the file-provider router
-  # `pi-kogler` in dynamic/routes.yml.j2 can resolve `pi-dev:8080` via
-  # Docker DNS. The pi-dev-tailscale sidecar inherits this network via
-  # `network_mode: service:pi-dev` (shares the pi-dev netns). Same ACL
-  # rationale as the dsh sidecar (see dsh/docker-compose.yml.j2 for the
-  # long form + HD-268c + HD-296).
-  tailnet-apps:
     external: true

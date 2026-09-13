@@ -49,6 +49,21 @@
 } else={
     /user set [find name=ansible] group=full disabled=no comment="Ansible automation (SSH-key auth)"
 }
+# Scoped read-only API user for n8n firmware automation (HD-312(4)) — logpipe
+# precedent (group=read = read-only to all config paths, no write). Password is
+# injected from 1Password at render (mikrotik-n8n_api, see render-routeros.yml).
+# GATED on the vault item EXISTING: mikrotik-n8n_api was never created (owner-side
+# gap — docs claimed done); a bare lookup would abort the render, so when absent we
+# emit a loud DEFERRED comment instead of a blank password (fail-loud, no default).
+{% if mikrotik_n8n_present | default(false) %}
+:if ([/user find where name=n8n] = "") do={
+    /user add name=n8n group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="HD-312(4): read-only API for n8n firmware automation"
+} else={
+    /user set [find name=n8n] group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="HD-312(4): read-only API for n8n firmware automation"
+}
+{% else %}
+# HD-312(4) n8n user DEFERRED — mikrotik-n8n_api 1P item missing (owner creates it, then re-render + re-converge)
+{% endif %}
 # SSH-key imports are bootstrap-only: admin.pub/ansible.pub exist on a fresh flash
 # (uploaded by rb4011_initial.rsc) but are cleaned up in steady state — a re-import
 # here aborts with 'input does not match any value of public-key-file' (HD-322 live
@@ -182,9 +197,9 @@
     /ip dhcp-server set [find where name=dhcp-{{ v.id }}] interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} disabled=no
 }
 :if ([/ip dhcp-server network find where gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}] = "") do={
-    /ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
+    /ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ ([dns_tertiary_ip, dns_primary_ip, dns_secondary_ip] if v.id == 10 else [dns_primary_ip, dns_secondary_ip, dns_tertiary_ip]) | join(',') }}
 } else={
-    /ip dhcp-server network set [find where gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}] gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
+    /ip dhcp-server network set [find where gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}] gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ ([dns_tertiary_ip, dns_primary_ip, dns_secondary_ip] if v.id == 10 else [dns_primary_ip, dns_secondary_ip, dns_tertiary_ip]) | join(',') }}
 }
 {% endif %}
 {% endfor %}
@@ -279,6 +294,20 @@ add chain=srcnat out-interface=pppoe-telekom action=masquerade comment="Masquera
 add chain=srcnat out-interface={{ comtrend_modem.iface }} protocol=tcp dst-address={{ comtrend_modem.modem_mgmt_ip }} dst-port=80,443 action=masquerade comment="HD-302: modem UI via router SNAT (trusted-admin)"
 add chain=dstnat src-address=10.10.40.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - UDP 53 -> Technitium"
 add chain=dstnat src-address=10.10.40.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - TCP 53 -> Technitium"
+# HD-326: per-MAC kids filtered DNS on Home VLAN 10 (kids join Kogler SSID / VLAN 10 per
+# HD-312 — the VLAN-40 hijack above does NOT cover them). Redirect each kids-tablet's DNS
+# (53) to the Technitium primary, which enforces the Kids-Group policy (Cloudflare
+# Families). Mirrors roles/router/tasks/main.yml (both own these rows).
+{% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
+add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="HD-326 kids filtered DNS - UDP 53 -> Technitium: {{ h.name }}"
+add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="HD-326 kids filtered DNS - TCP 53 -> Technitium: {{ h.name }}"
+{% endif %}{% endfor %}
+# HD-342 (2026-09-07): IoT VLAN 20 per-device DNS visibility — hijack plain :53
+# from IoT to the PI tertiary (dns_tertiary_ip => 10.10.1.20, the Pi Technitium
+# read via dns-pi.kogler.si) so each IoT device's queries land per-source-IP in
+# the Pi query log. Mirrored in roles/router/tasks/main.yml (both own these rows).
+add chain=dstnat src-address=10.10.20.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - UDP 53 -> Pi (HD-342)"
+add chain=dstnat src-address=10.10.20.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - TCP 53 -> Pi (HD-342)"
 
 # ---- Firewall: address lists ----
 # Reset first (HD-322): a re-import without the reset STACKS duplicate rows for
@@ -309,7 +338,7 @@ add address=10.10.99.0/24 list=internal_lan comment="Mgmt VLAN"
 /ip firewall filter
 add chain=forward action=accept connection-state=established,related comment="Allow established/related return"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address-list=trusted-ha protocol=udp dst-port=5683 comment="IoT Shelly CoAP push -> HA"
-add chain=forward action=accept src-address-list=trusted-admin dst-address=10.10.20.0/24 comment="Trusted admin -> IoT (new)"
+add chain=forward action=accept src-address-list=trusted-ha dst-address=10.10.20.0/24 comment="Trusted HA hosts (oldsrv/ha-vip) -> IoT (new) - HD-03 owner decision 2026-09-04: narrowed to trusted-ha (excludes nas)"
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=tcp connection-state=established,related comment="Home -> IoT (est/rel)"
 # KNXnet/IP tunneling (HA on the Pi -> GIRA IP router on IoT): the Pi is NOT
 # in trusted-admin (node, not admin host -- HD-310 Mgmt-strict posture), so
@@ -339,6 +368,21 @@ add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.
 add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.1.20 protocol=tcp dst-port=53,853 comment="LAN -> DNS secondary Pi tcp"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address=10.10.1.30 protocol=udp dst-port=53,853 comment="IoT -> DNS resolver udp"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address=10.10.1.30 protocol=tcp dst-port=53,853 comment="IoT -> DNS resolver tcp"
+# HD-312 phase 3 / HD-325: cloud-IoT per-MAC WAN egress (iot-wan-allow). The IOT-WAN
+# SSID was deleted — the LG/Bosch/HAP cloud devices ride VLAN 20 where the IoT->WAN
+# drop below cuts their WAN; these src-mac-address accepts restore internet for
+# exactly the SSOT rows with wan_allow: true. MUST sit ABOVE the IoT->WAN drop.
+{% for h in network_static_hosts %}{% if h.mac is defined and h.vlan == 20 and h.wan_allow is defined and h.wan_allow %}
+add chain=forward action=accept src-address=10.10.20.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom comment="IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ h.name }}"
+{% endif %}{% endfor %}
+# HD-326 (2026-09-04): per-MAC kids controls on Home VLAN 10 (kids join Kogler SSID /
+# VLAN 10 per HD-312). The kids-tablets' bedtime WAN hard-block (22:00-07:00) + DoT(853)
+# bypass drop, rendered per SSOT row with kids: true. MUST sit ABOVE the Home->WAN accept
+# below — a drop placed below the Home accept is shadowed (first-match-wins).
+{% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
+add chain=forward action=drop src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom protocol=tcp dst-port=853 comment="HD-326 kids DoT-bypass drop (853): {{ h.name }}"
+add chain=forward action=drop src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun comment="HD-326 kids bedtime WAN drop (22:00-07:00): {{ h.name }}"
+{% endif %}{% endfor %}
 # WAN egress per network-vlans.md row 73 ("All (except IoT) -> WAN Allowed (masqueraded)"), HD-309
 add chain=forward action=accept src-address=10.10.1.0/24  out-interface=pppoe-telekom comment="Home -> WAN allowed (HD-309 row 73)"
 add chain=forward action=accept src-address=10.10.50.0/24 out-interface=pppoe-telekom comment="Media -> WAN allowed (HD-309)"
@@ -353,6 +397,11 @@ add chain=forward action=accept src-address=10.10.99.0/24 dst-address=10.10.1.0/
 add chain=forward action=drop src-address=10.10.30.0/24 dst-address-list=internal_lan comment="Guest -> LAN drop"
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=tcp dst-port=853 comment="Kids -> DoT bypass drop tcp"
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=udp dst-port=853 comment="Kids -> DoT bypass drop udp"
+# HD-342 (2026-09-07): IoT VLAN 20 DoT(853) bypass drop — mirror of the Kids drop,
+# so encrypted DNS cannot bypass the forced-DNS visibility path (plain :53 -> Pi
+# above). Residual DoH/443 accepted (can't filter HTTPS without TLS interception).
+add chain=forward action=drop src-address=10.10.20.0/24 protocol=tcp dst-port=853 comment="IoT -> DoT bypass drop tcp (HD-342)"
+add chain=forward action=drop src-address=10.10.20.0/24 protocol=udp dst-port=853 comment="IoT -> DoT bypass drop udp (HD-342)"
 add chain=forward action=drop src-address=10.10.40.0/24 dst-address=10.10.1.0/24 comment="Kids -> Home drop"
 add chain=forward action=drop src-address=10.10.40.0/24 out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun comment="Kids bedtime WAN block 22:00-07:00"
 add chain=forward action=accept src-address=10.10.40.0/24 out-interface=pppoe-telekom comment="Kids -> WAN allowed out-of-window (HD-309 row 73)"
@@ -388,7 +437,49 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
 /ip service set ssh disabled=no port=22 available-from={{ router_services_available_from }}
 /ip service set winbox disabled=no port=8291 available-from={{ router_services_available_from }}
 
-# ---- DNS (router resolver as tertiary) ----
+# ---- SNMP (HD-53): RO, Mgmt-scoped — config so it survives steady-state converges ----
+# The RO community (network-snmp_api) is injected at render as snmp_ro_community; the
+# community `name=` IS the shared secret string (must match the Alloy snmp.yml auth
+# community) and is scoped to the Mgmt subnet only, read-only. Idempotent: set enabled,
+# then set the named community if present else add it. Firewall already allows udp/161
+# from Mgmt VLAN + drops the rest (above).
+/snmp set enabled=yes
+:if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+} else={
+    /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
+}
+
+# ---- Boot resilience (fixboot): re-assert syslog + SNMP after boot ----
+# ONE startup script+scheduler for both concerns (HD-346 consolidation — these were
+# two scripts fixsyslog + fixsnmp; merged). RouterOS settings are config, not runtime
+# state, but a stray change or boot edge can leave the syslog remote target or SNMP
+# off; a startup scheduler re-asserts both ~10s post-boot (after wg-s2s/route bring-up):
+#   * centralsyslog -> the VPS rsyslog target (HD-313; target = wireguard_s2s_vps.remote_ip)
+#   * /snmp enabled + RO community scoped to Mgmt (HD-53/HD-346)
+# Names letters+numbers-only (HD-313 rule) -> `fixboot`. Single-line quoted source keeps
+# the /import parser happy.
+:if ([/system script find where name=fixboot] = "") do={
+    /system script add name=fixboot source=":delay 10s; /system logging action set [find where name=centralsyslog] remote=0.0.0.0; :delay 1s; /system logging action set [find where name=centralsyslog] remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }}; /snmp set enabled=yes; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
+}
+:if ([/system scheduler find where name=fixboot] = "") do={
+    /system scheduler add name=fixboot on-event=fixboot start-time=startup interval=0 policy=read,write,test
+}
+# Cleanup: the old two-script split (fixsyslog + fixsnmp) is superseded — remove if present.
+:if ([/system script find where name=fixsyslog] != "") do={
+    /system script remove [find where name=fixsyslog]
+}
+:if ([/system scheduler find where name=fixsyslog] != "") do={
+    /system scheduler remove [find where name=fixsyslog]
+}
+:if ([/system script find where name=fixsnmp] != "") do={
+    /system script remove [find where name=fixsnmp]
+}
+:if ([/system scheduler find where name=fixsnmp] != "") do={
+    /system scheduler remove [find where name=fixsnmp]
+}
+
+# ---- End ----
 # Upstream = the same Technitium chain the DHCP hands out (VPS->oldsrv->Pi), so
 # the router forwards to them first and only falls back to raw Cloudflare when
 # all are unreachable (RouterOS queries listed servers concurrently + takes the
@@ -399,4 +490,5 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
 
 # ---- End ----
 # Verify: /interface bridge print, /ip address print, /ip dhcp-server print, /ip route print,
-#         /ip firewall filter print, /ip firewall nat print, /ip service print, /interface wireguard print
+#         /ip firewall filter print, /ip firewall nat print, /ip service print, /interface wireguard print,
+#         /snmp print, /snmp community print, /system script print, /system scheduler print

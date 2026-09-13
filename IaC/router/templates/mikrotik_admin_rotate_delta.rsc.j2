@@ -1,0 +1,25 @@
+# =====================================================================
+# mikrotik_admin_rotate_delta — HD-321: rotate shared RouterOS admin password
+# ---------------------------------------------------------------------
+# Vault `mikrotik-admin_login` is the SSOT: `old-password` = the value being
+# superseded (now FAILING), `password` = the new live value (the only one the
+# converge/initial templates render, via the render playbook's 1Password
+# lookup). This minimal delta applies ONLY the admin password change to a
+# device — lighter than re-applying a full converge, sanctioned by
+# network-ops.md §Rotating the shared admin password (HD-321).
+#
+# Apply per device (RB4011 10.10.99.1, CRS328 10.10.99.2, APs .4/.5/.6):
+#   bash scripts/routeros-apply-delta.sh <device> mikrotik_admin_rotate_delta.rsc
+# The drop-in goes through the SSH `ansible` identity (key-only — unaffected by
+# the admin password rotation) + pinned host key, never prints key material.
+# Re-render before every rotation so the .rsc embeds the CURRENT vault value.
+# Render: playbooks/render-converge.yml; verify per device from a Mgmt-sourced
+# API path (old-password must FAIL, password must authenticate).
+# =====================================================================
+/user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin (rotated HD-321)"
+# =====================================================================
+# Verify (from the management plane, NOT a non-Mgmt source which the input
+# filter drops and could read as a false lockout):
+#   old-password from the vault  -> API login FAIL
+#   password from the vault      -> API login OK
+# =====================================================================

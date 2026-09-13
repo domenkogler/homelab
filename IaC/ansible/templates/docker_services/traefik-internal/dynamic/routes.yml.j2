@@ -1,0 +1,255 @@
+# traefik-internal — dynamic routes (file provider). Home-LAN internal all-app edge (HD-350).
+#   Serves THE FULL route table ("all routes on all three nodes" — VPS traefik-tailnet
+#   + this + Pi traefik-ha). Home-hosted backends are on the oldsrv LAN IP (host-net —
+#   these are the same containers the main public/label edge serves); VPS-hosted
+#   backends are reached via the VPS traefik-tailnet edge (HD-333 WG-S2S, :4443).
+#
+#   - NO Forward-Auth and NO crowdsec-only middleware anywhere on this edge: both
+#     depend on VPS containers (Authentik, CrowdSec LAPI) and would fail exactly when
+#     this edge must survive WAN-out. Every app here owns its login (*arr/downloaders =
+#     built-in Forms auth, HD-60 reversal; Jellyfin/Seerr/SeerrNG = local login).
+#   - http-redirect: catch-all :80 → :443 on BOTH entrypoint pairs (web + web-lan).
+#   - ACME is DISABLED — TLS comes from the pulled wildcard pair (tls.certificates
+#     below, same pattern as traefik-ha). Offline-safe.
+#
+# Route set (home-hosted 13 + ha + dns-pi + VPS-hosted set):
+#   media (jellyfin :8096) · seerr (:5055) · seerrng (:5055) · sonarr (:8989) ·
+#   radarr (:7878) · lidarr (:8686) · prowlarr (:9696) · bazarr (:6767) ·
+#   profilarr (:6868) · sab (:8080) · torrent (:8080) · ha (→ VIP:8123) ·
+#   dns-pi (→ VIP → technitium-secondary:5380) · VPS set (foto/file/git/ai/… via
+#   wg-s2s traefik-tailnet :4443).
+http:
+  middlewares:
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+    redirect-to-https-lan:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+  routers:
+    # --- home-hosted set (lands on the oldsrv LAN IP) ---
+    media:
+      rule: "Host(`media.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: media-backend
+      tls:
+        certResolver: default
+    seerr:
+      rule: "Host(`seerr.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: seerr-backend
+      tls:
+        certResolver: default
+    seerrng:
+      rule: "Host(`seerrng.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: seerr-backend
+      tls:
+        certResolver: default
+    sonarr:
+      rule: "Host(`sonarr.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: sonarr-backend
+      tls:
+        certResolver: default
+    radarr:
+      rule: "Host(`radarr.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: radarr-backend
+      tls:
+        certResolver: default
+    lidarr:
+      rule: "Host(`lidarr.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: lidarr-backend
+      tls:
+        certResolver: default
+    prowlarr:
+      rule: "Host(`prowlarr.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: prowlarr-backend
+      tls:
+        certResolver: default
+    bazarr:
+      rule: "Host(`bazarr.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: bazarr-backend
+      tls:
+        certResolver: default
+    profilarr:
+      rule: "Host(`profilarr.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: profilarr-backend
+      tls:
+        certResolver: default
+    sab:
+      rule: "Host(`sab.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: sab-backend
+      tls:
+        certResolver: default
+    torrent:
+      rule: "Host(`torrent.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: torrent-backend
+      tls:
+        certResolver: default
+    # --- HA + DNS UI (VIP; this edge serves ha only while oldsrv owns the VIP) ---
+    ha:
+      rule: "Host(`ha.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: ha-backend
+      tls:
+        certResolver: default
+    dns-pi:
+      rule: "Host(`dns-pi.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: dns-pi-backend
+      tls:
+        certResolver: default
+    # --- VPS-hosted set (via the wg-s2s traefik-tailnet edge, HD-333) ---
+    foto:
+      rule: "Host(`foto.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: foto-backend
+      tls:
+        certResolver: default
+    file:
+      rule: "Host(`file.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: file-backend
+      tls:
+        certResolver: default
+    git:
+      rule: "Host(`git.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: git-backend
+      tls:
+        certResolver: default
+    ai:
+      rule: "Host(`ai.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: ai-backend
+      tls:
+        certResolver: default
+    http-redirect:
+      rule: "HostRegexp(`{host:.+}`)"
+      entryPoints:
+        - web
+        - web-lan
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
+  services:
+    media-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:8096"
+    seerr-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:5055"
+    sonarr-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:8989"
+    radarr-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:7878"
+    lidarr-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:8686"
+    prowlarr-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:9696"
+    bazarr-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:6767"
+    profilarr-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:6868"
+    sab-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:8080"
+    torrent-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:8080"
+    ha-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ ha_vip }}:8123"
+    dns-pi-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ technitium_secondary_ip }}:5380"
+    foto-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}"
+    file-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}"
+    git-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}"
+    ai-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}"
+
+tls:
+  stores:
+    default:
+      defaultCertificate: synced-wildcard
+  certificates:
+    - store: default
+      name: synced-wildcard
+      certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
+      keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"

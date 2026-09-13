@@ -1,0 +1,11 @@
+---
+# nut-deploy.yml — converge ONLY the nut role on UPS hosts.
+# Targeted single-role converge (the nut role has no role-level tag, so
+# `--tags nut` on home_servers.yml/storage.yml would skip the role — this
+# playbook exists for surgical nut deploys; see docs/deployment-ansible.md).
+# Usage: bash scripts/ansible-run.sh playbooks/nut-deploy.yml --limit 'nas,oldsrv'
+- name: Converge NUT role
+  hosts: "{{ target_hosts | default('storage:home_servers:raspberry_pi') }}"
+  become: true
+  roles:
+    - nut

@@ -1,0 +1,42 @@
+# =====================================================================
+# rb4011_fixsyslog_delta — HD-313: remote-syslog egress refresh-on-boot SAFETY NET
+# ---------------------------------------------------------------------
+# Root-cause note (2026-09-08): the HD-313 "zero UDP/514" blocker on the RB4011 was
+# NOT a RouterOS logging fault — it was the VPS-side WireGuard peer AllowedIPs missing
+# the router's own wg-s2s address (`wg_s2s_vps.router_ip`; SSOT `wg_s2s_vps.allowed_ips`
+# in group_vars/all.yml). WireGuard silently drops inner packets whose source IP is not
+# in the peer's AllowedIPs, so every syslog packet (src-address=wg-s2s) died at the VPS
+# tunnel endpoint. Fix = the SSOT list; verified end-to-end 2026-09-08.
+#
+# This script+scheduler is retained as harmless SELF-HEALING INSURANCE: RouterOS has no
+# direct enable/disable for a logging action, so IF a future boot ever fails to (re)init
+# the remote action, a startup scheduler re-applies the target after the tunnel is up.
+# A `/system scheduler` entry (start-time=startup) runs this ONCE at boot (~3s), the
+# script's own 10s delay covers wg-s2s/route bring-up, 1s more, then re-apply the target.
+#
+# Action-naming (HD-313 live rule): RouterOS 7 scheduler/script names are
+# letters+numbers ONLY — `fix-syslog-egress` (hyphens) is rejected, so the
+# names the script+scheduler `fixsyslog` (same reason the HD-313
+# action became `centralsyslog`). The toggle targets `centralsyslog` (the actual
+# HD-313 remote action on the RB4011, live-confirmed) — NOT the bundled
+# default `remote` action (which sits at 0.0.0.0/disabled and carries no
+# rules; the forum-copied `[find name=remote]` snippet would be a no-op).
+# The VPS target is SSOT-derived: `{{ wireguard_s2s_vps.remote_ip }}`.
+# Render: playbooks/render-converge.yml; apply: scripts/routeros-apply-delta.sh.
+# =====================================================================
+# Script: refresh the centralsyslog action's remote target (0.0.0.0 -> real)
+# Note: a single-line quoted `source=` keeps the /import parser happy.
+:if ([/system script find where name=fixsyslog] = "") do={
+    /system script add name=fixsyslog source=":delay 10s; /system logging action set [find name=centralsyslog] remote=0.0.0.0; :delay 1s; /system logging action set [find name=centralsyslog] remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }};"
+}
+# Scheduler: run the script once at startup (~3s after boot; the script's own
+# :delay 10s covers wg-s2s/route bring-up). interval=0 = run once, no repeat.
+:if ([/system scheduler find where name=fixsyslog] = "") do={
+    /system scheduler add name=fixsyslog on-event=fixsyslog start-time=startup interval=0 policy=read,write,test
+}
+# =====================================================================
+# Verify: /system script print, /system scheduler print, then on the next
+# reboot check the VPS rsyslog/CrowdSec/Loki receives routeros-syslog
+# (`cscli alerts list`, Loki {job="routeros-syslog"}) and the wg-s2s sniffer:
+#   /tool sniffer quick interface=wg-s2s ip-protocol=udp port=514
+# =====================================================================

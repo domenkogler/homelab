@@ -9,10 +9,21 @@ services:
     image: bbernhard/signal-cli-rest-api:{{ signal_cli_rest_api_version }}
     cap_drop:
       - ALL
-    read_only: true
+    cap_add:
+      - CHOWN   # HD-318 live: entrypoint chowns the data volume; cap_drop ALL strips CHOWN (crowdsec-web-ui precedent f4c3216)
+      - SETGID
+      - SETUID   # HD-318 live: the entrypoint ends in `setpriv --reuid --regid --init-groups`; without SETUID/SETGID it dies "setresuid: Operation not permitted" (linuxserver s6 precedent)
+      - DAC_OVERRIDE
+      - FOWNER   # HD-318 live: jsonrpc2-helper persists jsonrpc2.yml into the 1000-owned volume; under cap_drop ALL it died "Couldn't persist jsonrpc2.yaml: permission denied" (probed: root without DAC_OVERRIDE/FOWNER can't write a file it doesn't own)
+    # read_only intentionally ABSENT (HD-318): the entrypoint runs usermod/groupmod
+    # (to align the signal-api uid) before exec; read_only root made `groupmod: cannot
+    # lock /etc/group` fatal. Keep cap_drop: ALL.
+    # tmpfs /tmp MUST be exec (signal-cli/libsignal-client native lib extraction):
+    # signal-cli 0.14.x extracts libsignal_jni_*.so to /tmp and mmap-execs it. Docker's
+    # bare-tmpfs default is noexec,nodev,nosuid -> "failed to map segment from shared
+    # object" -> the daemon never starts and the REST API never comes up (live 2026-09-09).
     tmpfs:
-      - /tmp
-    container_name: signal-cli-rest-api
+      - /tmp:exec
     restart: unless-stopped
     environment:
       SIGNAL_CLI_PHONE_NUMBER: "{{ vault['signal_api'].username | replace('$','$$') }}"
@@ -29,9 +40,16 @@ services:
       - services-internal
     volumes:
       - signal-cli-data:/home/.local/share/signal-cli      # identity persists across restarts
-    # No host ports: n8n reaches this on services-internal via signal-cli-rest-api:8080
-    # over the Docker overlay — a host binding would expose the unauthenticated REST API
-    # on the host net (KOPS-002 / HD-62).
+    # HD-347: n8n runs on the VPS (different host), so the old "no host ports — n8n
+    # reaches this on services-internal" comment was aspirational: the VPS n8n cannot
+    # resolve signal-cli-rest-api on oldsrv's private overlay. Publish the REST API on
+    # oldsrv's Home-VLAN address so the VPS n8n can reach it over wg-s2s — the same
+    # cross-host API leg pattern as actual-budget :5006 / immich-ml :3003 (HD-184/
+    # observability.md). Auth stays mandatory: every request needs X-Api-Key
+    # (SIGNAL_CLI_API_TOKEN, KOPS-002/HD-125) — publishing the port adds no
+    # unauthenticated surface.
+    ports:
+      - "{{ oldsrv_home_ip }}:8080:8080"
 volumes:
   signal-cli-data:
 networks:

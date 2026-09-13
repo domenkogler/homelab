@@ -45,7 +45,7 @@ Create the local user `domen`, then set its password (`passwd`) and store it as 
 The repo is **reused** from the WSL ext4 primary checkout at
 `/home/domen/source/homelab` (single working copy — the Debian ext4 primary, per HD-259;
 `scripts/git-bootstrap.sh` sets this up and its session worktrees live as
-siblings `../homelab-wt-*`. No second clone; the old `/mnt/d` drvfs path is retired).
+siblings `../homelab-wt-*`. No second clone; the old `/mnt/d` drvfs path is retired. *(HD-263 close-out: the former `ansible-enhancements.md` §8.4 rationale for the ext4-primary/git-bootstrap move lives here in §0.1 + CONVENTIONS §6.)*
 
 ✔ `wsl -l -v` lists Debian; inside WSL `whoami` → `domen`.
 
@@ -541,6 +541,38 @@ bash scripts/ansible-run.sh playbooks/raspberry_pi.yml -e docker_services_scope=
 Verify: `dig @<Pi Home IP per SSOT> ha.kogler.si` → VIP and `dns-pi.kogler.si` → VIP. The 5380 publish on
 the Pi is already live (2026-09-04, `technitium-pi` → `pi:5380` HTTP 200).
 
+**oldsrv secondary — same admin-align + seed (HD-340, DONE + LIVE 2026-09-08):** the oldsrv Technitium
+container is `technitium-oldsrv` (instance `secondary`), **not published on 5380** — the API is reachable
+only on its overlay IPs. The container also lacks `curl`/`python` and host `curl` mis-reads Technitium's
+chunked responses (resets), so use the container's bash `/dev/tcp` + a small HTTP helper instead:
+
+```bash
+# on oldsrv — copy a bash /dev/tcp HTTP client into the container first
+# (GET/POST + Content-Length + chunked body decode; no curl dependency):
+cat > /tmp/tech_login.sh <<'OUTER'
+#!/bin/bash
+host=127.0.0.1; port=5380; method=$1; path=$2; body="$3"
+[ -n "$body" ] && clen=$(printf '%s' "$body" | wc -c) || clen=0
+req="$method $path HTTP/1.1\r\nHost: $host\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: $clen\r\nConnection: close\r\n\r\n$body"
+exec 3<>/dev/tcp/$host/$port; printf '%b' "$req" >&3
+out=$(timeout 5 cat <&3 2>/dev/null)
+printf '%s' "$out" | sed -n '/^\r\{0,1\}$/,$p' | tail -n +2 | perl -0777 -ne '$b=$_; $b =~ s/^[0-9a-fA-F]+\r?\n//mg if $b =~ /^[0-9a-fA-F]+\r?\n/; print $b'
+OUTER
+docker cp /tmp/tech_login.sh technitium-oldsrv:/tech_login.sh
+# login as the DEFAULT admin/admin (still bootstrapped on a fresh /etc/dns) -> token
+TOK=$(docker exec technitium-oldsrv bash /tech_login.sh POST "/api/user/login" "user=admin&pass=admin" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+# set the admin to the 1P technitium_login value (creds never leave oldsrv)
+docker exec technitium-oldsrv bash /tech_login.sh POST "/api/user/changePassword?token=$TOK" "pass=admin&newPass=<1P technitium_login password>"
+```
+
+Then the oldsrv seed converge (idempotent):
+
+```bash
+bash scripts/ansible-run.sh playbooks/home_servers.yml -e docker_services_scope=technitium
+```
+
+Verify: `dig @127.0.0.1 {ha,dns-pi,stats,logs,csui,sec,traefik,auto,vps,home,vpn,dns,sso,file,foto,git,bin,ai,office,pdf,chat,matrix,drop}.kogler.si` on oldsrv all answer (ha/dns-pi → VIP, dashboards → `tailnet_sidecar_ip`, public → VPS public IP). The default `admin`/`admin` is retired after this. **Container-IP reach caveat (live 2026-09-08):** if the seed's `_tech_api` connect fails with "No route to host", check for **orphaned duplicate-subnet docker bridges** (stale `br-*` from a docker recreate that steal the kernel route — `docker network ls` IDs won't match `ip link` bridge IDs); `sudo ip link del br-<orphan>` restores host→container routing.
+
 ### 1.5 Authentik first login
 
 - `akadmin` / `authentik_login` password — works FIRST TRY on a fresh install (bootstrap env
@@ -636,6 +668,28 @@ sudo ssh -i /srv/docker/kopia-server/config/sftp_key -p 23 \
 
 # 4) Restart and verify (expect repository-creation lines, no SSH_FX_FAILURE):
 sudo docker restart kopia-server && sleep 30 && sudo docker logs --tail 10 kopia-server
+```
+
+**TLS (HD-318a, 2026-09-08):** the server boot now also generates a persisted self-signed
+`tls.crt`/`tls.key` under the config bind (one-time) and serves **HTTPS** on :51515 — the oldsrv
+agent rejects plain-http. The container writes `tls-sha256` (the trust-anchor fingerprint); the
+`kopia-fingerprint-sync.yml` docker_services task seeds it into 1Password
+(`kopia-server_fingerprint`) and the agent pins it. On a **fresh volume** all of this happens
+automatically on first start — no manual step; if you ever need to fingerprint-check:
+`sudo cat /srv/docker/kopia-server/config/tls-sha256`.
+
+**Client auth (HD-318a, 2026-09-08) — happens automatically in the boot script, verify-only:**
+kopia's server-auth model needs the backup client's identity (`oldsrv-agent@oldsrv.kogler.si`) to
+exist BOTH in the htpasswd (`--htpasswd-file` = allowed `user@hostname` entries; the boot script
+writes the server-admin entry + `kopia_agent_user`) AND as a repo user (`kopia server users add`)
+whose password equals the **REPO MASTER password** (`kopia_password` — a non-repo-password user is
+`access denied` at the session stage even with a matching htpasswd entry; live-verified 2026-09-08).
+The boot script provisions/re-seeds the repo user idempotently (add → set fallback). If the agent
+reports `access denied for oldsrv-agent@oldsrv.kogler.si`:
+```bash
+sudo docker exec kopia-server kopia server users add oldsrv-agent@oldsrv.kogler.si \
+  --user-password="$(sudo docker exec kopia-server printenv KOPIA_PASSWORD)"
+sudo docker restart kopia-server
 ```
 
 `kopia_sftp_path` stays RELATIVE (`kopia`) — absolute paths break create-path on Hetzner.
@@ -761,6 +815,11 @@ mgmt`). The Pi (`eth0.99` tagged Mgmt) is the only real mgmt client. Use
 the device API through `pi` (traffic originates mgmt-sourced, passes both gates with zero
 firewall surface) and execs `ansible-run.sh` with the loopback host/port + venv interpreter:
 
+> ⚠️ **2026-09-08: this hop is OBSOLETE — playbooks now run DIRECT against the .99 mgmt IPs**
+> (the laptop reaches Mgmt-99 via the Windows Mgmt99 vNIC, `wsl-nat-resolv.ps1 -EnableMgmt99`).
+> `ansible-run.sh playbooks/router.yml` / `playbooks/switch.yml` connect straight to the device
+> mgmt IP (network.yml derives it). The hop script is kept for history/fallback only.
+
 ```bash
 # from the session worktree (NOT the primary checkout):
 bash scripts/ansible-network-hop.sh router playbooks/router.yml --check --diff   # dry-run first
@@ -769,26 +828,25 @@ bash scripts/ansible-network-hop.sh router playbooks/router.yml                 
 bash scripts/ansible-network-hop.sh switch playbooks/switch.yml
 ```
 
-**Manual mgmt from the laptop — `~/.ssh/config` aliases (2026-09-02):** for direct WinBox/SSH/
-RouterOS to switch + APs from the Home-only laptop, the same Pi-99 hop works through SSH port
-forwards/ProxyJump. Preconfigured aliases (all via ProxyJump `pi`, same `id_ed25519`):
+**Manual mgmt from the laptop — `~/.ssh/config` aliases (2026-09-08, direct-`.99`):** the laptop reaches the
+Mgmt plane **directly** via the Windows Mgmt99 vNIC (`wsl-nat-resolv.ps1 -EnableMgmt99`) — **no ProxyJump `pi`
+hop needed anymore.** Preconfigured aliases (single `id_ed25519`/`ansible-admin_ssh.pub`, direct):
 
 ```bash
 # verify (RouterOS answers `:put`):
+ssh router '':put OK''            # RB4011 .99.1
 ssh switch '':put OK''            # CRS328 .99.2
-ssh ap-spalnica '':put OK''       # hAP ac² .99.4
-ssh ap-dnevna '':put OK''         # hAP ac² .99.5
-# WinBox on the laptop -> localhost:8291 (device .99.2):
-#   ssh -N -L 8291:<switch .99.2>:8291 switch   (then WinBox Address=127.0.0.1:8291)
-#   ssh -N -L 8291:<ap-dnevna .99.5>:8291 ap-dnevna
-# aliases live in ~/.ssh/config:  pi99 .99.20, router99 .99.1, switch .99.2,
-# ap-spalnica .99.4, ap-dnevna .99.5, ap-spare .99.6, nas99 .99.10 (nas offline → Phase 2)
-# .99.x IPs = network-addresses-generated.md SSOT; aliases keep Windows off tagged-99 (laptop stays untagged Home-only).
+ssh oldsrv echo OK                # .99.30
+ssh pi99 echo OK                  # Pi Mgmt .99.20 (pi = Home .1.20; the one dual-leg exception)
+# WinBox: point at the device Mgmt IP directly — see .99.x in network-addresses-generated.md
+#   WinBox Address=<switch .99>  (CRS328)  | <ap-dnevna .99>  etc.
+# aliases live in ~/.ssh/config:  pi .1.20, pi99 .99.20, router .99.1, switch .99.2, oldsrv .99.30,
+# ap-spalnica .99.4, ap-dnevna .99.5, ap-spare .99.6, nas .1.10
+# .99.x IPs = network-addresses-generated.md SSOT; the hop aliases were removed + deduped (2026-09-08).
 ```
 
-> The aliases keep Windows off tagged-99 (the laptop stays untagged Home-only); the Pi `eth0.99`
-> leg is the only mgmt client. `nas99`/`ap-spare` may report 'No route to host' until those devices
-> are powered/provisioned (spare AP + Phase-2 NAS).
+> The aliases keep Windows ON tagged-99 via the Mgmt99 vNIC — direct. `nas` (Home .1.10) may report
+> 'No route to host' until Phase 2; `ap-spare` is a spare (offline until powered).
 
 > **2026-09-02 (maintenance window):** this hop unblocked the live re-converge — router
 > `ok=34 changed=5 failed=0`, switch `ok=23 changed=4 failed=0`, both through the Pi hop.

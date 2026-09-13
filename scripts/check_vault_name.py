@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 
 # Canonical root docs scanned for links by check_doc_map.py (kept in sync).
-ROOT_SCAN = {"README.md", "CONVENTIONS.md", "todo.md",
+ROOT_SCAN = {"README.md", "CONVENTIONS.md", "todo.md", "todo-table.md",
              "deployment-tasks.md", "readme-humans.md"}
 
 # Bare `Homelab` not followed by `-ansible` (word-boundary keeps `Homelable` out).

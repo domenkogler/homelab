@@ -1,0 +1,15 @@
+# =====================================================================
+# rb4011_egress_probe_delta — HD-313: emit a fresh syslog test entry
+# ---------------------------------------------------------------------
+# Transient test helper (no config change): writes a warning-topic entry
+# that the router's `warning` -> `centralsyslog` logging rule forwards as
+# RFC5424 UDP/514 to the VPS (10.255.40.2). The VPS rsyslog listener
+# writes it to /var/log/remote-syslog/routeros.log — detection there =
+# remote-syslog egress works end-to-end (the HD-313 verification).
+#
+# Apply: bash scripts/routeros-apply-delta.sh 10.10.99.1 rb4011_egress_probe_delta.rsc
+# Verify on the VPS: sudo tail -n 20 /var/log/remote-syslog/routeros.log
+# Re-render before re-use if the marker timestamp must be fresh.
+# =====================================================================
+:log warning "HD313-SYSLOG-EGRESS-PROBE from RB4011"
+# =====================================================================

@@ -18,6 +18,8 @@ tags: [network, routeros, ops]
 > **Apply model (decided 2026-09-01):** RouterOS config is **authored in Jinja templates (IaC, single SSOT)** and **deployed by importing a rendered `.rsc`** — NOT by driving `api_modify` command-by-command for day-to-day changes. The API path is used only for **idempotent, order-independent state** (DHCP reservations, firewall lists the role owns) and for **verification** (`api_facts`/`api`), never as the primary apply for multi-step changes.
 >
 > **⚠️ Role ↔ `.rsc` parity (HD-338, 2026-09-07):** the `router` Ansible role still contains a handful of `api_modify` tasks that mirror converge state (the trunk `interface bridge vlan` task and the port-model `interface bridge port` task). These are the **only** places where the role carries day-to-day apply logic, and they are a **drift risk**: the trunk task's VLAN-99 `untagged` set drifted from the template (held `ether7,ether9` after HD-310 changed the template to `ether7`) and a converge would have dropped ether2/3/10 off the tagged-99 backplane. **Rule: any `api_modify` task that mirrors converge state must stay byte-identical to `rb4011_converge.rsc.j2` — edit BOTH or NEITHER.** When in doubt, drop the role task and rely on the import. The header of `roles/router/tasks/main.yml` + the two L2 tasks carry this warning inline.
+>
+> **⚠️ Forward-chain ownership (HD-03 residual audit, 2026-09-10):** the role's `Ensure inter-VLAN forward firewall rules` task (`roles/router/tasks/main.yml` @590) was an **ungated full-reconcile over `chain: forward`** — a live role run would DELETE the live per-MAC rows that exist ONLY in the converge template (iot-wan-allow HD-312/325 accepts, HD-326 kids-tablet bedtime/DoT drops, rules 14–23 live) because those rows live in *gated-off* tasks (`when: false`, @904/@940) not in that task's data. Gated off 2026-09-10 (same pattern as its siblings). Also fixed here: the template (apply-of-record, `rb4011_converge.rsc.j2` @341) still emitted `trusted-admin` for the Home→IoT new-connection rule while the role SSOT had already narrowed it to `trusted-ha` (HD-03 owner decision 2026-09-04) — a converge would have re-broadened the rule to include `nas`. Template corrected to `trusted-ha`; single remaining step = render + import the converge (operator).
 
 ### The three tiers (roles + when each is used)
 
@@ -39,7 +41,7 @@ Source of truth: the **Jinja templates** (`rb4011_{initial,converge}.rsc.j2`; de
 ### Apply workflow (imports)
 
 - **Render from SSOT:** `bash scripts/ansible-run.sh playbooks/render-converge.yml` renders `rb4011_converge.rsc` (+ `crs328_converge.rsc`); any `*_delta.rsc.j2` renders to `IaC/router/rendered/` the same way. Rendered files are **gitignored** (they contain live secrets from 1Password).
-- **Apply via SSH (ansible identity, pinned host key)** — the sanctioned non-WinBox path. **Automated (HD-309):** `bash scripts/routeros-apply-delta.sh <router-ip> <delta-file>` performs key pull + parse-verify + host-key pin + SCP + `/import` in one step (see [scripts/README.md](../scripts/README.md)). Manual equivalent (the classic loop it replaces):
+- **Apply via SSH (ansible identity, pinned host key)** — the sanctioned non-WinBox path. **Direct on .99 (2026-09-08):** the laptop reaches the Mgmt plane directly (Windows Mgmt99 vNIC), so the device host is its **.99 mgmt IP** (`<router-ip>` below = the router's `mgmt` row in [`network-addresses-generated.md`](network-addresses-generated.md); the old ProxyJump-`pi` hop is obsolete). **Automated (HD-309):** `bash scripts/routeros-apply-delta.sh <router-ip> <delta-file>` performs key pull + parse-verify + host-key pin + SCP + `/import` in one step (see [scripts/README.md](../scripts/README.md)). Manual equivalent (the classic loop it replaces):
   ```bash
   # pin the router's CURRENT host key (rotated at reset; TOFU):
   ssh-keyscan -T 5 -t ed25519,rsa <router-ip> > /tmp/router_hostkeys.txt
@@ -52,6 +54,8 @@ Source of truth: the **Jinja templates** (`rb4011_{initial,converge}.rsc.j2`; de
   - The `ansible` SSH identity (bootstrap-created, full group) is used; `admin` is password-only (never used for automation).
   - **Host-key pinning is mandatory** (the router rotated keys at every reset) — never `StrictHostKeyChecking=no` on a live edge.
   - **Key-extraction note (live 2026-09-01):** use `op read` (canonical, clean PEM), NOT `op item get --reveal` piped through shell — the latter emits an inconsistent leading `"`/`\n` wrapper that corrupts the key file and surfaces as OpenSSH's cryptic `error in libcrypto`. `routeros-apply-delta.sh` uses `op read` and verifies the key loads (ssh-keygen) before touching the device.
+  - **Ansible `copy`-module SCP is NOT RouterOS-safe (live 2026-09-07):** `apply-converge.yml`'s `ansible.builtin.copy` upload fails with "Destination / not writable" even though raw `scp -i <key> file ansible@<router>:/file` succeeds. The copy module's stat-based writability check is incompatible with RouterOS's pseudo-filesystem (root `/` reports not-writable to stat). **Use `scripts/routeros-apply-delta.sh` (raw scp) for ANY device file upload/import** — the Ansible-path `apply-converge.yml` is the unreliable path for the SCP step.
+  - **Delta dedup (live 2026-09-07):** importing the same delta twice leaves duplicate rules (e.g. two identical DoT-drop rows). They're behaviorally harmless but reconcile only on a full converge; a `--tags network` role run does NOT own the static `ip firewall filter` table, so it won't dedupe. Remove duplicates via the API by exact `.id` when cleanliness matters.
 - **Verify live state** afterward via the read-only API (`api_facts`, `mikrotik-read.py`) — never assume the import applied.
 
 ### Rsc authoring conventions (the rules that make imports safe)
@@ -126,18 +130,18 @@ Fix pattern:
 
 ---
 
-## Central log shipping (HD-313) — RouterOS logs → VPS CrowdSec + Loki
+## Central log shipping (HD-313) — RouterOS logs → VPS CrowdSec + VictoriaLogs
 
 The RB4011 forwards its logs as **RFC5424 syslog over the `wg-s2s` tunnel** to the VPS;
 CrowdSec parses them for failed-login +
-port-scan detection and the same stream is available to Loki for central search.
+port-scan detection and the same stream is available to VictoriaLogs for central search.
 
 > **Deploy-gate IaC status (2026-09-03→04):** convergence fixes + acquisition wiring landed —
 > the `central-syslog` → `centralsyslog` action-name typo (was the rule-creation error on
 > converge), the `acquis-routeros.yml` copy into the CrowdSec **config mount**
 > (`/srv/docker/crowdsec/config/acquis.d/` — the compose-dir extra-template copy was dead,
 > CrowdSec reads acquisitions from `acquis.d/` only), and the VPS Alloy
-> `loki.source.file`/`loki.process.routeros` push (`routeros.log` → Loki, `job=routeros-syslog`).
+> `loki.source.file`/`loki.process.routeros` push (`routeros.log` → VictoriaLogs via Alloy, `job=routeros-syslog`).
 > **Live session 2026-09-04:** router side APPLIED + VERIFIED live (action `centralsyslog`
 > `remote={{ wg_s2s_vps.ip }}:514 src-address={{ wg_s2s_vps.router_ip }}`, rules 6–9, `logpipe` user — all on-device
 > via the Pi-99 hop); VPS side APPLIED (rsyslog `{{ wg_s2s_vps.ip }}:514` active, acquis in config
@@ -160,8 +164,31 @@ port-scan detection and the same stream is available to Loki for central search.
 > bug family** on RB4011/RB5009 (forum.mikrotik.com: "no packets on port 514 although syslog
 > server reachable"; one user's workaround = re-add the action config, another = IP-vs-hostname;
 > MikroTik confirmed a 7.17+ FQDN-related regression and said a fix is pending). Config alone
-> cannot close this gate; pending: RouterOS upgrade/re-add workaround on the device, then
-> re-verify end-to-end. Switch/AP forwarding stays future work (CRS328 has no wg tunnel).
+> seemed unable to close this gate.
+>
+> **✅ RESOLVED 2026-09-08 — the blocker was NOT the RouterOS logging stack, it was the
+> WireGuard HD-155 least-access AllowedIPs on the VPS peer missing the router's OWN tunnel
+> address.** Root-cause method: a synchronized test (router-side `/tool sniffer` filter on
+> wg-s2s udp/514 + VPS-side UDP listener on the wg address) proved the router **was** emitting
+> syslog (packets visible on `wg-s2s`), but the VPS listener saw nothing — the packet died
+> INSIDE the tunnel. WireGuard silently drops any inner packet whose source IP is not in the
+> peer's `AllowedIPs`; the VPS peer entry listed only the home RIPE-1918 subnets + `wg-vps-services`,
+> NOT the router's own wg address (`wg_s2s_vps.router_ip`). All other home traffic (sources
+> `10.10.*`) was in the list, so the tunnel looked healthy (handshake + big transfer counters)
+> while every syslog packet (sourced from the router's wg address by `src-address=wg-s2s`) was
+> silently dropped at the VPS tunnel endpoint. Fix: added `{{ wg_s2s_vps.router_ip }}/32` to
+> `wg_s2s_vps.allowed_ips` (group_vars/all.yml, the single SSOT consumed by both tunnel sides
+> per HD-200), re-rendered the VPS `wg-s2s.conf`, and re-ran the `wg-ensure-s2s-peer` oneshot
+> to apply `wg setconf` live. **Live-verified end-to-end:** RB4011 → wg-s2s → VPS rsyslog
+> (bound on the wg address) → `/var/log/remote-syslog/routeros.log` (file created + entries
+> timestamped) — then the same feed serves CrowdSec (`acquis.d/acquis-routeros.yml`, type
+> `mikrotik`) and VictoriaLogs (`job=routeros-syslog`).
+>
+> **Retained safety net:** a `/system script` + startup scheduler (`fixsyslog`) on the RB4011
+> re-applies the `centralsyslog` action target 10s post-boot (toggle remote → back). It was NOT
+> the fix (the forum workaround family was a red herring for this symptom) but is harmless and
+> self-healing insurance if RouterOS ever truly fails to (re)init the action on a boot; the
+> converge template folds it in. Switch/AP forwarding stays future work (CRS328 has no wg tunnel).
 
 - **RouterOS side (router role, `router-logging` tag):** `/system logging action centralsyslog`
   (`target=remote`, `remote=<vps wg-s2s address>:514` — SSOT `wg_s2s_vps.remote_ip`, `src-address=wg-s2s`),
@@ -171,8 +198,10 @@ port-scan detection and the same stream is available to Loki for central search.
   `src-address` ties the source to the wg-s2s interface (Mgmt-plane only; never WAN). Fail-loud: any
   missing SSOT value aborts the render.
 - **Scoped `logpipe` API user (r/o, `read` group):** created by the role with the `mikrotik-logpipe_api`
-  1Password credential; only the Mgmt plane reaches it. Reused later by the n8n firmware window
-  (HD-312d) for the temp `iot-wan-allow` list toggles.
+  1Password credential; only the Mgmt plane reaches it. A dedicated `n8n` scoped read-only user
+  (HD-312(4), `mikrotik-n8n_api` item) follows the same pattern — **the n8n firmware workflow is SUPERSEDED (2026-09-09):**
+  permanent `wan_allow` covers cloud-IoT firmware WAN; no temp `iot-wan-allow` flow authoring will be done —
+  the `n8n` user stays provisioned for future admin uses.
 - **Receiver (monitoring role, `routeros-syslog` tag, VPS only):** `rsyslog` UDP/514 on the **wg-s2s VPS
   address** (SSOT `wg_s2s_vps.local_ip`) accepts RFC5424 from the router peer only and writes
   `/var/log/remote-syslog/routeros.log`. rsyslog is installed by the monitoring role (the
@@ -183,15 +212,17 @@ port-scan detection and the same stream is available to Loki for central search.
   `mikrotik-scan-multi_ports` scenarios) — the upstream-blessed remote-syslog pattern.
   ⚠ Live lesson: the acquis must live in the **config mount's `acquis.d/`** (`/etc/crowdsec/acquis.d/`
   in-container) — a compose-dir extra-template copy is dead; CrowdSec never reads it.
-- **Loki (search surface):** the VPS Alloy tails `/var/log/remote-syslog/routeros.log`
-  (`loki.source.file "routeros_syslog"` + `loki.process.routeros`, `job=routeros-syslog`) → Loki (14d);
+- **VictoriaLogs (search surface):** the VPS Alloy tails `/var/log/remote-syslog/routeros.log`
+  (`loki.source.file "routeros_syslog"` + `loki.process.routeros`, `job=routeros-syslog`) → VictoriaLogs (90d);
   Grafana the query surface — no second log backend.
-- **Deploy-gated:** the RB4011-side `system/logging` + `logpipe` user land at the next router
-  converge; the VPS-side rsyslog (live), CrowdSec acquis + Alloy re-render land at the next
-  `monitoring` converge (+ surgical crowdsec re-render). **Switch/AP forwarding** is a documented
-  future expansion: the CRS328 has no wg tunnel and the rsyslog receiver only accepts the router wg
-  peer — a routed path (receiver LAN-source allow or a switch-side tunnel) is needed before enabling
-  them. See [observability.md](observability.md) and [services-traefik.md](services-traefik.md) §CrowdSec.
+- **Deploy-gated → LIVE 2026-09-08:** the RB4011-side `system/logging` + `logpipe` user are
+  live; the VPS-side rsyslog (live), CrowdSec acquis + Alloy are live and the end-to-end log
+  path is verified (see the RESOLVED note above). The `wg_s2s_vps.allowed_ips` SSOT now
+  carries the router tunnel address — re-render + re-run `wg-ensure-s2s-peer` whenever that
+  list changes. **Switch/AP forwarding** is still a documented future expansion: the CRS328
+  has no wg tunnel and the rsyslog receiver only accepts the router wg peer — a routed path
+  (receiver LAN-source allow or a switch-side tunnel) is needed before enabling them. See
+  [observability.md](observability.md) and [services-traefik.md](services-traefik.md) §CrowdSec.
 
 ---
 
@@ -230,7 +261,7 @@ as the canonical idempotent recovery (always re-render before use — it is SSOT
 
 > **Symptom (found during oldsrv Phase-3 prep):** the entire tagged-99 Management plane is unreachable at the
 > host level. From the Pi's `eth0.99` (verified working 2026-09-02) — SSOT `router` (mgmt), `switch` (mgmt),
-> `ups` (mgmt) rows are **all ARP-FAILED**; router mgmt SSH via the Pi-hop (`router99`) fails
+> `ups` (mgmt) rows are **all ARP-FAILED**; router mgmt SSH via the old Pi-hop (`router99`) fails
 > `No route to host`; the **router's SSH is DOWN on BOTH legs**: the router's Home row → `kex_exchange_identification:
 > read: Connection reset by peer`, Mgmt row → unreachable. ICMP on Home works (router up on the untagged
 > plane), but TCP services refuse (`available-from` = Mgmt-only lockdown, HD-301). oldsrv's new tagged Mgmt leg
@@ -255,6 +286,8 @@ bash scripts/ansible-run.sh playbooks/render-converge.yml   # or ad-hoc render o
 ```
 Window for the router: **only via the Home leg or laptop/WinBox** — the SSH service is Mgmt-only and Mgmt is
 dark. After recovery, verify `router99` and every mgmt client ARP before continuing Phase 3/4.
+> *(Historical note 2026-09-08: this section describes the ProxyJump-`pi` hop era; the laptop now reaches the
+> Mgmt plane directly via the Windows Mgmt99 vNIC — aliases `router`/`switch`/`oldsrv` direct, no hop.)*
 
 **RESOLUTION (2026-09-03):** confirmed via WinBox — the root-cause hypothesis was correct. The vlan-99 bridge
 entry had `ether10` (and `ether2`) in the **UNTAGGED** column instead of **TAGGED** (a stale/broken converge
@@ -267,3 +300,5 @@ vlan-99 block (comment/state mismatch) — the manual one-liner was the effectiv
 `router.yml` converge (same session) re-applied and verified the tagged memberships + KNX rule live.
 PERMANENT FIX: the converge-template/role vlan-99 memberships are correct (tagged=ether2,ether10); the
 broken state came from a prior partial converge — monitor the first converge after any future bridge change.
+*(On 2026-09-08 the direct-Mgmt path from the laptop (no hop) was verified — `router`/`switch`/`oldsrv` SSH
+work direct on .99; this incident is historical.)*

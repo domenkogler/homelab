@@ -50,16 +50,21 @@ task-specific dispatch. Do **not** bulk-read the repo.
 
 ---
 
-## 2. State of the world (as of 2026-09-04)
+## 2. State of the world (as of 2026-09-08)
 
 - **Phase 1 (VPS edge) is live.** The VPS runs its full enabled `docker_services` set — Traefik,
-  Authentik, the observability backend (prometheus/loki/grafana/blackbox), Technitium DNS primary, etc.
+  Authentik, the observability backend (**VictoriaMetrics/VictoriaLogs/Grafana/blackbox — Victoria
+  migration HD-341/342 DONE + LIVE 2026-09-08**, replacing Prometheus/Loki; Alloy = single scrape
+  tier on all 4 hosts), Technitium DNS primary, etc.
   Evidence: the owning-service docs (✅ status lines) + [`deployment-tasks.md`](deployment-tasks.md) checkbox
   dates + git commit messages; the as-built journal and changelog were frozen 2026-09-01
   (`reports/`, archive-only). **Phase 2 (nas) and Phase 4 (Pi) are provisioned + LIVE (2026-09-03).**
-  **oldsrv (Phase 3) is IN PROGRESS — BLOCKED on the `office` ONLYOFFICE repo/key, `amd_rocm` ROCm pins,
-  and 3 missing 1P vault items** (HD-318; `docker_services` big deploy gated on them); anything below
-  the VPS tier that is not yet live remains *deploy-gated*; verify against
+  **oldsrv (Phase 3) is COMPLETE + LIVE (2026-09-08).** All original blockers cleared — ONLYOFFICE
+  repo/key fixed, ROCm pins moot (spark = sole inference tier, HD-335; `amd_rocm` kept as
+  Debian-trixie-native host userland only), 1P vault strict check green; full `home_servers.yml`
+  converge failed=0 with the whole `docker_services` set Up + healthy (media/*arr/DNS/smart-home/
+  kopia-agent + signal-cli, home-assistant standby, HD-318). Remaining tails are owner-manual
+  (signal-cli phone registration) or already in `todo.md`; verify live-state evidence against
   [`deployment-tasks.md`](deployment-tasks.md) before any "run".
 - **How to check what is live vs authored-only (check in this order):**
   1. [`todo.md`](todo.md) §0/§3c → [`deployment-tasks.md`](deployment-tasks.md) — the ⏳ deploy-gated
@@ -80,7 +85,11 @@ task-specific dispatch. Do **not** bulk-read the repo.
   [`todo.md`](todo.md) HD-312. **HD-317 Technitium DNS-primary on the VPS is LIVE** (3-instance DNS
   HA); the split-horizon A-record **seed is DONE + LIVE on the VPS primary AND Pi tertiary**
   (HD-324, 2026-09-03 — VPS admin recreated to the 1P value via the documented API; the seed
-  role now idempotent). oldsrv secondary seeds automatically once its Phase-3 admin is up.
+  role now idempotent). **Open-resolver exposure FIXED 2026-09-08:** the `:53` publish is now
+  source-restricted at the nftables FORWARD chain (tailnet CGNAT + home-WAN `@dns-allow-home`
+  only; external scanners dropped) — the input source-allow alone could not gate Docker
+  published-port traffic (see network-dns.md).
+  oldsrv secondary seeds automatically once its Phase-3 admin is up.
   Detail: [`todo.md`](todo.md) HD-317.
 
 ---
@@ -114,6 +123,27 @@ task-specific dispatch. Do **not** bulk-read the repo.
    lifecycle (close-out lives in the owning doc + commit; the frozen changelog/journal are archived)
    → commit signed (if `Couldn't find key in agent`: `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth`, then commit; CONVENTIONS §6)
 7. if it's a planned / multi-step / multi-host / live-deploy change → use the **orchestrator pattern**: a single parent session co-ordinates subagents/parallel lanes with an explicit lane map (see pi-subagents skill), and records the runbook in the owning `docs/*.md` — no separate `plan/` ceremony required
+
+### Orchestrator + reviewer discipline (lane hygiene, HD-346 lesson)
+
+When co-ordinating subagent lanes (item 7), keep children **bounded and focused** — an over-scoped,
+verbose child is worse than none. Live lesson (2026-09-08): a `reviewer` handed two full IaC branches
++ the whole render pipeline + todo claims, on a thinking-heavy model, ran 35+ min and never produced
+a verdict — the parent had already verified the final state itself. Rules:
+
+- **Scope each child to ONE deliverable** with an explicit acceptance micro-format. For a reviewer:
+  `APPROVE / REQUEST_CHANGES` + a bounded list (`blocking` / `non-blocking`), file:line where useful.
+  Say what is **out of scope** (e.g. "do not re-audit the render pipeline — it is known-good").
+- **Give the reviewer the parent's verification notes**: the parent holds authority; a pre-merge review
+  is a second opinion, not a fresh audit. State "the parent has already verified X, Y, Z — confirm or
+  flag only what contradicts."
+- **Timebox long-hanging reviews**: prefer a fast, capable model; if a child exceeds ~10 min with no
+  verdict, steer it to wrap up with what it has; abort and self-verify if it becomes a bottleneck
+  (the parent's own validation + `validate-all.sh` green is the real gate).
+- **Prefer fresh-context single-purpose children** over broad multi-commit audits; if a review is big,
+  split it per commit/branch and run them in parallel.
+- Keep the parent as arbiter: children implement/review within their lane; the parent merges,
+  runs `validate-all.sh`, records the runbook, and owns final acceptance.
 
 ---
 

@@ -51,7 +51,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
-        { "refId": "A", "expr": "sum(crowdsec_decisions{job=\"crowdsec\"})", "instant": true }
+        { "refId": "A", "expr": "sum(cs_active_decisions{job=\"crowdsec\"})", "instant": true }
       ]
     },
     {
@@ -71,7 +71,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
-        { "refId": "A", "expr": "sum(crowdsec_decisions{job=\"crowdsec\"}) by (origin)", "legendFormat": "{{origin}}" }
+        { "refId": "A", "expr": "sum(cs_active_decisions{job=\"crowdsec\"}) by (origin)", "legendFormat": "{{origin}}" }
       ]
     },
     {
@@ -88,7 +88,7 @@
         }
       },
       "targets": [
-        { "refId": "A", "expr": "up{job=~\"prometheus|loki|n8n|blackbox-exporter\"}", "instant": true }
+        { "refId": "A", "expr": "up{job=~\"victoria-metrics|victoria-logs|n8n|blackbox-exporter\"}", "instant": true }
       ]
     }
   ]

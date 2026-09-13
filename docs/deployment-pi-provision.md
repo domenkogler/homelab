@@ -26,8 +26,12 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 > `https://ha.kogler.si/` via traefik-ha → **302** (login). Live-fixed this session:
 > docker_services enabled-set crash, first-boot guard loop_var, technitium read_only + cap_add,
 > knx-entities `knx:` wrapper, meteoblue-not-in-2026.8, trusted_proxies + stale `.storage/http`,
-> ha-cert-sync `dump/` exclusion + VPS rsync/key auth. **Remaining (owner steps):** KNX UI
-> config-flow import, Authentik OIDC, `ha.kogler.si` DNS cutover → VIP.
+> ha-cert-sync `dump/` exclusion + VPS rsync/key auth. **HD-307 CLOSED 2026-09-08** (row deleted; all
+> residual verify items resolved elsewhere — KNX UI config-flow DONE 2026-09-03, `ha.kogler.si` DNS
+> cutover → VIP DONE, Authentik OIDC on `ha` explicitly NOT wanted (owner, HD-310 close 2026-09-07);
+> the only true remainder, the failover runbook, belongs to the **HD-04 umbrella** (owner-gated, blocked
+> on oldsrv/HD-318). Live re-verify 2026-09-08: keepalived MASTER, HA :8123 200, traefik-ha :443 200,
+> dual-home up.)
 
 ---
 
@@ -35,7 +39,7 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 
 | # | Check | How to verify |
 |---|-------|---------------|
-| 1 | Vault items present | `ha-vrrp_password`, `smtp_login`, `meteoblue_api`, `ha-failover_api` (standby-only) — **all confirmed present** 2026-09-03. `ha_api` is **NOT required** for the Pi (it gates the `monitoring` role's Prometheus scrape token via `prometheus_ha_exporter`; not a HA YAML secret). |
+| 1 | Vault items present | `ha-vrrp_password`, `smtp_login`, `meteoblue_api`, `ha-failover_api` (standby-only) — **all confirmed present** 2026-09-03. `ha_api` is **NOT required** for the Pi (it gates the `monitoring` role's Alloy HA-exporter scrape token via `prometheus_ha_exporter`; not a HA YAML secret). |
 | 2 | Pi reachable | `ping 10.10.1.20` + `ssh ansible-admin@10.10.1.20 'echo ok'` (SSH via 1Password SSH agent / `~/.ssh/config`). Verified live this session. |
 | 3 | Router static reservations | Pi Home `10.10.1.20` + Mgmt `10.10.99.20` bound (SSOT `network_static_hosts`; live-verified 2026-09-01/02). |
 | 4 | Oldsrv standby config renders (cold) | `home_servers.yml` on oldsrv already renders `/opt/home-assistant-standby/` (cold; not started). Not a blocker for the Pi. |

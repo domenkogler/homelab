@@ -44,7 +44,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Dashboard (Homepage) | `traefik-public` |
 | Dashboard (Metabase) | `traefik-public` **+** `services-internal` |
 | Observe (Alloy) | host (`docker.sock`) + `services-internal` |
-| Observe (Prometheus, Loki) | `db-internal` |
+| Observe (VictoriaMetrics, VictoriaLogs) | `db-internal` |
 | Observe (Grafana) | `traefik-public` **+** `db-internal` (needs to query backends) |
 | Observe (blackbox-exporter) | `services-internal` |
 | Observe logs viewer (Dozzle) | `traefik-public` (read-only `docker.sock`) · on the **VPS** (HD-135b) |
@@ -78,16 +78,14 @@ networks:
 
 ## GPU-Enabled Containers
 
-Services that need GPU access: **Ollama, Immich-ML, Sunshine** (+ **Jellyfin** — iGPU transcode, not the AMD dGPU).
+Services that need GPU access on oldsrv: **Immich-ML + Sunshine** (AMD RX 7600 dGPU; Ollama removed — LLM inference consolidated on spark/Triton, HD-335) and **Jellyfin** (Intel HD 630 iGPU transcode, not the AMD dGPU). Immich-ML bundles its own ROCm runtime and needs only `/dev/dri` + `/dev/kfd`.
 
 ```yaml
 services:
-  ollama:
+  immich-ml:
     devices:
       - /dev/dri:/dev/dri
       - /dev/kfd:/dev/kfd
-    environment:
-      OLLAMA_KEEP_ALIVE: 5m
     group_add:
       - "{{ gpu_render_gid }}"    # render group
       - "{{ gpu_video_gid }}"     # video group
@@ -130,21 +128,24 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   - Bazarr: library dirs (writes subtitles next to media)
   - `Use Hardlinks: ON` in Sonarr/Radarr/Lidarr
   - Full layout + dataset properties: [`storage.md`](storage.md)
-- **Downloader egress:** only qBittorrent routes through gluetun:
+- **Downloader egress:** only qBittorrent routes through gluetun. **HD-318c:** gluetun runs `custom` WireGuard because the native `privado` provider was dropped; the endpoint/address config is non-secret and comes from `group_vars/home_servers.yml` (`privado_vpn_*`), the client private key from 1Password:
   ```yaml
   services:
     gluetun:
-      image: qm12/gluetun:latest
+      image: qmcgaw/gluetun:{{ gluetun_version }}   # upstream (qm12 fork is gone, HD-192)
       cap_add: [NET_ADMIN]
       devices:
         - /dev/net/tun:/dev/net/tun
       environment:
-        VPN_SERVICE_PROVIDER: privado
+        VPN_SERVICE_PROVIDER: custom        # gluetun dropped `privado` (HD-318c)
         VPN_TYPE: wireguard
-        WIREGUARD_PRIVATE_KEY: "{{ lookup('community.general.onepassword', 'privado-vpn_api', field='credential', vault=op_vault) }}"
-        SERVER_COUNTRIES: Netherlands
+        WIREGUARD_ENDPOINT_IP: "{{ privado_vpn_endpoint_ip }}"
+        WIREGUARD_ENDPOINT_PORT: "{{ privado_vpn_endpoint_port }}"
+        WIREGUARD_PUBLIC_KEY: "{{ privado_vpn_public_key }}"
+        WIREGUARD_PRIVATE_KEY: "{{ vault['privado-vpn_api'].credential | replace('$','$$') }}"
+        WIREGUARD_ADDRESSES: "{{ privado_vpn_address }}/{{ privado_vpn_cidr }}"
     qbittorrent:
-      image: linuxserver/qbittorrent:latest
+      image: linuxserver/qbittorrent:{{ qbittorrent_version }}
       network_mode: "service:gluetun"      # no own network — shares gluetun namespace
       depends_on: [gluetun]
   # gluetun must be on traefik-public + services-internal so the qBittorrent
@@ -222,9 +223,9 @@ deploy-service.yml and are BIND-MOUNTED into the containers. Two consequences, b
 2. **Exclusions are semantic, not arbitrary:** `.env.j2` extras (kopia-server/agent) feed compose
    `${}` interpolation, where a change IS a spec change and `up -d` already recreated — restarting
    again would be a double bounce. `traefik` / `traefik-ha` dynamic files sit in the file-provider
-   watch dir and hot-reload in-process; restarting Traefik would only drop edge traffic. Prometheus
-   is restarted deliberately: its scrape-config churn costs one short gap, while the web-config
-   (basic auth, HD-59) is read at startup only.
+   watch dir and hot-reload in-process; restarting Traefik would only drop edge traffic. VictoriaMetrics
+   (and VictoriaLogs) is restarted deliberately: its config churn costs one short gap, while the HTTP
+   auth (basic auth via victoria-metrics_api/victoria-logs_api, HD-341) is read at startup only.
 
 If a future extra must NOT trigger this restart, extend the guard's exclusion list in
 deploy-service.yml rather than bypassing the render registration.
@@ -251,12 +252,12 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the naming convention.
 
 ## Observability / TSDB Retention
 
-- **Prometheus:** retention 30d, data on oldsrv local disk
-- **Loki:** single-node/SSD, retention 14d, compaction on, filesystem/TSDB store
+- **VictoriaMetrics:** retention 365d (metrics, pure storage), `db-internal`
+- **VictoriaLogs:** retention 90d (logs), `db-internal`
 - **Grafana:** attached to **both** `traefik-public` + `db-internal`
-- **Alloy:** host-installed (Ansible), mounts `docker.sock` for container logs
-- **HA exporter:** HA exposes `/api/prometheus` (bearer token); Prometheus scrapes it — entities become metrics
-- TSDB data is **regenerable, not backed up** (see `backup.md`); retention is deliberate
+- **Alloy:** host-installed (Ansible), mounts `docker.sock` for container logs; **the single scrape tier** (topology B)
+- **HA exporter:** HA exposes `/api/prometheus` (bearer token); Alloy scrapes it — entities become metrics
+- TSDB data is **Kopia-backed** (VM/VL volumes, see `backup.md`); retention is deliberate (365d/90d)
 
 ## Common Patterns
 
@@ -331,10 +332,9 @@ services:
   BOTH the oldsrv primary and the Pi secondary, and the Pi has no oldsrv-style `/srv/docker` ZFS dataset
   layout; Kopia covers `/opt/*`, so backup coverage is intact. Revisit only if per-host state paths are
   ever introduced.
-- `prometheus` keeps its TSDB in the named volume `prometheus-data` — regenerable data (scrape/
-  remote_write sources re-send after loss), deliberately NOT backed up ([backup.md](backup.md)), growth
-  bounded by 30d retention. That places it on the ephemeral/utility side of the named-volume rule, not
-  the stateful/backed-up side.
+- `victoria-metrics` keeps its TSDB in the host bind `/srv/docker/victoria-metrics/data` — **Kopia-backed**
+  (per the HD-341/342 owner decision reversing the old regenerable-TSDB doctrine; see `backup.md`), growth
+  bounded by 365d retention.
 
 ---
 
@@ -362,6 +362,26 @@ services:
       - /tmp
 ```
 
+> **`read_only` is NOT universal — drop it where the image's startup writes (HD-318 live lesson, 2026-09-08).**
+> The hardening default above is the target, but the following image families **cannot** run `read_only: true`
+> without crash-looping (each found live on oldsrv during Phase-3):
+> - **linuxserver s6-overlay images** (`linuxserver/*`): s6 init writes `/run/s6` + `/config` as root before
+>   the PUID drop → drop `read_only`, keep `cap_drop: ALL` + `tmpfs: /run:exec` + `cap_add SETGID/SETUID`
+>   (sonarr/radarr/qbittorrent precedent — the *arr templates carry the inline note).
+> - **Images whose entrypoint ends in `setpriv`/`su-exec`** (signal-cli-rest-api, profilarr): need
+>   `cap_add CHOWN,SETGID,SETUID` (privilege-drop) and, where a helper persists into a uid-owned volume
+>   (signal-cli `jsonrpc2-helper`), also `DAC_OVERRIDE,FOWNER`.
+> - **Images with a real data dir ≠ the mounted path** (actual-budget: `/data` owned by uid 1001, NOT
+>   `/app/data`): mount the correct target + `bind_owner_uid`/`bind_dirs` on the docker_services entry
+>   (deploy-service.yml Class-A pre-create).
+> - **kopia image**: entrypoint is `/bin/kopia` (clear with `entrypoint: []` before a `command: sh -c`);
+>   needs writable `/app/logs`. **TLS (HD-318a, RESOLVED 2026-09-08):** `kopia repository connect server`
+>   in 0.23.x hard-requires `https://` (no client-side `--insecure`) — the server serves a PERSISTED
+>   self-signed cert (`--tls-cert-file`/`--tls-key-file`, generated once under
+>   `/srv/docker/kopia-server/config/`) and the agent pins its stable SHA-256 fingerprint
+>   (`--server-cert-fingerprint`, 1P `kopia-server_fingerprint`). kopia's own `--tls-generate-cert`
+>   (in-memory) would change the fingerprint on every restart — never use it here.
+
 ### Internal Service Authentication
 
 Even trusted containers on shared Docker networks should have independent auth. A supply-chain
@@ -370,7 +390,9 @@ sibling services have no auth. Apply minimum auth per service:
 
 - **Services accepting API requests:** require token/key/header where the service supports it (n8n API key). **Ollama has NO native server auth** (`OLLAMA_AUTH_*` applies only to ollama.com cloud, not the local API) — the control instead is **network isolation**: Ollama sits on the dedicated **`llm-backend`** overlay reachable only by LiteLLM (HD-59), not `services-internal`.
 - **Backup servers:** always require server auth. **Kopia uses `--htpasswd-file`** (the server has **no `--password` flag** — `--password`/`--without-password` are repo/at-rest vs network concerns). Kopia's htpasswd parser accepts plaintext `user:password` (0600); secret = `kopia-server-internal_api`. Never `--without-password` (HD-59).
-- **Observability UIs:** protect scrape/config endpoints — Prometheus `--web.config.file` with **bcrypt** `basic_auth_users` (`prometheus-internal_api`; hash via `scripts/gen-htpasswd.py`); endpoint stays loopback-only (HD-62) (HD-59).
+- **VictoriaMetrics / VictoriaLogs:** protect the HTTP endpoints — their own `-httpAuth.username`/
+  `-httpAuth.password` (plaintext basic auth, HD-341) via `victoria-metrics_api`/`victoria-logs_api`;
+  endpoints stay loopback + wg-s2s-bound (HD-62).
 - **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
 
 #### Sibling-auth coverage map (HD-160)
@@ -384,11 +406,11 @@ overlay can't write to a sibling (extends HD-59). Cross-host reaches (`immich-ap
 |---|---|---|---|---|
 | n8n → signal-cli | VPS → oldsrv (WG) | `X-Api-Key` (`SIGNAL_CLI_API_TOKEN`) | `signal-internal_api` | ✅ HD-125 |
 | backup clients → kopia | VPS (WG) | `--htpasswd-file` Basic | `kopia-server-internal_api` | ✅ HD-59 |
-| grafana/alloy → prometheus | VPS | `--web.config.file` bcrypt | `prometheus-internal_api` | ✅ HD-59 |
+| VictoriaMetrics/VictoriaLogs auth | VPS | `-httpAuth` plaintext basic auth | `victoria-metrics_api` / `victoria-logs_api` | ✅ HD-341/342 |
 | litellm → ollama | VPS → oldsrv (WG) | **network isolation** (`llm-backend`, no native auth) | — | ✅ HD-59 |
 | open-webui / openclaw → litellm | VPS | `LITELLM_MASTER_KEY` bearer | `litellm_master_key` | ✅ HD-100 |
 | openclaw → opencloud (WebDAV) | VPS | OpenCloud **app-specific password** (scoped service user) | `openclaw-opencloud_api` | ✅ IaC (HD-160) |
-| immich-app → immich-ml | VPS → oldsrv (WG) | native ML **API-key header** | `immich-ml-internal_api` | ✅ IaC (HD-160) |
+| immich-app → immich-ml | VPS → oldsrv (WG) | native ML **API-key header** | `immich-ml-internal_api` | ✅ IaC (HD-160) — **live-verified 2026-09-08 (HD-184)** |
 | renovate → forgejo API | VPS | `RENOVATE_TOKEN` | `forgejo_api` | ✅ |
 | recyclarr → sonarr/radarr | oldsrv | API key | `sonarr_api` / `radarr_api` | ✅ |
 | db-backup → postgres (immich/opencloud/forgejo) | VPS | postgres password (`db-internal`) | `*_db` | ✅ |

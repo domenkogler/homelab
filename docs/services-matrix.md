@@ -113,7 +113,7 @@ Phones / Element X ─────────────  same homeserver /log
 
 ## Observability & Alerting (optional consolidation)
 
-- Homeserver exposes metrics; scrape into Prometheus (`/metrics`) as part of the stack.
+- Homeserver exposes metrics; Alloy scrapes into VictoriaMetrics (`/metrics`) as part of the stack.
 - **Optional:** expose a `#homelab` room and route Grafana alerts to it so alerting can also reach
   Matrix — alongside the existing Signal + SMTP fail-safe. See [`observability.md`](observability.md).
 
@@ -131,7 +131,9 @@ WhatsApp / Messenger / Signal bridges are **not part of Phase 1**. Rationale (re
 
 **Decision:** defer. Revisit **only if** the family explicitly asks for a specific bridge, and then
 **only** against a **dedicated** number, accepting ongoing re-pairing and possible ban. Tracked as
-**HD-48**.
+**HD-48** — **REJECTED/closed (owner decision 2026-09-09):** the owner is the sole Matrix user, native
+Signal already works, and Matrix is not yet federated (HD-46/47) — no bridge will be built. Re-decide
+cheaply if WhatsApp-in-Matrix is ever wanted. Decision log: [services-rejected.md](services-rejected.md) HD-48.
 
 ---
 

@@ -287,7 +287,7 @@ IaC/ansible/
 │   ├── wireguard/                   # WG S2S VPS side (router peer lives in roles/router) — netdev + `wg-ensure-s2s-peer` oneshot (HD-306: networkd never applies the peer; a peer-only `wg setconf` re-attaches it after networkd init)
 │   ├── cloudflare_dns/              # public-record runs (vars/main.yml = IaC side of the record SSOT)
 │   ├── vps-hardening/tasks/main.yml # HD-154: VPS pre-deploy hardening — fail2ban, nftables default-deny, docker daemon (public edge only)
-│   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE  (**targeted for removal 2026-09-06**: no AI on oldsrv)
+│   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE  (**host LLM removed 2026-09-06**: Ollama off oldsrv — inference on spark/Triton, HD-335; RX 7600 keeps Sunshine encode + immich-ML container ROCm)
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
 │   ├── router/                      # RouterOS api_modify: VLANs, DHCP, firewall, CAPsMAN, Kids rules, address lists
@@ -295,7 +295,7 @@ IaC/ansible/
 │   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2 stub)
 │   ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP + failover trigger
 │   ├── docker_services/             # THE key role — generic service deployer (+ prepass-authentik)
-│   └── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana + alerting; blackbox; HA exporter
+│   └── monitoring/tasks/main.yml    # Alloy → VictoriaMetrics + VictoriaLogs; Grafana + alerting; blackbox; HA exporter
 └── templates/
     ├── docker_services/             # docker-compose.yml.j2 per service
     ├── homepage_services.yaml.j2
@@ -352,7 +352,7 @@ home_servers
 
 [monitoring]
 oldsrv.kogler.si              # collector — forwards home telemetry to VPS
-vps.kogler.si                 # backend host — Prometheus/Loki/Grafana
+vps.kogler.si                 # backend host — VictoriaMetrics/VictoriaLogs/Grafana
 
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3
@@ -558,17 +558,17 @@ domain_local: kogler.si
   template_dir** — each service's render switches to the dict; the dict is populated only for
   names that exist. Expected: tens of seconds off each full converge, seconds off surgical runs.
 ### `monitoring`
-- **Alloy:** host agent (Ansible-installed, not containerized) — host metrics, container logs (`docker.sock`), SNMP scrape
-- **Prometheus:** sole metrics backend, retention 30d, `db-internal`
-- **Loki:** single-node/SSD log store, retention 14d
-- **Grafana:** provisioned dashboards + alert rules; datasources = Prometheus + Loki; Authentik OIDC, admin-only
+- **Alloy:** host agent (Ansible-installed, not containerized) — host metrics, container logs (`docker.sock`), SNMP scrape; **the single scrape tier** (topology B)
+- **VictoriaMetrics:** sole metrics backend, retention 365d, `db-internal` (pure storage/query)
+- **VictoriaLogs:** single-node log store, retention 90d
+- **Grafana:** provisioned dashboards + alert rules; datasources = VictoriaMetrics (uid `prometheus`) + VictoriaLogs (uid `loki`); Authentik OIDC, admin-only
 - **Grafana Alerting:** 3 tiers (Critical/Warning/Info), poke interval ~30 min, self-monitoring rules
 - **Grafana-native SMTP:** fail-safe contact point in parallel with n8n (independent of n8n)
 - **blackbox-exporter:** external reachability → `probe_success`
-- **HA exporter:** enable HA `/api/prometheus` (bearer token from 1Password); Prometheus scrape job
+- **HA exporter:** enable HA `/api/prometheus` (bearer token from 1Password); Alloy scrape job
 - **SNMP:** MikroTik SNMP for traffic metrics, poll **5–15 s**
 - **Alert delivery:** n8n + signal-cli-rest-api are Docker services (see `group_vars/home_servers.yml`), deployed by `docker_services` — they handle webhook routing, dedup, and Signal notification at runtime
-- **Ordering:** run **after** `docker_services` (needs Prometheus/Loki/n8n up)
+- **Ordering:** run **after** `docker_services` (needs VictoriaMetrics/VictoriaLogs/n8n up)
 
 ### `nut`
 - **Mode-driven** via `nut_mode` (see host_vars):
@@ -647,7 +647,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 6 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
 | 7 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) + Pi `docker_services` (`technitium-secondary`, `traefik-ha` edge for `ha` + `dns-pi`) — on the Pi, `home_assistant` runs BEFORE `docker_services` (render-first, HD-204 — supersedes the KOPS-063/HD-117 order) | `docker` |
 | 8 | `nut` — nas: master (usbhid-ups + upsd + nut_exporter); oldsrv/ha: client (upsmon slave + upssched + notifycmd) | `common`, `network` |
-| 9 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (Prometheus/Loki/n8n up) **and** `nut` (needs nut_exporter) |
+| 9 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (VictoriaMetrics/VictoriaLogs/n8n up) **and** `nut` (needs nut_exporter) |
 | 10 | `router` | `network` (IPs/VLANs defined) |
 | 11 | `proxmox` (Phase 2) | `network` |
 
@@ -692,7 +692,7 @@ Top tasks by elapsed time:
 | `docker : Install Docker components` | 1.59s | **base tier** |
 | `docker_services : compose up authentik` | 1.57s | docker_services |
 | `vps-hardening : Install fail2ban` | 1.57s | **base tier** |
-| `docker_services : Copy template files for prometheus` | 1.55s | docker_services |
+| `docker_services : Copy template files for victoria-metrics` | 1.55s | docker_services |
 | … | ~1.4s each | remainder ≈150 tasks under 1s |
 
 ### The three deploy-speed mechanisms (when to use each)
@@ -720,3 +720,14 @@ A surgical single-service run (`--tags docker_services -e docker_services_scope=
 Deploy times drift with image versions/service count — re-measure per the top of this page.
 `profile_tasks` prints the recap to every run; keep it in `ansible.cfg` (it's the arbitrage tool
 for any future speed change, HD-257).
+
+### Speed tooling — REJECTED options (HD-261 / HD-262, owner decision 2026-09-09)
+
+- **Mitogen (HD-261)** — rejected/closed. The gate ("only if `profile_tasks` shows a large executor floor")
+  never fired: the Bulk 1Password pre-pass (HD-258) removed the op-lookup cost and VPS converges are live
+  (~193s full, ~5-6s surgical). Revisit only if a `profile_tasks` trace actually shows SSH-transport-bound
+  time dominating. Decision log: [deployment-rejected.md](deployment-rejected.md).
+- **Yacht web UI (HD-262)** — rejected/closed. Ops-comfort tool, not a speedup; drift + attack-surface
+  concerns (extra VPS web surface) and it is unaware of the `docker-compose@.service` guards / single
+  Ansible compose model. Cheaper alt: `scripts/docker-restart.sh <service>` or cockpit container views.
+  Decision log: [deployment-rejected.md](deployment-rejected.md).

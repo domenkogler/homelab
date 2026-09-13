@@ -76,6 +76,17 @@
 /ip service set ssh disabled=no port=22 available-from={{ mgmt.subnet }}
 /ip service set winbox disabled=no port=8291 available-from={{ mgmt.subnet }}
 
+# ---- SNMP (HD-53): RO, Mgmt-scoped — survives factory reset via run-after-reset ----
+# The RO community (network-snmp_api) is injected at render as snmp_ro_community; the
+# community `name=` IS the shared secret string (must match the Alloy snmp.yml auth
+# community) and is scoped to the Mgmt subnet only, read-only.
+/snmp set enabled=yes
+:if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+} else={
+    /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
+}
+
 # ---- End ----
 # After import, verify:
 #   1. Reachable from laptop  → ping {{ switch99.ip }}
@@ -84,4 +95,5 @@
 #                                                AVAILABLE-FROM={{ mgmt.subnet }};
 #                                                telnet+ftp+www+api-ssl+reverse-proxy
 #                                                X = disabled)
-#   4. Ansible role then applies ports/VLANs/PoE + keeps mgmt on {{ switch99.ip }}.
+#   4. SNMP enabled + RO community scoped to Mgmt → /snmp print, /snmp community print
+#   5. Ansible role then applies ports/VLANs/PoE + keeps mgmt on {{ switch99.ip }}.

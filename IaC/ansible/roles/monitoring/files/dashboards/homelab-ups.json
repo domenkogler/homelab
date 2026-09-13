@@ -119,6 +119,38 @@
       "targets": [
         { "refId": "A", "expr": "network_ups_tools_output_voltage", "legendFormat": "output" }
       ]
+
+    },
+    {
+      "type": "timeseries",
+      "title": "Load over time",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent" } },
+      "targets": [
+        { "refId": "A", "expr": "network_ups_tools_ups_load", "legendFormat": "load" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Runtime over time",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "min" } },
+      "targets": [
+        { "refId": "A", "expr": "network_ups_tools_battery_runtime / 60", "legendFormat": "runtime" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Battery charge over time",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent" } },
+      "targets": [
+        { "refId": "A", "expr": "network_ups_tools_battery_charge", "legendFormat": "charge" }
+      ]
     }
   ]
+
 }

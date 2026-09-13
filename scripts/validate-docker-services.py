@@ -20,6 +20,8 @@ Usage:
 """
 import sys
 import re
+import base64
+import json
 from pathlib import Path
 from jinja2 import Environment, StrictUndefined
 import yaml
@@ -37,7 +39,7 @@ GROUP_VARS_DIR = ROOT / "IaC" / "ansible" / "group_vars"
 # docs/deployment-compose.md.
 
 # Services that don't need Traefik labels (are their own reverse proxy)
-NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent", "traefik-tailnet"}  # qbittorrent labels are on gluetun sidecar; traefik-tailnet is file-provider-only (dynamic/routes.yml, no docker provider)
+NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent", "traefik-tailnet", "traefik-internal"}  # qbittorrent labels are on gluetun sidecar; traefik-tailnet is file-provider-only (dynamic/routes.yml, no docker provider); traefik-internal = home-LAN edge (HD-350), file-provider-only (same pattern)
 
 # HD-134 / KOPS-030 convention: pinned tags (never bare `latest`). A compose image that
 # RESOLVES to bare `latest` (either a literal `:latest` or an undefined *_version var falling
@@ -47,9 +49,6 @@ NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent", "traefik-tailnet"}  # qbittorr
 # upstream survive, each with a MUST-pin justification. Everything else was pinned into
 # group_vars/all/versions.yml (registry-verified 2026-08-21).
 ALLOWED_LATEST = {
-    # HD-121 precedent: obscure single-maintainer image facing public federation;
-    # MUST pin to a registry-verified tag at first deploy (tuwunel_version: latest).
-    "matrix",
     # profilarr + profilarr-parser: upstream publishes NO versioned tags (only
     # develop/buildcache/sha256 — probe 2026-08-21); fluid by upstream design,
     # documented in the compose header + versions.yml comment.
@@ -93,7 +92,7 @@ WEB_SERVICES = {
     "traefik-tailnet",  # HD-135b follow-up: tailnet Traefik edge (dashboard label, file-provider routes)
 }
 
-HOST_NET_SERVICES = {"traefik-ha"}
+HOST_NET_SERVICES = {"traefik-ha", "traefik-internal"}   # traefik-internal: home-LAN edge on oldsrv (HD-350), host-net VIP+LAN-IP bound (same pattern as traefik-ha)
 HOST_NET_CONTAINERS = {"home-assistant-standby"}
 
 # Extra .j2 templates per service are NOT duplicated here any more (HD-189):
@@ -139,13 +138,48 @@ def _load_ssot_ctx():
         "crowdsec_collections", "wildcard_cert_file", "wildcard_cert_key_file",
         "wildcard_cert_domain", "ha_vip", "ha_vip_cidr", "network_ranges",
         "kopia_sftp_host", "kopia_sftp_port", "kopia_sftp_user", "kopia_sftp_path",
+        "kopia_agent_user",
         "traefik_edge_ips", "traefik_edge_ip_pin",
+        # Victoria* observability backend (HD-341/342) — plain retention-day vars from
+        # all.yml, consumed by the victoria-metrics/victoria-logs compose templates.
+        "victoria_metrics_retention_days", "victoria_logs_retention_days",
         # smtp2go relay connection SSOT (HD-54) — consumed by metabase MB_EMAIL_SMTP_*
         # (HD-241); grafana/nut render their own copies via role vars/defaults.
         "smtp2go_host", "smtp2go_port",
+        # Victoria MCP endpoint SSOT (HD-344) — plain non-secret ports consumed by the
+        # oldsrv mcp-victoriametrics / mcp-victorialogs compose templates (listen ports).
+        "mcp_metrics_port", "mcp_logs_port",
+        # Victoria MCP backend host (HD-344) — plain var defaulting to wg_s2s_vps.ip at
+        # the group_vars level; loaded from SSOT so the validator can't drift from the
+        # real render (HD-189 principle).
+        "victoria_backend_host",
+        # Signal alert recipients (HD-347) — plain non-secret JSON-array string consumed by
+        # the n8n compose (SIGNAL_RECIPIENTS) for the homelab-alerts workflow.
+        "signal_alert_recipients",
     ):
         if k in data:
             ctx[k] = data[k]
+    # PrivadoVPN WireGuard endpoint SSOT (HD-318c) — plain non-secret values live in
+    # group_vars/home_servers.yml (oldsrv), consumed by the qbittorrent gluetun
+    # compose template. Loaded from the SSOT here (not mock) so the validator render
+    # cannot drift from the real group_vars (HD-189 principle).
+    hp = GROUP_VARS_DIR / "home_servers.yml"
+    try:
+        hdata = yaml.safe_load(hp.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as e:
+        print(f"FAIL: cannot read group_vars/home_servers.yml ({hp}): {e}", file=sys.stderr)
+        sys.exit(1)
+    for k in (
+        "privado_vpn_endpoint_ip", "privado_vpn_endpoint_port",
+        "privado_vpn_public_key", "privado_vpn_address", "privado_vpn_cidr",
+        # Homelable (HD-45) — plain non-secret scanner/knob vars from home_servers.yml,
+        # consumed by the homelable compose template (SCANNER_RANGES etc.). Loaded from
+        # the SSOT (HD-189 principle) so the validator render cannot drift.
+        "homelable_scanner_ranges_json", "homelable_status_checker_interval",
+        "homelable_deep_scan_ranges_json", "homelable_mcp_enabled",
+    ):
+        if k in hdata:
+            ctx[k] = hdata[k]
     # Neutral shared-data owner (HD-94) — SSOT: roles/storage/defaults/main.yml.
     sp = ROOT / "IaC" / "ansible" / "roles" / "storage" / "defaults" / "main.yml"
     try:
@@ -186,6 +220,12 @@ BASE_CTX.update({
     # a mock; values mirror the documented /30 (VPS .2). Consumed by the kopia-server
     # WG-bound publish guard + the kopia-agent server address.
     "wg_s2s_vps": {"ip": "10.255.40.2", "peer_public_key": "mock-router-public-key"},
+    # HD-333 (internal all-app edge WG-S2S reach, Pkg F) — VPS group_vars/vps.yml
+    # (not in all/main.yml), consumed by the traefik-tailnet compose publish + the
+    # vps-hardening nftables allow; mocked here with the vps.yml values (port 4443,
+    # edge container IP 172.20.0.250 stripped of /32). Same class as wg_s2s_vps.
+    "wg_internal_edge_port": 4443,
+    "wg_internal_edge_target_ip": "172.20.0.250",
     "ansible_user": "ansible-admin",
     "inventory_hostname": "oldsrv.kogler.si",
     "homelab_mode": "desktop",
@@ -257,6 +297,15 @@ def build_env():
     env.globals["lookup"] = mock_lookup
     env.filters["default"] = mock_default
     env.filters["comment"] = ansible_comment
+    # HD-344: mcp-victoriametrics composes a Basic-auth header for the VM backend
+    # via `| b64encode` (Ansible core filter at real deploy — home_assistant uses
+    # `| b64decode` on the same principle). Register it so the offline render is
+    # byte-equivalent instead of failing StrictUndefined on an unknown filter.
+    env.filters["b64encode"] = lambda s: base64.b64encode(s.encode()).decode()
+    # HD-45 (homelable compose): SCANNER_RANGES / SCANNER_HTTP_RANGES render a JSON-array
+    # string via Ansible's `to_json` filter. Register the same offline mock so the gate
+    # renders byte-equivalent (Ansible to_json = compact json.dumps with ensure_ascii).
+    env.filters["to_json"] = lambda s: json.dumps(s, ensure_ascii=False, separators=(",", ":"))
     # HD-258: bulk pre-pass leaves a `vault: {NAME: {field: val}}` dict in scope
     # instead of per-template `lookup()`. Mock it here so the gate renders the
     # post-refactor templates offline — every field is the same `'<secret:NAME>'`
@@ -439,12 +488,29 @@ def validate_render(name, j2_path, env, service):
         # `secondary` skip below). Skip the web-label law for non-primary instances.
         _inst = service.get("instance", "primary")
         if svc_name == name and name not in NO_TRAEFIK_LABELS and _inst == "primary":
-            if name in WEB_SERVICES:
+            # HD-331/332 (Pkg F): `public: true` = public-edge labels; `public: false`/
+            # absent = internal-only. The compose template gates labels on
+            # `svc.public is defined and svc.public` (see grafana/dozzle/… templates),
+            # so the validator must mirror that: only the edge itself (`traefik`)
+            # and explicitly `public: true` apps carry the web-label law. Internal-only
+            # web apps render traefik.enable: "false" and are served by the
+            # traefik-tailnet internal edge (file-provider routes).
+            _public = service.get("public", "absent")
+            if name in WEB_SERVICES and (_public is True or _public == "absent"):
+                # public or legacy (flag not yet rolled out) web app — the web-label
+                # law applies unchanged (legacy arr-stack compose labels stay valid).
                 lk = " ".join(str(k) for k in labels.keys())
                 if "traefik.enable" not in lk:
                     errors.append(f"{prefix} web service missing 'traefik.enable: true'")
                 if "traefik.http.routers" not in lk:
                     errors.append(f"{prefix} web service missing 'traefik.http.routers.*'")
+            elif name in WEB_SERVICES and _public is False:
+                # internal-only (public: false FLAG EXPLICIT) — labels must NOT expose a
+                # public router; enforce the inverse so a stale public label can't
+                # silently ride a later broaden (HD-331/332). Absent on legacy
+                # (home_servers arr-stack) entries = unchanged legacy behavior.
+                if isinstance(labels, dict) and labels.get("traefik.enable") in ("true", "True", True):
+                    errors.append(f"{prefix} public:false web service renders traefik.enable: true (must be internal-only)")
             elif name not in HOST_NET_SERVICES and name not in HOST_NET_CONTAINERS:
                 if isinstance(labels, dict) and labels.get("traefik.enable") in ("true", "True", True):
                     errors.append(f"{prefix} non-web service should not set traefik.enable: true")

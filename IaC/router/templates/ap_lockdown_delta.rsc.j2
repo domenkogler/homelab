@@ -1,0 +1,46 @@
+{#- AP CAP — HD-304 Part 2 / HD-89 steady-state lockdown DELTA (2026-09-08).
+    Apply to RUNNING APs (ap-spalnica / ap-dnevna / ap-spare when back) WITHOUT a reset:
+      1. Disable the unused wired ports ether2..ether5 (KOPS-046 — HD-89): a wired device
+         on an AP port previously landed on the full Management VLAN. Ownership decision
+         2026-09-08: disable ports outright (AP is L2 CAP-only; uplink ether1 + radios only).
+      2. Add the missing AP INPUT firewall (HD-304 Part 2 — HD-301 parity with the router
+         role's HD-78 chain + the switch's HD-301 parity block): gate mgmt services to the
+         Mgmt VLAN + trusted-admin, drop the rest. The bootstrap `available-from=` is the
+         floor; this is the steady-state INPUT policy so a converge/delta can't drift it open.
+    Idempotent: disable/set-if-exists, guarded adds.
+    Mirrors ap_initial.rsc.j2 (keep this delta in lock-step with the template). -#}
+# =============================================================================
+# HD-304/HD-89 — AP steady-state lockdown DELTA — disable wired ports + INPUT firewall
+# =============================================================================
+
+# ---- 1. Disable unused wired ports (HD-89 / KOPS-046) ----
+# ether1 = uplink (KEEP). ether2..ether5 = unused wired ports (DISABLE — no bridge membership,
+# no service). RouterOS default is disabled=yes, so this is belt-and-braces + explicit.
+/interface ethernet set [find default-name=ether2] disabled=yes comment="HD-89: unused AP wired port ether2 disabled (KOPS-046)"
+/interface ethernet set [find default-name=ether3] disabled=yes comment="HD-89: unused AP wired port ether3 disabled (KOPS-046)"
+/interface ethernet set [find default-name=ether4] disabled=yes comment="HD-89: unused AP wired port ether4 disabled (KOPS-046)"
+/interface ethernet set [find default-name=ether5] disabled=yes comment="HD-89: unused AP wired port ether5 disabled (KOPS-046)"
+
+# No bridge membership for the disabled ports (only ether1 + wifi1/wifi2 bridged; if a
+# partial state left ether2..5 in the bridge, remove them):
+/interface bridge port remove [find where bridge=bridge and interface=ether2]
+/interface bridge port remove [find where bridge=bridge and interface=ether3]
+/interface bridge port remove [find where bridge=bridge and interface=ether4]
+/interface bridge port remove [find where bridge=bridge and interface=ether5]
+
+# ---- 2. AP INPUT firewall (HD-304 Part 2 — HD-301 parity) ----
+# Remove any prior AP input rules (idempotent re-import), then apply the lockdown.
+# Mirror of rb4011_converge.rsc.j2 + roles/switch INPUT block: established/related accept,
+# bridge accept (mgmt DHCP + CAPsMAN discovery), drop the rest.
+/ip firewall filter remove [find chain=input]
+/ip firewall filter
+add chain=input action=accept connection-state=established,related comment="AP: allow established/related input"
+add chain=input action=accept in-interface=bridge comment="AP: allow input on bridge (mgmt DHCP + CAPsMAN discovery)"
+add chain=input action=accept protocol=udp dst-port=68 comment="AP: allow DHCP client input"
+add chain=input action=drop comment="AP: drop all other input (HD-304 lockdown)"
+
+# ---- End ----
+# Verify: /interface ethernet print (ether2-5 disabled), /interface bridge port print
+#         (ether2-5 absent), /ip firewall filter print (input lockdown present).
+# After apply: confirm from a Mgmt-sourced path (e.g. the Pi's tagged-99 hop) that the
+# AP SSH/WinBox still answers from Mgmt, and a non-mgmt source is dropped (INPUT floor).

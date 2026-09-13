@@ -1,0 +1,54 @@
+# victoria-metrics docker-compose.yml — VictoriaMetrics single-node metrics store (365d, db-internal)
+#   Replaces Prometheus (HD-342). VictoriaMetrics is PURE STORAGE/QUERY in this design
+#   (topology (B)): ALL scraping is done by the host Alloy agents (roles/monitoring
+#   templates/alloy.river.j2) which remote_write here at /api/v1/write. VM does NOT
+#   scrape (no -promscrape.config) and does NOT run its own vmagent — the Alloy
+#   collectors are the scrape tier.
+#   Grafana queries VM on db-internal (datasource uid `prometheus`, API-seeded).
+#   Retention 365d (owner decision 2026-09-08). Volume is Kopia-backed (see docs/backup.md —
+#   reverses the old "TSDB regenerable, NOT backed up" Prometheus doctrine).
+#   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
+#     victoria-metrics_api — Basic Auth (plaintext -httpAuth.username/-httpAuth.password) for
+#       the query + write endpoints (HD-342). Consumed by Grafana (query) + Alloy (remote_write).
+#       Fail-loud (no default), HD-65.
+#   See docs/observability.md.
+services:
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics:{{ victoria_metrics_version }}
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: victoria-metrics
+    restart: unless-stopped
+    command:
+      - "-retentionPeriod={{ victoria_metrics_retention_days }}d"
+      - "-httpAuth.username={{ vault['victoria-metrics_api'].username | replace('$','$$') }}"
+      - "-httpAuth.password={{ vault['victoria-metrics_api'].password | replace('$','$$') }}"
+      - "-storageDataPath=/victoria-metrics-data"
+    networks:
+      - db-internal
+    ports:
+      # Non-secret `default('')` (CONVENTIONS §3): WG peer-key gate — the loopback fallback
+      # is structural wiring, NOT a 1Password secret (HD-62); the victoria-metrics_api
+      # lookup above carries no default (fail-loud, HD-65).
+      # WG bind: oldsrv Alloy remote_write + future MCP (HD-344) reach VM over wg-s2s.
+      - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:8428:8428"
+      # Loopback bind: the VPS host-APT Alloy self-scrape + any localhost consumer (HD-342).
+      - "127.0.0.1:8428:8428"
+    volumes:
+      # Host bind-mount (stateful=bind-mount convention) — VM data, Kopia-backed (HD-342).
+      # Reverses the old Prometheus named-volume 'regenerable, NOT backed up' exception:
+      # the owner decided VM retention (365d) is worth backing up, so the data dir is a
+      # host bind under /srv/docker for the VPS kopia client to snapshot (backup.md).
+      - /srv/docker/victoria-metrics/data:/victoria-metrics-data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8428/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+networks:
+  db-internal:
+    external: true

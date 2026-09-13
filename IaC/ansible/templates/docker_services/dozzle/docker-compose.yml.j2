@@ -22,12 +22,18 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       DOZZLE_LEVEL: info
     labels:
+{% if not (svc.public is defined and not svc.public) %}
       traefik.enable: "true"
       traefik.http.routers.dozzle.rule: "Host(`logs.kogler.si`)"
       traefik.http.routers.dozzle.entrypoints: websecure
       {{ 'traefik.http.routers.dozzle.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.dozzle.middlewares: authentik-forward-auth@file
       traefik.http.services.dozzle.loadbalancer.server.port: "8080"
+{% else %}
+      # INTERNAL-ONLY (public: false — HD-331/332): no public-edge route; served
+      # only by the traefik-tailnet internal edge (logs.kogler.si / logs.ts).
+      traefik.enable: "false"
+{% endif %}
 networks:
   traefik-public:
     external: true

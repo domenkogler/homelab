@@ -1,10 +1,17 @@
 #!/bin/bash
 # ha-sync-rsync — SSH wrapper (home_assistant role, standby side / oldsrv).
 # Restricts the Pi's ha-sync key to rsync only: the client's "rsync --server"
-# command is executed verbatim; anything else is rejected. Used via the
-# command= option in ansible-admin's authorized_keys (see standby.yml).
+# command is executed (via sudo) verbatim; anything else is rejected. Used via the
+# command= option in authorized_keys (see standby.yml).
+#
+# SUDO (2026-09-09, failover prep): the standby /config is root-owned so the
+# root-running HA standby container can write .ha_run.lock/.storage (same as the
+# Pi primary). The Pi sync user is ansible-admin — passwordless sudo lets the
+# wrapper re-run the exact rsync --server command as root so it can write the
+# root-owned config. PermitRootLogin is "no" repo-wide (security.md/
+# 00-homelab-hardening.conf), so a root@ SSH target is NOT an option.
 if printf '%s' "$SSH_ORIGINAL_COMMAND" | grep -q '^rsync --server'; then
-    exec /bin/bash -c "$SSH_ORIGINAL_COMMAND"
+    exec sudo /bin/bash -c "$SSH_ORIGINAL_COMMAND"
 fi
 echo "ha-sync key: only rsync is allowed" >&2
 exit 1

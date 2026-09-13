@@ -117,6 +117,7 @@ ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 │   ├── host/                 # preseed.cfg (nas) + shared post_install.sh
 │   └── router/               # RouterOS .rsc scripts (rb4011, ap)
 ├── brainstorming/            # Source material (LLM chats, legacy notes)
+├── client/office-bridge/     # Native Windows/COM Office MCP bridge (HD-106) — per-client install over Headscale (not Ansible); first-class tracked component
 ├── CONVENTIONS.md            # Cross-cutting rules index + service-onboarding checklist
 └── README.md                 # You are here
 ```

@@ -38,14 +38,20 @@
 /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
 /user ssh-keys import public-key-file=flash/ansible.pub user=ansible
 
-# ---- Bridge (all ports) ----
+# ---- Bridge (uplink + radios only; unused wired ports DISABLED — HD-89/KOPS-046) ----
+# HD-89 (2026-09-08): wired devices on an AP's unused ethernet ports previously got
+# full Management-VLAN access (KOPS-046 — a visitor plugging a laptop into an AP port
+# reached the router admin/UPS/iLO). Per the audit's own recommendation + the owner
+# decision (2026-09-08): DISABLE the unused wired ports (ether2..ether5) — the AP is
+# L2 CAP-only (uplink ether1 + radios), so no wired client port is needed. Keep ONLY
+# the uplink ether1 + wifi1/wifi2 in the bridge; the wired ports stay disabled (default
+# disabled=yes in RouterOS — no bridge membership, no service).
 
 /interface bridge add name=bridge protocol-mode=none
 /interface bridge port add bridge=bridge interface=ether1
-/interface bridge port add bridge=bridge interface=ether2
-/interface bridge port add bridge=bridge interface=ether3
-/interface bridge port add bridge=bridge interface=ether4
-/interface bridge port add bridge=bridge interface=ether5
+{% for n in range(2, 6) %}
+/interface ethernet set [find default-name=ether{{ n }}] disabled=yes comment="HD-89: unused AP wired port ether{{ n }} disabled (KOPS-046)"
+{% endfor %}
 /interface bridge port add bridge=bridge interface=wifi1
 /interface bridge port add bridge=bridge interface=wifi2
 
@@ -108,6 +114,21 @@
 /ip service set www-ssl disabled=no port=443 available-from="{{ mgmt.subnet }}" certificate=none
 /ip service set ssh disabled=no port=22 available-from="{{ mgmt.subnet }}"
 /ip service set winbox disabled=no port=8291 available-from="{{ mgmt.subnet }}"
+
+# note: the radio CAP interfaces are L2 (no IP); only the bridge carries the mgmt IP.
+
+# ---- INPUT firewall (HD-304 Part 2 / HD-301 parity — steady-state lockdown on the AP) ----
+# Mirrors the router role's HD-78 INPUT chain + the switch's HD-301 parity block:
+# the AP's exposed services (api/www-ssl/ssh/winbox on 22/8728/8729/443/8291) are gated
+# to the Management VLAN + trusted-admin hosts only, and everything else is dropped.
+# The AP is L2-only (no WAN), but WITHOUT this block the services listen on every
+# interface (incl. any wired/unused port) — the bootstrap `available-from=` above is the
+# floor; this is the steady-state INPUT policy so a later converge/delta can't drift it open.
+/ip firewall filter
+add chain=input action=accept connection-state=established,related comment="AP: allow established/related input"
+add chain=input action=accept in-interface=bridge comment="AP: allow input on bridge (mgmt DHCP + CAPsMAN discovery)"
+add chain=input action=accept protocol=udp dst-port=68 comment="AP: allow DHCP client input"
+add chain=input action=drop comment="AP: drop all other input (HD-304 lockdown)"
 
 # ---- End ----
 # After import, verify on the router: /ip dhcp-server lease print

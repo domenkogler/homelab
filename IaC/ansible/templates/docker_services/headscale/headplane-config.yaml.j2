@@ -1,5 +1,7 @@
 {{ ansible_managed | comment }}
 # Headplane configuration — admin UI for Headscale, served under https://vpn.kogler.si/admin
+# Vault-escape note: this YAML is consumed directly (NOT via `docker compose`
+# interpolation) — vault secrets pass through unchanged, no `| replace('$','$$')` (HD-270).
 # (the /admin dashboard prefix is built into headplane itself; server.base_url carries NO
 # /admin suffix — upstream contract, tale/headplane v0.7.0 docs/features/sso.md).
 # Schema per upstream v0.7.0 config.example.yaml.

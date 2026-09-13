@@ -15,18 +15,19 @@
 #     • set the DSH permission tier to Workspace or Read-Only in the UI during first
 #       setup; avoid "Full Access" until the agent is fully trusted.
 #
-#   UI exposure = Pattern-A tailnet serve (docs/network-vpn.md §Pattern A): DSH's Web UI
-#   binds 127.0.0.1 ONLY (DeepSeek.app rejects `--host 0.0.0.0`), so the `dsh-tailscale`
-#   sidecar shares its network namespace (`network_mode: service:dsh`) and runs
-#   `tailscale serve` to proxy the tailnet socket to the loopback port.
-#   HD-250: there is NO socat bridge and the UI does NOT listen on `services-internal`
-#   from a SOC perspective (no public Traefik label routes here; the dsh app's
-#   `services-internal` membership exists only for its app-to-app legs to
-#   LiteLLM + Forgejo per HD-250/HD-268c). The UI is exposed to the tailnet
-#   two ways: (a) the sidecar's `tailscale serve` on :3080/443 (raw TCP), and
-#   (b) the new `tailnet-apps` overlay (HD-296) carrying the dsh app to
-#   `traefik-tailnet`, which serves clean URLs (`https://dsh.ts.kogler.si`)
-#   via the wildcard cert + ACL-gated `*.ts` router. ACL tag:dsh.
+#   UI exposure (HD-355, 2026-09-10): dsh MOVED to oldsrv (dev-AI tier); the
+#   tailscale sidecar is REMOVED (decided 2026-09-10 — tailnet = mobile-only via the
+#   VPS edge, never direct LAN reach; docs/services-ai.md §2). DSH's Web UI binds
+#   127.0.0.1 ONLY (DeepSeek.app rejects `--host 0.0.0.0`), so the clean-vs-host-publish
+#   choice is: bind the UI to 0.0.0.0 INSIDE the container (DeepSeek ships the flag;
+#   the 2026-08-27 research doc for the sidecar pre-dates a working containerized
+#   0.0.0.0-bind) and publish `{{ oldsrv_home_ip }}:3080:3080` on the HOST (the
+#   media-bridge pattern — precedent: immich-ml `{{ oldsrv_home_ip }}:3003`, verified
+#   2026-09-08). The VPS `traefik-tailnet` edge then reaches it over the WG S2S
+#   (wg_s2s_vps allowed_ips already carries oldsrv /32) and serves the clean URLs
+#   `dsh.kogler.si`/`dsh.ts.kogler.si` (still Authentik Forward-Auth on the edge, not
+#   public). HD-250 remains: no public Traefik label route on this compose; the app's
+#   `services-internal` membership is for LiteLLM + Forgejo app-to-app legs only.
 #
 #   Secrets (fail-closed, HD-65 — all via 1Password vault refs, never literals):
 #     dsh_api (api -> credential) — scoped LiteLLM virtual key for DSH's model backend
@@ -52,15 +53,12 @@ services:
     shm_size: 1gb
     container_name: dsh
     restart: unless-stopped
-    # DSH binds 127.0.0.1 ONLY for its Web UI (loopback). It needs workspace access.
-    # HD-296: also joins `tailnet-apps` so the tailnet Traefik edge can route the
-    # clean URL `https://dsh.ts.kogler.si` → `dsh:3080` via Docker DNS on the
-    # new overlay (the dsh-tailscale sidecar inherits this network via
-    # `network_mode: service:dsh` — see the sidecar block + HD-268c for the
-    # full model).
+    # DSH Web UI: bind 0.0.0.0 INSIDE the container + publish on the HOST's Home-VLAN
+    # IP (HD-355, media-bridge pattern; reachable from the VPS edge over WG S2S).
+    ports:
+      - "{{ oldsrv_home_ip }}:3080:3080"        # HD-355 — oldsrv Home-IP publish (never 0.0.0.0/127.0.0.1)
     networks:
       - services-internal       # LiteLLM (models) + Forgejo (PR proposals)
-      - tailnet-apps            # HD-296: dsh Web UI → tailnet Traefik edge
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # Model backend = LiteLLM (the spine). DSH connects as an OpenAI-compatible
@@ -69,6 +67,10 @@ services:
       OPENAI_BASE_URL: "http://litellm:4000/v1"
       OPENAI_API_KEY: >-
         {{ vault['dsh_api'].credential | replace('$','$$') }}
+      # Bind the Web UI inside the container (HD-355); the HOST publish is
+      # {{ oldsrv_home_ip }}:3080 only — never 0.0.0.0 on the host.
+      DSH_WEB_HOST: "0.0.0.0"
+      DSH_WEB_PORT: "3080"
       # Forgejo PR-only git identity (HD-268c). No literals.
       FORGEJO_PR_TOKEN: >-
         {{ vault['dsh_forgejo_api'].credential | replace('$','$$') }}
@@ -81,67 +83,8 @@ services:
       # chrome-profile (browser-desktop) + node_modules live here too.
       - dsh-home:/home/node/.dsh
 
-  # Pattern-A tailnet serve sidecar (docs/network-vpn.md §Pattern A): shares the dsh
-  # network namespace; `tailscale serve` forwards the tailnet socket to the loopback
-  # Web UI so it is reachable tailnet-only tagged tag:dsh. HD-250: no socat bridge,
-  # and the UI is NOT on services-internal. Gated by `dsh_tailnet_sidecar_enabled`
-  # (HD-268, deploy-gated) — default false keeps the live compose byte-identical until
-  # the owner mints the `tailscale_dsh_api` preauth-key item in 1Password. Mirrors the
-  # working traefik-tailnet sidecar (HD-135b): userspace networking, reusable authkey
-  # via TS_AUTH_ONCE, --login-server pointed at our headscale (NOT public control plane —
-  # live lesson 2026-08-28: a missing --login-server makes the client default to
-  # controlplane.tailscale.com and reject our headscale key). The DSH UI is :3080.
-  # NOTE: the `if ... endif` Jinja block is intentionally at indent 0 — Ansible's
-  # template module uses `trim_blocks=True` which preserves the LEADING WHITESPACE
-  # of a tag line; placing the tag at indent 0 means its leaked whitespace is empty,
-  # and the sidecar block below renders at the correct indent 2 inside `services:`
-  # (without this, the leading-2-sp leak + the sidecar's own 2-sp indent would
-  # combine to indent 4, pushing the sidecar OUT of the `services:` block).
-{% if dsh_tailnet_sidecar_enabled is defined and dsh_tailnet_sidecar_enabled %}
-  dsh-tailscale:
-    image: tailscale/tailscale:{{ tailscale_version }}
-    container_name: dsh-tailscale
-    restart: unless-stopped
-    network_mode: service:dsh
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_ADMIN
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/run/tailscale
-    volumes:
-      - /srv/docker/dsh/tailscale:/var/lib/tailscale
-      - ./serve.json:/config/serve.json:ro
-    environment:
-      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      # Fail-closed (HD-65): no `default('')` — missing item aborts render loudly so
-      # check-vault-items.sh --strict never lies. Owner seeds tailscale_dsh_api in 1Password
-      # with a headscale preauth key (tag:dsh, reusable). NOT auto-rotatable: preauth keys
-      # are minted by the running headscale, not generated by provision-secrets.py.
-      TS_AUTHKEY: "{{ vault['tailscale_dsh_api'].credential | replace('$','$$') }}"
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_USERSPACE: "true"
-      TS_HOSTNAME: vps-dsh      # node name on the tailnet (containerboot TS_HOSTNAME)
-      TS_ACCEPT_DNS: "true"
-      TS_EXTRA_ARGS: "--login-server=https://vpn.kogler.si"
-      TS_SERVE_CONFIG: /config/serve.json
-      TS_AUTH_ONCE: "true"
-{% endif %}
 networks:
   services-internal:
-    external: true
-  # HD-296: tailnet-apps overlay (172.24.0.0/16) — carries the dsh Web UI to
-  # the tailnet Traefik edge (traefik-tailnet) so the file-provider router
-  # `dsh-kogler` in dynamic/routes.yml.j2 can resolve `dsh:3080` via Docker
-  # DNS. The dsh-tailscale sidecar inherits this network via
-  # `network_mode: service:dsh` (shares the dsh netns). The headscale ACL
-  # (`tag:dsh` → family user `domen@kogler.si:*`) is the effective gate
-  # — only tailnet clients on the dsh sidecar can reach this anyway, and
-  # only the dsh sidecar exposes it on the tailnet. See HD-268c for the
-  # sidecar + ACL story.
-  tailnet-apps:
     external: true
 
 volumes:

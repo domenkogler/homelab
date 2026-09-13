@@ -43,6 +43,9 @@
 > manual/deploy-provisioned tokens or keys, break-glass vaults, and connection refs. Auto-generatable items are
 > seeded by [`scripts/provision-secrets.py`](../scripts/provision-secrets.py) and are **not repeated here**.
 > `✓` = item already present. Ansible-consumed vs account/ref-only are split into two tables below.
+> **HD-205 reconciliation:** `network-snmp_api`'s *value* is catalog-`--create`d (auto-generated), so it is not a
+> human-gated *value* — but its device-side `/snmp community` apply is a manual HD-03 step, so it sits in the
+> provisioner's `NOT_AUTO_ROTATABLE` guard. It is kept in table A only as a "needed before the phase" reminder.
 
 #### A) Ansible-consumed secrets (rendered into IaC — need a value in `Homelab-ansible` before the phase runs)
 
@@ -57,7 +60,7 @@
 | `Hertzner-SB-Data` | — (connection ref; CIFS/SMB/WebDAV live box, `cifs` role) | Phase 1 (VPS) | ✓ |
 | **Phase 1.5** | | | |
 | `mikrotik-admin_login` | login → `password` | Phase 1.5 | ✓ |
-| `network-snmp_api` | api → `credential` (SNMP RO community) | Phase 1.5 | ✓ |
+| `network-snmp_api` | api → `credential` (SNMP RO community; value catalog-auto-generated, device `/snmp community` applied manually HD-03, not auto-rotatable — HD-205) | Phase 1.5 | ✓ |
 | `pppoe_login` | login → `password` (`username`=PPPoE user) | Phase 1.5 (router) | ✓ |
 | `wg_password` | password → `password` (**WireGuard S2S private key** — a `wg genkey` value, never a random password; the auto-tool does not write it) | Phase 1.5 | ✓ |
 | **Phase 2** | | | |
@@ -231,7 +234,6 @@
 - **HD-09** — UPS web-UI firewall rule (80/443 Home→Mgmt for `10.10.99.9` only) not deployed. · [hardware-ups.md](docs/hardware-ups.md)
 - **HD-89** — disable/move unused AP ethernet ports off Mgmt VLAN (wired devices currently get full Management access). · [network-vlans.md](docs/network-vlans.md)
 - **HD-161** — router/switch `api_facts` assert-before-mutate step + router API TLS decision (`routeros_api_tls`, TODO after Let's Encrypt). · [deployment-ansible.md](docs/deployment-ansible.md)
-- **HD-26** — confirmantional UPS SNMP UDP (161/udp) probe must run from a Mgmt-VLAN (99) host; even if present, no consumer uses it (NUT/USB is the monitor). · [hardware-ups.md](docs/hardware-ups.md)
 
 ---
 
@@ -269,7 +271,7 @@
 
 > **Depends on:** Phase 1.5 (VLAN 99 native + tags), Phase 2 (NAS NUT master for the `nut` client),
 > Phase 1 (VPS edge + Authentik live).
-> **Status (2026-09-03, session #66):** ✅ oldsrv **static IP + tagged Mgmt leg applied** (pre-Ansible first-contact prep; see the execution note in step 1 below). ✅ **mgmt-plane outage RESOLVED** — the vlan-99 bridge entry had `ether2`/`ether10` in UNTAGGED instead of TAGGED (a prior full `router.yml` converge flipped them); fixed via re-render + `/import rb4011_pi_delta.rsc` ([network-ops.md](docs/network-ops.md) incident 2026-09-03). ✅ **First Ansible contact (`home_servers.yml` on oldsrv, Home leg) IN PROGRESS — provision reached the `office` role:** docker ✅ · network ✅ · **storage ✅ (`nvme` ZFS pool created** on the 970 EVO, old NTFS wiped per owner OK — data backed up on nas; datasets + NFS mounts to nas live) · nut ✅ (client) · cockpit ✅ (+ `/opt/traefik/dynamic/cockpit.yml`) · desktop ✅ · office ⚠ (ONLYOFFICE repo key mismatch — stale `squeeze` suite + wrong GPG key). ⚠ **Remaining:** ① `office` role repo/key fix; ② `amd_rocm` — ROCm noble-on-trixie dep conflict (needs pinning decision); ③ 3 oldsrv 1P items missing (`pihole_password`, `sonarr_api`, `radarr_api` — owner-created; `privado-vpn_api`/`signal_api`/`ha_api` now present) — `docker_services` gated on these; ④ `docker_services` + `home_assistant` + `monitoring` roles not yet reached. ⚠ **`switch_port_map` gap:** no `oldsrv` entry — but oldsrv is wired to **router ether2** (verified live: MAC on ether2, NOT the switch), so the gap is moot for oldsrv.
+> **Status (2026-09-08, session #72):** ✅ **oldsrv Phase-3 FULL provision COMPLETE + LIVE** — full `home_servers.yml` converge **failed=0 (2026-09-08, 269 ok)** across every role: static IPs + tagged-99 Mgmt leg (NM) · docker · network · storage (ZFS `nvme` + NFS mounts to nas live) · nut (client) · cockpit · **amd_rocm (Debian-trixie-native ROCm host userland + GPU plumbing — resolved the noble-on-trixie conflict by dropping the external AMD repo; immich-ml container-bundled ROCm ready for the whole-collection import, a separate later task)** · desktop · **office (ONLYOFFICE via official repo — the stale-key fix landed on main, converge clean)** · docker_services (**17 enabled services all Up + healthy**: full media/*arr/downloads/DNS/smart-home/backup-agent set) · home_assistant (**standby cold-render COMPLETE**: `/opt/home-assistant-standby` compose + BACKUP keepalived + failover variant + secrets; ha-failover-api active) · monitoring (**Alloy + rsyslog + SNMP + HD-343 network-clients exporter LIVE**). **All 1P items present.** ⚠ **Knowns:** kopia-agent `Restarting` = **VPS-gated (HD-318a)** — `kopia-server_fingerprint` 1P cannot be seeded until the VPS kopia-server leg converges (post-Victoria); signal-cli = **manual phone registration**; oldsrv monitoring must NOT be re-converged until the VPS Victoria leg seeds `victoria-metrics_api` + converges (merged main's alloy references it).
 > oldsrv is the **internal/GPU/LAN compute host**: the GPU + storage-bound backends (ollama, immich-ml,
 > jellyfin/iGPU, sunshine), HA **standby**, DNS, media/*arr, observability, and an **internal** Traefik edge
 > (the `ha` VIP + internal routes). The **public edge + stateless/live-data public apps live on the VPS**
@@ -309,7 +311,7 @@
 4. **HA standby** — `home-assistant-standby` compose + keepalived (`ha-vrrp_password`); disabled by default.
 
 **New 1Password prerequisites (Phase 3):**
-- ~~`cloudflare_api` (api→`credential`) — wildcard cert~~ — **moved to Phase 1 (VPS)**: the wildcard is issued by the VPS Traefik (HD-178); oldsrv consumes synced certs via its own pull timer (HD-181, decided HD-204).
+- ~~`cloudflare_api` (api→`credential`) — wildcard cert~~ — **moved to Phase 1 (VPS)**: the wildcard is issued by the VPS Traefik (HD-178); **cert consumers = the VPS `traefik-tailnet` internal edge (bind-mount) + the Pi `traefik-ha` edge (ha-cert-sync pull timer)** (HD-181; oldsrv runs NO Traefik — superseded by HD-331, 2026-09-04).
 - `kopia_password` (password) — Kopia off-site = **backup Box over SSH/SFTP (port 23)** (`kopia_sftp_*` in `group_vars/all/main.yml`; SSH key in `Hertzner-SB-Backup`; **no password secret item**). ~~`kopia-s3_api`~~ retired (iDrive e2 dropped).
 - `authentik_db` (db→`password`), `authentik_password` (password→`password`), `authentik_login` (login→`password`)
 - `opencloud_db`, `immich_db`, `forgejo_db` (db→`password` each)
@@ -323,17 +325,17 @@
 **Verify:**
 - `docker compose ps` for every service is healthy; `systemctl status docker-compose@<service>`.
 - Homepage (`home.kogler.si`) reachable after Authentik SSO (moves to the VPS per HD-180; until HD-183 lands it still renders on oldsrv). Grafana/Forgejo are VPS-edge services — verify via their public URLs in Phase 1, not here.
-- Wildcard `*.kogler.si` cert: issued on the **VPS** (Phase 1, HD-178) — oldsrv serves internal routes from the synced pair (pulled from the VPS by its own timer, HD-181); no ACME logs expected on oldsrv.
+- Wildcard `*.kogler.si` cert: issued on the **VPS** (Phase 1, HD-178) — consumers = VPS `traefik-tailnet` internal edge (bind-mount `/opt/traefik/certs`) + Pi `traefik-ha` (ha-cert-sync); oldsrv serves **no** Traefik/ACME (HD-331 supersedes the old internal-edge plan).
 
 **Deploy-gated verification (Phase 3):**
-- **HD-105** — **AI-stack pre-deploy gate:** create the 7 1Password items (`openrouter_api`, `cohere_api`, `litellm_master_key`, `openwebui_secret`, `openwebui_api`, `qdrant_db`, `openclaw_gateway_token`) + Authentik OIDC providers per [`deployment-ai-stack-secrets.md`](docs/deployment-ai-stack-secrets.md); blocks HD-100→104. · [deployment-secrets.md](docs/deployment-secrets.md)
+
 - **HD-100** — LiteLLM live: create `litellm_master_key`/`openrouter_api`/`cohere_api`; MUST pin `litellm_version` semver; OpenAI-compatible completion + embed respond. · [services-ai.md](docs/services-ai.md)
 - **HD-101** — Open Web UI live: `openwebui_secret` + `openwebui_api` (Authentik OIDC, redirect `https://ai.kogler.si/oauth2/callback`); OIDC login + LiteLLM completion + RAG. · [services-ai.md](docs/services-ai.md)
 - **HD-102** — RAG vector store live: `qdrant_db` resolves; Qdrant `/healthz` on `db-internal`; vector dimension lock @1536 at first ingest (HD-268, replaces PGVector). · [services-ai.md](docs/services-ai.md)
 - **HD-103** — Docling live: first start downloads HF models (multi-GB); v1 API converts a Slovenian scan. · [services-ai.md](docs/services-ai.md)
 - **HD-104** — OpenClaw live: `openclaw_gateway_token`; `openclaw onboard` → schema-valid `openclaw.json` (LiteLLM + WebDAV); Open WebUI ↔ OpenClaw ↔ OpenCloud round-trip. · [services-ai.md](docs/services-ai.md)
-- **HD-58** — Stirling PDF: re-render `services-inventory-generated.md`; OCR `slv` + Forward-Auth chain live-verify. · [services.md](docs/services.md)
-- **HD-113** — PairDrop: re-render `services-inventory-generated.md`; WebRTC/signaling through Traefik (may need `RTC_CONFIG` STUN/TURN). · [services.md](docs/services.md)
+- ~~**HD-58**~~ — Stirling PDF live on the VPS: container healthy, `pdf.kogler.si` → 302 Forward-Auth, OCR `eng+slv` — ✅ **verified 2026-09-08** (see [services-utilities.md](docs/services-utilities.md)).
+- ~~**HD-113**~~ — PairDrop live on the VPS: container healthy, `drop.kogler.si` → 200 crowdsec-only, signaling/WebRTC through Traefik — ✅ **verified 2026-09-08** (see [services-utilities.md](docs/services-utilities.md)).
 - **HD-46** — Matrix live: hosts provisioned; needs HD-47 records + Authentik OIDC provider/redirect URI; verify profile endpoints require auth (HD-122). · [services-matrix.md](docs/services-matrix.md)
 - **HD-47** — Matrix public records + `_matrix` well-known/SRV delegation; WAN 443 (8448 optional). · [services-traefik.md](docs/services-traefik.md)
 - **HD-122** — Matrix federation hardening live-verify that profile endpoints require auth at first deploy. · [services-matrix.md](docs/services-matrix.md)
@@ -405,9 +407,10 @@
 
 ## Phase 6 — Observability & Alerting Hardening
 
-> **Depends on:** Phase 3 (monitoring role, Prometheus/Loki/Grafana central), Phase 4 (HA exporter).
+> **Depends on:** Phase 3 (monitoring role — VictoriaMetrics/VictoriaLogs/Grafana central, HD-342), Phase 4 (HA exporter).
 > **1Password prerequisites:** existing — `ha_api` (HA bearer), `smtp_login`,
-> `signal_api` (Signal notify via n8n). **Runs in parallel with Phase 5+.**
+> `signal_api` (Signal notify via n8n). **Runs in parallel with Phase 5+.
+> **Victoria* migration (HD-341/342/344, 2026-09-08):** IaC authored + merged (VM/VL replace Prometheus/Loki, Alloy scrapes all — topology B, retention 365d/90d, MCP on oldsrv). **Deploy-gated:** seed `victoria-metrics_api`/`victoria-logs_api` (1P), converge VPS → verify datasources/dashboards/alerts, then oldsrv MCP (HD-344). See `todo.md` §2.12 + `docs/observability.md`.****
 
 - UPS metrics + alerts in Grafana (Critical battery/runtime, Warning on-battery, Info transitions) — **HD-08**
 - UPS web-UI firewall rule (80/443 Home→Mgmt for the `ups` host only, + touches Phase 1.5 firewall) — **HD-09**
@@ -462,7 +465,6 @@
 > **1Password prerequisites:** `mikrotik-admin_login` (export the live config).
 
 - Write family guides `docs/manual/*` (10 Slovenian files, `status: wip`) — **HD-32**
-- Export live router config `rb4011_live.rsc` (RouterOS export) — **HD-33**
 
 ---
 

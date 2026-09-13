@@ -30,9 +30,16 @@ services:
       - /tmp
     container_name: n8n
     restart: unless-stopped
+    ports:
+      # HD-342 (Victoria migration): loopback publish of the metrics endpoint (:5678,
+      # N8N_METRICS) so the VPS host-APT Alloy can scrape n8n /metrics. Loopback-only
+      # (authentik HD-143 precedent); n8n itself stays tailnet-only via traefik-tailnet.
+      - "127.0.0.1:5678:5678"
     networks:
       - traefik-public
       - services-internal
+      - db-internal    # 2026-09-08: Prometheus scrapes n8n:5678/metrics here (N8N_METRICS)
+                       # — same pattern as traefik joining db-internal for its metrics entryPoint.
     volumes:
       - /srv/docker/n8n/data:/home/node/.n8n
     environment:
@@ -48,6 +55,13 @@ services:
       N8N_METRICS: "true"
       DB_TYPE: sqlite
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # HD-347: homelab-alerts workflow env — Signal delivery via signal-cli-rest-api on
+      # oldsrv (Home-VLAN publish, WG-reachable from the VPS). Values are 1P-resolved at
+      # render; the workflow JSON references these env names, not literals.
+      SIGNAL_CLI_URL: "http://{{ oldsrv_home_ip }}:8080/v2/send"
+      SIGNAL_API_TOKEN: "{{ vault['signal-internal_api'].credential | replace('$','$$') }}"
+      SIGNAL_NUMBER: "{{ vault['signal_api'].username | replace('$','$$') }}"
+      SIGNAL_RECIPIENTS: '{{ signal_alert_recipients | default('\"Homelab Alerts\"', true) | replace('$','$$') }}'
     labels: {}   # INTERNAL-ONLY (HD-135b follow-up): no public Traefik route on the main
                   # edge — n8n is served over the tailnet by the traefik-tailnet edge
                   # (auto.kogler.si / auto.ts.kogler.si).
@@ -55,4 +69,6 @@ networks:
   traefik-public:
     external: true
   services-internal:
+    external: true
+  db-internal:
     external: true

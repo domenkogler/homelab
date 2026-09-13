@@ -40,9 +40,12 @@ keepalived_version: "2.3.4"
 
 # ==== Tuwunel (Matrix homeserver) — MUST-pin, fluid/obscure ====
 # jevolk/tuwunel image tag — obscure single-maintainer image facing public federation,
-# so `latest` is a supply-chain risk (KOPS-030 / HD-121). Set the exact registry-verified
-# tag here; Renovate docker datasource then keeps it current.
-tuwunel_version: latest
+# so `latest` is a supply-chain risk (KOPS-030 / HD-121). Pinned to the registry-verified
+# tag 2026-09-09: the real docker.io tag is **v1.9.0** (semver with `v` prefix) — bare
+# `1.9.0` returns 404 from Docker Hub. digest sha256:62339669… == the live `latest`
+# digest, v1.9.0 label. Renovate docker datasource keeps it current.
+# v1.9.0 label + created 2026-08-18). Renovate docker datasource keeps it current.
+tuwunel_version: "v1.9.0"
 
 # ==== Media stack (HD-192, registry-verified 2026-08-21 via Docker Hub API) ====
 bazarr_version: "1.6.0"                    # linuxserver/bazarr (plain semver tag)
@@ -54,7 +57,9 @@ sabnzbd_version: "5.1.1"                   # linuxserver/sabnzbd
 sonarr_version: "4.0.19.2979-ls321"        # linuxserver/sonarr (ls build tag)
 qbittorrent_version: "5.2.3"               # linuxserver/qbittorrent
 seerr_version: "v3.4.1"                    # seerr/seerr
+seerrng_version: "v3.20.0"                  # snapetech/seerrng — Seerr fork + music (HD-353); registry-verified 2026-09-10 via Docker Hub API (latest stable v3.20.0, active digest; NEVER latest/v3 moving tags). Renovate tracks.
 recyclarr_version: "7.4.0"                 # ghcr.io/recyclarr/recyclarr
+navidrome_version: "0.63.2"                 # deluan/navidrome (HD-354, VPS); registry-verified 2026-09-10 via Docker Hub API — latest stable semver, no `v` prefix (0.63.2, 2026-07-11; develop/pr tags are NOT pinned). Renovate tracks.
 profilarr_version: latest                  # ghcr.io/dictionarry-hub/profilarr — NO versioned
                                            # tags upstream (only develop/buildcache/sha256,
                                            # probe 2026-08-21) → documented fluid exception;
@@ -69,9 +74,7 @@ pihole_version: "2026.07.2"                # pihole/pihole (calver v6 line)
 dozzle_version: "v10.7.3"                  # amir20/dozzle
 homepage_version: "v1.4.5"                 # ghcr.io/gethomepage/homepage
 metabase_version: "v0.63.14.1"             # metabase/metabase
-signal_cli_rest_api_version: "0.202-dev"   # bbernhard/signal-cli-rest-api — upstream only publishes
-                                           # -dev-scheme tags now (probe 2026-08-21); specific dev tag
-                                           # beats bare latest; REGISTRY-VERIFY at first deploy.
+signal_cli_rest_api_version: "0.203-dev"   # bbernhard/signal-cli-rest-api — upstream only publishes
 renovate_version: "35.10.0"                # ghcr.io/renovatebot/renovate — GHCR tag list truncated
                                            # (1000-tag page); REGISTRY-VERIFY at first deploy.
 element_web_version: "v1.11.96"            # ghcr.io/element-hq/element-web (vectorim org is GONE —
@@ -172,7 +175,31 @@ onlyoffice_rabbitmq_version: "3.13.7-alpine" # last 3.x — ONLYOFFICE-supported
 # ==== Observability infra ====
 # Alloy is the DELIBERATE exception (host-APT, not Docker) — decision 2026-08-28 (Option A).
 alloy_version: "1.19.2-1"        # grafana/agent → alloy (APT, apt.grafana.com stable; amd64)
-prometheus_version: "v3.14.0"        # prom/prometheus (Docker Hub tag has a `v`)
-loki_version: "3.7.6"                # grafana/loki (Docker Hub tag strips `v`)
+# HD-341/342: Prometheus + Loki are REPLACED by the Victoria stack (VictoriaMetrics +
+# VictoriaLogs) on the VPS. prometheus_version / loki_version were RETIRED and removed
+# with the prometheus/ + loki/ compose templates (Leg 2 / HD-342).
+victoria_metrics_version: "v1.151.0"  # victoriametrics/victoria-metrics (single-node; Docker Hub tag has a `v`) — replaces prometheus (HD-342), registry-verified 2026-09-08
+victoria_logs_version: "v1.52.0"      # victoriametrics/victoria-logs (Docker Hub tag has a `v`) — replaces loki (HD-342), registry-verified 2026-09-08
 blackbox_exporter_version: "v0.28.0"  # prom/blackbox-exporter (Docker Hub tag has a `v`)
+# RouterOS-API PyPI library for the HD-343 network-clients exporter (oldsrv host
+# venv at /opt/network-clients-exporter/venv). Debian trixie has no
+# `python3-routeros-api` package; the exporter script imports `routeros_api` from
+# PyPI `routeros-api` (pinned 2026-09-08, verified on PyPI).
+routeros_api_version: "0.21.0"
 tailscale_version: "v1.82.0"        # tailscale/tailscale (Docker Hub tag EXISTS — v1.80.2 was a phantom pin, image 404'd at deploy 2026-08-28; v1.82.0 verified present)
+# VictoriaMetrics MCP servers (HD-344) — oldsrv AI-debugging front-ends to the VPS
+# Victoria backends. Images: ghcr.io/victoriametrics-community/*. Tags registry-verified
+# 2026-09-08 via the GHCR token API (v1.18.0 / v1.8.0 = latest release lines; the
+# `latest`/`1.x` unv-prefixed tags are mutable aliases — NEVER use them, §7). Renovate
+# docker datasource tracks each; re-verify at first oldsrv deploy (HD-344 deploy-gated).
+mcp_victoriametrics_version: "v1.18.0"
+mcp_victorialogs_version: "v1.8.0"
+# Homelable (Pouzor/homelable) — self-hosted network/rack topology visualizer + live
+# healthchecks (HD-45, re-scoped 2026-09-09). OLDSRV, deploy-gated (enabled:false).
+# Images: ghcr.io/pouzor/homelable-{backend,frontend,mcp}. Tags: `X.Y.Z` (no `v`) —
+# registry-verified 2026-09-09 via the GHCR token API: 3.4.1 exists on all three (latest
+# GitHub release = v3.4.1, published 2026-09-07). Renovate docker datasource tracks each;
+# re-verify at first oldsrv deploy (HD-45 deploy-gate). MCP service is OPTIONAL (enabled
+# via homelable_mcp_enabled — the MCP container is only for AI-tool read/write of the
+# topology; leave off until the topology is curated).
+homelable_version: "3.4.1"

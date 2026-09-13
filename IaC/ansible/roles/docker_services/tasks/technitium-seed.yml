@@ -22,6 +22,8 @@
 #   dns-pi.kogler.si -> {{ ha_vip }}    (same VIP; the Pi traefik-ha edge)
 #   stats/logs/csui/sec/traefik/auto -> {{ tailnet_sidecar_ip }} (100.64.0.1)
 #   sso.kogler.si -> {{ dns_primary_ip }} (VPS public IP; Authentik edge — same as public CNAME, split-horizon parity)
+#   vpn/home/dns.kogler.si -> {{ dns_primary_ip }} (HD-334: control-plane/home login + headscale coordination + DNS UI;
+#       split-horizon targets so LAN + tailnet resolve the plain names instead of NXDOMAIN on the VPS-primary chain)
 # The same records on EVERY instance (VPS primary + oldsrv secondary + Pi tertiary).
 # NOTE: `modem.kogler.si` (comtrend_modem.modem_mgmt_ip) is NOT here — the Comtrend UI is LAN/router-only
 # and must NEVER resolve from the VPS/internet; treat as a router-side / LAN-only record (HD-302).
@@ -39,11 +41,13 @@
       {{ {'primary': 'technitium', 'secondary': 'technitium-oldsrv', 'secondary-pi': 'technitium-pi'}
          [svc.instance | default('primary')] }}
   when: svc.template_dir | default('') == 'technitium'
+  tags: [docker_services, technitium_seed]
 
 - name: "Technitium: assert container reachable on local API ({{ svc.name }})"
   when:
     - svc.template_dir | default('') == 'technitium'
     - svc.name in (docker_services | map(attribute='name') | list)
+  tags: [docker_services, technitium_seed]
   block:
     - name: "Technitium: build container API base ({{ svc.name }})"
       ansible.builtin.set_fact:
@@ -81,8 +85,13 @@
         method: POST
         body_format: form-urlencoded
         body:
-          user: "{{ vault['technitium_login'].username | default('admin') }}"
-          pass: "{{ vault['technitium_login'].password }}"
+          # Onepassword lookup resolves on the CONTROL node (deploy-service.yml / HD-258
+          # precedent) — the HD-258 `vault` dict is set on localhost and is NOT visible
+          # to TARGET-side tasks (live 2026-09-07, Pi seed: bare `vault` and
+          # hostvars['localhost']['vault'] both undefined on the target; HD-324 VPS
+          # seed only succeeded earlier because the dict was in play scope then).
+          user: "{{ lookup('community.general.onepassword', 'technitium_login', field='username', vault=op_vault) }}"
+          pass: "{{ lookup('community.general.onepassword', 'technitium_login', field='password', vault=op_vault) }}"
       register: _tech_login
       no_log: true
       changed_when: false
@@ -143,6 +152,33 @@
       loop:
         - { name: "ha.kogler.si",      ip: "{{ ha_vip }}" }
         - { name: "dns-pi.kogler.si",  ip: "{{ ha_vip }}" }
+        # --- Home-hosted internal app set (HD-350) ---
+        # On the HOME instances (oldsrv secondary + Pi tertiary) these resolve to the
+        # oldsrv LAN IP (traefik-internal home edge, host-net) so LAN clients reach them
+        # WITHOUT a VPS round-trip (WAN-out survival). The VPS PRIMARY keeps the public
+        # target (dns_primary_ip) so WAN/tailnet clients still resolve them to the VPS
+        # edge — the per-instance split. `media`/`seerr`/etc. subdomains mirror
+        # docs/services.md + services-traefik.md §Edge model routing.
+        - { name: "media.kogler.si",    ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "seerr.kogler.si",    ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "seerrng.kogler.si",  ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "sonarr.kogler.si",   ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "radarr.kogler.si",   ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "lidarr.kogler.si",   ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "prowlarr.kogler.si", ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "bazarr.kogler.si",   ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "profilarr.kogler.si",ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "sab.kogler.si",      ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        - { name: "torrent.kogler.si",  ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        # HD-302 (2026-09-08): `modem.kogler.si` is a LAN-only private record for the
+        # Comtrend modem UI — seeded ONLY on the HOME instances (Pi tertiary `secondary-pi`
+        # + oldsrv secondary `secondary`), NEVER on the VPS primary (`primary`): the modem
+        # sits on a private RFC1918 subnet and must never resolve from VPS/internet.
+        # Constant literal (not comtrend_modem, which is router.yml-only) — same pattern
+        # as tailnet_sidecar_ip above (undefined on non-VPS hosts is fine because the
+        # modem row itself is skipped everywhere except pi/oldsrv). Value must always
+        # mirror group_vars/router.yml comtrend_modem.modem_mgmt_ip.
+        - { name: "modem.kogler.si",   ip: "192.168.1.1" } # HD-302: LAN-only (Pi+oldsrv); never VPS
         # HD-330 live 2026-09-07: `tailnet_sidecar_ip` lives in group_vars/vps.yml
         # (VPS-only) but the seed runs on EVERY instance (VPS/oldsrv/Pi). The
         # dashboard records target the VPS tailnet sidecar (100.64.0.1) — a cluster
@@ -154,11 +190,39 @@
         - { name: "sec.kogler.si",     ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
         - { name: "traefik.kogler.si", ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
         - { name: "auto.kogler.si",    ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
-        - { name: "sso.kogler.si",     ip: "{{ dns_primary_ip }}" }
+        # --- Single-namespace public set (HD-341): the split-horizon zone must carry
+        # the SAME record set that Cloudflare serves publicly, so LAN/tailnet clients
+        # resolve *.kogler.si consistently (the authoritative VPS primary answers
+        # NOERROR/0-answer = NODATA for names missing here -> ERR_NAME_NOT_RESOLVED
+        # on LAN clients, live 2026-09-07). These A records point at the VPS public IP
+        # (dns_primary_ip) — identical target to their public CNAMEs (= vps.kogler.si
+        # -> dns_primary_ip). Seeded on EVERY instance.
+        - { name: "vps.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-344: the apex HOST record every public CNAME flattens to (Cloudflare A + AAAA in cloudflare_dns/vars/main.yml). Missing since HD-317 bootstrap -> authoritative NXDOMAIN on the VPS primary -> `ssh vps` / `vps.kogler.si` failed on the home WSL+Windows resolvers (VPS-primary-first). A-only here (seed loop is IPv4; the public AAAA covers v6).
+        - { name: "kogler.si",        ip: "{{ dns_primary_ip }}" }  # root — family launchpad (home.kogler.si alias)
+        - { name: "home.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-334 kept; alias of root
+        - { name: "vpn.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-334: headscale coordination URL (control-plane)
+        - { name: "dns.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-334: Technitium web UI
+        - { name: "sso.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-329: Authentik edge (kept)
+        - { name: "file.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-341: OpenCloud
+        - { name: "foto.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-341: Immich
+        - { name: "git.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-341: Forgejo
+        - { name: "bin.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-341: Zipline
+        - { name: "ai.kogler.si",     ip: "{{ dns_primary_ip }}" }  # HD-341: Open WebUI (tailnet reach; resolves public)
+        - { name: "office.kogler.si", ip: "{{ dns_primary_ip }}" }  # HD-341: ONLYOFFICE
+        - { name: "pdf.kogler.si",    ip: "{{ dns_primary_ip }}" }  # HD-341: Stirling PDF
+        - { name: "chat.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-341: Element
+        - { name: "matrix.kogler.si", ip: "{{ dns_primary_ip }}" }  # HD-341: Matrix
+        - { name: "drop.kogler.si",   ip: "{{ dns_primary_ip }}" }  # HD-341: PairDrop
       register: _tech_record
       no_log: true
       changed_when: false
       # HD-324: register the loop result (was missing -> `item_resp` undefined -> every
       # record-add failed closed even when the API returned status:error (idempotent
       # "already exists"). Now tolerate error as idempotent, like the zone task.
+      # HD-302: `modem.kogler.si` must only be seeded on the HOME instances (Pi tertiary
+      # `secondary-pi` + oldsrv secondary `secondary`), NEVER on the VPS primary (`primary`)
+      # — the modem is LAN-only (RFC1918) and must never resolve from VPS/internet.
+      # This `when` is evaluated PER-LOOP-ITEM (Ansible runs the task-level `when` for each
+      # item when the task has a `loop`), so `item` is defined here.
+      when: item.name != "modem.kogler.si" or svc.instance | default('primary') in ['secondary', 'secondary-pi']
       failed_when: _tech_record.json is not defined or _tech_record.json.status not in ['ok', 'error']

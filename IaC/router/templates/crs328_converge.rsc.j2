@@ -13,10 +13,21 @@
 # ---- Users (auth — mirror bootstrap; .pub keys in flash/ per HD-304) ----
 # admin = password + SSH key. ansible = key-only (automation).
 # .pub files MUST live in flash/ (root files wiped on reboot on switch/APs).
+# IDEMPOTENT (HD-346): guard the add with :if find like the router converge — a bare
+# /user add on a re-converge fails with "user with the same name already exists" and
+# ABORTS the whole /import before the SNMP/firewall blocks apply (live 2026-09-08).
 /user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin"
-/user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
-/user ssh-keys import public-key-file=flash/admin.pub user=admin
-/user ssh-keys import public-key-file=flash/ansible.pub user=ansible
+:if ([/user find where name=ansible] = "") do={
+    /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
+} else={
+    /user set [find name=ansible] group=full disabled=no comment="Ansible automation (SSH-key auth, key-only)"
+}
+:if ([/file find where name=flash/admin.pub] != "") do={
+    /user ssh-keys import public-key-file=flash/admin.pub user=admin
+}
+:if ([/file find where name=flash/ansible.pub] != "") do={
+    /user ssh-keys import public-key-file=flash/ansible.pub user=ansible
+}
 
 # ---- Identity / clock ----
 /system identity set name=switch.kogler.si
@@ -88,6 +99,8 @@
 /ip firewall filter
 add chain=input action=accept connection-state=established,related comment="Allow established/related input (switch)"
 add chain=input action=accept in-interface=vlan99-mgmt comment="Allow mgmt VLAN input (switch)"
+add chain=input action=accept src-address={{ mgmt.subnet }} protocol=udp dst-port=161 comment="Allow SNMP from Mgmt VLAN (HD-53)"
+add chain=input action=drop protocol=udp dst-port=161 comment="Drop SNMP from non-mgmt (HD-53)"
 add chain=input action=drop comment="Drop all other input (switch lockdown)"
 
 # ---- Services (mgmt-scoped, dangerous disabled — HD-301) ----
@@ -101,6 +114,62 @@ add chain=input action=drop comment="Drop all other input (switch lockdown)"
 /ip service set ssh disabled=no port=22 available-from=10.10.99.0/24
 /ip service set winbox disabled=no port=8291 available-from=10.10.99.0/24
 
+# ---- SNMP (HD-53): RO, Mgmt-scoped — config so it survives steady-state converges ----
+# The RO community (network-snmp_api) is injected at render as snmp_ro_community; the
+# community `name=` IS the shared secret string (must match the Alloy snmp.yml auth
+# community) and is scoped to the Mgmt subnet only, read-only. Idempotent: set enabled,
+# then set the named community if present else add it. Firewall above allows udp/161
+# from Mgmt VLAN + drops the rest.
+/snmp set enabled=yes
+:if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+} else={
+    /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
+}
+
+# ---- Remote syslog to the VPS (HD-313): centralsyslog action (config, not re-assert) ----
+# SSOT matrix (observability.md): RouterOS logs (RB4011/switch/AP) -> VPS rsyslog ->
+# VictoriaLogs. The switch was never wired (only the router had this — live 2026-09-08
+# the switch's default `remote` action sat at 0.0.0.0). Create the dedicated action once;
+# fixboot below re-asserts its target after boot.
+:if ([/system logging action find where name=centralsyslog] = "") do={
+    /system logging action add name=centralsyslog target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514
+} else={
+    /system logging action set [find where name=centralsyslog] target=remote remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} remote-port=514
+}
+
+# ---- Logging rules: ship error/firewall/critical/warning to the VPS (mirror router) ----
+# The action alone forwards nothing — rules bind topics to it (router has exactly these
+# four topics -> centralsyslog; info stays local). Idempotent: remove-by-comment then add.
+/system logging remove [find where action=centralsyslog]
+/system logging add topics=error action=centralsyslog
+/system logging add topics=firewall action=centralsyslog
+/system logging add topics=critical action=centralsyslog
+/system logging add topics=warning action=centralsyslog
+
+# ---- Boot resilience (fixboot): re-assert syslog + SNMP after boot (HD-346) ----
+# ONE startup script for both concerns (consolidated from fixsyslog + fixsnmp).
+# Re-asserts the centralsyslog VPS target + /snmp enabled + RO community ~10s post-boot.
+:if ([/system script find where name=fixboot] = "") do={
+    /system script add name=fixboot source=":delay 10s; /system logging action set [find where name=centralsyslog] remote=0.0.0.0; :delay 1s; /system logging action set [find where name=centralsyslog] remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }}; /snmp set enabled=yes; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
+}
+:if ([/system scheduler find where name=fixboot] = "") do={
+    /system scheduler add name=fixboot on-event=fixboot start-time=startup interval=0 policy=read,write,test
+}
+# Cleanup: superseded two-script split.
+:if ([/system script find where name=fixsyslog] != "") do={
+    /system script remove [find where name=fixsyslog]
+}
+:if ([/system scheduler find where name=fixsyslog] != "") do={
+    /system scheduler remove [find where name=fixsyslog]
+}
+:if ([/system script find where name=fixsnmp] != "") do={
+    /system script remove [find where name=fixsnmp]
+}
+:if ([/system scheduler find where name=fixsnmp] != "") do={
+    /system scheduler remove [find where name=fixsnmp]
+}
+
 # ---- LAST: enable VLAN filtering (safety order — see bridge add at top) ----
 # With the trunk + access ports + mgmt IP + vlan99 all in place ABOVE, enabling
 # filtering now keeps the switch reachable. If this step errors, the switch stays
@@ -109,4 +178,5 @@ add chain=input action=drop comment="Drop all other input (switch lockdown)"
 
 # ---- End ----
 # Verify: /interface bridge print, /interface bridge port print, /ip address print,
-#         /ip firewall filter print, /ip service print
+#         /ip firewall filter print, /ip service print, /snmp print, /snmp community print,
+#         /system script print, /system scheduler print, /system logging action print

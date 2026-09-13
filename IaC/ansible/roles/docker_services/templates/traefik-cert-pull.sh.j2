@@ -9,7 +9,12 @@
 set -euo pipefail
 
 SRC="ansible-admin@{{ hostvars['vps.kogler.si'].ansible_host }}:/opt/traefik/certs/"
-DST="{{ docker_compose_dir }}/traefik/certs/"
+# HD-350: the home-LAN edge (traefik-internal, oldsrv) pulls into its OWN compose dir
+# (not the shared `traefik` template dir) — parametrize the destination per consumer.
+# Backwards-compatible default (the old shared-dir path) = `traefik`. The deploy loop
+# renders this script once per host; the destination must match the edge's compose dir.
+# The cert-pull timer runs the same script regardless of which consumer edge is live.
+DST="{{ docker_compose_dir }}/{{ traefik_consumer_dir | default('traefik') }}/certs/"
 SSH="ssh -i /root/.ssh/traefik-cert-sync -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
 
 mkdir -p "$DST"

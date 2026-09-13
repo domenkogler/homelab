@@ -209,7 +209,11 @@
         gateway: >-
           {{ (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | list | first).ip }}
         # Resolver chain per network-dns.md (HD-182 parity + HD-317 3-instance):
-        # Technitium PRIMARY (VPS) -> SECONDARY (oldsrv) -> TERTIARY (Pi).
+        # Technitium PRIMARY (VPS) -> SECONDARY (oldsrv) -> TERTIARY (Pi) by default.
+        # HD-334: the HOME VLAN (id 10) is Pi-FIRST (TERTIARY -> PRIMARY -> SECONDARY)
+        # so per-device DNS visibility + per-MAC filtering work by resolving via the Pi
+        # (each device's IP appears in the Pi's query log). VPS-primary-first stays for
+        # the OTHER VLANs (guest/mgmt/iot/media) — they are not per-device-filtered.
         # RouterOS /ip dhcp-server network caps dns-server at 3 values (a 4th is
         # silently dropped — the earlier 4-entry render dropped Pi), so the router
         # /ip dns is NOT in the DHCP list; it's the implicit final fallback via its
@@ -217,9 +221,9 @@
         # per-subnet filtering works (Technitium sees the source VLAN, not the
         # router). All three are SSOT-derived.
         dns-server: >-
-          {{ [dns_primary_ip,
-              dns_secondary_ip | default(''),
-              dns_tertiary_ip | default('')]
+          {{ ([dns_tertiary_ip, dns_primary_ip, dns_secondary_ip]
+              if item.id == 10
+              else [dns_primary_ip, dns_secondary_ip, dns_tertiary_ip])
              | select('string') | unique | join(',') }}
   loop: "{{ network_vlans }}"
   when: item.id not in [1, 99]
@@ -418,31 +422,12 @@
 #                          (cloud-IoT, HD-325 — was selectattr vlan==21 pre-HD-325).
 #                          Temporary (n8n firmware-window, HD-312d): to be driven by the
 #                          router API user (HD-313) — never hand-edit.
-# NOTE (live 2026-09-03): RouterOS /ip firewall address-list accepts IP/CIDR only —
+# NOTE (live 2026-09-07): RouterOS /ip firewall address-list accepts IP/CIDR only —
 # MACs are NOT valid there ('not a valid dns name'). The per-MAC mechanism is the
 # src-mac-address forward-accept below (Ensure per-MAC IoT cloud-device WAN egress
-# accepts), NOT an address-list. The old address-list task was removed (broken).
-# kids-*                 = kids-control MAC-address-list (kids devices join Home VLAN 10
-#                          per HD-312; list sherds reserved: kids-bedtime/kids-filter/kids-wan)
-#                          — NOT yet implemented (owner: define kids device set).
-- name: 'Reserve kids-* firewall MAC-address-lists (HD-326, from SSOT `kids: true` marker)'
-  community.routeros.api_modify:
-    hostname: "{{ routeros_api_host }}"
-    username: "{{ routeros_api_user }}"
-    password: "{{ routeros_api_password }}"
-    tls: "{{ routeros_tls }}"
-    validate_certs: false
-    port: "{{ routeros_api_port }}"
-    path: ip firewall address-list
-    handle_absent_entries: ignore
-    data:
-      - address: "{{ item.mac }}"
-        list: "kids-{{ item.role | lower | regex_replace('[^a-z0-9-]+', '-') }}"
-        comment: "HD-326 kids-control (MAC): {{ item.name }}"
-  loop: "{{ network_static_hosts | selectattr('kids', 'defined') | selectattr('kids', 'equalto', true) | list }}"
-  loop_control:
-    label: "{{ item.name }} MAC -> kids list"
-  tags: [network]
+# accepts), NOT an address-list. The old kids-* address-list task is REMOVED (HD-326
+# lived here and failed every --tags network converge, blocking the NAT/filter rules
+# after it). kids controls use the src-mac-address dst-nat/drop below, same as iot-wan-allow.
 
 - name: Create firewall address list for the scoped home targets the VPS may reach (HD-155)
   community.routeros.api_modify:
@@ -527,6 +512,28 @@
         to-addresses: "{{ dns_primary_ip }}"
         to-ports: 53
         comment: "Kids forced filtered DNS - TCP 53 -> Technitium (HD-182)"
+      # --- HD-342: IoT VLAN 20 DNS visibility (owner, 2026-09-07) ---
+      # Per-device DNS visibility for IoT/WAN devices: hijack plain :53 from
+      # VLAN 20 to the PI tertiary (dns_tertiary_ip = Pi Technitium, which the
+      # owner reads via dns-pi.kogler.si) so each IoT device's queries are logged
+      # per-source-IP in the Pi query log (instead of the VPS-primary / WAN egress
+      # collapsing them). DoT(853) bypass is dropped in the filter chain below.
+      - chain: dstnat
+        src-address: "{{ vlan_subnets[20] }}"
+        protocol: udp
+        dst-port: 53
+        action: dst-nat
+        to-addresses: "{{ dns_tertiary_ip }}"
+        to-ports: 53
+        comment: "IoT forced DNS - UDP 53 -> Pi (HD-342 DNS visibility)"
+      - chain: dstnat
+        src-address: "{{ vlan_subnets[20] }}"
+        protocol: tcp
+        dst-port: 53
+        action: dst-nat
+        to-addresses: "{{ dns_tertiary_ip }}"
+        to-ports: 53
+        comment: "IoT forced DNS - TCP 53 -> Pi (HD-342 DNS visibility)"
 
 # HD-326: per-MAC kids filtered DNS on Home VLAN 10 (kids join Kogler SSID,
 # VLAN 10, per HD-312 — the VLAN-40 hijack above does NOT cover them).
@@ -581,6 +588,16 @@
 # connections (inter-VLAN and WAN return) are permitted before the default-deny.
 
 - name: Ensure inter-VLAN forward firewall rules (idempotent, ordered)
+  # GATED OFF 2026-09-10 (HD-03 residual audit): the forward chain is OWNED BY
+  # rb4011_converge.rsc.j2 (apply-of-record, rsc import). A live role reconcile
+  # here would delete the per-MAC rows that live ONLY in the converge template
+  # (iot-wan-allow HD-312/325 + HD-326 kids tablet drops) — those rows exist in
+  # the GATED-OFF tasks below, not in this task's data, so handle_absent_entries:
+  # remove would drop them from the live chain. network-ops.md apply model: the
+  # API path is for idempotent/order-independent state only; day-to-day chain
+  # state lands in the converge template, import is the apply. Keep this task
+  # byte-synced OR gated like its siblings at @904/@940.
+  when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -778,6 +795,24 @@
         dst-address-list: internal_lan
         action: drop
         comment: "Guest -> LAN drop"
+      # --- HD-342: IoT VLAN 20 DoT (853) bypass drop (owner, 2026-09-07) ---
+      # Same pattern as the Kids DoT drop below: encrypted DoT (853) to anything
+      # but the Pi resolver (accepted above) is dropped so IoT/WAN devices cannot
+      # bypass the forced-DNS visibility path (their plain :53 is dst-nat'ed to the
+      # Pi by HD-342 above). Residual bypass: DoH/443 (accepted — can't filter
+      # arbitrary HTTPS without TLS interception, same accepted residual as Kids).
+      - chain: forward
+        src-address: "{{ vlan_subnets[20] }}"
+        protocol: tcp
+        dst-port: 853
+        action: drop
+        comment: "IoT -> DoT bypass drop - forced DNS to Pi (HD-342) tcp"
+      - chain: forward
+        src-address: "{{ vlan_subnets[20] }}"
+        protocol: udp
+        dst-port: 853
+        action: drop
+        comment: "IoT -> DoT bypass drop - forced DNS to Pi (HD-342) udp"
       # --- Kids VLAN 40 controls (HD-182; decision HD-179 — implement at Phase 1.5) ---
       # Forced filtered DNS: plain :53 from Kids is dst-nat'ed to the Technitium
       # primary (ip firewall nat below) which enforces the Kids-Group policy
@@ -861,18 +896,23 @@
         action: drop
         comment: "HD-302: default-deny all other homelab hosts -> Comtrend subnet"
 
+# -------------------------------------------------------------------------
 # HD-312 phase 3: cloud-IoT per-MAC WAN egress (iot-wan-allow, 2026-09-03).
 # The IOT-WAN SSID was deleted (3-SSID consolidation) — the LG/Bosch/HAP cloud
 # devices now ride VLAN 20 (Kogler IOT) where the IoT drop above cuts their WAN.
-# This accept (rendered per MAC in iot-wan-allow) restores internet for exactly
-# those devices: permanent membership = SSOT network_static_hosts rows with wan_allow: true
-# (cloud-IoT; pre-HD-325 this was selectattr vlan==21); temporary = n8n firmware-window via the
-# router API (HD-312d). Uses
-# handle_absent_entries: ignore (never removes the main forward chain's rules —
-# the HD-182 single-remove-api_modify constraint is preserved). First-match-wins:
-# this accept is matched before the VLAN-wide default-deny, so the IoT drop above
-# stays the fallback for every other device on VLAN 20.
+# This accept (rendered per MAC) restores internet for exactly those devices:
+# permanent membership = SSOT rows with wan_allow: true; temporary = n8n
+# firmware-window via the router API (HD-312d).
+#
+# ⚠️ APPLY-MODEL (2026-09-08): the FORWARD-chain accept rows are owned by the
+# CONVERGE template (rb4011_converge.rsc.j2) — the apply of record. A role
+# api_modify append-at-end is what created the live-shadowed placement below the
+# IoT->WAN drop (2026-09-08 diagnosis; now fixed live + in converge). The role
+# does NOT own forward-chain day-to-day state (network-ops §Apply model). This
+# task is GATED OFF — VERIFICATION + the converge import are the only paths.
+# When in doubt: drop the role task and rely on the import (network-ops).
 - name: Ensure per-MAC IoT cloud-device WAN egress accepts (HD-312 phase 3 / HD-325 wan_allow)
+  when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -899,10 +939,16 @@
 
 # HD-326 (2026-09-04): per-MAC kids controls on Home VLAN 10 — bedtime WAN
 # hard-block (22:00-07:00) + DoT (853) bypass drop. Kids join Kogler SSID /
-# VLAN 10 per HD-312. These MUST sit ABOVE the Home->WAN accept (the static
-# inter-VLAN block keeps that accept; this looped task inserts the drops before
-# it by ordering — the api_modify ensure_order places these first).
+# VLAN 10 per HD-312. These MUST sit ABOVE the Home->WAN accept — a drop
+# placed below is shadowed (first-match-wins, live-found 2026-09-08).
+#
+# ⚠️ APPLY-MODEL (2026-09-08): the FORWARD-chain drops are owned by the CONVERGE
+# template (rb4011_converge.rsc.j2, add chain=forward ... src-mac-address ...
+# ABOVE the Home->WAN accept) — the apply of record. A role api_modify
+# append-at-end was the live-broken mechanism (rules landed below the accept).
+# This task is GATED OFF — VERIFICATION + the converge import are the only paths.
 - name: Ensure per-MAC kids bedtime WAN drop + DoT-bypass (HD-326)
+  when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -1363,7 +1409,8 @@
 # -------------------------------------------------------------------------
 # Scoped logpipe API user (HD-313) — read-only, Mgmt-plane only.
 # Backwards compatible with the read-only API pattern of the MikroTik skill;
-# reused by the n8n firmware automation (HD-312d) when that lands.
+# the n8n firmware automation (HD-312(4)) uses a dedicated `n8n` scoped read-only
+# user (same pattern, separate credential) defined below.
 # -------------------------------------------------------------------------
 - name: Ensure scoped logpipe API user exists (HD-313)
   community.routeros.api_modify:
@@ -1381,6 +1428,30 @@
         password: "{{ lookup('community.general.onepassword', 'mikrotik-logpipe_api', field='password', vault=op_vault) }}"
         disabled: "no"
         comment: "HD-313: read-only log/API access (remote syslog + n8n)"
+  tags: [network, router-logging]
+
+# -------------------------------------------------------------------------
+# Scoped n8n API user (HD-312(4)) — read-only, Mgmt-plane only, logpipe precedent.
+# The n8n firmware-workflow automation polls router state via this read-only user;
+# temporary iot-wan-allow membership toggles stay OWNER-GATED in the n8n flow
+# authoring (never hand-edit). Backwards compatible with the read-only API pattern.
+# -------------------------------------------------------------------------
+- name: Ensure scoped n8n API user exists (HD-312(4))
+  community.routeros.api_modify:
+    hostname: "{{ routeros_api_host }}"
+    username: "{{ routeros_api_user }}"
+    password: "{{ routeros_api_password }}"
+    tls: "{{ routeros_tls }}"
+    validate_certs: false
+    port: "{{ routeros_api_port }}"
+    path: user
+    handle_absent_entries: ignore
+    data:
+      - name: n8n
+        group: read
+        password: "{{ lookup('community.general.onepassword', 'mikrotik-n8n_api', field='password', vault=op_vault) }}"
+        disabled: "no"
+        comment: "HD-312(4): read-only API for n8n firmware automation"
   tags: [network, router-logging]
 
 # -------------------------------------------------------------------------

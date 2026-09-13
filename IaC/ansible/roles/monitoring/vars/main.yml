@@ -1,10 +1,17 @@
 ---
+# Network-clients exporter (HD-343) — host binary on oldsrv, Mgmt-plane collector.
+# Listen is loopback-only (the local Alloy scrapes it; nothing publishes it).
+network_clients_listen: 9097
+network_clients_scrape_interval: 45
+
 # Alert rule definitions — consumed by grafana-rules.yml.j2 (monitoring step 3).
 # !unsafe (Wave-3 triage 2026-08-22): summaries carrying Go-template vars
 # ({{ $labels.* }} / {{ $values.* }}) must NOT be re-templated by Ansible at render.
 # Tiers + thresholds per docs/observability.md. Exprs are PromQL over metrics
 # that exist today (nut_* from DRuggeri/nut_exporter, node_* from Alloy,
-# probe_success from blackbox, up from the self-scrape jobs in prometheus.yml.j2).
+# probe_success from blackbox, up from the self-scrape jobs in alloy.river.j2).
+# HD-342: the self-monitoring rules key off up{job="victoria-metrics"}/up{job="victoria-logs"}
+# (VM/VL self-scrape by the VPS Alloy), replacing the old prometheus/loki job names.
 # noDataState/execErrState: Alerting only on self-monitoring rules (a dead data
 # source must still page).
 grafana_alert_rules:
@@ -14,21 +21,43 @@ grafana_alert_rules:
       for: 1m
       expr: "network_ups_tools_battery_charge < 20"
       summary: "UPS battery below 20% — impending shutdown"
+      # noData=OK: battery_charge has a live series (nut_exporter, nas) — when it is
+      # absent that is a collection gap, not a low battery; no-data must not page.
+      noDataState: OK
+      execErrState: Error
     - uid: ups-runtime-low
       title: UPS runtime low
       for: 1m
       expr: "network_ups_tools_battery_runtime < 300"
       summary: "UPS runtime below 5 min — impending shutdown"
+      # noData=OK: same as ups-battery-low — collection gap ≠ low runtime.
+      noDataState: OK
+      execErrState: Error
     - uid: public-service-down
       title: Public service unreachable
       for: 2m
       expr: 'probe_success{job="blackbox_http_probes"} == 0'
       summary: "Unreachable public service (probe_success = 0)"
+      # noData=OK: if blackbox_http_probes produces no series (config/job gap), that is
+      # NOT every public service being down — only fire when a series exists and is 0.
+      noDataState: OK
+      execErrState: Error
+      # HD-347: `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
+      eval_type: lt
+      eval_params: [1]
     - uid: host-unreachable
       title: Host unreachable
       for: 2m
       expr: 'probe_success{job="blackbox_icmp"} == 0'
       summary: "Host unreachable (ICMP probe failed)"
+      # noData=OK: when blackbox_icmp produces NO series at all (e.g. config
+      # issue), that is NOT a host-down — only fire when a series exists and is 0;
+      # no-data must not leave the rule stuck in an alerting state.
+      noDataState: OK
+      execErrState: Error
+      # HD-347: `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
+      eval_type: lt
+      eval_params: [1]
     - uid: host-disk-full
       title: Host disk nearly full
       for: 5m
@@ -36,30 +65,55 @@ grafana_alert_rules:
         (node_filesystem_avail_bytes{mountpoint=~"/|/srv|/var/lib/docker"}
         / node_filesystem_size_bytes{mountpoint=~"/|/srv|/var/lib/docker"}) < 0.10
       summary: "Host disk ≥ 90% used"
-    - uid: prometheus-down
-      title: Prometheus is down
+      # noData=OK: if the host-metrics (Alloy) series aren't present, that is
+      # NOT a disk-full condition — it means the data source is missing, which is
+      # the self-monitoring rules' job (victoria-metrics-down), not a disk alert; and
+      # no-data must not leave the rule stuck in a pending/alerting state.
+      noDataState: OK
+      execErrState: Error
+    - uid: victoria-metrics-down
+      title: VictoriaMetrics is down
       for: 2m
-      expr: 'up{job="prometheus"} == 0'
-      summary: "Prometheus self-scrape failed — alerting data source is dead"
-      noDataState: Alerting
+      expr: 'up{job="victoria-metrics"} == 0'
+      summary: "VictoriaMetrics self-scrape failed — alerting data source is dead"
+      # up{job=victoria-metrics} is a REAL series now (VM self-scrape /metrics on 8428,
+      # HD-342), so it goes 0 only when VM is genuinely down — noData=OK prevents a
+      # transient scrape gap from falsely firing an Alerting state. HD-347: `== 0` needs
+      # `lt 1` evaluator (see grafana-rules.yml.j2) — the old `gt 0` made this rule dead.
+      noDataState: OK
       execErrState: Alerting
+      eval_type: lt
+      eval_params: [1]
     - uid: zfs-pool-full
       title: ZFS pool nearly full
       for: 5m
       expr: "(zfs_pool_allocated / zfs_pool_size) * 100 >= 80"
       summary: !unsafe "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥80% used (Critical)"
+      # noData=OK: an absent pool series is not a pool-full condition (and must not
+      # leave the rule stuck in a pending/alerting state).
+      noDataState: OK
+      execErrState: Error
     - uid: zfs-pool-degraded
       title: ZFS pool degraded
       for: 5m
       expr: "zfs_pool_health == 1"
       summary: !unsafe "ZFS pool {{ $labels.pool }} is DEGRADED"
+      # health=0 means OK; ==1 is degraded. No series = no pool, not degraded.
+      noDataState: OK
+      execErrState: Error
     - uid: wg-s2s-down
       title: Home<->VPS WireGuard tunnel down
       for: 2m
       expr: 'probe_success{job="wg_icmp"} == 0'
       summary: "wg-s2s tunnel down — home reachable only if the WG link is up"
-      noDataState: Alerting
+      # probe_success{wg_icmp} is a REAL series now (blackbox relabel fixed); it
+      # goes 0 only when the tunnel probe genuinely fails — noData=OK stops a
+      # transient no-data gap from falsely firing/sticking in Alerting. HD-347: `== 0`
+      # needs `lt 1` evaluator.
+      noDataState: OK
       execErrState: Alerting
+      eval_type: lt
+      eval_params: [1]
   warning:
     - uid: ups-on-battery
       title: UPS on battery
@@ -68,21 +122,29 @@ grafana_alert_rules:
       # (The old modulo-bitmask expr was for a different exporter's nut_ups_status int.)
       expr: "network_ups_tools_ups_status{flag=\"OB\"} == 1"
       summary: "UPS is on battery — mains lost (auto-clears on return)"
+      # noData=OK: the status flag series exists (15 flag labels) — absent series = no
+      # status, not on-battery; only fire when OB=1 explicitly.
+      noDataState: OK
+      execErrState: Error
     - uid: ups-battery-replace
       title: UPS battery needs replacement
       for: 10m
       expr: "network_ups_tools_ups_status{flag=\"RB\"} == 1"
       summary: "UPS reports Replace-Battery flag"
-    - uid: mikrotik-link-down
-      title: MikroTik link down
-      for: 1m
-      expr: 'ifOperStatus{job="alloy-snmp"} == 2 and on(instance, ifIndex) ifAdminStatus{job="alloy-snmp"} == 1'
-      summary: !unsafe "MikroTik interface {{ $labels.ifName }} is down (oper down, admin up)"
+      # noData=OK: absent series = no status, not a replace-battery condition.
+      noDataState: OK
+      execErrState: Error
     - uid: ha-unreachable
       title: Home Assistant unreachable
       for: 1m
       expr: 'probe_success{job="blackbox_http_probes", instance="https://ha.kogler.si"} == 0'
       summary: "ha.kogler.si HTTP probe failed"
+      # noData=OK: absent probe_success series ≠ HA down; only fire when the probe runs
+      # and reports 0 (same class as host-unreachable). HD-347: `== 0` needs `lt 1` evaluator.
+      noDataState: OK
+      execErrState: Error
+      eval_type: lt
+      eval_params: [1]
     - uid: ssl-cert-expiring
       title: TLS certificate expiring soon
       for: 5m
@@ -90,27 +152,47 @@ grafana_alert_rules:
       summary: !unsafe "TLS cert on {{ $labels.instance }} expires in under 14 days"
       # KOPS-061: the Pi traefik-ha edge serves a pulled wildcard cert (ACME disabled) —
       # alert before expiry so it is renewed on the VPS (the single ACME issuer) while it is up.
+      # noData=OK: probe_ssl_earliest_cert_expiry has ZERO series live (blackbox isn't
+      # emitting SSL expiry for these probes) — no-data must not fire "cert expiring".
+      # (This rule only becomes meaningful once blackbox emits the SSL series.)
+      noDataState: OK
+      execErrState: Error
     - uid: host-load-high
       title: Host load high
       for: 5m
       expr: "(node_load1 / count(node_cpu_seconds_total)) > 0.85"
       summary: "Host load average above 85% of CPU count"
-    - uid: loki-down
-      title: Loki is down
+      # noData=OK: absent node_* series (Alloy not reporting) isn't a load spike.
+      noDataState: OK
+      execErrState: Error
+    - uid: victoria-logs-down
+      title: VictoriaLogs is down
       for: 2m
-      expr: 'up{job="loki"} == 0'
-      summary: "Loki self-scrape failed — log store is dead"
-      noDataState: Alerting
-      execErrState: Alerting
+      expr: 'up{job="victoria-logs"} == 0'
+      summary: "VictoriaLogs self-scrape failed — log store is dead"
+      # up{job=victoria-logs} is a REAL series now (VL self-scrape /metrics on 9428,
+      # HD-342) — only fire when the series explicitly goes 0. HD-347: `== 0` needs
+      # `lt 1` evaluator; per docs the log store must alert when dead.
+      noDataState: OK
+      execErrState: Error
+      eval_type: lt
+      eval_params: [1]
     - uid: n8n-down
       title: n8n is down
       for: 2m
       expr: 'up{job="n8n"} == 0'
       summary: "n8n self-scrape failed — alert router is dead (SMTP failsafe still active)"
-      noDataState: Alerting
-      execErrState: Alerting
+      # n8n is now on db-internal so up{job=n8n} is real (N8N_METRICS);
+      # noData=OK prevents a permanently-missing series from paging. HD-347: `== 0`
+      # needs `lt 1` evaluator.
+      noDataState: OK
+      execErrState: Error
+      eval_type: lt
+      eval_params: [1]
     - uid: zfs-pool-warn
       title: ZFS pool usage high
       for: 5m
       expr: "(zfs_pool_allocated / zfs_pool_size) * 100 >= 70"
       summary: !unsafe "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥70% used"
+      noDataState: OK
+      execErrState: Error

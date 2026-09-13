@@ -1,0 +1,45 @@
+{#- CRS328 switch SNMP delta — apply ONLY the SNMP RO enablement without the full
+    converge (the switch converge's bridge/port/vlan blocks are non-idempotent on
+    re-import — live 2026-09-08: the SNMP blocks after a duplicate user/bridge add
+    never landed). Idempotent: set enabled, add-or-set the community, add the
+    INPUT firewall parity (this switch converge lacked it), and the fixsnmp
+    re-assert scheduler (mirrors fixsyslog). Render: render-converge.yml; apply:
+    scripts/routeros-apply-delta.sh 10.10.99.2 crs328_snmp_delta.rsc. -#}
+# =============================================================================
+# CRS328 — Kogler Homelab — SNMP RO enablement delta (HD-53/HD-346)
+# Source template: Iac/router/templates/crs328_snmp_delta.rsc.j2
+# Idempotent — safe to re-import. RO community from 1P at render
+# (network-snmp_api -> snmp_ro_community), Mgmt-scoped, read-only.
+# =============================================================================
+
+# ---- SNMP service: enable + RO community scoped to the Management VLAN ----
+/snmp set enabled=yes
+
+:if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+} else={
+    /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
+}
+
+# ---- INPUT firewall parity (this switch converge had NO SNMP allow/drop) ----
+# Accept SNMP (udp/161) from the Management VLAN only; drop it everywhere else.
+# Idempotent: remove-by-comment then re-add (the router converge uses the same
+# pattern for its INPUT chain).
+/ip firewall filter remove [find where comment="Allow SNMP from Mgmt VLAN"]
+/ip firewall filter
+add chain=input action=accept src-address={{ mgmt.subnet }} protocol=udp dst-port=161 comment="Allow SNMP from Mgmt VLAN"
+add chain=input action=drop protocol=udp dst-port=161 comment="Drop SNMP from non-mgmt"
+
+# ---- SNMP resilience (fixsnmp): re-assert after boot (mirrors fixsyslog) ----
+:if ([/system script find where name=fixsnmp] = "") do={
+    /system script add name=fixsnmp source=":delay 5s; /snmp set enabled=yes; :delay 1s; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
+}
+:if ([/system scheduler find where name=fixsnmp] = "") do={
+    /system scheduler add name=fixsnmp on-event=fixsnmp start-time=startup interval=0 policy=read,write,test
+}
+
+# =============================================================================
+# Verify: /snmp print, /snmp community print, /ip firewall filter print,
+#         /system script print, /system scheduler print.
+# Then from oldsrv: snmpwalk -v2c -c <community> 10.10.99.2 1.3.6.1.2.1.2.2 (ifOperStatus)
+# =============================================================================

@@ -14,7 +14,10 @@ services:
     image: seerr/seerr:{{ seerr_version }}
     cap_drop:
       - ALL
-    read_only: true
+    # read_only intentionally ABSENT (HD-318): the seerr image runs as `node:node`
+    # (uid 1000) and needs to create /app/config/logs at startup; read_only root
+    # made the bind-mounted /srv/docker/seerr/config un-writable (EACCES mkdir).
+    # Dir ownership is enforced via bind_owner_uid: 1000 + bind_dirs on the entry.
     tmpfs:
       - /tmp
     container_name: seerr

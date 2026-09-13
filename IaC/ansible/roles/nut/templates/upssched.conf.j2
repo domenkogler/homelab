@@ -1,19 +1,37 @@
 # managed by Ansible — nut role (both)
-# Deferred shutdown helper. `shutdown_delay_seconds` lets a host wait before
-# power-off so critical alerts flush first. ONBATT/ONLINE transitions send a
-# direct notification (independent of Grafana/n8n).
+# Charge-threshold shutdown helper. On mains loss we poll the UPS charge
+# (checkcharge) and halt this host once it drops to its threshold. `nut_shutdown_charge_threshold`:
+#   oldsrv = 75 — biggest load, halts early to preserve battery for nas/pi
+#   nas/pi  = 0  — rely on the upsmon LOWBATT SHUTDOWNCMD (critical-only policy;
+#                  the repeat timer below does nothing at threshold 0).
+# ONBATT/ONLINE transitions send a direct notification (independent of Grafana/n8n).
 CMDSCRIPT /etc/nut/upssched-cmd
 PIPEFN /var/run/nut/upssched.pipe
 LOCKFN /var/run/nut/upssched.lock
 
-# Notify immediately on mains loss / battery low.
+# Notify immediately on mains loss.
 AT ONBATT  * EXECUTE onbatt
+AT ONLINE * EXECUTE online
+
+# Poll charge while on battery (every 30 s). At threshold 0 (nas/pi) the check
+# never halts — LOWBATT (upsmon SHUTDOWNCMD) remains their only powerdown path.
+AT ONBATT * START-TIMER charge-check 30
+AT ONLINE * CANCEL-TIMER charge-check
+AT charge-check * EXECUTE checkcharge
+AT charge-check * START-TIMER charge-check 30
+
+# LOWBATT direct notify (upsmon's own SHUTDOWNCMD handles the actual halt).
 AT LOWBATT * EXECUTE lowbatt
 
-# Deferred shutdown (shutdown_delay_seconds: nas/pi=0 immediate, oldsrv=60).
-# Timer fires only if mains has NOT returned in time; upsmon's SHUTDOWNCMD
-# (immediate) covers the LOWBATT path separately.
-AT ONBATT * START-TIMER onbatt-delay {{ shutdown_delay_seconds | default(0) }}
-AT ONLINE * CANCEL-TIMER onbatt-delay
-AT ONLINE * EXECUTE online
-AT onbatt-delay * EXECUTE powerdown
+{% if nut_mode == 'master' and nut_wake_enabled | default(false) %}
+# --- Wake clients after mains restore + recharge (master only) ---
+# When mains returns, poll the battery; once it recharges to >= nut_wake_charge
+# (default 90), the wake-check handler in upssched-cmd sends WoL magic packets to
+# every client that halted itself (e.g. oldsrv at 75%). This re-arms every 30 s so
+# the wake fires as soon as the battery crosses the threshold. CANCEL on ONBATT so
+# it never wakes during the next outage.
+AT ONLINE * START-TIMER wake-check 30
+AT ONBATT * CANCEL-TIMER wake-check
+AT wake-check * EXECUTE wake-check
+AT wake-check * START-TIMER wake-check 30
+{% endif %}

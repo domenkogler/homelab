@@ -63,6 +63,12 @@ tags: [network, vlan, firewall]
 > firewall MAC-lists (iot-wan-allow, kids-*) and the n8n firmware automation all reference a stable
 > identity. Devices without a reservation are treated as untrusted (Guest-style).
 >
+> ✅ **n8n firmware automation SUPERSEDED (HD-312(4), owner decision 2026-09-09):** the temp-toggle
+> n8n flow is **not needed** — the per-device `wan_allow: true` flag (HD-325, live 2026-09-08) gives
+> the cloud-IoT appliances **permanent WAN**; firmware updates happen over that standing egress. The
+> dedicated `n8n` RouterOS API user (`mikrotik-n8n_api`) stays provisioned for future admin uses, but
+> no flow authoring for temporary WAN toggles will be done. Decision log: [network-rejected.md](network-rejected.md) HD-312(4).
+>
 > ✅ **PHASE 1 (static-IP sweep) DONE 2026-09-03** (SSOT + render; router-role/`converge.rsc` pick
 > the rows up automatically — live-apply at the next router converge/cutover):
 > - **Shelly fleet** — the 4× Shelly RGBW2 (VLAN 20, n8n firmware targets) now carry MAC +
@@ -81,6 +87,7 @@ tags: [network, vlan, firewall]
 > ✅ **PHASE 3 (firewall MAC-address-lists) IA-C DONE 2026-09-03** (router role, deploy-gated —
 > [todo.md HD-312](../todo.md) row): the router role now renders **one `src-mac-address` forward-accept per cloud-IoT device** (the `wan_allow: true` rows: 2× LG, 3× Bosch, HAP — exactly the devices who lost WAN when the IOT-WAN SSID was deleted 2026-09-03; pre-HD-325 these were the `vlan: 21` rows) above the IoT→WAN drop, restoring their internet. (NOTE live 2026-09-03: RouterOS `/ip firewall address-list` is IP/CIDR-only, so the per-MAC rule must be `src-mac-address` in the forward filter, NOT an address-list — the earlier MAC-address-list task was removed; HD-325 moved the list source from `vlan: 21` rows to the `wan_allow` flag.) The `kids-*` MAC-address-lists are **reserved** (sherds from the same SSOT: `kids-{role}` per controlled family device) but gated `when: false` — no firewall rules reference
 > them yet (owner: define the kids device set). **HD-326 2026-09-04 — kids set DEFINED + iPad fixed-MAC decision:** the set = `tablet-valentina` + `tablet-ipad`, both static on Home/VLAN 10. The iPad currently uses an iOS **randomized "Private Wi-Fi Address"** (`F6:9B:E2:B9:26:F9` — locally-administered/randomized per-SSID). **Owner decision (2026-09-04): disable "Private Wi-Fi Address" on the iPad for the Kogler SSID** — this yields a fixed per-SSID MAC so the per-MAC controls + the static reservation are stable. ⏳ **Owner step (before implement):** disable the setting on the iPad; if the resulting fixed MAC differs from the SSOT `tablet-ipad` value, update the row (the reserved `F6:9B:E2:B9:26:F9` is the randomized value and would stop matching).
+> ✅ **HD-326 FULLY LIVE + VERIFIED 2026-09-08 (owner iPad step done + live-apply):** the owner disabled Private Wi-Fi Address on the iPad → it now associates to **Kogler** on `cap-wifi2` with the **fixed MAC `F6:9B:E2:B9:26:F9`** (live wifi-reg) and its DHCP lease binds the **static reservation for `tablet-ipad`** (bound, not dynamic; IP per the `tablet-ipad` SSOT row in [network-addresses-generated.md](network-addresses-generated.md)). Applied via delta `rb4011_hd326_fix_delta.rsc` (routeros-apply-delta.sh): the HD-326 per-MAC bedtime WAN drops + DoT-bypass drops were **BELOW** the Home→WAN accept (shadowed — first-match-wins) and the cloud-IoT `iot-wan-allow` accepts were **BELOW** the IoT→WAN drop (blocked). Delta removed the duplicates + re-added everything ABOVE the WAN accepts, and added the missing `tablet-valentina` filtered-DNS NAT rows. **Live-verified:** HD-326 kids rules now above Home→WAN accept (ind 13-16); `iot-wan-allow` accepts above IoT→WAN drop (ind 21-26); NAT has 4 dst-nat rows (both kids × udp+tcp → Technitium primary); **cloud-IoT WAN regained — Bosch/HAP/LG established connections to AWS/Azure** (sources = the `wan_allow` SSOT rows' reserved IPs). **SSOT parity:** the full set + order landed in `rb4011_converge.rsc.j2` (2026-09-08, was missing all `src-mac-address` rules — a converge import would have silently dropped them); the delta is transient/folded. HD-326 row deleted from todo.md per CONVENTIONS §4(a); remaining tails = HD-312 (4) n8n workflow + time-gated observation (bedtime window, Kids-Group binding `dig` check).
 
 
 - **Mode:** `local-forwarding=no` (data-path) — all traffic tunneled to the router for VLAN tagging
@@ -148,11 +155,28 @@ tags: [network, vlan, firewall]
 
 Implemented with **address-lists** and **interface lists** in RouterOS.
 
+> **HD-03 residual audit (2026-09-10, read-only via Pi Mgmt-hop API — ✔️ residual drift closed):**
+> live forward chain (44 rules) vs SSOT compared rule-by-rule. Kids/matrix controls all match SSOT
+> (see Kids note above). **Two IaC-side fixes landed** (no live mutation): ① the apply-of-record
+> `rb4011_converge.rsc.j2` @341 still emitted `trusted-admin` for the Home→IoT new-connection rule
+> (owner decision 2026-09-04 narrowed it to `trusted-ha`, excludes `nas`) → corrected to `trusted-ha`;
+> ② the role's `Ensure inter-VLAN forward firewall rules` full-reconcile task was gated off (`when: false`)
+> — a live role run would have deleted the per-MAC rows that only the converge template carries
+> (iot-wan-allow HD-312/325 + HD-326 tablet drops, live rules 14–23). Live `trusted-admin`/
+> `trusted-ha`/`internal_lan` address lists match the SSOT loops (`[oldsrv,nas,ha-vip,laptop-domen]` /
+> `[oldsrv,ha-vip]` / 6 subnets). **Remaining single step (operator):** render + import the converge
+> (apply-of-record) so live rule 3 becomes `trusted-ha`. Audit codes J8/S20 referenced by the HD-03 row
+> are legacy internal IDs — no repo definition found; residual items (matrix + Kids verify) are now covered.
+
 > **Kids VLAN status (HD-179, decided 2026-08-21; impl = HD-182):** the three Kids controls above
 > (bedtime block, forced filtered DNS, Kids→Home drop) are implemented in the router role. The
 > **bedtime 22:00–07:00 `time=` drop is confirmed working on RouterOS 7** (verified live 2026-09-01;
 > `invalid=true` when read outside the 22:00–07:00 window is RouterOS's normal out-of-window display,
-> not a defect). ⏳ Still deploy-gated: the forced-DNS hijack and the Kids→Home drop live-verify.
+> not a defect). ✅ **ALL THREE LIVE-VERIFIED 2026-09-10 (HD-03 residual audit, read-only via the Pi Mgmt-hop API):**
+> live forward rules 35–36 (Kids DoT-853 drop tcp/udp), 39 (Kids→Home drop), 40 (bedtime WAN block
+> 22:00–07:00) and 41 (out-of-window accept) are present and correctly ordered BELOW the LAN→resolver
+> accepts (rules 8–11) so Kids DNS keeps working; NAT rules 3–4 force Kids :53 → Technitium primary.
+> HD-182 closed. · detail: [network-ops.md](network-ops.md) §Forward-chain ownership
 
 > **Router INPUT chain (HD-78 / KOPS-003/009):** the rules above are the `forward` (inter-VLAN) policy.
 > Separately, the router's **own** management service ports (`22,8728,8729,8291,80,443`) are gated by a
@@ -181,7 +205,8 @@ Static DHCP reservations (SSOT: `group_vars/all.yml` → `network_static_hosts`,
   `pi-mgmt.nmconnection` = **tagged Mgmt on `eth0.99`** (`mgmt_ip`, never-default) — the Mgmt IP lives
   ONLY on the tagged sub-interface (HD-311(b)), never on the untagged parent (its connected route
   hijacked `mgmt_subnet` lookups away from the tagged leg — `router99` 'No route to host' live 2026-09-02,
-  fixed + verified). See [network-rejected.md](network-rejected.md) Pi-uses-NM.
+  fixed + verified; on 2026-09-08 the laptop direct-.99 path is the operative one (no Pi hop; aliases
+  `router`/`switch`/`oldsrv` direct + `pi99` as the dual-leg exception). See [network-rejected.md](network-rejected.md) Pi-uses-NM.
 - **Laptop** (`laptop-domen`, added 2026-09-01): static on `dhcp-mgmt` (was dynamic `.99.90`);
   SSOT row in [network-addresses-generated.md](network-addresses-generated.md);
 - **APs** `ap-*` → `dhcp-mgmt`; other reserved devices → their VLAN's `dhcp-<id>`.
@@ -191,7 +216,7 @@ dynamic address until the lease turns over.
 
 > **Port model (2026-09-01, final 2026-09-02): untagged = primary/access VLAN, tagged = secondary/admin (Mgmt 99).**
 > A single untagged port carries ONE VLAN (untagged frames map to `pvid`), so dual-homed hosts
-> (oldsrv, Pi, laptop) ride **Home (10) untagged + Mgmt (99) tagged** on the same port. The **laptop's Windows side is Home-untagged + Mgmt99 tagged** (Mgmt99 vNIC = static `laptop-domen` Mgmt IP, no default gw); **WSL Debian does NOT tag its own 99 leg** — WSL2's hyper-v vNIC can't carry tagged 99 (vNIC trunking impossible; mirrored = view-only, ARP FAIL), so **WSL reaches the Mgmt plane via the Windows host as gateway** (`laptop-domen` Home IP as next-hop, Windows IP forwarding ON; Debian `eth0` static `laptop-wsl` Home IP). **Durable WSL runner state (2026-09-07): NAT + auto-resolv** — `scripts/wsl-nat-resolv.ps1` keeps Debian working on any network (wired/WiFi/hotspot) via `.wslconfig` → `networkingMode=Nat` + auto-generated `/etc/resolv.conf`; the bridged `wsl-vlan-trunk.ps1`/static-`10-eth0.network` route-through is now an **opt-in `-EnableMgmt99` extra for home only**. This is the defense-in-depth decision: **Home never reaches core infra (Mgmt VLAN) by default**; the Pi's `eth0.99` tagged leg + Windows' Mgmt99 are the mgmt-plane clients (`laptop-domen` `.80`, `laptop-wsl` routes via it). Supersedes the old "Mgmt-access + single-VLAN" model
+> (oldsrv, Pi, laptop) ride **Home (10) untagged + Mgmt (99) tagged** on the same port. The **laptop's Windows side is Home-untagged + Mgmt99 tagged** (Mgmt99 vNIC = static `laptop-domen` Mgmt IP, no default gw); **WSL Debian does NOT tag its own 99 leg** — WSL2's hyper-v vNIC can't carry tagged 99 (vNIC trunking impossible; mirrored = view-only, ARP FAIL), so **WSL reaches the Mgmt plane via the Windows host as gateway** (`laptop-domen` Home IP as next-hop, Windows IP forwarding ON; Debian `eth0` static `laptop-wsl` Home IP). **Direct-Mgmt on 2026-09-08 (replaces the ProxyJump-`pi` hop):** the Windows Mgmt99 vNIC + forwarding make `.99.x` reachable **directly** from the laptop/WSL — SSH aliases `router`/`switch`/`oldsrv`/`pi99` point straight at the Mgmt IPs, **no `ProxyJump pi`** (the hop aliases `pi99`-via-`pi`, `router99`, `oldsrv99`, `nas99` were removed + deduped; `pi` stays Home, `pi99` stays Mgmt as the one dual-leg exception). **Durable WSL runner state (2026-09-07): NAT + auto-resolv** — `scripts/wsl-nat-resolv.ps1` keeps Debian working on any network (wired/WiFi/hotspot) via `.wslconfig` → `networkingMode=Nat` + auto-generated `/etc/resolv.conf`; the bridged `wsl-vlan-trunk.ps1`/static-`10-eth0.network` route-through is now an **opt-in `-EnableMgmt99` extra for home only**. This is the defense-in-depth decision: **Home never reaches core infra (Mgmt VLAN) by default**; the Pi's `eth0.99` tagged leg + Windows' Mgmt99 are the mgmt-plane clients (`laptop-domen` `.80`, `laptop-wsl` routes via it). Supersedes the old "Mgmt-access + single-VLAN" model
 > (dead Pi Home leg, HD-307/308) AND the temporary Home→Mgmt forward (reverted 2026-09-02). It does NOT change
 > any IP — devices keep their `10.10.x`/`10.10.99.x` static reservations; it changes the L2 VLAN membership/tagging only.
 >
@@ -222,3 +247,5 @@ dynamic address until the lease turns over.
 | SFP+ uplinks | Trunk | 10,20,30,40,50,99 tagged |
 
 > ✅ **Access-port untagged membership (HD-328, LIVE 2026-09-04)** — a CRS328 access port with `ingress-filtering` on the bridge only forwards frames for VLANs it is a **member** of; `pvid` alone is NOT enough. Every `switch_port_map` access port is therefore an **untagged member** of its role VLAN on the bridge (Media 50 → `untagged=ether14,ether20`; Home 10 → printer/nas; IoT 20 → KNX/camera/UPS-ether4; Mgmt 99 → APs ether11/12 only — UPS moved off Mgmt HD-338) — encoded in `crs328_converge.rsc.j2` + the switch role. Without this, the Shield/console on VLAN 50 had frames dropped at switch ingress → router never saw the MAC → empty ARP + no DHCP/WAN (live-found 2026-09-04, fixed + Shield online). The 2026-09-03 wifi fix added the APs as **tagged** members (wifi_ports); the access ports were the missing half.
+
+> ✅ **AP wired-port lockdown (HD-89 / KOPS-046 + HD-304 Part 2, DONE + LIVE 2026-09-08):** a wired device plugged into an AP's *unused* ethernet port previously landed on the full Management VLAN (the AP bridge was untagged-99 on the switch; all 5 AP ether ports were bridged). Owner decision 2026-09-08: **disable the unused wired ports outright** — `ether2..ether5` are now `disabled=yes` + removed from the AP bridge (uplink `ether1` + radios `wifi1/wifi2` only) in `ap_initial.rsc.j2` (bootstrap) + the renderable `ap_lockdown_delta.rsc.j2` (running APs). **LIVE-APPLIED + VERIFIED 2026-09-08:** `ap_lockdown_delta.rsc` applied to both running APs via `routeros-apply-delta.sh` — ether2-5 disabled + INPUT firewall present on both, radios/WiFi unaffected. The AP also gained the **missing INPUT firewall** (established/related → bridge → DHCP → drop) — `available-from=` alone was the only guard; now the AP's mgmt services are gated to Mgmt VLAN + trusted-admin like the router/switch (HD-304 Part 2 parity). · [ap_initial.rsc.j2](IaC/router/templates/ap_initial.rsc.j2) · [ap_lockdown_delta.rsc.j2](IaC/router/templates/ap_lockdown_delta.rsc.j2)

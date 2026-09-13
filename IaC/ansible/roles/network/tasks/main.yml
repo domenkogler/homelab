@@ -98,6 +98,24 @@
   notify: reload systemd-networkd
   tags: [network, netd]
 
+- name: Render systemd-networkd .network pinning the VPS tunnel route to the Home NIC (HD-346)
+  # nas only: its second NIC (eno2) holds a DHCP default (metric 100) that shadows the
+  # managed Home NIC (eno1, metric 1002) — Alloy's remote_write to the VPS Victoria
+  # endpoint egressed eno2 and was dropped by the router (live 2026-09-08). Pin the
+  # wg-s2s endpoint (/32, metric 50) to eno1 so it always wins. oldsrv has no such
+  # conflict (its Alloy ships); leave it untouched.
+  ansible.builtin.template:
+    src: netd-tunnel-route.network.j2
+    dest: "{{ netd_dir }}/30-{{ netd_phys_name }}-tunnel.network"
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - inventory_hostname == 'nas.kogler.si'
+    - netd_tunnel_route is defined
+  notify: reload systemd-networkd
+  tags: [network, netd]
+
 # ---- DHCP client-id = MAC (HD-314) ------------------------------------------
 # nas/oldsrv are the only DHCP-managed homelab hosts (Pi+VPS are static). Their DHCP
 # client (dhcpcd on nas, NetworkManager on oldsrv) presents an RFC4361 DUID client-id by

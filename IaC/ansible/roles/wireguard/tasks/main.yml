@@ -111,6 +111,14 @@
     owner: root
     group: root
     mode: '0640'   # HD-285: this file now CARRIES the private key (atomic setconf key+peer) — 0640 root:root, never 0644. The .netdev no longer holds the applied key alone; the oneshot re-applies this full conf.
+  # HD-313 (2026-09-08): EVERY change to `wg_s2s_vps.allowed_ips` re-renders this conf,
+  # and the peer must re-apply it LIVE — notify the oneshot restart here (the conf is the
+  # peer's source of truth: AllowedIPs/Endpoint/PublicKey). Without this, an allowed_ips
+  # edit updates the file but the running peer keeps the OLD AllowedIPs until someone
+  # manually re-runs `systemctl restart wg-ensure-s2s-peer` (the HD-313 root-cause gap:
+  # the VPS peer dropped the router's own wg-src syslog packets because its live
+  # AllowedIPs lagged the SSOT; a manual restart was required to apply).
+  notify: ensure wg-s2s peer
   tags: wireguard
 
 - name: Render wg-ensure-s2s-peer systemd oneshot unit

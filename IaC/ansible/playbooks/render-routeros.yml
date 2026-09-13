@@ -60,6 +60,14 @@
     pppoe_login_user: "{{ lookup('community.general.onepassword', 'pppoe_login', field='username', vault=op_vault) }}"
     pppoe_login_password: "{{ lookup('community.general.onepassword', 'pppoe_login', field='password', vault=op_vault) }}"
     mikrotik_admin_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
+    # NOTE: the n8n router API user (HD-312/4) is a CONVERGE-only feature
+    # (rb4011_converge.rsc.j2). The old mikrotik_n8n_password var here referenced a
+    # vault item (mikrotik-n8n_api) that DOES NOT EXIST — a latent footgun for anyone
+    # reusing this vars block. Presence is detected per-render in a task below so the
+    # converge can gate on mikrotik_n8n_present; bootstrap templates never need it.
+    # SNMP RO community (HD-53): read-only, Mgmt-scoped — resolved at render so the
+    # bootstrap templates can reference it without a secret in the repo.
+    snmp_ro_community: "{{ lookup('community.general.onepassword', 'network-snmp_api', field='credential', vault=op_vault) }}"
     # --- Universal AP script knob ---
     # Rendered per-AP so each bootstrap sets a descriptive identity (ap-spalnica /
     # ap-dnevna / ap-spare) instead of the generic 'ap' (owner request 2026-09-02).
@@ -72,6 +80,23 @@
       file:
         path: "{{ playbook_dir }}/../../router/rendered"
         state: directory
+
+    - name: Detect n8n router API item (HD-312/4) — absence must not fail the render
+      # Micro-converge parity with render-converge.yml: the vault lacks
+      # mikrotik-n8n_api (owner-side gap); gate on presence so any template that
+      # references mikrotik_n8n_present renders a loud DEFERRED comment instead of
+      # aborting. Bootstrap templates don't use the n8n user, but keep the fact
+      # consistent for the converge templates' `{% if mikrotik_n8n_present %}`.
+      command: op item get 'mikrotik-n8n_api' --vault {{ op_vault }} --format json
+      register: mikrotik_n8n_item
+      changed_when: false
+      ignore_errors: true
+      no_log: true
+
+    - name: Set n8n item presence fact
+      set_fact:
+        mikrotik_n8n_present: "{{ mikrotik_n8n_item.rc is defined and mikrotik_n8n_item.rc == 0 and mikrotik_n8n_item.stdout | length > 0 }}"
+      no_log: true
 
     - name: Render rb4011_initial.rsc
       template:
@@ -96,6 +121,11 @@
         src: "{{ playbook_dir }}/../../router/templates/capsman_steady-state.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/capsman_steady-state.rsc"
 
+    - name: Render ap_lockdown_delta.rsc (HD-304 Part 2 / HD-89 — disable wired ports + AP INPUT firewall)
+      template:
+        src: "{{ playbook_dir }}/../../router/templates/ap_lockdown_delta.rsc.j2"
+        dest: "{{ playbook_dir }}/../../router/rendered/ap_lockdown_delta.rsc"
+
     - name: Report rendered files (upload, never commit)
       debug:
         msg:
@@ -103,4 +133,5 @@
           - "Upload IaC/router/rendered/crs328_initial.rsc to the CRS328 root Files + admin.pub + ansible.pub into the CRS328 flash/ folder (root files are WIPED on reboot — flash/ survives)"
           - "Upload each rendered ap_initial-<name>.rsc to ITS AP root Files + admin.pub + ansible.pub into each AP flash/ folder (root wiped on reboot — flash/ survives)"
           - "Upload IaC/router/rendered/capsman_steady-state.rsc to the RB4011, then /import capsman_steady-state.rsc (AFTER bootstrap + router role — NOT a reset)"
+          - "Upload IaC/router/rendered/ap_lockdown_delta.rsc to each AP root Files, then /import (HD-304 Part 2 / HD-89 — disables wired ports ether2-5 + applies the AP INPUT lockdown)"
           - "Then per bootstrap device: /system reset-configuration no-defaults=yes run-after-reset=<file>"

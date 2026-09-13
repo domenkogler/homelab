@@ -22,9 +22,18 @@ services:
     image: kopia/kopia:{{ kopia_version }}   # same pin as kopia-server (one pin per image)
     cap_drop:
       - ALL
-    read_only: true
+    # read_only intentionally ABSENT (HD-318): the kopia image's entrypoint writes
+    # /app/logs (cli-logs/content-logs cache markers) + /app/cache markers before the
+    # command runs; read_only root made those mkdirs fail. /app/config + /app/cache
+    # are the bind dirs (below); /app/logs must be writable on the layer.
     tmpfs:
       - /tmp
+      - /app/logs   # image sets KOPIA_LOG_DIR=/app/logs - EROFS under read_only without it (kopia-server precedent)
+    # Wave-2 triage 2026-08-22 (kopia-server precedent): image ENTRYPOINT is /bin/kopia;
+    # without clearing it the command below resolved to `kopia sh -c ...` and died
+    # instantly ("expected command but got sh"). entrypoint: [] makes the sh -c
+    # bootstrap script PID 1 argv.
+    entrypoint: []
     container_name: kopia-agent
     restart: unless-stopped
     # No overlay network: the agent egresses via the host's default bridge to the
@@ -36,24 +45,50 @@ services:
         set -e
         # Fail loud: server auth identity is REQUIRED (HD-59 / HD-65) — never run an
         # agent that would silently skip auth (the server would reject it anyway).
-        : "${KOPIA_SERVER_USER:? kopia-server-internal_api.username missing — aborting}"
-        : "${KOPIA_SERVER_PASSWORD:? kopia-server-internal_api.credential missing — aborting}"
+        : "$${KOPIA_SERVER_USER:? kopia-server-internal_api.username missing — aborting}"
+        : "$${KOPIA_SERVER_PASSWORD:? kopia-server-internal_api.credential missing — aborting}"
         if [ ! -f /app/config/repository.config ]; then
           echo "Connecting to kopia-server over the WG S2S tunnel..."
+          # kopia 0.23.1 dropped --server-username/--server-password: HTTP Basic auth
+          # is carried in the URL userinfo, and the repo master password on -p.
+          # The server password may contain URL-hostile chars ((){}@ etc.) — percent-
+          # encode it or the URL parser rejects it ("invalid character } in host
+          # name", live 2026-09-08). Pure-bash encoder (no perl URI::Escape in the
+          # kopia image, and Jinja chokes on the open-brace-hash sequence — verified 2026-09-08).
+          # NOTE: docker compose interpolates $$NAME in the command block — every
+          # bash var stays a simple name (compose warns "variable is not set" and
+          # blanks it, which is harmless at compose-parse time; the bash runtime
+          # re-reads $$NAME from the environment at exec). The ONLY hard error is the
+          # $${var:offset} substring form (invalid interpolation format) — avoided.
+          # fold is present in the kopia image (verified 2026-09-08). All $$NAME
+          # forms are simple names: docker compose interpolates unknown $$NAMEs to a
+          # harmless blank at parse time (the bash runtime re-reads them from env at
+          # exec), and we avoid $${var:...} substring syntax entirely (that is the
+          # only form that hard-errors compose: "invalid interpolation format").
+          _urlenc() {
+            printf '%s' "$$1" | fold -w1 | while IFS= read -r c; do
+              case "$$c" in
+                [A-Za-z0-9._~-]) printf '%s' "$$c" ;;
+                *) printf '%%%02X' "'$$c" ;;
+              esac
+            done
+          }
+          _enc_user=$$(_urlenc "$$KOPIA_AGENT_USER")
+          _enc_pass=$$(_urlenc "$$KOPIA_SERVER_PASSWORD")
           kopia repository connect server \
-            --url="http://${KOPIA_SERVER_ADDR}" \
-            --server-username="${KOPIA_SERVER_USER}" \
-            --server-password="${KOPIA_SERVER_PASSWORD}" \
+            --url="https://$${_enc_user}:$${_enc_pass}@$${KOPIA_SERVER_ADDR}" \
+            --password="$${KOPIA_PASSWORD}" \
+            --server-cert-fingerprint="$${KOPIA_SERVER_FINGERPRINT}" \
             --override-hostname=oldsrv.kogler.si \
             --override-username=oldsrv-agent
         fi
         # Scheduled worker (no UI): snapshot loop, first pass at start-up. Interval
         # is env-tunable; exact window + server-side policy tuning = deploy-gated.
         while :; do
-          echo "[kopia-agent] snapshot create $(date -u +%FT%TZ)"
+          echo "[kopia-agent] snapshot create $$(date -u +%FT%TZ)"
           kopia snapshot create /mnt/src/opt /mnt/src/dumps /mnt/src/immich-upload || echo "[kopia-agent] snapshot create FAILED — retrying next interval"
           kopia snapshot create /mnt/src/signal-cli-data || echo "[kopia-agent] signal state snapshot FAILED — retrying next interval"
-          sleep "${KOPIA_SNAPSHOT_INTERVAL_SECONDS:-86400}"
+          sleep "$${KOPIA_SNAPSHOT_INTERVAL_SECONDS:-86400}"
         done
     volumes:
       # --- Sources (READ-ONLY, oldsrv-local only — backup.md §Layer 2 policy) ---
@@ -69,8 +104,22 @@ services:
     environment:
       # VPS peer address on the wg-s2s /30 (SSOT: group_vars/all.yml wg_s2s_vps.ip).
       KOPIA_SERVER_ADDR: "{{ wg_s2s_vps.ip }}:51515"
+      # HD-318a: kopia 0.23.x only connects to https:// servers; the self-signed
+      # kopia-server cert lives under /srv/docker/kopia-server/config/tls.crt and is
+      # pinned here by its stable SHA-256 fingerprint (lowercase hex). The fingerprint
+      # is a service identity, NOT a user secret — but it is a trust anchor, so it is
+      # kept in 1Password (`kopia-server_fingerprint`, catalog-generated) and read via
+      # the same vault dict the compose uses. Changing the cert REQUIRES re-seeding the
+      # fingerprint 1P item + re-render (NOT_AUTO_ROTATABLE, see provision-secrets.py).
+      KOPIA_SERVER_FINGERPRINT: "{{ vault['kopia-server_fingerprint'].password | replace('$','$$') }}"
       KOPIA_SERVER_USER: "{{ vault['kopia-server-internal_api'].username | replace('$','$$') }}"
       KOPIA_SERVER_PASSWORD: "{{ vault['kopia-server-internal_api'].credential | replace('$','$$') }}"
+      # HD-318a: the URL userinfo identity must be the SAME user@host the session
+      # presents (--override-username/--override-hostname), i.e. the kopia-server
+      # htpasswd entry — otherwise the server rejects the session ('access denied'
+      # for <user@host>). kopia_agent_user is the group_vars SSOT (all.yml).
+      KOPIA_AGENT_USER: "{{ kopia_agent_user | replace('$','$$') }}"
+      KOPIA_PASSWORD: "{{ vault['kopia_password'].password | replace('$','$$') }}"   # repo master password (kopia-server precedent)
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 volumes:
   signal-cli-data:

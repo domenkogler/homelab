@@ -105,3 +105,29 @@
     name: nfs-server.service
     enabled: true
     state: started
+
+# HD-318 (2026-09-07, live): the media library subtree under bulk/media is NOT
+# provisioned by ZFS dataset creation — a fresh converge found /bulk/media EMPTY,
+# so every *arr/jellyfin bind-mount (/mnt/nas/media/{media,downloads}) failed with
+# 'mkdir ... permission denied' (root_squash maps root to storage_uid, and the
+# subdirs simply didn't exist). Create the canonical layout here (idempotent,
+# storage_uid-owned) so a reinstall/rebuild no longer hits it.
+- name: Ensure media library layout under /bulk/media (HD-318)
+  ansible.builtin.file:
+    path: "/bulk/media/{{ item }}"
+    state: directory
+    owner: "{{ storage_uid }}"
+    group: "{{ storage_gid }}"
+    mode: "0755"
+  loop:
+    - media
+    - media/movies
+    - media/tv
+    - media/music
+    - downloads
+    - downloads/complete
+    - downloads/complete/tv
+    - downloads/complete/movies
+    - downloads/complete/music
+    - downloads/incomplete
+  tags: [storage, nas]

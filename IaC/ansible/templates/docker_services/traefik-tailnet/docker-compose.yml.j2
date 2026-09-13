@@ -77,6 +77,17 @@ services:
       - /plugins-storage
     container_name: traefik-tailnet
     restart: unless-stopped
+    # HD-333 (WG-S2S reach for the internal edge, Pkg F): publish the internal
+    # edge's TLS listener (:443) on the wg-s2s VPS address ONLY, on a dedicated
+    # port (4443) since host :443 belongs to the PUBLIC edge. Home infra hosts
+    # (router-side WG, e.g. oldsrv/nas/Pi — see wg_s2s_vps.allowed_ips HD-155
+    # least-access) reach https://<wg-s2s VPS address>:{{ wg_internal_edge_port }}
+    # over the tunnel. Docker's own PREROUTING DNAT translates host->container
+    # 172.20.0.250:443, so no manual nftables DNAT; an nftables input allow from
+    # the router peer is added for defense-in-depth (vps-hardening). Same
+    # precedent: kopia-server :51515 bind.
+    ports:
+      - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:{{ wg_internal_edge_port }}:443"
     networks:
       traefik-public:
         # HD-240 pattern: pin this edge's IP so the header-trust whitelist

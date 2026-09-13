@@ -104,10 +104,11 @@ nut_exporter_port: 9199
 #   SMTP server: mail-eu.smtp2go.com; SMTP port 2525 (default); alternative
 #   ports 8025, 587, 80, 25 — TLS available on the same ports (STARTTLS).
 #   SSL only on 465, 8465, 443.
-# We use mail-eu.smtp2go.com:587 + STARTTLS (587 is a TLS port; the NUT
-# template requires STARTTLS on the same host).
+# We use mail-eu.smtp2go.com:2525 + STARTTLS (the SMTP2Go default; 587 was blocked from the
+# VPS egress — only 2525/8025 open live 2026-09-08 — so 2525 is the port used by every consumer).
 smtp2go_host: mail-eu.smtp2go.com
-smtp2go_port: 587                   # TLS/STARTTLS port (alternatives: 2525/8025/80/25)
+smtp2go_port: 2525                  # STARTTLS port (default; alternates 8025/587/80/25). 587 is BLOCKED from the VPS egress
+                                     # (only 2525/8025 open — live-verified 2026-09-08); LAN egress reaches both. Use 2525 everywhere.
 smtp2go_ssl_ports: [465, 8465, 443]  # SSL-only ports (not used)
 smtp2go_smtp_ports: [2525, 8025, 587, 80, 25]  # SMTP ports with TLS available
 
@@ -127,6 +128,20 @@ kopia_sftp_host: u653424.your-storagebox.de
 kopia_sftp_port: 23          # non-standard Hetzner SSH/SFTP port
 kopia_sftp_user: u653424     # SSH key auth (no password) — key in 1Password Hertzner-SB-Backup
 kopia_sftp_path: kopia           # RELATIVE to box home (2026-08-23: Hetzner SFTP returns SSH_FX_FAILURE for the "/" component of absolute paths, breaking kopia create-path even when the dir pre-exists)
+
+# HD-318a: the per-client user@host identity the oldsrv backup agent presents
+# (`--override-username=oldsrv-agent --override-hostname=oldsrv.kogler.si`). It must
+# exist in the kopia-server htpasswd as `user@host` (kopia's allowed-entries model),
+# otherwise the agent session is denied. Same credential as kopia-server-internal_api.
+kopia_agent_user: oldsrv-agent@oldsrv.kogler.si
+
+# HD-318a: kopia-server TLS trust anchor — the SHA-256 (DER) fingerprint of the persisted
+# self-signed cert under /srv/docker/kopia-server/config/tls.crt, lowercase hex, recomputed on
+# first start and stored in 1Password `kopia-server_fingerprint` (catalog-generated, NOT auto-
+# rotatable). The oldsrv agent pins it (`kopia repository connect server --server-cert-fingerprint`)
+# because kopia 0.23.x rejects plain-http:// and an in-memory generated cert would change the
+# fingerprint on every restart. See docs/backup.md and deployment-compose.md.
+kopia_server_fingerprint_item: kopia-server_fingerprint   # 1P item (Password) holding the trust anchor
 
 # ==== IPv4 address plan — SSOT (auto-rendered to docs/network-addresses-generated.md) ====
 # Hand-edit here ONLY; regenerate docs/network-addresses-generated.md after changes.
@@ -148,6 +163,9 @@ knx_router_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'knx-ip
 # SAME configuration.yaml is rendered on primary + standby.
 ha_trusted_proxies:
   - 172.20.0.2/32            # oldsrv traefik (traefik-public bridge default .2) — verify at deploy
+  - 10.10.1.30/32            # HD-350: traefik-internal home-LAN edge on oldsrv — host networking
+                             # (network_mode: host), so its source IP is the oldsrv Home-VLAN IP
+                             # itself; keep in sync with oldsrv_home_ip (address SSOT)
   - 10.10.1.20/32            # Pi traefik-ha edge — host networking (network_mode: host), so its
                              # source IP is the Pi host IP itself; no container IP exists to trust
                              # (live 2026-09-03)
@@ -180,6 +198,12 @@ homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto
 # source restriction. Derived from the address SSOT.
 oldsrv_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 pi_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+# Signal alert recipients — the "Homelab Alerts" Signal group (HD-347). JSON-array form
+# WITHOUT the brackets; the n8n compose wraps it: recipients = [{{ signal_alert_recipients }}].
+# Populated once the Signal device is linked (owner, HD-318d) with the group UUID or
+# phone-number list — e.g. '"+3863163xxxx",  "<group-id>"'. Non-secret SSOT (like
+# grafana_alert_email) — the Signal token itself stays in 1Password `signal-internal_api`.
+signal_alert_recipients: ""
 network_vlans:
   - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }
@@ -308,9 +332,18 @@ wg_s2s_vps:
   # `site` /16. Derived from network_static_hosts by name (never literal IPs). The
   # wg-vps-services range stays (VPS-resident services on the other side of the peer).
   # A compromised VPS can thus only reach nut/zfs/HA + ICMP + the named app backends.
+  #
+  # HD-313 live-lesson (2026-09-08): the router's OWN wg-s2s tunnel address
+  # (`10.255.40.1`, `router_ip` above) MUST also be in this list. RouterOS remote
+  # syslog sends with src-address=10.255.40.1 (the action's src-address); WireGuard
+  # silently drops any inner packet whose source IP is not in the peer's AllowedIPs.
+  # That drop is what the HD-313 "zero UDP/514 egress" symptom really was — the
+  # fixsyslog toggle could never help. Keep both the tunnel addr (here) and the
+  # mgmt-99 addr (row below) so ALL router-sourced traffic is permitted.
   # SSOT for BOTH tunnel sides: the router-side peer list (`wireguard_s2s_vps.allowed_ips`,
   # group_vars/router.yml) derives from this list (HD-200) — edit here only.
   allowed_ips:
+    - "{{ wg_s2s_vps.router_ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'ha-vip') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
@@ -331,7 +364,48 @@ wg_s2s_vps_public_key: "NeEeWiEdcPfA4N8R0biRffkY4hQPNOtq8z87mr6I/0I="   # VPS si
 
 # ==== Observability backend target for Alloy (HD-135) ====
 # Forward target derived from `wg_s2s_vps.ip` (SSOT) — no literal IP embedded here.
-alloy_backend_host: "{% if inventory_hostname == 'oldsrv.kogler.si' %}{{ wg_s2s_vps.ip }}{% else %}127.0.0.1{% endif %}"
+# Per-node model (HD-135b/HD-341): every non-backend Alloy (oldsrv, nas, pi) remote_writes
+# to the VPS Victoria backend over the wg-s2s tunnel; only the VPS (the backend host with
+# VM/VL running locally) uses loopback.
+alloy_backend_host: "{% if inventory_hostname == 'vps.kogler.si' %}127.0.0.1{% else %}{{ wg_s2s_vps.ip }}{% endif %}"
+
+# ==== Victoria* observability backend (HD-341/342 — replaces Prometheus+Loki on the VPS) ====
+# Single Victoria stack on the VPS: VictoriaMetrics (metrics, :8428, pure storage/query —
+# Alloy does ALL scraping, topology (B)) + VictoriaLogs (logs, :9428). Alloy (host/SNMP/
+# exporter remote_write + log push) and Grafana stay; Prometheus + Loki containers/configs
+# are dropped. Retention 365d / 90d (owner decision 2026-09-08) — longer than the old
+# Prometheus 30d / Loki 14d because Victoria compresses far better; the volumes are
+# Kopia-backed (docs/observability.md) — unlike the old regenerable TSDB doctrine.
+# MCP AI-debugging servers (HD-344) live on oldsrv and reach these VPS endpoints over
+# the tailnet (owner plans a full s2s-wg → tailnet redo; MCP leg uses tailnet).
+# 1Password basic-auth items (HYPHENATED <service>_<type>, CONVENTIONS §1):
+#   victoria-metrics_api  — username + password (plaintext Victoria -httpAuth, NOT bcrypt)
+#   victoria-logs_api     — username + password (plaintext Victoria -httpAuth)
+# NOTE (HD-341): Alloy/exporters still reach the VPS over wg-s2s today; the MCP leg is
+# the first tailnet consumer. If the VPS Victoria endpoints must also listen on a VPS
+# tailnet address for MCP, that is a publish-address addition owned by the impl leg.
+victoria_metrics_port: 8428              # VictoriaMetrics HTTP endpoint / api/v1/* (query+write+admin)
+victoria_logs_port: 9428                # VictoriaLogs HTTP endpoint /insert/... + /select/...
+victoria_metrics_retention_days: 365    # -retentionPeriod; Kopia-backed (docs/observability.md)
+victoria_logs_retention_days: 90        # -retentionPeriod; Kopia-backed (docs/observability.md)
+victoria_metrics_item: victoria-metrics_api  # 1Password basic-auth item (username + password)
+victoria_logs_item: victoria-logs_api         # 1Password basic-auth item (username + password)
+
+# ==== Victoria backend reach target for the oldsrv MCP AI servers (HD-344) ====
+# The MCP servers (mcp-victoriametrics / mcp-victorialogs on oldsrv) point at the
+# VPS Victoria backend over wg-s2s TODAY — the same guaranteed-reachable tunnel the
+# Alloy collector uses (`wg_s2s_vps.ip`). Owner plans a full s2s-wg → tailnet redo
+# (future HD): that redo re-plumbs this ONE var to the VPS tailnet address and the
+# MCP compose templates need no other change. No VPS tailnet IP exists in the SSOT
+# yet — do NOT invent one here (check docs/network-vpn.md before the redo).
+victoria_backend_host: "{{ wg_s2s_vps.ip }}"   # MCP → Victoria backend host (wg-s2s now, tailnet later)
+
+# MCP server listen ports on OLDSRV (HD-344). The upstream images bind `MCP_LISTEN_ADDR`
+# (default localhost:8080 metrics / :8081 logs); inside Docker we set :8080/:8081 and
+# publish them loopback-only for the local AI clients (pi/OWUI/OpenClaw on the LAN +
+# tailnet). Distinct per server; never expose on the WAN/public edge.
+mcp_metrics_port: 8080
+mcp_logs_port: 8081
 
 # ==== Immich ML cross-host endpoint (HD-184) ====
 # immich-app runs on the VPS; immich-ml (GPU) stays on oldsrv. Docker DNS cannot

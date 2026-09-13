@@ -74,7 +74,7 @@
         }
       },
       "targets": [
-        { "refId": "A", "expr": "count(up{job=~\"prometheus|loki|n8n|blackbox-exporter\"} == 0)", "instant": true }
+        { "refId": "A", "expr": "count(up{job=~\"victoria-metrics|victoria-logs|n8n|blackbox-exporter\"} == 0)", "instant": true }
       ]
     },
     {

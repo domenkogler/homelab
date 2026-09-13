@@ -38,8 +38,13 @@ groups:
             model:
               conditions:
                 - evaluator:
-                    params: [0]
-                    type: gt
+                    # HD-347: per-rule evaluator type. The old hardcoded `gt 0` made
+                    # every `expr: X == 0` rule (up-down, host-unreachable, wg-s2s-down,
+                    # victoria-*-down, n8n-down) silently dead — the query returns 0 and
+                    # `gt 0` never fires. Down/absent-style rules use `lt 1` (alert when
+                    # the value is below 1); threshold/>= rules keep `gt 0`.
+                    params: {{ r.eval_params | default([0]) }}
+                    type: {{ r.eval_type | default('gt') }}
                   operator:
                     type: and
                   query:

@@ -57,12 +57,18 @@ services:
       CONFIG_INSTANCE_LAPI_AUTH_PASSWORD: >-
         {{ vault['crowdsec-webui_lapi_api'].credential | replace('$','$$') }}
     labels:
+{% if not (svc.public is defined and not svc.public) %}
       traefik.enable: "true"
       traefik.http.routers.crowdsec-web-ui.rule: "Host(`csui.kogler.si`)"
       traefik.http.routers.crowdsec-web-ui.entrypoints: websecure
       {{ 'traefik.http.routers.crowdsec-web-ui.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.crowdsec-web-ui.middlewares: authentik-forward-auth@file
       traefik.http.services.crowdsec-web-ui.loadbalancer.server.port: "3000"
+{% else %}
+      # INTERNAL-ONLY (public: false — HD-331/332): no public-edge route; served
+      # only by the traefik-tailnet internal edge (csui.kogler.si / csui.ts).
+      traefik.enable: "false"
+{% endif %}
 volumes:
   crowdsec-webui-data:
 networks:

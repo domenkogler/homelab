@@ -12,7 +12,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 > `deployment-ansible.md`, `services.md`, `backup.md`
 > **Linked from:** `smart-home.md`, `index.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The failover design + runbooks are authored but **not live** — the Pi primary + oldsrv standby + keepalived VIP deploy during Phase 4 (HD-04) / Phase 3 (HD-17); HmIP-RFUSB local-Homematic is parked (HD-13). Runbooks below are the spec to be executed at takeover time, not a live system. The Homepage failover buttons are **gated** (HD-217): they render only when group_var `homepage_failover_button: true` (false until HD-17 goes live), so the live dashboard carries no dead buttons meanwhile.
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The failover design + runbooks are authored but **not live** — the Pi primary + oldsrv standby + keepalived VIP deploy during Phase 4 (HD-04) / Phase 3 (HD-17). **Local-RF Homematic is rejected (HD-18, 2026-09-08)** — no HmIP-RFUSB purchase; the HmIP-HAP stays cloud-mode ([smart-home-rejected.md](smart-home-rejected.md)). Runbooks below are the spec to be executed at takeover time, not a live system. The Homepage failover buttons are **gated** (HD-217): they render only when group_var `homepage_failover_button: true` (false until HD-17 goes live), so the live dashboard carries no dead buttons meanwhile. **Standby keepalived render (HD-318c, IaC done 2026-09-08):** the `home_assistant` role pre-creates `/opt/home-assistant-standby` and bootstraps the active `keepalived.conf` (from the BACKUP config, `force: false`, Pi-pattern) so the standby compose's `./keepalived.conf` bind-mount is a real file from render time — ⏳ deploy-gated on the next oldsrv converge.
 
 ---
 
@@ -29,7 +29,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - Supervision: **manual** trigger + **manual** failback (accepted design — no false negatives from automation).
 - Stale state on takeover is acceptable: HA re-polls devices on startup (target: controlling again in 1–3 min).
 - **Homematic IP RF is physically bound to the `HmIP-RFUSB` stick (on the Pi).** Taking over Homematic **requires physically moving the stick to oldsrv** — the only non-automatable step. KNX/Shelly are IP-based and fail over purely via the VIP with no physical action.
-- **Local-RF scope deferred (2026-08-18 / HD-13 parked):** until an **HmIP-RFUSB is bought**, the **HmIP-HAP stays in cloud mode** — there is no stick to move. During this interim, *IP devices (KNX, Shelly) fail over via the VIP as described; Homematic rides the cloud HmIP-HAP rather than a local RaspberryMatic.* The HmIP-RFUSB stick-move steps in the runbooks below (HD-17/HD-18) and the RaspberryMatic container pairing are **inactive/parked** until the RFUSB purchase happens.
+- **Local-RF scope REJECTED (2026-09-08 / HD-18):** the **HmIP-RFUSB stick will not be purchased** ([smart-home-rejected.md](smart-home-rejected.md)) — there is no stick to move and no RaspberryMatic. **The HmIP-HAP stays in cloud mode** permanently: *IP devices (KNX, Shelly) fail over via the VIP as described; Homematic rides the cloud HmIP-HAP rather than a local RaspberryMatic.* The HmIP-RFUSB stick-move steps in the runbooks below (HD-17/HD-18) and the RaspberryMatic container pairing are **inactive/rejected** — the active `ha-failover.sh` is the IP-only path.
 ---
 
 ## Architecture Overview
@@ -97,7 +97,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - **Technitium secondary DNS moved from nas → Pi** (`pi.kogler.si`, now a Debian host; `ha.kogler.si` = VIP). Primary stays on oldsrv. See `network-dns.md`.
 
 - **Identical config from one source:** both nodes render the **same `configuration.yaml`** from the repo (`use_x_forwarded_for: true`, `trusted_proxies: <Traefik>`), including the `owner` recovery account and Authentik OIDC settings.
-- **Secrets via one renderer:** the `home_assistant` role renders **`secrets.yaml.j2`** into `/opt/home-assistant-primary/secrets.yaml` (Pi) and `{{ ha_standby_path }}/secrets.yaml` (oldsrv) — inline `community.general.onepassword` lookups, fail-closed per HD-91, block-scalar per HD-233. `configuration.yaml.j2` references the values via `!secret <name>` (single source; HA resolves at YAML load). Each node keeps its OWN 1Password-rendered copy: `secrets.yaml` is excluded from the Pi→standby config rsync (`ha-config-sync.sh.j2`). `ha_api` is NOT part of HA's secrets.yaml — the `monitoring` role writes the Prometheus bearer to `/etc/prometheus/ha_token` under the `prometheus_ha_exporter` gate.
+- **Secrets via one renderer:** the `home_assistant` role renders **`secrets.yaml.j2`** into `/opt/home-assistant-primary/secrets.yaml` (Pi) and `{{ ha_standby_path }}/secrets.yaml` (oldsrv) — inline `community.general.onepassword` lookups, fail-closed per HD-91, block-scalar per HD-233. `configuration.yaml.j2` references the values via `!secret <name>` (single source; HA resolves at YAML load). Each node keeps its OWN 1Password-rendered copy: `secrets.yaml` is excluded from the Pi→standby config rsync (`ha-config-sync.sh.j2`). `ha_api` is NOT part of HA's secrets.yaml — the `monitoring` role writes the HA bearer to `/etc/prometheus/ha_token` under the `prometheus_ha_exporter` gate.
 - **Update policy:** **Renovate + `stable` tag** (controlled/gated: Renovate → PR → review → deploy). **No watchtower** (HD-39) — preserves primary/standby version parity and the repo's deliberate update gating.
 
 ### Homematic macvlan network (prerequisite on both hosts)
@@ -138,10 +138,10 @@ The `--ip-range` reserves one IP per host so the two instances never collide.
 ## Remote & App Access (`ha.kogler.si`)
 
 - **Route:** `ha.kogler.si` → Traefik → **VIP**. The `ha` route must **NOT** use Authentik Forward-Auth (breaks the Companion WebSocket/token flow) — see `smart-home.md`.
-- **VIP↔edge coupling (hard requirement):** the VIP (`ha-vip`) is served on `:443` by whichever keepalived node owns it. In normal mode the Pi's **`traefik-ha`** edge (see below) serves `ha.kogler.si`; after takeover oldsrv's `traefik` takes over (both have an identical `ha` route → VIP:8123). HA must not leave VLAN 10, and keepalived must keep the VIP on the active HA node — otherwise the `ha` route breaks (see `services.md` accessibility SSOT).
+- **VIP↔edge coupling (hard requirement):** the VIP (`ha-vip`) is served on `:443` by whichever keepalived node owns it. In normal mode the Pi's **`traefik-ha`** edge serves `ha.kogler.si`; after takeover the home-LAN **internal all-app edge (`traefik-internal` on oldsrv)** serves it — both carry an identical `ha` route → VIP:8123, so `ha` keeps working through a Pi-out (see the re-decided edge model, HD-349, [services-traefik.md](services-traefik.md) §Edge model). HA must not leave VLAN 10, and keepalived must keep the VIP on the active HA node — otherwise the `ha` route breaks (see `services.md` accessibility SSOT).
 - **Normal (Pi active):** Android app works over WAN (Cloudflare → VPS Traefik) and over VPN (Headscale).
 - **Fallback (oldsrv active):** same hostname routes to the standby. **WAN access is NOT required in fallback** (accepted) — app still works on LAN/WiFi, and over VPN if needed.
-- **Security:** HA `http.use_x_forwarded_for: true` + `trusted_proxies: <both Traefik edges — Pi traefik-ha and oldsrv traefik>`; one local `owner` account as recovery if Authentik is unreachable.
+- **Security:** HA `http.use_x_forwarded_for: true` + `trusted_proxies: <all edges that front HA — Pi traefik-ha, oldsrv traefik-internal (HD-350), VPS edges>`; one local `owner` account as recovery if Authentik is unreachable.
 
 ### Edge (`ha.kogler.si`) accessibility on node failure
 
@@ -153,15 +153,31 @@ The `--ip-range` reserves one IP per host so the two instances never collide.
 
 **Design — HA's edge is co-located with HA and rides the VIP.** Run a minimal,
 VIP-bound **`traefik-ha`** edge on the Pi that serves **only** `ha.kogler.si →
-VIP:8123` (no Authentik Forward-Auth — same rule as the oldsrv `ha` route, it breaks
-the Companion WebSocket/token flow). Because the VIP already tracks the active HA
-node, the `ha` edge moves with HA automatically — **no DNS flip on failover**:
+VIP:8123` (no Authentik Forward-Auth — same rule as the home `ha` route, it breaks
+the Companion WebSocket/token flow), **plus** the home-LAN internal all-app edge
+**`traefik-internal` on oldsrv** (HD-349/346) which serves `ha` + every internal app
+when the VIP is on oldsrv. Because the VIP already tracks the active HA node, the
+`ha` edge moves with HA automatically — **no DNS flip on failover**:
 
 | State | VIP owner | Serves `ha.kogler.si` via… |
 |---|---|---|
 | Normal | Pi | Pi `traefik-ha` → local HA |
-| Pi down (manual forward takeover) | oldsrv | oldsrv `traefik` → VIP → standby HA |
-| **oldsrv down** | Pi | **Pi `traefik-ha` → local HA — gap closed** |
+| Pi down (manual forward takeover) | oldsrv | **oldsrv `traefik-internal`** → VIP → standby HA |
+| oldOVs down | Pi | Pi `traefik-ha` → local HA — gap closed |
+
+### Drill verification record (live, 2026-09-09)
+
+> **Forward takeover (Pi → oldsrv) — EXECUTED LIVE 2026-09-09.** Owner pulled the Pi LAN cable; forward trigger via the local `ha-failover-api` (token from `/etc/ha-failover/api.env`, parsed like systemd EnvironmentFile — never shell-evaluated, it contains shell-special chars). Result HTTP 200 `{"event":"forward","exit":0}`.
+>
+> **✅ Proven:** VIP `ha-vip` moved Pi → oldsrv (keepalived MASTER 15:12:45 local); standby HA cold-booted and served at **VIP:8123** — after fixing a real defect: the standby compose only published `5683/udp` (Shelly CoAP), never `8123`; added `8123:8123` (commit `a3a11c0`) so the VIP contract holds on takeover. Shelly RGBW2 control verified from the standby container.
+>
+> **⚠ Two gaps found (both now tracked):**
+> 1. **KNX on the standby does not work** — the GIRA KNX router (`knx-ip`, VLAN 20) answers ICMP + web UI but **drops all KNXnet/IP** (tunnel CONNECT + multicast SEARCH) from oldsrv. Firewall allows Home→KNX:3671; packet path is correct; raw probe from oldsrv's Home-VLAN host IP gets zero response. Device-side issue: likely a GIRA tunnel-client allowlist containing only the Pi, or a wedged KNX/IP stack (power-cycle or ETS project change needed). → HD-04 tail.
+> 2. **`ha.kogler.si` HTTPS had NO edge on Pi-down** — the doc's "oldsrv `traefik` takes over" claim was stale post-HD-331 (HD-331 removed oldsrv Traefik). Fixed at the architecture level: **HD-349 edge-model re-decision + HD-350 (re-scoped 2026-09-10) / HD-352 (re-scoped); HD-351 deleted** (home-LAN `traefik-internal` on oldsrv, runs always). Until built, Pi-down = URL down (LAN `http://VIP:8123` only).
+>
+> **Bonus scenario (oldsrv-down) exercised live:** the owner's UPS battery test shut oldsrv down while the drill state was active; the **Pi took MASTER back automatically** (no competition) and `https://ha.kogler.si` → 200 restored entirely on the Pi — confirming the Pi-primary design.
+>
+> **Restore note:** after any forward takeover, oldsrv's active `keepalived.conf` holds the failover (MASTER prio 120) variant; restore the standby (BACKUP 100) conf before the next standby cold boot so the system returns to its designed rest state (HD-04 tail).
 
 **The same edge also serves the DNS-secondary web UI (`dns-pi.kogler.si`).**
 `dns-pi.kogler.si` resolves to the **VIP** (FQDN shape borrowed from the cockpit
@@ -171,18 +187,14 @@ when oldsrv is down, the Technitium **secondary** on the Pi is the surviving DNS
 so its web UI must be reachable without oldsrv's Traefik. Internal-only, no
 Forward-Auth. Direct fallback `pi:5380` on the LAN.
 
-**Scope (what it does NOT do):** this only keeps **HA + the DNS-secondary web UI**
-reachable when oldsrv is down. Immich / Forgejo / Authentik / Grafana / … have
-their backends as containers *on* oldsrv and die with it — a second Traefik cannot
-rescue them. This is an **HA/DNS availability** change, not general service failover
-(the public edge is on the VPS per `services-vps.md`).
+**Scope:** the Pi edge keeps **HA + the DNS-secondary web UI** reachable when oldsrv is down. The home-LAN **`traefik-internal` (oldsrv)** additionally serves **every internal app** (immich, Forgejo, grafana, …) on the LAN when WAN/VPS is down or the Pi is down (their backends are containers on oldsrv). When oldsrv itself is down, its hosted apps die with it (a second edge cannot rescue them) — HA and DNS are the only survivors (Pi edge).
 
 **Caveats (implementation):**
 - **VIP-only bind / gating:** `traefik-ha` uses `network_mode: host` with entrypoints
   explicitly bound to the VIP (`ha-vip`):80/443, and the Pi sets `net.ipv4.ip_nonlocal_bind=1`
   so Traefik can bind the VIP before/without keepalived holding the address. Only the
   keepalived MASTER (Pi in normal mode) owns the VIP → `:443`, so it never fights
-  oldsrv's `traefik` for the VIP.
+  oldsrv's `traefik-internal` for the VIP.
 - **Offline-safe cert (decision):** ACME is **disabled on the Pi edge** — it is not an ACME
   issuer. The wildcard `*.kogler.si` cert pair is **synced from the issuer — the VPS Traefik**
   (single issuer per HD-178; previously written as "from oldsrv" — superseded) to
@@ -202,9 +214,9 @@ rescue them. This is an **HA/DNS availability** change, not general service fail
 (created once during initial setup — see [Homematic macvlan network](#homematic-macvlan-network-prerequisite-on-both-hosts)).
 If not present, run the `docker network create` command for oldsrv first.
 
-> 📌 **HD-13 parked (2026-08-18):** this forward-takeover runbook below is the **local-Homematic (full)** path — it assumes the HmIP-RFUSB stick + RaspberryMatic-standby exist. **Currently the HmIP-HAP stays in cloud mode** (no stick, no RMat), so the ACTIVE `ha-failover.sh` skips steps 2 and 3a/3b entirely: failover is just *confirm Pi down → press button → VIP moves → HA-standby starts* (IP devices only). The full-with-RMat flow below (and `ha-failover.full.sh.j2`) is preserved for when the RFUSB is bought. See the deferral note at the top of this doc and [`smart-home.md`](smart-home.md).
+> 📌 **HD-18 REJECTED (2026-09-08):** this forward-takeover runbook below is the **local-Homematic (full)** path — it assumes the HmIP-RFUSB stick + RaspberryMatic-standby exist. **The stick will NOT be purchased** ([smart-home-rejected.md](smart-home-rejected.md)), **the HmIP-HAP stays in cloud mode**, and the ACTIVE `ha-failover.sh` is the IP-only path: *confirm Pi down → press button → VIP moves → HA-standby starts*. The full-with-RMat flow below (and `ha-failover.full.sh.j2`) is **preserved as reference only** (not a supported option). See the decision log and [`smart-home.md`](smart-home.md).
 
-**Two manual actions total (local-Homematic path):** (1) physically move the HmIP-RFUSB stick, and (2) press **one** failover button on Homepage (`kogler.si`). Everything after the button is a single orchestrated script — no separate VIP / standby steps.
+**Two manual actions total (IP-only path):** (1) confirm Pi down, and (2) press **one** failover button on Homepage (`kogler.si`). Everything after the button is a single orchestrated script — no VIP / standby / stick steps. (The local-Homematic path's two-actions framing is moot — HD-18 rejected).
 
 1. **Confirm Pi is down** (human verifies — power, SD, OS, network).
 2. **Physically move the HmIP-RFUSB** from the Pi to oldsrv (hot-plug; if the Pi is powered-but-dying, power-cycle it first). Pairing lives on the stick → **no re-pairing** needed.
@@ -216,7 +228,7 @@ If not present, run the `docker network create` command for oldsrv first.
    (If the VIP path is ever unavailable — HA OS fallback — the script additionally flips the Technitium `ha.kogler.si` record + the Traefik `ha` endpoint.)
 4. Verify HmIP devices reconstructed (same EUI/entity IDs) + a live control command; notify n8n → Signal/email and log the event (see `observability.md`).
 
-> **Homematic RF note:** until the stick physically reaches oldsrv, Homematic stays down. IP devices (KNX, Shelly) fail over cleanly via the VIP **without** the stick move — only the RF subset waits on a human being physically present.
+> **Homematic RF note (HD-18 rejected):** there is no RF stick — Homematic rides the cloud HAP, so failover covers IP devices (KNX, Shelly) cleanly via the VIP. No human stick-move is ever required.
 
 ---
 
@@ -238,7 +250,7 @@ If not present, run the `docker network create` command for oldsrv first.
 
 - **Source of truth:** this repo (config already lives here). The standby is healthy when its rendered `/config` matches the repo + a recent Pi snapshot.
 - **Normal direction (Pi → standby):** local push of `/config` to oldsrv on a timer (e.g. every 15 min), LAN-only, no WAN dependency.
-- **HA recorder DB:** the recorder stays on the Pi as **local trimmed SQLite** (always available, survives oldsrv-down; `purge_keep_days: 1–2` per `observability.md` *Pi SD-card wear strategy*). A periodic **rsync** of the SQLite file Pi → `/opt/home-assistant-standby/config/` (~15 min, ~few MB) produces a best-effort remote copy — this is the **only** remote copy, not a failover primary. On standby takeover, HA reads the synced copy (best-effort) and re-polls devices; durable long-term analytics live in Grafana (Prometheus, 30d), not in the recorder DB.
+- **HA recorder DB:** the recorder stays on the Pi as **local trimmed SQLite** (always available, survives oldsrv-down; `purge_keep_days: 1–2` per `observability.md` *Pi SD-card wear strategy*). A periodic **rsync** of the SQLite file Pi → `/opt/home-assistant-standby/config/` (~15 min, ~few MB) produces a best-effort remote copy — this is the **only** remote copy, not a failover primary. On standby takeover, HA reads the synced copy (best-effort) and re-polls devices; durable long-term analytics live in Grafana (VictoriaMetrics, 365d), not in the recorder DB.
 - **RaspberryMatic config** is synced alongside HA config (Pi → oldsrv) so the standby RMat restores its host roles/parameters the same way; the device pairing itself travels with the physical stick.
 - **Rejected: remote-primary databases for the HA recorder.** Putting the recorder's only database on oldsrv (Postgres) or on a VPS (Postgres) would make HA history depend on a remote host — violating the *Pi survives oldsrv-down* failover property and the *no WAN on critical path* rule. The **local-primary + remote-rsync** pattern above gives equivalent durability without that coupling, and trimming the recorder already defends the microSD (see `observability.md`).
 
@@ -278,7 +290,7 @@ If not present, run the `docker network create` command for oldsrv first.
 - [x] WAN access in fallback = **not required** (LAN/VPN only).
 - [x] Pi confirmed running **HAOS** (see `home-assistant-current.md`); redo target = **Debian + HA Container**.
 - [ ] Implement the **single failover button** + `ha-failover.sh` orchestrator (RMat → wait → VIP → standby) on Homepage.
-- [ ] **Once**, test HmIP-RFUSB pairing transfer + entity reconstruction across the stick move.
+- [x] **HmIP-RFUSB pairing-transfer test (HD-18) — REJECTED (2026-09-08):** the stick will not be purchased, so this never-run test is moot; local-RF Homematic is closed out ([smart-home-rejected.md](smart-home-rejected.md)).
 - [x] **VIP address / notation + firewall IP-set** — **decided:** `ha-vip` (`/32`), DHCP pool stays ≤ `.199` (per SSOT); router lists `trusted-ha` + `trusted-admin`. See **Decided — HA VIP** above.
 - [x] ~~Whether to add `watchtower` for the Pi's HA container update automation.~~ **Decided (HD-39):** no watchtower — keep Renovate + `stable` tag (controlled/gated), preserve primary/standby version parity.
 

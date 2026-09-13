@@ -177,21 +177,17 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 > only tailnet surface for the admin dashboards (see the compose template
 > `docker_services/traefik-tailnet` for the routing + serve details).
 >
-> **Pi-hop SSH + Winbox tunnels (Mgmt VLAN from the laptop, 2026-09-02):** the laptop is untagged Home-only
-> (Windows never tags VLAN 99); the **Mgmt plane is reached via the Pi's tagged-99 leg** — preconfigured in
-> `~/.ssh/config` (concrete IPs: [`network-addresses-generated.md`](network-addresses-generated.md)):
-> - **SSH console:** `ssh pi99` (→ Pi tagged-99 leg .99.20 via ProxyJump `pi`), `ssh router99` (→ router mgmt
->   .99.1 via ProxyJump `pi`, user `ansible`), `ssh switch` (→ CRS328 mgmt .99.2), `ssh nas99` (→ .99.10,
->   offline until Phase 2), `ssh ap-spalnica/ap-dnevna/ap-spare` (→ APs .99.4/.5/.6). All via ProxyJump `pi`,
->   user `ansible`/`ansible-admin`.
-> - **Winbox GUI (device binds winbox 8291 to Mgmt VLAN only):** SSH into the Pi and forward from there
->   (the Pi carries the tagged-99 leg), so the forward runs on the Pi → device. Aliases in `~/.ssh/config`:
->   `ssh -N switch-wb` (→ `127.0.0.1:8292` → switch winbox), `ssh -N ap-spalnica-wb` (
->   → `127.0.0.1:8294` → AP winbox), `ssh -N ap-dnevna-wb` (→ `127.0.0.1:8295` → AP winbox).
->   Then point Winbox at `127.0.0.1:<port>`. **Why Pi-dial (not ProxyJump-to-device):** the LocalForward must
->   run from the Pi (which has the Mgmt leg); a ProxyJump final-hop onto the RouterOS device leaves the
->   forward hosted by RouterOS SSH, which does not carry the channel — Winbox stalls at authentication.
->   **Design constraint:** RouterOS mgmt services bind winbox to the Mgmt VLAN only, so direct access to
+> **Mgmt-99 SSH from the laptop — direct (2026-09-08, replaces the Pi-hop):** the laptop now reaches the Mgmt
+> plane **directly** via the Windows **Mgmt99 vNIC** (`wsl-nat-resolv.ps1 -EnableMgmt99`: `.99.80` + forwarding),
+> so **no ProxyJump `pi` hop is needed anymore**. Preconfigured `~/.ssh/config` aliases (concrete IPs:
+> [`network-addresses-generated.md`](network-addresses-generated.md)):
+> - **SSH console:** `ssh router` (→ router mgmt .99.1, user `ansible`), `ssh switch` (→ CRS328 mgmt .99.2),
+>   `ssh oldsrv` (→ .99.30), `ssh pi` / `ssh pi99` (→ Pi Home .1.20 / Mgmt .99.20 — the one dual-leg exception),
+>   `ssh ap-spalnica/ap-dnevna/ap-spare` (→ APs .99.4/.5/.6). **All direct — no ProxyJump.**
+> - **Winbox GUI (device binds winbox 8291 to Mgmt VLAN only):** because the Mgmt plane is reachable from the
+>   laptop directly, point Winbox at the device Mgmt IP (`.99.x` per [`network-addresses-generated.md`](network-addresses-generated.md)) — no tunnel needed
+>   (the old `switch-wb`/`ap-*-wb` LocalForward aliases were removed; the Pi-dial pattern is retired).
+>   **Design constraint (unchanged):** RouterOS mgmt services bind winbox to the Mgmt VLAN only, so direct access to
 >   the device winbox port from the Home laptop is blocked — the tunnel is required.
 
 ### Pattern A -- loopback-capable apps (preferred)
@@ -205,9 +201,9 @@ sidecar serves to the app over that private network. Functional service-to-servi
 
 | Node | Serves | App-level auth | ACL tag |
 |------|--------|----------------|---------|
-| dsh | cockpit :3080 | **none** (ACL is the gate) | tag:dsh |
+| ~~dsh~~ *(moved to oldsrv 2026-09-10)* | cockpit :3080 | **none** (ACL is the gate) | tag:dsh |
 | vps-obs (`traefik-tailnet` + its userspace sidecar, HD-135b follow-up) | **clean subdomain URLs over the tailnet** — `stats`, `sec`, `traefik`, `logs`, `csui`, `auto` (n8n) and their `*.ts.kogler.si` twins: `https://stats.kogler.si` / `https://stats.ts.kogler.si`, `https://logs.kogler.si`, `https://csui.kogler.si`, `https://sec.kogler.si`, `https://traefik.kogler.si`, `https://auto.kogler.si` — **no ports** (wildcard certs + second Traefik edge) | plain `*.kogler.si` = Authentik Forward-Auth; **`*.ts.kogler.si` = ACL-gated** (tailnet-only names, `tag:sidecar:443` is the gate) | tag:sidecar |
-| pi-dev | TUI/CLI agent (`services-internal`) | scoped LiteLLM key + PR-only Forgejo | tag:pi-harness |
+| ~~pi-dev~~ *(moved to oldsrv 2026-09-10)* | TUI/CLI agent (`services-internal`) | scoped LiteLLM key + PR-only Forgejo | tag:pi-harness |
 | litellm-ui | admin :4000/ui | bearer keys | tag:litellm |
 | owui-int (`ai.kogler.si`, HD-248) | internal OWUI | Authentik OIDC | tag:owui-int |
 | openclaw | control/gateway | gateway token | tag:openclaw |
@@ -216,10 +212,32 @@ sidecar serves to the app over that private network. Functional service-to-servi
 - Serve mode: plain TCP forward is simplest (WireGuard already encrypts); HTTPS mode needs Headscale TLS config -- verify at deploy.
 - ACL defaults: inbound-only per node (e.g., DSH needs ZERO outbound tailnet destinations); tag hygiene audit quarterly.
 - Rollout: HD-251 (phase-2 fleet rework); first applications: litellm-ui + owui-int (HD-247/248), dsh (HD-250); **tailnet dashboard edge (HD-135b follow-up) LIVE 2026-08-28** — `traefik-tailnet` (consumer-mode Traefik + a userspace tailscale sidecar sharing its netns, node `vps-obs`) serves the admin dashboards over the tailnet with clean subdomain URLs on port 443 (`tailscale serve --tcp=443` → the edge's TLS listener), see `docker_services/traefik-tailnet` + `policy.hujson.j2`. The old port-based skeleton (`tailscale-sidecar` dir, :8080–8085) is removed.
-- **HD-333 spec (WG/tailnet reach for the internal edge — this doc is the SSOT):** the internal all-app edge (`traefik-tailnet` growth, HD-331/332) is reached two ways:
+- **HD-333 spec (WG/tailnet reach for the internal edge — this doc is the SSOT):** **✔️ LIVE 2026-09-07** (VPS `docker_services` + `vps-hardening` converge; nftables `iifname "wg-s2s" ip saddr <wg_s2s_vps.router_ip, SSOT> tcp dport 4443 accept` landed after the STALE pre-HD-333 ruleset was re-rendered; internal edge answers on `https://<wg_s2s_vps.ip, SSOT>:{{ wg_internal_edge_port }}`).** the internal all-app edge (`traefik-tailnet` growth, HD-331/332) is reached two ways:
   - **Tailnet (existing):** the `vps-obs` userspace sidecar already serves `--tcp=443` → the edge's TLS listener; family nodes are ACL-allowed (`policy.hujson`, deny-by-default + per-user own nodes). No change unless the ACL needs extending for a new family member.
-  - **WireGuard S2S:** add a **second listener bound to the `wg-s2s` VPS side** for the internal edge (same host, second port or same 443 via the tunnel) + an **nftables input allow** (the vps-hardening pattern from HD-313: `iifname "wg-s2s" … accept`) so a home host (router-side WG) reaches `http(s)://<wg-s2s VPS IP>:<edge>`.
-  - **Deploy-gated verify:** home host over WG + a tailnet device both reach the internal edge; heading home with Tailscale on reaches `ha.kogler.si` via the LAN (Option A).
+  - **WireGuard S2S:** the internal edge's TLS listener (:443, the edge container IP pinned per HD-240) is published **only on the `wg-s2s` VPS address** (`{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}`, the vps.yml SSOT port) via the traefik-tailnet compose `ports:` (docker's own PREROUTING DNAT → container `:443` — same precedent as `kopia-server :51515`, HD-62; no manual nftables DNAT). An **nftables input allow** (vps-hardening, HD-313 pattern: `iifname "wg-s2s" ip saddr <router peer> tcp dport {{ wg_internal_edge_port }} accept`) is added for defense-in-depth. SSOT: `wg_internal_edge_port` / `wg_internal_edge_target_ip` in `group_vars/vps.yml` (derived-values ban — never re-type in compose/nftables/docs).
+  - **Reach scope (HD-155 least-access):** the VPS wireguard peer `wg_s2s_vps.allowed_ips` accepts ONLY home infra hosts (`nas/ha-vip/oldsrv/pi/router/switch` — group_vars/all/main.yml). So the internal edge is reachable over WG **from those scoped home hosts**. End-user devices (laptop/phone) at home use the **tailnet** path (sidecar + headscale ACL) — WG is the infra/automation path, not the family path.
+  - **Deploy-gated verify:** after the next VPS `docker_services` converge (`docker_services_scope=traefik-tailnet`) + `vps-hardening` converge:
+    1. VPS-side listener: `ss -ltnp | grep :{{ wg_internal_edge_port }}` → bound to the `wg-s2s` VPS address (`{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}`).
+    2. From a scoped home host over WG (e.g. `oldsrv`/`nas`/`pi`): `curl -k -I https://<wg-s2s VPS address>:{{ wg_internal_edge_port }}` → HTTP/2 302 (or the edge's TLS response); split-horizon alternative once the `vpn/home/dns` records (HD-334) are seeded: `curl -k -I https://kogler.si -H 'Host: kogler.si'` resolved via the tunnel, or `https://{{ wg_internal_edge_target_ip }}:{{ wg_internal_edge_port }}` from a scoped home host.
+    3. Tailnet path unchanged: tailnet device → `https://stats.kogler.si` / `https://<app>.ts.kogler.si` still works.
+    4. Heading home with Tailscale on reaches `ha.kogler.si` via the LAN (Option A).
+  - **Tailnet ACL:** `policy.hujson` already allows family nodes → `tag:sidecar` on :443 (deny-by-default + per-user own nodes). No extension needed for the existing owner set; extend only if a new family member node is added.
+
+## Tailnet boundary (decided 2026-09-10) — mobile devices only, via the VPS edge
+
+The tailnet is **not a home-LAN bridge**. Clients reach it as: **mobile → tailnet → VPS `traefik-tailnet` edge → (WG S2S) → home backends**. No home host runs a tailnet node (except the exit-node below, toggle-only). oldsrv/Pi/NAS stay off the tailnet so Shelly/KNX/IoT/guest devices are never tailnet-reachable, and the LAN stays the LAN.
+
+**Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the moved `dsh`/`pi-dev`) are reachable from a phone by **publishing a host port bound to `oldsrv_home_ip`** + a `traefik-tailnet` edge route proxying over WG — the `actual-budget:5006` / `immich-ml:3003` precedent. Still **behind Authentik forward-auth** on the edge (private, not public).
+
+## Slovenian exit node (decided 2026-09-10) — Pi, toggle-only
+
+**Purpose:** when abroad, reach `rtvslo.si` and other Slovenia-only content without geo-limitations — a **genuine Slovenian residential IP** (home WAN) is the most geo-acceptable egress (datacenter IPs are often blocked).
+
+- **Node:** the **Pi** (reliable tier) runs **native `tailscaled` in kernel mode** (`/dev/net/tun`) as a tailscale exit node — `tailscale up --advertise-exit-node`. **Not** the router (RouterOS has no tailscaled; would be a manual WireGuard peer, losing the app toggle) and **not** oldsrv (disposable tier — the exit node must be available exactly when travelling).
+- **Selection is client-side and toggled:** the phone/laptop picks the Pi as exit node in the Tailscale app **only when** a Slovenian IP is needed (then switches back). Not always-on — so home power/ISP is never a dependency for everyday phone traffic.
+- **Headscale double opt-in:** the Pi advertises `0.0.0.0/0`, the control server must **approve the route** (manual, headscale CLI), and the policy needs an **`autogroup:internet`** rule (new concept for the user-email-based `policy.hujson`) so tailnet members may use it.
+- **Ceiling while on:** the Pi 4 CPU + the home upload cap mobile throughput (~100–300 Mbit/s, single stream OK). Android tailscale supports **per-app split tunneling** to scope it; iOS is all-or-nothing.
+- **Alternative (future, only if home fails acceptance/speed):** a Slovenian VPS terminated at the VPS, policy-routed for RTV-bound traffic.
 
 ## Family Usage Scenarios
 
