@@ -6,9 +6,21 @@
 
 | Component | Version | Purpose |
 |-----------|---------|---------|
-| **vLLM Engine** | `qwen38-flash-next` (pinned digest) | OpenAI-compatible LLM server with PLE CPU offload |
+| **vLLM Engine** | `qwen38-flash-next` (pinned digest `sha256:fc120ece…`) | OpenAI-compatible LLM server with PLE CPU offload |
 | **llm-d Router** | `latest` | Request routing, queue management, flow control |
-| **Model** | Qwen3.8-Flash-Next-AWQ-W4A16 | 98/100 reasoning accuracy, 135K context |
+## 🎯 Serving model & engine direction (engine-neutral, 2026-09-14)
+
+The stack benches **vLLM and SGLang apples-to-apples** (no pre-assigned default) across the five
+serving profiles (S1–S5); the winner per profile gets promoted into the SSOT. The 98/100 AWQ+PLE
+accuracy recipe is vLLM-only (PLE overlay); NVFP4 on GB10 leans SGLang (stock vLLM Marlin gap).
+Detail + bench matrix: [`BENCHMARK-PLAN.md`](BENCHMARK-PLAN.md); research: [`resources/RESEARCH-VERDICTS.md`](resources/RESEARCH-VERDICTS.md).
+
+| Component | Version / value | Purpose |
+|-----------|-----------------|---------|
+| **Model** | Qwen3.8-Flash-Next (AWQ W4A16 + PLE INT4 = proven accuracy; NVFP4 = throughput candidate) | 98/100 reasoning accuracy (AWQ recipe) |
+| **Context** | 173,400 (B1) → 262k native / 524,288 via YaRN (R3) | max context per profile |
+| **KV Cache offload** | XFS on NVMe (mmap, zero-copy) | cache larger than VRAM |
+| **Engine** | vLLM today / SGLang candidate | decided by bench, not pinned |
 | **PLE Quantization** | Primitive-AI INT4 tables | 95 GB → 32 GB n-gram tables on XFS |
 | **Storage** | XFS on NVMe | Zero-copy mmap for KV cache + quant tables |
 
@@ -92,10 +104,10 @@ B1 is the verbatim proven recipe (u/WonderRico 98/100 + u/UltrMgns 170K + primit
 
 **All tunables are in `ansible/group_vars/spark_nodes.yml`** — never edit templates directly.
 
-Key variables (proven baseline values):
+Key variables (proven baseline values) — engine-neutral plan: [`BENCHMARK-PLAN.md`](BENCHMARK-PLAN.md):
 ```yaml
 vllm:
-  image: "vllm/vllm-openai:qwen38-flash-next@sha256:DIGEST"  # Pin this!
+  image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"  # R4-verified multi-arch arm64+amd64 (2026-09-13)
   max_num_seqs: 4
   max_model_len: 173400
   max_num_batched_tokens: 16384
@@ -158,12 +170,14 @@ Full methodology, change table, accuracy gates, and the results log live in
 
 ## 🔄 Operations
 
-### Update vLLM / Model
+### Update vLLM / Model / Engine
 ```bash
 # 1. Update digest in group_vars/spark_nodes.yml
 # 2. Re-run only AI role
 ansible-playbook -i inventory.yml site.yml --tags spark-ai
 ```
+Engine switch (vLLM ↔ SGLang) is a bench output — see `BENCHMARK-PLAN.md` §10 (post-bench SSOT
+promotion). Until a profile is certified, configs stay uncommitted.
 
 ### Rollback Overlays (if PLE breaks)
 ```bash
