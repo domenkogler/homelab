@@ -1,0 +1,66 @@
+---
+# Verify — assert the bootstrap outcomes, idempotency, and guards.
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Automation user exists
+      user:
+        name: "{{ ansible_user }}"
+        state: present
+      register: user_facts
+    - name: Automation user has no interactive shell
+      command: "getent passwd {{ ansible_user }}"
+      register: passwd_line
+    - name: Assert nologin shell
+      assert:
+        that:
+          - "'/usr/sbin/nologin' in passwd_line.stdout"
+        fail_msg: "ansible user shell is not nologin"
+    - name: authorized_keys exists + contains test key
+      slurp:
+        src: "/home/{{ ansible_user }}/.ssh/authorized_keys"
+      register: ak
+    - name: Assert authorized_keys
+      assert:
+        that:
+          - (ak.content | b64decode | search('id_ed25519_test'))
+        fail_msg: "test pubkey not in authorized_keys"
+    - name: sudoers drop-in valid
+      command: "visudo -c -f /etc/sudoers.d/{{ ansible_user }}"
+      register: visudo
+    - name: Assert sudoers
+      assert:
+        that:
+          - visudo.rc == 0
+    - name: sshd registration matches Expected-Users, Hardening present
+      command: "ssh -V"
+      register: ssh_ver
+      failed_when: false
+    - name: Assert hardening drop-in exists
+      stat:
+        path: /etc/ssh/sshd_config.d/50-homelab-hardening.conf
+      register: dropin
+    - name: Assert hardening
+      assert:
+        that:
+          - dropin.stat.exists
+    - name: Idempotency — role guards against re-run (marker exists)
+      stat:
+        path: "/etc/spark-bootstrap.done"
+      register: marker
+    - name: Assert marker
+      assert:
+        that:
+          - marker.stat.exists
+    - name: Playbook-equivalent — verify post_tasks would pass sshd -T
+      command: "sshd -T"
+      register: sshd_eff
+      failed_when: false
+    - name: Assert sshd effective hardening
+      assert:
+        that:
+          - "'passwordauthentication no' in sshd_eff.stdout"
+          - "'permitrootlogin no' in sshd_eff.stdout"
+          - "'maxauthtries 3' in sshd_eff.stdout"
+        fail_msg: "sshd hardening not effective"

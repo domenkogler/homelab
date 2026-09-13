@@ -4,17 +4,17 @@ all:
     spark_nodes:
       hosts:
         spark-dgx:
-          ansible_host: 192.168.1.100
-          ansible_user: ubuntu
+          ansible_host: 192.168.1.100   # REPLACE with the box's LAN IP after DGX OS install
+          ansible_user: ansible         # created by spark-bootstrap before first Ansible run
           ansible_become: true
+          ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
           # Hardware-specific (adjust for your Spark)
           spark_nvme_device: /dev/nvme0n1
           spark_nvme_partition: "/dev/nvme0n1p2"
           spark_xfs_mount: /mnt/spark_nvme
-          spark_models_dir: /home/ubuntu/models
-          spark_project_dir: /home/ubuntu/qwen-spark-stack
+          spark_models_dir: /home/ansible/models
+          spark_project_dir: /home/ansible/qwen-spark-stack
   vars:
     ansible_python_interpreter: /usr/bin/python3
-    ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
     # Auto-start stack on boot (set to true after first successful deploy)
     spark_ai_auto_start: false

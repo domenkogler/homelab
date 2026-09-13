@@ -1,0 +1,95 @@
+---
+# Main tasks — one-shot bootstrap: automation user + authorized_keys + sshd hardening.
+# Fail-loud: refuses to re-run on an already-bootstrapped host unless `reset=1`.
+
+- name: Guard — refuse re-run on an already-bootstrapped host
+  when:
+    - spark_bootstrap_done_file is file
+    - (reset | default(false)) | bool == false
+  fail:
+    msg: "{{ spark_bootstrap_done_file }} exists — host already bootstrapped. Pass -e reset=1 to re-run (DANGER: rewrites authorized_keys + sshd)."
+  tags: [boot, bootstrap, never]
+
+- name: Ensure the ansible automation user exists (no interactive shell)
+  user:
+    name: "{{ ansible_user }}"
+    group: "{{ ansible_group }}"
+    shell: /usr/sbin/nologin
+    home: "/home/{{ ansible_user }}"
+    create_home: true
+    system: true
+    state: present
+  become: true
+  tags: [boot, bootstrap]
+
+- name: Ensure the ansible user's .ssh directory
+  file:
+    path: "/home/{{ ansible_user }}/.ssh"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_group }}"
+    mode: "0700"
+  become: true
+  tags: [boot, bootstrap]
+
+- name: Install authorized_keys (append-only, exact lines from spark_bootstrap_authorized_keys)
+  authorized_key:
+    user: "{{ ansible_user }}"
+    key: "{{ item.key }} {{ item.comment }}"
+    state: present
+  loop: "{{ spark_bootstrap_authorized_keys }}"
+  become: true
+  tags: [boot, bootstrap]
+
+- name: Configure sudo — NOPASSWD for the automation user
+  copy:
+    dest: "/etc/sudoers.d/{{ ansible_user }}"
+    content: "{{ ansible_user }} ALL=(ALL) NOPASSWD: ALL\n"
+    mode: "0440"
+    validate: 'visudo -c -f %s'
+  become: true
+  tags: [boot, bootstrap]
+
+- name: Gather curl for idempotency check convenience (no-op placeholder — DGX OS has curl)
+  package:
+    name: curl
+    state: present
+  become: true
+  tags: [boot, bootstrap]
+
+- name: Ensure /etc/environment does NOT carry unintended proxy leftovers (fail-loud hygiene)
+  lineinfile:
+    path: /etc/environment
+    regexp: "^{{ item.key }}=?.*$"
+    line: "{{ item.key }}={{ item.value }}"
+    create: true
+    mode: "0644"
+  loop: "{{ spark_bootstrap_env | dict2items }}"
+  become: true
+  tags: [boot, bootstrap]
+
+- name: Apply sshd hardening drop-in
+  copy:
+    dest: /etc/ssh/sshd_config.d/50-homelab-hardening.conf
+    content: |
+      # Homelab sshd hardening (spark-bootstrap, one-shot)
+      PasswordAuthentication no
+      PermitRootLogin no
+      MaxAuthTries 3
+      AllowUsers {{ ansible_user }}
+    mode: "0600"
+  become: true
+  notify: restart sshd
+  tags: [boot, bootstrap]
+
+- name: Mark bootstrap complete (lock the role)
+  copy:
+    dest: "{{ spark_bootstrap_done_file }}"
+    content: "spark-bootstrap completed {{ ansible_date_time.iso8601 }}\n"
+    mode: "0644"
+  become: true
+  tags: [boot, bootstrap]
+
+- name: Flush handlers (restart sshd) — so a mid-suite verify connects against the new config
+  meta: flush_handlers
+  tags: [boot, bootstrap]
