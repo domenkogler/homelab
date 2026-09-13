@@ -1,0 +1,7 @@
+---
+# Handlers for spark-bootstrap
+- name: restart sshd
+  service:
+    name: sshd
+    state: restarted
+  become: true

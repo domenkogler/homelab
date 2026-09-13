@@ -1,0 +1,20 @@
+---
+# role: spark-bootstrap (one-shot; see README.md)
+
+# ansible automation user (inventory/group_vars override)
+ansible_user: ansible
+ansible_group: "{{ ansible_user }}"
+
+# authorized_keys to install — homelab admin key by default (the ~/.ssh/id_ed25519.pub that all
+# hosts use). Override via group_vars/inventory: list of {comment, key} lines.
+spark_bootstrap_authorized_keys:
+  - comment: "admin@laptop"
+    key: "{{ lookup('file', spark_bootstrap_pubkey_source) | trim }}"
+
+# absolute path of the local public key (control machine) — used by the playbook, not the role
+spark_bootstrap_pubkey_source: "~/.ssh/id_ed25519.pub"
+
+# misc
+spark_bootstrap_setup_python: true
+spark_bootstrap_env: {}
+spark_bootstrap_done_file: /etc/spark-bootstrap.done

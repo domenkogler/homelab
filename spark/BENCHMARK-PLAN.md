@@ -192,6 +192,26 @@ identical control as its own baseline. Steps #1–10 from the pre-research plan 
 Engine-specific ladder rows added if a winner engine shows a distinct tuning knob (SGLang: RadixAttention
 prefix caching, `--max-total-tokens` pool, mamba flags).
 
+### TRT-LLM — future row, not a current bench candidate
+
+TensorRT-LLM is **not** a bench candidate for Qwen3.8-Flash-Next on this box today, and stays as a
+future row. Rationale (R6 digest + NVIDIA sources checked 2026-09-14):
+- **Model path is missing for single-GB10.** NVIDIA's official Day-0 TRT-LLM support + deployment
+guide (`nvidia.github.io/TensorRT-LLM/latest/deployment-guide/deployment-guide-for-qwen3.8-qwen3.5-on-trtllm.html`)
+cover the **`Qwen3.8-2.4T-A95B`** MoE (min 16× GB200/GB300) and **`Qwen3.5-397B-A17B`** (min 4×) — no
+single-G10 GB10 path, and the validated GPU table is B200/B300/GB200/GB300 only. The blog's
+"also runs on local hardware" mentions DGX Spark **clusters** (2×), not a single Spark, and not via
+TRT-LLM.
+- **No single-GB10 TRT-LLM serving report exists** for this model (community single-Spark runs are
+vLLM-patched/SGLang/llama.cpp only).
+- **PLE n-gram table has no TRT-LLM story** (vLLM-overlay/patched-vLLM artifacts only).
+- NVIDIA's own engine is the right call on **rack-scale/multi-GPU** (blog: 16K tok/s/GPU on GB300), so
+this row gets revisited when upstream ships a `sm_121` path **or** we go 2× Spark (TP2) — TRT-LLM is
+then likely the top perf engine, and gets its own lane.
+
+Until then, engine candidates are **vLLM + SGLang** only (both have documented containers/recipes for
+this model on GB10). See `spark/resources/R6-trtllm-gb10.md` + sources above.
+
 ---
 
 ## 7. Tooling & timing (`bench/`)

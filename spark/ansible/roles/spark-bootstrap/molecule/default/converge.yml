@@ -1,0 +1,10 @@
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    ansible_user: "ansible"
+    ansible_group: "ansible"
+    # Use a test pubkey so the role has something to install; overridden per-run
+    spark_bootstrap_pubkey_source: "{{ playbook_dir }}/../../test-fixtures/id_ed25519_test.pub"
+  roles:
+    - spark-bootstrap
