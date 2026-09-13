@@ -1,9 +1,12 @@
 # Research spike verdicts — R1–R6 (Qwen3.8-Flash-Next on spark/GB10)
 
-> **Role:** Synthesis of the 2026-09-13 research spike (summary.md handoff, R1–R6). One verdict per
-> question, scenario→profile mapping for S1–S5, GB10 calibration numbers, and the proposed updated
-> readiness table (proposal for summary.md §7 — NOT yet applied).
-> **Linked from:** `summary.md`, per-question digests `R1-*.md` … `R6-*.md` (raw captures alongside).
+> **Role:** Synthesis of the 2026-09-13 research spike (R1–R6). One verdict per
+> question, scenario→profile mapping for S1–S5, GB10 calibration numbers, and the
+> proposed updated readiness table (proposal for the benchmark-docs update — NOT yet
+> applied).
+> **Linked from:** `todo.md` (research HD row, to be registered), `docs/hardware-spark.md`,
+> `docs/services-ai.md`, `spark/BENCHMARK-PLAN.md`, `spark/README.md`; per-question digests
+> `R1-*.md` … `R6-*.md` (raw captures alongside).
 > **Method:** 6 parallel research lanes mined the 5 local captures; parent lane (web/registry access)
 > verified all lane-flagged gaps and folded addenda into each digest. All verdicts below are
 > parent-verified. Bench candidates = pullable checkpoints/images + documented flags only; no engine
@@ -41,7 +44,7 @@ is resolved by the multi-arch manifest.
 | Correctness trap | QSA decode via XQA on sm_12x silently corrupts ≥120k-context requests (token-id-0, HTTP 200); Triton varlen (#36845) is the fix — **bench must needle-test every profile** | hashd1ve; sglang#36806/#36845 |
 | Keep/drop rule | Confirmed: ~20× less bandwidth than RTX 6000 Pro ⇒ compare vs B1-on-box only | — |
 
-## 3. Scenario → profile mapping (proposal for summary.md §6 tables)
+## 3. Scenario → profile mapping (proposal for BENCHMARK-PLAN.md §5 profile table)
 
 | Profile | Scenario | Engine (primary / fallback) | Weights | KV | Context | Notes |
 |---|---|---|---|---|---|---|
@@ -56,7 +59,7 @@ Cross-profile requirements (all): PLE tables on the XFS NVMe mount (unified memo
 pointless); needle-test at operating depth per profile (XQA corruption trap); `--max-num-seqs` set
 explicitly (default 1024 aborts CUDA-graph capture); ptrace/seccomp check under DGX OS.
 
-## 4. Proposed updated readiness table (summary.md §7 replacement — for review)
+## 4. Proposed updated readiness table (proposal for BENCHMARK-PLAN.md §6 replacement — for review)
 
 | Profile | Status | Missing |
 |---|---|---|
