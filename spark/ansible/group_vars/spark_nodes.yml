@@ -8,7 +8,7 @@ compose_file: "{{ spark_project_dir }}/docker-compose.yaml"
 
 # vLLM Engine Configuration
 vllm:
-  image: "vllm/vllm-openai:qwen38-flash-next@sha256:REPLACE_WITH_ACTUAL_DIGEST"
+  image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"  # R4-verified multi-arch arm64+amd64 (research 2026-09-13)
   container_name: "vllm-qwen-spark"
   model_path: "{{ spark_models_dir }}/Qwen3.8-Flash-Next-AWQ"
   quantization: "awq"

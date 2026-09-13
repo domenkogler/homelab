@@ -23,7 +23,7 @@ version: '3.8'
 services:
   # 1. vLLM Engine — proven recipe, unmodified
   vllm-engine:
-    image: vllm/vllm-openai:qwen38-flash-next@sha256:REPLACE_WITH_ACTUAL_DIGEST
+    image: vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8
     container_name: vllm-qwen-spark
     cap_add:
       - SYS_PTRACE

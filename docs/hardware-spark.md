@@ -145,6 +145,17 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337 is the poin
   isolates CUDA/Python — the guide's own recommended path).
 - 240 W USB-C PD power; check UPS coverage on the rack (PowerWalker VFI ICT/ICR IoT 3000, `hardware-ups.md`).
 
+## Benchmark / engine selection (2026-09-14)
+
+spark serves Qwen3.8-Flash-Next under four serving profiles (S1–S5, engine-neutral). The engine is
+**not pre-decided** — vLLM and SGLang are benched apples-to-apples on this box and the winner per
+profile gets promoted into the SSOT. Full plan: [`spark/BENCHMARK-PLAN.md`](../spark/BENCHMARK-PLAN.md).
+Research + verdicts: [`spark/resources/RESEARCH-VERDICTS.md`](../spark/resources/RESEARCH-VERDICTS.md).
+- **vLLM**: the 98/100 AWQ+PLE accuracy recipe is vLLM-only (PLE n-gram overlay); NVFP4 on GB10 has an
+  upstream Marlin fallback gap (#50925).
+- **SGLang**: native-GB10 NVFP4 route (262k ctx); long-context concurrency (S5) fits its pool semantics.
+- Bench runs on the box once provisioned (deploy-gate); until then configs stay uncommitted to SSOT.
+
 ## Document Map
 
 | For | Read |
@@ -153,4 +164,5 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337 is the poin
 | AI platform (Triton, models, Mem0, OpenHands, LiteLLM) | [`services-ai.md`](services-ai.md) |
 | Local LLM model guidance | [`services-ai.md`](services-ai.md) |
 | Network / VLAN placement | [`network-vlans.md`](network-vlans.md) |
+| Spark benchmark + engine bench plan | [`spark/BENCHMARK-PLAN.md`](../spark/BENCHMARK-PLAN.md) |
 | Old superseded Phase-2 build | archived decision log ([`deployment-rejected.md`](deployment-rejected.md)) |
