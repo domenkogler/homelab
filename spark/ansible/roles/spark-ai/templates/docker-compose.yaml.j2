@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  # 1. vLLM Engine - Maksimiziran za GB10 Grace Blackwell enotni pomnilnik
+  vllm-engine:
+    image: "{{ vllm.image }}"
+    container_name: "{{ vllm.container_name }}"
+    cap_add:
+      - SYS_PTRACE
+      - IPC_LOCK
+      - SYS_RESOURCE
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+    entrypoint: ["numactl", "--cpunodebind=0", "--membind=0", "python3", "-m", "vllm.entrypoints.openai.api_server"]
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - VLLM_LOGGING_LEVEL={{ vllm.log_level }}
+      - VLLM_PLE_QUANT_DIR={{ vllm.ple_quant_dir }}
+      - VLLM_PLE_CPU_OFFLOAD={{ vllm.cpu_offload }}
+      - VLLM_PLE_OFFLOAD_READY_TIMEOUT={{ vllm.ple_offload_ready_timeout }}
+      - OMP_NUM_THREADS={{ vllm.omp_num_threads }}
+      - SAFETENSORS_FAST_GPU={{ vllm.safetensors_fast_gpu }}
+      - PYTORCH_CUDA_ALLOC_CONF={{ vllm.pytorch_cuda_alloc_conf }}
+      - TORCHINDUCTOR_CACHE_DIR=/root/.cache/torchinductor
+      - NCCL_NSOCKS_PERTHREAD=4
+      - NCCL_SOCKET_NTHREADS=2
+    volumes:
+      # Model (read-only)
+      - {{ vllm.model_path }}:/model:ro
+
+      # PLE Overlay patches (read-only)
+      - {{ ple_quant.local_dir }}/worker_image_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/worker.py:ro
+      - {{ ple_quant.local_dir }}/ple_layer_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/models/qwen3_8_flash_next/nvidia/ple_layer.py:ro
+      - {{ ple_quant.local_dir }}/connector_mrv2.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/connector.py:ro
+
+      # Quantized tables (read-only)
+      - {{ ple_quant.quant_tables_dir }}:{{ vllm.ple_quant_dir }}:ro
+
+      # KV Cache (read-write, on XFS)
+      - {{ xfs.mount_point }}/kv_cache:/data/kv_cache
+
+      # Compile caches (rootfs is read-only; persist across restarts)
+      - {{ xfs.mount_point }}/vllm_cache:/root/.cache/vllm
+      - {{ xfs.mount_point }}/triton_cache:/root/.triton
+    ports:
+      - "8000:8000"
+    ipc: host
+    shm_size: "{{ vllm.shm_size }}"
+    ulimits:
+      memlock: {{ vllm.ulimits.memlock }}
+      stack: {{ vllm.ulimits.stack }}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: {{ vllm.memory_limit }}
+    logging:
+      driver: "{{ logging.driver }}"
+      options:
+        max-size: "{{ logging.options['max-size'] }}"
+        max-file: "{{ logging.options['max-file'] }}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: "{{ vllm.healthcheck.interval }}"
+      timeout: "{{ vllm.healthcheck.timeout }}"
+      retries: {{ vllm.healthcheck.retries }}
+      start_period: "{{ vllm.healthcheck.start_period }}"
+    restart: unless-stopped
+    command: >
+      --model /model
+      --quantization {{ vllm.quantization }}
+      {% if vllm.trust_remote_code | default(false) %}--trust-remote-code {% endif %}--max-num-seqs {{ vllm.max_num_seqs }}
+      --max-model-len {{ vllm.max_model_len }}
+      {% if vllm.enable_chunked_prefill | default(false) %}--enable-chunked-prefill {% endif %}--max-num-batched-tokens {{ vllm.max_num_batched_tokens }}
+      {% if vllm.enable_prefix_caching | default(false) %}--enable-prefix-caching {% endif %}{% if vllm.disable_flashinfer_autotune | default(false) %}--no-enable-flashinfer-autotune {% endif %}{% if vllm.swap_space is defined %}--swap-space {{ vllm.swap_space }} {% endif %}--kv-cache-dtype {{ vllm.kv_cache_dtype }}
+      --gpu-memory-utilization {{ vllm.gpu_memory_utilization }}
+      --distributed-executor-backend {{ vllm.distributed_executor_backend }}
+      {% if vllm.enforce_eager %}--enforce-eager {% endif %}--reasoning-parser {{ vllm.reasoning_parser }}
+      {% if vllm.tool_call_parser is defined %}--tool-call-parser {{ vllm.tool_call_parser }} {% endif %}--override-generation-config '{{ vllm.override_generation_config }}'
+      --speculative-config '{"method": "{{ vllm.speculative_method }}", "num_speculative_tokens": {{ vllm.speculative_tokens }}{% if vllm.speculative_disable_by_batch_size is defined %}, "disable_by_batch_size": {{ vllm.speculative_disable_by_batch_size }}{% endif %}}'
+
+  # 2. llm-d Router - Nastavljen kot lokalni Gateway in upravitelj čakalne vrste
+  llm-router:
+    image: "{{ llm_router.image }}"
+    container_name: "{{ llm_router.container_name }}"
+    ports:
+      - "{{ llm_router.port }}:8080"
+    depends_on:
+      vllm-engine:
+        condition: service_healthy
+    environment:
+      - BACKEND_URL={{ llm_router.backend_url }}
+      - MAX_CONCURRENT_SESSIONS={{ llm_router.max_concurrent_sessions }}
+      - ROUTING_STRATEGY={{ llm_router.routing_strategy }}
+      - ENABLE_FLOW_CONTROL={{ llm_router.enable_flow_control | lower }}
+    logging:
+      driver: "{{ logging.driver }}"
+      options:
+        max-size: "{{ logging.router_options['max-size'] }}"
+        max-file: "{{ logging.router_options['max-file'] }}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ready || exit 1"]
+      interval: "{{ llm_router.healthcheck.interval }}"
+      timeout: "{{ llm_router.healthcheck.timeout }}"
+      retries: {{ llm_router.healthcheck.retries }}
+    restart: unless-stopped
+
+networks:
+  default:
+    name: "{{ docker_network.name }}"
+    driver: "{{ docker_network.driver }}"

@@ -1,0 +1,7 @@
+---
+# Handlers for spark-base role
+
+- name: reload systemd
+  systemd:
+    daemon_reload: true
+  become: true

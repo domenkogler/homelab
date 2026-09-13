@@ -1,0 +1,18 @@
+driver:
+  name: docker
+platforms:
+  - name: spark-base-test
+    image: "ubuntu:22.04"
+    privileged: true
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    command: "/sbin/init"
+    pre_build_image: true
+provisioner:
+  name: ansible
+  playbooks:
+    converge: converge.yml
+    verify: verify.yml
+verifier:
+  name: ansible

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Spark AI verification every 5 minutes
+Requires=spark-ai-verify.service
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,38 @@
+repos:
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v24.10.0
+    hooks:
+      - id: ansible-lint
+        files: ^ansible/
+        args: ["--offline"]
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        files: \.(yaml|yml)$
+        args: ["-c", ".yamllint.yaml"]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        files: ^ansible/
+      - id: end-of-file-fixer
+        files: ^ansible/
+      - id: check-yaml
+        files: ^ansible/
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: check-merge-conflict
+        files: ^ansible/
+
+  - repo: local
+    hooks:
+      - id: ansible-syntax-check
+        name: Ansible Syntax Check
+        entry: ansible-playbook --syntax-check
+        language: system
+        files: ^ansible/.*\.yml$
+        pass_filenames: true
+        args: ["-i", "ansible/inventory.yml.example"]

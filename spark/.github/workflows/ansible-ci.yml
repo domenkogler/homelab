@@ -1,0 +1,138 @@
+name: Ansible CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint:
+    name: Lint (ansible-lint, yamllint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install linting tools
+        run: |
+          pip install --upgrade pip
+          pip install ansible-lint yamllint
+
+      - name: Run ansible-lint
+        run: |
+          cd ansible
+          ansible-lint .
+
+      - name: Run yamllint
+        run: |
+          yamllint .
+
+  syntax-check:
+    name: Syntax Check (ansible-playbook --syntax-check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible and collections
+        run: |
+          pip install --upgrade pip
+          pip install ansible-core
+          cd ansible && ansible-galaxy collection install -r requirements.yml
+
+      - name: Syntax check playbooks
+        run: |
+          cd ansible
+          ansible-playbook --syntax-check site.yml
+          ansible-playbook --syntax-check -i inventory.yml site.yml
+
+  molecule-test:
+    name: Molecule Tests (spark-base)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Molecule and Docker
+        run: |
+          pip install --upgrade pip
+          pip install molecule molecule-plugins[docker] docker
+          sudo systemctl start docker
+
+      - name: Install Ansible collections
+        run: |
+          cd ansible
+          ansible-galaxy collection install -r requirements.yml
+
+      - name: Run Molecule test for spark-base
+        run: |
+          cd ansible/roles/spark-base
+          molecule test
+
+  validate-templates:
+    name: Validate Jinja2 Templates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install jinja2 pyyaml
+
+      - name: Validate docker-compose template renders
+        run: |
+          cd ansible
+          python3 -c "
+          import yaml
+          from jinja2 import Environment, FileSystemLoader
+          
+          # Load variables
+          with open('group_vars/spark_nodes.yml') as f:
+              vars = yaml.safe_load(f)
+          
+          # Add required computed variables
+          vars['ple_quant'] = vars['ple_quant']
+          vars['xfs'] = vars['xfs']
+          vars['vllm'] = vars['vllm']
+          vars['llm_router'] = vars['llm_router']
+          vars['logging'] = vars['logging']
+          vars['docker_network'] = vars['docker_network']
+          vars['compose_project_name'] = 'qwen-spark'
+          vars['spark_project_dir'] = '/home/ubuntu/qwen-spark-stack'
+          
+          # Render template
+          env = Environment(loader=FileSystemLoader('roles/spark-ai/templates'))
+          template = env.get_template('docker-compose.yaml.j2')
+          output = template.render(**vars)
+          
+          # Validate YAML
+          compose = yaml.safe_load(output)
+          assert 'services' in compose
+          assert 'vllm-engine' in compose['services']
+          assert 'llm-router' in compose['services']
+          assert 'networks' in compose
+          print('✓ Template renders valid YAML')
+          print('✓ Services:', list(compose['services'].keys()))
+          "

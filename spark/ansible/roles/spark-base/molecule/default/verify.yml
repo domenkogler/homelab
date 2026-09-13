@@ -1,0 +1,59 @@
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Check Docker is installed and running
+      command: docker --version
+      register: docker_version
+      failed_when: docker_version.rc != 0
+
+    - name: Check Docker service is enabled
+      systemd:
+        name: docker
+      register: docker_service
+
+    - name: Check XFS mount point exists
+      stat:
+        path: "/mnt/spark_nvme"
+      register: xfs_mount
+
+    - name: Check XFS subdirectories exist
+      stat:
+        path: "/mnt/spark_nvme/{{ item }}"
+      loop:
+        - kv_cache
+        - ples_int4
+      register: xfs_dirs
+
+    - name: Check kernel parameters applied
+      command: sysctl -n {{ item.key }}
+      loop: "{{ kernel_params | dict2items }}"
+      register: sysctl_check
+
+    - name: Check systemd service file exists
+      stat:
+        path: "/etc/systemd/system/spark-ai.service"
+      register: systemd_service_file
+
+    - name: Check models directory exists
+      stat:
+        path: "/home/test/models"
+      register: models_dir
+
+    - name: Check project directory exists
+      stat:
+        path: "/home/test/qwen-spark-stack"
+      register: project_dir
+
+    - name: Assert all checks pass
+      assert:
+        that:
+          - docker_version.rc == 0
+          - docker_service.status.enabled == true
+          - xfs_mount.stat.exists
+          - xfs_dirs.results | map(attribute='stat.exists') | list | unique == [true]
+          - sysctl_check.results | map(attribute='stdout') | map('int') | list == kernel_params.values() | map('int') | list
+          - systemd_service_file.stat.exists
+          - models_dir.stat.exists
+          - project_dir.stat.exists
+        fail_msg: "Verification failed - see task output above"

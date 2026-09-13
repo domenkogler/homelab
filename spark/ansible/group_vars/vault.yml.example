@@ -1,0 +1,12 @@
+# Example vault file - encrypt with: ansible-vault encrypt group_vars/spark_nodes.yml
+# Decrypt for editing: ansible-vault edit group_vars/spark_nodes.yml
+# View: ansible-vault view group_vars/spark_nodes.yml
+
+# Sensitive variables that should be vaulted:
+vault_hf_token: "hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Hugging Face token for private models
+vault_registry_token: "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # GHCR token if using private images
+vault_grafana_admin_password: "changeme"  # If deploying Grafana
+vault_prometheus_bearer_token: "changeme"  # If using remote Prometheus
+
+# Non-sensitive variables (can stay in plaintext group_vars/spark_nodes.yml):
+# - All vllm, llm_router, xfs, kernel_params, model, ple_quant, logging, docker_network, systemd, benchmark vars

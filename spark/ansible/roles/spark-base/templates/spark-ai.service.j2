@@ -1,0 +1,33 @@
+[Unit]
+Description={{ systemd.description }}
+Documentation=https://github.com/your-org/spark-ai-stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{ spark_project_dir }}
+ExecStart=/usr/bin/docker compose -p {{ compose_project_name }} up -d
+ExecStop=/usr/bin/docker compose -p {{ compose_project_name }} down
+ExecReload=/usr/bin/docker compose -p {{ compose_project_name }} pull && /usr/bin/docker compose -p {{ compose_project_name }} up -d
+TimeoutStartSec=300
+TimeoutStopSec=60
+Restart={{ systemd.restart }}
+StartLimitBurst={{ systemd.start_limit_burst }}
+StartLimitIntervalSec={{ systemd.start_limit_interval_sec }}
+
+# Resource limits
+LimitNOFILE=1000000
+LimitMEMLOCK=infinity
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ spark_project_dir }} {{ xfs.mount_point }} {{ spark_models_dir }}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  # 1. vLLM Engine - Maksimiziran za GB10 Grace Blackwell enotni pomnilnik
+  # Tuned per proven recipe (r/LocalLLaMA 1w2b2j0: 170K ctx @ ~110 tok/s, 96 GB)
+  vllm-engine:
+    image: vllm/vllm-openai:qwen38-flash-next@sha256:REPLACE_WITH_ACTUAL_DIGEST
+    container_name: vllm-qwen-spark
+    cap_add:
+      - SYS_PTRACE
+      - IPC_LOCK
+      - SYS_RESOURCE
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+    entrypoint: ["numactl", "--cpunodebind=0", "--membind=0", "python3", "-m", "vllm.entrypoints.openai.api_server"]
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - VLLM_LOGGING_LEVEL=INFO
+      - VLLM_PLE_QUANT_DIR=/ples_int4
+      - VLLM_PLE_CPU_OFFLOAD=1
+      - VLLM_PLE_OFFLOAD_READY_TIMEOUT=3600
+      - OMP_NUM_THREADS=1
+      - SAFETENSORS_FAST_GPU=1
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+      - TORCHINDUCTOR_CACHE_DIR=/root/.cache/torchinductor
+      - NCCL_NSOCKS_PERTHREAD=4
+      - NCCL_SOCKET_NTHREADS=2
+    volumes:
+      # Model (read-only)
+      - ~/models/Qwen3.8-Flash-Next-AWQ:/model:ro
+
+      # PLE Overlay patches (read-only)
+      # NOTE: proven recipe mounts only worker_image_quant.py + ple_layer_quant.py;
+      # verify connector_mrv2.py is still needed for the pinned image.
+      - /mnt/spark_nvme/worker_image_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/worker.py:ro
+      - /mnt/spark_nvme/ple_layer_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/models/qwen3_8_flash_next/nvidia/ple_layer.py:ro
+      - /mnt/spark_nvme/connector_mrv2.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/connector.py:ro
+
+      # Quantized tables (read-only, INT4 mmap via VLLM_PLE_QUANT_DIR)
+      # Do NOT set VLLM_PLE_DISK_OFFLOAD_DIR - that selects the slow BF16-on-NVMe path.
+      - /mnt/spark_nvme/ples_int4:/ples_int4:ro
+
+      # KV Cache (read-write, on XFS)
+      - /mnt/spark_nvme/kv_cache:/data/kv_cache
+
+      # Compile caches (rootfs is read-only; persist across restarts)
+      - /mnt/spark_nvme/vllm_cache:/root/.cache/vllm
+      - /mnt/spark_nvme/triton_cache:/root/.triton
+    ports:
+      - "8000:8000"
+    ipc: host
+    shm_size: "32g"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: 126G
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 8
+      start_period: 1200s   # first PLE table load takes ~20 min
+    restart: unless-stopped
+    command: >
+      --model /model
+      --quantization awq
+      --trust-remote-code
+      --max-num-seqs 4
+      --max-model-len 173400
+      --enable-chunked-prefill
+      --max-num-batched-tokens 16384
+      --enable-prefix-caching
+      --no-enable-flashinfer-autotune
+      --swap-space 32
+      --kv-cache-dtype fp8
+      --gpu-memory-utilization 0.95
+      --distributed-executor-backend mp
+      --reasoning-parser qwen3
+      --tool-call-parser qwen3_coder
+      --override-generation-config '{"temperature":1,"top_p":0.95,"top_k":20}'
+      --speculative-config '{"method": "mtp", "num_speculative_tokens": 3, "disable_by_batch_size": 6}'
+
+  # 2. llm-d Router - Nastavljen kot lokalni Gateway in upravitelj čakalne vrste
+  llm-router:
+    image: ghcr.io/llm-d/router:latest
+    container_name: llm-d-router
+    ports:
+      - "8080:8080"
+    depends_on:
+      vllm-engine:
+        condition: service_healthy
+    environment:
+      - BACKEND_URL=http://vllm-engine:8000
+      - MAX_CONCURRENT_SESSIONS=3
+      - ROUTING_STRATEGY=fifo
+      - ENABLE_FLOW_CONTROL=true
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+networks:
+  default:
+    name: spark-net
+    driver: bridge

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Spark AI backup daily at 2:30 AM
+Requires=spark-ai-backup.service
+
+[Timer]
+OnCalendar=daily 02:30
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

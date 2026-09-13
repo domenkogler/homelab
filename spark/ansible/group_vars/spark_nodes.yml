@@ -1,0 +1,137 @@
+---
+# Spark DGX AI Stack - Group Variables
+# All sensitive values should be in vault (ansible-vault encrypt)
+
+# Docker Compose Project
+compose_project_name: "qwen-spark"
+compose_file: "{{ spark_project_dir }}/docker-compose.yaml"
+
+# vLLM Engine Configuration
+vllm:
+  image: "vllm/vllm-openai:qwen38-flash-next@sha256:REPLACE_WITH_ACTUAL_DIGEST"
+  container_name: "vllm-qwen-spark"
+  model_path: "{{ spark_models_dir }}/Qwen3.8-Flash-Next-AWQ"
+  quantization: "awq"
+  # --- Throughput / cache tuning (proven recipe: r/LocalLLaMA 1w2b2j0, 170K ctx @ ~110 tok/s) ---
+  max_num_seqs: 4                      # router caps at 3 concurrent sessions; small seq bookkeeping
+  max_model_len: 173400                # proven on 96GB; 128GB unified Spark has more headroom
+  enable_chunked_prefill: true
+  max_num_batched_tokens: 16384        # was chunked_prefill_size 4096; saturates GPU during prefill
+  enable_prefix_caching: true          # 90%+ hit rate on long-horizon tasks (recipe data)
+  disable_flashinfer_autotune: true    # recipe flag; avoids long autotune at startup
+  swap_space: 32                       # GB; room to preempt long sequences instead of re-prefill
+  gpu_memory_utilization: 0.95         # was 0.88; keep ~33G page-cache headroom for mmap'd PLE tables
+  kv_cache_dtype: "fp8"                # A/B vs "auto" (recipe default); watch spec-decode acceptance
+  distributed_executor_backend: "mp"   # LOAD-BEARING for single-GPU PLE offload — do not remove
+  reasoning_parser: "qwen3"
+  tool_call_parser: "qwen3_coder"
+  override_generation_config: '{"temperature":1,"top_p":0.95,"top_k":20}'  # Qwen3 recommended sampling
+  speculative_method: "mtp"            # was ngram; MTP acceptance ~87% code/JSON, head costs ~0.5GB
+  speculative_tokens: 3
+  speculative_disable_by_batch_size: 6 # safety valve: MTP degrades under 3-session concurrency
+  enforce_eager: false                 # CUDA graphs + torch.compile ON (was true — big decode win)
+  trust_remote_code: true
+  cpu_offload: 1
+  ple_offload_ready_timeout: 3600
+  ple_quant_dir: "/ples_int4"          # INT4 mmap path; do NOT set VLLM_PLE_DISK_OFFLOAD_DIR (slow BF16 path)
+  log_level: "INFO"
+  omp_num_threads: "1"
+  safetensors_fast_gpu: "1"
+  pytorch_cuda_alloc_conf: "max_split_size_mb:512"
+  ulimits:
+    memlock: -1
+    stack: 67108864
+  shm_size: "32g"
+  memory_limit: "126G"
+  healthcheck:
+    interval: "30s"
+    timeout: "10s"
+    retries: 8
+    start_period: "1200s"              # first PLE table load takes ~20 min (recipe: startupProbe 20m)
+
+# llm-d Router Configuration
+llm_router:
+  image: "ghcr.io/llm-d/router:latest"
+  container_name: "llm-d-router"
+  backend_url: "http://vllm-engine:8000"
+  max_concurrent_sessions: 3
+  routing_strategy: "fifo"
+  enable_flow_control: true
+  port: 8080
+  healthcheck:
+    interval: "15s"
+    timeout: "5s"
+    retries: 3
+
+# XFS Partition Configuration
+xfs:
+  device: "{{ spark_nvme_partition }}"
+  mount_point: "{{ spark_xfs_mount }}"
+  fstype: "xfs"
+  mkfs_options: "-f -d agcount=16"
+  mount_options: "noatime,nodiratime,logbufs=8,logbsize=256k,nobarrier"
+  directories:
+    - kv_cache
+    - ples_int4
+    - vllm_cache                       # persists compile/inductor caches across restarts
+    - triton_cache
+  permissions: "0777"
+
+# Kernel Parameters
+kernel_params:
+  kernel.yama.ptrace_scope: 0
+  vm.max_map_count: 262144
+  fs.file-max: 1000000
+  net.core.somaxconn: 65535
+  net.ipv4.tcp_max_syn_backlog: 65535
+
+# Model Download
+model:
+  repo_id: "wtdcode/Qwen3.8-Flash-Next-AWQ-W4A16"
+  local_dir: "{{ spark_models_dir }}/Qwen3.8-Flash-Next-AWQ"
+
+# Primitive-AI PLE Quantization Files
+ple_quant:
+  repo_id: "primitive-ai/Qwen3.8-Flash-Next-PLE-quant"
+  files:
+    - worker_image_quant.py
+    - ple_layer_quant.py
+    # NOTE: proven recipe (1w2b2j0) mounts only the TWO files above.
+    # connector_mrv2.py is mounted as a third overlay — verify it is still
+    # needed for your pinned image before re-enabling it in the template.
+    - connector_mrv2.py
+  local_dir: "{{ spark_xfs_mount }}"
+  quant_tables_dir: "{{ spark_xfs_mount }}/ples_int4"
+
+# Logging
+logging:
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "5"
+  router_options:
+    max-size: "20m"
+    max-file: "3"
+
+# Network
+docker_network:
+  name: "spark-net"
+  driver: "bridge"
+
+# Systemd Service
+systemd:
+  service_name: "spark-ai"
+  description: "Spark DGX AI Stack (vLLM + llm-d Router)"
+  restart: "on-failure"
+  start_limit_burst: 3
+  start_limit_interval_sec: 60
+
+# Benchmark
+benchmark:
+  enabled: true
+  tool: "hey"
+  url: "http://localhost:8080/v1/completions"
+  requests: 100
+  concurrency: 10
+  prompt: "Explain quantum computing in simple terms."
+  max_tokens: 512

@@ -1,0 +1,186 @@
+---
+# Spark DGX AI Stack - Main Playbook
+# Run: ansible-playbook -i inventory.yml site.yml
+# Run with vault: ansible-playbook -i inventory.yml site.yml --ask-vault-pass
+# Run specific tags: ansible-playbook -i inventory.yml site.yml --tags spark-ai
+
+- name: Bootstrap Spark DGX Base System
+  hosts: spark_nodes
+  become: true
+  vars_files:
+    - group_vars/spark_nodes.yml
+    - group_vars/vault.yml  # Optional, ignored if not found
+  roles:
+    - { role: spark-base, tags: ['spark-base', 'base', 'system'] }
+
+- name: Deploy AI Stack (vLLM + llm-d Router)
+  hosts: spark_nodes
+  become: true
+  vars_files:
+    - group_vars/spark_nodes.yml
+    - group_vars/vault.yml
+  roles:
+    - { role: spark-ai, tags: ['spark-ai', 'vllm', 'ai'] }
+
+- name: Configure llm-d Router
+  hosts: spark_nodes
+  become: true
+  vars_files:
+    - group_vars/spark_nodes.yml
+    - group_vars/vault.yml
+  roles:
+    - { role: llm-router, tags: ['llm-router', 'router', 'ai'] }
+
+- name: Post-Deployment Verification & Benchmark
+  hosts: spark_nodes
+  become: true
+  vars_files:
+    - group_vars/spark_nodes.yml
+    - group_vars/vault.yml
+  tags: ['verify', 'benchmark', 'post']
+  tasks:
+    - name: Wait for vLLM health endpoint
+      uri:
+        url: "http://localhost:8000/health"
+        status_code: 200
+        timeout: 10
+      register: vllm_health
+      retries: 30
+      delay: 10
+      until: vllm_health.status == 200
+      ignore_errors: true
+
+    - name: Fail if vLLM health check failed
+      fail:
+        msg: "vLLM health endpoint did not become healthy after 5 minutes"
+      when: vllm_health.status != 200
+
+    - name: Wait for Router ready endpoint
+      uri:
+        url: "http://localhost:8080/ready"
+        status_code: 200
+        timeout: 5
+      register: router_health
+      retries: 20
+      delay: 5
+      until: router_health.status == 200
+      ignore_errors: true
+
+    - name: Fail if Router ready check failed
+      fail:
+        msg: "Router ready endpoint did not become ready after 100 seconds"
+      when: router_health.status != 200
+
+    - name: Verify model is accessible via Router
+      uri:
+        url: "http://localhost:8080/v1/models"
+        status_code: 200
+        timeout: 10
+      register: models_check
+      retries: 5
+      delay: 3
+      until: models_check.status == 200
+
+    - name: Display service endpoints
+      debug:
+        msg:
+          - "============================================"
+          - "🎉 Spark DGX AI Stack Deployment Complete!"
+          - "============================================"
+          - "vLLM Engine:     http://{{ ansible_host }}:8000"
+          - "vLLM Health:     http://{{ ansible_host }}:8000/health"
+          - "vLLM Metrics:    http://{{ ansible_host }}:8000/metrics"
+          - "llm-d Router:    http://{{ ansible_host }}:8080"
+          - "Router Ready:    http://{{ ansible_host }}:8080/ready"
+          - "Router Models:   http://{{ ansible_host }}:8080/v1/models"
+          - "Router Metrics:  http://{{ ansible_host }}:8080/metrics"
+          - "============================================"
+
+    - name: Display available models
+      debug:
+        var: models_check.json
+
+    - name: Run benchmark (if enabled)
+      when: benchmark.enabled
+      block:
+        - name: Install hey for benchmarking
+          apt:
+            name: golang-go
+            state: present
+          become: true
+
+        - name: Build hey
+          command: go install github.com/rakyll/hey@latest
+          environment:
+            GOPATH: "/home/{{ ansible_user }}/go"
+            PATH: "/home/{{ ansible_user }}/go/bin:{{ ansible_env.PATH }}"
+          become: false
+
+        - name: Run benchmark against router
+          command: >
+            /home/{{ ansible_user }}/go/bin/hey
+            -n {{ benchmark.requests }}
+            -c {{ benchmark.concurrency }}
+            -m POST
+            -H "Content-Type: application/json"
+            -d '{"model": "qwen3-8-flash-next", "prompt": "{{ benchmark.prompt }}", "max_tokens": {{ benchmark.max_tokens }}}'
+            {{ benchmark.url }}
+          register: benchmark_result
+          changed_when: false
+          become: false
+          ignore_errors: true
+
+        - name: Display benchmark summary
+          debug:
+            msg: "{{ benchmark_result.stdout_lines[-15:] }}"
+          when: benchmark_result.rc == 0
+
+        - name: Benchmark failed
+          debug:
+            msg: "Benchmark failed: {{ benchmark_result.stderr }}"
+          when: benchmark_result.rc != 0
+
+# Optional: Cleanup playbook for removing the stack
+- name: Cleanup Spark AI Stack (run with --tags cleanup)
+  hosts: spark_nodes
+  become: true
+  tags: ['cleanup', 'destroy']
+  vars_files:
+    - group_vars/spark_nodes.yml
+    - group_vars/vault.yml
+  tasks:
+    - name: Stop and remove Docker Compose stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ spark_project_dir }}"
+        project_name: "{{ compose_project_name }}"
+        state: absent
+        remove_volumes: false
+        remove_images: local
+      ignore_errors: true
+
+    - name: Disable systemd service
+      systemd:
+        name: "{{ systemd.service_name }}"
+        enabled: false
+        state: stopped
+      ignore_errors: true
+
+    - name: Remove systemd service file
+      file:
+        path: "/etc/systemd/system/{{ systemd.service_name }}.service"
+        state: absent
+      ignore_errors: true
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    - name: Display cleanup complete
+      debug:
+        msg:
+          - "Stack removed. Data preserved:"
+          - "  - Models: {{ spark_models_dir }}"
+          - "  - XFS data: {{ xfs.mount_point }} (kv_cache, ples_int4)"
+          - "  - Config: {{ spark_project_dir }}"
+          - ""
+          - "To fully purge, manually remove above directories."

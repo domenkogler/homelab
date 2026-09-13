@@ -1,0 +1,169 @@
+---
+# Spark Base Role - System Preparation
+# Configures disk, kernel, Docker, and base dependencies
+
+- name: Ensure required packages installed
+  apt:
+    name:
+      - parted
+      - xfsprogs
+      - docker.io
+      - docker-compose-v2
+      - python3-docker
+      - curl
+      - jq
+      - htop
+      - nvme-cli
+      - smartmontools
+    state: present
+    update_cache: true
+  become: true
+
+- name: Enable and start Docker
+  systemd:
+    name: docker
+    enabled: true
+    state: started
+  become: true
+
+- name: Add ansible user to docker group
+  user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
+  become: true
+
+- name: Check if XFS partition exists
+  command: "blkid {{ xfs.device }}"
+  register: xfs_partition_check
+  failed_when: false
+  changed_when: false
+  become: true
+
+- name: Create XFS partition on NVMe (if not exists)
+  when: xfs_partition_check.rc != 0
+  block:
+    - name: Get disk info
+      command: "lsblk -J {{ xfs.device | dirname }}"
+      register: disk_info
+      changed_when: false
+      become: true
+
+    - name: Calculate partition start (after existing partitions)
+      set_fact:
+        partition_start: "{{ (disk_info.stdout | from_json).blockdevices[0].children | map(attribute='size') | map('replace', 'G', '') | map('float') | sum | int + 50 }}GB"
+      become: true
+
+    - name: Create XFS partition
+      command: "parted -s {{ xfs.device | dirname }} mkpart primary xfs {{ partition_start }} 100%"
+      become: true
+
+    - name: Wait for partition device
+      wait_for:
+        path: "{{ xfs.device }}"
+        timeout: 30
+      become: true
+
+    - name: Format partition as XFS
+      filesystem:
+        fstype: "{{ xfs.fstype }}"
+        dev: "{{ xfs.device }}"
+        opts: "{{ xfs.mkfs_options }}"
+      become: true
+
+- name: Create XFS mount point
+  file:
+    path: "{{ xfs.mount_point }}"
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Configure /etc/fstab for XFS partition
+  mount:
+    path: "{{ xfs.mount_point }}"
+    src: "{{ xfs.device }}"
+    fstype: "{{ xfs.fstype }}"
+    opts: "{{ xfs.mount_options }}"
+    state: mounted
+    dump: "0"
+    passno: "2"
+  become: true
+
+- name: Create XFS subdirectories with permissions
+  file:
+    path: "{{ xfs.mount_point }}/{{ item }}"
+    state: directory
+    mode: "{{ xfs.permissions }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  loop: "{{ xfs.directories }}"
+  become: true
+
+- name: Apply kernel parameters
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop: "{{ kernel_params | dict2items }}"
+  become: true
+
+- name: Persist kernel parameters to /etc/sysctl.d/99-spark-ai.conf
+  copy:
+    dest: /etc/sysctl.d/99-spark-ai.conf
+    content: |
+      # Spark DGX AI Stack - Kernel Tuning
+      {% for key, value in kernel_params.items() %}
+      {{ key }} = {{ value }}
+      {% endfor %}
+    mode: "0644"
+  become: true
+
+- name: Create models directory on EXT4
+  file:
+    path: "{{ spark_models_dir }}"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true
+
+- name: Create project directory on EXT4
+  file:
+    path: "{{ spark_project_dir }}"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true
+
+- name: Install Hugging Face CLI
+  pip:
+    name: "huggingface_hub[cli]"
+    state: latest
+    executable: pip3
+  become: true
+  environment:
+    PIP_BREAK_SYSTEM_PACKAGES: "1"
+
+- name: Deploy systemd service for AI stack
+  template:
+    src: spark-ai.service.j2
+    dest: /etc/systemd/system/{{ systemd.service_name }}.service
+    mode: "0644"
+  become: true
+  notify: reload systemd
+
+- name: Enable AI stack systemd service
+  systemd:
+    name: "{{ systemd.service_name }}"
+    enabled: true
+    daemon_reload: true
+  become: true
+
+- name: Start AI stack via systemd (optional - can be manual)
+  systemd:
+    name: "{{ systemd.service_name }}"
+    state: started
+  become: true
+  when: spark_ai_auto_start | default(false)

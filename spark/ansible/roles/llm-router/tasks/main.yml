@@ -1,0 +1,36 @@
+---
+# llm-d Router Role - Deployment and Configuration
+
+- name: Start llm-d Router (depends on vLLM health)
+  community.docker.docker_compose_v2:
+    project_src: "{{ spark_project_dir }}"
+    project_name: "{{ compose_project_name }}"
+    services:
+      - llm-router
+    state: started
+  become: true
+
+- name: Wait for Router ready endpoint
+  uri:
+    url: "http://localhost:8080/ready"
+    status_code: 200
+  register: router_health
+  retries: 20
+  delay: 5
+  until: router_health.status == 200
+  become: false
+
+- name: Verify router can reach vLLM backend
+  uri:
+    url: "http://localhost:8080/v1/models"
+    status_code: 200
+  register: router_models
+  retries: 5
+  delay: 3
+  until: router_models.status == 200
+  become: false
+
+- name: Display router model list
+  debug:
+    var: router_models.json
+  become: false

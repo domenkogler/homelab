@@ -1,0 +1,92 @@
+---
+# Spark AI Role - vLLM Engine Deployment
+
+- name: Download Qwen3.8-Flash-Next-AWQ model
+  command: >
+    huggingface-cli download {{ model.repo_id }}
+    --local-dir {{ model.local_dir }}
+  register: model_download
+  changed_when: "'Downloading' in model_download.stdout or 'downloaded' in model_download.stdout"
+  failed_when: model_download.rc != 0 and 'already exists' not in model_download.stderr
+  environment:
+    HF_HUB_ENABLE_HF_TRANSFER: "1"
+  become: false
+
+- name: Download Primitive-AI PLE quantization files
+  command: >
+    huggingface-cli download {{ ple_quant.repo_id }}
+    {% for f in ple_quant.files %}{{ f }} {% endfor %}
+    --local-dir {{ ple_quant.local_dir }}
+  register: ple_files_download
+  changed_when: "'Downloading' in ple_files_download.stdout"
+  failed_when: ple_files_download.rc != 0 and 'already exists' not in ple_files_download.stderr
+  environment:
+    HF_HUB_ENABLE_HF_TRANSFER: "1"
+  become: false
+
+- name: Download INT4 quantization tables
+  command: >
+    huggingface-cli download {{ ple_quant.repo_id }}
+    --include "ples_int4/*"
+    --local-dir {{ ple_quant.local_dir | dirname }}
+  register: quant_tables_download
+  changed_when: "'Downloading' in quant_tables_download.stdout"
+  failed_when: quant_tables_download.rc != 0 and 'already exists' not in quant_tables_download.stderr
+  environment:
+    HF_HUB_ENABLE_HF_TRANSFER: "1"
+  become: false
+
+- name: Verify model files exist
+  stat:
+    path: "{{ model.local_dir }}/config.json"
+  register: model_config
+
+- name: Verify PLE overlay files exist
+  stat:
+    path: "{{ ple_quant.local_dir }}/{{ item }}"
+  register: ple_files
+  loop: "{{ ple_quant.files }}"
+
+- name: Verify INT4 tables exist
+  stat:
+    path: "{{ ple_quant.quant_tables_dir }}"
+  register: quant_tables
+
+- name: Fail if critical files missing
+  fail:
+    msg: "Required files missing after download"
+  when: not model_config.stat.exists or not quant_tables.stat.exists or ple_files.results | selectattr('stat.exists', 'equalto', false) | length > 0
+
+- name: Deploy docker-compose.yaml
+  template:
+    src: docker-compose.yaml.j2
+    dest: "{{ compose_file }}"
+    mode: "0644"
+  become: true
+
+- name: Pull Docker images
+  community.docker.docker_compose_v2:
+    project_src: "{{ spark_project_dir }}"
+    project_name: "{{ compose_project_name }}"
+    pull: true
+  become: true
+
+- name: Start vLLM Engine
+  community.docker.docker_compose_v2:
+    project_src: "{{ spark_project_dir }}"
+    project_name: "{{ compose_project_name }}"
+    services:
+      - vllm-engine
+    state: started
+  become: true
+  register: vllm_start
+
+- name: Wait for vLLM to be healthy
+  uri:
+    url: "http://localhost:8000/health"
+    status_code: 200
+  register: vllm_health
+  retries: "{{ vllm.healthcheck.start_period | regex_replace('s', '') | int / 10 | int }}"
+  delay: 10
+  until: vllm_health.status == 200
+  become: false

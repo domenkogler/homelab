@@ -1,0 +1,19 @@
+[Unit]
+Description=Verify Spark DGX AI Stack health
+Documentation=https://github.com/your-org/spark-ai-stack
+
+[Service]
+Type=oneshot
+ExecStart=/home/ubuntu/qwen-spark-stack/scripts/verify-stack.sh
+Environment=VLLM_URL=http://localhost:8000
+Environment=ROUTER_URL=http://localhost:8080
+# Optional alerting
+# Environment=ALERT_WEBHOOK=https://hooks.slack.com/services/xxx/yyy/zzz
+# Environment=METRICS_PUSHGATEWAY=http://prometheus:9091
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

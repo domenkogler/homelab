@@ -1,0 +1,62 @@
+# Ansible
+*.retry
+.vault_pass
+*.vault
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.tox/
+.venv/
+venv/
+env/
+
+# Molecule
+.molecule/
+molecule/*/molecule.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+
+# Backup files
+*~
+*.bak
+*.backup
+
+# Terraform (if used)
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Docker
+docker-compose.override.yml
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# Ansible inventory with secrets
+ansible/inventory.yml
+ansible/host_vars/
+ansible/group_vars/*.vault
+
+# Molecule test instances
+.molecule/

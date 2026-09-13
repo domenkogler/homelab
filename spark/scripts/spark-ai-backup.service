@@ -1,0 +1,26 @@
+[Unit]
+Description=Daily backup of Spark DGX AI Stack
+Documentation=https://github.com/your-org/spark-ai-stack
+
+[Service]
+Type=oneshot
+ExecStart=/home/ubuntu/qwen-spark-stack/scripts/backup-restore.sh backup
+Environment=BACKUP_ROOT=/backup/spark
+Environment=XFS_MOUNT=/mnt/spark_nvme
+Environment=MODELS_DIR=/home/ubuntu/models
+Environment=PROJECT_DIR=/home/ubuntu/qwen-spark-stack
+Environment=RETENTION_DAYS=30
+Environment=COMPRESS=true
+Environment=ENCRYPT=false
+# Optional: GPG encryption
+# Environment=ENCRYPT=true
+# Environment=GPG_RECIPIENT=admin@example.com
+User=root
+Group=root
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # 1. vLLM Engine - Maksimiziran za GB10 Grace Blackwell enotni pomnilnik
+  vllm-engine:
+    image: vllm/vllm-openai:qwen38-flash-next
+    container_name: vllm-qwen-spark
+    privileged: true
+    entrypoint: ["numactl", "--cpunodebind=0", "--membind=0", "python3", "-m", "vllm.entrypoints.openai.api_server"]
+    cap_add:
+      - SYS_PTRACE # Nujno potrebno za pidfd_getfd(2) handshake med GPU in offload delavcem
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - VLLM_LOGGING_LEVEL=INFO
+      - VLLM_PLE_QUANT_DIR=/ples_int4 # Lokacija stisnjenih tabel znotraj vsebnika
+      - VLLM_PLE_CPU_OFFLOAD=1
+      - VLLM_PLE_OFFLOAD_READY_TIMEOUT=3600
+    volumes:
+      # Povezava za zmagovalni AWQ model iz EXT4 particije
+      - ~/models/Qwen3.8-Flash-Next-AWQ:/model
+
+      # Zunanji popravki (Overlays) iz hitre XFS particije
+      - /mnt/spark_nvme/worker_image_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/worker.py:ro
+      - /mnt/spark_nvme/ple_layer_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/models/qwen3_8_flash_next/nvidia/ple_layer.py:ro
+
+      # KLJUČNI POPRAVEK: Podtaknjen async-MRV2 konektor proti zamrznitvi vLLM-ja
+      - /mnt/spark_nvme/connector_mrv2.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/connector.py:ro
+
+      # Mape na hitri XFS particiji za tabele in predpomnilnik
+      - /mnt/spark_nvme/ples_int4:/ples_int4
+      - /mnt/spark_nvme/kv_cache:/data/kv_cache
+    ports:
+      - "8000:8000"
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    command: >
+      --model /model
+      --quantization awq
+      --max-num-seqs 36
+      --max-model-len 135168
+      --chunked-prefill-size 4096
+      --enforce-eager
+      --kv-cache-dtype fp8
+      --gpu-memory-utilization 0.88
+      --distributed-executor-backend mp
+      --reasoning-parser qwen3
+      --speculative-config '{"method": "ngram", "num_speculative_tokens": 3}'
+
+  # 2. llm-d Router - Nastavljen kot lokalni Gateway in upravitelj čakalne vrste
+  llm-router:
+    image: ghcr.io/llm-d/router:latest
+    container_name: llm-d-router
+    ports:
+      - "8080:8080" # Končne aplikacije se povezujejo sem
+    depends_on:
+      - vllm-engine
+    environment:
+      - BACKEND_URL=http://vllm-engine:8000
+      - MAX_CONCURRENT_SESSIONS=3
+      - ROUTING_STRATEGY=fifo # Za eno vLLM instanco uporabimo klasično FIFO vrsto z nadzorom pretoka
+      - ENABLE_FLOW_CONTROL=true
+    restart: unless-stopped

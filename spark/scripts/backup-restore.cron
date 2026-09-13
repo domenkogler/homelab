@@ -1,0 +1,18 @@
+# Cron example for automated daily backups
+# Install: sudo cp scripts/backup-restore.cron /etc/cron.d/spark-ai-backup
+# Or: crontab -e (as root)
+
+# Environment
+BACKUP_ROOT=/backup/spark
+XFS_MOUNT=/mnt/spark_nvme
+MODELS_DIR=/home/ubuntu/models
+PROJECT_DIR=/home/ubuntu/qwen-spark-stack
+RETENTION_DAYS=30
+COMPRESS=true
+ENCRYPT=false
+
+# Daily at 2:30 AM
+30 2 * * * root /home/ubuntu/qwen-spark-stack/scripts/backup-restore.sh backup >> /var/log/spark-ai-backup.log 2>&1
+
+# Weekly full verification (Sunday 4:00 AM)
+0 4 * * 0 root /home/ubuntu/qwen-spark-stack/scripts/verify-stack.sh >> /var/log/spark-ai-verify.log 2>&1
