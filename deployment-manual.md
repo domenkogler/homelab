@@ -1239,12 +1239,19 @@ All of this runs on **oldsrv** only; streaming stays on the VPS (Navidrome, HD-3
 | `metabrainz_login` | Login | ListenBrainz token (`username`+`credential`); owner-created 2026-09-14 |
 | `tube-archivist_login` | Login | Tube Archivist web-UI login (`username`+`credential`) |
 | `tube-archivist_ui` | API Credential | Tube Archivist UI/API token — OPTIONAL (only if the Jellyfin plugin is used later) |
+| `tube-archivist-es` | API Credential | **ES `elastic` bootstrap password** (ELASTIC_PASSWORD on app + archivist-es) — catalog-generated 2026-09-14; required by the TA env-check |
 | `lidarr-url-dl_login` | Login | **Lidarr-YouTube-Downloader** web-UI login (`username`+`credential`) — entered in its Settings page at first run |
 | `lidarr_api` | API Credential | **Lidarr instance key** — read from the live Lidarr `config.xml` after first
   boot, or generate + set via `scripts/` (see [scripts/README.md](scripts/README.md) — the same
   manual-value class as `sonarr_api`/`radarr_api`; NOT auto-rotatable). Used by Aurral AND lidarr-ydl |
 
 Run `bash scripts/check-vault-items.sh --strict` before converging — it lists exactly what's missing.
+
+Pre-create the Tube Archivist archive dir on the NAS (the compose bind-mounts it and the export root is
+root-squashed, so the container cannot mkdir it):
+```bash
+ssh nas "sudo mkdir -p /bulk/media/tube && sudo chown 1005:1005 /bulk/media/tube"
+```
 
 ### P3.2 Converge oldsrv (registry rows already in `group_vars/home_servers.yml`)
 
