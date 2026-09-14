@@ -54,6 +54,14 @@ storage_samba_media:
 # Root of per-user private Samba stores (SSOT for smb.conf per-user share paths).
 storage_samba_users_root: /tank/data/users
 
+# PassDB backend — tdbsam (default, working offline) vs ldapsam (D7/HD-132, deploy-gated).
+# ldapsam = Samba pulls auth from the Authentik LDAP outpost on the VPS (SSOT, no push;
+# reachable over the WG S2S tunnel). REQUIRED before flipping to ldapsam: the Authentik
+# LDAP provider + LDAP outpost + svc_samba search bind user must exist and the
+# `authentik-ldap_bind` token must be valid (HD-132; still deploy-gated 2026-09-14 —
+# the outpost token expired and smbd fails HARD on startup when ldapsam can't bind).
+storage_samba_passdb: tdbsam
+
 # ---- Authentik-as-LDAP passdb (D7/HD-132) — Samba pulls auth from Authentik LDAP outpost ----
 # Samba is an LDAP *client* (pull): Authentik is the SSOT and does NOT push. The LDAP outpost
 # (ak-outpost-ldap) runs on the VPS beside the Authentik server; Samba on nas is the client and

@@ -421,8 +421,17 @@ Deliberate isolation decisions (accepted, not gaps): **Ollama** (no native serve
 `services-ai.md`; treated like Ollama). *Cross-ref: `security.md` HD-160 block.*
 
 #### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — the pull contract
-- **Samba authenticates against Authentik as an LDAP provider** (`passdb backend = ldapsam`);
-  **Authentik is the SSOT and does NOT push.** No password is replicated/synced to the NAS.
+
+> **Status 2026-09-14: deploy-gated.** HD-132's LDAP provider/outpost/svc_samba were never
+> created live (blueprint has none; outpost token `authentik-ldap_bind` expired 2026-09-01).
+> Samba currently runs `storage_samba_passdb=tdbsam` (local accounts, works offline; media
+> share needs no per-user LDAP). Flip the var to `ldapsam` only once the Authentik LDAP
+> provider + outpost + svc_samba exist and the token is valid — smbd fails HARD on startup
+> if ldapsam is enabled while the outpost is unreachable (2026-09-14 live hit).
+
+- **When ldapsam is enabled (HD-132)**: Samba authenticates against Authentik as an LDAP
+  provider (`passdb backend = ldapsam`); **Authentik is the SSOT and does NOT push.** No
+  password is replicated/synced to the NAS.
 - **Effect:** a user changes their own password in the Authentik self-service
   portal and the **next Samba bind (pull) reads it** — no admin step, no sync.
 - **Nothing in Ansible/glue writes a local Samba password** — we deliberately removed the old

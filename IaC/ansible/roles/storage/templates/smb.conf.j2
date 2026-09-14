@@ -15,15 +15,23 @@
    server string = Kogler NAS
    security = user
    map to guest = never
-   guest account = nobody
    min protocol = SMB2
    max protocol = SMB3
-   vfs objects = zfs_core
+   # ZFS ACLs via Samba's always-available POSIX-ACL backend (acl_xattr).
+   # `zfs_core` is NOT in Debian's samba packages (TrueNAS-only fork module) —
+   # using it breaks EVERY tree connect with vfs_init failed (2026-09-14 live hit).
+   vfs objects = acl_xattr
    create mask = 0664
    directory mask = 0775
    netbios name = NAS
 
-   # ---- Authentik-as-LDAP passdb (D7/HD-132) — Samba pulls from Authentik LDAP outpost ----
+   # ---- PassDB: tdbsam (current, working) vs Authentik-as-LDAP (D7/HD-132, deploy-gated) ----
+   # storage_samba_passdb=tdbsam = local Samba accounts (works offline; media share needs
+   # no per-user LDAP). storage_samba_passdb=ldapsam = Samba pulls from the Authentik LDAP
+   # outpost (SSOT, no push) — REQUIRES the VPS LDAP provider+outpost+svc_samba to exist and
+   # the `authentik-ldap_bind` token to be valid (HD-132; 2026-09-14: outpost dead/expired,
+   # smbd fails hard on startup if enabled before that). Flip the var once HD-132 is live.
+{% if storage_samba_passdb == 'ldapsam' %}
    passdb backend = ldapsam:ldap://{{ storage_samba_ldap.host }}:{{ storage_samba_ldap.port }}
    ldap ssl = {{ storage_samba_ldap.ssl | default('start tls') }}
    ldap suffix = {{ storage_samba_ldap.base_dn }}
@@ -32,6 +40,9 @@
    ldap admin password = {{ lookup('community.general.onepassword', 'authentik-ldap_bind', field='password', vault=op_vault) }}
    # Read/write are pull-only: Samba never writes NTAuth/plaintext back to LDAP.
    ldap passwd sync = no
+{% else %}
+   passdb backend = tdbsam
+{% endif %}
 
 
 # Runtime-provisioned per-user shares (sync-authentik-users.sh glue, D5) —

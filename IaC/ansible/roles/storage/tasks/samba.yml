@@ -8,7 +8,8 @@
 # Per-user isolation is enforced by Samba `valid users`, NOT by POSIX uid on the NAS
 # filesystem (the shared tree is owned by the neutral `media`/storage_uid account).
 # Family members log in with a manual username+password at mount time (no 1Password SSO);
-# 1Password only stores the passwords.
+# 1Password only stores the passwords. PassDB is `storage_samba_passdb` — tdbsam (default,
+# local accounts) or ldapsam (D7/HD-132, deploy-gated until the VPS LDAP outpost is live).
 #
 # Runs on nas (the storage host that owns the shared datasets). The per-user + shared
 # trees live under /tank/data (a ZFS dataset owned by storage_uid/storage_gid).
@@ -76,11 +77,13 @@
     - storage_samba_users | length > 0
     - (item.stdout | trim) == 'absent'
   tags: [samba, storage]
-# NO Samba-password task here (D7/HD-132): Samba auths family members against
-# Authentik-as-LDAP (passdb = ldapsam). Authentik is the SSOT and does NOT push;
-# Samba pulls, so a user changes their own password in the portal and the next
+# NO Samba-password task here (D7/HD-132): with `storage_samba_passdb=ldapsam`, Samba auths
+# family members against Authentik-as-LDAP (passdb = ldapsam). Authentik is the SSOT and
+# does NOT push; Samba pulls, so a user changes their own password in the portal and the next
 # mount picks it up. We never write a local smbpasswd password — writing one would
-# shadow/overwrite the LDAP credential and break self-service.
+# shadow/overwrite the LDAP credential and break self-service. (Current default
+# `storage_samba_passdb=tdbsam` uses the Samba account probe/user task below; flip the var
+# to ldapsam once HD-132's LDAP provider/outpost/svc_samba + valid token are live.)
 
 # ---------------------------------------------------------------------------
 # Authentik → NAS/OpenCloud provisioning glue (D5/HD-131). Runs on nas via a
