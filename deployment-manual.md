@@ -414,6 +414,20 @@ The interactive path skips the preseed's `post_install.sh`, so reproduce its eff
    (battery %/runtime), `exportfs` shows the 3 shares → oldsrv, `ss -tlnp | grep 9199`
    (nut_exporter), cockpit at cockpit-nas.kogler.si.
 
+> **NFS export not live after a NAS converge (2026-09-14):** an export present in
+> `/etc/exports` can still be absent from the running nfsd if the storage handler's
+> `exportfs -ra` silently failed — the handler runs without sudo on a non-login SSH
+> shell where `/usr/sbin` is not on PATH, so it can exit rc≠0 invisibly. If a client
+> errors `Stale file handle` on an NFS automount:
+> ```sh
+> # on nas: force-apply exports as root (full path — /usr/sbin not on non-login PATH)
+> sudo /usr/sbin/exportfs -ra
+> sudo /usr/sbin/exportfs -v        # confirm the share is now exported
+> # on the client (e.g. oldsrv): clear the stale automount handle
+> sudo umount /mnt/<share>          # then re-trigger via any access
+> ls /mnt/<share>                   # automount re-mounts cleanly after the export is live
+> ```
+
 6. **Samba — passdb switch (HD-132/HD-360):** Samba auth is driven by `storage_samba_passdb`
    in the storage role (default `tdbsam` = local accounts; `ldapsam` = Authentik-as-LDAP, D7).
    **Do NOT flip to `ldapsam` before the Authentik side is live** — smbd fails HARD on startup
