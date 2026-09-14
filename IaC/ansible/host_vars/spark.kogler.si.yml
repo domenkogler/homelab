@@ -11,5 +11,6 @@ homelab_mode: headless
 # AI stack is NOT yet enabled — benches + winner-engine promotion are deploy-gated (HD-359).
 # spark.enabled flips to true in group_vars/home_servers.yml after bench certification.
 # spark_partition_enable must be set true by the operator after first-boot inspection
-# (DGX OS ships a formatted single NVMe; never auto-partition).
+# (DGX OS ships a formatted single NVMe; never auto-partition). HD-363: p2 is the LIVE
+# ROOT — XFS data goes on p3 (offline shrink of p2 first).
 spark_partition_enable: false

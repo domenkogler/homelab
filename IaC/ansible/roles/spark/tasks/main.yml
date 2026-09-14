@@ -3,7 +3,9 @@
 # Hardened vs the standalone spark-base role (folded 2026-09-14):
 #  * explicit spark_partition_enable gate (never auto-partition a fresh DGX OS disk)
 #  * device-sanity guard before any parted/mkfs (never destroy the OS partition)
-#  * on-disk check uses the full p2 device (not "p1 exists?"), and requires
+#  * HARD REFUSE when the target partition is the LIVE ROOT `/` (HD-363 live hit:
+#    DGX OS put root on nvme0n1p2, which the old role thought was the XFS data partition)
+#  * on-disk check uses the full data-partition device (not "p1 exists?"), and requires
 #    the data partition to be the REMAINDER starting after the OS partition.
 
 - name: Assert the data disk is a real NVMe device
@@ -16,25 +18,49 @@
   ansible.builtin.command: "lsblk -J {{ spark_nvme_data_disk }}"
   register: lsblk_out
   changed_when: false
+  # check-mode safe: command returns no stdout in --check; the assert below tolerates it
   tags: [spark, disk]
 
 - name: Assert the data disk exists and is a disk (not a partition)
-  ansible.builtin.assert:
-    that:
-      - lsblk_out.rc == 0
-      - (lsblk_out.stdout | from_json).blockdevices | length == 1
-      - (lsblk_out.stdout | from_json).blockdevices[0].type == "disk"
-    fail_msg: "{{ spark_nvme_data_disk }} is not a plain disk — refusing to partition"
+  block:
+    - name: Assert the data disk exists and is a disk (not a partition)
+      ansible.builtin.assert:
+        that:
+          - lsblk_out.rc == 0
+          - (lsblk_out.stdout | from_json).blockdevices | length == 1
+          - (lsblk_out.stdout | from_json).blockdevices[0].type == "disk"
+        fail_msg: "{{ spark_nvme_data_disk }} is not a plain disk — refusing to partition"
+  when: not ansible_check_mode
   tags: [spark, disk]
 
-- name: Check whether the data partition (p2) already exists
+- name: HARD REFUSE — data partition must NOT be the live root /
+  when: spark_partition_enable | bool
+  block:
+    - name: Check the data partition's current mountpoint
+      ansible.builtin.command: "findmnt -no TARGET {{ spark_nvme_data_partition }}"
+      register: data_part_mount
+      failed_when: false
+      changed_when: false
+      tags: [spark, disk]
+
+    - name: Fail if the data partition is mounted as /
+      ansible.builtin.fail:
+        msg: >-
+          {{ spark_nvme_data_partition }} is mounted as the LIVE ROOT — refusing to partition/
+          mkfs. On DGX OS, nvme0n1p2 = ext4 / (HD-363); the XFS data partition must be a
+          DEDICATED p3 carved by the operator (offline shrink of p2). Set
+          spark_nvme_data_partition to the real data partition, never the root FS.
+      when: (data_part_mount.stdout | trim) == "/"
+  tags: [spark, disk]
+
+- name: Check whether the data partition (p3) already exists
   ansible.builtin.command: "blkid {{ spark_nvme_data_partition }}"
   register: p2_blkid
   changed_when: false
   failed_when: false
   tags: [spark, disk]
 
-- name: Partition the data disk (create p2 as REMAINDER) — only when enabled
+- name: Partition the data disk (create p3 as REMAINDER) — only when enabled
   when:
     - spark_partition_enable | bool
     - p2_blkid.rc != 0
@@ -45,17 +71,17 @@
       changed_when: false
       tags: [spark, disk]
 
-    - name: Fail if p2 already present/printed (defensive — blkid said absent)
+    - name: Fail if the data partition already present/printed (defensive — blkid said absent)
       ansible.builtin.assert:
         that: >
           parted_unit.stdout_lines
           | reject('match', '^[0-9]+:.*$')
-          | select('search', 'nvme[0-9]+n[0-9]+p2')
+          | select('search', 'nvme[0-9]+n[0-9]+p3')
           | list | length == 0
-        fail_msg: "p2 already exists but blkid missed it — refuse, manual check needed"
+        fail_msg: "p3 already exists but blkid missed it — refuse, manual check needed"
       tags: [spark, disk]
 
-    - name: Create partition p2 = remainder (from first free sector to 100%)
+    - name: Create partition p3 = remainder (from first free sector to 100%)
       ansible.builtin.command: >
         parted -s -- {{ spark_nvme_data_disk }} mkpart primary xfs
         {{ spark_nvme_os_partition_end|default('') }} 100%
@@ -64,7 +90,7 @@
       failed_when: false       # parted exits non-zero on some disks when the FS probe is inconclusive
       tags: [spark, disk]
 
-    - name: Wait for p2 device node
+    - name: Wait for p3 device node
       ansible.builtin.wait_for:
         path: "{{ spark_nvme_data_partition }}"
         timeout: 30
@@ -76,7 +102,7 @@
       tags: [spark, disk]
   tags: [spark, disk]
 
-- name: Format p2 as XFS (idempotent — only when it exists and has no FS)
+- name: Format p3 as XFS (idempotent — only when it exists and has no FS)
   when:
     - p2_blkid.rc != 0
   ansible.builtin.filesystem:
@@ -128,13 +154,14 @@
 - name: Fail early if free space is under the headroom target
   ansible.builtin.assert:
     that:
+      - df_free.stdout_lines | length > 0
       - (df_free.stdout_lines[-1] | trim | int) >= spark_disk_headroom_gb
     fail_msg: >-
-      {{ xfs.mount_point }} free space ({{ df_free.stdout_lines[-1] | trim }} GiB) < required
+      {{ xfs.mount_point }} free space ({{ df_free.stdout_lines[-1] | trim if df_free.stdout_lines else 'n/a' }} GiB) < required
       {{ spark_disk_headroom_gb }} GiB — the full bench set (AWQ+PLE + NVFP4 + sidecars ≈ 331 GB)
-      won't fit without re-download. Check the NVMe is the expected 1 TB and p2 is the entire
+      won't fit without re-download. Check the NVMe is the expected 1 TB and p3 is the entire
       remainder.
-  when: df_free.rc == 0
+  when: not ansible_check_mode and df_free.rc == 0
   tags: [spark, disk]
 
 # NOTE on the ANSIBLE USER: unlike preseed hosts, spark has no post_install.sh — the

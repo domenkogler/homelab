@@ -17,7 +17,7 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > completed (see `deployment-manual.md` §Phase 5): English / Europe/Ljubljana, admin → 1P
 > `spark_login`, analytics disabled, updates + reboot; auto-suspend masked after the post-update L2
 > blackout (headless suspend kills the NIC — power-cycle recovered). GPU verified: GB10, driver
-> 580.173.02, CUDA 13.0, 121 Gi unified, NVMe p1 EFI + p2 root.
+> 580.173.02, CUDA 13.0, 121 Gi unified, NVMe p1 EFI + p2 root (see HD-363: p3 = AI data XFS carve).
 > The node is headless (no local display) and joins the homelab as a LAN GPU tier alongside oldsrv.
 > ⏳ deploy-gated on the node bring-up (DGX OS install, Ansible role, network placement).
 
@@ -86,7 +86,7 @@ Two new service-onboarding candidates land with spark (see `services-ai.md`):
 
 > **IaC status (2026-09-14):** spark is now a **first-class IaC host** — not a standalone
 > `spark/ansible` project. Inventory group `spark` + `host_vars/spark.kogler.si.yml` + the
-> `spark` role (NVMe p2 → XFS for PLE/KV) + `playbooks/spark.yml` exist; reserved statics
+> `spark` role (NVMe p3 → XFS for PLE/KV, HD-363 — p2 is the live root!) + `playbooks/spark.yml` exist; reserved statics
 > live in `network_static_hosts` (SSOT — mounted via `spark_home_ip`/`spark_mgmt_ip`, never
 > literal here). The engine-neutral
 > bench plan + research live in [`../spark/BENCHMARK-PLAN.md`](../spark/BENCHMARK-PLAN.md) and
