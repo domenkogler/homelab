@@ -107,7 +107,11 @@ services:
       # Cross-host API leg for the VPS n8n over wg-s2s, bound to the Home-VLAN address
       # (never 0.0.0.0) — same pattern as actual-budget :5006 / immich-ml :3003.
       # Inside the overlay, consumers may instead use http://secured-signal-api:8880.
-      - "{{ oldsrv_home_ip }}:8080:8880"
+      # Port 8080: HD-355 pi-dev owns oldsrv_home_ip:8080 on this host (VPS tailnet
+      # edge + ks-forward-auth + vps.yml all couple to it) — the signal gateway was
+      # added to 8080 by the 2026-09-14 converge and must NOT steal pi-dev's port.
+      # Moved to :8082 (free; sequential with the MCP :8080/:8081 publishes).
+      - "{{ oldsrv_home_ip }}:8082:8880"
     healthcheck:
       # `wget` WITHOUT a token gets 401 and exits 1 — so the probe must carry the
       # token, or the container would report unhealthy forever. The token comes from

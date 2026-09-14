@@ -58,7 +58,9 @@ services:
       # HD-347: homelab-alerts workflow env — Signal delivery via signal-cli-rest-api on
       # oldsrv (Home-VLAN publish, WG-reachable from the VPS). Values are 1P-resolved at
       # render; the workflow JSON references these env names, not literals.
-      SIGNAL_CLI_URL: "http://{{ oldsrv_home_ip }}:8080/v2/send"
+      # :8082 (not :8080 — pi-dev owns oldsrv_home_ip:8080, HD-355/HD-353 collision fix;
+      # signal gateway moved, see signal-cli-rest-api compose).
+      SIGNAL_CLI_URL: "http://{{ oldsrv_home_ip }}:8082/v2/send"
       SIGNAL_API_TOKEN: "{{ vault['signal-internal_api'].credential | replace('$','$$') }}"
       SIGNAL_NUMBER: "{{ vault['signal_api'].username | replace('$','$$') }}"
       SIGNAL_RECIPIENTS: '{{ signal_alert_recipients | default('\"Homelab Alerts\"', true) | replace('$','$$') }}'
