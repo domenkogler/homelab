@@ -1,0 +1,55 @@
+# dgx-dashboard docker-compose.yml — LAN bridge for the NVIDIA DGX Dashboard (HD-364)
+#   DGX OS ships the dashboard as `dgx-dashboard.service` (dashboard-service, port from
+#   /opt/nvidia/dgx-dashboard-service/ports.env = 11000) bound to **loopback only** —
+#   NVIDIA offers no bind-host flag and removed the "bind to LAN" RFE (NVIDIA forums
+#   347956: "not possible at the moment"). Officially the dashboard is reached via
+#   SSH tunnel / NVIDIA Sync / a desktop app launcher on the box.
+#
+#   The supported LAN exposure is a tiny TCP forwarder as a Docker sidecar (the same
+#   pattern the community uses — alpine/socat with network_mode: host): the container
+#   listens on spark's Home-VLAN IP :11000 and pipes to 127.0.0.1:11000 on the host,
+#   which the dashboard's loopback listener already serves. no auth changes: the
+#   dashboard's own local-user+password login sits in front (docs/hardware-spark.md
+#   §Dashboard access), so the LAN publish carries the same credentials policy as a
+#   local console — never 0.0.0.0, Home-VLAN-only, no public record (docs wiring:
+#   spark_home_ip from SSOT).
+#
+#   NOTE ON ACCESS: this makes the dashboard REACHABLE on the LAN, but the dashboard
+#   cannot be updated/flashed from a remote browser (its "Software Update" flow
+#   intentionally falls back to the SSH-tunnel path — NVIDIA tracks that separately).
+#   It is a diagnostics/monitoring surface for a HEADLESS box that only has SSH
+#   otherwise. If you do not want ANY dashboard on the LAN later, set the registry
+#   entry `enabled: false` (or flip spark_headless + docs) — the sidecar stops, the
+#   loopback dashboard service stays as NVIDIA shipped it.
+#
+#   Secrets: NONE — plain TCP relay, no 1P items (stays OUT of the vault derive-map
+#   like spark-ai). Image: alpine/socat digest-pinned below (socat_version pin).
+services:
+  dgx-dashboard:
+    image: "{{ socat_version }}"
+    container_name: dgx-dashboard-socat
+    network_mode: host          # must reach 127.0.0.1:11000 on the host (DGX service is
+                                # loopback-only; no docker bridge IP can reach it)
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    # listen on the Home-VLAN IP, fork per connection, forward to the host loopback.
+    # TCP keepalive so an idle browser tab does not drop the websocket mid-session.
+    # socat syntax note: `tcp-listen:<ip>:<port>` is NOT valid in this build ("wrong
+    # number of parameters"); the correct form is TCP4-LISTEN:<port>,bind=<ip>,…
+    # (live hit 2026-09-14). Lifetime-persist probe: ran under `timeout` until signal,
+    # cleaned up by `.. `; verified `TCP4-LISTEN:11000,bind=10.10.1.40,fork` stays up.
+    command:
+      - TCP4-LISTEN:11000,bind={{ spark_home_ip }},fork,reuseaddr,so-keepalive
+      - TCP4-CONNECT:127.0.0.1:11000
+    # The dashboard 'Software Update' flow reboots/restarts dgx-dashboard.service; the
+    # socat keeps RUNNING through it (just reconnects on the next connection).
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 11000 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# no top-level networks: — host networking only (no overlay to join/own)

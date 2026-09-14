@@ -8,6 +8,9 @@ ansible_host: "{{ spark_home_ip }}"     # VLAN 10 (Home) — SSH + inference end
 mgmt_ip: "{{ spark_mgmt_ip }}"          # VLAN 99 (Management) — SSOT-derived; static reservation
 ansible_user: ansible-admin         # provisioned on first touch (no preseed — DGX OS; see deployment-manual spark section)
 homelab_mode: headless
+# HD-364: headless contract enforced at converge (sleep masks + multi-user default.target).
+# Group-var default is true; set false explicitly to keep the DGX graphical desktop.
+spark_headless: true
 # AI stack is NOT yet enabled — benches + winner-engine promotion are deploy-gated (HD-359).
 # spark.enabled flips to true in group_vars/home_servers.yml after bench certification.
 # spark_partition_enable — operator-set true AFTER first-boot inspection (2026-09-14:

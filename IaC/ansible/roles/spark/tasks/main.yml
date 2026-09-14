@@ -172,6 +172,37 @@
   when: not ansible_check_mode and df_free.rc == 0
   tags: [spark, disk]
 
+# ---- Headless operating contract (HD-364) ----
+# DGX OS ships graphical.target + UNMASKED sleep targets; a headless box that idles
+# WILL suspend and vanish at L2 (live hit 2026-09-14, deployment-manual.md §5.2).
+# Enforcement is now idempotent IO here, toggle-able per host via `spark_headless`.
+# (systemd module has no masked state — use systemctl mask/unmask directly.)
+- name: Mask system sleep targets (headless contract — L2 blackout prevention)
+  ansible.builtin.command: systemctl mask --now {{ item }}
+  register: _mask
+  changed_when: "'masked' in _mask.stdout + _mask.stderr"
+  failed_when: _mask.rc != 0 and 'already masked' not in _mask.stderr
+  loop: "{{ spark_headless_sleep_targets }}"
+  become: true
+  tags: [spark, headless]
+
+- name: Set default boot target to multi-user (no graphical login — headless)
+  ansible.builtin.command: systemctl set-default multi-user.target
+  changed_when: false
+  become: true
+  when: spark_headless | bool
+  tags: [spark, headless]
+
+- name: Unmask system sleep targets (non-headless reversal)
+  ansible.builtin.command: systemctl unmask {{ item }}
+  register: _unmask
+  changed_when: "'unmasked' in _unmask.stdout + _unmask.stderr or 'Unmasked' in _unmask.stdout"
+  failed_when: _unmask.rc != 0
+  loop: "{{ spark_headless_sleep_targets }}"
+  become: true
+  when: not (spark_headless | bool)
+  tags: [spark, headless]
+
 # NOTE on the ANSIBLE USER: unlike preseed hosts, spark has no post_install.sh — the
 # automation user + authorized_keys + sudoers are provisioned by the `common` role
 # (roles/common/tasks/system.yml: user/key/sudoers), exactly like the VPS/Pi/nas/oldsrv.

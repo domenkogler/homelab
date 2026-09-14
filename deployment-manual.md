@@ -1130,13 +1130,20 @@ Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefi
 > lease stale, no ARP/ICMP answers, while the switch/router port link stayed up. Cause: headless
 > **auto-suspend** (a DGX Spark idles into suspend, which kills the NIC). A physical power-cycle
 > brought it back. Do NOT leave the box unattended before this step — it will vanish again.
+>
+> **Since HD-364 (2026-09-14) this is IaC-enforced** — the `spark` role masks the four targets +
+> sets `default.target = multi-user` when `spark_headless: true`. The manual mask below is the
+> **first-contact bootstrap only** (before the first `spark.yml` converge); after converge the
+> role keeps it idempotent (and the runbook step is superseded).
 
 ```bash
 ssh admin@<current-dhcp-ip>        # see the router DHCP lease (host-name thinkstationpgx-*)
 sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+sudo systemctl set-default multi-user.target    # skip the graphical login on the headless box
 ```
 
-✔ `systemctl status sleep.target suspend.target` — all four targets show **`masked`**.
+✔ `systemctl status sleep.target suspend.target` — all four targets show **`masked`**;
+`systemctl get-default` → `multi-user.target`.
 
 ### 5.3 First-boot verification `[MANUAL]`
 

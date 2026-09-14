@@ -63,6 +63,11 @@ ALLOWED_LATEST = {
     # `latest`/`beta` upstream → flux by design, MUST-pin note in versions.yml + compose.
     # orpheusdl REMOVED (pip CLI on laptop — manual tool, not a container; HD-362 revise).
     "aurral", "slskd", "tube-archivist", "lidarr-ydl",
+    # dgx-dashboard (HD-364): the alpine/socat image publishes NO semver tags — only
+    # `latest` + date-tags upstream (registry-probed 2026-09-14); the tag is FLUID by
+    # upstream design, the DIGEST is the load-bearing pin (versions.yml socat_version).
+    # MUST-pin comment in the compose header + versions.yml.
+    "dgx-dashboard",
 }
 
 # Services that use network_mode: service:<sidecar> (no own networks)
@@ -103,7 +108,7 @@ WEB_SERVICES = {
 }
 
 HOST_NET_SERVICES = {"traefik-ha", "traefik-internal"}   # traefik-internal: home-LAN edge on oldsrv (HD-350), host-net VIP+LAN-IP bound (same pattern as traefik-ha)
-HOST_NET_CONTAINERS = {"home-assistant-standby"}
+HOST_NET_CONTAINERS = {"home-assistant-standby", "dgx-dashboard"}   # spark dgx-dashboard socat bridge (HD-364): host-net MUST reach 127.0.0.1:11000 (the DGX dashboard is loopback-only); single container
 
 # Extra .j2 templates per service are NOT duplicated here any more (HD-189):
 # the SSOT is roles/docker_services/defaults/main.yml `_extra_templates` — the
@@ -248,6 +253,10 @@ BASE_CTX.update({
     # oldsrv Home-VLAN IP (group_vars/all/main.yml, derived from network_static_hosts) —
     # consumed by actual-budget's :5006 API-leg bind (HD-57); same Home-IP mock class.
     "oldsrv_home_ip": "10.10.1.30",
+    # Spark Home-VLAN IP (HD-359, group_vars/all/main.yml derived from network_static_hosts) —
+    # consumed by the dgx-dashboard socat bridge bind + spark-ai router/engine publishes.
+    # Same Home-IP mock class as oldsrv_home_ip (SSOT row: spark vlan 10 = 10.10.1.40).
+    "spark_home_ip": "10.10.1.40",
     # WG S2S peer (HD-155/191) — dict var in all.yml is Jinja-valued, so it stays
     # a mock; values mirror the documented /30 (VPS .2). Consumed by the kopia-server
     # WG-bound publish guard + the kopia-agent server address.
