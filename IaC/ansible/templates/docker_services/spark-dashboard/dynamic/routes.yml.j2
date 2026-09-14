@@ -6,6 +6,12 @@
 #
 #   - Entrypoints are address+port bound (spark_home_ip:11000/11002) — never
 #     0.0.0.0, no public record, Home-VLAN only.
+#   - Route rule: explicit `Host(spark.kogler.si)` (NOT a HostRegexp catch-all). Live
+#     proof 2026-09-15: HostRegexp({host:.+}) left the router silently non-matching →
+#     Traefik's own 404 on `dashboard`/`jupyter`; with the explicit Host rule, name-based
+#     requests (browser `http://spark.kogler.si:11000`) match and proxy to the loopback
+#     backends (IP-host requests like `curl http://10.10.1.40:11000/` are expected 404 —
+#     they don't match the Host rule; use the name). Same pattern as the oldsrv home edge.
 #   - No Forward-Auth / no CrowdSec / no ACME: the dashboard owns its login (local
 #     user+password, docs/hardware-spark.md §Remote management); loopback HTTP.
 #   - JupyterLab spawns ON DEMAND from the dashboard's JupyterLab panel (Start);
@@ -15,13 +21,13 @@
 http:
   routers:
     dgx-dashboard:
-      rule: "HostRegexp(`{host:.+}`)"
+      rule: "Host(`spark.kogler.si`)"
       entryPoints:
         - dashboard
       service: dgx-dashboard-backend
       priority: 1
     dgx-jupyter:
-      rule: "HostRegexp(`{host:.+}`)"
+      rule: "Host(`spark.kogler.si`)"
       entryPoints:
         - jupyter
       service: dgx-jupyter-backend

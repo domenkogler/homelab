@@ -1220,6 +1220,25 @@ ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark.kogler.si -e
 
 ✔ (2026-09-14) `failed=0` (ok=53): `/mnt/spark_nvme` XFS 504G fstab-durable + dirs; docker 29.2.1; alloy active. AI stack deploy-gated on bench (HD-359).
 
+### 5.6 DGX Dashboard LAN edge — verify (after any spark converge / reboot) `[Ansible + verify]`
+
+> Live fix 2026-09-15 (404 → 200). The spark-dashboard Traefik edge 404'd from the LAN because:
+> (1) the routes file used a `HostRegexp({host:.+})` catch-all that matched nothing on this
+> v3.7 Traefik (own 404, incl. `/api`/`/ping`) → replaced with an explicit `Host(spark.kogler.si)`
+> rule (name-based; IP-host requests 404 by design — use the name); (2) the LAN bind
+> `{{ spark_home_ip }}:11000/:11002` failed at container start (EADDRNOTAVAIL) until the spark role
+> sets `net.ipv4.ip_nonlocal_bind=1` (headless-gated); (3) a stale duplicate healthcheck
+> (`wget …:8080`, nothing listens) overrode the correct `traefik healthcheck --ping` → removed.
+> The debug API lives on the built-in `traefik` entrypoint (`127.0.0.1:8080`), NOT on 11000.
+
+```bash
+ssh spark 'sysctl net.ipv4.ip_nonlocal_bind'   # must print 1 (role-owned)
+ssh spark 'grep -E "ping|api.insecure|healthcheck|rule:" /opt/spark-dashboard/docker-compose.yml /opt/spark-dashboard/dynamic/routes.yml'  # --ping + --api.insecure + CMD traefik healthcheck --ping + Host(spark.kogler.si)
+ssh spark 'cd /opt/spark-dashboard && sudo docker compose up -d'   # re-render from latest template
+curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://spark.kogler.si:11000/   # MUST be 200 (use the NAME, not the IP)
+ssh spark 'docker exec traefik-spark traefik healthcheck --ping'   # "OK: http://:8080/ping", exit 0; container shows healthy
+```
+
 ---
 
 ## Phase 3 — oldsrv music pillar (HD-362) ⏳ deploy-gated

@@ -25,6 +25,8 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 
 
 > **Headless + dashboard (HD-364, 2026-09-14):** the sleep-mask + multi-user default.target are now enforced **from IaC** (`spark_headless: true` in `host_vars/spark.kogler.si.yml` / `group_vars/spark.yml`; role `roles/spark` masks `sleep/suspend/hibernate/hybrid-sleep` + `systemctl set-default multi-user.target`). The NVIDIA **DGX Dashboard** (loopback-only, `dgx-dashboard.service` :11000) AND its integrated **JupyterLab** (admin user :11002, per `jupyterlab_ports.yaml`) are exposed on the LAN via a **Traefik file-provider edge on spark** (HD-364 rework; registry service `spark-dashboard` — host-net, entrypoints `{{ spark_home_ip }}:11000`/`:11002` → `127.0.0.1:11000`/`:11002`, pinned `traefik_version`; replaced the original alpine/socat bridge, which crash-looped on reboot with "exactly 2 addresses required (there are 4)" — socat takes ONE address pair per invocation and the compose `command:` list handed it all four). Reach them at `http://spark.kogler.si:11000` (Home VLAN) with a local user login; admin's JupyterLab = `http://spark.kogler.si:11002`. Details: §Remote management.
+>
+> **Dashboard LAN edge FIXED + LIVE (2026-09-15):** `http://spark.kogler.si:11000` serves the real dashboard HTML **200** (LAN client verified; `traefik-spark` **healthy**, `traefik healthcheck --ping` passes). Root cause of the 404: the routes used a **`HostRegexp({host:.+})` catch-all rule that silently matched nothing** (Traefik's own "404 page not found") — likely because Traefik v3 host-matching on IP-host requests doesn't treat the catch-all as applying; **the fix is an explicit `Host(spark.kogler.si)` rule** (name-based; same pattern as the oldsrv home edge). IP-host requests (`curl http://spark.kogler.si:11000/` via the raw Home IP) are expected 404 — they don't match the Host rule; the browser hits the name and works. Secondary fixes in the same change: (1) spark role now sets `net.ipv4.ip_nonlocal_bind=1` (headless-gated, `sysctl.d/dgx-lan-bind.conf`) so the LAN bind `spark_home_ip:11000/11002` is deterministic at container start (was EADDRNOTAVAIL until the interface settled); (2) removed the stale duplicate `healthcheck:` block (`wget …:8080`) that overrode the correct `["CMD","traefik","healthcheck","--ping"]` → container now reports healthy; (3) re-render landed `--api.insecure`/`--ping` in the live command (the debug API is at `127.0.0.1:8080` — the built-in `traefik` entrypoint, not 11000). Legacy crash-looping `dgx-dashboard-socat` container removed. Jupyter :11002 intentionally NOT touched (owner instruction; its entrypoint stays, untested).
 
 ---
 
@@ -178,7 +180,13 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
   its Software-Update flow still requires the SSH-tunnel path). Disable by setting the registry
   entry `enabled: false`. (Originally an alpine/socat bridge (`dgx-dashboard`); replaced because
   one socat argv = exactly ONE address pair, so the four-argv compose list crash-looped on
-  reboot — Traefik file-provider has none of that fragility.)
+  reboot — Traefik file-provider has none of that fragility.) **Live fix 2026-09-15 (404 → 200):**
+  the routes file used `HostRegexp({host:.+})`, which matched nothing on this v3.7 Traefik →
+  own 404 for every request incl. `/api`/`/ping`… replaced with an explicit
+  `Host(spark.kogler.si)` rule (name-based; IP-host requests 404 by design); the spark role also
+  sets `net.ipv4.ip_nonlocal_bind=1` (deterministic LAN bind) and the stale duplicate
+  `:8080`-probing healthcheck was removed in favor of `["CMD","traefik","healthcheck","--ping"]`.
+  Reach it at **`http://spark.kogler.si:11000`** (not the IP — the Host rule needs the name).
 - **JupyterLab on the LAN (HD-366):** the dashboard ships an **integrated JupyterLab** whose per-user
   ports are in `/opt/nvidia/dgx-dashboard-service/jupyterlab_ports.yaml` (nobody 11001 / **admin
   11002** / ansible-admin 11003). NVIDIA's remote path is a second SSH tunnel per assigned port.

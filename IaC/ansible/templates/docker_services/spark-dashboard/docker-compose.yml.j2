@@ -49,7 +49,6 @@ services:
       - "--entrypoints.dashboard.address={{ spark_home_ip }}:11000"
       - "--entrypoints.jupyter.address={{ spark_home_ip }}:11002"
       - "--ping=true"                 # /ping health endpoint for the healthcheck below
-      - "--api.insecure=true"         # local API for route debugging (dim-noise: next-session debug)
       - "--log.level=INFO"
     # No ACME / no certs: loopback HTTP backends, internal-only (has its own login),
     # plain HTTP on the LAN.
@@ -63,15 +62,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    # No ACME / no certs: loopback HTTP backends, internal-only (has its own login),
-    # plain HTTP on the LAN.
-    healthcheck:
-      # Traefik has no built-in /health; the dashboard's %-win is that the listener
-      # is up. Probe the network listener on the Home IP (jupyter :11002 is on-demand
-      # — only exists while a lab is Running — so it is intentionally NOT part of the
-      # probe; a stopped lab would otherwise mark the whole bridge unhealthy).
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/ 2>/dev/null || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+    # (No second healthcheck: the CMD-SHELL wget :8080 variant that shipped in the
+    #  pre-2026-09-15 artifact probed a port nothing listens on and overrode the
+    #  correct /ping check — removed; the traefik healthcheck --ping form above is
+    #  the one that passes.)

@@ -193,6 +193,23 @@
   when: spark_headless | bool
   tags: [spark, headless]
 
+# LAN service binding at boot (HD-364 dashboard edge, live fix 2026-09-15): the
+# spark-dashboard Traefik sidecar binds {{ spark_home_ip }}:11000/11002; at container
+# start the interface/route may not be up yet, and an address that exists locally but
+# not-yet-assigned fails with EADDRNOTAVAIL (``bind: cannot assign requested address``
+# in the Traefik logs). oldsrv/Pi home edges set net.ipv4.ip_nonlocal_bind=1 for the
+# same reason (traefik-internal binds the VIP). Make the dashboard bind deterministic.
+- name: Allow binding local-but-not-yet-assigned IPs (ip_nonlocal_bind for LAN edges)
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: "1"
+    state: present
+    reload: true
+    sysctl_file: /etc/sysctl.d/dgx-lan-bind.conf
+  become: true
+  when: spark_headless | bool
+  tags: [spark, headless]
+
 - name: Unmask system sleep targets (non-headless reversal)
   ansible.builtin.command: systemctl unmask {{ item }}
   register: _unmask
