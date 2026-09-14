@@ -13,6 +13,6 @@
     - common          # ansible-admin user guard + sudoers + trixie sources + hardening (canonical)
     - network         # DHCP client-id=mac + netd units (dual-homed mgmt/home) — same as nas/oldsrv/pi
     - docker
-    - spark           # NVMe p2 → XFS for PLE/KV (gated by spark_partition_enable)
+    - spark           # NVMe p2 → XFS for PLE/KV + headroom assert (gated by spark_partition_enable)
     - monitoring      # Alloy node exporter → VPS Victoria backend (per-node model)
-    # vLLM / SGLang / router land via docker_services (deploy-gated; spark.enabled flips on after bench)
+    - docker_services # spark-ai (vLLM B1 + llm-d router) via the spark group_vars; deploy-gated by `enabled`

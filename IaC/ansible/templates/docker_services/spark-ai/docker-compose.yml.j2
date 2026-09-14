@@ -1,0 +1,172 @@
+# spark-ai docker-compose.yml — Qwen3.8-Flash-Next proven inference on DGX Spark (GB10)
+#   The "most proven" config (B1 baseline, AWQ W4A16 + PLE INT4 + MTP3 + llm-d router).
+#   Folded from spark/ansible/roles/spark-ai/templates/docker-compose.yaml.j2 (reference),
+#   hardened to repo docker_services conventions (network isolation, security, vault).
+#
+#   Placement (HD-359/HD-337): spark.kogler.si — headless AI node. The engine binds
+#   `llm-backend` ONLY (LiteLLM-only reach, HD-59; same as ollama). The vLLM :8000 is NOT
+#   published on a host port — LiteLLM (VPS/oldsrv LAN instance) reaches it over the
+#   overlay/wg. Router :8080 optionally published on the Home-VLAN IP once LAN clients
+#   need it (flip `spark_router_publish`).
+#
+#   Secrets: NONE required by vLLM/router (models are public, no API keys) — so this
+#   template is intentionally OUT of the 1Password item map (_template_vault_items) and
+#   renders with zero vault lookups (like ollama).
+#
+#   Storage: weights + PLE tables + KV + compile caches all on the XFS data partition
+#   (roles/spark mounts /mnt/spark_nvme; spark_models_dir points there — never EXT4).
+#
+#   Digest pin (R4, 2026-09-13): vllm/vllm-openai:qwen38-flash-next @
+#   sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8
+#   (multi-arch arm64+amd64; the arm64-cu130 manifest is the DGX Spark candidate).
+
+services:
+  vllm-engine:
+    image: "{{ spark_vllm_image }}"
+    container_name: "{{ spark_vllm_container }}"
+    cap_add:
+      - SYS_PTRACE
+      - IPC_LOCK
+      - SYS_RESOURCE
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_PTRACE
+      - IPC_LOCK
+      - SYS_RESOURCE
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+    entrypoint: ["numactl", "--cpunodebind=0", "--membind=0", "python3", "-m", "vllm.entrypoints.openai.api_server"]
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - VLLM_LOGGING_LEVEL={{ spark_vllm_log_level }}
+      - VLLM_PLE_QUANT_DIR=/ples_int4
+      - VLLM_PLE_CPU_OFFLOAD={{ spark_vllm_cpu_offload }}
+      - VLLM_PLE_OFFLOAD_READY_TIMEOUT={{ spark_vllm_ple_offload_ready_timeout }}
+      - OMP_NUM_THREADS={{ spark_vllm_omp_num_threads }}
+      - SAFETENSORS_FAST_GPU=1
+      - PYTORCH_CUDA_ALLOC_CONF={{ spark_vllm_pytorch_cuda_alloc_conf }}
+      - TORCHINDUCTOR_CACHE_DIR=/root/.cache/torchinductor
+      - NCCL_NSOCKS_PERTHREAD=4
+      - NCCL_SOCKET_NTHREADS=2
+    volumes:
+      # Model (read-only) — XFS /mnt/spark_nvme/models
+      - {{ spark_models_dir }}/Qwen3.8-Flash-Next-AWQ:/model:ro
+      # PLE overlay patches (read-only) — on the XFS data partition
+      - {{ spark_xfs_mount }}/worker_image_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/worker.py:ro
+      - {{ spark_xfs_mount }}/ple_layer_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/models/qwen3_8_flash_next/nvidia/ple_layer.py:ro
+      - {{ spark_xfs_mount }}/connector_mrv2.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/connector.py:ro
+      # Quantized tables (read-only)
+      - {{ spark_xfs_mount }}/ples_int4:/ples_int4:ro
+      # KV Cache (read-write, on XFS)
+      - {{ spark_xfs_mount }}/kv_cache:/data/kv_cache
+      # Compile caches (rootfs is read-only; persist across restarts)
+      - {{ spark_xfs_mount }}/vllm_cache:/root/.cache/vllm
+      - {{ spark_xfs_mount }}/triton_cache:/root/.triton
+{% if spark_router_publish | default(false) %}
+    ports:
+      - "{{ spark_home_ip }}:8000:8000"
+{% endif %}
+    ipc: host
+    shm_size: "{{ spark_vllm_shm_size }}"
+    ulimits:
+      memlock: {{ spark_vllm_memlock }}
+      stack: {{ spark_vllm_stack }}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: {{ spark_vllm_memory_limit }}
+    logging:
+      driver: "{{ spark_logging_driver }}"
+      options:
+        max-size: "{{ spark_logging_max_size }}"
+        max-file: "{{ spark_logging_max_file }}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 8
+      start_period: 1200s               # first PLE-table load ~20 min (recipe)
+    restart: unless-stopped
+    networks:
+      - llm-backend
+      - spark-internal
+    command:
+      - --model
+      - /model
+      - --quantization
+      - {{ spark_vllm_quantization }}
+      - --trust-remote-code
+      - --max-num-seqs
+      - "{{ spark_vllm_max_num_seqs }}"
+      - --max-model-len
+      - "{{ spark_vllm_max_model_len }}"
+      - --enable-chunked-prefill
+      - --max-num-batched-tokens
+      - "{{ spark_vllm_max_num_batched_tokens }}"
+      - --enable-prefix-caching
+      - --no-enable-flashinfer-autotune
+      - --swap-space
+      - "{{ spark_vllm_swap_space }}"
+      - --kv-cache-dtype
+      - {{ spark_vllm_kv_cache_dtype }}
+      - --gpu-memory-utilization
+      - "{{ spark_vllm_gpu_memory_utilization }}"
+      - --distributed-executor-backend
+      - {{ spark_vllm_distributed_executor_backend }}
+{% if spark_vllm_enforce_eager %}
+      - --enforce-eager
+{% endif %}
+      - --reasoning-parser
+      - qwen3
+      - --tool-call-parser
+      - qwen3_coder
+      - --enable-auto-tool-choice
+      - --override-generation-config
+      - '{"temperature":1,"top_p":0.95,"top_k":20}'
+      - --speculative-config
+      - '{"method": "{{ spark_vllm_spec_method }}", "num_speculative_tokens": {{ spark_vllm_spec_tokens }}, "disable_by_batch_size": {{ spark_vllm_spec_disable_by_batch_size }}}'
+
+  # llm-d Router — local gateway + queue manager (FIFO + flow control), :8080
+  llm-router:
+    image: "{{ spark_llm_router_image }}"
+    container_name: "{{ spark_llm_router_container }}"
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+{% if spark_router_publish | default(false) %}
+    ports:
+      - "{{ spark_home_ip }}:8080:8080"
+{% endif %}
+    depends_on:
+      vllm-engine:
+        condition: service_healthy
+    environment:
+      LLMD_BACKEND_URL: "http://vllm-engine:8000"   # overlay DNS (spark-internal)
+      LLMD_MAX_CONCURRENT_SESSIONS: "{{ spark_llm_router_max_concurrent_sessions }}"
+      LLMD_ROUTING_STRATEGY: "{{ spark_llm_router_strategy }}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - spark-internal
+
+networks:
+  llm-backend:
+    external: true
+  spark-internal:
+    external: true   # dedicated per-service bridge: router ↔ engine only

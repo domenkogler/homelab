@@ -203,3 +203,9 @@ mcp_victorialogs_version: "v1.8.0"
 # via homelable_mcp_enabled — the MCP container is only for AI-tool read/write of the
 # topology; leave off until the topology is curated).
 homelable_version: "3.4.1"
+
+# ==== Spark (DGX GB10) — AI inference image pins (HD-359) ====
+# Registry-verified 2026-09-13 (R4 digest): multi-arch arm64+amd64 manifest.
+# Renovate docker datasource would track the tag; the digest is the load-bearing pin.
+spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"
+spark_llm_router_image: "ghcr.io/llm-d/router:latest"   # llm-d — no strict tag; pinned by digest at bench-prep if needed

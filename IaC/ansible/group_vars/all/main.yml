@@ -308,6 +308,7 @@ network_ranges:
   - { name: services-internal, cidr: "172.21.0.0/16",  purpose: "Docker bridge — app ↔ app communication" }
   - { name: db-internal,       cidr: "172.22.0.0/16",  purpose: "Docker bridge — databases (fully isolated)" }
   - { name: llm-backend,       cidr: "172.23.0.0/16",  purpose: "Docker bridge — LLM backend (Ollama) ↔ LiteLLM only, fully isolated (HD-59)" }
+  - { name: spark-internal,     cidr: "172.26.0.0/16",  purpose: "Docker bridge — spark-ai vLLM ↔ llm-d router internal (spark node, HD-359); NOT joined by LiteLLM/downloaders" }
   - { name: tailnet-apps,      cidr: "172.24.0.0/16",  purpose: "Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't" }
   # Technitium PRIMARY on the VPS (HD-299, 2026-09-03): DNS is a first-class public
   # resolvable tier — the VPS (always-on, WAN-reachable) hosts the DNS primary.
