@@ -13,7 +13,11 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > **Links to:** `hardware-gpu.md`, `services-ai.md`, `services-office.md`, `network-vlans.md`
 > **Linked from:** `hardware.md`, `index.md`, `services-ai.md`
 
-> **Status: 🟢 planned — hardware purchased; node not yet provisioned.** SSOT spec + intent only.
+> **Status: 🟢 first boot DONE (2026-09-14) — Ansible provisioning pending.** DGX OS first-boot wizard
+> completed (see `deployment-manual.md` §Phase 5): English / Europe/Ljubljana, admin → 1P
+> `spark_login`, analytics disabled, updates + reboot; auto-suspend masked after the post-update L2
+> blackout (headless suspend kills the NIC — power-cycle recovered). GPU verified: GB10, driver
+> 580.173.02, CUDA 13.0, 121 Gi unified, NVMe p1 EFI + p2 root.
 > The node is headless (no local display) and joins the homelab as a LAN GPU tier alongside oldsrv.
 > ⏳ deploy-gated on the node bring-up (DGX OS install, Ansible role, network placement).
 
@@ -142,7 +146,10 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
 - Hostname **`spark.kogler.si`** — headless LAN GPU tier.
 - **Reserved statics (2026-09-14, SSOT `network_static_hosts`):** Home VLAN (SSH + inference endpoint)
   + Mgmt VLAN (management plane) — referenced via `spark_home_ip`/`spark_mgmt_ip`, never literal.
-  Actual MAC → reservation is added at provision time (the GB10 ships no MAC in this repo yet).
+  Actual MAC learned from the live lease at first boot 2026-09-14 (`38:A7:46:78:13:97`, Home VLAN
+  10 — dynamic lease `.106`); authored into `network_static_hosts` (VLAN-10 row). The mgmt row
+  stays MAC-less until the mgmt NIC is cabled. Router-side static flip to the reserved Home static
+  is an owner step (`deployment-manual.md` §5.4).
 - Connects via **10 GbE** to the LAN (Home/Mgmt per the router port model); IP/reservation SSOT to be
   added to `network_static_hosts` at provision time (never hardcoded).
 - Exposes the Triton gRPC/HTTP endpoint on the `llm-backend` overlay (or a `triton-backend` net),

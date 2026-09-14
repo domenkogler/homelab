@@ -1084,5 +1084,73 @@ Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefi
 
 ---
 
-*Last updated 2026-09-01 · imperative redeploy procedure (true zero → live) for Phases 0 + 0.5 + 1a + 1 + 1.5 + 4. Progress/history lives in [deployment-tasks.md](deployment-tasks.md) + owning docs.*
+## Phase 5 — DGX Spark (GB10) first-boot + onboarding (`spark.kogler.si`) `[MANUAL]`
+
+> **Depends on:** Phase 1.5 (VLANs — Home VLAN 10 reachability), the `spark` rows in
+> `network_static_hosts` ([`IaC/ansible/group_vars/all/main.yml`](IaC/ansible/group_vars/all/main.yml)).
+> Owning spec: [docs/hardware-spark.md](docs/hardware-spark.md) (HD-335 / HD-337 / HD-359).
+> The node is headless by design — a display + keyboard are needed ONCE, for the first-boot wizard
+> (steps 5.1–5.3); afterwards everything runs over SSH/Ansible.
+
+### 5.1 First-boot wizard `[MANUAL]`
+
+1. **Cable** the 10 GbE RJ-45 port to a Home VLAN 10 switch port; power via the 240 W USB-C PD PSU.
+2. **Attach display + keyboard** and power on — the GB10 ships with DGX OS preinstalled; the
+   NVIDIA first-boot setup wizard runs on first boot.
+3. **Wizard choices** (as executed 2026-09-14): language **English**, timezone **Europe/Ljubljana**,
+   local admin account `admin` — password stored in 1Password item **`spark_login`**;
+   **analytics disabled**.
+4. **Apply the offered updates, then let the wizard reboot.**
+
+### 5.2 Post-update reboot: mask auto-suspend (MANDATORY, before the box idles) `[MANUAL]`
+
+> **Live lesson 2026-09-14:** after the update reboot the node went **completely silent at L2** —
+> lease stale, no ARP/ICMP answers, while the switch/router port link stayed up. Cause: headless
+> **auto-suspend** (a DGX Spark idles into suspend, which kills the NIC). A physical power-cycle
+> brought it back. Do NOT leave the box unattended before this step — it will vanish again.
+
+```bash
+ssh admin@<current-dhcp-ip>        # see the router DHCP lease (host-name thinkstationpgx-*)
+sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+```
+
+✔ `systemctl status sleep.target suspend.target` — all four targets show **`masked`**.
+
+### 5.3 First-boot verification `[MANUAL]`
+
+```bash
+nvidia-smi        # ✔ "NVIDIA GB10", driver 580.x, CUDA Version: 13.0
+nvcc --version | tail -1   # ✔ Build cuda_13.0
+free -h           # ✔ ~121 Gi total (128 GB unified minus reserve)
+lsblk             # ✔ single NVMe: p1 EFI (512M) + p2 root (rest) — record layout for the
+                  #   spark_partition_enable inspection before the spark role converge
+```
+
+✔-evidence recorded 2026-09-14: driver 580.173.02 / CUDA 13.0 · 121 Gi RAM · 953.9G NVMe,
+p1 512M EFI + p2 root.
+
+### 5.4 MAC → static reservation (SSOT + router) `[MANUAL]`
+
+1. **Read the NIC MAC** from the router DHCP lease (dynamic lease on `dhcp-10`, host-name
+   `thinkstationpgx-*`) — 2026-09-14: `38:A7:46:78:13:97`.
+2. **SSOT:** the MAC is authored into the `spark` VLAN-10 row of `network_static_hosts`
+   (mgmt VLAN-99 row stays MAC-less until the mgmt NIC is cabled).
+3. **Router (WinBox/WebFig, owner step):** `IP → DHCP Server → Leases` → select the spark lease →
+   **make-static**, then edit the address to the reserved spark Home static per SSOT
+   ([docs/network-addresses-generated.md](docs/network-addresses-generated.md), `spark` VLAN 10).
+   The spark mgmt-VLAN reservation stays pending until that leg is cabled.
+
+✔ `ping spark.kogler.si` answers on the reserved static and the lease shows `bound` + `static`
+on `dhcp-10`.
+
+### 5.5 First contact + Ansible provisioning ⏳ deploy-gated
+
+Next ladder (HD-359, spec [docs/hardware-spark.md](docs/hardware-spark.md) §Bring-up plan):
+provision `ansible-admin` via the `common` role → operator sets `spark_partition_enable: true`
+after the NVMe-layout inspection → `playbooks/spark.yml` converge → ~155 GB model/image downloads →
+flip `spark-ai.enabled: true` → vLLM + llm-d router up → engine bench (S1–S5).
+
+---
+
+*Last updated 2026-09-14 · imperative redeploy procedure (true zero → live) for Phases 0 + 0.5 + 1a + 1 + 1.5 + 4 + 5. Progress/history lives in [deployment-tasks.md](deployment-tasks.md) + owning docs.*
 
