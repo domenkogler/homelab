@@ -139,7 +139,7 @@ _template_vault_items:
   aurral: set()   # HD-362 — Aurral config is all IN-UI (Lidarr API, Last.fm, ListenBrainz entered in its first-run setup); no 1P items needed for the compose. lastfm_login/metabrainz_login stay as owner-reference items + docs rows.
   lidarr-ydl: {'lidarr_api'}   # HD-362 — Lidarr API key (compose). Web-UI login in the item registry for the owner's reference (lidarr-url-dl_login), not fetched/required by compose.
   slskd: {'slskd_login', 'soulseek_api', 'privado-vpn_api'}   # HD-362 — Soulseek login + slskd UI token + VPN client key (gluetun sidecar)
-  tube-archivist: {'tube_archivist_login', 'tube_archivist_ui'}   # HD-362 — login + UI/API token (ES/Redis carry no secrets); `tube_archivist_api` stays DOCS-ONLY for the future Jellyfin plugin (not fetched)
+  tube-archivist: {'tube-archivist_login', 'tube-archivist_ui'}   # HD-362 — login + UI/API token (ES/Redis carry no secrets); `tube_archivist_api` stays DOCS-ONLY for the future Jellyfin plugin (not fetched)
   recyclarr: {'sonarr_api', 'radarr_api'}
   renovate: {'forgejo_api'}
   signal-cli-rest-api: {'signal-internal_api', 'signal_api'}

@@ -198,8 +198,8 @@ docker_services:
   # Front-ends to the VPS Victoria backends (VM :8428 / VL :9428) over wg-s2s
   # (victoria_backend_host). Tailnet/LAN-only, never public. ⏳ deploy-gated: oldsrv
   # is Phase-3/HD-318 + needs the VPS Victoria backend live (HD-342). See docs/observability.md.
-  - { name: mcp-victoriametrics, template_dir: mcp-victoriametrics, public: false, enabled: false }
-  - { name: mcp-victorialogs,    template_dir: mcp-victorialogs,    public: false, enabled: false }
+  - { name: mcp-victoriametrics, template_dir: mcp-victoriametrics, public: false, enabled: true }
+  - { name: mcp-victorialogs,    template_dir: mcp-victorialogs,    public: false, enabled: true }
 
   # --- Homelable (HD-45, re-scoped 2026-09-09): network/topology visualizer on oldsrv ---
   # Self-hosted network + rack topology canvas, nmap discovery, live healthchecks + MCP

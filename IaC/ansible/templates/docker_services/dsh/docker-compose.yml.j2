@@ -63,8 +63,9 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # Model backend = LiteLLM (the spine). DSH connects as an OpenAI-compatible
       # provider to LiteLLM; credential = scoped virtual key from the HD-247 glue.
+      # HD-356: LAN instance (lan-litellm on oldsrv, same services-internal net).
       # Folded scalar (HD-233): 1P-sourced values can carry YAML-hostile chars.
-      OPENAI_BASE_URL: "http://litellm:4000/v1"
+      OPENAI_BASE_URL: "http://lan-litellm:4000/v1"
       OPENAI_API_KEY: >-
         {{ vault['dsh_api'].credential | replace('$','$$') }}
       # Bind the Web UI inside the container (HD-355); the HOST publish is

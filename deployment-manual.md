@@ -1228,8 +1228,8 @@ All of this runs on **oldsrv** only; streaming stays on the VPS (Navidrome, HD-3
 | `soulseek_api` | API Credential | slskd web-UI/API token (generate via `scripts/`; optional but recommended) |
 | `lastfm_login` | Login | Last.fm username + API key (`username`+`credential`); owner-created 2026-09-14 |
 | `metabrainz_login` | Login | ListenBrainz token (`username`+`credential`); owner-created 2026-09-14 |
-| `tube_archivist_login` | Login | Tube Archivist web-UI login (`username`+`credential`) |
-| `tube_archivist_ui` | API Credential | Tube Archivist UI/API token — OPTIONAL (only if the Jellyfin plugin is used later) |
+| `tube-archivist_login` | Login | Tube Archivist web-UI login (`username`+`credential`) |
+| `tube-archivist_ui` | API Credential | Tube Archivist UI/API token — OPTIONAL (only if the Jellyfin plugin is used later) |
 | `lidarr-url-dl_login` | Login | **Lidarr-YouTube-Downloader** web-UI login (`username`+`credential`) — entered in its Settings page at first run |
 | `lidarr_api` | API Credential | **Lidarr instance key** — read from the live Lidarr `config.xml` after first
   boot, or generate + set via `scripts/` (see [scripts/README.md](scripts/README.md) — the same
@@ -1262,7 +1262,7 @@ narrow-bound to the oldsrv Home-IP (homelable pattern; NO public route/cert labe
    YouTube-sourced album lands in `downloads/complete/music` → Lidarr imports (priority #3).
 4. **Tube Archivist** — first login (`http://<oldsrv-home-ip>:8000` — narrow-bind; NO subdomain),
    add channels/playlists; the archive dir is the new `bulk/media/tube` nas subdir. Later: add it
-   as a Jellyfin library via the TubeArchivist plugin (`tube_archivist_api`/`tube_archivist_ui`
+   as a Jellyfin library via the TubeArchivist plugin (`tube-archivist_api`/`tube-archivist_ui`
    keys).
 5. **Router (owner):** rate-limit each P2P service to **10 MB/s** (slskd `50300`, qBittorrent)
    and open the **LAN-side inbound port** for slskd on the egress VLAN

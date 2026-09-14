@@ -111,9 +111,10 @@ services:
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # pi model backend = LiteLLM (the spine). pi talks OpenAI-compatible to LiteLLM;
-      # the credential is the SCOPED virtual key minted into pi-harness_openai_api by the
-      # HD-247 bootstrap glue (agent scope, budget-capped) — never the master key.
-      PI_MODEL_PROVIDER_BASE_URL: "http://litellm:4000/v1"
+      # the credential is the SCOPED virtual key minted into pi-harness_openai_api by
+      # the HD-247 bootstrap glue (agent scope, budget-capped) — never the master key.
+      # HD-356: LAN instance (lan-litellm on oldsrv, same services-internal net).
+      PI_MODEL_PROVIDER_BASE_URL: "http://lan-litellm:4000/v1"
       # Folded scalar (HD-233): 1P-sourced values can carry YAML-hostile chars.
       PI_MODEL_API_KEY: >-
         {{ vault['pi-harness_openai_api'].credential | replace('$','$$') }}

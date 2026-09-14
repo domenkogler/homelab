@@ -45,10 +45,10 @@ services:
       HOST_UID: "{{ storage_uid }}"
       HOST_GID: "{{ storage_gid }}"
       TA_HOST: "http://tube.kogler.si"     # hostname (internal-only)
-      TA_USERNAME: "{{ vault['tube_archivist_login'].username | replace('$','$$') }}"
-      TA_PASSWORD: "{{ vault['tube_archivist_login'].credential | replace('$','$$') }}"
+      TA_USERNAME: "{{ vault['tube-archivist_login'].username | replace('$','$$') }}"
+      TA_PASSWORD: "{{ vault['tube-archivist_login'].credential | replace('$','$$') }}"
       # Jellyfin plugin API token (optional; if the plugin is used later).
-      TA_TOKEN: "{{ vault['tube_archivist_ui'].credential | default('') | replace('$','$$') }}"
+      TA_TOKEN: "{{ vault['tube-archivist_ui'].credential | default('') | replace('$','$$') }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       - /srv/docker/tube-archivist/cache:/cache        # persistent artwork/cache
