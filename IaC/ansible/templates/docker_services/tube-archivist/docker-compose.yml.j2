@@ -104,6 +104,7 @@ services:
       - ALL
     cap_add:
       - CHOWN   # HD-362 live: the redis entrypoint chowns /data to uid 999 (find . ! -user redis -exec chown) then setprivs down; cap_drop ALL strips CHOWN → "chown: .: Operation not permitted" crash-loop (live 2026-09-14)
+      - DAC_OVERRIDE   # HD-362 follow-up (2026-09-15): a 700 group-1000 appendonlydir from a prior incarnation blocks the chown probe's traversal (root-in-container without DAC_OVERRIDE cannot stat a 0700 dir owned by another user) → "find: ./appendonlydir: Permission denied" restart-loop after the ES-data reset
       - SETUID
       - SETGID   # HD-362 live: redis setprivs down to uid 999 after the chown — cap_drop ALL strips SETUID/SETGID → "setpriv: setresuid failed: Operation not permitted" restart(127) (signal-cli setpriv precedent, HD-318)
     tmpfs:
