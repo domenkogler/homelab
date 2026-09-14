@@ -13,13 +13,8 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > **Links to:** `hardware-gpu.md`, `services-ai.md`, `services-office.md`, `network-vlans.md`
 > **Linked from:** `hardware.md`, `index.md`, `services-ai.md`
 
-> **Status: 🟢 first boot DONE (2026-09-14) — Ansible provisioning pending.** DGX OS first-boot wizard
-> completed (see `deployment-manual.md` §Phase 5): English / Europe/Ljubljana, admin → 1P
-> `spark_login`, analytics disabled, updates + reboot; auto-suspend masked after the post-update L2
-> blackout (headless suspend kills the NIC — power-cycle recovered). GPU verified: GB10, driver
-> 580.173.02, CUDA 13.0, 121 Gi unified, NVMe p1 EFI + p2 root (see HD-363: p3 = AI data XFS carve).
-> The node is headless (no local display) and joins the homelab as a LAN GPU tier alongside oldsrv.
-> ⏳ deploy-gated on the node bring-up (DGX OS install, Ansible role, network placement).
+> **Status: 🟢 PROVISIONED + LIVE (2026-09-14).** DGX OS first-boot wizard completed (see `deployment-manual.md` §Phase 5): English / Europe/Ljubljana, admin → 1P `spark_login`, analytics disabled, updates + reboot; auto-suspend masked after the post-update L2 blackout (headless suspend kills the NIC — power-cycle recovered). GPU verified: GB10, driver 580.173.02, CUDA 13.0, 121 Gi unified, NVMe p1 EFI + p2 root (see HD-363: p3 = AI data XFS carve). First-contact bootstrap done (key-only `ansible-admin`, sshd hardening, 2 keys) + `spark.yml` converge **failed=0** (ok=53): common/network/docker/spark/monitoring; **p3 = 503.4G XFS at `/mnt/spark_nvme`** (fstab-durable, dirs `kv_cache/models/overlays/ples_int4/triton_cache/vllm_cache`); docker role now Ubuntu-noble-aware; XFS mount-opts corrected (nobarrier → removed). Spark is a first-class IaC host alongside nas/oldsrv/vps/pi.
+> ⏳ deploy-gated on the AI stack (`spark-ai.enabled: true` after bench S1–S5 on the live box → ~155 GB model download on XFS → vLLM + llm-d router live → promote winner).
 
 ---
 

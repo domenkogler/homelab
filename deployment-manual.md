@@ -1165,12 +1165,35 @@ p1 512M EFI + p2 root.
 ✔ `ping spark.kogler.si` answers on the reserved static and the lease shows `bound` + `static`
 on `dhcp-10`.
 
-### 5.5 First contact + Ansible provisioning ⏳ deploy-gated
+### 5.5 First contact + Ansible provisioning `[MANUAL + Ansible]`
 
-Next ladder (HD-359, spec [docs/hardware-spark.md](docs/hardware-spark.md) §Bring-up plan):
-provision `ansible-admin` via the `common` role → operator sets `spark_partition_enable: true`
-after the NVMe-layout inspection → `playbooks/spark.yml` converge → ~155 GB model/image downloads →
-flip `spark-ai.enabled: true` → vLLM + llm-d router up → engine bench (S1–S5).
+> **Executed 2026-09-14 (this session) — imperative runbook for a future from-scratch redeploy.**
+
+```bash
+# 1) First-contact bootstrap (manual, ON spark as `admin` over its display/KVM):
+#    served bootstrap-spark.sh over LAN HTTP from the management laptop (WSL: python -m http.server + netsh portproxy),
+#    fetched AS admin, run with sudo — creates ansible-admin (key-only, NOPASSWD sudo), installs 2 keys
+#    (ansible-admin_ssh + laptop-domen_ssh, from 1P Homelab-ansible), sshd hardening drop-in, masks auto-suspend,
+#    writes /etc/spark-bootstrap.done. (The standalone spark/ansible/spark-bootstrap role is the same logic.)
+sudo bash bootstrap-spark.sh
+
+# 2) Verify from the runner (WSL):
+ssh -o BatchMode=yes -i ~/.ssh/id_ed25519 ansible-admin@spark.kogler.si 'whoami; sudo -n true'   # spark.kogler.si = SSOT spark Home IP (network-addresses-generated.md)
+#    (~/.ssh/config: Host spark → HostName spark.kogler.si (SSOT), User ansible-admin)
+
+# 3) NVMe layering (operator, manual): DGX OS ships p1=vfat /boot/efi + p2=ext4 root (~953G).
+#    SHRINK p2 offline first (recovery USB: e2fsck -f, resize2fs to ≤450G, parted shrink), then:
+ssh spark 'sudo parted -s -- /dev/nvme0n1 mkpart primary xfs 944769024s 100%'
+ssh spark 'sudo mkfs.xfs -f -d agcount=16 /dev/nvme0n1p3'
+ssh spark 'sudo mkdir -p /mnt/spark_nvme && sudo mount /dev/nvme0n1p3 /mnt/spark_nvme'
+
+# 4) Set spark_partition_enable: true in IaC/ansible/host_vars/spark.kogler.si.yml, then converge:
+ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark.kogler.si -e ansible_host=spark.kogler.si  # SSOT IP via network_static_hosts
+#    → failed=0: role skips carve (p3 exists), writes fstab + XFS dirs; docker role auto-picks
+#    Ubuntu noble; mounts /mnt/spark_nvme (mount_options noatime,nodiratime — XFS rejects nobarrier).
+```
+
+✔ (2026-09-14) `failed=0` (ok=53): `/mnt/spark_nvme` XFS 504G fstab-durable + dirs; docker 29.2.1; alloy active. AI stack deploy-gated on bench (HD-359).
 
 ---
 
