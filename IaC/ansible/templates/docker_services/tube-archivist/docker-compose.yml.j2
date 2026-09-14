@@ -86,6 +86,11 @@ services:
       - /tmp
     networks:
       - services-internal
+    # TA's env-check requires ES snapshot support (path.repo) or the app loops on
+    # 'path.repo env var not found' (live 2026-09-15). Passed as -E args (the ES
+    # docker entrypoint's eswrapper form) — an env var named path.repo is NOT honored
+    # by this image and derails config generation (live regression, reverted 3af9878).
+    command: ["eswrapper", "-E", "path.repo=/usr/share/elasticsearch/data/snapshot"]
     environment:
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"    # keep ES heap modest on oldsrv (48 GB RAM)
       # Same bootstrap password the TA app uses (ELASTIC_PASSWORD) — the tubearchivist-es
