@@ -9,7 +9,7 @@ docker_services:
   # The "most proven" Qwen3.8-Flash-Next config — AWQ W4A16 + PLE INT4 + MTP3 + llm-d router
   # (B1 baseline, spark/BENCHMARK-PLAN.md). Deploy-gated: flip `enabled: true` once the
   # node is provisioned + partition done + weights downloaded.
-  - { name: spark-ai, template_dir: spark-ai, public: false, enabled: false }  # ⏳ deploy-gated: S1 bench did NOT certify (HD-367 session) — engine crash-loop blocked on torchinductor cache; flip after fix
+  - { name: spark-ai, template_dir: spark-ai, public: false, enabled: true }  # B1 engine (vLLM AWQ+PLE+MTP3) — ENABLED 2026-09-14 by session/spark-s1-converge (Track 1: boot + health :8000 + sanity bench); flip back to false if the bench regresses
   # NVIDIA DGX Dashboard LAN bridge — Traefik file-provider edge on spark (HD-364
   # rework, socat→Traefik): host-net, entrypoints spark_home_ip:11000/11002 →
   # 127.0.0.1:11000/11002 (dashboard + admin JupyterLab). No secrets; public =
