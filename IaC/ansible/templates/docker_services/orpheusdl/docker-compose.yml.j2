@@ -1,0 +1,36 @@
+# orpheusdl docker-compose.yml — FLAC downloader (HD-362, oldsrv)
+#   Downloads **original unencrypted Hi-Res FLAC** from paid streaming Tiers
+#   (Qobuz / Tidal / Deezer) per the Firehawk52-style config. Presently **no Qobuz
+#   subscription is in scope** (owner has YouTube Music) — so orpheusdl runs for the
+#   *import path only* (manual uploaded config; no Lidarr automation yet), and the
+#   chain Lidarr → orpheusdl is OPTIONAL.
+#   https://github.com/orpheusdl/orpheusdl · docs: docs/services-media.md §Music Pillar.
+#
+#   PLACEMENT: OLDSRV (internal-only). Runs headless (CLI, no web UI).
+#   NO network exposure: no ports, no Traefik labels, services-internal only.
+#
+#   AUTH/config: there is NO external account secret in scope (no Qobuz sub). The
+#   config.json is the Firehawk52-style file — written manually into
+#   /srv/docker/orpheusdl/config (owner step at deploy). If a future paid Tier is
+#   added, its ARL/token becomes a 1Password item; none today.
+#
+#   VERSION PIN: {{ orpheusdl_version }} — unverified placeholder (versions.yml comment).
+services:
+  orpheusdl:
+    image: orpheusdl/orpheusdl:{{ orpheusdl_version }}
+    restart: unless-stopped
+    container_name: orpheusdl
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    networks:
+      - services-internal
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    volumes:
+      - /srv/docker/orpheusdl/config:/config        # config.json (owner-managed)
+      - /mnt/nas/media/music:/music:rw              # downloaded FLACs land here (Lidarr copy-import)
+networks:
+  services-internal:
+    external: true

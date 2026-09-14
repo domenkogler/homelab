@@ -58,6 +58,10 @@ ALLOWED_LATEST = {
     # digest-pinned; the router stays fluid by upstream design, MUST-pin comment in the
     # compose header + versions.yml.
     "spark-ai",
+    # HD-362 music pillar (2026-09-14): aurral/orpheusdl/slskd/tube-archivist tags NOT
+    # yet registry-verified — placeholders until the first-deploy probe; MUST-pin comment
+    # in the compose header + versions.yml (profilarr pattern).
+    "aurral", "orpheusdl", "slskd", "tube-archivist",
 }
 
 # Services that use network_mode: service:<sidecar> (no own networks)
@@ -76,7 +80,7 @@ ALLOWED_NO_CAP_DROP = {
     "onlyoffice-docs",                                       # supervisord per-child setuid EPERMs even WITH setuid-cap whitelist; raw setpriv works — image init incompatible with cap_drop (HD-230, metabase precedent)
 }
 # Per-SERVICE exemptions inside otherwise-hardened templates:
-SKIP_CAP_DROP_SERVICES = {"gluetun"}   # VPN sidecar — needs NET_ADMIN (HD-204 exemption)
+SKIP_CAP_DROP_SERVICES = {"gluetun", "gluetun-slskd"}   # VPN sidecars — need NET_ADMIN (HD-204 exemption; slskd sidecar HD-362)
 
 WEB_SERVICES = {
     "traefik", "authentik", "opencloud", "forgejo", "homepage", "metabase",

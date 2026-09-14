@@ -1,0 +1,75 @@
+# slskd docker-compose.yml — Soulseek P2P daemon (HD-362, oldsrv)
+#   Downloads the rarest FLAC (Soulseek P2P) — runs as a daemon with a web UI.
+#   Routes through the SAME gluetun WireGuard sidecar as qBittorrent (HD-362 V4
+#   decision): ALL P2P egress goes through PrivadoVPN, NOT the plain LAN.
+#   NO inbound port (CGNAT-range + fixed-endpoint WG ⇒ the peer is NOT reachable
+#   inbound) → slskd is a **fetch-only** peer (search + download, no upload credit).
+#   https://github.com/slskd/slskd · docs: docs/services-media.md §Music Pillar
+#   + docs/services-downloads.md §VPN & Ingress (rate-limit + open-port notes).
+#
+#   AUTH = Soulseek network login (slskd_login) + the slskd web-UI token
+#   (soulseek_api). Fail-closed lookups (HD-91/HD-65; NO default('')).
+#   Every vault[...] value passes through | replace('$','$$') (HD-270).
+#
+#   VERSION PIN: {{ slskd_version }} — unverified placeholder (versions.yml comment).
+services:
+  gluetun-slskd:
+    # Sidecar which routes slskd through the VPN. Reuses the qBittorrent gluetun
+    # facts: PrivadoVPN custom WG (HD-318c). The `network_mode: service:` below
+    # makes slskd share THIS container's namespace (no own networks).
+    image: qmcgaw/gluetun:{{ gluetun_version }}
+    container_name: gluetun-slskd
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      - traefik-public
+      - services-internal
+    environment:
+      VPN_SERVICE_PROVIDER: custom        # gluetun dropped `privado` → explicit endpoint (HD-318c)
+      VPN_TYPE: wireguard
+      WIREGUARD_ENDPOINT_IP: "{{ privado_vpn_endpoint_ip }}"
+      WIREGUARD_ENDPOINT_PORT: "{{ privado_vpn_endpoint_port }}"
+      WIREGUARD_PUBLIC_KEY: "{{ privado_vpn_public_key }}"
+      WIREGUARD_PRIVATE_KEY: "{{ vault['privado-vpn_api'].credential | replace('$','$$') }}"
+      WIREGUARD_ADDRESSES: "{{ privado_vpn_address }}/{{ privado_vpn_cidr }}"
+    labels:
+      # slskd web UI reachable through gluetun namespace on :5030
+      traefik.enable: "true"
+      traefik.http.routers.slskd.rule: "Host(`slskd.kogler.si`)"
+      traefik.http.routers.slskd.entrypoints: websecure
+      traefik.http.services.slskd.loadbalancer.server.port: "5030"
+      # NO middleware: own login/token (home-edge pattern), internal-only route.
+
+  slskd:
+    image: slskd/slskd:{{ slskd_version }}
+    restart: unless-stopped
+    network_mode: "service:gluetun-slskd"   # shares the sidecar namespace — egress via VPN
+    depends_on:
+      - gluetun-slskd
+    container_name: slskd
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    environment:
+      # Soulseek network credentials (username + password from 1P).
+      SOULSEEK_USERNAME: "{{ vault['slskd_login'].username | replace('$','$$') }}"
+      SOULSEEK_PASSWORD: "{{ vault['slskd_login'].credential | replace('$','$$') }}"
+      # Web-UI + API token (slskd supports token auth for the UI/APIs).
+      SLSKD_TOKEN: "{{ vault['soulseek_api'].credential | replace('$','$$') }}"
+      # Rate-limit at the container too (mirrors the router 10 MB/s cap, HD-362):
+      # slskd bandwidth limit in KB/s — 10 MB/s = 10240 KB/s.
+      SLSKD_DOWNLOAD_BANDWIDTH_LIMIT: "10240"
+      SLSKD_UPLOAD_BANDWIDTH_LIMIT: "10240"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    volumes:
+      - /srv/docker/slskd/data:/app          # slskd app state (database, downloads queue)
+      - /mnt/nas/media/downloads/complete/music:/downloads:rw   # TRaSH-style music save path
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true

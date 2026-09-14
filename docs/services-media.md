@@ -32,6 +32,10 @@ Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I
 | Bazarr | bazarr | P+I | 80–150 / 250 | Subtitle management (connects to Sonarr/Radarr) |
 | Profilarr | profilarr | P+I | 50–100 / 150 | Quality-profile UI on top of Sonarr/Radarr |
 | Navidrome | music | P+I | 100–250 / 400 | Music server (deluan/navidrome, HD-354) — **on the VPS**, library on the Hetzner Storage Box; Subsonic + web UI |
+| Aurral | aurral | I | 100–200 / 400 | Music discovery + Lidarr-request companion (lklynet/aurral, HD-362) — community radio via Last.fm / ListenBrainz; **free/no sub**; internal-only; own login |
+| Orpheusdl | — | I | 60–120 / 200 | FLAC downloader (orpheusdl, HD-362) — paid-Qobuz-Tier (Firehawk52-style config; **no Qobuz sub in scope** — owner has YouTube Music); manual config, no UI |
+| Slskd | slskd | I | 60–140 / 250 | Soulseek P2P daemon (slskd/slskd, HD-362) — **gluetun WireGuard sidecar, VPN-locked egress**; no inbound port → fetch-only peer (search + download, no upload credit); own login/token |
+| Tube Archivist | tube | I | 150–350 / 600 | Personal YouTube (tube-archivist/tubearchivist, HD-362) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · **new `tube` subdir on nas `bulk/media`** |
 | Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (scheduled, no UI) |
 
 ## Storage & Import (Media / *arr)
@@ -71,6 +75,10 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 | Jellyfin | `media.` | own login (local only) | transcode via Intel HD 630 `/dev/dri` |
 | Seerr | `seerr.` | Jellyfin login | family request portal (movies/TV) |
 | SeerrNG | `seerrng.` | Jellyfin login | Seerr fork + music (snapetech/seerrng); alongside Seerr |
+| Aurral | `aurral.` | own login | discovery + Lidarr requests (Last.fm / ListenBrainz history, free) — internal-only |
+| Orpheusdl | — (teacher CLI) | config-file (no UI) | manageable only in the compose config; no sub in scope |
+| Slskd | `slskd.` | own login/token | Soulseek P2P — gluetun sidecar, VPN-locked egress |
+| Tube Archivist | `tube.` | own login | personal YouTube — internal-only; headless yt-dlp |
 | Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr | `<name>.` | built-in Forms auth (home edge) | linuxserver images; API keys for integration |
 | Sabnzbd/Qbittorrent | `sab.`/`torrent.` | built-in Forms auth | downloads (qbitorrent through gluetun) |
 | Navidrome | `music.` | **VPS** (SSO web UI optional + local) | music server — library on Storage Box (moved off nas) |
@@ -88,7 +96,40 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 - **Import path:** Lidarr on oldsrv → **copy-import** (hardlinks can't cross hosts once the library is on the
   Box); `docs/storage.md` owns the tiering/consequence line.
 
+## Music Pillar — acquisition + discovery (HD-362)
+
+> Eyeball target of the **Media stack redefined** brainstorm (2026-09-14) — the *music* acquisition
+> chain + discovery glue, implemented as IaC rows in `group_vars/home_servers.yml` on **oldsrv**.
+> **Streaming stays on the VPS** (Navidrome, HD-354): oldsrv downloads/manages, VPS serves.
+> All P2P (slskd + qBittorrent) egresses through the **shared gluetun WireGuard → PrivadoVPN**;
+> SABnzbd stays on the plain LAN (HD-362 / owner decisions 2026-09-14).
+
+- **Acquisition chain (ALL on oldsrv):**
+  - **Lidarr** (existing) → manages the FLAC library in `bulk/media/music` (nas) — copy-import to the
+    Box per HD-354; **sees usenet (SABnzbd) as first priority + qBittorrent fallback.**
+  - **orpheusdl** — paid-Qobuz-Tier FLAC downloader (Firehawk52-style config): presently **no Qobuz/Deezer/Tidal
+    sub in scope** (owner has YouTube Music) → dockered, **manual-import path** only (no Lidarr automation yet).
+  - **slskd** — Soulseek P2P daemon (Soulseek account, free): **gluetun WireGuard sidecar** (same tunnel as
+    qBittorrent), **no inbound port → fetch-only** (search + download; no upload credit). Router rate-limit
+    **10 MB/s per P2P service** (both slskd + torrent, owner decision).
+  - **Murglar** — stays a **manual device app** (Android/Desktop; it is a client with **no API**, per
+    `Music stack.md` it's removed from the chain — it just downloads to the phone, never auto-triggers).
+  - **Aurral** — **music discovery** companion (lklynet/aurral, free): **Last.fm / ListenBrainz** login history
+    → recommends artists/albums → sends requests to **Lidarr**, which lands them in the same FLAC chain.
+- **Video pillar (separate, HD-361 later):** Tube Archivist (personal YouTube) is in **this batch** only
+  as an oldsrv service; Jellyfin keeps serving TV/movies. Plex/StreamFab/YTDLNis stay **manual/not-IaC**
+  (per owner; Tube Archivist is the headless yt-dlp piece).
+- **Auth:** Aurral / Tube Archivist / Slskd = **own local logins** (same home-edge pattern — *arr UIs use
+  built-in Forms auth); no Forward-Auth. `lidarr_api` token = the Lidarr instance key (generated via
+  `scripts/`; set in 1P before converge — see deployment-secrets.md).
+- **Storage:** Tube Archive lives in a **new `bulk/media/tube` subdir** on nas (same `bulk/media` dataset
+  so TRaSH-style hardlink compose stays valid). Music files stay in `bulk/media/music` (existing).
+- *****arr ←? downloader wiring:***** Prowlarr (existing) points at SABnzbd + qBittorrent for Lidarr;
+  slskd + orpheusdl are **standalone** (no Prowlarr indexer). SeerrNG stays the music-request UI on top of
+  the same Lidarr (HD-353).
+
 ## Related
 - [Downloads stack](services-downloads.md) — SABnzbd / qBittorrent / gluetun ingress
 - [Services index](services.md) — catalog legend + network/subdomain SSOT
 - [Store](storage.md) — ZFS layout, `bulk/media` dataset
+- [Media stack redefined brainstorm](../brainstorming/Media stack redefined.md) — source vision (music pillar)

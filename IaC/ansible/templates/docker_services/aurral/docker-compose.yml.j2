@@ -1,0 +1,53 @@
+# aurral docker-compose.yml — Music discovery companion for Lidarr (HD-362, oldsrv)
+#   Delivers the "discovery" leg of the Music Pillar: personalized recommendations,
+#   Last.fm / ListenBrainz listening history, trending pools, and one-click "add to
+#   Lidarr" requests. FREE (no subscription — Last.fm + ListenBrainz accounts only).
+#   https://github.com/lklynet/aurral · docs: docs/services-media.md §Music Pillar.
+#
+#   PLACEMENT: OLDSRV (internal-only, services-internal overlay + home-LAN edge).
+#   INTERNAL-ONLY — the internal edge (traefik-internal routes.yml file-provider)
+#   serves `aurral` by container port; NO public subdomain, NO Traefik label here
+#   (same shape as Murglar-era docs: music is home/nas-only by design).
+#
+#   AUTH = own local login (home-edge pattern: *arr-style Forms auth, NO Forward-Auth).
+#   SECRETS (1Password, fail-closed at render — HD-91/HD-65, NO default('')):
+#     lidarr_api          (API Credential)  Lidarr instance API key — lets Aurral
+#                                            POST add-to-Lidarr requests (read+write).
+#     lastfm_login        (Login)           Last.fm username (for user-tagged history)
+#                                            + password/API key.
+#     metabrainz_login    (Login)           ListenBrainz (Metabrainz) token — preferred
+#                                            free history source (local scrobble store).
+#   Every vault[...] value passes through | replace('$','$$') (compose-escape law HD-270).
+#
+#   VERSION PIN: {{ aurral_version }} — unverified placeholder until the registry
+#   probe at first deploy (versions.yml comment). Renovate tracks.
+services:
+  aurral:
+    image: lklynet/aurral:{{ aurral_version }}
+    restart: unless-stopped
+    container_name: aurral
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    networks:
+      - services-internal
+    environment:
+      # Lidarr API base + key — Aurral needs BOTH (it proxies requests to Lidarr).
+      LIDARR_URL: "http://lidarr:8686"
+      LIDARR_API_KEY: "{{ vault['lidarr_api'].credential | replace('$','$$') }}"
+      # Discovery history sources (free).
+      LASTFM_USER: "{{ vault['lastfm_login'].username | replace('$','$$') }}"
+      LASTFM_API_KEY: "{{ vault['lastfm_login'].credential | replace('$','$$') }}"
+      LISTENBRAINZ_TOKEN: "{{ vault['metabrainz_login'].credential | replace('$','$$') }}"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    labels:
+      # INTERNAL-ONLY (public: false / HD-331/332): served by traefik-internal routes.yml
+      # (file-provider) — no docker-provider route, no public certresolver label.
+      traefik.enable: "false"
+      traefik.http.services.aurral.loadbalancer.server.port: "8080"
+    volumes:
+      - /srv/docker/aurral/data:/app/data   # SQLite + state (kopia-agent snapshot scope)
+networks:
+  services-internal:
+    external: true

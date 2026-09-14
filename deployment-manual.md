@@ -1174,5 +1174,69 @@ flip `spark-ai.enabled: true` → vLLM + llm-d router up → engine bench (S1–
 
 ---
 
+## Phase 3 — oldsrv music pillar (HD-362) ⏳ deploy-gated
+
+Authoring spec: [docs/services-media.md](docs/services-media.md) §Music Pillar ·
+[docs/services-downloads.md](docs/services-downloads.md) §VPN & Ingress ·
+[docs/deployment-secrets.md](docs/deployment-secrets.md) (new catalog rows).
+All of this runs on **oldsrv** only; streaming stays on the VPS (Navidrome, HD-354).
+
+### P3.1 Owner seeds the new 1Password items (BLOCKING — render fails otherwise)
+
+| Item | Kind | Notes |
+|---|---|---|
+| `slskd_login` | Login | Soulseek network username/password (already created by owner, 2026-09-14) |
+| `soulseek_api` | API Credential | slskd web-UI/API token (generate via `scripts/`; optional but recommended) |
+| `lastfm_login` | Login | Last.fm username + API key (`username`+`credential`); owner-created 2026-09-14 |
+| `metabrainz_login` | Login | ListenBrainz token (`username`+`credential`); owner-created 2026-09-14 |
+| `tube_archivist_login` | Login | Tube Archivist web-UI login (`username`+`credential`) |
+| `tube_archivist_api` | API Credential | Tube Archivist API key (Jellyfin plugin access) |
+| `tube_archivist_ui` | API Credential | Tube Archivist UI token (Jellyfin plugin) |
+| `lidarr_api` | API Credential | **Lidarr instance key** — read from the live Lidarr `config.xml` after first
+  boot, or generate + set via `scripts/` (see [scripts/README.md](scripts/README.md) — the same
+  manual-value class as `sonarr_api`/`radarr_api`; NOT auto-rotatable) |
+
+Run `bash scripts/check-vault-items.sh --strict` before converging — it lists exactly what's missing.
+
+### P3.2 Converge oldsrv (registry rows already in `group_vars/home_servers.yml`)
+
+```bash
+bash scripts/ansible-run.sh playbooks/home_servers.yml --tags docker_services
+```
+
+This deploys `aurral`, `orpheusdl`, `slskd` (+ its `gluetun-slskd` sidecar) and
+`tube-archivist` — all internal-only; Traefik routes via the home-LAN `traefik-internal`
+edge (file-provider `routes.yml`), so no new public/cert labels are emitted.
+
+### P3.3 Post-converge wiring (owner verifies)
+
+1. **Aurral → Lidarr** — point Aurral at Lidarr (its UI: add the Lidarr instance; the compose
+   already exports `LIDARR_URL` + `lidarr_api`). Verify Aurral renders recommendations + can
+   submit an add request. (Compose emits the connection; the in-UI wiring is a one-time
+   owner step, mirroring HD-358's `Seerr → *arr link`.)
+2. **slskd → Lidarr** — in Lidarr, add Soulseek as a **manual download client** pointing at
+   the slskd web UI; verify a rare-FLAC search → download lands in
+   `bulk/media/downloads/complete/music` → Lidarr imports → `bulk/media/music` → Box refresh
+   (Navidrome, HD-354).
+3. **orpheusdl** — drop the **Firehawk52-style config.json** into `/srv/docker/orpheusdl/config`
+   (owner step; no sub in scope today); verify one manual import to `bulk/media/music`.
+4. **Tube Archivist** — first login (`tube.`), add channels/playlists; the archive dir is the
+   new `bulk/media/tube` nas subdir. Later: add it as a Jellyfin library via the
+   TubeArchivist plugin (`tube_archivist_api`/`tube_archivist_ui` keys).
+5. **Router (owner):** rate-limit each P2P service to **10 MB/s** (slskd `50300`, qBittorrent)
+   and open the **LAN-side inbound port** for slskd on the egress VLAN
+   ([docs/network-ops.md](docs/network-ops.md) §QoS / firewall). SABnzbd stays plain LAN.
+
+### P3.4 Verify
+
+- `docker ps` on oldsrv: `aurral`, `orpheusdl`, `slskd`, `gluetun-slskd`, `tube-archivist` all `Up`.
+- `http://<% oldsrv_home_ip %>:5030` (slskd UI) + `slskd.kogler.si` route both answer.
+- Aurral recommendations render; Tube Archivist subs pull episodes on schedule.
+- `bash scripts/validate-all.sh` green (unchanged by deploy; run after any repo change).
+
+---
+
+---
+
 *Last updated 2026-09-14 · imperative redeploy procedure (true zero → live) for Phases 0 + 0.5 + 1a + 1 + 1.5 + 4 + 5. Progress/history lives in [deployment-tasks.md](deployment-tasks.md) + owning docs.*
 

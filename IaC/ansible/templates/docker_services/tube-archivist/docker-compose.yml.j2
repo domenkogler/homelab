@@ -1,0 +1,48 @@
+# tube-archivist docker-compose.yml — Personal YouTube archive (HD-362, oldsrv)
+#   "Own YouTube": headless yt-dlp wrapper that downloads channels/playlists/single
+#   videos (incl. subtitles + comments) on a schedule — NO Google account needed.
+#   https://github.com/tubearchivist/tubearchivist
+#   docs: docs/services-media.md §Music Pillar (video pillar)
+#
+#   PLACEMENT: OLDSRV, INTERNAL-ONLY. Headless yt-dlp bundled in the image (no
+#   separate yt-dlp container). A Jellyfin plugin (TubeArchivist) can then serve the
+#   archive inside Jellyfin's TV UI — the archive dir is added as a Jellyfin library
+#   later (owner step) — keys tube_archivist_api / tube_archivist_ui exist for that.
+#
+#   STORAGE: downloads live in a NEW `bulk/media/tube` subdir on nas — inside the
+#   SAME `bulk/media` dataset so TRaSH-style hardlink import stays valid (hardlinks
+#   can't cross dataset boundaries; owner decision 2026-09-14).
+#
+#   AUTH: own browser login (internal edge; no Forward-Auth). FAIL-CLOSED secrets.
+#   VERSION PIN: {{ tube_archivist_version }} — unverified placeholder (versions.yml).
+services:
+  tube-archivist:
+    image: ghcr.io/tubearchivist/tubearchivist:{{ tube_archivist_version }}
+    restart: unless-stopped
+    container_name: tube-archivist
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    networks:
+      - traefik-public
+      - services-internal
+    environment:
+      # Web-UI login + Jellyfin-plugin API token (article-id / token).
+      TA_USERNAME: "{{ vault['tube_archivist_login'].username | replace('$','$$') }}"
+      TA_PASSWORD: "{{ vault['tube_archivist_login'].credential | replace('$','$$') }}"
+      TA_TOKEN: "{{ vault['tube_archivist_ui'].credential | replace('$','$$') }}"   # UI/API token (Jellyfin plugin)
+      # Jellyfin plugin API key (separate; can be the same token).
+      TA_TOKEN_API: "{{ vault['tube_archivist_api'].credential | replace('$','$$') }}"
+      ELASTIC_APM_DISABLED: "true"     # no APM server — disable telemetry by default
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    # INTERNAL-ONLY (public: false / HD-331/332): served by traefik-internal routes.yml
+    # (file-provider) — no docker-provider router, no public certresolver label.
+    volumes:
+      - /srv/docker/tube-archivist/data:/data         # app state + yt-dlp cache
+      - /mnt/nas/media/tube:/youtube:rw               # NEW `bulk/media/tube` subdir (media library)
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true
