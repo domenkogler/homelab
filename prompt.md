@@ -16,9 +16,9 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human). Each HD line links its owning doc + todo row; the ⏳ = exact next step. Deploy-gated verifies live in [`deployment-tasks.md`](deployment-tasks.md) (per-phase chapters).
 
 **AI-actionable now (no owner prerequisite):**
-- **HD-352** — ⏳ DNS re-point tail: Pi tertiary seed converge (raspberry_pi.yml) → `dig @<home> media.kogler.si` verify; oldsrv secondary seed converged 2026-09-14. · [network-dns.md](docs/network-dns.md)
-- **HD-365** — ⏳ `spark.kogler.si` split-horizon DNS record (home instances only): deploy-gated seed converge on oldsrv/Pi → `dig` verify; VPS primary must NOT answer. · [network-dns.md](docs/network-dns.md)
-- **HD-344** — ⏳ register MCP victoria endpoints in pi / Open WebUI / OpenClaw (servers deployed :8080/:8081); tailnet redo = owner. · [observability.md](docs/observability.md) §MCP
+- **HD-352** — ⏳ DNS re-point tail: **Pi tertiary seed converge (raspberry_pi.yml) → `dig @<home> media.kogler.si` verify**; oldsrv secondary seed converged 2026-09-14, port-collision fixes since then deleted from this session's branch (see HD-350). · [network-dns.md](docs/network-dns.md)
+- **HD-365** — ⏳ `spark.kogler.si` split-horizon DNS record (home instances only): seed converge on oldsrv/Pi → `dig` verify; VPS primary must NOT answer. · [network-dns.md](docs/network-dns.md)
+- **HD-344** — ⏳ register MCP victoria endpoints in pi / Open WebUI / OpenClaw (**servers deployed :8083/:8084** — moved off :8080 which is pi-dev's port, 2026-09-15); tailnet redo = owner. · [observability.md](docs/observability.md) §MCP
 - **HD-318(b)** — ⏳ recyclarr @daily quality-profile sync verify (stacks up 2026-09-08). · [hardware-oldsrv.md](docs/hardware-oldsrv.md) · [todo.md HD-318](todo.md)
 
 **Deploy-gated (AI does the deploy/verify on gate-clear):**
@@ -27,9 +27,9 @@ For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human
 - **HD-360** — ⏳ Samba Authentik-as-LDAP (VPS-side): LDAP provider + svc_samba + fresh `authentik-ldap_bind` token → redeploy → flip `storage_samba_passdb: ldapsam` on nas → family-drive verify. **Do NOT flip before provider/outpost/token are up** (smbd fails hard). · [deployment-compose.md](docs/deployment-compose.md) §Samba↔Authentik-as-LDAP
 
 **Owner-step tails on live work:**
-- **HD-350** — ⏳ tail: authorize oldsrv `/root/.ssh/traefik-cert-sync.pub` on the VPS → verify wildcard pair + LAN routes (`traefik-internal` home edge deployed 2026-09-14). · [services-traefik.md](docs/services-traefik.md) §Edge model
+- **HD-350** — ⏳ tail: **authorize oldsrv `/root/.ssh/traefik-cert-sync.pub` on the VPS** → verify wildcard pair + LAN routes. `traefik-internal` home edge deployed 2026-09-14 + **cert-pull timer FIXED + ARMED 2026-09-15** (OnCalendar typo; key generated; pull currently 401s until the pubkey is authorized). · [services-traefik.md](docs/services-traefik.md) §Edge model
 - **HD-353** — ⏳ owner: verify own Jellyfin login at seerrng (SeerrNG up, internal :5055). · [services-media.md](docs/services-media.md)
-- **HD-362** — ⏳ Music pillar tails (pillar deployed 2026-09-14): 1P placeholders → real service values; lidarr-ydl `/home/appuser/.profile` + aurral `/app/downloads` EACCES; wire Lidarr clients; Navidrome Box refresh. · [services-media.md](docs/services-media.md) §Music Pillar
+- **HD-362** — ⏳ Music pillar tails (pillar deployed 2026-09-14, crash-loop fixes 2026-09-15): 1P placeholders → real service values; **TA loops on `path.repo` env-check (ES snapshot support — set it in ES elasticsearch.yml directly; env-var/-E forms both destabilize ES bootstrap, reverted)**; owner: wire Lidarr clients; Navidrome Box refresh. · [services-media.md](docs/services-media.md) §Music Pillar
 - **HD-358** — ⏳ Seerr↔*arr wiring runbook step (bug #7): record API-key + URL wiring once home edge is up. · [services-media.md](docs/services-media.md)
 - **HD-357** — ⏳ Homepage tiles fix (bug #6): Jellyfin/Seerr tiles dead, Immich stuck "Soon"; wire layout/widgets to the verified endpoints. · [services.md](docs/services.md) accessibility SSOT
 - **HD-343 / HD-315** — ⏳ dashboards render-verify (owner): Network Clients + host-overview panels with data (data flowing on all 4 hosts); wifi-path verify. · [observability.md](docs/observability.md) §Dashboards
