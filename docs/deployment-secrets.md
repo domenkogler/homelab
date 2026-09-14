@@ -298,9 +298,9 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `wifi-kogler-guest_password` | `password` | CAPsMAN SSID **Kogler guest** (VLAN 30 Guest, 5GHz, client-isolated internet-only) — live 2026-09-03 |
 | `wifi-kogler-kids_password` | `password` | ~~CAPsMAN SSID **Kogler Kids** (VLAN 40 Kids, filtered DNS + bedtime block HD-182)~~ — **SSID DELETED 2026-09-03 (HD-312):** kids-control migrates to the firewall MAC-address-list (`kids-*`, phase 3) with the family devices on Kogler/VLAN 10. Item kept in 1Password (no longer referenced by any config). |
 | `tube_archivist_login` | `credential` | Tube Archivist (HD-362) **web-UI login** (username in `username`; the archive UI's password) — separate from `tube_archivist_api` (used by the Jellyfin plugin) and `tube_archivist_ui` |
-| `tube_archivist_ui` | `credential` | Tube Archivist (HD-362) **UI API token** — used by the TubeArchivist plugin in Jellyfin (`/api/token/`) |
-| `tube_archivist_api` | `credential` | Tube Archivist (HD-362) **API key** for the Jellyfin plugin API access |
-| `aurral_login` | `credential` | Aurral (HD-362) **web login** — music discovery UI (internal-only) |
+| `tube_archivist_ui` | `credential` | Tube Archivist (HD-362) **UI/API token** — used by the TubeArchivist plugin in Jellyfin (`/api/token/`); optional at deploy (only if the Jellyfin plugin is used) |
+| `tube_archivist_api` | `credential` | Tube Archivist (HD-362) **API key** for the Jellyfin plugin — OPTIONAL (Jellyfin plugin later; NOT required by the compose — docs-only for now) |
+| `lidarr-url-dl_login` | `username`+`credential` | **Lidarr-YouTube-Downloader** web-UI login — entered in its Settings page at first run; reference-only (not fetched by compose) |
 | `lastfm_login` | `username`+`credential` | **Last.fm** account for Aurral's discovery history (user + API key / password) |
 | `metabrainz_login` | `username`+`credential` | **ListenBrainz** (Metabrainz) account for Aurral's discovery history |
 | `slskd_login` | `username`+`credential` | **Soulseek** account (username/password) for slskd — Soulseek network login; `soulseek_api` token used for the slskd UI auth |
@@ -320,7 +320,8 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | ~~`doco-cd_password`~~ | ~~`password`~~ | **retired (HD-150): Doco-CD dropped** — single Ansible-only deploy/upgrade path. No webhook HMAC needed. |
 | `sonarr_api` | `credential` | Sonarr API key — recyclarr syncs quality profiles from this instance. **HD-318:** catalog-created placeholder at Phase-3 seed; OVERWRITE with the instance's real `config.xml` ApiKey after first boot (manual-value class), then re-run recyclarr. **NOT auto-rotatable** (externally-coupled to the running instance). |
 | `radarr_api` | `credential` | Radarr API key — recyclarr syncs quality profiles from this instance. **HD-318:** catalog-created placeholder at Phase-3 seed; OVERWRITE with the instance's real `config.xml` ApiKey after first boot (manual-value class), then re-run recyclarr. **NOT auto-rotatable** (externally-coupled to the running instance). |
-| `lidarr_api` | `credential` | Lidarr API key — **music-pillar partner uses it** (Aurral → Lidarr + Lidarr → SABnzbd/qBittorrent). **HD-362:** seeded via `scripts/` (cat `config.xml` ApiKey) before converge; same manual-value class as sonarr/radarr_api. **NOT auto-rotatable** (coupled to the running Lidarr instance). |
+| `lidarr_api` | `credential` | Lidarr API key — **music-pillar apps use it** (Aurral → Lidarr; Lidarr-YouTube-Downloader → Lidarr). **HD-362:** seeded via `scripts/` (cat `config.xml` ApiKey) before converge; same manual-value class as sonarr/radarr_api. **NOT auto-rotatable** (coupled to the running Lidarr instance). |
+| `lidarr-url-dl_login` | `username`+`credential` | **Lidarr-YouTube-Downloader** (HD-362) web-UI login — entered in its Settings page at first run (no env-var auth upstream) |
 | `pihole_password` | `password` | Pi-hole admin UI (`WEBPASSWORD`) — catalog-generated (HD-318). Optional; empty = no password set via web UI |
 | `matrix_api` | `credential` (`username` = client_id) | Tuwunel Matrix — Authentik OIDC client (`client_id` = username, `client_secret` = credential); callback URI registered in Authentik provider |
 | `matrix_password` | `password` | Tuwunel Matrix — `registration_shared_secret` (bootstrap via `/_synapse/admin/v1/register`; keep a copy with the server identity/backups — HD-49) |

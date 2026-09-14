@@ -1,0 +1,73 @@
+# lidarr-ydl docker-compose.yml — Lidarr-YouTube-Downloader (HD-362, oldsrv)
+#   Acquisition priority #3 in the agreed music ladder (1 usenet / 2 Soulseek /
+#   3 YouTube): a Lidarr download-client that searches YouTube for missing albums
+#   (up to 320 kbps, MP3/M4A/Opus, full ID3 + cover art) and imports results into
+#   Lidarr. Upstream: Angrido/Lidarr-YouTube-Downloader — registers in Lidarr as a
+#   Newznab indexer + SABnzbd-emulating download client (search → grab → import
+#   fully automated). Bundles yt-dlp (via the sidecar).
+#   REPLACES: the earlier orpheusdl + standalone-yt-dlp plan (owner decision
+#   2026-09-14 — orpheusdl is a manual laptop pip tool, no IaC).
+#   docs: docs/services-media.md §Music Pillar · deployment-manual §Phase 3.
+#
+#   PLACEMENT: OLDSRV, INTERNAL-ONLY. Web UI narrow-bound to the oldsrv Home-IP port
+#   5005 (homelable/actual-budget precedent) for admin setup; the download client
+#   itself talks ONLY to Lidarr over the service overlay (no WAN/USENET).
+#
+#   AUTH: UI web login — the downloaded web-UI credentials (lidarr-url-dl_login,
+#   1P) are entered in its Settings page at first run (no env-var auth in the
+#   upstream image). LIDARR_API_KEY comes from 1P (`lidarr_api`).
+#   YT_POT_PROVIDER_URL stays ON (default) — the bgutil sidecar keeps yt-dlp working
+#   against YouTube's bot checks ("Sign in to confirm you're not a bot").
+#   VERSION PIN: {{ lidarr_ydl_version }} — fluid `latest` upstream (MUST-pin note).
+services:
+  lidarr-ydl:
+    image: angrido/lidarr-downloader:{{ lidarr_ydl_version }}
+    restart: unless-stopped
+    container_name: lidarr-ydl
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    networks:
+      - traefik-public
+      - services-internal
+    ports:
+      # Web UI — internal-only narrow-bind on oldsrv Home-IP (homelable precedent).
+      - "{{ oldsrv_home_ip }}:5005:5000"
+    depends_on:
+      - bgutil-provider
+    environment:
+      PUID: "{{ storage_uid }}"
+      PGID: "{{ storage_gid }}"
+      UMASK: "002"
+      # Lidarr API: the instance key (1P; HD-362 — not the app UI creds).
+      LIDARR_URL: "http://lidarr:8686"
+      LIDARR_API_KEY: "{{ vault['lidarr_api'].credential | replace('$','$$') }}"
+      # Container paths (mapped from the nas mounts below).
+      DOWNLOAD_PATH: "/downloads"
+      LIDARR_PATH: "/music"
+      # Automatic YouTube PO tokens — bgutil sidecar (default ON; set "" to disable + drop sidecar).
+      YT_POT_PROVIDER_URL: "http://bgutil-provider:4416"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    volumes:
+      - /srv/docker/lidarr-ydl/config:/config                 # app config + DB (kopia-agent scope)
+      - /mnt/nas/media/downloads/complete/music:/downloads     # TRaSH-style music save path
+      - /mnt/nas/media/media/music:/music                      # Lidarr library (same as Lidarr)
+
+  bgutil-provider:
+    # Generates YouTube PO tokens so yt-dlp avoids "Sign in to confirm you're not
+    # a bot" / format-unavailable errors. Upstream:
+    # https://github.com/Brainicism/bgutil-ytdlp-pot-provider
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    container_name: bgutil-provider
+    restart: unless-stopped
+    init: true
+    cap_drop:
+      - ALL
+    networks:
+      - services-internal
+networks:
+  traefik-public:
+    external: true
+  services-internal:
+    external: true

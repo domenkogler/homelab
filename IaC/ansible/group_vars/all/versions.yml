@@ -61,12 +61,13 @@ seerrng_version: "v3.20.0"                  # snapetech/seerrng — Seerr fork +
 recyclarr_version: "7.4.0"                 # ghcr.io/recyclarr/recyclarr
 navidrome_version: "0.63.2"                 # deluan/navidrome (HD-354, VPS); registry-verified 2026-09-10 via Docker Hub API — latest stable semver, no `v` prefix (0.63.2, 2026-07-11; develop/pr tags are NOT pinned). Renovate tracks.
 # ==== Music pillar (HD-362, 2026-09-14) ====
-# Registry tags NOT yet verified — image/namespace confirmed via docs; MUST run the
-# registry-probe at first deploy and replace these pins (KOPS-030 discipline). Renovate tracks.
-aurral_version: "dev"                             # lklynet/aurral — music discovery (HD-362); tag TBD at deploy (check Docker Hub for the current stable tag)
-orpheusdl_version: "latest"                        # orpheusdl/orpheusdl — FLAC downloader (HD-362); tag TBD at deploy
-slskd_version: "latest"                            # slskd/slskd — Soulseek daemon (HD-362); tag TBD at deploy
-tube_archivist_version: "latest"                   # ghcr.io/tubearchivist/tubearchivist (HD-362); tag TBD at deploy
+# Registry-verified tags (2026-09-14). aurral GHCR, slskd Docker Hub, tubearchivist app+es
+# Docker Hub, lidarr-ydl fluid (`latest` only upstream → ALLOWED_LATEST with MUST-pin note).
+aurral_version: "1.53.0"                       # ghcr.io/lklynet/aurral — music discovery (GHCR; v1.53.0 latest stable)
+slskd_version: "0.26.0.65534-92167f6f"          # slskd/slskd — Soulseek daemon (full SL SDK build tag)
+tube_archivist_version: "v0.5.12"               # bbilly1/tubearchivist — Tube Archivist app (latest stable)
+tube_archivist_es_version: "8.19.0"             # bbilly1/tubearchivist-es — recommended ES 8 image
+lidarr_ydl_version: "latest"                    # angrido/lidarr-downloader — only `latest`/`beta` upstream; fluid (MUST-pin note) → ALLOWED_LATEST
 profilarr_version: latest                  # ghcr.io/dictionarry-hub/profilarr — NO versioned
                                            # tags upstream (only develop/buildcache/sha256,
                                            # probe 2026-08-21) → documented fluid exception;
@@ -177,6 +178,8 @@ onlyoffice_version: "9.3.0.1"
 # Tags registry-verified 2026-08-23 via Docker Hub API from the VPS; Renovate tracks each.
 onlyoffice_pg_version: "16.15-alpine"        # postgres 16 line (forgejo-db 16-alpine series)
 onlyoffice_redis_version: "7.4.11-alpine"    # last 7.4.x alpine
+# Tube Archivist (HD-362) — redis for TA's queue/cache (archivist-redis).
+tube_archivist_redis_version: "7-alpine"       # official redis — TA docs use 7-alpine; registry-verified 2026-09-14
 onlyoffice_rabbitmq_version: "3.13.7-alpine" # last 3.x — ONLYOFFICE-supported broker series
 
 # ==== Observability infra ====

@@ -1,29 +1,26 @@
 # aurral docker-compose.yml — Music discovery companion for Lidarr (HD-362, oldsrv)
 #   Delivers the "discovery" leg of the Music Pillar: personalized recommendations,
 #   Last.fm / ListenBrainz listening history, trending pools, and one-click "add to
-#   Lidarr" requests. FREE (no subscription — Last.fm + ListenBrainz accounts only).
-#   https://github.com/lklynet/aurral · docs: docs/services-media.md §Music Pillar.
+#   Lidarr" requests. FREE (Last.fm + ListenBrainz accounts only — owner-created).
+#   Upstream: ghcr.io/lklynet/aurral (docs.aurral.org) — GHCR, NOT Docker Hub.
+#   docs: docs/services-media.md §Music Pillar.
 #
-#   PLACEMENT: OLDSRV (internal-only, services-internal overlay + home-LAN edge).
-#   INTERNAL-ONLY — the internal edge (traefik-internal routes.yml file-provider)
-#   serves `aurral` by container port; NO public subdomain, NO Traefik label here
-#   (same shape as Murglar-era docs: music is home/nas-only by design).
+#   PLACEMENT: OLDSRV, INTERNAL-ONLY. Homelable precedent: reached at
+#   http://<oldsrv-home-ip>:3001 by direct IP (no home-host Traefik edge — HD-331/332
+#   posture; the VPS edge cannot reach the home LAN either). No docker labels, no
+#   routes.yml entry needed unless a subdomain is wanted later.
 #
-#   AUTH = own local login (home-edge pattern: *arr-style Forms auth, NO Forward-Auth).
-#   SECRETS (1Password, fail-closed at render — HD-91/HD-65, NO default('')):
-#     lidarr_api          (API Credential)  Lidarr instance API key — lets Aurral
-#                                            POST add-to-Lidarr requests (read+write).
-#     lastfm_login        (Login)           Last.fm username (for user-tagged history)
-#                                            + password/API key.
-#     metabrainz_login    (Login)           ListenBrainz (Metabrainz) token — preferred
-#                                            free history source (local scrobble store).
-#   Every vault[...] value passes through | replace('$','$$') (compose-escape law HD-270).
+#   AUTH = Aurral's OWN UI login (home-edge pattern). SERVICE CONNECTIONS (Lidarr API,
+#   Last.fm, ListenBrainz) are configured IN THE WEB UI (first-run setup), matching
+#   upstream — the image's compose carries NO env vars for them. So NO 1Password
+#   lookups are needed in this compose (vault items exist for the owner's reference):
+#     lastfm_login / metabrainz_login — owner-created 2026-09-14, entered in the UI.
 #
-#   VERSION PIN: {{ aurral_version }} — unverified placeholder until the registry
-#   probe at first deploy (versions.yml comment). Renovate tracks.
+#   STATE: SQLite + config in /config (kopia-agent snapshot scope).
+#   VERSION PIN: {{ aurral_version }} — ghcr.io/lklynet/aurral (registry-verified 2026-09-14).
 services:
   aurral:
-    image: lklynet/aurral:{{ aurral_version }}
+    image: ghcr.io/lklynet/aurral:{{ aurral_version }}
     restart: unless-stopped
     container_name: aurral
     cap_drop:
@@ -32,22 +29,14 @@ services:
       - /tmp
     networks:
       - services-internal
-    environment:
-      # Lidarr API base + key — Aurral needs BOTH (it proxies requests to Lidarr).
-      LIDARR_URL: "http://lidarr:8686"
-      LIDARR_API_KEY: "{{ vault['lidarr_api'].credential | replace('$','$$') }}"
-      # Discovery history sources (free).
-      LASTFM_USER: "{{ vault['lastfm_login'].username | replace('$','$$') }}"
-      LASTFM_API_KEY: "{{ vault['lastfm_login'].credential | replace('$','$$') }}"
-      LISTENBRAINZ_TOKEN: "{{ vault['metabrainz_login'].credential | replace('$','$$') }}"
-      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-    labels:
-      # INTERNAL-ONLY (public: false / HD-331/332): served by traefik-internal routes.yml
-      # (file-provider) — no docker-provider route, no public certresolver label.
-      traefik.enable: "false"
-      traefik.http.services.aurral.loadbalancer.server.port: "8080"
+    ports:
+      # internal-only: bind ONLY oldsrv's Home-VLAN IP (narrow-bind law HD-62/HD-184;
+      # actual-budget/homelable precedent) — NEVER 0.0.0.0.
+      - "{{ oldsrv_home_ip }}:3001:3001"
     volumes:
-      - /srv/docker/aurral/data:/app/data   # SQLite + state (kopia-agent snapshot scope)
+      - /srv/docker/aurral/config:/config    # SQLite + app config (kopia-agent scope)
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 networks:
   services-internal:
     external: true

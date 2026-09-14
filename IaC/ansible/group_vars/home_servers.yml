@@ -149,15 +149,16 @@ docker_services:
   - { name: sonarr,       template_dir: sonarr }
   - { name: radarr,       template_dir: radarr }
   - { name: lidarr,       template_dir: lidarr }
-  # HD-362 (2026-09-14): Music acquisition tier (Murglar stays a MANUAL device app —
-  #   no API, badmannersteam; Aurral sees Lidarr's library, NOT the Vodafone token).
-  #   orpheusdl/slskd + Murglar-manual = the FLAC chain; Aurral (lastfm/metabrainz
-  #   history, free) = the discovery chain. All P2P (slskd + qBittorrent) egresses
-  #   through the shared gluetun WireGuard → PrivadoVPN (V4 owner decision; SABnzbd
-  #   stays plain LAN). Deploy-gated: lidarr_api + slskd_login exist; see deployment-manual §Media.
-  - { name: aurral,        template_dir: aurral,        public: false, enabled: true }   # music discovery (Last.fm/ListenBrainz → Lidarr API)
-  - { name: orpheusdl,     template_dir: orpheusdl,     public: false, enabled: true }   # paid-Qobuz-Tier FLAC downloader (manual config; NO sub in scope)
-  - { name: slskd,         template_dir: slskd,         public: false, enabled: true }   # Soulseek P2P — gluetun sidecar, VPN-locked egress, no inbound (fetch-only)
+  # HD-362 (2026-09-14, revised 2026-09-14): Music acquisition tier — agreed ladder:
+  #   1) usenet (SABnzbd, existing)  2) Soulseek (slskd)  3) Lidarr-YouTube-Downloader
+  #   (youtube → Lidarr). orpheusdl + Murglar = MANUAL device tools (laptop/phone, no
+  #   IaC). Aurral (lastfm/metabrainz history, free) = discovery → Lidarr. All P2P egress
+  #   (slskd only; qBittorrent stays for VIDEO via Sonarr/Radarr) through the shared
+  #   gluetun WireGuard → PrivadoVPN (owner V4); SABnzbd stays plain LAN. Deploy-gated:
+  #   owner seeds 1P items then converge oldsrv (see deployment-manual §Phase 3).
+  - { name: aurral,        template_dir: aurral,         public: false, enabled: true }  # music discovery (Last.fm/ListenBrainz → Lidarr API), GHCR, v1.53.0
+  - { name: slskd,         template_dir: slskd,          public: false, enabled: true }  # Soulseek P2P #2 — gluetun sidecar (official slskd VPN integration), VPN-locked, fetch-only
+  - { name: lidarr-ydl,    template_dir: lidarr-ydl,     public: false, enabled: true }  # Lidarr-YouTube-Downloader (Angrido) — youtube → Lidarr, #3 priority, Newznab+SABnzbd emulation
   - { name: tube-archivist, template_dir: tube-archivist, public: false, enabled: true } # Personal YouTube (headless yt-dlp) — internal only
   - { name: prowlarr,     template_dir: prowlarr }
   - { name: bazarr,       template_dir: bazarr }

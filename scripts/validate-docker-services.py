@@ -58,10 +58,11 @@ ALLOWED_LATEST = {
     # digest-pinned; the router stays fluid by upstream design, MUST-pin comment in the
     # compose header + versions.yml.
     "spark-ai",
-    # HD-362 music pillar (2026-09-14): aurral/orpheusdl/slskd/tube-archivist tags NOT
-    # yet registry-verified — placeholders until the first-deploy probe; MUST-pin comment
-    # in the compose header + versions.yml (profilarr pattern).
-    "aurral", "orpheusdl", "slskd", "tube-archivist",
+    # HD-362 music pillar (2026-09-14): tags REGISTRY-VERIFIED 2026-09-14 (aurral GHCR
+    # v1.53.0 / slskd 0.26.0.x / tubearchivist v0.5.12). `lidarr-ydl` (Angrido) has only
+    # `latest`/`beta` upstream → flux by design, MUST-pin note in versions.yml + compose.
+    # orpheusdl REMOVED (pip CLI on laptop — manual tool, not a container; HD-362 revise).
+    "aurral", "slskd", "tube-archivist", "lidarr-ydl",
 }
 
 # Services that use network_mode: service:<sidecar> (no own networks)
