@@ -104,6 +104,11 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 > **Streaming stays on the VPS** (Navidrome, HD-354): oldsrv downloads/manages, VPS serves.
 > All P2P (slskd + qBittorrent) egresses through the **shared gluetun WireGuard → PrivadoVPN**;
 > SABnzbd stays on the plain LAN (HD-362 / owner decisions 2026-09-14).
+> **State (2026-09-14): 1P placeholder seeds created** (`slskd_login`, `soulseek_api`, `lidarr_api`,
+> `tube-archivist_login`, `tube-archivist_ui` — overwrite with the real service-issued values after
+> deploy), ran the oldsrv converge but it **stopped at the bulk 1P pre-pass** (op-vault-export) —
+> the aurral `set()` derive bug (now fixed in IaC), so these services are **not yet deployed**;
+> re-converge oldsrv to land them (see prompts/handoff for the current-blocker state).
 
 - **Acquisition chain (ALL on oldsrv):**
   - **Lidarr** (existing) → manages the FLAC library in `bulk/media/music` (nas) — copy-import to the
@@ -123,8 +128,8 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
   as an oldsrv service; Jellyfin keeps serving TV/movies. Plex/StreamFab/YTDLNis stay **manual/not-IaC**
   (per owner; Tube Archivist is the headless yt-dlp piece).
 - **Auth:** Aurral / Tube Archivist / Slskd = **own local logins** (same home-edge pattern — *arr UIs use
-  built-in Forms auth); no Forward-Auth. `lidarr_api` token = the Lidarr instance key (generated via
-  `scripts/`; set in 1P before converge — see deployment-secrets.md).
+  built-in Forms auth); no Forward-Auth. `lidarr_api` token = the Lidarr instance key — **placeholder
+  seeded 2026-09-14**, overwrite with the real `config.xml` ApiKey (see deployment-secrets.md).
 - **Storage:** Tube Archive lives in a **new `bulk/media/tube` subdir** on nas (same `bulk/media` dataset
   so TRaSH-style hardlink compose stays valid). Music files stay in `bulk/media/music` (existing).
 - *****arr ←? downloader wiring:***** Prowlarr (existing) points at SABnzbd + qBittorrent for Lidarr;

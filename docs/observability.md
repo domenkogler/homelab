@@ -63,10 +63,11 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
 
 ### MCP AI-debugging servers on oldsrv (HD-344) — implemented form
 
-> **2026-09-08 (HD-344 IaC authored, deploy-gated):** two Docker compose services on **oldsrv** —
-> `mcp-victoriametrics` (:8080) + `mcp-victorialogs` (:8081) — fronting the VPS Victoria
-> backend for AI tools (**pi, Open WebUI, OpenClaw** for now). ⏳ **Deploy-gated:** oldsrv is
-> Phase-3/HD-318 **and** needs the VPS Victoria backend live (HD-342).
+> **2026-09-08 (HD-344 IaC authored); 2026-09-14 flipped `enabled: true`** — two Docker compose
+> services on **oldsrv** — `mcp-victoriametrics` (:8080) + `mcp-victorialogs` (:8081) — fronting the VPS
+> Victoria backend for AI tools (**pi, Open WebUI, OpenClaw** for now). ⏳ **Deploy-gated:** oldsrv is
+> Phase-3/HD-318 **and** needs the VPS Victoria backend live (HD-342) — both now true; the `enabled:
+> true` flip (with the oldsrv converge) deploys them. Rows + `_template_vault_items` already updated in IaC.
 
 - **Endpoint reachability — wg-s2s now, tailnet later.** The MCP servers point at the VPS
   backend via `victoria_backend_host` (group_vars/all/main.yml), which **defaults to
@@ -84,7 +85,7 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
   Home-VLAN-only bind + (future) tailnet ACL — **do not expose on the WAN edge**.
 - **Images (pinned, CONVENTIONS §7):** `mcp_victoriametrics:v1.18.0` +
   `mcp_victorialogs:v1.8.0` (GHCR-tag verified 2026-09-08; Renovate-tracked).
-- **Registry:** oldsrv `docker_services` rows (`enabled: false` until HD-318 + HD-342 live).
+- **Registry:** oldsrv `docker_services` rows — **`enabled: true` since 2026-09-14** (was `enabled: false` until HD-318 + HD-342 both live; the oldsrv converge deploys them).
 
 #### Wiring AI tools (pi, Open WebUI, OpenClaw)
 
