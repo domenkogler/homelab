@@ -23,12 +23,16 @@ Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](ser
 |---------|-----------|---------|--------------------|-------------|
 | SABnzbd | sab | P+I | 90–150 / 500 | Usenet downloader → Eweka (NL), plain LAN (no VPN) |
 | qBittorrent | torrent | P+I (via gluetun) | 80–130 / 300 | Torrent downloader — VPN-locked, only egress via VPN |
-| gluetun | — | P+I | 15–30 / 50 | WireGuard sidecar → PrivadoVPN (**custom** provider, fixed endpoint); only qBittorrent routes through it |
+| gluetun | — | P+I | 15–30 / 50 | WireGuard sidecar → PrivadoVPN (**custom** provider, fixed endpoint) — **qBittorrent AND slskd (Soulseek) route through it** (HD-362); SABnzbd stays plain LAN |
 
 ## VPN & Ingress
 
-- **VPN:** only qBittorrent egress → gluetun (WireGuard, PrivadoVPN). SABnzbd stays on the plain LAN (usenet is a licensed service, no VPN needed).
+- **VPN:** P2P egress goes through gluetun (WireGuard, PrivadoVPN) — currently **qBittorrent + slskd**
+  (HD-362). SABnzbd stays on the plain LAN (usenet is a licensed service, no VPN needed).
 - qBittorrent routes through the gluetun network namespace; no direct host port.
+- **Rate-limit (owner decision 2026-09-14):** each P2P service (slskd `50300`, qBittorrent) gets a **10 MB/s
+  cap at the router** (per-IP limit on the egress VLAN) and an **inbound open port on the LAN side**; see
+  [network-ops.md](network-ops.md) §QoS / firewall — the open port is home-LAN-only (no WAN exposure).
 
 **gluetun provider mode — `custom` WireGuard (HD-318c).** gluetun **dropped** its native `privado` provider, so the sidecar now runs in `custom` WireGuard mode with an **explicit, fixed PrivadoVPN endpoint**. The endpoint/address values are **non-secret** and live in the IaC SSOT `group_vars/home_servers.yml` (`privado_vpn_endpoint_ip/port`, `privado_vpn_public_key`, `privado_vpn_address`, `privado_vpn_cidr`) — sourced from the owner-supplied PrivadoVPN WireGuard config; the **client private key is the only secret** (`1Password privado-vpn_api`, field `credential`, looked up at render). Endpoint mapping:
   - `WIREGUARD_ENDPOINT_IP`/`_PORT` ← `[Peer] Endpoint` (`91.148.247.8:51820`); gluetun custom requires an IP literal, not a DNS name ([qdm12/gluetun#2680](https://github.com/qdm12/gluetun/issues/2680))

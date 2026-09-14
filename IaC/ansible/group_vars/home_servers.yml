@@ -149,10 +149,20 @@ docker_services:
   - { name: sonarr,       template_dir: sonarr }
   - { name: radarr,       template_dir: radarr }
   - { name: lidarr,       template_dir: lidarr }
+  # HD-362 (2026-09-14): Music acquisition tier (Murglar stays a MANUAL device app —
+  #   no API, badmannersteam; Aurral sees Lidarr's library, NOT the Vodafone token).
+  #   orpheusdl/slskd + Murglar-manual = the FLAC chain; Aurral (lastfm/metabrainz
+  #   history, free) = the discovery chain. All P2P (slskd + qBittorrent) egresses
+  #   through the shared gluetun WireGuard → PrivadoVPN (V4 owner decision; SABnzbd
+  #   stays plain LAN). Deploy-gated: lidarr_api + slskd_login exist; see deployment-manual §Media.
+  - { name: aurral,        template_dir: aurral,        public: false, enabled: true }   # music discovery (Last.fm/ListenBrainz → Lidarr API)
+  - { name: orpheusdl,     template_dir: orpheusdl,     public: false, enabled: true }   # paid-Qobuz-Tier FLAC downloader (manual config; NO sub in scope)
+  - { name: slskd,         template_dir: slskd,         public: false, enabled: true }   # Soulseek P2P — gluetun sidecar, VPN-locked egress, no inbound (fetch-only)
+  - { name: tube-archivist, template_dir: tube-archivist, public: false, enabled: true } # Personal YouTube (headless yt-dlp) — internal only
   - { name: prowlarr,     template_dir: prowlarr }
   - { name: bazarr,       template_dir: bazarr }
   - { name: sabnzbd,      template_dir: sabnzbd,      subdomain: sab }
-  - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent }   # + gluetun sidecar in template
+  - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent }   # + gluetun sidecar in template (now also carries slskd egress — HD-362; edge routes: torrent.)
   - { name: profilarr,    template_dir: profilarr }
   - { name: recyclarr,    template_dir: recyclarr }                          # scheduled worker, no UI
 

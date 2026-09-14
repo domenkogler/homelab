@@ -39,6 +39,7 @@ tags: [index, dispatcher, ai]
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `services-office.md`, `deployment-compose.md` |
 | **Understand the security posture / hardening** | [`security.md`](security.md) | `services-traefik.md`, `deployment-secrets.md`, `deployment-preseed.md`, `network-ops.md` |
 | **Network / rack topology dashboard (Homelable)** | [`services-admin.md`](services-admin.md) §Homelable | `observability.md` (§Network Clients Dashboard HD-343), `network-rack.md`, `deployment-compose.md`, `deployment-secrets.md` |
+| **Music pillar (HD-362)** | [`services-media.md`](services-media.md) §Music Pillar | `deployment-secrets.md` (lidarr_api, slskd_login, lastfm/metabrainz, tube_archivist_*) · `deployment-manual.md` §Media · `services-downloads.md` §VPN
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
 | **Understand / build the AI stack (chat + RAG + agents)** | [`services-ai.md`](services-ai.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook, HD-105), `hardware-gpu.md` |
 | **Live MS Office via Open WebUI (Word/Excel/PPT)** | [`services-office.md`](services-office.md) | `services-ai.md`, [`client/office-bridge/`](../client/office-bridge/) (HD-106–111) |
