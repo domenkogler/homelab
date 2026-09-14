@@ -57,9 +57,9 @@ services:
       # Model (read-only) — XFS /mnt/spark_nvme/models
       - {{ spark_models_dir }}/Qwen3.8-Flash-Next-AWQ:/model:ro
       # PLE overlay patches (read-only) — on the XFS data partition
-      - {{ spark_xfs_mount }}/worker_image_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/worker.py:ro
-      - {{ spark_xfs_mount }}/ple_layer_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/models/qwen3_8_flash_next/nvidia/ple_layer.py:ro
-      - {{ spark_xfs_mount }}/connector_mrv2.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/connector.py:ro
+      - {{ spark_xfs_mount }}/overlays/worker_image_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/worker.py:ro
+      - {{ spark_xfs_mount }}/overlays/ple_layer_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/models/qwen3_8_flash_next/nvidia/ple_layer.py:ro
+      - {{ spark_xfs_mount }}/overlays/connector_mrv2.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/connector.py:ro
       # Quantized tables (read-only)
       - {{ spark_xfs_mount }}/ples_int4:/ples_int4:ro
       # KV Cache (read-write, on XFS)
