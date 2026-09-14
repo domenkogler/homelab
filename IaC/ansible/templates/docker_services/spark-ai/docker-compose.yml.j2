@@ -120,8 +120,9 @@ services:
     command:
       - --model
       - /model
-      - --quantization
-      - {{ spark_vllm_quantization }}
+      # compression: the staged B1 weights pack compressed-tensors (config.json quant_method)
+      # — forcing --quantization awq mismatches → pydantic ValidationError at boot.
+      # vLLM reads quant_method from the model config when the flag is omitted.
       - --trust-remote-code
       - --max-num-seqs
       - "{{ spark_vllm_max_num_seqs }}"

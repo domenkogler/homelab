@@ -78,7 +78,9 @@ spark_vllm_shm_size: 32g
 spark_vllm_memlock: -1
 spark_vllm_stack: 67108864
 spark_vllm_memory_limit: 126G
-spark_vllm_quantization: awq
+# spark_vllm_quantization removed 2026-09-14: the staged B1 weights pack compressed-tensors
+# (config.json quant_method), so forcing --quantization awq mismatched and the engine died at
+# ModelConfig validation. vLLM reads the packed format from the model config when omitted.
 spark_vllm_max_num_seqs: 4
 spark_vllm_max_model_len: 173400
 spark_vllm_max_num_batched_tokens: 16384
