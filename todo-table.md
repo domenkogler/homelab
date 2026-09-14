@@ -45,6 +45,7 @@ Rows the AI can execute: either **now** (no prerequisite) or the **⏳ deploy-ga
 | HD-32 | 4 | Family guides `docs/manual/*` (Slovenian) | AI doc |
 | HD-133 | 3 | Subscription renewal reminders (SSOT + Homepage + n8n) | AI |
 | HD-40A/40B/135, HD-43/44, HD-46/47/122 | 1–4 | VPS-edge / media-ops / Matrix tails | Read **stale** vs the 2026-09-08 world (Phases 1/2/3/4 all live) — worth a close-out audit pass rather than new work; Matrix deploys now chain on owner OIDC records (HD-147), not host provisioning |
+| HD-362 | 2 | Music pillar: converge oldsrv (aurral/slskd/lidarr-ydl/tube-archivist) + wire Lidarr download clients (#2 Soulseek → #3 YouTube) + Navidrome Box refresh | IaC CORRECTED + registry-pinned (2026-09-14); AI deploy/verify once owner seeds 1P (`lidarr_api`, `soulseek_api`, `tube_archivist_login`) — **deploy-gated** (see chapter) |
 
 **⏳ Deploy-gated chapter — waiting on a Table-Human prerequisite (AI does the deploy/verify as soon as it clears)**
 The deploy/verify here is **fully AI** — the only reason the row isn't already moving is a human prerequisite listed in Table Human. When the human step lands, pick these up first.
@@ -54,6 +55,7 @@ The deploy/verify here is **fully AI** — the only reason the row isn't already
 | HD-46 / HD-122 | 4/2 | Matrix IaC deploy + federation live-verify | Deploy from `vps.yml` (enabled:true) + federation live-verify + HD-122 hardening verify | Owner OIDC records + provider/redirect URIs — **HD-147** |
 | HD-230 | 1 | Phase-1 wave-2 batch | Kopia client wiring + surgical converge + verifies | Owner **kopia source-wiring decision** (owner part of HD-230) |
 | HD-57 | 3 | Finance: Actual Budget / Enable Banking | WG-scope the :5006 API leg + deploy + live-verify | Human **tokens + EB app creation** (owner part of HD-57) |
+| HD-362 | 2 | Music pillar deploy + verify | oldsrv converge (4 new services + 2 sidecars) + wire Lidarr download clients (slskd #2, lidarr-ydl #3 via its UI) + Navidrome Box refresh check | Owner seeds 1P: `lidarr_api` (from Lidarr `config.xml` via `scripts/`), `soulseek_api`, `tube_archivist_login` (+ optional `tube_archivist_ui`/`lidarr-url-dl_login`) — then router 10 MB/s P2P cap + slskd LAN port (owner) |
 
 ---
 
