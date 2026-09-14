@@ -4,10 +4,12 @@
 #   hardened to repo docker_services conventions (network isolation, security, vault).
 #
 #   Placement (HD-359/HD-337): spark.kogler.si — headless AI node. The vLLM :8000 is NOT
-#   published on a host port — LiteLLM (VPS/oldsrv LAN instance) fronts it (HD-367 decision:
+#   published on the LAN — LiteLLM (VPS/oldsrv LAN instance) fronts it (HD-367 decision:
 #   llm-d REMOVED — the real llm-d is a Kubernetes inference-pool stack, not a single-node
 #   queue gateway; LiteLLM is the router in front). `spark_router_publish` flips a Home-VLAN
-#   publish of :8000 for LAN clients once needed.
+#   publish of :8000 for LAN clients once needed. The loopback-only publish
+#   (`spark_metrics_publish`, 127.0.0.1:8000) is for the host Alloy → VPS VM vLLM scrape
+#   (HD-368) — it never exposes the engine on the LAN.
 #
 #   Secrets: NONE required by vLLM (models are public, no API keys) — so this template is
 #   intentionally OUT of the 1Password item map (_template_vault_items) and renders with
@@ -76,6 +78,16 @@ services:
 {% if spark_router_publish | default(false) %}
     ports:
       - "{{ spark_home_ip }}:8000:8000"
+{% else %}
+    # Loopback-only metrics publish (HD-368): lets the spark host Alloy scrape
+    # vLLM's Prometheus /metrics (vllm:8000). Same pattern as traefik's
+    # dedicated metrics entryPoint (127.0.0.1:8082, HD-315) — the engine is
+    # NOT reachable from the LAN, only the monitoring agent on the box.
+    # `spark_router_publish: true` (LAN publish, post-bench) supersedes this.
+{% if spark_metrics_publish | default(true) %}
+    ports:
+      - "127.0.0.1:8000:8000"
+{% endif %}
 {% endif %}
     ipc: host
     shm_size: "{{ spark_vllm_shm_size }}"

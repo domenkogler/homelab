@@ -24,6 +24,9 @@ spark_xfs_mount: /mnt/spark_nvme
 spark_models_dir: "{{ spark_xfs_mount }}/models"     # weights on XFS, never EXT4 (1TB layout, HD-359)
 spark_overlays_dir: "{{ spark_xfs_mount }}/overlays" # PLE overlay patches
 spark_router_publish: false        # flip to publish :8000 on the Home-VLAN IP post-bench (LAN clients)
+spark_metrics_publish: true         # loopback-only :8000 publish (127.0.0.1) so the spark Alloy can scrape
+                                  # vLLM /metrics → VPS VM (HD-368). LAN exposure stays gated on
+                                  # spark_router_publish; this only opens the host loopback.
 
 # ==== Spark GPU-inference artifact store (HD-359) ====
 # GENERIC, config-agnostic manifest: repo_id → XFS local_dir. The B1 AWQ+PLE

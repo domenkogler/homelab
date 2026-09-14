@@ -362,6 +362,26 @@ prometheus.scrape "vl_self" {
 }
 {% endif %}
 
+// ---- vLLM engine metrics (spark GPU node) — HD-368 ----------------
+// vLLM exposes its Prometheus metrics on the OpenAI API server /metrics
+// (same :8000 port as the API — vllm.usage.metrics, PrometheusStatLogger,
+// no separate metrics port). The vLLM dashboards (homelab-vllm-*) query the
+// vllm:* metric family tagged with model_name (vLLM-native) + instance
+// (ours — the scrape target carries it, like the snmp/network-clients jobs).
+// The spark-ai compose publishes :8000 on the spark host loopback only
+// (spark_metrics_publish — same pattern as traefik's 127.0.0.1:8082, HD-315);
+// this job is the engine half of the pipeline and sits in the spark Alloy.
+{% if inventory_hostname == 'spark.kogler.si' and spark_metrics_publish | default(false) %}
+prometheus.scrape "vllm" {
+    targets = [{
+        "__address__" = "127.0.0.1:8000",
+        "job" = "vllm",
+        "instance" = "spark.kogler.si",
+    }]
+    forward_to = [prometheus.remote_write.metrics.receiver]
+}
+{% endif %}
+
 // ---- Alloy host metrics (own /metrics) → remote_write ----
 // The unix exporter (top of file) exposes host metrics on Alloy's OWN HTTP server
 // /metrics (default listen 127.0.0.1:12345 — server.http.listen-addr). Scrape that
