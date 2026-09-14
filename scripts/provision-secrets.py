@@ -118,7 +118,10 @@ CATALOG = [
     # --- Password items ---
     ("Password",    "authentik_password",     lambda: [f"password={gen_pw()}"]),
     ("Password",    "kopia_password",         lambda: [f"password={gen_pw()}"]),
-    ("Password",    "pihole_password",        lambda: [f"password={gen_pw()}"]),   # HD-318 Pi-hole admin WEBPASSWORD (catalog-generated, owner-authorized 2026-09-07)
+    # RETIRED 2026-09-10 (pihole -> Technitium Advanced Blocking): row kept so the
+    # item stays provisioned if pihole is ever re-enabled; the deploy entry is
+    # enabled:false (home_servers.yml) so no running container consumes it.
+    ("Password",    "pihole_password",        lambda: [f"password={gen_pw()}"]),   # Pi-hole admin WEBPASSWORD (catalog-generated, owner-authorized 2026-09-07)
     ("Password",    "ha-vrrp_password",       lambda: [f"password={gen_pw()}"]),
     ("Password",    "nut_password",           lambda: [f"password={gen_pw()}"]),
     ("Password",    "nut-exporter_password",  lambda: [f"password={gen_pw()}"]),

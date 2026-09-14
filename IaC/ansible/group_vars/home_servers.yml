@@ -115,7 +115,13 @@ docker_services:
   #   TERTIARY = Pi (raspberry_pi.yml). LAN DHCP chain + router rules + tailnet
   #   headscale nameservers all list VPS-primary first (see docs/network-dns.md).
   - { name: technitium,      template_dir: technitium, instance: secondary, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
-  - { name: pihole,          template_dir: pihole,     subdomain: ad }
+  # RETIRED 2026-09-10 (network-dns.md): Main-Group ad-blocking moved to Technitium
+  # Advanced Blocking (kept the filter on the reliable VPS/Pi DNS tier instead of
+  # oldsrv). Entry kept `enabled: false` so the deploy loop tears the container down
+  # (2026-09-14 converge was mid-flight when the row was retired — the stale live
+  # pihole container kept crash-looping from the read_only+cap_drop hardening).
+  # Vault item pihole_password intentionally left in place (owner: leave as-is).
+  - { name: pihole,          template_dir: pihole,     subdomain: ad, public: false, enabled: false }
 
   # --- Home-LAN internal all-app edge (HD-350): traefik-internal on OLDSRV ---
   # Host-net, VIP + LAN-IP bound :80/:443, file-provider routes (dynamic/routes.yml.j2),
@@ -156,9 +162,9 @@ docker_services:
   #   (slskd only; qBittorrent stays for VIDEO via Sonarr/Radarr) through the shared
   #   gluetun WireGuard → PrivadoVPN (owner V4); SABnzbd stays plain LAN. Deploy-gated:
   #   owner seeds 1P items then converge oldsrv (see deployment-manual §Phase 3).
-  - { name: aurral,        template_dir: aurral,         public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config'] }  # music discovery (Last.fm/ListenBrainz → Lidarr API), GHCR, v1.53.0 — app su-execs to AURRAL_UID (storage_uid 1005) and writes SQLite into /data; /srv/docker/aurral/config must be pre-created 1005-owned (HD-362 live, SQLITE_CANTOPEN otherwise)
+  - { name: aurral,        template_dir: aurral,         public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config', 'downloads'] }  # music discovery (Last.fm/ListenBrainz → Lidarr API), GHCR, v1.53.0 — app su-execs to AURRAL_UID (storage_uid 1005) and writes SQLite into /data; /srv/docker/aurral/config must be pre-created 1005-owned (HD-362 live, SQLITE_CANTOPEN otherwise); `downloads` bound at /app/downloads (weekly playlist manager EACCES otherwise)
   - { name: slskd,         template_dir: slskd,          public: false, enabled: true }  # Soulseek P2P #2 — gluetun sidecar (official slskd VPN integration), VPN-locked, fetch-only
-  - { name: lidarr-ydl,    template_dir: lidarr-ydl,     public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config'] }  # Lidarr-YouTube-Downloader (Angrido) — youtube → Lidarr, #3 priority, Newznab+SABnzbd emulation; s6 setprivs to PUID (1005) and chmods /config — host dir must be 1005-owned (HD-362 live, "chmod /home/appuser: Operation not permitted" otherwise)
+  - { name: lidarr-ydl,    template_dir: lidarr-ydl,     public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config', 'home'] }  # Lidarr-YouTube-Downloader (Angrido) — youtube → Lidarr, #3 priority, Newznab+SABnzbd emulation; s6 setprivs to PUID (1005) and chmods /config — host dir must be 1005-owned (HD-362 live, "chmod /home/appuser: Operation not permitted" otherwise); `home` bound at /home/appuser (the image has NO appuser home on its RO layer — s6's `> /home/appuser/.profile` EACCES crash-loop otherwise)
   - { name: tube-archivist, template_dir: tube-archivist, public: false, enabled: true, bind_owner_uid: 1000, bind_dirs: ['es'] } # Personal YouTube (headless yt-dlp) — internal only; ES image runs uid 1000 → /srv/docker/tube-archivist/es must be pre-created 1000-owned (HD-362 live, crash-loop "failed to obtain node locks" otherwise)
   - { name: prowlarr,     template_dir: prowlarr }
   - { name: bazarr,       template_dir: bazarr }

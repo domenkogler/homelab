@@ -56,6 +56,7 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       - /srv/docker/lidarr-ydl/config:/config                 # app config + DB (kopia-agent scope)
+      - /srv/docker/lidarr-ydl/home:/home/appuser             # HD-362 live: the image has NO /home/appuser (RO layer); s6's per-user init does `> /home/appuser/.profile` as the app user → EACCES crash-loop. Writable bind fixes it; host dir pre-created 1005-owned (bind_owner_uid/bind_dirs below)
       - /mnt/nas/media/downloads/complete/music:/downloads     # TRaSH-style music save path
       - /mnt/nas/media/media/music:/music                      # Lidarr library (same as Lidarr)
 

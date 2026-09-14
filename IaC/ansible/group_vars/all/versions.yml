@@ -76,7 +76,7 @@ sunshine_version: "v2026.821.30050-ubuntu-24.04"  # lizardbyte/sunshine (distro-
 
 # ==== DNS / network ====
 technitium_version: "15.4.0"               # technitium/dns-server (shared by primary + Pi secondary instance)
-pihole_version: "2026.07.2"                # pihole/pihole (calver v6 line)
+pihole_version: "2026.07.2"                # pihole/pihole (calver v6 line) — RETIRED 2026-09-10; pin kept for re-enable + Renovate trail
 
 # ==== Utilities / dashboards ====
 dozzle_version: "v10.7.3"                  # amir20/dozzle

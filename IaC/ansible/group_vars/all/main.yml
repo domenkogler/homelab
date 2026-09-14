@@ -66,8 +66,9 @@ wildcard_cert_domain: "kogler.si"
 #   TERTIARY   = Pi    (Home VLAN node IP)
 # All three are separate physical hosts (failure-domain split preserved) and all three
 # publish on host :53/udp+tcp. `dns_primary_ip` (below) is the single SSOT for "the
-# primary resolver address" consumed by router rules / DHCP / pihole conditional
-# forwarding / tailnet headscale nameservers. DHCP (router role + converge rsc) hands
+# primary resolver address" consumed by router rules / DHCP / tailnet headscale
+# nameservers. (pihole retired 2026-09-10 — its old conditional-forwarding used
+# this address; Technitium Advanced Blocking now owns that filter.) DHCP (router role + converge rsc) hands
 # out the FULL chain primary->secondary->tertiary->router/IP, and the router /ip dns
 # upstream mirrors the same chain first + Cloudflare last (documented final fallback).
 # DECISION (supervisor, Option A): the primary resolver address is the VPS PUBLIC IP

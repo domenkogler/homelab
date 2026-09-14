@@ -23,7 +23,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 |-----------|-------|------|
 | [Media](services-media.md) | Jellyfin, Seerr, SeerrNG, Immich, Navidrome, *arr (Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr/Recyclarr) + storage/import | detail |
 | [Downloads](services-downloads.md) | SABnzbd, qBittorrent, gluetun — USENET/torrent ingress + VPN | detail |
-| [DNS](services-dns.md) | Technitium, Pi-hole | detail |
+| [DNS](services-dns.md) | Technitium (+ ~~Pi-hole~~ retired 2026-09-10 → Technitium Advanced Blocking) | detail |
 | [Utilities](services-utilities.md) | n8n, signal-cli, PairDrop, Stirling PDF | detail |
 | [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup · **Homelable (HD-45, oldsrv, deploy-gated)** · ~~Metabase~~ **retired 2026-09-14** → future oldsrv | detail |
 | [Office](services-office.md) | ONLYOFFICE, OpenCloud, office bridge (cross-cutting) | detail |

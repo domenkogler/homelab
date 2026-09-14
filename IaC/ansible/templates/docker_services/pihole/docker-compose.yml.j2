@@ -45,12 +45,18 @@ services:
       REV_SERVER: "true"
       REV_SERVER_CIDR: "{{ (network_ranges | selectattr('name', 'equalto', 'site') | first).cidr }}"
     labels:
+{% if not (svc.public is defined and not svc.public) %}
       traefik.enable: "true"
       traefik.http.routers.pihole.rule: "Host(`ad.kogler.si`)"
       traefik.http.routers.pihole.entrypoints: websecure
       {{ 'traefik.http.routers.pihole.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.pihole.middlewares: authentik-forward-auth@file
       traefik.http.services.pihole.loadbalancer.server.port: "80"
+{% else %}
+      # RETIRED 2026-09-10 (public: false): no edge route — the container is torn
+      # down (enabled: false); the template is kept for a potential re-enable.
+      traefik.enable: "false"
+{% endif %}
 networks:
   traefik-public:
     external: true

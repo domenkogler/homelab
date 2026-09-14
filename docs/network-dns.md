@@ -214,8 +214,11 @@ SSOT `dns_primary_ip`/`dns_secondary_ip`/`dns_tertiary_ip`). Clients on every ot
 
 ---
 
-## Pi-hole
+## Pi-hole (RETIRED 2026-09-10)
 
 Pi-hole is a *service* — its catalog row, configuration (upstream resolvers, conditional forwarding to
 the Technitium primary so logs show hostnames, blocklist policy) and deployment live in
 [`services-dns.md`](services-dns.md). This file owns only the per-VLAN/subnet DNS **policy** above.
+
+> **2026-09-10:** pihole retired — Main-Group ad-blocking runs on **Technitium Advanced Blocking** (reliable
+> VPS/Pi DNS tier) instead of the oldsrv container. Historical config kept in services-dns.md.

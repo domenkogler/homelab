@@ -1,17 +1,17 @@
 ---
-title: DNS Services — Technitium & Pi-hole
+title: DNS Services — Technitium (& retired Pi-hole)
 role: detail
 domain: services
 status: active
 tags: [services, dns, technitium, pihole]
 ---
-# DNS Services — Technitium & Pi-hole
+# DNS Services — Technitium (& retired Pi-hole)
 
-> **Role:** Detail — the DNS *services* slice of the services catalog (Technitium router, Pi-hole ad-blocker). Network/ops policy (VLANs, per-subnet upstream filtering, port-53 binding) is owned by [`network-dns.md`](network-dns.md).
+> **Role:** Detail — the DNS *services* slice of the services catalog (Technitium router; Pi-hole retired 2026-09-10). Network/ops policy (VLANs, per-subnet upstream filtering, port-53 binding) is owned by [`network-dns.md`](network-dns.md).
 > **Links to:** `network-dns.md`, `network-vlans.md`, `services.md`
 > **Linked from:** `services.md`, `network-dns.md`
 
-> 🟢 **IaC done + VPS primary SEEDED + LIVE (HD-324, 2026-09-03); Pi/dns-pi live; oldsrv (secondary) DNS pending (Phase 3).** The VPS primary Technitium zone + split-horizon records are live-verified; oldsrv's secondary seeds via the same `technitium-seed` role once its admin is up. Deploy progress vs [`deployment-tasks.md`](../deployment-tasks.md).
+> 🟢 **IaC done + VPS primary SEEDED + LIVE (HD-324, 2026-09-03); Pi/dns-pi live; oldsrv (secondary) DNS pending (Phase 3).** The VPS primary Technitium zone + split-horizon records are live-verified; oldsrv's secondary seeds via the same `technitium-seed` role once its admin is up. **Pi-hole RETIRED 2026-09-10** (see [Pi-hole Configuration](#pi-hole-configuration-retired-2026-09-10)). Deploy progress vs [`deployment-tasks.md`](../deployment-tasks.md).
 
 ---
 
@@ -20,7 +20,7 @@ tags: [services, dns, technitium, pihole]
 | Service | Subdomain | Network | RAM (idle/peak MB) | Description |
 |---------|-----------|---------|--------------------|-------------|
 | Technitium | dns | I | 120–250 / 400 | Central DNS router, VLAN-aware (binds 53 on host) |
-| Pi-hole | ad | I | 100–200 / 300 | Ad-blocking DNS |
+| ~~Pi-hole~~ | ~~ad~~ | I | ~~100–200 / 300~~ | ~~Ad-blocking DNS~~ — **RETIRED 2026-09-10** (ad-block moved to Technitium Advanced Blocking on the reliable VPS/Pi DNS tier; the oldsrv pihole container was retired in the 2026-09-14 follow-up converge). Template + vault item kept for re-enable; see [network-dns.md](network-dns.md) |
 
 ## DNS Redundancy
 
@@ -32,12 +32,14 @@ tags: [services, dns, technitium, pihole]
 - **Technitium secondary** on **oldsrv** — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when the VPS is down.
 - **Technitium tertiary** on the **Raspberry Pi (`pi.kogler.si`)** — web UI `dns-pi.kogler.si` via the Pi `traefik-ha` edge (host :5380 published, see [network-dns.md](network-dns.md)).
 
-## Pi-hole Configuration
+## Pi-hole Configuration (RETIRED 2026-09-10)
 
 - Upstream: Cloudflare (1.1.1.1) or Google (8.8.8.8).
 - Conditional forwarding: local domain → the **Technitium primary** (`dns_primary_ip`, HD-187) so Pi-hole logs show hostnames.
 - Internal Technitium blocklists **disabled** (minimize RAM; Pi-hole handles blocking).
 - Per-VLAN/subnet DNS **policy** (who may query whom, port-53 binding) lives in [`network-dns.md`](network-dns.md).
+
+> **2026-09-10:** pihole retired — Main-Group ad-blocking uses **Technitium Advanced Blocking** (per-client groups, multiple block-list formats) on the reliable VPS/Pi DNS tier instead of an oldsrv container. The section above is the historical config, kept for re-enable.
 
 ## Related
 - [Network DNS architecture](network-dns.md) — VLAN/subnet policy, port-53 binding, DNS SSOT

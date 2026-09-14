@@ -43,6 +43,11 @@ services:
       # declaration mounts nothing for it, so we bind the host config dir at /data.
       # (The old /config bind was decorative — the app never wrote there.)
       - /srv/docker/aurral/config:/data    # SQLite + app config (kopia-agent scope)
+      # HD-362 live: the weekly playlist manager hardcodes write to /app/downloads
+      # (image-internal, RO layer) → EACCES (non-fatal warning today, but the CLI
+      # download path is dead). Bind it to a durable host dir so downloads work;
+      # pre-created 1005-owned (bind_dirs below, same as config).
+      - /srv/docker/aurral/downloads:/app/downloads
     environment:
       AURRAL_DATA_DIR: /data   # HD-362 live: default is /app/backend/data (in-container, lost on recreate) — point it at the durable /data bind
       AURRAL_UID: "{{ storage_uid }}"   # HD-362 live: entrypoint su-execs to this uid (else defaults to image nodejs=1001); must match the /data bind owner (1005) or SQLite gets CANTOPEN

@@ -96,7 +96,7 @@ WEB_SERVICES = {
     "zipline",
     "open-webui",
     "crowdsec-web-ui",   # HD-272 CrowdSec Web UI (csui.kogler.si)
-    "technitium", "pihole",
+    "technitium",  # pihole retired 2026-09-10 (Technitium Advanced Blocking on the reliable DNS tier)
     "actual-budget",   # budget.kogler.si UI + :5006 API leg over WG (HD-57)
     "chat",
     "onlyoffice-docs",
@@ -236,8 +236,7 @@ BASE_CTX.update({
     # HD-299 (VPS-primary, 2026-09-03): the primary resolver is the VPS PUBLIC IP
     # (dns_primary_ip, single SSOT). The VPS Technitium container pin sits inside the
     # dns-servers overlay (tchnitium_dns_overlay_ip) — not a client-facing address.
-    # Mocks mirror the new topology (pihole CONDITIONAL_FORWARDING_IP renders against
-    # dns_primary_ip; the compose template renders the overlay pin).
+    # Mocks mirror the new topology (the compose template renders the overlay pin).
     "dns_primary_ip": "159.195.111.66",
     "dns_secondary_ip": "10.10.1.30",
     "dns_tertiary_ip": "10.10.1.20",

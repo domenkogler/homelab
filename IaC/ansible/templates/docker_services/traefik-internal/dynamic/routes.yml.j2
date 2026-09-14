@@ -37,88 +37,77 @@ http:
         - websecure
         - websecure-lan
       service: media-backend
-      tls:
-        certResolver: default
+      tls: true
     seerr:
       rule: "Host(`seerr.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: seerr-backend
-      tls:
-        certResolver: default
+      tls: true
     seerrng:
       rule: "Host(`seerrng.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: seerr-backend
-      tls:
-        certResolver: default
+      tls: true
     sonarr:
       rule: "Host(`sonarr.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: sonarr-backend
-      tls:
-        certResolver: default
+      tls: true
     radarr:
       rule: "Host(`radarr.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: radarr-backend
-      tls:
-        certResolver: default
+      tls: true
     lidarr:
       rule: "Host(`lidarr.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: lidarr-backend
-      tls:
-        certResolver: default
+      tls: true
     prowlarr:
       rule: "Host(`prowlarr.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: prowlarr-backend
-      tls:
-        certResolver: default
+      tls: true
     bazarr:
       rule: "Host(`bazarr.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: bazarr-backend
-      tls:
-        certResolver: default
+      tls: true
     profilarr:
       rule: "Host(`profilarr.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: profilarr-backend
-      tls:
-        certResolver: default
+      tls: true
     sab:
       rule: "Host(`sab.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: sab-backend
-      tls:
-        certResolver: default
+      tls: true
     torrent:
       rule: "Host(`torrent.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: torrent-backend
-      tls:
-        certResolver: default
+      tls: true
     # --- HA + DNS UI (VIP; this edge serves ha only while oldsrv owns the VIP) ---
     ha:
       rule: "Host(`ha.kogler.si`)"
@@ -126,16 +115,14 @@ http:
         - websecure
         - websecure-lan
       service: ha-backend
-      tls:
-        certResolver: default
+      tls: true
     dns-pi:
       rule: "Host(`dns-pi.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: dns-pi-backend
-      tls:
-        certResolver: default
+      tls: true
     # --- VPS-hosted set (via the wg-s2s traefik-tailnet edge, HD-333) ---
     foto:
       rule: "Host(`foto.kogler.si`)"
@@ -143,32 +130,28 @@ http:
         - websecure
         - websecure-lan
       service: foto-backend
-      tls:
-        certResolver: default
+      tls: true
     file:
       rule: "Host(`file.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: file-backend
-      tls:
-        certResolver: default
+      tls: true
     git:
       rule: "Host(`git.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: git-backend
-      tls:
-        certResolver: default
+      tls: true
     ai:
       rule: "Host(`ai.kogler.si`)"
       entryPoints:
         - websecure
         - websecure-lan
       service: ai-backend
-      tls:
-        certResolver: default
+      tls: true
     http-redirect:
       rule: "HostRegexp(`{host:.+}`)"
       entryPoints:
@@ -245,11 +228,6 @@ http:
           - url: "http://{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}"
 
 tls:
-  stores:
-    default:
-      defaultCertificate: synced-wildcard
   certificates:
-    - store: default
-      name: synced-wildcard
-      certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
+    - certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
       keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"

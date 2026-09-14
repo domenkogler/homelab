@@ -40,7 +40,12 @@ services:
       - archivist-redis
     environment:
       # Required env vars (upstream compose).
-      ES_URL: "http://archivist-es:9200"
+      # ES_URL must be HTTPS: tubearchivist-es enables xpack.security and serves TLS
+      # (self-signed bundle baked into the image) — plaintext http:// is rejected with
+      # "received plaintext http traffic on an https channel" and TA never bootstraps
+      # (live 2026-09-14: ES was https, TA:ES_URL was http). TA 0.x bundles the CA/self-
+      # signed acceptance for the es container on the service overlay.
+      ES_URL: "https://archivist-es:9200"
       REDIS_CON: "redis://archivist-redis:6379"
       HOST_UID: "{{ storage_uid }}"
       HOST_GID: "{{ storage_gid }}"
@@ -52,7 +57,6 @@ services:
       TA_USERNAME: >-
         {{ vault['tube-archivist_login'].username | replace('$','$$') }}
       TA_PASSWORD: >-
-        {{ vault['tube-archivist_login'].credential | replace('$','$$') }}
         {{ vault['tube-archivist_login'].credential | replace('$','$$') }}
       # ES 'elastic' superuser password — the SAME value the archivist-es container
       # gets as ELASTIC_PASSWORD (TA fails its env-check without it; HD-362 live).
@@ -98,7 +102,6 @@ services:
       - CHOWN   # HD-362 live: the redis entrypoint chowns /data to uid 999 (find . ! -user redis -exec chown) then setprivs down; cap_drop ALL strips CHOWN → "chown: .: Operation not permitted" crash-loop (live 2026-09-14)
       - SETUID
       - SETGID   # HD-362 live: redis setprivs down to uid 999 after the chown — cap_drop ALL strips SETUID/SETGID → "setpriv: setresuid failed: Operation not permitted" restart(127) (signal-cli setpriv precedent, HD-318)
-      - CHOWN   # HD-362 live: the redis entrypoint chowns /data to uid 999 (find . ! -user redis -exec chown) then setprivs down; cap_drop ALL strips CHOWN → "chown: .: Operation not permitted" crash-loop (live 2026-09-14)
     tmpfs:
       - /tmp
     networks:

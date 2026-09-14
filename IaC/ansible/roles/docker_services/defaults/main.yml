@@ -89,7 +89,9 @@ _extra_templates:
   # HD-350: home-LAN internal all-app edge (oldsrv). File-provider routes only
   # (same pattern as traefik-ha/traefik-tailnet); the wildcard pair is pulled into
   # ./certs by the SAME traefik-cert-pull timer (parametrized via traefik_consumer_dir)
-  # and served via the DEFAULT store (no tls.yml needed — routes.yml declares the store).
+  # and served with `tls: true` per-route from the certificate declared in routes.yml
+  # (traefik-ha schema — certFile/keyFile, no store block; certResolver is absent on
+  # consumer edges, the cert is defaultCerts-file only).
   traefik-internal:
     - dynamic/routes.yml.j2
   recyclarr:
@@ -137,7 +139,7 @@ _template_vault_items:
   dsh: {'dsh_api', 'dsh_forgejo_api', 'tailscale_dsh_api'}   # HD-268 Pattern-A tailnet sidecar auth key (preauth-key, owner-seeded)
   opencloud: {'opencloud_login', 'opencloud-collab_password'}
   qdrant: {'qdrant_db'}
-  pihole: {'pihole_password'}
+  pihole: {'pihole_password'}   # RETIRED 2026-09-10 — kept so a future re-enable resolves cleanly
   victoria-metrics: {'victoria-metrics_api'}   # Victoria* basic auth (HD-341/342), HYPHENATED <service>_<type>
   victoria-logs: {'victoria-logs_api'}         # Victoria* basic auth (HD-341/342)
   qbittorrent: {'privado-vpn_api'}
