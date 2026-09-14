@@ -90,7 +90,7 @@ spark_vllm_max_num_batched_tokens: 16384
 # now manages offload internally. See docs/hardware-spark.md for the bench note.
 #   swap_space: 4
 spark_vllm_kv_cache_dtype: "auto"
-spark_vllm_gpu_memory_utilization: 0.95
+spark_vllm_gpu_memory_utilization: 0.93   # 0.95 overflowed: w/ dashboard co-resident, free=114.76 < 115.54 (0.95×121.62). 0.93 → ≈113 GiB
 spark_vllm_distributed_executor_backend: "mp"
 spark_vllm_enforce_eager: false
 spark_vllm_spec_method: mtp
