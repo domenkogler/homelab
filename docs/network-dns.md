@@ -58,6 +58,7 @@ The three Technitium instances serve the SAME primary zone but with **per-instan
 | VPS-hosted (`foto`, `file`, `git`, `ai`, `office`, `pdf`, `chat`, `matrix`, `drop`, `bin`, `sso`, `dns`, `vpn`, … + root/home/vps) | VPS public IP | VPS public IP (their backends live on the VPS; the home edge reaches them via wg-s2s :4443 double-hop, HD-350) |
 | Tailnet dashboards (`stats`, `logs`, `csui`, `sec`, `traefik`, `auto`) | VPS tailnet sidecar IP | VPS tailnet sidecar IP (cluster constant) |
 | `modem` | — (never seeded on VPS) | LAN-only (HD-302) |
+| `spark` | — (never seeded on VPS) | **spark LAN IP** (`spark_home_ip`) — headless GPU node, LAN-only, no public edge (HD-364/365) |
 
 > **Why home-hosted names are per-instance:** the home-hosted apps run on **oldsrv** (host-net backends on `oldsrv_home_ip`). Pointing them at the VPS public IP on the home instances would make every LAN hit depend on WAN (HD-349 drill finding). The home edge (`traefik-internal`, [services-traefik.md](services-traefik.md) §Edge model) serves them from `oldsrv_home_ip`; the VPS primary keeps `dns_primary_ip` so WAN/tailnet reach the VPS first.
 
