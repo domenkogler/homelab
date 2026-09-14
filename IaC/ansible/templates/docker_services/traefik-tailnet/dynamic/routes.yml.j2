@@ -491,10 +491,6 @@ http:
       loadBalancer:
         servers:
           - url: "http://{{ oldsrv_home_ip }}:8080"
-    pi-backend:
-      loadBalancer:
-        servers:
-          - url: "http://pi-dev:8080"
     logs-backend:
       loadBalancer:
         servers:
