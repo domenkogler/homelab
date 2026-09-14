@@ -132,8 +132,6 @@ services:
       - "{{ spark_vllm_max_num_batched_tokens }}"
       - --enable-prefix-caching
       - --no-enable-flashinfer-autotune
-      - --swap-space
-      - "{{ spark_vllm_swap_space }}"
       - --kv-cache-dtype
       - {{ spark_vllm_kv_cache_dtype }}
       - --gpu-memory-utilization
@@ -151,7 +149,7 @@ services:
       - --override-generation-config
       - '{"temperature":1,"top_p":0.95,"top_k":20}'
       - --speculative-config
-      - '{"method": "{{ spark_vllm_spec_method }}", "num_speculative_tokens": {{ spark_vllm_spec_tokens }}, "disable_by_batch_size": {{ spark_vllm_spec_disable_by_batch_size }}}'
+      - '{"method": "{{ spark_vllm_spec_method }}", "num_speculative_tokens": {{ spark_vllm_spec_tokens }}}'
 
 
 

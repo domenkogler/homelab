@@ -82,14 +82,22 @@ spark_vllm_quantization: awq
 spark_vllm_max_num_seqs: 4
 spark_vllm_max_model_len: 173400
 spark_vllm_max_num_batched_tokens: 16384
-spark_vllm_swap_space: 4
+# spark_vllm_swap_space removed 2026-09-14: this vLLM build (0.1.dev20073+g8e685d198)
+# DROPPED swap_space from EngineArgs — `--swap-space` is unrecognized and crashes the
+# engine at argv-parse. B1's swap-space=4 no longer has a CLI knob; the engine config
+# now manages offload internally. See docs/hardware-spark.md for the bench note.
+#   swap_space: 4
 spark_vllm_kv_cache_dtype: "auto"
 spark_vllm_gpu_memory_utilization: 0.95
 spark_vllm_distributed_executor_backend: "mp"
 spark_vllm_enforce_eager: false
 spark_vllm_spec_method: mtp
 spark_vllm_spec_tokens: 3
-spark_vllm_spec_disable_by_batch_size: 6
+# spark_vllm_spec_disable_by_batch_size removed 2026-09-14: `disable_by_batch_size`
+# was dropped from SpeculativeConfig in this build — replaced by
+# num_speculative_tokens_per_batch_size (list of (start,end,K) inclusive ranges).
+# B1 = plain MTP-3 (method=mtp, num_speculative_tokens=3); the dynamic schedule is a
+# future ladder row (BENCHMARK-PLAN §6 step 6).
 
 # llm-d router REMOVED (HD-367 2026-09-14): the real llm-d project is a Kubernetes
 # inference-pool stack (endpoint-picker/disagg-sidecar route Envoy+K8s pools, not a
