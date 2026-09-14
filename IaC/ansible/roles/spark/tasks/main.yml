@@ -117,6 +117,26 @@
   become: true
   tags: [spark, disk]
 
+# ---- 1TB layout + headroom contract (HD-359) ----
+- name: Assert the data partition has ≥ spark_disk_headroom_gb free (re-download avoidance)
+  ansible.builtin.command: "df -B1G --output=avail {{ xfs.mount_point }}"
+  register: df_free
+  changed_when: false
+  failed_when: false   # not fatal on first pass (partition may not exist yet)
+  tags: [spark, disk]
+
+- name: Fail early if free space is under the headroom target
+  ansible.builtin.assert:
+    that:
+      - (df_free.stdout_lines[-1] | trim | int) >= spark_disk_headroom_gb
+    fail_msg: >-
+      {{ xfs.mount_point }} free space ({{ df_free.stdout_lines[-1] | trim }} GiB) < required
+      {{ spark_disk_headroom_gb }} GiB — the full bench set (AWQ+PLE + NVFP4 + sidecars ≈ 331 GB)
+      won't fit without re-download. Check the NVMe is the expected 1 TB and p2 is the entire
+      remainder.
+  when: df_free.rc == 0
+  tags: [spark, disk]
+
 # NOTE on the ANSIBLE USER: unlike preseed hosts, spark has no post_install.sh — the
 # automation user + authorized_keys + sudoers are provisioned by the `common` role
 # (roles/common/tasks/system.yml: user/key/sudoers), exactly like the VPS/Pi/nas/oldsrv.

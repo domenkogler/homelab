@@ -165,6 +165,12 @@ docker_services:
   - { name: dsh,            template_dir: dsh,       public: false, enabled: true }   # DeepSeek Harness — dev AI (oldsrv now; UI = oldsrv_home_ip:3080)
   - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: true }   # pi coding-agent — dev AI (oldsrv now; UI = oldsrv_home_ip:8080)
   - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: false }  # ⏳ LAN LiteLLM — DEPLOY-GATED ON SPARK (HD-356/HD-335): dev-side gateway for dsh/pi-dev/OpenHands; own Postgres + scoped keys (dsh_api, pi-harness_openai_api); Kopia-backed
+  # ⏳ Spark AI (Qwen3.8-Flash-Next on GB10) — DEPLOY-GATED ON SPARK (HD-359/HD-337):
+  #     the engine lives on the spark NODE (host_vars/spark.kogler.si.yml), NOT oldsrv.
+  #     This registry entry is the spark node's inference stack (template_dir spark-ai,
+  #     vLLM B1 + llm-d router) and is kept DISABLED here so a homelab converge on
+  #     OLDSRV never deploys it; it flips via the spark node's own group_vars once
+  #     the box is up + bench certifies the winner engine (then moved to a spark.yml).
 
   # --- Finance: Actual Budget (HD-57, decision 2026-08-24) — internal-only P+I;
   #     stable pin + n8n EB bridge (docs/services-finance.md). API leg :5006 published
@@ -199,3 +205,4 @@ docker_services:
   # db-backup, matrix, chat, headscale, metabase, pairdrop, stirling-pdf, renovate,
   # homepage (HD-180/HD-183 — family launchpad at the public edge).
   # MinIO REMOVED (2026-08-18, HD-135): Immich originals = live Hetzner Box (CIFS), not S3.
+#

@@ -53,6 +53,11 @@ ALLOWED_LATEST = {
     # develop/buildcache/sha256 — probe 2026-08-21); fluid by upstream design,
     # documented in the compose header + versions.yml comment.
     "profilarr",
+    # spark-ai: the llm-d router (ghcr.io/llm-d/router) ships `latest` only — NO semver
+    # upstream (verified 2026-09-14, R4 lane). The vLLM engine (spark_vllm_image) is
+    # digest-pinned; the router stays fluid by upstream design, MUST-pin comment in the
+    # compose header + versions.yml.
+    "spark-ai",
 }
 
 # Services that use network_mode: service:<sidecar> (no own networks)
@@ -180,6 +185,28 @@ def _load_ssot_ctx():
     ):
         if k in hdata:
             ctx[k] = hdata[k]
+    # Spark (DGX GB10, HD-359) — group_vars/spark.yml holds the spark-ai compose
+    # render scope (spark_vllm_*/spark_xfs_mount/spark_models_dir/…); load it wholesale
+    # the same way as versions.yml so the validator render cannot drift from the real
+    # group_vars (HD-189 principle).
+    spv = GROUP_VARS_DIR / "spark.yml"
+    try:
+        spdata = yaml.safe_load(spv.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as e:
+        print(f"FAIL: cannot read group_vars/spark.yml ({spv}): {e}", file=sys.stderr)
+        sys.exit(1)
+    for k, v in spdata.items():
+        if isinstance(v, (str, int, float, bool)):
+            if "{{" in str(v):
+                # one-level nested resolution (spark_models_dir: "{{ spark_xfs_mount }}/models").
+                # Resolve against the already-loaded plain spark keys so the validator sees the
+                # real value (HD-189: no drift between validate render and the compose render).
+                import jinja2 as _j2
+                try:
+                    v = _j2.Environment().from_string(str(v)).render(**ctx)
+                except Exception:
+                    pass
+            ctx[k] = v
     # Neutral shared-data owner (HD-94) — SSOT: roles/storage/defaults/main.yml.
     sp = ROOT / "IaC" / "ansible" / "roles" / "storage" / "defaults" / "main.yml"
     try:

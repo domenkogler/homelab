@@ -1,0 +1,55 @@
+---
+# Spark (DGX GB10) group vars — Qwen3.8-Flash-Next inference (HD-359/HD-337)
+# Loaded for the `spark` inventory group (playbooks/spark.yml). The docker_services
+# registry here is the spark NODE's own stack (NOT oldsrv's home_servers.yml — a homelab
+# converge on oldsrv must never deploy spark-ai). Stays deploy-gated until the box is up
+# + bench certifies the winner engine.
+
+docker_services:
+  # The "most proven" Qwen3.8-Flash-Next config — AWQ W4A16 + PLE INT4 + MTP3 + llm-d router
+  # (B1 baseline, spark/BENCHMARK-PLAN.md). Deploy-gated: flip `enabled: true` once the
+  # node is provisioned + partition done + weights downloaded.
+  - { name: spark-ai, template_dir: spark-ai, public: false, enabled: false }
+
+# ==== Shared spark render-scope vars (used by the spark-ai compose template) ====
+# These MUST live here (group_vars/spark.yml) — the docker_services render scope is
+# group_vars + host_vars, NOT role defaults. The spark role (roles/spark) mirrors the
+# partition/XFS config but the template reads THESE.
+spark_xfs_mount: /mnt/spark_nvme
+spark_models_dir: "{{ spark_xfs_mount }}/models"     # weights on XFS, never EXT4 (1TB layout, HD-359)
+spark_overlays_dir: "{{ spark_xfs_mount }}/overlays" # PLE overlay patches
+spark_router_publish: false        # flip to publish :8080 on the Home-VLAN IP post-bench (LAN clients)
+
+# vLLM (B1 proven — spark/BENCHMARK-PLAN.md §1)
+spark_vllm_container: vllm-qwen-spark
+spark_vllm_log_level: INFO
+spark_vllm_cpu_offload: 1
+spark_vllm_ple_offload_ready_timeout: 3600
+spark_vllm_omp_num_threads: "1"
+spark_vllm_pytorch_cuda_alloc_conf: "max_split_size_mb:512"
+spark_vllm_shm_size: 32g
+spark_vllm_memlock: -1
+spark_vllm_stack: 67108864
+spark_vllm_memory_limit: 126G
+spark_vllm_quantization: awq
+spark_vllm_max_num_seqs: 4
+spark_vllm_max_model_len: 173400
+spark_vllm_max_num_batched_tokens: 16384
+spark_vllm_swap_space: 4
+spark_vllm_kv_cache_dtype: "auto"
+spark_vllm_gpu_memory_utilization: 0.95
+spark_vllm_distributed_executor_backend: "mp"
+spark_vllm_enforce_eager: false
+spark_vllm_spec_method: mtp
+spark_vllm_spec_tokens: 3
+spark_vllm_spec_disable_by_batch_size: 6
+
+# llm-d router
+spark_llm_router_container: llm-d-router
+spark_llm_router_max_concurrent_sessions: 3
+spark_llm_router_strategy: fifo
+
+# logging
+spark_logging_driver: json-file
+spark_logging_max_size: 50m
+spark_logging_max_file: "5"
