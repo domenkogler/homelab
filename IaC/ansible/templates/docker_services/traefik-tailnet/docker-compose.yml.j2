@@ -1,7 +1,7 @@
 # traefik-tailnet docker-compose.yml — tailnet-only Traefik edge + tailscale sidecar
 #   Serves the admin/observability dashboards over the headscale tailnet with
 #   CLEAN SUBDOMAIN URLs (https://stats.kogler.si, https://logs.kogler.si,
-#   https://csui.kogler.si, https://sec.kogler.si, https://traefik.kogler.si,
+#   https://csui.kogler.si, https://traefik.kogler.si,
 #   https://auto.kogler.si — and their `*.ts.kogler.si` twins). No port numbers,
 #   no new public DNS record, no WAN exposure (docs/network-vpn.md
 #   §Tailnet-exposed services; HD-135b follow-up).
@@ -19,7 +19,7 @@
 #
 #   Networking: traefik-tailnet joins TWO external overlays:
 #     - `traefik-public` (172.20.0.0/16) — the apps on the main public edge
-#       (grafana:3000, dozzle:8080, crowdsec-web-ui:3000, metabase:3000, n8n:5678)
+#       (grafana:3000, dozzle:8080, crowdsec-web-ui:3000, n8n:5678)
 #       resolve by service name on this overlay; the sidecar inherits it via the
 #       shared `network_mode: service:traefik-tailnet` namespace and rides it
 #       for outbound tailnet control traffic.

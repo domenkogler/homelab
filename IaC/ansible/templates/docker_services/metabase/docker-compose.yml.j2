@@ -1,5 +1,9 @@
-# metabase docker-compose.yml — CrowdSec dashboard view + analytics sandbox (sec.kogler.si)
-#   ONE instance serves both (latest Metabase, NOT CrowdSec's pinned bundle).
+# metabase docker-compose.yml — analytics sandbox (originally CrowdSec dashboard on sec.kogler.si)
+#   RETIRED from the VPS 2026-09-14 (never used; no data to lose; VPS RAM tight). The deploy entry
+#   is enabled:false on the VPS. If ever needed again this runs on OLDSRV (fresh sandbox, no sources —
+#   see docs/services-admin.md). The VPS-local data sources (CrowdSec SQLite bind + Forgejo/Zipline
+#   read-only Postgres over db-internal) are REMOVED below; a future oldsrv home re-adds its own
+#   sources. Net stays on traefik-public + services-internal only (reach that both hosts share).
 #   Internal-only. NOTES (HD-148): Metabase OSS does NOT support OIDC/SSO — paid Enterprise
 #   feature. Auth stays Traefik Forward-Auth; the OIDC provider + `metabase_oidc` item remain
 #   dormant for a hypothetical future Enterprise license. LDAP auth IS included in OSS against
@@ -14,15 +18,12 @@
 #   From address notify@kogler.si = the smtp2go account identity (verified sender);
 #   grafana@kogler.si precedent shows domain senders deliver once domain DKIM is in place.
 #
-#   Data sources (HD-242): ① CrowdSec SQLite — host bind /srv/docker/crowdsec/db mounted RW:
-#   SQLite WAL/journal recovery must be able to write on first open after an unclean crowdsec
-#   shutdown (:ro would 500 the source until crowdsec itself reopens); Metabase only SELECTs,
-#   same pattern as the official CrowdSec dashboards. In Metabase add a database of type
-#   "SQLite" with path /var/lib/crowdsec/data/crowdsec.db and load the official dashboard
-#   JSONs. ② Forgejo Postgres — db-internal join + dedicated READ-ONLY login role ensured by
-#   deploy-service.yml (db_ro_sync keys on the vps.yml metabase entry; vault item
-#   `metabase-forgejo_ro`; SELECT-only incl. default privileges). ③ Zipline Postgres joins
-#   post-HD-112-first-deploy, same pattern.
+#   Data sources — ALL REMOVED 2026-09-14 (owner: retire for now; if needed later → OLDSRV):
+#     ① CrowdSec SQLite host bind /srv/docker/crowdsec/db (VPS-local; was mounted RW for SQLite
+#        WAL-recovery on an unclean crowdsec shutdown; gone with the VPS teardown);
+#     ② Forgejo Postgres db-internal join + `metabase_ro` role (db_ro_sync keys commented out in
+#        vps.yml; the role stays in forgejo-db but is NOT re-synced); ③ Zipline Postgres (never
+#        went live). A future OLDSRV home re-adds LAN sources. See docs/services-admin.md.
 #   Default H2 app DB on a named volume — upgrade/experiment freedom without data loss.
 services:
   metabase:
@@ -51,12 +52,11 @@ services:
     networks:
       - traefik-public
       - services-internal
-      - db-internal
+      # db-internal REMOVED 2026-09-14 — the Forgejo read-only Postgres source is gone (Metabase
+      # retired to a sandbox; a future oldsrv home must NOT assume the VPS db-internal overlay).
     volumes:
       - metabase-data:/metabase.db
-      # CrowdSec decisions/alerts SQLite (HD-242①) — rw per the WAL-recovery note above;
-      # identical in-container path keeps the documented connection URL self-explanatory.
-      - /srv/docker/crowdsec/db:/var/lib/crowdsec/data
+      # CrowdSec SQLite bind REMOVED 2026-09-14 (VPS-local source; retired — see header).
     labels:
 {% if not (svc.public is defined and not svc.public) %}
       traefik.enable: "true"
@@ -78,5 +78,4 @@ networks:
     external: true
   traefik-public:
     external: true
-  db-internal:
-    external: true
+  # db-internal REMOVED 2026-09-14 (source gone; see header).

@@ -42,7 +42,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | VPN (Headscale) | `traefik-public` |
 | Backup (Kopia, DB Backup) | `services-internal` / `db-internal` |
 | Dashboard (Homepage) | `traefik-public` |
-| Dashboard (Metabase) | `traefik-public` **+** `services-internal` |
+| ~~Dashboard (Metabase)~~ | ~~`traefik-public` + `services-internal`~~ — **RETIRED 2026-09-14** (VPS); future home = oldsrv (see services-admin.md §Metabase) |
 | Observe (Alloy) | host (`docker.sock`) + `services-internal` |
 | Observe (VictoriaMetrics, VictoriaLogs) | `db-internal` |
 | Observe (Grafana) | `traefik-public` **+** `db-internal` (needs to query backends) |

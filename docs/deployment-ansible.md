@@ -192,7 +192,7 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   `db_pg_container`** (HD-242): ensures a dedicated READ-ONLY login role (CREATE-if-absent,
   then password + `SELECT`-only grants on schema `public` incl. default privileges,
   re-applied every converge) in ANOTHER stack's pg container — consumer-side key set, e.g.
-  Metabase → forgejo-db via `metabase-forgejo_ro`; vault rotation propagates automatically.
+  Metabase → forgejo-db via `metabase-forgejo_ro` (**retired 2026-09-14** — Metabase removed from the VPS; the key is left in the vault but the db_ro keys are commented out in `vps.yml`); vault rotation propagates automatically.
 - **Lazy loop_var shadowing (HD-185 pattern, generalized):** `vars: { svc: "{{ item }}" }` on an
   `include_tasks` loop is LAZY - any INNER loop in the included file re-resolves `item` in its own
   context, so `svc` collapses to that inner string ('str' has no attribute 'name', found live on

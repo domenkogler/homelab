@@ -125,7 +125,7 @@ _template_vault_items:
   mcp-victoriametrics: {'victoria-metrics_api'}   # HD-344 — MCP→VM basic auth (username/password)
   mcp-victorialogs: {'victoria-logs_api'}         # HD-344 — MCP→VL basic auth (username/password)
   matrix: {'matrix_api', 'matrix_password'}
-  metabase: {'smtp_login', 'metabase-forgejo_ro'}   # forgejo_ro needed by the db_ro_sync task (vault-dict read, HD-268)
+  metabase: {'smtp_login'}   # RETIRED 2026-09-14 — metabase-forgejo_ro no longer consumed (db_ro keys commented out in vps.yml; source dropped).
   n8n: {'n8n-webhook_api', 'n8n_password', 'signal-internal_api', 'signal_api'}   # HD-347: SIGNAL_* env (signal-cli leg) — signal-internal_api (API token) + signal_api (number)
   onlyoffice-docs: {'onlyoffice_db', 'onlyoffice-rabbitmq_login', 'opencloud-collab_password'}
   open-webui: {'openwebui_api', 'openwebui_secret', 'owui-public-chat_api'}

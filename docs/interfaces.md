@@ -24,7 +24,7 @@ tags: [services, interfaces, dashboards]
 | **Element Web (Matrix)** | Family | Matrix-native SSO → Authentik | Messaging: family chat (`chat.kogler.si`, native-only; see [`services-matrix.md`](services-matrix.md)) |
 | **Grafana Dashboard** | Domen (admin) | Provisioned JSON | Observability: analytics, logs, resource metrics — **internal all-app edge** (tailnet + WG-S2S), `stats.kogler.si` (no `.ts` needed) |
 | **Traefik Dashboard** | Domen (admin) | API/labels | Routing/debug: middleware chain, cert status — **internal all-app edge** (tailnet + WG-S2S), `traefik.kogler.si` |
-| **Metabase / CrowdSec Dashboard** | Domen (admin) | SQL/JSON | Analytics: CrowdSec view + Metabase learning sandbox — **internal all-app edge** (tailnet + WG-S2S), `sec.kogler.si` |
+| ~~**Metabase / CrowdSec Dashboard**~~ | ~~Domen (admin)~~ | ~~SQL/JSON~~ | **RETIRED 2026-09-14** (was: analytics sandbox, internal edge `sec.kogler.si`); future home = oldsrv |
 | **Obsidian Desktop** | Domen (admin) | Local `.md` folder (repo clone) | Knowledge base: docs, runbooks, Canvas diagrams |
 | **All internal apps (public + internal)** | Domen (admin) / family | docker_services `public:` flag + internal-edge routes | **Internal all-app edge (HD-331):** every app reachable over the Headscale tailnet + WireGuard S2S at the same `*.kogler.si` name it uses on the public edge — no public WAN needed |
 

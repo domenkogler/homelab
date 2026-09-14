@@ -20,7 +20,7 @@
 # Record list mirrors the network-dns.md static-records contract (per-instance):
 #   ha.kogler.si -> {{ ha_vip }}        (10.10.1.200)
 #   dns-pi.kogler.si -> {{ ha_vip }}    (same VIP; the Pi traefik-ha edge)
-#   stats/logs/csui/sec/traefik/auto -> {{ tailnet_sidecar_ip }} (100.64.0.1)
+#   stats/logs/csui/traefik/auto -> {{ tailnet_sidecar_ip }} (100.64.0.1)
 #   sso.kogler.si -> {{ dns_primary_ip }} (VPS public IP; Authentik edge — same as public CNAME, split-horizon parity)
 #   vpn/home/dns.kogler.si -> {{ dns_primary_ip }} (HD-334: control-plane/home login + headscale coordination + DNS UI;
 #       split-horizon targets so LAN + tailnet resolve the plain names instead of NXDOMAIN on the VPS-primary chain)
@@ -193,7 +193,7 @@
         - { name: "stats.kogler.si",   ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
         - { name: "logs.kogler.si",    ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
         - { name: "csui.kogler.si",    ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
-        - { name: "sec.kogler.si",     ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
+        # sec.kogler.si REMOVED 2026-09-14 — Metabase retired from the VPS (was tailnet-sidecar).
         - { name: "traefik.kogler.si", ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
         - { name: "auto.kogler.si",    ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}" }
         # --- Single-namespace public set (HD-341): the split-horizon zone must carry

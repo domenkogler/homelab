@@ -86,7 +86,7 @@ docs/
 ├── services-downloads.md                  Usenet/torrent ingress (SABnzbd, qBittorrent, gluetun)
 ├── services-dns.md                        DNS services (Technitium, Pi-hole)
 ├── services-utilities.md                  Utility sidekicks (n8n, signal-cli, PairDrop, Stirling)
-├── services-admin.md                      Ops/GitOps/security/backup (Forgejo, Renovate, CrowdSec, Metabase, Headscale, Kopia, DB Backup) · **Homelable topology dashboard (HD-45)**
+├── services-admin.md                      Ops/GitOps/security/backup (Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup) · **Homelable topology dashboard (HD-45)** · ~~Metabase~~ retired 2026-09-14 → future oldsrv
 ├── observability.md                        Observability domain — stack, alerting, retention
 ├── services-traefik.md                    Reverse proxy edge, CrowdSec, SSL
 ├── services-authentik.md                  OIDC SSO, WebAuthn, Forward Auth, Blueprint + glue provisioning

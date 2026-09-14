@@ -55,7 +55,7 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 
 ### CrowdSec Web UI (`csui.kogler.si`, HD-272)
 
-- **Richer ops surface** alongside the Metabase CrowdSec view (`sec.kogler.si`, HD-242): alerts, decisions, metrics, notifications, multi-LAPI, OIDC SSO, read-only mode — a modern SPA (TheDuffman85/crowdsec-web-ui, `ghcr.io/theduffman85/crowdsec-web-ui`, pinned `crowdsec_web_ui_version`).
+- **Richer ops surface** (the dedicated CrowdSec SPA, replacing the retired-Metabase view — Metabase removed from the VPS 2026-09-14): alerts, decisions, metrics, notifications, multi-LAPI, OIDC SSO, read-only mode — a modern SPA (TheDuffman85/crowdsec-web-ui, `ghcr.io/theduffman85/crowdsec-web-ui`, pinned `crowdsec_web_ui_version`).
 - **INTERNAL-ONLY** (HD-272, matches the observability-internal decision): **no public Cloudflare record** — LAN/VPN only, behind **Authentik Forward-Auth** at the edge (repo-standard for internal admin UIs; this UI's native OIDC stays a hypothetical upgrade — forward-auth gives full SSO + MFA passthrough without a second login form).
 - **LAPI watcher auth** (deploy-gated owner step): `docker exec crowdsec cscli machines add crowdsec-web-ui --password '<crowdsec-webui_lapi_api credential>' -f /dev/null` (the `-f /dev/null` is REQUIRED — registers without overwriting the container's credentials file). Separate from the `crowdsec-bouncer_api` bouncer key.
 - Container on `traefik-public` (reaches `crowdsec:8080` LAPI + the edge).

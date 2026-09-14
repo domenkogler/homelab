@@ -11,7 +11,8 @@ tags: [services, admin, ops, gitops, security, backup]
 > **Links to:** `services-traefik.md`, `services-authentik.md`, `backup.md`, `deployment-renovate.md`, `observability.md`, `network-rack.md`, `services.md`
 > **Linked from:** `services.md`, `index.md`
 
-> 🟢 **VPS members live since 2026-08-22** (Phase 1): Forgejo (healed 2026-08-23 after the postgres role-password rotation fix, HD-220a), CrowdSec, Metabase, Headscale + Headplane admin UI, kopia-server, db-backup, Renovate. ⏳ deploy-gated: kopia-agent (oldsrv, Phase 3) plus owner tails surfaced in todo.md (Forgejo repo creation/migration, kopia seed/wiring decisions — HD-230).
+> 🟢 **VPS members live since 2026-08-22** (Phase 1): Forgejo (healed 2026-08-23 after the postgres role-password rotation fix, HD-220a), CrowdSec, Headscale + Headplane admin UI, kopia-server, db-backup, Renovate. ⏳ deploy-gated: kopia-agent (oldsrv, Phase 3) plus owner tails surfaced in todo.md (Forgejo repo creation/migration, kopia seed/wiring decisions — HD-230).
+> **Metabase RETIRED from the VPS 2026-09-14** (never used; no data to lose; VPS RAM tight) — if ever needed again it runs on **OLDSRV** (see §Metabase below).
 
 ---
 
@@ -21,8 +22,8 @@ tags: [services, admin, ops, gitops, security, backup]
 |---------|-----------|---------|--------------------|-------------|
 | Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner). **GitOps / upgrade-automation trigger** — Forgejo Actions → Renovate → Ansible. **Auth (HD-148): native OIDC → Authentik** (web SSO + per-user API/token); client via Blueprint + glue |
 | Renovate Bot | — | I | 150–300 / 600 | Docker image version tracking (GitOps upgrade automation) |
-| CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via Metabase) |
-| Metabase | sec | P+I | 250–450 / 800 | CrowdSec dashboard + analytics sandbox (one instance, two roles). **Auth (HD-148): Forward-Auth** (Metabase OSS has NO OIDC/SSO — paid Enterprise feature; provider/`metabase_oidc` declared for future, but route stays Forward-Auth) |
+| CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via CrowdSec Web UI — Metabase retired 2026-09-14) |
+| ~~Metabase~~ | ~~sec~~ | ~~P+I~~ | ~~250–450 / 800~~ | **RETIRED from the VPS 2026-09-14** (never used; VPS RAM tight). If revived → **OLDSRV** (fresh analytics sandbox, no sources). See §Metabase below. Template + disabled VPS entry retained |
 | Headscale | vpn | P | 60–120 / 250 | Tailscale coordination server |
 | Kopia | — | I | 150–250 / 500 | Encrypted off-site backup (kopia-server on the VPS + oldsrv agent, HD-191) → Hetzner Storage Box (backup, far DC); agent reach = WG-only `:51515`, no subdomain |
 | DB Backup | — | D | 30–60 / 200 | Database dumps (tiredofit/db-backup) |
@@ -96,16 +97,32 @@ Authored 2026-09-09 against upstream **v3.4.1** (registry-verified on GHCR for b
 - No upstream Prometheus/VictoriaMetrics import yet — HD-343 integration is curation-based (see i/ii/iii above).
 - The tool is not a metrics/logs/alert backend — Grafana/VictoriaMetrics stay authoritative for that (observability.md).
 
+## Metabase — RETIRED from the VPS (2026-09-14)
+
+> **Retired for now** — never used, no data to lose, VPS RAM tight. The compose template, the
+> disabled VPS `docker_services` entry, and this documentation are retained so it can be revived
+> **on OLDSRV** later (owner: *"if it will be needed it will be on oldsrv"*). Vault item
+> `metabase-forgejo_ro` left in place (owner: leave as-is); the `metabase_ro` role stays in
+> forgejo-db but is no longer re-synced (db_ro keys commented out in `vps.yml`).
+
+**What it was (VPS analytics sandbox, `sec.kogler.si`, tailnet-only):** historical record below.
+
+- **CrowdSec dashboard** was served via **Metabase** (one instance = CrowdSec view + analytics sandbox). CrowdSec's bundled/pinned Metabase image was **not** used. After retirement the CrowdSec dashboard surface is **CrowdSec Web UI** (`csui.kogler.si`, HD-272) alone.
+- **Reachability while live:** tailnet-only `sec.kogler.si` / `sec.ts.kogler.si` over the VPS `traefik-tailnet` edge (forward-auth on the plain name; ACL-gated on `*.ts`). Both routes + the DNS record were **removed 2026-09-14** with the retirement.
+- **Data sources (HD-242, ALL REMOVED 2026-09-14):** ① CrowdSec SQLite bind `/srv/docker/crowdsec/db` (VPS-local; WAL-recovery RW); ② Forgejo Postgres over `db-internal` via read-only role `metabase_ro` (from `metabase-forgejo_ro`, SELECT-only); ③ Zipline Postgres (never went live). A future oldsrv home re-adds LAN sources.
+- **First boot (HD-241 record, walked 2026-08-24):** wizard order = language → admin account → data-source (**skip**) → usage prefs. Chosen: admin `admin@kogler.si` (vault `metabase_login`), anonymous tracking OFF, HTTPS-redirect OFF. Password-reset via SMTP.
+- **SMTP (HD-241, CLOSED 2026-09-08):** `MB_EMAIL_SMTP_*` from smtp2go SSOT + shared `smtp_login`; From = `notify@kogler.si`; verified end-to-end. Four fixes en route (port 2525, VPS `grafana_smtp_host`, `MB_EMAIL_FROM_ADDRESS`).
+- **LDAP/OIDC — REJECTED (HD-243, 2026-09-09):** OSS has no OIDC/SSO (paid); LDAP = a second login + outpost blast radius; owner is sole user. Stays Forward-Auth + local admin. Decision: [services-rejected.md](services-rejected.md) HD-243.
+
+**Revival path (when wanted):** enable on **OLDSRV** — add an oldsrv `docker_services` entry (`template_dir: metabase`, `public: false`), decide its reach/auth (LAN direct vs a future oldsrv edge), re-add any LAN data sources to the template (the VPS CrowdSec/db-internal sources are gone), seed the `smtp_login` + `metabase_login` items if not present, converge oldsrv. Out of the current session's scope (oldsrv converge not run here).
+
 ## Notes
 
-- **CrowdSec** runs on the Traefik edge (middleware chain in [`services-traefik.md`](services-traefik.md)); the CrowdSec *dashboard* is served via the **Metabase** instance (one Metabase = CrowdSec view + analytics sandbox). CrowdSec's bundled/pinned Metabase image is **not** used.
-- **Admin Dashboards decision:** Traefik Dashboard — tailnet-only `traefik.kogler.si` / `traefik.ts.kogler.si` ([`services-traefik.md`](services-traefik.md) → traefik-tailnet); CrowdSec Dashboard — tailnet-only `sec.kogler.si` / `sec.ts.kogler.si` (Metabase) + **CrowdSec Web UI** `csui.kogler.si` / `csui.ts.kogler.si` (HD-272). All reached over the **headscale tailnet** via the `traefik-tailnet` edge (clean subdomain URLs, no ports — HD-135b follow-up, 2026-08-28), no public record. **Portainer / Dockge — excluded** (single Ansible-templated compose model).
+- **CrowdSec** runs on the Traefik edge (middleware chain in [`services-traefik.md`](services-traefik.md)); its dashboards/surfaces: **CrowdSec Web UI** (`csui.kogler.si`) + the retired-Metabase dashboard (see §Metabase above — no longer a CrowdSec dashboard since 2026-09-14).
+- **Admin Dashboards decision:** Traefik Dashboard — tailnet-only `traefik.kogler.si` / `traefik.ts.kogler.si` ([`services-traefik.md`](services-traefik.md) → traefik-tailnet); **CrowdSec Web UI** `csui.kogler.si` / `csui.ts.kogler.si` (HD-272) — all reached over the **headscale tailnet** via the `traefik-tailnet` edge (clean subdomain URLs, no ports — HD-135b follow-up, 2026-08-28), no public record. (Metabase `sec` was a tailnet dashboard too but is **retired 2026-09-14** — see §Metabase above.) **Portainer / Dockge — excluded** (single Ansible-templated compose model).
 - **GitOps:** Forgejo Actions + Renovate drive the Ansible deploy chain — see [`deployment-renovate.md`](deployment-renovate.md), [`deployment.md`](deployment.md).
-- **Metabase first boot (manual, one-time — HD-241 record, walked 2026-08-24):** wizard order = language → admin account → data-source (**skip** — sources are compose-wired, HD-242) → usage-data prefs. Chosen: admin `admin@kogler.si` (Cloudflare alias → personal mail; vault item `metabase_login` — manual 1P creation outside the provision-secrets catalog), anonymous tracking **OFF**, HTTPS-redirect **OFF** (correct behind Traefik TLS termination — an app-level redirect would loop), forward-auth logout round-trip verified. Password-reset mails need SMTP (below) — until converged, the vault entry is the recovery path.
-- **Metabase SMTP (HD-241, CLOSED 2026-09-08):** `MB_EMAIL_SMTP_*` in the compose template consume the shared smtp2go SSOT (`smtp2go_host`/`smtp2go_port`) + the shared `smtp_login` item; From = `notify@kogler.si` (smtp2go account identity). Env-set settings override AND lock the Admin-UI fields → mail config changes via converge only. **✅ VERIFIED END-TO-END 2026-09-08:** owner's *Send test email* delivered from `notify@kogler.si` (“hooray!”). **Three bugs fixed en route:** ① smtp2go `587` blocked from the VPS egress → SSOT `smtp2go_port` → **2525** (live 2026-09-08); ② VPS Grafana had NO `grafana_smtp_host` (VPS is its own group, not home_servers) → fell back to dead `localhost:25` → added derived `grafana_smtp_host` in `group_vars/vps.yml` (also live); ③ Metabase From-address env var was WRONG (`MB_FROM_ADDRESS` ignored → fell back to unverified `notifications@metabase.com`, smtp2go 550) → fixed to **`MB_EMAIL_FROM_ADDRESS`** per Metabase docs (`MB_EMAIL_FROM_ADDRESS_OVERRIDE` is Pro/Enterprise-only). Grafana emails also confirmed working. ⏳ Known gap (unchanged, HD-238): `metabase-data` H2 volume has NO backup coverage — keep sandbox data disposable.
-- **Metabase data sources (HD-242):** ① CrowdSec SQLite bind `/srv/docker/crowdsec/db` → connection type *SQLite*, path `/var/lib/crowdsec/data/crowdsec.db`, then import the official CrowdSec dashboard JSONs; ② Forgejo Postgres over `db-internal` via read-only role `metabase_ro` (auto-created/re-synced by `deploy-service.yml` from `metabase-forgejo_ro`; SELECT-only incl. default privileges); ③ Zipline Postgres same pattern once HD-112 first-deploys (DB05).
-- **Metabase LDAP auth — REJECTED (HD-243, owner decision 2026-09-09):** Metabase OSS LDAP would still be a second login form behind Forward-Auth (no SSO/MFA passthrough) and needs an outpost-binding decision (HD-186 blast radius: outpost is WG-S2S-bound for Samba). **Revisit trigger was "second regular human user" — the owner is the sole Metabase user, so it is closed/rejected.** Metabase stays Forward-Auth + local admin-only. Decision log: [services-rejected.md](services-rejected.md) HD-243.
+- **Metabase — RETIRED 2026-09-14** (see the §Metabase section above): first boot, SMTP, data sources, and LDAP/OIDC decisions are recorded there for the future oldsrv revival.
 
 ## Related
 - [Backup](backup.md) — Kopia / DB-backup policy
-- [Observability](observability.md) — Metabase/CrowdSec dashboards overlap
+- [Observability](observability.md) — CrowdSec dashboards / analytics overlap

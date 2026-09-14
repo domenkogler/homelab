@@ -46,7 +46,7 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 27 | matrix | matrix | `https://matrix.kogler.si` | enabled |
 | 28 | chat | chat | `https://chat.kogler.si` | enabled |
 | 29 | headscale | vpn | `https://vpn.kogler.si` | enabled |
-| 30 | metabase | sec | `https://sec.kogler.si` | enabled |
+| 30 | metabase | sec | `https://sec.kogler.si` | disabled |
 | 31 | crowdsec-web-ui | csui | `https://csui.kogler.si` | enabled |
 | 32 | pairdrop | drop | `https://drop.kogler.si` | enabled |
 | 33 | stirling-pdf | pdf | `https://pdf.kogler.si` | enabled |
@@ -101,4 +101,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-09-14T18:54:21Z
+> Generated from the `docker_services` lists | 2026-09-14T20:39:28Z

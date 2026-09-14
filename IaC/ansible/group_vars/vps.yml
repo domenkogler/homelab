@@ -96,7 +96,7 @@ docker_services:
   # HD-135b follow-up: admin dashboards are TAILNET-ONLY. traefik-tailnet = the
   # tailnet Traefik edge + its tailscale sidecar (vps-obs, tag:sidecar) in ONE project
   # (compose v2 requires network_mode: service:X to be same-file). It serves
-  # stats/sec/traefik/logs/csui/auto (and *.ts.kogler.si twins) over headscale with
+  # stats/traefik/logs/csui/auto (and *.ts.kogler.si twins) over headscale with
   # clean subdomain URLs — NO public records, NO port-number `tailscale serve`.
   # The auth key (tailscale-sidecar_api) is owner-seeded (2026-08-28); edge IP pinned
   # to 172.20.0.250 (traefik_edge_ips in group_vars/all/main.yml) for header-trust.
@@ -113,8 +113,13 @@ docker_services:
   - { name: chat,           template_dir: element-web, subdomain: chat, public: true, enabled: true }
   # === Edge accessories (moved from oldsrv — VPS residency, HD-135 deliberations) ===
   - { name: headscale,      template_dir: headscale, subdomain: vpn, public: true, enabled: true }  # public coordination (rev. network-vpn.md)
-  - { name: metabase,       template_dir: metabase,  subdomain: sec, public: false, enabled: true,    # CrowdSec dashboard (sec.kogler.si); HD-242 read-only analytics role
-      db_ro_sync: true, db_ro_item: metabase-forgejo_ro, db_pg_container: forgejo-db }
+  # Metabase — RETIRED from the VPS 2026-09-14 (never used; no data to lose; VPS RAM tight).
+  # If ever needed again it runs on OLDSRV (docs/services-admin.md). Entry kept `enabled: false`
+  # so the deploy loop tears the container down. The db_ro_* keys are REMOVED (commented here)
+  # so the `metabase_ro` role in forgejo-db is no longer re-synced; vault item
+  # `metabase-forgejo_ro` intentionally left in place (owner: leave as-is).
+  - { name: metabase,       template_dir: metabase,  subdomain: sec, public: false, enabled: false }
+  #   RETIRED (source dropped): db_ro_sync: true, db_ro_item: metabase-forgejo_ro, db_pg_container: forgejo-db
   # HD-272: CrowdSec Web UI (csui.kogler.si) — richer ops surface alongside Metabase.
   # INTERNAL-ONLY (NO public CNAME); Forward-Auth; LAPI watcher auth (crowdsec-webui_lapi_api).
   - { name: crowdsec-web-ui, template_dir: crowdsec-web-ui, subdomain: csui, public: false, enabled: true }
@@ -164,7 +169,7 @@ homepage_failover_button: false
 
 # Homepage family-vs-technical split (HD-316):
 #   - homepage_show_technical (default true): render the "Domen · technical"
-#     group (tailnet-only admin dashboards: stats/logs/csui/sec/traefik/auto/
+#     group (tailnet-only admin dashboards: stats/logs/csui/traefik/auto/
 #     dsh/pi-dev/vpn). Grafana (stats) is Domen's dashboard — never a family tile.
 #   - homepage_show_soon (default true): render the "Soon" roadmap group
 #     (Phase 3/4 deploy-gated apps as non-clickable description tiles).
@@ -180,7 +185,7 @@ prometheus_ha_exporter: false
 
 # HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge (traefik-tailnet)
 # is served on the headscale sidecar node `vps-obs` (tag:sidecar). headscale
-# `dns.extra_records` maps the clean subdomain names (stats/logs/csui/sec/traefik/auto
+# `dns.extra_records` maps the clean subdomain names (stats/logs/csui/traefik/auto
 # AND their *.ts.kogler.si twins) to this node's tailnet IPv4.
 # Tailnet IPv4s are assigned SEQUENTIALLY by headscale at node join — current known
 # nodes: 100.64.0.3 laptop, 100.64.0.4 phone. This value is filled at deploy time from
@@ -220,7 +225,7 @@ tailnet_subdomains:
   - { name: stats }
   - { name: logs }
   - { name: csui }
-  - { name: sec }
+  # sec REMOVED 2026-09-14 — Metabase retired from the VPS.
   - { name: traefik }
   - { name: auto }
   # --- DSH / pi-dev (HD-355: resolve to the edge, hosted on OLDSRV): the tailnet

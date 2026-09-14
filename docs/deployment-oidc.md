@@ -99,11 +99,7 @@ only set it if Authentik rejects the custom scheme (http(s)-forwarder workaround
 ### Forgejo / Metabase native-OIDC notes (HD-148)
 - **Forgejo** (`git.`): callback `https://git.kogler.si/user/oauth2/<app-slug>/callback`; keep
   `crowdsec-only` edge; decide whether git-over-https/API pushes stay open or follow web SSO.
-- **Metabase** (`sec.`): **Metabase OSS has NO OIDC/SSO — it is a paid Enterprise feature** (image
-  pinned in `group_vars/all/versions.yml`). The `metabase_oidc` provider is declared (Blueprint)
-  only for a future Enterprise license; with OSS the route **stays Forward-Auth** (free, works).
-  If Enterprise is ever licensed: switch this route to `crowdsec-only` + enable `MB_OIDC_*`
-  (single provider, `https://sec.kogler.si/auth/sso` callback).
+- **Metabase** (`sec.`): **RETIRED 2026-09-14** (removed from the VPS; future home oldsrv). Historically: Metabase OSS has **NO OIDC/SSO — paid Enterprise only** (image pinned in `group_vars/all/versions.yml`); the `metabase_oidc` provider was declared (Blueprint) only for a future Enterprise license, so the live route **stayed Forward-Auth**. A future oldsrv Metabase is a sandbox (no sources) and does **not** re-use this VPS Authentik OIDC provider — revisit only with an Enterprise license + VPS Authentik.
 
 ---
 

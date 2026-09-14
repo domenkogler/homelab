@@ -139,7 +139,7 @@ compose):
 | Grafana (`stats`) | `https://stats.kogler.si` / `https://stats.ts.kogler.si` |
 | Dozzle (`logs`) | `https://logs.kogler.si` / `https://logs.ts.kogler.si` |
 | CrowdSec Web UI (`csui`) | `https://csui.kogler.si` / `https://csui.ts.kogler.si` |
-| Metabase (`sec`) | `https://sec.kogler.si` / `https://sec.ts.kogler.si` |
+| ~~Metabase (`sec`)~~ | ~~`https://sec.kogler.si` / `https://sec.ts.kogler.si`~~ — **retired 2026-09-14** (VPS); future home = oldsrv |
 | Traefik dashboard (`traefik`) | `https://traefik.kogler.si` / `https://traefik.ts.kogler.si` |
 | n8n (`auto`, **internal-only**) | `https://auto.kogler.si` / `https://auto.ts.kogler.si` |
 

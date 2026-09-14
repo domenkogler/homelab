@@ -11,7 +11,7 @@
 #
 #   Backends are the container SERVICE names on their respective overlays (docker DNS):
 #     traefik-public: grafana:3000 (stats), dozzle:8080 (logs),
-#       crowdsec-web-ui:3000 (csui), metabase:3000 (sec), n8n:5678 (auto),
+#       crowdsec-web-ui:3000 (csui), n8n:5678 (auto),
 #       traefik dashboard via api@internal (traefik).
 #     tailnet-apps (HD-296, 172.24.0.0/16): dsh:3080 (dsh), pi-dev:8080 (pi).
 #     HD-355 (2026-09-10): dsh + pi-dev MOVED to OLDSRV — the tailnet edge now
@@ -98,29 +98,6 @@ http:
       tls: true
     csui-http-redirect:
       rule: "Host(`csui.kogler.si`) || Host(`csui.ts.kogler.si`)"
-      entryPoints:
-        - web
-      middlewares:
-        - redirect-to-https
-      service: noop@internal
-
-    # Metabase CrowdSec dashboard (sec)
-    sec-kogler:
-      rule: "Host(`sec.kogler.si`)"
-      entryPoints:
-        - websecure
-      middlewares:
-        - authentik-forward-auth
-      service: sec-backend
-      tls: true
-    sec-ts-kogler:
-      rule: "Host(`sec.ts.kogler.si`)"
-      entryPoints:
-        - websecure
-      service: sec-backend
-      tls: true
-    sec-http-redirect:
-      rule: "Host(`sec.kogler.si`) || Host(`sec.ts.kogler.si`)"
       entryPoints:
         - web
       middlewares:
@@ -499,10 +476,8 @@ http:
       loadBalancer:
         servers:
           - url: "http://crowdsec-web-ui:3000"   # SERVICE name (docker DNS) — NOT the container_name
-    sec-backend:
-      loadBalancer:
-        servers:
-          - url: "http://metabase:3000"
+    # sec-backend (metabase:3000) REMOVED 2026-09-14 — Metabase retired from the VPS; if ever
+    # re-homed it runs on OLDSRV (not this tailnet edge).
     auto-backend:
       loadBalancer:
         servers:

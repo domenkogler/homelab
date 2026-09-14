@@ -11,7 +11,7 @@
 #     LIVE, publicly-routed apps. Health dots = Homepage `siteMonitor` probes
 #     against each app's public URL (probe-based; deliberately NO docker socket —
 #     on the VPS it would only see VPS containers; observability.md HD-180 note).
-#   - Domen · technical: tailnet-only admin dashboards (stats/logs/csui/sec/
+#   - Domen · technical: tailnet-only admin dashboards (stats/logs/csui/
 #     traefik/auto/dsh/pi-dev + headscale control plane). Hidden from the family
 #     group by `homepage_show_technical` (default true). Grafana (stats) is
 #     Domen's technical dashboard — never a family tile.
@@ -146,10 +146,7 @@
         icon: mdi-shield-check
         href: "https://csui.{{ d }}"           # tailnet-only
         description: Security decisions & blocked IPs
-    - Metabase:
-        icon: mdi-database
-        href: "https://sec.{{ d }}"            # tailnet-only
-        description: Analytics sandbox
+    # Metabase tile REMOVED 2026-09-14 — service retired from the VPS (see services-admin.md).
     - n8n:
         icon: mdi-cog
         href: "https://auto.{{ d }}"           # tailnet-only
