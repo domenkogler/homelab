@@ -10,7 +10,8 @@ ansible_user: ansible-admin         # provisioned on first touch (no preseed —
 homelab_mode: headless
 # AI stack is NOT yet enabled — benches + winner-engine promotion are deploy-gated (HD-359).
 # spark.enabled flips to true in group_vars/home_servers.yml after bench certification.
-# spark_partition_enable must be set true by the operator after first-boot inspection
-# (DGX OS ships a formatted single NVMe; never auto-partition). HD-363: p2 is the LIVE
-# ROOT — XFS data goes on p3 (offline shrink of p2 first).
-spark_partition_enable: false
+# spark_partition_enable — operator-set true AFTER first-boot inspection (2026-09-14:
+# p2 SHRUNK to 450G root; p3 = ~503G free-space carve; role auto-computes p3 start
+# 944769024 = end-of-p2+1, verified live). HD-363: p2 is the LIVE ROOT — the role's
+# HARD REFUSE guard protects it; XFS data goes on p3.
+spark_partition_enable: true

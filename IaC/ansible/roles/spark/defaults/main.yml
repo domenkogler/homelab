@@ -39,7 +39,7 @@ xfs:
   mount_point: "{{ spark_xfs_mount }}"
   fstype: xfs
   mkfs_options: "-f -d agcount=16"
-  mount_options: "noatime,nodiratime,logbufs=8,logbsize=256k,nobarrier"
+  mount_options: "noatime,nodiratime"   # XFS-only; logbufs/logbsize are ext4-isms, nobarrier removed in modern XFS (live-hit 2026-09-14 — kernel rejects it, mount fails)
   directories:
     - kv_cache
     - ples_int4

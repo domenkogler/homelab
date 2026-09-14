@@ -15,23 +15,38 @@
     state: directory
     mode: '0755'
 
+- name: Set Docker apt repo family (debian vs ubuntu — spark is Ubuntu noble!)
+  ansible.builtin.set_fact:
+    docker_repo_family: "{{ 'ubuntu' if ansible_facts['distribution'] == 'Ubuntu' else 'debian' }}"
+  tags: [docker]
+
 - name: Download official Docker GPG key
   # get_url (python urllib) hangs ~24s on this endpoint (IPv6->IPv4 fallback stall to
   # CloudFront; curl -4 does it in ~0.25s). Use curl -4 with creates so it is idempotent
   # AND fast: skips entirely once the key exists, IPv4-forced on first fetch.
   ansible.builtin.command:
-    cmd: curl -4fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    cmd: "curl -4fsSL https://download.docker.com/linux/{{ docker_repo_family }}/gpg -o /etc/apt/keyrings/docker.asc"
     creates: /etc/apt/keyrings/docker.asc
   become: true
+
 - name: Add official Docker repository via DEB822 standard
   deb822_repository:
     name: docker
     types: [deb]
-    uris: ["https://download.docker.com/linux/debian"]
+    uris: ["https://download.docker.com/linux/{{ docker_repo_family }}"]
     suites: ["{{ ansible_facts['distribution_release'] }}"]
     components: [stable]
     signed_by: /etc/apt/keyrings/docker.asc
     state: present
+  become: true
+
+- name: Fail-loud if the Docker suite would be wrong for this distro
+  ansible.builtin.assert:
+    that:
+      - (ansible_facts['distribution'] == 'Ubuntu' and ansible_facts['distribution_release'] in ['noble', 'jammy']) or
+        (ansible_facts['distribution'] == 'Debian' and ansible_facts['distribution_release'] in ['trixie', 'bookworm'])
+    fail_msg: "Unsupported docker suite '{{ ansible_facts['distribution'] }}/{{ ansible_facts['distribution_release'] }}' — add to docker role's distro map"
+  tags: [docker]
 
 - name: Install Docker components
   apt:
