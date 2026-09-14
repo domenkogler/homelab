@@ -37,7 +37,7 @@
 | 99 | 10.10.99.11 | ilo | nas iLO4 BMC |
 | 99 | 10.10.99.20 | pi | RPi4 node + DNS tertiary (HD-299) |
 | 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS secondary (HD-299) |
-| 99 | 10.10.99.40 | spark | DGX Spark GB10 — mgmt-plane reserve (headless AI; DHCP-auto or static per reservation; mgmt NIC not cabled yet, 2026-09-14) |
+| 99 | 10.10.99.40 | spark | DGX Spark GB10 — mgmt-plane (tagged VLAN-99 on the same enP7s7 NIC as Home, HD-367); static reservation |
 | 99 | 10.10.99.80 | laptop-domen | Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra, 2026-09-07 |
 | 10 | 10.10.1.81 | laptop-wsl | Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback, 2026-09-07 |
 | 10 | 10.10.1.1 | router | Home gateway |
@@ -87,7 +87,6 @@
 | services-internal | 172.21.0.0/16 | Docker bridge — app ↔ app communication |
 | db-internal | 172.22.0.0/16 | Docker bridge — databases (fully isolated) |
 | llm-backend | 172.23.0.0/16 | Docker bridge — LLM backend (Ollama) ↔ LiteLLM only, fully isolated (HD-59) |
-| spark-internal | 172.26.0.0/16 | Docker bridge — spark-ai vLLM ↔ llm-d router internal (spark node, HD-359); NOT joined by LiteLLM/downloaders |
 | tailnet-apps | 172.24.0.0/16 | Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't |
 | dns-servers | 172.25.0.0/24 | Docker bridge — Technitium DNS primary (VPS) ↔ its Traefik edge; the container pin is tchnitium_dns_overlay_ip (client resolver = VPS public IP, dns_primary_ip)  |
 | site | 10.10.0.0/16 | Whole homelab site — all VLANs (10.10.x.0/24) |
@@ -122,4 +121,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-09-14T18:54:21Z
+> Last generated: 2026-09-14T21:38:23Z

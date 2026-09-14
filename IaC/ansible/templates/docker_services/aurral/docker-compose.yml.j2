@@ -25,6 +25,10 @@ services:
     container_name: aurral
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID   # HD-362 live: the aurral entrypoint chowns /app/backend/data then su-execs down to the target uid (docker-entrypoint.sh); cap_drop ALL stripped these → "chown: Operation not permitted" crash-loop (live 2026-09-14)
     tmpfs:
       - /tmp
     networks:
@@ -34,8 +38,15 @@ services:
       # actual-budget/homelable precedent) — NEVER 0.0.0.0.
       - "{{ oldsrv_home_ip }}:3001:3001"
     volumes:
-      - /srv/docker/aurral/config:/config    # SQLite + app config (kopia-agent scope)
+      # AURRAL_DATA_DIR set below — the app's REAL state (SQLite aurral.db + cache) is
+      # /app/backend/data (better-sqlite3 DATA_DIR, db-sqlite.js); the image's own
+      # declaration mounts nothing for it, so we bind the host config dir at /data.
+      # (The old /config bind was decorative — the app never wrote there.)
+      - /srv/docker/aurral/config:/data    # SQLite + app config (kopia-agent scope)
     environment:
+      AURRAL_DATA_DIR: /data   # HD-362 live: default is /app/backend/data (in-container, lost on recreate) — point it at the durable /data bind
+      AURRAL_UID: "{{ storage_uid }}"   # HD-362 live: entrypoint su-execs to this uid (else defaults to image nodejs=1001); must match the /data bind owner (1005) or SQLite gets CANTOPEN
+      AURRAL_GID: "{{ storage_gid }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 networks:
   services-internal:

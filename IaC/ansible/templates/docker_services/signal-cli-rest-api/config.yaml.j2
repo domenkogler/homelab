@@ -1,0 +1,81 @@
+# secured-signal-api config — SIGNAL AUTH GATEWAY (HD-353)
+#
+# Rendered to the signal-cli-rest-api service dir as `config.yaml` and bind-mounted
+# read-only into the `secured-signal-api` container at /config/config.yml.
+#
+# WHY THIS FILE EXISTS (HD-353 security fix)
+#   The upstream `bbernhard/signal-cli-rest-api` image has NO token-authentication
+#   feature. Verified live 2026-09-10 against the deployed build:
+#     * `POST /v2/send` with NO credential returned 201 and DELIVERED the message;
+#     * `GET /v1/about` returned 200 for no key, a bogus `X-Api-Key` AND a bogus
+#       `Authorization: Bearer ...`;
+#     * the binary contains neither `API_TOKEN` nor `X-Api-Key` (only the outbound
+#       `Authorization` string it uses toward Signal's own servers).
+#   `SIGNAL_CLI_API_TOKEN` — the env that compose comments and
+#   docs/{observability,deployment-compose,deployment-secrets}.md claimed was enforced
+#   (KOPS-002 / HD-125) — is SILENTLY IGNORED by that image. Because the API was also
+#   published on the Home VLAN, ANY device on 10.10.1.0/24 could send Signal messages
+#   as Domen's number. The claim was simply never true, so this was not a regression.
+#   `secured-signal-api` is a ~10 MiB Go proxy that implements the auth upstream lacks.
+#   The signal-cli image and its linked-identity volume are NOT touched by this change.
+#
+# RENDER MECHANICS
+#   This is a `.j2` file listed in `_extra_templates` (roles/docker_services/
+#   defaults/main.yml), so the deploy loop renders it to `config.yaml` beside the
+#   compose file. Jinja substitutes the real token BEFORE the container reads it.
+#   It is NOT `docker compose` interpolation and NOT a Traefik file-provider config,
+#   so the HD-270/HD-233 `| replace('$','$$')` escaping rule does NOT apply here.
+#
+# FILE MODE IS 0644 AND THE TOKEN IS PLAINTEXT IN IT. Accepted deliberately: the
+# upstream image can only take a token from its own env, and a container env is
+# equally readable via `docker inspect` on this host — which is precisely how the old
+# token leaked. A 0600 file owned by ansible-admin would just fail to open for the
+# gateway's runtime uid. The material change is that the token is now ENFORCED
+# instead of decorative. Never print this file's contents (README §2).
+service:
+  logLevel: info
+  port: 8880
+
+api:
+  url: "http://signal-cli-rest-api:8080"   # upstream container, services-internal
+  tokens:
+    # The token the stack already held in 1Password (`signal-internal_api`), now
+    # actually required. Same secret: no owner rotation needed, and the only n8n
+    # change is the header name (X-Api-Key -> Authorization: Bearer).
+    - >-
+      {{ vault['signal-internal_api'].credential }}
+
+settings:
+  access:
+    # Least-privilege endpoint allow-list (HD-155 posture). With an allow-list present
+    # the gateway DEFAULTS TO BLOCK, so anything not listed is refused 403 even WITH a
+    # valid token. Upstream already blocks register/unregister/devices/contacts/
+    # qrcodelink by default; they are repeated below so the intent survives an upstream
+    # default change. Both the 403s and the blocked-endpoint WARN log lines were
+    # verified live on 2026-09-10.
+    endpoints:
+      allowed:
+        # The only route n8n uses — Grafana alert delivery.
+        - pattern: /v2/send
+          matchType: prefix
+        # Needed so a broken gateway is distinguishable from a broken credential.
+        - pattern: /v1/about
+          matchType: prefix
+      blocked:
+        # Account-lifecycle and identity surfaces — never needed by an alert sender,
+        # and each is dangerous in the wrong hands: qrcodelink would let anyone link
+        # ANOTHER device onto the account; devices/accounts enumerate the identity.
+        - pattern: /v1/register
+          matchType: prefix
+        - pattern: /v1/unregister
+          matchType: prefix
+        - pattern: /v1/devices
+          matchType: prefix
+        - pattern: /v1/accounts
+          matchType: prefix
+        - pattern: /v1/qrcodelink
+          matchType: prefix
+        - pattern: /v1/contacts
+          matchType: prefix
+        - pattern: /v1/configuration
+          matchType: prefix

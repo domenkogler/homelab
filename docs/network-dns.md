@@ -49,6 +49,8 @@ VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.
 
 ## Per-Instance Split-Horizon (HD-350/352, 2026-09-10)
 
+> **✅ oldsrv secondary seed CONVERGED 2026-09-14 (HD-352).** Pi tertiary seed converge = deploy-gated tail; verify `dig @<home> media.kogler.si` → oldsrv LAN IP after Pi converges.
+
 The three Technitium instances serve the SAME primary zone but with **per-instance A-record targets**, so LAN clients stay on the home LAN while WAN/tailnet clients keep the VPS edge. Record table (matched by the `technitium-seed` loop, per `svc.instance`):
 
 | Record | VPS primary | oldsrv secondary + Pi tertiary |

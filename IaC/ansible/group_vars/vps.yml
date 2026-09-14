@@ -243,9 +243,11 @@ tailnet_subdomains:
 # container 172.20.0.250:443). Docker's own PREROUTING DNAT translates host->container,
 # so NO manual nftables DNAT is required (same precedent as kopia-server :51515,
 # HD-62). An nftables input allow from the router peer (HD-313 pattern) is added
-# for defense-in-depth + spec compliance. SSOT for the port so the traefik-tailnet
-# compose, vps-hardening nftables and the network-vpn.md spec stay in lockstep
-# (derived-values ban: never re-type).
+# for defense-in-depth + spec compliance. `wg_internal_edge_port` is SSOT'd in
+# group_vars/all/main.yml (shared with the home `traefik-internal` edge templates on
+# oldsrv — HD-350): the traefik-tailnet compose, vps-hardening nftables and the
+# network-vpn.md spec stay in lockstep (derived-values ban: never re-type).
+# The internal-edge container IP on traefik-public (172.20.0.250, pinned HD-240).
 wg_internal_edge_port: 4443
 # The internal-edge container IP on traefik-public (172.20.0.250, pinned HD-240).
 # Kept as a named SSOT var so the compose publish + nftables allow share one source

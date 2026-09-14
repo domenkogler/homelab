@@ -196,7 +196,14 @@ CATALOG = [
     # read/write). Catalog-created so flipping homelable_mcp_enabled never needs a manual
     # seed; unused (and unreferenced by the compose) while the flag is false.
     ("API Credential", "homelable_mcp", lambda: [f"credential={gen_token(32)}"]),
+    # HD-362 Tube Archivist: ES 'elastic' superuser password — the TA app requires
+    # ELASTIC_PASSWORD (its env-check fails hard without it; upstream uses the ES
+    # bootstrap password because the ES image runs with security enabled). Catalog-
+    # generated (never coupled to a live ES cluster password — this is the FIRST
+    # bootstrap value both sides share).
+    ("API Credential", "tube-archivist-es", lambda: [f"username=elastic", f"password={gen_pw()}"]),
 ]
+
 # Items never auto-rotated by this tool (external/app coupling). Kept here as a
 # guard list so `--rotate-all`/`--rotate` cannot clobber them.
 NOT_AUTO_ROTATABLE = {

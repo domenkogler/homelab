@@ -87,8 +87,8 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 28 | lan-litellm | lan-litellm | `https://lan-litellm.kogler.si` | disabled |
 | 29 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
 | 30 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
-| 31 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | disabled |
-| 32 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | disabled |
+| 31 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | enabled |
+| 32 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | enabled |
 | 33 | homelable | homelable | `https://homelable.kogler.si` | disabled |
 
 ## pi.kogler.si
@@ -101,4 +101,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-09-14T20:39:28Z
+> Generated from the `docker_services` lists | 2026-09-14T21:38:23Z

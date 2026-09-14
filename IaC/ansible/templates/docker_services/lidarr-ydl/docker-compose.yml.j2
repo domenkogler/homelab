@@ -26,6 +26,11 @@ services:
     container_name: lidarr-ydl
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER   # HD-362 live: s6 chmods /home/appuser (image-internal, root-owned) after dropping to PUID — chmod on a dir the app user doesn't own needs FOWNER → "err: chmod 448 /home/appuser: Operation not permitted" otherwise
+      - SETUID
+      - SETGID   # HD-362 live: linuxserver s6 init chowns /config then setprivs to PUID/PGID; cap_drop ALL stripped these → "chown: changing ownership of '/config': Operation not permitted" crash-loop (linuxserver precedent, HD-318)
     tmpfs:
       - /tmp
     networks:

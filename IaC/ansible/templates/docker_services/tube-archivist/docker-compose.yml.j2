@@ -45,10 +45,22 @@ services:
       HOST_UID: "{{ storage_uid }}"
       HOST_GID: "{{ storage_gid }}"
       TA_HOST: "http://tube.kogler.si"     # hostname (internal-only)
-      TA_USERNAME: "{{ vault['tube-archivist_login'].username | replace('$','$$') }}"
-      TA_PASSWORD: "{{ vault['tube-archivist_login'].credential | replace('$','$$') }}"
+      # NOTE: these 1P values go through folded block scalars `>-` — never inline
+      # quotes (HD-233/HD-166 live lesson): a secret containing `\d`, `"`, `'`, `:`
+      # etc. breaks the quoted scalar and go-yaml aborts the compose config (live
+      # 2026-09-14: TA_PASSWORD held `\d` → "found unknown escape character").
+      TA_USERNAME: >-
+        {{ vault['tube-archivist_login'].username | replace('$','$$') }}
+      TA_PASSWORD: >-
+        {{ vault['tube-archivist_login'].credential | replace('$','$$') }}
+        {{ vault['tube-archivist_login'].credential | replace('$','$$') }}
+      # ES 'elastic' superuser password — the SAME value the archivist-es container
+      # gets as ELASTIC_PASSWORD (TA fails its env-check without it; HD-362 live).
+      ELASTIC_PASSWORD: >-
+        {{ vault['tube-archivist-es'].password | replace('$','$$') }}
       # Jellyfin plugin API token (optional; if the plugin is used later).
-      TA_TOKEN: "{{ vault['tube-archivist_ui'].credential | default('') | replace('$','$$') }}"
+      TA_TOKEN: >-
+        {{ vault['tube-archivist_ui'].credential | default('') | replace('$','$$') }}
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       - /srv/docker/tube-archivist/cache:/cache        # persistent artwork/cache
@@ -68,6 +80,10 @@ services:
       - services-internal
     environment:
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"    # keep ES heap modest on oldsrv (48 GB RAM)
+      # Same bootstrap password the TA app uses (ELASTIC_PASSWORD) — the tubearchivist-es
+      # image enables ES security and expects this as the 'elastic' password (HD-362).
+      ELASTIC_PASSWORD: >-
+        {{ vault['tube-archivist-es'].password | replace('$','$$') }}
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       - /srv/docker/tube-archivist/es:/usr/share/elasticsearch/data   # ES index (kopia scope)
@@ -78,6 +94,11 @@ services:
     container_name: archivist-redis
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN   # HD-362 live: the redis entrypoint chowns /data to uid 999 (find . ! -user redis -exec chown) then setprivs down; cap_drop ALL strips CHOWN → "chown: .: Operation not permitted" crash-loop (live 2026-09-14)
+      - SETUID
+      - SETGID   # HD-362 live: redis setprivs down to uid 999 after the chown — cap_drop ALL strips SETUID/SETGID → "setpriv: setresuid failed: Operation not permitted" restart(127) (signal-cli setpriv precedent, HD-318)
+      - CHOWN   # HD-362 live: the redis entrypoint chowns /data to uid 999 (find . ! -user redis -exec chown) then setprivs down; cap_drop ALL strips CHOWN → "chown: .: Operation not permitted" crash-loop (live 2026-09-14)
     tmpfs:
       - /tmp
     networks:
@@ -85,6 +106,7 @@ services:
     command: ["redis-server", "--appendonly", "yes"]   # persistence
     volumes:
       - /srv/docker/tube-archivist/redis:/data         # Redis AOF (kopia scope)
+
 networks:
   traefik-public:
     external: true

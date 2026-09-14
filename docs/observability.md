@@ -63,7 +63,7 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
 
 ### MCP AI-debugging servers on oldsrv (HD-344) — implemented form
 
-> **2026-09-08 (HD-344 IaC authored); 2026-09-14 flipped `enabled: true`** — two Docker compose
+> **2026-09-08 (HD-344 IaC authored); 2026-09-14 flipped `enabled: true` + DEPLOYED (oldsrv converge)** — two Docker compose
 > services on **oldsrv** — `mcp-victoriametrics` (:8080) + `mcp-victorialogs` (:8081) — fronting the VPS
 > Victoria backend for AI tools (**pi, Open WebUI, OpenClaw** for now). ⏳ **Deploy-gated:** oldsrv is
 > Phase-3/HD-318 **and** needs the VPS Victoria backend live (HD-342) — both now true; the `enabled:

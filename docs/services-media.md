@@ -99,6 +99,8 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 
 ## Music Pillar — acquisition + discovery (HD-362)
 
+> **✅ DEPLOYED + LIVE 2026-09-14 (oldsrv converge):** slskd + gluetun PrivadoVPN sidecar healthy · aurral Up (tenant first-run: Last.fm/ListenBrainz keys in UI) · lidarr-ydl + Tube Archivist (3-container) deployed. New `tube-archivist-es` 1P item (ES elastic bootstrap password, ELASTIC_PASSWORD app+ES env). ⏳ tails: lidarr-ydl `/home/appuser/.profile` + aurral `/app/downloads` EACCES, TA ES bootstrap settle, wire Lidarr clients in UI, Navidrome Box refresh.
+
 > Eyeball target of the **Media stack redefined** brainstorm (2026-09-14) — the *music* acquisition
 > chain + discovery glue, implemented as IaC rows in `group_vars/home_servers.yml` on **oldsrv**.
 > **Streaming stays on the VPS** (Navidrome, HD-354): oldsrv downloads/manages, VPS serves.
