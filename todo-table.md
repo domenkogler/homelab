@@ -15,7 +15,7 @@ Rows the AI can execute: either **now** (no prerequisite) or the **⏳ deploy-ga
 | HD-217 | 2 | Homepage failover-button gate off on next green vps.yml | The IaC + owner sign-off are done; just render/deploy |
 | HD-159 | 2 | `wg-s2s-down` alert live-verify | AI can run the deliberate `wg down` test (needs a brief planned tunnel-down window) |
 | **Storage / UPS** ||||
-| HD-132 | 2 | Authentik-LDAP provider + outpost + seed `authentik-ldap_bind` + live-verify Samba | nas (Phase 2) is live; provider/outpost creation + seeding are API/1P work |
+| HD-360 | 2 | Enable Authentik-as-LDAP for Samba (VPS-side): LDAP provider + svc_samba + fresh `authentik-ldap_bind` token + flip `storage_samba_passdb` + live-verify | Split from HD-132 (2026-09-14); requires Authentik provider/outpost creation + 1P token minting, then a nas converge — all AI/1P work, no owner step (see HD-360 row in todo.md) |
 | HD-207 | 1 | Landing-zone redistribution **mechanics** | Moving data is AI-work; only the final *media rename vs personal-files* call is owner (split) |
 | HD-191 | 2 | oldsrv Kopia **restore drill** + volume-name pin (first snapshot DONE 2026-09-08) | Machine-recover one snapshot; owner confirms the restore target |
 | **AI / Office** ||||

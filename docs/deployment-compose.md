@@ -422,14 +422,15 @@ Deliberate isolation decisions (accepted, not gaps): **Ollama** (no native serve
 
 #### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — the pull contract
 
-> **Status 2026-09-14: deploy-gated.** HD-132's LDAP provider/outpost/svc_samba were never
+> **Status 2026-09-14: deploy-gated.** The Authentik LDAP provider/outpost/svc_samba were never
 > created live (blueprint has none; outpost token `authentik-ldap_bind` expired 2026-09-01).
 > Samba currently runs `storage_samba_passdb=tdbsam` (local accounts, works offline; media
 > share needs no per-user LDAP). Flip the var to `ldapsam` only once the Authentik LDAP
 > provider + outpost + svc_samba exist and the token is valid — smbd fails HARD on startup
-> if ldapsam is enabled while the outpost is unreachable (2026-09-14 live hit).
+> if ldapsam is enabled while the outpost is unreachable (2026-09-14 live hit). The enable
+> work is tracked as **HD-360** (split from HD-132).
 
-- **When ldapsam is enabled (HD-132)**: Samba authenticates against Authentik as an LDAP
+- **When ldapsam is enabled (HD-360)**: Samba authenticates against Authentik as an LDAP
   provider (`passdb backend = ldapsam`); **Authentik is the SSOT and does NOT push.** No
   password is replicated/synced to the NAS.
 - **Effect:** a user changes their own password in the Authentik self-service

@@ -29,7 +29,8 @@ The `authentik-server` service mounts a **`blueprints/`** volume (alongside the 
 `ks-oidc.yml` Blueprint declares the OIDC providers + applications for Open WebUI, Headscale,
 Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC, multi-redirect), **Immich, Forgejo, Metabase**
 (HD-148). Optionally the Authentik
-**LDAP provider/outpost** (D7/HD-132) is also declared here, removing a manual UI create-step.
+**LDAP provider/outpost** (D7/HD-132) was planned to be declared here — **HD-360** adds it
+(2026-09-14: still absent from the blueprint; the live LDAP enable is pending that row).
 
 ### Deploy ordering (in `vps.yml`)
 Steps 2–4 map to the Ansible **Authentik pre-pass** (`roles/docker_services/tasks/prepass-authentik.yml`,
