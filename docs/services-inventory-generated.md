@@ -72,20 +72,24 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 13 | sonarr | sonarr | `https://sonarr.kogler.si` | enabled |
 | 14 | radarr | radarr | `https://radarr.kogler.si` | enabled |
 | 15 | lidarr | lidarr | `https://lidarr.kogler.si` | enabled |
-| 16 | prowlarr | prowlarr | `https://prowlarr.kogler.si` | enabled |
-| 17 | bazarr | bazarr | `https://bazarr.kogler.si` | enabled |
-| 18 | sabnzbd | sab | `https://sab.kogler.si` | enabled |
-| 19 | qbittorrent | torrent | `https://torrent.kogler.si` | enabled |
-| 20 | profilarr | profilarr | `https://profilarr.kogler.si` | enabled |
-| 21 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
-| 22 | dsh | dsh | `https://dsh.kogler.si` | enabled |
-| 23 | pi-dev | pi-dev | `https://pi-dev.kogler.si` | enabled |
-| 24 | lan-litellm | lan-litellm | `https://lan-litellm.kogler.si` | disabled |
-| 25 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
-| 26 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
-| 27 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | disabled |
-| 28 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | disabled |
-| 29 | homelable | homelable | `https://homelable.kogler.si` | disabled |
+| 16 | aurral | aurral | `https://aurral.kogler.si` | enabled |
+| 17 | slskd | slskd | `https://slskd.kogler.si` | enabled |
+| 18 | lidarr-ydl | lidarr-ydl | `https://lidarr-ydl.kogler.si` | enabled |
+| 19 | tube-archivist | tube-archivist | `https://tube-archivist.kogler.si` | enabled |
+| 20 | prowlarr | prowlarr | `https://prowlarr.kogler.si` | enabled |
+| 21 | bazarr | bazarr | `https://bazarr.kogler.si` | enabled |
+| 22 | sabnzbd | sab | `https://sab.kogler.si` | enabled |
+| 23 | qbittorrent | torrent | `https://torrent.kogler.si` | enabled |
+| 24 | profilarr | profilarr | `https://profilarr.kogler.si` | enabled |
+| 25 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
+| 26 | dsh | dsh | `https://dsh.kogler.si` | enabled |
+| 27 | pi-dev | pi-dev | `https://pi-dev.kogler.si` | enabled |
+| 28 | lan-litellm | lan-litellm | `https://lan-litellm.kogler.si` | disabled |
+| 29 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
+| 30 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
+| 31 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | disabled |
+| 32 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | disabled |
+| 33 | homelable | homelable | `https://homelable.kogler.si` | disabled |
 
 ## pi.kogler.si
 
@@ -97,4 +101,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-09-14T12:49:41Z
+> Generated from the `docker_services` lists | 2026-09-14T18:54:21Z
