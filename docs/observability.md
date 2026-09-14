@@ -64,7 +64,7 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
 ### MCP AI-debugging servers on oldsrv (HD-344) — implemented form
 
 > **2026-09-08 (HD-344 IaC authored); 2026-09-14 flipped `enabled: true` + DEPLOYED (oldsrv converge)** — two Docker compose
-> services on **oldsrv** — `mcp-victoriametrics` (:8080) + `mcp-victorialogs` (:8081) — fronting the VPS
+> services on **oldsrv** — `mcp-victoriametrics` (:8083) + `mcp-victorialogs` (:8084) — fronting the VPS
 > Victoria backend for AI tools (**pi, Open WebUI, OpenClaw** for now). ⏳ **Deploy-gated:** oldsrv is
 > Phase-3/HD-318 **and** needs the VPS Victoria backend live (HD-342) — both now true; the `enabled:
 > true` flip (with the oldsrv converge) deploys them. Rows + `_template_vault_items` already updated in IaC.
@@ -90,7 +90,7 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
 #### Wiring AI tools (pi, Open WebUI, OpenClaw)
 
 Each AI client registers the MCP server as a **Streamable HTTP** MCP endpoint pointing at
-the oldsrv MCP listen address (`http://oldsrv:8080` metrics / `:8081` logs). The MCP
+the oldsrv MCP listen address (`http://oldsrv:8083` metrics / `:8084` logs). The MCP
 servers carry the backend auth themselves, so the client config carries **no secrets**.
 All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
 
@@ -101,8 +101,8 @@ All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
 - **Open WebUI** — register both as **Tools** (Admin → Tools → MCP) with `url:
   http://oldsrv:8080` / `http://oldsrv:8081` (Streamable HTTP), tagged for the internal
   `ai.kogler.si` instance so agent-role users can query metrics/logs.
-- **OpenClaw** — add both MCP servers to the OpenClaw MCP config (`http://oldsrv:8080` /
-  `:8081`), gated to the same tailnet/LAN path.
+- **OpenClaw** — add both MCP servers to the OpenClaw MCP config (`http://oldsrv:8083` /
+  `:8084`), gated to the same tailnet/LAN path.
 - ⏳ **Concrete client config files are authored here once the backend (HD-342) + oldsrv
   (HD-318) are live** — the URLs above are the SSOT contract; the client-side config is
   environment-specific and lives with each tool (services-ai.md).
