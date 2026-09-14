@@ -1,0 +1,6 @@
+---
+# Handlers for the spark role
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true

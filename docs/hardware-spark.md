@@ -78,9 +78,18 @@ Two new service-onboarding candidates land with spark (see `services-ai.md`):
    (HD-267/268). Per-user/per-project scoping via a custom `user_id` = `<openwebui_user_id>-<model_id>`.
 2. **OpenHands** — agentic coding harness (a third coding cockpit alongside pi.dev + DSH, HD-307/250).
 
-## Bring-up plan (HD-337, 2026-09-06)
+## Bring-up plan (HD-337, 2026-09-06; updated 2026-09-14 — folded into IaC)
 
-Order of execution at node bring-up (spec lives here; todo.md HD-337 is the pointer):
+> **IaC status (2026-09-14):** spark is now a **first-class IaC host** — not a standalone
+> `spark/ansible` project. Inventory group `spark` + `host_vars/spark.kogler.si.yml` + the
+> `spark` role (NVMe p2 → XFS for PLE/KV) + `playbooks/spark.yml` exist; reserved statics
+> live in `network_static_hosts` (SSOT — mounted via `spark_home_ip`/`spark_mgmt_ip`, never
+> literal here). The engine-neutral
+> bench plan + research live in [`../spark/BENCHMARK-PLAN.md`](../spark/BENCHMARK-PLAN.md) and
+> [`../spark/resources/RESEARCH-VERDICTS.md`](../spark/resources/RESEARCH-VERDICTS.md). The
+> standalone `spark/ansible` tree remains the **reference/template** implementation.
+
+Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are the pointers):
 
 1. **DGX OS / Ubuntu Base OS install** (headless; CUDA 13, GB10 sm_121 — see bring-up guide above).
 2. **Ansible role + placement**: add to `network_static_hosts` (never hardcode); Rack residency,
@@ -131,6 +140,9 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337 is the poin
 ## Network / placement
 
 - Hostname **`spark.kogler.si`** — headless LAN GPU tier.
+- **Reserved statics (2026-09-14, SSOT `network_static_hosts`):** Home VLAN (SSH + inference endpoint)
+  + Mgmt VLAN (management plane) — referenced via `spark_home_ip`/`spark_mgmt_ip`, never literal.
+  Actual MAC → reservation is added at provision time (the GB10 ships no MAC in this repo yet).
 - Connects via **10 GbE** to the LAN (Home/Mgmt per the router port model); IP/reservation SSOT to be
   added to `network_static_hosts` at provision time (never hardcoded).
 - Exposes the Triton gRPC/HTTP endpoint on the `llm-backend` overlay (or a `triton-backend` net),

@@ -37,6 +37,9 @@
 - name: Configure Home Servers (oldsrv — full Docker stack)
   import_playbook: playbooks/home_servers.yml
 
+- name: Configure Spark (DGX GB10 — AI node)
+  import_playbook: playbooks/spark.yml
+
 - name: Configure Storage (nas — ZFS, no Docker)
   import_playbook: playbooks/storage.yml
 
