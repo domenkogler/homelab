@@ -22,8 +22,12 @@
 # Each entry: {repo_id, subdir|[files], local_dir} — local_dir lands on XFS.
 spark_artifacts: []
 
-# Python CLI used for downloads (installed by this role).
-spark_hf_cli: "huggingface-cli"
+# Python CLI used for downloads. The huggingface_hub version shipped via pip on
+# Ubuntu 24.04 deprecates `huggingface-cli` entirely ("no longer works, use `hf`"),
+# so the role drives the modern `hf` CLI (same pip install, `hf download`).
+# It lands in the ansible user's ~/.local/bin, which is NOT on the non-login
+# ansible PATH — use the absolute path so the command always resolves.
+spark_hf_cli: "{{ ansible_env.HOME | default('/home/ansible-admin') }}/.local/bin/hf"
 # Force `hf_transfer` parallel chunks for multi-GB downloads (fast NVMe + WAN).
 spark_hf_transfer: true
 # Download jobs run unprivileged; the XFS dirs are 0777 (spark role) → writable.

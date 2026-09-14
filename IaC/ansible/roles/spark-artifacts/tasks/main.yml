@@ -15,12 +15,17 @@
       /mnt/spark_nvme (HD-359) — never EXT4.
   tags: [spark, spark-artifacts, artifacts]
 
-- name: Ensure the HF CLI + hf_transfer are present (pip3; python3-pip is in roles/common)
+- name: Ensure the HF CLI + hf_transfer are present (pip3 --break-system-packages)
   ansible.builtin.pip:
     name:
       - "huggingface_hub[cli]"
       - "hf_transfer"
     state: present
+    # Ubuntu 24.04 noble is PEP-668 externally-managed: a bare pip install into
+    # the system python fails with `externally-managed-environment`. The artifact
+    # store needs the CLI once at download time; --break-system-packages keeps it
+    # simple and self-contained (the CLI is not app-runtime state).
+    extra_args: --break-system-packages
     executable: pip3
   become: "{{ spark_artifacts_become | default(false) }}"
   environment:
@@ -30,13 +35,26 @@
 # ── Manifest downloads ───────────────────────────────────────────────────
 # Each entry is idempotent: the weight repo is skipped when its `config.json`
 # exists; overlay/table dirs are downloaded when empty.
-- name: Ensure the artifact target dir exists (manifest entry)
+- name: Ensure the artifact target dir exists (skip chmod on the XFS mount root)
   ansible.builtin.file:
-    path: "{{ item.local_dir | default(spark_xfs_mount) }}"
+    path: "{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir | default('') }}"
     state: directory
-    mode: "0777"
+    # Mode 0777 is set by roles/spark on the XFS child dirs at mount time; the
+    # manifest's `local_dir` for files/tables IS the mount root (/mnt/spark_nvme),
+    # which is root-owned and must NOT be chmodded here (mountpoint perms are the
+    # spark role's job). Only ensure the child dirs exist.
   loop: "{{ spark_artifacts }}"
   become: "{{ spark_artifacts_become | default(false) }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Ensure the HF cache/home dir exists on XFS (writable child, not the root)
+  ansible.builtin.file:
+    path: "{{ spark_xfs_mount }}/hf-home"
+    state: directory
+    mode: "0777"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true
   tags: [spark, spark-artifacts, artifacts]
 
 - name: Download weights (repo with config.json, skipped when present)
@@ -64,15 +82,49 @@
   loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'files') | list }}"
   tags: [spark, spark-artifacts, artifacts]
 
-- name: Download PLE INT4 tables (subdir, skipped when non-empty)
+- name: Download PLE INT4 tables (subdir, skipped when present+non-empty)
   ansible.builtin.command: >
     {{ spark_hf_cli }} download {{ item.repo_id }}
     --include "{{ item.subdir }}/*"
-    --local-dir {{ item.local_dir | default(spark_xfs_mount) }}
+    --local-dir {{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir }}
   args:
-    creates: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir }}/.gitattributes"
+    # Guard on ples_int4/META.json (present in the repo + only after a real
+    # download) — the empty placeholder dir created by an earlier include-mismatch
+    # must NOT satisfy idempotency, else the 32 GB never lands. `--include
+    # ples_int4/* --local-dir STORE_ROOT` preserves the repo-relative path →
+    # STORE_ROOT/ples_int4/* (the compose :ro mount target).
+    # --local-dir must be an EXISTING writable child (ples_int4/ is 0777
+    # ansible-admin) — the mount root is root-owned and hf writes a .cache tree
+    # under --local-dir, which fails there. With --local-dir = ples_int4/ and
+    # --include "ples_int4/*", the repo-relative path nests → ples_int4/ples_int4/*;
+    # the flatten task below moves the nested dir's contents up after download.
+    creates: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir }}/{{ item.subdir }}/META.json"
   environment:
     HF_HUB_ENABLE_HF_TRANSFER: "{{ '1' if spark_hf_transfer else '0' }}"
+    # The store root /mnt/spark_nvme is root-owned — hf writes a .cache dir under
+    # --local-dir there, which an unprivileged user cannot do. Point HF_HOME at a
+    # writable child dir (created below) so all cache/metadata lands there, keeping
+    # the download unprivileged (the CLI is ansible-admin's user-site python —
+    # running it via become:true breaks the import).
+    HF_HOME: "{{ spark_xfs_mount }}/hf-home"
+  become: "{{ spark_artifacts_become | default(false) }}"   # unprivileged: user-site CLI + HF_HOME redirects cache from the root-owned mount
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'tables') | list }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Flatten the nested ples_int4/ples_int4 dir into place (idempotent)
+  ansible.builtin.shell: >
+    bash -c '
+      inner="{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir }}/{{ item.subdir }}";
+      outer="{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir }}";
+      shopt -s dotglob nullglob;
+      if [ -d "$inner" ]; then mv "$inner"/* "$outer"/; rmdir "$inner"; fi
+    '
+  args:
+    removes: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir }}/{{ item.subdir }}"
+    executable: /bin/bash
+    # `mv dir/. dir/` refuses to move a dir into itself (Device or resource busy)
+    # — move the CONTENTS up via glob (incl. dotfiles), then rmdir the empty
+    # nested shell. Idempotent via `removes` (runs only when nested exists).
   become: "{{ spark_artifacts_become | default(false) }}"
   loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'tables') | list }}"
   tags: [spark, spark-artifacts, artifacts]

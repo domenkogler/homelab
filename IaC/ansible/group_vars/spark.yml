@@ -39,11 +39,19 @@ spark_artifacts:
   - repo_id: "primitive-ai/Qwen3.8-Flash-Next-PLE-quant"
     kind: files
     files: [worker_image_quant.py, ple_layer_quant.py, connector_mrv2.py]
-    local_dir: "{{ spark_xfs_mount }}"        # → /mnt/spark_nvme/{worker_image_quant.py,ple_layer_quant.py,connector_mrv2.py}
+    # Child dir (0777, ansible-admin-owned) — NOT the mount root: hf writes a
+    # `.cache` metadata dir under --local-dir, and /mnt/spark_nvme root is
+    # root-owned → Permission denied. overlays/ is the exact PLE mount path.
+    local_dir: "{{ spark_xfs_mount }}/overlays"   # → /mnt/spark_nvme/overlays/{worker_image_quant.py,plet_layer_quant.py,connector_mrv2.py}
   - repo_id: "primitive-ai/Qwen3.8-Flash-Next-PLE-quant"
     kind: tables
     subdir: "ples_int4"
-    local_dir: "{{ spark_xfs_mount }}"        # → /mnt/spark_nvme/ples_int4/{tables...}
+    # local_dir = the writable child ples_int4/ (NOT the root-owned mount root):
+    # `hf download --include ples_int4/* --local-dir ples_int4/` nests the
+    # repo-relative path → ples_int4/ples_int4/*, then the role's flatten task
+    # moves the contents up to ples_int4/ (the compose :ro mount target). Stays
+    # unprivileged (the CLI is the user-site python).
+    local_dir: "{{ spark_xfs_mount }}/ples_int4"   # → /mnt/spark_nvme/ples_int4/{tables...}
 
 # Spark headless mode (HD-364) — TRUE = enforce the headless operating contract:
 #   * mask sleep/suspend/hibernate/hybrid-sleep (DGX Spark idles into suspend, which
