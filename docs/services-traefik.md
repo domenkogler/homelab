@@ -179,9 +179,14 @@ Cockpit is a host service (not a Docker container), so its routes are a Traefik
 
 - `cockpit-nas.kogler.si` → `http://nas:9090` · `cockpit-oldsrv.kogler.si` → `http://oldsrv:9090` (host IPs per SSOT — backends derived from `network_static_hosts` in the template, HD-188)
 - **Deliberately NO Authentik Forward-Auth**: Cockpit is a management surface with its
-own login and must stay reachable if Authentik is down. Internal-only (no public DNS
-record, WAN-blocked). **Carries `crowdsec-only@file`** (security.md §1 law: never zero
-edge protection — HD-188).
+  own login and must stay reachable if Authentik is down. Internal-only (no public DNS
+  record, WAN-blocked). **Carries `crowdsec-only@file`** (security.md §1 law: never zero
+  edge protection — HD-188).
+- **Identity gap (HD-361):** Cockpit is PAM-only — a working login needs a Linux account
+  with a **password**. None exists today on nas/oldsrv (all accounts are key-only/locked),
+  so the cockpit-* UIs have **no valid credential**. Break-glass identity (a dedicated
+  password-bearing `maint` user, not `ansible-admin`) is tracked in HD-361; until then
+  the cockpit routes are reachable but unauthenticable by design.
 - Traefik must preserve the original Host header on these routes — cockpit-ws validates
   that the browser Origin matches Host.
 - Requires Traefik's file provider to watch `/opt/traefik/dynamic` (mount in the

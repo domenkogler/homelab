@@ -50,7 +50,7 @@ were deleted after folding — HD-153).
 - `foto.kogler.si` (Immich — native OIDC, HD-148)
 - `ai.kogler.si` (Open WebUI — native OIDC, HD-101)
 - `sso.kogler.si` (Authentik itself — it IS the auth provider, so Forward-Auth would be circular; **HD-194**: the bouncer filters by source IP only and every callback path (`/application/o/<slug>/callback/`, `/outpost.goauthentik.io/*`) arrives as an ordinary browser request from a user IP — outpost↔server API traffic runs container-direct on services-internal, never through this router; brute force is additionally covered by the fail2ban `http-auth` jail — **HD-280 (2026-09-04): now actually wired** — Traefik writes an accesslog (`/opt/traefik/logs/access.log`, compose dir-bind) and the jail uses a Traefik-CLF-aware filter matching 401/403 responses)
-- cockpit-nas/cockpit-oldsrv file-provider routes (own-login mgmt surface, HD-188)
+- cockpit-nas/cockpit-oldsrv file-provider routes (own-login mgmt surface, HD-188) — **no PAM password exists on any account today, so these have no working login; dedicated break-glass `maint` identity tracked in HD-361**
 - HA standby via VIP
 
 Owning doc: [services-traefik.md](services-traefik.md). **Tracked: HD-60** (crowdsec-only middleware

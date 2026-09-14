@@ -191,7 +191,7 @@ the tree (`bulk/media`, `bulk/data/*`, `tank/data/*`). After the preseed install
 - Secondary ZFS pool "bulk" — RAIDZ2, 6 TB usable — active media (unbacked) + data replicas + thumb copies
 - NAS / file server — NFS shares: `tank/data` (user data), `bulk/media` (media); **Samba/SMB shares live on the NAS** (HD-131 D4): shared `media` + per-user private drives
 - Local replication — sanoid/syncoid: `tank/data/*` → `bulk/data/*` (incremental, ≈ hourly)
-- Web UI — Cockpit + cockpit-zfs (~150 MB RAM)
+- Web UI — Cockpit + cockpit-storaged (~150 MB RAM). **Note (HD-361):** Cockpit is PAM-only and no account has a password, so the UI currently has no valid login — a dedicated break-glass `maint` user (password from 1P, no SSH key, no NOPASSWD) is tracked in HD-361.
 - **Kopia does not run on nas** — off-site backup originates from oldsrv (NAS-independent, see `backup.md`)
 
 ---
