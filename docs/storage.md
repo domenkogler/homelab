@@ -144,6 +144,7 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 
 - Ownership uid/gid **`storage_uid`/`storage_gid` = 1005 (`media`)** — the neutral shared-data owner (HD-51/HD-94/HD-131), NOT domen/1000; matches *arr `PUID/PGID`, Jellyfin/OpenCloud `user:` and the Samba force user/group; NFS `root_squash` on.
 - fstab mounts via Ansible (`storage` role). Hardlinks only ever cross paths **within** `bulk/media` — one dataset, one filesystem ✓.
+- **State (2026-09-14): the `storage` role only applies NFS exports on-change** — the `Reload NFS exports` handler (`exportfs -ra`) is `notify`-driven by the `Render /etc/exports` template task, so an **idempotent converge (file unchanged) never re-asserts the live nfsd export table**. If a live export is dropped for any reason (e.g. an earlier state where it was absent), subsequent converges won't restore it while `/etc/exports` is already correct — a client then errors `Stale file handle` on that automount. Recovery: `sudo /usr/sbin/exportfs -ra` on the NAS to re-apply (then clear the client's stale handle; runbook in [deployment-manual.md §Phase 2](../deployment-manual.md)). Robustness option: make exports ensure-present each run rather than notify-on-change.
 - **SMB/Samba is now implemented (HD-131 D4)** on the NAS via the `storage` role: one shared `media` share (any family user) + per-user private shares (`valid users = <user>`) for family mapped drives (Win11 + Linux).
 
 ---
