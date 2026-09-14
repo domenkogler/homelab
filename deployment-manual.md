@@ -414,6 +414,28 @@ The interactive path skips the preseed's `post_install.sh`, so reproduce its eff
    (battery %/runtime), `exportfs` shows the 3 shares → oldsrv, `ss -tlnp | grep 9199`
    (nut_exporter), cockpit at cockpit-nas.kogler.si.
 
+6. **Samba — passdb switch (HD-132/HD-360):** Samba auth is driven by `storage_samba_passdb`
+   in the storage role (default `tdbsam` = local accounts; `ldapsam` = Authentik-as-LDAP, D7).
+   **Do NOT flip to `ldapsam` before the Authentik side is live** — smbd fails HARD on startup
+   (`pdb_init_ldapsam: NT_STATUS_CANT_ACCESS_DOMAIN_INFO`) if the outpost is unreachable
+   (2026-09-14 live hit). To enable LDAP (HD-360):
+   ```bash
+   # 1. Authentik (VPS): add the LDAP provider + outpost + svc_samba service user/group
+   #    to the ks-oidc.yml Blueprint, then apply:
+   bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml
+   # 2. Mint a fresh outpost token → 1Password `authentik-ldap_bind` (field=password);
+   #    the old token expired 2026-09-01 (authentik-ldap unhealthy).
+   # 3. Redeploy the ldap outpost with the new token:
+   bash scripts/ansible-run.sh playbooks/vps.yml --limit vps   # (or docker compose up -d authentik-ldap on vps)
+   # 4. Flip the var + converge nas:
+   #    host_vars/nas.kogler.si.yml: storage_samba_passdb: ldapsam
+   bash scripts/ansible-run.sh playbooks/storage.yml --limit nas
+   # 5. Live-verify: mount \\nas\media with an Authentik (family) account.
+   ```
+   Current state (2026-09-14): `tdbsam` (working offline; `vfs objects = acl_xattr` — the
+   `zfs_core` module does NOT exist in Debian's samba-vfs-modules and breaks every tree
+   connect; never re-add it). LDAP enable = HD-360 (deploy-gated).
+
 ---
 
 ## Phase 1 — Deploy the VPS service stack
