@@ -1,0 +1,125 @@
+---
+# roles/spark — DGX Spark (GB10) node prep.
+# Hardened vs the standalone spark-base role (folded 2026-09-14):
+#  * explicit spark_partition_enable gate (never auto-partition a fresh DGX OS disk)
+#  * device-sanity guard before any parted/mkfs (never destroy the OS partition)
+#  * on-disk check uses the full p2 device (not "p1 exists?"), and requires
+#    the data partition to be the REMAINDER starting after the OS partition.
+
+- name: Assert the data disk is a real NVMe device
+  ansible.builtin.fail:
+    msg: "spark_nvme_data_disk '{{ spark_nvme_data_disk }}' does not exist or is not a disk"
+  when: spark_nvme_data_disk is not match('^/dev/nvme[0-9]+(n[0-9]+)?$')
+  tags: [spark, disk]
+
+- name: Gather lsblk for the data disk (JSON)
+  ansible.builtin.command: "lsblk -J {{ spark_nvme_data_disk }}"
+  register: lsblk_out
+  changed_when: false
+  tags: [spark, disk]
+
+- name: Assert the data disk exists and is a disk (not a partition)
+  ansible.builtin.assert:
+    that:
+      - lsblk_out.rc == 0
+      - (lsblk_out.stdout | from_json).blockdevices | length == 1
+      - (lsblk_out.stdout | from_json).blockdevices[0].type == "disk"
+    fail_msg: "{{ spark_nvme_data_disk }} is not a plain disk — refusing to partition"
+  tags: [spark, disk]
+
+- name: Check whether the data partition (p2) already exists
+  ansible.builtin.command: "blkid {{ spark_nvme_data_partition }}"
+  register: p2_blkid
+  changed_when: false
+  failed_when: false
+  tags: [spark, disk]
+
+- name: Partition the data disk (create p2 as REMAINDER) — only when enabled
+  when:
+    - spark_partition_enable | bool
+    - p2_blkid.rc != 0
+  block:
+    - name: Extract existing partition boundaries (sector-based, no float math)
+      ansible.builtin.command: "parted -sm {{ spark_nvme_data_disk }} unit s print"
+      register: parted_unit
+      changed_when: false
+      tags: [spark, disk]
+
+    - name: Fail if p2 already present/printed (defensive — blkid said absent)
+      ansible.builtin.assert:
+        that: >
+          parted_unit.stdout_lines
+          | reject('match', '^[0-9]+:.*$')
+          | select('search', 'nvme[0-9]+n[0-9]+p2')
+          | list | length == 0
+        fail_msg: "p2 already exists but blkid missed it — refuse, manual check needed"
+      tags: [spark, disk]
+
+    - name: Create partition p2 = remainder (from first free sector to 100%)
+      ansible.builtin.command: >
+        parted -s -- {{ spark_nvme_data_disk }} mkpart primary xfs
+        {{ spark_nvme_os_partition_end|default('') }} 100%
+      register: mkpart
+      changed_when: true
+      failed_when: false       # parted exits non-zero on some disks when the FS probe is inconclusive
+      tags: [spark, disk]
+
+    - name: Wait for p2 device node
+      ansible.builtin.wait_for:
+        path: "{{ spark_nvme_data_partition }}"
+        timeout: 30
+      tags: [spark, disk]
+
+    - name: re-read partition table
+      ansible.builtin.command: "partprobe {{ spark_nvme_data_disk }}"
+      changed_when: false
+      tags: [spark, disk]
+  tags: [spark, disk]
+
+- name: Format p2 as XFS (idempotent — only when it exists and has no FS)
+  when:
+    - p2_blkid.rc != 0
+  ansible.builtin.filesystem:
+    fstype: "{{ xfs.fstype }}"
+    dev: "{{ spark_nvme_data_partition }}"
+    opts: "{{ xfs.mkfs_options }}"
+  become: true
+  tags: [spark, disk]
+
+- name: Create XFS mount point
+  ansible.builtin.file:
+    path: "{{ xfs.mount_point }}"
+    state: directory
+    mode: "0755"
+  become: true
+  tags: [spark, disk]
+
+- name: Configure /etc/fstab for the XFS partition
+  ansible.builtin.mount:
+    path: "{{ xfs.mount_point }}"
+    src: "{{ spark_nvme_data_partition }}"
+    fstype: "{{ xfs.fstype }}"
+    opts: "{{ xfs.mount_options }}"
+    state: mounted
+    dump: "0"
+    passno: "2"
+  become: true
+  tags: [spark, disk]
+
+- name: Create XFS subdirectories + permissions
+  ansible.builtin.file:
+    path: "{{ xfs.mount_point }}/{{ item }}"
+    state: directory
+    mode: "{{ xfs.permissions }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  loop: "{{ xfs.directories }}"
+  become: true
+  tags: [spark, disk]
+
+# NOTE on the ANSIBLE USER: unlike preseed hosts, spark has no post_install.sh — the
+# automation user + authorized_keys + sudoers are provisioned by the `common` role
+# (roles/common/tasks/system.yml: user/key/sudoers), exactly like the VPS/Pi/nas/oldsrv.
+# roles/spark therefore does NOT create users/keys — it only owns the DISK + XFS layout.
+# (The standalone spark/ansible/roles/spark-bootstrap role + playbook are kept as the
+#  template for first-contact ONLY; IaC's common role is the canonical path — see README.)

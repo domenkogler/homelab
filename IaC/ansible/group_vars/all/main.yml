@@ -85,6 +85,12 @@ dns_tertiary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi')
 # Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== Pi Home VLAN IP, SSOT-derived).
 technitium_secondary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 
+# ==== Spark (DGX GB10) — reserved node IPs, SSOT-derived (HD-359/HD-337) ====
+# spark.kogler.si shares the nas/oldsrv pattern: Home (VLAN 10) = SSH + inference endpoint,
+# Mgmt (VLAN 99) = management plane. No literals — the network_static_hosts rows are the source.
+spark_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'spark') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+spark_mgmt_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'spark') | selectattr('vlan', 'equalto', 99) | first).ip }}"
+
 # ==== UPS / NUT (docs/hardware-ups.md) ====
 # Single SSOT `nut_exporter` runs as a HOST binary on the NUT master (nas, no Docker)
 # and is scraped by Prometheus (on the VPS, HD-135) over the WG S2S tunnel. Host derived
@@ -226,6 +232,7 @@ network_static_hosts:
   - { name: ilo,      vlan: 99, ip: "10.10.99.11", mac: "1C:98:EC:0E:0D:3A", role: "nas iLO4 BMC" }
   - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS tertiary (HD-299)" }
   - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "i7-7700K node + DNS secondary (HD-299)" }
+  - { name: spark,    vlan: 99, ip: "10.10.99.40", role: "DGX Spark GB10 — mgmt-plane reserve (headless AI; DHCP-auto or static per reservation, 2026-09-14)" }
   - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra, 2026-09-07" }
   - { name: laptop-wsl,  vlan: 10, ip: "10.10.1.81",  role: "Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback, 2026-09-07" }
   # Home VLAN 10
@@ -240,6 +247,7 @@ network_static_hosts:
   - { name: nas,      vlan: 10, ip: "10.10.1.10",  mac: "1C:98:EC:0E:0D:38", dhcp_client: mac, role: "Cockpit/NFS/NUT master" }
   - { name: pi,       vlan: 10, ip: "10.10.1.20",  mac: "E4:5F:01:26:EF:AA", role: "node + DNS tertiary (HD-299; VRRP anchor)" }
   - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "node + DNS secondary (HD-299; VRRP anchor)" }
+  - { name: spark,    vlan: 10, ip: "10.10.1.40",  role: "DGX Spark GB10 — AI inference tier (headless; SSH + inference endpoint, 2026-09-14)" }
   - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
   - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
   - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }

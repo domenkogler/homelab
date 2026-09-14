@@ -1,0 +1,29 @@
+---
+# role: spark — plan the NVMe layout for the DGX Spark GB10 (partition p2 → XFS for PLE/KV).
+# Reference parent: spark/ansible/roles/spark-base/tasks/main.yml (standalone template —
+# folded into IaC here, hardened per review 2026-09-14).
+
+# NVMe used for the AI data partition (the GB10 ships a single system NVMe; DGX OS normally
+# owns /dev/nvme0n1p1 = EXT4 root; the AI data partition is p2 on the same disk = REMAINDER).
+spark_nvme_data_disk: /dev/nvme0n1
+spark_nvme_data_partition: /dev/nvme0n1p2
+spark_xfs_mount: /mnt/spark_nvme
+
+# Guard: only partition/mkfs the data partition when EXPLICITLY allowed. DGX OS ships the disk
+# formatted; a fresh-install safe default is to SKIP destructive partitioning unless operator
+# sets this true (docs: deployment-ansible.md). Once marked, the role idempotently formats p2
+# without further prompting (partition already exists → mount-only).
+spark_partition_enable: false
+
+xfs:
+  device: "{{ spark_nvme_data_partition }}"
+  mount_point: "{{ spark_xfs_mount }}"
+  fstype: xfs
+  mkfs_options: "-f -d agcount=16"
+  mount_options: "noatime,nodiratime,logbufs=8,logbsize=256k,nobarrier"
+  directories:
+    - kv_cache
+    - ples_int4
+    - vllm_cache
+    - triton_cache
+  permissions: "0777"

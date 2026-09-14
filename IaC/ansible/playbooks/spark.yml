@@ -1,0 +1,18 @@
+---
+# Spark playbook — DGX Spark (GB10) node.
+# The first-contact bootstrap (spin up ansible user + key) is a HANDS-ON one-shot via the
+# standalone spark/ansible/spark-bootstrap playbook (kept as template), OR via the IaC
+# common role's first-touch path on the box. This playbook covers the STACK: base prep +
+# disk/XFS layout + (later) vLLM/SGLang via docker_services.
+#
+# Run:  ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark.kogler.si
+
+- hosts: spark
+  become: true
+  roles:
+    - common          # ansible-admin user guard + sudoers + trixie sources + hardening (canonical)
+    - network         # DHCP client-id=mac + netd units (dual-homed mgmt/home) — same as nas/oldsrv/pi
+    - docker
+    - spark           # NVMe p2 → XFS for PLE/KV (gated by spark_partition_enable)
+    - monitoring      # Alloy node exporter → VPS Victoria backend (per-node model)
+    # vLLM / SGLang / router land via docker_services (deploy-gated; spark.enabled flips on after bench)

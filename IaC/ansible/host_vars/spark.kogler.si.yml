@@ -1,0 +1,15 @@
+---
+# Spark (DGX GB10) — NVIDIA ThinkStation PGX node.
+# Headless AI inference tier (LLM serving + embeddings/rerank/STT/TTS plan). See
+# docs/hardware-spark.md (role + bench plan) + spark/ (standalone reference stack).
+# Not yet provisioned: DGX OS install + first-key touch pending (HD-335/HD-337/HD-359).
+
+ansible_host: "{{ spark_home_ip }}"     # VLAN 10 (Home) — SSH + inference endpoint (SSOT-derived, HD-359)
+mgmt_ip: "{{ spark_mgmt_ip }}"          # VLAN 99 (Management) — SSOT-derived; static reservation
+ansible_user: ansible-admin         # provisioned on first touch (no preseed — DGX OS; see deployment-manual spark section)
+homelab_mode: headless
+# AI stack is NOT yet enabled — benches + winner-engine promotion are deploy-gated (HD-359).
+# spark.enabled flips to true in group_vars/home_servers.yml after bench certification.
+# spark_partition_enable must be set true by the operator after first-boot inspection
+# (DGX OS ships a formatted single NVMe; never auto-partition).
+spark_partition_enable: false
