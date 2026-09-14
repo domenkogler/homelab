@@ -219,11 +219,11 @@ homelable_version: "3.4.1"
 # Renovate docker datasource would track the tag; the digest is the load-bearing pin.
 spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"
 
-# DGX Dashboard LAN bridge (HD-364) — alpine/socat image digest pin. Fluid tag vs
-# digest: socat upstream publishes no semver, only `latest` + date tags, so the tag
-# is ALLOWED in the validator's ALLOWED_LATEST; the DIGEST is the load-bearing pin
-# (R4-style, registry-verified 2026-09-14 — arm64, tiny relay). Bump via Renovate /
-# manual digest refresh; there is no semantic version to track.
-socat_version: "alpine/socat:latest@sha256:c5a091e1e735a90aa941a5828529dbe6c6157407a8047a9aa473faa133361b82"
-# The public edge / app-dashboard variant of the same image (future: a web-UI relay to
-# the loopback dashboard). Kept as a comment until a real consumer needs it.
+# DGX Dashboard LAN bridge (HD-364 rework) — the original alpine/socat image digest
+# pin (socat_version) is RETIRED with the socat→Traefik swap: the dashboard + admin
+# JupyterLab are now exposed by the `spark-dashboard` Traefik file-provider edge
+# (host-net, entrypoints spark_home_ip:11000/11002 → 127.0.0.1:11000/11002), which
+# uses the already-pinned `traefik_version`. No socat image remains; the fluid-tag
+# exemption in validate-docker-services.py was removed with it.
+# (Retired 2026-09-14, HD-364/HD-366: socat takes exactly ONE address pair per
+# invocation — the 4-argv compose command crash-looped "exactly 2 addresses required")

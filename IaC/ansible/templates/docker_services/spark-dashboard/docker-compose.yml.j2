@@ -1,0 +1,77 @@
+# spark-dashboard docker-compose.yml — LAN bridge for the NVIDIA DGX Dashboard (HD-364/HD-366)
+#   DGX OS ships the dashboard as `dgx-dashboard.service` (port from
+#   /opt/nvidia/dgx-dashboard-service/ports.env = 11000) bound to **loopback only** —
+#   NVIDIA offers no bind-host flag and removed the "bind to LAN" RFE (NVIDIA forums
+#   347956: "not possible at the moment"). Officially the dashboard is reached via
+#   SSH tunnel / NVIDIA Sync / a desktop app launcher on the box.
+#
+#   The supported LAN exposure is a tiny TCP forwarder as a Docker sidecar. The
+#   ORIGINAL implementation (HD-364) was an alpine/socat host-net bridge
+#   (templates/docker_services/dgx-dashboard) that listened on spark's Home-VLAN IP
+#   :11000 → 127.0.0.1:11000 and (HD-366) :11002 → 127.0.0.1:11002 (admin's
+#   JupyterLab port from /opt/nvidia/dgx-dashboard-service/jupyterlab_ports.yaml).
+#   The alpine/socat image ENTRYPOINT is `socat`, a compose `command:` list hands
+#   EVERY address pair to ONE socat invocation → "exactly 2 addresses required
+#   (there are 4)" crash-loop (live, 2026-09-14 reboot). A multi-pair relay must
+#   run from a `sh -c` wrapper with `entrypoint: []` (kopia-agent precedent), and
+#   the two socat processes must be backgrounded; the wrapper must stay a live PID.
+#   Rather than fight that fragility, this template replaces the socat bridge with a
+#   **Traefik file-provider edge ON spark** (HD-364 rework): host-net, two
+#   entrypoints (spark_home_ip:11000 = dashboard, :11002 = admin JupyterLab),
+#   dynamic/routes.yml.j2 proxies to 127.0.0.1:<port> on the host. Same reachability,
+#   one process, no digests, no socat argv quirks, and the dashboard keeps its own
+#   local-user+password login (docs/hardware-spark.md §Remote management) — never
+#   0.0.0.0, Home-VLAN-only, no public record.
+#
+#   No secrets (plain HTTP proxy, no 1P items — stays OUT of the vault derive-map
+#   like spark-ai). Image: traefik {{ traefik_version }} (pinned, versions.yml).
+services:
+  traefik:
+    image: traefik:{{ traefik_version }}
+    container_name: traefik-spark
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE          # bind 11000/11002 on the Home-VLAN IP
+    read_only: true
+    tmpfs:
+      - /tmp
+    network_mode: host            # must reach 127.0.0.1:11000/11002 on the host (DGX
+                                  # services are loopback-only; no docker bridge IP can)
+    restart: unless-stopped
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    volumes:
+      - ./dynamic:/etc/traefik/dynamic:ro   # file-provider routes (no docker.sock)
+    command:
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.dashboard.address={{ spark_home_ip }}:11000"
+      - "--entrypoints.jupyter.address={{ spark_home_ip }}:11002"
+      - "--ping=true"                 # /ping health endpoint for the healthcheck below
+      - "--api.insecure=true"         # local API for route debugging (dim-noise: next-session debug)
+      - "--log.level=INFO"
+    # No ACME / no certs: loopback HTTP backends, internal-only (has its own login),
+    # plain HTTP on the LAN.
+    healthcheck:
+      # Traefik's /ping (enabled above) — the dashboard/jupyter PROXY health is
+      # separate (jupyter :11002 is on-demand, only exists while a lab is Running —
+      # intentionally NOT part of the probe; a stopped lab would otherwise mark the
+      # whole bridge unhealthy).
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # No ACME / no certs: loopback HTTP backends, internal-only (has its own login),
+    # plain HTTP on the LAN.
+    healthcheck:
+      # Traefik has no built-in /health; the dashboard's %-win is that the listener
+      # is up. Probe the network listener on the Home IP (jupyter :11002 is on-demand
+      # — only exists while a lab is Running — so it is intentionally NOT part of the
+      # probe; a stopped lab would otherwise mark the whole bridge unhealthy).
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/ 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

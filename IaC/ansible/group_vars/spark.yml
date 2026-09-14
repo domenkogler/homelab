@@ -10,11 +10,11 @@ docker_services:
   # (B1 baseline, spark/BENCHMARK-PLAN.md). Deploy-gated: flip `enabled: true` once the
   # node is provisioned + partition done + weights downloaded.
   - { name: spark-ai, template_dir: spark-ai, public: false, enabled: false }  # ⏳ deploy-gated: S1 bench did NOT certify (HD-367 session) — engine crash-loop blocked on torchinductor cache; flip after fix
-  # NVIDIA DGX Dashboard LAN bridge — alpine/socat sidecar exposing the loopback-only
-  # dashboard (:11000) AND its integrated JupyterLab (admin user :11002, per
-  # jupyterlab_ports.yaml) on spark's Home-VLAN IP (HD-364/HD-366). No secrets (compose
-  # header). Public = internal-only (never a public edge record); enabled = bridge up.
-  - { name: dgx-dashboard, template_dir: dgx-dashboard, public: false, enabled: true }
+  # NVIDIA DGX Dashboard LAN bridge — Traefik file-provider edge on spark (HD-364
+  # rework, socat→Traefik): host-net, entrypoints spark_home_ip:11000/11002 →
+  # 127.0.0.1:11000/11002 (dashboard + admin JupyterLab). No secrets; public =
+  # internal-only (never a public edge record); enabled = bridge up.
+  - { name: spark-dashboard, template_dir: spark-dashboard, public: false, enabled: true }
 
 # ==== Shared spark render-scope vars (used by the spark-ai compose template) ====
 # These MUST live here (group_vars/spark.yml) — the docker_services render scope is
@@ -59,7 +59,7 @@ spark_artifacts:
 #     kills the NIC — live L2 blackout 2026-09-14, deployment-manual.md §5.2; the old
 #     runbook step is now IO via the spark role)
 #   * set default.target = multi-user (no graphical login — GDM/desktop are pulled in
-#     only when this is false); the `dgx-dashboard` socat bridge keeps the loopback
+#     only when this is false); the `spark-dashboard` Traefik edge keeps the loopback
 #     dashboard reachable on the LAN without a desktop
 # FALSE = plain workstation (leave DGX OS graphical default + sleep targets as shipped).
 spark_headless: true

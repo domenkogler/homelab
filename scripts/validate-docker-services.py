@@ -39,7 +39,7 @@ GROUP_VARS_DIR = ROOT / "IaC" / "ansible" / "group_vars"
 # docs/deployment-compose.md.
 
 # Services that don't need Traefik labels (are their own reverse proxy)
-NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent", "traefik-tailnet", "traefik-internal"}  # qbittorrent labels are on gluetun sidecar; traefik-tailnet is file-provider-only (dynamic/routes.yml, no docker provider); traefik-internal = home-LAN edge (HD-350), file-provider-only (same pattern)
+NO_TRAEFIK_LABELS = {"traefik-ha", "qbittorrent", "traefik-tailnet", "traefik-internal", "spark-dashboard"}  # spark-dashboard: file-provider-only (dynamic/routes.yml, no docker provider — same pattern as traefik-internal)  # qbittorrent labels are on gluetun sidecar; traefik-tailnet is file-provider-only (dynamic/routes.yml, no docker provider); traefik-internal = home-LAN edge (HD-350), file-provider-only (same pattern)
 
 # HD-134 / KOPS-030 convention: pinned tags (never bare `latest`). A compose image that
 # RESOLVES to bare `latest` (either a literal `:latest` or an undefined *_version var falling
@@ -58,11 +58,12 @@ ALLOWED_LATEST = {
     # `latest`/`beta` upstream → flux by design, MUST-pin note in versions.yml + compose.
     # orpheusdl REMOVED (pip CLI on laptop — manual tool, not a container; HD-362 revise).
     "aurral", "slskd", "tube-archivist", "lidarr-ydl",
-    # dgx-dashboard (HD-364): the alpine/socat image publishes NO semver tags — only
-    # `latest` + date-tags upstream (registry-probed 2026-09-14); the tag is FLUID by
-    # upstream design, the DIGEST is the load-bearing pin (versions.yml socat_version).
-    # MUST-pin comment in the compose header + versions.yml.
-    "dgx-dashboard",
+    # spark-dashboard (HD-364 rework): Traefik file-provider edge on spark proxying
+    # the DGX dashboard loopback + admin JupyterLab — image traefik:{{ traefik_version }}
+    # is pinned in versions.yml (v3.7.11, registry-verified 2026-08-22); NOT fluid.
+    # (The retired alpine/socat bridge — dgx-dashboard — had NO semver tags upstream,
+    # only `latest`+date, so it lived here digest-pinned; that service is GONE with the
+    # socat→Traefik swap, no fluid tag remains.)
 }
 
 # Services that use network_mode: service:<sidecar> (no own networks)
@@ -102,8 +103,8 @@ WEB_SERVICES = {
     "traefik-tailnet",  # HD-135b follow-up: tailnet Traefik edge (dashboard label, file-provider routes)
 }
 
-HOST_NET_SERVICES = {"traefik-ha", "traefik-internal"}   # traefik-internal: home-LAN edge on oldsrv (HD-350), host-net VIP+LAN-IP bound (same pattern as traefik-ha)
-HOST_NET_CONTAINERS = {"home-assistant-standby", "dgx-dashboard"}   # spark dgx-dashboard socat bridge (HD-364/HD-366): host-net MUST reach 127.0.0.1:11000 (DGX dashboard loopback-only) + 127.0.0.1:11002 (admin JupyterLab, on-demand); single container
+HOST_NET_SERVICES = {"traefik-ha", "traefik-internal", "spark-dashboard"}   # traefik-internal: home-LAN edge on oldsrv (HD-350), host-net VIP+LAN-IP bound (same pattern as traefik-ha); spark-dashboard: DGX dashboard/jupyter LAN bridge on spark (HD-364 rework), host-net to reach the loopback dashboard + admin JupyterLab
+HOST_NET_CONTAINERS = {"home-assistant-standby"}   # keepalived VIP holder (HD-72 closed primary); docker_services containers on host-net otherwise
 
 # Extra .j2 templates per service are NOT duplicated here any more (HD-189):
 # the SSOT is roles/docker_services/defaults/main.yml `_extra_templates` — the
@@ -249,7 +250,7 @@ BASE_CTX.update({
     # consumed by actual-budget's :5006 API-leg bind (HD-57); same Home-IP mock class.
     "oldsrv_home_ip": "10.10.1.30",
     # Spark Home-VLAN IP (HD-359, group_vars/all/main.yml derived from network_static_hosts) —
-    # consumed by the dgx-dashboard socat bridge bind + spark-ai router/engine publishes.
+    # consumed by the spark-dashboard Traefik entrypoints bind + spark-ai router/engine publishes.
     # Same Home-IP mock class as oldsrv_home_ip (SSOT row: spark vlan 10 = 10.10.1.40).
     "spark_home_ip": "10.10.1.40",
     # WG S2S peer (HD-155/191) — dict var in all.yml is Jinja-valued, so it stays

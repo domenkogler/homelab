@@ -64,8 +64,14 @@ services:
       - {{ spark_xfs_mount }}/ples_int4:/ples_int4:ro
       # KV Cache (read-write, on XFS)
       - {{ spark_xfs_mount }}/kv_cache:/data/kv_cache
-      # Compile caches (rootfs is read-only; persist across restarts)
-      - {{ spark_xfs_mount }}/vllm_cache:/root/.cache/vllm
+      # Compile/quant caches (rootfs is read-only; persist across restarts).
+      # vLLM writes BOTH /root/.cache/vllm (runtime cache) AND
+      # /root/.cache/torchinductor (torchinductor compile cache) — mounting only
+      # the `vllm` child left torchinductor pointing at the read-only rootfs →
+      # OSError [Errno 30] Read-only file system crash-loop (HD-367). Mount the
+      # WHOLE /root/.cache from XFS; vllm_cache holds vllm/ + torchinductor/
+      # subdirs once the engine writes them.
+      - {{ spark_xfs_mount }}/vllm_cache:/root/.cache
       - {{ spark_xfs_mount }}/triton_cache:/root/.triton
 {% if spark_router_publish | default(false) %}
     ports:
