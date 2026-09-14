@@ -1,0 +1,30 @@
+---
+# role: spark-artifacts — download/verify the GPU-inference artifact store on the
+# DGX Spark (GB10) XFS data partition. GENERAL layer, config-agnostic (HD-359).
+#
+# Design (2026-09-14 fold, artifact-vs-engine split):
+#   * ONE download per quant-artifact, keyed by HF repo_id → local_dir on the XFS
+#     data partition (`/mnt/spark_nvme`). Every engine profile (B1 AWQ+PLE vLLM,
+#     future NVFP4/SGLang, …) MOUNTS these paths read-only — nothing is owned or
+#     re-downloaded per config. Different quants (NVFP4 etc.) are separate repos
+#     = separate downloads by design.
+#   * This role is pulled into the spark playbook BEFORE `docker_services`, so a
+#     converge stages everything the engine compose will bind. It is safe to run
+#     standalone via `--tags spark-artifacts` (pre-bench download staging).
+#   * Deploy-gated: the B1 engine stays `spark-ai.enabled: false` until bench
+#     S1–S5 certifies a winner (HD-359); the artifact store is download-only and
+#     independently useful for every candidate engine.
+#   * Idempotency = repository presence (a repo with `config.json` (weights) or
+#     non-empty dir (overlays/tables) is skipped). `hf_transfer` is installed for
+#     the multi-GB downloads; jobs run as the ansible user (never root).
+
+# Manifest entries — filled by group_vars/spark.yml (the IaC SSOT).
+# Each entry: {repo_id, subdir|[files], local_dir} — local_dir lands on XFS.
+spark_artifacts: []
+
+# Python CLI used for downloads (installed by this role).
+spark_hf_cli: "huggingface-cli"
+# Force `hf_transfer` parallel chunks for multi-GB downloads (fast NVMe + WAN).
+spark_hf_transfer: true
+# Download jobs run unprivileged; the XFS dirs are 0777 (spark role) → writable.
+spark_artifacts_become: false

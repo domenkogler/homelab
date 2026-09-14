@@ -20,6 +20,27 @@ spark_models_dir: "{{ spark_xfs_mount }}/models"     # weights on XFS, never EXT
 spark_overlays_dir: "{{ spark_xfs_mount }}/overlays" # PLE overlay patches
 spark_router_publish: false        # flip to publish :8080 on the Home-VLAN IP post-bench (LAN clients)
 
+# ==== Spark GPU-inference artifact store (HD-359) ====
+# GENERIC, config-agnostic manifest: repo_id → XFS local_dir. The B1 AWQ+PLE
+# weights, PLE overlay .py files and INT4 tables all live here and are MOUNTED
+# read-only by every engine profile (vLLM B1 today; NVFP4/SGLang later = their
+# own repos = separate downloads by design). One download per quant-artifact,
+# reused by every config. Filled by roles/spark-artifacts (download) — the
+# spark-ai compose template binds these exact paths.
+spark_artifacts:
+  - repo_id: "wtdcode/Qwen3.8-Flash-Next-AWQ-W4A16"
+    kind: weights
+    local_dir: "{{ spark_models_dir }}"       # /mnt/spark_nvme/models
+    subdir: "Qwen3.8-Flash-Next-AWQ"          # → /mnt/spark_nvme/models/Qwen3.8-Flash-Next-AWQ/{config.json,...}
+  - repo_id: "primitive-ai/Qwen3.8-Flash-Next-PLE-quant"
+    kind: files
+    files: [worker_image_quant.py, ple_layer_quant.py, connector_mrv2.py]
+    local_dir: "{{ spark_xfs_mount }}"        # → /mnt/spark_nvme/{worker_image_quant.py,ple_layer_quant.py,connector_mrv2.py}
+  - repo_id: "primitive-ai/Qwen3.8-Flash-Next-PLE-quant"
+    kind: tables
+    subdir: "ples_int4"
+    local_dir: "{{ spark_xfs_mount }}"        # → /mnt/spark_nvme/ples_int4/{tables...}
+
 # vLLM (B1 proven — spark/BENCHMARK-PLAN.md §1)
 spark_vllm_container: vllm-qwen-spark
 spark_vllm_log_level: INFO

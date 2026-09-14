@@ -1,0 +1,92 @@
+---
+# role: spark-artifacts — download/verify the GPU-inference artifact store.
+# General, config-agnostic layer: manifest (`spark_artifacts:`) maps HF repo →
+# local XFS dir; engine configs mount the store read-only (never own downloads).
+# See defaults/main.yml for the design + deploy-gating notes (HD-359).
+
+- name: Assert safe execution context (spark-artifacts is spark-node-only)
+  ansible.builtin.assert:
+    that:
+      - spark_xfs_mount is defined
+      - spark_xfs_mount | length > 0
+    fail_msg: >-
+      spark-artifacts requires the spark XFS data mount (spark_xfs_mount,
+      group_vars/spark.yml / roles/spark defaults). The artifact store lives on
+      /mnt/spark_nvme (HD-359) — never EXT4.
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Ensure the HF CLI + hf_transfer are present (pip3; python3-pip is in roles/common)
+  ansible.builtin.pip:
+    name:
+      - "huggingface_hub[cli]"
+      - "hf_transfer"
+    state: present
+    executable: pip3
+  become: "{{ spark_artifacts_become | default(false) }}"
+  environment:
+    HF_HUB_ENABLE_HF_TRANSFER: "{{ '1' if spark_hf_transfer else '0' }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+# ── Manifest downloads ───────────────────────────────────────────────────
+# Each entry is idempotent: the weight repo is skipped when its `config.json`
+# exists; overlay/table dirs are downloaded when empty.
+- name: Ensure the artifact target dir exists (manifest entry)
+  ansible.builtin.file:
+    path: "{{ item.local_dir | default(spark_xfs_mount) }}"
+    state: directory
+    mode: "0777"
+  loop: "{{ spark_artifacts }}"
+  become: "{{ spark_artifacts_become | default(false) }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Download weights (repo with config.json, skipped when present)
+  ansible.builtin.command: >
+    {{ spark_hf_cli }} download {{ item.repo_id }}
+    --local-dir {{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir | default('') }}
+  args:
+    creates: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir | default('') }}/config.json"
+  environment:
+    HF_HUB_ENABLE_HF_TRANSFER: "{{ '1' if spark_hf_transfer else '0' }}"
+  become: "{{ spark_artifacts_become | default(false) }}"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'weights') | list }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Download PLE quant files (list of files, skipped when all present)
+  ansible.builtin.command: >
+    {{ spark_hf_cli }} download {{ item.repo_id }}
+    {% for f in item.files %}{{ f }} {% endfor %}
+    --local-dir {{ item.local_dir | default(spark_xfs_mount) }}
+  args:
+    creates: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.files | first }}"
+  environment:
+    HF_HUB_ENABLE_HF_TRANSFER: "{{ '1' if spark_hf_transfer else '0' }}"
+  become: "{{ spark_artifacts_become | default(false) }}"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'files') | list }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Download PLE INT4 tables (subdir, skipped when non-empty)
+  ansible.builtin.command: >
+    {{ spark_hf_cli }} download {{ item.repo_id }}
+    --include "{{ item.subdir }}/*"
+    --local-dir {{ item.local_dir | default(spark_xfs_mount) }}
+  args:
+    creates: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir }}/.gitattributes"
+  environment:
+    HF_HUB_ENABLE_HF_TRANSFER: "{{ '1' if spark_hf_transfer else '0' }}"
+  become: "{{ spark_artifacts_become | default(false) }}"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'tables') | list }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+# ── Verify the store ─────────────────────────────────────────────────────
+- name: Verify critical artifacts exist (manifest weights)
+  ansible.builtin.stat:
+    path: "{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir | default('') }}/config.json"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'weights') | list }}"
+  register: spark_art_stat
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Fail if any weight artifact is missing after download
+  ansible.builtin.assert:
+    that: "{{ (spark_art_stat.results | selectattr('stat.exists', 'equalto', true) | list | length) == (spark_artifacts | selectattr('kind', 'equalto', 'weights') | list | length) }}"
+    fail_msg: "One or more Spark weight artifacts missing after download (manifest: spark_artifacts)"
+  tags: [spark, spark-artifacts, artifacts]
