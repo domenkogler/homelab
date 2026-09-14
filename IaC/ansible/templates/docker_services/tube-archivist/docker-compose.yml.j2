@@ -62,6 +62,10 @@ services:
       # gets as ELASTIC_PASSWORD (TA fails its env-check without it; HD-362 live).
       ELASTIC_PASSWORD: >-
         {{ vault['tube-archivist-es'].password | replace('$','$$') }}
+      # tubearchivist-es serves TLS with its self-signed bundled CA (http_ca.crt);
+      # the app's urllib3 would reject it. Official upstream switch for exactly this
+      # two-container setup (docs.tubearchivist.com/env-vars: ES_DISABLE_VERIFY_SSL).
+      ES_DISABLE_VERIFY_SSL: "true"
       # Jellyfin plugin API token (optional; if the plugin is used later).
       TA_TOKEN: >-
         {{ vault['tube-archivist_ui'].credential | default('') | replace('$','$$') }}
