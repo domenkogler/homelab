@@ -116,6 +116,8 @@ Authored 2026-09-09 against upstream **v3.4.1** (registry-verified on GHCR for b
 
 **Revival path (when wanted):** enable on **OLDSRV** — add an oldsrv `docker_services` entry (`template_dir: metabase`, `public: false`), decide its reach/auth (LAN direct vs a future oldsrv edge), re-add any LAN data sources to the template (the VPS CrowdSec/db-internal sources are gone), seed the `smtp_login` + `metabase_login` items if not present, converge oldsrv. Out of the current session's scope (oldsrv converge not run here).
 
+> **Deploy note (2026-09-14):** the `technitium-seed` role only adds records (`zones/records/add`) — it does **not** delete retired ones. After the retirement the VPS primary Technitium still carries a stale internal `sec.kogler.si → 100.64.0.1` record (harmless — points at the dead tailnet edge → 404 — but it contradicts the SSOT). Remove it via the Technitium API (`/api/zones/records/delete`, HD-324 path) the next time Technitium is touched, or fold a record-prune into the seed role when a record-retirement comes around.
+
 ## Notes
 
 - **CrowdSec** runs on the Traefik edge (middleware chain in [`services-traefik.md`](services-traefik.md)); its dashboards/surfaces: **CrowdSec Web UI** (`csui.kogler.si`) + the retired-Metabase dashboard (see §Metabase above — no longer a CrowdSec dashboard since 2026-09-14).
