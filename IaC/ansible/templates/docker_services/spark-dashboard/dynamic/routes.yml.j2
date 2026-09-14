@@ -1,0 +1,40 @@
+# spark-dashboard — dynamic routes (file provider). NVIDIA DGX Dashboard LAN bridge
+# on spark (HD-364 rework; see docker-compose.yml.j2 header for the socat→Traefik
+# decision). Proxies the on-box loopback dashboard (:11000) and admin JupyterLab
+# (:11002) onto the Home-VLAN IP at the same ports, so a LAN browser reaches
+# http://spark.kogler.si:11000 (dashboard) / :11002 (JupyterLab, admin).
+#
+#   - Entrypoints are address+port bound (spark_home_ip:11000/11002) — never
+#     0.0.0.0, no public record, Home-VLAN only.
+#   - No Forward-Auth / no CrowdSec / no ACME: the dashboard owns its login (local
+#     user+password, docs/hardware-spark.md §Remote management); loopback HTTP.
+#   - JupyterLab spawns ON DEMAND from the dashboard's JupyterLab panel (Start);
+#     until a lab is Running, 127.0.0.1:11002 has no listener and the route idles.
+#   - The dashboard 'Software Update' flow reboots/restarts dgx-dashboard.service;
+#     Traefik keeps RUNNING through it (just reconnects on the next request).
+http:
+  routers:
+    dgx-dashboard:
+      rule: "HostRegexp(`{host:.+}`)"
+      entryPoints:
+        - dashboard
+      service: dgx-dashboard-backend
+      priority: 1
+    dgx-jupyter:
+      rule: "HostRegexp(`{host:.+}`)"
+      entryPoints:
+        - jupyter
+      service: dgx-jupyter-backend
+      priority: 1
+
+  services:
+    dgx-dashboard-backend:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:11000"
+        passHostHeader: true
+    dgx-jupyter-backend:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:11002"
+        passHostHeader: true

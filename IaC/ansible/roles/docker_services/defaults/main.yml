@@ -68,6 +68,8 @@ _extra_templates:
     - dynamic/middlewares.yml.j2
     - dynamic/tls.yml.j2        # HD-181 — consumer default-store TLS (renders empty on the issuer)
     - certs-rename.sh.j2        # Wave-2 triage 2026-08-22 — wildcard pair rename (entrypoint + post-hook)
+  spark-dashboard:
+    - dynamic/routes.yml.j2     # HD-364 rework — DGX dashboard/jupyter LAN bridge (file-provider routes; compose renders docker-compose.yml.j2 separately)
   # crowdsec: HD-313 (2026-09-04) — no extra templates. The RouterOS acquisition
   # now lands in the config mount via the monitoring role
   # (acquis-routeros.yml.j2 -> /srv/docker/crowdsec/config/acquis.d/). Do NOT
