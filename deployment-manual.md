@@ -510,6 +510,15 @@ in `group_vars/vps.yml`, enabled). Imperative facts a from-scratch deploy needs:
    (`network_mode: service:traefik-tailnet`) — recreate the PROJECT together (compose
    down+up) if the netns goes stale, then re-apply the serve config.
 
+5. **Removing a service whose compose project still exists on the VPS is NOT done by converge** (the role teardown only removes `enabled: false` projects): a one-time manual cleanup is required, e.g. the HD-355 dsh/pi-dev move (2026-09-14):
+   ```bash
+   docker compose --project-directory /opt/dsh down --remove-orphans
+   docker compose --project-directory /opt/pi-dev down --remove-orphans
+   docker rm -f dsh dsh-tailscale pi-dev pi-dev-tailscale 2>/dev/null; true
+   docker image prune -f   # or rmi the specific legacy tags
+   sudo rm -rf /opt/dsh /opt/pi-dev
+   ```
+
 Verify from a tailnet device: `https://stats.kogler.si` (forward-auth → SSO) and
 `https://stats.ts.kogler.si` (ACL-gated, tailnet-only).
 
