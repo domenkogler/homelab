@@ -33,9 +33,10 @@ Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I
 | Profilarr | profilarr | P+I | 50–100 / 150 | Quality-profile UI on top of Sonarr/Radarr |
 | Navidrome | music | P+I | 100–250 / 400 | Music server (deluan/navidrome, HD-354) — **on the VPS**, library on the Hetzner Storage Box; Subsonic + web UI |
 | Aurral | aurral | I | 100–200 / 400 | Music discovery + Lidarr-request companion (lklynet/aurral, HD-362) — community radio via Last.fm / ListenBrainz; **free/no sub**; internal-only; own login |
-| Orpheusdl | — | I | 60–120 / 200 | FLAC downloader (orpheusdl, HD-362) — paid-Qobuz-Tier (Firehawk52-style config; **no Qobuz sub in scope** — owner has YouTube Music); manual config, no UI |
-| Slskd | slskd | I | 60–140 / 250 | Soulseek P2P daemon (slskd/slskd, HD-362) — **gluetun WireGuard sidecar, VPN-locked egress**; no inbound port → fetch-only peer (search + download, no upload credit); own login/token |
-| Tube Archivist | tube | I | 150–350 / 600 | Personal YouTube (tube-archivist/tubearchivist, HD-362) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · **new `tube` subdir on nas `bulk/media`** |
+| Orpheusdl (manual) | — | host/laptop | — | **(dropped from IaC, 2026-09-14):** orpheusdl is a pip CLI with no container — owner runs it on the LAPTOP manually; not part of the ladder |
+| Lidarr-URL-DL | url-dl | I | 150–300 / 500 | Lidarr-YouTube-Downloader (angrido/lidarr-downloader, HD-362) — acquisition **#3**: YouTube → Lidarr (Newznab + SABnzbd emulation, yt-dlp + PO-token sidecar), up to 320 kbps MP3/M4A/Opus; internal-only UI |
+| Slskd | slskd | I | 60–140 / 250 | Soulseek P2P daemon (slskd/slskd, HD-362) — **gluetun WireGuard sidecar, VPN-locked egress**, acquisition **#2**; no inbound port → fetch-only peer (search + download, no upload credit); own login/token |
+| Tube Archivist | tube | I | 300–700 / 1200 | Personal YouTube (bbilly1/tubearchivist + ES + redis, HD-362) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · **new `tube` subdir on nas `bulk/media`** · needs `vm.max_map_count` |
 | Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (scheduled, no UI) |
 
 ## Storage & Import (Media / *arr)
@@ -76,8 +77,8 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 | Seerr | `seerr.` | Jellyfin login | family request portal (movies/TV) |
 | SeerrNG | `seerrng.` | Jellyfin login | Seerr fork + music (snapetech/seerrng); alongside Seerr |
 | Aurral | `aurral.` | own login | discovery + Lidarr requests (Last.fm / ListenBrainz history, free) — internal-only |
-| Orpheusdl | — (teacher CLI) | config-file (no UI) | manageable only in the compose config; no sub in scope |
-| Slskd | `slskd.` | own login/token | Soulseek P2P — gluetun sidecar, VPN-locked egress |
+| Lidarr-URL-DL | `url-dl.` | own login | YouTube → Lidarr download client (Angrido) — #3 priority |
+| Slskd | `slskd.` | own login/token | Soulseek P2P — gluetun sidecar, VPN-locked egress, #2 priority |
 | Tube Archivist | `tube.` | own login | personal YouTube — internal-only; headless yt-dlp |
 | Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr | `<name>.` | built-in Forms auth (home edge) | linuxserver images; API keys for integration |
 | Sabnzbd/Qbittorrent | `sab.`/`torrent.` | built-in Forms auth | downloads (qbitorrent through gluetun) |
@@ -106,12 +107,14 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 
 - **Acquisition chain (ALL on oldsrv):**
   - **Lidarr** (existing) → manages the FLAC library in `bulk/media/music` (nas) — copy-import to the
-    Box per HD-354; **sees usenet (SABnzbd) as first priority + qBittorrent fallback.**
-  - **orpheusdl** — paid-Qobuz-Tier FLAC downloader (Firehawk52-style config): presently **no Qobuz/Deezer/Tidal
-    sub in scope** (owner has YouTube Music) → dockered, **manual-import path** only (no Lidarr automation yet).
+    Box per HD-354; **sees usenet (SABnzbd) as priority #1, then Soulseek (slskd, #2), then YouTube
+    (lidarr-ydl, #3)** (owner ladder, 2026-09-14).
+  - **orpheusdl** — manual LAPTOP pip tool (no container; owner runs it on demand for paid-source
+    FLAC. NOT in IaC — the automated ladder covers it).
   - **slskd** — Soulseek P2P daemon (Soulseek account, free): **gluetun WireGuard sidecar** (same tunnel as
     qBittorrent), **no inbound port → fetch-only** (search + download; no upload credit). Router rate-limit
-    **10 MB/s per P2P service** (both slskd + torrent, owner decision).
+    **10 MB/s per P2P service** (both slskd + torrent, owner decision). Acquisition **#2**.
+  - **lidarr-ydl** — Lidarr-YouTube-Downloader (Angrido): YouTube search → Lidarr import, **#3**.
   - **Murglar** — stays a **manual device app** (Android/Desktop; it is a client with **no API**, per
     `Music stack.md` it's removed from the chain — it just downloads to the phone, never auto-triggers).
   - **Aurral** — **music discovery** companion (lklynet/aurral, free): **Last.fm / ListenBrainz** login history
@@ -125,8 +128,9 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 - **Storage:** Tube Archive lives in a **new `bulk/media/tube` subdir** on nas (same `bulk/media` dataset
   so TRaSH-style hardlink compose stays valid). Music files stay in `bulk/media/music` (existing).
 - *****arr ←? downloader wiring:***** Prowlarr (existing) points at SABnzbd + qBittorrent for Lidarr;
-  slskd + orpheusdl are **standalone** (no Prowlarr indexer). SeerrNG stays the music-request UI on top of
-  the same Lidarr (HD-353).
+  slskd + lidarr-ydl are **standalone download clients** (slskd has no indexer; lidarr-ydl registers as
+  a Newznab indexer + SABnzbd emulating client inside Lidarr). SeerrNG stays the music-request UI on top
+  of the same Lidarr (HD-353).
 
 ## Related
 - [Downloads stack](services-downloads.md) — SABnzbd / qBittorrent / gluetun ingress

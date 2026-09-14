@@ -2,22 +2,27 @@
 #   "Own YouTube": headless yt-dlp wrapper that downloads channels/playlists/single
 #   videos (incl. subtitles + comments) on a schedule — NO Google account needed.
 #   https://github.com/tubearchivist/tubearchivist
-#   docs: docs/services-media.md §Music Pillar (video pillar)
 #
-#   PLACEMENT: OLDSRV, INTERNAL-ONLY. Headless yt-dlp bundled in the image (no
-#   separate yt-dlp container). A Jellyfin plugin (TubeArchivist) can then serve the
-#   archive inside Jellyfin's TV UI — the archive dir is added as a Jellyfin library
-#   later (owner step) — keys tube_archivist_api / tube_archivist_ui exist for that.
+#   OFFICIAL DEPLOY SHAPE (docs.tubearchivist.com/installation/docker-compose):
+#   THREE containers — app + ElasticSearch (index) + Redis (queue/cache). The app
+#   image is bbilly1/tubearchivist (Docker Hub), ES = bbilly1/tubearchivist-es
+#   (recommended), Redis = official redis. Stores metadata in ES, queues in Redis.
 #
-#   STORAGE: downloads live in a NEW `bulk/media/tube` subdir on nas — inside the
-#   SAME `bulk/media` dataset so TRaSH-style hardlink import stays valid (hardlinks
-#   can't cross dataset boundaries; owner decision 2026-09-14).
+#   PLACEMENT: OLDSRV, INTERNAL-ONLY. UI narrow-bound to the oldsrv Home-IP :8000
+#   (homelable precedent). Requires HOST sysctl vm.max_map_count=262144 for ES
+#   (set by the docker_services role — see roles/docker_services/tasks/main.yml).
 #
-#   AUTH: own browser login (internal edge; no Forward-Auth). FAIL-CLOSED secrets.
-#   VERSION PIN: {{ tube_archivist_version }} — unverified placeholder (versions.yml).
+#   STORAGE: downloads in a NEW `bulk/media/tube` subdir on nas (SAME bulk/media
+#   dataset — hardlink-import stays valid; owner decision 2026-09-14).
+#
+#   AUTH: own browser login at first run (internal edge; no Forward-Auth). All vault
+#   lookups fail-closed; escape '$' (HD-270). Jellyfin plugin keys optional later.
+#
+#   VERSION PINS: app {{ tube_archivist_version }}, ES {{ tube_archivist_es_version }},
+#   redis 7-alpine (registry-verified 2026-09-14). ES/Redis carry no secrets.
 services:
   tube-archivist:
-    image: ghcr.io/tubearchivist/tubearchivist:{{ tube_archivist_version }}
+    image: bbilly1/tubearchivist:{{ tube_archivist_version }}
     restart: unless-stopped
     container_name: tube-archivist
     cap_drop:
@@ -27,20 +32,59 @@ services:
     networks:
       - traefik-public
       - services-internal
+    ports:
+      # Web UI — internal-only narrow-bind on oldsrv Home-IP (homelable precedent).
+      - "{{ oldsrv_home_ip }}:8000:8000"
+    depends_on:
+      - archivist-es
+      - archivist-redis
     environment:
-      # Web-UI login + Jellyfin-plugin API token (article-id / token).
+      # Required env vars (upstream compose).
+      ES_URL: "http://archivist-es:9200"
+      REDIS_CON: "redis://archivist-redis:6379"
+      HOST_UID: "{{ storage_uid }}"
+      HOST_GID: "{{ storage_gid }}"
+      TA_HOST: "http://tube.kogler.si"     # hostname (internal-only)
       TA_USERNAME: "{{ vault['tube_archivist_login'].username | replace('$','$$') }}"
       TA_PASSWORD: "{{ vault['tube_archivist_login'].credential | replace('$','$$') }}"
-      TA_TOKEN: "{{ vault['tube_archivist_ui'].credential | replace('$','$$') }}"   # UI/API token (Jellyfin plugin)
-      # Jellyfin plugin API key (separate; can be the same token).
-      TA_TOKEN_API: "{{ vault['tube_archivist_api'].credential | replace('$','$$') }}"
-      ELASTIC_APM_DISABLED: "true"     # no APM server — disable telemetry by default
+      # Jellyfin plugin API token (optional; if the plugin is used later).
+      TA_TOKEN: "{{ vault['tube_archivist_ui'].credential | default('') | replace('$','$$') }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-    # INTERNAL-ONLY (public: false / HD-331/332): served by traefik-internal routes.yml
-    # (file-provider) — no docker-provider router, no public certresolver label.
     volumes:
-      - /srv/docker/tube-archivist/data:/data         # app state + yt-dlp cache
-      - /mnt/nas/media/tube:/youtube:rw               # NEW `bulk/media/tube` subdir (media library)
+      - /srv/docker/tube-archivist/cache:/cache        # persistent artwork/cache
+      - /mnt/nas/media/tube:/youtube:rw                # NEW `bulk/media/tube` subdir (media library)
+
+  archivist-es:
+    image: bbilly1/tubearchivist-es:{{ tube_archivist_es_version }}
+    restart: unless-stopped
+    container_name: archivist-es
+    cap_drop:
+      - ALL
+    cap_add:
+      - IPC_LOCK        # ES memory locking requirement (mlockall)
+    tmpfs:
+      - /tmp
+    networks:
+      - services-internal
+    environment:
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"    # keep ES heap modest on oldsrv (48 GB RAM)
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    volumes:
+      - /srv/docker/tube-archivist/es:/usr/share/elasticsearch/data   # ES index (kopia scope)
+
+  archivist-redis:
+    image: redis:{{ tube_archivist_redis_version }}
+    restart: unless-stopped
+    container_name: archivist-redis
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    networks:
+      - services-internal
+    command: ["redis-server", "--appendonly", "yes"]   # persistence
+    volumes:
+      - /srv/docker/tube-archivist/redis:/data         # Redis AOF (kopia scope)
 networks:
   traefik-public:
     external: true

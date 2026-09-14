@@ -1190,11 +1190,11 @@ All of this runs on **oldsrv** only; streaming stays on the VPS (Navidrome, HD-3
 | `lastfm_login` | Login | Last.fm username + API key (`username`+`credential`); owner-created 2026-09-14 |
 | `metabrainz_login` | Login | ListenBrainz token (`username`+`credential`); owner-created 2026-09-14 |
 | `tube_archivist_login` | Login | Tube Archivist web-UI login (`username`+`credential`) |
-| `tube_archivist_api` | API Credential | Tube Archivist API key (Jellyfin plugin access) |
-| `tube_archivist_ui` | API Credential | Tube Archivist UI token (Jellyfin plugin) |
+| `tube_archivist_ui` | API Credential | Tube Archivist UI/API token — OPTIONAL (only if the Jellyfin plugin is used later) |
+| `lidarr-url-dl_login` | Login | **Lidarr-YouTube-Downloader** web-UI login (`username`+`credential`) — entered in its Settings page at first run |
 | `lidarr_api` | API Credential | **Lidarr instance key** — read from the live Lidarr `config.xml` after first
   boot, or generate + set via `scripts/` (see [scripts/README.md](scripts/README.md) — the same
-  manual-value class as `sonarr_api`/`radarr_api`; NOT auto-rotatable) |
+  manual-value class as `sonarr_api`/`radarr_api`; NOT auto-rotatable). Used by Aurral AND lidarr-ydl |
 
 Run `bash scripts/check-vault-items.sh --strict` before converging — it lists exactly what's missing.
 
@@ -1204,9 +1204,10 @@ Run `bash scripts/check-vault-items.sh --strict` before converging — it lists 
 bash scripts/ansible-run.sh playbooks/home_servers.yml --tags docker_services
 ```
 
-This deploys `aurral`, `orpheusdl`, `slskd` (+ its `gluetun-slskd` sidecar) and
-`tube-archivist` — all internal-only; Traefik routes via the home-LAN `traefik-internal`
-edge (file-provider `routes.yml`), so no new public/cert labels are emitted.
+This deploys `aurral`, `slskd` (+ its `gluetun-slskd` sidecar), `lidarr-ydl` (+ its `bgutil-provider`
+sidecar) and `tube-archivist` (+ `archivist-es` + `archivist-redis`) — all internal-only, web UIs
+narrow-bound to the oldsrv Home-IP (homelable pattern; NO public route/cert labels). Also sets the
+`vm.max_map_count` sysctl needed by Elasticsearch and recreates the tube-archivist storage dir.
 
 ### P3.3 Post-converge wiring (owner verifies)
 
@@ -1214,23 +1215,26 @@ edge (file-provider `routes.yml`), so no new public/cert labels are emitted.
    already exports `LIDARR_URL` + `lidarr_api`). Verify Aurral renders recommendations + can
    submit an add request. (Compose emits the connection; the in-UI wiring is a one-time
    owner step, mirroring HD-358's `Seerr → *arr link`.)
-2. **slskd → Lidarr** — in Lidarr, add Soulseek as a **manual download client** pointing at
-   the slskd web UI; verify a rare-FLAC search → download lands in
-   `bulk/media/downloads/complete/music` → Lidarr imports → `bulk/media/music` → Box refresh
-   (Navidrome, HD-354).
-3. **orpheusdl** — drop the **Firehawk52-style config.json** into `/srv/docker/orpheusdl/config`
-   (owner step; no sub in scope today); verify one manual import to `bulk/media/music`.
-4. **Tube Archivist** — first login (`tube.`), add channels/playlists; the archive dir is the
-   new `bulk/media/tube` nas subdir. Later: add it as a Jellyfin library via the
-   TubeArchivist plugin (`tube_archivist_api`/`tube_archivist_ui` keys).
+2. **slskd → Lidarr** — in Lidarr, add Soulseek as a **download client/#2**. Verify a rare-FLAC
+   search → download lands in `bulk/media/downloads/complete/music` → Lidarr imports →
+   `bulk/media/music` → Box refresh (Navidrome, HD-354).
+3. **lidarr-ydl → Lidarr** — first UI login, then in Lidarr register it as the Newznab indexer +
+   SABnzbd-emulating download client (its web UI Settings page explains the wiring). Verify a
+   YouTube-sourced album lands in `downloads/complete/music` → Lidarr imports (priority #3).
+4. **Tube Archivist** — first login (`http://<oldsrv-home-ip>:8000` — narrow-bind; NO subdomain),
+   add channels/playlists; the archive dir is the new `bulk/media/tube` nas subdir. Later: add it
+   as a Jellyfin library via the TubeArchivist plugin (`tube_archivist_api`/`tube_archivist_ui`
+   keys).
 5. **Router (owner):** rate-limit each P2P service to **10 MB/s** (slskd `50300`, qBittorrent)
    and open the **LAN-side inbound port** for slskd on the egress VLAN
    ([docs/network-ops.md](docs/network-ops.md) §QoS / firewall). SABnzbd stays plain LAN.
 
 ### P3.4 Verify
 
-- `docker ps` on oldsrv: `aurral`, `orpheusdl`, `slskd`, `gluetun-slskd`, `tube-archivist` all `Up`.
-- `http://<% oldsrv_home_ip %>:5030` (slskd UI) + `slskd.kogler.si` route both answer.
+- `docker ps` on oldsrv: `aurral`, `slskd`, `gluetun-slskd`, `lidarr-ydl`, `bgutil-provider`, `tube-archivist`,
+  `archivist-es`, `archivist-redis` all `Up`.
+- `http://<% oldsrv_home_ip %>:5030` (slskd UI), `<oldsrv_home_ip>:5005` (lidarr-ydl UI),
+  `<oldsrv_home_ip>:8000` (tube-archivist UI) all answer (narrow-bind).
 - Aurral recommendations render; Tube Archivist subs pull episodes on schedule.
 - `bash scripts/validate-all.sh` green (unchanged by deploy; run after any repo change).
 

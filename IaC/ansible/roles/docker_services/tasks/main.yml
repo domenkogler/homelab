@@ -291,6 +291,19 @@
     - "'traefik-internal' in (docker_services | map(attribute='name') | list)"
   tags: [docker_services, hd17]
 
+# HD-362: Tube Archivist's Elasticsearch REQUIRES vm.max_map_count=262144 (ES
+# startup fails with `max virtual memory areas vm.max_map_count [65530] is too low`
+# otherwise). Set on oldsrv where tube-archivist runs (same sysctl.d file as above).
+- name: Enable vm.max_map_count (ES for Tube Archivist, HD-362)
+  ansible.builtin.sysctl:
+    name: vm.max_map_count
+    value: '262144'
+    sysctl_file: /etc/sysctl.d/60-ha-edge.conf
+    reload: true
+  when:
+    - "'tube-archivist' in (docker_services | map(attribute='name') | list)"
+  tags: [docker_services, hd362]
+
 - name: Traefik cert-pull consumer wiring (non-issuer hosts)
   when:
     - scope_is_all

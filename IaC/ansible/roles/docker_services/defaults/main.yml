@@ -136,10 +136,10 @@ _template_vault_items:
   victoria-metrics: {'victoria-metrics_api'}   # Victoria* basic auth (HD-341/342), HYPHENATED <service>_<type>
   victoria-logs: {'victoria-logs_api'}         # Victoria* basic auth (HD-341/342)
   qbittorrent: {'privado-vpn_api'}
-  aurral: {'lidarr_api', 'lastfm_login', 'metabrainz_login'}   # HD-362 — Lidarr API + discovery-history accounts (free)
-  orpheusdl: {'lidarr_api'}   # HD-362 — same Lidarr instance key (orphéusdl config reads it optionally)
-  slskd: {'slskd_login', 'soulseek_api'}   # HD-362 — Soulseek network login + slskd UI/API token
-  tube-archivist: {'tube_archivist_login', 'tube_archivist_api', 'tube_archivist_ui'}   # HD-362 — login + Jellyfin-plugin keys
+  aurral: set()   # HD-362 — Aurral config is all IN-UI (Lidarr API, Last.fm, ListenBrainz entered in its first-run setup); no 1P items needed for the compose. lastfm_login/metabrainz_login stay as owner-reference items + docs rows.
+  lidarr-ydl: {'lidarr_api'}   # HD-362 — Lidarr API key (compose). Web-UI login in the item registry for the owner's reference (lidarr-url-dl_login), not fetched/required by compose.
+  slskd: {'slskd_login', 'soulseek_api', 'privado-vpn_api'}   # HD-362 — Soulseek login + slskd UI token + VPN client key (gluetun sidecar)
+  tube-archivist: {'tube_archivist_login', 'tube_archivist_ui'}   # HD-362 — login + UI/API token (ES/Redis carry no secrets); `tube_archivist_api` stays DOCS-ONLY for the future Jellyfin plugin (not fetched)
   recyclarr: {'sonarr_api', 'radarr_api'}
   renovate: {'forgejo_api'}
   signal-cli-rest-api: {'signal-internal_api', 'signal_api'}
