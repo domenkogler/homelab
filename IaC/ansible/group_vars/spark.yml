@@ -10,6 +10,10 @@ docker_services:
   # (B1 baseline, spark/BENCHMARK-PLAN.md). Deploy-gated: flip `enabled: true` once the
   # node is provisioned + partition done + weights downloaded.
   - { name: spark-ai, template_dir: spark-ai, public: false, enabled: false }
+  # NVIDIA DGX Dashboard LAN bridge — alpine/socat sidecar exposing the loopback-only
+  # dashboard (:11000) on spark's Home-VLAN IP (HD-364). No secrets (see compose header).
+  # Public = internal-only (never a public edge record); enabled = dashboard on the LAN.
+  - { name: dgx-dashboard, template_dir: dgx-dashboard, public: false, enabled: true }
 
 # ==== Shared spark render-scope vars (used by the spark-ai compose template) ====
 # These MUST live here (group_vars/spark.yml) — the docker_services render scope is
@@ -19,6 +23,16 @@ spark_xfs_mount: /mnt/spark_nvme
 spark_models_dir: "{{ spark_xfs_mount }}/models"     # weights on XFS, never EXT4 (1TB layout, HD-359)
 spark_overlays_dir: "{{ spark_xfs_mount }}/overlays" # PLE overlay patches
 spark_router_publish: false        # flip to publish :8080 on the Home-VLAN IP post-bench (LAN clients)
+
+# Spark headless mode (HD-364) — TRUE = enforce the headless operating contract:
+#   * mask sleep/suspend/hibernate/hybrid-sleep (DGX Spark idles into suspend, which
+#     kills the NIC — live L2 blackout 2026-09-14, deployment-manual.md §5.2; the old
+#     runbook step is now IO via the spark role)
+#   * set default.target = multi-user (no graphical login — GDM/desktop are pulled in
+#     only when this is false); the `dgx-dashboard` socat bridge keeps the loopback
+#     dashboard reachable on the LAN without a desktop
+# FALSE = plain workstation (leave DGX OS graphical default + sleep targets as shipped).
+spark_headless: true
 
 # vLLM (B1 proven — spark/BENCHMARK-PLAN.md §1)
 spark_vllm_container: vllm-qwen-spark

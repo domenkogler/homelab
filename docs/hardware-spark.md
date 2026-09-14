@@ -16,6 +16,8 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > **Status: 🟢 PROVISIONED + LIVE (2026-09-14).** DGX OS first-boot wizard completed (see `deployment-manual.md` §Phase 5): English / Europe/Ljubljana, admin → 1P `spark_login`, analytics disabled, updates + reboot; auto-suspend masked after the post-update L2 blackout (headless suspend kills the NIC — power-cycle recovered). GPU verified: GB10, driver 580.173.02, CUDA 13.0, 121 Gi unified, NVMe p1 EFI + p2 root (see HD-363: p3 = AI data XFS carve). First-contact bootstrap done (key-only `ansible-admin`, sshd hardening, 2 keys) + `spark.yml` converge **failed=0** (ok=53): common/network/docker/spark/monitoring; **p3 = 503.4G XFS at `/mnt/spark_nvme`** (fstab-durable, dirs `kv_cache/models/overlays/ples_int4/triton_cache/vllm_cache`); docker role now Ubuntu-noble-aware; XFS mount-opts corrected (nobarrier → removed). Spark is a first-class IaC host alongside nas/oldsrv/vps/pi.
 > ⏳ deploy-gated on the AI stack (`spark-ai.enabled: true` after bench S1–S5 on the live box → ~155 GB model download on XFS → vLLM + llm-d router live → promote winner).
 
+> **Headless + dashboard (HD-364, 2026-09-14):** the sleep-mask + multi-user default.target are now enforced **from IaC** (`spark_headless: true` in `host_vars/spark.kogler.si.yml` / `group_vars/spark.yml`; role `roles/spark` masks `sleep/suspend/hibernate/hybrid-sleep` + `systemctl set-default multi-user.target`). The NVIDIA **DGX Dashboard** (loopback-only, `dgx-dashboard.service` :11000) is exposed on the LAN via a tiny socat bridge — registry service `dgx-dashboard` (alpine/socat, host-net, listens `{{ spark_home_ip }}:11000` → `127.0.0.1:11000`; digest-pinned `socat_version`). Reach it at `http://spark.kogler.si:11000` (Home VLAN) with a local user login. Details: §Remote management.
+
 ---
 
 ## What replaced the old Phase 2
@@ -154,6 +156,17 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
 ## Remote management
 
 - Headless by design: no display, no local desktop. Managed over the LAN (SSH/Ansible) + the mgmt plane.
+- **Headless contract (HD-364, IaC-enforced):** the `spark` role masks `sleep/suspend/hibernate/
+  hybrid-sleep.target` + sets `default.target = multi-user` whenever `spark_headless: true`
+  (host_vars/group_vars default; set false on a desktop-style DGX box to leave GDM + sleep as shipped).
+  The old one-time MANDATORY manual step (deployment-manual.md §5.2) is now idempotent IO.
+- **DGX Dashboard on the LAN (HD-364):** NVIDIA ships the dashboard bound to loopback only (no
+  bind flag; remote access officially = SSH tunnel / NVIDIA Sync). The `dgx-dashboard` socat
+  sidecar (alpine/socat, host-net, digest-pinned) publishes `spark_home_ip:11000 → 127.0.0.1:11000`
+  = dashboard reachable at `http://spark.kogler.si:11000` on the Home VLAN with a local-user login
+  (the dashboard's own auth sits in front; never 0.0.0.0 — Home-VLAN-only, no public record;
+  its Software-Update flow still requires the SSH-tunnel path). Disable by setting the registry
+  entry `enabled: false`.
 - **GB10 bring-up reference:** [`martimramos/dgx-spark-ml-guide`](https://github.com/martimramos/dgx-spark-ml-guide) —
   PyTorch-nightly (sm_121), no ARM64 wheels, CPU/Python gotchas; run ML **container-native** (Docker
   isolates CUDA/Python — the guide's own recommended path).

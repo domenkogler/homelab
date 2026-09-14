@@ -34,6 +34,22 @@ spark_disk_headroom_gb: 180
 # without further prompting (partition already exists → mount-only).
 spark_partition_enable: false
 
+# Headless operating contract (HD-364): TRUE = enforce sleep-target masks + multi-user
+# default.target on this node (DGX Spark ships graphical.target + unmasked sleep targets —
+# an idle headless box suspends and kills the NIC; L2 blackout 2026-09-14). The mask was a
+# one-time MANUAL step in deployment-manual.md §5.2 before; now it is idempotent IO via the
+# spark role, gated so a desktop-style DGX box can opt out (then set also the same contract
+# in host_vars/spark.kogler.si.yml). See group_vars/spark.yml `spark_headless` doc.
+spark_headless: true
+
+# Sleep targets masked when headless (systemd target names, one per entry). Explicit list
+# vs glob: fail-loud if a future DGX OS renames one (never silently skip a mask).
+spark_headless_sleep_targets:
+  - sleep.target
+  - suspend.target
+  - hibernate.target
+  - hybrid-sleep.target
+
 xfs:
   device: "{{ spark_nvme_data_partition }}"
   mount_point: "{{ spark_xfs_mount }}"
