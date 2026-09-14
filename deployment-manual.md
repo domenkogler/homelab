@@ -1233,7 +1233,7 @@ ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark.kogler.si -e
 
 ```bash
 ssh spark 'sysctl net.ipv4.ip_nonlocal_bind'   # must print 1 (role-owned)
-ssh spark 'grep -E "ping|api.insecure|healthcheck|rule:" /opt/spark-dashboard/docker-compose.yml /opt/spark-dashboard/dynamic/routes.yml'  # --ping + --api.insecure + CMD traefik healthcheck --ping + Host(spark.kogler.si)
+ssh spark 'grep -E "ping|healthcheck|rule:" /opt/spark-dashboard/docker-compose.yml /opt/spark-dashboard/dynamic/routes.yml'  # --ping + CMD traefik healthcheck --ping + Host(spark.kogler.si); NO --api.insecure (dropped once verified, close-out 2026-09-15)
 ssh spark 'cd /opt/spark-dashboard && sudo docker compose up -d'   # re-render from latest template
 curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://spark.kogler.si:11000/   # MUST be 200 (use the NAME, not the IP)
 ssh spark 'docker exec traefik-spark traefik healthcheck --ping'   # "OK: http://:8080/ping", exit 0; container shows healthy
