@@ -14,12 +14,12 @@
 [connection]
 id={{ nm_pi_mgmt_connection_id }}
 type=vlan
-interface-name=eth0.99
+interface-name={{ nm_parent_iface }}.{{ nm_pi_mgmt_vlan_id }}
 autoconnect=true
 
 [vlan]
 id=99
-parent=eth0
+parent={{ nm_parent_iface }}
 flags=1
 
 [ipv4]

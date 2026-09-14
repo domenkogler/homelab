@@ -12,16 +12,34 @@ nm_keyfile_dir: /etc/NetworkManager/system-connections
 # Pi (RPi OS) static dual-home via NetworkManager — enabled on pi.kogler.si only.
 # The feature is OFF for every host by default; the playbook/group_vars turns it on
 # where the host ships NetworkManager.
-nm_pi_profile: pi-eth0.nmconnection      # on-disk keyfile name (in nm_keyfile_dir)
-nm_pi_connection_id: pi-eth0             # the NM connection id (used by nmcli)
-
-# Pi tagged-Mgmt sub-interface (eth0.99) — the tagged leg of dual-home (HD-311).
-# SSOT-derived: the Mgmt subnet comes from network_vlans (id 99), the route metric is
-# LOWER than the untagged Home connected route so the tagged leg wins for 10.10.99.x
-# (and the untagged parent no longer carries the Mgmt /24 at all).
-nm_pi_mgmt_profile: pi-mgmt.nmconnection      # on-disk keyfile name
-nm_pi_mgmt_connection_id: pi-mgmt             # the NM connection id (used by nmcli)
+# Per-host NM dual-home keyfile + connection ids (HD-367): spark reuses the SAME dual-home
+# path as pi but with its own NIC (enP7s7) + connection names, so it cannot reuse
+# pi-eth0/pi-mgmt. Pi = eth0 (HD-307/HD-311); spark = enP7s7 (HD-367).
+nm_pi_profile: "{{ 'spark-eth0.nmconnection' if inventory_hostname == 'spark.kogler.si' else 'pi-eth0.nmconnection' }}"
+nm_pi_connection_id: "{{ 'spark-eth0' if inventory_hostname == 'spark.kogler.si' else 'pi-eth0' }}"
 nm_pi_mgmt_vlan_id: 99                         # Mgmt VLAN id (must equal network_vlans id 99)
 nm_pi_mgmt_route_metric: 200                   # tagged leg priority (Home parent kernel route is metric 100)
 # nm_pi_mgmt_subnet is derived in the role defaults below from network_vlans (never a literal).
+nm_pi_mgmt_profile: "{{ 'spark-mgmt.nmconnection' if inventory_hostname == 'spark.kogler.si' else 'pi-mgmt.nmconnection' }}"
+nm_pi_mgmt_connection_id: "{{ 'spark-mgmt' if inventory_hostname == 'spark.kogler.si' else 'pi-mgmt' }}"
 nm_pi_mgmt_subnet: "{{ (network_vlans | selectattr('id', '==', nm_pi_mgmt_vlan_id) | map(attribute='subnet') | first) }}"
+
+# ---- Spark (DGX) NM dual-home (HD-367) ----
+# Spark is Ubuntu-noble + NetworkManager (live 2026-09-14: NM active, NIC enP7s7).
+# Same HD-311/HD-310 port model as the Pi: untagged Home (10) + Tagged Mgmt (99) on the
+# SAME physical NIC. Rendered by the Pi path (guard generalized below); the NIC name is
+# per-host (nm_parent_iface: spark = enP7s7, pi = eth0). SSOT-derives everything
+# (ansible_host/mgmt_ip + network_static_hosts); never literals.
+# Hosts that render the NM dual-home keyfiles (Pi via HD-307/HD-311, Spark via HD-367).
+# Each must define: nm_parent_iface (the physical NIC), ansible_host, mgmt_ip.
+network_nm_dualhome_hosts:
+  - pi.kogler.si
+  - spark.kogler.si
+
+# Physical NIC name per dual-home host (SSOT-derived, never literal).
+nm_parent_iface: "{{ 'enP7s7' if inventory_hostname == 'spark.kogler.si' else 'eth0' }}"
+# Home leg addressing: pi = manual static (ansible_host); spark = DHCP (10.10.1.40 via the
+# router static-lease, ClientIdentifier=mac so the reservation matches). HD-367.
+nm_home_dhcp: "{{ inventory_hostname == 'spark.kogler.si' }}"
+nm_home_dhcp_clientid: "{{ inventory_hostname == 'spark.kogler.si' }}"
+# The parent keyfile carries DHCP for spark (never a manual .40); pi stays manual.

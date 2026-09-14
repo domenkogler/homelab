@@ -9,7 +9,7 @@ docker_services:
   # The "most proven" Qwen3.8-Flash-Next config — AWQ W4A16 + PLE INT4 + MTP3 + llm-d router
   # (B1 baseline, spark/BENCHMARK-PLAN.md). Deploy-gated: flip `enabled: true` once the
   # node is provisioned + partition done + weights downloaded.
-  - { name: spark-ai, template_dir: spark-ai, public: false, enabled: false }
+  - { name: spark-ai, template_dir: spark-ai, public: false, enabled: false }  # ⏳ deploy-gated: S1 bench did NOT certify (HD-367 session) — engine crash-loop blocked on torchinductor cache; flip after fix
   # NVIDIA DGX Dashboard LAN bridge — alpine/socat sidecar exposing the loopback-only
   # dashboard (:11000) AND its integrated JupyterLab (admin user :11002, per
   # jupyterlab_ports.yaml) on spark's Home-VLAN IP (HD-364/HD-366). No secrets (compose
@@ -23,7 +23,7 @@ docker_services:
 spark_xfs_mount: /mnt/spark_nvme
 spark_models_dir: "{{ spark_xfs_mount }}/models"     # weights on XFS, never EXT4 (1TB layout, HD-359)
 spark_overlays_dir: "{{ spark_xfs_mount }}/overlays" # PLE overlay patches
-spark_router_publish: false        # flip to publish :8080 on the Home-VLAN IP post-bench (LAN clients)
+spark_router_publish: false        # flip to publish :8000 on the Home-VLAN IP post-bench (LAN clients)
 
 # ==== Spark GPU-inference artifact store (HD-359) ====
 # GENERIC, config-agnostic manifest: repo_id → XFS local_dir. The B1 AWQ+PLE
@@ -88,10 +88,10 @@ spark_vllm_spec_method: mtp
 spark_vllm_spec_tokens: 3
 spark_vllm_spec_disable_by_batch_size: 6
 
-# llm-d router
-spark_llm_router_container: llm-d-router
-spark_llm_router_max_concurrent_sessions: 3
-spark_llm_router_strategy: fifo
+# llm-d router REMOVED (HD-367 2026-09-14): the real llm-d project is a Kubernetes
+# inference-pool stack (endpoint-picker/disagg-sidecar route Envoy+K8s pools, not a
+# single-node :8080 gateway). LiteLLM (family) fronts the vLLM :8000 endpoint instead —
+# no local router container. group_vars/all/versions.yml pin was removed with it.
 
 # logging
 spark_logging_driver: json-file

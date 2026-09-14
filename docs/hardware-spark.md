@@ -15,7 +15,7 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 
 > **Status: 🟢 PROVISIONED + LIVE (2026-09-14).** DGX OS first-boot wizard completed (see `deployment-manual.md` §Phase 5): English / Europe/Ljubljana, admin → 1P `spark_login`, analytics disabled, updates + reboot; auto-suspend masked after the post-update L2 blackout (headless suspend kills the NIC — power-cycle recovered). GPU verified: GB10, driver 580.173.02, CUDA 13.0, 121 Gi unified, NVMe p1 EFI + p2 root (see HD-363: p3 = AI data XFS carve). First-contact bootstrap done (key-only `ansible-admin`, sshd hardening, 2 keys) + `spark.yml` converge **failed=0** (ok=53): common/network/docker/spark/monitoring; **p3 = 503.4G XFS at `/mnt/spark_nvme`** (fstab-durable, dirs `kv_cache/models/overlays/ples_int4/triton_cache/vllm_cache`); docker role now Ubuntu-noble-aware; XFS mount-opts corrected (nobarrier → removed). Spark is a first-class IaC host alongside nas/oldsrv/vps/pi.
 > **Artifact store (general, HD-359):** the `spark-artifacts` role (`roles/spark-artifacts/`) downloads the GPU-inference store onto XFS from a **config-agnostic manifest** (`spark_artifacts:` in `group_vars/spark.yml`): B1 weights (`wtdcode/Qwen3.8-Flash-Next-AWQ-W4A16` → `models/`), PLE overlay `.py` files, and INT4 tables (`primitive-ai/Qwen3.8-Flash-Next-PLE-quant` → `overlays/` + `ples_int4/`) — **one download per quant-artifact, shared by every engine profile** (vLLM B1 today; future NVFP4/SGLang repos = separate downloads by design). Idempotent per repo; runnable pre-bench via `--tags spark-artifacts`. **STAGED LIVE on the box 2026-09-14** (weights 169G + overlays 3×.py + tables 30G/129 files; 296G free) — the B1 engine (`spark-ai`) stays `enabled: false` until bench certifies a winner.
-> ⏳ deploy-gated on the AI stack (`spark-ai.enabled: true` after bench S1–S5 on the live box → ~155 GB model download on XFS → vLLM + llm-d router live → promote winner).
+> ⏳ deploy-gated on the AI stack (`spark-ai.enabled: true` after bench S1–S5 on the live box → vLLM live → promote winner). **2026-09-14 HD-367: llm-d REMOVED** — the real llm-d is a Kubernetes inference-pool stack (endpoint-picker/disagg-sidecar route Envoy+K8s pools), not a single-node gateway; LiteLLM is the router in front of vLLM :8000.
 
 > **Headless + dashboard (HD-364, 2026-09-14):** the sleep-mask + multi-user default.target are now enforced **from IaC** (`spark_headless: true` in `host_vars/spark.kogler.si.yml` / `group_vars/spark.yml`; role `roles/spark` masks `sleep/suspend/hibernate/hybrid-sleep` + `systemctl set-default multi-user.target`). The NVIDIA **DGX Dashboard** (loopback-only, `dgx-dashboard.service` :11000) AND its integrated **JupyterLab** (admin user :11002, per `jupyterlab_ports.yaml`) are exposed on the LAN via a tiny socat bridge — registry service `dgx-dashboard` (alpine/socat, host-net, listens `{{ spark_home_ip }}:11000` → `127.0.0.1:11000` + `:11002` → `127.0.0.1:11002`; digest-pinned `socat_version`). Reach them at `http://spark.kogler.si:11000` (Home VLAN) with a local user login; admin's JupyterLab = `http://spark.kogler.si:11002`. Details: §Remote management.
 
@@ -144,10 +144,12 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
 - Hostname **`spark.kogler.si`** — headless LAN GPU tier.
 - **Reserved statics (2026-09-14, SSOT `network_static_hosts`):** Home VLAN (SSH + inference endpoint)
   + Mgmt VLAN (management plane) — referenced via `spark_home_ip`/`spark_mgmt_ip`, never literal.
-  Actual MAC learned from the live lease at first boot 2026-09-14 (`38:A7:46:78:13:97`, Home VLAN
-  10 — dynamic lease `.106`); authored into `network_static_hosts` (VLAN-10 row). The mgmt row
-  stays MAC-less until the mgmt NIC is cabled. Router-side static flip to the reserved Home static
-  is an owner step (`deployment-manual.md` §5.4).
+  MAC learned from the live lease at first boot 2026-09-14 (Home VLAN 10); authored into
+  `network_static_hosts` (VLAN-10 row). **HD-367 (2026-09-14): the mgmt leg rides the SAME single
+  NIC (enP7s7) — Home untagged + Mgmt VLAN-99 tagged via NM dual-home** (the VLAN-99 SSOT row
+  carries the same MAC as VLAN-10; VLAN subinterfaces share the parent NIC MAC). The old "mgmt
+  NIC not cabled" note is OBSOLETE — there is NO second NIC. Router-side: the `dhcp-mgmt` static
+  for spark's mgmt IP renders in the converge template (standard `render-converge.yml`→/import).
 - Connects via **10 GbE** to the LAN (Home/Mgmt per the router port model); IP/reservation SSOT to be
   added to `network_static_hosts` at provision time (never hardcoded).
 - Exposes the Triton gRPC/HTTP endpoint on the `llm-backend` overlay (or a `triton-backend` net),

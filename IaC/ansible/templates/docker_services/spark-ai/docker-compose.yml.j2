@@ -1,17 +1,17 @@
 # spark-ai docker-compose.yml — Qwen3.8-Flash-Next proven inference on DGX Spark (GB10)
-#   The "most proven" config (B1 baseline, AWQ W4A16 + PLE INT4 + MTP3 + llm-d router).
+#   The "most proven" config (B1 baseline, AWQ W4A16 + PLE INT4 + MTP3).
 #   Folded from spark/ansible/roles/spark-ai/templates/docker-compose.yaml.j2 (reference),
 #   hardened to repo docker_services conventions (network isolation, security, vault).
 #
-#   Placement (HD-359/HD-337): spark.kogler.si — headless AI node. The engine binds
-#   `llm-backend` ONLY (LiteLLM-only reach, HD-59; same as ollama). The vLLM :8000 is NOT
-#   published on a host port — LiteLLM (VPS/oldsrv LAN instance) reaches it over the
-#   overlay/wg. Router :8080 optionally published on the Home-VLAN IP once LAN clients
-#   need it (flip `spark_router_publish`).
+#   Placement (HD-359/HD-337): spark.kogler.si — headless AI node. The vLLM :8000 is NOT
+#   published on a host port — LiteLLM (VPS/oldsrv LAN instance) fronts it (HD-367 decision:
+#   llm-d REMOVED — the real llm-d is a Kubernetes inference-pool stack, not a single-node
+#   queue gateway; LiteLLM is the router in front). `spark_router_publish` flips a Home-VLAN
+#   publish of :8000 for LAN clients once needed.
 #
-#   Secrets: NONE required by vLLM/router (models are public, no API keys) — so this
-#   template is intentionally OUT of the 1Password item map (_template_vault_items) and
-#   renders with zero vault lookups (like ollama).
+#   Secrets: NONE required by vLLM (models are public, no API keys) — so this template is
+#   intentionally OUT of the 1Password item map (_template_vault_items) and renders with
+#   zero vault lookups (like ollama).
 #
 #   Storage: weights + PLE tables + KV + compile caches all on the XFS data partition
 #   (roles/spark mounts /mnt/spark_nvme; spark_models_dir points there — never EXT4).
@@ -19,28 +19,28 @@
 #   Digest pin (R4, 2026-09-13): vllm/vllm-openai:qwen38-flash-next @
 #   sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8
 #   (multi-arch arm64+amd64; the arm64-cu130 manifest is the DGX Spark candidate).
-
 services:
   vllm-engine:
     image: "{{ spark_vllm_image }}"
     container_name: "{{ spark_vllm_container }}"
-    cap_add:
-      - SYS_PTRACE
-      - IPC_LOCK
-      - SYS_RESOURCE
-    security_opt:
-      - no-new-privileges:true
     cap_drop:
       - ALL
     cap_add:
       - SYS_PTRACE
       - IPC_LOCK
       - SYS_RESOURCE
+    security_opt:
+      - no-new-privileges:true
+
     read_only: true
     tmpfs:
       - /tmp
       - /var/run
-    entrypoint: ["numactl", "--cpunodebind=0", "--membind=0", "python3", "-m", "vllm.entrypoints.openai.api_server"]
+    # NOTE: no numactl --membind wrapper — the hardened container (cap_drop:ALL +
+    # no-new-privileges) blocks the membind syscall (get_mempolicy: Operation not
+    # permitted, crash-loop HD-367 2026-09-14). Single-NUMA GB10 makes membind a
+    # no-op anyway; vLLM binds tensor-parallel 1 to the one node implicitly.
+    entrypoint: ["python3", "-m", "vllm.entrypoints.openai.api_server"]
     environment:
       - CUDA_VISIBLE_DEVICES=0
       - VLLM_LOGGING_LEVEL={{ spark_vllm_log_level }}
@@ -99,7 +99,6 @@ services:
     restart: unless-stopped
     networks:
       - llm-backend
-      - spark-internal
     command:
       - --model
       - /model
@@ -136,37 +135,8 @@ services:
       - --speculative-config
       - '{"method": "{{ spark_vllm_spec_method }}", "num_speculative_tokens": {{ spark_vllm_spec_tokens }}, "disable_by_batch_size": {{ spark_vllm_spec_disable_by_batch_size }}}'
 
-  # llm-d Router — local gateway + queue manager (FIFO + flow control), :8080
-  llm-router:
-    image: "{{ spark_llm_router_image }}"
-    container_name: "{{ spark_llm_router_container }}"
-    cap_drop:
-      - ALL
-    read_only: true
-    tmpfs:
-      - /tmp
-    restart: unless-stopped
-{% if spark_router_publish | default(false) %}
-    ports:
-      - "{{ spark_home_ip }}:8080:8080"
-{% endif %}
-    depends_on:
-      vllm-engine:
-        condition: service_healthy
-    environment:
-      LLMD_BACKEND_URL: "http://vllm-engine:8000"   # overlay DNS (spark-internal)
-      LLMD_MAX_CONCURRENT_SESSIONS: "{{ spark_llm_router_max_concurrent_sessions }}"
-      LLMD_ROUTING_STRATEGY: "{{ spark_llm_router_strategy }}"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ready || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-    networks:
-      - spark-internal
+
 
 networks:
   llm-backend:
     external: true
-  spark-internal:
-    external: true   # dedicated per-service bridge: router ↔ engine only

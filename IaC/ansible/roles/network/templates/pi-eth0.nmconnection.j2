@@ -12,15 +12,25 @@
 [connection]
 id={{ nm_pi_connection_id }}
 type=ethernet
-interface-name=eth0
+interface-name={{ nm_parent_iface }}
 autoconnect=true
 
 [ipv4]
+{# pi: manual static; spark: DHCP (10.10.1.40 comes from the router static-lease, HD-367) #}
+{% if nm_home_dhcp | default(false) %}
+method=auto
+{% if nm_home_dhcp_clientid | default(false) %}
+dhcp-client-id=mac
+{% endif %}
+dns={{ bootstrap_dns_servers }};
+dns-search={{ domain_local }};
+{% else %}
 method=manual
 address1={{ ansible_host }}/24
 gateway={{ network_static_hosts | selectattr('name','equalto','router') | selectattr('vlan','equalto',10) | map(attribute='ip') | first }}
 dns={{ bootstrap_dns_servers }};
 dns-search={{ domain_local }};
+{% endif %}
 
 [ipv6]
 method=auto

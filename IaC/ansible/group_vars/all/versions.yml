@@ -218,7 +218,6 @@ homelable_version: "3.4.1"
 # Registry-verified 2026-09-13 (R4 digest): multi-arch arm64+amd64 manifest.
 # Renovate docker datasource would track the tag; the digest is the load-bearing pin.
 spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"
-spark_llm_router_image: "ghcr.io/llm-d/router:latest"   # llm-d — no strict tag; pinned by digest at bench-prep if needed
 
 # DGX Dashboard LAN bridge (HD-364) — alpine/socat image digest pin. Fluid tag vs
 # digest: socat upstream publishes no semver, only `latest` + date tags, so the tag

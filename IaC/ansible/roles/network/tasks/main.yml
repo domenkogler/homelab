@@ -43,10 +43,12 @@
     group: root
     mode: '0600'
   when:
-    - inventory_hostname == 'pi.kogler.si'
+    - inventory_hostname in network_nm_dualhome_hosts
     - ansible_facts['service_mgr'] == 'systemd'
     - mgmt_ip is defined
     - ansible_host is defined
+    - nm_parent_iface is defined
+    - nm_parent_iface | length > 0
   notify: reload NetworkManager
   tags: [network, nm-pi]
 
@@ -189,11 +191,13 @@
     group: root
     mode: '0600'
   when:
-    - inventory_hostname == 'pi.kogler.si'
+    - inventory_hostname in network_nm_dualhome_hosts
     - ansible_facts['service_mgr'] == 'systemd'
     - mgmt_ip is defined
     - ansible_host is defined
     - nm_pi_mgmt_subnet is string
+    - nm_parent_iface is defined
+    - nm_parent_iface | length > 0
   notify: reload NetworkManager
   tags: [network, nm-pi-mgmt]
 
@@ -202,7 +206,34 @@
 # A reload alone does not activate a NEW keyfile — NM must load it and bring eth0 up on it.
 # HD-311 note: the tagged Mgmt sub-interface (pi-mgmt) must be brought up AFTER the parent
 # (eth0) is up — NM brings child VLANs up with their parent, but a fresh keyfile needs one
-# explicit `up` to register. Parent first, then child (ordered below).
+# explicit `up` to register. For a NEWLY written keyfile (spark first converge), NM must also
+# `reload` its connection store before `up` resolves the id (HD-367 live hit 2026-09-14:
+# `nmcli connection up spark-eth0` → 'unknown connection'). Parent first, then child below.
+- name: Reload NM connection store after keyfile writes (new keyfiles need a reload)
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - connection
+      - reload
+  changed_when: false
+  when:
+    - inventory_hostname in network_nm_dualhome_hosts
+    - ansible_facts['service_mgr'] == 'systemd'
+  tags: [network, nm-pi]
+
+- name: Explicitly load NM keyfiles into the store (reload alone can miss fresh files)
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - connection
+      - load
+      - "{{ nm_keyfile_dir }}/{{ nm_pi_profile }}"
+      - "{{ nm_keyfile_dir }}/{{ nm_pi_mgmt_profile }}"
+  changed_when: false
+  when:
+    - inventory_hostname in network_nm_dualhome_hosts
+    - ansible_facts['service_mgr'] == 'systemd'
+  tags: [network, nm-pi]
 - name: Load + activate Pi eth0 NM connection (Home parent)
   ansible.builtin.command:
     argv:
@@ -215,10 +246,12 @@
   failed_when:
     - nm_pi_up.rc != 0
   when:
-    - inventory_hostname == 'pi.kogler.si'
+    - inventory_hostname in network_nm_dualhome_hosts
     - ansible_facts['service_mgr'] == 'systemd'
     - mgmt_ip is defined
     - ansible_host is defined
+    - nm_parent_iface is defined
+    - nm_parent_iface | length > 0
   tags: [network, nm-pi]
 
 # Also load + activate the tagged Mgmt sub-interface (pi-mgmt, eth0.99).
@@ -237,8 +270,10 @@
   failed_when:
     - nm_pi_mgmt_up.rc != 0
   when:
-    - inventory_hostname == 'pi.kogler.si'
+    - inventory_hostname in network_nm_dualhome_hosts
     - ansible_facts['service_mgr'] == 'systemd'
     - mgmt_ip is defined
     - ansible_host is defined
+    - nm_parent_iface is defined
+    - nm_parent_iface | length > 0
   tags: [network, nm-pi-mgmt]

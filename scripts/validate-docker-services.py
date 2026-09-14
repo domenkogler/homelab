@@ -53,11 +53,6 @@ ALLOWED_LATEST = {
     # develop/buildcache/sha256 — probe 2026-08-21); fluid by upstream design,
     # documented in the compose header + versions.yml comment.
     "profilarr",
-    # spark-ai: the llm-d router (ghcr.io/llm-d/router) ships `latest` only — NO semver
-    # upstream (verified 2026-09-14, R4 lane). The vLLM engine (spark_vllm_image) is
-    # digest-pinned; the router stays fluid by upstream design, MUST-pin comment in the
-    # compose header + versions.yml.
-    "spark-ai",
     # HD-362 music pillar (2026-09-14): tags REGISTRY-VERIFIED 2026-09-14 (aurral GHCR
     # v1.53.0 / slskd 0.26.0.x / tubearchivist v0.5.12). `lidarr-ydl` (Angrido) has only
     # `latest`/`beta` upstream → flux by design, MUST-pin note in versions.yml + compose.
