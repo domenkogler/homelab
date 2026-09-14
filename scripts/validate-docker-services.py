@@ -108,7 +108,7 @@ WEB_SERVICES = {
 }
 
 HOST_NET_SERVICES = {"traefik-ha", "traefik-internal"}   # traefik-internal: home-LAN edge on oldsrv (HD-350), host-net VIP+LAN-IP bound (same pattern as traefik-ha)
-HOST_NET_CONTAINERS = {"home-assistant-standby", "dgx-dashboard"}   # spark dgx-dashboard socat bridge (HD-364): host-net MUST reach 127.0.0.1:11000 (the DGX dashboard is loopback-only); single container
+HOST_NET_CONTAINERS = {"home-assistant-standby", "dgx-dashboard"}   # spark dgx-dashboard socat bridge (HD-364/HD-366): host-net MUST reach 127.0.0.1:11000 (DGX dashboard loopback-only) + 127.0.0.1:11002 (admin JupyterLab, on-demand); single container
 
 # Extra .j2 templates per service are NOT duplicated here any more (HD-189):
 # the SSOT is roles/docker_services/defaults/main.yml `_extra_templates` — the

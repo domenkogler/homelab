@@ -14,6 +14,18 @@
 #   local console — never 0.0.0.0, Home-VLAN-only, no public record (docs wiring:
 #   spark_home_ip from SSOT).
 #
+#   JUPYTERLAB (HD-366): the DGX Dashboard ships an INTEGRATED JupyterLab whose
+#   per-user ports live in /opt/nvidia/dgx-dashboard-service/jupyterlab_ports.yaml
+#   (nobody 11001 / admin 11002 / ansible-admin 11003...). NVIDIA's remote-access
+#   path is a second SSH tunnel per assigned port — the same loopback-only model.
+#   To mirror the dashboard bridge, the socat below ALSO listens on spark's
+#   Home-VLAN IP :11002 → 127.0.0.1:11002 (admin's assigned JupyterLab port).
+#   JupyterLab itself spawns ON DEMAND from the dashboard's JupyterLab panel (Start
+#   button); until then 127.0.0.1:11002 has no listener, so the relay idles. Only a
+#   user with shell access to spark can Start/Stop instances — the LAN publish
+#   exposes the session, never controls it. Add/change ports by appending more
+#   socat TCP4-LISTEN/TCP4-CONNECT pairs (one per user port, from the YAML).
+#
 #   NOTE ON ACCESS: this makes the dashboard REACHABLE on the LAN, but the dashboard
 #   cannot be updated/flashed from a remote browser (its "Software Update" flow
 #   intentionally falls back to the SSH-tunnel path — NVIDIA tracks that separately).
@@ -42,11 +54,19 @@ services:
     # (live hit 2026-09-14). Lifetime-persist probe: ran under `timeout` until signal,
     # cleaned up by `.. `; verified `TCP4-LISTEN:11000,bind=10.10.1.40,fork` stays up.
     command:
+      # 11000 — DGX Dashboard (loopback :11000 → Home-VLAN IP)
       - TCP4-LISTEN:11000,bind={{ spark_home_ip }},fork,reuseaddr,so-keepalive
       - TCP4-CONNECT:127.0.0.1:11000
+      # 11002 — JupyterLab, admin user (jupyterlab_ports.yaml; restarted by socat on
+      # next connection when the dashboard (re)spawns the lab, same as the dashboard).
+      - TCP4-LISTEN:11002,bind={{ spark_home_ip }},fork,reuseaddr,so-keepalive
+      - TCP4-CONNECT:127.0.0.1:11002
     # The dashboard 'Software Update' flow reboots/restarts dgx-dashboard.service; the
     # socat keeps RUNNING through it (just reconnects on the next connection).
     healthcheck:
+      # primary listener = the dashboard; the JupyterLab listener is on-demand (only
+      # exists while a lab is Running) so it is intentionally NOT part of the health
+      # probe — a stopped lab would otherwise mark the whole bridge unhealthy.
       test: ["CMD-SHELL", "nc -z 127.0.0.1 11000 || exit 1"]
       interval: 30s
       timeout: 5s

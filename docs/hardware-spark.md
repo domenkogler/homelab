@@ -17,7 +17,7 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > **Artifact store (general, HD-359):** the `spark-artifacts` role (`roles/spark-artifacts/`) downloads the GPU-inference store onto XFS from a **config-agnostic manifest** (`spark_artifacts:` in `group_vars/spark.yml`): B1 weights (`wtdcode/Qwen3.8-Flash-Next-AWQ-W4A16` → `models/`), PLE overlay `.py` files, and INT4 tables (`primitive-ai/Qwen3.8-Flash-Next-PLE-quant` → `overlays/` + `ples_int4/`) — **one download per quant-artifact, shared by every engine profile** (vLLM B1 today; future NVFP4/SGLang repos = separate downloads by design). Idempotent per repo; runnable pre-bench via `--tags spark-artifacts`. **STAGED LIVE on the box 2026-09-14** (weights 169G + overlays 3×.py + tables 30G/129 files; 296G free) — the B1 engine (`spark-ai`) stays `enabled: false` until bench certifies a winner.
 > ⏳ deploy-gated on the AI stack (`spark-ai.enabled: true` after bench S1–S5 on the live box → ~155 GB model download on XFS → vLLM + llm-d router live → promote winner).
 
-> **Headless + dashboard (HD-364, 2026-09-14):** the sleep-mask + multi-user default.target are now enforced **from IaC** (`spark_headless: true` in `host_vars/spark.kogler.si.yml` / `group_vars/spark.yml`; role `roles/spark` masks `sleep/suspend/hibernate/hybrid-sleep` + `systemctl set-default multi-user.target`). The NVIDIA **DGX Dashboard** (loopback-only, `dgx-dashboard.service` :11000) is exposed on the LAN via a tiny socat bridge — registry service `dgx-dashboard` (alpine/socat, host-net, listens `{{ spark_home_ip }}:11000` → `127.0.0.1:11000`; digest-pinned `socat_version`). Reach it at `http://spark.kogler.si:11000` (Home VLAN) with a local user login. Details: §Remote management.
+> **Headless + dashboard (HD-364, 2026-09-14):** the sleep-mask + multi-user default.target are now enforced **from IaC** (`spark_headless: true` in `host_vars/spark.kogler.si.yml` / `group_vars/spark.yml`; role `roles/spark` masks `sleep/suspend/hibernate/hybrid-sleep` + `systemctl set-default multi-user.target`). The NVIDIA **DGX Dashboard** (loopback-only, `dgx-dashboard.service` :11000) AND its integrated **JupyterLab** (admin user :11002, per `jupyterlab_ports.yaml`) are exposed on the LAN via a tiny socat bridge — registry service `dgx-dashboard` (alpine/socat, host-net, listens `{{ spark_home_ip }}:11000` → `127.0.0.1:11000` + `:11002` → `127.0.0.1:11002`; digest-pinned `socat_version`). Reach them at `http://spark.kogler.si:11000` (Home VLAN) with a local user login; admin's JupyterLab = `http://spark.kogler.si:11002`. Details: §Remote management.
 
 ---
 
@@ -168,6 +168,15 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
   (the dashboard's own auth sits in front; never 0.0.0.0 — Home-VLAN-only, no public record;
   its Software-Update flow still requires the SSH-tunnel path). Disable by setting the registry
   entry `enabled: false`.
+- **JupyterLab on the LAN (HD-366):** the dashboard ships an **integrated JupyterLab** whose per-user
+  ports are in `/opt/nvidia/dgx-dashboard-service/jupyterlab_ports.yaml` (nobody 11001 / **admin
+  11002** / ansible-admin 11003). NVIDIA's remote path is a second SSH tunnel per assigned port.
+  The same `dgx-dashboard` socat bridge now ALSO publishes `spark_home_ip:11002 → 127.0.0.1:11002`
+  (admin's port; more ports = more TCP4-LISTEN/TCP4-CONNECT pairs in the template). JupyterLab
+  spawns **on demand** from the dashboard's JupyterLab panel (Start) — until a lab is Running,
+  loopback:11002 has no listener and the relay idles (healthcheck stays on :11000 only). Once
+  Running, browse to `http://spark.kogler.si:11002` on the Home VLAN; auth is the dashboard's
+  local-user login in front of the same loopback policy as :11000.
 - **GB10 bring-up reference:** [`martimramos/dgx-spark-ml-guide`](https://github.com/martimramos/dgx-spark-ml-guide) —
   PyTorch-nightly (sm_121), no ARM64 wheels, CPU/Python gotchas; run ML **container-native** (Docker
   isolates CUDA/Python — the guide's own recommended path).

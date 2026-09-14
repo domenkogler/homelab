@@ -11,8 +11,9 @@ docker_services:
   # node is provisioned + partition done + weights downloaded.
   - { name: spark-ai, template_dir: spark-ai, public: false, enabled: false }
   # NVIDIA DGX Dashboard LAN bridge — alpine/socat sidecar exposing the loopback-only
-  # dashboard (:11000) on spark's Home-VLAN IP (HD-364). No secrets (see compose header).
-  # Public = internal-only (never a public edge record); enabled = dashboard on the LAN.
+  # dashboard (:11000) AND its integrated JupyterLab (admin user :11002, per
+  # jupyterlab_ports.yaml) on spark's Home-VLAN IP (HD-364/HD-366). No secrets (compose
+  # header). Public = internal-only (never a public edge record); enabled = bridge up.
   - { name: dgx-dashboard, template_dir: dgx-dashboard, public: false, enabled: true }
 
 # ==== Shared spark render-scope vars (used by the spark-ai compose template) ====
