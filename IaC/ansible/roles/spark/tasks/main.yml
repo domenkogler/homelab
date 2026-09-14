@@ -81,10 +81,22 @@
         fail_msg: "p3 already exists but blkid missed it — refuse, manual check needed"
       tags: [spark, disk]
 
-    - name: Create partition p3 = remainder (from first free sector to 100%)
+    - name: Compute p3 start = end of the LAST existing partition + 1 (sector row N:START:END:SIZE:...)
+      ansible.builtin.set_fact:
+        # parted -sm unit s print rows: "2:1050624s:944769023s:943718400s:ext4..." → END is field 3 (idx 2)
+        spark_p3_start_s: "{{ ((parted_unit.stdout_lines | select('match', '^[0-9]+:.*$') | last | split(':'))[2] | replace('s','') | int) + 1 }}"
+      changed_when: false
+      tags: [spark, disk]
+      when: spark_nvme_os_partition_end|default('') == ''
+
+    - name: Create partition p3 = remainder (start = end of last partition + 1, to 100%)
       ansible.builtin.command: >
         parted -s -- {{ spark_nvme_data_disk }} mkpart primary xfs
-        {{ spark_nvme_os_partition_end|default('') }} 100%
+        {{ spark_nvme_os_partition_end|default(spark_p3_start_s|string) }} 100%
+      register: mkpart
+      changed_when: true
+      failed_when: false       # parted exits non-zero on some disks when the FS probe is inconclusive
+      tags: [spark, disk]
       register: mkpart
       changed_when: true
       failed_when: false       # parted exits non-zero on some disks when the FS probe is inconclusive
