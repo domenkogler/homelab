@@ -77,12 +77,23 @@ spark_vllm_pytorch_cuda_alloc_conf: "max_split_size_mb:512"
 spark_vllm_shm_size: 32g
 spark_vllm_memlock: -1
 spark_vllm_stack: 67108864
-spark_vllm_memory_limit: 126G
+# Memory cage (HD-367 B1-on-GB10 memfit 2026-09-15): the container must NEVER be able to
+# claim the whole unified pool. 126G (old) sat ABOVE the 121.62 GiB coherent pool, so the
+# kernel global OOM fired on load and took nvidia-persistenced with it (the engine and the
+# GPU stack died together). 105G = weights/PLE/KV budget + a margin; a relapse now kills
+# ONLY this container, never the driver.
+spark_vllm_memory_limit: 105G
 # spark_vllm_quantization removed 2026-09-14: the staged B1 weights pack compressed-tensors
 # (config.json quant_method), so forcing --quantization awq mismatched and the engine died at
 # ModelConfig validation. vLLM reads the packed format from the model config when omitted.
 spark_vllm_max_num_seqs: 4
-spark_vllm_max_model_len: 173400
+# A-cal (2026-09-15, measured on box): pool = 121.62 GiB (MemTotal 127,532,360 kB).
+# B1-as-authored demanded ~113 GiB GPU reserve (0.93 util) + ~57 GiB CPU PLE mirror +
+# pinned buffers ≈ 170 GiB > pool → guaranteed global OOM at load. max_model_len 173400
+# forces a 1.06M-token KV pool on top of the 75.17 GiB weights — unaffordable. 65536 (64k)
+# is a realistic S1/S2 context that fits the shrunken KV; the plan's 262k+/512k profiles
+# become SGLang-on-NVFP4 targets (bench matrix D), not B1-on-GB10-with-PLE-CPU-offload.
+spark_vllm_max_model_len: 65536
 spark_vllm_max_num_batched_tokens: 16384
 # spark_vllm_swap_space removed 2026-09-14: this vLLM build (0.1.dev20073+g8e685d198)
 # DROPPED swap_space from EngineArgs — `--swap-space` is unrecognized and crashes the
@@ -90,7 +101,7 @@ spark_vllm_max_num_batched_tokens: 16384
 # now manages offload internally. See docs/hardware-spark.md for the bench note.
 #   swap_space: 4
 spark_vllm_kv_cache_dtype: "auto"
-spark_vllm_gpu_memory_utilization: 0.93   # 0.95 overflowed: w/ dashboard co-resident, free=114.76 < 115.54 (0.95×121.62). 0.93 → ≈113 GiB
+spark_vllm_gpu_memory_utilization: 0.70   # A-cal 2026-09-15: 0.93 → ~113 GiB GPU reserve (weights 75.17 + KV 32.5) LEFT the unified 121.62 GiB pool with no room for the CPU-side PLE table mirror (du: ~57G incl. nested) + pinned input buffers → NV_ERR_NO_MEMORY / global OOM. 0.70 → ~85 GiB GPU demand; with the PLE mirror + pinned outside that, the pool fits. KV pool shrinks to ~8-10 GiB → max_model_len 65536.
 spark_vllm_distributed_executor_backend: "mp"
 spark_vllm_enforce_eager: false
 spark_vllm_spec_method: mtp
