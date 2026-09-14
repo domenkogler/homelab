@@ -92,10 +92,6 @@ services:
       # image enables ES security and expects this as the 'elastic' password (HD-362).
       ELASTIC_PASSWORD: >-
         {{ vault['tube-archivist-es'].password | replace('$','$$') }}
-      # TA env-check demands snapshot support — without it the app restarts with
-      # 'path.repo env var not found' (live 2026-09-15). The snapshot path lives in the
-      # ES data dir (kopia-backed); the bbilly1/tubearchivist-es image reads this env.
-      path.repo: /usr/share/elasticsearch/data/snapshot
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       - /srv/docker/tube-archivist/es:/usr/share/elasticsearch/data   # ES index (kopia scope)
