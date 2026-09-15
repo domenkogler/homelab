@@ -11,7 +11,7 @@ tags: [services, downloads, usenet, torrents, vpn]
 > **Links to:** `services-media.md`, `storage.md`, `services-traefik.md`, `deployment-compose.md`
 > **Linked from:** `services.md`, `services-media.md`
 
-> 🟢 **LIVE 2026-09-08 (oldsrv Phase-3 converge)** — SABnzbd, qBittorrent (+ gluetun WireGuard sidecar) all Up + healthy on oldsrv; gluetun runs `custom` mode with the fixed PrivadoVPN endpoint (HD-318). **2026-09-15:** SABnzbd crash-looped after a converge recreated the container — `/srv/docker/sabnzbd/config` was root-owned (Docker auto-created) while the image runs PUID=1005 → “Cannot create INI file /config/sabnzbd.ini”. Fixed live (chown 1005) + IaC (`bind_owner_uid: 1005, bind_dirs: ['config']` on the sabnzbd entry, HD-318 Class-A pattern).
+> 🟢 **LIVE 2026-09-08 (oldsrv Phase-3 converge)** — SABnzbd, qBittorrent (+ gluetun WireGuard sidecar) all Up + healthy on oldsrv; gluetun runs `custom` mode with the fixed PrivadoVPN endpoint (HD-318). **2026-09-15:** SABnzbd crash-looped after a converge recreated the container — `/srv/docker/sabnzbd/config` was root-owned (Docker auto-created) while the image runs PUID=1005 → “Cannot create INI file /config/sabnzbd.ini”. Fixed live (chown 1005) + IaC (`bind_owner_uid: 1005, bind_dirs: ['config']` on the sabnzbd entry, HD-318 Class-A pattern). **Same-day systemic sweep:** the whole *arr stack (sonarr/radarr/lidarr/prowlarr/bazarr/qbittorrent/recyclarr/profilarr) had the same latent root-owned-config issue — a converge recreated their containers and they crash-looped at 100% CPU (bazarr `PermissionError: /config/config`, lidarr Sentry init crash). All config dirs chowned to 1005 + `bind_owner_uid: 1005, bind_dirs: ['config']` added to every entry (durable).
 
 ---
 
