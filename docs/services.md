@@ -32,7 +32,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 | [Finance](services-finance.md) | Actual Budget | detail |
 | [Traefik — Reverse Proxy & Edge](services-traefik.md) | Traefik | detail |
 | [Authentik — Identity & SSO](services-authentik.md) | Authentik | detail |
-| [Observability](observability.md) | Alloy, VictoriaMetrics, VictoriaLogs, Grafana, blackbox, Dozzle · **mcp-victoriametrics / mcp-victorialogs (HD-344, oldsrv, deploy-gated)** | — |
+| [Observability](observability.md) | Alloy, VictoriaMetrics, VictoriaLogs, Grafana, blackbox, Dozzle (VPS viewer `logs` + **LAN hub `llogs`** on oldsrv w/ pi+spark agents) · **mcp-victoriametrics / mcp-victorialogs (HD-344, oldsrv, deploy-gated)** | — |
 
 **Standalone (owned here, no stack doc):**
 - **Homepage** (family launchpad, `kogler.si` root + `home`) — public Forward-Auth; status widget. **Moved to the VPS** (HD-180; implemented **HD-183** ✅ 2026-08-21): the route is the compose's Docker-provider labels, live on the VPS edge; reachability is widget/probe-based (no Docker socket).
@@ -92,7 +92,7 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 
 > Note: `office` (ONLYOFFICE) and `git` (Forgejo) belong to `services-office.md` and `services-admin.md` resp. — subdomains shared here are cross-cutting.
 
-**Admin Dashboards decision:** Traefik Dashboard included, tailnet-only (`traefik.kogler.si` / `traefik.ts.kogler.si`, see `services-traefik.md` → **traefik-tailnet**); CrowdSec Web UI `csui.kogler.si` (HD-272, tailnet-only) — admin stack. **The five admin dashboards** (`stats` Grafana / `traefik` dashboard / `logs` Dozzle / `csui` CrowdSec-UI / `auto` n8n) are **tailnet-only** over the `traefik-tailnet` edge (HD-135b follow-up, 2026-08-28) — no public records, reached at `https://<app>.kogler.si` or `https://<app>.ts.kogler.si` on the tailnet. (Metabase `sec` was the sixth but is **retired 2026-09-14** — if revived it runs on oldsrv, not this edge.) **Portainer / Dockge — excluded** (single Ansible-templated compose model).
+**Admin Dashboards decision:** Traefik Dashboard included, tailnet-only (`traefik.kogler.si` / `traefik.ts.kogler.si`, see `services-traefik.md` → **traefik-tailnet**); CrowdSec Web UI `csui.kogler.si` (HD-272, tailnet-only) — admin stack. **The five admin dashboards** (`stats` Grafana / `traefik` dashboard / `logs` Dozzle / `csui` CrowdSec-UI / `auto` n8n) are **tailnet-only** over the `traefik-tailnet` edge (HD-135b follow-up, 2026-08-28) — no public records, reached at `https://<app>.kogler.si` or `https://<app>.ts.kogler.si` on the tailnet. **LAN log hub `llogs.kogler.si`** (Dozzle on oldsrv, shows oldsrv+pi+spark via remote agents) is **LAN-only** — served by the traefik-internal home edge (WAN-out survival), never the VPS/tailnet. (Metabase `sec` was the sixth but is **retired 2026-09-14** — if revived it runs on oldsrv, not this edge.) **Portainer / Dockge — excluded** (single Ansible-templated compose model).
 >
 > **Homelable** (HD-45) — the network/rack *topology* visualizer, on **oldsrv** and internal-only (no public record; it must sit on the LAN to scan it). Reached at `http://<oldsrv-home-ip>:3000` on the LAN (tailnet route = future tail, see [`services-admin.md`](services-admin.md) §Homelable). Not one of the tailnet-edge dashboards above — those run on the VPS; Homelable runs where the network is. Deployment spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable.
 

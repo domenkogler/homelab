@@ -61,6 +61,7 @@ The three Technitium instances serve the SAME primary zone but with **per-instan
 | Tailnet dashboards (`stats`, `logs`, `csui`, `traefik`, `auto`) | VPS tailnet sidecar IP | VPS tailnet sidecar IP (cluster constant) · ~~`sec`~~ removed 2026-09-14 (Metabase retired) |
 | `modem` | — (never seeded on VPS) | LAN-only (HD-302) |
 | `spark` | — (never seeded on VPS) | **spark LAN IP** (`spark_home_ip`) — headless GPU node, LAN-only, no public edge — serves the DGX Dashboard :11000 + admin JupyterLab :11002 on the Home VLAN (HD-364/365/366) |
+| `llogs` | — (never seeded on VPS) | **oldsrv LAN IP** (`oldsrv_home_ip`) — LAN log hub (Dozzle), LAN-only (2026-09-15, same rule as `modem`/`spark` — a LAN log viewer must never resolve from VPS/internet) |
 
 > **Why home-hosted names are per-instance:** the home-hosted apps run on **oldsrv** (host-net backends on `oldsrv_home_ip`). Pointing them at the VPS public IP on the home instances would make every LAN hit depend on WAN (HD-349 drill finding). The home edge (`traefik-internal`, [services-traefik.md](services-traefik.md) §Edge model) serves them from `oldsrv_home_ip`; the VPS primary keeps `dns_primary_ip` so WAN/tailnet reach the VPS first.
 

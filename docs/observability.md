@@ -21,7 +21,9 @@ tags: [observability, grafana, prometheus, monitoring]
 Alloy (host agent: metrics + logs + SNMP, has docker.sock)  ← the SINGLE scrape tier (topology B)
    ├─ remote_write ──▶ VictoriaMetrics (THE metrics store, 365d)
    └─ push ──────────▶ VictoriaLogs   (logs, 90d)
-Dozzle (read-only docker.sock) ─────▶ live per-container log tail (ops, no storage)
+Dozzle viewers (read-only docker.sock) ──▶ live per-container log tail (ops, no storage)
+   ├─ VPS viewer (logs.kogler.si, tailnet) — VPS containers
+   └─ OLDSRV HUB (llogs.kogler.si, :8081, LAN/internal edge) ──agents──▶ pi + spark containers
 Home Assistant (SWO-B + ComfoAir) ──HA exporter──▶ Alloy scrape ──▶ VictoriaMetrics
 MikroTik (SNMP, 5–15s poll) ─────────────────────────────▶ Alloy scrape ──▶ VictoriaMetrics
 blackbox_exporter (external reachability) ───────────────▶ Alloy scrape ──▶ VictoriaMetrics  (probe_success)
@@ -123,7 +125,7 @@ All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
 | UI | **Grafana** | Dashboards, `stats.kogler.si` (**internal**) | `traefik-public` **+** `db-internal` | — |
 | Router | **n8n** | Alert routing/dedup → Signal/email | `services-internal` | — |
 | Notify | **signal-cli** | Signal delivery (linked device) | `services-internal` (needs internet) | — |
-| Viewer | **Dozzle** | Live per-container log streaming for ALL containers (read-only `docker.sock`); tailnet-only `logs.kogler.si` / `logs.ts.kogler.si` via the `traefik-tailnet` edge; **viewer only — nothing stored** | `traefik-public` | — |
+| Viewer | **Dozzle** | Live per-container log streaming (read-only `docker.sock`); **two instances** — VPS (`logs.kogler.si`, tailnet via `traefik-tailnet`) + home LAN hub on oldsrv (`llogs.kogler.si`, :8081, via `traefik-internal`, pi/spark remote agents :7007); **viewer only — nothing stored** | `traefik-public` | — |
 
 ## Access & login path (stats.kogler.si)
 
@@ -139,6 +141,7 @@ compose):
 |-----|---------------|
 | Grafana (`stats`) | `https://stats.kogler.si` / `https://stats.ts.kogler.si` |
 | Dozzle (`logs`) | `https://logs.kogler.si` / `https://logs.ts.kogler.si` |
+| Dozzle home hub (`llogs`) | `https://llogs.kogler.si` (**LAN-only** — oldsrv `traefik-internal` edge, WAN-out survival; shows oldsrv + pi + spark containers) |
 | CrowdSec Web UI (`csui`) | `https://csui.kogler.si` / `https://csui.ts.kogler.si` |
 | ~~Metabase (`sec`)~~ | ~~`https://sec.kogler.si` / `https://sec.ts.kogler.si`~~ — **retired 2026-09-14** (VPS); future home = oldsrv |
 | Traefik dashboard (`traefik`) | `https://traefik.kogler.si` / `https://traefik.ts.kogler.si` |
@@ -176,7 +179,7 @@ update, or queries keep 401-ing despite correct rendered files.
 | ~~MinIO S3 store health/usage (Immich originals)~~ | ~~minio_exporter (on oldsrv) → Prometheus~~ — retired (HD-135, CIFS) | — |
 | Logs | Alloy → VictoriaLogs | VictoriaLogs (90d, Kopia) |
 | RouterOS logs (RB4011/switch/AP) | RFC5424 syslog → VPS rsyslog → CrowdSec/VictoriaLogs | VictoriaLogs (90d) (HD-313) |
-| Live logs (ops day-to-day tail) | Dozzle (read-only viewer, no storage) | ephemeral — nothing persisted |
+| Live logs (ops day-to-day tail) | Dozzle viewers — VPS `logs.kogler.si` (tailnet) + home hub `llogs.kogler.si` (LAN, oldsrv, pi/spark agents) | ephemeral — nothing persisted |
 | Alerts | Grafana Alerting → n8n → Signal/email | alert delivery |
 | Display | Grafana + Homepage | — |
 
@@ -232,8 +235,38 @@ update, or queries keep 401-ing despite correct rendered files.
 
 - **MikroTik SNMP:** poll at **5–15 s**; the "1s" in dashboards is a *refresh* interval, not a poll.
 - **Retention is deliberate:** 30d metrics / 14d logs. TSDB data is **regenerable and not backed up** (see [backup.md](backup.md)); long-term metric history is a deferred option (remote-write/downsampling).
-- **Placement (HD-135 + HD-135b):** the observability **backend** (Prometheus/Loki/Grafana) runs on the **VPS** (reliable tier). **HD-135b (2026-08-28): the VPS is self-sufficient for its own observability** — the VPS host runs its own **Alloy** (`[monitoring]` group, `alloy_backend_host` defaults to `127.0.0.1` → loopback Prometheus/Loki on the same host, no tunnel) and its own **Dozzle** live-log viewer (`logs.kogler.si`, moved from oldsrv). oldsrv/nas/Pi keep thin **Alloy collectors** forwarding *home* telemetry over the `wg-s2s` tunnel (nas's Alloy is host-exporter only — no Docker; it ships nas `node_*` and is still scraped for its nut/zfs exporters by oldsrv). **Dashboards are tailnet-only** (HD-135b follow-up) — no public exposure; access is over the headscale mesh via the **`traefik-tailnet` edge** (`stats`/`sec`/`traefik`/`logs`/`csui`/`auto`, clean subdomain URLs on 443 — see [Access & login path](#access--login-path-statskoglersi) below). **n8n (`auto`) is internal-only** (public route removed from the main edge; reached over the tailnet). The n8n alert brain is on the VPS and emails/Signals over the public net — independent of the tunnel. **SPOF (narrowed):** if the home↔VPS tunnel or the VPS itself is down, *home* metrics/logs are unavailable in Grafana (the nesting is graceful: buffered, replayed on reconnect; NUT-side `notifycmd`/`upssched-cmd` on nas is the grounds for power-loss alerts independent of the stack). The **VPS's own** metrics/logs remain available locally even with the tunnel down (loopback Alloy → local Prometheus/Loki → local grafana/dozzle).
+- **Placement (HD-135 + HD-135b):** the observability **backend** (Prometheus/Loki/Grafana) runs on the **VPS** (reliable tier). **HD-135b (2026-08-28): the VPS is self-sufficient for its own observability** — the VPS host runs its own **Alloy** (`[monitoring]` group, `alloy_backend_host` defaults to `127.0.0.1` → loopback Prometheus/Loki on the same host, no tunnel) and its own **Dozzle** live-log viewer (`logs.kogler.si`, moved from oldsrv). **2026-09-15: a second Dozzle hub runs on oldsrv (`llogs.kogler.si`, LAN-only) showing oldsrv + pi + spark containers via remote agents** (see §Dozzle multi-host below) — the VPS viewer and the home hub are independent (the hub survives WAN-out via the traefik-internal edge). oldsrv/nas/Pi keep thin **Alloy collectors** forwarding *home* telemetry over the `wg-s2s` tunnel (nas's Alloy is host-exporter only — no Docker; it ships nas `node_*` and is still scraped for its nut/zfs exporters by oldsrv). **Dashboards are tailnet-only** (HD-135b follow-up) — no public exposure; access is over the headscale mesh via the **`traefik-tailnet` edge** (`stats`/`sec`/`traefik`/`logs`/`csui`/`auto`, clean subdomain URLs on 443 — see [Access & login path](#access--login-path-statskoglersi) below). **n8n (`auto`) is internal-only** (public route removed from the main edge; reached over the tailnet). The n8n alert brain is on the VPS and emails/Signals over the public net — independent of the tunnel. **SPOF (narrowed):** if the home↔VPS tunnel or the VPS itself is down, *home* metrics/logs are unavailable in Grafana (the nesting is graceful: buffered, replayed on reconnect; NUT-side `notifycmd`/`upssched-cmd` on nas is the grounds for power-loss alerts independent of the stack). The **VPS's own** metrics/logs remain available locally even with the tunnel down (loopback Alloy → local Prometheus/Loki → local grafana/dozzle).
 - **Dozzle is not a second log backend** — it streams live logs straight from the Docker API (read-only socket) and persists nothing. VictoriaLogs stays the single stored-log source (90d) and Grafana the search/alert surface.
+
+### Dozzle multi-host (2026-09-15) — VPS viewer + LAN hub
+
+Owner design: the VPS keeps the VPS-only viewer (`logs.kogler.si`), and **oldsrv runs a LAN log HUB**
+(`llogs.kogler.si`, :8081) that shows oldsrv + pi + spark containers via **remote agents**
+(`DOZZLE_REMOTE_AGENT` over the Home VLAN). LAN logs stay **LAN-only by design** — never reach
+VPS / public / tailnet. `nas` has no Docker (Alloy host-exporter only), so no agent.
+
+```
+VPS Dozzle (logs.kogler.si, tailnet)  ─── VPS containers only
+OLDSRV Dozzle HUB (llogs.kogler.si, :8081, traefik-internal edge — WAN-out survival)
+   ├─ own docker.sock  → oldsrv containers
+   ├─ agent pi    (pi_home_ip:7007) → pi containers (HA primary, Technitium)
+   └─ agent spark (spark_home_ip:7007) → spark containers (vLLM, dashboard)
+```
+
+- **Templates:** `dozzle` (dual-mode: VPS viewer vs oldsrv hub, `svc.dozzle_agent_connect` /
+  `svc.dozzle_listen_ip` per-service vars) + `dozzle-agent` (one per docker host: pi, spark,
+  oldsrv). Registry rows in `group_vars/{home_servers,raspberry_pi,spark}.yml`.
+- **Security posture (Dozzle docs):** agents publish **only on the Home-VLAN IP** (`:7007`, never
+  WAN/0.0.0.0). Dozzle's universal built-in cert encrypts the agent channel; the LAN bind is the
+  access gate. No UI auth on the hub by owner decision (LAN-only internal edge — matches the
+  **no Forward-Auth** doctrine on traefik-internal for WAN-out survival). Upgrade path: generate a
+  custom cert pair (`dozzle generate-certs`) + `DOZZLE_CERT`/`DOZZLE_KEY` on hub + agents if an
+  agent port is ever exposed beyond the Home VLAN.
+- **DNS:** `llogs.kogler.si` → `{{ oldsrv_home_ip }}` is seeded by the technitium-seed loop on the
+  **home instances only** (oldsrv secondary + Pi tertiary) — never the VPS primary (same LAN-only
+  rule as `modem`/`spark`). LAN clients resolve it directly; WAN clients must NOT resolve it.
+- **Route:** `llogs` router + `llogs-backend` → `http://{{ oldsrv_home_ip }}:8081` in the
+  traefik-internal `routes.yml.j2` (file provider, hot-reload).
 - **Loki access control (HD-115 / KOPS-023/051):** Loki runs with `auth_enabled: true` (multi-tenant) — pushes and queries must carry the `logs` tenant ID, wired through Alloy (`tenant_id = "logs"`) and the Grafana datasource (`jsonData.tenantId`). The **write** path is loopback-only (Alloy → `127.0.0.1:3100`, no db-internal requirement) and **reads** come only from Grafana on `db-internal`; Loki is never exposed on traefik-public or any LAN bind. **Accepted caveat:** Loki-native `auth_enabled` is tenant *isolation*, not a password gate — a compromised db-internal container could forge a tenant header. Acceptable for the trusted-`db-internal` Phase-1 set; re-evaluate (real credential gateway / separate write+read tenants) if more members join `db-internal`.
 - **Pi keeps only a tiny bounded local log buffer.** The Raspberry Pi primary holds **no durable log store** — Docker uses log driver `local` (`max-size: 10m, max-file: 2`) as RAM/disk resilience when oldsrv/VictoriaLogs is down; the durable, searchable copy lives in VictoriaLogs. Host OS logs run on tmpfs (`journald Storage=volatile` + `/var/log` tmpfs). See [Pi SD-card wear strategy](#pi-sd-card-wear-strategy).
 - **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
