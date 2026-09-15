@@ -4,12 +4,14 @@
 # power sampling, and automatic CSV append to bench/results.csv
 #
 # Usage:
-#   ./run-scenario.sh <STEP_ID> <C1|C2|C3> [seed] [--router] [--warm]
+#   ./run-scenario.sh <STEP_ID> <C1|C2|C3|S1-N> [seed] [--router] [--warm]
 #
 #   STEP_ID   free-form tag matching the ladder, e.g. B1, step5-32k
 #   C1        prefill-heavy : 32k in / 512 out,  concurrency 1
 #   C2        decode        :  1k in / 512 out,  concurrency 1
-#   C3        concurrent    :  8k in / 1k out,   concurrency 3
+#   C3        concurrent    :  8k in / 1k out,   concurrency 3  (NOTE: only for the S3/NVFP4 lane)
+#   S1-N      S1 stability sweep probe (§6a) : ONE session at ~90% of ctx, conc 1 (defaults 32k/512/1)
+#             S1N_IN/S1N_OUT/S1N_NUM_PROMPTS/S1N_CONC override ; run ONLY right after a util/ctx restart
 #   seed      integer; pick a DIFFERENT seed per repeat for cache-free runs,
 #             reuse the same seed with --warm to measure warm-prefix TTFT
 #   --router  target llm-d router :8080 instead of engine :8000
@@ -47,12 +49,18 @@ TS=$(date -u +%Y%m%d-%H%M%S)
 RUN_TS="$TS"
 
 # scenario: input_len output_len num_prompts concurrency (env-overridable; C3 safely sized on GB10)
+# S1-N: S1 stability sweep probe (§6a) — ONE session at ~90% of ctx, max-concurrency 1, on the
+#       engine directly. Run these only AFTER restarting with the sweep util/ctx, so the load-time
+#       allocation itself is what's certified. In/out/conc/env-overridable via S1N_*.
 case "$SCENARIO" in
   C1) IN=${C1_IN:-32768}; OUT=${C1_OUT:-512}; N=${C1_N:-8}; CONC=${C1_CONC:-1} ;;
   C2) IN=${C2_IN:-1024}; OUT=${C2_OUT:-512}; N=${C2_N:-8}; CONC=${C2_CONC:-1} ;;
   # C3 default 12x8k@c3 OOM-kills the box on GB10 unified memory (2026-09-15).
   # Safe variant: 6 prompts x 8k @ conc 2 fits ~27 GiB host headroom.
   C3) IN=${C3_IN:-8192}; OUT=${C3_OUT:-1024}; N=${C3_N:-6}; CONC=${C3_CONC:-2} ;;
+  # S1-N = S1 sweep run: DEFAULT is single-session, moderate output. Pass S1N_IN for a max-ctx probe
+  # (≈0.9 × max_model_len) and S1N_NUM_PROMPTS=3 for a short multi-probe without changing conc.
+  S1-*) IN=${S1N_IN:-32768}; OUT=${S1N_OUT:-512}; N=${S1N_NUM_PROMPTS:-1}; CONC=${S1N_CONC:-1} ;;
   *) echo "unknown scenario $SCENARIO" >&2; exit 1 ;;
 esac
 

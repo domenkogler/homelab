@@ -39,7 +39,7 @@ reports only — **not measured on this box** — used to size the sweep, never 
 
 | Profile | Scenario | Weights | KV | Context | Engines to bench | Reference expectation (research; verify) |
 |---|---|---|---|---|---|---|
-| `serving_reasoning` (S1) | best reasoning, 1 session | **AWQ W4A16 + PLE INT4** (98/100 recipe) — bf16 dropped (R1: 250 GB won't fit) | bf16 | 173,400 (B1) | **vLLM** (pinned image + PLE overlay) · SGLang (if PLE lands on GB10) | vLLM accuracy anchor (~87% MTP acceptance); PLE is vLLM-only today |
+| `serving_reasoning` (S1) | best reasoning, 1 session | **AWQ W4A16 + PLE INT4** (98/100 recipe) — bf16 dropped (R1: 250 GB won't fit) | bf16 | **173,400 target — NOT YET REACHABLE on GB10**: memfit (2026-09-15) proved 173k KV pool + 75.17 GiB weights + ~57 GiB PLE CPU mirror OOM the unified 121.62 GiB pool at load; current live ctx = **65536 (64k)**. S1 certification = **stability sweep, not C3** (see §6a): find max `gpu_memory_utilization` then max ctx 1 session — **probe upward from 64k (150k first), bisect toward the boundary; only 64k is certified today** | **vLLM** (pinned image + PLE overlay) · SGLang (if PLE lands on GB10) | vLLM accuracy anchor (~87% MTP acceptance); PLE is vLLM-only today |
 | `serving_fast_single` (S2) | fastest single session | NVFP4 (nvidia/) + FP8 PLE on NVMe | fp8 | ≤262k native | **SGLang** (hashd1ve) · vLLM (patched nightly if NVFP4 serving works) | GB10 single-stream ≈ 40–46 tok/s code (SGLang) |
 | `serving_concurrent_3_5` (S3) | 3–5 concurrent sessions | NVFP4 | fp8 | ≤262k | **vLLM** (madeye TP1: 6 slots) · SGLang | 100 tok/s aggregate @4 measured (vLLM madeye) |
 | `serving_longctx_512k` (S4) | max context, 1 session | NVFP4 (or AWQ if accuracy-gated) | fp8 | 524,288 via YaRN factor 2.0 | **SGLang** (official YaRN + `serve-500k.sh`) · vLLM | madeye 500k demo; needle-gate mandatory |
@@ -192,6 +192,43 @@ identical control as its own baseline. Steps #1–10 from the pre-research plan 
 Engine-specific ladder rows added if a winner engine shows a distinct tuning knob (SGLang: RadixAttention
 prefix caching, `--max-total-tokens` pool, mamba flags).
 
+### §6a. S1 stability sweep — single-session max ctx/util (owner scope, 2026-09-15)
+
+The **S1 gate is not C3.** C3 (8k/1k @ c3) is the S3 concurrency gate — single-session S1 never needs it,
+and it's the only run that has global-OOM'd the host twice. S1 certifies by finding the box's **stability
+envelope** for the load-time memory class that actually killed the box: GPU reserve (util) + PLE CPU mirror
++ pinned buffers ≤ the 121.62 GiB unified pool, and then max ctx within it — exactly the 1-session
+scenario in actual use.
+
+**Order matters (owner-corrected 2026-09-15):** vLLM's profiler reserves ~`util × pool` at load regardless
+of ctx, then carves weights out and the *leftover* becomes the KV pool ctx lives in. So max ctx is bounded
+by max util, not the other way around — sweep **util first, then ctx at that util.** One knob per step
+(restart + ~6–20 min cold PLE load each) so a failure is attributable.
+
+**Protocol (each step = engine restart, load survives, 1 session at ~90% of ctx served, 2 seeds,
+preemptions = 0, host alive):**
+
+1. **Util sweep (ctx held at 64k):** 0.70 → 0.74 → 0.78 → 0.82 (small steps; the load-time OOM is
+   util-dominated). Find **max util that still works**.
+2. **Ctx sweep at that util:** only **64k is certified** — probe **upward from 64k (150k first; 173k is
+   known to fail at load), then bisect between the highest working and lowest failing probe** to find
+   max ctx at max util.
+3. **Back off one notch** for a production margin (plan wants small co-resident models beside the gen
+   engine later). The margin itself is a bench output — record it.
+
+**High-value lever before/alongside the sweep — PLE CPU mirror off RAM:** the binding constraint is
+GPU reserve + **PLE CPU mirror (~57G resident)** ≤ pool, not util per se. Research says PLE tables mmap
+from XFS at <3% wall-clock (RESEARCH-VERDICTS §2). Shrink the mirror (tables → XFS page-cache mmap)
+and both util and ctx can climb — the single biggest untested lever (see BENCHMARK-PLAN §7 tooling
+and the RESOURCE digests for the page-cache mechanism).
+
+**Host-safety preflight at every probe:** the failure signature is the global OOM that took sshd/NetworkManager
+down; the harness `MEM_FLOOR_GB` guard (default 8 GiB) + the 105G cage refuse a killing step live. Keep both;
+a bad probe must kill only the container.
+
+**Recorded in §9 as `S1-util0.70-ctx128k`-style rows** (C1-only, 1 session); `bench/snapshot-metrics.sh`
+stays the record (preemptions + cache-hit). A successful sweep certifies `spark-ai.enabled: true` (merge gate).
+
 ### TRT-LLM — future row, not a current bench candidate
 
 TensorRT-LLM is **not** a bench candidate for Qwen3.8-Flash-Next on this box today, and stays as a
@@ -250,7 +287,7 @@ Same seed + `--warm` → identical prompts → warm-prefix cache measurement.
 |---|---|
 | C1 (32k prefill × 8, c1) | ~1.5–3 min/run |
 | C2 (1k decode × 8, c1) | ~1 min/run |
-| C3 (8k/1k × 12, c3) | ~1.5–2.5 min/run |
+| C3 (8k/1k × 12, c3) | ~1.5–2.5 min/run — ⚠️ **S1 path: DROPPED 2026-09-15 (owner)**. C3 is the S3 (concurrency) gate — your scenario is single-session. It's also the only run that twice global-OOM'd the host (NVRM memdesc + un-recoverable). Kept only for the future NVFP4 S3 lane, where it must run at safe size (harness default 6×8k@c2) — actual c3 only if SGLang pool semantics justify it. |
 | Full C1+C2+C3 ×2 + warm run | **~10–20 min** per config state |
 | Accuracy gate | ~3–5 min (10 prompts, ≤1024 tok out) |
 | **Per ladder step, total** | **~15–25 min** of benchmarking |
@@ -293,7 +330,7 @@ only from benches on this box.
 
 | Step | Engine | Config delta | C1 TTFT p50/p99 | C2 tok/s @1 | C3 tok/s @3 | Preemptions | Cache hit % | Accuracy | Verdict |
 |------|--------|--------------|-----------------|-------------|-------------|-------------|-------------|----------|---------|
-| B1 | vLLM | stable baseline (util 0.70 / cage 105G / ctx 64k) | **42.7s / 59.7s** (s42) · **48.5s / 53.0s** (s43) | **21–24 tok/s** (s42/s43) | ⏳ C3 OOM: 12×8k@c3 exhausted the **NVRM memdesc** (NV_ERR_NO_MEMORY) + global host OOM (2026-09-15) — engine container survived (cage), but sshd/NetworkManager/bench CLI died → box wedged. Safe C3 = 6×8k@c2 (harness default now) | 0 | — | 10-prompt gate saved (code-fib/state-tracker/logic correct; tool-call EMPTY=no tools registered) | **C1+C2 certified** · C3 re-run at safe size pending |
+| B1 | vLLM | stable baseline (util 0.70 / cage 105G / ctx 64k) | **42.7s / 59.7s** (s42) · **48.5s / 53.0s** (s43) | **21–24 tok/s** (s42/s43) | ⏳ ~~C3 re-run at safe size~~ **DROPPED FOR S1 (owner 2026-09-15):** C3 is the S3/NVFP4 concurrency gate — S1 is single-session by definition; the C3 host-wedge (twice) made it a liability, and the only C3 verdict that matters for the sweep is the S3 lane. C3 stays harness-default (6×8k@c2) for future NVFP4/SGLang S3 only. | 0 | — | 10-prompt gate saved (code-fib/state-tracker/logic correct; tool-call EMPTY=no tools registered) | **C1+C2 certified** · ⏳ **S1 stability sweep (§6a) pending — C3 dropped for S1** |
 | A2 | SGLang | NVFP4 | | | | | | | |
 | A3 | vLLM | NVFP4 | | | | | | | |
 | D256 | vLLM | YaRN 262k | | | | | | | |
