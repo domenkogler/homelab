@@ -152,9 +152,9 @@ docker_services:
   - { name: jellyfin,     template_dir: jellyfin,     subdomain: media }
   - { name: seerr,        template_dir: seerr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-318: Docker auto-creates /srv/docker/seerr/config as root; container runs uid 1000 → crash-loop without bind-owner + bind_dirs (the dir must be pre-created 1000-owned)
   - { name: seerrng,       template_dir: seerrng, subdomain: seerrng, public: false, enabled: true, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-353 (2026-09-10): alongside seerr (same Sonarr/Radarr backends); own Jellyfin login; internal-only; HD-318 ownership — image runs uid 1000, config dir must be pre-created 1000-owned
-  - { name: sonarr,       template_dir: sonarr }
-  - { name: radarr,       template_dir: radarr }
-  - { name: lidarr,       template_dir: lidarr }
+  - { name: sonarr,       template_dir: sonarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A: image runs PUID=1005; config dir must be pre-created 1005-owned (2026-09-15 live: root-owned config → crash-loop after converge recreated the container)
+  - { name: radarr,       template_dir: radarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop)
+  - { name: lidarr,       template_dir: lidarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop)
   # HD-362 (2026-09-14, revised 2026-09-14): Music acquisition tier — agreed ladder:
   #   1) usenet (SABnzbd, existing)  2) Soulseek (slskd)  3) Lidarr-YouTube-Downloader
   #   (youtube → Lidarr). orpheusdl + Murglar = MANUAL device tools (laptop/phone, no
@@ -166,12 +166,12 @@ docker_services:
   - { name: slskd,         template_dir: slskd,          public: false, enabled: true }  # Soulseek P2P #2 — gluetun sidecar (official slskd VPN integration), VPN-locked, fetch-only
   - { name: lidarr-ydl,    template_dir: lidarr-ydl,     public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config', 'home'] }  # Lidarr-YouTube-Downloader (Angrido) — youtube → Lidarr, #3 priority, Newznab+SABnzbd emulation; s6 setprivs to PUID (1005) and chmods /config — host dir must be 1005-owned (HD-362 live, "chmod /home/appuser: Operation not permitted" otherwise); `home` bound at /home/appuser (the image has NO appuser home on its RO layer — s6's `> /home/appuser/.profile` EACCES crash-loop otherwise)
   - { name: tube-archivist, template_dir: tube-archivist, public: false, enabled: false, bind_owner_uid: 1000, bind_dirs: ['es'] } # Personal YouTube (headless yt-dlp) — internal only; ES image runs uid 1000 → /srv/docker/tube-archivist/es must be pre-created 1000-owned (HD-362 live, crash-loop "failed to obtain node locks" otherwise) — DISABLED 2026-09-15 (owner: "I don't need it right now"; oldsrv constant CPU / alternating RAM = TA loop on `path.repo` ES snapshot env-check; re-enable once the fix lands in ES elasticsearch.yml directly, HD-362 tail)
-  - { name: prowlarr,     template_dir: prowlarr }
-  - { name: bazarr,       template_dir: bazarr }
+  - { name: prowlarr,     template_dir: prowlarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop)
+  - { name: bazarr,       template_dir: bazarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop)
   - { name: sabnzbd,      template_dir: sabnzbd,      subdomain: sab, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A: image runs PUID=1005; /srv/docker/sabnzbd/config must be pre-created 1005-owned (2026-09-15 live: root-owned empty config → "Cannot create INI file /config/sabnzbd.ini" crash-loop after a converge recreated the container)
-  - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent }   # + gluetun sidecar in template (now also carries slskd egress — HD-362; edge routes: torrent.)
-  - { name: profilarr,    template_dir: profilarr }
-  - { name: recyclarr,    template_dir: recyclarr }                          # scheduled worker, no UI
+  - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop); + gluetun sidecar in template (now also carries slskd egress — HD-362; edge routes: torrent.)
+  - { name: profilarr,    template_dir: profilarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: domen-owned config → crash-loop)
+  - { name: recyclarr,    template_dir: recyclarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop); scheduled worker, no UI
 
   # --- Dev AI (HD-355/356, 2026-09-10): dsh + pi-dev MOVED here from the VPS; the
   # tailscale sidecars are removed — the UIs publish on oldsrv_home_ip (media-bridge
