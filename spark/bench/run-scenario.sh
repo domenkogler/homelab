@@ -46,13 +46,29 @@ TS=$(date -u +%Y%m%d-%H%M%S)
 # alignment. All file names + the CSV row use RUN_TS.
 RUN_TS="$TS"
 
-# scenario: input_len output_len num_prompts concurrency
+# scenario: input_len output_len num_prompts concurrency (env-overridable; C3 safely sized on GB10)
 case "$SCENARIO" in
-  C1) IN=32768; OUT=512;  N=8;  CONC=1 ;;
-  C2) IN=1024;  OUT=512;  N=8;  CONC=1 ;;
-  C3) IN=8192;  OUT=1024; N=12; CONC=3 ;;
+  C1) IN=${C1_IN:-32768}; OUT=${C1_OUT:-512}; N=${C1_N:-8}; CONC=${C1_CONC:-1} ;;
+  C2) IN=${C2_IN:-1024}; OUT=${C2_OUT:-512}; N=${C2_N:-8}; CONC=${C2_CONC:-1} ;;
+  # C3 default 12x8k@c3 OOM-kills the box on GB10 unified memory (2026-09-15).
+  # Safe variant: 6 prompts x 8k @ conc 2 fits ~27 GiB host headroom.
+  C3) IN=${C3_IN:-8192}; OUT=${C3_OUT:-1024}; N=${C3_N:-6}; CONC=${C3_CONC:-2} ;;
   *) echo "unknown scenario $SCENARIO" >&2; exit 1 ;;
 esac
+
+# Host-memory preflight (GB10 unified pool lesson, 2026-09-15): the engine idles at
+# ~93 GB of a 121.6 GiB pool; C3 (12x8k @c3) made the engine RSS climb + host extras
+# (alloy/dashboard/sshd) over the fence → global OOM killed sshd/NetworkManager.
+# Guard: if free+available < FLOOR, refuse to launch (the OOM is not recoverable live).
+MEM_FLOOR_GB="${MEM_FLOOR_GB:-8}"
+if command -v free >/dev/null 2>&1; then
+  _avail=$(free -g | awk '/^Mem:/{print $7}')
+  if [[ -n "$_avail" && "$_avail" -lt "$MEM_FLOOR_GB" ]]; then
+    echo "ERROR: only ${_avail} GiB available (< ${MEM_FLOOR_GB} GiB floor) — would global-OOM the box (GB10 unified pool). Aborting." >&2
+    exit 2
+  fi
+  echo ">>> host available memory: ${_avail} GiB (floor ${MEM_FLOOR_GB} GiB)"
+fi
 
 echo ">>> [$STEP] $SCENARIO seed=$SEED conc=$CONC endpoint=:$PORT warm=$WARM start=$TS"
 
@@ -105,15 +121,19 @@ _preempt_delta=$(awk -v a="${A_PREEMPT:-0}" -v b="${B_PREEMPT:-0}" 'BEGIN{printf
 _gen_delta=$(awk -v a="${A_GEN:-0}" -v b="${B_GEN:-0}" 'BEGIN{printf "%.0f", a-b}')
 PREEMPT_DELTA=$_preempt_delta
 GEN_DELTA=$_gen_delta
-# MTP acceptance ratio — float-safe
+# MTP acceptance ratio — float-safe (guard d>0; awk div-by-zero is a hard fail under set -u/e)
 if [[ "${A_DR:-0}" != "${B_DR:-0}" && "${A_DR:-0}" != "0" && "${A_DR:-0}" != "0.0" ]]; then
   _acc_delta=$(awk -v a="${A_ACC:-0}" -v b="${B_ACC:-0}" 'BEGIN{printf "%.3f", a-b}')
   _dr_delta=$(awk -v a="${A_DR:-0}" -v b="${B_DR:-0}" 'BEGIN{printf "%.3f", a-b}')
-  MTP_RATIO=$(awk -v a="$_acc_delta" -v d="$_dr_delta" 'BEGIN{if(d>0)printf "%.3f", a/d; else print "n/a"}')
+  if awk -v d="$_dr_delta" 'BEGIN{exit !(d>0)}'; then
+    MTP_RATIO=$(awk -v a="$_acc_delta" -v d="$_dr_delta" 'BEGIN{printf "%.3f", a/d}')
+  else MTP_RATIO="n/a"; fi
 else MTP_RATIO="n/a"; fi
 WH_PER_1K="n/a"
-if [[ "$MEAN_W" != "?" && "${GEN_DELTA:-0}" != "0" && "${GEN_DELTA:-0}" != "" && "${GEN_DELTA:-0}" =~ ^-?[0-9]+$ && "${GEN_DELTA:-0}" -gt 0 ]]; then
-  WH_PER_1K=$(awk -v w="$MEAN_W" -v s="$DURATION" -v t="${GEN_DELTA:-0}" 'BEGIN{printf "%.2f", (w*s/3600)/(t/1000)}')
+if [[ "$MEAN_W" != "?" && -n "${GEN_DELTA:-}" && "${GEN_DELTA:-0}" != "0" ]]; then
+  if awk -v t="${GEN_DELTA:-0}" 'BEGIN{exit !(t>0)}'; then
+    WH_PER_1K=$(awk -v w="$MEAN_W" -v s="$DURATION" -v t="${GEN_DELTA:-0}" 'BEGIN{printf "%.2f", (w*s/3600)/(t/1000)}')
+  fi
 fi
 
 # --- 5. parse bench JSON -----------------------------------------------------

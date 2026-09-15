@@ -293,7 +293,7 @@ only from benches on this box.
 
 | Step | Engine | Config delta | C1 TTFT p50/p99 | C2 tok/s @1 | C3 tok/s @3 | Preemptions | Cache hit % | Accuracy | Verdict |
 |------|--------|--------------|-----------------|-------------|-------------|-------------|-------------|----------|---------|
-| B1 | vLLM | proven baseline | | | | | | | |
+| B1 | vLLM | stable baseline (util 0.70 / cage 105G / ctx 64k) | **42.7s / 59.7s** (s42) · **48.5s / 53.0s** (s43) | **21–24 tok/s** (s42/s43) | ⏳ C3 OOM: 12×8k@c3 exhausted the **NVRM memdesc** (NV_ERR_NO_MEMORY) + global host OOM (2026-09-15) — engine container survived (cage), but sshd/NetworkManager/bench CLI died → box wedged. Safe C3 = 6×8k@c2 (harness default now) | 0 | — | 10-prompt gate saved (code-fib/state-tracker/logic correct; tool-call EMPTY=no tools registered) | **C1+C2 certified** · C3 re-run at safe size pending |
 | A2 | SGLang | NVFP4 | | | | | | | |
 | A3 | vLLM | NVFP4 | | | | | | | |
 | D256 | vLLM | YaRN 262k | | | | | | | |
