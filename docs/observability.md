@@ -275,7 +275,7 @@ OLDSRV Dozzle HUB (llogs.kogler.si, :8081, traefik-internal edge — WAN-out sur
   see [`network-dns.md`](network-dns.md) §Convergence & Drift): the Pi converge was scoped to
   `dozzle-agent` so the `technitium-seed` tail had not run on the Pi; the re-seed ran the
   full split-horizon set on Pi + oldsrv + VPS (`failed=0`), and live `dig` confirms
-  `llogs.kogler.si → 10.10.1.30` on both home instances + **no answer on the VPS primary**
+  `llogs.kogler.si → {{ oldsrv_home_ip }}` on both home instances + **no answer on the VPS primary**
   (LAN-only, correct). The per-host `dns-seed.timer` self-heal is now **active on all three**
   hosts (VPS/oldsrv/Pi), so this class self-heals going forward.
 - **Loki access control (HD-115 / KOPS-023/051):** Loki runs with `auth_enabled: true` (multi-tenant) — pushes and queries must carry the `logs` tenant ID, wired through Alloy (`tenant_id = "logs"`) and the Grafana datasource (`jsonData.tenantId`). The **write** path is loopback-only (Alloy → `127.0.0.1:3100`, no db-internal requirement) and **reads** come only from Grafana on `db-internal`; Loki is never exposed on traefik-public or any LAN bind. **Accepted caveat:** Loki-native `auth_enabled` is tenant *isolation*, not a password gate — a compromised db-internal container could forge a tenant header. Acceptable for the trusted-`db-internal` Phase-1 set; re-evaluate (real credential gateway / separate write+read tenants) if more members join `db-internal`.
