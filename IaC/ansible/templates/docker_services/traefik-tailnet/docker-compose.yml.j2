@@ -123,6 +123,13 @@ services:
       # API dashboard (internal, behind Forward-Auth)
       - "--api.dashboard=true"
       - "--api.insecure=false"
+      # HD-370: HSTS for every route this edge serves (stats/logs/csui/dsh/pi-dev/*.ts…).
+      # Everything it proxies is https-only by design (:80 = redirect only); this makes
+      # browsers remember that — also THE roaming fix for the phone (LAN→tailnet keeps
+      # https-only after the name re-resolves to the edge).
+      - "--http.middlewares.hsts.headers.stsSeconds=31536000"
+      - "--http.middlewares.hsts.headers.stsIncludeSubdomains=true"
+      - "--http.middlewares.hsts.headers.stsPreload=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       # CrowdSec bouncer plugin (WAF) — same as the main edge; needed by the

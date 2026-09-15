@@ -205,6 +205,12 @@ CATALOG = [
     # generated (never coupled to a live ES cluster password — this is the FIRST
     # bootstrap value both sides share).
     ("API Credential", "tube-archivist-es", lambda: [f"username=elastic", f"password={gen_pw()}"]),
+    # HD-370: spark engine API key — vLLM/SGLang `--api-key` bearer auth on the llm.kogler.si
+    # OpenAI-API endpoint (spark's own Traefik edge fronts the loopback engine :8000). The
+    # key gates the raw inference endpoint on every path (LAN :443 + VPS/Tailnet via WG/S2S);
+    # consumed by spark-ai compose (`--api-key`) + the two LiteLLMs as `llm_api` for the
+    # llm.kogler.si base_url. First vault item for the spark node (was vault-free by design).
+    ("API Credential", "spark-llm_api", lambda: [f"credential={gen_token(32)}"]),
 ]
 
 # Items never auto-rotated by this tool (external/app coupling). Kept here as a

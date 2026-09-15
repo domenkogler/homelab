@@ -1,25 +1,35 @@
-# spark-dashboard — dynamic routes (file provider). NVIDIA DGX Dashboard LAN bridge
-# on spark (HD-364 rework; see docker-compose.yml.j2 header for the socat→Traefik
-# decision). Proxies the on-box loopback dashboard (:11000) and admin JupyterLab
-# (:11002) onto the Home-VLAN IP at the same ports, so a LAN browser reaches
-# http://spark.kogler.si:11000 (dashboard) / :11002 (JupyterLab, admin).
+# spark-dashboard — dynamic routes (file provider). NVIDIA DGX Dashboard + LLM-edge on spark
+#   (HD-364 rework; see docker-compose.yml.j2 header for the socat→Traefik decision).
+#   HD-370: this edge is now ALSO the **name edge for spark's AI endpoints** — it fronts the
+#   dashboard AND the llm.kogler.si OpenAI-API on the Home VLAN, TLS from the pulled wildcard
+#   pair (cert CONSUMER, Pi ha-cert-sync precedent — see dynamic/tls.yml.j2). It no longer
+#   serves plain HTTP on the LAN: :80 exists only as a redirect-to-https, everything answers
+#   on :443. The legacy port URLs (spark_home_ip:11000/:11002) stay as entrypoints so
+#   pre-existing dashboard links keep working; the routes below pick :443 for names.
 #
-#   - Entrypoints are address+port bound (spark_home_ip:11000/11002) — never
+#   - Entrypoints are address+port bound (spark_home_ip:11000/:11002/:443/:80) — never
 #     0.0.0.0, no public record, Home-VLAN only.
-#   - Route rule: explicit `Host(spark.kogler.si)` (NOT a HostRegexp catch-all). Live
-#     proof 2026-09-15: HostRegexp({host:.+}) left the router silently non-matching →
-#     Traefik's own 404 on `dashboard`/`jupyter`; with the explicit Host rule, name-based
-#     requests (browser `http://spark.kogler.si:11000`) match and proxy to the loopback
-#     backends (IP-host requests like `curl http://10.10.1.40:11000/` are expected 404 —
-#     they don't match the Host rule; use the name). Same pattern as the oldsrv home edge.
-#   - No Forward-Auth / no CrowdSec / no ACME: the dashboard owns its login (local
-#     user+password, docs/hardware-spark.md §Remote management); loopback HTTP.
+#   - Route rule: explicit `Host(spark.kogler.si)`-style rules (NOT a HostRegexp catch-all).
+#     Live proof 2026-09-15: HostRegexp({host:.+}) left the router silently non-matching →
+#     Traefik's own 404 — with explicit Host rules, name-based requests match and proxy to the
+#     loopback backends (IP-host requests are expected 404 — use the names).
+#   - No Forward-Auth / no CrowdSec: the dashboard owns its login (local user+password,
+#     docs/hardware-spark.md §Remote management); llm.kogler.si is gated by the ENGINE's own
+#     --api-key (spark-llm_api vault item) — the AI spine (LiteLLM ×2) + pi are the only
+#     holders. No middleware on the LLM path: the bearer key IS the auth.
+#   - HSTS is set on the edge (CLI) so browsers remember https-only for these names.
 #   - JupyterLab spawns ON DEMAND from the dashboard's JupyterLab panel (Start);
 #     until a lab is Running, 127.0.0.1:11002 has no listener and the route idles.
-#   - The dashboard 'Software Update' flow reboots/restarts dgx-dashboard.service;
-#     Traefik keeps RUNNING through it (just reconnects on the next request).
+
 http:
+  middlewares:
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
   routers:
+    # --- legacy port entrypoints (unchanged URLs, for the pre-existing dashboard links) ---
     dgx-dashboard:
       rule: "Host(`spark.kogler.si`)"
       entryPoints:
@@ -33,6 +43,40 @@ http:
       service: dgx-jupyter-backend
       priority: 1
 
+    # --- name-based HTTPS routes (HD-370) ---
+    db-spark:
+      rule: "Host(`db-spark.kogler.si`)"
+      entryPoints:
+        - lm
+      service: dgx-dashboard-backend
+      tls: true
+      priority: 1
+    llm-kogler:
+      rule: "Host(`llm.kogler.si`)"
+      entryPoints:
+        - lm
+      service: llm-backend
+      tls: true
+      priority: 1
+
+    # --- :80 → :443 redirect for the names (never serves content on :80) ---
+    db-spark-http:
+      rule: "Host(`db-spark.kogler.si`)"
+      entryPoints:
+        - lm-http
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+      priority: 10
+    llm-kogler-http:
+      rule: "Host(`llm.kogler.si`)"
+      entryPoints:
+        - lm-http
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+      priority: 10
+
   services:
     dgx-dashboard-backend:
       loadBalancer:
@@ -43,4 +87,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://127.0.0.1:11002"
+        passHostHeader: true
+    llm-backend:
+      loadBalancer:
+        servers:
+          # HD-370: engine-port indirection — vLLM :8000 today, SGLang's port when the S2/S3
+          # lane wins. The LiteLLMs' base_url and this route never change across engines.
+          - url: "http://127.0.0.1:{{ spark_engine_port }}"
         passHostHeader: true

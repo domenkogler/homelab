@@ -358,6 +358,7 @@ wg_s2s_vps:
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'ha-vip') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'spark') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"   # HD-370: spark (llm.kogler.si + db-spark.kogler.si reach from the VPS/tailnet over WG S2S)
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
     - "{{ (network_ranges | selectattr('name', 'equalto', 'wg-vps-services') | first).cidr }}"

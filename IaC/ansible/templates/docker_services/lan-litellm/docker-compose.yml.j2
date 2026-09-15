@@ -12,9 +12,15 @@
 #   litellm/) is authored so the IaC/catalog story is complete and the deploy-gated
 #   verification checklist (deployment-tasks.md) can tick it when spark arrives.
 #
-#   Reach model (HD-356): the LAN instance listens on {{ oldsrv_home_ip }}:4000
-#   (the SAME port shape as the media-bridge publish) so dsh/pi-dev on oldsrv and
-#   the VPS family edge can reach it over the WG S2S — never a public bind.
+#   Reach model (HD-356/HD-370): the LAN instance serves `llitellm.kogler.si` via the
+#   oldsrv traefik-internal HOME edge (name + TLS, not ports — the llogs pattern). The
+#   home edge is host-net and reaches this container on oldsrv_home_ip:4000, so the
+#   compose keeps the oldsrv_home_ip:4000 publish (that IS how host-net edges reach
+#   backends — see jellyfin/lan-litellm precedent). No 0.0.0.0 bind; no VPS-side exposure
+#   (the VPS edge/tailnet serves `litellm.kogler.si`, this LAN instance is LAN-only).
+#   LOCAL INFERENCE (HD-370): this instance's spark model entry uses `http://llm.kogler.si`
+#   as base_url (LAN name -> spark_home_ip -> spark's own :443 edge -> llm-backend engine
+#   :8000) with the spark-llm_api bearer key — set in the Admin-UI/DB, never rendered here.
 #   Management API stays docker-exec-only (HD-62 parallel).
 #
 #   Secrets (all fail-closed, HD-65): reuses the SAME 1Password items as the VPS
@@ -33,7 +39,7 @@ services:
     container_name: lan-litellm
     restart: unless-stopped
     ports:
-      - "{{ oldsrv_home_ip }}:4000:4000"     # HD-356 — oldsrv Home-IP publish; dev consumers + VPS edge over WG
+      - "{{ oldsrv_home_ip }}:4000:4000"     # HD-370: host-net home-edge reach for llitellm.kogler.si (llogs pattern); never 0.0.0.0
     networks:
       - services-internal
       - llm-backend                 # reach local inference (spark/Triton) once provisioned

@@ -120,6 +120,18 @@ http:
         - websecure-lan
       service: llogs-backend
       tls: true
+    # HD-370: the LAN LiteLLM (oldsrv, dev-side AI spine — serves dsh/pi-dev/OpenHands with
+    # spark/llm.kogler.si as its inference backend). LLitellm.kogler.si on the HOME edge so
+    # LAN clients get it name-based + TLS (wildcard from the pulled pair), same as llogs.
+    # Backend = the lan-litellm container published on oldsrv_home_ip:4000 (host-net edge
+    # reach; the container's compose publish — identical to llogs → :8081).
+    llitellm:
+      rule: "Host(`llitellm.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: llitellm-backend
+      tls: true
     # --- HA + DNS UI (VIP; this edge serves ha only while oldsrv owns the VIP) ---
     ha:
       rule: "Host(`ha.kogler.si`)"
@@ -218,6 +230,10 @@ http:
       loadBalancer:
         servers:
           - url: "http://{{ oldsrv_home_ip }}:8081"
+    llitellm-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:4000"
     ha-backend:
       loadBalancer:
         servers:

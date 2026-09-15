@@ -262,7 +262,7 @@
 }
 # Scoped home targets the VPS may reach (HD-155)
 {% for h in network_static_hosts %}
-{% if h.name in ['nas','ha-vip','oldsrv','pi','router','switch'] %}
+{% if h.name in ['nas','ha-vip','oldsrv','pi','router','switch','spark'] %}
 :if ([/ip firewall address-list find where list=vps_scoped_home and address={{ h.ip }}] = "") do={
     /ip firewall address-list add address={{ h.ip }} list=vps_scoped_home comment="HD-155: {{ h.name }}"
 }

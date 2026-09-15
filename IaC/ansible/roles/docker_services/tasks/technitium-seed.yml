@@ -199,6 +199,7 @@
         # HD-370: `litellm.kogler.si` → the VPS public IP — tailnet-only ADMIN edge (the
         # LiteLLM spine must never be world-public). The VPS primary Technitium must answer
         # it (split-horizon parity + VPS-side DNS/headscale agreement with the tailnet edge).
+
         - { name: "litellm.kogler.si", ip: "{{ dns_primary_ip }}" }  # HD-370: LiteLLM admin (tailnet-only edge), VPS-resident
         # HD-370: `llitellm.kogler.si` → oldsrv LAN IP — the LAN (dev) LiteLLM on the HOME
         # edge (llogs pattern). LAN-only by design (the VPS primary never carries it).
@@ -250,5 +251,9 @@
       # its 10.10x Home-IP must never resolve from the VPS/internet).
       # This `when` is evaluated PER-LOOP-ITEM (Ansible runs the task-level `when` for each
       # item when the task has a `loop`), so `item` is defined here.
+      # HD-370: LAN-only names (modem/spark/db-spark/llm/llogs/llitellm) seed ONLY on the
+      # home instances (secondary/secondary-pi), never the VPS primary; `litellm` is NOT in
+      # the LAN-only set (VPS-resident — primary + home all answer it, split-horizon target).
+
       when: item.name not in ["modem.kogler.si", "spark.kogler.si", "db-spark.kogler.si", "llm.kogler.si", "llogs.kogler.si", "llitellm.kogler.si"] or svc.instance | default('primary') in ['secondary', 'secondary-pi']
       failed_when: _tech_record.json is not defined or _tech_record.json.status not in ['ok', 'error']

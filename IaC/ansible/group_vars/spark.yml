@@ -74,6 +74,13 @@ spark_headless: true
 
 # vLLM (B1 proven — spark/BENCHMARK-PLAN.md §1)
 spark_vllm_container: vllm-qwen-spark
+# HD-370: engine-port indirection for the llm.kogler.si route. Today vLLM :8000; when the
+# SGLang lane (S2/S3) wins the bench its port replaces this — the spark edge route and the
+# LiteLLM base_urls never change. Must match the engine's own listen port (healthcheck too).
+spark_engine_port: 8000
+# HD-370: OpenAI served-model id (llm.kogler.si /v1/models). Engine-swap-ready: vLLM serves
+# it via --served-model-name; SGLang via served-model-name. Both LiteLLMs + pi see this id.
+spark_vllm_served_name: spark/qwen3.8-flash-next
 spark_vllm_log_level: INFO
 spark_vllm_cpu_offload: 1
 spark_vllm_ple_offload_ready_timeout: 3600

@@ -346,6 +346,58 @@ http:
       middlewares:
         - redirect-to-https
       service: noop@internal
+    # --- HD-370: spark AI endpoints (tailnet edge) ---
+    # db-spark.kogler.si / db-spark.ts.kogler.si — DGX dashboard on spark: the tailnet edge
+    # TLS-terminates (wildcard) and proxies to spark's OWN edge :443 over WG S2S (the spark
+    # edge also TLS-terminates — TLS-in-TLS to the Loopback dashboard). spark's own login sits
+    # in front; no Forward-Auth (own-login management surface, Pi traefik-ha precedent).
+    # llm.kogler.si / llm.ts.kogler.si — the spark OpenAI-API: same WG path to spark:443;
+    # auth is the ENGINE's --api-key (spark-llm_api), not a middleware — only LiteLLM/pi hold it.
+    db-spark-tailnet:
+      rule: "Host(`db-spark.kogler.si`) || Host(`db-spark.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: db-spark-backend
+      tls: true
+    llm-tailnet:
+      rule: "Host(`llm.kogler.si`) || Host(`llm.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: llm-backend
+      tls: true
+    db-spark-tailnet-redirect:
+      rule: "Host(`db-spark.kogler.si`) || Host(`db-spark.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    llm-tailnet-redirect:
+      rule: "Host(`llm.kogler.si`) || Host(`llm.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+    # --- HD-370: DNS + LiteLLM admin (tailnet edge, tailnet-ONLY) ---
+    # litellm.kogler.si / litellm.ts.kogler.si — the AI spine admin. Tailnet-only BY DESIGN:
+    # LiteLLM holds EVERY upstream key + the master key + the scoped-key minting glue — it must
+    # never be world-public (public edge has NO litellm route). Backend = the VPS litellm
+    # container (docker-network DNS). No Forward-Auth — LiteLLM has its own admin login; the
+    # tailnet ACL (headscale tag:sidecar / client ACLs) is the boundary.
+    litellm-tailnet:
+      rule: "Host(`litellm.kogler.si`) || Host(`litellm.ts.kogler.si`)"
+      entryPoints:
+        - websecure
+      service: litellm-backend
+      tls: true
+    litellm-tailnet-redirect:
+      rule: "Host(`litellm.kogler.si`) || Host(`litellm.ts.kogler.si`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
     # Matrix homeserver (/_matrix/*) — no Forward-Auth (native SSO, HD-60)
     matrix-int-kogler:
       rule: "Host(`matrix.kogler.si`)"
@@ -468,6 +520,22 @@ http:
       loadBalancer:
         servers:
           - url: "http://{{ oldsrv_home_ip }}:8080"
+    # HD-370: spark AI backends over the WG S2S (spark_home_ip now in wg_s2s_vps.allowed_ips +
+    # router vps_scoped_home). db-spark + llm proxy to SPARK's own edge :443 (TLS-in-TLS).
+    db-spark-backend:
+      loadBalancer:
+        servers:
+          - url: "https://{{ spark_home_ip }}:443"
+    llm-backend:
+      loadBalancer:
+        servers:
+          - url: "https://{{ spark_home_ip }}:443"
+    # litellm-backend: the VPS LiteLLM container via Docker DNS (tailnet-only route — see the
+    # litellm-tailnet router; the spine must never be world-public).
+    litellm-backend:
+      loadBalancer:
+        servers:
+          - url: "http://litellm:4000"
     logs-backend:
       loadBalancer:
         servers:

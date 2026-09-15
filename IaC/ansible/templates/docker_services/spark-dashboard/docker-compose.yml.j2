@@ -43,15 +43,28 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       - ./dynamic:/etc/traefik/dynamic:ro   # file-provider routes (no docker.sock)
+      - ./certs:/etc/traefik/certs:ro        # wildcard pair pulled from the VPS issuer (offline-safe)
     command:
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
       - "--entrypoints.dashboard.address={{ spark_home_ip }}:11000"
       - "--entrypoints.jupyter.address={{ spark_home_ip }}:11002"
+      # HD-370: name-based HTTPS edge — serve db-spark.kogler.si / llm.kogler.si on :443
+      # (TLS from the pulled wildcard pair, same consumer pattern as the Pi/oldsrv edges) and
+      # redirect :80→:443. The old port URLs (spark_home_ip:11000/:11002) STAY as entrypoints
+      # so the pre-existing dashboard links keep working; the route table picks :443 for names.
+      - "--entrypoints.lm.address={{ spark_home_ip }}:443"
+      - "--entrypoints.lm-http.address={{ spark_home_ip }}:80"
       - "--ping=true"                 # /ping health endpoint for the healthcheck below
       - "--log.level=INFO"
-    # No ACME / no certs: loopback HTTP backends, internal-only (has its own login),
-    # plain HTTP on the LAN.
+      # HD-370: HSTS for the name edge — browsers remember https-only for db-spark/llm so LAN↔
+      # tailnet roaming (the phone case) never offers the plaintext :80 record to the client.
+      - "--http.middlewares.hsts.headers.stsSeconds=31536000"
+      - "--http.middlewares.hsts.headers.stsIncludeSubdomains=true"
+      - "--http.middlewares.hsts.headers.stsPreload=false"
+    # (No ACME on this edge; TLS = the pulled wildcard pair in ./certs, consumer pattern.)
+    # healthcheck unchanged — /ping stays the probe (spark's dashboard/Jupyter are loopback-
+    # HTTP backends with their own login; TSL/HSTS don't affect it).
     healthcheck:
       # Traefik's /ping (enabled above) — the dashboard/jupyter PROXY health is
       # separate (jupyter :11002 is on-demand, only exists while a lab is Running —
