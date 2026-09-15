@@ -58,6 +58,12 @@
       no_log: true
       changed_when: false
       failed_when: op_vault_out.rc != 0
+      # HD-370 (2026-09-15): a --check run evaluated this block's `when` on the
+      # include-sanity context and SKIPPED, leaving op_vault_out.stdout empty -> the
+      # set_fact below died on `from_json('')` with a misleading "vault pre-pass
+      # failure". Run in check mode too (the exporter only READS 1P — check-safe);
+      # the derive/list gates still apply via the block-level `when` below.
+      check_mode: false
 
     - name: "Set vault dict fact from the export (merge)"
       ansible.builtin.set_fact:
@@ -65,6 +71,10 @@
       become: false
       no_log: true
       changed_when: false
+      # In --check mode a skipped/empty export yields an empty vault dict (not a
+      # fatal from_json) — the subsequent renders see an empty dict and succeed
+      # with check-mode semantics; a real run never hits this branch.
+      check_mode: false
       # cacheable: true — broadcast the localhost-set vault fact into hostvars so
       # TARGET-side tasks (e.g. the technitium-seed uri calls) can read it via
       # hostvars['localhost']['vault'] (live 2026-09-07: without it the seed's login

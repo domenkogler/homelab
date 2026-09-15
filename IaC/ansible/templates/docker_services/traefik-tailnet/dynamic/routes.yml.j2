@@ -40,6 +40,17 @@
 #   pairs (issuer requests both; certs-rename.sh fixes the ts names).
 
 http:
+  # TLS-in-TLS transports (HD-370, live gap 2026-09-15): the tailnet edge proxies
+  # db-spark/llm to `https://{{ spark_home_ip }}:443` (spark's own Traefik edge) over
+  # the WG S2S. Spark's edge serves the `*.kogler.si` wildcard which has NO IP SANs,
+  # so a default verifying transport fails the hop with 500 'x509: cannot validate
+  # certificate for 10.10.1.40' (seen live). These transports tell Traefik to trust
+  # the name-based cert anyway — the inner hop is secured by the wildcard TLS pair
+  # + it is a private LAN/WG link (the spark edge does the real auth via the bearer
+  # spark-llm_api on the OpenAI endpoint / dashboard SSO).
+  serversTransports:
+    spark-tls-in-tls:
+      insecureSkipVerify: true
   routers:
     # Grafana dashboards (stats)
     stats-kogler:
@@ -529,15 +540,19 @@ http:
         servers:
           - url: "http://{{ oldsrv_home_ip }}:8080"
     # HD-370: spark AI backends over the WG S2S (spark_home_ip now in wg_s2s_vps.allowed_ips +
-    # router vps_scoped_home). db-spark + llm proxy to SPARK's own edge :443 (TLS-in-TLS).
+    # router vps_scoped_home). db-spark + llm proxy to SPARK's own edge :443 (TLS-in-TLS)
+    # using the spark-tls-in-tls serversTransport (insecureSkipVerify — the wildcard cert
+    # has no IP SAN for spark_home_ip; the hop is private WG + bearer-gated at the engine).
     db-spark-backend:
       loadBalancer:
         servers:
           - url: "https://{{ spark_home_ip }}:443"
+        serversTransport: spark-tls-in-tls
     llm-backend:
       loadBalancer:
         servers:
           - url: "https://{{ spark_home_ip }}:443"
+        serversTransport: spark-tls-in-tls
     # litellm-backend: the VPS LiteLLM container via Docker DNS (tailnet-only route — see the
     # litellm-tailnet router; the spine must never be world-public).
     litellm-backend:

@@ -98,6 +98,14 @@ inputs, not tools. `collect-smart.ps1` is the Windows PowerShell sibling of
 - **Never edit a `-generated` doc directly** — change the SSOT (`group_vars/*.yml`, `rack-connections.json`) and re-render, then `git diff --exit-code` to confirm.
 - **No secrets outside 1Password `Homelab-ansible`.** Render scripts that need one (e.g. `render-routeros.yml` → device `.rsc`) resolve via `lookup(...)`; the pure-Python renderers here intentionally touch **no** secrets (they read only the YAML/JSON SSOT).
 - **Windows vs Linux:** the Python scripts run cross-platform (PyYAML + Jinja2). Ansible playbooks (`render-docs.yml`, `render-routeros.yml`) require WSL/CI on this machine. Since the WSL ext4 move (HD-259) the Debian/WSL primary is the canonical runner, so scripts must not assume Windows-only launchers/paths; the gate enforces this (see §Portability). Like `ansible-run.sh`, the `validate-all.sh` `--syntax-check` gate exports `ANSIBLE_CONFIG`/`ANSIBLE_ROLES_PATH` from the repo root so roles resolve (HD-256).
+- **Live converges run ASYNC (HD-370 live lesson 2026-09-15):** a full/`--tags docker_services` converge takes **10–30+ min** (Bulk 1P pre-pass, authentik glue, per-service compose up, restart guards, Technitium seed). Running it in the foreground of a tool/terminal shell (or behind the container host's own timeout) lets an outer timeout kill it **mid-restart** — live evidence: a `timeout 600` killed a VPS converge right at `docker compose restart traefik-tailnet`, leaving `tailscale-sidecar Exited (128)` and a `cannot join network namespace of a non running container` failure on the *next* run's restart guard. Always launch converges **detached** and poll:
+  ```bash
+  # from the WSL runner (same env exports as ansible-run.sh)
+  nohup ansible-playbook -i IaC/ansible/inventory.ini playbooks/…yml \
+      --limit hosts --tags … > /tmp/converge-<host>-<ts>.log 2>&1 &
+  # then poll: tail -f /tmp/converge-<host>-<ts>.log → PLAY RECAP
+  ```
+  `--check` is the only safe foreground form (fast, read-only). If a converge is killed mid-restart, the fix is idempotent: re-run the same playbook (the restart-on-config-change guard restarts the stack cleanly once the sibling containers are up).
 - **Validator wiring:** anything added to `validate-all.sh` must be listed here; keep the comment block in `validate-all.sh` in sync.
 - **Config / "what reads what":** `CONVENTIONS.md` §8 is the canonical index of rules these scripts enforce; this file is a *map* — the owning specs remain authoritative.
 

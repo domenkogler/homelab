@@ -138,15 +138,19 @@
 #   * .env.j2 extras (kopia-server/agent): compose ${} INTERPOLATION source — a value
 #     change alters container specs, so `up -d` above already recreated; restarting
 #     again would be a pointless double bounce.
-#   * traefik / traefik-ha: dynamic/*.yml land in the file-provider watch dir and
-#     hot-reload in-process; a restart would only add downtime (and drop edge traffic).
+#   * traefik / traefik-ha / traefik-tailnet: dynamic/*.yml land in the file-provider
+#     watch dir and hot-reload in-process; a restart would only add downtime (and drop
+#     edge traffic). traefik-tailnet ALSO carries a `tailscale-sidecar` sibling in the
+#     same compose project whose netns makes `docker compose restart` flaky ('cannot
+#     join network namespace of a non running container' on the sidecar — live
+#     2026-09-15), so it is excluded for the same reason as the other file-provider edges.
 # First-boot safe: `up` just created the containers, so a restart finds them running;
 # idempotent converges never fire it (no render change -> no restart).
 - name: "Restart {{ svc.name }} stack to apply changed extra config"
   # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
   tags: "{{ svc.name }}"
   when:
-    - svc.name not in ['traefik', 'traefik-ha']
+    - svc.name not in ['traefik', 'traefik-ha', 'traefik-tailnet']
     # Corrected (HD-255/HD-260): the extra .j2 loop uses `loop_var: extra`, so the
     # registered loop results carry the key `extra` (the template filename) — NOT
     # `item`. The old `map(attribute='item')` raised "object of type 'dict' has no

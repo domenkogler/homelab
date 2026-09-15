@@ -68,4 +68,29 @@ if [ "${pubkey}" = "none" ] || [ -z "${peers}" ]; then
     echo "wg-ensure-s2s-peer: FAIL — after setconf public-key='${pubkey}' peers='${peers}'" >&2
     exit 1
 fi
-echo "wg-ensure-s2s-peer: verified key + peer on ${iface}"
+
+# 3) Install + reconcile kernel ROUTES for every AllowedIPs /32 on the peer.
+#    HD-370 live gap (2026-09-15): plain `wg set peer` (and `wg setconf`) populates
+#    the peer's AllowedIPs but installs NO host routes — the missing
+#    `10.10.1.40 dev wg-s2s` route made the VPS send spark traffic out the public
+#    eth0 (spark unreachable; the old routes were stale leftovers from the pre-HD-285
+#    [WireGuardPeer] .netdev). A `wg set` (no route auto-install) means every
+#    AllowedIPs entry needs an explicit `ip route to <ip> dev wg-s2s` — idempotent,
+#    and self-heals on interface re-creation / reboot (networkd is Unmanaged, so
+#    nothing else restores them). Only /32 or /N entries that are NOT already routed
+#    are touched (least-mutation; never clobbers a pre-existing compatible route).
+peer_ips="${peer_ips#"${peer_ips%%[![:space:]]*}"}"
+if [ -n "${peer_ips}" ]; then
+    IFS=',' read -r -a peer_ip_list <<< "${peer_ips// /}"
+    for cidr in "${peer_ip_list[@]}"; do
+        [ -n "${cidr}" ] || continue
+        # `ip route replace` is idempotent: same route = no change; a changed one
+        # is updated in place. Replace (not add) so a stale route with a different
+        # device (e.g. eth0 from HD-370) is CLOBBERED back onto wg-s2s.
+        echo "wg-ensure-s2s-peer: ensuring route ${cidr} via ${iface}"
+        /usr/bin/ip route replace "${cidr}" dev "${iface}" 2>/dev/null \
+            || echo "wg-ensure-s2s-peer: WARN route ${cidr} not replaceable (non-fatal)"
+    done
+fi
+
+echo "wg-ensure-s2s-peer: verified key + peer + routes on ${iface}"

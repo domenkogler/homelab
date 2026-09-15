@@ -122,6 +122,14 @@ task-specific dispatch. Do **not** bulk-read the repo.
 6. implement → `bash scripts/validate-all.sh` green → update `todo.md` + owning `docs/*.md` per
    lifecycle (close-out lives in the owning doc + commit; the frozen changelog/journal are archived)
    → commit signed (if `Couldn't find key in agent`: `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth`, then commit; CONVENTIONS §6)
+
+> **Live converges run DETACHED (HD-370 live lesson 2026-09-15):** a full `docker_services` converge
+> takes **10–30+ min** and must be launched with `nohup … &` + a log file, then polled — a foreground
+> run behind an outer timeout gets killed **mid-restart**, leaving sibling containers `Exited` and the
+> next run's restart guard failing (`cannot join network namespace of a non running container`, live
+> evidence: VPS `tailscale-sidecar Exited (128)` after a `timeout 600` kill). Re-running the same
+> playbook is idempotent (the guard restarts the stack cleanly once siblings are up). `--check` is the
+> only safe foreground form. See `scripts/README.md` Notes & conventions for the exact incantation.
 7. if it's a planned / multi-step / multi-host / live-deploy change → use the **orchestrator pattern**: a single parent session co-ordinates subagents/parallel lanes with an explicit lane map (see pi-subagents skill), and records the runbook in the owning `docs/*.md` — no separate `plan/` ceremony required
 
 ### Orchestrator + reviewer discipline (lane hygiene, HD-346 lesson)

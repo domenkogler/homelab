@@ -73,6 +73,16 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 > `wg-ensure-s2s-peer` oneshot OWNS it (create-if-missing → assign address → key via `wg setconf`
 > key-only → peer via `wg set … peer`), verified every run.
 >
+> **(b2) Host routes are NOT installed by `wg set` (HD-370 live gap 2026-09-15):** plain `wg set peer`
+> populates the peer's AllowedIPs but installs NO kernel routes — only `wg-quick`/`wg setconf` do
+> (and only at setup). The pre-HD-285 `[WireGuardPeer]`-era `.netdev` had left stale `10.10.x dev wg-s2s`
+> routes; adding a NEW AllowedIPs entry (spark `spark_home_ip/32`, HD-370) never got a route, so the VPS
+> sent spark traffic out the public `eth0` and spark stayed unreachable (laptop SSH hop failed too).
+> **Fix:** the oneshot now runs `ip route replace <cidr> dev wg-s2s` for every AllowedIPs entry
+> (idempotent; `replace` also clobbers a stale wrong-device route back onto wg-s2s; non-fatal WARN on
+> failure), rebuilding routes on every run/reboot (networkd is Unmanaged so nothing else restores them).
+> Live-proof: `ip route replace spark_home_ip/32 dev wg-s2s` on the VPS made spark :443 instantly reachable.
+>
 > **(c) Router forward-rule ordering (HD-155):** the `VPS S2S -> scoped home targets` accept sat BELOW the
 > `Default deny inter-VLAN` and was shadowed. **Fix:** moved above the deny (rule 29 · before 30).
 >
