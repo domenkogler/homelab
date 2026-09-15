@@ -1220,6 +1220,31 @@ ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark.kogler.si -e
 
 ✔ (2026-09-14) `failed=0` (ok=53): `/mnt/spark_nvme` XFS 504G fstab-durable + dirs; docker 29.2.1; alloy active. AI stack deploy-gated on bench (HD-359).
 
+### 5.5 B1 benchmark — imperative run procedure `[MANUAL]`
+
+> First proven by the 2026-09-15 session. Harness lives in-repo (`spark/bench/`); it is **copied to the box** (the box has no repo). Run the official sanity sequence (C1×2 + C2×2 + C3×2 + warm) + accuracy gate. **C3 default is 12×8k@c3 which OOM's the host on GB10 unified memory — the harness now defaults C3→6×8k@c2.
+
+```bash
+# 1) copy harness + scripts to the box (has docker/jq/nvidia-smi)
+scp -r spark/bench spark:/home/ansible-admin/bench
+
+# 2) sanity sequence (accuracy gate + C1/C2/C3 ×2 fresh seeds + warm) — run detached, ~30 min
+ssh spark 'cd /home/ansible-admin/bench && setsid bash -c "bash run-sanity.sh > sanity-full.log 2>&1" < /dev/null &'
+
+# 3) single scenario for iterative tuning (env-overridable sizes; MEM_FLOOR_GB guards host RAM)
+ssh spark 'cd /home/ansible-admin/bench && MEM_FLOOR_GB=8 bash run-scenario.sh B1 C2 42'
+
+# 4) retrieve results
+scp -r spark:/home/ansible-admin/bench/raw .
+scp spark:/home/ansible-admin/bench/results.csv ./raw/
+scp -r spark:/home/ansible-admin/bench/accuracy .
+```
+
+**Known harness corrections baked in (2026-09-15, this vLLM build `0.1.dev20073+g8e685d198`):** invoke via `vllm bench serve` (the `python3 -m vllm.benchmarks.serve` module has no `__main__`, silently exits 0); flags are `--base-url + --endpoint /v1/chat/completions` (new CLI); snapshot-metrics uses `kv_cache_usage_perc` (renamed from `gpu_cache_usage_perc`); result JSON is read out via `docker exec cat` (docker cp can't see the container's tmpfs `/tmp`); run metrics are float-safe and keyed on an immutable `RUN_TS` (the snapshot .env clobbers `TS`).
+
+> **C3 OOM (2026-09-15 02:50):** the original 12×8k@c3 exhausted the NVRM memdesc (`NV_ERR_NO_MEMORY`) + triggered a global host OOM that killed sshd/NetworkManager/polkitd (the vLLM container survived its 105G cage). The harness preflight (`MEM_FLOOR_GB`, default 8) aborts a run if host available RAM is below the floor — never re-run an unsafe C3 unattended.
+
+
 ### 5.6 DGX Dashboard LAN edge — verify (after any spark converge / reboot) `[Ansible + verify]`
 
 > Live fix 2026-09-15 (404 → 200). The spark-dashboard Traefik edge 404'd from the LAN because:
