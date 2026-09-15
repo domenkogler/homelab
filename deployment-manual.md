@@ -22,6 +22,18 @@
   commands to wsl.exe.
 - **Ansible-run semantics** (sync gate, `--tags` surgical runs, venv interpreter): see
   [scripts/README.md](scripts/README.md) + [docs/deployment-ansible.md](docs/deployment-ansible.md) §Tags & surgical runs.
+- **Live converges run DETACHED (HD-370 lesson 2026-09-15):** a full `docker_services` converge
+  takes **10–30+ min**. Run it in the background and poll — a foreground run behind an outer
+  timeout gets killed **mid-restart**, leaving sibling containers `Exited` (live: VPS
+  `tailscale-sidecar Exited (128)` after a kill) and the next run's restart guard fails
+  (`cannot join network namespace of a non running container`). Incantation from the WSL runner:
+  ```bash
+  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services \
+      </dev/null > /tmp/converge-"$(date +%s)".log 2>&1 &
+  tail -f /tmp/converge-*.log    # poll until PLAY RECAP
+  ```
+  Re-running the same playbook is idempotent (the guard restarts the stack once siblings are Up).
+  **Only `--check` is safe in the foreground.**
 
 ---
 
