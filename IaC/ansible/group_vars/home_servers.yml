@@ -170,7 +170,7 @@ docker_services:
   - { name: bazarr,       template_dir: bazarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop)
   - { name: sabnzbd,      template_dir: sabnzbd,      subdomain: sab, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A: image runs PUID=1005; /srv/docker/sabnzbd/config must be pre-created 1005-owned (2026-09-15 live: root-owned empty config → "Cannot create INI file /config/sabnzbd.ini" crash-loop after a converge recreated the container)
   - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop); + gluetun sidecar in template (now also carries slskd egress — HD-362; edge routes: torrent.)
-  - { name: profilarr,    template_dir: profilarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: domen-owned config → crash-loop)
+  - { name: profilarr,    template_dir: profilarr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-318 Class-A: image su-execs to uid 1000 (docker top: /app/profilarr runs as domen=1000); config dir must be pre-created 1000-owned (2026-09-15: initially mis-set to 1005, corrected — the app runs as 1000)
   - { name: recyclarr,    template_dir: recyclarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop); scheduled worker, no UI
 
   # --- Dev AI (HD-355/356, 2026-09-10): dsh + pi-dev MOVED here from the VPS; the
