@@ -109,9 +109,11 @@ docker_services:
   # The `:rocm` image is the proven RDNA3 path (verified 2026-08-21); Ollama natively
   # serves all three pinned models with one container + one bundled ROCm runtime.
   # docs/services-ai.md §9 decision #24 · docs/hardware-gpu.md.
-  # DEPLOY-GATED (HD-369): flip `enabled: true` + converge oldsrv → model pull →
-  # LiteLLM catalog recreate → voice re-point. DO NOT converge while disabled.
-  - { name: ollama,          template_dir: ollama, enabled: false }
+  # DEPLOY-GATED (HD-369): gate-clear 2026-09-15 (spark stable / 262k ctx, big-model tier live) →
+  # flipped `enabled: true` + converge oldsrv → model pull → LiteLLM catalog recreate →
+  # voice re-point. DO NOT flip back while spark/voice depend on it. (spark-ai precedent: flip
+  # back to false if the bench regresses.)
+  - { name: ollama,          template_dir: ollama, enabled: true }
   - { name: immich-ml,       template_dir: immich-ml }   # ML offload for immich-app on VPS (over WG)
 
   # --- DNS (HD-299, VPS-primary 2026-09-03): oldsrv is now the SECONDARY resolver ---

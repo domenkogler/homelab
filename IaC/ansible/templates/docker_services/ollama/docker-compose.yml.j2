@@ -12,12 +12,19 @@
 #   The `:rocm` image is the PROVEN RDNA3 path (verified 2026-08-21) — the same
 #   container-bundled-ROCm doctrine as immich-ml (docs/hardware-gpu.md).
 #
-#   Models (pulled at first boot via the ollama_pull_models var):
-#     whisper-large-v3-turbo  — STT (voice pipeline, docs/smart-home-voice.md)
-#     bge-m3                  — embeddings (1024-dim, Qdrant RAG, docs/services-ai.md §5b)
-#     bge-reranker-v2-m3      — rerank (Qdrant RAG top-20→top-5)
-#   LiteLLM fronts these as `ollama/whisper-large-v3-turbo`, `ollama/bge-m3`,
-#   `ollama/bge-reranker-v2-m3` (models-in-DB, HD-247).
+#   Models (pulled at first boot — 2026-09-15 live pulls; the plain library names in the
+#   original HD-369 spec did NOT exist in the ollama library — corrected to the community
+#   registry paths that DO exist and were pulled):
+#     sendmeaiohyeah/whisper-large-v2  — STT (voice pipeline, docs/smart-home-voice.md)
+#     bge-m3                           — embeddings (1024-dim, Qdrant RAG, docs/services-ai.md §5b) [library]
+#     qllama/bge-reranker-v2-m3:q8_0   — rerank (Qdrant RAG top-20→top-5) [community]
+#   LiteLLM fronts these as `ollama/sendmeaiohyeah/whisper-large-v2`, `ollama/bge-m3`,
+#   `ollama/qllama/bge-reranker-v2-m3:q8_0` (models-in-DB, HD-247).
+#
+#   ⚠ KNOWN API CAP: this pinned ollama (0.32.15-rocm, versions.yml) exposes /api/embed + /api/chat
+#   but NOT /api/rerank (404 — rerank endpoint only exists in ollama ≥ 0.5.x). So LiteLLM's
+#   /rerank route will NOT work against this binary while pinned at 0.3x. Embed (bge-m3) is verified
+#   live; whisper/rerank need a newer ollama (see HD-369 deploy-gate tail for the follow-up).
 #
 # Secrets: none needed (models are public, no API keys).
 services:
