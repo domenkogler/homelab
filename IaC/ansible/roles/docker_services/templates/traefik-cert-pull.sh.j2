@@ -18,4 +18,7 @@ DST="{{ docker_compose_dir }}/{{ traefik_consumer_dir | default('traefik') }}/ce
 SSH="ssh -i /root/.ssh/traefik-cert-sync -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
 
 mkdir -p "$DST"
-rsync -az --delete -e "$SSH" "$SRC" "$DST"
+# --exclude dump/: the issuer's root-only intermediate tree (0700 private/) must not
+# be walked by the consumer pull — the Pi ha-cert-sync precedent (consumer pulls the
+# renamed wildcard pair at the SRC root only; rsync exit 23 otherwise).
+rsync -az --delete --exclude='dump/' -e "$SSH" "$SRC" "$DST"

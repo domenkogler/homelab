@@ -57,11 +57,10 @@ services:
       - "--entrypoints.lm-http.address={{ spark_home_ip }}:80"
       - "--ping=true"                 # /ping health endpoint for the healthcheck below
       - "--log.level=INFO"
-      # HD-370: HSTS for the name edge — browsers remember https-only for db-spark/llm so LAN↔
-      # tailnet roaming (the phone case) never offers the plaintext :80 record to the client.
-      - "--http.middlewares.hsts.headers.stsSeconds=31536000"
-      - "--http.middlewares.hsts.headers.stsIncludeSubdomains=true"
-      - "--http.middlewares.hsts.headers.stsPreload=false"
+    # HD-370 HSTS: set in dynamic/routes.yml.j2 (hsts middleware on the db-spark/llm
+    # :443 routers) — NOT here: Traefik CLI flags cannot declare middlewares
+    # ("failed to decode configuration from flags: field not found, node: http",
+    # live crash-loop 2026-09-15). Only entrypoints/providers/ping are CLI-configurable.
     # (No ACME on this edge; TLS = the pulled wildcard pair in ./certs, consumer pattern.)
     # healthcheck unchanged — /ping stays the probe (spark's dashboard/Jupyter are loopback-
     # HTTP backends with their own login; TSL/HSTS don't affect it).
