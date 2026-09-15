@@ -63,7 +63,8 @@ _extra_templates:
     - csp.yaml.j2        # HD-144 — Authentik SSO domain in connect-src/frame-src
   litellm:
     - config.yaml.j2   # HD-100 LLM gateway model_list/config
-    - config.yaml.j2   # HD-100 LLM gateway model_list/config
+  lan-litellm:
+    - config.yaml.j2   # HD-356 LAN-instance clone (HD-370: model_list stays DB/Admin-UI-managed)
   signal-cli-rest-api:
     - config.yaml.j2   # HD-353 secured-signal-api gateway config (tokens + endpoint allow-list)
   headscale:
@@ -77,6 +78,7 @@ _extra_templates:
     - certs-rename.sh.j2        # Wave-2 triage 2026-08-22 — wildcard pair rename (entrypoint + post-hook)
   spark-dashboard:
     - dynamic/routes.yml.j2     # HD-364 rework — DGX dashboard/jupyter LAN bridge (file-provider routes; compose renders docker-compose.yml.j2 separately)
+    - dynamic/tls.yml.j2        # HD-370 fix 2026-09-15 — consumer default-store TLS (raw-copy-only left the edge on TRAEFIK DEFAULT CERT; live-found)
   # crowdsec: HD-313 (2026-09-04) — no extra templates. The RouterOS acquisition
   # now lands in the config mount via the monitoring role
   # (acquis-routeros.yml.j2 -> /srv/docker/crowdsec/config/acquis.d/). Do NOT
@@ -130,7 +132,8 @@ _template_vault_items:
   immich-ml: {'immich-ml-internal_api'}
   kopia-agent: {'kopia_password', 'kopia-server-internal_api', 'kopia-server_fingerprint'}
   kopia-server: {'kopia_password', 'kopia-server-internal_api'}   # NB: kopia-server_fingerprint NOT fetched here — cannot exist before kopia-server first start seeds it (HD-318a); only the AGENT (oldsrv, later play) consumes it
-  litellm: {'litellm_master_key', 'litellm_db', 'openrouter_api'}   # cohere_api retired 2026-09-06 (decision #23) — embed/rerank local on oldsrv RX 7600 (decision #24)
+  litellm: {'litellm_api', 'litellm_db', 'openrouter_api'}   # cohere_api retired 2026-09-06 (decision #23) — embed/rerank local on oldsrv RX 7600 (decision #24)
+  lan-litellm: {'litellm_api', 'litellm_db', 'openrouter_api'}   # HD-356 LAN instance — same items as the VPS spine (live-found 2026-09-15: the entry was missing from this map, so the static pre-pass never fetched the items and the compose render failed fail-closed on vault['litellm_api'])
   mcp-victoriametrics: {'victoria-metrics_api'}   # HD-344 — MCP→VM basic auth (username/password)
   mcp-victorialogs: {'victoria-logs_api'}         # HD-344 — MCP→VL basic auth (username/password)
   matrix: {'matrix_api', 'matrix_password'}

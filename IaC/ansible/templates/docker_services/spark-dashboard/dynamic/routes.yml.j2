@@ -17,7 +17,9 @@
 #     docs/hardware-spark.md §Remote management); llm.kogler.si is gated by the ENGINE's own
 #     --api-key (spark-llm_api vault item) — the AI spine (LiteLLM ×2) + pi are the only
 #     holders. No middleware on the LLM path: the bearer key IS the auth.
-#   - HSTS is set on the edge (CLI) so browsers remember https-only for these names.
+#   - HSTS is set here (hsts middleware on the :443 name routers — see the middlewares
+#     block below; NOT CLI flags, Traefik cannot declare those) so browsers remember
+#     https-only for these names.
 #   - JupyterLab spawns ON DEMAND from the dashboard's JupyterLab panel (Start);
 #     until a lab is Running, 127.0.0.1:11002 has no listener and the route idles.
 
@@ -27,6 +29,15 @@ http:
       redirectScheme:
         scheme: https
         permanent: true
+    # HD-370: HSTS for the name edge — browsers remember https-only for db-spark/llm so
+    # LAN↔tailnet roaming (the phone case) never offers the plaintext :80 record to the
+    # client. Declared HERE (dynamic file), never as CLI flags — Traefik CLI cannot
+    # declare middlewares (live crash-loop 2026-09-15, see the compose header).
+    hsts:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: false
 
   routers:
     # --- legacy port entrypoints (unchanged URLs, for the pre-existing dashboard links) ---
@@ -48,6 +59,8 @@ http:
       rule: "Host(`db-spark.kogler.si`)"
       entryPoints:
         - lm
+      middlewares:
+        - hsts
       service: dgx-dashboard-backend
       tls: true
       priority: 1
@@ -55,6 +68,8 @@ http:
       rule: "Host(`llm.kogler.si`)"
       entryPoints:
         - lm
+      middlewares:
+        - hsts
       service: llm-backend
       tls: true
       priority: 1

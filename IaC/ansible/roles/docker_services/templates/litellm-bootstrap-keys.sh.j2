@@ -1,13 +1,17 @@
 #!/bin/bash
 # =============================================================================
 # litellm-bootstrap-keys.sh — LiteLLM -> 1Password virtual-key egress glue (HD-247)
-# Managed by Ansible (docker_services role). Runs on the **VPS** during the litellm
-# service's deploy-service pass, AFTER the litellm stack is healthy and BEFORE the
-# key consumers (open-webui, openclaw) render their compose files — registry order
-# guarantees this (same contract as prepass-authentik.yml for OIDC items).
+# Managed by Ansible (docker_services role). Runs on any host that deploys a
+# LiteLLM instance with `bootstrap_keys: true` (VPS `litellm` — HD-247; oldsrv
+# `lan-litellm` — HD-356/HD-370) during that service's deploy-service pass, AFTER
+# the stack is healthy and BEFORE the key consumers render their compose files —
+# registry order guarantees this (same contract as prepass-authentik.yml for OIDC
+# items). The container is rendered from the owning service entry (svc.name).
 #
 # Idempotent create-if-absent, VAULT-STATE-FIRST: for every scoped-key spec
-# (group_vars/vps.yml `litellm_scoped_keys`) the CURRENT vault value decides:
+# (per-instance SSOT: group_vars/vps.yml for `litellm`, group_vars/home_servers.yml
+# for `lan-litellm` — each instance's DB owns its own keys) the CURRENT vault value
+# decides:
 #   1. vault field EMPTY            -> mint POST /key/generate, write sk into the item
 #   2. vault field set + probe 200  -> keep (skip silently)
 #   3. vault field set + probe 401  -> STALE SECRET: ABORT loudly (rc 2). The sk is
@@ -42,7 +46,7 @@
 set -uo pipefail
 
 OP_VAULT="${OP_VAULT:-Homelab-ansible}"
-LITELLM_CONTAINER="${LITELLM_CONTAINER:-litellm}"
+LITELLM_CONTAINER="${LITELLM_CONTAINER:-{{ svc.name }}}"
 
 log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 
@@ -52,13 +56,14 @@ if ! command -v op >/dev/null 2>&1; then
   echo "FATAL: op CLI not found" >&2; exit 1
 fi
 
-MASTER_KEY="$(op item get litellm_master_key --reveal --fields credential --vault "$OP_VAULT" 2>/dev/null)"
+MASTER_KEY="$(op item get litellm_api --reveal --fields credential --vault "$OP_VAULT" 2>/dev/null)"
 if [ -z "${MASTER_KEY:-}" ]; then
-  echo "FATAL: litellm_master_key empty/unreadable — cannot administer keys" >&2; exit 1
+  echo "FATAL: litellm_api empty/unreadable — cannot administer keys" >&2; exit 1
 fi
 
-# Scoped-key specs are RENDERED statically from group_vars/vps.yml litellm_scoped_keys
-# (SSOT — the scanner reads the same records). Format: alias|item|models_csv|max_budget|budget_duration
+# Scoped-key specs are RENDERED statically from the instance's scoped-keys SSOT
+# (`litellm_scoped_keys` — defined per group_vars file, one instance per group).
+# Format: alias|item|models_csv|max_budget|budget_duration
 KEYS=(
 {% for k in litellm_scoped_keys %}
   "{{ k.alias }}|{{ k.vault_item }}|{{ k.models }}|{{ k.max_budget }}|{{ k.budget_duration }}"

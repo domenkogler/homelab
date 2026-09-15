@@ -132,7 +132,7 @@ CATALOG = [
     ("Login",       "onlyoffice-rabbitmq_login", lambda: [f"username=onlyoffice", f"password={gen_pw()}"]),
     ("Password",    "openwebui_secret",       lambda: [f"password={gen_pw()}"]),
     # --- API Credential ---
-    ("API Credential", "litellm_master_key",      lambda: [f"credential={gen_pw()}"]),
+    ("API Credential", "litellm_api",      lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "immich-ml-internal_api",  lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "n8n-webhook_api",         lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "signal-internal_api",     lambda: [f"credential={gen_pw()}"]),

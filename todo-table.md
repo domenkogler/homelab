@@ -19,7 +19,7 @@ Rows the AI can execute: either **now** (no prerequisite) or the **⏳ deploy-ga
 | HD-207 | 1 | Landing-zone redistribution **mechanics** | Moving data is AI-work; only the final *media rename vs personal-files* call is owner (split) |
 | HD-191 | 2 | oldsrv Kopia **restore drill** + volume-name pin (first snapshot DONE 2026-09-08) | Machine-recover one snapshot; owner confirms the restore target |
 | **AI / Office** ||||
-| HD-100 | 2 | Create `litellm_master_key` + pin `litellm_version` (+ live-verify completions) | Provider keys confirmed real in HD-211; item creation + version pin is AI (completion verify rides openrouter cloud — Triton-on-spark local tier is HD-335) |
+| HD-100 | 2 | Create `litellm_api` + pin `litellm_version` (+ live-verify completions) | Provider keys confirmed real in HD-211; item creation + version pin is AI (completion verify rides openrouter cloud — Triton-on-spark local tier is HD-335) |
 | HD-247 | 1 | LiteLLM scoped-keys cutover: seed db → converge → model recreation → live-verify | Seed + converge + model recreation + scoped-key/owui/openclaw auth live-verify are AI; completion round-trip rides openrouter (cloud) now, Triton on spark later (HD-335) |
 | HD-103 | 2 | Docling OCR first start + Slovenian scan verify | AI (oldsrv live) |
 | HD-104 | 4 | OpenClaw `onboard` + round-trip | AI |

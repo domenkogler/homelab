@@ -408,7 +408,7 @@ overlay can't write to a sibling (extends HD-59). Cross-host reaches (`immich-ap
 | backup clients → kopia | VPS (WG) | `--htpasswd-file` Basic | `kopia-server-internal_api` | ✅ HD-59 |
 | VictoriaMetrics/VictoriaLogs auth | VPS | `-httpAuth` plaintext basic auth | `victoria-metrics_api` / `victoria-logs_api` | ✅ HD-341/342 |
 | litellm → ollama | VPS → oldsrv (WG) | **network isolation** (`llm-backend`, no native auth) | — | ✅ HD-59 |
-| open-webui / openclaw → litellm | VPS | `LITELLM_MASTER_KEY` bearer | `litellm_master_key` | ✅ HD-100 |
+| open-webui / openclaw → litellm | VPS | `LITELLM_MASTER_KEY` bearer | `litellm_api` | ✅ HD-100 |
 | openclaw → opencloud (WebDAV) | VPS | OpenCloud **app-specific password** (scoped service user) | `openclaw-opencloud_api` | ✅ IaC (HD-160) |
 | immich-app → immich-ml | VPS → oldsrv (WG) | native ML **API-key header** | `immich-ml-internal_api` | ✅ IaC (HD-160) — **live-verified 2026-09-08 (HD-184)** |
 | renovate → forgejo API | VPS | `RENOVATE_TOKEN` | `forgejo_api` | ✅ |

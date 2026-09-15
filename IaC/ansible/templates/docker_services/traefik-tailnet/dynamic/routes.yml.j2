@@ -503,6 +503,14 @@ http:
       redirectScheme:
         scheme: https
         permanent: true
+    # HD-370: HSTS for every :443 route — assigned ENTRYPOINT-wide in the compose CLI
+    # (--entrypoints.websecure.http.middlewares=hsts@file; see its header for why this
+    # lives here and not as CLI flags).
+    hsts:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: false
 
   services:
     stats-backend:

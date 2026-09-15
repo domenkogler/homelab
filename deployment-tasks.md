@@ -96,7 +96,7 @@
 > **Provisioning note:** the generated items — the DB items `authentik_db`/`opencloud_db`/`immich_db`/`forgejo_db`/
 > `qdrant_db`, the secrets `authentik_password`/`nut_password`/`nut-exporter_password`/`kopia_password`/
 > `ha-vrrp_password`/`n8n_password`/`matrix_password`/`opencloud-collab_password`/`openwebui_secret`, and the
-> API creds `litellm_master_key`/`immich-ml-internal_api`/`n8n-webhook_api`/`signal-internal_api`/
+> API creds `litellm_api`/`immich-ml-internal_api`/`n8n-webhook_api`/`signal-internal_api`/
 > `kopia-server-internal_api`/`prometheus-internal_api` — are seeded automatically into `Homelab-ansible` by the
 > provisioner above, so they are deliberately **absent** from the human-gated tables. Exception (manual key):
 > `wg_password` stays out of the auto-catalog because WireGuard needs a real private key; provision it by hand
@@ -330,7 +330,7 @@
 
 **Deploy-gated verification (Phase 3):**
 
-- **HD-100** — LiteLLM live: create `litellm_master_key`/`openrouter_api`/`cohere_api`; MUST pin `litellm_version` semver; OpenAI-compatible completion + embed respond. · [services-ai.md](docs/services-ai.md)
+- **HD-100** — LiteLLM live: create `litellm_api`/`openrouter_api`/`cohere_api`; MUST pin `litellm_version` semver; OpenAI-compatible completion + embed respond. · [services-ai.md](docs/services-ai.md)
 - **HD-101** — Open Web UI live: `openwebui_secret` + `openwebui_api` (Authentik OIDC, redirect `https://ai.kogler.si/oauth2/callback`); OIDC login + LiteLLM completion + RAG. · [services-ai.md](docs/services-ai.md)
 - **HD-102** — RAG vector store live: `qdrant_db` resolves; Qdrant `/healthz` on `db-internal`; vector dimension lock @1536 at first ingest (HD-268, replaces PGVector). · [services-ai.md](docs/services-ai.md)
 - **HD-103** — Docling live: first start downloads HF models (multi-GB); v1 API converts a Slovenian scan. · [services-ai.md](docs/services-ai.md)
