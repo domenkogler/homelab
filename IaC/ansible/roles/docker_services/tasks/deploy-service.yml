@@ -349,6 +349,42 @@
 # sks are hashed at rest server-side and can never be re-read). Values never echoed;
 # everything runs no_log. Requires the host-side write-scoped op SA token deployed by
 # prepass-authentik.yml (/etc/op/provision-token) for the 1Password writes.
+# ---- Host-side op prerequisites for the glue (HD-370, 2026-09-15): the glue does
+# its 1Password vault writes ON THE HOST (HD-247 pattern — op CLI + write-scoped
+# token must live there). The VPS gets both via prepass-authentik.yml (authentik
+# pre-pass); home hosts NEVER run that pre-pass, so a bootstrap_keys host (LAN
+# lan-litellm) would render the glue and then fail "op: command not found". Deploy
+# the op CLI (apt repo, bootstrap-runner.sh precedent) + the write-scoped token
+# (vps-op-write_api, HD-143 pattern — never in Git) on the service pass, idempotent.
+- name: "Ensure host-side op CLI ({{ svc.name }} bootstrap_keys)"
+  when: svc.bootstrap_keys | default(false)
+  ansible.builtin.shell: |
+    set -e
+    curl -sS https://downloads.1password.com/linux/keys/1password.asc \
+      | gpg --yes --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" \
+      > /etc/apt/sources.list.d/1password.list
+    mkdir -p /etc/debsig/policies/AC2D62742012EA22
+    curl -sS https://downloads.1password.com/linux/debian/debsig/1password.pol \
+      > /etc/debsig/policies/AC2D62742012EA22/1password.pol
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq 1password-cli
+    command -v op
+  args:
+    creates: /usr/bin/op
+  tags: "{{ svc.name }}"
+
+- name: "Deploy provision token for host-side op ({{ svc.name }} bootstrap_keys, HD-143 pattern)"
+  when: svc.bootstrap_keys | default(false)
+  ansible.builtin.copy:
+    content: "{{ lookup('community.general.onepassword', 'vps-op-write_api', field='credential', vault=op_vault) }}\n"
+    dest: /etc/op/provision-token
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  tags: "{{ svc.name }}"
+
 - name: "Render LiteLLM bootstrap-keys glue ({{ svc.name }})"
   when: svc.bootstrap_keys | default(false)
   ansible.builtin.template:
