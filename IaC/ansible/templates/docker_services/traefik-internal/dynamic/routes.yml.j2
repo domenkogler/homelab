@@ -28,6 +28,14 @@ http:
       redirectScheme:
         scheme: https
         permanent: true
+    # HD-370: HSTS for every :443 route — assigned ENTRYPOINT-wide in the compose CLI
+    # (--entrypoints.websecure[.lan].http.middlewares=hsts@file; see its header for why
+    # this lives here and not as CLI flags).
+    hsts:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: false
 
   routers:
     # --- home-hosted set (lands on the oldsrv LAN IP) ---
