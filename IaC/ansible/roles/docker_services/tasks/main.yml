@@ -265,6 +265,27 @@
     label: "{{ item.name }}"
   tags: docker_services
 
+# Disabled services must ALSO lose their boot auto-start unit — otherwise the
+# enabled oneshot `docker-compose@<svc>` re-runs `compose up -d` on the next
+# reboot and resurrects a stack that was deliberately torn down (2026-09-15:
+# tube-archivist — the teardown above stopped the containers but the unit stayed
+# enabled, so a reboot would have brought the crash-looping TA stack back).
+- name: Disable boot auto-start for DISABLED services (enabled=false)
+  ansible.builtin.systemd:
+    name: "docker-compose@{{ item.name }}"
+    enabled: false
+    state: stopped
+  loop: "{{ docker_services }}"
+  when:
+    - scope_is_all
+    - item.enabled is defined
+    - not item.enabled
+    - item.name != 'authentik'
+    - ansible_facts['service_mgr'] == 'systemd'
+  loop_control:
+    label: "{{ item.name }}"
+  tags: docker_services
+
 # Traefik cert-pull consumer wiring (HD-181): non-issuer traefik hosts are cert
 # CONSUMERS — they pull /opt/traefik/certs from the VPS issuer on a timer (decided
 # HD-204: every consumer pulls from the VPS directly, no relay) and serve TLS from
