@@ -153,13 +153,13 @@ The plain `*.kogler.si` names resolve via headscale MagicDNS (`dns.search_domain
 construction). The public CNAMEs from the Phase-1 wave are removed from the IaC SSOT and deleted from
 Cloudflare at deploy time (owner action).
 
-> **HD-371 live case (2026-09-15):** laptop on a mobile hotspot + Tailscale connected, `stats.kogler.si` /
+> **HD-371 live case (2026-09-15, ✅ RESOLVED + LIVE):** laptop on a mobile hotspot + Tailscale connected, `stats.kogler.si` /
 > `llm.kogler.si` → `ERR_NAME_NOT_RESOLVED` while `stats.ts.kogler.si` worked and the phone (same hotspot)
 > resolved everything. Root cause: with the old nameservers (Technitium VPS primary only), a remote
 > mobile-network source hit the system resolver → NXDOMAIN, while the phone's client-side MagicDNS
 > extra_records still answered. The `100.100.100.100`-first fix resolves every tailnet name locally on
-> any network. (The phone `llm.kogler.si/v1` 401 vs `litellm.kogler.si` 502 was a separate litellm
-> docker-DNS gap — HD-372.)
+> any network; live-verified after the Windows client DNS re-pull (laptop + phone). (The phone `llm.kogler.si/v1` 401 vs `litellm.kogler.si` 502 was a separate litellm
+> docker-DNS gap — HD-372, ✅ fixed + LIVE.)
 
 Forward-Auth (Traefik chain) still gates the route; Grafana then auto-logs-in via `[auth.proxy]`,
 trusting the `X-authentik-email` header ONLY from the pinned Traefik edge IP (`traefik_edge_ip_pin`

@@ -182,14 +182,16 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 > `stats.ts.kogler.si`). The **plain `*.kogler.si` names resolve via the same MagicDNS** — headscale appends
 > the search domain `kogler.si` to its local domains, and `dns.extra_records` maps every tailnet
 > subdomain (incl. `llm`/`db-spark`/`litellm`, HD-370) in BOTH namespaces to the `vps-obs` edge
-> (`tailnet_sidecar_ip`). **HD-371 (2026-09-15):** the `dns.nameservers` list now puts the **MagicDNS loop
+> (`tailnet_sidecar_ip`). **HD-371 (2026-09-15, ✅ LIVE):** the `dns.nameservers` list now puts the **MagicDNS loop
 > `100.100.100.100` FIRST** — so a tailnet client resolves EVERY `*.kogler.si` / `*.ts.kogler.si` name
 > **locally on any network** (hotspot/travel), not just when the Technitium VPS primary is reachable.
 > The Technitium entries (VPS primary + oldsrv + Pi) follow for the full namespace + per-subnet
 > filtering when on the LAN. **Before HD-371** the plain names depended on the configured nameserver
 > for `kogler.si` = Technitium VPS primary (HD-299) — reachable only from home-WAN/tailnet-CGNAT (the
 > source-allow gate); a **remote mobile network** source (hotspot) fell through to the system resolver
-> → NXDOMAIN/`ERR_NAME_NOT_RESOLVED` on Windows while the `.ts` twins (MagicDNS) still worked. There is
+> → NXDOMAIN/`ERR_NAME_NOT_RESOLVED` on Windows while the `.ts` twins (MagicDNS) still worked. **Live-verified
+> 2026-09-15:** laptop-on-hotspot + client DNS re-pull (`netsh … set dnsservers Tailscale 100.100.100.100`)
+> → `llm/stats/litellm.kogler.si` all resolve; phone too. There is
 > NO public `*.kogler.si` record for these. The tailnet Traefik edge (`traefik-tailnet`, node `vps-obs`)
 > is the only tailnet surface for the admin dashboards (see the compose template
 > `docker_services/traefik-tailnet` for the routing + serve details).
@@ -219,7 +221,7 @@ sidecar serves to the app over that private network. Functional service-to-servi
 | Node | Serves | App-level auth | ACL tag |
 |------|--------|----------------|---------|
 | ~~dsh~~ *(moved to oldsrv 2026-09-10)* | cockpit :3080 | **none** (ACL is the gate) | tag:dsh |
-| vps-obs (`traefik-tailnet` + its userspace sidecar, HD-135b follow-up) | **clean subdomain URLs over the tailnet** — `stats`, `sec`, `traefik`, `logs`, `csui`, `auto` (n8n), and the AI names `db-spark`, `llm`, `litellm` (HD-370/HD-372) plus their `*.ts.kogler.si` twins: `https://stats.kogler.si` / `https://stats.ts.kogler.si`, `https://logs.kogler.si`, `https://csui.kogler.si`, `https://sec.kogler.si`, `https://traefik.kogler.si`, `https://auto.kogler.si`, `https://db-spark.kogler.si`, `https://llm.kogler.si` (spark OpenAI-API, bearer-gated), `https://litellm.kogler.si` (spine admin) — **no ports** (wildcard certs + second Traefik edge). **HD-372 (2026-09-15):** the `litellm.kogler.si` 502 (edge couldn't Docker-DNS `litellm` — spine on `services-internal` only) is fixed by joining `litellm` to the `tailnet-apps` app→edge overlay | plain `*.kogler.si` = Authentik Forward-Auth (AI names: engine/LiteLLM own-login, no forward-auth); **`*.ts.kogler.si` = ACL-gated** (tailnet-only names, `tag:sidecar:443` is the gate) | tag:sidecar |
+| vps-obs (`traefik-tailnet` + its userspace sidecar, HD-135b follow-up) | **clean subdomain URLs over the tailnet** — `stats`, `sec`, `traefik`, `logs`, `csui`, `auto` (n8n), and the AI names `db-spark`, `llm`, `litellm` (HD-370/HD-372) plus their `*.ts.kogler.si` twins: `https://stats.kogler.si` / `https://stats.ts.kogler.si`, `https://logs.kogler.si`, `https://csui.kogler.si`, `https://sec.kogler.si`, `https://traefik.kogler.si`, `https://auto.kogler.si`, `https://db-spark.kogler.si`, `https://llm.kogler.si` (spark OpenAI-API, bearer-gated), `https://litellm.kogler.si` (spine admin) — **no ports** (wildcard certs + second Traefik edge). **HD-372 (2026-09-15, ✅ LIVE):** the `litellm.kogler.si` 502 (edge couldn't Docker-DNS `litellm` — spine on `services-internal` only) is fixed by joining `litellm` to the `tailnet-apps` app→edge overlay; live-verified (edge `http://litellm:4000/health/liveliness` → "I'm alive!"; `litellm.kogler.si` → LiteLLM Swagger/UI 200). **`/ui/login` deep-link 404s (no nginx SPA fallback) → use `/fallback/login` (intended flow, HD-373)** | plain `*.kogler.si` = Authentik Forward-Auth (AI names: engine/LiteLLM own-login, no forward-auth); **`*.ts.kogler.si` = ACL-gated** (tailnet-only names, `tag:sidecar:443` is the gate) | tag:sidecar |
 | ~~pi-dev~~ *(moved to oldsrv 2026-09-10)* | TUI/CLI agent (`services-internal`) | scoped LiteLLM key + PR-only Forgejo | tag:pi-harness |
 | litellm-ui | admin :4000/ui | bearer keys | tag:litellm |
 | owui-int (`ai.kogler.si`, HD-248) | internal OWUI | Authentik OIDC | tag:owui-int |
