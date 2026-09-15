@@ -234,6 +234,12 @@ tailnet_subdomains:
   # templates/docker_services/traefik-tailnet/dynamic/routes.yml.j2) ---
   - { name: dsh }     # -> edge -> dsh-backend    http://{{ oldsrv_home_ip }}:3080 (over WG; old: dsh:3080)
   - { name: pi-dev }  # -> edge -> pi-backend     http://{{ oldsrv_home_ip }}:8080 (over WG; old: pi-dev:8080)
+  # HD-370: spark AI endpoints + LiteLLM admin — resolve to the vps-obs edge (same as above);
+  # the tailnet edge Host-routes db-spark/llm to spark's edge over WG + litellm to the VPS
+  # container. The .ts twins get the same extra_records (MagicDNS).
+  - { name: db-spark }   # -> edge -> db-spark-backend  https://{{ spark_home_ip }}:443 (over WG; spark's own edge)
+  - { name: llm }        # -> edge -> llm-backend       https://{{ spark_home_ip }}:443 (over WG; spark's own edge)
+  - { name: litellm }    # -> edge -> litellm-backend   http://litellm:4000 (docker DNS; tailnet-only)
 
 # HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge

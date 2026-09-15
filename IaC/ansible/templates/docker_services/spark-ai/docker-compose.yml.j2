@@ -86,7 +86,7 @@ services:
     # `spark_router_publish: true` (LAN publish, post-bench) supersedes this.
 {% if spark_metrics_publish | default(true) %}
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:{{ spark_engine_port }}:{{ spark_engine_port }}"
 {% endif %}
 {% endif %}
     ipc: host
@@ -109,7 +109,8 @@ services:
         max-size: "{{ spark_logging_max_size }}"
         max-file: "{{ spark_logging_max_file }}"
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      # HD-370: engine-port indirection — curl the same port the spark edge's llm route fronts.
+      test: ["CMD-SHELL", "curl -sf http://localhost:{{ spark_engine_port }}/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 8
@@ -120,6 +121,16 @@ services:
     command:
       - --model
       - /model
+      # HD-370: serve a clean model id (the staged weights' dir name is `/model`) so LiteLLM /
+      # pi see `spark/qwen3.8-flash-next` in /v1/models instead of `/model`. Engine-swap-ready:
+      # SGLang later serves the same id (spark_engine_port flips); keep the id stable across.
+      - --served-model-name
+      - {{ spark_vllm_served_name }}
+      # HD-370: bearer auth on the OpenAI endpoint — vLLM --api-key (same flag exists in
+      # SGLang), NOT a secret-free engine anymore: llm.kogler.si is edge-exposed (TLS + this
+      # key both required). The spark-ai template now carries its first vault item (spark-llm_api).
+      - --api-key
+      - "{{ vault['spark-llm_api'].credential | replace('$','$$') }}"
       # compression: the staged B1 weights pack compressed-tensors (config.json quant_method)
       # — forcing --quantization awq mismatches → pydantic ValidationError at boot.
       # vLLM reads quant_method from the model config when the flag is omitted.

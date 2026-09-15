@@ -318,10 +318,11 @@
 # edge); HD-350 adds traefik-internal (home-LAN edge, also on oldsrv) — its certs
 # dir is {{ docker_compose_dir }}/traefik-internal/certs (see traefik_consumer_dir
 # below), pulled by the SAME script/timer/keys. The Pi's `traefik-ha` keeps its own
-# equivalent puller (home_assistant role, ha-cert-sync). Key authorization on the
-# VPS is a LIVE step: append the consumer's /root/.ssh/traefik-cert-sync.pub to the
-# VPS ansible-admin authorized_keys (restricted options recommended, cf. the Pi
-# ha-sync wrapper precedent).
+# equivalent puller (home_assistant role, ha-cert-sync). HD-370 adds spark-dashboard
+# (spark's name edge) to the consumer set — {{ docker_compose_dir }}/spark-dashboard/certs.
+# Key authorization on the VPS is a LIVE step: append the consumer's
+# /root/.ssh/traefik-cert-sync.pub to the VPS ansible-admin authorized_keys
+# (restricted options recommended, cf. the Pi ha-sync wrapper precedent).
 # HD-350: the home-LAN edge (traefik-internal) must bind the VIP + LAN IP before/without
 # keepalived holding it — same requirement as the Pi's traefik-ha (home_assistant role
 # sets it there; this covers oldsrv, where keepalived runs as the standby VIP holder).
@@ -351,12 +352,13 @@
 - name: Traefik cert-pull consumer wiring (non-issuer hosts)
   when:
     - scope_is_all
-    - "'traefik' in (docker_services | map(attribute='name') | list) or 'traefik-internal' in (docker_services | map(attribute='name') | list)"
+    - "('traefik' in (docker_services | map(attribute='name') | list)) or ('traefik-internal' in (docker_services | map(attribute='name') | list)) or ('spark-dashboard' in (docker_services | map(attribute='name') | list))"
     - not (traefik_acme_issuer | default(false))
   vars:
-    # HD-350: which edge the cert pull targets. The shared `traefik` template dir
-    # (old default) vs the home-LAN edge. Defaults to the legacy shared dir.
-    traefik_consumer_dir: "{{ 'traefik-internal' if 'traefik-internal' in (docker_services | map(attribute='name') | list) else 'traefik' }}"
+    # HD-350/HD-370: which edge the cert pull targets. The shared `traefik` template dir
+    # (old default) vs the home-LAN edge vs the spark-dashboard edge (spark's name edge).
+    # Defaults to the legacy shared dir.
+    traefik_consumer_dir: "{{ 'traefik-internal' if 'traefik-internal' in (docker_services | map(attribute='name') | list) else ('spark-dashboard' if 'spark-dashboard' in (docker_services | map(attribute='name') | list) else 'traefik') }}"
   block:
     - name: Generate traefik-cert-sync SSH keypair (consumer → VPS issuer pull)
       ansible.builtin.command:

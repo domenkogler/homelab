@@ -1,0 +1,14 @@
+# spark-dashboard dynamic/tls.yml — consumer default-store TLS (HD-370)
+#   Same pattern as the traefik-internal / traefik-ha consumer edges: NO ACME resolver on
+#   this edge — the wildcard *.kogler.si pair is served from the DEFAULT store below,
+#   pulled from the VPS issuer (traefik-cert-pull consumer wiring, the docker_services role;
+#   Pi ha-cert-sync precedent). Routers without an explicit certResolver (db-spark, llm) fall
+#   back to this store, so every name route on this edge gets TLS.
+#   File names come from the shared wildcard_cert_file / wildcard_cert_key_file vars
+#   (group_vars/all.yml) so the issuer, the pull timer and this config can never drift.
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
+        keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"

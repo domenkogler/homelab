@@ -49,3 +49,9 @@ services:
       - "--entrypoints.websecure.address={{ ha_vip }}:443"
       - "--entrypoints.web-lan.address={{ oldsrv_home_ip }}:80"
       - "--entrypoints.websecure-lan.address={{ oldsrv_home_ip }}:443"
+      # HD-370: HSTS for every route this HOME edge serves (media/*arr/llogs/ha/dns-pi/llitellm…).
+      # All :80 → :443 by design (redirect-to-https catch-all); this makes browsers remember
+      # https-only — also the roaming fix when a phone crosses LAN ↔ tailnet.
+      - "--http.middlewares.hsts.headers.stsSeconds=31536000"
+      - "--http.middlewares.hsts.headers.stsIncludeSubdomains=true"
+      - "--http.middlewares.hsts.headers.stsPreload=false"

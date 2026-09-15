@@ -9,6 +9,11 @@
 #   deploy, recreate the former entries via the Admin UI/API using the HD-246-corrected
 #   parameters (ollama/bge-m3 @1024 dims; ollama/bge-reranker-v2-m3 — decision #24,
 #   2026-09-15, Cohere retired) — see this service's compose-header runbook.
+#   HD-370: the SPARK generation model (spark/qwen3.8-flash-next) is ALSO a runtime
+#   entry in this DB — its `base_url` is `https://llm.kogler.si` (the tailnet edge,
+#   over WG to spark:443) with the spark-llm_api bearer key. Same for the LAN instance
+#   (llitellm: base_url `http://llm.kogler.si`). Neither is rendered here — Admin-UI
+#   create + the two LiteLLMs set their model base_url / api_key from the vault.
 litellm_settings:
   drop_params: true
 
