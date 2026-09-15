@@ -216,6 +216,22 @@ preemptions = 0, host alive):**
 3. **Back off one notch** for a production margin (plan wants small co-resident models beside the gen
    engine later). The margin itself is a bench output — record it.
 
+**Sweep results (measured 2026-09-15, §9 rows below):**
+- **Max servable util = 0.82** — 0.70–0.82 boot + serve + host alive; **0.84 and 0.86 crash the ENGINE
+  during a single-session serve** (global OOM; host wedged, sshd died, power-cycle recovered); 0.88 boots
+  but has no serving headroom (MEM_FLOOR preflight blocks). Boundary is razor-thin: 0.02 flips servable→crash.
+- **Max ctx at 0.82 = 262,144 (native max_position_embeddings)** — 150k/175k/200k/250k all served at
+  90–95% fill, 0 preemptions; 262k boots + serves (acc-gate 8/10). **300k REJECTED at startup** (exceeds
+  model native max; needs `VLLM_ALLOW_LONG_MAX_MODEL_LEN` + YaRN, needle-gated). Native ceiling = 262,144.
+- **Serving fill:** tested to 95% of ctx (237.5k @ 250k); stable, 0 preemptions.
+- **Concurrency accuracy (2026-09-15):** 10-prompt acc-gate at 262k, 3 concurrent — **8/10 correct**
+  (same as serial); gaps: tool-call EMPTY (no tools registered) + html-game EMPTY, both pre-existing.
+  NOTE: this is short-prompt concurrency (KV ~11.5%) — a true 3×87k-token fill stress is NOT yet run.
+- **Production note:** 0.82@262k leaves ~9–15 GiB headroom. If co-resident small models (embeddings/STT)
+  must sit beside the gen engine, prefer 0.80@150k or back off util; the margin is a bench output, recorded.
+- **Cold-prefill caveat:** first max-fill request after restart is NVMe-I/O-bound (~465 MB/s weight reads,
+  ~13 min TTFT @ 250k); warm repeat = ~1640 tok/s prefill. Production agent turns on the same boot are warm.
+
 **High-value lever before/alongside the sweep — PLE CPU mirror off RAM:** the binding constraint is
 GPU reserve + **PLE CPU mirror (~57G resident)** ≤ pool, not util per se. Research says PLE tables mmap
 from XFS at <3% wall-clock (RESEARCH-VERDICTS §2). Shrink the mirror (tables → XFS page-cache mmap)
@@ -330,7 +346,23 @@ only from benches on this box.
 
 | Step | Engine | Config delta | C1 TTFT p50/p99 | C2 tok/s @1 | C3 tok/s @3 | Preemptions | Cache hit % | Accuracy | Verdict |
 |------|--------|--------------|-----------------|-------------|-------------|-------------|-------------|----------|---------|
-| B1 | vLLM | stable baseline (util 0.70 / cage 105G / ctx 64k) | **42.7s / 59.7s** (s42) · **48.5s / 53.0s** (s43) | **21–24 tok/s** (s42/s43) | ⏳ ~~C3 re-run at safe size~~ **DROPPED FOR S1 (owner 2026-09-15):** C3 is the S3/NVFP4 concurrency gate — S1 is single-session by definition; the C3 host-wedge (twice) made it a liability, and the only C3 verdict that matters for the sweep is the S3 lane. C3 stays harness-default (6×8k@c2) for future NVFP4/SGLang S3 only. | 0 | — | 10-prompt gate saved (code-fib/state-tracker/logic correct; tool-call EMPTY=no tools registered) | **C1+C2 certified** · ⏳ **S1 stability sweep (§6a) pending — C3 dropped for S1** |
+| B1 | vLLM | stable baseline (util 0.70 / cage 105G / ctx 64k) | **42.7s / 59.7s** (s42) · **48.5s / 53.0s** (s43) | **21–24 tok/s** (s42/s43) | ⏳ ~~C3 re-run at safe size~~ **DROPPED FOR S1 (owner 2026-09-15):** C3 is the S3/NVFP4 concurrency gate — S1 is single-session by definition; the C3 host-wedge (twice) made it a liability, and the only C3 verdict that matters for the sweep is the S3 lane. C3 stays harness-default (6×8k@c2) for future NVFP4/SGLang S3 only. | 0 | — | 10-prompt gate saved (code-fib/state-tracker/logic correct; tool-call EMPTY=no tools registered) | **C1+C2 certified** · ✅ **S1 stability sweep COMPLETE (2026-09-15): max servable util 0.82, max ctx 175k at 0.82** — see rows below |
+| S1-util0.74-ctx64k | vLLM | util 0.74 @ ctx 64k | 187.6s (58k in) | 2.4 | — | 0 | — | — | **boots + serves + host alive** ✅ |
+| S1-util0.78-ctx64k | vLLM | util 0.78 @ ctx 64k | 201.1s (58k in) | 2.4 | — | 0 | — | — | **boots + serves + host alive** ✅ |
+| S1-util0.82-ctx64k | vLLM | util 0.82 @ ctx 64k | 196.5s (58k in) | 2.4 | — | 0 | — | — | **boots + serves + host alive** ✅ |
+| S1-util0.82-ctx150k | vLLM | util 0.82 @ ctx 150k | 437.3s (135k in) | 0.6 | — | 0 | — | — | **boots + serves 135k session + host alive** ✅ — max ctx so far |
+| S1-util0.86-ctx150k | vLLM | util 0.86 @ ctx 150k | — | — | — | — | — | — | **boots, but serving a 135k session CRASHED the engine** (global OOM; host survived — cage contained it; Docker auto-restarted) ❌ |
+| S1-util0.84-ctx64k | vLLM | util 0.84 @ ctx 64k | — | — | — | — | — | — | **boots, but serving a 58k session CRASHED the engine** (global OOM; host wedged — sshd died; power-cycle recovered) ❌ |
+| S1-util0.86-ctx64k | vLLM | util 0.86 @ ctx 64k | — | — | — | — | — | — | **boots, but serving a 58k session CRASHED the engine** (global OOM; host wedged; power-cycle) ❌ |
+| S1-util0.88-ctx64k | vLLM | util 0.88 @ ctx 64k | — | — | — | — | — | — | **boots, but NO serving headroom** (idles 115/121 GiB; MEM_FLOOR preflight blocked the session) ❌ |
+| S1-util0.82-ctx150k-95pct | vLLM | util 0.82 @ ctx 150k, 95% fill | 477.1s (142.5k in) | 0.5 | — | 0 | — | — | **serves 95%-of-ctx single session, host alive** ✅ |
+| S1-util0.82-ctx175k | vLLM | util 0.82 @ ctx 175k, 90% fill | 496.7s (157.5k in) | 0.5 | — | 0 | — | — | **serves 90%-of-ctx, host alive** ✅ |
+| S1-util0.82-ctx175k-95pct | vLLM | util 0.82 @ ctx 175k, 95% fill | 91.3s (166k in, warm) | 2.5 | — | 0 | — | MTP 0.707 | **serves 95%-of-ctx, host alive** ✅ — **175k CERTIFIED at 0.82** |
+| S1-util0.82-ctx200k | vLLM | util 0.82 @ ctx 200k, 90% fill | 557.0s (180k in) | 0.45 | — | 0 | — | — | **serves 90%-of-ctx, host alive** ✅ |
+| S1-util0.82-ctx250k-95pct | vLLM | util 0.82 @ ctx 250k, 95% fill | 761.6s (237.5k in) | 0.33 | — | 0 | — | — | **serves 95%-of-ctx, host alive** ✅ — **250k CERTIFIED** |
+| S1-util0.82-ctx300k | vLLM | util 0.82 @ ctx 300k | — | — | — | — | — | — | ❌ **startup validation rejects**: max_model_len 300k > model native max_position_embeddings 262144 — needs `VLLM_ALLOW_LONG_MAX_MODEL_LEN` + YaRN (needle-gated) |
+| S1-util0.82-ctx262k | vLLM | util 0.82 @ ctx 262144 (native max) | serial acc-gate 8/10 | conc-3 acc-gate 8/10 | — | 0 | — | — | ✅ **boots + serves + concurrency accuracy holds (8/10) — LIVE CONFIG (2026-09-15)** |
+| ACC-gate | vLLM | accuracy @ 262k serial vs conc-3 | — | — | — | 0 | — | 8/10 serial, 8/10 conc-3 | ✅ **accuracy holds under concurrency** — gaps: tool-call EMPTY (no tools registered) + html-game EMPTY (both pre-existing) |
 | A2 | SGLang | NVFP4 | | | | | | | |
 | A3 | vLLM | NVFP4 | | | | | | | |
 | D256 | vLLM | YaRN 262k | | | | | | | |

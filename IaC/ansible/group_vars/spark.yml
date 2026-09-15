@@ -98,7 +98,14 @@ spark_vllm_max_num_seqs: 4
 # forces a 1.06M-token KV pool on top of the 75.17 GiB weights — unaffordable. 65536 (64k)
 # is a realistic S1/S2 context that fits the shrunken KV; the plan's 262k+/512k profiles
 # become SGLang-on-NVFP4 targets (bench matrix D), not B1-on-GB10-with-PLE-CPU-offload.
-spark_vllm_max_model_len: 65536
+#
+# S1 STABILITY SWEEP (2026-09-15, measured): util ceiling measured on box — 0.82 is MAX
+# servable (0.70–0.82 boot+serve+host alive; 0.84/0.86 CRASH engine during single-session
+# serve — global OOM, host wedges, power-cycle needed; 0.88 boots but no serving headroom,
+# MEM_FLOOR blocks). ctx: 262,144 = model's native max_position_embeddings (config.json) —
+# 300k rejects at startup validation (VLLM_ALLOW_LONG_MAX_MODEL_LEN would be needed +
+# YaRN; needle-test gate). 250k/262k serve at 95% fill, 0 preemptions, host alive.
+spark_vllm_max_model_len: 262144
 spark_vllm_max_num_batched_tokens: 16384
 # spark_vllm_swap_space removed 2026-09-14: this vLLM build (0.1.dev20073+g8e685d198)
 # DROPPED swap_space from EngineArgs — `--swap-space` is unrecognized and crashes the
@@ -106,7 +113,7 @@ spark_vllm_max_num_batched_tokens: 16384
 # now manages offload internally. See docs/hardware-spark.md for the bench note.
 #   swap_space: 4
 spark_vllm_kv_cache_dtype: "auto"
-spark_vllm_gpu_memory_utilization: 0.70   # A-cal 2026-09-15: 0.93 → ~113 GiB GPU reserve (weights 75.17 + KV 32.5) LEFT the unified 121.62 GiB pool with no room for the CPU-side PLE table mirror (du: ~57G incl. nested) + pinned input buffers → NV_ERR_NO_MEMORY / global OOM. 0.70 → ~85 GiB GPU demand; with the PLE mirror + pinned outside that, the pool fits. KV pool shrinks to ~8-10 GiB → max_model_len 65536.
+spark_vllm_gpu_memory_utilization: 0.82   # S1 sweep 2026-09-15: max servable util (see above); 0.84+ crashes serving, 0.88 no headroom. Leaves ~9-15 GiB; co-resident small models prefer 0.80/150k.
 spark_vllm_distributed_executor_backend: "mp"
 spark_vllm_enforce_eager: false
 spark_vllm_spec_method: mtp
