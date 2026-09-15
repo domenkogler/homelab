@@ -64,7 +64,18 @@ dns:
   search_domains:
     - "{{ wildcard_cert_domain }}"   # kogler.si
   nameservers:
-    - "{{ dns_primary_ip }}"   # Technitium PRIMARY (VPS, dns-servers overlay — HD-299, first in chain)
+    # HD-371 (2026-09-15): MagicDNS loop must be FIRST — headscale's own DNS
+    # server (100.100.100.100) answers `*.ts.kogler.si` + the search-domain
+    # (kogler.si) extra_records LOCALLY on the client, so tailnet devices resolve
+    # every `*.kogler.si` / `*.ts.kogler.si` name on ANY network (hotspot/travel),
+    # not just from home/LAN. WITHOUT it, a Windows client on a remote network
+    # falls back to the system resolver (Mobile hotspot 10.x) -> NXDOMAIN for all
+    # internal names while the phone (which answers MagicDNS extra_records
+    # client-side) still resolves them — the live 2026-09-15 laptop-on-hotspot
+    # symptom (llm/stats/litellm ERR_NAME_NOT_RESOLVED). Keep the Technitium
+    # entries AFTER for the full namespace + per-subnet filtering from the LAN.
+    - "100.100.100.100"        # headscale MagicDNS loop (answers extra_records + search-domain locally; tailnet-wide)
+    - "{{ dns_primary_ip }}"   # Technitium PRIMARY (VPS, dns-servers overlay — HD-299, after MagicDNS in chain)
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium SECONDARY (oldsrv)
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium TERTIARY (Pi)
   # HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge serves

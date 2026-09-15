@@ -57,39 +57,40 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 | # | Service | Subdomain | URL | Status |
 |---|---------|-----------|-----|--------|
-| 1 | ollama | ollama | `https://ollama.kogler.si` | disabled |
+| 1 | ollama | ollama | `https://ollama.kogler.si` | enabled |
 | 2 | immich-ml | immich-ml | `https://immich-ml.kogler.si` | enabled |
 | 3 | technitium (secondary) | technitium | `https://technitium.kogler.si` | enabled |
 | 4 | pihole | ad | `https://ad.kogler.si` | disabled |
 | 5 | traefik-internal | traefik-internal | `https://traefik-internal.kogler.si` | enabled |
 | 6 | home-assistant-standby | home-assistant-standby | `https://home-assistant-standby.kogler.si` | disabled |
-| 7 | dozzle | logs | `https://logs.kogler.si` | disabled |
-| 8 | signal-cli-rest-api | signal-cli-rest-api | `https://signal-cli-rest-api.kogler.si` | enabled |
-| 9 | sunshine | sunshine | `https://sunshine.kogler.si` | enabled |
-| 10 | jellyfin | media | `https://media.kogler.si` | enabled |
-| 11 | seerr | seerr | `https://seerr.kogler.si` | enabled |
-| 12 | seerrng | seerrng | `https://seerrng.kogler.si` | enabled |
-| 13 | sonarr | sonarr | `https://sonarr.kogler.si` | enabled |
-| 14 | radarr | radarr | `https://radarr.kogler.si` | enabled |
-| 15 | lidarr | lidarr | `https://lidarr.kogler.si` | enabled |
-| 16 | aurral | aurral | `https://aurral.kogler.si` | enabled |
-| 17 | slskd | slskd | `https://slskd.kogler.si` | enabled |
-| 18 | lidarr-ydl | lidarr-ydl | `https://lidarr-ydl.kogler.si` | enabled |
-| 19 | tube-archivist | tube-archivist | `https://tube-archivist.kogler.si` | disabled |
-| 20 | prowlarr | prowlarr | `https://prowlarr.kogler.si` | enabled |
-| 21 | bazarr | bazarr | `https://bazarr.kogler.si` | enabled |
-| 22 | sabnzbd | sab | `https://sab.kogler.si` | enabled |
-| 23 | qbittorrent | torrent | `https://torrent.kogler.si` | enabled |
-| 24 | profilarr | profilarr | `https://profilarr.kogler.si` | enabled |
-| 25 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
-| 26 | dsh | dsh | `https://dsh.kogler.si` | enabled |
-| 27 | pi-dev | pi-dev | `https://pi-dev.kogler.si` | enabled |
-| 28 | lan-litellm | lan-litellm | `https://lan-litellm.kogler.si` | disabled |
-| 29 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
-| 30 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
-| 31 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | enabled |
-| 32 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | enabled |
-| 33 | homelable | homelable | `https://homelable.kogler.si` | disabled |
+| 7 | dozzle | llogs | `https://llogs.kogler.si` | enabled |
+| 8 | dozzle-agent | dozzle-agent | `https://dozzle-agent.kogler.si` | enabled |
+| 9 | signal-cli-rest-api | signal-cli-rest-api | `https://signal-cli-rest-api.kogler.si` | enabled |
+| 10 | sunshine | sunshine | `https://sunshine.kogler.si` | enabled |
+| 11 | jellyfin | media | `https://media.kogler.si` | enabled |
+| 12 | seerr | seerr | `https://seerr.kogler.si` | enabled |
+| 13 | seerrng | seerrng | `https://seerrng.kogler.si` | enabled |
+| 14 | sonarr | sonarr | `https://sonarr.kogler.si` | enabled |
+| 15 | radarr | radarr | `https://radarr.kogler.si` | enabled |
+| 16 | lidarr | lidarr | `https://lidarr.kogler.si` | enabled |
+| 17 | aurral | aurral | `https://aurral.kogler.si` | enabled |
+| 18 | slskd | slskd | `https://slskd.kogler.si` | enabled |
+| 19 | lidarr-ydl | lidarr-ydl | `https://lidarr-ydl.kogler.si` | enabled |
+| 20 | tube-archivist | tube-archivist | `https://tube-archivist.kogler.si` | disabled |
+| 21 | prowlarr | prowlarr | `https://prowlarr.kogler.si` | enabled |
+| 22 | bazarr | bazarr | `https://bazarr.kogler.si` | enabled |
+| 23 | sabnzbd | sab | `https://sab.kogler.si` | enabled |
+| 24 | qbittorrent | torrent | `https://torrent.kogler.si` | enabled |
+| 25 | profilarr | profilarr | `https://profilarr.kogler.si` | enabled |
+| 26 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
+| 27 | lan-litellm | lan-litellm | `https://lan-litellm.kogler.si` | enabled |
+| 28 | dsh | dsh | `https://dsh.kogler.si` | enabled |
+| 29 | pi-dev | pi-dev | `https://pi-dev.kogler.si` | enabled |
+| 30 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
+| 31 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
+| 32 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | enabled |
+| 33 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | enabled |
+| 34 | homelable | homelable | `https://homelable.kogler.si` | disabled |
 
 ## pi.kogler.si
 
@@ -98,7 +99,8 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 1 | home-assistant-primary | home-assistant-primary | `https://home-assistant-primary.kogler.si` | enabled |
 | 2 | technitium-secondary (secondary-pi) | technitium-secondary | `https://technitium-secondary.kogler.si` | enabled |
 | 3 | traefik-ha | traefik-ha | `https://traefik-ha.kogler.si` | enabled |
+| 4 | dozzle-agent | dozzle-agent | `https://dozzle-agent.kogler.si` | enabled |
 
 ---
 
-> Generated from the `docker_services` lists | 2026-09-15T09:24:03Z
+> Generated from the `docker_services` lists | 2026-09-15T21:22:47Z

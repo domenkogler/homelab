@@ -2,8 +2,18 @@
 #   Single OpenAI-compatible endpoint for the whole AI stack (Open WebUI, OpenClaw).
 #   THE only component holding upstream keys (openrouter_api). Local models
 #   -> Ollama on `llm-backend`; consumers reach LiteLLM on `services-internal`. Joins
-#   services-internal + llm-backend + db-internal (DB below). No public host port binds
-#   (HD-62); management API reached ONLY via `docker exec` from the bootstrap glue.
+#   services-internal + llm-backend + db-internal (DB below) + tailnet-apps (the
+#   tailnet edge's dedicated app bridge, HD-372). No public host port binds (HD-62);
+#   management API reached ONLY via `docker exec` from the bootstrap glue.
+#
+#   HD-372 (2026-09-15, litellm.kogler.si 502): the tailnet edge (traefik-tailnet)
+#   joins traefik-public + tailnet-apps — NOT services-internal — so its file-provider
+#   route `litellm-backend -> http://litellm:4000` could NOT resolve the spine via
+#   Docker DNS (502 Bad Gateway on the phone). Fix: litellm joins ONE app→edge
+#   network, `tailnet-apps` (the dedicated overlay the tailnet edge already shares
+#   with dsh/pi-dev, HD-296/HD-268c) — NOT the flat public bridge `traefik-public`
+#   (deployment-compose.md HD-59 keeps the key-holding spine isolated from the
+#   public-route apps). The edge can now resolve `litellm` for the tailnet-only admin
 #
 #   v2 cutover (HD-247): keys/models/spend live in the bundled Postgres
 #   (`STORE_MODEL_IN_DB=true`) — model_list is NO LONGER rendered into config.yaml;
@@ -46,6 +56,7 @@ services:
       - services-internal
       - llm-backend                 # reach Ollama (local models); see HD-59 design
       - db-internal                 # reach litellm-db (keys/models/spend runtime DB)
+      - tailnet-apps                # HD-372: app→edge bridge to the tailnet edge (litellm.kogler.si admin) — NOT traefik-public
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - /srv/docker/litellm:/app/.data            # misc app state (no longer the keys/DB of record — that is litellm-db; keep in Kopia scope)
@@ -110,3 +121,5 @@ networks:
     external: true
   db-internal:
     external: true
+  tailnet-apps:
+    external: true   # HD-372: app→edge bridge shared with the tailnet edge (traefik-tailnet)
