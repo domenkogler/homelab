@@ -190,6 +190,19 @@
         # endpoint resolve by name ONLY on the home instances (Pi tertiary + oldsrv
         # secondary); the VPS primary never carries the record.
         - { name: "spark.kogler.si",   ip: "{{ spark_home_ip }}" } # HD-365: LAN-only (Pi+oldsrv); never VPS — spark_home_ip is SSOT-derived
+        # HD-370: spark name-edge subdomains — both resolve to spark's Home-VLAN IP and must
+        # work from the LAN DIRECTLY off spark's own Traefik (:443, name routes). Same LAN-only
+        # rule as `spark` itself (never on the VPS primary — the VPS/tailnet reach is via the
+        # tailnet edge + WG S2S, not by seeding these on the primary).
+        - { name: "db-spark.kogler.si", ip: "{{ spark_home_ip }}" }   # HD-370: DGX dashboard (spark name edge)
+        - { name: "llm.kogler.si",     ip: "{{ spark_home_ip }}" }   # HD-370: spark OpenAI-API (spark name edge; engine --api-key gated)
+        # HD-370: `litellm.kogler.si` → the VPS public IP — tailnet-only ADMIN edge (the
+        # LiteLLM spine must never be world-public). The VPS primary Technitium must answer
+        # it (split-horizon parity + VPS-side DNS/headscale agreement with the tailnet edge).
+        - { name: "litellm.kogler.si", ip: "{{ dns_primary_ip }}" }  # HD-370: LiteLLM admin (tailnet-only edge), VPS-resident
+        # HD-370: `llitellm.kogler.si` → oldsrv LAN IP — the LAN (dev) LiteLLM on the HOME
+        # edge (llogs pattern). LAN-only by design (the VPS primary never carries it).
+        - { name: "llitellm.kogler.si", ip: "{{ oldsrv_home_ip }}" }  # HD-370: LAN LiteLLM (home edge), LAN-only
         # HD-330 live 2026-09-07: `tailnet_sidecar_ip` lives in group_vars/vps.yml
         # (VPS-only) but the seed runs on EVERY instance (VPS/oldsrv/Pi). The
         # dashboard records target the VPS tailnet sidecar (100.64.0.1) — a cluster
@@ -237,5 +250,5 @@
       # its 10.10x Home-IP must never resolve from the VPS/internet).
       # This `when` is evaluated PER-LOOP-ITEM (Ansible runs the task-level `when` for each
       # item when the task has a `loop`), so `item` is defined here.
-      when: item.name not in ["modem.kogler.si", "spark.kogler.si", "llogs.kogler.si"] or svc.instance | default('primary') in ['secondary', 'secondary-pi']
+      when: item.name not in ["modem.kogler.si", "spark.kogler.si", "db-spark.kogler.si", "llm.kogler.si", "llogs.kogler.si", "llitellm.kogler.si"] or svc.instance | default('primary') in ['secondary', 'secondary-pi']
       failed_when: _tech_record.json is not defined or _tech_record.json.status not in ['ok', 'error']

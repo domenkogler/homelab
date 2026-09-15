@@ -49,6 +49,9 @@ LAN_ONLY = {
     "modem.kogler.si": "192.168.1.1",        # Comtrend UI, RFC1918 (HD-302)
     "spark.kogler.si": None,                  # spark_home_ip via SSOT (HD-365)
     "llogs.kogler.si": None,                  # oldsrv_home_ip (Dozzle LAN hub, HD-343)
+    "db-spark.kogler.si": None,               # spark name-edge dashboard (HD-370) — spark_home_ip via SSOT
+    "llm.kogler.si": None,                    # spark OpenAI-API name edge (HD-370) — spark_home_ip via SSOT
+    "llitellm.kogler.si": None,               # LAN LiteLLM on the home edge (HD-370) — oldsrv_home_ip
 }
 
 # Documented record classes -> expected target resolution, per instance (docs/network-dns.md).
@@ -64,6 +67,7 @@ PUBLIC_FLAT = {  # single-namespace parity set (HD-341) — dns_primary_ip on al
     "vps", "home", "vpn", "dns", "sso", "file", "foto", "git", "bin",
     "ai", "office", "pdf", "chat", "matrix", "drop",
 }
+PUBLIC_FLAT_SPARK = {"litellm"}  # HD-370: VPS-resident, split-horizon to dns_primary_ip on all instances
 VIP = {"ha", "dns-pi"}   # ha_vip on all
 INCLUDES_ROOT = {"kogler.si"}  # apex -> dns_primary_ip on all
 
@@ -201,9 +205,9 @@ def main() -> int:
                 if primary_ish:
                     continue  # gated out by the when — the gate check below owns this
                 else:
-                    if name == "spark.kogler.si":
+                    if name in ("spark.kogler.si", "db-spark.kogler.si", "llm.kogler.si"):
                         target = EXPECT["spark"]
-                    elif name == "llogs.kogler.si":
+                    elif name in ("llogs.kogler.si", "llitellm.kogler.si"):
                         target = EXPECT["oldsrv"]
                     else:
                         target = LAN_ONLY[name]
@@ -221,6 +225,11 @@ def main() -> int:
             elif prefix in HOME_HOSTED:
                 expect = EXPECT["vps"] if primary_ish else EXPECT["oldsrv"]
                 _check(name, ip, {"expect": expect, "all": False, "home": True}, findings, inst)
+            elif prefix in PUBLIC_FLAT_SPARK:
+                # HD-370: `litellm` is VPS-resident (the tailnet-only admin) but resolves to the
+                # PUBLIC ip on all instances (split-horizon parity — the tailnet edge serves the
+                # name; the VPS primary answers it so VPS-side DNS + headscale clients agree).
+                _check(name, ip, {"expect": EXPECT["vps"], "all": True}, findings, inst)
 
     # Gate guard: every LAN-only row must be covered by the seed's per-item `when` so it
     # NEVER resolves on the VPS primary (forgetting a row in the exclusion list = the seed
