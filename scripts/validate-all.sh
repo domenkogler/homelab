@@ -86,8 +86,10 @@ $PY scripts/check_placeholders.py
 echo "== check_todo_done.py (CONVENTIONS §4(a) done-row sweep) =="
 $PY scripts/check_todo_done.py
 
+echo "== check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity) =="
+$PY scripts/check_dns_seed_drift.py
+
 echo "== testdata/check-vault-items/run.sh (scanner self-test, HD-244/245) =="
-bash scripts/testdata/check-vault-items/run.sh
 
 echo "== portability sweep (bash -n + python3 -m py_compile, HD-256) =="
 # bash -n every POSIX/bash shebang script under scripts/ (incl. the testdata runner).

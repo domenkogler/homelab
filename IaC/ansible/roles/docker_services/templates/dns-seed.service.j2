@@ -1,0 +1,36 @@
+# managed by Ansible — docker_services role — Technitium seed self-heal (per DNS host)
+#
+# Reconciles the local Technitium zone against the current IaC compose file WITHOUT a
+# full converge. `docker compose up -d` on an unchanged spec is a no-op (no recreate /
+# no re-publish of the :53 port), and Technitium re-reads its persistent /etc/dns zone
+# on start; if the container is NOT running it starts it (self-healing a stopped tier).
+#
+# Why: the split-horizon records live in technitium-seed.yml (SSOT), applied by the
+# docker_services seed tail — which only runs when a converge's loop includes a technitium
+# instance. A deploy-SCOPED converge (docker_services_scope=<svc>) skips the seed silently
+# (live 2026-09-15 llogs gap: Pi zone lacked the record, ERR_NAME_NOT_RESOLVED).
+# This timer is the "trigger, not a memory": an edited SSOT + a scoped converge that
+# skipped the seed self-heals within the interval. playbooks/dns-seed.yml is the on-demand
+# / after-edit entry point (full record re-assert via the seed tail).
+#
+# The :53 publish stays source-restricted on the VPS (nftables FORWARD gate, HD-299):
+# compose up -d on an unchanged spec does not recreate or alter the mapping.
+# Templates: templates/dns-seed.service.j2 + templates/dns-seed.timer.j2.
+# See docs/network-dns.md §Convergence & drift.
+[Unit]
+Description=Technitium seed self-heal (ensure local DNS zone in sync)
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+# `compose up -d` = idempotent reconcile: starts the container if it is down; no-op
+# when the spec + container are already in sync. Technitium re-reads its persistent
+# /etc/dns zones on start, so an up-to-date compose file == an up-to-date zone.
+ExecStart=/usr/bin/docker compose -f /opt/{{ dns_seed_service_name }}/docker-compose.yml up -d
+# Tolerant status probe (the `-` prefix: a non-running/missing container must NOT fail
+# the oneshot — compose already handled start). Keeps an informative line in the journal.
+ExecStartPost=-/usr/bin/docker inspect -f 'DNS seed self-heal: {{ '{{' }}.State.Status{{ '}}' }} ({{ dns_seed_container_name }})' {{ dns_seed_container_name }}
+# No linger: the timer starts/stops this service per tick (nut-wake precedent).

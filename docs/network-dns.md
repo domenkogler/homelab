@@ -214,7 +214,49 @@ SSOT `dns_primary_ip`/`dns_secondary_ip`/`dns_tertiary_ip`). Clients on every ot
 - **mDNS reflector:** Technitium bridges `.local` names across all VLANs (RouterOS built-in mDNS is bridge-wide only, cannot cross VLANs)
 
 ---
+## Convergence & Drift (2026-09-15 — recurring DNS outage class closed)
 
+> **Why DNS kept breaking:** the split-horizon records are applied by the `technitium-seed`
+> tail of the `docker_services` role, which **only runs when a converge's deploy loop
+> includes a technitium instance**. A deploy-SCOPED converge (`docker_services_scope=<svc>`)
+> skips the seed silently — so a new/edited seed row lands on ONE instance (the one someone
+> happened to converge) but not the others until someone remembers to re-converge each host.
+> The 2026-09-15 `llogs` gap (Pi tertiary NOT re-seeded after the dozzle-agent scoped
+> converge → ERR_NAME_NOT_RESOLVED) is the canonical instance of this class.
+
+Three mechanisms now close it — one command, one schedule, one gate:
+
+1. **One-command re-seed of all three instances** — [`playbooks/dns-seed.yml`](../IaC/ansible/playbooks/dns-seed.yml):
+   ```bash
+   bash scripts/ansible-run.sh playbooks/dns-seed.yml
+   ```
+   Runs ONLY the `docker_services` role, scoped to each host's technitium instance (fast,
+   surgical — no common/docker/network re-run; `compose up -d` is no-op on unchanged specs),
+   and re-asserts zone + all records + recursion ACL via the idempotent seed tail. Use it
+   after ANY edit to `technitium-seed.yml` instead of remembering three manual converges.
+
+2. **Scheduled self-heal (per DNS host)** — the `docker_services` role deploys systemd
+   [`dns-seed.service`](../IaC/ansible/roles/docker_services/templates/dns-seed.service.j2) +
+   [`dns-seed.timer`](../IaC/ansible/roles/docker_services/templates/dns-seed.timer.j2)
+   (interval `dns_seed_interval`, default 5m). The timer runs a no-op-if-synced
+   `docker compose up -d` on the local Technitium compose — this starts the container if it
+   is down (self-healing a stopped DNS tier) and, because zones live in the persistent
+   `/etc/dns` bind, an up-to-date compose == an up-to-date zone. It is the **trigger, not a
+   memory**: an edited SSOT + a scoped converge that skipped the seed self-heals within the
+   interval. The VPS `:53` publish stays source-restricted (nftables FORWARD gate, HD-299) —
+   compose up on an unchanged spec does not recreate/re-publish.
+
+3. **Static drift gate** — [`scripts/check_dns_seed_drift.py`](../scripts/check_dns_seed_drift.py)
+   (wired into `validate-all.sh` item 15): renders the seed record table against the SSOT for
+   all three instances and enforces the per-instance split + the LAN-only `when`-gate. A
+   record/gate drift now FAILS the repo gate before a converge ships — the mechanical form
+   of the HD-341 parity guard.
+
+> **Convention:** any new `*.kogler.si` A record lands in `technitium-seed.yml` **in the
+> same commit** as its service bring-up; then run `playbooks/dns-seed.yml` to push it to all
+> three instances. The self-heal + gate cover the human-forgets case.
+
+---
 ## Pi-hole (RETIRED 2026-09-10)
 
 Pi-hole is a *service* — its catalog row, configuration (upstream resolvers, conditional forwarding to

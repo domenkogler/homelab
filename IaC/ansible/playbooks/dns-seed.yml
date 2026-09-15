@@ -1,0 +1,61 @@
+# dns-seed.yml — one-command re-seed of the 3-instance Technitium split-horizon zone.
+#
+# WHY (recurring DNS drift, 2026-09-15): the split-horizon records are seeded by the
+# `technitium-seed` tail of the docker_services role (HD-317/HD-340/HD-330). That tail only
+# runs when a converge's deploy loop includes a technitium instance — a DEPLOY-SCOPED
+# converge (docker_services_scope=<svc>) skips it silently, so a new/edited record row in
+# technitium-seed.yml lands on ONE instance but not the others until someone remembers to
+# re-converge each host. Live evidence: the 2026-09-15 `llogs.kogler.si` gap — the Pi
+# converge was scoped to dozzle-agent, the seed never ran, ERR_NAME_NOT_RESOLVED.
+#
+# This playbook is the single entry point to push the current seed SSOT to ALL THREE
+# Technitium instances (VPS primary + oldsrv secondary + Pi tertiary) with ONE command:
+#   bash scripts/ansible-run.sh playbooks/dns-seed.yml
+# It runs ONLY the docker_services role with docker_services_scope=<technitium instance>
+# per host, so it is fast and surgical (no common/docker/network re-run), and it prefers
+# NOT to recreate the containers (compose up -d is no-op on spec-unchanged services).
+#
+# The scheduled systemd self-heal on each DNS host (dns-seed.service/timer, deployed by
+# the docker_services role) closes the residual gap between manual runs; this playbook is
+# the on-demand / after-edit entry point. See docs/network-dns.md §Convergence & drift.
+---
+- name: Technitium split-horizon — re-seed all three instances (primary + secondary + tertiary)
+  hosts: vps:home_servers:raspberry_pi
+  become: true
+  tasks:
+    # Every DNS host runs exactly one technitium instance in its docker_services list. Derive
+    # its service NAME so the scoped converge below is precise (vps -> technitium, oldsrv via
+    # home_servers detailed below — set per-group override in the group_vars service entries:
+    #   vps:           technitium             (instance: primary)
+    #   oldsrv:        technitium             (instance: secondary,    gated host=oldsrv)
+    #   pi:            technitium-secondary   (instance: secondary-pi)
+    # Enabled-set semantics MUST match the docker_services role (default-enabled when `enabled:`
+    # is absent; selectattr('enabled','truthy') crashes on entries without the key). Replicate
+    # the union: defined+truthy  UNION  missing-key (implicitly enabled).
+    - name: Assert a technitium service is defined for this host
+      ansible.builtin.set_fact:
+        _dns_technitium_services: >-
+          {{ (docker_services | selectattr('enabled','defined') | selectattr('enabled') |
+              selectattr('template_dir','equalto','technitium') | map(attribute='name') | list)
+           + (docker_services | rejectattr('enabled','defined') |
+              selectattr('template_dir','equalto','technitium') | map(attribute='name') | list) }}
+      when: docker_services is defined
+
+    - name: Fail loud if no technitium service is enabled on this host
+      ansible.builtin.assert:
+        that: _dns_technitium_services | length == 1
+        fail_msg: >-
+          Expected exactly ONE enabled technitium service for this DNS host, found
+          {{ _dns_technitium_services | default([]) }}. The dns-seed playbook must not
+          guess which service to seed.
+      when: docker_services is defined
+
+    - name: Converge the technitium service (scope = its exact name)
+      ansible.builtin.include_role:
+        name: docker_services
+      vars:
+        # Scoped run: only the technitium service's deploy + its seed tail run. Idempotent —
+        # compose up -d on an unchanged spec is a no-op; the seed tail re-asserts the zone +
+        # all split-horizon records (login -> ensure zone -> ensure records -> recursion ACL).
+        docker_services_scope: "{{ _dns_technitium_services | first }}"
+      tags: docker_services

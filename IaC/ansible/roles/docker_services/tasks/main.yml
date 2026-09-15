@@ -242,6 +242,29 @@
     loop_var: svc_entry
   tags: [docker_services, technitium_seed]
 
+# DNS self-heal (2026-09-15): the seed tail above ONLY runs when a converge's deploy loop
+# includes a technitium instance — a deploy-SCOPED converge (docker_services_scope=<svc>)
+# silently skips it (live llogs gap: Pi zone lacked the record -> ERR_NAME_NOT_RESOLVED).
+# Deploy a systemd timer per DNS host that reconciles the local Technitium container via a
+# no-op-if-synced `docker compose up -d`, closing the drift window without a full converge.
+# The timer name/container derive from svc (the technitium loop item) -> group_vars remain
+# the SSOT for instance naming. See playbooks/dns-seed.yml (on-demand re-seed of all three).
+
+- name: Deploy Technitium seed self-heal timer (per DNS host)
+  ansible.builtin.include_tasks:
+    file: dns-seed.yml
+  vars:
+    svc: "{{ svc_entry }}"
+  loop: "{{ docker_services }}"
+  when:
+    - svc_entry.enabled | default(true)
+    - svc_entry.template_dir | default('') == 'technitium'
+    - scope_is_all or svc_entry.name in scope_list
+  loop_control:
+    label: "{{ svc_entry.name }}"
+    loop_var: svc_entry
+  tags: [docker_services, technitium_seed]
+
 # Disabled services get TORN DOWN (not just skipped) — otherwise a flipped-to-false
 # entry leaves its containers running outside IaC control (2026-08-23: renovate was
 # disabled for the missing-Forgejo-repo crash-loop and would have kept restart-looping

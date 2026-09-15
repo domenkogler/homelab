@@ -6,6 +6,10 @@
 # Base directory for all Docker Compose projects.
 docker_compose_dir: /opt
 
+# Technitium seed self-heal reconcile interval (docker_services role, DNS hosts only).
+# See templates/dns-seed.{service,timer}.j2 + docs/network-dns.md §Convergence & drift.
+dns_seed_interval: 5m
+
 # HD-258 bulk 1Password pre-pass exporter path — always defined here so every caller of
 # fetch-vault-pass.yml (static, authentik-glue, litellm-bootstrap) resolves it; do NOT
 # re-pass per caller (the list-mode/glue branch failed with 'op_export_script is

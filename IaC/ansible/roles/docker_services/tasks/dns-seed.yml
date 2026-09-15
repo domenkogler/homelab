@@ -1,0 +1,59 @@
+---
+# dns-seed.yml — deploy the Technitium seed self-heal systemd units on a DNS host.
+# Included from docker_services/tasks/main.yml, once per technitium service in the loop.
+# Variables: svc (the technitium docker_services entry).
+#
+# Renders dns-seed.service + dns-seed.timer from the SSOT-derived service metadata:
+#   * compose path  -> {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml
+#   * container     -> {{ dns_seed_container_name }} (mirrors technitium-seed.yml's
+#                      instance->container map, so the status probe names the right box)
+#   * interval      -> {{ dns_seed_interval | default('5m') }}
+# The units are a scheduled no-op-if-synced `docker compose up -d` reconcile — see the
+# service template header for the drift rationale (scoped converges skip the seed tail).
+- name: "Assert docker_compose_dir is set for {{ svc.name }}"
+  ansible.builtin.assert:
+    that:
+      - docker_compose_dir is defined
+      - docker_compose_dir | length > 0
+    fail_msg: >-
+      docker_compose_dir is not set (role default /opt). Cannot render the
+      dns-seed compose path for {{ svc.name }}.
+
+- name: "Set dns-seed service metadata for {{ svc.name }}"
+  ansible.builtin.set_fact:
+    _dns_seed_compose: "{{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml"
+    _dns_seed_container: >-
+      {{ {'primary': 'technitium', 'secondary': 'technitium-oldsrv', 'secondary-pi': 'technitium-pi'}
+         [svc.instance | default('primary')] }}
+    _dns_seed_interval: "{{ dns_seed_interval | default('5m') }}"
+
+- name: "Deploy dns-seed.service for {{ svc.name }}"
+  ansible.builtin.template:
+    src: dns-seed.service.j2
+    dest: /etc/systemd/system/dns-seed.service
+    owner: root
+    group: root
+    mode: '0644'
+  vars:
+    dns_seed_service_name: "{{ svc.name }}"
+    dns_seed_container_name: "{{ _dns_seed_container }}"
+  notify: reload systemd
+
+- name: "Deploy dns-seed.timer for {{ svc.name }}"
+  ansible.builtin.template:
+    src: dns-seed.timer.j2
+    dest: /etc/systemd/system/dns-seed.timer
+    owner: root
+    group: root
+    mode: '0644'
+  vars:
+    dns_seed_interval: "{{ _dns_seed_interval }}"
+  notify: reload systemd
+
+- name: "Enable + start dns-seed.timer for {{ svc.name }}"
+  ansible.builtin.systemd:
+    name: dns-seed.timer
+    state: started
+    enabled: true
+    daemon_reload: true
+  notify: reload systemd

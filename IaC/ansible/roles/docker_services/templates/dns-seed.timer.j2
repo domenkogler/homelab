@@ -1,0 +1,19 @@
+# managed by Ansible — docker_services role — Technitium seed self-heal ticker
+#
+# Runs dns-seed.service every {{ dns_seed_interval }} — a compose-up reconcile of the local
+# Technitium container. This closes the "scoped converge skipped the seed" drift window
+# (live 2026-09-15 llogs gap). The service itself is the workhorse; this is just the tick.
+# Persistent=false: do NOT catch up missed ticks after boot (the docker_services role's
+# own seed already runs on the converge that deploys this timer).
+# See docs/network-dns.md §Convergence & drift.
+[Unit]
+Description=Tick Technitium seed self-heal
+
+[Timer]
+OnActiveSec={{ dns_seed_interval }}
+OnUnitActiveSec={{ dns_seed_interval }}
+Persistent=false
+Unit=dns-seed.service
+
+[Install]
+WantedBy=timers.target
