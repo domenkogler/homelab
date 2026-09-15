@@ -60,7 +60,7 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 1 | ollama | ollama | `https://ollama.kogler.si` | disabled |
 | 2 | immich-ml | immich-ml | `https://immich-ml.kogler.si` | enabled |
 | 3 | technitium (secondary) | technitium | `https://technitium.kogler.si` | enabled |
-| 4 | pihole | ad | `https://ad.kogler.si` | enabled |
+| 4 | pihole | ad | `https://ad.kogler.si` | disabled |
 | 5 | traefik-internal | traefik-internal | `https://traefik-internal.kogler.si` | enabled |
 | 6 | home-assistant-standby | home-assistant-standby | `https://home-assistant-standby.kogler.si` | disabled |
 | 7 | dozzle | logs | `https://logs.kogler.si` | disabled |
@@ -75,7 +75,7 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 16 | aurral | aurral | `https://aurral.kogler.si` | enabled |
 | 17 | slskd | slskd | `https://slskd.kogler.si` | enabled |
 | 18 | lidarr-ydl | lidarr-ydl | `https://lidarr-ydl.kogler.si` | enabled |
-| 19 | tube-archivist | tube-archivist | `https://tube-archivist.kogler.si` | enabled |
+| 19 | tube-archivist | tube-archivist | `https://tube-archivist.kogler.si` | disabled |
 | 20 | prowlarr | prowlarr | `https://prowlarr.kogler.si` | enabled |
 | 21 | bazarr | bazarr | `https://bazarr.kogler.si` | enabled |
 | 22 | sabnzbd | sab | `https://sab.kogler.si` | enabled |
@@ -101,4 +101,4 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 
 ---
 
-> Generated from the `docker_services` lists | 2026-09-14T21:38:23Z
+> Generated from the `docker_services` lists | 2026-09-15T05:45:52Z

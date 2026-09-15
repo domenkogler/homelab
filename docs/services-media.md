@@ -36,7 +36,7 @@ Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I
 | Orpheusdl (manual) | — | host/laptop | — | **(dropped from IaC, 2026-09-14):** orpheusdl is a pip CLI with no container — owner runs it on the LAPTOP manually; not part of the ladder |
 | Lidarr-URL-DL | url-dl | I | 150–300 / 500 | Lidarr-YouTube-Downloader (angrido/lidarr-downloader, HD-362) — acquisition **#3**: YouTube → Lidarr (Newznab + SABnzbd emulation, yt-dlp + PO-token sidecar), up to 320 kbps MP3/M4A/Opus; internal-only UI |
 | Slskd | slskd | I | 60–140 / 250 | Soulseek P2P daemon (slskd/slskd, HD-362) — **gluetun WireGuard sidecar, VPN-locked egress**, acquisition **#2**; no inbound port → fetch-only peer (search + download, no upload credit); own login/token |
-| Tube Archivist | tube | I | 300–700 / 1200 | Personal YouTube (bbilly1/tubearchivist + ES + redis, HD-362) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · **new `tube` subdir on nas `bulk/media`** · needs `vm.max_map_count` |
+| Tube Archivist | tube | I | 300–700 / 1200 | Personal YouTube (bbilly1/tubearchivist + ES + redis, HD-362) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · **new `tube` subdir on nas `bulk/media`** · needs `vm.max_map_count` · **⚠️ DISABLED 2026-09-15** (TA `path.repo` loop; see §Music Pillar status)
 | Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (scheduled, no UI) |
 
 ## Storage & Import (Media / *arr)
@@ -99,7 +99,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 
 ## Music Pillar — acquisition + discovery (HD-362)
 
-> **✅ DEPLOYED + LIVE 2026-09-14 (oldsrv converge); crash-loop fixes landed 2026-09-15.** slskd + gluetun PrivadoVPN sidecar healthy · aurral Up (tenant first-run: Last.fm/ListenBrainz keys in UI; `/app/downloads` now durable-bound — the weekly-playlist EACCES is gone) · **lidarr-ydl Up+healthy** (the `/home/appuser/.profile` EACCES was FATAL — the image has no appuser home on its RO layer; a durable host bind at `/home/appuser` fixed it) · Tube Archivist 3-container: ES green + redis stable after https ES_URL + ES_DISABLE_VERIFY_SSL + redis DAC_OVERRIDE + ES-data reset. New `tube-archivist-es` 1P item (ES elastic bootstrap password, ELASTIC_PASSWORD app+ES env). ⏳ tails: **TA loops restarting on the `path.repo` env-check** (ES snapshot support — TA requires it to serve; env-var form (`path.repo:` in compose) derails ES config generation and the `-E` form re-boot-straps unstably on the data volume — set it in the ES container's `elasticsearch.yml` directly, tracked HD-362); wire Lidarr clients in UI, Navidrome Box refresh.
+> **✅ DEPLOYED + LIVE 2026-09-14 (oldsrv converge); crash-loop fixes landed 2026-09-15.** slskd + gluetun PrivadoVPN sidecar healthy · aurral Up (tenant first-run: Last.fm/ListenBrainz keys in UI; `/app/downloads` now durable-bound — the weekly-playlist EACCES is gone) · **lidarr-ydl Up+healthy** (the `/home/appuser/.profile` EACCES was FATAL — the image has no appuser home on its RO layer; a durable host bind at `/home/appuser` fixed it) · ~~Tube Archivist~~ **⚠️ DISABLED 2026-09-15** (owner: “I don't need it right now”) — 3-container stack was up (ES green + redis stable after https ES_URL + ES_DISABLE_VERIFY_SSL + redis DAC_OVERRIDE + ES-data reset; new `tube-archivist-es` 1P item, ELASTIC_PASSWORD app+ES env) but **looped restarting on the `path.repo` env-check** (ES snapshot support — TA requires it to serve; env-var form (`path.repo:` in compose) derails ES config generation and the `-E` form re-boot-straps unstably on the data volume — set it in the ES container's `elasticsearch.yml` directly), which drove oldsrv constant CPU + alternating RAM; row flipped `enabled: false` so the next oldsrv converge tears the stack down. ⏳ tails when re-enabling: apply the `path.repo` fix in ES `elasticsearch.yml` first; wire Lidarr clients in UI, Navidrome Box refresh.
 
 > Eyeball target of the **Media stack redefined** brainstorm (2026-09-14) — the *music* acquisition
 > chain + discovery glue, implemented as IaC rows in `group_vars/home_servers.yml` on **oldsrv**.
@@ -127,7 +127,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
   - **Aurral** — **music discovery** companion (lklynet/aurral, free): **Last.fm / ListenBrainz** login history
     → recommends artists/albums → sends requests to **Lidarr**, which lands them in the same FLAC chain.
 - **Video pillar (separate, HD-361 later):** Tube Archivist (personal YouTube) is in **this batch** only
-  as an oldsrv service; Jellyfin keeps serving TV/movies. Plex/StreamFab/YTDLNis stay **manual/not-IaC**
+  as an oldsrv service (**⚠️ disabled 2026-09-15 while the `path.repo` ES snapshot loop is unresolved** — see status block); Jellyfin keeps serving TV/movies. Plex/StreamFab/YTDLNis stay **manual/not-IaC**
   (per owner; Tube Archivist is the headless yt-dlp piece).
 - **Auth:** Aurral / Tube Archivist / Slskd = **own local logins** (same home-edge pattern — *arr UIs use
   built-in Forms auth); no Forward-Auth. `lidarr_api` token = the Lidarr instance key — **placeholder
