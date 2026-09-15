@@ -270,14 +270,28 @@ OLDSRV Dozzle HUB (llogs.kogler.si, :8081, traefik-internal edge — WAN-out sur
 
 - **LIVE 2026-09-15 (oldsrv + pi + spark converges, failed=0):** hub `:8081` HTTP 200 via
   `traefik-internal` + direct; agents on all 3 home hosts (`:7007`, LAN-only, healthy); VPS
-  viewer (`logs.kogler.si`) untouched. ⏳ **`llogs.kogler.si` resolution gap — Pi tertiary NOT
-  re-seeded:** the 2026-09-15 pi converge was scoped to `dozzle-agent` only, so the
-  `technitium-seed` tail did not run on the Pi — the Pi's zone lacks the `llogs` row, and the
-  WSL/Windows default resolver chain terminates at the Pi (VPS-primary-first for the excluded
-  set) → `ERR_NAME_NOT_RESOLVED` on the laptop. **Fix:** `bash scripts/ansible-run.sh playbooks/dns-seed.yml`
-  → `dig @<pi> llogs.kogler.si` → expect the oldsrv Home IP; flush the Windows resolver cache
-  if the negative answer was cached. (See [`network-dns.md`](network-dns.md) §Convergence & Drift —
-  the one-command re-seed + per-host self-heal timer + static drift gate now close this class.)
+  viewer (`logs.kogler.si`) untouched. ✅ **`llogs.kogler.si` resolution gap CLOSED + LIVE 2026-09-15**
+  (diagnose session `session/dns-llogs-diagnose-20260915-1230`, read-only): the `technitium-seed`
+  loop now carries `llogs` on the home instances only (oldsrv secondary + Pi tertiary — never the
+  VPS primary, HD-341 parity + LAN-only rule); live `dig` matrix converges on **all 3 instances**
+  (home instances → `oldsrv_home_ip` per SSOT, **no answer on the VPS primary** = correct
+  `validate-all` `check_doc_ips` + drift gate green.
+  **Two findings that remain OPEN (owner/follow-up):**
+  ⚠️ **(1) oldsrv `traefik-internal` serves `TRAEFIK DEFAULT CERT` (self-signed fallback) → Chrome
+  "Not Secure" on `media.kogler.si` / `llogs`** — the wildcard pair (`kogler.si.pem`/`-key.pem`) is
+  not present in `traefik-internal/certs`; the `traefik-cert-pull` timer (15-min, `docker_services`
+  role) is armed but its SSH key `/root/.ssh/traefik-cert-sync` is **not authorized on the VPS**
+  (manual LIVE step per [services-traefik.md](services-traefik.md) §Edge model) → pull 401s → the
+  edge falls back to the built-in cert. **Owner step:** authorize that pubkey on `vps` `ansible-admin`
+  → `systemctl start traefik-cert-pull.service` → restart `traefik-internal` → verify
+  `curl -kv https://media.kogler.si` shows `CN=*.kogler.si` (Let's Encrypt).
+  ⚠️ **(2) a phone on Kogler that 404s `llogs`/`media` is resolving them to the VPS public edge**
+  (Let's Encrypt `*.kogler.si` cert + `404 page not found` = `traefik-tailnet`/`traefik-ha`, which
+  have NO `llogs` route — correct, LAN-only): i.e. the phone **bypasses the RouterOS DHCP DNS chain**
+  (Android Private DNS / VPN / DoH). Fix is client-side (disable Private DNS / use Kogler DHCP DNS)
+  or a home-router DNS force; **do not** add `llogs` to the VPS primary (LAN-only rule).
+  (See [`network-dns.md`](network-dns.md) §Convergence & Drift — the one-command re-seed + per-host
+  self-heal timer + static drift gate close the *seed* class; these two are cert-pull + client-path.)
 - **Loki access control (HD-115 / KOPS-023/051):** Loki runs with `auth_enabled: true` (multi-tenant) — pushes and queries must carry the `logs` tenant ID, wired through Alloy (`tenant_id = "logs"`) and the Grafana datasource (`jsonData.tenantId`). The **write** path is loopback-only (Alloy → `127.0.0.1:3100`, no db-internal requirement) and **reads** come only from Grafana on `db-internal`; Loki is never exposed on traefik-public or any LAN bind. **Accepted caveat:** Loki-native `auth_enabled` is tenant *isolation*, not a password gate — a compromised db-internal container could forge a tenant header. Acceptable for the trusted-`db-internal` Phase-1 set; re-evaluate (real credential gateway / separate write+read tenants) if more members join `db-internal`.
 - **Pi keeps only a tiny bounded local log buffer.** The Raspberry Pi primary holds **no durable log store** — Docker uses log driver `local` (`max-size: 10m, max-file: 2`) as RAM/disk resilience when oldsrv/VictoriaLogs is down; the durable, searchable copy lives in VictoriaLogs. Host OS logs run on tmpfs (`journald Storage=volatile` + `/var/log` tmpfs). See [Pi SD-card wear strategy](#pi-sd-card-wear-strategy).
 - **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
