@@ -2,7 +2,7 @@
 #   hybrid-reader MCP service (docs/services-ai.md §5b/§7). STUB ONLY, not implemented:
 #   this file documents the intended shape and does not yet deploy a runnable container.
 #   Intended spec (when implemented):
-#     - Role: on @wiki-<x> query, hybrid search Qdrant -> top-20 -> Cohere rerank (via
+#     - Role: on @wiki-<x> query, hybrid search Qdrant -> top-20 -> bge-reranker-v2-m3 rerank (via
 #       LiteLLM /rerank) -> top-5 clean markdown to the calling agent/OWUI.
 #     - Network: services-internal (reach Qdrant on db-internal + LiteLLM + Forgejo.
 #     - Secrets: scoped LiteLLM key (rag-int-svc_api or a dedicated rag-mcp key).

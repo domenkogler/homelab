@@ -8,7 +8,7 @@ tags: [hardware, gpu, rocm, cross-cutting]
 ---
 # Shared GPU Resource
 
-> **Role:** Cross-cutting detail — shared GPU resource across AI/vision (immich-ML), voice, and gaming. oldsrv RX 7600 = Sunshine encode + immich-ML batch; spark (GB10) is the separate local-LLM/voice inference tier.
+> **Role:** Cross-cutting detail — shared GPU resource across AI/vision (immich-ML), voice, and gaming. oldsrv RX 7600 = **pinned AI services (STT/embed/rerank) + Sunshine encode + immich-ML batch**; spark (GB10) is the separate **big-model generation tier** (decision #24, 2026-09-15).
 > **Links to:** `services-office.md`, `smart-home-voice.md`, `services.md`
 > **Linked from:** `hardware-oldsrv.md`, `hardware-spark.md`, `deployment-compose.md`
 
@@ -16,11 +16,12 @@ tags: [hardware, gpu, rocm, cross-cutting]
 
 ## Phase 1: AMD Radeon RX 7600 — Sunshine gaming encode + immich-ML batch inference (AI)
 
-> **Corrected 2026-09-09 (owner):** the RX 7600 is **NOT "gaming encode only / no AI."** It serves
-> **both** (a) Sunshine game-streaming encode **and** (b) **immich-ML batch inference** — the container
-> bundles its own ROCm runtime and needs only `/dev/dri` + `/dev/kfd`. What is *excluded* from the
-> dGPU is **host LLM inference**: Ollama is disabled on oldsrv and generation/embeddings/rerank/STT/TTS
-> are consolidated on **spark** (Triton, GB10 — HD-335). `amd_rocm` host userland stays
+> **Corrected 2026-09-09 (owner), refined 2026-09-15 (decision #24):** the RX 7600 is **NOT "gaming
+> encode only / no AI."** It serves (a) Sunshine game-streaming encode, (b) **immich-ML batch
+> inference**, and (c) — **NEW 2026-09-15** — the **pinned AI services: Whisper STT + bge-m3 embed +
+> bge-reranker** (container-bundled ROCm, ≈5–6 GB of 8 GB). What is *excluded* from the dGPU is
+> **host LLM inference and big-model generation**: Ollama is disabled on oldsrv and the large
+> generation models run on **spark** (Triton, GB10 — HD-335). `amd_rocm` host userland stays
 > Debian-trixie-native tooling only (no external AMD repo, HD-318).
 
 | Spec | Value |
@@ -28,18 +29,18 @@ tags: [hardware, gpu, rocm, cross-cutting]
 | VRAM | 8 GB GDDR6 |
 | Interface | PCIe 4.0 x8 |
 | Docker access | `/dev/dri`, `/dev/kfd` |
-| GPU workloads | **Sunshine gaming-encode** + **immich-ML batch inference (AI)** — container-bundled ROCm |
+| GPU workloads | **Pinned AI services (Whisper STT + bge-m3 embed + bge-reranker, decision #24) + Sunshine gaming-encode + immich-ML batch inference (AI)** — container-bundled ROCm |
 | Host GPU | Intel HD 630 (iGPU, desktop only) — Xorg primary |
 
 ### Dual GPU Topology
 
 - **Intel HD 630 (iGPU):** Xorg primary — monitor on motherboard output. Family desktop compositing.
-- **Radeon RX 7600 (dGPU):** No monitor. **Sunshine game-streaming encode** + **immich-ML batch
-  inference (AI)** — immich-ML is a pause-able GPU consumer (2026-09-06) whose container bundles its own
-  ROCm runtime and only needs `/dev/dri`+`/dev/kfd`+udev. No **Ollama/LLM** on oldsrv (disabled
-  2026-09-07 — generation/embeddings on spark/Triton, HD-335). **Host ROCm = Debian-trixie-native
-  tooling only** (`rocm-opencl-icd`/`rocminfo`/`hipcc`, no external AMD repo — HD-318 2026-09-07: the
-  Ubuntu-noble AMD repo is incompatible with trixie).
+- **Radeon RX 7600 (dGPU):** No monitor. **Pinned AI services (Whisper STT + bge-m3 embed + bge-reranker,
+  decision #24) + Sunshine game-streaming encode** + **immich-ML batch inference (AI)** — all pause-able
+  GPU consumers (2026-09-06) whose containers bundle their own ROCm runtime and only need
+  `/dev/dri`+`/dev/kfd`+udev. No **Ollama/LLM** on oldsrv (disabled 2026-09-07 — big-model generation on
+  spark/Triton, HD-335). **Host ROCm = Debian-trixie-native tooling only** (`rocm-opencl-icd`/`rocminfo`/`hipcc`,
+  no external AMD repo — HD-318 2026-09-07: the Ubuntu-noble AMD repo is incompatible with trixie).
 - Xorg config fragment in `/etc/X11/xorg.conf.d/10-igpu-primary.conf` forces iGPU, excludes dGPU.
 
 ---
@@ -70,22 +71,22 @@ division) and **1 PFLOP FP4**.
 
 | Mode | Active Models | VRAM Usage | Trigger |
 |------|--------------|------------|---------|
-| **Immich-ML batch (AI)** | Immich-ML (face/object recognition, container ROCm) | ~3–5 GB | Photo/ML job — pause-able (Sunshine prep-command) |
-| **Gaming** | None (Sunshine active) | 0 GB (immich-ML paused) | User launches Sunshine (manual) |
-| **Idle** | None | ~0 GB (GPU ~5 W) | No Sunshine stream, no immich-ML job |
+| **Pinned AI (voice/embed/rerank)** | Whisper STT (~2 GB) + bge-m3 embed (~1–2 GB) + bge-reranker (~1–2 GB) | **~5–6 GB** | Voice command / RAG ingest-query — pause-able (Sunshine prep-command) |
+| **Immich-ML batch (AI)** | Immich-ML (face/object recognition, container ROCm) | ~3–5 GB | Photo/ML job — **lowest priority** (paused when pinned-AI active) |
+| **Gaming** | None (Sunshine active) | 0 GB (pinned-AI + immich-ML paused) | User launches Sunshine (manual) |
+| **Idle** | None | ~0 GB (GPU ~5 W) | No Sunshine stream, no pinned-AI, no immich-ML job |
 
 ### Phase 2 Modes (spark — GB10, 128 GB unified)
 
-`spark` runs the **Triton Inference Server** with the NVFP4 model set (see `hardware-spark.md`).
-With 128 GB unified memory there is no tight VRAM budget — models load concurrently; model
-swapping is Triton/KeepAlive-driven, not a manual gaming preempt.
+`spark` runs the **big-model generation tier** (decision #24, 2026-09-15) — the NVFP4 generation set
+(see `hardware-spark.md`). With 128 GB unified memory there is no tight VRAM budget — models load
+concurrently; model swapping is Triton/KeepAlive-driven, not a manual gaming preempt. The small
+pinned services (STT/embed/rerank) moved to the oldsrv RX 7600 (decision #24).
 
 | Mode | Active Models | Memory (approx) | Trigger |
 |------|--------------|-----------------|---------|
 | **Programming / Coding** | Qwen3-Coder-Next-80B | ~50 GB (NVFP4) | Coding session |
-| **Family Chat / RAG** | Nemotron-Lightning-30B or Llama-3.3-70B + bge-m3 | ~15–40 GB | Chat / retrieval |
-| **Voice** | Whisper-large-v3(-turbo) STT + XTTS/Piper TTS | ~10 GB | Voice commands |
-| **Embed/Rerank** | bge-m3 + bge-reranker-v2-m3 | ~5 GB | RAG ingest/query |
+| **Family Chat / RAG** | Nemotron-Lightning-30B or Llama-3.3-70B | ~15–40 GB | Chat / retrieval |
 | **Idle** | None (Triton model swap / KeepAlive) | ~0–few GB | No activity |
 
 ---
@@ -94,25 +95,29 @@ swapping is Triton/KeepAlive-driven, not a manual gaming preempt.
 
 | Consumer | Domain | Doc |
 |----------|--------|-----|
-| ~~Ollama~~ | ~~LLM inference~~ — **removed from oldsrv** (disabled 2026-09-07; inference on spark/Triton, HD-335) | [`services-ai.md`](services-ai.md) |
-| Whisper STT | Voice (speech-to-text) — **spark GB10** (Triton, HD-335) | [`smart-home-voice.md`](smart-home-voice.md) |
-| Piper TTS | Voice (text-to-speech) — **spark GB10** (Triton, HD-335) | [`smart-home-voice.md`](smart-home-voice.md) |
-| **Immich-ML** | **Photo face recognition / ML batch inference (AI)** — container-bundled ROCm | [`services.md`](services.md) |
+| ~~Ollama~~ | ~~LLM inference~~ — **removed from oldsrv** (disabled 2026-09-07; big-model generation on spark/Triton, HD-335) | [`services-ai.md`](services-ai.md) |
+| Whisper STT | Voice (speech-to-text) — **oldsrv RX 7600** (decision #24, 2026-09-15) | [`smart-home-voice.md`](smart-home-voice.md) |
+| Piper TTS | Voice (text-to-speech) — **CPU** (CPU-only engine, decision #24) | [`smart-home-voice.md`](smart-home-voice.md) |
+| bge-m3 embed | RAG embeddings — **oldsrv RX 7600** (decision #24) | [`services-ai.md`](services-ai.md) |
+| bge-reranker | RAG rerank — **oldsrv RX 7600** (decision #24) | [`services-ai.md`](services-ai.md) |
+| **Immich-ML** | **Photo face recognition / ML batch inference (AI)** — container-bundled ROCm, **lowest priority** | [`services.md`](services.md) |
 | **Sunshine** | Game streaming (manual start) — gaming-encode | [`hardware-oldsrv.md`](hardware-oldsrv.md) |
 
-> oldsrv RX 7600 GPU consumers = **Sunshine (gaming encode) + Immich-ML (AI batch)**. Spark (GB10) is
-> the separate, **sole local inference tier** for LLM/embeddings/rerank/STT/TTS.
+> oldsrv RX 7600 GPU consumers = **pinned AI (STT/embed/rerank, decision #24) + Sunshine (gaming encode) + Immich-ML (AI batch, lowest priority)**. Spark (GB10) is the separate **big-model generation tier**.
 
 ---
 
 ## Priority Rules
 
-- **Gaming-first (2026-09-06):** Sunshine owns the GPU for streams; immich-ML batch runs in
-  free-GPU time. Sunshine prep-commands `docker pause/unpause immich-ml` freeze/resume ML at
+- **Gaming-first (2026-09-06):** Sunshine owns the GPU for streams; pinned-AI + immich-ML batch run in
+  free-GPU time. Sunshine prep-commands `docker pause/unpause` freeze/resume the AI consumers at
   stream start/end — **no lost work, instant resume** (kernel freeze).
-- Sunshine `restart: "no"` (manual-start); idle GPU ~5 W when neither gaming nor ML-active.
+- **Priority order (decision #24, 2026-09-15):** gaming > pinned-AI (voice/embed/rerank) > immich-ML.
+  Pinned-AI ≈5–6 GB + immich-ML ≈3–5 GB would exceed 8 GB → they must not run simultaneously;
+  immich-ML is paused when pinned-AI is active.
+- Sunshine `restart: "no"` (manual-start); idle GPU ~5 W when neither gaming nor AI-active.
 - `docker pause` frees compute instantly; VRAM stays allocated until the process re-runs
-  (non-issue at 8 GB/3–5 GB ML footprint).
+  (non-issue at 8 GB/5–6 GB pinned-AI footprint).
 - No automated preemption beyond the pause-mechanism; CPU fallback for immich-ML only if
   ONNX-GPU proves fragile (not the default).
 

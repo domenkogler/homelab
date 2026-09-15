@@ -104,8 +104,13 @@ docker_services:
   # Prometheus/Loki over the wg-vps-services tunnel.
 
   # --- Compute / GPU backend (cannot leave the GPU box) ---
-  # ollama: DISABLED (owner 2026-09-07) — inference consolidated on spark/Triton
-  # (docs/services-ai.md row 23). Role + template kept; only the deploy entry is off.
+  # ollama: RE-ARMED 2026-09-15 (decision #24) — the RX 7600 pinned-services tier.
+  # Serves Whisper STT + bge-m3 embed + bge-reranker (NOT generation — that's spark).
+  # The `:rocm` image is the proven RDNA3 path (verified 2026-08-21); Ollama natively
+  # serves all three pinned models with one container + one bundled ROCm runtime.
+  # docs/services-ai.md §9 decision #24 · docs/hardware-gpu.md.
+  # DEPLOY-GATED (HD-369): flip `enabled: true` + converge oldsrv → model pull →
+  # LiteLLM catalog recreate → voice re-point. DO NOT converge while disabled.
   - { name: ollama,          template_dir: ollama, enabled: false }
   - { name: immich-ml,       template_dir: immich-ml }   # ML offload for immich-app on VPS (over WG)
 

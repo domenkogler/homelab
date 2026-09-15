@@ -58,13 +58,16 @@ decision log (`deployment-rejected.md`) + git history.
 
 ## Planned role — headless Triton inference node
 
-`spark` runs headless (no monitor, no desktop) as the homelab's **local LLM/inference tier** behind
-the **NVIDIA Triton Inference Server** (`nvidia/tritonserver`), serving the NVFP4 model set below.
-**Spark is the homelab's single AI-inference tier** (2026-09-06 decision): all local inference —
-generation, embeddings, rerank, STT, TTS — runs here via Triton. It complements — does not replace —
+`spark` runs headless (no monitor, no desktop) as the homelab's **big-model generation tier** behind
+the **NVIDIA Triton Inference Server** (`nvidia/tritonserver`), serving the NVFP4 generation set below.
+**Spark is the homelab's big-model generation tier** (2026-09-06 decision #23, **refined 2026-09-15
+decision #24**): the large generation models run here via Triton — **one big model with the largest
+context** (Qwen3-Coder-Next-80B, 262k ctx via SGLang). The small pinned services (Whisper STT, bge-m3
+embed, bge-reranker) **moved to the oldsrv RX 7600** (decision #24). It complements — does not replace —
 the VPS AI *spine* (LiteLLM/Qdrant/OWUI), but it **replaces** the oldsrv Ollama GPU tier (no host Ollama/
-AMD-noble ROCm on oldsrv). oldsrv's RX 7600 dGPU stays for **Sunshine gaming-encode + immich-ML batch
-inference (AI)** — the immich-ml container bundles its own ROCm runtime (owner correction 2026-09-09).
+AMD-noble ROCm on oldsrv). oldsrv's RX 7600 dGPU now runs **pinned AI (STT/embed/rerank) + Sunshine
+gaming-encode + immich-ML batch (lowest priority)** — the containers bundle their own ROCm runtime
+(owner correction 2026-09-09, decision #24 2026-09-15).
 
 ### Model set (NVFP4 / local, all fit within 128 GB unified memory)
 
@@ -74,13 +77,14 @@ inference (AI)** — the immich-ml container bundles its own ROCm runtime (owner
 | **Qwen3-Next-80B** | ~80B | general instruction following |
 | **Llama-3.3-70B-Instruct** | ~70B | general chat / RAG answer |
 | **Qwen3-Coder-Next-80B** | ~80B | code generation |
-| **bge-m3 + bge-reranker-v2-m3** | embedding + rerank | local embeddings / rerank for Qdrant RAG (replaces external Cohere) |
-| **Whisper-large-v3-turbo + Whisper-large-v3** | STT | speech-to-text |
-| **XTTS v2 + Piper TTS** | TTS | text-to-speech |
+> **Moved to oldsrv RX 7600 (decision #24, 2026-09-15):** bge-m3 embed + bge-reranker + Whisper STT
+> now run on the oldsrv RX 7600 (container-bundled ROCm, ≈5–6 GB of 8 GB). Piper TTS stays CPU
+> (CPU-only engine). spark keeps only the **generation** set below.
 
-> **Embeddings (2026-09-06):** bge-m3 (1024-dim) + bge-reranker-v2-m3 on spark **replace Cohere
-> entirely** — the `cohere_api` subscription is retired. **Nothing is RAG'd yet**, so the Qdrant
-> dimension lock (1536→1024) costs nothing now; embed/rerank become local on spark.
+> **Embeddings (2026-09-06, placement refined 2026-09-15):** bge-m3 (1024-dim) + bge-reranker-v2-m3
+> **replace Cohere entirely** — the `cohere_api` subscription is retired. **Nothing is RAG'd yet**, so
+> the Qdrant dimension lock (1536→1024) costs nothing now; embed/rerank run on the oldsrv RX 7600
+> (decision #24).
 
 ## Planned services
 
@@ -113,7 +117,9 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
    standard `docker_services` entry (`template_dir: triton`, pinned image tag in `versions.yml`,
    Renovate-tracked) — same management as every other service.
 5. **Model serve — the model repository is Ansible-managed** (this is the role's core job): NVFP4 gen
-   set + bge-m3/1024 + bge-reranker + whisper-turbo + XTTS/Piper.
+   set (Nemotron-30B, Qwen3-Next-80B, Llama-3.3-70B, Qwen3-Coder-Next-80B). **The small pinned
+   services (bge-m3 embed, bge-reranker, Whisper STT) moved to the oldsrv RX 7600 (decision #24,
+   2026-09-15); Piper TTS stays CPU.**
    - **Strict repo layout** rendered by the role: `/srv/models/spark/triton/<model>/1/{model.nvfp4,…}`
      (version dir `1/`), per-model `config.pbtxt` as **J2 templates** (backend: tensorrt_llm/vllm vs
      ONNX; input/output tensor names, `max_batch_size`, instance_group, dynamic batching — version-
@@ -121,9 +127,9 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
    - **Conversion pipeline**: role pulls base weights → runs NVFP4/engine converter (llm-compressor/
      TensorRT-LLM) **idempotently** (skip if engine artifact exists), tagged per model — a heavy,
      human-gated first-boot step (like render→review→apply), not a blind one-shot.
-   - **Residency policy** (voice pinned resident / gen-embed on-demand) rendered into `config.pbtxt`
-     scheduling + Triton model-control config — the role owns the baseline; tuning is config (like
-     `versions.yml`), not deployment.
+   - **Residency policy** (generation on-demand; pinned services on oldsrv RX 7600, decision #24)
+     rendered into `config.pbtxt` scheduling + Triton model-control config — the role owns the
+     baseline; tuning is config (like `versions.yml`), not deployment.
    - **Staging**: `/srv/models/spark/` (regenerable from repo floor + staged weights; not backed up —
      same pattern as oldsrv `/srv/models/immich-ml`).
 

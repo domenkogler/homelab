@@ -1,6 +1,6 @@
 # litellm docker-compose.yml — LLM gateway/router spine (docs/services-ai.md, HD-100/HD-247)
 #   Single OpenAI-compatible endpoint for the whole AI stack (Open WebUI, OpenClaw).
-#   THE only component holding upstream keys (openrouter_api, cohere_api). Local models
+#   THE only component holding upstream keys (openrouter_api). Local models
 #   -> Ollama on `llm-backend`; consumers reach LiteLLM on `services-internal`. Joins
 #   services-internal + llm-backend + db-internal (DB below). No public host port binds
 #   (HD-62); management API reached ONLY via `docker exec` from the bootstrap glue.
@@ -16,8 +16,9 @@
 #   FIRST-DEPLOY RUNBOOK (deploy-gate; mirrors zipline compose-header style):
 #     1. Converge renders this stack; litellm-db initializes from the litellm_db item.
 #     2. Recreate the former model entries in the Admin UI (or /model/new) — use the
-#        HD-246-corrected parameters: cohere/embed-v4.0 @1536 dims (NOT embed-english-v3.0)
-#        and cohere/rerank-v4.0-pro; ollama/* names as pulled on the RX 7600.
+#        HD-246-corrected parameters: ollama/bge-m3 (1024-dim) + ollama/bge-reranker-v2-m3
+#        (decision #24, 2026-09-15 — Cohere retired; local on oldsrv RX 7600 via Ollama :rocm);
+#        ollama/* names as pulled on the RX 7600.
 #     3. The bootstrap-keys glue runs automatically in the same converge AFTER this stack
 #        is healthy (deploy-service.yml, svc.bootstrap_keys) and mints every scoped key
 #        into its 1P item — BEFORE open-webui/openclaw render (registry order).
@@ -26,7 +27,7 @@
 #
 #   Secrets (all fail-closed, HD-65):
 #     litellm_master_key (api -> credential)      — admin/bootstrap only
-#     openrouter_api | cohere_api (credential)    — upstream providers
+#     openrouter_api (credential)    — upstream provider (Cohere retired 2026-09-06, decision #23)
 #     litellm_db (username/password)              — bundled Postgres (init-once password,
 #                                                   NOT_AUTO_ROTATABLE; db_role_sync guard)
 #   Images: docker.litellm.ai/berriai/litellm:{{ litellm_version }} (registry-verified pin,
@@ -55,7 +56,7 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       LITELLM_MASTER_KEY: "{{ vault['litellm_master_key'].credential | replace('$','$$') }}"
       OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential | replace('$','$$') }}"
-      COHERE_API_KEY: "{{ vault['cohere_api'].credential | replace('$','$$') }}"
+      # Cohere retired 2026-09-06 (decision #23) — embed/rerank local on oldsrv RX 7600 (decision #24).
       # Models-in-DB (HD-247): Prisma-backed runtime store (litellm proxy_server reads
       # DATABASE_URL when STORE_MODEL_IN_DB=true). Folded scalars per the HD-233 rule —
       # vault-generated values can contain YAML-hostile characters.

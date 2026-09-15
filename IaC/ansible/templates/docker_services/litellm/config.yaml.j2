@@ -1,14 +1,14 @@
 # LiteLLM config.yaml — LLM gateway/router spine (docs/services-ai.md, HD-100/HD-247)
 #   Single OpenAI-compatible endpoint for the AI stack; the ONLY component holding
-#   upstream keys (openrouter_api, cohere_api). Local models -> Ollama on `llm-backend`.
+#   upstream keys (openrouter_api). Local models -> Ollama on `llm-backend`.
 #   Rendered by the docker_services role; secrets resolved from 1Password at render time.
 #
 #   HD-247 v2: model_list is NO LONGER rendered here. With STORE_MODEL_IN_DB=true the
 #   model catalog lives in the litellm-db Postgres runtime and is Admin-UI-managed
 #   (git drift accepted by owner decision — services-ai.md §9 decision 13). At first
 #   deploy, recreate the former entries via the Admin UI/API using the HD-246-corrected
-#   parameters (cohere/embed-v4.0 @1536 dims; cohere/rerank-v4.0-pro) — see this
-#   service's compose-header runbook.
+#   parameters (ollama/bge-m3 @1024 dims; ollama/bge-reranker-v2-m3 — decision #24,
+#   2026-09-15, Cohere retired) — see this service's compose-header runbook.
 litellm_settings:
   drop_params: true
 

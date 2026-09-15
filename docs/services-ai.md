@@ -27,7 +27,9 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 > cross-host round-trip is VERIFIED (2026-09-08)** — the VPS server health-checks the oldsrv ML
 > endpoint over WG S2S (SSOT-derived `immich_ml_url` → oldsrv Home IP, HD-184; app log "Machine
 > learning server became healthy", `/ping` 200 from the VPS over `wg-s2s`). Ollama is **disabled** —
-> inference consolidated on spark (Triton/GB10, decision #23, 2026-09-06). **PGVector is being
+> generation consolidated on spark (Triton/GB10, decision #23, 2026-09-06; **refined 2026-09-15,
+> decision #24**: the small pinned services — STT/embed/rerank — move to the oldsrv RX 7600, spark
+> keeps the big-model generation tier). **PGVector is being
 > replaced by Qdrant** (HD-267; ⏳ migration/backtest + re-index before the live swap). ⏳ deploy-gated:
 > Qdrant cutover, the OKF-wiki repos, and the RAG/agent live-tuning behind them. Supersedes the
 > AnythingLLM path.
@@ -86,7 +88,7 @@ The AI estate is split by **who consumes it and where the compute lives** (tier 
 | Side | Hosted on | Services | Why |
 |---|---|---|---|
 | **Family AI** | **VPS** | `open-webui` (SSO-dependent), `docling`, `qdrant`, `openclaw`, `rag-mcp`, `forgejo-mcp`, **VPS LiteLLM** | SSO-bound, reliable, backed-up — the family-facing web AI |
-| **Dev AI** | **oldsrv** (+ `spark` when provisioned) | **`dsh` + `pi-dev` (MOVED from VPS 2026-09-10, tailscale removed)**, `OpenHands` (planned, spark), `immich-ml`, `mcp-victoriametrics`, `mcp-victorialogs`, **LAN LiteLLM (NEW, deploy-gated on spark)** | RAM/GPU-hungry (oldsrv 48 GB + RX 7600); LAN-local consumers; state backs up to NAS/VPS |
+| **Dev AI** | **oldsrv** (+ `spark` when provisioned) | **`dsh` + `pi-dev` (MOVED from VPS 2026-09-10, tailscale removed)**, `OpenHands` (planned, spark), `immich-ml`, `mcp-victoriametrics`, `mcp-victorialogs`, **LAN LiteLLM (NEW, deploy-gated on spark)**, **pinned AI services (Whisper STT + bge-m3 embed + bge-reranker — decision #24, 2026-09-15)** | RAM/GPU-hungry (oldsrv 48 GB + RX 7600); LAN-local consumers; state backs up to NAS/VPS |
 
 Consequences of the split:
 - **LiteLLM splits into two instances** (VPS + LAN) — it must sit next to its consumers (`litellm:4000` Docker-DNS only resolves same-host). VPS LiteLLM serves the family side (open-webui, openclaw, docling, qdrant, rag-mcp); **LAN LiteLLM (new)** serves the dev side (dsh, pi-dev, future OpenHands) with **spark (GB10 / Triton NVFP4)** as its local inference backend. The LAN instance is **deploy-gated on spark** (not yet provisioned). Each instance owns its own Postgres (`litellm-db`) + scoped keys, and both are Kopia-backed.
@@ -118,10 +120,10 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **Open WebUI ×2** (v2, HD-248) | chat + RAG UI | `traefik-public` / tailnet sidecar | `chat.kogler.si` PUBLIC (family, limited keys, **OKF Family-Manuals KB only**); `ai.kogler.si` INTERNAL (tailnet-served; you+wife, agent keys, `rag_internal`). Auth = Authentik OIDC both. |
 | **Qdrant** | **hybrid vector store (HD-307)** | `db-internal` | Standalone Rust DB (dense+sparse BM25), **independent of OWUI built-in RAG**. Replaces PGVector. Vector dimension locks at first ingest (1536). Add a snapshot/backup seam. |
 | **Forgejo (wiki repos)** | **knowledge SSOT** (HD-307) | `db-internal` / git | OKF `.md` repos per owner; git = truth; Qdrant = rebuildable cache. |
-| **kapa-inspired-rag-mcp** *(planned)* | MCP hybrid reader | `services-internal` | On @wiki-<x> query: hybrid search in Qdrant → top-20 → Cohere rerank (via LiteLLM) → top-5 clean markdown. |
+| **kapa-inspired-rag-mcp** *(planned)* | MCP hybrid reader | `services-internal` | On @wiki-<x> query: hybrid search in Qdrant → top-20 → bge-reranker-v2-m3 rerank (via LiteLLM → oldsrv RX 7600, decision #24) → top-5 clean markdown. |
 | **Forgejo MCP** *(planned)* | MCP read/write `.md` | `services-internal` | Bridge to the OKF wiki repos; agents read/write notes + open PRs. |
 | ~~Ollama~~ *(removed 2026-09-06)* | ~~Local LLM inference~~ | ~~`llm-backend`~~ | **Removed** — inference consolidated on spark (Triton). No Ollama/ROCm on oldsrv. |
-| **Triton Inference Server** *(planned, spark)* | NVFP4 local inference | `triton-backend` | On the **spark** GB10 node (HD-335) — **the sole local-inference tier** (2026-09-06). Serves the NVFP4 model set (Nemotron-30B, Qwen3-Next-80B, Llama-3.3-70B, Qwen3-Coder-Next-80B) + bge-m3/reranker + Whisper + XTTS/Piper. Reachable only by LiteLLM — same isolation as the removed Ollama (HD-59). **Model repo = Ansible-managed** (per-model `config.pbtxt` J2 templates + idempotent NVFP4 conversion + strict `1/` layout, `/srv/models/spark/`; see `hardware-spark.md` §Bring-up). **Model-catalog sync = git SSOT `models.yml` → LiteLLM DB** (reconciler: onboard upserts, offboard scoped-deletes git-sourced models only + same-change `litellm_scoped_keys` cleanup; manual OpenRouter models untouched). GB10 bring-up reference: [`dgx-spark-ml-guide`](https://github.com/martimramos/dgx-spark-ml-guide). |
+| **Triton Inference Server** *(planned, spark)* | NVFP4 local inference | `triton-backend` | On the **spark** GB10 node (HD-335) — **the big-model generation tier** (decision #24, 2026-09-15; was "sole local-inference tier" #23). Serves the NVFP4 generation set (Nemotron-30B, Qwen3-Next-80B, Llama-3.3-70B, Qwen3-Coder-Next-80B) — **one big model with the largest context** (Qwen3-Coder-Next-80B, 262k ctx via SGLang). The small pinned services (Whisper STT, bge-m3 embed, bge-reranker) **moved to the oldsrv RX 7600** (decision #24). Reachable only by LiteLLM — same isolation as the removed Ollama (HD-59). **Model repo = Ansible-managed** (per-model `config.pbtxt` J2 templates + idempotent NVFP4 conversion + strict `1/` layout, `/srv/models/spark/`; see `hardware-spark.md` §Bring-up). **Model-catalog sync = git SSOT `models.yml` → LiteLLM DB** (reconciler: onboard upserts, offboard scoped-deletes git-sourced models only + same-change `litellm_scoped_keys` cleanup; manual OpenRouter models untouched). GB10 bring-up reference: [`dgx-spark-ml-guide`](https://github.com/martimramos/dgx-spark-ml-guide). |
 | **Mem0** *(planned, spark)* | Long-term memory for OWUI | `services-internal` | Backed by **Qdrant** (HD-267/268). Per-user/per-project scoping via `user_id = <openwebui-user-id>-<model-id>`; `mem0.search(query=…, user_id=…)`. |
 | **OpenHands** *(planned, spark)* | Agentic coding harness | oldsrv / spark | A third coding cockpit alongside pi.dev + DSH (HD-307/250); served by the **LAN LiteLLM** (scoped key) + PR-only Forgejo token.
 | **Docling** | OCR / document understanding | `services-internal` | CPU. Multilingual OCR (Slovenian scans). |
@@ -136,14 +138,14 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 
 - **One endpoint:** Open WebUI ×2, OpenClaw, pi.dev, DSH, and Qdrant's embed/rerank authenticate to
   **LiteLLM only**, via per-consumer **scoped virtual keys** (HD-247) — they never hold `openrouter_api`,
-  `cohere_api`, or the master key.
+  `openrouter_api`, or the master key.
 - **Generation → Open Router:** one `openrouter_api` key (api → credential) reused for **all** external
   chat/LLM models, declared in LiteLLM's `config.yaml`. The coding-embed path specifically routes
   **DeepSeek via OpenRouter** (the brainstorm's pi serve / DSH backend) + local Ollama; any model listed
   on OpenRouter is selectable through the one LiteLLM dropdown.
 - **Embeddings → local spark (2026-09-06):** bge-m3 (1024-dim) via Triton; Cohere subscription retired.
-  Previously Cohere embed-v4 multilingual @1536 (accepted 2026-08-16 — superseded).
-- **Rerank → Cohere:** `cohere/rerank-v4.0-pro` external via LiteLLM `/rerank`.
+  Previously Cohere embed-v4 multilingual @1536 (accepted 2026-08-16 — superseded); local bge-m3/1024 via Ollama `:rocm` on oldsrv RX 7600 (decision #24).
+- **Rerank → oldsrv RX 7600 (decision #24):** `ollama/bge-reranker-v2-m3` via LiteLLM `/rerank` (Cohere retired).
 - **Local models:** Ollama listed via LiteLLM so family sees local + cloud in one dropdown; local is
   default where privacy/offline matters. **spark (HD-335)** adds the **Triton** NVFP4 set + local embeddings
   (bge-m3/reranker) as further LiteLLM backends (details in [`hardware-spark.md`](hardware-spark.md)).
@@ -200,15 +202,15 @@ the per-consumer virtual keys (fail-closed lookups thereafter), specs SSOT in `g
    canonical `.md` lands in the Forgejo wiki repo (git front-matter).
 2. **Index:** chunk → embed via **bge-m3 (1024 dims)** on spark (Triton) through LiteLLM → write dense+sparse
    vectors to **Qdrant**.
-3. **Retrieve:** hybrid BM25+vector query → kapa-inspired-mcp reads Qdrant → top-20 candidates → **Cohere
-   rerank v4.0-pro** via LiteLLM → **top-5 clean markdown** context → LiteLLM model answers.
+3. **Retrieve:** hybrid BM25+vector query → kapa-inspired-mcp reads Qdrant → top-20 candidates → **bge-reranker-v2-m3
+   rerank** via LiteLLM → **top-5 clean markdown** context → LiteLLM model answers.
 
 **Decided retrieval/ingestion parameters** (RAG knobs):
 | Parameter | Decided value |
 |-----------|---------------|
 | Extraction | Docling only (`CONTENT_EXTRACTION_ENGINE=docling`, `DOCLING_SERVER_URL=http://docling:5001`) |
 | Embeddings | **bge-m3, 1024 dims**, via Triton on spark (LiteLLM openai-compat, scoped rag key) — Cohere retired |
-| Reranker | Cohere rerank v4.0-pro external via LiteLLM `/rerank` — same scoped key |
+| Reranker | bge-reranker-v2-m3 local via LiteLLM `/rerank` (oldsrv RX 7600 Ollama, decision #24) |
 | Hybrid | ON default (dense+sparse BM25) |
 | Retrieval | 20 candidates → rerank → top 5, threshold 0 |
 | Chunking | token-based 512/64 (`RAG_TEXT_SPLITTER=token` mandatory) |
@@ -240,7 +242,7 @@ The AI layer is a **swappable shell over a git-SSOT + vector-cache floor** — t
 **A) Ingest a large document (automated, n8n):**
 1. Drop a 300-page manual into an OpenCloud **“import to RAG”** folder.
 2. **n8n** detects the file and copies it into the `/sources/` dir of the target wiki repo on Forgejo.
-3. n8n (or a hook) chunks it, embeds via **LiteLLM** (cohere/embed-v4.0), and writes the **dense+sparse**
+3. n8n (or a hook) chunks it, embeds via **LiteLLM** (ollama/bge-m3 on oldsrv RX 7600), and writes the **dense+sparse**
    vectors to Qdrant tagged with the project ID — ready for hybrid search immediately.
 
 **B) Edit docs from the web (HITL, human-in-the-loop):**
@@ -293,7 +295,7 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 |-------------|-----|
 | **Open WebUI ↔ OpenClaw** | Register OpenClaw as a LiteLLM model/provider → chatting to the “OpenClaw” model in the UI invokes the agent (**internal instance only; public keys exclude agents**). No bespoke glue. |
 | **pi.dev / DSH ↔ LiteLLM/Forgejo** *(dual)* | Each harness consumes a scoped LiteLLM key; propose via Forgejo PRs only (branch-protected main, no merge rights). |
-| **Qdrant ↔ rag-mcp ↔ OWUI** (HD-307) | kapa-mcp retrieves via Qdrant + Cohere rerank, returns top-5 markdown to OWUI |
+| **Qdrant ↔ rag-mcp ↔ OWUI** (HD-307) | kapa-mcp retrieves via Qdrant + bge-reranker-v2-m3 rerank (LiteLLM → oldsrv RX 7600), returns top-5 markdown to OWUI |
 | **Forgejo MCP ↔ wiki** | agents read/write OKF `.md`, open PRs; never arbitrary FS access |
 | **OpenCloud ↔ RAG ingress** | raw assets (live Box WebDAV, read-only) → Docling → wiki (git floor) |
 | **OpenClaw ↔ OpenCloud** | **WebDAV skill** reads/writes family files (summarize, organize, OCR a scan via Docling, draft replies). |
@@ -303,7 +305,7 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 - **No host port binds** (Flaw C / HD-62): overlays + Traefik only; loopback-only if ever needed.
 - **Version pinning** (HD-61/71): pin LiteLLM, Open WebUI, Docling, **Qdrant**, OpenClaw (young project).
   Keep Renovate tracking.
-- **VRAM/RAM:** spark = 128 GB unified (sole local inference tier for LLM/embeddings/rerank/STT/TTS); oldsrv RX 7600 dGPU = **Sunshine gaming encode + immich-ML batch inference (AI)**; Docling on CPU; size chat models
+- **VRAM/RAM:** spark = 128 GB unified (**big-model generation tier** — one large model, largest context, decision #24); oldsrv RX 7600 dGPU (8 GB) = **pinned AI services (Whisper STT ~2 GB + bge-m3 embed ~1–2 GB + bge-reranker ~1–2 GB ≈ 5–6 GB) + Sunshine gaming encode + immich-ML batch (lowest priority)**; Piper TTS = **CPU** (CPU-only engine); Docling on CPU; size chat models
   ~7–8B q4; keep `keep_alive` sensible (see `hardware-gpu.md`).
 - **AnythingLLM + LocPilot removed** for the family web UI — replaced by MS Office MCP path (HD-108).
 
@@ -317,6 +319,7 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 | **21** | IO/embedding stay cohere/embed-v4 @1536; public corpus = Family Manuals only; wife-work corp internal-only. | 2026-08-26/27 |
 | **22** | **spark (ThinkStation PGX / GB10) replaces the old Phase-2 Ryzen/R9700 build (HD-42 superseded).** Headless Triton inference node + NVFP4 model set + local bge embeddings; **Mem0** (OWUI memory on Qdrant) + **OpenHands** (agentic coding) onboard on spark. HD-335. | 2026-09-06 |
 | **23** | **Inference consolidated on spark — single local-inference tier (2026-09-06).** All generation/embeddings/rerank/STT/TTS run on spark (Triton, GB10). **No Ollama/AMD-noble ROCm on oldsrv** (ollama disabled 2026-09-07; amd_rocm role kept but Debian-native only, HD-318). oldsrv GPU = **Sunshine gaming encode first, with immich-ML as a pause-able GPU batch consumer** (already GPU-templated; Sunshine prep-commands `docker pause/unpause immich-ml` enforce gaming-first — no CPU fallback needed; CPU path reserved only if ONNX-GPU proves fragile). **Cohere subscription retired** — bge-m3 (1024) + bge-reranker-v2-m3 replace embed-v4/rerank (Qdrant 1536→1024 free: nothing RAG'd yet). Voice = whisper-turbo + XTTS/Piper **pinned resident on spark, no fallback**. | 2026-09-06 |
+| **24** | **RX 7600 = pinned-services tier; spark = big-model generation tier (2026-09-15).** Reverses #23's "sole inference tier" for the *small pinned services*: **Whisper STT (~2 GB) + bge-m3 embed (~1–2 GB) + bge-reranker (~1–2 GB) move to the oldsrv RX 7600** (container-bundled ROCm, ≈5–6 GB of 8 GB, pause-able for gaming — same pattern as immich-ML). **Piper TTS stays CPU** (CPU-only engine, ~0.5 GB, instant). **spark (GB10, 128 GB unified) keeps the big-model generation tier** — one large model with the largest context (Qwen3-Coder-Next-80B, 262k ctx via SGLang). immich-ML stays on oldsrv GPU as **lowest priority** (paused when voice/embed active). Rationale: pinned services are small + latency-sensitive (voice); spark is a 128 GB monster that should do the heavy lifting, not babysit a 2 GB Whisper. Risk accepted: ROCm-on-RDNA3 container-bundled path (immich-ML precedent). | 2026-09-15 |
 
 > The whole 3-zone / OKF / Qdrant / MCP architecture (previously `ai-brainstorming.md`) is **folded into
 > this doc**; that file is **deleted** (HD-307 lifecycle).
@@ -351,7 +354,7 @@ plane from the family research plane** (OWUI/Docling/Qdrant/Mem0). It runs on **
 A ZeroClaw agent on the VPS with fleet credentials = the largest attack-surface increase in the
 homelab (contradicts §10 capability-tiering). Rejected 2026-09-06; oldsrv is the remote runner.
 ## 10. Not yet implemented
-Depends on: oldsrv GPU + Ollama live · LiteLLM spine + `openrouter_api`/`cohere_api`/`litellm_master_key`
+Depends on: oldsrv GPU + Ollama live · LiteLLM spine + `openrouter_api`/`litellm_master_key`
 in 1Password · Authentik OIDC for OWUI · OpenCloud + `media` owner (HD-51) · **Qdrant service + `qdrant_db`
 item (replacing PGVector)** · **Forge OKF wiki repos + Forgejo/pi MCP** · **dual harness bring-up**.
 Implementation tasks: **HD-307** (doc + tails) / **HD-268** (IaC: Qdrant swap + OKF repos + dual harness) — see the repo [`todo.md`](../todo.md) backlog.

@@ -18,7 +18,7 @@
 #   Management API stays docker-exec-only (HD-62 parallel).
 #
 #   Secrets (all fail-closed, HD-65): reuses the SAME 1Password items as the VPS
-#   instance — litellm_master_key, openrouter_api, cohere_api, litellm_db — so the
+#   instance — litellm_master_key, openrouter_api, litellm_db — so the
 #   scoped-key glue (dsh_api, pi-harness_openai_api) and the db_backup DB06 story
 #   apply unchanged. On spark convergence, the litellm-db POSTGRES_* values fan out
 #   from the same vault items.
@@ -47,7 +47,7 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       LITELLM_MASTER_KEY: "{{ vault['litellm_master_key'].credential | replace('$','$$') }}"
       OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential | replace('$','$$') }}"
-      COHERE_API_KEY: "{{ vault['cohere_api'].credential | replace('$','$$') }}"
+      # Cohere retired 2026-09-06 (decision #23) — embed/rerank local on oldsrv RX 7600 (decision #24).
       STORE_MODEL_IN_DB: "true"
       DATABASE_URL: >-
         postgres://{{ vault['litellm_db'].username | urlencode }}:{{ vault['litellm_db'].password | urlencode }}@lan-litellm-db:5432/litellm

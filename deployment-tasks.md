@@ -74,7 +74,8 @@
 | `headscale_api` | api → `credential` (OIDC client secret) | Phase 3 | ✗ |
 
 - **HD-336 (coding plane)** — agent-memory.dev per-project on oldsrv (MCP + LiteLLM key); ZeroClaw system-mgmt runner (laptop+oldsrv); CrewAI pilot gated on homelab-finished. Spec: `docs/services-ai.md` §9b.
-- **HD-337 (spark bring-up)** — execute HD-335: DGX OS → placement → HD-155 spark leg → Triton → models → Cohere retirement/embed cutover → Mem0+OpenHands. Spec: `docs/hardware-spark.md` §Bring-up.
+- **HD-337 (spark bring-up)** — execute HD-335: DGX OS → placement → HD-155 spark leg → Triton → models (generation set; **pinned STT/embed/rerank moved to oldsrv RX 7600, decision #24**) → Cohere retirement/embed cutover → Mem0+OpenHands. Spec: `docs/hardware-spark.md` §Bring-up.
+- **HD-369 (RX 7600 = pinned-services tier; spark = big-model generation tier, decision #24)** — ✅ **IaC AUTHORED 2026-09-15** (NOT converged): re-armed Ollama (`:rocm`) on oldsrv (`enabled: false` until gate flips) serving whisper-large-v3-turbo/bge-m3/bge-reranker-v2-m3 on `llm-backend`; LiteLLM scoped keys re-pointed from Cohere → `ollama/bge-m3,ollama/bge-reranker-v2-m3`. ⏳ Deploy-gate: flip ollama → converge oldsrv → model pull → LiteLLM catalog recreate → voice re-point → priority glue → VRAM verify. Spec: `docs/services-ai.md` §9 decision #24 + `docs/hardware-gpu.md`.
 
 | `signal_api` | api → `credential` (`username`=phone number) | Phase 3 | ✗ |
 

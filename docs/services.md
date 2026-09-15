@@ -27,7 +27,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 | [Utilities](services-utilities.md) | n8n, signal-cli, PairDrop, Stirling PDF | detail |
 | [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup · **Homelable (HD-45, oldsrv, deploy-gated)** · ~~Metabase~~ **retired 2026-09-14** → future oldsrv | detail |
 | [Office](services-office.md) | ONLYOFFICE, OpenCloud, office bridge (cross-cutting) | detail |
-| [AI Platform](services-ai.md) | LiteLLM, Open WebUI, Docling, OpenClaw, Qdrant, **spark (Triton, GB10 — sole local inference)**, Immich-ML (oldsrv CPU) | detail |
+| [AI Platform](services-ai.md) | LiteLLM, Open WebUI, Docling, OpenClaw, Qdrant, **spark (Triton, GB10 — big-model generation)**, **Ollama (RX 7600 pinned-services: STT/embed/rerank, decision #24)**, Immich-ML (oldsrv CPU) | detail |
 | [Matrix](services-matrix.md) | Tuwunel, Element Web | detail |
 | [Finance](services-finance.md) | Actual Budget | detail |
 | [Traefik — Reverse Proxy & Edge](services-traefik.md) | Traefik | detail |

@@ -1,4 +1,6 @@
-# ollama docker-compose.yml — Local LLM inference engine
+# ollama docker-compose.yml — RX 7600 pinned-services tier (decision #24, 2026-09-15)
+#   Serves the SMALL PINNED services on the oldsrv RX 7600: Whisper STT + bge-m3 embed +
+#   bge-reranker. NOT generation — the big models run on spark (GB10, decision #24).
 #   GPU-accelerated via AMD ROCm (/dev/dri, /dev/kfd). Accessed ONLY by the LiteLLM
 #   spine on the dedicated `llm-backend` network (fully isolated — HD-59). Ollama
 #   deliberately does NOT sit on `services-internal`: its local API has no native auth,
@@ -7,6 +9,15 @@
 #   (to reach Ollama). No web UI, no Traefik labels.
 #   OLLAMA_KEEP_ALIVE=5m keeps models warm between requests. Image `:rocm` == latest
 #   release incl. bundled ROCm runtime (plain `:latest` has no ROCm support).
+#   The `:rocm` image is the PROVEN RDNA3 path (verified 2026-08-21) — the same
+#   container-bundled-ROCm doctrine as immich-ml (docs/hardware-gpu.md).
+#
+#   Models (pulled at first boot via the ollama_pull_models var):
+#     whisper-large-v3-turbo  — STT (voice pipeline, docs/smart-home-voice.md)
+#     bge-m3                  — embeddings (1024-dim, Qdrant RAG, docs/services-ai.md §5b)
+#     bge-reranker-v2-m3      — rerank (Qdrant RAG top-20→top-5)
+#   LiteLLM fronts these as `ollama/whisper-large-v3-turbo`, `ollama/bge-m3`,
+#   `ollama/bge-reranker-v2-m3` (models-in-DB, HD-247).
 #
 # Secrets: none needed (models are public, no API keys).
 services:

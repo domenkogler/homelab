@@ -4,7 +4,7 @@
 #   RAG. On `db-internal` (fully isolated overlay, same precedent as the other DBs); reachable
 #   only by the consuming AI services once deployed.
 #
-#   Vector dimension locks at FIRST INGEST (cohere/embed-v4.0 @ 1536). Changing the embedding
+#   Vector dimension locks at FIRST INGEST (bge-m3 @ 1024, decision #24 2026-09-15). Changing the embedding
 #   model/dims later = full re-ingest + backtest (docs/services-ai.md §5b). This store is a
 #   rebuildable cache over the Forgejo OKF-git knowledge floor — it can always be rebuilt.
 #
