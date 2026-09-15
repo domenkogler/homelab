@@ -126,10 +126,12 @@ services:
       # HD-370: HSTS for every route this edge serves (stats/logs/csui/dsh/pi-dev/*.ts…).
       # Everything it proxies is https-only by design (:80 = redirect only); this makes
       # browsers remember that — also THE roaming fix for the phone (LAN→tailnet keeps
-      # https-only after the name re-resolves to the edge).
-      - "--http.middlewares.hsts.headers.stsSeconds=31536000"
-      - "--http.middlewares.hsts.headers.stsIncludeSubdomains=true"
-      - "--http.middlewares.hsts.headers.stsPreload=false"
+      # https-only after the name re-resolves to the edge). Applied as the ENTRYPOINT
+      # middleware `hsts@file` (declared in dynamic/routes.yml.j2) — Traefik CLI cannot
+      # DECLARE middlewares ("field not found, node: http" crash-loop, live 2026-09-15
+      # on spark's edge); per-entrypoint ASSIGNMENT of a file-declared middleware is the
+      # valid CLI form and covers every :443 router at once.
+      - "--entrypoints.websecure.http.middlewares=hsts@file"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       # CrowdSec bouncer plugin (WAF) — same as the main edge; needed by the

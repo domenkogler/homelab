@@ -374,6 +374,16 @@
     creates: /usr/bin/op
   tags: "{{ svc.name }}"
 
+- name: "Ensure /etc/op exists ({{ svc.name }} bootstrap_keys — VPS-only from post_install)"
+  when: svc.bootstrap_keys | default(false)
+  ansible.builtin.file:
+    path: /etc/op
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  tags: "{{ svc.name }}"
+
 - name: "Deploy provision token for host-side op ({{ svc.name }} bootstrap_keys, HD-143 pattern)"
   when: svc.bootstrap_keys | default(false)
   ansible.builtin.copy:

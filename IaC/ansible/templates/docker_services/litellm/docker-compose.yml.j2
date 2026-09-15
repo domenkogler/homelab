@@ -9,7 +9,7 @@
 #   (`STORE_MODEL_IN_DB=true`) — model_list is NO LONGER rendered into config.yaml;
 #   models are Admin-UI-managed at runtime (git drift accepted by owner decision,
 #   services-ai.md §9 decision 13). Consumers authenticate with SCOPED virtual keys
-#   minted by the bootstrap-keys glue into 1Password; `litellm_master_key` remains the
+#   minted by the bootstrap-keys glue into 1Password; `litellm_api` remains the
 #   admin/bootstrap credential and is consumed by NOTHING else (retired from all
 #   consumer templates — grep-clean per HD-247).
 #
@@ -26,7 +26,7 @@
 #        master key rejected for a scoped consumer's normal route set is EXPECTED behavior.
 #
 #   Secrets (all fail-closed, HD-65):
-#     litellm_master_key (api -> credential)      — admin/bootstrap only
+#     litellm_api (api -> credential)      — admin/bootstrap only
 #     openrouter_api (credential)    — upstream provider (Cohere retired 2026-09-06, decision #23)
 #     litellm_db (username/password)              — bundled Postgres (init-once password,
 #                                                   NOT_AUTO_ROTATABLE; db_role_sync guard)
@@ -54,7 +54,7 @@ services:
         condition: service_healthy
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      LITELLM_MASTER_KEY: "{{ vault['litellm_master_key'].credential | replace('$','$$') }}"
+      LITELLM_MASTER_KEY: "{{ vault['litellm_api'].credential | replace('$','$$') }}"
       OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential | replace('$','$$') }}"
       # Cohere retired 2026-09-06 (decision #23) — embed/rerank local on oldsrv RX 7600 (decision #24).
       # Models-in-DB (HD-247): Prisma-backed runtime store (litellm proxy_server reads

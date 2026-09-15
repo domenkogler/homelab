@@ -29,7 +29,7 @@ placeholder (a `default('')` is deliberately absent — HD-65).
 |---|-----------|---------|------------|------------------------|---------------------|
 | 1 | `openrouter_api` | API Credential | `credential` = OpenRouter API key | LiteLLM (`OPENROUTER_API_KEY`) | OpenRouter account (paid LLM key) |
 | 2 | `cohere_api` | API Credential | `credential` = Cohere API key | LiteLLM (`COHERE_API_KEY`) | Cohere account (embeddings key, embed-v4) |
-| 3 | `litellm_master_key` | API Credential | `credential` = strong random token | LiteLLM's own env + the HD-247 bootstrap-keys glue (admin/bootstrap ONLY — consumers use the scoped virtual keys below) | Generate (`openssl rand -hex 32`) — admin auth token |
+| 3 | `litellm_api` | API Credential | `credential` = strong random token | LiteLLM's own env + the HD-247 bootstrap-keys glue (admin/bootstrap ONLY — consumers use the scoped virtual keys below) | Generate (`openssl rand -hex 32`) — admin auth token |
 | 3a | `litellm_db` | Database | `username` = DB user, `password` = DB password | litellm-db (`POSTGRES_*`) + db-backup **DB06** (HD-247 models-in-DB; init-once password → NOT_AUTO_ROTATABLE) | Catalog-generated (provision-vault.sh) |
 | 3b | `owui-public-chat_api`, `owui-public-rag_api`, `owui-int-wife_api`, `owui-int-owner_api`, `dsh_api`, `openclaw-litellm_api`, `rag-int-svc_api` | API Credential | `credential` = virtual key `sk-…` minted by LiteLLM | Per-consumer scoped auth to LiteLLM (HD-247; scopes/budgets: `vps.yml litellm_scoped_keys`, matrix in services-ai.md §4) | **Glue-generated at bootstrap** (`litellm-bootstrap-keys.sh`, create-if-absent; never hand-minted — sks exist only server-side, hashed at rest). NOTE `openclaw-litellm_api`, NOT `openclaw_api` (taken by the OIDC client) |
 | 4 | `openwebui_secret` | Password | `password` = random secret | Open WebUI (`WEBUI_SECRET_KEY`) | Generate (`openssl rand -hex 32`) — session/encryption |
@@ -80,7 +80,7 @@ After items exist, confirm each compose renders (the fail-loud guard passes) and
 
 ## 4. Rollback / rotation notes
 
-- **`litellm_master_key`** is now admin/bootstrap-only (HD-247): consumers hold SCOPED virtual keys instead. Rotating it breaks only the admin UI + bootstrap glue (re-run after rotation); consumer keys are independent — rotate/revoke per-key in the Admin UI, then update the matching 1P item (or clear it and let the glue re-mint).
+- **`litellm_api`** is now admin/bootstrap-only (HD-247): consumers hold SCOPED virtual keys instead. Rotating it breaks only the admin UI + bootstrap glue (re-run after rotation); consumer keys are independent — rotate/revoke per-key in the Admin UI, then update the matching 1P item (or clear it and let the glue re-mint).
 - **Scoped keys** are hashed at rest server-side: a lost/rotated key can NEVER be re-read. Remediation = delete server key by alias + clear the item's credential field + re-run the glue (it re-mints create-if-absent).
 - **`openrouter_api` / `cohere_api`** are upstream keys only LiteLLM holds — rotate at the provider dashboard, then update the 1Password item; no compose change needed (LiteLLM reads via env).
 - **OIDC client secrets** (`openwebui_api`) are rotated in Authentik; both provider and 1Password item must be updated together or the redirect/login breaks.

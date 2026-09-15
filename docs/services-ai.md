@@ -166,7 +166,7 @@ boundary trim; this doc is the platform SSOT for model guidance):
 |------|-----------------|---------|
 | `openrouter_api` | api → `credential` | LiteLLM (all external LLM generation) |
 | ~~`cohere_api`~~ *retired 2026-09-06* | — | **Removed** — embeddings/rerank local on spark (bge-m3/1024 + bge-reranker), Cohere subscription cancelled. |
-| `litellm_master_key` | api → `credential` | admin/bootstrap ONLY (HD-247) |
+| `litellm_api` | api → `credential` | admin/bootstrap ONLY (HD-247) |
 | `litellm_db` | db → `password` | litellm-db runtime DB (models-in-DB) |
 | scoped keys (`owui-public-chat_api`, `owui-public-rag_api`, `owui-int-wife_api`, `owui-int-owner_api`, `dsh_api`, `openclaw-litellm_api`, `rag-int-svc_api`) | api → `credential` | per-consumer glow-minted keys (HD-247) |
 | `openwebui_secret` | password → `password` | Open WebUI session/encryption secret |
@@ -355,7 +355,7 @@ plane from the family research plane** (OWUI/Docling/Qdrant/Mem0). It runs on **
 A ZeroClaw agent on the VPS with fleet credentials = the largest attack-surface increase in the
 homelab (contradicts §10 capability-tiering). Rejected 2026-09-06; oldsrv is the remote runner.
 ## 10. Not yet implemented
-Depends on: oldsrv GPU + Ollama live · LiteLLM spine + `openrouter_api`/`litellm_master_key`
+Depends on: oldsrv GPU + Ollama live · LiteLLM spine + `openrouter_api`/`litellm_api`
 in 1Password · Authentik OIDC for OWUI · OpenCloud + `media` owner (HD-51) · **Qdrant service + `qdrant_db`
 item (replacing PGVector)** · **Forge OKF wiki repos + Forgejo/pi MCP** · **dual harness bring-up**.
 Implementation tasks: **HD-307** (doc + tails) / **HD-268** (IaC: Qdrant swap + OKF repos + dual harness) — see the repo [`todo.md`](../todo.md) backlog.
