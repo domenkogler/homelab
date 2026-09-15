@@ -63,7 +63,8 @@ _extra_templates:
     - csp.yaml.j2        # HD-144 — Authentik SSO domain in connect-src/frame-src
   litellm:
     - config.yaml.j2   # HD-100 LLM gateway model_list/config
-    - config.yaml.j2   # HD-100 LLM gateway model_list/config
+  lan-litellm:
+    - config.yaml.j2   # HD-356 LAN-instance clone (HD-370: model_list stays DB/Admin-UI-managed)
   signal-cli-rest-api:
     - config.yaml.j2   # HD-353 secured-signal-api gateway config (tokens + endpoint allow-list)
   headscale:

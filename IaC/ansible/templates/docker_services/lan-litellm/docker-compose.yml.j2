@@ -45,6 +45,7 @@ services:
       - llm-backend                 # reach local inference (spark/Triton) once provisioned
       - db-internal                 # reach lan-litellm-db
     volumes:
+      - ./config.yaml:/app/config.yaml:ro          # HD-356: rendered from config.yaml.j2 (same pattern as the VPS litellm)
       - /srv/docker/lan-litellm:/app/.data        # misc app state (Kopia scope)
     depends_on:
       lan-litellm-db:

@@ -193,7 +193,18 @@ docker_services:
   # + point dsh/pi-dev OPENAI_BASE_URL at it (docs/services-ai.md §2).
   - { name: dsh,            template_dir: dsh,       public: false, enabled: true }   # DeepSeek Harness — dev AI (oldsrv now; UI = oldsrv_home_ip:3080)
   - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: true }   # pi coding-agent — dev AI (oldsrv now; UI = oldsrv_home_ip:8080)
-  - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: false }  # ⏳ LAN LiteLLM — DEPLOY-GATED ON SPARK (HD-356/HD-335): dev-side gateway for dsh/pi-dev/OpenHands; own Postgres + scoped keys (dsh_api, pi-harness_openai_api); Kopia-backed
+
+# LAN LiteLLM scoped keys (HD-356/HD-370) — per-instance SSOT consumed by the
+# bootstrap-keys glue + scripts/check-vault-items.sh (same record shape as the
+# VPS list in group_vars/vps.yml `litellm_scoped_keys`; same vault ITEMS as the
+# VPS instance, but the keys minted here live in the LAN lan-litellm-db —
+# 2026-09-15: the stale VPS-DB-minted dsh_api/pi-harness values were CLEARED in
+# 1Password so this glue mints fresh LAN keys vault-first). dsh/pi-dev are not
+# deployed yet — keys mint now, consumers wire up at their own deploy. Model
+# allow-lists stay as authored (ollama/*,openrouter/*; spark/* access for the
+# dev harnesses is a later decision, NOT decided here).
+  - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: true,   # ✅ FLIPPED 2026-09-15 (HD-356/HD-370 owner go): spark S1 engine stable + serving; bootstrap_keys mints the scoped keys (dsh_api, pi-harness_openai_api) into the LAN DB; Kopia-backed
+      bootstrap_keys: true }
   # ⏳ Spark AI (Qwen3.8-Flash-Next on GB10) — DEPLOY-GATED ON SPARK (HD-359/HD-337):
   #     the engine lives on the spark NODE (host_vars/spark.kogler.si.yml), NOT oldsrv.
   #     This registry entry is the spark node's inference stack (template_dir spark-ai,
@@ -236,3 +247,6 @@ docker_services:
   # metabase: RETIRED from the VPS 2026-09-14 (was here); future home = oldsrv.
   # MinIO REMOVED (2026-08-18, HD-135): Immich originals = live Hetzner Box (CIFS), not S3.
 #
+litellm_scoped_keys:
+  - { alias: dsh, vault_item: dsh_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }
+  - { alias: pi-harness, vault_item: pi-harness_openai_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }  # HD-268 pi scoped LiteLLM key (dual harness)
