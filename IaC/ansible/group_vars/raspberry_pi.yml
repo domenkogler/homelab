@@ -31,3 +31,7 @@ docker_services:
   - { name: home-assistant-primary, template_dir: home-assistant-primary }
   - { name: technitium-secondary,  template_dir: technitium, instance: secondary-pi }
   - { name: traefik-ha,            template_dir: traefik-ha, enabled: "{{ ha_edge_enabled }}" }   # HA edge, VIP-bound (oldsrv-down gap)
+  # Dozzle remote agent — exposes pi's containers to the oldsrv LAN log hub (llogs.kogler.si)
+  # over the Home VLAN (:7007, LAN-only bind — never WAN). HD-343 ride-along 2026-09-15.
+  - { name: dozzle-agent,          template_dir: dozzle-agent, enabled: true,
+      dozzle_agent_listen: "{{ pi_home_ip }}", dozzle_agent_hostname: "pi" }

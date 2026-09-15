@@ -136,13 +136,18 @@ docker_services:
   # home-assistant-standby on manual forward takeover.
   - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: false }
 
-  # --- Observability: per-host log viewer (docker.sock = oldsrv containers) ---
-  # NOTE: the central backend (prometheus/loki/grafana) is on the VPS; Alloy (host,
-  # monitoring role) forwards oldsrv metrics/logs over the wg-vps-services tunnel.
-  # HD-135b (2026-08-28): dozzle MOVED to the VPS (group_vars/vps.yml) so log viewing
-  # is independent of the home hosts; this entry stays as a disabled tombstone (the
-  # docker_services teardown loop removes any leftover oldsrv dozzle stack).
-  - { name: dozzle,          template_dir: dozzle, subdomain: logs, enabled: false }
+  # --- Observability: LAN log hub (Dozzle) ---
+  # HD-343 ride-along (2026-09-15): the VPS keeps the VPS-only viewer (logs.kogler.si,
+  # group_vars/vps.yml). OLDSRV now runs the LAN log HUB: a full Dozzle (llogs.kogler.si,
+  # :8081, served by the traefik-internal home edge — WAN-out survival) that shows oldsrv
+  # containers + pi + spark via remote agents (DOZZLE_REMOTE_AGENT over the Home VLAN).
+  # LAN logs stay LAN-only by design — never reach the VPS / public / tailnet. The old
+  # HD-135b tombstone (dozzle MOVED to the VPS) is superseded: the home hub is a NEW role.
+  - { name: dozzle,          template_dir: dozzle, subdomain: llogs, public: false, enabled: true,
+      dozzle_listen_ip: "{{ oldsrv_home_ip }}", dozzle_http_port: 8081,
+      dozzle_agent_connect: ["{{ pi_home_ip }}:7007|pi", "{{ spark_home_ip }}:7007|spark"] }
+  - { name: dozzle-agent,    template_dir: dozzle-agent, enabled: true,
+      dozzle_agent_listen: "{{ oldsrv_home_ip }}", dozzle_agent_hostname: "oldsrv" }
   - { name: signal-cli-rest-api, template_dir: signal-cli-rest-api }   # Signal gateway (n8n on VPS reaches here over WG)
 
   # --- Stream ---

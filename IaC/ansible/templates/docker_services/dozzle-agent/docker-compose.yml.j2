@@ -1,0 +1,52 @@
+# dozzle-agent docker-compose.yml — Dozzle remote agent (per-home-host log proxy)
+#   Runs `dozzle agent`: exposes THIS host's containers to a Dozzle HUB (the oldsrv
+#   `dozzle` full instance) via :7007. Read-only docker.sock — viewer only, never a
+#   log store (VictoriaLogs is the stored-log backend).
+#
+#   Lan-only security posture (see docs/observability.md §Dozzle multi-host): the
+#   agent publishes ONLY on this host's Home-VLAN IP (never WAN, never 0.0.0.0) —
+#   Dozzle's universal built-in cert encrypts the channel; the LAN bind is the
+#   access gate (Dozzle docs: "an agent is only as private as the network it
+#   listens on"). A custom cert pair is the upgrade path if 7007 is ever exposed
+#   beyond the Home VLAN — deliberately NOT provisioned now.
+#
+#   Binds `{{ svc.dozzle_agent_listen | default('127.0.0.1') }}` (SSOT-derived per-host Home VLAN IP,
+#   group_vars/*.yml). No Traefik labels — agents are BACKEND-ONLY (not a web UI;
+#   not in the validator WEB_SERVICES set, so no traefik labels allowed).
+#
+#   Version: {{ dozzle_version }} (group_vars/all/versions.yml, Renovate-tracked).
+services:
+  dozzle-agent:
+    image: amir20/dozzle:{{ dozzle_version }}
+    command: agent
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    container_name: dozzle-agent
+    restart: unless-stopped
+    # No explicit networks block: the agent publishes a port and needs NO
+    # cross-container reach — compose auto-creates a project-scoped default
+    # network, keeping the agent isolated (LAN-bound :7007 + docker.sock only).
+    # (Validator rule: every DECLARED network must be external: true — so none
+    # is declared.)
+    ports:
+      # Agent protocol port — bound to the Home-VLAN IP only (dns-allow-home /
+      # LAN-only; the hub on oldsrv reaches it on the Home VLAN). Never WAN.
+      - "{{ svc.dozzle_agent_listen | default('127.0.0.1') }}:7007:7007"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      DOZZLE_LEVEL: info
+      # Host label shown in the hub's sidebar (hostname, not the container name).
+      DOZZLE_HOSTNAME: "{{ svc.dozzle_agent_hostname | default(inventory_hostname) }}"
+    healthcheck:
+      # Agent-mode healthcheck probes the Docker connection itself; unhealthy
+      # agents are hidden from the hub UI (official pattern).
+      test: ["CMD", "/dozzle", "healthcheck"]
+      interval: 5s
+      retries: 5
+      start_period: 5s
+      start_interval: 5s

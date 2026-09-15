@@ -1,9 +1,29 @@
-# dozzle docker-compose.yml — Live container log viewer (logs.kogler.si)
-#   Read-only docker.sock, viewer only (never a log store — Loki stays the backend).
-#   Forward-Auth. Shows ALL containers in real time.
+# dozzle docker-compose.yml — Live container log viewer (logs.kogler.si VPS /
+# logs-home.kogler.si oldsrv hub) — generated from group_vars per host.
+#   Read-only docker.sock, viewer only (never a log store — VictoriaLogs is the
+#   stored-log backend). Serves ALL containers on this host in real time.
 #
-# Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
-#   — none needed
+#   VIS Sentence:
+#   Two roles share this template:
+#     * VPS (group_vars/vps.yml, subdomain: logs): plain viewer on its own docker.sock
+#       — shows VPS containers only, forward-auth on the traefik-tailnet internal edge.
+#     * OLDSRV (group_vars/home_servers.yml, subdomain: llogs): the LAN log HUB —
+#       shows oldsrv containers (own docker.sock) + pi + spark via remote agents
+#       (DOZZLE_REMOTE_AGENT). Served by the traefik-internal home edge (survives
+#       WAN-out). Published on oldsrv's Home-VLAN IP so LAN clients reach it directly.
+#
+#   Agents (pi/spark, templates/docker_services/dozzle-agent): expose their host's
+#   containers to THIS hub over the Home VLAN (agent :7007, LAN-only bind). LAN logs
+#   stay LAN-only by design — never reach the VPS / public / tailnet.
+#
+#   The `svc.dozzle_agent_connect` var (group_vars/home_servers.yml) is the per-host
+#   agent list for the HUB role; empty/absent = plain viewer (VPS). WAN-out: the
+#   traefik-internal edge + LAN agent connects need no VPS.
+#
+#   Secrets: none needed (agents are LAN-bound; universal Dozzle cert encrypts
+#   the agent channel).
+#
+#   Version: {{ dozzle_version }} (group_vars/all/versions.yml).
 services:
   dozzle:
     image: amir20/dozzle:{{ dozzle_version }}
@@ -21,18 +41,33 @@ services:
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       DOZZLE_LEVEL: info
+{% if svc.dozzle_agent_connect | default('') | length > 0 %}
+      # HUB role (oldsrv): connect the pi + spark agents over the Home VLAN.
+      # `host:port|label` — label = agent DOZZLE_HOSTNAME, shown in the sidebar.
+      DOZZLE_REMOTE_AGENT: "{{ svc.dozzle_agent_connect | join(',') }}"
+{% endif %}
     labels:
 {% if not (svc.public is defined and not svc.public) %}
       traefik.enable: "true"
-      traefik.http.routers.dozzle.rule: "Host(`logs.kogler.si`)"
+      traefik.http.routers.dozzle.rule: "Host(`{{ svc.subdomain | default('logs') }}.kogler.si`)"
       traefik.http.routers.dozzle.entrypoints: websecure
       {{ 'traefik.http.routers.dozzle.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       traefik.http.routers.dozzle.middlewares: authentik-forward-auth@file
       traefik.http.services.dozzle.loadbalancer.server.port: "8080"
 {% else %}
       # INTERNAL-ONLY (public: false — HD-331/332): no public-edge route; served
-      # only by the traefik-tailnet internal edge (logs.kogler.si / logs.ts).
+      # only by the internal edge (traefik-tailnet on VPS; traefik-internal on oldsrv).
       traefik.enable: "false"
+{% endif %}
+{% if svc.dozzle_listen_ip | default('') | length > 0 %}
+    ports:
+      # HUB role only: publish the Dozzle UI on the Home-VLAN IP (LAN clients reach
+      # it directly; the internal edge also proxies to this). The VPS viewer
+      # publishes nothing (traefik-public overlay only — the edge is the only entry).
+      # Host port = svc.dozzle_http_port (8081); container port = 8080 (Dozzle's
+      # fixed internal listen — DOZZLE_ADDR default). The edge proxies to the HOST
+      # port (oldsrv_home_ip:8081), which maps to the container's 8080.
+      - "{{ svc.dozzle_listen_ip }}:{{ svc.dozzle_http_port | default('8081') }}:8080"
 {% endif %}
 networks:
   traefik-public:

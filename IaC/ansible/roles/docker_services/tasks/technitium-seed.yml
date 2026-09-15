@@ -170,6 +170,11 @@
         - { name: "profilarr.kogler.si",ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
         - { name: "sab.kogler.si",      ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
         - { name: "torrent.kogler.si",  ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
+        # llogs.kogler.si (Dozzle multi-host hub, HD-343 ride-along): the LAN log
+        # viewer on OLDSRV (traefik-internal home edge). LAN-only — home instances
+        # resolve it to the oldsrv LAN IP; the VPS primary never carries it (same
+        # rule as modem/spark — a LAN log viewer must never resolve from VPS/internet).
+        - { name: "llogs.kogler.si",   ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}" }
         # HD-302 (2026-09-08): `modem.kogler.si` is a LAN-only private record for the
         # Comtrend modem UI — seeded ONLY on the HOME instances (Pi tertiary `secondary-pi`
         # + oldsrv secondary `secondary`), NEVER on the VPS primary (`primary`): the modem
@@ -232,5 +237,5 @@
       # its 10.10x Home-IP must never resolve from the VPS/internet).
       # This `when` is evaluated PER-LOOP-ITEM (Ansible runs the task-level `when` for each
       # item when the task has a `loop`), so `item` is defined here.
-      when: item.name not in ["modem.kogler.si", "spark.kogler.si"] or svc.instance | default('primary') in ['secondary', 'secondary-pi']
+      when: item.name not in ["modem.kogler.si", "spark.kogler.si", "llogs.kogler.si"] or svc.instance | default('primary') in ['secondary', 'secondary-pi']
       failed_when: _tech_record.json is not defined or _tech_record.json.status not in ['ok', 'error']

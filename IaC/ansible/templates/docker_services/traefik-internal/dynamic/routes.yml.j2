@@ -108,6 +108,18 @@ http:
         - websecure-lan
       service: torrent-backend
       tls: true
+    # LAN log hub (Dozzle multi-host, HD-343 ride-along 2026-09-15): llogs.kogler.si
+    # served by the traefik-internal HOME edge (WAN-out survival — no VPS dependency).
+    # Backend = the oldsrv Dozzle hub (:8081); it shows oldsrv + pi + spark containers
+    # (remote agents on the Home VLAN). LAN-only — the split-horizon record resolves
+    # this name to oldsrv_home_ip on the home instances only (never the VPS primary).
+    llogs:
+      rule: "Host(`llogs.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: llogs-backend
+      tls: true
     # --- HA + DNS UI (VIP; this edge serves ha only while oldsrv owns the VIP) ---
     ha:
       rule: "Host(`ha.kogler.si`)"
@@ -202,6 +214,10 @@ http:
       loadBalancer:
         servers:
           - url: "http://{{ oldsrv_home_ip }}:8080"
+    llogs-backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ oldsrv_home_ip }}:8081"
     ha-backend:
       loadBalancer:
         servers:

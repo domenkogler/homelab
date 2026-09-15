@@ -15,6 +15,11 @@ docker_services:
   # 127.0.0.1:11000/11002 (dashboard + admin JupyterLab). No secrets; public =
   # internal-only (never a public edge record); enabled = bridge up.
   - { name: spark-dashboard, template_dir: spark-dashboard, public: false, enabled: true }
+  # Dozzle remote agent — exposes spark's containers (vLLM engine + edge) to the oldsrv
+  # LAN log hub (llogs.kogler.si) over the Home VLAN (:7007, LAN-only bind). HD-343
+  # ride-along 2026-09-15.
+  - { name: dozzle-agent, template_dir: dozzle-agent, enabled: true,
+      dozzle_agent_listen: "{{ spark_home_ip }}", dozzle_agent_hostname: "spark" }
 
 # ==== Shared spark render-scope vars (used by the spark-ai compose template) ====
 # These MUST live here (group_vars/spark.yml) — the docker_services render scope is
