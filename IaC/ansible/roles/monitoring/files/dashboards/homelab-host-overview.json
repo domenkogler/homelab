@@ -42,7 +42,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\", instance=~\"$instance\"}[5m]))",
+          "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\", instance=~\"$instance\"}[5m])) / count(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\", instance=~\"$instance\"})",
           "instant": true
         }
       ]
@@ -124,7 +124,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\", instance=~\"$instance\"}[5m])) by (instance)"
+          "expr": "(1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\", instance=~\"$instance\"}[5m]))) / count by (instance) (node_cpu_seconds_total{mode=\"idle\", job=\"alloy\", instance=~\"$instance\"})"
         }
       ]
     },
