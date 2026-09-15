@@ -91,7 +91,7 @@
     },
     {
       "type": "timeseries",
-      "title": "VPS CPU (alloy)",
+      "title": "VPS CPU (all cores)",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -104,7 +104,7 @@
         }
       },
       "targets": [
-        { "refId": "A", "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\"}[5m]))" }
+        { "refId": "A", "expr": "(1 - avg(rate(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\", instance=\"vps.kogler.si\"}[5m]))) / count(node_cpu_seconds_total{mode=\"idle\", job=\"alloy\", instance=\"vps.kogler.si\"})" }
       ]
     },
     {
