@@ -1337,9 +1337,44 @@ narrow-bound to the oldsrv Home-IP (homelable pattern; NO public route/cert labe
 - Aurral recommendations render; Tube Archivist subs pull episodes on schedule.
 - `bash scripts/validate-all.sh` green (unchanged by deploy; run after any repo change).
 
----
+### P3.5 Ollama RX-7600 pinned-services first-boot (HD-369) — 2026-09-15 live
+
+> Imperative first-boot + model-pull procedure for the Ollama pinned-services tier (deployed by a
+> routine `home_servers.yml` converge once `ollama.enabled: true` is in `group_vars/home_servers.yml`).
+> **Registry names below are the CORRECTED ones** — the original spec's `whisper-large-v3-turbo` + `bge-reranker-v2-m3`
+> do NOT exist in the ollama library (verified 2026-09-15): `bge-m3` is the only library model; whisper + reranker
+> are community-repo models. **API-cap note:** the pinned `:rocm` build (0.32.15) has NO `/api/rerank` (404) —
+> LiteLLM `/rerank` + whisper-STT legs need an ollama ≥ 0.5.x; embed (bge-m3) is the only verified leg on this pin.
+
+Verify the container is up + GPU-attached (after any converge):
+```bash
+ssh ansible-admin@oldsrv 'docker ps --filter name=ollama --format "{{.Names}} {{.Status}} {{.Image}}"; docker inspect ollama --format "{{range \$k,\$v := .NetworkSettings.Networks}}{{\$k}} {{end}}"'
+# expect: ollama  Up ...  ollama/ollama:0.32.15-rocm ;  llm-backend
+```
+
+First-boot model pull (one-time; no Ansible task — documented manual step):
+```bash
+ssh ansible-admin@oldsrv 'docker exec ollama ollama pull bge-m3'                           # library: 1024-dim embed
+ssh ansible-admin@oldsrv 'docker exec ollama ollama pull sendmeaiohyeah/whisper-large-v2'   # STT (voice pipeline)
+ssh ansible-admin@oldsrv 'docker exec ollama ollama pull qllama/bge-reranker-v2-m3:q8_0'   # rerank (Qdrant top-20→top-5)
+ssh ansible-admin@oldsrv 'docker exec ollama ollama list'
+```
+
+Verify inference (embed is the only endpoint usable on this pin):
+```bash
+ssh ansible-admin@oldsrv 'IP=$(docker inspect ollama --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"); \
+  curl -s http://${IP}:11434/api/embed -d "{\"model\":\"bge-m3\",\"input\":\"hello\"}" | head -c 200'
+# expect a JSON embeddings array; ollama ps shows bge-m3 100% GPU (OLLAMA_KEEP_ALIVE=5m keeps it resident)
+```
+
+> LiteLLM Admin-UI catalog recreate (gate step c, deferred) must use the CORRECTED model names:
+> `ollama/bge-m3` (1024 dim) · `ollama/qllama/bge-reranker-v2-m3:q8_0` · `ollama/sendmeaiohyeah/whisper-large-v2`.
+> The rerank + whisper-STT legs remain BLOCKED on the current `:rocm` pin (see HD-369 open item: bump the
+> `ollama_version` pin to a rerank-capable release — none of the 0.3x `:rocm` tags carry `/api/rerank`).
 
 ---
 
-*Last updated 2026-09-14 · imperative redeploy procedure (true zero → live) for Phases 0 + 0.5 + 1a + 1 + 1.5 + 4 + 5. Progress/history lives in [deployment-tasks.md](deployment-tasks.md) + owning docs.*
+---
+
+*Last updated 2026-09-15 · imperative redeploy procedure (true zero → live) for Phases 0 + 0.5 + 1a + 1 + 1.5 + 4 + 5 (P3.5 Ollama first-boot HD-369). Progress/history lives in [deployment-tasks.md](deployment-tasks.md) + owning docs.*
 
