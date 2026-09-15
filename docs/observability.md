@@ -267,6 +267,17 @@ OLDSRV Dozzle HUB (llogs.kogler.si, :8081, traefik-internal edge — WAN-out sur
   rule as `modem`/`spark`). LAN clients resolve it directly; WAN clients must NOT resolve it.
 - **Route:** `llogs` router + `llogs-backend` → `http://{{ oldsrv_home_ip }}:8081` in the
   traefik-internal `routes.yml.j2` (file provider, hot-reload).
+
+- **LIVE 2026-09-15 (oldsrv + pi + spark converges, failed=0):** hub `:8081` HTTP 200 via
+  `traefik-internal` + direct; agents on all 3 home hosts (`:7007`, LAN-only, healthy); VPS
+  viewer (`logs.kogler.si`) untouched. ⏳ **`llogs.kogler.si` resolution gap — Pi tertiary NOT
+  re-seeded:** the 2026-09-15 pi converge was scoped to `dozzle-agent` only, so the
+  `technitium-seed` tail did not run on the Pi — the Pi's zone lacks the `llogs` row, and the
+  WSL/Windows default resolver chain terminates at the Pi (VPS-primary-first for the excluded
+  set) → `ERR_NAME_NOT_RESOLVED` on the laptop. **Fix (next session):**
+  `bash scripts/ansible-run.sh playbooks/raspberry_pi.yml -e docker_services_scope=technitium-secondary`
+  → `dig @<pi> llogs.kogler.si` → expect the oldsrv Home IP; flush the Windows resolver cache
+  if the negative answer was cached.
 - **Loki access control (HD-115 / KOPS-023/051):** Loki runs with `auth_enabled: true` (multi-tenant) — pushes and queries must carry the `logs` tenant ID, wired through Alloy (`tenant_id = "logs"`) and the Grafana datasource (`jsonData.tenantId`). The **write** path is loopback-only (Alloy → `127.0.0.1:3100`, no db-internal requirement) and **reads** come only from Grafana on `db-internal`; Loki is never exposed on traefik-public or any LAN bind. **Accepted caveat:** Loki-native `auth_enabled` is tenant *isolation*, not a password gate — a compromised db-internal container could forge a tenant header. Acceptable for the trusted-`db-internal` Phase-1 set; re-evaluate (real credential gateway / separate write+read tenants) if more members join `db-internal`.
 - **Pi keeps only a tiny bounded local log buffer.** The Raspberry Pi primary holds **no durable log store** — Docker uses log driver `local` (`max-size: 10m, max-file: 2`) as RAM/disk resilience when oldsrv/VictoriaLogs is down; the durable, searchable copy lives in VictoriaLogs. Host OS logs run on tmpfs (`journald Storage=volatile` + `/var/log` tmpfs). See [Pi SD-card wear strategy](#pi-sd-card-wear-strategy).
 - **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
