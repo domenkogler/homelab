@@ -20,10 +20,10 @@ METRICS_URL="${VLLM_URL:-http://localhost:8000}/metrics"
 
 curl -sf "$METRICS_URL" > "$FILE" || { echo "ERROR: cannot reach $METRICS_URL" >&2; exit 1; }
 
-get() { grep -E "^${1}\b" "$FILE" | tail -1 | awk '{print $2}'; }
+get() { grep -E "^${1}\b" "$FILE" 2>/dev/null | tail -1 | awk '{print $2}' || true; }
 
 PREEMPT=$(get 'vllm:num_preemptions_total')
-GPU_CACHE=$(get 'vllm:gpu_cache_usage_perc')
+GPU_CACHE=$(get 'vllm:kv_cache_usage_perc')
 ACCEPTED=$(get 'vllm:spec_decode_num_accepted_tokens_total')
 DRAFT=$(get 'vllm:spec_decode_num_draft_tokens_total')
 PROMPT_TOK=$(get 'vllm:prompt_tokens_total')
@@ -44,7 +44,9 @@ SUMMARY="ts=${TS} label=${SAFE_LABEL} running=${RUNNING:-?} waiting=${WAITING:-?
 
 echo "$SUMMARY"
 echo "$SUMMARY" >> "$BENCH_DIR/metrics-summary.log"
-[[ -n "$CACHE_LINE" ]] && { echo "--- cache metrics (raw) ---"; echo "$CACHE_LINE"; } >> "$BENCH_DIR/metrics-summary.log"
+if [[ -n "$CACHE_LINE" ]]; then
+  echo "--- cache metrics (raw) ---"; echo "$CACHE_LINE" >> "$BENCH_DIR/metrics-summary.log"
+fi
 
 # Emit machine-readable values for the runner script (KEY=value lines)
 cat > "$OUT_DIR/metrics-${TS}-${SAFE_LABEL}.env" <<EOF
