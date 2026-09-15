@@ -270,14 +270,14 @@ OLDSRV Dozzle HUB (llogs.kogler.si, :8081, traefik-internal edge — WAN-out sur
 
 - **LIVE 2026-09-15 (oldsrv + pi + spark converges, failed=0):** hub `:8081` HTTP 200 via
   `traefik-internal` + direct; agents on all 3 home hosts (`:7007`, LAN-only, healthy); VPS
-  viewer (`logs.kogler.si`) untouched. ⏳ **`llogs.kogler.si` resolution gap — Pi tertiary NOT
-  re-seeded:** the 2026-09-15 pi converge was scoped to `dozzle-agent` only, so the
-  `technitium-seed` tail did not run on the Pi — the Pi's zone lacks the `llogs` row, and the
-  WSL/Windows default resolver chain terminates at the Pi (VPS-primary-first for the excluded
-  set) → `ERR_NAME_NOT_RESOLVED` on the laptop. **Fix:** `bash scripts/ansible-run.sh playbooks/dns-seed.yml`
-  → `dig @<pi> llogs.kogler.si` → expect the oldsrv Home IP; flush the Windows resolver cache
-  if the negative answer was cached. (See [`network-dns.md`](network-dns.md) §Convergence & Drift —
-  the one-command re-seed + per-host self-heal timer + static drift gate now close this class.)
+  viewer (`logs.kogler.si`) untouched. **✔️ `llogs.kogler.si` RESOLVED + LIVE-VERIFIED 2026-09-15**
+  (via `playbooks/dns-seed.yml` — the one-command re-seed of all three Technitium instances,
+  see [`network-dns.md`](network-dns.md) §Convergence & Drift): the Pi converge was scoped to
+  `dozzle-agent` so the `technitium-seed` tail had not run on the Pi; the re-seed ran the
+  full split-horizon set on Pi + oldsrv + VPS (`failed=0`), and live `dig` confirms
+  `llogs.kogler.si → 10.10.1.30` on both home instances + **no answer on the VPS primary**
+  (LAN-only, correct). The per-host `dns-seed.timer` self-heal is now **active on all three**
+  hosts (VPS/oldsrv/Pi), so this class self-heals going forward.
 - **Loki access control (HD-115 / KOPS-023/051):** Loki runs with `auth_enabled: true` (multi-tenant) — pushes and queries must carry the `logs` tenant ID, wired through Alloy (`tenant_id = "logs"`) and the Grafana datasource (`jsonData.tenantId`). The **write** path is loopback-only (Alloy → `127.0.0.1:3100`, no db-internal requirement) and **reads** come only from Grafana on `db-internal`; Loki is never exposed on traefik-public or any LAN bind. **Accepted caveat:** Loki-native `auth_enabled` is tenant *isolation*, not a password gate — a compromised db-internal container could forge a tenant header. Acceptable for the trusted-`db-internal` Phase-1 set; re-evaluate (real credential gateway / separate write+read tenants) if more members join `db-internal`.
 - **Pi keeps only a tiny bounded local log buffer.** The Raspberry Pi primary holds **no durable log store** — Docker uses log driver `local` (`max-size: 10m, max-file: 2`) as RAM/disk resilience when oldsrv/VictoriaLogs is down; the durable, searchable copy lives in VictoriaLogs. Host OS logs run on tmpfs (`journald Storage=volatile` + `/var/log` tmpfs). See [Pi SD-card wear strategy](#pi-sd-card-wear-strategy).
 - **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
