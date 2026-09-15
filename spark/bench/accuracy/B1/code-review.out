@@ -1,0 +1,25 @@
+
+
+Bugs:
+
+- `len(xs)` fails if `xs` is empty → `ZeroDivisionError`
+- `len(xs)` fails if `xs` is an iterator/generator
+- `sum(xs)` fails if `xs` contains non-numeric values
+
+Fixed version:
+
+```python
+def avg(xs):
+    xs = list(xs)
+    if not xs:
+        raise ValueError("avg() requires at least one value")
+    return sum(xs) / len(xs)
+```
+
+If you want it to return `0` for empty input instead:
+
+```python
+def avg(xs):
+    xs = list(xs)
+    return sum(xs) / len(xs) if xs else 0
+```

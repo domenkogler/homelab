@@ -1,0 +1,19 @@
+
+
+Assume \(\sqrt{2}\) is rational, so \(\sqrt{2}=\frac{a}{b}\) where \(a,b\) are integers with no common factor.
+
+Then
+
+\[
+2=\frac{a^2}{b^2} \quad\Rightarrow\quad a^2=2b^2.
+\]
+
+So \(a^2\) is even, hence \(a\) is even. Let \(a=2k\). Then
+
+\[
+4k^2=2b^2 \quad\Rightarrow\quad b^2=2k^2,
+\]
+
+so \(b^2\) is even, hence \(b\) is even.
+
+Thus both \(a\) and \(b\) are even, contradicting that \(\frac{a}{b}\) was in lowest terms. Therefore \(\sqrt{2}\) is irrational.
