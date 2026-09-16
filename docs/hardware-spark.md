@@ -133,6 +133,12 @@ host and GPU share one pool. And in this build the two are mutually exclusive �
 is set, util is ignored (see consequence #3 above) — so keeping util is dead config and a false sense of a
 ceiling.
 
+> ✅ **LIVE-VERIFIED 2026-09-16** (detached converge, commit `3f2aab0` + `016a654`): engine boots with
+> `kv_cache_memory_bytes=8800000000` (non-default args), `gpu_worker.py:621` logs the exact
+> short-circuit ("reserved 8.2 GiB … skipped memory profiling. This does not respect the
+> gpu_memory_utilization config"), KV pool **283,398 tokens** (1.08× @262k), `/health` 200, host
+> `MemAvailable` 24 GiB during load (was ~9–13 GiB pre-fix). `RestartCount=0`, no `ValueError`/OOM.
+
 ```yaml
 # group_vars/spark.yml  (this build's flag: --kv-cache-memory-bytes, bytes int)
 spark_vllm_kv_cache_memory: "8800000000"  # ~8.2 GiB ≈ 275k tokens — the ONLY governor (host reserve ≈ 32.5 GiB)

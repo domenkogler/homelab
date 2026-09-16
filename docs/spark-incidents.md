@@ -66,6 +66,13 @@ ignores `gpu_memory_utilization` when the bytes flag is set, so util is removed)
 agent session against spark's own endpoint means *this repo's own tooling* can OOM the box it runs on;
 the fix is governance, not workload discipline.
 
+> ✅ **DEPLOYED + LIVE-VERIFIED 2026-09-16** (detached spark converge `converge-spark-hd374-20260916-123756.log`,
+> failed=0, ok=96 changed=13). Boot log: `gpu_worker.py:621` — *"Initial free memory 114.65 GiB, reserved
+> 8.2 GiB memory for KV Cache as specified by kv_cache_memory_bytes config and skipped memory profiling.
+> This does not respect the gpu_memory_utilization config"*; `GPU KV cache size: 283,398 tokens`,
+> concurrency @262k **1.08x**; `/health` **200**; model load 75.17 GiB / 170 s; **host `MemAvailable` 24 GiB
+> during load** (pre-fix: ~9–13 GiB at the OOM). `RestartCount=0`, no `ValueError`, no OOM.
+
 ---
 
 ## Cross-incident invariants (all four incidents)
