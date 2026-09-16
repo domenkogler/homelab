@@ -472,6 +472,21 @@ informs nothing here beyond corroborating the unified-memory finding. (Its temps
 sit between DCGM's 50–58 °C and the acpitz zones' 65–73 °C — three different sensors; never
 plot them as one series.)
 
+**✅ DCGM is WIRED (HD-379, 2026-09-16) — the six signals that are real on GB10.**
+
+| Layer | What ships |
+|---|---|
+| Compose service | **`spark-dcgm`** (`templates/docker_services/spark-dcgm/`) — `dcgm-exporter` on **loopback only** `127.0.0.1:9400`, the same publish discipline as `spark_metrics_publish` (HD-368): no Traefik route, no Home VLAN, no auth on `/metrics`. `cap_drop ALL` + `cap_add SYS_ADMIN`, `read_only`, `pid: host`, GPU device reservation, **no memory limits** (a ~30 MB read-only observer must not compete with the HD-374 cage). Registered in `group_vars/spark.yml` (`enabled: true`). |
+| Image pin | `spark_dcgm_exporter_image` in `group_vars/all/versions.yml` — **digest**-pinned (`nvidia/dcgm-exporter:3.3.5-3.4.1-ubuntu22.04@sha256:ec962b…f8870`, arm64 manifest, digest taken from spark's own image store where it was run live). Port comes from `spark_dcgm_exporter_port` (9400) — declared in group_vars, **not** `\| default()`'d: §1 fail-loud, and `validate-docker-services.py`'s mock `default` would silently render an empty port. |
+| Scrape | `prometheus.scrape "dcgm"` + `prometheus.relabel "dcgm"` in `alloy.river.j2`, spark-gated, `job="dcgm"` + `instance="spark.kogler.si"` (the exporter's own `Hostname` label is the **container id** → `labeldrop`, it churns on every recreate). |
+| **Metric policy** | Lives in the Alloy relabel as a **whitelist**, not in a counter CSV inside the image: `keep DCGM_FI_DEV_(GPU_UTIL\|GPU_TEMP\|POWER_USAGE\|TOTAL_ENERGY_CONSUMPTION\|SM_CLOCK\|XID_ERRORS\|PCIE_REPLAY_COUNTER)`. Dropped on evidence: `MEMORY_TEMP` (bogus **0** while the NVMe beside it reads 46 °C), `MEM_COPY_UTIL`/`ENC_UTIL`/`DEC_UTIL` (always 0), `NVLINK_BANDWIDTH_TOTAL` (no NVLink), `VGPU_LICENSE_STATUS` (no vGPU). |
+
+⚠ **Do not add to that whitelist:** the DCP/profiling family (`GR_ENGINE_ACTIVE`, `SM_ACTIVE`,
+`PIPE_TENSOR_ACTIVE`, `DRAM_ACTIVE`, `PCIE_TX/RX_BYTES`) and `FB_*`. They are not a scrape gap —
+the exporter refuses them (`metric not enabled`) and NVIDIA states profiling will not be supported
+on Spark. A new driver making them appear should be an explicit, reviewed IaC edit, not a silent
+cardinality change.
+
 **spark RAM reading — read the floor, not the ceiling.** On this box the useful signal is
 `node_memory_MemAvailable_bytes` (live: 9.5 GiB of 121.6 GiB with the engine loaded),
 not utilisation %: every global OOM in `spark-incidents.md` came from replace-by-percent

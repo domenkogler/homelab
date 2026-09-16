@@ -393,6 +393,49 @@ prometheus.scrape "vllm" {
 }
 {% endif %}
 
+// ---- DCGM GPU exporter (HD-379) — spark loopback ----
+// The GB10's ONLY GPU telemetry source (the host sensors in `hwmon` are SoC/NVMe/WiFi; there is
+// no nvidia hwmon chip). Same loopback-publish pattern as the `vllm` job above: the compose
+// service `spark-dcgm` binds 127.0.0.1:9400 and this job remote-writes the kept series to VM.
+//
+// The relabel is the METRIC POLICY, and it is load-bearing. The exporter emits 13 series on
+// this device, measured 2026-09-16: six are real, the rest are constant-zero or actively wrong
+// (MEMORY_TEMP reports 0 while the drive next to it reports 46 C). Keeping a whitelist here —
+// instead of a counter CSV inside the image — means the selection is reviewable in one place:
+//   KEEP  GPU_UTIL (88-90 % under load) · GPU_TEMP (50-58 C) · POWER_USAGE (12-39 W) ·
+//         TOTAL_ENERGY_CONSUMPTION (mJ) · SM_CLOCK (MHz) · XID_ERRORS · PCIE_REPLAY_COUNTER
+//   DROP  MEMORY_TEMP (bogus 0) · MEM_COPY_UTIL / ENC_UTIL / DEC_UTIL (always 0) ·
+//         NVLINK_BANDWIDTH_TOTAL (no NVLink) · VGPU_LICENSE_STATUS (no vGPU)
+// NEVER AVAILABLE (do not add): the DCP/profiling family — GR_ENGINE_ACTIVE / SM_ACTIVE /
+// PIPE_TENSOR_ACTIVE / DRAM_ACTIVE / PCIE_TX_BYTES / PCIE_RX_BYTES — the module refuses to load
+// on GB10 ("metric not enabled"; NVIDIA: no DCGM profiling on Spark), and FB_* (VRAM) does not
+// exist on a unified-memory device. See docs/observability.md §LLM Dashboard (GPU).
+{% if inventory_hostname == 'spark.kogler.si' %}
+prometheus.scrape "dcgm" {
+    targets = [{
+        "__address__" = "127.0.0.1:{{ spark_dcgm_exporter_port }}",
+        "job" = "dcgm",
+        "instance" = "spark.kogler.si",
+    }]
+    forward_to = [prometheus.relabel.dcgm.receiver]
+}
+
+prometheus.relabel "dcgm" {
+    rule {
+        source_labels = ["__name__"]
+        regex         = "DCGM_FI_DEV_(GPU_UTIL|GPU_TEMP|POWER_USAGE|TOTAL_ENERGY_CONSUMPTION|SM_CLOCK|XID_ERRORS|PCIE_REPLAY_COUNTER)"
+        action        = "keep"
+    }
+    // The exporter stamps Hostname with the CONTAINER ID — it churns on every recreate and
+    // reads as a host label without being one. `instance` above is the host identity.
+    rule {
+        regex  = "^Hostname$"
+        action = "labeldrop"
+    }
+    forward_to = [prometheus.remote_write.metrics.receiver]
+}
+{% endif %}
+
 // ---- Alloy host metrics (own /metrics) → remote_write ----
 // The unix exporter (top of file) exposes host metrics on Alloy's OWN HTTP server
 // /metrics (default listen 127.0.0.1:12345 — server.http.listen-addr). Scrape that

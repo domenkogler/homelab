@@ -10,6 +10,21 @@ docker_services:
   # (B1 baseline, spark/BENCHMARK-PLAN.md). Deploy-gated: flip `enabled: true` once the
   # node is provisioned + partition done + weights downloaded.
   - { name: spark-ai, template_dir: spark-ai, public: false, enabled: true }  # B1 engine (vLLM AWQ+PLE+MTP3) — ENABLED 2026-09-14 by session/spark-s1-converge (Track 1: boot + health :8000 + sanity bench); flip back to false if the bench regresses
+  # DCGM exporter — GPU util/temp/power/energy/SM-clock/XID for the LLM dashboard (HD-379).
+  # Loopback-only :9400 (no Traefik route, no LAN, no auth) scraped by spark's Alloy
+  # `prometheus.scrape "dcgm"`. The GB10 has NO other GPU telemetry source (no nvidia hwmon
+  # chip; nvidia-smi has no metric endpoint and reports memory as "Not Supported" = unified
+  # memory). Image digest-pinned in group_vars/all/versions.yml.
+  - { name: spark-dcgm, template_dir: spark-dcgm, public: false, enabled: true }
+  # TOMBSTONE (HD-379) — the ORIGINAL HD-364 alpine/socat LAN bridge. Retired 2026-09-14 by the
+  # `spark-dashboard` Traefik edge, but its rendered project dir + ENABLED boot unit survived on
+  # the box, so `docker-compose@dgx-dashboard` kept resurrecting a container that could not bind
+  # :11000 (Traefik owns it) → permanent crash-loop. This entry exists ONLY so the role's
+  # "Tear down DISABLED services" + "Disable boot auto-start" tasks (main.yml, tube-archivist
+  # precedent) keep it gone on every converge AND after a reboot; nothing renders from it
+  # (template_dir is never read while disabled, and the vault pre-pass skips disabled services).
+  # It can be deleted once the teardown has run green on spark at least twice.
+  - { name: dgx-dashboard, template_dir: spark-dashboard, public: false, enabled: false }
   # NVIDIA DGX Dashboard LAN bridge — Traefik file-provider edge on spark (HD-364
   # rework, socat→Traefik): host-net, entrypoints spark_home_ip:11000/11002 →
   # 127.0.0.1:11000/11002 (dashboard + admin JupyterLab). No secrets; public =
@@ -32,6 +47,12 @@ spark_router_publish: false        # flip to publish :8000 on the Home-VLAN IP p
 spark_metrics_publish: true         # loopback-only :8000 publish (127.0.0.1) so the spark Alloy can scrape
                                   # vLLM /metrics → VPS VM (HD-368). LAN exposure stays gated on
                                   # spark_router_publish; this only opens the host loopback.
+# DCGM exporter publish port (HD-379) — same loopback-only discipline as spark_metrics_publish:
+# `spark-dcgm` binds 127.0.0.1:<port> and spark's Alloy `prometheus.scrape "dcgm"` reads it.
+# Declared here (NOT `| default()` in the template): CONVENTIONS §1 fail-loud — a missing var
+# must abort the render, and validate-docker-services.py's mock `default` filter would otherwise
+# silently render an empty port.
+spark_dcgm_exporter_port: 9400
 
 # ==== Spark GPU-inference artifact store (HD-359) ====
 # GENERIC, config-agnostic manifest: repo_id → XFS local_dir. The B1 AWQ+PLE

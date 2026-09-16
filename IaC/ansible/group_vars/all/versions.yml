@@ -222,6 +222,13 @@ homelable_version: "3.4.1"
 # Renovate docker datasource would track the tag; the digest is the load-bearing pin.
 spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"
 
+# DCGM exporter (HD-379) — the ONLY source of GPU util/temp/power/energy/SM-clock/XID on the
+# GB10 (no nvidia hwmon chip; nvidia-smi has no metric endpoint). Multi-arch manifest; ARM64
+# verified + digest taken from spark's own image store 2026-09-16, where the same digest was run
+# live and scraped (13 series; profiling/DCP + FB_* refused — see observability.md §LLM Dashboard).
+# Digest is the load-bearing pin; the tag is documentation.
+spark_dcgm_exporter_image: "nvidia/dcgm-exporter:3.3.5-3.4.1-ubuntu22.04@sha256:ec962b59c8440427ddc2901fdb2616070d91a29da089a6d68c03ab1abdcf8870"
+
 # DGX Dashboard LAN bridge (HD-364 rework) — the original alpine/socat image digest
 # pin (socat_version) is RETIRED with the socat→Traefik swap: the dashboard + admin
 # JupyterLab are now exposed by the `spark-dashboard` Traefik file-provider edge

@@ -1,0 +1,74 @@
+# spark-dcgm docker-compose.yml — NVIDIA DCGM exporter for the GB10 (HD-379)
+#   WHY: the GB10 GPU has no telemetry source outside DCGM. Host Overview already covers host
+#   silicon from Alloy's `hwmon` collector (HD-378), but there is NO nvidia hwmon chip on this
+#   box, so GPU die temperature / utilisation / power / SM clock / XID errors exist on no other
+#   exporter — and the LLM board's GPU row was empty. nvidia-smi cannot serve these as a metric
+#   endpoint (and reports memory as "Not Supported" — unified memory, by NVIDIA's own design).
+#
+#   MEASURED, not assumed (ran this exact image on spark 2026-09-16, then removed the probe):
+#   `DCGM successfully initialised` → 13 series with live values: GPU_UTIL 88-90 % under load,
+#   GPU_TEMP 50-58 C, POWER_USAGE 12-39 W, TOTAL_ENERGY_CONSUMPTION (mJ counter), SM_CLOCK
+#   2509 MHz, XID_ERRORS 0, PCIE_REPLAY_COUNTER 0, MEM_COPY_UTIL/ENC/DEC 0, MEMORY_TEMP 0 (bogus),
+#   NVLINK_BANDWIDTH_TOTAL 0, VGPU_LICENSE_STATUS 0.
+#   WHAT CANNOT WORK HERE: the profiling (DCP) module refuses to load —
+#     "Not collecting DCP metrics: This request is serviced by a module of DCGM that is not
+#      currently loaded"; forcing dcp-metrics-included.csv →
+#     "Skipping line 21..25 (GR_ENGINE_ACTIVE / PIPE_TENSOR_ACTIVE / DRAM_ACTIVE /
+#      PCIE_TX_BYTES / PCIE_RX_BYTES): metric not enabled"
+#   and NVIDIA states DCGM profiling will not be supported on Spark (not a datacenter device).
+#   `FB_*` (VRAM) is never emitted either. So Alloy's `prometheus.relabel "dcgm"` keeps ONLY the
+#   six signals that are real on this device and drops the constant-zero/bogus ones — see
+#   docs/observability.md §LLM Dashboard (GPU) for the full emit/refuse table.
+#
+#   EXPOSURE: loopback-only :9400, exactly like the vLLM metrics publish (spark_metrics_publish,
+#   HD-368) — spark's Alloy scrapes 127.0.0.1:9400 and remote-writes to the VPS VM. Never a
+#   Traefik route, never the Home VLAN, never WAN: there is no auth on /metrics.
+#
+#   RESOURCE CAUTION (HD-375 OOM history): this container takes ~30 MB RSS and requests NO GPU
+#   memory; the `gpu` device reservation is required for NVML/DCGM device access only. It is
+#   deliberately NOT given the engine's memory limits/cage — it is a read-only observer.
+#
+#   Image pin: spark_dcgm_exporter_image (group_vars/all/versions.yml, digest-pinned;
+#   arm64 manifest, already present in spark's image store).
+services:
+  dcgm-exporter:
+    image: "{{ spark_dcgm_exporter_image }}"
+    container_name: dcgm-exporter-spark
+    # Hardened but functional: DCGM needs SYS_ADMIN for its device/profiling ioctls (the flag
+    # set is the one this image was VERIFIED with on this box — do not slim it speculatively).
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_ADMIN
+    read_only: true
+    tmpfs:
+      - /tmp
+    # DCGM enumerates the host's GPU processes; the verified invocation used the host PID ns.
+    pid: host
+    restart: unless-stopped
+    # No `networks:` block — the exporter publishes a loopback port and needs no
+    # cross-container reach, so compose's project-scoped default network is used.
+    # (Validator rule: every DECLARED network must be external: true, so none is declared.)
+    ports:
+      # Host loopback only — spark's Alloy is the only client.
+      - "127.0.0.1:{{ spark_dcgm_exporter_port }}:9400"
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+      # Scrape interval: match the Alloy job's default scrape cadence (remote-write per scrape).
+      DCGM_EXPORTER_INTERVAL: "30000"        # ms
+      DCGM_EXPORTER_LISTEN: ":9400"
+      # Default counter file stays as-is: the KEEP/DROP policy lives in Alloy
+      # (prometheus.relabel "dcgm"), so the metric selection is one reviewable IaC block
+      # instead of a second, silently-drifting CSV inside the image.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    logging:
+      driver: "{{ spark_logging_driver }}"
+      options:
+        max-size: "{{ spark_logging_max_size }}"
+        max-file: "{{ spark_logging_max_file }}"

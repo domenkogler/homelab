@@ -435,6 +435,21 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
   sets `net.ipv4.ip_nonlocal_bind=1` (deterministic LAN bind) and the stale duplicate
   `:8080`-probing healthcheck was removed in favor of `["CMD","traefik","healthcheck","--ping"]`.
   Reach it at **`http://spark.kogler.si:11000`** (not the IP — the Host rule needs the name).
+
+* **Retired socat stack removed from the box (HD-379, 2026-09-16).** The HD-364 replacement above
+  left the OLD stack behind on disk: `/opt/dgx-dashboard/docker-compose.yml` + an **enabled**
+  `docker-compose@dgx-dashboard.service` boot unit. Because the unit was never disabled, every
+  boot resurrected the socat container, which then crash-looped forever (`Restarting (0)` — it can
+  no longer bind `spark_home_ip:11000`, Traefik owns it). Removed live
+  (`systemctl disable --now docker-compose@dgx-dashboard` + `docker rm -f`), **and made it durable
+  in IaC**: `group_vars/spark.yml` now carries a `dgx-dashboard` **tombstone** entry with
+  `enabled: false`, so the role's own "Tear down DISABLED services" + "Disable boot auto-start"
+  tasks (the HD-375 tube-archivist pattern) keep it gone on every converge *and* after a reboot —
+  nothing renders from a disabled entry (the vault pre-pass and deploy loops both skip it). Delete
+  the tombstone once the teardown has run green on spark twice.
+  Verified unaffected: `https://db-spark.kogler.si/` → **200** (its router is Traefik's `lm`
+  entrypoint on `:443` → `127.0.0.1:11000`, i.e. it never depended on socat — socat had been
+  crash-looping for days) and the dashboard backend answers 200 on loopback `:11000`.
 - **JupyterLab on the LAN (HD-366):** the dashboard ships an **integrated JupyterLab** whose per-user
   ports are in `/opt/nvidia/dgx-dashboard-service/jupyterlab_ports.yaml` (nobody 11001 / **admin
   11002** / ansible-admin 11003). NVIDIA's remote path is a second SSH tunnel per assigned port.
