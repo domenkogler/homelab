@@ -90,7 +90,21 @@ guard_stop_engine() {
   log "GUARD FIRE: $1 — stopping $CONTAINER so the KERNEL does not choose the victim"
   touch "$ABORT_MARK" 2>/dev/null
   docker stop -t 20 "$CONTAINER" >>"$LOG" 2>&1
-  log "engine stopped; guard exiting. Forensics: /mnt/spark_nvme/oom-watchdog/snapshots/"
+  # WHY THIS MUST BRING THE ENGINE BACK (live hit 2026-09-16 22:15Z): `docker stop` is
+  # an INTENTIONAL operator stop, so `restart: unless-stopped` deliberately does NOT
+  # restart it — that policy means "restart on crash UNLESS a human stopped it". The
+  # first guard fire therefore left the family without an LLM for ~14 min until a
+  # manual `docker start`, and it was indistinguishable from an engine crash.
+  # So: drain the pool, then self-heal, then still abort the run.
+  local i a
+  for i in $(seq 1 24); do
+    a=$(avail_gib)
+    awk -v x="${a:-0}" -v f="$((MEM_FLOOR_GB + 4))" 'BEGIN{exit !(x>=f)}' && break
+    sleep 5
+  done
+  log "pool drained to ${a} GiB — restarting $CONTAINER (guard aborts the run, not the service)"
+  docker start "$CONTAINER" >>"$LOG" 2>&1 && log "engine restart issued; weight reload ~170s"
+  log "guard exiting. Forensics: /mnt/spark_nvme/oom-watchdog/snapshots/"
   exit 3
 }
 
@@ -123,11 +137,15 @@ serve() { # in out conc seed label
     --num-prompts "$conc" --max-concurrency "$conc" --seed "$seed" \
     >"$STEPLOG" 2>&1
   local rc=$? r1; r1=$(restarts)
-  # ZERO-LOAD GUARD: rc is meaningless here (see auth note above).
-  local ok tok; ok=$(grep -oE 'Successful requests:[[:space:]]*[0-9]+' "$STEPLOG" | grep -oE '[0-9]+$' | tail -1)
+  # ZERO-LOAD GUARD: rc is meaningless here (see auth note above). Threshold SCALES
+  # with the requested load — a flat floor wrongly aborts short steps (live hit
+  # 2026-09-16: in=512 conc=1 aborted on in_tok=564). Require all requests OK and at
+  # least half the requested input tokens actually processed.
+  local ok tok want; ok=$(grep -oE 'Successful requests:[[:space:]]*[0-9]+' "$STEPLOG" | grep -oE '[0-9]+$' | tail -1)
   tok=$(grep -oE 'Total input tokens:[[:space:]]*[0-9]+' "$STEPLOG" | grep -oE '[0-9]+$' | tail -1)
+  want=$(( in * conc / 2 ))
   log "STEP $label: rc=$rc ok=${ok:-?}/${conc} in_tok=${tok:-?} after: avail=$(avail_gib)GiB gpu-top=$(gpu_mib)MiB restarts=$r1 $([ "$r0" != "$r1" ] && echo '*** ENGINE DIED ***')"
-  if [ "${ok:-0}" -lt "$conc" ] || [ "${tok:-0}" -lt 1000 ]; then
+  if [ "${ok:-0}" -lt "$conc" ] || [ "${tok:-0}" -lt "$want" ]; then
     log "INVALID RUN: step $label applied no real load (ok=${ok:-0}/$conc, in_tok=${tok:-0})."
     log "  first error: $(grep -m1 -iE 'Error [0-9]+:|Unauthorized|Traceback' "$STEPLOG" | cut -c1-120)"
     log "  A no-op step cannot certify anything — aborting instead of reporting a pass."
