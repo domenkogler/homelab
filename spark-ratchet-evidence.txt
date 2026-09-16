@@ -1,0 +1,9 @@
+# pre-HD-380 engine ratchet evidence (captured 2026-09-16T21:36:45Z) — idle engine, utilization 0%
+# 20:40Z per-pid 103449 MiB -> 21:27Z per-pid 105477 MiB while idle (+2.0 GiB / 45 min)
+# NVRM NV_ERR_NO_MEMORY mem_desc.c:1359 at 21:04:32Z, 21:11:19Z, 21:14:22Z (post-HD-374-fix, pre-this-change)
+Wed Sep 16 09:36:44 PM UTC 2026
+per-pid: 716773, 105477
+MemFree:         1217372 kB
+MemAvailable:   14037032 kB
+restarts=4
+NVRM_NO_MEMORY_events_this_boot=155

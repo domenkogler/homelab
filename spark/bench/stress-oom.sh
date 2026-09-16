@@ -61,6 +61,21 @@ LOG="$OUTDIR/stress-oom-$TS.log"
 mkdir -p "$OUTDIR"
 ABORT_MARK="${STRESS_ABORT_MARK:-/tmp/stress-oom-ABORTED-$TS}"
 
+# ---- auth + served name (LIVE HIT 2026-09-16: silent zero-load bench) ------
+# The engine runs with --api-key, so every `vllm bench serve` request without an
+# Authorization header gets 401 Unauthorized — and `vllm bench serve` STILL EXITS 0
+# while reporting "Successful requests: 0". The first HD-380 run therefore looked
+# like a clean pass across 21 steps while applying ZERO load (Total input tokens: 0).
+# run-scenario.sh has the same defect: any bench number taken after the spark-llm_api
+# vault item landed is measuring nothing. Never trust rc — assert on the counters.
+API_KEY="$(docker inspect "$CONTAINER" --format '{{join .Config.Cmd " "}}' 2>/dev/null \
+  | awk '{for(i=1;i<NF;i++) if($i=="--api-key") print $(i+1)}')"
+SERVED="$(docker inspect "$CONTAINER" --format '{{join .Config.Cmd " "}}' 2>/dev/null \
+  | awk '{for(i=1;i<NF;i++) if($i=="--served-model-name") print $(i+1)}')"
+AUTH=()
+[ -n "${API_KEY:-}" ] && AUTH=(--header "Authorization=Bearer $API_KEY")   # KEY=VALUE form required
+[ -n "${SERVED:-}" ] && AUTH+=(--served-model-name "$SERVED")
+
 log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$LOG"; }
 die()   { log "FATAL: $*"; exit 1; }
 
@@ -97,17 +112,28 @@ preflight() { # refuse to start/continue a step that is guaranteed to OOM the bo
 }
 
 serve() { # in out conc seed label
-  local in=$1 out=$2 conc=$3 seed=$4 label=$5 r0
+  local in=$1 out=$2 conc=$3 seed=$4 label=$5 r0 STEPLOG
   r0=$(restarts)
+  STEPLOG="$OUTDIR/step-$label-$TS.log"
   log "STEP $label: in=$in out=$out conc=$conc seed=$seed avail=$(avail_gib)GiB"
   timeout "${STEP_TIMEOUT:-900}" docker exec "$CONTAINER" vllm bench serve \
-    --backend openai-chat --model /model \
+    --backend openai-chat --model /model "${AUTH[@]}" \
     --base-url "http://localhost:$PORT" --endpoint /v1/chat/completions \
     --dataset-name random --random-input-len "$in" --random-output-len "$out" \
     --num-prompts "$conc" --max-concurrency "$conc" --seed "$seed" \
-    >>"$LOG" 2>&1
+    >"$STEPLOG" 2>&1
   local rc=$? r1; r1=$(restarts)
-  log "STEP $label: rc=$rc after: avail=$(avail_gib)GiB gpu-top=$(gpu_mib)MiB restarts=$r1 $([ "$r0" != "$r1" ] && echo '*** ENGINE DIED ***')"
+  # ZERO-LOAD GUARD: rc is meaningless here (see auth note above).
+  local ok tok; ok=$(grep -oE 'Successful requests:[[:space:]]*[0-9]+' "$STEPLOG" | grep -oE '[0-9]+$' | tail -1)
+  tok=$(grep -oE 'Total input tokens:[[:space:]]*[0-9]+' "$STEPLOG" | grep -oE '[0-9]+$' | tail -1)
+  log "STEP $label: rc=$rc ok=${ok:-?}/${conc} in_tok=${tok:-?} after: avail=$(avail_gib)GiB gpu-top=$(gpu_mib)MiB restarts=$r1 $([ "$r0" != "$r1" ] && echo '*** ENGINE DIED ***')"
+  if [ "${ok:-0}" -lt "$conc" ] || [ "${tok:-0}" -lt 1000 ]; then
+    log "INVALID RUN: step $label applied no real load (ok=${ok:-0}/$conc, in_tok=${tok:-0})."
+    log "  first error: $(grep -m1 -iE 'Error [0-9]+:|Unauthorized|Traceback' "$STEPLOG" | cut -c1-120)"
+    log "  A no-op step cannot certify anything — aborting instead of reporting a pass."
+    kill "$GUARD" 2>/dev/null || true
+    exit 4
+  fi
   [ "$r0" != "$r1" ] && log "ENGINE RESTARTED during $label — watchdog bundle is the evidence; check /mnt/spark_nvme/oom-watchdog/snapshots/"
   return 0
 }
