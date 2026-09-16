@@ -13,7 +13,8 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 
 ## 2. Open work (read the HD rows; this is only the index)
 
-> **🔥 spark OOM thread — ACTIVE, read first (HD-375/HD-380, updated 2026-09-16 late).** The
+> **🔥 spark OOM thread — ACTIVE, read first (HD-375/HD-380, updated 2026-09-16 late). ⏳ OPEN —
+> actionable work below, not history; the HD-380 todo row stays open until items (1)–(3) land.** The
 > unified-memory governor now has **two** live terms (`--kv-cache-memory-bytes 8800000000` +
 > `--max-cudagraph-capture-size 4`), which raised host reserve **16.7 → 22.2 GiB**; the engine is
 > **healthy, `RestartCount=0`**. Knowledge: [`hardware-spark.md`](docs/hardware-spark.md)
