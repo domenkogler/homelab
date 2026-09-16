@@ -1,0 +1,6 @@
+spark vllm health:
+until ssh spark 'curl -sf -m 3 localhost:8000/health >/dev/null'; do sleep 10; echo -n .; done; echo "VLLM HEALTHY $(date -u +%T)Z"
+
+nas ups status:
+upsc powerwalker@localhost
+
