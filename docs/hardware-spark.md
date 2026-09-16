@@ -31,6 +31,154 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > **Headless + dashboard (HD-364, 2026-09-14):** the sleep-mask + multi-user default.target are now enforced **from IaC** (`spark_headless: true` in `host_vars/spark.kogler.si.yml` / `group_vars/spark.yml`; role `roles/spark` masks `sleep/suspend/hibernate/hybrid-sleep` + `systemctl set-default multi-user.target`). The NVIDIA **DGX Dashboard** (loopback-only, `dgx-dashboard.service` :11000) AND its integrated **JupyterLab** (admin user :11002, per `jupyterlab_ports.yaml`) are exposed on the LAN via a **Traefik file-provider edge on spark** (HD-364 rework; registry service `spark-dashboard` — host-net, entrypoints `{{ spark_home_ip }}:11000`/`:11002` → `127.0.0.1:11000`/`:11002`, pinned `traefik_version`; replaced the original alpine/socat bridge, which crash-looped on reboot with "exactly 2 addresses required (there are 4)" — socat takes ONE address pair per invocation and the compose `command:` list handed it all four). Reach them at `http://spark.kogler.si:11000` (Home VLAN) with a local user login; admin's JupyterLab = `http://spark.kogler.si:11002`. Details: §Remote management.
 >
 > **Dashboard LAN edge FIXED + LIVE (2026-09-15):** `http://spark.kogler.si:11000` serves the real dashboard HTML **200** (LAN client verified; `traefik-spark` **healthy**, `traefik healthcheck --ping` passes). Root cause of the 404: the routes used a **`HostRegexp({host:.+})` catch-all rule that silently matched nothing** (Traefik's own "404 page not found") — likely because Traefik v3 host-matching on IP-host requests doesn't treat the catch-all as applying; **the fix is an explicit `Host(spark.kogler.si)` rule** (name-based; same pattern as the oldsrv home edge). IP-host requests (`curl http://spark.kogler.si:11000/` via the raw Home IP) are expected 404 — they don't match the Host rule; the browser hits the name and works. Secondary fixes in the same change: (1) spark role now sets `net.ipv4.ip_nonlocal_bind=1` (headless-gated, `sysctl.d/dgx-lan-bind.conf`) so the LAN bind `spark_home_ip:11000/11002` is deterministic at container start (was EADDRNOTAVAIL until the interface settled); (2) removed the stale duplicate `healthcheck:` block (`wget …:8080`) that overrode the correct `["CMD","traefik","healthcheck","--ping"]` → container now reports healthy; (3) re-render landed `--api.insecure`/`--ping` in the live command (the debug API is at `127.0.0.1:8080` — the built-in `traefik` entrypoint, not 11000). Legacy crash-looping `dgx-dashboard-socat` container removed. Jupyter :11002 intentionally NOT touched (owner instruction; its entrypoint stays, untested).
+>
+> **Unified-memory budget governance + explicit KV-pool sizing — 2026-09-16 (`session/hd373-vllm-oom-20260916`):** a third global-OOM in 24 h (2026-09-16 09:26 UTC — the engine's own session, 502s, including this repo's tooling) is now root-caused with measured numbers and a durable fix is selected. The mechanics live in **§Unified-memory budget & OOM governance** below; the dated incident records live in **[spark-incidents.md](spark-incidents.md)** (append-only). Implemented as IaC in `group_vars/spark.yml`: **`spark_vllm_kv_cache_memory: "8800000000"` (8.8e9 bytes ≈ 8.2 GiB ≈ 275k tok) as the ONLY governor, `--gpu-memory-utilization` REMOVED (this build ignores it when `--kv-cache-memory-bytes` is set), `max_model_len` unchanged at 262,144** — replace-by-percentage arithmetic is the root defect, not the workload. **0.82 util was certified for casual/chat only — it is NOT survivable for sustained agentic/window-heavy inference.**
+
+
+---
+
+## Unified-memory budget & OOM governance (2026-09-16)
+
+> **Why this section exists:** spark is a **unified-memory** appliance — there is no separate VRAM. Every
+> GPU allocation is physically the same 121.62 GiB LPDDR5x pool the OS, Docker, Alloy and the DGX
+> dashboard run in. Three global-OOM incidents in 24 h (2026-09-15 ×2, 2026-09-16 ×1) all came from the
+> same missing governance: **vLLM's percentage budget silently consumed the host's reserve, and the
+> kernel global OOM killer — not the container memory cage — decided what died.**
+
+### The measured allocation arithmetic (source: vLLM boot log, 2026-09-15 restart)
+
+vLLM prints its full accounting at startup (`gpu_worker.py:919`); these are the real numbers for the
+B1 engine (Qwen3.8-Flash-Next AWQ+PLE+MTP3, Qwen `compressed-tensors`) with `gpu_memory_utilization: 0.82`:
+
+```
+Device total                                     121.62 GiB   (MemTotal = 127,532,360 kB)
+Free at startup                                  114.70 GiB   (~6.9 GiB already held by OS/driver/dashboard)
+Budget   = util × total = 0.82 × 121.62           99.73 GiB
+  ├─ weights + non-torch                          77.69 GiB   FIXED — independent of util
+  ├─ peak activation                               2.99 GiB   FIXED — driven by max_num_batched_tokens=16384
+  └─ CUDA graphs                                    0.22 GiB   FIXED
+Fixed cost                                        80.90 GiB
+KV pool  = 99.73 − 80.90                          19.04 GiB  → 658,902 tokens  (30.3 KiB/token)
+Actual usage reported                             77.69 GiB consumed + 2.99 peak + 0.22 graphs
+Reserve left for Linux = 121.62 − 99.73           21.89 GiB
+```
+
+### The rule that governs this box
+
+```
+KV_pool_bytes = util × 121.62 GiB − 80.90 GiB        (percentage form — replaces memory the host needs)
+KV_pool_bytes = --kv-cache-memory-bytes <bytes>    (explicit form — the correct governor here)
+Host_reserve  = 121.62 GiB − (80.90 GiB + KV_pool)
+```
+
+Two consequences, both non-obvious and both previously misread:
+
+1. **`max_model_len` costs nothing.** It is *not* an allocation — it is only a **boot-gate validation**
+   (`pool_tokens ≥ max_model_len`, else `ValueError`). The KV *pool* is whatever the budget leaves over,
+   sized in blocks. Raising ctx from 64k to 262k changed the pool by zero bytes; the engine merely
+   refuses to boot if the pool cannot hold `max_model_len` tokens. So "less ctx" and "lower util" are not
+   the same lever — lowering util cannot be traded for ctx.
+2. **The container memory cage cannot protect the host.** GB10 `cuMemAlloc` pages are **not charged to the
+   container cgroup** — at diagnosis `docker stats` reported the engine at **4.267 GiB / 105 GiB (4%)**
+   while the host was at **112 GiB used**. The `deploy.resources.limits.memory: 105G` cage therefore never
+   triggers; the kill is always `constraint=CONSTRAINT_NONE ... global_oom`, and Docker reports
+   **`OOMKilled: false` + `ExitCode: 0`** (Docker only flags cgroup `memory.max` kills). **A `docker inspect`
+   showing `OOMKilled=false` on this host is a false negative — always read `dmesg`/`journalctl -k`.**
+3. **`kv_cache_memory_bytes` IGNORES `gpu_memory_utilization` entirely in this build** (verified in the
+   container's own source): `CacheConfig` docs "kv_cache_memory_bytes (when not-None) ignores
+   gpu_memory_utilization", and `gpu_worker.determine_available_memory()` short-circuits to
+   `reserve_mm_ipc_gpu_memory(kv_cache_memory_bytes, …)` — "This does not respect the
+   gpu_memory_utilization config". So once the explicit pool is set, **util is dead config**; keeping it
+   is a false sense of a ceiling. The engine still loads weights/activations/graphs, then reserves
+   exactly `<bytes>` of KV on top — capped only by physical free at startup.
+4. **The recognized flag in this build is `--kv-cache-memory-bytes`** (an `int`, bytes) — NOT
+   `--kv-cache-memory` (which does not exist here; passing it would be an unknown-arg argv crash).
+
+### Restart-count semantics (how to tell a kill from a redeploy)
+
+- `RestartCount` increments when the **same container** is re-exec'd by the restart policy → a host-side
+  kill or process exit. The container ID is unchanged.
+- A compose **replacement** creates a *new* container → the counter resets and
+  `com.docker.compose.replace` is set. Distinguish before attributing a restart to OOM.
+- Engine restart history is additionally countable from the boot banner: `docker logs --timestamps
+  <ctr> | grep 'version 0.1.dev'`. On 2026-09-16 that showed 3 starts (11:52 UTC initial, 22:31 UTC #1,
+  23:06 UTC #2) plus the 09:26 UTC #3 kill → `RestartCount=3`.
+
+### Sizing table — util → pool → host reserve (reference; fixed cost 80.90 GiB, 30.3 KiB/token)
+
+Used to pick the pool for the chosen governor (below). **Decision = KV pool bytes, not util.**
+
+| util | budget GiB | KV pool GiB | KV tokens | conc @262k | host reserve | verdict |
+|------|-----------|-------------|-----------|------------|--------------|---------|
+| 0.82 | 99.73 | 18.83 | 651,579 | 2.49× | 21.9 GiB | **was live — OOM'd under agentic load** |
+| 0.80 | 97.30 | 16.40 | 567,403 | 2.16× | 24.3 GiB | marginal |
+| 0.78 | 94.86 | 13.96 | 483,227 | 1.84× | 26.8 GiB | ok |
+| **0.75** | **91.22** | **10.32** | **356,962** | **1.36×** | **30.4 GiB** | **≈ the 8.2 GiB pool below, via util** |
+| 0.74 | 90.00 | 9.10 | 314,900 | 1.20× | 31.6 GiB | floor with margin |
+| 0.73 | 88.78 | 7.88 | 272,786 | 1.04× | 32.8 GiB | razor thin — no slack for a 2nd request |
+| 0.7275 | 88.47 | 7.58 | **262,144** | 1.00× | 33.1 GiB | **hard boot floor for 262k** |
+| 0.72 | 87.57 | 6.67 | 230,698 | 0.88× | — | **REFUSES TO BOOT @262k** |
+| 0.70 | 85.13 | 4.23 | 146,522 | 0.56× | — | **REFUSES TO BOOT @262k** |
+
+> **0.70 was never a "less context" setting — it is a crash-on-start setting** for a 262,144 config:
+> `ValueError: The model's max seq len (262144) is larger than the maximum number of tokens that can be
+> stored in KV cache (146522)`. (0.70 was correct on 2026-09-15 only because `max_model_len` was 65536
+> at the time.) These are two coupled dials and must be changed together.
+
+### Chosen governor (IaC, `group_vars/spark.yml`)
+
+**Use explicit `--kv-cache-memory-bytes <bytes>` as the ONLY dial — and REMOVE `--gpu-memory-utilization`.**
+The percentage form is *replace-by-percentage*: it always eats the headroom the host needs, on a box where
+host and GPU share one pool. And in this build the two are mutually exclusive — once `kv_cache_memory_bytes`
+is set, util is ignored (see consequence #3 above) — so keeping util is dead config and a false sense of a
+ceiling.
+
+> ✅ **LIVE-VERIFIED 2026-09-16** (detached converge, commit `3f2aab0` + `016a654`): engine boots with
+> `kv_cache_memory_bytes=8800000000` (non-default args), `gpu_worker.py:621` logs the exact
+> short-circuit ("reserved 8.2 GiB … skipped memory profiling. This does not respect the
+> gpu_memory_utilization config"), KV pool **283,398 tokens** (1.08× @262k), `/health` 200, host
+> `MemAvailable` 24 GiB during load (was ~9–13 GiB pre-fix). `RestartCount=0`, no `ValueError`/OOM.
+
+```yaml
+# group_vars/spark.yml  (this build's flag: --kv-cache-memory-bytes, bytes int)
+spark_vllm_kv_cache_memory: "8800000000"  # ~8.2 GiB ≈ 275k tokens — the ONLY governor (host reserve ≈ 32.5 GiB)
+spark_vllm_max_model_len: 262144          # unchanged; boot-gate only
+# spark_vllm_gpu_memory_utilization REMOVED — ignored when kv_cache_memory_bytes is set (HD-374)
+```
+
+> The compose arg is `--kv-cache-memory-bytes` — NOT `--kv-cache-memory` (which is not a flag in this
+> build; passing it would be an unknown-arg argv crash, the `--swap-space` failure class).
+
+- **Workload reality check (from the logs):** the largest context ever served was **36,800 tokens** and
+  peak occupancy was **15.5%** — the pool was 658,902 tokens serving ~102k tokens of actual work. Pinning
+  ~275k tokens covers 262k with block-rounding margin and returns ~8 GiB to Linux.
+- **If 262k is not actually needed**, `--max-model-len 65536` (or 131072) lets the KV pool shrink
+  further (its size is a choice, not a consequence of util — util is gone) and gives even more host
+  relief; ctx length costs nothing in bytes, so capping it is free.
+- **Do not rely on the OOM killer to pick politely.** It does not: on 2026-09-16 it killed the user-slice
+  session (`pipewire`, `dbus`, `systemd`) before the engine, and in the earlier C3 incident it killed
+  `sshd`/`NetworkManager`/`polkitd`, wedging the box until a power-cycle.
+- **Swap is a symptom, not a fix:** 16 GiB file-backed swap on XFS, already 4–8 GiB in use; it is what
+  produced the **~3.5 min log-write stall** during the incident (log lines with internal timestamps
+  22:52–22:56 reached the json-file driver at 22:59:24). Consider zram only *after* the budget is fixed.
+
+### Trailing risk — the 105 GiB cage vs the ~30 GiB reserve
+
+`spark_vllm_memory_limit: 105G` is now **harmless but misleading**: it is above the whole non-GPU
+budget, and (per point 2 above) the GPU allocation is not cgroup-charged anyway, so it can only ever
+catch a *host-RSS* runaway (a secondary, rarer failure). It is retained as a backstop, **not** as the
+protection it reads as. The real protection is the explicit KV-pool governor + a host `MemAvailable`
+alert (see [observability.md](observability.md) §Alerting → spark host memory).
+
+---
+
+## OOM / restart incident log (append-only)
+
+**Moved to [`spark-incidents.md`](spark-incidents.md) (2026-09-16)** — this section keeps the permanent
+knowledge only; dated incident forensics (table + narratives + invariants + diagnosis recipe) live in the
+append-only incident log. Same failure class through 2026-09-16: **global kernel OOM, not cgroup** —
+`OOMKilled: false` / `ExitCode: 0` are false negatives on this box; always read `dmesg`. See
+[spark-incidents.md](spark-incidents.md) §Diagnosis recipe.
 
 ---
 
@@ -321,4 +469,6 @@ Research + verdicts: [`spark/resources/RESEARCH-VERDICTS.md`](../spark/resources
 | Local LLM model guidance | [`services-ai.md`](services-ai.md) |
 | Network / VLAN placement | [`network-vlans.md`](network-vlans.md) |
 | Spark benchmark + engine bench plan | [`spark/BENCHMARK-PLAN.md`](../spark/BENCHMARK-PLAN.md) |
+| **Unified-memory budget / GPU×host memory sizing** | [this doc](hardware-spark.md) §Unified-memory budget & OOM governance |
+| **OOM / engine-restart incidents (append-only)** | [`spark-incidents.md`](spark-incidents.md) |
 | Old superseded Phase-2 build | archived decision log ([`deployment-rejected.md`](deployment-rejected.md)) |

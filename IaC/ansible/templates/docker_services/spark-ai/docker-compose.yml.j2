@@ -146,8 +146,14 @@ services:
       - --no-enable-flashinfer-autotune
       - --kv-cache-dtype
       - {{ spark_vllm_kv_cache_dtype }}
-      - --gpu-memory-utilization
-      - "{{ spark_vllm_gpu_memory_utilization }}"
+      # GPU×host unified-memory governance (HD-374, 2026-09-16): explicit KV-pool governor
+      # via --kv-cache-memory-bytes (= bytes int) — the PRIMARY dial on GB10.
+      # In this build, kv_cache_memory_bytes IGNORES gpu_memory_utilization entirely
+      # (CacheConfig docstring + gpu_worker.determine_available_memory: "does not
+      # respect the gpu_memory_utilization config"), so util is dead/removed — the
+      # explicit pool IS the whole budget decision. See group_vars/spark.yml.
+      - --kv-cache-memory-bytes
+      - "{{ spark_vllm_kv_cache_memory }}"
       - --distributed-executor-backend
       - {{ spark_vllm_distributed_executor_backend }}
 {% if spark_vllm_enforce_eager %}
