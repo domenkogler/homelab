@@ -125,6 +125,38 @@ Used to pick the pool for the chosen governor (below). **Decision = KV pool byte
 > stored in KV cache (146522)`. (0.70 was correct on 2026-09-15 only because `max_model_len` was 65536
 > at the time.) These are two coupled dials and must be changed together.
 
+### ⚠ Correction — the 2026-09-16 budget model was falsified the same day (HD-380)
+
+The "reserve ≈ 32.5 GiB" figure below was **derived, never measured, and wrong**. Two more global
+OOMs landed within hours of the HD-374 deploy (#4 with **no client attached**, #5 at 18% of window
+combined). Measured at rest: engine per-pid **103,449 → 105,477 MiB** (ratcheting +2 GiB / 45 min
+idle), host `MemAvailable` **16.7 GiB**, vLLM's own accounting only **83.4 GiB** → **~22 GiB
+unaccounted**.
+
+The `graphs 0.22 GiB` term was **wrong by ~40×**. This build captures CUDA graphs for batch sizes
+**[1,2,4,8,16,24,32]**; `max_num_seqs=4` caps the decode batch at 4, so **8/16/24/32 are captured and
+unreachable** — dead memory in the one pool host and GPU share.
+
+**Governor now has TWO terms** (`group_vars/spark.yml`):
+
+| term | value | effect (measured) |
+|---|---|---|
+| KV pool | `--kv-cache-memory-bytes 8800000000` | 8.2 GiB / 283,398 tok — fixed at boot, **never grows**, so `GPU KV cache usage %` is **scheduler occupancy, NOT RAM** |
+| graph cap | `--max-cudagraph-capture-size 4` | per-pid **105,477 → 96,235 MiB**; `MemAvailable` **16.7 → 22.2 GiB** |
+
+**Still the live defect:** ~**13 GiB** of non-KV, non-weight allocation remains unprofiled and
+unbounded — `--kv-cache-memory-bytes` makes vLLM **skip memory profiling**, so nothing governs it.
+The cap raised the *resting floor*; it did **not** bound the *peak* (incident #6 proves this).
+
+**Two facts that must be carried into every future sizing calculation:**
+1. **Per-pid `nvidia-smi` under-counts the engine by ~10 GiB.** True footprint = the `MemAvailable`
+   jump when the engine stops: **12.6 → 118.6 GiB** ⇒ the engine held **~106 GiB** of 121.62.
+2. **Agent sessions are a first-class memory term.** A ~162k-token session = **56% of the KV pool**,
+   and at prefix hit **0%** every turn re-prefills the whole window (**17,008 tok/s** observed) — the
+   largest transient on this box. Loop: big context → ~82% KV occupancy → own prefix blocks evicted →
+   0% hit → full re-prefill → spike. Sizing for "casual/chat" occupancy (peak 15.5%, max 36,800 tok)
+   is **not** representative of agentic use.
+
 ### Chosen governor (IaC, `group_vars/spark.yml`)
 
 **Use explicit `--kv-cache-memory-bytes <bytes>` as the ONLY dial — and REMOVE `--gpu-memory-utilization`.**
@@ -141,7 +173,8 @@ ceiling.
 
 ```yaml
 # group_vars/spark.yml  (this build's flag: --kv-cache-memory-bytes, bytes int)
-spark_vllm_kv_cache_memory: "8800000000"  # ~8.2 GiB ≈ 275k tokens — the ONLY governor (host reserve ≈ 32.5 GiB)
+spark_vllm_kv_cache_memory: "8800000000"  # ~8.2 GiB ≈ 275k tokens — KV term of the governor (reserve is 22.2 GiB measured, NOT the 32.5 first predicted — see the correction above)
+spark_vllm_max_cudagraph_capture_size: 4  # graph term (HD-380): default [1,2,4,8,16,24,32] is unreachable above max_num_seqs and strands ~7 GiB of the shared pool
 spark_vllm_max_model_len: 262144          # unchanged; boot-gate only
 # spark_vllm_gpu_memory_utilization REMOVED — ignored when kv_cache_memory_bytes is set (HD-374)
 ```

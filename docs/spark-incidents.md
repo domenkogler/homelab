@@ -29,7 +29,9 @@ Same failure class, escalating evidence. Summary row per incident; full narrativ
 | 0b | 2026-09-15 02:50 | C3 sanity bench 12×8k @ concurrency 3 | `NVRM` memdesc + global OOM; killed `sshd`/`NetworkManager`/`polkitd` | container survived cage; **host wedged** → power-cycle | harness: C3→6×8k@c2 + `MEM_FLOOR_GB` preflight |
 | 1 | 2026-09-15 22:31 | serve, engine wedged mid-request | no kernel OOM; engine hung (`shm_broadcast` 60 s stalls) | container restarted (new boot banner) | attributed post-hoc to thrash, not a kill |
 | 2 | 2026-09-15 23:06 | serve, long request in flight (`num_computed_tokens=36800`, +4864 scheduled) | `global_oom` 23:05:53→23:06:32: `VLLM::Worker` (total-vm 151 GB), `VLLM::EngineCor`, `python3`, `torch_shm_manag`; collateral `alloy`/`traefik`/`nvidia-smi`/`dozzle`/`fwupd` | `unless-stopped` restart @ 23:06:34 → `RestartCount=2` | none (diagnosis only — session died) |
-| 3 | 2026-09-16 09:26 | **agent session running against spark's own endpoint** | `global_oom` 09:22→09:26: user-slice `pipewire`/`pipewire-pulse`/`dbus-daemon`/`systemd`/`(sd-pam)` first, then **`python3` pid=1023317 (container PID-1)** @ 09:26:17 | `RestartCount=3`, `StartedAt=09:26:20Z`; the client session got **502** and died | **this change (2026-09-16)** — explicit `--kv-cache-memory-bytes 8800000000`, util removed (see `hardware-spark.md` §Chosen governor) |
+| 4 | 2026-09-16 16:31 | **NOTHING attached — zero clients, engine idle** | `global_oom` 16:31:20: `python3` in the vLLM scope (total-vm 55.4 GB), then `alloy` (uid 996) | container replaced → boot banner 16:31:38Z | none at the time — **the unexplained one: no workload to blame** |
+| 5 | 2026-09-16 20:21 | **two agent sessions at 8.8% / 9.1% of ctx** (46.9k tok combined) | `global_oom` 20:21:07→20:22:05: `python3` → `VLLM::Worker` (total-vm **155.6 GB**) → `VLLM::EngineCor` → `python3`; collateral `dcgm-exporter`, `alloy` | `RestartCount=4`, `StartedAt=20:22:11Z`; both client sessions `stopReason=error` | none at the time (diagnosis session = this one) |
+| 6 | 2026-09-16 22:15 | **agent session ~162k tok + stress step A6 (16k × conc 2)** | **NO kernel OOM** (last kill 20:22Z) — bench guard ran `docker stop`; engine `Exited (137)` | avail **21.5 → 12.6 GiB in ~22 s**; watchdog WARN 22:13:49 → CRIT 22:15:22 (avail 18.6, PSI 27.2); **~14 min outage** because `unless-stopped` ignores an intentional stop | **HD-380** — capture-size cap + watchdog + self-healing guard + zero-load bench assertion |
 
 ## Incident #3 — the self-referential OOM (2026-09-16)
 
@@ -75,6 +77,70 @@ the fix is governance, not workload discipline.
 
 ---
 
+## Incidents #4/#5/#6 — the HD-374 fix did NOT hold, and what it was actually hiding (2026-09-16)
+
+HD-374 (deployed + live-verified 2026-09-16 ~12:37Z) predicted **host reserve ≈ 32.5 GiB**
+from `weights 77.69 + act 2.99 + graphs 0.22 + KV 8.2 ≈ 89.1 GiB`. Two global OOMs followed
+within hours (#4 with **no client attached at all**, #5 with two 9%-context sessions), and the
+predicted reserve **never existed**.
+
+**Measured, at rest, engine idle:**
+
+```
+nvidia-smi --query-compute-apps  →  engine pid 103,449 MiB, later 105,477 MiB  (RATCHETING +2.0 GiB / 45 min idle)
+/proc/meminfo                   →  MemAvailable 16.7 GiB (not 32.5), MemFree 0.8 GiB, swap 8.3 GiB used
+vLLM's own accounting           →  weights 75.17 + KV 8.2 = 83.4 GiB  ⇒ ~22 GiB unaccounted
+```
+
+The `graphs 0.22 GiB` line in that budget was **wrong by ~40×**. This build captures CUDA graphs
+for batch sizes **[1,2,4,8,16,24,32]**, but `max_num_seqs=4` caps the decode batch at 4 — so sizes
+8/16/24/32 are **captured and can never be used**, and on GB10 every one of them is a hole in the
+single 121.62 GiB pool. Capping to 4 (`--max-cudagraph-capture-size 4`, HD-380):
+
+| | before (cap 32) | after (cap 4) |
+|---|---|---|
+| engine per-pid, at rest | 105,477 MiB | **96,235 MiB** (−7.2 GiB) |
+| host `MemAvailable` | 16.7 GiB | **22.2 GiB** (+5.5 GiB) |
+
+**Still open after the cap:** ~13 GiB of non-KV, non-weight allocation remains — unprofiled and
+unbounded, because `--kv-cache-memory-bytes` makes vLLM *skip memory profiling* by design. The cap
+raised the resting floor; **it did not bound the peak.** Incident #6 proves the peak is still live.
+
+**Incident #6 — the measured version of incident #3.** The engine's own log (preserved inside the
+watchdog's CRIT bundle) shows what a large agent session costs:
+
+```
+22:48:07  prompt throughput 17008.1 tok/s   KV usage 81.9%   Prefix cache hit rate 0.0%
+```
+
+An agent session at ~162k tokens = **56% of the 283,398-token KV pool by itself**, and with prefix
+hit **0%** every turn re-prefills the **entire window** — the largest transient this engine can
+produce. Combined with stress step A6 (16k × conc 2) it took `MemAvailable` 21.5 → 12.6 GiB in ~22 s.
+**Self-reinforcing loop:** big context → one session occupies ~82% of KV → its own prefix blocks are
+evicted between turns → hit rate → 0% → full re-prefill every turn → max spike. Note the guard,
+not the kernel, ended it: **no `oom-kill` line exists at 22:15Z**.
+
+**Tooling failure modes found (both cost real availability):**
+1. `docker stop` is an **intentional** stop → `restart: unless-stopped` does **not** restart it. The
+   guard's stop therefore looked exactly like an engine crash and left the family without an LLM for
+   ~14 min. Guard now self-heals (`cbd6960`).
+2. `vllm bench serve` against the `--api-key` engine 401s **every request and still exits 0**,
+   reporting `Successful requests: 0`. The first HD-380 run "passed" 21 steps while applying **zero
+   load**. **Any bench number taken after the `spark-llm_api` vault item landed is invalid until
+   re-run** (`run-scenario.sh` carried the same defect; both now assert on the counters).
+
+**Ruled out, with numbers — do not re-litigate:**
+- **dcgm-exporter leak:** `memory.peak` **0.19 GiB** lifetime against a 256 MiB cap, `max/oom/oom_kill`
+  events **0**, killed at **3 resident pages**, 51 s *after* the engine. HD-379 had already capped it
+  42 min before the next kill.
+- **More swap:** the killer fired with **SwapFree 8.25 of 16.77 GiB** — swap was half unused.
+- **zram:** whole-box `AnonPages` **0.55 GiB** with 8.3 GiB already swapped, and refault
+  **file:anon = 42:1**. zram only acts on anon, and spends the very DRAM the GPU carve needs.
+- **Concurrency as cause (#5):** 46.9k tokens combined = 18% of window. But #6 shows an agent session
+  at ~162k **is** a first-class memory term — different magnitude, same class as #3.
+
+---
+
 ## Cross-incident invariants (all four incidents)
 
 1. **`OOMKilled: false` / `ExitCode: 0` every time** — Docker never sees it (global OOM, not cgroup).
@@ -112,6 +178,24 @@ free -h; grep -E 'MemTotal|MemFree|MemAvailable|AnonPages|Cached|SwapTotal|SwapF
 
 **`dmesg` is authoritative; `docker inspect` is not.** A `RestartCount` increment + `OOMKilled=false`
 on this box means a global OOM until proven otherwise.
+
+### Instrumented since 2026-09-16 (HD-380) — read this BEFORE manually digging
+
+`spark-oom-watchdog.service` (roles/spark, OOM-immune `OOMScoreAdjust=-1000`) samples every 15 s and
+freezes a forensic bundle on kernel-OOM / engine-restart / threshold breach:
+
+```bash
+systemctl status spark-oom-watchdog
+sudo /usr/local/bin/spark-oom-watchdog.sh status
+ls -t /mnt/spark_nvme/oom-watchdog/snapshots/ | head      # KILL | CRIT | WARN | RESTART | MANUAL
+tail -50 /mnt/spark_nvme/oom-watchdog/state/samples.csv    # the PRE-event curve (the payload)
+# columns: epoch,mem_avail_gib,mem_free,cached,anon,swap_used,psi_some,psi_full,gpu_top_pid_mib,restarts,utc
+```
+
+**New measurement trick (incident #6):** `nvidia-smi --query-compute-apps` reports only the **largest
+pid** and under-counts the engine's multi-process pool footprint by ~10 GiB. The true footprint is the
+**`MemAvailable` jump on stopping the engine** — at 22:15Z avail went **12.6 → 118.6 GiB**, i.e. the
+engine held **~106 GiB** of the 121.62 GiB pool while its top pid reported 96,235 MiB.
 
 > **Append-only.** New incidents get a row in the table + a numbered narrative section. The *knowledge*
 > (why the numbers work, what the governor should be) updates in `hardware-spark.md`, not here.

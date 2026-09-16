@@ -4,3 +4,16 @@
   ansible.builtin.systemd:
     daemon_reload: true
   become: true
+
+# HD-380: the watchdog script/unit are changed by roles/spark tasks; the unit must
+# be reloaded AND restarted or it keeps running the old sampler code.
+- name: Restart spark OOM watchdog
+  ansible.builtin.systemd:
+    name: spark-oom-watchdog.service
+    state: restarted
+    enabled: true
+    daemon_reload: true
+  become: true
+  when:
+    - spark_oom_watchdog_enable | bool
+    - not ansible_check_mode   # unit not yet on disk during --check (live hit 2026-09-16)
