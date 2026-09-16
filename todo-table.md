@@ -29,6 +29,7 @@ Rows the AI can execute: either **now** (no prerequisite) or the **⏳ deploy-ga
 | HD-250 | 2 | DSH onboarding: thin image, compose, Forgejo PAT, headscale serve | AI (depends HD-247) |
 | HD-251 | 3 | Fleet-exposure phase-2 rollout (tailscale-first) | Doc policy already landed; rollout is AI |
 | HD-336 | 2 | agent-memory.dev per-project on oldsrv + ZeroClaw | oldsrv live; AI (CrewAI pilot split out → HD-336b, Table Human) |
+| HD-376 | 2 | pi.dev harness → spark: promote the `spark-lane` 64k profile + measure parent/lane KV contention | Harness config itself is applied + documented (262k ctx, thinking control, timeouts — docs/pi-harness.md); the lane-profile promotion is AI-measurable. The 262k needle test stays gated in hardware-spark.md |
 | **Smart Home** ||||
 | HD-14 | 2 | Enable HA Prometheus exporter (entity list) | AI — the "wait for observability" gate is gone (Victoria stack + Alloy live, HD-342) |
 | HD-17 | 2 | Create `ha-failover_api` + deploy failover button | RFUSB-move tail is **obsolete (HD-13/18 rejected)**; standby is already rendered + api active (HD-318c, 2026-09-08); deploy button + run the owner test (HD-04) |
