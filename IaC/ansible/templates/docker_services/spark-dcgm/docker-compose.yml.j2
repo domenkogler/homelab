@@ -24,9 +24,14 @@
 #   HD-368) — spark's Alloy scrapes 127.0.0.1:9400 and remote-writes to the VPS VM. Never a
 #   Traefik route, never the Home VLAN, never WAN: there is no auth on /metrics.
 #
-#   RESOURCE CAUTION (HD-375 OOM history): this container takes ~30 MB RSS and requests NO GPU
-#   memory; the `gpu` device reservation is required for NVML/DCGM device access only. It is
-#   deliberately NOT given the engine's memory limits/cage — it is a read-only observer.
+#   RESOURCE FOOTPRINT (MEASURED on spark 2026-09-16, not assumed): anonymous RAM ≈ 139–143 MiB
+#   (cgroup memory.stat `anon`; `docker stats` reads 130–155 MiB depending on page cache).
+#   That is ~0.1 % of the 121.6 GiB pool, but this box has a documented OOM history (HD-375) and
+#   the engine lives inside a 105 GiB cage (HD-374), so the exporter gets a HARD cap below.
+#   Trimming the counter list is NOT the lever it looks like: an A/B run of a 7-field CSV vs the
+#   image's 18-field default moved anon RAM 143 → 139 MiB (~3 %), and GOMEMLIMIT=64MiB/GOGC=20
+#   changed nothing — the floor is DCGM/NVML's own device context, not the Go heap. See
+#   docs/observability.md §LLM Dashboard (DCGM memory).
 #
 #   Image pin: spark_dcgm_exporter_image (group_vars/all/versions.yml, digest-pinned;
 #   arm64 manifest, already present in spark's image store).
@@ -62,6 +67,16 @@ services:
       # instead of a second, silently-drifting CSV inside the image.
     deploy:
       resources:
+        # HARD CAP (HD-379): measured footprint ≈ 140 MiB, capped at 256 MiB (~1.8x headroom).
+        # The cap is what protects the engine, not the measurement: an unbounded leak in this
+        # sidecar must be able to cost at most 256 MiB of the pool the vLLM engine is caged in
+        # (HD-374) on a host that has already OOM-killed (HD-375). Chosen above the observed
+        # peak so normal operation can never be OOM-killed by its own cap.
+        limits:
+          # Quoted: docker compose's schema requires limits.memory to be a STRING — a byte
+          # integer fails `docker compose config --quiet` ("must be a string"), which is how the
+          # role's pre-deploy compose validation (HD-162) caught my first attempt.
+          memory: "{{ spark_dcgm_exporter_memory_limit }}"
         reservations:
           devices:
             - driver: nvidia

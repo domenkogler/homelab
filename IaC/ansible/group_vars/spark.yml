@@ -53,6 +53,11 @@ spark_metrics_publish: true         # loopback-only :8000 publish (127.0.0.1) so
 # must abort the render, and validate-docker-services.py's mock `default` filter would otherwise
 # silently render an empty port.
 spark_dcgm_exporter_port: 9400
+# Hard memory cap for the DCGM sidecar (HD-379) — measured anon ≈ 139–143 MiB, capped at 256 MiB
+# (~1.8x). The cap exists to bound blast radius, not to save RAM: a leaked sidecar must not be
+# able to eat into the 105 GiB engine cage (HD-374) on a host with an OOM history (HD-375).
+# Set above the observed peak so the cap can never OOM the exporter in normal operation.
+spark_dcgm_exporter_memory_limit: "256M"   # compose `limits.memory` — MUST be a string (docker compose schema)
 
 # ==== Spark GPU-inference artifact store (HD-359) ====
 # GENERIC, config-agnostic manifest: repo_id → XFS local_dir. The B1 AWQ+PLE

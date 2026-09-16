@@ -487,6 +487,38 @@ the exporter refuses them (`metric not enabled`) and NVIDIA states profiling wil
 on Spark. A new driver making them appear should be an explicit, reviewed IaC edit, not a silent
 cardinality change.
 
+**✅ Deployed + live-verified 2026-09-16.** `VM {job="dcgm"}` returns **exactly the 7 whitelisted
+series** (`GPU_UTIL`, `GPU_TEMP` 46 °C, `POWER_USAGE` 10.25 W, `TOTAL_ENERGY_CONSUMPTION`,
+`SM_CLOCK` 2411 MHz, `XID_ERRORS`, `PCIE_REPLAY_COUNTER`) and the host temperatures arrived too
+(`node_hwmon_temp_celsius` per instance: spark 12, oldsrv 17, nas 9, pi 2 sensors — HD-378's
+⏳ panels are now live). The vLLM engine was **not** restarted by any of it.
+
+**⚠ Operational gotcha found the hard way (worth 30 seconds of anyone's time):** a service's own
+deploy tasks carry `tags: "{{ svc.name }}"` (`docker_services/tasks/deploy-service.yml`), so
+`--tags monitoring,docker_services` on a **NEW** service renders the loop but **skips every inner
+task** — the first converge reported rc=0 while deploying nothing (the `dgx-dashboard` tombstone
+teardown *did* run, because teardown is tagged `docker_services`). **A first deploy needs the
+service's own tag**: `--tags monitoring,docker_services,spark-dcgm`. rc=0 is not proof of deploy;
+the proof was `docker ps` + `VM {job="dcgm"}`.
+
+**Memory (answering "can we trim the exporter's RAM via the counters CSV?") — measured, A/B on
+the box.** Image default `default-counters.csv` (18 fields) = **143.2 MiB anon**; a 7-field CSV
+via `DCGM_EXPORTER_COLLECTORS` = **138.8 MiB anon** (≈ **−3 %**); the same trimmed run with
+`GOMEMLIMIT=64MiB GOGC=20` = 145 MiB (no effect). Conclusions:
+  * The **profiling fields are not the cost here** — on GB10 the DCP module never loads
+    (`Not collecting DCP metrics…`, so `dcp-metrics-included.csv` is not even read: the exporter
+    logs `Falling back to metric file '/etc/dcgm-exporter/default-counters.csv'`), so there is no
+    profiling buffer to reclaim. On a datacenter GPU with DCP enabled the CSV *is* a real lever;
+    on Spark it is worth ~4 MiB.
+  * The floor is **DCGM/NVML's device context**, not the Go heap — which is why the Go env knobs
+    do nothing. `docker stats` readings drift 130–155 MiB with page cache; `memory.stat` `anon`
+    is the number to trust.
+  * So the lever that actually matters on this box is a **hard cap**, not trimming: the compose
+    now sets `mem_limit: 256m` (~1.8× the measured peak, so the cap can never OOM it in normal
+    operation) — an unbounded leak in a sidecar must not be able to eat into the 105 GiB engine
+    cage (HD-374) on a host that has already OOM-killed (HD-375). Revisit the CSV only if a future
+    driver starts emitting profiling fields.
+
 **spark RAM reading — read the floor, not the ceiling.** On this box the useful signal is
 `node_memory_MemAvailable_bytes` (live: 9.5 GiB of 121.6 GiB with the engine loaded),
 not utilisation %: every global OOM in `spark-incidents.md` came from replace-by-percent
