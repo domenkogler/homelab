@@ -110,7 +110,7 @@
               "legendFormat": "SGLang"
             }
           ],
-          "title": "总请求数",
+          "title": "Total Requests",
           "type": "stat"
         },
         {
@@ -207,7 +207,7 @@
               "refId": "D"
             }
           ],
-          "title": "Token 吞吐量",
+          "title": "Token Throughput",
           "type": "stat"
         },
         {
@@ -287,7 +287,7 @@
               "legendFormat": "SGLang"
             }
           ],
-          "title": "缓存命中率",
+          "title": "Prefix Cache Hit Rate",
           "type": "gauge"
         },
         {
@@ -367,7 +367,7 @@
               "legendFormat": "SGLang"
             }
           ],
-          "title": "KV/GPU Cache 使用率",
+          "title": "KV / GPU Cache Usage",
           "type": "gauge"
         },
         {
@@ -464,7 +464,7 @@
               "refId": "D"
             }
           ],
-          "title": "E2E 延迟 P95",
+          "title": "E2E Latency P95 / P99",
           "type": "stat"
         },
         {
@@ -543,7 +543,7 @@
               "legendFormat": "SGLang"
             }
           ],
-          "title": "中止/Abort 请求数",
+          "title": "Aborted Requests",
           "type": "stat"
         }
       ],
@@ -556,7 +556,7 @@
           "refId": "A"
         }
       ],
-      "title": "核心概览 (Core Overview)",
+      "title": "Core Overview",
       "type": "row"
     },
     {
@@ -582,7 +582,7 @@
           "refId": "A"
         }
       ],
-      "title": "延迟分析 (Latency Analysis)",
+      "title": "Latency Analysis",
       "type": "row"
     },
     {
@@ -725,7 +725,7 @@
           "refId": "F"
         }
       ],
-      "title": "首 Token 延迟 (TTFT)",
+      "title": "Time to First Token (TTFT)",
       "type": "timeseries"
     },
     {
@@ -868,7 +868,7 @@
           "refId": "F"
         }
       ],
-      "title": "Token 间延迟 (ITL)",
+      "title": "Inter-Token Latency (ITL)",
       "type": "timeseries"
     },
     {
@@ -1011,7 +1011,7 @@
           "refId": "F"
         }
       ],
-      "title": "端到端请求延迟 (E2E)",
+      "title": "End-to-End Request Latency",
       "type": "timeseries"
     },
     {
@@ -1132,7 +1132,7 @@
           "refId": "D"
         }
       ],
-      "title": "队列等待时间 (按 Engine / TP Rank)",
+      "title": "Queue Wait Time (per Engine / TP Rank)",
       "type": "timeseries"
     },
     {
@@ -1158,7 +1158,7 @@
           "refId": "A"
         }
       ],
-      "title": "吞吐量与 Token (Throughput & Tokens)",
+      "title": "Throughput & Tokens",
       "type": "row"
     },
     {
@@ -1270,7 +1270,7 @@
           "refId": "C"
         }
       ],
-      "title": "Token 吞吐量 (Prefill / Decode)",
+      "title": "Token Throughput (Prefill / Decode)",
       "type": "timeseries"
     },
     {
@@ -1382,7 +1382,7 @@
           "refId": "C"
         }
       ],
-      "title": "实时 Token 处理 (按 Engine / TP Rank)",
+      "title": "Realtime Token Rate (per Engine / TP Rank)",
       "type": "timeseries"
     },
     {
@@ -1507,7 +1507,7 @@
           "refId": "D"
         }
       ],
-      "title": "缓存 Token 统计",
+      "title": "Cached Token Stats",
       "type": "timeseries"
     },
     {
@@ -1610,7 +1610,7 @@
           "refId": "B"
         }
       ],
-      "title": "Engine Step / CUDA Graph 指标",
+      "title": "Engine Step / CUDA Graph Metrics",
       "type": "timeseries"
     },
     {
@@ -1636,7 +1636,7 @@
           "refId": "A"
         }
       ],
-      "title": "队列与资源 (Queue & Resources)",
+      "title": "Queue & Resources",
       "type": "row"
     },
     {
@@ -1715,7 +1715,7 @@
           "legendFormat": "SGLang"
         }
       ],
-      "title": "运行中请求",
+      "title": "Running Requests",
       "type": "stat"
     },
     {
@@ -1794,7 +1794,7 @@
           "legendFormat": "SGLang"
         }
       ],
-      "title": "等待队列请求",
+      "title": "Queued Requests",
       "type": "stat"
     },
     {
@@ -1873,7 +1873,7 @@
           "legendFormat": "SGLang"
         }
       ],
-      "title": "Token 容量 / Max Tokens",
+      "title": "Requested Max Tokens (avg)",
       "type": "stat"
     },
     {
@@ -1951,7 +1951,7 @@
           "legendFormat": "SGLang"
         }
       ],
-      "title": "新 Token / Prefill KV 计算比例",
+      "title": "Prefill KV Computed Ratio",
       "type": "gauge"
     },
     {
@@ -2072,7 +2072,7 @@
           "refId": "D"
         }
       ],
-      "title": "CPU / 请求阶段耗时",
+      "title": "Request Phase Time (Prefill / Decode)",
       "type": "timeseries"
     },
     {
@@ -2127,7 +2127,7 @@
               }
             ]
           },
-          "unit": "s"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -2161,18 +2161,24 @@
             "uid": "prometheus",
             "type": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, sum(rate(vllm:kv_block_idle_before_evict_seconds_bucket{instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "expr": "sum(rate(vllm:num_preemptions_total{instance=~\"${instance}\"}[$__rate_interval]))",
           "legendFormat": "vLLM Eviction P50",
-          "refId": "A"
+          "refId": "A",
+          "legend": {
+            "format": "vLLM preemptions/s"
+          }
         },
         {
           "datasource": {
             "uid": "prometheus",
             "type": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(vllm:kv_block_idle_before_evict_seconds_bucket{instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "expr": "sum(increase(vllm:num_preemptions_total{instance=~\"${instance}\"}[$__range]))",
           "legendFormat": "vLLM Eviction P95",
-          "refId": "B"
+          "refId": "B",
+          "legend": {
+            "format": "vLLM preemptions (window)"
+          }
         },
         {
           "datasource": {
@@ -2193,8 +2199,9 @@
           "refId": "D"
         }
       ],
-      "title": "KV Cache 驱逐时间",
-      "type": "timeseries"
+      "title": "KV Cache Pressure (preemptions / eviction)",
+      "type": "timeseries",
+      "description": "vLLM: preemptions — requests evicted from the KV cache and recomputed (vllm:num_preemptions_total); sustained >0 means the KV budget is too tight (see docs/hardware-spark.md §Unified-memory budget). SGLang half (eviction duration) stays empty until an SGLang engine is deployed."
     },
     {
       "collapsed": false,
@@ -2219,7 +2226,7 @@
           "refId": "A"
         }
       ],
-      "title": "节点/Engine 分布 (Node / Engine Distribution)",
+      "title": "Node / Engine Distribution",
       "type": "row"
     },
     {
@@ -2322,7 +2329,7 @@
           "refId": "B"
         }
       ],
-      "title": "Decode 吞吐量 (按 Engine / TP Rank)",
+      "title": "Decode Throughput (per Engine / TP Rank)",
       "type": "timeseries"
     },
     {
@@ -2425,7 +2432,7 @@
           "refId": "B"
         }
       ],
-      "title": "Prefill 吞吐量 (按 Engine / TP Rank)",
+      "title": "Prefill Throughput (per Engine / TP Rank)",
       "type": "timeseries"
     },
     {
@@ -2536,7 +2543,7 @@
           "refId": "B"
         }
       ],
-      "title": "Prefill 延迟 (按 Engine / TP Rank)",
+      "title": "Prefill Latency (per Engine / TP Rank)",
       "type": "timeseries"
     },
     {
@@ -2639,7 +2646,7 @@
           "refId": "B"
         }
       ],
-      "title": "平均队列时间 (按 Engine / TP Rank)",
+      "title": "Avg Queue Time (per Engine / TP Rank)",
       "type": "timeseries"
     }
   ],
@@ -2654,20 +2661,16 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "selected": false,
-          "text": "/models/DeepSeek-V4-Flash",
-          "value": "/models/DeepSeek-V4-Flash"
-        },
+        "current": {},
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
         },
         "definition": "label_values({__name__=~\"vllm:request_success_total|sglang:num_requests_total\"}, model_name)",
-        "description": "SGLang / vLLM 模型名称",
+        "description": "SGLang / vLLM model name",
         "hide": 0,
         "includeAll": false,
-        "label": "模型名称",
+        "label": "Model",
         "multi": false,
         "name": "model_name",
         "options": [],
@@ -2689,10 +2692,10 @@
           "uid": "prometheus"
         },
         "definition": "label_values({__name__=~\"vllm:request_success_total|sglang:num_requests_total\", model_name=\"${model_name}\"}, instance)",
-        "description": "SGLang / vLLM 实例 - 用于区分不同机器",
+        "description": "SGLang / vLLM instance — distinguishes hosts",
         "hide": 0,
         "includeAll": true,
-        "label": "实例 (Instance)",
+        "label": "Instance",
         "multi": false,
         "name": "instance",
         "options": [],
@@ -2727,5 +2730,5 @@
   "uid": "homelab-llm-inference",
   "version": 1,
   "weekStart": "",
-  "description": "同时支持 SGLang 和 vLLM 的统一 LLM 推理监控 Grafana Dashboard，数据源为 Prometheus。该模板将两类推理后端的可比指标放在同一视图中展示，覆盖请求量、Token 吞吐、延迟分位数、队列状态、缓存行为以及 Engine 或 TP Rank 维度的分布情况。适用于混合推理集群、后端迁移、压测对比和统一运维场景，帮助团队用一致的视角观察不同推理框架的服务表现。"
+  "description": "Unified LLM inference dashboard covering both SGLang and vLLM against one Prometheus-compatible datasource (here VictoriaMetrics, uid `prometheus`). Comparable panels per backend: request volume, token throughput, latency quantiles, queue state, cache behaviour and per-engine / TP-rank distribution. The SGLang queries stay empty until an SGLang engine is deployed (HD-367 throughput lane) — the vLLM half is live from the spark engine."
 }

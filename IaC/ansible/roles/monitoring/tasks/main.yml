@@ -330,15 +330,25 @@
   register: gf_admin_password
   changed_when: false
   no_log: true
-  when: inventory_hostname in groups['vps']
+  when:
+    - inventory_hostname in groups['vps']
+    - not ansible_check_mode
   tags: [monitoring, grafana]
 
+# ⚠ --check guard (HD-368 session, 2026-09-16): `command` never executes in check mode, so
+# gf_admin_password/gf_api_ip register EMPTY stdout → the uri tasks below die on
+# "Error while resolving value for 'url': No first item, sequence was empty" — which aborted
+# every `--check --diff` monitoring run BEFORE the dashboard-copy task (i.e. the one task
+# this lane cares about). The whole Grafana API block is read-or-seed against the LIVE app,
+# so skipping it in check mode is both correct and makes `--check` usable again.
 - name: Resolve grafana container IPs for API calls
   ansible.builtin.command:
     cmd: docker exec grafana hostname -i
   register: gf_api_ip
   changed_when: false
-  when: inventory_hostname in groups['vps']
+  when:
+    - inventory_hostname in groups['vps']
+    - not ansible_check_mode
   tags: [monitoring, grafana]
 
 # HD-240 (2026-08-24) + HD-342 (Victoria migration): BOTH Victoria* datasources carry
@@ -361,7 +371,9 @@
   loop:
     - { uid: prometheus }
     - { uid: loki }
-  when: inventory_hostname in groups['vps']
+  when:
+    - inventory_hostname in groups['vps']
+    - not ansible_check_mode
   tags: [monitoring, grafana]
 
 - name: Seed observability datasource via API (create-only)
@@ -389,6 +401,7 @@
   no_log: true
   when:
     - inventory_hostname in groups['vps']
+    - not ansible_check_mode
     - (gf_ds_state.results | selectattr('item.uid', 'equalto', item.uid) | first).status == 404
   loop:
     - name: VictoriaMetrics
@@ -420,7 +433,9 @@
   loop:
     - { uid: prometheus }
     - { uid: loki }
-  when: inventory_hostname in groups['vps']
+  when:
+    - inventory_hostname in groups['vps']
+    - not ansible_check_mode
   tags: [monitoring, grafana]
 
 - name: Provision Grafana dashboard provider

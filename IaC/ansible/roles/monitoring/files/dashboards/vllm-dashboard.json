@@ -38,7 +38,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Number of healthy vLLM instances (by instance usage)",
+      "description": "Engines the spark Alloy scrape job reaches (sum of the up pseudo-metric for job vllm). Upstream used a Kubernetes-only pods-total metric.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -56,7 +56,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
@@ -89,7 +90,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum(max by (server) (vllm:healthy_pods_total))",
+          "expr": "sum(up{job=\"vllm\"})",
           "format": "time_series",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
@@ -99,7 +100,7 @@
           "useBackend": false
         }
       ],
-      "title": "Available vLLM instances",
+      "title": "Scraped vLLM engines",
       "type": "stat"
     },
     {
@@ -272,7 +273,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -304,14 +306,15 @@
       "targets": [
         {
           "editorMode": "builder",
-          "expr": "vllm:current_qps",
+          "expr": "sum(rate(vllm:request_success_total[$__rate_interval]))",
           "legendFormat": "Current QPS",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Current QPS",
-      "type": "stat"
+      "title": "Request Rate (QPS)",
+      "type": "stat",
+      "description": "Completed requests/s from the engine's own success counter. Upstream used a production-stack router metric that a standalone engine never exposes."
     },
     {
       "datasource": {
@@ -793,7 +796,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -822,7 +826,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "vllm:gpu_prefix_cache_hits_total{endpoint=\"service-port\"} / vllm:gpu_prefix_cache_queries_total",
+          "expr": "sum(rate(vllm:prefix_cache_hits_total[$__rate_interval])) / clamp_min(sum(rate(vllm:prefix_cache_queries_total[$__rate_interval])), 0.001)",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "{{instance}}",
@@ -831,8 +835,9 @@
           "useBackend": false
         }
       ],
-      "title": "GPU KV Cache Hit Rate",
-      "type": "timeseries"
+      "title": "Prefix Cache Hit Rate",
+      "type": "timeseries",
+      "description": "prefix_cache_hits / prefix_cache_queries (rate). vLLM V1 renamed gpu_prefix_cache_* to prefix_cache_*."
     },
     {
       "collapsed": false,
@@ -999,7 +1004,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -1028,7 +1034,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "router_cpu_usage_percent",
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{job=\"alloy\",instance=\"spark.kogler.si\",mode=\"idle\"}[5m])) * 100)",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "CPU Usage",
@@ -1037,8 +1043,9 @@
           "useBackend": false
         }
       ],
-      "title": "CPU Usage (%)",
-      "type": "timeseries"
+      "title": "spark Host CPU (%)",
+      "type": "timeseries",
+      "description": "spark host CPU busy % from the Alloy unix exporter (job=\"alloy\"). Upstream used the production-stack router's own hostmeter, which we do not run."
     },
     {
       "datasource": {
@@ -1095,7 +1102,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -1124,7 +1132,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "router_memory_usage_percent",
+          "expr": "(1 - sum(node_memory_MemAvailable_bytes{job=\"alloy\",instance=\"spark.kogler.si\"}) / sum(node_memory_MemTotal_bytes{job=\"alloy\",instance=\"spark.kogler.si\"})) * 100",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "Memory Usage",
@@ -1133,8 +1141,9 @@
           "useBackend": false
         }
       ],
-      "title": "Memory Usage (%)",
-      "type": "timeseries"
+      "title": "spark Host Memory (%)",
+      "type": "timeseries",
+      "description": "spark host memory used % (Alloy exporter). The engine cage lives in this number — see docs/hardware-spark.md §Unified-memory budget."
     },
     {
       "datasource": {
@@ -1191,7 +1200,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -1220,7 +1230,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "router_disk_usage_percent",
+          "expr": "100 - (sum(node_filesystem_avail_bytes{job=\"alloy\",instance=\"spark.kogler.si\",mountpoint=\"/\"}) / sum(node_filesystem_size_bytes{job=\"alloy\",instance=\"spark.kogler.si\",mountpoint=\"/\"}) * 100)",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "Disk Usage",
@@ -1229,8 +1239,9 @@
           "useBackend": false
         }
       ],
-      "title": "Disk Usage (%)",
-      "type": "timeseries"
+      "title": "spark Host Disk (%) — /",
+      "type": "timeseries",
+      "description": "spark root filesystem used % (Alloy exporter; /mnt/spark_nvme is the XFS artifact store, tracked separately)."
     }
   ],
   "preload": false,

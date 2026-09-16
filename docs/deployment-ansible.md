@@ -238,6 +238,17 @@ the play aborts at `fetch-vault-pass.yml:62` (other session's audit AUD-B-2, rep
   `--diff` on the rendered compose on the target (`ssh vps 'docker compose -f /opt/<svc>/docker-compose.yml config'`).
   The live run is fast (HD-269 measured ~18s for a single service) and you get the real diff.
 
+**Second `--check` breaker class — `command`-read facts feeding a later `uri` task**
+(✅ found + FIXED 2026-09-16, HD-368 dashboards session): the monitoring role reads the Grafana
+admin password and the container IP with `ansible.builtin.command` (`docker exec grafana …`) and
+feeds both into the following `uri` tasks. `command` never runs in check mode, so those registrations
+are empty → the uri task dies on `Error while resolving value for 'url': No first item, sequence was
+empty`, which aborted **every** `playbooks/vps.yml --tags monitoring --check --diff` at that task —
+*i.e. before* `Copy Grafana dashboards`, so a dashboard-only change could not be previewed at all.
+Fix = gate the whole live-app block with `not ansible_check_mode` (it is read-or-seed against the
+running app, so there is nothing meaningful to simulate). **Rule of thumb:** any task that consumes
+a `command`/`shell`-derived fact must carry `not ansible_check_mode`, or the role is not `--check`-safe.
+
 ---
 
 ## File Layout
