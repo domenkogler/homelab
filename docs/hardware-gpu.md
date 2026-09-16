@@ -90,8 +90,8 @@ pinned services (STT/embed/rerank) moved to the oldsrv RX 7600 (decision #24).
 > (2026-09-15 ×2, 2026-09-16 ×1; kernel killed the user session before the engine on the third).
 > Budget mechanics, sizing table, incident log + diagnosis recipe: [hardware-spark.md](hardware-spark.md)
 > **§Unified-memory budget & OOM governance**. Simply put: the *only* real governor of host headroom on
-> this box is vLLM's `--kv-cache-memory`/`gpu_memory_utilization`; the container memory cage cannot
-> protect the host (GPU pages are not cgroup-charged).
+> this box is vLLM's `--kv-cache-memory-bytes` (or `gpu_memory_utilization` pre-HD-374); the container
+> memory cage cannot protect the host (GPU pages are not cgroup-charged).
 
 | Mode | Active Models | Memory (approx) | Trigger |
 |---|---|---|---|

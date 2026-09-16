@@ -29,7 +29,7 @@ Same failure class, escalating evidence. Summary row per incident; full narrativ
 | 0b | 2026-09-15 02:50 | C3 sanity bench 12×8k @ concurrency 3 | `NVRM` memdesc + global OOM; killed `sshd`/`NetworkManager`/`polkitd` | container survived cage; **host wedged** → power-cycle | harness: C3→6×8k@c2 + `MEM_FLOOR_GB` preflight |
 | 1 | 2026-09-15 22:31 | serve, engine wedged mid-request | no kernel OOM; engine hung (`shm_broadcast` 60 s stalls) | container restarted (new boot banner) | attributed post-hoc to thrash, not a kill |
 | 2 | 2026-09-15 23:06 | serve, long request in flight (`num_computed_tokens=36800`, +4864 scheduled) | `global_oom` 23:05:53→23:06:32: `VLLM::Worker` (total-vm 151 GB), `VLLM::EngineCor`, `python3`, `torch_shm_manag`; collateral `alloy`/`traefik`/`nvidia-smi`/`dozzle`/`fwupd` | `unless-stopped` restart @ 23:06:34 → `RestartCount=2` | none (diagnosis only — session died) |
-| 3 | 2026-09-16 09:26 | **agent session running against spark's own endpoint** | `global_oom` 09:22→09:26: user-slice `pipewire`/`pipewire-pulse`/`dbus-daemon`/`systemd`/`(sd-pam)` first, then **`python3` pid=1023317 (container PID-1)** @ 09:26:17 | `RestartCount=3`, `StartedAt=09:26:20Z`; the client session got **502** and died | **this change (2026-09-16)** — util 0.82→**0.75** + explicit `--kv-cache-memory` (see `hardware-spark.md` §Chosen governor) |
+| 3 | 2026-09-16 09:26 | **agent session running against spark's own endpoint** | `global_oom` 09:22→09:26: user-slice `pipewire`/`pipewire-pulse`/`dbus-daemon`/`systemd`/`(sd-pam)` first, then **`python3` pid=1023317 (container PID-1)** @ 09:26:17 | `RestartCount=3`, `StartedAt=09:26:20Z`; the client session got **502** and died | **this change (2026-09-16)** — explicit `--kv-cache-memory-bytes 8800000000`, util removed (see `hardware-spark.md` §Chosen governor) |
 
 ## Incident #3 — the self-referential OOM (2026-09-16)
 
@@ -60,10 +60,11 @@ reported `OOMKilled=false`/`ExitCode 0` (false negative), and the kernel's OOM k
 session before the engine. Sustained **agentic/window-heavy** inference (the exact workload the S1
 sweep had explicitly NOT certified — it was certified for *casual/chat*) exhausted the reserve.
 
-**Fix (this change):** explicit `--kv-cache-memory` primary governor + util 0.82→0.75 — see
-`hardware-spark.md` §Chosen governor. **Side-effect lesson:** running an agent session against spark's
-own endpoint means *this repo's own tooling* can OOM the box it runs on; the fix is governance, not
-workload discipline.
+**Fix (this change):** explicit `--kv-cache-memory-bytes 8800000000` (the ONLY dial — this build
+ignores `gpu_memory_utilization` when the bytes flag is set, so util is removed) → host reserve
+~21.9 → ~32.5 GiB. See `hardware-spark.md` §Chosen governor. **Side-effect lesson:** running an
+agent session against spark's own endpoint means *this repo's own tooling* can OOM the box it runs on;
+the fix is governance, not workload discipline.
 
 ---
 

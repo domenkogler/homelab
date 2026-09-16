@@ -130,12 +130,17 @@ spark_vllm_kv_cache_dtype: "auto"
 # the user session, then the container. Full model + sizing table + incident log:
 # docs/hardware-spark.md §Unified-memory budget & OOM governance + docs/spark-incidents.md.
 #
-# Governor (2026-09-16): explicit KV pool via --kv-cache-memory as the PRIMARY dial,
-# util kept as the ceiling. 8.2 GiB ≈ 275k tokens ≥ the 262,144 boot-gate with margin;
-# host reserve ≈ 32.5 GiB (was ~21.9). vLLM itself recommends this form in its startup
-# line (Replace gpu_memory_utilization config with --kv-cache-memory=…).
+# Governor (2026-09-16): explicit KV pool via --kv-cache-memory-bytes as the ONLY dial
+# (this build ignores gpu_memory_utilization when kv_cache_memory_bytes is set — verified
+# in the container's own CacheConfig/gpu_worker source). 8.2 GiB ≈ 275k tokens ≥ the
+# 262,144 boot-gate with margin; total device footprint ≈ weights 77.69 + act 2.99 + graphs
+# 0.22 + KV 8.2 ≈ 89.1 GiB → host reserve ≈ 32.5 GiB (was ~21.9).
 spark_vllm_kv_cache_memory: "8800000000"
-spark_vllm_gpu_memory_utilization: 0.75   # ceiling ONLY (0.82 was max-servable casual/chat — NOT survivable for sustained agentic load); primary dial = spark_vllm_kv_cache_memory above
+# spark_vllm_gpu_memory_utilization REMOVED 2026-09-16 (HD-374): with kv_cache_memory_bytes
+# set, this build's determine_available_memory() skips memory profiling and ignores the
+# parameter entirely — keeping it would be dead config and a false sense of a "ceiling".
+# The explicit KV pool IS the whole budget decision on GB10; the only other guard is the
+# 105G container memory cage (host-RSS backstop only — GPU pages aren't cgroup-charged).
 spark_vllm_distributed_executor_backend: "mp"
 spark_vllm_enforce_eager: false
 spark_vllm_spec_method: mtp
