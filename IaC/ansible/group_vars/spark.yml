@@ -120,7 +120,22 @@ spark_vllm_max_num_batched_tokens: 16384
 # now manages offload internally. See docs/hardware-spark.md for the bench note.
 #   swap_space: 4
 spark_vllm_kv_cache_dtype: "auto"
-spark_vllm_gpu_memory_utilization: 0.82   # S1 sweep 2026-09-15: max servable util (see above); 0.84+ crashes serving, 0.88 no headroom. Leaves ~9-15 GiB; co-resident small models prefer 0.80/150k.
+# ===== GPU×host unified-memory governance (HD-374, 2026-09-16) =====
+# GB10 has ONE 121.62 GiB pool for GPU and host. vLLM's percentage budget is
+# replace-by-percentage arithmetic: KV_pool = util×total − fixed(80.90 GiB), and
+# every GiB of pool is a GiB the OS/docker/Alloy/dashboard do not get. Three global
+# OOMs in 24 h (2026-09-15 ×2, 2026-09-16 ×1 — incl. the engine serving itself, 502s)
+# all came from the 0.82 budget leaving only ~21.9 GiB for the host, then the kernel
+# global OOM killer (NOT the cgroup cage — GPU pages are not cgroup-charged) killed
+# the user session, then the container. Full model + sizing table + incident log:
+# docs/hardware-spark.md §Unified-memory budget & OOM governance + docs/spark-incidents.md.
+#
+# Governor (2026-09-16): explicit KV pool via --kv-cache-memory as the PRIMARY dial,
+# util kept as the ceiling. 8.2 GiB ≈ 275k tokens ≥ the 262,144 boot-gate with margin;
+# host reserve ≈ 32.5 GiB (was ~21.9). vLLM itself recommends this form in its startup
+# line (Replace gpu_memory_utilization config with --kv-cache-memory=…).
+spark_vllm_kv_cache_memory: "8800000000"
+spark_vllm_gpu_memory_utilization: 0.75   # ceiling ONLY (0.82 was max-servable casual/chat — NOT survivable for sustained agentic load); primary dial = spark_vllm_kv_cache_memory above
 spark_vllm_distributed_executor_backend: "mp"
 spark_vllm_enforce_eager: false
 spark_vllm_spec_method: mtp

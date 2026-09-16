@@ -83,8 +83,18 @@ division) and **1 PFLOP FP4**.
 concurrently; model swapping is Triton/KeepAlive-driven, not a manual gaming preempt. The small
 pinned services (STT/embed/rerank) moved to the oldsrv RX 7600 (decision #24).
 
+> ⚠️ **2026-09-16 correction:** earlier wording here ("no tight VRAM budget — models load concurrently")
+> is **wrong for vLLM today**. There IS a hard budget — but it is a **host-RAM budget**: on GB10 every GPU
+> allocation is the same 121.62 GiB pool the OS runs in, and vLLM's `gpu_memory_utilization`
+> replace-by-percentage arithmetic eats the host's reserve. Three global-OOM incidents in 24 h
+> (2026-09-15 ×2, 2026-09-16 ×1; kernel killed the user session before the engine on the third).
+> Budget mechanics, sizing table, incident log + diagnosis recipe: [hardware-spark.md](hardware-spark.md)
+> **§Unified-memory budget & OOM governance**. Simply put: the *only* real governor of host headroom on
+> this box is vLLM's `--kv-cache-memory`/`gpu_memory_utilization`; the container memory cage cannot
+> protect the host (GPU pages are not cgroup-charged).
+
 | Mode | Active Models | Memory (approx) | Trigger |
-|------|--------------|-----------------|---------|
+|---|---|---|---|
 | **Programming / Coding** | Qwen3-Coder-Next-80B | ~50 GB (NVFP4) | Coding session |
 | **Family Chat / RAG** | Nemotron-Lightning-30B or Llama-3.3-70B | ~15–40 GB | Chat / retrieval |
 | **Idle** | None (Triton model swap / KeepAlive) | ~0–few GB | No activity |

@@ -146,6 +146,11 @@ services:
       - --no-enable-flashinfer-autotune
       - --kv-cache-dtype
       - {{ spark_vllm_kv_cache_dtype }}
+      # GPU×host unified-memory governance (HD-374, 2026-09-16): explicit KV-pool
+      # governor — the PRIMARY dial on GB10 (pool = shared physical RAM with the OS).
+      # Keep --gpu-memory-utilization as the ceiling; see group_vars/spark.yml.
+      - --kv-cache-memory
+      - "{{ spark_vllm_kv_cache_memory }}"
       - --gpu-memory-utilization
       - "{{ spark_vllm_gpu_memory_utilization }}"
       - --distributed-executor-backend
