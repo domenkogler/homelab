@@ -2,7 +2,7 @@
 title: spark — Lenovo ThinkStation PGX (NVIDIA GB10 Grace Blackwell)
 role: detail
 domain: hardware
-status: planned
+status: active
 tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 ---
 # spark — Lenovo ThinkStation PGX (NVIDIA GB10 Grace Blackwell)
@@ -44,6 +44,91 @@ decision log (`deployment-rejected.md`) + git history.
 
 ## Hardware
 
+> **Two tables on purpose.** §Vendor spec is what Lenovo/NVIDIA ship for MTM 30KL (PSREF + Lenovo
+> Press LP2321). §As-measured is what THIS unit reports over `ssh spark` (capture **2026-09-16**,
+> commands in §Capture commands). Measured wins for placement/perf planning; §Reality deltas names
+> every disagreement.
+
+### Identity (measured 2026-09-16)
+
+| Field | Value | Source |
+|-------|-------|--------|
+| Vendor / model | Lenovo **ThinkStation PGX** (NVIDIA GB10) | `hostnamectl` Hardware Vendor/Model |
+| Machine type (MTM) | `30KL0002GF` | `dmidecode -s system-product-name` (= `DGX_PLATFORM`) |
+| **Serial number** | **`MP30A60N`** | `/etc/dgx-release` `DGX_SERIAL_NUMBER` = `sudo dmidecode -s system-serial-number` = `chassis-serial-number` |
+| SKU string | `LENOVO_MT_30KL_BU_Think_FM_ThinkStation PGX` | `dmidecode -s system-sku-number` |
+| Firmware | UEFI **`S0QKT0EA`** dated 2026-07-13 (AMI), UEFI boot, TPM 2.0 (`/dev/tpm0` v2) | `hostnamectl` / `dmidecode -s bios-version` |
+| OS | Ubuntu **24.04.5 LTS** (noble), kernel `7.0.0-1019-nvidia` arm64 | `/etc/os-release`, `uname -mr` |
+| DGX OS | base image **7.4.0** (swbuild 2026-01-26) → OTA **7.6.0** (2026-09-14) | `/etc/dgx-release` |
+| GPU | UUID `GPU-d5ad56cc-01cf-7521-4c4e-e215e7ccd76b`, PCI id `10de:2e12` @ `000f:01:00.0`, driver **580.173.02** (`nvidia-driver-580-open`), compute cap **12.1** = **sm_121** | `nvidia-smi --query-gpu=...`, `lspci -nn` |
+| CUDA / runtime | CUDA **13.0** (`/usr/local/cuda-13.0`), `nvidia-container-toolkit` **1.20.0** | `ls -d /usr/local/cuda-*`, `dpkg -l` |
+| machine-id | `a7c5519de45d4244be889d2af3749476` | `/etc/machine-id` |
+| Ethernet MAC | `38:a7:46:78:13:97` (`enP7s7`; `enP7s7.99` shares it — VLAN subinterface) | `ip -br link` |
+| Wi-Fi MAC | `ec:3a:56:cc:9f:70` (`wlP9s9`) — **DOWN**, unused on a headless box | `ip -br link` |
+
+> **Reading the serial on this platform (not obvious):** `/proc/device-tree/serial-number` does
+> **not exist** here (the PGX carries identity in SMBIOS, not the Jetson-style device-tree) and
+> `/sys/class/dmi/id/product_serial` reads **empty without root**. Two reliable reads: `cat
+> /etc/dgx-release` (`DGX_SERIAL_NUMBER=`) or `sudo dmidecode -s system-serial-number`.
+> `dmidecode -s system-vendor` and every `board-*` string return **EMPTY** on this firmware — take
+> vendor/model from `hostnamectl` ("Lenovo / ThinkStation PGX").
+
+### As-measured hardware (2026-09-16)
+
+| Component | Measured on this unit |
+|-----------|----------------------|
+| Superchip | NVIDIA **GB10** Grace Blackwell — one SoC, no discrete PCIe GPU |
+| CPU | 20 cores / 1 socket arm64: **10× Cortex-X925** (max 3900 MHz) + **10× Cortex-A725** (max 2808 MHz); L1d + L1i 1.3 MiB each (20 inst.), L2 25 MiB (20 inst.), L3 24 MiB (2 inst.); **single NUMA node** |
+| Unified memory | **128 GB LPDDR5 @ 8533 MT/s**, one soldered package (`DIMM0`; SMBIOS max capacity 128 GB → **not expandable**), **no ECC** (`Error Correction Type: None`). Usable pool = `MemTotal` 127,532,364 kB ≈ **121.62 GiB** (rest held by SoC/ATF) |
+| Swap | `/swap.img` **16 GiB** on root ext4 (no zram) — it is inside the same unified pool, so it does not buy headroom |
+| GPU function | `000f:01:00.0` driver `nvidia`; `memory.total` / `memory.used` / `power.limit` report **N/A** (unified memory — `nvidia-smi` does not account the pool); temp 51 °C, P0. Its `LnkSta x1 (downgraded)` is an SoC-integrated artifact, **not** a slot negotiation |
+| NVMe (the only disk) | **SK hynix `HFS001TEM4X169N` 1 TB** (`1c5c:1f69`), S/N `5SF1N437313401M59`, FW `61700A30`; by-id `nvme-eui.ace42e00650eb44a` = `nvme-SKHynix_HFS001TEM4X169N_5SF1N437313401M59`; **PCIe 4.0 ×4 at full 16 GT/s** |
+| Partition layout | `p1` 512 M vfat → `/boot/efi` · `p2` **450 G** ext4 → `/` · `p3` **503.4 G** xfs → `/mnt/spark_nvme` (HD-363 carve, `noatime,nodiratime`) — the whole disk, **no unallocated room** |
+| NVMe SMART | PASS · Percentage Used **0 %** · spare 100 % · media/integrity errors **0** · written 996 GB / read 7.05 TB · **9 power-on hours**, **99 power cycles**, **8 unsafe shutdowns** (the documented wedges + power-cycles) · 48 °C (critical 87 °C) |
+| Ethernet | **Realtek RTL8127** `10ec:8127` rev 05, driver **`r8127`**, iface `enP7s7`. Advertises 10000/2500/1000/100/10 — **partnered at 1000 Mb/s full-duplex** ⚠️ delta 1 |
+| Wireless | **MediaTek MT7925** `14c3:7925` (Wi-Fi 7 class) on `wlP9s9` + BT module `13d3:3630` (IMC Networks) — radio DOWN |
+| USB | 6× xhci controllers = **12 root hubs** (each pair: one 480 M USB-2 + one **20000 M/x2** USB4-class root); no `usb4`/thunderbolt bus devices registered |
+| Display | one DRM connector `card0-Unknown-1` (HDMI 2.1a) — unused, headless |
+| Scale-out ports | **nothing enumerated** — no Mellanox (`15b3`) PCI function, no `infiniband` device, no extra netdev; `mlx5_core`/`mlx5_ib` loaded but unbound ⚠️ delta 2 |
+| Security | UEFI + **TPM 2.0** present. AES SED self-encryption of the NVMe is a **vendor claim** (PSREF) — no readable SED state via `nvme id-ctrl`, NOT verified |
+| Power | 240 W USB-C PD 3.1 PSU (vendor spec). **No `/sys/class/power_supply` entry** — the OS cannot see the PSU at all; UPS coverage is rack-side only (`hardware-ups.md`) |
+
+### Reality deltas vs vendor spec (measured 2026-09-16)
+
+1. **10 GbE is not achieved on the wire.** The NIC advertises `10000baseT/Full`, link is up, but it
+   negotiated **1000 Mb/s** (`/sys/class/net/enP7s7/speed` = 1000) — the limit is upstream (router /
+   switch port or the patch path), not the box. Consequence is concrete: multi-hundred-GB weight
+   staging (B1 = 169 G) over 1 G is the real staging cost. Check the switch port + cable rating.
+2. **No ConnectX-7 / QSFP function exists in the running system.** `lspci` shows **zero** Mellanox
+   devices and two GB10 root ports (`0000:00:00.0`, `0002:00:00.0`) train at Gen1 x4 with **no device
+   behind them** — the plausible QSFP positions. So the "2-node scale-out to 405B" line is **not
+   usable today** (nothing to configure). Per Lenovo the QSFP pair is *PGX↔PGX clustering only*
+   (cables sold separately), never general LAN connectivity — nothing else is lost. Re-check after a
+   DGX OS / UEFI update: this may be a firmware or module-probe gap, not missing silicon.
+3. **Storage is the 1 TB SKU**, not the 4 TB option — p2 (450 G) + p3 (503.4 G) is the entire device,
+   so capacity planning must never assume the 4 TB figure.
+4. **"LPDDR5x" vs SMBIOS "LPDDR5 @ 8533 MT/s"** — same soldered part, different label; PSREF quotes
+   273 GB/s bandwidth. No action.
+5. **`nvidia-smi` is not a memory gauge on GB10** (`memory.total`/`used` = N/A). Headroom math uses
+   `MemTotal` (121.62 GiB) minus host usage — every `gpu_memory_utilization` incident above came from
+   forgetting this.
+
+### Capture commands (re-derive, read-only)
+
+```sh
+ssh spark 'cat /etc/dgx-release; hostnamectl; uname -mr'
+ssh spark 'sudo dmidecode -s system-serial-number; sudo dmidecode -s system-product-name; sudo dmidecode -s bios-version'
+ssh spark 'lscpu | grep -E "Model name|CPU\(s\)|MHz|L2|L3"; grep MemTotal /proc/meminfo; sudo dmidecode -t 16 -t 17'
+ssh spark 'nvidia-smi --query-gpu=name,driver_version,uuid,compute_cap,temperature.gpu --format=csv'
+ssh spark 'sudo nvme list; sudo smartctl -H -A /dev/nvme0; ls -l /dev/disk/by-id/; lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS /dev/nvme0n1'
+ssh spark 'lspci -nn; sudo ethtool enP7s7 | grep -E "Speed|link modes"; ip -br link'
+```
+
+(The other hosts use [`../scripts/collect-disk-facts.sh`](../scripts/collect-disk-facts.sh) from a
+console/live USB; spark is SSH-reachable, so the inline sweep above is enough — no new script.)
+
+### Vendor spec (Lenovo PSREF / Lenovo Press LP2321, MTM 30KL)
+
 | Component | Specification |
 |-----------|---------------|
 | Superchip | **NVIDIA GB10 Grace Blackwell** (same silicon as DGX Spark) |
@@ -51,13 +136,14 @@ decision log (`deployment-rejected.md`) + git history.
 | GPU | Blackwell — 5th-gen Tensor Cores, 4th-gen RT Cores, NVENC/NVDEC |
 | AI performance | **1000 TOPS · 1 PFLOP (FP4, sparsity)** |
 | Unified memory | **128 GB LPDDR5x** (256-bit, 273 GB/s) — shared CPU/GPU |
-| Storage | 1 TB or 4 TB NVMe M.2 (self-encrypting, AES SED) |
+| Storage | 1 TB **or** 4 TB NVMe M.2 (self-encrypting, AES SED) — **this unit: 1 TB SK hynix** (§As-measured) |
 | Power | **240 W** USB-C PD 3.1 PSU |
 | Form factor | 1.13 L SFF (150 × 150 × 50.5 mm, ~1.2 kg) |
-| Network | **10 GbE** RJ-45 + 2× QSFP (NVIDIA ConnectX-7) — 2-node scale-out to 405B |
+| Network | **10 GbE** RJ-45 (Realtek on this unit) + 2× QSFP 200 G for NVIDIA ConnectX-7 — 2-node scale-out to 405B; ⚠️ **neither is live here**: link is 1 G, no ConnectX function enumerated (§Reality deltas 1–2) |
 | Wireless | Wi-Fi 7, Bluetooth 5.3 LE |
 | Ports | 3× USB-C USB4 (20 Gb/s, DP 2.1), HDMI 2.1a, RJ-45 10GbE, 2× QSFP |
-| OS | NVIDIA DGX OS / Ubuntu Pro with NVIDIA Base OS, **CUDA 13** |
+| OS | NVIDIA DGX OS / Ubuntu Pro with NVIDIA Base OS, **CUDA 13** — live: DGX Spark **7.6.0** on Ubuntu 24.04.5, CUDA 13.0, driver 580.173.02 |
+| Security | Self-encrypting NVMe (AES SED), **TPM 2.0**, NVLink-C2C enclave, NVIDIA FW recovery, AMI setup password, UEFI Secure Boot (only TPM 2.0 + UEFI verified on this unit) |
 
 ## Planned role — headless Triton inference node
 
@@ -170,10 +256,14 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
   NIC not cabled" note is OBSOLETE — there is NO second NIC. Router-side: the `dhcp-mgmt` static
   for spark's mgmt IP renders in the converge template (standard `render-converge.yml`→/import).
 - Connects via **10 GbE** to the LAN (Home/Mgmt per the router port model); IP/reservation SSOT to be
-  added to `network_static_hosts` at provision time (never hardcoded).
+  added to `network_static_hosts` at provision time (never hardcoded). ⚠️ **Live 2026-09-16: the link
+  negotiates at 1000 Mb/s** on `enP7s7` although the NIC advertises 10 G — the port/cable path, not the
+  NIC (see §Reality deltas 1).
 - Exposes the Triton gRPC/HTTP endpoint on the `llm-backend` overlay (or a `triton-backend` net),
   reachable **only by LiteLLM** — same isolation model as Ollama (HD-59). No host port binds.
-- 2× QSFP ConnectX-7 ports reserved for a future 2-node scale-out (to 405B models) — not used now.
+- 2× QSFP ConnectX-7 ports reserved for a future 2-node scale-out (to 405B models) — **not used now,
+  and not currently usable**: no ConnectX/Mellanox PCI function is enumerated at all, and per Lenovo
+  those ports do PGX↔PGX clustering only (never general networking) — §Reality deltas 2.
 
 ## Remote management
 
