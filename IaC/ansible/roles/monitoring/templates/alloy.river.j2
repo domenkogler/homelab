@@ -19,7 +19,16 @@
 
 // ---- Host metrics (node_exporter replacement) ----
 prometheus.exporter.unix "host" {
-    // Default collectors enabled — disk, cpu, load, memory, network, filesystem
+    // Explicit collector set (NOT the node_exporter default): everything the
+    // dashboards query. `diskstats` carries the disk I/O/throughput series
+    // (HD-378) and `hwmon`/`thermal_zone` carry the sensor temperatures — both
+    // were missing while Host Overview showed capacity only.
+    // hwmon on spark emits chip="nvme_nvme0" (Composite/max/crit) + chip=
+    // "thermal_thermal_zone0" (7 acpitz zones) + the mt7925 WiFi PHY; verified
+    // against a local node_exporter run on spark, 2026-09-16. It reads
+    // /sys/class/hwmon, which exists today with no extra software — the GB10
+    // GPU die temperature is NOT in there (no nvidia hwmon chip), that rides
+    // DCGM. See docs/observability.md §Host sensors.
     set_collectors = [
         "cpu",
         "diskstats",
@@ -28,6 +37,8 @@ prometheus.exporter.unix "host" {
         "netdev",
         "filefd",
         "filesystem",
+        "hwmon",
+        "thermal_zone",
         "stat",
         "time",
         "uname",

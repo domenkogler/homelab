@@ -979,7 +979,296 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "GPU utilisation / temperature / power from **NVIDIA DCGM** — the only source for SM activity, tensor-pipe activity and power on this box. EMPTY BY DESIGN: no DCGM on spark (verified 2026-09-16: no dcgm/dcgmi package; `nvidia-smi -q -d MEMORY` → Total/Used/Free N/A; `dmon -s um` → fb/bar1 `-`). Wiring = run the DCGM exporter (docker.io/nvidia/dcgm-exporter ships arm64) loopback-published on :9400 + a prometheus.scrape \"dcgm\" block in alloy.river.j2; these queries then fill with no dashboard change. NOT faked from host CPU/RAM: that is a different quantity and a dashboard that lies about the GPU is worse than an empty panel. Runbook: docs/observability.md §LLM Dashboard.",
+      "description": "Bytes/s on the single NVMe device (nvme0n1) that carries BOTH the EXT4 root and the XFS weights/KV mount — the block layer cannot separate the two, so attribute a large sustained read to the model load and anything steady-and-small to the OS. Read spikes at the moment a load starts, with the engine's `num_requests_running` still at 0, = streaming weights, not inference I/O.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 26
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(node_disk_read_bytes_total{job=\"alloy\", instance=\"spark.kogler.si\"}[5m])",
+          "legendFormat": "read · {{ device }}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(node_disk_written_bytes_total{job=\"alloy\", instance=\"spark.kogler.si\"}[5m])",
+          "legendFormat": "write · {{ device }}",
+          "refId": "B"
+        }
+      ],
+      "title": "spark disk I/O — read / write throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Completed read/write operations per second on nvme0n1. Read it against the throughput panel: high bytes at LOW iops = sequential streaming (a healthy weight load); low bytes at HIGH iops = small random I/O. Per-operation wait time is deliberately NOT plotted here — the builder gives every target the panel's unit, and seconds-per-op on an ops/s axis is exactly the kind of mislabeled series this board refuses; it is on Host Overview (\"Disk avg wait\") with the correct unit.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 26
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(node_disk_reads_completed_total{job=\"alloy\", instance=\"spark.kogler.si\"}[5m])",
+          "legendFormat": "reads/s · {{ device }}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(node_disk_writes_completed_total{job=\"alloy\", instance=\"spark.kogler.si\"}[5m])",
+          "legendFormat": "writes/s · {{ device }}",
+          "refId": "B"
+        }
+      ],
+      "title": "spark disk IOPS — completions/s",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "The saturation half of the USE method: fraction of time nvme0n1 had at least one request in flight. Pinned near 1.0 while throughput is below what the device can do = queue depth/segment limits or a contended mount, not a slow disk. Same counter as Host Overview's 'Busiest disk' stat, over time.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 26
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(node_disk_io_time_seconds_total{job=\"alloy\", instance=\"spark.kogler.si\"}[5m])",
+          "legendFormat": "busy · {{ device }}",
+          "refId": "A"
+        }
+      ],
+      "title": "spark disk saturation — device busy %",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "SM / tensor-pipe / device-memory activity ratios. **EMPTY PERMANENTLY ⏳ — these three series can never appear on a GB10, and this panel is pending deletion, not wiring.** Measured 2026-09-16 with the `nvidia/dcgm-exporter` image already on spark: the exporter starts, then logs `Not collecting DCP metrics: This request is serviced by a module of DCGM that is not currently loaded`, and forcing the DCP counter file gives `Skipping line 21..25 (GR_ENGINE_ACTIVE / PIPE_TENSOR_ACTIVE / DRAM_ACTIVE / PCIE_TX_BYTES / PCIE_RX_BYTES): metric not enabled`. NVIDIA has stated DCGM profiling will not be supported on Spark (not a datacenter device). What DCGM DOES give here — and what is worth wiring instead — is `DCGM_FI_DEV_GPU_UTIL` (measured 88-90 % under load), `GPU_TEMP` (50-58 C), `POWER_USAGE` (12-39 W), `TOTAL_ENERGY_CONSUMPTION`, `SM_CLOCK` (2509 MHz) and `XID_ERRORS`; none of those is on any other exporter, and they are NOT faked from host CPU%/RAM, which is a different quantity. Runbook + the full emit/refuse table: docs/observability.md §LLM Dashboard (GPU) and §Host sensors and disk I/O.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1032,9 +1321,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 26
+        "y": 34
       },
-      "id": 15,
+      "id": 18,
       "options": {
         "legend": {
           "calcs": [
@@ -1080,7 +1369,7 @@
           "refId": "C"
         }
       ],
-      "title": "spark GPU — DCGM (⏳ not yet wired)",
+      "title": "spark GPU — DCGM (⚠ impossible on GB10, pending deletion)",
       "type": "timeseries"
     },
     {
@@ -1139,9 +1428,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 34
       },
-      "id": 16,
+      "id": 19,
       "options": {
         "legend": {
           "calcs": [
@@ -1200,12 +1489,12 @@
         "h": 3,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 42
       },
-      "id": 17,
+      "id": 20,
       "mode": "markdown",
       "options": {
-        "content": "**GB10 has no independent VRAM counter** — `nvidia-smi` reports `N/A` for FB/BAR1 memory and DCGM is not installed. So 'GPU usage' is assembled from three honest signals: unified-pool RAM (the GPU allocation lives there), engine RSS (the process's share of it), and engine-reported work. **DCGM panels stay empty until wired** — that is a decision, not a bug: the alternative is a GPU panel plotting CPU. nvidia-smi *can* still give temp + power (`temperature.gpu`, `power.draw`) — those ride on the DCGM row, since DCGM is also the exporter that would carry them; a bespoke nvidia-smi textfile collector is deliberately not built here (one more unmanaged moving part on the box that OOMs).",
+        "content": "**GB10 has no independent VRAM counter, by design.** NVIDIA's own answer to `nvidia-smi` reporting memory as \"Not Supported\": the DGX Spark is a unified-memory device and nvidia-smi reports memory utilisation only when there is dedicated VRAM — for memory usage use `free`/`top` or the DGX Dashboard. Measured here: `nvidia-smi -q -d MEMORY` → FB/BAR1 N/A, `dmon -s um` → fb/bar1 `-`, and the dcgm-exporter emits **no** `FB_*` series. So 'GPU usage' is assembled from three honest signals: unified-pool RAM (the allocation lives there), engine RSS (the process's share of it) and engine-reported work. **Nothing is faked:** the alternative would be a GPU panel plotting CPU. ⚠ The DGX Dashboard's 'GPU Memory' tile is *system* RAM under a GPU label (`memory_total_in_kib` = 127532360 KiB = the whole 121.6 GiB pool; its `gpu_memory_in_use_in_mb` is a hard 0) — do not copy that semantic here. Temperatures are split on purpose: host silicon (NVMe composite, acpitz SoC zones, WiFi PHY) is on **Host Overview** from the Alloy `hwmon` collector; the GPU die temperature is DCGM's `DCGM_FI_DEV_GPU_TEMP` (there is no nvidia hwmon chip, and the acpitz zones run 5-15 C above it — they are NOT the GPU).",
         "mode": "markdown"
       },
       "targets": [],
@@ -1218,9 +1507,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 37
+        "y": 45
       },
-      "id": 18,
+      "id": 21,
       "panels": [],
       "title": "Scheduling & Concurrency",
       "type": "row"
@@ -1282,9 +1571,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 38
+        "y": 46
       },
-      "id": 19,
+      "id": 22,
       "options": {
         "legend": {
           "calcs": [
@@ -1382,9 +1671,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 38
+        "y": 46
       },
-      "id": 20,
+      "id": 23,
       "options": {
         "legend": {
           "calcs": [
@@ -1454,9 +1743,9 @@
         "h": 5,
         "w": 8,
         "x": 16,
-        "y": 38
+        "y": 46
       },
-      "id": 21,
+      "id": 24,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -1596,9 +1885,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 46
+        "y": 54
       },
-      "id": 22,
+      "id": 25,
       "options": {
         "legend": {
           "calcs": [
@@ -1714,9 +2003,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 46
+        "y": 54
       },
-      "id": 23,
+      "id": 26,
       "options": {
         "legend": {
           "calcs": [
@@ -1792,9 +2081,9 @@
         "h": 5,
         "w": 8,
         "x": 16,
-        "y": 46
+        "y": 54
       },
-      "id": 24,
+      "id": 27,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -1871,9 +2160,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 54
+        "y": 62
       },
-      "id": 25,
+      "id": 28,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
@@ -1973,9 +2262,9 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 54
+        "y": 62
       },
-      "id": 26,
+      "id": 29,
       "options": {
         "legend": {
           "calcs": [
@@ -2022,9 +2311,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 62
+        "y": 70
       },
-      "id": 27,
+      "id": 30,
       "panels": [],
       "title": "Latency",
       "type": "row"
@@ -2093,9 +2382,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 63
+        "y": 71
       },
-      "id": 28,
+      "id": 31,
       "options": {
         "legend": {
           "calcs": [
@@ -2236,9 +2525,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 63
+        "y": 71
       },
-      "id": 29,
+      "id": 32,
       "options": {
         "legend": {
           "calcs": [
@@ -2379,9 +2668,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 71
+        "y": 79
       },
-      "id": 30,
+      "id": 33,
       "options": {
         "legend": {
           "calcs": [
@@ -2518,9 +2807,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 71
+        "y": 79
       },
-      "id": 31,
+      "id": 34,
       "options": {
         "legend": {
           "calcs": [
@@ -2585,9 +2874,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 79
+        "y": 87
       },
-      "id": 32,
+      "id": 35,
       "panels": [],
       "title": "Throughput & Workload",
       "type": "row"
@@ -2652,9 +2941,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 80
+        "y": 88
       },
-      "id": 33,
+      "id": 36,
       "options": {
         "legend": {
           "calcs": [
@@ -2764,9 +3053,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 80
+        "y": 88
       },
-      "id": 34,
+      "id": 37,
       "options": {
         "legend": {
           "calcs": [
@@ -2847,9 +3136,9 @@
         "h": 5,
         "w": 8,
         "x": 0,
-        "y": 88
+        "y": 96
       },
-      "id": 35,
+      "id": 38,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -2941,9 +3230,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 88
+        "y": 96
       },
-      "id": 36,
+      "id": 39,
       "options": {
         "legend": {
           "calcs": [
@@ -3012,9 +3301,9 @@
         "h": 3,
         "w": 8,
         "x": 16,
-        "y": 88
+        "y": 96
       },
-      "id": 37,
+      "id": 40,
       "mode": "markdown",
       "options": {
         "content": "The two panels above (gnet 25502) **already** cover both engines: each keeps a `vllm:*` target and the `sglang:realtime_tokens_total` sibling side by side. Re-writing them into one `{__name__=~...}` regex would only be possible by assuming vLLM's `prompt_tokens_total` and SGLang's `realtime_tokens_total` are the same quantity measured the same way — they are not (the SGLang counter carries a `mode` dimension), and a sum across them would print a number that means neither. **Cross-engine joins in this dashboard are applied only where the two engines expose the same metric name** (the waiting_by_reason / prefix_cache_* / num_preemptions_total family), which is why the joins are visible in the Scheduling and Cache rows and absent here.",
@@ -3030,9 +3319,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 96
+        "y": 104
       },
-      "id": 38,
+      "id": 41,
       "panels": [],
       "title": "Cache",
       "type": "row"
@@ -3095,9 +3384,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 97
+        "y": 105
       },
-      "id": 39,
+      "id": 42,
       "options": {
         "legend": {
           "calcs": [
@@ -3193,9 +3482,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 97
+        "y": 105
       },
-      "id": 40,
+      "id": 43,
       "options": {
         "legend": {
           "calcs": [
@@ -3285,9 +3574,9 @@
         "h": 5,
         "w": 8,
         "x": 16,
-        "y": 97
+        "y": 105
       },
-      "id": 41,
+      "id": 44,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -3325,9 +3614,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 105
+        "y": 113
       },
-      "id": 42,
+      "id": 45,
       "panels": [],
       "title": "Reliability",
       "type": "row"
@@ -3404,9 +3693,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 106
+        "y": 114
       },
-      "id": 43,
+      "id": 46,
       "options": {
         "displayLabels": [
           "name",
@@ -3542,9 +3831,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 106
+        "y": 114
       },
-      "id": 44,
+      "id": 47,
       "options": {
         "legend": {
           "calcs": [
@@ -3664,9 +3953,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 106
+        "y": 114
       },
-      "id": 45,
+      "id": 48,
       "options": {
         "legend": {
           "calcs": [
@@ -3713,9 +4002,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 114
+        "y": 122
       },
-      "id": 46,
+      "id": 49,
       "panels": [],
       "title": "Request shape (single-engine deep dive)",
       "type": "row"
@@ -3745,9 +4034,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 115
+        "y": 123
       },
-      "id": 47,
+      "id": 50,
       "options": {
         "calculate": false,
         "cellGap": 1,
@@ -3898,9 +4187,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 115
+        "y": 123
       },
-      "id": 48,
+      "id": 51,
       "options": {
         "legend": {
           "calcs": [
@@ -3946,9 +4235,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 123
+        "y": 131
       },
-      "id": 49,
+      "id": 52,
       "panels": [],
       "title": "Per-engine / TP-rank detail",
       "type": "row"
@@ -4013,9 +4302,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 124
+        "y": 132
       },
-      "id": 50,
+      "id": 53,
       "options": {
         "legend": {
           "calcs": [
@@ -4116,9 +4405,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 124
+        "y": 132
       },
-      "id": 51,
+      "id": 54,
       "options": {
         "legend": {
           "calcs": [
@@ -4227,9 +4516,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 132
+        "y": 140
       },
-      "id": 52,
+      "id": 55,
       "options": {
         "legend": {
           "calcs": [
@@ -4331,9 +4620,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 132
+        "y": 140
       },
-      "id": 53,
+      "id": 56,
       "options": {
         "legend": {
           "calcs": [
@@ -4380,9 +4669,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 140
+        "y": 148
       },
-      "id": 54,
+      "id": 57,
       "panels": [],
       "title": "Forward look — RX 7600 (oldsrv) + SGLang",
       "type": "row"
@@ -4397,9 +4686,9 @@
         "h": 3,
         "w": 24,
         "x": 0,
-        "y": 141
+        "y": 149
       },
-      "id": 55,
+      "id": 58,
       "mode": "markdown",
       "options": {
         "content": "**The rows above are engine-agnostic on purpose.** Every joined query groups `by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds a series, not a dashboard. **RX 7600 (oldsrv, decision #24 pinned-services tier — Whisper STT + bge-m3 embed + bge-reranker):** needs an ROCm exporter (`rocm-smi`/amd_smi → Prometheus textfile) + an oldsrv Alloy scrape job, then its GPU columns land in the node row here — that card DOES expose VRAM, unlike the GB10. **SGLang:** needs `prometheus.scrape \"sglang\"` only; its `sglang:*` sibling is already written into every joined query, so the SGLang half of this dashboard fills from the same file. **The three HD-368 dashboards stay provisioned** until the owner retires them.",

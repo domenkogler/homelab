@@ -108,6 +108,57 @@
       ]
     },
     {
+      "type": "stat",
+      "title": "Hottest sensor",
+      "description": "Max of every `node_hwmon_temp_celsius` sensor the host exposes (chip + sensor labels carry the name). ⏳ EMPTY until the Alloy `hwmon`/`thermal_zone` collectors are converged (`set_collectors` in alloy.river.j2) — the sensors exist in /sys/class/hwmon today, they were simply never scraped. Per-sensor limits are live in `node_hwmon_temp_max_celsius` / `_crit_celsius`; the GB10 GPU die temperature is NOT here (no nvidia hwmon chip) — it comes from DCGM on spark.",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 75 },
+            { "color": "red", "value": 85 }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (instance) (node_hwmon_temp_celsius{job=\"alloy\", instance=~\"$instance\"})",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Busiest disk",
+      "description": "Peak device saturation across the selected hosts: the fraction of the last 5 min the device had I/O in flight (`node_disk_io_time_seconds_total`). Near 1.0 = the device is the bottleneck, whatever the throughput looks like. Live today — `diskstats` was already enabled.",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.6 },
+            { "color": "red", "value": 0.9 }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (instance) (rate(node_disk_io_time_seconds_total{job=\"alloy\", instance=~\"$instance\"}[5m]))",
+          "instant": true
+        }
+      ]
+    },
+    {
       "type": "timeseries",
       "title": "CPU usage % (per instance)",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
@@ -190,6 +241,141 @@
           "refId": "B",
           "expr": "sum(rate(node_network_transmit_bytes_total{job=\"alloy\", instance=~\"$instance\"}[5m])) by (instance)",
           "legendFormat": "{{instance}} tx"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk throughput (read / write B/s per device)",
+      "description": "Bytes moved per second per block device. The row above is CAPACITY (how full); this is the work (how hard). One series per device — on spark that is nvme0n1, which carries both the EXT4 root and the XFS model-weights mount, so the two cannot be separated here; per-mount capacity stays in the panel above. Live: node_disk_* from the Alloy unix exporter (diskstats collector).",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": { "fillOpacity": 10, "showPoints": "never" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_disk_read_bytes_total{job=\"alloy\", instance=~\"$instance\"}[5m])",
+          "legendFormat": "{{instance}} {{device}} read"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(node_disk_written_bytes_total{job=\"alloy\", instance=~\"$instance\"}[5m])",
+          "legendFormat": "{{instance}} {{device}} write"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk IOPS (completions/s per device)",
+      "description": "Completed read/write operations per second. High IOPS at low throughput = small random I/O (metadata, many small shards); low IOPS at high throughput = sequential streaming (model load, backup).",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "fillOpacity": 10, "showPoints": "never" }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_disk_reads_completed_total{job=\"alloy\", instance=~\"$instance\"}[5m])",
+          "legendFormat": "{{instance}} {{device}} reads"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(node_disk_writes_completed_total{job=\"alloy\", instance=~\"$instance\"}[5m])",
+          "legendFormat": "{{instance}} {{device}} writes"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk busy % (device saturation)",
+      "description": "Fraction of time the device had at least one request in flight — the saturation half of the USE method, and the only one of these panels that says 'this disk is the limit'. Reads the same counter as the 'Busiest disk' stat, over time and per device.",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0, "max": 1,
+          "custom": { "fillOpacity": 10, "showPoints": "never" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.6 },
+            { "color": "red", "value": 0.9 }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_disk_io_time_seconds_total{job=\"alloy\", instance=~\"$instance\"}[5m])",
+          "legendFormat": "{{instance}} {{device}} busy"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk avg wait (ms per op)",
+      "description": "Mean latency per completed operation = io-time counter / completion counter, per device. The symptom panel: if a model load or a Kopia backup is slow and this is climbing while throughput is flat, the device is queueing. clamp_min keeps the ratio finite in idle windows (0 ops/s).",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "fillOpacity": 10, "showPoints": "never" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.02 },
+            { "color": "red", "value": 0.1 }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(node_disk_read_time_seconds_total{job=\"alloy\", instance=~\"$instance\"}[5m]) / clamp_min(rate(node_disk_reads_completed_total{job=\"alloy\", instance=~\"$instance\"}[5m]), 1)",
+          "legendFormat": "{{instance}} {{device}} read wait"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(node_disk_write_time_seconds_total{job=\"alloy\", instance=~\"$instance\"}[5m]) / clamp_min(rate(node_disk_writes_completed_total{job=\"alloy\", instance=~\"$instance\"}[5m]), 1)",
+          "legendFormat": "{{instance}} {{device}} write wait"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Temperatures (hwmon sensors)",
+      "description": "One line per chip+sensor from /sys/class/hwmon. On spark (verified live 2026-09-16): chip=nvme_nvme0 temp1 = the NVMe COMPOSITE temperature (the one to watch, crit 86.9 C / max 85.9 C), chip=thermal_thermal_zone0 temp0..6 = the acpitz SoC zones, chip=ieee80211_phy0 = the mt7925 WiFi PHY. Sensor NAMES are in node_hwmon_sensor_label and per-sensor limits in node_hwmon_temp_max_celsius / _crit_celsius. ⏳ EMPTY until the Alloy hwmon + thermal_zone collectors are converged — the GB10 GPU die temp is NOT here (no nvidia hwmon chip; DCGM's DCGM_FI_DEV_GPU_TEMP is the source for that). The acpitz zones are CPU/SoC domains, NOT the GPU: their readings differ from nvidia-smi/DCGM by 5-15 C.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "min": 0, "max": 100,
+          "custom": { "fillOpacity": 5, "showPoints": "never", "axisPlacement": "left" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 75 },
+            { "color": "red", "value": 85 }
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_hwmon_temp_celsius{job=\"alloy\", instance=~\"$instance\"}",
+          "legendFormat": "{{instance}} · {{chip}} · {{sensor}}"
         }
       ]
     }

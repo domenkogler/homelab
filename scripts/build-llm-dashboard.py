@@ -90,6 +90,7 @@ LAYOUT: list[tuple[str, str, list[tuple[str, int]]]] = [
     ("row_spark", "spark node — CPU / RAM / GPU (GB10 unified memory)", [
         ("new:spark_cpu", 8), ("new:spark_ram_pct", 8), ("new:spark_ram", 8),
         ("new:spark_load", 8), ("new:engine_rss", 8), ("new:spark_disk", 8),
+        ("new:spark_disk_io", 8), ("new:spark_disk_iops", 8), ("new:spark_disk_sat", 8),
         ("new:spark_gpu", 12), ("new:gpu_activity", 12),
         ("new:spark_gpu_note", 24),
     ]),
@@ -490,20 +491,88 @@ NEW_PANELS = {
             "legend": "{{ mountpoint }}",
         }],
     },
+    # --- disk WORK, not disk capacity -------------------------------------------------
+    # The owner asked for "DISK io/throughput", and it matters here for one concrete
+    # reason: every model load streams tens of GB through the XFS mount on nvme0n1, so
+    # a slow-looking load is either the device saturating or the engine not asking for
+    # data — these two panels separate them. Verified live in VM 2026-09-16:
+    # node_disk_* exists for instance="spark.kogler.si", device="nvme0n1" (the Alloy
+    # unix exporter already enables `diskstats`) — no exporter or scrape change needed.
+    # One device serves both / (EXT4) and /mnt/spark_nvme (XFS), so the split by
+    # mountpoint is NOT available at the block layer; capacity stays per-mount above.
+    "spark_disk_io": {
+        "type": "timeseries",
+        "title": "spark disk I/O — read / write throughput",
+        "description": (
+            "Bytes/s on the single NVMe device (nvme0n1) that carries BOTH the EXT4 root "
+            "and the XFS weights/KV mount — the block layer cannot separate the two, so "
+            "attribute a large sustained read to the model load and anything steady-and-"
+            "small to the OS. Read spikes at the moment a load starts, with the engine's "
+            "`num_requests_running` still at 0, = streaming weights, not inference I/O."
+        ),
+        "unit": "Bps", "min": 0,
+        "targets": [
+            {"expr": f'rate(node_disk_read_bytes_total{{{SPARK}}}[5m])',
+             "legend": "read · {{ device }}"},
+            {"expr": f'rate(node_disk_written_bytes_total{{{SPARK}}}[5m])',
+             "legend": "write · {{ device }}"},
+        ],
+    },
+    "spark_disk_iops": {
+        "type": "timeseries",
+        "title": "spark disk IOPS — completions/s",
+        "description": (
+            "Completed read/write operations per second on nvme0n1. Read it against the "
+            "throughput panel: high bytes at LOW iops = sequential streaming (a healthy "
+            "weight load); low bytes at HIGH iops = small random I/O. Per-operation wait "
+            "time is deliberately NOT plotted here — the builder gives every target the "
+            "panel's unit, and seconds-per-op on an ops/s axis is exactly the kind of "
+            "mislabeled series this board refuses; it is on Host Overview (\"Disk avg "
+            "wait\") with the correct unit."
+        ),
+        "unit": "ops", "min": 0,
+        "targets": [
+            {"expr": f'rate(node_disk_reads_completed_total{{{SPARK}}}[5m])',
+             "legend": "reads/s · {{ device }}"},
+            {"expr": f'rate(node_disk_writes_completed_total{{{SPARK}}}[5m])',
+             "legend": "writes/s · {{ device }}"},
+        ],
+    },
+    "spark_disk_sat": {
+        "type": "timeseries",
+        "title": "spark disk saturation — device busy %",
+        "description": (
+            "The saturation half of the USE method: fraction of time nvme0n1 had at least "
+            "one request in flight. Pinned near 1.0 while throughput is below what the "
+            "device can do = queue depth/segment limits or a contended mount, not a slow "
+            "disk. Same counter as Host Overview's 'Busiest disk' stat, over time."
+        ),
+        "unit": "percentunit", "min": 0, "max": 1,
+        "targets": [
+            {"expr": f'rate(node_disk_io_time_seconds_total{{{SPARK}}}[5m])',
+             "legend": "busy · {{ device }}"},
+        ],
+    },
     "spark_gpu": {
         "type": "timeseries",
-        "title": "spark GPU — DCGM (⏳ not yet wired)",
+        "title": "spark GPU — DCGM (⚠ impossible on GB10, pending deletion)",
         "description": (
-            "GPU utilisation / temperature / power from **NVIDIA DCGM** — the only source "
-            "for SM activity, tensor-pipe activity and power on this box. EMPTY BY DESIGN: "
-            "no DCGM on spark (verified 2026-09-16: no dcgm/dcgmi package; "
-            "`nvidia-smi -q -d MEMORY` → Total/Used/Free N/A; `dmon -s um` → fb/bar1 `-`). "
-            "Wiring = run the DCGM exporter (docker.io/nvidia/dcgm-exporter ships arm64) "
-            "loopback-published on :9400 + a prometheus.scrape \"dcgm\" block in "
-            "alloy.river.j2; these queries then fill with no dashboard change. "
-            "NOT faked from host CPU/RAM: that is a different quantity and a dashboard "
-            "that lies about the GPU is worse than an empty panel. Runbook: "
-            "docs/observability.md §LLM Dashboard."
+            "SM / tensor-pipe / device-memory activity ratios. **EMPTY PERMANENTLY ⏳ — "
+            "these three series can never appear on a GB10, and this panel is pending "
+            "deletion, not wiring.** "
+            "Measured 2026-09-16 with the `nvidia/dcgm-exporter` image already on spark: "
+            "the exporter starts, then logs `Not collecting DCP metrics: This request is "
+            "serviced by a module of DCGM that is not currently loaded`, and forcing the "
+            "DCP counter file gives `Skipping line 21..25 (GR_ENGINE_ACTIVE / "
+            "PIPE_TENSOR_ACTIVE / DRAM_ACTIVE / PCIE_TX_BYTES / PCIE_RX_BYTES): metric "
+            "not enabled`. NVIDIA has stated DCGM profiling will not be supported on "
+            "Spark (not a datacenter device). What DCGM DOES give here — and what is "
+            "worth wiring instead — is `DCGM_FI_DEV_GPU_UTIL` (measured 88-90 % under "
+            "load), `GPU_TEMP` (50-58 C), `POWER_USAGE` (12-39 W), "
+            "`TOTAL_ENERGY_CONSUMPTION`, `SM_CLOCK` (2509 MHz) and `XID_ERRORS`; none of "
+            "those is on any other exporter, and they are NOT faked from host CPU%/RAM, "
+            "which is a different quantity. Runbook + the full emit/refuse table: "
+            "docs/observability.md §LLM Dashboard (GPU) and §Host sensors and disk I/O."
         ),
         "unit": "percentunit", "min": 0, "max": 1,
         "targets": [
@@ -536,16 +605,23 @@ NEW_PANELS = {
         "type": "text",
         "title": "GB10 GPU telemetry — what is and is not available",
         "content": (
-            "**GB10 has no independent VRAM counter** — `nvidia-smi` reports `N/A` for "
-            "FB/BAR1 memory and DCGM is not installed. So 'GPU usage' is assembled from "
-            "three honest signals: unified-pool RAM (the GPU allocation lives there), "
-            "engine RSS (the process's share of it), and engine-reported work. "
-            "**DCGM panels stay empty until wired** — that is a decision, not a bug: the "
-            "alternative is a GPU panel plotting CPU. "
-            "nvidia-smi *can* still give temp + power (`temperature.gpu`, `power.draw`) — "
-            "those ride on the DCGM row, since DCGM is also the exporter that would carry "
-            "them; a bespoke nvidia-smi textfile collector is deliberately not built here "
-            "(one more unmanaged moving part on the box that OOMs)."
+            "**GB10 has no independent VRAM counter, by design.** NVIDIA's own answer to "
+            "`nvidia-smi` reporting memory as \"Not Supported\": the DGX Spark is a "
+            "unified-memory device and nvidia-smi reports memory utilisation only when "
+            "there is dedicated VRAM — for memory usage use `free`/`top` or the DGX "
+            "Dashboard. Measured here: `nvidia-smi -q -d MEMORY` → FB/BAR1 N/A, "
+            "`dmon -s um` → fb/bar1 `-`, and the dcgm-exporter emits **no** `FB_*` series. "
+            "So 'GPU usage' is assembled from three honest signals: unified-pool RAM (the "
+            "allocation lives there), engine RSS (the process's share of it) and "
+            "engine-reported work. **Nothing is faked:** the alternative would be a GPU "
+            "panel plotting CPU. "
+            "⚠ The DGX Dashboard's 'GPU Memory' tile is *system* RAM under a GPU label "
+            "(`memory_total_in_kib` = 127532360 KiB = the whole 121.6 GiB pool; its "
+            "`gpu_memory_in_use_in_mb` is a hard 0) — do not copy that semantic here. "
+            "Temperatures are split on purpose: host silicon (NVMe composite, acpitz SoC "
+            "zones, WiFi PHY) is on **Host Overview** from the Alloy `hwmon` collector; "
+            "the GPU die temperature is DCGM's `DCGM_FI_DEV_GPU_TEMP` (there is no nvidia "
+            "hwmon chip, and the acpitz zones run 5-15 C above it — they are NOT the GPU)."
         ),
     },
 
@@ -1050,6 +1126,9 @@ def guard_instance(dash: dict) -> list:
     node_titles = {"spark CPU — % busy", "spark RAM — % of unified pool",
                    "spark RAM — used / available (absolute)", "spark load — 1m / 5m",
                    "spark disk used — / and /mnt/spark_nvme",
+                   "spark disk I/O — read / write throughput",
+                   "spark disk IOPS — completions/s",
+                   "spark disk saturation — device busy %",
                    "Engines scraped", "Model served"}
     # A constant reference line carries no metric selector, so it cannot scope to
     # $instance — exempt with a reason rather than by omission.
@@ -1181,7 +1260,12 @@ LIVE_VLLM_METRICS = (
 LIVE_PROCESS_METRICS = ("process_resident_memory_bytes", "python_gc_collections_total")
 LIVE_NODE_METRICS = ("node_cpu_seconds_total", "node_load1", "node_load5",
                      "node_memory_MemTotal_bytes", "node_memory_MemAvailable_bytes",
-                     "node_filesystem_avail_bytes", "node_filesystem_size_bytes")
+                     "node_filesystem_avail_bytes", "node_filesystem_size_bytes",
+                     # diskstats: each name confirmed present for instance="spark.kogler.si"
+                     # (device=nvme0n1) in VM on 2026-09-16
+                     "node_disk_read_bytes_total", "node_disk_written_bytes_total",
+                     "node_disk_reads_completed_total", "node_disk_writes_completed_total",
+                     "node_disk_io_time_seconds_total")
 
 
 def _has_live_series(expr: str) -> bool:
