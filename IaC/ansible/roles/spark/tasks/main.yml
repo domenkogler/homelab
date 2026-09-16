@@ -220,6 +220,71 @@
   when: not (spark_headless | bool)
   tags: [spark, headless]
 
+# ---- OOM forensics watchdog (HD-380) ----
+# Continuous sampler + forensic bundle catcher for the global-OOM class. Installed
+# as a systemd unit that is OOM-immune (OOMScoreAdjust=-1000) because the killer
+# took alloy/dcgm-exporter down in incidents #2/#3 — monitoring must not die first.
+# Evidence lands on XFS (never the OS disk) under {{ spark_oom_watchdog_dir }}.
+- name: Create the OOM-watchdog evidence directory on XFS
+  ansible.builtin.file:
+    path: "{{ spark_oom_watchdog_dir }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: ["", "state", "snapshots"]
+  become: true
+  when: spark_oom_watchdog_enable | bool
+  tags: [spark, watchdog]
+
+- name: Install the OOM-watchdog script
+  ansible.builtin.copy:
+    src: spark-oom-watchdog.sh
+    dest: /usr/local/bin/spark-oom-watchdog.sh
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when: spark_oom_watchdog_enable | bool
+  notify: Restart spark OOM watchdog
+  tags: [spark, watchdog]
+
+- name: Install the OOM-watchdog systemd unit
+  ansible.builtin.template:
+    src: spark-oom-watchdog.service.j2
+    dest: /etc/systemd/system/spark-oom-watchdog.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  when: spark_oom_watchdog_enable | bool
+  notify: Restart spark OOM watchdog
+  tags: [spark, watchdog]
+
+- name: Enable and start the OOM-watchdog
+  ansible.builtin.systemd:
+    name: spark-oom-watchdog.service
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+  # check-mode safe: the unit file does not exist on the target during --check, so
+  # systemd cannot resolve the service and the module fails (live hit 2026-09-16).
+  when:
+    - spark_oom_watchdog_enable | bool
+    - not ansible_check_mode
+  tags: [spark, watchdog]
+
+- name: Disable and stop the OOM-watchdog (opt-out reversal)
+  ansible.builtin.systemd:
+    name: spark-oom-watchdog.service
+    state: stopped
+    enabled: false
+  become: true
+  when: not (spark_oom_watchdog_enable | bool)
+  failed_when: false
+  tags: [spark, watchdog]
+
 # NOTE on the ANSIBLE USER: unlike preseed hosts, spark has no post_install.sh — the
 # automation user + authorized_keys + sudoers are provisioned by the `common` role
 # (roles/common/tasks/system.yml: user/key/sudoers), exactly like the VPS/Pi/nas/oldsrv.

@@ -68,7 +68,11 @@ esac
 # ~93 GB of a 121.6 GiB pool; C3 (12x8k @c3) made the engine RSS climb + host extras
 # (alloy/dashboard/sshd) over the fence → global OOM killed sshd/NetworkManager.
 # Guard: if free+available < FLOOR, refuse to launch (the OOM is not recoverable live).
-MEM_FLOOR_GB="${MEM_FLOOR_GB:-8}"
+# RAISED 8→14 GiB 2026-09-16 (HD-380): with the HD-374 KV governor live the box IDLES
+# at ~16 GiB available, so an 8 GiB floor sat INSIDE the danger zone — it would have
+# waved through both 2026-09-16 kills. Pair with stress-oom.sh, which adds a live guard
+# that stops the engine on breach instead of letting the kernel pick the victim.
+MEM_FLOOR_GB="${MEM_FLOOR_GB:-14}"
 if command -v free >/dev/null 2>&1; then
   _avail=$(free -g | awk '/^Mem:/{print $7}')
   if [[ -n "$_avail" && "$_avail" -lt "$MEM_FLOOR_GB" ]]; then
