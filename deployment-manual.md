@@ -34,6 +34,21 @@
   ```
   Re-running the same playbook is idempotent (the guard restarts the stack once siblings are Up).
   **Only `--check` is safe in the foreground.**
+- **First deploy of a NEW service needs the service's OWN tag (HD-379 lesson 2026-09-16):** a
+  service's deploy tasks carry `tags: "{{ svc.name }}"`
+  (`roles/docker_services/tasks/deploy-service.yml`), so `--tags monitoring,docker_services`
+  renders the loop and **silently skips every inner task** — the run comes back `failed=0` having
+  deployed nothing (only the `docker_services`-tagged teardown/teardown-adjacent tasks execute).
+  Include the name:
+  ```bash
+  bash scripts/ansible-run.sh playbooks/spark.yml --limit spark.kogler.si \
+      --tags monitoring,docker_services,<service-name> \
+      </dev/null > /tmp/converge-"$(date +%s)".log 2>&1 &
+  ```
+  **`rc=0` is not proof of deploy** — verify the artefact, not the recap: `docker ps` for the
+  container, and for telemetry a backend query (e.g. VM `{job="dcgm"}`). Live case: the first
+  `spark-dcgm` converge reported success with no container on the box; the second (with the tag)
+  deployed it in ~30 s.
 
 ---
 

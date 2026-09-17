@@ -608,10 +608,18 @@ change**. Same for the community `dgx-spark-exporter` (Go, `:9876/metrics`) — 
 (CPU/mem/disk-IO/filesystem/network/load/fd), its GPU trio is nvidia-smi again, and it
 carries no VRAM and no profiling either; not adopted.
 
-⏳ **Deploy state:** the disk panels are live the moment the dashboards converge; the
-temperature panels need BOTH the `monitoring` converge (dashboards) **and** the Alloy
-converge (`set_collectors` change → `alloy.service` restart, per-host). Panels are labelled
-⏳ in-panel so an empty temperature graph reads as an un-converged collector, not a bug.
+✅ **Deploy state (2026-09-16, same session):** converged and **verified from the backend, not
+from the playbook recap** — `node_hwmon_temp_celsius` now exists per instance: **spark 12,
+oldsrv 17, nas 9, pi 2** sensors. The disk panels needed no converge at all (the families were
+already in VM); they shipped with the dashboard copy. The in-panel ⏳ wording on the two
+temperature panels is now historical — if a temp panel renders empty for some host, that host's
+Alloy has not picked up `set_collectors` yet (check `alloy.service` restart), it is not a
+dashboard bug.
+
+⚠ **Converge note that cost an hour (HD-379):** a new/changed Alloy config converges under
+`--tags monitoring`, but the **first deploy of a compose service needs the service's own tag**
+(`--tags monitoring,docker_services,<name>`) or the deploy tasks are silently skipped while the
+run still reports `failed=0`. Proof = a backend query / `docker ps`, never the recap.
 
 
 > **Metric-name gaps (authoring-time, 2026-09-04):** the panel expression names above match the **alert-rule metric names** in the monitoring role (`vars/main.yml`) and the Prometheus scrape jobs — but several component metrics are **not yet verified live** (no running instance to scrape until the next converge):
