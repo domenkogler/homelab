@@ -31,7 +31,7 @@ Same failure class, escalating evidence. Summary row per incident; full narrativ
 | 2 | 2026-09-15 23:06 | serve, long request in flight (`num_computed_tokens=36800`, +4864 scheduled) | `global_oom` 23:05:53→23:06:32: `VLLM::Worker` (total-vm 151 GB), `VLLM::EngineCor`, `python3`, `torch_shm_manag`; collateral `alloy`/`traefik`/`nvidia-smi`/`dozzle`/`fwupd` | `unless-stopped` restart @ 23:06:34 → `RestartCount=2` | none (diagnosis only — session died) |
 | 4 | 2026-09-16 16:31 | **NOTHING attached — zero clients, engine idle** | `global_oom` 16:31:20: `python3` in the vLLM scope (total-vm 55.4 GB), then `alloy` (uid 996) | container replaced → boot banner 16:31:38Z | none at the time — **the unexplained one: no workload to blame** |
 | 5 | 2026-09-16 20:21 | **two agent sessions at 8.8% / 9.1% of ctx** (46.9k tok combined) | `global_oom` 20:21:07→20:22:05: `python3` → `VLLM::Worker` (total-vm **155.6 GB**) → `VLLM::EngineCor` → `python3`; collateral `dcgm-exporter`, `alloy` | `RestartCount=4`, `StartedAt=20:22:11Z`; both client sessions `stopReason=error` | none at the time (diagnosis session = this one) |
-| 7 | 2026-09-16 23:26 | serve, **one light pi session**, KV 43–59 %, prefix hit 94 %, engine 0 % util at kill | `global_oom` ×9 23:23:28→23:26:00: `torch_shm_manag`, `dozzle`, **`traefik`**, `nvidia-smi`, `dashboard-servi`/`dashboard-admin`, `fwupd`, `cups-browsed`, `colord` — engine itself survived; `CmaFree` **8.81 GiB** of `MemFree` 10.97 GiB = **0.62 GiB usable**, while `MemAvailable` read 9.7 GiB | engine `Exited (137)`; host wedge + LLM outage; load avg 36.4 | C1+C2 (HD-381) applied; **gauge correction → B** |
+| 7 | 2026-09-16 23:26 | serve, **one light pi session**, KV 43–59 %, prefix hit 94 %, engine 0 % util at kill | `global_oom` ×9 23:23:28→23:26:00: `torch_shm_manag`, `dozzle`, **`traefik`**, `nvidia-smi`, `dashboard-servi`/`dashboard-admin`, `fwupd`, `cups-browsed`, `colord` — engine itself survived; `CmaFree` **8.81 GiB** inside `MemAvailable` 10.45 GiB → **1.64 GiB** actually claimable | engine `Exited (137)`; host wedge + LLM outage; load avg 36.4 | C1+C2 (HD-381) applied; **gauge correction → B** |
 | 8 | 2026-09-17 14:55 | serve, same profile, 1 h 34 m after boot | `global_oom` ×3 14:55:31: **`python3` = engine PID-1 (`oom_score_adj=-500`)**, `dcgm-exporter`, `alloy`; `Node 0 Normal free:9.63 GiB` was **`free_cma:9.58 GiB`**, `all_unreclaimable? yes` | engine top-pid **frozen at 109,785 MiB for 4+ min before the kill** (allocator stall, not a burst); PSI full **92.5** | C1+C2 converged 15:28Z (same boot) |
 | 6 | 2026-09-16 22:15 | **agent session ~162k tok + stress step A6 (16k × conc 2)** | **NO kernel OOM** (last kill 20:22Z) — bench guard ran `docker stop`; engine `Exited (137)` | avail **21.5 → 12.6 GiB in ~22 s**; watchdog WARN 22:13:49 → CRIT 22:15:22 (avail 18.6, PSI 27.2); **~14 min outage** because `unless-stopped` ignores an intentional stop | **HD-380** — capture-size cap + watchdog + self-healing guard + zero-load bench assertion |
 
@@ -156,20 +156,40 @@ device-reserved pages the CMA allocator will not hand to an unmovable `GFP_KERNE
 
 | | #7 (23:26:00Z) | #8 (14:55:31Z) |
 |---|---|---|
-| `MemAvailable` (what the watchdog watches) | 10.43 GiB | 10.39 GiB |
+| `MemAvailable` (what the watchdog watched) | 10.43 GiB | 10.39 GiB |
 | `MemFree` | 10.97 GiB | 10.91 GiB |
 | **`CmaFree`** | **8.81 GiB** | **8.78 GiB** |
-| **usable = `MemFree` − `CmaFree`** | **0.62 GiB** | **2.13 GiB → 0.10 GiB one sample later** |
+| **usable = `MemAvailable` − `CmaFree`** | **1.64 GiB** | **1.62 GiB** |
+| *(healthy idle, same box)* | *26.25* → **26.13 usable** | *same* |
 | last sampler `psi_full_avg10` | 97.8 | 92.5 |
 
-`free -h` therefore said “~10 GiB free” while the box had **0.6 GiB of usable memory**. The HD-375 /
-HD-380 thresholds (WARN 24 / CRIT 16 GiB on `MemAvailable`) are **not reachable-by-design**: on a
-healthy idle box `CmaFree` sits at 0.13–0.18 GiB, and as the GPU carve is squeezed `CmaFree` grows to
-~9 GiB, *inflating* the very metric the alert reads. **That is why a watchdog kept having to narrate
-instead of an alert warning — the alert gauge was blind at the cliff.** Corrected gauge:
+`free -h` therefore said “~10 GiB free” while **~85 % of that figure was CMA** the device
+would not surrender to an unmovable allocation. The HD-375 / HD-380 thresholds (WARN 24 /
+CRIT 16 GiB on `MemAvailable`) were **overstated by up to ~9 GiB**, and worse: as the GPU
+carve is squeezed `CmaFree` *grows*, and CMA counts as available — so the metric
+**inflates as pressure rises**. That is why an alert on it kept missing the cliff and the
+watchdog had to narrate after the fact.
+
+> ⚠ **The first proposed fix was wrong — do not re-propose it.** The 2026-09-17 plan
+> prescribed `usable = MemFree − CmaFree` with WARN 4 / CRIT 2. Measured on this box that
+> gauge is **INVERTED**: healthy idle = **0.74 GiB**, the two kills = **2.17 / 2.14 GiB** — it
+> reads *lower* at rest than at a kill, so those thresholds fire permanently and the planned
+> enforcing CRIT action would have **restart-stormed the engine on a healthy box** (an outage
+> caused by the safety net). `MemFree` is meant to sit ≈1 GiB at steady state — the rest is
+> page cache doing its job — and under pressure reclaim *evicts* cache, so `MemFree` **rises**
+> to ~11 GiB, mostly CMA-attributed. It measures “reclaimed but not yet consumed”: high in a
+> storm, low at rest. The 0.05 GiB figure that motivated it came from the kernel's **per-zone**
+> dump (`Node 0 Normal free:9.63 GiB free_cma:9.58 GiB`), which is zone/migratetype-local and
+> not reconstructible from global `meminfo`.
+> Correct global gauge: **`MemAvailable − CmaFree`** — monotone with danger (26.1 idle → 1.6
+> at both kills).
+
+PSI is a valid *confirmation* trigger but carries **no lead time**: in #8 `psi_full_avg10` read
+**0.0 for ten consecutive samples** at avail 9.4 GiB, then the kill. It cannot be the primary
+early warning.
 
 ```bash
-usable_gib = (MemFree - CmaFree)      # WARN < 4 GiB, CRIT < 2 GiB ; PSI memory full as second trigger
+usable_gib = MemAvailable − CmaFree     # WARN < 8 GiB, CRIT < 4 GiB (kills measured at 1.6)
 ```
 
 Both kills passed the PSI trigger (`psi_full` 97.8 / 92.5) at the same sample as the kill — PSI is a
@@ -216,8 +236,10 @@ engine-first) is a lottery, and that the cage cannot protect the host (invariant
    observed symptom is often "session/SSH died", not "model crashed".
 4. **It recurs whenever load returns** — each fix moved the OOM later, it did not remove it, until the
    budget became explicit (#3, this change).
-5. **`MemAvailable` is not the budget metric on GB10** (#7/#8) — up to ~9.5 GiB of it can be `CmaFree`,
-   which is unusable for unmovable kernel allocations. Budget in `MemFree − CmaFree` (+ PSI memory).
+5. **`MemAvailable` alone is not the budget metric on GB10** (#7/#8) — up to ~9 GiB of it can be
+   `CmaFree`, which the device will not surrender to an unmovable kernel allocation. Budget in
+   **`MemAvailable − CmaFree`** (+ PSI memory as confirmation, which carries *no* lead time).
+   **Not** `MemFree − CmaFree` — that is inverted here (0.74 GiB idle vs 2.17 GiB at a kill).
 6. **The engine's non-KV footprint grows with traffic and never returns** (#7/#8) — flat at idle, so a
    restart is the only reset, and only removing the allocation mechanism bounds the peak.
 
@@ -241,8 +263,8 @@ docker logs --timestamps <ctr> | grep 'version 0.1.dev'
 docker logs <ctr> | grep -E 'Model loading took|Available KV cache memory|GPU KV cache size|Free memory on device'
 
 # 5. How hot is the box — use the CORRECTED gauge (#7/#8), not free -h
-awk '/^MemFree|^MemAvailable|^CmaFree|^AnonPages|^SwapFree/{print}' /proc/meminfo
-awk 'BEGIN{while((getline l<"/proc/meminfo")>0){split(l,a," ");if(a[1]=="MemFree:")f=a[2];if(a[1]=="CmaFree:")c=a[2]}printf "usable_gib=%.2f\n",(f-c)/1048576}'
+awk '/^MemAvailable|^MemFree|^CmaFree|^AnonPages|^SwapFree/{print}' /proc/meminfo
+awk 'BEGIN{while((getline l<"/proc/meminfo")>0){split(l,a," ");if(a[1]=="MemAvailable:")v=a[2];if(a[1]=="CmaFree:")c=a[2]}printf "usable_gib=%.2f  (WARN<8 CRIT<4)\n",(v-c)/1048576}'
 ```
 
 **`dmesg` is authoritative; `docker inspect` is not.** A `RestartCount` increment + `OOMKilled=false`
