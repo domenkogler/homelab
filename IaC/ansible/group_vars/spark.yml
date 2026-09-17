@@ -111,7 +111,24 @@ spark_vllm_log_level: INFO
 spark_vllm_cpu_offload: 1
 spark_vllm_ple_offload_ready_timeout: 3600
 spark_vllm_omp_num_threads: "1"
-spark_vllm_pytorch_cuda_alloc_conf: "max_split_size_mb:512"
+# Peak-bound term 1 (HD-381, 2026-09-17): the allocator form matters on a UNIFIED pool.
+# `max_split_size_mb:512` forbids splitting any block ≥512 MB, so every new request shape
+# forces a FRESH slab that is never returned — the exact curve measured in incidents #7/#8
+# (engine top-pid 88,773 MiB at boot → 109,785 MiB after ~30 min of light agent traffic,
+# FLAT at idle all night = cumulative, not an idle leak). `expandable_segments:True` lets
+# segments grow/shrink in place instead of stranding per-shape slabs. BENCHMARK-PLAN §6
+# step 3 already classed this change as T1 safe ("less fragmentation → fewer OOM/preemptions").
+# Evidence: docs/spark-incidents.md #7/#8 · docs/hardware-spark.md §Unified-memory budget
+spark_vllm_pytorch_cuda_alloc_conf: "max_split_size_mb:512,expandable_segments:True"
+# Peak-bound term 2 (HD-381, 2026-09-17): the chunked-prefill slab ceiling. #8 died with
+# `VLLM::EngineCor` oom_score_adj=-500 (the scheduler itself) at 51% KV / 664 running tok
+# = a LOAD-TIME allocation failure, with 9.58 GiB of the "free" 9.63 GiB stranded in
+# free_cma. 16384-token prefill chunks are the largest transient the engine produces, so
+# 4096 shrinks both the per-chunk slab and the number of distinct shapes the allocator sees
+# (HD-380 open item 1 named this as the next lever). Cost = prefill TTFT on long prompts;
+# this box sacrifices throughput for uptime — global OOM here kills alloy/traefik/dcgm and
+# wedges the box (invariants #2/#3), it does not merely restart a container.
+spark_vllm_max_num_batched_tokens: 4096
 spark_vllm_shm_size: 32g
 spark_vllm_memlock: -1
 spark_vllm_stack: 67108864
@@ -139,7 +156,6 @@ spark_vllm_max_num_seqs: 4
 # 300k rejects at startup validation (VLLM_ALLOW_LONG_MAX_MODEL_LEN would be needed +
 # YaRN; needle-test gate). 250k/262k serve at 95% fill, 0 preemptions, host alive.
 spark_vllm_max_model_len: 262144
-spark_vllm_max_num_batched_tokens: 16384
 # spark_vllm_swap_space removed 2026-09-14: this vLLM build (0.1.dev20073+g8e685d198)
 # DROPPED swap_space from EngineArgs — `--swap-space` is unrecognized and crashes the
 # engine at argv-parse. B1's swap-space=4 no longer has a CLI knob; the engine config
