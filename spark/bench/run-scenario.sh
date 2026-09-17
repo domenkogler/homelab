@@ -68,7 +68,11 @@ esac
 # ~93 GB of a 121.6 GiB pool; C3 (12x8k @c3) made the engine RSS climb + host extras
 # (alloy/dashboard/sshd) over the fence → global OOM killed sshd/NetworkManager.
 # Guard: if free+available < FLOOR, refuse to launch (the OOM is not recoverable live).
-MEM_FLOOR_GB="${MEM_FLOOR_GB:-8}"
+# RAISED 8→14 GiB 2026-09-16 (HD-380): with the HD-374 KV governor live the box IDLES
+# at ~16 GiB available, so an 8 GiB floor sat INSIDE the danger zone — it would have
+# waved through both 2026-09-16 kills. Pair with stress-oom.sh, which adds a live guard
+# that stops the engine on breach instead of letting the kernel pick the victim.
+MEM_FLOOR_GB="${MEM_FLOOR_GB:-14}"
 if command -v free >/dev/null 2>&1; then
   _avail=$(free -g | awk '/^Mem:/{print $7}')
   if [[ -n "$_avail" && "$_avail" -lt "$MEM_FLOOR_GB" ]]; then
@@ -99,12 +103,33 @@ CONT_RESULT="/tmp/bench-result.json"
 START_EPOCH=$(date +%s)
 # vLLM bench CLI in this build: `vllm bench serve` (not python3 -m vllm.benchmarks.serve —
 # that module has no __main__, it silently exits 0). Flags from the random dataset + options groups.
+# AUTH (live hit 2026-09-16, HD-380): the engine runs with --api-key. Without an
+# Authorization header EVERY request 401s and `vllm bench serve` still exits 0 while
+# reporting "Successful requests: 0" / "Total input tokens: 0" — a silent no-op that
+# looks like a pass. Any bench number taken after the spark-llm_api vault item landed
+# is invalid until re-run. Key is read from the container's own argv so it never
+# enters the repo.
+API_KEY="$(docker inspect "$CONTAINER" --format '{{join .Config.Cmd " "}}' 2>/dev/null \
+  | awk '{for(i=1;i<NF;i++) if($i=="--api-key") print $(i+1)}')"
+SERVED="$(docker inspect "$CONTAINER" --format '{{join .Config.Cmd " "}}' 2>/dev/null \
+  | awk '{for(i=1;i<NF;i++) if($i=="--served-model-name") print $(i+1)}')"
+AUTH=()
+[ -n "${API_KEY:-}" ] && AUTH=(--header "Authorization=Bearer $API_KEY")   # KEY=VALUE form required
+[ -n "${SERVED:-}" ] && AUTH+=(--served-model-name "$SERVED")
+
 docker exec "$CONTAINER" vllm bench serve \
-  --backend openai-chat --model /model \
+  --backend openai-chat --model /model "${AUTH[@]}" \
   --base-url "http://localhost:${PORT}" --endpoint /v1/chat/completions \
   --dataset-name random --random-input-len "$IN" --random-output-len "$OUT" \
   --num-prompts "$N" --max-concurrency "$CONC" --seed "$SEED" \
   --save-result --result-filename bench-result.json --result-dir /tmp 2>&1 | tee "$RAW/benchlog-${RUN_TS}-${STEP}-${SCENARIO}-${SEED}.txt"
+# ZERO-LOAD GUARD: rc/tee tells you nothing (see AUTH note). A no-op run must not be
+# recorded as a bench result.
+_ok=$(grep -oE 'Successful requests:[[:space:]]*[0-9]+' "$RAW/benchlog-${RUN_TS}-${STEP}-${SCENARIO}-${SEED}.txt" | grep -oE '[0-9]+$' | tail -1)
+if [ "${_ok:-0}" -lt "$N" ]; then
+  echo "ERROR: only ${_ok:-0}/$N requests succeeded — this run measured NOTHING (check auth/quota). Refusing to record it." >&2
+  exit 5
+fi
 # tmpfs /tmp inside the container is not visible to docker cp (mount namespace) —
 # read the result out via docker exec cat instead.
 for _ in $(seq 1 30); do

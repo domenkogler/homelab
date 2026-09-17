@@ -1,0 +1,31 @@
+[Unit]
+Description=spark GB10 unified-memory OOM forensics watchdog (HD-380)
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/spark-oom-watchdog.sh sample-loop
+Environment=SPARK_OOM_DIR={{ spark_oom_watchdog_dir }}
+Environment=SPARK_OOM_INTERVAL={{ spark_oom_watchdog_interval }}
+Environment=SPARK_OOM_WARN_GIB={{ spark_oom_watchdog_warn_gib }}
+Environment=SPARK_OOM_CRIT_GIB={{ spark_oom_watchdog_crit_gib }}
+Environment=SPARK_OOM_PSI_CRIT={{ spark_oom_watchdog_psi_crit }}
+Environment=SPARK_OOM_KEEP_SNAPS={{ spark_oom_watchdog_keep_snaps }}
+Environment=VLLM_CONTAINER={{ spark_vllm_container }}
+Restart=always
+RestartSec=10s
+# The watchdog must never be the OOM victim — alloy and dcgm-exporter were both
+# killed by the global OOM killer in incidents #2/#3, which blinds monitoring at
+# exactly the wrong moment. Immune + hard-capped so it cannot itself grow.
+OOMScoreAdjust=-1000
+MemoryMax={{ spark_oom_watchdog_memory_max }}
+CPUAccounting=yes
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths={{ spark_oom_watchdog_dir }}
+
+[Install]
+WantedBy=multi-user.target

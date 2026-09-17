@@ -159,6 +159,14 @@ services:
 {% if spark_vllm_enforce_eager %}
       - --enforce-eager
 {% endif %}
+      # CUDA-graph capture-size cap (HD-380): the build defaults to capturing graphs
+      # for batch sizes [1,2,4,8,16,24,32]; max_num_seqs caps the decode batch, so any
+      # capture above it is unreachable AND strands memory in the single GB10 pool.
+      # Measured basis + incident link: group_vars/spark.yml + docs/spark-incidents.md.
+{% if spark_vllm_max_cudagraph_capture_size | default(none) is not none %}
+      - --max-cudagraph-capture-size
+      - "{{ spark_vllm_max_cudagraph_capture_size }}"
+{% endif %}
       - --reasoning-parser
       - qwen3
       - --tool-call-parser
