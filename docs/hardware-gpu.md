@@ -8,7 +8,7 @@ tags: [hardware, gpu, rocm, cross-cutting]
 ---
 # Shared GPU Resource
 
-> **Role:** Cross-cutting detail — shared GPU resource across AI/vision (immich-ML), voice, and gaming. oldsrv RX 7600 = **pinned AI services (STT/embed/rerank) + Sunshine encode + immich-ML batch**; spark (GB10) is the separate **big-model generation tier** (decision #24, 2026-09-15).
+> **Role:** Cross-cutting detail — shared GPU resource across AI/vision (immich-ML), voice, and gaming. oldsrv RX 7600 = **pinned AI services (STT + embed) + Sunshine encode + immich-ML batch**; the **reranker is CPU** (decision #25, 2026-09-17); spark (GB10) is the separate **big-model generation tier** (decision #24, 2026-09-15).
 > **Links to:** `services-office.md`, `smart-home-voice.md`, `services.md`
 > **Linked from:** `hardware-oldsrv.md`, `hardware-spark.md`, `deployment-compose.md`
 
@@ -19,7 +19,9 @@ tags: [hardware, gpu, rocm, cross-cutting]
 > **Corrected 2026-09-09 (owner), refined 2026-09-15 (decision #24):** the RX 7600 is **NOT "gaming
 > encode only / no AI."** It serves (a) Sunshine game-streaming encode, (b) **immich-ML batch
 > inference**, and (c) — **NEW 2026-09-15** — the **pinned AI services: Whisper STT + bge-m3 embed +
-> bge-reranker** (container-bundled ROCm, ≈5–6 GB of 8 GB). What is *excluded* from the dGPU is
+> bge-reranker** (container-bundled ROCm, ≈5–6 GB of 8 GB). **Amended 2026-09-17 (decision #25): the
+> bge-reranker moved off the dGPU to CPU**, so pinned-AI is now ≈3–4 GB — see §Compute-preemption (CWSR)
+> exposure and [services-ai.md](services-ai.md) §9c for the research. What is *excluded* from the dGPU is
 > **host LLM inference and big-model generation**: Ollama is disabled on oldsrv and the large
 > generation models run on **spark** (Triton, GB10 — HD-335). `amd_rocm` host userland stays
 > Debian-trixie-native tooling only (no external AMD repo, HD-318).
@@ -29,14 +31,70 @@ tags: [hardware, gpu, rocm, cross-cutting]
 | VRAM | 8 GB GDDR6 |
 | Interface | PCIe 4.0 x8 |
 | Docker access | `/dev/dri`, `/dev/kfd` |
-| GPU workloads | **Pinned AI services (Whisper STT + bge-m3 embed + bge-reranker, decision #24) + Sunshine gaming-encode + immich-ML batch inference (AI)** — container-bundled ROCm |
+| GPU workloads | **Pinned AI services (Whisper STT + bge-m3 embed — decision #24 + #25) + Sunshine gaming-encode + immich-ML batch inference (AI)** — container-bundled ROCm / GGML_HIP |
 | Host GPU | Intel HD 630 (iGPU, desktop only) — Xorg primary |
+
+### Compute-preemption (CWSR) exposure — gfx1102 (research 2026-09-17, decision #25)
+
+> **Role:** why the *build target* of a GPU container is a safety property on this card, not a
+> performance detail. Read before adding any long-running compute workload to the dGPU.
+
+**CWSR = Compute Wavefront Save/Restore** — the KFD (`drivers/gpu/drm/amd/amdkfd/`) mechanism that
+preempts *compute* work: VGPRs are saved into a reserved area on wavefront switch. The userspace
+runtime (ROCr/thunk) historically **hard-coded that area's size**; when the kernel needs more, the
+buffer is truncated and register state is corrupted on restore → `HW Exception by GPU node-N reason:
+GPU Hang` — a **hard hang of the whole card**, not a container crash.
+
+Why this card is in scope at all:
+
+| Source (read 2026-09-17) | Finding |
+|---|---|
+| `linux/drivers/gpu/drm/amd/amdkfd/kfd_device.c:207` | `supports_cwsr = true` is set for the **entire SOC15 family — gfx1102 included** |
+| `linux/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c:758-765` | `int cwsr_enable = 1; module_param(cwsr_enable, int, 0444)` → **on by default**, changeable only via kernel cmdline (`amdgpu.cwsr_enable=0`) |
+| `ROCm/rocm-systems` PR **#2200** (merged 2025-12-16) | userspace fix: read the CWSR/control-stack size from KFD instead of hard-coding it ("allow VGPR size to be determined dynamically") |
+| `linux` commit `2b0386d` (`drm/amdkfd: fix 32-bit overflow in CWSR total size calculation`) | kernel-side `u32` → `u64` + `check_mul_overflow` on `total_cwsr_size` |
+| `beecave-homelab/insanely-fast-whisper-rocm` issue **#61** | documents the symptom + affected set: **gfx1030/gfx1032 and gfx1151 confirmed; gfx1102 is NOT on the confirmed list** |
+
+**Honest scope of the risk:** gfx1102 has **no confirmed hang report**. The exposure is inferred from
+(a) CWSR being enabled for SOC15 and (b) images that force `HSA_OVERRIDE_GFX_VERSION=10.3.0`, i.e.
+run gfx1030 code — the confirmed-affected family — on this card. Do not treat that as proof.
+
+**Why the card is quiet today:** Sunshine uses the **VCE encode path (not KFD compute)**, immich-ML is
+a short intermittent batch, and the host packages are `rocm-opencl-icd` + `rocminfo`
+(`group_vars/home_servers.yml`) — none of them sustain compute long enough to trigger preemption.
+
+**Mitigation (chosen 2026-09-17):** build for the **native `gfx1102` target so no HSA override is
+needed** (`whisper.cpp` `-DAMDGPU_TARGETS=…gfx1102…`, ROCm 7.14/TheRock userspace which carries the
+size fixes) instead of running gfx1030 code on top of an override. **`cwsr_enable=0` is deliberately
+NOT set in advance** — it is a grub change + reboot, and the cost is silent compute-efficiency loss.
+`amdgpu-dkms` is likewise **not** introduced: it would replace the in-tree `amdgpu` module that the
+`amd_rocm` role and the working Sunshine path depend on (`roles/amd_rocm/tasks/main.yml`: “NO
+amdgpu-dkms — the Debian kernel already supports the card”).
+
+Pre-work check + burn-in (both non-destructive):
+
+```bash
+cat /sys/module/amdgpu/parameters/cwsr_enable      # expected: 1
+dkms status | grep -i amdgpu                        # expected: empty (in-tree module)
+# then: ~15 min sustained compute on the card while watching the kernel ring
+journalctl -kf | grep -iE 'gpu|kfd|amdgpu|hws'
+```
+
+### CWSR / GPU consumers — what runs where (2026-09-17)
+
+| Consumer | Runtime | GPU target | Why |
+|---|---|---|---|
+| `bge-m3` embed | Ollama `:rocm` | container runtime (verified live) | already E2E-verified; no reason to move |
+| Whisper STT | **`whisper.cpp` GGML_HIP** | **native `gfx1102`** | no HSA override, no PyTorch runtime, ~200–400 MB RSS |
+| `bge-reranker-v2-m3` | **CPU** (CrossEncoder) | — | 568 M params; keeps 1.5 GB VRAM + a ROCm runtime off the card |
+| immich-ML | container ROCm | container runtime | existing AMD precedent in this house |
+| Sunshine | VCE encode | — | not a KFD compute consumer |
 
 ### Dual GPU Topology
 
 - **Intel HD 630 (iGPU):** Xorg primary — monitor on motherboard output. Family desktop compositing.
-- **Radeon RX 7600 (dGPU):** No monitor. **Pinned AI services (Whisper STT + bge-m3 embed + bge-reranker,
-  decision #24) + Sunshine game-streaming encode** + **immich-ML batch inference (AI)** — all pause-able
+- **Radeon RX 7600 (dGPU):** No monitor. **Pinned AI services (Whisper STT + bge-m3 embed, decision
+  #24; reranker → CPU per decision #25) + Sunshine game-streaming encode** + **immich-ML batch inference (AI)** — all pause-able
   GPU consumers (2026-09-06) whose containers bundle their own ROCm runtime and only need
   `/dev/dri`+`/dev/kfd`+udev. No **Ollama/LLM** on oldsrv (disabled 2026-09-07 — big-model generation on
   spark/Triton, HD-335). **Host ROCm = Debian-trixie-native tooling only** (`rocm-opencl-icd`/`rocminfo`/`hipcc`,
@@ -71,8 +129,8 @@ division) and **1 PFLOP FP4**.
 
 | Mode | Active Models | VRAM Usage | Trigger |
 |------|--------------|------------|---------|
-| **Pinned AI (voice/embed/rerank)** | Whisper STT (~2 GB) + bge-m3 embed (~1–2 GB) + bge-reranker (~1–2 GB) | **~5–6 GB** | Voice command / RAG ingest-query — pause-able (Sunshine prep-command) |
-| **Immich-ML batch (AI)** | Immich-ML (face/object recognition, container ROCm) | ~3–5 GB | Photo/ML job — **lowest priority** (paused when pinned-AI active) |
+| **Pinned AI (voice/embed)** | Whisper STT (~2 GB) + bge-m3 embed (~1–2 GB) — **reranker is CPU since decision #25 (2026-09-17)** | **~3–4 GB** (was ~5–6 GB with the reranker on-GPU) | Voice command / RAG ingest-query |
+| **Immich-ML batch (AI)** | Immich-ML (face/object recognition, container ROCm) | ~3–5 GB | Photo/ML job — **lowest priority** |
 | **Gaming** | None (Sunshine active) | 0 GB (pinned-AI + immich-ML paused) | User launches Sunshine (manual) |
 | **Idle** | None | ~0 GB (GPU ~5 W) | No Sunshine stream, no pinned-AI, no immich-ML job |
 
@@ -109,11 +167,11 @@ pinned services (STT/embed/rerank) moved to the oldsrv RX 7600 (decision #24).
 | Whisper STT | Voice (speech-to-text) — **oldsrv RX 7600** (decision #24, 2026-09-15) | [`smart-home-voice.md`](smart-home-voice.md) |
 | Piper TTS | Voice (text-to-speech) — **CPU** (CPU-only engine, decision #24) | [`smart-home-voice.md`](smart-home-voice.md) |
 | bge-m3 embed | RAG embeddings — **oldsrv RX 7600** (decision #24) | [`services-ai.md`](services-ai.md) |
-| bge-reranker | RAG rerank — **oldsrv RX 7600** (decision #24) | [`services-ai.md`](services-ai.md) |
+| bge-reranker | RAG rerank — **CPU** (decision #25, 2026-09-17: off the dGPU — no Ollama rerank API, and 1.5 GB VRAM + a ROCm runtime buys nothing at 20 pairs) | [`services-ai.md`](services-ai.md) §9c |
 | **Immich-ML** | **Photo face recognition / ML batch inference (AI)** — container-bundled ROCm, **lowest priority** | [`services.md`](services.md) |
 | **Sunshine** | Game streaming (manual start) — gaming-encode | [`hardware-oldsrv.md`](hardware-oldsrv.md) |
 
-> oldsrv RX 7600 GPU consumers = **pinned AI (STT/embed/rerank, decision #24) + Sunshine (gaming encode) + Immich-ML (AI batch, lowest priority)**. Spark (GB10) is the separate **big-model generation tier**.
+> oldsrv RX 7600 GPU consumers = **pinned AI (STT + embed, decision #24 + #25) + Sunshine (gaming encode) + Immich-ML (AI batch, lowest priority)**; the **reranker moved to CPU** (decision #25). Spark (GB10) is the separate **big-model generation tier**.
 
 ---
 
@@ -122,9 +180,11 @@ pinned services (STT/embed/rerank) moved to the oldsrv RX 7600 (decision #24).
 - **Gaming-first (2026-09-06):** Sunshine owns the GPU for streams; pinned-AI + immich-ML batch run in
   free-GPU time. Sunshine prep-commands `docker pause/unpause` freeze/resume the AI consumers at
   stream start/end — **no lost work, instant resume** (kernel freeze).
-- **Priority order (decision #24, 2026-09-15):** gaming > pinned-AI (voice/embed/rerank) > immich-ML.
-  Pinned-AI ≈5–6 GB + immich-ML ≈3–5 GB would exceed 8 GB → they must not run simultaneously;
-  immich-ML is paused when pinned-AI is active.
+- **Priority order (decision #24, amended by #25 2026-09-17):** gaming > pinned-AI (voice/embed) > immich-ML.
+  With the reranker on CPU, pinned-AI is ≈3–4 GB, so **immich-ML (≈3–5 GB) can now co-reside** instead of
+  being paused; pause-mechanism remains the guard if the two ever overlap near the 8 GB ceiling.
+  ⚠️ This co-residency is **inference from the arithmetic, not live-verified** — confirm with `rocm-smi`
+  during a concurrent voice + photo-JML job before relying on it (HD-385).
 - Sunshine `restart: "no"` (manual-start); idle GPU ~5 W when neither gaming nor AI-active.
 - `docker pause` frees compute instantly; VRAM stays allocated until the process re-runs
   (non-issue at 8 GB/5–6 GB pinned-AI footprint).

@@ -1370,8 +1370,11 @@ narrow-bound to the oldsrv Home-IP (homelable pattern; NO public route/cert labe
 > routine `home_servers.yml` converge once `ollama.enabled: true` is in `group_vars/home_servers.yml`).
 > **Registry names below are the CORRECTED ones** — the original spec's `whisper-large-v3-turbo` + `bge-reranker-v2-m3`
 > do NOT exist in the ollama library (verified 2026-09-15): `bge-m3` is the only library model; whisper + reranker
-> are community-repo models. **API-cap note:** the pinned `:rocm` build (0.32.15) has NO `/api/rerank` (404) —
-> LiteLLM `/rerank` + whisper-STT legs need an ollama ≥ 0.5.x; embed (bge-m3) is the only verified leg on this pin.
+> are community-repo models. **API-cap note (CORRECTED 2026-09-17):** the pinned `:rocm` build (0.32.15) has NO
+> `/api/rerank` (404) — but **no ollama version has one**: the earlier “needs ollama ≥ 0.5.x” note was wrong
+> (`v0.34.1` tree has zero rerank code; issue #3368 still open; PRs #11389/#7219 closed-not-merged). **Do not
+> bump the pin expecting rerank.** Per decision #25 the rerank leg is a **CPU CrossEncoder** and STT is
+> **`whisper.cpp` GGML_HIP** — only embed (bge-m3) belongs to Ollama. See [services-ai.md](docs/services-ai.md) §9c · HD-385.
 
 Verify the container is up + GPU-attached (after any converge):
 ```bash
@@ -1382,9 +1385,13 @@ ssh ansible-admin@oldsrv 'docker ps --filter name=ollama --format "{{.Names}} {{
 First-boot model pull (one-time; no Ansible task — documented manual step):
 ```bash
 ssh ansible-admin@oldsrv 'docker exec ollama ollama pull bge-m3'                           # library: 1024-dim embed
-ssh ansible-admin@oldsrv 'docker exec ollama ollama pull sendmeaiohyeah/whisper-large-v2'   # STT (voice pipeline)
-ssh ansible-admin@oldsrv 'docker exec ollama ollama pull qllama/bge-reranker-v2-m3:q8_0'   # rerank (Qdrant top-20→top-5)
+ssh ansible-admin@oldsrv 'docker exec ollama ollama pull bge-m3'   # (idempotent re-run)
 ssh ansible-admin@oldsrv 'docker exec ollama ollama list'
+# RETIRED by decision #25 (2026-09-17) — do NOT pull these two; they are unusable on Ollama:
+#   sendmeaiohyeah/whisper-large-v2   -> STT is whisper.cpp GGML_HIP (native gfx1102), GGML model file
+#   qllama/bge-reranker-v2-m3:q8_0    -> rerank is a CPU CrossEncoder service
+# Remove them to free disk after verifying nothing references them:
+#   ssh ansible-admin@oldsrv 'docker exec ollama ollama rm sendmeaiohyeah/whisper-large-v2 qllama/bge-reranker-v2-m3:q8_0'
 ```
 
 Verify inference (embed is the only endpoint usable on this pin):
@@ -1395,9 +1402,10 @@ ssh ansible-admin@oldsrv 'IP=$(docker inspect ollama --format "{{range .NetworkS
 ```
 
 > LiteLLM Admin-UI catalog recreate (gate step c, deferred) must use the CORRECTED model names:
-> `ollama/bge-m3` (1024 dim) · `ollama/qllama/bge-reranker-v2-m3:q8_0` · `ollama/sendmeaiohyeah/whisper-large-v2`.
-> The rerank + whisper-STT legs remain BLOCKED on the current `:rocm` pin (see HD-369 open item: bump the
-> `ollama_version` pin to a rerank-capable release — none of the 0.3x `:rocm` tags carry `/api/rerank`).
+> `ollama/bge-m3` (1024 dim) **only**. The rerank + whisper-STT legs are NOT a pin problem and will never be
+> solved by a bump (see the corrected note above): per **decision #25 (2026-09-17)** rerank routes to a **CPU
+> CrossEncoder** service and STT to **`whisper.cpp` GGML_HIP**, each behind an endpoint LiteLLM can route
+> (⚠️ provider routing still unverified — HD-385 item b).
 
 ---
 
