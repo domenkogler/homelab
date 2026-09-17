@@ -13,32 +13,71 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 
 ## 2. Open work (read the HD rows; this is only the index)
 
-> **🔥 spark OOM thread — ACTIVE, read first (HD-375/HD-380, updated 2026-09-16 late). ⏳ OPEN —
-> actionable work below, not history; the HD-380 todo row stays open until items (1)–(3) land.** The
-> unified-memory governor now has **two** live terms (`--kv-cache-memory-bytes 8800000000` +
-> `--max-cudagraph-capture-size 4`), which raised host reserve **16.7 → 22.2 GiB**; the engine is
-> **healthy, `RestartCount=0`**. Knowledge: [`hardware-spark.md`](docs/hardware-spark.md)
-> §Unified-memory budget → **⚠ Correction block**; forensics: [`spark-incidents.md`](docs/spark-incidents.md)
-> **#4/#5/#6**. **Start here:** (1) land the **HD-375** `MemAvailable` alert rules — their absence is
-> why a watchdog was needed instead of a warning; (2) bound the **peak**, not the floor: ~13 GiB of
-> non-KV/non-weight allocation is still unprofiled (`kv_cache_memory_bytes` ⇒ vLLM skips profiling) —
-> try `--max-num-batched-tokens 16384→4096`, then `--enforce-eager`, re-measuring per step; (3) re-run
-> `spark/bench/stress-oom.sh` phases A/B **with NO agent session attached** — incident #6 was caused by
-> a ~162k-token agent session = **56% of the KV pool** at prefix-cache hit **0%** ⇒ 17,008 tok/s
-> full-window re-prefill; (4) only then revisit raising `spark_vllm_kv_cache_memory` (a trade-off:
-> bigger KV ⇒ fewer evictions ⇒ fewer spikes, but −1 GiB reserve per +1 GiB).
-> **Two traps that burned this session, both still live in the tooling:** benching against spark
-> **while an agent session runs on spark** (the agent is a hidden memory term — it has killed the box
-> twice, once while diagnosing itself), and trusting `vllm bench serve`'s exit code — it **exits 0 on
-> 401** and reports `Successful requests: 0`, so every bench number taken after `spark-llm_api` landed
-> is invalid until re-run. Evidence reader: `sudo /usr/local/bin/spark-oom-watchdog.sh status` and
-> `/mnt/spark_nvme/oom-watchdog/snapshots/`. Also: `docker stop` is an **intentional** stop, so
-> `unless-stopped` will NOT bring the engine back.
+> **🔥 spark OOM thread — ACTIVE, read first (HD-375/HD-380/HD-381, updated 2026-09-17). ⏳ OPEN —
+> actionable work below, not history. Two commits are CODE-COMPLETE BUT UNDEPLOYED — see "deploy
+> deliberately" first.** Worktree `homelab-wt-20260917-1718` (branch
+> `session/spark-peak-bound-20260917-1718`, `validate-all.sh` green at every commit).
+>
+> **State of the C-ladder:** C1 (`expandable_segments:True`) + C2 (`--max-num-batched-tokens 4096`)
+> are **LIVE** — converged `failed=0` at 15:28Z, verified on the container argv + on-disk compose
+> (`d70b37b`). Boot floor **85,445 → 86,243 MiB / avail 26.9 GiB** vs 88,773 MiB pre-C1/C2; that is
+> the load floor, **not yet a verdict** — the verdict is whether the curve stays flat under ~30 min of
+> traffic. **B (enforcing governor) + D (alert rules) are authored + tested but NOT converged**
+> (`e11ea74`). **E (docs) done** (`c4fb66a` + `e11ea74`). **C3 (`--enforce-eager`) deliberately held**
+> as the graph-attribution A/B.
+>
+> **⚠ The plan's memory gauge was WRONG — corrected by measurement, do not re-propose it.**
+> `usable = MemFree − CmaFree` (WARN 4 / CRIT 2) is **INVERTED** on GB10: healthy idle **0.74 GiB**
+> vs the two kills at **2.17 / 2.14 GiB**. On an enforcing watchdog it fires permanently and would
+> have **restart-stormed a healthy engine** — the safety net causing the outage. Correct gauge, now
+> shared by watchdog + alert rules: **`usable = MemAvailable − CmaFree`** (26.1 idle → 1.6 at both
+> kills, monotone). Thresholds are **measured**: death instant is 1.6 GiB but the lowest value a 60 s
+> scrape ever recorded is **5.01**, so **CRIT 8 / WARN 12** — below the scrape floor a rule can never
+> fire. `node_memory_CmaFree_bytes` is **verified present in VM** (it is NOT in node_exporter's default
+> meminfo whitelist — check that before authoring any future CMA-based rule).
+>
+> **Deploy deliberately (this is the next action):** the B/D converge re-renders
+> `spark-oom-watchdog.service`, which **restarts the watchdog**, and it ships **`enforce: true` armed by
+> default** — the first CRIT will `docker restart` the engine. Guarded by in-flight drain (600 s),
+> cooldown 1800 s, 2-per-2 h rate limit, and an arm-off file
+> (`touch /mnt/spark_nvme/oom-watchdog/no-enforce`). To deploy dark first, set
+> `spark_oom_watchdog_enforce: false` + `spark_oom_watchdog_recycle: false` for the first converge, watch
+> `status` for a day, then arm. Converge = VPS `monitoring` (rules) + spark `spark` role (unit/defaults).
+> **Self-reference trap:** this pi harness runs ON the engine being guarded — drive converge/restart from
+> the laptop, and never bench while an agent session is attached.
+>
+> **Three findings the next session must not re-derive:** (1) the growth is **traffic-cumulative and
+> FLAT at idle** (88,773 MiB flat overnight → 109,785 MiB after ~30 min of ONE light pi session) —
+> HD-380 open item 5 "idle ratchet" is **retracted**; a restart is the only reset and only removing the
+> allocation mechanism bounds the peak. (2) **PSI carries NO lead time** — it read **0.0 for ten
+> consecutive samples** before #8 died, so it is a confirmation trigger and must never enforce alone.
+> (3) the pre-kill signature is a **frozen engine top-pid + saturating PSI** (109,681 / 109,785 MiB
+> constant 4+ min while `psi_full` hit 97.8 / 92.5).
+>
+> **Bug found by testing, not by reading (`e11ea74`):** `in_flight()` could not distinguish "0 requests"
+> from "could not read" — a 401 or wedged daemon read as IDLE and would have restarted a **busy**
+> engine (same class as HD-380's zero-load bench, which also exited 0 on 401). It now echoes `ERR`, and
+> CRIT vs recycle treat unknown **asymmetrically on purpose**: CRIT proceeds (an engine that cannot
+> answer `/metrics` *is* the emergency), recycle requires positive proof of idle (opportunistic).
+> Sampler schema also fixed: `gpu_mib` emits `pid,mib`, so rows were 12-wide under an 11-name header and
+> every column after `psi_full_avg10` was shifted — old ring archived as `.v1-*`, `CmaFree` + `usable`
+> columns added (the historical ring **could not see CmaFree at all**, which is why this was missed).
+>
+> **Then, in order:** C3 `--enforce-eager` if the curve still climbs → land the **spark-lane 64k profile
+> (HD-376)** / drop `max_model_len` 262144 (a single 262k session ≈ **56% of the KV pool**, incident #6)
+> → re-run `spark/bench/stress-oom.sh` A/B **with NO agent attached** → only then revisit
+> `spark_vllm_kv_cache_memory`. `spark_vllm_memory_limit: 105G` is NOT a mitigation (GPU pages are not
+> cgroup-charged, invariant #1 — it only produces false negatives). Knowledge:
+> [`hardware-spark.md`](docs/hardware-spark.md) §Unified-memory budget (two correction blocks) ·
+> forensics: [`spark-incidents.md`](docs/spark-incidents.md) **#4–#8** (incl. the rejected-gauge record).
+> Evidence reader: `sudo /usr/local/bin/spark-oom-watchdog.sh status`,
+> `/mnt/spark_nvme/oom-watchdog/snapshots/`, `state/samples.csv`. Also: `docker stop` is an
+> **intentional** stop, so `unless-stopped` will NOT bring the engine back.
 
 For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human). Each HD line links its owning doc + todo row; the ⏳ = exact next step. Deploy-gated verifies live in [`deployment-tasks.md`](deployment-tasks.md) (per-phase chapters).
 
 **AI-actionable now (no owner prerequisite):**
-- **HD-375** — ⏳ spark host-memory OOM alert rules (`spark-host-mem-oom-warning/critical`) in the monitoring role + VPS monitoring converge (design + thresholds already authored in §Alerting). · [observability.md](docs/observability.md) §Alerting
+- **HD-375** — ✅ **AUTHORED 2026-09-17** (`e11ea74`): `spark-host-mem-oom-critical` (<8 GiB, `for: 1m`, `noDataState: Alerting`) + `spark-host-mem-oom-warning` (<12 GiB, `for: 2m`) in `roles/monitoring/vars/main.yml` on the **corrected** gauge `MemAvailable − CmaFree`. ⏳ **Next: VPS `monitoring` converge + confirm the rules evaluate 0-error in Grafana.** Note the thresholds moved off the original 24/16 design and the old `MemAvailable`-based §Alerting spec is superseded by [`spark-incidents.md`](docs/spark-incidents.md) #7/#8. · [observability.md](docs/observability.md) §Alerting
 - **HD-344** — ⏳ register MCP victoria endpoints in pi / Open WebUI / OpenClaw (**servers deployed :8083/:8084** — moved off :8080 which is pi-dev's port, 2026-09-15); tailnet redo = owner. · [observability.md](docs/observability.md) §MCP
 - **HD-318(b)** — ⏳ recyclarr @daily quality-profile sync verify (stacks up 2026-09-08; **2026-09-15: all *arr config dirs chowned to their image uid + `bind_owner_uid`/`bind_dirs` added to every entry** — a converge recreated containers and root-owned configs crash-looped the whole stack at 100% CPU; fixed live + durable, see [services-downloads.md](docs/services-downloads.md)). · [hardware-oldsrv.md](docs/hardware-oldsrv.md) · [todo.md HD-318](todo.md)
 
@@ -57,13 +96,14 @@ For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human
 - **HD-362** — ⏳ Music pillar tails (pillar deployed 2026-09-14, crash-loop fixes 2026-09-15; **Tube Archivist DISABLED + TORN DOWN 2026-09-15** — owner: “I don't need it right now”. TA looped on the `path.repo` ES snapshot env-check → oldsrv constant CPU/alternating RAM; row `enabled: false`, converge tore the stack down + unit disabled (no reboot resurrection). Re-enable = set `path.repo` in ES `elasticsearch.yml` directly (env-var/-E forms destabilize ES bootstrap) then flip back to `enabled: true`): 1P placeholders → real service values; owner: wire Lidarr clients; Navidrome Box refresh. · [services-media.md](docs/services-media.md) §Music Pillar
 - **HD-358** — ⏳ Seerr↔*arr wiring runbook step (bug #7): record API-key + URL wiring once home edge is up. · [services-media.md](docs/services-media.md)
 - **HD-357** — ⏳ Homepage tiles fix (bug #6): Jellyfin/Seerr tiles dead, Immich stuck "Soon"; wire layout/widgets to the verified endpoints. · [services.md](docs/services.md) accessibility SSOT
-- **HD-343 / HD-315** — ⏳ dashboards render-verify (owner): Network Clients + host-overview panels with data (data flowing on all 4 hosts); wifi-path verify. · [observability.md](docs/observability.md) §Dashboards
+- **HD-343 / HD-315** — ⏳ dashboards render-verify (owner): Network Clients + host-overview panels with data (data flowing on all 4 hosts); wifi-path verify. **2026-09-16 update, converged work already live:** Host Overview gained a disk-**work** row (throughput/IOPS/busy %/avg wait) + **Temperatures** row + 2 new top-row stats and `node_hwmon_temp_celsius` is now live for spark 12 / oldsrv 17 / nas 9 / pi 2 sensors, so the temp panels should render — this owner pass now covers those too. · [observability.md](docs/observability.md) §Dashboards · §Host sensors and disk I/O
 - **HD-345** — ⏳ `ifOperStatus` SNMP series still 0 in VM (rules on; SNMP enabled, walk not arriving). · [observability.md](docs/observability.md)
 
 - **HD-08 / HD-06** — ⏳ UPS wake re-test (owner): short pull → poweroff + WoL wake end-to-end (full fix set merged + deployed nas/oldsrv/pi 2026-09-09). · [hardware-ups.md](docs/hardware-ups.md)
 
 **spark (DGX GB10) — the other active lane:**
-- **HD-367** — ⏳ S1 bench on the box: **the flip + 4 blocker fixes are MERGED on main** (`9445d35`…`91d6049`); **2026-09-15 a memory-fit fix landed on `session/spark-b1-memfit-20260915-0050` (NOT yet merged)**: `gpu_memory_utilization` 0.93→**0.70**, memory cage 126G→**105G**, `max_model_len` 173400→**65536** — the 0.93 config OOM'd the whole box (unified 121.62 GiB pool: 0.93 ≈ 113 GiB GPU + 57 GiB CPU PLE mirror ≈ 170 GiB). **Engine now boots stable + healthy** (:8000 200, warmup OK). **B1 sanity certified C1×2 + C2×2** (harness fixed for `vllm bench serve` CLI; §9 row B1 filled: C1 TTFT 42.7/48.5s, C2 0.83–1.95s, 0 preempts, MTP ~35–44%; `accuracy/B1/` gate saved). ⏳ **C3 (12×8k@c3) OOM'd the host at 02:50** (NVRM memdesc + global OOM killed sshd/NetworkManager/polkitd; vLLM container survived the cage) → harness defaults C3→6×8k@c2 + `MEM_FLOOR_GB` preflight; **C3×2+warm re-run at safe size PENDING**. ⏳ next: finish safe C3/warm → record §9 → **merge `session/spark-b1-memfit` (certifies `spark-ai.enabled: true`)** → verify iofficiency → ladder (BENCHMARK-PLAN §6). Box tails cleared 2026-09-15: `dgx-dashboard-socat` removed, `traefik-spark` healthy, dashboard :11000 → 200. · [hardware-spark.md](docs/hardware-spark.md) §B1 engine boot · [todo.md HD-367](todo.md)
+
+- **HD-367** — ⏳ S1 bench on the box: **the flip + 4 blocker fixes are MERGED on main** (`9445d35`…`91d6049`); **2026-09-15 a memory-fit fix landed on `session/spark-b1-memfit-20260915-0050` (NOT yet merged)**: `gpu_memory_utilization` 0.93→**0.70**, memory cage 126G→**105G**, `max_model_len` 173400→**65536** — the 0.93 config OOM'd the whole box (unified 121.62 GiB pool: 0.93 ≈ 113 GiB GPU + 57 GiB CPU PLE mirror ≈ 170 GiB). **Engine now boots stable + healthy** (:8000 200, warmup OK). **B1 sanity certified C1×2 + C2×2** (harness fixed for `vllm bench serve` CLI; §9 row B1 filled: C1 TTFT 42.7/48.5s, C2 0.83–1.95s, 0 preempts, MTP ~35–44%; `accuracy/B1/` gate saved). ⏳ **C3 (12×8k@c3) OOM'd the host at 02:50** (NVRM memdesc + global OOM killed sshd/NetworkManager/polkitd; vLLM container survived the cage) → harness defaults C3→6×8k@c2 + `MEM_FLOOR_GB` preflight; **C3×2+warm re-run at safe size PENDING**. ⏳ next: finish safe C3/warm → record §9 → **merge `session/spark-b1-memfit` (certifies `spark-ai.enabled: true`)** → verify iofficiency → ladder (BENCHMARK-PLAN §6). Box tails cleared 2026-09-15: ~~`dgx-dashboard-socat` removed~~ **(claim corrected 2026-09-16, HD-379: it was NOT gone — the `docker-compose@dgx-dashboard` boot unit was never disabled, so every reboot resurrected it and it crash-looped again)**, `traefik-spark` healthy, dashboard :11000 → 200. → [hardware-spark.md](docs/hardware-spark.md) §Remote management for the durable fix (unit disabled + `dgx-dashboard` tombstone `enabled: false`). · [hardware-spark.md](docs/hardware-spark.md) §B1 engine boot · [todo.md HD-367](todo.md)
 - **HD-359** — ⏳ spark bench S1–S5 → flip `spark-ai.enabled` (node provisioned 2026-09-14: DGX OS wizard, bootstrap, p3 XFS carve 503.4G, `spark.yml` failed=0; artifact store staged — weights 169G + overlays + INT4 tables 30G). Subsumed by the HD-367 lane. · [hardware-spark.md](docs/hardware-spark.md) §Benchmark
 - **HD-366** — ⏳ DGX Dashboard JupyterLab LAN edge (:11002): entrypoint + route already exist; spawn a lab from the dashboard → curl `http://spark.kogler.si:11002` from a LAN client. **Deliberately untouched 2026-09-15** (owner instruction).
 - **HD-370** — ⏳ spark name edge + LiteLLM names (**ALL LEGS CONVERGED + LIVE 2026-09-15, sessions `session/lan-litellm-hd370-20260915-1344` + `homelab-wt-20260915-1841` (commit `0400f78`); VPS pre-pass `--check` artifact FIXED — see todo for the full state**). ✅ LIVE: `https://llm.kogler.si/v1/models` → `spark/qwen3.8-flash-next` (engine `--api-key` + `--served-model-name` from the new `spark-llm_api` 1P item; real `*.kogler.si` wildcard on the spark edge); `litellm_master_key` renamed → `litellm_api`; `lan-litellm` flipped + healthy on oldsrv behind `llitellm.kogler.si`; cert-sync pubkeys (spark+oldsrv) authorized on the VPS; router `vps_scoped_home` has spark. **Three edge crash-loops fixed live (HSTS CLI flags are invalid Traefik syntax — middlewares must live in the dynamic file; per-entrypoint `hsts@file` assignment is the CLI form):** spark-dashboard, traefik-tailnet (live-patched, Up), traefik-internal (live-patched, Up; `llogs` 200 again). ✅ **RENDERED 2026-09-15 (0400f78):** (1) the VPS pre-pass "failure" was a `--check` artifact → `fetch-vault-pass.yml` exporter/set_fact now run in check_mode; VPS converge failed=0 (316 ok); (2) dig-matrix VERIFIED — VPS primary answers `litellm`→public only, LAN-only names absent; oldsrv+Pi carry `llm`/`db-spark`/`spark`→spark_home_ip, `llitellm`→oldsrv (HD-352/365 rows DELETED as fully done); **TLS-in-TLS hop VERIFIED** — tailnet edge :4443 + bearer key → `/v1/models` → `spark/qwen3.8-flash-next` (fixed 500 "no IP SAN" via serversTransport `spark-tls-in-tls`); **wireguard route gap fixed** (oneshot now `ip route replace` each AllowedIPs /32 — `wg set` installs no routes). ⏳ **Remaining (owner):** **Admin-UI** — create `spark/qwen3.8-flash-next` in BOTH LiteLLMs (VPS `https://llm.kogler.si` / LAN `http://llm.kogler.si`) + `spark-llm_api` (VPS `LiteLLM_ModelTable` verified EMPTY — no model entry yet); confirm oldsrv glue minted dsh_api/pi-harness into the LAN DB. **Session learnings:** live converges MUST run detached (`nohup … &` + log + poll) — a foreground timeout kill leaves siblings `Exited` (tailscale-sidecar) and the next run's restart guard fails; hosts unreachable from a NAT'd WSL reachable via `ansible_ssh_common_args="-o ProxyJump=vps -i …"` (Mgmt-99 only from LAN, so use `-e ansible_host=<home_ip>` where host_vars hardcode `ansible_host`); `traefik-tailnet` excluded from the restart-on-config-change guard (file-provider hot-reload). **Self-learn candidates:** op CLI 2.39 SA-token `op item edit` returns a spurious 404 AFTER applying a field clear (verify by re-read); `op item get` WITHOUT `--reveal` returns a 65-char hint string, not the value (misreads as a placeholder). · [hardware-spark.md](docs/hardware-spark.md) §Name edge · [services-ai.md](docs/services-ai.md) §2 · [todo.md HD-370](todo.md)
