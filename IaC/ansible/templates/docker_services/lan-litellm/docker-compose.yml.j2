@@ -32,10 +32,17 @@
 #   (live 2026-09-17: NXDOMAIN in both LiteLLMs). Management API stays docker-exec-only (HD-62 parallel).
 #
 #   Secrets (all fail-closed, HD-65): reuses the SAME 1Password items as the VPS
-#   instance — litellm_api, openrouter_api, litellm_db, spark-llm_api (HD-382) — so the
-#   scoped-key glue (dsh_api, pi-harness_openai_api) and the db_backup DB06 story
-#   apply unchanged. On spark convergence, the litellm-db POSTGRES_* values fan out
-#   from the same vault items.
+#   instance — litellm_api, openrouter_api, litellm_db, spark-llm_api (HD-382) — and the
+#   db_backup DB06 story applies unchanged. On spark convergence, the litellm-db
+#   POSTGRES_* values fan out from the same vault items.
+#   SCOPED KEYS: this instance currently mints NONE (HD-386, 2026-09-17): the dsh_api +
+#   pi-harness_openai_api records left with their removed consumers, so the registry entry
+#   carries `bootstrap_keys: false` (the glue fail-louds on an empty spec list) and
+#   `litellm_scoped_keys` is `[]` — NOT a commented-out key (YAML would make that None and
+#   `| default([])` does not rescue None). The first records back are the SIMPLE-QUERIER
+#   allow-lists (HomeAssistant / Docling / OWUI) under decision #26 + HD-384, and they must
+#   flip `bootstrap_keys: true` in the same change. Per decision #26 the coding harnesses
+#   are not consumers of this instance — they reach spark directly.
 services:
   lan-litellm:
     image: docker.litellm.ai/berriai/litellm:{{ litellm_version }}

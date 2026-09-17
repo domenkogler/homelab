@@ -235,8 +235,16 @@ tailnet_subdomains:
   # edge serves the clean URLs + the *.ts twins; it reaches the backends over WG
   # to {{ oldsrv_home_ip }}:3080/:8080 (the dsh/pi-dev route re-point lives in
   # templates/docker_services/traefik-tailnet/dynamic/routes.yml.j2) ---
-  - { name: dsh }     # -> edge -> dsh-backend    http://{{ oldsrv_home_ip }}:3080 (over WG; old: dsh:3080)
-  - { name: pi-dev }  # -> edge -> pi-backend     http://{{ oldsrv_home_ip }}:8080 (over WG; old: pi-dev:8080)
+  # ⚠ PARKED 2026-09-17 (HD-386, decision #26): the BACKENDS DO NOT EXIST any more —
+  # dsh/pi-dev are removed (and the coding harnesses are dedicated deployments now, not
+  # oldsrv containers), so these two names resolve and the edge answers 502 BY DESIGN.
+  # This is NOT an outage to chase. Left in place deliberately: dropping the entries
+  # would delete MagicDNS records (a behavior change, its own decision) while buying
+  # nothing — the records are harmless and the routes cost no failure. Remove both here
+  # AND the dsh-backend/pi-backend blocks in routes.yml.j2 together, in one change, if
+  # the owner decides the names should stop resolving.
+  - { name: dsh }     # -> edge -> dsh-backend    http://{{ oldsrv_home_ip }}:3080 (over WG; old: dsh:3080) — backend PARKED (HD-386), 502 expected
+  - { name: pi-dev }  # -> edge -> pi-backend     http://{{ oldsrv_home_ip }}:8080 (over WG; old: pi-dev:8080) — backend PARKED (HD-386), 502 expected
   # HD-370: spark AI endpoints + LiteLLM admin — resolve to the vps-obs edge (same as above);
   # the tailnet edge Host-routes db-spark/llm to spark's edge over WG + litellm to the VPS
   # container. The .ts twins get the same extra_records (MagicDNS).

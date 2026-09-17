@@ -29,6 +29,12 @@
 #   public). HD-250 remains: no public Traefik label route on this compose; the app's
 #   `services-internal` membership is for LiteLLM + Forgejo app-to-app legs only.
 #
+#   ⚠ PARKED 2026-09-17 (todo.md HD-386 + services-ai.md decision #26): this template is
+#   NOT DEPLOYED — the registry entry is `enabled: false`. Do not flip it back casually:
+#   dsh_api is deliberately EMPTY in 1Password (it also holds a STALE VPS-era value, HD-383),
+#   so enabling renders fail-closed and takes the oldsrv docker_services converge down. Per
+#   decision #26 a re-onboarded harness reaches the spark name edge DIRECTLY instead.
+#
 #   Secrets (fail-closed, HD-65 — all via 1Password vault refs, never literals):
 #     dsh_api (api -> credential) — scoped LiteLLM virtual key for DSH's model backend
 #       (HD-247; minted by the litellm bootstrap glue). NOT the LiteLLM master key.

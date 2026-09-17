@@ -29,15 +29,60 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 | `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by [`../scripts/install-pi-wsl.sh`](../scripts/install-pi-wsl.sh) | git (repo → `~/.pi/agent`) |
 | spark engine (`--max-model-len`, KV pool) | repo IaC `IaC/ansible/group_vars/spark.yml` | Ansible (SSOT, HD-374) |
 
-- The harness talks **directly to the spark edge** (`llm.kogler.si`, HD-370), not through LiteLLM. The
-  LAN/VPS LiteLLM instances (HD-356) front the same engine for the `pi-dev`/`dsh` containers and the
-  family side — the model id `spark/qwen3.8-flash-next` is deliberately stable across all three paths.
+- The harness talks **directly to the spark edge** (`llm.kogler.si`, HD-370), not through LiteLLM. That
+  is a DECIDED boundary as of 2026-09-17 (**decision #26**, [services-ai.md](services-ai.md) §9 row 26 +
+  the evidence appendix §9d), not an accident of history — see **§1b** below. The LAN/VPS LiteLLM
+  instances (HD-356) front the same engine for the **simple-querier tier** (HomeAssistant, Docling,
+  Open WebUI) — the model id `spark/qwen3.8-flash-next` is deliberately stable across every path.
 - **Secret:** the provider `apiKey` is the `spark-llm_api` credential (1Password `Homelab-ansible`
   vault, HD-370). Never commit the literal and never print its value (CONVENTIONS §6).
 - Reload: `models.json` is re-read every time `/model` is opened in a running session; a new session
   picks it up at start. `settings.json` is read at start → restart pi.
 
 ---
+
+## 1b. Why the harness does NOT go through LiteLLM (decision #26, 2026-09-17)
+
+The question "can't the gateway just hand my parameters to every client?" has a split answer, and the
+split is the whole reason for this boundary. LiteLLM **can** hand out *values on the wire*; it cannot
+hand out *client-side semantics*, because `pi` reads its model contract from a local `models.json`
+(`pi-coding-agent/docs/models.md`) and has no way to consume a proxy's `model_info`.
+
+| Part of §4 | Through the gateway? | Note |
+|---|---|---|
+| `contextWindow`, `maxTokens`, `input` | Partially — as LiteLLM `model_info` (`max_input_tokens` / `max_output_tokens`, live in both DBs since HD-382) | **pi does not read it** — the field must still be in `models.json`; and the numbers differ on purpose: the DB carries 245,760 = window − reserve, pi needs the engine ceiling 262,144 |
+| `samplingParams` (temperature/top_p) | Yes, if put in the DB entry's `litellm_params` | But `top_k` is **not** on the `openai/` provider allow-list → silently dropped |
+| `compat.thinkingFormat` → `chat_template_kwargs.enable_thinking` | ⚠ **Unverified on the pinned image** — HD-387 | Not on the `openai/` allow-list on `main`; if dropped, the failure mode is thinking **ON** with HTTP 200 |
+| `compat.thinkingTokenBudgetField` → `thinking_token_budget` | ⚠ Same open question (HD-387) | `main` handles it for Bedrock only |
+| `reasoning`, `thinkingLevelMap`, `supportsUsageInStreaming`, `maxTokensField`, `supportsDeveloperRole`, `supportsStrictMode`, `supportsReasoningEffort`, `cost` | **No — never** | These describe how *pi* speaks and how *pi* renders; a proxy cannot transmit them |
+| timeouts / compaction (§5) | **No — never** | Harness-side policy |
+
+So a gateway hop buys a harness **no** configuration relief for the eight fields that cost the effort,
+while putting the three that matter most at risk of silent loss. Two further reasons, both measured on
+this box rather than argued: a proxy **retry/fallback** reproduces the incident-#6 memory spike
+automatically (162k-token session, 0 % prefix hit, 17,008 tok/s re-prefill, 21.5 → 12.6 GiB in 22 s —
+[spark-incidents.md](spark-incidents.md)), and a **fallback that swaps the model** silently invalidates
+§3 (pi keeps compacting against the old window) and the tool-call parser assumption. Fallback therefore
+lives **here**, as a second provider entry whose `contextWindow` is also correct:
+
+```json
+"spark-dr": {
+  "baseUrl": "https://litellm.kogler.si/v1",
+  "api": "openai-completions",
+  "apiKey": "(litellm master key, or a scoped key once HD-384 grants one)",
+  "models": [ { "id": "spark/qwen3.8-flash-next", "name": "spark via VPS gateway (backup leg)",
+                "contextWindow": 262144, "maxTokens": 16384, "reasoning": true } ]
+}
+```
+
+`spark-lane` (§6) and `spark-dr` are the same trick twice: **same endpoint id in, different
+harness-side budget/route** — which is only possible because the harness is the one holding the truth.
+
+> **What the gateway IS for (decision #26):** the simple queriers (HomeAssistant, Docling, Open WebUI,
+> OpenClaw) and the pinned-AI legs (decision #25) — consumers that must not hold an upstream credential,
+> that want one dropdown, and that gain from per-key budgets/spend records. A `pi`-class consumer gains
+> none of that and loses determinism.
+
 
 ## 2. Engine facts (measured live, 2026-09-16, against `https://llm.kogler.si/v1`)
 
@@ -244,9 +289,14 @@ Verified 2026-09-16: the row renders `262.1K / 16.4K / thinking yes`, and the sm
 
 ## 9. Open tails
 
-- ⏳ Point `pi-dev` (oldsrv container) and the LiteLLM model entries at the same 262k window once the
-  LAN instance's model entry exists in the Admin UI (HD-370 owner step) — harness numbers here apply
-  unchanged to any consumer of this engine.
+- ✅ **CLOSED 2026-09-17:** the "`pi-dev` re-point" tail is **moot** — `dsh`/`pi-dev` are PARKED as
+  services (HD-386) and per decision #26 the harnesses reach the engine directly, so there is nothing
+  left to re-point. The LAN model entry itself landed 2026-09-17 (HD-382) and stays for the
+  simple-querier tier.
+- ⏳ **HD-387:** re-measure whether the thinking control (`chat_template_kwargs.enable_thinking` +
+  `thinking_token_budget`) actually survives the LiteLLM path on the **pinned** image. It does not
+  change the harness's route (direct, decision #26) — it decides whether the *simple queriers* may rely
+  on thinking being off.
 - ⏳ Long-context needle test at 262k (agentic/max-context work is gated on it,
   [`hardware-spark.md`](hardware-spark.md)) — until it passes, treat the top ~20% of the window as
   experimental.

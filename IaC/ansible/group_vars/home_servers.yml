@@ -185,21 +185,40 @@ docker_services:
   - { name: profilarr,    template_dir: profilarr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-318 Class-A: image su-execs to uid 1000 (docker top: /app/profilarr runs as domen=1000); config dir must be pre-created 1000-owned (2026-09-15: initially mis-set to 1005, corrected — the app runs as 1000)
   - { name: recyclarr,    template_dir: recyclarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop); scheduled worker, no UI
 
-  # --- Dev AI (HD-355/356, 2026-09-10): dsh + pi-dev MOVED here from the VPS; the
-  # tailscale sidecars are removed — the UIs publish on oldsrv_home_ip (media-bridge
-  # pattern, ports :3080/:8080) and the VPS tailnet edge reaches them over WG S2S.
-  # The LAN LiteLLM (dev side) is NEW (HD-356/HD-370): ✅ FLIPPED 2026-09-15 (owner
-  # go — spark S1 engine stable + serving). It MUST precede dsh/pi-dev in this
-  # registry: its bootstrap-keys glue (bootstrap_keys: true) runs during THIS
-  # service's deploy pass, mints dsh_api/pi-harness_openai_api into the LAN DB and
-  # refreshes the vault dict — the SAME ordering contract as the VPS (litellm
-  # before open-webui/openclaw). Deployed lesson 2026-09-15: a dsh render BEFORE
-  # the glue failed fail-closed on the (deliberately cleared) vault items
-  # ('dict' has no attribute 'dsh_api').
-  - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: true,   # dev-side gateway for dsh/pi-dev/OpenHands; own Postgres + scoped keys (dsh_api, pi-harness_openai_api); Kopia-backed
-      bootstrap_keys: true }
-  - { name: dsh,            template_dir: dsh,       public: false, enabled: true }   # DeepSeek Harness — dev AI (oldsrv now; UI = oldsrv_home_ip:3080)
-  - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: true }   # pi coding-agent — dev AI (oldsrv now; UI = oldsrv_home_ip:8080)
+  # --- Dev AI (HD-355/356) — dsh + pi-dev PARKED (DISABLED) 2026-09-17, HD-386 ---
+  # History: MOVED here from the VPS 2026-09-10 (tailscale sidecars removed; UIs were
+  # to publish on oldsrv_home_ip :3080/:8080, media-bridge pattern, reached by the VPS
+  # tailnet edge over WG S2S). The owner has since REMOVED both harnesses — no dsh and
+  # no pi-dev container exists on the VPS (torn down 2026-09-14) or on oldsrv — and per
+  # decision #26 (services-ai.md §9) the coding harnesses are DEDICATED deployments from
+  # now on, not docker_services entries. This registry is therefore their NON-host:
+  # both entries stay DISABLED (kept, not deleted, so template_dir + the port contract
+  # survive a future re-onboarding).
+  # WHY disabled and not merely absent — the fail-closed class that made every oldsrv
+  # docker_services converge red: both compose templates render a 1P-sourced scoped key
+  # (dsh → vault['dsh_api'], pi-dev → vault['pi-harness_openai_api']) and BOTH items are
+  # DELIBERATELY EMPTY in the vault (the LAN glue owns their value), so enabling either
+  # dies at render ('dict object' has no attribute 'dsh_api') and takes the whole
+  # converge down with it. Live-found 2026-09-15 (the ordering lesson below), re-found
+  # 2026-09-17 while tracing the HD-383 abort — the abort was never the only red thing.
+  #
+  # The LAN LiteLLM itself STAYS ENABLED: per decision #26 it is the gateway for the
+  # SIMPLE QUERIER tier (HomeAssistant, Docling, Open WebUI) + the pinned-AI legs
+  # (embed/STT per decision #25) — that role is independent of the harnesses.
+  # Its bootstrap-keys glue is now OFF: with the harness records gone from
+  # `litellm_scoped_keys` (below) the instance has no scoped consumers, and the glue
+  # fail-louds on an empty spec list ("FATAL: no scoped-key specs rendered", rc1) — the
+  # FATAL is kept on purpose (a silently-empty list would mean consumers getting 401s at
+  # runtime), so the switch is at the registry instead. Flip `bootstrap_keys: true` back
+  # IN THE SAME CHANGE as the first real consumer's record (ha / docling / owui = HD-384)
+  # — one change, per the same-change rule in hardware-spark.md §Model-catalog sync.
+  # (Historical ordering contract, inert while no consumer exists: a bootstrap_keys
+  # service MUST precede its consumers in this list, because the glue runs during ITS
+  # deploy pass and refreshes the vault dict the consumers render from.)
+  - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: true,   # simple-querier gateway (decision #26); own Postgres; Kopia-backed
+      bootstrap_keys: false }   # HD-386: no scoped consumers while the harness records are parked — see the block above (flip together with HD-384)
+  - { name: dsh,            template_dir: dsh,       public: false, enabled: false }   # PARKED 2026-09-17 (HD-386, decision #26) — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:3080
+  - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: false }   # PARKED 2026-09-17 (HD-386, decision #26) — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:8080
 
   # ⏳ Spark AI (Qwen3.8-Flash-Next on GB10) — DEPLOY-GATED ON SPARK (HD-359/HD-337):
   #     the engine lives on the spark NODE (host_vars/spark.kogler.si.yml), NOT oldsrv.
@@ -243,16 +262,32 @@ docker_services:
   # metabase: RETIRED from the VPS 2026-09-14 (was here); future home = oldsrv.
   # MinIO REMOVED (2026-08-18, HD-135): Immich originals = live Hetzner Box (CIFS), not S3.
 #
-litellm_scoped_keys:
+# EXPLICITLY an empty LIST, not a key-with-only-comments: YAML would parse that as None
+# and `litellm_scoped_keys | default([])` does NOT rescue None (the default filter fires on
+# UNDEFINED only) — `roles/docker_services/tasks/main.yml` op_derive_glue and
+# `tasks/deploy-service.yml` both pipe it through `map(attribute='vault_item')` and would
+# die on a full oldsrv converge. `[]` keeps those pipes clean.
+litellm_scoped_keys: []
   # LAN LiteLLM scoped keys (HD-356/HD-370) — per-instance SSOT consumed by the
   # bootstrap-keys glue + scripts/check-vault-items.sh (same record shape as the
   # VPS list in group_vars/vps.yml `litellm_scoped_keys`; same vault ITEMS, but the
   # keys minted here live in the LAN lan-litellm-db — 2026-09-15: the stale
   # VPS-DB-minted dsh_api/pi-harness values were CLEARED in 1Password so this glue
   # mints fresh LAN keys vault-first; the orphaned VPS-DB alias keys were deleted
-  # server-side and the records dropped from vps.yml). dsh/pi-dev are not deployed
-  # yet — keys mint now, consumers wire up at their own deploy. Model allow-lists
-  # stay as authored (ollama/*,openrouter/*; spark/* access for the dev harnesses
-  # is a later decision, NOT decided here).
-  - { alias: dsh, vault_item: dsh_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }
-  - { alias: pi-harness, vault_item: pi-harness_openai_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }  # HD-268 pi scoped LiteLLM key (dual harness)
+  # server-side and the records dropped from vps.yml).
+  #
+  # PARKED 2026-09-17 (HD-386, decision #26): the two harness records are commented out
+  # because their consumers no longer exist (dsh/pi-dev removed by the owner; coding
+  # harnesses are dedicated deployments now, reached DIRECTLY per decision #26 — they
+  # are not LiteLLM consumers any more). Leaving them in minted keys for nobody and kept
+  # every converge red: the glue probes the stored `dsh_api` credential, gets 401 (it is
+  # a VPS-DB-era value), and correctly refuses to auto-overwrite a secret → ABORT rc2
+  # (that is HD-383). Commenting the records removes both the mint and the probe.
+  # The 1P ITEMS stay in the vault untouched (a parked consumer must not imply a
+  # deleted secret); `dsh_api` still holds the stale value and would still trip rc2 if
+  # this record is ever restored — that remediation is written in HD-383.
+  # The list being EMPTY is what forces `bootstrap_keys: false` on lan-litellm above.
+  # - { alias: dsh, vault_item: dsh_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }
+  # - { alias: pi-harness, vault_item: pi-harness_openai_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }   # HD-268 pi scoped LiteLLM key (dual harness) — PARKED HD-386
+  # First records to land here again are the SIMPLE QUERIER tier (decision #26), not the
+  # harnesses: spark/* + ollama/* allowlists for ha / docling / owui = HD-384.

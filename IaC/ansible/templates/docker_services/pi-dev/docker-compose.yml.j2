@@ -35,6 +35,14 @@
 #   + pi-web-access extension install run once at (re)start; sessions persist in the
 #   workspace volume.
 #
+#   ⚠ PARKED 2026-09-17 (todo.md HD-386 + services-ai.md decision #26): this template is
+#   NOT DEPLOYED — the registry entry is `enabled: false`. Do not flip it back casually:
+#   pi-harness_openai_api is deliberately EMPTY in 1Password, so enabling renders fail-closed
+#   and takes the whole oldsrv docker_services converge down with it (HD-386). And per
+#   decision #26 a re-onboarded pi harness should talk to the spark name edge DIRECTLY, not
+#   to lan-litellm (why: services-ai.md §9d + pi-harness.md §1b) — which makes this
+#   LiteLLM-backend wiring itself questionable, not just its state.
+#
 #   Secrets (fail-closed, HD-65 — all via 1Password vault refs, never literals):
 #     pi-harness_openai_api (api -> credential) — scoped LiteLLM virtual key for pi's
 #       model backend (HD-247 pattern; minted by the litellm bootstrap glue). NOT the
