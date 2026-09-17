@@ -29,7 +29,8 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 > learning server became healthy", `/ping` 200 from the VPS over `wg-s2s`). Ollama is **disabled** —
 > generation consolidated on spark (Triton/GB10, decision #23, 2026-09-06; **refined 2026-09-15,
 > decision #24**: the small pinned services — STT/embed/rerank — move to the oldsrv RX 7600, spark
-> keeps the big-model generation tier). **PGVector is being
+> keeps the big-model generation tier; **per-leg stack settled 2026-09-17, decision #25**: rerank went
+> back to **CPU**, STT is **`whisper.cpp` GGML_HIP (native gfx1102)**, embed stays Ollama). **PGVector is being
 > replaced by Qdrant** (HD-267; ⏳ migration/backtest + re-index before the live swap). ⏳ deploy-gated:
 > Qdrant cutover, the OKF-wiki repos, and the RAG/agent live-tuning behind them. Supersedes the
 > AnythingLLM path.
@@ -88,7 +89,7 @@ The AI estate is split by **who consumes it and where the compute lives** (tier 
 | Side | Hosted on | Services | Why |
 |---|---|---|---|
 | **Family AI** | **VPS** | `open-webui` (SSO-dependent), `docling`, `qdrant`, `openclaw`, `rag-mcp`, `forgejo-mcp`, **VPS LiteLLM** | SSO-bound, reliable, backed-up — the family-facing web AI |
-| **Dev AI** | **oldsrv** (+ `spark` when provisioned) | **`dsh` + `pi-dev` (MOVED from VPS 2026-09-10, tailscale removed)**, `OpenHands` (planned, spark), `immich-ml`, `mcp-victoriametrics`, `mcp-victorialogs`, **LAN LiteLLM (NEW, deploy-gated on spark)**, **pinned AI services (Whisper STT + bge-m3 embed + bge-reranker — decision #24, 2026-09-15)** | RAM/GPU-hungry (oldsrv 48 GB + RX 7600); LAN-local consumers; state backs up to NAS/VPS |
+| **Dev AI** | **oldsrv** (+ `spark` when provisioned) | **`dsh` + `pi-dev` (MOVED from VPS 2026-09-10, tailscale removed)**, `OpenHands` (planned, spark), `immich-ml`, `mcp-victoriametrics`, `mcp-victorialogs`, **LAN LiteLLM (NEW, deploy-gated on spark)**, **pinned AI services (Whisper STT + bge-m3 embed — decision #24, restacked by #25 2026-09-17: rerank on CPU)** | RAM/GPU-hungry (oldsrv 48 GB + RX 7600); LAN-local consumers; state backs up to NAS/VPS |
 
 Consequences of the split:
 - **LiteLLM splits into two instances** (VPS + LAN) — it must sit next to its consumers (`litellm:4000` Docker-DNS only resolves same-host). VPS LiteLLM serves the family side (open-webui, openclaw, docling, qdrant, rag-mcp); **LAN LiteLLM (new)** serves the dev side (dsh, pi-dev, future OpenHands) with **spark (GB10 / Triton NVFP4)** as its local inference backend. The LAN instance is **LIVE 2026-09-15** (`lan-litellm` Up/healthy on oldsrv behind `llitellm.kogler.si`). Each instance owns its own Postgres (`litellm-db`) + scoped keys, and both are Kopia-backed.
@@ -120,7 +121,7 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **Open WebUI ×2** (v2, HD-248) | chat + RAG UI | `traefik-public` / tailnet sidecar | `chat.kogler.si` PUBLIC (family, limited keys, **OKF Family-Manuals KB only**); `ai.kogler.si` INTERNAL (tailnet-served; you+wife, agent keys, `rag_internal`). Auth = Authentik OIDC both. |
 | **Qdrant** | **hybrid vector store (HD-307)** | `db-internal` | Standalone Rust DB (dense+sparse BM25), **independent of OWUI built-in RAG**. Replaces PGVector. Vector dimension locks at first ingest (1536). Add a snapshot/backup seam. |
 | **Forgejo (wiki repos)** | **knowledge SSOT** (HD-307) | `db-internal` / git | OKF `.md` repos per owner; git = truth; Qdrant = rebuildable cache. |
-| **kapa-inspired-rag-mcp** *(planned)* | MCP hybrid reader | `services-internal` | On @wiki-<x> query: hybrid search in Qdrant → top-20 → bge-reranker-v2-m3 rerank (via LiteLLM → oldsrv RX 7600, decision #24) → top-5 clean markdown. |
+| **kapa-inspired-rag-mcp** *(planned)* | MCP hybrid reader | `services-internal` | On @wiki-<x> query: hybrid search in Qdrant → top-20 → bge-reranker-v2-m3 rerank (via LiteLLM → **CPU reranker on oldsrv**, decision #25) → top-5 clean markdown. |
 | **Forgejo MCP** *(planned)* | MCP read/write `.md` | `services-internal` | Bridge to the OKF wiki repos; agents read/write notes + open PRs. |
 | ~~Ollama~~ *(removed 2026-09-06)* | ~~Local LLM inference~~ | ~~`llm-backend`~~ | **Removed** — inference consolidated on spark (Triton). No Ollama/ROCm on oldsrv. |
 | **Triton Inference Server** *(planned, spark)* | NVFP4 local inference | `triton-backend` | On the **spark** GB10 node (HD-335) — **the big-model generation tier** (decision #24, 2026-09-15; was "sole local-inference tier" #23). Serves the NVFP4 generation set (Nemotron-30B, Qwen3-Next-80B, Llama-3.3-70B, Qwen3-Coder-Next-80B) — **one big model with the largest context** (Qwen3-Coder-Next-80B, 262k ctx via SGLang). The small pinned services (Whisper STT, bge-m3 embed, bge-reranker) **moved to the oldsrv RX 7600** (decision #24). Reachable only by LiteLLM — same isolation as the removed Ollama (HD-59). **Model repo = Ansible-managed** (per-model `config.pbtxt` J2 templates + idempotent NVFP4 conversion + strict `1/` layout, `/srv/models/spark/`; see `hardware-spark.md` §Bring-up). **Model-catalog sync = git SSOT `models.yml` → LiteLLM DB** (reconciler: onboard upserts, offboard scoped-deletes git-sourced models only + same-change `litellm_scoped_keys` cleanup; manual OpenRouter models untouched). GB10 bring-up reference: [`dgx-spark-ml-guide`](https://github.com/martimramos/dgx-spark-ml-guide). |
@@ -151,7 +152,7 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
   works with the master key / admin path only; the workstation harness goes direct-to-engine (`pi-harness.md`).
 - **Embeddings → local spark (2026-09-06):** bge-m3 (1024-dim) via Triton; Cohere subscription retired.
   Previously Cohere embed-v4 multilingual @1536 (accepted 2026-08-16 — superseded); local bge-m3/1024 via Ollama `:rocm` on oldsrv RX 7600 (decision #24).
-- **Rerank → oldsrv RX 7600 (decision #24):** `ollama/bge-reranker-v2-m3` via LiteLLM `/rerank` (Cohere retired).
+- **Rerank → CPU (decision #24 placement, restacked by decision #25 2026-09-17):** `bge-reranker-v2-m3` as a **CPU CrossEncoder** behind a `/rerank`-compatible endpoint, reached via LiteLLM (Cohere retired). **Not Ollama** — Ollama serves no rerank API at any released version, and LiteLLM has no Ollama rerank provider (`litellm/llms/ollama/rerank/transformation.py` → 404). Evidence + the open provider-routing question: §9c · HD-385.
 - **Local models:** Ollama listed via LiteLLM so family sees local + cloud in one dropdown; local is
   default where privacy/offline matters. **spark (HD-335)** adds the **Triton** NVFP4 set + local embeddings
   (bge-m3/reranker) as further LiteLLM backends (details in [`hardware-spark.md`](hardware-spark.md)).
@@ -216,7 +217,7 @@ the per-consumer virtual keys (fail-closed lookups thereafter), specs SSOT in `g
 |-----------|---------------|
 | Extraction | Docling only (`CONTENT_EXTRACTION_ENGINE=docling`, `DOCLING_SERVER_URL=http://docling:5001`) |
 | Embeddings | **bge-m3, 1024 dims**, via Triton on spark (LiteLLM openai-compat, scoped rag key) — Cohere retired |
-| Reranker | bge-reranker-v2-m3 local via LiteLLM `/rerank` (oldsrv RX 7600 Ollama, decision #24) |
+| Reranker | bge-reranker-v2-m3 local via LiteLLM `/rerank` — **CPU CrossEncoder host** (decision #24 placement; stack per decision #25, 2026-09-17 — see §9c) |
 | Hybrid | ON default (dense+sparse BM25) |
 | Retrieval | 20 candidates → rerank → top 5, threshold 0 |
 | Chunking | token-based 512/64 (`RAG_TEXT_SPLITTER=token` mandatory) |
@@ -301,7 +302,7 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 |-------------|-----|
 | **Open WebUI ↔ OpenClaw** | Register OpenClaw as a LiteLLM model/provider → chatting to the “OpenClaw” model in the UI invokes the agent (**internal instance only; public keys exclude agents**). No bespoke glue. |
 | **pi.dev / DSH ↔ LiteLLM/Forgejo** *(dual)* | Each harness consumes a scoped LiteLLM key; propose via Forgejo PRs only (branch-protected main, no merge rights). |
-| **Qdrant ↔ rag-mcp ↔ OWUI** (HD-307) | kapa-mcp retrieves via Qdrant + bge-reranker-v2-m3 rerank (LiteLLM → oldsrv RX 7600), returns top-5 markdown to OWUI |
+| **Qdrant ↔ rag-mcp ↔ OWUI** (HD-307) | kapa-mcp retrieves via Qdrant + bge-reranker-v2-m3 rerank (LiteLLM → **CPU reranker on oldsrv**, decision #25), returns top-5 markdown to OWUI |
 | **Forgejo MCP ↔ wiki** | agents read/write OKF `.md`, open PRs; never arbitrary FS access |
 | **OpenCloud ↔ RAG ingress** | raw assets (live Box WebDAV, read-only) → Docling → wiki (git floor) |
 | **OpenClaw ↔ OpenCloud** | **WebDAV skill** reads/writes family files (summarize, organize, OCR a scan via Docling, draft replies). |
@@ -311,7 +312,7 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 - **No host port binds** (Flaw C / HD-62): overlays + Traefik only; loopback-only if ever needed.
 - **Version pinning** (HD-61/71): pin LiteLLM, Open WebUI, Docling, **Qdrant**, OpenClaw (young project).
   Keep Renovate tracking.
-- **VRAM/RAM:** spark = 128 GB unified (**big-model generation tier** — one large model, largest context, decision #24); oldsrv RX 7600 dGPU (8 GB) = **pinned AI services (Whisper STT ~2 GB + bge-m3 embed ~1–2 GB + bge-reranker ~1–2 GB ≈ 5–6 GB) + Sunshine gaming encode + immich-ML batch (lowest priority)**; Piper TTS = **CPU** (CPU-only engine); Docling on CPU; size chat models
+- **VRAM/RAM:** spark = 128 GB unified (**big-model generation tier** — one large model, largest context, decision #24); oldsrv RX 7600 dGPU (8 GB) = **pinned AI services (Whisper STT ~2 GB + bge-m3 embed ~1–2 GB ≈ 3–4 GB; the bge-reranker moved to CPU — decision #25) + Sunshine gaming encode + immich-ML batch (lowest priority)**; Piper TTS = **CPU** (CPU-only engine); Docling on CPU; size chat models
   ~7–8B q4; keep `keep_alive` sensible (see `hardware-gpu.md`).
 - **AnythingLLM + LocPilot removed** for the family web UI — replaced by MS Office MCP path (HD-108).
 
@@ -326,10 +327,74 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 | **22** | **spark (ThinkStation PGX / GB10) replaces the old Phase-2 Ryzen/R9700 build (HD-42 superseded).** Headless Triton inference node + NVFP4 model set + local bge embeddings; **Mem0** (OWUI memory on Qdrant) + **OpenHands** (agentic coding) onboard on spark. HD-335. | 2026-09-06 |
 | **23** | **Inference consolidated on spark — single local-inference tier (2026-09-06).** All generation/embeddings/rerank/STT/TTS run on spark (Triton, GB10). **No Ollama/AMD-noble ROCm on oldsrv** (ollama disabled 2026-09-07; amd_rocm role kept but Debian-native only, HD-318). oldsrv GPU = **Sunshine gaming encode first, with immich-ML as a pause-able GPU batch consumer** (already GPU-templated; Sunshine prep-commands `docker pause/unpause immich-ml` enforce gaming-first — no CPU fallback needed; CPU path reserved only if ONNX-GPU proves fragile). **Cohere subscription retired** — bge-m3 (1024) + bge-reranker-v2-m3 replace embed-v4/rerank (Qdrant 1536→1024 free: nothing RAG'd yet). Voice = whisper-turbo + XTTS/Piper **pinned resident on spark, no fallback**. | 2026-09-06 |
 | **24** | **RX 7600 = pinned-services tier; spark = big-model generation tier (2026-09-15).** Reverses #23's "sole inference tier" for the *small pinned services*: **Whisper STT (~2 GB) + bge-m3 embed (~1–2 GB) + bge-reranker (~1–2 GB) move to the oldsrv RX 7600** (container-bundled ROCm, ≈5–6 GB of 8 GB, pause-able for gaming — same pattern as immich-ML). **Piper TTS stays CPU** (CPU-only engine, ~0.5 GB, instant). **spark (GB10, 128 GB unified) keeps the big-model generation tier** — one large model with the largest context (Qwen3-Coder-Next-80B, 262k ctx via SGLang). immich-ML stays on oldsrv GPU as **lowest priority** (paused when voice/embed active). Rationale: pinned services are small + latency-sensitive (voice); spark is a 128 GB monster that should do the heavy lifting, not babysit a 2 GB Whisper. Risk accepted: ROCm-on-RDNA3 container-bundled path (immich-ML precedent). | 2026-09-15 |
+| **25** | **Pinned-AI service stack per leg (owner-approved 2026-09-17, research 2026-09-17).** Settles the three legs HD-369 left open, keeping the decision #24 placement (RX 7600 = pinned tier) unchanged: **(a) embed** — stays **Ollama `:rocm` `bge-m3`** (already E2E-verified: 1024-dim, 100 % GPU); TEI was investigated and rejected for this card (§9c). **(b) rerank** — **CPU cross-encoder**, owner call 2026-09-17: 568 M params, 20 pairs ≈ 10–30 ms/pair against a 300–800 ms LLM leg, so GPU residency buys nothing while costing 1.5 GB VRAM + a ROCm runtime; also removes the rerank leg from the RX 7600 VRAM budget entirely. **Ollama is NOT a rerank host** — no GGUF reranker path exists (§9c). **(c) STT** — **`whisper.cpp` built with `GGML_HIP` + native `AMDGPU_TARGETS=gfx1102`** (`.devops/main-rocm.Dockerfile`, ROCm 7.14/TheRock) instead of PyTorch `insanely-fast-whisper-rocm`, which needs `HSA_OVERRIDE_GFX_VERSION=10.3.0` (gfx1030 = ISA-adjacent JIT risk) and drags gradio/demucs/stable-ts + `seccomp=unconfined`/`SYS_PTRACE`/`ipc:host`/`shm 8G` — none of which the wake-word → STT → LLM → Piper pipeline needs. Native gfx1102 also removes the CWSR compute-preemption exposure (§9c + [hardware-gpu.md](hardware-gpu.md)). Consequence: **RX 7600 hosts 2 GPU legs (embed + STT), rerank is CPU** → pinned-AI VRAM ~3–4 GB, and immich-ML (3–5 GB) can co-reside instead of being paused. ⏳ **Open, non-blocking:** LiteLLM `/rerank` has no Ollama provider (`litellm/llms/ollama/rerank/transformation.py` → 404), so the CPU reranker must be exposed as an endpoint type LiteLLM *can* route (Jina `/v1/rerank` / `cohere` / `hosted_vllm` compat) — verify the provider before wiring (HD-385). | 2026-09-17 |
 
-> **2026-09-15 live-verify guard (post-converge):** Ollama deployed on oldsrv (`:rocm` 0.32.15), **bge-m3 embed verified end-to-end** (real 1024-dim vector, model resident 100% GPU). **Two defects surfaced at first-boot against the authored plan** — (1) **model names**: `whisper-large-v3-turbo` + `bge-reranker-v2-m3` do **NOT exist** in the ollama library; corrected pulls are `sendmeaiohyeah/whisper-large-v2` (STT) + `qllama/bge-reranker-v2-m3:q8_0` (rerank) — update any LiteLLM Admin-UI entries to these names; (2) **API cap**: ollama `0.32.15` has **no `/api/rerank`** (404; rerank landed in ollama ≥ 0.5.x) and whisper cannot be serviced via the pinned build's chat path — so the LiteLLM `…/rerank` route + voice-STT leg are **blocked until the ollama pin is bumped to a rerank-capable version** (no stable `:rocm` tag carries rerank yet; the RX-7600 rerank/STT follow-up is open in HD-369).
+> **2026-09-15 live-verify guard (post-converge):** Ollama deployed on oldsrv (`:rocm` 0.32.15), **bge-m3 embed verified end-to-end** (real 1024-dim vector, model resident 100% GPU). **Two defects surfaced at first-boot against the authored plan** — (1) **model names**: `whisper-large-v3-turbo` + `bge-reranker-v2-m3` do **NOT exist** in the ollama library; corrected pulls are `sendmeaiohyeah/whisper-large-v2` (STT) + `qllama/bge-reranker-v2-m3:q8_0` (rerank) — update any LiteLLM Admin-UI entries to these names; (2) **API cap**: ollama `0.32.15` has **no `/api/rerank`** (404) and whisper cannot be serviced via the pinned build's chat path. ⚠️ **The follow-up sentence written here on 2026-09-15 — “rerank landed in ollama ≥ 0.5.x / blocked until the pin is bumped” — was WRONG and is corrected in §9c: no released ollama serves rerank.** Resolved instead by decision #25 (rerank → CPU, STT → `whisper.cpp` GGML_HIP); tracked in HD-385.
 > The whole 3-zone / OKF / Qdrant / MCP architecture (previously `ai-brainstorming.md`) is **folded into
 > this doc**; that file is **deleted** (HD-307 lifecycle).
+
+## 9c. Pinned-AI stack research record (2026-09-17)
+
+> **Role:** dated evidence appendix for decision #25 — primary-source citations only, so a future
+> session does not re-litigate a settled question. Verdicts live in §9 row 25; this section is the proof.
+
+All findings below were read from primary sources (repo files / upstream trackers) on **2026-09-17**,
+not from search-engine summaries.
+
+### Corrected prior record
+
+| Item | Was recorded | Verified 2026-09-17 |
+|------|--------------|---------------------|
+| HD-369 defect cause | “no `/api/rerank` in 0.32.15; **rerank landed in ollama ≥ 0.5.x**” → plan was to **bump the `:rocm` pin** | **Wrong — bumping will never fix it.** `git clone --branch v0.34.1` (latest stable, 2026-09-14) + `grep -ri rerank` over the whole tree = **0 hits**; `server/routes` exposes `/api/embed`, `/api/chat`, `/api/generate` — **no `/api/rerank`**; 40 most recent release bodies mention rerank **0 times**; PR **#11389** and **#7219** both **closed, not merged**; issue **#3368 “Reranking models” still open (113 comments)**. `0.34.1-rocm` and `rocm` tags do exist on Docker Hub — bumping is fine for other reasons, **not** for rerank. |
+| Ollama GGUF reranker | assumed loadable | **No such path.** Nothing consumes a reranker architecture in the codebase (row above). |
+| “Adapter computes rerank from `/api/embed`” | proposed upstream as elegant | **Mathematically impossible for a cross-encoder.** `bge-reranker-v2-m3` scores `MLP([CLS] q [SEP] p [SEP])` — joint query+passage attention through all 12 layers. Two independent embeddings cannot be recombined into that score; the result is a recomputed cosine similarity ≈ the dense retrieval the system already performs, behind an extra network hop. Silent quality loss, no error. |
+
+### Rerank — CPU decision evidence (decision #25b)
+
+| Source | Finding |
+|--------|---------|
+| `ollama/ollama` @ `v0.34.1` tree + `server/routes*.go` | no rerank route / no rerank model type (see above) |
+| `huggingface/text-embeddings-inference` `README.md:109-112` | TEI does serve `/rerank` (XLM-RoBERTa / GTE / ModernBERT families) — but not on this card (next table) |
+| `litellm/llms/ollama/rerank/transformation.py` | **HTTP 404** — LiteLLM has **no Ollama rerank provider**, so an Ollama-hosted reranker would be unroutable even if ollama served it. The CPU service must therefore expose an endpoint type LiteLLM *does* route. ⚠️ Which provider (Jina `/v1/rerank`, Cohere, `hosted_vllm`) is **still unverified** — HD-385 |
+| `Theroxenes/local-reranker-rocm` (fork of `olafgeibig/local-reranker`) | ready-made FastAPI **`/v1/rerank`** (Jina-compatible) over `sentence-transformers` CrossEncoder, py3.12, “CPU or GPU depending on model”. Reusable **CPU mode only** — do not take its ROCm path. ⏳ Not yet vetted: license, maintenance activity. |
+| ONNX Runtime ROCm / MIGraphX EP (AMD docs) | supported targets are **Instinct only** (`gfx942`, `gfx950`). The “CPU fallback only if ONNX-**GPU** proves fragile” note in §5 is a **dead branch on this card** — there is no ONNX-GPU on RDNA3 to be fragile. |
+
+### Embed — TEI on RDNA3 rejected (decision #25a)
+
+The `todo.md` HD-369 claim “TEI ROCm targets Instinct MI200/MI300, not RDNA3” is **confirmed correct**, now with citations:
+
+| Source | Finding |
+|--------|---------|
+| `docs/source/en/amd_gpu.md` + HF `/docs/text-embeddings-inference/amd_gpu` | “supports AMD Instinct GPUs (**MI200, MI300 series**); ROCm support is **experimental**. Only AMD Instinct GPUs are tested.” |
+| `.github/workflows/matrix.json` | single ROCm entry: **`rocm-gfx942-gfx950`** (`imageNamePrefix: rocm-`, `runOn: always`) → the public image is `ghcr.io/huggingface/text-embeddings-inference:rocm-*` |
+| `Dockerfile-rocm:60` | base `rocm/pytorch:rocm7.2.2_ubuntu22.04_py3.10_pytorch_release_2.10.0` |
+| `Dockerfile-rocm:75-77` | “The wheel is built for **gfx942** (MI300X/MI300A) and **gfx950** (MI350)” — hard-coded `flash_attn` wheel from AMD’s `gfx942-gfx950` index |
+| `grep -rniE 'gfx11\|gfx12\|rdna'` whole repo | **0 hits** — no RDNA target anywhere in the build |
+| PR **#295 “ROCm support”** | **closed, never merged**; issue **#108 “Support TEI on AMD GPUs”** still **open** (9 comments) |
+
+Running TEI on gfx1102 would mean a **self-built** container: the 7-step DIY recipe from `amd_gpu.md`
+rustup → `pip install --no-deps -r backends/python/server/requirements-amd.txt` → hand-generated
+protobuf stubs → `cargo build --release --features python,http` — with flash-attn dropped (PyTorch
+`sdpa` fallback). That is build debt to reach parity with a leg that is **already live and verified**
+on Ollama → **no change**. Also note `requirements-amd.txt` pins `transformers==4.51.3` / `numpy==1.26.4`:
+old enough to conflict with anything else sharing that image.
+
+### STT — `whisper.cpp` GGML_HIP chosen over `insanely-fast-whisper-rocm` (decision #25c)
+
+| Source | Finding |
+|--------|---------|
+| `ggml-org/whisper.cpp` `.devops/main-rocm.Dockerfile` + `.github/workflows/docker.yml` | **an official ROCm image path does exist** (earlier session note “no ROCm image” was wrong — the Dockerfiles live under `.devops/`, not the repo root). Builds **ROCm 7.14 / TheRock** (`repo.amd.com/rocm/packages-multi-arch/rhel10`) and installs **`amdrocm-blas7.14-gfx1102`** |
+| same file, build stage | `make base.en CMAKE_ARGS="-DGGML_HIP=1 -DAMDGPU_TARGETS=\"gfx1100;gfx1101;**gfx1102**;gfx1103;gfx1150;gfx1151;gfx1152;gfx1200;gfx1201\""` → **native gfx1102, no `HSA_OVERRIDE_GFX_VERSION` needed**. Caveat: the published recipe builds the **`base.en`** model target; `large-v3-turbo` needs a local build, and models come from `whisper.cpp/models` GGML URLs (not HF) → a download step is missing from IaC. |
+| `insanely-fast-whisper-rocm` `Dockerfile:2,10,11` | `FROM python:3.10-slim`, `ROCM_PATH=/opt/rocm`, **`HSA_OVERRIDE_GFX_VERSION=10.3.0`** → runs **gfx1030 (RDNA2) code on an RDNA3 card**: works, but ISA-adjacent JIT risk (their documented success reports are gfx1030/gfx1032, **not** gfx1102). |
+| same, `requirements-rocm-v7-0.txt` | `torch 2.8.0+rocm7.0.0`, `transformers 4.57.3`, **plus** `gradio 6.7`, `demucs 4.0.1`, `stable-ts 2.19.1`, `datasets`, `optimum`, `onnxruntime-rocm 1.22.1` — a subtitle-production dependency set, not a voice-assistant one. Wheels from `rocm-rel-6.4.1` / `rocm-rel-7.0` manylinux (older userspace than TheRock). |
+| same, `docker-compose.yaml` | needs `ipc: host`, `shm_size: 8G`, `cap_add: SYS_PTRACE`, **`security_opt: seccomp=unconfined`** → conflicts with this repo’s container hardening posture; whisper.cpp needs only `/dev/dri` + `/dev/kfd` (already covered by the `amd_rocm` udev rules). |
+| same, `.env.example` | default `distil-whisper/distil-large-v3.5`, `float16`, `USE_READABLE_SUBTITLES=true`, SRT CPS constraints (`MAX_CPS=17.0`) — subtitle features the [wake word → STT → LLM → Piper] pipeline in [smart-home-voice.md](smart-home-voice.md) does not use. |
+| `whisper.cpp/examples/server/server.cpp:62,175` | the bundled server is **not** OpenAI-compatible: `POST {prefix}/inference`, `multipart/form-data` WAV, plus `/load` and `/health`. HA Assist expects `/v1/audio/transcriptions` → **a thin wrapper is required** (or keep the `insanely-fast-whisper-rocm` OpenAI endpoint only if a batch/SRT subtitle use case ever appears). |
+
+**Why it matters here:** RSS per GPU runtime. Each ROCm/PyTorch process holds its own rocBLAS /
+hipBLASLt / MIOpen workspace (~0.5–1.5 GB host RSS); whisper.cpp is a C++ binary at roughly
+200–400 MB. With four ROCm containers the binding constraint on a 48 GB oldsrv is **host RAM, not
+8 GB VRAM** — which is the actual argument for two GPU legs (embed + STT) plus a CPU reranker.
 
 ## 9b. Coding plane — agent memory + orchestration (HD-336, 2026-09-06)
 
