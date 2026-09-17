@@ -18,13 +18,21 @@
 #   compose keeps the oldsrv_home_ip:4000 publish (that IS how host-net edges reach
 #   backends — see jellyfin/lan-litellm precedent). No 0.0.0.0 bind; no VPS-side exposure
 #   (the VPS edge/tailnet serves `litellm.kogler.si`, this LAN instance is LAN-only).
-#   LOCAL INFERENCE (HD-370): this instance's spark model entry uses `http://llm.kogler.si`
-#   as base_url (LAN name -> spark_home_ip -> spark's own :443 edge -> llm-backend engine
-#   :8000) with the spark-llm_api bearer key — set in the Admin-UI/DB, never rendered here.
-#   Management API stays docker-exec-only (HD-62 parallel).
+#   LOCAL INFERENCE (HD-370 / HD-382): this instance's spark model entry uses
+#   `https://llm.kogler.si/v1` as base_url (LAN name -> spark_home_ip -> spark's own :443
+#   name edge -> engine :8000) with the spark-llm_api bearer key. https, NOT http: spark's
+#   :80 edge is redirect-only, and the OpenAI SDK does not follow a 307 on POST
+#   /v1/chat/completions (HD-382 doc correction). The key reaches the entry as the container
+#   env `OPENAI_API_KEY` (the openai-provider credential, from 1P `spark-llm_api` below), so
+#   the DB row carries NO key and the literal never enters the Kopia-backed lan-litellm-db
+#   (`api_key: os.environ/…` in a DB param is NOT expanded by v1.83.10 — live 2026-09-17).
+#   Resolution: `extra_hosts` glue below — oldsrv's
+#   host resolv.conf is public-only (WAN-out survival by design) and /etc/hosts is NOT
+#   inherited by containers, so the home Technitium answer never reached this container
+#   (live 2026-09-17: NXDOMAIN in both LiteLLMs). Management API stays docker-exec-only (HD-62 parallel).
 #
 #   Secrets (all fail-closed, HD-65): reuses the SAME 1Password items as the VPS
-#   instance — litellm_api, openrouter_api, litellm_db — so the
+#   instance — litellm_api, openrouter_api, litellm_db, spark-llm_api (HD-382) — so the
 #   scoped-key glue (dsh_api, pi-harness_openai_api) and the db_backup DB06 story
 #   apply unchanged. On spark convergence, the litellm-db POSTGRES_* values fan out
 #   from the same vault items.
@@ -38,6 +46,10 @@ services:
       - /tmp
     container_name: lan-litellm
     restart: unless-stopped
+    # HD-382: container-local glue for the LAN-only spark name (see header). Same value on
+    # both LiteLLMs — spark_home_ip is SSOT-derived, not hand-typed.
+    extra_hosts:
+      - "llm.kogler.si:{{ spark_home_ip }}"
     ports:
       - "{{ oldsrv_home_ip }}:4000:4000"     # HD-370: host-net home-edge reach for llitellm.kogler.si (llogs pattern); never 0.0.0.0
     networks:
@@ -54,6 +66,10 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       LITELLM_MASTER_KEY: "{{ vault['litellm_api'].credential | replace('$','$$') }}"
       OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential | replace('$','$$') }}"
+      # HD-382: spark engine bearer key (1P `spark-llm_api`) as the openai-provider credential,
+      # so the DB model entry carries NO key (v1.83.10 does not expand os.environ/ in DB params).
+      # CAVEAT: a future bare `openai/…` entry without its own api_key inherits this key.
+      OPENAI_API_KEY: "{{ vault['spark-llm_api'].credential | replace('$','$$') }}"
       # Cohere retired 2026-09-06 (decision #23) — embed/rerank local on oldsrv RX 7600 (decision #24).
       STORE_MODEL_IN_DB: "true"
       DATABASE_URL: >-

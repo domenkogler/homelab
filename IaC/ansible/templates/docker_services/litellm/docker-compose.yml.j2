@@ -15,6 +15,23 @@
 #   (deployment-compose.md HD-59 keeps the key-holding spine isolated from the
 #   public-route apps). The edge can now resolve `litellm` for the tailnet-only admin
 #
+#   HD-382 (2026-09-17, spark model entry): this instance fronts the spark engine
+#   (spark/qwen3.8-flash-next) as a DB model entry. TWO things the entry needs and the
+#   container did NOT have: (1) NAME RESOLUTION — `llm.kogler.si` is a LAN-only
+#   split-horizon name the VPS Technitium primary never answers (by invariant) and the
+#   VPS host resolv.conf is public-only → NXDOMAIN inside the container; fixed with
+#   `extra_hosts` → `spark_home_ip` (reachable over wg-s2s, verified live). Chosen over
+#   seeding the primary (would break the LAN-only-names invariant + check_dns_seed_drift.py)
+#   and over an IP base_url (no SAN → TLS verify fails; the spark edge serves the real
+#   Let's Encrypt `*.kogler.si` pair, so connecting BY NAME validates cleanly).
+#   (2) THE UPSTREAM KEY — the 1P `spark-llm_api` value is delivered as the container env
+#   `OPENAI_API_KEY` (the openai/-provider credential), so the DB model row carries NO key and
+#   the bearer never lands in the Kopia-backed Postgres backup (CONVENTIONS §secrets).
+#   `api_key: os.environ/SPARK_LLM_API` in the DB entry does NOT work (live 2026-09-17:
+#   v1.83.10 sends the literal upstream → engine 401; the provider env fallback returns 200).
+#   base_url is https (spark :80 is redirect-only → a 307 on
+#   POST /v1/chat/completions is NOT followed by the OpenAI SDK).
+#
 #   v2 cutover (HD-247): keys/models/spend live in the bundled Postgres
 #   (`STORE_MODEL_IN_DB=true`) — model_list is NO LONGER rendered into config.yaml;
 #   models are Admin-UI-managed at runtime (git drift accepted by owner decision,
@@ -52,6 +69,10 @@ services:
       - /tmp
     container_name: litellm
     restart: unless-stopped
+    # HD-382: container-local glue for the LAN-only spark name (VPS resolv.conf is public-only
+    # and the VPS primary must never answer `llm`). Route to spark_home_ip exists via wg-s2s.
+    extra_hosts:
+      - "llm.kogler.si:{{ spark_home_ip }}"
     networks:
       - services-internal
       - llm-backend                 # reach Ollama (local models); see HD-59 design
@@ -67,6 +88,13 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       LITELLM_MASTER_KEY: "{{ vault['litellm_api'].credential | replace('$','$$') }}"
       OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential | replace('$','$$') }}"
+      # HD-382: the spark engine bearer key (1P `spark-llm_api`), delivered as the OPENAI
+      # provider credential so the DB model entry carries NO key. Live-proven 2026-09-17:
+      # LiteLLM v1.83.10 does NOT expand `os.environ/…` inside a DB-stored model's
+      # litellm_params (the literal was sent upstream -> engine 401), while the openai/-provider
+      # env fallback works. CAVEAT: any FUTURE bare `openai/…` entry without its own api_key
+      # inherits this key — give such an entry an explicit api_key (or use `openrouter/`).
+      OPENAI_API_KEY: "{{ vault['spark-llm_api'].credential | replace('$','$$') }}"
       # Cohere retired 2026-09-06 (decision #23) — embed/rerank local on oldsrv RX 7600 (decision #24).
       # Models-in-DB (HD-247): Prisma-backed runtime store (litellm proxy_server reads
       # DATABASE_URL when STORE_MODEL_IN_DB=true). Folded scalars per the HD-233 rule —

@@ -242,6 +242,30 @@ sidecar serves to the app over that private network. Functional service-to-servi
     4. Heading home with Tailscale on reaches `ha.kogler.si` via the LAN (Option A).
   - **Tailnet ACL:** `policy.hujson` already allows family nodes → `tag:sidecar` on :443 (deny-by-default + per-user own nodes). No extension needed for the existing owner set; extend only if a new family member node is added.
 
+### Reach matrix for the tailnet-only admin names (HD-382, live 2026-09-17)
+
+> Owner symptom: **`litellm.kogler.si` works on the phone (mobile data AND home Wi-Fi with Tailscale on),
+> but 404s on the laptop with Tailscale connected at home.** Measured, not guessed:
+>
+> | where the answer comes from | `litellm.kogler.si` → | result |
+> |---|---|---|
+> | MagicDNS `extra_records` (Android/iOS answer these **client-side**) | the tailnet edge IP (`tailnet_sidecar_ip`, vps-obs) | **200** — the edge's `litellm-tailnet` router matches |
+> | Technitium (what Windows/WSL uses for the plain `*.kogler.si` namespace on the LAN) | `dns_primary_ip` (VPS public) | **404 `page not found`** — Traefik's no-matching-router reply: the public edge has **no** `litellm` route *by design* (never public) |
+>
+> So this is **not** hairpin/NAT, not a cert problem and not the tailnet: the laptop's LAN resolver answers
+> the name before MagicDNS does, and that target is a deliberately unrouted edge. `stats/logs/…` do not
+> show the symptom because their Technitium A record already points at the edge IP; `litellm` points at
+> the public IP (split-horizon parity per `network-dns.md`), which is exactly where no router exists.
+> Confirms and extends HD-371 (same client-side asymmetry, observed there on a hotspot).
+>
+> **Practical answers, in order:** (1) use the **`.ts` twin** — `litellm.ts.kogler.si` exists only in
+> MagicDNS/extra_records, so it cannot be hijacked by the LAN answer (verified 200 from the laptop);
+> (2) keep Tailscale connected at home (the documented posture: "end-user devices at home use the tailnet
+> path"); (3) a durable LAN-native fix would mean home-seeding `litellm` → `oldsrv_home_ip` + a
+> `traefik-internal` router proxying over WG S2S to the internal edge (`:4443`, the HD-350 double-hop) —
+> that **exposes the key-holding spine's admin UI on the LAN edge**, a design change that needs its own
+> decision; NOT done here.
+
 ## Tailnet boundary (decided 2026-09-10) — mobile devices only, via the VPS edge
 
 The tailnet is **not a home-LAN bridge**. Clients reach it as: **mobile → tailnet → VPS `traefik-tailnet` edge → (WG S2S) → home backends**. No home host runs a tailnet node (except the exit-node below, toggle-only). oldsrv/Pi/NAS stay off the tailnet so Shelly/KNX/IoT/guest devices are never tailnet-reachable, and the LAN stays the LAN.

@@ -11,9 +11,13 @@
 #   model catalog lives in the lan-litellm-db Postgres runtime and is Admin-UI-managed
 #   (git drift accepted by owner decision — services-ai.md §9 decision 13). The SPARK
 #   generation model (spark/qwen3.8-flash-next) is ALSO a runtime entry in THIS DB —
-#   its `base_url` is `http://llm.kogler.si` (LAN name → spark_home_ip → spark's own
-#   :443 edge → llm-backend engine) with the spark-llm_api bearer key. Admin-UI
-#   create step, never rendered here (HD-370 deploy-gate step 4).
+#   `base_url: https://llm.kogler.si/v1` (LAN name → spark_home_ip → spark's own :443
+#   name edge → engine :8000) and NO api_key — the bearer arrives from the container's
+#   OPENAI_API_KEY env (1P `spark-llm_api`; name resolution via this service's extra_hosts
+#   glue). https, NOT http
+#   — spark's :80 edge is redirect-only and the OpenAI SDK will not follow a 307 on POST
+#   (HD-382 corrects the pre-2026-09-17 `http://` text here). Admin-UI/API
+#   create step, never rendered here (HD-370 step 4 + HD-382).
 litellm_settings:
   drop_params: true
 

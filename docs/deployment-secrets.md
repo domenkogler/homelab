@@ -88,6 +88,22 @@ boundary — a leaked automation token never exposes break-glass credentials.
 lookup('community.general.onepassword', '<service>_<type>', field='<field>', vault=op_vault)
 ```
 
+> **Two secret-handling traps found live (HD-382, 2026-09-17):**
+>
+> 1. **`--diff` on a `docker_services` converge dumps rendered secrets.** The bulk 1P pre-pass runs
+>    `no_log`, but the **template diff of a rendered `docker-compose.yml` is not no_log** — an
+>    `--check --diff` run printed live `LITELLM_MASTER_KEY` / `OPENROUTER_API_KEY` values onto stdout
+>    into the run log. Use `--check` (no `--diff`); verify renders from the template, or diff the
+>    rendered host file with the secret lines filtered. If a log ever catches values, `shred -u` it —
+>    do not grep it back (CONVENTIONS §6).
+> 2. **LiteLLM does not expand `os.environ/…` inside a DB-stored model's `litellm_params`.** With
+>    `STORE_MODEL_IN_DB=true` the entry `api_key: os.environ/SPARK_LLM_API` is forwarded to the
+>    upstream **literally** → engine 401 (proven 2026-09-17 through the proxy and in-process
+>    `litellm.completion`, v1.83.10). To keep a bearer out of the Kopia-backed DB, deliver it as the
+>    **provider credential env** the model's provider prefix already reads (`openai/…` → `OPENAI_API_KEY`)
+>    and leave `api_key` **unset** in the row — that path returns 200. Caveat to record per service: a
+>    future bare `openai/…` entry with no `api_key` silently inherits that key.
+>
 ### Rendering a secret into a YAML config file — block scalar is the default (HD-233 lesson)
 
 > When a secret VALUE lands as a **mapping value in a rendered YAML/TOML config** (not a Docker

@@ -9,11 +9,14 @@
 #   deploy, recreate the former entries via the Admin UI/API using the HD-246-corrected
 #   parameters (ollama/bge-m3 @1024 dims; ollama/bge-reranker-v2-m3 — decision #24,
 #   2026-09-15, Cohere retired) — see this service's compose-header runbook.
-#   HD-370: the SPARK generation model (spark/qwen3.8-flash-next) is ALSO a runtime
-#   entry in this DB — its `base_url` is `https://llm.kogler.si` (the tailnet edge,
-#   over WG to spark:443) with the spark-llm_api bearer key. Same for the LAN instance
-#   (llitellm: base_url `http://llm.kogler.si`). Neither is rendered here — Admin-UI
-#   create + the two LiteLLMs set their model base_url / api_key from the vault.
+#   HD-370/HD-382: the SPARK generation model (spark/qwen3.8-flash-next) is ALSO a runtime
+#   entry in this DB — `base_url: https://llm.kogler.si/v1` and NO api_key: the bearer arrives
+#   from the container's OPENAI_API_KEY env (1P `spark-llm_api`; name resolution via the
+#   service's extra_hosts glue). https because spark's :80 edge is redirect-only.
+#   The LAN instance carries the SAME entry (base_url identical — it reaches spark by the
+#   same name, resolved on the LAN). Reach legs: VPS → spark_home_ip over wg-s2s; oldsrv →
+#   same VLAN 10. Neither is rendered here: model entries are runtime
+#   DB state (Admin UI / POST /model/new), never git-rendered (decision 13).
 litellm_settings:
   drop_params: true
 
