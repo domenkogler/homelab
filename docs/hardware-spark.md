@@ -148,6 +148,64 @@ unreachable** — dead memory in the one pool host and GPU share.
 unbounded — `--kv-cache-memory-bytes` makes vLLM **skip memory profiling**, so nothing governs it.
 The cap raised the *resting floor*; it did **not** bound the *peak* (incident #6 proves this).
 
+### ⚠ Second correction — the budget METRIC was wrong too, and the “idle ratchet” was not a ratchet (HD-381, incidents #7/#8)
+
+Two more global OOMs landed after the capture-size cap (#7 2026-09-16 23:26Z, #8 2026-09-17 14:55Z).
+They falsified two more assumptions:
+
+**1. `MemAvailable` / `free -h` is NOT the budget metric on GB10.** Both kills recorded `MemAvailable`
+≈ 10.4 GiB while `CmaFree` was **8.81 / 8.78 GiB** — device-reserved CMA pages the allocator will not
+give an unmovable `GFP_KERNEL` request (`Node 0 Normal free:9.63 GiB` with `free_cma:9.58 GiB`,
+`all_unreclaimable? yes`). Claimable headroom at the kill: **1.64 GiB (#7) / 1.62 GiB (#8)**.
+
+```
+usable_gib = MemAvailable − CmaFree       # THE budget metric
+  WARN  < 8 GiB      CRIT < 4 GiB        # + PSI memory (full avg10) as confirmation only
+  kills observed at   1.64 / 1.62 GiB
+  healthy idle measured 26.13 GiB usable (CmaFree 0.13 GiB)
+```
+
+`MemAvailable` is not merely optimistic here — it **inflates as the pressure rises**, because squeezing
+the GPU carve grows `CmaFree` and CMA counts as available. That is precisely why the HD-375 alert rules
+(24 / 16 GiB on raw `MemAvailable`) could never have warned usefully before the cliff, and why the
+watchdog kept narrating after the fact. Any threshold on this box is expressed in
+`MemAvailable − CmaFree`; the alert rules and the watchdog now agree on that one gauge.
+
+> ⚠ **Rejected alternative, recorded so it is not re-proposed:** `usable = MemFree − CmaFree`
+> (WARN 4 / CRIT 2), the form in the original HD-381 plan. Measured, it is **INVERTED**: 0.74 GiB at
+> healthy idle vs 2.17 / 2.14 GiB at the two kills. `MemFree` is *supposed* to be ≈1 GiB at steady
+> state; under pressure reclaim evicts page cache and `MemFree` **rises**, mostly into CMA. It tracks
+> “reclaimed but unconsumed”, not headroom. On an enforcing watchdog those thresholds would
+> **restart the engine continuously on a healthy box** — the safety net would have caused the outage.
+> The ~0.05 GiB figure that motivated it is from the kernel's **per-zone** dump (`Node 0 Normal
+> free:9.63 GiB free_cma:9.58 GiB`) and is not reconstructible from global `meminfo`.
+
+PSI memory is a genuine trigger (`psi_full` 97.8 / 92.5 at the kill samples) but has **no lead time**:
+in #8 it read **0.0 for ten consecutive samples** at avail 9.4 GiB and then the box died. Use it as
+confirmation, never as the early warning.
+
+**2. The growth is traffic-cumulative and FLAT at idle.** A fresh boot sat at engine top-pid **88,773 MiB
+/ avail 24.2 GiB, unchanged from 23:35Z to 03:27Z overnight with no traffic**, then went
+**88,773 → 109,785 MiB (avail 24.5 → 9.6 GiB)** under ~30 min of **one light pi session** (KV 43–59 %,
+prefix hit 94 %, 0 % util at kill). HD-380 open item 5 (“idle ratchet”) is **retracted** — it was the
+residue of prior traffic. Implications:
+
+- The mechanism is **per-request allocator/graph growth that is never returned**, not KV occupancy and
+  not a leak. Only a **restart** resets it; only **removing the mechanism** bounds it (C1
+  `expandable_segments`, C2 prefill-chunk size, C3 eager).
+- **A light session is enough** — session cost is not proportional to KV occupancy, so “small workload”
+  is not a safety argument. Budget a session as a GiB-scale term, not a token-scale term.
+- The pre-kill signature is a **frozen top-pid + saturating PSI** (109,681 / 109,785 MiB constant for
+  4+ min while `psi_full` hit 97.8 / 92.5). An enforcing governor acts on that; a recorder does not.
+
+**Boot-floor numbers (the baseline every future curve is compared against):**
+
+| state | engine top-pid | `MemAvailable` | `usable = MemAvailable − CmaFree` |
+|---|---|---|---|
+| boot, weights loaded, no traffic | 88,773 MiB | 24.2 GiB | healthy (flat overnight) |
+| + ~30 min one light agent session | 109,785 MiB | 9.6 GiB | 1.6 GiB at kill (#8) |
+| boot + C1/C2 applied (2026-09-17 15:28Z) | 85,445 → 86,243 MiB | 26.9 GiB | to be measured |
+
 **Two facts that must be carried into every future sizing calculation:**
 1. **Per-pid `nvidia-smi` under-counts the engine by ~10 GiB.** True footprint = the `MemAvailable`
    jump when the engine stops: **12.6 → 118.6 GiB** ⇒ the engine held **~106 GiB** of 121.62.

@@ -75,10 +75,36 @@ xfs:
 spark_oom_watchdog_enable: true
 spark_oom_watchdog_dir: "{{ spark_xfs_mount }}/oom-watchdog"
 spark_oom_watchdog_interval: 15          # seconds between samples
-# Thresholds track the host-reserve budget in docs/hardware-spark.md §Unified-memory
-# budget (warn 24 GiB / crit 16 GiB == the HD-375 alert pair, kept in sync by hand).
-spark_oom_watchdog_warn_gib: 24
-spark_oom_watchdog_crit_gib: 16
-spark_oom_watchdog_psi_crit: 25          # PSI memory full avg10 (%) — leads MemAvailable
+# Thresholds are on the CORRECTED gauge usable = MemAvailable - CmaFree, which is the
+# single gauge shared by this watchdog and the HD-375 alert rules. Measured on this box:
+# healthy idle 26-30 GiB, both OOM kills 1.6 GiB at the instant of death (lowest value a
+# 60 s scrape ever saw in those windows: 5.01 — which is why CRIT is 8, not 1.6). (Raw MemAvailable overstates headroom by
+# up to ~9 GiB here because CmaFree inflates under pressure; MemFree - CmaFree is INVERTED
+# and would restart-storm the engine. See docs/spark-incidents.md #7/#8.)
+spark_oom_watchdog_warn_gib: 12
+spark_oom_watchdog_crit_gib: 8
+# PSI is a CONFIRMATION trigger only — it carries no lead time (it read 0.0 for ten
+# consecutive 15 s samples before incident #8 died), so it may never enforce on its own.
+spark_oom_watchdog_psi_crit: 25          # PSI memory full avg10 (%)
 spark_oom_watchdog_keep_snaps: 20
-spark_oom_watchdog_memory_max: 96M
+# Enforcing governor (HD-381 term B): at CRIT, take the planned ~4 min engine restart
+# instead of letting the kernel global OOM take Traefik/dashboard/alloy/dcgm with it.
+spark_oom_watchdog_enforce: true
+spark_oom_watchdog_enforce_cooldown: 1800     # s between enforced restarts
+spark_oom_watchdog_enforce_max: 2             # enforced restarts per window
+spark_oom_watchdog_enforce_window: 7200       # s
+spark_oom_watchdog_enforce_wait_max: 600      # s to wait for in-flight drain
+# Idle-recycling of the cumulative allocator term (flat at idle, +21 GiB / ~30 min of
+# light agent traffic, never returned): recycle when the engine sits baseline + N GiB
+# and has been idle for the configured time.
+spark_oom_watchdog_recycle: true
+spark_oom_watchdog_recycle_grow_gib: 8
+spark_oom_watchdog_recycle_idle_s: 1800
+# Memory cap RAISED (HD-381): it was MemoryMax=96M and the watchdog's own cgroup
+# memory.peak measured 71.8M (75% of the cap) from sampling alone. An ENFORCING watchdog
+# forks the docker CLI (a Go binary) plus a curl of /metrics at exactly the moment the box
+# is out of memory — a 96M cap is a plausible way to kill the child that was supposed to
+# save the box. Hard cap 512M with a 384M throttle: still bounded (the watchdog must never
+# itself contribute to a host OOM — invariant #1), but not in the way of its own action.
+spark_oom_watchdog_memory_max: 512M
+spark_oom_watchdog_memory_high: 384M

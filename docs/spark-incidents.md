@@ -31,6 +31,8 @@ Same failure class, escalating evidence. Summary row per incident; full narrativ
 | 2 | 2026-09-15 23:06 | serve, long request in flight (`num_computed_tokens=36800`, +4864 scheduled) | `global_oom` 23:05:53→23:06:32: `VLLM::Worker` (total-vm 151 GB), `VLLM::EngineCor`, `python3`, `torch_shm_manag`; collateral `alloy`/`traefik`/`nvidia-smi`/`dozzle`/`fwupd` | `unless-stopped` restart @ 23:06:34 → `RestartCount=2` | none (diagnosis only — session died) |
 | 4 | 2026-09-16 16:31 | **NOTHING attached — zero clients, engine idle** | `global_oom` 16:31:20: `python3` in the vLLM scope (total-vm 55.4 GB), then `alloy` (uid 996) | container replaced → boot banner 16:31:38Z | none at the time — **the unexplained one: no workload to blame** |
 | 5 | 2026-09-16 20:21 | **two agent sessions at 8.8% / 9.1% of ctx** (46.9k tok combined) | `global_oom` 20:21:07→20:22:05: `python3` → `VLLM::Worker` (total-vm **155.6 GB**) → `VLLM::EngineCor` → `python3`; collateral `dcgm-exporter`, `alloy` | `RestartCount=4`, `StartedAt=20:22:11Z`; both client sessions `stopReason=error` | none at the time (diagnosis session = this one) |
+| 7 | 2026-09-16 23:26 | serve, **one light pi session**, KV 43–59 %, prefix hit 94 %, engine 0 % util at kill | `global_oom` ×9 23:23:28→23:26:00: `torch_shm_manag`, `dozzle`, **`traefik`**, `nvidia-smi`, `dashboard-servi`/`dashboard-admin`, `fwupd`, `cups-browsed`, `colord` — engine itself survived; `CmaFree` **8.81 GiB** inside `MemAvailable` 10.45 GiB → **1.64 GiB** actually claimable | engine `Exited (137)`; host wedge + LLM outage; load avg 36.4 | C1+C2 (HD-381) applied; **gauge correction → B** |
+| 8 | 2026-09-17 14:55 | serve, same profile, 1 h 34 m after boot | `global_oom` ×3 14:55:31: **`python3` = engine PID-1 (`oom_score_adj=-500`)**, `dcgm-exporter`, `alloy`; `Node 0 Normal free:9.63 GiB` was **`free_cma:9.58 GiB`**, `all_unreclaimable? yes` | engine top-pid **frozen at 109,785 MiB for 4+ min before the kill** (allocator stall, not a burst); PSI full **92.5** | C1+C2 converged 15:28Z (same boot) |
 | 6 | 2026-09-16 22:15 | **agent session ~162k tok + stress step A6 (16k × conc 2)** | **NO kernel OOM** (last kill 20:22Z) — bench guard ran `docker stop`; engine `Exited (137)` | avail **21.5 → 12.6 GiB in ~22 s**; watchdog WARN 22:13:49 → CRIT 22:15:22 (avail 18.6, PSI 27.2); **~14 min outage** because `unless-stopped` ignores an intentional stop | **HD-380** — capture-size cap + watchdog + self-healing guard + zero-load bench assertion |
 
 ## Incident #3 — the self-referential OOM (2026-09-16)
@@ -141,7 +143,89 @@ not the kernel, ended it: **no `oom-kill` line exists at 22:15Z**.
 
 ---
 
-## Cross-incident invariants (all four incidents)
+## Incidents #7/#8 — `MemAvailable` is the wrong gauge, and the growth is traffic-cumulative (2026-09-16/17)
+
+Two more global OOMs **after** HD-380's capture-size cap had already lowered the floor
+(105,477 → 96,235 MiB). Both bundles are intact: `/mnt/spark_nvme/oom-watchdog/snapshots/20260916-232600-KILL/`
+and `…/20260917-145531-KILL/`. These are the two findings that changed the plan.
+
+### Finding A — on GB10, `MemAvailable` overstates headroom by up to ~9.5 GiB
+
+Both kills recorded a kernel `Node 0 Normal free` that was almost entirely **`free_cma`** —
+device-reserved pages the CMA allocator will not hand to an unmovable `GFP_KERNEL` allocation:
+
+| | #7 (23:26:00Z) | #8 (14:55:31Z) |
+|---|---|---|
+| `MemAvailable` (what the watchdog watched) | 10.43 GiB | 10.39 GiB |
+| `MemFree` | 10.97 GiB | 10.91 GiB |
+| **`CmaFree`** | **8.81 GiB** | **8.78 GiB** |
+| **usable = `MemAvailable` − `CmaFree`** | **1.64 GiB** | **1.62 GiB** |
+| *(healthy idle, same box)* | *26.25* → **26.13 usable** | *same* |
+| last sampler `psi_full_avg10` | 97.8 | 92.5 |
+
+`free -h` therefore said “~10 GiB free” while **~85 % of that figure was CMA** the device
+would not surrender to an unmovable allocation. The HD-375 / HD-380 thresholds (WARN 24 /
+CRIT 16 GiB on `MemAvailable`) were **overstated by up to ~9 GiB**, and worse: as the GPU
+carve is squeezed `CmaFree` *grows*, and CMA counts as available — so the metric
+**inflates as pressure rises**. That is why an alert on it kept missing the cliff and the
+watchdog had to narrate after the fact.
+
+> ⚠ **The first proposed fix was wrong — do not re-propose it.** The 2026-09-17 plan
+> prescribed `usable = MemFree − CmaFree` with WARN 4 / CRIT 2. Measured on this box that
+> gauge is **INVERTED**: healthy idle = **0.74 GiB**, the two kills = **2.17 / 2.14 GiB** — it
+> reads *lower* at rest than at a kill, so those thresholds fire permanently and the planned
+> enforcing CRIT action would have **restart-stormed the engine on a healthy box** (an outage
+> caused by the safety net). `MemFree` is meant to sit ≈1 GiB at steady state — the rest is
+> page cache doing its job — and under pressure reclaim *evicts* cache, so `MemFree` **rises**
+> to ~11 GiB, mostly CMA-attributed. It measures “reclaimed but not yet consumed”: high in a
+> storm, low at rest. The 0.05 GiB figure that motivated it came from the kernel's **per-zone**
+> dump (`Node 0 Normal free:9.63 GiB free_cma:9.58 GiB`), which is zone/migratetype-local and
+> not reconstructible from global `meminfo`.
+> Correct global gauge: **`MemAvailable − CmaFree`** — monotone with danger (26.1 idle → 1.6
+> at both kills).
+
+PSI is a valid *confirmation* trigger but carries **no lead time**: in #8 `psi_full_avg10` read
+**0.0 for ten consecutive samples** at avail 9.4 GiB, then the kill. It cannot be the primary
+early warning.
+
+```bash
+usable_gib = MemAvailable − CmaFree     # WARN < 8 GiB, CRIT < 4 GiB (kills measured at 1.6)
+```
+
+Both kills passed the PSI trigger (`psi_full` 97.8 / 92.5) at the same sample as the kill — PSI is a
+valid independent trigger and stays.
+
+### Finding B — the climb is traffic-cumulative and FLAT at idle (corrects HD-380 open item 5)
+
+| Boot | Engine top-pid | `MemAvailable` | Traffic |
+|---|---|---|---|
+| 2026-09-16 12:59 | 88,773 MiB | 24.2 GiB | **none 23:35Z → 03:27Z, flat overnight** |
+| same, +1 light pi session ~30 min | 88,773 → **109,785 MiB** | 24.5 → **9.6 GiB** | one pi session, KV 43–59 %, prefix hit 94 %, 0 % util at kill |
+| 2026-09-17 15:28 (post-C1+C2) | 85,445 MiB load → 86,243 | 26.9 GiB | light |
+
+There is **no idle ratchet** — HD-380 open item 5 (“idle-ratchet trend resumed after restart”) is
+retracted: what looked like a leak was the residue of prior traffic. The engine grows **per request
+shape and never returns it**, which is an allocator/graph-growth mechanism, not a KV pressure
+mechanism — and it is therefore reset only by a restart, and bounded only by removing the mechanism
+(C1 `expandable_segments`, C2 smaller prefill chunks, C3 eager). It also makes an agent session a
+first-class memory term *beyond* its KV occupancy: **a light session is enough**.
+
+### The top-pid freeze is the signature to watch
+
+At both kills `gpu_top_mib` was **constant for minutes** (109,681 and 109,785) while `psi_full`
+saturated. A flat top-pid + saturating PSI = the allocator can no longer get pages; it is the
+predictable pre-kill state an enforcing governor (plan item **B**) must act on, not merely record.
+
+### Why #8 killed the engine and #7 did not
+
+#7's victims were collateral (traefik, dashboard, dozzle, fwupd…) — the killer went after unprivileged
+user-slices first, and the box wedged anyway. #8 killed **engine PID-1 despite `oom_score_adj=-500`**:
+with `all_unreclaimable? yes` there was nothing else left. Confirms invariant #3 (kill order is not
+engine-first) is a lottery, and that the cage cannot protect the host (invariant #1).
+
+---
+
+## Cross-incident invariants
 
 1. **`OOMKilled: false` / `ExitCode: 0` every time** — Docker never sees it (global OOM, not cgroup).
 2. **The engine's `RSS` was tiny** at kill time (`anon-rss:112kB` on a 151 GB total-vm process in #2;
@@ -152,6 +236,12 @@ not the kernel, ended it: **no `oom-kill` line exists at 22:15Z**.
    observed symptom is often "session/SSH died", not "model crashed".
 4. **It recurs whenever load returns** — each fix moved the OOM later, it did not remove it, until the
    budget became explicit (#3, this change).
+5. **`MemAvailable` alone is not the budget metric on GB10** (#7/#8) — up to ~9 GiB of it can be
+   `CmaFree`, which the device will not surrender to an unmovable kernel allocation. Budget in
+   **`MemAvailable − CmaFree`** (+ PSI memory as confirmation, which carries *no* lead time).
+   **Not** `MemFree − CmaFree` — that is inverted here (0.74 GiB idle vs 2.17 GiB at a kill).
+6. **The engine's non-KV footprint grows with traffic and never returns** (#7/#8) — flat at idle, so a
+   restart is the only reset, and only removing the allocation mechanism bounds the peak.
 
 ---
 
@@ -172,8 +262,9 @@ docker logs --timestamps <ctr> | grep 'version 0.1.dev'
 # 4. The budget numbers (feeds the sizing table in hardware-spark.md §Unified-memory budget)
 docker logs <ctr> | grep -E 'Model loading took|Available KV cache memory|GPU KV cache size|Free memory on device'
 
-# 5. How hot is the box
-free -h; grep -E 'MemTotal|MemFree|MemAvailable|AnonPages|Cached|SwapTotal|SwapFree' /proc/meminfo
+# 5. How hot is the box — use the CORRECTED gauge (#7/#8), not free -h
+awk '/^MemAvailable|^MemFree|^CmaFree|^AnonPages|^SwapFree/{print}' /proc/meminfo
+awk 'BEGIN{while((getline l<"/proc/meminfo")>0){split(l,a," ");if(a[1]=="MemAvailable:")v=a[2];if(a[1]=="CmaFree:")c=a[2]}printf "usable_gib=%.2f  (WARN<8 CRIT<4)\n",(v-c)/1048576}'
 ```
 
 **`dmesg` is authoritative; `docker inspect` is not.** A `RestartCount` increment + `OOMKilled=false`

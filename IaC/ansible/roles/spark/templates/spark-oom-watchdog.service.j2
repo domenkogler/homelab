@@ -1,5 +1,5 @@
 [Unit]
-Description=spark GB10 unified-memory OOM forensics watchdog (HD-380)
+Description=spark GB10 unified-memory OOM watchdog — forensics + enforcing governor (HD-380/HD-381)
 After=docker.service
 Wants=docker.service
 
@@ -8,18 +8,33 @@ Type=simple
 ExecStart=/usr/local/bin/spark-oom-watchdog.sh sample-loop
 Environment=SPARK_OOM_DIR={{ spark_oom_watchdog_dir }}
 Environment=SPARK_OOM_INTERVAL={{ spark_oom_watchdog_interval }}
+# Gauge = MemAvailable - CmaFree (NOT MemFree, NOT raw MemAvailable) — see the script header
 Environment=SPARK_OOM_WARN_GIB={{ spark_oom_watchdog_warn_gib }}
 Environment=SPARK_OOM_CRIT_GIB={{ spark_oom_watchdog_crit_gib }}
 Environment=SPARK_OOM_PSI_CRIT={{ spark_oom_watchdog_psi_crit }}
 Environment=SPARK_OOM_KEEP_SNAPS={{ spark_oom_watchdog_keep_snaps }}
+# Enforcing governor: planned engine restart at CRIT instead of a kernel global OOM
+Environment=SPARK_OOM_ENFORCE={{ 1 if spark_oom_watchdog_enforce | bool else 0 }}
+Environment=SPARK_OOM_ENFORCE_COOLDOWN={{ spark_oom_watchdog_enforce_cooldown }}
+Environment=SPARK_OOM_ENFORCE_MAX={{ spark_oom_watchdog_enforce_max }}
+Environment=SPARK_OOM_ENFORCE_WINDOW={{ spark_oom_watchdog_enforce_window }}
+Environment=SPARK_OOM_ENFORCE_WAIT_MAX={{ spark_oom_watchdog_enforce_wait_max }}
+# Idle-recycling of the cumulative (never-returned) allocator term
+Environment=SPARK_OOM_RECYCLE={{ 1 if spark_oom_watchdog_recycle | bool else 0 }}
+Environment=SPARK_OOM_RECYCLE_GROW_GIB={{ spark_oom_watchdog_recycle_grow_gib }}
+Environment=SPARK_OOM_RECYCLE_IDLE_S={{ spark_oom_watchdog_recycle_idle_s }}
 Environment=VLLM_CONTAINER={{ spark_vllm_container }}
 Restart=always
 RestartSec=10s
 # The watchdog must never be the OOM victim — alloy and dcgm-exporter were both
 # killed by the global OOM killer in incidents #2/#3, which blinds monitoring at
-# exactly the wrong moment. Immune + hard-capped so it cannot itself grow.
+# exactly the wrong moment. Immune + capped so it cannot itself grow; the cap is
+# generous enough that the enforcement children (docker CLI, curl) are not the first
+# thing to die inside it when the box is out of memory (peak measured 71.8M against
+# the old 96M cap while merely sampling).
 OOMScoreAdjust=-1000
 MemoryMax={{ spark_oom_watchdog_memory_max }}
+MemoryHigh={{ spark_oom_watchdog_memory_high }}
 CPUAccounting=yes
 Nice=10
 IOSchedulingClass=idle

@@ -114,7 +114,51 @@ grafana_alert_rules:
       execErrState: Alerting
       eval_type: lt
       eval_params: [1]
+    # ---- spark GB10 unified-memory OOM (HD-375, gauge corrected by HD-381) ----------
+    # spark's vLLM engine dies via the kernel GLOBAL OOM killer; the container cage never
+    # fires (OOMKilled=false is the normal reading), so a host-memory rule is the ONLY
+    # early warning. GAUGE: MemAvailable - CmaFree. Raw MemAvailable overstates headroom
+    # by up to ~9 GiB on GB10 because CmaFree counts as available and GROWS as the GPU
+    # carve is squeezed — i.e. the old metric inflates exactly when pressure rises.
+    # THRESHOLDS ARE MEASURED, NOT PICKED (VM, 2-minute steps, from the two kill windows):
+    #   healthy idle .................. 26-30 GiB
+    #   last 7 minutes before #7 ...... 7.85 9.64 10.89 10.05 5.01 8.95 9.47 6.24
+    #   the kill bundle's own meminfo .. 1.64 GiB (#7) / 1.62 (#8)
+    # The bundle figure is the instant of death; a scrape-based rule CANNOT see it — the
+    # lowest value the 60 s scrape recorded was 5.01. So CRIT is 8, not 1.6: a threshold
+    # below the scrape floor would be a rule that can never fire.
+    # `for: 1m` on purpose: #7 fell 14.1 -> 8.85 GiB in ~2-4 min; a 5m window burns the
+    # entire lead time before the rule arms.
+    # NOTE the evaluator convention (HD-347): the expr carries NO comparison — it yields
+    # the usable-GiB value and the THRESHOLD lives in eval_params. Putting `< 8` in the
+    # expr instead would hand the raw value to a `gt 0` evaluator, which fails at exactly
+    # usable = 0 — the worst possible moment. `lt` on the value is unambiguous.
+    - uid: spark-host-mem-oom-critical
+      title: spark host memory near OOM (unified pool)
+      for: 1m
+      expr: "(node_memory_MemAvailable_bytes{job=\"alloy\",instance=~\"spark.*\"} - node_memory_CmaFree_bytes{job=\"alloy\",instance=~\"spark.*\"}) / 1073741824"
+      summary: "spark usable host memory < 8 GiB (MemAvailable-CmaFree) — kernel global OOM imminent; the watchdog may restart the engine"
+      # noData=Alerting: this is the one rule where silence is NOT golden — spark has been
+      # OOM-killed eight times, and the series disappearing means we are blind to the one
+      # failure mode that wedges the box.
+      noDataState: Alerting
+      execErrState: Alerting
+      eval_type: lt
+      eval_params: [8]
   warning:
+    # Pre-stage of the critical rule above, same gauge, same source of truth. Gives the
+    # owner room to route agent sessions off spark before the governor has to act.
+    - uid: spark-host-mem-oom-warning
+      title: spark host memory trending low (unified pool)
+      for: 2m
+      expr: "(node_memory_MemAvailable_bytes{job=\"alloy\",instance=~\"spark.*\"} - node_memory_CmaFree_bytes{job=\"alloy\",instance=~\"spark.*\"}) / 1073741824"
+      summary: "spark usable host memory < 8 GiB (MemAvailable-CmaFree) — engine peak trending toward the reserve"
+      # noData=OK here (unlike the CRIT twin): a collection gap is not a memory trend,
+      # and this tier is the one that would cry wolf.
+      noDataState: OK
+      execErrState: Error
+      eval_type: lt
+      eval_params: [12]
     - uid: ups-on-battery
       title: UPS on battery
       for: 1m
