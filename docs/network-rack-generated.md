@@ -16,6 +16,7 @@ Each row = one physical link. Patch-panel targets show the wall-side room/device
 | `ether2` | **Panel B / port 7** → miza / PC · PC `00:1B:21:13:12:15` |  |
 | `ether3` | **Panel B / port 8** → miza / docking laptop · laptop (docking station) `48:2A:E3:9D:31:85` |  |
 | `ether7` | **HP Gen 8 server** iLO4 `1C:98:EC:0E:0D:3A` | HP iLO 4 out-of-band mgmt |
+| `ether8` | **Lenovo ThinkStation PGX** enP7s7 `38:A7:46:78:13:97` | direct patch in rack; dual-home Home10 untagged + Mgmt99 tagged (HD-367) |
 | `ether9` | **HMIP-HAP HomeMatic Access Point** eth `00:1A:22:1E:F7:FD` | fixed: HMIP-HAP on eth9 |
 | `ether10` | **Raspberry Pi 4 B** eth `E4:5F:01:26:EF:AA` | fixed: Raspberry Pi on eth10 |
 | `sfp+` | **CRS328-24P-4S+ Switch** sfp+1 _— (no MAC)_ |  |
@@ -142,5 +143,5 @@ _No modelled connections (appears in canvas but wiring unknown)._
 - TP-Link TL-SG108E appears in the canvas as an image but has no wiring table - its connections are unknown and not modelled.
 - Patch panel ports with cable but no device (e.g. A4, roza/zelena miza) are marked used:false and show 'patch cord terminated, no device'.
 - Comtrend eth2 <-> RB4011 ether1 is the WAN upstream link.
-- RB4011 ether4, ether5, ether6, ether8 are unused/empty.
+- RB4011 ether4, ether5, ether6 are unused/empty.
 - Comtrend eth1, eth3, eth4, eth5 are unused/empty.

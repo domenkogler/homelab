@@ -280,6 +280,9 @@ decision log (`deployment-rejected.md`) + git history.
    negotiated **1000 Mb/s** (`/sys/class/net/enP7s7/speed` = 1000) — the limit is upstream (router /
    switch port or the patch path), not the box. Consequence is concrete: multi-hundred-GB weight
    staging (B1 = 169 G) over 1 G is the real staging cost. Check the switch port + cable rating.
+   **Resolved 2026-09-17:** the upstream port is **RB4011 `ether8` = 10/100/1000** — the RB4011 has no
+   10 G copper port, so 1 Gb/s is structural, not a cable fault. **Accepted as final** (owner): no 10 G
+   device exists besides spark → no CRS328 move. See §Network / placement.
 2. **No ConnectX-7 / QSFP function exists in the running system.** `lspci` shows **zero** Mellanox
    devices and two GB10 root ports (`0000:00:00.0`, `0002:00:00.0`) train at Gen1 x4 with **no device
    behind them** — the plausible QSFP positions. So the "2-node scale-out to 405B" line is **not
@@ -436,10 +439,27 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
   carries the same MAC as VLAN-10; VLAN subinterfaces share the parent NIC MAC). The old "mgmt
   NIC not cabled" note is OBSOLETE — there is NO second NIC. Router-side: the `dhcp-mgmt` static
   for spark's mgmt IP renders in the converge template (standard `render-converge.yml`→/import).
-- Connects via **10 GbE** to the LAN (Home/Mgmt per the router port model); IP/reservation SSOT to be
-  added to `network_static_hosts` at provision time (never hardcoded). ⚠️ **Live 2026-09-16: the link
-  negotiates at 1000 Mb/s** on `enP7s7` although the NIC advertises 10 G — the port/cable path, not the
-  NIC (see §Reality deltas 1).
+- **Physical port (wired 2026-09-17, owner; final placement):** direct patch to **RB4011 `ether8`** — the router's
+  own `bridge-lan` (NOT the CRS328), so spark is a router-local dual-home access port exactly like
+  oldsrv/Pi. Folded into SSOT: `router_port_map.spark` (`group_vars/router.yml`) +
+  `rb4011_converge.rsc.j2` (bridge port `pvid=10`; VLAN 10 `untagged=…ether8…`; VLAN 99
+  `tagged=…ether8…`) + the role's parity trunk task + `docs/rack-connections.json`.
+  **Verified live 2026-09-17** (read-only API + host probe): ether8 link up, `pvid=10`, VLAN-10
+  untagged + VLAN-99 tagged memberships present; spark's Home static lease (**bound**) and Mgmt static
+  reservation both resolve per the `spark` rows in [network-addresses-generated.md](network-addresses-generated.md)
+  (`spark_home_ip` / `spark_mgmt_ip`, never literals here); host `enP7s7.99` carries the Mgmt address
+  and `ping -I enP7s7.99` reaches the router's Mgmt gateway. Nothing left to apply on the router — the
+  manual edit matched the SSOT port model.
+- Connects via the box's **10 GbE-capable RJ-45** to the LAN (Home/Mgmt per the router port model),
+  negotiated at **1 Gb/s** on today's path. IP/reservation SSOT lives in `network_static_hosts`
+  (never hardcoded). ⚠️ **Live 2026-09-16: the link negotiates at 1000 Mb/s** on `enP7s7` although the
+  NIC advertises 10 G — the port/cable path, not the NIC (see §Reality deltas 1). **Explained + closed
+  2026-09-17:** the cable lands on **RB4011
+  `ether8`** — an Atheros **10/100/1000** port; the RB4011iGS+ has **no 10 G copper port at all**, so
+  **1 Gb/s is the accepted, permanent design point (owner decision 2026-09-17)** — there is no 10 G
+  device in the homelab besides spark, so the CRS328 (whose 10 G is SFP+/2.5 G only) stays 1 G for
+  this link and **no move is planned**. Weight-staging bandwidth is therefore a fixed input to the
+  bench/planning math, not an open network item.
 - Exposes the Triton gRPC/HTTP endpoint on the `llm-backend` overlay (or a `triton-backend` net),
   reachable **only by LiteLLM** — same isolation model as Ollama (HD-59). No host port binds.
 - 2× QSFP ConnectX-7 ports reserved for a future 2-node scale-out (to 405B models) — **not used now,

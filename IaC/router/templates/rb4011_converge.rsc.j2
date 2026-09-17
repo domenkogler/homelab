@@ -94,6 +94,11 @@
 :if ([/interface bridge port find where bridge=bridge-lan and interface=ether7] = "") do={
     /interface bridge port add bridge=bridge-lan interface=ether7  pvid=99 comment="nas iLO4 (Mgmt access)"
 }
+# spark (Lenovo ThinkStation PGX / NVIDIA GB10) — DUAL-HOMED like oldsrv/Pi: untagged Home (10) +
+# tagged Mgmt (99) on its single NIC (enP7s7). Wired on ether8 2026-09-17.
+:if ([/interface bridge port find where bridge=bridge-lan and interface=ether8] = "") do={
+    /interface bridge port add bridge=bridge-lan interface=ether8 pvid=10 comment="spark (Dual: Home10 + MGMT99)"
+}
 :if ([/interface bridge port find where bridge=bridge-lan and interface=ether9] = "") do={
     /interface bridge port add bridge=bridge-lan interface=ether9  pvid=20 comment="HMIP-HAP (IoT VLAN 20 + WAN via flag)"
 }
@@ -108,15 +113,15 @@
 # IDEMPOTENT (HD-322): guard against duplicate bridge-vlan on re-import (dynamic entries
 # are excluded — a static add is the SSOT row).
 :if ([/interface bridge vlan find where bridge=bridge-lan and vlan-ids=10 and dynamic=no] = "") do={
-    /interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether10 comment="Home VLAN (access primary)"
+    /interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether8,ether10 comment="Home VLAN (access primary)"
 } else={
-    /interface bridge vlan set [find where bridge=bridge-lan and vlan-ids=10 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether10 comment="Home VLAN (access primary)"
+    /interface bridge vlan set [find where bridge=bridge-lan and vlan-ids=10 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether8,ether10 comment="Home VLAN (access primary)"
 }
 # Management (99): TAGGED on the dual-homed ports + trunk + self; UNTAGGED on the Mgmt-only access ports (ether7 iLO only; ether9 HAP moved to IoT 20).
 :if ([/interface bridge vlan find where bridge=bridge-lan and vlan-ids=99 and dynamic=no] = "") do={
-    /interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether10 untagged=ether7 comment="Management VLAN on trunk + tagged admin"
+    /interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether8,ether10 untagged=ether7 comment="Management VLAN on trunk + tagged admin"
 } else={
-    /interface bridge vlan set [find where bridge=bridge-lan and vlan-ids=99 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether10 untagged=ether7 comment="Management VLAN on trunk + tagged admin"
+    /interface bridge vlan set [find where bridge=bridge-lan and vlan-ids=99 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether8,ether10 untagged=ether7 comment="Management VLAN on trunk + tagged admin"
 }
 # All gateways' VLANs must be trunked to the switch (tagged on sfp-sfpplus1) so the
 # switch can reach each per-VLAN gateway — mirror of crs328_converge.rsc.j2 (which

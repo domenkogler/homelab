@@ -235,6 +235,7 @@ dynamic address until the lease turns over.
 |-------------|------------|------|
 | Family PC, laptop, server (dual-homed) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
 | Raspberry Pi (HA + DNS secondary) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged |
+| Lenovo ThinkStation PGX (spark, router ether8) | Access + tagged | **10 (Home) untagged** + 99 (Mgmt) tagged — single NIC; wired direct on the RB4011 (1 Gb/s = accepted final: the RB4011 has no 10 G copper port, see [hardware-spark.md](hardware-spark.md) §Network / placement) |
 | Shelly, KNX, ESP32-S3 | Access | 20 (IoT, no internet) |
 | Homematic HAP (cloud), Bosch/LG appliances | Access | **20 (IoT) + `wan_allow`** — cloud devices on the IOT SSID get WAN via per-MAC `iot-wan-allow` accepts (HD-325; VLAN 21 deleted) |
 | AP (hAP ac/ac²) | Access | 99 (Mgmt) |
