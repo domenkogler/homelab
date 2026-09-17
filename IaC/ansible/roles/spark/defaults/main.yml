@@ -64,3 +64,21 @@ xfs:
     - models        # weights (AWQ/PLE/…) — on XFS, never EXT4 (1TB layout, HD-359)
     - overlays      # worker_image_quant.py / ple_layer_quant.py / connector_mrv2.py
   permissions: "0777"
+
+# ---- OOM forensics watchdog (HD-380, 2026-09-16) ----
+# spark's engine dies to the kernel GLOBAL OOM killer, so `docker inspect` reports
+# OOMKilled=false / ExitCode=0 (false negative) and the memory state that explains
+# the kill is destroyed by it. This watchdog samples continuously (the pre-event
+# curve is the payload) and freezes a forensic bundle on kernel-OOM / engine-restart
+# / threshold breach. Knowledge: docs/hardware-spark.md §Unified-memory budget &
+# OOM governance + docs/spark-incidents.md.
+spark_oom_watchdog_enable: true
+spark_oom_watchdog_dir: "{{ spark_xfs_mount }}/oom-watchdog"
+spark_oom_watchdog_interval: 15          # seconds between samples
+# Thresholds track the host-reserve budget in docs/hardware-spark.md §Unified-memory
+# budget (warn 24 GiB / crit 16 GiB == the HD-375 alert pair, kept in sync by hand).
+spark_oom_watchdog_warn_gib: 24
+spark_oom_watchdog_crit_gib: 16
+spark_oom_watchdog_psi_crit: 25          # PSI memory full avg10 (%) — leads MemAvailable
+spark_oom_watchdog_keep_snaps: 20
+spark_oom_watchdog_memory_max: 96M

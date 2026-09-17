@@ -1286,15 +1286,17 @@
       - bridge: bridge-lan
         vlan-ids: "{{ item.id }}"
         tagged: "bridge-lan,sfp-sfpplus1"
-        # VLAN 10: untagged ether10 member (Pi access) in addition to the trunk
-        # tag; VLAN 99: untagged mgmt access ports — bootstrap's pvid-99 ports on
-        # bridge-lan from rb4011_initial.rsc.j2 (ether2/3/7/9/10 after the
+        # VLAN 10: untagged ether10 (Pi) + ether8 (spark) access members in addition
+        # to the trunk tag; VLAN 99: untagged mgmt access ports — bootstrap's pvid-99
+        # ports on bridge-lan from rb4011_initial.rsc.j2 (ether2/3/7/9/10 after the
         # HD-310/HD-338 leg: ether7 iLO is the only remaining mgmt-only access port;
         # ether9 HAP moved to IoT 20) — without these, vlan-filtering drops the
         # VLAN between the local access ports and the trunk -> empty ARP, switch
         # (sfp) unreachable (live 2026-08-31).
+        # VLAN 99 TAGGED additionally carries ether8 (spark's Mgmt leg, same NIC as
+        # Home — router_port_map, wired 2026-09-17).
         # VLAN 20 (IoT): untagged ether9 (HMIP-HAP access).
-        untagged: "{{ (['ether10'] if item.id == 10 else ['ether7'] if item.id == 99 else ['ether9'] if item.id == 20 else []) | join(',') }}"
+        untagged: "{{ (['ether10','ether8'] if item.id == 10 else ['ether7'] if item.id == 99 else ['ether9'] if item.id == 20 else []) | join(',') }}"
         comment: "{{ item.name }} VLAN on trunk"
   loop: "{{ vlans | selectattr('unused', 'undefined') | list }}"  # skip VLAN 1 Blackhole (unused: true)
   loop_control:

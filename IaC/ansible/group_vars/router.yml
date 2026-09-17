@@ -57,6 +57,16 @@ router_port_map:
     tagged: []
     vlan: 99
     mac: "1C:98:EC:0E:0D:3A"
+  # spark (Lenovo ThinkStation PGX, NVIDIA GB10) — direct on the router, ether8. Dual-home per the
+  # port model: untagged Home 10 (pvid) + tagged Mgmt 99 on the SAME single NIC
+  # (enP7s7, HD-367). Wired 2026-09-17 by the owner; link up at 1000 Mb/s (the
+  # RB4011 has no 10G copper port — docs/hardware-spark.md §Reality deltas 1).
+  spark:
+    port: ether8
+    pvid: 10
+    tagged: [99]
+    vlan: 10
+    mac: "38:A7:46:78:13:97"
   homematic-ap:
     port: ether9
     pvid: 20

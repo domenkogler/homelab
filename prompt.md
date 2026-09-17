@@ -13,6 +13,28 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 
 ## 2. Open work (read the HD rows; this is only the index)
 
+> **🔥 spark OOM thread — ACTIVE, read first (HD-375/HD-380, updated 2026-09-16 late). ⏳ OPEN —
+> actionable work below, not history; the HD-380 todo row stays open until items (1)–(3) land.** The
+> unified-memory governor now has **two** live terms (`--kv-cache-memory-bytes 8800000000` +
+> `--max-cudagraph-capture-size 4`), which raised host reserve **16.7 → 22.2 GiB**; the engine is
+> **healthy, `RestartCount=0`**. Knowledge: [`hardware-spark.md`](docs/hardware-spark.md)
+> §Unified-memory budget → **⚠ Correction block**; forensics: [`spark-incidents.md`](docs/spark-incidents.md)
+> **#4/#5/#6**. **Start here:** (1) land the **HD-375** `MemAvailable` alert rules — their absence is
+> why a watchdog was needed instead of a warning; (2) bound the **peak**, not the floor: ~13 GiB of
+> non-KV/non-weight allocation is still unprofiled (`kv_cache_memory_bytes` ⇒ vLLM skips profiling) —
+> try `--max-num-batched-tokens 16384→4096`, then `--enforce-eager`, re-measuring per step; (3) re-run
+> `spark/bench/stress-oom.sh` phases A/B **with NO agent session attached** — incident #6 was caused by
+> a ~162k-token agent session = **56% of the KV pool** at prefix-cache hit **0%** ⇒ 17,008 tok/s
+> full-window re-prefill; (4) only then revisit raising `spark_vllm_kv_cache_memory` (a trade-off:
+> bigger KV ⇒ fewer evictions ⇒ fewer spikes, but −1 GiB reserve per +1 GiB).
+> **Two traps that burned this session, both still live in the tooling:** benching against spark
+> **while an agent session runs on spark** (the agent is a hidden memory term — it has killed the box
+> twice, once while diagnosing itself), and trusting `vllm bench serve`'s exit code — it **exits 0 on
+> 401** and reports `Successful requests: 0`, so every bench number taken after `spark-llm_api` landed
+> is invalid until re-run. Evidence reader: `sudo /usr/local/bin/spark-oom-watchdog.sh status` and
+> `/mnt/spark_nvme/oom-watchdog/snapshots/`. Also: `docker stop` is an **intentional** stop, so
+> `unless-stopped` will NOT bring the engine back.
+
 For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human). Each HD line links its owning doc + todo row; the ⏳ = exact next step. Deploy-gated verifies live in [`deployment-tasks.md`](deployment-tasks.md) (per-phase chapters).
 
 **AI-actionable now (no owner prerequisite):**

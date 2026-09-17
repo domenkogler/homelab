@@ -168,6 +168,24 @@ spark_vllm_kv_cache_memory: "8800000000"
 # The explicit KV pool IS the whole budget decision on GB10; the only other guard is the
 # 105G container memory cage (host-RSS backstop only — GPU pages aren't cgroup-charged).
 spark_vllm_distributed_executor_backend: "mp"
+# ---- cudagraph capture-size cap (HD-380, 2026-09-16) ----
+# This build captures CUDA graphs for batch sizes [1,2,4,8,16,24,32] while
+# max_num_seqs=4 caps the decode batch at 4 — sizes 8/16/24/32 are captured and can
+# NEVER be used by this config, i.e. stranded memory in the ONE 121.62 GiB pool that
+# the host and the engine share. Why this is on the critical path: with the HD-374
+# KV governor live, the engine still held 103,449 MiB per-pid at REST
+# (nvidia-smi --query-compute-apps — GB10 reports memory.total/used as N/A, so this
+# is the only device-side gauge) while its own log accounts for only weights 75.17 +
+# KV 8.2 = 83.4 GiB; host MemAvailable measured 16.7 GiB, not the ~32.5 GiB HD-374
+# predicted. Two further global OOMs followed the fix (2026-09-16 16:31Z with NO
+# client attached, 20:21Z with two sessions at 8.8%/9.1% ctx) — so capping KV alone
+# is not sufficient; the unprofiled non-KV allocation is the live defect, and
+# --kv-cache-memory-bytes makes vLLM SKIP memory profiling by design.
+# Delta in per-pid MiB after this restart is the measurement of how much graph
+# memory was stranded (HD-374 assumed graphs=0.22 GiB — never verified on a live
+# boot). Surgical on purpose: --enforce-eager would also drop CUDA graphs but costs
+# decode throughput; incident log: docs/spark-incidents.md.
+spark_vllm_max_cudagraph_capture_size: 4
 spark_vllm_enforce_eager: false
 spark_vllm_spec_method: mtp
 spark_vllm_spec_tokens: 3

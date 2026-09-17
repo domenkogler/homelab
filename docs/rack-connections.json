@@ -77,6 +77,17 @@
       }
     },
     {
+      "id": "spark",
+      "name": "Lenovo ThinkStation PGX",
+      "vendor": "Lenovo",
+      "rack_unit": null,
+      "role": "AI inference tier (headless)",
+      "iface_macs": {
+        "enP7s7": "38:A7:46:78:13:97"
+      },
+      "note": "Single NIC enP7s7 - Home VLAN 10 untagged + Mgmt VLAN 99 tagged (HD-367). Wired direct on RB4011 ether8; link negotiates 1000 Mb/s (no 10 G copper port on the RB4011)."
+    },
+    {
       "id": "hmip",
       "name": "HMIP-HAP HomeMatic Access Point",
       "vendor": "eQ-3",
@@ -163,6 +174,7 @@
     {"from_device": "rb4011", "from_iface": "ether2", "to_type": "patch", "to_panel": "B", "to_patch_port": 7},
     {"from_device": "rb4011", "from_iface": "ether3", "to_type": "patch", "to_panel": "B", "to_patch_port": 8},
     {"from_device": "rb4011", "from_iface": "ether7", "to_type": "device", "to_device": "nas", "to_iface": "iLO4", "note": "HP iLO 4 out-of-band mgmt"},
+    {"from_device": "rb4011", "from_iface": "ether8", "to_type": "device", "to_device": "spark", "to_iface": "enP7s7", "note": "direct patch in rack; dual-home Home10 untagged + Mgmt99 tagged (HD-367)"},
     {"from_device": "rb4011", "from_iface": "ether9", "to_type": "device", "to_device": "hmip", "to_iface": "eth", "note": "fixed: HMIP-HAP on eth9"},
     {"from_device": "rb4011", "from_iface": "ether10", "to_type": "device", "to_device": "pi", "to_iface": "eth", "note": "fixed: Raspberry Pi on eth10"},
     {"from_device": "crs328", "from_iface": "eth1", "to_type": "patch", "to_panel": "A", "to_patch_port": 2, "note": "reversal: eth1->A2"},
@@ -190,7 +202,7 @@
     "TP-Link TL-SG108E appears in the canvas as an image but has no wiring table - its connections are unknown and not modelled.",
     "Patch panel ports with cable but no device (e.g. A4, roza/zelena miza) are marked used:false and show 'patch cord terminated, no device'.",
     "Comtrend eth2 <-> RB4011 ether1 is the WAN upstream link.",
-    "RB4011 ether4, ether5, ether6, ether8 are unused/empty.",
+    "RB4011 ether4, ether5, ether6 are unused/empty.",
     "Comtrend eth1, eth3, eth4, eth5 are unused/empty."
   ]
 }

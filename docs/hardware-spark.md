@@ -125,6 +125,38 @@ Used to pick the pool for the chosen governor (below). **Decision = KV pool byte
 > stored in KV cache (146522)`. (0.70 was correct on 2026-09-15 only because `max_model_len` was 65536
 > at the time.) These are two coupled dials and must be changed together.
 
+### ⚠ Correction — the 2026-09-16 budget model was falsified the same day (HD-380)
+
+The "reserve ≈ 32.5 GiB" figure below was **derived, never measured, and wrong**. Two more global
+OOMs landed within hours of the HD-374 deploy (#4 with **no client attached**, #5 at 18% of window
+combined). Measured at rest: engine per-pid **103,449 → 105,477 MiB** (ratcheting +2 GiB / 45 min
+idle), host `MemAvailable` **16.7 GiB**, vLLM's own accounting only **83.4 GiB** → **~22 GiB
+unaccounted**.
+
+The `graphs 0.22 GiB` term was **wrong by ~40×**. This build captures CUDA graphs for batch sizes
+**[1,2,4,8,16,24,32]**; `max_num_seqs=4` caps the decode batch at 4, so **8/16/24/32 are captured and
+unreachable** — dead memory in the one pool host and GPU share.
+
+**Governor now has TWO terms** (`group_vars/spark.yml`):
+
+| term | value | effect (measured) |
+|---|---|---|
+| KV pool | `--kv-cache-memory-bytes 8800000000` | 8.2 GiB / 283,398 tok — fixed at boot, **never grows**, so `GPU KV cache usage %` is **scheduler occupancy, NOT RAM** |
+| graph cap | `--max-cudagraph-capture-size 4` | per-pid **105,477 → 96,235 MiB**; `MemAvailable` **16.7 → 22.2 GiB** |
+
+**Still the live defect:** ~**13 GiB** of non-KV, non-weight allocation remains unprofiled and
+unbounded — `--kv-cache-memory-bytes` makes vLLM **skip memory profiling**, so nothing governs it.
+The cap raised the *resting floor*; it did **not** bound the *peak* (incident #6 proves this).
+
+**Two facts that must be carried into every future sizing calculation:**
+1. **Per-pid `nvidia-smi` under-counts the engine by ~10 GiB.** True footprint = the `MemAvailable`
+   jump when the engine stops: **12.6 → 118.6 GiB** ⇒ the engine held **~106 GiB** of 121.62.
+2. **Agent sessions are a first-class memory term.** A ~162k-token session = **56% of the KV pool**,
+   and at prefix hit **0%** every turn re-prefills the whole window (**17,008 tok/s** observed) — the
+   largest transient on this box. Loop: big context → ~82% KV occupancy → own prefix blocks evicted →
+   0% hit → full re-prefill → spike. Sizing for "casual/chat" occupancy (peak 15.5%, max 36,800 tok)
+   is **not** representative of agentic use.
+
 ### Chosen governor (IaC, `group_vars/spark.yml`)
 
 **Use explicit `--kv-cache-memory-bytes <bytes>` as the ONLY dial — and REMOVE `--gpu-memory-utilization`.**
@@ -141,7 +173,8 @@ ceiling.
 
 ```yaml
 # group_vars/spark.yml  (this build's flag: --kv-cache-memory-bytes, bytes int)
-spark_vllm_kv_cache_memory: "8800000000"  # ~8.2 GiB ≈ 275k tokens — the ONLY governor (host reserve ≈ 32.5 GiB)
+spark_vllm_kv_cache_memory: "8800000000"  # ~8.2 GiB ≈ 275k tokens — KV term of the governor (reserve is 22.2 GiB measured, NOT the 32.5 first predicted — see the correction above)
+spark_vllm_max_cudagraph_capture_size: 4  # graph term (HD-380): default [1,2,4,8,16,24,32] is unreachable above max_num_seqs and strands ~7 GiB of the shared pool
 spark_vllm_max_model_len: 262144          # unchanged; boot-gate only
 # spark_vllm_gpu_memory_utilization REMOVED — ignored when kv_cache_memory_bytes is set (HD-374)
 ```
@@ -247,6 +280,9 @@ decision log (`deployment-rejected.md`) + git history.
    negotiated **1000 Mb/s** (`/sys/class/net/enP7s7/speed` = 1000) — the limit is upstream (router /
    switch port or the patch path), not the box. Consequence is concrete: multi-hundred-GB weight
    staging (B1 = 169 G) over 1 G is the real staging cost. Check the switch port + cable rating.
+   **Resolved 2026-09-17:** the upstream port is **RB4011 `ether8` = 10/100/1000** — the RB4011 has no
+   10 G copper port, so 1 Gb/s is structural, not a cable fault. **Accepted as final** (owner): no 10 G
+   device exists besides spark → no CRS328 move. See §Network / placement.
 2. **No ConnectX-7 / QSFP function exists in the running system.** `lspci` shows **zero** Mellanox
    devices and two GB10 root ports (`0000:00:00.0`, `0002:00:00.0`) train at Gen1 x4 with **no device
    behind them** — the plausible QSFP positions. So the "2-node scale-out to 405B" line is **not
@@ -403,10 +439,27 @@ Order of execution at node bring-up (spec lives here; todo.md HD-337/HD-359 are 
   carries the same MAC as VLAN-10; VLAN subinterfaces share the parent NIC MAC). The old "mgmt
   NIC not cabled" note is OBSOLETE — there is NO second NIC. Router-side: the `dhcp-mgmt` static
   for spark's mgmt IP renders in the converge template (standard `render-converge.yml`→/import).
-- Connects via **10 GbE** to the LAN (Home/Mgmt per the router port model); IP/reservation SSOT to be
-  added to `network_static_hosts` at provision time (never hardcoded). ⚠️ **Live 2026-09-16: the link
-  negotiates at 1000 Mb/s** on `enP7s7` although the NIC advertises 10 G — the port/cable path, not the
-  NIC (see §Reality deltas 1).
+- **Physical port (wired 2026-09-17, owner; final placement):** direct patch to **RB4011 `ether8`** — the router's
+  own `bridge-lan` (NOT the CRS328), so spark is a router-local dual-home access port exactly like
+  oldsrv/Pi. Folded into SSOT: `router_port_map.spark` (`group_vars/router.yml`) +
+  `rb4011_converge.rsc.j2` (bridge port `pvid=10`; VLAN 10 `untagged=…ether8…`; VLAN 99
+  `tagged=…ether8…`) + the role's parity trunk task + `docs/rack-connections.json`.
+  **Verified live 2026-09-17** (read-only API + host probe): ether8 link up, `pvid=10`, VLAN-10
+  untagged + VLAN-99 tagged memberships present; spark's Home static lease (**bound**) and Mgmt static
+  reservation both resolve per the `spark` rows in [network-addresses-generated.md](network-addresses-generated.md)
+  (`spark_home_ip` / `spark_mgmt_ip`, never literals here); host `enP7s7.99` carries the Mgmt address
+  and `ping -I enP7s7.99` reaches the router's Mgmt gateway. Nothing left to apply on the router — the
+  manual edit matched the SSOT port model.
+- Connects via the box's **10 GbE-capable RJ-45** to the LAN (Home/Mgmt per the router port model),
+  negotiated at **1 Gb/s** on today's path. IP/reservation SSOT lives in `network_static_hosts`
+  (never hardcoded). ⚠️ **Live 2026-09-16: the link negotiates at 1000 Mb/s** on `enP7s7` although the
+  NIC advertises 10 G — the port/cable path, not the NIC (see §Reality deltas 1). **Explained + closed
+  2026-09-17:** the cable lands on **RB4011
+  `ether8`** — an Atheros **10/100/1000** port; the RB4011iGS+ has **no 10 G copper port at all**, so
+  **1 Gb/s is the accepted, permanent design point (owner decision 2026-09-17)** — there is no 10 G
+  device in the homelab besides spark, so the CRS328 (whose 10 G is SFP+/2.5 G only) stays 1 G for
+  this link and **no move is planned**. Weight-staging bandwidth is therefore a fixed input to the
+  bench/planning math, not an open network item.
 - Exposes the Triton gRPC/HTTP endpoint on the `llm-backend` overlay (or a `triton-backend` net),
   reachable **only by LiteLLM** — same isolation model as Ollama (HD-59). No host port binds.
 - 2× QSFP ConnectX-7 ports reserved for a future 2-node scale-out (to 405B models) — **not used now,
