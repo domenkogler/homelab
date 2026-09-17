@@ -152,7 +152,9 @@ grafana_alert_rules:
       title: spark host memory trending low (unified pool)
       for: 2m
       expr: "(node_memory_MemAvailable_bytes{job=\"alloy\",instance=~\"spark.*\"} - node_memory_CmaFree_bytes{job=\"alloy\",instance=~\"spark.*\"}) / 1073741824"
-      summary: "spark usable host memory < 8 GiB (MemAvailable-CmaFree) — engine peak trending toward the reserve"
+      # ⚠ threshold is 12 (eval_params below), NOT the 8 of the CRIT twin — an earlier
+      # revision of this summary said 8 and would have mis-labelled every notification.
+      summary: "spark usable host memory < 12 GiB (MemAvailable-CmaFree) — engine peak trending toward the reserve"
       # noData=OK here (unlike the CRIT twin): a collection gap is not a memory trend,
       # and this tier is the one that would cry wolf.
       noDataState: OK
