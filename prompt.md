@@ -13,50 +13,63 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 
 ## 2. Open work (read the HD rows; this is only the index)
 
-> **🔥 spark OOM thread — ACTIVE, read first (HD-375/HD-380/HD-381, updated 2026-09-18). ⏳ OPEN —
-> actionable work below. Worktree `homelab-wt-20260918-0000` (branch
-> `session/spark-stability-20260918-0000`) — **the current experiment branch, DELIBERATELY NOT
-> MERGED to main** (owner: revisit after the stress test verdict).
+> **✅ spark OOM thread — CLOSED as a *stability* question (2026-09-18). The 16 GiB KV config is the
+> stable, certified config; `session/spark-stability-20260918-0000` is MERGED to `main`, so SSOT = live.**
+> What is now true and NOT up for re-litigation: `spark_vllm_kv_cache_memory: "16000000000"` (reserved
+> 14.9 GiB / 515,786 tok / 1.97× @262k) converged + passed the 3-rung load chain (0 kernel OOM, 0 engine
+> restarts, 0 guard-fires, `usable` worst 17.78, engine top-pid **+1,278 MiB / ~1.5 h** of the pessimal
+> 2×240k ≈ 94.6 %-of-pool shape). **Do not converge spark back to 8.2 GiB** — that was the pre-cert value.
+> Knowledge (read it instead of re-deriving): [hardware-spark.md](docs/hardware-spark.md) §Unified-memory
+> budget (gauge corrections + the certified baseline) · runbook [`spark/stability-test.md`](spark/stability-test.md)
+> (§3 verdict mechanics, §4 C3 decision rule, §6 the KV arithmetic) · evidence
+> [`spark/reports/stability/README.md`](spark/reports/stability/README.md).
 >
-> **The 16 GiB KV experiment is LIVE and being stress-tested (2026-09-18).** SSOT candidate
-> `spark_vllm_kv_cache_memory: 16000000000` is **converged on spark (reserved 14.9 GiB / 515,786 tok /
-> 1.97× concurrency; `usable` idle ~18-20 GiB)** but the commit stays **only on
-> `session/spark-stability-20260918-0000`** — `main` still has 8.2 GiB. **Do NOT merge/push that
-> branch until the owner reviews the stress verdict** (chain: `bash spark/bench/stability-supervise.sh`;
-> verdict at `spark:/mnt/spark_nvme/stability/OVERNIGHT.done`; evidence lands in
-> `spark/reports/stability/`). If it passes → merge to main so SSOT = live; if it fails → converge the
-> box back to 8.2 GiB (`main`'s value) and amend/drop the KV commit. **Do not converge spark with
-> `main`'s 8.2 GiB value while the experiment is live** — that would silently revert the engine mid-test.
-> The chain rungs are re-tuned for the 16 GiB idle (preflight floor 16, rung MEM_FLOOR 14, full-window
-> rung `BENCH_IN=240000` — never 262144: template pushes it to ~282.7k > max_model_len → 400).
+> **The two numbers that govern anything you do next on this box:** (1) **KV ceiling reached** — measured
+> headroom after the raise is runtime +5.5 / boot-side **+5.4 GiB (boot is binding)**, so 16 GiB is the
+> bf16 ceiling; **more KV = `--kv-cache-dtype fp8`, not Linux's reserve**. (2) **idle `usable` is now
+> 18.5 GiB** (was 30.4), i.e. margin to the WARN 12 line is 6.5 GiB — any new persistent memory consumer
+> on spark spends that margin, and the alert thresholds + bench floors are all expressed on
+> **`usable = MemAvailable − CmaFree`** (raw `MemAvailable` is falsified: CMA inflates it up to ~9.5 GiB;
+> `MemFree − CmaFree` is INVERTED and would restart-storm a healthy engine — both recorded, do not
+> re-propose either).
+>
+> **⏳ What is actually left on spark** (the stability question is closed; these are not): the **262k
+> needle test** + the **`spark-lane` 64k profile** (HD-376 — a single 262k session ≈ 56 % of the OLD pool;
+> lanes still need a smaller window), the tool-call/accuracy tails (HD-367), the S2/S3 NVFP4×SGLang lane,
+> and owner-side confirmations (HD-375 Grafana UI + n8n, HD-377 board sign-off).
+>
+> **Standing traps on this lane, unchanged:** **self-reference** — this pi harness runs ON the engine it
+> guards, so drive converge/restart from the laptop and never bench with an agent session attached (the
+> chain's preflight refuses to start unless in-flight is 0 for exactly this reason). `docker stop` is an
+> **intentional** stop, so `unless-stopped` will NOT bring the engine back (cost 14 min once). PSI carries
+> **no lead time** (read 0.0 for ten samples before #8 died) — confirmation only. `sudo` is required for
+> `journalctl -k`/`dmesg` on spark; unsudo they read "no OOM this boot" (false negative).
 
-> **State of the C-ladder:** C1 (`expandable_segments:True`) + C2 (`--max-num-batched-tokens 4096`)
-> are **LIVE** — converged `failed=0` at 15:28Z, verified on the container argv + on-disk compose
-> (`d70b37b`). Boot floor **85,445 → 86,243 MiB / avail 26.9 GiB** vs 88,773 MiB pre-C1/C2; that is
-> the load floor, **not yet a verdict** — the verdict is whether the curve stays flat under ~30 min of
-> traffic. **B (enforcing governor) + D (alert rules) are authored + tested but NOT converged**
-> (`e11ea74`). **E (docs) done** (`c4fb66a` + `e11ea74`). **C3 (`--enforce-eager`) deliberately held**
-> as the graph-attribution A/B.
+> **Governor state — all LIVE (this is the running config; do not re-deploy it as if it were new):**
+> C1 `expandable_segments:True` + C2 `--max-num-batched-tokens 4096` (converged 2026-09-17 15:28Z,
+> verified on container argv + on-disk compose `d70b37b`) · **B = enforcing OOM watchdog** (spark
+> `--tags watchdog` 2026-09-17 21:30Z: `enforce=1`, CRIT < 8 GiB `usable` → planned `docker restart`,
+> in-flight drain 600 s, cooldown 1800 s, max 2 / 7200 s, idle recycle at baseline +8 GiB, arm-off file
+> `/mnt/spark_nvme/oom-watchdog/no-enforce`) · **D = the HD-375 alert rules** (vps `--tags monitoring`
+> 2026-09-17 22:33C) · **E = the docs/forensics record.** **C3 `--enforce-eager` stays OFF and is now a
+> measured call, not a deferral:** the §4 trigger (>2 GiB/h under traffic with no return at idle) was
+> tested against the pessimal shape on 2026-09-18 and came back **+1,278 MiB over ~1.5 h**. It costs
+> decode throughput on every turn; re-open it only on a curve that actually climbs.
 >
-> **⚠ The plan's memory gauge was WRONG — corrected by measurement, do not re-propose it.**
+> Note the watchdog **recycles the engine on its own** (it restarted spark's engine twice on 2026-09-18
+> before the certifying chain even started, at baseline +8 GiB idle). An engine restart you did not cause
+> is expected behaviour — `sudo /usr/local/bin/spark-oom-watchdog.sh status` + `state/enforce.log` reads it.
+>
+> **⚠ The memory gauge was WRONG in the plan — corrected by measurement, do not re-propose it.**
 > `usable = MemFree − CmaFree` (WARN 4 / CRIT 2) is **INVERTED** on GB10: healthy idle **0.74 GiB**
 > vs the two kills at **2.17 / 2.14 GiB**. On an enforcing watchdog it fires permanently and would
-> have **restart-stormed a healthy engine** — the safety net causing the outage. Correct gauge, now
-> shared by watchdog + alert rules: **`usable = MemAvailable − CmaFree`** (26.1 idle → 1.6 at both
-> kills, monotone). Thresholds are **measured**: death instant is 1.6 GiB but the lowest value a 60 s
-> scrape ever recorded is **5.01**, so **CRIT 8 / WARN 12** — below the scrape floor a rule can never
-> fire. `node_memory_CmaFree_bytes` is **verified present in VM** (it is NOT in node_exporter's default
-> meminfo whitelist — check that before authoring any future CMA-based rule).
->
-> **Deploy deliberately (this is the next action):** the B/D converge re-renders
-> `spark-oom-watchdog.service`, which **restarts the watchdog**, and it ships **`enforce: true` armed by
-> default** — the first CRIT will `docker restart` the engine. Guarded by in-flight drain (600 s),
-> cooldown 1800 s, 2-per-2 h rate limit, and an arm-off file
-> (`touch /mnt/spark_nvme/oom-watchdog/no-enforce`). To deploy dark first, set
-> `spark_oom_watchdog_enforce: false` + `spark_oom_watchdog_recycle: false` for the first converge, watch
-> `status` for a day, then arm. Converge = VPS `monitoring` (rules) + spark `spark` role (unit/defaults).
-> **Self-reference trap:** this pi harness runs ON the engine being guarded — drive converge/restart from
-> the laptop, and never bench while an agent session is attached.
+> have **restart-stormed a healthy engine** — the safety net causing the outage. Correct gauge, shared by
+> the watchdog + the alert rules + (since 2026-09-18) the **bench harness's own floors**, which had been
+> reading raw `MemAvailable`: **`usable = MemAvailable − CmaFree`** (1.6 GiB at both kills, monotone).
+> Thresholds are **measured**: death instant is 1.6 GiB but the lowest value a 60 s scrape ever recorded
+> is **5.01**, so **CRIT 8 / WARN 12** — below the scrape floor a rule can never fire.
+> `node_memory_CmaFree_bytes` is **verified present in VM** (it is NOT in node_exporter's default meminfo
+> whitelist — check that before authoring any future CMA-based rule).
 >
 > **Three findings the next session must not re-derive:** (1) the growth is **traffic-cumulative and
 > FLAT at idle** (88,773 MiB flat overnight → 109,785 MiB after ~30 min of ONE light pi session) —
@@ -74,24 +87,21 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 > Sampler schema also fixed: `gpu_mib` emits `pid,mib`, so rows were 12-wide under an 11-name header and
 > every column after `psi_full_avg10` was shifted — old ring archived as `.v1-*`, `CmaFree` + `usable`
 > columns added (the historical ring **could not see CmaFree at all**, which is why this was missed).
+> Same class, caught by the chain's dry run: the sampler CSV's header line sits **mid-file** after a ring
+> rotation and `"epoch" > "1789…"` is string-true — without a `$1 ~ /^[0-9]+$/` guard a min-`usable` awk
+> reads the header's empty field as 0 and every run "fails at 0 GiB".
 >
-> **Then, in order:** C3 `--enforce-eager` if the curve still climbs → land the **spark-lane 64k profile
-> (HD-376)** / drop `max_model_len` 262144 (a single 262k session ≈ **56% of the KV pool**, incident #6)
-> → re-run `spark/bench/stress-oom.sh` A/B **with NO agent attached** → only then revisit
-> `spark_vllm_kv_cache_memory`. `spark_vllm_memory_limit: 105G` is NOT a mitigation (GPU pages are not
-> cgroup-charged, invariant #1 — it only produces false negatives). Knowledge:
-> [`hardware-spark.md`](docs/hardware-spark.md) §Unified-memory budget (two correction blocks) ·
-> forensics: [`spark-incidents.md`](docs/spark-incidents.md) **#4–#8** (incl. the rejected-gauge record).
-> Evidence reader: `sudo /usr/local/bin/spark-oom-watchdog.sh status`,
-> `/mnt/spark_nvme/oom-watchdog/snapshots/`, `state/samples.csv`. Also: `docker stop` is an
-> **intentional** stop, so `unless-stopped` will NOT bring the engine back.
+> **Not mitigations (never count them as protection):** `spark_vllm_memory_limit: 105G` — GPU pages are
+> not cgroup-charged (invariant #1), so it catches only host-RSS runaways and yields false negatives.
+> `--gpu-memory-utilization` — ignored by this build once `kv_cache_memory_bytes` is set (HD-374).
+> Forensics readers: `sudo /usr/local/bin/spark-oom-watchdog.sh status`,
+> `/mnt/spark_nvme/oom-watchdog/snapshots/`, `state/samples.csv`.
 
 For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human). Each HD line links its owning doc + todo row; the ⏳ = exact next step. Deploy-gated verifies live in [`deployment-tasks.md`](deployment-tasks.md) (per-phase chapters).
 
 **AI-actionable now (no owner prerequisite):**
 - **HD-385** — ⏳ **Pinned-AI stack per leg — decision #25 (owner-approved, research 2026-09-17): embed stays Ollama `:rocm` · rerank → **CPU CrossEncoder** · STT → **`whisper.cpp` GGML_HIP on the native `gfx1102` target**.** SSOT is written and green ([services-ai.md](docs/services-ai.md) §9 #25 + the new **§9c dated research record** with every primary-source citation, [hardware-gpu.md](docs/hardware-gpu.md) new CWSR section, [smart-home-voice.md](docs/smart-home-voice.md)); **nothing is implemented yet.** **Do not re-run the research — §9c is the record. Do not bump the ollama `:rocm` pin hoping for rerank.** **Start in this order:** **(b) FIRST — the one open decision:** verify which LiteLLM rerank provider can route the CPU service (`litellm/llms/ollama/rerank/transformation.py` = 404, so the endpoint must be Jina `/v1/rerank` / Cohere / `hosted_vllm`-compatible); this answer shapes the service, so settle it before writing code. **(a)** then pick the CPU reranker (candidate `Theroxenes/local-reranker-rocm` — **CPU mode only**, vet license + maintenance first) or write a ~40-line FastAPI. **(c)** whisper.cpp `whisper-server` + a thin **OpenAI-compat wrapper** (server.cpp only serves `POST /inference` multipart WAV + `/load` + `/health`; HA Assist wants `/v1/audio/transcriptions`). **(d)** IaC task to fetch GGML models (whisper.cpp ships GGML URLs, not HF — no task exists). **(e)** re-point LiteLLM `…/rerank` + voice STT legs. **(f)** live-verify VRAM/concurrency (`rocm-smi`) + a ~15 min CWSR burn-in. **Non-actions decided 2026-09-17:** do **not** set `amdgpu.cwsr_enable=0` up front and do **not** introduce `amdgpu-dkms` on oldsrv — both reasons are in the hardware-gpu.md CWSR section; gfx1102 has **no confirmed hang report**, treat the exposure as inferred. **Also open:** `immich-ML co-residency` at pinned-AI 3–4 GB is arithmetic, not measured. · [services-ai.md](docs/services-ai.md) §9c · [todo.md HD-385](todo.md)
 - **HD-375** — ✅ **AUTHORED 2026-09-17** (`e11ea74`): `spark-host-mem-oom-critical` (<8 GiB, `for: 1m`, `noDataState: Alerting`) + `spark-host-mem-oom-warning` (<12 GiB, `for: 2m`) in `roles/monitoring/vars/main.yml` on the **corrected** gauge `MemAvailable − CmaFree`. ✅ **CONVERGED 2026-09-17 22:33C** (`vps.yml --tags monitoring`, failed=0): both rules load in the ruler, deploy preflighted against the backend (`node_memory_CmaFree_bytes{instance="spark…"}` exists → `noDataState: Alerting` cannot false-fire; `usable` 30.4 GiB = clear), and the WARN rule's mis-labelled summary ("< 8 GiB" vs threshold 12) is fixed. ⏳ **Next: owner confirms them in the Grafana UI + that they reach n8n.** Note the thresholds moved off the original 24/16 design and the old `MemAvailable`-based §Alerting spec is superseded by [`spark-incidents.md`](docs/spark-incidents.md) #7/#8. · [observability.md](docs/observability.md) §Alerting
-- **HD-389** — ✅ **spark stability harness AUTHORED + dry-run-tested 2026-09-17** ([`spark/stability-test.md`](spark/stability-test.md) is the runbook; the KV question is §6). **2026-09-18: the 16 GiB KV candidate is CONVERGED + LIVE on spark** (see the §2 header block — the experiment, unmerged branch) and the **chain is RUNNING** (stress test launched by the owner; `bash spark/bench/stability-supervise.sh` relaunches + pulls evidence; verdict at `spark:/mnt/spark_nvme/stability/OVERNIGHT.done`). Rungs re-tuned for the 16 GiB idle: **preflight floor 26→16, rung `MEM_FLOOR_GB` 18→14, full-window rung `BENCH_IN=240000`** (a 262,144-token chat request = ~282.7k > `max_model_len` → 400, so 240k is the real worst case ≈ 94.6 % of the 16 GiB pool). The two pre-raise 8.2 GiB reports are archived under [`spark/reports/stability/`](spark/reports/stability/README.md). ⏳ **Next (after the verdict):** read `OVERNIGHT.done`, then merge-or-revert per the §2 header block. · [todo.md HD-389](todo.md)
 - **HD-344** — ⏳ register MCP victoria endpoints in pi / Open WebUI / OpenClaw (**servers deployed :8083/:8084** — moved off :8080 which is pi-dev's port, 2026-09-15); tailnet redo = owner. · [observability.md](docs/observability.md) §MCP
 - **HD-318(b)** — ⏳ recyclarr @daily quality-profile sync verify (stacks up 2026-09-08; **2026-09-15: all *arr config dirs chowned to their image uid + `bind_owner_uid`/`bind_dirs` added to every entry** — a converge recreated containers and root-owned configs crash-looped the whole stack at 100% CPU; fixed live + durable, see [services-downloads.md](docs/services-downloads.md)). · [hardware-oldsrv.md](docs/hardware-oldsrv.md) · [todo.md HD-318](todo.md)
 

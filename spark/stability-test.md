@@ -16,23 +16,30 @@ forensics: [`docs/spark-incidents.md`](../docs/spark-incidents.md) #7/#8 · harn
 ## The two things you must not get wrong
 
 **1. The gauge is `usable = MemAvailable − CmaFree`, not `free -h`.** On GB10 the GPU carve is CMA, and
-CMA counts as "available" — so raw `MemAvailable` **inflates as pressure rises** (by up to ~9.5 GiB here).
+CMA counts as "available" — so raw `MemAvailable` **inflates as pressure rises** (by up to ~9.5 GiB here;
+the sampler ring has logged `CmaFree` up to **6.61 GiB**, and at both kills `MemAvailable` read ~10.4 GiB
+while `usable` was 1.6). This gauge is shared by the watchdog, the alert rules and the bench guard.
 
 | state | usable |
 |---|---|
-| healthy idle (measured) | **30.4 GiB** |
-| boot floor, no traffic | 26.1 GiB |
+| healthy idle, **8.2 GiB pool** era (historical) | 30.4 GiB |
+| **healthy idle, live 16 GiB pool (2026-09-18)** | **18.5 GiB** |
+| boot floor, no traffic (8.2 era) | 26.1 GiB |
 | watchdog WARN / CRIT | < 12 / < 8 GiB |
+| worst moment under 2×240k ≈ 94.6 % pool load | **17.78 GiB** |
 | **both observed kills** | **1.62 / 1.64 GiB** |
 
 **2. Filling the KV cache is not a memory test.** The KV pool is carved at boot (`--kv-cache-memory-bytes
-8800000000` = 8.2 GiB / 283,398 tokens) and **never grows**, so `GPU KV cache usage: 90 %` is scheduler
+16000000000` = 16 GiB nominal / **14.9 GiB reserved** / **515,786 tokens** since 2026-09-18; was 8.2 GiB /
+283,398) and **never grows**, so `GPU KV cache usage: 90 %` is scheduler
 occupancy, not RAM. Filling it exercises preemption/recompute — a *graceful* path. Preemptions going up
 during this test is **normal**; a kernel OOM line is the failure.
 
 The killer here was never KV: it was per-request allocator/graph growth that is never returned
 (incident #7/#8: engine top-pid 88,773 → 109,785 MiB in ~30 min of *one light* session, FLAT at idle).
-Post-C1/C2 the same curve measured **86,243 → 86,725 MiB in 3.5 h of three live sessions**.
+Post-C1/C2 the same curve measured **86,243 → 86,725 MiB in 3.5 h of three live sessions**, and the
+2026-09-18 certifying run measured **92,343 → 93,621 MiB (+1,278 MiB) across all three rungs** including
+the two 240k full-window prefills.
 
 ---
 
@@ -60,7 +67,8 @@ sudo /usr/local/bin/spark-oom-watchdog.sh status | sed -n '1,8p'
 REMOTE
 ```
 
-**GO only if:** `/health` = 200 · `BASE_USABLE ≥ 26` · in-flight **0** · the watchdog prints
+**GO only if:** `/health` = 200 · `BASE_USABLE ≥ 17` (live 16 GiB-pool idle is 18.5 — the old `≥ 26` was
+the 8.2 GiB-pool idle and can no longer be met) · in-flight **0** · the watchdog prints
 `budget: usable=…` (the corrected gauge).
 
 > **Close every agent session that runs on spark first — including the assistant session you are typing
@@ -116,7 +124,7 @@ escalates concurrent *fresh* large prefills (the activation transient that C2 go
 sessions, 2 = 3, 3 = 4 (`max_num_seqs`), each at 48k input tokens.
 
 ```bash
-ssh spark 'SPARK_STRESS_MAX_RUNG=3 MEM_FLOOR_GB=18 STRESS_OUT=/tmp/stress \
+ssh spark 'SPARK_STRESS_MAX_RUNG=3 USABLE_FLOOR_GIB=16 STRESS_OUT=/tmp/stress \
   nohup bash -c "bash /tmp/stress-oom.sh; echo rc=\$? > /tmp/stress/rung123.done" \
       > /tmp/stress/rung123.log 2>&1 & echo "started: $!"'
 ```
@@ -124,15 +132,17 @@ ssh spark 'SPARK_STRESS_MAX_RUNG=3 MEM_FLOOR_GB=18 STRESS_OUT=/tmp/stress \
 ### Run 2 — the decisive one: two simultaneous full windows (≈ 30–45 min)
 
 Wait for `rung123.done` to exist (§3 tells you how). This is the **compaction-vs-compaction** shape: two
-concurrent fresh prefills against the pool. **2026-09-18: the pool target is 16 GiB (553.7k token pool,
-2.11 windows vs today's 1.08) and the full-window rung is sized at 240k** (`BENCH_IN=240000`): a
-262,144-token chat request carries ~20.5k template tokens → ~282.7k > `max_model_len: 262144` → vLLM
-rejects it 400 before any load (live rung B1 x2 on 2026-09-17: `ok=0/2 in_tok=0 Bad Request`). 240k →
-~260.5k actual, undershoot; **2×240k ≈ 94.6 % of a 16 GiB pool** — the strictest worst case the
-configured engine can actually serve, and the shape a real auto-compaction in *two* sessions would make.
+concurrent fresh prefills against the pool. **2026-09-18: the live pool IS 16 GiB** (reserved 14.9 GiB /
+**515,786 tok** / 1.97× concurrency; 2.11 nominal windows vs 8.2 GiB's 1.08) and the full-window rung is
+sized at **240k** (`BENCH_IN=240000`): a 262,144-token chat request carries ~20.5k template tokens →
+~282.7k > `max_model_len: 262144` → vLLM rejects it 400 before any load (live rung B1 x2 on 2026-09-17:
+`ok=0/2 in_tok=0 Bad Request`). 240k → ~260.5k actual, undershoot; **2×240k ≈ 94.6 % of a 16 GiB pool** —
+the strictest worst case the configured engine can actually serve, and the shape a real auto-compaction in
+*two* sessions would make. **This exact sizing PASSED 2026-09-18 09:21–10:54Z** (`2×240,000` = 480,105 tok
+served, 0 kills, 0 restarts) — evidence: [`reports/stability/evidence-20260918-1254/`](reports/stability/README.md).
 
 ```bash
-ssh spark 'SPARK_STRESS_MAX_RUNG=1 BENCH_IN=240000 MEM_FLOOR_GB=14 RUNG_PAUSE=120 STRESS_OUT=/tmp/stress \
+ssh spark 'SPARK_STRESS_MAX_RUNG=1 BENCH_IN=240000 USABLE_FLOOR_GIB=16 RUNG_PAUSE=120 STRESS_OUT=/tmp/stress \
   nohup bash -c "bash /tmp/stress-oom.sh; echo rc=\$? > /tmp/stress/fullwindow.done" \
       > /tmp/stress/fullwindow.log 2>&1 & echo "started: $!"'
 ```
@@ -142,16 +152,21 @@ ssh spark 'SPARK_STRESS_MAX_RUNG=1 BENCH_IN=240000 MEM_FLOOR_GB=14 RUNG_PAUSE=12
 
 **Notes**
 
-* `MEM_FLOOR_GB=16` is deliberately above the script's default 14: at the 16 GiB KV pool the idle usable
-  drops to ~21–24 GiB (was ~30), so 16 leaves some margin; the script's floor is on raw `MemAvailable`
-  (the falsified gauge).
-* The harness's live guard **stops and then restarts the engine** if `MemAvailable` crosses the floor or
-  PSI-full crosses 50 %, so the kernel never picks the victim. `RestartCount` +1 with a `GUARD FIRE`
+* **The floor is `USABLE_FLOOR_GIB=16` and it is on the CORRECTED gauge** (`usable = MemAvailable −
+  CmaFree`), same as the watchdog and the alert rules. Two separate facts you need to set it honestly:
+  - idle `usable` with the 16 GiB pool is **18.5 GiB** (measured, flat over ~30 min at 92,343 MiB top-pid),
+    down from ~30.5 at 8.2 GiB. A floor above ~17 makes the guard fire on a *normal* dip.
+  - the passing chain's **worst moment was 17.78 GiB** — i.e. the full 2×240k ≈ 94.6 %-of-pool load came
+    within **0.72 GiB** of a 16 floor. That is why 16 is the floor and not a comfortable-looking 12: the
+    margin here is genuinely thin, it is measured, and a future raise must be argued against 17.78.
+  `MEM_FLOOR_GB` still works as an alias for the same number (older run lines), now on the corrected gauge.
+* The harness's live guard **stops and then restarts the engine** if `usable` crosses the floor or PSI-full
+  crosses 50 %, so the kernel never picks the victim. `RestartCount` +1 with a `GUARD FIRE`
   line = the guard did its job; that is a governor PASS and an *inconclusive* peak result.
 * Never pass `--warm` or reuse a prompt: prefix-cache hit is ~92 %, so a repeated prompt prefills nothing
   and you measure zero (the fresh `--seed` per step is what prevents that).
-* `MEM_FLOOR_GB`/`SPARK_STRESS_MAX_RUNG`/`BENCH_IN` are per-run env vars — set them on the run line, not
-  in the copy.
+* `USABLE_FLOOR_GIB` (alias `MEM_FLOOR_GB`)/`SPARK_STRESS_MAX_RUNG`/`BENCH_IN` are per-run env vars — set
+  them on the run line, not in the copy.
 * The OOM watchdog is **enforcing** (CRIT < 8 GiB usable → planned `docker restart`, max 2 per 2 h; plus
   an idle recycle at baseline + 8 GiB). To read raw numbers without it interfering:
   `ssh spark 'sudo touch /mnt/spark_nvme/oom-watchdog/no-enforce'` — and **remove it afterwards**
@@ -297,7 +312,8 @@ powershell.exe -Command 'Start-Process powercfg -ArgumentList "/change","standby
 ```
 
 Preconditions the chain refuses to start without (it tells you, instead of producing a fake number):
-engine `/health` 200 · **zero in-flight requests** · `usable ≥ 26 GiB` · the bench harness present.
+engine `/health` 200 · **zero in-flight requests** · `usable ≥ 16 GiB` (corrected gauge; the live
+16 GiB-pool idle is 18.5 — raise this only if you raise the pool again) · the bench harness present.
 **Close every agent session running on spark — including the assistant you are typing in.**
 
 Useful knobs (env on the supervisor): `STABILITY_RESERVE_GIB` (12) · `STABILITY_MAX_KILLS` (2) ·
@@ -340,23 +356,32 @@ Measured on a **dry run** (no load ⇒ worst moment = idle), which is therefore 
   => pool 8.2 -> ~16-19 GiB = ~550-640k tokens = ~2.1-2.4 concurrent 262k windows (today 1.08)
 ```
 
-**2026-09-18 target: pool 16 GiB** (candidate, NOT YET CONVERGED — awaiting this ladder to pass).
-16 GiB / 30.3 KiB-per-tok ≈ 553.7k tokens = 2.11 windows — inside both ceilings (runtime +7.8 < 16.5;
-boot +7.8 < +10.9), at ~94.6 % of the pool when two full-context sessions are fresh. **Consequences**
-of the raise that must be re-verified live, not assumed:
+**CERTIFIED 2026-09-18: pool raised 8.2 → 16 GiB and it is the LIVE, STABLE config.** The real run
+(`evidence-20260918-1254`) reported a much smaller runtime figure than the dry run — which is exactly why
+the ladder exists:
 
-* **Idle `usable` drops** from ~30.5 to ~22.7 GiB — the WARN 12 / CRIT 8 lines still clear, but the
-  steady-state margin to WARN shrinks ~8 GiB. The rung floor must come down to `MEM_FLOOR_GB=16` (Run 2
-  above) and the host-mem alert thresholds (`IaC/ansible/roles/monitoring/vars/main.yml`) should be
-  re-checked against the new idle so a routine transient cannot false-fire.
-* **Boot is still the binding gate.** The pool is carved at boot; after any 8.2→16 converge, verify
-  `Initial free memory` in the boot log still leaves the host reserve and the `NV_ERR_NO_MEMORY` count
-  does not grow at weight-load (it already bursts ~218 at boot today).
-* **vLLM will schedule / preempt under 94 % fill.** Two fresh 240k at 16 GiB is the pessimal case —
-  expect higher TTFT / some evictions; that is the point (proves the host survives), not a bug.
+```
+  runtime: worst usable 17.78 - 12  = +5.5 GiB
+  boot   : 114.07 - 96.7 - 12       = +5.4 GiB   <-- BINDING
+  => headroom ~+5 GiB, i.e. ~20-21 GiB total — DO NOT raise past 16 GiB in bf16
+     (the +17.5 the dry run suggested was an artefact of running with no load)
+```
 
-The real run will report a smaller runtime figure — that is the point of running it. Take
-**min(runtime, boot)** and round **down** to a 2 GiB step, then verify after the change:
+Measured consequences of the raise (verified live, not projected):
+
+* **Idle `usable` = 18.5 GiB** (not the ~22.7 projected — the PLE CPU mirror is larger than the model
+  arithmetic assumed). WARN 12 / CRIT 8 both still clear, but the margin to WARN is **6.5 GiB**, not the
+  ~18 GiB of the 8.2 era. The bench floor sits at 16 accordingly (§2 notes).
+* **Boot was the binding gate, and it is now nearly spent.** `Initial free memory` at boot: **114.84 GiB**
+  (8.2 pool) → **114.07 GiB** (16 pool), engine now holds ~96.7 GiB, so the boot-side allowance is
+  **~5.4 GiB**. `NV_ERR_NO_MEMORY` 234 → **243 (+9)** across the certifying run — the boot-time burst is
+  unchanged in character, but the count is the number to watch on the next raise.
+* **Preemption under 94 % fill is real and it is slow, not fatal:** 2×240k fresh prefills served
+  480,105 tok with **mean TTFT 631 s** and MTP acceptance collapsing to **20.6 %** (from 35–44 % at small
+  batch). Host survived untouched. Sizing for that shape is a *capacity/latency* conversation, not a
+  safety one.
+
+Take **min(runtime, boot)** and round **down** to a 2 GiB step, then verify after any change:
 
 ```bash
 ssh spark 'sudo docker logs vllm-qwen-spark 2>&1 | grep -E "Initial free memory|GPU KV cache size|Maximum concurrency"'

@@ -1,0 +1,102 @@
+22:00:25 === stability-overnight start (reserve 12 GiB, ctx 262144, kills cap 2) ===
+22:00:25 baseline: usable=30.32GiB top=86725MiB restarts=0 oom-kill=3 nvrm=218 kv=8.2GiB
+22:00:25 RUN rung123 START — full ladder: shape churn + prefill rungs 1-3
+22:18:28 RUN rung123 END rc=0 steps=21 oom-kill 3->3 restarts 0->0 guard-fires=0
+22:18:28   last: 22:18:28 log: /mnt/spark_nvme/stability/logs/stress-oom-20260917-220025.log
+22:18:28 RUN rung123 -> continue (kills 0/2)
+22:18:28 RUN compact START — two concurrent 200k fresh prefills = 400k tok vs a 283,398-tok pool (compaction-vs-compaction)
+22:33:07 RUN compact END rc=0 steps=19 oom-kill 3->3 restarts 0->0 guard-fires=0
+22:33:07   last: 22:33:07 log: /mnt/spark_nvme/stability/logs/stress-oom-20260917-221828.log
+22:33:07 RUN compact -> continue (kills 0/2)
+22:33:07 RUN fullwindow START — two concurrent full-window prefills (hardest; one pi auto-compaction is ONE of these)
+22:41:34 RUN fullwindow END rc=4 steps=19 oom-kill 3->3 restarts 0->0 guard-fires=0
+22:41:34   last: 22:41:34   A no-op step cannot certify anything — aborting instead of reporting a pass.
+22:41:34 CHAIN STOP: fullwindow applied no real load (zero-load step) — a pass would be fake
+==============================================================
+RESULT: FAILED ❌ — fullwindow applied no real load (zero-load step) — a pass would be fake
+==============================================================
+runs completed  2/3 | kills continued through 0 (cap 2) | box reboots 0
+usable          30.32 GiB -> worst 28.81 GiB   (the two observed kills landed at 1.6)
+engine top-pid  86725 MiB -> max 86725 MiB (delta 0 MiB)
+kernel oom-kill 3 -> 3 | restarts 0 -> 0 | health 200
+NVRM NV_ERR_NO_MEMORY 218 -> 218  (a burst during weight-load at boot is normal;
+                                                    steady-state growth during the run is not)
+--------------------------------------------------------------
+HOW MUCH MORE KV CAN I AFFORD (bf16, no fp8)?
+  worst observed usable : 28.81 GiB  (idle after the run 30.36 GiB)
+  reserve target        : 12.00 GiB  (watchdog CRIT 8.0; both real kills landed at 1.6)
+  => EXTRA KV AFFORDABLE: 16.5 GiB -> pool 8.2 -> 24.7 GiB   (bf16, no fp8)
+     +571007 tokens = +2.18 full 262144-token windows
+     pool 24.7 GiB = 854780 tokens = 3.26 windows  (today 283,398 tok = 1.08)
+  projection, usable at the worst moment IF the peak stays as measured:
+     KV +0  GiB (8.2  total) -> worst usable 28.8 GiB 
+     KV +4  GiB (12.2 total) -> worst usable 24.8 GiB 
+     KV +8  GiB (16.2 total) -> worst usable 20.8 GiB 
+     KV +12 GiB (20.2 total) -> worst usable 16.8 GiB 
+     KV +16 GiB (24.2 total) -> worst usable 12.8 GiB 
+  BOOT check (the pool is reserved at boot, out of what was free then):
+     free at boot 114.6 GiB  (weights alone took 73.5 GiB) | engine holds ~91.3 GiB now
+     => boot-side allowance ~11.3 GiB
+     BINDING CONSTRAINT IS BOOT, NOT RUNTIME: cap extra KV at ~11.3 GiB
+--------------------------------------------------------------
+Not covered here — check before touching spark_vllm_kv_cache_memory:
+  * the pool is allocated AT BOOT: the boot log's 'Initial free memory … reserved N GiB' must
+    still leave Linux its reserve. This box already logs NV_ERR_NO_MEMORY during weight load,
+    so raise in +2 GiB steps and re-check the boot log each time.
+  * KV is CAPACITY, not stability. After a raise, re-measure prefix-cache hit rate and
+    preemptions — fewer evictions is the whole point, not a bigger number.
+  * fp8 KV would roughly DOUBLE the tokens for the SAME GiB — deliberately excluded here.
+  * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+==============================================================
+evidence: /mnt/spark_nvme/stability/evidence + /mnt/spark_nvme/stability/logs | on-box watchdog bundles: /mnt/spark_nvme/oom-watchdog/snapshots/
+09:21:20 === stability-overnight start (reserve 12 GiB, ctx 262144, kills cap 2) ===
+09:21:20 baseline: usable=18.84GiB top=92343MiB restarts=0 oom-kill=3 nvrm=234 kv=14.9GiB
+09:21:21 RUN rung123 START — full ladder: shape churn + prefill rungs 1-3
+09:54:33 RUN rung123 END rc=0 steps=21 oom-kill 3->3 restarts 0->0 guard-fires=0
+09:54:33   last: 09:54:33 log: /mnt/spark_nvme/stability/logs/stress-oom-20260918-092121.log
+09:54:33 RUN rung123 -> continue (kills 0/2)
+09:54:33 RUN compact START — two concurrent 200k fresh prefills = 400k tok vs a 515,786-tok pool (compaction-vs-compaction; ~77 % of the 16 GiB pool)
+10:22:51 RUN compact END rc=0 steps=19 oom-kill 3->3 restarts 0->0 guard-fires=0
+10:22:51   last: 10:22:50 log: /mnt/spark_nvme/stability/logs/stress-oom-20260918-095433.log
+10:22:51 RUN compact -> continue (kills 0/2)
+10:22:51 RUN fullwindow START — two concurrent ~full-window uncached prefills (2×240k ≈ 94.6% of a 16 GiB pool; hardest realistic case — one pi auto-compaction is ONE of these; sized to undershoot max_model_len, see CTX note above)
+10:54:06 RUN fullwindow END rc=0 steps=19 oom-kill 3->3 restarts 0->0 guard-fires=0
+10:54:06   last: 10:54:06 log: /mnt/spark_nvme/stability/logs/stress-oom-20260918-102251.log
+10:54:06 RUN fullwindow -> continue (kills 0/2)
+==============================================================
+RESULT: PASSED ✅ — spark stayed up and the peak stayed bounded.
+==============================================================
+runs completed  3/3 | kills continued through 0 (cap 2) | box reboots 0
+usable          18.84 GiB -> worst 17.78 GiB   (the two observed kills landed at 1.6)
+engine top-pid  92343 MiB -> max 93621 MiB (delta 1278 MiB)
+kernel oom-kill 3 -> 3 | restarts 0 -> 0 | health 200
+NVRM NV_ERR_NO_MEMORY 234 -> 243  (a burst during weight-load at boot is normal;
+                                                    steady-state growth during the run is not)
+--------------------------------------------------------------
+HOW MUCH MORE KV CAN I AFFORD (bf16, no fp8)?
+  worst observed usable : 17.78 GiB  (idle after the run 24.88 GiB)
+  reserve target        : 12.00 GiB  (watchdog CRIT 8.0; both real kills landed at 1.6)
+  => EXTRA KV AFFORDABLE: 5.5 GiB -> pool 14.9 -> 20.4 GiB   (bf16, no fp8)
+     +190336 tokens = +0.73 full 262144-token windows
+     pool 20.4 GiB = 705972 tokens = 2.69 windows  (today 283,398 tok = 1.08)
+  projection, usable at the worst moment IF the peak stays as measured:
+     KV +0  GiB (14.9 total) -> worst usable 17.8 GiB 
+     KV +4  GiB (18.9 total) -> worst usable 13.8 GiB 
+     KV +8  GiB (22.9 total) -> worst usable 9.8 GiB <-- below target
+     KV +12 GiB (26.9 total) -> worst usable 5.8 GiB <-- below target
+     KV +16 GiB (30.9 total) -> worst usable 1.8 GiB <-- below target
+  BOOT check (the pool is reserved at boot, out of what was free then):
+     free at boot 114.1 GiB  (weights alone took 73.5 GiB) | engine holds ~96.7 GiB now
+     => boot-side allowance ~5.4 GiB
+     BINDING CONSTRAINT IS BOOT, NOT RUNTIME: cap extra KV at ~5.4 GiB
+--------------------------------------------------------------
+Not covered here — check before touching spark_vllm_kv_cache_memory:
+  * the pool is allocated AT BOOT: the boot log's 'Initial free memory … reserved N GiB' must
+    still leave Linux its reserve. This box already logs NV_ERR_NO_MEMORY during weight load,
+    so raise in +2 GiB steps and re-check the boot log each time.
+  * KV is CAPACITY, not stability. After a raise, re-measure prefix-cache hit rate and
+    preemptions — fewer evictions is the whole point, not a bigger number.
+  * fp8 KV would roughly DOUBLE the tokens for the SAME GiB — deliberately excluded here.
+  * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+==============================================================
+evidence: /mnt/spark_nvme/stability/evidence + /mnt/spark_nvme/stability/logs | on-box watchdog bundles: /mnt/spark_nvme/oom-watchdog/snapshots/

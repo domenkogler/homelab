@@ -33,6 +33,24 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > **Dashboard LAN edge FIXED + LIVE (2026-09-15):** `http://spark.kogler.si:11000` serves the real dashboard HTML **200** (LAN client verified; `traefik-spark` **healthy**, `traefik healthcheck --ping` passes). Root cause of the 404: the routes used a **`HostRegexp({host:.+})` catch-all rule that silently matched nothing** (Traefik's own "404 page not found") — likely because Traefik v3 host-matching on IP-host requests doesn't treat the catch-all as applying; **the fix is an explicit `Host(spark.kogler.si)` rule** (name-based; same pattern as the oldsrv home edge). IP-host requests (`curl http://spark.kogler.si:11000/` via the raw Home IP) are expected 404 — they don't match the Host rule; the browser hits the name and works. Secondary fixes in the same change: (1) spark role now sets `net.ipv4.ip_nonlocal_bind=1` (headless-gated, `sysctl.d/dgx-lan-bind.conf`) so the LAN bind `spark_home_ip:11000/11002` is deterministic at container start (was EADDRNOTAVAIL until the interface settled); (2) removed the stale duplicate `healthcheck:` block (`wget …:8080`) that overrode the correct `["CMD","traefik","healthcheck","--ping"]` → container now reports healthy; (3) re-render landed `--api.insecure`/`--ping` in the live command (the debug API is at `127.0.0.1:8080` — the built-in `traefik` entrypoint, not 11000). Legacy crash-looping `dgx-dashboard-socat` container removed. Jupyter :11002 intentionally NOT touched (owner instruction; its entrypoint stays, untested).
 >
 > **Unified-memory budget governance + explicit KV-pool sizing — 2026-09-16 (`session/hd373-vllm-oom-20260916`):** a third global-OOM in 24 h (2026-09-16 09:26 UTC — the engine's own session, 502s, including this repo's tooling) is now root-caused with measured numbers and a durable fix is selected. The mechanics live in **§Unified-memory budget & OOM governance** below; the dated incident records live in **[spark-incidents.md](spark-incidents.md)** (append-only). Implemented as IaC in `group_vars/spark.yml`: **`spark_vllm_kv_cache_memory: "8800000000"` (8.8e9 bytes ≈ 8.2 GiB ≈ 275k tok) as the ONLY governor, `--gpu-memory-utilization` REMOVED (this build ignores it when `--kv-cache-memory-bytes` is set), `max_model_len` unchanged at 262,144** — replace-by-percentage arithmetic is the root defect, not the workload. **0.82 util was certified for casual/chat only — it is NOT survivable for sustained agentic/window-heavy inference.**
+>
+> **✅ Peak-bound CERTIFIED + KV pool raised 8.2 → 16 GiB and promoted to the stable config (2026-09-18, `session/spark-stability-20260918-0000`):** the load test that answers the question the whole OOM lane was built to answer — *does C1+C2 actually bound the peak, under the traffic shape that produced incidents #1–#8?* — **PASSED**. Runbook [`../spark/stability-test.md`](../spark/stability-test.md), evidence [`../spark/reports/stability/`](../spark/reports/stability/README.md).
+>
+> * **The load was real:** 3 rungs, 59 steps, all `ok=N/N`. `rung123` (18 shape-churn steps + prefill rungs 2/3/4 concurrent × 49,152 tok = **196,816 tok in flight**) → `compact` (2 × 200,000 = **400,105 tok**, ~77 % of the pool) → `fullwindow` (2 × 240,000 = **480,105 tok ≈ 94.6 % of the 16 GiB pool** — two fresh full-context sessions, nothing cached: the pessimal real-world shape).
+> * **The host never blinked:** `invoked oom-killer` **3 → 3** (no new), engine `RestartCount` **0 → 0**, guard-fires **0**, reboots **0**, `/health` **200** at the end.
+> * **The peak is bounded (this is the verdict that was missing):** engine top-pid **92,343 → 93,621 MiB = +1,278 MiB across ~1.5 h of the hardest shape**, against the pre-governor **88,773 → 109,785 MiB (+21,012 MiB) in ~30 min of one light session**. The §4 C3 trigger (>2 GiB/h under traffic AND no return at idle) is **not** met → **`--enforce-eager` stays off**, and it is now a measured call rather than an inference from a 3.5 h idle-ish curve.
+> * **`usable` worst moment 17.78 GiB** (idle 18.84 → 24.88 after) vs the **12 GiB reserve target**, with both historical kills at **1.62/1.64**. Margin: 5.8× the kill point.
+> * **KV ceiling found, and it is boot, not runtime:** the run's own arithmetic gives runtime **+5.5 GiB** and boot-side **+5.4 GiB** ⇒ **16 GiB is the practical bf16 ceiling; do not raise further.** The next byte of KV must come from `--kv-cache-dtype fp8` (≈2× tokens for the same GiB, unvalidated on this hybrid+MTP build), not from Linux's reserve.
+> * **Costs paid, recorded honestly:** idle `usable` fell **30.5 → 18.5 GiB** (margin to the WARN 12 line is now 6.5 GiB, not 18), and `NV_ERR_NO_MEMORY` **234 → 243 (+9)** across the run (boot-load burst unchanged in character). Under the 94.6 % shape the engine served it but slowly: **mean TTFT 631 s**, MTP acceptance **20.6 %** (35–44 % at small batch) — capacity/latency, not safety.
+> * **Harness fix that came out of reading the numbers (stability-certify close-out, 2026-09-18):** the bench guard's floors ran on **raw `MemAvailable`**, the falsified gauge — it would have `GUARD FIRE`n a **healthy** box at usable 18.5 (MemAvailable dips read low) and read healthy at **10.4 GiB** when incidents #7/#8 were actually at usable **1.6**. Both bench guards (`stress-oom.sh`, `run-scenario.sh`) + the chain preflight now gate on **`usable = MemAvailable − CmaFree`** at **16 GiB**, one gauge with the watchdog and the alert rules. Measured margin, not guesswork: the passing run's worst moment (17.78) sat **0.72 GiB** above that floor.
+> * **ID collision, recorded so nobody re-derives it:** this work was registered in todo.md as "HD-389"
+> (`f5c3f85`, 2026-09-17 23:26) while a parallel worktree was landing the spark name-edge `.ts` fix under
+> **the same ID** (`ef7c4f3`, live state in §Name edge + [network-vpn.md](network-vpn.md)) — two sessions
+> both took the next free ID. Resolution: **HD-389 = the name-edge fix** (it owns the docs); this stability
+> lane is **closed with no HD row of its own** (CONVENTIONS §4(a) — the row was deleted on 2026-09-18), and
+> its record is this section + [`../spark/stability-test.md`](../spark/stability-test.md) +
+> [`../spark/reports/stability/README.md`](../spark/reports/stability/README.md). Do not file new work as 389.
+> * **Still open (unchanged by this PASS):** the 262k **needle test**, the `spark-lane` 64 k profile, and the tool-call/accuracy tails — see HD-376/HD-367. The PASS certifies *memory safety*, not long-context correctness.
 
 
 ---
@@ -202,9 +220,17 @@ residue of prior traffic. Implications:
 
 | state | engine top-pid | `MemAvailable` | `usable = MemAvailable − CmaFree` |
 |---|---|---|---|
-| boot, weights loaded, no traffic | 88,773 MiB | 24.2 GiB | healthy (flat overnight) |
+| boot, weights loaded, no traffic (8.2 GiB pool) | 88,773 MiB | 24.2 GiB | healthy (flat overnight) |
 | + ~30 min one light agent session | 109,785 MiB | 9.6 GiB | 1.6 GiB at kill (#8) |
-| boot + C1/C2 applied (2026-09-17 15:28Z) | 85,445 → 86,243 MiB | 26.9 GiB | to be measured |
+| boot + C1/C2 applied (2026-09-17 15:28Z, 8.2 GiB pool) | 85,445 → 86,243 MiB | 26.9 GiB | 30.3 idle / **28.81 worst** under the pre-raise chain |
+| **boot + C1/C2 + 16 GiB pool (2026-09-18, CERTIFIED baseline)** | **92,343 → 93,621 MiB (+1,278)** | 18.5 → 24.9 idle-after | **17.78 worst** under 2×240k ≈ 94.6 % pool |
+
+> **Why the +1,278 MiB row is the important one:** it is the first *load*-certified number for the
+> peak-bound question. Compare with the #8 row above it: the same class of box went **+21,012 MiB in
+> ~30 min of one light session** before C1/C2, and **+1,278 MiB across ~1.5 h of the pessimal
+> two-full-window shape** after. §"C3 decision rule" in
+> [`../spark/stability-test.md`](../spark/stability-test.md) (§4) stays unsatisfied → `--enforce-eager`
+> stays off, now on measurement.
 
 **Two facts that must be carried into every future sizing calculation:**
 1. **Per-pid `nvidia-smi` under-counts the engine by ~10 GiB.** True footprint = the `MemAvailable`
@@ -228,10 +254,20 @@ ceiling.
 > short-circuit ("reserved 8.2 GiB … skipped memory profiling. This does not respect the
 > gpu_memory_utilization config"), KV pool **283,398 tokens** (1.08× @262k), `/health` 200, host
 > `MemAvailable` 24 GiB during load (was ~9–13 GiB pre-fix). `RestartCount=0`, no `ValueError`/OOM.
+>
+> ✅ **SUPERSEDED 2026-09-18 — the pool is now 16 GiB and it is CERTIFIED, not just booted.** Same log
+> signature at the new size (`Initial free memory 114.07 GiB, reserved 14.9 GiB … skipped memory
+> profiling` → `GPU KV cache size: 515,786 tokens, Maximum concurrency … 1.97x`), then the 3-rung load
+> chain passed against it: 0 kernel OOM, 0 engine restarts, 0 guard-fires, `usable` worst **17.78 GiB**,
+> engine top-pid **+1,278 MiB** across ~1.5 h incl. **2×240,000-token** concurrent fresh prefills
+> (≈ 94.6 % of pool). Evidence: [`../spark/reports/stability/README.md`](../spark/reports/stability/README.md)
+> · runbook [`../spark/stability-test.md`](../spark/stability-test.md).
+> **The headroom question is now closed for bf16: runtime +5.5 GiB, boot-side +5.4 GiB (binding) ⇒ 16 GiB
+> is the ceiling. The next KV byte must come from `--kv-cache-dtype fp8`, not from Linux's reserve.**
 
 ```yaml
 # group_vars/spark.yml  (this build's flag: --kv-cache-memory-bytes, bytes int)
-spark_vllm_kv_cache_memory: "8800000000"  # ~8.2 GiB ≈ 275k tokens — KV term of the governor (reserve is 22.2 GiB measured, NOT the 32.5 first predicted — see the correction above)
+spark_vllm_kv_cache_memory: "16000000000"  # 16 GiB nominal → reserved 14.9 GiB = 515,786 tok = 1.97× @262k. LIVE + CERTIFIED 2026-09-18 (was 8.2 GiB / 283,398 tok / 1.08×). Idle usable fell 30.5 → 18.5 GiB; boot-side allowance spent (+5.4 GiB left) — do NOT raise further in bf16.
 spark_vllm_max_cudagraph_capture_size: 4  # graph term (HD-380): default [1,2,4,8,16,24,32] is unreachable above max_num_seqs and strands ~7 GiB of the shared pool
 spark_vllm_max_model_len: 262144          # unchanged; boot-gate only
 # spark_vllm_gpu_memory_utilization REMOVED — ignored when kv_cache_memory_bytes is set (HD-374)

@@ -83,3 +83,135 @@ Not covered here — check before touching spark_vllm_kv_cache_memory:
 evidence: /mnt/spark_nvme/stability/evidence + /mnt/spark_nvme/stability/logs | on-box watchdog bundles: /mnt/spark_nvme/oom-watchdog/snapshots/
 11:13:13 synced to spark:/mnt/spark_nvme/stability (runner + bench harness)
 11:13:16 evidence pulled to /home/domen/source/homelab-wt-20260918-0000/spark/bench/overnight/evidence-20260918-1113 (492K)
+11:21:21 synced to spark:/mnt/spark_nvme/stability (runner + bench harness)
+11:21:24 chain running on spark
+11:21:24 supervising (poll 60s, relaunch cap 6). Ctrl-C stops supervising, NOT the chain.
+11:22:26 RUNNING | usable=18.82G top=93125M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:23:27 RUNNING | usable=18.29G top=93125M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:24:28 RUNNING | usable=24.35G top=93127M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:25:30 RUNNING | usable=24.22G top=93607M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:26:31 RUNNING | usable=23.34G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:27:32 RUNNING | usable=24.12G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:28:33 RUNNING | usable=23.70G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:29:35 RUNNING | usable=23.23G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:30:36 RUNNING | usable=23.82G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:31:37 RUNNING | usable=23.85G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:32:38 RUNNING | usable=24.45G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:33:39 RUNNING | usable=23.77G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:34:40 RUNNING | usable=23.98G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:35:43 RUNNING | usable=23.15G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:36:44 RUNNING | usable=24.83G top=93611M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:37:45 RUNNING | usable=23.27G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:38:46 RUNNING | usable=24.95G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:39:47 RUNNING | usable=25.05G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:40:49 RUNNING | usable=24.56G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:41:50 RUNNING | usable=23.79G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:42:51 RUNNING | usable=22.85G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:43:52 RUNNING | usable=25.03G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:44:54 RUNNING | usable=25.02G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:45:55 RUNNING | usable=24.48G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:46:56 RUNNING | usable=24.96G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:47:57 RUNNING | usable=23.84G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:48:58 RUNNING | usable=22.67G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:49:59 RUNNING | usable=23.32G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:51:00 RUNNING | usable=25.01G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:52:01 RUNNING | usable=24.55G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:53:02 RUNNING | usable=24.33G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:54:03 RUNNING | usable=24.88G top=93621M done=[""] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:55:04 RUNNING | usable=23.92G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:56:05 RUNNING | usable=23.56G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:57:06 RUNNING | usable=23.84G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:58:07 RUNNING | usable=22.96G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+11:59:09 RUNNING | usable=23.79G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:00:10 RUNNING | usable=23.92G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:01:11 RUNNING | usable=23.82G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:02:13 RUNNING | usable=24.43G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:03:15 RUNNING | usable=24.80G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:04:16 RUNNING | usable=23.95G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:05:17 RUNNING | usable=23.80G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:06:18 RUNNING | usable=23.81G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:07:19 RUNNING | usable=23.88G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:08:20 RUNNING | usable=23.44G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:09:41 RUNNING | usable=23.62G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:10:47 RUNNING | usable=23.58G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:11:48 RUNNING | usable=24.22G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:12:50 RUNNING | usable=25.11G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:13:51 RUNNING | usable=24.70G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:14:53 RUNNING | usable=24.15G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:15:54 RUNNING | usable=24.78G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:16:56 RUNNING | usable=25.04G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:17:57 RUNNING | usable=25.08G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:18:59 RUNNING | usable=24.90G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:20:01 RUNNING | usable=25.11G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:21:03 RUNNING | usable=24.62G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:22:05 RUNNING | usable=24.31G top=93621M done=["rung123"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:23:06 RUNNING | usable=23.94G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:24:07 RUNNING | usable=23.44G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:25:12 RUNNING | usable=24.07G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:26:13 RUNNING | usable=22.87G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:27:15 RUNNING | usable=23.72G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:28:16 RUNNING | usable=23.88G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:29:18 RUNNING | usable=23.80G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:30:20 RUNNING | usable=23.81G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:31:21 RUNNING | usable=23.88G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:32:22 RUNNING | usable=23.18G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:33:24 RUNNING | usable=24.11G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:34:25 RUNNING | usable=23.79G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:35:26 RUNNING | usable=23.54G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:36:28 RUNNING | usable=23.47G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:37:29 RUNNING | usable=24.75G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:38:30 RUNNING | usable=23.50G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:39:32 RUNNING | usable=23.50G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:40:33 RUNNING | usable=24.97G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:41:34 RUNNING | usable=24.07G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:42:35 RUNNING | usable=25.04G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:43:36 RUNNING | usable=24.74G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:44:37 RUNNING | usable=25.03G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:45:38 RUNNING | usable=24.79G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:46:40 RUNNING | usable=25.06G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:47:41 RUNNING | usable=24.95G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:48:42 RUNNING | usable=24.93G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:49:43 RUNNING | usable=23.99G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:50:44 RUNNING | usable=25.03G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:51:45 RUNNING | usable=24.66G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:52:46 RUNNING | usable=24.88G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:53:48 RUNNING | usable=24.87G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+12:54:48 chain finished
+12:54:51 evidence pulled to /home/domen/source/homelab-wt-20260918-0000/spark/bench/overnight/evidence-20260918-1254 (900K)
+==============================================================
+RESULT: PASSED ✅ — spark stayed up and the peak stayed bounded.
+==============================================================
+runs completed  3/3 | kills continued through 0 (cap 2) | box reboots 0
+usable          18.84 GiB -> worst 17.78 GiB   (the two observed kills landed at 1.6)
+engine top-pid  92343 MiB -> max 93621 MiB (delta 1278 MiB)
+kernel oom-kill 3 -> 3 | restarts 0 -> 0 | health 200
+NVRM NV_ERR_NO_MEMORY 234 -> 243  (a burst during weight-load at boot is normal;
+                                                    steady-state growth during the run is not)
+--------------------------------------------------------------
+HOW MUCH MORE KV CAN I AFFORD (bf16, no fp8)?
+  worst observed usable : 17.78 GiB  (idle after the run 24.88 GiB)
+  reserve target        : 12.00 GiB  (watchdog CRIT 8.0; both real kills landed at 1.6)
+  => EXTRA KV AFFORDABLE: 5.5 GiB -> pool 14.9 -> 20.4 GiB   (bf16, no fp8)
+     +190336 tokens = +0.73 full 262144-token windows
+     pool 20.4 GiB = 705972 tokens = 2.69 windows  (today 283,398 tok = 1.08)
+  projection, usable at the worst moment IF the peak stays as measured:
+     KV +0  GiB (14.9 total) -> worst usable 17.8 GiB 
+     KV +4  GiB (18.9 total) -> worst usable 13.8 GiB 
+     KV +8  GiB (22.9 total) -> worst usable 9.8 GiB <-- below target
+     KV +12 GiB (26.9 total) -> worst usable 5.8 GiB <-- below target
+     KV +16 GiB (30.9 total) -> worst usable 1.8 GiB <-- below target
+  BOOT check (the pool is reserved at boot, out of what was free then):
+     free at boot 114.1 GiB  (weights alone took 73.5 GiB) | engine holds ~96.7 GiB now
+     => boot-side allowance ~5.4 GiB
+     BINDING CONSTRAINT IS BOOT, NOT RUNTIME: cap extra KV at ~5.4 GiB
+--------------------------------------------------------------
+Not covered here — check before touching spark_vllm_kv_cache_memory:
+  * the pool is allocated AT BOOT: the boot log's 'Initial free memory … reserved N GiB' must
+    still leave Linux its reserve. This box already logs NV_ERR_NO_MEMORY during weight load,
+    so raise in +2 GiB steps and re-check the boot log each time.
+  * KV is CAPACITY, not stability. After a raise, re-measure prefix-cache hit rate and
+    preemptions — fewer evictions is the whole point, not a bigger number.
+  * fp8 KV would roughly DOUBLE the tokens for the SAME GiB — deliberately excluded here.
+  * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+==============================================================
+evidence: /mnt/spark_nvme/stability/evidence + /mnt/spark_nvme/stability/logs | on-box watchdog bundles: /mnt/spark_nvme/oom-watchdog/snapshots/

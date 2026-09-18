@@ -37,14 +37,25 @@ RECOVER_WAIT="${STABILITY_RECOVER_WAIT:-600}"  # s to let usable come back after
 HEALTH_WAIT="${STABILITY_HEALTH_WAIT:-600}"    # s for the engine (weight reload ~180 s)
 KV_KIB_PER_TOK=30.3                            # measured: 8.2 GiB / 283,398 tok
 CTX="${STABILITY_CTX:-262144}"
-# 2026-09-18: pool is 16 GiB → idle usable is ~18-20 GiB (was ~30 at 8.2 GiB). Tune the
-# preflight floor to 16 so a new chain can actually start; the rung MEM_FLOOR values drop
-# to 14 (still ≥ CRIT 8 with margin, below idle 18 so a genuine load dip trips the guard).
+# 2026-09-18 (pool 16 GiB): the preflight floor is on the CORRECTED gauge (usable =
+# MemAvailable − CmaFree). Measured idle with the 16 GiB pool: usable 18.5-18.9 GiB.
+# Preflight floor 16 = kick the engine/baseline (2.5 GiB below idle: enough to reject a
+# box that is already under someone else's load, small enough to let a chain start).
+# Rung guard floor 16 = 1.5 GiB below idle and 8 GiB above CRIT — i.e. the guard trips
+# on a real collapse but NOT on a normal load dip. Measured proof, from the PASSING
+# 2026-09-18 chain (rung123 + compact + fullwindow, 533 sampler rows, worst usable
+# 17.78): the worst moment of the full 2×240k ≈ 94.6 %-of-pool load sat only **0.72 GiB**
+# above the previous 16 GiB rung floor. That floor was one rung step from firing a false
+# GUARD FIRE (which would have read as a governor PASS / inconclusive peak) — so the
+# rung floor sits at 16 deliberately, and any future raise is measured against the
+# 17.78 the load test actually produced, not guessed. MEM_FLOOR_GB stays the accepted
+# alias name (per-run env override), now interpreted on the corrected gauge.
 # 2026-09-18 (rung sizing): full-window rung is 240000, NOT $CTX. A 262,144-token chat
 # request costs +~20.5k template tokens → lands at ~282.7k > max_model_len 262144 →
 # vLLM rejects it 400 before any load (live: rung B1 x2 ok=0/2, in_tok=0, Bad Request).
 # 240k → ~260.5k actual, undershoot; 2×240k ≈ 94.6% of a 16 GiB pool = the intended
-# "two full-context sessions, nothing cached" worst case.
+# "two full-context sessions, nothing cached" worst case. PASSED at 09:21-10:54Z with
+# exactly that sizing (evidence: spark/reports/stability/evidence-20260918-1254/).
 mkdir -p "$DIR/logs" "$DIR/evidence"
 
 log(){ printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$MAIN"; }
@@ -64,9 +75,9 @@ save(){ { echo "BASE_EPOCH=$BASE_EPOCH"; echo "BASE_USABLE=$BASE_USABLE"; echo "
          echo "RUNS_DONE=\"${RUNS_DONE[*]}\""; echo "CKPT_EPOCH=$(date +%s)"; } > "$STENV"; }
 
 RUNS=(
-  "rung123|SPARK_STRESS_MAX_RUNG=3 MEM_FLOOR_GB=14|full ladder: shape churn + prefill rungs 1-3"
-  "compact|SPARK_STRESS_MAX_RUNG=1 BENCH_IN=200000 RUNG_PAUSE=90 MEM_FLOOR_GB=14|two concurrent 200k fresh prefills = 400k tok vs a 515,786-tok pool (compaction-vs-compaction; ~77 % of the 16 GiB pool)"
-  "fullwindow|SPARK_STRESS_MAX_RUNG=1 BENCH_IN=240000 RUNG_PAUSE=120 MEM_FLOOR_GB=14|two concurrent ~full-window uncached prefills (2×240k ≈ 94.6% of a 16 GiB pool; hardest realistic case — one pi auto-compaction is ONE of these; sized to undershoot max_model_len, see CTX note above)"
+  "rung123|MEM_FLOOR_GB=16 SPARK_STRESS_MAX_RUNG=3|full ladder: shape churn + prefill rungs 1-3"
+  "compact|MEM_FLOOR_GB=16 SPARK_STRESS_MAX_RUNG=1 BENCH_IN=200000 RUNG_PAUSE=90|two concurrent 200k fresh prefills = 400k tok vs a 515,786-tok pool (compaction-vs-compaction; ~77 % of the 16 GiB pool)"
+  "fullwindow|MEM_FLOOR_GB=16 SPARK_STRESS_MAX_RUNG=1 BENCH_IN=240000 RUNG_PAUSE=120|two concurrent ~full-window uncached prefills (2×240k ≈ 94.6% of a 16 GiB pool; hardest realistic case — one pi auto-compaction is ONE of these; sized to undershoot max_model_len, see CTX note above)"
 )
 if [ -n "${STABILITY_RUNS:-}" ]; then IFS=';' read -r -a RUNS <<<"$STABILITY_RUNS"; fi
 
