@@ -220,6 +220,40 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 # A service tag alone matches nothing; keep the role tag (union semantics).
 ```
 
+### Jump-host execution (hosts reachable only through the VPS)
+
+**spark (`spark_home_ip`) is the standing case:** it sits behind NAT on the Home VLAN, so a converge from
+the WSL runner must jump through the VPS. This is **carried in the playbook**, not typed per command:
+
+```yaml
+# playbooks/spark.yml
+ansible_ssh_common_args: "-o ProxyJump=vps"
+```
+
+> **The trap:** the inventory target is the **raw IP**, so an ssh-config entry for the alias `spark` is
+> NOT enough — OpenSSH matches config blocks on the hostname actually typed. The runner's `~/.ssh/config`
+> needs a block for the IP too:
+>
+> ```
+> Host <spark_home_ip>
+>     ProxyJump vps
+> ```
+>
+> (or invoke with `-e ansible_host=spark` after defining the alias). **Prove the path before debugging
+> Ansible:** `ansible spark -m ping -i IaC/ansible/inventory.ini` — an unreachable host here reads as a
+> playbook/role failure and sends you into the wrong file.
+
+Combined with the rule in [`../scripts/README.md`](../scripts/README.md) (live converges run **detached**
+via `nohup … &` + a log + polling, because a `timeout`-killed converge dies mid-restart and poisons the
+next run's restart guard), the standard spark converge is:
+
+```bash
+nohup ansible-playbook -i IaC/ansible/inventory.ini playbooks/spark.yml --tags <tags> \
+  > "/tmp/converge-spark-$(date +%Y%m%d-%H%M).log" 2>&1 &
+```
+
+`--check` stays the only safe foreground form.
+
 ### Dry-run Mode (`--check --diff`)
 
 `--check` mode is **NOT** compatible with the HD-258 bulk 1Password pre-pass: the pre-pass

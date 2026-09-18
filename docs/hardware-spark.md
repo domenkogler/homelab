@@ -53,6 +53,25 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > * **Still open (unchanged by this PASS):** the 262k **needle test**, the `spark-lane` 64 k profile, and the tool-call/accuracy tails — see HD-376/HD-367. The PASS certifies *memory safety*, not long-context correctness.
 
 
+> **Cold start is SLOW and that is not an outage (2026-09-18):** the engine healthcheck carries
+> `start_period: 1200s` because the first PLE-table load runs ~20 min. During that window `/health`
+> returns **000** and `llm.kogler.si/*` returns **502** — which reads exactly like a broken route. It is
+> not: `docker inspect vllm-qwen-spark --format '{{.State.StartedAt}}'` +
+> `docker logs vllm-qwen-spark | tail` settles it in one look (weight load, then `GPU KV cache size:`).
+> **Check engine health before debugging the edge.** The engine also self-restarts on the watchdog's idle
+> recycle, so a young `StartedAt` you did not cause is normal — see
+> [`../spark/stability-test.md`](../spark/stability-test.md) and §Unified-memory budget.
+
+> **The idle-recycle baseline is a boot-time coin-flip (measured 2026-09-18, filed as HD-395).** The guard
+> recycles at *first-post-boot top-pid + 8 GiB after 1800 s idle*, but on this box that first sample is not a
+> constant — the same config has been read at the boot floor as **71,911 / 86,243 / 92,343 MiB**, because the
+> 168 GiB PLE checkpoint loads unevenly and the sampler grabs whatever the very first sample was. Two bad
+> directions: a low baseline makes ordinary traffic cross the line (two healthy-idle recycles fired 35 min
+> apart, `08:39:18Z` + `09:13:57Z`, each costing a ~20 min cold start and an `llm.*` 502 window that reads as
+> an outage), a high baseline puts the line above the traffic peak and the guard goes silent. The `+8 GiB`
+> margin also has to be re-read against the certified peak, not the 8.2-era one. Evidence:
+> `sudo /usr/local/bin/spark-oom-watchdog.sh status` + `state/enforce.log`.
+
 ---
 
 ## Unified-memory budget & OOM governance (2026-09-16)

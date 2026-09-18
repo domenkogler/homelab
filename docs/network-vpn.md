@@ -275,6 +275,25 @@ sidecar serves to the app over that private network. Functional service-to-servi
 > edge now routes the `.ts` twins + serves the `*.ts.kogler.si` pair (`todo HD-389`). Verify:
 > `curl -sk -o /dev/null -w '%{http_code}' https://db-spark.ts.kogler.si/` → 200;
 > `curl -sk -H "Authorization: Bearer <spark-llm_api>" https://llm.ts.kogler.si/v1/models` → 200.
+>
+> **HD-389 client half (2026-09-18) — the OTHER root cause, on the laptop, and it is NOT a service bug.**
+> With Tailscale connected, the **plain** `*.kogler.si` names still failed from WSL/Windows while
+> `litellm.kogler.si` worked, because the plain namespace was never routed to MagicDNS **on that client**:
+> WSL's auto-generated `resolv.conf` carried only the NAT forwarder, and the Windows NRPT carved only
+> `*.ts.kogler.si` + the CGNAT reverse zones. Two durable client-side changes fix it (both on the laptop,
+> neither in Ansible):
+>
+> 1. **WSL:** `/etc/wsl.conf` → `[network] generateResolvConf=false`, then a **static** `/etc/resolv.conf`
+>    with `nameserver 100.100.100.100` (the MagicDNS loop) **first** and the previous forwarder after it.
+>    Without `generateResolvConf=false` WSL rewrites the file on every start and the fix silently vanishes.
+> 2. **Windows:** `netsh interface ipv4 add dnsservers name="Tailscale" address=<tailnet_magicdns_loop 100.100.100.100> index=1 validate=no`
+>    from an **elevated** shell — it lands on the adapter and survives reconnects/reboots.
+>
+> **Diagnosis order that finds this fast:** prove the server side first (`nsenter`/on-box `curl` against
+> spark's edge with an explicit SNI), then question the client's resolver. Here the server was fine and the
+> 502/404 pair was two different layers: routerless-vHost 404 on the `.ts` name (server) and plain-name 502
+> from the client's resolver path. A `Host=` curl from the box that succeeds while the laptop fails =
+> client DNS, every time.
 
 ## Tailnet boundary (decided 2026-09-10) — mobile devices only, via the VPS edge
 

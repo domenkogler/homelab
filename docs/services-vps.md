@@ -19,6 +19,19 @@ tags: [services, vps, netcup]
 > **Live since 2026-08-22** (Phase 1): all enabled services deployed behind real LE TLS
 > (wildcard `*.kogler.si`). Only the WG S2S tunnel stays ⏳ deploy-gated (HD-03).
 
+> **Container census (2026-09-18, read-only `docker ps -a` + label inspection)** — the registry is the
+> intended state; the box is the actual state, and they differ. Recorded here so the next session does not
+> re-audit from zero (**tracked as HD-394**):
+>
+> | Container | Actual state | Verdict |
+> |---|---|---|
+> | `confident_shamir` | `traefik:v3.7.11`, Up since **2026-08-24**, `nets=none`, no port bindings, `restart=no`, **no compose labels** | hand-run `docker run` leftover — inert but invisible to compose/converge; remove with owner OK |
+> | `pgvector` | Up (healthy) | **superseded by Qdrant** (HD-267/268) — prove no RAG path reads it, then tombstone via the registry (`enabled: false`), never `docker rm` |
+> | `authentik-ldap` | Up **(unhealthy)** | known: expired outpost token, no provider/outpost exists — owned by **HD-360**, do not re-diagnose |
+>
+> Everything else running carries `com.docker.compose.project` and maps to an enabled registry entry
+> (navidrome + matrix + zipline included — three services several rows still described as un-deployed).
+
 ### netcup edge firewall (SCP-verified 2026-08-22, Wave-3)
 
 - **Outgoing SMTP blocked** on ports **25 / 465 / 587** (netcup default anti-spam rule; DROP).

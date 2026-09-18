@@ -80,6 +80,72 @@ After items exist, confirm each compose renders (the fail-loud guard passes) and
 
 ## 4. Rollback / rotation notes
 
+### 4a. `spark-llm_api` — the coupled engine bearer (LIVE leak found + rotation window prepared, 2026-09-18)
+
+**What the item actually is.** Not a LiteLLM virtual key: it is **vLLM's `--api-key`** on the spark
+engine (`templates/docker_services/spark-ai/docker-compose.yml.j2`), and the SAME string is what both
+LiteLLM instances send upstream as `OPENAI_API_KEY` (`litellm/` + `lan-litellm/` compose). So exactly
+one secret guards the raw inference endpoint on every path — LAN `:443`, VPS edge and tailnet over
+WG/S2S. Catalog row: `provision-secrets.py` → `("API Credential", "spark-llm_api", gen_token(32))`,
+and it is **not** in `NOT_AUTO_ROTATABLE`.
+
+**The leak (found by scanning, not by looking).** `vllm bench serve` prints its own parsed argv, which
+includes `header=['Authorization=Bearer <key>']`. Every stability/bench step log therefore carried the
+live bearer, and those logs were archived into `spark/reports/stability/` — 11 tracked files at the tip,
+**pushed to `origin/main` in `08c0895` and `34e4b97`**, plus ~120 copies in the on-box log directory. The
+value was confirmed identical to the vault item by comparing SHA-256 (never by printing it). The reason
+nothing caught it: `validate-secrets.py` scans `group_vars` / `host_vars` / roles / templates — **it has
+no idea that logs and `.tar` bundles can hold credentials.**
+
+**Why rotating the vault value is NOT a one-command fix here.** §Rotation propagation contract applies in
+full: the vault is SSOT, but live state only follows on the next re-render, and the item has **four
+independent bearers** (engine argv, two container envs, and `~/.pi/agent/models.json →
+providers.spark.apiKey` on the laptop, which Ansible does not own). Writing the vault and then
+converging later leaves a **half-applied window** in which any converge of `lan-litellm` (oldsrv) hands
+that instance the new value while the engine still authenticates the old one → every LAN-side AI call
+401s. Because that box is also being converged by other live sessions, **the vault write and the three
+converges must land in one window**, not in the order they happen to be noticed.
+
+**The window (prepared 2026-09-18, deliberately NOT executed).** Budget ≈ 30 min, dominated by the
+engine's cold load (`start_period: 1200s`), during which spark inference is down.
+
+```bash
+# 0. PREFLIGHT — nothing else may converge inside the window:
+pgrep -af ansible-playbook                     # must be empty
+git -C ~/source/homelab-wt-* status --short    # other sessions' worktrees must be idle
+# 1. VAULT WRITE — the runner's exported SA token is READ-scoped; 1P answers exactly
+#    "Couldn't update the item." with rc=1. The write-scoped token lives ONLY on the VPS,
+#    root-readable at /etc/op/provision-token (item `vps-op-write_api`):
+OP_SERVICE_ACCOUNT_TOKEN="$(ssh vps 'sudo cat /etc/op/provision-token')" \
+  python3 scripts/provision-secrets.py --rotate spark-llm_api --yes
+#    Verify by hash, never by printing. The OLD value stays LIVE until step 2 — that is the window.
+# 2. RE-RENDER all three consumers, detached (see §Jump-host execution + scripts/README):
+#    spark  → --tags docker_services -e docker_services_scope=spark-ai   (restarts the engine)
+#    vps    → --tags docker_services -e docker_services_scope=litellm
+#    oldsrv → --tags docker_services -e docker_services_scope=lan-litellm
+# 3. LAPTOP, outside Ansible: ~/.pi/agent/models.json → providers.spark.apiKey  (this harness's
+#    spark lane; it will 401 silently if forgotten).
+# 4. VERIFY BOTH DIRECTIONS — rotation is only proven by the negative test:
+#    new bearer → 200 at engine :8000, https://llm.kogler.si/v1/models, llitellm leg
+#    OLD bearer → 401 everywhere (a 200 here means the converge did not land)
+```
+
+**Then, and only then, the history.** Redacting the tip does not un-leak the pushed commits. Removing
+the string from history needs `git filter-repo --replace-text` + a force-push of `main`, which rewrites
+every descendant commit — so any session worktree based on an ancestor must rebase afterwards, and
+GitHub may still serve the old blob from cache. **Which is why step 1 is the fix and history hygiene is
+damage control.**
+
+**Recurrence fixes shipped with this record (2026-09-18):** (1) `spark/bench/run-scenario.sh` +
+`stress-oom.sh` now `scrub` every line **at the point of write**, so the bearer never touches disk —
+a commit-time scan is a detection net, not a boundary, and what failed here was the writer;
+(2) `stability-overnight.sh`'s `bundle()` refuses to publish an archive whose **payload** contains a
+secret shape (unit-tested against the exact leaked shape + an `ops_…` token); (3) new validator
+`scripts/check_secrets.py` (wired into `validate-all.sh` as #15) scans every tracked **blob** and the
+members of tracked `.tar`/`.tar.gz`/`.zip`, prints masked hits only, and fails on unreadable archives
+too — because three chain bundles turned out to be truncated, and an archive you cannot read is also an
+archive you cannot trust.
+
 - **`litellm_api`** is now admin/bootstrap-only (HD-247): consumers hold SCOPED virtual keys instead. Rotating it breaks only the admin UI + bootstrap glue (re-run after rotation); consumer keys are independent — rotate/revoke per-key in the Admin UI, then update the matching 1P item (or clear it and let the glue re-mint).
 - **Scoped keys** are hashed at rest server-side: a lost/rotated key can NEVER be re-read. Remediation = delete server key by alias + clear the item's credential field + re-run the glue (it re-mints create-if-absent).
 - **`openrouter_api` / `cohere_api`** are upstream keys only LiteLLM holds — rotate at the provider dashboard, then update the 1Password item; no compose change needed (LiteLLM reads via env).

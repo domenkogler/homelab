@@ -79,7 +79,12 @@ AUTH=()
 [ -n "${API_KEY:-}" ] && AUTH=(--header "Authorization=Bearer $API_KEY")   # KEY=VALUE form required
 [ -n "${SERVED:-}" ] && AUTH+=(--served-model-name "$SERVED")
 
-log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$LOG"; }
+# Same scrub as run-scenario.sh (2026-09-18): this harness holds the engine bearer in AUTH,
+# and a curl verbose/error path that echoes it must not put it in the run log — the log is
+# archived, and an archived log is how the live key reached git history once already.
+scrub(){ sed -u -E 's/(Authorization[= ]Bearer |Bearer )[A-Za-z0-9_.:+-]{16,}/\1«REDACTED:spark-llm_api»/g'; }
+
+log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | scrub | tee -a "$LOG"; }
 die()   { log "FATAL: $*"; exit 1; }
 
 # THE BUDGET GAUGE. Raw MemAvailable is FALSIFIED on GB10 (docs/hardware-spark.md

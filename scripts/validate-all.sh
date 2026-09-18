@@ -32,6 +32,12 @@
 #                                     not deleted (fully-done rows must be removed; only
 #                                     deploy-gated rows with a real ⏳ tail stay), and stale ⏳
 #                                     markers inside struck/rejected/parked fragments (2026-09-08)
+#  15. check_secrets.py              — secret-SHAPE scanner over the TRACKED TIP incl. the
+#                                     members of tracked .tar/.tar.gz/.zip (added 2026-09-18 after
+#                                     a live spark-llm_api bearer reached origin/main inside bench
+#                                     logs — validate-secrets.py only covers group_vars/roles/, so
+#                                     artifacts and logs were ungated). Masked output; unreadable
+#                                     archives fail too
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -85,6 +91,9 @@ $PY scripts/check_placeholders.py
 
 echo "== check_todo_done.py (CONVENTIONS §4(a) done-row sweep) =="
 $PY scripts/check_todo_done.py
+
+echo "== check_secrets.py (secret shapes in the tracked tip, archive members included) =="
+$PY scripts/check_secrets.py
 
 echo "== check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity) =="
 $PY scripts/check_dns_seed_drift.py
