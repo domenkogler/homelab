@@ -18,6 +18,12 @@ tags: [smart-home, voice, whisper, piper]
 > **Engine settled 2026-09-17 (decision #25):** **`whisper.cpp` built with `GGML_HIP` + native `gfx1102`
 > target** (no `HSA_OVERRIDE_GFX_VERSION`). Rationale + primary-source evidence:
 > [services-ai.md](services-ai.md) §9c; CWSR/compute-preemption risk: [hardware-gpu.md](hardware-gpu.md).
+>
+> ⚠ **⏳ Re-decided by measurement 2026-09-18 (decision #27 PROPOSED, HD-391):** `GGML_HIP` has **no published
+> image** (the ROCm Dockerfile exists, the CI publishes no ROCm artifact) ⇒ engine = **`whisper.cpp:main-vulkan`
+> digest-pinned** (RADV, native RDNA3, no ROCm userspace). Measured on this card: `large-v3-turbo` **0.40 s** per
+> 11 s WAV at **1.72 GiB** VRAM, CPU fallback **17.5 s** and **native** (init-time). Numbers:
+> [services-ai-bench.md](services-ai-bench.md) §2.
 
 ---
 
@@ -51,7 +57,7 @@ Microphone → Wake Word Detection → Whisper STT → LLM → Piper TTS → Spe
 | Stage | Software | Hardware | Notes |
 |-------|----------|----------|-------|
 | **Wake Word** | microWakeWord / HA Assist | ESP32-S3 / Android | "Hey, assistant" |
-| **STT** | **`whisper.cpp` GGML_HIP** (`whisper-server`, native `gfx1102`) — **not** faster-whisper (CTranslate2 = CUDA-only) | **oldsrv RX 7600** (decision #24; engine per decision #25, 2026-09-17) | English speech → text — needs an OpenAI-compat wrapper for HA Assist |
+| **STT** | **`whisper.cpp` GGML_HIP** (`whisper-server`, native `gfx1102`) — **not** faster-whisper (CTranslate2 = CUDA-only) · ⏳ **#27 proposed: `main-vulkan` digest-pin** | **oldsrv RX 7600** (decision #24; engine per decision #25, 2026-09-17) | **Slovenian** + English speech → text (multilingual GGML, measured `n_langs = 100`) — ✅ **no wrapper needed**: `--inference-path /v1/audio/transcriptions` (measured 2026-09-18, [services-ai-bench.md](services-ai-bench.md) §2) |
 | **LLM** | spark big-model (Qwen3-Coder-Next-80B / Nemotron) | **spark GB10** (decision #24) | Intent parsing, response generation |
 | **TTS** | Piper TTS | **CPU** (decision #24 — CPU-only engine) | Text → Slovenian speech |
 
@@ -63,7 +69,7 @@ When voice is active, GPU runs in **Pinned-AI** mode (decision #24):
 
 | Model | VRAM |
 |-------|------|
-| Whisper STT (`large-v3-turbo` GGML) | ~2 GB |
+| Whisper STT (`large-v3-turbo` GGML) | ~2 GB → **measured 1.79 GiB fp16 / 0.77 GiB q5_0** ([services-ai-bench.md](services-ai-bench.md) §2) |
 | bge-m3 embed (RAG, co-resident) | ~1–2 GB |
 | ~~bge-reranker (RAG, co-resident)~~ | **CPU since decision #25 (2026-09-17)** — off the GPU budget |
 | **Total (pinned-AI)** | **~3–4 GB (of 8 GB)** — was ~5–6 GB while the reranker was on-GPU |
@@ -76,6 +82,11 @@ When voice is active, GPU runs in **Pinned-AI** mode (decision #24):
 > `HSA_OVERRIDE_GFX_VERSION=10.3.0` = gfx1030 code on RDNA3, plus gradio/demucs/stable-ts and
 > `seccomp=unconfined`+`SYS_PTRACE`+`ipc:host`) and faster-whisper (CTranslate2 has no ROCm backend).
 > Evidence: [services-ai.md](services-ai.md) §9c · CWSR risk: [hardware-gpu.md](hardware-gpu.md).
+>
+> ⚠ **Corrected 2026-09-18 by measurement:** that recipe is **unpublished** (no ROCm tag on ghcr, Docker Hub
+> 404), so the buildable-and-maintainable choice is the published **`main-vulkan`** image; measured RSS is
+> **34 MiB** (not 200–400 MB) because Vulkan/RADV holds weight on the card. Measured latency/VRAM/fallback:
+> [services-ai-bench.md](services-ai-bench.md) §2 · decision **#27 (proposed)** in [services-ai.md](services-ai.md) §9.
 
 > **Priority (decision #24, amended by #25):** gaming > pinned-AI (voice/embed) > immich-ML. With the
 > reranker on CPU, pinned-AI ≈3–4 GB + immich-ML ≈3–5 GB now fits under 8 GB, so immich-ML no longer
