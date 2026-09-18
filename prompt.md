@@ -13,89 +13,33 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 
 ## 2. Open work (read the HD rows; this is only the index)
 
-> **✅ spark OOM thread — CLOSED as a *stability* question (2026-09-18). The 16 GiB KV config is the
-> stable, certified config; `session/spark-stability-20260918-0000` is MERGED to `main`, so SSOT = live.**
-> What is now true and NOT up for re-litigation: `spark_vllm_kv_cache_memory: "16000000000"` (reserved
-> 14.9 GiB / 515,786 tok / 1.97× @262k) converged + passed the 3-rung load chain (0 kernel OOM, 0 engine
-> restarts, 0 guard-fires, `usable` worst 17.78, engine top-pid **+1,278 MiB / ~1.5 h** of the pessimal
-> 2×240k ≈ 94.6 %-of-pool shape). **Do not converge spark back to 8.2 GiB** — that was the pre-cert value.
-> Knowledge (read it instead of re-deriving): [hardware-spark.md](docs/hardware-spark.md) §Unified-memory
-> budget (gauge corrections + the certified baseline) · runbook [`spark/stability-test.md`](spark/stability-test.md)
-> (§3 verdict mechanics, §4 C3 decision rule, §6 the KV arithmetic) · evidence
-> [`spark/reports/stability/README.md`](spark/reports/stability/README.md).
+> **✅ spark memory/OOM thread — CLOSED (2026-09-18) as a *stability* question. This is a pointer now, not a
+> brief.** Stable config = `spark_vllm_kv_cache_memory: "16000000000"` (reserved 14.9 GiB / 515,786 tok /
+> 1.97× @262k): the 3-rung load chain passed it (0 kernel OOM, 0 engine restarts, 0 guard-fires) and the
+> session branch is merged, so **SSOT = live — do not converge spark back to 8.2 GiB**, the pre-cert value.
+> Read instead of re-deriving: [hardware-spark.md](docs/hardware-spark.md) §Unified-memory budget (both gauge
+> corrections incl. the rejected inverted `MemFree − CmaFree` form, the certified baseline, the "not a
+> mitigation" list, cold-start timing) · [`spark/stability-test.md`](spark/stability-test.md) (§2 floors + why
+> 16, §3 verdict, §4 the C3 rule, §5 recovery incl. "`docker stop` is intentional so `unless-stopped` won't
+> bring it back", §6 the KV arithmetic) ·
+> [`spark/reports/stability/README.md`](spark/reports/stability/README.md) (evidence) ·
+> [observability.md](docs/observability.md) §Alerting + `roles/spark/files/spark-oom-watchdog.sh` (live alert
+> rules + the enforcing governor; the script's own comments carry the in-flight-`ERR` asymmetry and the sampler
+> row layout).
 >
-> **The two numbers that govern anything you do next on this box:** (1) **KV ceiling reached** — measured
-> headroom after the raise is runtime +5.5 / boot-side **+5.4 GiB (boot is binding)**, so 16 GiB is the
-> bf16 ceiling; **more KV = `--kv-cache-dtype fp8`, not Linux's reserve**. (2) **idle `usable` is now
-> 18.5 GiB** (was 30.4), i.e. margin to the WARN 12 line is 6.5 GiB — any new persistent memory consumer
-> on spark spends that margin, and the alert thresholds + bench floors are all expressed on
-> **`usable = MemAvailable − CmaFree`** (raw `MemAvailable` is falsified: CMA inflates it up to ~9.5 GiB;
-> `MemFree − CmaFree` is INVERTED and would restart-storm a healthy engine — both recorded, do not
-> re-propose either).
+> **The two numbers that govern the next move:** **16 GiB is the bf16 ceiling** — measured headroom after the
+> raise was runtime +5.5 / boot-side **+5.4 GiB (boot binding)**, so more KV is `--kv-cache-dtype fp8`'s job,
+> not Linux's reserve; and **idle `usable` is 18.5 GiB** (`= MemAvailable − CmaFree`; CRIT 8 / WARN 12), so
+> anything new installed on spark spends a 6.5 GiB margin. `--enforce-eager` (C3) stays off on measurement, not
+> on deferral.
 >
-> **⏳ What is actually left on spark** (the stability question is closed; these are not): the **262k
-> needle test** + the **`spark-lane` 64k profile** (HD-376 — a single 262k session ≈ 56 % of the OLD pool;
-> lanes still need a smaller window), the tool-call/accuracy tails (HD-367), the S2/S3 NVFP4×SGLang lane,
-> and owner-side confirmations (HD-375 Grafana UI + n8n, HD-377 board sign-off).
->
-> **Standing traps on this lane, unchanged:** **self-reference** — this pi harness runs ON the engine it
-> guards, so drive converge/restart from the laptop and never bench with an agent session attached (the
-> chain's preflight refuses to start unless in-flight is 0 for exactly this reason). `docker stop` is an
-> **intentional** stop, so `unless-stopped` will NOT bring the engine back (cost 14 min once). PSI carries
-> **no lead time** (read 0.0 for ten samples before #8 died) — confirmation only. `sudo` is required for
-> `journalctl -k`/`dmesg` on spark; unsudo they read "no OOM this boot" (false negative).
-
-> **Governor state — all LIVE (this is the running config; do not re-deploy it as if it were new):**
-> C1 `expandable_segments:True` + C2 `--max-num-batched-tokens 4096` (converged 2026-09-17 15:28Z,
-> verified on container argv + on-disk compose `d70b37b`) · **B = enforcing OOM watchdog** (spark
-> `--tags watchdog` 2026-09-17 21:30Z: `enforce=1`, CRIT < 8 GiB `usable` → planned `docker restart`,
-> in-flight drain 600 s, cooldown 1800 s, max 2 / 7200 s, idle recycle at baseline +8 GiB, arm-off file
-> `/mnt/spark_nvme/oom-watchdog/no-enforce`) · **D = the HD-375 alert rules** (vps `--tags monitoring`
-> 2026-09-17 22:33C) · **E = the docs/forensics record.** **C3 `--enforce-eager` stays OFF and is now a
-> measured call, not a deferral:** the §4 trigger (>2 GiB/h under traffic with no return at idle) was
-> tested against the pessimal shape on 2026-09-18 and came back **+1,278 MiB over ~1.5 h**. It costs
-> decode throughput on every turn; re-open it only on a curve that actually climbs.
->
-> Note the watchdog **recycles the engine on its own** (it restarted spark's engine twice on 2026-09-18
-> before the certifying chain even started, at baseline +8 GiB idle). An engine restart you did not cause
-> is expected behaviour — `sudo /usr/local/bin/spark-oom-watchdog.sh status` + `state/enforce.log` reads it.
->
-> **⚠ The memory gauge was WRONG in the plan — corrected by measurement, do not re-propose it.**
-> `usable = MemFree − CmaFree` (WARN 4 / CRIT 2) is **INVERTED** on GB10: healthy idle **0.74 GiB**
-> vs the two kills at **2.17 / 2.14 GiB**. On an enforcing watchdog it fires permanently and would
-> have **restart-stormed a healthy engine** — the safety net causing the outage. Correct gauge, shared by
-> the watchdog + the alert rules + (since 2026-09-18) the **bench harness's own floors**, which had been
-> reading raw `MemAvailable`: **`usable = MemAvailable − CmaFree`** (1.6 GiB at both kills, monotone).
-> Thresholds are **measured**: death instant is 1.6 GiB but the lowest value a 60 s scrape ever recorded
-> is **5.01**, so **CRIT 8 / WARN 12** — below the scrape floor a rule can never fire.
-> `node_memory_CmaFree_bytes` is **verified present in VM** (it is NOT in node_exporter's default meminfo
-> whitelist — check that before authoring any future CMA-based rule).
->
-> **Three findings the next session must not re-derive:** (1) the growth is **traffic-cumulative and
-> FLAT at idle** (88,773 MiB flat overnight → 109,785 MiB after ~30 min of ONE light pi session) —
-> HD-380 open item 5 "idle ratchet" is **retracted**; a restart is the only reset and only removing the
-> allocation mechanism bounds the peak. (2) **PSI carries NO lead time** — it read **0.0 for ten
-> consecutive samples** before #8 died, so it is a confirmation trigger and must never enforce alone.
-> (3) the pre-kill signature is a **frozen engine top-pid + saturating PSI** (109,681 / 109,785 MiB
-> constant 4+ min while `psi_full` hit 97.8 / 92.5).
->
-> **Bug found by testing, not by reading (`e11ea74`):** `in_flight()` could not distinguish "0 requests"
-> from "could not read" — a 401 or wedged daemon read as IDLE and would have restarted a **busy**
-> engine (same class as HD-380's zero-load bench, which also exited 0 on 401). It now echoes `ERR`, and
-> CRIT vs recycle treat unknown **asymmetrically on purpose**: CRIT proceeds (an engine that cannot
-> answer `/metrics` *is* the emergency), recycle requires positive proof of idle (opportunistic).
-> Sampler schema also fixed: `gpu_mib` emits `pid,mib`, so rows were 12-wide under an 11-name header and
-> every column after `psi_full_avg10` was shifted — old ring archived as `.v1-*`, `CmaFree` + `usable`
-> columns added (the historical ring **could not see CmaFree at all**, which is why this was missed).
-> Same class, caught by the chain's dry run: the sampler CSV's header line sits **mid-file** after a ring
-> rotation and `"epoch" > "1789…"` is string-true — without a `$1 ~ /^[0-9]+$/` guard a min-`usable` awk
-> reads the header's empty field as 0 and every run "fails at 0 GiB".
->
-> **Not mitigations (never count them as protection):** `spark_vllm_memory_limit: 105G` — GPU pages are
-> not cgroup-charged (invariant #1), so it catches only host-RSS runaways and yields false negatives.
-> `--gpu-memory-utilization` — ignored by this build once `kv_cache_memory_bytes` is set (HD-374).
-> Forensics readers: `sudo /usr/local/bin/spark-oom-watchdog.sh status`,
-> `/mnt/spark_nvme/oom-watchdog/snapshots/`, `state/samples.csv`.
+> **⏳ What is left on spark is not memory safety:** the **262k needle test** + **`spark-lane` 64k profile**
+> (HD-376 — one 262k session ≈ 56 % of the OLD pool, so agent lanes still need a smaller window), the
+> tool-call/accuracy tail (HD-367), the **S2/S3 NVFP4 × SGLang** lane, and the owner confirmations (HD-375
+> Grafana UI + n8n, HD-377 board sign-off). Two standing rules: **never bench or converge from a session whose
+> own model is spark** (incidents #3 + #6 — the chain's preflight refuses to start unless in-flight is 0 for
+> exactly this reason), and **live converges run detached** ([`scripts/README.md`](scripts/README.md) +
+> [deployment-ansible.md](docs/deployment-ansible.md) §Jump-host execution).
 
 For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human). Each HD line links its owning doc + todo row; the ⏳ = exact next step. Deploy-gated verifies live in [`deployment-tasks.md`](deployment-tasks.md) (per-phase chapters).
 
@@ -136,10 +80,6 @@ For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human
 
 - **HD-367 / HD-359 — S1 bench: the engine is LIVE and `spark-ai.enabled: true` has long been certified; only the ladder is left.** Done and no longer to re-litigate: the flip + 4 boot blockers, the B1 memory-fit fix (0.93→0.70 → then `gpu_memory_utilization` removed entirely by HD-374; cage 126G→105G), `spark-ai` converged + healthy at :8000, **B1 sanity certified C1×2 + C2×2** (§9 row B1: TTFT 42.7/48.5 s, C2 0.83–1.95 s, 0 preempts, MTP 35–44 %), and **C3 is DROPPED FOR S1 by the owner** (2026-09-15: C3 is the S3/NVFP4 concurrency gate; S1 is single-session by definition — it stays harness-default 6×8k@c2 for the S3 lane only). The S1 *stability* question is closed separately (see the §2 spark header block). ⏳ **What is actually open:** the **S2/S3 NVFP4 × SGLang lane** (the fast-on-GB10 config, [`spark/BENCHMARK-PLAN.md`](spark/BENCHMARK-PLAN.md) §6), the **262k needle test** + **`spark-lane` 64k profile** (HD-376), and the tool-call-EMPTY accuracy tail. **Never bench with an agent session attached** and re-read the live config from `group_vars/spark.yml` — not from the §9 table, whose B1 row records what was benched, not what is live. · [hardware-spark.md](docs/hardware-spark.md) §Benchmark/engine selection · [todo.md HD-367](todo.md)
 - **HD-366** — ⏳ DGX Dashboard JupyterLab LAN edge (:11002): entrypoint + route already exist; spawn a lab from the dashboard → curl `http://spark.kogler.si:11002` from a LAN client. **Deliberately untouched 2026-09-15** (owner instruction).
-- **HD-389 — CLOSED (2026-09-18) — spark name edge `.ts` routing + the laptop/WSL MagicDNS client fix. Do not re-open.** Owner symptom: `llm.kogler.si` 404/502 from the laptop with Tailscale on while `litellm.kogler.si` worked. Root cause (proven by `nsenter`, not reading): the tailnet edge TLS-in-TLS-forwards the client's SNI to spark's own edge, and spark's Traefik routed ONLY the plain names — `llm.ts.kogler.si`/`db-spark.ts.kogler.si` hit a routerless vHost → 404 (plain-name 502 = the forward reached spark but auth/route interplay; the `.ts` case was the 404). Fixed in `spark-dashboard` (routes.yml.j2 + tls.yml.j2: route the `.ts` twins + declare the `*.ts.kogler.si` pair already on the box), converged spark-dashboard only (vLLM engine NEVER touched), verified all three names 200/401-from-the-laptop. The client-side half was WSL/Windows DNS, NOT the service: the plain `*.kogler.si` namespace was never routed to MagicDNS on this client (WSL resolv.conf had only the NAT forwarder; Windows NRPT only carves `*.ts` + CGNAT reverse). Fixed by (a) `/etc/wsl.conf` `generateResolvConf=false` + static `/etc/resolv.conf` with ``tailnet_magicdns_loop` (100.100.100.100)` first; (b) Windows `netsh interface ipv4 add dnsservers name="Tailscale" address=`tailnet_magicdns_loop` (100.100.100.100) validate=no` (elevated, durable on the adapter). **Durable facts for the repo:** spark converges from the WSL runner REQUIRE the VPS jump — `playbooks/spark.yml` now carries `ansible_ssh_common_args: "-o ProxyJump=vps"` (the runner's `~/.ssh/config` needs `Host `spark_home_ip` … ProxyJump vps` too, or the SSH alias `spark`; the inventory target is the raw IP so a config entry for the IP is the actual requirement — validated by ansible ping). Verification commands that are still true (`spark-llm_api` bearer from 1P): `curl -sk -H "Authorization: Bearer <key>" https://llm.kogler.si/v1/models` → 200; `https://db-spark.ts.kogler.si/` → 200. Owning docs: [network-vpn.md](docs/network-vpn.md) §Reach matrix, [hardware-spark.md](docs/hardware-spark.md) §Name edge, [services-ai.md](docs/services-ai.md) §2.
->
-> **2026-09-18 close-out — the `llm.*` 502s were the cold-start, and the fix is confirmed end-to-end.** When that session ran the engine was mid-cold-load (StartedAt 09:14Z, 168 GiB checkpoint at 0 % shards, `/health` 000), so 502 ≠ broken route. **Re-verified after the load completed: `curl -H "Authorization: Bearer <spark-llm_api>" https://llm.kogler.si/v1/models` → 200 returning `spark/qwen3.8-flash-next` (`max_model_len 262144`), and `https://db-spark.ts.kogler.si/` → 200.** No config change was needed for it — the load just had to finish (start_period 1200 s; the engine is cold-loading while `/health` still 000, which is normal, not an outage).
-- **spark name edge + LiteLLM names — the closed lane (row deleted 2026-09-17); knowledge lives in the SSOTs.** Do not re-open it: the name edge, the DNS split-horizon, the TLS-in-TLS hop and the WG route fix are documented as live state in [hardware-spark.md](docs/hardware-spark.md) §Name edge + [network-dns.md](docs/network-dns.md) §Per-Instance Split-Horizon, and the model-entry half in [services-ai.md](docs/services-ai.md) §2/§3 (HD-382). Its two live tails are their own rows now — **HD-383** and **HD-384** (both indexed above). **Operational rules from that lane that are still true:** live converges run DETACHED (`nohup … &` + log + poll — a foreground timeout kill leaves sibling containers `Exited` and breaks the next run's restart guard); hosts behind NAT are reached with `ansible_ssh_common_args="-o ProxyJump=vps"`; `traefik-tailnet` is excluded from the restart-on-config-change guard (file-provider hot-reload); op CLI 2.39 `op item edit` returns a spurious 404 AFTER applying a field clear (re-read to confirm) and `op item get` without `--reveal` returns a hint string, not the value.
 
 **Backlog (rest of todo.md — stays open; parking lot / late-phase / not the current focus).** HD-301 router bootstrap hardening · HD-312 kids per-MAC (observation tail only) · HD-207 landing-zone redistribution · HD-219/220/230 Phase-1 wave-2 + renovate/kopia owner tails · HD-247/248/249/250/251 LiteLLM cutover + OWUI split + n8n + DSH · HD-335/337 spark bring-up plan (folded into the HD-367/359 lane) · HD-100/101/103/104/111 AI-stack deploy tails · HD-147 OIDC live-verify (matrix/claw/foto/immich) · HD-47 Matrix federation records · HD-112 Zipline · HD-288 sunshine · HD-361 cockpit break-glass · HD-49/34/238/191 backup matrix + restore drill · HD-57/133 finance · HD-32 family guides. **Parked:** HD-45 (Homelable — parallel lane), HD-264 (renovate sandbox), HD-336b (CrewAI pilot = owner decision). See [todo.md](todo.md) + [todo-table.md](todo-table.md).
 

@@ -53,6 +53,15 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > * **Still open (unchanged by this PASS):** the 262k **needle test**, the `spark-lane` 64 k profile, and the tool-call/accuracy tails — see HD-376/HD-367. The PASS certifies *memory safety*, not long-context correctness.
 
 
+> **Cold start is SLOW and that is not an outage (2026-09-18):** the engine healthcheck carries
+> `start_period: 1200s` because the first PLE-table load runs ~20 min. During that window `/health`
+> returns **000** and `llm.kogler.si/*` returns **502** — which reads exactly like a broken route. It is
+> not: `docker inspect vllm-qwen-spark --format '{{.State.StartedAt}}'` +
+> `docker logs vllm-qwen-spark | tail` settles it in one look (weight load, then `GPU KV cache size:`).
+> **Check engine health before debugging the edge.** The engine also self-restarts on the watchdog's idle
+> recycle, so a young `StartedAt` you did not cause is normal — see
+> [`../spark/stability-test.md`](../spark/stability-test.md) and §Unified-memory budget.
+
 ---
 
 ## Unified-memory budget & OOM governance (2026-09-16)
