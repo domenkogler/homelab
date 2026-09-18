@@ -242,7 +242,7 @@ sidecar serves to the app over that private network. Functional service-to-servi
     4. Heading home with Tailscale on reaches `ha.kogler.si` via the LAN (Option A).
   - **Tailnet ACL:** `policy.hujson` already allows family nodes → `tag:sidecar` on :443 (deny-by-default + per-user own nodes). No extension needed for the existing owner set; extend only if a new family member node is added.
 
-### Reach matrix for the tailnet-only admin names (HD-382, live 2026-09-17)
+### Reach matrix for the tailnet-only admin names (HD-382, live 2026-09-17) + spark AI names (HD-389, live 2026-09-18)
 
 > Owner symptom: **`litellm.kogler.si` works on the phone (mobile data AND home Wi-Fi with Tailscale on),
 > but 404s on the laptop with Tailscale connected at home.** Measured, not guessed:
@@ -265,6 +265,16 @@ sidecar serves to the app over that private network. Functional service-to-servi
 > `traefik-internal` router proxying over WG S2S to the internal edge (`:4443`, the HD-350 double-hop) —
 > that **exposes the key-holding spine's admin UI on the LAN edge**, a design change that needs its own
 > decision; NOT done here.
+>
+> **HD-389 (2026-09-18, LIVE) — the `llm`/`db-spark` variant is a *different* root cause and is FIXED:**
+> for the spark AI names the earlier "use the .ts twin" guidance pointed at a dead end: MagicDNS answered
+> both namespaces to the tailnet edge, the edge's `llm-tailnet`/`db-spark-tailnet` routers matched, but the
+> TLS-in-TLS backend hop **forwards the client's SNI** to spark's own edge — and spark's Traefik had **no
+> router for the `.ts` names** (only `Host(`llm.kogler.si`)`), so `llm.ts.kogler.si` got a routerless-vHost
+> 404 *before* auth while `litellm.ts` (VPS-container backend, no TLS-in-TLS) stayed 200. Fix = spark's name
+> edge now routes the `.ts` twins + serves the `*.ts.kogler.si` pair (`todo HD-389`). Verify:
+> `curl -sk -o /dev/null -w '%{http_code}' https://db-spark.ts.kogler.si/` → 200;
+> `curl -sk -H "Authorization: Bearer <spark-llm_api>" https://llm.ts.kogler.si/v1/models` → 200.
 
 ## Tailnet boundary (decided 2026-09-10) — mobile devices only, via the VPS edge
 

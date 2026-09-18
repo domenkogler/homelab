@@ -33,6 +33,7 @@
 
 
 
+
 ### 2.1a Consolidated work packages — what can be done together (2026-09-04)
 
 > **Batching rationale:** nearly every row below is an edit to the SAME SSOT set (`network_static_hosts`, `rb4011_converge.rsc.j2`, `roles/router`) applied by ONE render → ONE `/import`; DNS rows share the `technitium-seed` role + `technitium_login`. Run each package as one SSOT render + one apply + an immediate tagged-99 membership verify (two full-converge mgmt-plane incidents recorded in `network-ops.md`) — never many small touches. Packages A and B stay separable (A = behavior, B = lockdown) for blame-free rollback. **F (Edge model, HD-331-334) is ✔️ COMPLETE 2026-09-07** — the internal all-app edge (HD-332), WG/tailnet reach (HD-333) and per-device Pi-first DNS (HD-334) are all live + verified; rows deleted, record in owning docs (`services-traefik.md` §Edge model, `network-vpn.md` §HD-333, `network-dns.md` §HD-334).

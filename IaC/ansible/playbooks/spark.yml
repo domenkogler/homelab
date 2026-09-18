@@ -9,6 +9,14 @@
 
 - hosts: spark
   become: true
+  vars:
+    # Reachability (WSL runner / off-LAN): spark (10.10.1.40) is behind the home NAT.
+    # From the WSL runner the Laptop reaches it ONLY via the VPS jump (ProxyJump vps,
+    # the same ssh alias both the runner and the operator use). From a LAN-attached
+    # runner this is a harmless no-op (the jump target is still reachable). SSOT:
+    # ansible_ssh_common_args is the convention for hosts behind NAT (prompt.md §1,
+    # apply-converge.yml precedent) — keep it here so ANY runner converges spark.
+    ansible_ssh_common_args: "-o ProxyJump=vps"
   roles:
     - common          # ansible-admin user guard + sudoers + trixie sources + hardening (canonical)
     - network         # DHCP client-id=mac + netd units (dual-homed mgmt/home) — same as nas/oldsrv/pi
