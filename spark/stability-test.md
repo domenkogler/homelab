@@ -132,7 +132,7 @@ rejects it 400 before any load (live rung B1 x2 on 2026-09-17: `ok=0/2 in_tok=0 
 configured engine can actually serve, and the shape a real auto-compaction in *two* sessions would make.
 
 ```bash
-ssh spark 'SPARK_STRESS_MAX_RUNG=1 BENCH_IN=240000 MEM_FLOOR_GB=16 RUNG_PAUSE=120 STRESS_OUT=/tmp/stress \
+ssh spark 'SPARK_STRESS_MAX_RUNG=1 BENCH_IN=240000 MEM_FLOOR_GB=14 RUNG_PAUSE=120 STRESS_OUT=/tmp/stress \
   nohup bash -c "bash /tmp/stress-oom.sh; echo rc=\$? > /tmp/stress/fullwindow.done" \
       > /tmp/stress/fullwindow.log 2>&1 & echo "started: $!"'
 ```
