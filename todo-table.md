@@ -1,109 +1,169 @@
 # Todo Split — AI-Runnable vs Human-Gated (planning view)
 
-> **Role:** hand-curated planning view of [`todo.md`](todo.md) split into (AI) tasks an AI can execute (the last Table-AI chapter holds the rows whose **deploy is AI but wait on a human prerequisite** — they run as soon as Table Human clears), and (Human) tasks **🚧 human-gated** (need an owner step first). — "what to do next" at a glance. **`todo.md` stays the registry SSOT** (row deleted when fully done, CONVENTIONS §4(a)); this table only cross-links owning-doc status blocks and must be kept in sync with todo.md on every backlog change. Content reflects the 2026-09-08 handoff state (re-synced after the oldsrv **Phase-3 complete** close-out: HD-318a kopia tail CLOSED; HD-160/287 gates met → Table AI; HD-211 = done, owner-only on-exposure rotation); authoritative detail lives in `todo.md` rows + owning docs.
-> **Linked from:** [`todo.md`](todo.md) · [`prompt.md`](prompt.md) · [`README.md`](README.md)
+> **Role:** hand-curated planning view of [`todo.md`](todo.md) — every open row of the registry, seen as **what to do next**, split into (AI) work an agent can execute now, an (AI) **deploy-gated** chapter whose only blocker is a human step, and (Human) work that is **🚧 owner-gated**. **`todo.md` stays the registry SSOT** (CONVENTIONS §4(a): a fully-done row is deleted from the registry; this table is a view, not a second record) and **must be re-synced whenever the backlog changes**.
+> **Linked from:** [`todo.md`](todo.md) · [`prompt.md`](prompt.md) · [`README.md`](README.md) · [`scripts/README.md`](scripts/README.md)
+>
+> **Rebuilt 2026-09-18** from the post-sync `todo.md` — every open row in it, active and parked. The previous version of this table was still describing the **2026-09-08** world — it recommended work that is long done (LiteLLM 1P wiring + scoped-key cutover: live), called already-deployed services "pending" (Matrix, Zipline, Navidrome), and marked signal alerting "closed" while the SSOT still has no recipients value. Status claims here were checked against **live state** (`docker ps -a` + label inspection on the VPS, `spark` engine/watchdog state, IaC `group_vars`/`host_vars`, owning-doc ✅ lines) rather than against the older table.
 
 ---
 
-## Table AI — AI-runnable (no AI-side blocker)
+## Table AI — doable now (no owner step in front)
 
-Rows the AI can execute: either **now** (no prerequisite) or the **⏳ deploy-gated chapter at the bottom** (AI does the deploy/verify; only a Table-Human step is missing). Inline notes flag the only soft gates (maintenance windows / deploy points).
+Ordered by what actually unblocks the most. ⏳ = the exact next action, not a restatement of the row.
 
-| HD | P | Task | Why AI can do it now |
-|----|---|------|----------------------|
-| **Network & DNS** ||||
-| HD-217 | 2 | Homepage failover-button gate off on next green vps.yml | The IaC + owner sign-off are done; just render/deploy |
-| HD-159 | 2 | `wg-s2s-down` alert live-verify | AI can run the deliberate `wg down` test (needs a brief planned tunnel-down window) |
-| **Storage / UPS** ||||
-| HD-360 | 2 | Enable Authentik-as-LDAP for Samba (VPS-side): LDAP provider + svc_samba + fresh `authentik-ldap_bind` token + flip `storage_samba_passdb` + live-verify | Split from HD-132 (2026-09-14); requires Authentik provider/outpost creation + 1P token minting, then a nas converge — all AI/1P work, no owner step (see HD-360 row in todo.md) |
-| HD-207 | 1 | Landing-zone redistribution **mechanics** | Moving data is AI-work; only the final *media rename vs personal-files* call is owner (split) |
-| HD-191 | 2 | oldsrv Kopia **restore drill** + volume-name pin (first snapshot DONE 2026-09-08) | Machine-recover one snapshot; owner confirms the restore target |
-| **AI / Office** ||||
-| HD-100 | 2 | Create `litellm_api` + pin `litellm_version` (+ live-verify completions) | Provider keys confirmed real in HD-211; item creation + version pin is AI (completion verify rides openrouter cloud — Triton-on-spark local tier is HD-335) |
-| HD-247 | 1 | LiteLLM scoped-keys cutover: seed db → converge → model recreation → live-verify | Seed + converge + model recreation + scoped-key/owui/openclaw auth live-verify are AI; completion round-trip rides openrouter (cloud) now, Triton on spark later (HD-335) |
-| HD-103 | 2 | Docling OCR first start + Slovenian scan verify | AI (oldsrv live) |
-| HD-104 | 4 | OpenClaw `onboard` + round-trip | AI |
-| HD-111 | 2 | Office MCP via OWUI (`ppt-mcp` first) | AI |
-| HD-248 | 2 | OWUI two-instance split + subdomain remap | AI (depends HD-247) |
-| HD-249 | 3 | n8n: audit external webhooks + scoped budget-capped LiteLLM key | AI |
-| HD-250 | 2 | DSH onboarding: thin image, compose, Forgejo PAT, headscale serve | AI (depends HD-247) |
-| HD-251 | 3 | Fleet-exposure phase-2 rollout (tailscale-first) | Doc policy already landed; rollout is AI |
-| HD-336 | 2 | agent-memory.dev per-project on oldsrv + ZeroClaw | oldsrv live; AI (CrewAI pilot split out → HD-336b, Table Human) |
-| HD-377 | 2 | Unified **LLM dashboard** (`homelab-llm`) — merge the 3 HD-368 vLLM boards into one + spark CPU/RAM/GPU/disk-I/O + engine readiness | **Authored 2026-09-16** (generated by `scripts/build-llm-dashboard.py`, 10 rows / 48 panels, `--check` green). ⏳ Owner: VPS `--tags monitoring` converge + render-verify, then retire the 3 old JSONs. ⚠ The 3 `DCGM_FI_PROF_*` panels it authored can never fill on GB10 (DCGM profiling unsupported) — delete them, wire the 6 `DCGM_FI_DEV_*` signals instead |
-| HD-376 | 2 | pi.dev harness → spark: promote the `spark-lane` 64k profile + measure parent/lane KV contention | Harness config itself is applied + documented (262k ctx, thinking control, timeouts — docs/pi-harness.md); the lane-profile promotion is AI-measurable. The 262k needle test stays gated in hardware-spark.md |
-| **Smart Home** ||||
-| HD-14 | 2 | Enable HA Prometheus exporter (entity list) | AI — the "wait for observability" gate is gone (Victoria stack + Alloy live, HD-342) |
-| HD-17 | 2 | Create `ha-failover_api` + deploy failover button | RFUSB-move tail is **obsolete (HD-13/18 rejected)**; standby is already rendered + api active (HD-318c, 2026-09-08); deploy button + run the owner test (HD-04) |
-| HD-185 / HD-124 | 1/2 | secrets.yaml renderer + keepalived deploy-verify | ✅ done+live (Pi Phase-4 2026-09-03; re-verified) — verify tails closed; the failover *exercise* stays owner (HD-04) |
-| **Obs / security / backup / docs** ||||
-| HD-342 | 2 | Kopia client wiring for `/srv/docker/victoria-*/data` | AI; oldsrv MCP tail = HD-344 (Table AI now) |
-| HD-344 | 3 | MCP Victoria servers on oldsrv (pi/OWUI/OpenClaw registration) | Gate met (oldsrv Phase-3 + VPS Victoria backend live) — enable + oldsrv converge + register in pi/OWUI/OpenClaw is AI; only the future tailnet sidecar redo is owner |
-| HD-347 | 1 | Observability false-alarm cleanup + alert-router wiring (SNMP ifName labels, n8n webhook workflow, remove mikrotik link-down + stale prometheus/loki rules, arm self-monitoring) | ✅ **CONVERGED + LIVE 2026-09-09** (VPS docker_services,n8n + monitoring already live): n8n SIGNAL_* env live, webhook 200; ⏳ **Signal device link + group UUID** = owner (HD-318d, Table Human) only |
-| HD-343 | 2 | Network Clients: wifi-path verify (`registration-table` vs legacy) + VPS Grafana converge | Router-side + converge are AI; **panel render-verify is owner** (Table Human) |
-| HD-375 | 2 | spark host-memory OOM alert rules — **LIVE 2026-09-17** (12/8 GiB on `usable = MemAvailable − CmaFree`): owner confirms they render in Grafana + reach n8n | owner (UI + notification check only; rules converged, preflighted against the backend and evaluated clean) |
-| HD-318(b) | 1 | recyclarr quality-profile sync verify (all *arr + recyclarr Up 2026-09-08) | AI observation — confirm the @daily profile sync landed |
-| HD-280 | 2 | Confirm a 401/403 triggers a fail2ban ban | Observation job — waits for natural SSO brute-force (no work product) |
-| HD-49 | 3 | Matrix identity/media backup policy | AI doc (policy before live deploy) |
-| HD-238 | 3 | oldsrv→VPS DR runbook for non-GPU services | AI doc |
-| HD-32 | 4 | Family guides `docs/manual/*` (Slovenian) | AI doc |
-| HD-133 | 3 | Subscription renewal reminders (SSOT + Homepage + n8n) | AI |
-| HD-40A/40B/135, HD-43/44, HD-46/47/122 | 1–4 | VPS-edge / media-ops / Matrix tails | Read **stale** vs the 2026-09-08 world (Phases 1/2/3/4 all live) — worth a close-out audit pass rather than new work; Matrix deploys now chain on owner OIDC records (HD-147), not host provisioning |
-| HD-362 | 2 | Music pillar: converge oldsrv (aurral/slskd/lidarr-ydl/tube-archivist) + wire Lidarr download clients (#2 Soulseek → #3 YouTube) + Navidrome Box refresh | IaC CORRECTED + registry-pinned (2026-09-14); AI deploy/verify once owner seeds 1P (`lidarr_api`, `soulseek_api`, `tube-archivist_login`) — **deploy-gated** (see chapter) |
+### 🔥 Active lanes
 
-**⏳ Deploy-gated chapter — waiting on a Table-Human prerequisite (AI does the deploy/verify as soon as it clears)**
-The deploy/verify here is **fully AI** — the only reason the row isn't already moving is a human prerequisite listed in Table Human. When the human step lands, pick these up first.
+| HD | P | ⏳ Next action | Why nothing blocks it |
+|----|---|----------------|------------------------|
+| **HD-386** | 1 | Converge oldsrv `--tags docker_services,lan-litellm` (**both** tags), detached, **no `--diff`**; expect `dsh`/`pi-dev` + the key glue to SKIP, `failed=0` | The park is authored + validated; only the converge is missing. ⚠ Needs oldsrv SSH (see the reachability blocker below) |
+| HD-356 | 1 | Once HD-386 converges green, re-check the LAN instance (live + serving); only the scoped-key glue tail remains — parked, not fixed (→ HD-383) | The split itself is deployed + healthy |
+| HD-382 | 2 | Only tails left: the scoped-key allowlist question is **HD-384** (owner), the stale `dsh` secret is **HD-383** (owner) | The model entry is live in both LiteLLM DBs + E2E verified |
+| **HD-387** | 2 | Run the written probe protocol against the LAN instance (baseline → toggle → budget pair → `top_k` → the proxy's own dropped-params log) | Decides whether the simple-querier tier may rely on thinking being OFF. Master-key path, no client change |
+| **HD-395** | 2 | Baseline the watchdog recycle only after `/health` 200 **and** a settle window (or max of N samples), then re-check the +8 GiB margin against the certified peak | Measured defect: the first-post-boot boot floor has been read 71,911 / 86,243 / 92,343 MiB on one config → the guard either restarts a healthy engine or goes silent |
+| **HD-394** | 2 | List every running container without a `com.docker.compose.project` label, propose removal (owner OK before deleting), record in `services-vps.md` | `confident_shamir` (hand-run traefik, no nets/ports) + `pgvector` (superseded by Qdrant) are invisible to every converge |
+| **HD-376** | 2 | Promote the `spark-lane` 64k profile; run the 262k needle test; measure parent-vs-lane KV contention | Engine + harness config are live; the lane profile is authored-on-paper only and the 262k test still gates agentic max-context work |
 
-| HD | P | Task | AI part (runs on gate-clear) | Prerequisite (Table-Human) |
-|----|---|------|------------------------------|------------------------|
-| HD-46 / HD-122 | 4/2 | Matrix IaC deploy + federation live-verify | Deploy from `vps.yml` (enabled:true) + federation live-verify + HD-122 hardening verify | Owner OIDC records + provider/redirect URIs — **HD-147** |
-| HD-230 | 1 | Phase-1 wave-2 batch | Kopia client wiring + surgical converge + verifies | Owner **kopia source-wiring decision** (owner part of HD-230) |
-| HD-57 | 3 | Finance: Actual Budget / Enable Banking | WG-scope the :5006 API leg + deploy + live-verify | Human **tokens + EB app creation** (owner part of HD-57) |
-| HD-362 | 2 | Music pillar deploy + verify | oldsrv converge (4 new services + 2 sidecars) + wire Lidarr download clients (slskd #2, lidarr-ydl #3 via its UI) + Navidrome Box refresh check | Owner seeds 1P: `lidarr_api` (from Lidarr `config.xml` via `scripts/`), `soulseek_api`, `tube-archivist_login` (+ optional `tube-archivist_ui`/`lidarr-url-dl_login`) — then router 10 MB/s P2P cap + slskd LAN port (owner) |
+### AI / Office
+
+| HD | P | ⏳ Next action | Why |
+|----|---|----------------|-----|
+| HD-369 | 2 | (c) recreate the pinned-AI catalog via the LiteLLM API (`ollama/bge-m3` @1024, `ollama/qllama/bge-reranker-v2-m3:q8_0`, `ollama/sendmeaiohyeah/whisper-large-v2`) → (d) voice re-point → (e) Sunshine priority glue → (f) `rocm-smi` VRAM/concurrency verify | (a)/(b) are live on oldsrv; the rest is admin-API + converge work. ⚠ Do **not** bump the ollama `:rocm` pin — rerank/STT leave Ollama (decision #25/#27) |
+| HD-360 | 2 | Declare the LDAP provider + `svc_samba` in the Blueprint, mint a fresh `authentik-ldap_bind`, redeploy `authentik-ldap`, **then** flip `storage_samba_passdb: ldapsam` + converge nas | Pure IaC + 1P. ⚠ Order is safety-critical: smbd fails hard if the flip lands before the outpost |
+| HD-268 / HD-337 / HD-335 | 1–2 | Qdrant embed/rerank + **re-index** after the bge-m3/1024 cutover, OKF wiki repo skeletons, then Mem0 + OpenHands | Qdrant is live; the harness half of HD-268 is parked with `dsh`/`pi-dev` (HD-386 + decision #26) |
+| HD-336 | 2 | agent-memory.dev per-project on oldsrv + ZeroClaw runner | Spec lives in `services-ai.md` §9b; does not wait on the CrewAI decision (HD-336b) |
+| HD-248 | 2 | **First settle the banner contradiction** (see watch-list), then parametrize the OWUI template and deploy the second instance | The row's premise ("x2 live") is false on the box — building on it would duplicate a service that does not exist |
+| HD-104 (+ HD-160) | 2 | `openclaw onboard` → `openclaw.json`, then the OpenCloud WebDAV round-trip | Container Up/healthy; only onboarding + verify remain |
+| HD-103 | 2 | Trigger the first HF model download + verify a Slovenian scan end-to-end | Docling is Up on the VPS |
+| HD-111 | 2 | `ppt-mcp` first, register MCP servers in OWUI | Nothing gates it except the OWUI instance question above |
+| HD-249 | 3 | Audit external webhook deps + `WEBHOOK_URL`, then mint a budget-capped LiteLLM key for AI workflow nodes | n8n live behind the tailnet edge |
+| HD-251 | 3 | Roll out the tailscale-first tiers (Headplane, Dozzle, Metabase, Grafana, Traefik-dash) | The policy/doc half landed 2026-08-26 |
+| HD-373 | 2 | Pick (a) nginx SPA fallback / Traefik `PathPrefix(/ui/)` rewrite, or (b) route-scoped forward-auth on `/ui/*` | Workaround (`/fallback/login`) works, so this is a real fix, not a fire |
+| HD-380 | 2 | Passive: watch `samples.csv` for a curve growing > 2 GiB/h under traffic that does not return at idle — that, and only that, re-arms C3. Plus the **never-measured prefix-cache/preemption check** across the 16 GiB raise | Certified state is stable; this row is the standing watch + one cheap measurement |
+
+### Network / platform / security
+
+| HD | P | ⏳ Next action | Why |
+|----|---|----------------|-----|
+| HD-357 | 2 | Wire the Homepage tiles/widgets to the verified endpoints (home edge + VPS edge), then hand the visual check to the owner | Endpoints and route tables are final; bug #6 is wiring |
+| HD-358 | 2 | Record the Seerr→\*arr API-key + URL hand-off as a runbook step (and consider automating it in IaC) | Home edge is up; the step is documentation + optional IaC |
+| HD-122 | 2 | Verify Matrix profile auth **now** (the servers have been live since 2026-08-22) | The row used to wait on a deploy that already happened |
+| HD-47 | 3 | Publish `matrix`/`chat` + `_matrix` well-known/SRV, then prove inbound federation from an external server | Servers are live; the records are the only missing piece |
+| HD-112 | 2 | Post-up seeding: local admin → OIDC login (owner browser at that one step) → flip `bypass-local-login` → create `guestbin` + `dropzone` → round-trip + 6 h sweep verify | Deployed; the remainder is seeding |
+| HD-159 | 2 | Run the deliberate `wg down` test and confirm the `wg-s2s-down` alert fires (needs a short planned tunnel-down window) | Rule + scrape are deployed; never proven |
+| HD-09 | 2 | Ride the next router converge import and confirm the UPS web-UI 80/443 Home→Mgmt rule lands | IaC-only so far |
+| HD-287 | 2 | Encode `cap_drop: ALL` + the ROCm-init `cap_add` set for immich-ml → oldsrv converge → verify ML inference still works | The gate that blocked it (ML leg live) is met |
+| HD-318(b) | 1 | Confirm the recyclarr @daily quality-profile sync landed (after the 2026-09-15 `bind_owner_uid` fix) | Stacks are up; observation only |
+| HD-280 | 2 | Observation: confirm a repeated 401/403 actually produces a ban | Jail is live; waits on natural brute-force |
+| HD-14 | 2 | Enable the HA Prometheus exporter and export the entity list | The observability gate is gone (Victoria + Alloy live); feeds the HA dashboard |
+| HD-17 + HD-217 | 2 | Render the Homepage **IP-only** failover button (`homepage_failover_button`; the RFUSB path is obsolete — HD-18 rejected) | `ha-failover-api` is active on oldsrv since 2026-09-08; only the render remains |
+| HD-04 (tail b) | 1 | Restore the oldsrv standby keepalived conf to the **BACKUP 100** variant (the drill left the 120 failover variant) — before the next standby cold boot | A one-file revert the drill left behind; the rest of HD-04 is the owner's failover test |
+
+### Observability
+
+| HD | P | ⏳ Next action | Why |
+|----|---|----------------|-----|
+| HD-344 | 3 | Register the MCP endpoints in pi / Open WebUI / OpenClaw — **ports are `mcp_metrics_port` 8083 / `mcp_logs_port` 8084**, not :8080/:8081 | Servers live on oldsrv; registration is the whole remaining row |
+| HD-345 | 2 | Find why the SNMP `ifOperStatus` walk still yields 0 series (rules on, SNMP enabled) | The only remaining `DatasourceNoData` class |
+| HD-342 | 2 | Kopia client wiring for `/srv/docker/victoria-*/data` | The Victoria cutover itself is live; this is the backup tail |
+
+### Docs / policy (no host risk)
+
+| HD | P | ⏳ Next action |
+|----|---|----------------|
+| HD-238 | 3 | Write the oldsrv→VPS DR runbook for non-GPU services (backup.md section) |
+| HD-49 | 3 | Add Matrix identity/media keys to the backup policy (identity reissue breaks rooms) |
+| HD-191 | 2 | Run the Kopia restore drill from a snapshot + verify the volume-name pin (owner confirms the target) |
+| HD-133 | 3 | Build the subscription SSOT → Homepage/calendar/n8n renewal notify |
+| HD-32 | 4 | Write the Slovenian family guides (`docs/manual/*`) |
 
 ---
 
-## Table Human — 🚧 Human-gated / needs an owner step
+## ⚠ Standing blockers on the AI work above
 
-Grouped by *why* it's blocked. These are the real unblockers — clearing them cascades to Table AI (including its deploy-gated chapter).
+1. **oldsrv SSH from the workstation is broken on both documented paths** — measured 2026-09-18 (connect timeout on the direct Mgmt-VLAN alias). It gates every oldsrv converge: **HD-386, HD-369(c–f), HD-287, HD-268, HD-360's nas leg, HD-344 registration, HD-318(b)**. Filed as **HD-392 on the unmerged `session/oldsrv-pinned-ai-20260918-1515` branch** — do not open a duplicate; fix or document the working path first.
+2. **Never benchmark or converge spark from a session whose own model is spark** (incidents #3 + #6). Live converges run **detached** (`nohup … &` + log + poll), spark via the VPS jump.
+3. **Do not merge/converge `main`'s spark values over the certified ones**: the 16 GiB KV pool is the live, certified config.
 
-| HD | P | Task | Owner step required |
-|----|---|------|---------------------|
-| **Group 1 — owner-manual tails on the (now-live) oldsrv GPU leg** ||||
-| HD-288 | 3 | Sunshine live-verify (Moonlight round-trip) | ⏳ oldsrv GPU leg is live, but this is an owner **manual-start gaming window** + Moonlight client round-trip — owner keeps the button; AI can pre-verify Sunshine is Up/healthy |
-| **Group 2 — owner manual / physical / browser / 1P seeding** ||||
-| HD-08 / HD-06 | 1/2 | UPS battery-pull test | Owner **physical** test — all client legs (nas/oldsrv/pi) now ACTIVE (2026-09-08), so the pull exercises OB/RB + alerts end-to-end |
-| HD-319 | 1 | Confirm 3 rekuperator GAs (12/1/*) answer on the KNX bus | Owner verify (HA UI / panel warnings) |
-| HD-316 | 1 | Homepage launchpad — family sees apps green; technical section renders | Owner **visual** verify |
-| HD-315 | 1 | Grafana dashboard render-verify with data (post-Victoria) | Owner **visual** verify (panels + data sanity; **data now flowing** — all 4 hosts + probes, HD-346 closeout) |
-| HD-343 | 2 | Network Clients dashboard — panels render + visible on `stats.kogler.si` | Owner **visual** verify (pre-work is AI — Table AI) |
-| HD-347 (owner part) | 1 | Signal alert delivery — link the Signal device + set `signal_alert_recipients` | Owner **Signal link** (HD-318d — no device linked yet): once linked, capture the "Homelab Alerts" group UUID + fill `signal_alert_recipients` (all.yml SSOT) → then the n8n Signal leg delivers (the webhook workflow + env wiring are already live, Table AI) |
+---
 
-| HD-112 | 2 | Zipline public bin | **First deploy human-gated** + local-admin → OIDC login → flip bypass-local-login (then AI round-trip verify) |
-| HD-101 | 2 | OWUI SSO → Authentik round-trip → local-admin linked | Owner **browser login** step after AI deploy |
-| HD-147 | 1 | OIDC live-verify: matrix / claw / cloud / foto / immich / forgejo-register | Owner **browser logins** (Phase-3-gated for the host-side parts) — **also the prerequisite for the Table-AI Matrix deploy (HD-46/122)** |
-| HD-194 | 1 | `sso` middleware: confirm login + one OIDC callback e2e at deploy | Owner browser confirmation |
-| HD-219 | 1 | Forgejo install wizard | Owner **browser** (renovate/kopia tails then close) |
-| HD-220 | 1 | Renovate token validity check | Owner confirms once Forgejo green (kopia seed is AI — Table AI) |
-| HD-211 | 1 | Secret hygiene | ✅ rotation + `expiring=False` audit done (2026-09-08) — only on-exposure re-rotation of `vps-op-write_api` remains (owner, no-op today) |
-| HD-230 (owner part) | 1 | Phase-1 wave-2 — **kopia source-wiring decision** | Owner decides which data sources kopia backs up → then the AI deploys/verifies the batch (Table AI) |
-| HD-57 (owner part) | 3 | Finance — **human tokens + EB app creation** | Owner creates the bank tokens + Actual Budget/Enable Banking app → then the AI WG-scopes + deploys (Table AI) |
-| HD-296 | 1 | `dsh` / `pi-dev` tailnet A-records | Row is **labeled owner**: scoped converge `docker_services_scope=headscale` + `dig` verify |
-| HD-268 | 1 | Tailnet sidecar enable-flow (Qdrant swap, pi-dev/DSH UIs) | Owner 4-step: mint preauth keys → seed 1P → flip flags → converge → verify UIs (then AI embed/re-index) |
-| HD-264 | 2 | Renovate → real repos | Owner: commit versioned manifest to `domen/test`, verify PR path, **flip `RENOVATE_REPOSITORIES`** |
-| HD-207 | 1 | Landing-zone redistribution | Owner: final **media rename vs personal-files** decision (mechanics = AI, Table AI) |
-| **Group 3 — owner-gated / high-risk / hardware / parked** ||||
-| HD-04 | 1 | Pi redo + **owner failover test** (VIP move Pi→oldsrv + failback) | **Pi redo DONE + LIVE since 2026-09-03** — remaining = the owner **failover test** (live-HA window; short blackout OK per owner 2026-09-09); a parallel lane is finishing the button/runbook prep |
-| ~~HD-312(4)~~ | 2 | ~~n8n firmware workflow — flow authoring (temp `iot-wan-allow` toggles)~~ | **✅ SUPERSEDED 2026-09-09** — permanent `wan_allow` covers cloud-IoT firmware WAN; no flow authoring (decision log: [network-rejected.md](docs/network-rejected.md)) |
-| HD-335 / HD-337 | 2 | spark (ThinkStation PGX / GB10) bring-up | **PROVISIONED + LIVE 2026-09-14/15** (DGX OS, bootstrap, XFS carve, engine B1 up + serving `spark/qwen3.8-flash-next`; spark name edge + LiteLLM names live via HD-370, commits `0400f78`+). Remaining lane = **bench S1–S5** (HD-367) + Triton/Mem0/OpenHands; the LiteLLM completion round-trip is now LOCAL-spark-capable once the owner adds the Admin-UI model entry. ⚠️ **2026-09-16 (HD-374):** 3rd **global-OOM** in 24 h → **unified-memory budget governance** (explicit `--kv-cache-memory-bytes`, util removed — this build ignores util when the bytes flag is set) now the active fix — [hardware-spark.md](docs/hardware-spark.md) §Unified-memory budget · [spark-incidents.md](docs/spark-incidents.md) |
-| HD-336b | 2 | **CrewAI epic orchestration pilot — owner decision** (run 2-week pilot now / later / never) | **Owner decision only** — no AI work until answered (kill criteria: 2-week slice or abandon); does NOT gate HD-336 (agent-memory/ZeroClaw = Table AI) |
-| HD-34 | 4 | Kopia Web GUI vs CLI assessment | At the owner-run yearly restore drill |
+## Table Human — 🚧 owner step first
 
-| — | — | ~~HD-261 / HD-262 / HD-36 / HD-41 / HD-48 / HD-129~~ | **✅ CLOSED/REJECTED 2026-09-09** (Mitogen, Yacht, internal AAAA, Proxmox, Matrix bridges, DHCP-resolver) — see owning docs + decision logs; **HD-45 now OPEN as the network-dashboard + Homelable implementation (Table AI)** |
+Grouped by *why*. Clearing these cascades into the AI table above.
+
+### Group 1 — a browser, a phone or a physical act
+
+| HD | P | Owner step | Then the AI does |
+|----|---|-----------|------------------|
+| HD-147 (+ HD-141 epic) | 1 | Browser logins: matrix / claw / cloud / foto / immich (+ Forgejo register) | Blueprint + glue are live; the AI re-renders inventory + closes the epic tail |
+| HD-194 | 3 | Confirm one login + one OIDC callback end-to-end at the edge | Closes audit S17(a) |
+| HD-101 | 2 | OWUI SSO → Authentik round-trip, link the local admin | AI verifies LiteLLM completion + RAG after |
+| HD-350 | 1 | Authorize oldsrv `/root/.ssh/traefik-cert-sync.pub` on the VPS (the pull 401s until then) | AI verifies the wildcard pair + LAN routes |
+| HD-375 | 2 | Confirm the spark host-memory rules in the Grafana UI **and** that they reach n8n | Rules are live in the ruler since 2026-09-17 22:33C |
+| HD-347 | 1 | Capture the **"Homelab Alerts" group UUID** into `signal_alert_recipients` (`group_vars/all/main.yml`, non-secret) — the device is linked, the value is still empty | AI re-converges n8n + proves delivery |
+| HD-316 / HD-315 / HD-343 | 1–2 | Visual verify: launchpad green, host-overview + probe tables, Network Clients panels + wifi path | AI fixes whatever the eyeball catches |
+| HD-377 | 2 | Render `homelab-llm` on `stats.kogler.si` and sign off | AI deletes the three superseded vLLM boards + the three `DCGM_FI_PROF_*` panels that can never fill |
+| HD-319 | 1 | Confirm the 3 rekuperator GAs (12/1/\*) answer on the KNX bus | AI closes the KNX render row |
+| HD-353 / HD-354 | 2 | Jellyfin login at seerrng; **put music on the Storage Box** + create the Navidrome admin user | AI verifies Subsonic/ExtAuth at the pin |
+| HD-06 | 1 | Short UPS pull → poweroff → WoL wake end-to-end | Last open thing in the UPS lane |
+| HD-288 | 3 | A manual-start gaming window + Moonlight round-trip | AI pre-verifies Sunshine Up/healthy |
+| HD-301 | 1 | A physical reset window on router/switch/APs | AI verifies firewall + service state after each reset |
+| HD-34 | 4 | Happens at the owner-run yearly restore drill | AI assesses Kopia GUI vs CLI during it |
+
+### Group 2 — an owner decision or an owner-seeded secret
+
+| HD | P | Decision / seed | Blocks |
+|----|---|-----------------|--------|
+| **HD-384** | 1 | **Which simple querier gets what** — HomeAssistant / Docling / OWUI: `spark/*` vs `ollama/*`, with `max_budget`/`rpm`; plus hardening `spark-llm_api` (triple-used today) | The LAN `bootstrap_keys` flip back to true; any scoped consumer of `spark/*` |
+| **HD-385 / #27** | 2 | Ratify decision **#27** (pinned-AI engines → the ggml/Vulkan family) — filed on the unmerged oldsrv branch with measured numbers | The two oldsrv pinned-AI services + the LiteLLM/voice re-point |
+| **HD-388** | 2 | Choose the renderer shape (Jinja alongside `render_all.py` vs a standalone script) | Rendering `pi`/`continue` client config from one repo spec |
+| **HD-383** | 1 | Vault + Admin-UI remediation of the stale `dsh` secret (documented in the script header; deliberately **not** automated) | Un-parking any scoped-key record; today it is unreachable, not fixed |
+| HD-336b | 2 | CrewAI pilot: run the 2-week slice / later / never | Nothing else (HD-336 is unblocked) |
+| HD-361 | 1 | Create the `nas_maint_login` 1P item + choose the break-glass password | AI adds the `maint` PAM identity (sudo group, NO NOPASSWD, no SSH keys, excluded from `AllowUsers`) + a `pamtester` verify path — `cockpit-nas.kogler.si` has **no working login today** |
+| HD-362 | 2 | Real values for the music-pillar 1P placeholders (`slskd_login`, `soulseek_api`, `lidarr_api`, …) + wire Lidarr download clients in the UI | The music pillar's last mile |
+| HD-57 | 3 | Bank tokens + Actual Budget / Enable Banking app creation | AI WG-scopes :5006 + deploys + verifies |
+| HD-230 | 1 | Kopia source-wiring decision (which data sources get backed up) | AI's surgical converge + the wave-2 verifies |
+| HD-207 | 1 | Final **media rename vs personal-files** call | AI's landing-zone redistribution mechanics |
+| HD-386 tail | 1 | Whether to drop the `dsh`/`pi-dev` tailnet names + `dsh-backend`/`pi-backend` routes (they answer 502 by design) | — |
+
+### Group 3 — owner-hold / deliberate non-work
+
+| HD | P | Why it waits |
+|----|---|--------------|
+| HD-366 | 2 | **Deliberately untouched since 2026-09-15 by owner instruction** — JupyterLab LAN edge. Route exists; do not spend a converge on it until asked |
+| HD-312 | 2 | Observation only (bedtime window + Kids-Group filtered-DNS binding) — close on the first owner sighting |
+| HD-359 / HD-367 | 1–2 | Bench lane: the engine + `spark-ai.enabled` are certified; what is left is the S2/S3 NVFP4×SGLang lane + the 262k needle test (rides HD-376) — owner decides when a bench window is worth the box |
+
+---
+
+## ⚠ Watch-list — reads as done, is not
+
+Checked 2026-09-18 against live state. Each of these has already fooled one document.
+
+| Claim you might believe | Reality |
+|---|---|
+| "Signal alerting is closed" | Device linked ✅, workflow live ✅ — but `signal_alert_recipients` is still **empty** in SSOT, so nothing is delivered to the group (HD-347) |
+| "Open WebUI ×2 is live" (`services-ai.md` banner) | The VPS runs **one** `open-webui` at `ai.kogler.si`; the `chat` service is **element-web**, not a second OWUI instance. HD-248 is open and starts by correcting that banner |
+| "Navidrome never deployed" | Deployed: container Up, `/mnt/storagebox/music` → `/music` ro, scanner ran. The **library is empty** and no admin user exists (HD-354) |
+| "Matrix waits on unprovisioned hosts" | Tuwunel + Element have been live since 2026-08-22; HD-46 was deleted as done, HD-47/122 are verifies now (Cloudflare records + profile auth) |
+| "Zipline's first deploy is human-gated and pending" | `zipline` + `zipline-db` are Up/healthy — only post-up seeding is left (HD-112) |
+| "Forgejo install wizard / Phase-1 incident batches are open" | Installed (`INSTALL_LOCK`) and the incident batches landed; HD-219/HD-220 are deleted rows |
+| "The watchdog's idle recycle is a safe background detail" | It restarted the engine twice 35 min apart on a healthy box; its baseline is boot-timing-dependent (HD-395) |
+
+---
+
+## Park / moot
+
+| HD | P | Status |
+|----|---|--------|
+| HD-45 | 3 | Homelable + network dashboard — a parallel lane owns implementation; do not re-plan |
+| HD-264 | 2 | Renovate sandbox `domen/test` — parked, owner steps (external re-launch mechanism, real manifest, then flip `RENOVATE_REPOSITORIES`) |
+| HD-250 | 2 | DSH onboarding — **parked with the service** (`enabled: false`, HD-386) and moot under decision #26 (harnesses go direct) |
+| HD-28 | 3 | Office AI stack — not parked but **not startable**: its Ollama half is superseded by #24/#25 and its MCP half waits on HD-111 |
 
 ---
 
 ## Bottom line
 
-- **Best pure-AI starters right now:** HD-100 + HD-247 (LiteLLM 1P wiring + scoped-key cutover), HD-342 (Victoria kopia tail), **Router steady-state batch = COMPLETE** (HD-03 audit + HD-182 Kids verify closed 2026-09-10 — the two IaC fixes landed, converge import is the single operator step).
-- **The single highest-leverage owner (Table Human) step** is the **HD-318-responsive owner batch**: ① ~~signal-cli phone registration~~ **DONE 2026-09-10** (device linked, `homelab-alerts`, delivery owner-verified — HD-318d/HD-347 closed), ② the 1P seeds in HD-268/296 (preauth keys, headscale A-records) that unblock the rest of the deploy-gated batch, ③ the **HD-04 failover test** (VIP move + failback, being prepped by a parallel lane) — since oldsrv Phase-3 is **complete** (HD-318), the old ONLYOFFICE/ROCm/1P blocker list is retired. Clearing **HD-147 (OIDC records)** also unblocks the Table-AI Matrix deploy (HD-46/122).
-- **Stale rows note:** HD-40A/40B/135/43/44 read stale versus the README's "state of the world" (Phases 1/2/3/4 all live) — an AI close-out audit (verify live state, then delete/trim per todo.md §4(a)) is itself a good pure-AI Table-AI task.
+- **Best pure-AI picks right now:** `HD-387` (settles a live contradiction with a 20-minute probe), `HD-395` (a measured defect that restarts a healthy engine), `HD-394` (census: two containers no converge will ever clean up), `HD-47` + `HD-122` (federation is one DNS change + one verify away), `HD-357`/`HD-358` (two named bugs on the launchpad and the media stack).
+- **Highest-leverage owner steps, in order:** ① `HD-347` recipients value (one string — alerting is otherwise blind), ② `HD-350` pubkey authorization (unblocks the home-edge cert chain), ③ `HD-384` (which consumer may call what — it unblocks the LAN key glue), ④ `HD-377` + `HD-375` sign-offs (they retire three dashboards and close the alert lane), ⑤ `HD-147` browser logins (the last big OIDC tail).
+- **Before any oldsrv work:** resolve the SSH reachability blocker (HD-392, unmerged branch) — six rows above are silently gated by it today.
