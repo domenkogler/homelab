@@ -194,7 +194,23 @@ return `ansible-admin` with no password prompt.
 > route-through script) is `scripts/wsl-nat-resolv.ps1`** (admin, idempotent): it sets `.wslconfig` →
 > `networkingMode=Nat` (NOT `default` — WSL accepts `Nat`), drops `generateResolvConf=false` from `/etc/wsl.conf`
 > so WSL regenerates `/etc/resolv.conf` every boot from the Windows/default-switch resolver, and disables the
-> static `10-eth0.network` unit. Net effect: **Debian follows whatever network Windows is on** — at home the
+> static `10-eth0.network` unit.
+>
+> **2026-09-18 addition — make the plain `*.kogler.si` names resolve in WSL (Tailscale MagicDNS):** with
+> `generateResolvConf=false` (above), WSL keeps a **static** `/etc/resolv.conf` — and the default WSL
+> resolver only knew the Windows forwarder, which answers `*.ts.kogler.si` but NOT the plain `*.kogler.si`
+> (that namespace lives in MagicDNS, routed via NRPT only for `.ts` + CGNAT reverse zones). To fix, put
+> `100.100.100.100` (MagicDNS loop) **first** in `/etc/resolv.conf`, then the Windows forwarder, e.g.:
+> ```
+> nameserver 100.100.100.100
+> nameserver <Windows NAT forwarder — the address WSL auto-generates, e.g. the NAT gateway WSL prints in `/etc/resolv.conf` at boot (10.x — never hardcode)>
+> search ts.kogler.si kogler.si
+> ```
+> The Windows-side equivalent (so `Resolve-DnsName llm.kogler.si` works in Windows too):
+> `netsh interface ipv4 add dnsservers name="Tailscale" address=100.100.100.100 validate=no` (elevated).
+> Both are idempotent; with Tailscale off the loop is unreachable and resolution falls through to the
+> forwarder — normal internet keeps working. (HD-389)
+ Net effect: **Debian follows whatever network Windows is on** — at home the
 > homelab DHCP chain, on a hotspot the hotspot's DNS — with zero per-network edits. Re-run the script any time
 > to restore the same state (it skips the WSL restart when nothing changed). Everything (git push, DNS, op vault,
 > ping) works under NAT on any network. The old `wsl-vlan-trunk.ps1` bridged/Mgmt-99 route-through only worked

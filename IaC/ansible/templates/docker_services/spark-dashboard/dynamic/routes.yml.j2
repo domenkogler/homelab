@@ -56,7 +56,7 @@ http:
 
     # --- name-based HTTPS routes (HD-370) ---
     db-spark:
-      rule: "Host(`db-spark.kogler.si`)"
+      rule: "Host(`db-spark.kogler.si`) || Host(`db-spark.ts.kogler.si`)"
       entryPoints:
         - lm
       middlewares:
@@ -65,7 +65,7 @@ http:
       tls: true
       priority: 1
     llm-kogler:
-      rule: "Host(`llm.kogler.si`)"
+      rule: "Host(`llm.kogler.si`) || Host(`llm.ts.kogler.si`)"
       entryPoints:
         - lm
       middlewares:
@@ -76,7 +76,7 @@ http:
 
     # --- :80 → :443 redirect for the names (never serves content on :80) ---
     db-spark-http:
-      rule: "Host(`db-spark.kogler.si`)"
+      rule: "Host(`db-spark.kogler.si`) || Host(`db-spark.ts.kogler.si`)"
       entryPoints:
         - lm-http
       middlewares:
@@ -84,7 +84,7 @@ http:
       service: noop@internal
       priority: 10
     llm-kogler-http:
-      rule: "Host(`llm.kogler.si`)"
+      rule: "Host(`llm.kogler.si`) || Host(`llm.ts.kogler.si`)"
       entryPoints:
         - lm-http
       middlewares:
