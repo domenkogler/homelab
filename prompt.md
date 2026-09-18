@@ -13,6 +13,28 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 
 ## 2. Open work (read the HD rows; this is only the index)
 
+> **🔐 OPEN · P1 — the `spark-llm_api` credential is STILL LIVE (HD-396).** A live engine bearer reached
+> `origin/main` inside stability bench logs — `vllm bench serve` prints its own parsed argv, and with
+> `--header Authorization=Bearer <key>` in it, every archived step log carried the key. **The tip is
+> redacted and the recurrence path is gated** (`9cf5d02`, `978d6d9`): both bench harnesses now `scrub`
+> every line at write time, `bundle()` refuses an archive whose payload carries a secret shape, and
+> `scripts/check_secrets.py` (validate-all **#15**) scans the index + untracked files **and the members
+> of tracked archives**, printing masked hits only. What is NOT done: **rotation**. That item is FOUR
+> coupled bearers — the engine's `--api-key`, `OPENAI_API_KEY` in *both* LiteLLM instances, and this
+> laptop's `~/.pi/agent/models.json → providers.spark.apiKey` (outside Ansible) — so a vault-only write
+> opens a half-applied window that any other session's converge can trip. Run
+> `bash scripts/rotate-spark-llm-key.sh` (plan-only) → `--run --yes` when nothing else is converging: it
+> needs the root-only **write-scoped** 1P token on the VPS (`/etc/op/provision-token`; the runner's SA
+> token is read-scoped and answers `Couldn't update the item.`), costs ~25 min of engine cold load, and
+> is proven only by the **OLD bearer returning 401**. Then history-scrub + rotate the read-scoped SA
+> token. Full runbook + why-the-order-matters:
+> [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a.
+>
+> **⚠ Do not tidy the primary checkout to make `validate-all` pass at the station.** Since 2026-09-18 it
+> carries **someone else's WIP** (`scripts/utils` deleted, `scripts/utils.txt` untracked, last touched by
+> `7ee7b4b add utils`), which makes guard-session's `--validate-mode` hard-fail by design. Coordinate; never
+> `stash`/`checkout` a foreign change to get a green gate.
+
 > **✅ spark memory/OOM thread — CLOSED (2026-09-18) as a *stability* question. This is a pointer now, not a
 > brief.** Stable config = `spark_vllm_kv_cache_memory: "16000000000"` (reserved 14.9 GiB / 515,786 tok /
 > 1.97× @262k): the 3-rung load chain passed it (0 kernel OOM, 0 engine restarts, 0 guard-fires) and the
@@ -66,6 +88,7 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human). Each HD line links its owning doc + todo row; the ⏳ = exact next step. Deploy-gated verifies live in [`deployment-tasks.md`](deployment-tasks.md) (per-phase chapters).
 
 **AI-actionable now (no owner prerequisite):**
+- **HD-396** — ⏳ **finish containing the leaked `spark-llm_api` bearer (P1: still live).** Tip is redacted + gated; rotation, history scrub and the SA-token rotation are open. **Read [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a first** — it is the consumer map, the write-token location and the reason the vault write cannot be separated from the three converges. Do not re-investigate the leak itself (root cause, scope and the two commits are recorded there) and do not re-derive the scanner: `scripts/check_secrets.py` is wired into `validate-all.sh` and negative-tested. · [todo.md HD-396](todo.md)
 - **HD-385** — ⚠ **Superseded in part on 2026-09-18 by decision #27 (ACCEPTED → HD-391): both of its measurement premises failed.** Original scope (decision #25, 2026-09-17) = embed stays Ollama `:rocm` · rerank → **CPU CrossEncoder** · STT → `whisper.cpp` **GGML_HIP**. What measurement replaced: CPU rerank is **10–20× slower** than the 10–30 ms/pair premise (measured 5.3 s for a 20-doc rerank at ~790 % CPU) and **no ROCm `whisper.cpp` image is published** (HIP would be a self-build with no Renovate trail). **Its open items (a) reranker pick, (b) LiteLLM rerank provider, (c) STT engine + OpenAI-compat path, (f) live VRAM/concurrency are CLOSED by measurement** — (b) = LiteLLM **`jina_ai/`** against llama.cpp `POST /v1/rerank`; (c) = **no wrapper needed**, `--inference-path /v1/audio/transcriptions` exists natively; (f) = measured **2.9 GiB → target ~2.4 GiB** with 0 `amdgpu` hang/reset. §9c remains the dated research record for the *pre-measurement* reasoning, and its two corrected claims are marked there; where §9c and [services-ai-bench.md](docs/services-ai-bench.md) disagree, **the bench doc wins** (measured on the box). **Remaining work is HD-391, not research.** Non-actions still standing: do **not** set `amdgpu.cwsr_enable=0` up front and do **not** introduce `amdgpu-dkms` on oldsrv (hardware-gpu.md CWSR section). · [services-ai.md](docs/services-ai.md) §3a + §9c · [todo.md HD-385](todo.md)
 
 - **HD-391** — ⏳ **THE next AI task: author the three oldsrv services decision #27 implies** — `docker_services/whisper/`, `docker_services/reranker/`, `docker_services/embed/` compose templates + **digest** pins in `group_vars/all/versions.yml` + sha256-verified GGUF/GGML model-fetch tasks + LiteLLM rows (rerank as `jina_ai/`, embed re-pointed off `ollama/bge-m3`) + sweeping the dead pulls out of the ollama template and `vps.yml`; then converge oldsrv and live-verify (VRAM, three-way concurrency, real Slovenian STT, `dmesg`). Flags/values to use verbatim are in [services-ai-bench.md](docs/services-ai-bench.md) §8 + §3a. ⚠ Two gates: **`--ctx-size` must cover the real ingest chunk** (llama.cpp truncates silently) and **`rag-mcp` is still `enabled: false`, so the reranker has no live consumer** — ship it with the tier or park it. · [services-ai.md](docs/services-ai.md) §3a · [todo.md HD-391](todo.md)
