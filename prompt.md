@@ -13,6 +13,28 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 
 ## 2. Open work (read the HD rows; this is only the index)
 
+> **🔐 OPEN · P1 — the `spark-llm_api` credential is STILL LIVE (HD-396).** A live engine bearer reached
+> `origin/main` inside stability bench logs — `vllm bench serve` prints its own parsed argv, and with
+> `--header Authorization=Bearer <key>` in it, every archived step log carried the key. **The tip is
+> redacted and the recurrence path is gated** (`9cf5d02`, `978d6d9`): both bench harnesses now `scrub`
+> every line at write time, `bundle()` refuses an archive whose payload carries a secret shape, and
+> `scripts/check_secrets.py` (validate-all **#15**) scans the index + untracked files **and the members
+> of tracked archives**, printing masked hits only. What is NOT done: **rotation**. That item is FOUR
+> coupled bearers — the engine's `--api-key`, `OPENAI_API_KEY` in *both* LiteLLM instances, and this
+> laptop's `~/.pi/agent/models.json → providers.spark.apiKey` (outside Ansible) — so a vault-only write
+> opens a half-applied window that any other session's converge can trip. Run
+> `bash scripts/rotate-spark-llm-key.sh` (plan-only) → `--run --yes` when nothing else is converging: it
+> needs the root-only **write-scoped** 1P token on the VPS (`/etc/op/provision-token`; the runner's SA
+> token is read-scoped and answers `Couldn't update the item.`), costs ~25 min of engine cold load, and
+> is proven only by the **OLD bearer returning 401**. Then history-scrub + rotate the read-scoped SA
+> token. Full runbook + why-the-order-matters:
+> [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a.
+>
+> **⚠ Do not tidy the primary checkout to make `validate-all` pass at the station.** Since 2026-09-18 it
+> carries **someone else's WIP** (`scripts/utils` deleted, `scripts/utils.txt` untracked, last touched by
+> `7ee7b4b add utils`), which makes guard-session's `--validate-mode` hard-fail by design. Coordinate; never
+> `stash`/`checkout` a foreign change to get a green gate.
+
 > **✅ spark memory/OOM thread — CLOSED (2026-09-18) as a *stability* question. This is a pointer now, not a
 > brief.** Stable config = `spark_vllm_kv_cache_memory: "16000000000"` (reserved 14.9 GiB / 515,786 tok /
 > 1.97× @262k): the 3-rung load chain passed it (0 kernel OOM, 0 engine restarts, 0 guard-fires) and the
@@ -46,6 +68,7 @@ Laptop/WSL reaches the **Mgmt VLAN directly** (Windows `Mgmt99` vNIC, `wsl-nat-r
 For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human). Each HD line links its owning doc + todo row; the ⏳ = exact next step. Deploy-gated verifies live in [`deployment-tasks.md`](deployment-tasks.md) (per-phase chapters).
 
 **AI-actionable now (no owner prerequisite):**
+- **HD-396** — ⏳ **finish containing the leaked `spark-llm_api` bearer (P1: still live).** Tip is redacted + gated; rotation, history scrub and the SA-token rotation are open. **Read [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a first** — it is the consumer map, the write-token location and the reason the vault write cannot be separated from the three converges. Do not re-investigate the leak itself (root cause, scope and the two commits are recorded there) and do not re-derive the scanner: `scripts/check_secrets.py` is wired into `validate-all.sh` and negative-tested. · [todo.md HD-396](todo.md)
 - **HD-385** — ⏳ **Pinned-AI stack per leg — decision #25 (owner-approved, research 2026-09-17): embed stays Ollama `:rocm` · rerank → **CPU CrossEncoder** · STT → **`whisper.cpp` GGML_HIP on the native `gfx1102` target**.** SSOT is written and green ([services-ai.md](docs/services-ai.md) §9 #25 + the new **§9c dated research record** with every primary-source citation, [hardware-gpu.md](docs/hardware-gpu.md) new CWSR section, [smart-home-voice.md](docs/smart-home-voice.md)); **nothing is implemented yet.** **Do not re-run the research — §9c is the record. Do not bump the ollama `:rocm` pin hoping for rerank.** **Start in this order:** **(b) FIRST — the one open decision:** verify which LiteLLM rerank provider can route the CPU service (`litellm/llms/ollama/rerank/transformation.py` = 404, so the endpoint must be Jina `/v1/rerank` / Cohere / `hosted_vllm`-compatible); this answer shapes the service, so settle it before writing code. **(a)** then pick the CPU reranker (candidate `Theroxenes/local-reranker-rocm` — **CPU mode only**, vet license + maintenance first) or write a ~40-line FastAPI. **(c)** whisper.cpp `whisper-server` + a thin **OpenAI-compat wrapper** (server.cpp only serves `POST /inference` multipart WAV + `/load` + `/health`; HA Assist wants `/v1/audio/transcriptions`). **(d)** IaC task to fetch GGML models (whisper.cpp ships GGML URLs, not HF — no task exists). **(e)** re-point LiteLLM `…/rerank` + voice STT legs. **(f)** live-verify VRAM/concurrency (`rocm-smi`) + a ~15 min CWSR burn-in. **Non-actions decided 2026-09-17:** do **not** set `amdgpu.cwsr_enable=0` up front and do **not** introduce `amdgpu-dkms` on oldsrv — both reasons are in the hardware-gpu.md CWSR section; gfx1102 has **no confirmed hang report**, treat the exposure as inferred. **Also open:** `immich-ML co-residency` at pinned-AI 3–4 GB is arithmetic, not measured. · [services-ai.md](docs/services-ai.md) §9c · [todo.md HD-385](todo.md)
 - **HD-375** — ✅ **AUTHORED 2026-09-17** (`e11ea74`): `spark-host-mem-oom-critical` (<8 GiB, `for: 1m`, `noDataState: Alerting`) + `spark-host-mem-oom-warning` (<12 GiB, `for: 2m`) in `roles/monitoring/vars/main.yml` on the **corrected** gauge `MemAvailable − CmaFree`. ✅ **CONVERGED 2026-09-17 22:33C** (`vps.yml --tags monitoring`, failed=0): both rules load in the ruler, deploy preflighted against the backend (`node_memory_CmaFree_bytes{instance="spark…"}` exists → `noDataState: Alerting` cannot false-fire; `usable` 30.4 GiB = clear), and the WARN rule's mis-labelled summary ("< 8 GiB" vs threshold 12) is fixed. ⏳ **Next: owner confirms them in the Grafana UI + that they reach n8n.** Two things not to get wrong: the thresholds moved off the original 24/16 design, and the old raw-`MemAvailable` §Alerting spec is superseded by [`spark-incidents.md`](docs/spark-incidents.md) #7/#8 (observability.md §Alerting now carries the live rule set). **The operating point moved on 2026-09-18** with the 16 GiB KV pool: idle `usable` is **18.5 GiB**, not the 30.4 the deploy measured — rules unchanged and still clear, but the WARN margin is now 6.5 GiB, which is the same measurement that says the KV pool is at its ceiling · [observability.md](docs/observability.md) §Alerting
 - **HD-344** — ⏳ register MCP victoria endpoints in pi / Open WebUI / OpenClaw (**servers deployed :8083/:8084** — moved off :8080 which is pi-dev's port, 2026-09-15); tailnet redo = owner. · [observability.md](docs/observability.md) §MCP
