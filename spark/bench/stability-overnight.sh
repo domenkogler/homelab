@@ -158,6 +158,24 @@ capture_evidence(){ # the box may be power-cycled by morning — snapshot to XFS
   log "  evidence snapshotted: $D"
 }
 
+# Verified evidence archive. Built in /tmp, NEVER inside the tree it archives: an archive written into
+# its own source directory grows while tar reads it, which yields a file that lists a few members and
+# dies on the rest — three committed chain bundles turned out to be exactly that (unreadable
+# decoration next to a README that cited them). So: build outside, prove it reads back, only then
+# publish, and log the sha256 so a later reader can prove integrity instead of trusting size.
+bundle(){ # bundle <name.tar.gz> <tar-source-args…>  →  publishes $DIR/<name>
+  local name=$1; shift
+  local tmp="/tmp/stability-bundle.$$.${name}" out="$DIR/$name"
+  rm -f "$tmp"
+  tar czf "$tmp" "$@" 2>/dev/null || { log "  BUNDLE FAIL (create): $name"; return 1; }
+  if ! tar tzf "$tmp" >/dev/null 2>&1; then
+    log "  BUNDLE CORRUPT (read-back failed): $name — left at $tmp for forensics, NOT published"
+    return 1
+  fi
+  mv "$tmp" "$out"
+  log "  bundled: $(basename "$out") $(stat -c %s "$out") bytes, $(tar tzf "$out" | wc -l) members, sha256 $(sha256sum "$out" | cut -c1-16)…"
+}
+
 recover_gate(){ local from=$1 waited=0 u
   log "  cooldown ${COOLDOWN}s after the kill from $from"; sleep "$COOLDOWN"
   while [ "$waited" -lt "$RECOVER_WAIT" ]; do
@@ -303,7 +321,12 @@ KV_TABLE=$(awk -v min="${MIN_U:-0}" -v idle="$IDLE_U" -v res="$RESERVE_GIB" -v n
   echo "  * fp8 KV would roughly DOUBLE the tokens for the SAME GiB — deliberately excluded here."
   echo "  * the parallel-lane rule stands: one shared pool, max_num_seqs=4."
   echo "=============================================================="
-  echo "evidence: $DIR/evidence + $DIR/logs | on-box watchdog bundles: /mnt/spark_nvme/oom-watchdog/snapshots/"
+  echo "evidence: $DIR/evidence + $DIR/logs | on-box watchdog telemetry: /mnt/spark_nvme/oom-watchdog/{state,snapshots}/"
 } | tee "$DONE" | tee -a "$MAIN"
+
+# ---- verified archive of everything above (after $DONE exists, so the verdict is inside) ----------
+STAMP=$(date +%Y%m%d-%H%M)
+bundle "evidence-$STAMP.tar.gz" -C "$DIR" logs evidence chain.log OVERNIGHT.done state.env 2>>"$MAIN" \
+  || log "  no archive produced — the run dir is the only copy; pull it before anything reboots this box"
 
 exit "$FAILED"
