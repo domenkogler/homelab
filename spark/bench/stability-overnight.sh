@@ -172,6 +172,14 @@ bundle(){ # bundle <name.tar.gz> <tar-source-args…>  →  publishes $DIR/<name
     log "  BUNDLE CORRUPT (read-back failed): $name — left at $tmp for forensics, NOT published"
     return 1
   fi
+  # SECRET GATE — scan the PAYLOAD, not just the file list. An archive is precisely where a
+  # committed credential hides from grep, and that is how the live engine bearer reached
+  # origin/main: `vllm bench serve` echoes its own Authorization header into every step log,
+  # and those logs were bundled here. Refuse rather than publish and let a later scan find it.
+  if tar xzOf "$tmp" 2>/dev/null | grep -qE 'Authorization[=:][[:space:]]*["'"'"']?[Bb]earer[[:space:]]+[A-Za-z0-9._:+/-]{16,}|ops_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY'; then
+    log "  BUNDLE REFUSED (secret shape in payload): $name — left at $tmp for inspection, NOT published"
+    return 1
+  fi
   mv "$tmp" "$out"
   log "  bundled: $(basename "$out") $(stat -c %s "$out") bytes, $(tar tzf "$out" | wc -l) members, sha256 $(sha256sum "$out" | cut -c1-16)…"
 }
