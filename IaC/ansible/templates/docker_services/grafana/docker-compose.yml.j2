@@ -30,6 +30,18 @@ services:
       # VictoriaLogs Grafana plugin (HD-342) — full LogsQL datasource; installed at
       # container start. VM is queried via the bundled prometheus datasource (uid `prometheus`).
       GF_INSTALL_PLUGINS: victoriametrics-logs-datasource
+      # HD-390 (2026-09-17): Grafana 13 ships its BUNDLED plugins (incl. `prometheus`, the one
+      # that talks to VictoriaMetrics) in the read-only image layer at
+      # /usr/share/grafana/data/plugins-bundled and RE-INSTALLS them on every start — which
+      # needs to unlink that dir. With `read_only: true` above the unlink fails ("Failed to
+      # install plugin pluginId=prometheus error=unlinkat …: read-only file system"), the
+      # plugin ends up NOT REGISTERED, and everything on the `prometheus` datasource dies:
+      # every panel of every homelab-* dashboard + every alert rule ("plugin.notRegistered",
+      # ~2500 failed evals). Disabling the bundled-plugin preinstall makes Grafana load them
+      # in place from the image (the state that worked before the first restart) — it does
+      # NOT affect GF_INSTALL_PLUGINS, which the entrypoint installs into the writable
+      # /var/lib/grafana/plugins (that is why victoriametrics-logs-datasource stayed healthy).
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
       # Admin account — behind Authentik Forward-Auth (admin uses Forward-Auth SSO,
       # this account is the break-glass / provisioning owner).
       GF_SECURITY_ADMIN_USER: admin

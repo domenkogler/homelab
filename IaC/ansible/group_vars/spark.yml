@@ -177,7 +177,24 @@ spark_vllm_kv_cache_dtype: "auto"
 # in the container's own CacheConfig/gpu_worker source). 8.2 GiB ≈ 275k tokens ≥ the
 # 262,144 boot-gate with margin; total device footprint ≈ weights 77.69 + act 2.99 + graphs
 # 0.22 + KV 8.2 ≈ 89.1 GiB → host reserve ≈ 32.5 GiB (was ~21.9).
-spark_vllm_kv_cache_memory: "8800000000"
+#
+# 16 GiB (2026-09-18, ✅ CONVERGED + STRESS-CERTIFIED — this is the stable config):
+#   target = 2× full 262,144-token windows (the owner's daily workload: two concurrent
+#   full-context sessions). Nominal 16 GiB → vLLM reserves 14.9 GiB = 515,786 tokens =
+#   1.97× concurrency (vs 8.2 GiB's 283,398 / 1.08×).
+#   CERTIFIED by the 3-rung load chain 2026-09-18 09:21–10:54Z (rung123 → compact 2×200k
+#   → fullwindow 2×240k = 480,105 tok ≈ 94.6 % of pool): 0 kernel OOM, 0 engine restarts,
+#   0 guard-fires, usable worst 17.78 GiB, engine top-pid +1,278 MiB over ~1.5 h.
+#   Evidence: spark/reports/stability/README.md · runbook spark/stability-test.md.
+#   CONSEQUENCES now true on the box (do not re-derive):
+#     · idle usable 30.5 → 18.5 GiB — WARN 12 / CRIT 8 still clear, margin is 6.5 GiB.
+#     · CEILING: measured headroom after the raise is runtime +5.5 / boot-side +5.4 GiB,
+#       and BOOT is the binding side (Initial free memory 114.07 GiB, engine holds ~96.7).
+#       DO NOT raise further in bf16 — the next KV byte is --kv-cache-dtype fp8's job.
+#     · bench-guard floors are on usable (not raw MemAvailable) at 16 GiB; the certified
+#       run's worst moment sat 0.72 GiB above that floor, so do not "give it more margin"
+#       by lowering it, and do not raise it without re-measuring (spark/stability-test.md §2).
+spark_vllm_kv_cache_memory: "16000000000"
 # spark_vllm_gpu_memory_utilization REMOVED 2026-09-16 (HD-374): with kv_cache_memory_bytes
 # set, this build's determine_available_memory() skips memory profiling and ignores the
 # parameter entirely — keeping it would be dead config and a false sense of a "ceiling".

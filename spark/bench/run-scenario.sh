@@ -67,19 +67,26 @@ esac
 # Host-memory preflight (GB10 unified pool lesson, 2026-09-15): the engine idles at
 # ~93 GB of a 121.6 GiB pool; C3 (12x8k @c3) made the engine RSS climb + host extras
 # (alloy/dashboard/sshd) over the fence → global OOM killed sshd/NetworkManager.
-# Guard: if free+available < FLOOR, refuse to launch (the OOM is not recoverable live).
+# Guard: if USABLE (= MemAvailable − CmaFree) < FLOOR, refuse to launch (the OOM is not
+# recoverable live).
 # RAISED 8→14 GiB 2026-09-16 (HD-380): with the HD-374 KV governor live the box IDLES
 # at ~16 GiB available, so an 8 GiB floor sat INSIDE the danger zone — it would have
 # waved through both 2026-09-16 kills. Pair with stress-oom.sh, which adds a live guard
 # that stops the engine on breach instead of letting the kernel pick the victim.
-MEM_FLOOR_GB="${MEM_FLOOR_GB:-14}"
-if command -v free >/dev/null 2>&1; then
-  _avail=$(free -g | awk '/^Mem:/{print $7}')
-  if [[ -n "$_avail" && "$_avail" -lt "$MEM_FLOOR_GB" ]]; then
-    echo "ERROR: only ${_avail} GiB available (< ${MEM_FLOOR_GB} GiB floor) — would global-OOM the box (GB10 unified pool). Aborting." >&2
+# GAUGE FIXED + RAISED 14→16 2026-09-18 (spark stability-certify close-out): this read raw `free -g`
+# column 7 = MemAvailable, and MemAvailable is FALSIFIED on GB10 — CMA counts as
+# available, so it INFLATES as pressure rises (measured CmaFree up to 6.61 GiB; at both
+# real kills MemAvailable read ~10.4 GiB while usable was 1.6). On the 16 GiB KV pool the
+# box idles at usable ~18.5, so a raw-avail floor both false-trips and reads healthy at
+# the wrong moments. Same one gauge as the watchdog + alert rules.
+USABLE_FLOOR_GIB="${USABLE_FLOOR_GIB:-${MEM_FLOOR_GB:-16}}"
+if command -v awk >/dev/null 2>&1; then
+  _usable=$(awk '/^MemAvailable:/{a=$2}/^CmaFree:/{c=$2}END{printf "%.1f",(a-c)/1048576}' /proc/meminfo)
+  if [[ -n "$_usable" && $(awk -v x="${_usable:-0}" -v f="$USABLE_FLOOR_GIB" 'BEGIN{print (x<f)?1:0}') == "1" ]]; then
+    echo "ERROR: only ${_usable} GiB usable (< ${USABLE_FLOOR_GIB} GiB floor) — would global-OOM the box (GB10 unified pool). Aborting." >&2
     exit 2
   fi
-  echo ">>> host available memory: ${_avail} GiB (floor ${MEM_FLOOR_GB} GiB)"
+  echo ">>> host usable memory: ${_usable} GiB (floor ${USABLE_FLOOR_GIB} GiB, gauge = MemAvailable − CmaFree)"
 fi
 
 echo ">>> [$STEP] $SCENARIO seed=$SEED conc=$CONC endpoint=:$PORT warm=$WARM start=$TS"
