@@ -84,7 +84,7 @@ journalctl -kf | grep -iE 'gpu|kfd|amdgpu|hws'
 
 | Consumer | Runtime | GPU target | Why |
 |---|---|---|---|
-| `bge-m3` embed | Ollama `:rocm` | container runtime (verified live) | already E2E-verified; no reason to move |
+| `bge-m3` embed | Ollama `:rocm` · ⏳ **#27 proposed → `llama.cpp server-vulkan`** (same image as rerank) | container runtime (verified live) / **RADV Vulkan** | live + E2E-verified today, but measured **15 ms vs ~500 ms** per query chunk, **326 vs 899 MiB** VRAM, **157 MiB vs 2.19 GiB** RSS, and **cosine 0.9996 vs the live vectors** ⇒ no re-embed penalty ([services-ai-bench.md](services-ai-bench.md) §3b) |
 | Whisper STT | **`whisper.cpp` GGML_HIP** · ⏳ **#27 proposed → `main-vulkan` digest-pin** (the HIP image is **not published**) | **native `gfx1102`** (HIP) / **RADV Vulkan** | no HSA override, no PyTorch runtime; **measured RSS 34 MiB**, 1.72 GiB VRAM, 0.40 s / 11 s WAV ([services-ai-bench.md](services-ai-bench.md) §2) |
 | `bge-reranker-v2-m3` | **CPU** (TEI `cpu-1.9.4` INT8 or `llama.cpp` CPU) · ⏳ **#27 proposed → `llama.cpp server-vulkan` on this card** | — | #25 assumed “1.5 GB VRAM + a ROCm runtime” and **10–30 ms/pair**; measured: **425 MiB**, no ROCm, **0.50 s** vs **5.3 s CPU** for top-20 ([services-ai-bench.md](services-ai-bench.md) §3) |
 | immich-ML | container ROCm | container runtime | existing AMD precedent in this house |
