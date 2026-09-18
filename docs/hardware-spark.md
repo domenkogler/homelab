@@ -62,6 +62,16 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > recycle, so a young `StartedAt` you did not cause is normal — see
 > [`../spark/stability-test.md`](../spark/stability-test.md) and §Unified-memory budget.
 
+> **The idle-recycle baseline is a boot-time coin-flip (measured 2026-09-18, filed as HD-395).** The guard
+> recycles at *first-post-boot top-pid + 8 GiB after 1800 s idle*, but on this box that first sample is not a
+> constant — the same config has been read at the boot floor as **71,911 / 86,243 / 92,343 MiB**, because the
+> 168 GiB PLE checkpoint loads unevenly and the sampler grabs whatever the very first sample was. Two bad
+> directions: a low baseline makes ordinary traffic cross the line (two healthy-idle recycles fired 35 min
+> apart, `08:39:18Z` + `09:13:57Z`, each costing a ~20 min cold start and an `llm.*` 502 window that reads as
+> an outage), a high baseline puts the line above the traffic peak and the guard goes silent. The `+8 GiB`
+> margin also has to be re-read against the certified peak, not the 8.2-era one. Evidence:
+> `sudo /usr/local/bin/spark-oom-watchdog.sh status` + `state/enforce.log`.
+
 ---
 
 ## Unified-memory budget & OOM governance (2026-09-16)

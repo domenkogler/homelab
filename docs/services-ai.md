@@ -21,7 +21,14 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 > `deployment-secrets.md`, `services.md`
 > **Linked from:** `services.md`, `index.md`
 
-> **Status:** VPS platform **live since 2026-08-22** (Phase 1): LiteLLM spine, Open WebUI x2
+> **Status:** VPS platform **live since 2026-08-22** (Phase 1): LiteLLM spine — **the HD-100/HD-247
+> cutover is complete and those rows are deleted**: `litellm_api` + `litellm_version` pinned
+> (`v1.83.10-stable`, verified on the running container), models live in the DB, scoped keys minted by
+> the bootstrap glue. Do not re-do the cutover; the open LiteLLM questions are HD-384 (who may call
+> what) and HD-373/387. ⚠ **“Open WebUI x2” is NOT true on the box (checked 2026-09-18):** the VPS
+> runs ONE `open-webui` (`openwebui/open-webui:0.11.0`) at `Host(ai.kogler.si)` and the `chat` service
+> is **element-web**, not a second OWUI instance — correct this banner as part of HD-248, which is
+> still open. Historical wording: Open WebUI x2
 > (`chat.kogler.si` public family / `ai.kogler.si` internal tailnet-only -- v2/Hi-248 split), Docling,
 > OpenClaw up on the VPS. **Immich-ML is LIVE on oldsrv (Phase 3) and the `immich-app→immich-ml`
 > cross-host round-trip is VERIFIED (2026-09-08)** — the VPS server health-checks the oldsrv ML
