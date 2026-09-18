@@ -1,0 +1,80 @@
+22:00:25 === stress-oom 20260917-220025 | floor=18GiB psi_max=30% max_rung=3 prefill_in=49152 ===
+22:00:25 preflight: MemAvailable=30.4GiB PSI-full=0% engine-restarts=0 gpu-top=86725MiB
+22:00:25 engine per-pid at REST: 86725 MiB | MemAvailable 30.5 GiB   <-- the baseline every phase is judged against
+22:00:25 --- PHASE A: shape churn (lazy cudagraph/inductor capture under mixed batch shapes) ---
+22:00:25 preflight: MemAvailable=30.5GiB PSI-full=0% engine-restarts=0 gpu-top=86725MiB
+22:00:25 STEP A1 c1 in512: in=512 out=128 conc=1 seed=1007 avail=30.5GiB
+22:00:47 STEP A1 c1 in512: rc=0 ok=1/1 in_tok=564 after: avail=30.3GiB gpu-top=86725MiB restarts=0 
+22:00:47 preflight: MemAvailable=30.3GiB PSI-full=3% engine-restarts=0 gpu-top=86725MiB
+22:00:47 STEP A2 c1 in4096: in=4096 out=128 conc=1 seed=1014 avail=30.3GiB
+22:01:13 STEP A2 c1 in4096: rc=0 ok=1/1 in_tok=4148 after: avail=30.4GiB gpu-top=86725MiB restarts=0 
+22:01:13 preflight: MemAvailable=30.4GiB PSI-full=1% engine-restarts=0 gpu-top=86725MiB
+22:01:13 STEP A3 c1 in16384: in=16384 out=128 conc=1 seed=1021 avail=30.4GiB
+22:01:47 STEP A3 c1 in16384: rc=0 ok=1/1 in_tok=16438 after: avail=30.6GiB gpu-top=86725MiB restarts=0 
+22:01:47 preflight: MemAvailable=30.6GiB PSI-full=1% engine-restarts=0 gpu-top=86725MiB
+22:01:47 STEP A4 c2 in512: in=512 out=128 conc=2 seed=1028 avail=30.5GiB
+22:02:08 STEP A4 c2 in512: rc=0 ok=2/2 in_tok=1130 after: avail=30.6GiB gpu-top=86725MiB restarts=0 
+22:02:08 preflight: MemAvailable=30.6GiB PSI-full=1% engine-restarts=0 gpu-top=86725MiB
+22:02:08 STEP A5 c2 in4096: in=4096 out=128 conc=2 seed=1035 avail=30.6GiB
+22:02:35 STEP A5 c2 in4096: rc=0 ok=2/2 in_tok=8299 after: avail=30.7GiB gpu-top=86725MiB restarts=0 
+22:02:35 preflight: MemAvailable=30.7GiB PSI-full=1% engine-restarts=0 gpu-top=86725MiB
+22:02:35 STEP A6 c2 in16384: in=16384 out=128 conc=2 seed=1042 avail=30.7GiB
+22:03:25 STEP A6 c2 in16384: rc=0 ok=2/2 in_tok=32873 after: avail=30.7GiB gpu-top=86725MiB restarts=0 
+22:03:25 preflight: MemAvailable=30.7GiB PSI-full=2% engine-restarts=0 gpu-top=86725MiB
+22:03:25 STEP A7 c3 in512: in=512 out=128 conc=3 seed=1049 avail=30.6GiB
+22:03:50 STEP A7 c3 in512: rc=0 ok=3/3 in_tok=1694 after: avail=30.6GiB gpu-top=86725MiB restarts=0 
+22:03:50 preflight: MemAvailable=30.6GiB PSI-full=1% engine-restarts=0 gpu-top=86725MiB
+22:03:50 STEP A8 c3 in4096: in=4096 out=128 conc=3 seed=1056 avail=30.6GiB
+22:04:22 STEP A8 c3 in4096: rc=0 ok=3/3 in_tok=12445 after: avail=30.7GiB gpu-top=86725MiB restarts=0 
+22:04:22 preflight: MemAvailable=30.7GiB PSI-full=1% engine-restarts=0 gpu-top=86725MiB
+22:04:22 STEP A9 c3 in16384: in=16384 out=128 conc=3 seed=1063 avail=30.6GiB
+22:05:25 STEP A9 c3 in16384: rc=0 ok=3/3 in_tok=49310 after: avail=30.7GiB gpu-top=86725MiB restarts=0 
+22:05:25 preflight: MemAvailable=30.7GiB PSI-full=1% engine-restarts=0 gpu-top=86725MiB
+22:05:25 STEP A10 c2 in512: in=512 out=128 conc=2 seed=1070 avail=30.7GiB
+22:05:46 STEP A10 c2 in512: rc=0 ok=2/2 in_tok=1129 after: avail=30.6GiB gpu-top=86725MiB restarts=0 
+22:05:46 preflight: MemAvailable=30.6GiB PSI-full=0% engine-restarts=0 gpu-top=86725MiB
+22:05:46 STEP A11 c2 in4096: in=4096 out=128 conc=2 seed=1077 avail=30.6GiB
+22:06:13 STEP A11 c2 in4096: rc=0 ok=2/2 in_tok=8299 after: avail=30.7GiB gpu-top=86725MiB restarts=0 
+22:06:13 preflight: MemAvailable=30.7GiB PSI-full=0% engine-restarts=0 gpu-top=86725MiB
+22:06:13 STEP A12 c2 in16384: in=16384 out=128 conc=2 seed=1084 avail=30.7GiB
+22:06:58 STEP A12 c2 in16384: rc=0 ok=2/2 in_tok=32873 after: avail=30.5GiB gpu-top=86725MiB restarts=0 
+22:06:58 preflight: MemAvailable=30.5GiB PSI-full=3% engine-restarts=0 gpu-top=86725MiB
+22:06:58 STEP A13 c1 in512: in=512 out=128 conc=1 seed=1091 avail=30.5GiB
+22:07:16 STEP A13 c1 in512: rc=0 ok=1/1 in_tok=564 after: avail=30.7GiB gpu-top=86725MiB restarts=0 
+22:07:16 preflight: MemAvailable=30.7GiB PSI-full=0% engine-restarts=0 gpu-top=86725MiB
+22:07:16 STEP A14 c1 in4096: in=4096 out=128 conc=1 seed=1098 avail=30.7GiB
+22:07:38 STEP A14 c1 in4096: rc=0 ok=1/1 in_tok=4148 after: avail=30.6GiB gpu-top=86725MiB restarts=0 
+22:07:38 preflight: MemAvailable=30.6GiB PSI-full=1% engine-restarts=0 gpu-top=86725MiB
+22:07:38 STEP A15 c1 in16384: in=16384 out=128 conc=1 seed=1105 avail=30.6GiB
+22:08:06 STEP A15 c1 in16384: rc=0 ok=1/1 in_tok=16437 after: avail=30.6GiB gpu-top=86725MiB restarts=0 
+22:08:06 preflight: MemAvailable=30.6GiB PSI-full=0% engine-restarts=0 gpu-top=86725MiB
+22:08:06 STEP A16 c3 in512: in=512 out=128 conc=3 seed=1112 avail=30.6GiB
+22:08:29 STEP A16 c3 in512: rc=0 ok=3/3 in_tok=1692 after: avail=30.6GiB gpu-top=86725MiB restarts=0 
+22:08:29 preflight: MemAvailable=30.6GiB PSI-full=0% engine-restarts=0 gpu-top=86725MiB
+22:08:29 STEP A17 c3 in4096: in=4096 out=128 conc=3 seed=1119 avail=30.6GiB
+22:08:59 STEP A17 c3 in4096: rc=0 ok=3/3 in_tok=12444 after: avail=30.6GiB gpu-top=86725MiB restarts=0 
+22:08:59 preflight: MemAvailable=30.6GiB PSI-full=1% engine-restarts=0 gpu-top=86725MiB
+22:08:59 STEP A18 c3 in16384: in=16384 out=128 conc=3 seed=1126 avail=30.6GiB
+22:09:47 STEP A18 c3 in16384: rc=0 ok=3/3 in_tok=49308 after: avail=30.7GiB gpu-top=86725MiB restarts=0 
+22:09:47 --- PHASE B: concurrent FRESH large prefills (unprofiled activation transient) ---
+22:09:47 KV pool is FIXED at 8.2 GiB / 283,398 tok — rungs below are sized by PREFILL, not by KV occupancy
+22:09:47 RUNG 1: 2 concurrent x 49152-token FRESH prefills (~96k tok in flight)
+22:09:47 preflight: MemAvailable=30.7GiB PSI-full=0% engine-restarts=0 gpu-top=86725MiB
+22:09:47 STEP B1 x2: in=49152 out=256 conc=2 seed=5013 avail=30.6GiB
+22:11:16 STEP B1 x2: rc=0 ok=2/2 in_tok=98409 after: avail=30.6GiB gpu-top=86725MiB restarts=0 
+22:11:16 post-rung: avail=30.6GiB gpu-top=86725MiB — pausing 45s to let the pool settle
+22:12:01 RUNG 2: 3 concurrent x 49152-token FRESH prefills (~144k tok in flight)
+22:12:01 preflight: MemAvailable=30.7GiB PSI-full=0% engine-restarts=0 gpu-top=86725MiB
+22:12:01 STEP B2 x3: in=49152 out=256 conc=3 seed=5026 avail=30.7GiB
+22:14:15 STEP B2 x3: rc=0 ok=3/3 in_tok=147613 after: avail=30.7GiB gpu-top=86725MiB restarts=0 
+22:14:16 post-rung: avail=30.7GiB gpu-top=86725MiB — pausing 45s to let the pool settle
+22:15:01 RUNG 3: 4 concurrent x 49152-token FRESH prefills (~192k tok in flight)
+22:15:01 preflight: MemAvailable=30.7GiB PSI-full=0% engine-restarts=0 gpu-top=86725MiB
+22:15:01 STEP B3 x4: in=49152 out=256 conc=4 seed=5039 avail=30.7GiB
+22:17:43 STEP B3 x4: rc=0 ok=4/4 in_tok=196816 after: avail=31.2GiB gpu-top=86725MiB restarts=0 
+22:17:43 post-rung: avail=31.2GiB gpu-top=86725MiB — pausing 45s to let the pool settle
+22:18:28 === DONE. rest: avail=31.1GiB gpu-top=86725MiB restarts=0 ===
+22:18:28 PHASE C (idle decay) is PASSIVE: systemctl status spark-oom-watchdog; read the pre-event curve with
+22:18:28   tail -50 /mnt/spark_nvme/oom-watchdog/state/samples.csv   # watch gpu_top_mib ratchet upward while idle
+22:18:28   spark-oom-watchdog.sh status
+22:18:28 log: /mnt/spark_nvme/stability/logs/stress-oom-20260917-220025.log

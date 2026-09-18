@@ -1,0 +1,85 @@
+00:00:26 synced to spark:/mnt/spark_nvme/stability (runner + bench harness)
+00:00:29 chain running on spark
+00:00:29 supervising (poll 60s, relaunch cap 6). Ctrl-C stops supervising, NOT the chain.
+00:01:29 RUNNING | usable=29.39G top=86725M done=[""] | 
+00:02:30 RUNNING | usable=29.62G top=86725M done=[""] | 
+00:03:30 RUNNING | usable=30.11G top=86725M done=[""] | 
+00:04:30 RUNNING | usable=29.97G top=86725M done=[""] | 
+00:05:30 RUNNING | usable=30.00G top=86725M done=[""] | 
+00:06:30 RUNNING | usable=29.62G top=86725M done=[""] | 
+00:07:30 RUNNING | usable=29.44G top=86725M done=[""] | 
+00:08:30 RUNNING | usable=30.11G top=86725M done=[""] | 
+00:09:30 RUNNING | usable=29.59G top=86725M done=[""] | 
+00:10:31 RUNNING | usable=29.59G top=86725M done=[""] | 
+00:11:31 RUNNING | usable=30.38G top=86725M done=[""] | 
+00:12:31 RUNNING | usable=29.62G top=86725M done=[""] | 
+00:13:31 RUNNING | usable=29.58G top=86725M done=[""] | 
+00:14:31 RUNNING | usable=30.33G top=86725M done=[""] | 
+00:15:31 RUNNING | usable=28.80G top=86725M done=[""] | 
+00:16:31 RUNNING | usable=29.84G top=86725M done=[""] | 
+00:17:32 RUNNING | usable=30.71G top=86725M done=[""] | 
+00:18:32 RUNNING | usable=30.56G top=86725M done=["rung123"] | 
+00:19:32 RUNNING | usable=30.03G top=86725M done=["rung123"] | 
+00:20:32 RUNNING | usable=30.38G top=86725M done=["rung123"] | 
+00:21:32 RUNNING | usable=30.13G top=86725M done=["rung123"] | 
+00:22:32 RUNNING | usable=29.92G top=86725M done=["rung123"] | 
+00:23:32 RUNNING | usable=30.51G top=86725M done=["rung123"] | 
+00:24:32 RUNNING | usable=30.49G top=86725M done=["rung123"] | 
+00:25:33 RUNNING | usable=29.97G top=86725M done=["rung123"] | 
+00:26:33 RUNNING | usable=30.01G top=86725M done=["rung123"] | 
+00:27:33 RUNNING | usable=29.74G top=86725M done=["rung123"] | 
+00:28:33 RUNNING | usable=29.66G top=86725M done=["rung123"] | 
+00:29:33 RUNNING | usable=29.64G top=86725M done=["rung123"] | 
+00:30:33 RUNNING | usable=29.67G top=86725M done=["rung123"] | 
+00:31:33 RUNNING | usable=29.67G top=86725M done=["rung123"] | 
+00:32:34 RUNNING | usable=30.48G top=86725M done=["rung123"] | 
+00:33:34 RUNNING | usable=29.81G top=86725M done=["rung123 compact"] | 
+00:34:34 RUNNING | usable=29.61G top=86725M done=["rung123 compact"] | 
+00:35:34 RUNNING | usable=29.66G top=86725M done=["rung123 compact"] | 
+00:36:34 RUNNING | usable=29.96G top=86725M done=["rung123 compact"] | 
+00:37:34 RUNNING | usable=30.23G top=86725M done=["rung123 compact"] | 
+00:38:34 RUNNING | usable=30.32G top=86725M done=["rung123 compact"] | 
+00:39:34 RUNNING | usable=29.69G top=86725M done=["rung123 compact"] | 
+00:40:35 RUNNING | usable=30.39G top=86725M done=["rung123 compact"] | 
+00:41:35 RUNNING | usable=29.40G top=86725M done=["rung123 compact"] | 
+00:42:35 chain finished
+00:42:35 evidence pulled to /home/domen/source/homelab-wt-20260918-0000/spark/bench/overnight/evidence-20260918-0042 (492K)
+==============================================================
+RESULT: FAILED ❌ — fullwindow applied no real load (zero-load step) — a pass would be fake
+==============================================================
+runs completed  2/3 | kills continued through 0 (cap 2) | box reboots 0
+usable          30.32 GiB -> worst 28.81 GiB   (the two observed kills landed at 1.6)
+engine top-pid  86725 MiB -> max 86725 MiB (delta 0 MiB)
+kernel oom-kill 3 -> 3 | restarts 0 -> 0 | health 200
+NVRM NV_ERR_NO_MEMORY 218 -> 218  (a burst during weight-load at boot is normal;
+                                                    steady-state growth during the run is not)
+--------------------------------------------------------------
+HOW MUCH MORE KV CAN I AFFORD (bf16, no fp8)?
+  worst observed usable : 28.81 GiB  (idle after the run 30.36 GiB)
+  reserve target        : 12.00 GiB  (watchdog CRIT 8.0; both real kills landed at 1.6)
+  => EXTRA KV AFFORDABLE: 16.5 GiB -> pool 8.2 -> 24.7 GiB   (bf16, no fp8)
+     +571007 tokens = +2.18 full 262144-token windows
+     pool 24.7 GiB = 854780 tokens = 3.26 windows  (today 283,398 tok = 1.08)
+  projection, usable at the worst moment IF the peak stays as measured:
+     KV +0  GiB (8.2  total) -> worst usable 28.8 GiB 
+     KV +4  GiB (12.2 total) -> worst usable 24.8 GiB 
+     KV +8  GiB (16.2 total) -> worst usable 20.8 GiB 
+     KV +12 GiB (20.2 total) -> worst usable 16.8 GiB 
+     KV +16 GiB (24.2 total) -> worst usable 12.8 GiB 
+  BOOT check (the pool is reserved at boot, out of what was free then):
+     free at boot 114.6 GiB  (weights alone took 73.5 GiB) | engine holds ~91.3 GiB now
+     => boot-side allowance ~11.3 GiB
+     BINDING CONSTRAINT IS BOOT, NOT RUNTIME: cap extra KV at ~11.3 GiB
+--------------------------------------------------------------
+Not covered here — check before touching spark_vllm_kv_cache_memory:
+  * the pool is allocated AT BOOT: the boot log's 'Initial free memory … reserved N GiB' must
+    still leave Linux its reserve. This box already logs NV_ERR_NO_MEMORY during weight load,
+    so raise in +2 GiB steps and re-check the boot log each time.
+  * KV is CAPACITY, not stability. After a raise, re-measure prefix-cache hit rate and
+    preemptions — fewer evictions is the whole point, not a bigger number.
+  * fp8 KV would roughly DOUBLE the tokens for the SAME GiB — deliberately excluded here.
+  * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
+==============================================================
+evidence: /mnt/spark_nvme/stability/evidence + /mnt/spark_nvme/stability/logs | on-box watchdog bundles: /mnt/spark_nvme/oom-watchdog/snapshots/
+11:13:13 synced to spark:/mnt/spark_nvme/stability (runner + bench harness)
+11:13:16 evidence pulled to /home/domen/source/homelab-wt-20260918-0000/spark/bench/overnight/evidence-20260918-1113 (492K)
