@@ -118,6 +118,14 @@ START_EPOCH=$(date +%s)
 # enters the repo.
 API_KEY="$(docker inspect "$CONTAINER" --format '{{join .Config.Cmd " "}}' 2>/dev/null \
   | awk '{for(i=1;i<NF;i++) if($i=="--api-key") print $(i+1)}')"
+
+# SCRUB THE BEARER BEFORE IT REACHES DISK (2026-09-18). `vllm bench serve` prints its own
+# parsed argv, which contains `--header Authorization=Bearer <key>` — so every raw bench log
+# written under this harness carries the live spark-llm_api credential. That is exactly how a
+# live key landed in git history (bench logs + the stability tars archived from them, shipped
+# to origin/main twice). Gate at the point of WRITE: an archive-time or commit-time scan is a
+# detection net, not a boundary, and the thing that failed here was the writer.
+scrub(){ sed -u -E 's/(Authorization[= ]Bearer |Bearer )[A-Za-z0-9_.:+-]{16,}/\1«REDACTED:spark-llm_api»/g'; }
 SERVED="$(docker inspect "$CONTAINER" --format '{{join .Config.Cmd " "}}' 2>/dev/null \
   | awk '{for(i=1;i<NF;i++) if($i=="--served-model-name") print $(i+1)}')"
 AUTH=()
@@ -129,7 +137,7 @@ docker exec "$CONTAINER" vllm bench serve \
   --base-url "http://localhost:${PORT}" --endpoint /v1/chat/completions \
   --dataset-name random --random-input-len "$IN" --random-output-len "$OUT" \
   --num-prompts "$N" --max-concurrency "$CONC" --seed "$SEED" \
-  --save-result --result-filename bench-result.json --result-dir /tmp 2>&1 | tee "$RAW/benchlog-${RUN_TS}-${STEP}-${SCENARIO}-${SEED}.txt"
+  --save-result --result-filename bench-result.json --result-dir /tmp 2>&1 | scrub | tee "$RAW/benchlog-${RUN_TS}-${STEP}-${SCENARIO}-${SEED}.txt"
 # ZERO-LOAD GUARD: rc/tee tells you nothing (see AUTH note). A no-op run must not be
 # recorded as a bench result.
 _ok=$(grep -oE 'Successful requests:[[:space:]]*[0-9]+' "$RAW/benchlog-${RUN_TS}-${STEP}-${SCENARIO}-${SEED}.txt" | grep -oE '[0-9]+$' | tail -1)

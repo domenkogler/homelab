@@ -9,7 +9,6 @@ Each `evidence-<ts>/` is one supervised stability-chain pull:
 - `logs/launch.out` — the chain `launch.out` from spark (run START/END + verdict)
 - `logs/rung*.log` — per-run step log (shape-churn + prefill rungs)
 - `logs/step-*.log` — per-step `vllm bench serve` detail (the zero-load/Bad-Request evidence)
-- `chain-bundle.tar` — the on-box bundle as pulled
 
 Interpretation lives in the runbook: `spark/stability-test.md`.
 
