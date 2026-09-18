@@ -254,7 +254,7 @@ user pages: -1`** spread over 2026-09-15 → 09-18, i.e. from the `/dev/kfd` hol
 | "reranker on the iGPU is free capacity" | **5.8–22.8 s** per request (slower than CPU), ~800 MiB host RAM, frozen Gen 9.5 driver stack, contends with Xorg + QSV |
 | “#25(a): embed **stays** on Ollama `:rocm` — already live, no reason to move” | There is a measured reason: **33× on the query path (15 ms vs ~500 ms)**, 2.3× ingest, **−507 MiB VRAM**, **−2.0 GiB host RSS**, and **cosine 0.9996 against the live vectors**, so the move costs no correctness-driven re-embed (§3b) |
 
-## 8. Recommendation (⏳ owner ratification pending — HD-391)
+## 8. Recommendation (**ACCEPTED by owner 2026-09-18** — plan of record: [services-ai.md](services-ai.md) §3a; implementation HD-391)
 
 | Leg | Recommendation | Why |
 |-----|----------------|-----|

@@ -8,7 +8,7 @@ tags: [hardware, gpu, rocm, cross-cutting]
 ---
 # Shared GPU Resource
 
-> **Role:** Cross-cutting detail — shared GPU resource across AI/vision (immich-ML), voice, and gaming. oldsrv RX 7600 = **pinned AI services (STT + embed) + Sunshine encode + immich-ML batch**; the **reranker is CPU** (decision #25, 2026-09-17; ⏳ **under re-decision #27, proposed 2026-09-18 on measured data — 0.50 s on-GPU vs 5.3 s on CPU at 425 MiB**, [services-ai-bench.md](services-ai-bench.md) §3); spark (GB10) is the separate **big-model generation tier** (decision #24, 2026-09-15).
+> **Role:** Cross-cutting detail — shared GPU resource across AI/vision (immich-ML), voice, and gaming. oldsrv RX 7600 = **pinned AI services (STT + embed) + Sunshine encode + immich-ML batch**; the **reranker too** (decision #25 said CPU; **#27 ACCEPTED 2026-09-18** puts it on this card — measured **0.34–0.50 s on-GPU vs 5.3 s on CPU at ~330 MiB**, [services-ai-bench.md](services-ai-bench.md) §3; ⏳ IaC = HD-391); spark (GB10) is the separate **big-model generation tier** (decision #24, 2026-09-15).
 > **Links to:** `services-office.md`, `smart-home-voice.md`, `services.md`
 > **Linked from:** `hardware-oldsrv.md`, `hardware-spark.md`, `deployment-compose.md`
 
@@ -84,9 +84,9 @@ journalctl -kf | grep -iE 'gpu|kfd|amdgpu|hws'
 
 | Consumer | Runtime | GPU target | Why |
 |---|---|---|---|
-| `bge-m3` embed | Ollama `:rocm` · ⏳ **#27 proposed → `llama.cpp server-vulkan`** (same image as rerank) | container runtime (verified live) / **RADV Vulkan** | live + E2E-verified today, but measured **15 ms vs ~500 ms** per query chunk, **326 vs 899 MiB** VRAM, **157 MiB vs 2.19 GiB** RSS, and **cosine 0.9996 vs the live vectors** ⇒ no re-embed penalty ([services-ai-bench.md](services-ai-bench.md) §3b) |
-| Whisper STT | **`whisper.cpp` GGML_HIP** · ⏳ **#27 proposed → `main-vulkan` digest-pin** (the HIP image is **not published**) | **native `gfx1102`** (HIP) / **RADV Vulkan** | no HSA override, no PyTorch runtime; **measured RSS 34 MiB**, 1.72 GiB VRAM, 0.40 s / 11 s WAV ([services-ai-bench.md](services-ai-bench.md) §2) |
-| `bge-reranker-v2-m3` | **CPU** (TEI `cpu-1.9.4` INT8 or `llama.cpp` CPU) · ⏳ **#27 proposed → `llama.cpp server-vulkan` on this card** | — | #25 assumed “1.5 GB VRAM + a ROCm runtime” and **10–30 ms/pair**; measured: **425 MiB**, no ROCm, **0.50 s** vs **5.3 s CPU** for top-20 ([services-ai-bench.md](services-ai-bench.md) §3) |
+| `bge-m3` embed | Ollama `:rocm` · **#27 accepted 2026-09-18 → `llama.cpp server-vulkan`** (⏳ IaC HD-391; same image as rerank) | container runtime (verified live) / **RADV Vulkan** | live + E2E-verified today, but measured **15 ms vs ~500 ms** per query chunk, **326 vs 899 MiB** VRAM, **157 MiB vs 2.19 GiB** RSS, and **cosine 0.9996 vs the live vectors** ⇒ no re-embed penalty ([services-ai-bench.md](services-ai-bench.md) §3b) |
+| Whisper STT | **`whisper.cpp` GGML_HIP** · **#27 accepted 2026-09-18 → `main-vulkan` digest-pin** (⏳ IaC HD-391) (the HIP image is **not published**) | **native `gfx1102`** (HIP) / **RADV Vulkan** | no HSA override, no PyTorch runtime; **measured RSS 34 MiB**, 1.72 GiB VRAM, 0.40 s / 11 s WAV ([services-ai-bench.md](services-ai-bench.md) §2) |
+| `bge-reranker-v2-m3` | **CPU** (TEI `cpu-1.9.4` INT8 or `llama.cpp` CPU) · **#27 accepted 2026-09-18 → `llama.cpp server-vulkan` on this card** (⏳ IaC HD-391) | — | #25 assumed “1.5 GB VRAM + a ROCm runtime” and **10–30 ms/pair**; measured: **425 MiB**, no ROCm, **0.50 s** vs **5.3 s CPU** for top-20 ([services-ai-bench.md](services-ai-bench.md) §3) |
 | immich-ML | container ROCm | container runtime | existing AMD precedent in this house |
 | Sunshine | VCE encode | — | not a KFD compute consumer |
 
@@ -129,7 +129,7 @@ division) and **1 PFLOP FP4**.
 
 | Mode | Active Models | VRAM Usage | Trigger |
 |------|--------------|------------|---------|
-| **Pinned AI (voice/embed)** | Whisper STT (~2 GB) + bge-m3 embed (~1–2 GB) — **reranker is CPU since decision #25 (2026-09-17)** | **~3–4 GB** (was ~5–6 GB with the reranker on-GPU) · **measured 2026-09-18: 2.9 GiB with all three legs on-GPU** (embed 0.82 + rerank 0.33 + STT 1.72), 5.26 GiB free — [services-ai-bench.md](services-ai-bench.md) §6 | Voice command / RAG ingest-query |
+| **Pinned AI tier** (embed + rerank + voice STT) | `llama.cpp server-vulkan` (embed + rerank, Q8_0 GGUFs) + `whisper.cpp main-vulkan` (STT) — **#27 accepted 2026-09-18**, ⏳ IaC HD-391 | **measured 2.9 GiB** while embed was still on Ollama `:rocm` (0.82 + 0.33 + 1.72) → **target ~2.4 GiB of 8 GiB** once embed moves (0.33 + 0.33 + 1.72); **5.26 GiB free** at the measured peak, 0 `amdgpu` hang/reset over ~25 min — [services-ai-bench.md](services-ai-bench.md) §6, ledger in `services-ai.md` §3a | Voice command / RAG ingest-query |
 | **Immich-ML batch (AI)** | Immich-ML (face/object recognition, container ROCm) | ~3–5 GB | Photo/ML job — **lowest priority** |
 | **Gaming** | None (Sunshine active) | 0 GB (pinned-AI + immich-ML paused) | User launches Sunshine (manual) |
 | **Idle** | None | ~0 GB (GPU ~5 W) | No Sunshine stream, no pinned-AI, no immich-ML job |
