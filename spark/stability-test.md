@@ -124,21 +124,27 @@ ssh spark 'SPARK_STRESS_MAX_RUNG=3 MEM_FLOOR_GB=18 STRESS_OUT=/tmp/stress \
 ### Run 2 — the decisive one: two simultaneous full windows (≈ 30–45 min)
 
 Wait for `rung123.done` to exist (§3 tells you how). This is the **compaction-vs-compaction** shape: two
-concurrent 200k-token fresh prefills = 400k tokens against a 283,398-token pool. The engine *must*
-preempt and recompute — the question is whether the host survives it. It is also the exact shape of an
-auto-compaction landing while another session is mid-turn (pi compacts at 245,760 tokens = 86.7 % of the
-pool on its own).
+concurrent fresh prefills against the pool. **2026-09-18: the pool target is 16 GiB (553.7k token pool,
+2.11 windows vs today's 1.08) and the full-window rung is sized at 240k** (`BENCH_IN=240000`): a
+262,144-token chat request carries ~20.5k template tokens → ~282.7k > `max_model_len: 262144` → vLLM
+rejects it 400 before any load (live rung B1 x2 on 2026-09-17: `ok=0/2 in_tok=0 Bad Request`). 240k →
+~260.5k actual, undershoot; **2×240k ≈ 94.6 % of a 16 GiB pool** — the strictest worst case the
+configured engine can actually serve, and the shape a real auto-compaction in *two* sessions would make.
 
 ```bash
-ssh spark 'SPARK_STRESS_MAX_RUNG=1 BENCH_IN=200000 MEM_FLOOR_GB=18 RUNG_PAUSE=90 STRESS_OUT=/tmp/stress \
-  nohup bash -c "bash /tmp/stress-oom.sh; echo rc=\$? > /tmp/stress/compact.done" \
-      > /tmp/stress/compact.log 2>&1 & echo "started: $!"'
+ssh spark 'SPARK_STRESS_MAX_RUNG=1 BENCH_IN=240000 MEM_FLOOR_GB=16 RUNG_PAUSE=120 STRESS_OUT=/tmp/stress \
+  nohup bash -c "bash /tmp/stress-oom.sh; echo rc=\$? > /tmp/stress/fullwindow.done" \
+      > /tmp/stress/fullwindow.log 2>&1 & echo "started: $!"'
 ```
+
+(When the pool is back at 8.2 GiB / 283.4k tokens, keep this rung at `BENCH_IN=200000` = 400k tok vs the
+283.4k pool — the compaction-vs-compaction shape. At 16 GiB, 240k is the analogous 2×~95 % worst case.)
 
 **Notes**
 
-* `MEM_FLOOR_GB=18` is deliberately above the script's default 14: the box idles at ~30 GiB usable now,
-  and the script's floor is on raw `MemAvailable` (the falsified gauge) — 18 buys ~8 GiB of real margin.
+* `MEM_FLOOR_GB=16` is deliberately above the script's default 14: at the 16 GiB KV pool the idle usable
+  drops to ~21–24 GiB (was ~30), so 16 leaves some margin; the script's floor is on raw `MemAvailable`
+  (the falsified gauge).
 * The harness's live guard **stops and then restarts the engine** if `MemAvailable` crosses the floor or
   PSI-full crosses 50 %, so the kernel never picks the victim. `RestartCount` +1 with a `GUARD FIRE`
   line = the guard did its job; that is a governor PASS and an *inconclusive* peak result.
@@ -333,6 +339,21 @@ Measured on a **dry run** (no load ⇒ worst moment = idle), which is therefore 
   boot   : 114.6 - 91.7 - 12  = +10.9 GiB   <-- BINDING
   => pool 8.2 -> ~16-19 GiB = ~550-640k tokens = ~2.1-2.4 concurrent 262k windows (today 1.08)
 ```
+
+**2026-09-18 target: pool 16 GiB** (candidate, NOT YET CONVERGED — awaiting this ladder to pass).
+16 GiB / 30.3 KiB-per-tok ≈ 553.7k tokens = 2.11 windows — inside both ceilings (runtime +7.8 < 16.5;
+boot +7.8 < +10.9), at ~94.6 % of the pool when two full-context sessions are fresh. **Consequences**
+of the raise that must be re-verified live, not assumed:
+
+* **Idle `usable` drops** from ~30.5 to ~22.7 GiB — the WARN 12 / CRIT 8 lines still clear, but the
+  steady-state margin to WARN shrinks ~8 GiB. The rung floor must come down to `MEM_FLOOR_GB=16` (Run 2
+  above) and the host-mem alert thresholds (`IaC/ansible/roles/monitoring/vars/main.yml`) should be
+  re-checked against the new idle so a routine transient cannot false-fire.
+* **Boot is still the binding gate.** The pool is carved at boot; after any 8.2→16 converge, verify
+  `Initial free memory` in the boot log still leaves the host reserve and the `NV_ERR_NO_MEMORY` count
+  does not grow at weight-load (it already bursts ~218 at boot today).
+* **vLLM will schedule / preempt under 94 % fill.** Two fresh 240k at 16 GiB is the pessimal case —
+  expect higher TTFT / some evictions; that is the point (proves the host survives), not a bug.
 
 The real run will report a smaller runtime figure — that is the point of running it. Take
 **min(runtime, boot)** and round **down** to a 2 GiB step, then verify after the change:

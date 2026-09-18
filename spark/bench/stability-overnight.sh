@@ -37,6 +37,11 @@ RECOVER_WAIT="${STABILITY_RECOVER_WAIT:-600}"  # s to let usable come back after
 HEALTH_WAIT="${STABILITY_HEALTH_WAIT:-600}"    # s for the engine (weight reload ~180 s)
 KV_KIB_PER_TOK=30.3                            # measured: 8.2 GiB / 283,398 tok
 CTX="${STABILITY_CTX:-262144}"
+# 2026-09-18: the full-window rung is sized at 240000, NOT $CTX. A 262,144-token chat
+# request costs +~20.5k template tokens → lands at ~282.7k > max_model_len 262144 →
+# vLLM rejects it 400 before any load (live: rung B1 x2 ok=0/2, in_tok=0, Bad Request).
+# 240k → ~260.5k actual, undershoot; 2×240k ≈ 94.6% of a 16 GiB pool = the intended
+# "two full-context sessions, nothing cached" worst case.
 mkdir -p "$DIR/logs" "$DIR/evidence"
 
 log(){ printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$MAIN"; }
@@ -58,7 +63,7 @@ save(){ { echo "BASE_EPOCH=$BASE_EPOCH"; echo "BASE_USABLE=$BASE_USABLE"; echo "
 RUNS=(
   "rung123|SPARK_STRESS_MAX_RUNG=3 MEM_FLOOR_GB=18|full ladder: shape churn + prefill rungs 1-3"
   "compact|SPARK_STRESS_MAX_RUNG=1 BENCH_IN=200000 RUNG_PAUSE=90 MEM_FLOOR_GB=18|two concurrent 200k fresh prefills = 400k tok vs a 283,398-tok pool (compaction-vs-compaction)"
-  "fullwindow|SPARK_STRESS_MAX_RUNG=1 BENCH_IN=$CTX RUNG_PAUSE=120 MEM_FLOOR_GB=16|two concurrent full-window prefills (hardest; one pi auto-compaction is ONE of these)"
+  "fullwindow|SPARK_STRESS_MAX_RUNG=1 BENCH_IN=240000 RUNG_PAUSE=120 MEM_FLOOR_GB=16|two concurrent ~full-window uncached prefills (2×240k ≈ 94.6% of a 16 GiB pool; hardest realistic case — one pi auto-compaction is ONE of these; sized to undershoot max_model_len, see CTX note above)"
 )
 if [ -n "${STABILITY_RUNS:-}" ]; then IFS=';' read -r -a RUNS <<<"$STABILITY_RUNS"; fi
 

@@ -177,7 +177,21 @@ spark_vllm_kv_cache_dtype: "auto"
 # in the container's own CacheConfig/gpu_worker source). 8.2 GiB ≈ 275k tokens ≥ the
 # 262,144 boot-gate with margin; total device footprint ≈ weights 77.69 + act 2.99 + graphs
 # 0.22 + KV 8.2 ≈ 89.1 GiB → host reserve ≈ 32.5 GiB (was ~21.9).
-spark_vllm_kv_cache_memory: "8800000000"
+#
+# 16 GiB (2026-09-18, NOT YET CONVERGED — candidate, awaiting the stability rung):
+#   target = 2× full 262,144-token windows (the owner's daily workload: two concurrent
+#   full-context sessions). 16 GiB/30.3 KiB-per-tok ≈ 553.7k tokens = 2.11 windows vs
+#   8.2 GiB's 1.08. 2×262,144 fresh = 524,288 tok ≈ 94.6% of the pool — the strictest
+#   worst case the configured engine can actually serve (a 262,144-token chat request
+#   with the template lands at ~282.7k > max_model_len, so the rung is sized at 240k,
+#   see spark/stability-test.md §6). Within the repo's own computed envelope:
+#   runtime headroom 16.5 GiB (worst usable 28.81 − reserve 12) and boot-side allowance
+#   ≈11.3 GiB over the 8.2 baseline (free_at_boot 114.6 − engine_hold 91.3 − reserve 12)
+#   ⇒ +7.8 GiB (8.2→16) is affordable on both sides. Host reserve drops from ~32.5 to
+#   ~24.7 GiB — still ≥ the WARN 12 line with margin. Do NOT converge until the 16-GiB
+#   rung123+compact+fullwindow ladder passes (0 OOM, 0 engine growth, usable ≥ ~16 GiB
+#   during the run); on a wedge the pool is reserved at boot and the box never answers.
+spark_vllm_kv_cache_memory: "16000000000"
 # spark_vllm_gpu_memory_utilization REMOVED 2026-09-16 (HD-374): with kv_cache_memory_bytes
 # set, this build's determine_available_memory() skips memory profiling and ignores the
 # parameter entirely — keeping it would be dead config and a false sense of a "ceiling".
