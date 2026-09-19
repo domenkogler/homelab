@@ -2,6 +2,17 @@
 # Raspberry Pi 4 — Home Assistant (PRIMARY node)
 # Failover design: docs/smart-home-failover.md
 
+# Reachability (HD-397, decided 2026-09-19): the Pi sits behind the home NAT, so a runner
+# that is not LAN-attached reaches it ONLY via the VPS jump. Carried as a GROUP VAR so it
+# applies to every play that touches this host (raspberry_pi.yml, nut-deploy.yml,
+# dns-seed.yml, all.yml, monitoring) — until now the jump lived only in the laptop's ssh
+# ALIAS, so `ssh pi` worked off-LAN while `ansible pi -m ping` did NOT (Ansible types the
+# ansible_host IP, and OpenSSH matches the name ACTUALLY TYPED). Harmless no-op from a
+# LAN-attached runner. Leg = Home (VLAN 10). Matrix + alias contract: docs/network-vpn.md
+# §Reaching LAN nodes when away (the per-IP ssh blocks there are for scp/rsync/humans —
+# this var alone carries a converge, measured 2026-09-19).
+ansible_ssh_common_args: "-o ProxyJump=vps"
+
 # HA container pin (HD-192): semver replaces the `stable` mutable alias — primary +
 # standby MUST run the same version for clean manual failover (HD-39 rationale).
 # Tag scheme is calver; REGISTRY-VERIFY at first deploy (GHCR tag list truncated on

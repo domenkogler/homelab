@@ -236,31 +236,42 @@ is not a gate** — same class of failure as the green scoped converge and the `
 
 ### Jump-host execution (hosts reachable only through the VPS)
 
-> **Which nodes need this, and what breaks off-LAN: the measured matrix is in
-> [network-vpn.md](network-vpn.md) §Reaching LAN nodes when away** (2026-09-19: only spark is fully
-> convergible from anywhere today; `nas` has no jump at all; `-e ansible_host=` hijacks `delegate_to`).
+> **The rule (since 2026-09-19, HD-397): every behind-NAT host carries the VPS jump IN THE
+> INVENTORY.** `ansible_ssh_common_args: "-o ProxyJump=vps"` lives in
+> `group_vars/home_servers.yml`, `group_vars/storage.yml`, `group_vars/raspberry_pi.yml` and
+> `group_vars/spark.yml` — so EVERY play that touches those hosts converges them from any network
+> (`home_servers.yml`, `storage.yml`, `raspberry_pi.yml`, `nut-deploy.yml`, `dns-seed.yml`, `all.yml`,
+> the monitoring plays), not only the one playbook that happens to declare it. Measured matrix + the
+> laptop alias contract: [network-vpn.md](network-vpn.md) §Reaching LAN nodes when away
+> (before this change only spark was convergible from anywhere and `nas` had no jump at all).
 
-
-**spark (`spark_home_ip`) is the standing case:** it sits behind NAT on the Home VLAN, so a converge from
-the WSL runner must jump through the VPS. This is **carried in the playbook**, not typed per command:
+Every LAN host sits behind the home NAT on the Home VLAN, so a runner that is not LAN-attached reaches it
+only via the VPS. `playbooks/spark.yml` additionally keeps a play-level copy of the identical value
+(historical: it was the only place the jump lived before 2026-09-19; play vars win over group vars, same
+value — no conflict):
 
 ```yaml
-# playbooks/spark.yml
+# group_vars/{home_servers,storage,raspberry_pi,spark}.yml  (and playbooks/spark.yml)
 ansible_ssh_common_args: "-o ProxyJump=vps"
 ```
 
-> **The trap:** the inventory target is the **raw IP**, so an ssh-config entry for the alias `spark` is
-> NOT enough — OpenSSH matches config blocks on the hostname actually typed. The runner's `~/.ssh/config`
-> needs a block for the IP too:
+> **Why `-o ProxyJump` and not `-e ansible_host=<ip>`:** the jump is a *connection* property, while
+> `-e ansible_host=` is a **global** extra-var that also rewrites `delegate_to` targets — the recorded
+> damage is in §Gotchas above (`ok=367 changed=52 failed=1`, one key-file check silently executed on the
+> wrong host). Since HD-397 there is no reason to type either: the inventory carries the jump and
+> `host_vars` names the reachable leg. See §Two ways a converge lies to you above.
 >
-> ```
-> Host <spark_home_ip>
->     ProxyJump vps
-> ```
+> **The OpenSSH-matching nuance, corrected by measurement (2026-09-19):** Ansible types the
+> `ansible_host` value (an IP), so a `Host <alias>` block does nothing for it — but that is **not** why
+> the jump works: `-o ProxyJump=vps` comes from the group var and is passed on the command line, so no
+> `Host <ip>` block is required for a converge. Proof: with a stub config containing ONLY `Host vps`
+> (`ANSIBLE_SSH_ARGS="-F <stub>" ansible <host> -m ping`) all four behind-NAT hosts ponged. The
+> `Host <ip>` blocks in the laptop contract are for `scp`/`rsync`/`git` and humans typing addresses.
 >
-> (or invoke with `-e ansible_host=spark` after defining the alias). **Prove the path before debugging
-> Ansible:** `ansible spark -m ping -i IaC/ansible/inventory.ini` — an unreachable host here reads as a
-> playbook/role failure and sends you into the wrong file.
+> **Prove the path before debugging Ansible:** `ansible <host> -m ping` (through
+> `scripts/ansible-run.sh`'s env) — an unreachable host here reads as a playbook/role failure and sends
+> you into the wrong file. Read the RECAP's **`unreachable`** counter for the path question; `failed`
+> says something else (§Dry-run Mode).
 
 Combined with the rule in [`../scripts/README.md`](../scripts/README.md) (live converges run **detached**
 via `nohup … &` + a log + polling, because a `timeout`-killed converge dies mid-restart and poisons the
@@ -301,6 +312,17 @@ empty`, which aborted **every** `playbooks/vps.yml --tags monitoring --check --d
 Fix = gate the whole live-app block with `not ansible_check_mode` (it is read-or-seed against the
 running app, so there is nothing meaningful to simulate). **Rule of thumb:** any task that consumes
 a `command`/`shell`-derived fact must carry `not ansible_check_mode`, or the role is not `--check`-safe.
+
+**Same class, second producer — a `uri` task feeding a `set_fact` (⚠ OPEN, found 2026-09-19, HD-399):**
+`roles/docker_services/tasks/technitium-seed.yml` logs in with `ansible.builtin.uri` and registers
+`_tech_login`, then `:102` does `_tech_token: "{{ _tech_login.json.token }}"`. `uri` does not execute in
+check mode, so the registration is a *skipped* dict and **every** `--check` run of a
+`docker_services`-bearing play on oldsrv dies there:
+`Error while resolving value for '_tech_token': object of type 'dict' has no attribute 'json'`
+(measured: `home_servers.yml --limit oldsrv.kogler.si --check` → `ok=284 changed=6 unreachable=0
+failed=1` — **the connection was fine**, the failure is this task). Same fix shape: gate the seed block
+with `not ansible_check_mode`. Until it lands, use a tagged check to get a green pre-flight
+(`--check --tags common,network` → `ok=18 changed=0 unreachable=0 failed=0`) and say which form you ran.
 
 ---
 
@@ -429,7 +451,11 @@ ansible_python_interpreter=/usr/bin/python3
 ### oldsrv.kogler.si.yml
 ```yaml
 homelab_mode: desktop            # "desktop" or "proxmox" or "headless"
-ansible_host: 10.10.99.30        # Management VLAN 99 static IP
+ansible_host: "{{ home_ip }}"   # Home VLAN 10 — THE ADMIN LEG for every runner since 2026-09-19
+                                 # (HD-397 + HD-398 decision A: the mgmt plane is sealed from the VPS
+                                 # tunnel on purpose, so an mgmt-anchored ansible_host is reachable only
+                                 # from the Mgmt VLAN itself — off-LAN it was a jump into a black hole)
+mgmt_ip: 10.10.99.30             # Management VLAN 99 (tagged leg, netd-vlan.network) — NOT a connect target
 home_ip: "{{ oldsrv_home_ip }}"  # Home VLAN 10 — node IP (VRRP anchor); SSOT-derived (HD-200)
 dns_primary_ip: 10.10.1.30       # Technitium primary binds node IP
 ansible_user: ansible-admin

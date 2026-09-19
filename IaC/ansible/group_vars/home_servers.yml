@@ -7,6 +7,19 @@
 # The public edge + live-data apps + AI stack + observability backend + alert brain
 # (n8n) + backup agents moved to the VPS (group_vars/vps.yml). See docs/services.md.
 
+# Reachability (HD-397, decided 2026-09-19): oldsrv sits behind the home NAT, so a runner
+# that is not LAN-attached reaches it ONLY via the VPS jump. The jump therefore travels IN
+# THE INVENTORY (group var = every play sees it: home_servers.yml, all.yml, dns-seed.yml,
+# nut-deploy.yml, monitoring) instead of a per-command flag or one laptop's ssh alias —
+# same doctrine as playbooks/spark.yml ("keep it here so ANY runner converges spark").
+# From a LAN-attached runner it is a harmless no-op. The leg is the HOME leg (VLAN 10,
+# host_vars ansible_host): the Mgmt plane is sealed from the tunnel on purpose (HD-398 →
+# decision A). Matrix + the laptop alias contract: docs/network-vpn.md §Reaching LAN nodes
+# when away. (Measured 2026-09-19: because this var is passed on the ssh command line, no
+# `Host <ip>` block is needed for a converge — the per-IP blocks in the contract are for
+# scp/rsync/git and for humans who type an address.)
+ansible_ssh_common_args: "-o ProxyJump=vps"
+
 homelab_mode: desktop          # 'desktop' for Phase 1, 'proxmox' for Phase 2
 gpu_vendor: amd
 ollama_keep_alive: 5m
