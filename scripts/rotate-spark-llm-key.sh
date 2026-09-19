@@ -65,8 +65,20 @@ say "  6. remind: history still holds the old value until filter-repo + force-pu
 if [ "$ASSUME_YES" != "1" ]; then read -r -p "Execute the window now (engine DOWN ~25 min)? [y/N] " a; [ "${a:-n}" = "y" ] || { say "aborted"; exit 1; }; fi
 
 # ---- 1. before-state ----------------------------------------------------------
+# An already-running shell keeps exporting the PREVIOUS token and the environment beats
+# ~/.config/op/homelab-sa-token — this exact shadowing aborted a window run on 2026-09-19 with
+# a misleading "auth/vault?" line. Re-source the sanctioned file once and retry before blaming
+# the rotation.
+if ! op vault list </dev/null >/dev/null 2>&1; then
+  TOKFILE="$HOME/.config/op/homelab-sa-token"
+  if [ -r "$TOKFILE" ]; then
+    say "  op auth failed with the inherited env — re-sourcing $TOKFILE and retrying"
+    set -a; . "$TOKFILE"; set +a
+  fi
+fi
 OLD=$(op read "op://$VAULT/$ITEM/credential" </dev/null 2>/dev/null)
-[ -n "$OLD" ] || { say "ABORT: cannot read the current value (auth/vault?)"; exit 1; }
+[ -n "$OLD" ] || { say "ABORT: cannot read the current value. If 1P answers 403, the token in this";
+say "  environment is not the current item op_api value — rotate it per docs/1password.md §1 and retry."; exit 1; }
 say "  before: len=${#OLD} hash=$(h "$OLD")"
 
 # ---- 2. vault write -----------------------------------------------------------
