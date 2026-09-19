@@ -7,3 +7,5 @@ upsc powerwalker@localhost
 prepreči da gre računalnik v spanje
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'Start-Process powercfg -ArgumentList "/change","standby-timeout-ac","0" -WindowStyle Hidden'
 
+set up tailscale on win11
+tailscale up --login-server=https://vpn.kogler.si --reset
