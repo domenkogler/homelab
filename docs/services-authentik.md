@@ -217,7 +217,8 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
   (HD-211 batch) — needs Authentik RBAC roles, doable via blueprint later.
 
 ### Authentication tokens (TWO secrets + one ephemeral — never merge them)
-- `vps-op-write_api` — 1Password **SERVICE ACCOUNT token (write-scoped)**, deployed by the pre-pass
+- `op-write_api` — 1Password **SERVICE ACCOUNT token (read+write)**, deployed by the pre-pass
+  (renamed 2026-09-19 from `vps-op-write_api`; the read-only sibling is `op_api`)
   to VPS `/etc/op/provision-token`; authenticates the HOST-side `op` CLI the glue uses to seed the
   OIDC client-cred items.
 - `authentik-nas_api` — **read-only** Authentik-issued API token, minted durable (`expiring=False`) at NAS provisioning; the Authentik→NAS provisioning
@@ -328,7 +329,7 @@ bash scripts/ansible-run.sh playbooks/vps.yml \
 >   is the reliable host-visible channel only via `docker exec cat` (docker cp can't see it).
 
 ### What stays manual (only two, one-time)
-- Creating/re-issuing the **1Password write-scoped service account** (`vps-op-write_api`) in the
+- Creating/re-issuing the **1Password write-scoped service account** (`op-write_api`, was `vps-op-write_api`) in the
   1Password admin console (show-once secret; item history can also restore a prior value).
 - The **first-login admin bootstrap** (WebAuthn/passkey enrolment) at `sso.kogler.si` + the
   bootstrap admin password (set once, sourced from 1Password `authentik_login`).

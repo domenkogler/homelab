@@ -23,15 +23,43 @@ Ansible resolves every secret via
 on the **control host** (the WSL Debian runner). That lookup authenticates to 1Password
 using a **Service Account token**, not an interactive login.
 
-### Credential source
-- **1Password item:** `Service Account Auth Token: ansible` (`ansible`).
-- **Vault:** a **Private vault** (not the `Homelab-ansible` vault).
-- **Why private:** keeps the automation service-account token out of the main secret
-  vault (`Homelab-ansible`), limiting blast radius. This is a **deliberate deviation** from the
-  `deployment-tasks.md`/`deployment-secrets.md` assumption that an `op_api` Service
-  Account token item exists in `Homelab-ansible`. **That `op_api` item is intentionally NOT
-  created.** The token for this runner lives in the private vault instead.
+### Credential source — TWO service accounts (live-verified 2026-09-19)
+Both items live in the **`Homelab-ansible`** vault itself (`op vault list` returns exactly that
+one vault), and both were re-issued on 2026-09-19:
 
+| Item | Scope | Who uses it |
+|---|---|---|
+| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) any CI runner that resolves the vault (HD-315's `vault-gate`; Phase 0/5 of [../deployment-tasks.md](../deployment-tasks.md) store `op_api` as a runner secret — renew it there after every rotation, or CI's vault access starts 403-ing) |
+| `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token` (renamed from `vps-op-write_api`, now deleted) |
+
+> **Superseded design (kept for the record, do not re-implement):** this section used to say the
+> runner token was item **`Service Account Auth Token: ansible`** in a separate **Private vault**,
+> and that an `op_api` item in `Homelab-ansible` was *"intentionally NOT created"*. That is no
+> longer how it works — the control-node token IS an `op_api` item in the main vault, and there is
+> no second vault. Verified by `op vault list` + `op item list --vault Homelab-ansible`.
+
+### Where a token is installed (the whole list — checked 2026-09-19)
+| Host / system | Token | Source of truth |
+|---|---|---|
+| **control node** (this WSL Debian laptop — the only place `ansible-playbook` is run interactively) | `op_api` | `~/.config/op/homelab-sa-token` (0600) |
+| **Forgejo CI runner** (the `vault-gate` job + any playbook it runs) | `op_api` | a Forgejo secret |
+| **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
+| home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
+| **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
+| **Win11 desktop** | **none, by design** | git auth/signing uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`) |
+
+### Rotating the control-node token
+`scripts/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a
+rotation it prints *"token already stored"* and changes nothing. Rotate with:
+```bash
+read -rsp "new op_api token: " T && printf 'export OP_SERVICE_ACCOUNT_TOKEN=%q\n' "$T" \
+  > ~/.config/op/homelab-sa-token && unset T && chmod 600 ~/.config/op/homelab-sa-token \
+  && set -a && . ~/.config/op/homelab-sa-token && set +a && op whoami
+```
+**Trap that bites every time:** an already-running shell keeps exporting the OLD value, and the
+environment beats the file. `op whoami` returning `403 … You aren't authorized to access this
+resource` with a freshly-written file means exactly that — re-`source` the file (or open a new
+shell). Verify a rotation took effect by **hash**, never by printing the value.
 ### Installed location (runner)
 ```bash
 ~/.config/op/homelab-sa-token      # 0600, one line: export OP_SERVICE_ACCOUNT_TOKEN='...'

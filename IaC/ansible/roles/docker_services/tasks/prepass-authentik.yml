@@ -45,10 +45,13 @@
 # It is a DIFFERENT secret from `authentik-provision_api` (the Authentik-ISSUED API
 # token the glue sends as Bearer) — the first deploy conflated the two and broke the
 # glue (2026-08-22; see services-authentik.md "Authentication tokens").
-# Rotation = update the vps-op-write_api item + re-run this playbook.
+# Rotation = re-issue the SA token, update the op-write_api item + re-run this playbook.
+# 2026-09-19: the item was `vps-op-write_api`; the token model is now TWO service
+# accounts — `op_api` (read) and `op-write_api` (read+write) — both in Homelab-ansible,
+# so this lookup carries the general write-capable one rather than a VPS-only secret.
 - name: "Deploy provision token for host-side op (HD-143)"
   ansible.builtin.copy:
-    content: "{{ lookup('community.general.onepassword', 'vps-op-write_api', field='credential', vault=op_vault) }}\n"
+    content: "{{ lookup('community.general.onepassword', 'op-write_api', field='credential', vault=op_vault) }}\n"
     dest: /etc/op/provision-token
     owner: root
     group: root

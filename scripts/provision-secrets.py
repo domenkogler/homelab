@@ -43,7 +43,7 @@ CAVEATS (by design):
     and redeploy must be paired (see workflow above).
 
 Auth: OP_SERVICE_ACCOUNT_TOKEN must be a WRITE-scoped Service Account token
-(`op_creation` during initial provisioning). It is one-time; revoke it after.
+(`op-write_api`, renamed 2026-09-19; `op_creation` during initial provisioning).
 """
 from __future__ import annotations
 

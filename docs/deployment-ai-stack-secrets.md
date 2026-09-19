@@ -113,11 +113,12 @@ engine's cold load (`start_period: 1200s`), during which spark inference is down
 # 0. PREFLIGHT — nothing else may converge inside the window:
 pgrep -af ansible-playbook                     # must be empty
 git -C ~/source/homelab-wt-* status --short    # other sessions' worktrees must be idle
-# 1. VAULT WRITE — the runner's exported SA token is READ-scoped; 1P answers exactly
-#    "Couldn't update the item." with rc=1. The write-scoped token lives ONLY on the VPS,
-#    root-readable at /etc/op/provision-token (item `vps-op-write_api`):
-OP_SERVICE_ACCOUNT_TOKEN="$(ssh vps 'sudo cat /etc/op/provision-token')" \
-  python3 scripts/provision-secrets.py --rotate spark-llm_api --yes
+# 1. VAULT WRITE — the runner's own token is READ-scoped; 1P answers exactly
+#    "Couldn't update the item." with rc=1. The write-scoped SA lives in the SAME vault as
+#    everything else (item `op-write_api`, renamed 2026-09-19 from the now-DELETED
+#    `vps-op-write_api`), so the runner can fetch it directly — no root SSH to the VPS:
+OP_SERVICE_ACCOUNT_TOKEN="$(op read 'op://Homelab-ansible/op-write_api/credential' </dev/null)" \
+  python3 scripts/provision-secrets.py --rotate spark-llm_api --yes   # add --skip-rotate if the owner already rotated
 #    Verify by hash, never by printing. The OLD value stays LIVE until step 2 — that is the window.
 # 2. RE-RENDER all three consumers, detached (see §Jump-host execution + scripts/README):
 #    spark  → --tags docker_services -e docker_services_scope=spark-ai   (restarts the engine)
@@ -150,3 +151,44 @@ archive you cannot trust.
 - **Scoped keys** are hashed at rest server-side: a lost/rotated key can NEVER be re-read. Remediation = delete server key by alias + clear the item's credential field + re-run the glue (it re-mints create-if-absent).
 - **`openrouter_api` / `cohere_api`** are upstream keys only LiteLLM holds — rotate at the provider dashboard, then update the 1Password item; no compose change needed (LiteLLM reads via env).
 - **OIDC client secrets** (`openwebui_api`) are rotated in Authentik; both provider and 1Password item must be updated together or the redirect/login breaks.
+**2026-09-19 — the rotation happened, and it exposed a THIRD value (audit before you rotate).**
+The owner re-issued the service accounts (`op_api` read, `op-write_api` read+write; **`vps-op-write_api`
+is DELETED** — both Ansible lookups now read `op-write_api`) and rotated `spark-llm_api` in the vault
+directly. Comparing the five holders by hash — never by printing — returned **three distinct values**:
+
+| Holder | Held |
+|---|---|
+| vault `spark-llm_api` | the **new** value |
+| engine `--api-key`, VPS `litellm` env, laptop `models.json` | the **superseded** (leaked) value |
+| oldsrv `lan-litellm` env | **a third value matching neither** |
+
+so the LAN leg could not have authenticated against the engine at all — invisibly, because per
+decision #26 nothing routes through it yet (HD-383/384 still open). **That is the real lesson of this
+item:** a credential with four consumers and no reconciliation step drifts, and drift is invisible
+until something compares hashes. So run the comparison **first**, not last — a consumer that disagrees
+with the vault is broken whether or not you just rotated:
+
+```bash
+h(){ printf '%s' "${1:-none}" | sha256sum | cut -c1-12; }
+h "$(op read 'op://Homelab-ansible/spark-llm_api/credential' </dev/null)"                    # vault
+h "$(ssh spark 'docker inspect vllm-qwen-spark --format "{{join .Config.Cmd \" \"}}"' \
+      | awk '{for(i=1;i<NF;i++) if($i=="--api-key") print $(i+1)}')"                          # engine
+for hc in "vps litellm" "oldsrv lan-litellm"; do set -- $hc
+  h "$(ssh $1 "docker inspect $2 --format '{{range .Config.Env}}{{println .}}{{end}}' \
+      | grep ^OPENAI_API_KEY= | cut -d= -f2-")"; done                                         # both LiteLLMs
+h "$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.pi/agent/models.json')))['providers']['spark']['apiKey'])")"
+```
+
+Four rows, **one** hash. Two corrections this wrote into the tooling: the edge does **not**
+authenticate clients with this secret (clients present `litellm_master_key`; `spark-llm_api` is only
+the *upstream* credential), so "the edge returns 401 with the old bearer" was never a valid test —
+`rotate-spark-llm-key.sh` now compares consumer env hashes instead; and the laptop step patches
+**`providers.spark.apiKey` only** — an earlier draft walked the whole file and would have overwritten
+every other provider's key with the spark one.
+
+**History scrub is now optional, and the condition that re-opens it.** Once the superseded bearer
+returns 401 it is inert, so removing it from history buys hygiene, not containment — against a cost of
+rewriting every descendant commit, forcing every session worktree to rebase, and GitHub possibly
+serving the blob regardless. **If any consumer is ever rolled back to that value** (docs warn
+explicitly against restoring an old token), the string in these commits becomes live again — that is
+the one condition that re-opens the rewrite.
