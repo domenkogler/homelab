@@ -2,7 +2,7 @@
 
 > **Charter (what belongs here and what does not).** This file is the **imperative procedure** for rebuilding
 > the homelab from nothing: the ordered commands, panel settings and ✔-evidence checks a human executes. It
-> carries **no knowledge, no status and no history** — no "why we chose X", no ✅/⏳ markers, no dated fix
+> carries **no knowledge, no status and no history** — no "why we chose X", no tick or hourglass markers, no dated fix
 > recaps, no as-built state. Those live in exactly one place each:
 >
 > | Content | Home |
@@ -48,7 +48,7 @@
 - Execute phases in order. Every step ends with a ✔-evidence check — do not proceed past red.
 - Binding working rules: `bash scripts/validate-all.sh` green before every commit; secrets by
   1Password item+field name only (never values); every executed action gets an owning-doc
-  ✅ note + a commit.
+  status note + a commit.
 - Shells: repo ops + validators from **git-bash** (Windows laptop); Ansible runs ONLY on the
   **WSL Debian runner** through [scripts/ansible-run.sh](scripts/README.md) — never pass inline
   commands to wsl.exe.
@@ -86,7 +86,7 @@ Create the local user `domen`, then set its password (`passwd`) and store it as 
 The repo is **reused** from the WSL ext4 primary checkout at
 `/home/domen/source/homelab` (single working copy — the Debian ext4 primary, per HD-259;
 `scripts/git-bootstrap.sh` sets this up and its session worktrees live as
-siblings `../homelab-wt-*`. No second clone; the old `/mnt/d` drvfs path is retired. *(HD-263 close-out: the former `ansible-enhancements.md` §8.4 rationale for the ext4-primary/git-bootstrap move lives here in §0.1 + CONVENTIONS §6.)*
+siblings `../homelab-wt-*`. No second clone; the old `/mnt/d` drvfs path is retired. *(HD-263: the former `ansible-enhancements.md` §8.4 rationale for the ext4-primary/git-bootstrap move lives here in §0.1 + CONVENTIONS §6.)*
 
 ✔ `wsl -l -v` lists Debian; inside WSL `whoami` → `domen`.
 
@@ -844,7 +844,7 @@ Then on each device: upload the matching `.rsc` + the `.pub` keys (rb4011: root
 floor are included). **Order: crs328 first, then rb4011.** The converge is idempotent-ish
 (`/set` safe; `/add` on duplicates reports "already have" and continues).
 
-Live lessons baked into the templates: (a) **quote EVERY non-literal value** — the WG
+Baked into the templates — do not undo these: (a) **quote EVERY non-literal value** — the WG
 pubkey contains `+/=` and the admin/pppoe passwords contain `!`, all of which the RouterOS
 script parser mangles UNQUOTED (the operator hit the WG pubkey on import); (b) the crs328
 converge enables `vlan-filtering` as the LAST command (enabling it at bridge create severs
@@ -943,7 +943,7 @@ ping -c3 <router-mgmt-ip>            ; router mgmt over the tunnel (0% loss; IP 
 
 **Authoring pitfalls (do not relearn):** ① Jinja `trim_blocks` eats a newline after `{% endfor %}` → use an explicit `{{ '\n' }}`. ② `.netdev` 0640 (`0600`+ACL → networkd `Permission denied`). ③ `[WireGuardPeer]` in `.network` is ignored. ④ Never put the `PrivateKey` in a **peer-only** `wg setconf` for the router side — the two-key role handles it.
 
-### 1.5.6 Cutover close-out
+### 1.5.6 Cutover finalisation
 
 - `validate-all.sh` green from the worktree.
 - Tick the matching boxes in the ledger's Phase 1.5 block and record the evidence there (device names,

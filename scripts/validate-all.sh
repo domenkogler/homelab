@@ -11,6 +11,14 @@
 #   6. check_doc_map.py            — docs/index.md document map matches docs/ tree
 #   7. check_generated_suffix.py    — every machine-generated doc carries the -generated suffix
 #   8. check_vault_name.py          — vault is 'Homelab-ansible' (no bare Homelab refs, HD-189)
+#   8b. check_ledger_state.py       — deployment-tasks.md is a LEDGER: deploy-gated items are
+#                                     checkboxes, every OPEN one has a live todo.md row, every tick
+#                                     carries a date (no HD status prose pasted into the blocks)
+#   8c. check_runbook_purity.py     — deployment-manual.md is PROCEDURE: no status glyphs, no
+#                                     dated/execution history, no duplicate headings, and its phase
+#                                     numbering matches the ledger's (HD-253-class drift gate)
+#   8d. check_vault_docs.py         — every vault item the IaC reads has a row in the secrets master
+#                                     list (an undocumented prerequisite fails a true-zero deploy)
 #   9. check_placeholders.py        — placeholder tokens only in designated bootstrap files (HD-201)
 #  10. guard-session.sh             — session-discipline hard-gate + sandboxed self-test (HD-253):
 #                                     --validate-mode fails on primary+main+DIRTY; clean-main
@@ -85,6 +93,15 @@ $PY scripts/check_generated_suffix.py
 
 echo "== check_vault_name.py =="
 $PY scripts/check_vault_name.py
+
+echo "== check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated) =="
+$PY scripts/check_ledger_state.py
+
+echo "== check_runbook_purity.py (runbook = imperative procedure only) =="
+$PY scripts/check_runbook_purity.py
+
+echo "== check_vault_docs.py (every IaC-read vault item is documented) =="
+$PY scripts/check_vault_docs.py
 
 echo "== check_placeholders.py =="
 $PY scripts/check_placeholders.py
