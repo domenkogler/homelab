@@ -322,6 +322,17 @@ nothing below hard-codes one.
 `traefik-tailnet` edge → WG S2S → the home backend, per the boundary decision above. Measured today
 from a hotspot: `llm.ts.kogler.si` served spark inference end-to-end with no home reachability at all.
 
+### The rule the measurements imply (2026-09-19)
+
+**The management VLAN does not accept traffic from the site-to-site tunnel.** From the VPS: ICMP to the
+VLAN-99 gateway answers, but TCP/22 to the router, to the Pi's mgmt leg and to oldsrv's mgmt leg all time
+out, while a Home-VLAN host answers fine. So the reliable off-LAN admin path is the **Home leg (VLAN 10)**
+for every node — which is exactly what `pi` (Home address + jump) and `spark` (`playbooks/spark.yml`
+carrying `ProxyJump`) already do. Treat a mgmt-leg address as a same-site admin path, not an away path:
+`pi99`, `router`, `switch`, the AP aliases and `oldsrv` all target mgmt-leg addresses and therefore do
+**not** work away from home today. Whether the seal is intentional or a fault is HD-398; the away-path
+decision is HD-397 and should follow whichever answer lands.
+
 ### Three traps, all hit while measuring this
 1. **A dead address is not a dead host.** `oldsrv`'s mgmt leg answered nothing (ICMP loss, port 22
    closed) while the box was up 12 days and fully reachable on its Home leg — including
