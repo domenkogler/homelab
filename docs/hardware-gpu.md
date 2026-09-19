@@ -203,3 +203,22 @@ devices:
 ```
 
 Udev rules set `/dev/kfd` mode 0666 and `/dev/dri/render*` mode 0666 for container access.
+
+### Group IDs on this box — corrected 2026-09-19 (HD-391)
+
+| Fact | Measured on oldsrv 2026-09-19 |
+|---|---|
+| `render` group | **gid 992** (`render:x:992:ansible-admin`) — NOT the Debian-table 104 |
+| gid 104 | **`ssl-cert`** — which is what `gpu_render_gid` used to add to every GPU container |
+| `video` group | gid 44 (matches the Debian static allocation; unchanged) |
+| `getfacl /dev/dri/renderD129` | `user::rw- group::rw- other::rw-` + a `user:lightdm:rw-` ACL |
+
+`group_vars/all/main.yml` carried `gpu_render_gid: 104` on the strength of the Debian table (“render:104 since
+bullseye”). On this machine that gid belongs to **ssl-cert**, so `ollama`, `immich-ml`, `jellyfin` and
+`sunshine` have each been granting their containers the ssl-cert group while *not* granting render. Nothing
+broke, because the udev rules above make the render nodes world-rw — **the wrong gid was masked by mode 0666,
+not harmless**. Fixed to `992` (measured) in the same change that adds the Vulkan tier, which is the first tier
+that cares about naming the render node deliberately (`gpu_vulkan_render_node: /dev/dri/renderD129`, dGPU only
+— `renderD128` is the HD 630 iGPU: the desktop's Xorg device, the Jellyfin QSV transcoder, and measured slower
+than CPU for AI work). If a future host needs a different gid, make it a host var rather than re-guessing a
+distribution default.

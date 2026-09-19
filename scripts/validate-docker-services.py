@@ -146,6 +146,9 @@ def _load_ssot_ctx():
     for k in (
         "timezone", "op_vault", "domain_public", "domain_local",
         "letsencrypt_email", "gpu_render_gid", "gpu_video_gid",
+        # HD-391: the dGPU render node the Vulkan AI legs mount (ONLY renderD129 — renderD128
+        # is the iGPU/Xorg+QSV device). Plain value in the SSOT gids' neighbourhood.
+        "gpu_vulkan_render_node",
         "crowdsec_collections", "wildcard_cert_file", "wildcard_cert_key_file",
         "wildcard_cert_domain", "ha_vip", "ha_vip_cidr", "network_ranges",
         "kopia_sftp_host", "kopia_sftp_port", "kopia_sftp_user", "kopia_sftp_path",
@@ -188,6 +191,13 @@ def _load_ssot_ctx():
         # the SSOT (HD-189 principle) so the validator render cannot drift.
         "homelable_scanner_ranges_json", "homelable_status_checker_interval",
         "homelable_deep_scan_ranges_json", "homelable_mcp_enabled",
+        # Pinned-AI tier on oldsrv (HD-391, decision #27) — plain non-secret listen ports +
+        # hard memory caps + the GGUF ctx window, consumed by the whisper/reranker/embed
+        # compose templates. Loaded from the SSOT so the render cannot drift (HD-189).
+        "ai_tier_whisper_port", "ai_tier_whisper_memory_limit",
+        "ai_tier_reranker_port", "ai_tier_reranker_memory_limit",
+        "ai_tier_embed_port", "ai_tier_embed_memory_limit",
+        "ai_tier_gguf_ctx_size",
     ):
         if k in hdata:
             ctx[k] = hdata[k]

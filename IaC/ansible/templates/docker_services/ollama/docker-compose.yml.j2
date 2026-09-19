@@ -1,30 +1,42 @@
-# ollama docker-compose.yml — RX 7600 pinned-services tier (decision #24, 2026-09-15)
-#   Serves the SMALL PINNED services on the oldsrv RX 7600: Whisper STT + bge-m3 embed +
-#   bge-reranker. NOT generation — the big models run on spark (GB10, decision #24).
-#   GPU-accelerated via AMD ROCm (/dev/dri, /dev/kfd). Accessed ONLY by the LiteLLM
-#   spine on the dedicated `llm-backend` network (fully isolated — HD-59). Ollama
-#   deliberately does NOT sit on `services-internal`: its local API has no native auth,
-#   so the network itself is the boundary (same precedent as the isolated `db-internal`
-#   bridge). LiteLLM (HD-100) joins `services-internal` (for consumers) + `llm-backend`
-#   (to reach Ollama). No web UI, no Traefik labels.
-#   OLLAMA_KEEP_ALIVE=5m keeps models warm between requests. Image `:rocm` == latest
-#   release incl. bundled ROCm runtime (plain `:latest` has no ROCm support).
-#   The `:rocm` image is the PROVEN RDNA3 path (verified 2026-08-21) — the same
-#   container-bundled-ROCm doctrine as immich-ml (docs/hardware-gpu.md).
+# ollama docker-compose.yml — RX 7600 embed FALLBACK RUNG (decision #27, 2026-09-18)
+#   DEMOTED by decision #27: this container is no longer the pinned-services tier. It now
+#   serves ONE thing — `bge-m3` embeddings as the documented fallback under the Vulkan
+#   `embed` leg (templates/docker_services/embed/) — and retires once that leg is
+#   live-verified. STT and rerank LEFT Ollama entirely:
+#     · STT  → whisper.cpp Vulkan (no ROCm/HIP whisper.cpp artifact exists upstream to pull)
+#     · rerank → llama.cpp Vulkan; **no released ollama serves /api/rerank at ANY version**
+#       (v0.34.1 tree grep = 0 hits; PRs #11389/#7219 closed-not-merged) and LiteLLM has no
+#       ollama rerank provider — so bumping this pin was never the fix (corrected below).
+#   NOT generation — the big models run on spark (GB10, decision #24).
+#   GPU-accelerated via AMD ROCm (/dev/dri, /dev/kfd) — the ROCm-bundled `:rocm` image is the
+#   proven RDNA3 path (verified 2026-08-21), the same container-bundled-ROCm doctrine as
+#   immich-ml (docs/hardware-gpu.md). Note the AI tier's Vulkan legs need NEITHER /dev/kfd
+#   nor ROCm userspace; this leg is now the only thing keeping the KFD consumers on this card
+#   besides immich-ML.
+#   Accessed ONLY by the LiteLLM spine on the dedicated `llm-backend` network (fully isolated
+#   — HD-59). Ollama deliberately does NOT sit on `services-internal`: its local API has no
+#   native auth, so the network itself is the boundary (same precedent as the isolated
+#   `db-internal` bridge). LiteLLM (HD-100) joins `services-internal` (for consumers) +
+#   `llm-backend` (to reach Ollama). No web UI, no Traefik labels.
+#   OLLAMA_KEEP_ALIVE=5m keeps the model warm between requests.
 #
 #   Models (pulled at first boot — 2026-09-15 live pulls; the plain library names in the
 #   original HD-369 spec did NOT exist in the ollama library — corrected to the community
 #   registry paths that DO exist and were pulled):
-#     sendmeaiohyeah/whisper-large-v2  — STT (voice pipeline, docs/smart-home-voice.md)
 #     bge-m3                           — embeddings (1024-dim, Qdrant RAG, docs/services-ai.md §5b) [library]
-#     qllama/bge-reranker-v2-m3:q8_0   — rerank (Qdrant RAG top-20→top-5) [community]
-#   LiteLLM fronts these as `ollama/sendmeaiohyeah/whisper-large-v2`, `ollama/bge-m3`,
-#   `ollama/qllama/bge-reranker-v2-m3:q8_0` (models-in-DB, HD-247).
+#                                        KEPT: the fallback rung under the Vulkan embed leg.
+#   RETIRED BY DECISION #27 (HD-391) — still on disk under /srv/models/ollama from the
+#   2026-09-15 pulls, but no longer served or referenced by the LiteLLM catalog:
+#     sendmeaiohyeah/whisper-large-v2  — STT → now whisper.cpp Vulkan (docs/services-ai.md §3a)
+#     qllama/bge-reranker-v2-m3:q8_0   — rerank → now llama.cpp Vulkan (docs/services-ai.md §3a)
+#   (Cleanup: `ollama rm <name>` for both once the Vulkan legs are verified — ~4 GB of the
+#   nvme/models dataset that nothing reads any more. Recorded in the HD-391 runbook, not
+#   done silently by a converge.)
 #
-#   ⚠ KNOWN API CAP: this pinned ollama (0.32.15-rocm, versions.yml) exposes /api/embed + /api/chat
-#   but NOT /api/rerank (404 — rerank endpoint only exists in ollama ≥ 0.5.x). So LiteLLM's
-#   /rerank route will NOT work against this binary while pinned at 0.3x. Embed (bge-m3) is verified
-#   live; whisper/rerank need a newer ollama (see HD-369 deploy-gate tail for the follow-up).
+#   ⚠ CORRECTED CLAIM (was: "rerank endpoint only exists in ollama ≥ 0.5.x"): that note was
+#   WRONG and the bump it recommended must NOT be run. No released ollama exposes /api/rerank
+#   at any version, and LiteLLM has no ollama rerank provider. Embed (`/api/embed`) is the
+#   only endpoint this binary serves for the AI tier, and it is verified live.
 #
 # Secrets: none needed (models are public, no API keys).
 services:

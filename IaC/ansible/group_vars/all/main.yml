@@ -19,12 +19,23 @@ domain_local: kogler.si    # reserved for future split-horizon scenarios — cur
 # Phase 3). Upstream public resolver until then.
 bootstrap_dns_servers: "1.1.1.1"
 
-# GPU group IDs — standard Debian 12/13 (bookworm/trixie).
-# video:44 (static since Debian 1.x), render:104 (since Debian 11 bullseye).
-# Used by ollama, immich-ml, jellyfin, sunshine for /dev/dri access.
+# GPU group IDs — VERIFIED ON THE BOX, not from the Debian defaults table.
+# video:44 is Debian-static (correct). render was ASSUMED 104 ("since bullseye") and
+# that value is WRONG on oldsrv: `getent group 104` = ssl-cert there, while the live
+# `render` group is 992 (measured 2026-09-19 over SSH; bench §1 agrees). So every GPU leg
+# was group_add-ing the SSL-CERT group instead of render. It never broke anything only
+# because the render nodes are world-rw on this desktop box (`getfacl /dev/dri/renderD129`
+# shows other::rw- + a lightdm ACL) — i.e. the wrong gid was masked, not harmless by design.
+# Used by ollama, immich-ml, jellyfin, sunshine + the HD-391 Vulkan AI legs for /dev/dri.
 # Verify with: getent group render video
-gpu_render_gid: 104
+gpu_render_gid: 992                         # oldsrv live `render` (measured 2026-09-19; 104 = ssl-cert)
 gpu_video_gid: 44
+
+# The dGPU's DRM render node for the Vulkan legs (HD-391, decision #27). Mount ONLY this
+# node: renderD128 is the HD 630 iGPU, which is the family desktop's Xorg device AND the
+# Jellyfin QSV transcoder — and using it for AI is measured SLOWER than CPU (rejected by
+# measurement, docs/services-ai-bench.md §4). renderD129 = AMD RX 7600 gfx1102.
+gpu_vulkan_render_node: /dev/dri/renderD129
 
 # ==== Shared service knobs ====
 # Docker image version pins live in ONE file: `group_vars/all/versions.yml`

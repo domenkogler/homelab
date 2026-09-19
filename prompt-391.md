@@ -1,6 +1,24 @@
 > **Role:** single-lane handoff for **HD-391 — author + deploy the three pinned-AI services on oldsrv** (`whisper`, `reranker`, `embed`) on the ggml/**Vulkan** family per decision #27. Self-contained: the digests, model digests, flags, file paths, converge commands and the verification protocol are all below, so you can start without opening the bench doc.
 > **Linked from:** [`prompt.md`](prompt.md) §2 · [todo.md](todo.md) HD-391 · siblings [`prompt-397.md`](prompt-397.md) (how to reach oldsrv from anywhere) and [`prompt-398.md`](prompt-398.md) (why the mgmt leg is dead).
 > **Baseline:** authored on `main` at `47a71c7`, 2026-09-19.
+>
+> **STATUS after the 2026-09-19 session (branch `session/oldsrv-pinned-ai-20260919-2105`) — §1 “author” half is
+> DONE, the deploy half is waiting on another lane.** Done and green: the three templates, the digest + model
+> sha256 pins, a **generic `svc.model_*` model-fetch hook** in `roles/docker_services/tasks/deploy-service.yml`
+> (owner-approved touch to the role), the registry lines, the ollama/vps.yml sweeps, `validate-all` green, and
+> the runbook in [docs/services-ai.md](docs/services-ai.md) **§3a-1 + §4a**. Also done: all three model
+> artifacts are **pre-staged + sha256-verified** in `/srv/models/{whisper,reranker,embed}` on oldsrv, the
+> whisper GGML digest gap is closed, and **`gpu_render_gid` was corrected 104 (`ssl-cert`!) → 992 (`render`)**.
+> Owner calls taken since this brief was written: **rag-mcp stays parked as HD-268b** (it is a stub with no
+> `services:` block, so `enabled: true` would fail compose validation) and the reranker **ships dormant**,
+> verified by a LiteLLM probe + a synthetic consumer; `--ctx-size 2048`; **keep** the `ollama/bge-m3` catalog
+> row as the fallback rung.
+>
+> ⛔ **Do not converge from this branch yet.** Converge only after the HD-397/HD-398 lane merges its access fix
+> into `main` (oldsrv is SSH-reachable but `host_vars` still points Ansible at the sealed Mgmt address). That
+> lane owns `host_vars`, `network-vpn.md` and the `home_servers.yml` `ansible_ssh_common_args` key — this lane
+> did not touch any of them. Then: pull `main` → converge detached → §4a catalog POSTs → live verification
+> (VRAM, concurrency, `dmesg` delta, **Slovenian** STT samples from viri.cjvt.si) → flip §3a → delete HD-391.
 
 ---
 
