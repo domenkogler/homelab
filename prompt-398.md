@@ -1,3 +1,12 @@
+> ⚠ **CLOSED 2026-09-19 — the owner answered: A (the seal stays).** Do NOT start a session from this file
+> and do NOT widen `wg_s2s_vps.allowed_ips` or the router `available-from` — the mandate for the decision is
+> now on the record in [docs/network-rejected.md](docs/network-rejected.md) ("Mgmt VLAN 99 reachable from
+> the VPS site-to-site tunnel (HD-398 option B) | rejected | 2026-09-19") and the settled rule lives in
+> [docs/network-vpn.md](docs/network-vpn.md) §The settled rule. Consequence implemented the same day under
+> **HD-397**: off-LAN admin = the Home leg everywhere. The §3 router evidence was **waived by the owner**
+> (station abroad, `Mgmt99` vNIC Disconnected — option A needed none of it); re-open it only with a new
+> question, not as cleanup. **HD-392 and HD-398 are both closed** (rows deleted per CONVENTIONS §4(a)).
+>
 > **Role:** single-lane handoff for **HD-398 — the management VLAN (99) does not accept traffic from the site-to-site tunnel.** The mechanism is already proven; what is left is a narrow piece of router evidence and **one owner decision**. This file is self-contained.
 > **Linked from:** [`prompt.md`](prompt.md) §2 · [todo.md](todo.md) HD-398 · siblings [`prompt-397.md`](prompt-397.md) (the away-path work this row gates) and [`prompt-391.md`](prompt-391.md) (the lane that needs a reliable oldsrv converge path).
 > **Baseline:** authored on `main` at `47a71c7`, 2026-09-19. Row Exec class is **AI + gate** — the last step is not yours.

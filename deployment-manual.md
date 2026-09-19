@@ -919,12 +919,11 @@ hop needed anymore.** Preconfigured aliases (single `id_ed25519`/`ansible-admin_
 # verify (RouterOS answers `:put`):
 ssh router '':put OK''            # RB4011 .99.1
 ssh switch '':put OK''            # CRS328 .99.2
-ssh oldsrv echo OK                # .99.30
+ssh oldsrv99 echo OK              # .99.30 (on-site leg; `ssh oldsrv` = the Home leg + jump since 2026-09-19)
 ssh pi99 echo OK                  # Pi Mgmt .99.20 (pi = Home .1.20; the one dual-leg exception)
 # WinBox: point at the device Mgmt IP directly — see .99.x in network-addresses-generated.md
 #   WinBox Address=<switch .99>  (CRS328)  | <ap-dnevna .99>  etc.
-# aliases live in ~/.ssh/config:  pi .1.20, pi99 .99.20, router .99.1, switch .99.2, oldsrv .99.30,
-# ap-spalnica .99.4, ap-dnevna .99.5, ap-spare .99.6, nas .1.10
+# alias list = docs/network-vpn.md §The laptop alias contract (the SSOT for BOTH ~/.ssh/config files)
 # .99.x IPs = network-addresses-generated.md SSOT; the hop aliases were removed + deduped (2026-09-08).
 ```
 

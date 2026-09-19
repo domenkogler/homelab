@@ -199,13 +199,17 @@ verify(){ local host=$1 url=$2 tok=$3 label=$4 code
 # each consumer's rendered env equals the vault value; and llm.ts.kogler.si is checked separately
 # below because that host bypasses LiteLLM and authenticates with THIS bearer.
 # An audit read that FAILS must never be rendered as a verdict on the secret. `UNREADABLE` means
-# THIS STATION could not run the read; it says nothing about whether the rotation landed. Measured
-# 2026-09-19: the bare `ssh oldsrv` alias targets a management-leg address that is sealed from the
-# VPS tunnel (HD-398), so from off-LAN this leg read empty while the host was up and CORRECT on its
-# Home leg — an earlier build printed an empty hash and called it "host unreachable", which is both
-# under-specified and, against a dead alias, permanently true. Override the station path per run
-# without editing anything (address comes from the network SSOT, never hard-coded here):
-#   OLDSRV_SSH="-J vps ansible-admin@<oldsrv home address>" bash scripts/rotate-spark-llm-key.sh ...
+# THIS STATION could not run the read; it says nothing about whether the rotation landed.
+# ✅ FIXED STATION PATH 2026-09-19 (HD-397): `ssh oldsrv` used to point at the management-leg
+# address, which is sealed from the VPS tunnel ON PURPOSE (HD-398 → decision A), so off-LAN this
+# leg read empty while the host was up and CORRECT on its Home leg (an earlier build printed an
+# empty hash and called it "host unreachable" — under-specified, and against a dead alias
+# permanently true). The alias now resolves to the HOME leg through the jump, and the jump itself
+# is carried in IaC group_vars. Measured off-LAN the same day with the default target and NO
+# override: the leg returned a real hash (b5667a01f641), container `Up (healthy)`.
+# The override knob stays as the escape hatch for a station that lacks the laptop alias contract
+# (docs/network-vpn.md §The laptop alias contract) — address from the network SSOT, never
+# hard-coded here: OLDSRV_SSH="-J vps ansible-admin@<oldsrv home address>" bash scripts/…
 OLDSRV_SSH="${OLDSRV_SSH:-oldsrv}"
 envhash(){ # LAST arg = container; everything before it = the ssh target, deliberately word-split so
   # an override like "-J vps user@host" works. (Taking $1 as the target silently broke this: a
@@ -217,7 +221,7 @@ envhash(){ # LAST arg = container; everything before it = the ssh target, delibe
 }
 say "  consumer env hash vs vault NEW ($(h "$NEW")) — a MISMATCH = that converge did not land:"
 say "    litellm      $(envhash vps litellm)"
-say "    lan-litellm  $(envhash $OLDSRV_SSH lan-litellm)   (UNREADABLE = this station could not reach the host — say nothing about the secret; fix the station path per HD-397/398)"
+say "    lan-litellm  $(envhash $OLDSRV_SSH lan-litellm)   (UNREADABLE = this station could not reach the host — say nothing about the secret; check the laptop alias contract, then the host)"
 verify spark "http://localhost:8000/v1/models" "$NEW" "engine     NEW (want 200)"
 if [ -n "$SUPERSEDED" ]; then
   verify spark "http://localhost:8000/v1/models" "$SUPERSEDED" "engine     SUPERSEDED (want 401 — this is the proof)"
@@ -232,7 +236,8 @@ if [ -n "$SUPERSEDED" ]; then
   verify spark "https://llm.ts.kogler.si/v1/models" "$SUPERSEDED" "llm.ts     SUPERSEDED (want 401)"
 fi
 say ""
-say "Next: (a) re-render oldsrv's lan-litellm when that host is reachable (it was UNREACHABLE in"
-say "this run — an empty env hash there is a down host, not a half-applied secret); (b) history"
+say "Next: (a) ONLY if lan-litellm printed UNREADABLE — re-render oldsrv's lan-litellm once the"
+say "station path works (an empty env hash there is a station/host fault, not a half-applied"
+say "secret: first re-test with the OLDSRV_SSH override before blaming the host); (b) history"
 say "scrub is now OPTIONAL — once the superseded bearer 401s it is inert (docs §4a records the"
 say "condition that re-opens it: rolling any consumer back to the old value)."

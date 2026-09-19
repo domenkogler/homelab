@@ -196,13 +196,16 @@ target):** if/when a shared-service `tag:kogler` is wanted, declare it + its own
 > is the only tailnet surface for the admin dashboards (see the compose template
 > `docker_services/traefik-tailnet` for the routing + serve details).
 >
-> **Mgmt-99 SSH from the laptop — direct (2026-09-08, replaces the Pi-hop):** the laptop now reaches the Mgmt
-> plane **directly** via the Windows **Mgmt99 vNIC** (`wsl-nat-resolv.ps1 -EnableMgmt99`: `.99.80` + forwarding),
-> so **no ProxyJump `pi` hop is needed anymore**. Preconfigured `~/.ssh/config` aliases (concrete IPs:
-> [`network-addresses-generated.md`](network-addresses-generated.md)):
-> - **SSH console:** `ssh router` (→ router mgmt .99.1, user `ansible`), `ssh switch` (→ CRS328 mgmt .99.2),
->   `ssh oldsrv` (→ .99.30), `ssh pi` / `ssh pi99` (→ Pi Home .1.20 / Mgmt .99.20 — the one dual-leg exception),
->   `ssh ap-spalnica/ap-dnevna/ap-spare` (→ APs .99.4/.5/.6). **All direct — no ProxyJump.**
+> **Mgmt-99 SSH from the laptop — same-site only (corrected 2026-09-19, HD-398 owner decision A):** the
+> laptop reaches the Mgmt plane **directly** via the Windows **Mgmt99 vNIC** (`wsl-nat-resolv.ps1
+> -EnableMgmt99`: `.99.80` + forwarding) — no ProxyJump `pi` hop, and **no away path**: the plane is sealed
+> from the VPS tunnel on purpose. That is only usable **on-site AND when that adapter actually has link**
+> (Disconnected on 2026-09-19 — verify with `ip -br addr` in WSL, a VLAN-99 route must be present).
+> The alias list is NOT kept here (it drifted once): the SSOT is
+> **§The laptop alias contract** above — one table for both `~/.ssh/config` files (WSL + Windows).
+> Short version: `router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` = Mgmt, jump-less, on-site;
+> `pi`/`nas`/`oldsrv`/`spark` = Home leg + `ProxyJump vps`, anywhere (`ssh oldsrv` means the Home address
+> since 2026-09-19; it used to point at `.99.30` + a jump that could never reach it).
 > - **Winbox GUI (device binds winbox 8291 to Mgmt VLAN only):** because the Mgmt plane is reachable from the
 >   laptop directly, point Winbox at the device Mgmt IP (`.99.x` per [`network-addresses-generated.md`](network-addresses-generated.md)) — no tunnel needed
 >   (the old `switch-wb`/`ap-*-wb` LocalForward aliases were removed; the Pi-dial pattern is retired).
@@ -308,30 +311,111 @@ Neither is a property of the laptop's network — the VPS is the only host with 
 is the door for both.** Addresses come from [network-addresses-generated.md](network-addresses-generated.md);
 nothing below hard-codes one.
 
-| Node | Away-from-home path for **SSH/admin** | Works off-LAN? |
+> **How to read the matrix:** every ✅/❌ is a command result, not a config reading. The pass below was
+> taken **abroad on a mobile hotspot** (station egress ≠ the home-WAN DDNS; direct `10.10.x.x:22` probes
+> all timed out). The **on-site half was not measured** that day — the station had no Mgmt-99 link, so the
+> same-site rows are labelled as such instead of being asserted ✅.
+
+| Node | Away-from-home path for **SSH/admin** | Measured 2026-09-19, off-LAN |
 |---|---|---|
-| **vps** | direct — `vps.kogler.si` is public | ✅ the door itself |
-| **pi** | alias `pi` → `ProxyJump vps` | ✅ measured today |
-| **spark** | alias `spark` → `ProxyJump vps`; the **playbook also carries `ansible_ssh_common_args: "-o ProxyJump=vps"`** so a converge works from anywhere | ✅ measured today |
-| **pi99** (Pi mgmt leg) | alias `pi99` → `ProxyJump vps` | ✅ (alias-level only) |
-| **oldsrv** | alias `oldsrv` → jump, **but its target is the mgmt-leg address, which was black-holed from the VPS side today**; the Home leg works with a `Host <ip>` block (HD-397/398) | ⚠ degraded |
-| **nas** | **`nas` has NO `ProxyJump` at all** — it resolves to a Home-VLAN address the laptop cannot route to from a hotspot | ❌ broken (HD-397) |
-| router / switch / APs | mgmt-leg addresses, alias blocks with no jump | ⚠ alias-level only |
+| **vps** | direct — `vps.kogler.si` is public | ✅ `REMOTE_OK vps` — the door itself |
+| **oldsrv** | alias `oldsrv` **→ Home leg** + jump; the jump is also carried in `group_vars/home_servers.yml`, and `ansible_host` is now the Home address | ✅ `ssh oldsrv` **and** `ansible oldsrv.kogler.si -m ping` green with **no `-e`**; `home_servers.yml --check --limit oldsrv` `unreachable=0` |
+| **nas** | jump in the alias **and** in `group_vars/storage.yml` (file created by HD-397 — the `storage` group had no group_vars at all) | ✅ both green. **Was ❌**: `ssh nas` had no `ProxyJump` anywhere → no route from a hotspot |
+| **pi** | alias + jump; `group_vars/raspberry_pi.yml` now carries it for the runner too | ✅ both green. **Was split**: `ssh pi` ✅ while `ansible pi -m ping` ❌ (the jump lived only in the alias) |
+| **spark** | `group_vars/spark.yml` + the identical play-level copy in `playbooks/spark.yml` | ✅ both green (the one host that always worked — the precedent this copies) |
+| router / switch / APs / any `*99` alias | **none, by design** — Mgmt plane = same-site (decision A below) | ❌ by design: `ssh router` → connect timeout. Never add a jump to these |
 
 **Services (not SSH): never a port forward.** `*.{ts.,}kogler.si` on the tailnet → VPS
-`traefik-tailnet` edge → WG S2S → the home backend, per the boundary decision above. Measured today
-from a hotspot: `llm.ts.kogler.si` served spark inference end-to-end with no home reachability at all.
+`traefik-tailnet` edge → WG S2S → the home backend, per the boundary decision above. Measured
+2026-09-19 from a hotspot: `llm.ts.kogler.si` served spark inference end-to-end with no home
+reachability at all.
 
-### The rule the measurements imply (2026-09-19)
+### The settled rule — HD-398 closed as **owner decision A** (2026-09-19): the Mgmt plane is a same-site plane
 
-**The management VLAN does not accept traffic from the site-to-site tunnel.** From the VPS: ICMP to the
-VLAN-99 gateway answers, but TCP/22 to the router, to the Pi's mgmt leg and to oldsrv's mgmt leg all time
-out, while a Home-VLAN host answers fine. So the reliable off-LAN admin path is the **Home leg (VLAN 10)**
-for every node — which is exactly what `pi` (Home address + jump) and `spark` (`playbooks/spark.yml`
-carrying `ProxyJump`) already do. Treat a mgmt-leg address as a same-site admin path, not an away path:
-`pi99`, `router`, `switch`, the AP aliases and `oldsrv` all target mgmt-leg addresses and therefore do
-**not** work away from home today. Whether the seal is intentional or a fault is HD-398; the away-path
-decision is HD-397 and should follow whichever answer lands.
+**VLAN 99 does not accept traffic from the site-to-site tunnel, and that is policy, not a fault.**
+The owner chose **A — the seal stays** on 2026-09-19 (decision row: [network-rejected.md](network-rejected.md)):
+management is a physical-presence plane and **off-LAN admin is always the Home leg (VLAN 10)**, which is
+what `pi`/`spark` already relied on. Option **B** (add the mgmt /32s to `wg_s2s_vps.allowed_ips` **and**
+extend the router's `available-from`) was declined: it spends two deliberate boundaries — **HD-155**
+least-access AllowedIPs and **HD-310** admin-plane scoping — to fix a symptom the Home leg already solves.
+
+Two independent mechanisms, both re-verified from the VPS on 2026-09-19:
+
+1. **No route.** `ip route get <oldsrv mgmt addr>` answers `via <vps default gw> dev eth0` — straight out
+   to the internet — while `ip route get <VLAN-99 gateway>` answers `dev wg-s2s`. Cause:
+   `wg_s2s_vps.allowed_ips` (`IaC/ansible/group_vars/all/main.yml`) is an explicit **/32 least-access list**
+   (the five VLAN-10 node addresses + the router + switch mgmt addrs + the `wg-vps-services` range) and
+   names **no other mgmt address**; systemd-networkd installs a route only for what AllowedIPs names.
+   Live `sudo wg show wg-s2s` agrees, and the netdev's mtime is **2026-09-03** — nothing changed since.
+2. **The router scopes its own control plane.** `/ip service set ssh … available-from={{ router_services_available_from }}`
+   (`IaC/router/templates/rb4011_converge.rsc.j2`), and that var is **the VLAN-99 subnet and nothing else**
+   (`IaC/ansible/group_vars/router.yml`) — so even the mgmt addresses that ARE routed refuse a
+   tunnel-sourced SSH (src `10.255.40.x`): tagged 99 = admin plane, Home→Mgmt forward is dropped.
+
+Re-verify in 60 s: `ssh vps 'ip route get <oldsrv-mgmt>; ip route get <vlan99-gw>; sudo wg show wg-s2s'` +
+`grep -n -A9 "allowed_ips:" IaC/ansible/group_vars/all/main.yml`.
+
+Consequences, written out (this is the sentence two sessions on 2026-09-19 were missing):
+
+- `pi99`, `router`, `switch`, the AP aliases and `oldsrv99`/`nas99` are **on-site admin paths** — reachable
+  only with the Windows `Mgmt99` vNIC carrying link (`wsl-nat-resolv.ps1 -EnableMgmt99`; it was
+  **Disconnected** on 2026-09-19) or while physically on the LAN. Check the link **before** blaming the
+  router: `ip -br addr` in WSL must show a VLAN-99 route, not just `eth0`.
+- **Never put `ProxyJump vps` on a mgmt-leg alias.** It cannot work, and it converts a fast failure into a
+  ~90 s `Connection timed out during banner exchange`. `pi99` carried exactly that line until 2026-09-19 —
+  measured result of the alias as it stood: `Connection timed out during banner exchange`.
+- **A banner-exchange timeout is a dead next-hop, not an sshd fault**, and **a dead address is not a dead
+  host** (oldsrv was `Up`, 34 containers running, `enp0s31f6.99` `UP` with the right address, while its
+  mgmt address answered nothing).
+
+### Where the jump lives (HD-397, the durable fix)
+
+The jump is a property of **the inventory**, not of a runner: `ansible_ssh_common_args: "-o ProxyJump=vps"`
+in `group_vars/home_servers.yml`, `group_vars/storage.yml`, `group_vars/raspberry_pi.yml` and
+`group_vars/spark.yml` (`playbooks/spark.yml` keeps its identical play-level copy — play vars win over
+group vars, same value, no conflict). Before this, only spark carried it in the repo, which is exactly why
+spark was the only host convergible from a hotel room. **A laptop-local `~/.ssh/config` is not a durable
+artifact** — it is the convenience layer, specified in §The laptop alias contract below.
+
+Proven the same day off-LAN with a stub config that contains **only** the `Host vps` block
+(`ANSIBLE_SSH_ARGS="-F <stub>" ansible <host> -m ping`): **pong for all four behind-NAT hosts** — the
+repo alone carries the path.
+
+Green forms (no `-e` anywhere, from a hotspot):
+
+```bash
+bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --check --tags common,network
+#   oldsrv.kogler.si : ok=18 changed=0 unreachable=0 failed=0
+# The FULL `--check` (same command, no --tags) also connects (unreachable=0) but reports failed=1 in
+# the KNOWN check-mode breaker class: roles/docker_services/tasks/technitium-seed.yml:102 reads
+# `_tech_login.json` from a `uri` task that does not run in check mode — see
+# [deployment-ansible.md](deployment-ansible.md) §Dry-run Mode. Not a reachability fault.
+# The recorded `delegate_to` victim task, now green off-LAN (no -e at all):
+#   ok: [oldsrv.kogler.si -> pi.kogler.si(<the Pi Home address>)]   # Fetch Pi ha-sync public key
+#   (--limit oldsrv.kogler.si --check --tags home_assistant,ha_failover → failed=0)
+```
+
+### The laptop alias contract (SSOT — rebuild a new laptop from this, do not copy an old `~/.ssh/config`)
+
+Two rules decide every block:
+
+1. **Behind-NAT hosts** (`pi`, `nas`, `oldsrv`, `spark`) are reached through `ProxyJump vps` onto their
+   **Home leg**, on every network. The Mgmt leg is never an away path (decision A above).
+2. **OpenSSH matches the name ACTUALLY TYPED**, so each node gets an alias block **and** a `Host <ip>`
+   block for the leg its `ansible_host` names. Ansible no longer *needs* the IP block (the jump travels in
+   the inventory — proven above); the block is what `scp`/`rsync`/`git` and a human typing an address need.
+
+| Block | Leg (see [network-addresses-generated.md](network-addresses-generated.md)) | `ProxyJump` | Notes |
+|---|---|---|---|
+| `vps` | public | — | the jump itself; `User ansible-admin` |
+| `pi`, `….1.20` | Home | `vps` | alias uses the human user, the IP block the `ansible-admin` one |
+| `nas`, `….1.10` | Home | `vps` | gained the jump 2026-09-19 (was the broken one) |
+| `oldsrv`, `….1.30` | Home | `vps` | **the alias moved mgmt → Home on 2026-09-19**; mgmt access is `oldsrv99` now |
+| `spark`, `….1.40` | Home | `vps` | the precedent both the play and the group var copy |
+| `pi99`, `oldsrv99`, `nas99`, `router`, `switch`, `ap-spalnica`, `ap-dnevna`, `ap-spare` | Mgmt (VLAN 99) | **none — never add one** | on-site admin paths only (decision A); `oldsrv99`/`nas99` were re-added 2026-09-19 as the explicit on-site legs |
+
+Both copies of the contract live on the one laptop and must agree: WSL `~/.ssh/config` and
+`C:\Users\domen\.ssh\config` (Windows OpenSSH). Both were brought to this table on 2026-09-19.
 
 ### The tailnet is not observable from the VPS host
 
@@ -341,21 +425,39 @@ found"). **Empty output from that host is not "no peers"** — it is the wrong i
 network from a tailnet-attached client, or from the Headscale control server itself (it runs as Docker on
 the home server, per §Two Layers above).
 
-### Three traps, all hit while measuring this
+### Traps, all hit while measuring this
 1. **A dead address is not a dead host.** `oldsrv`'s mgmt leg answered nothing (ICMP loss, port 22
-   closed) while the box was up 12 days and fully reachable on its Home leg — including
-   `enp0s31f6.99` reporting `UP` with the right address on it. Before concluding "host down", test the
+   closed) while the box was up **9 d 21 h** (re-probed 2026-09-19; the "12 days" in the first draft of
+   that note was not reproducible) and fully reachable on its Home leg — including `enp0s31f6.99`
+   reporting `UP` with the right address on it. Before concluding "host down", test the
    **other leg**, then test a hop that must work (the VLAN gateway answered from the same VPS, which
    localised the fault to the host-specific path rather than the tunnel).
-2. **OpenSSH matches on the hostname ACTUALLY TYPED.** An alias block does nothing for Ansible, which
-   types the inventory IP. Each behind-NAT node needs BOTH: the jump carried in the play
-   (`ansible_ssh_common_args`, the spark precedent — "so ANY runner converges spark") and a
-   `Host <ip>` block in the runner's `~/.ssh/config`. Only spark has both today; that is HD-397.
+2. **OpenSSH matches on the hostname ACTUALLY TYPED — but the inventory carries the jump, so an alias
+   block is not what makes Ansible work.** The observed split before 2026-09-19: `ssh pi` ✅ (alias with
+   `ProxyJump`) while `ansible pi -m ping` ❌ (Ansible types the inventory IP; nothing matched, no jump).
+   The **fix is the group var** (`ansible_ssh_common_args`), and that was proven with a stub ssh config
+   holding only `Host vps`: all four behind-NAT hosts ponged. The `Host <ip>` blocks in §The laptop alias
+   contract are for `scp`/`rsync`/`git` and for humans who type addresses — useful, not load-bearing.
+   (The old wording here said a node "needs BOTH"; measured 2026-09-19 that is over-strict.)
 3. **`-e ansible_host=<ip>` is a GLOBAL extra-var — it corrupts `delegate_to`.** Using it to reach
    oldsrv's Home leg produced `ok=367 changed=52 failed=1`, where the one failure was a
    `delegate_to: pi` task that connected to **oldsrv's** address looking for `/root/.ssh/ha-sync.pub`.
    The file exists on the Pi; the task never ran there. A scoped override needs
    `--limit` + a per-host `host_vars` change or a group-level var — not a global `-e`.
+   **Now moot by construction (HD-397):** oldsrv's `ansible_host` IS the Home leg, so no run needs the
+   override at all — re-verified 2026-09-19: the same delegated task returned
+   `ok: [oldsrv.kogler.si -> pi.kogler.si(<Pi Home addr>)]` off-LAN with no `-e`. Do not reintroduce
+   the pattern.
+4. **A `--check` that fails is not a reachability failure.** The full `home_servers.yml --check` reports
+   `unreachable=0 failed=1` because `technitium-seed.yml:102` reads the result of a `uri` task that does
+   not run in check mode. Read the RECAP's `unreachable` counter for the path question; read `failed`
+   for the play's own defects (the class is catalogued in
+   [deployment-ansible.md](deployment-ansible.md) §Dry-run Mode).
+5. **A backgrounded `cd X && nohup … &` takes the `cd` into the subshell** — the foreground shell stays
+   where it was. Measured 2026-09-19: a reachability probe written that way silently ran against the
+   **primary** checkout instead of the session worktree and reported "the group var does not carry the
+   jump" (it saw the pre-change mgmt address). Always `cd` first, then background the command — and
+   print `pwd` + `git rev-parse --abbrev-ref HEAD` in any measurement you intend to quote in a doc.
 
 **Also worth knowing off-LAN:** the Pi is a **toggle-only Slovenian exit node** (egress, not ingress —
 see the section below), and the tailnet does **not** bridge the home LAN, so `10.10.x.x` is unreachable

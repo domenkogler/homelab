@@ -1,0 +1,21 @@
+---
+# Storage server configuration — NAS (HP MicroServer Gen8, ZFS, NO Docker)
+#
+# Created 2026-09-19 by HD-397. The `storage` inventory group had no group_vars file at
+# all, which is why `nas` was the one behind-NAT host that could not be reached from
+# off-LAN BY ANY MEANS: no play-level jump, no group var, and its ssh alias had no
+# `ProxyJump` either (measured 2026-09-19: `ssh nas` from a hotspot = connect timeout).
+# Host facts stay in host_vars/nas.kogler.si.yml and their owning docs
+# (docs/hardware-nas.md, docs/storage.md) — this file exists so the connection doctrine
+# below can live in a group var (CONVENTIONS §3: service/arch values → group_vars/).
+
+# Reachability (HD-397, decided 2026-09-19): nas sits behind the home NAT, so a runner
+# that is not LAN-attached reaches it ONLY via the VPS jump. The jump therefore travels
+# IN THE INVENTORY so every play sees it (storage.yml, nut-deploy.yml, dns-seed.yml,
+# all.yml, monitoring) instead of a per-command flag or one laptop's ssh alias — same
+# doctrine as playbooks/spark.yml ("keep it here so ANY runner converges spark"). From a
+# LAN-attached runner it is a harmless no-op. Off-LAN matrix + the laptop alias contract:
+# docs/network-vpn.md §Reaching LAN nodes when away. (The `Host <ip>` block for the
+# VLAN-10 row is for scp/rsync/humans — measured 2026-09-19: the group var alone is enough
+# for a converge, because it is passed on the ssh command line.)
+ansible_ssh_common_args: "-o ProxyJump=vps"

@@ -1,6 +1,16 @@
 ---
 # Phase 1 home server: bare-metal Debian desktop
-ansible_host: 10.10.99.30           # VLAN 99 (Management) — static
+ansible_host: "{{ home_ip }}"      # VLAN 10 (Home) — the admin leg for EVERY runner (HD-397)
+# Leg decision (HD-398 → owner decision A, 2026-09-19): the MANAGEMENT plane (VLAN 99) is
+# sealed from the VPS site-to-site tunnel ON PURPOSE — wg_s2s_vps.allowed_ips names no
+# mgmt address for this host (HD-155 least-access) and the router scopes its own SSH to
+# the VLAN-99 subnet only (HD-310) — so an mgmt-anchored ansible_host is reachable ONLY
+# from a station physically on the Mgmt VLAN (the Windows Mgmt99 vNIC). Off-LAN admin is
+# the HOME leg, which is what pi/spark already do. Before this change the pair was
+# self-contradictory: mgmt ansible_host + ProxyJump vps = a jump into a black hole
+# (`timed out during banner exchange`, misread as a dead host for two sessions).
+# Evidence + the settled rule: docs/network-vpn.md §Reaching LAN nodes when away.
+# ⚠ Do NOT "fix" reachability by widening AllowedIPs — that is a reopened owner decision.
 # Physical uplink NIC for the network role netd units (systemd-networkd):
 # eno1 = Z270 onboard NIC -> CRS328 ether11 (SSOT switch_port_map oldsrv-eno1).
 # Port model (HD-310): Home (10) untagged + Mgmt (99) tagged on this NIC.

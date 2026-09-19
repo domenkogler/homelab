@@ -5,6 +5,15 @@
 # converge on oldsrv must never deploy spark-ai). Stays deploy-gated until the box is up
 # + bench certifies the winner engine.
 
+# Reachability (HD-397, 2026-09-19): same behind-NAT jump as the other LAN hosts, carried
+# as a GROUP VAR so plays WITHOUT the spark.yml `vars:` block (all.yml, monitoring,
+# dns-seed.yml) also converge spark off-LAN. playbooks/spark.yml keeps its identical
+# play-level copy (play vars win, same value — no conflict) for the historical reason
+# stated there: "keep it here so ANY runner converges spark". Matrix + alias contract:
+# docs/network-vpn.md §Reaching LAN nodes when away (the per-IP ssh block is for
+# scp/rsync/humans; the var itself is what carries a converge — measured 2026-09-19).
+ansible_ssh_common_args: "-o ProxyJump=vps"
+
 docker_services:
   # The "most proven" Qwen3.8-Flash-Next config — AWQ W4A16 + PLE INT4 + MTP3 + llm-d router
   # (B1 baseline, spark/BENCHMARK-PLAN.md). Deploy-gated: flip `enabled: true` once the

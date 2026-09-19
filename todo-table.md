@@ -15,8 +15,8 @@ Ordered by what actually unblocks the most. ⏳ = the exact next action, not a r
 
 | HD | P | ⏳ Next action | Why nothing blocks it |
 |----|---|----------------|------------------------|
-| **HD-391** | 2 | Author `templates/docker_services/{whisper,reranker,embed}/` + **digest** pins + sha256-verified model-fetch tasks + the LiteLLM rows (rerank as `jina_ai/`, embed re-pointed off `ollama/bge-m3`), then converge oldsrv and live-verify | Decision **#27 is ACCEPTED (2026-09-18)** — the research and the device sweep are done; plan of record [`services-ai.md`](docs/services-ai.md) §3a, verbatim flags/values [`services-ai-bench.md`](docs/services-ai-bench.md) §8. ⚠ Needs oldsrv SSH (**HD-392**) | 
-| **HD-392** | 1 | Diagnose oldsrv SSH from the workstation — Mgmt-VLAN direct times out, the Home-leg name does not authenticate as `ansible-admin` (the `vps` ProxyJump workaround is not the contract) | Router/WireGuard/sshd diagnostics are AI-runnable, and this **gates the HD-391 converge** | 
+| **HD-391** | 2 | Author `templates/docker_services/{whisper,reranker,embed}/` + **digest** pins + sha256-verified model-fetch tasks + the LiteLLM rows (rerank as `jina_ai/`, embed re-pointed off `ollama/bge-m3`), then converge oldsrv and live-verify | Decision **#27 is ACCEPTED (2026-09-18)** — the research and the device sweep are done; plan of record [`services-ai.md`](docs/services-ai.md) §3a, verbatim flags/values [`services-ai-bench.md`](docs/services-ai-bench.md) §8. ⚠ oldsrv SSH is no longer a blocker — off-LAN it is the Home leg + VPS jump, carried in `group_vars` since 2026-09-19 (HD-397) | 
+| **HD-399** | 2 | Make `technitium-seed` `--check`-safe (gate the block `not ansible_check_mode`) so a full `home_servers.yml --check` goes green | Pure IaC defect, found + located 2026-09-19 (`technitium-seed.yml:102`); spec + evidence in `docs/deployment-ansible.md` §Dry-run Mode |
 | **HD-393** | 1 | Attribute the 641 × `amdgpu init_user_pages: -1` lines per process (journal vs container restarts, `rocm-smi --showpids`), then fix or record as accepted noise | On-box triage only; it pre-dates the Vulkan work (0 hang/reset under the probes) and should be understood before the AI tier grows | 
 | **HD-386** | 1 | Converge oldsrv `--tags docker_services,lan-litellm` (**both** tags), detached, **no `--diff`**; expect `dsh`/`pi-dev` + the key glue to SKIP, `failed=0` | The park is authored + validated; only the converge is missing. ⚠ Needs oldsrv SSH (see the reachability blocker below) |
 | HD-356 | 1 | Once HD-386 converges green, re-check the LAN instance (live + serving); only the scoped-key glue tail remains — parked, not fixed (→ HD-383) | The split itself is deployed + healthy |
@@ -83,7 +83,7 @@ Ordered by what actually unblocks the most. ⏳ = the exact next action, not a r
 
 ## ⚠ Standing blockers on the AI work above
 
-1. **HD-392 — oldsrv SSH from the workstation is broken on both documented paths** — measured 2026-09-18 (connect timeout on the direct Mgmt-VLAN alias; the Home-leg name does not authenticate as `ansible-admin`; a `vps` ProxyJump works and was used for the benchmark sweep). It gates every oldsrv converge: **HD-386, HD-369(c–f), HD-287, HD-268, HD-360's nas leg, HD-344 registration, HD-318(b)**. Filed as **HD-392 on the unmerged `session/oldsrv-pinned-ai-20260918-1515` branch** — do not open a duplicate; fix or document the working path first.
+1. **HD-397 needs a physical presence for its last half** — the off-LAN matrix is measured + green (2026-09-19), the LAN/`Mgmt99` half cannot be taken from abroad. It gates nobody's code, only the on-site verification rows.
 2. **Never benchmark or converge spark from a session whose own model is spark** (incidents #3 + #6). Live converges run **detached** (`nohup … &` + log + poll), spark via the VPS jump.
 3. **Do not merge/converge `main`'s spark values over the certified ones**: the 16 GiB KV pool is the live, certified config.
 
@@ -97,6 +97,7 @@ Grouped by *why*. Clearing these cascades into the AI table above.
 
 | HD | P | Owner step | Then the AI does |
 |----|---|-----------|------------------|
+| HD-397 (tail) | 2 | Be on-site: run the matrix from the LAN and with the `Mgmt99` vNIC linked | Close the row — prove the carried jump is a no-op for a LAN-attached runner and that `router`/`switch`/`ap-*`/`*99` answer again |
 | HD-147 (+ HD-141 epic) | 1 | Browser logins: matrix / claw / cloud / foto / immich (+ Forgejo register) | Blueprint + glue are live; the AI re-renders inventory + closes the epic tail |
 | HD-194 | 3 | Confirm one login + one OIDC callback end-to-end at the edge | Closes audit S17(a) |
 | HD-101 | 2 | OWUI SSO → Authentik round-trip, link the local admin | AI verifies LiteLLM completion + RAG after |
@@ -169,4 +170,4 @@ Checked 2026-09-18 against live state. Each of these has already fooled one docu
 
 - **Best pure-AI picks right now:** `HD-387` (settles a live contradiction with a 20-minute probe), `HD-395` (a measured defect that restarts a healthy engine), `HD-394` (census: two containers no converge will ever clean up), `HD-47` + `HD-122` (federation is one DNS change + one verify away), `HD-357`/`HD-358` (two named bugs on the launchpad and the media stack).
 - **Highest-leverage owner steps, in order:** ① `HD-347` recipients value (one string — alerting is otherwise blind), ② `HD-350` pubkey authorization (unblocks the home-edge cert chain), ③ `HD-384` (which consumer may call what — it unblocks the LAN key glue), ④ `HD-377` + `HD-375` sign-offs (they retire three dashboards and close the alert lane), ⑤ `HD-147` browser logins (the last big OIDC tail).
-- **Before any oldsrv work:** resolve the SSH reachability blocker (HD-392, unmerged branch) — six rows above are silently gated by it today.
+- **Oldsrv reachability is no longer a blocker:** off-LAN it is the Home leg through the VPS jump, carried in `group_vars` since 2026-09-19 — `bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --check …` needs no `-e` (SSOT: `docs/network-vpn.md` §Reaching LAN nodes when away).

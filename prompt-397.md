@@ -1,3 +1,14 @@
+> ⚠ **CLOSED 2026-09-19 — this brief is spent; do NOT start a session from it.** The lane landed the same
+> day it was written: the jump is carried in `group_vars/{home_servers,storage,raspberry_pi,spark}.yml`,
+> `host_vars/oldsrv.kogler.si.yml` `ansible_host` = the **Home** leg (HD-398 → **owner decision A: the seal
+> stays**), both laptop ssh configs were rebuilt to the documented contract, and the matrix was re-measured
+> off-LAN. Settled state + evidence: [docs/network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when
+> away + §The laptop alias contract; decision log: [docs/network-rejected.md](docs/network-rejected.md).
+> One tail remains open as **HD-397** (the on-site/LAN half of the matrix, needs presence) and one found
+> defect went to **HD-399** (`technitium-seed` is not `--check`-safe). Two claims in this file were
+> corrected by measurement: the jump lives in group_vars (not "in the play + a `Host <ip>` block"), and the
+> `Host 10.10.1.30` block is no longer load-bearing for Ansible — see §4 trap 2 as rewritten in the doc.
+>
 > **Role:** single-lane handoff for **HD-397 — off-LAN access parity** (behind-NAT LAN hosts must be reachable/convergible from anywhere without ad-hoc overrides). Read this file and you can start: every number and command below was measured, and the links are only for close-out records.
 > **Linked from:** [`prompt.md`](prompt.md) §2 · [todo.md](todo.md) HD-397 · siblings [`prompt-398.md`](prompt-398.md) (the mgmt-plane seal — HD-397's owner gate) and [`prompt-391.md`](prompt-391.md) (the lane that wants a working oldsrv converge).
 > **Baseline:** authored on `main` at `47a71c7`, 2026-09-19.
