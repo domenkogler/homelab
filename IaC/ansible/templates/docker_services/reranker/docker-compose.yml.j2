@@ -1,0 +1,85 @@
+# reranker docker-compose.yml — pinned-AI rerank leg on the RX 7600 (HD-391, decision #27)
+#   llama.cpp `llama-server` serving bge-reranker-v2-m3 as a CROSS-ENCODER over Vulkan
+#   (`--pooling rank --rerank`), OpenAI/Jina-shaped POST /v1/rerank. Routed in LiteLLM as
+#   the `jina_ai/` provider (decision #27 (b)) — llama.cpp's own flag `--device Vulkan0`
+#   selects the GPU; that is llama-server's flag, NOT docker's `--device`.
+#   WHY NOT CPU: the CPU path (TEI `cpu-1.9.4`) measured 5.3 s for a 20-doc top-20 rerank at
+#   ~790 % CPU — 10-20x off the premise that put it there — against 0.34-0.50 s here at
+#   ~327 MiB VRAM (docs/services-ai-bench.md §3/§5). It is also NOT an Ollama endpoint: no
+#   released ollama serves /api/rerank, and an embed-based adapter cannot fake a
+#   cross-encoder (joint query+passage attention) — both recorded in §9c/§9 #25.
+#   Network doctrine (HD-59): `llm-backend` only, NO `ports:`, NO Traefik labels — the API
+#   has no auth, so the network is the boundary; consumers go through LiteLLM.
+#   Device: the dGPU render node only (renderD129); the iGPU is Xorg + Jellyfin QSV and is
+#   slower than CPU (bench §4).
+#   ⚠ CONSUMER STATUS: this leg is SHIPPED DORMANT. Its intended consumer `rag-mcp` is the
+#   kapa-style hybrid reader and is still an UNIMPLEMENTED STUB (templates/docker_services/
+#   rag-mcp/ has no service block — HD-268b), so nothing calls /v1/rerank in production yet.
+#   The leg is therefore verified by a direct LiteLLM probe + a synthetic consumer
+#   (docs/services-ai.md §3a), NOT by live RAG traffic. Cost of shipping it: ~327 MiB VRAM +
+#   ~157 MiB host RSS, idle. Resident by design — llama-server has no keep-alive/LRU
+#   unloading and `--sleep-idle-seconds` costs a full reload, which defeats the latency win.
+#   Model: sha256-verified fetch into /srv/models/reranker, mounted :ro (see svc.model_*).
+#
+# Secrets: NONE — out of _template_vault_items, zero vault lookups.
+services:
+  reranker:
+    image: "{{ llama_cpp_vulkan_image }}"
+    container_name: reranker
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - llm-backend
+    devices:
+      - "{{ gpu_vulkan_render_node }}:{{ gpu_vulkan_render_node }}"
+    group_add:
+      - "{{ gpu_render_gid }}"
+    volumes:
+      - /srv/models/reranker:/models:ro
+    entrypoint: ["/app/llama-server"]
+    command:
+      - "-m"
+      - "/models/bge-reranker-v2-m3-Q8_0.gguf"     # Q8_0: FP16 = +269 MiB/leg, no ranking change
+      - "--embedding"
+      - "--pooling"
+      - "rank"
+      - "--rerank"
+      - "--device"
+      - "Vulkan0"
+      - "--ctx-size"
+      - "{{ ai_tier_gguf_ctx_size }}"              # llama.cpp truncates SILENTLY past this; the
+                                                   # server default 512 would cut a real ingest
+                                                   # chunk (docs/services-ai.md §5b = 512/64 tokens)
+      - "--batch-size"
+      - "{{ ai_tier_gguf_batch_size }}"            # default 512 => measured HTTP 500 on a 842-token
+                                                   # input; a rerank pair (query + 512-token passage)
+                                                   # crosses that line
+      - "--ubatch-size"
+      - "{{ ai_tier_gguf_ubatch_size }}"           # THIS is the limit the 500 actually reports; the
+                                                   # VRAM cost of the leg lives here, not in ctx-size
+      - "--host"
+      - "0.0.0.0"                                  # llm-backend only — never published
+      - "--port"
+      - "{{ ai_tier_reranker_port }}"
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    # The image's own HEALTHCHECK is hardcoded to :8080; this leg listens on its own port, so
+    # the inherited check exits 7 and the container reads `unhealthy` while answering 200
+    # (measured live 2026-09-19). Re-point it at the ACTUAL port — start_period covers Vulkan
+    # init + the 606 MB weight load.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ ai_tier_reranker_port }}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: "{{ ai_tier_reranker_memory_limit }}"
+networks:
+  llm-backend:
+    external: true

@@ -109,6 +109,32 @@ gluetun_version: "v3.41.3"                 # qmcgaw/gluetun (upstream)
 # install on oldsrv); `-rocm` suffix tracks the matching release of the same version.
 ollama_version: "0.32.15-rocm"             # ollama/ollama (verified 2026-08-21)
 
+# Pinned-AI tier on oldsrv (HD-391, decision #27 ACCEPTED 2026-09-18) — the ggml/Vulkan
+# family on the RX 7600. `main-vulkan` and `server-vulkan` are MUTABLE ALIASES, so under
+# CONVENTIONS §7 the DIGEST is the load-bearing pin and the tag is documentation only.
+# registry-verified 2026-09-19 from oldsrv's OWN image store (the bench probes pulled these
+# exact digests and left them on the box — `docker image inspect` RepoDigests match, see
+# docs/services-ai-bench.md §1).
+# Renovate: docker datasource tracks the TAG; a tag bump MUST be re-benchmarked + re-digested
+# (docs/services-ai.md §3a) — the digest never bumps silently with the tag.
+# whisper.cpp STT server — serves POST /v1/audio/transcriptions natively via
+# --inference-path (no wrapper; decision #27 (c)). No ROCm/HIP artifact exists upstream,
+# which is exactly why the STT engine is Vulkan (bench §2).
+whisper_cpp_vulkan_image: "ghcr.io/ggml-org/whisper.cpp:main-vulkan@sha256:cf102ac361a0978ce2b225c7fa9eccedc781915b7be4d198692ea5fe2261597f"
+# llama.cpp server — ONE image for both GGUF legs (rerank + embed); v0.4.1 build 11028 (972d2313b).
+llama_cpp_vulkan_image: "ghcr.io/ggml-org/llama.cpp:server-vulkan@sha256:7158edb447f837734142c899183e255538d89d63a037f60077b26fc1c7f95353"
+
+# Model artifact digests for the same tier (HD-391). These are the sha256s the get_url tasks
+# verify against, so they belong in the same single sheet as the image pins.
+# All three VERIFIED against the downloaded BYTES on oldsrv 2026-09-19 (not just the HF LFS
+# OID) — sizes in bytes, sources in docs/services-ai.md §7.
+whisper_cpp_model_sha256: "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69"   # ggml-large-v3-turbo.bin 1624555275 B (ggerganov/whisper.cpp)
+# Pre-approved VRAM relief rung (decision #27, -1.0 GiB): ggml-large-v3-turbo-q5_0.bin,
+# 574041195 B. Recorded here so a swap is a digest-verified fetch, not an ad-hoc download.
+whisper_cpp_model_q5_sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2"
+reranker_model_sha256: "a43c7c9b11a4c1517e5bf95151960e1621d1b72f7a493364b01e386cf1aaa1d3"       # bge-reranker-v2-m3-Q8_0.gguf 635676416 B (gpustack/…, Apache-2.0)
+embed_model_sha256: "aa473d51f451a22f0fcf39ba3330c14bed38a385712b1113440f69df4047a173"          # bge-m3-q8_0.gguf 634553760 B (ggml-org/bge-m3-Q8_0-GGUF, MIT)
+
 # ==== File / PDF / P2P ====
 # PairDrop (linuxserver.io) image tag — PUBLIC P2P file share (HD-230, supersedes HD-113).
 # Pinned semver (linuxserver tags use plain `X.Y.Z`, no `v`); Renovate docker datasource tracks it.

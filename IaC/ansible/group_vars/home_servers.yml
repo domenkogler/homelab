@@ -109,6 +109,38 @@ homelable_deep_scan_ranges_json: ''
 # (needs the homelable_mcp 1P item + a tailnet Pattern-A route for remote AI clients).
 homelable_mcp_enabled: false
 
+# --- Pinned-AI tier on the RX 7600 (HD-391, decision #27: ggml/Vulkan) ---
+# Ports are INTERNAL to the `llm-backend` bridge — none of these legs is published on the
+# host (HD-59: the APIs have no auth, so the network is the boundary). They exist so a
+# consumer URL is stable and greppable.
+# Memory caps are HARD CAPS in the spark-dcgm doctrine (HD-379): measured peak, then
+# headroom, so a leak in one leg can never eat the card the whole tier shares with
+# immich-ML (3-5 GB during a job) and Jellyfin/Sunshine.
+# Plan of record + every measured number: docs/services-ai.md §3a.
+ai_tier_whisper_port: 9000
+ai_tier_whisper_memory_limit: "4g"      # fp16 GGML = 1.51 GiB + Vulkan buffers; the binary's
+                                        # native CPU-fallback path (RSS 1.59 GiB measured) must
+                                        # still fit under its own cap
+ai_tier_reranker_port: 9001
+ai_tier_reranker_memory_limit: "1g"     # measured host RSS 157 MiB + 606 MiB Q8_0 weights
+ai_tier_embed_port: 9002
+ai_tier_embed_memory_limit: "1g"        # same shape as the reranker leg
+# Context window for BOTH GGUF legs. llama.cpp truncates SILENTLY beyond it and
+# llama-server's own default is 512 - which would slice a real ingest chunk in half. The RAG
+# ingest spec is token-based 512/64 (docs/services-ai.md §5b), so 2048 = that spec with 4x
+# headroom (bge-m3 supports 8192; paying KV memory for chunks that do not exist yet buys
+# nothing). Re-derive when rag-mcp (HD-268b) goes live and a real chunk size is measurable.
+ai_tier_gguf_ctx_size: 2048
+# Physical batch/ubatch size (HD-391, measured live 2026-09-19): ctx-size alone is NOT enough.
+# The embedding endpoint rejects an input larger than the **ubatch**, and llama-server's error
+# message calls it "batch size" - which is why the first fix attempt (batch 2048, ubatch 512)
+# still answered HTTP 500 "input (842 tokens) is too large to process (current batch size: 512)",
+# because 512 was the Ubatch. So ubatch = batch = ctx: a 512-token ingest chunk plus its special
+# tokens must fit in one ubatch pass. VRAM consequence measured below (compute buffers scale with
+# ubatch, not with ctx) - see docs/services-ai.md §3a-1 for the before/after numbers.
+ai_tier_gguf_batch_size: 2048
+ai_tier_gguf_ubatch_size: 2048
+
 docker_services:
   # === This is OLDSRV — GPU / LAN / storage-bound services only (HD-135 split). ===
   # Public edge + live-data apps + observability backend + alert brain + backup agents
@@ -117,16 +149,48 @@ docker_services:
   # Prometheus/Loki over the wg-vps-services tunnel.
 
   # --- Compute / GPU backend (cannot leave the GPU box) ---
-  # ollama: RE-ARMED 2026-09-15 (decision #24) — the RX 7600 pinned-services tier.
-  # Serves Whisper STT + bge-m3 embed + bge-reranker (NOT generation — that's spark).
-  # The `:rocm` image is the proven RDNA3 path (verified 2026-08-21); Ollama natively
-  # serves all three pinned models with one container + one bundled ROCm runtime.
-  # docs/services-ai.md §9 decision #24 · docs/hardware-gpu.md.
-  # DEPLOY-GATED (HD-369): gate-clear 2026-09-15 (spark stable / 262k ctx, big-model tier live) →
-  # flipped `enabled: true` + converge oldsrv → model pull → LiteLLM catalog recreate →
-  # voice re-point. DO NOT flip back while spark/voice depend on it. (spark-ai precedent: flip
-  # back to false if the bench regresses.)
+  # ollama: RE-ARMED 2026-09-15 (decision #24) as the RX 7600 pinned-services tier, and
+  # DEMOTED by decision #27 (2026-09-18) to the EMBED FALLBACK RUNG: STT + rerank left
+  # Ollama entirely (no ROCm whisper.cpp artifact; no /api/rerank at ANY released version),
+  # and embed moves to the Vulkan `embed` leg below. It stays `enabled: true` until the
+  # Vulkan embed leg is LIVE-VERIFIED, then it is demoted further (not deleted) — its
+  # LiteLLM row stays in the catalog as the documented fallback for the same 1024-dim space.
+  # The `:rocm` image remains the proven RDNA3 ROCm path (verified 2026-08-21).
+  # docs/services-ai.md §3a + §9 #24/#25/#27 · docs/hardware-gpu.md.
+  # ⚠ DO NOT flip this back to `enabled: false` while the voice pipeline or the LiteLLM
+  # embed row still depends on it: the retire-ollama step is gated on the Vulkan embed leg
+  # being LIVE-VERIFIED (docs/services-ai.md §3a), which is HD-391's last checkbox, not its
+  # first.
   - { name: ollama,          template_dir: ollama, enabled: true }
+
+  # --- Pinned-AI tier: ggml/Vulkan on the RX 7600 (HD-391, decision #27 ACCEPTED 2026-09-18) ---
+  # Three legs, two images, ONE engine family. Digest-pinned in group_vars/all/versions.yml
+  # (`main-vulkan` / `server-vulkan` are mutable aliases - CONVENTIONS §7). All three mount
+  # ONLY the dGPU render node (no /dev/kfd: no ROCm userspace in this tier at all) and sit on
+  # `llm-backend` with no publish. Measured tier cost: ~2.4 GiB of 8 GiB VRAM, ~0.5 GiB host
+  # RSS. Model artifacts are sha256-verified by the generic model-fetch task in
+  # roles/docker_services/tasks/deploy-service.yml (svc.model_* opt-in, HD-391) and land on
+  # the nvme/models dataset (regenerable, never backed up).
+  # STT: whisper.cpp whisper-server, `--inference-path /v1/audio/transcriptions` (OpenAI-shaped
+  # natively, no wrapper). fp16 large-v3-turbo; q5_0 is the pre-approved -1.0 GiB relief rung
+  # (whisper_cpp_model_q5_sha256).
+  - { name: whisper,         template_dir: whisper, enabled: true,
+      model_url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
+      model_dir: /srv/models/whisper, model_file: ggml-large-v3-turbo.bin,
+      model_sha256: "{{ whisper_cpp_model_sha256 }}" }
+  # Rerank: llama.cpp cross-encoder (`--pooling rank --rerank`), routed as LiteLLM `jina_ai/`.
+  # ⚠ SHIPPED DORMANT - its consumer rag-mcp is still the HD-268b stub; verified by a LiteLLM
+  # probe + a synthetic consumer, not by live RAG traffic (docs/services-ai.md §3a).
+  - { name: reranker,        template_dir: reranker, enabled: true,
+      model_url: "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf",
+      model_dir: /srv/models/reranker, model_file: bge-reranker-v2-m3-Q8_0.gguf,
+      model_sha256: "{{ reranker_model_sha256 }}" }
+  # Embed: llama.cpp bge-m3 Q8_0, 1024-dim unchanged (cosine 0.9996 vs the live Ollama vectors
+  # => routing, NOT a corpus migration; HD-268's re-index is not triggered).
+  - { name: embed,           template_dir: embed, enabled: true,
+      model_url: "https://huggingface.co/ggml-org/bge-m3-Q8_0-GGUF/resolve/main/bge-m3-q8_0.gguf",
+      model_dir: /srv/models/embed, model_file: bge-m3-q8_0.gguf,
+      model_sha256: "{{ embed_model_sha256 }}" }
   - { name: immich-ml,       template_dir: immich-ml }   # ML offload for immich-app on VPS (over WG)
 
   # --- DNS (HD-299, VPS-primary 2026-09-03): oldsrv is now the SECONDARY resolver ---

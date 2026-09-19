@@ -29,6 +29,39 @@
     loop_var: bind_dir
   when: svc.bind_owner_uid is defined
 
+- name: "Create model dir for {{ svc.name }}"
+  # Parent dir for the model fetch below - get_url does not create parents.
+  tags: "{{ svc.name }}"
+  ansible.builtin.file:
+    path: "{{ svc.model_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: svc.model_url is defined
+
+- name: "Fetch + verify model for {{ svc.name }}"
+  # HD-391 model-fetch hook (opt-in): the pinned-AI legs mount their weights :ro, and the
+  # container must find them on FIRST boot. `get_url` + `checksum` is idempotent BY CONTENT:
+  # an existing file with the right digest is an ok-not-changed no-op, a missing/truncated
+  # file is re-fetched, and a DIGEST MISMATCH FAILS THE CONVERGE instead of booting an engine
+  # on a half-written model. Weights are public artifacts, not secrets: they never enter git
+  # and never enter the vault. Dirs are root:root 0755 and files 0644 because the mount is
+  # read-only - the containers read weights, they never write them.
+  # Deliberately NO default() on the digest (HD-65 fail-loud): an entry that sets model_url
+  # without model_sha256 aborts the render rather than fetching unverifiable bytes.
+  # Opt-in shape: { model_url, model_dir, model_file, model_sha256 } on the registry entry.
+  tags: "{{ svc.name }}"
+  ansible.builtin.get_url:
+    url: "{{ svc.model_url }}"
+    dest: "{{ svc.model_dir }}/{{ svc.model_file }}"
+    checksum: "sha256:{{ svc.model_sha256 }}"
+    owner: root
+    group: root
+    mode: '0644'
+    timeout: 120
+  when: svc.model_url is defined
+
 - name: "Copy template files for {{ svc.name }}"
   # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
   tags: "{{ svc.name }}"

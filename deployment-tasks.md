@@ -399,8 +399,8 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
    `docker_services` deploys the **oldsrv** set in
    `group_vars/home_servers.yml` (the loop source of truth, rendered to
    [`docs/services-inventory-generated.md`](docs/services-inventory-generated.md)): the pinned-AI tier
-   (ollama `:rocm` = embed **fallback** under decision #27; the whisper/reranker/embed Vulkan legs are
-   HD-391), immich-ml, **technitium (SECONDARY — the VPS is primary, Pi tertiary)**, ~~pihole~~
+   (the three **Vulkan legs** `embed`/`reranker`/`whisper` — live under decision #27 — plus
+   ollama `:rocm`, kept as the **embed fallback rung**), immich-ml, **technitium (SECONDARY — the VPS is primary, Pi tertiary)**, ~~pihole~~
    (`enabled: false`), **`traefik-internal`** (the home all-app edge, live 2026-09-14), dozzle +
    dozzle-agent, signal-cli-rest-api, sunshine (`homelab_mode == 'desktop'` gated),
    home-assistant-standby (`enabled: false` cold standby), the media stack (jellyfin iGPU +
@@ -555,9 +555,10 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [x] **Unified-memory budget governor** — ✅ deployed 2026-09-16, re-certified 2026-09-18 at **16 GiB** (`spark_vllm_kv_cache_memory: "16000000000"`,
    reserved 14.9 GiB / 515,786 tok / 1.97× @262k), re-certified 2026-09-18 by the 3-rung load chain. **A converge
    that regresses to the 8.2 GiB figure restores the pre-certification value — do not do it.**
-- [ ] ⏳ **Pinned-AI tier placement** — the RX 7600 (oldsrv) is the pinned-services tier, spark the generation tier
-   (**HD-369**); the pinned engines themselves are **HD-391** (Vulkan on RX 7600, owner-approved 2026-09-19) with
-   **HD-393** the spark re-cert that unblocks the rerank cutover. Decision #27 governs; do not "converge it live".
+- [x] **Pinned-AI tier deployed** — ✅ 2026-09-19: the RX 7600 runs the three Vulkan legs (`embed` :9002,
+   `reranker` :9001, `whisper` :9000) with their LiteLLM rows (`bge-m3-vk` / `local-rerank` / `local-stt`); spark
+   stays the generation tier (decisions #24/#27). `ollama:0.32.15-rocm` is **kept** as the embed fallback rung
+   (owner decision), not retired. Plan of record: `docs/services-ai.md` §3a.
 
 **Verify:**
 - `https://llm.kogler.si/v1/models` answers **401 without** and **200 with** the bearer key; the home split-horizon
@@ -575,10 +576,10 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
       ZeroClaw system-mgmt runner, CrewAI gated on the homelab being finished. · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-373** — LiteLLM admin UI: the `/ui/login` deep-link 404s (no nginx SPA fallback in the container);
       workaround `https://litellm.kogler.si/fallback/login`. Fix = SPA fallback or route-scoped `/ui/*`. · [services-ai.md](docs/services-ai.md)
-- [ ] **HD-369** — pinned-vs-generation tier: the re-arm gate (Ollama ROCm on oldsrv) or its retirement, per
-      decision #24/#27. · [services-ai.md](docs/services-ai.md)
-- [ ] **HD-391 / HD-393** — pinned-AI authoring (Vulkan on the RX 7600) + the spark re-cert that unblocks the
-      rerank cutover. **Never converge an unpinned AI leg.** · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-369** — the tail of the tier row: Ollama stays as the **embed fallback** (the owner keeps it), and
+      the rerank leg still has **no consumer** — `rag-mcp` is a compose stub, so nothing calls the reranker yet. · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-393** — the spark re-cert that gates the rerank cutover: attribute that OOM episode per-process,
+      decide benign-vs-OOM-adjacent, fix it or accept it as noise. **Never converge an unpinned AI leg.** · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-386 tail** — the retired `dsh`/`pi-dev` harness records + their 502 tailnet routes: owner call on
 - [ ] **HD-367 / HD-359** — the Mgmt-99 dual-home leg + the engine-neutral benchmark kit: IaC and boot done, the
       **S1 bench is not yet certified** — the numbers still do not back the tier decision. · [services-ai-bench.md](docs/services-ai-bench.md)

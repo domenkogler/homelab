@@ -36,7 +36,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Identity (Authentik) | `traefik-public` + `services-internal` |
 | Platform (OpenCloud, Immich, Forgejo) | `services-internal` |
 | Office editor (ONLYOFFICE Docs — WOPI helper for OpenCloud, HD-166) | `traefik-public` (only; no auth surface, no user identity) |
-| AI/LLM (Ollama → `llm-backend`; Immich-ML, LiteLLM, Docling, OpenClaw) | `services-internal`; Ollama on **`llm-backend`** (isolated, reachable only by LiteLLM — HD-59) |
+| AI/LLM (Ollama → `llm-backend`; Immich-ML, LiteLLM, Docling, OpenClaw) | `services-internal`; Ollama on **`llm-backend`** (isolated, reachable only by LiteLLM — HD-59). The **HD-391 Vulkan tier joins that same isolation on purpose**: `whisper`, `reranker`, `embed` are `llm-backend`-only with **no `ports:` and no Traefik labels** — their APIs have no auth, so the network is the boundary and only LiteLLM may speak to them |
 | AI coding harness (pi-dev, DSH — HD-268) | `services-internal` (LiteLLM reach for models + Forgejo for PRs). DSH WebUI = **Pattern-A tailnet serve** (loopback :3080, netns sidecar, NO socat bridge; never on `services-internal`). pi = TUI/CLI (no web port). Each consumes scoped LiteLLM key + PR-only Forgejo token. |
 | DNS (Technitium, Pi-hole) | `traefik-public` + `services-internal` (Technitium web UI behind Traefik; Pi-hole ad-blocking behind Traefik) |
 | VPN (Headscale) | `traefik-public` |

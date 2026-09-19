@@ -32,7 +32,13 @@ TODO = ROOT / "todo.md"
 DATE_RE = re.compile(r"20\d\d-\d\d-\d\d")
 HD_REF_RE = re.compile(r"\bHD-\d+\b")
 BLOCK_HEAD_RE = re.compile(r"^\*\*Deploy-gated verification")
-ITEM_RE = re.compile(r"^- (?:\[([ x])\] )?\*\*(HD-\d+)\*\*")
+ITEM_RE = re.compile(r"^- (?:\[([ x])\] )?\*\*(HD-\d+(?:\s*/\s*HD-\d+)*)\*\*")
+
+
+def split_hds(blob: str) -> list[str]:
+    """`HD-391 / HD-393` -> two ids. A line that bundles ids must validate EVERY one: a row that
+    closed inside a pair used to keep the whole line alive and look like open work."""
+    return re.findall(r"HD-\d+", blob)
 
 
 def open_todo_ids() -> set[str]:
@@ -71,21 +77,24 @@ def main() -> int:
             m = ITEM_RE.match(raw)
             if not m:
                 continue
-            box, hd = m.group(1), m.group(2)
+            box, blob = m.group(1), m.group(2)
+            ids = split_hds(blob)
             rows += 1
+            label_short = label[:48]
             if box is None:
                 problems.append(
-                    f"prose-status  [{label}] {hd}: deploy-gated item has no checkbox — "
+                    f"prose-status  [{label_short}] {blob}: deploy-gated item has no checkbox — "
                     "use `- [ ] **HD-nnn** — <pending action> · [doc](docs/…)`"
                 )
-            if box == " " and hd not in have:
-                problems.append(
-                    f"stale-row     [{label}] {hd}: no row in todo.md — the item is closed, "
-                    "deleted or renamed; delete the line (record = owning doc + commit)"
-                )
+            for hd in ids:
+                if box == " " and hd not in have:
+                    problems.append(
+                        f"stale-row     [{label_short}] {hd}: no row in todo.md — the item is closed, "
+                        "deleted or renamed; delete the line (record = owning doc + commit)"
+                    )
             if box == "x" and not DATE_RE.search(raw):
                 problems.append(
-                    f"undated-tick  [{label}] closed item {hd} carries no date"
+                    f"undated-tick  [{label_short}] closed item {blob} carries no date"
                 )
 
     # undated ticks — only phase STEP lines (`- [x] **Step**`), not the HD rows above

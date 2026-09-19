@@ -50,6 +50,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 | traefik-public | Traefik ↔ exposed services |
 | services-internal | App ↔ app communication |
 | db-internal | Databases, fully isolated |
+| llm-backend | **Pinned-AI inference tier ↔ LiteLLM only** (HD-59): `ollama` (embed fallback rung) + the HD-391 Vulkan legs `whisper` / `reranker` / `embed` on oldsrv. Fully isolated because none of those APIs has auth — the network IS the boundary; no publish, no labels. Owner doc: [services-ai.md](services-ai.md) §3a-1 |
 | wireguard-s2s | WireGuard S2S tunnel home router ↔ VPS (HD-03/HD-135; reaches home VLANs + wg-vps-services) |
 
 > CIDRs: [`network-addresses-generated.md`](network-addresses-generated.md) → *Infrastructure networks* (SSOT).

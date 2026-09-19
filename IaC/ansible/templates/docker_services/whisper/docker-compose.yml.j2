@@ -1,0 +1,81 @@
+# whisper docker-compose.yml — pinned-AI STT leg on the RX 7600 (HD-391, decision #27)
+#   whisper.cpp `whisper-server` on the VULKAN backend (RADV, gfx1102). Serves the voice
+#   pipeline's STT. `--inference-path /v1/audio/transcriptions` makes it OpenAI-shaped
+#   NATIVELY — the "thin wrapper is required" claim from §9c is corrected by measurement
+#   (docs/services-ai-bench.md §2), so Home Assistant Assist talks to it through LiteLLM
+#   with no shim.
+#   WHY VULKAN AND NOT ROCm: no `whisper.cpp` ROCm/HIP artifact is published at all (ghcr
+#   tags = main, main-musa, main-intel, main-cuda, main-vulkan, main-arm64,
+#   main-vulkan-arm64; Docker Hub ggmlorg/whisper.cpp = 404), so the HIP recipe in §9c
+#   would be a self-build with no Renovate trail. Vulkan/RADV is native RDNA3 and needs NO
+#   ROCm userspace and NO /dev/kfd — which also drops the per-ROCm-runtime host-RAM tax that
+#   decision #25 made its central argument. Measured: 0.40 s per 11 s WAV, 1788 MiB VRAM
+#   (Δ1722), CPU fallback (init-time, native) 17.5 s at RSS 1.59 GiB.
+#   Network doctrine (HD-59, same as ollama): reached ONLY by LiteLLM on the dedicated
+#   `llm-backend` bridge. This API has NO auth, so the network IS the boundary — hence NO
+#   `ports:` and NO Traefik labels. Consumers reach it through LiteLLM, never directly
+#   (decision #26).
+#   Device: ONLY the dGPU render node (`gpu_vulkan_render_node` = renderD129). renderD128 is
+#   the HD 630 iGPU: it is the family desktop's Xorg device AND the Jellyfin QSV transcoder,
+#   and it is measured SLOWER THAN CPU for this work (bench §4). No GGML_VK_VISIBLE_DEVICES:
+#   with only renderD129 mounted, Vulkan0 is unambiguous.
+#   Resident by design: whisper-server loads the model at start and has no unloading path;
+#   the tier budget is ~2.4 GiB of 8 GiB (docs/services-ai.md §3a). The mem cap below leaves
+#   room for the CPU-fallback path so the cap never becomes the thing that kills the leg.
+#   Model: fetched + sha256-verified by the generic model-fetch task (svc.model_* on the
+#   registry entry) into /srv/models/whisper (nvme/models dataset — regenerable, never
+#   backed up), mounted :ro.
+#
+# Secrets: NONE (public model artifact, no API key on an unexposed bridge) — intentionally
+#   OUT of _template_vault_items, renders with zero vault lookups (same as ollama/spark-ai).
+services:
+  whisper:
+    image: "{{ whisper_cpp_vulkan_image }}"
+    container_name: whisper
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - llm-backend
+    devices:
+      - "{{ gpu_vulkan_render_node }}:{{ gpu_vulkan_render_node }}"
+    group_add:
+      - "{{ gpu_render_gid }}"
+    volumes:
+      - /srv/models/whisper:/models:ro
+    entrypoint: ["/app/build/bin/whisper-server"]
+    command:
+      - "--inference-path"
+      - "/v1/audio/transcriptions"
+      - "--host"
+      - "0.0.0.0"                                  # bound on llm-backend only — never published
+      - "--port"
+      - "{{ ai_tier_whisper_port }}"
+      - "-m"
+      - "/models/ggml-large-v3-turbo.bin"          # fp16 (plan of record); q5_0 = -1.0 GiB relief
+      - "-l"
+      - "auto"                                     # auto-detect — the pipeline is Slovenian
+    environment:
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    # Image-level HEALTHCHECK is hardcoded to :8080; this leg listens on its own port, so the
+    # inherited check exits 7 (connection refused) and the container reads `unhealthy` while it
+    # answers 200 (live 2026-09-19). Override it against the ACTUAL port — a health signal that
+    # cannot fail is worse than none, and `unhealthy` poisons every future "what is actually
+    # live" census. start_period covers Vulkan init + weight load.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ ai_tier_whisper_port }}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          # Quoted: compose's schema requires limits.memory to be a STRING (HD-162 pre-deploy
+          # validation catches an int — spark-dcgm precedent).
+          memory: "{{ ai_tier_whisper_memory_limit }}"
+networks:
+  llm-backend:
+    external: true

@@ -35,9 +35,13 @@ tags: [services, ai, gpu, benchmark, stt, rerank, vram, whisper, vulkan]
 | `ghcr.io/ggml-org/llama.cpp` `server-vulkan` | `7158edb447f837734142c899183e255538d89d63a037f60077b26fc1c7f95353` (v0.4.1, build 11028, `972d2313b`) | 1.21 GB |
 | `ghcr.io/huggingface/text-embeddings-inference` `cpu-1.9.4` | `2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d` | 938 MB |
 
-**Models:** `ggml-large-v3-turbo.bin` + `-q5_0` (ggerganov/whisper.cpp GGML URLs),
+**Models:** `ggml-large-v3-turbo.bin` + `-q5_0` (ggerganov/whisper.cpp GGML URLs — **the sha256 gap here is
+now closed**: `ggml-large-v3-turbo.bin` = 1 624 555 275 B, `sha256 1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69`,
+and `-q5_0` = 574 041 195 B, `sha256 394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2` — both
+**verified against the downloaded bytes on oldsrv 2026-09-19**, not just against the HF tree OID; they now live
+as `whisper_cpp_model_sha256` / `whisper_cpp_model_q5_sha256` in `group_vars/all/versions.yml`),
 `gpustack/bge-reranker-v2-m3-GGUF` **Q8_0** (635,676,416 B, `sha256 a43c7c9b11a4c1517e5bf95151960e1621d1b72f7a493364b01e386cf1aaa1d3`, Apache-2.0, 27 990 DL — verified against the HF LFS OID),
-`ggml-org/bge-m3-Q8_0-GGUF` **Q8_0** (634,553,760 B, MIT, official `ggml-org` org; HF LFS OID `sha256 aa473d51f451a22f0fcf39ba3330c14bed38a385712b1113440f69df4047a173` — the pin to verify on fetch),
+`ggml-org/bge-m3-Q8_0-GGUF` **Q8_0** (634,553,760 B, MIT, official `ggml-org` org; HF LFS OID `sha256 aa473d51f451a22f0fcf39ba3330c14bed38a385712b1113440f69df4047a173` — **verified on the fetched bytes 2026-09-19**, and note the artifact name is lowercase: `bge-m3-q8_0.gguf`),
 `gpustack/bge-m3-GGUF` **FP16** (1,157,671,200 B, `sha256 daec91ffb5dd0c27411bd71f29932917c49cf529a641d0168496c3a501e3062c`) and **Q8_0** (634,553,760 B, `sha256 950f4a8e5e19477a6d3c26d2f162233c20002c601f75e4b002e3239997821167`),
 `gpustack/bge-reranker-v2-m3-GGUF` **FP16** (1,159,776,896 B, `sha256 5df93be121c09c43432102ad2b9569d369ccb85c209ca7583e8ccd28f0e41b88`) — the Q8_0 of both reranker mirrors is the same bytes as above,
 `kftof/bge-reranker-v2-m3-onnx-int8-avx2` (ORT INT8) and stock `BAAI/bge-reranker-v2-m3` (candle fp32).
@@ -72,6 +76,9 @@ Honest limit: this is **init-time** fallback. A mid-run GPU fault is a container
 
 Model fetch (HD-385 item d): `huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin`
 → 1.6 GB in 18 s, `-q5_0` 548 MB in 11 s. The image ships **only** `ggml-base.en.bin`, so an IaC fetch task is mandatory.
+**That task exists now (HD-391, 2026-09-19)** as the generic `svc.model_*` opt-in in
+`roles/docker_services/tasks/deploy-service.yml`, pinned to `sha256 1fc70f77…2bc69` (§1) — the digest the bench
+could not supply, measured on the bytes on this box.
 
 ## 3. Rerank — the device sweep (`bge-reranker-v2-m3`, same weights, same build, one variable)
 
@@ -146,6 +153,14 @@ ROCm userspace left in the AI tier** (immich-ML carries its own ROCm inside its 
 probe used ~150-token chunks, llama.cpp truncates beyond the context window, and bge-m3 supports 8192;
 (2) quantization is **settled by §3c**: Q8_0 (16 ms, ~326 MiB, cos 0.9996), with FP16 measured and rejected
 (19 ms, ~595 MiB, cos 0.99996 — one more nine for +269 MiB and +18 % latency).
+✅ **Check (1) was measured at deploy time (2026-09-19) and it was the wrong knob — [services-ai.md](services-ai.md)
+§3a-3 finding 1.** `--ctx-size 2048` alone still answered **HTTP 500 on an 842-token input** ("increase the
+physical batch size (current batch size: 512)"), and the number that message reports is the **ubatch**, so the
+first fix (batch 2048 / ubatch 512) failed identically. Both GGUF legs now run **2048/2048/2048** and the
+842-token chunk returns 200 with `n_tokens = 842, truncated = 0`; the VRAM price of ubatch 512 → 2048 was
+**~15–35 MiB**, so compute-buffer size (not ctx) is the thing to budget against when HD-268b fixes a real chunk
+shape. Also measured here, for the record: **real Slovenian audio** (the probe only ever ran English
+`jfk.wav`) and the endpoint's failure mode for over-window input is a **loud 500**, not silent truncation.
 Residency note for all three legs: `llama-server` has **no Ollama-style keep-alive/LRU unloading**, so each
 leg holds its model until restart; `--sleep-idle-seconds` (PR #18228, single- and multi-model) can release GPU
 memory while idle at the cost of a reload on the next request.

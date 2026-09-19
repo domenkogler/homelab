@@ -1105,34 +1105,57 @@ narrow-bound to the oldsrv Home-IP (homelable pattern; NO public route/cert labe
 
 ### P3.5 Ollama embed fallback — first boot + model pull `[MANUAL]`
 
-> **The plan of record is [services-ai.md](docs/services-ai.md) §3a** (decision #27, accepted 2026-09-18): the
-> pinned tier (embed + rerank + STT) targets **llama.cpp `server-vulkan`** on the RX 7600 and is **not deployed**
-> until HD-391 lands. Until then **Ollama `0.32.15-rocm` runs as the embed fallback rung only** — rerank and STT
-> are NOT Ollama legs, and no version bump will make them one (no Ollama build exposes `/api/rerank`).
-> Do not converge an unpinned AI leg, and do not re-derive engine choice from this file.
+> **The plan of record is [services-ai.md](docs/services-ai.md) §3a** (decision #27): the pinned tier —
+> embeddings, rerank, STT — is **three separate llama.cpp/whisper.cpp `server-vulkan` containers on the RX 7600**
+> (`embed` / `reranker` / `whisper`), NOT Ollama. Ollama `0.32.15-rocm` survives only as the documented **embed
+> fallback rung**. No Ollama build exposes `/api/rerank`, so no version bump makes either leg Ollama's — do not
+> re-derive the engine choice from this file, and never converge an unpinned AI leg.
 
 Pull the one model this rung serves (one-time, no Ansible task):
 ```bash
 ssh ansible-admin@oldsrv 'docker exec ollama ollama pull bge-m3'
 ssh ansible-admin@oldsrv 'docker exec ollama ollama list'
-# remove any community whisper / reranker models left from the pre-#27 experiment:
-ssh ansible-admin@oldsrv 'docker exec ollama ollama rm sendmeaiohyeah/whisper-large-v2 qllama/bge-reranker-v2-m3:q8_0'
+# never pull the community STT / reranker models — neither leg is Ollama's (decision #27):
+#   ssh ansible-admin@oldsrv 'docker exec ollama ollama rm sendmeaiohyeah/whisper-large-v2 qllama/bge-reranker-v2-m3:q8_0'
+# Ollama holds exactly one model on disk: bge-m3, the embed fallback rung.
 ```
 
-Verify the embed endpoint (the only one this pin serves):
+Verify the three pinned-AI containers, which are the tier — **not** Ollama (`whisper` :9000, `reranker`
+:9001, `embed` :9002, all on `llm-backend`; Ollama keeps only the fallback row):
+
 ```bash
-ssh ansible-admin@oldsrv 'IP=$(docker inspect ollama --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"); \
-  curl -s http://${IP}:11434/api/embed -d "{\"model\":\"bge-m3\",\"input\":\"hello\"}" | head -c 200'
+ssh ansible-admin@oldsrv 'for c in whisper reranker embed; do
+  IP=$(docker inspect $c --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}");
+  printf "%-9s health=" "$c"; curl -s -o /dev/null -w "%{http_code}\n" "http://$IP:$(
+    case $c in whisper) echo 9000;; reranker) echo 9001;; embed) echo 9002;; esac)/health";
+done'
 ```
-✔-evidence: a JSON embeddings array, and `docker exec ollama ollama ps` shows `bge-m3` at 100 % GPU
-(`OLLAMA_KEEP_ALIVE=5m` keeps it resident). When HD-391's Vulkan leg verifies, the LiteLLM catalog rows move off
-`ollama/bge-m3` and this rung retires — the recreate procedure and the correct model rows live in
-[services-ai.md](docs/services-ai.md) §3a.
+
+✔-evidence: `200` x3, then prove the **endpoints**, not just the healthcheck:
+
+| Leg | Call | Expected |
+|-----|------|----------|
+| embed | `POST /v1/embeddings {"model":"bge-m3","input":"..."}` | 1024 floats, \|\|v\|\|=1.0 |
+| rerank | `POST /v1/rerank {"model":"..","query":"..","documents":[..]}` | a `relevance_score` per doc |
+| STT | `POST /v1/audio/transcriptions -F file=@x.wav` | `{"text": ...}` |
+
+Tier VRAM: `cat /sys/class/drm/card1/device/mem_info_vram_used` — the whole pinned tier is ~2.5 GiB warm
+(measurements + provenance: [services-ai-bench.md](docs/services-ai-bench.md)).
+
+**LiteLLM catalog recreate — do this step, it is not in git** (model rows live in the LiteLLM DB). Three
+`POST /model/new` calls against **`lan-litellm`** on oldsrv with the master key (vault item `litellm_api`,
+field `credential` — there is no `litellm_master_key` item). Exact payloads:
+[services-ai.md](docs/services-ai.md) §4a. The provider prefixes are load-bearing:
+
+| Row | Provider form | Why |
+|-----|---------------|-----|
+| rerank | `jina_ai/bge-reranker-v2-m3`, **path-less** `api_base` | the only shape LiteLLM's rerank client accepts |
+| embed | `hosted_vllm/bge-m3` | **not** `openai/` — that provider forwards `encoding_format: null` and llama.cpp 500s |
+| STT | `openai/whisper-1` with `/v1` | whisper.cpp exposes the OpenAI-shaped path |
+
 
 ---
 
-*Charter: imperative redeploy procedure only (true zero → live) for Phases 0, 0.5, 1, 1a, 1.5, 2, 3, 4 and 4b.
-Progress lives in [deployment-tasks.md](deployment-tasks.md), knowledge in the owning docs, history in git.*
 ## Phase 4 — Pi Fresh Install + HA Primary (`pi.kogler.si`)
 
 > **Depends on:** Phase 1.5 (VLANs / network reachability), Phase 2 (NAS NUT master), Phase 3 (old srv standby, Forgejo). The Pi is the HA **primary** node; oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP (`ha-vip`).
@@ -1212,6 +1235,8 @@ Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefi
 
 > Open items on this host are the ledger's Phase 4 block ([deployment-tasks.md](deployment-tasks.md)) and
 > [home-assistant-current.md](docs/home-assistant-current.md).
+
+---
 
 ---
 
@@ -1356,3 +1381,5 @@ ssh spark 'docker exec traefik-spark traefik healthcheck --ping'   # "OK: http:/
 
 ---
 
+*Charter: imperative redeploy procedure only (true zero → live) for Phases 0, 0.5, 1, 1a, 1.5, 2, 3, 4 and 4b.
+Progress lives in [deployment-tasks.md](deployment-tasks.md), knowledge in the owning docs, history in git.*
