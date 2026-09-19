@@ -25,12 +25,17 @@
 > * [deployment-compose.md](docs/deployment-compose.md) / [services.md](docs/services.md) — the `llm-backend`
 >   network is now attached to **four** containers, not an unused reservation
 
-**What rode out of this lane (do not re-open it for these):**
-* ⏳ `ollama rm sendmeaiohyeah/whisper-large-v2 qllama/bge-reranker-v2-m3:q8_0` (~4 GB) — **HD-369 tail**
+**What rode out of this lane:**
+* ✅ `ollama rm sendmeaiohyeah/whisper-large-v2 qllama/bge-reranker-v2-m3:q8_0` — **performed 2026-09-19: 1.5 GB
+  freed** (`/srv/models/ollama` 2.6 GB → 1.1 GB; the “~4 GB” this banner first carried was wrong — the two models
+  are 890 MB + 635 MB). `bge-m3` stayed and re-verified dim 1024 afterwards. Pre-checks: `ollama ps` empty, no
+  non-comment reference in any rendered compose, and no `ollama/*` row in either LiteLLM DB
 * ⏳ voice re-point `sherpa-onnx` → the Whisper leg — **HD-369 (d)**
 * ⏳ any consumer allow-list / routing to the new rows, and `rag-mcp` itself (a compose **stub with no
   `services:` block**, not a flag to flip) — **HD-384 / HD-268b**
-* ⏳ the Ollama embed fallback row stays (VPS instance; owner call 2026-09-19)
+* ✅ **Corrected premise, kept decision:** the Ollama embed fallback was described as “the `ollama/bge-m3` row
+  on the VPS instance” — measured the same evening, **neither LiteLLM DB has an `ollama/*` row** (one row each:
+  `spark/*`). The fallback stands as the **service + model**, and minting a row for it is HD-384 work
 
 **Method notes worth keeping:** converge with `--tags docker_services,<name>` and prove it with `docker inspect`
 (a scoped converge prints `changed=0` and a `RUNNING HANDLER` of only `docker login` when the named service is

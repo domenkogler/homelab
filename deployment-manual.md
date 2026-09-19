@@ -1402,10 +1402,13 @@ First-boot model pull (one-time; no Ansible task — documented manual step):
 ssh ansible-admin@oldsrv 'docker exec ollama ollama pull bge-m3'                           # library: 1024-dim embed
 ssh ansible-admin@oldsrv 'docker exec ollama ollama pull bge-m3'   # (idempotent re-run)
 ssh ansible-admin@oldsrv 'docker exec ollama ollama list'
-# RETIRED by decision #25 (2026-09-17) — do NOT pull these two; they are unusable on Ollama:
-#   sendmeaiohyeah/whisper-large-v2   -> STT is whisper.cpp GGML_HIP (native gfx1102), GGML model file
-#   qllama/bge-reranker-v2-m3:q8_0    -> rerank is a CPU CrossEncoder service
-# Remove them to free disk after verifying nothing references them:
+# RETIRED — first by decision #25, finally by decision #27 (2026-09-18): do NOT pull these two on a rebuild,
+# because neither leg is Ollama's any more:
+#   sendmeaiohyeah/whisper-large-v2   -> STT is the `whisper` container (whisper.cpp main-vulkan + ggml-large-v3-turbo)
+#   qllama/bge-reranker-v2-m3:q8_0    -> rerank is the `reranker` container (llama.cpp server-vulkan + Q8_0 GGUF)
+# Ollama keeps exactly ONE model on disk: bge-m3, the documented embed fallback rung (#27).
+# ✅ Performed 2026-09-19 — freed 1.5 GB (/srv/models/ollama 2.6 GB -> 1.1 GB). Command, for a rebuild that
+# pulled them by an older recipe:
 #   ssh ansible-admin@oldsrv 'docker exec ollama ollama rm sendmeaiohyeah/whisper-large-v2 qllama/bge-reranker-v2-m3:q8_0'
 ```
 

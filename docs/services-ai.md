@@ -157,7 +157,7 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 | Leg | Engine — target state | Model (quant) | Device | VRAM (measured) | Latency (measured) | Status |
 |-----|----------------------|---------------|--------|-----------------|--------------------|--------|
 | **Embeddings** | `llama.cpp server-vulkan` (`--embedding --pooling cls`, `--embd-normalize 2`) | `bge-m3` **Q8_0** (634.6 MB) | RX 7600 / Vulkan | **~326 MiB** | **15 ms**/chunk · 51-doc batch 0.86–1.40 s · **deploy: 0.45 s for a 51-doc batch** | ✅ **LIVE 2026-09-19** (`embed`, :9002, gateway row `bge-m3-vk` · dim 1024, ‖v‖=1.0) · cos 0.9996 ⇒ no re-embed |
-| ↳ embed fallback rung | `ollama:0.32.15-rocm` (`/api/embed`) | `bge-m3` (fp16) | RX 7600 / ROCm | **833–899 MiB** | ~470–545 ms/chunk · batch 1.83–1.93 s | ✅ **LIVE + E2E-verified** — demoted to fallback, retires after the Vulkan leg verifies |
+| ↳ embed fallback rung | `ollama:0.32.15-rocm` (`/api/embed`) | `bge-m3` (fp16) | RX 7600 / ROCm | **833–899 MiB** | ~470–545 ms/chunk · batch 1.83–1.93 s | ✅ **LIVE + E2E-verified** — **KEPT as the fallback rung** (owner 2026-09-19, it does NOT retire now). ⚠ Two things measured the same evening: **no LiteLLM instance carries an `ollama/*` row** (each had exactly one row, `spark/*` — §4a), so this rung is a service + model, not a catalog entry; and the two retired blobs were deleted from disk while **`bge-m3` stayed and re-verified at dim 1024 afterwards** |
 | **Reranker** | `llama.cpp server-vulkan` (`--embedding --pooling rank --rerank`), routed as LiteLLM **`jina_ai/`** | `bge-reranker-v2-m3` **Q8_0** (635.7 MB) | RX 7600 / Vulkan | **~327 MiB** | **0.34–0.50 s** for 20 docs (top-20) · **deploy: 0.95 s solo / 1.15 s under three-way load** | ✅ **LIVE 2026-09-19** (`reranker`, :9001, gateway row `local-rerank`, ranking verified) · **ships DORMANT** (consumer = HD-268b stub) · TEI CPU rejected by measurement |
 | **STT (voice)** | `whisper.cpp:main-vulkan` (`--inference-path /v1/audio/transcriptions`) | `large-v3-turbo` **fp16** (q5_0 = −1.0 GiB option) | RX 7600 / Vulkan | **1788 MiB** (Δ1722) · q5_0 **786** | **0.40 s** per 11 s WAV · **deploy: 0.53–0.60 s per ~7–13 s of real Slovenian radio speech** | ✅ **LIVE 2026-09-19** (`whisper`, :9000, gateway row `local-stt`; real Slovenian verified — CJVT GOS corpus) · CPU fallback native (init-time): 17.5 s |
 | ↳ iGPU option | ~~HD 630~~ | — | iGPU | 798 MiB **host RAM** | 5.8–22.8 s per rerank request | ❌ **rejected by measurement** — slower than CPU, Gen 9.5 driver stack frozen, contends with Xorg + Jellyfin QSV ([bench §4](services-ai-bench.md)) |
@@ -344,10 +344,13 @@ Model rows live in the LiteLLM **DB**, never in git (decision 13 / HD-247). They
 item named `litellm_master_key`, despite how that name gets typed. Read it into a variable, never echo it.
 
 ✅ **EXECUTED 2026-09-19 against the live LAN instance.** Before: **one** row (`spark/qwen3.8-flash-next`).
-After: `local-rerank`, `bge-m3-vk`, `local-stt` added, each answered **through** the gateway (§3a-2). Two
-things this corrected: the embed provider (**`hosted_vllm/`, not `openai/`** — §3a-3 finding 3) and the fact
-that **`ollama/bge-m3` is not in this DB at all** — it lives in the VPS instance, so “do not delete the
-fallback row” was honoured by never touching it; the LAN instance simply did not have one.
+After: `local-rerank`, `bge-m3-vk`, `local-stt` added, each answered **through** the gateway (§3a-2). Two things
+this corrected: the embed provider (**`hosted_vllm/`, not `openai/`** — §3a-3 finding 3) and a premise this lane
+carried in from its tasking: **there is no `ollama/bge-m3` catalog row anywhere.** Both gateway instances were
+listed the same evening (`/model/info`) and **each returned exactly one row, `spark/qwen3.8-flash-next`** — so
+“do not delete the `ollama/bge-m3` row” was satisfied trivially, and the fallback rung is the **Ollama service
+plus its `bge-m3` model** (re-verified after the blob cleanup: dim 1024), not a gateway row. Giving a consumer
+either rung is **HD-384** work.
 
 Row ids are recorded because they are the handle for a later delete/replay: `local-rerank`
 `08f7e525-6a7b-4258-b940-54e23433a47a` · `bge-m3-vk` `ac74a51f-ab6b-4eaa-a0c2-88cdb4ce40b6` · `local-stt`
@@ -387,11 +390,11 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
 * **Admin endpoints, v1.83.10, measured:** `/model/list` is not usable with the master key (it answers a
   `{"detail": …}`), **`/model/info`** is the one that enumerates rows; and **`/model/delete` takes `{"id": …}`**,
   not `{"model_id": …}` (the latter is a 422 that says exactly which field it wanted — do not assume).
-* **Keep the `ollama/bge-m3` row (VPS instance).** Owner call 2026-09-19: the Vulkan embed leg gets its own row
-  and the Ollama row stays as the documented fallback rung of the SAME 1024-dim space (cos 0.9996). Retiring it
-  is a separate step, gated on the Vulkan leg being live-verified (done 2026-09-19) **and** on a consumer
-  actually re-pointing — and no consumer re-pointed here: the LAN instance has no scoped consumer at all
-  (HD-384/HD-268b), so these three rows are reachable by the admin path only.
+* **The Ollama fallback is a rung, not a row.** Owner call 2026-09-19: the Vulkan embed leg got its own row and
+  Ollama stays as the documented fallback of the SAME 1024-dim space (cos 0.9996). Measured the same evening,
+  **neither LiteLLM DB contains an `ollama/*` row**, so “keeping” it means keeping the service and the model —
+  and re-pointing a consumer to either leg is HD-384. No consumer re-pointed here; these three rows are
+  reachable on the admin path only.
 * **`bootstrap_keys` stays `false`** (HD-386): none of these legs has a scoped consumer yet (the rerank
   consumer is the HD-268b stub), so no key-minting glue is restored here.
 * **Two traps, both earned:** a `--check --diff` on a LiteLLM converge renders live keys into the log; and a
@@ -546,6 +549,9 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
   human-facing surface that is not a secret store; rotation procedure lives there). The mechanical rule this
   teaches: a value read via `op read` is never printed, not even truncated to prove the read worked — print its
   **length** and pipe it straight into the consumer.
+  **Owner decision 2026-09-19: the key is NOT rotated.** Recorded here as closed-by-decision so no later session
+  re-raises it; if the key ever rotates for another reason, HD-233/234 carry the procedure and both LiteLLM
+  instances plus every consumer move together.
 
 ## 9. Decision log
 | # | Decision | Date |
