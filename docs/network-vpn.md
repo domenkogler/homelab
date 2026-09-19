@@ -301,6 +301,47 @@ The tailnet is **not a home-LAN bridge**. Clients reach it as: **mobile → tail
 
 **Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the moved `dsh`/`pi-dev`) are reachable from a phone by **publishing a host port bound to `oldsrv_home_ip`** + a `traefik-tailnet` edge route proxying over WG — the `actual-budget:5006` / `immich-ml:3003` precedent. Still **behind Authentik forward-auth** on the edge (private, not public).
 
+## Reaching LAN nodes when away (hotspot / public Wi-Fi) — matrix measured 2026-09-19
+
+**The one-line answer: SSH goes through the VPS jump; service traffic goes through the tailnet edge.
+Neither is a property of the laptop's network — the VPS is the only host with a public address, so it
+is the door for both.** Addresses come from [network-addresses-generated.md](network-addresses-generated.md);
+nothing below hard-codes one.
+
+| Node | Away-from-home path for **SSH/admin** | Works off-LAN? |
+|---|---|---|
+| **vps** | direct — `vps.kogler.si` is public | ✅ the door itself |
+| **pi** | alias `pi` → `ProxyJump vps` | ✅ measured today |
+| **spark** | alias `spark` → `ProxyJump vps`; the **playbook also carries `ansible_ssh_common_args: "-o ProxyJump=vps"`** so a converge works from anywhere | ✅ measured today |
+| **pi99** (Pi mgmt leg) | alias `pi99` → `ProxyJump vps` | ✅ (alias-level only) |
+| **oldsrv** | alias `oldsrv` → jump, **but its target is the mgmt-leg address, which was black-holed from the VPS side today**; the Home leg works with a `Host <ip>` block (HD-397/398) | ⚠ degraded |
+| **nas** | **`nas` has NO `ProxyJump` at all** — it resolves to a Home-VLAN address the laptop cannot route to from a hotspot | ❌ broken (HD-397) |
+| router / switch / APs | mgmt-leg addresses, alias blocks with no jump | ⚠ alias-level only |
+
+**Services (not SSH): never a port forward.** `*.{ts.,}kogler.si` on the tailnet → VPS
+`traefik-tailnet` edge → WG S2S → the home backend, per the boundary decision above. Measured today
+from a hotspot: `llm.ts.kogler.si` served spark inference end-to-end with no home reachability at all.
+
+### Three traps, all hit while measuring this
+1. **A dead address is not a dead host.** `oldsrv`'s mgmt leg answered nothing (ICMP loss, port 22
+   closed) while the box was up 12 days and fully reachable on its Home leg — including
+   `enp0s31f6.99` reporting `UP` with the right address on it. Before concluding "host down", test the
+   **other leg**, then test a hop that must work (the VLAN gateway answered from the same VPS, which
+   localised the fault to the host-specific path rather than the tunnel).
+2. **OpenSSH matches on the hostname ACTUALLY TYPED.** An alias block does nothing for Ansible, which
+   types the inventory IP. Each behind-NAT node needs BOTH: the jump carried in the play
+   (`ansible_ssh_common_args`, the spark precedent — "so ANY runner converges spark") and a
+   `Host <ip>` block in the runner's `~/.ssh/config`. Only spark has both today; that is HD-397.
+3. **`-e ansible_host=<ip>` is a GLOBAL extra-var — it corrupts `delegate_to`.** Using it to reach
+   oldsrv's Home leg produced `ok=367 changed=52 failed=1`, where the one failure was a
+   `delegate_to: pi` task that connected to **oldsrv's** address looking for `/root/.ssh/ha-sync.pub`.
+   The file exists on the Pi; the task never ran there. A scoped override needs
+   `--limit` + a per-host `host_vars` change or a group-level var — not a global `-e`.
+
+**Also worth knowing off-LAN:** the Pi is a **toggle-only Slovenian exit node** (egress, not ingress —
+see the section below), and the tailnet does **not** bridge the home LAN, so `10.10.x.x` is unreachable
+over it by design.
+
 ## Slovenian exit node (decided 2026-09-10) — Pi, toggle-only
 
 **Purpose:** when abroad, reach `rtvslo.si` and other Slovenia-only content without geo-limitations — a **genuine Slovenian residential IP** (home WAN) is the most geo-acceptable egress (datacenter IPs are often blocked).

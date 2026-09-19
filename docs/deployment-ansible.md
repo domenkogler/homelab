@@ -222,6 +222,11 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 
 ### Jump-host execution (hosts reachable only through the VPS)
 
+> **Which nodes need this, and what breaks off-LAN: the measured matrix is in
+> [network-vpn.md](network-vpn.md) §Reaching LAN nodes when away** (2026-09-19: only spark is fully
+> convergible from anywhere today; `nas` has no jump at all; `-e ansible_host=` hijacks `delegate_to`).
+
+
 **spark (`spark_home_ip`) is the standing case:** it sits behind NAT on the Home VLAN, so a converge from
 the WSL runner must jump through the VPS. This is **carried in the playbook**, not typed per command:
 

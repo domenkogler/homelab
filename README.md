@@ -168,6 +168,10 @@ a verdict — the parent had already verified the final state itself. Rules:
 
 ## 6. Context quick-refs
 
+>
+> **Away from home (mobile hotspot / public Wi-Fi)?** SSH to LAN nodes goes through the VPS jump; service
+> traffic goes through the tailnet edge. The measured per-node matrix, what is broken today (`nas`,
+> oldsrv's management leg) and the three traps: [docs/network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when away.
 `CONVENTIONS.md` (root) · `docs/index.md` · `IaC/README.md` · [`scripts/README.md`](scripts/README.md) (validators, renderers, vault-seeding utilities) · `todo.md` · archive: `reports/changelog.md`, `reports/deployment-journal.md` (frozen)
 
 ---
