@@ -1409,22 +1409,34 @@ ssh ansible-admin@oldsrv 'docker exec ollama ollama list'
 #   ssh ansible-admin@oldsrv 'docker exec ollama ollama rm sendmeaiohyeah/whisper-large-v2 qllama/bge-reranker-v2-m3:q8_0'
 ```
 
-Verify inference (embed is the only endpoint usable on this pin):
+Verify inference — **per decision #27 the pinned-AI legs are three separate containers on `llm-backend`, not
+Ollama** (`whisper` :9000, `reranker` :9001, `embed` :9002; Ollama keeps only the embed fallback row):
 ```bash
-ssh ansible-admin@oldsrv 'IP=$(docker inspect ollama --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"); \
-  curl -s http://${IP}:11434/api/embed -d "{\"model\":\"bge-m3\",\"input\":\"hello\"}" | head -c 200'
-# expect a JSON embeddings array; ollama ps shows bge-m3 100% GPU (OLLAMA_KEEP_ALIVE=5m keeps it resident)
+ssh ansible-admin@oldsrv 'for c in whisper reranker embed; do
+  IP=$(docker inspect $c --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}");
+  printf "%-9s health=" "$c"; curl -s -o /dev/null -w "%{http_code}\n" "http://$IP:$(
+    case $c in whisper) echo 9000;; reranker) echo 9001;; embed) echo 9002;; esac)/health";
+done'
+# expect 200 x3. Then prove the endpoints, not just the healthcheck:
+#   embed  -> POST /v1/embeddings  {"model":"bge-m3","input":"..."}      => 1024 floats, ||v||=1.0
+#   rerank -> POST /v1/rerank      {"model":"..","query":"..","documents":[..]} => relevance_score per doc
+#   stt    -> POST /v1/audio/transcriptions  -F file=@x.wav              => {"text": ...}
+# VRAM of the whole tier: cat /sys/class/drm/card1/device/mem_info_vram_used  => ~2475 MiB warm
 ```
 
-> LiteLLM Admin-UI catalog recreate (gate step c, deferred) must use the CORRECTED model names:
-> `ollama/bge-m3` (1024 dim) **only**. The rerank + whisper-STT legs are NOT a pin problem and will never be
-> solved by a bump (see the corrected note above): per **decision #25 (2026-09-17)** rerank routes to a **CPU
-> CrossEncoder** service and STT to **`whisper.cpp` GGML_HIP**, each behind an endpoint LiteLLM can route
-> (⚠️ provider routing still unverified — HD-385 item b).
+> **LiteLLM catalog recreate (gate step c) — DO THIS, it is not in git** (decision 13: model rows live in the
+> LiteLLM DB). Three `POST /model/new` calls against **`lan-litellm`** on oldsrv with the master key (vault item
+> **`litellm_api`, field `credential`** — there is no `litellm_master_key` item), exact payloads in
+> [services-ai.md](docs/services-ai.md) **§4a**: rerank as **`jina_ai/bge-reranker-v2-m3`** with a **path-less
+> `api_base`**, embed as **`hosted_vllm/bge-m3`** (⚠️ **not** `openai/` — that provider forwards
+> `encoding_format: null` and llama.cpp 500s), STT as **`openai/whisper-1`** with `/v1`. Executed 2026-09-19;
+> rows came back as `local-rerank` / `bge-m3-vk` / `local-stt`. The ROCm-era plan this note replaces (CPU
+> CrossEncoder rerank, `whisper.cpp` GGML_HIP STT) is retired by **#27** — see
+> [services-ai-bench.md](docs/services-ai-bench.md) for why.
 
 ---
 
 ---
 
-*Last updated 2026-09-15 · imperative redeploy procedure (true zero → live) for Phases 0 + 0.5 + 1a + 1 + 1.5 + 4 + 5 (P3.5 Ollama first-boot HD-369). Progress/history lives in [deployment-tasks.md](deployment-tasks.md) + owning docs.*
+*Last updated 2026-09-19 · imperative redeploy procedure (true zero → live) for Phases 0 + 0.5 + 1a + 1 + 1.5 + 4 + 5 (P3.5 Ollama first-boot HD-369; P4 oldsrv pinned-AI tier + its LiteLLM catalog recreate HD-391). Progress/history lives in [deployment-tasks.md](deployment-tasks.md) + owning docs.*
 
