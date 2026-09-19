@@ -4,3 +4,6 @@ until ssh spark 'curl -sf -m 3 localhost:8000/health >/dev/null'; do sleep 10; e
 nas ups status:
 upsc powerwalker@localhost
 
+prepreči da gre računalnik v spanje
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'Start-Process powercfg -ArgumentList "/change","standby-timeout-ac","0" -WindowStyle Hidden'
+
