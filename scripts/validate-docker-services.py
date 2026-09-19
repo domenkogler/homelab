@@ -197,7 +197,7 @@ def _load_ssot_ctx():
         "ai_tier_whisper_port", "ai_tier_whisper_memory_limit",
         "ai_tier_reranker_port", "ai_tier_reranker_memory_limit",
         "ai_tier_embed_port", "ai_tier_embed_memory_limit",
-        "ai_tier_gguf_ctx_size",
+        "ai_tier_gguf_ctx_size", "ai_tier_gguf_batch_size", "ai_tier_gguf_ubatch_size",
     ):
         if k in hdata:
             ctx[k] = hdata[k]

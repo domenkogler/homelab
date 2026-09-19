@@ -53,12 +53,29 @@ services:
       - "{{ ai_tier_gguf_ctx_size }}"              # llama.cpp truncates SILENTLY past this; the
                                                    # server default 512 would cut a real ingest
                                                    # chunk (docs/services-ai.md §5b = 512/64 tokens)
+      - "--batch-size"
+      - "{{ ai_tier_gguf_batch_size }}"            # default 512 => measured HTTP 500 on a 842-token
+                                                   # input; a rerank pair (query + 512-token passage)
+                                                   # crosses that line
+      - "--ubatch-size"
+      - "{{ ai_tier_gguf_ubatch_size }}"           # THIS is the limit the 500 actually reports; the
+                                                   # VRAM cost of the leg lives here, not in ctx-size
       - "--host"
       - "0.0.0.0"                                  # llm-backend only — never published
       - "--port"
       - "{{ ai_tier_reranker_port }}"
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    # The image's own HEALTHCHECK is hardcoded to :8080; this leg listens on its own port, so
+    # the inherited check exits 7 and the container reads `unhealthy` while answering 200
+    # (measured live 2026-09-19). Re-point it at the ACTUAL port — start_period covers Vulkan
+    # init + the 606 MB weight load.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ ai_tier_reranker_port }}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
     deploy:
       resources:
         limits:

@@ -153,6 +153,14 @@ ROCm userspace left in the AI tier** (immich-ML carries its own ROCm inside its 
 probe used ~150-token chunks, llama.cpp truncates beyond the context window, and bge-m3 supports 8192;
 (2) quantization is **settled by §3c**: Q8_0 (16 ms, ~326 MiB, cos 0.9996), with FP16 measured and rejected
 (19 ms, ~595 MiB, cos 0.99996 — one more nine for +269 MiB and +18 % latency).
+✅ **Check (1) was measured at deploy time (2026-09-19) and it was the wrong knob — [services-ai.md](services-ai.md)
+§3a-3 finding 1.** `--ctx-size 2048` alone still answered **HTTP 500 on an 842-token input** ("increase the
+physical batch size (current batch size: 512)"), and the number that message reports is the **ubatch**, so the
+first fix (batch 2048 / ubatch 512) failed identically. Both GGUF legs now run **2048/2048/2048** and the
+842-token chunk returns 200 with `n_tokens = 842, truncated = 0`; the VRAM price of ubatch 512 → 2048 was
+**~15–35 MiB**, so compute-buffer size (not ctx) is the thing to budget against when HD-268b fixes a real chunk
+shape. Also measured here, for the record: **real Slovenian audio** (the probe only ever ran English
+`jfk.wav`) and the endpoint's failure mode for over-window input is a **loud 500**, not silent truncation.
 Residency note for all three legs: `llama-server` has **no Ollama-style keep-alive/LRU unloading**, so each
 leg holds its model until restart; `--sleep-idle-seconds` (PR #18228, single- and multi-model) can release GPU
 memory while idle at the cost of a reload on the next request.

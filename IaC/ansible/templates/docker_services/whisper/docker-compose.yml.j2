@@ -59,6 +59,17 @@ services:
       - "auto"                                     # auto-detect — the pipeline is Slovenian
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    # Image-level HEALTHCHECK is hardcoded to :8080; this leg listens on its own port, so the
+    # inherited check exits 7 (connection refused) and the container reads `unhealthy` while it
+    # answers 200 (live 2026-09-19). Override it against the ACTUAL port — a health signal that
+    # cannot fail is worse than none, and `unhealthy` poisons every future "what is actually
+    # live" census. start_period covers Vulkan init + weight load.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ ai_tier_whisper_port }}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
     deploy:
       resources:
         limits:

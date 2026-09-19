@@ -50,12 +50,28 @@ services:
       - "{{ ai_tier_gguf_ctx_size }}"              # llama.cpp truncates SILENTLY past this; the
                                                    # server default 512 would cut a real ingest
                                                    # chunk (docs/services-ai.md §5b = 512/64 tokens)
+      - "--batch-size"
+      - "{{ ai_tier_gguf_batch_size }}"            # MEASURED 2026-09-19: with the default 512 this
+                                                   # endpoint answers HTTP 500 "input (842 tokens) is
+                                                   # too large to process" - a hard failure at almost
+                                                   # exactly the documented 512-token chunk + specials
+      - "--ubatch-size"
+      - "{{ ai_tier_gguf_ubatch_size }}"           # the 500 above is really an Ubatch complaint, and
+                                                   # this (not ctx-size) is where the VRAM is spent
       - "--host"
       - "0.0.0.0"                                  # llm-backend only — never published
       - "--port"
       - "{{ ai_tier_embed_port }}"
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+    # Same :8080-hardcoded image healthcheck problem as the reranker leg (measured live
+    # 2026-09-19: `unhealthy` while /health answers 200). Re-point at the actual port.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ ai_tier_embed_port }}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
     deploy:
       resources:
         limits:

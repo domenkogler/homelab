@@ -131,6 +131,15 @@ ai_tier_embed_memory_limit: "1g"        # same shape as the reranker leg
 # headroom (bge-m3 supports 8192; paying KV memory for chunks that do not exist yet buys
 # nothing). Re-derive when rag-mcp (HD-268b) goes live and a real chunk size is measurable.
 ai_tier_gguf_ctx_size: 2048
+# Physical batch/ubatch size (HD-391, measured live 2026-09-19): ctx-size alone is NOT enough.
+# The embedding endpoint rejects an input larger than the **ubatch**, and llama-server's error
+# message calls it "batch size" - which is why the first fix attempt (batch 2048, ubatch 512)
+# still answered HTTP 500 "input (842 tokens) is too large to process (current batch size: 512)",
+# because 512 was the Ubatch. So ubatch = batch = ctx: a 512-token ingest chunk plus its special
+# tokens must fit in one ubatch pass. VRAM consequence measured below (compute buffers scale with
+# ubatch, not with ctx) - see docs/services-ai.md §3a-1 for the before/after numbers.
+ai_tier_gguf_batch_size: 2048
+ai_tier_gguf_ubatch_size: 2048
 
 docker_services:
   # === This is OLDSRV — GPU / LAN / storage-bound services only (HD-135 split). ===

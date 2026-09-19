@@ -148,21 +148,20 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 > that lands this table describes the *target* state; today only `embed (Ollama)`, `lan-litellm`, `immich-ML`,
 > `Sunshine` and the observability MCPs are live.
 >
-> **2026-09-19 — the ⏳ rows are now AUTHORED (HD-391), still not converged.** `whisper`, `reranker` and
-> `embed` exist as first-class `docker_services` entries on oldsrv with digest-pinned images and
-> sha256-verified model-fetch tasks (deployed shape: §3a-1 below). The converge itself is **deliberately
-> deferred** until the access lane (HD-397/HD-398) merges: `host_vars` still points Ansible at the sealed Mgmt
-> address, so oldsrv is SSH-reachable but not Ansible-reachable, and `-e ansible_host=` is banned (it corrupts
-> `delegate_to`). Until that lands these rows stay ⏳ — do not read the merge as “live”.
+> **2026-09-19 — ALL THREE LEGS ARE LIVE + LIVE-VERIFIED (HD-391).** Authored, converged (`failed=0`,
+> twice more for two implementation findings below) and measured on this box the same evening: `whisper`,
+> `reranker`, `embed` are `Up (healthy)` on `llm-backend`, reached through `lan-litellm`, at **2475 MiB** of
+> 8 GiB VRAM. The measured numbers per leg are in §3a-2; the three implementation findings the bench could not
+> produce (ubatch, the image healthcheck, and the LiteLLM embed provider) are in §3a-3.
 
 | Leg | Engine — target state | Model (quant) | Device | VRAM (measured) | Latency (measured) | Status |
 |-----|----------------------|---------------|--------|-----------------|--------------------|--------|
-| **Embeddings** | `llama.cpp server-vulkan` (`--embedding --pooling cls`, `--embd-normalize 2`) | `bge-m3` **Q8_0** (634.6 MB) | RX 7600 / Vulkan | **~326 MiB** | **15 ms**/chunk · 51-doc batch 0.86–1.40 s | ⏳ **HD-391 IaC authored 2026-09-19** (converge deferred) · **cos 0.9996 vs the live Ollama vectors** ⇒ no re-embed needed |
+| **Embeddings** | `llama.cpp server-vulkan` (`--embedding --pooling cls`, `--embd-normalize 2`) | `bge-m3` **Q8_0** (634.6 MB) | RX 7600 / Vulkan | **~326 MiB** | **15 ms**/chunk · 51-doc batch 0.86–1.40 s · **deploy: 0.45 s for a 51-doc batch** | ✅ **LIVE 2026-09-19** (`embed`, :9002, gateway row `bge-m3-vk` · dim 1024, ‖v‖=1.0) · cos 0.9996 ⇒ no re-embed |
 | ↳ embed fallback rung | `ollama:0.32.15-rocm` (`/api/embed`) | `bge-m3` (fp16) | RX 7600 / ROCm | **833–899 MiB** | ~470–545 ms/chunk · batch 1.83–1.93 s | ✅ **LIVE + E2E-verified** — demoted to fallback, retires after the Vulkan leg verifies |
-| **Reranker** | `llama.cpp server-vulkan` (`--embedding --pooling rank --rerank`), routed as LiteLLM **`jina_ai/`** | `bge-reranker-v2-m3` **Q8_0** (635.7 MB) | RX 7600 / Vulkan | **~327 MiB** | **0.34–0.50 s** for 20 docs (top-20) | ⏳ **HD-391 IaC authored 2026-09-19** (converge deferred) · **ships DORMANT** (consumer = HD-268b stub) · TEI CPU **rejected by measurement** (5.3 s @ ~790 % CPU) |
-| **STT (voice)** | `whisper.cpp:main-vulkan` (`--inference-path /v1/audio/transcriptions`) | `large-v3-turbo` **fp16** (q5_0 = −1.0 GiB option) | RX 7600 / Vulkan | **1788 MiB** (Δ1722) · q5_0 **786** | **0.40 s** per 11 s WAV (multi: 0.76–0.79 s) | ⏳ **HD-391 IaC authored 2026-09-19** (converge deferred) · CPU fallback is **native** (init-time): 17.5 s, RSS 1.59 GiB |
+| **Reranker** | `llama.cpp server-vulkan` (`--embedding --pooling rank --rerank`), routed as LiteLLM **`jina_ai/`** | `bge-reranker-v2-m3` **Q8_0** (635.7 MB) | RX 7600 / Vulkan | **~327 MiB** | **0.34–0.50 s** for 20 docs (top-20) · **deploy: 0.95 s solo / 1.15 s under three-way load** | ✅ **LIVE 2026-09-19** (`reranker`, :9001, gateway row `local-rerank`, ranking verified) · **ships DORMANT** (consumer = HD-268b stub) · TEI CPU rejected by measurement |
+| **STT (voice)** | `whisper.cpp:main-vulkan` (`--inference-path /v1/audio/transcriptions`) | `large-v3-turbo` **fp16** (q5_0 = −1.0 GiB option) | RX 7600 / Vulkan | **1788 MiB** (Δ1722) · q5_0 **786** | **0.40 s** per 11 s WAV · **deploy: 0.53–0.60 s per ~7–13 s of real Slovenian radio speech** | ✅ **LIVE 2026-09-19** (`whisper`, :9000, gateway row `local-stt`; real Slovenian verified — CJVT GOS corpus) · CPU fallback native (init-time): 17.5 s |
 | ↳ iGPU option | ~~HD 630~~ | — | iGPU | 798 MiB **host RAM** | 5.8–22.8 s per rerank request | ❌ **rejected by measurement** — slower than CPU, Gen 9.5 driver stack frozen, contends with Xorg + Jellyfin QSV ([bench §4](services-ai-bench.md)) |
-| **Gateway** | `lan-litellm` (+ own Postgres) | — | CPU | — | — | ✅ live · ⏳ must gain the three pinned-AI model rows — rerank as `jina_ai/`, embed re-pointed off `ollama/bge-m3` — **payloads pre-written in §4a, to POST at converge time** |
+| **Gateway** | `lan-litellm` (+ own Postgres) | — | CPU | — | — | ✅ live · ✅ **the three pinned-AI rows are IN the DB since 2026-09-19** (`local-rerank`, `bge-m3-vk`, `local-stt`) and each was answered **through** the gateway — §4a |
 | **immich-ML** | immich’s own bundled ROCm | CLIP / face / doc | RX 7600 / ROCm | 0 idle · **3–5 GB during a job** | job-bound | ✅ live · **lowest priority**, pause-able (Sunshine glue) |
 | **Sunshine** | VCE/AMF encode | — | RX 7600 | not a KFD compute consumer | — | ✅ live · gaming-first: its prep-commands pause `immich-ml` |
 | **Observability MCPs** | victoriametrics / victorialogs MCP | — | CPU | — | — | ✅ live |
@@ -182,7 +181,7 @@ per-ROCm-runtime RAM tax §9c made the central argument of decision #25. The mea
 STT), both **mutable aliases ⇒ digest-pinned** per CONVENTIONS §7, with GGUF/GGML model-fetch tasks verified
 against the sha256s in [services-ai-bench.md](services-ai-bench.md) §1.
 
-#### 3a-1. Deployed shape as authored (HD-391, IaC 2026-09-19 — pre-converge)
+#### 3a-1. Deployed shape (HD-391 — deployed + live-verified 2026-09-19)
 
 The runbook values, so a re-deploy or a rebuilt DB does not have to re-derive them. All three legs sit on
 `llm-backend` (`external: true`) with **no `ports:` and no Traefik labels** — HD-59 doctrine: these APIs have
@@ -198,7 +197,8 @@ Both GGUF legs run `--ctx-size` **2048** (`ai_tier_gguf_ctx_size`): llama.cpp **
 window and `llama-server`'s own default is 512, which would slice the documented ingest chunk (§5b =
 token-based **512/64**) in half. 2048 = that spec with 4× headroom; bge-m3 supports 8192, and paying KV memory
 for chunks that do not exist yet buys nothing. Re-derive when HD-268b goes live and a real chunk size becomes
-measurable.
+measurable. **The ctx-size alone was not enough — `--batch-size`/`--ubatch-size` had to move with it, and that
+is a measured story, not a theory: §3a-3 finding 1.**
 
 **Model fetch is generic, not bespoke (HD-391):** `roles/docker_services/tasks/deploy-service.yml` grew an
 opt-in `svc.model_url` / `model_dir` / `model_file` / `model_sha256` hook — the same opt-in-registry-key
@@ -224,7 +224,47 @@ no snapshots and **not in the Kopia / `db-backup` scope**, the same rule `ollama
 2.8 GB of public, digest-pinned weights is cheaper to re-fetch than to back up. No dedicated exporter either:
 the legs are covered by oldsrv's Alloy host metrics plus the `amdgpu` sysfs `mem_info_vram_used` counter that
 the §3a budget is measured against, and their logs use the stock Docker logging driver. Nothing here adds a
-scrape target or a dashboard. Step 9 (the deploy gate) is exactly the deferred converge.
+scrape target or a dashboard. Step 9 (the deploy gate) was cleared 2026-09-19 with a dry render, the
+`docker compose config` pre-validation the role runs (HD-162) and a `failed=0` converge.
+
+#### 3a-2. Deployed + measured (2026-09-19, first live converge)
+
+Converged with `--tags docker_services,whisper,reranker,embed` — **`failed=0`**, three containers `Up
+(healthy)`, `docker inspect` proves the spec (not the RECAP): `devices=[/dev/dri/renderD129]` only, **no
+`/dev/kfd` anywhere in the tier**, `ports=map[]`, `restart=unless-stopped`, `cap_drop=[ALL]`, image by digest.
+
+| Measurement | Target | **Measured on the deployed containers** |
+|---|---|---|
+| Tier VRAM | ~2.4 GiB / 8 GiB | **2475 MiB** with all three warm (`mem_info_vram_used`; idle baseline was 66 MiB) — the target, hit |
+| Host RSS | ≈ 0.5 GiB | **415 MiB** (whisper 96 + reranker 157 + embed 162) |
+| Embed | 15 ms/chunk | dim **1024**, ‖v‖ = **1.000000**; **0.45 s** for a 51-document batch |
+| Rerank | 0.34–0.50 s / 20 docs | **0.95 s** solo for a 20-doc top-5 (real Slovenian sentences), correct ranking (the copy/backup doc −2.7 vs −11.0 for the irrelevant one) |
+| STT | 0.40 s / 11 s WAV | **0.53–0.66 s** per ~7–13 s clip of **real Slovenian broadcast speech** (CJVT GOS corpus, converted in-container with the image's own `ffmpeg`) — e.g. *“Ljubljana …, rahlo sneži in nič … Maribor …, snegom dve stopinji celzija”* and *„… bo delno jasno spremenljivo oblačnostjo, če pogledamo skozi okno …“*. The bench only ever ran `jfk.wav` (English), so this is new evidence |
+| Three-way concurrency | ≈1.5–2× each, flat | each leg **1.15–1.19 s** simultaneously vs 0.60/0.95/0.45 s solo; **total wall 1.25 s < the 2.00 s sequential sum** — the contention the bench predicted, and the aggregate still beats serial |
+| `dmesg` (HD-393 baseline 1,296 / 0) | 0 hang/reset | **0 hang/reset.** Last `init_user_pages` line is still `[780804.8]` while uptime passed **875842 s** → **zero new lines** from this deploy. (The raw count read 1226 after, i.e. **ring eviction**, not recovery — the same trap that made HD-393's count grow while the episode was over. ⚠ reading `dmesg` here needs `sudo`: `dmesg: read kernel buffer failed` otherwise, and an unsprivileged count silently returns 0.) |
+
+#### 3a-3. Three findings the bench could not produce (each one broke or would break a real call)
+
+1. **`--ctx-size` is not the batch limit — `--ubatch-size` is.** With the defaults the embed endpoint answered
+   **HTTP 500 `input (842 tokens) is too large to process. increase the physical batch size (current batch
+   size: 512)`**. The first fix (`--batch-size 2048 --ubatch-size 512`) **still failed with the same message**,
+   because the number it reports is the **ubatch**. So both legs run `--batch-size 2048 --ubatch-size 2048`
+   (`ai_tier_gguf_batch_size` / `ai_tier_gguf_ubatch_size`); after that the same 842-token chunk returns 200
+   and the log line reads `n_tokens = 842, truncated = 0`. **VRAM cost of ubatch 512 → 2048: ~15–35 MiB**
+   (2440–2460 → 2475 MiB) — cheap, and the compute buffers scale with ubatch, not with ctx. Note the
+   behaviour differs by endpoint and by direction: an **oversized** input (> ctx) is a **loud 500**, not the
+   silent truncation §5b/§3a-1 warned about — silent truncation is a generation-path hazard, so embeddings are
+   actually safer than assumed, but a chunk over ~2048 tokens fails the ingest loudly.
+2. **The `llama.cpp` image hardcodes `HEALTHCHECK curl http://localhost:8080/health`.** Our legs listen on
+   9001/9002, so both GGUF containers reported **`unhealthy` while answering 200** — a false alarm that would
+   poison every future "what is actually live" census. Fixed with an explicit `healthcheck:` per leg pointed
+   at its own port (`start_period: 90s` for Vulkan init + weight load). Any future leg on a non-8080 port must
+   override it too.
+3. **LiteLLM's `openai/` embed provider forwards `encoding_format: null`, and llama.cpp rejects null** —
+   `[json.exception.type_error.302] type must be string, but is null` → the leg worked, the **gateway row did
+   not**. `hosted_vllm/bge-m3` on the same `api_base` works (verified dim 1024 through the proxy). So the embed
+   row is `hosted_vllm/…`, and `user: null` is tolerated while `encoding_format: null` is not — the distinction
+   is invisible from the outside, so it is recorded here.
 
 ---
 
@@ -293,9 +333,16 @@ Model rows live in the LiteLLM **DB**, never in git (decision 13 / HD-247). They
 `POST /model/new` against **`lan-litellm`** on oldsrv using the master key — the vault item is **`litellm_api`
 (field `credential`)**, which IS the master key (`LITELLM_MASTER_KEY` in both compose templates); there is no
 item named `litellm_master_key`, despite how that name gets typed. Read it into a variable, never echo it.
-The three payloads below are the replayable record for a DB rebuild; ⚠ **not executed as of 2026-09-19** — the
-converge that creates the containers is deferred behind the access lane (§3a), and a catalog row pointing at a
-container that does not exist yet is exactly the kind of half-state this repo records instead of shipping.
+
+✅ **EXECUTED 2026-09-19 against the live LAN instance.** Before: **one** row (`spark/qwen3.8-flash-next`).
+After: `local-rerank`, `bge-m3-vk`, `local-stt` added, each answered **through** the gateway (§3a-2). Two
+things this corrected: the embed provider (**`hosted_vllm/`, not `openai/`** — §3a-3 finding 3) and the fact
+that **`ollama/bge-m3` is not in this DB at all** — it lives in the VPS instance, so “do not delete the
+fallback row” was honoured by never touching it; the LAN instance simply did not have one.
+
+Row ids are recorded because they are the handle for a later delete/replay: `local-rerank`
+`08f7e525-6a7b-4258-b940-54e23433a47a` · `bge-m3-vk` `ac74a51f-ab6b-4eaa-a0c2-88cdb4ce40b6` · `local-stt`
+`4a47bb86-39bc-412b-a46d-1a6a692a779d`.
 
 ```bash
 # from the oldsrv shell (lan-litellm is on the same compose host, no publish needed)
@@ -310,9 +357,11 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
   http://localhost:4000/model/new
 
 # 2. EMBED — llama.cpp serves OpenAI-shaped /v1/embeddings; here the api_base DOES carry /v1.
+#    ⚠ provider = hosted_vllm/, NOT openai/: the openai provider forwards `encoding_format: null` and
+#    llama.cpp answers 500 "type must be string, but is null" (leg healthy, gateway row broken — §3a-3).
 #    Dimension stays 1024, so this is routing, not a corpus migration (no HD-268 re-index).
 curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
-  -d '{"model_name":"bge-m3-vk","litellm_params":{"model":"openai/bge-m3","api_base":"http://embed:9002/v1","api_key":"sk-none"}}' \
+  -d '{"model_name":"bge-m3-vk","litellm_params":{"model":"hosted_vllm/bge-m3","api_base":"http://embed:9002/v1","api_key":"sk-none"}}' \
   http://localhost:4000/model/new
 
 # 3. STT — whisper-server serves the OpenAI path natively (--inference-path), so no wrapper.
@@ -322,9 +371,18 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
 ```
 
 **Rules for this table:**
-* **Keep the `ollama/bge-m3` row.** Owner call 2026-09-19: the Vulkan embed leg gets its own row and the
-  Ollama row stays as the documented fallback rung of the SAME 1024-dim space (cos 0.9996). Retiring it is a
-  separate step, gated on the Vulkan leg being live-verified — deleting the row would delete the fallback.
+* **`lan-litellm` has no `curl`** — drive its API from the host against its `llm-backend` container address
+  (`http://<the ip docker inspect gives for lan-litellm on llm-backend>:4000`) or from any container that ships
+  a client. Deliberately not written down as a literal: bridge IPs are exactly what the no-hardcoded-IPs rule
+  in §2 exists to keep out of docs, and this one moved once during the converge.
+* **Admin endpoints, v1.83.10, measured:** `/model/list` is not usable with the master key (it answers a
+  `{"detail": …}`), **`/model/info`** is the one that enumerates rows; and **`/model/delete` takes `{"id": …}`**,
+  not `{"model_id": …}` (the latter is a 422 that says exactly which field it wanted — do not assume).
+* **Keep the `ollama/bge-m3` row (VPS instance).** Owner call 2026-09-19: the Vulkan embed leg gets its own row
+  and the Ollama row stays as the documented fallback rung of the SAME 1024-dim space (cos 0.9996). Retiring it
+  is a separate step, gated on the Vulkan leg being live-verified (done 2026-09-19) **and** on a consumer
+  actually re-pointing — and no consumer re-pointed here: the LAN instance has no scoped consumer at all
+  (HD-384/HD-268b), so these three rows are reachable by the admin path only.
 * **`bootstrap_keys` stays `false`** (HD-386): none of these legs has a scoped consumer yet (the rerank
   consumer is the HD-268b stub), so no key-minting glue is restored here.
 * **Two traps, both earned:** a `--check --diff` on a LiteLLM converge renders live keys into the log; and a
@@ -333,7 +391,9 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
   the RECAP.
 * Verify the two path compositions once, live, and record the result here if they differ: LiteLLM appends
   `/embeddings` and `/audio/transcriptions` to the `api_base` it is given, so the `/v1` suffix belongs on the
-  embed and STT rows and must NOT appear on the rerank row.
+  embed and STT rows and must NOT appear on the rerank row. **Verified 2026-09-19 — that is exactly right:**
+  jina_ai's `get_complete_url` discards any path and posts to `/v1/rerank`, while the embed/STT rows are
+  reached at `<api_base>/embeddings` and `<api_base>/audio/transcriptions`.
 
 ---
 
@@ -366,7 +426,7 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
 | Reranker | bge-reranker-v2-m3 **Q8_0** local via LiteLLM `/rerank` → **`jina_ai/` → llama.cpp Vulkan cross-encoder on the RX 7600** (decision #27; #25's CPU CrossEncoder stack superseded by measurement). ⚠ its consumer `rag-mcp` is the HD-268b stub — leg ships dormant |
 | Hybrid | ON default (dense+sparse BM25) |
 | Retrieval | 20 candidates → rerank → top 5, threshold 0 |
-| Chunking | token-based 512/64 (`RAG_TEXT_SPLITTER=token` mandatory) — **this is the number the GGUF legs size their context from**: `--ctx-size 2048` (§3a-1), because llama.cpp truncates silently past the window and `llama-server`'s default 512 would slice a full chunk |
+| Chunking | token-based 512/64 (`RAG_TEXT_SPLITTER=token` mandatory) — **this is the number the GGUF legs size their context AND batch from**: `--ctx-size/--batch-size/--ubatch-size = 2048/2048/2048` (§3a-1), because the documented 512-token chunk plus its 64 overlap and special tokens must fit one ubatch pass — at the 512 default the endpoint answers a loud **HTTP 500** (measured; §3a-3 finding 1), it does NOT silently truncate on this path |
 | Config ownership | `ENABLE_PERSISTENT_CONFIG=false` (env = SSOT) |
 | Knowledge split | Public = Family-Manuals KB only; internal = personal/wife-work corpus |
 | Vector index | Qdrant, **1024-dim** dense (+sparse), dimension locks at first ingest (1536→1024 free: nothing RAG'd yet) |
@@ -476,7 +536,7 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 | **25** | **Pinned-AI service stack per leg (owner-approved 2026-09-17, research 2026-09-17).** Settles the three legs HD-369 left open, keeping the decision #24 placement (RX 7600 = pinned tier) unchanged: **(a) embed** — stays **Ollama `:rocm` `bge-m3`** (already E2E-verified: 1024-dim, 100 % GPU); TEI was investigated and rejected for this card (§9c). **(b) rerank** — **CPU cross-encoder**, owner call 2026-09-17: 568 M params, 20 pairs ≈ 10–30 ms/pair against a 300–800 ms LLM leg, so GPU residency buys nothing while costing 1.5 GB VRAM + a ROCm runtime; also removes the rerank leg from the RX 7600 VRAM budget entirely. **Ollama is NOT a rerank host** — no GGUF reranker path exists (§9c). **(c) STT** — **`whisper.cpp` built with `GGML_HIP` + native `AMDGPU_TARGETS=gfx1102`** (`.devops/main-rocm.Dockerfile`, ROCm 7.14/TheRock) instead of PyTorch `insanely-fast-whisper-rocm`, which needs `HSA_OVERRIDE_GFX_VERSION=10.3.0` (gfx1030 = ISA-adjacent JIT risk) and drags gradio/demucs/stable-ts + `seccomp=unconfined`/`SYS_PTRACE`/`ipc:host`/`shm 8G` — none of which the wake-word → STT → LLM → Piper pipeline needs. Native gfx1102 also removes the CWSR compute-preemption exposure (§9c + [hardware-gpu.md](hardware-gpu.md)). Consequence: **RX 7600 hosts 2 GPU legs (embed + STT), rerank is CPU** → pinned-AI VRAM ~3–4 GB, and immich-ML (3–5 GB) can co-reside instead of being paused. ⏳ **Open, non-blocking:** LiteLLM `/rerank` has no Ollama provider (`litellm/llms/ollama/rerank/transformation.py` → 404), so the CPU reranker must be exposed as an endpoint type LiteLLM *can* route (Jina `/v1/rerank` / `cohere` / `hosted_vllm` compat) — verify the provider before wiring (HD-385). | 2026-09-17 |
 
 | **26** | **Consumption boundary: generation harnesses go DIRECT to the spark name edge; LiteLLM serves the simple-querier tier; external APIs are a harness-side fallback, never a proxy fallback (owner decision 2026-09-17).** Splits the consumer set explicitly: **(a) THROUGH LiteLLM** — the simple queriers (HomeAssistant, Docling, Open WebUI ×2, OpenClaw) + the pinned-AI legs (embed/STT/rerank, decision #25) + anything that must not hold an upstream credential: per-consumer scoped virtual keys, one dropdown, spend/latency records. **(b) DIRECT to `llm.kogler.si`** — the coding harnesses (workstation pi.dev, Continue.dev, future dedicated harness deploys). Three measured/engineered reasons, not taste: **(1) silent parameter loss.** pi's harness contract is a wire-format contract; the `openai/` provider's allow-list is `OpenAIGPTConfig.get_supported_openai_params` **plus `reasoning_effort` only** for an alias it does not recognize (`OpenAIUnknownModelConfig`, `litellm/llms/openai/chat/gpt_transformation.py`, read 2026-09-17) — `chat_template_kwargs` and `thinking_token_budget` appear in that provider tree only for `hosted_vllm`/`together`/`fireworks`/Bedrock, and `top_k` for none of them. With `drop_params: true` an unsupported key is **dropped without an error**, and for the thinking switch the failure mode is silent thinking-ON (the engine's default), i.e. a cost/quality regression that looks like success. Re-measurement is tracked as HD-387. **(2) retry/fallback amplification on one KV pool.** The pool is ONE shared budget with `max_num_seqs: 4`; incident #6 measured a 0 %-prefix-hit 162k-token re-prefill at 17,008 tok/s driving `MemAvailable` 21.5→12.6 GiB in 22 s — a router that retries/falls back on timeout does exactly that **automatically, under load**. **(3) topology.** Direct is 1 hop (`pi → traefik-spark → engine`); via the LAN instance it is 3 proxies + 2 extra TLS terminations, which makes the coding cockpit depend on oldsrv (which also hosts Kopia/arr/immich/whisper/embed) and re-bases pi's 900 s idle / 1800 s request budget onto two Traefiks and the proxy. **Fallback placement:** a proxy that swaps the model behind the client's back also invalidates the client's `contextWindow`/compaction math (§pi-harness.md §3) and its tool-call parser assumptions, so **fallback lives in the harness**, which knows the target's window. **Consequences:** `dsh` + `pi-dev` as docker_services entries are PARKED (`enabled: false`, HD-386 — they never became working consumers; both render a deliberately-EMPTY vault item); `litellm_scoped_keys` on the LAN instance is empty until the simple-querier tier registers (HD-384), which forces `bootstrap_keys: false` there (the glue fail-louds on an empty spec list); the workstation keeps `spark-llm_api` locally, so hardening that credential moves to the edge (spark `llm` router allow-list / a distinct client credential) rather than to a proxy — recorded as an open tail in HD-384. | 2026-09-17 |
-| **27** | **ACCEPTED — owner instruction 2026-09-18 (“write this to the SSOTs”); implementation tracked in HD-391 — all three pinned-AI legs move to the ggml/Vulkan backend family on the RX 7600: STT `ghcr.io/ggml-org/whisper.cpp:main-vulkan` (digest-pinned, `large-v3-turbo`, GPU-first with native CPU fallback) · rerank `ghcr.io/ggml-org/llama.cpp:server-vulkan` + `gpustack/bge-reranker-v2-m3-GGUF` Q8_0 (routed as LiteLLM `jina_ai/`) · embed `llama.cpp:server-vulkan` + `ggml-org/bge-m3-Q8_0-GGUF` (Ollama `:rocm` demoted to the fallback rung).** **Quantization is settled by measurement — Q8_0 on both GGUF legs:** FP16 costs **+269 MiB/leg** and **+18 %** embed latency for one more nine of fidelity (cos 0.99996 vs 0.99960) and changes **no** rerank top-5 ([services-ai-bench.md](services-ai-bench.md) §3c). Re-decides **#25(c)** (GGML_HIP → Vulkan: the HIP recipe has **no published artifact**, so the only alternative is a self-build with no Renovate trail — §9c corrected 2026-09-18), **#25(b)** (CPU → dGPU: measured **0.50 s vs 5.3 s** for a top-20 rerank at **425 MiB** VRAM instead of the assumed 1.5 GB, and CPU rerank is 10–20× slower than #25(b)'s 10–30 ms/pair premise) and **#25(a)** (embed leaves Ollama even though it works: **15 ms vs ~500 ms** per query chunk, 2.3× ingest, **326 MiB vs 899 MiB** VRAM, 157 MiB vs 2.19 GiB host RSS, and **cosine 0.9996 / min 0.9986 against the live Ollama vectors** ⇒ the same vector space, so the move costs no correctness-driven re-embed — [services-ai-bench.md](services-ai-bench.md) §3b). **Plan-of-record table for the whole tier: §3a.** **Keeps #24's placement** (RX 7600 = pinned tier). Evidence: [services-ai-bench.md](services-ai-bench.md) §2–§7 (device sweep, TEI landmines, iGPU verdict, co-residency ledger: whole pinned tier = **2.9 GiB of 8 GiB**, 0 `amdgpu` hang/reset lines across ~25 min of Vulkan compute). Consequences to accept: **three** Vulkan clients share one card (measured contention factor ≈1.5–2× under simultaneous load, flat when sustained; the tier measures **~2.4 GiB of 8 GiB** once embed moves, and the AI tier then needs **no `/dev/kfd`/ROCm userspace at all**); `main-vulkan` + `server-vulkan` are **mutable aliases** ⇒ §7 MUST-pin by digest; the rerank + embed legs gain GGUF model-fetch tasks (sha256-verified) and rerank loses the `huggingface/`-provider wiring while embed re-points the LiteLLM rows off `ollama/bge-m3`; `--ctx-size` on the embed leg must cover the real ingest chunk (bge-m3 supports 8192; llama.cpp truncates silently beyond the window). | 2026-09-18 |
+| **27** | **ADOPTED — accepted 2026-09-18 by owner instruction (“write this to the SSOTs”); implemented and ADOPTED 2026-09-19 (HD-391 shipped and live-verified) — all three pinned-AI legs move to the ggml/Vulkan backend family on the RX 7600: STT `ghcr.io/ggml-org/whisper.cpp:main-vulkan` (digest-pinned, `large-v3-turbo`, GPU-first with native CPU fallback) · rerank `ghcr.io/ggml-org/llama.cpp:server-vulkan` + `gpustack/bge-reranker-v2-m3-GGUF` Q8_0 (routed as LiteLLM `jina_ai/`) · embed `llama.cpp:server-vulkan` + `ggml-org/bge-m3-Q8_0-GGUF` (Ollama `:rocm` demoted to the fallback rung).** **Quantization is settled by measurement — Q8_0 on both GGUF legs:** FP16 costs **+269 MiB/leg** and **+18 %** embed latency for one more nine of fidelity (cos 0.99996 vs 0.99960) and changes **no** rerank top-5 ([services-ai-bench.md](services-ai-bench.md) §3c). Re-decides **#25(c)** (GGML_HIP → Vulkan: the HIP recipe has **no published artifact**, so the only alternative is a self-build with no Renovate trail — §9c corrected 2026-09-18), **#25(b)** (CPU → dGPU: measured **0.50 s vs 5.3 s** for a top-20 rerank at **425 MiB** VRAM instead of the assumed 1.5 GB, and CPU rerank is 10–20× slower than #25(b)'s 10–30 ms/pair premise) and **#25(a)** (embed leaves Ollama even though it works: **15 ms vs ~500 ms** per query chunk, 2.3× ingest, **326 MiB vs 899 MiB** VRAM, 157 MiB vs 2.19 GiB host RSS, and **cosine 0.9996 / min 0.9986 against the live Ollama vectors** ⇒ the same vector space, so the move costs no correctness-driven re-embed — [services-ai-bench.md](services-ai-bench.md) §3b). **Plan-of-record table for the whole tier: §3a.** **Keeps #24's placement** (RX 7600 = pinned tier). Evidence: [services-ai-bench.md](services-ai-bench.md) §2–§7 (device sweep, TEI landmines, iGPU verdict, co-residency ledger: whole pinned tier = **2.9 GiB of 8 GiB**, 0 `amdgpu` hang/reset lines across ~25 min of Vulkan compute). Consequences to accept: **three** Vulkan clients share one card (measured contention factor ≈1.5–2× under simultaneous load, flat when sustained; the tier measures **~2.4 GiB of 8 GiB** once embed moves, and the AI tier then needs **no `/dev/kfd`/ROCm userspace at all**); `main-vulkan` + `server-vulkan` are **mutable aliases** ⇒ §7 MUST-pin by digest; the rerank + embed legs gain GGUF model-fetch tasks (sha256-verified) and rerank loses the `huggingface/`-provider wiring while embed re-points the LiteLLM rows off `ollama/bge-m3`; `--ctx-size` on the embed leg must cover the real ingest chunk (bge-m3 supports 8192; llama.cpp truncates silently beyond the window). **⚠ corrected at deploy (2026-09-19, [services-ai-bench.md](services-ai-bench.md) §3 / [services-ai.md](services-ai.md) §3a-3 finding 1): the binding limit on the embedding path is `--ubatch-size`, not `--ctx-size`, and an over-window input 500s loudly rather than truncating — the legs therefore run 2048/2048/2048.** | 2026-09-18 |
 
 > **2026-09-15 live-verify guard (post-converge):** Ollama deployed on oldsrv (`:rocm` 0.32.15), **bge-m3 embed verified end-to-end** (real 1024-dim vector, model resident 100% GPU). **Two defects surfaced at first-boot against the authored plan** — (1) **model names**: `whisper-large-v3-turbo` + `bge-reranker-v2-m3` do **NOT exist** in the ollama library; corrected pulls are `sendmeaiohyeah/whisper-large-v2` (STT) + `qllama/bge-reranker-v2-m3:q8_0` (rerank) — update any LiteLLM Admin-UI entries to these names; (2) **API cap**: ollama `0.32.15` has **no `/api/rerank`** (404) and whisper cannot be serviced via the pinned build's chat path. ⚠️ **The follow-up sentence written here on 2026-09-15 — “rerank landed in ollama ≥ 0.5.x / blocked until the pin is bumped” — was WRONG and is corrected in §9c: no released ollama serves rerank.** Resolved instead by decision #25 (rerank → CPU, STT → `whisper.cpp` GGML_HIP); tracked in HD-385.
 > The whole 3-zone / OKF / Qdrant / MCP architecture (previously `ai-brainstorming.md`) is **folded into
