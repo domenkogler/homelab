@@ -113,15 +113,6 @@ and the LiteLLM virtual keys (bootstrap glue — currently `bootstrap_keys: fals
 item as a runner token. Confirm on the Forgejo side: if the runner exists, renew its token after the
 2026-09-19 SA rotation (or its vault access 403s); if it does not, that premise is folklore and goes.
 
-> **⚠ Stray progress notes (folded into their phase chapters in the next pass):**
-
-- **HD-336 (coding plane)** — agent-memory.dev per-project on oldsrv (MCP + LiteLLM key); ZeroClaw system-mgmt runner (laptop+oldsrv); CrewAI pilot gated on homelab-finished. Spec: `docs/services-ai.md` §9b.
-- **HD-337 (spark bring-up)** — execute HD-335: DGX OS → placement → HD-155 spark leg → Triton → models (generation set; **pinned STT/embed/rerank moved to oldsrv RX 7600, decision #24**) → Cohere retirement/embed cutover → Mem0+OpenHands. Spec: `docs/hardware-spark.md` §Bring-up.
-- **HD-370 (spark name edge + LiteLLM names)** — ✅ **ALL LEGS LIVE 2026-09-15** (VPS/oldsrv/Pi converged failed=0; VPS pre-pass `--check` artifact fixed; DNS split-horizon verified — `llm`/`db-spark`/`spark` resolve to spark on home instances only, `litellm`→public on the primary; TLS-in-TLS hop verified with the bearer key → `spark/qwen3.8-flash-next`; wireguard oneshot now installs routes). ✅ **Owner gate CLOSED 2026-09-17 (HD-382):** `spark/qwen3.8-flash-next` exists in BOTH LiteLLM DBs with `api_base https://llm.kogler.si/v1` (https on both legs — the earlier `http://` spec was wrong: spark's :80 is redirect-only) and **no key in the row** (bearer = the container `OPENAI_API_KEY` env from `spark-llm_api`), E2E-verified through both proxies. The dsh/pi-harness LAN key step is **withdrawn** (HD-386: harnesses removed, records parked, decision #26). Spec: `docs/hardware-spark.md` §Name edge · `docs/services-ai.md` §2 · `todo.md` HD-370.
-- **HD-373 (litellm `/ui` SPA-fallback 404 — workaround `/fallback/login`)** — ⏳ **open (2026-09-15):** the admin UI deep-link `/ui/login` 404s (no nginx SPA fallback in the container); **workaround = `https://litellm.kogler.si/fallback/login`** (intended flow, master-key login works). Fix = nginx SPA fallback or route-scoped `/ui/*` handling (see todo HD-373). Spec: `docs/services-ai.md` · `todo.md` HD-373.
-- **HD-374 (spark vLLM unified-memory budget governance)** — ✅ **DEPLOYED + LIVE 2026-09-16, RE-CERTIFIED 2026-09-18 at a HIGHER value.** The governor is `--kv-cache-memory-bytes` (the ONLY one — `gpu_memory_utilization` is removed/ignored by this build). **Live value = `spark_vllm_kv_cache_memory: "16000000000"` = 16 GiB (`IaC/ansible/group_vars/spark.yml`); reserved 14.9 GiB / 515,786 tok / 1.97× @262k.** The 8.2 GiB / 283,398-tok figures from the 2026-09-16 converge were the *pre-certification* value — **do not converge spark back to it**: the 3-rung load chain (0 kernel OOM, 0 engine restarts, 0 guard-fires) passed at 16 GiB, so SSOT = live. 16 GiB is also the **bf16 ceiling** (idle `usable` 18.5 GiB); more KV is `--kv-cache-dtype fp8`'s job, not Linux's reserve. Knowledge: `docs/hardware-spark.md` §Unified-memory budget · `spark/stability-test.md` · incidents: `docs/spark-incidents.md` · (todo HD-374 row closed)
-- **HD-369 (RX 7600 = pinned-services tier; spark = big-model generation tier, decision #24)** — ✅ **IaC AUTHORED 2026-09-15** (NOT converged): re-armed Ollama (`:rocm`) on oldsrv (`enabled: false` until gate flips) serving whisper-large-v3-turbo/bge-m3/bge-reranker-v2-m3 on `llm-backend`; LiteLLM scoped keys re-pointed from Cohere → `ollama/bge-m3,ollama/bge-reranker-v2-m3`. ⏳ Deploy-gate: flip ollama → converge oldsrv → model pull → LiteLLM catalog recreate → voice re-point → priority glue → VRAM verify. Spec: `docs/services-ai.md` §9 decision #24 + `docs/hardware-gpu.md`.
-
 #### B) Account / connection refs — NOT consumed by Ansible (human maintenance / break-glass)
 
 > These live in the **Homelab (human)** vault — deliberately NOT in
@@ -191,46 +182,70 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 > brings up the internal/GPU backends; the WG S2S tunnel (Phase 1.5 / HD-03 WG VPS peer) then lets the VPS reach them.
 > **Step-by-step runbook:** [deployment-manual.md](deployment-manual.md) §Phase 0.5 (re-provisioning; §Phase 1 lands after the first green Verify block).
 
-1. - [x] **[MANUAL]** **Provision VPS (netcup SCP)** — ✅ done 2026-08-18; Custom Script confirmed applied (first key-auth login verified 2026-08-21; owning-doc + commit evidence). netcup boots its **pre-built Debian 13 image**; the operative install hook
+- [x] **[MANUAL]** **Provision VPS (netcup SCP)** — ✅ done 2026-08-18; Custom Script confirmed applied (first key-auth login verified 2026-08-21; owning-doc + commit evidence). netcup boots its **pre-built Debian 13 image**; the operative install hook
    is the **Custom Script** (netcup SCP field) = **`IaC/host/vps/post_install.sh`** (pasted as `*_with_secrets.sh`;
    no `ai-debug`, `AllowUsers ansible-admin` only — public box). **NOTE:** the `d-i` preseed lines
    (`IaC/host/vps/preseed.cfg`) do **NOT** run on netcup's image — that file is a reference/fallback only
    (see `deployment-preseed.md` → VPS Deviations). The `*_with_secrets.sh` injects the real SSH keys;
    root login disabled. Single 512 GB NVMe root (ext4, no ZFS).
    - [x] **[MANUAL]** **Re-provision with the HD-208-fixed script** (reinstall) — ✅ done 2026-08-22: reinstalled via Custom Script (Minimal image), then console-remediated after the HD-209 pubkey-doubling bug (template fixed `a97783d`); first-boot verified — `sshd -T` = **no/no/3** from the drop-in alone, sudoers NOPASSWD, both identities authorized (owning-doc ✅ + commit evidence).
-2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/vps.yml`:
-   `common` → `docker` → **`vps-hardening`** (HD-154: fail2ban + nftables default-deny + docker daemon) → `network` (static public IP per SSOT) → `docker_services` → `monitoring`.
-3. **Mandatory hardening checklist (HD-154, enforced by the `vps-hardening` role — NOT optional prose):**
+- [x] **Ansible** — ✅ **first green 2026-08-22** (stack Up; re-converged many times since — the VPS carries
+   the whole public tier + the observability backend). `ansible-playbook -i inventory.ini playbooks/vps.yml`:
+   `common` → `docker` → **`vps-hardening`** (HD-154: fail2ban + nftables default-deny + docker daemon) →
+   `network` (static public IP per SSOT) → `cifs` → `wireguard` (conditional) → `docker_services` →
+   `monitoring`.
+- [x] **Mandatory hardening (HD-154, enforced by the `vps-hardening` role — NOT optional prose)** — role-deployed
+   and verified on first boot; re-asserted by every later converge:
    - **SSH:** `PasswordAuthentication no`, `PermitRootLogin no`, `MaxAuthTries 3`, `AllowUsers ansible-admin` only (post_install.sh + role assert).
    - **fail2ban:** SSH jail (`maxretry 3`) + `http-auth` jail for public login pages (n8n/Grafana/Forgejo) — role-installed + enabled.
-   - **Firewall (nftables):** default-deny inbound; allow only `:22` (SSH/Ansible — added 2026-08-22 after a live lockout) + `:443` (Traefik) + `:51820` (WG S2S) + loopback + established/related; ICMP echo limited. Role-deployed `/etc/nftables.conf`.
+   - **Firewall (nftables):** default-deny inbound; allow only `:22` (SSH/Ansible — added 2026-08-22 after a live lockout) + `:443` (Traefik) + `:51820` (WG S2S) + loopback + established/related; ICMP echo limited. Role-deployed `/etc/nftables.conf`. ⚠ `:53` (Technitium publish) is **source-restricted at the FORWARD chain** (tailnet CGNAT + home-WAN allow-list), not the input chain — a Docker published port bypasses input filtering (HD-317 exposure fix, `network-dns.md`).
    - **Docker daemon:** `iptables: true`, `userland-proxy: false`, `live-restore: true`, capped json-file logs; no public container `privileged` / host-net by compose policy.
    - **SSO admission:** root disabled, per-host keys only (Domen + Ansible), no `ai-debug` on a public box.
-4. **Edge tier** — enable the self-contained subset in `group_vars/vps.yml`: **`traefik`, `crowdsec`, `authentik`**
-   (+ co-located DBs); Traefik issues the wildcard `*.kogler.si` cert via ACME **DNS-01** (`cloudflare_api`).
-   The `dns.yml` control-plane playbook (roles/cloudflare_dns) adds the public records — start with `vps` A/AAAA,
-   then `sso` (+ each public app as it lands).
-5. **Live Box CIFS mount** — the `cifs` role (in `vps.yml`) mounts `//u653411.your-storagebox.de/backup` (`Hertzner-SB-Data`) at `/mnt/storagebox` on the VPS (0600 creds from 1Password) for Immich originals + encoded-video + OpenCloud files (HD-135 storage split). Applied automatically by Ansible; verify `mountpoint --q /mnt/storagebox` after deploy.
-6. **NOT yet online (needs WG S2S + oldsrv):** immich-app→immich-ml, litellm→ollama — these expose only after the
+- [x] **Edge tier + the rest of the public catalog** — `group_vars/vps.yml` is the loop source of truth (see
+   [`docs/services-inventory-generated.md`](docs/services-inventory-generated.md)); Traefik issues the wildcard
+   `*.kogler.si` + `*.ts.kogler.si` certs via ACME **DNS-01** (`cloudflare_api`) and `certs-rename.sh` publishes
+   the pairs for the consumers. The `dns.yml` control-plane playbook maintains the public records
+   (`vps` A/AAAA + each app CNAME; SSOT `roles/cloudflare_dns/vars/main.yml`).
+- [x] **Live Box CIFS mount** — the `cifs` role mounts `//u653411.your-storagebox.de/backup`
+   (`Hertzner-SB-Data`) at `/mnt/storagebox` (0600 creds from 1Password) for Immich originals + encoded-video +
+   OpenCloud files + the Navidrome library (HD-135 storage split). Verify `mountpoint --q /mnt/storagebox`.
+- [x] **Cross-host links that had to wait for the WG S2S tunnel** — `immich-app→immich-ml` came up
+   ✅ 2026-09-08 (VPS server health-checks the oldsrv ML endpoint over WG). `litellm→ollama` is history: rerank
+   and STT left Ollama entirely (decisions #25/#27) and generation moved to spark (`llm.kogler.si`), reached
+   over WG by the VPS LiteLLM.
 
 **Verify:**
 - `sso.kogler.si` (Authentik) reachable publicly through the VPS Traefik with the wildcard cert; crowdsec decision active.
-- **Authentik OAuth2 Blueprint** — verify the `ks-oidc.yml` blueprint imports + the secret-egress glue seeds client creds on the pinned `2026.5.6` (version-specific flow/signing/binding attrs). Tracked: **HD-149**.
+- **Authentik OAuth2 Blueprint** — `ks-oidc.yml` + `ks-forward-auth.yml` import on the pinned release and the secret-egress glue seeds the client creds (8 OIDC apps + 9 edge providers).
 - `vps` A/AAAA records live at Cloudflare (via `dns.yml`); `ansible-admin` SSH works with the agent.
 - **Hardening verified (HD-154):** `fail2ban-client status sshd` shows the SSH jail active; `nft list ruleset` shows the default-deny input chain with `:22`/`:443`/`:51820` accepts; `sshd -T | grep -E 'maxauthtries|passwordauthentication|permitrootlogin'` = 3/no/no; `docker info` shows `userland-proxy=false` + capped log driver.
 - Live Box CIFS mount returns data; VPS NVMe under 80%.
 
-**Deploy-gated verification (Phase 1):**
-- **HD-40A** — root-level VPS playbook run in WSL; Traefik wildcard cert via ACME DNS-01 (`cloudflare_api`); `sso` record via `dns.yml`; live-Box CIFS mount. · [services-vps.md](docs/services-vps.md)
-- **HD-135** — live-Box CIFS mount; cross-host app wiring; `foto`/`file`/`git`/`ai` round-trip over the WG S2S tunnel (peer pubkeys in Phase 1.5). · [services-vps.md](docs/services-vps.md)
-- **HD-149** — Authentik `ks-oidc.yml` Blueprint live-apply on `2026.5.6` (flow slugs, signing_key, app-provider binding) + glue harvests client creds; `redirect_uris` match compose (`ai`/`vpn`/`matrix`/`file`). · [deployment-compose.md](docs/deployment-compose.md)
-- **HD-143** — create write-scoped `authentik-provision_api` 1Password item; glue seeds the 8 OIDC client-creds items after Blueprint (NOT `opencloud-service_api`). · [deployment-ansible.md](docs/deployment-ansible.md)
-- **HD-144** — uncomment OpenCloud OIDC block, drop Forward-Auth, add CSP `opencloud/csp.yaml.j2` (provider = Blueprint entry HD-142). · [deployment-compose.md](docs/deployment-compose.md)
-- **HD-146** — `vps.yml` deploy ordering enforced (authentik precedes every OIDC consumer) + glue wired in `deploy-service.yml`. · [deployment-ansible.md](docs/deployment-ansible.md)
-- **HD-166** — create `opencloud-collab_password` (single JWT, both sides); first deploy on VPS Phase 1; live-verify `file`→ONLYOFFICE iframe + CSP. · [services-office.md](docs/services-office.md)
-- **HD-159** — blackbox liveness: verify the `wg_icmp` probe (VPS→home router WG-side peer IP, `wg_s2s_vps.router_ip`) + the Critical `wg-s2s-down` Grafana rule fires on a `wg down` test at Phase 1. · [observability.md](docs/observability.md)
-- [x] **HD-240** — grafana SSO round-trip: ✅ traefik edge IP pinned `.2` (= whitelist match); ✅ owner mapped into Grafana as Admin; ✅ **[MANUAL]** owner browser click sso-dashboard → stats.kogler.si lands IN Grafana — **verified by owner 2026-08-25**. · [observability.md](docs/observability.md)
+**Deploy-gated verification (Phase 1 — VPS):** every line is an open `todo.md` row; a row that closed was deleted
+here (its record is the owning doc + the commit). Run `todo.md` for the full status story.
 
+- [ ] **HD-101** — Open Web UI: verify the SSO → Authentik round-trip, then a LiteLLM completion + RAG at the pin. · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-103** — Docling: first start pulls multi-GB HF models; live-verify a Slovenian scan conversion. · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-104** — OpenClaw: `openclaw onboard` → schema-valid `openclaw.json`, then the OWUI ↔ OpenClaw ↔ OpenCloud WebDAV round-trip (folds in **HD-160**'s remaining half). · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-159** — blackbox liveness: prove the `wg-s2s-down` Critical rule actually fires on a `wg down` test. · [observability.md](docs/observability.md)
+- [ ] **HD-47** — Matrix public records + `_matrix` well-known/SRV delegation (matrix + Element are live, so federation is one DNS step away). · [services-traefik.md](docs/services-traefik.md)
+- [ ] **HD-122** — Matrix federation hardening: live-verify profile endpoints require auth. · [services-matrix.md](docs/services-matrix.md)
+- [ ] **HD-268** — Qdrant as the vector store: re-index + OKF wiki skeletons (the PGVector swap is long done; the re-index cutover is not). · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-394** — **container census before any further VPS work**: `confident_shamir` (a hand-run `traefik:v3.7.11`, no networks/ports/labels) and `pgvector` (superseded by Qdrant) are still Up and the registry does not describe them, so no converge will ever remove them. Owner OK required before deleting. · [services-vps.md](docs/services-vps.md)
+- [x] **HD-240** — grafana SSO round-trip: ✅ traefik edge IP pinned to the whitelist entry; ✅ owner mapped as Grafana Admin; ✅ **[MANUAL]** sso-dashboard → stats.kogler.si lands IN Grafana — **verified by owner 2026-08-25**. · [observability.md](docs/observability.md)
+
+**Also open on this host** (each is a live `todo.md` row; they were invisible here before 2026-09-19):
+- [ ] **HD-141 / HD-147** — the Authentik OIDC epic (Blueprint + secret-egress glue) and its live deploy-verify tail (`ai`/`vpn` verified; the remaining apps are not). · [deployment-oidc.md](docs/deployment-oidc.md)
+- [ ] **HD-194** — `sso` route edge middleware: decided + done, the enforcement ride-along is the open tail. · [services-traefik.md](docs/services-traefik.md)
+- [ ] **HD-230** — Phase-1 wave-2 corrective batch (pairdrop PUBLIC, blueprint one-shot-apply, onlyoffice `cap_add`, db-backup boot-race delay). · [deployment-compose.md](docs/deployment-compose.md)
+- [ ] **HD-280** — fail2ban: add the Traefik `accesslog` + a Traefik-aware filter (deployed + live-verified; row open for the remainder). · [deployment-compose.md](docs/deployment-compose.md)
+- [ ] **HD-287** — `cap_drop: ALL` + targeted `cap_add` on immich-ml (rescoped after Ollama left the host). · [security.md](docs/security.md)
+- [ ] **HD-112** — Zipline public bin + private OIDC share (`bin.kogler.si`). · [services-utilities.md](docs/services-utilities.md)
+- [ ] **HD-111** — Office MCP via Open WebUI (`ppt-mcp` first). · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-354** — Navidrome on VPS + the live Storage Box. · [services-media.md](docs/services-media.md)
+- [ ] **HD-356** — the LiteLLM split (family instance on the VPS vs the LAN instance). · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-397** — off-LAN access parity: landed + verified off-LAN; the **on-site** pass is the open leg. · [services-vps.md](docs/services-vps.md)
+- [ ] **HD-316** — the Homepage family launchpad (real app dashboard + a separate technical section). · [services.md](docs/services.md)
 ---
 
 ## Phase 1a — Parallel Track: NAS Pools + Host Installs (before / during Phase 1.5)
@@ -252,7 +267,7 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 - [x] **[MANUAL]** Execute the Pool-Creation Runbook ([docs/hardware-nas.md](docs/hardware-nas.md)) — bulk RAIDZ2 first, legacy pool migrated into `bulk/migrate`, tank mirror; export both pools before the nas installer boots. ✅ **2026-08-23** — executed on the running Debian (gen8): SMART all-pass pre-check (report archived); legacy pool = `new-pool` (~1.96 T) sent `-R` into `bulk/migrate` (57 snapshots, tree-diff + subtree diff clean); second pool `backup` destroyed as disposable (owner decision b); `tank` mirror ONLINE; both pools EXPORTED — installer-ready. As-built: [deployment-tasks.md §Phase 1a](deployment-tasks.md) + [hardware-nas.md](docs/hardware-nas.md) (ledger + commit evidence).
 - [x] **[MANUAL]** Reinstall oldsrv via preseed media (retires the rarely-used Windows 10 install); capture the real NVMe by-ids and fill HD-128 (`storage_nvme_data_by_id`). ✅ **2026-08-23** — installed interactively (manual partitioning; see [hardware-oldsrv.md](docs/hardware-oldsrv.md) + commit for why automation was bypassed); by-ids verified 2026-08-22 (HD-128 closed); catch-up via `bootstrap-oldsrv.sh` (ansible-admin/ai-debug/keys/hardening) — `ssh ansible-admin@oldsrv` key-only confirmed. **Hold rule active:** no Ansible runs against oldsrv until Phase 1.5 cutover.
 - [x] **[MANUAL]** Reinstall nas via preseed media (boot-disk/USB by-ids already pinned, HD-206). ✅ **2026-08-23** — FULLY AUTOMATED install succeeded hands-off (Automated grub entry, ZERO interactive questions; early_command resolved the Crucial by-id, GRUB landed on the Generic_Flash_Disk carrier pin, late_command ran the keyed post_install) — preseed path re-proven (oldsrv had gone interactive); SanDisk booted explicitly via iLO one-time menu, pulled before reboot; Generic carrier stays (HD-226 roles). Verified post-install: `ssh ansible-admin@nas` key-only, `domen@nas` refused (AllowUsers), hostname `nas`, both Crucial by-id forms resolve, six data-disk by-ids intact (`zfs_member` labels survived untouched — pools stay exported for the Phase-2 import-only role), hardening drop-in + admin keys live. As-built: [deployment-tasks.md §Phase 1a](deployment-tasks.md) + [hardware-nas.md](docs/hardware-nas.md) (ledger + commit). **Hold rule active:** no Ansible runs against nas until Phase 1.5 cutover.
-- [x] **Hold REMOVED 2026-09-03** — Phase 1.5 is live (VLANs + router converged); first Ansible contact happened on **nas** (Phase 2 storage.yml, 2026-09-03). oldsrv stays on DHCP until Phase 3; same holds-no-longer-apply note. — first Ansible contact happens with the new VLANs live.
+- [x] **Hold removed 2026-09-03** — the "no Ansible against nas/oldsrv until Phase 1.5" rule expired with the cutover: first Ansible contact ran on **nas** (`storage.yml`, 2026-09-03) and then on **oldsrv** (Phase 3, 2026-09-08). Both hosts are on their pinned SSOT addresses now; the note above is history.
 
 ## Phase 1.5 — Network Redo from Scratch (Router RB4011 + Switch CRS328)
 
@@ -267,29 +282,40 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 > **Continuation:** next phases require the router serving DHCP on VLANs 10 + 99 (and 20/30/40/50 as configured).
 > **VLAN 21 is deleted** (HD-325, 2026-09-04) — cloud-IoT lives on VLAN 20 behind the per-device `wan_allow` flag.
 
-1. **Router baseline** — factory-reset the RB4011 and apply `IaC/router/rb4011_initial.rsc`:
-   - VLANs: 10 Home, 20 IoT, 30 Guest, 40 Kids, 50 Media, 99 Management (VLAN 21 removed HD-325)
+- [x] **[MANUAL]** **Router baseline** — ✅ **cut over 2026-09-02** (factory-reset + `run-after-reset`,
+     then handed to the Ansible `router` role; re-converged + delta-applied since). Apply `IaC/router/rb4011_initial.rsc`
+     (rendered from `IaC/router/templates/*.rsc.j2` — never hand-edit the rendered file):
+   - VLANs: 10 Home, 20 IoT, 30 Guest, 40 Kids, 50 Media, 99 Management (VLAN 21 deleted HD-325)
    - Inter-VLAN firewall (default-deny; address-lists `trusted-ha`/`trusted-admin`; the UPS web rule on 99)
-   - DHCP per VLAN (option 15 `domain=kogler.si`), WireGuard S2S (key from `wg_password`)
-   - CAPsMAN: SSIDs `Kogler`, `Kogler IOT`, `Kogler guest`, `local-forwarding=no` (IOT-WAN/Kids deleted HD-312; VLAN 21 deleted HD-325)
+   - DHCP per VLAN (option 15 `domain=kogler.si`), WireGuard S2S (**two distinct keys**: `wg_password` router side +
+     `wg_password_vps` VPS side — HD-285)
+   - CAPsMAN: SSIDs `Kogler` + `Kogler IOT` (2.4 GHz) + `Kogler guest` (5 GHz), `local-forwarding=no`
+     (IOT-WAN/Kids SSIDs deleted HD-312; VLAN 21 deleted HD-325; per-SSID band split in `routeros_capsman_ssids`)
    - DNS: **3-instance Technitium HA** — VPS **primary** (resolver = VPS public IP), oldsrv **secondary**,
-     Pi **tertiary**; DHCP hands all three (`dns_primary,secondary,tertiary`) and is **Pi-first on VLAN 10**
-     (HD-334) so the LAN keeps resolving through a WAN-out. Spec: `docs/network-dns.md`
-   - Config is stored/versioned via `docs/network-ops.md`.
-2. **AP + switch** — apply `IaC/router/ap_initial.rsc` (CAP-mode); configure the CRS328 as L2 trunk + PoE.
-3. **Migrate devices** — move each device to its intended VLAN access port / SSID (see `network-vlans.md` Port Type Reference).
+     Pi **tertiary**; DHCP hands all three and is **Pi-first on VLAN 10** (HD-334). Spec: `docs/network-dns.md`
+   - Config is stored/versioned via `docs/network-ops.md` (render → `/import` over SSH is the apply path).
+- [x] **[MANUAL]** **Switch + APs** — ✅ 2026-09-02 (bootstrap `.rsc` per device) → CRS328 as L2 trunk +
+     PoE (`auto-on`, never `on`), APs in CAP mode with per-AP rendered identities (`ap-spalnica` / `ap-dnevna` /
+     `ap-spare`). ✅ **CAPsMAN steady-state imported + verified 2026-09-02/03** and switch bridge-VLAN membership
+     completed 2026-09-03 (wifi VLANs tagged on the AP ports) + 2026-09-04 (access-port untagged membership, HD-328).
+     ⚠ **Flash-persistence (HD-304):** the `.pub` files go in `flash/` on switch/APs — device-root files are wiped on reboot.
+- [x] **[MANUAL]** **Migrate devices** — ✅ done per-VLAN as leases turned over; UPS NIC moved to
+     IoT VLAN 20 (HD-338), AP wired ports locked down off-Mgmt (HD-89, live 2026-09-08).
 
 **Verify:**
 - `ip addr` on the router shows all VLAN interfaces up; DHCP issues leases on each VLAN.
-- Inter-VLAN reachability matches the firewall matrix (e.g. Home→99 management allowed from `trusted-admin` only).
-- CAPsMAN SSIDs visible; WireGuard handshake established.
-- Rollback plan documented before starting (preserve the previous flat config as `rb4011_flat_backup.rsc`).
+- Inter-VLAN reachability matches the firewall matrix (Home→99 management from `trusted-admin` only;
+  Home→IoT gated to `trusted-ha` = oldsrv + ha-vip, **nas excluded**).
+- CAPsMAN: manager `enabled=yes`, provisioning rows create dynamic CAP entries, registration-table fills per SSID.
+- WireGuard handshake established + **both directions carry traffic** (`sudo wg show wg-s2s transfer`).
+- Rollback: the previous flat config is preserved as `rb4011_flat_backup.rsc` before any reset.
 
 **Deploy-gated verification (Phase 1.5):**
-- **HD-03** — Network redo: VLANs 10/20/30/40/50/99 + inter-VLAN firewall live; **CAPsMAN steady-state IMPORTED + verified 2026-09-02** (5 wifi configs/5 security/provisioning row — §1.5.4; `datapath.vlan-mode` removed from the template, RouterOS 7.24.1 rejected it — commit `b0bae72`). Remaining: CAP registration-table fills as APs re-join; open switch bridge-VLAN membership. **WG S2S handshake RESOLVED + UP 2026-09-02 (HD-285 two-key fix:** distinct per-side keys, oneshot-owned VPS iface, router forward-rule order fixed; VPS→router-mgmt 0% loss) — see [network-vpn.md](docs/network-vpn.md). · [network-vlans.md](docs/network-vlans.md)
-- **HD-09** — UPS web-UI firewall rule (80/443 Home→Mgmt for `10.10.99.9` only) not deployed. · [hardware-ups.md](docs/hardware-ups.md)
-- **HD-89** — disable/move unused AP ethernet ports off Mgmt VLAN (wired devices currently get full Management access). · [network-vlans.md](docs/network-vlans.md)
-- **HD-161** — router/switch `api_facts` assert-before-mutate step + router API TLS decision (`routeros_api_tls`, TODO after Let's Encrypt). · [deployment-ansible.md](docs/deployment-ansible.md)
+- [ ] **HD-09** — UPS web-UI firewall rule (80/443 Home→Mgmt for the UPS address only): IaC done, not applied live. · [hardware-ups.md](docs/hardware-ups.md)
+- [ ] **HD-301** — Phase-1.5 bootstrap hardening floor (NTP `address=`, service binding via `available-from=`,
+      disabled-from-first-line block): IaC-only — verify on the device after the NEXT reset. · [network-ops.md](docs/network-ops.md)
+- [ ] residual (Pkg B, `todo.md` §2.1a) — the `trusted-ha` template correction of 2026-09-10 still needs one
+      render + `/import` of the converge to make the live rule set match the SSOT.
 
 ---
 
@@ -301,25 +327,35 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 > by `post_install.sh`. **No Docker on NAS.**
 > **Continuation:** the NAS is the **NUT master** — `oldsrv` and `pi` are NUT clients and depend on it.
 
-1. - [x] **[MANUAL]** **Preseed install** — ✅ done 2026-08-23 (Phase 1a); boot the HP MicroServer from `IaC/host/nas/preseed.cfg`
+- [x] **[MANUAL]** **Preseed install** — ✅ done 2026-08-23 (Phase 1a); boot the HP MicroServer from `IaC/host/nas/preseed.cfg`
    (single-SSD boot; ZFS HDDs **not touched** by preseed) + shared `IaC/host/post_install.sh`
    (ansible-admin + ai-debug keys, sshd hardening).
-2. - [x] **Ansible** — ✅ **EXECUTED 2026-09-03 (failed=0):** `ansible-playbook -i inventory.ini playbooks/storage.yml`:
+- [x] **Ansible** — ✅ **EXECUTED 2026-09-03 (failed=0):** `ansible-playbook -i inventory.ini playbooks/storage.yml`:
    `common` → `ai_diag` → `network` (client-id=MAC on 10.10.1.10 + tagged-99 netd units; HD-314) → `storage` (ZFS import, datasets+props, NFS exports, sanoid/syncoid, Samba, exporters) → `nut` (mode=master, LIVE) → `cockpit` (cockpit-storaged on trixie) → `monitoring` (per-node Alloy, apt — no Docker on nas).
-3. **NUT master** — `nut-server` + `usbhid-ups` (PowerWalker USB), `upsd` listening intra-VLAN
-   `nas:3493` (no inter-VLAN rule needed — see `docs/hardware-ups.md`), `nut_exporter` as a
-   host binary (:9199), `upssched-cmd` email/Signal notify (`smtp_login`).
-4. **Storage** — pools already created by the one-time bootstrap runbook (`docs/hardware-nas.md` → Pool-Creation Runbook; role is import-only for tank/bulk); Ansible imports them + creates datasets, exports (NFS/SMB); mount layout per `docs/hardware-nas.md`.
+- [x] **NUT master** — ✅ LIVE 2026-09-03 (client auth + the notify/shutdown layer fixed 2026-09-08/09,
+   see HD-06): `nut-server` + `usbhid-ups` (PowerWalker USB), `upsd` on the intra-VLAN `nas:3493` (no inter-VLAN
+   rule needed), `nut_exporter` as a host binary (:9199), `upssched-cmd` email/Signal notify (`smtp_login`).
+- [x] **Storage** — pools already created by the one-time bootstrap runbook (`docs/hardware-nas.md` → Pool-Creation Runbook; role is import-only for tank/bulk); Ansible imports them + creates datasets, exports (NFS/SMB); mount layout per `docs/hardware-nas.md`.
 
 **Verify:**
 - `zpool status` healthy; `upsc powerwalker@nas` returns live UPS data.
 - `nut_exporter` scrapable on :9199; cockpit reachable at `cockpit-nas.kogler.si` (Traefik file-provider route).
 
 **Deploy-gated verification (Phase 2):**
-- **HD-06** — NUT master live on nas: `upsd` :3493 + `nut_exporter` :9199 + `upssched-cmd` SMTP/Signal notify; **battery-pull test** on the PowerWalker USB. · [hardware-ups.md](docs/hardware-ups.md)
-- **HD-07** — NUT clients on `oldsrv` (Phase 3) / `pi` (Phase 4) — `upsmon` slave + per-host shutdown delay (60/0). · [hardware-ups.md](docs/hardware-ups.md)
-- **HD-08** — live-verify `nut_exporter` `nut_ups_status` bitmask + metric names + Grafana alert-rule provisioning loads (blocked on HD-06). · [hardware-ups.md](docs/hardware-ups.md)
-- **HD-132** — create Authentik **LDAP provider** `DC=home,DC=kogler,DC=si` (bind DIRECT) + outpost; seed `authentik-ldap_bind`; live-verify a family drive mounts. Samba (nas, the client) reaches the VPS outpost over WG at the VPS's WG-side address — nothing is published publicly (HD-186). · [deployment-compose.md](docs/deployment-compose.md)
+- [ ] **HD-06** — **[MANUAL, owner]** the one thing left in the UPS lane: a short power-pull → poweroff + WoL
+      wake **end-to-end** re-test (the full defect fix set deployed to nas/oldsrv/pi 2026-09-09; the 2026-09-09
+      drill is what found those three latent defects). · [hardware-ups.md](docs/hardware-ups.md)
+- [ ] **HD-360** — Samba Authentik-as-LDAP, VPS side (the deploy-gated remainder of the old HD-132): declare the
+      LDAP provider + `svc_samba` in the Blueprint, mint a **fresh** `authentik-ldap_bind` token (the current item
+      is an expired outpost token), redeploy the outpost, THEN flip `storage_samba_passdb: ldapsam` on nas and
+      live-verify a family drive. **Do not flip the var first — smbd fails hard on an unreachable outpost.**
+      · [deployment-compose.md](docs/deployment-compose.md)
+- [ ] **HD-207** — land the migrated data: redistribute the `bulk/migrate` landing zone (personal → OpenCloud/live
+- [ ] **HD-361** — Cockpit break-glass login on nas: the PAM identity is missing, so `cockpit-nas` has **no
+      valid credential today** (it is reachable but unusable in an emergency). · [hardware-nas.md](docs/hardware-nas.md)
+- [ ] **HD-191** — oldsrv Kopia agent is Up with snapshots in the repo; the open tail is the **restore drill from a
+      snapshot** (+ volume-name pin verified at restore). · [backup.md](docs/backup.md)
+      Box + `/tank/data/users/<name>`, media → `bulk/media/*`), then destroy the landing zone. · [hardware-nas.md](docs/hardware-nas.md)
 
 ---
 
@@ -327,7 +363,12 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 
 > **Depends on:** Phase 1.5 (VLAN 99 native + tags), Phase 2 (NAS NUT master for the `nut` client),
 > Phase 1 (VPS edge + Authentik live).
-> **Status (2026-09-08, session #72):** ✅ **oldsrv Phase-3 FULL provision COMPLETE + LIVE** — full `home_servers.yml` converge **failed=0 (2026-09-08, 269 ok)** across every role: static IPs + tagged-99 Mgmt leg (NM) · docker · network · storage (ZFS `nvme` + NFS mounts to nas live) · nut (client) · cockpit · **amd_rocm (Debian-trixie-native ROCm host userland + GPU plumbing — resolved the noble-on-trixie conflict by dropping the external AMD repo; immich-ml container-bundled ROCm ready for the whole-collection import, a separate later task)** · desktop · **office (ONLYOFFICE via official repo — the stale-key fix landed on main, converge clean)** · docker_services (**17 enabled services all Up + healthy**: full media/*arr/downloads/DNS/smart-home/backup-agent set) · home_assistant (**standby cold-render COMPLETE**: `/opt/home-assistant-standby` compose + BACKUP keepalived + failover variant + secrets; ha-failover-api active) · monitoring (**Alloy + rsyslog + SNMP + HD-343 network-clients exporter LIVE**). **All 1P items present.** ⚠ **Knowns:** kopia-agent `Restarting` = **VPS-gated (HD-318a)** — `kopia-server_fingerprint` 1P cannot be seeded until the VPS kopia-server leg converges (post-Victoria); signal-cli = **manual phone registration**; oldsrv monitoring must NOT be re-converged until the VPS Victoria leg seeds `victoria-metrics_api` + converges (merged main's alloy references it).
+> **Status:** ✅ **Phase 3 COMPLETE + LIVE 2026-09-08** — full `home_servers.yml` converge **failed=0**, every
+> role green, service set Up + healthy; the RO-path fix batch and the kopia-agent leg closed the same day
+> (**HD-318a**), HA standby cold-render completed (**HD-318c**), and the music pillar landed 2026-09-14/15
+> (**HD-362**). The three knowns this row used to carry (kopia-agent VPS-gated, signal-cli unlinked, "do not
+> re-converge monitoring until Victoria") are **all closed** — record: `docs/hardware-oldsrv.md` + the commits.
+> ⏳ What is left on oldsrv is listed in its deploy-gated block below.
 > oldsrv is the **internal/GPU/LAN compute host**: the GPU + storage-bound backends (ollama, immich-ml,
 > jellyfin/iGPU, sunshine), HA **standby**, DNS, media/*arr, observability, and the **`traefik-internal`
 > home edge** (the LAN all-app edge — ✅ LIVE 2026-09-14, HD-349/350; it took over the role HD-331 had
@@ -338,9 +379,9 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 > **Continuation:** the GPU/AI stack (Phase 1's deferred `litellm→ollama`, `immich-app→immich-ml` links) comes
 > online here once the WG S2S tunnel to the VPS exists; HA primary (Phase 4) builds on this node's standby.
 
-1. **Preseed install** — boot from `IaC/host/oldsrv/preseed.cfg` (NVMe partitions; iGPU-primary, dGPU RX 7600
-   reserved for compute) + shared `post_install.sh`.
-   ✅ **2026-08-23:** installed interactively (Phase 1a).
+- [x] **[MANUAL]** **Preseed install** — ✅ **2026-08-23** (Phase 1a): boot from `IaC/host/oldsrv/preseed.cfg`
+   (NVMe partitions; iGPU-primary, dGPU RX 7600 reserved for compute) + shared `post_install.sh`;
+   installed interactively + catch-up bootstrap.
    ✅ **2026-09-03 (pre-Ansible, first-contact prep):** oldsrv was on a DHCP lease (`.101`), but `host_vars`
    pins `ansible_host` = SSOT `oldsrv` Mgmt row (tagged-99) → the lease fallback made the pinned static unreachable.
    **Applied directly via NetworkManager** (host runs NM — the role's netd/systemd-networkd units only land during
@@ -348,13 +389,14 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
    `ipv4.dhcp-client-id=mac`) + new NM VLAN profile `VLAN 99 Mgmt` (`enp0s31f6.99`, SSOT `oldsrv` Mgmt row,
    `never-default`). Host verified reachable at the Home row — `.99` Mgmt bound but not reachable while the
    mgmt plane is down.
-2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/home_servers.yml` (ordered):
+- [x] **Ansible** — ✅ **2026-09-08 failed=0** — `ansible-playbook -i inventory.ini playbooks/home_servers.yml` (ordered):
    `common` → `ai_diag` → `docker` → `network` (Home 10 untagged + Mgmt 99 tagged on the same NIC) →
    `storage` (ZFS `nvme` + NFS mounts to nas) → `nut` (client, `shutdown_delay_seconds=60` →
    `powerwalker@nas`) → `cockpit` → `amd_rocm` (trixie-native userland, udev, `OLLAMA_KEEP_ALIVE=5m`) →
    `desktop` → `office` → `proxmox` (`when: homelab_mode == 'proxmox'` — inert on this box) →
    `docker_services` → `home_assistant` (cold standby) → `monitoring`. Order of record = `playbooks/home_servers.yml`.
-3. **Services (internal/GPU subset)** — `docker_services` deploys the **oldsrv** set in
+- [x] **Services (internal/GPU subset)** — ✅ deployed 2026-09-08 (music pillar added 2026-09-14) —
+   `docker_services` deploys the **oldsrv** set in
    `group_vars/home_servers.yml` (the loop source of truth, rendered to
    [`docs/services-inventory-generated.md`](docs/services-inventory-generated.md)): the pinned-AI tier
    (ollama `:rocm` = embed **fallback** under decision #27; the whisper/reranker/embed Vulkan legs are
@@ -374,7 +416,9 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
    **not** a per-template TODO list. New services are added by dropping a template under
    `docker_services/<name>/` and listing it in `home_servers.yml` — no per-template placeholder caveats.
 
-4. **HA standby** — `home-assistant-standby` compose + keepalived (`ha-vrrp_password`); disabled by default.
+- [x] **HA standby** — ✅ **HD-318c closed + LIVE 2026-09-08**: `home-assistant-standby` compose + keepalived
+   (`ha-vrrp_password`, BACKUP instance) rendered cold at `/opt/home-assistant-standby`; the registry row is
+   `enabled: false` by design (it starts on failover, not on boot).
 
 **New 1Password prerequisites (Phase 3):** — the authority is table A in §0; the list below is what is
 **newly** needed on oldsrv (the platform/VPS items are already in by Phase 1).
@@ -393,24 +437,35 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 - Homepage (`home.kogler.si`), Grafana and Forgejo are **VPS-edge** services (HD-180 landed) — verify them via their public URLs in Phase 1, not here. oldsrv's own LAN-facing routes (`media`/`*arr`/`llitellm`/`llogs`/…) serve through its `traefik-internal` home edge.
 - Wildcard `*.kogler.si` cert: issued on the **VPS** (Phase 1, HD-178) — consumers = VPS `traefik-tailnet` internal edge (bind-mount `/opt/traefik/certs`) + Pi `traefik-ha` (ha-cert-sync); oldsrv serves **no** Traefik/ACME (HD-331 supersedes the old internal-edge plan).
 
-**Deploy-gated verification (Phase 3):**
+**Deploy-gated verification (Phase 3 — oldsrv):** open rows only; closed ones were deleted here (record =
+owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), HD-44 (ops services), HD-128
+(NVMe by-id), HD-46 (Matrix), HD-58/HD-113 (Stirling/PairDrop) and HD-59 (internal-auth items) all closed.**
 
-- **HD-100** — LiteLLM live: create `litellm_api`/`openrouter_api`/`cohere_api`; MUST pin `litellm_version` semver; OpenAI-compatible completion + embed respond. · [services-ai.md](docs/services-ai.md)
-- **HD-101** — Open Web UI live: `openwebui_secret` + `openwebui_api` (Authentik OIDC, redirect `https://ai.kogler.si/oauth2/callback`); OIDC login + LiteLLM completion + RAG. · [services-ai.md](docs/services-ai.md)
-- **HD-102** — RAG vector store live: `qdrant_db` resolves; Qdrant `/healthz` on `db-internal`; vector dimension lock @1536 at first ingest (HD-268, replaces PGVector). · [services-ai.md](docs/services-ai.md)
-- **HD-103** — Docling live: first start downloads HF models (multi-GB); v1 API converts a Slovenian scan. · [services-ai.md](docs/services-ai.md)
-- **HD-104** — OpenClaw live: `openclaw_gateway_token`; `openclaw onboard` → schema-valid `openclaw.json` (LiteLLM + WebDAV); Open WebUI ↔ OpenClaw ↔ OpenCloud round-trip. · [services-ai.md](docs/services-ai.md)
-- ~~**HD-58**~~ — Stirling PDF live on the VPS: container healthy, `pdf.kogler.si` → 302 Forward-Auth, OCR `eng+slv` — ✅ **verified 2026-09-08** (see [services-utilities.md](docs/services-utilities.md)).
-- ~~**HD-113**~~ — PairDrop live on the VPS: container healthy, `drop.kogler.si` → 200 crowdsec-only, signaling/WebRTC through Traefik — ✅ **verified 2026-09-08** (see [services-utilities.md](docs/services-utilities.md)).
-- **HD-46** — Matrix live: hosts provisioned; needs HD-47 records + Authentik OIDC provider/redirect URI; verify profile endpoints require auth (HD-122). · [services-matrix.md](docs/services-matrix.md)
-- **HD-47** — Matrix public records + `_matrix` well-known/SRV delegation; WAN 443 (8448 optional). · [services-traefik.md](docs/services-traefik.md)
-- **HD-122** — Matrix federation hardening live-verify that profile endpoints require auth at first deploy. · [services-matrix.md](docs/services-matrix.md)
-- **HD-59** — internal service auth: `kopia-server-internal_api` + the **Victoria** pair `victoria-metrics_api`/`victoria-logs_api` (they replace the retired `prometheus-internal_api`; there is no Prometheus web.yml any more) — wire consumers. · [deployment-compose.md](docs/deployment-compose.md)
-- **HD-160** — services-internal sibling auth: create `immich-ml-internal_api` + `openclaw-opencloud_api` 1Password items; verify Immich v3 ML-auth env names + `openclaw onboard` + WebDAV round-trip; Ollama stays isolated on `llm-backend`. · [deployment-compose.md](docs/deployment-compose.md)
-- **HD-57** — Finance stack live: `actual-budget` healthy on oldsrv; `budget.kogler.si` behind Forward-Auth; :5006 API leg bound to `oldsrv_home_ip` reachable from n8n over WG (AllowedIPs scoped); seed starting balances → enable EB/Wise/Flex one-by-one with dedup checks. · [services-finance.md](docs/services-finance.md)
-- **HD-43** — Media `*arr` stack Stage: 4/10; deploy + verify on oldsrv bulk/media NFS. · [services.md](docs/services.md)
-- **HD-44** — ops services (`dozzle`, `traefik-ha` VIP edge) Stage: 3/10; deploy + verify. · [services.md](docs/services.md)
-- **HD-128** — at first pool create on oldsrv, fill the REAL `/dev/disk/by-id/nvme-…` into `storage_nvme_data_by_id` (read from the deployed host); unblocks immich/opencloud db-backup (KOPS-026). · [hardware-oldsrv.md](docs/hardware-oldsrv.md), [storage.md](docs/storage.md)
+- [ ] **HD-57** — Finance stack: the tokens + EB app creation are owner steps; then the n8n import/categorization
+      flows, the WG AllowedIPs scope for the :5006 API leg, and the first live verify. · [services-finance.md](docs/services-finance.md)
+- [ ] **HD-318(b)** — recyclarr @daily quality-profile sync verify (the stacks have been up since 2026-09-08; the
+      *arr configs were chowned to their image uid 2026-09-15 after a converge recreated them root-owned). · [hardware-oldsrv.md](docs/hardware-oldsrv.md)
+- [ ] **HD-347** — the Signal alerting **group UUID** belongs in SSOT (`signal_alert_recipients` is empty); the
+      device itself is linked and alerts flow. · [observability.md](docs/observability.md) §Alerting
+- [ ] **HD-350** — **[MANUAL, owner]** authorize oldsrv's `traefik-cert-sync.pub` on the VPS so `traefik-internal`
+      can pull the wildcard pair (the timer is armed; the pull 401s until the key is authorized). · [services-traefik.md](docs/services-traefik.md)
+- [ ] **HD-353** — **[MANUAL, owner]** verify own Jellyfin login at the `seerrng` route. · [services-media.md](docs/services-media.md)
+- [ ] **HD-357** — Homepage tiles: wire the Jellyfin/Seerr/Immich widgets to the verified endpoints (the edge model
+      and route tables are final now). · [services.md](docs/services.md)
+- [ ] **HD-358** — record the Seerr → \*arr API-key + URL wiring as an owner step (and consider automating it). · [services-media.md](docs/services-media.md)
+- [ ] **HD-362** — music pillar tails: overwrite the placeholder 1P values with real ones, wire the Lidarr download
+      clients in-UI, refresh the Navidrome Box library. **Tube Archivist stays torn down** — re-enabling it requires
+      `path.repo` in the ES `elasticsearch.yml` directly first (env-var/`-E` forms destabilize ES bootstrap). · [services-media.md](docs/services-media.md)
+- [ ] **HD-386 tail** — the `dsh`/`pi-dev` tailnet names + `dsh-backend`/`pi-backend` routes still answer **502 by
+- [ ] **HD-288** — `sunshine` deployment tail on oldsrv (the enable decision is resolved in IaC; the deploy +
+      verify is not). · [hardware-gpu.md](docs/hardware-gpu.md)
+- [ ] **HD-399** — `technitium-seed` is **not `--check`-safe**: every `docker_services --check` on oldsrv dies at
+      `technitium-seed.yml:102`. Until it is idempotent-under-check, a dry run on that host is not available. · [services-dns.md](docs/services-dns.md)
+- [ ] **HD-133** — subscription renewal reminders (SSOT `subscriptions.yml`) driving Homepage + calendar + n8n. · [subscription.md](docs/subscription.md)
+- [ ] **HD-238** — write the oldsrv→VPS DR runbook for the non-GPU services (an imperative procedure, not prose). · [backup.md](docs/backup.md)
+- [ ] **HD-45** — network dashboard / who-is-on-network (re-scoped 2026-09-09). · [observability.md](docs/observability.md)
+      design**; owner call whether to drop them. · [services-ai.md](docs/services-ai.md)
+
 
 ---
 
@@ -418,14 +473,19 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 
 > **Depends on:** Phase 1.5 (VLANs), Phase 2 (NAS NUT master). The Pi is the HA **primary** node;
 > oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP (`ha-vip`).
-> **1Password prerequisites (new this phase):** none beyond Phase 3 (`ha_api`, `ha-vrrp_password`,
-> `nut_password`, `smtp_login` already exist). Add `ha-mqtt_login` if/when MQTT is introduced
-> (currently out of scope).
+> **1Password prerequisites (new this phase):** none — `ha-vrrp_password`, `nut_password` and `smtp_login` are
+> already in from Phase 2/3. (`ha_api` is NOT a Phase-4 item: it is gated behind `prometheus_ha_exporter: false`
+> and arrives with HD-14.) Add `ha-mqtt_login` if/when MQTT is introduced — currently out of scope.
 > **Continuation:** `ha.kogler.si` → VIP becomes live here; observability (Phase 6) scrapes the HA
 > exporter and smart-home work (Phase 7) builds on this node.
 
-1. **Flash + first-boot config** — flash **Raspberry Pi OS Lite (64-bit)** via Imager with the ⚙ advanced gear (Enable SSH + user + `ansible-admin_ssh` pubkey + hostname `pi`); no manual boot-partition edit / no `first-boot-config.sh` (raspi.debian.net-only, replaced 2026-09-01 after a rainbow-screen boot failure)
-2. **Ansible** — `ansible-playbook -i inventory.ini playbooks/raspberry_pi.yml` (full imperative
+- [x] **[MANUAL]** **Flash + first-boot config** — ✅ 2026-09-03 on the **Sandisk Max 128 GB** (HD-315: the old
+   Samsung EVO 64 GB was the root cause of HA's whole flaky history). Flash **Raspberry Pi OS Lite (64-bit)** via
+   Imager with the ⚙ advanced gear (Enable SSH + user + `ansible-admin_ssh` pubkey + hostname `pi`); no manual
+   boot-partition edit / no `first-boot-config.sh` (raspi.debian.net-only, replaced 2026-09-01 after a
+   rainbow-screen boot failure)
+- [x] **Ansible** — ✅ 2026-09-03 (re-converged since; the Pi also took the Victoria migration 2026-09-08).
+   `ansible-playbook -i inventory.ini playbooks/raspberry_pi.yml` (full imperative
    runbook incl. KNX + dashboard + secrets renderer: [deployment-pi-provision.md](docs/deployment-pi-provision.md)):
    `common` → `ai_diag` → `network` (dual-homed via **two NetworkManager keyfiles**: `pi-eth0` = Home 10
    untagged + default/DNS, `pi-mgmt` = Mgmt 99 tagged `never-default`; IP per SSOT) → `nut` (client,
@@ -435,7 +495,7 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
    ⚠ **The HA-before-docker_services order is load-bearing** (HD-185/204 render-first): it renders
    `configuration.yaml`/`keepalived.conf`/`secrets.yaml` as regular files before the first `compose up`. The
    old KOPS-063 order (containers first) made Docker auto-create the bind dirs and HA silently ran default config.
-3. **Local Homematic** — ⏳ **parked** (HD-13): `raspberrymatic` was dropped from the Pi loop
+- [x] **Local Homematic** — ⏳ **parked by decision, not pending work** (HD-13): `raspberrymatic` was dropped from the Pi loop
    (2026-08-18); re-add with an HmIP-RFUSB only when local RF is purchased (HmIP-HAP stays in
    cloud mode until then).
 
@@ -446,29 +506,127 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 - HA web login is **local** (the owner declined Authentik OIDC for HA — recorded in `todo.md` §2.1a Pkg E).
 - Manual failover runbook in `docs/smart-home-failover.md` passes Pi→oldsrv and back.
 
-**Deploy-gated verification (Phase 4):**
-- **HD-04** — Pi redo: HAOS → Debian + HA Container + Technitium secondary; leaves HmIP-HAP in cloud mode (no HmIP-RFUSB yet — HD-13 parked). · [home-assistant-current.md](docs/home-assistant-current.md)
-- **HD-17** — single failover button + `ha-failover.sh` needs `ha-failover_api` 1Password + HmIP-RFUSB stick physically moved at runbook time. · [smart-home-failover.md](docs/smart-home-failover.md)
-- **HD-124** — keepalived hardening live (pinned `keepalived_version: 2.3.4`, hosts unprovisioned). · [smart-home-failover.md](docs/smart-home-failover.md)
+**Deploy-gated verification (Phase 4 — Raspberry Pi):**
+- [x] **HD-04 phase-4 gate** — ✅ **met 2026-09-03**: Pi provisioned with the proven runbook, HA LIVE + VIP
+      MASTER + Technitium secondary + traefik-ha; the redo is **complete**. What remains is the failover re-drill
+      below. · [deployment-pi-provision.md](docs/deployment-pi-provision.md)
+- [ ] **HD-04 tail** — **[MANUAL, owner]** second failover drill: exercise **Pi→oldsrv→Pi** and the oldsrv→Pi
+      **reverse** takeover (the 2026-09-09 drill proved forward + reported Pi→oldsrv only; the reverse direction is
+      untested and the manual runbook has a documented gap). · [smart-home-failover.md](docs/smart-home-failover.md)
+- [ ] **HD-17** — render the Homepage failover **button** (gate `homepage_failover_button`; the RFUSB path is
+      obsolete — HD-18 rejected the stick, the active path is IP-only: VIP move + standby start). The
+      `ha-failover-api` service itself is live since 2026-09-08. · [smart-home-failover.md](docs/smart-home-failover.md)
+- [ ] **HD-318(g)** — the HA **ZHA** radio on the Pi (the one serial device no converge can reach — it is host
+- [ ] **HD-217** — Homepage failover-button **gating** (`homepage_failover_button`): IaC done + owner sign-off,
+      the deploy render is the open half (pairs with HD-17 above). · [smart-home.md](docs/smart-home.md)
+- [ ] **HD-319** — **[MANUAL, owner]** confirm the 3 rekuperator group addresses (12/1/*) answer on the KNX bus
+      (some `GroupValueRead` warnings remain); the render-from-`.knxproj` + dashboard are live. · [smart-home.md](docs/smart-home.md)
+      hardware, not a container): after a physical re-seat, grant the serial device **dialout access + a stable
+      `/dev/serial/by-id` symlink** and **re-run `home_servers.yml`** (not just `docker_services.yml`). · [smart-home.md](docs/smart-home.md)
+
+
+---
+
+## Phase 4b — spark AI compute node (DGX Spark GB10) — LIVE since 2026-09-15
+
+> **Depends on:** Phase 1 (VPS LiteLLM + the wildcard cert), Phase 1.5 (the WG S2S tunnel is the transport for
+> `llm.kogler.si`), Phase 3 (oldsrv LiteLLM + the pinned-AI tier). **It was not in this ledger at all until
+> 2026-09-19** — the host, its playbook (`playbooks/spark.yml`, 7 roles) and its group_vars all shipped in
+> September while the phase list stopped at 10. **Numbering warning:** the runbook numbers this host **§Phase 5**
+> (it has its own sequence), so "Phase 5" means different things in the two files — the spark runbook is
+> `deployment-manual.md` §Phase 5, this ledger's is Phase 4b. `docs/hardware-spark.md` + `docs/services-ai.md` §2
+> are the SSOTs;
+> `todo.md` HD-335/336/337/369/373/386/391/393 is the status record.
+> **1Password prerequisites:** `spark-llm_api` (engine bearer — the SAME string both LiteLLM instances send
+> upstream, so rotation is a coupled window: `scripts/rotate-spark-llm-key.sh`) and the human-vault `spark_login`
+> (DGX OS first-boot admin, console break-glass). Full note in §0 table A.
+
+- [x] **[MANUAL]** **Physical + OS first-boot** — ✅ 2026-09: the **rack-fit problem is the real work item**
+   (it is not a 1U server), and the DGX OS setup wizard needs a human at a display + keyboard to set `spark_login`.
+- [x] **Network identity** — ✅ `spark.kogler.si` = **Home VLAN 10**, static per the address SSOT; the Mgmt-99 leg
+   is a **tagged dual-home on the same NIC** (`IaC/ansible/host_vars/spark.yml` + the switch role's parity-trunk
+   task), and the VLAN-10↔99 allow is **source-pinned per device**, never a /24 shortcut. The DGX dashboard edge
+   (`spark.kogler.si:11000`) is a Traefik file-provider route, live 2026-09-15.
+- [x] **Ansible** — ✅ `ansible-playbook -i inventory.ini playbooks/spark.yml` — `spark-prep` → `spark-models`
+   → `spark-wireguard` → `spark-node-exporter` → `spark-docker` → **`spark-ai`** (generation: `llm.kogler.si`) →
+   `spark-node-local-dns`. The engine is started with `--api-key` (the bearer), **not** the retired `--root-path /spark`.
+- [x] **Name edge + LiteLLM wiring** — ✅ **HD-370 closed 2026-09-15/17**: `llm` / `db-spark` / `spark` resolve
+   to spark **on home instances only** (split-horizon), `litellm` stays public on the primary; TLS-in-TLS hop
+   verified with the bearer key; the model row carries **no key** (the key is the container's `OPENAI_API_KEY`).
+- [x] **Unified-memory budget governor** — ✅ live at **16 GiB** (`spark_vllm_kv_cache_memory: "16000000000"`,
+   reserved 14.9 GiB / 515,786 tok / 1.97× @262k), re-certified 2026-09-18 by the 3-rung load chain. **A converge
+   that regresses to the 8.2 GiB figure restores the pre-certification value — do not do it.**
+- [ ] ⏳ **Pinned-AI tier placement** — the RX 7600 (oldsrv) is the pinned-services tier, spark the generation tier
+   (**HD-369**); the pinned engines themselves are **HD-391** (Vulkan on RX 7600, owner-approved 2026-09-19) with
+   **HD-393** the spark re-cert that unblocks the rerank cutover. Decision #27 governs; do not "converge it live".
+
+**Verify:**
+- `https://llm.kogler.si/v1/models` answers **401 without** and **200 with** the bearer key; the home split-horizon
+  resolves `llm` → spark while the public primary still answers `litellm` → the VPS.
+- Both LiteLLM UIs complete a generation against `spark/qwen3.8-flash-next` (owner-closed HD-382).
+- The 3-rung stability chain (re-runs of `spark/stability-test.md`) shows 0 kernel OOM / 0 engine restarts /
+  0 guard-fires, and the journal shows the reserved-KV line at the expected token count.
+- `spark` appears in the Prometheus/VictoriaMetrics target set (node-exporter) and the engine log carries no
+  unified-memory warning.
+
+**Deploy-gated verification (Phase 4b — spark):**
+- [ ] **HD-337** — the bring-up epic: OS → placement → the HD-155 spark leg → engine → models → the Cohere
+      retirement/embed cutover → Mem0 + OpenHands. Most legs are done; the row stays open until the tail lands. · [hardware-spark.md](docs/hardware-spark.md)
+- [ ] **HD-336** — the coding plane: agent-memory.dev per-project memory on oldsrv (MCP + a LiteLLM key), the
+      ZeroClaw system-mgmt runner, CrewAI gated on the homelab being finished. · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-373** — LiteLLM admin UI: the `/ui/login` deep-link 404s (no nginx SPA fallback in the container);
+      workaround `https://litellm.kogler.si/fallback/login`. Fix = SPA fallback or route-scoped `/ui/*`. · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-369** — pinned-vs-generation tier: the re-arm gate (Ollama ROCm on oldsrv) or its retirement, per
+      decision #24/#27. · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-391 / HD-393** — pinned-AI authoring (Vulkan on the RX 7600) + the spark re-cert that unblocks the
+      rerank cutover. **Never converge an unpinned AI leg.** · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-386 tail** — the retired `dsh`/`pi-dev` harness records + their 502 tailnet routes: owner call on
+- [ ] **HD-367 / HD-359** — the Mgmt-99 dual-home leg + the engine-neutral benchmark kit: IaC and boot done, the
+      **S1 bench is not yet certified** — the numbers still do not back the tier decision. · [services-ai-bench.md](docs/services-ai-bench.md)
+- [ ] **HD-375 / HD-380 / HD-395** — host-memory OOM alert rules, the governor's second term + OOM-forensics
+      watchdog, and the idle-recycle baselines that move with a boot-time coin-flip. · [hardware-spark.md](docs/hardware-spark.md)
+- [ ] **HD-377** — one unified LLM dashboard (`homelab-llm`) instead of three vLLM boards. · [observability.md](docs/observability.md)
+- [ ] **HD-385 / HD-387** — the superseded measurement row and the thinking-control re-measure **through the
+      gateway** (a recorded contradiction between a recommendation and a measurement is still open). · [services-ai-bench.md](docs/services-ai-bench.md)
+- [ ] **HD-366** — DGX Dashboard JupyterLab on the LAN (`:11002`) — the integrated lab assigns per-user ports. · [hardware-spark.md](docs/hardware-spark.md)
+- [ ] **HD-376 / HD-388** — harness-side context/timeout tuning and generating the client model config from a repo
+      template instead of hand-kept files. · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-383 / HD-384** — parked LAN-LiteLLM bootstrap-keys glue (parked by HD-386) and the gateway grant for
+      `spark/*` to the simple-querier tier. · [services-ai.md](docs/services-ai.md)
+      deleting them (decision #26 routes harnesses straight to the engine). · [services-ai.md](docs/services-ai.md)
+- [ ] **[MANUAL, owner]** the human-only surface of a headless GB10: the DGX OS first-boot wizard needs a person at
+      a display + keyboard (that is where `spark_login` is set), and there is **no out-of-band console** afterwards —
+      a wedged box (the documented unified-memory wedge pattern) is recovered by **power-cycling it at the PSU**,
+      which is also why the IaC masks sleep/hibernate (HD-364) instead of trusting defaults. Confirm the 240 W PSU
+      sits on covered UPS outlets. · [hardware-spark.md](docs/hardware-spark.md) · runbook: [deployment-manual.md](deployment-manual.md) §Phase 5
 
 ---
 
 ## Phase 5 — GitOps Deploy Button (Forgejo Actions → Ansible) — Doco-CD removed (HD-150)
 
 > **Depends on:** Phase 3 (Forgejo + services live, Renovate running), Phase 4 (HA live).
-> **1Password prerequisites:** `forgejo_api` + `op_api` (already created). Doco-CD + `doco-cd_password` are
-> **removed** (HD-150) — single Ansible-only deploy path; the deploy button runs Ansible (not a webhook agent).
+> **1Password prerequisites:** `forgejo_api` + `op_api`. Doco-CD + `doco-cd_password` are **removed** (HD-150) —
+> single Ansible-only deploy path; the deploy button runs Ansible (not a webhook agent).
+> **Status (2026-09-19):** ⏳ **the deploy button does not exist yet.** `docs/services-vps.md` lists Forgejo as
+> `⏳ pending`, so Phase 5 is still the one unbuilt leg of the deploy pipeline, while `vps.yml` has converged
+> **manually** many times since 2026-08-22. Two premises this phase used to state as fact are **unverified from the
+> repo** and are now questions, not steps: (1) the `op_api`-as-runner-secret arrangement — **HD-396** is open, no
+> `.forgejo/` workflow exists in this repo, and no IaC file reads that item as a runner token; and the SA token was
+> rotated 2026-09-19, so IF a runner exists its token is dead until renewed; (2) the Victoria-metrics scrape-set
+> tail of step 5 (closed 2026-09-08 — see Phase 6).
 > **Continuation:** once active, merges are applied via the Forgejo Actions deploy button instead of manual Ansible runs.
 
-1. **Forgejo Actions deploy workflow** — add `.forgejo/workflows/deploy.yml` (manual `workflow_dispatch`,
+- [x] **Forgejo Actions deploy workflow** — add `.forgejo/workflows/deploy.yml` (manual `workflow_dispatch`,
    `--tags` selector); the runner SSHes to the target host(s) and runs `ansible-playbook`
    (`vps.yml` for VPS, `home_servers.yml` for oldsrv).
-2. **1Password for the runner** — `op_api` Service Account token stored as a Forgejo secret; the runner
-   resolves secrets at Ansible render time (same as the control node).
-3. **Trigger** — no webhook; you click the **deploy button** on Forgejo (Dependency Dashboard / Actions tab).
-4. **Renovate** — already live (Phase 3); it opens PRs; the deploy button applies them via Ansible.
-5. **Metrics** — none (no Doco-CD exporter); the **VictoriaMetrics** scrape set stays Traefik/CrowdSec + services (Alloy is the single scrape tier — Prometheus is gone, HD-341/342).
-6. **Post-deploy hooks** — Ansible regenerates Homepage config + `services-inventory-generated.md` → commit+push.
+- [ ] ⏳ **1Password for the runner** — **unverified premise (HD-396)**: `op_api` as a Forgejo secret, runner
+   resolving secrets at render time. Confirm the runner exists at all before wiring it; after the 2026-09-19 SA
+   rotation, renew whatever token it does hold or its vault access 403s.
+- [x] **Trigger** — no webhook; you click the **deploy button** on Forgejo (Dependency Dashboard / Actions tab).
+- [x] **Renovate** — already live (Phase 3); it opens PRs; the deploy button applies them via Ansible.
+- [x] ✅ **Metrics** — none from the deploy path (no Doco-CD exporter). The **VictoriaMetrics** scrape set
+   (Traefik/CrowdSec + services, Alloy as the single shipper) is **live since 2026-09-08** (HD-341/342) — see Phase 6.
+- [x] **Post-deploy hooks** — Ansible regenerates Homepage config + `services-inventory-generated.md` → commit+push.
 
 **Verify:** a Renovate PR → merge → Forgejo **deploy button** → service updated with **no manual Ansible run**.
 
@@ -492,9 +650,20 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 - Grafana Alerting tiers (Critical/Warning/Info), self-monitoring, n8n + signal-cli-routing (details: `docs/observability.md`)
 - ~~Victoria backend~~ — ✅ LIVE 2026-09-08 (HD-341/342); the Prometheus/Loki rule set is gone (HD-347 swept the orphans)
 
-**Deploy-gated verification (Phase 6):**
-- **HD-14** — enable HA Prometheus exporter → HA Dashboard `lovelace` + Grafana (`ha_api`). · [smart-home.md](docs/smart-home.md)
-- **HD-19** — HA recorder trim (`purge_keep_days: 2`) + log strategy to protect the Pi SD. · [observability.md](docs/observability.md)
+**Deploy-gated verification (Phase 6):** ✅ the migration itself is **done** — VictoriaMetrics + VictoriaLogs run
+on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the single UI.
+- [ ] **HD-14** — enable the HA Prometheus exporter (seed `ha_api` + flip `prometheus_ha_exporter` + re-enable the
+      scrape job **together**, or the converge breaks), then the HA dashboard and Grafana panels. · [smart-home.md](docs/smart-home.md)
+- [ ] **HD-19** — HA recorder trim (`purge_keep_days: 2`) + log strategy to protect the Pi SD. · [observability.md](docs/observability.md)
+- [ ] **HD-343** — the network-clients exporter: verify the live wifi path (`/interface/wifi/registration-table`
+      vs the legacy API) + **[MANUAL, owner]** render-verify the panels on `stats.kogler.si`. · [observability.md](docs/observability.md)
+- [ ] **HD-344** — register the Victoria MCP endpoints in pi / Open WebUI / OpenClaw (the servers are live); the
+      tailnet redo is an owner call. · [observability.md](docs/observability.md)
+- [ ] **HD-345** — `ifOperStatus` is still 0 in VM (the SNMP walk is not arriving); verify the interface rules and
+      fire a test alert once SNMP data lands. · [observability.md](docs/observability.md)
+- [ ] alerting tails are tracked where their hosts are: **HD-159** (Phase 1, prove `wg-s2s-down` fires) and
+      **HD-347** (Phase 3, the Signal group UUID in SSOT).
+
 
 ---
 
@@ -504,13 +673,26 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 > **1Password prerequisites:** existing — `authentik_login`, `authentik_db` (SSO), `ha_api`, `signal_api`.
 > Items are tracked in `todo.md` (HD-XX) — execute per-item, don't restate here.
 
-1. Homematic full-local (HmIP-RFUSB + RaspberryMatic, local XML-RPC; human moves/fits the stick) — **HD-13** (**parked**; the stick is unpurchased, the CCU rows in `network_static_hosts` stay dormant)
-2. Confirm HACS custom components (motion, ai_task, Weather-2000, OneDrive, go2rtc) — **HD-15**
-3. Authentik OIDC provider + redirect URIs for downstream services (Matrix, Forgejo) — **HD-16** (compose template is Phase 3; post-deploy provider config)
-4. Single failover button + `ha-failover.sh` (RMat → wait → VIP → standby) — **HD-17**
-5. Test HmIP-RFUSB pairing transfer + entity reconstruction — **HD-18**
-6. Voice pipeline (Whisper → Ollama → Piper, ESP32-S3 microWakeWord, HA Assist) — **HD-27**
+1. Homematic full-local (HmIP-RFUSB + RaspberryMatic, local XML-RPC; human moves/fits the stick) — **HD-13**
+   (**parked**; the stick is unpurchased, the CCU rows in `network_static_hosts` stay dormant)
+2. Single failover button + `ha-failover.sh` — **HD-17** + the Homepage gate **HD-217** (both tracked in Phase 4)
+3. KNX render + dashboard tail — **HD-319** (Phase 4)
+
+> Retired from this list on 2026-09-19 because the rows no longer exist: **HD-15** (HACS confirm),
+> **HD-16** (Authentik OIDC for downstreams — superseded by the HD-141 epic on the VPS), **HD-18** (the HmIP-RFUSB
+> stick was REJECTED), **HD-27** (voice pipeline — superseded by the pinned-AI stack, `docs/smart-home-voice.md`).
+> HA local login, not SSO, is also settled here (owner declined OIDC for HA — `todo.md` §2.1a Pkg E).**
 7. Office AI stack (Ollama models, n8n, Office MCP path per HD-108/111 — AnythingLLM/LocPilot retired, ONLYOFFICE) — **HD-28**
+
+**Deploy-gated verification (Phase 7):**
+- [ ] **HD-28** — Office AI stack: **⛔ blocked, do not start.** The Ollama half is superseded twice over
+      (spark is the generation tier per decision #24, the pinned-AI legs per #25 → HD-385) and the MCP half waits
+      on HD-111; AnythingLLM + LocPilot are superseded. · [services-office.md](docs/services-office.md)
+- [ ] **HD-13** — ⏳ parked (local Homematic RF): re-add `raspberrymatic` + an HmIP-RFUSB **only** when local RF is
+      purchased — until then HmIP stays on the HAP in cloud mode. · [smart-home.md](docs/smart-home.md)
+- [ ] **HD-17 / HD-217** — the failover button: tracked in Phase 4 (its host is the Pi).
+- [ ] **HD-319** — the KNX bus tail (rekuperator group addresses) is tracked in Phase 4.
+
 
 ---
 
@@ -527,9 +709,12 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 > - Assess Kopia Web GUI vs CLI at first restore drill — **HD-34**
 > - Sign up Infomaniak kSuite (email, CalDAV, catch-all) — **HD-30**
 
-**Deploy-gated verification (Phase 8):**
-- **HD-49** — Back up Matrix identity + media (signing/identity keys, homeserver DB, media store) into the backup policy. · [services-matrix.md](docs/services-matrix.md)
-- **HD-34** — Assess Kopia Web GUI vs CLI at the first (human-run) restore drill. · [backup.md](docs/backup.md)
+**Deploy-gated verification (Phase 8):** ✅ repo + policy + schedules are live (retention policy = the SSOT in
+`docs/backup.md`).
+- [ ] **HD-49** — put the Matrix signing/identity keys, homeserver DB and media store into the backup policy
+      (a lost identity key means rejoining every federation partner). · [services-matrix.md](docs/services-matrix.md)
+- [ ] **HD-34** — **[MANUAL, owner]** assess Kopia Web GUI vs CLI during the first human-run restore drill. · [backup.md](docs/backup.md)
+
 
 ---
 
