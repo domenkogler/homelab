@@ -136,6 +136,29 @@ division) and **1 PFLOP FP4**.
 | **Gaming** | None (Sunshine active) | 0 GB (pinned-AI + immich-ML paused) | User launches Sunshine (manual) |
 | **Idle** | None | ~0 GB (GPU ~5 W) | No Sunshine stream, no pinned-AI, no immich-ML job |
 
+### Vision-LLM leg: deferred — this card gets no vision model (decision #28, 2026-09-20)
+
+The card **stays without a vision-LLM leg**. It is not a cost/perf call — the VRAM ledger is arithmetically
+closed: pinned tier **2.4 GiB** + a Qwen3-VL 2B/4B (~3–4.5 GiB) + immich-ML (3–5 GiB) = **8.4–11.9 GiB >
+8 GiB**. Vision for judgment therefore lives on the workstation
+([`hardware-workstation.md`](hardware-workstation.md)); the placement decision is **#28** in
+[`services-ai.md`](services-ai.md) §9 and the deferral is logged in
+[`services-rejected.md`](services-rejected.md).
+
+⚠ **Two traps that make "run it on-demand" harder than it looks** (both measured facts already in this repo):
+1. **`docker pause` does NOT free VRAM** — it frees *compute* only; allocation stays held until the process
+   re-runs (see the note below this table). The on-demand mechanism is llama.cpp's **`--sleep-idle-seconds`**
+   (PR #18228) or stopping the container — and it costs a reload on the next request (the STT leg's own
+   cold/warm delta, 0.85 s vs 0.40 s, is the scale; a 3–4 GB model from NVMe is seconds).
+2. **No arbiter exists.** Two on-demand consumers on one card with no scheduler means both can load and
+   the `amdgpu` VRAM OOM is not graceful. An arbiter/priority policy is a prerequisite, not a nicety.
+
+**Revisit gates (both must be measured first, [`services-ai-bench.md`](services-ai-bench.md) style):**
+(a) does the pinned `server-vulkan` image run a **Qwen3-VL `mmproj` vision tower on Vulkan**, or fall back
+to CPU; (b) does `--sleep-idle-seconds` **actually return VRAM on `gfx1102`** (sysfs `mem_info_vram_used`)
+and what is the reload latency. A third practical ceiling: the RX 7600's ~276 GB/s is in GB10's bandwidth
+class, so a 4B VL reads a screenshot in ~6–9 s — fine for *reading*, not for an interactive loop.
+
 ### Phase 2 Modes (spark — GB10, 128 GB unified)
 
 `spark` runs the **big-model generation tier** (decision #24, 2026-09-15) — the NVFP4 generation set

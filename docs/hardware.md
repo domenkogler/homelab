@@ -33,6 +33,7 @@ tags: [hardware, phases]
 | **Raspberry Pi 4** | Home Assistant (primary, Debian+HA Container) + RaspberryMatic/HmIP-RFUSB + Technitium secondary DNS | Stays primary HA |
 | **VPS (netcup)** | **Public edge + live-data apps + observability backend** (HD-93/HD-40A, active day one) | Public tier + more |
 | **spark** (ThinkStation PGX, NVIDIA GB10, 128 GB) | *Headless AI inference node (purchased, not yet provisioned)* | **Triton + NVFP4 model set** (replaces the planned Ryzen/R9700 build) |
+| **workstation** (admin laptop, AMD Strix Halo, 128 GB unified) | Client-side AI: **FIM autocomplete + visual judgment** locally; never a generation tier ([`hardware-workstation.md`](hardware-workstation.md)) | Same |
 | **PowerWalker VFI ICT/ICR IoT 3000** (UPS) | Protects nas + rack infra (see [`hardware-ups.md`](hardware-ups.md)) | Same |
 
 ---
@@ -81,6 +82,7 @@ nas (rack) — Debian 13, ZFS
 | NAS ZFS storage server (+ external SilverStone case) | [`hardware-nas.md`](hardware-nas.md) |
 | Rack UPS — links, Modbus TCP, NUT/shutdown status | [`hardware-ups.md`](hardware-ups.md) |
 | NVIDIA GB10 Triton node (spark) | [`hardware-spark.md`](hardware-spark.md) |
+| Admin laptop = client-side inference (FIM + vision, NPU out) | [`hardware-workstation.md`](hardware-workstation.md) |
 | Subscriptions & costs | [`subscription.md`](subscription.md) |
 
 ## Related

@@ -188,6 +188,7 @@ identical control as its own baseline. Steps #1–10 from the pre-research plan 
 | 8 | PLE tables INT4 → NVFP4 (`ples_nvfp4`, 28.8 GB) | T3 gate | volume path + re-download | +3.2 GB to KV; equal-or-better accuracy per primitive's table (78.7 vs 78.2) | needs its own boot + gate | accuracy gate passes |
 | 9 | `VLLM_GDN_DECODE_KERNEL=triton` | T3 gate | env | unknown on AWQ build (proven only on mixed NVFP4/FP8) | decode regression possible | accuracy gate + C2 decode ↑ |
 | 10 | KV offload connector (LMCache → `/mnt/spark_nvme/kv_cache`) | T4 infra | new dependency + config | warm prefix cache across restarts; cache ≫ VRAM; biggest TTFT lever on recurring long contexts | new component, cold-start behavior, version pinning needed | C-prefill-repeat scenario TTFT ↓ ≥50% |
+| 11 | **Text-only engine mode** — `--limit-mm-per-prompt '{"image": 0, "video": 0}'` (≡ `--language-model-only`), optionally `--mm-processor-cache-gb 0` | T1 safe (memory, not speed) | flag(s) in the `spark-ai` compose `command:` + a `spark_vllm_*` var | **No decode gain is expected** (no image tokens ⇒ the ViT never executes). Gain is pool: ViT weights (~0.5–1 GiB device) + mm processor cache (default **4 GiB host RAM** = same unified pool) ⇒ headroom on the boot-bound side, 1 GiB ≈ 32.2k KV tokens | Module-skipping is per-model-implementation — **measure** on the pinned fork; `image:0` makes an image part a hard 400 (decision consequence for HD-384) | boot per-pid MiB ↓ **and** host usable ↑ **and** C2 tok/s within noise **and** accuracy gate 10/10 unchanged. Spend the freed GiB (KV or margin) as a **separate** row — never the same change. Knowledge: [`docs/hardware-spark.md`](../docs/hardware-spark.md) §Text-only engine mode · HD-400 |
 
 Engine-specific ladder rows added if a winner engine shows a distinct tuning knob (SGLang: RadixAttention
 prefix caching, `--max-total-tokens` pool, mamba flags).
@@ -377,6 +378,7 @@ only from benches on this box.
 | #8 | vLLM | NVFP4 tables | | | | | | | |
 | #9 | vLLM | GDN triton | | | | | | | |
 | #10 | vLLM | KV offload | | | | | | | |
+| #11 | vLLM | text-only mode (`limit-mm-per-prompt` 0) — expected **C2 flat**, record pool Δ | | | | | | | |
 
 ---
 

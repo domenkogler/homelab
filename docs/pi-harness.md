@@ -302,3 +302,4 @@ Verified 2026-09-16: the row renders `262.1K / 16.4K / thinking yes`, and the sm
   experimental.
 - ⏳ `spark-lane` profile (§6) is authored-on-paper only; promote it into the reference config once a
   real orchestrator run measures lane-vs-preemption behavior.
+- **Pointer (not a tail):** the workstation's two other local model legs — **FIM autocomplete** and **Qwen3-VL visual judgment** (vision reaches spark only as *text*; the engine is text-only) — are owned by [`hardware-workstation.md`](hardware-workstation.md) + decision #28 in [`services-ai.md`](services-ai.md) §9 (HD-401). Nothing here changes; the harness stays direct-to-engine (decision #26).

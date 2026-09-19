@@ -43,6 +43,7 @@ tags: [index, dispatcher, ai]
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
 | **Tune the pi.dev harness (workstation agent → spark: context window, thinking, timeouts)** | [`pi-harness.md`](pi-harness.md) | `hardware-spark.md`, `spark-incidents.md`, `services-ai.md`, `../todo.md` |
 | **Understand / build the AI stack (chat + RAG + agents)** | [`services-ai.md`](services-ai.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook, HD-105), `hardware-gpu.md` |
+| **Decide where an AI leg runs (generation vs client-side FIM/vision vs pinned services)** | [`hardware-workstation.md`](hardware-workstation.md) (client-side tier) + [`services-ai.md`](services-ai.md) §9 decision #28 | `hardware-spark.md` (text-only engine), `hardware-gpu.md` (8 GiB ledger), `pi-harness.md` |
 | **Size / pick an AI inference engine or device on oldsrv (STT, rerank, VRAM budget)** | [`services-ai-bench.md`](services-ai-bench.md) — measured numbers, not arithmetic | `services-ai.md` (§3a plan of record + §9 #24/#25/#27 + §9c), `hardware-gpu.md`, `smart-home-voice.md`, `../todo.md` (HD-391) |
 | **Live MS Office via Open WebUI (Word/Excel/PPT)** | [`services-office.md`](services-office.md) | `services-ai.md`, [`client/office-bridge/`](../client/office-bridge/) (HD-106–111) |
 | **HA failover / high availability** | [`smart-home-failover.md`](smart-home-failover.md) | `smart-home.md`, `network-dns.md`, `deployment-ansible.md` |
@@ -80,6 +81,7 @@ docs/
 ├── hardware-nas.md                       HP MicroServer Gen8 ZFS storage (+ external SilverStone case)
 ├── hardware-ups.md                       PowerWalker VFI ICT/ICR IoT 3000 (UPS) — links, Modbus TCP, NUT status
 ├── hardware-spark.md                       NVIDIA GB10 Triton inference node (spark.kogler.si) — replaces the old Phase-2 Ryzen/R9700 build (archived in decision log + git)
+├── hardware-workstation.md               Admin laptop (Strix Halo) = client-side inference tier: FIM autocomplete + visual judgment; NPU out
 ├── spark-incidents.md                       spark OOM / engine-restart incident log (append-only; knowledge = hardware-spark.md §Unified-memory budget)
 ├── services-finance.md                    Personal finance: Actual Budget, Enable Banking, account import strategy, AI categorization
 │

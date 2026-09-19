@@ -641,10 +641,49 @@ Research + verdicts: [`spark/resources/RESEARCH-VERDICTS.md`](../spark/resources
 - **SGLang**: native-GB10 NVFP4 route (262k ctx); long-context concurrency (S5) fits its pool semantics.
 - Bench runs on the box once provisioned (deploy-gate); until then configs stay uncommitted to SSOT.
 
+## Text-only engine mode (vision disabled) — ⏳ proposed, not applied (HD-400)
+
+The staged checkpoint is **multimodal** (`Qwen4ExpForConditionalGeneration`; vision encoder 27 layers /
+hidden 1152 → merger → LM hidden 2560, interleaved mrope `[11,11,10]` —
+[`spark/resources/R1-hf-model-card.md`](../spark/resources/R1-hf-model-card.md)). Every consumer of
+`spark/qwen3.8-flash-next` is **text-only** today (pi.dev direct per decision #26, HD-376; the
+simple-querier tier is text too), yet the live compose
+([`IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2`](../IaC/ansible/templates/docker_services/spark-ai/docker-compose.yml.j2))
+sets **no** `--limit-mm-per-prompt`, so vLLM loads the multimodal stack at its defaults (V1 default = 999
+per modality).
+
+**Proposed change (one variable, bench-gated — BENCHMARK-PLAN §6 step 11):**
+
+```
+--limit-mm-per-prompt '{"image": 0, "video": 0}'      # ≡ --language-model-only
+--mm-processor-cache-gb 0                              # optional second row
+```
+
+- **What it is:** upstream vLLM skips the disabled modality's **modules**, so the ViT is not loaded
+  (issue #21943, closed-completed 2026-02-08 via #22299; `--language-model-only` is documented as the
+  equivalent flag). ⚠ **The pinned fork build must be measured, not assumed** — module-skipping is
+  per-model-implementation and `vllm-0.1.dev20073+g8e685d198` is a fork.
+- **What it is NOT: a speed change.** With no image tokens the vision tower never executes, so
+  **decode tok/s is expected FLAT**. The gain is memory returned to the ONE 121.62 GiB pool: the tower
+  (~0.5–1 GiB device) + the mm processor cache (**default 4 GiB, host RAM** — same pool on GB10).
+- **Where the gain lands:** the binding side today is **boot headroom** (certified `16000000000` KV pool,
+  boot-side **+5.4 GiB**, [`#Unified-memory-budget`](#unified-memory-budget--oom-governance-2026-09-16)).
+  1 GiB ≈ **32.2k KV tokens** at the measured 30.3 KiB/token. Convert the freed GiB into headroom or KV
+  **as a separate bench row** — never in the same change, or the ledger cannot attribute either.
+- ⚠ **Syntax trap:** the comma form `image=0,video=0` is the *old* parser and errors on current vLLM
+  (upstream #39687). Use the JSON form.
+- ⚠ **Consequence to accept:** `image: 0` makes an image part a hard **400**. Harmless for the harnesses;
+  it is a decision-consequence for HD-384 if a future gateway consumer (Open WebUI) ever receives pasted
+  images. Vision lives on the workstation instead — [`hardware-workstation.md`](hardware-workstation.md)
+  (decision #28).
+- **Gate to keep:** boot per-pid MiB Δ + host usable Δ + `C2` tok/s unchanged + accuracy gate 10/10 unchanged
+  (`spark/bench/accuracy-gate.sh`). Host-safety preflight (`MEM_FLOOR_GB`, the 105 G cage) unchanged.
+
 ## Document Map
 
 | For | Read |
 |-----|------|
+| Client-side AI on the laptop (FIM autocomplete, visual judgment) | [`hardware-workstation.md`](hardware-workstation.md) |
 | GPU resource / VRAM / modes | [`hardware-gpu.md`](hardware-gpu.md) |
 | AI platform (Triton, models, Mem0, OpenHands, LiteLLM) | [`services-ai.md`](services-ai.md) |
 | Local LLM model guidance | [`services-ai.md`](services-ai.md) |
