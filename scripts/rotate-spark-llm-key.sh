@@ -111,7 +111,10 @@ fi
 LOGD=$(mktemp -d /tmp/rotate-spark-key.XXXX); : > "$LOGD/manifest"
 # Playbook per target — oldsrv is NOT `playbooks/oldsrv.yml`: it lives in `home_servers`,
 # so it needs that playbook PLUS an explicit --limit (precedent: services-admin.md §deploy).
-converge(){ local host=$1 pb=$2 scope=$3 limit=${4:-} log="$LOGD/$host-$scope.log"
+# NOTE the deliberate SECOND `local`: in ONE statement bash expands `log="$LOGD/$host-$scope.log"`
+# BEFORE host/scope are assigned, so with `set -u` it dies as "host: unbound variable"
+# (it did, on the first real run 2026-09-19 — plan mode never reaches this function).
+converge(){ local host=$1 pb=$2 scope=$3 limit=${4:-}; local log="$LOGD/$host-$scope.log"
   say "  converge $host via $pb scope=$scope ${limit:+limit=$limit} → $log"
   nohup bash -c "cd '$REPO' && bash scripts/ansible-run.sh $pb --tags docker_services -e docker_services_scope=$scope ${limit}" >"$log" 2>&1 &
   echo "$host $scope $!" >> "$LOGD/manifest"; }
