@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # rotate-spark-llm-key.sh — the ATOMIC rotation window for `spark-llm_api` (2026-09-18).
 #
-# WHY A SCRIPT AND NOT JUST `provision-secrets.py --rotate`: the vault item is not one
-# credential, it is FOUR bearers that must agree (see docs/deployment-ai-stack-secrets.md §4a):
-#   1. the vLLM engine's `--api-key` argv        (spark,   spark-ai compose)
+#   WHY A SCRIPT AND NOT JUST `provision-secrets.py --rotate`: the vault item is not one
+# credential, it is THREE DEPLOYED CONSUMERS plus a fourth copy outside Ansible (see
+# docs/deployment-ai-stack-secrets.md §4a — read the 2026-09-19 correction there before
+# re-stating this as "four bearers"):
+#   1. the vLLM engine's `--api-key` argv        (spark,   spark-ai compose)  — THE authority
 #   2. the VPS LiteLLM upstream env              (vps,    litellm compose OPENAI_API_KEY)
 #   3. the LAN LiteLLM upstream env              (oldsrv, lan-litellm compose OPENAI_API_KEY)
 #   4. this laptop harness's spark lane          (~/.pi/agent/models.json → providers.spark.apiKey)
+#      ⚠ `llm.ts.kogler.si` is NOT LiteLLM: traefik-tailnet proxies that host straight to
+#      spark's own edge and the request is authenticated by the ENGINE's `--api-key` (see
+#      routes.yml.j2:365). So #4 is a SECOND COPY OF #1, not a LiteLLM client key — which is
+#      why models.json can use it while `litellm_api` (the master key) gets 401 there.
 # Rotating the vault and converging "later" leaves a half-applied window in which a re-rendered
 # consumer 401s against a still-old engine — and it can be opened by ANOTHER session's converge.
 # So: vault write + all three re-renders + the laptop file happen in one run, or not at all.
@@ -54,13 +60,19 @@ say "== plan =="
 say "  1. read the CURRENT value (hash only), for the before/after proof"
 say "  2. provision-secrets.py --rotate $ITEM --yes   (writes 1Password = the SSOT; skipped by --skip-rotate)"
 say "  3. re-render all three consumers, DETACHED (a timeout-killed converge is worse than none):"
-say "       spark   playbooks/spark.yml         -e docker_services_scope=spark-ai   ← restarts the engine"
-say "       vps     playbooks/vps.yml           -e docker_services_scope=litellm"
-say "       oldsrv  playbooks/home_servers.yml  -e docker_services_scope=lan-litellm --limit oldsrv.kogler.si"
-say "  4. wait for /health 200 on spark (expect 20-25 min), then update $MODELS_JSON"
-say "  5. VERIFY BOTH DIRECTIONS — new bearer 200, OLD bearer 401. The 401 is the proof;"
-say "     a 200 with the old bearer means a re-render did not land and the window is open."
-say "  6. remind: history still holds the old value until filter-repo + force-push."
+say "       spark   playbooks/spark.yml   (FULL converge) ← recreates the engine container"
+say "       vps     playbooks/vps.yml     (FULL converge)"
+say "       oldsrv  playbooks/home_servers.yml --limit oldsrv.kogler.si"
+say "     ⚠ DO NOT use -e docker_services_scope=<svc> here. Measured 2026-09-19: a scoped run"
+say "       reported ok=11 changed=0 skipped=17 — the deploy loop skipped the very service named,"
+say "       so the new key never reached the compose/argv while the playbook still exited 0."
+say "       A green scoped converge is NOT evidence the credential landed; only the argv hash is."
+say "  4. wait for the engine to RE-RENDER (argv hash == vault) and then for /health — a health-only"
+say "     wait returns instantly, because the engine answers 200 the whole time BEFORE it is recreated."
+say "  5. update $MODELS_JSON (a second copy of the ENGINE key — llm.ts is not LiteLLM)."
+say "  6. VERIFY BOTH DIRECTIONS — new bearer 200 at engine AND llm.ts, SUPERSEDED bearer 401."
+say "     The 401 is the proof; a 200 means the re-render did not land and the window is open."
+say "  7. report the per-consumer env hashes vs the vault (empty = host unreachable, not half-applied)."
 [ "$RUN" = "1" ] || { say ""; say "PLAN ONLY — nothing was written. Re-run with --run --yes inside the window."; exit 0; }
 if [ "$ASSUME_YES" != "1" ]; then read -r -p "Execute the window now (engine DOWN ~25 min)? [y/N] " a; [ "${a:-n}" = "y" ] || { say "aborted"; exit 1; }; fi
 
@@ -116,22 +128,38 @@ LOGD=$(mktemp -d /tmp/rotate-spark-key.XXXX); : > "$LOGD/manifest"
 # (it did, on the first real run 2026-09-19 — plan mode never reaches this function).
 converge(){ local host=$1 pb=$2 scope=$3 limit=${4:-}; local log="$LOGD/$host-$scope.log"
   say "  converge $host via $pb scope=$scope ${limit:+limit=$limit} → $log"
-  nohup bash -c "cd '$REPO' && bash scripts/ansible-run.sh $pb --tags docker_services -e docker_services_scope=$scope ${limit}" >"$log" 2>&1 &
+  nohup bash -c "cd '$REPO' && bash scripts/ansible-run.sh $pb ${limit}" >"$log" 2>&1 &
   echo "$host $scope $!" >> "$LOGD/manifest"; }
 converge spark   playbooks/spark.yml        spark-ai
 converge vps     playbooks/vps.yml          litellm
 converge oldsrv  playbooks/home_servers.yml lan-litellm "--limit oldsrv.kogler.si"
 say "  launched (detached). tail -f $LOGD/*.log"
-say "  waiting for the engine to come back (up to 40 min)…"
-for i in $(seq 1 80); do
-  code=$(timeout 20 ssh spark 'curl -s -o /dev/null -w "%{http_code}" localhost:8000/health' 2>/dev/null)
-  [ "$code" = "200" ] && { say "  engine healthy after $((i*30))s"; break; }
+# ⚠ Do NOT gate on /health alone. Measured 2026-09-19: the engine answers 200 for the WHOLE
+# window before its container is recreated, so a health-only wait returns instantly and the
+# verification below then runs against the OLD key — it printed "NEW → 401 / superseded → 200",
+# i.e. an exactly inverted and completely false proof. Gate on the argv hash instead: the
+# rotation has landed when the engine's own --api-key equals the vault value.
+say "  waiting for the engine to RE-RENDER (argv hash == vault), then for /health…"
+say "  (converge + cold load can exceed an hour: the full converge re-checks the PLE artifacts first)"
+TARGET=$(h "$NEW")
+for i in $(seq 1 140); do
+  CUR=$(timeout 25 ssh spark 'K=$(docker inspect vllm-qwen-spark --format "{{join .Config.Cmd \" \"}}" | tr " " "\n" | grep -A1 -- "--api-key" | tail -1); printf %s "$K" | sha256sum | cut -c1-12' 2>/dev/null)
+  [ "${CUR:-none}" = "$TARGET" ] && { say "  engine argv matches the vault after $((i*30))s"; break; }
   sleep 30
 done
-[ "${code:-0}" = "200" ] || say "  ⚠ engine not healthy within 40 min — check $LOGD/spark-spark-ai.log before continuing"
+[ "${CUR:-none}" = "$TARGET" ] || say "  ⚠ engine argv still ${CUR:-?} after 70 min — the spark re-render did NOT land; do not trust any check below"
+for i in $(seq 1 60); do
+  code=$(timeout 20 ssh spark 'curl -s -o /dev/null -w "%{http_code}" localhost:8000/health' 2>/dev/null)
+  [ "$code" = "200" ] && { say "  engine healthy after $((i*30))s more"; break; }
+  sleep 30
+done
+[ "${code:-0}" = "200" ] || say "  ⚠ engine not healthy — check $LOGD/spark-spark-ai.log before continuing"
 
 # ---- 4. the laptop consumer (outside Ansible) ---------------------------------
-if [ -f "$MODELS_JSON" ]; then
+# The laptop copy is a second copy of the ENGINE key (llm.ts → spark's edge → engine --api-key),
+# so it is only safe to write once the engine itself has re-rendered — hence step 3 above gates
+# on the argv hash, not on /health. Writing it early silently breaks this harness's spark lane.
+if [ -f "$MODELS_JSON" ] && [ "${CUR:-none}" = "$TARGET" ]; then
   install -m 600 /dev/null "$MODELS_JSON.tmp"
   KEY="$NEW" DST="$MODELS_JSON.tmp" python3 - "$MODELS_JSON" <<'PY'
 import json,os,sys
@@ -156,7 +184,8 @@ print("  models.json: providers.spark.apiKey replaced (value not printed)")
 PY
   [ -s "$MODELS_JSON.tmp" ] && mv "$MODELS_JSON.tmp" "$MODELS_JSON" || rm -f "$MODELS_JSON.tmp"
 else
-  say "  ⚠ $MODELS_JSON absent — update the spark lane by hand if this harness uses it"
+  say "  ⚠ skipping $MODELS_JSON — the engine has not re-rendered yet; writing it now would point"
+  say "    this harness at a key the engine rejects. Re-run once the spark converge lands."
 fi
 
 # ---- 5. verify BOTH directions ------------------------------------------------
@@ -164,21 +193,30 @@ say ""; say "== verify =="
 verify(){ local host=$1 url=$2 tok=$3 label=$4 code
   code=$(timeout 25 ssh "$host" "curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer $tok' '$url'" 2>/dev/null)
   say "  $label → $code"; }
-verify spark "http://localhost:8000/v1/models" "$NEW"  "engine    NEW (want 200)"
-if [ -n "$SUPERSEDED" ]; then
-  verify spark "http://localhost:8000/v1/models" "$SUPERSEDED" "engine    SUPERSEDED (want 401 — this is the proof)"
-else
-  say "  engine    SUPERSEDED → skipped (no OLD_SPARK_LLM_KEY): the window is NOT proven closed"
-fi
-# The edge does NOT authenticate clients with this secret — clients present
-# litellm_master_key; spark-llm_api is only the UPSTREAM credential. So the right edge-side
-# check is "does each consumer's env now equal the vault value", not a 401 probe.
+# Measured 2026-09-19: the edge does NOT authenticate clients with this secret — clients present
+# a LiteLLM scoped key (`litellm_*`), and `litellm_api` (the master key) gets 401 at the edge too.
+# So "the edge returns 401 with the old bearer" was never a valid test. What IS checkable is that
+# each consumer's rendered env equals the vault value; and llm.ts.kogler.si is checked separately
+# below because that host bypasses LiteLLM and authenticates with THIS bearer.
 envhash(){ timeout 30 ssh "$1" "docker inspect $2 --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep '^OPENAI_API_KEY=' | cut -d= -f2- | tr -d '\\n'" 2>/dev/null | sha256sum | cut -c1-12; }
 say "  consumer env hash vs vault NEW ($(h "$NEW")) — a mismatch = that converge did not land:"
 say "    litellm      $(envhash vps litellm)"
-say "    lan-litellm  $(envhash oldsrv lan-litellm)"
+say "    lan-litellm  $(envhash oldsrv lan-litellm)   (empty hash = host unreachable, NOT a rotation failure)"
+verify spark "http://localhost:8000/v1/models" "$NEW" "engine     NEW (want 200)"
+if [ -n "$SUPERSEDED" ]; then
+  verify spark "http://localhost:8000/v1/models" "$SUPERSEDED" "engine     SUPERSEDED (want 401 — this is the proof)"
+else
+  say "  engine     SUPERSEDED → skipped (no OLD_SPARK_LLM_KEY): the window is NOT proven closed"
+fi
+# llm.ts.kogler.si / llm.kogler.si route straight to spark's own edge (traefik-tailnet
+# routes.yml.j2:365: "auth is the ENGINE's --api-key, not a middleware"), so this bearer IS the
+# client credential there — unlike the LiteLLM edge, which rejects it.
+verify spark "https://llm.ts.kogler.si/v1/models" "$NEW" "llm.ts     NEW (want 200)"
+if [ -n "$SUPERSEDED" ]; then
+  verify spark "https://llm.ts.kogler.si/v1/models" "$SUPERSEDED" "llm.ts     SUPERSEDED (want 401)"
+fi
 say ""
-say "Next, by hand: (a) commit the redaction of any tracked logs that carried the old value;"
-say "(b) if the old value was ever pushed, scrub history (git filter-repo --replace-text +"
-say "force-push) and rebase every session worktree based on a rewritten commit — and note that"
-say "GitHub may still serve the old blob, which is why rotation, not scrubbing, is the fix."
+say "Next: (a) re-render oldsrv's lan-litellm when that host is reachable (it was UNREACHABLE in"
+say "this run — an empty env hash there is a down host, not a half-applied secret); (b) history"
+say "scrub is now OPTIONAL — once the superseded bearer 401s it is inert (docs §4a records the"
+say "condition that re-opens it: rolling any consumer back to the old value)."

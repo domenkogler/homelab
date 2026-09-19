@@ -80,7 +80,25 @@ After items exist, confirm each compose renders (the fail-loud guard passes) and
 
 ## 4. Rollback / rotation notes
 
-### 4a. `spark-llm_api` — the coupled engine bearer (LIVE leak found + rotation window prepared, 2026-09-18)
+### 4a. `spark-llm_api` — the coupled engine bearer (live leak found 2026-09-18 → contained by rotation 2026-09-19)
+
+> **Consumer map, corrected by measurement on 2026-09-19.** An earlier version of this section said
+> the item was **"FOUR coupled bearers"** and listed the laptop harness as a LiteLLM consumer. It is
+> **THREE deployed consumers + one copy of the engine key**, and the fourth is not a LiteLLM client:
+>
+> | Holder | What it is | Verified |
+> |---|---|---|
+> | spark engine `--api-key` | **the authority** — vLLM's own argv, rendered from `spark-ai` compose | argv hash == vault |
+> | VPS `litellm` `OPENAI_API_KEY` | what LiteLLM sends **upstream** to spark | env hash == vault |
+> | oldsrv `lan-litellm` `OPENAI_API_KEY` | same, LAN leg | host was down |
+> | laptop `models.json → providers.spark.apiKey` | **a second copy of the engine key, not a LiteLLM key.** `baseUrl` is `https://llm.ts.kogler.si/v1`, and `traefik-tailnet/dynamic/routes.yml.j2:365` routes that host straight to spark's own edge: *"auth is the ENGINE's `--api-key` … not a middleware"* | 200 at `llm.ts`, and a real completion came back |
+>
+> **The corollary, and it is the part that would mislead a rotation:** the LiteLLM edge does **not**
+> accept this secret as a client credential — `litellm_api` (the master key, `LITELLM_MASTER_KEY`) gets
+> `401` there, a bogus key gets `401`, and `spark-llm_api` gets `200` because that host is not LiteLLM
+> at all. So "the edge 401s with the old bearer" was never a valid containment test, and a LiteLLM
+> client key is not affected by this rotation. `rotate-spark-llm-key.sh` now checks the engine and
+> `llm.ts` in both directions and compares consumer env hashes, which is what is actually checkable.
 
 **What the item actually is.** Not a LiteLLM virtual key: it is **vLLM's `--api-key`** on the spark
 engine (`templates/docker_services/spark-ai/docker-compose.yml.j2`), and the SAME string is what both
@@ -120,15 +138,25 @@ git -C ~/source/homelab-wt-* status --short    # other sessions' worktrees must 
 OP_SERVICE_ACCOUNT_TOKEN="$(op read 'op://Homelab-ansible/op-write_api/credential' </dev/null)" \
   python3 scripts/provision-secrets.py --rotate spark-llm_api --yes   # add --skip-rotate if the owner already rotated
 #    Verify by hash, never by printing. The OLD value stays LIVE until step 2 — that is the window.
-# 2. RE-RENDER all three consumers, detached (see §Jump-host execution + scripts/README):
-#    spark  → --tags docker_services -e docker_services_scope=spark-ai   (restarts the engine)
-#    vps    → --tags docker_services -e docker_services_scope=litellm
-#    oldsrv → --tags docker_services -e docker_services_scope=lan-litellm
-# 3. LAPTOP, outside Ansible: ~/.pi/agent/models.json → providers.spark.apiKey  (this harness's
-#    spark lane; it will 401 silently if forgotten).
+# 2. RE-RENDER all three consumers, DETACHED (see §Jump-host execution + scripts/README):
+#    spark / vps  → FULL converge: `bash scripts/ansible-run.sh playbooks/<host>.yml`
+#    oldsrv       → `bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si`
+#    ⚠ MEASURED 2026-09-19 — do NOT try to be surgical here. `--tags docker_services
+#    -e docker_services_scope=spark-ai` reported `ok=11 changed=0 skipped=17` and exited 0 while
+#    the deploy loop SKIPPED the named service: the new key never reached compose/argv, so a green
+#    scoped converge is not evidence anything landed. Full converges are the proven path
+#    (spark `ok=110 changed=15 failed=0`, vps `ok=393 changed=62 failed=0`, engine recreated).
+#    Proof of landing = the engine's own argv hash equals the vault value, nothing weaker.
+# 3. LAPTOP, outside Ansible: ~/.pi/agent/models.json → providers.spark.apiKey  (a SECOND COPY OF
+#    THE ENGINE KEY — llm.ts authenticates with it directly; write it only after the engine
+#    re-renders, or this harness's spark lane silently 401s).
 # 4. VERIFY BOTH DIRECTIONS — rotation is only proven by the negative test:
-#    new bearer → 200 at engine :8000, https://llm.kogler.si/v1/models, llitellm leg
-#    OLD bearer → 401 everywhere (a 200 here means the converge did not land)
+#    new bearer → 200 at engine :8000 AND at https://llm.ts.kogler.si/v1/models
+#    OLD bearer → 401 at BOTH (a 200 anywhere means the converge did not land)
+#    ⚠ Do NOT wait on /health to decide the re-render happened: the engine answers 200 for the
+#    whole window BEFORE its container is recreated, so a health-only wait returns instantly and
+#    then verifies against the OLD key — measured 2026-09-19, it printed the exact inverted proof
+#    ("new → 401, superseded → 200") while both converges were still running. Gate on argv.
 ```
 
 **Then, and only then, the history.** Redacting the tip does not un-leak the pushed commits. Removing
@@ -180,7 +208,8 @@ h "$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.pi/a
 ```
 
 Four rows, **one** hash. Two corrections this wrote into the tooling: the edge does **not**
-authenticate clients with this secret (clients present `litellm_master_key`; `spark-llm_api` is only
+authenticate clients with this secret (clients present a LiteLLM scoped key; `litellm_api`, the master
+key, is itself refused at the edge for client calls — measured 2026-09-19); `spark-llm_api` is only
 the *upstream* credential), so "the edge returns 401 with the old bearer" was never a valid test —
 `rotate-spark-llm-key.sh` now compares consumer env hashes instead; and the laptop step patches
 **`providers.spark.apiKey` only** — an earlier draft walked the whole file and would have overwritten
