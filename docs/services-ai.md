@@ -243,6 +243,15 @@ Converged with `--tags docker_services,whisper,reranker,embed` — **`failed=0`*
 | Three-way concurrency | ≈1.5–2× each, flat | each leg **1.15–1.19 s** simultaneously vs 0.60/0.95/0.45 s solo; **total wall 1.25 s < the 2.00 s sequential sum** — the contention the bench predicted, and the aggregate still beats serial |
 | `dmesg` (HD-393 baseline 1,296 / 0) | 0 hang/reset | **0 hang/reset.** Last `init_user_pages` line is still `[780804.8]` while uptime passed **875842 s** → **zero new lines** from this deploy. (The raw count read 1226 after, i.e. **ring eviction**, not recovery — the same trap that made HD-393's count grow while the episode was over. ⚠ reading `dmesg` here needs `sudo`: `dmesg: read kernel buffer failed` otherwise, and an unsprivileged count silently returns 0.) |
 
+> **Three things this deploy did NOT establish** (each keeps its own owner): (1) **no scoped consumer reaches
+> these rows** — every probe above used the master key, so per-key routing and the allow-list are still
+> **HD-384 / HD-268b**, and nothing a family member runs changed behaviour; the legs are reachable on the admin
+> path only. (2) **2475 MiB is a steady-state reading** — a one-shot startup peak (three simultaneous Vulkan
+> inits) is not visible to `mem_info_vram_used` sampled after warm-up; the bench's triple-start probe saw 0
+> `amdgpu` lines, which is the closest evidence we have. (3) **the rank reranker's quality is still unmeasured**
+> — no nDCG@10 against labelled data (§3a's standing caveat), and the CPU-vs-GPU rerank latencies come from two
+> different harnesses, so treat the speedup as an estimate.
+
 #### 3a-3. Three findings the bench could not produce (each one broke or would break a real call)
 
 1. **`--ctx-size` is not the batch limit — `--ubatch-size` is.** With the defaults the embed endpoint answered
@@ -289,8 +298,8 @@ Converged with `--tags docker_services,whisper,reranker,embed` — **`failed=0`*
   harness question that blocked it (decision #26 settled that: harnesses go direct). The stale `dsh_api`
   secret behind **HD-383** is parked, not fixed — its remediation is recorded there for whenever a record
   is restored. Until HD-384 lands the gateway path serves the master key / admin path only.
-- **Embeddings → the Vulkan `embed` leg on oldsrv (decision #27, 2026-09-18; IaC authored 2026-09-19, HD-391):** `bge-m3` **Q8_0**, **1024-dim unchanged**, `llama.cpp server-vulkan`. History kept for the audit trail: Cohere retired 2026-09-06 (previously embed-v4 @1536, accepted 2026-08-16), then local `bge-m3/1024` via **Ollama `:rocm`** on the RX 7600 (decision #24) — which #27 demotes to the **fallback rung**, not the primary (measured 15 ms vs ~500 ms per chunk, 326 vs 899 MiB VRAM, cosine 0.9996 ⇒ same vector space). “via Triton on spark” was the 2026-09-06 framing and is superseded by #24/#27: the pinned tier is oldsrv’s, spark is the generation tier.
-- **Rerank → the Vulkan `reranker` leg on oldsrv (decision #27; was “→ CPU” under #24/#25):** `bge-reranker-v2-m3` **Q8_0** as a `llama.cpp` cross-encoder (`--pooling rank --rerank`), reached via LiteLLM **`jina_ai/`** (provider-routing question CLOSED: `litellm/llms/jina_ai/rerank/transformation.py` accepts a custom `api_base` and rewrites the path to `/v1/rerank` — read in the pinned v1.83.10 image on the box, 2026-09-19). The CPU placement is **superseded by measurement** (5.3 s vs 0.34–0.50 s, [bench §3/§5](services-ai-bench.md)). **Still not Ollama** — Ollama serves no rerank API at ANY released version and LiteLLM has no Ollama rerank provider; the old “needs ollama ≥ 0.5.x” note is retracted (§9 #25, [hardware-gpu.md](hardware-gpu.md)).
+- **Embeddings → the Vulkan `embed` leg on oldsrv (decision #27, 2026-09-18; LIVE since 2026-09-19, HD-391 shipped):** `bge-m3` **Q8_0**, **1024-dim unchanged**, `llama.cpp server-vulkan`. History kept for the audit trail: Cohere retired 2026-09-06 (previously embed-v4 @1536, accepted 2026-08-16), then local `bge-m3/1024` via **Ollama `:rocm`** on the RX 7600 (decision #24) — which #27 demotes to the **fallback rung**, not the primary (measured 15 ms vs ~500 ms per chunk, 326 vs 899 MiB VRAM, cosine 0.9996 ⇒ same vector space). “via Triton on spark” was the 2026-09-06 framing and is superseded by #24/#27: the pinned tier is oldsrv’s, spark is the generation tier.
+- **Rerank → the Vulkan `reranker` leg on oldsrv (decision #27; was “→ CPU” under #24/#25; **LIVE since 2026-09-19 but DORMANT** — the container answers, its consumer is the HD-268b stub):** `bge-reranker-v2-m3` **Q8_0** as a `llama.cpp` cross-encoder (`--pooling rank --rerank`), reached via LiteLLM **`jina_ai/`** (provider-routing question CLOSED: `litellm/llms/jina_ai/rerank/transformation.py` accepts a custom `api_base` and rewrites the path to `/v1/rerank` — read in the pinned v1.83.10 image on the box, 2026-09-19). The CPU placement is **superseded by measurement** (5.3 s vs 0.34–0.50 s, [bench §3/§5](services-ai-bench.md)). **Still not Ollama** — Ollama serves no rerank API at ANY released version and LiteLLM has no Ollama rerank provider; the old “needs ollama ≥ 0.5.x” note is retracted (§9 #25, [hardware-gpu.md](hardware-gpu.md)).
 - **Local models:** Ollama listed via LiteLLM so family sees local + cloud in one dropdown; local is
   default where privacy/offline matters. **spark (HD-335)** adds the **Triton** NVFP4 set + local embeddings
   (bge-m3/reranker) as further LiteLLM backends (details in [`hardware-spark.md`](hardware-spark.md)).
@@ -521,6 +530,22 @@ mem0.search(query=user_prompt, user_id=mem0_custom_user_id)   # inject relevant 
 - **VRAM/RAM:** spark = 128 GB unified (**big-model generation tier** — one large model, largest context, decision #24); oldsrv RX 7600 dGPU (8 GB) = **pinned AI services (Whisper STT ~2 GB + bge-m3 embed ~1–2 GB ≈ 3–4 GB; the bge-reranker moved to CPU — decision #25) + Sunshine gaming encode + immich-ML batch (lowest priority)**; Piper TTS = **CPU** (CPU-only engine); Docling on CPU; size chat models
   ~7–8B q4; keep `keep_alive` sensible (see `hardware-gpu.md`).
 - **AnythingLLM + LocPilot removed** for the family web UI — replaced by MS Office MCP path (HD-108).
+
+- **The legs are unauthenticated by design; the gateway is not** (decision #22). `whisper`/`reranker`/`embed`
+  answer anyone reachable on `llm-backend` — the boundary is that network plus the absence of host ports. On
+  2026-09-19 the gateway side was measured rather than assumed: `/v1/embeddings` on `lan-litellm` with a bogus
+  bearer token → **401 `Invalid proxy server token passed`**, with no token → **401 `No api key passed in`**.
+  So only the master key or a real virtual key spends the gateway, and `api_keys: []` in `ai-allow` does **not**
+  mean “any key accepted”. What **HD-384** still owes is *scoping* (one key per consumer, per-key model routing
+  and limits), not authentication that is missing — and until it lands, the only key in play is the admin-grade
+  master key, which is why every HD-391 probe used it and none of them prove a scoped path.
+- **Session-side secret-hygiene slip, 2026-09-19 (HD-391 close-out):** a diagnostic probe printed a **partial
+  `LITELLM_MASTER_KEY` fragment** into a terminal transcript while resolving the vault item — separators masked,
+  roughly half the characters visible. The key value never entered git and the vault item is unchanged; **whether
+  to rotate it is the owner's call** (same class as **HD-233 / HD-234** — an admin-grade value reaching a
+  human-facing surface that is not a secret store; rotation procedure lives there). The mechanical rule this
+  teaches: a value read via `op read` is never printed, not even truncated to prove the read worked — print its
+  **length** and pipe it straight into the consumer.
 
 ## 9. Decision log
 | # | Decision | Date |
