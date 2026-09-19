@@ -333,6 +333,14 @@ carrying `ProxyJump`) already do. Treat a mgmt-leg address as a same-site admin 
 **not** work away from home today. Whether the seal is intentional or a fault is HD-398; the away-path
 decision is HD-397 and should follow whichever answer lands.
 
+### The tailnet is not observable from the VPS host
+
+**There is no `tailscale` CLI on the VPS** — its tailnet presence is the `traefik-tailnet` container's
+userspace sidecar, so `tailscale status` there returns nothing (and `sudo tailscale` is "command not
+found"). **Empty output from that host is not "no peers"** — it is the wrong instrument. Inspect the
+network from a tailnet-attached client, or from the Headscale control server itself (it runs as Docker on
+the home server, per §Two Layers above).
+
 ### Three traps, all hit while measuring this
 1. **A dead address is not a dead host.** `oldsrv`'s mgmt leg answered nothing (ICMP loss, port 22
    closed) while the box was up 12 days and fully reachable on its Home leg — including

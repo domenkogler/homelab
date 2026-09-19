@@ -198,10 +198,26 @@ verify(){ local host=$1 url=$2 tok=$3 label=$4 code
 # So "the edge returns 401 with the old bearer" was never a valid test. What IS checkable is that
 # each consumer's rendered env equals the vault value; and llm.ts.kogler.si is checked separately
 # below because that host bypasses LiteLLM and authenticates with THIS bearer.
-envhash(){ timeout 30 ssh "$1" "docker inspect $2 --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep '^OPENAI_API_KEY=' | cut -d= -f2- | tr -d '\\n'" 2>/dev/null | sha256sum | cut -c1-12; }
-say "  consumer env hash vs vault NEW ($(h "$NEW")) — a mismatch = that converge did not land:"
+# An audit read that FAILS must never be rendered as a verdict on the secret. `UNREADABLE` means
+# THIS STATION could not run the read; it says nothing about whether the rotation landed. Measured
+# 2026-09-19: the bare `ssh oldsrv` alias targets a management-leg address that is sealed from the
+# VPS tunnel (HD-398), so from off-LAN this leg read empty while the host was up and CORRECT on its
+# Home leg — an earlier build printed an empty hash and called it "host unreachable", which is both
+# under-specified and, against a dead alias, permanently true. Override the station path per run
+# without editing anything (address comes from the network SSOT, never hard-coded here):
+#   OLDSRV_SSH="-J vps ansible-admin@<oldsrv home address>" bash scripts/rotate-spark-llm-key.sh ...
+OLDSRV_SSH="${OLDSRV_SSH:-oldsrv}"
+envhash(){ # LAST arg = container; everything before it = the ssh target, deliberately word-split so
+  # an override like "-J vps user@host" works. (Taking $1 as the target silently broke this: a
+  # 3-word override put "-J" in $1, the jump host in $2 and the container in $3 — and the leg then
+  # reported UNREADABLE for a host that was up and correct. Unit-tested all three shapes.)
+  local c=${*: -1} tgt=${*:1:$#-1} out
+  out=$(timeout 30 ssh $tgt "docker inspect $c --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep '^OPENAI_API_KEY=' | cut -d= -f2- | tr -d '\\n'" 2>/dev/null)
+  [ -n "$out" ] && { printf '%s' "$out" | sha256sum | cut -c1-12; } || printf 'UNREADABLE'
+}
+say "  consumer env hash vs vault NEW ($(h "$NEW")) — a MISMATCH = that converge did not land:"
 say "    litellm      $(envhash vps litellm)"
-say "    lan-litellm  $(envhash oldsrv lan-litellm)   (empty hash = host unreachable, NOT a rotation failure)"
+say "    lan-litellm  $(envhash $OLDSRV_SSH lan-litellm)   (UNREADABLE = this station could not reach the host — say nothing about the secret; fix the station path per HD-397/398)"
 verify spark "http://localhost:8000/v1/models" "$NEW" "engine     NEW (want 200)"
 if [ -n "$SUPERSEDED" ]; then
   verify spark "http://localhost:8000/v1/models" "$SUPERSEDED" "engine     SUPERSEDED (want 401 — this is the proof)"

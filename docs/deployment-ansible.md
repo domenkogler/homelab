@@ -220,6 +220,20 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 # A service tag alone matches nothing; keep the role tag (union semantics).
 ```
 
+### Two ways a converge lies to you (measured 2026-09-19)
+
+1. **`-e ansible_host=<ip>` is a GLOBAL extra-var and hijacks `delegate_to`.** Used to reach one host's
+   alternate leg, a `delegate_to: pi` task connected to that override address instead: `ok=367 changed=52
+   failed=1`, the failure being a key-file check run on the WRONG host (the key existed on the Pi). Use
+   `--limit` **plus** a per-host `host_vars`/group var, never a global `-e`, to redirect one host.
+2. **`pgrep -f ansible-playbook` matches its own command line.** It reported "a converge is already
+   running" three separate times when nothing was running, because the pattern text was in the invoking
+   shell's argv. Check with `ps -eo args | grep -c '[a]nsible-playbook'` (bracket trick) instead.
+
+Corollary for any pre-flight: **a check that cannot distinguish "nothing running" from "I am running"
+is not a gate** — same class of failure as the green scoped converge and the `/health` wait in
+[deployment-ai-stack-secrets.md](deployment-ai-stack-secrets.md) §4a.
+
 ### Jump-host execution (hosts reachable only through the VPS)
 
 > **Which nodes need this, and what breaks off-LAN: the measured matrix is in
