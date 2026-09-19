@@ -21,6 +21,18 @@
 
 ---
 
+## Lane coordination — read before starting
+
+**Run this brief together with [`prompt-398.md`](prompt-398.md), in ONE session.** HD-398's answer *is* step 2 of §3 below, and both write the same section of [docs/network-vpn.md](docs/network-vpn.md); splitting them guarantees a conflict and hands an owner decision across a session boundary. **And do not run the hotspot re-measure (§3 step 5) while any other session has a converge in flight** — you will kill it mid-restart (the HD-370 failure) and the matrix reading will be meaningless.
+
+- **Docs this session owns:** [docs/network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when away · [docs/deployment-ansible.md](docs/deployment-ansible.md) §Jump-host execution.
+- **Do not touch:** `docs/services-ai.md`, `docs/services-ai-bench.md`, `IaC/ansible/templates/docker_services/**` — that is the HD-391 lane.
+- **Shared file, split by hunk:** `IaC/ansible/group_vars/home_servers.yml`. You add the top-level `ansible_ssh_common_args` key; HD-391 appends three registry lines near the `ollama` entry. Different hunks — land yours first if you can, and rebase if they beat you to it.
+- **todo.md:** edit only HD-397 (plus HD-398 / HD-392 if you are running the pair, as intended). Never renumber, never edit another lane's row, never re-add a row another lane deleted as done.
+- **Cadence:** `git pull --ff-only origin main` before you start **and** before every commit; land small validated slices instead of one big merge at the end. If `main` moved under you, merge it into your session branch, re-run `validate-all.sh`, then fast-forward.
+
+---
+
 ## 1. Mission + definition of done
 
 **Mission:** make every behind-NAT LAN host (`oldsrv`, `nas`, `pi`, `spark`) reachable by `ssh` and convergible by Ansible **from any network, with no ad-hoc flags and no laptop-local hacks**, and mark the genuinely on-site-only hosts as what they are.

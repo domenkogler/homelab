@@ -15,6 +15,18 @@
 
 ---
 
+## Lane coordination — read before starting
+
+**Do not run this as a standalone session — pair it with [`prompt-397.md`](prompt-397.md).** Why: most of this row is already-proven mechanism plus **one owner decision**, and its evidence half needs on-site mgmt link (§0.2) — as its own session it mostly idles and blocks. Paired, the session does: assemble the A/B decision → get the owner's answer → implement it as HD-397's leg switch → write the settled rule **once**.
+
+- **Docs:** [docs/network-vpn.md](docs/network-vpn.md) is the joint surface with HD-397 — write it once, covering both rows, rather than twice in two branches.
+- **Do not touch:** `docs/services-ai.md` / `docs/services-ai-bench.md` / `IaC/ansible/templates/docker_services/**` (HD-391's lane).
+- **If the owner picks B:** the change is yours (`IaC/ansible/group_vars/all/main.yml` → `wg_s2s_vps.allowed_ips`, derived entry only, never a literal) and the commit message must state plainly that this is an **owner-approved widening of the least-access boundary** — the next reader needs the mandate, not just the diff.
+- **todo.md:** this session closes **HD-398 and HD-392** — say so explicitly in the commit so nobody in the other lane re-adds either row.
+- **Cadence:** `git pull --ff-only origin main` before starting and before every commit; small validated slices; merge-then-`validate-all`-then-fast-forward if `main` moved.
+
+---
+
 ## 1. Mission + definition of done
 
 **Mission:** settle whether VLAN 99 being unreachable from the VPS tunnel is intentional or a fault, and make the repo say so out loud — either by recording the seal as policy and routing all off-LAN admin to the Home leg (HD-397), or by widening the two boundaries deliberately.

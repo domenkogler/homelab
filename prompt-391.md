@@ -27,6 +27,19 @@
 
 ---
 
+## Lane coordination — read before starting
+
+**Run this lane solo.** It is the long pole (authoring + repeated detached converges + on-box GPU verification whose numbers have to be transcribed accurately) and that cadence does not mix with the access/ACL doc work. It is **not blocked** by HD-397/HD-398 — §0.4 carries the working oldsrv path as it stands today.
+
+- **Files this session owns:** `IaC/ansible/templates/docker_services/{whisper,reranker,embed}/` · `IaC/ansible/group_vars/all/versions.yml` (the two new pins) · the three registry lines in `IaC/ansible/group_vars/home_servers.yml` (append near the `ollama` entry — the HD-397 lane edits a *different* hunk of this same file, the top-level `ansible_ssh_common_args` key) · [docs/services-ai.md](docs/services-ai.md) §3a/§4/§7 · [docs/services-ai-bench.md](docs/services-ai-bench.md) (deploy-measured additions only, no restatement).
+- **Do not touch:** [docs/network-vpn.md](docs/network-vpn.md) — the HD-397/398 lane owns it. If a reachability fact changed while you worked, put it in the commit message and let that lane write it.
+- **Converge etiquette:** your runs are long and detached. Before starting one, confirm nobody is doing a network experiment (the HD-397 hotspot pass kills converges mid-restart) and that no converge is already running — but **`pgrep -f ansible-playbook` is not a valid gate**, it matches its own argv. Better: look for the log file and the actual `ansible-playbook` process with `ps -eo args | grep -c '[a]nsible-playbook'`.
+- **todo.md:** only HD-391 (deleted when its list is empty) and trimming HD-369's superseded tail, which §6.3 of this brief explicitly authorizes. Never renumber or touch another lane's row.
+- **Cadence:** `git pull --ff-only origin main` before starting and before every commit — especially because a converge can run 10–30 min while `main` moves; merge, re-run `validate-all.sh`, then fast-forward.
+- **Never** converge or bench **spark** from a session whose own model is spark (incidents #3/#6). This row is oldsrv work; if you get pulled into spark-side work, take a different session.
+
+---
+
 ## 1. Mission + definition of done
 
 Author `whisper`, `reranker`, `embed` as first-class `docker_services` entries, deploy them on oldsrv, wire the LiteLLM catalog, and verify live: VRAM, three-way concurrency, real Slovenian STT, `dmesg` clean.
