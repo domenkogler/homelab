@@ -532,10 +532,9 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 > **Depends on:** Phase 1 (VPS LiteLLM + the wildcard cert), Phase 1.5 (the WG S2S tunnel is the transport for
 > `llm.kogler.si`), Phase 3 (oldsrv LiteLLM + the pinned-AI tier). **It was not in this ledger at all until
 > 2026-09-19** — the host, its playbook (`playbooks/spark.yml`, 7 roles) and its group_vars all shipped in
-> September while the phase list stopped at 10. **Numbering warning:** the runbook numbers this host **§Phase 5**
-> (it has its own sequence), so "Phase 5" means different things in the two files — the spark runbook is
-> `deployment-manual.md` §Phase 5, this ledger's is Phase 4b. `docs/hardware-spark.md` + `docs/services-ai.md` §2
-> are the SSOTs;
+> September while the phase list stopped at 10. The runbook uses the **same** numbering (its spark section is
+> §Phase 4b — it was §Phase 5 until the two documents were unified on 2026-09-19).
+> `docs/hardware-spark.md` + `docs/services-ai.md` §2 are the SSOTs;
 > `todo.md` HD-335/336/337/369/373/386/391/393 is the status record.
 > **1Password prerequisites:** `spark-llm_api` (engine bearer — the SAME string both LiteLLM instances send
 > upstream, so rotation is a coupled window: `scripts/rotate-spark-llm-key.sh`) and the human-vault `spark_login`
@@ -598,7 +597,7 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
       a display + keyboard (that is where `spark_login` is set), and there is **no out-of-band console** afterwards —
       a wedged box (the documented unified-memory wedge pattern) is recovered by **power-cycling it at the PSU**,
       which is also why the IaC masks sleep/hibernate (HD-364) instead of trusting defaults. Confirm the 240 W PSU
-      sits on covered UPS outlets. · [hardware-spark.md](docs/hardware-spark.md) · runbook: [deployment-manual.md](deployment-manual.md) §Phase 5
+      sits on covered UPS outlets. · [hardware-spark.md](docs/hardware-spark.md) · runbook: [deployment-manual.md](deployment-manual.md) §Phase 4b
 
 ---
 

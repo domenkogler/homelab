@@ -302,3 +302,37 @@ PERMANENT FIX: the converge-template/role vlan-99 memberships are correct (tagge
 broken state came from a prior partial converge — monitor the first converge after any future bridge change.
 *(On 2026-09-08 the direct-Mgmt path from the laptop (no hop) was verified — `router`/`switch`/`oldsrv` SSH
 work direct on .99; this incident is historical.)*
+
+## CAPsMAN steady-state contract (`wifi-qcom-ac`) — HD-232 / HD-308 / HD-312
+
+> The imperative apply procedure lives in [deployment-manual.md](../deployment-manual.md) §1.5.4; this is the
+> **why**, so a future change does not re-derive it from a broken WLAN. Every item below was learned by breaking
+> the live network.
+
+1. **The manager has to be enabled.** `/interface wifi capsman set enabled=yes` is the FIRST line of the rendered
+   steady-state. Config objects existing is not enough: with the manager at `enabled=no` no AP ever provisions, and
+   the symptom is "APs not functioning" with a clean-looking config.
+2. **wifi-qcom-ac CAPs cannot honour `datapath vlan-id`.** Configs use a named datapath `DP_AC` (bridge-lan, **no**
+   vlan-id). The per-SSID VLAN rides the CAP's **bridge** instead: pvid on the provisioned slave interface + the
+   uplink `ether1` tagged.
+3. **Radios must be told to be CAPs.** Each radio needs `configuration.manager=capsman` + `disabled=no`, and the CAP
+   needs `slaves-static=yes` (carried by `ap_initial.rsc.j2`). A bare `cap set enabled=yes` leaves the radio a
+   locally-configured master that never joins — the `MBX` state.
+4. **AP identities are descriptive and rendered per AP** (`ap-spalnica`, `ap-dnevna`, `ap-spare`) via
+   `ap_initial-<name>.rsc`; do not hand-name them on the device.
+5. **Three SSIDs, band-split by provisioning rule** (owner decision 2026-09-03, HD-312): `Kogler` (both bands),
+   `Kogler IOT` (**2.4 GHz only**), `Kogler guest` (**5 GHz only**) — expressed as `band:` per SSID in the
+   `routeros_capsman_ssids` SSOT. `Kogler IOT-WAN` and `Kogler kids` were **deleted** (their configs and security
+   profiles are gone; kids-control became a firewall MAC-list).
+6. **The switch must carry the wifi VLANs tagged on the AP ports.** An AP port that is only an untagged VLAN-99
+   access drops the CAP's per-SSID tagged frames at switch ingress: clients associate, never get DHCP ("phone
+   disconnects"). Encoded in `wifi_ports` (`group_vars/switch.yml`) + the converge rsc — ether11/ether12 carry
+   10+20+30 tagged.
+7. **A new slave SSID does not materialize on a provisioning change alone.** After adding a slave to a rule, kick
+   the manager (`enabled=no` then `=yes`) so each CAP re-pulls and creates the slave interface, then add the bridge
+   VLAN entry (`/interface bridge vlan add vlan-ids=<v> tagged=ether1 untagged=<slave>`) and the port pvid. See
+   `ap_guest_delta.rsc.j2` for the guarded, idempotent form.
+8. **Flash persistence:** the `.pub` files and anything else that must survive a reboot go under `flash/` on the
+   switch and the APs — files written at device root are wiped on reboot (HD-304). RB4011 root is fine.
+
+VLAN landing per SSID: `Kogler` → 10, `Kogler IOT` → 20, `Kogler guest` → 30.

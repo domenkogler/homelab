@@ -1,13 +1,45 @@
 # deployment-manual.md — Redeployment Runbook (True Zero → Live)
 
-> **Role:** Imperative, phase-by-phase **procedure** for redeploying the homelab from true zero —
-> exact commands, panel settings, and the verification evidence each step must produce before the
-> next step runs. Deliberately free of progress markers and fix history: progress checkboxes live in
-> [deployment-tasks.md](deployment-tasks.md) (ledger), as-built evidence in the owning-doc ✅ lines
-> + the git commit of the change. If reality diverges permanently, fix the procedure here (or the
-> owning spec) in the same change and record it in the owning doc/commit.
+> **Charter (what belongs here and what does not).** This file is the **imperative procedure** for rebuilding
+> the homelab from nothing: the ordered commands, panel settings and ✔-evidence checks a human executes. It
+> carries **no knowledge, no status and no history** — no "why we chose X", no ✅/⏳ markers, no dated fix
+> recaps, no as-built state. Those live in exactly one place each:
+>
+> | Content | Home |
+> |---------|------|
+> | **Procedure** — ordered commands, panel settings, evidence checks | **this file** |
+> | **Knowledge** — specs, designs, decisions, root causes, as-built state | the owning `docs/*.md` |
+> | **Progress** — what is done / what is next | [deployment-tasks.md](deployment-tasks.md) (ledger) |
+> | **Lifecycle of a work item** | [todo.md](todo.md) |
+> | **What one change actually did** | the git commit |
+>
+> When a step needs a fact to make sense, it **links the owning doc** instead of restating it. If reality
+> diverges permanently, fix the procedure here *and* the owning spec in the same change — the commit records it.
+>
+> **Human-only steps are tagged `**[MANUAL]**`.** Ansible commands appear here because they ARE the deploy
+> procedure (the GitOps deploy button of ledger Phase 5 does not exist yet) — a from-zero rebuild is a human
+> pressing keys, and this is the sequence they press them in.
+>
+> **Phase numbering follows the ledger exactly.** `spark` is **Phase 4b** in both documents.
+>
 > **Linked from:** [docs/index.md](docs/index.md), [docs/deployment.md](docs/deployment.md),
 > [deployment-tasks.md](deployment-tasks.md), [CONVENTIONS.md](CONVENTIONS.md) §4
+
+---
+
+## Phase index (true-zero order)
+
+| § | Phase | Host / scope | Owning spec |
+|---|-------|--------------|-------------|
+| 0 | Management runner (WSL Debian) | laptop | [deployment-ansible.md](docs/deployment-ansible.md) |
+| 0.5 | VPS re-provision (netcup SCP) | vps | [services-vps.md](docs/services-vps.md) |
+| 1 | VPS service stack | vps | [services-vps.md](docs/services-vps.md), [services-authentik.md](docs/services-authentik.md) |
+| 1a | Host installs + ZFS pool bootstrap | nas, oldsrv | [hardware-nas.md](docs/hardware-nas.md), [hardware-oldsrv.md](docs/hardware-oldsrv.md) |
+| 1.5 | Network redo cutover | RB4011, CRS328, APs | [network-ops.md](docs/network-ops.md), [network-vlans.md](docs/network-vlans.md) |
+| 2 | NAS provision + UPS master | nas | [hardware-nas.md](docs/hardware-nas.md), [hardware-ups.md](docs/hardware-ups.md) |
+| 3 | oldsrv services + first-boot tiers | oldsrv | [hardware-oldsrv.md](docs/hardware-oldsrv.md), [services-ai.md](docs/services-ai.md) |
+| 4 | Pi install + HA primary | pi | [deployment-pi-provision.md](docs/deployment-pi-provision.md) |
+| 4b | DGX Spark first-boot + onboarding | spark | [hardware-spark.md](docs/hardware-spark.md) |
 
 ---
 
@@ -22,33 +54,15 @@
   commands to wsl.exe.
 - **Ansible-run semantics** (sync gate, `--tags` surgical runs, venv interpreter): see
   [scripts/README.md](scripts/README.md) + [docs/deployment-ansible.md](docs/deployment-ansible.md) §Tags & surgical runs.
-- **Live converges run DETACHED (HD-370 lesson 2026-09-15):** a full `docker_services` converge
-  takes **10–30+ min**. Run it in the background and poll — a foreground run behind an outer
-  timeout gets killed **mid-restart**, leaving sibling containers `Exited` (live: VPS
-  `tailscale-sidecar Exited (128)` after a kill) and the next run's restart guard fails
-  (`cannot join network namespace of a non running container`). Incantation from the WSL runner:
+- **Run every converge DETACHED and verify the artefact, not the recap.** Foreground converges get killed
+  mid-restart; a new service's tasks are skipped silently unless its own name tag is included. The two
+  incantations and the reasoning: [deployment-ansible.md](docs/deployment-ansible.md) §Long converges run
+  detached (HD-370 / HD-379).
   ```bash
-  bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services \
+  bash scripts/ansible-run.sh playbooks/<playbook>.yml --tags docker_services,<service-name> \
       </dev/null > /tmp/converge-"$(date +%s)".log 2>&1 &
-  tail -f /tmp/converge-*.log    # poll until PLAY RECAP
+  tail -f /tmp/converge-*.log        # poll until PLAY RECAP
   ```
-  Re-running the same playbook is idempotent (the guard restarts the stack once siblings are Up).
-  **Only `--check` is safe in the foreground.**
-- **First deploy of a NEW service needs the service's OWN tag (HD-379 lesson 2026-09-16):** a
-  service's deploy tasks carry `tags: "{{ svc.name }}"`
-  (`roles/docker_services/tasks/deploy-service.yml`), so `--tags monitoring,docker_services`
-  renders the loop and **silently skips every inner task** — the run comes back `failed=0` having
-  deployed nothing (only the `docker_services`-tagged teardown/teardown-adjacent tasks execute).
-  Include the name:
-  ```bash
-  bash scripts/ansible-run.sh playbooks/spark.yml --limit spark.kogler.si \
-      --tags monitoring,docker_services,<service-name> \
-      </dev/null > /tmp/converge-"$(date +%s)".log 2>&1 &
-  ```
-  **`rc=0` is not proof of deploy** — verify the artefact, not the recap: `docker ps` for the
-  container, and for telemetry a backend query (e.g. VM `{job="dcgm"}`). Live case: the first
-  `spark-dcgm` converge reported success with no container on the box; the second (with the tag)
-  deployed it in ~30 s.
 
 ---
 
@@ -156,65 +170,20 @@ there is no `domen` account on managed hosts.
 ✔ Once a provisioned host exists (Phase 0.5): `ssh vps whoami` and `ssh vps-ansible whoami` both
 return `ansible-admin` with no password prompt.
 
-### 0.4b Windows-side GitHub SSH auth + commit signing *(one-time; HD-265 win companion)*
+### 0.4b Windows-side GitHub SSH auth + commit signing `[MANUAL]` *(one-time)*
 
-> Handled by [scripts/git-bootstrap-win11.sh](scripts/git-bootstrap-win11.sh) (`--ssh-auth`, idempotent). The
-> Windows desktop laptop differs from the WSL runner: the **1Password desktop app** owns the GitHub
-> SSH keys (`GitHub auth` + `GitHub sign` items) and serves them over the Windows named pipe
-> `\\.\\pipe\\openssh-ssh-agent`. There is **no `~/.ssh/config` `Host github.com` block and no
-> `~/.1password/agent.sock`** on Windows — the CLI-only `op` key-pull path is Linux/WSL-only.
->
-> What this does (idempotent):
-> 1. Points git at **Windows OpenSSH** — `core.sshCommand = C:/Windows/System32/OpenSSH/ssh.exe` in
->    `.gitconfig-windows` — so git reaches the named-pipe agent automatically. Removing the bogus
->    `-I …/op-ssh-sign.dll` and a dead `IdentityAgent ~/.1password/agent.sock` is part of it (that DLL
->    path does not exist on this laptop; the real signer is
->    `~/AppData/Local/Microsoft/WindowsApps/op-ssh-sign.exe`).
-> 2. Ensures `.gitconfig-windows` has `gpg.ssh.program` set to that desktop signer.
-> 3. Flips `origin` HTTPS→SSH so the `.gitconfig-github` includeIf (`gpg.format=ssh` /
->    `commit.gpgsign` / `user.signingkey`) fires.
-> 3. Flips `origin` HTTPS→SSH so the `.gitconfig-github` includeIf (`gpg.format=ssh` /
->    `commit.gpgsign` / `user.signingkey`) fires.
->
-> ⚠ **Signing gotcha (live 2026-09-07):** the 1Password `op-ssh-sign.exe` resolves the signing key by its
-> **public-key string** (`ssh-ed25519 AAAAC3…` as in `.gitconfig-github`), so a repo-local override of
-> `user.signingkey` to a **private-key FILE path** (`C:/Users/domen/.ssh/github_signing`) makes it fail with
-> `error: 1Password: invalid ssh public key` (it parses the private PEM as a pub). Fix: repo-local
-> `git config user.signingkey "ssh-ed25519 <pub-string>"` (the same string the includeIf sets) — never the
-> private path. Verified: a signed commit succeeds via `op-ssh-sign` once `signingkey` is the pub-string.
-> The `.pub` halves (`github_signing.pub`/`github_auth.pub`) should exist in Windows `~/.ssh` for the
-> agent lookup; the private halves stay in WSL `~/.ssh`.
->
-> ⚠ **Runner networking (live 2026-09-07 — NAT + auto-resolv is the durable, network-type-independent state):**
-> WSL2's `mirrored` mode can wedge (eth0 ARP `FAILED` for the gateway, `No route to host` even after
-> `wsl --shutdown`, while Windows itself is healthy), and the older **Bridged** topology (`networkingMode=Bridged`
-> on `vmSwitch=VLAN-Switch`) **pins `eth0` to the homelab static IP + the vSwitch to a wired NIC** — on WiFi or a
-> mobile hotspot that NIC has no carrier → `eth0` comes up with NO address and NO route (`Network is unreachable`)
-> and the hardcoded homelab `resolv.conf` points at unreachable DNS. The **reliable fix (replaces the bridged
-> route-through script) is `scripts/wsl-nat-resolv.ps1`** (admin, idempotent): it sets `.wslconfig` →
-> `networkingMode=Nat` (NOT `default` — WSL accepts `Nat`), drops `generateResolvConf=false` from `/etc/wsl.conf`
-> so WSL regenerates `/etc/resolv.conf` every boot from the Windows/default-switch resolver, and disables the
-> static `10-eth0.network` unit.
->
-> **2026-09-18 addition — make the plain `*.kogler.si` names resolve in WSL (Tailscale MagicDNS):** with
-> `generateResolvConf=false` (above), WSL keeps a **static** `/etc/resolv.conf` — and the default WSL
-> resolver only knew the Windows forwarder, which answers `*.ts.kogler.si` but NOT the plain `*.kogler.si`
-> (that namespace lives in MagicDNS, routed via NRPT only for `.ts` + CGNAT reverse zones). To fix, put
-> `100.100.100.100` (MagicDNS loop) **first** in `/etc/resolv.conf`, then the Windows forwarder, e.g.:
-> ```
-> nameserver 100.100.100.100
-> nameserver <Windows NAT forwarder — the address WSL auto-generates, e.g. the NAT gateway WSL prints in `/etc/resolv.conf` at boot (10.x — never hardcode)>
-> search ts.kogler.si kogler.si
-> ```
-> The Windows-side equivalent (so `Resolve-DnsName llm.kogler.si` works in Windows too):
-> `netsh interface ipv4 add dnsservers name="Tailscale" address=100.100.100.100 validate=no` (elevated).
-> Both are idempotent; with Tailscale off the loop is unreachable and resolution falls through to the
-> forwarder — normal internet keeps working. (HD-389)
- Net effect: **Debian follows whatever network Windows is on** — at home the
-> homelab DHCP chain, on a hotspot the hotspot's DNS — with zero per-network edits. Re-run the script any time
-> to restore the same state (it skips the WSL restart when nothing changed). Everything (git push, DNS, op vault,
-> ping) works under NAT on any network. The old `wsl-vlan-trunk.ps1` bridged/Mgmt-99 route-through only worked
-> on the wired home LAN and is superseded.
+```powershell
+bash scripts/git-bootstrap-win11.sh --ssh-auth      # idempotent
+```
+
+✔-evidence: `git ls-remote git@github.com:<owner>/homelab.git HEAD` succeeds over SSH, and a test
+`git commit -S` is signed without a passphrase prompt.
+
+The Windows desktop side differs from the WSL runner: the 1Password **desktop** app owns the GitHub keys
+(`GitHub sign`, `GitHub auth`) over the Windows named-pipe agent, and signing resolves by the **public-key
+string**, not a file path. Why each config line in the script is what it is — and the two failure modes
+(`invalid ssh public key`, WSL networking wedges) — is in
+[deployment-ansible.md](docs/deployment-ansible.md) §Windows/WSL runner host facts.
 
 ---
 
@@ -286,6 +255,327 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 
 ---
 
+## Phase 1 — Deploy the VPS service stack
+
+> Everything below is a step the playbook does **not** perform: first-login wizards, panel settings and the
+> manual swaps. As-built state and progress are not tracked here (ledger + owning docs).
+
+### 1.1 Preconditions
+
+- Phase 0 runner ready (`op` token readable; canonical key); Phase 0.5 VPS reachable as
+  `ansible-admin@vps.kogler.si`.
+- **Sync gate before EVERY run** (HD-212): whole-tree md5 compare Windows↔WSL must match.
+- Vault coverage: `bash scripts/check-vault-items.sh` → seed gaps via
+  `scripts/provision-vault.sh --create --yes` or manually. Placeholder-then-swap items a from-zero deploy
+  still needs a human for: `forgejo_api` (minted in the UI, step 1.7) and the app keys listed as
+  placeholder-then-swap in [deployment-secrets.md](docs/deployment-secrets.md) §Master Secret List. The catalog
+  is the authority — do not hand-maintain a list here.
+
+### 1.2 First deploy
+
+```bash
+cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible-run.sh playbooks/vps.yml"
+```
+
+Anchor until green (`failed=0`).
+
+### 1.3 Publish public DNS
+
+```bash
+cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible-run.sh playbooks/dns.yml"
+```
+
+Runs from home egress (token IP filter). Records: `vps` A/AAAA + apex/app CNAMEs
+(SSOT: `roles/cloudflare_dns/vars/main.yml`; `ha` withheld until Phase 4).
+Note: netcup resolvers negative-cache NXDOMAIN past record TTL — fresh records may take
+minutes to resolve locally while authoritative answers are immediate.
+
+### 1.4 Wildcard certificate
+
+Traefik requests `*.kogler.si` + apex via DNS-01 automatically once the Cloudflare token is
+valid from the VPS. Evidence of success:
+
+- `traefik-certs-dumper` logs `certs-rename: installed kogler.si.pem + kogler.si-key.pem`
+- `/opt/traefik/certs/kogler.si{,-key}.pem` exist (consumer pull contract)
+
+If issuance loops: read traefik logs. `403 · 9109` = token IP filter (use EXACT IPs, never
+CIDR — see [deployment-secrets.md](docs/deployment-secrets.md) `cloudflare_api`).
+`429` from Let's Encrypt = 5 failed authorizations/identifier/hour — stop restarting, let the
+window slide, then one clean restart. DNS-01 propagation checks query the CONTAINER's
+resolvers — netcup negative cache requires the pinned `dns: [1.1.1.1, 8.8.8.8]` (already in
+traefik + headscale services).
+
+### 1.4b Tailnet dashboard edge (HD-135b follow-up) — tailnet-only admin dashboards
+
+Converged by Ansible like every other compose service (`docker_services` row `traefik-tailnet`
+in `group_vars/vps.yml`, enabled). Imperative facts a from-scratch deploy needs:
+
+1. **Seed the tailscale auth key BEFORE the first converge** (fail-loud render if absent):
+   `Homelab-ansible` item `tailscale-sidecar_api`, field `credential` = a headscale preauth key
+   scoped to `tag:sidecar` — mint on the VPS:
+   ```bash
+   docker exec headscale headscale preauthkeys create --user 2 --tags tag:sidecar --reusable --expiration 8760h -o json
+   ```
+2. **`tailnet_sidecar_ip`** (`group_vars/vps.yml`) must hold the sidecar node's tailnet IPv4
+   (read from `headscale nodes list` after the first join — value per SSOT/`tailnet_sidecar_ip`). Empty →
+   headscale renders no `extra_records` (dashboards won't resolve on the tailnet).
+3. **Certificate pairs:** the issuer requests `*.kogler.si` AND `*.ts.kogler.si`
+   (Traefik dash router `tls.domains[0]/[1]`); `certs-rename.sh` copies both pairs to
+   `/opt/traefik/certs/` (`kogler.si.pem` + `ts.kogler.si.pem`). The tailnet edge serves both
+   from the DEFAULT store — no per-edge ACME.
+4. **Serve passthrough:** the sidecar's `TS_SERVE_CONFIG` (`serve.json`) runs
+   `tailscale serve --tcp=443 → 127.0.0.1:443`; the edge shares traefik-tailnet's netns
+   (`network_mode: service:traefik-tailnet`) — recreate the PROJECT together (compose
+   down+up) if the netns goes stale, then re-apply the serve config.
+
+5. **Tearing down a service whose compose project still exists on the host is a manual step** — the role's
+   teardown only removes projects marked `enabled: false`; a project whose files remain but that no converge
+   owns is never touched. Form (worked example: the retired `dsh` / `pi-dev` harnesses):
+   ```bash
+   docker compose --project-directory /opt/dsh down --remove-orphans
+   docker compose --project-directory /opt/pi-dev down --remove-orphans
+   docker rm -f dsh dsh-tailscale pi-dev pi-dev-tailscale 2>/dev/null; true
+   docker image prune -f   # or rmi the specific legacy tags
+   sudo rm -rf /opt/dsh /opt/pi-dev
+   ```
+
+Verify from a tailnet device: `https://stats.kogler.si` (forward-auth → SSO) and
+`https://stats.ts.kogler.si` (ACL-gated, tailnet-only).
+
+### 1.4c Technitium primary admin bootstrap + seed (VPS, HD-324)
+
+A from-scratch VPS deploy starts Technitium with a **default `admin` user whose password is
+`admin`** (the app seeds it on first boot — the container regens `auth.config`/`cache.bin`
+from the image, so deleting them does NOT reset it; that's why the seed role's "empty
+auth.config → bootstrap" premise only works on a truly-fresh instance). To make the
+`technitium-seed` role (which logs in with the 1P `technitium_login` item) succeed, set the
+admin to the 1P value via the documented API:
+
+```bash
+# on the VPS (creds never leave it):
+CTR_IP=$(docker inspect technitium --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' | awk '{print $1}')
+TOK=$(curl -sS -X POST "http://$CTR_IP:5380/api/user/login" --data-urlencode 'user=admin' --data-urlencode 'pass=admin' | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+curl -sS -X POST "http://$CTR_IP:5380/api/user/changePassword" \
+  -H "Authorization: Bearer $TOK" \
+  --data-urlencode 'pass=admin' --data-urlencode 'newPass=<1P technitium_login password>'
+```
+
+Then run the seed converge:
+
+```bash
+bash scripts/ansible-run.sh playbooks/vps.yml -l vps -t docker_services -e docker_services_scope=technitium
+```
+
+The seed creates the `kogler.si` zone + the split-horizon A records (`ha`/`dns-pi` → VIP,
+dashboards → `tailnet_sidecar_ip`). Verify: `dig @159.195.111.66 {ha,dns-pi,stats,logs,csui,sec,traefik,auto}.kogler.si`
+all answer. The **default `admin`/`admin` is retired after this** (verify it FAILS). A redeployer
+must also remember the `dns` router needs `traefik.http.services.dns.loadbalancer.server.port="5380"`
+(else the post-SSO leg 502s — Traefik auto-picks port 53).
+
+**Pi tertiary — same admin-align + seed.** The container is named `technitium-pi` (not `technitium`) and sits on
+two networks, so target it by that name and take the **first** IP:
+
+```bash
+# on the Pi (creds never leave it):
+CTR_IP=$(sudo docker inspect technitium-pi --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}\n{{end}}' | awk 'NR==1{print $1}')
+TOK=$(curl -sS -X POST "http://$CTR_IP:5380/api/user/login" --data-urlencode 'user=admin' --data-urlencode 'pass=admin' | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+curl -sS -X POST "http://$CTR_IP:5380/api/user/changePassword" -H "Authorization: Bearer $TOK" --data-urlencode 'pass=admin' --data-urlencode 'newPass=<1P technitium_login password>'
+```
+
+Then the Pi seed converge (idempotent):
+
+```bash
+bash scripts/ansible-run.sh playbooks/raspberry_pi.yml -e docker_services_scope=technitium-secondary
+```
+
+Verify: `dig @<Pi Home IP per SSOT> ha.kogler.si` → VIP and `dns-pi.kogler.si` → VIP, and
+`curl -s -o /dev/null -w '%{http_code}' http://<pi>:5380` → 200 (the publish is IaC-managed).
+
+**oldsrv secondary — same admin-align + seed.** The container is `technitium-oldsrv` (instance `secondary`) and
+is **not published on 5380** — the API answers only on its overlay IPs. It also has no `curl`/`python`, and host
+`curl` mis-reads Technitium's chunked responses, so copy a bash `/dev/tcp` HTTP helper into the container:
+
+```bash
+# on oldsrv — copy a bash /dev/tcp HTTP client into the container first
+# (GET/POST + Content-Length + chunked body decode; no curl dependency):
+cat > /tmp/tech_login.sh <<'OUTER'
+#!/bin/bash
+host=127.0.0.1; port=5380; method=$1; path=$2; body="$3"
+[ -n "$body" ] && clen=$(printf '%s' "$body" | wc -c) || clen=0
+req="$method $path HTTP/1.1\r\nHost: $host\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: $clen\r\nConnection: close\r\n\r\n$body"
+exec 3<>/dev/tcp/$host/$port; printf '%b' "$req" >&3
+out=$(timeout 5 cat <&3 2>/dev/null)
+printf '%s' "$out" | sed -n '/^\r\{0,1\}$/,$p' | tail -n +2 | perl -0777 -ne '$b=$_; $b =~ s/^[0-9a-fA-F]+\r?\n//mg if $b =~ /^[0-9a-fA-F]+\r?\n/; print $b'
+OUTER
+docker cp /tmp/tech_login.sh technitium-oldsrv:/tech_login.sh
+# login as the DEFAULT admin/admin (still bootstrapped on a fresh /etc/dns) -> token
+TOK=$(docker exec technitium-oldsrv bash /tech_login.sh POST "/api/user/login" "user=admin&pass=admin" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+# set the admin to the 1P technitium_login value (creds never leave oldsrv)
+docker exec technitium-oldsrv bash /tech_login.sh POST "/api/user/changePassword?token=$TOK" "pass=admin&newPass=<1P technitium_login password>"
+```
+
+Then the oldsrv seed converge (idempotent):
+
+```bash
+bash scripts/ansible-run.sh playbooks/home_servers.yml -e docker_services_scope=technitium
+```
+
+Verify: `dig @127.0.0.1 {ha,dns-pi,stats,logs,csui,sec,traefik,auto,vps,home,vpn,dns,sso,file,foto,git,bin,ai,office,pdf,chat,matrix,drop}.kogler.si` on oldsrv all answer (ha/dns-pi → VIP, dashboards → `tailnet_sidecar_ip`, public → VPS public IP). The default `admin`/`admin` is retired after this. **Container-IP reach caveat:** if the seed's `_tech_api` connect fails with "No route to host", check for **orphaned duplicate-subnet docker bridges** (stale `br-*` from a docker recreate that steal the kernel route — `docker network ls` IDs won't match `ip link` bridge IDs); `sudo ip link del br-<orphan>` restores host→container routing.
+
+### 1.5 Authentik first login
+
+- `akadmin` / `authentik_login` password — works FIRST TRY on a fresh install (bootstrap env
+  is pinned in compose and applies at user creation).
+- Enrol WebAuthn + TOTP when prompted. Optional: personal named admin for daily use.
+- **Human-user policy:** every new HUMAN user is created as **Internal
+  type** — never External (federated sources) or Service account (machine/API identities). Full
+  setup per user: real name + real email · Active ON · membership in the **`family` group** (the
+  NAS user-sync glue reads exactly this group, D5/HD-131) · WebAuthn + TOTP enrolled at first
+  login. Admin capability stays group-based (`authentik Admins`, where break-glass `akadmin`
+  lives) — daily-driver users NEVER join it.
+- Blueprint sanity: application count = 8 OIDC (`ks-oidc`) + 9 edge (`ks-forward-auth`);
+  outpost “authentik Embedded Outpost” lists all 9 edge providers.
+
+### 1.6 Forward-auth routes
+
+Unauthenticated requests to protected hosts redirect to `sso.kogler.si`. Protected set +
+exclusions are declared by router labels (source of truth) and mirrored in
+`ks-forward-auth.yml` — add a proxy provider there when a new service joins the tier.
+
+### 1.7 Forgejo one-time wizard
+
+Browse to `git.kogler.si` → authentik login → installer:
+
+| Field | Value |
+|---|---|
+| Database Type | PostgreSQL |
+| Host | `forgejo-db:5432` |
+| Name / Username | `forgejo` / `forgejo` |
+| Password | 1Password `forgejo_db` → `password` |
+| SSL Mode | Disable |
+| Server Domain | `git.kogler.si` (pre-filled via env) |
+| Disable self-registration | ON |
+| Allow registration only via external services | ON (OIDC JIT provisioning) |
+| Administrator Account | expand + set personal admin |
+
+**Mail section** (leave empty; SMTP added post-green via app.ini — SMTP2Go port **2525**, netcup blocks 587):
+
+| Field | Value |
+|---|---|
+| SMTP Host / SMTP Port / Send email as / SMTP Username / SMTP Password | *(empty)* |
+| Require email confirmation for registration | false |
+| Enable email notifications | false |
+
+**Server & third-party settings:**
+
+| Field | Value |
+|---|---|
+| Disable third-party | ON |
+| Gravatar avatar sources | OFF |
+| Libravatar federated lookup | OFF |
+| Enable OpenID user login | ON |
+| Allow registration only via external services | **ON** ← OIDC JIT provisioning (HD-148); local signup hidden anyway |
+| Enable OpenID-based self-registration | ON |
+| Require CAPTCHA for user registration | OFF |
+| Require sign-in to view pages | OFF (edge forward-auth already gates every request) |
+| Default hide email addresses | false (optional: ON for privacy) |
+| Default allow organization creation | ON |
+| Default enable time tracking | ON |
+| Hidden email domain | `noreply.localhost` |
+| Password hashing algorithm | `pbkdf2_hi` |
+
+**Administrator account:**
+
+| Field | Value |
+|---|---|
+| Administrator username | `domen` |
+| Email | `domen@kogler.si` |
+| Password + Confirm | personal password (stored in 1Password) |
+
+⚠ The installer form does NOT read the `FORGEJO__*` env overlay — type DB values manually.
+After install: Forgejo Admin → Applications → create API token (repo read/write) → paste into
+1Password `forgejo_api` → `docker compose up -d renovate` (in `/opt/renovate`) or next run.
+
+### 1.8 Kopia server seed *(fresh volumes only)*
+
+If `/srv/docker/kopia-server/config/` is empty:
+
+```bash
+# 1) sftp_key — backup-box PRIVATE key (Hetzner-SB-Backup 1P item), unencrypted:
+sudo nano /srv/docker/kopia-server/config/sftp_key && sudo chmod 600 /srv/docker/kopia-server/config/sftp_key
+
+# 2) known_hosts — ssh-keyscan FROM THE VPS HANGS SILENTLY on box:23 (netcup egress quirk).
+#    Take the entry from the LAPTOP's known_hosts instead:
+#    laptop: ssh-keygen -F "[u653424.your-storagebox.de]:23"  -> copy the matching lines
+#    into /srv/docker/kopia-server/config/known_hosts (mode 644).
+
+# 3) Pre-create the repo dir ON THE BOX — Hetzner SFTP returns generic SSH_FX_FAILURE for
+#    kopia's create-path even when the dir pre-exists (kopia_sftp_path is RELATIVE in IaC):
+sudo ssh -i /srv/docker/kopia-server/config/sftp_key -p 23 \
+  -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/srv/docker/kopia-server/config/known_hosts \
+  u653424@u653424.your-storagebox.de "mkdir kopia"
+
+# 4) Restart and verify (expect repository-creation lines, no SSH_FX_FAILURE):
+sudo docker restart kopia-server && sleep 30 && sudo docker logs --tail 10 kopia-server
+```
+
+**TLS:** the server boot generates a persisted self-signed
+`tls.crt`/`tls.key` under the config bind (one-time) and serves **HTTPS** on :51515 — the oldsrv
+agent rejects plain-http. The container writes `tls-sha256` (the trust-anchor fingerprint); the
+`kopia-fingerprint-sync.yml` docker_services task seeds it into 1Password
+(`kopia-server_fingerprint`) and the agent pins it. On a **fresh volume** all of this happens
+automatically on first start — no manual step; if you ever need to fingerprint-check:
+`sudo cat /srv/docker/kopia-server/config/tls-sha256`.
+
+**Client auth — created automatically by the boot script; verify only:**
+kopia's server-auth model needs the backup client's identity (`oldsrv-agent@oldsrv.kogler.si`) to
+exist BOTH in the htpasswd (`--htpasswd-file` = allowed `user@hostname` entries; the boot script
+writes the server-admin entry + `kopia_agent_user`) AND as a repo user (`kopia server users add`)
+whose password equals the **REPO MASTER password** (`kopia_password` — a non-repo-password user is
+`access denied` at the session stage even with a matching htpasswd entry.
+The boot script provisions/re-seeds the repo user idempotently (add → set fallback). If the agent
+reports `access denied for oldsrv-agent@oldsrv.kogler.si`:
+```bash
+sudo docker exec kopia-server kopia server users add oldsrv-agent@oldsrv.kogler.si \
+  --user-password="$(sudo docker exec kopia-server printenv KOPIA_PASSWORD)"
+sudo docker restart kopia-server
+```
+
+`kopia_sftp_path` stays RELATIVE (`kopia`) — absolute paths break create-path on Hetzner.
+If the crowdsec volume is also fresh: regenerate the bouncer key (`sudo docker exec crowdsec
+cscli bouncers add traefik-bouncer -o raw`) and update 1Password item `crowdsec-bouncer_api`
+→ re-run vps.yml (re-renders middleware).
+
+### 1.9 Verification
+
+Full checklist: [deployment-tasks.md](deployment-tasks.md) Phase 1 Verify block. Quick spot
+set: all forward-auth routes return 302→sso; vpn + ai return 200; wildcard cert served on
+every host; `docker ps` shows no Restarting except documented owner-gated stragglers;
+nvme usage <80%.
+
+First-boot notes:
+- **onlyoffice-docs** may sit at edge-502 for >30 min while its entrypoint initializes
+  (nothing listens on :80 until done) — check `docker exec onlyoffice-docs wget -qO-
+  http://localhost/healthcheck` before assuming failure.
+- **db-backup**: trigger + verify the first dump manually —
+  `docker exec db-backup backup01-now`, then confirm `/backup` fills inside the container.
+
+### 1.10 Manual recovery patterns (non-Ansible)
+
+- **nftables restart wipes docker NAT** (`flush ruleset` at top of ruleset): any manual
+  `systemctl restart nftables` deletes docker's NAT programming → edge dark until docker
+  re-programs. Recovery order:
+  ```bash
+  systemctl restart nftables && sleep 2 && systemctl restart docker   # live-restore keeps containers
+  # verify: nft list tables | grep inet filter ; nft list table ip nat | grep -c dnat
+  ```
+  A plain docker restart does NOT wipe the inet filter table.
+- **VPS reboot checklist** (~2 min): `docker ps` roster complete; inet filter present with
+  input policy drop; ip nat has dnat entries; sso/git return 302.
+- **Renovate repo-error diagnosis** (FATAL summary hides cause):
+  `docker compose -f /opt/renovate/docker-compose.yml run --rm -e LOG_LEVEL=debug renovate`
+- **Stale compose env:** container env older than rendered file (compose sees no change):
+  `docker compose -f /opt/<svc>/docker-compose.yml up -d --force-recreate`.
 ## Phase 1a — Homelab host installs (oldsrv / nas)
 
 > **Official path: preseeded AUTOMATED install** (Automated entry, ZERO interactive questions
@@ -300,9 +590,9 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 
 ### 1a.0 NAS ZFS pool bootstrap (one-time, BEFORE the nas installer boots) `[MANUAL]`
 
-> As executed on 2026-08-23 (the data-migration leg is NOT part of a redeploy —
-> execution record: [deployment-tasks.md §Phase 1a](deployment-tasks.md) (ledger + commit); hardware spec +
-> by-id tables: [hardware-nas.md](docs/hardware-nas.md)). Pools are created EMPTY here; the
+> **Destructive — wipefs and each pool-create block need explicit human approval.** The data-migration leg is
+> **not** part of a redeploy (it is a one-time event; see the ledger Phase 2 notes). Device by-id paths and disk
+> inventory: [hardware-nas.md](docs/hardware-nas.md). Pools are created EMPTY here; the
 > Ansible `storage` role is import-only (`allow_create: false`) and owns every dataset beyond
 > `bulk/migrate`. Gate: destructive — human approval per wipefs/pool-create block.
 
@@ -411,405 +701,6 @@ The interactive path skips the preseed's `post_install.sh`, so reproduce its eff
 
 ---
 
-## Phase 2 — NAS runbook (`nas.kogler.si`): provision + UPS master
-
-> **Depends on:** preinstall (Phase 1a), network cutover (Phase 1.5), the ZFS pools already
-> created + exported (hardware-nas.md Pool-Creation Runbook / HD-207 — the storage role is
-> import-only). Ledger: deployment-tasks.md §Phase 2.
-
-1. **DHCP client-id = MAC (one-time, host pre-Ansible):** a fresh Debian install sends an
-   RFC4361 DUID client-id that does NOT match the RouterOS MAC reservation → the host takes a
-   dynamic pool address instead of its reserved static. The `network` role sets this via
-   dhcpcd (`clientid mac`) / NM (`ipv4.dhcp-client-id=mac`) **on the first playbook run**, but
-   until then the ansible_host (the reserved static) is unreachable. So before the first run,
-   fix it by hand on the host (or run against the transient lease address):
-   ```sh
-   # dhcpcd (nas): comment out `duid`, add `clientid mac`
-   sudo sed -i '/^duid/d' /etc/dhcpcd.conf && echo 'clientid mac' | sudo tee -a /etc/dhcpcd.conf
-   sudo pkill -HUP dhcpcd        # re-request → binds the MAC reservation
-   # verify: ip -br addr (should show the SSOT reserved Home IP)
-   ```
-   (oldsrv uses NetworkManager: `nmcli con mod "Wired connection 1" ipv4.dhcp-client-id mac`.)
-
-2. **Ansible provision:**
-   ```bash
-   bash scripts/ansible-run.sh playbooks/storage.yml --check   # dry-run first
-   bash scripts/ansible-run.sh playbooks/storage.yml
-   ```
-   Roles: `common` → `ai_diag` → `network` (netd units: untagged Home + tagged-99) → `storage`
-   (import tank/bulk, datasets+props, NFS exports, sanoid/syncoid, Samba, exporters) → `nut`
-   (master) → `cockpit`.
-
-3. **ZFS kernel module (trixie):** the stock Debian kernel has no `zfs` module until `zfs-dkms`
-   builds it — and DKMS needs the RUNNING kernel's headers. The role installs both, but if
-   `modprobe zfs` fails first run: `apt-get install -y linux-headers-$(uname -r)` then
-   `dkms autoinstall` (the meta `linux-headers-amd64` only gives the NEWEST kernel, not the
-   booted one).
-
-4. **UPS USB permissions (NUT):** the PowerWalker USB (Phoenixtec `06da:ffff`) node must be
-   readable by the `nut` group. If `nut-driver@powerwalker.service` fails with "Access denied
-   (insufficient permissions)": `sudo udevadm control --reload-rules && sudo udevadm trigger
-   --subsystem-match=usb --subsystem-match=usb_device` (the stock NUT rules then set
-   `root:nut 664`). Also: `retrycount` is NOT valid for `usbhid-ups` (NUT 2.8.1) — the role's
-   ups.conf.j2 no longer emits it.
-
-5. **Verify:** `zpool status` (tank mirror + bulk raidz2 ONLINE), `upsc powerwalker@localhost`
-   (battery %/runtime), `exportfs` shows the 3 shares → oldsrv, `ss -tlnp | grep 9199`
-   (nut_exporter), cockpit at cockpit-nas.kogler.si.
-
-> **If a client NFS automount errors `Stale file handle`** (often after an export change):
-> ```sh
-> # on nas: re-apply exports as root and confirm the target is exported
-> sudo /usr/sbin/exportfs -ra
-> sudo /usr/sbin/exportfs -v        # target share must be listed
-> # on the client (e.g. oldsrv): clear the stale handle, then re-trigger the mount
-> sudo umount /mnt/<share>
-> ls /mnt/<share>                   # re-mounts cleanly once the export is live
-> ```
-6. **Samba — passdb switch (HD-132/HD-360):** Samba auth is driven by `storage_samba_passdb`
-   in the storage role (default `tdbsam` = local accounts; `ldapsam` = Authentik-as-LDAP, D7).
-   **Do NOT flip to `ldapsam` before the Authentik side is live** — smbd fails HARD on startup
-   (`pdb_init_ldapsam: NT_STATUS_CANT_ACCESS_DOMAIN_INFO`) if the outpost is unreachable
-   (2026-09-14 live hit). To enable LDAP (HD-360):
-   ```bash
-   # 1. Authentik (VPS): add the LDAP provider + outpost + svc_samba service user/group
-   #    to the ks-oidc.yml Blueprint, then apply:
-   bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml
-   # 2. Mint a fresh outpost token → 1Password `authentik-ldap_bind` (field=password);
-   #    the old token expired 2026-09-01 (authentik-ldap unhealthy).
-   # 3. Redeploy the ldap outpost with the new token:
-   bash scripts/ansible-run.sh playbooks/vps.yml --limit vps   # (or docker compose up -d authentik-ldap on vps)
-   # 4. Flip the var + converge nas:
-   #    host_vars/nas.kogler.si.yml: storage_samba_passdb: ldapsam
-   bash scripts/ansible-run.sh playbooks/storage.yml --limit nas
-   # 5. Live-verify: mount \\nas\media with an Authentik (family) account.
-   ```
-   Current state (2026-09-14): `tdbsam` (working offline; `vfs objects = acl_xattr` — the
-   `zfs_core` module does NOT exist in Debian's samba-vfs-modules and breaks every tree
-   connect; never re-add it). LDAP enable = HD-360 (deploy-gated).
-
----
-
-## Phase 1 — Deploy the VPS service stack
-
-> Stack went live 2026-08-22 (33/35 Up). This section captures the settled initialization path —
-> what a redeployer runs beyond the playbook itself.
-
-### 1.1 Preconditions
-
-- Phase 0 runner ready (`op` token readable; canonical key); Phase 0.5 VPS reachable as
-  `ansible-admin@vps.kogler.si`.
-- **Sync gate before EVERY run** (HD-212): whole-tree md5 compare Windows↔WSL must match.
-- Vault coverage: `bash scripts/check-vault-items.sh` → seed gaps via
-  `scripts/provision-vault.sh --create --yes` or manually. Placeholders that stay manual:
-  `forgejo_api` (created post-install, step 1.7), provider keys (`openrouter_api`,
-  `cohere_api`) post-green swaps.
-
-### 1.2 First deploy
-
-```bash
-cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible-run.sh playbooks/vps.yml"
-```
-
-Anchor until green (`failed=0`).
-
-### 1.3 Publish public DNS
-
-```bash
-cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible-run.sh playbooks/dns.yml"
-```
-
-Runs from home egress (token IP filter). Records: `vps` A/AAAA + apex/app CNAMEs
-(SSOT: `roles/cloudflare_dns/vars/main.yml`; `ha` withheld until Phase 4).
-Note: netcup resolvers negative-cache NXDOMAIN past record TTL — fresh records may take
-minutes to resolve locally while authoritative answers are immediate.
-
-### 1.4 Wildcard certificate
-
-Traefik requests `*.kogler.si` + apex via DNS-01 automatically once the Cloudflare token is
-valid from the VPS. Evidence of success:
-
-- `traefik-certs-dumper` logs `certs-rename: installed kogler.si.pem + kogler.si-key.pem`
-- `/opt/traefik/certs/kogler.si{,-key}.pem` exist (consumer pull contract)
-
-If issuance loops: read traefik logs. `403 · 9109` = token IP filter (use EXACT IPs, never
-CIDR — see [deployment-secrets.md](docs/deployment-secrets.md) `cloudflare_api`).
-`429` from Let's Encrypt = 5 failed authorizations/identifier/hour — stop restarting, let the
-window slide, then one clean restart. DNS-01 propagation checks query the CONTAINER's
-resolvers — netcup negative cache requires the pinned `dns: [1.1.1.1, 8.8.8.8]` (already in
-traefik + headscale services).
-
-### 1.4b Tailnet dashboard edge (HD-135b follow-up) — tailnet-only admin dashboards
-
-Converged by Ansible like every other compose service (`docker_services` row `traefik-tailnet`
-in `group_vars/vps.yml`, enabled). Imperative facts a from-scratch deploy needs:
-
-1. **Seed the tailscale auth key BEFORE the first converge** (fail-loud render if absent):
-   `Homelab-ansible` item `tailscale-sidecar_api`, field `credential` = a headscale preauth key
-   scoped to `tag:sidecar` — mint on the VPS:
-   ```bash
-   docker exec headscale headscale preauthkeys create --user 2 --tags tag:sidecar --reusable --expiration 8760h -o json
-   ```
-2. **`tailnet_sidecar_ip`** (`group_vars/vps.yml`) must hold the sidecar node's tailnet IPv4
-   (read from `headscale nodes list` after the first join — value per SSOT/`tailnet_sidecar_ip`). Empty →
-   headscale renders no `extra_records` (dashboards won't resolve on the tailnet).
-3. **Certificate pairs:** the issuer requests `*.kogler.si` AND `*.ts.kogler.si`
-   (Traefik dash router `tls.domains[0]/[1]`); `certs-rename.sh` copies both pairs to
-   `/opt/traefik/certs/` (`kogler.si.pem` + `ts.kogler.si.pem`). The tailnet edge serves both
-   from the DEFAULT store — no per-edge ACME.
-4. **Serve passthrough:** the sidecar's `TS_SERVE_CONFIG` (`serve.json`) runs
-   `tailscale serve --tcp=443 → 127.0.0.1:443`; the edge shares traefik-tailnet's netns
-   (`network_mode: service:traefik-tailnet`) — recreate the PROJECT together (compose
-   down+up) if the netns goes stale, then re-apply the serve config.
-
-5. **Removing a service whose compose project still exists on the VPS is NOT done by converge** (the role teardown only removes `enabled: false` projects): a one-time manual cleanup is required, e.g. the HD-355 dsh/pi-dev move (2026-09-14):
-   ```bash
-   docker compose --project-directory /opt/dsh down --remove-orphans
-   docker compose --project-directory /opt/pi-dev down --remove-orphans
-   docker rm -f dsh dsh-tailscale pi-dev pi-dev-tailscale 2>/dev/null; true
-   docker image prune -f   # or rmi the specific legacy tags
-   sudo rm -rf /opt/dsh /opt/pi-dev
-   ```
-
-Verify from a tailnet device: `https://stats.kogler.si` (forward-auth → SSO) and
-`https://stats.ts.kogler.si` (ACL-gated, tailnet-only).
-
-### 1.4c Technitium primary admin bootstrap + seed (VPS, HD-324)
-
-A from-scratch VPS deploy starts Technitium with a **default `admin` user whose password is
-`admin`** (the app seeds it on first boot — the container regens `auth.config`/`cache.bin`
-from the image, so deleting them does NOT reset it; that's why the seed role's "empty
-auth.config → bootstrap" premise only works on a truly-fresh instance). To make the
-`technitium-seed` role (which logs in with the 1P `technitium_login` item) succeed, set the
-admin to the 1P value via the documented API:
-
-```bash
-# on the VPS (creds never leave it):
-CTR_IP=$(docker inspect technitium --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' | awk '{print $1}')
-TOK=$(curl -sS -X POST "http://$CTR_IP:5380/api/user/login" --data-urlencode 'user=admin' --data-urlencode 'pass=admin' | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
-curl -sS -X POST "http://$CTR_IP:5380/api/user/changePassword" \
-  -H "Authorization: Bearer $TOK" \
-  --data-urlencode 'pass=admin' --data-urlencode 'newPass=<1P technitium_login password>'
-```
-
-Then run the seed converge:
-
-```bash
-bash scripts/ansible-run.sh playbooks/vps.yml -l vps -t docker_services -e docker_services_scope=technitium
-```
-
-The seed creates the `kogler.si` zone + the split-horizon A records (`ha`/`dns-pi` → VIP,
-dashboards → `tailnet_sidecar_ip`). Verify: `dig @159.195.111.66 {ha,dns-pi,stats,logs,csui,sec,traefik,auto}.kogler.si`
-all answer. The **default `admin`/`admin` is retired after this** (verify it FAILS). A redeployer
-must also remember the `dns` router needs `traefik.http.services.dns.loadbalancer.server.port="5380"`
-(else the post-SSO leg 502s — Traefik auto-picks port 53).
-
-**Pi tertiary (secondary-pi) — same admin-align + seed (HD-317, 2026-09-04):** the Pi's Technitium
-container is named `technitium-pi` (not `technitium`) and sits on TWO networks, so run the
-one-liner against `technitium-pi` and take the FIRST IP:
-
-```bash
-# on the Pi (creds never leave it):
-CTR_IP=$(sudo docker inspect technitium-pi --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}\n{{end}}' | awk 'NR==1{print $1}')
-TOK=$(curl -sS -X POST "http://$CTR_IP:5380/api/user/login" --data-urlencode 'user=admin' --data-urlencode 'pass=admin' | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
-curl -sS -X POST "http://$CTR_IP:5380/api/user/changePassword" -H "Authorization: Bearer $TOK" --data-urlencode 'pass=admin' --data-urlencode 'newPass=<1P technitium_login password>'
-```
-
-Then the Pi seed converge (idempotent):
-
-```bash
-bash scripts/ansible-run.sh playbooks/raspberry_pi.yml -e docker_services_scope=technitium-secondary
-```
-
-Verify: `dig @<Pi Home IP per SSOT> ha.kogler.si` → VIP and `dns-pi.kogler.si` → VIP. The 5380 publish on
-the Pi is already live (2026-09-04, `technitium-pi` → `pi:5380` HTTP 200).
-
-**oldsrv secondary — same admin-align + seed (HD-340, DONE + LIVE 2026-09-08):** the oldsrv Technitium
-container is `technitium-oldsrv` (instance `secondary`), **not published on 5380** — the API is reachable
-only on its overlay IPs. The container also lacks `curl`/`python` and host `curl` mis-reads Technitium's
-chunked responses (resets), so use the container's bash `/dev/tcp` + a small HTTP helper instead:
-
-```bash
-# on oldsrv — copy a bash /dev/tcp HTTP client into the container first
-# (GET/POST + Content-Length + chunked body decode; no curl dependency):
-cat > /tmp/tech_login.sh <<'OUTER'
-#!/bin/bash
-host=127.0.0.1; port=5380; method=$1; path=$2; body="$3"
-[ -n "$body" ] && clen=$(printf '%s' "$body" | wc -c) || clen=0
-req="$method $path HTTP/1.1\r\nHost: $host\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: $clen\r\nConnection: close\r\n\r\n$body"
-exec 3<>/dev/tcp/$host/$port; printf '%b' "$req" >&3
-out=$(timeout 5 cat <&3 2>/dev/null)
-printf '%s' "$out" | sed -n '/^\r\{0,1\}$/,$p' | tail -n +2 | perl -0777 -ne '$b=$_; $b =~ s/^[0-9a-fA-F]+\r?\n//mg if $b =~ /^[0-9a-fA-F]+\r?\n/; print $b'
-OUTER
-docker cp /tmp/tech_login.sh technitium-oldsrv:/tech_login.sh
-# login as the DEFAULT admin/admin (still bootstrapped on a fresh /etc/dns) -> token
-TOK=$(docker exec technitium-oldsrv bash /tech_login.sh POST "/api/user/login" "user=admin&pass=admin" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
-# set the admin to the 1P technitium_login value (creds never leave oldsrv)
-docker exec technitium-oldsrv bash /tech_login.sh POST "/api/user/changePassword?token=$TOK" "pass=admin&newPass=<1P technitium_login password>"
-```
-
-Then the oldsrv seed converge (idempotent):
-
-```bash
-bash scripts/ansible-run.sh playbooks/home_servers.yml -e docker_services_scope=technitium
-```
-
-Verify: `dig @127.0.0.1 {ha,dns-pi,stats,logs,csui,sec,traefik,auto,vps,home,vpn,dns,sso,file,foto,git,bin,ai,office,pdf,chat,matrix,drop}.kogler.si` on oldsrv all answer (ha/dns-pi → VIP, dashboards → `tailnet_sidecar_ip`, public → VPS public IP). The default `admin`/`admin` is retired after this. **Container-IP reach caveat (live 2026-09-08):** if the seed's `_tech_api` connect fails with "No route to host", check for **orphaned duplicate-subnet docker bridges** (stale `br-*` from a docker recreate that steal the kernel route — `docker network ls` IDs won't match `ip link` bridge IDs); `sudo ip link del br-<orphan>` restores host→container routing.
-
-### 1.5 Authentik first login
-
-- `akadmin` / `authentik_login` password — works FIRST TRY on a fresh install (bootstrap env
-  is pinned in compose and applies at user creation).
-- Enrol WebAuthn + TOTP when prompted. Optional: personal named admin for daily use.
-- **Human-user policy:** every new HUMAN user is created as **Internal
-  type** — never External (federated sources) or Service account (machine/API identities). Full
-  setup per user: real name + real email · Active ON · membership in the **`family` group** (the
-  NAS user-sync glue reads exactly this group, D5/HD-131) · WebAuthn + TOTP enrolled at first
-  login. Admin capability stays group-based (`authentik Admins`, where break-glass `akadmin`
-  lives) — daily-driver users NEVER join it.
-- Blueprint sanity: application count = 8 OIDC (`ks-oidc`) + 9 edge (`ks-forward-auth`);
-  outpost “authentik Embedded Outpost” lists all 9 edge providers.
-
-### 1.6 Forward-auth routes
-
-Unauthenticated requests to protected hosts redirect to `sso.kogler.si`. Protected set +
-exclusions are declared by router labels (source of truth) and mirrored in
-`ks-forward-auth.yml` — add a proxy provider there when a new service joins the tier.
-
-### 1.7 Forgejo one-time wizard
-
-Browse to `git.kogler.si` → authentik login → installer:
-
-| Field | Value |
-|---|---|
-| Database Type | PostgreSQL |
-| Host | `forgejo-db:5432` |
-| Name / Username | `forgejo` / `forgejo` |
-| Password | 1Password `forgejo_db` → `password` |
-| SSL Mode | Disable |
-| Server Domain | `git.kogler.si` (pre-filled via env) |
-| Disable self-registration | ON |
-| Allow registration only via external services | ON (OIDC JIT provisioning) |
-| Administrator Account | expand + set personal admin |
-
-**Mail section** (leave empty; SMTP added post-green via app.ini — SMTP2Go port **2525**, netcup blocks 587):
-
-| Field | Value |
-|---|---|
-| SMTP Host / SMTP Port / Send email as / SMTP Username / SMTP Password | *(empty)* |
-| Require email confirmation for registration | false |
-| Enable email notifications | false |
-
-**Server & third-party settings:**
-
-| Field | Value |
-|---|---|
-| Disable third-party | ON |
-| Gravatar avatar sources | OFF |
-| Libravatar federated lookup | OFF |
-| Enable OpenID user login | ON |
-| Allow registration only via external services | **ON** ← OIDC JIT provisioning (HD-148); local signup hidden anyway |
-| Enable OpenID-based self-registration | ON |
-| Require CAPTCHA for user registration | OFF |
-| Require sign-in to view pages | OFF (edge forward-auth already gates every request) |
-| Default hide email addresses | false (optional: ON for privacy) |
-| Default allow organization creation | ON |
-| Default enable time tracking | ON |
-| Hidden email domain | `noreply.localhost` |
-| Password hashing algorithm | `pbkdf2_hi` |
-
-**Administrator account:**
-
-| Field | Value |
-|---|---|
-| Administrator username | `domen` |
-| Email | `domen@kogler.si` |
-| Password + Confirm | personal password (stored in 1Password) |
-
-⚠ The installer form does NOT read the `FORGEJO__*` env overlay — type DB values manually.
-After install: Forgejo Admin → Applications → create API token (repo read/write) → paste into
-1Password `forgejo_api` → `docker compose up -d renovate` (in `/opt/renovate`) or next run.
-
-### 1.8 Kopia server seed *(fresh volumes only)*
-
-If `/srv/docker/kopia-server/config/` is empty:
-
-```bash
-# 1) sftp_key — backup-box PRIVATE key (Hetzner-SB-Backup 1P item), unencrypted:
-sudo nano /srv/docker/kopia-server/config/sftp_key && sudo chmod 600 /srv/docker/kopia-server/config/sftp_key
-
-# 2) known_hosts — ssh-keyscan FROM THE VPS HANGS SILENTLY on box:23 (netcup egress quirk).
-#    Take the entry from the LAPTOP's known_hosts instead:
-#    laptop: ssh-keygen -F "[u653424.your-storagebox.de]:23"  -> copy the matching lines
-#    into /srv/docker/kopia-server/config/known_hosts (mode 644).
-
-# 3) Pre-create the repo dir ON THE BOX — Hetzner SFTP returns generic SSH_FX_FAILURE for
-#    kopia's create-path even when the dir pre-exists (kopia_sftp_path is RELATIVE in IaC):
-sudo ssh -i /srv/docker/kopia-server/config/sftp_key -p 23 \
-  -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/srv/docker/kopia-server/config/known_hosts \
-  u653424@u653424.your-storagebox.de "mkdir kopia"
-
-# 4) Restart and verify (expect repository-creation lines, no SSH_FX_FAILURE):
-sudo docker restart kopia-server && sleep 30 && sudo docker logs --tail 10 kopia-server
-```
-
-**TLS (HD-318a, 2026-09-08):** the server boot now also generates a persisted self-signed
-`tls.crt`/`tls.key` under the config bind (one-time) and serves **HTTPS** on :51515 — the oldsrv
-agent rejects plain-http. The container writes `tls-sha256` (the trust-anchor fingerprint); the
-`kopia-fingerprint-sync.yml` docker_services task seeds it into 1Password
-(`kopia-server_fingerprint`) and the agent pins it. On a **fresh volume** all of this happens
-automatically on first start — no manual step; if you ever need to fingerprint-check:
-`sudo cat /srv/docker/kopia-server/config/tls-sha256`.
-
-**Client auth (HD-318a, 2026-09-08) — happens automatically in the boot script, verify-only:**
-kopia's server-auth model needs the backup client's identity (`oldsrv-agent@oldsrv.kogler.si`) to
-exist BOTH in the htpasswd (`--htpasswd-file` = allowed `user@hostname` entries; the boot script
-writes the server-admin entry + `kopia_agent_user`) AND as a repo user (`kopia server users add`)
-whose password equals the **REPO MASTER password** (`kopia_password` — a non-repo-password user is
-`access denied` at the session stage even with a matching htpasswd entry; live-verified 2026-09-08).
-The boot script provisions/re-seeds the repo user idempotently (add → set fallback). If the agent
-reports `access denied for oldsrv-agent@oldsrv.kogler.si`:
-```bash
-sudo docker exec kopia-server kopia server users add oldsrv-agent@oldsrv.kogler.si \
-  --user-password="$(sudo docker exec kopia-server printenv KOPIA_PASSWORD)"
-sudo docker restart kopia-server
-```
-
-`kopia_sftp_path` stays RELATIVE (`kopia`) — absolute paths break create-path on Hetzner.
-If the crowdsec volume is also fresh: regenerate the bouncer key (`sudo docker exec crowdsec
-cscli bouncers add traefik-bouncer -o raw`) and update 1Password item `crowdsec-bouncer_api`
-→ re-run vps.yml (re-renders middleware).
-
-### 1.9 Verification
-
-Full checklist: [deployment-tasks.md](deployment-tasks.md) Phase 1 Verify block. Quick spot
-set: all forward-auth routes return 302→sso; vpn + ai return 200; wildcard cert served on
-every host; `docker ps` shows no Restarting except documented owner-gated stragglers;
-nvme usage <80%.
-
-First-boot notes:
-- **onlyoffice-docs** may sit at edge-502 for >30 min while its entrypoint initializes
-  (nothing listens on :80 until done) — check `docker exec onlyoffice-docs wget -qO-
-  http://localhost/healthcheck` before assuming failure.
-- **db-backup**: trigger + verify the first dump manually —
-  `docker exec db-backup backup01-now`, then confirm `/backup` fills inside the container.
-
-### 1.10 Manual recovery patterns (non-Ansible)
-
-- **nftables restart wipes docker NAT** (`flush ruleset` at top of ruleset): any manual
-  `systemctl restart nftables` deletes docker's NAT programming → edge dark until docker
-  re-programs. Recovery order:
-  ```bash
-  systemctl restart nftables && sleep 2 && systemctl restart docker   # live-restore keeps containers
-  # verify: nft list tables | grep inet filter ; nft list table ip nat | grep -c dnat
-  ```
-  A plain docker restart does NOT wipe the inet filter table.
-- **VPS reboot checklist** (~2 min): `docker ps` roster complete; inet filter present with
-  input policy drop; ip nat has dnat entries; sso/git return 302.
-- **Renovate repo-error diagnosis** (FATAL summary hides cause):
-  `docker compose -f /opt/renovate/docker-compose.yml run --rm -e LOG_LEVEL=debug renovate`
-- **Stale compose env:** container env older than rendered file (compose sees no change):
-  `docker compose -f /opt/<svc>/docker-compose.yml up -d --force-recreate`.
 ## Phase 1.5 — Network redo cutover (MikroTik RB4011 / CRS328 / APs) `[MANUAL]`
 
 > **Scope:** the post-Phase-1 home network redo. The 4 .rsc files below are
@@ -872,7 +763,7 @@ Per device:
   the script. ✔-evidence: ping the mgmt-VLAN switch IP from the laptop; the CRS328 is
   reachable as `switch.kogler.si`.
 - **APs** (hAP/wAP, one at a time) — upload the per-AP `ap_initial-<name>.rsc` (root; rendered
-  per-AP since 2026-09-02 so the identity is `ap-spalnica`/`ap-dnevna`/`ap-spare`) + the 2 pubkeys
+  per-AP so the identity is `ap-spalnica`/`ap-dnevna`/`ap-spare`) + the 2 pubkeys
   into `flash/`. Each AP comes up on `bridge`, joins as a CAP (manager: radio config
   `configuration.manager=capsman`, `slaves-static=yes`), and gets its static-reserved `10.10.99.x`
   from the router's DHCP server. (Flash-persistence: root `.pub` files were being wiped on the AP
@@ -890,28 +781,23 @@ interpreter Ansible uses for modules. `inventory.ini` pins
 the venv (`~/ansible-venv`) does. The `scripts/ansible-run.sh` wrapper hardcodes `REPO` to the
 PRIMARY checkout, so run from a **fresh session worktree** and force the venv interpreter.
 
-**Laptop runner is Home-only → use the Pi-99 hop wrapper (2026-09-02, HD-285):** the WSL
-runner sits on VLAN 10; its direct connection to `routeros_api_host` on the Mgmt VLAN loses
-at both lockdown layers (forward `Default deny inter-VLAN` + `/ip service available-from =
-mgmt`). The Pi (`eth0.99` tagged Mgmt) is the only real mgmt client. Use
-[`scripts/ansible-network-hop.sh`](scripts/ansible-network-hop.sh) — it SSH-local-forwards
-the device API through `pi` (traffic originates mgmt-sourced, passes both gates with zero
-firewall surface) and execs `ansible-run.sh` with the loopback host/port + venv interpreter:
-
-> ⚠️ **2026-09-08: this hop is OBSOLETE — playbooks now run DIRECT against the .99 mgmt IPs**
-> (the laptop reaches Mgmt-99 via the Windows Mgmt99 vNIC, `wsl-nat-resolv.ps1 -EnableMgmt99`).
-> `ansible-run.sh playbooks/router.yml` / `playbooks/switch.yml` connect straight to the device
-> mgmt IP (network.yml derives it). The hop script is kept for history/fallback only.
+**Run DIRECT against the device Mgmt IPs.** The laptop reaches the Mgmt-99 plane through the Windows
+Mgmt99 vNIC (`wsl-nat-resolv.ps1 -EnableMgmt99`), so `ansible-run.sh` connects straight to the device
+mgmt address that `network.yml` derives — no firewall surface, no hop:
 
 ```bash
 # from the session worktree (NOT the primary checkout):
-bash scripts/ansible-network-hop.sh router playbooks/router.yml --check --diff   # dry-run first
-bash scripts/ansible-network-hop.sh switch playbooks/switch.yml --check --diff
-bash scripts/ansible-network-hop.sh router playbooks/router.yml                  # real
-bash scripts/ansible-network-hop.sh switch playbooks/switch.yml
+bash scripts/ansible-run.sh playbooks/router.yml --check --diff     # dry-run first
+bash scripts/ansible-run.sh playbooks/switch.yml --check --diff
+bash scripts/ansible-run.sh playbooks/router.yml                    # real
+bash scripts/ansible-run.sh playbooks/switch.yml
 ```
 
-**Manual mgmt from the laptop — `~/.ssh/config` aliases (2026-09-08, direct-`.99`):** the laptop reaches the
+> `scripts/ansible-network-hop.sh` (Pi-99 ProxyJump wrapper) is **obsolete** — it belongs to the era when the
+> runner sat on VLAN 10 and the Pi was the only Mgmt client. It still exists as a fallback if the Mgmt99 vNIC
+> path is unavailable; do not use it by default.
+
+**Manual mgmt from the laptop — `~/.ssh/config` aliases (direct `.99`):** the laptop reaches the
 Mgmt plane **directly** via the Windows Mgmt99 vNIC (`wsl-nat-resolv.ps1 -EnableMgmt99`) — **no ProxyJump `pi`
 hop needed anymore.** Preconfigured aliases (single `id_ed25519`/`ansible-admin_ssh.pub`, direct):
 
@@ -919,23 +805,18 @@ hop needed anymore.** Preconfigured aliases (single `id_ed25519`/`ansible-admin_
 # verify (RouterOS answers `:put`):
 ssh router '':put OK''            # RB4011 .99.1
 ssh switch '':put OK''            # CRS328 .99.2
-ssh oldsrv99 echo OK              # .99.30 (on-site leg; `ssh oldsrv` = the Home leg + jump since 2026-09-19)
+ssh oldsrv99 echo OK              # .99.30 on-site leg (`ssh oldsrv` = the Home leg + jump)
 ssh pi99 echo OK                  # Pi Mgmt .99.20 (pi = Home .1.20; the one dual-leg exception)
 # WinBox: point at the device Mgmt IP directly — see .99.x in network-addresses-generated.md
 #   WinBox Address=<switch .99>  (CRS328)  | <ap-dnevna .99>  etc.
 # alias list = docs/network-vpn.md §The laptop alias contract (the SSOT for BOTH ~/.ssh/config files)
-# .99.x IPs = network-addresses-generated.md SSOT; the hop aliases were removed + deduped (2026-09-08).
+# .99.x IPs = network-addresses-generated.md SSOT; alias list = network-vpn.md §The laptop alias contract.
 ```
 
 > The aliases keep Windows ON tagged-99 via the Mgmt99 vNIC — direct. `nas` (Home .1.10) may report
 > 'No route to host' until Phase 2; `ap-spare` is a spare (offline until powered).
 
-> **2026-09-02 (maintenance window):** this hop unblocked the live re-converge — router
-> `ok=34 changed=5 failed=0`, switch `ok=23 changed=4 failed=0`, both through the Pi hop.
-> It also surfaced + fixed live switch-role bugs: `poe-out: on` (→ `auto-on`, the CRS328
-> rejects `on`), `poe-priority: high` (invalid value), INPUT firewall `dst-port` without
-> `protocol: tcp` (RouterOS requires it). And a router-role `router_port_map` dict2items
-> bug (`item.port` → `item.value.port`).
+
 
 ✔-evidence: `ok`/`changed` counts in the play recap are sensible (expect 1–2 changed per
 device on a re-run; expect a larger changed count on a fresh-bootstrap run because VLANs
@@ -1004,47 +885,22 @@ wifi/security/provisioning objects.
 /interface wifi provisioning print         ; dynamic CAP entries created for each AP
 ```
 
-> **2026-09-02/03 live fix recap (the 'APs not functioning' bug):**
-> 1. The rendered rsc **never enabled the manager** — `/interface wifi capsman set enabled=yes` is now
->    the first line (configs existed but the manager sat `enabled=no`, so no AP ever provisioned).
-> 2. wifi-qcom-ac CAPs **cannot honor datapath vlan-id** — configs now use a named datapath `DP_AC`
->    (bridge-lan, NO vlan-id); per-SSID VLAN rides the CAP's **bridge** (pvid per provisioned slave
->    interface + tagged uplink `ether1`).
-> 3. AP radios need `configuration.manager=capsman` + `disabled=no` + CAP `slaves-static=yes`
->    (ap_initial.rsc.j2 carries this; a plain `cap set enabled=yes` alone left them locally-configured
->    masters that never joined — the `MBX` state).
-> 4. AP identities are now descriptive (`ap-spalnica`, `ap-dnevna`, `ap-spare`) via per-AP rendered
->    `ap_initial-<name>.rsc`.
-> 5. Enabled SSIDs = **Kogler + Kogler IOT + Kogler guest** (HD-312 3-SSID, owner decision 2026-09-03).
->    **Kogler IOT is 2.4GHz-only; Kogler guest is 5GHz-only** (band-split provisioning by SSID `band:`
->    in `routeros_capsman_ssids` SSOT: 2.4GHz = Kogler+IOT, 5GHz = Kogler+guest). IOT-WAN + Kids SSIDs
->    were **deleted** 2026-09-03 (configs + security profiles removed; kids-control → firewall
->    MAC-list per HD-312).
-> 6. **Switch AP ports must carry the wifi VLANs tagged** (2026-09-03 — the 'phone disconnects'
->    cause): AP ports ether11/12 on the CRS328 need tagged membership of the wifi VLANs (10+20,
->    and 30 since guest went live) not just the untagged 99 access, or the AP's per-SSID tagged
->    frames get dropped at switch ingress and clients associate but never DHCP. Encoded in
->    `wifi_ports` (group_vars/switch.yml) + converge rsc.
-> 7. **A new slave SSID does NOT auto-materialize at the CAP on provisioning change alone**
->    (live 2026-09-03, guest turn-up): after adding a slave to a provisioning rule, kick the CAPsMAN
->    manager (`/interface wifi capsman set enabled=no` then `=yes`) so the CAP re-pulls and creates
->    the slave (wifi27 spalnica / wifi8 dnevna for guest), then add the CAP bridge VLAN entry
->    (`/interface bridge vlan add vlan-ids=30 tagged=ether1 untagged=<slave>` + port pvid=30).
->    See `ap_guest_delta.rsc.j2` (the idempotent, guarded delta).
+> The **why** of every object this import creates — manager enablement, the `DP_AC` datapath workaround, radio
+> CAP mode, the band-split SSID set, the switch tagged-VLAN requirement and the slave-SSID re-pull trick — is
+> the steady-state contract in [network-ops.md](docs/network-ops.md) §CAPsMAN steady-state contract. Read it
+> before changing anything here; each rule exists because the live network broke without it.
 
 Devices must re-join the right SSID (Kogler → VLAN 10 / Kogler IOT → VLAN 20 / Kogler guest → VLAN
 30) to land on their VLAN.
 
 ### 1.5.5 Bring up the WG S2S tunnel (HD-91 / HD-285 two-key fix)
 
-Each side holds a **DISTINCT** WireGuard keypair (HD-285 fix — shared key made pubkeys identical and the router tried to handshake with itself, so no handshake ever fired):
+Each side holds a **DISTINCT** keypair: router = `wg_password` (pub `wg_s2s_router_public_key`), VPS =
+`wg_password_vps` (pub `wg_s2s_vps_public_key`); each side's peer is the **other** side's pubkey. Design and
+failure mode: [network-vpn.md](docs/network-vpn.md) §HD-285.
 
-| Side | 1P key item | Own pubkey var | Peer pubkey var (the other side) |
-|------|-------------|----------------|----------------------------------|
-| Router (RB4011) | `wg_password` | `wg_s2s_router_public_key` | `wg_s2s_vps_public_key` |
-| VPS | `wg_password_vps` | `wg_s2s_vps_public_key` | `wg_s2s_router_public_key` |
-
-**Endpoints are DDNS tokens, not literal IPs:** VPS→router uses `wg_s2s_vps.endpoint: s.kogler.si`; router→VPS uses `wireguard_s2s_vps.remote_endpoint: vps.kogler.si` (Cloudflare A). `s.kogler.si` tracked in `cloudflare_dns/vars/main.yml`.
+**Endpoints are DDNS, never literal IPs:** VPS→router `wg_s2s_vps.endpoint: s.kogler.si` (DDNS token, tracked in
+`cloudflare_dns/vars/main.yml`); router→VPS `wireguard_s2s_vps.remote_endpoint: vps.kogler.si` (Cloudflare A).
 
 **Bring-up (from a session worktree, venv interpreter):**
 
@@ -1057,7 +913,7 @@ bash scripts/ansible-run.sh playbooks/vps.yml --tags wireguard
 bash scripts/ansible-network-hop.sh router playbooks/router.yml
 ```
 
-**Post-converge manual fixes that the role does NOT hold (live-found 2026-09-02, imperative):**
+**Post-converge manual fixes the role does NOT hold** (verify these on the device after every converge):
 
 ```text
 # 1) If the router peer still shows the OLD/self pubkey, set it to the VPS key:
@@ -1078,10 +934,10 @@ sudo wg show wg-s2s transfer         ; rx/tx moving (data plane)
 ping -c3 <router-mgmt-ip>            ; router mgmt over the tunnel (0% loss; IP = SSOT `router` mgmt row in network-addresses-generated.md)
 ```
 
-> **HD-306/HD-285 mechanism note (imperative, from live 2026-09-02):** systemd 257 networkd applies the
-> `.netdev` `[WireGuard] PrivateKey` but **never applies `[WireGuardPeer]`**, and strips any userspace
-> `wg set peer` while it owns the iface. Fix: networkd is reduced to **create-only** (minimal `.netdev`
-> + `Unmanaged=yes` `.network`); the `wg-ensure-s2s-peer` oneshot OWNS wg-s2s (create-if-missing →
+> **Why the oneshot owns the interface:** systemd 257 networkd applies the `.netdev` `[WireGuard] PrivateKey`
+> but **never applies `[WireGuardPeer]`**, and strips any userspace `wg set peer` while it owns the iface. So
+> networkd is reduced to **create-only** (minimal `.netdev` + `Unmanaged=yes` `.network`) and the
+> `wg-ensure-s2s-peer` oneshot OWNS wg-s2s (create-if-missing →
 > address from `wg_s2s_vps.local_ip` → key via `wg setconf` KEY-ONLY → peer via `wg set … peer` →
 > verify key + peer present, exit non-zero on missing). The `wg-s2s.conf` carries the VPS key (0640).
 
@@ -1090,242 +946,110 @@ ping -c3 <router-mgmt-ip>            ; router mgmt over the tunnel (0% loss; IP 
 ### 1.5.6 Cutover close-out
 
 - `validate-all.sh` green from the worktree.
-- Tick the matching `- [x]` boxes in [deployment-tasks.md](deployment-tasks.md) Phase 1.5 (add
-  the phase there if it isn't yet); in the ledger notes: device names, timestamps, evidence
-  snippets (lease print, wireguard peer print). Secrets by 1P item+field name only.
-- Trim the HD-285 `⏳` tail in [todo.md](todo.md); the row closes when §1.5.5 handshakes.
-- Commit signed (`G`) on the session branch; merge to main; remove the worktree.
+- Tick the matching boxes in the ledger's Phase 1.5 block and record the evidence there (device names,
+  timestamps, lease/wireguard prints) — never here. Secrets by 1P item+field name only.
+- Close the work item in [todo.md](todo.md) once the §1.5.5 handshake holds in both directions.
+- Commit signed on the session branch; merge to main; remove the worktree.
 
 ---
 
-## Phase 4 — Pi Fresh Install + HA Primary (`pi.kogler.si`)
+## Phase 2 — NAS runbook (`nas.kogler.si`): provision + UPS master
 
-> **Depends on:** Phase 1.5 (VLANs / network reachability), Phase 2 (NAS NUT master), Phase 3 (old srv standby, Forgejo). The Pi is the HA **primary** node; oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP (`ha-vip`).
-> **1Password prerequisites:** `ha_api`, `ha-vrrp_password`, `nut_password`, `smtp_login` already exist; add `ha-mqtt_login` only if MQTT is introduced (out of scope).
-> **Continuation:** `ha.kogler.si` → VIP becomes live here; observability (Phase 6) scrapes the HA exporter and smart-home work (Phase 7) builds on this node.
+> **Depends on:** preinstall (Phase 1a), network cutover (Phase 1.5), the ZFS pools already
+> created + exported (hardware-nas.md Pool-Creation Runbook / HD-207 — the storage role is
+> import-only). Ledger: deployment-tasks.md §Phase 2.
 
-### 4.1 Flash + first-boot config `[MANUAL]`
-
-> The Pi uses **Raspberry Pi OS Lite (64-bit, headless)** — official Debian-based image, NOT the
-> Debian Installer/preseed path of nas/oldsrv (no `d-i` to answer questions, `preseed.cfg` does
-> not apply); the raspi.debian.net image fails with a **rainbow screen** (kernel/firmware mismatch
-> on the Pi 4) → use Pi OS Lite via Raspberry Pi Imager. Authoring spec:
-> [deployment-preseed.md → Pi Image Deployment](docs/deployment-preseed.md).
-
-1. **Download** Raspberry Pi OS Lite (64-bit) from https://www.raspberrypi.com/software/operating-systems/.
-2. **Flash with Raspberry Pi Imager** to microSD (≥32 GB; 32–64 GB typical) — Imager's **⚙ advanced gear** does the headless pre-config: **Enable SSH + set user (`admin`) + preload the `ansible-admin_ssh` pubkey, hostname `pi`, timezone/locale** (writes `ssh` flag + `userconf.txt` — no manual card edit needed; the old `first-boot-config.sh` is for raspi.debian.net and **not** used here). **Do NOT boot yet.**
-3. **Re-insert the SD card into the laptop** (USB adapter). The boot partition mounts as a drive/FAT32 (e.g. `E:`). From WSL, mount it:
-   ```bash
-   sudo mkdir -p /mnt/e && sudo mount -t drvfs E: /mnt/e
-   ls /mnt/e/config.txt /mnt/e/cmdline.txt   # must exist — verifies it's the Pi boot partition
+1. **DHCP client-id = MAC (one-time, host pre-Ansible):** a fresh Debian install sends an
+   RFC4361 DUID client-id that does NOT match the RouterOS MAC reservation → the host takes a
+   dynamic pool address instead of its reserved static. The `network` role sets this via
+   dhcpcd (`clientid mac`) / NM (`ipv4.dhcp-client-id=mac`) **on the first playbook run**, but
+   until then the ansible_host (the reserved static) is unreachable. So before the first run,
+   fix it by hand on the host (or run against the transient lease address):
+   ```sh
+   # dhcpcd (nas): comment out `duid`, add `clientid mac`
+   sudo sed -i '/^duid/d' /etc/dhcpcd.conf && echo 'clientid mac' | sudo tee -a /etc/dhcpcd.conf
+   sudo pkill -HUP dhcpcd        # re-request → binds the MAC reservation
+   # verify: ip -br addr (should show the SSOT reserved Home IP)
    ```
-   ⚠ **WSL2 cannot see USB raw devices** — no `/dev/sdX` for the card, and cannot mount the ext4 **root** partition. Only the FAT32 boot partition (via the drive letter) is editable from WSL. That is sufficient: first-boot config needs only boot-partition files. To edit the root filesystem (e.g. `PermitRootLogin`), you'd need a native Linux host / live USB — **not needed** for the cloud-init path.
-4. **Imager already pre-configured SSH + user + hostname** (step 2's ⚙ gear) — **no boot-partition edit / no `first-boot-config.sh` needed** (that script is raspi.debian.net-only). Eject safely, insert into the Pi, power on.
+   (oldsrv uses NetworkManager: `nmcli con mod "Wired connection 1" ipv4.dhcp-client-id mac`.)
 
-### 4.2 First-boot verification `[MANUAL]`
+2. **Ansible provision:**
+   ```bash
+   bash scripts/ansible-run.sh playbooks/storage.yml --check   # dry-run first
+   bash scripts/ansible-run.sh playbooks/storage.yml
+   ```
+   Roles: `common` → `ai_diag` → `network` (netd units: untagged Home + tagged-99) → `storage`
+   (import tank/bulk, datasets+props, NFS exports, sanoid/syncoid, Samba, exporters) → `nut`
+   (master) → `cockpit`.
 
-```bash
-ping pi.kogler.si          # node resolves to its VLAN-10 static IP per the SSOT ([network-addresses-generated.md](docs/network-addresses-generated.md))
-ssh ansible-admin@pi.kogler.si    # key-only, no password prompt
-# if cloud-init worked, users exist; otherwise on the Pi:
-sudo bash /boot/firstboot.sh
-```
+3. **ZFS kernel module (trixie):** the stock Debian kernel has no `zfs` module until `zfs-dkms`
+   builds it — and DKMS needs the RUNNING kernel's headers. The role installs both, but if
+   `modprobe zfs` fails first run: `apt-get install -y linux-headers-$(uname -r)` then
+   `dkms autoinstall` (the meta `linux-headers-amd64` only gives the NEWEST kernel, not the
+   booted one).
 
-✔ SSH key-only login as `ansible-admin`; `ssh ai-debug@pi.kogler.si` refused from outside the Home VLAN (the `from="…"` restriction authored in the first-boot script).
+4. **UPS USB permissions (NUT):** the PowerWalker USB (Phoenixtec `06da:ffff`) node must be
+   readable by the `nut` group. If `nut-driver@powerwalker.service` fails with "Access denied
+   (insufficient permissions)": `sudo udevadm control --reload-rules && sudo udevadm trigger
+   --subsystem-match=usb --subsystem-match=usb_device` (the stock NUT rules then set
+   `root:nut 664`). Also: `retrycount` is NOT valid for `usbhid-ups` (NUT 2.8.1) — the role's
+   ups.conf.j2 no longer emits it.
 
-> ⚠ Verify the **router-side DHCP reservation** for the Pi's MAC matches the SSOT node IPs (VLAN 10 + mgmt VLAN 99 — see [network-addresses-generated.md](docs/network-addresses-generated.md)) before relying on static IPs.
+5. **Verify:** `zpool status` (tank mirror + bulk raidz2 ONLINE), `upsc powerwalker@localhost`
+   (battery %/runtime), `exportfs` shows the 3 shares → oldsrv, `ss -tlnp | grep 9199`
+   (nut_exporter), cockpit at cockpit-nas.kogler.si.
 
-> **⬇ 2026-09-03: the complete imperative flow (dry-run → provision → verify → owner KNX/SSO steps)
-> now lives in [`deployment-pi-provision.md`](docs/deployment-pi-provision.md)** — this section keeps the
-> load-bearing ordering + session-safety notes below and links the new runbook.
-
-### 4.3 Ansible provisioning
-
-```bash
-# from the WSL Debian runner (venv), with the 9P sync gate satisfied:
-bash scripts/ansible-run.sh playbooks/raspberry_pi.yml
-# first apply human-gated: dry-run (--check --diff) then single host
-```
-
-Role order is **load-bearing** (HD-185/204 render-first decision): `common` → `ai_diag` → `network` (static dual-home via **two NetworkManager keyfiles** — Pi-uses-NM, [network-rejected.md](docs/network-rejected.md) 2026-09-01; RPi OS ships NetworkManager, no systemd-networkd. The role renders `pi-eth0.nmconnection` = untagged Home on the parent (`ansible_host`, default via Home — single gateway, no `never-default`, DNS via `bootstrap_dns_servers`, DHCP off) + `pi-mgmt.nmconnection` = tagged Mgmt on `eth0.99` (`mgmt_ip`, never-default, route via the tagged leg — HD-311); session-safe — the Home IP never changes, the Mgmt IP rides the tagged sub-interface, never the untagged parent) → `nut` (client, `shutdown_delay_seconds=0`) → `docker` → **`home_assistant` → `docker_services`** → `monitoring` (Alloy only). Running `home_assistant` BEFORE `docker_services` renders `configuration.yaml` / `keepalived.conf` (+ `secrets.yaml` — renderer landed 2026-09-03, HD-185/HD-313) as **regular files** before first `compose up` — the old KOPS-063 order made Docker auto-create bind-mount dirs and HA silently ran default config. Do not reorder.
-
-> ⚠ **Session-safety (live lessons):** (1) 2026-09-01 — do **NOT** switch the Pi's NM connection to a NEW profile id with `nmcli connection up <new-profile>` — activating a new manual profile **deactivates the DHCP connection and drops the interface**, severing the remote SSH session (Pi offline; only the router could ping it on the Home leg). (2) 2026-09-02 — the `network` role renders TWO keyfiles: `pi-eth0.nmconnection` (untagged Home parent) + `pi-mgmt.nmconnection` (tagged Mgmt `eth0.99`). Applying the changed `pi-eth0` keyfile over the wire is safe **because the connection id stays `pi-eth0` and the Home IP is unchanged** — install the file, `nmcli connection reload`, then `nmcli connection up pi-eth0` (for an already-active connection this is a re-apply, not a profile switch). The Mgmt IP lives ONLY on the tagged sub-interface, never on the untagged parent (its connected route hijacked 10.10.99.x away from the tagged leg — `router99` 'No route to host' live 2026-09-02, fixed + verified).
-
-Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefik-ha` (the minimal VIP edge). **No** pihole, **no** raspberrymatic (HD-13 parked — HmIP-HAP stays in cloud mode).
-
-### 4.4 Verify
-
-- `ha.kogler.si` resolves to the VIP (`ha-vip` per SSOT); `keepalived` MASTER on the Pi (priority 110 > oldsrv's 100).
-- Technitium resolves `*.kogler.si` internally — **3-instance DNS HA: VPS primary (resolver = VPS public IP) / oldsrv secondary / Pi tertiary** (HD-317, 2026-09-03; option A: single VPS-public resolver + VPS nftables source-allow + DDNS-refresh timer). **VPS primary LIVE 2026-09-03** (`:53/udp+tcp` published; container joins dns-servers pin + traefik-public; web UI serves on the overlay). **⏳ remaining:** seed the split-horizon static A records on all 3 instances (needs a Technitium admin credential in 1Password — item currently absent) + the RB4011 DHCP/resolver ordering + `dig / tailnet` owner verify.
-- HA web login via Authentik **native OIDC** on the `ha` route (no Forward-Auth).
-- Manual failover Pi→oldsrv and back passes ([smart-home-failover.md](docs/smart-home-failover.md) runbook; HD-17 button + `ha-failover_api` pending).
-- NUT client shutdown path (master = nas) · monitoring scrape of the HA exporter (Phase 6).
-
-> **Deploy-gated:** HD-04 (HAOS→Debian+HA Container+Technitium secondary), HD-17/124 (failover
-> button + keepalived hardening). See [todo.md](todo.md) rows + [home-assistant-current.md](docs/home-assistant-current.md).
-
----
-
-## Phase 5 — DGX Spark (GB10) first-boot + onboarding (`spark.kogler.si`) `[MANUAL]`
-
-> **Depends on:** Phase 1.5 (VLANs — Home VLAN 10 reachability), the `spark` rows in
-> `network_static_hosts` ([`IaC/ansible/group_vars/all/main.yml`](IaC/ansible/group_vars/all/main.yml)).
-> Owning spec: [docs/hardware-spark.md](docs/hardware-spark.md) (HD-335 / HD-337 / HD-359).
-> The node is headless by design — a display + keyboard are needed ONCE, for the first-boot wizard
-> (steps 5.1–5.3); afterwards everything runs over SSH/Ansible.
-
-### 5.1 First-boot wizard `[MANUAL]`
-
-1. **Cable** the 10 GbE RJ-45 port to a Home VLAN 10 switch port; power via the 240 W USB-C PD PSU.
-2. **Attach display + keyboard** and power on — the GB10 ships with DGX OS preinstalled; the
-   NVIDIA first-boot setup wizard runs on first boot.
-3. **Wizard choices** (as executed 2026-09-14): language **English**, timezone **Europe/Ljubljana**,
-   local admin account `admin` — password stored in 1Password item **`spark_login`**;
-   **analytics disabled**.
-4. **Apply the offered updates, then let the wizard reboot.**
-
-### 5.2 Post-update reboot: mask auto-suspend (MANDATORY, before the box idles) `[MANUAL]`
-
-> **Live lesson 2026-09-14:** after the update reboot the node went **completely silent at L2** —
-> lease stale, no ARP/ICMP answers, while the switch/router port link stayed up. Cause: headless
-> **auto-suspend** (a DGX Spark idles into suspend, which kills the NIC). A physical power-cycle
-> brought it back. Do NOT leave the box unattended before this step — it will vanish again.
->
-> **Since HD-364 (2026-09-14) this is IaC-enforced** — the `spark` role masks the four targets +
-> sets `default.target = multi-user` when `spark_headless: true`. The manual mask below is the
-> **first-contact bootstrap only** (before the first `spark.yml` converge); after converge the
-> role keeps it idempotent (and the runbook step is superseded).
-
-```bash
-ssh admin@<current-dhcp-ip>        # see the router DHCP lease (host-name thinkstationpgx-*)
-sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
-sudo systemctl set-default multi-user.target    # skip the graphical login on the headless box
-```
-
-✔ `systemctl status sleep.target suspend.target` — all four targets show **`masked`**;
-`systemctl get-default` → `multi-user.target`.
-
-### 5.3 First-boot verification `[MANUAL]`
-
-```bash
-nvidia-smi        # ✔ "NVIDIA GB10", driver 580.x, CUDA Version: 13.0
-nvcc --version | tail -1   # ✔ Build cuda_13.0
-free -h           # ✔ ~121 Gi total (128 GB unified minus reserve)
-lsblk             # ✔ single NVMe: p1 EFI (512M) + p2 root (rest) — record layout for the
-                  #   spark_partition_enable inspection before the spark role converge
-```
-
-✔-evidence recorded 2026-09-14: driver 580.173.02 / CUDA 13.0 · 121 Gi RAM · 953.9G NVMe,
-p1 512M EFI + p2 root.
-
-### 5.4 MAC → static reservation (SSOT + router) `[MANUAL]`
-
-1. **Read the NIC MAC** from the router DHCP lease (dynamic lease on `dhcp-10`, host-name
-   `thinkstationpgx-*`) — 2026-09-14: `38:A7:46:78:13:97`.
-2. **SSOT:** the MAC is authored into the `spark` VLAN-10 row of `network_static_hosts`
-   (mgmt VLAN-99 row stays MAC-less until the mgmt NIC is cabled).
-3. **Router (WinBox/WebFig, owner step):** `IP → DHCP Server → Leases` → select the spark lease →
-   **make-static**, then edit the address to the reserved spark Home static per SSOT
-   ([docs/network-addresses-generated.md](docs/network-addresses-generated.md), `spark` VLAN 10).
-   The spark mgmt-VLAN reservation stays pending until that leg is cabled.
-
-✔ `ping spark.kogler.si` answers on the reserved static and the lease shows `bound` + `static`
-on `dhcp-10`.
-
-### 5.5 First contact + Ansible provisioning `[MANUAL + Ansible]`
-
-> **Executed 2026-09-14 (this session) — imperative runbook for a future from-scratch redeploy.**
-
-```bash
-# 1) First-contact bootstrap (manual, ON spark as `admin` over its display/KVM):
-#    served bootstrap-spark.sh over LAN HTTP from the management laptop (WSL: python -m http.server + netsh portproxy),
-#    fetched AS admin, run with sudo — creates ansible-admin (key-only, NOPASSWD sudo), installs 2 keys
-#    (ansible-admin_ssh + laptop-domen_ssh, from 1P Homelab-ansible), sshd hardening drop-in, masks auto-suspend,
-#    writes /etc/spark-bootstrap.done. (The standalone spark/ansible/spark-bootstrap role is the same logic.)
-sudo bash bootstrap-spark.sh
-
-# 2) Verify from the runner (WSL):
-ssh -o BatchMode=yes -i ~/.ssh/id_ed25519 ansible-admin@spark.kogler.si 'whoami; sudo -n true'   # spark.kogler.si = SSOT spark Home IP (network-addresses-generated.md)
-#    (~/.ssh/config: Host spark → HostName spark.kogler.si (SSOT), User ansible-admin)
-
-# 3) NVMe layering (operator, manual): DGX OS ships p1=vfat /boot/efi + p2=ext4 root (~953G).
-#    SHRINK p2 offline first (recovery USB: e2fsck -f, resize2fs to ≤450G, parted shrink), then:
-ssh spark 'sudo parted -s -- /dev/nvme0n1 mkpart primary xfs 944769024s 100%'
-ssh spark 'sudo mkfs.xfs -f -d agcount=16 /dev/nvme0n1p3'
-ssh spark 'sudo mkdir -p /mnt/spark_nvme && sudo mount /dev/nvme0n1p3 /mnt/spark_nvme'
-
-# 4) Set spark_partition_enable: true in IaC/ansible/host_vars/spark.kogler.si.yml, then converge:
-ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark.kogler.si -e ansible_host=spark.kogler.si  # SSOT IP via network_static_hosts
-#    → failed=0: role skips carve (p3 exists), writes fstab + XFS dirs; docker role auto-picks
-#    Ubuntu noble; mounts /mnt/spark_nvme (mount_options noatime,nodiratime — XFS rejects nobarrier).
-```
-
-✔ (2026-09-14) `failed=0` (ok=53): `/mnt/spark_nvme` XFS 504G fstab-durable + dirs; docker 29.2.1; alloy active. AI stack deploy-gated on bench (HD-359).
-
-### 5.5 B1 benchmark — imperative run procedure `[MANUAL]`
-
-> First proven by the 2026-09-15 session. Harness lives in-repo (`spark/bench/`); it is **copied to the box** (the box has no repo). Run the official sanity sequence (C1×2 + C2×2 + C3×2 + warm) + accuracy gate. **C3 default is 12×8k@c3 which OOM's the host on GB10 unified memory — the harness now defaults C3→6×8k@c2.
-
-```bash
-# 1) copy harness + scripts to the box (has docker/jq/nvidia-smi)
-scp -r spark/bench spark:/home/ansible-admin/bench
-
-# 2) sanity sequence (accuracy gate + C1/C2/C3 ×2 fresh seeds + warm) — run detached, ~30 min
-ssh spark 'cd /home/ansible-admin/bench && setsid bash -c "bash run-sanity.sh > sanity-full.log 2>&1" < /dev/null &'
-
-# 3) single scenario for iterative tuning (env-overridable sizes; MEM_FLOOR_GB guards host RAM)
-ssh spark 'cd /home/ansible-admin/bench && MEM_FLOOR_GB=8 bash run-scenario.sh B1 C2 42'
-
-# 4) retrieve results
-scp -r spark:/home/ansible-admin/bench/raw .
-scp spark:/home/ansible-admin/bench/results.csv ./raw/
-scp -r spark:/home/ansible-admin/bench/accuracy .
-```
-
-**Known harness corrections baked in (2026-09-15, this vLLM build `0.1.dev20073+g8e685d198`):** invoke via `vllm bench serve` (the `python3 -m vllm.benchmarks.serve` module has no `__main__`, silently exits 0); flags are `--base-url + --endpoint /v1/chat/completions` (new CLI); snapshot-metrics uses `kv_cache_usage_perc` (renamed from `gpu_cache_usage_perc`); result JSON is read out via `docker exec cat` (docker cp can't see the container's tmpfs `/tmp`); run metrics are float-safe and keyed on an immutable `RUN_TS` (the snapshot .env clobbers `TS`).
-
-> **C3 OOM (2026-09-15 02:50):** the original 12×8k@c3 exhausted the NVRM memdesc (`NV_ERR_NO_MEMORY`) + triggered a global host OOM that killed sshd/NetworkManager/polkitd (the vLLM container survived its 105G cage). The harness preflight (`MEM_FLOOR_GB`, default 8) aborts a run if host available RAM is below the floor — never re-run an unsafe C3 unattended.
-
-
-### 5.6 DGX Dashboard LAN edge — verify (after any spark converge / reboot) `[Ansible + verify]`
-
-> Live fix 2026-09-15 (404 → 200). The spark-dashboard Traefik edge 404'd from the LAN because:
-> (1) the routes file used a `HostRegexp({host:.+})` catch-all that matched nothing on this
-> v3.7 Traefik (own 404, incl. `/api`/`/ping`) → replaced with an explicit `Host(spark.kogler.si)`
-> rule (name-based; IP-host requests 404 by design — use the name); (2) the LAN bind
-> `{{ spark_home_ip }}:11000/:11002` failed at container start (EADDRNOTAVAIL) until the spark role
-> sets `net.ipv4.ip_nonlocal_bind=1` (headless-gated); (3) a stale duplicate healthcheck
-> (`wget …:8080`, nothing listens) overrode the correct `traefik healthcheck --ping` → removed.
-> The debug API lives on the built-in `traefik` entrypoint (`127.0.0.1:8080`), NOT on 11000.
-
-```bash
-ssh spark 'sysctl net.ipv4.ip_nonlocal_bind'   # must print 1 (role-owned)
-ssh spark 'grep -E "ping|healthcheck|rule:" /opt/spark-dashboard/docker-compose.yml /opt/spark-dashboard/dynamic/routes.yml'  # --ping + CMD traefik healthcheck --ping + Host(spark.kogler.si); NO --api.insecure (dropped once verified, close-out 2026-09-15)
-ssh spark 'cd /opt/spark-dashboard && sudo docker compose up -d'   # re-render from latest template
-curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://spark.kogler.si:11000/   # MUST be 200 (use the NAME, not the IP)
-ssh spark 'docker exec traefik-spark traefik healthcheck --ping'   # "OK: http://:8080/ping", exit 0; container shows healthy
-```
+> **If a client NFS automount errors `Stale file handle`** (often after an export change):
+> ```sh
+> # on nas: re-apply exports as root and confirm the target is exported
+> sudo /usr/sbin/exportfs -ra
+> sudo /usr/sbin/exportfs -v        # target share must be listed
+> # on the client (e.g. oldsrv): clear the stale handle, then re-trigger the mount
+> sudo umount /mnt/<share>
+> ls /mnt/<share>                   # re-mounts cleanly once the export is live
+> ```
+6. **Samba — passdb switch (HD-132/HD-360):** Samba auth is driven by `storage_samba_passdb`
+   in the storage role (default `tdbsam` = local accounts; `ldapsam` = Authentik-as-LDAP, D7).
+   **Do NOT flip to `ldapsam` before the Authentik side is live** — smbd fails HARD on startup
+   (`pdb_init_ldapsam: NT_STATUS_CANT_ACCESS_DOMAIN_INFO`) if the outpost is unreachable
+   — a tree connect fails on every share if it is set). To enable LDAP (HD-360):
+   ```bash
+   # 1. Authentik (VPS): add the LDAP provider + outpost + svc_samba service user/group
+   #    to the ks-oidc.yml Blueprint, then apply:
+   bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml
+   # 2. Mint a FRESH outpost token → 1Password `authentik-ldap_bind` (field=password). A stale token
+   #    renders the outpost unhealthy and every bind fails — always re-mint, never reuse.
+   # 3. Redeploy the ldap outpost with the new token:
+   bash scripts/ansible-run.sh playbooks/vps.yml --limit vps   # (or docker compose up -d authentik-ldap on vps)
+   # 4. Flip the var + converge nas:
+   #    host_vars/nas.kogler.si.yml: storage_samba_passdb: ldapsam
+   bash scripts/ansible-run.sh playbooks/storage.yml --limit nas
+   # 5. Live-verify: mount \\nas\media with an Authentik (family) account.
+   ```
+   Default at deploy: `storage_samba_passdb: tdbsam` (works with the IdP offline), with
+   `vfs objects = acl_xattr`. LDAP mode = `ldapsam`, gated on HD-360 — **do not flip it before the
+   outpost is live**, smbd fails hard on an unreachable outpost.
 
 ---
 
-## Phase 3 — oldsrv music pillar (HD-362) ⏳ deploy-gated
+## Phase 3 — oldsrv first-boot follow-ups (music pillar, embed fallback)
 
 Authoring spec: [docs/services-media.md](docs/services-media.md) §Music Pillar ·
 [docs/services-downloads.md](docs/services-downloads.md) §VPN & Ingress ·
 [docs/deployment-secrets.md](docs/deployment-secrets.md) (new catalog rows).
 All of this runs on **oldsrv** only; streaming stays on the VPS (Navidrome, HD-354).
 
-### P3.1 Owner seeds the new 1Password items (BLOCKING — render fails otherwise)
+### P3.1 Owner seeds the new 1Password items `[MANUAL]` (blocking — the render fails without them)
 
 | Item | Kind | Notes |
 |---|---|---|
-| `slskd_login` | Login | Soulseek network username/password (already created by owner, 2026-09-14) |
+| `slskd_login` | Login | Soulseek network username/password (owner-supplied) |
 | `soulseek_api` | API Credential | slskd web-UI/API token (generate via `scripts/`; optional but recommended) |
-| `lastfm_login` | Login | Last.fm username + API key (`username`+`credential`); owner-created 2026-09-14 |
-| `metabrainz_login` | Login | ListenBrainz token (`username`+`credential`); owner-created 2026-09-14 |
+| `lastfm_login` | Login | Last.fm username + API key (`username`+`credential`), owner-created |
+| `metabrainz_login` | Login | ListenBrainz token (`username`+`credential`), owner-created |
 | `tube-archivist_login` | Login | Tube Archivist web-UI login (`username`+`credential`) |
 | `tube-archivist_ui` | API Credential | Tube Archivist UI/API token — OPTIONAL (only if the Jellyfin plugin is used later) |
-| `tube-archivist-es` | API Credential | **ES `elastic` bootstrap password** (ELASTIC_PASSWORD on app + archivist-es) — catalog-generated 2026-09-14; required by the TA env-check |
+| `tube-archivist-es` | API Credential | **ES `elastic` bootstrap password** (ELASTIC_PASSWORD on app + archivist-es) — catalog-generated; required by the TA env-check |
 | `lidarr-url-dl_login` | Login | **Lidarr-YouTube-Downloader** web-UI login (`username`+`credential`) — entered in its Settings page at first run |
 | `lidarr_api` | API Credential | **Lidarr instance key** — read from the live Lidarr `config.xml` after first
   boot, or generate + set via `scripts/` (see [scripts/README.md](scripts/README.md) — the same
@@ -1379,52 +1103,256 @@ narrow-bound to the oldsrv Home-IP (homelable pattern; NO public route/cert labe
 - Aurral recommendations render; Tube Archivist subs pull episodes on schedule.
 - `bash scripts/validate-all.sh` green (unchanged by deploy; run after any repo change).
 
-### P3.5 Ollama RX-7600 pinned-services first-boot (HD-369) — 2026-09-15 live
+### P3.5 Ollama embed fallback — first boot + model pull `[MANUAL]`
 
-> Imperative first-boot + model-pull procedure for the Ollama pinned-services tier (deployed by a
-> routine `home_servers.yml` converge once `ollama.enabled: true` is in `group_vars/home_servers.yml`).
-> **Registry names below are the CORRECTED ones** — the original spec's `whisper-large-v3-turbo` + `bge-reranker-v2-m3`
-> do NOT exist in the ollama library (verified 2026-09-15): `bge-m3` is the only library model; whisper + reranker
-> are community-repo models. **API-cap note (CORRECTED 2026-09-17):** the pinned `:rocm` build (0.32.15) has NO
-> `/api/rerank` (404) — but **no ollama version has one**: the earlier “needs ollama ≥ 0.5.x” note was wrong
-> (`v0.34.1` tree has zero rerank code; issue #3368 still open; PRs #11389/#7219 closed-not-merged). **Do not
-> bump the pin expecting rerank.** Per decision #25 the rerank leg is a **CPU CrossEncoder** and STT is
-> **`whisper.cpp` GGML_HIP** — only embed (bge-m3) belongs to Ollama. See [services-ai.md](docs/services-ai.md) §9c · HD-385.
+> **The plan of record is [services-ai.md](docs/services-ai.md) §3a** (decision #27, accepted 2026-09-18): the
+> pinned tier (embed + rerank + STT) targets **llama.cpp `server-vulkan`** on the RX 7600 and is **not deployed**
+> until HD-391 lands. Until then **Ollama `0.32.15-rocm` runs as the embed fallback rung only** — rerank and STT
+> are NOT Ollama legs, and no version bump will make them one (no Ollama build exposes `/api/rerank`).
+> Do not converge an unpinned AI leg, and do not re-derive engine choice from this file.
 
-Verify the container is up + GPU-attached (after any converge):
+Pull the one model this rung serves (one-time, no Ansible task):
 ```bash
-ssh ansible-admin@oldsrv 'docker ps --filter name=ollama --format "{{.Names}} {{.Status}} {{.Image}}"; docker inspect ollama --format "{{range \$k,\$v := .NetworkSettings.Networks}}{{\$k}} {{end}}"'
-# expect: ollama  Up ...  ollama/ollama:0.32.15-rocm ;  llm-backend
-```
-
-First-boot model pull (one-time; no Ansible task — documented manual step):
-```bash
-ssh ansible-admin@oldsrv 'docker exec ollama ollama pull bge-m3'                           # library: 1024-dim embed
-ssh ansible-admin@oldsrv 'docker exec ollama ollama pull bge-m3'   # (idempotent re-run)
+ssh ansible-admin@oldsrv 'docker exec ollama ollama pull bge-m3'
 ssh ansible-admin@oldsrv 'docker exec ollama ollama list'
-# RETIRED by decision #25 (2026-09-17) — do NOT pull these two; they are unusable on Ollama:
-#   sendmeaiohyeah/whisper-large-v2   -> STT is whisper.cpp GGML_HIP (native gfx1102), GGML model file
-#   qllama/bge-reranker-v2-m3:q8_0    -> rerank is a CPU CrossEncoder service
-# Remove them to free disk after verifying nothing references them:
-#   ssh ansible-admin@oldsrv 'docker exec ollama ollama rm sendmeaiohyeah/whisper-large-v2 qllama/bge-reranker-v2-m3:q8_0'
+# remove any community whisper / reranker models left from the pre-#27 experiment:
+ssh ansible-admin@oldsrv 'docker exec ollama ollama rm sendmeaiohyeah/whisper-large-v2 qllama/bge-reranker-v2-m3:q8_0'
 ```
 
-Verify inference (embed is the only endpoint usable on this pin):
+Verify the embed endpoint (the only one this pin serves):
 ```bash
 ssh ansible-admin@oldsrv 'IP=$(docker inspect ollama --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"); \
   curl -s http://${IP}:11434/api/embed -d "{\"model\":\"bge-m3\",\"input\":\"hello\"}" | head -c 200'
-# expect a JSON embeddings array; ollama ps shows bge-m3 100% GPU (OLLAMA_KEEP_ALIVE=5m keeps it resident)
+```
+✔-evidence: a JSON embeddings array, and `docker exec ollama ollama ps` shows `bge-m3` at 100 % GPU
+(`OLLAMA_KEEP_ALIVE=5m` keeps it resident). When HD-391's Vulkan leg verifies, the LiteLLM catalog rows move off
+`ollama/bge-m3` and this rung retires — the recreate procedure and the correct model rows live in
+[services-ai.md](docs/services-ai.md) §3a.
+
+---
+
+*Charter: imperative redeploy procedure only (true zero → live) for Phases 0, 0.5, 1, 1a, 1.5, 2, 3, 4 and 4b.
+Progress lives in [deployment-tasks.md](deployment-tasks.md), knowledge in the owning docs, history in git.*
+## Phase 4 — Pi Fresh Install + HA Primary (`pi.kogler.si`)
+
+> **Depends on:** Phase 1.5 (VLANs / network reachability), Phase 2 (NAS NUT master), Phase 3 (old srv standby, Forgejo). The Pi is the HA **primary** node; oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP (`ha-vip`).
+> **1Password prerequisites:** `ha_api`, `ha-vrrp_password`, `nut_password`, `smtp_login` already exist; add `ha-mqtt_login` only if MQTT is introduced (out of scope).
+> **Continuation:** `ha.kogler.si` → VIP becomes live here; observability (Phase 6) scrapes the HA exporter and smart-home work (Phase 7) builds on this node.
+
+### 4.1 Flash + first-boot config `[MANUAL]`
+
+> The Pi uses **Raspberry Pi OS Lite (64-bit, headless)** — official Debian-based image, NOT the
+> Debian Installer/preseed path of nas/oldsrv (no `d-i` to answer questions, `preseed.cfg` does
+> not apply); the raspi.debian.net image fails with a **rainbow screen** (kernel/firmware mismatch
+> on the Pi 4) → use Pi OS Lite via Raspberry Pi Imager. Authoring spec:
+> [deployment-preseed.md → Pi Image Deployment](docs/deployment-preseed.md).
+
+1. **Download** Raspberry Pi OS Lite (64-bit) from https://www.raspberrypi.com/software/operating-systems/.
+2. **Flash with Raspberry Pi Imager** to microSD (≥32 GB; 32–64 GB typical) — Imager's **⚙ advanced gear** does the headless pre-config: **Enable SSH + set user (`admin`) + preload the `ansible-admin_ssh` pubkey, hostname `pi`, timezone/locale** (writes `ssh` flag + `userconf.txt` — no manual card edit needed; the old `first-boot-config.sh` is for raspi.debian.net and **not** used here). **Do NOT boot yet.**
+3. **Re-insert the SD card into the laptop** (USB adapter). The boot partition mounts as a drive/FAT32 (e.g. `E:`). From WSL, mount it:
+   ```bash
+   sudo mkdir -p /mnt/e && sudo mount -t drvfs E: /mnt/e
+   ls /mnt/e/config.txt /mnt/e/cmdline.txt   # must exist — verifies it's the Pi boot partition
+   ```
+   ⚠ **WSL2 cannot see USB raw devices** — no `/dev/sdX` for the card, and cannot mount the ext4 **root** partition. Only the FAT32 boot partition (via the drive letter) is editable from WSL. That is sufficient: first-boot config needs only boot-partition files. To edit the root filesystem (e.g. `PermitRootLogin`), you'd need a native Linux host / live USB — **not needed** for the cloud-init path.
+4. **Imager already pre-configured SSH + user + hostname** (step 2's ⚙ gear) — **no boot-partition edit / no `first-boot-config.sh` needed** (that script is raspi.debian.net-only). Eject safely, insert into the Pi, power on.
+
+### 4.2 First-boot verification `[MANUAL]`
+
+```bash
+ping pi.kogler.si          # node resolves to its VLAN-10 static IP per the SSOT ([network-addresses-generated.md](docs/network-addresses-generated.md))
+ssh ansible-admin@pi.kogler.si    # key-only, no password prompt
+# if cloud-init worked, users exist; otherwise on the Pi:
+sudo bash /boot/firstboot.sh
 ```
 
-> LiteLLM Admin-UI catalog recreate (gate step c, deferred) must use the CORRECTED model names:
-> `ollama/bge-m3` (1024 dim) **only**. The rerank + whisper-STT legs are NOT a pin problem and will never be
-> solved by a bump (see the corrected note above): per **decision #25 (2026-09-17)** rerank routes to a **CPU
-> CrossEncoder** service and STT to **`whisper.cpp` GGML_HIP**, each behind an endpoint LiteLLM can route
-> (⚠️ provider routing still unverified — HD-385 item b).
+✔ SSH key-only login as `ansible-admin`; `ssh ai-debug@pi.kogler.si` refused from outside the Home VLAN (the `from="…"` restriction authored in the first-boot script).
+
+> ⚠ Verify the **router-side DHCP reservation** for the Pi's MAC matches the SSOT node IPs (VLAN 10 + mgmt VLAN 99 — see [network-addresses-generated.md](docs/network-addresses-generated.md)) before relying on static IPs.
+
+> The full imperative flow (dry-run → provision → verify → the owner's KNX/SSO steps) is
+> [`deployment-pi-provision.md`](docs/deployment-pi-provision.md). This section carries the ordering and the
+> two rules that break the host when violated.
+
+### 4.3 Ansible provisioning
+
+```bash
+# from the WSL Debian runner (venv), with the 9P sync gate satisfied:
+bash scripts/ansible-run.sh playbooks/raspberry_pi.yml
+# first apply human-gated: dry-run (--check --diff) then single host
+```
+
+Role order is **load-bearing** (HD-185/204 render-first decision): `common` → `ai_diag` → `network` (static dual-home via **two NetworkManager keyfiles** — Pi-uses-NM, [network-rejected.md](docs/network-rejected.md); RPi OS ships NetworkManager, no systemd-networkd. The role renders `pi-eth0.nmconnection` = untagged Home on the parent (`ansible_host`, default via Home — single gateway, no `never-default`, DNS via `bootstrap_dns_servers`, DHCP off) + `pi-mgmt.nmconnection` = tagged Mgmt on `eth0.99` (`mgmt_ip`, never-default, route via the tagged leg — HD-311); session-safe — the Home IP never changes, the Mgmt IP rides the tagged sub-interface, never the untagged parent) → `nut` (client, `shutdown_delay_seconds=0`) → `docker` → **`home_assistant` → `docker_services`** → `monitoring` (Alloy only). Running `home_assistant` BEFORE `docker_services` renders `configuration.yaml` / `keepalived.conf` (+ `secrets.yaml` — rendered from templates, HD-185/HD-313) as **regular files** before first `compose up` — the old KOPS-063 order made Docker auto-create bind-mount dirs and HA silently ran default config. Do not reorder.
+
+> ⚠ **Two rules, both learned by taking the Pi offline:**
+> 1. **Never activate a new NM profile id over the wire.** `nmcli connection up <new-profile>` deactivates the
+>    existing connection and drops the interface mid-session. The `network` role keeps the id stable
+>    (`pi-eth0`), so the safe sequence over SSH is: install the keyfile → `nmcli connection reload` →
+>    `nmcli connection up pi-eth0` (a re-apply of an active connection, not a switch).
+> 2. **The Mgmt IP lives only on the tagged sub-interface `eth0.99`**, never on the untagged Home parent — a
+>    connected route on the parent steals `10.10.99.x` from the tagged leg and `router99` becomes unreachable.
+>    The role renders both keyfiles for exactly this reason: `pi-eth0.nmconnection` (Home 10, untagged,
+>    default route + DNS) and `pi-mgmt.nmconnection` (`eth0.99`, `never-default`).
+
+Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefik-ha` (the minimal VIP edge). **No** pihole, **no** raspberrymatic (HD-13 parked — HmIP-HAP stays in cloud mode).
+
+### 4.4 Verify
+
+- `ha.kogler.si` resolves to the VIP (`ha-vip` per SSOT); `keepalived` MASTER on the Pi (priority 110 > oldsrv's 100).
+- Technitium resolves `*.kogler.si` internally — **3-instance DNS HA: VPS primary (resolver = the VPS public IP) /
+  oldsrv secondary / Pi tertiary**; DHCP hands all three and is **Pi-first on VLAN 10**. Option A (single
+  VPS-public resolver + VPS nftables source-allow + DDNS refresh) is the design:
+  [network-dns.md](docs/network-dns.md). The split-horizon records are **seeded by the `technitium-seed` task**
+  (contract checked by `scripts/check_dns_seed_drift.py`) and need the `technitium_login` item — see §1.4c.
+- HA web login is **local** (owner account, `ha` route). Authentik OIDC for HA was **declined by the owner** —
+  do not wire it. The SSO dashboard links HA, HA does not authenticate to Authentik.
+- Manual failover Pi→oldsrv and back passes ([smart-home-failover.md](docs/smart-home-failover.md) runbook; the
+  Homepage button + `ha-failover_api` gate are tracked as HD-17 / HD-217).
+- NUT client shutdown path (master = nas) · monitoring scrape of the HA exporter (Phase 6, gated behind HD-14).
+
+> Open items on this host are the ledger's Phase 4 block ([deployment-tasks.md](deployment-tasks.md)) and
+> [home-assistant-current.md](docs/home-assistant-current.md).
 
 ---
 
----
+## Phase 4b — DGX Spark (GB10) first-boot + onboarding (`spark.kogler.si`) `[MANUAL]`
 
-*Last updated 2026-09-15 · imperative redeploy procedure (true zero → live) for Phases 0 + 0.5 + 1a + 1 + 1.5 + 4 + 5 (P3.5 Ollama first-boot HD-369). Progress/history lives in [deployment-tasks.md](deployment-tasks.md) + owning docs.*
+> **Depends on:** Phase 1.5 (VLANs — Home VLAN 10 reachability), the `spark` rows in
+> `network_static_hosts` ([`IaC/ansible/group_vars/all/main.yml`](IaC/ansible/group_vars/all/main.yml)).
+> Owning spec: [docs/hardware-spark.md](docs/hardware-spark.md) (HD-335 / HD-337 / HD-359).
+> The node is headless by design — a display + keyboard are needed ONCE, for the first-boot wizard
+> (steps 5.1–5.3); afterwards everything runs over SSH/Ansible.
+
+### 4b.1 First-boot wizard `[MANUAL]`
+
+1. **Cable** the 10 GbE RJ-45 port to a Home VLAN 10 switch port; power via the 240 W USB-C PD PSU.
+2. **Attach display + keyboard** and power on — the GB10 ships with DGX OS preinstalled; the
+   NVIDIA first-boot setup wizard runs on first boot.
+3. **Wizard choices:** language **English**, timezone **Europe/Ljubljana**, local admin account `admin` —
+   password is the 1Password item **`spark_login`**; **analytics disabled**.
+4. **Apply the offered updates, then let the wizard reboot.**
+
+### 4b.2 Post-update reboot: mask auto-suspend (MANDATORY, before the box idles) `[MANUAL]`
+
+> **Do not leave this box unattended before the masks are in.** A headless GB10 idles into **auto-suspend**,
+> which kills the NIC: the node goes silent at L2 (stale lease, no ARP/ICMP) while the port link stays up, and
+> only a physical power-cycle recovers it. The `spark` role enforces the masks from IaC (`spark_headless: true`,
+> HD-364) — masking by hand is only the pre-first-converge window.
+>
+> The `spark` role enforces these masks from IaC (`spark_headless: true` masks the four targets and sets
+> `default.target = multi-user`). The manual mask below is therefore **first-contact only** — the window before
+> the first `spark.yml` converge; afterwards the role keeps it true and re-running the step is harmless.
+
+```bash
+ssh admin@<current-dhcp-ip>        # see the router DHCP lease (host-name thinkstationpgx-*)
+sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+sudo systemctl set-default multi-user.target    # skip the graphical login on the headless box
+```
+
+✔ `systemctl status sleep.target suspend.target` — all four targets show **`masked`**;
+`systemctl get-default` → `multi-user.target`.
+
+### 4b.3 First-boot verification `[MANUAL]`
+
+```bash
+nvidia-smi        # ✔ "NVIDIA GB10", driver 580.x, CUDA Version: 13.0
+nvcc --version | tail -1   # ✔ Build cuda_13.0
+free -h           # ✔ ~121 Gi total (128 GB unified minus reserve)
+lsblk             # ✔ single NVMe: p1 EFI (512M) + p2 root (rest) — record layout for the
+                  #   spark_partition_enable inspection before the spark role converge
+```
+
+✔-evidence: driver 580.x / CUDA 13.0 · ~121 Gi unified RAM · one NVMe as p1 EFI (512 M) + p2 root. Record the
+partition layout — the `spark_partition_enable` inspection depends on it.
+
+### 4b.4 MAC → static reservation (SSOT + router) `[MANUAL]`
+
+1. **Read the NIC MAC** from the router DHCP lease (dynamic lease on `dhcp-10`, host-name
+   `thinkstationpgx-*`).
+2. **SSOT:** the MAC is authored into the `spark` VLAN-10 row of `network_static_hosts`
+   (mgmt VLAN-99 row stays MAC-less until the mgmt NIC is cabled).
+3. **Router (WinBox/WebFig, owner step):** `IP → DHCP Server → Leases` → select the spark lease →
+   **make-static**, then edit the address to the reserved spark Home static per SSOT
+   ([docs/network-addresses-generated.md](docs/network-addresses-generated.md), `spark` VLAN 10).
+   The spark mgmt-VLAN reservation stays pending until that leg is cabled.
+
+✔ `ping spark.kogler.si` answers on the reserved static and the lease shows `bound` + `static`
+on `dhcp-10`.
+
+### 4b.5 First contact + Ansible provisioning `[MANUAL + Ansible]`
+
+```bash
+# 1) First-contact bootstrap (manual, ON spark as `admin` over its display/KVM):
+#    served bootstrap-spark.sh over LAN HTTP from the management laptop (WSL: python -m http.server + netsh portproxy),
+#    fetched AS admin, run with sudo — creates ansible-admin (key-only, NOPASSWD sudo), installs 2 keys
+#    (ansible-admin_ssh + laptop-domen_ssh, from 1P Homelab-ansible), sshd hardening drop-in, masks auto-suspend,
+#    writes /etc/spark-bootstrap.done. (The standalone spark/ansible/spark-bootstrap role is the same logic.)
+sudo bash bootstrap-spark.sh
+
+# 2) Verify from the runner (WSL):
+ssh -o BatchMode=yes -i ~/.ssh/id_ed25519 ansible-admin@spark.kogler.si 'whoami; sudo -n true'   # spark.kogler.si = SSOT spark Home IP (network-addresses-generated.md)
+#    (~/.ssh/config: Host spark → HostName spark.kogler.si (SSOT), User ansible-admin)
+
+# 3) NVMe layering (operator, manual): DGX OS ships p1=vfat /boot/efi + p2=ext4 root (~953G).
+#    SHRINK p2 offline first (recovery USB: e2fsck -f, resize2fs to ≤450G, parted shrink), then:
+ssh spark 'sudo parted -s -- /dev/nvme0n1 mkpart primary xfs 944769024s 100%'
+ssh spark 'sudo mkfs.xfs -f -d agcount=16 /dev/nvme0n1p3'
+ssh spark 'sudo mkdir -p /mnt/spark_nvme && sudo mount /dev/nvme0n1p3 /mnt/spark_nvme'
+
+# 4) Set spark_partition_enable: true in IaC/ansible/host_vars/spark.kogler.si.yml, then converge:
+ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark.kogler.si -e ansible_host=spark.kogler.si  # SSOT IP via network_static_hosts
+#    → failed=0: role skips carve (p3 exists), writes fstab + XFS dirs; docker role auto-picks
+#    Ubuntu noble; mounts /mnt/spark_nvme (mount_options noatime,nodiratime — XFS rejects nobarrier).
+```
+
+✔-evidence: `failed=0`; `/mnt/spark_nvme` mounted, fstab-durable, XFS dirs present; docker installed; alloy
+active. The AI stack deploys separately (`playbooks/spark.yml --tags spark-ai`).
+
+### 4b.5b B1 benchmark — imperative run procedure `[MANUAL]`
+
+> The harness lives in-repo at `spark/bench/` and is **copied to the box** (the box has no checkout). Run the
+> sanity sequence (C1×2 + C2×2 + C3×2 + warm) plus the accuracy gate. **C3 must stay at 6×8k@c2**: the upstream
+> 12×8k@c3 default exhausts the NVRM memdesc (`NV_ERR_NO_MEMORY`) and triggers a host-wide OOM on GB10 unified
+> memory that kills `sshd`/`NetworkManager`/`polkitd` — the container survives its memory cage, the host does
+> not. The harness preflight (`MEM_FLOOR_GB`, default 8) aborts below the floor; never lift it for C3.
+
+```bash
+# 1) copy harness + scripts to the box (has docker/jq/nvidia-smi)
+scp -r spark/bench spark:/home/ansible-admin/bench
+
+# 2) sanity sequence (accuracy gate + C1/C2/C3 ×2 fresh seeds + warm) — run detached, ~30 min
+ssh spark 'cd /home/ansible-admin/bench && setsid bash -c "bash run-sanity.sh > sanity-full.log 2>&1" < /dev/null &'
+
+# 3) single scenario for iterative tuning (env-overridable sizes; MEM_FLOOR_GB guards host RAM)
+ssh spark 'cd /home/ansible-admin/bench && MEM_FLOOR_GB=8 bash run-scenario.sh B1 C2 42'
+
+# 4) retrieve results
+scp -r spark:/home/ansible-admin/bench/raw .
+scp spark:/home/ansible-admin/bench/results.csv ./raw/
+scp -r spark:/home/ansible-admin/bench/accuracy .
+```
+
+**CLI/API drift this harness absorbs** (re-check on every engine pin bump; results are meaningless if the
+invocation silently no-ops): invoke `vllm bench serve` — `python3 -m vllm.benchmarks.serve` has no `__main__`
+and **exits 0 doing nothing**; pass `--base-url` + `--endpoint /v1/chat/completions`; read snapshot metrics from
+`kv_cache_usage_perc` (renamed from `gpu_cache_usage_perc`); pull result JSON with `docker exec cat` (`docker cp`
+cannot see the container's tmpfs `/tmp`); key run metrics on an immutable `RUN_TS` (the snapshot `.env` clobbers
+`TS`). Provenance for the numbers: [services-ai-bench.md](docs/services-ai-bench.md).
+
+
+### 4b.6 DGX Dashboard LAN edge — verify (after any spark converge / reboot) `[Ansible + verify]`
+
+> The edge 404s from the LAN whenever the file-provider rule is missing or the healthcheck/ping glue is stale —
+> the spark dashboard has no Traefik labels of its own, so the route lives entirely in the generated file.
+> Rule + cause: [hardware-spark.md](docs/hardware-spark.md) §Dashboard LAN edge.
+
+```bash
+ssh spark 'sysctl net.ipv4.ip_nonlocal_bind'   # must print 1 (role-owned)
+ssh spark 'grep -E "ping|healthcheck|rule:" /opt/spark-dashboard/docker-compose.yml /opt/spark-dashboard/dynamic/routes.yml'  # --ping + CMD traefik healthcheck --ping + Host(spark.kogler.si); NO --api.insecure (dropped once verified)
+ssh spark 'cd /opt/spark-dashboard && sudo docker compose up -d'   # re-render from latest template
+curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://spark.kogler.si:11000/   # MUST be 200 (use the NAME, not the IP)
+ssh spark 'docker exec traefik-spark traefik healthcheck --ping'   # "OK: http://:8080/ping", exit 0; container shows healthy
+```
+
+---
 

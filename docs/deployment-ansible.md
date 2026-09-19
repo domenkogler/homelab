@@ -149,6 +149,28 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   | Run the rare base bootstrap tier (HD-269 Step 4) | `--tags base` — runs `common`, `docker`, `hardening`, `network`, `cifs`, `wireguard` only (first-boot / a rare infra change); `docker_services` & `monitoring` excluded |
   | Discovery | `--list-tags` / `--list-tasks --tags "<filter>"` |
 
+### Long converges run detached — and `rc=0` is not proof (HD-370 / HD-379)
+
+A full `docker_services` converge takes **10–30+ minutes**. Run it in the background and poll the log:
+
+```bash
+bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services \
+    </dev/null > /tmp/converge-"$(date +%s)".log 2>&1 &
+```
+
+A foreground run behind an outer timeout gets **killed mid-restart**, which leaves sibling containers `Exited`
+(live case: VPS `tailscale-sidecar Exited (128)`), and the next run then fails its restart guard with
+`cannot join network namespace of a non running container`. Re-running the same playbook is idempotent — the
+guard restarts the stack once its siblings are Up. **Only `--check` is safe in the foreground.**
+
+The second half of the lesson: a green `PLAY RECAP` does not mean the service deployed. A service's own deploy
+tasks carry `tags: "{{ svc.name }}"` (`roles/docker_services/tasks/deploy-service.yml`), so
+`--tags monitoring,docker_services` renders the loop and **silently skips every inner task** — see the
+silent-no-op rule above. Include the service name (or use `docker_services_scope=`), then verify the **artefact**
+rather than the recap: `docker ps` for the container, and for telemetry a backend query (e.g.
+`VM {job="dcgm"}`). Live case: the first `spark-dcgm` converge reported success with no container on the box;
+the second, run with the name tag, deployed it in ~30 s.
+
 ### Compose templates (`templates/docker_services/`)
 - **One directory per service.** Files inside: `docker-compose.yml.j2` (always),
   plus extra configs (e.g. `dynamic/routes.yml.j2`, `tuwunel.toml.j2`).
@@ -821,3 +843,51 @@ for any future speed change, HD-257).
   concerns (extra VPS web surface) and it is unaware of the `docker-compose@.service` guards / single
   Ansible compose model. Cheaper alt: `scripts/docker-restart.sh <service>` or cockpit container views.
   Decision log: [deployment-rejected.md](deployment-rejected.md).
+## Windows/WSL runner host facts (the management laptop)
+
+> The imperative bootstrap is [deployment-manual.md](../deployment-manual.md) §Phase 0 / §0.4b
+> (`scripts/git-bootstrap-win11.sh`, `scripts/wsl-nat-resolv.ps1`). These are the facts that make those steps
+> behave the way they do — each one cost a broken session.
+
+**The two shells are different machines with different identities.** Repo ops and validators run in
+**git-bash** on Windows; Ansible runs only in the **WSL Debian** runner. The Windows side is served by the
+1Password **desktop** app over the named pipe `\\.\pipe\openssh-ssh-agent` — there is no
+`~/.ssh/config` `Host github.com` block and no `~/.1password/agent.sock` there. The CLI key-pull path
+(`op` + `SSH_AUTH_SOCK=~/.1password/agent.sock`) is Linux/WSL-only.
+
+**Commit signing resolves by the PUBLIC-KEY STRING, not a file path.** `op-ssh-sign.exe` looks the signing key
+up by its public-key string (`ssh-ed25519 AAAA…`, the value in `.gitconfig-github`). Setting
+`user.signingkey` to a private-key **file path** makes it parse the private PEM as a public key and fail with
+`error: 1Password: invalid ssh public key`. Keep `user.signingkey` the pub-string the includeIf already sets.
+The `.pub` halves (`github_signing.pub`, `github_auth.pub`) live in Windows `~/.ssh` for the agent lookup; the
+private halves stay in WSL `~/.ssh`.
+
+**git must be pointed at Windows OpenSSH.** `core.sshCommand = C:/Windows/System32/OpenSSH/ssh.exe`
+(in `.gitconfig-windows`) is what makes git find the named-pipe agent. A leftover
+`-I …/op-ssh-sign.dll` or `IdentityAgent ~/.1password/agent.sock` breaks it — that DLL path does not exist on
+this laptop; the real signer is `~/AppData/Local/Microsoft/WindowsApps/op-ssh-sign.exe`.
+
+**WSL networking: NAT + auto-resolv is the durable state, independent of what the laptop is connected to.**
+`mirrored` mode can wedge (eth0 ARP `FAILED` for the gateway, `No route to host` even after `wsl --shutdown`,
+while Windows itself is healthy). The older **Bridged** topology (`networkingMode=Bridged` on
+`vmSwitch=VLAN-Switch`) pins `eth0` to the homelab static IP and the vSwitch to a wired NIC — on WiFi or a
+hotspot that NIC has no carrier, so `eth0` comes up with no address and no route while the hardcoded
+`resolv.conf` points at unreachable DNS. `scripts/wsl-nat-resolv.ps1` (admin, idempotent) is the fix: it sets
+`.wslconfig` to `networkingMode=Nat` (**not** `default` — WSL accepts `Nat`), drops `generateResolvConf=false`
+from `/etc/wsl.conf` so WSL regenerates `/etc/resolv.conf` at every boot, and disables the static
+`10-eth0.network` unit.
+
+**Plain `*.kogler.si` needs MagicDNS in WSL.** `*.ts.kogler.si` is answered by the Windows forwarder, but the
+plain namespace lives in Tailscale MagicDNS (the NRPT only routes `.ts` + CGNAT reverse zones). Put the
+MagicDNS loop **first**, then the auto-generated Windows NAT forwarder, and never hardcode the forwarder
+address:
+```
+nameserver 100.100.100.100
+nameserver <the Windows NAT gateway WSL prints in /etc/resolv.conf at boot>
+search ts.kogler.si kogler.si
+```
+
+**Mgmt-99 reachability from the laptop** is the Windows `Mgmt99` vNIC (`wsl-nat-resolv.ps1 -EnableMgmt99`),
+which is what lets playbooks connect **direct** to `.99` device addresses. The Pi-99 ProxyJump hop
+(`scripts/ansible-network-hop.sh`) predates it and is obsolete — kept only as a fallback. Laptop alias SSOT:
+[network-vpn.md](network-vpn.md) §The laptop alias contract.
