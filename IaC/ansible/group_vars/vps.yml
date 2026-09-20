@@ -260,6 +260,16 @@ tailnet_subdomains:
   - { name: llm }        # -> edge -> llm-backend       https://{{ spark_home_ip }}:443 (over WG; spark's own edge)
   - { name: litellm }    # -> edge -> litellm-backend   http://litellm:4000 (docker DNS; tailnet-only)
 
+# HD-405 (2026-09-20): MagicDNS records for the **`*.ts.kogler.si` namespace ONLY**.
+# This list exists because the one above renders BOTH namespaces (plain + `.ts`) — adding
+# `ha` there would repoint plain `ha.kogler.si` to a tailnet IP for every tailnet client,
+# which is the documented HD-382/389 resolver-ambiguity trap AND (worse here) would make a
+# tailnet-enabled phone at home stop resolving HA to the VIP, putting a new dependency on
+# oldsrv inside the failure domain HD-350's drill was about. `ip` defaults to
+# `tailnet_oldsrv_ip` (group_vars/all/main.yml), served by oldsrv's own edge.
+tailnet_ts_only_subdomains:
+  - { name: ha }     # -> oldsrv tailnet node -> traefik-internal `ha-ts` router -> VIP:8123
+
 # HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge
 # netns; host :443 belongs to the PUBLIC edge. The WG path therefore publishes the

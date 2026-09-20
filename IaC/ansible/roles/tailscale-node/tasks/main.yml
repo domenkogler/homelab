@@ -1,0 +1,121 @@
+---
+# tailscale-node — HD-405: a home host joins headscale as its own node.
+#
+# Why a HOST node and not another Pattern-A sidecar (the vps-obs shape): the point of
+# HD-405 is that remote dev does not cross the VPS. A host `tailscaled` gives a real
+# interface (kernel TUN) instead of a userspace netstack + `serve` port-forwards, so the
+# interactive paths (edge TLS on the node IP, later SSH/RustDesk) ride a DIRECT session
+# end to end. Cost accepted: one new listener on the vault-token box — bounded by the
+# preauth-key tag (`tag:dev`) + the port-scoped ACL in headscale/policy.hujson.j2.
+#
+# Scope of the JOIN (all of these are load-bearing, see defaults/main.yml):
+#   no advertised routes · no exit node · no Tailscale SSH · no DNS takeover.
+# Secrets: the preauth key is read from 1Password by the HOST_VAR ref (lazy lookup, so it
+# costs an `op` call only when this role actually runs) and is never printed (no_log).
+
+- name: Download the pinned tailscale host package (checksum-verified)
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/stable/tailscale_{{ tailscale_host_version }}_amd64.deb"
+    dest: "/root/tailscale_{{ tailscale_host_version }}_amd64.deb"
+    checksum: "sha256:{{ tailscale_host_deb_sha256 }}"
+    mode: "0600"
+  register: _ts_deb
+
+- name: Install the tailscale host package
+  ansible.builtin.apt:
+    deb: "/root/tailscale_{{ tailscale_host_version }}_amd64.deb"
+    state: present
+
+- name: Enable + start tailscaled
+  ansible.builtin.systemd_service:
+    name: tailscaled
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Read the current tailscale backend state
+  ansible.builtin.command: tailscale status --json
+  register: _ts_status
+  changed_when: false
+  failed_when: false          # a logged-out client exits non-zero — that IS a valid state
+
+- name: Parse the backend state when a netmap exists
+  ansible.builtin.set_fact:
+    _ts: "{{ _ts_status.stdout | from_json }}"
+  when: _ts_status.stdout is match('^\\s*\\{')
+
+# The live vps-obs incident: WITHOUT --login-server the client defaults to
+# controlplane.tailscale.com and rejects our headscale key. On a host that is worse than a
+# failed join — a state file restored/created against the public plane silently puts this
+# box on someone else's tailnet. Fail loud instead.
+- name: Assert tailscaled is not enrolled against the public control plane
+  vars:
+    _ts_control_url: "{{ _ts.Prefs.ControlURL | default('') if _ts is defined else '' }}"
+  ansible.builtin.assert:
+    that:
+      - "'controlplane.tailscale.com' not in (_ts_control_url | string)"
+    fail_msg: >-
+      {{ inventory_hostname }}: tailscaled reports ControlURL={{ _ts_control_url }} — that is
+      the PUBLIC Tailscale control plane, not our headscale ({{ tailnet_control_url }}).
+      Run `tailscale logout` on the host and re-converge.
+    success_msg: "tailscaled control plane OK"
+
+- name: Join the tailnet when the node is not already enrolled
+  when: >-
+    _ts is not defined
+    or (_ts.BackendState | default('')) in ['', 'NoState', 'LoggedOut', 'NeedsLogin']
+  block:
+    - name: Materialise the headscale preauth key on tmpfs for exactly one login
+      ansible.builtin.copy:
+        dest: "{{ tailscale_node_authkey_path }}"
+        content: "{{ tailscale_node_authkey }}"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true              # the key value must never reach the run log
+
+    - name: tailscale up (no routes · no exit node · no SSH · no DNS takeover)
+      ansible.builtin.command: >-
+        tailscale up
+        --login-server={{ tailnet_control_url }}
+        --auth-key=file://{{ tailscale_node_authkey_path }}
+        --hostname={{ tailscale_node_hostname }}
+        --ssh=false
+        --accept-routes=false
+        --accept-dns=false
+      register: _ts_up
+      until: _ts_up.rc == 0
+      retries: 3
+      delay: 10
+      no_log: true              # the auth key is on the command line
+  always:
+    - name: Shred the transient preauth key
+      ansible.builtin.command: "shred -u {{ tailscale_node_authkey_path }}"
+      changed_when: false
+      failed_when: false        # a missing file means the block never created it
+
+- name: Read the tailnet IPv4 this node was assigned
+  ansible.builtin.command: tailscale ip -4
+  register: _ts_ip
+  changed_when: false
+
+# The tailnet IP is assigned by headscale at join time, so the repo cannot know it in
+# advance — same contract as `tailnet_sidecar_ip`: leave the var EMPTY until the node has
+# joined, read `headscale nodes list`, set it, re-converge. This guard is what stops the
+# two from drifting silently (derived-values ban, CONVENTIONS §1).
+- name: Assert the IaC tailnet IP matches what headscale assigned
+  ansible.builtin.assert:
+    that:
+      - tailnet_oldsrv_ip | default('', true) | length == 0 or
+        tailnet_oldsrv_ip == (_ts_ip.stdout | trim)
+    fail_msg: >-
+      tailnet_oldsrv_ip={{ tailnet_oldsrv_ip | default('') }} but this node is
+      {{ _ts_ip.stdout | trim }}. Update the var in group_vars/all/main.yml and re-converge
+      (the traefik-internal `websecure-ts` listener binds exactly this address).
+    success_msg: "tailnet IP {{ _ts_ip.stdout | trim }} (IaC agrees or is unset)"
+
+- name: Report the node identity for the run log (no secrets)
+  ansible.builtin.debug:
+    msg: >-
+      tailnet node '{{ tailscale_node_hostname }}' = {{ _ts_ip.stdout | trim }}
+      on {{ tailnet_control_url }} — no advertised routes, no exit node, tailscale SSH off.

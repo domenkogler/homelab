@@ -20,6 +20,24 @@
 #   wg-s2s traefik-tailnet :4443).
 http:
   middlewares:
+    # HA refuses any request that carries X-Forwarded-For unless the SENDING socket is in
+    # HA's `trusted_proxies` (live 2026-09-20: from oldsrv, `Host: ha.kogler.si` + XFF -> 
+    # 400 Bad Request from aiohttp, without XFF -> 200; direct VIP:8123 -> 200). oldsrv is
+    # not in `ha_trusted_proxies` — it lists the Pi edge that actually serves HA today — so
+    # a direct proxy from this host can never authenticate. Strip the forwarding headers on
+    # the tailnet router ONLY: HA then sees a plain, non-proxied request, keeps the Host the
+    # client used, and no smart-home config has to change (fixing it on the HA side would
+    # mean trusting oldsrv as a proxy + a HA restart). Cost: HA logs the src as oldsrv for
+    # this one path, so an HA brute-force ban here would hit the node, not the phone.
+    # The honest alternative, recorded as a follow-up: add oldsrv_home_ip to
+    # ha_trusted_proxies and serve HA direct (also repairs the standby edge).
+    ha-ts-strip-forwarded:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-For: ""
+          X-Forwarded-Proto: ""
+          X-Forwarded-Host: ""
+          X-Forwarded-Server: ""
     redirect-to-https:
       redirectScheme:
         scheme: https
@@ -148,6 +166,24 @@ http:
         - websecure-lan
       service: ha-backend
       tls: true
+    # --- HA over the TAILNET (HD-405) — the away-from-home path, node-direct ---
+{% if tailnet_oldsrv_ip is defined and tailnet_oldsrv_ip %}
+    # The plain `ha.kogler.si` above stays LAN/VIP-only on purpose: MagicDNS answers
+    # extra_records CLIENT-SIDE on Android/iOS, so repointing the plain name would also send
+    # a tailnet-enabled phone *at home* through oldsrv instead of the VIP — a new oldsrv
+    # dependency inside the failure domain smart-home-failover.md is about. A `.ts` twin has
+    # no resolver to fight (docs/network-dns.md §Split-Horizon, HD-382/389 rule #1).
+    # NO forward-auth here either — same reason as `ha`: Authentik would break the Companion
+    # app's token/WebSocket flow (docs/smart-home.md).
+    ha-ts:
+      rule: "Host(`ha. {{ tailnet_base_domain }} `) || Host(` {{ tailnet_oldsrv_node_name }} . {{ tailnet_base_domain }} `)"
+      entryPoints:
+        - websecure-ts
+      middlewares:
+        - ha-ts-strip-forwarded
+      service: ha-backend
+      tls: true
+{% endif %}
     dns-pi:
       rule: "Host(`dns-pi.kogler.si`)"
       entryPoints:
@@ -271,3 +307,12 @@ tls:
   certificates:
     - certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
       keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"
+    # HD-405: the second issued wildcard, already carried by the cert-pull timer and (until
+    # now) unused here. Serves the `*.<ts>` hosts on the tailnet listener; without it Traefik
+    # answers that SNI with the default (wrong-name) cert. Guarded by the same condition as
+    # the listener, and defaulted, so the standalone validator render (which whitelists its
+    # own context and cannot see new group_vars keys) still parses this template.
+{% if tailnet_oldsrv_ip is defined and tailnet_oldsrv_ip %}
+    - certFile: "/etc/traefik/certs/ {{ wildcard_ts_cert_file }} "
+      keyFile: "/etc/traefik/certs/ {{ wildcard_ts_cert_key_file }} "
+{% endif %}

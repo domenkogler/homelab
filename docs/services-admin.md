@@ -47,7 +47,7 @@ tags: [services, admin, ops, gitops, security, backup]
 
 ### Access model (fleet-exposure policy, HD-251)
 - **Internal-only, never public** — no DNS record, no WAN allow, no VPS edge route. Same posture as the tailnet-only admin dashboards, with one structural difference: those live on the VPS `traefik-tailnet` edge, whereas Homelable must live **on oldsrv on the Home VLAN** to scan the LAN (nmap + ARP + ping need L2/LAN presence — see compose header).
-- **Reach:** LAN clients on VLAN 10 → `http://<oldsrv-home-ip>:3000`. Remote/tailnet: oldsrv is a tailnet node — a **Pattern-A sidecar / tailnet route** is the planned remote path (future tail, HD-45 deploy tail); not built yet.
+- **Reach:** LAN clients on VLAN 10 → `http://<oldsrv-home-ip>:3000`. Remote/tailnet: oldsrv **is** a tailnet node as of 2026-09-20 (HD-405, `roles/tailscale-node`, `tag:dev`) — but that node serves **443 only** and, on it, only `ha.ts.kogler.si`. Cockpit is NOT exposed there: a **Pattern-A sidecar / tailnet route** remains the open tail for this service (HD-45 deploy tail); not built yet. (The claim on this line read "is a tailnet node" for years while it was aspirational — corrected against the live tailnet, 2026-09-20.)
 - **Auth:** Homelable's local admin login (username + bcrypt `AUTH_PASSWORD_HASH`). Native OIDC is available but deliberately OFF for now (single-owner admin tool behind the LAN ACL). Revisit only if family members get accounts.
 - **Network placement:** `network_mode: host` for backend + frontend, both **binding only the Home-VLAN IP** (never 0.0.0.0) — the actual-budget / mcp-* narrow-bind precedent. The optional MCP container joins `services-internal` (off by default).
 

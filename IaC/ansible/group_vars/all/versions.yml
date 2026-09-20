@@ -226,6 +226,15 @@ blackbox_exporter_version: "v0.28.0"  # prom/blackbox-exporter (Docker Hub tag h
 # PyPI `routeros-api` (pinned 2026-09-08, verified on PyPI).
 routeros_api_version: "0.21.0"
 tailscale_version: "v1.82.0"        # tailscale/tailscale (Docker Hub tag EXISTS — v1.80.2 was a phantom pin, image 404'd at deploy 2026-08-28; v1.82.0 verified present)
+# HD-405 (2026-09-20): the HOST client (roles/tailscale-node, oldsrv) is pinned to the SAME
+# 1.82.0 as the container client above so a sidecar and a host node never speak different
+# wire versions. Installed as one exact checksum-verified deb from pkgs.tailscale.com —
+# deliberately NOT the upstream apt repo: adding a third-party source to the box that holds
+# the vault token buys auto-update we do not want (the pin is the point). Renovate does NOT
+# track this (docker datasource only) → bump = change BOTH lines, then re-converge.
+# Verified 2026-09-20: HTTP 200, 31502538 bytes, sha256 captured from the same fetch.
+tailscale_host_version: "1.82.0"
+tailscale_host_deb_sha256: "fd8018d489d29bace2f2e09c7a57d6714b064aa0fd774f53c171e495da566cb3"
 # VictoriaMetrics MCP servers (HD-344) — oldsrv AI-debugging front-ends to the VPS
 # Victoria backends. Images: ghcr.io/victoriametrics-community/*. Tags registry-verified
 # 2026-09-08 via the GHCR token API (v1.18.0 / v1.8.0 = latest release lines; the

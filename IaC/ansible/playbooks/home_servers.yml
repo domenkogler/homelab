@@ -19,6 +19,15 @@
     - storage        # oldsrv: import/create nvme, datasets+props, NFS mounts, push timers (docs/storage.md)
     - nut             # UPS client (oldsrv) — after network, before monitoring
     - cockpit         # management UI (oldsrv) — own login, NOT behind Authentik
+    # HD-405: oldsrv as a headscale node. BEFORE docker_services so the interface exists
+    # when traefik-internal binds its tailnet listener on the same run.
+    # NOTE the explicit `tags:` — roles here carry NO implicit role tag (verified live with
+    # --list-tasks), so `--tags tailscale-node` would otherwise silently filter the whole
+    # role out and report a clean, changed=0 run (scripts/README.md §"scoped deploys need
+    # BOTH tags", same trap).
+    - role: tailscale-node
+      tags: [tailscale-node]
+      when: tailscale_node_enabled | default(false)
     - role: amd_rocm
       when: gpu_vendor | default('') == 'amd'   # GPU host userland (docs/hardware-gpu.md)
     - role: desktop

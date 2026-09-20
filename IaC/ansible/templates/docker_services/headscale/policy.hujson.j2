@@ -6,10 +6,10 @@
 // registration gate in config.yaml), so this file is the enforcement boundary:
 // it decides what an auto-joined family node may reach.
 //
-// Default posture (TIGHTENED, HD-252 ④): deny-by-default. A node may talk ONLY to
-// nodes owned by a listed family user — see the `acls` list below. Rogue/untagged
-// nodes (e.g. auto-joined via a leaked pre-auth key or an unknown OIDC subject) are
-// denied by headscale's empty-default for anything not explicitly accepted.
+// Default posture (TIGHTENED, HD-252 ④): deny-by-default. A node may talk ONLY to nodes
+// owned by a listed family user, or to a service tag an explicit rule names — see `acls`.
+// Rogue/untagged nodes (e.g. auto-joined via a leaked pre-auth key or an unknown OIDC
+// subject) are denied by headscale's empty-default for anything not explicitly accepted.
 //
 // User reference format (verified against headscale v0.29.3 policy v2 tests + docs):
 //   src  = the OIDC user's email, e.g. "domen@kogler.si"
@@ -17,32 +17,37 @@
 // Headscale resolves these against each user's Email field. The localpart form
 // ("domen@") also works for src; the full email is used here for explicitness.
 //
-// NOTE on tags (the older HD-84 target): headscale v2 requires tags to be DECLARED
-// in tagOwners before ACLs may reference them, and there is no autogroup:admin source
-// here (admin username only exists post-OIDC). tagOwners is therefore intentionally
-// left EMPTY and ACLs are user-EMAIL-based rather than tag-based. If/when more family
-// members join and we want shared-service nodes (tag:kogler), add the tag + owner here
-// and switch these rules to tag:*, e.g. src:["tag:kogler"] dst:["tag:kogler:*"].
+// NOTE on tags: headscale v2 requires a tag to be DECLARED in tagOwners before a
+// pre-auth key may carry it, and there is no autogroup:admin source here (the admin
+// username only exists post-OIDC). So tagOwners is NOT empty and never was since
+// HD-135b — it lists exactly the service tags this tailnet uses. User-to-user traffic
+// remains email-based (see `acls`); a tag is how a NON-user node gets scoped in.
 //
 // Adding a family member: add one accept rule per user mirroring the layout below.
 {
   "groups": {},
 
-  // Only the mesh administrator may apply a kogler tag. Headscale v2 has no
-  // autogroup:admin here (Wave-3 R5) and the admin username only exists after OIDC
-  // login — so tagOwners stays EMPTY: tagging happens server-side via
-  // `headscale nodes tag` (CLI on the VPS, no policy check). Populate with the admin's
-  // username ONLY if self-service advertise-tags is ever wanted.
+  // Only the mesh administrator may own a tag. Headscale v2 has no autogroup:admin here
+  // (Wave-3 R5) and the admin username only exists after OIDC login, so every tag is
+  // owned by the admin's email and nothing is self-service: a pre-auth key minted on the
+  // VPS CLI is the only way a node acquires a tag (no policy check on the CLI path).
   //
-  // EXCEPTION (HD-135b, 2026-08-28): the VPS observability sidecar advertises
-  // `tag:sidecar` (see docker_services/tailscale-sidecar) so the tailnet can reach the
-  // admin dashboards. It is a service node, not a user, so the admin email is the
-  // tag owner. Any node carrying tag:sidecar is by construction the VPS sidecar.
+  // HD-135b (2026-08-28): the VPS observability sidecar carries `tag:sidecar` so the
+  // tailnet can reach the admin dashboards. HD-405 (2026-09-20) adds `tag:dev` for the one
+  // home host. Both are service nodes, not users, so the admin email is the tag owner.
   // NOTE: headscale v0.29.3 tagOwners require the owner as FULL EMAIL (post-OIDC
   // "domen@kogler.si") — the bare username "domen" fails policy parse with
   // 'invalid owner format' and crash-loops headscale (live 2026-08-28).
   "tagOwners": {
-    "tag:sidecar": ["domen@kogler.si"]
+    "tag:sidecar": ["domen@kogler.si"],
+    // HD-405 (2026-09-20): the ONE home host that joins the tailnet (oldsrv). Declared here
+    // BEFORE the preauth key that carries it is minted — the tag is what keeps the node OUT
+    // of the user's own-node namespace: a preauth-key node lands in headscale's synthetic
+    // `tagged-devices` user, so `dst: ["domen@kogler.si:*"]` cannot reach it and the ONLY
+    // way in is the explicit port-scoped rule below. That is the whole point: the box holding
+    // the vault token is reachable on 443, not on ":*". If this lane ever needs another port
+    // (SSH, RustDesk), add it deliberately — do not widen this to :*
+    "tag:dev": ["domen@kogler.si"]
   },
 
   // REAL ACL — TIGHTENED at first enrolment (HD-84 / HD-252 ④, 2026-08-26).
@@ -65,6 +70,18 @@
       "action": "accept",
       "src": ["domen@kogler.si"],
       "dst": ["tag:sidecar:443"]
+    },
+    // HD-405 (2026-09-20): oldsrv's tailnet node, **443 ONLY** (owner decision 2026-09-20).
+    // What this does NOT do, and must not: no LAN bridge, no advertised routes (the node
+    // joins with --advertise-routes absent and `headscale routes list` stays empty), no
+    // exit node (HD-408, still the Pi), no Tailscale SSH, and nothing at all toward
+    // VLAN 20/30 — the Shelly/KNX/IoT/guest invariant is intact because the tailnet still
+    // has no path into any home subnet. Everything the owner reaches away from home arrives
+    // as `dst-ip = the node's own 100.64.x address`, terminated by oldsrv's own edge.
+    {
+      "action": "accept",
+      "src": ["domen@kogler.si"],
+      "dst": ["tag:dev:443"]
     }
   ]
 }

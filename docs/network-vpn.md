@@ -274,11 +274,71 @@ sidecar serves to the app over that private network. Functional service-to-servi
 > succeeds while the laptop fails = client DNS, every time. A routerless-vHost 404 on a `.ts` name and a 502
 > on the plain name are two different layers — do not conflate them.
 
-## Tailnet boundary — mobile devices only, via the VPS edge
+## Tailnet boundary — mobile devices + ONE home host, never a LAN bridge
 
-The tailnet is **not a home-LAN bridge**. Clients reach it as: **mobile → tailnet → VPS `traefik-tailnet` edge → (WG S2S) → home backends**. No home host runs a tailnet node (except the exit-node below, toggle-only). oldsrv/Pi/NAS stay off the tailnet so Shelly/KNX/IoT/guest devices are never tailnet-reachable, and the LAN stays the LAN.
+The tailnet is **not a home-LAN bridge**. Two distinct reach shapes exist, and the difference matters:
 
-**Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the moved `dsh`/`pi-dev`) are reachable from a phone by **publishing a host port bound to `oldsrv_home_ip`** + a `traefik-tailnet` edge route proxying over WG — the `actual-budget:5006` / `immich-ml:3003` precedent. Still **behind Authentik forward-auth** on the edge (private, not public).
+* **Via the VPS edge (the family default):** `mobile → tailnet → VPS traefik-tailnet → (WG S2S) → home backends`.
+  Every `*.{ts.,}kogler.si` app name works this way, and it survives a home-WAN outage but **not a VPS outage**.
+* **Node-direct (HD-405, 2026-09-20):** `mobile → oldsrv's own tailnet node`. The VPS carries **no byte of the
+  data plane** — only the control plane (registration/netmap, and DERP if hole-punching fails). This exists so
+  the owner's own remote development does not stop when the VPS does, and it is possible because
+  [network.md](network.md) §WAN is a **static public IPv4** — P2P is available and we had been routing around it.
+
+**The one host on the tailnet is `oldsrv`** (node `oldsrv`, `tag:dev`, headscale node id 11, joined by
+`roles/tailscale-node`). Pi and NAS are still off the tailnet. The scope is enforced, not intended:
+no `--advertise-routes` (so `headscale routes list` stays empty and no home subnet is reachable from the
+tailnet at all), no exit node (§Exit-node stays the Pi — HD-408 is an open owner call), no Tailscale SSH,
+`--accept-dns=false` (oldsrv *runs* a Technitium instance; a DNS takeover would put a resolver in front of
+the tier it serves), and the ACL admits **`tag:dev:443` only** — port 443 on one node, not `:*` on the box
+that holds the vault token. The boundary's purpose survives on purpose: Shelly/KNX/IoT/guest stay
+non-tailnet-reachable, and VLAN 99 keeps its seal (HD-398 decision A).
+
+Because a preauth-key node lands in headscale's synthetic `tagged-devices` user rather than the owner's
+user, `dst: ["domen@kogler.si:*"]` cannot reach it — the ONLY path in is the explicit `tag:dev:443` rule in
+`policy.hujson.j2`. Joining by interactive OIDC login instead would put the node under the user and inherit
+`:*`; the preauth key is therefore a security control, not just a bootstrap convenience.
+
+**What oldsrv serves on that node** is its own home edge (`traefik-internal`, new `websecure-ts` entrypoint
+bound to the **node's tailnet IP** — never `0.0.0.0`), with TLS from the already-synced `*.ts.kogler.si`
+pair. Today exactly one route is exposed there: `ha-ts` → `ha.ts.kogler.si` (+ the free node name
+`oldsrv.ts.kogler.si`) → the HA VIP. Home Assistant was the one service with **no** away-from-home path at
+all: no public record, no `traefik-tailnet` route, and a VIP-only listener. The plain `ha.kogler.si` name
+stays LAN/VIP-only — see [network-dns.md](network-dns.md) §Split-Horizon for why overloading it was rejected.
+
+**First-run record (2026-09-20, join + node-direct path):** node `oldsrv` joined on its assigned tailnet
+address (`tailnet_oldsrv_ip`, group_vars/all/main.yml), headscale node id 11, user `tagged-devices`,
+`tag:dev`, **zero advertised routes**; tailscaled control URL asserted to be our headscale (the `vps-obs`
+public-control-plane incident is now a fail-loud guard in the role); `/etc/resolv.conf` on oldsrv untouched
+(`--accept-dns=false` proven, not assumed); the headscale policy re-render left `headscale` at restarts=0 with
+MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, edge 302).
+`dig @<MagicDNS loop> ha.ts.kogler.si` on a node → the oldsrv node address. To that node: **443 open,
+80/22/8081 blocked** (the ACL is really port-scoped); `https://ha.ts.kogler.si` → **200**, TLS
+`CN=*.ts.kogler.si`, ~70 ms.
+
+> ⚠ **The verification host was NOT off-LAN.** The laptop chosen for this pass had a *wired* home path live:
+> its Windows default route pointed at the home router over the `VLAN-Switch` vNIC (a Home-VLAN address per
+> [network-addresses-generated.md](network-addresses-generated.md)), so probes to Home-VLAN and IoT-VLAN
+> addresses from it tested the router's inter-VLAN firewall, **not** the tailnet — and any "it resolved / it
+> connected" result there says nothing about being away. Probes to tailnet addresses are valid, because those
+> destinations always ride the Tailscale interface. **The published acceptance matrix still requires the
+> phone on cellular** (headscale stopped / tailnet off / IoT+guest unreachable); until that runs, this row is
+> ⏳ open, not done. Reading the hotspot off the owner's description instead of off the routing table was the
+> mistake here — check the routing table before trusting any "away" claim.
+
+> 🔎 **Two pre-existing faults surfaced by the new path, neither caused by it.** (a) **HA rejects requests
+> proxied from oldsrv**: any `X-Forwarded-For` from a source outside `ha_trusted_proxies` gets
+> `400 Bad Request` (proven: `Host: ha.kogler.si` + XFF → 400, without → 200), which means the standby edge's
+> `ha` router has never worked and the same would bite during a takeover. The tailnet router strips the
+> forwarding headers instead of changing smart-home config — the honest fix is adding `oldsrv_home_ip` to
+> `ha_trusted_proxies` (needs a HA restart, so it is an owner call, not a transport-lane side effect).
+> (b) **`media.kogler.si` answers 502 from the home edge** (also locally on oldsrv): jellyfin publishes no
+> host port on `oldsrv_home_ip`, unlike the `actual-budget:5006` / `immich-ml:3003` precedent. Owner call.
+
+**Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the
+moved `dsh`/`pi-dev`) remain reachable by **publishing a host port bound to `oldsrv_home_ip`** + a
+`traefik-tailnet` edge route proxying over WG — the `actual-budget:5006` / `immich-ml:3003` precedent. Still
+**behind Authentik forward-auth** on the edge (private, not public).
 
 ## Reaching LAN nodes when away (hotspot / public Wi-Fi) — the access matrix
 

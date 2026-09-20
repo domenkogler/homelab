@@ -66,6 +66,7 @@ clients stay on the home LAN while WAN/tailnet clients keep the VPS edge. Record
 |---|---|---|
 | Home-hosted (`media`, `seerr`, `seerrng`, `sonarr`, `radarr`, `lidarr`, `prowlarr`, `bazarr`, `profilarr`, `sab`, `torrent`) | VPS public IP (`dns_primary_ip`) | **oldsrv LAN IP** (`oldsrv_home_ip`) — home edge, no WAN round-trip |
 | `ha` / `dns-pi` | VIP (`ha_vip`) | VIP (`ha_vip`) — same on all (DNS never breaks HA lookup) |
+| `ha.ts` (**tailnet-only**, HD-405) | — (never seeded in Technitium) | — (never seeded) · resolves ONLY via **headscale `dns.extra_records`** to `tailnet_oldsrv_ip`, rendered by `tailnet_ts_only_subdomains` (group_vars/vps.yml) in the **`*.ts.kogler.si` namespace only** |
 | VPS-hosted (`foto`, `file`, `git`, `ai`, `office`, `pdf`, `chat`, `matrix`, `drop`, `bin`, `sso`, `dns`, `vpn`, … + root/home/vps) | VPS public IP | VPS public IP (their backends live on the VPS; the home edge reaches them via wg-s2s :4443 double-hop, HD-350) |
 | Tailnet dashboards (`stats`, `logs`, `csui`, `traefik`, `auto`) | VPS tailnet sidecar IP | VPS tailnet sidecar IP (cluster constant) · these + the AI names (`llm`/`db-spark`/`litellm`) also resolve on tailnet devices via **MagicDNS extra_records** (both namespaces, HD-371) — the Technitium A records remain for LAN/split-horizon parity |
 | `modem` | — (never seeded on VPS) | LAN-only (HD-302) |
@@ -116,6 +117,15 @@ Client → Technitium (DHCP-pushed chain, see below)
 - **The secondary/tertiary are a true failure-domain split** — oldsrv, Pi and VPS are different physical boxes.
 - `ha.kogler.si` resolves to the **VIP** on every instance (see [`smart-home-failover.md`](smart-home-failover.md))
   so DNS is never the thing that breaks HA lookup.
+- **Away-from-home HA is a separate name, on purpose (HD-405, 2026-09-20).** `ha.ts.kogler.si` answers only
+  on the tailnet and points at oldsrv's own node; the plain `ha.kogler.si` keeps resolving to the VIP from
+  every instance. The reason is the HD-382/389 resolver-ambiguity class plus a failure-domain argument:
+  MagicDNS answers extra_records **client-side on Android/iOS**, so a single name published to both planes
+  would also send a tailnet-enabled phone **at home** to oldsrv instead of the VIP — putting a new
+  `oldsrv`-must-be-up dependency inside the exact failure domain `smart-home-failover.md` exists to remove.
+  The `.ts` twin costs the owner one extra entry in the Companion app and keeps both planes honest.
+  ⚠ A client can hold a stale MagicDNS answer: `dig @100.100.100.100 ha.ts.kogler.si` proves what headscale
+  serves; a client that disagrees needs a Tailscale reconnect (toggle), not a DNS change.
 - **The VIP's `:443` edge is served by whichever keepalived node owns the VIP:** in normal mode the Pi's
   minimal **`traefik-ha`** edge serves `ha.kogler.si`; after a forward takeover the home-LAN
   **`traefik-internal`** edge on oldsrv takes over (HD-349/HD-346). Both serve an identical

@@ -67,6 +67,11 @@ crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/h
 #   oldsrv traefik + Pi traefik-ha (consumers): pulled to their certs dirs with these names.
 wildcard_cert_file: kogler.si.pem
 wildcard_cert_key_file: kogler.si-key.pem
+# The SECOND issued wildcard (`*.ts.kogler.si`, HD-135b): the tailnet namespace. The VPS
+# issuer requests both SANs and the consumers' cert-pull already carries this pair — it sat
+# UNUSED on oldsrv until HD-405 gave the home edge a tailnet listener to serve it on.
+wildcard_ts_cert_file: ts.kogler.si.pem
+wildcard_ts_cert_key_file: ts.kogler.si-key.pem
 # The wildcard SAN root — the certs-dumper matches acme.json by this domain and
 # the Pi/oldSrv edges serve all *.kogler.si hosts from the dumped pair.
 wildcard_cert_domain: "kogler.si"
@@ -167,6 +172,25 @@ kopia_server_fingerprint_item: kopia-server_fingerprint   # 1P item (Password) h
 # HA virtual IP (keepalived/VRRP) on Home VLAN 10 — ha.kogler.si. Canonical name `ha-vip`.
 # D2: single /32, no reserved block. Home DHCP pool (10.10.1.100-.199) must stay <= .199
 # and must never be extended into the VIP; 10.10.1.200 is reserved — not a normal static lease.
+# ==== Tailnet (headscale) plane — HD-405 ================================================
+# The control URL is DERIVED from the domain SSOT (never re-typed): the `vpn` record is
+# seeded by Technitium to the VPS, so headscale is reached at vpn.<domain> from anywhere.
+# NOTE: templates/docker_services/traefik-tailnet still hard-codes the same literal in
+# TS_EXTRA_ARGS — pre-existing duplication, fold it onto this var in a dedicated change.
+tailnet_control_url: "https://vpn.{{ wildcard_cert_domain }}"
+# headscale base_domain (config.yaml.j2) — node names resolve as <node>.<this> for free.
+tailnet_base_domain: "ts.{{ wildcard_cert_domain }}"
+# oldsrv's node name (tailscale-node role hostname + the traefik-internal route rule).
+tailnet_oldsrv_node_name: oldsrv
+# Assigned by headscale AT JOIN (sequential) — the repo cannot know it in advance. Contract
+# Assigned by headscale AT JOIN (sequential) — the repo cannot know it in advance. Contract
+# is identical to tailnet_sidecar_ip: leave EMPTY → the traefik-internal `websecure-ts`
+# listener + the ts-only MagicDNS records simply do not render; set it from
+# `headscale nodes list` after the node joins, then re-converge. roles/tailscale-node
+# asserts the live IP equals this value, so a silent drift is impossible.
+# Live since 2026-09-20 (HD-405): headscale node id 11, name `oldsrv`, tag:dev.
+tailnet_oldsrv_ip: "100.64.0.3"
+
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
 ha_vip_cidr: 24                    # VIP prefix — shared by primary + standby keepalived
 ha_keepalived_vrid: 51            # VRRP virtual_router_id — MUST match on both HA nodes

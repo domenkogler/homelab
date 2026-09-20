@@ -5,6 +5,15 @@
 > [todo.md](todo.md) §2.1. The *runner/cockpit* half is [prompt-407.md](prompt-407.md); remote desktop is
 > [prompt-412.md](prompt-412.md). Decisions are already recorded — see the no-re-decide list.
 > **Linked from:** [prompt.md](prompt.md) §2 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
+>
+> **Status after the 2026-09-20 pass:** **HD-405 is LIVE** (host `tailscaled` node `oldsrv`, `tag:dev:443`,
+> `ha.ts.kogler.si` served from oldsrv's own edge) — do **not** re-run it; only the owner's phone-on-cellular
+> matrix is left, plus the two pre-existing faults recorded in [todo.md](todo.md) HD-405 and
+> [network-vpn.md](docs/network-vpn.md) §Tailnet boundary. **HD-406 / HD-408 / HD-410 remain open** and
+> owner-gated. Two lane-rule gaps found while executing: `docs/services-admin.md` and the oldsrv node IaC
+> (`roles/tailscale-node`, `roles/docker_services` 1P refs, `templates/docker_services/traefik-internal/**`)
+> had to be edited for HD-405's own Goal but sat outside the Owns list — fold them into the lane before
+> another session starts against this brief.
 
 ## Goal
 

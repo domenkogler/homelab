@@ -1,0 +1,19 @@
+---
+# tailscale-node defaults — HD-405 (docs/network-vpn.md §Tailnet boundary).
+#
+# This role enrolls ONE home host as a headscale HOST node. Everything that would turn
+# that into a plane opening is deliberately OFF and not configurable from here:
+#   --advertise-routes  absent  (the tailnet is not a LAN bridge — HD-398 decision A)
+#   --exit-node         absent  (the exit node lives on the Pi, HD-408)
+#   --ssh               false   (admin stays the documented Home leg + VPS jump)
+#   --accept-dns        false   (oldsrv RUNS a Technitium instance; letting tailscaled
+#                                rewrite /etc/resolv.conf would put a resolver in front of
+#                                the DNS tier it serves — never enable on this host)
+#   --accept-routes     false   (no advertised routes exist to accept anyway)
+
+tailscale_node_enabled: false          # opt-in per host (host_vars) — default OFF
+tailscale_node_hostname: "{{ inventory_hostname }}"
+tailscale_node_authkey: ""             # per-host 1P ref, NEVER a literal (CONVENTIONS §6)
+
+# Where the key lives while a join is actually happening: tmpfs, 0600, shredded in `always`.
+tailscale_node_authkey_path: /run/tailscale-authkey

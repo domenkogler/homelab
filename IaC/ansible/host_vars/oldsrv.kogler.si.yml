@@ -55,3 +55,16 @@ desktop_igpu_busid: "PCI:0:2:0"
 # = Samsung 970 EVO 1 TB, S/N S5H9NS1NB12680T (OS disk nvme0n1 = 960 EVO 500 GB, S/N S3EUNX0HC06971Z).
 # Both NVMes still carried NTFS signatures at capture (wiped by the Phase 1a reinstall/pool create).
 storage_nvme_data_by_id: /dev/disk/by-id/nvme-eui.0025385b0143f12e   # HD-128: verified live 2026-08-22
+
+# ==== HD-405: oldsrv joins headscale as a tailnet HOST node (docs/network-vpn.md) ====
+# One host, P2P-first over the static public home IPv4, so remote dev survives a VPS outage.
+# The join itself is scoped in roles/tailscale-node (no routes / no exit node / no TS SSH /
+# no DNS takeover); WHO may reach it is the ACL's `tag:dev:443` rule, not anything here.
+tailscale_node_enabled: true
+tailscale_node_hostname: "{{ tailnet_oldsrv_node_name }}"
+# headscale preauth key (API Credential, `credential` field), reusable + tag:dev.
+# Manual-value creation path — the value is MINTED by headscale, never generated here:
+#   docker exec headscale headscale preauthkeys create --user 2 --tags tag:dev \
+#     --reusable --expiration 8760h -o json
+# Lazy lookup: costs an `op` read only when roles/tailscale-node actually runs.
+tailscale_node_authkey: "{{ lookup('community.general.onepassword', 'tailscale-oldsrv_api', field='credential', vault=op_vault) }}"

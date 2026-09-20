@@ -97,20 +97,34 @@ dns:
   # for BOTH the plain `*.kogler.si` and the `*.ts.kogler.si` namespaces —
   # identical pattern for both observability edge and Pattern-A sidecars.
   extra_records:
-{% set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_dsh_ip | default('', true) or tailnet_pi_dev_ip | default('', true) %}
+{% set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_dsh_ip | default('', true) or tailnet_pi_dev_ip | default('', true) or tailnet_oldsrv_ip | default('', true) %}
+{% set ns = namespace(rendered=0) %}
 {% if _any_ip %}
 {% for sub in tailnet_subdomains | default([{'name':'stats'},{'name':'logs'},{'name':'csui'},{'name':'sec'},{'name':'traefik'},{'name':'auto'}]) %}
 {% set _ip = sub.ip | default(tailnet_sidecar_ip) %}
+{% if _ip %}
+{% set ns.rendered = ns.rendered + 1 %}
     - name: "{{ sub.name }}.kogler.si"
       type: "A"
       value: "{{ _ip }}"
     - name: "{{ sub.name }}.ts.kogler.si"
       type: "A"
       value: "{{ _ip }}"
+{% endif %}
 {% endfor %}
-{% else %}
-    # All tailnet_*_ip unset -> no extra_records (deploy step fills them from
-    # `headscale nodes list` after each sidecar joins; see header comment above)
+{% for sub in tailnet_ts_only_subdomains | default([]) %}
+{% set _ip = sub.ip | default(tailnet_oldsrv_ip) %}
+{% if _ip %}
+{% set ns.rendered = ns.rendered + 1 %}
+    - name: "{{ sub.name }}.{{ tailnet_base_domain }}"
+      type: "A"
+      value: "{{ _ip }}"
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if not ns.rendered %}
+    # Every tailnet_*_ip unset -> no extra_records (the deploy step fills them from
+    # `headscale nodes list` after each node joins; see header comment above)
     []
 {% endif %}
 
