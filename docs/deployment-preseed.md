@@ -45,7 +45,7 @@ Hostname must match the target machine:
 - `oldsrv` for i7-7700K ([`hardware-oldsrv.md`](hardware-oldsrv.md))
 - `nas` for HP MicroServer ([`hardware-nas.md`](hardware-nas.md))
 - `vps` for netcup RS 2000 G12 ([`services-vps.md`](services-vps.md)) — **separate VPS-specific preseed + post_install**, see [VPS Deviations](#vps-deviations-public-edge) below
-- `pi` for Raspberry Pi 4 (HA primary node — **image-based install** via raspi.debian.net, NOT preseed; see [Pi image deployment](#pi-image-deployment-raspidebiannet) below)
+- `pi` for Raspberry Pi 4 (HA primary node — **image-based install** from the official Raspberry Pi OS Lite image, NOT preseed; see [Pi image deployment](#pi-image-deployment-raspidebiannet) below)
 
 ### 3. Mirror
 ```
@@ -249,7 +249,8 @@ Preseed uses DHCP. After boot, Ansible's `network` role assigns the correct VLAN
 | nas | 10 (Home) access + 99 (Management) native | static on VLAN 10 |
 | pi | 10 (Home) access | static per SSOT (see [`network-addresses-generated.md`](network-addresses-generated.md) → *pi* VLAN 10) |
 
-> **Note:** The Pi is deployed from a **pre-built image** (raspi.debian.net), not via preseed.
+> **Note:** The Pi is deployed from a **pre-built image** (official Raspberry Pi OS Lite — see
+> §Pi image deployment for why not the Debian-mirror rebuild), not via preseed.
 > The static IP above applies identically after Ansible runs.
 
 Refer to [`network-vlans.md`](network-vlans.md) for the VLAN plan.
@@ -269,7 +270,7 @@ IaC/host/
 │   ├── preseed.cfg          # netcup RS 2000 G12 — public edge (single 512 GB NVMe)
 │   └── post_install.sh      # VPS-specific: NO ai-debug, AllowUsers ansible-admin only
 └── pi/
-    └── first-boot-config.sh # SD card prep script for raspi.debian.net images
+    └── first-boot-config.sh # SD card prep script for the Pi image (image-agnostic)
 ```
 
 ---
@@ -278,7 +279,8 @@ IaC/host/
 
 The Raspberry Pi 4 uses **Raspberry Pi OS Lite (64-bit, headless)** — the official Debian-based image — instead of the Debian Installer + preseed path used by nas/oldsrv. These are pre-installed system images; there is no `d-i` installer to answer questions, so `preseed.cfg` does not apply.
 
-> **Owner decision 2026-09-01:** the previously-documented raspi.debian.net image failed with a **rainbow screen** (kernel/firmware mismatch on the Pi 4) → switched to Raspberry Pi OS Lite via Raspberry Pi Imager. The raspi.debian.net-specific `first-boot-config.sh` is **not** used for Pi OS Lite (Imager's advanced gear handles headless pre-config).
+> **Use the official Raspberry Pi OS Lite image, not a Debian-mirror rebuild:** the previously
+documented raspi.debian.net image boots to a **rainbow screen** on the Pi 4 (kernel/firmware mismatch) → switched to Raspberry Pi OS Lite via Raspberry Pi Imager. The raspi.debian.net-specific `first-boot-config.sh` is **not** used for Pi OS Lite (Imager's advanced gear handles headless pre-config).
 
 ### Workflow
 

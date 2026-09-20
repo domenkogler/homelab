@@ -79,17 +79,24 @@ tags: [services, interfaces, dashboards]
 
 ---
 
-## Metabase / CrowdSec Dashboard — Analytics & Learning
+## CrowdSec analytics — what serves it now
 
-- **Purpose:** CrowdSec dashboard view **and** a Metabase learning/analytics sandbox — one instance
-- **Access:** `sec.kogler.si` / `sec.ts.kogler.si`, **tailnet-only** (headscale via `traefik-tailnet`), Authentik **Forward-Auth** on the plain name + local Metabase admin (HD-148 — Metabase OSS has no OIDC/SSO; Enterprise-only)
-- **Why one instance:** latest-version Metabase (not CrowdSec's pinned bundle) gives upgrade/experiment freedom while the same instance serves the CrowdSec dashboard
+**`sec.kogler.si` is gone.** Metabase was retired as a standing service (one VPS container for a
+learning sandbox that was never opened), so the analytics surface is split between **CrowdSec Web UI**
+(`csui`, below) for ops and **Grafana** (`stats`) for anything tabular/metric-shaped.
+Revival path if a BI layer is ever wanted: redeploy on **oldsrv**, not the VPS — the template, the
+disabled registry row and the read-only `metabase-forgejo_ro` grant are kept
+([services-admin.md](services-admin.md)). Two facts cost real time on the old instance and still apply
+to any restart: Metabase OSS has **no OIDC/SSO** (Enterprise-only), so a revival is
+Forward-Auth + local admin, never SSO; and its JWT signing secret must **never** be
+re-provisioned/rotated, or every existing session token fails signature validation and the UI becomes
+an infinite login loop.
 
 ---
 
 ## CrowdSec Web UI — Ops Dashboard (`csui.kogler.si`, HD-272)
 
-- **Purpose:** richer CrowdSec ops surface (alerts, decisions, metrics, notifications, multi-LAPI) alongside the Metabase analytics view
+- **Purpose:** the CrowdSec ops surface (alerts, decisions, metrics, notifications, multi-LAPI)
 - **Access:** `csui.kogler.si` / `csui.ts.kogler.si`, **tailnet-only** (no public CNAME), Authentik **Forward-Auth** on the plain name at the edge
 - **Auth to LAPI:** a dedicated **watcher machine** (`crowdsec-web-ui`, password from `crowdsec-webui_lapi_api`), register deploy-gated: `docker exec crowdsec cscli machines add crowdsec-web-ui --password '<pw>' -f /dev/null`
 

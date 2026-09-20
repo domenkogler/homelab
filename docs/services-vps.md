@@ -173,9 +173,12 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 ## What Stays on Home Server
 
 - Home Assistant (Raspberry Pi 4) + HA standby
-- Ollama / LLM (needs GPU)
+- GPU-bound AI: spark generation + the pinned embed/rerank/STT legs on oldsrv (never a VPS inference
+  endpoint — inference has no public ingress by design)
 - Immich ML (needs GPU)
-- DNS (Technitium + Pi-hole)
+- DNS: Technitium primary **here** on the VPS, secondary/tertiary at home (the home instances are
+  authoritative for split-horizon LAN names; ad blocking is Technitium Advanced Blocking — there is no
+  second blocker to keep patched)
 - Media/*arr, jellyfin, sunshine (GPU/LAN/storage-bound)
 - Old-srv thin Alloy collector → VPS VictoriaMetrics/VictoriaLogs (HD-135)
 

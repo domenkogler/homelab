@@ -11,7 +11,18 @@ tags: [services, downloads, usenet, torrents, vpn]
 > **Links to:** `services-media.md`, `storage.md`, `services-traefik.md`, `deployment-compose.md`
 > **Linked from:** `services.md`, `services-media.md`
 
-> 🟢 **LIVE (oldsrv Phase-3 converge)** — SABnzbd, qBittorrent (+ gluetun WireGuard sidecar) all Up + healthy on oldsrv; gluetun runs `custom` mode with the fixed PrivadoVPN endpoint (HD-318).**:** SABnzbd crash-looped after a converge recreated the container — `/srv/docker/sabnzbd/config` was root-owned (Docker auto-created) while the image runs PUID=1005 → “Cannot create INI file /config/sabnzbd.ini”. Fixed live (chown 1005) + IaC (`bind_owner_uid: 1005, bind_dirs: ['config']` on the sabnzbd entry, HD-318 Class-A pattern).**Same-day systemic sweep:** the whole *arr stack (sonarr/radarr/lidarr/prowlarr/bazarr/qbittorrent/recyclarr/profilarr) had the same latent root-owned-config issue — a converge recreated their containers and they crash-looped at 100% CPU (bazarr `PermissionError: /config/config`, lidarr Sentry init crash). All config dirs chowned to 1005 + `bind_owner_uid: 1005, bind_dirs: ['config']` added to every entry (durable).
+> ✅ **Live on oldsrv:** SABnzbd, qBittorrent (+ the gluetun WireGuard sidecar, `custom` mode with the
+> fixed PrivadoVPN endpoint, HD-318).
+>
+> ⚠ **The recurring failure class here is ownership, not config.** Every *arr-style image runs as
+> `PUID/PGID` (1005 here) and writes into `/config`; if Docker auto-creates the host bind it is
+> **root-owned**, and the container crash-loops on the first write — SABnzbd as
+> `Cannot create INI file /config/sabnzbd.ini`, Bazarr as `PermissionError: /config/config`, others as a
+> silent 100 % CPU restart loop. A recreate (any converge that re-renders the compose) reintroduces it,
+> so the durable fix is **`bind_owner_uid: 1005` + `bind_dirs: ['config']` on every such service** (the
+> Class-A pre-create in `deploy-service.yml`), not a one-off `chown`. If a downloads/arr container is
+> restarting, check `ls -n` on the bind before reading the app log.
+
 
 ---
 
