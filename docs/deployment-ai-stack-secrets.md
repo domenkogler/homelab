@@ -80,9 +80,9 @@ After items exist, confirm each compose renders (the fail-loud guard passes) and
 
 ## 4. Rollback / rotation notes
 
-### 4a. `spark-llm_api` — the coupled engine bearer (live leak found 2026-09-18 → contained by rotation 2026-09-19)
+### 4a. `spark-llm_api` — the coupled engine bearer (rotate it as a set, not as one value)
 
-> **Consumer map, corrected by measurement on 2026-09-19.** An earlier version of this section said
+> **Consumer map, corrected by measurement.** An earlier version of this section said
 > the item was **"FOUR coupled bearers"** and listed the laptop harness as a LiteLLM consumer. It is
 > **THREE deployed consumers + one copy of the engine key**, and the fourth is not a LiteLLM client:
 >
@@ -124,7 +124,7 @@ that instance the new value while the engine still authenticates the old one →
 401s. Because that box is also being converged by other live sessions, **the vault write and the three
 converges must land in one window**, not in the order they happen to be noticed.
 
-**The window (prepared 2026-09-18, deliberately NOT executed).** Budget ≈ 30 min, dominated by the
+**The window (prepare it before you start; it is deliberately short).** Budget ≈ 30 min, dominated by the
 engine's cold load (`start_period: 1200s`), during which spark inference is down.
 
 ```bash
@@ -179,7 +179,7 @@ archive you cannot trust.
 - **Scoped keys** are hashed at rest server-side: a lost/rotated key can NEVER be re-read. Remediation = delete server key by alias + clear the item's credential field + re-run the glue (it re-mints create-if-absent).
 - **`openrouter_api` / `cohere_api`** are upstream keys only LiteLLM holds — rotate at the provider dashboard, then update the 1Password item; no compose change needed (LiteLLM reads via env).
 - **OIDC client secrets** (`openwebui_api`) are rotated in Authentik; both provider and 1Password item must be updated together or the redirect/login breaks.
-**2026-09-19 — the rotation happened, and it exposed a THIRD value (audit before you rotate).**
+**Audit before you rotate.** A real rotation of this bearer found **three distinct values across five holders** —
 The owner re-issued the service accounts (`op_api` read, `op-write_api` read+write; **`vps-op-write_api`
 is DELETED** — both Ansible lookups now read `op-write_api`) and rotated `spark-llm_api` in the vault
 directly. Comparing the five holders by hash — never by printing — returned **three distinct values**:
