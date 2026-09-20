@@ -10,28 +10,22 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 > **Role:** Detail — imperative, step-by-step runbook to provision (or re-provision) the
 > Raspberry Pi 4 as the **Home Assistant primary** node. It is the concrete executor for
 > `deployment-manual.md` §Phase 4 / `deployment-tasks.md` §Phase 4 / HD-04 / HD-307 /
-> HD-319, and includes the KNX + dashboard pieces that landed 2026-09-03.
+> HD-319, and includes the KNX + dashboard pieces.
 > **Links to:** `deployment-manual.md` (§Phase 4), `deployment-tasks.md` (§Phase 4),
 > `smart-home.md` (KNX decision), `smart-home-failover.md` (VIP/failover),
-> `home-assistant-current.md` (live HAOS inventory), `network-addresses-generated.md` (IPs)
+> `home-assistant-current.md` (HA instance inventory), `network-addresses-generated.md` (IPs)
 > **Linked from:** `index.md`, `deployment-manual.md`
 
-> ✅ **FULLY PROVISIONED + LIVE as of 2026-09-03 (HD-307/HD-310/HD-04).** `raspberry_pi.yml` full run
-> ended `failed=0`; all three services live + verified on `pi.kogler.si`:
-> Debian 13 trixie + Docker 29.7.2 + Compose v5.5.0 · network dual-home
-> (`pi-eth0` Home 10.10.1.20 + `pi-mgmt` tagged-99 10.10.99.20) ·
-> **home-assistant-primary** (HA 2026.8.1 + keepalived MASTER on VIP `ha-vip` 10.10.1.200) ·
-> **technitium-secondary** (DNS :53 alive) · **traefik-ha** (TLS `*.kogler.si` valid,
-> Verify 0). KNX/dashboard/secrets render; HA boots with **0 config errors**;
-> `https://ha.kogler.si/` via traefik-ha → **302** (login). Live-fixed this session:
-> docker_services enabled-set crash, first-boot guard loop_var, technitium read_only + cap_add,
-> knx-entities `knx:` wrapper, meteoblue-not-in-2026.8, trusted_proxies + stale `.storage/http`,
-> ha-cert-sync `dump/` exclusion + VPS rsync/key auth. **HD-307 CLOSED 2026-09-08** (row deleted; all
-> residual verify items resolved elsewhere — KNX UI config-flow DONE 2026-09-03, `ha.kogler.si` DNS
-> cutover → VIP DONE, Authentik OIDC on `ha` explicitly NOT wanted (owner, HD-310 close 2026-09-07);
-> the only true remainder, the failover runbook, belongs to the **HD-04 umbrella** (owner-gated, blocked
-> on oldsrv/HD-318). Live re-verify 2026-09-08: keepalived MASTER, HA :8123 200, traefik-ha :443 200,
-> dual-home up.)
+> **Status: ✅ provisioned and live.** The Pi (`pi.kogler.si`) runs Debian 13 + Docker with
+> **home-assistant-primary** (HA + keepalived MASTER on the `ha-vip` VIP), **technitium-secondary**
+> and **traefik-ha** (TLS `*.kogler.si`), on the dual-home network (`pi-eth0` Home + `pi-mgmt`
+> tagged-99). HA boots with zero config errors and `https://ha.kogler.si/` serves through
+> `traefik-ha`. This is the **live HA instance** — the old HAOS box is gone.
+>
+> **Remaining on this host:** the KNX dashboard render check is an owner UI step (§4), the HA metrics
+> scrape stays off until `prometheus_ha_exporter` + the `ha_api` item exist, and the **failover
+> runbook** belongs to HD-04 ([smart-home-failover.md](smart-home-failover.md)).
+> Authentik OIDC on `ha` is **not wanted** (owner decision, HD-310).
 
 ---
 
@@ -39,37 +33,33 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 
 | # | Check | How to verify |
 |---|-------|---------------|
-| 1 | Vault items present | `ha-vrrp_password`, `smtp_login`, `meteoblue_api`, `ha-failover_api` (standby-only) — **all confirmed present** 2026-09-03. `ha_api` is **NOT required** for the Pi (it gates the `monitoring` role's Alloy HA-exporter scrape token via `prometheus_ha_exporter`; not a HA YAML secret). |
-| 2 | Pi reachable | `ping 10.10.1.20` + `ssh ansible-admin@10.10.1.20 'echo ok'` (SSH via 1Password SSH agent / `~/.ssh/config`). Verified live this session. |
-| 3 | Router static reservations | Pi Home `10.10.1.20` + Mgmt `10.10.99.20` bound (SSOT `network_static_hosts`; live-verified 2026-09-01/02). |
+| 1 | Vault items present | `ha-vrrp_password`, `smtp_login`, `meteoblue_api`, `ha-failover_api` (standby-only) — **all required items must exist before the run** (fail-loud lookups). `ha_api` is **NOT required** for the Pi (it gates the `monitoring` role's Alloy HA-exporter scrape token via `prometheus_ha_exporter`; not a HA YAML secret). |
+| 2 | Pi reachable | `ping 10.10.1.20` + `ssh ansible-admin@10.10.1.20 'echo ok'` (SSH via the 1Password SSH agent / `~/.ssh/config`). |
+| 3 | Router static reservations | Pi Home `10.10.1.20` + Mgmt `10.10.99.20` bound (SSOT `network_static_hosts`). |
 | 4 | Oldsrv standby config renders (cold) | `home_servers.yml` on oldsrv already renders `/opt/home-assistant-standby/` (cold; not started). Not a blocker for the Pi. |
 | 5 | Review-only on `main` | Run everything from the session worktree (`homelab-wt-*`); primary is the merge station. |
 
-> **Gate:** this is a **live deploy on a home host** — the Pi currently runs an old HAOS? No — the
-> Pi is **fresh Debian**; the LIVE HA instance is the **HAOS box documented in
-> `home-assistant-current.md`** (still running on the old SD/HAOS, at the old IP). The new Pi is a
-> parallel install. **The cutover (pointing `ha.kogler.si` clients at the new VIP) is a separate,
-> owner-gated step** (`smart-home-failover.md`) — provisioning the Pi does NOT affect the live HAOS
-> instance.
+> **Gate:** this is a **live deploy on a home host** that carries the production HA instance, the DNS
+> secondary and the HA edge. Re-running it re-renders config and restarts HA on config change — see §5.
 
 ---
 
 ## 1. Dry-run first (must be green)
 
-> ⚠ **Known stale-Pi-state (2026-09-03):** the partial 09-01 run left **broken timer units** on the
-> Pi (`ha-cert-sync.timer` / `ha-config-sync.timer` — `OnCalendar=:0/15` invalid + no trailing newline;
-> fixed in the role this session). `--check` does NOT write, so the `systemd` enable task re-validates
-> the OLD broken unit and fails. **Expected in check-mode ONLY on the current Pi state.** Forward:
-> (a) **clean the stale units first** (one command, no play) so `--check` is fully green:
->    `ssh ansible-admin@10.10.1.20 'sudo rm -f /etc/systemd/system/ha-cert-sync.{service,timer} /etc/systemd/system/ha-config-sync.{service,timer} && sudo systemctl daemon-reload'`
-> (b) or proceed directly to step 2 — the real run's `copy` + `daemon-reload` fixes the units on the live run.
+> ⚠ **`--check` can fail on stale units that no longer exist in the role.** A partial earlier run can
+> leave broken timer units behind (`ha-cert-sync` / `ha-config-sync` did: invalid `OnCalendar=:0/15` plus
+> a missing trailing newline). `--check` does not write, so the `systemd` enable task re-validates the old
+> broken unit and fails — **check-mode failing on a unit the role no longer renders is stale host state,
+> not a role bug.** Clear it, then re-check:
+> `ssh ansible-admin@10.10.1.20 'sudo rm -f /etc/systemd/system/ha-cert-sync.{service,timer} /etc/systemd/system/ha-config-sync.{service,timer} && sudo systemctl daemon-reload'`
+> A real run's `copy` + `daemon-reload` overwrites them anyway.
 
 lovelace, secrets.yaml with 4 keys, keepalived master/peer), `network` (2 NM keyfiles — **will be
 unchanged** if the Pi is already at SSOT), `docker`/`docker_services` created.
 
-> ⚠ If `--check` shows the `network` role would **re-apply pi-eth0/pi-mgmt**, that's safe on a
-> session where the live IPs are correct (2026-09-02 lesson: id stays `pi-eth0`/`pi-mgmt`, Home IP
-> unchanged → re-apply only).
+> ⚠ If `--check` shows the `network` role would **re-apply `pi-eth0`/`pi-mgmt`**, that is safe **only**
+> while the live IPs are already correct: the connection ids are stable and the Home IP is unchanged, so
+> it re-applies without switching paths. See the NM warning in §5.
 
 ---
 
@@ -87,9 +77,9 @@ This (re)renders on the Pi:
   !include knx-entities.yaml` + `lovelace-stanovanje` + scripts**), `config/knx-entities.yaml`,
   `config/knx/StanovanjeKogler_v1_0.knxproj`, `config/lovelace/*` (4 views), **`secrets.yaml`
   (4 keys, mode 0600)** — all as **regular files** before `compose up` (HD-185 guard passes).
-  **Shelly additions (HD-320/HD-323 ✅ LIVE):** the lovelace views include the 4× Shelly RGBW2 LED
+  **Shelly wiring (HD-320/HD-323):** the lovelace views include the 4× Shelly RGBW2 LED
   strips (`light.kuhinja`, `light.wc_4_channel_1..4`, `light.orhideje`, `light.kopalnica_2`) —
-  **all 4 devices added + entities bound (2026-09-03)**. Required for the “add by IP” flow to
+  all four devices are added with entities bound. Required for the “add by IP” flow to
   succeed: the Pi→IoT **firewall rules** (REST tcp/80 + **CoAP client udp/5683** — the Gen1 config
   flow opens a CoAP client session toward each device, without which the flow aborts
   `cannot_connect`) live in the `router` converge template; the HA CoAP **server** binds inside
@@ -133,22 +123,24 @@ ssh ansible-admin@10.10.1.20 'docker logs home-assistant-primary-keepalived-1 2>
    (already deployed at `/config/knx/`). The entity maps (`knx-entities.yaml`) are already
    active via YAML; the import ONLY adds Group Monitor names + `knx.telegram` destination names
    (HA does NOT auto-create control entities from the import — verified).
-2. **Authentik native OIDC** on the `ha` route when `ha.kogler.si` is cut over (no Forward-Auth).
-3. **Cutover** (owner decision — the LIVE HAOS instance still runs until then): point
-   `ha.kogler.si` clients/DNS at the VIP per `smart-home-failover.md` (not part of provision).
-4. Once cut over: `ha_api` 1Password item + `prometheus_ha_exporter: true` → monitoring scrape.
+2. **Monitoring scrape:** create the `ha_api` 1Password item and set `prometheus_ha_exporter: true` so
+   the Alloy HA exporter has a token (note: `ha_api` is a **monitoring** credential, not a HA YAML secret —
+   it must **not** appear in `secrets.yaml.j2`).
+3. **No Authentik OIDC on `ha`** — considered and declined: HA stays local-auth and WAN-independent
+   ([smart-home-failover.md](smart-home-failover.md)), and `ha.kogler.si` is served by the Pi's own
+   `traefik-ha` edge with no Forward-Auth.
 
 ---
 
 ## 5. Gotchas / live lessons (do not skip)
 
-- **Dry-run caught + fixed 3 real bugs this session (2026-09-03):** ① `nut` role `_nut_exporter_release`
-  crashed on client hosts (`'dict' has no attribute 'json'` — release lookup only ran on master; now
-  gated master-only + parsed `content | from_json`); ② `copy:` srcs for `knx-entities.yaml`/lovelace
-  looked under role `files/` but lived in `templates/` (moved to `files/`); ③ the `remote_src: true`
-  keepalived copy used a relative src (looks under `files/`) — absolute path now. All three were why
-  `--check` failed before the first real provision.
-- **NM profile-switch is DANGEROUS (2026-09-01):** never `nmcli connection up <new-profile>` on the
+- **Three role bugs a `--check` would have surfaced** (each is a general Ansible trap, not a Pi quirk):
+  ① a role variable computed by a lookup that runs **only on the master** crashes every client that
+  references it (`nut`'s `_nut_exporter_release` → `'dict' has no attribute 'json'`) — gate the lookup and
+  parse with `content | from_json`; ② `copy:` srcs resolve **relative to the role's `files/`**, so a
+  template that lives in `templates/` silently 404s at copy time; ③ same trap with `remote_src: true` —
+  use an absolute path. `--check` is what makes these cheap.
+- **NM profile-switch is dangerous:** never `nmcli connection up <new-profile>` on the
   Pi — it deactivates the DHCP connection and drops SSH. The `network` role uses `pi-eth0`/
   `pi-mgmt` ids that persist; a re-apply is safe.
 - **render-first is load-bearing (HD-185/204):** `home_assistant` MUST run before `docker_services`.
@@ -169,20 +161,14 @@ ssh ansible-admin@10.10.1.20 'docker logs home-assistant-primary-keepalived-1 2>
 ## 6. Success criteria
 
 - [x] `docker compose ps` on the Pi: `home-assistant-primary` (HA + keepalived) healthy,
-      `technitium-secondary` healthy, `traefik-ha` healthy.  **2026-09-03 live**
-- [x] `configuration.yaml` on the Pi includes `knx: !include knx-entities.yaml`,
-      `lovelace-stanovanje` (YAML mode), the radiator-timer scripts.  **2026-09-03 live**
-- [x] `secrets.yaml` on the Pi has `meteoblue_api`, `smtp_login`, `smtp_password`,
-      `ha-vrrp_password` (mode 0600).  **2026-09-03 live**
-- [ ] KNX entities live: dashboard renders KNX lights/covers/switches/sensors (KNX connection
-      configured via UI tunneling to `knx-ip`).  *(owner step — UI config flow, post-provision)*
-- [x] `ha.kogler.si` → VIP after cutover; keepalived MASTER on the Pi (priority 110).
-      **2026-09-03 live: VIP bound, MASTER state, TLS Verify 0** (DNS cutover still owner-gated)
-- [x] `validate-all.sh` green on the session worktree (only pre-existing sync-skills drift
-      allowed, owner decision pending).  **2026-09-03 green**
+      `technitium-secondary` healthy, `traefik-ha` healthy
+- [x] `configuration.yaml` includes `knx: !include knx-entities.yaml`, `lovelace-stanovanje`
+      (YAML mode) and the radiator-timer scripts
+- [x] `secrets.yaml` has `meteoblue_api`, `smtp_login`, `smtp_password`, `ha-vrrp_password`
+      (mode 0600)
+- [ ] KNX entities live: dashboard renders KNX lights/covers/switches/sensors (needs the UI tunneling
+      config flow to `knx-ip`) — **owner step**
+- [x] `ha.kogler.si` → VIP; keepalived MASTER on the Pi (priority 110), TLS verify 0
+- [x] `validate-all.sh` green on the session worktree
 
----
-
-*Last updated 2026-09-03 · supercedes the stale 2026-09-01 §Phase 4 notes with the now-landed
-secrets.yaml renderer + KNX-from-.knxproj + Stanovanje dashboard. Progress lives in
-`deployment-tasks.md` + owning docs.*
+Progress lives in `todo.md` + the owning docs; this file is the runbook, not a log.
