@@ -19,7 +19,7 @@ tags: [smart-home, voice, whisper, piper]
 > ⚠ **That leg does not exist yet.** Home Assistant has **no LiteLLM consumer, no scoped key and no
 > gateway env wiring** in the deployment (`home-assistant-primary` renders `environment: {}`), so voice's
 > LLM step has nothing to call. The STT engine underneath it is live; the wiring is open work
-> ([Q-A.md](Q-A.md) finding 4, alongside HD-384's consumer work).
+> (**HD-403**, which ships with HD-384's consumer work).
 >
 > **Engine = `whisper.cpp` `main-vulkan`, digest-pinned** (decision #27) — RADV, native RDNA3, no ROCm
 > userspace. Two earlier recipes were ruled out by evidence, not preference: a ROCm/`GGML_HIP` build

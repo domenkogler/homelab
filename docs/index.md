@@ -62,7 +62,6 @@ tags: [index, dispatcher, ai]
 ```
 docs/
 ├── index.md                              ← YOU ARE HERE
-├── Q-A.md                                ⚠️ TEMPORARY session Q&A (docs-cleanup session) — delete before close-out
 │
 ├── network.md                             Index: ISP, topology, links to network-*.md
 ├── network-review.md                      Network intake queue

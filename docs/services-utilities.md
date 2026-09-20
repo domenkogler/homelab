@@ -43,8 +43,8 @@ tags: [services, utilities, tools, automation]
 
 ## Zipline — public bin & shortener (HD-112)
 
-> ⏳ **IaC row is `enabled: true`** (VPS) — the VPS `docker_services` converge brings it up; confirm it on the
-> box before treating it as live. This section is otherwise the deployment spec. Decision: Zipline v4.7.0 (pin) with a single public host `bin.kogler.si` on `crowdsec-only@file` and dashboard native-OIDC. Design source-verified against Zipline v4.7.0. Deploy-gate steps live in the compose header (`docker_services/zipline/docker-compose.yml.j2`).
+> ✅ **Deployed** — `zipline` + `zipline-db` Up/healthy on the VPS (HD-112 box check). The registry row is
+> `enabled: true`, so a converge owns keeping it up; this section is the spec behind it. Decision: Zipline v4.7.0 (pin) with a single public host `bin.kogler.si` on `crowdsec-only@file` and dashboard native-OIDC. Design source-verified against Zipline v4.7.0. Deploy-gate steps live in the compose header (`docker_services/zipline/docker-compose.yml.j2`).
 
 **Purpose:** public temporary file bin (phone↔PC transfers via short link), URL shortener + QR codes; private persistent storage secondary (OpenCloud stays the family file cloud).
 

@@ -397,7 +397,7 @@ IaC/ansible/
 │   ├── amd_rocm/tasks/main.yml      # AMD ROCm + udev for the RX 7600 (standby-capability role: the host
 │   │                                #   LLM came off oldsrv, HD-335; the card still serves Sunshine
 │   │                                #   encode, immich-ML and the pinned Vulkan tier) ⚠ still writes the
-│   │                                #   stale OLLAMA_KEEP_ALIVE env line — see docs/Q-A.md
+│   │                                #   stale OLLAMA_KEEP_ALIVE env line — HD-404
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
 │   ├── router/                      # RouterOS api_modify: VLANs, DHCP, firewall, CAPsMAN, Kids rules, address lists
