@@ -12,9 +12,14 @@ tags: [services, ai, gpu, benchmark, stt, rerank, vram, whisper, vulkan]
 > the *measured* record** (what this card actually does), because the 2026-09-17 paper arithmetic in decision
 > #25(b) was wrong by ~10–20× and only a probe could say so.
 >
-> Nothing here is converged into IaC — the engine change it implies is a **re-decision** and needs the owner
-> (see §8 + HD-391). All probes ran in throwaway containers, ports bound to loopback only, and were deleted
-> afterwards; live services were not touched.
+> **Status: this appendix was acted on.** Decision **#27** adopted its result (Vulkan engine family, Q8_0
+> quantization, reranker on the dGPU) and the three legs shipped in IaC as `whisper` / `reranker` / `embed`
+> (HD-391/HD-392). What this file is *for* is the evidence behind those numbers: it is a measurement record,
+> so its dates are provenance, not history for its own sake.
+>
+> All probes ran in throwaway containers with loopback-only ports and were deleted afterwards; live services
+> were not touched. Read the plan-of-record in [services-ai.md](services-ai.md) §3a — **not** §4's tunnel URL,
+> which is a torn-down test edge.
 
 ## 1. Measurement environment
 

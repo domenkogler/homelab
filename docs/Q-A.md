@@ -144,6 +144,3 @@ or flag the item; the fix belongs in a code commit with its own validation.
 9. **`IaC/host/pi/first-boot-config.sh` + `scripts/README.md` still tell the operator to flash a
    `raspi.debian.net` image**, which boots to a rainbow screen on this Pi 4; the runbook now says official
    Raspberry Pi OS Lite.
-10. **`docs/services-ai-bench.md` §4 still names `tailscale-scale-test-...:8443` as the live
-    `SPARK_LLM_BASE_URL`** while §4a records that tunnel as torn down and `llm.kogler.si` as the live edge.
-    The bench file is a measurement record, so §4 was left alone; anything reading it should take §4a.
