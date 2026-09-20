@@ -11,7 +11,16 @@ tags: [services, utilities, tools, automation]
 > **Links to:** `services-office.md`, `observability.md`, `services-authentik.md`, `services.md`
 > **Linked from:** `services.md`
 
-> 🟢 **VPS members live**: n8n (`auto.kogler.si`, the alert brain), PairDrop (public crowdsec-only tier on both subdomains per HD-230a), Stirling-PDF.**HD-58 + HD-113 live-verified**: stirling-pdf container healthy + `pdf.kogler.si` 302 Forward-Auth chain + OCR `eng+slv`; pairdrop container healthy + `drop.kogler.si` 200 public crowdsec-only (WebRTC signaling). Inventory re-render already landed via HD-342. ⏳ deploy-gated: signal-cli-rest-api (oldsrv, Phase 3 — reaches n8n over WG S2S once that tunnel is up, HD-03) ·**Zipline** (HD-112 — IaC complete, NOT deployed; deploy-gate runbook = the compose header checklist).
+> **Live on the VPS:** n8n (`auto.kogler.si` — also the observability alert router), PairDrop (`drop.`,
+> public and CrowdSec-gated, WebRTC signaling only), Stirling-PDF (`pdf.`, internal, OCR `eng+slv`),
+> Zipline (`bin.`, public), and the LAN-only `dsh`/`pi-dev` rows are **parked** (registry
+> `enabled: false`).
+>
+> ⏳ **Open:** **`signal-cli-rest-api`** runs on oldsrv and is published on its Home-VLAN address so the VPS
+> alert brain can reach it (observability's alert-router leg), but **Signal delivery is still owner-gated —
+> no device is linked**, so that leg delivers nothing until it is
+> ([observability.md](observability.md) §Alert delivery).
+
 
 ---
 
@@ -34,7 +43,8 @@ tags: [services, utilities, tools, automation]
 
 ## Zipline — public bin & shortener (HD-112)
 
-> ⏳ **Authored + IaC-landed, nothing deployed yet (deploy-gated).** Decision: Zipline v4.7.0 (pin) with a single public host `bin.kogler.si` on `crowdsec-only@file` and dashboard native-OIDC. Design source-verified against Zipline v4.7.0. Deploy-gate steps live in the compose header (`docker_services/zipline/docker-compose.yml.j2`).
+> ⏳ **IaC row is `enabled: true`** (VPS) — the VPS `docker_services` converge brings it up; confirm it on the
+> box before treating it as live. This section is otherwise the deployment spec. Decision: Zipline v4.7.0 (pin) with a single public host `bin.kogler.si` on `crowdsec-only@file` and dashboard native-OIDC. Design source-verified against Zipline v4.7.0. Deploy-gate steps live in the compose header (`docker_services/zipline/docker-compose.yml.j2`).
 
 **Purpose:** public temporary file bin (phone↔PC transfers via short link), URL shortener + QR codes; private persistent storage secondary (OpenCloud stays the family file cloud).
 
