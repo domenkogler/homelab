@@ -456,7 +456,7 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [ ] **HD-362** — music pillar tails: overwrite the placeholder 1P values with real ones, wire the Lidarr download
       clients in-UI, refresh the Navidrome Box library. **Tube Archivist stays torn down** — re-enabling it requires
       `path.repo` in the ES `elasticsearch.yml` directly first (env-var/`-E` forms destabilize ES bootstrap). · [services-media.md](docs/services-media.md)
-- [ ] **HD-386 tail** — the `dsh`/`pi-dev` tailnet names + `dsh-backend`/`pi-backend` routes still answer **502 by
+- [x] **HD-386 tail** — **CLOSED 2026-09-21: no owner step, it was already decided.** — the `dsh`/`pi-dev` tailnet names + `dsh-backend`/`pi-backend` routes still answer **502 by
 - [ ] **HD-288** — `sunshine` deployment tail on oldsrv (the enable decision is resolved in IaC; the deploy +
       verify is not). · [hardware-gpu.md](docs/hardware-gpu.md)
 - [ ] **HD-399** — `technitium-seed` is **not `--check`-safe**: every `docker_services --check` on oldsrv dies at
@@ -464,7 +464,7 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [ ] **HD-133** — subscription renewal reminders (SSOT `subscriptions.yml`) driving Homepage + calendar + n8n. · [subscription.md](docs/subscription.md)
 - [ ] **HD-238** — write the oldsrv→VPS DR runbook for the non-GPU services (an imperative procedure, not prose). · [backup.md](docs/backup.md)
 - [ ] **HD-45** — network dashboard / who-is-on-network (re-scoped 2026-09-09). · [observability.md](docs/observability.md)
-      design**; owner call whether to drop them. · [services-ai.md](docs/services-ai.md)
+      design**; kept by design — settled, see [network-vpn.md](docs/network-vpn.md) · [services-ai.md](docs/services-ai.md)
 
 
 ---
@@ -580,7 +580,7 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
       the rerank leg still has **no consumer** — `rag-mcp` is a compose stub, so nothing calls the reranker yet. · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-393** — the spark re-cert that gates the rerank cutover: attribute that OOM episode per-process,
       decide benign-vs-OOM-adjacent, fix it or accept it as noise. **Never converge an unpinned AI leg.** · [services-ai.md](docs/services-ai.md)
-- [ ] **HD-386 tail** — the retired `dsh`/`pi-dev` harness records + their 502 tailnet routes: owner call on
+- [x] **HD-386 tail** — **CLOSED 2026-09-21: there was no owner step.** The retired `dsh`/`pi-dev` harness records and their 502 tailnet routes were settled in `group_vars/vps.yml` and documented in [network-vpn.md](docs/network-vpn.md) — the names stay, the 502 is the design, and removal is the one-change procedure written there. What is left on HD-386 is the `failed=0` oldsrv converge sighting, which is Table AI work, not an owner call.
 - [ ] **HD-367 / HD-359** — the Mgmt-99 dual-home leg + the engine-neutral benchmark kit: IaC and boot done, the
       **S1 bench is not yet certified** — the numbers still do not back the tier decision. · [services-ai-bench.md](docs/services-ai-bench.md)
 - [ ] **HD-375 / HD-380 / HD-395** — host-memory OOM alert rules, the governor's second term + OOM-forensics

@@ -4,7 +4,7 @@
 > **Linked from:** [`todo.md`](todo.md) · [`prompt.md`](prompt.md) · [`README.md`](README.md) · [`scripts/README.md`](scripts/README.md)
 >
 > **Rebuilt 2026-09-20** from `todo.md` + [`prompt.md`](prompt.md) as they stand after the HD-391 deploy and decision #28. What moved since the 2026-09-18 build of this table:
-> - **Added from the docs SSOT sweep (2026-09-20):** **HD-403** (Home Assistant has no LiteLLM path — the voice LLM leg is unwired) and **HD-404** (the stale IaC strings/comments, incl. one that feeds a generated doc), plus ⏳ tails on **HD-384** (LAN has zero scoped consumers today) and **HD-386** (parking the harnesses left their tailnet routes answering 502).
+> - **Added from the docs SSOT sweep (2026-09-20):** **HD-403** (Home Assistant has no LiteLLM path — the voice LLM leg is unwired) and **HD-404** (the stale IaC strings/comments, incl. one that feeds a generated doc), plus ⏳ tails on **HD-384** (LAN has zero scoped consumers today) and **HD-386** (its tailnet-names question is already decided — 502 by design — leaving only the `failed=0` converge sighting).
 > - **Remote-dev-plane thread added (2026-09-20, owner direction):** seven new rows — **HD-405/406/408/410**
 >   (transport), **HD-407/409/411/413** (runner, cockpit, guardrail), **HD-412** (remote desktop) — with the
 >   decisions already appended to the `network` / `deployment` / `services` decision logs and three file-disjoint
@@ -172,7 +172,7 @@ Grouped by *why*. Clearing these cascades into the AI table above.
 | HD-57 | 3 | Bank tokens + Actual Budget / Enable Banking app creation | AI WG-scopes :5006 + deploys + verifies |
 | HD-230 | 1 | Kopia source-wiring decision (which data sources get backed up) | AI's surgical converge + the wave-2 verifies |
 | HD-207 | 1 | Final **media rename vs personal-files** call | AI's landing-zone redistribution mechanics |
-| HD-386 tail | 1 | Whether to drop the `dsh`/`pi-dev` tailnet names + `dsh-backend`/`pi-backend` routes (they answer 502 by design) | — |
+| HD-386 | 1 | Nothing to decide — the parked `dsh`/`pi-dev` tailnet names are **kept on purpose** and answer 502; `group_vars/vps.yml` carries the reasoning and the one-change removal procedure, [network-vpn.md](docs/network-vpn.md) documents the behaviour. The row's only real tail is the `failed=0` oldsrv converge sighting, which is Table AI work | Settled 2026-09-17, re-opened and re-closed by the 2026-09-20 docs sweep |
 
 ### Group 3 — owner-hold / deliberate non-work
 

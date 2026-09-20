@@ -111,8 +111,8 @@ Consequences:
 - **Coding harnesses are not services.** `dsh` / `pi-dev` as `docker_services` entries are parked
   (`enabled: false`, HD-386 — kept so `template_dir` + the port contract survive a re-onboarding). They run
   as dedicated deployments / on the workstation and reach the engine directly. The tailnet `dsh`/`pi-dev`
-  DNS records + `dsh-backend`/`pi-backend` routes still exist and answer **502 by design**; removing them is
-  an owner call (HD-386 tail).
+  DNS records + `dsh-backend`/`pi-backend` routes still exist and answer **502 by design** — decided and
+  documented in [network-vpn.md](network-vpn.md); deleting them is a separate change with its own reasoning.
 
 ### Docker networks
 
