@@ -108,3 +108,15 @@ spark_oom_watchdog_recycle_idle_s: 1800
 # itself contribute to a host OOM — invariant #1), but not in the way of its own action.
 spark_oom_watchdog_memory_max: 512M
 spark_oom_watchdog_memory_high: 384M
+# HD-413 classification (read by scripts/check_self_converge_guard.py, not by Ansible).
+# `filesystem`/mount work on the spark data disk, which the detector sees as storage-class —
+# correctly. It is exempt today because (a) mkfs runs only when the partition exists and
+# carries no filesystem (`when:` guard, no `force:`), so it cannot reformat a live disk, and
+# (b) the disk is spark's data partition, not a path a control node's workspace lives on.
+# ⚠ CONDITIONAL, and it should be read before any change here: if spark ever becomes a
+# control node (the HD-407 pattern repeated), this is the `storage` class in disguise and
+# belongs IN the lockout set, not exempted from it.
+homelab_lockout_exempt_reason: >-
+  Formats only a partition that carries no filesystem (guarded by `when:`, no force:) and
+  mounts spark's own data disk, which is not a path a runner's workspace sits on; revisit
+  this exemption if spark becomes a control node.

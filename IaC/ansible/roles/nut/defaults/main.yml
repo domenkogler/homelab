@@ -68,3 +68,13 @@ nut_smtp_pass: "{{ lookup('community.general.onepassword', 'smtp_login', field='
 # Optional: absolute path to a helper that sends a Signal message as $1
 # (e.g. a wrapper around signal-cli). Leave empty to skip Signal from NUT.
 nut_signal_helper: ""
+# HD-413 classification (read by scripts/check_self_converge_guard.py, not by Ansible).
+# Writes /etc/sudoers.d/nut, validated with `visudo -cf`. What makes this one worth an
+# explicit row: the grant it installs lets the NUT driver HALT THE HOST. A converge never
+# calls it — the driver does, on battery exhaustion — so it cannot cut the driving session,
+# but it IS a shutdown path on the box, and its rescue is not SSH at all: it is the UPS/WoL
+# lane (HD-06, hardware-ups.md). Treat that as the real break-glass here, not a session.
+homelab_lockout_exempt_reason: >-
+  Installs a validated sudoers grant that lets the NUT driver halt the host on power loss; no
+  converge path invokes it, so it cannot sever the session, and its own rescue is the UPS/WoL
+  drill (HD-06) rather than SSH.

@@ -390,7 +390,7 @@ point (the HD-399 rule): the guard carries no `default()` and no `failed_when`.
 
 Any run whose target is **not** the controller is untouched by the guard (proven, not assumed).
 
-### The invariant that makes it airtight, and the two gates
+### The invariant that makes it airtight, and the three gates
 
 Each guard task carries TWO copies of the same tag list: its `tags:` decides when the guard
 **runs**, `homelab_guard_tags` decides when the **role** would have run. They must be
@@ -409,8 +409,39 @@ its selection expression: the silent version of the hole.
   no `default()`/`failed_when`, and a role that writes under `--check` may not claim
   `check_safe`.
 * `scripts/testdata/self-converge-guard/run.sh` — runtime: executes the real guard against a
-  throwaway inventory (this host + a decoy that is not) and asserts the 18-case verdict
-  matrix with inert stub roles.
+  throwaway inventory (this host + a decoy that is not) and asserts its verdict matrix
+  (it prints the case count) with inert stub roles.
+* **classification** — the static checker also derives *which roles could cut a session* from
+  what their tasks actually do, and fails when such a role is **neither guarded nor carrying a
+  written exemption**. Signals: a `systemd`/`service` task on `sshd`/`systemd-networkd`/
+  `NetworkManager`/`tailscaled`/`wg-quick@`/`nftables`/…, a raw command invoking `nft`,
+  `iptables`, `ip route|link|addr|rule`, `wg`, `tailscale up|logout`, `nmcli`, `netplan`,
+  `systemctl restart|reload|stop`, a file task writing `/etc/ssh`, `/etc/systemd/network`,
+  `/etc/NetworkManager`, `/etc/netplan`, `/etc/nftables`, `/etc/wireguard`, `/etc/fstab`,
+  `/etc/sudoers`, `/etc/pam.d`, `/root/.ssh` or `authorized_keys`, and `mount`/`filesystem`
+  state. An exempt role declares `homelab_lockout_exempt_reason` in its own
+  `defaults/main.yml`, and the reason has to be an argument, not a placeholder (under 40
+  characters fails). Measured today: **5 guarded roles, all 5 justified by behaviour rather
+  than by someone remembering to list them, and 6 exempt by written argument** (`ai_diag`,
+  `cifs`, `common`, `home_assistant`, `nut`, `spark` — read those rows before changing those
+  roles; `spark`'s exemption is explicitly conditional on spark never becoming a control node).
+
+  This closes the failure mode that actually happened rather than a theoretical one:
+  `tailscale-node` arrived from another lane mid-session and was lockout-capable the day it
+  landed, and a hand-maintained set catches that only if a human notices. The checker carries
+  its own `self_test()` — it asserts the detector fires on an `sshd` restart, an `nft`
+  command, an `sshd_config` write, a `{{ netd_dir }}`-templated netdev write, a mount, and a
+  task nested two blocks deep, while staying silent on a debug task, an unrelated template,
+  an apt install and a container start. Drop a canary role that restarts `sshd` and
+  `validate-all.sh` goes red naming the file and the task.
+
+  **Declared limits — named so that silence is not mistaken for coverage:** container-level
+  damage (a compose converge that stops the stack the runner is itself inside), RouterOS /
+  switch configuration driven over `network_cli` (a different plane with no local session to
+  cut), and an `authorized_keys` edit that *revokes* a login (`home_assistant`'s exemption
+  argues it never rewrites one — re-read it if that changes). Variable-resolved `dest:` paths
+  are matched by hint against the raw string, not rendered, which over-matches a benign path
+  rather than under-matching a netdev unit.
 
 Both are wired into `validate-all.sh`, and both are load-bearing: the first draft of the
 guard passed the static checker completely while allowing an **unfiltered** self-converge of

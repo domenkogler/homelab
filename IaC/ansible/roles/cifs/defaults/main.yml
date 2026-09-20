@@ -12,3 +12,14 @@
 
 # 1Password item holding the live-box SMB credentials (see subscriptions.yml `secret:`).
 livebox_op_item: Hertzner-SB-Data
+# HD-413 classification (read by scripts/check_self_converge_guard.py, not by Ansible).
+# This role mounts the Hetzner Storage Box (fstab entry + `state: mounted`) — storage-class
+# work, and the honest reason it is not in the lockout set: the mount point is a dedicated
+# directory this role creates, never the root, /var, /home or the container data dirs the
+# runner is running inside. A failed mount leaves a services outage, not a lost session, and
+# it is reversible from the console. If a future change ever mounts CIFS over a path the
+# runner itself lives under, this exemption is wrong and belongs in the lockout set.
+homelab_lockout_exempt_reason: >-
+  Mounts the Storage Box over its own dedicated mountpoint, never over the root, /var, /home
+  or the container data dirs a self-run would be sitting on; a failure is an outage that the
+  console can undo, not a severed session.

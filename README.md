@@ -134,6 +134,7 @@ task-specific dispatch. Do **not** bulk-read the repo.
 > playbook is idempotent (the guard restarts the stack cleanly once siblings are up). `--check` is the
 > only safe foreground form. See `scripts/README.md` Notes & conventions for the exact incantation.
 7. if it's a planned / multi-step / multi-host / live-deploy change → use the **orchestrator pattern**: a single parent session co-ordinates subagents/parallel lanes with an explicit lane map (see pi-subagents skill), and records the runbook in the owning `docs/*.md` — no separate `plan/` ceremony required
+8. **the runbook has no owning lane — ownership follows the action.** If this session did anything a human would have to repeat by hand, `deployment-manual.md` gains the imperative line **in the same change, by the session that did it** (the lane briefs assign files to avoid two writers, and that root file was assigned to nobody — which is how owed procedure quietly belongs to everybody). If everything was automated in IaC, the runbook stays untouched: it is procedure, not a diary (CONVENTIONS §6.4)
 
 ### Orchestrator + reviewer discipline (lane hygiene, HD-346 lesson)
 

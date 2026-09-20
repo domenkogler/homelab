@@ -1,0 +1,15 @@
+---
+# common role defaults
+
+# HD-413 classification (read by scripts/check_self_converge_guard.py, not by Ansible).
+# `common` writes /etc/sudoers.d/<ansible_user> — the grant that lets the runner escalate at
+# all, on the box it may itself be running on. It is NOT in the lockout set because it can
+# only ever restate that grant, never revoke a session: no unit is restarted, no firewall or
+# netdev or sshd file is touched, and the drop-in passes `visudo -cf` before it can land, so
+# the one way to break escalation (a malformed file) is stopped at the write. Refusing
+# `--tags common` on self-targets would also make HD-407's own read-only proof leg
+# unrunnable, which is the trade the guard exists to keep available.
+homelab_lockout_exempt_reason: >-
+  Restates the runner's own NOPASSWD drop-in, validated with visudo -cf before it can land;
+  restarts no unit and touches no firewall, netdev, mount or sshd state, so it cannot sever
+  the session it is running in.

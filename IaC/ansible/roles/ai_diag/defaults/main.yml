@@ -1,0 +1,13 @@
+---
+# ai_diag role defaults
+
+# HD-413 classification (read by scripts/check_self_converge_guard.py, not by Ansible).
+# This role writes /etc/sudoers.d/ai-diag — a session-critical path — but it cannot sever
+# the driving session: it ADDS one narrow Cmnd grant for the ai-debug dispatcher account,
+# touches no unit, firewall, netdev or sshd setting, and the drop-in is validated with
+# `visudo -cf` at write time, so a malformed render cannot land. The ai-debug account's own
+# prohibition on running Ansible is enforced separately (the per-role ansible_user asserts).
+homelab_lockout_exempt_reason: >-
+  Adds one validated (visudo -cf) sudoers drop-in granting a narrow Cmnd to ai-debug; no
+  unit, firewall, netdev, mount or sshd state is touched, so it cannot cut the driving
+  session and a malformed render cannot land.

@@ -137,6 +137,15 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   ~/.ssh/github_auth` (they persist after `git-bootstrap.sh --ssh-auth`). Verify a commit is signed
   with `git log -1 --format='%G?'` (G = good). Only when re-reading the `Private` vault is needed (new
   key pull) does a human `op` sign-in apply. See `scripts/README.md` git-bootstrap row + HD-270 doc.
+- **A test that cannot fail is not evidence.** Before claiming a fix, write the input that
+  differs *only* under the fix and run it; if the check would print the same thing either way,
+  it proves nothing. Measured cost of skipping this (2026-09-21): a commit here described a
+  scanner fix the commit did not contain, and its "proof" printed a vocabulary that looked
+  identical either way because those tags also existed at top level. Prefer gates that carry
+  their own `self_test()` plus a canary (drop a role that restarts `sshd` and
+  `scripts/check_self_converge_guard.py` goes red) over prose that asserts coverage. Same rule
+  for live claims: prove the thing you are about to rely on (`ssh-keygen -F`, one read-only
+  converge, a fresh auth) rather than reasoning that it probably works.
 - **Collapsible `<details>` sections:** human/family-facing browser-rendered docs only (`readme-humans.md`, `docs/manual/*`) and only for optional asides (troubleshooting, FAQ) — **never** in agent-facing docs (owning specs, runbooks incl. `deployment-manual.md`, ledger, todo, or the frozen `reports/*` archives): the primary readers are AI agents working on raw text, where folds hurt grep-ability and add noise. Blank lines between the HTML tags and the inner Markdown are mandatory, else fences/tables render as raw text. Precedent: `readme-humans.md` §Za družino troubleshooting fold.
 
 ---
