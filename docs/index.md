@@ -70,7 +70,7 @@ docs/
 ├── network-vlans.md                       VLAN table, subnets, firewall rules
 ├── network-migration-inventory.md         Flat-LAN→VLAN device migration table (Phase 1.5 cutover)
 ├── network-addresses-generated.md         IP address plan — SSOT (generated from IaC; never hand-edited)
-├── network-dns.md                         Technitium/Pi-hole, per-subnet DNS
+├── network-dns.md                         DNS tier: split-horizon resolution, per-subnet behavior
 ├── network-vpn.md                         WireGuard (S2S), Headscale mesh
 ├── assets/Network-Devices.canvas          Device wiring & interconnections  ⚠️ WIP
 ├── network-rack.md                        Rack layout → assets/Rack.canvas
@@ -89,7 +89,7 @@ docs/
 ├── services.md                            Index: catalog legend, networks, domains → services-*.md stack docs
 ├── services-media.md                      Media: Jellyfin, Seerr, SeerrNG, Navidrome, Immich, *arr + storage/import
 ├── services-downloads.md                  Usenet/torrent ingress (SABnzbd, qBittorrent, gluetun)
-├── services-dns.md                        DNS services (Technitium, Pi-hole)
+├── services-dns.md                        DNS services (Technitium authoritative + Advanced Blocking)
 ├── services-utilities.md                  Utility sidekicks (n8n, signal-cli, PairDrop, Stirling)
 ├── services-admin.md                      Ops/GitOps/security/backup (Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup) · **Homelable topology dashboard (HD-45)** · ~~Metabase~~ retired 2026-09-14 → future oldsrv
 ├── observability.md                        Observability domain — stack, alerting, retention
@@ -183,7 +183,7 @@ docs/
 
   | Host | FQDN | Role |
   |------|------|------|
-  | Old desktop + Docker host | `oldsrv.kogler.si` | internal/GPU/LAN host (immich-ml, jellyfin/*arr, DNS, HA standby; Sunshine + immich-ML GPU — Ollama removed to spark) |
+  | Old desktop + Docker host | `oldsrv.kogler.si` | internal/GPU/LAN host (jellyfin/*arr, DNS secondary, HA standby; GPU: pinned embed/rerank/STT tier + immich-ML + Sunshine — generation lives on spark) |
   | Lenovo ThinkStation PGX | `spark.kogler.si` | **headless NVIDIA GB10 (GB10 Grace Blackwell) AI inference node** — vLLM, text-only generation tier (vision lives on the workstation) |
   | HP MicroServer NAS | `nas.kogler.si` | ZFS storage server |
   | Raspberry Pi 4 | `pi.kogler.si` | Home Assistant primary node (HA service = VIP `ha.kogler.si`) |

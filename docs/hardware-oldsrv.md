@@ -11,7 +11,7 @@ tags: [hardware, oldsrv, docker]
 > desktop PC and 24/7 Docker host.
 > **Status: ✅ LIVE** — full `home_servers.yml` stack converged: network (SSOT static IPs + the tagged-99
 > Mgmt leg), storage (ZFS `nvme` pool + NFS client mounts to nas: `/mnt/nas/{data,media,thumbs}`), NUT
-> client, Cockpit, `amd_rocm` host userland + `/dev/dri`+`/dev/kfd` GPU plumbing, desktop (Xorg/XFCE,
+> client, Cockpit, `amd_rocm` host userland + `/dev/dri` GPU plumbing, desktop (Xorg/XFCE,
 > iGPU-primary), ONLYOFFICE office stack, the enabled `docker_services` set (media/*arr, downloads, DNS
 > secondary, smart-home, backup agent, LAN AI tier), the Home Assistant **standby** render (cold standby +
 > keepalived BACKUP + failover variant), and the thin monitoring collector.
@@ -82,7 +82,9 @@ tags: [hardware, oldsrv, docker]
 See [`hardware-gpu.md`](hardware-gpu.md) for detailed VRAM management.
 
 - **Intel HD 630 (iGPU):** Xorg runs exclusively here. Monitor on motherboard HDMI/DP.
-- **Radeon RX 7600 (dGPU):** No monitor. Docker containers access via `/dev/dri` and `/dev/kfd`.
+- **Radeon RX 7600 (dGPU):** No monitor. Containers reach it through `/dev/dri/renderD128` + the
+  `video`/`render` groups; only the images that actually ship ROCm (immich-ML) also need `/dev/kfd`.
+  The pinned AI tier is Vulkan and deliberately gets **no** `/dev/kfd`.
 - Xorg config forces iGPU primary, excludes dGPU from desktop compositing.
 
 ---
@@ -110,11 +112,17 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ## Observability Storage & Notes
 
-- **GPU (RX 7600, decision #24):** **pinned AI services (Whisper STT + bge-m3 embed + bge-reranker,
-  ≈5–6 GB) + Sunshine gaming-encode + immich-ML batch inference (lowest priority)** — the containers
-  bundle their own ROCm runtime and use `/dev/dri`+`/dev/kfd`; Sunshine prep-commands pause/unpause the AI
-  containers (gaming-first). **No host LLM/Ollama on oldsrv** (generation is on spark); `amd_rocm` host
-  userland is Debian-trixie-native tooling only.
+- **GPU (RX 7600, decision #24):** three users of one 8 GB card, in priority order —
+  **gaming (Sunshine encode) > the pinned AI tier (whisper STT + bge-m3 embed + bge-reranker,
+  2475 MiB measured all-three warm) > immich-ML batch inference (lowest)**. Sunshine's prep-commands
+  pause/resume the AI containers so a session always wins.
+  **The pinned tier is Vulkan/RADV, not ROCm:** it mounts only `/dev/dri/renderD128` + the `video`/`render`
+  groups — **no `/dev/kfd`, no `HSA_*`** — because there is no published ROCm artifact for that engine
+  family (immich-ML is the exception: it bundles its own ROCm userspace).
+  **There is no general LLM runtime here** — generation is on spark. The one exception is the retained
+  `ollama` service, kept **only** as the embed fallback rung (see
+  [services-ai.md](services-ai.md) §Pinned tier) and not a chat/generation host. `amd_rocm` host userland is
+  Debian-trixie-native tooling only.
 - **Metrics/logs storage:** the observability **backend is on the VPS** —
   VictoriaMetrics/VictoriaLogs data on **VPS NVMe** (`/srv/docker/victoria-*/data`), not on oldsrv. Oldsrv
   runs only the thin **Alloy collector** (host metrics + logs) forwarding over the `wg-s2s` tunnel
