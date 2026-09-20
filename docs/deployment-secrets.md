@@ -461,6 +461,47 @@ After a host reinstall the host key changes — run `ssh-keygen -R nas` (or `-R 
 
 ---
 
+### Who is authorized where — the grant inventory (measured 2026-09-21)
+
+The three vault keys above are **not** the whole `authorized_keys` picture. Hand-made grants
+exist on the boxes, nothing in IaC declares them, and there was no way to know without
+sweeping every host. Fingerprints only, never key material (CONVENTIONS §6):
+
+| Fingerprint | Identity | Where authorized | Verdict |
+|---|---|---|---|
+| `XTmK3tR…` | `laptop-domen_ssh` | nas · vps · oldsrv → `ansible-admin` | vault-issued, live |
+| `1uKzmwf…` | `ansible-admin_ssh` | every managed host → `ansible-admin` | vault-issued, the converge key (30 accepted logins on nas in 2 days) |
+| `Ug788c…` | `ai_ssh` | nas → `ai-debug` | vault-issued, scoped by HD-51 |
+| `DxoZeGK…` | `ha-sync@pi.kogler.si` | oldsrv · vps | hand-made, live (HA failover + cert pull), **no vault item** |
+| `VX0TbLr…` | `traefik-cert-sync@oldsrv.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer (HD-350), **no vault item** |
+| `7ZuAhqI…` | `traefik-cert-sync@spark.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer (HD-350), **no vault item** |
+| `U+6vLRV…` | `oldsrv-rsync` | ~~nas → `ansible-admin`~~ | **retired 2026-09-21** (below) |
+
+**The `oldsrv-rsync` retirement, in full, because it is the reason this section exists.**
+oldsrv's `/home/ansible-admin/.ssh/id_ed25519` was a hand-made key with no vault item and no
+IaC reference, and its public half authorized it as `ansible-admin` **on nas** — an account
+that is `ALL=(ALL) NOPASSWD:ALL`. So the key was, in effect, "anyone holding oldsrv can root
+the family data store". Evidence that nothing used it: the keypair's mtime is 2026-09-08
+10:03:58; nas's `sshd` logged the first accepted login 5 seconds later and the last at 11:56
+the same day; and the same journal shows 10 accepted-publickey logins in the two days before
+this writing (30 of them the canonical runner key), so the silence after 2026-09-08 is
+**disuse, not log rotation**. It was also redundant — `ansible-admin_ssh` is already
+authorized on nas for the same account. Retired by commenting the entry out (backup:
+`/root/authorized_keys.nas.pre-retire-20260921-011512`), then proven inert rather than
+assumed: fresh `ansible-admin` auth to nas + `storage.yml --limit nas --check --tags common`
+→ `ok=20 changed=0 failed=0`. **⏳ Delete both halves after one green backup night**
+(`push-db-dumps` 03:35 / `push-services` 04:00 / `push-face-thumbs` 04:30 run as
+`svc-backup` and rsync to a local tank path, so they were never the consumer — one night is
+the proof, not the theory). Do **not** adopt it into the vault: adopting would promote a
+one-time migration key to a managed secret, which is backwards.
+
+**The rule this section carries forward:** a grant that is neither vault-issued nor named in
+the table above does not exist as far as this repo is concerned — and that is precisely why a
+grant has to be named here or removed. The four hand-made-but-live keys (`ha-sync`, the two
+`traefik-cert-sync`, and any future one) are a standing decision, not an oversight: either
+give them items and stop hand-making them, or accept that revocation depends on remembering
+where they live. HD-416 is the gate for that.
+
 ## AI Diagnostics Access (`ai-diag`)
 
 For disk-failure forensics, `ai-debug` gets **exactly one** sudo entry — a locked-down dispatcher, never a shell:
