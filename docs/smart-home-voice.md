@@ -12,9 +12,14 @@ tags: [smart-home, voice, whisper, piper]
 > **Linked from:** `smart-home.md`
 >
 > **Shape (decision #24):** Whisper STT runs on the **oldsrv RX 7600**, Piper TTS on **CPU**, and the LLM
-> leg (intent/response) is a **gateway model** — HA's `home-assistant` consumer on the VPS LiteLLM, whose
-> allow-list is the small-model tier (`openai/spark/qwen3.8-flash-next`, `openai/spark/qwen3.6-27b`). See
-> [services-ai.md](services-ai.md) §Architecture for routing and §9c for the GPU model.
+> leg (intent/response) is meant to be a **gateway model** reached through LiteLLM like every other
+> simple querier — never a direct engine URL. See [services-ai.md](services-ai.md) §Architecture for the
+> routing model and §9c for the GPU model.
+>
+> ⚠ **That leg does not exist yet.** Home Assistant has **no LiteLLM consumer, no scoped key and no
+> gateway env wiring** in the deployment (`home-assistant-primary` renders `environment: {}`), so voice's
+> LLM step has nothing to call. The STT engine underneath it is live; the wiring is open work
+> ([Q-A.md](Q-A.md) finding 4, alongside HD-384's consumer work).
 >
 > **Engine = `whisper.cpp` `main-vulkan`, digest-pinned** (decision #27) — RADV, native RDNA3, no ROCm
 > userspace. Two earlier recipes were ruled out by evidence, not preference: a ROCm/`GGML_HIP` build

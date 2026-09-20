@@ -47,8 +47,9 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 ## 1. Philosophy
 
 One **LiteLLM endpoint** is the spine for everything that must not hold an upstream credential. Every such
-consumer (Open WebUI, OpenClaw, Docling, HomeAssistant, Qdrant's embed/rerank) talks to it and **never sees
-an upstream provider key**. All external **generation** uses one `openrouter_api` key; **embeddings, rerank
+consumer talks to it and **never sees an upstream provider key**. Wired today: Open WebUI, OpenClaw, Qdrant's
+embed/rerank path. **Not wired yet:** Home Assistant (no consumer, no key, no env) and Docling as a scoped
+consumer — both are HD-384 work, so the list below is the contract, not the current roster. All external **generation** uses one `openrouter_api` key; **embeddings, rerank
 and STT are local on the oldsrv RX 7600** (§3a). Model routing, cost, rate limits and credential management
 are centralized there.
 
