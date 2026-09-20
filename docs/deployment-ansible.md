@@ -344,6 +344,7 @@ check mode, so the registration is a *skipped* dict and **every** `--check` run 
 failed=1` — **the connection was fine**, the failure is this task). Same fix shape: gate the seed block
 with `not ansible_check_mode`. Until it lands, use a tagged check to get a green pre-flight
 (`--check --tags common,network` → `ok=18 changed=0 unreachable=0 failed=0`) and say which form you ran.
+(After HD-413 that interim form is still legal **from the control node itself** — `--check` of a check-safe role stays open — but an *unfiltered* `--check` is refused when the play carries `vps-hardening` and the target is the runner; see §Self-converge guardrail.)
 
 ---
 
@@ -452,42 +453,57 @@ The runner is whatever machine executes `scripts/ansible-run.sh`; both scripts a
 resolve their own paths, so a second runner is a bootstrap, not a fork. Seeding one on
 oldsrv is four steps, and only the first needs a human:
 
+**The order is not cosmetic.** `--token-stdin` takes the token on stdin, and stdin can only
+carry one thing — so the script must already be ON oldsrv, which means the repo lands first
+and the secret second.
+
 ```bash
-# 0 — the operator, from a station that can read the Private vault, pipes the read-scope
-#     service-account token into the runner bootstrap without it touching shell history:
+# 0 — repo onto the box. A bundle needs no new credentials on oldsrv; cloning from GitHub
+#     instead is the cleaner end state but means placing a GitHub auth key on it first.
+git bundle create /tmp/oldsrv-runner.bundle main
+rsync -a /tmp/oldsrv-runner.bundle oldsrv:/tmp/
+ssh oldsrv 'git clone /tmp/oldsrv-runner.bundle ~/source/homelab &&
+            cd ~/source/homelab && git remote add origin <github-remote> && git fetch origin'
+
+# 1 — seed the read-scope token: the laptop's op session reads op_api/credential (main vault,
+#     readable by the read-scope SA) and pipes it into the bootstrap ON THE BOX. The value
+#     never enters shell history, never reaches a prompt, and is never printed (CONVENTIONS §6
+#     — the script prints the length and the path only).
 op read "op://Homelab-ansible/op_api/credential" | \
-  ssh oldsrv 'bash -s -- --no-upgrade --no-sudoers --token-stdin' < scripts/bootstrap-runner.sh
-#     (--no-upgrade: a prod Docker host does not take an unattended distro upgrade as a
-#      side effect of setup. --no-sudoers: ansible-admin already has its grant; the script
-#      verifies sudo and fails loud if it does not.)
+  ssh oldsrv 'cd ~/source/homelab && \
+              bash scripts/bootstrap-runner.sh --no-upgrade --no-sudoers --token-stdin'
+#     --no-upgrade: a prod Docker host does not take an unattended distro upgrade as a side
+#     effect of setup. --no-sudoers: ansible-admin already holds its grant; the script
+#     verifies sudo instead and fails loud if it is absent.
 
-# 1 — still the operator: clone the repo where the runner will live
-ssh oldsrv 'git clone <repo> ~/source/homelab'
-
-# 2 — the token is now on the box, so the canonical key is one command (1Password is the
-#     SSOT; bootstrap-runner.sh's generated key is throwaway and no host authorizes it):
+# 2 — the canonical runner key: 1Password is the SSOT, and bootstrap-runner.sh's generated key
+#     is throwaway (no managed host authorizes it).
 ssh oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh'
-#     prints the fingerprint only — expect the ansible-admin_ssh one, not a fresh one
+#     prints the fingerprint (public half only) — expect ansible-admin_ssh's, not a fresh one
 
-# 3 — proof, per inventory group, from oldsrv, respecting HD-413:
+# 3 — prove it, from oldsrv, inside what HD-413 permits:
 ssh oldsrv 'cd ~/source/homelab && bash scripts/ansible-run.sh playbooks/home_servers.yml \
-            --check --tags common'                       # oldsrv leg, no lockout role
-#     the network/storage legs against oldsrv itself run from the VPS (see off-box above);
-#     `dns.yml` is the one playbook that MUST run from a home-WAN-attached runner (its
-#     Cloudflare token is IP-filtered to the home WAN — HD-397), which is exactly what
-#     moving the runner onto oldsrv fixes.
+            --limit oldsrv.kogler.si --check --tags common'
+#     `--tags common` because the network/storage legs against oldsrv itself are REFUSED by
+#     design and belong to the VPS runner (off-box, above); the lockout legs may be previewed
+#     with `--check --tags network` if a read-only look is wanted.
+#     `dns.yml` is the one playbook that MUST run from a home-WAN-attached runner: its
+#     Cloudflare token is IP-filtered to the home WAN, and HD-397 measured a laptop on a
+#     hotspot failing exactly that. Moving the runner onto oldsrv is what fixes it.
 ```
+
+Until step 3 has produced a log, `docs/1password.md` keeps naming the laptop as the
+interactive control node and the laptop runner stays installed — the wording moves with the
+proof, and the laptop is also the rescue door.
 
 **Commit authorship does not move with the runner.** CONVENTIONS §6/HD-265 signs every commit
 with `github_signing` from the `Private` vault, which a read-scope service account cannot
 read and a headless host cannot prompt for. A runner on another machine converges; commits
 stay on a signing station.
 
-**What a seeded runner does not yet own:** the cockpit/harness placement is HD-409, the
-Kopia seam over the workspace + `~/.pi` + harness config is its own prereq, and
-`docs/1password.md` keeps naming the laptop as the interactive control node **until the first
-oldsrv-run log exists** — the wording moves with the proof, not with the intent, and the
-laptop runner stays installed until then (it is also the rescue door).
+**What a seeded runner does not yet own:** the cockpit/harness placement is HD-409, and the
+Kopia seam over the workspace + `~/.pi` + harness config (which carries a bearer key and is
+never in git) is its own prereq — neither is implied by a working runner.
 
 ---
 

@@ -11,9 +11,14 @@
 #                   travels through one SSH session without the value landing in shell history
 #                   or on a terminal someone can read:
 #                     op read "op://Homelab-ansible/op_api/credential" | \
-#                       ssh oldsrv 'bash -s -- --no-upgrade --no-sudoers --token-stdin' \
-#                         < scripts/bootstrap-runner.sh
-#                   Same 0600 ~/.config/op/homelab-sa-token as the prompt path; never printed.
+#                       ssh oldsrv 'cd ~/source/homelab && \
+#                                   bash scripts/bootstrap-runner.sh --no-upgrade \
+#                                                        --no-sudoers --token-stdin'
+#                   Note the shape: THIS SCRIPT MUST ALREADY BE ON THE TARGET. stdin carries
+#                   the token, so it cannot also carry the script — `bash -s < script` and a
+#                   piped token are mutually exclusive, and the repo has to arrive first.
+#                   Same 0600 ~/.config/op/homelab-sa-token as the prompt path; the value is
+#                   never printed (length + path only, CONVENTIONS §6).
 #   --no-sudoers    Do not write /etc/sudoers.d/$USER. On a host where the runner identity
 #                   already carries its sudo grant (oldsrv: ansible-admin, NOPASSWD), letting a
 #                   setup script re-author NOPASSWD:ALL is a privilege change dressed as setup.
