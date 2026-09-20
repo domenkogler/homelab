@@ -17,7 +17,7 @@ tags: [smart-home, voice, whisper, piper]
 > routing model and §9c for the GPU model.
 >
 > ⚠ **That leg does not exist yet.** Home Assistant has **no LiteLLM consumer, no scoped key and no
-> gateway env wiring** in the deployment (`home-assistant-primary` renders `environment: {}`), so voice's
+> gateway env wiring** in the deployment: `home-assistant-primary` puts **only `TZ`** into `environment:`, and `roles/home_assistant/` has no LiteLLM/`llm:` wiring anywhere, so voice's
 > LLM step has nothing to call. The STT engine underneath it is live; the wiring is open work
 > (**HD-403**, which ships with HD-384's consumer work).
 >

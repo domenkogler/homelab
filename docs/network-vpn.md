@@ -222,6 +222,16 @@ sidecar serves to the app over that private network. Functional service-to-servi
     4. Heading home with Tailscale on reaches `ha.kogler.si` via the LAN (Option A).
   - **Tailnet ACL:** `policy.hujson` already allows family nodes → `tag:sidecar` on :443 (deny-by-default + per-user own nodes). No extension needed for the existing owner set; extend only if a new family member node is added.
 
+**Parked names stay published, and their 502 is the design (HD-386).** `dsh.kogler.si` / `pi-dev.kogler.si` and
+their `.ts` twins keep their headscale `extra_records` **and** their `traefik-tailnet` routers, even though the
+backends are gone (HD-355 moved them off the VPS; the `dsh-backend` / `pi-backend` load-balancer URLs still
+point at `oldsrv:3080` / `oldsrv:8080` over the WG S2S, where nothing listens any more). So the names resolve
+and the edge answers **502** — that is not an outage to chase, and `group_vars/vps.yml` says so where the
+records live. Deleting them is a decision of its own, because it deletes MagicDNS records: do it as ONE change
+that drops the `tailnet_subdomains` entries, the routers and the two service blocks together.
+Also note what the overlay is actually for now: `tailnet-apps` is no longer the sidecar trick its compose header
+describes — its live user is `litellm`.
+
 ### Reach matrix for the tailnet-only admin names (HD-382 / HD-389)
 
 > The symptom this documents: **a tailnet-only name works on the phone but 404s on the laptop with Tailscale
