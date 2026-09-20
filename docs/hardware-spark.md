@@ -373,8 +373,9 @@ per modality).
 
 ## Current role in the AI tier
 
-- **spark = the big-model generation tier** behind the VPS AI spine (LiteLLM / Qdrant / Open WebUI). It
-  **replaced** the oldsrv Ollama GPU tier — there is no host Ollama on oldsrv.
+- **spark = the big-model generation tier** behind the gateway (LiteLLM / Qdrant / Open WebUI). It took
+  over **generation** from the old host-LLM setup; oldsrv still runs a retained `ollama` container, but only
+  as the embed **fallback rung** — it is not a chat or generation host anywhere in this design.
 - **It does not run the pinned small services.** Whisper STT, bge-m3 embed and bge-reranker run on the
   **oldsrv RX 7600** (container-bundled runtimes); Piper TTS is CPU-only. Placement of every model is the
   plan of record in [`services-ai.md`](services-ai.md) §9, with measured numbers in
