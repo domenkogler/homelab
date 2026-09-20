@@ -479,7 +479,12 @@ op read "op://Homelab-ansible/op_api/credential" | \
 # 2 — the canonical runner key: 1Password is the SSOT, and bootstrap-runner.sh's generated key
 #     is throwaway (no managed host authorizes it).
 ssh oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh'
-#     prints the fingerprint (public half only) — expect ansible-admin_ssh's, not a fresh one
+#     EXPECT THIS ONE TO REFUSE on oldsrv: /home/ansible-admin/.ssh/id_ed25519 already holds
+#     `oldsrv-rsync` (measured 2026-09-20) — a hand-made key with NO vault item and no IaC
+#     reference, which the script now refuses to overwrite. Print the fingerprint, find what
+#     authorizes it (nas? the storage box?) and re-point that job deliberately; only then
+#     re-run with --force-throwaway, which keeps a timestamped backup either way.
+#     It prints the fingerprint (public half only) — expect ansible-admin_ssh's.
 
 # 3 — prove it, from oldsrv, inside what HD-413 permits:
 ssh oldsrv 'cd ~/source/homelab && bash scripts/ansible-run.sh playbooks/home_servers.yml \
