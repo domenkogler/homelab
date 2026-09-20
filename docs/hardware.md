@@ -34,7 +34,7 @@ tags: [hardware, phases]
 
 | Machine | Current role | Note |
 |---------|-------------|------|
-| **oldsrv** (i7-7700K + RX 7600 + 48 GB) | **GPU/LAN host** — jellyfin/*arr, immich-ml, sunshine, DNS secondary, HA standby, LAN (dev) tier + the pinned Vulkan STT/embed/rerank legs; thin Alloy collector → VPS | Family desktop too; **no family-LLM serving tier here** (Ollama is gone — moved to spark) |
+| **oldsrv** (i7-7700K + RX 7600 + 48 GB) | **GPU/LAN host** — jellyfin/*arr, immich-ml, sunshine, DNS secondary, HA standby, LAN (dev) tier + the pinned Vulkan STT/embed/rerank legs; thin Alloy collector → VPS | Family desktop too; **no family-LLM serving tier here** — generation is on spark; the only retained `ollama` container is the embed **fallback rung**, not a chat host) |
 | **nas** (HP MicroServer, Xeon E3, 12 GB ECC) | ZFS pools (tank + bulk), NFS, Cockpit, NUT master, Kopia agent | Permanent storage server |
 | **SilverStone TS43xx** | Attached to nas via miniSAS — 4× 3 TB HDDs | `bulk` pool |
 | **Raspberry Pi 4** | Home Assistant **primary** (Debian + HA Container) + RaspberryMatic/HmIP-RFUSB + Technitium **tertiary** + `traefik-ha` edge + exit node | HA service VIP = `ha.kogler.si` |

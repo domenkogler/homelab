@@ -93,7 +93,7 @@ journalctl -kf | grep -iE 'gpu|kfd|amdgpu|hws'
 
 | Consumer | Runtime | GPU path | Note |
 |---|---|---|---|
-| `bge-m3` embed | `llama.cpp server-vulkan` (Q8_0 GGUF) | **RADV Vulkan** | ~0.33 GiB; the ROCm/`:rocm` runtime path is gone with Ollama |
+| `bge-m3` embed | `llama.cpp server-vulkan` (Q8_0 GGUF) | **RADV Vulkan** | ~0.33 GiB, and it holds **no `/dev/kfd`** — the ROCm `:rocm` runtime now belongs only to the retained ollama embed-fallback and immich-ML |
 | `bge-reranker-v2-m3` | `llama.cpp server-vulkan` (same image) | **RADV Vulkan** | ~0.42 GiB; measured 0.34–0.50 s on-GPU vs **5.3 s on CPU** for a 20-doc Slovenian rerank |
 | Whisper STT | `whisper.cpp main-vulkan` | **RADV Vulkan** | ~1.72 GiB VRAM / 34 MiB RSS; **no published ROCm/HIP artifact exists**, so HIP would be a self-build with no Renovate trail |
 | immich-ML | container-bundled ROCm | KFD compute | existing AMD precedent; shortest, lowest-priority consumer |
