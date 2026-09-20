@@ -1,0 +1,15 @@
+---
+# Inert stub mirroring the real roles/tailscale-node's TAG SHAPE (measured 2026-09-20):
+# every task untagged, so `--tags tailscale-node` reaches it only through the ROLE-LEVEL
+# tag the playbooks put on the role, and `always` is what puts the guard in an unfiltered
+# run. The `block:` is kept because tags nested inside block/rescue are where a shallow
+# vocabulary scan goes blind — roles/spark carries seven of those today.
+- name: stub tailscaled restart
+  ansible.builtin.debug:
+    msg: "DUMMY tailscale-node task ran"
+
+- name: stub join
+  block:
+    - name: stub tailscale up
+      ansible.builtin.debug:
+        msg: "DUMMY tailscale-node block task ran"

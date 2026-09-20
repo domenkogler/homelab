@@ -17,6 +17,11 @@
 #   vps-hardening  nftables default-deny + sshd_config (PasswordAuthentication/PermitRootLogin)
 #                  — the canonical "locked out of my own box" role, and live on the VPS
 #                  runner today.
+#   tailscale-node restarted tailscaled + `tailscale up` on a box whose admin session can
+#                  now ARRIVE OVER THAT INTERFACE: HD-405 put the home hosts on the tailnet
+#                  for node-direct remote dev, so the tailnet is both an admin leg and the
+#                  remote-rescue leg. Same class as wireguard, added 2026-09-20 the day the
+#                  role landed — the guard has to follow the roles, not the other way round.
 #
 # An agent driving from a phone will run these against the box it is logged into if
 # nothing refuses. So something refuses. Mechanically, not by discipline.
@@ -101,7 +106,7 @@
     fail_msg: >-
       HD-413 self-converge guard cannot identify the control plane: `uname -n` returned
       nothing on the controller. The lockout-capable roles (network / storage / wireguard /
-      vps-hardening) are refused rather than assumed safe. Run this leg from a controller
+      vps-hardening / tailscale-node) are refused rather than assumed safe. Run this leg from a controller
       that is not the target (deployment-ansible.md §Self-converge guardrail).
     quiet: true
   run_once: true
@@ -198,6 +203,38 @@
          and (homelab_guard_selected | bool)
          and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
   tags: [always, wireguard, base]
+
+- name: HD-413 | Refuse the tailscale-node role against the control node it is run from
+  ansible.builtin.assert:
+    that:
+      - not (homelab_guard_block | bool)
+    fail_msg: >-
+      HD-413 SELF-CONVERGE GUARD — refusing to run the 'tailscale-node' role against
+      '{{ inventory_hostname }}', which is the machine running this playbook
+      (control plane '{{ homelab_controller_host }}'). roles/tailscale-node restarts
+      tailscaled and re-runs `tailscale up`. Since HD-405 an admin session can arrive OVER
+      that interface — node-direct remote dev is the point of the row — so a self-converge
+      can drop the session it is running in AND the leg the remote rescue would come in on.
+      Off-box: run this leg from a controller that is not the target, over the Home/LAN leg.
+      Check mode of this role IS allowed (no `check_mode: false` in it).
+      Tags requested: {{ ansible_run_tags | join(',') }}.
+      Details: deployment-ansible.md §Self-converge guardrail.
+  vars:
+    homelab_guard_role: tailscale-node
+    homelab_guard_tags: [tailscale-node]
+    homelab_guard_check_safe: true
+    homelab_guard_self: >-
+      {{ homelab_controller_host == (inventory_hostname | lower).split('.')[0] }}
+    homelab_guard_selected: >-
+      {{ homelab_guard_role in ansible_play_role_names
+         and (('all' in ansible_run_tags)
+              or ('untagged' in ansible_run_tags)
+              or ((homelab_guard_tags | intersect(ansible_run_tags)) | length > 0)) }}
+    homelab_guard_block: >-
+      {{ (homelab_guard_self | bool)
+         and (homelab_guard_selected | bool)
+         and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
+  tags: [always, tailscale-node]
 
 - name: HD-413 | Refuse vps-hardening (nftables + sshd) against the control node it is run from
   ansible.builtin.assert:

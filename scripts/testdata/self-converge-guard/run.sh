@@ -124,6 +124,10 @@ expect REFUSE "$SELF" --tags base
 expect REFUSE "$SELF" --tags storage
 expect REFUSE "$SELF" --tags untagged
 expect REFUSE "$SELF" --tags wireguard
+# HD-405 put the home hosts on the tailnet for node-direct remote dev, which made
+# roles/tailscale-node (restarts tailscaled, re-runs `tailscale up`) the same class as
+# wireguard: the leg a self-converge must not saw through. Added the day the role landed.
+expect REFUSE "$SELF" --tags tailscale-node
 expect REFUSE "$SELF" --tags hardening
 # vps-hardening really writes /etc/ssh/sshd_config under --check (check_mode: false), so
 # the check-mode escape must NOT open for it.
@@ -136,11 +140,13 @@ echo "-- self-converge guard fixture (legs that must stay open) --"
 # become the thing blocking the migration it protects.
 expect ALLOW "$SELF" --tags network --check
 expect ALLOW "$SELF" --tags storage --check
+expect ALLOW "$SELF" --tags tailscale-node --check
 expect ALLOW "$SELF" --tags docker_services,pi-web expect-no-dummy
 
 echo "-- self-converge guard fixture (off-box: controller != target) --"
 expect ALLOW "$DECOY" expect-dummy
 expect ALLOW "$DECOY" --tags network expect-dummy
+expect ALLOW "$DECOY" --tags tailscale-node expect-dummy
 
 if [ "$fails" -ne 0 ]; then
     echo "FAIL: $fails/$checks self-converge guard expectations not met" >&2

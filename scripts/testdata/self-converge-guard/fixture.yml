@@ -14,5 +14,7 @@
     - storage                  # bare entry, as in home_servers.yml/storage.yml
     - role: wireguard
       tags: [wireguard, base]
+    - role: tailscale-node       # untagged inside + reached only by the role-level tag
+      tags: [tailscale-node]
     - role: vps-hardening
       tags: [hardening, base]

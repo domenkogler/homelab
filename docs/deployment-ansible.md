@@ -350,7 +350,7 @@ with `not ansible_check_mode`. Until it lands, use a tagged check to get a green
 
 ## Self-converge guardrail (HD-413) — which box may drive which
 
-A control node can converge itself, and four roles decide whether the SSH session driving
+A control node can converge itself, and five roles decide whether the SSH session driving
 them survives being converged:
 
 | Role | What it rewrites on the target | How a self-converge dies |
@@ -358,6 +358,7 @@ them survives being converged:
 | `network` | systemd-networkd / NetworkManager units: the VLAN-99 tagged sub-interface, the static address, the default route | the leg the runner is sitting on is renumbered mid-task |
 | `storage` | fstab, NFS mounts, ZFS mount operations | the filesystem under the workspace / container data dirs moves |
 | `wireguard` | the WG interface (on the VPS: `wg-s2s`) | the tunnel the home hosts are reached through goes down |
+| `tailscale-node` | `tailscaled` restart + `tailscale up` (HD-405: the home hosts are tailnet nodes now) | an admin session can arrive **over that interface** — node-direct remote dev is the point of the row, so the leg being sawn through is also the remote-rescue leg |
 | `vps-hardening` | nftables default-deny + `sshd_config` (`PasswordAuthentication`, `PermitRootLogin`, `MaxAuthTries`) | the classic lockout of the box you are SSH'd into |
 
 `IaC/ansible/playbooks/tasks/self-converge-guard.yml` refuses them, imported into every play
@@ -383,7 +384,8 @@ point (the HD-399 rule): the guard carries no `default()` and no `failed_when`.
 | `… --tags network` / `netd` / `base` / `hosts` | **refused** |
 | `… --tags storage` / `untagged` / `zfs_exporter` | **refused** |
 | `… --tags hardening` / `--check` of it | **refused** — `roles/vps-hardening` carries a `check_mode: false` task, so `--check` really writes `/etc/ssh/sshd_config` |
-| `… --tags network --check`, `--tags storage --check` | allowed — those roles have no `check_mode: false` task, which is what *check-safe* means, and it is what makes HD-407's read-only proof possible |
+| `… --tags tailscale-node` | **refused** — it restarts `tailscaled`; since HD-405 that is an admin and rescue leg |
+| `… --tags network --check`, `--tags storage --check`, `--tags tailscale-node --check` | allowed — those roles have no `check_mode: false` task, which is what *check-safe* means, and it is what makes HD-407's read-only proof possible |
 | `… --tags docker_services,<svc>` | allowed, and no lockout-role task runs — this is the everyday case a self-hosted runner exists for |
 
 Any run whose target is **not** the controller is untouched by the guard (proven, not assumed).
@@ -400,11 +402,14 @@ its selection expression: the silent version of the hole.
 
 * `scripts/check_self_converge_guard.py` — static: coverage (every playbook carrying a
   lockout role imports it, in `pre_tasks`), tag symmetry, vocabulary recomputed **from the
-  role dirs** (so adding a tag inside a role tightens the guard instead of opening it),
+  role dirs** (so adding a tag inside a role tightens the guard instead of opening it) —
+  descending into `block:` / `rescue:` / `always:`, because a tag on a nested task is
+  selectable and a top-level-only scan would report a narrower vocabulary than the runtime
+  uses (measured: 7 tagged tasks in this repo live inside blocks, all in `roles/spark`),
   no `default()`/`failed_when`, and a role that writes under `--check` may not claim
   `check_safe`.
 * `scripts/testdata/self-converge-guard/run.sh` — runtime: executes the real guard against a
-  throwaway inventory (this host + a decoy that is not) and asserts the 15-case verdict
+  throwaway inventory (this host + a decoy that is not) and asserts the 18-case verdict
   matrix with inert stub roles.
 
 Both are wired into `validate-all.sh`, and both are load-bearing: the first draft of the
