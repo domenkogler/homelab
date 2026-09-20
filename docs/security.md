@@ -20,7 +20,7 @@ tags: [security, waf, hardening, secrets, bootstrap]
 
 Each of the first six sections maps to one systemic flaw (Flaw A–F) from the architecture audit. Everything is
 tracked in `../todo.md` (HD-XX rows, `source: qwen`). §§8–9 fold the post-HD-135 public-VPS + tunnel
-hardening recommendations from the 2026-08-19 security audit (the temporary root `security.md`/`architecture.md`
+hardening recommendations from the security audit (HD-153; the temporary root `security.md`/`architecture.md`
 were deleted after folding — HD-153).
 
 ## 1. Edge WAF (Flaw A)
@@ -63,7 +63,7 @@ chain), HD-72 (HA caps). *Evidence: KOPS-004/018/047/025.*
 > alias such as `-rocm`.
 
 - **Traefik** — pinned `traefik_version` (currently `v3.7.11`, per `group_vars/all/versions.yml` SSOT; HD-61 done, stale `v3.5.2` image pruned by the version bump straight to `v3.7.11` — HD-292 closed 2026-09-08, no prune needed).
-- **Every `:latest`** across the compose templates → pinned var. **HD-192 (done 2026-08-21):** all
+- **Every `:latest`** across the compose templates → pinned var. **HD-192 (done):** all
   templates now render `{{ *_version }}` pins from `group_vars/all/versions.yml` (registry-verified);
   the only remaining `latest` renders are the documented fluid exceptions (tuwunel HD-121,
   profilarr — no versioned tags upstream). The validator allowlist is inverted: bare-`latest`
@@ -169,7 +169,7 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
 > (Populated from the AUD-02 dispositions; AUD-13 keeps this current.)
 
 - **Matrix open federation** — **accepted/expected, kept by decision (HD-122, 2026-08-18).** Open federation affirms
-  the original 2026-08-16 acceptance: a federated Matrix homeserver interoperating with the wider Matrix world.
+  the original acceptance: a federated Matrix homeserver interoperating with the wider Matrix world.
   The "any Matrix user can DM the family" concern is mitigated WITHOUT breaking federation via
   `require_auth_for_profile_requests=true` (stops anonymous profile/MXID scraping) + `allow_public_room_directory_over_federation=false`
   (blocks `/publicRooms` enumeration). `trusted_servers` is a **key-notary** list, not an ingress permit-list —
@@ -182,7 +182,7 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
   *(evidence: KOPS-058)* Date: 2026-08-16.
 - **Seerr SQLite single-file** — accepted risk (reconfig takes ~15 min; keep in Kopia scope).
   *(evidence: KOPS-059)* Date: 2026-08-16.
-- **services-internal sibling auth** — **done (HD-160, 2026-08-20):** every data-writing
+- **services-internal sibling auth** — **done (HD-160):** every data-writing
   `services-internal` sibling now has per-service token/header auth or a documented isolation
   decision. Ollama isolated on `llm-backend` (HD-59); OpenClaw→OpenCloud via scoped
   app-specific password (`openclaw-opencloud_api`); immich-app→immich-ml via native ML API key
@@ -193,28 +193,27 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
 
 > **Law:** the VPS is the **single public trust boundary** — the biggest surface exposed to the internet.
 > Its OS/SSH/Docker surface must be hardened as an explicit **checklist item at VPS deploy (HD-40A/154)**, not
-> left as aspirational design prose. **Enforced (2026-08-19, HD-154):** the mandatory checklist now lives in
+> left as aspirational design prose. **Enforced (HD-154):** the mandatory checklist now lives in
 > `docs/services-vps.md` §VPS-Specific Firewall as a verify-command table, **and** is implemented as executable
 > IaC by the **`vps-hardening` Ansible role** (`playbooks/vps.yml` before `docker_services`) + the
 > `IaC/host/vps/post_install.sh` sshd extras. A VPS deploy that skips the role fails review.
-> Folded from the 2026-08-19 security audit (HD-153).
 
 - **SSH hardening** ✅ — `MaxAuthTries 3`, `PasswordAuthentication no`, `PermitRootLogin no`, key-only `ansible-admin`
   (post_install.sh + role assert); **fail2ban** SSH jail (`maxretry 3`) + `http-auth` jail for public login pages
-  (n8n/Grafana/Forgejo) — **HD-280 (2026-09-04):** the http-auth jail now reads the Traefik accesslog
-  (`/opt/traefik/logs/access.log`) via a Traefik-CLF filter (was `nginx-http-auth` on a non-existent log
-  path — dead). **Deployed + LIVE 2026-09-04:** Traefik `--accesslog` active (file streaming CLF);
-  fail2ban jails `http-auth` + `sshd` both running (SSH jail already counting failed attempts).
-  Deploy-order note (live): the jail crash-loops with `Have not found any log file for http-auth` until
-  the accesslog FILE exists — Traefik re-render FIRST, then start fail2ban.
+  (n8n/Grafana/Forgejo) — **HD-280.** The http-auth jail reads the **Traefik accesslog**
+  (`/opt/traefik/logs/access.log`) through a Traefik-CLF filter; the stock `nginx-http-auth` filter matched a
+  log path that does not exist here, so the jail was **silently dead** — a fail2ban jail pointed at a missing
+  file is not a failure, it is a lie. **Deploy order is load-bearing:** the jail crash-loops with
+  `Have not found any log file for http-auth` until the accesslog file exists, so **re-render Traefik first,
+  then start fail2ban**, and keep `--accesslog` enabled on the edge or this jail dies again.
   Owned by [deployment-preseed.md](deployment-preseed.md) (VPS) + [services-vps.md](services-vps.md)
   §VPS-Specific Firewall + `roles/vps-hardening/`. **HD-154. ✅ enforced.**
 - **Container/escape hardening** ✅ — the VPS `docker_services` compose uses `cap_drop`/`read_only`/`tmpfs` where
   possible; no public container gets `privileged` / host networking without a documented reason (§4 applies);
   daemon `userland-proxy: false` + `live-restore: true`. **HD-154. ✅ enforced (daemon) + compose-policy.**
 - **VPS firewall default-deny** ✅ — inbound **deny-all except :22 (SSH) + :443 + :51820 (WG)** via the `vps-hardening` role's
-- **Published-port bypass closed (S1, HD-186):** docker-published ports traverse the *forward* chain (`oifname "docker*" accept`), so the input default-deny does not cover them. **Implemented (decided HD-204): no public publishes** — authentik's all-interfaces LDAP `3389` publish was removed; the outpost binds only the WG S2S address (prometheus/loki precedent), and Samba (nas, the client) pulls over the tunnel. Verify row added to the `services-vps.md` §VPS-Specific Firewall checklist (external `nc`/`ldapsearch` must refuse; WG-side must connect). Documented future-hardening option if a public publish is ever required: a **DOCKER-USER filter chain** restricting forwarded dports (443 from any; specific ports from the WG peer only) — implement only then, as its own gated task. **HD-186. ✅ IaC; ⏳ live-verify at deploy.**
-- **DNS primary published-port gate (2026-09-08):** the Technitium `53:53` publish is the ONE intentionally-public host publish (the LAN/tailnet resolver is the VPS public IP, HD-299). Because input default-deny cannot see published-port traffic (same S1 bypass as above), the `:53 → {{ tchnitium_dns_overlay_ip }}` forward path is **source-restricted in the nftables FORWARD chain** (tailnet CGNAT `100.64/10` + home-WAN `@dns-allow-home` set; everything else dropped) — a FORWARD drop is authoritative over Docker's accept (proven by the 2026-08-23 isolation incident). Template `vps-hardening/templates/nftables.conf.j2`; apply `playbooks/vps.yml --tags hardening`. Same allow-set as the input rules. **SSOT doc: `network-dns.md`; security: this §8.**
+- **Published-port bypass (S1, HD-186):** docker-published ports traverse the *forward* chain (`oifname "docker*" accept`), so the input default-deny does not cover them. **Implemented (decided HD-204): no public publishes** — authentik's all-interfaces LDAP `3389` publish was removed; the outpost binds only the WG S2S address (prometheus/loki precedent), and Samba (nas, the client) pulls over the tunnel. Verify row added to the `services-vps.md` §VPS-Specific Firewall checklist (external `nc`/`ldapsearch` must refuse; WG-side must connect). Documented future-hardening option if a public publish is ever required: a **DOCKER-USER filter chain** restricting forwarded dports (443 from any; specific ports from the WG peer only) — implement only then, as its own gated task. **HD-186. ✅ IaC; ⏳ live-verify at deploy.**
+- **DNS primary published-port gate:** the Technitium `53:53` publish is the ONE intentionally-public host publish (the LAN/tailnet resolver is the VPS public IP, HD-299). Because input default-deny cannot see published-port traffic (same S1 bypass as above), the `:53 → {{ tchnitium_dns_overlay_ip }}` forward path is **source-restricted in the nftables FORWARD chain** (tailnet CGNAT `100.64/10` + home-WAN `@dns-allow-home` set; everything else dropped) — a FORWARD drop is authoritative over Docker's accept (proven by the 2026-08-23 isolation incident). Template `vps-hardening/templates/nftables.conf.j2`; apply `playbooks/vps.yml --tags hardening`. Same allow-set as the input rules. **SSOT doc: `network-dns.md`; security: this §8.**
   `/etc/nftables.conf` (nftables, input policy drop). Committed as executable checklist, not prose. **HD-154. ✅ enforced.**
 - **SSO on VPS admission** ✅ — the netcup `post_install.sh` SSH config matches the preseed defaults; root-login
   disabled, per-host keys (Domen + Ansible), no `ai-debug` on a public box
@@ -224,9 +223,8 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
 
 > **Law:** the `wg-s2s` home↔VPS tunnel must be **least-access**, not a wide-open bridge. Today `vps.yml` routes
 > `site` (whole /16) + `wg-vps-services` from the VPS into the home plane — **too broad** for a compromised-VPS
-> blast radius. Folded from the 2026-08-19 security audit (HD-153).
+> blast radius (HD-153/155). Enforcement:
 >
-> **Enforced (2026-08-19, HD-155):**
 > - **WireGuard AllowedIPs** scoped on BOTH sides (`all.yml` `wg_s2s_vps.allowed_ips` + `router.yml` `wireguard_s2s_vps.allowed_ips`)
 >   to the **specific home targets** only — nas (nut:9199/zfs:9198), ha-vip (HA:8123), oldsrv + pi (probes/backends),
 >   router/switch (ICMP) — **NOT** the whole `site` /16. Derived from `network_static_hosts` by name (no literals).

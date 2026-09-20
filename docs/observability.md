@@ -11,7 +11,19 @@ tags: [observability, grafana, prometheus, monitoring]
 > **Links to:** `interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`, `services.md`
 > **Linked from:** `index.md`, `interfaces.md`, `services.md`
 
-> 🟢 **Backend live since 2026-08-22** (Phase 1, VPS): prometheus / loki / grafana / blackbox-exporter deployed and converged — grafana↔prometheus auth gap fixed and datasource verified HTTP 200 (HD-220b); SSO login path repaired 2026-08-24 (edge IP pinned + datasource secret re-applied, HD-240). ✅ **oldsrv Alloy collector LIVE 2026-09-08 (Phase-3/HD-318 converge):** rsyslog (RouterOS 514 receiver, HD-313), CrowdSec-acquisition (VPS-side), SNMP (MikroTik) + the **network-clients exporter (HD-343)** collect on oldsrv and remote_write over wg-s2s — see §Network Clients Dashboard. ✅ **VICTORIA MIGRATION LIVE 2026-09-08 (HD-341/342 cutover, this session):** VictoriaMetrics (:8428) + VictoriaLogs (:9428) replace Prometheus/Loki on the VPS — seeded `victoria-metrics_api`/`victoria-logs_api`, converged VPS, **Grafana datasources API-seeded to VM/VL** (uid `prometheus`→VM, `loki`→VL; stale read-only Loki datasource removed via DB), **Alloy restarted** to load Victoria remote_write (had been running the Sep-3 config — root cause of the empty Host Overview), old prometheus/loki containers stopped, datasource healths + 13 `up` series verified, alert rules evaluate with 0 errors. ✅ **ALERT-ROUTER + SNMP CLEANUP LIVE 2026-09-09 (HD-347):** `homelab-alerts` n8n webhook workflow created + ACTIVATED via the n8n API (200 "Workflow was started", was 404); `signal-cli-rest-api` published on oldsrv Home IP for the VPS n8n over WG; `mikrotik-link-down` alert **removed** (owner decision — empty switch ports aren't real incidents); stale `prometheus-down`/`loki-down` orphans deleted; **`ifName` SNMP labels fixed** (walk + `type: DisplayString`; router/switch per-instance labels); **self-monitoring rules fixed** (per-rule `lt` evaluator for `== 0` exprs + VM/VL self-scrape basic_auth — `victoria-metrics-down`/`victoria-logs-down` now genuinely armed). ⏳ deploy-gated/remaining: nas + Pi **Alloy collectors** (per-node, Phase-4/HD-318c — both hosts already run the same `unix` host-exporter path as oldsrv; converge adds their `node_*` to the Host Overview), contact-point/datasource passwords in the HD-211 rotation batch, device-side SNMP enable (HD-03 cutover), kopia client wiring for `/srv/docker/victoria-*/data`, oldsrv MCP (HD-344), **Signal device link** (owner — no linked device yet, HD-318d; once linked the n8n Signal leg delivers). Alerting/retention sections below remain the authoring spec for those remaining parts.
+> **Status: 🟢 live.** The backend is the **Victoria stack on the VPS** — **VictoriaMetrics** (metrics,
+> 365 d) + **VictoriaLogs** (logs, 90 d) + **Grafana** + blackbox-exporter, all on the tailnet-only edge.
+> Prometheus and Loki are gone. Collectors: **Alloy** per host (VPS loopback, oldsrv, and — pending — nas +
+> Pi), oldsrv's SNMP + network-clients exporters, RouterOS syslog over RFC5424, `nut_exporter` on nas,
+> `zfs_exporter`, blackbox probes. Alerting: **Grafana → n8n (`homelab-alerts` webhook) → Signal + email**,
+> with Grafana-native SMTP in parallel as the fail-safe.
+>
+> ⏳ **Open:** the **nas + Pi Alloy collectors** (converge adds their `node_*` to the Host Overview),
+> **Signal delivery** (no linked device yet — HD-318d; until then the Signal leg silently delivers nothing
+> and email is the only working channel), contact-point/datasource passwords in the HD-211 rotation batch,
+> device-side SNMP enablement (HD-03 cutover), and the Kopia wiring for
+> `/srv/docker/victoria-*/data`. Owner confirmation is still owed that the spark host-memory rules render in
+> the Grafana UI and that a firing alert actually reaches n8n (HD-375).
 
 ---
 
@@ -37,15 +49,19 @@ nut_exporter (UPS, on nas) ─────────────────�
                                                   └──▶ SMTP → email
                                Grafana-native SMTP = fail-safe, parallel
 ```
-> ⏳ **Deploy-gated:** the Victoria stack replaces Prometheus/Loki on the VPS at the HD-342 converge; until then the live stack is still Prometheus/Loki. This diagram is the target.
 
 - **Single source of truth** for every type of data; no redundant backends.
 - **Display:** Grafana (admin analytics) + Homepage (status widget — reachability eyeball view).
 - **Removed from earlier drafts:** InfluxDB, Telegraf, Promtail, Uptime Kuma — none are used.
 
-### Victoria* migration decision (HD-341, 2026-09-08) — target state
+### The Victoria stack (HD-341/342) — the shape and why
 
-> **Decision (owner, 2026-09-08):** replace the Prometheus + Loki backends with a **single Victoria stack on the VPS** — one **VictoriaMetrics** (metrics, `victoriametrics:8428`) + one **VictoriaLogs** (logs, `victoriametrics-logs:9428`) — with **multiple writers** (Alloy collectors on oldsrv/nas/Pi/VPS, blackbox/nut/zfs exporters, MikroTik syslog) remote-writing into the single VPS instance. **Grafana stays** (add VM + VictoriaLogs datasources; drop Prometheus/Loki/Dozzle). **MCP AI-debugging servers live on oldsrv** (much more RAM there) pointed at the VPS endpoints over wg-s2s/tailnet — **logs + metrics stay on the VPS** (reliability). Prior research + rationale: [`brainstorming/recent/Prometheus-Vs-victoriastack.md`](../brainstorming/recent/Prometheus-Vs-victoriastack.md). Target state below; implementation = HD-342 (IaC), MCP = HD-344.
+**One** metrics store (**VictoriaMetrics**, `victoriametrics:8428`) + **one** log store
+(**VictoriaLogs**, `victoriametrics-logs:9428`), both on the **VPS**, with **many writers** (Alloy
+collectors on VPS/oldsrv/nas/Pi, blackbox/nut/zfs exporters, MikroTik syslog) remote-writing into them.
+**Grafana stays** in front of both. **MCP AI-debugging servers run on oldsrv** (much more RAM there) and
+point at the VPS endpoints over wg-s2s — **storage stays on the VPS, tooling stays at home.**
+Research + rationale: [`brainstorming/recent/Prometheus-Vs-victoriastack.md`](../brainstorming/recent/Prometheus-Vs-victoriastack.md).
 
 ```
 Alloy (host agent: metrics + logs + SNMP) ──remote_write──▶ VictoriaMetrics (VPS, metrics)
@@ -59,17 +75,18 @@ VictoriaLogs    ──▶ Grafana (logs datasource)
 mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet──▶ VPS Victoria endpoints
 ```
 
-- **Writers stay on home infra** (oldsrv/nas/Pi Alloy + exporters), buffering over wg-s2s; the **single backend is on the VPS** (reliability, same as today).
-- **MCP AI servers on oldsrv** (≈600–700 MB RAM each) — NOT on the VPS/Pi.
-- Drop: Prometheus + Loki (replaced by VictoriaMetrics/VictoriaLogs). **Dozzle is KEPT** (live per-container tail convenience — the earlier "drop Dozzle" wording was reverted by the owner; VictoriaLogs adds stored-log search).
+- **Writers stay on home infra** (oldsrv/nas/Pi Alloy + exporters), buffering over wg-s2s; the **single backend is on the VPS** (reliability).
+- **MCP AI servers on oldsrv** (≈600–700 MB RAM each) — not on the VPS, not on the Pi.
+- **Dozzle is kept alongside VictoriaLogs.** They are different tools: Dozzle is a live per-container tail
+  with no storage, VictoriaLogs is the searchable 90-day store. Replacing one with the other loses an
+  operator reflex, so both stay — but Dozzle must never become a second log backend.
 
 ### MCP AI-debugging servers on oldsrv (HD-344) — implemented form
 
-> **2026-09-08 (HD-344 IaC authored); 2026-09-14 flipped `enabled: true` + DEPLOYED (oldsrv converge)** — two Docker compose
-> services on **oldsrv** — `mcp-victoriametrics` (:8083) + `mcp-victorialogs` (:8084) — fronting the VPS
-> Victoria backend for AI tools (**pi, Open WebUI, OpenClaw** for now). ⏳ **Deploy-gated:** oldsrv is
-> Phase-3/HD-318 **and** needs the VPS Victoria backend live (HD-342) — both now true; the `enabled:
-> true` flip (with the oldsrv converge) deploys them. Rows + `_template_vault_items` already updated in IaC.
+> **Status: ✅ live** — two `docker_services` on **oldsrv**, `mcp-victoriametrics` (`:8083`) and
+> `mcp-victorialogs` (`:8084`), fronting the VPS Victoria backend for AI tools (pi, Open WebUI, OpenClaw).
+> They require the VPS backend to be reachable, which is why they were deploy-gated until the Victoria
+> stack landed.
 
 - **Endpoint reachability — wg-s2s now, tailnet later.** The MCP servers point at the VPS
   backend via `victoria_backend_host` (group_vars/all/main.yml), which **defaults to
@@ -85,9 +102,9 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
   the VPS backend from the `victoria-metrics_api` / `victoria-logs_api` 1P items
   (`VM_INSTANCE_HEADERS` / `VL_INSTANCE_HEADERS`). The client-facing gate is the
   Home-VLAN-only bind + (future) tailnet ACL — **do not expose on the WAN edge**.
-- **Images (pinned, CONVENTIONS §7):** `mcp_victoriametrics:v1.18.0` +
-  `mcp_victorialogs:v1.8.0` (GHCR-tag verified 2026-09-08; Renovate-tracked).
-- **Registry:** oldsrv `docker_services` rows — **`enabled: true` since 2026-09-14** (was `enabled: false` until HD-318 + HD-342 both live; the oldsrv converge deploys them).
+- **Images (pinned, CONVENTIONS §7):** `mcp_victoriametrics:v1.18.0` + `mcp_victorialogs:v1.8.0`,
+  Renovate-tracked.
+- **Registry:** oldsrv `docker_services` rows with `enabled: true`.
 
 #### Wiring AI tools (pi, Open WebUI, OpenClaw)
 
@@ -129,7 +146,7 @@ All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
 
 ## Access & login path (stats.kogler.si)
 
-**Tailnet-only (HD-135b follow-up, 2026-08-28):** the observability dashboards (`stats`/`sec`/`traefik`/`logs`/`csui`/`auto`
+**Tailnet-only:** the observability dashboards (`stats`/`traefik`/`logs`/`llogs`/`csui`/`auto`
 and by extension the underlying victoria-metrics/victoria-logs/blackbox) have **no public DNS record** and are **not
 WAN-reachable**. They are reached over the **headscale tailnet** from admin devices via the
 **`traefik-tailnet` edge** (node `vps-obs`) — a consumer-mode Traefik (+ userspace tailscale sidecar
@@ -143,23 +160,21 @@ compose):
 | Dozzle (`logs`) | `https://logs.kogler.si` / `https://logs.ts.kogler.si` |
 | Dozzle home hub (`llogs`) | `https://llogs.kogler.si` (**LAN-only** — oldsrv `traefik-internal` edge, WAN-out survival; shows oldsrv + pi + spark containers) |
 | CrowdSec Web UI (`csui`) | `https://csui.kogler.si` / `https://csui.ts.kogler.si` |
-| ~~Metabase (`sec`)~~ | ~~`https://sec.kogler.si` / `https://sec.ts.kogler.si`~~ — **retired 2026-09-14** (VPS); future home = oldsrv |
 | Traefik dashboard (`traefik`) | `https://traefik.kogler.si` / `https://traefik.ts.kogler.si` |
 | n8n (`auto`, **internal-only**) | `https://auto.kogler.si` / `https://auto.ts.kogler.si` |
 
-The plain `*.kogler.si` names resolve via headscale MagicDNS (`dns.search_domains: [kogler.si]` + **HD-371 (2026-09-15):** the `dns.nameservers` list now puts the **MagicDNS loop `100.100.100.100` first**, so a tailnet device resolves BOTH namespaces locally on any network) and carry
+The plain `*.kogler.si` names resolve via headscale MagicDNS (`dns.search_domains: [kogler.si]`, and **`dns.nameservers` must put the MagicDNS loop `100.100.100.100` FIRST** — HD-371) and carry
 **Authentik Forward-Auth** (same chain as the public edge). The `*.ts.kogler.si` MagicDNS twins are
 **ACL-gated** (no forward-auth — the headscale ACL `tag:sidecar:443` is the gate; tailnet-only by
 construction). The public CNAMEs from the Phase-1 wave are removed from the IaC SSOT and deleted from
 Cloudflare at deploy time (owner action).
 
-> **HD-371 live case (2026-09-15, ✅ RESOLVED + LIVE):** laptop on a mobile hotspot + Tailscale connected, `stats.kogler.si` /
-> `llm.kogler.si` → `ERR_NAME_NOT_RESOLVED` while `stats.ts.kogler.si` worked and the phone (same hotspot)
-> resolved everything. Root cause: with the old nameservers (Technitium VPS primary only), a remote
-> mobile-network source hit the system resolver → NXDOMAIN, while the phone's client-side MagicDNS
-> extra_records still answered. The `100.100.100.100`-first fix resolves every tailnet name locally on
-> any network; live-verified after the Windows client DNS re-pull (laptop + phone). (The phone `llm.kogler.si/v1` 401 vs `litellm.kogler.si` 502 was a separate litellm
-> docker-DNS gap — HD-372, ✅ fixed + LIVE.)
+> **Why the loop must come first (HD-371).** With only the Technitium VPS primary in `dns.nameservers`, a
+> tailnet device on a foreign network (mobile hotspot) sent `stats.kogler.si` to the system resolver →
+> NXDOMAIN → `ERR_NAME_NOT_RESOLVED`, while `stats.ts.kogler.si` still resolved and the phone on the same
+> hotspot worked (its client-side MagicDNS `extra_records` answered). Ordering the MagicDNS loop first
+> resolves **both** namespaces locally on any network. Symptom shape to remember: "one suffix works, the
+> other does not, and it depends on the network you are on" is a **resolver order** bug, not a routing bug.
 
 Forward-Auth (Traefik chain) still gates the route; Grafana then auto-logs-in via `[auth.proxy]`,
 trusting the `X-authentik-email` header ONLY from the pinned Traefik edge IP (`traefik_edge_ip_pin`
@@ -184,7 +199,6 @@ update, or queries keep 401-ing despite correct rendered files.
 | HA entity metrics (weather, ComfoAir) | HA exporter → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
 | External reachability | blackbox → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
 | UPS status (battery, runtime, voltage, load, online/on-batt) | nut_exporter (on nas) → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
-| ~~MinIO S3 store health/usage (Immich originals)~~ | ~~minio_exporter (on oldsrv) → Prometheus~~ — retired (HD-135, CIFS) | — |
 | Logs | Alloy → VictoriaLogs | VictoriaLogs (90d, Kopia) |
 | RouterOS logs (RB4011/switch/AP) | RFC5424 syslog → VPS rsyslog → CrowdSec/VictoriaLogs | VictoriaLogs (90d) (HD-313) |
 | Live logs (ops day-to-day tail) | Dozzle viewers — VPS `logs.kogler.si` (tailnet) + home hub `llogs.kogler.si` (LAN, oldsrv, pi/spark agents) | ephemeral — nothing persisted |
@@ -199,30 +213,105 @@ update, or queries keep 401-ing despite correct rendered files.
 - **Router:** alerts → n8n webhook → normalize / dedup / tier / format → Signal + email. n8n also serves office automation ([`services-office.md`](services-office.md)).
 - **Webhook:** Grafana's contact point posts to `grafana_alert_webhook_url` (group_var, default `http://n8n:5678/webhook/homelab-alerts`, traefik-public). ⚠ The n8n workflow **`homelab-alerts`** on that route must exist before the first alert fires (created at n8n setup; payload = Grafana alert-notification webhook, see the monitoring role `grafana-contactpoints.yml.j2`).
 - **Fail-safe:** Grafana-native SMTP contact point runs in parallel — alerts still go out if n8n/signal-cli is down.
-- **SMTP relay (HD-54, Option B — decided):** SMTP2Go (`mail-eu.smtp2go.com:2525`, STARTTLS). Dedicated transactional relay, free-tier 1000/mo, chosen independently of the Infomaniak kSuite decision (HD-30) so the alert fail-safe isn't coupled to personal email. Grafana + NUT share it; creds = `smtp_login` / `smtp_login` (Login items in 1Password). ✅ **Rotation 2026-09-09:** `smtp_login.password` rotated → propagated to **VPS Grafana + Metabase** (compose re-render, verified live env hash), **Pi + oldsrv HA `secrets.yaml`** (role re-render), and **NUT `upssched-cmd` on nas** (inline render — see NUT fix in [hardware-ups.md](hardware-ups.md)).
-  - **Connecting (SMTP2Go, EU datacenter — as provided by the account):** server `mail-eu.smtp2go.com`; SMTP port `2525` (default), alternates `8025`, `587`, `80`, `25` — **TLS available on the same ports** (STARTTLS). SSL: `465`, `8465`, `443`. The repo uses `mail-eu.smtp2go.com:2525` + STARTTLS (587 was blocked from the VPS egress — live-verified 2026-09-08 — so 2525 is the SSOT port).
+- **SMTP relay (HD-54, Option B — decided):** SMTP2Go (`mail-eu.smtp2go.com:2525`, STARTTLS). Dedicated transactional relay, free-tier 1000/mo, chosen independently of the Infomaniak kSuite decision (HD-30) so the alert fail-safe isn't coupled to personal email. Grafana + NUT share it; creds = `smtp_login` / `smtp_login` (Login items in 1Password). Rotating `smtp_login` means re-converging **every** consumer and verifying the rendered value: VPS
+  Grafana (compose env), Pi + oldsrv HA (`secrets.yaml`), and **NUT `upssched-cmd` on nas**, which embeds it
+  **inline** (see [hardware-ups.md](hardware-ups.md)).
+  - **Connecting (SMTP2Go, EU datacenter — as provided by the account):** server `mail-eu.smtp2go.com`; SMTP port `2525` (default), alternates `8025`, `587`, `80`, `25` — **TLS available on the same ports** (STARTTLS). SSL: `465`, `8465`, `443`. The repo uses `mail-eu.smtp2go.com:2525` + STARTTLS (**587 is blocked from the VPS egress** — verified live — so **2525 is the SSOT port**, not 587).
 - **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking.
 
-### Known gaps / recent fixes (2026-09-08 → 09-09)
+### Operational gotchas (learned live — the rules that keep them from coming back)
 
-- ✅ **Grafana goes blind after a restart — the Grafana 13 bundled-plugin installer vs `read_only: true` (VPS, 2026-09-17, fixed + durability-proved 2026-09-18).** Grafana 13 keeps its bundled plugins (**including `prometheus`, the datasource that talks to VictoriaMetrics**) in the image layer at `/usr/share/grafana/data/plugins-bundled` and re-installs them on every start; the installer must `unlinkat` that directory, which fails under the compose hardening `read_only: true` → the plugin is left **unregistered**: empty panels, `/api/datasources/uid/prometheus/health` → 404 "Plugin not registered", and every alert rule erroring `plugin.notRegistered` (~2.5 k failed evals, including the spark host-memory rules the day they went live). **Fix = one env line, `GF_PLUGINS_PREINSTALL_DISABLED: "true"`** (the setting the image itself ships) so the plugins load in place and `read_only: true` stays intact — deployed, and re-proved across a second restart. **Diagnosis shortcut:** the `victoriametrics-logs-datasource` stayed healthy because the entrypoint installs it into the WRITABLE `/var/lib/grafana/plugins` — that contrast is the whole diagnosis. **On a future `grafana_version` bump: do NOT widen `read_only`, re-check the preinstall first.**
+**Grafana**
 
-- ✅ **`homelab-alerts` webhook workflow LIVE (HD-347, 2026-09-09)** — created + ACTIVATED via the n8n public API (`n8n_api` key; `POST /api/v1/workflows` + `/activate`; workflow JSON versioned in `roles/monitoring/files/n8n/homelab-alerts.workflow.json`). Verified: `POST http://n8n:5678/webhook/homelab-alerts` → **HTTP 200 "Workflow was started"** (was 404). The workflow routes Grafana's alert webhook by `state` (alerting → ⚠️ / resolved → ✅), sends to Signal via `signal-cli-rest-api` (env-driven `SIGNAL_CLI_URL`/`SIGNAL_API_TOKEN`/`SIGNAL_NUMBER`/`SIGNAL_RECIPIENTS`; the Signal HTTP step `onError: continueRegularOutput` so a not-yet-linked signal-cli never breaks delivery). ⏳ **Signal delivery still owner-gated:** no Signal device is linked yet (HD-318d) — link the "Homelab Alerts" group in the signal-cli account, then the Signal leg starts delivering; email routing now happens through n8n.
-- ✅ **`signal-cli-rest-api` cross-host leg wired (HD-347)** — the old "no host ports" + "n8n reaches this on services-internal" comment was aspirational: n8n runs on the VPS and couldn't resolve `signal-cli-rest-api` (oldsrv-only overlay). Now published on `{{ oldsrv_home_ip }}:8082` (the same cross-host API-leg pattern as actual-budget :5006 / immich-ml :3003); **port 8080 belongs to pi-dev (HD-355)** — the signal gateway was moved off it to :8082 when the two collided (2026-09-15 converge); auth stays mandatory (`X-Api-Key`, KOPS-002/HD-125).
-- ✅ **`mikrotik-link-down` alert REMOVED (HD-347, owner decision)** — the rule fired on every empty switch port (10 simultaneous instances: ether3-8, ether17, ether22-24, sfp-sfpplus1 — no cable, admin up). Owner: "do not alert me this, remove this alert". The intentionally-disabled NAS port (switch ether9, admin down) was already correctly excluded. Rule + its dashboards' matching panels removed from `roles/monitoring/vars/main.yml`.
-- ✅ **Stale `prometheus-down`/`loki-down` rules removed (HD-347)** — pre-Victoria leftovers that only existed as live-Grafana orphans (provenance=file but not in the current rules.yml). Deleted from the live instance; next converge renders 17 rules (9 critical + 8 warning).
-- ✅ **Self-monitoring rules actually fire now (HD-347)** — two compounding bugs: (1) the rules template hardcoded `evaluator: gt 0`, so every `expr: X == 0` rule (up-down, host-unreachable, wg-s2s-down, victoria-*-down, n8n-down) returned 0 and `gt 0` never fired — now per-rule `eval_type: lt` + `eval_params: [1]` for `== 0` rules; (2) the VPS Alloy `vm_self`/`vl_self` scrapes lacked the `victoria-metrics_api`/`victoria-logs_api` basic auth → `up{job="victoria-metrics"}=0` permanently → now authenticated. `victoria-metrics-down`/`victoria-logs-down`/`wg-s2s-down`/`host-unreachable`/`public-service-down`/`ha-unreachable`/`n8n-down` are now live-capable.
-- ✅ **MikroTik SNMP `ifName` labels fixed (HD-347)** — snmp_exporter looked up `1.3.6.1.2.1.31.1.1.1.1` (ifName) but it was **not in the `walk` list** and the lookup lacked `type: DisplayString` → series had no `ifName` (alerts said "interface [no value]") and values rendered as hex (`0x65746865...`). Fixed in `snmp.yml.j2` (add ifName to walk + `type: DisplayString` on both lookups). Live-verified against RB4011 + CRS328 (snmp_exporter 0.30.1 test scrapes). Per-target `instance` (router/switch) labels also added so the two devices no longer collapse into one flat series.
-- ✅ **False `DatasourceNoData` alert flood fixed (IaC, 2026-09-08):** Grafana was paging `DatasourceNoData` for `Host disk nearly full` / `Host unreachable` / `ZFS pool nearly full` / `UPS battery low` because several alert rules had `noDataState: Alerting` — they fired on *no data* (missing series), not on real conditions. Fixed in `roles/monitoring/vars/main.yml`: real-condition rules (`host-unreachable`, `host-disk-full`, `zfs-pool-*`, `host-load-high`, `loki-down`, `n8n-down`, ups rules) now `noDataState: NoData` + `execErrState: Error`; only genuine self-monitoring rules (`prometheus-down`, `wg-s2s-down`) keep `Alerting`. Requires re-converge of the monitoring role to take effect.
-- ✅ **Remaining `DatasourceNoData` false alerts fixed (IaC, 2026-09-08 follow-on):** after the 2026-09-08 batch above, Grafana still paged `DatasourceNoData` **every minute** for 6–8 rules whose queries matched no series — the exact `noDataState` footgun, but on the rules that batch left at the Grafana default. Live diagnosis (VPS, read-only): with `noDataState: NoData` (default) a rule **fires a synthetic `DatasourceNoData` alert** whenever its PromQL returns no matching series; the UPS rules (`network_ups_tools_*` — battery/charge/runtime series *present*, values healthy, so the threshold matches nothing), `mikrotik-link-down` (live `ifOperStatus{job="alloy-snmp"}` has **0 series** — SNMP not shipping), and `ssl-cert-expiring` (live `probe_ssl_earliest_cert_expiry` has **0 series** — blackbox doesn't emit SSL expiry) were all stuck firing NoData every eval → routed to email via the SMTP fail-safe (the n8n leg is 404 — see below). Fixed in `roles/monitoring/vars/main.yml`: **every remaining rule now carries `noDataState: OK` + `execErrState: Error`** (`ups-battery-low`, `ups-runtime-low`, `ups-on-battery`, `ups-battery-replace`, `public-service-down`, `ha-unreachable`, `mikrotik-link-down`, `ssl-cert-expiring`) — no-data is a **collection gap**, never a real condition; only self-monitoring rules (`victoria-metrics-down`, `victoria-logs-down`, `wg-s2s-down`) keep `execErrState: Alerting`. ⏳ Deploy-gated on the next VPS monitoring converge after the Victoria migration (the monitoring role's datasource tasks must be aligned with the live backend first).
-- ✅ **Prometheus self-scrape + n8n self-scrape were missing basic_auth (IaC, 2026-09-08):** `up{job="prometheus"}=0` / `up{job="n8n"}=0` because the prometheus endpoint requires basic auth (`prometheus-internal_api`) but the self-scrape jobs had none. Fixed in `prometheus.yml.j2` — both jobs now carry the same `basic_auth` the Grafana datasource uses. Also `blackbox-exporter` self-target was scraping the wrong path (`/probe` instead of `/metrics`) → `up{job="blackbox-exporter"}=0`; corrected.
-- ✅ **HD-347 converge-completion + follow-on fixes (2026-09-09):** VPS `docker_services` converge applied the n8n `SIGNAL_*` env (webhook verified 200 "Workflow was started" with a real alert payload). Three latent bugs caught + fixed during the converge: ① **`_template_vault_items["n8n"]` was missing the two Signal items** (`signal-internal_api`, `signal_api`) → the secret-export dict rendered `vault['signal-internal_api']` as None and the compose render failed with "dict has no attribute" — added both to `roles/docker_services/defaults/main.yml`. ② **`SIGNAL_RECIPIENTS` double-quote YAML bug** — the Jinja `default()` fallback string (the signal-group name) produced a double-quoted YAML value with embedded quotes (invalid YAML, `docker compose config` failed): switched the line to single-quoted YAML `'…'` + `default(…, true)` so an empty SSOT renders the quoted group-name fallback and a UUID SSOT renders `"group.xxx"` correctly. ③ **`tuwunel_version: "1.9.0"` points at a nonexistent docker.io tag** (registry-verified 2026-09-08 assertion was wrong — bare `1.9.0` returns 404; the real tag is `v1.9.0`, same digest sha256:62339669… as `latest`) → corrected to `"v1.9.0"` (matrix was blocking the converge with a failed pull).
-- ✅ **spark host-memory OOM alert rules — LIVE (rules `spark-host-mem-oom-warning` / `spark-host-mem-oom-critical`; converged `vps.yml --tags monitoring` 2026-09-17 22:33C, failed=0); tracked as HD-375.** Three global-OOM incidents on spark in 24 h (2026-09-15 ×2, 2026-09-16 ×1) killed the host user session + the vLLM engine. The container memory cage can't protect the host (GPU pages are not cgroup-charged), and Docker's `OOMKilled` is a false negative — the only early warning is host memory.
-  - **Gauge (this is the part that was wrong first):** the rules fire on **`usable = MemAvailable − CmaFree`**, `node_memory_MemAvailable_bytes` **minus** `node_memory_CmaFree_bytes`, `job="alloy"`, `instance=~"spark.*"`. On GB10 the GPU carve is CMA and CMA counts as available, so raw `MemAvailable` **inflates as pressure rises** (up to ~9.5 GiB here). The original 2026-09-16 spec (Warning <24 / Critical <18 on raw `MemAvailable`) is **superseded** — it could never have warned before the cliff. `MemFree − CmaFree` is the other rejected form (INVERTED on this box; would restart-storm a healthy engine) — see [spark-incidents.md](spark-incidents.md) #7/#8.
-  - **Thresholds are MEASURED, not designed:** `WARN < 12 GiB for 2m` (`noDataState: OK`) / `CRIT < 8 GiB for 1m` (`noDataState: Alerting`). Both real kills landed at **1.62 / 1.64 GiB**, but the lowest value a 60 s scrape ever recorded in those windows was **5.01** — so a rule set at 1.6 could not fire. `node_memory_CmaFree_bytes` is **verified present in VM** (it is NOT in node_exporter's default meminfo whitelist — check that before authoring any future CMA-based rule).
-  - **Live operating point (2026-09-18, KV pool 16 GiB):** idle `usable` **18.5 GiB** → WARN margin 6.5 GiB. The 8.2-GiB-pool era idled at 30.4. Under the certified worst case (2×240k ≈ 94.6 % pool) the floor was **17.78 GiB**. Interpretation: the thresholds still clear, but **there is no room for another KV raise in bf16** — one would put WARN into routine-transient range (see [hardware-spark.md](hardware-spark.md) §Unified-memory budget).
-  - Deploy preflight (do this before any future change to these rules): confirm the CmaFree series exists, or `noDataState: Alerting` on CRIT becomes a false-positive machine. The paired on-box enforcer is `spark-oom-watchdog` (`roles/spark`, enforcing: CRIT < 8 → planned engine restart, max 2 / 2 h, arm-off file, idle recycle at baseline +8 GiB).
-  - ⏳ tail: owner confirms the two rules render in the Grafana UI + that a firing alert reaches n8n. · [hardware-spark.md](hardware-spark.md) §Unified-memory budget · [spark-incidents.md](spark-incidents.md)
+- **`read_only: true` breaks Grafana 13's bundled-plugin installer.** Grafana 13 keeps bundled plugins —
+  **including `prometheus`, the datasource that talks to VictoriaMetrics** — in the image layer at
+  `/usr/share/grafana/data/plugins-bundled` and re-installs them on every start; the installer must
+  `unlinkat` that directory, which fails under the hardening flag, leaving the plugin **unregistered**:
+  empty panels, `/api/datasources/uid/prometheus/health` → 404 `Plugin not registered`, and every rule
+  erroring `plugin.notRegistered` (~2.5 k failed evals). **Fix = one env line,
+  `GF_PLUGINS_PREINSTALL_DISABLED: "true"`** (the setting the image ships), so plugins load in place and
+  `read_only: true` stays. **Diagnosis shortcut:** a datasource plugin installed into the **writable**
+  `/var/lib/grafana/plugins` (like `victoriametrics-logs-datasource`) stays healthy — that contrast is the
+  whole diagnosis. On any `grafana_version` bump: re-check preinstall **before** widening `read_only`.
+- **Provisioning does NOT overwrite `secureJsonData` of an existing datasource.** A rotated datasource
+  password must be re-applied by delete+recreate **with the same uid** (or an API update) — otherwise
+  queries keep 401-ing while the rendered files look perfect.
+- **Pin the edge IP.** Docker's dynamic bridge assignment silently drifts the Traefik edge address off
+  `GF_AUTH_PROXY_WHITELIST`, which reads as "SSO stopped working after an unrelated redeploy".
+- **`noDataState` is the loudest footgun in the stack.** A rule whose PromQL matches **no series** fires a
+  synthetic `DatasourceNoData` alert on every evaluation. That is a **collection gap, never a condition**:
+  real-condition rules take `noDataState: OK` (or `NoData`) + `execErrState: Error`; only self-monitoring
+  rules (`victoria-*-down`, `wg-s2s-down`) keep `Alerting`. Anything whose series may legitimately be
+  absent (UPS metrics while healthy, `probe_ssl_earliest_cert_expiry` — blackbox does not emit SSL expiry,
+  SNMP interfaces before SNMP ships) must be set explicitly, not left at the default.
+- **Alert rules must match the live backend.** After a backend migration, orphan rules survive in the live
+  Grafana DB (provenance = file, but absent from the rendered rules file). Delete orphans after any
+  backend change — a stale `prometheus-down` rule alerts about a component that no longer exists.
+
+**Rules + exporters**
+
+- **The evaluator has to match the expression.** Rules templated with a hardcoded `gt 0` can never fire for
+  `expr: X == 0` (`*-down`, `host-unreachable`, `wg-s2s-down`) — the rule is silently dead, which is worse
+  than a missing rule. The template carries `eval_type` per rule; `== 0` rules use `lt` with `[1]`.
+- **Self-scrape needs the backend's auth.** Without `victoria-metrics_api` / `victoria-logs_api` basic auth
+  on the self-scrape jobs, `up{job="victoria-metrics"}=0` permanently — which reads as "monitoring is down"
+  and trains everyone to ignore it. Same class: a blackbox self-target pointed at `/probe` instead of
+  `/metrics` is dead, not degraded.
+- **SNMP interface names need two things at once.** The `ifName` OID must be in the module's `walk` list
+  **and** the lookup must declare `type: DisplayString`; otherwise labels are missing (`interface [no value]`)
+  and values render as hex (`0x65746865…`). Give each device its own `instance` label or two devices
+  collapse into one flat series.
+- **Do not alert on intentionally-empty state.** A `mikrotik-link-down` rule fired on every unpatched switch
+  port (ten simultaneous instances on ports with no cable). Unprovisioned is not incident-worthy: alert on
+  the loss of a link that carries something.
+
+**Alert delivery**
+
+- **The n8n workflow must exist and be ACTIVE before the first alert** — otherwise the Grafana contact point
+  hits `POST /webhook/homelab-alerts` → 404 and nothing is routed. It is versioned at
+  `roles/monitoring/files/n8n/homelab-alerts.workflow.json` and created/activated through the n8n public API
+  (`n8n_api`, `POST /api/v1/workflows` + `/activate`). Verify with a POST expecting
+  `200 "Workflow was started"`.
+- **A missing Signal device is silent by design.** The Signal HTTP step uses
+  `onError: continueRegularOutput` so an unlinked `signal-cli` cannot break email delivery — which also
+  means **no alert ever proves the Signal leg works**. Linking the "Homelab Alerts" device is an owner
+  action (HD-318d); until then email is the only proven channel.
+- **`signal-cli-rest-api` is published on `{{ oldsrv_home_ip }}:8082`** because the alert brain (n8n) runs on
+  the VPS and cannot resolve an oldsrv-only overlay name — the cross-host API-leg pattern (precedents:
+  actual-budget `:5006`, immich-ml `:3003`). **`:8080` belongs to something else**, which is exactly how the
+  collision was found; auth stays mandatory (`X-Api-Key`, KOPS-002/HD-125).
+- **Three converge-time traps that are repo rules:** every vault item a template reads must be declared in
+  `_template_vault_items`, or the render dies with `dict has no attribute …`; Jinja `default()` fallbacks in
+  YAML need single quotes, or the fallback renders nested quotes and `docker compose config` fails; and a
+  pinned image tag must be **verified to exist** in the registry before it lands (`1.9.0` vs `v1.9.0` is a
+  failed pull on docker.io).
+
+### spark host-memory (OOM) alert rules
+
+The container memory cage cannot protect a GB10 host (GPU pages are not cgroup-charged) and Docker reports
+`OOMKilled: false` on a host-side kill, so **host memory is the only early warning** there. Rules
+`spark-host-mem-oom-warning` / `spark-host-mem-oom-critical`; the on-box enforcer is
+`spark-oom-watchdog` (`roles/spark`: CRIT < 8 GiB → planned engine restart, max 2 per 2 h, arm-off file,
+idle recycle at baseline +8 GiB).
+
+- **Gauge: `usable = MemAvailable − CmaFree`** (`node_memory_MemAvailable_bytes -
+  node_memory_CmaFree_bytes`, `job="alloy"`, `instance=~"spark.*"`). On GB10 the GPU carve is CMA and CMA
+  counts as available, so raw `MemAvailable` **inflates as pressure rises** (by up to ~9.5 GiB here) — a
+  threshold on it can never warn before the cliff. `MemFree − CmaFree` is the inverted alternative.
+  Rationale + the incident series: [hardware-spark.md](hardware-spark.md) §Unified-memory budget and
+  [spark-incidents.md](spark-incidents.md) #7/#8.
+- **Thresholds are measured, not designed:** `WARN < 12 GiB for 2m` (`noDataState: OK`) /
+  `CRIT < 8 GiB for 1m` (`noDataState: Alerting`). Both observed kills were at **1.62 / 1.64 GiB**, but the
+  lowest value a 60 s scrape ever recorded inside those windows was **5.01** — a rule set at the kill point
+  could not have fired.
+- **Preflight before touching these rules:** confirm `node_memory_CmaFree_bytes` exists in VictoriaMetrics.
+  It is **not** in node_exporter's default meminfo whitelist, and on a CRIT rule with
+  `noDataState: Alerting` a missing series is a false-positive machine.
+- **Operating point:** at the certified 16 GiB KV pool, idle `usable` is **18.5 GiB** (6.5 GiB of WARN
+  margin) and the certified worst case bottoms at **17.78 GiB**. The thresholds still clear — but there is
+  **no room for another KV raise in bf16**, because that would put WARN inside routine-transient range.
+- ⏳ Owner still owes: confirming both rules render in the Grafana UI and that a firing alert reaches n8n
+  (HD-375).
 
 ### Tiers
 
@@ -251,12 +340,25 @@ update, or queries keep 401-ing despite correct rendered files.
 
 - **MikroTik SNMP:** poll at **5–15 s**; the "1s" in dashboards is a *refresh* interval, not a poll.
 - **Retention is deliberate:** 30d metrics / 14d logs. TSDB data is **regenerable and not backed up** (see [backup.md](backup.md)); long-term metric history is a deferred option (remote-write/downsampling).
-- **Placement (HD-135 + HD-135b):** the observability **backend** (Prometheus/Loki/Grafana) runs on the **VPS** (reliable tier). **HD-135b (2026-08-28): the VPS is self-sufficient for its own observability** — the VPS host runs its own **Alloy** (`[monitoring]` group, `alloy_backend_host` defaults to `127.0.0.1` → loopback Prometheus/Loki on the same host, no tunnel) and its own **Dozzle** live-log viewer (`logs.kogler.si`, moved from oldsrv). **2026-09-15: a second Dozzle hub runs on oldsrv (`llogs.kogler.si`, LAN-only) showing oldsrv + pi + spark containers via remote agents** (see §Dozzle multi-host below) — the VPS viewer and the home hub are independent (the hub survives WAN-out via the traefik-internal edge). oldsrv/nas/Pi keep thin **Alloy collectors** forwarding *home* telemetry over the `wg-s2s` tunnel (nas's Alloy is host-exporter only — no Docker; it ships nas `node_*` and is still scraped for its nut/zfs exporters by oldsrv). **Dashboards are tailnet-only** (HD-135b follow-up) — no public exposure; access is over the headscale mesh via the **`traefik-tailnet` edge** (`stats`/`sec`/`traefik`/`logs`/`csui`/`auto`, clean subdomain URLs on 443 — see [Access & login path](#access--login-path-statskoglersi) below). **n8n (`auto`) is internal-only** (public route removed from the main edge; reached over the tailnet). The n8n alert brain is on the VPS and emails/Signals over the public net — independent of the tunnel. **SPOF (narrowed):** if the home↔VPS tunnel or the VPS itself is down, *home* metrics/logs are unavailable in Grafana (the nesting is graceful: buffered, replayed on reconnect; NUT-side `notifycmd`/`upssched-cmd` on nas is the grounds for power-loss alerts independent of the stack). The **VPS's own** metrics/logs remain available locally even with the tunnel down (loopback Alloy → local Prometheus/Loki → local grafana/dozzle).
+- **Placement:** the observability **backend** (VictoriaMetrics/VictoriaLogs/Grafana/blackbox + the VPS
+  Dozzle viewer) runs on the **VPS** — the reliable tier. **The VPS is self-sufficient for its own
+  observability**: it runs its own Alloy with `alloy_backend_host` defaulting to `127.0.0.1`, so VPS
+  metrics/logs land locally with no tunnel, and its own Dozzle viewer (`logs.kogler.si`).
+  **oldsrv/nas/Pi run thin Alloy collectors** forwarding *home* telemetry over the `wg-s2s` tunnel
+  (nas's Alloy is host-exporter only — it has no Docker — and nas is still scraped for its `nut`/`zfs`
+  exporters by oldsrv). **Dashboards are tailnet-only**: no public exposure, reached over the headscale
+  mesh via the `traefik-tailnet` edge with clean subdomain URLs. **n8n (`auto`) is internal-only** (no
+  public route). The alert brain is on the VPS and delivers over the public net, independent of the tunnel.
+  **SPOF, accepted and narrowed:** if the home↔VPS tunnel or the VPS is down, *home* metrics/logs are
+  unavailable in Grafana — gracefully (writers buffer and replay on reconnect) — while the VPS's own
+  telemetry stays visible locally. NUT-side `notifycmd`/`upssched-cmd` on nas is the power-loss alert path
+  that never depends on this stack.
+
 - **Dozzle is not a second log backend** — it streams live logs straight from the Docker API (read-only socket) and persists nothing. VictoriaLogs stays the single stored-log source (90d) and Grafana the search/alert surface.
 
-### Dozzle multi-host (2026-09-15) — VPS viewer + LAN hub
+### Dozzle multi-host — VPS viewer + LAN hub
 
-Owner design: the VPS keeps the VPS-only viewer (`logs.kogler.si`), and **oldsrv runs a LAN log HUB**
+The design: the VPS keeps the VPS-only viewer (`logs.kogler.si`), and **oldsrv runs a LAN log HUB**
 (`llogs.kogler.si`, :8081) that shows oldsrv + pi + spark containers via **remote agents**
 (`DOZZLE_REMOTE_AGENT` over the Home VLAN). LAN logs stay **LAN-only by design** — never reach
 VPS / public / tailnet. `nas` has no Docker (Alloy host-exporter only), so no agent.
@@ -284,22 +386,41 @@ OLDSRV Dozzle HUB (llogs.kogler.si, :8081, traefik-internal edge — WAN-out sur
 - **Route:** `llogs` router + `llogs-backend` → `http://{{ oldsrv_home_ip }}:8081` in the
   traefik-internal `routes.yml.j2` (file provider, hot-reload).
 
-- **LIVE 2026-09-15 (oldsrv + pi + spark converges, failed=0):** hub `:8081` HTTP 200 via
-  `traefik-internal` + direct; agents on all 3 home hosts (`:7007`, LAN-only, healthy); VPS
-  viewer (`logs.kogler.si`) untouched. **✔️ `llogs.kogler.si` RESOLVED + LIVE-VERIFIED 2026-09-15**
-  (via `playbooks/dns-seed.yml` — the one-command re-seed of all three Technitium instances,
-  see [`network-dns.md`](network-dns.md) §Convergence & Drift): the Pi converge was scoped to
-  `dozzle-agent` so the `technitium-seed` tail had not run on the Pi; the re-seed ran the
-  full split-horizon set on Pi + oldsrv + VPS (`failed=0`), and live `dig` confirms
-  `llogs.kogler.si → {{ oldsrv_home_ip }}` on both home instances + **no answer on the VPS primary**
-  (LAN-only, correct). The per-host `dns-seed.timer` self-heal is now **active on all three**
-  hosts (VPS/oldsrv/Pi), so this class self-heals going forward.
-  ⚠️ **Two findings that remain OPEN (owner/follow-up):** (1) **oldsrv `traefik-internal` serves `TRAEFIK DEFAULT CERT`** (self-signed fallback) → Chrome "Not Secure" on `media.kogler.si`/`llogs` — the wildcard pair isn't in `traefik-internal/certs`; the `traefik-cert-pull` timer is armed but `/root/.ssh/traefik-cert-sync` is **not authorized on the VPS** (manual LIVE step, [services-traefik.md](services-traefik.md) §Edge model) → pull 401s → fallback cert. **Owner:** authorize the pubkey on VPS `ansible-admin` → `systemctl start traefik-cert-pull.service` → restart `traefik-internal` → verify `CN=*.kogler.si`. (2) **a phone 404ing `llogs` is resolving it to the VPS public edge** (Let's Encrypt + 404 = `traefik-tailnet`/`traefik-ha`, NO `llogs` route — correct LAN-only design) → the phone **bypasses RouterOS DHCP DNS** (Android Private DNS/VPN/DoH). Fix client-side or router DNS force; **do not** add `llogs` to the VPS primary.
+- **State: ✅ live** — hub on `:8081` answering through `traefik-internal`, agents on all three home hosts
+  (`:7007`, LAN-only, healthy), VPS viewer unaffected. `llogs.kogler.si` resolves to `oldsrv_home_ip` on the
+  two home Technitium instances and **not at all on the VPS primary** (verified with `dig`), which is the
+  LAN-only design working. The per-host `dns-seed.timer` self-heal is active on VPS + oldsrv + Pi; a
+  one-command re-seed of all three instances is `playbooks/dns-seed.yml`
+  ([`network-dns.md`](network-dns.md) §Convergence & Drift) — note that a **scoped** host converge (e.g.
+  `--tags dozzle-agent`) skips the seed tail, so DNS can lag a deploy on purpose.
+- ⚠️ **Open, owner-side (two, both misdiagnosed easily):**
+  1. **`traefik-internal` serves `TRAEFIK DEFAULT CERT`** (self-signed fallback) → "Not Secure" on
+     `media.kogler.si` / `llogs`. Cause chain: the wildcard pair is not in `traefik-internal/certs` because
+     the **`traefik-cert-pull` 401s** — `/root/.ssh/traefik-cert-sync` is not yet authorized on the VPS
+     (manual step, [services-traefik.md](services-traefik.md) §Edge model). Fix: authorize the pubkey on the
+     VPS `ansible-admin` → `systemctl start traefik-cert-pull.service` → restart `traefik-internal` →
+     verify `CN=*.kogler.si`. **A default-cert response means the cert-pull is broken, not the edge.**
+  2. **A phone that 404s on `llogs` is resolving it to the VPS public edge** (LE cert + 404 = the tailnet /
+     Pi edge, which has no `llogs` route — correct). The client is bypassing RouterOS DHCP DNS (Android
+     Private DNS / VPN / DoH). Fix it client-side or with a router DNS force — **do not** add `llogs` to the
+     VPS primary to make the symptom go away.
 
-- **Loki access control (HD-115 / KOPS-023/051):** Loki runs with `auth_enabled: true` (multi-tenant) — pushes and queries must carry the `logs` tenant ID, wired through Alloy (`tenant_id = "logs"`) and the Grafana datasource (`jsonData.tenantId`). The **write** path is loopback-only (Alloy → `127.0.0.1:3100`, no db-internal requirement) and **reads** come only from Grafana on `db-internal`; Loki is never exposed on traefik-public or any LAN bind. **Accepted caveat:** Loki-native `auth_enabled` is tenant *isolation*, not a password gate — a compromised db-internal container could forge a tenant header. Acceptable for the trusted-`db-internal` Phase-1 set; re-evaluate (real credential gateway / separate write+read tenants) if more members join `db-internal`.
+- **Log/metric store access control (HD-342):** VictoriaLogs and VictoriaMetrics authenticate with **real
+  Basic Auth** (`-httpAuth.username/-httpAuth.password`) from the `victoria-logs_api` /
+  `victoria-metrics_api` items — consumed by Alloy (push/remote_write) and the Grafana datasources, and by
+  the oldsrv MCP servers via `*_INSTANCE_HEADERS`. **This is a credential gate, not tenant isolation** —
+  which was the accepted weakness of the previous backend, where a compromised `db-internal` container could
+  forge a tenant header. Exposure: **loopback + the `wg-s2s` address only**, never a WAN or LAN-facing
+  bind. Fail-loud lookups (no `default()`); the `$` in rendered values must be escaped for compose.
+- ⚠ **The Victoria images are tool-less** (`/victoria-*-prod` only — no `sh`, `wget`, `curl`, `nc`), so a
+  `CMD` healthcheck **cannot work** and Docker would mark the container unhealthy forever. Cover them with an
+  external probe (Alloy scrape / blackbox), not a container healthcheck.
 - **Pi keeps only a tiny bounded local log buffer.** The Raspberry Pi primary holds **no durable log store** — Docker uses log driver `local` (`max-size: 10m, max-file: 2`) as RAM/disk resilience when oldsrv/VictoriaLogs is down; the durable, searchable copy lives in VictoriaLogs. Host OS logs run on tmpfs (`journald Storage=volatile` + `/var/log` tmpfs). See [Pi SD-card wear strategy](#pi-sd-card-wear-strategy).
 - **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
-- **Decided (no longer open):** per-host Alloy `instance` label = `{{ inventory_hostname }}` — implemented in `alloy.river.j2` (**HD-116** / KOPS-036, closes HD-55), so series no longer collide across hosts. MikroTik SNMP community = dedicated read-only **`network-snmp_api`** (1Password, fail-loud lookup in `snmp.yml.j2`) + Mgmt-VLAN-only INPUT ACL — decided **HD-53** / KOPS-034; the device-side `/snmp enable` + community set stays an HD-03 deploy step.
+- **Conventions that are settled:** the Alloy `instance` label is `{{ inventory_hostname }}` per host, so
+  series do not collide across hosts (HD-116); the MikroTik SNMP community is a dedicated **read-only**
+  `network-snmp_api` item (fail-loud lookup in `snmp.yml.j2`) behind a Mgmt-VLAN-only INPUT ACL (HD-53) —
+  the **device-side** `/snmp enable` + community setting is still an HD-03 deploy step.
 
 ---
 
@@ -333,35 +454,49 @@ oldsrv is on NVMe and mostly unaffected):
 
 ## Dashboards
 
-> _Provisioned via the monitoring role (`files/dashboards/*.json` → `/etc/grafana/provisioning/dashboards`, 30s hot-reload by the file provider). Datasource uid = `prometheus` (API-seeded by the monitoring role — see `tasks/main.yml`). **LIVE 2026-09-03** — the 5 HD-315 dashboards + ups were copied to `/srv/docker/grafana/provisioning/dashboards/` by the VPS monitoring converge. **LIVE-FIXES 2026-09-08 (HD-346):** Host Overview + Overview host panels repopulated by wiring Alloy's `unix` host exporter (node_* now flowing — VPS 1,641 + oldsrv 1,096 series, both with `job=alloy`/`instance=<host>`); Service Reachability / WAN & Tunnel blackbox + wg panels repopulated by fixing the blackbox probe family (container egress + IPv4 forcing + correct Alloy target pattern); **oldsrv Alloy fixed** (was failed: invalid `forward_to` in `exporter.snmp` + missing `name` on SNMP targets + invalid `timeout/retries` in `snmp.yml` auth — now active, remote-writing to VM) → Network Clients (`mikrotik_client`, 40 series) + UPS (`network_ups_tools_*`) dashboards now populate. **Remaining empty: MikroTik SNMP** (`ifOperStatus` on router/switch) — device-side `/snmp enable` + RO community (HD-03/HD-53) still pending on the RB4011/CRS328 (SNMP port refused); the SNMP exporter + Alloy scrape are wired and ready. Owner step: panel render verification._
+> Provisioned via the monitoring role (`files/dashboards/*.json` →
+> `/etc/grafana/provisioning/dashboards`, hot-reloaded by the file provider in ~30 s). The metrics datasource
+> uid is **`prometheus`** (kept even though the backend is VictoriaMetrics — it is a Prometheus-compatible
+> datasource, and renaming it would churn every provisioned panel).
+>
+> ⏳ **Empty by cause, not by accident:** the **MikroTik SNMP** panels (`ifOperStatus` on router/switch) stay
+> empty until the devices answer SNMP — `/snmp enable` + the read-only community (HD-03/HD-53) are still
+> pending on the RB4011/CRS328. The exporter, the Alloy scrape and the dashboards are wired and ready.
+> The SNMP wiring that had to be correct to get here: `exporter.snmp` needs a valid `forward_to`, every SNMP
+> target needs a `name`, and the auth block's `timeout`/`retries` must be valid for the module — an invalid
+> one fails the whole Alloy reload, not just that target.
 
-> **vLLM dashboards (HD-368, 2026-09-14):** three Grafana-com templates were adapted into this folder (`llm-inference-sglang-vllm` gnet 25502, `vllm-master-v2` gnet 24756, `vllm-dashboard` gnet 25043) — stripped of the grafana.com `__inputs`/`__requires`/`id`/`gnetId` scaffolding, `${DS_PROMETHEUS}` rewritten to the literal `prometheus` datasource uid, uids reissued as `homelab-*`, homelab tags/time/refresh applied. **Data path:** the spark-ai compose publishes vLLM's `:8000` **loopback-only** (`spark_metrics_publish`, traefik `127.0.0.1:8082` precedent) → the **spark Alloy** scrapes `vllm:/metrics` (`prometheus.scrape "vllm"`, `instance=spark.kogler.si`) → remote_write → VPS VM. vLLM serves `/metrics` on the API-server port (PrometheusStatLogger, `vllm:*` metric family, `model_name` label native; `instance` comes from the scrape target). The engine was flipped `spark-ai.enabled: true` 2026-09-14 by the HD-367 Track-1 session (`9445d35`).
+> **The vLLM dashboards (HD-368) — how they are derived, so nobody hand-edits a JSON.**
 >
-> **✅ vLLM dashboards LIVE + CLOSED 2026-09-16 (HD-368; row deleted per §4(a), record lives here).** **Owner visual round-trip on `stats.kogler.si` confirmed all three dashboards render with data.** Deploy: `playbooks/vps.yml --limit vps.kogler.si --tags monitoring` converge (failed=0, changed=3: Alloy config + `Copy Grafana dashboards` + alert rules); the file provider hot-loaded them, and the Grafana API confirms all three uids at `version 2` in the `Homelab` folder with **zero stale metric refs and zero non-English titles**. Close-out evidence: spark engine `vllm-qwen-spark` serves `/health` 200 + **415 `vllm:` sample lines** on the loopback `:8000`; the spark Alloy config carries `prometheus.scrape "vllm"` and remote-writes it; VM holds **137 distinct `job="vllm"` series** for `instance="spark.kogler.si"` (`vllm:kv_cache_usage_perc`, `vllm:prefix_cache_*`, `vllm:time_to_first_token_seconds_bucket` — TTFT p99 ≈ 19 s at 250k-context fill, `up{job="vllm"}=1`). The three JSONs were already provisioned on the VPS (copied by the 2026-09-15 monitoring converge), so the gap was **not** the pipeline but **queries that can never resolve on our deployment**. Live audit (every panel `expr` diffed against the live `/metrics` set AND the VM `job="vllm"` series set) found and fixed:
-> - **V0-era metric removed in V1** — `vllm:num_requests_swapped` (V2 dashboard, Scheduler State) → `vllm:num_requests_waiting_by_reason` (`reason=capacity|deferred`).
-> - **K8s production-stack-only metrics** — `vllm:healthy_pods_total` → `sum(up{job="vllm"})`; `vllm:current_qps` → `sum(rate(vllm:request_success_total[…]))`; `router_{cpu,memory,disk}_usage_percent` (the stack's router hostmetrics we do not run) → the **spark host** via the Alloy unix exporter (`node_cpu_seconds_total`/`node_memory_*`/`node_filesystem_*`, `job="alloy"`, `instance="spark.kogler.si"`, HD-346) — live: CPU 11.7 %, mem 81.6 %, disk(/) 21.4 %.
-> - **Renamed in V1** — `vllm:gpu_prefix_cache_{hits,queries}_total` → `vllm:prefix_cache_*` (and the K8s `endpoint="service-port"` label dropped) — live hit ratio 0.97.
-> - **Not emitted by this engine build** — `vllm:kv_block_idle_before_evict_seconds_bucket` → the panel now shows KV pressure via `vllm:num_preemptions_total` (rate + window).
-> - **Unscoped process metrics** — `process_resident_memory_bytes` / `python_gc_collections_total` existed for 12 jobs in VM (so the panel plotted every process in the homelab) → scoped `job="vllm"`.
-> - **Stale upstream `current:`** — the gnet 25502 export shipped `model_name = /models/DeepSeek-V4-Flash` (the author's model); reset so Grafana auto-selects the live value (`spark/qwen3.8-flash-next`). Left as-shipped, every panel behind that variable renders No data.
+> Three grafana.com exports (25502 / 24756 / 25043) were adapted into this folder. The adaptation is a
+> **script, not a hand edit**: [`scripts/adapt-vllm-dashboards.py`](../scripts/adapt-vllm-dashboards.py)
+> carries every rewrite in `EXPR_REWRITES` / `PANEL_OVERRIDES` / `VAR_OVERRIDES` / `TEXT_TRANSLATE` /
+> `STALE_METRICS`; re-download the exports and re-run it to re-derive the same files. It is byte-idempotent,
+> **fails loud** on an unapplied rewrite, a surviving stale metric or an unmapped non-English string, and
+> English-ises operator-visible strings (the exports shipped Chinese and Korean titles) per the repo language
+> rule. Scaffolding (`__inputs`/`__requires`/`id`/`gnetId`) is stripped, `${DS_PROMETHEUS}` becomes the
+> literal `prometheus` uid, uids are reissued as `homelab-*`.
 >
-> **Reproducible, not hand-edited:** all of the above lives in the drift layer of
-> [`scripts/adapt-vllm-dashboards.py`](../scripts/adapt-vllm-dashboards.py) (`EXPR_REWRITES` /
-> `PANEL_OVERRIDES` / `VAR_OVERRIDES` / `TEXT_TRANSLATE` / `STALE_METRICS`) — re-download the
-> grafana.com exports and re-run the script to re-derive the same files; it fails loud on an
-> unapplied rewrite, a surviving stale metric or an unmapped non-English string, and is
-> byte-idempotent on re-runs. It also **English-ises the operator-visible strings** (the exports
-> carried Chinese titles/tooltips in 25502, Korean in 24756) per the repo language rule.
+> **Data path:** the spark-ai compose publishes vLLM's `:8000` **loopback-only** (`spark_metrics_publish`, the
+> `127.0.0.1:8082` traefik precedent) → **spark's own Alloy** scrapes `vllm:/metrics`
+> (`prometheus.scrape "vllm"`, `instance=spark.kogler.si`) → remote_write to the VPS VictoriaMetrics. vLLM
+> serves `/metrics` on the API-server port via `PrometheusStatLogger` (`vllm:*` family, native `model_name`
+> label; `instance` comes from the scrape config).
 >
-> **Search result (2026-09-16, what else exists):** the three adopted exports are all still at
-> **revision 1** upstream (`grafana.com/api/dashboards/<id>`), so nothing to pull. Candidates
-> considered and **not** adopted: **gnet 25263** "vLLM Metrics" (8 panels, 7 live — thin
-> overlap with what we already have) and **gnet 25620** "vLLM Serving Overview" (actively
-> revised, but queries an `llm:*` **recording-rule** layer + a simulated-GPU panel → 7/13
-> panels dead without Prometheus recording rules we do not run). The official vLLM repo also
-> ships `examples/online_serving/dashboards/grafana/{performance,query}_statistics.json` —
-> version-matched but per-request debugging, covered by the V2 dashboard here. Rejected for
-> bloat/absence, not for quality.
+> **What upstream dashboards assume that this deployment does not have** — the audit result, which is what
+> makes an exported dashboard render "No data" here (each is fixed in the adapter, not in the JSON):
+> - metrics **removed in vLLM V1** (`vllm:num_requests_swapped` → `vllm:num_requests_waiting_by_reason`);
+> - metrics **renamed in V1** (`vllm:gpu_prefix_cache_{hits,queries}_total` → `vllm:prefix_cache_*`, and the
+>   K8s `endpoint="service-port"` label disappears);
+> - **Kubernetes production-stack-only** series (`vllm:healthy_pods_total`, `router_{cpu,memory,disk}_usage_percent`,
+>   `current_qps`) — no router, no pods here: use `sum(up{job="vllm"})`, a rate over
+>   `vllm:request_success_total`, and the **spark host** via Alloy's node exporter for host CPU/mem/disk;
+> - metrics **this build does not emit** (e.g. `vllm:kv_block_idle_before_evict_seconds_bucket`) — substitute
+>   the signal you wanted (`vllm:num_preemptions_total` rate for KV pressure);
+> - **unscoped** process metrics (`process_resident_memory_bytes` exists for every job in the DB, so the panel
+>   plots the whole homelab) — always scope `job="vllm"`;
+> - **stale upstream template variables** — one export shipped `model_name = /models/DeepSeek-V4-Flash`,
+>   which silently No-datas every panel behind it; reset so the live value auto-selects.
 
 | Dashboard | uid | View | Panels back on |
 |-----------|-----|------|----------------|
@@ -383,7 +518,7 @@ oldsrv is on NVMe and mostly unaffected):
 > **Role:** design SSOT for the **single** LLM/inference Grafana board (`homelab-llm`,
 > `stats.kogler.si`) — the merge of the three HD-368 vLLM dashboards plus the spark node
 > + readiness panels the owner asked for. Registered as HD-377 in `todo.md` §2.12.
-> **⏳ deploy-gated:** authored + live-verified against VM 2026-09-16; not yet converged.
+> **⏳ deploy-gated:** authored and verified against live VictoriaMetrics; not yet converged. The three HD-368 dashboards stay provisioned until this board is signed off.
 
 **Generation chain (SSOT direction).**
 `grafana.com exports (25502/24756/25043)` → [`adapt-vllm-dashboards.py`](../scripts/adapt-vllm-dashboards.py)
@@ -421,7 +556,7 @@ on spark — wiring it needs a blackbox exporter reachable from spark's Alloy (a
 sidecar on spark, or scrape the probe from spark's Alloy the way the `vllm` job is
 scraped). Not built in this HD; specified here so the panel is not mistaken for a bug.
 
-**GPU on a GB10 — what is and is NOT obtainable (verified live 2026-09-16, twice).**
+**GPU on a GB10 — what is and is NOT obtainable** (verified live on the box, twice).
 ```
 spark# nvidia-smi -q -d MEMORY   → FB/BAR1 Total/Used/Free: N/A
 spark# nvidia-smi dmon -s um     → fb / bar1 columns: '-'
@@ -437,7 +572,7 @@ to `top`/`htop`/`free` or the DGX Dashboard. So the honest GPU picture is unifie
 (`vllm:estimated_flops_per_gpu_total`, `estimated_read_bytes_per_gpu_total` — live today,
 plotted in "GPU work — engine reported").
 
-**What DCGM actually delivers here (measured by running the on-disk image, 2026-09-16).**
+**What DCGM actually delivers here** (measured by running the on-disk image):
 The exporter starts and initialises, then refuses the profiling module outright:
 `Not collecting DCP metrics: This request is serviced by a module of DCGM that is not
 currently loaded`; forcing `dcp-metrics-included.csv` yields
@@ -479,7 +614,7 @@ informs nothing here beyond corroborating the unified-memory finding. (Its temps
 sit between DCGM's 50–58 °C and the acpitz zones' 65–73 °C — three different sensors; never
 plot them as one series.)
 
-**✅ DCGM is WIRED (HD-379, 2026-09-16) — the six signals that are real on GB10.**
+**DCGM is wired (HD-379) — the signals that are real on GB10.**
 
 | Layer | What ships |
 |---|---|
@@ -494,7 +629,7 @@ the exporter refuses them (`metric not enabled`) and NVIDIA states profiling wil
 on Spark. A new driver making them appear should be an explicit, reviewed IaC edit, not a silent
 cardinality change.
 
-**✅ Deployed + live-verified 2026-09-16.** `VM {job="dcgm"}` returns **exactly the 7 whitelisted
+**Deployed and live-verified:** `VM {job="dcgm"}` returns **exactly the 7 whitelisted
 series** (`GPU_UTIL`, `GPU_TEMP` 46 °C, `POWER_USAGE` 10.25 W, `TOTAL_ENERGY_CONSUMPTION`,
 `SM_CLOCK` 2411 MHz, `XID_ERRORS`, `PCIE_REPLAY_COUNTER`) and the host temperatures arrived too
 (`node_hwmon_temp_celsius` per instance: spark 12, oldsrv 17, nas 9, pi 2 sensors — HD-378's
@@ -529,8 +664,9 @@ via `DCGM_EXPORTER_COLLECTORS` = **138.8 MiB anon** (≈ **−3 %**); the same t
 **spark RAM reading — read the floor, not the ceiling.** On this box the useful signal is
 `node_memory_MemAvailable_bytes` (live: 9.5 GiB of 121.6 GiB with the engine loaded),
 not utilisation %: every global OOM in `spark-incidents.md` came from replace-by-percent
-GPU-reserve arithmetic against this pool. The RAM % panel's thresholds are the HD-375
-alert reserve (warn < 24 GiB / crit < 16 GiB available ≈ 80 % / 87 % used).
+GPU-reserve arithmetic against this pool. The RAM panel and the HD-375 alert rules read the **same**
+gauge — `usable = MemAvailable − CmaFree`, warn **< 12 GiB**, crit **< 8 GiB** — never raw
+`MemAvailable` and never utilisation %, both of which hide the reserve on this box.
 
 **Known limits, recorded rather than hidden.**
 - Every `sglang:*` sibling comes from SGLang's documented metric names + the gnet 25502
@@ -552,13 +688,13 @@ open.
 
 ## Host sensors and disk I/O (HD-378)
 
-Owner ask (2026-09-16): the unified board must cover **CPU, GPU, RAM and DISK io/throughput**
+The board must cover **CPU, GPU, RAM and DISK io/throughput**
 from spark — and temperatures belong on **Host Overview**, not on the LLM board. Two gaps
 were found and closed; one turned out not to be a gap at all.
 
 **Disk I/O needed no new telemetry.** `prometheus.exporter.unix "host"` has enabled the
 `diskstats` collector from the start, so the I/O families were already in VM — verified per
-family for `instance="spark.kogler.si", device="nvme0n1"` on 2026-09-16:
+family for `instance="spark.kogler.si", device="nvme0n1"`:
 `node_disk_read_bytes_total`, `node_disk_written_bytes_total`,
 `node_disk_reads_completed_total`, `node_disk_writes_completed_total`,
 `node_disk_io_time_seconds_total`, `node_disk_io_time_weighted_seconds_total`,
@@ -615,44 +751,48 @@ change**. Same for the community `dgx-spark-exporter` (Go, `:9876/metrics`) — 
 (CPU/mem/disk-IO/filesystem/network/load/fd), its GPU trio is nvidia-smi again, and it
 carries no VRAM and no profiling either; not adopted.
 
-✅ **Deploy state (2026-09-16, same session):** converged and **verified from the backend, not
-from the playbook recap** — `node_hwmon_temp_celsius` now exists per instance: **spark 12,
-oldsrv 17, nas 9, pi 2** sensors. The disk panels needed no converge at all (the families were
-already in VM); they shipped with the dashboard copy. The in-panel ⏳ wording on the two
-temperature panels is now historical — if a temp panel renders empty for some host, that host's
-Alloy has not picked up `set_collectors` yet (check `alloy.service` restart), it is not a
-dashboard bug.
+**Verified from the backend, not from the playbook recap:** `node_hwmon_temp_celsius` exists per
+instance (spark 12, oldsrv 17, nas 9, pi 2 sensors). The disk panels needed no converge at all — the
+families were already in VM; they shipped with the dashboard copy. **If a temperature panel renders
+empty for one host, that host's Alloy has not picked up `set_collectors` yet** (check the
+`alloy.service` restart) — it is not a dashboard bug.
 
-⚠ **Converge note that cost an hour (HD-379):** a new/changed Alloy config converges under
-`--tags monitoring`, but the **first deploy of a compose service needs the service's own tag**
-(`--tags monitoring,docker_services,<name>`) or the deploy tasks are silently skipped while the
-run still reports `failed=0`. Proof = a backend query / `docker ps`, never the recap.
+⚠ **Converge trap (HD-379):** a new/changed Alloy config converges under `--tags monitoring`, but the
+**first deploy of a compose service needs that service's own tag**
+(`--tags monitoring,docker_services,<name>`) or the deploy tasks are silently skipped while the run
+still reports `failed=0`. Proof = a backend query or `docker ps`, never the recap.
 
 
-> **Metric-name gaps (authoring-time, 2026-09-04):** the panel expression names above match the **alert-rule metric names** in the monitoring role (`vars/main.yml`) and the Prometheus scrape jobs — but several component metrics are **not yet verified live** (no running instance to scrape until the next converge):
-> - `traefik_requests_total` — **✅ CLOSED 2026-09-04 (IaC + live):** the Traefik compose now enables a Prometheus metrics endpoint on the main edge (`--metrics.prometheus=true` + `--entryPoints.metrics.address=:8082` + `db-internal` net join so Prometheus can resolve `traefik:8082`). **Live-verified:** `up{job="traefik"}=1` + `traefik_entrypoint_requests_total` flowing (v3 name — the dashboards use `traefik_entrypoint_requests_total`, NOT the v2 `traefik_requests_total`).
-> - `network_ups_tools_*` (UPS) — **✅ RESOLVED 2026-09-04:** DRuggeri/nut_exporter v3 emits `network_ups_tools_*` (battery_charge/runtime/voltage, output_voltage, ups_load, per-flag `ups_status`) via `/ups_metrics?ups=powerwalker` — NOT `nut_*`. Prometheus scrape (metrics_path+params), alert rules + UPS dashboard all updated to match. **✅ Exporter PINNED (2026-09-04, HD-315):** `roles/nut/defaults/main.yml` `nut_exporter_release: "v3.3.0"` (latest tagged release 2026-05-15, replacing the earlier `@latest`→`(devel)` drift); binary already deployed on nas (`3.3.0`, verified live). Renovate trails the tag.
-> - `node_cpu_seconds_total` / `node_uname_info` — the Alloy `unix` exporter's exact series names are node_exporter-compatible (occupying the `job="alloy"` namespace); the dashboard reads them generically. **✅ FIXED + LIVE 2026-09-08 (HD-346):** the `prometheus.exporter.unix "host"` block was declared but never consumed (Alloy components are lazy) → zero `node_*` series. Wired it via `discovery.relabel "host_metrics"` + `prometheus.scrape "host_metrics"` (tag `job="alloy"`, `instance=vps.kogler.si`). VM now has 1,641 `node_*` series; Host Overview + Overview host panels populate.
-> - `crowdsec_decisions` — **✅ FIXED (2026-09-08):** the WAN dashboard queried a phantom name; the real CrowdSec metric is **`cs_active_decisions`** (Gauge, labels `reason`/`origin`/`action` — live-verified 10 series, `origin=CAPI`). Dashboard query updated.
-
+> **Metric names that are not what you would guess** — every one of these was guessed once and cost a
+> dead panel:
+> - Traefik: **`traefik_entrypoint_requests_total`** (v3). `traefik_requests_total` is the v2 name and is
+>   a phantom here. The metrics endpoint is enabled on the main edge (`--metrics.prometheus=true`,
+>   `--entryPoints.metrics.address=:8082`) with a `db-internal` join so the collector can resolve
+>   `traefik:8082` at all.
+> - UPS: **`network_ups_tools_*`** (DRuggeri/nut_exporter v3, path `/ups_metrics?ups=<name>`), **not**
+>   `nut_*`. The exporter is **version-pinned** (`nut_exporter_release`) — `@latest` tracks `(devel)` and
+>   its metric names move.
+> - CrowdSec: **`cs_active_decisions`** (labels `reason`/`origin`/`action`), not `crowdsec_decisions`.
+> - Host metrics: the Alloy `unix` exporter is node_exporter-compatible (`node_cpu_seconds_total`,
+>   `node_uname_info`, …) in the `job="alloy"` namespace — **and an Alloy component that is declared but
+>   not consumed is silently dead** (`prometheus.exporter.unix` produced zero `node_*` series until a
+>   `discovery.relabel` + `prometheus.scrape` pair consumed it). Lazy evaluation is the usual cause of
+>   "the exporter is running but the metric does not exist".
 
 ---
 
 ## Network Clients Dashboard (HD-343)
 
-> **Role:** design SSOT (authoring spec) for the “all network clients, grouped per VLAN”
-> Grafana dashboard at `stats.kogler.si`. Registered as HD-343 in `todo.md` §2.5.
-> **2026-09-08 (HD-343): exporter role + dashboard JSON AUTHORED in
-> `IaC/ansible/roles/monitoring/`** (host-binary `network-clients-exporter` on oldsrv +
-> `homelab-network-clients` dashboard). **LIVE 2026-09-08 (oldsrv converge):** exporter
-> deployed + verified — runs as `networkclients` (0750 root:networkclients), pinned
-> `routeros-api==0.21.0` in `/opt/network-clients-exporter` venv (trixie has no
-> `python3-routeros-api` apt pkg; the exporter imports PyPI `routeros_api`), `ROUTER_TLS`
-> bool-render fixed; unit active, `/metrics` serves real `mikrotik_client` union
-> (DHCP/ARP/FDB/wifi from the RB4011 `logpipe` read-only user). ⏳ **Owner/verify steps:**
-> live wifi-path verify (`/interface/wifi/registration-table` vs legacy), owner
-> render-verify, dashboard reachable on `stats.kogler.si` after the VPS Grafana
-> provisioning converge (VPS-side, post-Victoria).
+> **Role:** design SSOT for the "all network clients, grouped per VLAN" Grafana dashboard
+> (`homelab-network-clients`) at `stats.kogler.si`; HD-343 in `todo.md`.
+> **Status: ✅ exporter live on oldsrv, ⏳ owner render-verification owed.**
+> Deployment shape (all of it load-bearing): host binary + venv under `/opt/network-clients-exporter`
+> (`routeros-api==0.21.0` pinned — Debian has no `python3-routeros-api` package and the exporter imports
+> the PyPI module name `routeros_api`), running as `networkclients` with the install dir `0750
+> root:networkclients` so a low-privilege service user holds the RouterOS credentials, and `/metrics`
+> serving the `mikrotik_client` union (DHCP + ARP + FDB + wifi) from the RB4011 `logpipe` read-only user.
+> ⏳ Open: verify the wifi path against `/interface/wifi/registration-table` (vs the legacy API) and the
+> owner render-check of the dashboard.
 
 **Goal.** One dashboard showing *every* client on the homelab, grouped by VLAN
 (10 Home / 20 IoT / 30 Guest / 40 Kids / 50 Media / 99 Management).
@@ -714,11 +854,9 @@ convention `homelab-*`, datasource uid `prometheus` — same as HD-315 dashboard
 | VLAN distribution stat | 6 stacked counts (10/20/30/40/50/99) | `count by (vlan)` |
 | WiFi vs wired | optional breakdown | `source=wifi` vs others |
 
-**Gates before implementation.**
-- ✅ `todo.md` HD-343 row exists (this design).
-- ✅ **2026-09-08: exporter role + dashboard JSON authored** in `IaC/ansible/roles/monitoring/`
-  (`network-clients-exporter.py.j2` host binary + systemd unit + Alloy `prometheus.scrape`
-  `network_clients` + `homelab-network-clients.json` dashboard).
+**Open before this is called done.**
+- Exporter + dashboard are authored and deployed (`roles/monitoring/`: `network-clients-exporter.py.j2` host binary +
+  systemd unit + Alloy `prometheus.scrape "network_clients"` + `homelab-network-clients.json`).
 - ⏳ Confirm live wifi path: modern `wifi-qcom-ac` registers under `/interface/wifi/registration-table`
   (legacy `/interface/wireless/registration-table` in `skills/mikrotik` is the old path).
 - ⏳ Router API reachable from oldsrv (Mgmt) — already the case for the SNMP exporter; re-verify with
@@ -735,7 +873,7 @@ convention `homelab-*`, datasource uid `prometheus` — same as HD-315 dashboard
 | Pi recorder trim + log strategy | after observability live (HD-19) | recorder trimmed, **not disabled** (keep Logbook/Energy-Dashboard LTS/history_stats); Pi logs → VictoriaLogs + `local` driver buffer + `/var/log` tmpfs — see [Pi SD-card wear strategy](#pi-sd-card-wear-strategy)
 | Homematic full-local (HmIP-RFUSB + RaspberryMatic on Pi) | **parked (HD-13)** — HmIP-HAP stays in cloud mode until an HmIP-RFUSB is bought | see `smart-home.md` — affects HAP/HA integration, not metrics flow |
 | Container memory working-set metrics (Docker API → VictoriaMetrics) | with the *arr stack | validates the `services.md` RAM budget with real numbers, not estimates |
-| **Homelable** (interactive topology/rack visualizer) | **Implementation authored, deploy-gated (HD-45, 2026-09-09)** — oldsrv, internal-only dashboard. Live health-check map + rack canvas w/ port patching + nmap scan + MCP server. **Not** a metrics/logs/alert backend — it complements Grafana/HD-343 (see §Network Clients Dashboard). Owns the "who's on my network + where" visual that Grafana's per-VLAN tables don't. Deployment spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable. |
+| **Homelable** (interactive topology/rack visualizer) | **Authored, deploy-gated (HD-45)** — oldsrv, internal-only dashboard. Live health-check map + rack canvas w/ port patching + nmap scan + MCP server. **Not** a metrics/logs/alert backend — it complements Grafana/HD-343 (see §Network Clients Dashboard). Owns the "who's on my network + where" visual that Grafana's per-VLAN tables don't. Deployment spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable. |
 | Route alerts to a **Matrix room** (`#homelab`) | with the Matrix stack (HD-46) | optional consolidation — alongside the Signal + SMTP fail-safe; homeserver/exporter only. · [`services-matrix.md`](services-matrix.md) |
 | **Home-side tunnel check** (S14) | after Phase 1.5 cutover | blackbox `wg_icmp` probes run FROM the VPS (HD-159); add a router-side netwatch → SNMP trap (or equivalent) so a home↔VPS outage is also observable from home when the VPS path is the broken side |
 | **Monitoring role split** (W6) | only when dashboard/rule iteration gets slow | Alloy+VictoriaMetrics+VictoriaLogs+Grafana live in one `monitoring` role — any rule tweak redeploys the chain; split into `tasks/{alloy,victoria-metrics,victoria-logs,grafana}.yml` includes + tags (no structural move needed until it hurts) |
