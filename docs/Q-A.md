@@ -130,6 +130,20 @@ or flag the item; the fix belongs in a code commit with its own validation.
 4. **`home-assistant-primary` compose renders HA `environment: {}`** while `services-ai.md` documents
    `LITELLM_BASE_URL`/`LITELLM_API_KEY` as the mechanism — HA today cannot reach the gateway at all.
    Needs the env wiring (or an explicit decision that HA's Assist uses something else).
-5. **`docs/services-ai-bench.md` §4 still names `tailscale-scale-test-...:8443` as the live
-   `SPARK_LLM_BASE_URL`** while §4a records it as torn down and the live edge being `llm.kogler.si`.
-   Docs now point at §4a; the bench file's own §4 is a measurement record, so it was left alone.
+6. **`group_vars/raspberry_pi.yml` calls oldsrv the Technitium "primary"** — the tier is VPS primary +
+   Pi tertiary today; `group_vars/home_servers.yml`'s header and `playbooks/storage.yml`'s header still
+   name the observability backend as **Prometheus/Loki** (three comment-only drift sites of the same class;
+   a grep in `check-doc-facts`-style validation would keep them from coming back).
+7. **Zipline is `enabled: true` in `group_vars/vps.yml`** (public `bin.`) while
+   `docs/services-utilities.md` said "IaC complete, NOT deployed" until this sweep — either it was converged
+   (then say so in the doc) or the registry row is ahead of the box.
+8. **`templates/docker_services/traefik-tailnet/docker-compose.yml.j2` still documents `tailnet-apps` as the
+   overlay carrying the dsh/pi-dev sidecars**, both of which are parked (`enabled: false`, HD-386). Docs now
+   mark those tailnet nodes PARKED and say their routes answer 502 — decide whether to delete the
+   routes/DNS records or keep them as deliberate 502 markers.
+9. **`IaC/host/pi/first-boot-config.sh` + `scripts/README.md` still tell the operator to flash a
+   `raspi.debian.net` image**, which boots to a rainbow screen on this Pi 4; the runbook now says official
+   Raspberry Pi OS Lite.
+10. **`docs/services-ai-bench.md` §4 still names `tailscale-scale-test-...:8443` as the live
+    `SPARK_LLM_BASE_URL`** while §4a records that tunnel as torn down and `llm.kogler.si` as the live edge.
+    The bench file is a measurement record, so §4 was left alone; anything reading it should take §4a.
