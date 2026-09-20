@@ -11,7 +11,14 @@ tags: [smart-home, homeassistant]
 > **Links to:** `smart-home-voice.md`, `smart-home-audio.md`, `smart-home-failover.md`, `home-assistant-current.md`, `interfaces.md`
 > **Linked from:** `index.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The HA primary (Pi, HAOS→Docker redo) + standby (oldsrv) + voice pipeline are designed but **not live**; the current live instance is the HAOS box documented in [`home-assistant-current.md`](home-assistant-current.md). Deploy tracks HD-04 (Pi redo) / Phase 4.
+> **Status.** The **HA primary is live on the Pi** as Debian + HA Container (the HAOS→Container redo is done;
+> the old HAOS box is gone), with **Technitium secondary** co-located and the `ha-vip` VIP held by
+> keepalived. ⏳ **Open:** the **cold standby on oldsrv** is reachable by VIP but **cannot drive KNX**
+> (the GIRA router drops KNXnet/IP from that host) — see
+> [smart-home-failover.md](smart-home-failover.md) before trusting it as a control-plane standby — and the
+> **voice pipeline is not built**: the STT/embed/rerank engines it will use are live on the RX 7600, but
+> no wake-word device, Assist pipeline or TTS output is deployed. The pre-redo inventory of the old
+> instance is kept in [`home-assistant-current.md`](home-assistant-current.md); failover tracks HD-04.
 
 ---
 
