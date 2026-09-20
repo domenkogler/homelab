@@ -268,9 +268,10 @@ driver. Nothing here adds a scrape target or a dashboard.
 
 ## 4. LLM routing & keys
 
-- **Through the gateway:** Open WebUI, OpenClaw, Docling, HomeAssistant and Qdrant's embed/rerank
-  authenticate to **LiteLLM only**, via per-consumer **scoped virtual keys** (HD-247) — they never hold
-  `openrouter_api` or the master key.
+- **Through the gateway (the rule):** any consumer that must not hold an upstream credential authenticates
+  to **LiteLLM only**, via a per-consumer **scoped virtual key** (HD-247) — never `openrouter_api`, never the
+  master key. Open WebUI, OpenClaw and Qdrant's embed/rerank path do this today; Docling and Home Assistant
+  are covered by the rule but **not yet provisioned a key** (HD-384).
 - **Direct to the engine:** the coding harnesses (workstation pi.dev, Continue.dev, future dedicated
   harness deploys) → `https://llm.kogler.si/v1`. Rationale in §9 row 26 + §9d; the client-side contract in
   [pi-harness.md](pi-harness.md) §1b.
