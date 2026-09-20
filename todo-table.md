@@ -5,6 +5,12 @@
 >
 > **Rebuilt 2026-09-20** from `todo.md` + [`prompt.md`](prompt.md) as they stand after the HD-391 deploy and decision #28. What moved since the 2026-09-18 build of this table:
 > - **Added from the docs SSOT sweep (2026-09-20):** **HD-403** (Home Assistant has no LiteLLM path — the voice LLM leg is unwired) and **HD-404** (the stale IaC strings/comments, incl. one that feeds a generated doc), plus ⏳ tails on **HD-384** (LAN has zero scoped consumers today) and **HD-386** (parking the harnesses left their tailnet routes answering 502).
+> - **Remote-dev-plane thread added (2026-09-20, owner direction):** seven new rows — **HD-405/406/408/410**
+>   (transport), **HD-407/409/411/413** (runner, cockpit, guardrail), **HD-412** (remote desktop) — with the
+>   decisions already appended to the `network` / `deployment` / `services` decision logs and three file-disjoint
+>   lane briefs ([prompt-405.md](prompt-405.md) · [prompt-407.md](prompt-407.md) · [prompt-412.md](prompt-412.md)).
+>   Two standing decisions were **scoped, not repealed**: the tailnet boundary now permits exactly one home host
+>   with no advertised routes, and the VLAN-99 seal (HD-398 A) is untouched.
 - **HD-391 is CLOSED** (2026-09-19) — the three pinned-AI legs are live on oldsrv, so it is no longer a lane, and the "owner call: ship the rerank leg or park it" question it carried here is **answered**: it ships **dormant**, because its consumer (`rag-mcp`) is the HD-268b compose STUB, not a flag to flip.
 > - **HD-392 and HD-398 are deleted rows** (both closed 2026-09-19) — oldsrv SSH is not a blocker, and the Mgmt-plane question is settled as **A: the seal stays** ([network-rejected.md](docs/network-rejected.md)).
 > - **Five open rows were missing from this table and are added:** **HD-396** (the last `spark-llm_api` consumer to verify), **HD-385** (now a research record, not work), and the 2026-09-20 vision-tier thread **HD-400 / HD-401 / HD-402** (decision #28).
@@ -35,6 +41,26 @@ Ordered by what actually unblocks the most. ⏳ = the exact next action, not a r
 | HD-382 | 2 | Only tails left: the scoped-key allowlist question is **HD-384** (owner), the stale `dsh` secret is **HD-383** (owner) | The model entry is live in both LiteLLM DBs + E2E verified |
 | **HD-388** | 2 | Decide the renderer shape (Jinja alongside `scripts/render_all.py` vs a standalone script), then render `pi` `models.json` + a Continue config from one spec, credential resolved via `op` at render time | Pure repo tooling. ⚠ The template must NOT merge the two `contextWindow` numbers (engine 262,144 vs the LiteLLM row's 245,760 = window − reserve) — they differ on purpose |
 | **HD-376** | 2 | Promote the `spark-lane` 64k profile; run the 262k needle test; measure parent-vs-lane KV contention | Engine + harness config are live; the lane profile is authored-on-paper only and the 262k test still gates agentic max-context work. ⚠ Needs a spark bench window (same window as HD-359/367 + HD-400) and never an attached agent session |
+
+### 🆕 Remote-dev plane (thread opened 2026-09-20 — three lanes, three briefs)
+
+The owner's coding plane moves from the laptop to **oldsrv**, driven from **Android**, without the VPS sitting in
+the data path. Decisions are already in the domain decision logs; the work below is what is left. Lanes are
+file-disjoint on purpose — run one per session: **[prompt-405.md](prompt-405.md)** (transport: HD-405/406/408/410),
+**[prompt-407.md](prompt-407.md)** (runner + cockpit: HD-407/409/411/413), **[prompt-412.md](prompt-412.md)**
+(remote desktop: HD-412).
+
+| HD | P | ⏳ Next action | Why nothing blocks it |
+|----|---|----------------|------------------------|
+| **HD-413** | 2 | The fail-loud assert refusing oldsrv's own `network`/`ssh`/firewall/`storage` roles when oldsrv is the controller — **before** HD-407 goes live | Pure IaC, and it is the safety net for the whole thread: a phone-driven agent will converge the netdev/VLAN-99/firewall role of the box it is logged into if nothing refuses. Show a refused run AND an allowed run in the commit. ⛔ no `default()` / `failed_when: false` (HD-399 rule) |
+| **HD-405** | 1 | Owner mints the headscale preauth key + tag and seeds the 1P item → then the node IaC, `tagOwners` in `policy.hujson`, and the §Tailnet-boundary rewrite | The data path today is `phone → headscale → VPS edge → WG S2S → oldsrv`, so a VPS outage kills remote dev with the home link healthy. Home WAN is a **static public IPv4**, so P2P is available. ⛔ one host, no advertised routes, VLAN-99 seal untouched (HD-398 A stands) |
+| **HD-409** | 1 | Owner picks the cockpit surface; then the harness + deployment under a dedicated non-human account on oldsrv | Compatible with decision #26 (harness still goes direct to `llm.kogler.si`) and with HD-386 (a **dedicated deployment** is what #26 left room for). ⛔ do not re-enable the parked `pi-dev`/`dsh` registry rows — that re-renders an empty 1P item and turns the whole oldsrv converge red. Blocks on HD-384 only for the spark-edge credential, not for the work |
+| **HD-407** | 1 | Owner seeds the `op` read-scope token + host keys on oldsrv → then bootstrap the runner and prove `--check` green **from oldsrv** per inventory group | An improvement, not just a move: `playbooks/dns.yml` is IP-filtered to the home WAN and its own text demands a *home* control plane (HD-397 measured the laptop failing that). The laptop runner stays until the first oldsrv-run log exists |
+| **HD-406** | 2 | Owner picks the peer credential + full-tunnel vs scoped, then the router role/template render + `/import` | The only path depending on neither the VPS nor headscale, and a full-tunnel peer also answers the Slovenian-egress need with **no exit node**. Re-evaluation of "WG is site-to-site only" is logged with its reason; family path stays on Headscale |
+| **HD-412** | 2 | Owner: family machines on the tailnet vs ID-access by rendezvous + the bandwidth quota → then §5 onboarding (exposure/auth → secrets → compose → registry → backup) | The reflex objection (VPS RAM) is false on the facts — upstream's floor is a Raspberry-Pi-class box; the real constraint is relay **bandwidth** when hole-punching fails. ⛔ never on oldsrv: a rescue tool behind the thing it rescues is not a rescue |
+| **HD-410** | 3 | Measure `DIRECT` vs `relay` from a phone on mobile data over a few days, then decide self-hosted DERP on the number | The derp map uses the **public Tailscale** relays, so a failed hole-punch puts a third party in a dev session. But building a DERP on a hypothesis buys a public listener for nothing — measure first |
+| **HD-411** | 3 | Owner sideloads the APK + pairs, 2-week verdict; AI: tailnet-bound daemon + password + host allowlist, **relay off** | Posture-safe mode is the one its own docs recommend for VPN use; the alternative app is logged rejected because its relay is mandatory and its payload is not E2E-encrypted today. The browser cockpit stays **primary** — an app someone else maintains cannot be a dependency |
+| HD-408 | 2 | Owner answers: exit node stays on the Pi, or moves to oldsrv | Blocks nothing else. The doc refuses oldsrv as the *"disposable tier"* — a premise this thread removes; and Android scopes an exit node per-app, so geo-egress ≠ all-traffic-through-home |
 
 ### AI / Office
 
@@ -131,6 +157,10 @@ Grouped by *why*. Clearing these cascades into the AI table above.
 
 | HD | P | Decision / seed | Blocks |
 |----|---|-----------------|--------|
+| HD-412 | 2 | Family-support onboarding model: family machines **join the tailnet** (then the server only serves non-members) vs dial in by **ID + relay**; and the VPS bandwidth quota | AI builds the VPS server half either way; the tailnet-whitelist half waits on HD-405 |
+| HD-409 | 1 | Which cockpit surface is primary (`@ygncode/pi-web`'s disconnect-tolerant session model vs `pi-web-ui`'s richer cockpit), + seed the provider credential | The surface pick is the owner's; everything after it is AI work. HD-384 separately owes the spark-edge client credential |
+| HD-407 | 1 | Seed the read-scope `op` token + the per-host keys on oldsrv (only a human places these) | AI bootstraps the runner and proves `--check` green from oldsrv; the laptop stays as rescue until that log exists |
+| HD-408 | 2 | Exit-node host: keep the Pi or move it to oldsrv | The Pi leg is not retired without an explicit word |
 | **HD-384** | 1 | **Which simple querier gets what** — HomeAssistant / Docling / OWUI: `spark/*` vs `ollama/*`, with `max_budget`/`rpm`; plus hardening `spark-llm_api` (triple-used today). ⚠ New input from decision #28: if HD-400 lands, an image part becomes a hard **400**, so an OWUI-class consumer must be told | The LAN `bootstrap_keys` flip back to true; any scoped consumer of `spark/*` |
 | **HD-388** | 2 | Choose the renderer shape (Jinja alongside `render_all.py` vs a standalone script) | Rendering `pi`/`continue` client config from one repo spec |
 | **HD-383** | 1 | Vault + Admin-UI remediation of the stale `dsh` secret (documented in the script header; deliberately **not** automated) | Un-parking any scoped-key record; today it is unreachable, not fixed |
