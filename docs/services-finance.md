@@ -187,21 +187,22 @@ TR / MC card ──▶ CSV export (manual) ─▶ watched folder                
                                       │                            oldsrv · budget.kogler.si
                       uncategorized   │                            (LAN internal)
                           txns        ▼
-                          LLM node → LiteLLM spine (VPS) ── WG S2S ──▶ Ollama
+                          LLM node → LiteLLM gateway (VPS) ──▶ gateway model row
                           categories written back via Actual API
 ```
 
-### AI Categorization via local Ollama (LiteLLM spine)
+### AI Categorization via the LiteLLM gateway
 
-Categorization runs inside each import workflow in **n8n**: unmapped payees go to an LLM node pointed
-at the **LiteLLM spine** on the VPS (`llm-backend` isolation means nothing targets Ollama directly —
-HD-59); LiteLLM routes to Ollama on the RX 7600 (small model like `llama3.2:3b`). The category is
-written back to Actual via its API. No extra copilot container is onboarded — the earlier "community
-AI copilot tool" idea is superseded by this n8n-native loop.
+Categorization runs inside each import workflow in **n8n**: unmapped payees go to an LLM node pointed at
+the **LiteLLM gateway** on the VPS, which routes to a model row. Nothing targets an engine directly
+(HD-59) — **the only sanctioned client path is `base URL + key + model name`**, so the workflow is
+unaffected by where a model physically runs. The category is written back to Actual via its API.
+**Do not add a copilot container:** the n8n-native loop replaced the earlier "community AI copilot tool"
+idea.
 
-**No extra GPU cost:** Ollama runs on the existing AMD RX 7600 (8 GB VRAM), shared with Qwen/Llama
-for office LLM use. A small model like `llama3.2:3b` or `qwen2.5:7b` handles category inference in
-fractions of a second per transaction.
+**Pick the cheap tier:** this is classification work, so it belongs on a fast/no-reasoning row rather
+than the reasoning tier — cost here is per-transaction volume, which is exactly the class of spend the
+per-consumer budgets exist to bound ([services-ai.md](services-ai.md) §Consumers).
 
 
 ## Decisions
@@ -315,7 +316,7 @@ Remaining before/at first deploy:
 - [Service Catalog](services.md) — catalog rows, networks, the public subdomain set
 - [Authentik — Identity & SSO](services-authentik.md) — Forward-Auth config for `budget.*`
 - [Traefik — Reverse Proxy & Edge](services-traefik.md) — route config, wildcard cert, Forward-Auth labels
-- [Local LLM & Office Tools](services-office.md) — Ollama sharing GPU with office LLM workloads
+- [Local LLM & Office Tools](services-office.md) — the same gateway consumers and budgets
 - [Storage — ZFS](storage.md) — dataset layout for backup
 - [Backup Architecture](backup.md) — Kopia off-site + ZFS snapshot schedule
 - [Subscriptions & Costs](subscription.md) — no new subscriptions for this stack

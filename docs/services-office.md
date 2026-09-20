@@ -20,7 +20,8 @@ tags: [services, llm, ollama, office]
 
 Office AI tools run on the **same oldsrv GPU** as voice assistant and Immich ML. The AI **platform**
 (routing, models, keys) is owned by [`services-ai.md`](services-ai.md) — the LiteLLM spine is the only
-path to Ollama/upstream providers; this doc covers only the office slice. VRAM management:
+path to any model, whether a local engine tier or a paid upstream; this doc covers only the office
+slice. VRAM management:
 [`hardware-gpu.md`](hardware-gpu.md).
 
 ---
@@ -88,7 +89,7 @@ oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
 
 - No Wine, no VM, no Windows license — fully native Debian
 - Zero cloud dependency for editing (works offline)
-- AI queries route through the LiteLLM spine ([`services-ai.md`](services-ai.md)) to local inference on **spark** (Triton) — consumers never call LLMs directly (Ollama on oldsrv disabled)
+- AI queries route through the LiteLLM spine ([`services-ai.md`](services-ai.md)) — **consumers never call an engine directly**: generation lands on spark's vLLM, the pinned embed/rerank/STT legs on oldsrv's GPU, and anything non-Vulkan stays on the CPU fallback
 
 ### MS Office via Open WebUI MCP Tools (Windows 11 Clients)
 
@@ -109,7 +110,7 @@ oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
 | **Open Web UI** | SSOT chat + RAG + all tools (browser UX) |
 | **OpenCloud** | File SSOT — Office files round-trip here (`file.kogler.si`) |
 | **Office MCP bridge** (client PC) | Native Windows per-client MCP server exposing Word + Excel + PowerPoint tool-groups via COM to the running Office apps |
-| **LiteLLM / Ollama** | Model backend; function-calling model (e.g. Qwen, Claude via OpenRouter) for tool calls |
+| **LiteLLM gateway** | Model backend: a function-calling model from the consumer's allow-list (local spark tier today, paid upstreams only where an allow-list permits) |
 
 **Topology (two edit paths):**
 
@@ -128,7 +129,7 @@ oldsrv runs **Debian as its host OS** — family desktop uses ONLYOFFICE:
 | Component | Role |
 |-----------|------|
 | **n8n** (self-hosted, Docker) | Automation workflows with local LLM node — **also the observability alert router** (see [`observability.md`](observability.md)) |
-| **Ollama** | LLM backend for drafting, summarizing |
+| **Gateway LLM** | Drafting / summarization model — reached through the gateway, never as a direct engine URL |
 | **IMAP/SMTP** | Connects n8n to email inbox |
 
 Workflow: n8n monitors inbox → new email triggers LLM → draft saved for human review → approve and send.
@@ -178,7 +179,7 @@ Phase 1: €0 additional. Phase 2 hardware is one-time capital expense.
 
 Depends on:
 1. oldsrv with GPU operational
-2. Ollama + model downloads
+2. The gateway reachable and the office consumer's allow-list carrying a function-calling model
 3. n8n Docker setup
 4. **Office MCP bridge via Open WebUI** (HD-111) — Windows COM bridge + server-side python-docx/pptx/openpyxl path
 5. ONLYOFFICE on oldsrv desktop

@@ -78,7 +78,7 @@ networks:
 
 ## GPU-Enabled Containers
 
-Services that need GPU access on oldsrv: **Immich-ML + Sunshine** (AMD RX 7600 dGPU; Ollama removed — LLM inference consolidated on spark/Triton, HD-335) and **Jellyfin** (Intel HD 630 iGPU transcode, not the AMD dGPU). Immich-ML bundles its own ROCm runtime and needs only `/dev/dri` + `/dev/kfd`.
+Services that need GPU access on oldsrv: **the pinned AI tier** (embed / rerank / STT on the Vulkan runtime), **Immich-ML** and **Sunshine** — all on the AMD RX 7600 dGPU — plus **Jellyfin**, which transcodes on the Intel HD 630 **iGPU**, not the dGPU. There is no general LLM runtime on this box: generation lives on spark (HD-335). Immich-ML bundles its own ROCm runtime and needs only `/dev/dri` + `/dev/kfd`.
 
 ```yaml
 services:

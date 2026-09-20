@@ -20,7 +20,7 @@ tags: [smart-home, homeassistant]
 ```
 [User Voice] → [Guition ESP32-S3 / Android Phone] → Wi-Fi
      → [oldsrv (Docker)] → Whisper STT
-     → [Ollama LLM] → Response text
+     → [LLM via the LiteLLM gateway] → Response text
      → [Piper TTS] → Audio output
      → [Home Assistant] → executes command
      → [WiiM Bar / Audio Pro speaker] → plays response

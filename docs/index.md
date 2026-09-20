@@ -81,7 +81,7 @@ docs/
 ├── hardware-gpu.md                        Shared GPU resource (cross-cutting)
 ├── hardware-nas.md                       HP MicroServer Gen8 ZFS storage (+ external SilverStone case)
 ├── hardware-ups.md                       PowerWalker VFI ICT/ICR IoT 3000 (UPS) — links, Modbus TCP, NUT status
-├── hardware-spark.md                       NVIDIA GB10 Triton inference node (spark.kogler.si) — replaces the old Phase-2 Ryzen/R9700 build (archived in decision log + git)
+├── hardware-spark.md                       NVIDIA GB10 vLLM inference node (spark.kogler.si) — replaces the old Phase-2 Ryzen/R9700 build (archived in the decision log + git)
 ├── hardware-workstation.md               Admin laptop (Strix Halo) = client-side inference tier: FIM autocomplete + visual judgment; NPU out
 ├── spark-incidents.md                       spark OOM / engine-restart incident log (append-only; knowledge = hardware-spark.md §Unified-memory budget)
 ├── services-finance.md                    Personal finance: Actual Budget, Enable Banking, account import strategy, AI categorization
@@ -129,7 +129,7 @@ docs/
 ├── smart-home-rejected.md                 Append-only smart-home decision log
 ├── home-assistant-current.md              Live HA instance inventory (HAOS, plugins) + HAOS→Docker feasibility
 ├── smart-home-failover.md                 HA active/standby failover + takeover/failback runbooks
-├── smart-home-voice.md                    Voice pipeline: Whisper → Ollama → Piper
+├── smart-home-voice.md                    Voice pipeline: Whisper STT → gateway LLM → Piper TTS
 ├── smart-home-audio.md                    WiiM Bar, Audio Pro, Chromecast
 │
 ├── services-office.md                          Local LLM, office tools, ONLYOFFICE, n8n
@@ -184,7 +184,7 @@ docs/
   | Host | FQDN | Role |
   |------|------|------|
   | Old desktop + Docker host | `oldsrv.kogler.si` | internal/GPU/LAN host (immich-ml, jellyfin/*arr, DNS, HA standby; Sunshine + immich-ML GPU — Ollama removed to spark) |
-  | Lenovo ThinkStation PGX | `spark.kogler.si` | **headless NVIDIA GB10 (GB10 Grace Blackwell) AI inference node** — Triton + NVFP4 model set (planned) |
+  | Lenovo ThinkStation PGX | `spark.kogler.si` | **headless NVIDIA GB10 (GB10 Grace Blackwell) AI inference node** — vLLM, text-only generation tier (vision lives on the workstation) |
   | HP MicroServer NAS | `nas.kogler.si` | ZFS storage server |
   | Raspberry Pi 4 | `pi.kogler.si` | Home Assistant primary node (HA service = VIP `ha.kogler.si`) |
   | MikroTik Router | `router.kogler.si` | PPPoE, VLAN routing, firewall, WireGuard, CAPsMAN |

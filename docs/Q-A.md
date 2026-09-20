@@ -108,3 +108,28 @@ fact survives only there, I keep that fact as a plain spec line. **Nothing gets 
 old.** Confirm that is the intent, or say "never delete a heading, only rewrite it".
 
 **A:**
+
+---
+
+## Findings in **IaC**, not docs — deliberately not touched by this sweep
+
+Each of these is a stale *fact in code/config*, found while reading docs. Docs now say the true thing
+or flag the item; the fix belongs in a code commit with its own validation.
+
+1. **`roles/amd_rocm` still writes `OLLAMA_KEEP_ALIVE` to `/etc/environment`**
+   (`tasks/main.yml:69`) although there is no host Ollama. Harmless but misleading; the pinned tier is
+   `llama-server`/`whisper-server`, which ignore it.
+2. **`group_vars/all/main.yml:323` describes the `llm-backend` bridge as "LLM backend (Ollama) ↔ LiteLLM"**
+   — that string flows into the generated `network-addresses-generated.md`, so the generated doc still
+   names Ollama. Change the purpose string, don't hand-edit the generated file.
+3. **VPS LiteLLM scoped-key allow-lists are still Ollama-era** (`group_vars/vps.yml`):
+   `openclaw` allows `ollama/*`, `owui-int` allows `ollama/bge-m3,ollama/bge-reranker-v2-m3`, and the
+   `open-webui` row is `openai/gpt-5.5` + `anthropic/claude-opus-4-8` with no spark/local model.
+   `docs/services-ai.md` §Consumers now states the intended shape and marks this ⏳ (same fix as HD-384:
+   consumers have no `litellm_user_id`, so spend tracking 400s and `/key/update` cannot extend them).
+4. **`home-assistant-primary` compose renders HA `environment: {}`** while `services-ai.md` documents
+   `LITELLM_BASE_URL`/`LITELLM_API_KEY` as the mechanism — HA today cannot reach the gateway at all.
+   Needs the env wiring (or an explicit decision that HA's Assist uses something else).
+5. **`docs/services-ai-bench.md` §4 still names `tailscale-scale-test-...:8443` as the live
+   `SPARK_LLM_BASE_URL`** while §4a records it as torn down and the live edge being `llm.kogler.si`.
+   Docs now point at §4a; the bench file's own §4 is a measurement record, so it was left alone.

@@ -20,7 +20,7 @@ tags: [storage, zfs, datasets, backup, media, nfs]
 1. **Config lives in Git, secrets in 1Password, media is redownloadable.** Only **data** gets backed up.
 2. **"Data" = everything that persists and is not Git / 1Password / re-pullable** — user files, DB dumps,
    service state (Forgejo, n8n), Immich originals and face thumbnails, **the VictoriaMetrics/VictoriaLogs
-   observability TSDB (owner decision HD-341/342 — now Kopia-backed)**, Docker images, packages, Ollama/ML
+   observability stores (HD-341/342 — now Kopia-backed)**, Docker images, packages, model weights/ML
    model weights, and the media library are deliberately **not** backup targets.
 3. **Live data is local.** DBs and service runtime state live on the host's NVMe/SSD — never on NFS.
    The NAS holds **backup artifacts** (dumps, state pushes). **OpenCloud user files + Immich originals live
@@ -171,7 +171,7 @@ deployed by the Ansible `storage` role.
 - Immich face thumbnails (`thumbs/`)
 - configs: `/opt/*` compose dirs, systemd units, HA config (/ etc — plus Git for the repo itself)
 
-**Excluded:** docker named volumes (raw), Ollama models, Immich-ML weights,
+**Excluded:** docker named volumes (raw), downloaded model weights (GGUF/HuggingFace, re-pullable), Immich-ML weights,
 `/mnt/nas/*` mounts entirely (NAS independence), `bulk/media` (not backed up by design).
 > **Observability TSDB (VictoriaMetrics/VictoriaLogs) is Kopia-BACKED** (HD-341/342) — the old
 > "Prometheus/Loki TSDB regenerable, not backed up" doctrine was reversed by the owner; VM/VL volumes

@@ -88,7 +88,7 @@ nas (rack) — Debian 13, ZFS
 | Shared GPU resource (VRAM, topology) | [`hardware-gpu.md`](hardware-gpu.md) |
 | NAS ZFS storage server (+ external SilverStone case) | [`hardware-nas.md`](hardware-nas.md) |
 | Rack UPS — links, Modbus TCP, NUT/shutdown status | [`hardware-ups.md`](hardware-ups.md) |
-| NVIDIA GB10 Triton node (spark) | [`hardware-spark.md`](hardware-spark.md) |
+| NVIDIA GB10 vLLM node (spark) | [`hardware-spark.md`](hardware-spark.md) |
 | Admin laptop = client-side inference (FIM + vision, NPU out) | [`hardware-workstation.md`](hardware-workstation.md) |
 | Subscriptions & costs | [`subscription.md`](subscription.md) |
 
@@ -98,5 +98,5 @@ nas (rack) — Debian 13, ZFS
 - [Shared GPU Resource](hardware-gpu.md)
 - [HP MicroServer Gen8](hardware-nas.md)
 - [PowerWalker VFI ICT/ICR IoT 3000 (UPS)](hardware-ups.md)
-- [spark — NVIDIA GB10 Triton node](hardware-spark.md)
+- [spark — NVIDIA GB10 vLLM node](hardware-spark.md)
 - [workstation — admin laptop as client-side inference tier](hardware-workstation.md)
