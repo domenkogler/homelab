@@ -32,8 +32,15 @@
 #   plus the vault-canonical runner key (scripts/restore-runner-key.sh).
 #
 # HD-413: some legs refuse when this runner IS the target (network / storage /
-# wireguard / vps-hardening). That is the guardrail, not a fault — the off-box path and
-# the check-mode legs that stay open are in docs/deployment-ansible.md.
+# wireguard / tailscale-node / vps-hardening). That is the guardrail, not a fault — the
+# off-box path and the check-mode legs that stay open are in docs/deployment-ansible.md.
+#
+# NOTHING HERE PULLS. This script converges the commit sitting in the working tree and
+# never touches the remote — deliberately, because a runner that updates itself mid-run is
+# a runner whose behaviour you did not choose. On a box with two clones (oldsrv: the
+# ansible-admin runner clone that converges, the domen clone that authors) keeping them on
+# one commit is an explicit step: git -C <runner clone> pull --ff-only.
+# docs/deployment-ansible.md §Runner placement.
 # =====================================================================
 set -euo pipefail
 

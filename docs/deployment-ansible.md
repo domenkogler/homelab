@@ -468,7 +468,10 @@ and the secret second.
 git bundle create /tmp/oldsrv-runner.bundle main
 rsync -a /tmp/oldsrv-runner.bundle oldsrv:/tmp/
 ssh oldsrv 'git clone /tmp/oldsrv-runner.bundle ~/source/homelab &&
-            cd ~/source/homelab && git remote add origin <github-remote> && git fetch origin'
+            cd ~/source/homelab && git remote set-url origin <github-remote> &&
+            git fetch origin && git branch -u origin/main main'
+#     `git clone <bundle>` leaves origin pointing AT THE BUNDLE and `main` with no upstream,
+#     so a later `git pull` dies with "no tracking information" — set-url + -u now, not later.
 
 # 1 — seed the read-scope token: the laptop's op session reads op_api/credential (main vault,
 #     readable by the read-scope SA) and pipes it into the bootstrap ON THE BOX. The value
@@ -510,6 +513,45 @@ proof, and the laptop is also the rescue door.
 with `github_signing` from the `Private` vault, which a read-scope service account cannot
 read and a headless host cannot prompt for. A runner on another machine converges; commits
 stay on a signing station.
+
+### Which account, and what keeps the clones on one commit
+
+Measured on oldsrv 2026-09-20, and the split the numbers argue for:
+
+| Account | What it is | Vault token | `ansible-admin_ssh` private key | Converges |
+|---|---|---|---|---|
+| `ansible-admin` (uid 1001, `/bin/bash`, NOPASSWD sudo, in `docker`) | the **runner** — clone, `~/ansible-venv`, `~/.config/op/homelab-sa-token`, `~/.ssh/id_ed25519` all live here | yes | yes | **yes** |
+| `domen` (uid 1000, `sudo` = `(ALL:ALL) ALL`, i.e. passworded) | the human seat: login, pi.dev / the HD-409 cockpit, authoring clone | no | no | no |
+
+`domen` holds neither secret for two reasons, and neither is discipline:
+
+* **It is the rescue door.** §Self-converge guardrail names a second local sudo-capable
+  identity as the in-band escape when a self-converge goes wrong. Put the vault read token
+  (which reads *everything* the vault holds, `github_signing` included) and the fleet key in
+  that account and the automation door and the rescue door become one door — on the box the
+  automation is running on.
+* **It buys nothing.** `ansible_user: ansible-admin` is set in every `host_vars` file, so a
+  converge launched by `domen` still logs into every target *as* `ansible-admin` — it would
+  just need a second copy of that private key in `~domen/.ssh` to do it. One secret, two
+  homes, two rotations.
+
+Said plainly, because the opposite is sometimes claimed: **nothing mechanical stops a
+`domen` converge.** `site.yml` and the role guards assert on `ansible_user` — the *remote*
+user, which inventory pins to `ansible-admin` — not on who typed the command. This line is
+hygiene plus review, not a lock; the mechanical locks in this repo are HD-413 (refuse
+self-targeted lockout legs), the `ai-debug` lockout, and the signing gate.
+
+**And nothing syncs anything.** `scripts/ansible-run.sh` runs the commit sitting in the
+working tree and never contacts a remote — deliberately: a runner that updates itself
+mid-run is a runner whose behaviour nobody chose. So on oldsrv:
+
+```bash
+git -C /home/ansible-admin/source/homelab pull --ff-only     # explicit, before the converge
+```
+
+The `domen` clone is the authoring station (it is the one that can sign); the `ansible-admin`
+clone is execution. If the HD-409 cockpit is ever allowed to trigger a converge, moving the
+runner clone's `HEAD` must not be a side effect of it — same hazard, new driver.
 
 **What a seeded runner does not yet own:** the cockpit/harness placement is HD-409, and the
 Kopia seam over the workspace + `~/.pi` + harness config (which carries a bearer key and is
