@@ -194,9 +194,9 @@ sidecar serves to the app over that private network. Functional service-to-servi
 
 | Node | Serves | App-level auth | ACL tag |
 |------|--------|----------------|---------|
-| dsh (on oldsrv) | cockpit :3080 | **none** (ACL is the gate) | tag:dsh |
+| ~~dsh (on oldsrv)~~ | ~~cockpit :3080~~ | **PARKED (HD-386)** — harness removed by the owner; the row + its tailnet route/DNS record remain and answer 502. Pattern-A, not B. |
 | vps-obs (`traefik-tailnet` + its userspace sidecar, HD-135b follow-up) | **clean subdomain URLs over the tailnet** — `stats`, `traefik`, `logs`, `csui`, `auto` (n8n), and the AI names `db-spark`, `llm`, `litellm` (HD-370/HD-372) plus their `*.ts.kogler.si` twins: `https://stats.kogler.si` / `https://stats.ts.kogler.si`, `https://logs.kogler.si`, `https://csui.kogler.si`, `https://traefik.kogler.si`, `https://auto.kogler.si`, `https://db-spark.kogler.si`, `https://llm.kogler.si` (spark OpenAI-API, bearer-gated), `https://litellm.kogler.si` (spine admin) — **no ports** (wildcard certs + second Traefik edge). `litellm` reaches the edge through the `tailnet-apps` app→edge overlay (HD-372), not `services-internal`. **`/ui/login` deep-link 404s (no nginx SPA fallback) → use `/fallback/login` (intended flow, HD-373)** | plain `*.kogler.si` = Authentik Forward-Auth (AI names: engine/LiteLLM own-login, no forward-auth); **`*.ts.kogler.si` = ACL-gated** (tailnet-only names, `tag:sidecar:443` is the gate) | tag:sidecar |
-| pi-dev (on oldsrv) | TUI/CLI agent (`services-internal`) | scoped LiteLLM key + PR-only Forgejo | tag:pi-harness |
+| ~~pi-dev (on oldsrv)~~ | ~~TUI/CLI agent~~ | **PARKED (HD-386)** — same; its LiteLLM consumer was deleted in both DBs (`dsh_api` remediation, HD-383). |
 | litellm-ui | admin :4000/ui | bearer keys | tag:litellm |
 | owui-int (`ai.kogler.si`, HD-248) | internal OWUI | Authentik OIDC | tag:owui-int |
 | openclaw | control/gateway | gateway token | tag:openclaw |
@@ -204,7 +204,7 @@ sidecar serves to the app over that private network. Functional service-to-servi
 
 - Serve mode: plain TCP forward is simplest (WireGuard already encrypts); HTTPS mode needs Headscale TLS config -- verify at deploy.
 - ACL defaults: inbound-only per node (e.g., DSH needs ZERO outbound tailnet destinations); tag hygiene audit quarterly.
-- Rollout: HD-251 (phase-2 fleet rework); first applications: litellm-ui + owui-int (HD-247/248), dsh (HD-250);
+- Rollout: HD-251 (phase-2 fleet rework); first applications: litellm-ui + owui-int (HD-247/248);
   **tailnet dashboard edge (HD-135b follow-up) LIVE** — `traefik-tailnet` (consumer-mode Traefik + a userspace
   tailscale sidecar sharing its netns, node `vps-obs`) serves the admin dashboards over the tailnet with clean
   subdomain URLs on port 443 (`tailscale serve --tcp=443` → the edge's TLS listener), see
