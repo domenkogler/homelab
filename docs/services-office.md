@@ -18,10 +18,13 @@ tags: [services, llm, ollama, office]
 
 ## Strategy
 
-Office AI tools run on the **same oldsrv GPU** as voice assistant and Immich ML. The AI **platform**
-(routing, models, keys) is owned by [`services-ai.md`](services-ai.md) — the LiteLLM spine is the only
-path to any model, whether a local engine tier or a paid upstream; this doc covers only the office
-slice. VRAM management:
+**Office AI is a gateway consumer, not a GPU resident.** Generation for office work runs wherever the
+gateway routes it (the spark tier today); the oldsrv GPU holds only the small pinned legs (embed / rerank /
+STT) alongside immich-ML and Sunshine, and the voice pipeline that will share it is not built yet
+([smart-home-voice.md](smart-home-voice.md)).
+
+The AI **platform** — routing, models, keys — is owned by [`services-ai.md`](services-ai.md); the gateway is
+the only path to any model, local or paid. This doc covers only the office slice. VRAM management:
 [`hardware-gpu.md`](hardware-gpu.md).
 
 ---
