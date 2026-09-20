@@ -315,6 +315,10 @@ driver. Nothing here adds a scrape target or a dashboard.
 per-consumer virtual keys (lookups are fail-closed thereafter). Specs SSOT in `group_vars/vps.yml`:
 `owui-public-chat` · `owui-public-rag` · `owui-int-wife` / `owui-int-owner` · `openclaw-litellm` ·
 `rag-int-svc`; starting budgets/durations are Admin-UI-editable.
+**The LAN instance has no scoped consumers at all** (`litellm_scoped_keys: []` in
+`group_vars/home_servers.yml`) — its dsh/pi-harness consumers were removed with the harnesses, so every
+call on that side runs on the master key. That is also why the pinned-AI legs have no per-consumer
+budgets yet: HD-384 has to create consumers on the LAN instance, not only widen VPS allow-lists.
 ⚠ The allow-lists still name `ollama/*` model names that no longer exist after decision #27 — correcting
 them (and adding `spark/*` + the pinned rows for the real consumers) is **HD-384**, and the model-catalog
 doctrine below governs how.
