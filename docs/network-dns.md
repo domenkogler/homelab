@@ -126,6 +126,7 @@ Client → Technitium (DHCP-pushed chain, see below)
   The `.ts` twin costs the owner one extra entry in the Companion app and keeps both planes honest.
   ⚠ A client can hold a stale MagicDNS answer: `dig @100.100.100.100 ha.ts.kogler.si` proves what headscale
   serves; a client that disagrees needs a Tailscale reconnect (toggle), not a DNS change.
+- **The tailnet resolver chain trades an away-side warning for WAN-outage survival (HD-415).** `dns.nameservers` is MagicDNS loop → VPS public → `oldsrv` → `Pi`, and the last two are **private home addresses**: a phone on cellular cannot reach them, so the Tailscale app reports `DNS unavailable` and resolution burns resolver timeouts before falling back. They stay because they are what keeps `*.kogler.si` answering on a tailnet device **at home with the WAN down** — the only alternative in the chain is the VPS primary, which is precisely the path a WAN outage removes. Names inside the tailnet's own domain answer from the netmap client-side, which is why tailnet-only records (`ha.ts`) resolve even while the warning is up. **This is a decision to make (HD-415), not a defect to delete.**
 - **The VIP's `:443` edge is served by whichever keepalived node owns the VIP:** in normal mode the Pi's
   minimal **`traefik-ha`** edge serves `ha.kogler.si`; after a forward takeover the home-LAN
   **`traefik-internal`** edge on oldsrv takes over (HD-349/HD-346). Both serve an identical

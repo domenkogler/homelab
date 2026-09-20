@@ -6,14 +6,16 @@
 > [prompt-412.md](prompt-412.md). Decisions are already recorded — see the no-re-decide list.
 > **Linked from:** [prompt.md](prompt.md) §2 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
 >
-> **Status after the 2026-09-20 pass:** **HD-405 is LIVE** (host `tailscaled` node `oldsrv`, `tag:dev:443`,
-> `ha.ts.kogler.si` served from oldsrv's own edge) — do **not** re-run it; only the owner's phone-on-cellular
-> matrix is left, plus the two pre-existing faults recorded in [todo.md](todo.md) HD-405 and
-> [network-vpn.md](docs/network-vpn.md) §Tailnet boundary. **HD-406 / HD-408 / HD-410 remain open** and
-> owner-gated. Two lane-rule gaps found while executing: `docs/services-admin.md` and the oldsrv node IaC
-> (`roles/tailscale-node`, `roles/docker_services` 1P refs, `templates/docker_services/traefik-internal/**`)
-> had to be edited for HD-405's own Goal but sat outside the Owns list — fold them into the lane before
-> another session starts against this brief.
+> ⛔ **CLOSED 2026-09-20 — do not start a session from this brief;** the thread continues in
+> [`prompt-414.md`](prompt-414.md). **What shipped:** HD-405 LIVE — host `tailscaled` node `oldsrv`,
+> `tag:dev:443`, `ha.ts.kogler.si` served from oldsrv's own edge. Do **not** re-run it. **What left the
+> lane:** the owner's phone-on-cellular acceptance matrix, the two pre-existing faults (HA
+> `ha_trusted_proxies`, `media.kogler.si` 502), and the new measurement — the first away session to the node
+> came back **relayed via FRA** — all carried into the HD-405 / HD-414 / HD-415 rows of [todo.md](todo.md).
+> **HD-406 / HD-408 / HD-410 stay open** and owner-gated. Two lane-rule gaps found while executing:
+> `docs/services-admin.md` and the oldsrv node IaC (`roles/tailscale-node`, `roles/docker_services` 1P refs,
+> `templates/docker_services/traefik-internal/**`) had to be edited for HD-405's own Goal but sat outside the
+> Owns list — folded into `prompt-414.md`'s Owns.
 
 ## Goal
 
