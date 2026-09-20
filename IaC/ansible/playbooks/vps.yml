@@ -1,6 +1,14 @@
 ---
 - hosts: vps
   become: true
+  pre_tasks:
+    # HD-413: refuse the lockout-capable roles (network / storage / wireguard /
+    # vps-hardening) when this play's target IS the machine running the playbook.
+    # The VPS is already a control node (it converges home hosts off-box), so this play
+    # is the original case: nftables default-deny + sshd rewritten from its own session.
+    # Off-box path + in-band rescue: docs/deployment-ansible.md §Self-converge guardrail.
+    - name: HD-413 | Self-converge guardrail
+      ansible.builtin.import_tasks: tasks/self-converge-guard.yml
   roles:
     # Role-level tags enable surgical runs (deployment-manual "How to use": per-role --tags
     # previously impossible — gap noted there 2026-08-23). Per-SERVICE tags live inside

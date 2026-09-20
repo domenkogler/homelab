@@ -46,6 +46,23 @@
 #                                     logs — validate-secrets.py only covers group_vars/roles/, so
 #                                     artifacts and logs were ungated). Masked output; unreadable
 #                                     archives fail too
+#  16. check_self_converge_guard.py — HD-413 guardrail completeness (static): every playbook
+#                                     that applies a lockout-capable role (network / storage /
+#                                     wireguard / vps-hardening) imports the self-converge
+#                                     guard, and imports it in pre_tasks; every lockout role
+#                                     has its own guard task whose tag list equals the role's
+#                                     complete selectable vocabulary, recomputed from the role
+#                                     dirs; no default()/failed_when in the guard (HD-399 rule);
+#                                     a role that writes under --check may not claim check_safe
+#  17. testdata/self-converge-guard/run.sh — HD-413 guardrail BEHAVIOUR (runtime, WSL/CI-gated):
+#                                     executes the real guard against a throwaway inventory
+#                                     (this host = the controller, plus a decoy that is not) and
+#                                     asserts the refuse/allow verdict for 14 invocations. The
+#                                     static gate above cannot see a wrong Jinja predicate: the
+#                                     first draft compared `ansible_run_tags == ['all']`, which
+#                                     is always False because that magic var is a TUPLE, and
+#                                     passed every static check while allowing an unfiltered
+#                                     self-converge of the netdev role
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -115,7 +132,16 @@ $PY scripts/check_secrets.py
 echo "== check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity) =="
 $PY scripts/check_dns_seed_drift.py
 
+echo "== check_self_converge_guard.py (HD-413 guardrail completeness, static) =="
+# Runs on any host with python3+PyYAML — it reads YAML, it does not need Ansible.
+$PY scripts/check_self_converge_guard.py
+
 echo "== testdata/check-vault-items/run.sh (scanner self-test, HD-244/245) =="
+
+echo "== testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime) =="
+# Needs a functional ansible-playbook (it EXECUTES the guard) — SKIPs itself on hosts where
+# Ansible is absent/non-functional (native Windows) or `uname` is missing, like the syntax gate.
+bash scripts/testdata/self-converge-guard/run.sh
 
 echo "== portability sweep (bash -n + python3 -m py_compile, HD-256) =="
 # bash -n every POSIX/bash shebang script under scripts/ (incl. the testdata runner).
@@ -125,7 +151,8 @@ echo "== portability sweep (bash -n + python3 -m py_compile, HD-256) =="
 # on hosts without bash (Windows) — those scripts are exercised under WSL/CI.
 if command -v bash >/dev/null 2>&1; then
   bash_fail=0
-  for f in scripts/*.sh scripts/testdata/check-vault-items/run.sh; do
+  for f in scripts/*.sh scripts/testdata/check-vault-items/run.sh \
+           scripts/testdata/self-converge-guard/run.sh; do
     [ -f "$f" ] || continue
     case "$(head -n1 "$f")" in
       *bash|*sh)

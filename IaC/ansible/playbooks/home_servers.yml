@@ -1,6 +1,13 @@
 ---
 - hosts: home_servers
   become: true
+  pre_tasks:
+    # HD-413: refuse the lockout-capable roles (network / storage / wireguard /
+    # vps-hardening) when this play's target IS the machine running the playbook.
+    # oldsrv is a control node as of HD-407 — this play carries two of those roles.
+    # Off-box path + in-band rescue: docs/deployment-ansible.md §Self-converge guardrail.
+    - name: HD-413 | Self-converge guardrail
+      ansible.builtin.import_tasks: tasks/self-converge-guard.yml
   roles:
     - common
     - ai_diag        # restricted diagnostic dispatcher for ai-debug

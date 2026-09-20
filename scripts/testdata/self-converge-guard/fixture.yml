@@ -1,0 +1,18 @@
+---
+# HD-413 fixture play — mirrors how the real playbooks wire the guard (pre_tasks import +
+# the same role names + the same role-level tags as home_servers.yml / storage.yml /
+# vps.yml) while the roles themselves are inert debug stubs. The GUARD under test is the
+# real IaC file; nothing here can touch a managed host.
+- hosts: all
+  gather_facts: false
+  pre_tasks:
+    - name: HD-413 | Self-converge guardrail
+      ansible.builtin.import_tasks: ../../../IaC/ansible/playbooks/tasks/self-converge-guard.yml
+  roles:
+    - role: network            # tags mirror vps.yml's role-level tagging
+      tags: [network, base]
+    - storage                  # bare entry, as in home_servers.yml/storage.yml
+    - role: wireguard
+      tags: [wireguard, base]
+    - role: vps-hardening
+      tags: [hardening, base]

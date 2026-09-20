@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 # =====================================================================
-# ansible-run.sh — run an Ansible playbook from the WSL Debian runner with
-# the correct environment: venv activation, 1Password read-scope SA token,
-# and explicit ANSIBLE_CONFIG / ANSIBLE_ROLES_PATH (required because Ansible
-# ignores cwd ansible.cfg on world-writable /mnt drives).
+# ansible-run.sh — run an Ansible playbook from THIS runner with the correct
+# environment: venv activation, the 1Password read-scope SA token, and explicit
+# ANSIBLE_CONFIG / ANSIBLE_ROLES_PATH exports.
 #
-# Usage (inside WSL Debian):
+# Machine-agnostic by design (HD-407): every path is derived from this script's own
+# location, so the same file works from the WSL ext4 primary, from a session worktree
+# (CONVENTIONS §6) and from oldsrv's own clone. It never hardcodes a host, a user or a
+# drive letter. The two exports are not decoration:
+#   ANSIBLE_CONFIG      — Ansible ignores a cwd ansible.cfg on a world-writable /mnt
+#                         drive (the original WSL motivation) and never searches upward
+#                         from an absolute playbook path; naming it explicitly makes
+#                         host_key_checking/pipelining/fact-cache apply on every runner.
+#   ANSIBLE_ROLES_PATH  — ansible.cfg resolves `roles_path = roles` relative to CWD,
+#                         which only works when CWD is IaC/ansible. Pin it absolutely.
+#
+# Usage (any runner, from anywhere):
 #   bash scripts/ansible-run.sh playbooks/vps.yml
+#   bash scripts/ansible-run.sh playbooks/home_servers.yml --check
 #   bash scripts/ansible-run.sh playbooks/vps.yml --check --diff
 #   bash scripts/ansible-run.sh IaC/ansible/test-1password.yml
 #
@@ -16,7 +27,13 @@
 #   (where $REPO = the repo root — the script self-derives it from its own path;
 #    on this machine that is /home/domen/source/homelab, the WSL ext4 primary)
 #
-# Requires Phase 0 bootstrap: ~/ansible-venv + ~/.config/op/homelab-sa-token.
+# Requires Phase 0 bootstrap on whichever machine runs it:
+#   ~/ansible-venv + ~/.config/op/homelab-sa-token  (scripts/bootstrap-runner.sh),
+#   plus the vault-canonical runner key (scripts/restore-runner-key.sh).
+#
+# HD-413: some legs refuse when this runner IS the target (network / storage /
+# wireguard / vps-hardening). That is the guardrail, not a fault — the off-box path and
+# the check-mode legs that stay open are in docs/deployment-ansible.md.
 # =====================================================================
 set -euo pipefail
 

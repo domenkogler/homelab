@@ -347,6 +347,150 @@ with `not ansible_check_mode`. Until it lands, use a tagged check to get a green
 
 ---
 
+## Self-converge guardrail (HD-413) — which box may drive which
+
+A control node can converge itself, and four roles decide whether the SSH session driving
+them survives being converged:
+
+| Role | What it rewrites on the target | How a self-converge dies |
+|---|---|---|
+| `network` | systemd-networkd / NetworkManager units: the VLAN-99 tagged sub-interface, the static address, the default route | the leg the runner is sitting on is renumbered mid-task |
+| `storage` | fstab, NFS mounts, ZFS mount operations | the filesystem under the workspace / container data dirs moves |
+| `wireguard` | the WG interface (on the VPS: `wg-s2s`) | the tunnel the home hosts are reached through goes down |
+| `vps-hardening` | nftables default-deny + `sshd_config` (`PasswordAuthentication`, `PermitRootLogin`, `MaxAuthTries`) | the classic lockout of the box you are SSH'd into |
+
+`IaC/ansible/playbooks/tasks/self-converge-guard.yml` refuses them, imported into every play
+that carries one (`home_servers.yml`, `storage.yml`, `spark.yml`, `raspberry_pi.yml`,
+`vps.yml`) as a `pre_tasks` block — pre_tasks run before ANY role, which is the only
+placement that can refuse before the damage. It REFUSES when all of:
+
+1. the target's short hostname equals the **controller's** short hostname, and
+2. this play actually carries one of those roles, and
+3. the run's `--tags` filter would select that role, and
+4. it is not a provably non-mutating `--check` of a *check-safe* role.
+
+Controller identity comes from `lookup('pipe', 'uname -n')`, which executes on the
+controller — no target fact can answer "who is driving", and if the question cannot be
+answered the guard **fires** rather than assuming safety. That fail-loud property is the
+point (the HD-399 rule): the guard carries no `default()` and no `failed_when`.
+
+**Verdict for a run whose target is the machine running it** (`uname -n` == target):
+
+| Invocation | Result |
+|---|---|
+| `playbooks/home_servers.yml` (unfiltered) | **refused** |
+| `… --tags network` / `netd` / `base` / `hosts` | **refused** |
+| `… --tags storage` / `untagged` / `zfs_exporter` | **refused** |
+| `… --tags hardening` / `--check` of it | **refused** — `roles/vps-hardening` carries a `check_mode: false` task, so `--check` really writes `/etc/ssh/sshd_config` |
+| `… --tags network --check`, `--tags storage --check` | allowed — those roles have no `check_mode: false` task, which is what *check-safe* means, and it is what makes HD-407's read-only proof possible |
+| `… --tags docker_services,<svc>` | allowed, and no lockout-role task runs — this is the everyday case a self-hosted runner exists for |
+
+Any run whose target is **not** the controller is untouched by the guard (proven, not assumed).
+
+### The invariant that makes it airtight, and the two gates
+
+Each guard task carries TWO copies of the same tag list: its `tags:` decides when the guard
+**runs**, `homelab_guard_tags` decides when the **role** would have run. They must be
+identical and must equal the role's complete *selectable vocabulary* — every tag any task in
+the role carries, every role-level tag the playbooks attach (`base`), plus `untagged` where
+the role has untagged tasks (`storage`: 43 of 56, `vps-hardening`: 16 of 17). Diverge them by
+one tag and a `--tags` filter selects the lockout role while selecting neither the guard nor
+its selection expression: the silent version of the hole.
+
+* `scripts/check_self_converge_guard.py` — static: coverage (every playbook carrying a
+  lockout role imports it, in `pre_tasks`), tag symmetry, vocabulary recomputed **from the
+  role dirs** (so adding a tag inside a role tightens the guard instead of opening it),
+  no `default()`/`failed_when`, and a role that writes under `--check` may not claim
+  `check_safe`.
+* `scripts/testdata/self-converge-guard/run.sh` — runtime: executes the real guard against a
+  throwaway inventory (this host + a decoy that is not) and asserts the 15-case verdict
+  matrix with inert stub roles.
+
+Both are wired into `validate-all.sh`, and both are load-bearing: the first draft of the
+guard passed the static checker completely while allowing an **unfiltered** self-converge of
+the netdev role, because `ansible_run_tags` is a TUPLE and `ansible_run_tags == ['all']`
+is silently always false. Membership (`'all' in ansible_run_tags`) is the only form that
+works. A predicate can only be disproved by running it.
+
+### The two sanctioned exits
+
+**Off-box (normal).** Run the leg from a controller that is not the target. The VPS already
+holds a runner plus WG reach to the home infra hosts, so from it:
+
+```bash
+ssh vps
+cd ~/homelab && bash scripts/ansible-run.sh playbooks/home_servers.yml --check   # then without --check
+```
+
+**In-band (rescue).** For the case where the runner is the box and the box is unreachable
+by other means. Proven on oldsrv 2026-09-20: local console login as **`domen`** (uid 1000,
+`/bin/bash`, member of `sudo`), with **`ansible-admin`** holding passwordless sudo — that is
+a working root path on the physical machine. `cockpit.socket` is enabled and listening on
+9090 with `cockpit-bridge` installed, but **a Cockpit session login has not been proven**
+(HD-361: `nas` has no working Cockpit login at all), so do not describe Cockpit as a rescue
+until one has actually been opened. `sshd` on oldsrv sets `PasswordAuthentication no`, so
+there is no password-over-SSH fallback; the practical third door is **another controller that
+still holds the `ansible-admin` key** — which is why the laptop runner stays installed until
+an oldsrv-run log exists.
+
+### Boundaries (deliberate, not bugs)
+
+`--skip-tags network` still refuses (modelling skip lists needs per-task tag knowledge the
+guard does not have). `--tags hosts` refuses although it only re-renders `/etc/hosts`, and
+`--tags zfs_exporter` refuses the whole storage leg rather than proving one task harmless.
+Over-refusal costs one off-box run; under-refusal costs the box. Roles outside the set —
+`common`, `docker`, `docker_services`, `monitoring`, `cockpit`, `nut`, `ai_diag` — are not
+guarded, on purpose: refusing them would make a self-hosted runner pointless. Adding a role
+to the set is a decision, not a config value: role dir + guard task + doc row, one change,
+or the static gate fails.
+
+---
+
+## Runner placement (HD-407) — seeding a second control node
+
+The runner is whatever machine executes `scripts/ansible-run.sh`; both scripts and the IaC
+resolve their own paths, so a second runner is a bootstrap, not a fork. Seeding one on
+oldsrv is four steps, and only the first needs a human:
+
+```bash
+# 0 — the operator, from a station that can read the Private vault, pipes the read-scope
+#     service-account token into the runner bootstrap without it touching shell history:
+op read "op://Homelab-ansible/op_api/credential" | \
+  ssh oldsrv 'bash -s -- --no-upgrade --no-sudoers --token-stdin' < scripts/bootstrap-runner.sh
+#     (--no-upgrade: a prod Docker host does not take an unattended distro upgrade as a
+#      side effect of setup. --no-sudoers: ansible-admin already has its grant; the script
+#      verifies sudo and fails loud if it does not.)
+
+# 1 — still the operator: clone the repo where the runner will live
+ssh oldsrv 'git clone <repo> ~/source/homelab'
+
+# 2 — the token is now on the box, so the canonical key is one command (1Password is the
+#     SSOT; bootstrap-runner.sh's generated key is throwaway and no host authorizes it):
+ssh oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh'
+#     prints the fingerprint only — expect the ansible-admin_ssh one, not a fresh one
+
+# 3 — proof, per inventory group, from oldsrv, respecting HD-413:
+ssh oldsrv 'cd ~/source/homelab && bash scripts/ansible-run.sh playbooks/home_servers.yml \
+            --check --tags common'                       # oldsrv leg, no lockout role
+#     the network/storage legs against oldsrv itself run from the VPS (see off-box above);
+#     `dns.yml` is the one playbook that MUST run from a home-WAN-attached runner (its
+#     Cloudflare token is IP-filtered to the home WAN — HD-397), which is exactly what
+#     moving the runner onto oldsrv fixes.
+```
+
+**Commit authorship does not move with the runner.** CONVENTIONS §6/HD-265 signs every commit
+with `github_signing` from the `Private` vault, which a read-scope service account cannot
+read and a headless host cannot prompt for. A runner on another machine converges; commits
+stay on a signing station.
+
+**What a seeded runner does not yet own:** the cockpit/harness placement is HD-409, the
+Kopia seam over the workspace + `~/.pi` + harness config is its own prereq, and
+`docs/1password.md` keeps naming the laptop as the interactive control node **until the first
+oldsrv-run log exists** — the wording moves with the proof, not with the intent, and the
+laptop runner stays installed until then (it is also the rescue door).
+
+---
+
 ## File Layout
 
 ```

@@ -1,9 +1,53 @@
 #!/bin/bash
-# bootstrap-runner.sh — fully idempotent setup for any management laptop / WSL Debian runner (relocated from IaC/, HD-256)
+# bootstrap-runner.sh — fully idempotent setup for ANY runner: the WSL Debian laptop today,
+# oldsrv as the on-site control node (HD-407), bare Debian tomorrow (relocated from IaC/, HD-256).
+#
+# Modes — all opt-in; a bare invocation is the historical laptop path, unchanged:
+#   --no-upgrade    Do the prereq install, skip `apt upgrade -y`. On a machine that serves
+#                   production this matters: "set up my runner" must not silently become a
+#                   59-package distro upgrade under a running Docker host. The laptop can take
+#                   an unattended upgrade; oldsrv's containers cannot.
+#   --token-stdin   Read OP_SERVICE_ACCOUNT_TOKEN from stdin instead of prompting, so the seed
+#                   travels through one SSH session without the value landing in shell history
+#                   or on a terminal someone can read:
+#                     op read "op://Homelab-ansible/op_api/credential" | \
+#                       ssh oldsrv 'bash -s -- --no-upgrade --no-sudoers --token-stdin' \
+#                         < scripts/bootstrap-runner.sh
+#                   Same 0600 ~/.config/op/homelab-sa-token as the prompt path; never printed.
+#   --no-sudoers    Do not write /etc/sudoers.d/$USER. On a host where the runner identity
+#                   already carries its sudo grant (oldsrv: ansible-admin, NOPASSWD), letting a
+#                   setup script re-author NOPASSWD:ALL is a privilege change dressed as setup.
+#                   Verifies sudo works, and FAILS LOUD when it does not.
+#   --help          Print this list and exit. It does NOT fall through to the bootstrap.
+#                   (2026-09-20 live lesson: this script had no argument parsing, so an
+#                   unexpected argument was silently ignored and the FULL bootstrap ran.)
 set -e
 
-echo "=== 1. System update and prerequisites ==="
-sudo apt update && sudo apt upgrade -y
+NO_UPGRADE=0
+TOKEN_STDIN=0
+NO_SUDOERS=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --no-upgrade)  NO_UPGRADE=1 ;;
+        --token-stdin) TOKEN_STDIN=1 ;;
+        --no-sudoers)  NO_SUDOERS=1 ;;
+        --help|-h)
+            sed -n '2,26p' "$0"
+            exit 0 ;;
+        *)
+            echo "FAIL: unknown argument '$1' — refusing to guess what was meant. See --help." >&2
+            exit 2 ;;
+    esac
+    shift
+done
+
+echo "=== 1. Prerequisites (distro upgrade only without --no-upgrade) ==="
+if [ "$NO_UPGRADE" -eq 0 ]; then
+    sudo apt update && sudo apt upgrade -y
+else
+    echo "SKIP: apt upgrade (--no-upgrade) — prereqs only, no distro upgrade on this host"
+    sudo apt update
+fi
 sudo apt install python3 python3-pip python3-venv curl gpg git -y
 
 echo "=== 2. Idempotent 1Password CLI install ==="
@@ -54,8 +98,21 @@ OP_TOKEN_FILE=~/.config/op/homelab-sa-token
 mkdir -p ~/.config/op
 chmod 700 ~/.config/op   # op CLI refuses world-accessible config dirs (found live 2026-08-22, true-zero rebuild)
 if [ ! -f "$OP_TOKEN_FILE" ]; then
-    read -sp "Paste your 1Password OP_SERVICE_ACCOUNT_TOKEN: " OP_TOKEN
-    echo ""
+    if [ "$TOKEN_STDIN" -eq 1 ]; then
+        # Non-interactive seed (HD-407): the token arrives on the stdin of this SSH session.
+        IFS= read -r OP_TOKEN
+    else
+        read -sp "Paste your 1Password OP_SERVICE_ACCOUNT_TOKEN: " OP_TOKEN
+        echo ""
+    fi
+    # Fail loud on an empty or unexpected-shaped value: a wrapped/pasted prompt would otherwise
+    # land in the file as a token that 403s on every lookup, much later and much less clearly.
+    [ -n "$OP_TOKEN" ] || { echo "FAIL: no token received — nothing written" >&2; exit 1; }
+    case "$OP_TOKEN" in
+        *[!A-Za-z0-9+/=._-]*)
+            echo "FAIL: token carries unexpected characters (whitespace/quotes) — nothing written" >&2
+            exit 1 ;;
+    esac
     umask 077
     printf 'export OP_SERVICE_ACCOUNT_TOKEN=%q\n' "$OP_TOKEN" > "$OP_TOKEN_FILE"
     chmod 600 "$OP_TOKEN_FILE"
@@ -108,8 +165,16 @@ else
   echo "ℹ GitHub keys auto-load block already in ~/.bashrc."
 fi
 
-echo "=== 6. Idempotent passwordless sudo for local WSL ==="
-if [ ! -f /etc/sudoers.d/$USER ]; then
+echo "=== 6. Passwordless sudo (Ansible's become depends on it) ==="
+if [ "$NO_SUDOERS" -eq 1 ]; then
+    if sudo -n true 2>/dev/null; then
+        echo "ℹ --no-sudoers: existing passwordless sudo confirmed, nothing written."
+    else
+        echo "FAIL: --no-sudoers and '$USER' has no passwordless sudo — every become task would" >&2
+        echo "      prompt mid-converge. Grant sudo deliberately, not from this script, then re-run." >&2
+        exit 1
+    fi
+elif [ ! -f /etc/sudoers.d/$USER ]; then
     echo "$USER ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/$USER > /dev/null
     sudo chmod 0440 /etc/sudoers.d/$USER
     echo "✔ Passwordless sudo configured."
@@ -121,4 +186,16 @@ echo "========================================================================="
 echo " ✔ FULL BOOTSTRAP COMPLETED SUCCESSFULLY!"
 echo " Please run the following command to refresh the environment:"
 echo " source ~/.bashrc"
+echo "-------------------------------------------------------------------------"
+echo " Still owed before this runner can drive anything:"
+echo "   1. bash scripts/restore-runner-key.sh"
+echo "      The key generated above is THROWAWAY. The managed hosts authorize the"
+echo "      vault-canonical ansible-admin_ssh key — that is the one to pull."
+echo "   2. Commits do not belong on this runner. HD-265 signs every commit with"
+echo "      github_signing from the Private vault, which the read-scope SA token"
+echo "      cannot read. A runner on another machine converges; it does not author"
+echo "      repo history (docs/deployment-ansible.md - Runner placement)."
+echo "   3. HD-413 refuses the lockout-capable roles (network / storage / wireguard /"
+echo "      vps-hardening) whenever target == this host. That is not an obstacle to"
+echo "      route around: docs/deployment-ansible.md - Self-converge guardrail."
 echo "========================================================================="

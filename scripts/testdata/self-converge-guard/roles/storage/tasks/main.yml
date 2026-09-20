@@ -1,0 +1,5 @@
+# Untagged on purpose: 43 of the real storage role's 56 tasks carry no tag, so
+# `--tags untagged` selects them. The guard must cover that vocabulary.
+- name: DUMMY storage task (inert stand-in for fstab/NFS/ZFS operations)
+  ansible.builtin.debug:
+    msg: "DUMMY storage task ran"

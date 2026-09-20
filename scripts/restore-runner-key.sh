@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # =====================================================================
 # restore-runner-key.sh — restore the canonical ansible-admin_ssh key into
-# the WSL runner's ~/.ssh/id_ed25519[.pub] (1Password = source of truth).
+# ANY runner's ~/.ssh/id_ed25519[.pub] (1Password = source of truth).
 #
-# Run AFTER a true-zero WSL rebuild (deployment-tasks Phase 0): bootstrap-runner.sh
-# generates a THROWAWAY key that must be replaced so SSH to managed hosts
-# works. Verifies the fingerprint at the end (expect SHA256:1uKzmwf…).
+# Run AFTER bootstrap-runner.sh (and after any true-zero rebuild, deployment-tasks
+# Phase 0): bootstrap-runner.sh generates a THROWAWAY key, which no managed host
+# authorizes. Needs only the read-scope SA token file, so it works on a headless
+# runner (oldsrv, HD-407) exactly as on the laptop. Verifies the pair is consistent
+# and prints the fingerprint — the public half only, never the private (CONVENTIONS §6).
 #
-# Usage (WSL Debian runner): bash scripts/restore-runner-key.sh
+# Expected fingerprint: SHA256:1uKzmwf… — a mismatch means the vault rotated: re-check
+# the item rather than shipping a key nothing authorizes.
+#
+# Usage (any Debian runner): bash scripts/restore-runner-key.sh
 # =====================================================================
 set -euo pipefail
 

@@ -1,0 +1,231 @@
+---
+# self-converge-guard.yml — HD-413: refuse the lockout-capable roles of the box the
+# playbook is being run FROM.
+#
+# Why this exists (owner direction 2026-09-20, HD-407's corollary): once oldsrv is a
+# control node — and the VPS already is one — the runner can converge the very roles that
+# decide whether the runner's own SSH session survives:
+#
+#   network        rewrites systemd-networkd / NetworkManager units on the target: the
+#                  VLAN-99 tagged sub-interface, the static address, the default route.
+#                  Re-applying those over the leg you are sitting on drops the session
+#                  mid-converge (the same class that made HD-398 seal the Mgmt plane).
+#   storage        re-renders fstab + NFS mounts and ZFS mount operations — the filesystem
+#                  under the running workspace (and under the container data dirs).
+#   wireguard      restarts the WG interface that carries the site-to-site tunnel the
+#                  runner reaches the home infra hosts through.
+#   vps-hardening  nftables default-deny + sshd_config (PasswordAuthentication/PermitRootLogin)
+#                  — the canonical "locked out of my own box" role, and live on the VPS
+#                  runner today.
+#
+# An agent driving from a phone will run these against the box it is logged into if
+# nothing refuses. So something refuses. Mechanically, not by discipline.
+#
+# `ansible_run_tags` is a TUPLE, not a list — proven by scripts/testdata/self-converge-guard/,
+# which exists because `ansible_run_tags == ['all']` reads correctly, type-checks silently, and
+# is always False, i.e. the unfiltered `ansible-run.sh playbooks/home_servers.yml` from oldsrv
+# itself was ALLOWED by the first draft of this file. Membership (`'all' in ansible_run_tags`)
+# is the only form that works.
+#
+# The rule, exactly:
+#   REFUSE when  (a) the target's short hostname == the controller's short hostname, AND
+#                (b) this play actually carries one of those roles, AND
+#                (c) the run's tag filter would actually select that role, AND
+#                (d) it is not a provably non-mutating --check of a check-safe role.
+#
+# Fail-loud by construction (the HD-399 rule): no default(), no | ternary fallback, no
+# failed_when. If the controller cannot be identified the guard FIRES — it cannot tell
+# the difference between "safe" and "about to cut its own cable", so it refuses.
+# scripts/check_self_converge_guard.py keeps that property true (no default()/failed_when,
+# every lockout role guarded, every playbook that applies one guarded, and every role
+# claiming check_safe still free of `check_mode: false`).
+#
+# The two sanctioned exits — both in deployment-ansible.md §Self-converge guardrail:
+#   off-box (normal):  run the leg from a controller that is NOT the target (the VPS
+#                      runner holds reach to the home infra hosts).
+#   in-band (rescue):  the local console — `domen` is a second sudo-capable local identity
+#                      on oldsrv; `ansible-admin` there has NOPASSWD sudo. Verify before
+#                      relying on it; Cockpit on oldsrv is socket-enabled but a session
+#                      login is NOT proven (HD-361: nas's Cockpit login does not work at
+#                      all — do not copy that claim onto either box).
+#
+# TAG SYMMETRY — the load-bearing invariant. `homelab_guard_tags` is the lockout role's
+# complete selectable-tag vocabulary: every tag any task in the role carries, plus every
+# role-level tag the playbooks put on it (`base`). Each guard task's `tags:` is that list
+# prefixed with `always`, and nothing else may differ: `always` is what makes the guard RUN
+# even when the filter would never select the role by name, while `homelab_guard_tags` decides
+# whether the ROLE would have run. Diverge the two and a `--tags` filter can select the role
+# while selecting neither the guard task (no refusal) nor the expression (refusal computed as
+# 'would not run') — the silent version of the hole this file exists to close.
+#
+# Roles whose tasks are mostly UNTAGGED (storage: 43 of 56; vps-hardening: 16 of 17) are
+# covered by `always`, NOT by a tag literally named `untagged` — Ansible reserves that name
+# and warns `Found reserved tagnames in tags: ['untagged'] … might give unexpected results`
+# on every converge that touches it. `--tags untagged` still refuses: `always` puts the guard
+# in the run, and the selection expression has its own `'untagged' in ansible_run_tags` term.
+# check_self_converge_guard.py recomputes the vocabulary from the role dirs and enforces
+# `task_tags == homelab_guard_tags + ['always']` plus the no-reserved-name rule.
+#
+# Deliberately over-refusive (the safe direction, not a bug):
+#   * `--skip-tags network` still refuses — modelling skip lists would need per-task tag
+#     knowledge this file does not have; run that leg off-box instead.
+#   * `--tags storage` refuses even though most storage tasks are untagged and would not
+#     have run; same for `--tags hosts`, which only re-renders /etc/hosts (a rewrite that
+#     cannot drop a session — but it lives inside the network role, so the leg is refused
+#     rather than reasoned about from a phone at 23:00).
+#   * `--tags zfs_exporter` refuses the storage leg wholesale rather than proving that one
+#     task is harmless.
+#
+# Scope notes: roles NOT guarded, on purpose — `common` (users/sudoers/hosts; cannot sever
+# a session by itself), `docker`/`docker_services` (the whole point of a self-hosted
+# runner), `monitoring`/`cockpit`/`nut`/`ai_diag`. Adding a role to the lockout set is a
+# decision, not a config value: append the role dir name here AND a matching guard task
+# below, in one change, or the validator gate fails.
+
+- name: HD-413 | Identify the control plane this playbook runs from
+  # `lookup('pipe', ...)` executes on the CONTROLLER, never on the target — which is the
+  # whole point: we need to know who is driving, not who is being driven.
+  ansible.builtin.set_fact:
+    homelab_controller_host: >-
+      {{ (lookup('pipe', 'uname -n') | trim).split('.')[0] | lower }}
+  run_once: true
+  changed_when: false
+  tags: [always]
+
+- name: HD-413 | Refuse to guess when the control plane cannot be identified
+  # An empty result means `uname` was unavailable — we are now blind to the one fact the
+  # guard needs. Refuse the lockout legs rather than assume the runner is remote.
+  ansible.builtin.assert:
+    that:
+      - homelab_controller_host | length > 0
+    fail_msg: >-
+      HD-413 self-converge guard cannot identify the control plane: `uname -n` returned
+      nothing on the controller. The lockout-capable roles (network / storage / wireguard /
+      vps-hardening) are refused rather than assumed safe. Run this leg from a controller
+      that is not the target (deployment-ansible.md §Self-converge guardrail).
+    quiet: true
+  run_once: true
+  changed_when: false
+  tags: [always]
+
+- name: HD-413 | Refuse the network role against the control node it is run from
+  ansible.builtin.assert:
+    that:
+      - not (homelab_guard_block | bool)
+    fail_msg: >-
+      HD-413 SELF-CONVERGE GUARD — refusing to run the 'network' role against
+      '{{ inventory_hostname }}' because that IS the machine running this playbook
+      (control plane '{{ homelab_controller_host }}'). roles/network rewrites this host's
+      own systemd-networkd / NetworkManager units (VLAN-99 tagged sub-interface, static
+      address, default route) — applying them over the session that is driving them is how
+      the converge loses the box mid-flight.
+      Off-box: run this leg from the VPS runner. Check mode of this role IS allowed
+      (read-only proof of HD-407). Tags requested: {{ ansible_run_tags | join(',') }}.
+      Details: deployment-ansible.md §Self-converge guardrail.
+  vars:
+    homelab_guard_role: network
+    homelab_guard_tags: [network, netd, nm-pi, nm-pi-mgmt, dhcp-client, hosts, base]
+    homelab_guard_check_safe: true
+    homelab_guard_self: >-
+      {{ homelab_controller_host == (inventory_hostname | lower).split('.')[0] }}
+    homelab_guard_selected: >-
+      {{ homelab_guard_role in ansible_play_role_names
+         and (('all' in ansible_run_tags)
+              or ('untagged' in ansible_run_tags)
+              or ((homelab_guard_tags | intersect(ansible_run_tags)) | length > 0)) }}
+    homelab_guard_block: >-
+      {{ (homelab_guard_self | bool)
+         and (homelab_guard_selected | bool)
+         and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
+  tags: [always, network, netd, nm-pi, nm-pi-mgmt, dhcp-client, hosts, base]
+
+- name: HD-413 | Refuse the storage role against the control node it is run from
+  ansible.builtin.assert:
+    that:
+      - not (homelab_guard_block | bool)
+    fail_msg: >-
+      HD-413 SELF-CONVERGE GUARD — refusing to run the 'storage' role against
+      '{{ inventory_hostname }}', which is the machine running this playbook
+      (control plane '{{ homelab_controller_host }}'). roles/storage re-renders fstab and
+      the NFS mounts and drives ZFS mount operations — under a converge it can pull the
+      filesystem out from the workspace and the container data dirs it is running in.
+      Off-box: run this leg from the VPS runner. Check mode of this role IS allowed.
+      Tags requested: {{ ansible_run_tags | join(',') }}.
+      Details: deployment-ansible.md §Self-converge guardrail.
+  vars:
+    homelab_guard_role: storage
+    homelab_guard_tags: [storage, nas, samba, auth-glue, zfs_exporter]
+    homelab_guard_check_safe: true
+    homelab_guard_self: >-
+      {{ homelab_controller_host == (inventory_hostname | lower).split('.')[0] }}
+    homelab_guard_selected: >-
+      {{ homelab_guard_role in ansible_play_role_names
+         and (('all' in ansible_run_tags)
+              or ('untagged' in ansible_run_tags)
+              or ((homelab_guard_tags | intersect(ansible_run_tags)) | length > 0)) }}
+    homelab_guard_block: >-
+      {{ (homelab_guard_self | bool)
+         and (homelab_guard_selected | bool)
+         and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
+  tags: [always, storage, nas, samba, auth-glue, zfs_exporter]
+
+- name: HD-413 | Refuse the wireguard role against the control node it is run from
+  ansible.builtin.assert:
+    that:
+      - not (homelab_guard_block | bool)
+    fail_msg: >-
+      HD-413 SELF-CONVERGE GUARD — refusing to run the 'wireguard' role against
+      '{{ inventory_hostname }}', which is the machine running this playbook
+      (control plane '{{ homelab_controller_host }}'). roles/wireguard restarts the WG
+      interface — on the VPS that is the wg-s2s tunnel the home infra hosts are reached
+      through, so a self-converge can drop the very route the runner is using.
+      Off-box: run this leg from a controller that is not the target. Check mode IS allowed.
+      Tags requested: {{ ansible_run_tags | join(',') }}.
+      Details: deployment-ansible.md §Self-converge guardrail.
+  vars:
+    homelab_guard_role: wireguard
+    homelab_guard_tags: [wireguard, base]
+    homelab_guard_check_safe: true
+    homelab_guard_self: >-
+      {{ homelab_controller_host == (inventory_hostname | lower).split('.')[0] }}
+    homelab_guard_selected: >-
+      {{ homelab_guard_role in ansible_play_role_names
+         and (('all' in ansible_run_tags)
+              or ('untagged' in ansible_run_tags)
+              or ((homelab_guard_tags | intersect(ansible_run_tags)) | length > 0)) }}
+    homelab_guard_block: >-
+      {{ (homelab_guard_self | bool)
+         and (homelab_guard_selected | bool)
+         and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
+  tags: [always, wireguard, base]
+
+- name: HD-413 | Refuse vps-hardening (nftables + sshd) against the control node it is run from
+  ansible.builtin.assert:
+    that:
+      - not (homelab_guard_block | bool)
+    fail_msg: >-
+      HD-413 SELF-CONVERGE GUARD — refusing to run 'vps-hardening' against
+      '{{ inventory_hostname }}', which is the machine running this playbook
+      (control plane '{{ homelab_controller_host }}'). That role installs nftables
+      default-deny and rewrites sshd_config — the canonical way to lock yourself out of
+      the box you are SSH'd into.
+      NOT check-mode-escapable: roles/vps-hardening carries a `check_mode: false` task, so
+      a `--check` of it still writes /etc/ssh/sshd_config for real. Run the leg from a
+      controller that is not the target, and read the runbook first
+      (deployment-ansible.md §Self-converge guardrail).
+  vars:
+    homelab_guard_role: vps-hardening
+    homelab_guard_tags: [hardening, base]
+    homelab_guard_check_safe: false
+    homelab_guard_self: >-
+      {{ homelab_controller_host == (inventory_hostname | lower).split('.')[0] }}
+    homelab_guard_selected: >-
+      {{ homelab_guard_role in ansible_play_role_names
+         and (('all' in ansible_run_tags)
+              or ('untagged' in ansible_run_tags)
+              or ((homelab_guard_tags | intersect(ansible_run_tags)) | length > 0)) }}
+    homelab_guard_block: >-
+      {{ (homelab_guard_self | bool)
+         and (homelab_guard_selected | bool)
+         and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
+  tags: [always, hardening, base]

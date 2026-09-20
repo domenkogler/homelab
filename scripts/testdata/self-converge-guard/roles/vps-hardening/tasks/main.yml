@@ -1,0 +1,4 @@
+# Untagged on purpose: 16 of the real role's 17 tasks carry no tag.
+- name: DUMMY vps-hardening task (inert stand-in for nftables + sshd_config)
+  ansible.builtin.debug:
+    msg: "DUMMY hardening task ran"

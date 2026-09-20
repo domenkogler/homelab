@@ -1,0 +1,4 @@
+- name: DUMMY network task (inert stand-in for the netdev units)
+  ansible.builtin.debug:
+    msg: "DUMMY network task ran"
+  tags: [network, netd]

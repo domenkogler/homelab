@@ -9,6 +9,12 @@
 # Victoria backend over wg-s2s), while oldsrv still scrapes nas's nut/zfs exporters.
 - hosts: storage
   become: true
+  pre_tasks:
+    # HD-413: refuse the lockout-capable roles (network / storage / wireguard /
+    # vps-hardening) when this play's target IS the machine running the playbook.
+    # Off-box path + in-band rescue: docs/deployment-ansible.md §Self-converge guardrail.
+    - name: HD-413 | Self-converge guardrail
+      ansible.builtin.import_tasks: tasks/self-converge-guard.yml
   roles:
     - common
     - ai_diag
