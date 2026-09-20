@@ -286,6 +286,54 @@ Certified state and its costs, stated plainly:
   watchdog and the alert rules. Guards that read raw `MemAvailable` would fire on a healthy box at usable
   18.5 and read healthy at 10.4 GiB, which is where the real kills happened.
 
+### KV-cache persistence across restarts (LMCache) — REJECTED (2026-09-20)
+
+> **Decision:** the [`../spark/BENCHMARK-PLAN.md`](../spark/BENCHMARK-PLAN.md) §6 ladder **#10** (KV offload
+> connector, LMCache → `/mnt/spark_nvme/kv_cache`) is **rejected — do not build it on this box.**
+> Decision-log entry: [services-rejected.md](services-rejected.md).
+
+**What it would have fixed — and what it cannot.** Cold start on this box is two different costs, and
+LMCache reaches only the second:
+
+| Cost | Today | LMCache effect |
+|---|---|---|
+| Engine boot (weights + PLE tables) | ~20 min (`start_period: 1200s`) | **none** — it is a KV layer, not a weight loader; the `llm.*` 502 window and the HD-395 recycle penalty stand |
+| First token after boot (re-prefill of the recurring prefix) | ~13 min TTFT @250k cold / warm re-prefill ~1640 tok/s (§Bench caveat) | the real target — restore ~7.2 GiB of KV (250k × 30.3 KiB/token) instead of re-prefilling it |
+
+`--enable-prefix-caching` is already on and the pool is 1.97× @262k, so *within* a boot the recurring prefix
+already hits. Its only marginal win was **across** restarts/recycles — the same window **HD-395** (the
+coin-flip idle recycle) manufactures at ~20 min a pop. Fixing HD-395 removes that cost instead of mitigating it.
+
+**Why rejected rather than deferred — three independent blockers:**
+
+1. **Correctness on this model class (decisive).** Qwen3.8 is a hybrid Mamba/GDN model, and LMCache supports
+   hybrids **only** via `LMCacheMPConnector`. LMCache's own docs list `Qwen3.8-27B` as validated (unified block
+   size 784) — while its own tracker says otherwise on this hardware class. **LMCache #4247** (open) reproduces
+   **silent** corruption ("multilingual token salad", no exception, every counter green) on **any shared-prefix
+   hit** with **GB10 / aarch64 / cc 12.1 / CUDA 13.0 / TP=1** + Qwen3.x hybrid + FlashInfer; the fix **PR #4253
+   is unmerged**, and **#4674** reports multi-session prefix hits still corrupting even with it. The **persistence
+   tier — the only part worth having here — is separately broken: #4701** stores **1 of N kernel pages per
+   chunk**, so restores report 95–99 % hit rates and return wrong answers. The trigger is *our* traffic shape:
+   one large stable system prompt + tool schemas with varying turns = every agent turn is a shared-prefix hit.
+   The ladder gate (`TTFT ↓ ≥50 %`) **passes** this failure, and the 10-prompt accuracy gate is short-prompt and
+   already 8/10 — neither would have caught it. Silent-wrong is the one outcome this tier cannot ship.
+2. **It spends pool this box does not have.** LMCache's L1 tier is **pinned CPU RAM allocated greedily up front**
+   (5 GiB default) out of the same pool whose idle `usable` is **18.5 GiB against the 16 GiB guard floor**
+   (§Chosen governor). The `lmcache server` is a second resident charged **neither** to the `105G` cage **nor**
+   to the watchdog's gauge → it re-rolls the HD-395 baseline a second time.
+3. **It breaks the image-pin contract.** aarch64 wheels exist only from **LMCache 0.5.4rc1** (cp310–cp313), and
+   LMCache's own compatibility rule is *never copy a native wheel built for another PyTorch/CUDA channel into a
+   stack-built image*. On GB10 the working recipe is a **source build**, not a wheel install — `TORCH_CUDA_ARCH_LIST="12.0" LMCACHE_CUDA_MAJOR=13 ENABLE_CXX11_ABI=1 pip install . --no-build-isolation --no-deps` — which means a rebuilt engine image and a new `spark_vllm_image` digest (HD-370), for a component with an open correctness bug.
+
+**Re-decide trigger (cheap, and it is a correctness probe not a bench):** upstream merges the hybrid fix **and**
+a buried-fact-across-restart probe passes on B1 — plant a random fact in a prompt longer than one chunk, restart
+the engine **and** the cache server, require the exact answer from an **L2-only** hit, with `KV cache group edits
+applied: {'subpaged-attention-view': N}` present in the boot log and `Engine KV Format` uniform across groups
+(the missing edit key is the bug's only observable signal). Do not trust hit-rate counters here.
+**vLLM's own `OffloadingConnector` is not an escape** — hybrid mamba+attention "can't use external KV cache
+offloading out of the box" upstream either (vLLM #38230 / PR #38261), so this rejection covers the whole
+"persistent KV tier" idea on this model class, not just the LMCache implementation.
+
 ### Restart-count semantics (how to tell a kill from a redeploy)
 
 - `RestartCount` increments when the **same container** is re-exec'd by the restart policy → a host-side
