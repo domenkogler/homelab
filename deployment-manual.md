@@ -342,6 +342,35 @@ in `group_vars/vps.yml`, enabled). Imperative facts a from-scratch deploy needs:
 Verify from a tailnet device: `https://stats.kogler.si` (forward-auth → SSO) and
 `https://stats.ts.kogler.si` (ACL-gated, tailnet-only).
 
+### 1.4d Home tailnet node — `oldsrv` (HD-405)
+
+`roles/tailscale-node` converges the node, but **nothing below is created by Ansible** — a from-scratch
+rebuild fails loud without these, in this order:
+
+1. **Declare the tag first.** `tag:dev` must exist in headscale `tagOwners` (rendered from
+   `templates/docker_services/headscale/policy.hujson.j2`) **before** any key carries it — headscale refuses
+   a tag no user may assign, and a rejected policy crash-loops the control plane.
+2. **Mint the preauth key** on the VPS, scoped and expiring:
+   ```bash
+   docker exec headscale headscale preauthkeys create --user 2 --tags tag:dev --reusable --expiration 8760h -o json
+   ```
+   ⚠ headscale 0.29.3 emits the value under the JSON field **`key`**, NOT `secret` — a redaction filter keyed
+   on `secret` prints the key. Extract the field explicitly; never widen a filter. Report ids/lengths/prefixes
+   only, never the value (the leak that taught this: [docs/deployment-secrets.md](docs/deployment-secrets.md)).
+3. **Seed the 1Password item** `tailscale-oldsrv_api` in `Homelab-ansible` (category API Credential, field
+   `credential`) **from a template file**, so no value touches the command line, stdout or shell history:
+   write a `0600` template under `/run`, `op item create --vault Homelab-ansible --category API_CREDENTIAL
+   --template <file>` (service accounts require `--vault`), then `shred -u` the template. Verify by readback
+   length only.
+4. **Converge the node**, then read its assigned tailnet IPv4 from `headscale nodes list` and write it to
+   `tailnet_oldsrv_ip` (`group_vars/all/main.yml`). Re-converge **headscale** (MagicDNS record for
+   `ha.ts.kogler.si`) **and traefik-internal** (its `websecure-ts` listener binds exactly that address;
+   empty renders no listener).
+5. **Never enrol a home host interactively (OIDC).** A preauth-key node lands in headscale's synthetic
+   `tagged-devices` user and is therefore reachable by *nobody* until an ACL names `tag:dev`; an interactive
+   join lands it under the owner user and silently inherits `dst:domen:*` on every port.
+
+
 ### 1.4c Technitium primary admin bootstrap + seed (VPS, HD-324)
 
 A from-scratch VPS deploy starts Technitium with a **default `admin` user whose password is
