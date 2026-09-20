@@ -48,7 +48,7 @@ bulk   (6 TB RAIDZ2 — WD Red + 3× Toshiba P300, consumer disks)  → MIXED RO
 │   ├── media/
 │   │   ├── movies/
 │   │   ├── tv/
-│   │   └── ~~music/~~ *(2026-09-10: music library moves to the Hetzner Storage Box as primary for Navidrome on the VPS — see Navidrome/store note below)*
+│   │   └── ~~music/~~ *(music library is primary on the Hetzner Storage Box for Navidrome on the VPS — see Navidrome/store note below)*
 │   └── downloads/       transient scratch (hardlink-import → media/, then prune)
 │       ├── incomplete/{usenet,torrent}
 │       └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd / qBittorrent)
@@ -69,7 +69,7 @@ nas — MX300 525 GB (ext4) — OS/boot only; `tank`/`bulk` imported via ZFS cac
 ```
 > **Superseded plans:** earlier `tank/important`, `tank/media`, `tank/downloads` and `tank/data`-with-media
 > layouts. Media moved to its own dataset on the `bulk` pool; `tank` is now reserved for user data only.
-> **Tank topology locked: MIRROR (2026-08-21, owner decision, todo HD-207)** — raidz1 rejected even with
+> **Tank topology locked: MIRROR (owner decision, HD-207)** — raidz1 rejected even with
 > OpenZFS 2.3+ RAIDZ expansion (mirror wins resilver/self-healing/random-I/O at 2× 4 TB). Growth = a new
 > second mirror pair (contributes its full size) or replace-in-place autoexpand; never `zpool attach` a
 > larger disk onto the existing pair (smallest-member cap). Detail: [`hardware-nas.md`](hardware-nas.md).
@@ -90,7 +90,7 @@ No native encryption by default (homelab threat model; re-evaluate only if it ch
 | `bulk/data/immich-thumbs` | 128K | lz4 | daily(7) | **no** (pushed, not sent) | yes |
 | `nvme/docker/immich` (oldsrv) | 128K | lz4 | none | **no** | no — regenerable thumbs; immich-ml reads directly |
 
-> **TRIM (HD-151, 2026-08-19):** `tank/data/immich`, `tank/data/documents`, `bulk/data/immich`,
+> **TRIM (HD-151):** `tank/data/immich`, `tank/data/documents`, `bulk/data/immich`,
 > `bulk/data/documents`, `nvme/tsdb` and `nvme/docker/postgres` were removed from the `storage` role
 > create-set — originals/user-files live on the live Hetzner Box, so the NAS-local retained archives added
 > no recovery coverage (the Box + Kopia is the recovery path). `bulk/data/immich-thumbs` and
@@ -144,7 +144,7 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 
 - Ownership uid/gid **`storage_uid`/`storage_gid` = 1005 (`media`)** — the neutral shared-data owner (HD-51/HD-94/HD-131), NOT domen/1000; matches *arr `PUID/PGID`, Jellyfin/OpenCloud `user:` and the Samba force user/group; NFS `root_squash` on.
 - fstab mounts via Ansible (`storage` role). Hardlinks only ever cross paths **within** `bulk/media` — one dataset, one filesystem ✓.
-- **State (2026-09-14): the `storage` role only applies NFS exports on-change** — the `Reload NFS exports` handler (`exportfs -ra`) is `notify`-driven by the `Render /etc/exports` template task, so an **idempotent converge (file unchanged) never re-asserts the live nfsd export table**. If a live export is dropped for any reason (e.g. an earlier state where it was absent), subsequent converges won't restore it while `/etc/exports` is already correct — a client then errors `Stale file handle` on that automount. Recovery: `sudo /usr/sbin/exportfs -ra` on the NAS to re-apply (then clear the client's stale handle; runbook in [deployment-manual.md §Phase 2](../deployment-manual.md)). Robustness option: make exports ensure-present each run rather than notify-on-change.
+- **The `storage` role applies NFS exports on-change only** — the `Reload NFS exports` handler (`exportfs -ra`) is `notify`-driven by the `Render /etc/exports` template task, so an **idempotent converge (file unchanged) never re-asserts the live nfsd export table**. If a live export is dropped for any reason (e.g. an earlier state where it was absent), subsequent converges won't restore it while `/etc/exports` is already correct — a client then errors `Stale file handle` on that automount. Recovery: `sudo /usr/sbin/exportfs -ra` on the NAS to re-apply (then clear the client's stale handle; runbook in [deployment-manual.md §Phase 2](../deployment-manual.md)). Robustness option: make exports ensure-present each run rather than notify-on-change.
 - **SMB/Samba is now implemented (HD-131 D4)** on the NAS via the `storage` role: one shared `media` share (any family user) + per-user private shares (`valid users = <user>`) for family mapped drives (Win11 + Linux).
 
 ---
@@ -196,7 +196,7 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
 970 EVO 1 TB → ZFS pool "nvme" (single-disk; every dataset is NAS-backed or regenerable, no mirror needed).
    Device path = SSOT var `storage_nvme_data_by_id` (host_vars/oldsrv.kogler.si.yml, HD-128/KOPS-057);
    automation only creates the pool on a fresh build and a fail-loud guard blocks it while the placeholder remains.
-   ⚠ As of the 2026-08-23 reinstall the 970 EVO still carries old Windows **NTFS partitions** — if
+   ⚠ The 970 EVO still carries old Windows **NTFS partitions** from its pre-homelab life — if
    `zpool create` refuses on existing signatures at the Phase-3 playbook run, wipe them first
    (`wipefs -a` on that disk only; OS disk untouched).
 ├── nvme/docker-layers       /var/lib/docker        128K lz4   no snapshots (images re-pullable)
@@ -271,7 +271,7 @@ Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Cri
 
 ## Service ↔ Storage Placement (VPS era) — which service lives on which storage
 
-> **Decision (HD-135, 2026-08-18):** the public stack lives on the VPS; storage is split across three tiers
+> **Decision (HD-135):** the public stack lives on the VPS; storage is split across three tiers
 > by performance and access pattern. This is the authoritative placement table for the VPS-era layout.
 > Keep it in sync with `backup.md` and `services-vps.md`.
 
@@ -283,13 +283,13 @@ Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Cri
 
 **Rule of thumb:** *hot/random/synchronous* on local SSD; *bulk/sequential/cold* on the live Box; *media + local backup* on the NAS.
 
-**2026-09-10 — music library → Storage Box (Navidrome on the VPS):** the **music** library moves to the Hetzner Storage Box (**`music/`** on the live Box) as the **primary** for **Navidrome** (VPS-hosted, `music.kogler.si`). Navidrome app + data must live together for the reliability goal (host + data both offsite/independent of home). Consequence: Lidarr's TRaSH **hardlink import** no longer applies to music (hardlinks can't cross hosts) — Lidarr falls back to **copy-import** for the music category (2× temporary space acceptable). The NAS `bulk/media/media/music` copy is retired from the active path.
+**Music library → Storage Box (Navidrome on the VPS):** the **music** library lives on the Hetzner Storage Box (**`music/`** on the live Box) as the **primary** for **Navidrome** (VPS-hosted, `music.kogler.si`). Navidrome app + data must live together for the reliability goal (host + data both offsite/independent of home). Consequence: Lidarr's TRaSH **hardlink import** no longer applies to music (hardlinks can't cross hosts) — Lidarr falls back to **copy-import** for the music category (2× temporary space acceptable). The NAS `bulk/media/media/music` copy is retired from the active path.
 
 ---
 
 ## VPS Storage Layout (netcup RS 2000 G12 — no ZFS)
 
-> **Decision (HD-135, 2026-08-18):** the VPS uses **no ZFS** — the 512 GB NVMe is a single ext4 root disk
+> **Decision (HD-135):** the VPS uses **no ZFS** — the 512 GB NVMe is a single ext4 root disk
 > (netcup default) and the live Hetzner Box is **CIFS**, not a block device, so ZFS-on-the-VPS is **rejected**.
 > Recovery is app-level (OpenCloud `REV.*` versioning + Kopia → backup Box), not filesystem-snapshot-based.
 > The three-tier placement table above is the authoritative decision; this layout documents the concrete paths.
@@ -327,7 +327,7 @@ and `nvme` (oldsrv), documented above.
 
 ## Immich Hybrid Storage (VPS: app+DB+thumbs local, originals+encoded on the live Box, ML on oldsrv)
 
-> **Decision (2026-08-18, HD-135):** Immich runs **on the VPS**. Originals and encoded-video move to the
+> **Decision (HD-135):** Immich runs **on the VPS**. Originals and encoded-video move to the
 > **live Hetzner Box** (cold tier); thumbnails + Postgres DB stay on VPS NVMe (hot); ML offloaded to the
 > oldsrv GPU. The older "originals on NAS/MinIO" plan is superseded — the live Box is CIFS, **not S3/MinIO**.
 
@@ -336,14 +336,6 @@ and `nvme` (oldsrv), documented above.
   - Enabled via Immich **storage template** (a DB/UI setting at deploy, not compose env): thumbnails stay under `upload/thumbs`; originals + encoded-video are templated out to the CIFS mount.
 - **ML on oldsrv GPU** (`IMMICH_MACHINE_LEARNING_URL` over WG): embeddings/face data in Postgres → covered by DB dumps.
 - **Face thumbnail files** are backed up (Kopia → backup Box) because regenerating them means a full facial-recognition re-scan (expensive). Plain thumbnails and encoded-video are regenerable on demand (Immich reconstruct job), so only the large cold files move to the Box, not an extra backup copy.
-
----
-
-## Immich Hybrid Storage (legacy — originals on NAS, thumbs/ML local)  *(superseded 2026-08-18)*
-
-> Superseded by the VPS-era layout above (**HD-135**, decided 2026-08-18): app + DB + thumbs on VPS NVMe,
-> originals + encoded-video on the live Hetzner Box, ML on oldsrv. The old "originals on NAS/MinIO" mount
-> plan lives in git history — see [deployment-compose.md](deployment-compose.md) (HD-135/HD-151).
 
 ---
 

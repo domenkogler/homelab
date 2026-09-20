@@ -26,10 +26,10 @@ tags: [deployment, renovate, updates]
 
 ## Configuration (`renovate.json` at repo root)
 
-> 2026-08-23: the `"platform"` key was REMOVED from `renovate.json` — the pinned
-> renovate image (35.x) rejects it as an unknown platform (native forgejo support
-> arrived ≥37); the platform comes exclusively from the compose env
-> (`RENOVATE_PLATFORM: gitea`). Repo-side config must stay platform-agnostic.
+> **`renovate.json` must stay platform-agnostic — there is deliberately no `"platform"` key.**
+> The pinned Renovate image (35.x) rejects it as an unknown platform (native Forgejo support arrived in
+> ≥37); the platform comes exclusively from the compose env (`RENOVATE_PLATFORM: gitea`). Adding it back to
+> the config file breaks the run, and setting it in both places guarantees a future disagreement.
 
 ```json
 {
@@ -56,14 +56,14 @@ tags: [deployment, renovate, updates]
 
 > SSOT is the rendered template
 > [IaC/ansible/templates/docker_services/renovate/docker-compose.yml.j2](../IaC/ansible/templates/docker_services/renovate/docker-compose.yml.j2)
-> — the block below mirrors it as of 2026-08-24 (task 5).
+> — the block below mirrors it; if they disagree, the template wins.
 >
-> **Prerequisite / status:** Renovate was DISABLED (service `enabled: false` in group_vars) because the
-> Forgejo instance had no repos and renovate 404'd → "Repository has unknown error" crash-loop. **Re-enabled
-> 2026-08-24 (task 5):** `domen/test` exists (verified 200) but `domen/homelab` is not yet migrated, so
-> `RENOVATE_REPOSITORIES` TEMPORARILY points at `domen/test` (compose env). Switch back to `domen/homelab`
-> when that repo lands on Forgejo (owner). The playbook converge is OWNED by the other session — this repo
-> change is a file-edit only. The token itself verified valid (200 as `domen`, 2026-08-23 debug one-shot).
+> ⏳ **Status: enabled, pointed at the wrong repo on purpose.** `RENOVATE_REPOSITORIES` is still
+> `domen/test` because **`domen/homelab` has never been migrated to Forgejo**. Flip it to `domen/homelab`
+> when that repo lands (HD-264 tail).
+> **Why this matters more than a typo:** with no target repo, Renovate 404s and **crash-loops** the
+> container with "Repository has unknown error" — the service looks down but is really misconfigured, which
+> is why the repo pointer and the token validity are the first two things to check.
 
 ```yaml
 services:
@@ -125,7 +125,7 @@ Does NOT scan:
 
 ---
 
-## Run model & triggers (HD-264 sandbox, 2026-08-26)
+## Run model & triggers (HD-264)
 
 Renovate needs **no push webhook and no job scheduler** to detect updates — it **polls** the configured
 repos on its own cadence (the renovate CLI is pull-based). Two things are therefore **optional**, NOT

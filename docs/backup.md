@@ -45,20 +45,26 @@ Kopia targets the **backup Box over SSH/SFTP (port 23)** — the Hetzner Storage
 only, NOT S3** (HD-31/HD-135); iDrive e2 S3 was dropped.
 
 The **oldsrv agent runs containerized** (HD-191/HD-204): it connects to `kopia-server` on the VPS over
-**HTTPS on the WG S2S tunnel** (HD-318a, live 2026-09-08: kopia 0.23.x rejects `http://`; the server
-serves a persisted self-signed cert and the agent pins its stable SHA-256 fingerprint
-`kopia-server_fingerprint` 1P item) — server port 51515 is bound **only to the VPS tunnel address**
+**HTTPS on the WG S2S tunnel** (HD-318a) — **kopia 0.23.x rejects `http://`**, so the server serves a
+persisted self-signed cert and the agent pins its stable SHA-256 fingerprint from the
+`kopia-server_fingerprint` item. A cert that is regenerated per start makes every agent pin wrong at the
+next restart — persist it, pin the fingerprint. — server port 51515 is bound **only to the VPS tunnel address**
 (`wg_s2s_vps.ip`, never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach stays
 scoped by the S2S ACL (HD-155). Agent sources are oldsrv-local, read-only: `/opt/*` configs,
 `/srv/dumps` scratch, the immich upload/thumb dir, and the signal-cli state volume.
 
-> **Deployment state (2026-09-08, oldsrv+VPS converged):** the oldsrv `kopia-agent` is **LIVE + VERIFIED** —
-> after the post-Victoria VPS converge seeded `kopia-server_fingerprint` (VPS-only `kopia-fingerprint-sync.yml` task)
-> and the kopia-server boot script gained the HD-318a auth fix (below), the agent connects over HTTPS + fingerprint
-> pin and **takes snapshots** (first set 2026-09-08: `/opt` 1.3 GB/5648 files + signal-cli-data, retention labels
-> offsite on the backup Box). The server port stays bound only to the VPS tunnel address; reach is scoped by S2S ACL.
+> ✅ **Status: the oldsrv `kopia-agent` connects over HTTPS + fingerprint pin and takes snapshots**
+> (`/opt/*` configs + signal-cli state; retention labels send them offsite to the backup Box). The
+> fingerprint is seeded by a **VPS-only** task (`kopia-fingerprint-sync.yml`) — an agent-side task cannot
+> produce it, which is why the pin used to be permanently missing.
 >
-> **HD-318a auth fix (2026-09-08, needed for the agent session):** kopia's server-auth model requires the client's
+> **HD-318a — kopia's server-auth model needs TWO things to agree:** the client's `user@host` identity must
+> exist BOTH in the htpasswd (allowed `user@hostname` entries) AND as a repo user (`kopia server users add`)
+> whose password equals the **repo master password** (what the client passes to `connect --password`). A
+> non-repo-password user is `access denied` **at the session stage even with a matching htpasswd entry** —
+> the confusing part is that the earlier stages succeed. The boot script writes both htpasswd entries and
+> idempotently provisions the repo user. **Compose interpolation gotcha in the same file:** the command block
+> must be `$$`-escaped, or single-`$` interpolation mangles the credential at parse time.
 > `user@host` identity to exist BOTH in the htpasswd (`--htpasswd-file` = allowed `user@hostname` entries) AND as a
 > repo user (`kopia server users add`) whose password equals the **repo master password** (the client's `connect
 > --password`) — a non-repo-password user is `access denied` at the session stage even with a matching htpasswd
@@ -66,7 +72,7 @@ scoped by the S2S ACL (HD-155). Agent sources are oldsrv-local, read-only: `/opt
 > idempotently provisions/re-seeds the repo user (`kopia server users add/set` with `KOPIA_PASSWORD`). The compose
 > command block is `$$`-escaped (single-`$` compose interpolation was mangling the credential at parse time).
 
-> **kopia-server first-run gate gotcha (HD-271-followup, live 2026-08-28):** the server's first-run
+> **Kopia-server first-run gate (HD-271-followup):** the server's first-run
 > bootstrap (`kopia repository create sftp`) must be gated on **`repository.config`** (kopia's
 > repo-connection file) — NOT `config.json` (an unrelated technitium zone file). With the wrong gate
 > and a repo already on the backup Box, every boot re-ran `create` → `found existing data in storage
@@ -78,7 +84,7 @@ tiredofit/db-backup (local scratch) →  Kopia agent (VPS + oldsrv) →  Hetzner
    + service state + face thumbs       (encrypted, dedup)       (far-DC: Helsinki/Falkenstein — SB-Backup HEL1-BX186)
 ```
 
-> **Off-site (HD-29/31, 2026-08-18): two Hetzner Storage Boxes.** **Live** box (nearest DC) serves
+> **Off-site (HD-29/31): two Hetzner Storage Boxes.** **Live** box (nearest DC) serves
 > Immich originals **+ encoded-video** and the family SMB/WebDAV drives (CIFS, **not S3** — HD-135); **backup** box (far DC) hosts the Kopia repo.
 > **iDrive e2 dropped** (Hetzner cheaper per TB + SMB/WebDAV; single-provider risk accepted).
 >
@@ -121,7 +127,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | Immich **face thumbnails** | oldsrv NVMe | nightly rsync + Kopia | `bulk/data/immich-thumbs` + Hetzner Storage Box (backup) |
 | **Media library** (movies/tv/music) | **nas `bulk/media`** | **NOT backed up** | redownloadable via usenet/torrents |
 
-> **Victoria* observability (HD-342, 2026-09-08):** the VictoriaMetrics (VM, 365d metrics) + VictoriaLogs (VL, 90d logs) volumes are **Kopia-backed** (owner decision — reverses the old "regenerable, NOT backed up" doctrine for Prometheus 30d/Loki 14d). They live on the **VPS NVMe** (HD-135 backend placement) at `/srv/docker/victoria-metrics/data` + `/srv/docker/victoria-logs/data` (host binds, snapshotted by the VPS kopia client to the Hetzner backup Box). ⚠ **VPS-side kopia client wiring for these (and other `/srv/docker` service state) is a tracked gap — see backup.md §VPS kopia client note.**
+> **Victoria observability (HD-342):** the VictoriaMetrics (VM, 365d metrics) + VictoriaLogs (VL, 90d logs) volumes are **Kopia-backed** (owner decision — reverses the old "regenerable, NOT backed up" doctrine for Prometheus 30d/Loki 14d). They live on the **VPS NVMe** (HD-135 backend placement) at `/srv/docker/victoria-metrics/data` + `/srv/docker/victoria-logs/data` (host binds, snapshotted by the VPS kopia client to the Hetzner backup Box). ⚠ **VPS-side kopia client wiring for these (and other `/srv/docker` service state) is a tracked gap — see backup.md §VPS kopia client note.**
 
 > **Excluded — media + *arr scratch:** `bulk/media` (library **and** `downloads/`) is partially or fully
 > redownloadable via usenet/torrents, so the whole dataset is **unbacked** — no sanoid snapshots, no

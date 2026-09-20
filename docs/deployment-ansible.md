@@ -203,7 +203,7 @@ the second, run with the name tag, deployed it in ~30 s.
   together on the service entry whenever a template bind-mounts `/srv/docker/<name>/...` into
   a non-root container.
 - **`db_role_sync`** + **`db_item`** + **`db_pg_container`** (optional; HD-220, incident
-  2026-08-23) — postgres-image rotation-drift guard: the official postgres image applies
+  postgres-image rotation-drift guard: the official postgres image applies
   `POSTGRES_PASSWORD` ONLY at first cluster init, so rotating the vault `<service>_db` item
   re-renders every compose env while the persisted cluster keeps the OLD role password
   (forgejo crash-looped overnight on exactly this). Opted-in services get an idempotent
@@ -214,7 +214,7 @@ the second, run with the name tag, deployed it in ~30 s.
   `db_pg_container`** (HD-242): ensures a dedicated READ-ONLY login role (CREATE-if-absent,
   then password + `SELECT`-only grants on schema `public` incl. default privileges,
   re-applied every converge) in ANOTHER stack's pg container — consumer-side key set, e.g.
-  Metabase → forgejo-db via `metabase-forgejo_ro` (**retired 2026-09-14** — Metabase removed from the VPS; the key is left in the vault but the db_ro keys are commented out in `vps.yml`); vault rotation propagates automatically.
+  Metabase → forgejo-db via `metabase-forgejo_ro` (**retired** — Metabase removed from the VPS; the key is left in the vault but the db_ro keys are commented out in `vps.yml`); vault rotation propagates automatically.
 - **Lazy loop_var shadowing (HD-185 pattern, generalized):** `vars: { svc: "{{ item }}" }` on an
   `include_tasks` loop is LAZY - any INNER loop in the included file re-resolves `item` in its own
   context, so `svc` collapses to that inner string ('str' has no attribute 'name', found live on
@@ -242,7 +242,7 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 # A service tag alone matches nothing; keep the role tag (union semantics).
 ```
 
-### Two ways a converge lies to you (measured 2026-09-19)
+### Two ways a converge lies to you
 
 1. **`-e ansible_host=<ip>` is a GLOBAL extra-var and hijacks `delegate_to`.** Used to reach one host's
    alternate leg, a `delegate_to: pi` task connected to that override address instead: `ok=367 changed=52
@@ -258,7 +258,7 @@ is not a gate** — same class of failure as the green scoped converge and the `
 
 ### Jump-host execution (hosts reachable only through the VPS)
 
-> **The rule (since 2026-09-19, HD-397): every behind-NAT host carries the VPS jump IN THE
+**Rule (HD-397): every behind-NAT host carries the VPS jump IN THE
 > INVENTORY.** `ansible_ssh_common_args: "-o ProxyJump=vps"` lives in
 > `group_vars/home_servers.yml`, `group_vars/storage.yml`, `group_vars/raspberry_pi.yml` and
 > `group_vars/spark.yml` — so EVERY play that touches those hosts converges them from any network
@@ -269,8 +269,7 @@ is not a gate** — same class of failure as the green scoped converge and the `
 
 Every LAN host sits behind the home NAT on the Home VLAN, so a runner that is not LAN-attached reaches it
 only via the VPS. `playbooks/spark.yml` additionally keeps a play-level copy of the identical value
-(historical: it was the only place the jump lived before 2026-09-19; play vars win over group vars, same
-value — no conflict):
+(kept for redundancy — play vars win over group vars, same value, no conflict):
 
 ```yaml
 # group_vars/{home_servers,storage,raspberry_pi,spark}.yml  (and playbooks/spark.yml)
@@ -283,7 +282,7 @@ ansible_ssh_common_args: "-o ProxyJump=vps"
 > wrong host). Since HD-397 there is no reason to type either: the inventory carries the jump and
 > `host_vars` names the reachable leg. See §Two ways a converge lies to you above.
 >
-> **The OpenSSH-matching nuance, corrected by measurement (2026-09-19):** Ansible types the
+> **The OpenSSH-matching nuance, corrected by measurement:** Ansible types the
 > `ansible_host` value (an IP), so a `Host <alias>` block does nothing for it — but that is **not** why
 > the jump works: `-o ProxyJump=vps` comes from the group var and is passed on the command line, so no
 > `Host <ip>` block is required for a converge. Proof: with a stub config containing ONLY `Host vps`
@@ -325,7 +324,7 @@ the play aborts at `fetch-vault-pass.yml:62` (other session's audit AUD-B-2, rep
   The live run is fast (HD-269 measured ~18s for a single service) and you get the real diff.
 
 **Second `--check` breaker class — `command`-read facts feeding a later `uri` task**
-(✅ found + FIXED 2026-09-16, HD-368 dashboards session): the monitoring role reads the Grafana
+(HD-368, found while wiring the vLLM dashboards): the monitoring role reads the Grafana
 admin password and the container IP with `ansible.builtin.command` (`docker exec grafana …`) and
 feeds both into the following `uri` tasks. `command` never runs in check mode, so those registrations
 are empty → the uri task dies on `Error while resolving value for 'url': No first item, sequence was
@@ -381,7 +380,7 @@ IaC/ansible/
 ├── host_vars/
 │   ├── oldsrv.kogler.si.yml         # homelab_mode=desktop, static IP
 │   ├── nas.kogler.si.yml            # HP MicroServer Gen8 — ZFS storage
-│   ├── vps.kogler.si.yml            # netcup RS 2000 G12 (bought 2026-08-18)
+│   ├── vps.kogler.si.yml            # netcup RS 2000 G12 (purchase date: subscription.md)
 │   └── pi.kogler.si.yml             # Static IP, SSH user (node; ha.kogler.si = VIP)
 ├── roles/                            # full catalog = ls roles/ (count derived, never hand-entered)
 │   ├── common/tasks/                # system.yml + main.yml
@@ -395,7 +394,10 @@ IaC/ansible/
 │   ├── wireguard/                   # WG S2S VPS side (router peer lives in roles/router) — netdev + `wg-ensure-s2s-peer` oneshot (HD-306: networkd never applies the peer; a peer-only `wg setconf` re-attaches it after networkd init)
 │   ├── cloudflare_dns/              # public-record runs (vars/main.yml = IaC side of the record SSOT)
 │   ├── vps-hardening/tasks/main.yml # HD-154: VPS pre-deploy hardening — fail2ban, nftables default-deny, docker daemon (public edge only)
-│   ├── amd_rocm/tasks/main.yml      # AMD ROCm, udev, OLLAMA_KEEP_ALIVE  (**host LLM removed 2026-09-06**: Ollama off oldsrv — inference on spark/Triton, HD-335; RX 7600 keeps Sunshine encode + immich-ML container ROCm)
+│   ├── amd_rocm/tasks/main.yml      # AMD ROCm + udev for the RX 7600 (standby-capability role: the host
+│   │                                #   LLM came off oldsrv, HD-335; the card still serves Sunshine
+│   │                                #   encode, immich-ML and the pinned Vulkan tier) ⚠ still writes the
+│   │                                #   stale OLLAMA_KEEP_ALIVE env line — see docs/Q-A.md
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
 │   ├── router/                      # RouterOS api_modify: VLANs, DHCP, firewall, CAPsMAN, Kids rules, address lists
@@ -473,7 +475,7 @@ ansible_python_interpreter=/usr/bin/python3
 ### oldsrv.kogler.si.yml
 ```yaml
 homelab_mode: desktop            # "desktop" or "proxmox" or "headless"
-ansible_host: "{{ home_ip }}"   # Home VLAN 10 — THE ADMIN LEG for every runner since 2026-09-19
+ansible_host: "{{ home_ip }}"   # Home VLAN 10 — THE ADMIN LEG for every runner
                                  # (HD-397 + HD-398 decision A: the mgmt plane is sealed from the VPS
                                  # tunnel on purpose, so an mgmt-anchored ansible_host is reachable only
                                  # from the Mgmt VLAN itself — off-LAN it was a jump into a black hole)
@@ -503,7 +505,7 @@ ansible_host: 159.195.111.66        # Public IPv4 (netcup RS 2000 G12); IPv6 2a0
 ansible_user: ansible-admin
 ```
 
-**SSH host fingerprints** (netcup SCP, 2026-08-18) — for `known_hosts` pinning / MITM reference:
+**SSH host fingerprints** (captured from netcup SCP) — for `known_hosts` pinning / MITM reference:
 
 | Type | SHA256 | MD5 |
 |---|---|---|
@@ -768,21 +770,20 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 ## Deploy Timing Runbook (HD-269, Step f — measured)
 
 > **Role:** where the speed budget lives. These are **measured** numbers from the live full
-> converge (`vps.yml`, 2026-08-28, log `/tmp/fullconverge2.log`, `profile_tasks` enabled by
-> `ansible.cfg`). Re-measure with `ansible-run.sh playbooks/vps.yml` — the same run that
+> converge (`vps.yml` with `profile_tasks` enabled in `ansible.cfg`). **Re-measure with `ansible-run.sh playbooks/vps.yml` — the same run that
 > regenerates this page — whenever a change claims to affect deploy time.
 
-### Full-converge baseline (measured 2026-08-28)
+### Full-converge baseline (measured on the VPS with `profile_tasks`)
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Wall accumulate (TASKS RECAP) | **~193s (3:13)** | `profile_tasks` cumulative; ≈ wall. Prior baseline ~204s (2026-08-27) |
+| Wall accumulate (TASKS RECAP) | **~193s (3:13)** | `profile_tasks` cumulative; ≈ wall. Previous baseline ~204s (2026-08-27) |
 | Result | `ok=311 changed=45 failed=0 skipped=381` | idempotent converge, no functional change |
 | Slowest glue | **Authentik secret-egress 11.94s** | was ~21-22s; parallel win (HD-269) |
-| 2nd | **LiteLLM bootstrap-keys 8.07s** | **serial** (reverted 2026-08-28); paid only on the `litellm` pass |
+| 2nd | **LiteLLM bootstrap-keys 8.07s** | **serial** (parallelising it was reverted); paid only on the `litellm` pass |
 | 3rd | **op-vault-export (derive) 4.62s** | bulk 1P read; scoped runs ≈0.8s |
 
-### Measured cost ledger (TASKS RECAP, 2026-08-28)
+### Measured cost ledger (TASKS RECAP)
 
 Top tasks by elapsed time:
 
@@ -833,7 +834,7 @@ Deploy times drift with image versions/service count — re-measure per the top 
 `profile_tasks` prints the recap to every run; keep it in `ansible.cfg` (it's the arbitrage tool
 for any future speed change, HD-257).
 
-### Speed tooling — REJECTED options (HD-261 / HD-262, owner decision 2026-09-09)
+### Speed tooling — rejected options (HD-261 / HD-262)
 
 - **Mitogen (HD-261)** — rejected/closed. The gate ("only if `profile_tasks` shows a large executor floor")
   never fired: the Bulk 1Password pre-pass (HD-258) removed the op-lookup cost and VPS converges are live

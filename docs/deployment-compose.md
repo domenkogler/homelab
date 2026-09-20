@@ -112,7 +112,7 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   (upstream — the former `qm12` fork no longer exists, HD-192);
   Profilarr (`ghcr.io/dictionarry-hub/profilarr` + parser sidecar, Dictionarry-Hub, Deno-based v2); Recyclarr `ghcr.io/recyclarr/recyclarr`.
   All pinned via `*_version` vars in `group_vars/all/versions.yml` (HD-192, registry-verified
-  2026-08-21) + Renovate-tracked; the only `latest` left is Profilarr (no versioned tags upstream —
+  Renovate-tracked; the only `latest` left is Profilarr (no versioned tags upstream —
   documented fluid exception) and tuwunel (MUST-pin precedent, HD-121).
 - **PUID/PGID:** all filesystem/SMB-backed containers (the *arr stack, qBittorrent) run as the
   **neutral shared owner `storage_uid`/`storage_gid` = `1005` (`media`)** — linuxserver images via
@@ -162,35 +162,7 @@ Immich v3 uses its own Postgres image (`ghcr.io/immich-app/postgres:14-vectorcho
 and Valkey (`docker.io/valkey/valkey:9`) instead of Redis. Microservices are merged into the server
 container — no separate `immich-microservices` service needed.
 
-### Immich Hybrid Storage (originals on NAS, thumbs/ML local)  *(superseded 2026-08-18)*
-
-> Superseded by **HD-135** (VPS era): Immich app + DB + thumbs run on the **VPS**, originals + encoded-video
-> on the **live Hetzner Box** (CIFS), ML offloaded to oldsrv — layout in [`storage.md`](storage.md), decision
-> history in [deployment-ansible.md](deployment-ansible.md) (HD-135/HD-151). The old NAS-NFS mount plan lives in git history.
-
----
-
-## Traefik Labels (Exposed Services)
-
-Services exposed via Traefik must have labels:
-
-```yaml
-services:
-  immich:
-    labels:
-      traefik.enable: "true"
-      traefik.http.routers.immich.rule: "Host(`foto.kogler.si`)"
-      traefik.http.routers.immich.entrypoints: websecure
-      traefik.http.routers.immich.tls.certresolver: letsencrypt
-      traefik.http.routers.immich.middlewares: authentik-forward-auth@file
-    networks:
-      - traefik-public
-      - services-internal
-```
-
-Services NOT exposed publicly (databases, internal-only apps) have `traefik.enable: "false"` or no Traefik labels.
-
-## Template Jinja Pitfalls (compose) — each found live in Phase 1 (2026-08-22)
+## Template Jinja pitfalls (compose) — every one was found against a live container
 
 1. **Jinja evaluates expressions inside YAML COMMENTS.** A header line like
    `# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}` EXECUTES the
@@ -362,9 +334,9 @@ services:
       - /tmp
 ```
 
-> **`read_only` is NOT universal — drop it where the image's startup writes (HD-318 live lesson, 2026-09-08).**
+> **`read_only` is NOT universal — drop it where the image's startup writes (HD-318).**
 > The hardening default above is the target, but the following image families **cannot** run `read_only: true`
-> without crash-looping (each found live on oldsrv during Phase-3):
+> without crash-looping:
 > - **linuxserver s6-overlay images** (`linuxserver/*`): s6 init writes `/run/s6` + `/config` as root before
 >   the PUID drop → drop `read_only`, keep `cap_drop: ALL` + `tmpfs: /run:exec` + `cap_add SETGID/SETUID`
 >   (sonarr/radarr/qbittorrent precedent — the *arr templates carry the inline note).
@@ -375,7 +347,7 @@ services:
 >   `/app/data`): mount the correct target + `bind_owner_uid`/`bind_dirs` on the docker_services entry
 >   (deploy-service.yml Class-A pre-create).
 > - **kopia image**: entrypoint is `/bin/kopia` (clear with `entrypoint: []` before a `command: sh -c`);
->   needs writable `/app/logs`. **TLS (HD-318a, RESOLVED 2026-09-08):** `kopia repository connect server`
+>   needs writable `/app/logs`. **TLS (HD-318a):** `kopia repository connect server`
 >   in 0.23.x hard-requires `https://` (no client-side `--insecure`) — the server serves a PERSISTED
 >   self-signed cert (`--tls-cert-file`/`--tls-key-file`, generated once under
 >   `/srv/docker/kopia-server/config/`) and the agent pins its stable SHA-256 fingerprint
@@ -422,13 +394,12 @@ Deliberate isolation decisions (accepted, not gaps): **Ollama** (no native serve
 
 #### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — the pull contract
 
-> **Status 2026-09-14: deploy-gated.** The Authentik LDAP provider/outpost/svc_samba were never
-> created live (blueprint has none; outpost token `authentik-ldap_bind` expired 2026-09-01).
-> Samba currently runs `storage_samba_passdb=tdbsam` (local accounts, works offline; media
-> share needs no per-user LDAP). Flip the var to `ldapsam` only once the Authentik LDAP
-> provider + outpost + svc_samba exist and the token is valid — smbd fails HARD on startup
-> if ldapsam is enabled while the outpost is unreachable (2026-09-14 live hit). The enable
-> work is tracked as **HD-360** (split from HD-132).
+> ⏳ **Deploy-gated (HD-360, split from HD-132).** Samba currently runs
+> `storage_samba_passdb=tdbsam` — local accounts, works offline, and the media share needs no per-user
+> LDAP. The Authentik **LDAP provider, outpost and `svc_samba` do not exist live** (the blueprint carries
+> none) and the outpost token `authentik-ldap_bind` is expired. **Flip the var to `ldapsam` only after all
+> three exist and the token is valid: `smbd` fails hard at startup when `ldapsam` is enabled and the outpost
+> is unreachable** — that failure is the reason the flip is gated, not a theoretical risk.
 
 - **When ldapsam is enabled (HD-360)**: Samba authenticates against Authentik as an LDAP
   provider (`passdb backend = ldapsam`); **Authentik is the SSOT and does NOT push.** No

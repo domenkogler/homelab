@@ -18,10 +18,10 @@ tags: [deployment, secrets, 1password]
 - **Single Git repo is source of truth** — `git clone` + `ansible-playbook` = fully rebuilt infrastructure
 - **Secrets never touch the repo** — all credentials live exclusively in 1Password
 - **Documentation drives automation** — these `docs/*.md` files are read by AI to generate IaC configs
-- ⚠ **Rotation caveat (Wave-3 R5, 2026-08-22):** updating a 1Password item does NOT update already-initialized service state — re-render + redeploy applies it only where the service reads env/config at start. Known one-time seeds: `POSTGRES_PASSWORD` initializes a volume ONCE (later rotation needs `ALTER USER` inside the container); `AUTHENTIK_BOOTSTRAP_*` applies only at user creation. Both hit live during Phase 1 (akadmin identity, forgejo-db role) and were synced manually via sanctioned tooling.
+- ⚠ **Rotation caveat:** updating a 1Password item does NOT update already-initialized service state — re-render + redeploy applies it only where the service reads env/config at start. Known one-time seeds: `POSTGRES_PASSWORD` initializes a volume ONCE (later rotation needs `ALTER USER` inside the container); `AUTHENTIK_BOOTSTRAP_*` applies only at user creation. Both hit live during Phase 1 (akadmin identity, forgejo-db role) and were synced manually via sanctioned tooling.
 - **No tribal knowledge** — if Domen is incapacitated, family + trusted tech contact can recover from 1Password + repo
 
-### Config vs credential split (decision 2026-08-19 — why there is NO `server` type)
+### Config vs credential split — why there is NO `server` type
 
 1Password holds **credentials only**. Connection *configuration* (which host, which user, which port)
 lives in the **Git IaC** so `git clone` → `ansible-playbook` can fully rebuild and a recoverer finds
@@ -45,7 +45,7 @@ the split: `kopia_sftp_host/user/port` in `group_vars` + `Hertzner-SB-Backup` ke
 the automation path (e.g. `netcup-vps_login` root + IP in the **Homelab (human)** vault) stay in 1Password —
 that is a break-glass decision, not a connection-config item.
 
-### Vault taxonomy — the two-vault model (confirmed 2026-08-22)
+### Vault taxonomy — the two-vault model
 
 | Vault | Role | Access |
 |-------|------|--------|
@@ -98,7 +98,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 >    do not grep it back (CONVENTIONS §6).
 > 2. **LiteLLM does not expand `os.environ/…` inside a DB-stored model's `litellm_params`.** With
 >    `STORE_MODEL_IN_DB=true` the entry `api_key: os.environ/SPARK_LLM_API` is forwarded to the
->    upstream **literally** → engine 401 (proven 2026-09-17 through the proxy and in-process
+>    upstream **literally** → engine 401 (proven through the proxy and in-process
 >    `litellm.completion`, v1.83.10). To keep a bearer out of the Kopia-backed DB, deliver it as the
 >    **provider credential env** the model's provider prefix already reads (`openai/…` → `OPENAI_API_KEY`)
 >    and leave `api_key` **unset** in the row — that path returns 200. Caveat to record per service: a
@@ -111,7 +111,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 > **folded block scalar `>-` and NEVER a quoted inline `"{{ … }}"`.** An Authentik/OIDC
 > `client_secret` (or any 1P `credential`/`password`) can contain `:`, `"`, `'`, backtick, `@`, `#`,
 > `&`, `*`, `[`, `]`, `!`, `?`, `<`, `>` … which a quoted scalar does **not** escape — the inline form
-> breaks YAML parse and crash-loops the app (**live incident 2026-08-24:** the rotated `headscale_api`
+> breaks YAML parse and crash-loops the app (**a rotated `headscale_api`
 > secret broke BOTH headscale and headplane on restart with `YAMLException` / `EISDIR`).
 >
 > **Pattern (YAML-safe):**
@@ -155,7 +155,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 > **Fix, Layer 1 (source, primary):** prefer generators whose alphabet **excludes `$`**, so rotated
 > values are natively safe forever — `provision-secrets.py` `gen_pw()` dropped `$` from its pool
 > (2026-08-28). `gen_token()` never emits `$`. This makes every future rotation through
-> `--rotate`/`--rotate-all` `$`-free at birth. (The dead `gen_wg_key()` helper was removed 2026-09-08
+> `--rotate`/`--rotate-all` `$`-free at birth. (The dead `gen_wg_key()` helper was removed
 > in HD-205 — `wg genkey` is the authoritative source for the wg private keys.)
 >
 > **Fix, Layer 2 (defensive, at render):** escape a 1Password field **only when it lands in compose-parsed

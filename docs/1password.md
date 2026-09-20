@@ -23,9 +23,9 @@ Ansible resolves every secret via
 on the **control host** (the WSL Debian runner). That lookup authenticates to 1Password
 using a **Service Account token**, not an interactive login.
 
-### Credential source — TWO service accounts (live-verified 2026-09-19)
+### Credential source — TWO service accounts
 Both items live in the **`Homelab-ansible`** vault itself (`op vault list` returns exactly that
-one vault), and both were re-issued on 2026-09-19:
+one vault), both re-issued:
 
 | Item | Scope | Who uses it |
 |---|---|---|
@@ -38,7 +38,7 @@ one vault), and both were re-issued on 2026-09-19:
 > longer how it works — the control-node token IS an `op_api` item in the main vault, and there is
 > no second vault. Verified by `op vault list` + `op item list --vault Homelab-ansible`.
 
-### Where a token is installed (the whole list — checked 2026-09-19)
+### Where a token is installed (the whole list)
 | Host / system | Token | Source of truth |
 |---|---|---|
 | **control node** (this WSL Debian laptop — the only place `ansible-playbook` is run interactively) | `op_api` | `~/.config/op/homelab-sa-token` (0600) |
@@ -106,7 +106,7 @@ Two identity models are in use on the runner:
 
 ### Windows-desktop agent notes (interactive laptop access)
 
-Found live 2026-08-22 while restoring VPS access (HD-209 — live SSH restore; evidence in the commit + `deployment-tasks.md`):
+Discovered the hard way during a VPS SSH restore (HD-209). Each of these produces an auth-shaped error with a non-auth cause:
 
 - **Vault allowlist:** the desktop agent serves ONLY vaults listed in 1Password's agent
   config `agent.toml` (Windows: `%LOCALAPPDATA%\1Password\config\ssh\agent.toml`; each
@@ -119,7 +119,7 @@ Found live 2026-08-22 while restoring VPS access (HD-209 — live SSH restore; e
   (e.g. `IdentityFile ~/.ssh/ansible-admin_ssh.pub` + `IdentitiesOnly`); if the vault is NOT
   allowlisted in `agent.toml`, the agent refuses the key and `ssh` misreports it as
   `Load key … invalid format` — the toml fix above is the real solution, not a client bug.
-- **Laptop convenience (final, owner-set 2026-08-22):** `~/.ssh/config` carries TWO aliases,
+- **Laptop convenience (owner-set):** `~/.ssh/config` carries TWO aliases,
   both `User ansible-admin` (the only SSH user), differing only by the presented key via
   `.pub` hint + `IdentitiesOnly yes`: `vps-ansible` → runner identity (`ansible-admin_ssh.pub`),
   `vps` → personal interactive identity (`laptop-domen_ssh.pub`). Item names are vault
