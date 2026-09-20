@@ -15,11 +15,11 @@ tags: [services, finance, budget, banking, investing]
 > **Linked from:** `index.md`, `services.md`
 
 > 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Actual Budget + Enable Banking are designed but **not live**
-> (tracked HD-57, Stage 3/10); compose template + group_vars registry landed 2026-08-24. This doc is the
+> (tracked HD-57, Stage 3/10); compose template + group_vars registry landed. This doc is the
 > authoring spec for the IaC (`docker_services/actual-budget/` + `group_vars/home_servers.yml`) and the
 > network/DNS records.
 >
-> **Placement (decision 2026-08-24): oldsrv**, internal-only P+I — same plane as the media stack.
+> **Placement: oldsrv**, internal-only P+I — same plane as the media stack.
 > If oldsrv is ever disposed, non-GPU state restores from Kopia/NAS backups onto any Docker host
 > (see [backup.md](backup.md)); a dedicated oldsrv→VPS DR runbook is tracked in todo.md.
 
@@ -77,7 +77,7 @@ by Actual's built-in bank-sync.
 
 | Account | Type | Automation method | Schedule | Automatic? |
 |---------|------|-------------------|----------|------------|
-| **UniCredit SI (current)** | Checking | **Enable Banking API → n8n bridge → Actual API** (decision 2026-08-24: stable image — NOT the nightly/native-sync build) | Daily | ✅ Yes |
+| **UniCredit SI (current)** | Checking | **Enable Banking API → n8n bridge → Actual API** (decision: stable image — NOT the nightly/native-sync build) | Daily | ✅ Yes |
 | **Wise** | Multi-currency | **Wise API** → n8n → Actual API | Daily | ✅ Yes (API token needed) |
 | **Trade Republic (cash)** | Cash/broker | **CSV export** (TR in-app "Transactions Export") → drop in watched folder → n8n → Actual API | Monthly manual | ⚠️ Manual CSV drop |
 | **MC World Elite (UniCredit)** | Credit card | **CSV export** (UniCredit online banking) → n8n → Actual API | Monthly manual | ⚠️ Manual CSV drop |
@@ -112,7 +112,7 @@ discontinued free personal sign-ups). It is **free for personal use**.
 |------|-------------|-------------|------------|-----------|--------|
 | UniCredit Bank Slovenia (UNICREDIT BANKA SLOVENIJA d.d.) | SI5446546 | ✅ | ✅ | ✅ Personal + Business | Confirmed supported |
 
-**Integration (bridge mode, decision 2026-08-24):**
+**Integration (bridge mode, decision):**
 1. Create the Enable Banking application (Production mode, name `Actualbudget`) — the App ID +
    credential file authorize the **n8n** workflows; they live in an n8n credential, not in Actual.
 2. n8n polls EB daily (`GET /api/accounts/{id}/transactions`) and pushes new transactions into Actual
@@ -153,7 +153,7 @@ download) produces a CSV/Excel file containing both cash movements and trades.
 
 n8n pipeline:
 1. **Watch Folder** node (polling an OpenCloud/Nextcloud directory or filesystem path).
-2. When a new CSV lands → **Read Binary** → **Parse CSV** → split into cash entries (→ cash account)
+2. When a new CSV lands → **Read Binary** →**Parse CSV** → split into cash entries (→ cash account)
    and trade entries (→ investment tracking account).
 3. Dedup against Already-imported IDs in Actual.
 4. Push to Actual API.
@@ -197,7 +197,7 @@ Categorization runs inside each import workflow in **n8n**: unmapped payees go t
 at the **LiteLLM spine** on the VPS (`llm-backend` isolation means nothing targets Ollama directly —
 HD-59); LiteLLM routes to Ollama on the RX 7600 (small model like `llama3.2:3b`). The category is
 written back to Actual via its API. No extra copilot container is onboarded — the earlier "community
-AI copilot tool" idea is superseded by this n8n-native loop (decision 2026-08-24).
+AI copilot tool" idea is superseded by this n8n-native loop.
 
 **No extra GPU cost:** Ollama runs on the existing AMD RX 7600 (8 GB VRAM), shared with Qwen/Llama
 for office LLM use. A small model like `llama3.2:3b` or `qwen2.5:7b` handles category inference in
@@ -237,7 +237,7 @@ provides a native structured **CSV/Excel export** ("Transactions Export"), Trade
 
 ### Stable pinned image + n8n EB bridge (nightly rejected)
 
-*Decision 2026-08-24 (HD-57).* The native Actual↔Enable Banking sync exists only on the `nightly`
+*Decision (HD-57).* The native Actual↔Enable Banking sync exists only on the `nightly`
 image line, which violates the pin-semver law (§7 — mutable tag, no Renovate semver trail, silent
 class of breakage). **Decision:** `actual_budget_version` stays a registry-verified stable calver pin;
 UniCredit sync runs as an n8n workflow polling the Enable Banking API and pushing into Actual's HTTP
@@ -245,19 +245,19 @@ API. Re-evaluate only when upstream ships EB sync in a stable release.
 
 ### Placement: oldsrv (not VPS)
 
-*Decision 2026-08-24 (HD-57).* Actual Budget is internal-only P+I; financial data stays on the LAN
+*Decision (HD-57).* Actual Budget is internal-only P+I; financial data stays on the LAN
 plane with the media stack, backed up to NAS + Kopia off-site. The VPS hosts only the pipeline brain
 (n8n + LiteLLM), which reaches Actual over the WG S2S tunnel (:5006 bound to `oldsrv_home_ip`,
 immich-ml precedent). If oldsrv is disposed, non-GPU state restores from backups onto any Docker host.
 
 ### Credit card: manual CSV first; SMS/email parsing deferred
 
-*Decision 2026-08-24 (HD-57).* Phase-1 ingest for the MC World Elite is monthly manual CSV only.
+*Decision (HD-57).* Phase-1 ingest for the MC World Elite is monthly manual CSV only.
 Email-alert → mailbox automation is investigated post-deploy; SMS-forwarder is last resort.
 
 ### Seed before sync
 
-*Decision 2026-08-24 (HD-57).* Starting balances and existing IBKR/TR positions are entered manually
+*Decision (HD-57).* Starting balances and existing IBKR/TR positions are entered manually
 BEFORE any auto-sync is enabled; sources come online one at a time (EB → Wise → Flex) with dedup
 checks after each.
 
@@ -293,7 +293,7 @@ Actual's backup export includes all accounts, transactions, categories, and rule
 
 ## Open Questions (pre-deploy — remaining human steps)
 
-Decided 2026-08-24: stable+n8n bridge (not nightly), oldsrv placement, CSV-first card, seed-before-sync.
+Decided: stable+n8n bridge (not nightly), oldsrv placement, CSV-first card, seed-before-sync.
 Remaining before/at first deploy:
 
 - [ ] Verify the wildcard cert + Traefik route cover `budget.kogler.si` (and the EB callback path)

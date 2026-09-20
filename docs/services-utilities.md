@@ -11,7 +11,7 @@ tags: [services, utilities, tools, automation]
 > **Links to:** `services-office.md`, `observability.md`, `services-authentik.md`, `services.md`
 > **Linked from:** `services.md`
 
-> 🟢 **VPS members live since 2026-08-22**: n8n (`auto.kogler.si`, the alert brain), PairDrop (public crowdsec-only tier on both subdomains per HD-230a), Stirling-PDF. **HD-58 + HD-113 live-verified 2026-09-08**: stirling-pdf container healthy + `pdf.kogler.si` 302 Forward-Auth chain + OCR `eng+slv`; pairdrop container healthy + `drop.kogler.si` 200 public crowdsec-only (WebRTC signaling). Inventory re-render already landed via HD-342 (2026-09-08). ⏳ deploy-gated: signal-cli-rest-api (oldsrv, Phase 3 — reaches n8n over WG S2S once that tunnel is up, HD-03) · **Zipline** (HD-112 — IaC complete 2026-08-24, NOT deployed; deploy-gate runbook = the compose header checklist).
+> 🟢 **VPS members live**: n8n (`auto.kogler.si`, the alert brain), PairDrop (public crowdsec-only tier on both subdomains per HD-230a), Stirling-PDF.**HD-58 + HD-113 live-verified**: stirling-pdf container healthy + `pdf.kogler.si` 302 Forward-Auth chain + OCR `eng+slv`; pairdrop container healthy + `drop.kogler.si` 200 public crowdsec-only (WebRTC signaling). Inventory re-render already landed via HD-342. ⏳ deploy-gated: signal-cli-rest-api (oldsrv, Phase 3 — reaches n8n over WG S2S once that tunnel is up, HD-03) ·**Zipline** (HD-112 — IaC complete, NOT deployed; deploy-gate runbook = the compose header checklist).
 
 ---
 
@@ -21,8 +21,8 @@ tags: [services, utilities, tools, automation]
 |---------|-----------|---------|--------------------|-------------|
 | n8n | auto | I | 200–400 / 700 | Alert router → Signal/email (also office automation) |
 | signal-cli | — | I | 80–150 / 250 | Signal delivery (linked device, "Homelab Alerts") |
-| PairDrop | pairdrop | P | 100–180 / 300 | **P2P file share** (HD-230, supersedes HD-113) — browser WebRTC "AirDrop-style" transfers; PUBLIC since 2026-08-23 on `pairdrop.kogler.si` + `drop.kogler.si` via crowdsec-only tier (no Forward-Auth), traefik-public-only network isolation, built-in RATE_LIMIT (linuxserver image; no data persisted to disk). ✅ **live-verified 2026-09-08** (HD-113): container healthy, `drop.kogler.si` → 200 crowdsec-only, signaling/WebRTC routed through Traefik |
-| Stirling PDF | pdf | P | 150–400 / 800 | **PDF toolkit** (HD-58) — merge/split/compress/convert/number/OCR (Tesseract `eng+slv`, `-fat` image bundles all langs); anonymous mode inside app + Authentik Forward-Auth at the Traefik edge (public `pdf.kogler.si`, SSO-gated); no local online-PDF-editor dependency; **stateless (in-memory, no disk/backup)**. ✅ **live-verified 2026-09-08** (HD-58): container healthy, `pdf.kogler.si` → 302 Forward-Auth chain, OCR `eng+slv` |
+| PairDrop | pairdrop | P | 100–180 / 300 | **P2P file share** (HD-230, supersedes HD-113) — browser WebRTC "AirDrop-style" transfers; PUBLIC on `pairdrop.kogler.si` + `drop.kogler.si` via crowdsec-only tier (no Forward-Auth), traefik-public-only network isolation, built-in RATE_LIMIT (linuxserver image; no data persisted to disk). ✅**live-verified** (HD-113): container healthy, `drop.kogler.si` → 200 crowdsec-only, signaling/WebRTC routed through Traefik |
+| Stirling PDF | pdf | P | 150–400 / 800 | **PDF toolkit** (HD-58) — merge/split/compress/convert/number/OCR (Tesseract `eng+slv`, `-fat` image bundles all langs); anonymous mode inside app + Authentik Forward-Auth at the Traefik edge (public `pdf.kogler.si`, SSO-gated); no local online-PDF-editor dependency;**stateless (in-memory, no disk/backup)**. ✅**live-verified** (HD-58): container healthy, `pdf.kogler.si` → 302 Forward-Auth chain, OCR `eng+slv` |
 | Zipline | bin | P | ~200–350 / 700 (est.) | **Public bin + URL shortener + QR** (HD-112) — v4.7.0 pin, VPS, local datasource; `crowdsec-only` tier; native-OIDC dashboard; guestbin dropzone (no-login uploads, 6h TTL, quota-bounded); 🟢 IaC done ⏳ deploy-gated |
 
 ## Automation & Alerting
@@ -34,12 +34,12 @@ tags: [services, utilities, tools, automation]
 
 ## Zipline — public bin & shortener (HD-112)
 
-> 🟢 **Decided + IaC authored 2026-08-24 — nothing deployed yet (⏳ deploy-gated).** Decision: Zipline v4.7.0 (pin) with a single public host `bin.kogler.si` on `crowdsec-only@file` and dashboard native-OIDC. Design source-verified against Zipline v4.7.0. Deploy-gate steps live in the compose header (`docker_services/zipline/docker-compose.yml.j2`).
+> 🟢 **Decided + IaC authored — nothing deployed yet (⏳ deploy-gated).** Decision: Zipline v4.7.0 (pin) with a single public host `bin.kogler.si` on `crowdsec-only@file` and dashboard native-OIDC. Design source-verified against Zipline v4.7.0. Deploy-gate steps live in the compose header (`docker_services/zipline/docker-compose.yml.j2`).
 
 **Purpose:** public temporary file bin (phone↔PC transfers via short link), URL shortener + QR codes; private persistent storage secondary (OpenCloud stays the family file cloud).
 
 **Architecture decisions:**
-- **Image/pin:** `zipline_version` = `v4.7.0` (`group_vars/all/versions.yml`); **local filesystem datasource** on VPS NVMe (HD-131-compliant — no S3).
+- **Image/pin:** `zipline_version` = `v4.7.0` (`group_vars/all/versions.yml`);**local filesystem datasource** on VPS NVMe (HD-131-compliant — no S3).
 - **Exposure:** ONE public host `bin.kogler.si`, middleware `crowdsec-only@file` (never zero edge protection). Viewer/shortener routes + guest upload API are anonymous BY DESIGN — no auth middleware on this host's public paths.
 - **Auth:** dashboard gated by Zipline NATIVE OIDC — provider declared in the `ks-oidc.yml` Authentik blueprint (family-group binding only), `FEATURES_USER_REGISTRATION=false`, OAuth-registration off, local login bypassed. Forward-Auth deliberately NOT stacked (double-auth avoided; Immich/OpenCloud precedent).
 - **Guestbin split (anonymous uploads):** dedicated Zipline-local user `guestbin` (no Authentik identity, never logs in) owns a `dropzone` folder with `allowUploads=true`. Guests upload unauthenticated via `POST /api/upload` with headers `x-zipline-folder: <id>` + hardcoded `x-zipline-deletes-at: 6h` — global default expiration stays UNSET so private uploads default permanent. Files attribute to guestbin and consume ITS small quota.

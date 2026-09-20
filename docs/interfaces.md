@@ -24,7 +24,7 @@ tags: [services, interfaces, dashboards]
 | **Element Web (Matrix)** | Family | Matrix-native SSO → Authentik | Messaging: family chat (`chat.kogler.si`, native-only; see [`services-matrix.md`](services-matrix.md)) |
 | **Grafana Dashboard** | Domen (admin) | Provisioned JSON | Observability: analytics, logs, resource metrics — **internal all-app edge** (tailnet + WG-S2S), `stats.kogler.si` (no `.ts` needed) |
 | **Traefik Dashboard** | Domen (admin) | API/labels | Routing/debug: middleware chain, cert status — **internal all-app edge** (tailnet + WG-S2S), `traefik.kogler.si` |
-| ~~**Metabase / CrowdSec Dashboard**~~ | ~~Domen (admin)~~ | ~~SQL/JSON~~ | **RETIRED 2026-09-14** (was: analytics sandbox, internal edge `sec.kogler.si`); future home = oldsrv |
+| ~~**Metabase / CrowdSec Dashboard**~~ | ~~Domen (admin)~~ | ~~SQL/JSON~~ | **RETIRED** (was: analytics sandbox, internal edge `sec.kogler.si`); future home = oldsrv |
 | **Obsidian Desktop** | Domen (admin) | Local `.md` folder (repo clone) | Knowledge base: docs, runbooks, Canvas diagrams |
 | **All internal apps (public + internal)** | Domen (admin) / family | docker_services `public:` flag + internal-edge routes | **Internal all-app edge (HD-331):** every app reachable over the Headscale tailnet + WireGuard S2S at the same `*.kogler.si` name it uses on the public edge — no public WAN needed |
 
@@ -32,20 +32,20 @@ tags: [services, interfaces, dashboards]
 
 ## Homepage — Family Launchpad
 
-- **Access:** `kogler.si` (root), Authentik Forward Auth — **LIVE 2026-09-03**: `home.kogler.si` → 302 Authentik SSO; `services.yaml`/`widgets.yaml` rendered + homepage restarted by the VPS converge. Owner verify: family sees live apps green, Domen technical section restricted.
+- **Access:** `kogler.si` (root), Authentik Forward Auth — **LIVE**: `home.kogler.si` → 302 Authentik SSO; `services.yaml`/`widgets.yaml` rendered + homepage restarted by the VPS converge. Owner verify: family sees live apps green, Domen technical section restricted.
 - **Placement:** the **VPS**, next to the public edge (HD-180/HD-183) — the route is the compose's Docker-provider labels
 - **Content:** Grid of service tiles with green/red health dots
 - **Health checks:** widget/probe-based reachability — siteMonitor probes per tile + blackbox `probe_success` on the status widget; no Docker socket (on the VPS it would only see VPS containers)
 - **Auto-generated:** the Ansible post-deploy hook regenerates `services.yaml` + `widgets.yaml`
 - **Local-only links resolve on LAN/VPN only** (split-horizon)
-- **Family dashboard split (HD-316, 2026-09-03):** `home.kogler.si` is the **family** launchpad — family groups (Photos/Files/Docs/Chat/Git/AI/Tools/Accounts) tile only the **live public** apps with siteMonitor health dots; a separate **Domen · technical** group (admin dashboards: Grafana `stats`/Dozzle `logs`/Traefik `traefik`/CrowdSec `csui`/Metabase `sec`/n8n `auto`/VPN `vpn` — **`vpn.kogler.si` is public**, unlike the tailnet-only dashboards/dsh/pi-dev) (gated by `homepage_show_technical`, default **true** — rendered by default in its own Domen-only group, never exposed to family tiles); a **Soon** group shows deploy-gated apps (Phase 3/4) as non-clickable roadmap tiles (gated by `homepage_show_soon`, default true). Grafana is **Domen's technical dashboard** — never a family tile. siteMonitor is used only for public CNAMEs the homepage container can resolve (tailnet-only names are NOT probed — they would render false-red dots; their health lives in Grafana itself).
+- **Family dashboard split (HD-316):** `home.kogler.si` is the **family** launchpad — family groups (Photos/Files/Docs/Chat/Git/AI/Tools/Accounts) tile only the **live public** apps with siteMonitor health dots; a separate **Domen · technical** group (admin dashboards: Grafana `stats`/Dozzle `logs`/Traefik `traefik`/CrowdSec `csui`/Metabase `sec`/n8n `auto`/VPN `vpn` — **`vpn.kogler.si` is public**, unlike the tailnet-only dashboards/dsh/pi-dev) (gated by `homepage_show_technical`, default **true** — rendered by default in its own Domen-only group, never exposed to family tiles); a **Soon** group shows deploy-gated apps (Phase 3/4) as non-clickable roadmap tiles (gated by `homepage_show_soon`, default true). Grafana is **Domen's technical dashboard** — never a family tile. siteMonitor is used only for public CNAMEs the homepage container can resolve (tailnet-only names are NOT probed — they would render false-red dots; their health lives in Grafana itself).
 
 ---
 
 ## HA Dashboard (native) — Smart Home Control
 
 - **Purpose:** Fast control for lights, blinds, Shelly RGBW, media (Nvidia Shield)
-- **Platform:** **Home Assistant native Dashboard** — replaces the obsolete **TileBoard** (retired via HD-24). Maintained, PWA-installable, declarative YAML (`lovelace`) that fits the `home_assistant` Ansible role.
+- **Platform: **Home Assistant native Dashboard** — replaces the obsolete **TileBoard** (retired via HD-24). Maintained, PWA-installable, declarative YAML (`lovelace`) that fits the `home_assistant` Ansible role.
 - **Display surface:** Existing devices only (no purchase) — iPad (A16) + Android RT8 (both 80%-battery-capped) as wall/dash panels; family phones via **PWA / Home-screen bookmark**.
 - **Access:** `ha.kogler.si` — **local/VPN only**, `use_x_forwarded_for` + `trusted_proxies` (see `configuration.yaml.j2`). Dashboard works on iOS + Android identically (it's a browser PWA).
 - **Style:** Dark mode, modern, minimal; `card-mod` (v3.4.4) available for CSS polish.

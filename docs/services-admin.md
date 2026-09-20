@@ -7,12 +7,14 @@ tags: [services, admin, ops, gitops, security, backup]
 ---
 # Admin — Ops, GitOps, Security & Backup
 
-> **Role:** Detail — the operational/admin slice of the services stack: GitOps (Forgejo, Renovate), edge-security dashboards (CrowdSec, Metabase), VPN mesh (Headscale), backup (Kopia, DB Backup), and the **network/rack topology dashboard (Homelable, HD-45)**.
+> **Role:** Detail — the operational/admin slice of the services stack: GitOps (Forgejo, Renovate), edge security (CrowdSec), VPN mesh (Headscale), backup (Kopia, DB Backup), and the **network/rack topology dashboard (Homelable, HD-45)**.
 > **Links to:** `services-traefik.md`, `services-authentik.md`, `backup.md`, `deployment-renovate.md`, `observability.md`, `network-rack.md`, `services.md`
 > **Linked from:** `services.md`, `index.md`
 
-> 🟢 **VPS members live since 2026-08-22** (Phase 1): Forgejo (healed 2026-08-23 after the postgres role-password rotation fix, HD-220a), CrowdSec, Headscale + Headplane admin UI, kopia-server, db-backup, Renovate. ⏳ deploy-gated: kopia-agent (oldsrv, Phase 3) plus owner tails surfaced in todo.md (Forgejo repo creation/migration, kopia seed/wiring decisions — HD-230).
-> **Metabase RETIRED from the VPS 2026-09-14** (never used; no data to lose; VPS RAM tight) — if ever needed again it runs on **OLDSRV** (see §Metabase below).
+> **Status: 🟢 live on the VPS** — Forgejo, CrowdSec, Headscale + Headplane admin UI, kopia-server,
+> db-backup, Renovate. ⏳ **Open:** the kopia-agent connect gate on oldsrv (it needs the kopia-server leg
+> wired end to end), Forgejo repo creation/migration, and the owner's kopia seed/wiring decisions (HD-230).
+> **Metabase is retired** — it is not in the running stack; see §Metabase for the revival path.
 
 ---
 
@@ -22,18 +24,17 @@ tags: [services, admin, ops, gitops, security, backup]
 |---------|-----------|---------|--------------------|-------------|
 | Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner). **GitOps / upgrade-automation trigger** — Forgejo Actions → Renovate → Ansible. **Auth (HD-148): native OIDC → Authentik** (web SSO + per-user API/token); client via Blueprint + glue |
 | Renovate Bot | — | I | 150–300 / 600 | Docker image version tracking (GitOps upgrade automation) |
-| CrowdSec | — | P | 100–200 / 400 | WAF, brute-force protection (dashboard via CrowdSec Web UI — Metabase retired 2026-09-14) |
-| ~~Metabase~~ | ~~sec~~ | ~~P+I~~ | ~~250–450 / 800~~ | **RETIRED from the VPS 2026-09-14** (never used; VPS RAM tight). If revived → **OLDSRV** (fresh analytics sandbox, no sources). See §Metabase below. Template + disabled VPS entry retained |
+| CrowdSec | — | P | 100–200 / 400 | WAF + brute-force protection; its dashboard surface is **CrowdSec Web UI** (`csui.kogler.si`, tailnet-only) |
 | Headscale | vpn | P | 60–120 / 250 | Tailscale coordination server |
 | Kopia | — | I | 150–250 / 500 | Encrypted off-site backup (kopia-server on the VPS + oldsrv agent, HD-191) → Hetzner Storage Box (backup, far DC); agent reach = WG-only `:51515`, no subdomain |
 | DB Backup | — | D | 30–60 / 200 | Database dumps (tiredofit/db-backup) |
 | Homelable | — | host (Home VLAN) | ~200–400 / 800 | Network/rack topology visualizer (HD-45) — oldsrv, internal-only, **deploy-gated** (`enabled:false`). nmap discovery + live healthchecks + device inventory/docs + rack canvas; complements the HD-343 network-clients Grafana view. Reached at `http://<oldsrv-home-ip>:3000`. Auth = local admin (`homelable_login`). |
 
-## Homelable — network/rack topology visualizer (HD-45, re-scoped 2026-09-09)
+## Homelable — network/rack topology visualizer (HD-45)
 
 > **Status: 🟢 IaC authored, not yet live — ⏳ deploy-gated.** Homelable (Pouzor/homelable, MIT) is the owner's chosen "network dashboard" — an interactive canvas of **who is on the network + how it is connected + live status** in one tool. Registered in `home_servers.yml` `docker_services` with `enabled: false`; nothing runs until the owner signs off + the secrets are seeded (Stage 9 below).
 
-**Why this tool (owner decision 2026-09-09):** the owner has seen the Grafana **Network Clients** dashboard (HD-343) and wants **Homelable alongside it** — Grafana stays the metrics/alerting view (per-VLAN tables + time series), Homelable adds the **topology/rack canvas** those tables cannot express. Both run on the LAN; neither is public.
+**Why this tool:** the Grafana **Network Clients** dashboard (HD-343) answers "who is on the network" but cannot express topology. Grafana stays the metrics/alerting view (per-VLAN tables + time series); Homelable adds the **topology/rack canvas**. Both run on the LAN; neither is public.
 
 ### The i/ii/iii mapping
 | Want | Delivered by | Detail |
@@ -69,7 +70,7 @@ tags: [services, admin, ops, gitops, security, backup]
 | `homelable_mcp` | API Credential — `credential` | `MCP_API_KEY` | Only consumed when `homelable_mcp_enabled`; catalog-created so the flag flip never needs a manual seed. |
 
 ### Onboarding stage (CONVENTIONS §5)
-Authored 2026-09-09 against upstream **v3.4.1** (registry-verified on GHCR for backend/frontend/mcp). Register the row as **Stage 8/10** — steps 1–8 (exposure/secrets/compose/registry/edge-decision/state/observability/validation) are authored in this section + the compose + the docs; **step 9 (deploy gate) is owner-gated** and step 10 (docs close) follows the live verify.
+Authored against upstream **v3.4.1** (registry-verified on GHCR for backend/frontend/mcp). Register the row as **Stage 8/10** — steps 1–8 (exposure/secrets/compose/registry/edge-decision/state/observability/validation) are authored in this section + the compose + the docs; **step 9 (deploy gate) is owner-gated** and step 10 (docs close) follows the live verify.
 
 | # | Onboarding step | State |
 |---|-----------------|-------|
@@ -97,33 +98,46 @@ Authored 2026-09-09 against upstream **v3.4.1** (registry-verified on GHCR for b
 - No upstream Prometheus/VictoriaMetrics import yet — HD-343 integration is curation-based (see i/ii/iii above).
 - The tool is not a metrics/logs/alert backend — Grafana/VictoriaMetrics stay authoritative for that (observability.md).
 
-## Metabase — RETIRED from the VPS (2026-09-14)
+## Metabase — retired (revival path documented)
 
-> **Retired for now** — never used, no data to lose, VPS RAM tight. The compose template, the
-> disabled VPS `docker_services` entry, and this documentation are retained so it can be revived
-> **on OLDSRV** later (owner: *"if it will be needed it will be on oldsrv"*). Vault item
-> `metabase-forgejo_ro` left in place (owner: leave as-is); the `metabase_ro` role stays in
-> forgejo-db but is no longer re-synced (db_ro keys commented out in `vps.yml`).
+Metabase is **not part of the running stack**: it was never used and the VPS is RAM-constrained. Retained on
+purpose so a revival is cheap: the compose template, the **disabled** VPS `docker_services` entry, the vault
+item `metabase-forgejo_ro` and the `metabase_ro` role in forgejo-db (no longer re-synced — the db_ro keys are
+commented out in `vps.yml`). Revival target is **oldsrv**, not the VPS (owner: *"if it will be needed it will
+be on oldsrv"*).
 
-**What it was (VPS analytics sandbox, `sec.kogler.si`, tailnet-only):** historical record below.
+- **CrowdSec's dashboard surface is CrowdSec Web UI** (`csui.kogler.si`, HD-272) — it is not a Metabase
+  consumer, and CrowdSec's own bundled Metabase image is not used.
+- **Auth posture (settled, HD-243):** Metabase OSS has **no OIDC/SSO** (paid tier only), and LDAP would mean
+  a second login plus an extra outpost's blast radius for a single-user tool ⇒ **Forward-Auth at the edge +
+  local admin**. See [services-rejected.md](services-rejected.md).
+- **First boot (wizard):** language → admin account → data-source (**skip it**) → usage prefs. Anonymous
+  tracking OFF, HTTPS-redirect OFF, admin account from the `metabase_login` vault item.
+- **SMTP:** `MB_EMAIL_SMTP_*` from the smtp2go SSOT + the shared `smtp_login`, From = `notify@kogler.si`.
+  Working values: **port 2525**, host as used by `grafana_smtp_host`, and `MB_EMAIL_FROM_ADDRESS` must be set
+  explicitly or the reset mail is rejected.
+- **Revival steps:** add an oldsrv `docker_services` entry (`template_dir: metabase`, `public: false`) →
+  decide reach/auth (LAN direct vs a future oldsrv edge) → re-add LAN data sources to the template (the old
+  VPS CrowdSec/db-internal sources are gone) → seed `smtp_login` + `metabase_login` → converge oldsrv.
 
-- **CrowdSec dashboard** was served via **Metabase** (one instance = CrowdSec view + analytics sandbox). CrowdSec's bundled/pinned Metabase image was **not** used. After retirement the CrowdSec dashboard surface is **CrowdSec Web UI** (`csui.kogler.si`, HD-272) alone.
-- **Reachability while live:** tailnet-only `sec.kogler.si` / `sec.ts.kogler.si` over the VPS `traefik-tailnet` edge (forward-auth on the plain name; ACL-gated on `*.ts`). Both routes + the DNS record were **removed 2026-09-14** with the retirement.
-- **Data sources (HD-242, ALL REMOVED 2026-09-14):** ① CrowdSec SQLite bind `/srv/docker/crowdsec/db` (VPS-local; WAL-recovery RW); ② Forgejo Postgres over `db-internal` via read-only role `metabase_ro` (from `metabase-forgejo_ro`, SELECT-only); ③ Zipline Postgres (never went live). A future oldsrv home re-adds LAN sources.
-- **First boot (HD-241 record, walked 2026-08-24):** wizard order = language → admin account → data-source (**skip**) → usage prefs. Chosen: admin `admin@kogler.si` (vault `metabase_login`), anonymous tracking OFF, HTTPS-redirect OFF. Password-reset via SMTP.
-- **SMTP (HD-241, CLOSED 2026-09-08):** `MB_EMAIL_SMTP_*` from smtp2go SSOT + shared `smtp_login`; From = `notify@kogler.si`; verified end-to-end. Four fixes en route (port 2525, VPS `grafana_smtp_host`, `MB_EMAIL_FROM_ADDRESS`).
-- **LDAP/OIDC — REJECTED (HD-243, 2026-09-09):** OSS has no OIDC/SSO (paid); LDAP = a second login + outpost blast radius; owner is sole user. Stays Forward-Auth + local admin. Decision: [services-rejected.md](services-rejected.md) HD-243.
+## Open item — stale DNS record after a service retirement
 
-**Revival path (when wanted):** enable on **OLDSRV** — add an oldsrv `docker_services` entry (`template_dir: metabase`, `public: false`), decide its reach/auth (LAN direct vs a future oldsrv edge), re-add any LAN data sources to the template (the VPS CrowdSec/db-internal sources are gone), seed the `smtp_login` + `metabase_login` items if not present, converge oldsrv. Out of the current session's scope (oldsrv converge not run here).
-
-> **Deploy note (2026-09-14):** the `technitium-seed` role only adds records (`zones/records/add`) — it does **not** delete retired ones. After the retirement the VPS primary Technitium still carries a stale internal `sec.kogler.si` A-record to the tailnet-sidecar IP (harmless — points at the dead tailnet edge → 404 — but it contradicts the SSOT). Remove it via the Technitium API (`/api/zones/records/delete`, HD-324 path) the next time Technitium is touched, or fold a record-prune into the seed role when a record-retirement comes around.
+The `technitium-seed` role only **adds** records (`zones/records/add`) — it never deletes. So the VPS primary
+Technitium still carries the internal `sec.kogler.si` A-record pointing at the dead tailnet-sidecar IP
+(harmless — it 404s — but it contradicts the SSOT). Fix either way: delete via the Technitium API
+(`/api/zones/records/delete`, the HD-324 path) next time Technitium is touched, **or** fold a record-prune
+into the seed role so future retirements cannot leave orphans.
 
 ## Notes
 
-- **CrowdSec** runs on the Traefik edge (middleware chain in [`services-traefik.md`](services-traefik.md)); its dashboards/surfaces: **CrowdSec Web UI** (`csui.kogler.si`) + the retired-Metabase dashboard (see §Metabase above — no longer a CrowdSec dashboard since 2026-09-14).
-- **Admin Dashboards decision:** Traefik Dashboard — tailnet-only `traefik.kogler.si` / `traefik.ts.kogler.si` ([`services-traefik.md`](services-traefik.md) → traefik-tailnet); **CrowdSec Web UI** `csui.kogler.si` / `csui.ts.kogler.si` (HD-272) — all reached over the **headscale tailnet** via the `traefik-tailnet` edge (clean subdomain URLs, no ports — HD-135b follow-up, 2026-08-28), no public record. (Metabase `sec` was a tailnet dashboard too but is **retired 2026-09-14** — see §Metabase above.) **Portainer / Dockge — excluded** (single Ansible-templated compose model).
-- **GitOps:** Forgejo Actions + Renovate drive the Ansible deploy chain — see [`deployment-renovate.md`](deployment-renovate.md), [`deployment.md`](deployment.md).
-- **Metabase — RETIRED 2026-09-14** (see the §Metabase section above): first boot, SMTP, data sources, and LDAP/OIDC decisions are recorded there for the future oldsrv revival.
+- **CrowdSec** runs on the Traefik edge (middleware chain in [`services-traefik.md`](services-traefik.md));
+  its only dashboard surface is **CrowdSec Web UI** (`csui.kogler.si`).
+- **Admin dashboards are tailnet-only** over the `traefik-tailnet` edge — clean subdomain URLs, no ports, no
+  public record: Traefik dashboard `traefik.kogler.si` / `.ts.`, CrowdSec UI `csui.kogler.si` / `.ts.`
+  ([`services-traefik.md`](services-traefik.md) → traefik-tailnet). **Portainer / Dockge are excluded** —
+  there is one Ansible-templated compose model.
+- **GitOps:** Forgejo Actions + Renovate drive the Ansible deploy chain —
+  see [`deployment-renovate.md`](deployment-renovate.md), [`deployment.md`](deployment.md).
 
 ## Related
 - [Backup](backup.md) — Kopia / DB-backup policy

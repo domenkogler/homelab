@@ -11,28 +11,28 @@ tags: [services, vps, netcup]
 > **Links to:** `services.md`, `network-vpn.md`
 > **Linked from:** `services.md`
 >
-> **Status:** ✅ **Decision (2026-08-16, HD-93):** the VPS is to be **purchased before go-live** and the
+> **Status:** ✅**Decision (2026-08-16, HD-93):** the VPS is to be **purchased before go-live** and the
 > public edge moves onto it from **day one** (public Traefik + CrowdSec + Authentik + public apps terminate
 > TLS on the VPS over WG S2S → oldsrv backends). This supersedes the older "deferred to Phase 2+" wording
 > below, which is retained as the implementation spec for what actually ships there.
 >
-> **Live since 2026-08-22** (Phase 1): all enabled services deployed behind real LE TLS
+> **Live** (Phase 1): all enabled services deployed behind real LE TLS
 > (wildcard `*.kogler.si`). Only the WG S2S tunnel stays ⏳ deploy-gated (HD-03).
 
-> **Container census (2026-09-18, read-only `docker ps -a` + label inspection)** — the registry is the
+> **Container census (read-only `docker ps -a` + label inspection)** — the registry is the
 > intended state; the box is the actual state, and they differ. Recorded here so the next session does not
 > re-audit from zero (**tracked as HD-394**):
 >
 > | Container | Actual state | Verdict |
 > |---|---|---|
-> | `confident_shamir` | `traefik:v3.7.11`, Up since **2026-08-24**, `nets=none`, no port bindings, `restart=no`, **no compose labels** | hand-run `docker run` leftover — inert but invisible to compose/converge; remove with owner OK |
+> | `confident_shamir` | `traefik:v3.7.11` (Up), `nets=none`, no port bindings, `restart=no`, **no compose labels** | hand-run `docker run` leftover — inert but invisible to compose/converge; remove with owner OK |
 > | `pgvector` | Up (healthy) | **superseded by Qdrant** (HD-267/268) — prove no RAG path reads it, then tombstone via the registry (`enabled: false`), never `docker rm` |
 > | `authentik-ldap` | Up **(unhealthy)** | known: expired outpost token, no provider/outpost exists — owned by **HD-360**, do not re-diagnose |
 >
 > Everything else running carries `com.docker.compose.project` and maps to an enabled registry entry
 > (navidrome + matrix + zipline included — three services several rows still described as un-deployed).
 
-### netcup edge firewall (SCP-verified 2026-08-22, Wave-3)
+### netcup edge firewall (SCP-verified, Wave-3)
 
 - **Outgoing SMTP blocked** on ports **25 / 465 / 587** (netcup default anti-spam rule; DROP).
   → **VPS-originated mail must use an alternate submission port** — the SMTP2Go relay
@@ -44,12 +44,12 @@ tags: [services, vps, netcup]
 - Egress addresses as seen by remote services: `159.195.111.66` (v4) and
   `2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5` (stable SLAAC v6) — both belong in any provider-side
   IP allowlist (e.g. Cloudflare token filters).
-- **Console/kmsg noise (benign, accepted 2026-08-23):** Debian 13's `systemd-ssh-generator`
+- **Console/kmsg noise (benign, accepted):** Debian 13's `systemd-ssh-generator`
   logs `Failed to query local AF_VSOCK CID: Cannot assign requested address` on every PID1
   generator pass (boot + each `daemon-reload`, so every Ansible run repeats it) — netcup KVM
   exposes no vsock transport to the guest. TCP sshd (`:22`) and all services are unaffected;
   the lines go to kmsg/console only and are not retained in the journal. Known-noise, do not
-  chase (verified read-only 2026-08-23; silencing via modprobe blacklist/generator stub
+  chase (verified read-only ; silencing via modprobe blacklist/generator stub
   explicitly declined for now).
 
 ---
@@ -58,7 +58,7 @@ tags: [services, vps, netcup]
 
 | Item | Provider | Specs | Cost |
 |------|----------|-------|------|
-| VPS | **netcup RS 2000 G12** (root server) | **AMD EPYC™ 9645** · **8 dedicated cores** · **16 GB DDR5 ECC** · **512 GB NVMe SSD** · **2,5 GBit/s** iface (flatrate) | **263,52 €/12 mo** (21,96 €/mo) |
+| VPS | **netcup RS 2000 G12** (root server) | **AMD EPYC™ 9645** ·**8 dedicated cores** ·**16 GB DDR5 ECC** ·**512 GB NVMe SSD** ·**2,5 GBit/s** iface (flatrate) | **263,52 €/12 mo** (21,96 €/mo) |
 | Local Block Storage | netcup add-on | Expandable up to **8 TB** (candidate bulk tier alongside Hetzner Storage Box) | *variable* |
 | Bulk Storage | **Hetzner Storage Box** (live) — **SB-Data** BX11 1 TB · `FSN1-BX2190` (Falkenstein, DE, `eu-central`), bought 2026-08-18 (`Hertzner-SB-Data`) | CIFS-mounted for photos/files, served from VPS | **3,90 €/mo** |
 
@@ -151,12 +151,12 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 | # | Check | Enforced by | Verify |
 |---|-------|-------------|--------|
 | 1 | **SSH hardening** — `PasswordAuthentication no`, `PermitRootLogin no`, `MaxAuthTries 3`, `AllowUsers ansible-admin` only, key-only | `post_install.sh` + role assert | `sshd -T \| grep -E 'maxauthtries\|passwordauthentication\|permitrootlogin'` → `3`/`no`/`no` |
-| 2 | **fail2ban** — SSH jail (`maxretry 3`) + `http-auth` jail for public login pages (n8n/Grafana/Forgejo) — HD-280 (2026-09-04): http-auth reads the Traefik accesslog (`/opt/traefik/logs/access.log`, `traefik-http-auth` Traefik-CLF filter for 401/403) | role (`/etc/fail2ban/jail.local` + `filter.d/traefik-http-auth.conf`) | `fail2ban-client status sshd` → active; `fail2ban-client status http-auth` → active + `tail /opt/traefik/logs/access.log` has lines |
+| 2 | **fail2ban** — SSH jail (`maxretry 3`) + `http-auth` jail for public login pages (n8n/Grafana/Forgejo) — HD-280: http-auth reads the Traefik accesslog (`/opt/traefik/logs/access.log`, `traefik-http-auth` Traefik-CLF filter for 401/403) | role (`/etc/fail2ban/jail.local` + `filter.d/traefik-http-auth.conf`) | `fail2ban-client status sshd` → active; `fail2ban-client status http-auth` → active + `tail /opt/traefik/logs/access.log` has lines |
 | 3 | **Firewall default-deny** — inbound deny-all except `:22` (SSH) + `:443` + `:51820` (WG S2S) + loopback + established/related; ICMP echo limited | role (`/etc/nftables.conf`) | `nft list ruleset` → input policy `drop`, accepts as above |
 | 4 | **Docker daemon** — `iptables: true`, `userland-proxy: false`, `live-restore: true`, capped json-file logs; no public container `privileged` / host-net | role (`/etc/docker/daemon.json`) + compose policy | `docker info` → `userland-proxy=false`, log driver capped |
 | 5 | **SSO admission** — root disabled, per-host keys only (Domen + Ansible), no `ai-debug` on a public box | `post_install.sh` | `grep AllowUsers /etc/ssh/sshd_config` → `ansible-admin` only |
 | 6 | **Docker networks isolated** — overlay networks per role (`traefik-public`/`services-internal`/`db-internal`); WG subnet → services network | compose templates + `deployment-compose.md` | `docker network ls` |
-| 7 | **Published-port bypass closed (S1, HD-186)** — no port is published on a public/WAN interface; the only publishes are WG-address-bound (LDAP outpost :3389 for Samba) or loopback. Docker DNAT'd traffic traverses the *forward* chain (`oifname "docker*" accept`), so the input default-deny alone does NOT cover published ports — the control is publish-scoping. **DNS primary exception (2026-09-08):** the Technitium `53:53` publish is intentionally public (the LAN/tailnet resolver is the VPS public IP, HD-299); its exposure is closed by **source-restricting the forward path** in the nftables FORWARD chain (tailnet CGNAT `100.64/10` + home-WAN `@dns-allow-home` set; everything else dropped) — see security.md §8 + network-dns.md | compose templates (victoria-metrics/victoria-logs/authentik-ldap WG-bound binds) + `vps-hardening` nftables forward chain | From an external host `nc -vz <vps-public-ip> 3389` → REFUSED, and `ldapsearch -H ldap://<vps-public-ip>:3389 -x -s base` → fails; from the WG/home side `ldapsearch` at the VPS WG address (:3389) connects (Samba path); `nft list ruleset` shows input policy drop + forward `oifname docker* accept`, **and** forward `dport 53` rules source-restricted to `100.64/10` + `@dns-allow-home` (external `dig @<vps-public-ip> example.com` → refused/no-answer, home-WAN + tailnet resolve) |
+| 7 | **Published-port bypass closed (S1, HD-186)** — no port is published on a public/WAN interface; the only publishes are WG-address-bound (LDAP outpost: 3389 for Samba) or loopback. Docker DNAT'd traffic traverses the *forward* chain (`oifname "docker*" accept`), so the input default-deny alone does NOT cover published ports — the control is publish-scoping. **DNS primary exception:** the Technitium `53:53` publish is intentionally public (the LAN/tailnet resolver is the VPS public IP, HD-299); its exposure is closed by **source-restricting the forward path** in the nftables FORWARD chain (tailnet CGNAT `100.64/10` + home-WAN `@dns-allow-home` set; everything else dropped) — see security.md §8 + network-dns.md | compose templates (victoria-metrics/victoria-logs/authentik-ldap WG-bound binds) + `vps-hardening` nftables forward chain | From an external host `nc -vz <vps-public-ip> 3389` → REFUSED, and `ldapsearch -H ldap://<vps-public-ip>:3389 -x -s base` → fails; from the WG/home side `ldapsearch` at the VPS WG address (:3389) connects (Samba path); `nft list ruleset` shows input policy drop + forward `oifname docker* accept`, **and** forward `dport 53` rules source-restricted to `100.64/10` + `@dns-allow-home` (external `dig @<vps-public-ip> example.com` → refused/no-answer, home-WAN + tailnet resolve) |
 
 ---
 

@@ -30,7 +30,7 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 | spark engine (`--max-model-len`, KV pool) | repo IaC `IaC/ansible/group_vars/spark.yml` | Ansible (SSOT, HD-374) |
 
 - The harness talks **directly to the spark edge** (`llm.kogler.si`, HD-370), not through LiteLLM. That
-  is a DECIDED boundary as of 2026-09-17 (**decision #26**, [services-ai.md](services-ai.md) §9 row 26 +
+  is a DECIDED boundary as of **decision #26**, [services-ai.md](services-ai.md) §9 row 26 +
   the evidence appendix §9d), not an accident of history — see **§1b** below. The LAN/VPS LiteLLM
   instances (HD-356) front the same engine for the **simple-querier tier** (HomeAssistant, Docling,
   Open WebUI) — the model id `spark/qwen3.8-flash-next` is deliberately stable across every path.
@@ -41,7 +41,7 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 
 ---
 
-## 1b. Why the harness does NOT go through LiteLLM (decision #26, 2026-09-17)
+## 1b. Why the harness does NOT go through LiteLLM (decision #26)
 
 The question "can't the gateway just hand my parameters to every client?" has a split answer, and the
 split is the whole reason for this boundary. LiteLLM **can** hand out *values on the wire*; it cannot
@@ -84,7 +84,7 @@ harness-side budget/route** — which is only possible because the harness is th
 > none of that and loses determinism.
 
 
-## 2. Engine facts (measured live, 2026-09-16, against `https://llm.kogler.si/v1`)
+## 2. Engine facts (measured live, against `https://llm.kogler.si/v1`)
 
 Engine build: `vllm-0.1.dev20073+g8e685d198` (`system_fingerprint` in responses).
 
@@ -282,16 +282,16 @@ pi --list-models | awk '$1=="spark"'
 pi -p --model spark/qwen3.8-flash-next "Reply with exactly: SMOKE_OK"
 ```
 
-Verified 2026-09-16: the row renders `262.1K / 16.4K / thinking yes`, and the smoke test returns
+Verified: the row renders `262.1K / 16.4K / thinking yes`, and the smoke test returns
 `SMOKE_OK` (rc=0) through the new compat block. Footer should read the window as 262.1K.
 
 ---
 
 ## 9. Open tails
 
-- ✅ **CLOSED 2026-09-17:** the "`pi-dev` re-point" tail is **moot** — `dsh`/`pi-dev` are PARKED as
+- ✅ **CLOSED:** the "`pi-dev` re-point" tail is **moot** — `dsh`/`pi-dev` are PARKED as
   services (HD-386) and per decision #26 the harnesses reach the engine directly, so there is nothing
-  left to re-point. The LAN model entry itself landed 2026-09-17 (HD-382) and stays for the
+  left to re-point. The LAN model entry itself landed (HD-382) and stays for the
   simple-querier tier.
 - ⏳ **HD-387:** re-measure whether the thinking control (`chat_template_kwargs.enable_thinking` +
   `thinking_token_budget`) actually survives the LiteLLM path on the **pinned** image. It does not

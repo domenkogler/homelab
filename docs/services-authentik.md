@@ -11,7 +11,7 @@ tags: [services, authentik, sso, oidc]
 > **Links to:** `services-traefik.md`, `deployment-secrets.md`, `deployment-compose.md`, `deployment-oidc.md`, `deployment-ansible.md`
 > **Linked from:** `services.md`, `deployment-compose.md`, `index.md`
 
-> 🟢 **Live since 2026-08-22** (Phase 1): Authentik server + worker up on the VPS; the OIDC provisioning chain is proven live — all 15 expected providers exist via the deterministic, now-externalized blueprint one-shot (`playbooks/authentik-blueprints.yml`, HD-230b/HD-268). ⏳ deploy-gated tails below where flagged (e.g. LDAP authoring HD-132). Sections below remain the implementation spec.
+> 🟢 **Live** (Phase 1): Authentik server + worker up on the VPS; the OIDC provisioning chain is proven live — all 15 expected providers exist via the deterministic, now-externalized blueprint one-shot (`playbooks/authentik-blueprints.yml`, HD-230b/HD-268). ⏳ deploy-gated tails below where flagged (e.g. LDAP authoring HD-132). Sections below remain the implementation spec.
 
 ---
 
@@ -83,7 +83,7 @@ User → Traefik (port 443)
 1. **Blueprint (`ks-oidc.yml`)** declares the OIDC providers + applications idempotently
    (config-as-code): Open WebUI, Headscale, Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC,
    multi-redirect web + desktop + mobile), **Immich** (HD-148: web + `app.immich:///oauth-callback`),
-   **Forgejo** + ~~**Metabase**~~ (HD-148; Metabase **retired 2026-09-14** — the dormant provider stays declared, see deployment-secrets.md `metabase_oidc`). Concern = **shape** (providers, apps, flows, outposts).
+   **Forgejo** + ~~**Metabase**~~ (HD-148; Metabase **retired** — the dormant provider stays declared, see deployment-secrets.md `metabase_oidc`). Concern =**shape** (providers, apps, flows, outposts).
 2. **Secret-egress glue** runs once after blueprints apply: `GET /api/v3/core/providers/oauth2/`
    → reads the generated `client_id` + `client_secret` → writes them into the 1Password item the
    consuming compose/`lookup()` expects. Concern = **credentials**, which Blueprint deliberately
@@ -95,14 +95,14 @@ The two concerns are split at their natural seam — **shape** (Blueprints) vs *
 volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is referenced in
 `deployment-ansible.md`. Mechanic/implementation detail (the parallel fan-out + concurrency budget) lives in [`scripts/README.md`](../scripts/README.md) §Parallel 1Password operations; the SSOT routing index for **all** secret-glue steps (who provisions / how to rotate) is [`deployment-secrets.md`](deployment-secrets.md) §"Glue-routing index".
 
-### Blueprint authoring notes (verified against Authentik source, 2026-08-19 — HD-149)
+### Blueprint authoring notes (verified against Authentik source — HD-149)
 
 > Local validation: **`scripts/validate_blueprints.py`** parses Blueprint YAML (custom `!Find`/`!KeyOf`
 > tags) and fails on the mistakes below — run it (or `scripts/validate-all.sh`) before committing a
 > blueprint change.
 >
-> These four facts were **verified against `goauthentik/authentik` `main`** (blueprints + models) on
-> 2026-08-19 and the `ks-oidc.yml` blueprint was corrected to match. Follow them when adding any
+> These four facts were **verified against `goauthentik/authentik` `main`** (blueprints + models), and
+> the `ks-oidc.yml` blueprint was corrected to match. Follow them when adding any
 > future OIDC provider/app to the blueprint:
 
 1. **Flow slugs (both have the `default-` prefix).** The default provider-authorization flow slug is
@@ -119,7 +119,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
    link entry (`model: authentik_providers_oauth2.application` + `application:`/`provider:` `!Key`
    refs) — that model does not exist and the import fails.
 
-> **Facts 5–8 verified LIVE on the pinned 2026.5.6 during the Phase-1 deploy (2026-08-22)** — the
+> **Facts 5–8 verified LIVE on the pinned 2026.5.6 during the Phase-1 deploy** — the
 > blueprint had never reached a real server before; each of these failed the first true apply:
 
 5. **`identifiers` is REQUIRED on every entry** (Blueprint-v1 spec:
@@ -135,11 +135,11 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
    `/blueprints/schema.json` inside the image (`$defs.model_authentik_providers_oauth2.oauth2provider`).
 7. **One-shot apply for fast loops:** `docker exec authentik-worker ak apply_blueprint
    /blueprints/custom/ks-oidc.yml` applies immediately without waiting for worker file-discovery.
-   **MANDATORY for EVERY custom-blueprint edit since HD-230 (2026-08-23):** discovery has never
+   **MANDATORY for EVERY custom-blueprint edit since HD-230:** discovery has never
    registered `/blueprints/custom/*` as BlueprintInstances (28 instances, 0 custom — hourly
    `blueprints_discovery` runs complete 'done' but skip them), so the file-hash re-apply machinery
-   does NOT fire for our blueprints. The one-shot applies are EXTERNALIZED (owner decision
-   2026-08-27): run `bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml` whenever a
+   does NOT fire for our blueprints. The one-shot applies are EXTERNALIZED (owner decision): run
+`bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml` whenever a
    blueprint file changes — the routine docker_services lane no longer applies them every converge.
    Layer-2 cause of discovery non-registration still unknown — follow-up investigation pending.
    Remember: apply = UPSERT; removing a blueprint entry does NOT delete the server-side object —
@@ -174,13 +174,13 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
     provider: !KeyOf provider_<svc>
 ```
 
-### Live-deploy findings — authentik 2026.5.6 image & API (Phase 1, 2026-08-22)
+### Live-deploy findings — authentik 2026.5.6 image & API (Phase 1)
 
-- **Blueprint upsert EMPTIES absent array attrs (HD-231, 2026-08-24):** applying a blueprint that omits `grant_types` / `property_mappings` writes `[]` over them — killing the `authorization_code` grant and all token scopes while authorize/token still look healthy (UserInfo then 403 `insufficient_scope`). Pin EVERY array attr explicitly in ks-oidc.yml / ks-forward-auth.yml entries; the docker_services one-shot apply runs on every converge.
-- **Outpost `providers` m2m is NOT merged by blueprint upsert (HD-317, 2026-09-03):** adding a NEW provider to the embedded outpost's `providers:` list in `ks-forward-auth.yml` and re-applying does NOT bind it — the blueprint updates the outpost row but leaves the existing m2m untouched (the already-bound providers were bound at outpost CREATE time). A provider added later must be bound via ORM one-shot:
+- **Blueprint upsert EMPTIES absent array attrs (HD-231):** applying a blueprint that omits `grant_types` / `property_mappings` writes `[]` over them — killing the `authorization_code` grant and all token scopes while authorize/token still look healthy (UserInfo then 403 `insufficient_scope`). Pin EVERY array attr explicitly in ks-oidc.yml / ks-forward-auth.yml entries; the docker_services one-shot apply runs on every converge.
+- **Outpost `providers` m2m is NOT merged by blueprint upsert (HD-317):** adding a NEW provider to the embedded outpost's `providers:` list in `ks-forward-auth.yml` and re-applying does NOT bind it — the blueprint updates the outpost row but leaves the existing m2m untouched (the already-bound providers were bound at outpost CREATE time). A provider added later must be bound via ORM one-shot:
   `ak shell -c "from authentik.outposts.models import Outpost; from authentik.providers.proxy.models import ProxyProvider; o=Outpost.objects.first(); o.providers.add(ProxyProvider.objects.get(name='forward-dns')); o.save()"`
   (the outpost controller reloads on save). Live evidence: `https://dns.kogler.si/` 404'd until `forward-dns` was ORM-bound — the provider existed in the DB but the embedded outpost wouldn't serve it.
-- **`AUTHENTIK_BOOTSTRAP_*` applies ONLY at user creation** (Phase 1 R5, 2026-08-22): if the DB was
+- **`AUTHENTIK_BOOTSTRAP_*` applies ONLY at user creation** (Phase 1 R5): if the DB was
   initialized before the bootstrap env landed in compose, `akadmin` keeps its creation-time
   defaults (email `root@example.com`, no vault password) and later env changes are silently
   ignored — login with the 1Password value fails forever. Fix: ORM sync inside the worker via
@@ -218,7 +218,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 
 ### Authentication tokens (TWO secrets + one ephemeral — never merge them)
 - `op-write_api` — 1Password **SERVICE ACCOUNT token (read+write)**, deployed by the pre-pass
-  (renamed 2026-09-19 from `vps-op-write_api`; the read-only sibling is `op_api`)
+  (renamed from `vps-op-write_api`; the read-only sibling is `op_api`)
   to VPS `/etc/op/provision-token`; authenticates the HOST-side `op` CLI the glue uses to seed the
   OIDC client-cred items.
 - `authentik-nas_api` — **read-only** Authentik-issued API token, minted durable (`expiring=False`) at NAS provisioning; the Authentik→NAS provisioning
@@ -226,7 +226,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 - **Ephemeral glue token (NOT a secret anywhere):** the OIDC secret-egress glue mints its own
   api-intent token via `ak shell` per run (identifier `egress-glue-<pid>-<ts>`, revoked on exit).
   Rationale: persisted ORM tokens were observed being rotated/invalidated server-side within
-  minutes (Phase 1, 2026-08-22) — root cause since IDENTIFIED as upstream auto-rotation
+  minutes (Phase 1) — root cause since IDENTIFIED as upstream auto-rotation
   (**HD-216**, mechanism below), which silently killed any vault-stored copy; the former
   `authentik-provision_api` vault item was RETIRED because of it.
   Trade-off note: the minted token carries akadmin's full rights for its seconds-long life —
@@ -257,7 +257,7 @@ authentik"; source branch `version-2026.5`, pinned image 2026.5.6 = same minor):
 Durable-persisted-token rules for this homelab:
 
 1. A persisted Authentik API token survives ONLY with **`expiring=False`** — never selected by
-   the sweep, never rotated/deleted. Recipe: ORM `... , expiring=False)`, or set user attribute
+   the sweep, never rotated/deleted. Recipe: ORM `..., expiring=False)`, or set user attribute
    `goauthentik.io/user/token-expires: false` BEFORE creating the token via UI/API.
 2. Tenant setting `default_token_duration` (Admin → System → Tenants) only SLOWS rotation
    (rotated tokens live that long per cycle) — it never prevents it.
@@ -268,7 +268,7 @@ Consequences applied here: the glue's ephemeral mint stays (immune by constructi
 scoped persisted `authentik-provision_api` (HD-211) follows rule 1; `authentik-nas_api`
 (sync-authentik-users glue) gets a one-time `expiring=False` verification at its next live touch.
 
-#### Rotating a shared Authentik OIDC client secret (runbook; verified 2026-08-26)
+#### Rotating a shared Authentik OIDC client secret (runbook; verified)
 
 The recipe the CONVENTIONS §2 *Secret output hygiene* row points at for a shared OIDC
 client (`headscale_api` = headscale + headplane; pattern generalizes to any glue-seeded
@@ -321,7 +321,7 @@ bash scripts/ansible-run.sh playbooks/vps.yml \
 #    `/health` HTTP 200, `docker exec headscale headscale health` rc=0.
 ```
 
-> Gotchas learned live (2026-08-26):
+> Gotchas learned live:
 > - `docker cp authentik-worker:/tmp/...` fails on this box — use `docker exec cat` instead.
 > - `op item edit --template` + stdin are mutually exclusive — `op item get` to a file first,
 >   then hand `--template <file>` and redirect stdin from `/dev/null`.

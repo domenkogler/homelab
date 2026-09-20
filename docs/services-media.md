@@ -11,7 +11,12 @@ tags: [services, media, arr, photos, streaming]
 > **Links to:** `services-downloads.md`, `services-authentik.md`, `services-traefik.md`, `storage.md`, `observability.md`
 > **Linked from:** `services.md`, `storage.md`
 
-> 🟢 **LIVE 2026-09-08 (oldsrv Phase-3 converge)** — Jellyfin, Seerr, sonarr/radarr/lidarr/prowlarr/bazarr, profilarr(+parser), recyclarr, immich-ml all Up + healthy on oldsrv; NFS mounts to nas live (`/mnt/nas/media`, `/mnt/nas/data`, `/mnt/nas/thumbs`). immich-ml bundled-ROCm ready for the whole-collection import (separate later task).
+> **Status: 🟢 live on oldsrv** — Jellyfin, Seerr/SeerrNG, Sonarr/Radarr/Lidarr/Prowlarr/Bazarr,
+> Profilarr (+parser), Recyclarr, immich-ML, and the music-acquisition pillar (§Music Pillar), with the NFS
+> mounts to nas live (`/mnt/nas/media`, `/mnt/nas/data`, `/mnt/nas/thumbs`). Streaming/immich-app run on the
+> VPS; the **music library** lives on the Hetzner Storage Box.
+> ⏳ **Open:** immich's whole-collection ML import (a separate task), and Tube Archivist, which is
+> **disabled** until its Elasticsearch `path.repo` problem is fixed (§Music Pillar).
 
 ---
 
@@ -33,10 +38,10 @@ Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I
 | Profilarr | profilarr | P+I | 50–100 / 150 | Quality-profile UI on top of Sonarr/Radarr |
 | Navidrome | music | P+I | 100–250 / 400 | Music server (deluan/navidrome, HD-354) — **on the VPS**, library on the Hetzner Storage Box; Subsonic + web UI |
 | Aurral | aurral | I | 100–200 / 400 | Music discovery + Lidarr-request companion (lklynet/aurral, HD-362) — community radio via Last.fm / ListenBrainz; **free/no sub**; internal-only; own login |
-| Orpheusdl (manual) | — | host/laptop | — | **(dropped from IaC, 2026-09-14):** orpheusdl is a pip CLI with no container — owner runs it on the LAPTOP manually; not part of the ladder |
+| Orpheusdl (manual) | — | host/laptop | — | **Not in IaC:** orpheusdl is a pip CLI with no container — run on the LAPTOP on demand for paid-source FLAC; not part of the automated ladder |
 | Lidarr-URL-DL | url-dl | I | 150–300 / 500 | Lidarr-YouTube-Downloader (angrido/lidarr-downloader, HD-362) — acquisition **#3**: YouTube → Lidarr (Newznab + SABnzbd emulation, yt-dlp + PO-token sidecar), up to 320 kbps MP3/M4A/Opus; internal-only UI |
 | Slskd | slskd | I | 60–140 / 250 | Soulseek P2P daemon (slskd/slskd, HD-362) — **gluetun WireGuard sidecar, VPN-locked egress**, acquisition **#2**; no inbound port → fetch-only peer (search + download, no upload credit); own login/token |
-| Tube Archivist | tube | I | 300–700 / 1200 | Personal YouTube (bbilly1/tubearchivist + ES + redis, HD-362) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · **new `tube` subdir on nas `bulk/media`** · needs `vm.max_map_count` · **⚠️ DISABLED 2026-09-15** (TA `path.repo` loop; see §Music Pillar status)
+| Tube Archivist | tube | I | 300–700 / 1200 | Personal YouTube (bbilly1/tubearchivist + ES + redis, HD-362) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · **new `tube` subdir on nas `bulk/media`** · needs `vm.max_map_count` · **⏳ disabled** — ES `path.repo` problem, see §Music Pillar
 | Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (scheduled, no UI) |
 
 ## Storage & Import (Media / *arr)
@@ -50,7 +55,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 ├── media/
 │   ├── movies/
 │   ├── tv/
-│   └── ~~music/~~ *(2026-09-10: music library moved to the Hetzner Storage Box as Navidrome's primary — see below)*
+│   └── (no `music/` — the music library lives on the Hetzner Storage Box as Navidrome's primary, see §Navidrome)
 └── downloads/                    # transient scratch (hardlink-import → media/, then prune)
     ├── incomplete/{usenet,torrent}
     └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd / qBittorrent save paths)
@@ -66,7 +71,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 - **Owner = neutral shared owner `storage_uid`/`storage_gid` (`media`, 1005)** across all *arr containers
   (linuxserver `PUID/PGID={{ storage_uid }}`/`PGID={{ storage_gid }}`; Jellyfin `user: "{{ storage_uid }}:{{ storage_gid }}"`,
   HD-94/HD-131). SMB/NFS ownership on nas must match.
-- **Auth (decided 2026-09-10):** *arr / downloader UIs (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, Profilarr, SABnzbd, qBittorrent) = **built-in Forms auth** on the home edge (deliberate reversal of the old "Authentik Forward-Auth, built-in logins disabled" — that served only while WAN/VPS is up; the home edge must survive WAN-out, so each admin tool owns its credentials). Jellyfin + Seerr + SeerrNG = **local login only** (client apps / family request portal would break under forward-auth; Jellyfin SSO dropped — SSO accounts can't fall back to local). API integration between the *arr (Prowlarr↔Sonarr/Radarr, Seerr↔*arr) keeps using API keys, unaffected by UI auth. Dozzle (observability) is also Forward-Auth — see [`observability.md`](observability.md).
+- **Auth:** *arr / downloader UIs (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, Profilarr, SABnzbd, qBittorrent) = **built-in Forms auth** on the home edge (deliberate reversal of the old "Authentik Forward-Auth, built-in logins disabled" — that served only while WAN/VPS is up; the home edge must survive WAN-out, so each admin tool owns its credentials). Jellyfin + Seerr + SeerrNG = **local login only** (client apps / family request portal would break under forward-auth; Jellyfin SSO dropped — SSO accounts can't fall back to local). API integration between the *arr (Prowlarr↔Sonarr/Radarr, Seerr↔*arr) keeps using API keys, unaffected by UI auth. Dozzle (observability) is also Forward-Auth — see [`observability.md`](observability.md).
 - **Request middleware identity:** Seerr / SeerrNG log in via **Jellyfin** (user/password validated by the Jellyfin API — home-local, works offline, no Authentik). SeerrNG (snapetech/seerrng) is a Seerr fork adding **music** — runs alongside Seerr for now (both point at the same Sonarr/Radarr backends); **books/Readarr dropped** (Readarr effectively unmaintained).
 - **FlareSolverr: deferred** — only if an indexer actually requires Cloudflare bypass.
 - All *arr subdomains are **internal-only** (not in the public set).
@@ -99,23 +104,30 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 
 ## Music Pillar — acquisition + discovery (HD-362)
 
-> **✅ DEPLOYED + LIVE 2026-09-14 (oldsrv converge); crash-loop fixes landed 2026-09-15.** slskd + gluetun PrivadoVPN sidecar healthy · aurral Up (tenant first-run: Last.fm/ListenBrainz keys in UI; `/app/downloads` now durable-bound — the weekly-playlist EACCES is gone) · **lidarr-ydl Up+healthy** (the `/home/appuser/.profile` EACCES was FATAL — the image has no appuser home on its RO layer; a durable host bind at `/home/appuser` fixed it) · ~~Tube Archivist~~ **⚠️ DISABLED 2026-09-15** (owner: “I don't need it right now”) — 3-container stack was up (ES green + redis stable after https ES_URL + ES_DISABLE_VERIFY_SSL + redis DAC_OVERRIDE + ES-data reset; new `tube-archivist-es` 1P item, ELASTIC_PASSWORD app+ES env) but **looped restarting on the `path.repo` env-check** (ES snapshot support — TA requires it to serve; env-var form (`path.repo:` in compose) derails ES config generation and the `-E` form re-boot-straps unstably on the data volume — set it in the ES container's `elasticsearch.yml` directly), which drove oldsrv constant CPU + alternating RAM; row flipped `enabled: false` so the next oldsrv converge tears the stack down. ⏳ tails when re-enabling: apply the `path.repo` fix in ES `elasticsearch.yml` first; wire Lidarr clients in UI, Navidrome Box refresh.
-
-> Eyeball target of the **Media stack redefined** brainstorm (2026-09-14) — the *music* acquisition
-> chain + discovery glue, implemented as IaC rows in `group_vars/home_servers.yml` on **oldsrv**.
-> **Streaming stays on the VPS** (Navidrome, HD-354): oldsrv downloads/manages, VPS serves.
-> All P2P (slskd + qBittorrent) egresses through the **shared gluetun WireGuard → PrivadoVPN**;
-> SABnzbd stays on the plain LAN (HD-362 / owner decisions 2026-09-14).
-> **State (2026-09-14): 1P placeholder seeds created** (`slskd_login`, `soulseek_api`, `lidarr_api`,
-> `tube-archivist_login`, `tube-archivist_ui` — overwrite with the real service-issued values after
-> deploy), ran the oldsrv converge but it **stopped at the bulk 1P pre-pass** (op-vault-export) —
-> the aurral `set()` derive bug (now fixed in IaC), so these services are **not yet deployed**;
-> re-converge oldsrv to land them (see prompts/handoff for the current-blocker state).
+> **Status: 🟢 live on oldsrv** — slskd + its gluetun/PrivadoVPN sidecar healthy, aurral up,
+> `lidarr-ydl` up and healthy. **Tube Archivist is disabled** (row `enabled: false`) — see the two gotchas
+> below; re-enabling means fixing ES first.
+>
+> The shape of this pillar: **oldsrv downloads and manages, the VPS serves** (Navidrome, HD-354). All **P2P**
+> egress (slskd + qBittorrent) goes through the **shared gluetun WireGuard → PrivadoVPN**; **SABnzbd stays on
+> the plain LAN** — usenet does not need the VPN and sharing a tunnel with torrents couples two risk sets.
+>
+> Two implementation traps this stack taught, both generic:
+> - **An image with a read-only layer may have no writable appuser home.** `lidarr-ydl` crash-looped FATAL on
+>   `/home/appuser/.profile` `EACCES`; the fix is a durable host bind at `/home/appuser`, not a chmod inside
+>   the image. Same class: aurral needed `/app/downloads` durable-bound or its weekly playlist fails.
+> - **Elasticsearch `path.repo` must be set in `elasticsearch.yml`, never by env or `-E`.** Tube Archivist
+>   requires ES snapshot support to serve; `path.repo:` in the compose env **derails ES config generation**,
+>   and passing it as `-E path.repo=…` re-boot-straps unstably on the data volume — which presented as
+>   constant CPU + alternating RAM on the host. Apply it inside the ES container's `elasticsearch.yml`
+>   **before** re-enabling the row. (TA's own stack also needed `ES_DISABLE_VERIFY_SSL` with an https
+>   `ES_URL`, redis running with `DAC_OVERRIDE`, and a reset ES data volume; its secret is the
+>   `tube-archivist-es` vault item, used as `ELASTIC_PASSWORD` on both sides.)
 
 - **Acquisition chain (ALL on oldsrv):**
   - **Lidarr** (existing) → manages the FLAC library in `bulk/media/music` (nas) — copy-import to the
     Box per HD-354; **sees usenet (SABnzbd) as priority #1, then Soulseek (slskd, #2), then YouTube
-    (lidarr-ydl, #3)** (owner ladder, 2026-09-14).
+    (lidarr-ydl, #3)** (owner-set ladder).
   - **orpheusdl** — manual LAPTOP pip tool (no container; owner runs it on demand for paid-source
     FLAC. NOT in IaC — the automated ladder covers it).
   - **slskd** — Soulseek P2P daemon (Soulseek account, free): **gluetun WireGuard sidecar** (same tunnel as
@@ -126,13 +138,12 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
     `Music stack.md` it's removed from the chain — it just downloads to the phone, never auto-triggers).
   - **Aurral** — **music discovery** companion (lklynet/aurral, free): **Last.fm / ListenBrainz** login history
     → recommends artists/albums → sends requests to **Lidarr**, which lands them in the same FLAC chain.
-- **Video pillar (separate, HD-361 later):** Tube Archivist (personal YouTube) is in **this batch** only
-  as an oldsrv service (**⚠️ disabled 2026-09-15 while the `path.repo` ES snapshot loop is unresolved** — see status block); Jellyfin keeps serving TV/movies. Plex/StreamFab/YTDLNis stay **manual/not-IaC**
-  (per owner; Tube Archivist is the headless yt-dlp piece).
+- **Video pillar (separate, HD-361 later):** Tube Archivist (personal YouTube) is an oldsrv service,
+  currently **disabled** (see the gotchas above); Jellyfin keeps serving TV/movies. Plex/StreamFab/YTDLNis
+  stay **manual / not-IaC** by owner choice — Tube Archivist is the headless yt-dlp piece of that set.
 - **Auth:** Aurral / Tube Archivist / Slskd = **own local logins** (same home-edge pattern — *arr UIs use
-  built-in Forms auth); no Forward-Auth. `lidarr_api` token = the Lidarr instance key — **placeholder
-  seeded 2026-09-14**, overwrite with the real `config.xml` ApiKey (see deployment-secrets.md).
-- **Storage:** Tube Archive lives in a **new `bulk/media/tube` subdir** on nas (same `bulk/media` dataset
+  built-in Forms auth); no Forward-Auth. `lidarr_api` token = the Lidarr instance key — **placeholder value**, overwrite with the real `config.xml` ApiKey (see deployment-secrets.md).
+- **Storage:** Tube Archivist lives in a **`bulk/media/tube` subdir** on nas (same `bulk/media` dataset
   so TRaSH-style hardlink compose stays valid). Music files stay in `bulk/media/music` (existing).
 - *****arr ←? downloader wiring:***** Prowlarr (existing) points at SABnzbd + qBittorrent for Lidarr;
   slskd + lidarr-ydl are **standalone download clients** (slskd has no indexer; lidarr-ydl registers as

@@ -11,7 +11,7 @@ tags: [services, matrix, chat, messaging]
 > **Links to:** `services.md`, `services-traefik.md`, `services-authentik.md`, `interfaces.md`, `network-dns.md`, `manual/chat.md`
 > **Linked from:** `index.md`, `services.md`
 
-> 🟢 **Containers live since 2026-08-22** (Phase 1): matrix (Tuwunel) + element-web Up on the VPS. ⏳ verify/deploy-gated: public federation records + inbound federation traffic (**HD-47**), backup wiring (**HD-49**); bridges are **deferred** (Phase 2 best-effort) — HD-48.
+> 🟢 **Containers live** (Phase 1): matrix (Tuwunel) + element-web Up on the VPS. ⏳ verify/deploy-gated: public federation records + inbound federation traffic (**HD-47**), backup wiring (**HD-49**); bridges are **deferred** (Phase 2 best-effort) — HD-48.
 > Decisions below remain the authoring/implementation spec for those gated parts.
 
 ---
@@ -54,9 +54,9 @@ homeserver with **Element Web** as the web client. Runs on the **VPS** (public/f
   `kogler.si`, `home`, `sso`, `foto`, `file`, `git`, `ha`, `vpn`).
 - The wildcard `*.kogler.si` cert (Cloudflare DNS-01) already covers both subdomains — no extra cert work.
 - **Federation transport:** serve `matrix.kogler.si` through Traefik on **443/TLS** (federation-over-443).
-  Optional listener on **8448** is not required. WAN firewall must allow 443 (and 8448 if used) **to the VPS — `/_matrix/*` is NOT behind Forward-Auth.** See [`services-traefik.md`](services-traefik.md).
+  Optional listener on **8448** is not required. WAN firewall must allow 443 (and 8448 if used)**to the VPS — `/_matrix/*` is NOT behind Forward-Auth.** See [`services-traefik.md`](services-traefik.md).
 
-### Federation posture (HD-122 / KOPS-033 — decided 2026-08-18)
+### Federation posture (HD-122 / KOPS-033 — decided)
 
 **Open federation is kept** — this affirms the recorded KOPS-033 acceptance in [`security.md`](security.md) §7
 (a federated homeserver interoperating with the wider Matrix world; the family is not sealed off).
@@ -103,7 +103,7 @@ Phones / Element X ─────────────  same homeserver /log
 
 ## Server Identity & Backup (Critical)
 
-- The homeserver **signing key + room encryption keys** are the server's identity. **Losing them breaks
+- The homeserver **signing key + room encryption keys** are the server's identity.**Losing them breaks
   all existing rooms / encrypted history.** They are **secrets**: keep in 1Password *and* include the
   identity file in the ZFS/Kopia backup (see [`backup.md`](backup.md)).
 - Back up: the RocksDB database/media store (`/srv/docker/matrix`, via Kopia — there is **no** homeserver Postgres) and the signing/identity
@@ -131,7 +131,7 @@ WhatsApp / Messenger / Signal bridges are **not part of Phase 1**. Rationale (re
 
 **Decision:** defer. Revisit **only if** the family explicitly asks for a specific bridge, and then
 **only** against a **dedicated** number, accepting ongoing re-pairing and possible ban. Tracked as
-**HD-48** — **REJECTED/closed (owner decision 2026-09-09):** the owner is the sole Matrix user, native
+**HD-48** — **REJECTED/closed: ** the owner is the sole Matrix user, native
 Signal already works, and Matrix is not yet federated (HD-46/47) — no bridge will be built. Re-decide
 cheaply if WhatsApp-in-Matrix is ever wanted. Decision log: [services-rejected.md](services-rejected.md) HD-48.
 

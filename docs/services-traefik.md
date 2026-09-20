@@ -11,7 +11,16 @@ tags: [services, traefik, proxy, ssl]
 > **Links to:** `services-authentik.md`, `services.md`
 > **Linked from:** `services.md`, `deployment-compose.md`
 
-> 🟢 **Live since 2026-08-22** on the VPS edge (Phase 1, HD-40A): wildcard `*.kogler.si` LE cert issued, middleware chains deployed, all enabled services routed. **Internal all-app edge = the VPS `traefik-tailnet` instance (HD-331 decision, live 2026-09-07) — re-decided 2026-09-09 (HD-349), re-scoped 2026-09-10:** a home-LAN internal all-app edge (**`traefik-internal` on oldsrv**, VIP-bound + LAN-IP) joins it so `*.kogler.si` keeps working on the LAN when WAN/VPS is down, and home-hosted apps (media / *arr / downloads) get a LAN + mobile path (see [§ Edge model](#edge-model--one-public--one-internal-all-app-edge--home-lan-resilience-edge-re-decided-2026-09-09-hd-349)). **HD-350 (2026-09-10): all three internal edges (VPS `traefik-tailnet` + this + Pi `traefik-ha`) now carry the FULL route table; per-instance split-horizon DNS** (home-hosted → `oldsrv_home_ip` on home instances; `ha`/`dns-pi` → VIP; VPS-hosted/others → VPS public IP). VPS edges stay the tailnet/WAN path. ✅ **`traefik-internal` home edge LIVE 2026-09-14 (oldsrv converge, HD-350)** — container Up (host-net VIP+LAN-IP), FULL route table, consumer TLS pull active. ⏳ remaining: `traefik-ha` Pi edge (HD-17), router-side wiring (HD-03/60), VPS pubkey authorization for the cert-pull, per-home cert-sync authorization. Sections below remain the implementation spec.
+> **Status: 🟢 live.** The **VPS public edge** (`traefik`) issues and serves the wildcard `*.kogler.si`
+LE cert (Cloudflare DNS-01) and routes every `public: true` service; the **VPS `traefik-tailnet`** instance
+is the tailnet/WAN path for the admin dashboards; **`traefik-internal` on oldsrv** is the home-LAN internal
+all-app edge (host-net, VIP + LAN-IP entrypoints, TLS from the pulled cert pair) so `*.kogler.si` keeps
+working on the LAN when WAN/VPS is down. All three internal edges carry the **full route table**, and
+split-horizon DNS is **per instance**: home-hosted apps → `oldsrv_home_ip` on the home instances,
+`ha`/`dns-pi` → the home VIP, everything else → the VPS.
+⏳ **Open:** the Pi `traefik-ha` edge (HD-17), its router-side wiring (HD-03/HD-60), and authorizing the VPS
+public key for the cert-pull + the per-home cert-sync on the issuer side.
+
 
 ---
 
@@ -48,14 +57,14 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 ## CrowdSec
 
 - Parses Authentik + Traefik logs
-- **Collections (HD-85 / KOPS-041, `crowdsec_collections` group_var):** `traefik` + `linux` baseline, plus the exposed auth-surfaces `home-assistant`, `matrix` (Synapse/Tuwunel OIDC login brute-force), and `grafana`. **HD-313:** + `a1ad/mikrotik` (parser + `mikrotik-bf` + `mikrotik-scan-multi_ports`) for the RB4011/switch/AP remote RFC5424 syslog stream — the mikrotik collection carries the syslog parsing; there is NO separate `syslog-logs` collection in the hub (2026-09-03 live: `cscli` rejected it and crowdsec crash-looped — removed). Each collection only pays off where its logs reach CrowdSec via `docker.sock` container-log parsing (docker Acquis) or the syslog receiver (HD-313) — extend the var as more services are exposed.
+- **Collections (HD-85 / KOPS-041, `crowdsec_collections` group_var):** `traefik` + `linux` baseline, plus the exposed auth-surfaces `home-assistant`, `matrix` (Synapse/Tuwunel OIDC login brute-force), and `grafana`. **HD-313:** + `a1ad/mikrotik` (parser + `mikrotik-bf` + `mikrotik-scan-multi_ports`) for the RB4011/switch/AP remote RFC5424 syslog stream — the **mikrotik collection carries the syslog parsing**; there is **no** separate `syslog-logs` collection in the hub, and asking for one is a crash-loop (`cscli` rejects the unknown collection at startup). Each collection only pays off where its logs reach CrowdSec via `docker.sock` container-log parsing (docker Acquis) or the syslog receiver (HD-313) — extend the var as more services are exposed.
 - Community blocklist (IPs that attacked others)
 - Free for personal use
 - Container on `traefik-public` network
 
 ### CrowdSec Web UI (`csui.kogler.si`, HD-272)
 
-- **Richer ops surface** (the dedicated CrowdSec SPA, replacing the retired-Metabase view — Metabase removed from the VPS 2026-09-14): alerts, decisions, metrics, notifications, multi-LAPI, OIDC SSO, read-only mode — a modern SPA (TheDuffman85/crowdsec-web-ui, `ghcr.io/theduffman85/crowdsec-web-ui`, pinned `crowdsec_web_ui_version`).
+- **Richer ops surface** (the dedicated CrowdSec SPA): alerts, decisions, metrics, notifications, multi-LAPI, OIDC SSO, read-only mode — a modern SPA (TheDuffman85/crowdsec-web-ui, `ghcr.io/theduffman85/crowdsec-web-ui`, pinned `crowdsec_web_ui_version`).
 - **INTERNAL-ONLY** (HD-272, matches the observability-internal decision): **no public Cloudflare record** — LAN/VPN only, behind **Authentik Forward-Auth** at the edge (repo-standard for internal admin UIs; this UI's native OIDC stays a hypothetical upgrade — forward-auth gives full SSO + MFA passthrough without a second login form).
 - **LAPI watcher auth** (deploy-gated owner step): `docker exec crowdsec cscli machines add crowdsec-web-ui --password '<crowdsec-webui_lapi_api credential>' -f /dev/null` (the `-f /dev/null` is REQUIRED — registers without overwriting the container's credentials file). Separate from the `crowdsec-bouncer_api` bouncer key.
 - Container on `traefik-public` (reaches `crowdsec:8080` LAPI + the edge).
@@ -81,7 +90,7 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 - Useful for tracing the routing/middleware chain; service metrics still flow to VictoriaMetrics (see [`observability.md`](observability.md)).
 - Decision: **included**; Portainer/Dockge **excluded** (see [`services.md`](services.md)).
 
-## Traefik-tailnet — the tailnet edge for admin dashboards (HD-135b follow-up, 2026-08-28)
+## Traefik-tailnet — the tailnet edge for admin dashboards
 
 - **What:** a SECOND Traefik instance (`traefik-tailnet`, `docker_services/traefik-tailnet`) that serves the
   admin/observability dashboards over the **headscale tailnet** with clean subdomain URLs — **no public DNS,
@@ -93,24 +102,24 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 - **TLS/consumer mode (HD-181/HD-204):** NO ACME resolver on this edge. It serves the **synced wildcard
   pair(s)** from the VPS issuer (`/opt/traefik/certs/...` bind-mounted read-only); the issuer now also
   requests `*.ts.kogler.si` (dash router `tls.domains[1]`) so the MagicDNS twins get a valid cert.
-- **Routes (file provider `dynamic/routes.yml`):** `stats`/`logs`/`csui`/`sec`/`traefik`/`auto`
-  (`*.kogler.si` **and** `*.ts.kogler.si` each). The plain names carry **Authentik Forward-Auth**
-  (same middleware definitions, per-instance copies); the `*.ts` names are **ACL-gated** (no forward-auth —
-  the headscale ACL `tag:sidecar:443` is the gate, see [`network-vpn.md`](network-vpn.md)).
-  **LIVE-VERIFIED 2026-09-03:** plain `*.kogler.si` → **302 → sso.kogler.si** (Forward-Auth reachable);
-  `*.ts.kogler.si` twins → **200 / 301→https** (ACL-gated). **Root-cause note (HD-297c):** the earlier
-  `middleware "authentik-forward-auth@file" does not exist` was a **render crash, not a loop skip** — the
-  template's own comment carried a literal `{{ vault['…'] }}` bracket expression, which Jinja evaluates even
-  inside `#` comments → `dict has no attribute '…'` → the middlewares render task failed → file never landed.
-  Fixed in `fc2b0a1` (de-activate the brace to literal text; same sweep across 8 templates).
+- **Routes (file provider `dynamic/routes.yml`):** the five admin dashboards
+  `stats`/`logs`/`csui`/`traefik`/`auto`, each as `*.kogler.si` **and** `*.ts.kogler.si`. The plain names
+  carry **Authentik Forward-Auth** (same middleware definitions, per-instance copies) — verified shape:
+  plain → **302 → sso.kogler.si**; the `*.ts` twins are **ACL-gated** (no forward-auth; the headscale ACL
+  `tag:sidecar:443` is the gate, see [`network-vpn.md`](network-vpn.md)) → **200 / 301→https**.
+  ⚠ **Jinja renders inside `#` template comments too (HD-297c).** A comment containing a literal
+  `{{ vault['…'] }}` raised `dict has no attribute …`, the middlewares render task failed, and the dynamic
+  file therefore never landed — which surfaced at runtime as
+  `middleware "authentik-forward-auth@file" does not exist`. That is a **missing-file** error, not a skipped
+  loop: check the render, not the middleware. In templates, write such examples as literal text.
 - **Dashboard:** this edge also serves the Traefik dashboard on `traefik.kogler.si` / `traefik.ts.kogler.si`
   (the public edge has no dashboard router — single owner of that name on the tailnet).
 - **Auth key/secrets:** `tailscale-sidecar_api` (API Credential, `credential` = reusable tagged preauth key)
   in 1Password; fail-loud render (`_template_vault_items`).
 
-## Edge model — one public + one internal all-app edge + home-LAN resilience edge (re-decided 2026-09-09, HD-349)
+## Edge model — public edge + internal edges (home LAN + tailnet)
 
-> **Decision (owner + AI, 2026-09-09):** supersedes the HD-331 (2026-09-04) model of a **VPS-only internal all-app edge**. The VPS-only design left a real gap, surfaced live by the 2026-09-09 failover drill: **when WAN is down, every internal app is unreachable from the LAN** because internal `*.kogler.si` records resolve to the **VPS public IP**, yet all backends (immich, jellyfin, grafana, HA-standby, …) are containers on home hosts. The re-decision adds a **home-LAN internal all-app edge** so `*.kogler.si` keeps working on the LAN regardless of WAN/VPS state.
+> **The rule (HD-349):** internal apps are served by **both** a home-LAN edge and the tailnet edge. A VPS-only internal edge is not acceptable: **when WAN is down, every internal app becomes unreachable from the LAN**, because internal `*.kogler.si` records resolve to the **VPS public IP**, yet all backends (immich, jellyfin, grafana, HA-standby, …) are containers on home hosts. The re-decision adds a **home-LAN internal all-app edge** so `*.kogler.si` keeps working on the LAN regardless of WAN/VPS state.
 
 ### Two-path serving model (current SSOT)
 
@@ -135,7 +144,7 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 - **VPS `traefik-tailnet`** = the **tailnet/WG path** — unchanged, but its route table now ALSO contains the home-hosted backends (media/*arr/seerr/… → `oldsrv_home_ip:<port>` over WG, the media-bridge pattern). This is how the **mobile leg** reaches home-hosted apps: phone → tailnet → VPS edge → WG → `oldsrv_home_ip`. Still Authentik Forward-Auth on the edge, not public.
 - **NEW: `traefik-internal` on oldsrv** = the **home-LAN resilience path**. Host-net, entrypoints bound to the home **VIP** (`ha-vip`):80/443 **and** the oldsrv **LAN IP** (`oldsrv_home_ip`):80/443, `net.ipv4.ip_nonlocal_bind=1`. Serves THE FULL route table (home-hosted + VPS-hosted via wg :4443 double-hop). File-provider routes (no Docker-labels — avoids router conflicts, same pattern as traefik-tailnet). Consumer-mode TLS (synced wildcard pair from the VPS issuer via traefik-cert-pull). **No Forward-Auth and no CrowdSec on this edge** — both depend on VPS containers (Authentik, CrowdSec LAPI); including them would fail exactly when this edge must survive (WAN-out). All home services carry **their own local login** (Jellyfin, Seerr, *arr built-in Forms auth).
 - **Pi `traefik-ha`** = the **HA/DNS edge** for the oldsrv-down case — unchanged. Serves `ha` + `dns-pi` → VIP. Stays VIP-bound so it never fights `traefik-internal` for :443 (only the keepalived MASTER owns the VIP).
-- **DNS (home LAN):** home-hosted app names (`media`/`jellyfin`, `seerr`, `seerrng`, *arr, `sab`, `torrent`) point at **oldsrv's LAN IP** on the home Technitium instances (oldsrv secondary + Pi tertiary); **`ha`/`dns-pi` keep pointing at the home VIP**. VPS primary keeps its public records (VPS edge target) for WAN/tailnet; **VPS-hosted names (foto/file/git/…) keep pointing at the VPS public IP on ALL instances** (their backends live on the VPS — the home edge reaches them via wg :4443 double-hop, and WAN clients reach them publicly). This is the only DNS change; tailnet/WAN DNS is unchanged. Re-scoped 2026-09-10 from the original "everything → VIP" (VIP normally sits on the Pi, whose edge serves only `ha`/`dns-pi` — pointing every app at the VIP would regress the normal case; the home-hosted set is served by the oldsrv edge, so they point at oldsrv's LAN IP).
+- **DNS (home LAN):** home-hosted app names (`media`/`jellyfin`, `seerr`, `seerrng`, *arr, `sab`, `torrent`) point at **oldsrv's LAN IP** on the home Technitium instances (oldsrv secondary + Pi tertiary); **`ha`/`dns-pi` keep pointing at the home VIP**. VPS primary keeps its public records (VPS edge target) for WAN/tailnet; **VPS-hosted names (foto/file/git/…) keep pointing at the VPS public IP on ALL instances** (their backends live on the VPS — the home edge reaches them via wg :4443 double-hop, and WAN clients reach them publicly). This is the only DNS change; tailnet/WAN DNS is unchanged. ⚠ **Not "everything → VIP"**: the VIP normally sits on the Pi, whose edge serves only `ha`/`dns-pi`, so pointing every app at the VIP would regress the normal case. Home-hosted apps point at **oldsrv's LAN IP** because the oldsrv edge serves them.
 - **HA `external_url` / Companion:** both `ha` edges (Pi traefik-ha + oldsrv traefik-internal) carry `ha` → the app works over any live path (LAN via home edge, tailnet/WAN via VPS edge).
 
 ### Scenario matrix (what it buys)
@@ -149,28 +158,33 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 | **oldsrv dies** | ✅ Pi `traefik-ha` → local HA | ❌ backends dead (containers on oldsrv) — unavoidable | Pi edge + VPS edge (if WAN up) |
 | **oldsrv + WAN die** | ✅ Pi edge (local, offline-safe cert) | ❌ backends dead | Pi `traefik-ha` — HA stays reachable |
 
-### Implementation (HD-350/352 — tracked in todo.md §2.1a; **HD-351 DELETED 2026-09-10**; **deployed 2026-09-14, see §Edge model status**)
+### Implementation (HD-350 / HD-352)
 
 - **HD-350 — home-edge IaC (implemented):** new `docker_services` entry `traefik-internal` on oldsrv — `templates/docker_services/traefik-internal/` (`docker-compose.yml.j2` host-net, VIP+LAN-IP entrypoints, `net.ipv4.ip_nonlocal_bind=1`, consumer TLS from pulled certs; `dynamic/routes.yml.j2` FULL route table + DEFAULT-store TLS). Reuses the `traefik-ha`/`traefik-tailnet` patterns (file-provider, no docker labels, no ACME). The wildcard pair is pulled by the SAME `traefik-cert-pull` timer (script parametrized via `traefik_consumer_dir`); VPS pubkey authorization = documented owner step. **Route set (13 + VPS set):** `media` (jellyfin :8096), `seerr` (:5055), `seerrng` (:5055), `sonarr` (:8989), `radarr` (:7878), `lidarr` (:8686), `prowlarr` (:9696), `bazarr` (:6767), `profilarr` (:6868), `sab` (:8080), `torrent` (:8080), `ha` (→ VIP:8123), `dns-pi` (→ VIP → technitium-secondary:5380) + VPS-hosted (foto/file/git/ai) via `wg-s2s ip:4443`. **No Forward-Auth, no CrowdSec** (both depend on VPS containers). **Auth on the edge's *arr/downloaders = built-in Forms auth** — deliberate reversal of the old "built-in logins disabled" rule (that rule assumed routes served only while WAN/VPS is up; the home edge must survive WAN-out, so each app must own its credentials). Jellyfin/Seerr/SeerrNG keep local login (client apps / request portal). This also repairs the **lost-routes bug**: since HD-331 removed the oldsrv edge, media / *arr / downloads hosts have NO route today (labels only, unreachable across hosts).
-- **HD-351 — DELETED (2026-09-10).** Original: "start `traefik-internal` on forward takeover." Unnecessary: the edge runs **always** on oldsrv; it only serves `ha` when oldsrv owns the VIP (keepalived MASTER), and the non-`ha` routes serve from oldsrv's LAN IP regardless of VIP state. `ha-failover-api` also cannot start a host service (it runs inside the standby HA container).
-- **HD-352 — DNS re-point (implemented, 2026-09-10):** home Technitium instances (oldsrv secondary + Pi tertiary) resolve **home-hosted app names → oldsrv LAN IP**, and `ha`/`dns-pi` → home VIP; VPS primary + tailnet unchanged. Seed rows in `technitium-seed.yml` are per-instance conditioned on `svc.instance in ['secondary','secondary-pi']`. (Original "everything → VIP" regressed the normal case — VIP normally sits on the Pi, whose edge serves only `ha`/`dns-pi`.)
+- **HD-351 was deleted as unnecessary.** Its premise was "start `traefik-internal` on forward takeover" — but the edge runs **always** on oldsrv: it serves `ha` only when oldsrv owns the VIP (keepalived MASTER), while the non-`ha` routes serve from oldsrv's LAN IP regardless of VIP state. `ha-failover-api` also cannot start a host service (it runs inside the standby HA container).
+- **HD-352 — DNS re-point:** home Technitium instances (oldsrv secondary + Pi tertiary) resolve **home-hosted app names → oldsrv LAN IP**, and `ha`/`dns-pi` → home VIP; VPS primary + tailnet unchanged. Seed rows in `technitium-seed.yml` are per-instance conditioned on `svc.instance in ['secondary','secondary-pi']`. (Original "everything → VIP" regressed the normal case — VIP normally sits on the Pi, whose edge serves only `ha`/`dns-pi`.)
 
 ### Certification (unchanged rules)
 
 - **Single ACME issuer = VPS Traefik** (HD-178/HD-181/HD-204): consumers (VPS traefik-tailnet bind-mount, Pi traefik-ha ha-cert-sync, **oldsrv traefik-internal via the parametrized traefik-cert-pull**) serve the synced wildcard pair; the issuer issues via Cloudflare DNS-01. `traefik_acme_issuer: true` only on the VPS. The home edge is **offline-safe for both TLS and auth** by design (synced certs + local app logins).
 - **trusted_proxies:** HA must trust **all** edges that front it — Pi `traefik-ha` (Pi Home-IP/32, SSOT `dns_tertiary_ip`), **oldsrv `traefik-internal` (oldsrv Home-IP/32 — host-net source = oldsrv Home-VLAN IP, SSOT `oldsrv_home_ip`, HD-350)** and the VPS edges (`traefik_edge_ips`/32, e.g. the oldsrv `traefik` label-edge bridge default) — so real client IPs are preserved (`ha_trusted_proxies` in group_vars/all/main.yml).
 
-### Original HD-331 decision (historical record, superseded)
+> **Invariants of the edge model** (each survived every revision of the model, and each is load-bearing):
+>
+> - **Split-horizon is by *reach*, not by *name*.** `ha.kogler.si`, `stats.kogler.si` and `home.kogler.si`
+>   resolve to the same name everywhere; which edge answers is decided by topology + firewall + which
+>   instance's Technitium you ask. Do not invent per-zone names.
+> - **`.ts.kogler.si` twins exist for one reason:** they match no Docker provider on the tailnet edge, so they
+>   can be routed with ACL-only auth. Anything else should use the plain name.
+> - **Every internal app needs a *home* path.** DNS for home-hosted apps must resolve to a home address on the
+>   home Technitium instances; a name that resolves only to the VPS makes LAN access depend on WAN. That was
+>   the defect of the VPS-only internal-edge model (HD-331) — see [services-rejected.md](services-rejected.md).
+> - **File-provider routes on the tailnet edge** (no Docker labels) are what keep the public/`-public`
+>   network separation intact while still routing internal apps from that instance.
+> - **`traefik-ha` on the Pi is the HA/DNS edge**, not an internal all-app edge: VIP-bound, serving `ha` +
+>   `dns-pi`, so it never fights `traefik-internal` for :443 (only the keepalived MASTER binds the VIP).
+> - **One ACME issuer** (the VPS public edge); every other edge is a cert **consumer**.
 
-> **Decision (owner + AI, 2026-09-04):** long-term reverse-proxy architecture = **one PUBLIC edge (WAN-only, public apps) + one INTERNAL all-app edge (serves EVERY app, public + internal) reached over Headscale tailnet AND WireGuard site-to-site**. Recorded here as the owning-doc decision; the `<domain>-rejected.md` log entry locks it against re-decide (HD-331). **→ SUPERSEDED 2026-09-09 (HD-349):** the VPS-only internal edge leaves **WAN-out = all internal apps dead on the LAN** (every internal app's DNS resolves to the VPS public IP, yet all backends live on home hosts). The new model (above) adds a home-LAN internal all-app edge on oldsrv to close this.
-
-- **Public edge (unchanged):** the main `traefik` on the **VPS** — Docker-labels (docker provider), single ACME issuer (`traefik_acme_issuer: true`), Cloudflare A records, Forward-Auth + CrowdSec. Serves **only** the public `*.kogler.si` apps (per the catalog `public:` flag).
-- **Internal all-app edge (growth of `traefik-tailnet`, VPS):** the SAME VPS instance (`traefik-tailnet`) routes **every** service — public apps (identical rules, but no WAN) **and** internal-only apps. Reached over the **tailnet (existing)** and the **WireGuard S2S**. File-provider routes (no Docker-labels) keep the public/`-public` Docker-network separation intact.
-- **Same-zone split-horizon = same names, different reach:** `ha.kogler.si` / `stats.kogler.si` / `home.kogler.si` resolve the same inside + on tailnet/WG; reachability is gated by topology/firewall, **not** by which name resolves.
-- **No `.ts` twins needed:** headscale `search_domains: [kogler.si]` + the VPS-primary split-horizon resolve plain `*.kogler.si` to the tailnet edge once every instance carries the full split-horizon set.
-- **`traefik-ha` (Pi) stays:** a physical failover edge for the HA VIP, NOT the internal all-app edge — **unchanged in the re-decision; the Pi edge also survives oldsrv-out.**
-
-## Cockpit Routes (file-provider, no Forward-Auth)
 ## Cockpit Routes (file-provider, no Forward-Auth)
 
 Cockpit is a host service (not a Docker container), so its routes are a Traefik
@@ -284,8 +298,8 @@ Traefik middleware prevents any traffic from reaching an app before authenticati
 ### Public (crowdsec-only) routes
 
 Apps exempt from the auth chain carry `crowdsec-only@file` instead (bouncer + headers, no SSO):
-`office` (WOPI worker, HD-166), `vpn`/headscale (native OIDC + control traffic), and since
-**HD-230 (2026-08-23)** `pairdrop` — PUBLIC P2P share on BOTH `pairdrop.kogler.si` and
+`office` (WOPI worker, HD-166), `vpn`/headscale (native OIDC + control traffic), and `pairdrop` (HD-230) —
+PUBLIC P2P share on BOTH `pairdrop.kogler.si` and
 `drop.kogler.si` (one router, dual Host matcher; supersedes the HD-113 LAN-only decision).
 Abuse guards: CrowdSec bouncer + the app's built-in `RATE_LIMIT=true`; network isolation via
 traefik-public-only attachment.

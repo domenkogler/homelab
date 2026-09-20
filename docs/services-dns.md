@@ -5,13 +5,19 @@ domain: services
 status: active
 tags: [services, dns, technitium, pihole]
 ---
-# DNS Services — Technitium (& retired Pi-hole)
+# DNS Services — Technitium
 
-> **Role:** Detail — the DNS *services* slice of the services catalog (Technitium router; Pi-hole retired 2026-09-10). Network/ops policy (VLANs, per-subnet upstream filtering, port-53 binding) is owned by [`network-dns.md`](network-dns.md).
+> **Role:** Detail — the DNS *services* slice of the services catalog. Network/ops policy (VLANs,
+> per-subnet upstream filtering, port-53 binding, record SSOT) is owned by [`network-dns.md`](network-dns.md);
+> this doc covers the DNS **services** and their exposure.
 > **Links to:** `network-dns.md`, `network-vlans.md`, `services.md`
 > **Linked from:** `services.md`, `network-dns.md`
 
-> 🟢 **IaC done + VPS primary SEEDED + LIVE (HD-324, 2026-09-03); Pi/dns-pi live; oldsrv (secondary) DNS pending (Phase 3).** The VPS primary Technitium zone + split-horizon records are live-verified; oldsrv's secondary seeds via the same `technitium-seed` role once its admin is up. **Pi-hole RETIRED 2026-09-10** (see [Pi-hole Configuration](#pi-hole-configuration-retired-2026-09-10)). Deploy progress vs [`deployment-tasks.md`](../deployment-tasks.md).
+> **Status: 🟢 live** — the **VPS primary** Technitium is seeded and its zone + split-horizon records are
+> verified; the **Pi tertiary** (`dns-pi.kogler.si`) is live; **oldsrv's secondary** still needs seeding via
+> the same `technitium-seed` role once its admin endpoint is reachable.
+> **Pi-hole is retired** — ad blocking runs in Technitium ([§Blocking](#blocking--retired-pi-hole)).
+> Deploy progress: [`deployment-tasks.md`](../deployment-tasks.md).
 
 ---
 
@@ -19,27 +25,35 @@ tags: [services, dns, technitium, pihole]
 
 | Service | Subdomain | Network | RAM (idle/peak MB) | Description |
 |---------|-----------|---------|--------------------|-------------|
-| Technitium | dns | I | 120–250 / 400 | Central DNS router, VLAN-aware (binds 53 on host) |
-| ~~Pi-hole~~ | ~~ad~~ | I | ~~100–200 / 300~~ | ~~Ad-blocking DNS~~ — **RETIRED 2026-09-10** (ad-block moved to Technitium Advanced Blocking on the reliable VPS/Pi DNS tier; the oldsrv pihole container was retired in the 2026-09-14 follow-up converge). Template + vault item kept for re-enable; see [network-dns.md](network-dns.md) |
+| Technitium | dns | I | 120–250 / 400 | Central DNS router, VLAN-aware (binds :53 on the host) |
 
-## DNS Redundancy
+## Redundancy
 
-- **Technitium primary** on the VPS (Docker, `dns-servers` overlay; web UI `dns.kogler.si`).
-  **Access (2026-09-03):** `dns.kogler.si` resolves to the VPS edge and is behind **Authentik
-  Forward-Auth** — its `forward-dns` ProxyProvider lives in `ks-forward-auth.yml` (blueprint,
-  applied via `playbooks/authentik-blueprints.yml`); the route label is on the primary
-  technitium compose (`Host(dns.kogler.si)` + `authentik-forward-auth@file`).
-- **Technitium secondary** on **oldsrv** — different failure domain; keeps internal `*.kogler.si` + per-subnet filtering when the VPS is down.
-- **Technitium tertiary** on the **Raspberry Pi (`pi.kogler.si`)** — web UI `dns-pi.kogler.si` via the Pi `traefik-ha` edge (host :5380 published, see [network-dns.md](network-dns.md)).
+- **Primary — VPS** (Docker, `dns-servers` overlay; web UI `dns.kogler.si`). `dns.kogler.si` resolves to the
+  VPS edge and is behind **Authentik Forward-Auth**: its `forward-dns` ProxyProvider lives in
+  `ks-forward-auth.yml` (blueprint, applied via `playbooks/authentik-blueprints.yml`), and the route label is
+  on the primary technitium compose (`Host(dns.kogler.si)` + `authentik-forward-auth@file`).
+- **Secondary — oldsrv**: a different failure domain; keeps internal `*.kogler.si` resolution + per-subnet
+  filtering when the VPS is unreachable.
+- **Tertiary — Raspberry Pi** (`pi.kogler.si`): web UI at `dns-pi.kogler.si` through the Pi `traefik-ha` edge
+  (the container publishes :5380 on the host) so it stays reachable when oldsrv is down. Port/record detail:
+  [network-dns.md](network-dns.md).
 
-## Pi-hole Configuration (RETIRED 2026-09-10)
+> **Seeding is add-only (⚠ known gap).** The `technitium-seed` role calls `zones/records/add` and never
+> deletes, so a retired service can leave an orphan record on the primary. Track and prune those explicitly —
+> see [services-admin.md](services-admin.md) §Open item.
 
-- Upstream: Cloudflare (1.1.1.1) or Google (8.8.8.8).
-- Conditional forwarding: local domain → the **Technitium primary** (`dns_primary_ip`, HD-187) so Pi-hole logs show hostnames.
-- Internal Technitium blocklists **disabled** (minimize RAM; Pi-hole handles blocking).
-- Per-VLAN/subnet DNS **policy** (who may query whom, port-53 binding) lives in [`network-dns.md`](network-dns.md).
+## Blocking — retired Pi-hole
 
-> **2026-09-10:** pihole retired — Main-Group ad-blocking uses **Technitium Advanced Blocking** (per-client groups, multiple block-list formats) on the reliable VPS/Pi DNS tier instead of an oldsrv container. The section above is the historical config, kept for re-enable.
+Ad blocking is **Technitium Advanced Blocking** (per-client groups, multiple block-list formats) running on
+the reliable VPS/Pi DNS tier — not an oldsrv container. Rationale + the decision:
+[services-rejected.md](services-rejected.md).
+
+Two facts worth keeping if it is ever re-enabled:
+- A forwarder in front of Technitium must **conditionally forward the local domain to the Technitium
+  primary**, or its logs will show IPs instead of hostnames.
+- If an external blocker runs, Technitium's own blocklists should be **disabled** — two blockers in series
+  costs RAM and makes "why is this blocked?" ambiguous.
 
 ## Related
 - [Network DNS architecture](network-dns.md) — VLAN/subnet policy, port-53 binding, DNS SSOT

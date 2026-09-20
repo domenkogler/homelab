@@ -11,7 +11,8 @@ tags: [services, catalog, index]
 > **Links to:** `services-traefik.md`, `services-authentik.md`, `services-matrix.md`, `services-finance.md`, `services-office.md`, `services-ai.md`, `services-media.md`, `services-downloads.md`, `services-dns.md`, `services-utilities.md`, `services-admin.md`, `observability.md`, `deployment-compose.md`, `subscription.md`
 > **Linked from:** `index.md`, `deployment-ansible.md`
 
-> ⚠️ **Planning phase.** Docs and IaC are still evolving — content will change often. Do **not** chase small visual-only tweaks; make substantive, content-level, consistent edits.
+> Most of this catalog is **live**; the rows that are not carry an explicit ⏳/⚠ in their stack doc. IaC
+> (`IaC/ansible/group_vars/*`) is the per-service SSOT — this index only aggregates and points.
 
 ---
 
@@ -23,11 +24,11 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 |-----------|-------|------|
 | [Media](services-media.md) | Jellyfin, Seerr, SeerrNG, Immich, Navidrome, *arr (Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr/Recyclarr) + storage/import | detail |
 | [Downloads](services-downloads.md) | SABnzbd, qBittorrent, gluetun — USENET/torrent ingress + VPN | detail |
-| [DNS](services-dns.md) | Technitium (+ ~~Pi-hole~~ retired 2026-09-10 → Technitium Advanced Blocking) | detail |
+| [DNS](services-dns.md) | Technitium (ad blocking = Technitium Advanced Blocking; Pi-hole is retired) | detail |
 | [Utilities](services-utilities.md) | n8n, signal-cli, PairDrop, Stirling PDF | detail |
-| [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup · **Homelable (HD-45, oldsrv, deploy-gated)** · ~~Metabase~~ **retired 2026-09-14** → future oldsrv | detail |
+| [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup · **Homelable (HD-45, oldsrv, deploy-gated)** · Metabase is retired (revival = oldsrv) | detail |
 | [Office](services-office.md) | ONLYOFFICE, OpenCloud, office bridge (cross-cutting) | detail |
-| [AI Platform](services-ai.md) | LiteLLM, Open WebUI, Docling, OpenClaw, Qdrant, **spark (Triton, GB10 — big-model generation)**, **Ollama (RX 7600 pinned-services: STT/embed/rerank, decision #24)**, Immich-ML (oldsrv CPU) | detail |
+| [AI Platform](services-ai.md) | LiteLLM (VPS + LAN), Open WebUI, Docling, OpenClaw, Qdrant · **spark = big-model generation (vLLM behind `llm.kogler.si`)** · **pinned-AI tier on the oldsrv RX 7600: `whisper` / `reranker` / `embed` (Vulkan), Ollama = embed fallback rung** · Immich-ML (oldsrv GPU, lowest priority) | detail |
 | [Matrix](services-matrix.md) | Tuwunel, Element Web | detail |
 | [Finance](services-finance.md) | Actual Budget | detail |
 | [Traefik — Reverse Proxy & Edge](services-traefik.md) | Traefik | detail |
@@ -35,7 +36,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 | [Observability](observability.md) | Alloy, VictoriaMetrics, VictoriaLogs, Grafana, blackbox, Dozzle (VPS viewer `logs` + **LAN hub `llogs`** on oldsrv w/ pi+spark agents) · **mcp-victoriametrics / mcp-victorialogs (HD-344, oldsrv, deploy-gated)** | — |
 
 **Standalone (owned here, no stack doc):**
-- **Homepage** (family launchpad, `kogler.si` root + `home`) — public Forward-Auth; status widget. **Moved to the VPS** (HD-180; implemented **HD-183** ✅ 2026-08-21): the route is the compose's Docker-provider labels, live on the VPS edge; reachability is widget/probe-based (no Docker socket).
+- **Homepage** (family launchpad, `kogler.si` root + `home`) — public behind Forward-Auth, with the HA-failover status widget. Lives on the **VPS**: the route is the compose's Docker-provider labels at the VPS edge; reachability is widget/probe-based (no Docker socket).
 - **Sunshine** — game streaming (manual start, `restart: "no"`), AMD dGPU **gaming-encode first**; immich-ML batch is pause-able GPU consumer (prep-commands). Idle ~5 W when neither gaming nor ML.
 
 **Non-services (link out to owning domain):**
@@ -93,7 +94,7 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 
 > Note: `office` (ONLYOFFICE) and `git` (Forgejo) belong to `services-office.md` and `services-admin.md` resp. — subdomains shared here are cross-cutting.
 
-**Admin Dashboards decision:** Traefik Dashboard included, tailnet-only (`traefik.kogler.si` / `traefik.ts.kogler.si`, see `services-traefik.md` → **traefik-tailnet**); CrowdSec Web UI `csui.kogler.si` (HD-272, tailnet-only) — admin stack. **The five admin dashboards** (`stats` Grafana / `traefik` dashboard / `logs` Dozzle / `csui` CrowdSec-UI / `auto` n8n) are **tailnet-only** over the `traefik-tailnet` edge (HD-135b follow-up, 2026-08-28) — no public records, reached at `https://<app>.kogler.si` or `https://<app>.ts.kogler.si` on the tailnet. **LAN log hub `llogs.kogler.si`** (Dozzle on oldsrv, shows oldsrv+pi+spark via remote agents) is **LAN-only** — served by the traefik-internal home edge (WAN-out survival), never the VPS/tailnet. (Metabase `sec` was the sixth but is **retired 2026-09-14** — if revived it runs on oldsrv, not this edge.) **Portainer / Dockge — excluded** (single Ansible-templated compose model).
+**Admin Dashboards:** the **five** admin dashboards — `stats` (Grafana), `traefik` (dashboard), `logs` (Dozzle), `csui` (CrowdSec UI), `auto` (n8n) — are **tailnet-only** over the `traefik-tailnet` edge: no public records, reached at `https://<app>.kogler.si` or `https://<app>.ts.kogler.si` on the tailnet (see `services-traefik.md` → **traefik-tailnet**). The **LAN log hub `llogs.kogler.si`** (Dozzle on oldsrv, showing oldsrv+pi+spark via remote agents) is **LAN-only** — served by the traefik-internal home edge for WAN-out survival, never the VPS/tailnet. **Portainer / Dockge are excluded** — there is one Ansible-templated compose model, so a container manager would only fork it.
 >
 > **Homelable** (HD-45) — the network/rack *topology* visualizer, on **oldsrv** and internal-only (no public record; it must sit on the LAN to scan it). Reached at `http://<oldsrv-home-ip>:3000` on the LAN (tailnet route = future tail, see [`services-admin.md`](services-admin.md) §Homelable). Not one of the tailnet-edge dashboards above — those run on the VPS; Homelable runs where the network is. Deployment spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable.
 
@@ -101,10 +102,12 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 
 ## Service Accessibility & Traefik URL mapping (SSOT)
 
-> **Rule of thumb:** every HTTP(S) service is `https://<sub>.kogler.si` (port 443, wildcard cert via Traefik) — **no ports in URLs**. Backends bind private overlay addresses, never exposed directly.
+> **Rule of thumb:** every HTTP(S) service is `https://<sub>.kogler.si` (port 443, wildcard cert via Traefik) —
+> **no ports in URLs**. Backends bind private overlay addresses, never exposed directly. The one deliberate
+> exception is a LAN tool reached by IP:port because it must scan the LAN (Homelable).
 
 - **Rule C (HTTP/S):** Traefik only, hostname-based, no ports.
-- **Rule D (non-HTTP, bypass Traefik — direct IP + firewall):** DNS 53 · NUT 3493 · SNMP 161 · WireGuard · SSH/WinBox (Mgmt, trusted) — ~~UPS web 80/443~~ **removed (HD-338):** UPS NIC on IoT 20 no-WAN, NUT/USB only. Host IPs per [`network-addresses-generated.md`](network-addresses-generated.md) (SSOT).
+- **Rule D (non-HTTP, bypass Traefik — direct IP + firewall):** DNS 53 · NUT 3493 · SNMP 161 · WireGuard · SSH/WinBox (Mgmt, trusted). The UPS has **no web-UI firewall path** (its NIC sits on IoT 20 with no WAN; monitoring is NUT/USB). Host IPs per [`network-addresses-generated.md`](network-addresses-generated.md) (SSOT).
 
 ### URL → backend (edge cases only)
 
