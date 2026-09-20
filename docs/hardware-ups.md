@@ -12,7 +12,27 @@ tags: [hardware, ups, power, modbus, nut]
 > **Links to:** `hardware-nas.md`, `network-rack.md`, `network-vlans.md`, `home-assistant-current.md`, `observability.md`
 > **Linked from:** `hardware.md`, `index.md`
 
-> 🟢 **NUT master LIVE 2026-09-03 (HD-06/314):** the PowerWalker VFI IoT 3000 is monitored from nas (NUT master) over USB — `upsc powerwalker@localhost` returns battery 100% / runtime / Innova Unity (Phoenixtec `06da:ffff`). `upsd` :3493 + `nut_exporter` :9199 (pinned v3.3.0, 2026-09-08) active on nas; udev perms fixed (nut group), `retrycount` removed from ups.conf (invalid for usbhid-ups in NUT 2.8.1). **Clients (oldsrv/pi) LIVE 2026-09-08** — oldsrvs + pi converged (HD-318/HD-307), both NUT clients active (slave to nas, deferred shutdown via `upssched`). ✅ **Live battery-pull drill 2026-09-09 (`HD-06`)** — exposed + fixed 3 latent defects: (1) stray ACL on `upssched-cmd` (`group::r--` despite mode 0750) → `nut` got exec 126, no notify AND no shutdown on any host; (2) SMTP creds never rendered (template shell `${nut_smtp_*}` vs Jinja `{{}}`) — direct email would send empty auth; (3) no sudoers rule → nut cannot run `/sbin/shutdown` (polkit fail). Fix deployed nas+oldsrv 2026-09-09: ACL cleared + chmod 0750, Jinja-rendered creds (master only), `/etc/sudoers.d/nut` NOPASSWD shutdown. **Shutdown policy (owner decision):** oldsrv = biggest load → **halt at ≤75% charge**; nas/pi = critical-only (LOWBATT <20%/<5min). Implemented via upssched 30s charge-poll (ONBATT) → powerdown at threshold. **Drill-day follow-ups (2026-09-09):** (a) `shutdown -h` halts but leaves the board powered (LEDs on) — all paths now `/sbin/poweroff` + sudoers `poweroff`; (b) upssched.conf task used a master-only restart handler → clients ran stale configs (oldsrv shut down 60s after ANY mains loss on first deploy) — added `restart upsmon (all modes)`; (c) **wake-after-recharge (WoL)** — first attempt (upssched helper) was transient and died with the SSH session, so no magic packet was sent (the board's S5-WoL wasn't actually exercised); replaced with a **persistent systemd timer on nas** (`nut-wake.timer` → `/usr/local/sbin/nut-wake`, every 60 s) + **BIOS verified 2026-09-09** on oldsrv (ASRock Z270 Extreme4): `PCIE Devices Power On`, `I219 LAN Power On`, `RTC Alarm By OS` = Enabled, **Deep Sleep = Disabled** (under Chipset Configuration) → WoL from S5 is configured and armed; first real re-test pending; (d) `nut_signal_helper` under `set -u` aborted the onbatt notify — guarded with `${nut_signal_helper:-}`. ⚠ ~~**Pi not yet re-converged**~~ **Pi converged 2026-09-09 (18:40)** — nut role fix set live on pi too (ACL, sudoers poweroff, poweroff paths, charge-poll at threshold 0 = critical-only). All three hosts (nas/oldsrv/pi) now carry the fixed config. ⏳ re-test (short pull) pending owner. · [hardware-ups.md](hardware-ups.md) |
+> **Status: 🟢 NUT monitoring + shutdown chain LIVE on all three protected hosts (nas master,
+> oldsrv + Pi clients).** `usbhid-ups` over USB on nas, `upsd` :3493, `nut_exporter` :9199 (tagged
+> release pinned), clients in `slave` mode with per-host shutdown, and a live-verified battery-pull drill.
+> ⏳ Remaining: one more short battery-pull re-test (owner/manual), and live-verification that the
+> `network_ups_tools_*` series + alert rules land after the next monitoring converge.
+>
+> **Shutdown policy (owner decision):** oldsrv is the biggest load → **halt at ≤ 75 % battery charge**, so
+> the battery is preserved for nas/Pi; **nas + Pi are critical-only** (`LOWBATT` = battery < 20 % or
+> runtime < 5 min). Implemented as an upssched 30 s charge-poll started on `ONBATT` (cancelled on `ONLINE`)
+> → poweroff at `battery.charge ≤ nut_shutdown_charge_threshold` (oldsrv 75, nas/Pi 0 = never via this path).
+> **Poweroff, never `shutdown -h`** — a halt leaves this board powered (LEDs on); every path uses
+> `/sbin/poweroff` with a matching sudoers rule.
+>
+> **Defects the drill exposed — all fixed in the role, do not re-introduce:**
+> ① a stray ACL on `upssched-cmd` (`group::r--` despite mode 0750) gave `nut` exec 126 → **no notify and no
+> shutdown on any host**; ② the SMTP credentials rendered as shell vars (`${nut_smtp_*}`) instead of Jinja,
+> so SMTP auth silently failed empty (masked by `|| true`) — they must render inline from the vault;
+> ③ no sudoers rule → `nut` could not run the shutdown command; ④ `nut_signal_helper` aborted the on-battery
+> notify under `set -u` (guard with `${nut_signal_helper:-}`); ⑤ an upssched restart handler that existed
+> only on the master left **clients running stale configs** (oldsrv powered off 60 s after *any* mains loss
+> on first deploy) — the restart handler must apply to **all modes**.
 
 ---
 
@@ -24,7 +44,7 @@ tags: [hardware, ups, power, modbus, nut]
 | USB identity | `PHOENIXTEC Innova Unity` (HID name reported by the UPS itself) |
 | MAC | `00:20:85:C0:92:FA` |
 | IP | static — `ups` per [`network-addresses-generated.md`](network-addresses-generated.md) |
-| VLAN | 99 (Mgmt) — access port |
+| VLAN | **20 (IoT, no WAN)** — access port; no consumer (NUT/USB is the only monitoring path) |
 | Location | Rack floor / near the rack (18U cabinet) |
 | Protects | **nas** (HP MicroServer Gen8), **oldsrv** (i7-7700K), **ha** (Raspberry Pi 4) + rack infra (router, switch, ONT) |
 
@@ -38,8 +58,8 @@ tags: [hardware, ups, power, modbus, nut]
 
 | Link | To | Detail |
 |------|----|--------|
-| **USB HID** | gen8 (`nas`) | `/dev/hidraw0`, `/dev/usb/hiddev0` — currently the **only live data link** to a host |
-| **Ethernet (RJ45)** | LAN (IoT VLAN 20) — no consumer; web UI/Modbus not used (NUT USB), NIC kept isolated |
+| **USB HID** | gen8 (`nas`) | `/dev/hidraw0`, `/dev/usb/hiddev0` — the **only live data link** to a host |
+| **Ethernet (RJ45)** | LAN, **IoT VLAN 20 (no WAN)** | No consumer: the web UI and Modbus TCP are unused and the NIC stays isolated on a no-WAN VLAN |
 
 The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) port.
 
@@ -55,8 +75,12 @@ The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) 
 | SNMP | 161 (UDP) | ⚠️ **Untestable from agent host** — TCP probe closed; UDP reachable only from the IoT VLAN (20). Monitoring is NUT/USB (no SNMP consumer), so this is informational only. |
 
 ### Modbus TCP notes
-- Unit ID **1**, function **0x03** (Read Holding Registers) confirmed working over the LAN.
-- **Retired as a consumer:** the UPS NIC exposes Modbus TCP on the `ups` NIC (port 502, verified — IP per SSOT), but **no service uses it** — the HA **Modbus sensors were removed** and UPS monitoring is exclusively NUT over **USB HID** (below). No register map needed; the Modbus endpoint is left open/available on the NIC but is not part of the design.
+- Unit ID **1**, function **0x03** (Read Holding Registers) works over the LAN (register block 0 identifies
+  the model).
+- **Not a consumer of record:** the HA Modbus sensors were removed and UPS monitoring is exclusively NUT over
+  **USB HID**. No register map is needed. The endpoint stays available on the NIC (isolated VLAN, no WAN) but
+  is not part of the design — see [network-rejected.md](network-rejected.md) / [network-vlans.md](network-vlans.md)
+  for the NIC's VLAN move.
 
 ---
 
@@ -77,27 +101,53 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 
 - **Master = nas** (only host physically USB-wired). **Clients = oldsrv + ha/Pi**, each triggers its own local `shutdown` — no cross-host dependency.
 - **Single sensor of truth:** one `nut_exporter` on the master; other hosts are NUT clients only (not exporters).
-- **Shutdown policy (2026-09-09 owner decision):** oldsrv = biggest UPS load → **halts at ≤75% battery charge** (preserves battery for nas/pi); nas/pi stay critical-only — **Critical = battery < 20% or runtime < 5 min** (upsmon LOWBATT SHUTDOWNCMD). oldsrv's 60 s pre-shutdown flush (Grafana→n8n→Signal/email) is kept via the charge-poll interval. Implemented in the nut role: upssched starts a 30 s charge-check on ONBATT (cancel on ONLINE) → powerdown when `battery.charge ≤ nut_shutdown_charge_threshold` (oldsrv=75, nas/pi=0 = never via this path). **Poweroff, not halt** (2026-09-09): `shutdown -h` left the board powered; all paths use `/sbin/poweroff`.
+- **Shutdown policy + charge thresholds:** see the status block at the top (single place), implemented in the `nut` role via `nut_shutdown_charge_threshold`.
 
-**Wake-after-recharge (WoL, live 2026-09-09):** when mains returns + battery ≥ `nut_wake_charge` (80 on nas), the master wakes a halted client (e.g. oldsrv at 75%) via magic packet. Implemented as a **persistent systemd timer on nas** (`nut-wake.timer` → `nut-wake.service` → `/usr/local/sbin/nut-wake`, every 60 s) — independent of the transient upssched helper (which died with an SSH session during the first drill). It acts only when: UPS is OL, `battery.charge ≥ nut_wake_charge`, and the client is offline (ping fails) → `wakeonlan <mac>` (MACs/IPs from `nut_wake_macs` + `network_static_hosts` SSOTs). **BIOS (ASRock Z270 Extreme4, oldsrv) verified 2026-09-09:** `Advanced → ACPI Configuration → PCIE Devices Power On = Enabled`, `I219 LAN Power On = Enabled`, `RTC Alarm Power On = By OS`; **Deep Sleep = Disabled** (found under **Advanced → Chipset Configuration**, alongside `Intel(R) Ethernet Connection I219-V` / `Onboard HD Audio` / `WAN Radio` / `Restore on AC/Power Loss` — not in ACPI Configuration; the manual's ToC pagination is offset). OS side: `wake-on g` persists via `/etc/network/if-up.d/ethtool`. Daemonized so it survives sessions. Note: if the UPS itself cuts power (total outage), a board may need one manual boot before WoL re-arms — with battery ride-down the master never cuts, so this is not expected in the normal path.
-- **Guaranteed notify:** NUT-side `upssched-cmd` on nas emails + sends Signal directly on `ONBATT`/`LOWBATT`, independent of Grafana/n8n. ✅ **SMTP creds inline + rotation propagated 2026-09-09:** the `upssched-cmd` template rendered `nut_smtp_user`/`nut_smtp_pass` as shell-vars (`${nut_smtp_user}`) that nothing on the host set — SMTP auth silently failed empty (masked by `|| true`). Fixed to render the 1Password values inline (`{{ nut_smtp_user }}`/`{{ nut_smtp_pass }}`); `smtp_login` password rotated 2026-09-09 → nas re-converged, `/etc/nut/upssched-cmd` now embeds the NEW value (verified hash match vs vault).
+### Wake-after-recharge (WoL)
 
-## Monitoring & Shutdown Status
+ when mains returns and `battery.charge ≥ nut_wake_charge` (80 on nas), the
+master wakes a halted client (e.g. oldsrv, which halts at 75 %) with a magic packet. It must be a
+**persistent systemd timer on nas** (`nut-wake.timer` → `nut-wake.service` → `/usr/local/sbin/nut-wake`,
+every 60 s) — an upssched helper is NOT viable: it died with the SSH session in the first drill and sent no
+packet. Conditions: UPS `OL`, charge ≥ threshold, client offline (ping fails) → `wakeonlan <mac>`
+(MACs/IPs from `nut_wake_macs` + `network_static_hosts` SSOTs).
+**BIOS requirements (ASRock Z270 Extreme4, oldsrv — verified):** `Advanced → ACPI Configuration →`
+`PCIE Devices Power On = Enabled`, `I219 LAN Power On = Enabled`, `RTC Alarm Power On = By OS`, and
+**`Deep Sleep = Disabled` — which lives under Advanced → Chipset Configuration, NOT under ACPI
+Configuration** (the manual's ToC pagination is offset). OS side: `wake-on g` persists via
+`/etc/network/if-up.d/ethtool`. Note: if the UPS itself cuts power (total outage), a board may need one
+manual boot before WoL re-arms; with battery ride-down the master never cuts, so that is not the normal path.
 
-### Roadmap (implementation pending)
-- [x] **NUT on nas — LIVE 2026-09-03** — master: `usbhid-ups` (USB path), `upsd`, `nut_exporter`, `upssched-cmd` notify (per [`deployment-ansible.md`](deployment-ansible.md) `nut` role); `upsc powerwalker@localhost` verified (battery 100%, Innova Unity). Battery-pull test ⏳ (owner/manual).
-- [x] **NUT clients** on `oldsrv` + `pi` (*slave* mode) with per-host shutdown (oldsrv: 75% charge threshold + 60 s pre-flush; nas/pi: critical-only) — ✅ **IaC done** (client upsmon, secret-free upssched-cmd, charge-threshold shutdown via upssched poll — HD-06); oldsrv+nas deployed 2026-09-09, pi pending re-converge.
-- [ ] Wire UPS metrics + alerts into VictoriaMetrics/Grafana (see [`observability.md`](observability.md)) — Critical battery/runtime, Warning on-battery, Info transitions. ✅ **Metric shape RESOLVED 2026-09-04:** the exporter is DRuggeri/nut_exporter v3, emitted over `/ups_metrics?ups=powerwalker` as **`network_ups_tools_*`** with per-flag `network_ups_tools_ups_status{flag=...}` labels (OL/OB/RB…) — NOT `nut_*` bitmask. Alert rules + dashboard + Alloy scrape (`metrics_path: /ups_metrics`, `params.ups`) updated to match (topology B). ⏳ **Remaining:** live-verify after the next monitoring converge that `network_ups_tools_battery_charge` etc. land + alerts fire (exporter was running a `(devel)` build — pin a tagged release in the nut role). See monitoring role `vars/main.yml` + `alloy.river.j2`.
-- [x] ~~Open firewall rule 80/443 Home→Mgmt for the UPS **web UI**~~ **SUPERSEDED HD-338 (2026-09-07):** UPS NIC moved to IoT VLAN 20 (no WAN); the trusted-admin→UPS web forward rule was REMOVED (no consumer — NUT/USB is the only monitoring path). |
+## Monitoring & shutdown — implementation state
 
----
+- **NUT master on nas — ✅ live:** `usbhid-ups` (USB), `upsd`, `nut_exporter`, `upssched-cmd` notify —
+  the `nut` role in [`deployment-ansible.md`](deployment-ansible.md). `upsc powerwalker@localhost` answers.
+- **NUT clients on oldsrv + Pi — ✅ live** (slave mode) with per-host shutdown (oldsrv 75 % charge +
+  pre-flush, nas/Pi critical-only): client `upsmon`, a secret-free `upssched-cmd`, and charge-threshold
+  shutdown via the upssched poll (HD-06).
+- **Metrics + alerts (⏳ verify):** UPS metrics/alerts into VictoriaMetrics + Grafana
+  ([`observability.md`](observability.md)) — Critical on battery charge/runtime, Warning on-battery, Info on
+  transitions. **Metric shape is settled:** the exporter is DRuggeri `nut_exporter` v3, served on
+  `/ups_metrics?ups=powerwalker` as **`network_ups_tools_*`** with per-flag
+  `network_ups_tools_ups_status{flag=…}` labels (OL/OB/RB…) — **not** a `nut_*` bitmask. Alert rules,
+  dashboard and the Alloy scrape (`metrics_path: /ups_metrics`, `params.ups`) match that shape; keep the
+  **tagged** exporter release pinned in the nut role (a `(devel)` build was the original cause of the
+  mismatch). ⏳ Live-verify the series + one alert firing after the next monitoring converge.
+  See the monitoring role `vars/main.yml` + `alloy.river.j2`.
+- **No web-UI firewall path:** the UPS NIC sits on IoT VLAN 20 with no WAN, and the old trusted-admin → UPS
+  web forward rule is removed — NUT/USB is the only monitoring path (HD-338).
+- **Guaranteed notify:** NUT-side `upssched-cmd` on nas emails + sends Signal directly on `ONBATT`/`LOWBATT`,
+  independent of Grafana/n8n. The SMTP credentials must be rendered **inline from the vault** (see defect ②
+  above); after a `smtp_login` rotation, re-converge nas and confirm the value in `/etc/nut/upssched-cmd`
+  matches the vault.
 
-## Open Items
+## Hardware facts worth keeping
 
-- [x] **SNMP UDP — CLOSED 2026-09-08 (HD-26):** probed from a Mgmt-99 host (oldsrv `.99.30`) — **no reply on 161/UDP (filtered)**, while **Modbus TCP 502 is open** + ICMP reaches the `ups` host. So the UPS NIC simply does **not answer SNMP**; **no consumer uses it anyway** — monitoring is NUT/USB. The old "Informational only / untested" checkbox is swept; the SNMP row in the protocol table below stays as-is (informational).
-
-> Modbus TCP register-map item **removed (retired):** HA Modbus UPS sensors were removed;
-> UPS monitoring is NUT/USB via `nut_exporter` (`hardware-ups` topology above).
+- **SNMP does not work on this NIC.** Probed from the Mgmt plane: no reply on 161/UDP (filtered) while
+  Modbus TCP 502 is open and ICMP answers. Nothing would use SNMP anyway (monitoring is NUT/USB) — so the
+  SNMP row in the protocol table is informational, and no SNMP consumer should ever be designed against it.
+- The USB link is a HID device: it is **not** exposed as a serial (`/dev/ttyS*`) port.
+- `usbhid-ups` on NUT 2.8.1 rejects `retrycount` in `ups.conf` — do not add it.
 
 ---
 

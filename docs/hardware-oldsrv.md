@@ -7,9 +7,21 @@ tags: [hardware, oldsrv, docker]
 ---
 # oldsrv — i7-7700K Docker Host
 
-> **Role:** Detail — Phase 1 primary server. Bare-metal Debian, simultaneously family desktop PC and 24/7 Docker host.
-> **Current state (2026-09-08):** ✅ **Debian 13 (Trixie, XFCE) INSTALLED 2026-08-23** (Phase 1a; execution record: [deployment-tasks.md §Phase 1a](../deployment-tasks.md)). ✅ **oldsrv = bare-metal Debian desktop + Docker host, FULL STACK LIVE (Phase-3, HD-318):** full `home_servers.yml` converge **failed=0 (2026-09-08)** — network (SSOT static IPs + tagged-99 Mgmt leg via NetworkManager), storage (ZFS `nvme` + NFS client mounts to nas live: `/mnt/nas/{data,media,thumbs}`), nut (UPS client), cockpit, **amd_rocm** (Debian-trixie-native ROCm host userland `rocm-opencl-icd`/`rocminfo` + GPU plumbing `/dev/dri`+`/dev/kfd` + udev — immich-ml container (bundled ROCm) healthy and ready for the whole-collection import, a separate later task), desktop (Xorg/XFCE/LightDM, iGPU-primary), office (ONLYOFFICE via official repo fixed key + MS core fonts), docker_services (17 enabled services — the full media/*arr/downloads/DNS/smart-home/backup-agent set all Up + healthy), home_assistant (standby cold-render COMPLETE: `/opt/home-assistant-standby` compose + BACKUP keepalived + failover variant + secrets; ha-failover-api active), monitoring (Alloy + rsyslog + CrowdSec-acquisition (VPS-side) + **network-clients exporter HD-343 LIVE**). 1P items all present (`check-vault-items.sh --strict` green). ⏳ **Remaining:** kopia-agent connect gate = VPS kopia-server leg (post-Victoria); signal-cli phone registration; battery-pull test (HD-06); nas Mgmt-99 `eno1.99` leg (pre-existing ifupdown-vs-netd mismatch — convenience only, not functional).
-> **NIC map (verified live at install):** `enp0s31f6` = onboard Intel (cabled during install, DHCP) · `enp5s0f0` / `enp5s0f1` = Intel i350-T2 (port 2 = `enp5s0f1` is the planned VLAN trunk to CRS328) · `wlp9s0` = WLAN card present — blacklisted at install (`module_blacklist=iwlwifi` on all media boot entries); consider disabling in BIOS.
+> **Role:** Detail — the primary home server. Bare-metal Debian 13 (Trixie, XFCE), simultaneously family
+> desktop PC and 24/7 Docker host.
+> **Status: ✅ LIVE** — full `home_servers.yml` stack converged: network (SSOT static IPs + the tagged-99
+> Mgmt leg), storage (ZFS `nvme` pool + NFS client mounts to nas: `/mnt/nas/{data,media,thumbs}`), NUT
+> client, Cockpit, `amd_rocm` host userland + `/dev/dri`+`/dev/kfd` GPU plumbing, desktop (Xorg/XFCE,
+> iGPU-primary), ONLYOFFICE office stack, the enabled `docker_services` set (media/*arr, downloads, DNS
+> secondary, smart-home, backup agent, LAN AI tier), the Home Assistant **standby** render (cold standby +
+> keepalived BACKUP + failover variant), and the thin monitoring collector.
+> ⏳ **Remaining:** the kopia-agent connect gate (needs the VPS kopia-server leg), signal-cli phone
+> registration (owner), the battery-pull test (HD-06), and nas's Mgmt-99 `eno1.99` leg (convenience only).
+>
+> Execution history for this host = [deployment-tasks.md](../deployment-tasks.md) + git log.
+> **NIC map:** `enp0s31f6` = onboard Intel (boot/main, Home VLAN) · `enp5s0f0` / `enp5s0f1` = Intel i350-T2
+> (port 2 = `enp5s0f1`) · `wlp9s0` = WLAN card, blacklisted (`module_blacklist=iwlwifi`); consider
+> disabling in BIOS.
 > **Links to:** `hardware-gpu.md`, `services.md`, `network-vlans.md`
 > **Linked from:** `hardware.md`, `deployment-preseed.md`, `deployment-ansible.md`
 
@@ -25,14 +37,14 @@ tags: [hardware, oldsrv, docker]
 | dGPU | AMD Radeon RX 7600 8 GB → dedicated to Docker AI containers |
 | NIC | **Onboard Intel I219-V** (`enp0s31f6`, MAC `70:85:C2:2D:6F:04`) = boot/main link on Home VLAN (IP see `network_static_hosts` SSOT), **WoL-capable** (BIOS: ACPI Config → PCIE Devices Power On + I219 LAN Power On = Enabled, Deep Sleep = Disabled; OS `wake-on g` via if-up hook) · Intel i350-T2 (`enp5s0f0/1`) — one port used, planned VLAN trunk to CRS328 |
 | RAM | 48 GB DDR4 (2×8 GB + 2×16 GB Corsair Vengeance LPX, DDR4-2400) |
-| NVMe 1 | Samsung SSD 970 EVO 1TB — **data**: ZFS pool `nvme` (DBs, service data, TSDB, models, dumps) — heavy writes live here (600 TBW, fastest) · by-id `nvme-eui.0025385b0143f12e` |
+| NVMe 1 | Samsung SSD 970 EVO 1TB — **data**: ZFS pool `nvme` (DBs, service data, models, dumps) — heavy writes live here (600 TBW, fastest) · by-id `nvme-eui.0025385b0143f12e` |
 | NVMe 2 | Samsung SSD 960 EVO 500GB — **system**: ext4 OS/root + `/opt` configs — light writes only (200 TBW) · by-id `nvme-eui.0025385c61b048c2` |
 
-> by-ids derived from the Windows-reported EUI64 (2026-08-21; note: the pre-reinstall Windows C:\
-> lived on the **970 EVO**, not the 960 — data was backed up, both disks are wiped/re-purposed at
-> deploy). ✅ **Verified on Linux 2026-08-22** (Debian 13.6 live USB, [disk-facts report](../reports/disk-facts-oldsrv-20260822-191419.txt)):
-> `nvme-eui.0025385c61b048c2` = 960 EVO 500 GB, S/N `S3EUNX0HC06971Z` (system) · `nvme-eui.0025385b0143f12e`
-> = 970 EVO 1 TB, S/N `S5H9NS1NB12680T` (data — HD-128 closed). Both NVMes carried NTFS signatures at capture.
+> by-ids **verified on Linux** (Debian live USB, [disk-facts report](../reports/disk-facts-oldsrv-20260822-191419.txt)):
+> `nvme-eui.0025385c61b048c2` = 960 EVO 500 GB, S/N `S3EUNX0HC06971Z` (**system**) ·
+> `nvme-eui.0025385b0143f12e` = 970 EVO 1 TB, S/N `S5H9NS1NB12680T` (**data**). Do not infer the mapping
+> from an old Windows report — the pre-reinstall Windows `C:\` lived on the 970, and both disks were
+> wiped and re-purposed at deploy.
 | OS | Debian with XFCE or GNOME desktop |
 | Location | Workstation desk (not rack-mounted) |
 
@@ -87,20 +99,28 @@ Containers start at boot via systemd units **before any user logs in**:
 ## Docker Services (HD-135 split — oldsrv = GPU/LAN core)
 
 > **Single source of truth:** the canonical service catalog is [`services.md`](services.md).
-> Per the HD-135 split, `oldsrv` runs the **GPU/LAN/storage-bound core** (ollama, immich-ml, jellyfin/*arr, sunshine, DNS, HA standby, homepage, signal-cli); the public edge + live-data apps + observability backend + GitOps moved to the VPS. **HD-135b (2026-08-28): Dozzle also moved to the VPS** (logs viewer independent of home hosts) — see [`observability.md`](observability.md) §Placement.
-> GPU-enabled containers (Ollama, Immich-ML, Sunshine) are noted in `hardware-gpu.md`.
+> `oldsrv` runs the **GPU/LAN/storage-bound core** — media/*arr, downloads, DNS secondary, HA standby,
+> immich-ML, Sunshine, signal-cli and the pinned-AI legs; the public edge, live-data apps, the
+> observability **backend**, GitOps and the log viewer (Dozzle) live on the VPS (HD-135/HD-135b —
+> independent of the home hosts). GPU-enabled containers are listed in `hardware-gpu.md`.
+> **There is no family-LLM serving tier here:** big-model generation runs on spark, vision on the
+> workstation ([`services-ai.md`](services-ai.md) §9).
 
 ---
 
 ## Observability Storage & Notes
 
-- **GPU (RX 7600, 2026-09-06, owner-corrected 2026-09-09, refined 2026-09-15 decision #24):** **pinned AI
-  services (Whisper STT + bge-m3 embed + bge-reranker, ≈5–6 GB) + Sunshine gaming-encode + immich-ML
-  batch inference (AI, lowest priority)** — the containers bundle their own ROCm runtime and use
-  `/dev/dri`+`/dev/kfd`; Sunshine prep-commands pause/unpause them (gaming-first). No **host LLM/Ollama**
-  on oldsrv (big-model generation on spark/Triton, HD-335); `amd_rocm` host userland stays
-  Debian-trixie-native tooling only.
-- **TSDB storage:** the observability **backend moved to the VPS (HD-135)** — VictoriaMetrics/VictoriaLogs live on **VPS NVMe** (`/srv/docker/victoria-metrics/data` + `/srv/docker/victoria-logs/data`), not on oldsrv. Oldsrv runs only the thin **Alloy collector** (host metrics + logs) forwarding over the `wg-s2s` tunnel (`alloy_backend_host`). Metrics/logs are **Kopia-backed** (owner decision HD-341/342; host binds under `/srv/docker/victoria-*/data`). See `observability.md` §Placement. **HD-135b: the VPS runs its OWN Alloy** (loopback → local VictoriaMetrics/VictoriaLogs) + own Dozzle — it does not depend on oldsrv for its own observability.
+- **GPU (RX 7600, decision #24):** **pinned AI services (Whisper STT + bge-m3 embed + bge-reranker,
+  ≈5–6 GB) + Sunshine gaming-encode + immich-ML batch inference (lowest priority)** — the containers
+  bundle their own ROCm runtime and use `/dev/dri`+`/dev/kfd`; Sunshine prep-commands pause/unpause the AI
+  containers (gaming-first). **No host LLM/Ollama on oldsrv** (generation is on spark); `amd_rocm` host
+  userland is Debian-trixie-native tooling only.
+- **Metrics/logs storage:** the observability **backend is on the VPS** —
+  VictoriaMetrics/VictoriaLogs data on **VPS NVMe** (`/srv/docker/victoria-*/data`), not on oldsrv. Oldsrv
+  runs only the thin **Alloy collector** (host metrics + logs) forwarding over the `wg-s2s` tunnel
+  (`alloy_backend_host`). Metrics/logs are **Kopia-backed** (HD-341/342). The VPS runs its **own** Alloy
+  (loopback → local VictoriaMetrics/VictoriaLogs) + its own Dozzle, so it never depends on oldsrv for its
+  own observability. See `observability.md` §Placement.
 - **Disk headroom:** monitor the `nvme` pool (oldsrv) + OS disk **and** the VPS NVMe in Grafana — pool ≥70% Warning / ≥80% Critical (see `observability.md`), OS disk ≥90% Critical.
 - **SPOF (accepted, HD-135, narrowed HD-135b):** the observability **backend** now lives on the **VPS** — if the VPS (or the home↔VPS `wg-s2s` tunnel) is down, *home* metrics/logs are unavailable in Grafana (aggregation is buffered/replayed on reconnect; the VPS's own stack stays observable locally via its loopback Alloy + Dozzle). NUT-side `notifycmd`/`upssched-cmd` on nas remains the independent power-loss alert path. Documented in `observability.md` §Placement.
 - Adds RAM weight vs original: n8n + VictoriaLogs are the main additions; i7-7700K / 48 GB handles the collector side.
@@ -129,9 +149,9 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ---
 
-## Design Consideration: Proxmox Hypervisor Layer — REJECTED for Phase 1
+## Host platform: bare-metal, no hypervisor
 
-> **REJECTED (2026-08-16, HD-92):** oldsrv stays **bare-metal Debian + Docker** — no local Proxmox and no GPU
-> passthrough on the single Phase-1 box (one shared dGPU serves both desktop and AI; a single host gains no HA
-> from VMs). Proxmox defers to Phase 2 (HD-41/42) with a real second node. Full rationale + the rejected
-> `infra`/`desktop` VM split (blueprint decided 2026-08-19; live install used a single full-metal install — the split is a re-install option, per `hardware-oldsrv/` VM layout note) + git history.
+oldsrv is **bare-metal Debian + Docker** — no local hypervisor, no GPU passthrough. One shared dGPU serves
+both the desktop and the AI containers, and a single host gains no HA from VMs. The `infra`/`desktop` VM
+split was considered and never installed (a re-install option at most).
+Decision log: [deployment-rejected.md](deployment-rejected.md) (Proxmox rows).

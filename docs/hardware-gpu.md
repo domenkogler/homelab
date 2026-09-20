@@ -8,70 +8,77 @@ tags: [hardware, gpu, rocm, cross-cutting]
 ---
 # Shared GPU Resource
 
-> **Role:** Cross-cutting detail — shared GPU resource across AI/vision (immich-ML), voice, and gaming. oldsrv RX 7600 = **pinned AI services (STT + embed) + Sunshine encode + immich-ML batch**; the **reranker too** (decision #25 said CPU; **#27 ACCEPTED 2026-09-18** puts it on this card — measured **0.34–0.50 s on-GPU vs 5.3 s on CPU at ~330 MiB**, [services-ai-bench.md](services-ai-bench.md) §3; ⏳ IaC = HD-391); spark (GB10) is the separate **big-model generation tier** (decision #24, 2026-09-15).
-> **Links to:** `services-office.md`, `smart-home-voice.md`, `services.md`
+> **Role:** Cross-cutting detail — the shared GPU resource across AI/vision (immich-ML), voice and gaming.
+> **oldsrv RX 7600** = pinned AI services (STT + embed + rerank) + Sunshine encode + immich-ML batch.
+> **spark (GB10)** is the separate big-model generation tier; vision judgment lives on the
+> **workstation**. Per-model placement is the plan of record in [`services-ai.md`](services-ai.md) §9;
+> measured numbers in [`services-ai-bench.md`](services-ai-bench.md).
+> **Links to:** `services-ai.md`, `services-ai-bench.md`, `smart-home-voice.md`, `hardware-workstation.md`
 > **Linked from:** `hardware-oldsrv.md`, `hardware-spark.md`, `deployment-compose.md`
 
 ---
 
-## Phase 1: AMD Radeon RX 7600 — Sunshine gaming encode + immich-ML batch inference (AI)
+## oldsrv — AMD Radeon RX 7600 (8 GB)
 
-> **Corrected 2026-09-09 (owner), refined 2026-09-15 (decision #24):** the RX 7600 is **NOT "gaming
-> encode only / no AI."** It serves (a) Sunshine game-streaming encode, (b) **immich-ML batch
-> inference**, and (c) — **NEW 2026-09-15** — the **pinned AI services: Whisper STT + bge-m3 embed +
-> bge-reranker** (container-bundled ROCm, ≈5–6 GB of 8 GB). **Amended 2026-09-17 (decision #25): the
-> bge-reranker moved off the dGPU to CPU**, so pinned-AI is now ≈3–4 GB — see §Compute-preemption (CWSR)
-> exposure and [services-ai.md](services-ai.md) §9c for the research. **⚠ That figure is obsolete: measured
-> 2026-09-19 with all three Vulkan legs warm, the pinned tier is 2475 MiB (2.4 GiB)** — the #25-era CPU-rerank
-> arithmetic it came from was superseded by #27 before it was ever deployed. What is *excluded* from the dGPU is
-> **host LLM inference and big-model generation**: Ollama is disabled on oldsrv and the large
-> generation models run on **spark** (Triton, GB10 — HD-335). `amd_rocm` host userland stays
-> Debian-trixie-native tooling only (no external AMD repo, HD-318).
+The card is a **real AI consumer**, not "gaming encode only". Three workload classes share it:
+
+1. **Pinned AI services** — Whisper STT + bge-m3 embed + bge-reranker, all on **Vulkan**
+   (`llama.cpp server-vulkan` for embed+rerank, `whisper.cpp main-vulkan` for STT).
+   **Measured 2475 MiB (2.4 GiB) with all three legs warm.**
+2. **Sunshine game-streaming encode** (VCE path, not KFD compute).
+3. **immich-ML batch inference** — container-bundled ROCm, **lowest priority**.
+
+Excluded from this card by decision: **host LLM inference / big-model generation** (that is spark) and
+**any vision-LLM leg** (that is the workstation — §Vision-LLM leg below).
+Host ROCm stays **Debian-trixie-native tooling only** (`rocm-opencl-icd` / `rocminfo` / `hipcc`, no external
+AMD repo — the Ubuntu-noble AMD repo is incompatible with trixie).
 
 | Spec | Value |
 |------|-------|
-| VRAM | 8 GB GDDR6 |
+| VRAM | 8 GB GDDR6 (~276 GB/s) |
 | Interface | PCIe 4.0 x8 |
 | Docker access | `/dev/dri`, `/dev/kfd` |
-| GPU workloads | **Pinned AI services (Whisper STT + bge-m3 embed — decision #24 + #25) + Sunshine gaming-encode + immich-ML batch inference (AI)** — container-bundled ROCm / GGML_HIP |
+| Render node | **`/dev/dri/renderD129` = the dGPU** (`renderD128` is the HD 630 iGPU) |
 | Host GPU | Intel HD 630 (iGPU, desktop only) — Xorg primary |
 
-### Compute-preemption (CWSR) exposure — gfx1102 (research 2026-09-17, decision #25)
+### Compute-preemption (CWSR) exposure — gfx1102
 
-> **Role:** why the *build target* of a GPU container is a safety property on this card, not a
-> performance detail. Read before adding any long-running compute workload to the dGPU.
+> **Why this matters:** on this card the *build target* of a GPU container is a **safety** property, not a
+> performance detail. Read this before adding any long-running compute workload to the dGPU.
 
-**CWSR = Compute Wavefront Save/Restore** — the KFD (`drivers/gpu/drm/amd/amdkfd/`) mechanism that
-preempts *compute* work: VGPRs are saved into a reserved area on wavefront switch. The userspace
-runtime (ROCr/thunk) historically **hard-coded that area's size**; when the kernel needs more, the
-buffer is truncated and register state is corrupted on restore → `HW Exception by GPU node-N reason:
-GPU Hang` — a **hard hang of the whole card**, not a container crash.
+**CWSR = Compute Wavefront Save/Restore** — the KFD (`drivers/gpu/drm/amd/amdkfd/`) mechanism that preempts
+*compute* work: VGPRs are saved into a reserved area on wavefront switch. The userspace runtime
+(ROCr/thunk) historically **hard-coded that area's size**; when the kernel needs more, the buffer is
+truncated and register state is corrupted on restore → `HW Exception by GPU node-N reason: GPU Hang` —
+a **hard hang of the whole card**, not a container crash.
 
-Why this card is in scope at all:
+Why this card is in scope:
 
-| Source (read 2026-09-17) | Finding |
+| Source | Finding |
 |---|---|
-| `linux/drivers/gpu/drm/amd/amdkfd/kfd_device.c:207` | `supports_cwsr = true` is set for the **entire SOC15 family — gfx1102 included** |
-| `linux/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c:758-765` | `int cwsr_enable = 1; module_param(cwsr_enable, int, 0444)` → **on by default**, changeable only via kernel cmdline (`amdgpu.cwsr_enable=0`) |
-| `ROCm/rocm-systems` PR **#2200** (merged 2025-12-16) | userspace fix: read the CWSR/control-stack size from KFD instead of hard-coding it ("allow VGPR size to be determined dynamically") |
-| `linux` commit `2b0386d` (`drm/amdkfd: fix 32-bit overflow in CWSR total size calculation`) | kernel-side `u32` → `u64` + `check_mul_overflow` on `total_cwsr_size` |
-| `beecave-homelab/insanely-fast-whisper-rocm` issue **#61** | documents the symptom + affected set: **gfx1030/gfx1032 and gfx1151 confirmed; gfx1102 is NOT on the confirmed list** |
+| `linux/…/amdkfd/kfd_device.c` | `supports_cwsr = true` is set for the **entire SOC15 family — gfx1102 included** |
+| `linux/…/amdgpu/amdgpu_drv.c` | `int cwsr_enable = 1; module_param(…, 0444)` → **on by default**, changeable only via kernel cmdline (`amdgpu.cwsr_enable=0`) |
+| `ROCm/rocm-systems` PR #2200 | userspace fix: read the CWSR/control-stack size from KFD instead of hard-coding it |
+| `linux` commit `2b0386d` | kernel-side `u32` → `u64` + `check_mul_overflow` on `total_cwsr_size` |
+| `beecave-homelab/insanely-fast-whisper-rocm` #61 | symptom + affected set: gfx1030/gfx1032 and gfx1151 confirmed; **gfx1102 is NOT on the confirmed list** |
 
-**Honest scope of the risk:** gfx1102 has **no confirmed hang report**. The exposure is inferred from
-(a) CWSR being enabled for SOC15 and (b) images that force `HSA_OVERRIDE_GFX_VERSION=10.3.0`, i.e.
-run gfx1030 code — the confirmed-affected family — on this card. Do not treat that as proof.
+**Honest scope of the risk:** gfx1102 has **no confirmed hang report**. The exposure is inferred from (a)
+CWSR being enabled for SOC15 and (b) images that force `HSA_OVERRIDE_GFX_VERSION=10.3.0`, i.e. run
+**gfx1030 code** — the confirmed-affected family — on this card. Do not treat that as proof.
 
-**Why the card is quiet today:** Sunshine uses the **VCE encode path (not KFD compute)**, immich-ML is
-a short intermittent batch, and the host packages are `rocm-opencl-icd` + `rocminfo`
-(`group_vars/home_servers.yml`) — none of them sustain compute long enough to trigger preemption.
+**Why the card is quiet today:** Sunshine uses the VCE encode path (not KFD compute), immich-ML is a short
+intermittent batch, and the host packages are `rocm-opencl-icd` + `rocminfo` — none sustain compute long
+enough to trigger preemption. The pinned-AI legs run on **Vulkan (RADV)**, which does not use the KFD
+compute path at all.
 
-**Mitigation (chosen 2026-09-17):** build for the **native `gfx1102` target so no HSA override is
-needed** (`whisper.cpp` `-DAMDGPU_TARGETS=…gfx1102…`, ROCm 7.14/TheRock userspace which carries the
-size fixes) instead of running gfx1030 code on top of an override. **`cwsr_enable=0` is deliberately
-NOT set in advance** — it is a grub change + reboot, and the cost is silent compute-efficiency loss.
-`amdgpu-dkms` is likewise **not** introduced: it would replace the in-tree `amdgpu` module that the
-`amd_rocm` role and the working Sunshine path depend on (`roles/amd_rocm/tasks/main.yml`: “NO
-amdgpu-dkms — the Debian kernel already supports the card”).
+**Chosen posture:**
+- Build/run for the **native `gfx1102` target so no HSA override is needed**; prefer images that carry the
+  userspace size fixes. Running gfx1030 code under an override is the pattern that creates the exposure.
+- **`cwsr_enable=0` is deliberately NOT set in advance** — it is a grub change + reboot, and the cost is
+  silent compute-efficiency loss.
+- **No `amdgpu-dkms`**: it would replace the in-tree `amdgpu` module that the `amd_rocm` role and the
+  working Sunshine path depend on (`roles/amd_rocm/tasks/main.yml`: "NO amdgpu-dkms — the Debian kernel
+  already supports the card").
 
 Pre-work check + burn-in (both non-destructive):
 
@@ -82,140 +89,123 @@ dkms status | grep -i amdgpu                        # expected: empty (in-tree m
 journalctl -kf | grep -iE 'gpu|kfd|amdgpu|hws'
 ```
 
-### CWSR / GPU consumers — what runs where (2026-09-17)
+### GPU consumers on this card
 
-| Consumer | Runtime | GPU target | Why |
+| Consumer | Runtime | GPU path | Note |
 |---|---|---|---|
-| `bge-m3` embed | Ollama `:rocm` · **#27 accepted 2026-09-18 → `llama.cpp server-vulkan`** (⏳ IaC HD-391; same image as rerank) | container runtime (verified live) / **RADV Vulkan** | live + E2E-verified today, but measured **15 ms vs ~500 ms** per query chunk, **326 vs 899 MiB** VRAM, **157 MiB vs 2.19 GiB** RSS, and **cosine 0.9996 vs the live vectors** ⇒ no re-embed penalty ([services-ai-bench.md](services-ai-bench.md) §3b) |
-| Whisper STT | **`whisper.cpp` GGML_HIP** · **#27 accepted 2026-09-18 → `main-vulkan` digest-pin** (⏳ IaC HD-391) (the HIP image is **not published**) | **native `gfx1102`** (HIP) / **RADV Vulkan** | no HSA override, no PyTorch runtime; **measured RSS 34 MiB**, 1.72 GiB VRAM, 0.40 s / 11 s WAV ([services-ai-bench.md](services-ai-bench.md) §2) |
-| `bge-reranker-v2-m3` | **CPU** (TEI `cpu-1.9.4` INT8 or `llama.cpp` CPU) · **#27 accepted 2026-09-18 → `llama.cpp server-vulkan` on this card** (⏳ IaC HD-391) | — | #25 assumed “1.5 GB VRAM + a ROCm runtime” and **10–30 ms/pair**; measured: **425 MiB**, no ROCm, **0.50 s** vs **5.3 s CPU** for top-20 ([services-ai-bench.md](services-ai-bench.md) §3) |
-| immich-ML | container ROCm | container runtime | existing AMD precedent in this house |
-| Sunshine | VCE encode | — | not a KFD compute consumer |
+| `bge-m3` embed | `llama.cpp server-vulkan` (Q8_0 GGUF) | **RADV Vulkan** | ~0.33 GiB; the ROCm/`:rocm` runtime path is gone with Ollama |
+| `bge-reranker-v2-m3` | `llama.cpp server-vulkan` (same image) | **RADV Vulkan** | ~0.42 GiB; measured 0.34–0.50 s on-GPU vs **5.3 s on CPU** for a 20-doc Slovenian rerank |
+| Whisper STT | `whisper.cpp main-vulkan` | **RADV Vulkan** | ~1.72 GiB VRAM / 34 MiB RSS; **no published ROCm/HIP artifact exists**, so HIP would be a self-build with no Renovate trail |
+| immich-ML | container-bundled ROCm | KFD compute | existing AMD precedent; shortest, lowest-priority consumer |
+| Sunshine | VCE encode | not compute | game streaming |
 
 ### Dual GPU Topology
 
-- **Intel HD 630 (iGPU):** Xorg primary — monitor on motherboard output. Family desktop compositing.
-- **Radeon RX 7600 (dGPU):** No monitor. **Pinned AI services (Whisper STT + bge-m3 embed, decision
-  #24; reranker → CPU per decision #25) + Sunshine game-streaming encode** + **immich-ML batch inference (AI)** — all pause-able
-  GPU consumers (2026-09-06) whose containers bundle their own ROCm runtime and only need
-  `/dev/dri`+`/dev/kfd`+udev. No **Ollama/LLM** on oldsrv (disabled 2026-09-07 — big-model generation on
-  spark/Triton, HD-335). **Host ROCm = Debian-trixie-native tooling only** (`rocm-opencl-icd`/`rocminfo`/`hipcc`,
-  no external AMD repo — HD-318 2026-09-07: the Ubuntu-noble AMD repo is incompatible with trixie).
-- Xorg config fragment in `/etc/X11/xorg.conf.d/10-igpu-primary.conf` forces iGPU, excludes dGPU.
+- **Intel HD 630 (iGPU):** Xorg primary — monitor on the motherboard output, family desktop compositing,
+  and the **Jellyfin QSV transcoder**. It is also why the iGPU is not an AI device
+  ([services-ai-bench.md](services-ai-bench.md) §4: slower than CPU, and it *is* host RAM).
+- **Radeon RX 7600 (dGPU):** no monitor; consumers as above. Containers need only
+  `/dev/dri`+`/dev/kfd`+udev; the AI containers bundle their own runtime.
+- Xorg config fragment `/etc/X11/xorg.conf.d/10-igpu-primary.conf` forces the iGPU and excludes the dGPU.
+
+### Vision-LLM leg: none — this card gets no vision model (decision #28)
+
+The card **stays without a vision-LLM leg**, and it is not a cost/perf call — the VRAM ledger is
+arithmetically closed: pinned tier **2.4 GiB** + a Qwen3-VL 2B/4B (~3–4.5 GiB) + immich-ML (3–5 GiB) =
+**8.4–11.9 GiB > 8 GiB**. Vision for judgment lives on the workstation
+([`hardware-workstation.md`](hardware-workstation.md)); decision **#28** in
+[`services-ai.md`](services-ai.md) §9, deferral logged in
+[`services-rejected.md`](services-rejected.md).
+
+⚠ **Two traps that make "just run it on demand" harder than it looks** (both measured):
+
+1. **`docker pause` does NOT free VRAM** — it frees *compute* only; the allocation stays held until the
+   process re-runs. The on-demand mechanism is llama.cpp's **`--sleep-idle-seconds`** (PR #18228) or
+   stopping the container — and it costs a reload on the next request (the STT leg's cold/warm delta,
+   0.85 s vs 0.40 s, is the scale; a 3–4 GB model from NVMe is seconds).
+2. **No arbiter exists.** Two on-demand consumers on one card with no scheduler means both can load, and
+   the `amdgpu` VRAM OOM is not graceful. An arbiter/priority policy is a prerequisite, not a nicety.
+
+**Revisit gates (both must be measured first, bench-doc style):** (a) does the pinned `server-vulkan`
+image run a **Qwen3-VL `mmproj` vision tower on Vulkan** or fall back to CPU; (b) does
+`--sleep-idle-seconds` **actually return VRAM on `gfx1102`** (sysfs `mem_info_vram_used`) and what is the
+reload latency. A third ceiling: ~276 GB/s puts a 4B VL at ~6–9 s to read a screenshot — fine for
+*reading*, not for an interactive loop.
 
 ---
 
-## Phase 2: NVIDIA GB10 Grace Blackwell (spark)
+## spark — NVIDIA GB10 Grace Blackwell (128 GB unified)
 
-The old planned Phase 2 GPU (AMD Radeon AI PRO R9700 32 GB, Ryzen build) is **superseded** by the
-NVIDIA **GB10 Grace Blackwell** superchip in the ThinkStation PGX (`hardware-spark.md`). Not a
-discrete GPU — a unified CPU+GPU superchip with **128 GB shared LPDDR5x** memory (no separate VRAM
-division) and **1 PFLOP FP4**.
+The old planned Phase-2 GPU (AMD Radeon AI PRO R9700 32 GB in a Ryzen build) is **superseded**
+([deployment-rejected.md](deployment-rejected.md)). GB10 is not a discrete GPU — it is a unified CPU+GPU
+superchip with **128 GB shared LPDDR5x** (no separate VRAM division) and **1 PFLOP FP4**.
 
 | Spec | Value |
 |------|-------|
 | Superchip | NVIDIA GB10 Grace Blackwell (20-core Arm + Blackwell GPU) |
-| Unified memory | **128 GB** LPDDR5x (shared CPU/GPU, 256-bit, 273 GB/s) |
+| Unified memory | **128 GB** LPDDR5x (shared CPU/GPU, 256-bit, 273 GB/s) — usable pool **121.62 GiB** |
 | AI performance | **1000 TOPS · 1 PFLOP (FP4)** |
 | Node | `spark.kogler.si` — ThinkStation PGX SFF |
 
+> ⚠️ **There IS a hard memory budget on GB10 — it is a HOST-RAM budget.** Every GPU allocation is the same
+> 121.62 GiB pool the OS runs in, so a percentage-style GPU budget silently eats the host's reserve, and
+> **the container memory cage cannot protect the host** (GPU pages are not cgroup-charged). The only real
+> governor is vLLM's explicit `--kv-cache-memory-bytes`. Mechanics, sizing table, metric definition and
+> incident history: [hardware-spark.md](hardware-spark.md) **§Unified-memory budget & OOM governance** +
+> [spark-incidents.md](spark-incidents.md). Do not treat "128 GB unified" as "no budget".
+
+Serving profiles and the current engine are in
+[hardware-spark.md](hardware-spark.md) §Bench + engine selection; model placement is
+[services-ai.md](services-ai.md) §9.
+
 ---
 
-## VRAM Management
+## VRAM / memory modes
 
-> **Legacy note:** `OLLAMA_KEEP_ALIVE`/Ollama-era modes were removed (Ollama disabled on oldsrv
-> 2026-09-07). Current dGPU consumers = Sunshine (gaming) + immich-ML (batch); LLM inference runs on
-> spark (GB10).
+### oldsrv RX 7600 (8 GB)
 
-### Phase 1 Modes (RX 7600, 8 GB)
-
-| Mode | Active Models | VRAM Usage | Trigger |
+| Mode | Active | GPU usage | Trigger |
 |------|--------------|------------|---------|
-| **Pinned AI tier** (embed + rerank + voice STT) | `llama.cpp server-vulkan` (embed + rerank, Q8_0 GGUFs) + `whisper.cpp main-vulkan` (STT) — **#27 accepted 2026-09-18**, ⏳ IaC HD-391 | **measured 2.9 GiB** while embed was still on Ollama `:rocm` (0.82 + 0.33 + 1.72) → **target ~2.4 GiB of 8 GiB** once embed moves (0.33 + 0.33 + 1.72); **5.26 GiB free** at the measured peak, 0 `amdgpu` hang/reset over ~25 min — [services-ai-bench.md](services-ai-bench.md) §6, ledger in `services-ai.md` §3a | Voice command / RAG ingest-query |
-| **Immich-ML batch (AI)** | Immich-ML (face/object recognition, container ROCm) | ~3–5 GB | Photo/ML job — **lowest priority** |
-| **Gaming** | None (Sunshine active) | 0 GB (pinned-AI + immich-ML paused) | User launches Sunshine (manual) |
-| **Idle** | None | ~0 GB (GPU ~5 W) | No Sunshine stream, no pinned-AI, no immich-ML job |
+| **Pinned AI tier** (embed + rerank + voice STT) | `llama.cpp server-vulkan` (embed + rerank, Q8_0 GGUFs) + `whisper.cpp main-vulkan` (STT) | **2475 MiB measured with all three legs warm** (≈0.33 + ≈0.42 + ≈1.72) → ~5.5 GiB free | Voice command / RAG ingest-query |
+| **immich-ML batch** | Immich-ML (face/object recognition, container ROCm) | ~3–5 GB | Photo/ML job — **lowest priority** |
+| **Gaming** | None (Sunshine active) | pinned-AI + immich-ML paused | User launches Sunshine (manual) |
+| **Idle** | None | ~0 GB (GPU ~5 W) | — |
 
-### Vision-LLM leg: deferred — this card gets no vision model (decision #28, 2026-09-20)
+### spark (GB10)
 
-The card **stays without a vision-LLM leg**. It is not a cost/perf call — the VRAM ledger is arithmetically
-closed: pinned tier **2.4 GiB** + a Qwen3-VL 2B/4B (~3–4.5 GiB) + immich-ML (3–5 GiB) = **8.4–11.9 GiB >
-8 GiB**. Vision for judgment therefore lives on the workstation
-([`hardware-workstation.md`](hardware-workstation.md)); the placement decision is **#28** in
-[`services-ai.md`](services-ai.md) §9 and the deferral is logged in
-[`services-rejected.md`](services-rejected.md).
-
-⚠ **Two traps that make "run it on-demand" harder than it looks** (both measured facts already in this repo):
-1. **`docker pause` does NOT free VRAM** — it frees *compute* only; allocation stays held until the process
-   re-runs (see the note below this table). The on-demand mechanism is llama.cpp's **`--sleep-idle-seconds`**
-   (PR #18228) or stopping the container — and it costs a reload on the next request (the STT leg's own
-   cold/warm delta, 0.85 s vs 0.40 s, is the scale; a 3–4 GB model from NVMe is seconds).
-2. **No arbiter exists.** Two on-demand consumers on one card with no scheduler means both can load and
-   the `amdgpu` VRAM OOM is not graceful. An arbiter/priority policy is a prerequisite, not a nicety.
-
-**Revisit gates (both must be measured first, [`services-ai-bench.md`](services-ai-bench.md) style):**
-(a) does the pinned `server-vulkan` image run a **Qwen3-VL `mmproj` vision tower on Vulkan**, or fall back
-to CPU; (b) does `--sleep-idle-seconds` **actually return VRAM on `gfx1102`** (sysfs `mem_info_vram_used`)
-and what is the reload latency. A third practical ceiling: the RX 7600's ~276 GB/s is in GB10's bandwidth
-class, so a 4B VL reads a screenshot in ~6–9 s — fine for *reading*, not for an interactive loop.
-
-### Phase 2 Modes (spark — GB10, 128 GB unified)
-
-`spark` runs the **big-model generation tier** (decision #24, 2026-09-15) — the NVFP4 generation set
-(see `hardware-spark.md`). With 128 GB unified memory there is no tight VRAM budget — models load
-concurrently; model swapping is Triton/KeepAlive-driven, not a manual gaming preempt. The small
-pinned services (STT/embed/rerank) moved to the oldsrv RX 7600 (decision #24).
-
-> ⚠️ **2026-09-16 correction:** earlier wording here ("no tight VRAM budget — models load concurrently")
-> is **wrong for vLLM today**. There IS a hard budget — but it is a **host-RAM budget**: on GB10 every GPU
-> allocation is the same 121.62 GiB pool the OS runs in, and vLLM's `gpu_memory_utilization`
-> replace-by-percentage arithmetic eats the host's reserve. Three global-OOM incidents in 24 h
-> (2026-09-15 ×2, 2026-09-16 ×1; kernel killed the user session before the engine on the third).
-> Budget mechanics, sizing table, incident log + diagnosis recipe: [hardware-spark.md](hardware-spark.md)
-> **§Unified-memory budget & OOM governance**. Simply put: the *only* real governor of host headroom on
-> this box is vLLM's `--kv-cache-memory-bytes` (or `gpu_memory_utilization` pre-HD-374); the container
-> memory cage cannot protect the host (GPU pages are not cgroup-charged).
-
-| Mode | Active Models | Memory (approx) | Trigger |
-|---|---|---|---|
-| **Programming / Coding** | Qwen3-Coder-Next-80B | ~50 GB (NVFP4) | Coding session |
-| **Family Chat / RAG** | Nemotron-Lightning-30B or Llama-3.3-70B | ~15–40 GB | Chat / retrieval |
-| **Idle** | None (Triton model swap / KeepAlive) | ~0–few GB | No activity |
+Big-model generation with a **certified 16 GiB KV pool** and a bounded peak; concurrency and context are
+governed by the explicit KV pool, not by "load everything". See
+[hardware-spark.md](hardware-spark.md) §Unified-memory budget & OOM governance.
 
 ---
 
-## GPU Consumers
+## GPU Consumers (cross-domain index)
 
-| Consumer | Domain | Doc |
-|----------|--------|-----|
-| ~~Ollama~~ | ~~LLM inference~~ — **removed from oldsrv** (disabled 2026-09-07; big-model generation on spark/Triton, HD-335) | [`services-ai.md`](services-ai.md) |
-| Whisper STT | Voice (speech-to-text) — **oldsrv RX 7600** (decision #24, 2026-09-15) | [`smart-home-voice.md`](smart-home-voice.md) |
-| Piper TTS | Voice (text-to-speech) — **CPU** (CPU-only engine, decision #24) | [`smart-home-voice.md`](smart-home-voice.md) |
-| bge-m3 embed | RAG embeddings — **oldsrv RX 7600** (decision #24) | [`services-ai.md`](services-ai.md) |
-| bge-reranker | RAG rerank — **CPU** (decision #25, 2026-09-17: off the dGPU — no Ollama rerank API, and 1.5 GB VRAM + a ROCm runtime buys nothing at 20 pairs) | [`services-ai.md`](services-ai.md) §9c |
-| **Immich-ML** | **Photo face recognition / ML batch inference (AI)** — container-bundled ROCm, **lowest priority** | [`services.md`](services.md) |
-| **Sunshine** | Game streaming (manual start) — gaming-encode | [`hardware-oldsrv.md`](hardware-oldsrv.md) |
-
-> oldsrv RX 7600 GPU consumers = **pinned AI (STT + embed, decision #24 + #25) + Sunshine (gaming encode) + Immich-ML (AI batch, lowest priority)**; the **reranker moved to CPU** (decision #25). Spark (GB10) is the separate **big-model generation tier**.
+| Consumer | Domain | Where | Doc |
+|----------|--------|-------|-----|
+| Whisper STT | Voice (speech-to-text) | oldsrv RX 7600 (Vulkan) | [`smart-home-voice.md`](smart-home-voice.md) |
+| Piper TTS | Voice (text-to-speech) | **CPU** (CPU-only engine) | [`smart-home-voice.md`](smart-home-voice.md) |
+| bge-m3 embed | RAG embeddings | oldsrv RX 7600 (Vulkan) | [`services-ai.md`](services-ai.md) |
+| bge-reranker | RAG rerank | oldsrv RX 7600 (Vulkan) | [`services-ai.md`](services-ai.md) §9c |
+| Big-model generation (`spark/qwen3.8-flash-next`) | Family chat / agents | **spark** | [`services-ai.md`](services-ai.md), [`hardware-spark.md`](hardware-spark.md) |
+| FIM autocomplete + visual judgment | Workstation-local inference | **workstation** | [`hardware-workstation.md`](hardware-workstation.md) |
+| **Immich-ML** | Photo face recognition / ML batch | oldsrv RX 7600, **lowest priority** | [`services.md`](services.md) |
+| **Sunshine** | Game streaming (manual start) | oldsrv RX 7600 | [`hardware-oldsrv.md`](hardware-oldsrv.md) |
 
 ---
 
 ## Priority Rules
 
-- **Gaming-first (2026-09-06):** Sunshine owns the GPU for streams; pinned-AI + immich-ML batch run in
-  free-GPU time. Sunshine prep-commands `docker pause/unpause` freeze/resume the AI consumers at
-  stream start/end — **no lost work, instant resume** (kernel freeze).
-- **Priority order (decision #24, amended by #25 2026-09-17):** gaming > pinned-AI (voice/embed) > immich-ML.
-  **Measured 2026-09-19 (HD-391 deploy): pinned-AI is 2475 MiB with all three legs warm** — not the ≈3–4 GB the
-  #25-era arithmetic gave, because the reranker ended up on the dGPU after all (#27) — so **immich-ML (≈3–5 GB)
-  has ~5.5 GiB of room** rather than being paused; pause-mechanism remains the guard if the two ever overlap near the 8 GB ceiling.
-  ⚠️ This co-residency is **inference from the arithmetic, not live-verified** — confirm with `rocm-smi`
-  during a concurrent voice + photo-JML job before relying on it (HD-385).
-- Sunshine `restart: "no"` (manual-start); idle GPU ~5 W when neither gaming nor AI-active.
-- `docker pause` frees compute instantly; VRAM stays allocated until the process re-runs
-  (non-issue at 8 GB/5–6 GB pinned-AI footprint).
-- No automated preemption beyond the pause-mechanism; CPU fallback for immich-ML only if
-  ONNX-GPU proves fragile (not the default).
+- **Gaming-first:** Sunshine owns the GPU for streams; pinned-AI + immich-ML run in free GPU time. Sunshine
+  prep-commands `docker pause`/`unpause` freeze/resume the AI consumers at stream start/end — no lost work,
+  instant resume (kernel freeze). ⚠ `pause` frees **compute**, not VRAM.
+- **Priority order:** gaming > pinned-AI (voice/embed/rerank) > immich-ML.
+  At 2.4 GiB of pinned AI, immich-ML (~3–5 GB) has room for real co-residency (~5.5 GiB free).
+  ⚠ That co-residency is **arithmetic, not live-verified** — confirm with `rocm-smi` during a concurrent
+  voice + photo-ML job before relying on it.
+- Sunshine `restart: "no"` (manual start); idle GPU ~5 W.
+- No automated preemption beyond the pause mechanism; CPU fallback for immich-ML only if its GPU path proves
+  fragile (not the default).
 
 ---
 
@@ -230,21 +220,20 @@ devices:
 
 Udev rules set `/dev/kfd` mode 0666 and `/dev/dri/render*` mode 0666 for container access.
 
-### Group IDs on this box — corrected 2026-09-19 (HD-391)
+### Group IDs on oldsrv — verified on the host
 
-| Fact | Measured on oldsrv 2026-09-19 |
+| Fact | Measured |
 |---|---|
-| `render` group | **gid 992** (`render:x:992:ansible-admin`) — NOT the Debian-table 104 |
+| `render` group | **gid 992** (`render:x:992:ansible-admin`) — **NOT** the Debian-table 104 |
 | gid 104 | **`ssl-cert`** — which is what `gpu_render_gid` used to add to every GPU container |
-| `video` group | gid 44 (matches the Debian static allocation; unchanged) |
+| `video` group | gid 44 (matches the Debian static allocation) |
 | `getfacl /dev/dri/renderD129` | `user::rw- group::rw- other::rw-` + a `user:lightdm:rw-` ACL |
 
-`group_vars/all/main.yml` carried `gpu_render_gid: 104` on the strength of the Debian table (“render:104 since
-bullseye”). On this machine that gid belongs to **ssl-cert**, so `ollama`, `immich-ml`, `jellyfin` and
-`sunshine` have each been granting their containers the ssl-cert group while *not* granting render. Nothing
-broke, because the udev rules above make the render nodes world-rw — **the wrong gid was masked by mode 0666,
-not harmless**. Fixed to `992` (measured) in the same change that adds the Vulkan tier, which is the first tier
-that cares about naming the render node deliberately (`gpu_vulkan_render_node: /dev/dri/renderD129`, dGPU only
-— `renderD128` is the HD 630 iGPU: the desktop's Xorg device, the Jellyfin QSV transcoder, and measured slower
-than CPU for AI work). If a future host needs a different gid, make it a host var rather than re-guessing a
+`gpu_render_gid: 104` came from the Debian table ("render:104 since bullseye"), but on this machine that gid
+belongs to **ssl-cert**, so every GPU container was granted the ssl-cert group while *not* being granted
+render. Nothing broke only because the udev rules make the render nodes world-rw — **the wrong gid was
+masked by mode 0666, not harmless.** It is `992` (measured) now. The Vulkan tier is the first consumer that
+cares about naming the render node deliberately: `gpu_vulkan_render_node: /dev/dri/renderD129` (dGPU only —
+`renderD128` is the HD 630 iGPU: the desktop's Xorg device, the Jellyfin QSV transcoder, and measured slower
+than CPU for AI work). If a future host needs a different gid, make it a **host var** — never re-guess a
 distribution default.

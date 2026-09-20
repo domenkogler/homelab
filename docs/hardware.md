@@ -15,26 +15,33 @@ tags: [hardware, phases]
 
 ## Strategy
 
-- **Centralized LLM:** All AI/ML workloads run on the primary server GPU
-- **Phased approach:**
-  1. **Phase 1 (Immediate, HD-93 day-one-edge):** existing hardware (i7-7700K as GPU/LAN host, HP MicroServer Gen8 as ZFS storage) **+ the netcup VPS** (active from day one as the public/observability tier). No other purchases.
-  2. **Phase 2 (Scale-up):** dedicated NVIDIA GB10 **spark** node ([`hardware-spark.md`](hardware-spark.md)) — replaces the earlier planned Ryzen/Proxmox build (HD-42, superseded).
-  3. **Co-existence:** services migrate selectively. Compose files and deployment config are host-agnostic — same Git repo, same Ansible.
+- **Inference is tiered, not centralized:** **spark** = the AI inference tier (family LLM/RAG serving),
+  **oldsrv** = the pinned local-model legs it cannot host + media/ML sidecars, the **workstation** =
+  client-side inference (FIM + vision). Per-model placement is decision-of-record in
+  [`services-ai.md`](services-ai.md) §9, measured numbers in [`services-ai-bench.md`](services-ai-bench.md).
+- **Phased build-out (the sequencing that was used):**
+  1. **Phase 1 — existing hardware + the netcup VPS** (i7-7700K as GPU/LAN host, HP MicroServer Gen8 as ZFS
+     storage, VPS active from day one as the public/observability tier; HD-93). No purchases.
+  2. **Phase 2 — the dedicated NVIDIA GB10 spark node** ([`hardware-spark.md`](hardware-spark.md)); it
+     replaced the planned Ryzen/Proxmox build
+     ([deployment-rejected.md](deployment-rejected.md)).
+  3. **Co-existence:** services migrate selectively. Compose files and deployment config are host-agnostic —
+     same Git repo, same Ansible.
 
 ---
 
 ## All Machines
 
-| Machine | Role (Phase 1 — day-one edge) | Phase 2 Role |
-|---------|-------------|-------------|
-| **oldsrv** (i7-7700K + RX 7600 + 48 GB) | **GPU/LAN host** — ollama, immich-ml, jellyfin/*arr, sunshine, DNS, HA standby, homepage; thin Alloy collector → VPS (VPS self-observes on loopback + Dozzle on VPS, HD-135b) | AI/LLM + LAN core, or retired |
-| **nas** (HP MicroServer, Xeon E3, 12 GB ECC) | ZFS pools (tank + backup), NFS, Cockpit | Permanent storage server |
-| **SilverStone TS43xx** | Attached to nas via miniSAS — 4× 3 TB HDDs | Same |
-| **Raspberry Pi 4** | Home Assistant (primary, Debian+HA Container) + RaspberryMatic/HmIP-RFUSB + Technitium secondary DNS | Stays primary HA |
-| **VPS (netcup)** | **Public edge + live-data apps + observability backend** (HD-93/HD-40A, active day one) | Public tier + more |
-| **spark** (ThinkStation PGX, NVIDIA GB10, 128 GB) | *Headless AI inference node (purchased, not yet provisioned)* | **Triton + NVFP4 model set** (replaces the planned Ryzen/R9700 build) |
-| **workstation** (admin laptop, AMD Strix Halo, 128 GB unified) | Client-side AI: **FIM autocomplete + visual judgment** locally; never a generation tier ([`hardware-workstation.md`](hardware-workstation.md)) | Same |
-| **PowerWalker VFI ICT/ICR IoT 3000** (UPS) | Protects nas + rack infra (see [`hardware-ups.md`](hardware-ups.md)) | Same |
+| Machine | Current role | Note |
+|---------|-------------|------|
+| **oldsrv** (i7-7700K + RX 7600 + 48 GB) | **GPU/LAN host** — jellyfin/*arr, immich-ml, sunshine, DNS secondary, HA standby, LAN (dev) tier + the pinned Vulkan STT/embed/rerank legs; thin Alloy collector → VPS | Family desktop too; **no family-LLM serving tier here** (Ollama is gone — moved to spark) |
+| **nas** (HP MicroServer, Xeon E3, 12 GB ECC) | ZFS pools (tank + bulk), NFS, Cockpit, NUT master, Kopia agent | Permanent storage server |
+| **SilverStone TS43xx** | Attached to nas via miniSAS — 4× 3 TB HDDs | `bulk` pool |
+| **Raspberry Pi 4** | Home Assistant **primary** (Debian + HA Container) + RaspberryMatic/HmIP-RFUSB + Technitium **tertiary** + `traefik-ha` edge + exit node | HA service VIP = `ha.kogler.si` |
+| **VPS (netcup)** | **Public edge + live-data apps + observability backend + DNS primary + tailnet control** (HD-93/HD-40A) | The only public address = the away-access door |
+| **spark** (ThinkStation PGX, NVIDIA GB10, 128 GB unified) | **AI inference node** — vLLM serving the pinned model set behind LiteLLM (`llm.kogler.si`) | Provisioned + live; text-only mode is the plan of record ([services-ai.md](services-ai.md) §9 #28) |
+| **workstation** (admin laptop, AMD Strix Halo, 128 GB unified) | Client-side AI: **FIM autocomplete + visual judgment** locally; never a generation tier ([`hardware-workstation.md`](hardware-workstation.md)) | — |
+| **PowerWalker VFI ICT/ICR IoT 3000** (UPS) | Protects nas + rack infra (see [`hardware-ups.md`](hardware-ups.md)) | — |
 
 ---
 
@@ -43,7 +50,7 @@ tags: [hardware, phases]
 ```
 oldsrv (desk)
 ├── Samsung SSD 960 EVO 500GB  → OS/system (ext4), configs — light writes (200 TBW)
-├── Samsung SSD 970 EVO 1TB    → ZFS pool "nvme": DBs, service data, TSDB, models, dumps
+├── Samsung SSD 970 EVO 1TB    → ZFS pool "nvme": DBs, service data, metrics, models, dumps
 ├── Kopia                      → off-site encrypted backup → Hetzner Storage Box (backup, far DC)
 └── NFS mounts                → nas shares
 
@@ -92,3 +99,4 @@ nas (rack) — Debian 13, ZFS
 - [HP MicroServer Gen8](hardware-nas.md)
 - [PowerWalker VFI ICT/ICR IoT 3000 (UPS)](hardware-ups.md)
 - [spark — NVIDIA GB10 Triton node](hardware-spark.md)
+- [workstation — admin laptop as client-side inference tier](hardware-workstation.md)

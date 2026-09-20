@@ -7,10 +7,16 @@ tags: [hardware, nas, zfs]
 ---
 # HP MicroServer Gen8
 
-> **Role:** Detail — dedicated ZFS storage server.
-> **Current state (2026-09-03):** ✅ **Phase 2 nas provisioned** — `storage.yml` converges **failed=0** live on `nas.kogler.si` (its reserved static Home IP per the SSOT after the HD-314 DHCP client-id fix). ZFS pools `tank` (mirror) + `bulk` (RAIDZ2) IMPORTED + datasets/props applied (incl. `bulk/data/immich-thumbs` explicit mountpoint), NFS exports → oldsrv (`/tank/data`, `/bulk/media`, `/bulk/data/immich-thumbs`, all the oldsrv Home IP from the SSOT, root_squash anonuid/gid=1005) live (`exportfs` verified), sanoid+syncoid timers, Samba, zfs_exporter (:9198) + nut_exporter (:9199) active; NUT **master live** (PowerWalker `upsc powerwalker@localhost` returns battery 100% / Innova Unity — udev permissions fixed, `retrycount` removed from ups.conf); cockpit-storaged (trixie: no `cockpit-zfs` package) active. Debian 13 trixie was re-provisioned WITH the missing apt sources + `linux-headers-<running-kernel>` + `zfs-dkms` (HD-314 fixes). Prior state (2026-08-23): ✅ **Debian 13 (Trixie, headless) INSTALLED 2026-08-23 — FULLY AUTOMATED via preseed** (zero interactive questions; execution record: [deployment-tasks.md §Phase 1a](../deployment-tasks.md)). Boot mode BIOS/CSM; GRUB lives on the Generic_Flash_Disk USB carrier (HD-226 — the internal SATA port cannot boot), SanDisk was installer medium only. Pools `bulk`/`tank` exist EXPORTED (created pre-install; ZFS labels verified intact post-install) — imported by the Phase-2 storage role. Everything below describes the target state.
-> **Links to:** `backup.md`
-> **Linked from:** `hardware.md`, `deployment-preseed.md`, `deployment-ansible.md`
+> **Role:** Detail — the dedicated ZFS storage server (`nas.kogler.si`).
+> **Status: ✅ provisioned and live** (`storage.yml` converged): ZFS pools `tank` (mirror) + `bulk`
+> (RAIDZ2) imported with datasets/props applied, NFS exports to oldsrv (`/tank/data`, `/bulk/media`,
+> `/bulk/data/immich-thumbs`), sanoid/syncoid timers, Samba, `zfs_exporter` + `nut_exporter` (NUT
+> **master** for the UPS), Cockpit + cockpit-storaged (trixie has no `cockpit-zfs` package).
+> Debian 13 (Trixie), headless, BIOS/CSM boot.
+> ⏳ **Open:** Cockpit has **no valid login** — PAM-only and no account has a password; a dedicated
+> break-glass `maint` user is **HD-361**, and the Mgmt-99 `eno1.99` leg is not yet active (convenience
+> only, no function depends on it).
+> Install/provisioning history: [deployment-tasks.md](../deployment-tasks.md) + git log.
 
 ---
 
@@ -31,17 +37,18 @@ tags: [hardware, nas, zfs]
 | Expansion | PCIe x16 Gen3 → miniSAS card → SilverStone |
 | Location | Rack cabinet |
 
-> **VT-d/DMAR note (observed live 2026-08-23):** Debian 13 enables DMA remapping on this box;
-> heavy I/O produces benign `DMAR: ERROR: DMA PTE … already set` console spam (B120i quirk).
-> Harmless — zero accompanying block-layer faults across a full 4 T migration — but if it
-> persists post-reinstall, consider `intel_iommu=off` (no passthrough is planned here).
+> **VT-d/DMAR note:** Debian 13 enables DMA remapping on this box, and heavy I/O produces benign
+> `DMAR: ERROR: DMA PTE … already set` console spam (B120i quirk). It is harmless — zero accompanying
+> block-layer faults across a full 4 TB migration — but if it becomes noise, `intel_iommu=off` is safe here
+> (no passthrough is planned).
 
 ---
 
 ## ZFS Pool "tank" (Primary — Mirror)
 
-> **Disk reference SSOT = `/dev/disk/by-id/`** (captured 2026-08-21 on the pre-reinstall Debian).
-> `sdX` letters are boot-specific and already shifted once — never use them in preseed/pool commands.
+> **Disk reference SSOT = `/dev/disk/by-id/`.** Captured from the pre-reinstall system — re-verify with
+> `ls -l /dev/disk/by-id/` before any destructive command. `sdX` letters are boot-specific and have already
+> shifted once — never use them in preseed/pool commands.
 
 | by-id (`/dev/disk/by-id/`) | Model | Size | Hours | Health |
 |-------|-------|------|-------|--------|
@@ -56,7 +63,7 @@ tags: [hardware, nas, zfs]
   - (older `tank/important` / `tank/data`-with-media plans → **superseded**: media moved to the `bulk`
     pool; only user data remains on `tank`. Full layout: [`storage.md`](storage.md))
 
-> **Topology locked: MIRROR, not raidz1 (2026-08-21, owner decision — todo HD-207).** Even though
+> **Topology locked: MIRROR, not raidz1 (owner decision — HD-207).** Even though
 > OpenZFS 2.3+ adds single-disk RAIDZ expansion, mirror wins at this size: fast block-copy resilver,
 > per-block self-healing (reads the good copy directly), better random I/O. Future growth paths:
 > ① `zpool add tank mirror <d3> <d4>` — a NEW second top-level pair contributes its FULL size
@@ -90,10 +97,9 @@ Connected via **miniSAS** to the SilverStone SST-TS43xx external disk enclosure 
 | `ata-TOSHIBA_HDWD130_98M101SAS` | Toshiba P300 HDWD130 | 3 TB | 8,560 | ✅ |
 | `ata-TOSHIBA_HDWD130_98M0X0TAS` | Toshiba P300 HDWD130 | 3 TB | 8,497 | ✅ |
 
-> Hours re-read per serial 2026-08-23 over SSH on the running system
-> ([smart-report-nas-20260823T105831.txt](../reports/smart-report-nas-20260823T105831.txt)):
-> all six HDDs PASS with zero reallocated/pending/offline-uncorrectable/CRC counters —
-> closes the earlier unattributable-range caveat.
+> SMART evidence per serial (running system):
+> [smart-report-nas-20260823T105831.txt](../reports/smart-report-nas-20260823T105831.txt) — all six HDDs
+> PASS with zero reallocated/pending/offline-uncorrectable/CRC counters.
 
 - **6 TB usable**, survives any 2 disk failures
 - sde (Toshiba P300, 2,001 reallocated + 32 pending) was zeroed and physically removed
@@ -101,6 +107,9 @@ Connected via **miniSAS** to the SilverStone SST-TS43xx external disk enclosure 
   (`bulk/media`, no snapshots — redownloadable) AND the face-thumbnail copy (`bulk/data/immich-thumbs`,
   daily snapshots). Replica datasets retain the source snapshot schedules independently. Detail:
   [`storage.md`](storage.md)
+- ⚠️ **Disk health note:** the enclosure is consumer-grade **SMR** drives (Toshiba P300) in RAIDZ2 — a
+  resilver under load is slow and write-heavy. The `bulk` pool therefore holds only rebuildable data
+  (media) and replica copies, never a sole copy of anything.
 
 ### SilverStone SST-TS43xx (External Disk Enclosure)
 
@@ -113,75 +122,22 @@ as the **local secondary pool**: syncoid replicas of `tank/data/*` (ZFS send/rec
 
 ---
 
-## Pool-Creation Runbook (one-time bootstrap, BEFORE the preseed reinstall)
+## Pool bootstrap rules (procedure lives elsewhere)
 
-> ✅ **EXECUTED 2026-08-23 — see the as-built evidence in [deployment-tasks.md §Phase 1a](../deployment-tasks.md) + the commit**
-> (pools created, verified, exported; installer-ready). **Canonical redeploy procedure** (pool
-> creation commands, no data migration): [deployment-manual.md §1a.0](../deployment-manual.md). Reality deltas vs the text below:
-> the legacy payload lived in pool **`new-pool`** (single disk ST4000NT001) and a second
-> single-disk pool **`backup`** (61.9 G gen8 dumps) existed — the owner declared `backup`
-> disposable and it was destroyed after migration verification instead of being migrated.
-> Two operational notes learned live: `zfs receive` does NOT create intermediate datasets
-> (create `bulk/migrate` explicitly first), and RAIDZ2 physical ALLOC runs ≈1.67× the logical
-> stream size (parity + stripe padding). The Ansible `storage` role is
-> **import-only** for `tank`/`bulk` (`allow_create: false`, import-first rule in
-> `roles/storage/tasks/zfs_common.yml`) — pool creation is a human bootstrap step; datasets +
-> properties are then applied by the role from its defaults SSOT. The preseed wipes **only the OS SSD**
-> (`ata-Crucial_CT525MX300SSD4_173818D02FF0`); pools live on their data disks and survive the reinstall.
-> Create pools with `ashift=12`; `-O` props mirror the [`storage.md`](storage.md) all-datasets row.
+**Canonical runbook = [deployment-manual.md §1a.0](../deployment-manual.md)** (pool creation commands,
+one-time bootstrap before the installer boots). The rules that make it safe:
 
-```bash
-sudo apt update && sudo apt install -y zfsutils-linux
-
-# -- 0. wipe stale labels (all six HDDs carry old ZFS part1/part9 tables) ----------------------
-sudo wipefs -a \
-  /dev/disk/by-id/ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU \
-  /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0X0TAS \
-  /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0ZZYAS \
-  /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M101SAS
-
-# -- 1. bulk FIRST (RAIDZ2) — it becomes the migration target ----------------------------------
-sudo zpool create -o ashift=12 \
-  -O xattr=sa -O acltype=posixacl -O atime=off -O normalization=formD \
-  bulk raidz2 \
-    /dev/disk/by-id/ata-WDC_WD30EFRX-68EUZN0_WD-WCC4N6YFD1UU \
-    /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0X0TAS \
-    /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M0ZZYAS \
-    /dev/disk/by-id/ata-TOSHIBA_HDWD130_98M101SAS
-
-# -- 2. migrate the legacy single-disk pool OFF the IronWolf (it has no redundancy) ------------
-sudo zpool import                                   # list importable pools, note NAME + datasets
-# rename-on-import avoids a name clash with the new tank/bulk; readonly protects the source:
-sudo zpool import -o readonly=on -R /mnt/legacy <legacy-pool-name> legacy-migrate
-sudo zfs list -r legacy-migrate
-sudo zfs snapshot -r legacy-migrate/<dataset>@migrate
-sudo zfs send -R legacy-migrate/<dataset>@migrate | sudo zfs receive bulk/migrate/<dataset>
-diff -r /mnt/legacy/<dataset> /bulk/migrate/<dataset>        # spot-check before wiping anything
-sudo zpool export legacy-migrate
-
-# -- 3. tank (MIRROR — never raidz1 for 2 disks; docs/storage.md layout) -----------------------
-sudo wipefs -a \
-  /dev/disk/by-id/ata-HGST_HDN726040ALE614_K4K9LBGB \
-  /dev/disk/by-id/ata-ST4000NT001-3M2101_WX122FLD
-sudo zpool create -o ashift=12 \
-  -O xattr=sa -O acltype=posixacl -O atime=off -O normalization=formD \
-  tank mirror \
-    /dev/disk/by-id/ata-HGST_HDN726040ALE614_K4K9LBGB \
-    /dev/disk/by-id/ata-ST4000NT001-3M2101_WX122FLD
-
-# -- 4. final home of the migrated data (open decision, todo.md HD-207) ------------------------
-# media library -> zfs rename bulk/migrate/<dataset> bulk/media   (role applies documented props)
-# user data     -> decide against storage.md first (NAS-local user datasets were trimmed HD-151)
-zfs destroy -r bulk/migrate@unused || true          # clean the landing zone once decided
-
-# -- 5. export BOTH pools before booting the preseed installer ---------------------------------
-sudo zpool export bulk tank
-```
-
-Rules: create **no datasets by hand** beyond the `bulk/migrate` landing zone — the storage role owns
-the tree (`bulk/media`, `bulk/data/*`, `tank/data/*`). After the preseed install,
-`playbooks/storage.yml` imports both pools and applies datasets/props; verify with `zpool status`
-(Phase 2 checklist in `deployment-tasks.md`).
+- **`by-id` paths only.** `sdX` letters are boot-specific and have already shifted once.
+- **`ashift=12`**, and the `-O` props mirror the all-datasets row of [`storage.md`](storage.md).
+- **Create `bulk` first** (it is the migration target), `tank` after; export both before installing.
+- **The Ansible `storage` role is import-only** for `tank`/`bulk` (`allow_create: false`, the
+  import-first rule in `roles/storage/tasks/zfs_common.yml`): **pool creation is a human bootstrap step**,
+  the role owns the dataset tree and properties afterwards. Never create datasets by hand beyond a
+  migration landing zone.
+- **The preseed/OS reinstall wipes only the OS SSD** — pools live on their data disks and survive it.
+- Mechanisms learned the hard way: **`zfs receive` does not create intermediate datasets** (create the
+  landing dataset explicitly first), and **RAIDZ2 physical ALLOC runs ≈1.67× the logical stream size**
+  (parity + stripe padding), so plan the migration target's free space accordingly.
 
 ---
 
@@ -191,19 +147,18 @@ the tree (`bulk/media`, `bulk/data/*`, `tank/data/*`). After the preseed install
 - Secondary ZFS pool "bulk" — RAIDZ2, 6 TB usable — active media (unbacked) + data replicas + thumb copies
 - NAS / file server — NFS shares: `tank/data` (user data), `bulk/media` (media); **Samba/SMB shares live on the NAS** (HD-131 D4): shared `media` + per-user private drives
 - Local replication — sanoid/syncoid: `tank/data/*` → `bulk/data/*` (incremental, ≈ hourly)
-- Web UI — Cockpit + cockpit-storaged (~150 MB RAM). **Note (HD-361):** Cockpit is PAM-only and no account has a password, so the UI currently has no valid login — a dedicated break-glass `maint` user (password from 1P, no SSH key, no NOPASSWD) is tracked in HD-361.
+- Web UI — Cockpit + cockpit-storaged (~150 MB RAM). ⏳ The UI has no valid login until HD-361 lands (see the status block): Cockpit is PAM-only and no account has a password.
 - **Kopia does not run on nas** — off-site backup originates from oldsrv (NAS-independent, see `backup.md`)
 
 ---
 
 ## Network
 
-| Port | VLAN | Purpose |
-|------|------|---------|
-| 1 | 10 (Home) | Access port — file sharing, backup |
-| 1 | 99 (Mgmt) | Native — management access |
-
-Dual-port NIC. Option: single trunk (VLAN 10 tagged + 99 native) or dedicated ports.
+**Single cable, single trunk on CRS328 port 1:** VLAN **10 (Home) untagged** (PVID 10, the data plane:
+file sharing, backup, NUT) + VLAN **99 (Mgmt) tagged**. The Mgmt leg on the host (`eno1.99`) is
+**not yet active** — an ifupdown/`systemd-networkd` mismatch on this host, convenience only; management
+currently runs over Home. Target-state and firewall side: [network-vlans.md](network-vlans.md);
+port-by-port wiring: [network-rack.md](network-rack.md). (The second NIC port is unused.)
 
 ---
 
@@ -233,7 +188,7 @@ Built-in — no external KVM needed.
 - L2ARC skipped: 12 GB RAM insufficient for benefit
 - **Boot chain:** this SSD sits on an internal SATA port the Gen8 cannot boot from → GRUB lives on
   a **dedicated USB stick** (preseed §8 `grub-installer/bootdev` = `usb-Generic_Flash_Disk_C3EB7FE7-0:0`,
-  HD-206; owner reconfirmed 2026-08-23). That Generic stick is the **permanent GRUB carrier** — it
+  HD-206). That Generic stick is the **permanent GRUB carrier** — it
   stays plugged in the Gen8 forever. Install roles: SanDisk = installer medium only (removed after
   install); two sticks are attached during install (see deployment-manual §1a.2 nas exception).
 - SLOG skipped: SSD lacks power-loss protection (PLP)
