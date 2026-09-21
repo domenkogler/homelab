@@ -265,7 +265,6 @@ also in §A2 with the reasoning.
 | HD-06 · 301 · 288 · 194 · 34 / 191 | 1–4 | physical windows: UPS pull → WoL · a router/switch/AP reset · gaming + Moonlight · one edge login/callback · the yearly restore drill | verify state after each; run the pin + Kopia GUI-vs-CLI assessment during the drill |
 | HD-230 · HD-207 | 1 | decide at the drill: which sources get backed up · media rename vs personal-files | the surgical converge + the landing-zone mechanics |
 | HD-362 · HD-57 | 2–3 | the music-pillar 1P values + Lidarr clients · bank tokens (and see HD-354: there is **no local music**, so the pillar's premise is now "if we ever have some") | the last mile on each |
-| HD-312 | 2 | observation: the bedtime window + the Kids-Group filtered-DNS binding | close on your first sighting |
 | HD-366 | 2 | **still deliberately untouched by your instruction** — the JupyterLab LAN edge | nothing, unless you ask |
 
 ---

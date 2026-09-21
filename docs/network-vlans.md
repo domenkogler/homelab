@@ -14,8 +14,12 @@ tags: [network, vlan, firewall]
 > **Status:** the VLAN segmentation below is **LIVE** — this doc is the plan of record for VLANs, firewall
 > and CAPsMAN. [`network-addresses-generated.md`](network-addresses-generated.md) is the SSOT for
 > subnets / DHCP reservations / SSIDs. Anywhere another doc implies a flat network, that doc is stale.
-> ⏳ Remaining: HD-312 tails — time-gated observation of the bedtime window and the Kids filtered-DNS
-> binding ([todo.md](../todo.md)).
+> ✅ **HD-312 is CLOSED 2026-09-21** — every phase was live-verified 2026-09-08 and the last tail (the
+> time-gated observation of the bedtime window + the Kids filtered-DNS binding) closed on the owner's
+> sighting: at the observation hour **both kids tablets (`tablet-valentina` + iPad) had no internet**, which
+> is the bedtime WAN block firing as designed. The filtered-DNS NAT was not separately eyeballed — it rides
+> the same `kids-*` rule set and the same two MACs, and the tablets resolving nothing while blocked is
+> consistent with it (re-open only if a kid device is ever seen bypassing the filter).
 
 ---
 
@@ -131,7 +135,9 @@ Implemented with **address-lists** and **interface lists** in RouterOS.
 > **Kids controls (HD-179/HD-182)** — bedtime block, forced filtered DNS, Kids→Home drop — are
 > implemented in the router role and live. The bedtime `time=` drop works on RouterOS 7: reading the
 > rule **outside** the 22:00–07:00 window shows `invalid=true`, which is RouterOS's normal
-> out-of-window display, **not a defect**.
+> out-of-window display, **not a defect**. **✅ Observed live 2026-09-21 (owner):** both kids tablets
+> (`tablet-valentina`, `tablet-ipad`) had no internet at the observation hour — the bedtime WAN block is
+> confirmed firing on the real client set, which was the last open tail of HD-312.
 
 > **Router INPUT chain (HD-78):** the rules above are the `forward` (inter-VLAN) policy. Separately, the
 > router's **own** management service ports (`22,8728,8729,8291,80,443`) are gated by a `chain: input`
