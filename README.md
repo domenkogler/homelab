@@ -138,6 +138,14 @@ task-specific dispatch. Do **not** bulk-read the repo.
 
 ### Orchestrator + reviewer discipline (lane hygiene, HD-346 lesson)
 
+> **Two different things, one word.** Everything in this section is about **subagent children inside one session**.
+> Running **independent lane sessions** — one [`prompt-<HD>.md`](prompt.md) brief per session, each with its own
+> worktree and branch, then merged and cleaned up by a parent — is governed by
+> [`prompt.md`](prompt.md) **§4 (Orchestrator mode)**, whose rules **deliberately differ from README §4 and
+> CONVENTIONS §6** at the items it numbers O1–O8 (fast-forward vs rebase, who may write `prompt.md` /
+> `todo-table.md`, per-directory converge slots, park-instead-of-stop on owner gates, and who deletes a brief).
+> Where §4 is silent, this README and CONVENTIONS stand and outrank any brief.
+
 When co-ordinating subagent lanes (item 7), keep children **bounded and focused** — an over-scoped,
 verbose child is worse than none. Live lesson (2026-09-08): a `reviewer` handed two full IaC branches
 + the whole render pipeline + todo claims, on a thinking-heavy model, ran 35+ min and never produced

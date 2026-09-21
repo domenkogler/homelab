@@ -1,5 +1,12 @@
 # Next Session — Where to Start & What's Next
 
+> ⚠ **SUPERSEDED, kept only as history (2026-09-21).** This 2026-09-15 spark S1 handoff is now content belonging to
+> [`prompt-376.md`](prompt-376.md) — its §3 pending-tests list is that brief's row 1 — and the branch it says
+> "needs merge" no longer exists (all 2026-09 session branches were merged and swept, see
+> [todo-table.md](todo-table.md) §0). **Do not start a session from this file.** The standing handoff is
+> [prompt.md](prompt.md); the dispatch rule for a session is [prompt.md](prompt.md) §4. The parent deletes this file
+> in a §4 cleanup commit (O7) once lane 376 has taken its content, which it has.
+
 > Handoff written **2026-09-15** at the end of the spark S1 stability-sweep session
 > (`session/s1-stability-sweep-20260915-0801`).
 > Read this first, then `todo.md` HD-367 + `spark/BENCHMARK-PLAN.md` §6a/§9, then `docs/hardware-spark.md`

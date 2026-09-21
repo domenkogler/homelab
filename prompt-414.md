@@ -1,4 +1,4 @@
-# `prompt-414.md` — Lane brief · dual-stack the home edge, then close the remote-dev transport (HD-414 · HD-415 · HD-405 tail · HD-410 · HD-406 · HD-408)
+# `prompt-414.md` — Lane brief · dual-stack the home edge, then close the remote-dev transport (HD-414 · HD-415 · HD-405 tail · HD-410 · HD-406 · + HD-419 · HD-09 · HD-301 · HD-159)
 
 > **Role:** successor to [prompt-405.md](prompt-405.md). That lane shipped the transport (HD-405 LIVE: `oldsrv`
 > is a headscale node on `tag:dev:443`, `ha.ts.kogler.si` served from oldsrv's own edge) and **measured the
@@ -7,9 +7,27 @@
 > landed on someone else's relay in Frankfurt instead. Owner holds a **static IPv6 /56 from the ISP, not yet
 > configured on the RB4011**. This lane makes that path direct, then finishes what 405 left open.
 > Start with [README.md](README.md) §0 → §1 mandatory context → this file → the HD rows in [todo.md](todo.md).
-> **Linked from:** [prompt.md](prompt.md) §2 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
-> **Sibling lanes:** runner/cockpit = [prompt-407.md](prompt-407.md) · remote desktop =
-> [prompt-412.md](prompt-412.md) — this lane runs alongside them; one writer per file.
+> **Linked from:** [prompt.md](prompt.md) §2 + §4 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
+> **Sibling lanes:** runner/cockpit = [`prompt-407.md`](prompt-407.md) · remote desktop =
+> [`prompt-412.md`](prompt-412.md) · cadence = [`prompt-420.md`](prompt-420.md).
+> **Wave 2.** Pair it with [`prompt-412.md`](prompt-412.md) only (you hold the router + oldsrv slots, it holds the
+> VPS one). ⛔ **Never with [`prompt-407.md`](prompt-407.md)** — both converge
+> oldsrv, both need `group_vars/all/main.yml`, and once this brief's HD-415 row lands they would both reach the
+> Technitium files; and never with `prompt-357` / `prompt-384` for the same reason. `prompt-420` is also
+> compatible, but it is consumed in Wave 1.
+>
+> **Lane contract (orchestrator mode — the authority is [prompt.md](prompt.md) §4, which OVERRIDES parts of
+> README §4 and CONVENTIONS §6 at items O1–O8; where §4 is silent, README + CONVENTIONS stand and outrank this
+> brief).** One session, one worktree, one branch, one brief; the parent creates them
+> (`../homelab-wt-<YYYYMMDD>-<HHMM>` / `session/414-ipv6-<YYYYMMDD>-<HHMM>`).
+> **Never edit `prompt.md` or `todo-table.md`** (O2); edit **your own `todo.md` rows only**. **You hold the router
+> slot — and the router slot is global** (O3): that converge is a device-wide `/import`, so nothing else touches
+> RouterOS while you are in it, and **no away/hotspot re-measure runs anywhere in the repo while your converge is
+> in flight**. Owner gate → **park and continue** (O4): the phone-on-cellular matrix, the headscale stop/start and
+> any HA restart are the owner's word — write the exact blocked action into the row's ⏳ tail, finish the IaC and
+> the docs, report the park. Any hand-repeatable step writes its `deployment-manual.md` line **in your commit**
+> (O6) — the v6 probe runbook almost certainly qualifies. Close-out = SSOT docs + row tails + signed commit +
+> `bash scripts/validate-all.sh` green **in this worktree** → **stop**; the parent merges and cleans up.
 
 ## Goal
 
@@ -31,12 +49,16 @@ not enabled fleet-wide.
 |---|----|--------|-----------------|
 | 1 | **HD-414** | **Scoped IPv6 (dual-stack) on the RB4011** — spec below. Home VLAN 10 gets a GUA path; VLAN 20/30/40 get **no IPv6 at all** | gate: external probe from the VPS proves inbound v6 answers **nothing** except UDP 41641 → oldsrv. Nothing else may be enabled first — 410/406 are measured *after* it |
 | 2 | **HD-405 tail** | The acceptance matrix still owed by the owner on cellular: **node path with headscale STOPPED** (T2), IoT/guest unreachable (T4 strong form = `headscale routes list` empty — captured 2026-09-20 ✅), HA Companion arbitration between the LAN URL and `ha.ts.…`, plain `ha.kogler.si` still dead on cellular (✅) | stop/start headscale on the VPS is a **shared control plane** action → owner's word, and restore it in the same breath. See [network-vpn.md](docs/network-vpn.md) §Tailnet boundary |
-| 3 | **HD-415** | **Tailnet resolver chain — a tradeoff, not a defect** (details below). Decide, don't "fix" | the previous pass called this a bug and was wrong; the row exists so the next agent doesn't repeat that mistake |
+| 3 | **HD-415** | **Tailnet resolver chain — the design is DECIDED; implement it.** Bind Technitium to **oldsrv's tailnet node address**, make that the headscale `nameservers` entry, keep the **VPS public instance as fallback**, drop the **two LAN-address entries**. Acceptance = the three-case drill (LAN / cellular / **home with the WAN pulled**) | **Decided 2026-09-21** (owner): neither "leave it" nor "trim it" — make the resolver reachable from wherever the device is; case (d) *away while the home WAN is down* is accepted as unresolvable ("it is ok that I will not get dns for whole domain, because it is not reachable from the internet"). The 2026-09-20 pass called this a bug and **was wrong** — that stays recorded so nobody deletes the WAN-out resilience instead of reasoning about it |
 | 4 | **HD-406** | Router WG road-warrior peer — **re-evaluate after HD-414**, do not build it before. With v6 direct the case weakens; if v6 fails the case strengthens | it opens a second public listener, and that decision must be made against a measurement |
 | 5 | **HD-410** | DERP posture — **decide after HD-414.** Recommendation on the table today: **do not** self-host DERP on the VPS | a VPS-hosted DERP re-inserts the VPS into the data path, which is the thing HD-405 exists to remove, and fra is already 18 ms from home |
-| 6 | **HD-408** | Exit-node host (Pi vs oldsrv) — pure owner call, independent of all of the above | recommendation on record: keep it on the Pi |
+| 6 | ~~HD-408~~ | ✅ **Deleted row — decided 2026-09-21: the exit node stays on the Pi.** Nothing to do | [network-rejected.md](docs/network-rejected.md) 2026-09-21; the re-open trigger is row 4's full-tunnel profile proving geo-egress with no exit node at all. Do not re-open |
+| 6b | **HD-419** *(merged 2026-09-21)* | `media.kogler.si` stops answering 502: publish a jellyfin host port on the **Home leg** (the `actual-budget:5006` / `immich-ml:3003` precedent) as a `*_port` var + the compose publish | Registered as its own row and **decided**. It is edge work in files this lane owns (`traefik-internal` routes + the port var), and it feeds HD-357's tile in [`prompt-357.md`](prompt-357.md) |
+| 6c | **HD-09** *(merged)* | the UPS web-UI firewall rule lands — its ⏳ literally says *"ride the next router converge import"*, and **this lane is that converge** | IaC-only and tiny; doing it here avoids a second `/import` of the device, which is this brief's expensive and risky artifact |
+| 6d | **HD-301 tail** *(merged)* | the Phase-1.5 bootstrap-hardening tail rides the same converge | Same reason as 6c: one router session, one import, one verification |
+| 6e | **HD-159** *(optional — window-gated)* | prove `wg-s2s-down` fires by taking the tunnel down deliberately, once | ⛔ **Owner's window first** (O4): it drops the S2S tunnel and fires a CRIT alert. Take it only with the window stated in the row, otherwise park it with the exact command |
 | 7 | hygiene | Retired **preauth keys 4 (`tag:pi-dev`) + 5 (`tag:dsh`)** are live, reusable and non-expiring on headscale for services that no longer exist. The tombstones in [deployment-secrets.md](docs/deployment-secrets.md) do not revoke them — headscale does | one `headscale preauthkeys expire` each; report ids only, never values |
-| 8 | hygiene | **Delete [prompt-405.md](prompt-405.md)** — it is a CLOSED banner, its facts live in this brief + the SSOT docs, and its audit trail is `git log --follow prompt-405.md`. Held back on 2026-09-20 only because **five files still link it, two of them other lanes' briefs** ([prompt-407.md](prompt-407.md), [prompt-412.md](prompt-412.md)) and `check_doc_map.py` hard-fails on dangling links | delete it in ONE commit that also fixes those two links — i.e. the first time this lane legitimately edits those briefs, or on the owner's explicit "edit their briefs". Do not hand-edit another live lane's brief for tidiness alone |
+| 8 | hygiene | **The orchestrator — not this lane — deletes [prompt-405.md](prompt-405.md).** It is a closed banner; its facts live in this brief + the SSOT docs and its audit trail is `git log --follow prompt-405.md` | Rewritten 2026-09-21: under [prompt.md](prompt.md) §4 O7 the deletion belongs to the parent's cleanup commit, made **together with** the link fixes in `prompt.md`, `todo.md` and `todo-table.md`. Those three are what `check_doc_map.py` actually scans — it **excludes `prompt-*` files**, so links *between* briefs are not checked at all (what this row previously asserted overstated the gate). **Do not hand-edit another live lane's brief and do not delete a brief yourself** |
 
 ## HD-414 spec
 
@@ -64,15 +86,23 @@ initiates — but if the SIM's v6 is broken, v6 alone will not produce Direct, w
 measurement); and **no AAAA records for home hosts in the public zone** while this lands, so nothing new
 becomes an inbound target by DNS accident.
 
-## HD-415 detail
+## HD-415 detail — decided 2026-09-21; implement as written
 
 headscale's tailnet `nameservers` chain is MagicDNS loop → VPS public → **oldsrv LAN IP → Pi LAN IP**. The
 last two are unreachable from a phone on cellular → the Tailscale app shows `DNS unavailable` and resolution
-burns timeouts. That is **not** a defect: those two are what keep `*.kogler.si` resolvable on a tailnet
+burns timeouts. That was **not** a defect: those two are what keep `*.kogler.si` resolvable on a tailnet
 device **at home with the WAN down**, because the alternative (VPS primary) is exactly the path a WAN outage
-takes away. Options, with the tradeoff written down: leave it; reorder/trim so the away case is cheap and
-the WAN-out case survives; or per-source split DNS. Do not just delete the home resolvers — the 2026-09-20
-pass made that error out loud and it is on record.
+takes away — which is why the 2026-09-20 pass that called it a bug was wrong, and why the answer is
+**reachability, not sort order**.
+
+**The decided design:** bind Technitium to **oldsrv's tailnet node address** and make *that* the headscale
+nameserver — direct-over-LAN at home with the WAN pulled, reachable away while the home link is up — keep the
+**VPS public instance as the fallback**, and **remove the two LAN-address entries**. Case (d), *away while the
+home WAN is down*, is accepted as unresolvable: no resolver behind a dead WAN is reachable from the internet.
+Acceptance is therefore the **three-case drill** (LAN / cellular / home with the WAN pulled), and the third case
+needs the owner present — **park** it with the exact steps rather than declaring the row done (O4).
+⚠ The files are `templates/docker_services/technitium/**` + the headscale config — **not**
+`roles/docker_services/tasks/technitium-seed.yml`, whose check-mode gate is HD-399 in [`prompt-407.md`](prompt-407.md).
 
 ## Sequence + gates
 
@@ -80,16 +110,23 @@ pass made that error out loud and it is on record.
    of [network-vpn.md](docs/network-vpn.md), then the 2026-09-20 findings rows.
 2. IaC only: **`roles/router/` + `templates/router/rb4011_converge.rsc.j2`**.
    `IaC/router/rb4011-patched-r-7.21.3-converge.rsc` is **generated — never edit it by hand, never hand
-   `/import` from `/flash`, and never `system reset`** (that is the 2026-08-28 outage). Converge with
-   `/env/run scripts/rd-converge.sh` from the router's own shell. Verify every `/ipv6` submenu name and
+   `/import` from `/flash`, and never `system reset`** (that is the 2026-08-28 outage). The apply of record is the
+   documented 3-tier path: **edit the converge template → render → `/import`**
+   ([network-ops.md](docs/network-ops.md) 3-tier rule; transient deltas only via `scripts/routeros-apply-delta.sh`,
+   folded back and deleted, never left). ⚠ **The `/env/run scripts/rd-converge.sh` command this brief used to quote
+   exists nowhere in the repo or the docs** — establish the real apply of record on the device before running
+   anything, and if it is not written down, write it into `network-ops.md` / `deployment-manual.md` (O6). Verify
+   every `/ipv6` submenu name and
    argument against RouterOS **7.21** before converging — this repo has been bitten by guessed RouterOS
    syntax more than once.
 3. Converge the tailscale port pin with the normal scoped ritual (detached, `--tags` + scope, **no `--diff`**
    on docker_services) — [scripts/README.md](scripts/README.md) says why.
 4. Prove step 5 above **before** telling the owner the edge is safe.
 5. Only then re-measure the phone, then make the HD-406 / HD-410 calls.
-6. Close-out: code + docs in ONE commit, `scripts/validate-all.sh` green, then FF-merge into `main`.
-   Permanent knowledge goes to the SSOT docs; **there is no changelog** — the frozen archives stay frozen.
+6. Close-out: code + docs in ONE signed commit, `bash scripts/validate-all.sh` green **in this worktree** —
+   then **stop**. The parent owns the merge ([prompt.md](prompt.md) §4: the first lane fast-forwards, the second
+   rebases and re-validates, and `main` never gets a merge commit). Permanent knowledge goes to the SSOT docs;
+   **there is no changelog** — the frozen archives stay frozen.
 
 ## ⛔ No-re-decide list
 
@@ -103,35 +140,50 @@ pass made that error out loud and it is on record.
   two 2026-09-20 rows this thread added: *tailnet ≠ LAN bridge*, and *HA over the tailnet reuses `.ts` rather
   than being publicized*.
 - **No AAAA records** pointing at home hosts while the v6 filter is unproven.
-- If an owner-gated item appears (preauth key, WG peer, exit node, HA `trusted_proxies`), **stop and ask**.
+- If an owner-gated item appears (preauth key, WG peer, exit node, HA `trusted_proxies`, the phone on cellular,
+  the headscale stop/start, a `wg down` window): **park and continue** — [prompt.md](prompt.md) §4 O4 replaces
+  "stop and ask" for lane sessions. Write the exact blocked action into the row's ⏳ tail, do everything that is
+  not blocked, report the park. **Never stop and wait unattended.**
 
-## Two live faults HD-405 found and did not fix (both owner calls, both pre-existing)
+## Two live faults HD-405 found — now registered rows, both decided 2026-09-21
 
-1. **HA rejects anything oldsrv proxies.** HA answers `400 Bad Request` to any request carrying
+1. **HD-418 — HA rejects anything oldsrv proxies.** HA answers `400 Bad Request` to any request carrying
    `X-Forwarded-For` from a peer outside `ha_trusted_proxies` — which means oldsrv's *standby* `ha` router has
    **never worked** and would fail the same way in a takeover. The tailnet router sidesteps it by stripping the
-   forwarding headers. The honest fix is adding `oldsrv_home_ip` to `ha_trusted_proxies` = **restarts the
-   smart-home controller** → owner's call.
-2. **`media.kogler.si` → 502**, even locally on oldsrv: jellyfin publishes no host port, unlike the
-   `actual-budget:5006` / `immich-ml:3003` precedent. One line in `group_vars/all/main.yml`.
+   forwarding headers. **Decided:** `ha_trusted_proxies` += `oldsrv_home_ip`, **in a planned window**, because the
+   fix **restarts the smart-home controller** → the owner's word, so it is a *park*, not a lane task (O4). It
+   belongs to [`prompt-357.md`](prompt-357.md) with the window stated; the files are
+   `roles/home_assistant/templates/configuration.yaml.j2` + the `ha_trusted_proxies` key in `group_vars/all/main.yml`.
+2. **HD-419 — `media.kogler.si` → 502**, even locally on oldsrv: jellyfin publishes no host port, unlike the
+   `actual-budget:5006` / `immich-ml:3003` precedent. **This one IS this lane's** — row 6b above: one `*_port` var
+   + the compose publish + the `traefik-internal` route, and it feeds HD-357's tile.
 
 ## Lane rules (this runs concurrently — one writer per file)
 
 **Owns:** `IaC/ansible/roles/router/**`, `IaC/ansible/templates/router/rb4011_converge.rsc.j2`,
 `IaC/ansible/roles/tailscale-node/**`, `IaC/ansible/templates/docker_services/{headscale,traefik-internal,traefik-tailnet}/**`,
-`IaC/ansible/group_vars/{all,vps}.yml` + `host_vars/oldsrv.kogler.si.yml` **for tailnet/v6 keys only**,
+`IaC/ansible/templates/docker_services/technitium/**` (added 2026-09-21: the decided HD-415 bind edits it, and the
+old Owns list did not cover a file its own row must touch), `IaC/ansible/templates/docker_services/jellyfin/**`
+(row 6b),
+`IaC/ansible/group_vars/{all,vps}.yml` + `host_vars/oldsrv.kogler.si.yml` **for tailnet/v6/jellyfin-port keys only**,
 `docs/network.md` (interfaces) · `docs/network-{vlans,dns,vpn,ops,review,rejected}.md` — and
 **`docs/network-addresses-generated.md` is generated**: v6 allocations belong in the vars/purpose strings that
 feed it, never in the rendered file (the HD-404 rule).
-`docs/deployment-secrets.md`, `todo.md`, `todo-table.md`.
+`docs/deployment-secrets.md` and **your own `todo.md` rows**.
 
-**Doesn't touch:** `scripts/**` (HD-407's lane — and it does not need a script edit),
-`docs/{services-ai,pi-harness,security,1password,deployment-ansible}.md` (407's), `docs/services-rustdesk.md` +
+**Never touches (orchestrator mode):** **`prompt.md` and `todo-table.md`** (O2 — the old list claimed both),
+`roles/docker_services/tasks/technitium-seed.yml` and `…/dns-seed.yml` — the **check-mode** gate there is HD-399,
+which belongs to [`prompt-407.md`](prompt-407.md); edit them only after 407 has merged, and say so in the commit,
+`scripts/**` (HD-407's lane — and it does not need a script edit),
+`docs/{services-ai,pi-harness,security,1password,deployment-ansible}.md` (407's), `docs/services-admin.md` (412's
+owning doc — the `docs/services-rustdesk.md` named in this list until now **does not exist**),
 `rustdesk-server` IaC (412's), `.secrets/.claude/.codex/.vscode/.clinerules`, the frozen archives
 (`reports/changelog.md`, `reports/deployment-journal.md`, `docs/archived/`).
 
 **Collides with:** **HD-406 wants `roles/router` too** — it is row 4 *in this lane*, on purpose; keep one
-writer there. If another session must touch the router render, this lane yields and says so out loud.
+writer there. If another session must touch the router render, this lane yields and says so out loud — the router
+slot is global (O3). ⛔ **Never the same wave as `prompt-407` / `prompt-357` / `prompt-384`**: all four converge
+oldsrv.
 
 ## First action
 

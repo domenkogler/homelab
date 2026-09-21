@@ -66,7 +66,7 @@ WSL Debian primary, ext4 (repo runs from the WSL Debian primary, not Windows). `
 
 For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human). Each HD line links its owning doc + todo row; the ⏳ = exact next step. Deploy-gated verifies live in [`deployment-tasks.md`](deployment-tasks.md) (per-phase chapters).
 
-**Lane handoffs:** **NEW 2026-09-20 — the remote-dev-plane thread runs as three concurrent lanes, one brief each, file-disjoint on purpose:** [`prompt-405.md`](prompt-405.md) = transport (HD-405 oldsrv-on-tailnet · HD-406 router WG peer · HD-408 exit-node host · HD-410 DERP measurement), [`prompt-407.md`](prompt-407.md) = runner + cockpit (HD-407 control-node move · HD-409 coding cockpit · HD-411 Paseo trial), [`prompt-412.md`](prompt-412.md) = remote desktop (HD-412 RustDesk). **The transport thread has a successor: [`prompt-414.md`](prompt-414.md)** (opened 2026-09-20) — the first measured away session to the new home node came back **RELAYED (FRA, 60–90 ms)**, so **HD-414 scoped IPv6** now gates the HD-410 DERP decision and HD-412; HD-405's remaining acceptance rows live there too. The direction is **already decided and logged** in the `network` / `deployment` / `services` decision logs (rows dated 2026-09-20) — start from the briefs, do not re-open the direction; the open owner calls are in [todo.md](todo.md) §1. Two standing decisions were **scoped, not repealed**: the tailnet boundary now permits exactly ONE home host with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched. The three 2026-09-19 **closed** briefs (`prompt-391`, `prompt-397`, `prompt-398`) are **deleted** as of 2026-09-20 per CONVENTIONS §4 — nothing was lost: the tier's plan of record is [services-ai.md](docs/services-ai.md) §3a-1/§3a-2/§3a-3 + the §4a catalog runbook, and the away-access lane's content is in [network-vpn.md](docs/network-vpn.md) (§Reaching LAN nodes when away + §The laptop alias contract) plus the [network-rejected.md](docs/network-rejected.md) decision row. `prompt.md` stays the general handoff. **NEW 2026-09-21 — metric-cadence lane: [`prompt-420.md`](prompt-420.md)** (HD-420, spark sampling rate). The
+**Lane handoffs (dispatched by the wave table in §4 — never pick a brief by browsing the repo root):** **NEW 2026-09-20 — the remote-dev-plane thread runs as concurrent lanes, one brief each, file-disjoint on purpose:** [`prompt-405.md`](prompt-405.md) = transport — **CLOSED 2026-09-20, do not launch a session from it**: its rows were carried into [`prompt-414.md`](prompt-414.md) and its file deletion is scheduled in §4's cleanup step (HD-405 oldsrv-on-tailnet · HD-406 router WG peer · HD-410 DERP measurement), [`prompt-407.md`](prompt-407.md) = runner + cockpit (HD-407 control-node move · HD-409 coding cockpit · HD-411 Paseo trial), [`prompt-412.md`](prompt-412.md) = remote desktop (HD-412 RustDesk). **The transport thread has a successor: [`prompt-414.md`](prompt-414.md)** (opened 2026-09-20) — the first measured away session to the new home node came back **RELAYED (FRA, 60–90 ms)**, so **HD-414 scoped IPv6** now gates the HD-410 DERP decision and HD-412; HD-405's remaining acceptance rows live there too. The direction is **already decided and logged** in the `network` / `deployment` / `services` decision logs (rows dated 2026-09-20) — start from the briefs, do not re-open the direction; the open owner calls are in [todo.md](todo.md) §1. Two standing decisions were **scoped, not repealed**: the tailnet boundary now permits exactly ONE home host with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched. The three 2026-09-19 **closed** briefs (`prompt-391`, `prompt-397`, `prompt-398`) are **deleted** as of 2026-09-20 per CONVENTIONS §4 — nothing was lost: the tier's plan of record is [services-ai.md](docs/services-ai.md) §3a-1/§3a-2/§3a-3 + the §4a catalog runbook, and the away-access lane's content is in [network-vpn.md](docs/network-vpn.md) (§Reaching LAN nodes when away + §The laptop alias contract) plus the [network-rejected.md](docs/network-rejected.md) decision row. `prompt.md` stays the general handoff. **NEW 2026-09-21 — metric-cadence lane: [`prompt-420.md`](prompt-420.md)** (HD-420, spark sampling rate). The
 question "can spark → Grafana do 5 s / 30 s / 60 s by age, and do we need OpenObserve or a second VM?" is **closed
 by measurement and by the owner's answer**: age-tiering needs `-downsampling.period` / `-retentionFilter`, **both
 absent from the VictoriaMetrics community binary** (and OpenObserve's downsampling is an enterprise rule), so
@@ -74,7 +74,7 @@ resolution is bought at write time; and the owner **declined a second store** in
 VPS. What is left is one scoped change to `roles/monitoring/**` + the `spark-dcgm` sidecar, specced in
 [observability.md](docs/observability.md) §Scrape cadence and metric resolution. It collides with no live lane.
 
-**Lane status 2026-09-20:** the transport lane (`prompt-405`) is **merged into `main`** (HD-405 shipped, `tailscale-node` role + docs), and the runner lane (`prompt-407`) is down to its owner gate (HD-407, above). `prompt-409`/`prompt-411` (cockpit, Paseo) remain unstarted. Lane rule that outlives this thread: **a role landing in one lane can change the safety properties of another** — the self-converge guard classifies roles by what their tasks do precisely so that is caught by a red validator rather than noticed in review. **Lane rules that still hold:** `docs/services-ai*.md` + `IaC/ansible/templates/docker_services/**` are one-writer-at-a-time; **never run the away/hotspot re-measure while another session has a converge in flight** — the converge-hygiene notes in [scripts/README.md](scripts/README.md) say why.
+**Lane status 2026-09-21:** the transport lane (`prompt-405`) is **merged into `main`** (HD-405 shipped, `tailscale-node` role + docs) and its successor `prompt-414` is Wave 2; the runner lane (`prompt-407`) is **no longer sitting on an owner gate** — the 2026-09-21 answer round made the oldsrv seeding AI-runnable and decided the cockpit surface and seat, so it is Wave 1. HD-409 (cockpit) and HD-411 (Paseo) were never separate briefs: they are rows inside `prompt-407.md`. **Every lane brief on disk — with its wave, the rows it carries and its converge host — is the table in §4; this file does not keep a second copy.** Lane rule that outlives this thread: **a role landing in one lane can change the safety properties of another** — the self-converge guard classifies roles by what their tasks do precisely so that is caught by a red validator rather than noticed in review. **Lane rules that still hold:** `docs/services-ai*.md` is one-writer-at-a-time, and `IaC/ansible/templates/docker_services/**` is **one writer per service directory with one converge in flight per host** (§4 O3 — the tree-wide reading of the old rule would forbid any two lanes running at all, which is not what it protects); **never run the away/hotspot re-measure while another session has a converge in flight** — the converge-hygiene notes in [scripts/README.md](scripts/README.md) say why.
 
 **NEW — remote-dev-plane thread (2026-09-20, owner direction; nine fresh HDs, nothing applied yet).** The question was "development moves from the laptop to oldsrv and I will drive it from Android — what is the right shape?" What the next session must carry:
 
@@ -212,3 +212,83 @@ VPS. What is left is one scoped change to `roles/monitoring/**` + the `spark-dcg
 7. **Orchestrator discipline (2026-09-08 lesson):** for multi-step/multi-host/live-deploy changes, one parent co-ordinates bounded single-deliverable subagent lanes (pi-subagents); the parent holds final acceptance + runs validate-all. Timebox reviews (~10 min); a child exceeding that with no verdict is steered to wrap up.
 
 **Ask-if-unsure:** planned/multi-host/deploy-gated/irreversible → orchestrator pattern; re-deciding → check owning doc + rejected log first; unsure of the owning doc → `docs/index.md` map.
+
+---
+
+## 4. Orchestrator mode — independent lane sessions, one merge station
+
+> **Read this first if you were launched from a `prompt-<HD>.md` brief.** This section is the **parent**
+> contract for running two (or more) independent lane sessions in parallel, and it is an **OVERRIDE, not a
+> restatement**: the eight items **O1–O8** below deliberately behave differently from [README.md](README.md)
+> §4 and [CONVENTIONS.md](CONVENTIONS.md) §6 + its Session close-out row. **Where this section is silent,
+> README and CONVENTIONS stand and outrank everything.** A brief is a dispatch note: it can narrow §4, never
+> widen it, and if a brief contradicts §4 then **§4 wins and the brief is wrong** — fix the brief, do not
+> improvise a third set of rules in the middle of a lane.
+
+**Two different things in this repo are both called "orchestrator" — do not conflate them:**
+
+| Mode | What actually runs | Governed by |
+|---|---|---|
+| Subagent lanes | bounded, single-deliverable **children inside one session** (pi-subagents); the parent holds acceptance | README §4 item 7 + README §"Orchestrator + reviewer discipline" (HD-346). **Unchanged by this section.** |
+| **Lane sessions (this section)** | **two independent full sessions**, each with **its own brief, its own worktree and its own branch**, each closing several HD rows; the parent launches both, merges both, and owns the cleanup | **§4.** A lane session is a normal repo session *plus* these overrides — it is not a subagent, it has no parent in its own process, and §4 is its only extra rule. |
+
+### The overrides — why a lane session must not behave exactly like a README §4 session
+
+| # | The normal rule | Orchestrator mode | Why it differs |
+|---|---|---|---|
+| **O1** | CONVENTIONS §worktree: "main receives only **fast-forward** merges" | The **first** lane to finish is FF-merged. The **second** runs `git rebase main` inside its own worktree, re-runs `validate-all.sh` there, and is then FF-merged. **A merge commit is never created on `main`.** | Two parallel branches cannot both be ancestors of one `main`; rebase keeps the FF invariant honest instead of abandoning it |
+| **O2** | CONVENTIONS close-out (3) + (5): **the session** updates `prompt.md`, by editing the previous handoff | **`prompt.md` and `todo-table.md` are orchestrator-only.** A lane session does not touch either. It edits **only its own `todo.md` rows** (row-local hunks — never re-sort, re-flow or renumber the tables) and may tick **only its own** `deployment-tasks.md` lines | `scripts/check_todo_done.py` fails on any disagreement between `prompt.md`'s open/done claims and `todo.md`. With two writers on the views, a red gate is the *expected* outcome, not an accident |
+| **O3** | [todo-table.md](todo-table.md) §C4: `docs/services-ai*.md` + `IaC/ansible/templates/docker_services/**` are one-writer-at-a-time (read tree-wide) | Narrowed to **one writer per service directory** + **one converge in flight per host**. oldsrv / VPS / spark / router are separate slots; **the router slot is global** (its converge is the device-wide `/import`). `docs/services-ai*.md` stays single-writer (lane 407's) | Read tree-wide, that rule forbids any two lanes existing; the real hazard it guards is two converges restarting containers on one host and the `--diff` secret-dump class, both of which are per-directory + per-host |
+| **O4** | README §4.7 + CONVENTIONS: planned / multi-host / deploy-gated → **stop and ask** | **Park and continue.** An owner gate reached inside a lane is written into that row's ⏳ tail as the *exact* blocked action; the lane finishes everything unblocked and names the park in its final report. It does not stall the sibling lane and does not end its session early | A lane that waits unattended burns the whole parallel slot — and every brief contains at least one owner-gated row |
+| **O5** | CONVENTIONS §worktree: the primary checkout is a merge station | Kept **strictly**, and it also binds the **orchestrator**: the cleanup commit (view re-sync, brief deletion, link fixes) is made in **its own worktree/branch**. `scripts/guard-session.sh` refuses edits while primary sits on `main`, and `validate-all.sh` **hard-fails on primary + main + dirty** — only a *clean* main validation is the exempt form | The merge station is not an edit site, not even for tidying up after a merge |
+| **O6** | README §4.8: ownership follows the action; the session that did the work writes the runbook line | **Unchanged, and it is on the lane.** `deployment-manual.md` is deliberately claimed by no brief, so a lane that performed any hand-repeatable step writes the imperative line **in its own commit** | The exact hole README §4.8 was written for; the orchestrator must not be expected to notice it after the fact |
+| **O7** | CONVENTIONS §lifecycle: a closed row is deleted from `todo.md` | Kept for the lane. The **brief file itself** is deleted by the **orchestrator**, in the cleanup commit, **in the same commit as the link fixes** in `prompt.md`, `todo.md` and `todo-table.md` | `scripts/check_doc_map.py` scans every root `*.md` **except `prompt-*`**: a dangling link from `todo.md`/`todo-table.md`/`prompt.md` fails the gate, while a link from one brief to another is not checked at all (this corrects the belief recorded in `prompt-414.md` row 8) |
+| **O8** | CONVENTIONS §worktree: on a path collision, abort and pick a new name | Hard rule for the parent too: it **never** `rm`s / moves / renames a worktree it did not create; lane worktrees are removed **after** the merge, **by name**, with `git worktree remove`; branches die by `git branch -d` (**never `-D`**) | The 2026-08-23 incident; and `-d`'s refusal is the cheap proof that nothing was stranded |
+
+### The live lane map (waves)
+
+One brief = one session = one worktree. Launch **one brief per lane**; never launch two briefs from the same
+row cluster, and never launch a pair marked *never with*.
+
+| Wave | Brief | Rows it carries (lead · merged-in) | Converge host | Pairing |
+|---|---|---|---|---|
+| **1 — now** | [`prompt-407.md`](prompt-407.md) | HD-407 · 409 · 411 · **+399 · +386 · +416 · +388 · +356** | **oldsrv** | with 420 · ⛔ never with 414 / 384 / 357 (all converge oldsrv) |
+| **1 — now** | [`prompt-420.md`](prompt-420.md) | HD-420 · **+395 · +377(b) · +342 · +345** | **spark + VPS** (`--tags monitoring`) | with 407 · ⛔ never with 376 (both spark) |
+| **2** | [`prompt-414.md`](prompt-414.md) | HD-414 · 415 · 406 · 410 · 405-tail · **+419 · +09 · +301** (+159 only with a stated window) | **router (global slot) + oldsrv** | with 412 · ⛔ never with 407 / 357 / 384 (all converge oldsrv) |
+| **2** | [`prompt-412.md`](prompt-412.md) | HD-412 | **VPS** | with 414 · ⛔ never with 394 (both want `group_vars/vps.yml` + `services-vps.md`) or 384 (both converge the VPS) |
+| **3** | [`prompt-384.md`](prompt-384.md) | HD-383 · 384 · 403 · 387 · 373 · 249 | oldsrv + VPS `docker_services` | **after 407 has merged** (HD-409 runs on the borrowed bearer until this lane mints the router its own credential) · with 376 · ⛔ never with 407 / 357 / 414 |
+| **3** | [`prompt-376.md`](prompt-376.md) | HD-376 · 400 · 359 · 367 · 380 (absorbs the stale `prompt-next.md`) | **spark**, owner bench window | with 384 **only in an open bench window**, else alone · ⛔ never with 420 (both converge spark) |
+| **4** | [`prompt-357.md`](prompt-357.md) | HD-357 · 17 · 217 · 358 · 418 (window-gated) | **oldsrv** | with 394 · after 414 (it lands HD-419, which this lane's tile depends on) · ⛔ never with 407 / 384 / 414 |
+| **4** | [`prompt-394.md`](prompt-394.md) | HD-394 · 360 · 402 · 103 · 49 · 238 | **VPS + nas** | with 357 · ⛔ never with 412 / 384 |
+| **5 — alone** | [`prompt-417.md`](prompt-417.md) | HD-417 · 404 · 248 · 396 | none (repo-only) | **runs alone**: its one-time docs sweep edits every doc, so it conflicts with every lane by construction (and it is the one brief allowed to reformat table **cells** in the two views — see its own lane rules) |
+| — | [`prompt-405.md`](prompt-405.md) | *(closed — nothing to launch)* | — | **delete it** in the next §4 cleanup commit, with its inbound links fixed |
+
+### Launch procedure (the parent)
+
+1. Primary = merge station: `git fetch`, `git status` clean, `git checkout main`, `bash scripts/validate-all.sh` green (clean-main is the exempt form under O5).
+2. One worktree + branch per lane, created **by the parent** so the naming is never improvised:
+   `git worktree add -b session/<lane>-$(date +%Y%m%d-%H%M) ../homelab-wt-$(date +%Y%m%d-%H%M) main`
+3. Hand each lane exactly four things: its brief path, the sibling brief path, this §4, and the standing
+   instruction **"do not edit `prompt.md` or `todo-table.md`"** (O2). The brief carries the rest.
+4. Check the converge slots before launching: two lanes must not share a host (O3). If the only work left in
+   two lanes is on one host, they are sequential, not parallel.
+
+### Merge + cleanup (the parent — none of this is ever a lane's job)
+
+1. Touch nothing until both lane branches are **committed and green in their own worktree**.
+2. FF-merge lane A into `main` from the primary; `bash scripts/validate-all.sh` there.
+3. Rebase lane B onto `main` **inside its worktree** → re-run `validate-all.sh` **there** → FF-merge B (O1).
+4. Open **the parent's own worktree/branch** (O5) and make cleanup **one commit**:
+   re-sync `todo-table.md` from the merged `todo.md` + `prompt.md` (it is a view, not a second record);
+   update `prompt.md` §2 to the post-merge state and remove the closed brief from the wave table;
+   `git rm` each finished brief **together with** its link fixes in `prompt.md` / `todo.md` / `todo-table.md`
+   (O7) — including the still-pending `prompt-405.md`, whose only remaining debt is that link sweep.
+5. `git worktree remove` each lane worktree, `git worktree prune`, `git branch -d session/<lane>…` (O8), `git push`.
+6. Prove the station is clean: primary on `main`, `git status` empty, `git worktree list` shows one entry.
+7. Report: rows closed (= deleted from `todo.md`), rows parked on an owner gate (with the exact blocked
+   action), and any row that still has **no** brief — an unbriefed row is not lost, it stays in
+   [todo-table.md](todo-table.md) §B.
+
+**A lane's own close-out is deliberately shorter than CONVENTIONS §close-out**: owning doc + row tail + runbook
+line if it did a manual step (O6) + signed commit + `validate-all.sh` green **in its worktree** → **stop**. The
+merge, the views and the brief's death belong to the parent.

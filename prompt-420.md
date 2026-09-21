@@ -1,4 +1,4 @@
-# `prompt-420.md` — Lane brief · make nine spark panels honest at 5 s (HD-420)
+# `prompt-420.md` — Lane brief · make nine spark panels honest at 5 s (HD-420 · + HD-395 · HD-377(b) · HD-342 · HD-345)
 
 > **Role:** lane brief for the sampling-rate / hot-cadence work on the spark → Grafana path. Opened
 > **2026-09-21** out of a **read-only** measurement session: the owner asked whether the pipeline can serve
@@ -8,9 +8,26 @@
 > [docs/observability.md](docs/observability.md) §Scrape cadence and metric resolution; read that section
 > first, then this brief. Do **not** re-measure the baseline.
 > **Linked from:** [prompt.md](prompt.md) §2 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
-> **Sibling lanes:** transport = [prompt-414.md](prompt-414.md) · runner/cockpit =
-> [prompt-407.md](prompt-407.md) · remote desktop = [prompt-412.md](prompt-412.md). This lane owns
-> `roles/monitoring/**` + `templates/docker_services/spark-dcgm/**` — it collides with no live lane.
+> **Sibling lanes:** runner/cockpit = [`prompt-407.md`](prompt-407.md) (**this wave's sibling** — file-disjoint,
+> different converge host) · transport = [`prompt-414.md`](prompt-414.md) · remote desktop =
+> [`prompt-412.md`](prompt-412.md). This lane owns `roles/monitoring/**` + `templates/docker_services/spark-dcgm/**`
+> + `roles/spark/files/spark-oom-watchdog.sh`, and collides with no other live lane **this wave**. ⛔ It must **never
+> run alongside [`prompt-376.md`](prompt-376.md)** — both converge spark, and a bench under a changed scrape cadence
+> is not the certified measurement.
+> **Linked from:** [prompt.md](prompt.md) §2 + §4 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
+>
+> **Lane contract (orchestrator mode — the authority is [prompt.md](prompt.md) §4, which OVERRIDES parts of
+> README §4 and CONVENTIONS §6 at items O1–O8; where §4 is silent, README + CONVENTIONS stand and outrank this
+> brief).** One session, one worktree, one branch, one brief; the parent creates them
+> (`../homelab-wt-<YYYYMMDD>-<HHMM>` / `session/420-cadence-<YYYYMMDD>-<HHMM>`).
+> **Never edit `prompt.md` or `todo-table.md`** (O2 — orchestrator-only; the previous version of this brief claimed
+> them, and that claim is withdrawn); edit **your own `todo.md` rows only** and tick **your own**
+> `deployment-tasks.md` lines. **You hold the spark and VPS-monitoring converge slots** (O3): `vps.yml --tags
+> monitoring` and the spark-side Alloy/DCGM converge are yours, one in flight at a time, detached, **no `--diff`**
+> (HD-382). Owner gate → **park and continue** (O4). Did a hand-repeatable step? `deployment-manual.md` gains the
+> imperative line **in your commit** (O6). Close-out = `docs/observability.md` + row tails + signed commit +
+> `bash scripts/validate-all.sh` green **in this worktree** → **stop**; the parent merges, rebases the sibling,
+> re-syncs the views and deletes this brief.
 
 ## Goal
 
@@ -44,6 +61,10 @@ change is cheap.
 
 ## Rows (do them in this order)
 
+Rows 1–6 are **HD-420 proper**. Rows 7–10 are **merged-in rows** (2026-09-21): they share this lane's files or its
+converge, so one session pays the spark converge once. `todo.md` stays the registry SSOT — this is dispatch, not a
+second record.
+
 | # | Action | Gate |
 |---|--------|------|
 | 1 | Hot/cold job split in `IaC/ansible/roles/monitoring/templates/alloy.river.j2`, **gated on the spark inventory host** — spec below | the disjointness rule below is not optional |
@@ -52,6 +73,10 @@ change is cheap.
 | 4 | Panel fixes: "Prefix Cache Hit Rate" gauge → time series with `[1m]`/`$__rate_interval` (it is hard-coded `[5m]` today); `rate()` for "Cached Token Stats" | re-derive the dashboards with `scripts/build-llm-dashboard.py` / `scripts/adapt-vllm-dashboards.py` — **never hand-edit `files/dashboards/*.json`** |
 | 5 | Converge + verify (acceptance below), then update `docs/observability.md` §Scrape cadence (⏳ → ✅) and §LLM Dashboard in the **same** change | `vps.yml --tags monitoring` (datasource + dashboards) **and** the spark-side Alloy/DCGM converge — detached, `--tags` + scope, **no `--diff`** (HD-382 secret dump) |
 | 6 | Report the measured after-numbers back into the doc section; close the HD row (delete it, record lands in the doc) | CONVENTIONS §3 lifecycle |
+| 7 | **HD-395** *(merged)* — the watchdog stops restarting a healthy engine: baseline the idle recycle only after `/health` 200 **and** a settle window (or max of N samples), then re-check the +8 GiB margin against the certified peak | `roles/spark/files/spark-oom-watchdog.sh` + the spark converge you already hold. **Genuinely coupled to row 2:** the first-post-boot floor has been read **71,911 / 86,243 / 92,343 MiB** on one config, and raising the DCGM cadence changes spark's load while you measure it — measure both with the same settle rule. ⛔ Drive it from the laptop, never from a spark-backed session |
+| 8 | **HD-377 (b)** *(merged)* — plot the six real GPU signals (util / temp / power / SM clock, + XID as a readiness stat) and **delete the three `DCGM_FI_PROF_*` panels** titled "⚠ impossible on GB10, pending deletion" | Same `roles/monitoring/files/dashboards/` + the same `build-llm-dashboard.py` re-derive as row 4, so do it in that step. ⚠ **(a)** — retiring the three HD-368 boards — stays the owner's: it waits on the sign-off in [todo-table.md](todo-table.md) §A2, so **park it** (O4) |
+| 9 | **HD-342** *(merged)* — Kopia client wiring for the Victoria data dirs (the cutover's backup tail) | Reads the same role; this lane already says "coordinate if both land in one session" — now it is the same lane. Keep the `vps.yml --tags monitoring` converges **serial** |
+| 10 | **HD-345** *(merged)* — the last `DatasourceNoData` class: find why the SNMP `ifOperStatus` walk yields 0 series | `roles/monitoring/templates/{alloy.river,snmp}.yml.j2` are yours. ⚠ if the fault turns out to be router-side SNMP (community/index/`available-from`), **do not edit `roles/router/**`** — that is lane 414's global converge slot: write the finding into the row tail and name the lane |
 
 ## Row 1 spec — the hot/cold split
 
@@ -107,18 +132,24 @@ do not "accept the extra".
 
 **Owns:** `IaC/ansible/roles/monitoring/templates/alloy.river.j2`,
 `IaC/ansible/roles/monitoring/files/config.alloy`, `IaC/ansible/roles/monitoring/tasks/main.yml`
-(datasource seed), `IaC/ansible/roles/monitoring/vars/main.yml`,
+(datasource seed), `IaC/ansible/roles/monitoring/vars/main.yml`, `IaC/ansible/roles/monitoring/files/dashboards/**`,
 `IaC/ansible/templates/docker_services/spark-dcgm/docker-compose.yml.j2`,
+`IaC/ansible/roles/spark/files/spark-oom-watchdog.sh` **and its unit template** (added 2026-09-21 for HD-395 — the
+previous list excluded `roles/spark/**` entirely while this lane was the only one converging spark),
 `scripts/adapt-vllm-dashboards.py` + `scripts/build-llm-dashboard.py` and their `--check` gate,
-`docs/observability.md`, `todo.md`, `todo-table.md`, `deployment-tasks.md`, `prompt.md`.
+`docs/observability.md`, and **your own `todo.md` rows** + your own `deployment-tasks.md` lines.
 
-**Doesn't touch:** `roles/spark/**` (the engine + watchdog belong to the spark lane — row 2 is the *dcgm
-sidecar*, which lives under `templates/docker_services/`), `roles/router/**` +
-`roles/tailscale-node/**` ([prompt-414.md](prompt-414.md)), `scripts/bootstrap-runner.sh` +
-`docs/{services-ai,pi-harness,1password,deployment-ansible}.md` ([prompt-407.md](prompt-407.md)),
-`docs/services-rustdesk.md` ([prompt-412.md](prompt-412.md)), the frozen archives
-(`reports/changelog.md`, `reports/deployment-journal.md`, `docs/archived/`), generated
-`docs/*-generated.md`.
+**Never touches (orchestrator mode):** **`prompt.md` and `todo-table.md`** — the earlier version of this brief
+claimed them, and under [prompt.md](prompt.md) §4 O2 they belong to the orchestrator (two lanes editing the views
+= a red `check_todo_done.py` by construction). Also:
+`roles/spark/**` **beyond the watchdog file + its unit** (the engine and bench belong to
+[`prompt-376.md`](prompt-376.md)), `roles/router/**` +
+`roles/tailscale-node/**` ([`prompt-414.md`](prompt-414.md)), `scripts/bootstrap-runner.sh` +
+`docs/{services-ai,pi-harness,1password,deployment-ansible}.md` + `scripts/**` otherwise
+([`prompt-407.md`](prompt-407.md)), `docs/services-rustdesk.md` / `docs/services-vps.md` /
+`templates/docker_services/rustdesk-server/` ([`prompt-412.md`](prompt-412.md)), `group_vars/spark.yml` (the
+certified engine values — this lane changes no engine setting), the frozen archives
+(`reports/changelog.md`, `reports/deployment-journal.md`, `docs/archived/`), generated `docs/*-generated.md`.
 
 **Collides with:** nothing live. Note that **HD-342** (Kopia wiring for the Victoria data dirs) reads the same
 role — coordinate if both land in one session, and keep the `vps.yml --tags monitoring` converges serial.
@@ -131,3 +162,6 @@ blocks inside the **R2 (VictoriaMetrics) branch**, and confirm on the live box w
 config came from before adding anything (`/etc/alloy/config.alloy` carries a "GENERATED BY ANSIBLE — DO NOT
 EDIT" banner naming the source template). Then author rows 1–3, run `--check`, and pre-flight row 2 on the box
 before converging it.
+
+**Then stop.** Do not merge, do not re-sync `todo-table.md`, do not delete this brief — that is
+[prompt.md](prompt.md) §4's merge-and-cleanup sequence, and it belongs to the parent.

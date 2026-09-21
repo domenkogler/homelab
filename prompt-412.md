@@ -1,10 +1,25 @@
 # `prompt-412.md` — Lane brief · remote desktop that helps the family (HD-412)
 
 > **Role:** single-lane handoff for the **remote-desktop** half of the remote-dev-plane thread (owner direction
-> 2026-09-20). Start with [README.md](README.md) §0 → §1 mandatory context → this file → the row in
-> [todo.md](todo.md) §2.4. Transport is [prompt-405.md](prompt-405.md); runner/cockpit is
-> [prompt-407.md](prompt-407.md).
-> **Linked from:** [prompt.md](prompt.md) §2 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
+> 2026-09-20), **Wave 2**. Start with [README.md](README.md) §0 → §1 mandatory context →
+> [prompt.md](prompt.md) **§4 (orchestrator mode)** → this file → the row in [todo.md](todo.md) §2.4.
+> Transport is [`prompt-414.md`](prompt-414.md) (successor to the closed [`prompt-405.md`](prompt-405.md));
+> runner/cockpit is [`prompt-407.md`](prompt-407.md); **pair this brief with
+> [`prompt-414.md`](prompt-414.md) only** (Wave 2 — you converge the VPS, it converges the router + oldsrv) —
+> ⛔ **never with [`prompt-394.md`](prompt-394.md)**, which wants the same `group_vars/vps.yml` region and
+> `docs/services-vps.md`, nor with `prompt-384` (both converge the VPS).
+> **Linked from:** [prompt.md](prompt.md) §2 + §4 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
+>
+> **Lane contract (orchestrator mode — the authority is [prompt.md](prompt.md) §4, which OVERRIDES parts of
+> README §4 and CONVENTIONS §6 at items O1–O8; where §4 is silent, README + CONVENTIONS stand and outrank this
+> brief).** One session, one worktree, one branch, one brief; the parent creates them
+> (`../homelab-wt-<YYYYMMDD>-<HHMM>` / `session/412-rustdesk-<YYYYMMDD>-<HHMM>`).
+> **Never edit `prompt.md` or `todo-table.md`** (O2); edit **your own `todo.md` row only**. **You hold the VPS
+> `docker_services` converge slot** (O3): one converge in flight, detached, **no `--diff`** (HD-382). The first
+> apply is **human-gated** (CONVENTIONS §5 step 9) → build and validate everything, then **park** at the gate
+> with the exact apply command (O4). Any hand-repeatable step writes its `deployment-manual.md` line **in your
+> commit** (O6). Close-out = owning docs + row tail + signed commit + `bash scripts/validate-all.sh` green **in
+> this worktree** → **stop**; the parent merges and cleans up.
 
 ## Goal
 
@@ -67,18 +82,29 @@ This is a service, so the checklist is the ledger (the todo row's `Stage:` is a 
 * The iGPU drives the desktop and the dGPU is pinned to the AI tier — nothing here changes that split
   ([hardware-gpu.md](docs/hardware-gpu.md)), but a remote session is the thing a family member will notice.
 
-## Lane rules (concurrent with [prompt-405.md](prompt-405.md) and [prompt-407.md](prompt-407.md))
+## Lane rules (Wave 2: pair with [`prompt-414.md`](prompt-414.md) only)
 
 * **Owns:** `docs/services-admin.md`, `docs/security.md`, `docs/services-vps.md`,
   `IaC/ansible/templates/docker_services/rustdesk-server/`, the `docker_services` + ports region of
-  `IaC/ansible/group_vars/vps.yml`, `docs/deployment-secrets.md` **append-only rows for its own items**.
-* **Does NOT touch:** `docs/network-vpn.md` / `network-dns.md` / `roles/router/**` (lane 405), `docs/services-ai.md`
-  / `docs/pi-harness.md` / `docs/1password.md` / `scripts/**` (lane 407). The reachability answer is *borrowed* from
-  lane 405 — if HD-405 has not landed yet, build the VPS server half and leave the tailnet-whitelist half ⏳.
-* `group_vars/vps.yml` is shared with lane 405 (it edits `tailnet_subdomains`); stay in your own region and rebase
-  rather than hand-merging YAML.
-* Owner-gated before anything is exposed: the family-onboarding model and the bandwidth quota are **owner calls**
-  listed in the row — ask, do not pick.
+  `IaC/ansible/group_vars/vps.yml`, `docs/deployment-secrets.md` **append-only rows for its own items**, and
+  **your own `todo.md` row** + your own `deployment-tasks.md` lines.
+* **Never touches (orchestrator mode):** **`prompt.md` and `todo-table.md`** (O2), `docs/network-vpn.md` /
+  `network-dns.md` / `roles/router/**` / `roles/tailscale-node/**` (lane 414), `docs/services-ai.md` /
+  `docs/pi-harness.md` / `docs/1password.md` / `scripts/**` (lane 407), `roles/monitoring/**` + the two dashboard
+  scripts (lane 420). The reachability answer is *borrowed* from lane 414 — **HD-405 has landed**, so the tailnet
+  direct-IP whitelist half is buildable; if a reachability fact is still missing, build the VPS server half and
+  leave the tailnet-whitelist half ⏳ rather than editing `network-vpn.md`.
+* `group_vars/vps.yml` is shared with lane 414 (it edits `tailnet_subdomains`) and would be with lane 394 — stay in
+  your own region; the **later** merge rebases under O1 rather than hand-merging YAML by eye.
+* **One owner parameter is genuinely still open — ask once, then proceed:** the **numeric** relay cap. The model is
+  decided (family machines join the tailnet where they can; hbbs + hbbr on the **VPS** for the rest, relay
+  **bandwidth-capped** to the VPS quota — row ✅ DECIDED 2026-09-21), but **no number exists anywhere in the repo**
+  (`grep quota docs/services-vps.md` is empty). Derive it from the VPS's real quota against the 30 KB/s–3 MB/s per
+  1080p session figure, propose a concrete cap with the arithmetic, and park the *number* while building everything
+  else (O4). Do **not** re-open the placement or the family-onboarding model — both are decided, and this brief used
+  to say "ask, do not pick" about them; that wording is withdrawn.
+* Never print a secret value — lengths / prefixes / item ids / hashes only (CONVENTIONS §6). The RustDesk KeyPairs
+  are externally-coupled: `NOT_AUTO_ROTATABLE` with a stated reason.
 
 ## Acceptance
 
@@ -87,4 +113,5 @@ This is a service, so the checklist is the ledger (the todo row's `Stage:` is a 
 a real support session completed **from the phone to a family machine**, and a **direct-IP tailnet session to
 oldsrv** with the relay uninvolved · the bandwidth cap in effect and quoted · the key material in a backup scope and
 a restore path named · `bash scripts/validate-all.sh` green · row keeps its ⏳ tail until the live verify
-(CONVENTIONS §4(b)).
+(CONVENTIONS §4(b)) · `bash scripts/validate-all.sh` green **in this worktree** → **stop**: the parent merges,
+re-syncs the two views and deletes this brief ([prompt.md](prompt.md) §4).

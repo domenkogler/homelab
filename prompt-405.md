@@ -16,6 +16,13 @@
 > `docs/services-admin.md` and the oldsrv node IaC (`roles/tailscale-node`, `roles/docker_services` 1P refs,
 > `templates/docker_services/traefik-internal/**`) had to be edited for HD-405's own Goal but sat outside the
 > Owns list — folded into `prompt-414.md`'s Owns.
+>
+> **Deletion is scheduled, and it is not a lane's job (2026-09-21):** under [prompt.md](prompt.md) §4 O7 the parent
+> removes this file in its **cleanup commit**, together with the link fixes in `prompt.md`, `todo.md` and
+> `todo-table.md` — those three are what `check_doc_map.py` actually scans. Until then the banner stays, so nothing
+> launches a session from here. **Do not start work here, and do not delete it yourself.** (Amended 2026-09-21:
+> **HD-408 is since decided — the exit node stays on the Pi, its row is deleted**; HD-406 and HD-410 are carried in
+> [`prompt-414.md`](prompt-414.md) rows 4 and 5.)
 
 ## Goal
 
