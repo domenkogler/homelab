@@ -7,6 +7,9 @@
 > architecture. Do not implement, do not deploy permanently, do not decide.
 > **Linked from:** owner's direct request (2026-09-21). It is deliberately **not** listed in `prompt.md` §2
 > yet — it is a probe, not a build lane; add the line only when the owner accepts the outcome.
+> **Hard constraint (owner's, 2026-09-21): 100 % local.** spark + the oldsrv dGPU legs only. **No paid or
+> external endpoint anywhere in this lane** — no OpenRouter, no Volcengine/Doubao, no hosted API. If a
+> measurement genuinely cannot be made locally, **stop and ask**; do not spend, do not substitute.
 > **Excluded from validators by design:** `check_doc_map.py`, `check_doc_ips.py`, `check_placeholders.py`
 > all skip root `prompt-*` handoffs, so this file may name hosts and paths freely.
 
@@ -15,12 +18,12 @@
 ## 0. What to do, in one paragraph
 
 Stand up **OpenViking (OV)** ephemerally on oldsrv as a *venv process under the `domen` seat* (never a
-container — see §7.4), point its embedding / VLM / rerank slots at the **already-live** AI legs, import a
-deliberately adversarial 40–60-file slice of this repo, and answer four measured questions: **does OV store
-my Markdown faithfully (P1)**, **does its retrieval beat `grep`+read on the same corpus (P2)**, **is a
-hosted model or `spark/qwen3.8-flash-next` the better summariser for its L0/L1 layer (P3)**, and **what does
-a corpus compile cost in tokens and wall-clock (P4)**. Then report in the format of §9. Budget: **P1+P2 ≈
-3–4 h; all four ≈ 6–7 h.**
+container — see §7.4), point its embedding / VLM / rerank slots at the **already-live local** AI legs, import
+a deliberately adversarial 40–60-file slice of this repo, and answer four measured questions: **does OV store
+my Markdown faithfully (P1)**, **does its retrieval beat `grep`+read on the same corpus (P2)**, **does spark
+write L0/L1 summaries good enough to be a retrieval key, and does thinking-mode or the LLM help at all
+(P3, local arms only)**, and **what does a corpus compile cost in tokens and wall-clock (P4)**. Then report
+in the format of §9. Budget: **P1+P2 ≈ 3–4 h; all four ≈ 6–7 h.**
 
 ---
 
@@ -104,11 +107,25 @@ embed/rerank/threshold/token caps are *config*, not internals. What genuinely ch
 `bge-m3-vk` emits **dense only**, so "hybrid" would degrade to dense + directory-scoped search unless we
 extend the embed leg. **Verify both in P1/P2 rather than trusting this line.**
 
-### 3.2 Its "default model" is a Chinese cloud dependency, and its benchmark is not ours
+### 3.2 OV's actual default models, and whether they beat ours (the owner's question, answered)
 
-There is **no bundled model**: `openviking-server init` prompts. The reference configuration is the
-**Volcengine/Doubao family** — `api_base https://ark.cn-beijing.volces.com/api/v3`, rerank
-`doubao-seed-rerank`, and the docs' `openai` example sits at **1536** dims. The published benchmark
+There is **no bundled weight**: `openviking-server init` prompts. But the shipped *defaults per slot* are in
+the config classes, and they are answerable exactly:
+
+| Slot | OV's default | What it is | Better fit than ours? |
+|---|---|---|---|
+| embedding | `provider: "volcengine"` (`embedding_config.py:70`), `input: "multimodal"` (default!), openai dim table ada-002/3-small **1536**, 3-large **3072** | cloud **Doubao-embedding** (multimodal) at `ark.cn-beijing…` | **No.** Cloud + CN egress + a multimodal embedder we cannot serve (decision #28 makes the box text-only) |
+| embedding, *local* variant | **`DEFAULT_LOCAL_DENSE_MODEL = "bge-small-zh-v1.5-f16"`** (`local_embedders.py:22`), GGUF fetched from HF into `~/.cache/openviking/models`, query instruction **`为这个句子生成表示以用于检索相关文章：`** | a **small, Chinese-tuned BGE** — their zero-config self-host fallback | **No — strictly worse for us.** bge-small-zh is a 512-dim Chinese retrieval model; ours is **`bge-m3` Q8_0 @ 1024**, live, unit-verified (‖v‖=1.0) and cross-engine certified (cos 0.9996 vs vLLM). Switching = re-index + a worse encoder for an EN/SV technical corpus. **Pin the model explicitly; never let it fall back to `local`** |
+| vlm | default `provider: "volcengine"`; the docs' **local** recipe is `provider: "litellm"`, `model: "ollama/llama3.1"`, `api_base: http://127.0.0.1:11434`, `extra_request_body: {think: false}` | home turf = a frontier hosted **multimodal** model (the LoCoMo run used **Doubao 2.0 Pro**); documented local path = a mid-size OSS model | **Unknown — this is the only slot worth measuring.** Nothing in OV requires frontier quality (they document a plain `llama3.1`), and vision is *optional*: `media.enabled` **defaults to `False`**, and image/table understanding (`openviking/parse/vlm.py`, `get_vision_completion`) is gated on `vlm.is_available()` + capability checks ⇒ **a text-only VLM is a supported configuration**, which is decision #28-compatible. Our binding constraint is **throughput/contention (11 tok/s, 1.97× KV)**, not model class → P3 measures spark against local baselines, not against a paid model |
+| rerank | `provider: "vikingdb"`, **`model_name: "doubao-seed-rerank"`, `model_version: "251028"`**, `threshold 0.1`, `max_input_tokens 0` (no cap), `timeout 30` | a **cloud rerank API**; no open-weight equivalent ships | **No.** Our **`bge-reranker-v2-m3`** on the dGPU is *exactly* what the `openai`/`litellm` rerank provider path expects — the local standard. Nothing to gain, and it is currently idle anyway |
+
+**Net answer:** on **two of three slots OV's defaults are strictly worse for this box** (cloud CN endpoints; the
+local embedder fallback is a weaker Chinese small-model), and on the third (VLM) their default is a frontier
+hosted model we are not buying — their own docs run the slot on an ordinary local model. So the probe runs
+**our** models, and the only open question is whether spark's summaries are good enough, which P3 measures
+locally and free.
+
+**Why its published benchmark is not ours:** the numbers
 (**LoCoMo: OpenClaw 24.20 %→82.08 %, Hermes 33.38 %→82.86 %, Claude Code 57.21 %→80.32 %; tokens −34…91 %;
 tau2-bench +6.87/+11.87 pp**) was run with **Doubao 2.0 Pro as VLM + `doubao-embedding-vision`** — a
 frontier hosted model and a **multimodal** embedder. Our engine is **text-only by decision #28**, so
@@ -204,14 +221,32 @@ curl -s localhost:1933/health
 `OPENVIKING_DATA_DIR` / `--data-dir` on a scratch path, reused on every restart. Nothing family-facing
 lives in that directory.
 
-### 7.2 Config (`ov.conf`) — all three slots onto our stack, one credential per slot
+### 7.2 Config (`ov.conf`) — 100 % local, every slot onto a leg we already run
 
 ```
 embedding: provider "litellm" (or "openai") · api_base → lan-litellm · model "bge-m3-vk" · dimension 1024
-vlm:       provider "openai"  · api_base → the LiteLLM instance · model "spark/qwen3.8-flash-next" (P3a)
-                                                        or an  openrouter/*  row  (P3b)
-rerank:    provider "litellm" · model "local-rerank" · threshold 0 · timeout 60
+           · input "text" · encoding_format "float" · max_input_tokens 2048 · batch_size 4
+vlm:       provider "litellm"                · api_base → lan-litellm · model "spark/qwen3.8-flash-next"
+           · extra_request_body {"chat_template_kwargs": {"enable_thinking": false}}
+           · media { enabled: false }                    # already the default; set it explicitly
+rerank:    provider "litellm"                · model "local-rerank" · threshold 0
+           · max_input_tokens 2048 · timeout 60
 ```
+
+**Every non-default value above is a repo finding, not a preference — reproduce them and say so in the
+report:**
+
+| Key | OV default | We set | Because |
+|---|---|---|---|
+| `embedding.input` | **`"multimodal"`** | `"text"` | `embedding_config.py:48`. A multimodal request against our text-only leg is a guaranteed failure class |
+| `embedding.encoding_format` | OpenAI-SDK default (**base64**) | **`"float"`** | OV's own docs: set `float` "when the upstream gateway cannot deserialize base64 embedding payloads". Our chain is OV → LiteLLM `hosted_vllm/…` → **llama.cpp, which emits floats** — this is the **§3a-3 finding #3** failure (`encoding_format: null` → llama.cpp 500) wearing a different hat |
+| `embedding.max_input_tokens` | **`4096`** | **`2048`** | our embed leg runs `--parallel 4 --ubatch 32`, and a chunk over ~2048 tokens **fails loudly with HTTP 500** (§3a-3 finding #4). 4096 estimated raw tokens sails past that |
+| `embedding.batch_size` | `32` | `4` | match the leg's `--parallel 4`; a 32-wide batch against 4 slots is queue pressure on the same dGPU the family uses |
+| `embedding.model` + `dimension` | provider `volcengine`; if it ever falls to `provider: "local"` it fetches **`bge-small-zh-v1.5-f16`** with a **Chinese query instruction** | pin `bge-m3-vk` / `1024` | never let the fallback decide our encoder (§3.2). `doctor` must print provider + model + dim before P1 starts |
+| `rerank.threshold` | `0.1` | `0` | `services-ai.md` §5b decided 0 — don't let a default silently re-tune retrieval |
+| `rerank.max_input_tokens` | **`0` = no cap** | `2048` | the rerank leg runs `ctx 2048 / ubatch 2048`; oversized pairs fail loudly (finding #1). Cap it, don't discover it mid-import |
+| `vlm.extra_request_body` | unset | `chat_template_kwargs.enable_thinking=false` | `pi-harness.md` §2: thinking is the engine's **binary** knob and `qwen3.8-flash-next` **defaults ON**. OV supports this key (its own local example passes `{think: false}`) → **the probe also answers HD-387's open question** (does the flag survive the hop?) for free: send one request with `include_usage`, count `reasoning_completion_tokens`; if it leaks through LiteLLM unset, that is a *finding*, not your bug — record and continue |
+| `vlm.media.enabled` | `false` | explicit `false` | decision #28 (text-only). Also note OV's image/table understanding (`openviking/parse/vlm.py`) would **duplicate Docling**, which is already our extraction tier on the CPU — leaving it off is the design, not a limitation |
 
 * **`lan-litellm` has no `curl` inside the container** — drive its API from the host or any container that
   ships a client, and never write a bridge IP into a doc. `llitellm.kogler.si` is served on the oldsrv
@@ -219,6 +254,8 @@ rerank:    provider "litellm" · model "local-rerank" · threshold 0 · timeout 
 * Keys: the **master key** (`op read 'op://Homelab-ansible/litellm_api/credential'` into a variable,
   **never echoed, never printed — not even truncated**) is acceptable for a probe because HD-384 has not
   created scoped consumers yet; say so in the report. `bootstrap_keys` stays `false`; do **not** flip it.
+* **No external endpoint.** If `litellm`/`openai` provider config in OV insists on a non-local `api_base`,
+  or a slot refuses to run against LiteLLM, **stop and report** — do not reach for a cloud key to unblock.
 * **Path-symmetry trap (ours, learned live):** LiteLLM appends `/embeddings` and `/audio/transcriptions` to
   the `api_base` it is given, but the `jina_ai/` rerank path **discards** the path. OV likewise says it
   *appends the mode-specific endpoint path automatically, so do not include it*. **Test both directions with
@@ -273,34 +310,58 @@ scored, not assumed to be the loser**, (c) if `rag-mcp` is still unbuilt (it is)
 design was never measured, so (b) is the honest baseline. Record tokens in, calls made, and latency per
 question.
 
-### 7.6 P3 — which summariser: hosted vs spark (this is the "is their default better than mine" question)
+### 7.6 P3 — is spark good enough as OV's summariser? (local arms only, no spend)
 
-OV's LLM does **compressive** work: L0 abstracts, L1 overviews, session-commit extraction, `ov compile`. Same
-**20 documents**, generate L0/L1 twice: **(a)** `spark/qwen3.8-flash-next`, **(b)** a hosted model through
-LiteLLM (`openrouter/*`). Judge with a 5-line rubric, by eye, one score each: *names the right subsystem ·
-names the right host · keeps every number verbatim · invents nothing · usable as a retrieval key?*
-~1 h total. Note which choice doctrine prefers: under **decision #26 OV is a simple querier, not a harness**
-⇒ it belongs behind **LiteLLM with a scoped key**, which makes OV the first real consumer HD-384 has been
-waiting for — say so in the report, it may unblock that row.
+OV's LLM does **compressive** work: L0 abstracts, L1 overviews, session-commit extraction, `ov compile`. The
+owner's question is *"is OV's default model better than mine"* — answered in §3.2 (on two of three slots OV's
+default is strictly worse for this box; the third is exactly what this probe measures). Since the lane is
+100 % local, P3 compares **spark against local baselines**, not against a paid model. Same **20 documents**,
+three arms:
+
+| Arm | What writes L0/L1 | What it proves |
+|---|---|---|
+| **(a)** | `spark/qwen3.8-flash-next`, thinking **off** (`enable_thinking: false`) | the intended production config — the baseline quality bar |
+| **(b)** | same model, thinking **on** (OV's `vlm.thinking` / no override) | does reasoning buy retrieval-grade summaries, or is it pure latency + `reasoning_tokens` on a 1.97× KV pool? If (b) ≈ (a), **turn thinking off permanently for this slot** — a free, local win |
+| **(c)** | **no LLM at all**: first-N non-empty lines + header outline as a stand-in L1 (a 15-line script) | **the load-bearing arm.** Our docs already carry §5a front-matter + headers, so a cheap extract may already serve as a retrieval key. If (c) ≈ (a), OV's whole L0/L1 layer costs KV and buys nothing on *our* corpus — and that single fact should drive OQ-10/11 harder than any benchmark |
+
+Judge by eye, 5-line rubric per doc: *names the right subsystem · right host · every number verbatim · invents
+nothing · usable as a retrieval key?* ~1 h total. Also record the **HD-387 micro-result** (does
+`chat_template_kwargs` reach spark through LiteLLM, measured by `reasoning_completion_tokens`) — it is free
+and it unblocks a live row.
+
+**Optional arm (d), off by default:** a small instruct model on the dGPU via the already-live `ollama`
+container. Do **not** run it unless the owner asks: the pinned tier is **2475 MiB of 8 GiB** with `immich-ML`
+claiming 3–5 GB when active, so a 7–8 B Q4 (≈4–5 GiB) fits only when immich is idle, and CPU fallback on
+4C/8T would be glacial. If it is run, that VRAM math goes in the report with the measurement that proves it.
 
 ### 7.7 P4 — cost / throughput (falls out of P3, do not skip)
 
-Per 20-doc compile: **prompt + completion tokens, wall-clock, and concurrent KV pressure** (pool =
-515 786 tokens ≈ 1.97× one 262k session; decode ~11 tok/s). Extrapolate to the real corpus size and state
-plainly whether a full compile on spark is an overnight job that competes with coding lanes. Also record
-whether the per-query knobs (`OPENVIKING_RECALL_QUERY_EXPANSION=off`, `OPENVIKING_RECALL_COMPRESS=off`) were
-needed to keep recall latency acceptable.
+Per 20-doc compile, **per arm**: **prompt + completion tokens (incl. any `reasoning_completion_tokens` leak),
+wall-clock, and concurrent KV pressure** (pool = 515 786 tokens ≈ 1.97× one 262k session; decode ~11 tok/s).
+Extrapolate to the real corpus size and state plainly whether a full compile on spark is an overnight job that
+competes with coding lanes — and what it costs to *re*-compile after a corpus change. Also record whether the
+per-query knobs (`OPENVIKING_RECALL_QUERY_EXPANSION=off`, `OPENVIKING_RECALL_COMPRESS=off`) had to be turned
+off to keep recall latency acceptable, since those are per-turn costs on the same engine the harnesses use.
 
 ### 7.8 Predicted blockers (each is a fact worth reporting, not an excuse)
 
-1. OV may send `dimensions` to the embed endpoint — **llama.cpp rejects unknown parameters**; our own §3a-3
-   finding #3 (`encoding_format: null` → 500) is the same failure class. Distinguish *"sets the expected
-   dim"* from *"sends the parameter"*.
-2. `api_base` suffix rules for each slot (see §7.2).
-3. Which path the `litellm` rerank client posts to (`/rerank` vs `/reranks`) — our row answers `/v1/rerank`
+1. **Embed wire-format (most likely blocker, and we have seen this film):** OV/OpenAI-SDK default to
+   `encoding_format: "base64"` and may send `dimensions`; our chain is LiteLLM `hosted_vllm/…` → **llama.cpp**,
+   which emits floats and **rejects unknown parameters** (§3a-3 finding #3: `encoding_format: null` → 500).
+   Set `encoding_format: "float"` and `input: "text"`, then distinguish *"sets the expected dim"* from *"sends
+   the parameter"* — only the second one breaks.
+2. **Oversized embed request:** OV's `max_input_tokens` default is **4096**; our leg **500s** over ~2048 tokens
+   (§3a-3 finding #4). Set 2048 and confirm the failure actually disappears rather than moving elsewhere.
+3. **Silent encoder fallback:** if the embed slot ever resolves to `provider: "local"`, OV downloads
+   **`bge-small-zh-v1.5-f16`** with a Chinese query instruction — a wrong-index situation, not an error.
+   `openviking-server doctor` must print the pinned provider/model/dimension before P1.
+4. `api_base` suffix rules for each slot (see §7.2).
+5. Which path the `litellm` rerank client posts to (`/rerank` vs `/reranks`) — our row answers `/v1/rerank`
    upstream via `jina_ai/`.
-4. Import is async and L0/L1 generation is LLM-bound: **"not there yet" is not "failed"** — poll, then judge.
-5. `lan-litellm` has no shell client; `dmesg` on oldsrv needs `sudo`; `rocm-smi` lives inside containers, not
+6. Import is async and L0/L1 generation is LLM-bound: **"not there yet" is not "failed"** — poll, then judge.
+7. The `chat_template_kwargs` flag may **not** survive LiteLLM (open question in **HD-387**). If thinking
+   leaks anyway, record it as the answer to that row; it is **not** a reason to stop the probe.
+8. `lan-litellm` has no shell client; `dmesg` on oldsrv needs `sudo`; `rocm-smi` lives inside containers, not
    on the host.
 
 ### 7.9 Standing safety rules for this lane
@@ -311,6 +372,8 @@ needed to keep recall latency acceptable.
 - **Do not add, change or converge any IaC.** No `docker_services` entry, no vault item, no LiteLLM model row.
 - **Never print a secret value** — lengths, prefixes, item ids and hashes only (CONVENTIONS §6).
 - **No family data in the probe corpus.** This repo only.
+- **No spend, no external endpoint** (owner's constraint): spark + the oldsrv dGPU legs only. If a measurement
+  needs anything else, stop and ask.
 - Do not bench or converge spark from a spark-backed session; do not run this probe's P3a against spark while
   another lane is converging.
 - `validate-all.sh` must end green; **a test that cannot fail is not evidence** — for each check, show the
@@ -325,8 +388,9 @@ needed to keep recall latency acceptable.
 |---|---|
 | P1 **fails** (rewrites markdown/front-matter/pipes) | **Build** `rag-mcp` (HD-268b) as the corpus reader. OV may still be trialled later for *memory only* — but never as the corpus index, because git stops being diff-able truth |
 | P1 passes, P2 **≤ grep baseline** | Build `rag-mcp`; OV's index earns nothing here. Re-defer OV with a real row in `services-rejected.md` (the §8.3 hole closes) |
-| P1 passes, P2 clearly better, P3 hosted ≫ spark | **Adopt OV as memory + corpus for the dev plane**, keep **Qdrant + curated corpus for the family plane and Mem0**, keep `local-rerank` as OV's reranker (correcting §5b's "no consumer" line), and adopt the five insurance rules (§6) **in the same change**. §5b edit: threshold 0.1 default, sparse caveat, rerank-as-config |
-| P1 passes, P2 clearly better, P3 spark holds | Same as above **plus** overnight local compiles (P4 decides feasibility); still keep the family plane on Mem0 (blast-radius rule) |
+| P1 passes, P2 clearly better, P3 arm (a) holds (≥ (c)) | **Adopt OV as memory + corpus for the dev plane**, keep **Qdrant + curated corpus for the family plane and Mem0**, keep `local-rerank` as OV's reranker (correcting §5b's "no consumer" line), and adopt the five insurance rules (§6) **in the same change**. §5b edit: threshold 0.1 default, sparse caveat, rerank-as-config |
+| P1 passes, P2 clearly better, but P3 shows **(c) ≈ (a)** (the free extract wins) | Adopt OV **as memory + tree/browse only**, and **stop buying L0/L1 summaries** — either run OV with `text_source: content_only` or build `rag-mcp` for the corpus. This is the outcome that makes §5b's pipeline the cheaper one; write it plainly |
+| P1 passes, P2 clearly better, P3 arm (a) holds and (b) > (a) | Same as the row above **plus** overnight local compiles sized by P4 (thinking-on costs tokens we may not have); still keep the family plane on Mem0 (blast-radius rule) |
 | P1 *partially* passes | Adopt only as **memory**, keep the corpus on Qdrant + `rag-mcp`; the partial rewrite is exactly the thing you must not inherit for git-diffable docs |
 
 Whatever the result: **write one row so this is never re-litigated** — either a numbered decision in
@@ -344,16 +408,19 @@ PROBE REPORT — prompt-OV.md · date · session branch + worktree
 2. P1 FIDELITY          per-file table (8 checks × N files) + failure classes ranked by severity +
                         2 worked examples (original vs OV text, ≤20 lines each)
 3. P2 RETRIEVAL         10 questions × (ov find / grep baseline): hit@5, correctness, tokens, latency
-4. P3 SUMMARISER        20 docs × (spark / hosted): rubric score per doc + 3 verbatim examples of
-                        where each model failed
+4. P3 SUMMARISER        20 docs × arms (a) spark-thinking-off / (b) spark-thinking-on / (c) no-LLM extract:
+                        rubric score per doc, 3 verbatim failure examples per arm, and the HD-387
+                        reasoning_tokens result. State explicitly that no external model was used
 5. P4 COST              tokens + wall-clock per 20 docs, extrapolated full-corpus figure,
                         KV-concurrency verdict, which recall knobs had to be turned off
 6. ANSWERS              OQ-10 build|adopt, OQ-11 memory-only|memory+corpus — each with the ONE number
                         that decided it, and confidence (high/medium/low)
 7. BLOCKERS FOUND       every §7.8 item: hit or missed, with the curl/error line
-8. WHAT THIS PROBE DID NOT TEST   (be honest: no rerank quality (no labelled set), no multi-user scoping,
-                        no context-takeover safety on `pi -c`, no long-run stability, no sparse/hybrid,
-                        no family-plane suitability)
+8. WHAT THIS PROBE DID NOT TEST   (be honest: no external/frontier model comparison (owner's 100%-local
+                        constraint, so "is a hosted model better" stays unanswered by design), no rerank
+                        quality (no labelled set), no multi-user scoping, no context-takeover safety on
+                        `pi -c`, no long-run stability, no sparse/hybrid (our leg is dense-only), no
+                        image/table understanding (media off, decision #28), no family-plane suitability)
 9. TEARDOWN PROVEN      commands run + proof the venv, data dir and :1933 are gone; `git status` clean;
                         NO IaC touched (proof: `git status` empty for IaC/)
 10. RECOMMENDATION      pick the matching row of §8, name the doc rows it forces, and the residual risk
@@ -373,7 +440,16 @@ FastGPT/nomic-768 chassis; the durable bits are the UUIDv5 determinant and the c
 `CONVENTIONS.md` §5/§6/§8.3.
 
 External (verified directly): OpenViking repo `LICENSE`, `docker-compose.yml`,
-`openviking_cli/utils/config/{rerank,vlm,embedding}_config.py`, `docs/en/guides/01-configuration.md`,
+`openviking_cli/utils/config/{rerank,vlm,embedding}_config.py` (defaults quoted in §3.2/§7.2: provider
+`volcengine`, `input="multimodal"`, `batch_size=32`, rerank `doubao-seed-rerank`/`251028`/`threshold 0.1`/
+`max_input_tokens 0`, `vlm.media.enabled=false`, `extra_request_body` support),
+`openviking/models/embedder/{local,litellm,jina,gemini,cohere,dashscope,volcengine}_embedders.py` (
+`DEFAULT_LOCAL_DENSE_MODEL="bge-small-zh-v1.5-f16"` + its Chinese query instruction, the OpenAI dim table,
+`litellm.embedding()` usage, `LITELLM_LOCAL_MODEL_COST_MAP=True`), `openviking/parse/vlm.py` (image/table →
+L0/L1/L2), `openviking/utils/{summarizer,resource_processor,skill_processor,media_processor}.py`,
+`openviking/storage/queuefs/semantic_processor.py` (`vlm.is_available()` gating),
+`docs/en/guides/01-configuration.md` (`text_source`, `max_input_tokens` 4096, `encoding_format` float-for-
+gateways, the local `vlm: provider litellm / ollama/llama3.1 / think:false` recipe),
 `docs/en/guides/09-ovpack.md`, `docs/en/agent-integrations/{01-overview,05-hermes,11-pi}.md`,
 `README.md` (LoCoMo/tau2 numbers) · agent-memory.dev docs + `rohitg00/agentmemory` ·
 Mem0 docs (`/open-source/configuration`, `/components/vectordbs/dbs/qdrant`, `/open-source/setup`,
