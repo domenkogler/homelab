@@ -1,0 +1,3824 @@
+{
+ "rows": [
+  {
+   "file": "CONVENTIONS.md",
+   "frags": 8,
+   "best_conf": 0.667,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.597,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     2,
+     "3. Code / IaC conventions",
+     1
+    ],
+    [
+     3,
+     "8.1 Domains & stack index (placement axis)",
+     1
+    ],
+    [
+     3,
+     "8.2 Generated docs — the `-generated` suffix",
+     1
+    ],
+    [
+     3,
+     "8.3 Service triage: `<domain>-review` / `<domain>-rejected` (per-domain)",
+     1
+    ],
+    [
+     3,
+     "8.4 Cross-cutting docs (ownership axis)",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "4": 27,
+    "1": 1,
+    "7": 1
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    1,
+    1
+   ]
+  },
+  {
+   "file": "IaC/ansible/group_vars/home_servers.yml",
+   "frags": 0,
+   "best_conf": null,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.0,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Home server configuration — OLDSRV (bare-metal Debian + Docker, RX 7600, 48 GB RAM)",
+     1
+    ],
+    [
+     1,
+     "=== Service placement (HD-135 split, 2026-08-18) ===",
+     1
+    ],
+    [
+     1,
+     "Old-srv keeps the GPU / LAN / storage-bound core (immich-ml, jellyfin,",
+     1
+    ],
+    [
+     1,
+     "sunshine, media/*arr, DNS, ha-standby) + the thin Alloy collector (dozzle moved to VPS, HD-135b).",
+     1
+    ],
+    [
+     1,
+     "The public edge + live-data apps + AI stack + observability backend + alert brain",
+     1
+    ],
+    [
+     1,
+     "(n8n) + backup agents moved to the VPS (group_vars/vps.yml). See docs/services.md.",
+     1
+    ],
+    [
+     1,
+     "Reachability (HD-397, decided 2026-09-19): oldsrv sits behind the home NAT, so a runner",
+     1
+    ],
+    [
+     1,
+     "that is not LAN-attached reaches it ONLY via the VPS jump. The jump therefore travels IN",
+     1
+    ],
+    [
+     1,
+     "THE INVENTORY (group var = every play sees it: home_servers.yml, all.yml, dns-seed.yml,",
+     1
+    ],
+    [
+     1,
+     "nut-deploy.yml, monitoring) instead of a per-command flag or one laptop's ssh alias —",
+     1
+    ],
+    [
+     1,
+     "same doctrine as playbooks/spark.yml (\"keep it here so ANY runner converges spark\").",
+     1
+    ],
+    [
+     1,
+     "From a LAN-attached runner it is a harmless no-op. The leg is the HOME leg (VLAN 10,",
+     1
+    ],
+    [
+     1,
+     "host_vars ansible_host): the Mgmt plane is sealed from the tunnel on purpose (HD-398 →",
+     1
+    ],
+    [
+     1,
+     "decision A). Matrix + the laptop alias contract: docs/network-vpn.md §Reaching LAN nodes",
+     1
+    ],
+    [
+     1,
+     "when away. (Measured 2026-09-19: because this var is passed on the ssh command line, no",
+     1
+    ],
+    [
+     1,
+     "`Host <ip>` block is needed for a converge — the per-IP blocks in the contract are for",
+     1
+    ],
+    [
+     1,
+     "scp/rsync/git and for humans who type an address.)",
+     1
+    ],
+    [
+     1,
+     "HA container pin (HD-192/HD-39): the PRIMARY (Pi, raspberry_pi.yml) and the",
+     1
+    ],
+    [
+     1,
+     "STANDBY (this host) MUST run the same version for clean manual failover. The",
+     1
+    ],
+    [
+     1,
+     "standby compose renders ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}",
+     1
+    ],
+    [
+     1,
+     "(standby.yml / home-assistant-standby template) — undefined here caused the",
+     1
+    ],
+    [
+     1,
+     "standby render to fail on oldsrv (2026-09-08). Keep in sync with raspberry_pi.yml.",
+     1
+    ],
+    [
+     1,
+     "AMD ROCm host userspace (roles/amd_rocm, docs/hardware-gpu.md)",
+     1
+    ],
+    [
+     1,
+     "HD-318 (2026-09-07): Ubuntu-noble AMD repo INCOMPATIBLE with Debian trixie",
+     1
+    ],
+    [
+     1,
+     "(rocm-cmake/hipcc dep conflicts). External AMD repo REMOVED — Debian trixie ships",
+     1
+    ],
+    [
+     1,
+     "rocm-opencl-icd/hipcc/rocminfo in main. Host userland = tooling/inspection only;",
+     1
+    ],
+    [
+     1,
+     "GPU containers bundle their own ROCm (immich-ml; ollama disabled 2026-09-07).",
+     1
+    ],
+    [
+     1,
+     "Home Assistant failover (docs/smart-home-failover.md)",
+     1
+    ],
+    [
+     1,
+     "ha_vip / ha_vip_cidr are defined once in group_vars/all.yml (SSOT).",
+     1
+    ],
+    [
+     1,
+     "n8n webhook for ha-failover.sh notifications (event/status payload). Empty = skip",
+     1
+    ],
+    [
+     1,
+     "notify (always journald-logged). Set once the n8n workflow exists (observability.md).",
+     1
+    ],
+    [
+     1,
+     "Failover trigger API (HD-17) — Homepage buttons call this endpoint on oldsrv.",
+     1
+    ],
+    [
+     1,
+     "Shared trigger token comes from 1Password `ha-failover_api` (api → credential),",
+     1
+    ],
+    [
+     1,
+     "looked up at render time in api.env + homepage services.yaml (fail-closed assert).",
+     1
+    ],
+    [
+     1,
+     "Observability alerting (docs/observability.md) — Grafana alert email recipient.",
+     1
+    ],
+    [
+     1,
+     "SMTP fail-safe contact point in the monitoring role (grafana-contactpoints.yml.j2).",
+     1
+    ],
+    [
+     1,
+     "Decision HD-54 (Option B): dedicated transactional relay — SMTP2Go (mail-eu.smtp2go.com:2525).",
+     1
+    ],
+    [
+     1,
+     "Credentials: smtp_login (Login) in 1Password — the address (domen@kogler.si)",
+     1
+    ],
+    [
+     1,
+     "is the Grafana recipient; SMTP2Go authenticates with a separate SMTP username+password.",
+     1
+    ],
+    [
+     1,
+     "Host/port derive from the SMTP2Go connection SSOT in group_vars/all.yml (smtp2go_*).",
+     1
+    ],
+    [
+     1,
+     "n8n alert webhook — Grafana contact point posts here (monitoring role).",
+     1
+    ],
+    [
+     1,
+     "The n8n workflow 'homelab-alerts' on this route must exist before the first",
+     1
+    ],
+    [
+     1,
+     "alert (created at n8n setup; URL is internal, traefik-public network).",
+     1
+    ],
+    [
+     1,
+     "PrivadoVPN WireGuard egress for the qbittorrent gluetun sidecar (HD-318c).",
+     1
+    ],
+    [
+     1,
+     "SSOT for the NON-secret endpoint config of the VPN tunnel; gluetun runs the",
+     1
+    ],
+    [
+     1,
+     "provider in `custom` WireGuard mode (gluetun dropped the native `privado`",
+     1
+    ],
+    [
+     1,
+     "provider — HD-318c) so these values are supplied explicitly instead of via",
+     1
+    ],
+    [
+     1,
+     "a `SERVER_COUNTRIES`/`privado` server pick. The client private key is the",
+     1
+    ],
+    [
+     1,
+     "ONLY secret — it lives in 1Password `privado-vpn_api` (field `credential`)",
+     1
+    ],
+    [
+     1,
+     "and is looked up at render time by the docker_services role (never a literal).",
+     1
+    ],
+    [
+     1,
+     "Source of the values: the PrivadoVPN WireGuard config handed over by the owner.",
+     1
+    ],
+    [
+     1,
+     "Spec: docs/services-downloads.md §VPN & Ingress.",
+     1
+    ],
+    [
+     1,
+     "[Interface] DNS Privado hands out (198.18.0.1/2). NOTE: gluetun runs its own",
+     1
+    ],
+    [
+     1,
+     "internal DNS resolver by default and does NOT consume provider-assigned DNS;",
+     1
+    ],
+    [
+     1,
+     "recorded here for the docs/owner reference, not rendered into gluetun.",
+     1
+    ],
+    [
+     1,
+     "[Peer] AllowedIPs is 0.0.0.0/0 (full tunnel) — gluetun custom defaults to full",
+     1
+    ],
+    [
+     1,
+     "egress through the tunnel; not rendered as a separate env.",
+     1
+    ],
+    [
+     1,
+     "subdomain (optional): overrides the auto-generated URL hostname.",
+     1
+    ],
+    [
+     1,
+     "When omitted, the service name is used (e.g. traefik → traefik.kogler.si).",
+     1
+    ],
+    [
+     1,
+     "Required for services whose subdomain ≠ name (e.g. grafana → stats.kogler.si).",
+     1
+    ],
+    [
+     1,
+     "--- Homelable (HD-45, re-scoped 2026-09-09): network/rack topology visualizer ---",
+     1
+    ],
+    [
+     1,
+     "Internal-only dashboard on OLDSRV (Home VLAN 10). Scanner target ranges + knobs;",
+     1
+    ],
+    [
+     1,
+     "the compose template (docker_services/homelable/) renders these into the backend env.",
+     1
+    ],
+    [
+     1,
+     "`homelable_scanner_ranges_json` = the VLAN subnets the nmap discovery sweeps (site",
+     1
+    ],
+    [
+     1,
+     "SSOT, network_ranges above), as a JSON-array STRING (Homelable reads SCANNER_RANGES as",
+     1
+    ],
+    [
+     1,
+     "a JSON env var — the compose env value is a string; keep it JSON-quoted). Keep scans",
+     1
+    ],
+    [
+     1,
+     "scoped to the LAN the owner curates; do NOT scan the modem-LAN / WAN. The owner approves",
+     1
+    ],
+    [
+     1,
+     "discovered devices into the canvas (Homelable Pending-Devices queue) — never auto-adds.",
+     1
+    ],
+    [
+     1,
+     "Live healthcheck poll interval (seconds) Homelable uses for every node's check method.",
+     1
+    ],
+    [
+     1,
+     "Optional deep-scan JSON port list (SCANNER_HTTP_RANGES, service-ID probes). Empty = off.",
+     1
+    ],
+    [
+     1,
+     "Only enable when a custom-port device is missed (e.g. '[\"9000-9100\"]').",
+     1
+    ],
+    [
+     1,
+     "MCP sub-container (AI-tool topology read/write). OFF by default — the canvas is",
+     1
+    ],
+    [
+     1,
+     "curated first; turn on after the topology is populated + the owner approves AI write",
+     1
+    ],
+    [
+     1,
+     "(needs the homelable_mcp 1P item + a tailnet Pattern-A route for remote AI clients).",
+     1
+    ],
+    [
+     1,
+     "--- Pinned-AI tier on the RX 7600 (HD-391, decision #27: ggml/Vulkan) ---",
+     1
+    ],
+    [
+     1,
+     "Ports are INTERNAL to the `llm-backend` bridge — none of these legs is published on the",
+     1
+    ],
+    [
+     1,
+     "host (HD-59: the APIs have no auth, so the network is the boundary). They exist so a",
+     1
+    ],
+    [
+     1,
+     "consumer URL is stable and greppable.",
+     1
+    ],
+    [
+     1,
+     "Memory caps are HARD CAPS in the spark-dcgm doctrine (HD-379): measured peak, then",
+     1
+    ],
+    [
+     1,
+     "headroom, so a leak in one leg can never eat the card the whole tier shares with",
+     1
+    ],
+    [
+     1,
+     "immich-ML (3-5 GB during a job) and Jellyfin/Sunshine.",
+     1
+    ],
+    [
+     1,
+     "Plan of record + every measured number: docs/services-ai.md §3a.",
+     1
+    ],
+    [
+     1,
+     "Context window for BOTH GGUF legs. llama.cpp truncates SILENTLY beyond it and",
+     1
+    ],
+    [
+     1,
+     "llama-server's own default is 512 - which would slice a real ingest chunk in half. The RAG",
+     1
+    ],
+    [
+     1,
+     "ingest spec is token-based 512/64 (docs/services-ai.md §5b), so 2048 = that spec with 4x",
+     1
+    ],
+    [
+     1,
+     "headroom (bge-m3 supports 8192; paying KV memory for chunks that do not exist yet buys",
+     1
+    ],
+    [
+     1,
+     "nothing). Re-derive when rag-mcp (HD-268b) goes live and a real chunk size is measurable.",
+     1
+    ],
+    [
+     1,
+     "Physical batch/ubatch size (HD-391, measured live 2026-09-19): ctx-size alone is NOT enough.",
+     1
+    ],
+    [
+     1,
+     "The embedding endpoint rejects an input larger than the **ubatch**, and llama-server's error",
+     1
+    ],
+    [
+     1,
+     "message calls it \"batch size\" - which is why the first fix attempt (batch 2048, ubatch 512)",
+     1
+    ],
+    [
+     1,
+     "still answered HTTP 500 \"input (842 tokens) is too large to process (current batch size: 512)\",",
+     1
+    ],
+    [
+     1,
+     "because 512 was the Ubatch. So ubatch = batch = ctx: a 512-token ingest chunk plus its special",
+     1
+    ],
+    [
+     1,
+     "tokens must fit in one ubatch pass. VRAM consequence measured below (compute buffers scale with",
+     1
+    ],
+    [
+     1,
+     "ubatch, not with ctx) - see docs/services-ai.md §3a-1 for the before/after numbers.",
+     1
+    ],
+    [
+     1,
+     "EXPLICITLY an empty LIST, not a key-with-only-comments: YAML would parse that as None",
+     1
+    ],
+    [
+     1,
+     "and `litellm_scoped_keys | default([])` does NOT rescue None (the default filter fires on",
+     1
+    ],
+    [
+     1,
+     "UNDEFINED only) — `roles/docker_services/tasks/main.yml` op_derive_glue and",
+     1
+    ],
+    [
+     1,
+     "`tasks/deploy-service.yml` both pipe it through `map(attribute='vault_item')` and would",
+     1
+    ],
+    [
+     1,
+     "die on a full oldsrv converge. `[]` keeps those pipes clean.",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "3": 1,
+    "2": 1,
+    "1": 1
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "IaC/ansible/group_vars/vps.yml",
+   "frags": 0,
+   "best_conf": null,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.0,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "VPS host configuration — netcup RS 2000 G12 (bought 2026-08-18, HD-93/HD-40B)",
+     1
+    ],
+    [
+     1,
+     "Replaces the earlier planned Contabo Storage VPS 30. Plain Debian root server with",
+     1
+    ],
+    [
+     1,
+     "Docker CE — the VPS is NOT a Proxmox node (no proxmox_bridges here, see home",
+     1
+    ],
+    [
+     1,
+     "`proxmox` role / homelab_mode). Host identity facts live here; billing lives in",
+     1
+    ],
+    [
+     1,
+     "`subscriptions.yml` (cost, renewal, status).",
+     1
+    ],
+    [
+     1,
+     "Grafana SMTP relay (HD-241 companion fix 2026-09-08): the VPS is its own group (not home_servers),",
+     1
+    ],
+    [
+     1,
+     "so the home_servers.yml `grafana_smtp_host` never applied — VPS Grafana fell back to `localhost:25`",
+     1
+    ],
+    [
+     1,
+     "(dead). Derive from the smtp2go SSOT (2525) so VPS Grafana can send alerts/emails.",
+     1
+    ],
+    [
+     1,
+     "HD-268 tailnet sidecar opt-ins: render the `*-tailscale` Pattern-A sidecar only",
+     1
+    ],
+    [
+     1,
+     "when these flags are true. HD-355 (2026-09-10): dsh + pi-dev MOVED to oldsrv and",
+     1
+    ],
+    [
+     1,
+     "their tailscale sidecars are REMOVED — the flags are now permanently false on the",
+     1
+    ],
+    [
+     1,
+     "VPS (the names are still served by the tailnet edge over WG). They stay for the",
+     1
+    ],
+    [
+     1,
+     "historical 2026-08-27 pattern + never again accidentally re-enable the sidecars.",
+     1
+    ],
+    [
+     1,
+     "Single cert issuer (HD-178/HD-181): THIS host is the only ACME (DNS-01) issuer for",
+     1
+    ],
+    [
+     1,
+     "*.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host",
+     1
+    ],
+    [
+     1,
+     "consumes the synced pair (role default false, see roles/docker_services/defaults).",
+     1
+    ],
+    [
+     1,
+     "Scoped virtual keys (HD-247) — SSOT consumed by BOTH the bootstrap-keys glue",
+     1
+    ],
+    [
+     1,
+     "(roles/docker_services/templates/litellm-bootstrap-keys.sh.j2 mints each key into its",
+     1
+    ],
+    [
+     1,
+     "vault item at converge) AND scripts/check-vault-items.sh (the entry-record `*_item:`",
+     1
+    ],
+    [
+     1,
+     "rule parses `vault_item:` from these records; items are glue-seeded => excluded from",
+     1
+    ],
+    [
+     1,
+     "MISSING). One PHYSICAL line per record (closing brace ends the record).",
+     1
+    ],
+    [
+     1,
+     "models: comma-separated LiteLLM model names (wildcards allowed); empty = all models.",
+     1
+    ],
+    [
+     1,
+     "max_budget/budget_duration: LiteLLM budget semantics (USD per period); blank = uncapped.",
+     1
+    ],
+    [
+     1,
+     "Homepage HA-failover buttons (HD-17/HD-217): render the HA Forward Takeover /",
+     1
+    ],
+    [
+     1,
+     "Reverse Failback cards in templates/homepage_services.yaml.j2 ONLY when true.",
+     1
+    ],
+    [
+     1,
+     "Stays false until HD-17 goes live (Phase 4: ha-failover_api vault item seeded +",
+     1
+    ],
+    [
+     1,
+     "HmIP-RFUSB stick moved at runbook time), then flips true.",
+     1
+    ],
+    [
+     1,
+     "Homepage family-vs-technical split (HD-316):",
+     1
+    ],
+    [
+     1,
+     "- homepage_show_technical (default true): render the \"Domen · technical\"",
+     1
+    ],
+    [
+     1,
+     "group (tailnet-only admin dashboards: stats/logs/csui/traefik/auto/",
+     1
+    ],
+    [
+     1,
+     "dsh/pi-dev/vpn). Grafana (stats) is Domen's dashboard — never a family tile.",
+     1
+    ],
+    [
+     1,
+     "- homepage_show_soon (default true): render the \"Soon\" roadmap group",
+     1
+    ],
+    [
+     1,
+     "(Phase 3/4 deploy-gated apps as non-clickable description tiles).",
+     1
+    ],
+    [
+     1,
+     "Family groups (Photos/Files/Docs/Chat/Git/AI/Tools/Accounts) are always shown.",
+     1
+    ],
+    [
+     1,
+     "HA-exporter scrape job (Alloy `ha_exporter` block, topology B): OFF until the Phase-4 HA",
+     1
+    ],
+    [
+     1,
+     "cutover (HD-04). Today nothing can populate /etc/prometheus/ha_token (no vault item, no",
+     1
+    ],
+    [
+     1,
+     "monitoring render) and ha_vip serves no HA yet - a live job would just fail. Flip true at",
+     1
+    ],
+    [
+     1,
+     "HD-04 with the HA long-lived-token item seeded.",
+     1
+    ],
+    [
+     1,
+     "HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge (traefik-tailnet)",
+     1
+    ],
+    [
+     1,
+     "is served on the headscale sidecar node `vps-obs` (tag:sidecar). headscale",
+     1
+    ],
+    [
+     1,
+     "`dns.extra_records` maps the clean subdomain names (stats/logs/csui/traefik/auto",
+     1
+    ],
+    [
+     1,
+     "AND their *.ts.kogler.si twins) to this node's tailnet IPv4.",
+     1
+    ],
+    [
+     1,
+     "Tailnet IPv4s are assigned SEQUENTIALLY by headscale at node join — current known",
+     1
+    ],
+    [
+     1,
+     "nodes: 100.64.0.3 laptop, 100.64.0.4 phone. This value is filled at deploy time from",
+     1
+    ],
+    [
+     1,
+     "`headscale nodes list` after the sidecar joins (empty → headscale renders no",
+     1
+    ],
+    [
+     1,
+     "extra_records).",
+     1
+    ],
+    [
+     1,
+     "HD-268c (2026-08-29): Pattern-A tailnet sidecar IPs (vps-dsh / vps-pi-dev).",
+     1
+    ],
+    [
+     1,
+     "HD-355 (2026-09-10): the sidecars are REMOVED (dsh/pi-dev moved to oldsrv) —",
+     1
+    ],
+    [
+     1,
+     "these are now retained as historical/no-op values: the clean-URL DNS still",
+     1
+    ],
+    [
+     1,
+     "resolves to the edge (tailnet_sidecar_ip), and the edge reaches the backends",
+     1
+    ],
+    [
+     1,
+     "over WG to {{ oldsrv_home_ip }}:3080/:8080 (NOT via these sidecar IPs). They",
+     1
+    ],
+    [
+     1,
+     "stay only so any dangling config that references them resolves; do NOT rely on",
+     1
+    ],
+    [
+     1,
+     "them for routing.",
+     1
+    ],
+    [
+     1,
+     "Subdomains served by the tailnet edge (watched by headscale config.yaml.j2",
+     1
+    ],
+    [
+     1,
+     "extra_records render). Each entry is `{name: <sub>, ip: <tailnet IPv4>}`.",
+     1
+    ],
+    [
+     1,
+     "`ip` defaults to `tailnet_sidecar_ip` (the traefik-tailnet observability",
+     1
+    ],
+    [
+     1,
+     "edge on `vps-obs`, 100.64.0.1) when omitted. HD-297 (2026-08-31): EVERY",
+     1
+    ],
+    [
+     1,
+     "clean-URL FQDN (incl. dsh/pi) must resolve to this edge — it terminates TLS",
+     1
+    ],
+    [
+     1,
+     "(wildcard cert) + Host-routes to the backends. Do NOT pin the Pattern-A",
+     1
+    ],
+    [
+     1,
+     "sidecar IPs here: the sidecars only serve plain HTTP (:3080/:8080) with no",
+     1
+    ],
+    [
+     1,
+     "TLS/Host-routing, so pointing the FQDN at them breaks the clean URLs.",
+     1
+    ],
+    [
+     1,
+     "NOTE: the `ip` value is a LITERAL tailnet IPv4 (NOT a Jinja var reference).",
+     1
+    ],
+    [
+     1,
+     "Ansible's group_vars loader treats YAML scalars as-is (no second Jinja pass);",
+     1
+    ],
+    [
+     1,
+     "if `ip` were `{{ tailnet_sidecar_ip }}` it would render as the literal string",
+     1
+    ],
+    [
+     1,
+     "`{{ tailnet_sidecar_ip }}` in the headscale config, NOT the variable's value.",
+     1
+    ],
+    [
+     1,
+     "The deploy step MUST keep each per-sub IP in sync with the corresponding",
+     1
+    ],
+    [
+     1,
+     "`tailnet_<svc>_ip` group_var; today every entry omits `ip` -> all resolve to",
+     1
+    ],
+    [
+     1,
+     "tailnet_sidecar_ip = 100.64.0.1 (vps-obs edge).",
+     1
+    ],
+    [
+     1,
+     "Keep in sync with traefik-tailnet dynamic/routes.yml (obs edge) +",
+     1
+    ],
+    [
+     1,
+     "the sidecar compose templates (Pattern-A: dsh + pi-dev).",
+     1
+    ],
+    [
+     1,
+     "HD-405 (2026-09-20): MagicDNS records for the **`*.ts.kogler.si` namespace ONLY**.",
+     1
+    ],
+    [
+     1,
+     "This list exists because the one above renders BOTH namespaces (plain + `.ts`) — adding",
+     1
+    ],
+    [
+     1,
+     "`ha` there would repoint plain `ha.kogler.si` to a tailnet IP for every tailnet client,",
+     1
+    ],
+    [
+     1,
+     "which is the documented HD-382/389 resolver-ambiguity trap AND (worse here) would make a",
+     1
+    ],
+    [
+     1,
+     "tailnet-enabled phone at home stop resolving HA to the VIP, putting a new dependency on",
+     1
+    ],
+    [
+     1,
+     "oldsrv inside the failure domain HD-350's drill was about. `ip` defaults to",
+     1
+    ],
+    [
+     1,
+     "`tailnet_oldsrv_ip` (group_vars/all/main.yml), served by oldsrv's own edge.",
+     1
+    ],
+    [
+     1,
+     "HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.",
+     1
+    ],
+    [
+     1,
+     "The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge",
+     1
+    ],
+    [
+     1,
+     "netns; host :443 belongs to the PUBLIC edge. The WG path therefore publishes the",
+     1
+    ],
+    [
+     1,
+     "internal edge on a DEDICATED port bound to the wg-s2s VPS address only, via",
+     1
+    ],
+    [
+     1,
+     "docker's compose `ports:` (host `{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}` ->",
+     1
+    ],
+    [
+     1,
+     "container 172.20.0.250:443). Docker's own PREROUTING DNAT translates host->container,",
+     1
+    ],
+    [
+     1,
+     "so NO manual nftables DNAT is required (same precedent as kopia-server :51515,",
+     1
+    ],
+    [
+     1,
+     "HD-62). An nftables input allow from the router peer (HD-313 pattern) is added",
+     1
+    ],
+    [
+     1,
+     "for defense-in-depth + spec compliance. `wg_internal_edge_port` is SSOT'd in",
+     1
+    ],
+    [
+     1,
+     "group_vars/all/main.yml (shared with the home `traefik-internal` edge templates on",
+     1
+    ],
+    [
+     1,
+     "oldsrv — HD-350): the traefik-tailnet compose, vps-hardening nftables and the",
+     1
+    ],
+    [
+     1,
+     "network-vpn.md spec stay in lockstep (derived-values ban: never re-type).",
+     1
+    ],
+    [
+     1,
+     "The internal-edge container IP on traefik-public (172.20.0.250, pinned HD-240).",
+     2
+    ],
+    [
+     1,
+     "Kept as a named SSOT var so the compose publish + nftables allow share one source",
+     1
+    ],
+    [
+     1,
+     "of truth; the /32 is stripped for the compose/docker host-facing bind.",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "4": 1
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "IaC/ansible/templates/docker_services/rag-mcp/docker-compose.yml.j2",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "brainstorming/recent/agent-memory-dev.md",
+   "frags": 27,
+   "best_conf": 1.0,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.562,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "you asked",
+     4
+    ],
+    [
+     1,
+     "googlesearch response",
+     5
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "4": 5
+   },
+   "c6_fences": [
+    54,
+    34
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    2882,
+    1655
+   ]
+  },
+  {
+   "file": "deployment-manual.md",
+   "frags": 8,
+   "best_conf": 0.811,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.308,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "deployment-manual.md — Redeployment Runbook (True Zero → Live)",
+     1
+    ],
+    [
+     2,
+     "Phase index (true-zero order)",
+     1
+    ],
+    [
+     2,
+     "How to use",
+     1
+    ]
+   ],
+   "c4_headers_added": [
+    [
+     1,
+     "1) sftp_key — backup-box PRIVATE key (Hetzner-SB-Backup 1P item), unencrypted:",
+     1
+    ],
+    [
+     1,
+     "2) known_hosts — ssh-keyscan FROM THE VPS HANGS SILENTLY on box:23 (netcup egress quirk).",
+     1
+    ],
+    [
+     1,
+     "Take the entry from the LAPTOP's known_hosts instead:",
+     1
+    ],
+    [
+     1,
+     "laptop: ssh-keygen -F \"[u653424.your-storagebox.de]:23\"  -> copy the matching lines",
+     1
+    ],
+    [
+     1,
+     "into /srv/docker/kopia-server/config/known_hosts (mode 644).",
+     1
+    ],
+    [
+     1,
+     "3) Pre-create the repo dir ON THE BOX — Hetzner SFTP returns generic SSH_FX_FAILURE for",
+     1
+    ],
+    [
+     1,
+     "kopia's create-path even when the dir pre-exists (kopia_sftp_path is RELATIVE in IaC):",
+     1
+    ],
+    [
+     1,
+     "4) Restart and verify (expect repository-creation lines, no SSH_FX_FAILURE):",
+     1
+    ]
+   ],
+   "c5_pipes_missing": {
+    "3": 7,
+    "5": 11
+   },
+   "c6_fences": [
+    102,
+    35
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/1password.md",
+   "frags": 1,
+   "best_conf": 0.971,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.537,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    8,
+    8
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/automation-renewals.md",
+   "frags": 0,
+   "best_conf": null,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.0,
+   "c3_frontmatter": false,
+   "c4_headers_missing": [
+    [
+     1,
+     "n8n — Subscription Renewal Reminder Workflow (infrastructure)",
+     1
+    ],
+    [
+     2,
+     "Goal",
+     1
+    ],
+    [
+     2,
+     "Data",
+     1
+    ],
+    [
+     2,
+     "Suggested nodes",
+     1
+    ],
+    [
+     2,
+     "Notification message (Slovenian, family-facing)",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    2,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/backup.md",
+   "frags": 2,
+   "best_conf": 0.98,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.497,
+   "c3_frontmatter": false,
+   "c4_headers_missing": [
+    [
+     1,
+     "Backup & Disaster Recovery",
+     1
+    ],
+    [
+     2,
+     "Backup Architecture (Dual Layer)",
+     1
+    ],
+    [
+     3,
+     "Layer 1: ZFS (Local — Block-Level)",
+     1
+    ]
+   ],
+   "c4_headers_added": [
+    [
+     2,
+     "Backup Flow",
+     1
+    ]
+   ],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    6,
+    2
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/deployment-ansible.md",
+   "frags": 15,
+   "best_conf": 0.958,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.761,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [
+    [
+     1,
+     "Ansible Specification",
+     1
+    ],
+    [
+     2,
+     "IaC Authoring Conventions",
+     1
+    ],
+    [
+     3,
+     "Variables & IPs",
+     1
+    ],
+    [
+     3,
+     "Secrets",
+     1
+    ],
+    [
+     3,
+     "Role structure",
+     1
+    ]
+   ],
+   "c4_headers_added": [
+    [
+     2,
+     "Deploy Timing Runbook (HD-269, Step f — measured)",
+     1
+    ],
+    [
+     3,
+     "Full-converge baseline (measured on the VPS with `profile_tasks`)",
+     1
+    ],
+    [
+     3,
+     "Measured cost ledger (TASKS RECAP)",
+     1
+    ],
+    [
+     3,
+     "The three deploy-speed mechanisms (when to use each)",
+     1
+    ],
+    [
+     3,
+     "Expected timing map",
+     1
+    ]
+   ],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    48,
+    42
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/deployment-compose.md",
+   "frags": 5,
+   "best_conf": 1.0,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.55,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [
+    [
+     4,
+     "Samba ↔ Authentik-as-LDAP (D7 / HD-132) — the pull contract",
+     1
+    ],
+    [
+     4,
+     "Sibling-auth coverage map (HD-160)",
+     1
+    ]
+   ],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    20,
+    10
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/deployment-secrets.md",
+   "frags": 10,
+   "best_conf": 0.625,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.489,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [
+    [
+     2,
+     "1Password as Sole Secrets Backend",
+     1
+    ],
+    [
+     2,
+     "Secret Naming Convention",
+     1
+    ]
+   ],
+   "c4_headers_added": [
+    [
+     2,
+     "Creation & Rotation Workflow",
+     1
+    ],
+    [
+     2,
+     "Rename Map (legacy → canonical)",
+     1
+    ],
+    [
+     3,
+     "Rendering a secret into a YAML config file — block scalar is the default (HD-233 lesson)",
+     1
+    ],
+    [
+     2,
+     "Type Map — one per `<type>`, with canonical examples",
+     1
+    ]
+   ],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    8,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    4,
+    0
+   ]
+  },
+  {
+   "file": "docs/hardware-oldsrv.md",
+   "frags": 3,
+   "best_conf": 0.947,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.975,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/hardware-spark.md",
+   "frags": 7,
+   "best_conf": 0.846,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.505,
+   "c3_frontmatter": false,
+   "c4_headers_missing": [
+    [
+     1,
+     "spark — Lenovo ThinkStation PGX (NVIDIA GB10 Grace Blackwell)",
+     1
+    ],
+    [
+     2,
+     "Unified-memory budget & OOM governance",
+     1
+    ],
+    [
+     3,
+     "The measured allocation arithmetic (source: the vLLM boot log)",
+     1
+    ]
+   ],
+   "c4_headers_added": [
+    [
+     2,
+     "Bench + engine selection",
+     1
+    ],
+    [
+     2,
+     "Text-only engine mode (vision disabled) — ⏳ proposed, not applied (HD-400)",
+     1
+    ]
+   ],
+   "c5_pipes_missing": {
+    "1": 1
+   },
+   "c6_fences": [
+    12,
+    10
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/home-assistant-current.md",
+   "frags": 3,
+   "best_conf": 0.875,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.399,
+   "c3_frontmatter": false,
+   "c4_headers_missing": [
+    [
+     1,
+     "Current Home Assistant Instance — Live Inventory & HAOS→Docker Feasibility",
+     1
+    ],
+    [
+     2,
+     "1. Executive Summary",
+     1
+    ],
+    [
+     2,
+     "2. Snapshot Metadata",
+     1
+    ],
+    [
+     2,
+     "3. Localisation & Home",
+     1
+    ],
+    [
+     2,
+     "4. Runtime & Topology Highlights",
+     1
+    ],
+    [
+     2,
+     "5. Accounts & Authentication (`/auth/providers`)",
+     1
+    ],
+    [
+     2,
+     "8. Impact Assessment: VM+HAOS vs HA in Docker (community-plugin lens)",
+     1
+    ],
+    [
+     3,
+     "8.1 Practical migration notes",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "3": 23,
+    "4": 11
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    4,
+    3
+   ]
+  },
+  {
+   "file": "docs/index.md",
+   "frags": 6,
+   "best_conf": 0.6,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.84,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [
+    [
+     1,
+     "Homelab Documentation Index",
+     1
+    ],
+    [
+     2,
+     "For AI: Which Document to Read First",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "4": 38
+   },
+   "c6_fences": [
+    2,
+    2
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/interfaces.md",
+   "frags": 2,
+   "best_conf": 0.944,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.588,
+   "c3_frontmatter": false,
+   "c4_headers_missing": [
+    [
+     1,
+     "Interface Matrix — Dashboards & Management",
+     1
+    ],
+    [
+     2,
+     "6-Tier Interface Model",
+     1
+    ],
+    [
+     2,
+     "Homepage — Family Launchpad",
+     1
+    ],
+    [
+     2,
+     "HA Dashboard (native) — Smart Home Control",
+     1
+    ],
+    [
+     2,
+     "Grafana — Admin Analytics",
+     1
+    ],
+    [
+     2,
+     "Traefik Dashboard — Routing & Debug",
+     1
+    ],
+    [
+     2,
+     "CrowdSec analytics — what serves it now",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "5": 11
+   },
+   "c6_fences": [
+    2,
+    2
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    1,
+    0
+   ]
+  },
+  {
+   "file": "docs/manual/README.md",
+   "frags": 1,
+   "best_conf": 0.73,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.73,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    25,
+    29
+   ]
+  },
+  {
+   "file": "docs/manual/chat.md",
+   "frags": 1,
+   "best_conf": 0.905,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.905,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    22,
+    24
+   ]
+  },
+  {
+   "file": "docs/manual/contacts.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    18,
+    18
+   ]
+  },
+  {
+   "file": "docs/manual/desktop.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    23,
+    23
+   ]
+  },
+  {
+   "file": "docs/manual/immich.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    5,
+    5
+   ]
+  },
+  {
+   "file": "docs/manual/media.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    17,
+    17
+   ]
+  },
+  {
+   "file": "docs/manual/office-ai.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    2,
+    2
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    59,
+    59
+   ]
+  },
+  {
+   "file": "docs/manual/opencloud.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    6,
+    6
+   ]
+  },
+  {
+   "file": "docs/manual/restore-backup.md",
+   "frags": 1,
+   "best_conf": 0.929,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.929,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    8,
+    9
+   ]
+  },
+  {
+   "file": "docs/manual/server-restart.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    10,
+    10
+   ]
+  },
+  {
+   "file": "docs/manual/smart-home.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    13,
+    13
+   ]
+  },
+  {
+   "file": "docs/manual/vpn.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    5,
+    5
+   ]
+  },
+  {
+   "file": "docs/manual/wifi.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    13,
+    13
+   ]
+  },
+  {
+   "file": "docs/network-addresses-generated.md",
+   "frags": 0,
+   "best_conf": null,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.0,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Ansible managed",
+     1
+    ],
+    [
+     1,
+     "Network Addresses — SSOT",
+     1
+    ],
+    [
+     2,
+     "VLANs",
+     1
+    ],
+    [
+     2,
+     "Static hosts",
+     1
+    ],
+    [
+     2,
+     "Infrastructure networks",
+     1
+    ],
+    [
+     2,
+     "WAN-side static hosts",
+     1
+    ],
+    [
+     2,
+     "Service addresses (Home VLAN 10)",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "6": 8,
+    "5": 51,
+    "4": 24
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/network-migration-inventory.md",
+   "frags": 0,
+   "best_conf": null,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.0,
+   "c3_frontmatter": false,
+   "c4_headers_missing": [
+    [
+     1,
+     "Network Migration Inventory",
+     1
+    ],
+    [
+     2,
+     "Infrastructure & servers",
+     1
+    ],
+    [
+     2,
+     "Smart-home devices",
+     1
+    ],
+    [
+     2,
+     "Family & misc",
+     1
+    ],
+    [
+     2,
+     "Cutover-night order (derived)",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "6": 32
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/network-rack-generated.md",
+   "frags": 0,
+   "best_conf": null,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.0,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Ansible managed",
+     1
+    ],
+    [
+     1,
+     "Rack Connections",
+     1
+    ],
+    [
+     2,
+     "Device connectivity",
+     1
+    ],
+    [
+     3,
+     "RB4011iGS+ Router (`rb4011`)",
+     1
+    ],
+    [
+     3,
+     "CRS328-24P-4S+ Switch (`crs328`)",
+     1
+    ],
+    [
+     3,
+     "GRG-4260us GPON Gateway (`comtrend`)",
+     1
+    ],
+    [
+     3,
+     "HP Gen 8 server (`nas`)",
+     1
+    ],
+    [
+     3,
+     "Raspberry Pi 4 B (`pi`)",
+     1
+    ],
+    [
+     3,
+     "HMIP-HAP HomeMatic Access Point (`hmip`)",
+     1
+    ],
+    [
+     3,
+     "TL-SG108E switch (`tplink-sg108e`)",
+     1
+    ],
+    [
+     2,
+     "Patch panel wiring",
+     1
+    ],
+    [
+     3,
+     "Patch Panel A — Schrack 24-Port Cat.6 Patch Panel A (`U18`)",
+     1
+    ],
+    [
+     3,
+     "Patch Panel B — Schrack 24-Port Cat.6 Patch Panel B (`U17`)",
+     1
+    ],
+    [
+     2,
+     "Notes",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "4": 44,
+    "6": 52
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    2,
+    0
+   ]
+  },
+  {
+   "file": "docs/network-rejected.md",
+   "frags": 4,
+   "best_conf": 0.667,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.49,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "5": 18
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/network-review.md",
+   "frags": 1,
+   "best_conf": 0.95,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.95,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/network-vlans.md",
+   "frags": 2,
+   "best_conf": 0.902,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.357,
+   "c3_frontmatter": false,
+   "c4_headers_missing": [
+    [
+     1,
+     "VLAN Plan",
+     1
+    ],
+    [
+     2,
+     "VLAN Table",
+     1
+    ],
+    [
+     2,
+     "CAPsMAN SSID-to-VLAN Mapping",
+     1
+    ],
+    [
+     2,
+     "Inter-VLAN Firewall Rules",
+     1
+    ],
+    [
+     2,
+     "Port Type Reference",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "4": 37,
+    "6": 5
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/observability.md",
+   "frags": 11,
+   "best_conf": 0.917,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.547,
+   "c3_frontmatter": false,
+   "c4_headers_missing": [
+    [
+     1,
+     "Observability",
+     1
+    ],
+    [
+     2,
+     "Architecture",
+     1
+    ]
+   ],
+   "c4_headers_added": [
+    [
+     2,
+     "Single Source of Truth Matrix",
+     1
+    ],
+    [
+     2,
+     "Alerting",
+     1
+    ],
+    [
+     3,
+     "spark host-memory (OOM) alert rules",
+     1
+    ],
+    [
+     3,
+     "Tiers",
+     1
+    ],
+    [
+     3,
+     "The Victoria stack (HD-341/342) — the shape and why",
+     1
+    ]
+   ],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    12,
+    8
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/pi-harness.md",
+   "frags": 0,
+   "best_conf": null,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.0,
+   "c3_frontmatter": false,
+   "c4_headers_missing": [
+    [
+     1,
+     "pi.dev Harness — Client-Side Model Config",
+     1
+    ],
+    [
+     2,
+     "1. Scope and deploy direction",
+     1
+    ],
+    [
+     2,
+     "1b. Why the harness does NOT go through LiteLLM (decision #26)",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "4": 14
+   },
+   "c6_fences": [
+    10,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/services-ai.md",
+   "frags": 9,
+   "best_conf": 0.942,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.654,
+   "c3_frontmatter": true,
+   "c4_headers_missing": [
+    [
+     2,
+     "1. Philosophy",
+     1
+    ],
+    [
+     2,
+     "2. Architecture",
+     1
+    ]
+   ],
+   "c4_headers_added": [
+    [
+     4,
+     "3a-1. Deployed shape",
+     1
+    ],
+    [
+     4,
+     "3a-2. What the deploy actually proved (and did not)",
+     1
+    ],
+    [
+     4,
+     "3a-3. Three findings that only a live box produces",
+     1
+    ],
+    [
+     2,
+     "4. LLM routing & keys",
+     1
+    ],
+    [
+     2,
+     "5. Knowledge SSOT & RAG pipeline",
+     1
+    ],
+    [
+     3,
+     "5a. Knowledge SSOT = Forgejo OKF-llm-wiki",
+     1
+    ],
+    [
+     3,
+     "5b. Retrieval pipeline + decided parameters",
+     1
+    ],
+    [
+     3,
+     "5c. Workflows (operational recipes)",
+     1
+    ],
+    [
+     2,
+     "6. Auth & exposure",
+     1
+    ],
+    [
+     2,
+     "7. Integrations",
+     1
+    ],
+    [
+     2,
+     "8. Security & operating notes",
+     1
+    ],
+    [
+     2,
+     "9. Decision log (load-bearing rules)",
+     1
+    ],
+    [
+     2,
+     "10. Open work (what is genuinely pending)",
+     1
+    ],
+    [
+     3,
+     "9b. Coding plane — agent memory + runners",
+     1
+    ],
+    [
+     3,
+     "9c. Ecosystem constraints (verified from primary sources)",
+     1
+    ]
+   ],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    4,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    4,
+    0
+   ]
+  },
+  {
+   "file": "docs/services-inventory-generated.md",
+   "frags": 2,
+   "best_conf": 1.0,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 1.0,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "docs/subscriptions-table-generated.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": true,
+   "c2_ws_identical": true,
+   "coverage": 1.0,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "readme-humans.md",
+   "frags": 3,
+   "best_conf": 0.867,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.946,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Kogler Homelab (human guide)",
+     1
+    ],
+    [
+     2,
+     "Za družino (v slovenščini)",
+     1
+    ],
+    [
+     2,
+     "Agent skills & pi config (`skills/` → global pi folder)",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "4": 6,
+    "3": 5
+   },
+   "c6_fences": [
+    4,
+    4
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    19,
+    20
+   ]
+  },
+  {
+   "file": "reports/Qwen-architecture.md",
+   "frags": 6,
+   "best_conf": 1.0,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.401,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Architecture Audit — Kogler Homelab",
+     1
+    ],
+    [
+     2,
+     "1. Current Topology & Traffic Flow",
+     1
+    ],
+    [
+     3,
+     "1.1 Hardware Layer",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    18,
+    8
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    1,
+    0
+   ]
+  },
+  {
+   "file": "reports/Qwen-bugs.md",
+   "frags": 6,
+   "best_conf": 1.0,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.297,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Qwen Security & Bug Analysis — Homelab",
+     1
+    ],
+    [
+     2,
+     "Scanned Files Tracker",
+     1
+    ],
+    [
+     3,
+     "IaC folder",
+     1
+    ],
+    [
+     3,
+     "Docs folder",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "3": 114
+   },
+   "c6_fences": [
+    116,
+    34
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    1,
+    0
+   ]
+  },
+  {
+   "file": "reports/changelog.md",
+   "frags": 19,
+   "best_conf": 0.6,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.234,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Changelog — Kogler Homelab (FROZEN)",
+     1
+    ],
+    [
+     2,
+     "Decisions & research",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "4": 154,
+    "5": 7,
+    "2": 1,
+    "8": 1,
+    "7": 2,
+    "6": 2,
+    "9": 1
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    4,
+    0
+   ]
+  },
+  {
+   "file": "scripts/check_doc_map.py",
+   "frags": 0,
+   "best_conf": null,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.0,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Root docs scanned for links: ALL root *.md except prompt-* handoffs (HD-197 F6",
+     1
+    ],
+    [
+     1,
+     "replaced the hand-maintained allowlist that silently missed new root docs).",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "1": 5
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "scripts/validate-all.sh",
+   "frags": 0,
+   "best_conf": null,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.0,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Repo validation gate — run before committing any change.",
+     1
+    ],
+    [
+     1,
+     "bash scripts/validate-all.sh          (Linux, macOS, Windows git-bash)",
+     1
+    ],
+    [
+     1,
+     "Runs every automated checker referenced in docs/index.md → Conventions:",
+     1
+    ],
+    [
+     1,
+     "1. validate-docker-services.py  — compose templates + group_vars list",
+     1
+    ],
+    [
+     1,
+     "2. validate_blueprints.py       — Authentik ks-oidc.yml blueprint shape",
+     1
+    ],
+    [
+     1,
+     "3. check_doc_ips.py            — no internal IP literals outside the SSOT",
+     1
+    ],
+    [
+     1,
+     "4. validate_doc_templates.py   — SSOT doc templates render with group_vars",
+     1
+    ],
+    [
+     1,
+     "5. validate-secrets.py         — no literal credentials in group_vars/templates",
+     1
+    ],
+    [
+     1,
+     "6. check_doc_map.py            — docs/index.md document map matches docs/ tree",
+     1
+    ],
+    [
+     1,
+     "7. check_generated_suffix.py    — every machine-generated doc carries the -generated suffix",
+     1
+    ],
+    [
+     1,
+     "8. check_vault_name.py          — vault is 'Homelab-ansible' (no bare Homelab refs, HD-189)",
+     1
+    ],
+    [
+     1,
+     "8b. check_ledger_state.py       — deployment-tasks.md is a LEDGER: deploy-gated items are",
+     1
+    ],
+    [
+     1,
+     "checkboxes, every OPEN one has a live todo.md row, every tick",
+     1
+    ],
+    [
+     1,
+     "carries a date (no HD status prose pasted into the blocks)",
+     1
+    ],
+    [
+     1,
+     "8c. check_runbook_purity.py     — deployment-manual.md is PROCEDURE: no status glyphs, no",
+     1
+    ],
+    [
+     1,
+     "dated/execution history, no duplicate headings, and its phase",
+     1
+    ],
+    [
+     1,
+     "numbering matches the ledger's (HD-253-class drift gate)",
+     1
+    ],
+    [
+     1,
+     "8d. check_vault_docs.py         — every vault item the IaC reads has a row in the secrets master",
+     1
+    ],
+    [
+     1,
+     "list (an undocumented prerequisite fails a true-zero deploy)",
+     1
+    ],
+    [
+     1,
+     "9. check_placeholders.py        — placeholder tokens only in designated bootstrap files (HD-201)",
+     1
+    ],
+    [
+     1,
+     "10. guard-session.sh             — session-discipline hard-gate + sandboxed self-test (HD-253):",
+     1
+    ],
+    [
+     1,
+     "--validate-mode fails on primary+main+DIRTY; clean-main",
+     1
+    ],
+    [
+     1,
+     "merge-station runs pass silently; self-test fixture asserts",
+     1
+    ],
+    [
+     1,
+     "the guard contract inside throwaway temp repos",
+     1
+    ],
+    [
+     1,
+     "11. testdata/check-vault-items/run.sh — check-vault-items.sh scanner self-test",
+     1
+    ],
+    [
+     1,
+     "(HD-244/245): *_item registry-key parsing + --strict",
+     1
+    ],
+    [
+     1,
+     "contract asserted on a committed synthetic mini-tree",
+     1
+    ],
+    [
+     1,
+     "12. Portability sweep — bash -n (all POSIX/bash shebang scripts) + python3 -m py_compile",
+     1
+    ],
+    [
+     1,
+     "(all scripts/*.py), so scripts cannot regress on the",
+     1
+    ],
+    [
+     1,
+     "Debian/WSL ext4 primary (HD-256); bash -n is a no-op on",
+     1
+    ],
+    [
+     1,
+     "hosts without bash (CI/Linux only, never Windows)",
+     1
+    ],
+    [
+     1,
+     "13. sync-skills.sh --check --strict — skill drift gate (HD-254): repo skills/ must equal",
+     1
+    ],
+    [
+     1,
+     "~/.pi/agent/skills (repo = SSOT). Guarded: when",
+     1
+    ],
+    [
+     1,
+     "$HOME/.pi/agent/skills is absent (bare CI / non-pi laptop)",
+     1
+    ],
+    [
+     1,
+     "the gate SKIPs so a pi-less host never breaks validation;",
+     1
+    ],
+    [
+     1,
+     "on a pi-configured runner deploy is via sync-skills.sh --push.",
+     1
+    ],
+    [
+     1,
+     "14. check_todo_done.py            — todo.md §4(a) sweep: flag rows marked DONE/✅ that were",
+     1
+    ],
+    [
+     1,
+     "not deleted (fully-done rows must be removed; only",
+     1
+    ],
+    [
+     1,
+     "deploy-gated rows with a real ⏳ tail stay), and stale ⏳",
+     1
+    ],
+    [
+     1,
+     "markers inside struck/rejected/parked fragments (2026-09-08)",
+     1
+    ],
+    [
+     1,
+     "15. check_secrets.py              — secret-SHAPE scanner over the TRACKED TIP incl. the",
+     1
+    ],
+    [
+     1,
+     "members of tracked .tar/.tar.gz/.zip (added 2026-09-18 after",
+     1
+    ],
+    [
+     1,
+     "a live spark-llm_api bearer reached origin/main inside bench",
+     1
+    ],
+    [
+     1,
+     "logs — validate-secrets.py only covers group_vars/roles/, so",
+     1
+    ],
+    [
+     1,
+     "artifacts and logs were ungated). Masked output; unreadable",
+     1
+    ],
+    [
+     1,
+     "archives fail too",
+     1
+    ],
+    [
+     1,
+     "16. check_self_converge_guard.py — HD-413 guardrail completeness (static): every playbook",
+     1
+    ],
+    [
+     1,
+     "that applies a lockout-capable role (network / storage /",
+     1
+    ],
+    [
+     1,
+     "wireguard / vps-hardening) imports the self-converge",
+     1
+    ],
+    [
+     1,
+     "guard, and imports it in pre_tasks; every lockout role",
+     1
+    ],
+    [
+     1,
+     "has its own guard task whose tag list equals the role's",
+     1
+    ],
+    [
+     1,
+     "complete selectable vocabulary, recomputed from the role",
+     1
+    ],
+    [
+     1,
+     "dirs; no default()/failed_when in the guard (HD-399 rule);",
+     1
+    ],
+    [
+     1,
+     "a role that writes under --check may not claim check_safe",
+     1
+    ],
+    [
+     1,
+     "17. testdata/self-converge-guard/run.sh — HD-413 guardrail BEHAVIOUR (runtime, WSL/CI-gated):",
+     1
+    ],
+    [
+     1,
+     "executes the real guard against a throwaway inventory",
+     1
+    ],
+    [
+     1,
+     "(this host = the controller, plus a decoy that is not) and",
+     1
+    ],
+    [
+     1,
+     "asserts the refuse/allow verdict for 14 invocations. The",
+     1
+    ],
+    [
+     1,
+     "static gate above cannot see a wrong Jinja predicate: the",
+     1
+    ],
+    [
+     1,
+     "first draft compared `ansible_run_tags == ['all']`, which",
+     1
+    ],
+    [
+     1,
+     "is always False because that magic var is a TUPLE, and",
+     1
+    ],
+    [
+     1,
+     "passed every static check while allowing an unfiltered",
+     1
+    ],
+    [
+     1,
+     "self-converge of the netdev role",
+     1
+    ],
+    [
+     1,
+     "+ ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)",
+     1
+    ],
+    [
+     1,
+     "Exit 0 only when all pass. `set -e` stops at the first failure.",
+     1
+    ],
+    [
+     1,
+     "Python launcher: prefer python3 (Linux/CI), fall back to py -3 (Windows).",
+     1
+    ],
+    [
+     1,
+     "PYTHONUTF8=1 keeps Windows console output from crashing on non-ASCII.",
+     1
+    ],
+    [
+     1,
+     "Runs on any host with python3+PyYAML — it reads YAML, it does not need Ansible.",
+     1
+    ],
+    [
+     1,
+     "Needs a functional ansible-playbook (it EXECUTES the guard) — SKIPs itself on hosts where",
+     1
+    ],
+    [
+     1,
+     "Ansible is absent/non-functional (native Windows) or `uname` is missing, like the syntax gate.",
+     1
+    ],
+    [
+     1,
+     "bash -n every POSIX/bash shebang script under scripts/ (incl. the testdata runner).",
+     1
+    ],
+    [
+     1,
+     "bash-shebang scripts must parse cleanly on the Debian/WSL ext4 primary (HD-259);",
+     1
+    ],
+    [
+     1,
+     "POSIX 'sh' scripts (collect-disk-facts.sh, collect-smart-live.sh) are checked here",
+     1
+    ],
+    [
+     1,
+     "too because bash is a POSIX superset and the repo gates run under bash. Silent no-op",
+     1
+    ],
+    [
+     1,
+     "on hosts without bash (Windows) — those scripts are exercised under WSL/CI.",
+     1
+    ],
+    [
+     1,
+     "python3 -m py_compile every scripts/*.py (byte-compiles to gitignored __pycache__).",
+     1
+    ],
+    [
+     1,
+     "repo skills/ must equal ~/.pi/agent/skills (repo = SSOT). Guarded: a host without a",
+     1
+    ],
+    [
+     1,
+     "pi agent (bare CI / non-pi laptop) has no ~/.pi/agent/skills — the gate SKIPs there so",
+     1
+    ],
+    [
+     1,
+     "it never breaks validation on a stateless runner; on a pi-configured primary the check",
+     1
+    ],
+    [
+     1,
+     "is real and deploy is an explicit 'sync-skills.sh --push'.",
+     1
+    ],
+    [
+     1,
+     "HD-197: catch unresolvable modules / broken YAML in every playbook at gate time.",
+     1
+    ],
+    [
+     1,
+     "Requires the Ansible venv (WSL/CI); skipped gracefully on native Windows like the",
+     1
+    ],
+    [
+     1,
+     "Ansible render path (see scripts/README.md).",
+     1
+    ],
+    [
+     1,
+     "HD-256: like ansible-run.sh, export ANSIBLE_CONFIG + ANSIBLE_ROLES_PATH so the",
+     1
+    ],
+    [
+     1,
+     "role path resolves when running from the repo root on the Debian/WSL primary",
+     1
+    ],
+    [
+     1,
+     "(otherwise ansible finds no config here and every `roles: - xxx` fails to resolve).",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "2": 6,
+    "1": 1
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "skills/mikrotik/SKILL.md",
+   "frags": 1,
+   "best_conf": 1.0,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.097,
+   "c3_frontmatter": false,
+   "c4_headers_missing": [
+    [
+     1,
+     "MikroTik Skill",
+     1
+    ],
+    [
+     2,
+     "Setup",
+     1
+    ],
+    [
+     3,
+     "Requirements",
+     1
+    ]
+   ],
+   "c4_headers_added": [
+    [
+     2,
+     "Creating a Read-Only API User on the Router",
+     1
+    ]
+   ],
+   "c5_pipes_missing": {},
+   "c6_fences": [
+    46,
+    2
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "spark/BENCHMARK-PLAN.md",
+   "frags": 6,
+   "best_conf": 0.889,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.759,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Spark Benchmark Plan — engine-neutral (vLLM + SGLang candidates)",
+     1
+    ],
+    [
+     2,
+     "1. Baselines",
+     1
+    ],
+    [
+     2,
+     "2. Serving profiles to certify (S1–S5) + recommended engine per profile",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "5": 4,
+    "8": 8
+   },
+   "c6_fences": [
+    4,
+    4
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    0,
+    0
+   ]
+  },
+  {
+   "file": "todo-table.md",
+   "frags": 11,
+   "best_conf": 0.714,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.631,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     1,
+     "Todo Split — Decided State, AI-Runnable Work, Owner Residue (planning view)",
+     1
+    ],
+    [
+     2,
+     "0. Repo state (one screen)",
+     1
+    ],
+    [
+     3,
+     "What is live vs authored-only",
+     1
+    ],
+    [
+     2,
+     "A. Decided 2026-09-21 — and what is actually left on your side",
+     1
+    ],
+    [
+     3,
+     "A1. Decisions recorded (nothing further from you)",
+     1
+    ],
+    [
+     3,
+     "A2. What still needs you — the honest residue",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "3": 9,
+    "4": 31,
+    "6": 12
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    4,
+    4
+   ]
+  },
+  {
+   "file": "todo.md",
+   "frags": 11,
+   "best_conf": 0.667,
+   "c1_bytes_identical": false,
+   "c2_ws_identical": false,
+   "coverage": 0.212,
+   "c3_frontmatter": null,
+   "c4_headers_missing": [
+    [
+     2,
+     "2. Active work — by module",
+     1
+    ],
+    [
+     3,
+     "2.1 Network & DNS — VLANs, firewall, DNS, VPN, router/switch",
+     1
+    ],
+    [
+     3,
+     "2.1a Consolidated work packages — what can be done together (2026-09-04)",
+     1
+    ],
+    [
+     3,
+     "2.3 Platform & Deploy — Ansible, compose conventions, GitOps, Renovate, Forgejo Actions",
+     1
+    ],
+    [
+     3,
+     "2.5 Interfaces & Dashboards — Homepage launchpad + Grafana boards",
+     1
+    ],
+    [
+     3,
+     "2.9 Backup & DR — ZFS snapshots, Kopia, off-site, restore drills",
+     1
+    ],
+    [
+     3,
+     "2.10 Docs & Family — family guides, docs, manual",
+     1
+    ],
+    [
+     3,
+     "2.11 Finance & Subscriptions — budget apps, banks, billing",
+     1
+    ],
+    [
+     2,
+     "3. Park — deferred / optional / Phase 2",
+     1
+    ],
+    [
+     2,
+     "3b. Deploy path — Ansible-only (HD-150, supersedes HD-02 Doco-CD)",
+     1
+    ],
+    [
+     2,
+     "3c. Deploy-gated verification — lives in `deployment-tasks.md`",
+     1
+    ],
+    [
+     2,
+     "4. Status & dependency notes",
+     1
+    ],
+    [
+     2,
+     "5. Conventions quick-reference",
+     1
+    ],
+    [
+     2,
+     "6. Service onboarding",
+     1
+    ]
+   ],
+   "c4_headers_added": [],
+   "c5_pipes_missing": {
+    "6": 80,
+    "5": 13,
+    "4": 3,
+    "8": 1,
+    "7": 3,
+    "3": 7
+   },
+   "c6_fences": [
+    0,
+    0
+   ],
+   "c6_block_scalars": [
+    0,
+    0
+   ],
+   "c7_diacritics": [
+    4,
+    0
+   ]
+  }
+ ],
+ "injected": {},
+ "unmatched": {
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/3._Code_IaC_conventions.md": 0.333,
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/4._Lifecycle_conventions/4._Lifecycle_conventions_2.md": 0.5,
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/Homelab_Conventio_3more_65d0edee_2.md": 0.333,
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_14.md": 0.0,
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_6.md": 0.0,
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_7.md": 0.0,
+  "viking://resources/ov51/corpus/docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/Decisions/Decisions_5.md": 0.5,
+  "viking://resources/ov51/corpus/docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/Decisions/Decisions_6.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_10.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_11.md": 0.333,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_12.md": 0.333,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_14.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_16.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_17.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_18.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_19.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_2.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_22.md": 0.333,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_23.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_24.md": 0.333,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_25.md": 0.333,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_26.md": 0.333,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_28.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_29.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_3.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_38.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_4.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_40.md": 0.333,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_41.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_43.md": 0.333,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_48.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_49.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_5.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_56.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_57.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_59.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_60.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_62.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_63.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_64.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_66.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_67.md": 0.333,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_7.md": 0.333,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_70.md": 0.5,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_8.md": 0.0,
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_9.md": 0.333,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_13.md": 0.0,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_16.md": 0.0,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_18.md": 0.0,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.1_Network_DNS_VLANs_firewall_DNS_VPN_ro_84d85b06/2.1_Network_DNS_VLANs_firewall_DNS_VPN_ro_84d85b06_3.md": 0.0,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.1_Network_DNS_VLANs_firewall_DNS_VPN_ro_84d85b06/2.1_Network_DNS_VLANs_firewall_DNS_VPN_ro_84d85b06_4.md": 0.5,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.1_Network_DNS_VLANs_firewall_DNS_VPN_ro_84d85b06/2.1_Network_DNS_VLANs_firewall_DNS_VPN_ro_84d85b06_5.md": 0.0,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.3_Platform_Deploy_Ansible_compose_conve_ec6692f8/2.3_Platform_Deploy_Ansible_compose_conve_ec6692f8_1.md": 0.571,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.3_Platform_Deploy_Ansible_compose_conve_ec6692f8/2.3_Platform_Deploy_Ansible_compose_conve_ec6692f8_5.md": 0.0,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_3.md": 0.333,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_4.md": 0.4,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_5.md": 0.0,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_8.md": 0.0,
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_9.md": 0.0
+ },
+ "uri2src": {
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/4._Lifecycle_conventions/4._Lifecycle_conventions_1.md": "CONVENTIONS.md",
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/4._Lifecycle_conventions/4._Lifecycle_conventions_3.md": "CONVENTIONS.md",
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/5._Service-onboarding_checklist_10_steps.md": "CONVENTIONS.md",
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/6._Cross-cutting_rules_short_list.md": "CONVENTIONS.md",
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/8._Docs_taxonomy_service_triage/8.1_Domains_stack_4more_f622fea5_2.md": "CONVENTIONS.md",
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/8._Docs_taxonomy_service_triage/8.5_SSOT_rendering_dire_0919d4ff.md": "CONVENTIONS.md",
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/8._Docs_taxonomy_service_triage/8._Docs_taxonomy_service_triage.md": "CONVENTIONS.md",
+  "viking://resources/ov51/corpus/CONVENTIONS/Homelab_Conventions_Consolidated/Homelab_Conventio_3more_65d0edee_1.md": "CONVENTIONS.md",
+  "viking://resources/ov51/corpus/IaC/ansible/templates/docker_services/rag-mcp/docker-compose.yml.j2": "IaC/ansible/templates/docker_services/rag-mcp/docker-compose.yml.j2",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/agent-memory-dev_2more_0adf4826.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_55.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_014935bb.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_08b3b2d4.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_20f2cbac.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_26d21ccc.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_37a544b0.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_3bece091.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_4ffbfdc1.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_537258e5.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_59242a56.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_7c9307c0.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_861514ca.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_96c4fa21.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_a2954e87.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_b1370708.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_b4fb6c86.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_ca62fe58.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_cb9931ae.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_cc242ac3.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_d080ce43.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_d168759c.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_d862f20d.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_e1bab82f.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_f1ef653f.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_f4eb4e89.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_ff3da13f.md": "brainstorming/recent/agent-memory-dev.md",
+  "viking://resources/ov51/corpus/deployment-manual/1_sftp_key_backup_8more_fb2adf45.md": "deployment-manual.md",
+  "viking://resources/ov51/corpus/deployment-manual/VPS/VPS_2.md": "deployment-manual.md",
+  "viking://resources/ov51/corpus/deployment-manual/VPS/VPS_3.md": "deployment-manual.md",
+  "viking://resources/ov51/corpus/deployment-manual/VPS_side_wireguar_6more_49ed7ee5.md": "deployment-manual.md",
+  "viking://resources/ov51/corpus/deployment-manual/deployment-manual.md_Redeployment_Runbook_aca5f701/deployment-manual_3more_11c86f28.md": "deployment-manual.md",
+  "viking://resources/ov51/corpus/deployment-manual/if_cloud-init_wor_2more_d4cad2ab.md": "deployment-manual.md",
+  "viking://resources/ov51/corpus/deployment-manual/never_pull_the_co_3more_649db865.md": "deployment-manual.md",
+  "viking://resources/ov51/corpus/deployment-manual/on_the_VPS_creds__5more_382c2a85.md": "deployment-manual.md",
+  "viking://resources/ov51/corpus/docs/1Password_CLI_SSH_Agent_runner_setup/1Password_CLI_SSH_Agent_WSL_runner_setup/1._Service_Account_token_Ansible_secret_lookups.md": "docs/1password.md",
+  "viking://resources/ov51/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/3._Components/3a._Pinned_AI_inference_tier_plan_of_reco_b15fca20/3a-1._Deployed_shape.md": "docs/services-ai.md",
+  "viking://resources/ov51/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/3._Components/3a._Pinned_AI_inference_tier_plan_of_reco_b15fca20/3a-2._What_the_de_2more_0a6cb29d.md": "docs/services-ai.md",
+  "viking://resources/ov51/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/4._LLM_routing_keys/4._LLM_routing_keys.md": "docs/services-ai.md",
+  "viking://resources/ov51/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/5._Knowledge_SSOT_RAG_pipeline.md": "docs/services-ai.md",
+  "viking://resources/ov51/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/6._Auth_exposure_3more_c0825101.md": "docs/services-ai.md",
+  "viking://resources/ov51/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/9._Decision_log_load-bearing_rules/9._Decision_log_load-bearing_rules.md": "docs/services-ai.md",
+  "viking://resources/ov51/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/9._Decision_log_load-bearing_rules/9b._Coding_plane__2more_7528b042_1.md": "docs/services-ai.md",
+  "viking://resources/ov51/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/9._Decision_log_load-bearing_rules/9b._Coding_plane__2more_7528b042_2.md": "docs/services-ai.md",
+  "viking://resources/ov51/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/AI_Platform_Family_Web_AI_Layer.md": "docs/services-ai.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Deploy_Timing_Runbook_HD-269_Step_f_measured.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Execution_Modes/Execution_Modes_5more_0f82cd82.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Group_Vars_home_s_2more_c2559a1b.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Host_Vars.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/IaC_Authoring_Conventions/IaC_Authoring_Con_4more_ea1a821d.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/IaC_Authoring_Conventions/Long_converges_ru_3more_9aa11f4e.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/IaC_Authoring_Conventions/Tags_surgical_runs_HD-220_wiring.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Role_Catalog/docker_services_Key_Role.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Role_Catalog/monitoring_3more_d2aa0775.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Runner_placement_HD-407_seeding_a_second__f7c44a27/Runner_placement_HD-407_seeding_a_second__f7c44a27.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Runner_placement_HD-407_seeding_a_second__f7c44a27/Which_account_and_what_keeps_the_clones_o_4eb5ee7d.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Self-converge_guardrail_HD-413_which_box__ddc438d8/Self-converge_guardrail_HD-413_which_box__ddc438d8.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Self-converge_guardrail_HD-413_which_box__ddc438d8/The_invariant_that_makes_it_airtight_and__eb8a1d82.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Self-converge_guardrail_HD-413_which_box__ddc438d8/The_two_sanctione_2more_e715a325.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/WindowsWSL_runner_host_facts_the_management_laptop.md": "docs/deployment-ansible.md",
+  "viking://resources/ov51/corpus/docs/Backup_Disaster_Recovery/Backup_Disaster_Recovery/Backup_Flow_5more_40f3feae.md": "docs/backup.md",
+  "viking://resources/ov51/corpus/docs/Backup_Disaster_Recovery/Backup_Disaster_Recovery/Why_Two_Layers_2more_d904fc58.md": "docs/backup.md",
+  "viking://resources/ov51/corpus/docs/Current_Home_Assistant_Instance_Live_Inve_84c8d00b/Current_Home_Assistant_Instance_Live_Inve_84c8d00b/6._Integrations_Devices_as_observed_live.md": "docs/home-assistant-current.md",
+  "viking://resources/ov51/corpus/docs/Current_Home_Assistant_Instance_Live_Inve_84c8d00b/Current_Home_Assistant_Instance_Live_Inve_84c8d00b/7._Community_Plugins_as_observed.md": "docs/home-assistant-current.md",
+  "viking://resources/ov51/corpus/docs/Current_Home_Assistant_Instance_Live_Inve_84c8d00b/Current_Home_Assistant_Instance_Live_Inve_84c8d00b/9._Open_Questions_Data_Gaps_to-confirm_be_20efbd92.md": "docs/home-assistant-current.md",
+  "viking://resources/ov51/corpus/docs/Docker_Compose_Specification/Docker_Compose_Specification/Container_Security/Internal_Service_Authentication/Samba_Authentik-as-LDAP_D7_HD-132_the_pul_80113cce.md": "docs/deployment-compose.md",
+  "viking://resources/ov51/corpus/docs/Docker_Compose_Specification/Docker_Compose_Specification/Container_Security/Internal_Service_Authentication/Sibling-auth_coverage_map_HD-160.md": "docs/deployment-compose.md",
+  "viking://resources/ov51/corpus/docs/Docker_Compose_Specification/Docker_Compose_Specification/Docker_Compose_Sp_3more_97b3e96e.md": "docs/deployment-compose.md",
+  "viking://resources/ov51/corpus/docs/Docker_Compose_Specification/Docker_Compose_Specification/GPU-Enabled_Containers.md": "docs/deployment-compose.md",
+  "viking://resources/ov51/corpus/docs/Docker_Compose_Specification/Docker_Compose_Specification/Shared_Networks_2more_01e7f68f.md": "docs/deployment-compose.md",
+  "viking://resources/ov51/corpus/docs/Homelab_Documentation_Index/Homelab_Documentation_Index/Document_Map/Document_Map_1.md": "docs/index.md",
+  "viking://resources/ov51/corpus/docs/Homelab_Documentation_Index/Homelab_Documentation_Index/Document_Map/Document_Map_2.md": "docs/index.md",
+  "viking://resources/ov51/corpus/docs/Homelab_Documentation_Index/Homelab_Documentation_Index/Document_Map/Document_Map_3.md": "docs/index.md",
+  "viking://resources/ov51/corpus/docs/Homelab_Documentation_Index/Homelab_Documentation_Index/Document_Map/Document_Map_4.md": "docs/index.md",
+  "viking://resources/ov51/corpus/docs/Homelab_Documentation_Index/Homelab_Documentation_Index/Homelab_Documenta_2more_1385c3da_1.md": "docs/index.md",
+  "viking://resources/ov51/corpus/docs/Homelab_Documentation_Index/Homelab_Documentation_Index/Homelab_Documenta_2more_1385c3da_2.md": "docs/index.md",
+  "viking://resources/ov51/corpus/docs/Interface_Matrix_Dashboards_Management/Interface_Matrix_Dashboards_Management/CrowdSec_Web_UI_O_5more_b89efafa.md": "docs/interfaces.md",
+  "viking://resources/ov51/corpus/docs/Interface_Matrix_Dashboards_Management/Interface_Matrix_Dashboards_Management/Interface_Matrix__7more_bf97549a_2.md": "docs/interfaces.md",
+  "viking://resources/ov51/corpus/docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/Decisions/Decisions_1.md": "docs/network-rejected.md",
+  "viking://resources/ov51/corpus/docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/Decisions/Decisions_10.md": "docs/network-rejected.md",
+  "viking://resources/ov51/corpus/docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/Decisions/Decisions_2.md": "docs/network-rejected.md",
+  "viking://resources/ov51/corpus/docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/Decisions/Decisions_3.md": "docs/network-rejected.md",
+  "viking://resources/ov51/corpus/docs/Network_Review_Queue/Network_Review_Queue.md": "docs/network-review.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Alerting/Alerting.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Alerting/spark_host-memory_OOM_alert_rules.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Architecture/MCP_AI-debugging_servers_on_oldsrv_HD-344_12434db5.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Component_Table_2more_beab094b.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Dashboards/Dashboards/Dashboards_1.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Dashboards/Dashboards/Dashboards_2.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Dashboards/LLM_Dashboard_HD-377/LLM_Dashboard_HD-377_1.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Microservice_Notes/Dozzle_multi-host_VPS_viewer_LAN_hub.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Microservice_Notes/Microservice_Notes.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Scrape_cadence_and_metric_resolution_HD-420/Scrape_cadence_an_4more_104ce9a8_1.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Observability/Observability/Scrape_cadence_and_metric_resolution_HD-420/Scrape_cadence_an_4more_104ce9a8_2.md": "docs/observability.md",
+  "viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/Creation_Rotation_Workflow.md": "docs/deployment-secrets.md",
+  "viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/Master_Secret_List_canonical/Master_Secret_List_canonical_10.md": "docs/deployment-secrets.md",
+  "viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/Master_Secret_List_canonical/Master_Secret_List_canonical_3.md": "docs/deployment-secrets.md",
+  "viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/Master_Secret_List_canonical/Master_Secret_List_canonical_7.md": "docs/deployment-secrets.md",
+  "viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/Master_Secret_List_canonical/Master_Secret_List_canonical_8.md": "docs/deployment-secrets.md",
+  "viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/Master_Secret_List_canonical/Master_Secret_List_canonical_9.md": "docs/deployment-secrets.md",
+  "viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/Rename_Map_legacy_canonical.md": "docs/deployment-secrets.md",
+  "viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/Secret_Naming_Convention/Rendering_a_secret_into_a_YAML_config_fil_61e77a7e.md": "docs/deployment-secrets.md",
+  "viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/Self-Documenting_Homelab_Philosophy.md": "docs/deployment-secrets.md",
+  "viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/Type_Map_one_per_type_with_canonical_examples.md": "docs/deployment-secrets.md",
+  "viking://resources/ov51/corpus/docs/VLAN_Plan/VLAN_Plan/DHCP.md": "docs/network-vlans.md",
+  "viking://resources/ov51/corpus/docs/VLAN_Plan/VLAN_Plan/VLAN_Plan_3more_b5b0424e_2.md": "docs/network-vlans.md",
+  "viking://resources/ov51/corpus/docs/manual/AI_pomočnik_in_Office_Word_Excel_PowerPoint/AI_pomočnik_in_Office_Word_Excel_PowerPoint.md": "docs/manual/office-ai.md",
+  "viking://resources/ov51/corpus/docs/manual/Dokumentacija_za_družino/Dokumentacija_za_družino.md": "docs/manual/README.md",
+  "viking://resources/ov51/corpus/docs/manual/Film_serije_in_glasba/Film_serije_in_glasba.md": "docs/manual/media.md",
+  "viking://resources/ov51/corpus/docs/manual/Kako_deliti_datoteke_OpenCloud/Kako_deliti_datoteke_OpenCloud.md": "docs/manual/opencloud.md",
+  "viking://resources/ov51/corpus/docs/manual/Kako_dostopati_do_slik_Immich/Kako_dostopati_do_slik_Immich.md": "docs/manual/immich.md",
+  "viking://resources/ov51/corpus/docs/manual/Kako_obnoviti_iz_varnostne_kopije/Kako_obnoviti_iz_varnostne_kopije.md": "docs/manual/restore-backup.md",
+  "viking://resources/ov51/corpus/docs/manual/Kako_uporabljati_VPN_Tailscale/Kako_uporabljati_VPN_Tailscale.md": "docs/manual/vpn.md",
+  "viking://resources/ov51/corpus/docs/manual/Kako_uporabljati_Wi-Fi/Kako_uporabljati_Wi-Fi.md": "docs/manual/wifi.md",
+  "viking://resources/ov51/corpus/docs/manual/Kako_uporabljati_namizni_računalnik/Kako_uporabljati_namizni_računalnik.md": "docs/manual/desktop.md",
+  "viking://resources/ov51/corpus/docs/manual/Kako_upravljati_pametno_hišo/Kako_upravljati_pametno_hišo.md": "docs/manual/smart-home.md",
+  "viking://resources/ov51/corpus/docs/manual/Kako_znova_zagnati_strežnik/Kako_znova_zagnati_strežnik.md": "docs/manual/server-restart.md",
+  "viking://resources/ov51/corpus/docs/manual/Klepet_Matrix/Klepet_Matrix.md": "docs/manual/chat.md",
+  "viking://resources/ov51/corpus/docs/manual/Kontakti_za_pomoč/Kontakti_za_pomoč.md": "docs/manual/contacts.md",
+  "viking://resources/ov51/corpus/docs/oldsrv_i7-7700K_Docker_Host/oldsrv_i7-7700K_Docker_Host/Docker_Networks_3more_7a358cfd.md": "docs/hardware-oldsrv.md",
+  "viking://resources/ov51/corpus/docs/oldsrv_i7-7700K_Docker_Host/oldsrv_i7-7700K_Docker_Host/Hardware.md": "docs/hardware-oldsrv.md",
+  "viking://resources/ov51/corpus/docs/oldsrv_i7-7700K_Docker_Host/oldsrv_i7-7700K_Docker_Host/Network_5more_0ea0650f.md": "docs/hardware-oldsrv.md",
+  "viking://resources/ov51/corpus/docs/services-inventory-generated/Service_Inventory/Service_Inventory_2more_dcc28a33.md": "docs/services-inventory-generated.md",
+  "viking://resources/ov51/corpus/docs/services-inventory-generated/Service_Inventory/oldsrv.kogler.si.md": "docs/services-inventory-generated.md",
+  "viking://resources/ov51/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Bench_engine_sele_2more_f8a162f3.md": "docs/hardware-spark.md",
+  "viking://resources/ov51/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Bring-up_order_wh_2more_8826f010.md": "docs/hardware-spark.md",
+  "viking://resources/ov51/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Hardware/Reality_deltas_vs_3more_ca668c06.md": "docs/hardware-spark.md",
+  "viking://resources/ov51/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Network_placement_2more_a107c5ea.md": "docs/hardware-spark.md",
+  "viking://resources/ov51/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Unified-memory_budget_OOM_governance/Chosen_governor_IaC_group_varsspark.yml.md": "docs/hardware-spark.md",
+  "viking://resources/ov51/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Unified-memory_budget_OOM_governance/Restart-count_sem_2more_eaa5373e.md": "docs/hardware-spark.md",
+  "viking://resources/ov51/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Unified-memory_budget_OOM_governance/Unified-memory_bu_3more_4f2924b6.md": "docs/hardware-spark.md",
+  "viking://resources/ov51/corpus/docs/subscriptions-table-generated/subscriptions-table-generated.md": "docs/subscriptions-table-generated.md",
+  "viking://resources/ov51/corpus/readme-humans/Kogler_Homelab_human_guide/For_Maintainers_in_English.md": "readme-humans.md",
+  "viking://resources/ov51/corpus/readme-humans/Kogler_Homelab_human_guide/Kogler_Homelab_hu_3more_4a545bd8.md": "readme-humans.md",
+  "viking://resources/ov51/corpus/readme-humans/Kogler_Homelab_human_guide/Repository_Struct_2more_579101c3.md": "readme-humans.md",
+  "viking://resources/ov51/corpus/reports/Qwen-architecture/Architecture_Audit_Kogler_Homelab/1._Current_Topology_Traffic_Flow/1._Current_Topolo_7more_9c23775d_2.md": "reports/Qwen-architecture.md",
+  "viking://resources/ov51/corpus/reports/Qwen-architecture/Architecture_Audit_Kogler_Homelab/2._Root_Cause_Analysis_of_Existing_Bugs/2.6_Flaw_F_BootstrapPreseed_Defaults_Depl_00234e7b.md": "reports/Qwen-architecture.md",
+  "viking://resources/ov51/corpus/reports/Qwen-architecture/Architecture_Audit_Kogler_Homelab/4._Infrastructure_HA_Audit/4.2_Network_Depen_4more_49160c50.md": "reports/Qwen-architecture.md",
+  "viking://resources/ov51/corpus/reports/Qwen-architecture/Architecture_Audit_Kogler_Homelab/5._Updated_Strategic_Roadmap/LOW_Priority_Good_2more_94cd6e90.md": "reports/Qwen-architecture.md",
+  "viking://resources/ov51/corpus/reports/Qwen-architecture/Architecture_Audit_Kogler_Homelab/5._Updated_Strategic_Roadmap/MEDIUM_Priority_Required_Before_Going_Live.md": "reports/Qwen-architecture.md",
+  "viking://resources/ov51/corpus/reports/Qwen-architecture/Architecture_Audit_Kogler_Homelab/6._Technical_Open_Questions/6._Technical_Open_4more_23564581.md": "reports/Qwen-architecture.md",
+  "viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Findings/Findings_6more_8c6439bc_1.md": "reports/Qwen-bugs.md",
+  "viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Findings/Findings_6more_8c6439bc_2.md": "reports/Qwen-bugs.md",
+  "viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Findings/LOW_KOPS-012_post_2more_3607c569.md": "reports/Qwen-bugs.md",
+  "viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Questions_for_Discussion/LOW_KOPS-062_Reno_6more_9e31b60c_1.md": "reports/Qwen-bugs.md",
+  "viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Questions_for_Discussion/LOW_KOPS-062_Reno_6more_9e31b60c_2.md": "reports/Qwen-bugs.md",
+  "viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Scanned_Files_Tracker/Docs_folder.md": "reports/Qwen-bugs.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Decisions_research/Decisions_research_10.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Decisions_research/Decisions_research_12.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Decisions_research/Decisions_research_13.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Decisions_research/Decisions_research_2.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Decisions_research/Decisions_research_8.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Decisions_research/Decisions_research_9.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_1.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_32.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_33.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_34.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_37.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_44.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_45.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_46.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_50.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_52.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_53.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_54.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Implementation_tooling/Implementation_tooling_55.md": "reports/changelog.md",
+  "viking://resources/ov51/corpus/skills/mikrotik/SKILL/MikroTik_Skill/Creating_a_Read-O_3more_f83fcb15.md": "skills/mikrotik/SKILL.md",
+  "viking://resources/ov51/corpus/spark/BENCHMARK-PLAN/Spark_Benchmark_Plan_engine-neutral_vLLM__e93d8f04/3._Benchmark_harness.md": "spark/BENCHMARK-PLAN.md",
+  "viking://resources/ov51/corpus/spark/BENCHMARK-PLAN/Spark_Benchmark_Plan_engine-neutral_vLLM__e93d8f04/6._Engine_tuning_ladder_runs_on_the_winni_1ca3b515/6._Engine_tuning_ladder_runs_on_the_winni_1ca3b515.md": "spark/BENCHMARK-PLAN.md",
+  "viking://resources/ov51/corpus/spark/BENCHMARK-PLAN/Spark_Benchmark_Plan_engine-neutral_vLLM__e93d8f04/6._Engine_tuning_ladder_runs_on_the_winni_1ca3b515/§6a._S1_stability_sweep_single-session_ma_7a1f8c35.md": "spark/BENCHMARK-PLAN.md",
+  "viking://resources/ov51/corpus/spark/BENCHMARK-PLAN/Spark_Benchmark_Plan_engine-neutral_vLLM__e93d8f04/7._Tooling_timing_bench.md": "spark/BENCHMARK-PLAN.md",
+  "viking://resources/ov51/corpus/spark/BENCHMARK-PLAN/Spark_Benchmark_Plan_engine-neutral_vLLM__e93d8f04/8._Reference_expe_2more_c45477f3_1.md": "spark/BENCHMARK-PLAN.md",
+  "viking://resources/ov51/corpus/spark/BENCHMARK-PLAN/Spark_Benchmark_Plan_engine-neutral_vLLM__e93d8f04/Spark_Benchmark_P_3more_88433837.md": "spark/BENCHMARK-PLAN.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/B._Table_AI_doable_now_no_owner_step_in_front/AI_Office.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/B._Table_AI_doable_now_no_owner_step_in_front/Active_lanes/Active_lanes_1.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/B._Table_AI_doable_now_no_owner_step_in_front/Active_lanes/Active_lanes_3.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/B._Table_AI_doable_now_no_owner_step_in_front/Active_lanes/Active_lanes_4.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/B._Table_AI_doable_now_no_owner_step_in_front/B._Table_AI_doabl_2more_d2500ac4.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/B._Table_AI_doable_now_no_owner_step_in_front/Network_platform_security.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/B._Table_AI_doable_now_no_owner_step_in_front/Observability.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/B._Table_AI_doable_now_no_owner_step_in_front/Remote-dev_plane_three_file-disjoint_lane_4d1f41ac/Remote-dev_plane_three_file-disjoint_lane_4d1f41ac_1.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/C._Standing_rules_2more_a7b06a2b.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/Park_moot_2more_b138c493.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/Watch-list_reads_as_done_is_not.md": "todo-table.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_1.md": "todo.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_11.md": "todo.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_12.md": "todo.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_5.md": "todo.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_9.md": "todo.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.1b_Human_owner__2more_ab7f626f_1.md": "todo.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.4_Services_Edge_Traefik_SSO_service_cat_a89081d8/2.4_Services_Edge_Traefik_SSO_service_cat_a89081d8_1.md": "todo.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.6_Smart_Home_HA_primarystandby_Homemati_6b05f17a.md": "todo.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_1.md": "todo.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.8_Security_Secrets_secrets_hygiene_priv_8fbbed9e.md": "todo.md",
+  "viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/Homelab_TODO_Back_3more_4ed2211c.md": "todo.md"
+ },
+ "assigned_frags": 204,
+ "n_leaves": 263
+}

@@ -1,0 +1,9 @@
+ov add-resource ./corpus --parent-auto-create viking://resources/homelab --wait --timeout 7200
+
+╭─ Request Timeout ────────────────────────────────────────────────────╮
+│ OpenViking did not respond before the configured timeout expired.    │
+╰──────────────────────────────────────────────────────────────────────╯
+
+Next:
+  ov config       Increase the request timeout
+  ov config show  Show the active config

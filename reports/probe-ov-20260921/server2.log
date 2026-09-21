@@ -1,0 +1,785 @@
+2026-09-21 16:30:25,039 - openviking.server.auth.plugins.ldap - WARNING - LDAP library not available. LDAP authentication will not work. Install with: uv pip install python-ldap
+2026-09-21 16:30:25.324 | INFO     | openviking.telemetry.tracer:init_tracer_from_server_config:233 - [TRACER] disabled in server.observability.traces
+[09/21/26 16:30:25] INFO     StreamableHTTP       streamable_http_manager.py:164
+                             session manager                                    
+                             started                                            
+OpenViking HTTP Server is running on 127.0.0.1:1933
+2026-09-21 16:30:38,835 - openviking.parse.parsers.markdown - WARNING - [MarkdownParser] Cannot resolve image path: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAATQAAACiCAMAAAD4F8FHAAAAk1BMVEXz8/AAAAD39/T////+/vv7+/jw8O3e3tvt7eri4t/p6ebl5eKioqDQ0M3Z2da2trSZmZdOTk1tbWyDg4FFRURaWlnFxcO+vryTk5E9PTyurqxnZ2aLi4l2dnVTU1JgYF8wMDAcHBwjIyMQEBDu3tfYc1HippPqzsTcgmXls6PdkHjw6OPZeVngnIfYbUjciG7owbQEkof1AAAOtElEQVR4nO2di4KcqLaGBUVBuSkKiqJWVSZJpzMzef+nOwurOt257n1OJp30HL6kRAW8/MJiUVZDliUSiUQikUgkEolEIpFIJBKJRCKRSDxy/wpn94+bGIjB15Ji/Gm6ryX8asYnWb4T/4J4/Qe5f5/ddMNZCWQ4Lr7C487yACT4LF1Jv32mmOM70S+H8v7+rzf3b8nrvwlsYcr7bZ0Wueyq+DwpFu3GrgUFlxqd1773cjkp8piE6LCP9dcLUzEiNK99kD/lPp6VD3+9uvv7/s83f72BW8V1NxR5zjardncT7VEBXIXuJhqkNCbLPeJ8d4faoKNoiOiFWyANPuridXH9QJq8XfO8WJC6xl+Pffx/aXUW3/3x4f3rd3/cFfdw9X6PqpRCChCNSglbdVXDJ65IsYBosBeKEmYhNIVoueodgRiWYT/4Uu2cFpiJqsSlpFZQQStRZ/ETRWuh4ucbohAJSbIYQEYqRPOiVCvv8au37//46+9XH+5ekXpe87gXE7vbZu74qqoe1gLihWs7s3dNZUzXCoKbEKoMipnrbb0F3jo3oV136LwwE8Z9hDxLa1oUVrSOLZpA6CgazgqHHJmDRpqQwXBkMfIL+sIW/M68evf67u79+/dv3929yXAzDYdoGQbR5CDKZS7sZHMLxqvVecE7pg0Rsy5BtPM2zLZQvbWdzU3Ixo3ldhK5juHZin4ThTvb3J1c7pB8EA0L5MYpzwViS5vnw+gRyRfyH67ztwIMzv2Ht+/fv7t79yeUtGG91pMyVs/ajn2HQTSoht5BUOpgQ2sWAbfeBLBpOQHRoB5b3gc6rjKPiWdTY7pyWCUgmiQCPvZUPYhGHGInEIkgf9JFhgu5o8m9KNFiWfvzz3dv/35VvrrPKN8tAavsvNxttY6NnsmtpNkJWgYdRAhZjqsmihYNUSxpctBk6eg4XEXruqaoWy8mBwKdZQGiFQ+iwUMq5j3fZ4IJsntHwFRmjZqReFGq3b998+bu7s3b1x9IbBPXtaGlHYQ9K9VL2W2l3XnNz1pMoa7MIPzOGYcGsuoC6JARPznduzrMTLcWQ6Obc1DLrdCUqIyok4VSZom7CDCU7cQoPBdZcFRl9kw0UlRxw/Mc2RclWla8+RO/w6/vXkXvFmfLZEyr2TIF1+5BT5wu+xqGTth+3+aes3E/d5KUvO85xbgy06i6PRgoi13vzWRYoQezgTnsu6oJvZGh7xh8msK3/RzWGRri3PS6lbgI+3ki9sxN96IaAjBfH6CGEvrhetm4IHVTFJgUUE1pUWQlJnEn7CGUkBiWtIiFEhLFDJCQ4BL2ZwTTuAUxuCbkWI0LfPscWeAA+eGyYZbDnjwrc4iryvxXKvB/AXpCb/BTHxY/xnyW8LP4pznwV1J+/6yPwYty0j7yMq86kUgkEolEIpFIJBKJRCKRSCQSiUQikUgkEolEIpFIJBKJRCKRSCQSiUQikUgkEolEIpFI/NdgQsjTv7++DcD07b81foj5PMlLGy/oR5DWueqmVM1Z4ynOMHXfGicDV0peU9efDepF6595mb8VJZ+1MQzHwQxIs0jZ1hiT2vgilh0ohbdR6GD1GDGOSC4IjgOeeEeue2EZ/1lf42sefJTdowTjmPTzzRdfKssxUNG70tPSCqqraq0zpf3iC1xby7kk1I2eZcIpVzrt68qLGDZi6BxtvHaUWsV5w8ymGcaV89oqbSkRXEssHdcC9pTEal4RYb0SKiPO/ur7/iHKcfZ8a5qWUcPpLKuhFjPXsyowM4abhVqjNK/5pq0NXFu5CGG4dmIOlvFRLS6m67xcZhCNuE6bji8dk4vnC1UzN4GbjgpYGuzn0Ym+Llr3q+/7hyjHQS+dqNumXDjdRDVU3BDZRdGCLmxweuBhszw0xM2aiyhaN3KRLZzIEPiwCOMJH6laqjj6UifFJiQcZRiXXai5tmsjerqYrJ6YH1hGVgvbv/q+f4hyNKSGKto2ePF0BtGkHvM6+Ciaz2XwOjjvBV8Ilp4bJRbLIPT1wnMRRsedMCrnuvRLQ0C0UMlOsq3SnVdaqkDtVsu2NJqQSfqQ4YKPhr90m7YpqDR41m4T9SCqtnGD4vMhWnBjYCqAzWJQ/DKrVaeFsUKrsFDdWTmOQjsZQLSFuo6zW0mTbJUiKDfWqqMWKvxE3az0UPKuxJht/csamO9L1KJHXmE7al9SzRpNaz56Zclh00ZLwNiDtXceY8k1l8xLBqHAQnsW94jaW+JUbBREhgVnFWe1rqA5GX0pOJWasoWWXsOxLIczFrN54ZpllDUsjp/HJCybsmxKTCtaUthjPGVxoNFjQMg6Dk0qa1zWkEA24OPWkLSO40M2FNO4l4Glguj4H6KyqoJ9dVY2WRnPAEeJm+Bu9OJX3/SP8nGMX4w/9giunhlb1HXgqscxgPHHBA8bn+TKsscBRR/iH/LcBiMFh83OXx1C998BldXPqEZYipdeO7/HT/LbX3h3IJFIJP4/kSz2NygOojwkrjz57hF80Zc1+OyzQRfNudYWZ6VdOHSgPuqEqxBUUu1rUN2eznscjbsU4bR3T2RSCHX/8NnIv+Qh1A6hjcaOTSmHqXrs4WCL0D88eHvh7L+jB4UZuoTrJASlaY9v86Npg5AKUR+b5BgL+dYqkLiKH95gYfIYc6zH1wYf168r+GGDlO1IilvG61GLY7V4GIS6eDgajiM033J9NLT4MZpcr+lqhZ9exDNRfRSNmjb2rwUfuaVwJcw7gknlHaxxxQ4xYqyvMnm8wcK48qN25VUmWOcCMydKXDQqfnuEcZE5XmLLORhNwgKanYpTa+CccZdLrxWsSq7Vcc8EK60d9LIKIjQrYi54PhCI6wlqOKg9RsVuvMdMe+GcU4IwCOw3JnZ5FtEw1UMYu8lIGYZ9yQUsjVrPpz3ApRM2zmYZhq6dwPhh6teOL1uI8xNgvwa9rd22a0rUFpa11TTTXT85M13OvSdqQOg0nVTss4ftNI7t6TR1xdJeTlOAslaIuR27PdREde2uAuRqed1BsPIC3B+1zeM8LbJgZttDFS6z3vtpUIU0fb887/ean4pWqnNoahHixBcImVzAcu+4Dwhpgmt9Xpra7yio+EJA7b0r6wUZhgu1d4JC6kEL4ncjatFfVKnP6LIunp/RXgu1o817GUWLRw1etdDWdF71CEkotf1ZNlAaQw4JUW8839G5M16f0Epx6aatagREsyZc4DQIgXAIHhEu7dpVz2ssn4rWkzqgMSfE9hbbCS15aXvUVRSLDZmS2Km3RaxmYxmt3YhmSUCusy0gn4faqC+tKOQ6ybzI9WVgmTkhVWd4PIEsBA54PWfJTqhjceYQFOoj8AUZkINccDlV6dCJ1xnl6MwpNPBogjo47bbARJwvSy4DOnVOVMRdLrrIiBj8Mw/N/5loM+qhrBBZk6pFS0HkCkuMGwO3Vyi0gaUqR7TQaJmE9nWRg6yuAFEVGCO/n0VUyzuluguS+Xg6NQSazR1EK0C02/dCxek4KoHym0PVRojnEiGwTd6DgLAOzwHsJ9oFWDWHJok9WqEw4SaggdIFrSK+d4aiNkOR591zv3T4RDScwUWf1043BZZRNBxFA/PVLFfRoKRhuObxocVslGlPIJqckc+ynJ8HWQS0msWYEDYGop1ZfLP3UbRrPnI63JkCRIuv8qNoHNYXyNaBrxhFI9lVtCyLopUGbfkxGRhqBTWou7aiCspiXgX93P7fo8tBA7gc1IOhgdIPtewL0Yjs0Ehy0fbX2T2IMJvx44SglR3RUOXEROk6ZCQ7KL8UDX9LNINQGfM0rMZfikbnQ7Ss9KgX8NSubjeWGwrYbc89QwuuEZpvosVZo0Amy9fYBnwpGoYne+pCv9qjL09c2/oKO6iepADb3pp50tD0d1Hf44cfuPjvRVsQwtdc5GuidWiNJwXR1iqKdjP8oKHS4bm/WcDljvqjZ06qs8nrUeW4BEs7F9WXJU102nGu4ourY2Y3aBBIcdi0Zlmc516ArSsMughwTnFR0f9F9YQOyJjHXDV7Khq+ioY5lDDYVWvUkeajaNHktuHLaft+Oh7qJ83zgm27KFg/x8ftUZczEC0n1QBLuFgQraRLb3MoCvnxtUg0w4bmBFwCl/uTjzOz5HEaFVCxVZQ0epW5Pp2h7BV2R4yAaPO1R4DzExrB98qjWqBTDPAZ7FNNSrW6okJnUVxFK2J/rq8KeYFmE5Omj/PNwcXcugYlmEJDn/07LLD/CA1mCf0JHHM2XcYai3632F/QVoHfBn5Flll4og6e8Np13Tx3HJrEDIzz3i3zsIOjxs/9HGNmAx4XuGXTNq+IlwwcMk+hTF6QZnmHLkbFSRdLe4FaBr4XnJmBbwjd34aA43Ee4GhdBsXpstSYjRBQXBl0Bj/Zo92XlTlxnNkWtfaqFFzq+bn9jeO8dfTV0dlA/wduJ+x923cic/00gYfZxiUTG2zNh8N7cI7zUYJjj9DEJfiZY7XcYlArSem6uKLKOkyQ3RETjzViNkNOH43hANsDUfHgK1ExdgMPA5xWtENpG2FHa8gSgwXHzOtYlG4+t20HnTa59lM/Xyc1w3Tcfsqbxv+oWsakEPLWe2vieoNxLSuggaWsSnrd8KAiwDd0bT8hrYRyJEVt2xBjfDgjH1/VQwSLL+dj9hofQRVf4wvRxMcUDydx8zSI/gvkAkcaLiee7ch1CyTDx0HjJI3Z9WKulwuO2/KL5px6Oi/uwzp+wnWLuPNyzB+b2eGsyEPa+PvGqoOyecQFxCl++t7+NsXn4zG/2I0/2/3d6E8ukeSYD7/55GY82msgF/0sn9YJ4iZTF/FbjTwg92y1hVlv9t/81zTQG+1ViTF1Q2s/nVyrBq8XahBYuQt/vrZM7Tta5e9d0LJMjGvf9+3M5WdvqjDjXQtRw2LL53vy0OoOv/0PQ8AGMwmw8ovfY+BrTFU/53u/OG/vC3jP+NgyfCvqua/mOc+XSCQSiUQikUgkEolEIpFIJBKJRCKRSCQSiUQikUgkEolEIpFIJBL/BP8DGgUJOGAt1r4AAAAASUVORK5CYII=
+[09/21/26 16:30:47] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.465417                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.433460                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.475316                            
+                             seconds                                            
+[09/21/26 16:30:48] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.483166                            
+                             seconds                                            
+[09/21/26 16:30:52] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.789832                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.937847                            
+                             seconds                                            
+[09/21/26 16:30:53] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.821266                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.780118                            
+                             seconds                                            
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:30:57,953 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15152.43
+2026-09-21 16:30:57,953 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2202 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_12.md)
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:30:58,190 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15373.61
+2026-09-21 16:30:58,190 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2158 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_13.md)
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:30:58,867 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16054.34
+2026-09-21 16:30:58,867 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (3556 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_1.md)
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:30:59,494 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16466.35
+2026-09-21 16:30:59,494 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2193 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_10.md)
+[09/21/26 16:31:02] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.462354                            
+                             seconds                                            
+[09/21/26 16:31:03] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.499785                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.426591                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.417833                            
+                             seconds                                            
+[09/21/26 16:31:07] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.750404                            
+                             seconds                                            
+[09/21/26 16:31:08] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.950633                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.956608                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.778424                            
+                             seconds                                            
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:31:12,706 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=14419.92
+2026-09-21 16:31:12,706 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2224 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_16.md)
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:31:13,967 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=14267.70
+2026-09-21 16:31:13,967 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2197 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_19.md)
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:31:14,427 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16343.87
+2026-09-21 16:31:14,427 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2205 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_11.md)
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:31:14,550 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15662.88
+2026-09-21 16:31:14,551 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2117 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_15.md)
+[09/21/26 16:31:17] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.465215                            
+                             seconds                                            
+[09/21/26 16:31:18] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.428725                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.383174                            
+                             seconds                                            
+[09/21/26 16:31:19] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.412907                            
+                             seconds                                            
+[09/21/26 16:31:22] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.761663                            
+                             seconds                                            
+[09/21/26 16:31:23] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.922333                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.910061                            
+                             seconds                                            
+[09/21/26 16:31:24] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.776823                            
+                             seconds                                            
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:31:28,708 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15977.40
+2026-09-21 16:31:28,708 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2238 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_18.md)
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:31:29,206 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=14666.71
+2026-09-21 16:31:29,206 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2178 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_17.md)
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:31:29,660 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15522.21
+2026-09-21 16:31:29,660 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2174 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_23.md)
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+2026-09-21 16:31:30,522 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15775.29
+2026-09-21 16:31:30,522 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (3914 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_2.md)
+[09/21/26 16:31:33] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.437354                            
+                             seconds                                            
+[09/21/26 16:31:34] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.429272                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.412250                            
+                             seconds                                            
+[09/21/26 16:31:35] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.444153                            
+                             seconds                                            
+[09/21/26 16:31:38] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.813242                            
+                             seconds                                            
+[09/21/26 16:31:39] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.830304                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.913100                            
+                             seconds                                            
+[09/21/26 16:31:40] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.986061                            
+                             seconds                                            
+2026-09-21 16:31:43,513 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=14730.82
+2026-09-21 16:31:43,513 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2197 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_21.md)
+2026-09-21 16:31:45,666 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16279.47
+2026-09-21 16:31:45,666 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2217 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_20.md)
+2026-09-21 16:31:45,931 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16138.60
+2026-09-21 16:31:45,931 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2246 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_22.md)
+2026-09-21 16:31:46,685 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16090.14
+2026-09-21 16:31:46,685 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2189 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_26.md)
+[09/21/26 16:31:48] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.430593                            
+                             seconds                                            
+[09/21/26 16:31:50] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.399480                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.383131                            
+                             seconds                                            
+[09/21/26 16:31:51] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.375446                            
+                             seconds                                            
+[09/21/26 16:31:53] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.786534                            
+                             seconds                                            
+[09/21/26 16:31:55] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.942840                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.835132                            
+                             seconds                                            
+[09/21/26 16:31:57] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.817936                            
+                             seconds                                            
+2026-09-21 16:31:58,897 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15259.62
+2026-09-21 16:31:58,897 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2173 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_25.md)
+2026-09-21 16:32:00,873 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=14823.96
+2026-09-21 16:32:00,873 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2224 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_24.md)
+2026-09-21 16:32:01,719 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15872.76
+2026-09-21 16:32:01,719 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2236 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_29.md)
+2026-09-21 16:32:02,920 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16069.66
+2026-09-21 16:32:02,920 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2233 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_30.md)
+[09/21/26 16:32:04] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.459680                            
+                             seconds                                            
+[09/21/26 16:32:06] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.469510                            
+                             seconds                                            
+[09/21/26 16:32:07] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.493048                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.401881                            
+                             seconds                                            
+[09/21/26 16:32:09] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.771077                            
+                             seconds                                            
+[09/21/26 16:32:10] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.772855                            
+                             seconds                                            
+[09/21/26 16:32:12] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.759888                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.992914                            
+                             seconds                                            
+2026-09-21 16:32:15,061 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15976.60
+2026-09-21 16:32:15,061 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2203 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_3.md)
+2026-09-21 16:32:16,503 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15614.59
+2026-09-21 16:32:16,503 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2241 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_27.md)
+2026-09-21 16:32:17,996 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16082.33
+2026-09-21 16:32:17,996 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2191 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_28.md)
+2026-09-21 16:32:18,652 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15526.52
+2026-09-21 16:32:18,652 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2192 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_37.md)
+[09/21/26 16:32:20] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.376979                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.432636                            
+                             seconds                                            
+[09/21/26 16:32:23] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.459005                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.435161                            
+                             seconds                                            
+[09/21/26 16:32:25] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.828302                            
+                             seconds                                            
+[09/21/26 16:32:26] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.771172                            
+                             seconds                                            
+[09/21/26 16:32:28] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.913066                            
+                             seconds                                            
+[09/21/26 16:32:29] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.781610                            
+                             seconds                                            
+2026-09-21 16:32:31,429 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=14864.31
+2026-09-21 16:32:31,430 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2225 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_31.md)
+2026-09-21 16:32:32,070 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16912.32
+2026-09-21 16:32:32,070 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2200 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_36.md)
+2026-09-21 16:32:34,659 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16488.89
+2026-09-21 16:32:34,660 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2184 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_32.md)
+2026-09-21 16:32:35,185 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16409.31
+2026-09-21 16:32:35,185 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2221 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_35.md)
+[09/21/26 16:32:36] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.421503                            
+                             seconds                                            
+[09/21/26 16:32:37] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.440811                            
+                             seconds                                            
+[09/21/26 16:32:40] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.498435                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.381575                            
+                             seconds                                            
+[09/21/26 16:32:42] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.992550                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.946199                            
+                             seconds                                            
+[09/21/26 16:32:45] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.956943                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.786169                            
+                             seconds                                            
+2026-09-21 16:32:48,116 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15897.88
+2026-09-21 16:32:48,116 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2188 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_34.md)
+2026-09-21 16:32:48,281 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16667.63
+2026-09-21 16:32:48,281 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2211 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_38.md)
+2026-09-21 16:32:50,460 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15233.55
+2026-09-21 16:32:50,460 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2177 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_41.md)
+2026-09-21 16:32:50,954 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16130.50
+2026-09-21 16:32:50,954 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2212 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_33.md)
+[09/21/26 16:32:53] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.433196                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.419533                            
+                             seconds                                            
+[09/21/26 16:32:54] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.390280                            
+                             seconds                                            
+[09/21/26 16:32:55] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.499331                            
+                             seconds                                            
+[09/21/26 16:32:58] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.848189                            
+                             seconds                                            
+[09/21/26 16:32:59] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.998074                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.764224                            
+                             seconds                                            
+[09/21/26 16:33:01] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.976448                            
+                             seconds                                            
+2026-09-21 16:33:03,756 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15499.35
+2026-09-21 16:33:03,757 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2221 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_42.md)
+2026-09-21 16:33:05,448 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=14982.98
+2026-09-21 16:33:05,449 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2232 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_39.md)
+2026-09-21 16:33:05,880 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=17417.82
+2026-09-21 16:33:05,880 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2213 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_4.md)
+2026-09-21 16:33:07,547 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16475.73
+2026-09-21 16:33:07,547 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2178 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_45.md)
+[09/21/26 16:33:08] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.436826                            
+                             seconds                                            
+[09/21/26 16:33:10] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.375852                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.436688                            
+                             seconds                                            
+[09/21/26 16:33:12] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.448940                            
+                             seconds                                            
+[09/21/26 16:33:13] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.823539                            
+                             seconds                                            
+[09/21/26 16:33:15] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.950387                            
+                             seconds                                            
+[09/21/26 16:33:16] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.956587                            
+                             seconds                                            
+[09/21/26 16:33:17] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.954449                            
+                             seconds                                            
+2026-09-21 16:33:19,305 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15398.16
+2026-09-21 16:33:19,305 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2238 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_44.md)
+2026-09-21 16:33:21,922 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16411.59
+2026-09-21 16:33:21,922 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2203 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_43.md)
+2026-09-21 16:33:22,345 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16432.54
+2026-09-21 16:33:22,345 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2219 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_40.md)
+2026-09-21 16:33:23,255 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15533.67
+2026-09-21 16:33:23,255 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2213 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_48.md)
+[09/21/26 16:33:24] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.405396                            
+                             seconds                                            
+[09/21/26 16:33:26] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.403277                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.375692                            
+                             seconds                                            
+[09/21/26 16:33:28] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.466752                            
+                             seconds                                            
+[09/21/26 16:33:29] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.892446                            
+                             seconds                                            
+[09/21/26 16:33:31] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.958352                            
+                             seconds                                            
+[09/21/26 16:33:32] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.797783                            
+                             seconds                                            
+[09/21/26 16:33:33] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.922988                            
+                             seconds                                            
+2026-09-21 16:33:34,344 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=14988.16
+2026-09-21 16:33:34,344 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2204 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_50.md)
+2026-09-21 16:33:36,882 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=14515.11
+2026-09-21 16:33:36,882 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2202 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_46.md)
+2026-09-21 16:33:37,856 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15889.68
+2026-09-21 16:33:37,856 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2182 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_5.md)
+[09/21/26 16:33:39] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.377607                            
+                             seconds                                            
+2026-09-21 16:33:39,446 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16073.69
+2026-09-21 16:33:39,447 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2206 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_51.md)
+[09/21/26 16:33:41] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.446886                            
+                             seconds                                            
+[09/21/26 16:33:43] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.459750                            
+                             seconds                                            
+[09/21/26 16:33:44] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.396067                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.883652                            
+                             seconds                                            
+[09/21/26 16:33:45] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.779075                            
+                             seconds                                            
+[09/21/26 16:33:49] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.981148                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.982884                            
+                             seconds                                            
+2026-09-21 16:33:50,167 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15764.16
+2026-09-21 16:33:50,167 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2210 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_52.md)
+2026-09-21 16:33:51,635 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=14626.52
+2026-09-21 16:33:51,635 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2201 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_47.md)
+[09/21/26 16:33:55] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.489538                            
+                             seconds                                            
+2026-09-21 16:33:55,344 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15724.82
+2026-09-21 16:33:55,344 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2215 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_9.md)
+2026-09-21 16:33:55,657 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=17641.08
+2026-09-21 16:33:55,657 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2194 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_49.md)
+[09/21/26 16:33:57] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.400251                            
+                             seconds                                            
+[09/21/26 16:34:00] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.764531                            
+                             seconds                                            
+[09/21/26 16:34:03] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.917552                            
+                             seconds                                            
+2026-09-21 16:34:06,646 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16193.60
+2026-09-21 16:34:06,646 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (4036 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_54.md)
+2026-09-21 16:34:08,873 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16212.43
+2026-09-21 16:34:08,874 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2206 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/brainstorming/recent/agent-memory-dev/googlesearch_response/googlesearch_response_8.md)
+[09/21/26 16:34:14] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.424111                            
+                             seconds                                            
+[09/21/26 16:34:16] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.444723                            
+                             seconds                                            
+[09/21/26 16:34:17] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.457296                            
+                             seconds                                            
+[09/21/26 16:34:19] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.378614                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.898396                            
+                             seconds                                            
+[09/21/26 16:34:20] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.762423                            
+                             seconds                                            
+[09/21/26 16:34:22] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.779422                            
+                             seconds                                            
+[09/21/26 16:34:24] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.763593                            
+                             seconds                                            
+2026-09-21 16:34:25,147 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16271.70
+2026-09-21 16:34:25,147 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2061 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/deployment-manual/compare_the_three_fingerprints_with_the_i_e59f340e/compare_the_three_fingerprints_with_the_i_e59f340e_1.md)
+2026-09-21 16:34:26,548 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16436.57
+2026-09-21 16:34:26,548 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2565 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/deployment-manual/first_apply_human-gated_dry-run_--check_-_3997414e/first_apply_human-gated_dry-run_--check_-_3997414e_1.md)
+2026-09-21 16:34:28,138 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15801.74
+2026-09-21 16:34:28,139 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2625 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/deployment-manual/--_stale-label_wi_6more_244383b3_1.md)
+2026-09-21 16:34:31,289 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16328.04
+2026-09-21 16:34:31,289 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2473 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/deployment-manual/from_the_session__9more_e866c156_1.md)
+[09/21/26 16:34:35] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.418318                            
+                             seconds                                            
+[09/21/26 16:34:37] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.452165                            
+                             seconds                                            
+[09/21/26 16:34:40] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.492043                            
+                             seconds                                            
+[09/21/26 16:34:41] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.965128                            
+                             seconds                                            
+[09/21/26 16:34:42] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.768435                            
+                             seconds                                            
+[09/21/26 16:34:45] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.860022                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.405582                            
+                             seconds                                            
+2026-09-21 16:34:47,442 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=17598.69
+2026-09-21 16:34:47,442 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2175 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/File_Layout/File_Layout/File_Layout_1.md)
+2026-09-21 16:34:48,910 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15805.04
+2026-09-21 16:34:48,910 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2065 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/Ansible_Specification/Ansible_Specification/Role_Catalog/common_10more_00367494.md)
+2026-09-21 16:34:50,823 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15681.26
+2026-09-21 16:34:50,823 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2101 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/Backup_Disaster_Recovery/Backup_Disaster_Recovery/Backup_Architecture_Dual_Layer/Backup_Architectu_3more_22f8d41c_1.md)
+[09/21/26 16:34:51] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.874177                            
+                             seconds                                            
+2026-09-21 16:34:57,560 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16957.07
+2026-09-21 16:34:57,560 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2116 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/Docker_Compose_Specification/Docker_Compose_Specification/Template_Jinja_pi_7more_8d4e4bc8_1.md)
+[09/21/26 16:34:58] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.461678                            
+                             seconds                                            
+[09/21/26 16:35:00] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.402467                            
+                             seconds                                            
+[09/21/26 16:35:02] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.433846                            
+                             seconds                                            
+[09/21/26 16:35:03] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.800955                            
+                             seconds                                            
+[09/21/26 16:35:04] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.471257                            
+                             seconds                                            
+[09/21/26 16:35:05] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.908755                            
+                             seconds                                            
+[09/21/26 16:35:08] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.877188                            
+                             seconds                                            
+2026-09-21 16:35:08,499 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15756.43
+2026-09-21 16:35:08,499 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2160 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/network-addresses-generated/Network_Addresses_SSOT/Network_Addresses_3more_1f483a08.md)
+[09/21/26 16:35:10] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.831080                            
+                             seconds                                            
+2026-09-21 16:35:11,265 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16276.25
+2026-09-21 16:35:11,265 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2548 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/Network_Migration_Inventory_flat_LAN_VLAN_d39e023f/Network_Migration_Inventory/Network_Migration_5more_58872052_1.md)
+2026-09-21 16:35:14,795 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16364.93
+2026-09-21 16:35:14,795 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2079 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/Decisions/Decisions_9.md)
+2026-09-21 16:35:16,564 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16516.04
+2026-09-21 16:35:16,565 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2370 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/Observability/Observability/Host_sensors_and_disk_IO_HD-378/Host_sensors_and_disk_IO_HD-378_1.md)
+[09/21/26 16:35:18] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.403278                            
+                             seconds                                            
+[09/21/26 16:35:19] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.445764                            
+                             seconds                                            
+[09/21/26 16:35:20] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.384042                            
+                             seconds                                            
+[09/21/26 16:35:22] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.402964                            
+                             seconds                                            
+[09/21/26 16:35:23] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.887367                            
+                             seconds                                            
+[09/21/26 16:35:24] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.984463                            
+                             seconds                                            
+[09/21/26 16:35:25] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.946755                            
+                             seconds                                            
+[09/21/26 16:35:27] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.989851                            
+                             seconds                                            
+2026-09-21 16:35:29,618 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16907.81
+2026-09-21 16:35:29,619 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2085 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/Observability/Observability/Network_Clients_Dashboard_HD-343.md)
+2026-09-21 16:35:30,646 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15309.57
+2026-09-21 16:35:30,646 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2164 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/pi.dev_Harness_Client-Side_Model_Config_s_4553e320/pi.dev_Harness_Client-Side_Model_Config/2._Engine_facts_m_3more_260b1fea_1.md)
+2026-09-21 16:35:31,734 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16600.44
+2026-09-21 16:35:31,734 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2420 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/pi.dev_Harness_Client-Side_Model_Config_s_4553e320/pi.dev_Harness_Client-Side_Model_Config/5._Reference_.pia_5more_ba1c5b59_1.md)
+2026-09-21 16:35:32,418 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15269.11
+2026-09-21 16:35:32,419 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2196 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/pi.dev_Harness_Client-Side_Model_Config_s_4553e320/pi.dev_Harness_Client-Side_Model_Config/pi.dev_Harness_Cl_3more_99d1ca55.md)
+2026-09-21 16:35:36,430 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=4410.87
+[09/21/26 16:35:37] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.461300                            
+                             seconds                                            
+[09/21/26 16:35:41] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.450815                            
+                             seconds                                            
+[09/21/26 16:35:42] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.453766                            
+                             seconds                                            
+[09/21/26 16:35:43] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.814145                            
+                             seconds                                            
+[09/21/26 16:35:44] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.437054                            
+                             seconds                                            
+[09/21/26 16:35:46] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.948525                            
+                             seconds                                            
+[09/21/26 16:35:48] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.870628                            
+                             seconds                                            
+2026-09-21 16:35:48,808 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16384.45
+2026-09-21 16:35:48,808 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2137 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/Secrets_Management_Passwordless_Philosophy/Secrets_Management_Passwordless_Philosophy/SSH_Key_Separation/SSH_Key_Separatio_2more_94a09d1b_1.md)
+[09/21/26 16:35:49] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.888005                            
+                             seconds                                            
+2026-09-21 16:35:52,359 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16096.88
+2026-09-21 16:35:52,359 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2790 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe_1.md)
+2026-09-21 16:35:53,655 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15777.28
+2026-09-21 16:35:53,655 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2100 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Unified-memory_budget_OOM_governance/Sizing_table_util_4more_92a0121d.md)
+[09/21/26 16:35:53] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.488277                            
+                             seconds                                            
+2026-09-21 16:35:55,069 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=14946.26
+2026-09-21 16:35:55,070 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2781 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/IaC/ansible/group_vars/home_servers.yml)
+[09/21/26 16:35:58] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.822821                            
+                             seconds                                            
+[09/21/26 16:35:59] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.498287                            
+                             seconds                                            
+2026-09-21 16:36:04,517 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15552.80
+2026-09-21 16:36:04,517 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2743 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/IaC/ansible/group_vars/vps.yml)
+[09/21/26 16:36:05] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.865711                            
+                             seconds                                            
+2026-09-21 16:36:11,268 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=3124.19
+2026-09-21 16:36:12,015 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=17814.98
+2026-09-21 16:36:12,015 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (3170 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/changelog/Changelog_Kogler_Homelab_FROZEN/Decisions_research/Decisions_research_1.md)
+[09/21/26 16:36:19] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.392286                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.454208                            
+                             seconds                                            
+[09/21/26 16:36:22] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.429734                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.440093                            
+                             seconds                                            
+[09/21/26 16:36:24] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.808435                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.946169                            
+                             seconds                                            
+[09/21/26 16:36:27] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.842211                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.772992                            
+                             seconds                                            
+2026-09-21 16:36:29,165 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15350.95
+2026-09-21 16:36:29,165 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2377 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/Qwen-architecture/Architecture_Audit_Kogler_Homelab/2._Root_Cause_Analysis_of_Existing_Bugs/2._Root_Cause_Ana_6more_1905b958_1.md)
+2026-09-21 16:36:30,002 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15377.23
+2026-09-21 16:36:30,002 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2276 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/Qwen-architecture/Architecture_Audit_Kogler_Homelab/3._Security_Secrets_Management_Audit/3.1_1Password_Int_5more_3d8a9c2d_1.md)
+2026-09-21 16:36:33,896 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16845.46
+2026-09-21 16:36:33,896 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2236 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Findings/MEDIUM_KOPS-006_O_6more_843b263b_1.md)
+2026-09-21 16:36:34,026 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15559.43
+2026-09-21 16:36:34,026 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2206 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Questions_for_Discussion/MEDIUM_KOPS-018_M_6more_0f3c6c21_1.md)
+[09/21/26 16:36:34] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.451438                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.381092                            
+                             seconds                                            
+[09/21/26 16:36:38] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.474721                            
+                             seconds                                            
+[09/21/26 16:36:39] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.447032                            
+                             seconds                                            
+[09/21/26 16:36:40] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.761365                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.893829                            
+                             seconds                                            
+[09/21/26 16:36:43] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.850285                            
+                             seconds                                            
+[09/21/26 16:36:45] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.906514                            
+                             seconds                                            
+2026-09-21 16:36:45,143 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15024.50
+2026-09-21 16:36:45,143 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2333 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Questions_for_Discussion/MEDIUM_KOPS-065_L_6more_025bb556_1.md)
+2026-09-21 16:36:46,645 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16730.16
+2026-09-21 16:36:46,645 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2233 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Questions_for_Discussion/MEDIUM_KOPS-024_D_8more_6cff5a02_1.md)
+2026-09-21 16:36:49,350 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15412.29
+2026-09-21 16:36:49,350 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2241 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Questions_for_Discussion/MEDIUM_KOPS-032_T_7more_37fec196_1.md)
+[09/21/26 16:36:50] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.447256                            
+                             seconds                                            
+2026-09-21 16:36:50,585 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16052.17
+2026-09-21 16:36:50,586 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2365 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Questions_for_Discussion/MEDIUM_KOPS-044_P_6more_f803eec1_1.md)
+[09/21/26 16:36:51] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.432764                            
+                             seconds                                            
+[09/21/26 16:36:55] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.958516                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.439751                            
+                             seconds                                            
+                    INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.453127                            
+                             seconds                                            
+[09/21/26 16:36:56] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.772735                            
+                             seconds                                            
+[09/21/26 16:37:00] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.794976                            
+                             seconds                                            
+2026-09-21 16:37:00,493 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15324.59
+2026-09-21 16:37:00,494 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2267 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/scripts/validate-all.sh)
+[09/21/26 16:37:01] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.826233                            
+                             seconds                                            
+2026-09-21 16:37:01,503 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=14514.89
+2026-09-21 16:37:01,503 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2102 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Scanned_Files_Tracker/Scanned_Files_Tra_2more_e3d47844.md)
+2026-09-21 16:37:07,112 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16304.61
+2026-09-21 16:37:07,112 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2328 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/reports/Qwen-bugs/Qwen_Security_Bug_Analysis_Homelab/Questions_for_Discussion/Questions_for_Dis_5more_bb05cb37_1.md)
+2026-09-21 16:37:07,799 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=17396.06
+2026-09-21 16:37:07,799 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2376 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/scripts/check_doc_map.py)
+[09/21/26 16:37:08] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.422401                            
+                             seconds                                            
+[09/21/26 16:37:10] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.398002                            
+                             seconds                                            
+[09/21/26 16:37:13] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.890762                            
+                             seconds                                            
+[09/21/26 16:37:14] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.395836                            
+                             seconds                                            
+[09/21/26 16:37:16] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.783463                            
+                             seconds                                            
+[09/21/26 16:37:19] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.897880                            
+                             seconds                                            
+2026-09-21 16:37:20,372 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16087.35
+2026-09-21 16:37:20,372 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2443 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/spark/BENCHMARK-PLAN/Spark_Benchmark_Plan_engine-neutral_vLLM__e93d8f04/8._Reference_expe_2more_c45477f3_2.md)
+[09/21/26 16:37:20] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.429366                            
+                             seconds                                            
+2026-09-21 16:37:21,995 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=16298.15
+2026-09-21 16:37:21,995 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2055 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_10.md)
+[09/21/26 16:37:25] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.434920                            
+                             seconds                                            
+2026-09-21 16:37:25,778 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=16229.28
+2026-09-21 16:37:25,778 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2274 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.1_Network_DNS_VLANs_firewall_DNS_VPN_ro_84d85b06/2.1_Network_DNS_VLANs_firewall_DNS_VPN_ro_84d85b06_2.md)
+[09/21/26 16:37:26] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.960640                            
+                             seconds                                            
+[09/21/26 16:37:27] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.457915                            
+                             seconds                                            
+[09/21/26 16:37:30] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.979167                            
+                             seconds                                            
+2026-09-21 16:37:32,549 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15933.93
+2026-09-21 16:37:32,549 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2062 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_2.md)
+[09/21/26 16:37:32] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.829503                            
+                             seconds                                            
+2026-09-21 16:37:35,800 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.00 duration_ms=15370.10
+2026-09-21 16:37:35,800 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2253 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_10.md)
+[09/21/26 16:37:37] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.476890                            
+                             seconds                                            
+2026-09-21 16:37:39,273 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15624.79
+2026-09-21 16:37:39,273 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2262 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.4_Services_Edge_Traefik_SSO_service_cat_a89081d8/2.4_Services_Edge_Traefik_SSO_service_cat_a89081d8_2.md)
+[09/21/26 16:37:42] INFO     Retrying request to            _base_client.py:1801
+                             /embeddings in 0.782150                            
+                             seconds                                            
+2026-09-21 16:37:48,461 - openviking.models.embedder.litellm_embedders - WARNING - LiteLLM async embedding slow call provider=litellm model=openai/bge-m3-vk wait_ms=0.01 duration_ms=15748.47
+2026-09-21 16:37:48,461 - openviking.storage.collection_schemas - ERROR - Failed to generate embedding: LiteLLM embedding failed: litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'error': {'message': 'litellm.InternalServerError: InternalServerError: Hosted_vllmException - {"error":{"code":500,"message":"input (2091 tokens) is too large to process. increase the physical batch size (current batch size: 2048)","type":"server_error"}}. Received Model Group=bge-m3-vk\nAvailable Model Group Fallbacks=None', 'type': None, 'param': None, 'code': '500'}} (uri=viking://resources/ov51/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/A._Decided_2026-09-21_and_what_is_actuall_9e116c75/A._Decided_2026-0_2more_53efdf9c.md)

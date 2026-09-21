@@ -1,0 +1,87 @@
+failed_uris=91 too_large_events=91 tokens_seen=[2055, 2061, 2062, 2065, 2079, 2085, 2091, 2100]...[3556, 3914, 4036]
+CONVENTIONS.md                                           chunks=  8 cov=0.60 failed_chunks=2
+IaC/ansible/group_vars/home_servers.yml                  chunks=  0 cov=0.00 failed_chunks=0
+IaC/ansible/group_vars/vps.yml                           chunks=  0 cov=0.00 failed_chunks=0
+IaC/ansible/templates/docker_services/rag-mcp/docker-compose.yml.j2 chunks=  1 cov=1.00 failed_chunks=2
+brainstorming/recent/agent-memory-dev.md                 chunks= 27 cov=0.56 failed_chunks=50
+deployment-manual.md                                     chunks=  8 cov=0.31 failed_chunks=4
+docs/1password.md                                        chunks=  1 cov=0.54 failed_chunks=5
+docs/automation-renewals.md                              chunks=  0 cov=0.00 failed_chunks=0
+docs/backup.md                                           chunks=  2 cov=0.50 failed_chunks=1
+docs/deployment-ansible.md                               chunks= 15 cov=0.76 failed_chunks=2
+docs/deployment-compose.md                               chunks=  5 cov=0.55 failed_chunks=1
+docs/deployment-secrets.md                               chunks= 10 cov=0.49 failed_chunks=1
+docs/hardware-oldsrv.md                                  chunks=  3 cov=0.97 failed_chunks=0
+docs/hardware-spark.md                                   chunks=  7 cov=0.51 failed_chunks=2
+docs/home-assistant-current.md                           chunks=  3 cov=0.40 failed_chunks=0
+docs/index.md                                            chunks=  6 cov=0.84 failed_chunks=0
+docs/interfaces.md                                       chunks=  2 cov=0.59 failed_chunks=0
+docs/manual/README.md                                    chunks=  1 cov=0.73 failed_chunks=0
+docs/manual/chat.md                                      chunks=  1 cov=0.91 failed_chunks=0
+docs/manual/contacts.md                                  chunks=  1 cov=1.00 failed_chunks=0
+docs/manual/desktop.md                                   chunks=  1 cov=1.00 failed_chunks=0
+docs/manual/immich.md                                    chunks=  1 cov=1.00 failed_chunks=0
+docs/manual/media.md                                     chunks=  1 cov=1.00 failed_chunks=0
+docs/manual/office-ai.md                                 chunks=  1 cov=1.00 failed_chunks=0
+docs/manual/opencloud.md                                 chunks=  1 cov=1.00 failed_chunks=0
+docs/manual/restore-backup.md                            chunks=  1 cov=0.93 failed_chunks=0
+docs/manual/server-restart.md                            chunks=  1 cov=1.00 failed_chunks=0
+docs/manual/smart-home.md                                chunks=  1 cov=1.00 failed_chunks=0
+docs/manual/vpn.md                                       chunks=  1 cov=1.00 failed_chunks=0
+docs/manual/wifi.md                                      chunks=  1 cov=1.00 failed_chunks=0
+docs/network-addresses-generated.md                      chunks=  0 cov=0.00 failed_chunks=0
+docs/network-migration-inventory.md                      chunks=  0 cov=0.00 failed_chunks=0
+docs/network-rack-generated.md                           chunks=  0 cov=0.00 failed_chunks=0
+docs/network-rejected.md                                 chunks=  4 cov=0.49 failed_chunks=1
+docs/network-review.md                                   chunks=  1 cov=0.95 failed_chunks=0
+docs/network-vlans.md                                    chunks=  2 cov=0.36 failed_chunks=0
+docs/observability.md                                    chunks= 11 cov=0.55 failed_chunks=2
+docs/pi-harness.md                                       chunks=  0 cov=0.00 failed_chunks=0
+docs/services-ai.md                                      chunks=  9 cov=0.65 failed_chunks=0
+docs/services-inventory-generated.md                     chunks=  2 cov=1.00 failed_chunks=0
+docs/subscriptions-table-generated.md                    chunks=  1 cov=1.00 failed_chunks=0
+readme-humans.md                                         chunks=  3 cov=0.95 failed_chunks=0
+reports/Qwen-architecture.md                             chunks=  6 cov=0.40 failed_chunks=2
+reports/Qwen-bugs.md                                     chunks=  6 cov=0.30 failed_chunks=8
+reports/changelog.md                                     chunks= 19 cov=0.23 failed_chunks=1
+scripts/check_doc_map.py                                 chunks=  0 cov=0.00 failed_chunks=0
+scripts/validate-all.sh                                  chunks=  0 cov=0.00 failed_chunks=0
+skills/mikrotik/SKILL.md                                 chunks=  1 cov=0.10 failed_chunks=0
+spark/BENCHMARK-PLAN.md                                  chunks=  6 cov=0.76 failed_chunks=1
+todo-table.md                                            chunks= 11 cov=0.63 failed_chunks=1
+todo.md                                                  chunks= 11 cov=0.21 failed_chunks=5
+
+--- docs with NO failed chunks (fidelity attributable to OV sectioning alone):
+   IaC/ansible/group_vars/home_servers.yml                  chunks=  0 cov=0.00 failed_chunks=0
+   IaC/ansible/group_vars/vps.yml                           chunks=  0 cov=0.00 failed_chunks=0
+   docs/automation-renewals.md                              chunks=  0 cov=0.00 failed_chunks=0
+   docs/hardware-oldsrv.md                                  chunks=  3 cov=0.97 failed_chunks=0
+   docs/home-assistant-current.md                           chunks=  3 cov=0.40 failed_chunks=0
+   docs/index.md                                            chunks=  6 cov=0.84 failed_chunks=0
+   docs/interfaces.md                                       chunks=  2 cov=0.59 failed_chunks=0
+   docs/manual/README.md                                    chunks=  1 cov=0.73 failed_chunks=0
+   docs/manual/chat.md                                      chunks=  1 cov=0.91 failed_chunks=0
+   docs/manual/contacts.md                                  chunks=  1 cov=1.00 failed_chunks=0
+   docs/manual/desktop.md                                   chunks=  1 cov=1.00 failed_chunks=0
+   docs/manual/immich.md                                    chunks=  1 cov=1.00 failed_chunks=0
+   docs/manual/media.md                                     chunks=  1 cov=1.00 failed_chunks=0
+   docs/manual/office-ai.md                                 chunks=  1 cov=1.00 failed_chunks=0
+   docs/manual/opencloud.md                                 chunks=  1 cov=1.00 failed_chunks=0
+   docs/manual/restore-backup.md                            chunks=  1 cov=0.93 failed_chunks=0
+   docs/manual/server-restart.md                            chunks=  1 cov=1.00 failed_chunks=0
+   docs/manual/smart-home.md                                chunks=  1 cov=1.00 failed_chunks=0
+   docs/manual/vpn.md                                       chunks=  1 cov=1.00 failed_chunks=0
+   docs/manual/wifi.md                                      chunks=  1 cov=1.00 failed_chunks=0
+   docs/network-addresses-generated.md                      chunks=  0 cov=0.00 failed_chunks=0
+   docs/network-migration-inventory.md                      chunks=  0 cov=0.00 failed_chunks=0
+   docs/network-rack-generated.md                           chunks=  0 cov=0.00 failed_chunks=0
+   docs/network-review.md                                   chunks=  1 cov=0.95 failed_chunks=0
+   docs/network-vlans.md                                    chunks=  2 cov=0.36 failed_chunks=0
+   docs/pi-harness.md                                       chunks=  0 cov=0.00 failed_chunks=0
+   docs/services-ai.md                                      chunks=  9 cov=0.65 failed_chunks=0
+   docs/services-inventory-generated.md                     chunks=  2 cov=1.00 failed_chunks=0
+   docs/subscriptions-table-generated.md                    chunks=  1 cov=1.00 failed_chunks=0
+   readme-humans.md                                         chunks=  3 cov=0.95 failed_chunks=0
+   scripts/check_doc_map.py                                 chunks=  0 cov=0.00 failed_chunks=0
+   scripts/validate-all.sh                                  chunks=  0 cov=0.00 failed_chunks=0
+   skills/mikrotik/SKILL.md                                 chunks=  1 cov=0.10 failed_chunks=0

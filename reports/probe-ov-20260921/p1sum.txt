@@ -1,0 +1,77 @@
+levels: {2: 384, 1: 19, 0: 16}
+context_types: {None: 419}
+records: 419 unique uris: 275 read ok: 263
+
+sources=51 with_chunks=42 without_chunks=9
+   NO CHUNKS: IaC/ansible/group_vars/home_servers.yml orig_frags_expected
+   NO CHUNKS: IaC/ansible/group_vars/vps.yml orig_frags_expected
+   NO CHUNKS: docs/automation-renewals.md orig_frags_expected
+   NO CHUNKS: docs/network-addresses-generated.md orig_frags_expected
+   NO CHUNKS: docs/network-migration-inventory.md orig_frags_expected
+   NO CHUNKS: docs/network-rack-generated.md orig_frags_expected
+   NO CHUNKS: docs/pi-harness.md orig_frags_expected
+   NO CHUNKS: scripts/check_doc_map.py orig_frags_expected
+   NO CHUNKS: scripts/validate-all.sh orig_frags_expected
+
+--- per-source (chunks, coverage, c1 bytes, c3 fm, c4 hdrMissing, c5 pipesMiss, c6 fences, c7 diac) ---
+   8 cov=0.60 c1=F c3=N c4-=  5 c5-= 3 c6=0/0 c7=1/1 CONVENTIONS.md
+   0 cov=0.00 c1=F c3=N c4-= 99 c5-= 3 c6=0/0 c7=0/0 IaC/ansible/group_vars/home_servers.yml
+   0 cov=0.00 c1=F c3=N c4-= 92 c5-= 1 c6=0/0 c7=0/0 IaC/ansible/group_vars/vps.yml
+   1 cov=1.00 c1=T c3=N c4-=  0 c5-= 0 c6=0/0 c7=0/0 IaC/ansible/templates/docker_services/rag-mcp/docker-compose.yml.j2
+  27 cov=0.56 c1=F c3=N c4-=  2 c5-= 1 c6=54/34 c7=2882/1655 brainstorming/recent/agent-memory-dev.md
+   8 cov=0.31 c1=F c3=N c4-=  3 c5-= 2 c6=102/35 c7=0/0 deployment-manual.md
+   1 cov=0.54 c1=F c3=T c4-=  0 c5-= 0 c6=8/8 c7=0/0 docs/1password.md
+   0 cov=0.00 c1=F c3=F c4-=  5 c5-= 0 c6=2/0 c7=0/0 docs/automation-renewals.md
+   2 cov=0.50 c1=F c3=F c4-=  3 c5-= 0 c6=6/2 c7=0/0 docs/backup.md
+  15 cov=0.76 c1=F c3=T c4-=  5 c5-= 0 c6=48/42 c7=0/0 docs/deployment-ansible.md
+   5 cov=0.55 c1=F c3=T c4-=  0 c5-= 0 c6=20/10 c7=0/0 docs/deployment-compose.md
+  10 cov=0.49 c1=F c3=T c4-=  2 c5-= 0 c6=8/0 c7=4/0 docs/deployment-secrets.md
+   3 cov=0.97 c1=F c3=T c4-=  0 c5-= 0 c6=0/0 c7=0/0 docs/hardware-oldsrv.md
+   7 cov=0.51 c1=F c3=F c4-=  3 c5-= 1 c6=12/10 c7=0/0 docs/hardware-spark.md
+   3 cov=0.40 c1=F c3=F c4-=  8 c5-= 2 c6=0/0 c7=4/3 docs/home-assistant-current.md
+   6 cov=0.84 c1=F c3=T c4-=  2 c5-= 1 c6=2/2 c7=0/0 docs/index.md
+   2 cov=0.59 c1=F c3=F c4-=  7 c5-= 1 c6=2/2 c7=1/0 docs/interfaces.md
+   1 cov=0.73 c1=F c3=T c4-=  0 c5-= 0 c6=0/0 c7=25/29 docs/manual/README.md
+   1 cov=0.91 c1=F c3=T c4-=  0 c5-= 0 c6=0/0 c7=22/24 docs/manual/chat.md
+   1 cov=1.00 c1=T c3=T c4-=  0 c5-= 0 c6=0/0 c7=18/18 docs/manual/contacts.md
+   1 cov=1.00 c1=T c3=T c4-=  0 c5-= 0 c6=0/0 c7=23/23 docs/manual/desktop.md
+   1 cov=1.00 c1=T c3=T c4-=  0 c5-= 0 c6=0/0 c7=5/5 docs/manual/immich.md
+   1 cov=1.00 c1=T c3=T c4-=  0 c5-= 0 c6=0/0 c7=17/17 docs/manual/media.md
+   1 cov=1.00 c1=T c3=T c4-=  0 c5-= 0 c6=2/2 c7=59/59 docs/manual/office-ai.md
+   1 cov=1.00 c1=T c3=T c4-=  0 c5-= 0 c6=0/0 c7=6/6 docs/manual/opencloud.md
+   1 cov=0.93 c1=F c3=T c4-=  0 c5-= 0 c6=0/0 c7=8/9 docs/manual/restore-backup.md
+   1 cov=1.00 c1=T c3=T c4-=  0 c5-= 0 c6=0/0 c7=10/10 docs/manual/server-restart.md
+   1 cov=1.00 c1=T c3=T c4-=  0 c5-= 0 c6=0/0 c7=13/13 docs/manual/smart-home.md
+   1 cov=1.00 c1=T c3=T c4-=  0 c5-= 0 c6=0/0 c7=5/5 docs/manual/vpn.md
+   1 cov=1.00 c1=T c3=T c4-=  0 c5-= 0 c6=0/0 c7=13/13 docs/manual/wifi.md
+   0 cov=0.00 c1=F c3=N c4-=  7 c5-= 3 c6=0/0 c7=0/0 docs/network-addresses-generated.md
+   0 cov=0.00 c1=F c3=F c4-=  5 c5-= 1 c6=0/0 c7=0/0 docs/network-migration-inventory.md
+   0 cov=0.00 c1=F c3=N c4-= 14 c5-= 2 c6=0/0 c7=2/0 docs/network-rack-generated.md
+   4 cov=0.49 c1=F c3=T c4-=  0 c5-= 1 c6=0/0 c7=0/0 docs/network-rejected.md
+   1 cov=0.95 c1=F c3=T c4-=  0 c5-= 0 c6=0/0 c7=0/0 docs/network-review.md
+   2 cov=0.36 c1=F c3=F c4-=  5 c5-= 2 c6=0/0 c7=0/0 docs/network-vlans.md
+  11 cov=0.55 c1=F c3=F c4-=  2 c5-= 0 c6=12/8 c7=0/0 docs/observability.md
+   0 cov=0.00 c1=F c3=F c4-=  3 c5-= 1 c6=10/0 c7=0/0 docs/pi-harness.md
+   9 cov=0.65 c1=F c3=T c4-=  2 c5-= 0 c6=4/0 c7=4/0 docs/services-ai.md
+   2 cov=1.00 c1=F c3=N c4-=  0 c5-= 0 c6=0/0 c7=0/0 docs/services-inventory-generated.md
+   1 cov=1.00 c1=T c3=N c4-=  0 c5-= 0 c6=0/0 c7=0/0 docs/subscriptions-table-generated.md
+   3 cov=0.95 c1=F c3=N c4-=  3 c5-= 2 c6=4/4 c7=19/20 readme-humans.md
+   6 cov=0.40 c1=F c3=N c4-=  3 c5-= 0 c6=18/8 c7=1/0 reports/Qwen-architecture.md
+   6 cov=0.30 c1=F c3=N c4-=  4 c5-= 1 c6=116/34 c7=1/0 reports/Qwen-bugs.md
+  19 cov=0.23 c1=F c3=N c4-=  2 c5-= 7 c6=0/0 c7=4/0 reports/changelog.md
+   0 cov=0.00 c1=F c3=N c4-=  2 c5-= 1 c6=0/0 c7=0/0 scripts/check_doc_map.py
+   0 cov=0.00 c1=F c3=N c4-= 86 c5-= 2 c6=0/0 c7=0/0 scripts/validate-all.sh
+   1 cov=0.10 c1=F c3=F c4-=  3 c5-= 0 c6=46/2 c7=0/0 skills/mikrotik/SKILL.md
+   6 cov=0.76 c1=F c3=N c4-=  3 c5-= 2 c6=4/4 c7=0/0 spark/BENCHMARK-PLAN.md
+  11 cov=0.63 c1=F c3=N c4-=  6 c5-= 3 c6=0/0 c7=4/4 todo-table.md
+  11 cov=0.21 c1=F c3=N c4-= 14 c5-= 6 c6=0/0 c7=4/0 todo.md
+
+unmatched_leaves=59
+  score=0.333 CONVENTIONS/Homelab_Conventions_Consolidated/3._Code_IaC_conventions.m :: ## 3. Code / IaC conventions\n\n| Area | Rules | Owning doc |\n|------|-------|-----------|\n|
+  score=0.5 CONVENTIONS/Homelab_Conventions_Consolidated/4._Lifecycle_conventions/ :: | Phase | Rule | Owning doc |\n|-------|------|-----------|\n| Deployment ledger & journal |
+  score=0.333 CONVENTIONS/Homelab_Conventions_Consolidated/Homelab_Conventio_3more_6 :: | Convention | Rule | Owning doc |\n|-----------|------|-----------|\n| IPs / CIDRs | never 
+  score=0.0 brainstorming/recent/agent-memory-dev/googlesearch_response/googlesear :: )
+  score=0.0 brainstorming/recent/agent-memory-dev/googlesearch_response/googlesear :: x0oAuOkKLAVx0hLACR0hCRXFztHs2oAzIBXCALjpQCceabHaRYIQ02rI1p3tFQ45LkHfdbG1ZxzsjcucXO4oYN3BCC
+  score=0.0 brainstorming/recent/agent-memory-dev/googlesearch_response/googlesear :: ![image](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAuEAAAGeCAMAAAANAi8pAAAAclBMVEX///8
+  score=0.5 docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/De :: | Tool | Status | Date | Why |\n|------|--------|------|-----|\n| CAPsMAN per-MAC vlan-id ac
+  score=0.5 docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/De :: | Tool | Status | Date | Why |\n|------|--------|------|-----|\n| VLAN 21 (IoT-Internet) as 

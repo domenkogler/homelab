@@ -1,0 +1,257 @@
+[
+ {
+  "id": "Q1",
+  "latency_s": 0.03,
+  "grep_calls": 4,
+  "keywords": [
+   "port",
+   "pinned",
+   "embedding",
+   "listen",
+   "LiteLLM",
+   "model",
+   "points"
+  ],
+  "files_matched": 36,
+  "top5_rel": [
+   "IaC/ansible/group_vars/home_servers.yml",
+   "deployment-manual.md",
+   "docs/hardware-spark.md",
+   "docs/services-ai.md",
+   "reports/changelog.md"
+  ],
+  "answer_present": true,
+  "read_bytes": 167006,
+  "tokens_est": 41752,
+  "expected_file": "docs/services-ai.md"
+ },
+ {
+  "id": "Q2",
+  "latency_s": 0.02,
+  "grep_calls": 4,
+  "keywords": [
+   "rerank",
+   "latency",
+   "measured",
+   "twenty",
+   "documents"
+  ],
+  "files_matched": 24,
+  "top5_rel": [
+   "docs/services-ai.md",
+   "reports/changelog.md",
+   "todo.md",
+   "IaC/ansible/group_vars/home_servers.yml",
+   "docs/hardware-spark.md"
+  ],
+  "answer_present": true,
+  "read_bytes": 527642,
+  "tokens_est": 131910,
+  "expected_file": "docs/services-ai.md"
+ },
+ {
+  "id": "Q3",
+  "latency_s": 0.03,
+  "grep_calls": 4,
+  "keywords": [
+   "large",
+   "vLLM",
+   "cache",
+   "pool",
+   "spark",
+   "tokens",
+   "many",
+   "full",
+   "contexts"
+  ],
+  "files_matched": 32,
+  "top5_rel": [
+   "brainstorming/recent/agent-memory-dev.md",
+   "todo.md",
+   "docs/hardware-spark.md",
+   "docs/observability.md",
+   "docs/pi-harness.md"
+  ],
+  "answer_present": true,
+  "read_bytes": 584206,
+  "tokens_est": 146052,
+  "expected_file": "docs/hardware-spark.md"
+ },
+ {
+  "id": "Q4",
+  "latency_s": 0.03,
+  "grep_calls": 4,
+  "keywords": [
+   "VLAN",
+   "Management",
+   "network"
+  ],
+  "files_matched": 32,
+  "top5_rel": [
+   "CONVENTIONS.md",
+   "brainstorming/recent/agent-memory-dev.md",
+   "deployment-manual.md",
+   "docs/deployment-ansible.md",
+   "docs/deployment-secrets.md"
+  ],
+  "answer_present": true,
+  "read_bytes": 484583,
+  "tokens_est": 121146,
+  "expected_file": "docs/network-vlans.md"
+ },
+ {
+  "id": "Q5",
+  "latency_s": 0.07,
+  "grep_calls": 4,
+  "keywords": [
+   "chunk",
+   "size",
+   "overlap",
+   "were",
+   "decided",
+   "corpus"
+  ],
+  "files_matched": 26,
+  "top5_rel": [
+   "IaC/ansible/group_vars/home_servers.yml",
+   "docs/services-ai.md",
+   "reports/changelog.md",
+   "docs/observability.md",
+   "spark/BENCHMARK-PLAN.md"
+  ],
+  "answer_present": true,
+  "read_bytes": 387397,
+  "tokens_est": 96849,
+  "expected_file": "docs/services-ai.md"
+ },
+ {
+  "id": "Q6",
+  "latency_s": 0.06,
+  "grep_calls": 4,
+  "keywords": [
+   "numbered",
+   "decision",
+   "says",
+   "spark",
+   "text",
+   "only",
+   "vision"
+  ],
+  "files_matched": 38,
+  "top5_rel": [
+   "docs/deployment-ansible.md",
+   "todo-table.md",
+   "todo.md",
+   "CONVENTIONS.md",
+   "docs/hardware-spark.md"
+  ],
+  "answer_present": true,
+  "read_bytes": 297688,
+  "tokens_est": 74422,
+  "expected_file": "docs/services-ai.md"
+ },
+ {
+  "id": "Q7",
+  "latency_s": 0.02,
+  "grep_calls": 4,
+  "keywords": [
+   "backlog",
+   "owns",
+   "corpus",
+   "reader"
+  ],
+  "files_matched": 20,
+  "top5_rel": [
+   "reports/changelog.md",
+   "CONVENTIONS.md",
+   "docs/services-ai.md",
+   "IaC/ansible/group_vars/home_servers.yml",
+   "IaC/ansible/group_vars/vps.yml"
+  ],
+  "answer_present": true,
+  "read_bytes": 392280,
+  "tokens_est": 98070,
+  "expected_file": "todo-table.md"
+ },
+ {
+  "id": "Q8",
+  "latency_s": 0.03,
+  "grep_calls": 4,
+  "keywords": [
+   "Kako",
+   "obnovim",
+   "izbrisane",
+   "datoteke",
+   "varnostne",
+   "kopije"
+  ],
+  "files_matched": 12,
+  "top5_rel": [
+   "brainstorming/recent/agent-memory-dev.md",
+   "docs/manual/restore-backup.md",
+   "docs/manual/opencloud.md",
+   "docs/manual/chat.md",
+   "docs/manual/desktop.md"
+  ],
+  "answer_present": true,
+  "read_bytes": 363688,
+  "tokens_est": 90922,
+  "expected_file": "docs/manual/restore-backup.md"
+ },
+ {
+  "id": "Q9",
+  "latency_s": 0.06,
+  "grep_calls": 4,
+  "keywords": [
+   "physical",
+   "host",
+   "pinned",
+   "services",
+   "embedding",
+   "rerank",
+   "speech",
+   "text"
+  ],
+  "files_matched": 37,
+  "top5_rel": [
+   "docs/services-ai.md",
+   "IaC/ansible/group_vars/home_servers.yml",
+   "deployment-manual.md",
+   "docs/hardware-spark.md",
+   "reports/changelog.md"
+  ],
+  "answer_present": true,
+  "read_bytes": 167720,
+  "tokens_est": 41930,
+  "expected_file": "docs/hardware-oldsrv.md"
+ },
+ {
+  "id": "Q10",
+  "latency_s": 0.1,
+  "grep_calls": 4,
+  "keywords": [
+   "numbered",
+   "decision",
+   "keeps",
+   "coding",
+   "harness",
+   "pointed",
+   "straight",
+   "engine",
+   "instead",
+   "gateway"
+  ],
+  "files_matched": 33,
+  "top5_rel": [
+   "todo.md",
+   "deployment-manual.md",
+   "docs/services-ai.md",
+   "reports/changelog.md",
+   "IaC/ansible/group_vars/home_servers.yml"
+  ],
+  "answer_present": true,
+  "read_bytes": 307965,
+  "tokens_est": 76991,
+  "expected_file": "docs/pi-harness.md"
+ }
+]

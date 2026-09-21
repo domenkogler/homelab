@@ -1,0 +1,63 @@
+
+A_all_chunks_failed: 0
+
+B_partial: 4
+    embedded= 37 failed= 50 coverage=0.74  brainstorming/recent/agent-memory-dev.md
+    embedded=  1 failed=  1 coverage=0.37  docs/network-addresses-generated.md
+    embedded= 11 failed=  1 coverage=0.68  reports/Qwen-bugs.md
+    embedded=  7 failed=  1 coverage=0.79  spark/BENCHMARK-PLAN.md
+
+C_no_failure_but_loss: 3
+    embedded= 10 failed=  0 coverage=0.78  reports/Qwen-architecture.md
+    embedded= 52 failed=  0 coverage=0.33  reports/changelog.md
+    embedded=  3 failed=  0 coverage=0.68  skills/mikrotik/SKILL.md
+
+C2_no_failure_full_coverage: 3
+    embedded=  2 failed=  0 coverage=1.00  docs/network-rack-generated.md
+    embedded=  2 failed=  0 coverage=1.00  docs/services-inventory-generated.md
+    embedded=  1 failed=  0 coverage=1.00  docs/subscriptions-table-generated.md
+
+D_never_chunked: 41
+    embedded=  0 failed=  0 coverage=0.75  CONVENTIONS.md
+    embedded=  0 failed=  0 coverage=1.00  IaC/ansible/group_vars/home_servers.yml
+    embedded=  0 failed=  0 coverage=0.00  IaC/ansible/group_vars/vps.yml
+    embedded=  0 failed=  0 coverage=1.00  IaC/ansible/templates/docker_services/rag-mcp/docker-compose.yml.j2
+    embedded=  0 failed=  0 coverage=0.72  deployment-manual.md
+    embedded=  0 failed=  0 coverage=0.78  docs/1password.md
+    embedded=  0 failed=  0 coverage=1.00  docs/automation-renewals.md
+    embedded=  0 failed=  0 coverage=0.81  docs/backup.md
+    embedded=  0 failed=  0 coverage=0.76  docs/deployment-ansible.md
+    embedded=  0 failed=  0 coverage=0.85  docs/deployment-compose.md
+    embedded=  0 failed=  0 coverage=0.69  docs/deployment-secrets.md
+    embedded=  0 failed=  0 coverage=0.60  docs/hardware-oldsrv.md
+    embedded=  0 failed=  0 coverage=0.59  docs/hardware-spark.md
+    embedded=  0 failed=  0 coverage=0.52  docs/home-assistant-current.md
+    embedded=  0 failed=  0 coverage=0.48  docs/index.md
+    embedded=  0 failed=  0 coverage=0.00  docs/interfaces.md
+    embedded=  0 failed=  0 coverage=0.00  docs/manual/README.md
+    embedded=  0 failed=  0 coverage=0.00  docs/manual/chat.md
+    embedded=  0 failed=  0 coverage=1.00  docs/manual/contacts.md
+    embedded=  0 failed=  0 coverage=1.00  docs/manual/desktop.md
+    embedded=  0 failed=  0 coverage=1.00  docs/manual/immich.md
+    embedded=  0 failed=  0 coverage=1.00  docs/manual/media.md
+    embedded=  0 failed=  0 coverage=1.00  docs/manual/office-ai.md
+    embedded=  0 failed=  0 coverage=1.00  docs/manual/opencloud.md
+    embedded=  0 failed=  0 coverage=0.93  docs/manual/restore-backup.md
+    embedded=  0 failed=  0 coverage=1.00  docs/manual/server-restart.md
+    embedded=  0 failed=  0 coverage=1.00  docs/manual/smart-home.md
+    embedded=  0 failed=  0 coverage=0.00  docs/manual/vpn.md
+    embedded=  0 failed=  0 coverage=1.00  docs/manual/wifi.md
+    embedded=  0 failed=  0 coverage=0.00  docs/network-migration-inventory.md
+    embedded=  0 failed=  0 coverage=0.06  docs/network-rejected.md
+    embedded=  0 failed=  0 coverage=0.95  docs/network-review.md
+    embedded=  0 failed=  0 coverage=0.79  docs/network-vlans.md
+    embedded=  0 failed=  0 coverage=0.60  docs/observability.md
+    embedded=  0 failed=  0 coverage=0.95  docs/pi-harness.md
+    embedded=  0 failed=  0 coverage=0.80  docs/services-ai.md
+    embedded=  0 failed=  0 coverage=0.00  readme-humans.md
+    embedded=  0 failed=  0 coverage=0.00  scripts/check_doc_map.py
+    embedded=  0 failed=  0 coverage=1.00  scripts/validate-all.sh
+    embedded=  0 failed=  0 coverage=0.50  todo-table.md
+    embedded=  0 failed=  0 coverage=0.27  todo.md
+
+totals: embedded_uris=551 failed_uris=54 sources=51

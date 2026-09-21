@@ -1,0 +1,94 @@
+[92m14:18:24 - LiteLLM:ERROR[0m: main.py:536 - Error in rerank: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=local-rerank
+ Pass model as E.g. For 'Huggingface' inference endpoints pass in `completion(model='huggingface/starcoder',..)` Learn more: https://docs.litellm.ai/docs/providers
+[92m14:18:24 - LiteLLM:ERROR[0m: main.py:536 - Error in rerank: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=local-rerank
+ Pass model as E.g. For 'Huggingface' inference endpoints pass in `completion(model='huggingface/starcoder',..)` Learn more: https://docs.litellm.ai/docs/providers
+[92m14:18:24 - LiteLLM:ERROR[0m: main.py:536 - Error in rerank: Unsupported provider: openai
+[92m14:18:24 - LiteLLM:ERROR[0m: main.py:536 - Error in rerank: Unsupported provider: openai
+[92m14:18:24 - LiteLLM:ERROR[0m: main.py:536 - Error in rerank: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=jina/local-rerank
+ Pass model as E.g. For 'Huggingface' inference endpoints pass in `completion(model='huggingface/starcoder',..)` Learn more: https://docs.litellm.ai/docs/providers
+[92m14:18:24 - LiteLLM:ERROR[0m: main.py:536 - Error in rerank: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=jina/local-rerank
+ Pass model as E.g. For 'Huggingface' inference endpoints pass in `completion(model='huggingface/starcoder',..)` Learn more: https://docs.litellm.ai/docs/providers
+key_present=True key_len=32
+python=3.13.5
+litellm=1.91.1
+--- EMBED ---
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL embed model=bge-m3-vk                  base=http://10.10.1.30:4000             BadRequestError: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=bge-m3-vk  Pass model as E.g. Fo
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL embed model=bge-m3-vk                  base=http://10.10.1.30:4000/v1          BadRequestError: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=bge-m3-vk  Pass model as E.g. Fo
+OK   embed model=openai/bge-m3-vk           base=http://10.10.1.30:4000             dim=1024 first=-0.030278025195002556
+OK   embed model=openai/bge-m3-vk           base=http://10.10.1.30:4000/v1          dim=1024 first=-0.030278025195002556
+OK   embed model=hosted_vllm/bge-m3-vk      base=http://10.10.1.30:4000             dim=1024 first=-0.030278025195002556
+OK   embed model=hosted_vllm/bge-m3-vk      base=http://10.10.1.30:4000/v1          dim=1024 first=-0.030278025195002556
+--- RERANK ---
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL rerank model=local-rerank               base=http://10.10.1.30:4000             BadRequestError: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=local-rerank  Pass model as E.g.
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL rerank model=local-rerank               base=http://10.10.1.30:4000/v1          BadRequestError: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=local-rerank  Pass model as E.g.
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL rerank model=openai/local-rerank        base=http://10.10.1.30:4000             APIConnectionError: litellm.APIConnectionError: Unsupported provider: openai Traceback (most recent call last):   File "/home/domen/ovprobe/venv/lib/python3.13/site-packa
+
+[1;31mGive Feedback / Get Help: https://github.com/BerriAI/litellm/issues/new[0m
+LiteLLM.Info: If you need to debug this error, use `litellm._turn_on_debug()'.
+
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL rerank model=openai/local-rerank        base=http://10.10.1.30:4000/v1          APIConnectionError: litellm.APIConnectionError: Unsupported provider: openai Traceback (most recent call last):   File "/home/domen/ovprobe/venv/lib/python3.13/site-packa
+OK   rerank model=jina_ai/local-rerank       base=http://10.10.1.30:4000             n=2
+OK   rerank model=jina_ai/local-rerank       base=http://10.10.1.30:4000/v1          n=2
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL rerank model=jina/local-rerank          base=http://10.10.1.30:4000             BadRequestError: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=jina/local-rerank  Pass model as
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL rerank model=jina/local-rerank          base=http://10.10.1.30:4000/v1          BadRequestError: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=jina/local-rerank  Pass model as
+--- CHAT (thinking measurement, HD-387) ---
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL chat model=spark/qwen3.8-flash-next           bare      base=http://10.10.1.30:4000 BadRequestError: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=spark/qwen3.8-flash-next  Pass m
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL chat model=spark/qwen3.8-flash-next           think_off base=http://10.10.1.30:4000 BadRequestError: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=spark/qwen3.8-flash-next  Pass m
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL chat model=spark/qwen3.8-flash-next           bare      base=http://10.10.1.30:4000/v1 BadRequestError: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=spark/qwen3.8-flash-next  Pass m
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+
+[1;31mProvider List: https://docs.litellm.ai/docs/providers[0m
+
+FAIL chat model=spark/qwen3.8-flash-next           think_off base=http://10.10.1.30:4000/v1 BadRequestError: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=spark/qwen3.8-flash-next  Pass m
+OK   chat model=openai/spark/qwen3.8-flash-next    bare      prompt=58 compl=31 reasoning=26 keys=['accepted_prediction_tokens', 'audio_tokens', 'image_tokens', 'reasoning_tokens', 'rejected_prediction_tokens', 'text_tokens', 'video_tokens']
+OK   chat model=openai/spark/qwen3.8-flash-next    think_off prompt=18 compl=3 reasoning=0 keys=['accepted_prediction_tokens', 'audio_tokens', 'image_tokens', 'reasoning_tokens', 'rejected_prediction_tokens', 'text_tokens', 'video_tokens']
+OK   chat model=openai/spark/qwen3.8-flash-next    bare      prompt=58 compl=30 reasoning=25 keys=['accepted_prediction_tokens', 'audio_tokens', 'image_tokens', 'reasoning_tokens', 'rejected_prediction_tokens', 'text_tokens', 'video_tokens']
+OK   chat model=openai/spark/qwen3.8-flash-next    think_off prompt=18 compl=3 reasoning=0 keys=['accepted_prediction_tokens', 'audio_tokens', 'image_tokens', 'reasoning_tokens', 'rejected_prediction_tokens', 'text_tokens', 'video_tokens']

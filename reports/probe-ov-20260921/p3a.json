@@ -1,0 +1,208 @@
+{
+ "docs/network-review.md": {
+  "chars": 3597,
+  "tokens_est": 899,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": true,
+  "src_terms_shared": 18
+ },
+ "docs/manual/chat.md": {
+  "missing": true
+ },
+ "docs/subscriptions-table-generated.md": {
+  "chars": 4594,
+  "tokens_est": 1148,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 33
+ },
+ "docs/manual/media.md": {
+  "missing": true
+ },
+ "docs/manual/README.md": {
+  "missing": true
+ },
+ "docs/manual/office-ai.md": {
+  "chars": 4062,
+  "tokens_est": 1016,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 1,
+  "invented_number_examples": [
+   "0"
+  ],
+  "R4_invents_nothing": false,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 7
+ },
+ "docs/automation-renewals.md": {
+  "chars": 4235,
+  "tokens_est": 1059,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 38
+ },
+ "docs/network-migration-inventory.md": {
+  "missing": true
+ },
+ "docs/services-inventory-generated.md": {
+  "chars": 3024,
+  "tokens_est": 756,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 12
+ },
+ "readme-humans.md": {
+  "chars": 2836,
+  "tokens_est": 709,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 17
+ },
+ "docs/network-rack-generated.md": {
+  "chars": 2963,
+  "tokens_est": 741,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 7
+ },
+ "docs/network-addresses-generated.md": {
+  "chars": 3491,
+  "tokens_est": 873,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 10
+ },
+ "docs/hardware-oldsrv.md": {
+  "chars": 3693,
+  "tokens_est": 923,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 24
+ },
+ "docs/interfaces.md": {
+  "chars": 3355,
+  "tokens_est": 839,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 19
+ },
+ "docs/1password.md": {
+  "chars": 4280,
+  "tokens_est": 1070,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 19
+ },
+ "skills/mikrotik/SKILL.md": {
+  "chars": 2753,
+  "tokens_est": 688,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 17
+ },
+ "docs/backup.md": {
+  "chars": 3202,
+  "tokens_est": 800,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 17
+ },
+ "docs/network-vlans.md": {
+  "chars": 3746,
+  "tokens_est": 936,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 22
+ },
+ "docs/index.md": {
+  "chars": 4075,
+  "tokens_est": 1019,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 22
+ },
+ "docs/pi-harness.md": {
+  "chars": 2855,
+  "tokens_est": 714,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 19
+ }
+}

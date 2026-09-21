@@ -1,0 +1,302 @@
+[
+ {
+  "id": "Q1",
+  "latency_s": 0.05,
+  "uris": [
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/4._LLM_routing_keys/4a._Model_catalog_rows_runbook_runtime_DB.md",
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_10.md",
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/9._Decision_log_load-bearing_rules/9._Decision_log_load-bearing_rules.md",
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/3._Components/3._Components.md",
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_9.md"
+  ],
+  "scores": [
+   0.6189712882041931,
+   0.6128731369972229,
+   0.5982845425605774,
+   0.5936902761459351,
+   0.5885558724403381
+  ],
+  "levels": [
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "answer_present": true,
+  "chars_retrieved": 21075,
+  "tokens_est": 5269,
+  "usage": null,
+  "expected_file": "docs/services-ai.md"
+ },
+ {
+  "id": "Q2",
+  "latency_s": 0.04,
+  "uris": [
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_9.md",
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/9._Decision_log_load-bearing_rules/9._Decision_log_load-bearing_rules.md",
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/3._Components/3a._Pinned_AI_inference_tier_plan_of_reco_b15fca20/3a._Pinned_AI_inference_tier_plan_of_reco_b15fca20.md",
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_10.md",
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/3._Components/3a._Pinned_AI_inference_tier_plan_of_reco_b15fca20/3a-2._What_the_de_2more_0a6cb29d.md"
+  ],
+  "scores": [
+   0.6013222336769104,
+   0.569886326789856,
+   0.561050295829773,
+   0.5486714839935303,
+   0.5421682596206665
+  ],
+  "levels": [
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "answer_present": true,
+  "chars_retrieved": 20416,
+  "tokens_est": 5104,
+  "usage": null,
+  "expected_file": "docs/services-ai.md"
+ },
+ {
+  "id": "Q3",
+  "latency_s": 0.08,
+  "uris": [
+   "viking://resources/ov51b/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Unified-memory_budget_OOM_governance/Unified-memory_bu_3more_4f2924b6.md",
+   "viking://resources/ov51b/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Bench_engine_sele_2more_f8a162f3.md",
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_7.md",
+   "viking://resources/ov51b/corpus/docs/pi.dev_Harness_Client-Side_Model_Config_s_4553e320/pi.dev_Harness_Client-Side_Model_Config/2._Engine_facts_m_3more_260b1fea_1.md",
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_14.md"
+  ],
+  "scores": [
+   0.6450170278549194,
+   0.6058739423751831,
+   0.5965900421142578,
+   0.5943989753723145,
+   0.588148832321167
+  ],
+  "levels": [
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "answer_present": false,
+  "chars_retrieved": 20384,
+  "tokens_est": 5096,
+  "usage": null,
+  "expected_file": "docs/hardware-spark.md"
+ },
+ {
+  "id": "Q4",
+  "latency_s": 0.09,
+  "uris": [
+   "viking://resources/ov51b/corpus/docs/VLAN_Plan/VLAN_Plan/VLAN_Plan_3more_b5b0424e_1.md",
+   "viking://resources/ov51b/corpus/docs/network-addresses-generated/Network_Addresses_SSOT/Infrastructure_ne_3more_24b1fced.md",
+   "viking://resources/ov51b/corpus/docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/Decisions/Decisions_9.md",
+   "viking://resources/ov51b/corpus/docs/Network_Rejected_Dropped_Decision_Log/Network_Rejected_Dropped/Decisions/Decisions_4.md",
+   "viking://resources/ov51b/corpus/docs/Homelab_Documentation_Index/Homelab_Documentation_Index/Document_Map/Document_Map_1.md"
+  ],
+  "scores": [
+   0.6035466194152832,
+   0.5888948440551758,
+   0.5798416137695312,
+   0.5718446373939514,
+   0.5698981881141663
+  ],
+  "levels": [
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "answer_present": true,
+  "chars_retrieved": 17982,
+  "tokens_est": 4496,
+  "usage": null,
+  "expected_file": "docs/network-vlans.md"
+ },
+ {
+  "id": "Q5",
+  "latency_s": 0.05,
+  "uris": [
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/5._Knowledge_SSOT_RAG_pipeline.md",
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_19.md",
+   "viking://resources/ov51b/corpus/docs/Observability/Observability/Scrape_cadence_and_metric_resolution_HD-420/Scrape_cadence_an_4more_104ce9a8_1.md",
+   "viking://resources/ov51b/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_e1bab82f.md",
+   "viking://resources/ov51b/corpus/brainstorming/recent/agent-memory-dev/you_asked_2more_08b3b2d4.md"
+  ],
+  "scores": [
+   0.37210020422935486,
+   0.36125418543815613,
+   0.35842010378837585,
+   0.35473424196243286,
+   0.3478220999240875
+  ],
+  "levels": [
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "answer_present": true,
+  "chars_retrieved": 23764,
+  "tokens_est": 5941,
+  "usage": null,
+  "expected_file": "docs/services-ai.md"
+ },
+ {
+  "id": "Q6",
+  "latency_s": 0.04,
+  "uris": [
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_8.md",
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/9._Decision_log_load-bearing_rules/9._Decision_log_load-bearing_rules.md",
+   "viking://resources/ov51b/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/Bench_engine_sele_2more_f8a162f3.md",
+   "viking://resources/ov51b/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe_1.md",
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_2.md"
+  ],
+  "scores": [
+   0.564755380153656,
+   0.5504958033561707,
+   0.5464986562728882,
+   0.5437346696853638,
+   0.5067909359931946
+  ],
+  "levels": [
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "answer_present": true,
+  "chars_retrieved": 23112,
+  "tokens_est": 5778,
+  "usage": null,
+  "expected_file": "docs/services-ai.md"
+ },
+ {
+  "id": "Q7",
+  "latency_s": 0.06,
+  "uris": [
+   "viking://resources/ov51b/corpus/docs/Observability/Observability/Architecture/MCP_AI-debugging_servers_on_oldsrv_HD-344_12434db5.md",
+   "viking://resources/ov51b/corpus/IaC/ansible/templates/docker_services/rag-mcp/docker-compose.yml.j2",
+   "viking://resources/ov51b/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/B._Table_AI_doable_now_no_owner_step_in_front/Active_lanes/Active_lanes_3.md",
+   "viking://resources/ov51b/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/B._Table_AI_doable_now_no_owner_step_in_front/AI_Office.md",
+   "viking://resources/ov51b/corpus/todo-table/Todo_Split_Decided_State_AI-Runnable_Work_38a87b93/Watch-list_reads_as_done_is_not.md"
+  ],
+  "scores": [
+   0.5170430541038513,
+   0.5142836570739746,
+   0.5114307999610901,
+   0.49841153621673584,
+   0.49041861295700073
+  ],
+  "levels": [
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "answer_present": true,
+  "chars_retrieved": 18416,
+  "tokens_est": 4604,
+  "usage": null,
+  "expected_file": "todo-table.md"
+ },
+ {
+  "id": "Q8",
+  "latency_s": 0.09,
+  "uris": [
+   "viking://resources/ov51b/corpus/docs/manual/Kako_obnoviti_iz_varnostne_kopije/Kako_obnoviti_iz_varnostne_kopije.md",
+   "viking://resources/ov51b/corpus/docs/Backup_Disaster_Recovery/Backup_Disaster_Recovery/Backup_Flow_5more_40f3feae.md",
+   "viking://resources/ov51b/corpus/docs/Backup_Disaster_Recovery/Backup_Disaster_Recovery/Backup_Architecture_Dual_Layer/Backup_Architectu_3more_22f8d41c_1.md",
+   "viking://resources/ov51b/corpus/deployment-manual/1_sftp_key_backup_8more_fb2adf45.md",
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.9_Backup_DR_ZFS_3more_1558d37b.md"
+  ],
+  "scores": [
+   0.6914058327674866,
+   0.6130833029747009,
+   0.6067076921463013,
+   0.597957968711853,
+   0.5729733109474182
+  ],
+  "levels": [
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "answer_present": true,
+  "chars_retrieved": 20926,
+  "tokens_est": 5232,
+  "usage": null,
+  "expected_file": "docs/manual/restore-backup.md"
+ },
+ {
+  "id": "Q9",
+  "latency_s": 0.09,
+  "uris": [
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_10.md",
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/3._Components/3a._Pinned_AI_inference_tier_plan_of_reco_b15fca20/3a._Pinned_AI_inference_tier_plan_of_reco_b15fca20.md",
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/AI_Platform_Family_Web_AI_Layer.md",
+   "viking://resources/ov51b/corpus/docs/AI_Platform_Chat_RAG_Agents_LiteLLM_Open__881caff6/AI_Platform_Family_Web_AI_Layer/9._Decision_log_load-bearing_rules/9b._Coding_plane__2more_7528b042_2.md",
+   "viking://resources/ov51b/corpus/docs/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe/spark_Lenovo_ThinkStation_PGX_NVIDIA_GB10_c85cddfe_1.md"
+  ],
+  "scores": [
+   0.6071174144744873,
+   0.6055882573127747,
+   0.5898342132568359,
+   0.5748083591461182,
+   0.5720242261886597
+  ],
+  "levels": [
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "answer_present": true,
+  "chars_retrieved": 24248,
+  "tokens_est": 6062,
+  "usage": null,
+  "expected_file": "docs/hardware-oldsrv.md"
+ },
+ {
+  "id": "Q10",
+  "latency_s": 0.09,
+  "uris": [
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2/2.7_AI_Office_LLM_stack_Open_WebUI_office_589952d2_8.md",
+   "viking://resources/ov51b/corpus/todo/Homelab_TODO_Backlog/2._Active_work_by_module/2.12_Observability_Alerting/2.12_Observability_Alerting_12.md",
+   "viking://resources/ov51b/corpus/spark/BENCHMARK-PLAN/Spark_Benchmark_Plan_engine-neutral_vLLM__e93d8f04/3._Benchmark_harness.md",
+   "viking://resources/ov51b/corpus/docs/pi.dev_Harness_Client-Side_Model_Config_s_4553e320/pi.dev_Harness_Client-Side_Model_Config/2._Engine_facts_m_3more_260b1fea_1.md",
+   "viking://resources/ov51b/corpus/spark/BENCHMARK-PLAN/Spark_Benchmark_Plan_engine-neutral_vLLM__e93d8f04/6._Engine_tuning_ladder_runs_on_the_winni_1ca3b515/6._Engine_tuning_ladder_runs_on_the_winni_1ca3b515.md"
+  ],
+  "scores": [
+   0.56648188829422,
+   0.564100980758667,
+   0.5635709166526794,
+   0.5574191212654114,
+   0.5571844577789307
+  ],
+  "levels": [
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "answer_present": true,
+  "chars_retrieved": 20347,
+  "tokens_est": 5087,
+  "usage": null,
+  "expected_file": "docs/pi-harness.md"
+ }
+]

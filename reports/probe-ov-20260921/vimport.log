@@ -1,0 +1,7 @@
+Note: Resource is being processed in the background.
+Use 'ov task status <task_id>' to check progress, or 'ov task list' to see all tasks.
+status       success
+task_id      5d692ae4-cd38-47c6-810e-7e3794f8a122
+source_path  corpus
+root_uri     viking://resources/ov51/corpus
+

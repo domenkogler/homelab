@@ -1,0 +1,85 @@
+[
+  {
+    "id": "Q1",
+    "q": "Which TCP port does the pinned embedding leg listen on, and what is the LiteLLM model row that points at it?",
+    "answers": [
+      "9002"
+    ],
+    "file": "docs/services-ai.md"
+  },
+  {
+    "id": "Q2",
+    "q": "What rerank latency was measured for twenty documents on the RX 7600?",
+    "answers": [
+      "0.34"
+    ],
+    "file": "docs/services-ai.md"
+  },
+  {
+    "id": "Q3",
+    "q": "How large is the vLLM KV cache pool on spark in tokens, and how many full 262k contexts fit in it?",
+    "answers": [
+      "515",
+      "1.97"
+    ],
+    "file": "docs/hardware-spark.md"
+  },
+  {
+    "id": "Q4",
+    "q": "Which VLAN id is the Management network?",
+    "answers": [
+      "99"
+    ],
+    "file": "docs/network-vlans.md"
+  },
+  {
+    "id": "Q5",
+    "q": "What chunk size and overlap were decided for the RAG corpus?",
+    "answers": [
+      "512",
+      "64"
+    ],
+    "file": "docs/services-ai.md"
+  },
+  {
+    "id": "Q6",
+    "q": "Which numbered decision says spark is text-only with no vision leg?",
+    "answers": [
+      "28"
+    ],
+    "file": "docs/services-ai.md"
+  },
+  {
+    "id": "Q7",
+    "q": "Which HD backlog row owns the corpus reader rag-mcp?",
+    "answers": [
+      "HD-268"
+    ],
+    "file": "todo-table.md"
+  },
+  {
+    "id": "Q8",
+    "q": "Kako obnovim izbrisane datoteke iz varnostne kopije?",
+    "answers": [
+      "Kopia",
+      "kopia"
+    ],
+    "file": "docs/manual/restore-backup.md"
+  },
+  {
+    "id": "Q9",
+    "q": "Which physical host and which GPU run the pinned AI services for embedding, rerank and speech-to-text?",
+    "answers": [
+      "RX 7600"
+    ],
+    "file": "docs/hardware-oldsrv.md"
+  },
+  {
+    "id": "Q10",
+    "q": "Which numbered decision keeps the coding harness pointed straight at the engine instead of a gateway?",
+    "answers": [
+      "26"
+    ],
+    "file": "docs/pi-harness.md"
+  }
+]
