@@ -83,6 +83,16 @@ For "what to do next" see [todo-table.md](todo-table.md) (Table AI / Table Human
 > sighting is left). The writing rule it applied is CONVENTIONS §4 — do not re-add dated execution narrative to
 > `docs/`, and never re-open a decision whose source is a `group_vars` comment.
 
+> **Owner decision round CLOSED (2026-09-21) — no open owner question blocks AI work anymore.** The answers are in
+> [todo-table.md](todo-table.md) §A1 and in the `network` / `services` / `deployment` / `smart-home` decision logs;
+> `todo.md` §1 is now empty of decisions. Five facts a session must carry rather than re-derive: **GitHub is the
+> live remote** (the VPS Forgejo holds no copy of this repo), so the runner pulls from GitHub with the **read-only**
+> `github-homelab-deploy_api` and **oldsrv is pull-only until HD-409**; the cockpit/harness seat on oldsrv is
+> **`domen`** (your decision, with the measured reason: that account holds neither the `op` token nor the fleet key),
+> `ansible-admin` is runner-only, and the break-glass identity is a new **`<host>-cockpit_login`** PAM user per
+> cockpit host (HD-361); the scoped grant is the **`spark/qwen3.8-flash-next` row only**, `rpm` caps, **no budgets**;
+> and **HD-418 / HD-419** are two rows registered out of prose fault-notes — ⏳ both are still open AI work, not shipped fixes.
+
 **AI-actionable now (no owner prerequisite):**
 - **HD-417** — ⏳ **the docs validator cannot see a broken table.** Two misses in one session: a swallowed newline merged two registry rows, and a description with `a|b|c` alternatives widened a 3-cell row to 12. Both passed every gate. Cheap fix, but it needs an escape convention (`\|` in cells) plus a one-time sweep, because legacy rows quote pipes legitimately. · [CONVENTIONS.md](CONVENTIONS.md) §6
 - **HD-416** — ⏳ **the SSH grant inventory has no gate.** The per-host table exists (read it: [deployment-secrets.md](docs/deployment-secrets.md) §Who is authorized where), and it exists only because a hand-made key authorizing `ansible-admin` on nas — NOPASSWD root — was found by sweeping by hand. Next step is a **read-only** audit: collect `authorized_keys` entries per host (fingerprints + comments), diff against the named set, fail loud on an unknown. Four live grants still have no vault item. ⛔ It must never edit an `authorized_keys` — the characteristic failure of an SSH-management tool is locking yourself out with your own fix. · [todo.md HD-416](todo.md)

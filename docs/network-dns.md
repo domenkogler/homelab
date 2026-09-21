@@ -222,6 +222,44 @@ Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
 
 ---
 
+## The resolution requirement (HD-415, decided 2026-09-21)
+
+`*.kogler.si` **must** resolve in three situations, and this is the acceptance test for any change to a resolver, a
+nameserver list or the tailnet `nameservers` chain:
+
+1. **On the LAN** — any VLAN client, via the per-subnet Technitium policy above.
+2. **Away from home** — a tailnet device reaching the split-horizon zone.
+3. **At home with the WAN down** — a tailnet device at home still resolving the zone.
+
+Case **(d)** — away while the **home** WAN is down — has no answer by physics, and the owner has accepted that
+explicitly, preferring a clean "the zone is down" over a half-resolving zone that returns addresses for services
+that cannot answer.
+
+**The physics that decides the design** (and why "just trim the unreachable resolvers" is wrong): with the home WAN
+down, nothing off-site is reachable from inside — *the VPS included* — so case 3 can only ever be served by
+something on the LAN. And with the home WAN down, an away device has no path to a home resolver either. So a
+resolver list sorted by "where the device usually is" cannot win: the answer is one resolver that is reachable from
+**wherever the device is**.
+
+**Decided design (HD-415, folded into the HD-414 lane):**
+
+- Name **oldsrv's own tailnet node address** as a tailnet nameserver — Technitium on oldsrv binds it. At home it
+  stays reachable **direct over the LAN even with the WAN pulled**; away it is reachable whenever the home link is
+  up. One entry, both places.
+- Keep the **VPS public** instance as the **second** entry, so a dead node never costs away-side resolution — the
+  public half of the zone (`auth.`, the VPS edge) lives in the same split-horizon set.
+- Drop the two **LAN-address** entries (oldsrv LAN, Pi LAN): they were unreachable off-site and are the whole
+  `DNS unavailable` wart, and their survival job is taken over by the node address.
+- LAN clients are untouched — they get the LAN resolvers from DHCP, exactly as today.
+
+**⚠ Verify, do not assume, before converging** (this repo has been bitten by guessed control-plane syntax): that
+headscale in the pinned version accepts a **node address** as a nameserver; that Technitium binds the tailnet
+interface; and above all that a phone at home really does reach the node **direct-over-LAN with the WAN pulled** —
+that one property is the entire design, so the acceptance test is the three-case drill (LAN / cellular / home with
+the WAN pulled), not a `dig` from the laptop. Decision log: [network-rejected.md](network-rejected.md) 2026-09-21.
+
+---
+
 ## MikroTik Firewall Rules for DNS
 
 Technitium instances bind resolver addresses (VPS public IP primary, oldsrv secondary, Pi tertiary — values per

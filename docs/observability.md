@@ -217,7 +217,7 @@ update, or queries keep 401-ing despite correct rendered files.
   Grafana (compose env), Pi + oldsrv HA (`secrets.yaml`), and **NUT `upssched-cmd` on nas**, which embeds it
   **inline** (see [hardware-ups.md](hardware-ups.md)).
   - **Connecting (SMTP2Go, EU datacenter — as provided by the account):** server `mail-eu.smtp2go.com`; SMTP port `2525` (default), alternates `8025`, `587`, `80`, `25` — **TLS available on the same ports** (STARTTLS). SSL: `465`, `8465`, `443`. The repo uses `mail-eu.smtp2go.com:2525` + STARTTLS (**587 is blocked from the VPS egress** — verified live — so **2525 is the SSOT port**, not 587).
-- **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking.
+- **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. **Recipient value (owner confirmed 2026-09-21, HD-347): alerts go to the WHOLE group, and `signal_alert_recipients` takes the group ID that signal-cli reports** (read it from the linked daemon on oldsrv, read-only) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts.
 
 ### Operational gotchas (learned live — the rules that keep them from coming back)
 
