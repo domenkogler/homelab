@@ -216,6 +216,25 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
   issuer/app/flow/outpost-only (catalog's least-privilege target) stays a post-green hygiene step
   (HD-211 batch) — needs Authentik RBAC roles, doable via blueprint later.
 
+- **Import paths for the objects people reach for** (2026.5; each cost a failed run — the obvious module
+  is not the right one): `Outpost` → `authentik.outposts.models` (**not** `authentik.core.models`),
+  `LDAPProvider` → `authentik.providers.ldap.models`, the LDAP source class is **`LDAPSource`** (not
+  `SourceLDAP`) in `authentik.sources.ldap.models`; `Group`/`Token`/`User` → `authentik.core.models`.
+  Service accounts are `User.objects.filter(type="service_account")` (no `is_service_account` field).
+  `Outpost` has no `enabled`/`created_on`; `Token` has no `persistent` (it is `expiring`) — and never read
+  a token's `intent`, that is the secret value. A read-only sweep of what really exists, worth running
+  before believing any "the provider/outpost is deployed" claim: `LDAPProvider.objects.all()`,
+  `LDAPSource.objects.all()`, `Outpost.objects.all()` — that triple is what diagnosed HD-360
+  ([deployment-compose.md](deployment-compose.md) §HD-132).
+- **`scripts/ak-shell.sh` reports EVERY failure as "runner key / VPS unreachable"**: it runs the remote
+  command with `2>/dev/null`, so a Python exception inside `ak shell` (wrong import or field — the common
+  case just above) is indistinguishable from an ssh/auth failure. Verified 2026-09-21: the wrapper's exact
+  ssh+base64 command works from the runner, and the invocation that "failed" had failed only on its own
+  `ImportError`. Until it is fixed (owner: the lane holding `scripts/**` this wave,
+  [`../prompt-407.md`](../prompt-407.md) — named in the HD-360 row tail), reproduce the one-liner with
+  stderr visible, or run `ssh vps 'sudo docker exec authentik-worker ak shell -c …'` directly, before
+  believing the message.
+
 ### Authentication tokens (TWO secrets + one ephemeral — never merge them)
 - `op-write_api` — 1Password **SERVICE ACCOUNT token (read+write)**, deployed by the pre-pass
   (renamed from `vps-op-write_api`; the read-only sibling is `op_api`)
