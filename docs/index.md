@@ -43,6 +43,7 @@ tags: [index, dispatcher, ai]
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
 | **Tune the pi.dev harness (workstation agent → spark: context window, thinking, timeouts)** | [`pi-harness.md`](pi-harness.md) | `hardware-spark.md`, `spark-incidents.md`, `services-ai.md`, `../todo.md` |
 | **Understand / build the AI stack (chat + RAG + agents)** | [`services-ai.md`](services-ai.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook, HD-105), `hardware-gpu.md` |
+| **Triage an AI-plane candidate / check past rejections (RAG, memory, gateways, harnesses)** | [`services-ai-rejected.md`](services-ai-rejected.md) — append-only decision log | `services-ai.md`, `services-rejected.md`, `CONVENTIONS.md` §8.3 |
 | **Decide where an AI leg runs (generation vs client-side FIM/vision vs pinned services)** | [`hardware-workstation.md`](hardware-workstation.md) (client-side tier) + [`services-ai.md`](services-ai.md) §9 decision #28 | `hardware-spark.md` (text-only engine), `hardware-gpu.md` (8 GiB ledger), `pi-harness.md` |
 | **Size / pick an AI inference engine or device on oldsrv (STT, rerank, VRAM budget)** | [`services-ai-bench.md`](services-ai-bench.md) — measured numbers, not arithmetic | `services-ai.md` (§3a plan of record + §9 #24/#25/#27 + §9c), `hardware-gpu.md`, `smart-home-voice.md`, `../todo.md` (HD-391) |
 | **Live MS Office via Open WebUI (Word/Excel/PPT)** | [`services-office.md`](services-office.md) | `services-ai.md`, [`client/office-bridge/`](../client/office-bridge/) (HD-106–111) |
@@ -134,6 +135,7 @@ docs/
 ├── services-office.md                          Local LLM, office tools, ONLYOFFICE, n8n
 
 ├── services-ai.md                         ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, Qdrant — §3a = oldsrv pinned-AI plan of record (decision #27)
+├── services-ai-rejected.md                AI-plane decision log (append-only; OpenViking rejected outright 2026-09-21)
 ├── services-ai-bench.md                   ★ Measured AI inference benchmarks on oldsrv (STT + rerank + embed device sweep, FP16/Q8_0 quant sweep, iGPU verdict, VRAM ledger) — evidence behind #24/#25/#27 (HD-391)
 ├── pi-harness.md                          pi.dev workstation harness model config for spark — 262k ctx, thinking control, timeouts, lane rule (HD-376)
 │

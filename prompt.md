@@ -263,12 +263,18 @@ row cluster, and never launch a pair marked *never with*.
 | **5 — alone** | [`prompt-417.md`](prompt-417.md) | HD-417 · 404 · 248 · 396 | none (repo-only) | **runs alone**: its one-time docs sweep edits every doc, so it conflicts with every lane by construction (and it is the one brief allowed to reformat table **cells** in the two views — see its own lane rules) |
 | — | [`prompt-405.md`](prompt-405.md) | *(closed — nothing to launch)* | — | **delete it** in the next §4 cleanup commit, with its inbound links fixed |
 
-> **Outside the wave system, deliberately:** [`prompt-OV.md`](prompt-OV.md) is a **live probe lane owned by its own
-> session** — measurement-only, it registers no `HD-` row, and its own brief says it is not listed in §2 until the
-> owner accepts the outcome. The parent does not dispatch it, does not fold it into a wave and does not delete it.
-> It does matter to O3: it stands things up **on oldsrv** (a venv under the `domen` seat, never a container) and
-> drives the local AI legs, so it contends for that box and its dGPU even while converging nothing — check whether
-> it is still in flight before launching an oldsrv lane, and never run it beside [`prompt-376.md`](prompt-376.md).
+> **Outside the wave system, deliberately:** [`prompt-agentmemory.md`](prompt-agentmemory.md) is a **live probe
+> lane owned by its own session** — measurement-only, it registers no `HD-` row and opens no `todo.md` item, and
+> its own brief says it is not listed in §2 until the owner accepts the outcome. The parent does not dispatch it,
+> does not fold it into a wave and does not delete it. It does matter to O3: it stands things up **on oldsrv** (a
+> per-seat install under the `domen` seat, never a container) and drives the local AI legs, so it contends for
+> that box and its dGPU even while converging nothing — check whether it is still in flight before launching an
+> oldsrv lane, and never run it beside [`prompt-376.md`](prompt-376.md).
+> **Closed 2026-09-21:** the probe lane before it, `prompt-OV.md` (OpenViking), finished and its brief was
+> deleted with this line as the surviving pointer — the outcome is **rejected outright** (corpus index *and*
+> memory fallback), logged in [`docs/services-ai-rejected.md`](docs/services-ai-rejected.md), evidence in
+> [`reports/probe-ov-20260921.md`](reports/probe-ov-20260921.md). Do not re-propose OV without the exception
+> note §8.3 requires, and the reopen triggers are listed in that log.
 
 ### Launch procedure (the parent)
 

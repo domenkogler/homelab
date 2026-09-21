@@ -593,8 +593,14 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
 
 - **Memory = agent-memory.dev, per project.** One instance per project (project = 1+ repos), records tagged
   project+repo; **cross-project recall is opt-in, not default**. Data under `~/.agentmemory/<project>`,
-  ports 3111+N, MCP = `@agentmemory/mcp`, consolidation LLM via a LiteLLM scoped key. OpenViking is deferred
-  (AGPL-accepted, Docker-only, future unified-context candidate); Mem0 stays in the OWUI plane.
+  ports 3111+N, MCP = `@agentmemory/mcp`, consolidation LLM via a LiteLLM scoped key. **OpenViking is rejected
+  outright** (2026-09-21, owner): both candidate roles are dead — the corpus index because its markdown index is
+  lossy and not reversible (12/51 files byte-identical; files replaced by H1-title-slug directories), and the
+  "memory only" fallback because its write path is LLM-bound per commit on a KV pool that is 1.97× one session,
+  while this box measured its L0/L1 payload as worse than a free local extract. Evidence
+  [`../reports/probe-ov-20260921.md`](../reports/probe-ov-20260921.md), decision rows
+  [`services-ai-rejected.md`](services-ai-rejected.md). ⚠ The reason previously recorded here ("Docker-only")
+  was **wrong** — OV installs venv-native in ~2 min; the rejection does not rest on it. Mem0 stays in the OWUI plane.
 - **Skills = git SSOT** (`skills/` + `sync-skills.sh`), never a service.
 - **ZeroClaw = system-management agent** — laptop primary + oldsrv standby. **Never the VPS** (fleet
   credentials on an internet-facing host is the largest attack-surface increase available). Supervised
