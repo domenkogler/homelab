@@ -335,6 +335,26 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > phone on cellular** (headscale stopped / tailnet off / IoT+guest unreachable); until that runs, this row is
 > ⏳ open, not done. Reading the hotspot off the owner's description instead of off the routing table was the
 > mistake here — check the routing table before trusting any "away" claim.
+> *(The matrix has since run — see the ✅ block below. The routing-table lesson stands: it is why the T2
+> window was validated from the containers and the control-plane HTTP code, not from a description.)*
+
+> ✅ **Acceptance matrix RUN on the owner's phone on cellular — 2026-09-21. HD-405 is closed.**
+> **T1** `https://ha.ts.kogler.si` reachable on mobile data with the tailnet connected. **T2 — the control-plane
+> test, the one the row actually existed for:** headscale + headplane stopped on the VPS
+> (`docker compose -p headscale … stop` — `stop`, never `down`) for **162 s** (21:54:25Z → 21:57:07Z), with the
+> plane *provably* dead (`vpn.kogler.si` → **404**, no backend); during the window the phone reloaded the same
+> URL **and opened a new incognito session** — both worked. The data plane therefore never touches the VPS,
+> which is the whole premise of the row. Home side throughout: cached netmap intact (3 nodes), node edge
+> answering 200 in 21 ms. Restore verified — `restarts=0`, both containers healthy, nodes 5/6/11 `online`,
+> control plane back to 200, and the temporary stop scripts deleted: **no hand-applied delta left**.
+> ⚠ **What T2 proves, and what it does not:** clients cache their netmap, so this is *data-plane independence*
+> for already-enrolled nodes — **not** cold enrollment. A fresh enrollment fails while the plane is down, by
+> design, and must not be logged as a fault. **T3** HA Companion works on `https://ha.ts.kogler.si` (no
+> LAN-URL arbitration problem). **T4** IoT stays unreachable — an IoT-VLAN (20) device address failed from the phone (address per [network-addresses-generated.md](network-addresses-generated.md)), and the
+> strong form re-measured client-side: **`PrimaryRoutes` empty on every peer** (`tailscale status --json`).
+> **Two measurement traps found:** `headscale routes list` **does not exist** in this headscale build (no
+> `routes` subcommand — use the netmap view), and a loopback `curl` to `ha.ts.kogler.si` returns **HTTP 000**
+> because `websecure-ts` binds the node's tailnet IP only — probe `tailnet_oldsrv_ip` (group_vars) and you get 200 in ~21 ms.
 
 > 🔎 **Two pre-existing faults surfaced by the new path, neither caused by it.** (a) **HA rejects requests
 > proxied from oldsrv**: any `X-Forwarded-For` from a source outside `ha_trusted_proxies` gets
@@ -345,7 +365,20 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > (b) **`media.kogler.si` answers 502 from the home edge** (also locally on oldsrv): jellyfin publishes no
 > host port on `oldsrv_home_ip`, unlike the `actual-budget:5006` / `immich-ml:3003` precedent. Owner call.
 
-> 📡 **Measured 2026-09-20: the away session RELAYS — the assumption this section was written under did not survive.** > The first real away session to the home node ever run (owner's phone, cellular, tailnet connected) reported > **`Relayed connection (FRA)`, 60–90 ms RTT**: the data path left the VPS as designed and landed on a **public Tailscale DERP relay in Frankfurt** instead. > Home-side `tailscale netcheck`: `UDP: true`, external address = the home static IPv4 with a **rewritten source port** (the RB4011 is NATing, single NAT — the > observed external address is the public one, so there is no routing-modem double NAT), `MappingVariesByDestIP: false`, **no UPnP/PCP mapping**, **no IPv6 > anywhere on the LAN**, nearest DERP fra ≈18 ms. Endpoint-independent mapping is the *punchable* case, so the block is carrier-side and/or the router dropping > the punch — and the honest reading is that **"static public IPv4 ⇒ P2P always wins" was never measured until now, and it is false for cellular clients here.** > Consequences: HD-410 (self-hosted DERP) must not be decided before the IPv6 experiment (HD-414, a static /56 is available), because a VPS-hosted DERP would > re-insert the VPS into the data path this section exists to remove; and HD-412 (remote desktop) should not ship onto a relayed path. **Relayed still works** — > `ha.ts.kogler.si` answered 200 over it — so this is a quality finding, not an outage.
+> 📡 **Measured 2026-09-20: the away session RELAYS — the assumption this section was written under did not survive.** > The first real away session to the home node ever run (owner's phone, cellular, tailnet connected) reported > **`Relayed connection (FRA)`, 60–90 ms RTT**: the data path left the VPS as designed and landed on a **public Tailscale DERP relay in Frankfurt** instead. > Home-side `tailscale netcheck`: `UDP: true`, external address = the home static IPv4 with a **rewritten source port** (the RB4011 is NATing, single NAT — the > observed external address is the public one, so there is no routing-modem double NAT), `MappingVariesByDestIP: false`, **no UPnP/PCP mapping**, **no IPv6 > anywhere on the LAN**, nearest DERP fra ≈18 ms. Endpoint-independent mapping is the *punchable* case, so the block was attributed to the carrier and/or the router > dropping the punch — and the honest reading is that **"static public IPv4 ⇒ P2P always wins" was never measured until now, and it is false for cellular clients here.** > Consequences: HD-410 (self-hosted DERP) must not be decided before the IPv6 experiment (HD-414, a static /56 is available), because a VPS-hosted DERP would > re-insert the VPS into the data path this section exists to remove; and HD-412 (remote desktop) should not ship onto a relayed path. **Relayed still works** — > `ha.ts.kogler.si` answered 200 over it — so this is a quality finding, not an outage.
+
+> 🔬 **2026-09-21, same pass: "the home side is the *punchable* case" was overstated.** `tailscale ping` from
+> oldsrv: the laptop answered **direct on a site-local Mgmt-VLAN (99) endpoint in 2 ms** — but that is a *site-local*
+> Mgmt-VLAN address, so it proves same-site discovery, **not** a WAN punch; the phone answered `via DERP(fra)`
+> in 104 / 188 ms with "direct connection not established". The off-site probe that would settle it is
+> unavailable **by design**: `vps-obs` is not an `oldsrv` peer at all (*"no matching peer"*), because `tag:dev`
+> and `tag:sidecar` have no path between them — correct ACL behaviour, inconvenient measurement surface. And
+> the router converge as written (checked 2026-09-21) has `chain=input action=drop in-interface=pppoe-telekom`
+> with the **WG S2S listen port as its only UDP exemption**, **no `dstnat` and no accept for tailscale's UDP**
+> (`41641` appears nowhere in the converge), while `tailscaled` runs unpinned — so an unsolicited punch packet
+> dies in *our own* input chain. The relayed result therefore **cannot** be attributed to the carrier on this
+> evidence; both causes stay open. HD-414 (IPv6) is what forces the answer, and if v6 also comes back relayed
+> the cheap next experiment is a v4 `dst-nat` + input accept on one pinned UDP port to one host — not a DERP.
 
 **Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the
 moved `dsh`/`pi-dev`) remain reachable by **publishing a host port bound to `oldsrv_home_ip`** + a

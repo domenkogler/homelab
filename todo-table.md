@@ -84,7 +84,7 @@ later session re-asks it. Rows marked ✅ are now pure AI in §B.
 | **Sideload the Paseo APK + pair + a 2-week verdict** | HD-411 | Runs in parallel with HD-409 now |
 | **Check your Jellyfin login at seerrng** | HD-353 | 30 seconds |
 | **A spark bench window** | HD-400 · 376 · 359 · 367 | Detached; never with an agent session attached, never from a spark-backed session |
-| **Phone-on-cellular pass** | HD-405 tail + HD-410 | Headscale stopped (restore in the same breath) · IoT + guest unreachable · HA Companion on the `.ts` URL · capture `DIRECT` vs `relay` + RTT |
+| **Re-measure the phone once, after IPv6** | HD-410 · HD-414 | The matrix itself ran ✅ 2026-09-21 (HD-405 closed). One `tailscale ping` from oldsrv to the phone after the /56 lands, plus the app's session-type line: **does it flip to Direct?** |
 | **A WAN-pulled drill at home** | HD-415 | The new resolver design's whole load-bearing assumption is that a phone at home reaches the node **direct over the LAN with the WAN pulled**. That is proven by a drill you are present for, not by a `dig` from the laptop |
 | **One visual pass** | HD-316 · 315 · 343 · 377 · 375 · 319 | Launchpad, host-overview (disk-work + temps), Network Clients, `homelab-llm`, the two memory rules in Grafana **and** reaching n8n, the three rekuperator GAs |
 | **Be on-site once** | HD-397 tail | The LAN matrix + the `Mgmt99` vNIC half |
@@ -155,7 +155,6 @@ with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
 
 | HD | P | Goal | ⏳ Next action | Gate / note |
 |----|---|------|----------------|-------------|
-| **HD-405** | ✅ live | remote dev whose data path does not cross the VPS | ~~ship the node~~ done (`roles/tailscale-node`, `tag:dev:443`, `ha.ts.kogler.si`) — ⏳ the **phone-on-cellular matrix** (A3) + the HD-410 capture in the same pass | acceptance is a phone, not a 200 OK. Two pre-existing faults it found are now **HD-418/HD-419** (registered, decided). ⛔ no `:*` ACL widening, VLAN-99 seal stands · 📋 [`prompt-414.md`](prompt-414.md) |
 | **HD-407** | 1 | oldsrv = primary control node, laptop demoted to rescue | **no owner hand remains** — land the clone for `ansible-admin`, pipe the `op` read-scope token, bootstrap, then prove `--check` **from oldsrv** per inventory group | pull path decided: read-only `github-homelab-deploy_api` over HTTPS with a 0600 credential store; **GitHub is the live remote** (the VPS Forgejo holds no copy); the vault signing key is reused; `github_auth` stays off the box → **oldsrv is pull-only until HD-409**. ⚠ nothing syncs the clones — `git pull --ff-only` is an explicit act. HD-413 shipped and is validator-enforced · 📋 [`prompt-407.md`](prompt-407.md) |
 | **HD-409** | 1 | the harness + a phone-first cockpit run on oldsrv | install/serve **`@ygncode/pi-web`** under the `domen` seat, mint the `*_port` var, verify from the phone, then move the ownership table in [pi-harness.md](docs/pi-harness.md) §1 + a numbered decision in [services-ai.md](docs/services-ai.md) §9 in the same change | surface + seat **decided** (§A1). ⛔ do not re-enable the parked `dsh`/`pi-dev` registry rows — that re-renders a deliberately-empty 1P item and takes the oldsrv converge red. Needs a reserved port var (not `:8080`/`:8081`) and a Kopia seam over the workspace + `~/.pi`. TUI-in-tmux stays the floor · 📋 [`prompt-407.md`](prompt-407.md) |
 | **HD-412** | 2 | family machines can be helped remotely | §5 onboarding (exposure/auth → secrets → compose → registry → backup) — the **VPS half is buildable right now** | model **decided**: family machines join the tailnet where they can, VPS rendezvous + **bandwidth-capped** relay for the rest. ⛔ never on oldsrv: a rescue tool behind the thing it rescues is not a rescue · 📋 [`prompt-412.md`](prompt-412.md) |
@@ -259,7 +258,7 @@ also in §A2 with the reasoning.
 | HD-411 | 3 | sideload the APK, pair, 2-week verdict | the deployment + the §9b verdict either way · 📋 [`prompt-407.md`](prompt-407.md) |
 | HD-353 | 2 | check your own Jellyfin login at seerrng (30 s) | fix whatever it reveals |
 | HD-400 · 376 · 359 · 367 | 1–2 | one spark bench window | run the ladder detached, report the numbers |
-| HD-405 tail + HD-410 | 1–3 | the phone-on-cellular matrix + the `DIRECT`-vs-`relay` capture | decide HD-410 on the number, close the acceptance |
+| HD-410 | 1 | one re-measure: `DIRECT` vs `relay` **after** HD-414's /56 | the number decides whether a DERP is ever self-hosted — standing recommendation: **do not** |
 | **HD-415** | 3 | **a WAN-pulled drill at home** — the new resolver design is only as good as "the phone reaches the node direct over the LAN with the WAN pulled" | rework the chain, then prove all three cases in that drill · 📋 [`prompt-414.md`](prompt-414.md) |
 | HD-316 · 315 · 343 · 377 · 375 · 319 | 1–2 | the one visual pass (launchpad, host-overview, Network Clients, `homelab-llm`, the memory rules in Grafana **and** reaching n8n, the three KNX GAs) | fix what the eyeball catches; retire the three superseded dashboards |
 | HD-397 (tail) | 2 | be on-site: the LAN matrix + the `Mgmt99` vNIC linked | close the row |
