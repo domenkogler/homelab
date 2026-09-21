@@ -340,6 +340,12 @@ services:
 > - **linuxserver s6-overlay images** (`linuxserver/*`): s6 init writes `/run/s6` + `/config` as root before
 >   the PUID drop → drop `read_only`, keep `cap_drop: ALL` + `tmpfs: /run:exec` + `cap_add SETGID/SETUID`
 >   (sonarr/radarr/qbittorrent precedent — the *arr templates carry the inline note).
+>   ⚠ **`/run:exec` is not optional for ANY s6 image**: docker's default tmpfs options are `noexec`, so
+>   stage0 cannot exec `/run/s6/basedir/bin/init` and the container restart-loops on **exit 126**
+>   (`/run/s6/basedir/bin/init: Permission denied`) — hit live by `rustdesk-server` (HD-412) with a
+>   plain `- /run`. **Do not over-apply this exception**: the exemption is `linuxserver/*`-specific, not
+>   "s6"-general — a stock s6-overlay image (verified with `rustdesk/rustdesk-server-s6:1.1.16`) runs
+>   `read_only: true` + `cap_drop: ALL` + `tmpfs: /tmp, /run:exec` with no `cap_add` at all.
 > - **Images whose entrypoint ends in `setpriv`/`su-exec`** (signal-cli-rest-api, profilarr): need
 >   `cap_add CHOWN,SETGID,SETUID` (privilege-drop) and, where a helper persists into a uid-owned volume
 >   (signal-cli `jsonrpc2-helper`), also `DAC_OVERRIDE,FOWNER`.

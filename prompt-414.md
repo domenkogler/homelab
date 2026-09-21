@@ -9,8 +9,8 @@
 > Start with [README.md](README.md) §0 → §1 mandatory context → this file → the HD rows in [todo.md](todo.md).
 > **Linked from:** [prompt.md](prompt.md) §2 + §4 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
 > **Sibling lanes:** runner/cockpit = [`prompt-407.md`](prompt-407.md) · remote desktop =
-> [`prompt-412.md`](prompt-412.md) · cadence = [`prompt-420.md`](prompt-420.md).
-> **Wave 2.** Pair it with [`prompt-412.md`](prompt-412.md) only (you hold the router + oldsrv slots, it holds the
+> prompt-412.md — brief deleted · cadence = [`prompt-420.md`](prompt-420.md).
+> **Wave 2.** Pair it with prompt-412.md — brief deleted only (you hold the router + oldsrv slots, it holds the
 > VPS one). ⛔ **Never with [`prompt-407.md`](prompt-407.md)** — both converge
 > oldsrv, both need `group_vars/all/main.yml`, and once this brief's HD-415 row lands they would both reach the
 > Technitium files; and never with `prompt-357` / `prompt-384` for the same reason. `prompt-420` is also

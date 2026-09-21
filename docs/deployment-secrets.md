@@ -247,7 +247,36 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | The two glue scripts' parallel implementation + concurrency budget | [`scripts/README.md`](../scripts/README.md) §Parallel 1Password operations | layer × direction × concurrency table, the 1P budget, extensibility rule |
 
 > Findability rule: if you search for "which glue / who provisions / how to rotate" a secret, start here; the row routes you to the owning doc. Do NOT re-author glue mechanics in multiple docs — each row is a single source.
----
+
+**7. Writing a manual value from the CLI without leaking it (and without writing it wrongly):** hand
+creation in the 1Password UI is the default for the manual-value path; when the write has to happen
+from a runner, these rules are what make it safe *and correct*:
+
+- **Never pass the value as an argument.** `op item edit <item> "field=<value>"` puts the secret in
+  `argv`, visible to every process on the box. Values move through files (0600, `shred -u` after) or
+  templates, and only **lengths/hashes** are ever printed (CONVENTIONS §6).
+- **`op item create --template` with a `fields` array does NOT fill the category's built-in fields — it
+  APPENDS new ones and leaves `username`/`password` empty.** The item then looks correct (`op item get`
+  shows both values under the right labels) while every **label-based** read — `op://…`, the
+  `onepassword` lookup, `op-vault-export.py` — resolves the empty duplicate. Rendered compose then
+  carries empty credentials, which is the silent class these guards exist for. Verified on op CLI 2.39.0
+  for `create --template` **and** `edit --template` with a fields-only template.
+- **The correct CLI shape is a round-trip:** create the item **bare** (title/category/vault/tags),
+  `op item get … --format json` → set `value` on the fields whose **`id`** already exists →
+  `op item edit … --template <file>`.
+- **Verify by length *and* shape**, not by "the command exited 0":
+  `op read op://<vault>/<item>/<field> | wc -c` for each field, plus a field-list check that each
+  expected `id` appears **exactly once**. An empty `wc -c` on a field that should hold bytes means the
+  duplicate-field shape bug above, not a missing value — fix the item before any converge renders it.
+
+**8. Token scope actually measured (2026-09-21, owner-asked):** the runner's **ambient**
+`OP_SERVICE_ACCOUNT_TOKEN` performed `item delete` / `item create` / `item edit` on `Homelab-ansible`
+without the `op-write_api` token — i.e. it is **not read-only**. Scripts and docs that fetch
+`op-write_api` because "the exported SA token is READ-scoped" (`rotate-spark-llm-key.sh`, its
+[`scripts/README.md`](../scripts/README.md) row) carry an assumption that no longer holds; the read-only
+expectation is a least-privilege property, so either the token is narrowed or those notes are corrected
+(`scripts/**` owner this wave: [`../prompt-407.md`](../prompt-407.md)). Do not treat the discrepancy as
+permission to write from an automation path that was designed to be read-only.---
 
 ## Master Secret List (canonical)
 
@@ -297,7 +326,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `homelable_login` | `username`, `password`, `bcrypt_hash` | Homelable admin login (HD-45) — `username`/`password` = the local admin creds; `bcrypt_hash` = bcrypt(password), rendered as the backend `AUTH_PASSWORD_HASH`. Catalog-generated (Login + bcrypt_hash pair, see `homelable_login_item()` in provision-secrets.py). Rotation rewrites password + hash together. |
 | `homelable_secret` | `password` | Homelable `SECRET_KEY` (JWT/session signing, ≥32 bytes) + shared `MCP_SERVICE_KEY` source when the MCP container is enabled (HD-45). Catalog-generated. |
 | `homelable_mcp` | `credential` | Homelable MCP server `MCP_API_KEY` (HD-45, optional container) — AI-tool topology read/write. Catalog-generated; unused while `homelable_mcp_enabled` is false. |
-| `rustdesk_login` | `username` = **public** key (base64), `password` = **secret** key (base64) | **RustDesk server (HD-412, VPS)** — the hbbs/hbbr ed25519 keypair: `KEY_PUB`/`KEY_PRIV` in the compose; with `ENCRYPTED_ONLY=1` both binaries run `-k _`, so the PUBLIC half is what every client pins as its "Key" and the SECRET half authenticates the server to them. **Naming:** `<service>_<type>` with type = the 1Password **item type**, so this is a **Login** item — it is NOT an interactive login and there is no account behind it; Login is the category whose two field labels (`username`/`password`) both the HD-258 pre-pass (`op-vault-export.py`) and the `validate-docker-services.py` mock materialise, so a custom field name (or an SSH-key item) renders green and fails at deploy. The suffix also keeps it inside `check_vault_docs.py`'s derived set. **Manual-value class, NOT in the provisioner CATALOG**: `rustdesk-utils genkeypair` mints it (generation + the no-print `op item create --template` sequence = [deployment-manual.md](../deployment-manual.md) §1.11); this row is its coverage record. ⚠ `check-vault-items.sh` cannot see it either — the script greps literal `onepassword', 'NAME'` lookups and this template uses the HD-258 `vault['…']` dict form, so **the fail-closed render is the actual gate**; seed before `enabled: true`. **NOT_AUTO_ROTATABLE — externally-coupled**: the s6 `key-secret` step seeds `/data/id_ed25519*` only when the file is absent, so the live file is authoritative and a vault edit changes nothing; rotating (replace the item **and** delete `/data/id_ed25519*` **and** re-deploy) **orphans every enrolled client**, whose stored key stops matching — re-enrolment is manual, per machine. **Backup story:** the item IS the restore (wipe `/srv/docker/rustdesk-server/data`, re-converge → the pair is re-seeded and clients keep working), which is why the seed must exist BEFORE `enabled: true` (the compose is fail-closed without it — HD-386 class). ⚠ The pair is visible in `docker inspect` env output on that container. |
+| `rustdesk_login` | `username` = **public** key (base64), `password` = **secret** key (base64) | **RustDesk server (HD-412, VPS)** — the hbbs/hbbr ed25519 keypair: `KEY_PUB`/`KEY_PRIV` in the compose; with `ENCRYPTED_ONLY=1` both binaries run `-k _`, so the PUBLIC half is what every client pins as its "Key" and the SECRET half authenticates the server to them. **Naming:** `<service>_<type>` with type = the 1Password **item type**, so this is a **Login** item — it is NOT an interactive login and there is no account behind it; Login is the category whose two field labels (`username`/`password`) both the HD-258 pre-pass (`op-vault-export.py`) and the `validate-docker-services.py` mock materialise, so a custom field name (or an SSH-key item) renders green and fails at deploy. The suffix also keeps it inside `check_vault_docs.py`'s derived set. **Manual-value class, NOT in the provisioner CATALOG**: `rustdesk-utils genkeypair` mints it (generation + the write rules = §Creation & Rotation Workflow item 7; this row is its coverage record. ⚠ `check-vault-items.sh` cannot see it either — the script greps literal `onepassword', 'NAME'` lookups and this template uses the HD-258 `vault['…']` dict form, so **the fail-closed render is the actual gate**; seed before `enabled: true`. **NOT_AUTO_ROTATABLE — externally-coupled**: the s6 `key-secret` step seeds `/data/id_ed25519*` only when the file is absent, so the live file is authoritative and a vault edit changes nothing; rotating (replace the item **and** delete `/data/id_ed25519*` **and** re-deploy) **orphans every enrolled client**, whose stored key stops matching — re-enrolment is manual, per machine. **Backup story:** the item IS the restore (wipe `/srv/docker/rustdesk-server/data`, re-converge → the pair is re-seeded and clients keep working), which is why the seed must exist BEFORE `enabled: true` (the compose is fail-closed without it — HD-386 class). ⚠ The pair is visible in `docker inspect` env output on that container. |
 | `crowdsec-bouncer_api` | `credential` | CrowdSec LAPI bouncer key for the Traefik bouncer plugin (`cscli bouncers add traefik-bouncer`; Wave-3 R5, 2026-08-22) |
 | `meteoblue_api` | `credential` | Home Assistant core `meteoblue` weather integration (HD-22) — Meteoblue model API key |
 | `headscale_api` | `credential` | headscale (OIDC client secret; `username` = client id) |

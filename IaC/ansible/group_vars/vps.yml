@@ -135,16 +135,17 @@ docker_services:
   # `public: false` because it has NO Traefik route: it is `network_mode: host`, so no docker
   # network reaches it — its reach is the nftables allow of 21115/21116(tcp+udp)/21117 in
   # roles/vps-hardening (21118/21119 stay dropped: web client unused + X-Real-IP spoof risk).
-  # `enabled: false` IS the human gate, not a parked service: the compose is FAIL-CLOSED on the
-  # `rustdesk_login` vault item, so flipping this true before that item is seeded aborts EVERY VPS
-  # docker_services converge (the HD-386 class — a missing 1P item takes the whole run with it).
-  # Flip it in the SAME change as the seed; the sequence is deployment-manual.md §1.11.
+  # `enabled` is gated on the keypair existing: the compose is FAIL-CLOSED on the `rustdesk_login`
+  # vault item, so enabling before that item is seeded aborts EVERY VPS docker_services converge (the
+  # HD-386 class — a missing 1P item takes the whole run with it). Item seeded 2026-09-21; the
+  # manual-value write rules (including the op-CLI field-shape trap that renders empty keys) are in
+  # docs/deployment-secrets.md §Creation & Rotation Workflow item 7.
   # The five relay_* values are the bandwidth policy (the compose reads them as svc.* — the one
   # channel by which a group_vars value reaches a compose render without a validator mock).
   # Derivation + the quota they are bounded against: services-admin.md §Relay bandwidth cap.
-  # ⚠ PARKED for the owner: the four Mb/s figures are DERIVED from the port quota, not measured on
-  # this box's real bill — the number is the owner's call; nothing else in the row is blocked.
-  - { name: rustdesk-server, template_dir: rustdesk-server, public: false, enabled: false,
+  # Caps CONFIRMED by the owner 2026-09-21 (short sessions by design ⇒ quota pressure negligible):
+  # TOTAL 48 / SINGLE 24 / LIMIT 8 Mb/s, no nftables shaping.
+  - { name: rustdesk-server, template_dir: rustdesk-server, public: false, enabled: true,
       relay_single_mbps: 24, relay_total_mbps: 48, relay_limit_mbps: 8,
       relay_downgrade_threshold: "0.66", relay_downgrade_start_check_s: 1800 }
 

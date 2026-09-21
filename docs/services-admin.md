@@ -102,11 +102,18 @@ Authored against upstream **v3.4.1** (registry-verified on GHCR for backend/fron
 
 ## RustDesk — family remote desktop (HD-412)
 
-> **Status: 🟢 IaC authored, not yet live — ⏳ deploy-gated.** Registry row `rustdesk-server` in
-> `group_vars/vps.yml` ships `enabled: false`: the compose is fail-closed on the `rustdesk_login`
-> vault item, so the flip and the seed are ONE change (the sequence is
-> [deployment-manual.md](../deployment-manual.md) §1.11). Nothing in this section describes a live
-> service until the first apply + the two live sessions below.
+> **Status: 🟢 LIVE on the VPS since 2026-09-21 — ⏳ client enrolment + the two live sessions remain.**
+> `rustdesk_login` seeded (44 / 88 base64 chars, verified by length + field shape), registry row
+> `enabled: true`, converged `--tags hardening,docker_services,rustdesk-server`, and verified on the box:
+> `Up (healthy)`; hbbs listening 21115 / 21116 tcp+udp, hbbr 21117; `/data` holds `id_ed25519` + `.pub`
+> at 0600 inside a 0700 dir; hbbr logged its **effective** caps `TOTAL_BANDWIDTH: 48Mb/s`,
+> `SINGLE_BANDWIDTH: 24Mb/s`, `LIMIT_SPEED: 8Mb/s`, `DOWNGRADE_THRESHOLD: 0.66`,
+> `DOWNGRADE_START_CHECK: 1800s`; loopback consoles answer (`hbbr tb` → `48Mb/s`,
+> `hbbs always-use-relay` → `false`); from the public internet **21117 OPEN / 21118 REFUSED**. Caps
+> confirmed by the owner the same day (short sessions by design ⇒ quota pressure negligible).
+> ⛔ Still to prove before the row closes: one relay session (phone on mobile data → a Path-B family
+> machine) and one Path-A session with the relay provably uninvolved — both need a human at both ends.
+> Procedure: [deployment-manual.md](../deployment-manual.md) §1.11.
 
 **The need:** the owner must be able to sit at a family member's machine from wherever he is, and keep a
 desktop-rescue path for the homelab's own GUI surfaces — **without** putting a new public listener on the
@@ -148,8 +155,10 @@ Tailscale/headscale client. The reachability half is HD-405, which has landed.
 
 **Path B — ID access (the VPS server's only real job).** For machines that cannot join the tailnet.
 1. Client → Settings → ID/Relay Server: **ID server** = the VPS public IPv4 (`dns_primary_ip`), **Key** =
-   the public half of `rustdesk_login` (`/srv/docker/rustdesk-server/data/id_ed25519.pub`, or `username`
-   in the 1P item). Relay server stays empty — hbbs hands clients the relay address.
+   the public half of `rustdesk_login` — read it with
+   `op read "op://Homelab-ansible/rustdesk_login/username"` (the live copy is
+   `/srv/docker/rustdesk-server/data/id_ed25519.pub`, 44 base64 chars; the two never diverge unless
+   someone rotates the pair). Relay server stays empty — hbbs hands clients the relay address.
 2. Read the machine's 9-digit ID over the phone; connect; **the remote user accepts the prompt** (see
    §Consent posture — this is the whole auth story for a family machine).
 3. hbbs introduces, the peers hole-punch; hbbr relays **only** when punching fails, under the cap.
@@ -206,9 +215,10 @@ values at start-up (`TOTAL_BANDWIDTH: 48Mb/s`), and `printf 'tb' | nc 127.0.0.1 
   **`NOT_AUTO_ROTATABLE`**: rotating orphans every enrolled client, whose stored key stops matching.
   Rotation = replace the vault value **and** delete `/data/id_ed25519*` **and** re-enrol every client.
 - **Restore path:** the 1P item *is* the restore — wipe /data, re-converge, the pair is re-seeded and
-  clients keep working (that is the whole point of seeding it). /data also belongs in the Kopia scope
-  (the DB is regenerable, the keypair is not). ⚠ The backup.md policy row is owed to
-  [`prompt-394.md`](../prompt-394.md) (that lane owns backup.md); the scope statement above is what it should say.
+  clients keep working (that is the whole point of seeding it). The policy row is written:
+  [backup.md](backup.md) §What Gets Backed Up (`RustDesk server keypair + client registrations`) — the
+  identity needs no snapshot, only `db_v2.sqlite3` does, and the snapshot leg waits on the VPS-side
+  backup client (named in that doc's coverage gap).
 
 ### Observability (CONVENTIONS §5 step 7)
 

@@ -3,7 +3,7 @@
 > **Role:** single-lane handoff for the **transport** half of the remote-dev-plane thread (owner direction
 > 2026-09-20). Start with [README.md](README.md) §0 → §1 mandatory context → this file → the four HD rows in
 > [todo.md](todo.md) §2.1. The *runner/cockpit* half is [prompt-407.md](prompt-407.md); remote desktop is
-> [prompt-412.md](prompt-412.md). Decisions are already recorded — see the no-re-decide list.
+> prompt-412.md — brief deleted. Decisions are already recorded — see the no-re-decide list.
 > **Linked from:** [prompt.md](prompt.md) §2 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
 >
 > ⛔ **CLOSED 2026-09-20 — do not start a session from this brief;** the thread continues in
@@ -87,7 +87,7 @@ routing around it.
   `group_vars/vps.yml` **only** in the `tailnet_subdomains` / tailnet-IP region, and the tailscale ACL policy file.
 * **Does NOT touch:** `docs/services-ai.md`, `docs/pi-harness.md`, `docs/security.md`, `scripts/**`,
   `docs/1password.md` (all [prompt-407.md](prompt-407.md)); no edits under
-  `IaC/ansible/templates/docker_services/**` except the headscale ones ([prompt-412.md](prompt-412.md) adds the
+  `IaC/ansible/templates/docker_services/**` except the headscale ones (prompt-412.md — brief deleted adds the
   RustDesk templates).
 * `group_vars/vps.yml` is shared with the RustDesk lane — stay inside `tailnet_subdomains`/tailnet IPs; that lane
   stays inside its `docker_services`/ports region. If the two edits collide, rebase the later merge, do not

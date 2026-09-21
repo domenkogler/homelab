@@ -613,39 +613,32 @@ First-boot notes:
 > `enabled: false` because its compose is fail-closed on the `rustdesk_login` item — the item and the
 > flag flip are ONE change, in the order below.
 
-1. **Mint the keypair offline, never to session stdout** (`rustdesk-utils` is in the pinned image;
-   the tag is read from the pin, never typed):
+1. **Mint the keypair — never to session stdout.** Read the tag from the pin (never type it); the runner
+   has no Docker, so the binary runs on the VPS and only stdout comes back:
    ```bash
    umask 077
+   KEYDIR=$(mktemp -d); chmod 700 "$KEYDIR"
    RV=$(awk -F'"' '/^rustdesk_server_version:/{print $2}' IaC/ansible/group_vars/all/versions.yml)
-   docker run --rm --entrypoint /usr/bin/rustdesk-utils \
-     "rustdesk/rustdesk-server-s6:${RV}" genkeypair > /run/rustdesk.keypair
-   chmod 600 /run/rustdesk.keypair      # two lines: `Public Key:  <b64>` / `Secret Key:  <b64>`
+   ssh vps "sudo docker run --rm --entrypoint /usr/bin/rustdesk-utils \
+     rustdesk/rustdesk-server-s6:${RV} genkeypair" > "$KEYDIR/kp"      # 44 / 88 base64 chars
    ```
-2. **Write both halves into the 1P item through a JSON template** — assignment statements put the
-   value in `argv` (visible to other processes), and the CLI's own guidance for sensitive values is a
-   template. Item = Login, `username` = public half, `password` = secret half
-   ([deployment-secrets.md](docs/deployment-secrets.md) `rustdesk_login`):
+2. **Seed `rustdesk_login`** — manual-value path, `username` = the `Public Key:` half, `password` = the
+   `Secret Key:` half. Write it by the CLI round-trip in
+   [deployment-secrets.md](docs/deployment-secrets.md) §Creation & Rotation Workflow item 7 (bare create,
+   then fill the built-in fields by JSON round-trip; a `fields` template appends empty duplicates, and an
+   assignment argument leaks the value into `argv`). If the item already exists, stop — replacing it
+   behind a running server changes nothing and rotating it orphans every enrolled client (step 9).
+3. **Verify length and field shape, then destroy the plaintext** — an empty length or a duplicated field
+   id means the write landed on the wrong field, and the render would silently carry empty keys:
    ```bash
-   jq -n --arg u "$(awk '/^Public Key:/{print $NF; exit}' /run/rustdesk.keypair)" \
-         --arg p "$(awk '/^Secret Key:/{print $NF; exit}' /run/rustdesk.keypair)" \
-     '{title:"rustdesk_login", category:"LOGIN", vault:{name:"Homelab-ansible"},
-       fields:[{id:"username",type:"STRING",value:$u},
-               {id:"password",type:"CONCEALED",value:$p}]}' > /run/rustdesk.item.json
-   op item create --vault Homelab-ansible --template /run/rustdesk.item.json
+   op read "op://Homelab-ansible/rustdesk_login/username" | tr -d '\n' | wc -c   # 44
+   op read "op://Homelab-ansible/rustdesk_login/password" | tr -d '\n' | wc -c   # 88
+   op item get rustdesk_login --vault Homelab-ansible --format json | python3 -c \
+     'import json,sys; print(sorted((f["id"], len(f.get("value") or "")) for f in json.load(sys.stdin)["fields"]))'
+   shred -u "$KEYDIR"/* && rmdir "$KEYDIR"
    ```
-   If the item already exists, re-issue is refused — that is the desired outcome, not an error to
-   force: the running server keeps its own key, and replacing the item behind it changes nothing
-   (see step 7).
-3. **Verify by length only, then destroy the plaintext** (CONVENTIONS §6 — a length proves the field
-   landed, the value never prints):
-   ```bash
-   op read "op://Homelab-ansible/rustdesk_login/username" | tr -d '\n' | wc -c   # 44  (32-byte pub, base64)
-   op read "op://Homelab-ansible/rustdesk_login/password" | tr -d '\n' | wc -c   # 88  (64-byte secret, base64)
-   shred -u /run/rustdesk.keypair /run/rustdesk.item.json
-   ```
-4. **Create the data dir before the first start** (it holds the private key — 0700, and Docker would
-   otherwise auto-create it world-traversable):
+4. **Create the data dir before the first start** — it holds the private key, and Docker would otherwise
+   auto-create it world-traversable:
    ```bash
    ssh vps 'sudo install -d -o root -g root -m 0700 /srv/docker/rustdesk-server/data'
    ```

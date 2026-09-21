@@ -83,7 +83,11 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      - /run
+      # :exec is REQUIRED, not cosmetic — s6-overlay stage0 execs /run/s6/basedir/bin/init, and
+      # docker's default tmpfs opts are noexec → the container restart-loops on exit 126
+      # (`/run/s6/basedir/bin/init: Permission denied`). Same finding as the HD-318 s6 batch
+      # (sonarr/radarr/lidarr/qbittorrent carry `/run:exec` for exactly this reason).
+      - /run:exec
     volumes:
       # THE state of this service: id_ed25519 + id_ed25519.pub (+ db_v2.sqlite3, blacklists).
       # Backup scope: docs/backup.md / Kopia (CONVENTIONS §5 step 6 — the keypair is also seeded

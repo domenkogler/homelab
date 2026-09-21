@@ -40,7 +40,7 @@ Read `IaC/ansible/templates/homepage_services.yaml.j2` and `homepage_widgets.yam
 tile against the endpoint that actually answers today (the home edge first, then the VPS edge). Fix the template, not
 the live file — the render is the SSOT.
 
-## Lane rules (Wave 4 — pair with [`prompt-394.md`](prompt-394.md) only)
+## Lane rules (Wave 4 — pair with prompt-394.md — brief deleted only)
 
 * **Owns:** `IaC/ansible/templates/homepage_services.yaml.j2`, `IaC/ansible/templates/homepage_widgets.yaml.j2`,
   `IaC/ansible/templates/docker_services/{homepage,seerr,seerrng,jellyfin}/**`,
