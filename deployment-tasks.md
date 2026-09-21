@@ -586,6 +586,11 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [ ] **HD-375 / HD-380 / HD-395** — host-memory OOM alert rules, the governor's second term + OOM-forensics
       watchdog, and the idle-recycle baselines that move with a boot-time coin-flip. · [hardware-spark.md](docs/hardware-spark.md)
 - [ ] **HD-377** — one unified LLM dashboard (`homelab-llm`) instead of three vLLM boards. · [observability.md](docs/observability.md)
+- [ ] **HD-420** — spark metric cadence: the hot/cold Alloy scrape split (5 s for the ~50 series behind the nine
+      panels the owner named, 60 s for the rest), the DCGM sidecar's 30 s collection interval, the Grafana
+      datasource `timeInterval` floor, and the hard-coded `[5m]` prefix-cache panel — then converge
+      `vps.yml --tags monitoring` plus the spark-side Alloy/DCGM restart and verify the 5 s granularity survived.
+      ⛔ never restart the vLLM engine for this. · [observability.md](docs/observability.md)
 - [ ] **HD-385 / HD-387** — the superseded measurement row and the thinking-control re-measure **through the
       gateway** (a recorded contradiction between a recommendation and a measurement is still open). · [services-ai-bench.md](docs/services-ai-bench.md)
 - [ ] **HD-366** — DGX Dashboard JupyterLab on the LAN (`:11002`) — the integrated lab assigns per-user ports. · [hardware-spark.md](docs/hardware-spark.md)

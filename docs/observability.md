@@ -303,7 +303,8 @@ idle recycle at baseline +8 GiB).
 - **Thresholds are measured, not designed:** `WARN < 12 GiB for 2m` (`noDataState: OK`) /
   `CRIT < 8 GiB for 1m` (`noDataState: Alerting`). Both observed kills were at **1.62 / 1.64 GiB**, but the
   lowest value a 60 s scrape ever recorded inside those windows was **5.01** — a rule set at the kill point
-  could not have fired.
+  could not have fired. The sampling gap behind that sentence is its own row: **§Scrape cadence and metric
+  resolution (HD-420)**.
 - **Preflight before touching these rules:** confirm `node_memory_CmaFree_bytes` exists in VictoriaMetrics.
   It is **not** in node_exporter's default meminfo whitelist, and on a CRIT rule with
   `noDataState: Alerting` a missing series is a false-positive machine.
@@ -683,6 +684,99 @@ gauge — `usable = MemAvailable − CmaFree`, warn **< 12 GiB**, crit **< 8 GiB
 `files/dashboards/` and re-converge `--tags monitoring` — the file provider follows the
 directory. Until then all four are provisioned; the `homelab-llm` board is the one to
 open.
+
+---
+
+## Scrape cadence and metric resolution (HD-420)
+
+Every job on every host scrapes at Alloy's default **60 s** — `scrape_interval` is set nowhere in the deployed
+`/etc/alloy/config.alloy`. Fine history therefore exists nowhere downstream, and no Grafana setting invents it.
+This is the other half of the OOM blind spot above, and the reason the spark GPU/engine panels read as a step
+chart next to the DGX System Monitor, which samples **1 Hz**.
+
+### Where the cadence is actually capped
+
+| Source | New data exists at | Measured |
+|---|---|---|
+| `node_*` (Alloy host job) | kernel counters, 100 Hz jiffies | sub-second |
+| `vllm:*` on `:8000/metrics` | **≈ 1 Hz under load** | `vllm:generation_tokens_total` advanced on **every one** of 17 consecutive 1 s scrapes taken during a live request (178,079 → 178,249). `VLLM_LOG_STATS_INTERVAL: "10"` is the engine's **log** heartbeat, not a publication cap — log-only lines (`running/waiting/… req/s`, `p: … reqs`) are capped at 10 s, cumulative counters are not ⇒ **no engine restart is needed** for one-second engine data |
+| `DCGM_FI_DEV_*` on `:9400/metrics` | **once per 30 s** | `DCGM_EXPORTER_INTERVAL: "30000"` in `templates/docker_services/spark-dcgm/docker-compose.yml.j2`; `DCGM_FI_DEV_GPU_UTIL` returned `86` on twelve consecutive 1 Hz reads. Scraping faster than this stores copies of one sample |
+| DGX System Monitor (the 1 s picture) | 1 Hz | authenticated `POST /api/login` (the JSON field is `token`) then `GET /api/v1/gpu_telemetry/stream` yields `percentage_utilization`, `memory_available_in_kib` / `memory_total_in_kib` (25,676,736 / 127,533,336 KiB = 19.7 % of the **host** pool — not a VRAM counter, see §LLM Dashboard → GPU), `temperature_in_c`, `power_draw_in_w`. It polls the **same** `spark-dcgm` exporter: the difference is cadence, plus a host-memory stat Alloy already scrapes directly |
+
+### What resolution costs (measured on the VPS, VictoriaMetrics v1.151.0)
+
+| Quantity | Value |
+|---|---|
+| Live write rate · active series · data dir | 227.8 rows/s · 2,756 series · **92 MB** — disk is not the constraint (`/` has 418 GB free) |
+| Storage per sample | ≈ **0.33 B** (92 MB ÷ ≈ 286 M samples over 30 d) |
+| spark → VPS wire | ≈ 590 B/s ≈ **51 MB/day**; 1,774 samples per scrape — host 669 (**160 of them `node_cpu_seconds_total`**), engine 476 (**309 request-completion-driven `_bucket{}`**), dcgm 18 → **7 kept** after relabel |
+| Engine render | 4.8–6.1 ms per scrape (64 kB, 471 lines) → at 5 s = **0.10 % of one of 20 cores** |
+| **50 hot series @ 5 s** | **+9.2 rows/s · ≈ +95 MB/yr · ≈ +2 MB/day wire** |
+| every spark series (1,745) @ 5 s | +125 rows/s · ≈ +3.4 GB, and it **plateaus** at the 365 d retention |
+| 50 hot series @ 1 s | +49 rows/s · ≈ +0.5 GB/yr |
+
+**Age-tiering is not available in this stack.** `-downsampling.period` and `-retentionFilter` are both **absent
+from the VictoriaMetrics community binary** (checked against `--help` of the deployed v1.151.0; the docs state
+community supports a single retention and one storage tier), and OpenObserve's downsampling is an enterprise rule
+set as well. Resolution is therefore bought **at write time** — scrape only what needs it faster — not by
+collapsing old buckets afterwards. Memory, not disk, is the VPS ceiling (4.3 GiB available, no swap) and it tracks
+*active series*, which cadence does not change.
+
+### The hot set — 50 series, which is the whole fine-resolution ask
+
+Owner scope 2026-09-21: fine data for these panels only, **everything else (latency, histograms) stays at 60 s**.
+50 of spark's ~1,893 series — the 9 panels do not need 1,745 series, and the 365-day cost of blanket 5 s is what
+the exclusions avoid:
+
+| Panel | Series kept at fine cadence |
+|---|---|
+| spark memory (the OOM gauge + the Monitor's memory bar) | `node_memory_MemAvailable_bytes`, `node_memory_CmaFree_bytes`, `MemTotal`, `MemFree`, `Buffers`, `Cached`, `SwapCached`, `Shmem` |
+| GPU utilization · temperature · power · SM clock · energy · XID · PCIe replays | all 7 whitelisted `DCGM_FI_DEV_*` — a scrape without them is empty, so they must ride the hot job |
+| CPU utilization | `node_cpu_seconds_total{mode="idle"}` **only** — 20 series, not the 160 the panel's formula never reads |
+| Token throughput · decode throughput | `vllm:generation_tokens_total`, `vllm:kv_cache_usage_perc`, `vllm:num_requests_running` |
+| Prompt / generation token stats | `vllm:prompt_tokens_total`, `vllm:prompt_tokens_by_source_total{source=…}` ×3 |
+| Prefix Cache Hit Rate | `vllm:prefix_cache_hits_total`, `vllm:prefix_cache_queries_total` |
+| Cached Token Stats | `vllm:prompt_tokens_cached_total` (plotted as a raw counter today — see 4 below) |
+| Scheduler / preemption | `vllm:num_requests_waiting`, `vllm:num_requests_waiting_by_reason{reason=…}` ×2, `vllm:num_preemptions_total` |
+| load (the Monitor's other two numbers) | `node_load1`, `node_load5` |
+
+⏳ **The work, in order (HD-420):**
+
+1. **Split spark's scrapes into hot + cold jobs** in `roles/monitoring/templates/alloy.river.j2`, gated on the
+   inventory host so only spark pays: `scrape_interval = "5s"` + `scrape_timeout = "3s"` on the hot jobs, and
+   **disjoint metric sets** — `prometheus.relabel` `keep` in the hot job, the same `match_re` with
+   `action = "drop"` in the cold job. Overlapping sets yield duplicate series at two cadences, which forces
+   `-dedup.minScrapeInterval=5s` on the VPS: a shared-flag change that silently re-tunes dedup for every other
+   host. Disjoint jobs also mean **no dashboard query changes** — the series names are identical.
+2. **`DCGM_EXPORTER_INTERVAL: "30000"` → `"5000"`** in
+   `templates/docker_services/spark-dcgm/docker-compose.yml.j2`, otherwise 5 s scraping records six copies of one
+   GPU sample. Sidecar restart only — never the engine. ⛔ Pre-flight first: that sidecar carries
+   `mem_limit: 256M` + `workers: 1` *because it grew past its cap during HD-378* — A/B its CPU and `memory.stat`
+   anon against that cap at 5 s before converging.
+3. **Fix the Grafana interval floor.** The Prometheus datasource carries **no `jsonData.timeInterval`**, so
+   `$__interval` / `$__rate_interval` are floored at Grafana's default **15 s**, not 5 s. Set
+   `jsonData: {timeInterval: "5s"}` on the `prometheus` datasource uid. ⚠ the provisioning seed in
+   `roles/monitoring/tasks/main.yml` only fires `when: … status == 404`, so it needs an API PUT on the existing
+   datasource (or delete-and-re-seed) — editing the seed alone does nothing.
+4. **Panel representation** — "the same as the picture" is half cadence, half representation. "Prefix Cache Hit
+   Rate" is a **gauge with a hard-coded `[5m]`** window: no 5 s data shows a spike through a 5-minute window, so
+   it becomes a time series over `[1m]`/`$__rate_interval`. "Cached Token Stats" plots the raw counter with no
+   `rate()`.
+5. **Alert rules are not a driver here.** Every alert group evaluates at `interval: 1m` with `for: 1m`/`2m`, so
+   5 s data changes what a rule *sees*, not how often it runs; raising the alert interval is a separate,
+   deliberate decision (it multiplies ruler load and shortens `for:` windows into noise).
+
+**Re-measure instead of trusting this section** (everything below is read-only; the VM query credentials come
+from the `basic_auth` block of `/etc/alloy/config.alloy` on the VPS — parse them into shell variables, never
+print them):
+
+```bash
+ssh spark 'grep -c scrape_interval /etc/alloy/config.alloy'        # 0 → Alloy default 60 s everywhere
+ssh spark 'curl -s -o /dev/null -w "%{size_download} %{time_total}\n" localhost:8000/metrics'
+ssh spark 'curl -s localhost:9400/metrics | grep GPU_UTIL'          # repeat at 1 Hz: the value holds for 30 s
+# per-minute samples per job: Alloy's own prometheus_forwarded_samples_total over a 60 s window
+# VM write rate + active series: vm_rows_inserted_total, vm_active_time_series
+```
 
 ---
 

@@ -27,9 +27,9 @@
 |---|---|
 | Primary checkout `/home/domen/source/homelab` | `main`, working tree **clean** — a merge station, not an edit site |
 | `bash scripts/validate-all.sh` | **GREEN** |
-| Session worktrees | **none open** — the two empty lanes (HD-395, HD-399, both 0 commits) were retired with the owner's word, via `git worktree remove` |
+| Session worktrees | **none open** — the HD-420 lane (`homelab-wt-20260921-1125`) was merged and pruned at close-out; the two empty lanes (HD-395, HD-399, both 0 commits) were retired earlier with the owner's word, via `git worktree remove` |
 | Stale session branches | **all 12 deleted** with `git branch -d`, which refuses an unmerged branch — so the sweep itself proved nothing was stranded |
-| Registry size | 102 open HD rows in `todo.md` (HD-408 deleted as decided; HD-418 + HD-419 registered) |
+| Registry size | **103** open HD rows in `todo.md` (re-derive: `grep -c '^\| HD-' todo.md`; next free = max + 1 = **HD-420**, registered this cycle) |
 
 ### What is live vs authored-only
 
@@ -175,8 +175,12 @@ with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
 
 ### Observability
 
+Lane brief for the cadence row: [prompt-420.md](prompt-420.md). The other three are independent of it and of each
+other.
+
 | HD | P | Goal | ⏳ Next action | Note |
 |----|---|------|----------------|------|
+| **HD-420** | 2 | the nine spark panels the owner named show 5-second data — the OOM gauge included — without paying for 1,745 series | author the hot/cold `prometheus.scrape` split in `roles/monitoring/templates/alloy.river.j2` (gated to spark, **disjoint** `keep`/`drop` sets), then `DCGM_EXPORTER_INTERVAL` 30000→5000, then `jsonData.timeInterval: "5s"` on the `prometheus` datasource, then the `[5m]`-gauge panel fix | measured, not guessed: spark = **1,774 samples/scrape**, VM ≈ **0.33 B/sample**, so **50 hot series @ 5 s = +9.2 rows/s / ≈ +95 MB/yr** and blanket 5 s = +125 rows/s / ≈ 3.4 GB. ⛔ age-tiering is **out** (community VM has no `-downsampling.period`/`-retentionFilter`, O2's is enterprise) and a **second store was declined by the owner** — do not re-open either. ⛔ never restart the engine; the DCGM sidecar needs a CPU + anon-RSS pre-flight against its `mem_limit: 256M` first. · [prompt-420.md](prompt-420.md) |
 | HD-344 | 3 | AI can query metrics/logs through MCP from its own tools | register the MCP endpoints in pi / Open WebUI / OpenClaw — **ports are `mcp_metrics_port` 8083 / `mcp_logs_port` 8084**, not :8080/:8081 | servers live on oldsrv; registration is the whole remaining row. ⚠ use the vars, never a literal port |
 | HD-345 | 2 | the last `DatasourceNoData` class goes away | find why the SNMP `ifOperStatus` walk still yields 0 series (rules on, SNMP enabled) | the only one left |
 | HD-342 | 2 | the observability data itself is backed up | Kopia client wiring for the Victoria data dirs | the Victoria cutover is live; this is its backup tail |
@@ -290,6 +294,10 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
   → **HD-416 / HD-417** (two cheap gates for failure classes no validator can see today).
 - **Then the sequenced chain:** HD-414 (scoped IPv6) is the hinge — HD-406, HD-410, HD-412's relay story and the
   HD-415 resolver redesign all wait on what it measures. HD-407 is unblocked and mechanical now, and HD-409 rides it.
+- **Independent of every chain, and already specced:** **HD-420** (spark metric cadence) — the measurement is done,
+  the design is written in [docs/observability.md](docs/observability.md) §Scrape cadence and
+  [prompt-420.md](prompt-420.md), and it touches only `roles/monitoring/**` + the dcgm sidecar, so it can run in
+  any spare session without colliding with a lane.
 - **Two things are still wrong with the repo, both now with rows:** the standby HA edge cannot proxy (**HD-418**) and
   `media.kogler.si` answers 502 (**HD-419**). Both decided, both one-change AI work.
 - **Oldsrv reachability is not a blocker:** off-LAN it is the Home leg through the VPS jump, carried in `group_vars`
