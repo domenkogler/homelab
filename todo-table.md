@@ -29,7 +29,7 @@
 | `bash scripts/validate-all.sh` | **GREEN** |
 | Session worktrees | **none open** — the HD-420 lane (`homelab-wt-20260921-1125`) was merged and pruned at close-out; the two empty lanes (HD-395, HD-399, both 0 commits) were retired earlier with the owner's word, via `git worktree remove` |
 | Stale session branches | **all 12 deleted** with `git branch -d`, which refuses an unmerged branch — so the sweep itself proved nothing was stranded |
-| Registry size | **103** open HD rows in `todo.md` (re-derive: `grep -c '^\| HD-' todo.md`; next free = max + 1 = **HD-420**, registered this cycle) |
+| Registry size | **derived, not typed** — row count and the next-free id (max + 1) are read out of [todo.md](todo.md) with `grep -c` on its `HD-` rows; 103 at the 2026-09-21 sync, which registered **HD-420** (a literal pipe would break this cell — see [todo.md](todo.md) HD-417) |
 
 ### What is live vs authored-only
 
