@@ -1,0 +1,57 @@
+{
+ "client": "openhands",
+ "kind": "mcp",
+ "project": "lane-openhands",
+ "capture": [
+  {
+   "hook": "prompt_submit",
+   "latency_s": 0.05,
+   "ok": true,
+   "id": "obs_mubu7nuc_a49bbd337c12"
+  },
+  {
+   "hook": "post_tool_use",
+   "latency_s": 0.018,
+   "ok": true,
+   "id": "obs_mubu7nve_0a0e64a01994"
+  }
+ ],
+ "own_recall": {
+  "latency_s": 0.077,
+  "found": true,
+  "sessions": [
+   "m3-hermes",
+   "m3-openclaw",
+   "m3-openhands",
+   "m3-pi"
+  ]
+ },
+ "cross_client_read": {
+  "pi": {
+   "found": true,
+   "sessions": [
+    "m3-hermes",
+    "m3-openclaw",
+    "m3-openhands",
+    "m3-pi"
+   ]
+  },
+  "openclaw": {
+   "found": true,
+   "sessions": [
+    "m3-openclaw",
+    "m3-openhands",
+    "m3-pi"
+   ]
+  },
+  "hermes": {
+   "found": true,
+   "sessions": [
+    "m3-hermes",
+    "m3-openclaw",
+    "m3-openhands",
+    "m3-pi"
+   ]
+  }
+ }
+}

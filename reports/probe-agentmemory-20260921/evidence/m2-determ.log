@@ -1,0 +1,11 @@
+Q1 identical=True distinct_ranks=1 distinct_scores=1
+Q2 identical=True distinct_ranks=1 distinct_scores=1
+Q3 identical=True distinct_ranks=1 distinct_scores=1
+Q4 identical=True distinct_ranks=1 distinct_scores=1
+Q5 identical=True distinct_ranks=1 distinct_scores=1
+Q6 identical=True distinct_ranks=1 distinct_scores=1
+Q7 identical=True distinct_ranks=1 distinct_scores=1
+Q8 identical=True distinct_ranks=1 distinct_scores=1
+Q9 identical=True distinct_ranks=1 distinct_scores=1
+Q10 identical=True distinct_ranks=1 distinct_scores=1
+DETERMINISM: 10/10 questions identical across 5 runs

@@ -1,0 +1,272 @@
+[
+ {
+  "id": "Q1",
+  "latency_s": 0.07,
+  "smartsearch_latency_s": 0.1,
+  "top5_src": [
+   "IaC/ansible/group_vars/vps.yml",
+   "s01-embedding-leg",
+   "docs/services-ai.md",
+   "docs/services-ai.md",
+   "deployment-manual.md"
+  ],
+  "scores": [
+   31.03662252808915,
+   24.701917416936027,
+   23.420634871115936,
+   23.03248653858407,
+   22.826419382447416
+  ],
+  "expected_file": "docs/services-ai.md",
+  "hit_at5_expected": true,
+  "answer_present": false,
+  "answer_in_smartsearch_compact": false,
+  "n_results": 5,
+  "chars_retrieved": 1578,
+  "tokens_est": 394,
+  "compact_tokens_est": 254
+ },
+ {
+  "id": "Q2",
+  "latency_s": 0.139,
+  "smartsearch_latency_s": 0.056,
+  "top5_src": [
+   "docs/services-ai.md",
+   "docs/services-ai.md",
+   "deployment-manual.md",
+   "docs/services-ai.md",
+   "docs/services-ai.md"
+  ],
+  "scores": [
+   21.372665181877004,
+   20.95837703322472,
+   20.89365340066132,
+   20.819640371717533,
+   20.066054794363577
+  ],
+  "expected_file": "docs/services-ai.md",
+  "hit_at5_expected": true,
+  "answer_present": false,
+  "answer_in_smartsearch_compact": false,
+  "n_results": 5,
+  "chars_retrieved": 2074,
+  "tokens_est": 518,
+  "compact_tokens_est": 254
+ },
+ {
+  "id": "Q3",
+  "latency_s": 0.1,
+  "smartsearch_latency_s": 0.115,
+  "top5_src": [
+   "todo.md",
+   "todo.md",
+   "docs/hardware-spark.md",
+   "docs/pi-harness.md",
+   "docs/hardware-spark.md"
+  ],
+  "scores": [
+   29.263410061235405,
+   28.356641466356084,
+   28.02125958000666,
+   26.515314088705825,
+   25.68613310854581
+  ],
+  "expected_file": "docs/hardware-spark.md",
+  "hit_at5_expected": true,
+  "answer_present": true,
+  "answer_in_smartsearch_compact": false,
+  "n_results": 5,
+  "chars_retrieved": 2074,
+  "tokens_est": 518,
+  "compact_tokens_est": 249
+ },
+ {
+  "id": "Q4",
+  "latency_s": 0.101,
+  "smartsearch_latency_s": 0.106,
+  "top5_src": [
+   "docs/network-vlans.md",
+   "docs/network-vlans.md",
+   "deployment-manual.md",
+   "reports/changelog.md",
+   "reports/changelog.md"
+  ],
+  "scores": [
+   19.257852708675568,
+   15.163232462534465,
+   13.765258211196128,
+   13.715591635289984,
+   13.386641419839494
+  ],
+  "expected_file": "docs/network-vlans.md",
+  "hit_at5_expected": true,
+  "answer_present": true,
+  "answer_in_smartsearch_compact": false,
+  "n_results": 5,
+  "chars_retrieved": 2074,
+  "tokens_est": 518,
+  "compact_tokens_est": 255
+ },
+ {
+  "id": "Q5",
+  "latency_s": 0.1,
+  "smartsearch_latency_s": 0.103,
+  "top5_src": [
+   "s05-chunking",
+   "IaC/ansible/group_vars/home_servers.yml",
+   "docs/services-ai.md",
+   "reports/changelog.md",
+   "docs/services-ai.md"
+  ],
+  "scores": [
+   26.76088218198737,
+   19.80249023834582,
+   16.09284397363385,
+   14.87084095709431,
+   14.743224473395584
+  ],
+  "expected_file": "docs/services-ai.md",
+  "hit_at5_expected": true,
+  "answer_present": true,
+  "answer_in_smartsearch_compact": false,
+  "n_results": 5,
+  "chars_retrieved": 1483,
+  "tokens_est": 371,
+  "compact_tokens_est": 255
+ },
+ {
+  "id": "Q6",
+  "latency_s": 0.1,
+  "smartsearch_latency_s": 0.105,
+  "top5_src": [
+   "docs/observability.md",
+   "docs/hardware-spark.md",
+   "todo-table.md",
+   "spark/BENCHMARK-PLAN.md",
+   "docs/hardware-spark.md"
+  ],
+  "scores": [
+   23.073480789904604,
+   19.6451089189694,
+   18.390048276869557,
+   18.356141289071093,
+   17.997705894671082
+  ],
+  "expected_file": "docs/services-ai.md",
+  "hit_at5_expected": false,
+  "answer_present": true,
+  "answer_in_smartsearch_compact": false,
+  "n_results": 5,
+  "chars_retrieved": 1751,
+  "tokens_est": 438,
+  "compact_tokens_est": 255
+ },
+ {
+  "id": "Q7",
+  "latency_s": 0.098,
+  "smartsearch_latency_s": 0.104,
+  "top5_src": [
+   "IaC/ansible/group_vars/vps.yml",
+   "brainstorming/recent/agent-memory-dev.md",
+   "docs/services-ai.md",
+   "brainstorming/recent/agent-memory-dev.md",
+   "docs/services-ai.md"
+  ],
+  "scores": [
+   17.711907953377136,
+   17.57299009363089,
+   17.28697324142981,
+   15.901956371978171,
+   14.469917302486657
+  ],
+  "expected_file": "todo-table.md",
+  "hit_at5_expected": false,
+  "answer_present": true,
+  "answer_in_smartsearch_compact": false,
+  "n_results": 5,
+  "chars_retrieved": 1931,
+  "tokens_est": 483,
+  "compact_tokens_est": 267
+ },
+ {
+  "id": "Q8",
+  "latency_s": 0.091,
+  "smartsearch_latency_s": 0.092,
+  "top5_src": [
+   "s08-restore-sl",
+   "s19-kopia-retention",
+   "brainstorming/recent/agent-memory-dev.md",
+   "brainstorming/recent/agent-memory-dev.md",
+   "brainstorming/recent/agent-memory-dev.md"
+  ],
+  "scores": [
+   67.09547498455676,
+   20.435315853520343,
+   16.728334047063825,
+   14.533534114777014,
+   13.678430698099932
+  ],
+  "expected_file": "docs/manual/restore-backup.md",
+  "hit_at5_expected": false,
+  "answer_present": false,
+  "answer_in_smartsearch_compact": false,
+  "n_results": 5,
+  "chars_retrieved": 1367,
+  "tokens_est": 342,
+  "compact_tokens_est": 264
+ },
+ {
+  "id": "Q9",
+  "latency_s": 0.098,
+  "smartsearch_latency_s": 0.094,
+  "top5_src": [
+   "IaC/ansible/group_vars/home_servers.yml",
+   "docs/hardware-oldsrv.md",
+   "docs/hardware-spark.md",
+   "docs/hardware-spark.md",
+   "deployment-manual.md"
+  ],
+  "scores": [
+   21.25912615521723,
+   20.865456409660453,
+   20.76123274032974,
+   20.427511132119996,
+   20.407796900845067
+  ],
+  "expected_file": "docs/hardware-oldsrv.md",
+  "hit_at5_expected": true,
+  "answer_present": true,
+  "answer_in_smartsearch_compact": false,
+  "n_results": 5,
+  "chars_retrieved": 2074,
+  "tokens_est": 518,
+  "compact_tokens_est": 261
+ },
+ {
+  "id": "Q10",
+  "latency_s": 0.1,
+  "smartsearch_latency_s": 0.101,
+  "top5_src": [
+   "todo.md",
+   "todo.md",
+   "todo.md",
+   "docs/services-ai.md",
+   "docs/pi-harness.md"
+  ],
+  "scores": [
+   21.160527136189664,
+   19.963908028678546,
+   19.803557528007293,
+   19.294981372282088,
+   16.591115892488016
+  ],
+  "expected_file": "docs/pi-harness.md",
+  "hit_at5_expected": true,
+  "answer_present": true,
+  "answer_in_smartsearch_compact": false,
+  "n_results": 5,
+  "chars_retrieved": 1820,
+  "tokens_est": 455,
+  "compact_tokens_est": 244
+ }
+]

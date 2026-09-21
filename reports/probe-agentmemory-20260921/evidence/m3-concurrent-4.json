@@ -1,0 +1,36 @@
+{
+ "n": 4,
+ "wall_s": 0.18,
+ "errors": [],
+ "ok": 4,
+ "latency_min": 0.075,
+ "latency_median": 0.076,
+ "latency_max": 0.18,
+ "hits": 4,
+ "per_request": [
+  {
+   "i": 3,
+   "latency_s": 0.075,
+   "hit": true,
+   "err": null
+  },
+  {
+   "i": 1,
+   "latency_s": 0.075,
+   "hit": true,
+   "err": null
+  },
+  {
+   "i": 0,
+   "latency_s": 0.076,
+   "hit": true,
+   "err": null
+  },
+  {
+   "i": 2,
+   "latency_s": 0.18,
+   "hit": true,
+   "err": null
+  }
+ ]
+}

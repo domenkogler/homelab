@@ -1,0 +1,50 @@
+{
+ "client": "openclaw",
+ "kind": "plugin",
+ "project": "lane-openclaw",
+ "capture": [
+  {
+   "hook": "prompt_submit",
+   "latency_s": 0.052,
+   "ok": true,
+   "id": "obs_mubu7ms8_06a4eb9ee833"
+  },
+  {
+   "hook": "post_tool_use",
+   "latency_s": 0.022,
+   "ok": true,
+   "id": "obs_mubu7mta_9913e685c63d"
+  }
+ ],
+ "own_recall": {
+  "latency_s": 0.08,
+  "found": true,
+  "sessions": [
+   "m3-openclaw",
+   "m3-pi"
+  ]
+ },
+ "cross_client_read": {
+  "pi": {
+   "found": true,
+   "sessions": [
+    "m3-openclaw",
+    "m3-pi"
+   ]
+  },
+  "hermes": {
+   "found": false,
+   "sessions": [
+    "m3-openclaw",
+    "m3-pi"
+   ]
+  },
+  "openhands": {
+   "found": false,
+   "sessions": [
+    "m3-openclaw",
+    "m3-pi"
+   ]
+  }
+ }
+}

@@ -1,0 +1,5 @@
+Stored. Memory now reads:
+
+  Probe marker is ARM-A2-MARKER-5566 (supersedes ARM-A-MARKER-4417); embedding port is 9002.
+
+I replaced the old marker entry (ARM-A-MARKER-4417) with the new one so the stale value doesn't stick around. No files were written.

@@ -1,0 +1,11 @@
+Q1  0.070s hit=True ans=False tok=394 src=IaC/ansible/group_vars/vps.yml
+Q2  0.139s hit=True ans=False tok=518 src=docs/services-ai.md
+Q3  0.100s hit=True ans=True tok=518 src=todo.md
+Q4  0.101s hit=True ans=True tok=518 src=docs/network-vlans.md
+Q5  0.100s hit=True ans=True tok=371 src=s05-chunking
+Q6  0.100s hit=False ans=True tok=438 src=docs/observability.md
+Q7  0.098s hit=False ans=True tok=483 src=IaC/ansible/group_vars/vps.yml
+Q8  0.091s hit=False ans=False tok=342 src=s08-restore-sl
+Q9  0.098s hit=True ans=True tok=518 src=IaC/ansible/group_vars/home_server
+Q10  0.100s hit=True ans=True tok=455 src=todo.md
+TOTALS hit@5=7/10 answer=7/10 tokens=4555 (455/query)

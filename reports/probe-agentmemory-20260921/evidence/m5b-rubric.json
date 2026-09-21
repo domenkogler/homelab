@@ -1,0 +1,62 @@
+[
+ {
+  "chars": 326,
+  "tokens_est": 82,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 5
+ },
+ {
+  "chars": 238,
+  "tokens_est": 60,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 3
+ },
+ {
+  "chars": 226,
+  "tokens_est": 56,
+  "R1_subsystem": true,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 3
+ },
+ {
+  "chars": 136,
+  "tokens_est": 34,
+  "R1_subsystem": false,
+  "R2_hosts_clean": true,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": true,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 0
+ },
+ {
+  "chars": 130,
+  "tokens_est": 32,
+  "R1_subsystem": false,
+  "R2_hosts_clean": false,
+  "R3_invented_numbers": 0,
+  "invented_number_examples": [],
+  "R4_invents_nothing": false,
+  "invented_hd": [],
+  "R5_retrieval_key": false,
+  "src_terms_shared": 0
+ }
+]

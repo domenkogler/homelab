@@ -1,0 +1,548 @@
+[
+ {
+  "id": "E1",
+  "q": "Which TCP port does the pinned embedding leg listen on?",
+  "latency_s": 0.067,
+  "must": [
+   "9002"
+  ],
+  "present": [],
+  "exact_hit": false,
+  "sessions_returned": [
+   "replay-IaC_ansible_group_vars_home_servers_yml",
+   "replay-IaC_ansible_group_vars_vps_yml",
+   "replay-docs_services-ai_md",
+   "replay-reports_changelog_md",
+   "s01-embedding-leg"
+  ],
+  "top5": [
+   {
+    "s": "s01-embedding-leg",
+    "score": 24.701917416936027,
+    "text": "prompt_submit Kateri TCP port posluša noge za vgradne vektorske predstavitve (embedding leg)?"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 17.679734551194173,
+    "text": "prompt_submit The runbook values, so a re-deploy or a rebuilt DB does not re-derive them. All three legs sit on\n`llm-backend` (`external: true`) with **no `port"
+   },
+   {
+    "s": "replay-IaC_ansible_group_vars_home_servers_yml",
+    "score": 14.425705330841517,
+    "text": "prompt_submit # --- Pinned-AI tier on the RX 7600 (HD-391, decision #27: ggml/Vulkan) ---\n# Ports are INTERNAL to the `llm-backend` bridge — none of these legs "
+   },
+   {
+    "s": "replay-IaC_ansible_group_vars_vps_yml",
+    "score": 13.725036915019135,
+    "text": "prompt_submit # HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.\n# The internal edge (`traefik-tailnet`, container) listens on :443 in"
+   },
+   {
+    "s": "replay-reports_changelog_md",
+    "score": 13.624004312014169,
+    "text": "prompt_submit rvice INPUT rules had `dst-port` without `protocol` (ports require tcp/udp) → added `protocol: tcp`; (7) Kids bedtime `time=` needs weekday suffix"
+   }
+  ],
+  "tokens_est": 402
+ },
+ {
+  "id": "E2",
+  "q": "What rerank latency was measured for twenty documents on the RX 7600?",
+  "latency_s": 0.103,
+  "must": [
+   "0.34",
+   "RX 7600"
+  ],
+  "present": [
+   "RX 7600"
+  ],
+  "exact_hit": false,
+  "sessions_returned": [
+   "replay-deployment-manual_md",
+   "replay-docs_services-ai_md"
+  ],
+  "top5": [
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 21.372665181877004,
+    "text": "prompt_submit g `bge-m3` (1024-dim, E2E-verified, 833–899 MiB VRAM, ~500 ms/chunk). Demoted from primary by measurement (decision #27) but **kept as the documen"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 20.95837703322472,
+    "text": "prompt_submit **Device + gid:** the legs mount **only** `gpu_vulkan_render_node` = `/dev/dri/renderD129` (RX 7600\n`gfx1102`); `renderD128` is the HD 630 iGPU — "
+   },
+   {
+    "s": "replay-deployment-manual_md",
+    "score": 20.89365340066132,
+    "text": "prompt_submit > **The plan of record is [services-ai.md](docs/services-ai.md) §3a** (decision #27): the pinned tier —\n> embeddings, rerank, STT — is **three sep"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 20.819640371717533,
+    "text": "prompt_submit | Leg | Engine | Model (quant) | Device | VRAM (measured) | Latency (measured) | Status |\n|-----|--------|---------------|--------|---------------"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 20.066054794363577,
+    "text": "prompt_submit | Measurement | Result on the deployed containers |\n|---|---|\n| Tier VRAM | **2475 MiB** all-warm (target ~2.4 GiB / 8 GiB — hit); idle baseline 6"
+   }
+  ],
+  "tokens_est": 518
+ },
+ {
+  "id": "E3",
+  "q": "How large is the vLLM KV cache pool on spark in tokens?",
+  "latency_s": 0.103,
+  "must": [
+   "515,786"
+  ],
+  "present": [
+   "515,786"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-docs_hardware-spark_md",
+   "replay-docs_observability_md",
+   "replay-docs_pi-harness_md"
+  ],
+  "top5": [
+   {
+    "s": "replay-docs_pi-harness_md",
+    "score": 23.804797459557943,
+    "text": "prompt_submit ```json\n\"spark-lane\": {\n  \"baseUrl\": \"https://llm.kogler.si/v1\",\n  \"api\": \"openai-completions\",\n  \"apiKey\": \"(spark-llm_api credential)\",\n  \"model"
+   },
+   {
+    "s": "replay-docs_hardware-spark_md",
+    "score": 22.014416820434917,
+    "text": "prompt_submit ```yaml\n# group_vars/spark.yml  (this build's flag: --kv-cache-memory-bytes, bytes int)\nspark_vllm_kv_cache_memory: \"16000000000\"   # LIVE + CERTI"
+   },
+   {
+    "s": "replay-docs_observability_md",
+    "score": 21.88606034049719,
+    "text": "prompt_submit r-time: Output voltage, Load, Runtime, Battery charge** | `network_ups_tools_*` (DRuggeri/nut_exporter v3) |\n| **LLM Inference (vLLM/SGLang)** | `"
+   },
+   {
+    "s": "replay-docs_pi-harness_md",
+    "score": 21.292978237149445,
+    "text": "prompt_submit ) HD-376\n> **Engine-side owner (NOT this doc):** [`hardware-spark.md`](hardware-spark.md) — vLLM args, unified-memory\n> governance, S1 certificati"
+   },
+   {
+    "s": "replay-docs_pi-harness_md",
+    "score": 20.62343224766409,
+    "text": "prompt_submit The pool is **one shared budget of ~262–268k token slots** (`spark_vllm_kv_cache_memory`), while\n`spark_vllm_max_num_seqs: 4`. A single parent ses"
+   }
+  ],
+  "tokens_est": 472
+ },
+ {
+  "id": "E4",
+  "q": "Which HD backlog row owns the corpus reader rag-mcp?",
+  "latency_s": 0.1,
+  "must": [
+   "HD-268"
+  ],
+  "present": [
+   "HD-268"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-IaC_ansible_group_vars_vps_yml",
+   "replay-brainstorming_recent_agent-memory-dev_md",
+   "replay-docs_services-ai_md"
+  ],
+  "top5": [
+   {
+    "s": "replay-IaC_ansible_group_vars_vps_yml",
+    "score": 17.711907953377136,
+    "text": "prompt_submit iner set anymore.)\n  # === AI MCP stubs (HD-268b) — placeholders; do not yet deploy a runnable unit ===\n  - { name: rag-mcp,        template_dir: "
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 17.57299009363089,
+    "text": "prompt_submit asset ingress: PDFs, scans, docs) │ └───────────────┬──────────────────────────────────────────────┘ ▼ (internal API / MCP) ┌─────────────────────"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 17.28697324142981,
+    "text": "prompt_submit M behind `llm.kogler.si` | `qwen3.8-flash-next`, 262k ctx | not on oldsrv | — | ~11 tok/s decode | ✅ live · harnesses reach it **directly** (#26) "
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 15.901956371978171,
+    "text": "prompt_submit │ agentmemory container  ├─────┘                           │\n │   │ (SQLite + iii local)   │                                 │\n │   │ Exposes REST"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 14.469917302486657,
+    "text": "prompt_submit e. The public/internal\n>   two-instance split is **open work (HD-248)**, not current state.\n> - **`rag-mcp` and `forgejo-mcp` are stubs** (`enable"
+   }
+  ],
+  "tokens_est": 483
+ },
+ {
+  "id": "E5",
+  "q": "Which HD row requires the spark/ prefix on every LLM path?",
+  "latency_s": 0.1,
+  "must": [
+   "HD-387"
+  ],
+  "present": [
+   "HD-387"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-deployment-manual_md",
+   "replay-spark_BENCHMARK-PLAN_md",
+   "replay-todo-table_md",
+   "replay-todo_md",
+   "s07b-hd387"
+  ],
+  "top5": [
+   {
+    "s": "replay-todo-table_md",
+    "score": 16.23302627046622,
+    "text": "prompt_submit  delete the `dsh` alias in the LAN Admin UI, drop the item's doc row — one change | `todo.md` row |\n| **HD-384** ✅ | Scoped consumers get the **`s"
+   },
+   {
+    "s": "s07b-hd387",
+    "score": 14.852620077621632,
+    "text": "prompt_submit HD-387 torej zahteva spark/ predpono na vsaki LLM poti."
+   },
+   {
+    "s": "replay-spark_BENCHMARK-PLAN_md",
+    "score": 14.606108851198854,
+    "text": "prompt_submit TensorRT-LLM is **not** a bench candidate for Qwen3.8-Flash-Next on this box today, and stays as a\nfuture row. Rationale (R6 digest + NVIDIA sourc"
+   },
+   {
+    "s": "replay-deployment-manual_md",
+    "score": 14.09289650826794,
+    "text": "prompt_submit Verify the three pinned-AI containers, which are the tier — **not** Ollama (`whisper` :9000, `reranker`\n:9001, `embed` :9002, all on `llm-backend`"
+   },
+   {
+    "s": "replay-todo_md",
+    "score": 14.086631421775529,
+    "text": "prompt_submit w EMPTY because its harness records were parked with their consumers (HD-386) ⇒ **no scoped consumer can call `spark/*` on either instance** (the "
+   }
+  ],
+  "tokens_est": 378
+ },
+ {
+  "id": "E6",
+  "q": "Which numbered decision keeps the harness pointed straight at the engine?",
+  "latency_s": 0.098,
+  "must": [
+   "#26"
+  ],
+  "present": [
+   "#26"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-docs_pi-harness_md",
+   "replay-docs_services-ai_md",
+   "replay-spark_BENCHMARK-PLAN_md",
+   "replay-todo_md"
+  ],
+  "top5": [
+   {
+    "s": "replay-todo_md",
+    "score": 21.160527136189664,
+    "text": "prompt_submit ut_tokens 16384` = 262,144 minus the reserve) but `pi-dev`/`dsh` are PARKED (HD-386) and decision #26 routes harnesses direct-to-engine, so there "
+   },
+   {
+    "s": "replay-docs_pi-harness_md",
+    "score": 16.591115892488016,
+    "text": "prompt_submit - ✅ **CLOSED:** the \"`pi-dev` re-point\" tail is **moot** — `dsh`/`pi-dev` are PARKED as\n  services (HD-386) and per decision #26 the harnesses rea"
+   },
+   {
+    "s": "replay-docs_pi-harness_md",
+    "score": 15.810384349891054,
+    "text": "prompt_submit Putting `273000` (or `300000`) into `contextWindow` does not buy context — it makes the harness fill\nthe transcript past the engine's gate and har"
+   },
+   {
+    "s": "replay-spark_BENCHMARK-PLAN_md",
+    "score": 14.867773862235676,
+    "text": "prompt_submit These replace neither A-cal nor per-engine results; they size the sweep and sanity-bound keep/drop.\nSources: `spark/resources/RESEARCH-VERDICTS.md"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 14.427296882447102,
+    "text": "prompt_submit The coding harnesses are the deliberate exception — they go **direct** to the spark name edge (§9 row 26,\n§9b, [pi-harness.md](pi-harness.md) §1b)"
+   }
+  ],
+  "tokens_est": 434
+ },
+ {
+  "id": "E7",
+  "q": "Which numbered decision says spark is text-only with no vision leg?",
+  "latency_s": 0.096,
+  "must": [
+   "#28"
+  ],
+  "present": [
+   "#28"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-docs_hardware-spark_md",
+   "replay-docs_observability_md",
+   "replay-spark_BENCHMARK-PLAN_md",
+   "replay-todo-table_md"
+  ],
+  "top5": [
+   {
+    "s": "replay-docs_observability_md",
+    "score": 23.073480789904604,
+    "text": "prompt_submit **Disk I/O needed no new telemetry.** `prometheus.exporter.unix \"host\"` has enabled the\n`diskstats` collector from the start, so the I/O families "
+   },
+   {
+    "s": "replay-docs_hardware-spark_md",
+    "score": 19.6451089189694,
+    "text": "prompt_submit isual judgment on the workstation\n  ([`hardware-workstation.md`](hardware-workstation.md)); spark is text-only (§Text-only engine mode).\n- Not on "
+   },
+   {
+    "s": "replay-todo-table_md",
+    "score": 18.390048276869557,
+    "text": "prompt_submit  not merely expensive — vLLM's only pre-computed-vision seam is multimodal *embeddings*, which must live in the target model's own visual-token sp"
+   },
+   {
+    "s": "replay-spark_BENCHMARK-PLAN_md",
+    "score": 18.356141289071093,
+    "text": "prompt_submit e persistence (LMCache) · decision log [`docs/services-rejected.md`](../docs/services-rejected.md) |\n| 11 | **Text-only engine mode** — `--limit-m"
+   },
+   {
+    "s": "replay-docs_hardware-spark_md",
+    "score": 17.997705894671082,
+    "text": "prompt_submit ## Text-only engine mode (vision disabled) — ⏳ proposed, not applied (HD-400)"
+   }
+  ],
+  "tokens_est": 438
+ },
+ {
+  "id": "E8",
+  "q": "Kako obnovim izbrisane datoteke iz varnostne kopije?",
+  "latency_s": 0.091,
+  "must": [
+   "Kopia"
+  ],
+  "present": [],
+  "exact_hit": false,
+  "sessions_returned": [
+   "replay-brainstorming_recent_agent-memory-dev_md",
+   "s08-restore-sl",
+   "s19-kopia-retention"
+  ],
+  "top5": [
+   {
+    "s": "s08-restore-sl",
+    "score": 67.09547498455676,
+    "text": "prompt_submit Kako obnovim izbrisane datoteke iz varnostne kopije?"
+   },
+   {
+    "s": "s19-kopia-retention",
+    "score": 20.435315853520343,
+    "text": "prompt_submit Kakšna je politika obdržanja za varnostne kopije?"
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 16.728334047063825,
+    "text": "prompt_submit -   Preko ukaza za uvoz (ali preprostega prvega prompta) lahko agentu naročite, naj enkratno prebere vaš arhiv deploymentov.\n-   Orodje bo iz teh "
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 14.533534114777014,
+    "text": "prompt_submit -   Če opazite, da je spomin začel vleči na dan zastarele informacije, lahko preprosto odprete mapo `.ai/sessions/` ali svojo datoteko `literatura"
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 13.678430698099932,
+    "text": "prompt_submit -   **Hipna konsolidacija:** Stiskanje preteklih sej in seštevanje ugotovitev iz vaših `.yml` in `.md` datotek se bo namesto v nekaj sekundah izve"
+   }
+  ],
+  "tokens_est": 342
+ },
+ {
+  "id": "E9",
+  "q": "Which Qdrant REST port runs on oldsrv?",
+  "latency_s": 0.14,
+  "must": [
+   "6333"
+  ],
+  "present": [],
+  "exact_hit": false,
+  "sessions_returned": [
+   "replay-IaC_ansible_group_vars_home_servers_yml",
+   "replay-docs_deployment-ansible_md",
+   "replay-docs_observability_md",
+   "replay-docs_services-ai_md",
+   "replay-reports_changelog_md"
+  ],
+  "top5": [
+   {
+    "s": "replay-docs_observability_md",
+    "score": 14.612573161980931,
+    "text": "prompt_submit ner\n  action (HD-318d); until then email is the only proven channel.\n- **`signal-cli-rest-api` is published on `{{ oldsrv_home_ip }}:8082`** becau"
+   },
+   {
+    "s": "replay-IaC_ansible_group_vars_home_servers_yml",
+    "score": 13.494898840451937,
+    "text": "prompt_submit : \"{{ oldsrv_home_ip }}\", dozzle_http_port: 8081,\n      dozzle_agent_connect: [\"{{ pi_home_ip }}:7007|pi\", \"{{ spark_home_ip }}:7007|spark\"] }\n  -"
+   },
+   {
+    "s": "replay-reports_changelog_md",
+    "score": 13.4169813732866,
+    "text": "prompt_submit e components the 2026-08-07 REST pass attributed to HACS/custom (OneDrive, go2rtc, card-mod, motion, ai_task) are NOT present in `custom_component"
+   },
+   {
+    "s": "replay-docs_deployment-ansible_md",
+    "score": 12.966768468506496,
+    "text": "prompt_submit ```bash\n# 0 — repo onto the box. A bundle needs no new credentials on oldsrv; cloning from GitHub\n#     instead is the cleaner end state but means"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 12.831605908907486,
+    "text": "prompt_submit 's bearer (container env, never a DB row) |\n| `openwebui_secret` | password → `password` | Open WebUI session/encryption secret |\n| `qdrant_db` | "
+   }
+  ],
+  "tokens_est": 479
+ },
+ {
+  "id": "E10",
+  "q": "What direct address must be used for the gateway from oldsrv?",
+  "latency_s": 0.101,
+  "must": [
+   "10.10.1.30:4000"
+  ],
+  "present": [],
+  "exact_hit": false,
+  "sessions_returned": [
+   "replay-docs_deployment-ansible_md",
+   "replay-docs_deployment-secrets_md",
+   "replay-docs_services-ai_md",
+   "replay-spark_BENCHMARK-PLAN_md",
+   "replay-todo_md"
+  ],
+  "top5": [
+   {
+    "s": "replay-docs_deployment-ansible_md",
+    "score": 19.06618230970461,
+    "text": "prompt_submit # 3 — prove it, from oldsrv, inside what HD-413 permits:\nssh oldsrv 'cd ~/source/homelab && bash scripts/ansible-run.sh playbooks/home_servers.yml"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 17.170268190212806,
+    "text": "prompt_submit The one table for **what AI runs on oldsrv, on what device, with which model**. Every latency/VRAM figure is\n**measured on this box** — provenance"
+   },
+   {
+    "s": "replay-docs_deployment-secrets_md",
+    "score": 17.020317613959143,
+    "text": "prompt_submit ** — the 1Password item holds the Authentik-generated client_id (in `username`) + client_secret (in `credential`), seeded by the secret-egress glu"
+   },
+   {
+    "s": "replay-spark_BENCHMARK-PLAN_md",
+    "score": 15.845968796707488,
+    "text": "prompt_submit | Script | Purpose |\n|---|---|\n| `bench/snapshot-metrics.sh <label>` | Grabs preemption/cache/MTP/token counters from the engine's `:8000/metrics`"
+   },
+   {
+    "s": "replay-todo_md",
+    "score": 15.093546769801176,
+    "text": "prompt_submit solver at all. Therefore the fix is a resolver that is reachable from wherever the device happens to be, not a cleverer list of one-place resolver"
+   }
+  ],
+  "tokens_est": 472
+ },
+ {
+  "id": "E11",
+  "q": "Kateri port ima vizualni pregledovalnik agentmemory v tej namestitvi?",
+  "latency_s": 0.094,
+  "must": [
+   "3114"
+  ],
+  "present": [
+   "3114"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "s01-embedding-leg",
+   "s07-rag-owner",
+   "s11-agentmemory-ports",
+   "s12-correction"
+  ],
+  "top5": [
+   {
+    "s": "s11-agentmemory-ports",
+    "score": 44.1044924727607,
+    "text": "prompt_submit Kateri port ima agentmemory REST in kje je vizualni pregledovalnik?"
+   },
+   {
+    "s": "s12-correction",
+    "score": 31.39484621027306,
+    "text": "prompt_submit Popravek: v tej namestitvi smo vizualni pregledovalnik prestavili na 3114, da se izognemo trku. Prejšnja trditev o 3113 je bila napačna in je ne u"
+   },
+   {
+    "s": "s11-agentmemory-ports",
+    "score": 17.168554099546732,
+    "text": "prompt_submit Torej moj vizualni pregledovalnik je na 3113. Uporabi to kot dejstvo za naprej."
+   },
+   {
+    "s": "s07-rag-owner",
+    "score": 15.50254947225247,
+    "text": "prompt_submit Kateri HD red ima v lasti rag-mcp, bralnik korpusa?"
+   },
+   {
+    "s": "s01-embedding-leg",
+    "score": 12.393872560317917,
+    "text": "prompt_submit Kateri TCP port posluša noge za vgradne vektorske predstavitve (embedding leg)?"
+   }
+  ],
+  "tokens_est": 128,
+  "superseded_token_present": true,
+  "superseded_in_top5": true,
+  "correct_rank": 2,
+  "stale_rank": 2
+ },
+ {
+  "id": "E12",
+  "q": "Kakšna politika obdržanja velja za varnostne kopije?",
+  "latency_s": 0.092,
+  "must": [
+   "hourly 48"
+  ],
+  "present": [],
+  "exact_hit": false,
+  "sessions_returned": [
+   "replay-brainstorming_recent_agent-memory-dev_md",
+   "s05-chunking",
+   "s08-restore-sl",
+   "s19-kopia-retention"
+  ],
+  "top5": [
+   {
+    "s": "s19-kopia-retention",
+    "score": 56.96153448038595,
+    "text": "prompt_submit Kakšna je politika obdržanja za varnostne kopije?"
+   },
+   {
+    "s": "s08-restore-sl",
+    "score": 20.435315853520343,
+    "text": "prompt_submit Kako obnovim izbrisane datoteke iz varnostne kopije?"
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 13.591768887580187,
+    "text": "prompt_submit `agentmemory` ima vgrajeno logiko za izolacijo projektov. Vsak spomin (sprememba, koda, zabeležena seja) je zapisan znotraj določenega prostora."
+   },
+   {
+    "s": "s05-chunking",
+    "score": 13.389728728516811,
+    "text": "prompt_submit Kakšna velikost kosov (chunk size) in prekrivanje (overlap) sta dogovorjeni za RAG korpus?"
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 12.61724541661464,
+    "text": "prompt_submit Za začetek zaženite **en sam Docker vsebnik** znotraj CONE 3. V njem boste imeli eno centralizirano SQLite zbirko podatkov, ki bo prek \"Spaces\" lo"
+   }
+  ],
+  "tokens_est": 190
+ }
+]

@@ -1,0 +1,13 @@
+E1 exact=False lat=0.067s present=[]
+E2 exact=False lat=0.103s present=['RX 7600']
+E3 exact=True lat=0.103s present=['515,786']
+E4 exact=True lat=0.100s present=['HD-268']
+E5 exact=True lat=0.100s present=['HD-387']
+E6 exact=True lat=0.098s present=['#26']
+E7 exact=True lat=0.096s present=['#28']
+E8 exact=False lat=0.091s present=[]
+E9 exact=False lat=0.140s present=[]
+E10 exact=False lat=0.101s present=[]
+E11 exact=True lat=0.094s present=['3114'] stale=True
+E12 exact=False lat=0.092s present=[]
+EXACT-ID: 6/12

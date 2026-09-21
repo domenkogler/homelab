@@ -1,0 +1,11 @@
+Q1  0.117s hit=True ans=False tok=438 src=s01-embedding-leg
+Q2  0.164s hit=True ans=True tok=436 src=s02-rerank-latency
+Q3  0.204s hit=True ans=True tok=518 src=docs/hardware-spark.md
+Q4  0.194s hit=True ans=True tok=366 src=docs/network-vlans.md
+Q5  0.200s hit=True ans=True tok=426 src=s05-chunking
+Q6  0.192s hit=True ans=True tok=278 src=docs/hardware-spark.md
+Q7  0.201s hit=True ans=True tok=431 src=IaC/ansible/group_vars/vps.yml
+Q8  0.227s hit=False ans=True tok=278 src=s08-restore-sl
+Q9  0.192s hit=True ans=True tok=438 src=deployment-manual.md
+Q10  0.196s hit=True ans=True tok=374 src=todo.md
+TOTALS hit@5=9/10 answer=9/10 tokens=3983 (398/query)

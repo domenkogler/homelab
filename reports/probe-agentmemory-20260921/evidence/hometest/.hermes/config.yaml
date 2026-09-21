@@ -1,0 +1,12 @@
+model:
+  name: spark/qwen3.8-flash-next
+  provider: custom:lanlitellm
+  base_url: http://10.10.1.30:4000/v1
+providers:
+  lanlitellm:
+    base_url: http://10.10.1.30:4000/v1
+    key_env: LITELLM_KEY
+    api_mode: chat_completions
+memory:
+  memory_enabled: false
+  user_profile_enabled: false

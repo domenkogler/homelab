@@ -1,0 +1,54 @@
+{
+ "client": "hermes",
+ "kind": "plugin",
+ "project": "lane-hermes",
+ "capture": [
+  {
+   "hook": "prompt_submit",
+   "latency_s": 0.059,
+   "ok": true,
+   "id": "obs_mubu7nbl_18d0eb74923d"
+  },
+  {
+   "hook": "post_tool_use",
+   "latency_s": 0.032,
+   "ok": true,
+   "id": "obs_mubu7ncy_eab8cc8f19e1"
+  }
+ ],
+ "own_recall": {
+  "latency_s": 0.071,
+  "found": true,
+  "sessions": [
+   "m3-hermes",
+   "m3-openclaw",
+   "m3-pi"
+  ]
+ },
+ "cross_client_read": {
+  "pi": {
+   "found": true,
+   "sessions": [
+    "m3-hermes",
+    "m3-openclaw",
+    "m3-pi"
+   ]
+  },
+  "openclaw": {
+   "found": true,
+   "sessions": [
+    "m3-hermes",
+    "m3-openclaw",
+    "m3-pi"
+   ]
+  },
+  "openhands": {
+   "found": false,
+   "sessions": [
+    "m3-hermes",
+    "m3-openclaw",
+    "m3-pi"
+   ]
+  }
+ }
+}

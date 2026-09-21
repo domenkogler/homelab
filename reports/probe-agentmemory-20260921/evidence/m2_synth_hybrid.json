@@ -1,0 +1,549 @@
+[
+ {
+  "id": "E1",
+  "q": "Which TCP port does the pinned embedding leg listen on?",
+  "latency_s": 0.101,
+  "must": [
+   "9002"
+  ],
+  "present": [],
+  "exact_hit": false,
+  "sessions_returned": [
+   "replay-IaC_ansible_group_vars_home_servers_yml",
+   "replay-docs_network-vlans_md",
+   "replay-todo_md",
+   "s01-embedding-leg"
+  ],
+  "top5": [
+   {
+    "s": "s01-embedding-leg",
+    "score": 1.05,
+    "text": "prompt_submit Kateri TCP port posluša noge za vgradne vektorske predstavitve (embedding leg)?"
+   },
+   {
+    "s": "replay-IaC_ansible_group_vars_home_servers_yml",
+    "score": 1.0166666666666666,
+    "text": "prompt_submit # --- Pinned-AI tier on the RX 7600 (HD-391, decision #27: ggml/Vulkan) ---\n# Ports are INTERNAL to the `llm-backend` bridge — none of these legs "
+   },
+   {
+    "s": "replay-todo_md",
+    "score": 0.5903225806451612,
+    "text": "prompt_submit emplate and this doc. ⚠ Three things to VERIFY, not assume, before converging: that headscale in the pinned version accepts a node-address nameser"
+   },
+   {
+    "s": "replay-docs_network-vlans_md",
+    "score": 0.5718749999999999,
+    "text": "prompt_submit > **Access-port untagged membership:** a CRS328 access port with `ingress-filtering` on the bridge only\n> forwards frames for VLANs it is a **memb"
+   },
+   {
+    "s": "replay-docs_network-vlans_md",
+    "score": 0.5630769230769231,
+    "text": "prompt_submit esp. Samsung). The pin lives on the 5GHz config only —\n  a shared config disturbs the IOT slaves ([network-rejected.md](network-rejected.md) DFS +"
+   }
+  ],
+  "tokens_est": 438
+ },
+ {
+  "id": "E2",
+  "q": "What rerank latency was measured for twenty documents on the RX 7600?",
+  "latency_s": 0.203,
+  "must": [
+   "0.34",
+   "RX 7600"
+  ],
+  "present": [
+   "0.34",
+   "RX 7600"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-deployment-manual_md",
+   "replay-docs_services-ai_md",
+   "s02-rerank-latency"
+  ],
+  "top5": [
+   {
+    "s": "s02-rerank-latency",
+    "score": 1.0013043478260868,
+    "text": "prompt_submit Torej rerank 20 dokumentov traja 0.34 s na RX 7600; zabeleži številko."
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 1.00078125,
+    "text": "prompt_submit | Leg | Engine | Model (quant) | Device | VRAM (measured) | Latency (measured) | Status |\n|-----|--------|---------------|--------|---------------"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 0.9981818181818182,
+    "text": "prompt_submit e fallback rung of the SAME 1024-dim space; it is a **service + model, not a catalog row** |\n| **Reranker** | `llama.cpp server-vulkan` (`--embedd"
+   },
+   {
+    "s": "replay-deployment-manual_md",
+    "score": 0.997897435897436,
+    "text": "prompt_submit > **The plan of record is [services-ai.md](docs/services-ai.md) §3a** (decision #27): the pinned tier —\n> embeddings, rerank, STT — is **three sep"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 0.9593009049773756,
+    "text": "prompt_submit | Measurement | Result on the deployed containers |\n|---|---|\n| Tier VRAM | **2475 MiB** all-warm (target ~2.4 GiB / 8 GiB — hit); idle baseline 6"
+   }
+  ],
+  "tokens_est": 436
+ },
+ {
+  "id": "E3",
+  "q": "How large is the vLLM KV cache pool on spark in tokens?",
+  "latency_s": 0.203,
+  "must": [
+   "515,786"
+  ],
+  "present": [
+   "515,786"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-docs_hardware-spark_md",
+   "replay-docs_pi-harness_md"
+  ],
+  "top5": [
+   {
+    "s": "replay-docs_hardware-spark_md",
+    "score": 1.0432258064516131,
+    "text": "prompt_submit ```yaml\n# group_vars/spark.yml  (this build's flag: --kv-cache-memory-bytes, bytes int)\nspark_vllm_kv_cache_memory: \"16000000000\"   # LIVE + CERTI"
+   },
+   {
+    "s": "replay-docs_hardware-spark_md",
+    "score": 0.9858387096774194,
+    "text": "prompt_submit > **Why this matters:** spark is a **unified-memory** appliance — there is no separate VRAM. Every GPU\n> allocation is physically the same **121.6"
+   },
+   {
+    "s": "replay-docs_pi-harness_md",
+    "score": 0.9853846153846154,
+    "text": "prompt_submit The pool is **one shared budget of ~262–268k token slots** (`spark_vllm_kv_cache_memory`), while\n`spark_vllm_max_num_seqs: 4`. A single parent ses"
+   },
+   {
+    "s": "replay-docs_hardware-spark_md",
+    "score": 0.5809523809523809,
+    "text": "prompt_submit d 16 GiB pool leaves\n  +5.4 GiB boot-side). 1 GiB ≈ **32.2k KV tokens** at the measured 30.3 KiB/token. Convert freed GiB into\n  headroom or KV **"
+   },
+   {
+    "s": "replay-docs_pi-harness_md",
+    "score": 0.5545454545454545,
+    "text": "prompt_submit 1. **262,144** = `--max-model-len` (`spark_vllm_max_model_len`, = model native\n   `max_position_embeddings`). This is the **per-request ceiling**:"
+   }
+  ],
+  "tokens_est": 518
+ },
+ {
+  "id": "E4",
+  "q": "Which HD backlog row owns the corpus reader rag-mcp?",
+  "latency_s": 0.147,
+  "must": [
+   "HD-268"
+  ],
+  "present": [
+   "HD-268"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-IaC_ansible_group_vars_vps_yml",
+   "replay-docs_hardware-oldsrv_md",
+   "replay-docs_services-ai_md",
+   "replay-todo-table_md",
+   "s07-rag-owner"
+  ],
+  "top5": [
+   {
+    "s": "replay-IaC_ansible_group_vars_vps_yml",
+    "score": 1.039838709677419,
+    "text": "prompt_submit iner set anymore.)\n  # === AI MCP stubs (HD-268b) — placeholders; do not yet deploy a runnable unit ===\n  - { name: rag-mcp,        template_dir: "
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 0.9511103678929766,
+    "text": "prompt_submit e. The public/internal\n>   two-instance split is **open work (HD-248)**, not current state.\n> - **`rag-mcp` and `forgejo-mcp` are stubs** (`enable"
+   },
+   {
+    "s": "s07-rag-owner",
+    "score": 0.6,
+    "text": "prompt_submit Kateri HD red ima v lasti rag-mcp, bralnik korpusa?"
+   },
+   {
+    "s": "replay-todo-table_md",
+    "score": 0.5809523809523809,
+    "text": "prompt_submit M row (`/model/info` on both gateways returns one row each: `spark/qwen3.8-flash-next`). Plan of record: [services-ai.md](docs/services-ai.md) §3a"
+   },
+   {
+    "s": "replay-docs_hardware-oldsrv_md",
+    "score": 0.5718749999999999,
+    "text": "prompt_submit > **Single source of truth:** the canonical service catalog is [`services.md`](services.md).\n> `oldsrv` runs the **GPU/LAN/storage-bound core** — "
+   }
+  ],
+  "tokens_est": 431
+ },
+ {
+  "id": "E5",
+  "q": "Which HD row requires the spark/ prefix on every LLM path?",
+  "latency_s": 0.132,
+  "must": [
+   "HD-387"
+  ],
+  "present": [
+   "HD-387"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-docs_observability_md",
+   "replay-docs_pi-harness_md",
+   "replay-docs_services-ai_md",
+   "s07b-hd387"
+  ],
+  "top5": [
+   {
+    "s": "s07b-hd387",
+    "score": 1.0432258064516131,
+    "text": "prompt_submit HD-387 torej zahteva spark/ predpono na vsaki LLM poti."
+   },
+   {
+    "s": "replay-docs_pi-harness_md",
+    "score": 0.5903225806451612,
+    "text": "prompt_submit - The harness talks **directly to the spark edge** (`llm.kogler.si`, HD-370), not through LiteLLM. That\n  is a DECIDED boundary as of **decision #"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 0.5809523809523809,
+    "text": "prompt_submit | # | Rule |\n|---|------|\n| 13 | LiteLLM is the spine: **models live in the DB, config in env**, per-consumer scoped virtual keys. |\n| 22 | spark "
+   },
+   {
+    "s": "replay-docs_observability_md",
+    "score": 0.5718749999999999,
+    "text": "prompt_submit spark, or scrape the probe from spark's Alloy the way the `vllm` job is\nscraped). Not built in this HD; specified here so the panel is not mistake"
+   },
+   {
+    "s": "replay-docs_observability_md",
+    "score": 0.5630769230769231,
+    "text": "prompt_submit The board must cover **CPU, GPU, RAM and DISK io/throughput**\nfrom spark — and temperatures belong on **Host Overview**, not on the LLM board. Two"
+   }
+  ],
+  "tokens_est": 325
+ },
+ {
+  "id": "E6",
+  "q": "Which numbered decision keeps the harness pointed straight at the engine?",
+  "latency_s": 0.132,
+  "must": [
+   "#26"
+  ],
+  "present": [
+   "#26"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-deployment-manual_md",
+   "replay-docs_services-ai_md",
+   "replay-todo_md"
+  ],
+  "top5": [
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 1.0241538461538462,
+    "text": "prompt_submit The coding harnesses are the deliberate exception — they go **direct** to the spark name edge (§9 row 26,\n§9b, [pi-harness.md](pi-harness.md) §1b)"
+   },
+   {
+    "s": "replay-todo_md",
+    "score": 0.9858387096774194,
+    "text": "prompt_submit ning (re-scoped 2026-09-18):** the **harness half is parked** — `dsh` + `pi-dev` are `enabled: false` (HD-386) and decision #26 routes harnesses d"
+   },
+   {
+    "s": "replay-todo_md",
+    "score": 0.9851470588235296,
+    "text": "prompt_submit ut_tokens 16384` = 262,144 minus the reserve) but `pi-dev`/`dsh` are PARKED (HD-386) and decision #26 routes harnesses direct-to-engine, so there "
+   },
+   {
+    "s": "replay-todo_md",
+    "score": 0.9337212276214836,
+    "text": "prompt_submit arness route does NOT change** — decision #26 keeps pi.dev direct; what this decides is whether the SIMPLE QUERIER tier (HomeAssistant/Docling/OWU"
+   },
+   {
+    "s": "replay-deployment-manual_md",
+    "score": 0.5809523809523809,
+    "text": "prompt_submit > The harness lives in-repo at `spark/bench/` and is **copied to the box** (the box has no checkout). Run the\n> sanity sequence (C1×2 + C2×2 + C3×"
+   }
+  ],
+  "tokens_est": 448
+ },
+ {
+  "id": "E7",
+  "q": "Which numbered decision says spark is text-only with no vision leg?",
+  "latency_s": 0.159,
+  "must": [
+   "#28"
+  ],
+  "present": [
+   "#28"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-docs_hardware-spark_md",
+   "replay-docs_services-ai_md",
+   "s06-decision-28"
+  ],
+  "top5": [
+   {
+    "s": "replay-docs_hardware-spark_md",
+    "score": 1.0330645161290322,
+    "text": "prompt_submit isual judgment on the workstation\n  ([`hardware-workstation.md`](hardware-workstation.md)); spark is text-only (§Text-only engine mode).\n- Not on "
+   },
+   {
+    "s": "replay-docs_hardware-spark_md",
+    "score": 1.004153846153846,
+    "text": "prompt_submit ## Text-only engine mode (vision disabled) — ⏳ proposed, not applied (HD-400)"
+   },
+   {
+    "s": "replay-docs_hardware-spark_md",
+    "score": 0.9704545454545456,
+    "text": "prompt_submit The staged checkpoint is **multimodal** (`Qwen4ExpForConditionalGeneration`; vision encoder 27 layers /\nhidden 1152 → merger → LM hidden 2560, int"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 0.9311470588235294,
+    "text": "prompt_submit (hardware-workstation.md), [hardware-spark.md](hardware-spark.md) §Text-only engine mode. |"
+   },
+   {
+    "s": "s06-decision-28",
+    "score": 0.6,
+    "text": "prompt_submit Odločitev #28 torej pravi da je spark samo besedilen brez vizualne noge."
+   }
+  ],
+  "tokens_est": 278
+ },
+ {
+  "id": "E8",
+  "q": "Kako obnovim izbrisane datoteke iz varnostne kopije?",
+  "latency_s": 0.188,
+  "must": [
+   "Kopia"
+  ],
+  "present": [
+   "Kopia"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-deployment-manual_md",
+   "replay-docs_deployment-secrets_md",
+   "replay-docs_services-ai_md",
+   "s08-restore-sl",
+   "s19-kopia-retention"
+  ],
+  "top5": [
+   {
+    "s": "s08-restore-sl",
+    "score": 1.05,
+    "text": "prompt_submit Kako obnovim izbrisane datoteke iz varnostne kopije?"
+   },
+   {
+    "s": "s19-kopia-retention",
+    "score": 1.0330645161290322,
+    "text": "prompt_submit Kakšna je politika obdržanja za varnostne kopije?"
+   },
+   {
+    "s": "replay-docs_deployment-secrets_md",
+    "score": 0.5809523809523809,
+    "text": "prompt_submit  (`secret: Hertzner-SB-Backup`), not an Ansible lookup — see `subscription.md` \"Hetzner Storage Box — backup\" |\n| `kopia_password` | `password` | "
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 0.5718749999999999,
+    "text": "prompt_submit > **Backup posture (HD-307):** Qdrant is a **rebuildable cache**, so its backup policy is *relaxed* — the\n> irrecoverable source is the **Forgejo "
+   },
+   {
+    "s": "replay-deployment-manual_md",
+    "score": 0.5630769230769231,
+    "text": "prompt_submit ```bash\n# 1) sftp_key — backup-box PRIVATE key (Hetzner-SB-Backup 1P item), unencrypted:\nsudo nano /srv/docker/kopia-server/config/sftp_key && sud"
+   }
+  ],
+  "tokens_est": 278
+ },
+ {
+  "id": "E9",
+  "q": "Which Qdrant REST port runs on oldsrv?",
+  "latency_s": 0.246,
+  "must": [
+   "6333"
+  ],
+  "present": [
+   "6333"
+  ],
+  "exact_hit": true,
+  "sessions_returned": [
+   "replay-brainstorming_recent_agent-memory-dev_md",
+   "replay-docs_deployment-ansible_md",
+   "replay-docs_hardware-spark_md",
+   "replay-todo_md",
+   "s13-qdrant-port"
+  ],
+  "top5": [
+   {
+    "s": "s13-qdrant-port",
+    "score": 1.0123880597014927,
+    "text": "prompt_submit Zapiši: Qdrant REST je na 6333."
+   },
+   {
+    "s": "replay-docs_deployment-ansible_md",
+    "score": 0.9493125,
+    "text": "prompt_submit ```bash\n# 0 — repo onto the box. A bundle needs no new credentials on oldsrv; cloning from GitHub\n#     instead is the cleaner end state but means"
+   },
+   {
+    "s": "replay-docs_hardware-spark_md",
+    "score": 0.5903225806451612,
+    "text": "prompt_submit - **spark = the big-model generation tier** behind the gateway (LiteLLM / Qdrant / Open WebUI). It took\n  over **generation** from the old host-LL"
+   },
+   {
+    "s": "replay-todo_md",
+    "score": 0.5809523809523809,
+    "text": "prompt_submit ia.kogler.si` → 502, jellyfin publishes no `oldsrv_home_ip` port. ⛔ Do **not** widen the ACL to `:*`, and the VLAN-99 seal (HD-398 A) is untouched"
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 0.5718749999999999,
+    "text": "prompt_submit Ali lahko namesto tega uporabite obstoječi Qdrant?"
+   }
+  ],
+  "tokens_est": 339
+ },
+ {
+  "id": "E10",
+  "q": "What direct address must be used for the gateway from oldsrv?",
+  "latency_s": 0.165,
+  "must": [
+   "10.10.1.30:4000"
+  ],
+  "present": [],
+  "exact_hit": false,
+  "sessions_returned": [
+   "replay-docs_deployment-ansible_md",
+   "replay-docs_observability_md",
+   "replay-todo_md"
+  ],
+  "top5": [
+   {
+    "s": "replay-docs_deployment-ansible_md",
+    "score": 0.9935820895522388,
+    "text": "prompt_submit # 3 — prove it, from oldsrv, inside what HD-413 permits:\nssh oldsrv 'cd ~/source/homelab && bash scripts/ansible-run.sh playbooks/home_servers.yml"
+   },
+   {
+    "s": "replay-todo_md",
+    "score": 0.9593009049773756,
+    "text": "prompt_submit solver at all. Therefore the fix is a resolver that is reachable from wherever the device happens to be, not a cleverer list of one-place resolver"
+   },
+   {
+    "s": "replay-docs_deployment-ansible_md",
+    "score": 0.6,
+    "text": "prompt_submit on oldsrv\n  (local-only, NAS-independent)"
+   },
+   {
+    "s": "replay-docs_observability_md",
+    "score": 0.5903225806451612,
+    "text": "prompt_submit **Data path decision (HD-343).** A small **RouterOS-API collector on `oldsrv`** is the\nprimary pipe, not SNMP and not the VPS:"
+   },
+   {
+    "s": "replay-todo_md",
+    "score": 0.5809523809523809,
+    "text": "prompt_submit | HD-405 | 2 | AI + gate | 1 | **oldsrv joins headscale as a node — remote dev whose data path does not cross the VPS — ✅ LIVE 2026-09-20** (owner"
+   }
+  ],
+  "tokens_est": 360
+ },
+ {
+  "id": "E11",
+  "q": "Kateri port ima vizualni pregledovalnik agentmemory v tej namestitvi?",
+  "latency_s": 0.187,
+  "must": [
+   "3114"
+  ],
+  "present": [],
+  "exact_hit": false,
+  "sessions_returned": [
+   "replay-brainstorming_recent_agent-memory-dev_md",
+   "replay-docs_services-ai_md",
+   "s11-agentmemory-ports"
+  ],
+  "top5": [
+   {
+    "s": "s11-agentmemory-ports",
+    "score": 1.05,
+    "text": "prompt_submit Kateri port ima agentmemory REST in kje je vizualni pregledovalnik?"
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 0.5903225806451612,
+    "text": "prompt_submit 2\\. Kako konfigurirati agentmemory za to spremembo?"
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 0.5809523809523809,
+    "text": "prompt_submit aha, torej agentmemory omogoča uporabo litellm? torej ni stroko zero external deps?"
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 0.5718749999999999,
+    "text": "prompt_submit 2\\. Kaj potem sploh gre v bazo agentmemory?"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 0.5304347826086956,
+    "text": "prompt_submit - **Memory = agent-memory.dev, per project.** One instance per project (project = 1+ repos), records tagged\n  project+repo; **cross-project recall"
+   }
+  ],
+  "tokens_est": 180,
+  "superseded_token_present": false,
+  "superseded_in_top5": false,
+  "correct_rank": null,
+  "stale_rank": null
+ },
+ {
+  "id": "E12",
+  "q": "Kakšna politika obdržanja velja za varnostne kopije?",
+  "latency_s": 0.185,
+  "must": [
+   "hourly 48"
+  ],
+  "present": [],
+  "exact_hit": false,
+  "sessions_returned": [
+   "replay-brainstorming_recent_agent-memory-dev_md",
+   "replay-docs_deployment-secrets_md",
+   "replay-docs_services-ai_md",
+   "s08-restore-sl",
+   "s19-kopia-retention"
+  ],
+  "top5": [
+   {
+    "s": "s19-kopia-retention",
+    "score": 1.05,
+    "text": "prompt_submit Kakšna je politika obdržanja za varnostne kopije?"
+   },
+   {
+    "s": "s08-restore-sl",
+    "score": 1.0232258064516129,
+    "text": "prompt_submit Kako obnovim izbrisane datoteke iz varnostne kopije?"
+   },
+   {
+    "s": "replay-docs_services-ai_md",
+    "score": 0.5903225806451612,
+    "text": "prompt_submit > **Backup posture (HD-307):** Qdrant is a **rebuildable cache**, so its backup policy is *relaxed* — the\n> irrecoverable source is the **Forgejo "
+   },
+   {
+    "s": "replay-docs_deployment-secrets_md",
+    "score": 0.5718749999999999,
+    "text": "prompt_submit  (`secret: Hertzner-SB-Backup`), not an Ansible lookup — see `subscription.md` \"Hetzner Storage Box — backup\" |\n| `kopia_password` | `password` | "
+   },
+   {
+    "s": "replay-brainstorming_recent_agent-memory-dev_md",
+    "score": 0.5630769230769231,
+    "text": "prompt_submit Če pa želite čim manj dodatne programske opreme, je vaš trenutni sistem (shranjevanje sej v Markdown datoteke v Forgejo) dolgoročno najbolj varen,"
+   }
+  ],
+  "tokens_est": 280
+ }
+]

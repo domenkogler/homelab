@@ -1,0 +1,7 @@
+Stored — not. The memory tool is disabled in this environment (it returned "Memory is not available. It may be disabled in config or this environment."), so I could not persist the marker.
+
+Fallback options if you'd like:
+- I can write it to a local file (e.g. /home/domen/amprobe/marker.txt)
+- Or enable memory in Hermes config (memory enabled in config.yaml) and I'll retry
+
+Let me know which you'd prefer.

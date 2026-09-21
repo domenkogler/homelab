@@ -1,0 +1,582 @@
+[
+ {
+  "id": "Q1",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-IaC_ansible_group_vars_vps_yml|s01-embedding-leg|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md",
+   "replay-IaC_ansible_group_vars_vps_yml|s01-embedding-leg|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md",
+   "replay-IaC_ansible_group_vars_vps_yml|s01-embedding-leg|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md",
+   "replay-IaC_ansible_group_vars_vps_yml|s01-embedding-leg|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md",
+   "replay-IaC_ansible_group_vars_vps_yml|s01-embedding-leg|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md"
+  ],
+  "latencies": [
+   0.057,
+   0.108,
+   0.107,
+   0.105,
+   0.093
+  ],
+  "scores": [
+   [
+    31.036623,
+    24.701917,
+    23.420635,
+    23.032487,
+    22.826419
+   ],
+   [
+    31.036623,
+    24.701917,
+    23.420635,
+    23.032487,
+    22.826419
+   ],
+   [
+    31.036623,
+    24.701917,
+    23.420635,
+    23.032487,
+    22.826419
+   ],
+   [
+    31.036623,
+    24.701917,
+    23.420635,
+    23.032487,
+    22.826419
+   ],
+   [
+    31.036623,
+    24.701917,
+    23.420635,
+    23.032487,
+    22.826419
+   ]
+  ]
+ },
+ {
+  "id": "Q2",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md|replay-docs_services-ai_md|replay-docs_services-ai_md",
+   "replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md|replay-docs_services-ai_md|replay-docs_services-ai_md",
+   "replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md|replay-docs_services-ai_md|replay-docs_services-ai_md",
+   "replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md|replay-docs_services-ai_md|replay-docs_services-ai_md",
+   "replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md|replay-docs_services-ai_md|replay-docs_services-ai_md"
+  ],
+  "latencies": [
+   0.103,
+   0.102,
+   0.097,
+   0.098,
+   0.095
+  ],
+  "scores": [
+   [
+    21.372665,
+    20.958377,
+    20.893653,
+    20.81964,
+    20.066055
+   ],
+   [
+    21.372665,
+    20.958377,
+    20.893653,
+    20.81964,
+    20.066055
+   ],
+   [
+    21.372665,
+    20.958377,
+    20.893653,
+    20.81964,
+    20.066055
+   ],
+   [
+    21.372665,
+    20.958377,
+    20.893653,
+    20.81964,
+    20.066055
+   ],
+   [
+    21.372665,
+    20.958377,
+    20.893653,
+    20.81964,
+    20.066055
+   ]
+  ]
+ },
+ {
+  "id": "Q3",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-todo_md|replay-todo_md|replay-docs_hardware-spark_md|replay-docs_pi-harness_md|replay-docs_hardware-spark_md",
+   "replay-todo_md|replay-todo_md|replay-docs_hardware-spark_md|replay-docs_pi-harness_md|replay-docs_hardware-spark_md",
+   "replay-todo_md|replay-todo_md|replay-docs_hardware-spark_md|replay-docs_pi-harness_md|replay-docs_hardware-spark_md",
+   "replay-todo_md|replay-todo_md|replay-docs_hardware-spark_md|replay-docs_pi-harness_md|replay-docs_hardware-spark_md",
+   "replay-todo_md|replay-todo_md|replay-docs_hardware-spark_md|replay-docs_pi-harness_md|replay-docs_hardware-spark_md"
+  ],
+  "latencies": [
+   0.107,
+   0.103,
+   0.107,
+   0.106,
+   0.103
+  ],
+  "scores": [
+   [
+    29.26341,
+    28.356641,
+    28.02126,
+    26.515314,
+    25.686133
+   ],
+   [
+    29.26341,
+    28.356641,
+    28.02126,
+    26.515314,
+    25.686133
+   ],
+   [
+    29.26341,
+    28.356641,
+    28.02126,
+    26.515314,
+    25.686133
+   ],
+   [
+    29.26341,
+    28.356641,
+    28.02126,
+    26.515314,
+    25.686133
+   ],
+   [
+    29.26341,
+    28.356641,
+    28.02126,
+    26.515314,
+    25.686133
+   ]
+  ]
+ },
+ {
+  "id": "Q4",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-docs_network-vlans_md|replay-docs_network-vlans_md|replay-deployment-manual_md|replay-reports_changelog_md|replay-reports_changelog_md",
+   "replay-docs_network-vlans_md|replay-docs_network-vlans_md|replay-deployment-manual_md|replay-reports_changelog_md|replay-reports_changelog_md",
+   "replay-docs_network-vlans_md|replay-docs_network-vlans_md|replay-deployment-manual_md|replay-reports_changelog_md|replay-reports_changelog_md",
+   "replay-docs_network-vlans_md|replay-docs_network-vlans_md|replay-deployment-manual_md|replay-reports_changelog_md|replay-reports_changelog_md",
+   "replay-docs_network-vlans_md|replay-docs_network-vlans_md|replay-deployment-manual_md|replay-reports_changelog_md|replay-reports_changelog_md"
+  ],
+  "latencies": [
+   0.099,
+   0.099,
+   0.096,
+   0.102,
+   0.089
+  ],
+  "scores": [
+   [
+    19.257853,
+    15.163232,
+    13.765258,
+    13.715592,
+    13.386641
+   ],
+   [
+    19.257853,
+    15.163232,
+    13.765258,
+    13.715592,
+    13.386641
+   ],
+   [
+    19.257853,
+    15.163232,
+    13.765258,
+    13.715592,
+    13.386641
+   ],
+   [
+    19.257853,
+    15.163232,
+    13.765258,
+    13.715592,
+    13.386641
+   ],
+   [
+    19.257853,
+    15.163232,
+    13.765258,
+    13.715592,
+    13.386641
+   ]
+  ]
+ },
+ {
+  "id": "Q5",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "s05-chunking|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_services-ai_md|replay-reports_changelog_md|replay-docs_services-ai_md",
+   "s05-chunking|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_services-ai_md|replay-reports_changelog_md|replay-docs_services-ai_md",
+   "s05-chunking|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_services-ai_md|replay-reports_changelog_md|replay-docs_services-ai_md",
+   "s05-chunking|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_services-ai_md|replay-reports_changelog_md|replay-docs_services-ai_md",
+   "s05-chunking|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_services-ai_md|replay-reports_changelog_md|replay-docs_services-ai_md"
+  ],
+  "latencies": [
+   0.098,
+   0.094,
+   0.088,
+   0.092,
+   0.099
+  ],
+  "scores": [
+   [
+    26.760882,
+    19.80249,
+    16.092844,
+    14.870841,
+    14.743224
+   ],
+   [
+    26.760882,
+    19.80249,
+    16.092844,
+    14.870841,
+    14.743224
+   ],
+   [
+    26.760882,
+    19.80249,
+    16.092844,
+    14.870841,
+    14.743224
+   ],
+   [
+    26.760882,
+    19.80249,
+    16.092844,
+    14.870841,
+    14.743224
+   ],
+   [
+    26.760882,
+    19.80249,
+    16.092844,
+    14.870841,
+    14.743224
+   ]
+  ]
+ },
+ {
+  "id": "Q6",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-docs_observability_md|replay-docs_hardware-spark_md|replay-todo-table_md|replay-spark_BENCHMARK-PLAN_md|replay-docs_hardware-spark_md",
+   "replay-docs_observability_md|replay-docs_hardware-spark_md|replay-todo-table_md|replay-spark_BENCHMARK-PLAN_md|replay-docs_hardware-spark_md",
+   "replay-docs_observability_md|replay-docs_hardware-spark_md|replay-todo-table_md|replay-spark_BENCHMARK-PLAN_md|replay-docs_hardware-spark_md",
+   "replay-docs_observability_md|replay-docs_hardware-spark_md|replay-todo-table_md|replay-spark_BENCHMARK-PLAN_md|replay-docs_hardware-spark_md",
+   "replay-docs_observability_md|replay-docs_hardware-spark_md|replay-todo-table_md|replay-spark_BENCHMARK-PLAN_md|replay-docs_hardware-spark_md"
+  ],
+  "latencies": [
+   0.104,
+   0.133,
+   0.053,
+   0.096,
+   0.099
+  ],
+  "scores": [
+   [
+    23.073481,
+    19.645109,
+    18.390048,
+    18.356141,
+    17.997706
+   ],
+   [
+    23.073481,
+    19.645109,
+    18.390048,
+    18.356141,
+    17.997706
+   ],
+   [
+    23.073481,
+    19.645109,
+    18.390048,
+    18.356141,
+    17.997706
+   ],
+   [
+    23.073481,
+    19.645109,
+    18.390048,
+    18.356141,
+    17.997706
+   ],
+   [
+    23.073481,
+    19.645109,
+    18.390048,
+    18.356141,
+    17.997706
+   ]
+  ]
+ },
+ {
+  "id": "Q7",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-IaC_ansible_group_vars_vps_yml|replay-brainstorming_recent_agent-memory-dev_md|replay-docs_services-ai_md|replay-brainstorming_recent_agent-memory-dev_md|replay-docs_services-ai_md",
+   "replay-IaC_ansible_group_vars_vps_yml|replay-brainstorming_recent_agent-memory-dev_md|replay-docs_services-ai_md|replay-brainstorming_recent_agent-memory-dev_md|replay-docs_services-ai_md",
+   "replay-IaC_ansible_group_vars_vps_yml|replay-brainstorming_recent_agent-memory-dev_md|replay-docs_services-ai_md|replay-brainstorming_recent_agent-memory-dev_md|replay-docs_services-ai_md",
+   "replay-IaC_ansible_group_vars_vps_yml|replay-brainstorming_recent_agent-memory-dev_md|replay-docs_services-ai_md|replay-brainstorming_recent_agent-memory-dev_md|replay-docs_services-ai_md",
+   "replay-IaC_ansible_group_vars_vps_yml|replay-brainstorming_recent_agent-memory-dev_md|replay-docs_services-ai_md|replay-brainstorming_recent_agent-memory-dev_md|replay-docs_services-ai_md"
+  ],
+  "latencies": [
+   0.098,
+   0.142,
+   0.099,
+   0.095,
+   0.099
+  ],
+  "scores": [
+   [
+    17.711908,
+    17.57299,
+    17.286973,
+    15.901956,
+    14.469917
+   ],
+   [
+    17.711908,
+    17.57299,
+    17.286973,
+    15.901956,
+    14.469917
+   ],
+   [
+    17.711908,
+    17.57299,
+    17.286973,
+    15.901956,
+    14.469917
+   ],
+   [
+    17.711908,
+    17.57299,
+    17.286973,
+    15.901956,
+    14.469917
+   ],
+   [
+    17.711908,
+    17.57299,
+    17.286973,
+    15.901956,
+    14.469917
+   ]
+  ]
+ },
+ {
+  "id": "Q8",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "s08-restore-sl|s19-kopia-retention|replay-brainstorming_recent_agent-memory-dev_md|replay-brainstorming_recent_agent-memory-dev_md|replay-brainstorming_recent_agent-memory-dev_md",
+   "s08-restore-sl|s19-kopia-retention|replay-brainstorming_recent_agent-memory-dev_md|replay-brainstorming_recent_agent-memory-dev_md|replay-brainstorming_recent_agent-memory-dev_md",
+   "s08-restore-sl|s19-kopia-retention|replay-brainstorming_recent_agent-memory-dev_md|replay-brainstorming_recent_agent-memory-dev_md|replay-brainstorming_recent_agent-memory-dev_md",
+   "s08-restore-sl|s19-kopia-retention|replay-brainstorming_recent_agent-memory-dev_md|replay-brainstorming_recent_agent-memory-dev_md|replay-brainstorming_recent_agent-memory-dev_md",
+   "s08-restore-sl|s19-kopia-retention|replay-brainstorming_recent_agent-memory-dev_md|replay-brainstorming_recent_agent-memory-dev_md|replay-brainstorming_recent_agent-memory-dev_md"
+  ],
+  "latencies": [
+   0.094,
+   0.092,
+   0.095,
+   0.095,
+   0.094
+  ],
+  "scores": [
+   [
+    67.095475,
+    20.435316,
+    16.728334,
+    14.533534,
+    13.678431
+   ],
+   [
+    67.095475,
+    20.435316,
+    16.728334,
+    14.533534,
+    13.678431
+   ],
+   [
+    67.095475,
+    20.435316,
+    16.728334,
+    14.533534,
+    13.678431
+   ],
+   [
+    67.095475,
+    20.435316,
+    16.728334,
+    14.533534,
+    13.678431
+   ],
+   [
+    67.095475,
+    20.435316,
+    16.728334,
+    14.533534,
+    13.678431
+   ]
+  ]
+ },
+ {
+  "id": "Q9",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_hardware-oldsrv_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-deployment-manual_md",
+   "replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_hardware-oldsrv_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-deployment-manual_md",
+   "replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_hardware-oldsrv_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-deployment-manual_md",
+   "replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_hardware-oldsrv_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-deployment-manual_md",
+   "replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_hardware-oldsrv_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-deployment-manual_md"
+  ],
+  "latencies": [
+   0.103,
+   0.099,
+   0.099,
+   0.107,
+   0.146
+  ],
+  "scores": [
+   [
+    21.259126,
+    20.865456,
+    20.761233,
+    20.427511,
+    20.407797
+   ],
+   [
+    21.259126,
+    20.865456,
+    20.761233,
+    20.427511,
+    20.407797
+   ],
+   [
+    21.259126,
+    20.865456,
+    20.761233,
+    20.427511,
+    20.407797
+   ],
+   [
+    21.259126,
+    20.865456,
+    20.761233,
+    20.427511,
+    20.407797
+   ],
+   [
+    21.259126,
+    20.865456,
+    20.761233,
+    20.427511,
+    20.407797
+   ]
+  ]
+ },
+ {
+  "id": "Q10",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-todo_md|replay-todo_md|replay-todo_md|replay-docs_services-ai_md|replay-docs_pi-harness_md",
+   "replay-todo_md|replay-todo_md|replay-todo_md|replay-docs_services-ai_md|replay-docs_pi-harness_md",
+   "replay-todo_md|replay-todo_md|replay-todo_md|replay-docs_services-ai_md|replay-docs_pi-harness_md",
+   "replay-todo_md|replay-todo_md|replay-todo_md|replay-docs_services-ai_md|replay-docs_pi-harness_md",
+   "replay-todo_md|replay-todo_md|replay-todo_md|replay-docs_services-ai_md|replay-docs_pi-harness_md"
+  ],
+  "latencies": [
+   0.095,
+   0.095,
+   0.099,
+   0.145,
+   0.096
+  ],
+  "scores": [
+   [
+    21.160527,
+    19.963908,
+    19.803558,
+    19.294981,
+    16.591116
+   ],
+   [
+    21.160527,
+    19.963908,
+    19.803558,
+    19.294981,
+    16.591116
+   ],
+   [
+    21.160527,
+    19.963908,
+    19.803558,
+    19.294981,
+    16.591116
+   ],
+   [
+    21.160527,
+    19.963908,
+    19.803558,
+    19.294981,
+    16.591116
+   ],
+   [
+    21.160527,
+    19.963908,
+    19.803558,
+    19.294981,
+    16.591116
+   ]
+  ]
+ }
+]

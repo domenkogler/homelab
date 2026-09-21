@@ -1,0 +1,582 @@
+[
+ {
+  "id": "Q1",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "s01-embedding-leg|replay-IaC_ansible_group_vars_vps_yml|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-docs_services-ai_md",
+   "s01-embedding-leg|replay-IaC_ansible_group_vars_vps_yml|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-docs_services-ai_md",
+   "s01-embedding-leg|replay-IaC_ansible_group_vars_vps_yml|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-docs_services-ai_md",
+   "s01-embedding-leg|replay-IaC_ansible_group_vars_vps_yml|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-docs_services-ai_md",
+   "s01-embedding-leg|replay-IaC_ansible_group_vars_vps_yml|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-docs_services-ai_md"
+  ],
+  "latencies": [
+   0.106,
+   0.162,
+   0.203,
+   0.152,
+   0.187
+  ],
+  "scores": [
+   [
+    1.043226,
+    1.011231,
+    0.998182,
+    0.590323,
+    0.571875
+   ],
+   [
+    1.043226,
+    1.011231,
+    0.998182,
+    0.590323,
+    0.571875
+   ],
+   [
+    1.043226,
+    1.011231,
+    0.998182,
+    0.590323,
+    0.571875
+   ],
+   [
+    1.043226,
+    1.011231,
+    0.998182,
+    0.590323,
+    0.571875
+   ],
+   [
+    1.043226,
+    1.011231,
+    0.998182,
+    0.590323,
+    0.571875
+   ]
+  ]
+ },
+ {
+  "id": "Q2",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "s02-rerank-latency|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md|replay-docs_services-ai_md",
+   "s02-rerank-latency|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md|replay-docs_services-ai_md",
+   "s02-rerank-latency|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md|replay-docs_services-ai_md",
+   "s02-rerank-latency|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md|replay-docs_services-ai_md",
+   "s02-rerank-latency|replay-docs_services-ai_md|replay-docs_services-ai_md|replay-deployment-manual_md|replay-docs_services-ai_md"
+  ],
+  "latencies": [
+   0.199,
+   0.189,
+   0.141,
+   0.191,
+   0.191
+  ],
+  "scores": [
+   [
+    1.001304,
+    1.000781,
+    0.998182,
+    0.997897,
+    0.959301
+   ],
+   [
+    1.001304,
+    1.000781,
+    0.998182,
+    0.997897,
+    0.959301
+   ],
+   [
+    1.001304,
+    1.000781,
+    0.998182,
+    0.997897,
+    0.959301
+   ],
+   [
+    1.001304,
+    1.000781,
+    0.998182,
+    0.997897,
+    0.959301
+   ],
+   [
+    1.001304,
+    1.000781,
+    0.998182,
+    0.997897,
+    0.959301
+   ]
+  ]
+ },
+ {
+  "id": "Q3",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_pi-harness_md|replay-docs_pi-harness_md",
+   "replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_pi-harness_md|replay-docs_pi-harness_md",
+   "replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_pi-harness_md|replay-docs_pi-harness_md",
+   "replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_pi-harness_md|replay-docs_pi-harness_md",
+   "replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_pi-harness_md|replay-docs_pi-harness_md"
+  ],
+  "latencies": [
+   0.15,
+   0.167,
+   0.199,
+   0.139,
+   0.128
+  ],
+  "scores": [
+   [
+    1.036667,
+    0.950347,
+    0.590323,
+    0.580952,
+    0.563077
+   ],
+   [
+    1.036667,
+    0.950347,
+    0.590323,
+    0.580952,
+    0.563077
+   ],
+   [
+    1.036667,
+    0.950347,
+    0.590323,
+    0.580952,
+    0.563077
+   ],
+   [
+    1.036667,
+    0.950347,
+    0.590323,
+    0.580952,
+    0.563077
+   ],
+   [
+    1.036667,
+    0.950347,
+    0.590323,
+    0.580952,
+    0.563077
+   ]
+  ]
+ },
+ {
+  "id": "Q4",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-docs_network-vlans_md|replay-docs_network-vlans_md|s04-vlan-mgmt|replay-docs_network-vlans_md|replay-reports_changelog_md",
+   "replay-docs_network-vlans_md|replay-docs_network-vlans_md|s04-vlan-mgmt|replay-docs_network-vlans_md|replay-reports_changelog_md",
+   "replay-docs_network-vlans_md|replay-docs_network-vlans_md|s04-vlan-mgmt|replay-docs_network-vlans_md|replay-reports_changelog_md",
+   "replay-docs_network-vlans_md|replay-docs_network-vlans_md|s04-vlan-mgmt|replay-docs_network-vlans_md|replay-reports_changelog_md",
+   "replay-docs_network-vlans_md|replay-docs_network-vlans_md|s04-vlan-mgmt|replay-docs_network-vlans_md|replay-reports_changelog_md"
+  ],
+  "latencies": [
+   0.195,
+   0.185,
+   0.191,
+   0.183,
+   0.243
+  ],
+  "scores": [
+   [
+    0.992388,
+    0.953577,
+    0.6,
+    0.590323,
+    0.546269
+   ],
+   [
+    0.992388,
+    0.953577,
+    0.6,
+    0.590323,
+    0.546269
+   ],
+   [
+    0.992388,
+    0.953577,
+    0.6,
+    0.590323,
+    0.546269
+   ],
+   [
+    0.992388,
+    0.953577,
+    0.6,
+    0.590323,
+    0.546269
+   ],
+   [
+    0.992388,
+    0.953577,
+    0.6,
+    0.590323,
+    0.546269
+   ]
+  ]
+ },
+ {
+  "id": "Q5",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "s05-chunking|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml",
+   "s05-chunking|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml",
+   "s05-chunking|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml",
+   "s05-chunking|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml",
+   "s05-chunking|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml"
+  ],
+  "latencies": [
+   0.141,
+   0.187,
+   0.191,
+   0.194,
+   0.196
+  ],
+  "scores": [
+   [
+    1.05,
+    0.988939,
+    0.978373,
+    0.967736,
+    0.590323
+   ],
+   [
+    1.05,
+    0.988939,
+    0.978373,
+    0.967736,
+    0.590323
+   ],
+   [
+    1.05,
+    0.988939,
+    0.978373,
+    0.967736,
+    0.590323
+   ],
+   [
+    1.05,
+    0.988939,
+    0.978373,
+    0.967736,
+    0.590323
+   ],
+   [
+    1.05,
+    0.988939,
+    0.978373,
+    0.967736,
+    0.590323
+   ]
+  ]
+ },
+ {
+  "id": "Q6",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_services-ai_md|s06-decision-28",
+   "replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_services-ai_md|s06-decision-28",
+   "replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_services-ai_md|s06-decision-28",
+   "replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_services-ai_md|s06-decision-28",
+   "replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_hardware-spark_md|replay-docs_services-ai_md|s06-decision-28"
+  ],
+  "latencies": [
+   0.175,
+   0.198,
+   0.28,
+   0.183,
+   0.189
+  ],
+  "scores": [
+   [
+    1.033065,
+    1.004154,
+    0.970455,
+    0.931147,
+    0.6
+   ],
+   [
+    1.033065,
+    1.004154,
+    0.970455,
+    0.931147,
+    0.6
+   ],
+   [
+    1.033065,
+    1.004154,
+    0.970455,
+    0.931147,
+    0.6
+   ],
+   [
+    1.033065,
+    1.004154,
+    0.970455,
+    0.931147,
+    0.6
+   ],
+   [
+    1.033065,
+    1.004154,
+    0.970455,
+    0.931147,
+    0.6
+   ]
+  ]
+ },
+ {
+  "id": "Q7",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-IaC_ansible_group_vars_vps_yml|replay-docs_services-ai_md|s07-rag-owner|replay-todo-table_md|replay-docs_hardware-oldsrv_md",
+   "replay-IaC_ansible_group_vars_vps_yml|replay-docs_services-ai_md|s07-rag-owner|replay-todo-table_md|replay-docs_hardware-oldsrv_md",
+   "replay-IaC_ansible_group_vars_vps_yml|replay-docs_services-ai_md|s07-rag-owner|replay-todo-table_md|replay-docs_hardware-oldsrv_md",
+   "replay-IaC_ansible_group_vars_vps_yml|replay-docs_services-ai_md|s07-rag-owner|replay-todo-table_md|replay-docs_hardware-oldsrv_md",
+   "replay-IaC_ansible_group_vars_vps_yml|replay-docs_services-ai_md|s07-rag-owner|replay-todo-table_md|replay-docs_hardware-oldsrv_md"
+  ],
+  "latencies": [
+   0.186,
+   0.188,
+   0.197,
+   0.186,
+   0.192
+  ],
+  "scores": [
+   [
+    1.039839,
+    0.95111,
+    0.6,
+    0.580952,
+    0.571875
+   ],
+   [
+    1.039839,
+    0.95111,
+    0.6,
+    0.580952,
+    0.571875
+   ],
+   [
+    1.039839,
+    0.95111,
+    0.6,
+    0.580952,
+    0.571875
+   ],
+   [
+    1.039839,
+    0.95111,
+    0.6,
+    0.580952,
+    0.571875
+   ],
+   [
+    1.039839,
+    0.95111,
+    0.6,
+    0.580952,
+    0.571875
+   ]
+  ]
+ },
+ {
+  "id": "Q8",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "s08-restore-sl|s19-kopia-retention|replay-docs_deployment-secrets_md|replay-docs_services-ai_md|replay-deployment-manual_md",
+   "s08-restore-sl|s19-kopia-retention|replay-docs_deployment-secrets_md|replay-docs_services-ai_md|replay-deployment-manual_md",
+   "s08-restore-sl|s19-kopia-retention|replay-docs_deployment-secrets_md|replay-docs_services-ai_md|replay-deployment-manual_md",
+   "s08-restore-sl|s19-kopia-retention|replay-docs_deployment-secrets_md|replay-docs_services-ai_md|replay-deployment-manual_md",
+   "s08-restore-sl|s19-kopia-retention|replay-docs_deployment-secrets_md|replay-docs_services-ai_md|replay-deployment-manual_md"
+  ],
+  "latencies": [
+   0.187,
+   0.187,
+   0.188,
+   0.191,
+   0.195
+  ],
+  "scores": [
+   [
+    1.05,
+    1.033065,
+    0.580952,
+    0.571875,
+    0.563077
+   ],
+   [
+    1.05,
+    1.033065,
+    0.580952,
+    0.571875,
+    0.563077
+   ],
+   [
+    1.05,
+    1.033065,
+    0.580952,
+    0.571875,
+    0.563077
+   ],
+   [
+    1.05,
+    1.033065,
+    0.580952,
+    0.571875,
+    0.563077
+   ],
+   [
+    1.05,
+    1.033065,
+    0.580952,
+    0.571875,
+    0.563077
+   ]
+  ]
+ },
+ {
+  "id": "Q9",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-deployment-manual_md|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_hardware-oldsrv_md",
+   "replay-deployment-manual_md|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_hardware-oldsrv_md",
+   "replay-deployment-manual_md|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_hardware-oldsrv_md",
+   "replay-deployment-manual_md|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_hardware-oldsrv_md",
+   "replay-deployment-manual_md|replay-docs_services-ai_md|replay-IaC_ansible_group_vars_home_servers_yml|replay-IaC_ansible_group_vars_home_servers_yml|replay-docs_hardware-oldsrv_md"
+  ],
+  "latencies": [
+   0.187,
+   0.2,
+   0.199,
+   0.194,
+   0.181
+  ],
+  "scores": [
+   [
+    1.004154,
+    0.6,
+    0.590323,
+    0.571875,
+    0.563077
+   ],
+   [
+    1.004154,
+    0.6,
+    0.590323,
+    0.571875,
+    0.563077
+   ],
+   [
+    1.004154,
+    0.6,
+    0.590323,
+    0.571875,
+    0.563077
+   ],
+   [
+    1.004154,
+    0.6,
+    0.590323,
+    0.571875,
+    0.563077
+   ],
+   [
+    1.004154,
+    0.6,
+    0.590323,
+    0.571875,
+    0.563077
+   ]
+  ]
+ },
+ {
+  "id": "Q10",
+  "runs": 5,
+  "identical": true,
+  "distinct_rankings": 1,
+  "distinct_score_vectors": 1,
+  "rankings": [
+   "replay-todo_md|replay-docs_services-ai_md|replay-todo_md|s10-decision-26|replay-docs_pi-harness_md",
+   "replay-todo_md|replay-docs_services-ai_md|replay-todo_md|s10-decision-26|replay-docs_pi-harness_md",
+   "replay-todo_md|replay-docs_services-ai_md|replay-todo_md|s10-decision-26|replay-docs_pi-harness_md",
+   "replay-todo_md|replay-docs_services-ai_md|replay-todo_md|s10-decision-26|replay-docs_pi-harness_md",
+   "replay-todo_md|replay-docs_services-ai_md|replay-todo_md|s10-decision-26|replay-docs_pi-harness_md"
+  ],
+  "latencies": [
+   0.145,
+   0.152,
+   0.134,
+   0.132,
+   0.194
+  ],
+  "scores": [
+   [
+    1.023226,
+    1.020151,
+    1.002273,
+    0.6,
+    0.571875
+   ],
+   [
+    1.023226,
+    1.020151,
+    1.002273,
+    0.6,
+    0.571875
+   ],
+   [
+    1.023226,
+    1.020151,
+    1.002273,
+    0.6,
+    0.571875
+   ],
+   [
+    1.023226,
+    1.020151,
+    1.002273,
+    0.6,
+    0.571875
+   ],
+   [
+    1.023226,
+    1.020151,
+    1.002273,
+    0.6,
+    0.571875
+   ]
+  ]
+ }
+]
