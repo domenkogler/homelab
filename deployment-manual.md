@@ -605,6 +605,92 @@ First-boot notes:
   `docker compose -f /opt/renovate/docker-compose.yml run --rm -e LOG_LEVEL=debug renovate`
 - **Stale compose env:** container env older than rendered file (compose sees no change):
   `docker compose -f /opt/<svc>/docker-compose.yml up -d --force-recreate`.
+
+### 1.11 RustDesk server — hbbs + hbbr (HD-412, VPS) `[MANUAL + Ansible]`
+
+> Procedure only. Placement, exposure, the consent rules for the family desktops and the bandwidth
+> arithmetic: [services-admin.md](docs/services-admin.md) §RustDesk. The service ships
+> `enabled: false` because its compose is fail-closed on the `rustdesk_login` item — the item and the
+> flag flip are ONE change, in the order below.
+
+1. **Mint the keypair offline, never to session stdout** (`rustdesk-utils` is in the pinned image;
+   the tag is read from the pin, never typed):
+   ```bash
+   umask 077
+   RV=$(awk -F'"' '/^rustdesk_server_version:/{print $2}' IaC/ansible/group_vars/all/versions.yml)
+   docker run --rm --entrypoint /usr/bin/rustdesk-utils \
+     "rustdesk/rustdesk-server-s6:${RV}" genkeypair > /run/rustdesk.keypair
+   chmod 600 /run/rustdesk.keypair      # two lines: `Public Key:  <b64>` / `Secret Key:  <b64>`
+   ```
+2. **Write both halves into the 1P item through a JSON template** — assignment statements put the
+   value in `argv` (visible to other processes), and the CLI's own guidance for sensitive values is a
+   template. Item = Login, `username` = public half, `password` = secret half
+   ([deployment-secrets.md](docs/deployment-secrets.md) `rustdesk_login`):
+   ```bash
+   jq -n --arg u "$(awk '/^Public Key:/{print $NF; exit}' /run/rustdesk.keypair)" \
+         --arg p "$(awk '/^Secret Key:/{print $NF; exit}' /run/rustdesk.keypair)" \
+     '{title:"rustdesk_login", category:"LOGIN", vault:{name:"Homelab-ansible"},
+       fields:[{id:"username",type:"STRING",value:$u},
+               {id:"password",type:"CONCEALED",value:$p}]}' > /run/rustdesk.item.json
+   op item create --vault Homelab-ansible --template /run/rustdesk.item.json
+   ```
+   If the item already exists, re-issue is refused — that is the desired outcome, not an error to
+   force: the running server keeps its own key, and replacing the item behind it changes nothing
+   (see step 7).
+3. **Verify by length only, then destroy the plaintext** (CONVENTIONS §6 — a length proves the field
+   landed, the value never prints):
+   ```bash
+   op read "op://Homelab-ansible/rustdesk_login/username" | tr -d '\n' | wc -c   # 44  (32-byte pub, base64)
+   op read "op://Homelab-ansible/rustdesk_login/password" | tr -d '\n' | wc -c   # 88  (64-byte secret, base64)
+   shred -u /run/rustdesk.keypair /run/rustdesk.item.json
+   ```
+4. **Create the data dir before the first start** (it holds the private key — 0700, and Docker would
+   otherwise auto-create it world-traversable):
+   ```bash
+   ssh vps 'sudo install -d -o root -g root -m 0700 /srv/docker/rustdesk-server/data'
+   ```
+5. **Flip the registry row** `rustdesk-server` → `enabled: true` in `IaC/ansible/group_vars/vps.yml`
+   (same commit as the seed), then `bash scripts/check-vault-items.sh` — note that script cannot see
+   this item (it greps literal `onepassword', 'NAME'`; the template uses the HD-258 `vault['…']` dict),
+   so a clean report here does **not** prove the item exists. Step 3 does.
+6. **Apply — first apply is human-gated** (CONVENTIONS §5 step 9). Dry-run first, **never with
+   `--diff`** (the rendered compose carries the keypair — [scripts/README.md](scripts/README.md)
+   Notes), then the real run **detached** (HD-370), with BOTH tag classes (`docker_services` alone
+   tag-filters every inner task of the service):
+   ```bash
+   bash scripts/ansible-run.sh playbooks/vps.yml --limit vps \
+        --tags hardening,docker_services,rustdesk-server --check
+   nohup bash scripts/ansible-run.sh playbooks/vps.yml --limit vps \
+        --tags hardening,docker_services,rustdesk-server \
+        > /tmp/converge-vps-rustdesk-$(date +%Y%m%d-%H%M).log 2>&1 &
+   # poll: tail -f /tmp/converge-vps-rustdesk-*.log → PLAY RECAP failed=0
+   ```
+   `hardening` is in the same run because the nftables input allow is what makes the service reachable
+   at all (host networking = no docker DNAT, so the input chain is the entire gate).
+7. **Verify** (all of it, or the row is not done):
+   ```bash
+   ssh vps 'docker ps --filter name=rustdesk-server --format "{{.Status}}"'   # Up (healthy) — the image's
+   #   own HEALTHCHECK supervises both binaries; a bare `Up` with `unhealthy` = one of them is dead
+   ssh vps 'docker logs rustdesk-server 2>&1 | grep -E "BANDWIDTH|LIMIT_SPEED|DOWNGRADE"'
+   #   → TOTAL_BANDWIDTH: 48Mb/s · SINGLE_BANDWIDTH: 24Mb/s · LIMIT_SPEED: 8Mb/s
+   #   (hbbr logs its EFFECTIVE caps at start-up; this is the only proof the caps took effect)
+   ssh vps 'ls -l /srv/docker/rustdesk-server/data'   # id_ed25519 + .pub present, both 0600 root:root
+   ssh vps 'nft list chain inet filter input | grep 2111'
+   nc -zv -w3 <vps-public-ip> 21117 && echo relay-open
+   nc -zv -w3 <vps-public-ip> 21118 || echo webclient-closed   # MUST be refused
+   ```
+8. **Prove the two sessions** (the row's acceptance, both need a human present):
+   - **Relay path:** from a phone on mobile data, connect to a family machine enrolled per
+     [services-admin.md](docs/services-admin.md) §Path B, and complete a session.
+   - **Direct path with the relay uninvolved:** connect to a tailnet member by its tailnet address, and
+     while the session is live read the relay's session list — it must be empty:
+     `ssh vps "printf 'ls' | nc -q1 127.0.0.1 21117"`
+   - Read the running totals afterwards: `ssh vps "printf 'tb' | nc -q1 127.0.0.1 21117"`.
+9. **Restore** (only if /data is lost): the 1P item is the restore — wipe the data dir, re-run step 6,
+   and the pair is re-seeded so enrolled clients keep working. Replacing the item instead (a rotation)
+   is the one path that **orphans every client**: re-enrolment is manual, per machine
+   ([deployment-secrets.md](docs/deployment-secrets.md) `rustdesk_login`).
+
 ## Phase 1a — Homelab host installs (oldsrv / nas)
 
 > **Official path: preseeded AUTOMATED install** (Automated entry, ZERO interactive questions

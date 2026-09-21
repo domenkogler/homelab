@@ -156,6 +156,7 @@ _template_vault_items:
   tube-archivist: {'tube-archivist_login', 'tube-archivist_ui', 'tube-archivist-es'}   # HD-362 — login + UI/API token + ES 'elastic' bootstrap password (ELASTIC_PASSWORD env on app + ES; live-required 2026-09-14); `tube_archivist_api` stays DOCS-ONLY for the future Jellyfin plugin (not fetched)
   recyclarr: {'sonarr_api', 'radarr_api'}
   renovate: {'forgejo_api'}
+  rustdesk-server: {'rustdesk_login'}   # HD-412 — the hbbs/hbbr keypair (username=public, password=secret); NOT catalog-generated (rustdesk-utils mints it, manual-value class) and NOT auto-rotatable (rotating orphans every enrolled client)
   signal-cli-rest-api: {'signal-internal_api', 'signal_api'}
   spark-ai: {'spark-llm_api'}   # HD-370: first vault item for spark (was intentionally vault-free: engine --api-key bearer auth on llm.kogler.si)
   technitium: {'technitium_login', 'technitium_api'}

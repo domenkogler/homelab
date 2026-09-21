@@ -272,3 +272,18 @@ spark_dcgm_exporter_image: "nvidia/dcgm-exporter:3.3.5-3.4.1-ubuntu22.04@sha256:
 # exemption in validate-docker-services.py was removed with it.
 # (Retired 2026-09-14, HD-364/HD-366: socat takes exactly ONE address pair per
 # invocation — the 4-argv compose command crash-looped "exactly 2 addresses required")
+
+# ==== RustDesk server (HD-412, VPS) — hbbs + hbbr in the s6 supervisor image ====
+# rustdesk/rustdesk-server-s6 = busybox:stable + s6-overlay 3.2.0.0, hbbs AND hbbr supervised in
+# ONE container sharing /data (that shared dir is what lets both binaries load the same
+# id_ed25519 keypair — see the compose header). The non-s6 image `rustdesk/rustdesk-server` is
+# two un-supervised containers with none of the env knobs (RELAY/ENCRYPTED_ONLY/KEY_PUB/…);
+# NOT used.
+# REGISTRY-VERIFIED 2026-09-21 (registry API): latest release tag = 1.1.16 (published 2026-07-20,
+# multi-arch OCI index; amd64 manifest sha256:dc099359c4a30611c59f8826bf6eb9780f38d4901470a3901d9eeb21854e0605).
+# The semver tag IS multi-arch (unlike the stale `1.4.5-amd64`-style arch-only tags still on the
+# repo, which have NO plain counterpart and do NOT correspond to a release — `1.4.5` 404s on the
+# registry; do not pin one of those). Renovate docker datasource tracks rustdesk/rustdesk-server-s6.
+# ⚠ 1.1.16 has no `-b/--bind` (1.1.17+); that flag is the future lever for binding ONE address
+# instead of all interfaces — see services-admin.md §Exposure.
+rustdesk_server_version: "1.1.16"

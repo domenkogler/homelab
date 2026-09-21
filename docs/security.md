@@ -84,6 +84,7 @@ Owning docs: [deployment-compose.md](deployment-compose.md),
 - **VictoriaMetrics / VictoriaLogs** `8428:8428` / `9428:9428` — bind loopback + wg-s2s. **HD-62** *(evidence: KOPS-017)*.
 - **Technitium** `53:53` — **VPS primary**: this is the ONE intentional public publish (the LAN/tailnet resolver is the VPS public IP, HD-299); the open-resolver exposure it created is closed at the nftables FORWARD chain (source-restricted to tailnet CGNAT + home WAN, see §8). **HD-62** + 2026-09-08 gate. *(evidence: KOPS-015/064)*.
 - **Sunshine** `47989-48010` — host ports kept on all interfaces **by design (HD-62)**: Moonlight clients connect from LAN/VPN, so loopback/drop would break streaming. Exposure is time-limited (`restart: "no"` = manual-start gaming timer); if a narrower bind is ever wanted, bind the LAN/Headscale interface. *(evidence: KOPS-007)*.
+- **RustDesk server (HD-412)** `21115/tcp`, `21116/tcp+udp`, `21117/tcp` on the **VPS** — the only *public* host-bind exception here, and the only host-net container on that box: UDP rendezvous + TCP hole punching must see the real source address, which Docker's userland-proxy SNAT would destroy (upstream's own Linux guidance is `--net=host`). It is **not** a docker publish, so there is no DNAT path and the nftables **input** chain is the entire gate; `21118`/`21119` are deliberately left closed (web client unused + upstream trusts unvalidated `X-Real-IP`/`X-Forwarded-For` there). Future narrower form: `-b/--bind` (needs 1.1.17). Detail: [services-admin.md](services-admin.md) §RustDesk. Owning doc: [deployment-compose.md](deployment-compose.md). **Tracked: HD-412.**
 
 Owning doc: [deployment-compose.md](deployment-compose.md). **Tracked: HD-62.**
 
@@ -211,7 +212,7 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
 - **Container/escape hardening** ✅ — the VPS `docker_services` compose uses `cap_drop`/`read_only`/`tmpfs` where
   possible; no public container gets `privileged` / host networking without a documented reason (§4 applies);
   daemon `userland-proxy: false` + `live-restore: true`. **HD-154. ✅ enforced (daemon) + compose-policy.**
-- **VPS firewall default-deny** ✅ — inbound **deny-all except :22 (SSH) + :443 + :51820 (WG)** via the `vps-hardening` role's
+- **VPS firewall default-deny** ✅ — inbound **deny-all except :22 (SSH) + :443 + :51820 (WG)** (+ the host-net RustDesk trio :21115/:21116/:21117 since HD-412 — see §3 and the `services-vps.md` checklist rows 3/8) via the `vps-hardening` role's
 - **Published-port bypass (S1, HD-186):** docker-published ports traverse the *forward* chain (`oifname "docker*" accept`), so the input default-deny does not cover them. **Implemented (decided HD-204): no public publishes** — authentik's all-interfaces LDAP `3389` publish was removed; the outpost binds only the WG S2S address (prometheus/loki precedent), and Samba (nas, the client) pulls over the tunnel. Verify row added to the `services-vps.md` §VPS-Specific Firewall checklist (external `nc`/`ldapsearch` must refuse; WG-side must connect). Documented future-hardening option if a public publish is ever required: a **DOCKER-USER filter chain** restricting forwarded dports (443 from any; specific ports from the WG peer only) — implement only then, as its own gated task. **HD-186. ✅ IaC; ⏳ live-verify at deploy.**
 - **DNS primary published-port gate:** the Technitium `53:53` publish is the ONE intentionally-public host publish (the LAN/tailnet resolver is the VPS public IP, HD-299). Because input default-deny cannot see published-port traffic (same S1 bypass as above), the `:53 → {{ tchnitium_dns_overlay_ip }}` forward path is **source-restricted in the nftables FORWARD chain** (tailnet CGNAT `100.64/10` + home-WAN `@dns-allow-home` set; everything else dropped) — a FORWARD drop is authoritative over Docker's accept (proven by the 2026-08-23 isolation incident). Template `vps-hardening/templates/nftables.conf.j2`; apply `playbooks/vps.yml --tags hardening`. Same allow-set as the input rules. **SSOT doc: `network-dns.md`; security: this §8.**
   `/etc/nftables.conf` (nftables, input policy drop). Committed as executable checklist, not prose. **HD-154. ✅ enforced.**
@@ -253,3 +254,12 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
   RAG databases per exposure tier (`rag_public`/`rag_internal`), public knowledge restricted to the shared manuals KB.
 - First application: AI stack v2 ([services-ai.md](services-ai.md) §6) -- OWUI split into `chat.` (public,
   limited) and `ai.` (internal, full power); DSH + OpenClaw control planes tailnet-only.
+- **RustDesk (HD-412) is the deliberate exception to "admin surfaces are tailnet-first", and it stays
+  capability-poor by construction** (2026-09-21): the server must be public *because* the family machines
+  introduce themselves from networks we do not control, so it carries **no credential of its own** — no
+  console (the HTTP console is Pro-only), no API, no middleware tier, no bouncer, no HTTP surface at all,
+  and nothing a compromise of it yields except relay bandwidth (bounded by the quota caps). The capability
+  sits on the *controlled* endpoint, which is why the client-side rules are the real control: IP whitelist
+  = tailnet range on direct-IP machines, interactive confirmation always, **no unattended password on the
+  shared family desktop (oldsrv)**, never installed as a system service there. Posture + procedure:
+  [services-admin.md](services-admin.md) §RustDesk.

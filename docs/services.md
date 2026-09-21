@@ -26,7 +26,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 | [Downloads](services-downloads.md) | SABnzbd, qBittorrent, gluetun — USENET/torrent ingress + VPN | detail |
 | [DNS](services-dns.md) | Technitium (ad blocking = Technitium Advanced Blocking; Pi-hole is retired) | detail |
 | [Utilities](services-utilities.md) | n8n, signal-cli, PairDrop, Stirling PDF | detail |
-| [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup · **Homelable (HD-45, oldsrv, deploy-gated)** · Metabase is retired (revival = oldsrv) | detail |
+| [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup · **Homelable (HD-45, oldsrv, deploy-gated)** · **RustDesk server (HD-412, VPS, deploy-gated — family remote desktop, host-net, no subdomain)** · Metabase is retired (revival = oldsrv) | detail |
 | [Office](services-office.md) | ONLYOFFICE, OpenCloud, office bridge (cross-cutting) | detail |
 | [AI Platform](services-ai.md) | LiteLLM (VPS + LAN), Open WebUI, Docling, OpenClaw, Qdrant · **spark = big-model generation (vLLM behind `llm.kogler.si`)** · **pinned-AI tier on the oldsrv RX 7600: `whisper` / `reranker` / `embed` (Vulkan), Ollama = embed fallback rung** · Immich-ML (oldsrv GPU, lowest priority) | detail |
 | [Matrix](services-matrix.md) | Tuwunel, Element Web | detail |

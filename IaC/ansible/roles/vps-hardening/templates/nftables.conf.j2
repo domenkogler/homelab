@@ -40,8 +40,25 @@ table inet filter {
         # ICMP ping (ops sanity) — limited
         ip protocol icmp icmp type echo-request accept
 
-        # Docker containers that publish host ports (e.g. via host network) —
-        # none expected on the VPS by policy (compose uses traefik-public only).
+        # Docker containers that publish host ports — RustDesk (HD-412) is the FIRST exception to
+        # the old "none expected by policy (compose uses traefik-public only)" note: hbbs/hbbr run
+        # `network_mode: host` because UDP rendezvous + TCP hole punching need the real source
+        # address (docker's userland proxy SNAT would destroy it), so there is no DNAT path and this
+        # chain is the only gate. See the allow below.
+        # RustDesk family-support server (HD-412): hbbs 21115/tcp (NAT-type test) + 21116/tcp+udp
+        # (rendezvous/heartbeat/hole-punch), hbbr 21117/tcp (relay). Open to the world BY DESIGN:
+        # the family machines must reach this introduction point from networks we do not control,
+        # so the gate is the shared server keypair (ENCRYPTED_ONLY=1 -> `-k _` on BOTH hbbs and
+        # hbbr), not the source address. NO `limit rate` here on purpose: a silent drop under a
+        # burst is a dead support session, which is the failure this service exists to prevent.
+        # ⛔ 21118/21119 (hbbs/hbbr WebSocket, web-client only) stay DELIBERATELY absent: we run no
+        # web client, and upstream trusts unvalidated X-Real-IP/X-Forwarded-For on those ports, so
+        # exposing them would let anyone forge the client IP in our logs and skip IP-based blocking.
+        # Ports are upstream constants (the container is launched without -p); they are mirrored in
+        # templates/docker_services/rustdesk-server/ rather than a group_vars var because a
+        # docker_services compose render cannot read vps.yml vars (HD-189 validator mock set).
+        tcp dport { 21115, 21116, 21117 } accept
+        udp dport 21116 accept
         # RouterOS remote syslog receiver (HD-313): rsyslog binds UDP/514 on the
         # wg-s2s VPS address (wg_s2s_vps.ip) and the RB4011 forwards RFC5424
         # syslog there over the tunnel (src = wg_s2s_vps.router_ip, the router
