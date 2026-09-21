@@ -8,9 +8,15 @@
 #   Internal backend only: NO Traefik labels, NO host port binds (HD-62) — reached over
 #   the services-internal overlay by the consuming AI services.
 #
-#   Model weights: docling downloads HF models on first start (warm_up_caches) — a
-#   persistent volume + HF_HOME keeps the multi-GB weights across restarts, avoiding a
-#   re-download each container recreate.
+#   Model weights (corrected 2026-09-21, measured — do not trust the older claim here):
+#   the weights are BAKED INTO THE IMAGE at /opt/app-root/src/.cache/docling/models (871 MB, reached via
+#   DOCLING_SERVE_ARTIFACTS_PATH), so the served pipeline never downloads at start-up. The /models bind
+#   below is EMPTY and root-owned while the container runs as uid 1001, so it cannot receive a runtime
+#   download either (reproduced: `PermissionError: /models/hub` from the CLI, which uses HF_HOME=/models).
+#   Consequences: a recreate is safe (nothing to re-pull), but any model/engine not baked into the pin is
+#   unreachable until this bind is chowned (registry `bind_owner_uid: "1001"`) or HF_HOME is repointed —
+#   that is the hard prerequisite in front of HD-402's engine bench. docs/services-ai.md §Where the model
+#   weights actually live.
 services:
   docling:
     image: quay.io/docling-project/docling-serve-cpu:{{ docling_version }}
@@ -31,7 +37,7 @@ services:
       DOCLING_SERVE_ENABLE_MANAGEMENT_ENDPOINTS: "true"   # /v1/memory for observability
       HF_HOME: /models                        # persist downloaded model weights across restarts
     volumes:
-      - /srv/docker/docling/models:/models     # HF model cache (nvme dataset; regenerable, not backed up)
+      - /srv/docker/docling/models:/models     # ⚠ decorative today — empty + not writable by uid 1001; see the header
 networks:
   services-internal:
     external: true

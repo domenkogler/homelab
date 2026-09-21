@@ -691,6 +691,66 @@ First-boot notes:
    is the one path that **orphans every client**: re-enrolment is manual, per machine
    ([deployment-secrets.md](docs/deployment-secrets.md) `rustdesk_login`).
 
+### 1.12 Retire an unowned VPS stack (HD-394) `[MANUAL — owner OK required]`
+
+> Applies to any live compose project that `group_vars/vps.yml` no longer describes (found by the census
+> in [services-vps.md](docs/services-vps.md) §Container census). The registry cannot remove what it does not
+> name, and `docker rm` alone leaves the bind dir and the rendered `/opt/<name>/` behind — so retirement
+> is a recorded sequence, not a cleanup command. Removal requires an explicit owner OK (the row's gate).
+
+1. **Re-run the census** so the removal decision is made against live state, not against the table:
+   ```bash
+   ssh vps 'docker ps -a --format "{{.Names}}|{{.Status}}|P={{.Label \"com.docker.compose.project\"}}"' | sort
+   comm -13 <(awk -F'name: ' '/- \{ name:/{split($2,a,","); gsub(/[ ,]/,"",a[1]); print a[1]}' \
+              IaC/ansible/group_vars/vps.yml | sort -u) \
+            <(ssh vps 'docker ps -a --format "{{.Label \"com.docker.compose.project\"}}"' | sed '/^$/d' | sort -u)
+   ```
+2. **Prove the stack is empty and unconnected** (this is the whole safety argument — do it per stack
+   and record the numbers, not a conclusion; script-file indirection, never inline quoting through ssh).
+   For a Postgres-backed stack:
+   ```bash
+   cat > /tmp/retire-probe.sh <<'SH'
+   set -u
+   docker exec <svc> sh -c 'psql -U "$POSTGRES_USER" -Atc "select extname from pg_extension"'
+   docker exec <svc> sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select count(*) from information_schema.tables where table_schema not in ('"'"'pg_catalog'"'"','"'"'information_schema'"'"')"'
+   docker exec <svc> sh -c 'psql -U "$POSTGRES_USER" -Atc "select usename,client_addr,state from pg_stat_activity where datname is not null"'
+   grep -rl <svc> /opt/*/docker-compose.yml      # consumers: none (exclude the stack itself)
+   SH
+   ssh vps 'bash -s' < /tmp/retire-probe.sh
+   grep -rn <svc> IaC/ansible/                   # and none in the registry/templates
+   ```
+   Empty + zero external connections ⇒ no restore obligation, which is what makes step 4 safe.
+3. **Inventory the anonymous-volume residue without deleting anything** (231 dangling volumes are
+   provenance-free; `docker volume prune` is irreversible, so it is a decision, not a step):
+   ```bash
+   ssh vps 'docker volume ls --format "{{.Name}}|{{.Label \"com.docker.compose.project\"}}" | awk -F"|" "$2==\"\"" | wc -l'
+   ssh vps 'sudo du -sh /var/lib/docker/volumes/*/ _data 2>/dev/null | sort -h | tail -20'
+   ```
+   Act on it only with an owner verdict naming the volumes; the default outcome is `docker volume rm`
+   of specific IDs, never `prune --all`.
+4. **Take the stack down in registry order** — stop, then remove the container, then the render, then
+   the data (this order keeps every step reversible until the last one):
+   ```bash
+   ssh vps 'cd /opt/<svc> && sudo docker compose stop && sudo docker compose down --remove-orphans'
+   ssh vps 'sudo docker image rm <image:pin>'            # only if no other container uses the pin
+   ssh vps 'sudo mv /opt/<svc> /opt/.retired-<svc>'      # move aside, do not delete, until the next converge is green
+   ssh vps 'sudo mv /srv/docker/<svc> /srv/docker/.retired-<svc>'
+   ```
+5. **Prove nothing else depended on it** — converge the host and require the same roster as before
+   minus the retired stack, with no container restarting:
+   ```bash
+   bash scripts/ansible-run.sh playbooks/vps.yml --limit vps --tags docker_services --check   # never --diff
+   nohup bash scripts/ansible-run.sh playbooks/vps.yml --limit vps --tags docker_services \
+        > /tmp/converge-vps-$(date +%Y%m%d-%H%M).log 2>&1 &
+   ssh vps 'docker ps --format "{{.Names}}\t{{.Status}}" | sort'   # compare with the step-1 census
+   ```
+6. **Delete the moved-aside dirs only after step 5 is green**, and record the retirement in
+   [services-rejected.md](docs/services-rejected.md) / the owning doc so the next census finds nothing
+   unexplained. A stack that is removed but not written down reappears as a mystery bind dir.
+7. **Do not retire these** (they look unowned and are not): `/opt/metabase` (registry entry exists,
+   `enabled: false` — a flip re-renders it), and any container whose project name IS an enabled
+   registry entry but whose `/opt` dir you cannot find (the render lives where the template says).
+
 ## Phase 1a — Homelab host installs (oldsrv / nas)
 
 > **Official path: preseeded AUTOMATED install** (Automated entry, ZERO interactive questions

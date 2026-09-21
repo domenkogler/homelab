@@ -225,14 +225,15 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 here (its record is the owning doc + the commit). Run `todo.md` for the full status story.
 
 - [ ] **HD-101** — Open Web UI: verify the SSO → Authentik round-trip, then a LiteLLM completion + RAG at the pin. · [services-ai.md](docs/services-ai.md)
-- [ ] **HD-103** — Docling: first start pulls multi-GB HF models; live-verify a Slovenian scan conversion. · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-402** — Docling OCR engine: the bench is blocked on **two dependencies**, not a measurement — (a) `rapidocr` is not installed in the pinned `docling-serve-cpu:2.118.0` image (EasyOCR 1.7.2 is; the container sets no OCR env), though the **RapidOcr PP-OCRv6 weights are already baked into the image**; (b) the model bind cannot receive any runtime fetch (`/models` empty + root-owned vs uid 1001 → `PermissionError: /models/hub`), so `bind_owner_uid: "1001"` (or an `HF_HOME` repoint) comes first. Then the bench. Free lever meanwhile: `do_ocr=false` per request for born-digital PDFs (call-site, not service env). · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-103** — Docling: live-verify a **real** Slovenian scan conversion (the multi-GB model pull is a non-event — weights are baked into the pinned image; the `/models` bind is decorative). · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-104** — OpenClaw: `openclaw onboard` → schema-valid `openclaw.json`, then the OWUI ↔ OpenClaw ↔ OpenCloud WebDAV round-trip (folds in **HD-160**'s remaining half). · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-159** — blackbox liveness: prove the `wg-s2s-down` Critical rule actually fires on a `wg down` test. · [observability.md](docs/observability.md)
 - [ ] **HD-47** — Matrix public records + `_matrix` well-known/SRV delegation (matrix + Element are live, so federation is one DNS step away). · [services-traefik.md](docs/services-traefik.md)
 - [ ] **HD-122** — Matrix federation hardening: live-verify profile endpoints require auth. · [services-matrix.md](docs/services-matrix.md)
 - [ ] **HD-268** — Qdrant as the vector store: re-index + OKF wiki skeletons (the PGVector swap is long done; the re-index cutover is not). · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-412** — RustDesk server (VPS): seed the `rustdesk_login` keypair (step 1–3 of the runbook), flip the registry row `enabled: true`, converge `--tags hardening,docker_services,rustdesk-server`, then verify the caps + the two sessions. `[MANUAL]` for the vault write + the human-gated first apply. · [deployment-manual.md](deployment-manual.md) §1.11 · [services-admin.md](docs/services-admin.md)
-- [ ] **HD-394** — **container census before any further VPS work**: `confident_shamir` (a hand-run `traefik:v3.7.11`, no networks/ports/labels) and `pgvector` (superseded by Qdrant) are still Up and the registry does not describe them, so no converge will ever remove them. Owner OK required before deleting. · [services-vps.md](docs/services-vps.md)
+- [ ] **HD-394** — **container census before any further VPS work**. ✅ **Census run 2026-09-21** (read-only, table in [services-vps.md](docs/services-vps.md) §Container census): 49 containers / 37 projects / **zero unlabeled** — `confident_shamir` is gone from the host (its removal is unrecorded), and the only project the registry does not own is **`pgvector`**, proved empty (0 user tables, `vector` extension never created, no client connections, no consumer) → **removal proposed, OWNER OK pending**, sequence in [deployment-manual.md](deployment-manual.md) §1.12. Residue of the hand-run class: **231 dangling anonymous volumes (1.84 GB)** — inventory first, `volume prune` only on an owner verdict. Also: `/opt/{loki,prometheus}` remnants to retire; `/opt/metabase` stays (registry-owned). · [services-vps.md](docs/services-vps.md)
 - [x] **HD-240** — grafana SSO round-trip: ✅ traefik edge IP pinned to the whitelist entry; ✅ owner mapped as Grafana Admin; ✅ **[MANUAL]** sso-dashboard → stats.kogler.si lands IN Grafana — **verified by owner 2026-08-25**. · [observability.md](docs/observability.md)
 
 **Also open on this host** (each is a live `todo.md` row; they were invisible here before 2026-09-19):
@@ -350,6 +351,12 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
       LDAP provider + `svc_samba` in the Blueprint, mint a **fresh** `authentik-ldap_bind` token (the current item
       is an expired outpost token), redeploy the outpost, THEN flip `storage_samba_passdb: ldapsam` on nas and
       live-verify a family drive. **Do not flip the var first — smbd fails hard on an unreachable outpost.**
+      Re-probed live 2026-09-21: **two** blockers, not one — Authentik holds **no LDAP provider, no LDAP source
+      and no LDAP outpost object** (the only Outpost row is the proxy one), and the `authentik-ldap` container is
+      crash-looping `403 Forbidden (Token invalid/expired)`; minting a token alone therefore yields an outpost
+      serving zero providers. Ordered gates + the `ldapsearch` proof step (WG side only) recorded in
+      [deployment-compose.md](docs/deployment-compose.md); parked at the owner gate (a write-scoped `op` session
+      is required — the runner's SA token is read-scoped).
       · [deployment-compose.md](docs/deployment-compose.md)
 - [ ] **HD-207** — land the migrated data: redistribute the `bulk/migrate` landing zone (personal → OpenCloud/live
 - [ ] **HD-361** — Cockpit break-glass login on nas: the PAM identity is missing, so `cockpit-nas` has **no
@@ -463,7 +470,7 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [ ] **HD-399** — `technitium-seed` is **not `--check`-safe**: every `docker_services --check` on oldsrv dies at
       `technitium-seed.yml:102`. Until it is idempotent-under-check, a dry run on that host is not available. · [services-dns.md](docs/services-dns.md)
 - [ ] **HD-133** — subscription renewal reminders (SSOT `subscriptions.yml`) driving Homepage + calendar + n8n. · [subscription.md](docs/subscription.md)
-- [ ] **HD-238** — write the oldsrv→VPS DR runbook for the non-GPU services (an imperative procedure, not prose). · [backup.md](docs/backup.md)
+- [ ] **HD-238** — write the oldsrv→VPS DR runbook for the non-GPU services (an imperative procedure, not prose). ✅ **Written 2026-09-21**: backup.md §Runbook — restore the non-GPU tier on a replacement VPS + §Restore drill (yearly) + a VPS-loss row in §Recovery Paths. ⏳ Owner: schedule/run the drill (its tick needs the dated result) and decide the per-service fail-over-vs-accept-loss table. · [backup.md](docs/backup.md)
 - [ ] **HD-45** — network dashboard / who-is-on-network (re-scoped 2026-09-09). · [observability.md](docs/observability.md)
       design**; kept by design — settled, see [network-vpn.md](docs/network-vpn.md) · [services-ai.md](docs/services-ai.md)
 
@@ -721,7 +728,11 @@ on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the 
 **Deploy-gated verification (Phase 8):** ✅ repo + policy + schedules are live (retention policy = the SSOT in
 `docs/backup.md`).
 - [ ] **HD-49** — put the Matrix signing/identity keys, homeserver DB and media store into the backup policy
-      (a lost identity key means rejoining every federation partner). · [services-matrix.md](docs/services-matrix.md)
+      (a lost identity key means rejoining every federation partner). Scope resolved 2026-09-21: it is **one
+      path**, `/srv/docker/matrix` (RocksDB + `media/` + `archive/`; no separate key file exists, so the signing
+      identity lives inside the same store) — restore it as one unit. ⏳ Blocked on the host-level gap: the VPS
+      has **no backup client**, so no `/srv/docker/*` path is in any off-site snapshot
+      (backup.md §VPS-side coverage gap). · [services-matrix.md](docs/services-matrix.md)
 - [ ] **HD-34** — **[MANUAL, owner]** assess Kopia Web GUI vs CLI during the first human-run restore drill. · [backup.md](docs/backup.md)
 
 

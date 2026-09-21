@@ -161,13 +161,65 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 
 ---
 
+## Container census — unowned stacks on the VPS (HD-394)
+
+> Run **read-only before any further VPS work** — that is the row. Procedure (repeatable, non-destructive):
+>
+> ```bash
+> # 1. every container with its ownership label (empty P= = owned by nothing)
+> ssh vps 'docker ps -a --format "{{.Names}}|{{.Image}}|{{.Status}}|P={{.Label \"com.docker.compose.project\"}}|{{.Ports}}"' | sort
+> # 2. live projects the registry does not own (run from the repo root)
+> comm -13 <(awk -F'name: ' '/- \{ name:/{split($2,a,","); gsub(/[ ,]/,"",a[1]); print a[1]}' \
+              IaC/ansible/group_vars/vps.yml | sort -u) \
+>          <(ssh vps 'docker ps -a --format "{{.Label \"com.docker.compose.project\"}}"' | sed '/^$/d' | sort -u)
+> # 3. provenance of anything left over
+> ssh vps 'docker inspect <name> --format "{{.Config.Image}} created={{.Created}} restart={{.HostConfig.RestartPolicy.Name}} nets={{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}"'
+> ```
+> **Registry invariant this enforces:** every container on a managed host belongs to a compose project
+> named by an `enabled` entry of that host's `docker_services` registry — or it is a finding. The
+> invariant matters because an unlabeled container is invisible to *every* converge: `compose up`
+> prunes only what its own project declares and `deploy-service.yml` iterates the registry, so such a
+> container is never stopped, never removed, and outlives reboots if it carries a restart policy.
+
+**Census result (run 2026-09-21, read-only):** 49 containers across 37 compose projects; **zero
+unlabeled containers**; **one project the registry does not own** (`pgvector`); 234 unlabeled
+(anonymous) volumes of which 231 are dangling (1.84 GB reclaimable).
+
+| Item | Live state (probed 2026-09-21) | What would break if removed | Verdict |
+|------|-------------------------------|-----------------------------|---------|
+| `confident_shamir` — the row's premise: a hand-run `traefik:v3.7.11` up since 2026-08-24 with no networks/ports/labels | **Gone.** Not in `docker ps -a` (which includes exited); no unlabeled container exists on the host. Its image is still present because it *is* the pinned image of the real `traefik` container — in use, not orphaned | Nothing | **Nothing to remove — but the removal is unrecorded:** no converge owns the deletion of a hand-run container, so nobody can say who removed it or when. That is the residue of the class, and the volumes row below is its remaining evidence |
+| `pgvector` — project `pgvector`, `/opt/pgvector/docker-compose.yml` (rendered 2026-08-22), image `pgvector/pgvector:0.8.6-pg16-trixie` | Up (healthy) since 2026-08-23, `restart: unless-stopped` (survives reboots), on `db-internal`, `read_only` + `cap_drop ALL`. **The only live project absent from `group_vars/vps.yml`** — the registry row was deleted when Qdrant superseded it (HD-267/268), so no converge will ever stop or remove it | Nothing. Probed empty: DB `pgvector` is 7.5 MB (= `template1` size) with **0 user tables**, `pg_extension` lists only `plpgsql` (the `vector` extension was never created), `pg_stat_activity` shows **no external client connections**, and no rendered compose references it — `db-backup`'s own header states "no pgvector/qdrant Postgres target exists to dump" | **Retire** — IA C cannot do it (the registry no longer knows it) and `docker rm` alone would leave the bind + the `/opt` dir. Sequence: [deployment-manual.md](../deployment-manual.md) §1.12. **Owner OK required** (the row's gate) |
+| `/opt/loki`, `/opt/prometheus` | Rendered compose + config dirs on disk; no containers, no projects (the stack was retired by HD-341/342 in favour of Victoria) | Nothing | **Retire the dirs.** Unlike the registry-owned dirs below these describe a stack the registry no longer contains |
+| `/opt/metabase` | On disk, not running — and legitimately so: the registry entry exists with `enabled: false` | The re-enable path (`enabled: true` + converge re-renders from the template; the dir is the render target) | **Keep** — registry-owned; the difference from `pgvector` is exactly the invariant |
+| **234 unlabeled anonymous volumes** (231 dangling) | `docker system df`: 1.84 GB reclaimable (67 % of volume storage). Anonymous volumes carry **no provenance at all** — no name, no project, no labels | Unknown by construction; some may hold state written by a one-off `docker run` | **Owner verdict before any prune.** `docker volume prune` is destructive and irreversible. §1.12 step 1 is the non-destructive inventory |
+| `authentik-ldap` | `Up (unhealthy)`, crash-looping `403 Forbidden (Token invalid/expired)` while fetching its outpost config | Samba auth: it is the service Samba would authenticate against (HD-360); Samba is on `tdbsam`, so nothing regresses — but the family drives' future LDAP path depends on it | **Keep, do not delete as "cleanup".** It is the HD-360 blocker: [deployment-compose.md](deployment-compose.md) §HD-132 |
+
+**Correction to the row's 2026-08-24 premise (recorded, not improvised around):** it described
+`confident_shamir` as running and `pgvector` as "Up/healthy although Qdrant superseded it". Live
+re-probing shows the opposite shape of the problem: the hand-run container is gone, and the
+registry-owned stack is the one that is provably dead weight — **and it is not unlabeled at all**, it
+is a *labelled project the registry stopped describing*, which the label-based ownership test alone
+would have passed as clean. Ownership is therefore measured against the **registry**, not only against
+the compose label.
+
+---
+
 ## Database Backup (Pre-Kopia)
 
-1. **tiredofit/db-backup** — long-lived service with internal cron
-   - Dumps PostgreSQL to local SSD
-   - Compresses (Gzip/Bzip2/Xz/Zstd), creates checksums
-2. **Kopia** snapshots the dump files + configs
-3. Temp dumps cleaned up after successful snapshot
+1. **tiredofit/db-backup** — long-lived service with internal cron (`DB01..DB06` blocks in
+   `templates/docker_services/db-backup/`); dumps PostgreSQL, compresses (zstd), checksums.
+2. ⚠ **Step 2 of the original plan — "Kopia snapshots the dump files, temp dumps cleaned up after
+   successful snapshot" — is NOT live, and never has been.** There is **no Kopia client on the VPS**
+   (no `kopia` binary, no client config, no `kopia-agent` container; the host runs only
+   `kopia-server`, which is the *repository endpoint* other hosts' agents push through — oldsrv has
+   had its own `kopia-agent` container since HD-102, the VPS has none). Verified 2026-09-21:
+   `/var/lib/docker/volumes/db-backup_db-backups/_data` holds **767 MB of daily dumps going back to
+   2026-08-24, on the same NVMe as the databases they protect**, and the storage box mounted at
+   `/mnt/storagebox` contains only `music`. **The dumps are a single copy.** Consequence for DR is in
+   [backup.md](backup.md) §VPS-side coverage gap — it is the reason the scope rows there are still
+   pending, and it is the one finding on this host that changes what a real VPS loss would cost.
+3. Retention is therefore the container's own `KEEP_*` window, not a snapshot lifecycle — it is bounded
+   by NVMe free space, which is the failure mode to watch.
 
 ---
 
