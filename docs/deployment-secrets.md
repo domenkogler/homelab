@@ -243,6 +243,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | Rotate the shared RouterOS `admin` password (`mikrotik-admin_login`) | [`network-ops.md`](network-ops.md) §Rotating the shared admin password (HD-321) | vault `old-password`/`password` update → re-render `render-converge.yml` + `render-routeros.yml` → apply per device via `routeros-apply-delta.sh`/`apply-converge.yml` → verify from a Mgmt-sourced API path |
 | AI-stack items + LiteLLM scoped-key glue | [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) | AI 1P item creation, OIDC wiring, LiteLLM bootstrap-keys rotation/rollback (HD-105) |
 | Rotate the spark engine bearer (`spark-llm_api`) | [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) §4a | the FOUR coupled bearers (engine `--api-key` + both LiteLLM envs + laptop `models.json`), the single-window rule, the write-scoped-token location, and the 2026-09-18 leak + rotation window |
+| Retire an SSH grant, or audit who may SSH into a host | [`deployment-secrets.md`](deployment-secrets.md) §Who is authorized where | the per-host grant inventory + the reversible retire sequence above (HD-416 is the automated gate) |
 | The two glue scripts' parallel implementation + concurrency budget | [`scripts/README.md`](../scripts/README.md) §Parallel 1Password operations | layer × direction × concurrency table, the 1P budget, extensibility rule |
 
 > Findability rule: if you search for "which glue / who provisions / how to rotate" a secret, start here; the row routes you to the owning doc. Do NOT re-author glue mechanics in multiple docs — each row is a single source.
@@ -494,6 +495,26 @@ assumed: fresh `ansible-admin` auth to nas + `storage.yml --limit nas --check --
 `svc-backup` and rsync to a local tank path, so they were never the consumer — one night is
 the proof, not the theory). Do **not** adopt it into the vault: adopting would promote a
 one-time migration key to a managed secret, which is backwards.
+
+**Retiring an SSH grant — the reversible sequence.** The characteristic failure of an SSH change
+is being locked out by your own fix, so the order matters and each step is evidence, not opinion:
+
+1. **Enumerate before touching anything.** Run `ssh-keygen -lf` per `authorized_keys` file on
+   every host. A file stores the base64 blob, so grepping for a *fingerprint* matches nothing —
+   that mistake cost a false "not authorized anywhere" reading on 2026-09-21.
+2. **Establish disuse from the authorizing host's log**, not from memory:
+   `journalctl -u ssh -u sshd | grep <fingerprint>`, and confirm the journal actually covers the
+   interval you are claiming silence for — rotation or a reboot explains absence too.
+   `atime` is not evidence: a read-only `grep -r` over the home directory updates it.
+3. **Back up, then neutralize without deleting** — comment the line out with a dated marker.
+   One line, instantly revertible.
+4. **Prove inert with something you actually depend on:** a fresh `ssh` as that account plus one
+   `--check` converge leg against that host. `failed=0` is the proof; "it looked unused" is not.
+5. **Let the plausible consumers run one full cycle** (the backup timers, whatever is scheduled),
+   then delete both halves — the private key on the holder, the line on the authorizer.
+6. **Do not adopt a discovered key into the vault as the first move.** That promotes an unknown,
+   often one-time key to a managed secret and makes it permanent. Retire it, and mint a named key
+   only when a real job needs one.
 
 **The rule this section carries forward:** a grant that is neither vault-issued nor named in
 the table above does not exist as far as this repo is concerned — and that is precisely why a
