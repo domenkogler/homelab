@@ -75,7 +75,7 @@ route), and that stops being true the moment a second prefix is advertised.
 `/ipv6 nd set [find where interface=vlan10-home] disabled=yes` then
 `/ipv6 address remove [find where comment~"^HD-414"]` — `ra-lifetime=30m`, so advertised addresses age out
 on their own and the Home VLAN returns to IPv4-only. Runbook + how to verify: [network-ops.md](network-ops.md)
-§IPv6 and the runbook steps in `deployment-manual.md` §1.5.3d.
+§IPv6 and the runbook steps in [deployment-manual.md](../deployment-manual.md) §1.5.3d.
 
 **Re-checking the invariants** (all four measured clean on the live device 2026-09-22; the fourth is the one that
 quietly regresses if someone adds a second advertised prefix):
