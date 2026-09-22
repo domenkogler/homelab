@@ -418,6 +418,50 @@
       vault_item: victoria-logs_api
   tags: [monitoring, grafana]
 
+# HD-420 (2026-09-22): the interval floor the seed never set. `jsonData.timeInterval` is what
+# floors Grafana's `$__interval` / `$__rate_interval`; without it Grafana floors them at its own
+# 15 s default, so a 5 s scrape is still AVERAGED into 15 s buckets at query time and the nine
+# hot panels stay steppy with perfect data in VM. The seed above is create-only (`status == 404`),
+# so the live datasource needs a PUT — this task reads the CURRENT value through the GET that is
+# already registered (gf_ds_state) and PUTs only when it differs, which is what makes it
+# idempotent instead of a changed-on-every-run task.
+# The body re-sends the vault secret because PUT replaces the datasource record: a body without
+# secureJsonData leaves the HD-240 class of failure (an un-authed datasource, "Authentication to
+# data source failed") that the whole API-seeding design exists to avoid. Re-reading the same
+# 1Password item is not a rotation; nothing is generated here.
+# Check-mode safe by the HD-368 rule above: gf_api_ip/gf_admin_password register empty in --check,
+# and `not ansible_check_mode` is on the task.
+- name: Ensure the VictoriaMetrics datasource carries its 5s interval floor
+  ansible.builtin.uri:
+    url: "http://{{ gf_api_ip.stdout.split(' ') | first }}:3000/api/datasources/uid/prometheus"
+    method: PUT
+    url_username: admin
+    url_password: "{{ gf_admin_password.stdout }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: VictoriaMetrics
+      uid: prometheus
+      type: prometheus
+      access: proxy
+      url: http://victoria-metrics:8428
+      isDefault: true
+      editable: false
+      basicAuth: true
+      basicAuthUser: "{{ lookup('community.general.onepassword', 'victoria-metrics_api', field='username', vault=op_vault) }}"
+      secureJsonData:
+        basicAuthPassword: "{{ lookup('community.general.onepassword', 'victoria-metrics_api', field='password', vault=op_vault) }}"
+      jsonData:
+        timeInterval: "5s"
+    status_code: [200]
+  no_log: true
+  when:
+    - inventory_hostname in groups['vps']
+    - not ansible_check_mode
+    - (((gf_ds_state.results | selectattr('item.uid', 'equalto', 'prometheus') | first).json.jsonData
+        | default({}, true)).timeInterval | default('')) != '5s'
+  tags: [monitoring, grafana]
+
 - name: Verify observability datasource health through grafana
   ansible.builtin.uri:
     url: "http://{{ gf_api_ip.stdout.split(' ') | first }}:3000/api/datasources/uid/{{ item.uid }}/health"

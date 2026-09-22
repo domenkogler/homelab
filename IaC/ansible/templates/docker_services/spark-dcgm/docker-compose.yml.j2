@@ -59,8 +59,18 @@ services:
       - "127.0.0.1:{{ spark_dcgm_exporter_port }}:9400"
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      # Scrape interval: match the Alloy job's default scrape cadence (remote-write per scrape).
-      DCGM_EXPORTER_INTERVAL: "30000"        # ms
+      # Scrape interval: HD-420 moves this to 5 s so the collector, not just the scraper, runs
+      # at the cadence the nine panels ask for. Until 2026-09-22 it was "30000", which made the
+      # Alloy 5 s scrape store six copies of one sample (measured: GPU_UTIL returned `86` on
+      # twelve consecutive 1 Hz reads). Sidecar restart only — NEVER the engine.
+      # ⚠ GATE NOT YET SATISFIED (row 2 of prompt-420.md): the value must be A/B'd for CPU and
+      # cgroup memory.stat `anon` against `spark_dcgm_exporter_memory_limit` (256M — the cap
+      # exists because this exporter outgrew it during HD-378) ON THE BOX at 5 s before it is
+      # converged. That measurement cannot be taken from a session whose own model is spark
+      # (todo-table.md §C2), so the pre-flight is PARKED, not waived: do not converge spark
+      # with this line landed until it has been run from the laptop. If it fails, revert THIS
+      # line and the `scrape_interval = "5s"` of prometheus.scrape "dcgm" together.
+      DCGM_EXPORTER_INTERVAL: "5000"         # ms
       DCGM_EXPORTER_LISTEN: ":9400"
       # Default counter file stays as-is: the KEEP/DROP policy lives in Alloy
       # (prometheus.relabel "dcgm"), so the metric selection is one reviewable IaC block

@@ -16,6 +16,25 @@
 //   OLDSRV Alloy (alloy_backend_host=wg_s2s_vps.ip): scrapes home exporters
 //               (nut_exporter, zfs_exporter on nas), network_clients (HD-343), SNMP
 //               (router/switch), and remote_writes home telemetry to the VPS backend.
+{% if inventory_hostname == 'spark.kogler.si' %}
+// ---- HD-420 hot-set matchers (spark only) ---------------------------------------------
+// ONE regex per family, emitted TWICE: as `keep` by the hot 5 s job and as the exact
+// complement `drop` by the 60 s cold job on the same target. Two hand-copied lists drift;
+// one Jinja string cannot. Disjointness is load-bearing (docs/observability.md §Scrape
+// cadence): an overlapping series would arrive at two cadences under identical labels, and
+// the only cure is -dedup.minScrapeInterval=5s on the VPS — a shared flag that silently
+// re-tunes dedup for every host. With disjoint sets the SERIES NAMES ARE UNCHANGED, so no
+// dashboard query and no alert rule changes.
+// `source_labels` + the default `separator = ";"` means an absent label contributes the
+// empty string, so the trailing `;` on the no-label alternatives is what keeps
+// node_cpu_seconds_total{mode!="idle"} OUT of the hot set (140 of its 160 series stay cold —
+// the CPU panel's formula reads only mode="idle", 20 series).
+// Side effect that is NOT incidental: a `keep` on __name__ also drops each job's own
+// bookkeeping (`up`, scrape_samples_*), so `up{job="alloy"}` and the scrape_* series are
+// emitted by the COLD job alone and never duplicate.
+{% set hot_host = 'node_cpu_seconds_total;idle|node_load(?:1|5);|node_memory_(?:CmaFree|MemAvailable|MemFree|MemTotal|Buffers|Cached|Shmem|SwapCached)_bytes;' %}
+{% set hot_vllm = 'vllm:(?:generation_tokens_total|kv_cache_usage_perc|num_preemptions_total|num_requests_running|num_requests_waiting|num_requests_waiting_by_reason|prefix_cache_hits_total|prefix_cache_queries_total|prompt_tokens_by_source_total|prompt_tokens_cached_total|prompt_tokens_total)' %}
+{% endif %}
 
 // ---- Host metrics (node_exporter replacement) ----
 prometheus.exporter.unix "host" {
@@ -64,9 +83,63 @@ discovery.relabel "host_metrics" {
 
 prometheus.scrape "host_metrics" {
     targets    = discovery.relabel.host_metrics.output
+{% if inventory_hostname == 'spark.kogler.si' %}
+    // HD-420: on spark the cold job passes through a drop of the hot set (next block), so the
+    // 5 s job below is the ONLY source of those series. On nas/oldsrv/pi/vps the target and
+    // forward path are byte-identical to before — the drop is spark-GATED on purpose: the same
+    // rule applied fleet-wide would delete node_load1, node_memory_CmaFree_bytes and
+    // cpu mode="idle" from every other host, which have no hot job to replace them.
+    forward_to = [prometheus.relabel.host_metrics_cold.receiver]
+{% else %}
+    forward_to = [prometheus.remote_write.metrics.receiver]
+{% endif %}
+}
+
+{% if inventory_hostname == 'spark.kogler.si' %}
+prometheus.relabel "host_metrics_cold" {
+    rule {
+        source_labels = ["__name__", "mode"]
+        regex         = "{{ hot_host }}"
+        action        = "drop"
+    }
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
+// ---- HD-420 hot host job (spark only) — 5 s ------------------------------------------
+// The same exporter target, scraped again. Its job/instance are shaped by its OWN
+// discovery.relabel to the SAME values the cold job uses (job="alloy",
+// instance=<inventory_hostname>), because that is what every dashboard and the two OOM alert
+// rules in vars/main.yml select on — a distinct hot job label would silently unmatch them.
+// scrape_timeout 3 s is explicit: at 5 s cadence Alloy's 10 s default would let one hung
+// scrape block the cycle.
+discovery.relabel "host_metrics_hot" {
+    targets = prometheus.exporter.unix.host.targets
+    rule {
+        target_label = "job"
+        replacement  = "alloy"
+    }
+    rule {
+        target_label = "instance"
+        replacement  = "{{ inventory_hostname }}"
+    }
+}
+
+prometheus.scrape "host_metrics_hot" {
+    targets         = discovery.relabel.host_metrics_hot.output
+    scrape_interval = "5s"
+    scrape_timeout  = "3s"
+    forward_to      = [prometheus.relabel.host_metrics_hot.receiver]
+}
+
+prometheus.relabel "host_metrics_hot" {
+    rule {
+        source_labels = ["__name__", "mode"]
+        regex         = "{{ hot_host }}"
+        action        = "keep"
+    }
+    forward_to = [prometheus.remote_write.metrics.receiver]
+}
+{% endif %}
 // ---- Docker container logs (via Docker JSON log files, port-independent) ----
 // DISCOVERY: Alloy's `discovery.docker` only emits targets for containers with host
 // port mappings — our fleet is internal-only (no published ports), so it found 0.
@@ -389,6 +462,43 @@ prometheus.scrape "vllm" {
         "job" = "vllm",
         "instance" = "spark.kogler.si",
     }]
+    forward_to = [prometheus.relabel.vllm_cold.receiver]
+}
+
+// HD-420 cold half: the 60 s engine job drops the hot names, so the 5 s job is their only
+// source. Everything the panels do NOT name (the 309 request-completion-driven `_bucket{}`
+// histogram lines, request_success, time-to-first-token histograms …) stays at 60 s — that
+// exclusion is what makes the change ~95 MB/yr instead of ~3.4 GB (docs §What resolution costs).
+prometheus.relabel "vllm_cold" {
+    rule {
+        source_labels = ["__name__"]
+        regex         = "{{ hot_vllm }}"
+        action        = "drop"
+    }
+    forward_to = [prometheus.remote_write.metrics.receiver]
+}
+
+// HD-420 hot half: the same endpoint at 5 s, keeping the 11 `vllm:` names the nine panels
+// read (15 series with the source=/reason= label values). No engine change is involved:
+// measured, `vllm:generation_tokens_total` advanced on every one of 17 consecutive 1 s
+// scrapes, so VLLM_LOG_STATS_INTERVAL is the LOG heartbeat, not a publication cap.
+prometheus.scrape "vllm_hot" {
+    targets = [{
+        "__address__" = "127.0.0.1:8000",
+        "job" = "vllm",
+        "instance" = "spark.kogler.si",
+    }]
+    scrape_interval = "5s"
+    scrape_timeout  = "3s"
+    forward_to      = [prometheus.relabel.vllm_hot.receiver]
+}
+
+prometheus.relabel "vllm_hot" {
+    rule {
+        source_labels = ["__name__"]
+        regex         = "{{ hot_vllm }}"
+        action        = "keep"
+    }
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 {% endif %}
@@ -417,6 +527,13 @@ prometheus.scrape "dcgm" {
         "job" = "dcgm",
         "instance" = "spark.kogler.si",
     }]
+    // HD-420: 5 s. COUPLED PAIR — this cadence is only honest while
+    // DCGM_EXPORTER_INTERVAL in templates/docker_services/spark-dcgm/docker-compose.yml.j2
+    // is "5000"; at "30000" a 5 s scrape stores six copies of one sample. Neither file may
+    // be reverted without the other. It needs no cold twin because the relabel below keeps
+    // the exporter's ENTIRE whitelist (7 series) — the hot set and the job are the same set.
+    scrape_interval = "5s"
+    scrape_timeout  = "3s"
     forward_to = [prometheus.relabel.dcgm.receiver]
 }
 
