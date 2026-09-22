@@ -15,5 +15,12 @@ tailscale_node_enabled: false          # opt-in per host (host_vars) — default
 tailscale_node_hostname: "{{ inventory_hostname }}"
 tailscale_node_authkey: ""             # per-host 1P ref, NEVER a literal (CONVENTIONS §6)
 
+# HD-414: the UDP port tailscaled binds (`--port=${PORT}` in the deb's unit). It is NOT a
+# guess at a tunable — the router's scoped-IPv6 posture may one day name exactly this port,
+# and tailscaled silently uses an ephemeral port when 41641 is busy. SSOT value:
+# `tailscale_listen_port` in group_vars/all/main.yml; verified live on oldsrv 2026-09-22 that
+# the daemon binds 41641 on both families after the converge.
+tailscale_node_port: "{{ tailscale_listen_port }}"
+
 # Where the key lives while a join is actually happening: tmpfs, 0600, shredded in `always`.
 tailscale_node_authkey_path: /run/tailscale-authkey

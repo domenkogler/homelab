@@ -13,7 +13,7 @@
 #     below, same pattern as traefik-ha). Offline-safe.
 #
 # Route set (home-hosted 13 + ha + dns-pi + VPS-hosted set):
-#   media (jellyfin :8096) · seerr (:5055) · seerrng (:5055) · sonarr (:8989) ·
+ #   media (jellyfin, loopback-published :8096, HD-419) · seerr (:5055) · seerrng (:5055) · sonarr (:8989) ·
 #   radarr (:7878) · lidarr (:8686) · prowlarr (:9696) · bazarr (:6767) ·
 #   profilarr (:6868) · sab (:8080) · torrent (:8080) · ha (→ VIP:8123) ·
 #   dns-pi (→ VIP → technitium-secondary:5380) · VPS set (foto/file/git/ai/… via
@@ -230,10 +230,13 @@ http:
       service: noop@internal
 
   services:
+    # HD-419: Jellyfin publishes on loopback only (see `jellyfin_url` in group_vars) — the
+    # container itself is on the overlay networks, so an edge on the host has no path to it
+    # until that publish exists. This line was 502 for exactly that reason.
     media-backend:
       loadBalancer:
         servers:
-          - url: "http://{{ oldsrv_home_ip }}:8096"
+          - url: "{{ jellyfin_url }}"
     seerr-backend:
       loadBalancer:
         servers:

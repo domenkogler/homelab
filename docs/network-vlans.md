@@ -20,6 +20,75 @@ tags: [network, vlan, firewall]
 > is the bedtime WAN block firing as designed. The filtered-DNS NAT was not separately eyeballed — it rides
 > the same `kids-*` rule set and the same two MACs, and the tablets resolving nothing while blocked is
 > consistent with it (re-open only if a kid device is ever seen bypassing the filter).
+>
+> ✅ **IPv6 is LIVE on the Home VLAN only (HD-414, 2026-09-22)** — see §IPv6 below. It closes the HD-405
+> blocker ("the ISP delegates no /56"): it does. Every earlier claim in this repo that IPv6 is "not enabled
+> anywhere on purpose" / "WAN-only" described a device state that had never been provisioned, not a decision
+> that survives contact with the delegation — §IPv6 is the plan of record now.
+
+---
+
+## IPv6 — scoped dual-stack (Home VLAN only)
+
+**The delegation is real and it is dynamic.** Measured on the live ISP: DHCPv6-PD over `pppoe-telekom`
+delegates **`2a00:ee2:2700:8f00::/56`** (lease ~15 min, renewed; `prefix-hint` asks for the same /56 back).
+The /56 has not changed in years, but it is *leased*, not static — so no row in the converge contains it.
+
+**Allocation rules (SSOT: `network_ipv6` in `group_vars/all/main.yml`):**
+
+| What | How | Why it is written this way |
+|---|---|---|
+| Router Home GWA | `/ipv6 address add address=::1/64 from-p=pd-wan6 advertise=yes` → `<delegated>::1/64` | the /64 is taken from the pool at runtime, so a re-delegation heals itself; no prefix literal to rot |
+| The advertised prefix | **nothing configures it.** `advertise=yes` on that one address makes RouterOS create a *dynamic* `/ipv6 nd prefix` row (`2a00:ee2:2700:8f00::/64`, `on-link=yes autonomous=yes`, lifetime follows the lease) | `/ipv6 nd prefix` in 7.24 has no `from-pool`/`template`; the advertised-address mechanism is the one that tracks the delegation |
+| No RA elsewhere | no other VLAN has an address with `advertise=yes` → nothing to advertise. The v6 forward chain also refuses egress from 20/30/40/50 and any origin from 99 | a `disabled=yes` `/ipv6 nd` row does **not** refuse RA — it falls back to the default `interface=all` row and advertises anyway (measured). Do not express "no RA here" that way |
+| Clients | SLAAC (`managed-address-configuration=no`, `other-configuration=no`, **`advertise-dns=no`**) | DNS stays on the DHCP-provided Technitium chain ([network-dns.md](network-dns.md)); a v6 DNS in the RA would silently replace it |
+| Hosts | no host carries an IaC-assigned GUA, and no internal AAAA exists (HD-36's reason still holds — see below) | |
+
+**The filter.** IPv4 inbound safety is an accident of NAT; IPv6 has no NAT, so the filter *is* the
+protection. `/ipv6 firewall filter` is first-match-wins (verified on this device: an exception placed
+below the drop is never reached — the brief's "accept … then drop all" order is a bug, the accept goes
+above), so both chains are rebuilt in this order and the converge keeps that order:
+
+- `input`: `established,related` → ICMPv6 **1,2,3,4** (RFC 4890 errors; **2 = Packet Too Big = PMTUD**,
+  the classic silent-v6 breakage when black-holed) → **133–136** (RS/RA/NS/NA — the ISP's RA is what
+  carries the `::/0` route) → UDP **546** (a DHCPv6 exchange the *server* starts is `new`, not related) →
+  **drop everything else from `pppoe-telekom`**.
+- `forward`: `established,related` → ICMPv6 1–4 from the WAN (hosts must see PMTUD) → **drop everything
+  else from the WAN** → drop egress from `vlan20/30/40/50` and from `vlan99-mgmt` (the v6 mirror of the
+  v4 "these VLANs are IPv4-routed" and `drop-mgmt-origin` posture).
+- **No inbound accept exists, by design.** The one exception the row anticipated (`udp 41641 →` oldsrv)
+  was measured to be un-writable: oldsrv's Home NIC is `addr_gen_mode=1` (RFC 7217 stable-privacy) with
+  `use_tempaddr=2`, so SLAAC gives it a hashed address plus rotating temporaries — there is no address to
+  name. Writing the rule anyway would ship a listener opening that matches nothing. Tailscale does not
+  need it for the common case: its hole punch makes the phone's packets *replies* to oldsrv's own first
+  packet, and rule 1 admits those. Revisit only with the morning measurement in hand (HD-410) **and** a
+  pinned host address (`roles/network`: `IPv6Token=` + no privacy extensions), which is a host-side
+  decision this router section cannot make.
+
+**Invariants:** (1) RA/SLAAC on VLAN 10 only — exactly one `advertise=yes` address device-wide; (2) DNS is
+never advertised in an RA; (3) no inbound v6 accept exists without a written row naming the one host and
+port; (4) `established,related` stays the first rule in both v6 chains; (5) any future v6 for another VLAN
+must land its own inter-VLAN drops at the same time — today the isolation is structural (no prefix = no
+route), and that stops being true the moment a second prefix is advertised.
+
+**Rollback is two switches, and nothing else has to be undone:**
+`/ipv6 nd set [find where interface=vlan10-home] disabled=yes` then
+`/ipv6 address remove [find where comment~"^HD-414"]` — `ra-lifetime=30m`, so advertised addresses age out
+on their own and the Home VLAN returns to IPv4-only. Runbook + how to verify: [network-ops.md](network-ops.md)
+§IPv6 and the runbook steps in `deployment-manual.md` §1.5.3d.
+
+**Re-checking the invariants** (all four measured clean on the live device 2026-09-22; the fourth is the one that
+quietly regresses if someone adds a second advertised prefix):
+
+```bash
+ssh router '/ipv6 address print count-only where advertise=yes'              # 1  — RA on VLAN 10 only
+ssh router '/ipv6 nd print count-only where !disabled and interface!="all"'  # 1  — the one vlan10-home row
+ssh router '/ipv6 nd prefix print count-only'                                # 1  — the dynamic prefix row
+ssh router '/ipv6 address print count-only where interface!="vlan10-home" and address!~"^fe80" \
+                and interface!=lo and interface!=pppoe-telekom'              # 0  — no GUA on 20/30/40/50/99
+# and from a Home host — no home name may carry AAAA yet (HD-36 stands):
+dig +short <resolver> media.kogler.si AAAA                                   # empty
+```
 
 ---
 

@@ -16,6 +16,13 @@ services:
       - services-internal
     devices:
       - /dev/dri:/dev/dri          # Intel HD 630 QuickSync
+    ports:
+      # HD-419: the labels below only reach Jellyfin from the OVERLAY edge; traefik-internal
+      # runs `network_mode: host` and has no path to a container-only port, which is why
+      # media.kogler.si answered 502 from the LAN (measured 2026-09-22: nothing listened on
+      # :8096). Same shape as actual-budget :5006 / immich-ml :3003, but bound to loopback —
+      # the edge is on this box, and Jellyfin's own login stays off the Home VLAN.
+      - "{{ jellyfin_bind }}:{{ jellyfin_host_port }}:8096"
     group_add:
       - "{{ gpu_render_gid | default(104) }}"
       - "{{ gpu_video_gid | default(44) }}"

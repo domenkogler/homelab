@@ -1,0 +1,17 @@
+# tailscaled daemon environment — MANAGED BY ANSIBLE (roles/tailscale-node, HD-414).
+# The Debian package ships this file with the same values; owning it here is what turns
+# "it works because the package default happens to be 41641" into a declared pin — an apt
+# reinstall or an operator edit must not be able to move the port back to random.
+#
+# Why the pin matters: the unit's ExecStart ends in `--port=${PORT}`, and tailscaled
+# silently falls back to an ephemeral port when its preferred one is busy. HD-414's
+# scoped IPv6 posture is "no inbound listener except the one UDP port the router may
+# accept", and a rule naming 41641 is only worth writing while the daemon is bound to it.
+#
+# Remote nodes are informed of the new port automatically; nothing else reads this file.
+PORT="{{ tailscale_node_port }}"
+
+# Extra flags for tailscaled. Empty by design: every join-scope decision this node makes
+# lives in the `tailscale up` flags in tasks/main.yml (no routes, no exit node, no SSH,
+# no DNS takeover) and a flag smuggled in here would bypass them.
+FLAGS=""

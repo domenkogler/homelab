@@ -246,6 +246,25 @@ pi_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | se
 # phone-number list — e.g. '"+3863163xxxx",  "<group-id>"'. Non-secret SSOT (like
 # grafana_alert_email) — the Signal token itself stays in 1Password `signal-internal_api`.
 signal_alert_recipients: ""
+# ── IPv6 (HD-414, scoped dual-stack) ─────────────────────────────────────────
+# Measured on the live ISP 2026-09-22: the PPPoE session DOES delegate a prefix —
+# DHCPv6-PD hands out `2a00:ee2:2700:8f00::/56` (pool lease ~10 min, renewed). The
+# HD-405 blocker ("no /56 has ever been seen") is therefore CLOSED, and what takes
+# IPv4 NAT's place as the inbound protection is our own filter — see
+# docs/network-vlans.md §IPv6 allocation. NOTHING here hardcodes the prefix: the
+# router's Home address and the advertised /64 are built FROM THE POOL at runtime
+# (`from-pool` + `advertise=yes`), so a re-delegation is self-healing. `prefix_hint`
+# only asks the ISP to hand the observed /56 back; it is a hint, not a dependency.
+network_ipv6:
+  pool: pd-wan6                              # /ipv6 pool the DHCPv6-PD client fills (auto-created on bind)
+  router_address_suffix: "::1/64"            # the Home GWA keeps the IPv4 gateway habit (::1); the /64 comes from the pool
+  prefix_hint: "2a00:ee2:2700:8f00::/56"     # what the ISP delegated today (measured 2026-09-22)
+  slaac_vlan_ids: [10]                       # RA/SLAAC on the Home VLAN ONLY; 20/30/40/50/99 stay v4-routed.
+                                             # In 7.24 "no RA here" is expressed by "no advertised address here"
+                                             # (one `advertise=yes` row device-wide) PLUS the v6 forward-chain
+                                             # drops — NOT by a `disabled=yes` /ipv6 nd row, which falls back to
+                                             # the `interface=all` default row and advertises anyway (measured).
+
 network_vlans:
   - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }
@@ -464,6 +483,26 @@ mcp_logs_port: 8084    # HD-344 MCP→VL Streamable HTTP (oldsrv) — was 8081; 
 # S2S tunnel (HD-135/155) — derived from the address SSOT, never a literal IP.
 immich_ml_bind: "{{ oldsrv_home_ip }}"   # immich-ml publishes :3003 bound to this on oldsrv
 immich_ml_url: "http://{{ immich_ml_bind }}:3003"   # IMMICH_MACHINE_LEARNING_URL on the VPS
+
+# ==== Jellyfin on the home edge (HD-419) ====
+# The PUBLIC edge reaches Jellyfin inside the `traefik-public` overlay (its compose
+# labels), but traefik-internal runs `network_mode: host` and cannot see a container-only
+# port — that is the live 502 on media.kogler.si from the LAN (measured 2026-09-22: no
+# listener on :8096 at all, while actual-budget :5006 and immich-ml :3003 are published
+# on `oldsrv_home_ip`). Same precedent, tighter bind: the edge and the host are the same
+# box, so LOOPBACK is enough and it does not hand Jellyfin's own login (and its bypass of
+# the edge's CrowdSec/HSTS posture) to every Home device. Flip `jellyfin_bind` to
+# `{{ oldsrv_home_ip }}` if a client ever needs :8096 directly.
+jellyfin_bind: "127.0.0.1"
+jellyfin_host_port: 8096                     # host port; the container side stays 8096
+jellyfin_url: "http://{{ jellyfin_bind }}:{{ jellyfin_host_port }}"   # traefik-internal's media-backend
+
+# ==== Tailscale listen port (HD-414) ====
+# 41641 is tailscaled's DEFAULT, so this is not a change — it is the PIN that keeps it
+# true: on a port conflict tailscaled silently falls back to a random port, which would
+# leave any "exactly one UDP exception" rule pointing at nothing. The role writes it to
+# /etc/default/tailscaled (PORT=), which the unit already passes as `--port=${PORT}`.
+tailscale_listen_port: 41641
 
 # ==== Hetzner Storage Box — live (CIFS mount on the VPS, HD-135) ====
 # Immich originals+encoded-video and OpenCloud files live on the live Box (CIFS), mounted

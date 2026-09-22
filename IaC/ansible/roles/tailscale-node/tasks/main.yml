@@ -33,6 +33,22 @@
     state: started
     daemon_reload: true
 
+# HD-414: own the listen port. The deb already ships /etc/default/tailscaled with
+# PORT="41641" and the unit passes `--port=${PORT}`, so on a box that has never been
+# touched this writes an equivalent value — but "the package default happens to be right"
+# is not a statement the router's firewall may depend on: an apt reinstall or an operator
+# edit can move it, and tailscaled falls back to an ephemeral port WITHOUT telling anyone
+# when 41641 is busy. Renders identical bytes on a pinned box → no restart (the handler
+# only fires on a real change).
+- name: Pin the tailscaled listen port (the firewall may name exactly this UDP port)
+  ansible.builtin.template:
+    src: etc-default-tailscaled.j2
+    dest: /etc/default/tailscaled
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart tailscaled
+
 - name: Read the current tailscale backend state
   ansible.builtin.command: tailscale status --json
   register: _ts_status

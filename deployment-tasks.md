@@ -313,9 +313,6 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
 - Rollback: the previous flat config is preserved as `rb4011_flat_backup.rsc` before any reset.
 
 **Deploy-gated verification (Phase 1.5):**
-- [ ] **HD-09** — UPS web-UI firewall rule (80/443 Home→Mgmt for the UPS address only): IaC done, not applied live. · [hardware-ups.md](docs/hardware-ups.md)
-- [ ] **HD-301** — Phase-1.5 bootstrap hardening floor (NTP `address=`, service binding via `available-from=`,
-      disabled-from-first-line block): IaC-only — verify on the device after the NEXT reset. · [network-ops.md](docs/network-ops.md)
 - [ ] residual (Pkg B, `todo.md` §2.1a) — the `trusted-ha` template correction of 2026-09-10 still needs one
       render + `/import` of the converge to make the live rule set match the SSOT.
 

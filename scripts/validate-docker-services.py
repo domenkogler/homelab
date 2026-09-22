@@ -170,6 +170,9 @@ def _load_ssot_ctx():
         # Signal alert recipients (HD-347) — plain non-secret JSON-array string consumed by
         # the n8n compose (SIGNAL_RECIPIENTS) for the homelab-alerts workflow.
         "signal_alert_recipients",
+        # Jellyfin host publish (HD-419) — the plain bind address + host port the jellyfin
+        # compose publishes on, so the home edge (network_mode: host) can reach it.
+        "jellyfin_bind", "jellyfin_host_port",
     ):
         if k in data:
             ctx[k] = data[k]

@@ -28,7 +28,15 @@ tags: [network, topology]
 - **ISP:** Telekom Slovenije
 - **Connection:** PPPoE on `ether1` (ONT: Comtrend GRG-4260us)
 - **IPv4:** Static public IP with domain `kogler.si`
-- **IPv6:** Fully enabled, `/56` prefix via PPPoE
+- **IPv6:** **Scoped, not global.** The ISP delegates a **/56 via DHCPv6-PD on the PPPoE session** — leased
+  (~15 min), not static — and the router advertises one /64 **on the Home VLAN (10) only**. 20/30/40/50/99 get
+  no GUA at all, and because there is no NAT to hide behind there the v6 filter is the inbound protection: it
+  drops everything from the WAN except stateless ICMPv6/DHCPv6, and refuses v6 egress from the untrusted VLANs.
+  Plan of record, invariants and the two-switch rollback: [network-vlans.md](network-vlans.md) §IPv6;
+  measurement + probe runbook: [network-ops.md](network-ops.md) §IPv6. (Until 2026-09-22 this line read "fully
+  enabled" while the device held **no IPv6 addresses at all** — that line described an intent, not the device;
+  the delegation it asserted turned out to be real and unused, which is why the away-session rows below were
+  blocked on it.)
 
 ### Comtrend modem management path (HD-302)
 
@@ -98,6 +106,10 @@ Internet → ONT → router ether1 (WAN)
 - Single VLAN-aware bridge on the router carries all traffic
 - CAPsMAN in `local-forwarding=no` mode (all traffic tunneled to router)
 - No mesh — all APs wired
+- **IPv6 is scoped by construction, not by a rule per VLAN:** only the Home VLAN has a prefix to route, the
+  untrusted VLANs get no GUA, and the v6 forward chain additionally refuses their egress. Nothing on the
+  internet may reach a home host over v6 — the WAN input chain has **no inbound accept at all**, and adding
+  one requires a row that names the one host and port (invariants: [network-vlans.md](network-vlans.md) §IPv6)
 
 > **Status:** VLAN segmentation is **LIVE** — the network is no longer flat. VLAN definitions, subnets
 > and firewall rules: [`network-vlans.md`](network-vlans.md); subnets/DHCP/SSIDs SSOT:

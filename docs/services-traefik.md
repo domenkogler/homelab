@@ -20,6 +20,19 @@ split-horizon DNS is **per instance**: home-hosted apps → `oldsrv_home_ip` on 
 `ha`/`dns-pi` → the home VIP, everything else → the VPS.
 ⏳ **Open:** the Pi `traefik-ha` edge (HD-17), its router-side wiring (HD-03/HD-60), and authorizing the VPS
 public key for the cert-pull + the per-home cert-sync on the issuer side.
+>
+> ⚠ **Reachability rule of this edge (measured 2026-09-22, HD-419):** `traefik-internal` runs
+> `network_mode: host`, so a file-provider route can only reach a backend that **publishes a host socket on the
+> address the route names** — container-only port exposure is invisible to it, and the failure is a silent `502`
+> with nothing in the edge's log. Two live cases, both from the same cause: **jellyfin** (now published on
+> `{{ jellyfin_bind }}:{{ jellyfin_host_port }}` = **loopback**, which is enough for a host-net edge and keeps
+> Jellyfin's login + its CrowdSec/HSTS bypass off the Home VLAN; `media.kogler.si` 502 → 200) and **still open:**
+> `seerr`/`sonarr` measure `502` through this edge today because 5055/8989 are published on **no** interface,
+> and by inspection the rest of the home-hosted group in `routes.yml.j2` (`radarr`, `lidarr`, `prowlarr`,
+> `bazarr`, `aurral`, `slskd`, `lidarr-ydl`, `sab`, `torrent`) is the same shape. **No row covers the remaining
+> ones** — the earlier reading that "unlike seerr/*arr" those publish was wrong. When one is opened, follow the
+> jellyfin pattern: loopback bind + the `*-backend` URL in `routes.yml.j2` pointed at the same var, never the
+> Home IP unless a cross-host backend genuinely needs it.
 
 
 ---

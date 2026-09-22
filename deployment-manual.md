@@ -1041,7 +1041,52 @@ wifi/security/provisioning objects.
 > scp -i <ansible-key> IaC/router/rendered/rb4011_<name>_delta.rsc ansible@<router>:/rb4011_<name>_delta.rsc
 > ssh ansible@<router> '/import rb4011_<name>_delta.rsc'   # 'loaded and executed successfully'
 > ```
-> The `apply-converge.yml` playbook (Ansible path) SCP-uploads + verifies the key (`ssh-keygen -y` load-verify, HD-309) but its final API `/import` step needs `librouteros` in the runner interpreter — if that is missing, use the SSH-import path above (`routeros-apply-delta.sh`).
+> The `apply-converge.yml` playbook (Ansible path) SCP-uploads + verifies the key (`ssh-keygen -y` load-verify, HD-309) but its final API `/import` step needs `librouteros` in the runner interpreter — if that is missing, use the SSH-import path above (`routeros-apply-delta.sh`). ⛔ Note on that playbook's upload step: it uses `ansible.builtin.copy`, which fails on RouterOS's pseudo-filesystem (see [network-ops.md](docs/network-ops.md) §Apply workflow — "Destination / not writable"); `routeros-apply-delta.sh` takes **any** `.rsc` filename, including `rb4011_converge.rsc` itself, and is the transport that works for a full converge too.
+
+> **1.5.3d Scoped IPv6 (Home VLAN) — enable / verify / roll back.** Design, rule order and invariants:
+> [network-vlans.md](docs/network-vlans.md) §IPv6. Measured RouterOS behaviour, the outside-in probe and why
+> certain hosts cannot run it: [network-ops.md](docs/network-ops.md) §IPv6. The converge's IPv6 section carries
+> it, so a normal converge installs it; this is the standalone procedure for proving it or reversing it.
+>
+> ```bash
+> # 0) Does the ISP delegate a prefix at all? A dhcp-client is the only reliable probe — an empty `available=`
+> #    after ~30 s means the network offers nothing. This is the same object the converge owns, so either let
+> #    the converge create it or remove the probe row afterward; never leave a half-configured client behind.
+> ssh <router> '/ipv6 dhcp-client add interface=pppoe-telekom request=prefix+address pool-name=pd-wan6'
+> sleep 30; ssh <router> '/ipv6 dhcp-client print detail'     # want: PD_PREFIX=<delegated prefix> + bound
+>
+> # 1) Render, then apply. Keep the section's internal order = dhcp-client -> filter -> address:
+> #    `from-pool=` resolves only once the pool has bound, and the RA must never precede the filter.
+> bash scripts/ansible-run.sh playbooks/render-converge.yml
+> bash scripts/routeros-apply-delta.sh <router> rb4011_converge.rsc
+>
+> # 2) Device state
+> ssh <router> '/ipv6 address print'                  # exactly ONE ADV=yes row: <prefix>::1/64 on vlan10-home
+> ssh <router> '/ipv6 nd print'                       # vlan10-home ENABLED, advertise-dns=no, M=O=0
+> ssh <router> '/ipv6 nd prefix print'                # ONE DYNAMIC row, same prefix (made by advertise=yes)
+> ssh <router> '/ipv6 firewall filter print stats'    # drop rules carry bytes; the RA/DHCPv6 accepts carry traffic
+> ssh <router> '/ipv6 route print'                    # the router's own default via the ISP's RA
+>
+> # 3) On a Home client: SLAAC took a GUA, v6 egress works, the RA installed a default
+> ip -6 addr show dev <iface> | grep -E 'scope global'
+> curl -6 -sS --max-time 8 https://api64.ipify.org
+> curl -sS  -o /dev/null -w 'v4 still fine: %{http_code}\n' --max-time 8 https://api.ipify.org
+>
+> # 4) Roll back (no host-side cleanup; ra-lifetime=30m ages advertised addresses out by itself)
+> ssh <router> '/ipv6 nd set [find where interface=vlan10-home] disabled=yes'
+> ssh <router> '/ipv6 address remove [find where comment~"^HD-414"]'
+> ```
+>
+> ⚠ **Rule order is the safety property here, not a style point.** The v6 filter is first-match-wins, so every
+> accept (stateful, ICMPv6 types 1/2/3/4, RS/RA/NS/NA 133–136, DHCPv6 546) sits **above**
+> `chain=input action=drop in-interface=pppoe-telekom`, and likewise in `forward`. An accept placed below the
+> drop is never evaluated — and the failure is silent in the bad direction: a probe sees "nothing answered" and
+> reads it as "the filter works".
+>
+> ⛔ The device-side checks above do **not** prove the inbound posture. That needs a probe from a host with
+> working IPv6 outside the home network; run it per [network-ops.md](docs/network-ops.md) §IPv6 (scratch listener
+> on the target, a `dst-port`-scoped temporary accept **above** the drop, check the rule's byte counters, remove
+> the scratch rule in the same sitting).
 
 ✔-evidence on the RB4011:
 

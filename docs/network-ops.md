@@ -77,6 +77,80 @@ Source of truth: the **Jinja templates** (`rb4011_{initial,converge}.rsc.j2`; de
   - **Delta dedup:** importing the same delta twice leaves duplicate rules. They are behaviorally harmless but reconcile only on a full converge — a `--tags network` role run does NOT own the static `ip firewall filter` table, so it will not dedupe them. Remove duplicates via the API by exact `.id` when cleanliness matters.
 - **Verify live state** afterward via the read-only API (`api_facts`, `mikrotik-read.py`) — never assume the import applied.
 
+### IPv6 on the RB4011 — measured facts, the outside-in probe, the rollback (HD-414, 2026-09-22)
+
+Plan of record (what is advertised, which VLANs, the filter's rule order, the invariants):
+**[network-vlans.md](network-vlans.md) §IPv6.** This section is the *operating* half: how to measure it, how to
+prove it is actually filtering, and how to put it back.
+
+**Read the delegation and the advertised state (read-only, safe):**
+
+```bash
+ssh router '/ipv6 dhcp-client print detail'        # pool/available + PD_PREFIX (+ bound/ERROR)
+ssh router '/ipv6 pool print'                      # the /64 taken from the /56
+ssh router '/ipv6 address print'                   # exactly ONE row with ADV=yes (the Home GWA)
+ssh router '/ipv6 nd prefix print'                 # ONE *dynamic* row, same prefix, on vlan10-home only
+ssh router '/ipv6 firewall filter print stats'     # counters per rule = the real proof
+ssh router '/ipv6 route print'                     # the RA-installed default on the router itself
+```
+
+**Mechanism facts measured on 7.24.4** (each cost a failed import to learn; they are not in the RouterOS docs
+in this shape):
+- **`advertise=yes` on the address is what advertises the prefix.** It auto-creates a **dynamic**
+  `/ipv6 nd prefix` row (same prefix, `on-link=yes autonomous=yes`, lifetime follows the DHCPv6 lease). You do
+  **not** add an `nd prefix` row — and you cannot: 7.24 has no `from-pool`/`template`, and the `prefix` attribute
+  wants a concrete prefix, which would hardcode a *leased* value into the converge.
+- **A `disabled=yes` `/ipv6 nd` row does not refuse RA.** RouterOS falls back to the default `interface=all` row
+  and advertises anyway (proved by adding an address on `lo` with a disabled `nd lo` row — `advertise` stayed
+  `yes`). "No RA on this VLAN" is expressed by **not having an advertised address** there, never by a disabled row.
+- `/ipv6 firewall filter` is **first-match-wins** like v4: an accept placed after the drop is unreachable (proved
+  with a scratch listener + a scratch accept below the drop — connection refused, and zero increment on the
+  accept's counter).
+- `/ipv6 dhcp-client` has **no `name=`** (keyed by interface); `/ipv6 nd` takes `advertise-dns` but **not**
+  `hop-limit` (a hop limit belongs on the RA's *prefix* or is left default); `protocol=icmpv6` (not `ipv6-icmp`)
+  with `icmp-options=` accepting **one integer per rule** — `1-4` and `1,2,3,4` are both rejected, so PMTUD/RS/RA
+  coverage costs four rows; `hop-limit` is **not** a matcher in 7.24.
+- `from-pool=` on an address works only **after** the pool has bound (an early add → `couldn't get address from
+  pool`, rc=1); the converge therefore imports the client before the address.
+- ⚠ **`--diff` is forbidden on the router playbook** (`render-converge.yml` runs the `network` role against a
+  RouterOS target — the role's per-task diffs dump the whole rendered config, **including the PPPoE password**, a
+  500-line context around every change). `ansible-vault view` on `group_vars/router.yml` is the safe way to read
+  the file.
+
+**Prove the filter is load-bearing without an outside host (counters, not intent):** traffic that *should* be
+blocked and *is* shows up as byte growth on the specific drop rule —
+`/ipv6 firewall filter print stats` before/after generating it. First-run evidence: WAN input drop 32 pkts/6.8 kB,
+forward-from-WAN drop 67 pkts/5 kB, forward `established` 10k+ pkts (stateful return paths still work), the
+ICMPv6 RS/RA accepts carrying real RAs. Counters reset only at reboot or on the rule's own counter reset.
+
+**The external matrix (the honest acceptance test) — and why it was not closed on 2026-09-22.** The intended
+probe is a scratch TCP listener on oldsrv (`[::]:18099`) plus a *temporary* v6 accept above the WAN drop, then
+`curl -6` from an off-net v6 host and check the router's byte counters. ⛔ **This repo has no off-net IPv6 host
+right now:** the VPS has a GUA (`2a0a:4cc0:60:fcc:…`) and a v6 default route, but `ping6` to the home GUA and to
+`2606:4700:4700::1111` are both 100 % loss, `curl -6` never connects, and no ip6 nftables ruleset is visible —
+netcup's v6 route is not actually working on that box. So the probe was run against itself and returned nothing.
+⛔ **Do not close the row on that** — an untested hole is not a proven-closed hole. Re-run it from a host with
+working v6 (a phone's carrier network counts: LTE UEs get a GUA), or fix the VPS's v6 first.
+⚠ **Scratch rule hygiene** (this is what `routeros-apply-delta.sh` comments are for): a temporary accept **must
+sit above the drop** (below it, it does nothing and the test result is a lie), **must be `dst-port`-scoped**
+(otherwise the first packet of a *scan* matches, the conntrack entry then admits the real target, and the matrix
+reads "everything answered"), and **must be removed in the same sitting** — the router does not expire it.
+
+**Rollback (two switches; nothing else needs undoing):**
+
+```bash
+ssh router '/ipv6 nd set [find where interface=vlan10-home] disabled=yes'   # stop advertising
+ssh router '/ipv6 address remove [find where comment~"^HD-414"]'            # remove the Home GWA
+# optional, only to stop the PD client itself:
+ssh router '/ipv6 dhcp-client remove [find where interface=pppoe-telekom]'
+ssh router '/ipv6 pool remove [find where name=pd-wan6]'
+```
+
+`ra-lifetime=30m`, so SLAAC'd addresses age out on their own and the Home VLAN returns to IPv4-only without
+touching a single host. To reverse it permanently, revert the converge's IPv6 section — **do not** leave the
+device and the plan of record disagreeing.
+
+
 ### Rsc authoring conventions (the rules that make imports safe)
 
 1. **Idempotent by default.** Every `/add` must be guarded so re-import never duplicate-aborts the whole script:
@@ -147,6 +221,14 @@ out of it:
 ---
 
 ## Service Binding & INPUT Firewall (HD-78 / HD-83)
+
+> ✅ **Floor verified on the live device 2026-09-22 (RB4011, RouterOS 7.24.4; closes the HD-301 tail):**
+> `ftp`, `telnet`, `www`, `api-ssl` and `reverse-proxy` are **disabled**; `ssh` (22), `www-ssl` (443),
+> `winbox` (8291) and `api` (8728) are enabled and **every one of them carries
+> `available-from=<the Mgmt subnet>`** — no management service listens unbound, and none answers on WAN.
+> Re-run this check after any factory reset (it is the thing that was missing when the post-reset brute-force
+> happened on 2026-08-31): `/ip service print detail` and confirm the `available-from` on every enabled row.
+
 
 - **Bootstrap (HD-83 / KOPS-003/042):** in `rb4011_initial.rsc.j2` every management service
   (`api`, `www-ssl`, `ssh`) is **bound to the Management VLAN interface** (`interface=vlan{mgmt}-mgmt`)

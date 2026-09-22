@@ -1,0 +1,13 @@
+---
+# tailscale-node handlers
+
+# Fires whenever /etc/default/tailscaled changes — which is ONE more time than "the port
+# moved": the first converge after this task landed rewrote the Debian-shipped file (same
+# PORT value, different comments) and restarted the daemon. Later converges are inert.
+# Cost of a restart: in-flight sessions drop for a couple of seconds. The node key and state
+# file survive, so it rejoins as the SAME node with the SAME tailnet IP — no re-enrolment, no
+# new key, no re-tagging. Measured on oldsrv 2026-09-22: 2.67 s, then 100.64.0.x intact.
+- name: Restart tailscaled
+  ansible.builtin.systemd_service:
+    name: tailscaled
+    state: restarted

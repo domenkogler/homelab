@@ -431,6 +431,89 @@ add chain=input action=drop protocol=udp dst-port=161 comment="Drop SNMP from no
 add chain=input action=accept src-address-list=internal_lan protocol=tcp dst-port=53 comment="Allow DNS input from LAN tcp"
 add chain=input action=accept src-address-list=internal_lan protocol=udp dst-port=53 comment="Allow DNS input from LAN udp"
 
+# ---- IPv6 (HD-414): scoped dual-stack — the FILTER lands before any prefix does ----
+# Why this section exists: IPv4 inbound safety is an accident of NAT, and IPv6 has no
+# NAT — once Home devices hold a GUA, an unsolicited packet from the internet reaches
+# them unless WE drop it. The invariant this section holds: no address on any VLAN
+# loses its IPv4-only protection without an explicit filter decision, and the filter
+# decision must be in place BEFORE the prefix is live, so the section is ordered
+# delegation → filter → addressing/RA and never reordered by a later edit.
+# Measured on the live ISP 2026-09-22 (was assumed absent in HD-405): DHCPv6-PD
+# delegates `2a00:ee2:2700:8f00::/56` over `pppoe-telekom`. The prefix is therefore
+# NEVER written into a row below: the Home address is `<prefix from the pool>::1/64`
+# and `advertise=yes` puts THAT /64 in the RA, so a re-delegation heals itself.
+# What is deliberately NOT here, and why (HD-414 row tail carries the follow-up):
+#   * No inbound `udp 41641 -> oldsrv` accept. It needs one predictable destination
+#     address and oldsrv has none today — measured on the box: its Home NIC is
+#     `addr_gen_mode=1` (RFC 7217 stable-privacy) with `use_tempaddr=2`, so SLAAC
+#     gives it a hashed address plus rotating temporary ones. Pinning it is a host-side
+#     decision (roles/network) that no v6 row here can make for it. Tailscale's punch
+#     still works, because the phone's packets are replies to oldsrv's own first
+#     packet and rule 1 (`established,related`) admits those.
+#   * No MLD (130-132) accept: nothing here sends IPv6 multicast to the ISP.
+# RouterOS filter is FIRST-MATCH-WINS, so every exception sits ABOVE its drop (same
+# idiom as the WireGuard listen-port rule in the IPv4 input chain above).
+# Syntax below is verified against this device (7.24.4), which differs from the older
+# property names: `protocol=icmpv6` (not ipv6-icmp), `icmp-options=<single int>` (no
+# lists, no ranges), no `name=` on /ipv6 dhcp-client (it is keyed by interface), and no
+# `from-pool` on /ipv6 nd prefix (advertise on the address is the SLAAC mechanism).
+
+# (1) The delegation itself. No default route and no ISP DNS from here: the v6 default
+#     route already arrives with the ISP's own RA, and DNS stays on the Technitium
+#     chain the DHCP path hands out (docs/network-dns.md).
+/ipv6 dhcp-client remove [find where interface=pppoe-telekom]
+/ipv6 dhcp-client add interface=pppoe-telekom request=prefix pool-name={{ network_ipv6.pool }} \
+    pool-prefix-length=64 prefix-hint={{ network_ipv6.prefix_hint }} \
+    add-default-route=no use-peer-dns=no comment="HD-414 DHCPv6-PD (the delegated prefix lands in the pool)"
+# The pool only exists once the client has bound — give the Solicit/Advertise exchange
+# a moment so the address row below resolves on the first import.
+:delay 3s
+
+# (2) The filter. Whole-chain rebuild, the way the IPv4 chains above are owned.
+/ipv6 firewall filter remove [find chain=input]
+/ipv6 firewall filter remove [find chain=forward]
+/ipv6 firewall filter
+add chain=input action=accept connection-state=established,related comment="HD-414 v6 established/related (also what admits a tailscale hole-punch reply)"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=1 comment="HD-414 v6 icmp dest-unreach (RFC 4890 errors)"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=2 comment="HD-414 v6 icmp packet-too-big — PMTUD; black-holing this is the classic silent-v6 breakage"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=3 comment="HD-414 v6 icmp time-exceeded"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=4 comment="HD-414 v6 icmp parameter-problem"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=133 comment="HD-414 v6 router-solicitation (ND on the WAN link)"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=134 comment="HD-414 v6 router-advertisement — the ISP's RA carries the ::/0 route"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=135 comment="HD-414 v6 neighbor-solicitation"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=136 comment="HD-414 v6 neighbor-advertisement"
+add chain=input action=accept in-interface=pppoe-telekom protocol=udp dst-port=546 comment="HD-414 DHCPv6-PD replies the server starts (a Renew/Reconfigure it pushes is new, not related)"
+add chain=input action=drop in-interface=pppoe-telekom comment="HD-414 drop all other new-from-WAN — IPv6 has no NAT, so this rule IS the inbound protection"
+add chain=forward action=accept connection-state=established,related comment="HD-414 v6 established/related"
+add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=1 comment="HD-414 forwarded v6 icmp dest-unreach"
+add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=2 comment="HD-414 forwarded PMTUD — Home hosts must see packet-too-big or their connections stall silently"
+add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=3 comment="HD-414 forwarded v6 icmp time-exceeded"
+add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=4 comment="HD-414 forwarded v6 icmp parameter-problem"
+add chain=forward action=drop in-interface=pppoe-telekom comment="HD-414 no unsolicited v6 into any VLAN (any future exception goes ABOVE this line)"
+# The no-v6 VLANs keep it that way even if someone later advertises a prefix at them:
+# egress from them is refused, which mirrors what IPv4 routing + HD-337/338 already give them.
+{% for v in network_vlans if v.id not in network_ipv6.slaac_vlan_ids and v.id != 99 %}
+add chain=forward action=drop in-interface=vlan{{ v.id }}-{{ v.name|lower }} comment="HD-414 no v6 egress from {{ v.name }} ({{ v.id }}) — this VLAN stays IPv4-routed"
+{% endfor %}
+add chain=forward action=drop in-interface=vlan99-mgmt comment="HD-414 no v6 origin from Mgmt — mirrors the v4 drop-mgmt-origin"
+
+# (3) Addressing + RA, LAST. One advertised address device-wide = the invariant "RA on
+#     the Home VLAN only"; a `disabled=yes` /ipv6 nd row would NOT express it (the
+#     `interface=all` default row advertises again — measured on the device).
+/ipv6 address remove [find where comment~"^HD-414"]
+{% for v in network_vlans if v.id in network_ipv6.slaac_vlan_ids %}
+/ipv6 address add address={{ network_ipv6.router_address_suffix }} interface=vlan{{ v.id }}-{{ v.name|lower }} from-pool={{ network_ipv6.pool }} advertise=yes comment="HD-414 {{ v.name }} GWA (fixed suffix, prefix taken from the pool)"
+{% endfor %}
+{% for v in network_vlans if v.id in network_ipv6.slaac_vlan_ids %}
+/ipv6 nd remove [find where interface=vlan{{ v.id }}-{{ v.name|lower }}]
+/ipv6 nd add interface=vlan{{ v.id }}-{{ v.name|lower }} disabled=no ra-preference=medium hop-limit=64 \
+    advertise-dns=no managed-address-configuration=no other-configuration=no \
+    comment="HD-414 SLAAC on {{ v.name }} ({{ v.id }}) only — DNS stays on the DHCP path"
+{% endfor %}
+:if ([/ipv6 pool find where name={{ network_ipv6.pool }}] = "") do={
+    :log warning "HD-414: pool {{ network_ipv6.pool }} is not bound yet — the Home v6 address and its RA prefix stay invalid until the DHCPv6-PD delegation lands"
+}
+
 # ---- Services (mgmt-scoped, dangerous disabled — HD-301) ----
 /ip service set telnet disabled=yes port=23 available-from={{ router_services_available_from }}
 /ip service set ftp disabled=yes port=21 available-from={{ router_services_available_from }}

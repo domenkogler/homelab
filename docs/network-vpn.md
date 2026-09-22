@@ -379,6 +379,25 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > dies in *our own* input chain. The relayed result therefore **cannot** be attributed to the carrier on this
 > evidence; both causes stay open. HD-414 (IPv6) is what forces the answer, and if v6 also comes back relayed
 > the cheap next experiment is a v4 `dst-nat` + input accept on one pinned UDP port to one host — not a DERP.
+>
+> 📡 **Updated 2026-09-22: HD-414 landed, so that precondition is now true — and one of the two open causes is
+> already closed.** IPv6 is live on the Home VLAN ([network-vlans.md](network-vlans.md) §IPv6), oldsrv took a GUA
+> by SLAAC, and `tailscale netcheck` on it went from `IPv6: no, but OS has support` to **`IPv6: yes`, fra 14.5 ms**.
+> Two corrections to the paragraph above, both measured rather than inferred: (1) it is true that **`41641`
+> appears nowhere in the converge, and that is correct** — the "unsolicited punch packet dies in our own input
+> chain" argument does not hold, because the punch makes the far side's packets *replies* from oldsrv's point of
+> view and `established,related` is rule 1 in both v6 chains; so no inbound accept was needed for the common case
+> and none was shipped (HD-414's deliberate non-implementation: oldsrv's Home NIC is stable-privacy +
+> temporary-address, so there is no destination to pin). (2) `tailscaled` is no longer unpinned —
+> `/etc/default/tailscaled` `PORT="41641"` is owned by the `tailscale-node` role and `ss` confirms
+> `0.0.0.0:41641` + `[::]:41641`. ⚠ **Do not read netcheck's trailing port as the disco port:** the
+> `IPv6: yes, [<GUA>]:<port>` line is the *DERP-side STUN observation* and it differed between two runs minutes
+> apart; the socket a peer must reach is 41641. ⛔ **The one number that decides HD-406/HD-410 is still
+> unmeasured:** whether the phone on cellular now negotiates **Direct**. That is a 3-minute owner measurement
+> (`tailscale ping <oldsrv's tailnet address, SSOT `tailnet_oldsrv_ip`>` over LTE + the app's session-type line, with `/ipv6 firewall filter print stats`
+> before/after on the router). ⛔ And note for any future off-site v6 probe: the **VPS cannot take it** — it has a
+> GUA and a v6 default route but no working IPv6 (100 % `ping6` loss to the home GUA and to Quad1111, `curl -6`
+> no connect, no ip6 nft ruleset) — see [network-ops.md](network-ops.md) §IPv6.
 
 **Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the
 moved `dsh`/`pi-dev`) remain reachable by **publishing a host port bound to `oldsrv_home_ip`** + a

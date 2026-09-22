@@ -214,11 +214,11 @@ Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
 
 ### A / AAAA policy
 
-- **Public (Cloudflare, DNS-only):** publish **A + AAAA** for the internet-facing set — same list as the mirror in [`services.md`](services.md) §Domain & Subdomain Plan. The home `/56` prefix is **static** (unchanged for 7+ years), so AAAA is safe and enables real dual-stack. Assign oldsrv a **fixed global IPv6** from the /56 for its AAAA.
+- **Public (Cloudflare, DNS-only):** publish **A + AAAA** for the internet-facing set — same list as the mirror in [`services.md`](services.md) §Domain & Subdomain Plan. ⚠ **The "static /56" premise is now measured, and it is weaker than written:** the home prefix arrives as a **DHCPv6-PD lease** (measured 2026-09-22: `2a00:ee2:2700:8f00::/56`, ~15 min lease, renewing) that has not changed in years — same value, but it is *leased*, so any AAAA pointing into it must survive a re-delegation (which is why the router takes its own address from the pool instead of hardcoding the prefix: [network-vlans.md](network-vlans.md) §IPv6). Assign oldsrv a **fixed global IPv6** from the /56 for its AAAA — which today it does **not** have: its Home NIC uses stable-privacy + temporary addresses, so nothing there is assignable (that host-side change is `roles/network`, and it is the missing prerequisite in HD-414's one-host firewall exception).
 - **Manually or via Ansible:** the public record list is the SSOT in `IaC/ansible/roles/cloudflare_dns/vars/main.yml`, applied by `playbooks/dns.yml` (control node, `community.dns.cloudflare_dns`, token `cloudflare_api` in 1Password `Homelab-ansible`; **IP-filtered to the home WAN address — run from the home control plane only**). Records for the VPS public edge (`vps` → the VPS public A/AAAA) are already listed; add each `*.kogler.si` service there as it moves onto the VPS.
 - **Matrix delegation (public):** the homeserver name is `kogler.si`, delegated to `matrix.kogler.si` — publish `_matrix._tcp` SRV (`matrix.kogler.si 443`) and serve `_matrix/client` + `_matrix/server` well-known on `kogler.si` and `matrix.kogler.si` (Caddy/Traefik static host or an intermediate). Required for clean `@user:kogler.si` IDs and federation (see [`services-matrix.md`](services-matrix.md)).
 - **Internal (Technitium):** serve **A (IPv4)** for all hosts/services — primary, deterministic, matches the static VLAN/IPv4 plan and the IPv4 inter-VLAN firewall.
-- **Internal AAAA: REJECTED for now (HD-36).** Static prefix would allow it, but it needs stable per-host global addressing **and** mirroring inter-VLAN isolation in the IPv6 firewall (currently IPv6 is WAN-only). No current internal-IPv6 need; IPv4-first internally. Revisit only if a concrete requirement appears. Decision log: [network-rejected.md](network-rejected.md) HD-36.
+- **Internal AAAA: REJECTED for now (HD-36).** It needs stable per-host global addressing **and** mirroring inter-VLAN isolation in the IPv6 firewall. ⏳ **Status check 2026-09-22 (IPv6 is live on the Home VLAN — the rejection still stands, on the first reason):** isolation is now mirrored for real (v6 filter + no prefix on 20/30/40/50/99, [network-vlans.md](network-vlans.md) §IPv6), but stable per-host addressing is **more** clearly missing than before — measured, oldsrv's Home NIC runs `addr_gen_mode=1` (RFC 7217) with `use_tempaddr=2`, so the only addresses a home host gets are a hashed stable-privacy GUA plus rotating temporaries. Nothing name-able, no AAAA. Revisit only with a concrete requirement **and** pinned host addresses (`IPv6Token=` / static assignment in `roles/network`). Decision log: [network-rejected.md](network-rejected.md) HD-36.
 
 ---
 
@@ -257,6 +257,35 @@ headscale in the pinned version accepts a **node address** as a nameserver; that
 interface; and above all that a phone at home really does reach the node **direct-over-LAN with the WAN pulled** —
 that one property is the entire design, so the acceptance test is the three-case drill (LAN / cellular / home with
 the WAN pulled), not a `dig` from the laptop. Decision log: [network-rejected.md](network-rejected.md) 2026-09-21.
+
+⏳ **2026-09-22: investigated inside the HD-414 lane and deliberately NOT shipped.** Three measurements, each of
+which changes the design as written above — recorded here so the next implementer does not re-derive them:
+
+1. **"Technitium binds it" is already true and needs no change.** Live oldsrv Technitium listens on `0.0.0.0:53`
+   + `[::]:53`, which already covers the node address (SSOT `tailnet_oldsrv_ip`). `InterfaceListeners` would buy nothing here —
+   it is not the blocker, so do not open it under this row's name.
+2. **The blocker is the headscale ACL, not the bind.** `tag:dev`'s accept rule names **`tcp 443` only**, so a
+   tailnet node's udp/53 is dropped by the net pol whatever listens. Shipping the nameserver entry alone produces
+   a *worse* failure than today: the broken entry enters the tailnet search path and the "resolver error: server
+   misbehaving → fall through to the next server" behaviour gets absorbed by the tailscale domain. So this row is
+   a **policy widening** (`udp 53` to that one node IP, and the same question for every node that will ever be
+   named) plus a control-plane change — not a template tweak. ⛔ Owner gate either way: landing it is a headscale
+   stop/start, and every tailnet device reconnects.
+3. **The boundary of what actually needs a resolver is narrower than the row assumes.** MagicDNS
+   (`100.100.100.100`, first in the chain per HD-371) answers the **tailnet dashboard set** — `stats`/`logs`/
+   `csui`/`sec`/`traefik`/`auto` in both namespaces — **client-side on any network**, because those are
+   `extra_records` in `config.yaml.j2`. The **home-hosted app names** (`media`, `seerr`, the *arr set, downloads)
+   are **not** `extra_records`, so they still need a reachable resolver: away that is the VPS Technitium
+   (`dns_primary_ip`), and at home with the WAN pulled it is the **oldsrv entry** — which is precisely the entry
+   the redesign wants to re-address. So case (c) does not get easier from MagicDNS, and the node-address swap must
+   be proven in exactly that scenario. Also measured: nothing on the router routes the tailnet range into
+   `wg-s2s`, so a tailnet-served RA reaching home resolution with the home WAN down would need router work too —
+   that is the leg the three-case drill has never exercised.
+
+⛔ So the row stays open as: **owner call on the ACL widening** (it reverses the "443 ONLY" wording) → publish the
+node-address nameserver → converge headscale at an authorized moment → **then** the three-case drill, including the
+never-yet-proven case (c): phone at home on **cellular**, home WAN pulled, resolving a home-hosted
+`*.kogler.si` name. Do not call it done on a `dig` from the laptop.
 
 ---
 
