@@ -6,6 +6,9 @@
 #   1. validate-docker-services.py  — compose templates + group_vars list
 #   2. validate_blueprints.py       — Authentik ks-oidc.yml blueprint shape
 #   3. check_doc_ips.py            — no internal IP literals outside the SSOT
+#   3b. check_traefik_host_rules.py — no whitespace inside a Host() rule (HD-432: a
+#                                     template-space bug made ha.ts.kogler.si unmatchable
+#                                     for months while every converge reported success)
 #   4. validate_doc_templates.py   — SSOT doc templates render with group_vars
 #   5. validate-secrets.py         — no literal credentials in group_vars/templates
 #   6. check_doc_map.py            — docs/index.md document map matches docs/ tree
@@ -95,6 +98,9 @@ $PY scripts/validate_blueprints.py
 
 echo "== check_doc_ips.py =="
 $PY scripts/check_doc_ips.py
+
+echo "== check_traefik_host_rules.py =="
+$PY scripts/check_traefik_host_rules.py
 
 echo "== validate_doc_templates.py =="
 $PY scripts/validate_doc_templates.py

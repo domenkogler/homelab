@@ -331,6 +331,27 @@ about the unreachable control plane is expected and is not the failure). Read th
 the internal zone returns **LAN** addresses no away device can route to. A laptop at home may instrument case
 (c) but does not prove it.
 
+> ⚠ **Measured 2026-09-22, the day the chain shipped: a delivered tailnet chain is *advisory* unless the
+> domain is split to it.** `dns.override_local_dns: false` is deliberate (the tailnet must not become a DNS
+> exit, and the nodes refuse a wildcard listener on `:53`), and its meaning is exactly Tailscale's wording —
+> *"by default, your tailnet's devices use their local DNS settings for all queries."* So the chain is
+> installed but consulted only for MagicDNS-local names and for domains named in `dns.nameservers.split`.
+> Measured, same afternoon, tailnet connected: the Windows laptop resolved the internal zone from **the Pi's
+> LAN resolver address, not from the chain**; and a phone on cellular got an authoritative NXDOMAIN for a
+> name that has never existed outside the internal zone — oldsrv's `tailscale0` forward counter sat at
+> **9 packets before and 9 after** the lookup (while the container's `udp/53` DNAT counter moved on ordinary
+> LAN traffic alone), i.e. **the node was never asked**. The chain itself is sound and reachable: `dig`
+> against the node's tailnet address answers the zone from off-site. What is missing is the zone being
+> **addressed** to it, which is a `split` decision, not an ordering one → **HD-432**.
+> Two more measurements from the same pass, both load-bearing for that decision. (1) The **VPS** instance
+> serves the media family only to sources it treats as internal — `NOERROR` with the VPS edge as the answer
+> from the home WAN, `NXDOMAIN` from an away source, same instance, same name — so a co-equal VPS entry in
+> the chain is not merely unhelpful away from home, it actively answers `NXDOMAIN` for names the node entry
+> serves; a two-instance chain of *different views* is a race, which is why the old chain's symptom was
+> never a clean failure. (2) The **Pi** answers the internal zone from its own copy (`ha` → the VIP,
+> `media` → oldsrv's LAN address, queried directly), which is why a dead oldsrv does not take home
+> resolution down with it — the home DNS chain is not as single-homed as the VPN doc's one-liner implies.
+
 ---
 
 ## MikroTik Firewall Rules for DNS

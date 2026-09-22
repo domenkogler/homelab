@@ -336,6 +336,22 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 80/22/8081 blocked** (the ACL is really port-scoped); `https://ha.ts.kogler.si` → **200**, TLS
 `CN=*.ts.kogler.si`, ~70 ms.
 
+> ⛔ **That `→ 200` is not true and cannot have been true when it was written (measured 2026-09-22).** The
+> `ha-ts` rule shipped, in the very commit that introduced it, with literal spaces inside the matcher —
+> `Host(`ha. {{ tailnet_base_domain }} `)` — so it rendered as `Host(`ha. ts.kogler.si `)`. Traefik compares
+> a Host matcher **byte-for-byte**, so the router could never match a request and answered its default
+> **404** while everything around it was healthy: entrypoint bound to the node's tailnet address, ACL
+> accepting 443, MagicDNS extra_record published, backend pointed at the HA VIP. Reproduced at 404 from an
+> off-site laptop and again from an on-LAN laptop reaching the node over the tailnet. Fixed the same day (one
+> line, the spaces) and re-measured: `https://ha.ts.kogler.si/api/` → **401**, and the node-name host in the
+> same rule likewise — 401 is Home Assistant answering behind the proxy, which is the intended answer.
+> Two consequences that matter more than the typo: **the 2026-09-21 ✅ acceptance matrix could not have
+> exercised T1 through this router**, so that T1 is unverified history rather than a closed fact (re-verify
+> on the phone, HD-433); and the bug class — Jinja whitespace inside a matcher — passes `--check`, survives
+> review, and is silent at runtime, so it now has a validator, `scripts/check_traefik_host_rules.py`,
+> mutation-tested by re-injecting the space.
+
+
 > ⚠ **The verification host was NOT off-LAN.** The laptop chosen for this pass had a *wired* home path live:
 > its Windows default route pointed at the home router over the `VLAN-Switch` vNIC (a Home-VLAN address per
 > [network-addresses-generated.md](network-addresses-generated.md)), so probes to Home-VLAN and IoT-VLAN

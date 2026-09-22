@@ -176,7 +176,7 @@ http:
     # NO forward-auth here either — same reason as `ha`: Authentik would break the Companion
     # app's token/WebSocket flow (docs/smart-home.md).
     ha-ts:
-      rule: "Host(`ha. {{ tailnet_base_domain }} `) || Host(` {{ tailnet_oldsrv_node_name }} . {{ tailnet_base_domain }} `)"
+      rule: "Host(`ha.{{ tailnet_base_domain }}`) || Host(`{{ tailnet_oldsrv_node_name }}.{{ tailnet_base_domain }}`)"
       entryPoints:
         - websecure-ts
       middlewares:
