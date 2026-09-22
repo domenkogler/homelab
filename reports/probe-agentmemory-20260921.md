@@ -6,8 +6,16 @@
 > this report).
 > Registers **no `HD-XX` row**, opens **no todo item**, applies **no** IaC/doc/config change. Nothing was
 > decided here; the owner decides.
-> **Ran:** 2026-09-21 22:59 → 2026-09-22 01:45 UTC, ephemeral on **oldsrv** under the **`domen` seat**
+> **Ran:** 2026-09-21 22:59 → 2026-09-22 01:45 **local (CEST)** — the label in the first draft said UTC; the
+> evidence-file mtimes (23:52 → 01:45 local) and the lane's 01:56 `+0200` commit say otherwise. Ephemeral on **oldsrv** under the **`domen` seat**
 > (`sudo -u domen`, HD-409), torn down in §12.
+> ⚠ **Citation correction (verified 2026-09-22):** this report and [`probe-ov-20260921.md`](probe-ov-20260921.md)
+> cite **`HD-423`, `HD-425`, `HD-426`** as if they were registry rows. **They never were** — no such row appears in
+> `todo.md` in any commit (`git log --all -S "| HD-423 |"` = 0 hits, same for 425/426) and no commit message names
+> them; the registry's next-free id was HD-421 when both lanes ran. The **rules** they point at are real and live in
+> [`../docs/services-ai.md`](../docs/services-ai.md) §9b (the dims-1024 pin + the per-caller model-name rule) and in
+> [CONVENTIONS.md](../CONVENTIONS.md) §6 with the **HD-233/HD-234** rotation-and-readback precedent (verify by
+> re-issuing, lengths/prefixes only). Do not go looking for those rows, and do not re-register them.
 > **Evidence:** [`probe-agentmemory-20260921/`](probe-agentmemory-20260921/) (scripts, raw JSON, redacted
 > server logs). Scoring scripts and the 10-question set are the OV lane's
 > ([`probe-ov-20260921.md`](probe-ov-20260921.md)), and the grep baseline was **re-run, not borrowed** (§3.3).

@@ -615,8 +615,16 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
   * **The vector leg is an upgrade, not a dependency** — hybrid on our `bge-m3` @1024 beat keyless BM25-only
     **9/10 vs 7/10** hit@5 and **8/12 vs 6/12** exact-identifier recall, at ≈2× recall latency (398 vs 455 tok).
     Memory therefore does **not** depend on LiteLLM; if the leg is used, pin
-    **`OPENAI_EMBEDDING_DIMENSIONS=1024`** (upstream `resolveDimensions()` falls back to **1536**) and send the
-    model name **bare** (`openai/bge-m3-vk` → 400; `dimensions` is accepted-and-ignored on our leg).
+    **`OPENAI_EMBEDDING_DIMENSIONS=1024`** (upstream `resolveDimensions()` falls back to **1536**) and, in **this
+    product's** embedding call, send the model name **bare** (`openai/bge-m3-vk` → 400; `dimensions` is
+    accepted-and-ignored on our leg). ⚠ The name rule is **per caller, not global**: OpenViking's own slot config
+    needed the provider **prefix** and rejected the bare name (OV probe §2), while our leg rejects the prefix. Two
+    callers, two rules — verify per caller, never copy one into the other.
+  * **Phantom ids to ignore:** both probe reports cite **HD-423 / HD-425 / HD-426** as registry rows. They never
+    existed — no such row in any commit of [todo.md](../todo.md), no commit message naming them, and HD-421 was the
+    next-free id while both lanes ran. The rules they gestured at are the bullets above plus the **HD-233/HD-234**
+    rotation-and-readback precedent in [CONVENTIONS.md](../CONVENTIONS.md) §6. If a probe reuses those ids again,
+    that is the drift to correct, not a row to re-create.
   * **"Central" is not buildable as briefed on 0.9.29** — REST binds `127.0.0.1` and the CLI **re-renders that
     config every boot**, so a LAN bind needs an **authenticating forwarder/proxy** (upstream **#523**); auth is
     **one shared bearer** (no per-client tokens); **`TEAM_MODE`/`TEAM_ID`/`USER_ID` never reach

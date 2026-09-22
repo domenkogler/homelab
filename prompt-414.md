@@ -1,6 +1,7 @@
 # `prompt-414.md` — Lane brief · dual-stack the home edge, then close the remote-dev transport (HD-414 · HD-415 · HD-405 tail · HD-410 · HD-406 · + HD-419 · HD-09 · HD-301 · HD-159)
 
-> **Role:** successor to [prompt-405.md](prompt-405.md). That lane shipped the transport (HD-405 LIVE: `oldsrv`
+> **Role:** successor to `prompt-405.md` (the closed transport banner — the orchestrator deleted that file
+> 2026-09-22 with the link fixes in the two views; audit trail `git log --follow prompt-405.md`). That lane shipped the transport (HD-405 LIVE: `oldsrv`
 > is a headscale node on `tag:dev:443`, `ha.ts.kogler.si` served from oldsrv's own edge) and **measured the
 > assumption the thread was built on — and it did not survive.** First away session ever run to the node
 > (owner's phone, cellular): **`Relayed connection (FRA)`, 60–90 ms**, i.e. the data path left the VPS and
@@ -58,7 +59,7 @@ not enabled fleet-wide.
 | 6d | **HD-301 tail** *(merged)* | the Phase-1.5 bootstrap-hardening tail rides the same converge | Same reason as 6c: one router session, one import, one verification |
 | 6e | **HD-159** *(optional — window-gated)* | prove `wg-s2s-down` fires by taking the tunnel down deliberately, once | ⛔ **Owner's window first** (O4): it drops the S2S tunnel and fires a CRIT alert. Take it only with the window stated in the row, otherwise park it with the exact command |
 | 7 | hygiene | Retired **preauth keys 4 (`tag:pi-dev`) + 5 (`tag:dsh`)** are live, reusable and non-expiring on headscale for services that no longer exist. The tombstones in [deployment-secrets.md](docs/deployment-secrets.md) do not revoke them — headscale does | one `headscale preauthkeys expire` each; report ids only, never values |
-| 8 | hygiene | **The orchestrator — not this lane — deletes [prompt-405.md](prompt-405.md).** It is a closed banner; its facts live in this brief + the SSOT docs and its audit trail is `git log --follow prompt-405.md` | Rewritten 2026-09-21: under [prompt.md](prompt.md) §4 O7 the deletion belongs to the parent's cleanup commit, made **together with** the link fixes in `prompt.md`, `todo.md` and `todo-table.md`. Those three are what `check_doc_map.py` actually scans — it **excludes `prompt-*` files**, so links *between* briefs are not checked at all (what this row previously asserted overstated the gate). **Do not hand-edit another live lane's brief and do not delete a brief yourself** |
+| 8 | hygiene | **The orchestrator — not this lane — deletes a brief.** It did so for `prompt-405.md` on 2026-09-22 (a closed banner: its facts live in this brief + the SSOT docs, audit trail `git log --follow prompt-405.md`; the path no longer resolves on disk) | Rewritten 2026-09-21: under [prompt.md](prompt.md) §4 O7 the deletion belongs to the parent's cleanup commit, made **together with** the link fixes in `prompt.md`, `todo.md` and `todo-table.md`. Those three are what `check_doc_map.py` actually scans — it **excludes `prompt-*` files**, so links *between* briefs are not checked at all (what this row previously asserted overstated the gate). **Do not hand-edit another live lane's brief and do not delete a brief yourself** |
 
 ## HD-414 spec
 
