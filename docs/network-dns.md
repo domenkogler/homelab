@@ -352,6 +352,88 @@ the internal zone returns **LAN** addresses no away device can route to. A lapto
 > `media` → oldsrv's LAN address, queried directly), which is why a dead oldsrv does not take home
 > resolution down with it — the home DNS chain is not as single-homed as the VPN doc's one-liner implies.
 
+## The answer-plane model (decided 2026-09-22 — HD-415 closed, HD-432/433 decided, HD-435/436 opened)
+
+One namespace, three planes, and **the answer must be routable by the client that receives it.**
+That single rule is what the previous section's measurements forced out of the design: a tailnet
+chain that resolves a name to an address the client cannot route to is not resolution, it is a
+black hole with extra steps.
+
+| plane | who answers | what the client gets | what it survives |
+|---|---|---|---|
+| **public** | Cloudflare | published names → the VPS edge | anything at home dying |
+| **tailnet** | **the client's own netmap** (headscale `extra_records`, answered by MagicDNS locally) | pinned names → a **tailnet address** (VPS edge, oldsrv's node, later the Pi's node) | every home box dying, headscale dying, the WAN dying — resolution is cached on the device; only reachability varies |
+| **LAN** | the Pi's Technitium (secondary of the VPS primary) | internal answers: the VIP for `ha`, oldsrv's edge for the media family, the VPS for public names | oldsrv dying; **not** the Pi dying → fixed by the dual-resolver decision below |
+
+**Decided, each with the reason that decided it:**
+
+1. **No split-DNS** (`HD-432`, owner 2026-09-22). Splitting the zone to a tailnet resolver would
+   answer `media` with a LAN address to a phone on cellular — correct, unreachable — would have **no
+   fallback** (a split domain is never asked of the OS resolver), and would pin whole-zone resolution
+   to one box. What is needed is *reachable answers*, which is what extra_records are.
+2. **`dns.override_local_dns` stays `false`.** The tailnet does not become a DNS exit. The consequence
+   is accepted knowingly: the delivered nameserver chain is advisory (measured above), and nothing in
+   this design depends on a client being forced to a resolver.
+3. **Admin surfaces that are tailnet-only stay tailnet-only, and the LAN zone stops lying** (owner
+   choice (a), 2026-09-22). The zone currently answers `stats`, `logs` and `csui` to **LAN** clients
+   with a tailnet address — unresolvable-by-design for a device without the tailnet, presented as a
+   successful answer. The rule going forward, as a generator invariant: a name marked tailnet-only is
+   **never seeded into the LAN-facing view**; a LAN client gets a clean `NXDOMAIN` ("not here") rather
+   than a black hole. Publishing Dozzle / the CrowdSec UI on the public edge was the alternative and
+   was declined — that option puts container logs and the security console on the open internet.
+4. **LAN clients get two resolvers.** The router hands out **both** the Pi and oldsrv. Today the Pi is
+   the only DNS the router advertises, so a Pi outage takes home resolution down completely — including
+   `ha.kogler.si` and SSO's internal answer — while a Technitium primary sits idle on oldsrv. No VIP, no
+   runbook step, nothing to move: this is the same shape as decision 6.
+5. **`extra_records` move to the watched file** (`dns.extra_records_path`), so no record edit ever
+   restarts the control plane again. Two hazards carried with it: `dns.extra_records` and
+   `dns.extra_records_path` are **mutually exclusive** in the pinned version (both set → the process
+   exits at startup), so the swap is atomic or it takes the control plane down; and a "container is
+   Running" post-check is **not** liveness, because a fatal config leaves a crash-looping container
+   reporting `running`. The guarded-converge assert gets a real probe before that swap is allowed.
+6. **`HD-435`: the Pi joins the tailnet and HA's names get two A records** (Pi + oldsrv). Both boxes
+   proxy to the VIP, so the answer follows HA in either direction. Flagged as **designed, not yet
+   measured**: multi-A fall-over on a real client must be proven with a plug-pull before it is relied on.
+7. **HA's one URL is the plain `ha.kogler.si`** — see [network-vpn.md](network-vpn.md) §Tailnet boundary.
+   The `.ts` twin stays as a free alias.
+
+### `zone_kogler_si` — the zone as one derived list (HD-436)
+
+The zone's membership is currently maintained in **three** places (the Technitium seed's inline record
+list, headscale's `tailnet_subdomains` / `tailnet_ts_only_subdomains` lists, and the public Cloudflare
+set) and a **fourth** exists as unversioned state on a workstation. The refactor deletes all three
+lists by deriving them.
+
+There is already a machine-readable source: the `docker_services` entries in `group_vars` carry
+`name`, `subdomain`, `public:` and `enabled:`, and `docs/services-inventory-generated.md` renders them.
+So `zone_kogler_si` is **derived from those entries**, not hand-typed, with three added fields:
+
+```yaml
+internal: true|false            # seed into the LAN-facing zone
+tailnet: none|edge|node|dual    # answer published into every client's netmap (decision 3 applies)
+ts_router: true|false           # attach this service's router to the tailnet listener
+```
+
+rendered into: the Technitium seed, the watched records JSON, the public Cloudflare set, and the tailnet
+listener's router list — with a validator that fails the build on the mismatch classes (see the table
+below), and an optional **generated** per-workstation alias file for unqualified names, so no hosts entry
+is ever typed again by hand.
+
+**Measured 2026-09-22, the drift those validators exist to catch** — every row is a bug found by
+comparing the four sources, none of which noticed:
+
+| name | reality | class |
+|---|---|---|
+| `music` (navidrome, `enabled: true`) | resolves **nowhere** — not seeded, not public | service up, name absent |
+| `sec` (metabase, `enabled: false`) | still resolves publicly **and** internally to the tailnet edge | name outlives the service |
+| media family | the seed answers **oldsrv**; `network-addresses-generated.md` says the **NAS** | generated view vs source |
+| `stats` | labelled **Beszel** in the address doc, served by **Grafana** per `vps.yml` | label vs owner |
+| `stats` / `logs` / `csui` | LAN clients are handed a **tailnet address** | decision 3 above |
+| a workstation hosts file | pins `.ts` + short names to tailnet node addresses and cites `scripts/tailnet-hosts.txt` + `scripts/tailscale-dns-fix.ps1` — **neither has ever existed in git** | unversioned state with a citation that looks recorded |
+
+The last row also costs an instrument: a hosts override sits **above** DNS on the one machine you would
+otherwise debug on, so a wrong zone answer becomes invisible exactly where it would have been noticed.
+
 ---
 
 ## MikroTik Firewall Rules for DNS

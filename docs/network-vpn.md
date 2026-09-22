@@ -389,6 +389,24 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > The 2026-09-21 ✅ above stands as history, but it verified a router that could not match a request; T1 was
 > closed then on a measurement that could not have produced its result. This is the first run that did.
 
+> ✅ **Decided 2026-09-22 — the tailnet's job is to hand out *reachable answers*, and HA has one URL.**
+> With the plain `ha.kogler.si` published as an extra_record (plus the existing `.ts` alias) the same URL
+> serves home and away: at home with the tailnet off the LAN zone answers the VIP, with the tailnet on the
+> netmap answers a home node address and the path is direct over the LAN, and away it is the node path this
+> matrix just proved. The HA Companion app holds exactly one URL, which is what forced the decision rather
+> than preference. `dns.nameservers.split` was evaluated and **declined** ([network-dns.md](network-dns.md)
+> §The answer-plane model, HD-432), as was `override_local_dns: true`.
+> **Opened as HD-435:** the Pi joins the tailnet and `ha.kogler.si` is published with **two A records**
+> (Pi + oldsrv), so the answer survives either box. Both home proxies target the VIP, so after the manual
+> takeover the surviving box serves both planes. ⚠ **Not yet measured:** multi-A fall-over on a real client
+> (expect a timeout on the dead first answer, not an instant switch) and MagicDNS actually returning both
+> records — both are acceptance criteria of that row, not assumptions of this one.
+>
+> **HD-415 is closed on this evidence.** Its case (a) and case (c) passed; case (b) — a phone on cellular
+> failing to resolve an internal-zone name — was re-scoped: the cause is `override_local_dns: false` making
+> the delivered chain advisory, and the fix is a reachable answer per name (this design), not a resolver
+> ordering. Recorded rather than dropped, because "the chain is advisory" is the finding, not a footnote.
+
 
 > ⚠ **The verification host was NOT off-LAN.** The laptop chosen for this pass had a *wired* home path live:
 > its Windows default route pointed at the home router over the `VLAN-Switch` vNIC (a Home-VLAN address per

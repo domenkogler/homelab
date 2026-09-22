@@ -177,16 +177,46 @@ The forward takeover (Pi → oldsrv) has been **drilled live**: Pi LAN cable pul
 - **Real defect found and fixed:** the standby compose published only `5683/udp` (Shelly CoAP) and **never
   `8123`** — the VIP contract did not hold on takeover. It now publishes `8123` as well. **A standby that is
   reachable by VIP but has no published app port is not a standby.**
-- ⚠ **Gap 1 — KNX does not work on the standby.** The GIRA KNX router (`knx-ip`, VLAN 20) answers ICMP and
-  its web UI but **drops all KNXnet/IP** (tunnel `CONNECT`, multicast `SEARCH`) from oldsrv. Home→KNX:3671 is
-  allowed, the packet path is correct, and a raw probe from an oldsrv Home-VLAN host IP gets no response — so
-  it is device-side: likely a GIRA tunnel-client allowlist containing only the Pi, or a wedged KNX/IP stack
-  (power-cycle / ETS change). Tracked in the HD-04 tail. **Until it is fixed, HA-on-oldsrv is a state-only
-  standby: no bus control.**
-- **Gap 2 (closed at the architecture level):** `ha.kogler.si` had **no edge at all when the Pi was down** —
-  the earlier claim that "oldsrv `traefik` takes over" was stale after the home edge was removed. Home
-  takeover is now served by **`traefik-internal` on oldsrv**, which runs always
-  ([services-traefik.md](services-traefik.md) §Edge model).
+- ⚠ **Gap 1 — KNX does not work on the standby, and the cause is the router, not HA** (measured on the
+  2026-09-22 takeover drill, which is why HD-04's KNX cell is still open). The GIRA KNX router (`knx-ip`,
+  VLAN 20) answers ICMP and its web UI but **drops KNXnet/IP from oldsrv**: a raw probe from an oldsrv host
+  IP sent 5 multicast `SEARCH` requests and got **0 SEARCH_RESPONSE** — it does respond to the Pi, so the
+  router is not broken — no tunnel `CONNECT` ever reaches `hass`, and oldsrv's `nft` `ipfilter_RAW` /
+  `ipfilter_MANGLE` counters show **17 packets** of KNX traffic accepted and then dropped *before* the
+  accept line permitting `ip saddr `home_subnet` tcp dport 3671 ct origdir reply`, a reply rule that can
+  never match because the standby never sees a CONNECT-ACK to reply to. Nothing was dropped by the zone
+  20/40 blocks and the packet path is otherwise correct, so it is **device-side**: a GIRA tunnel-client
+  allowlist that knows only the Pi, or a KNX/IP stack needing a power-cycle.
+  **Consequence, stated plainly: HA-on-oldsrv is a state-only standby — the DB replay works, bus control
+  does not.** `hass` comes up, serves `VIP:8123`, holds its entities, and cannot switch a single light. So
+  **HD-04's acceptance criterion #3 (switch a light after takeover) is unmet.** The fix is device-side and
+  owner-first, tracked as **HD-434**.
+- ⚠ **Two dependencies the same drill exposed, both closed on paper 2026-09-22, neither drilled.**
+  **(1) Home DNS was single-homed on the Pi.** The router advertises only the Pi as a resolver, so a Pi-out
+  leaves every home client unable to resolve *anything* — `ha.kogler.si`, SSO's internal answer included —
+  while a Technitium primary sits idle on oldsrv. A takeover that moves the VIP but leaves the house unable
+  to name anything is half a takeover. **Decided: the router advertises both resolvers** (Pi + oldsrv), so
+  there is nothing to move and nothing to fail. **Not yet drilled.** **(2) The tailnet path follows the VIP
+  for free:** `ha`/`ha-ts` target the VIP, so after a manual takeover a tailnet client keeps reaching HA
+  with no change — the VIP↔edge coupling working as designed; once **HD-435** publishes `ha.kogler.si` with
+  two A records the path also stops depending on which home box is a tailnet node. Decisions and their
+  reasons: [network-dns.md](network-dns.md) §The answer-plane model.
+
+- **Gap 2 (closed at the architecture level, with one coupling to keep in view):** `ha.kogler.si` had
+  **no edge at all when the Pi was down** — `traefik-internal` on oldsrv served only LAN hostnames, and the
+  public `s.kogler.si` tunnel landed on the VPS edge, which had no `ha` router. The earlier claim that
+  "oldsrv `traefik` takes over" was stale after the home edge was removed; **HD-431 fixed the half that was
+  broken**. Home takeover is served by **`traefik-internal` on oldsrv** ([services-traefik.md](services-traefik.md)
+  §Edge model), and `ha.ts.kogler.si` / `oldsrv.ts.kogler.si` on its tailnet listener route to
+  `ha-backend = VIP:8123` — the surviving answer whether the Pi is down or oldsrv itself is down (the VIP is
+  whichever box is up and its own edge serves it), reachable from inside the tailnet even when home's WAN is
+  down. It does **not** make plain `ha.kogler.si` resolve from away, deliberately: publishing the internal
+  home zone's answer publicly is the exposure the design refuses. **The coupling:** `ha.ts` is a `.ts` name,
+  so its *resolution* lives in the netmap (headscale, VPS) while its *answer* is the VIP — it carries both
+  dependencies. Same VIP↔edge coupling flagged for the media family in
+  [network-addresses-generated.md](network-addresses-generated.md); here it is load-bearing for away access
+  to the house.
+
 - **Unplanned bonus scenario:** an UPS battery test took oldsrv down *while the drill state was active*; the
   Pi took MASTER back automatically with no competition and `https://ha.kogler.si` was restored entirely on
   the Pi — which is the Pi-primary design confirming itself.
