@@ -3,8 +3,8 @@
 > **Role:** single-lane handoff for the **runner + cockpit** half of the remote-dev-plane thread (owner direction
 > 2026-09-20), **Wave 1**. Start with [README.md](README.md) §0 → §1 mandatory context →
 > [prompt.md](prompt.md) **§4 (orchestrator mode)** → this file → the rows in [todo.md](todo.md) §2.3 / §2.7.
-> Transport is [`prompt-414.md`](prompt-414.md) (Wave 2 — the successor to the closed
-> [`prompt-405.md`](prompt-405.md)); remote desktop is prompt-412.md — brief deleted; **this wave's sibling
+> Transport is [`prompt-414.md`](prompt-414.md) (Wave 2 — the successor to the closed `prompt-405`); remote desktop
+> is `prompt-412` — brief deleted; **this wave's sibling
 > lane is [`prompt-420.md`](prompt-420.md)** (file-disjoint, different converge host).
 > **Linked from:** [prompt.md](prompt.md) §2 + §4 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
 >

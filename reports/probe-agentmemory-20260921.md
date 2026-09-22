@@ -1,6 +1,9 @@
 # agentmemory probe — ONE central memory plane, and Hermes' store · 2026-09-21
 
-> **Role:** measurement report for OQ-12/OQ-13/OQ-14, per [`../prompt-agentmemory.md`](../prompt-agentmemory.md).
+> **Role:** measurement report for OQ-12/OQ-13/OQ-14, run from the `prompt-agentmemory.md` lane brief (a brief is a
+> dispatch note, not SSOT — it was **deleted when this lane closed 2026-09-22**; the owner rulings it carried and the
+> answers now live in [`../docs/services-ai.md`](../docs/services-ai.md) §9b, and `prompt.md` §4 keeps the pointer to
+> this report).
 > Registers **no `HD-XX` row**, opens **no todo item**, applies **no** IaC/doc/config change. Nothing was
 > decided here; the owner decides.
 > **Ran:** 2026-09-21 22:59 → 2026-09-22 01:45 UTC, ephemeral on **oldsrv** under the **`domen` seat**

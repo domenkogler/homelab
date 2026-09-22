@@ -4,9 +4,8 @@
 > "trusted for agentic max-context", plus the engine-mode question. **Wave 3.** It needs an **owner bench window**:
 > detached runs only, **never with an agent session attached**, and **never driven from a session whose own model is
 > spark** (incidents #3 + #6 — the chain's preflight refuses to start unless in-flight is 0 for exactly this reason).
-> This brief also **absorbs the stale [`prompt-next.md`](prompt-next.md)** handoff (2026-09-15): its §3 pending-tests
-> list is row 1 of this lane, and the parent deletes that file in its cleanup commit
-> ([prompt.md](prompt.md) §4 O7).
+> This brief also **absorbs the stale `prompt-next.md`** handoff (2026-09-15, deleted by the parent 2026-09-22 per
+> [prompt.md](prompt.md) §4 O7): its §3 pending-tests list is row 1 of this lane.
 > Start with [README.md](README.md) §0 → §1 mandatory context → [prompt.md](prompt.md) **§4 (orchestrator mode)** →
 > this file → [`spark/BENCHMARK-PLAN.md`](spark/BENCHMARK-PLAN.md) §6/§6a/§9 → the rows in [todo.md](todo.md) §2 (spark).
 > **Linked from:** [prompt.md](prompt.md) §2 + §4 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
@@ -57,7 +56,8 @@ rule may already have changed; say which version you benched on).
 * **Owns:** `IaC/ansible/roles/spark/**`, `IaC/ansible/roles/spark-artifacts/**`, `IaC/ansible/group_vars/spark.yml`,
   `spark/**` (bench plans, harness scripts, `reports/**`), `docs/hardware-spark.md`,
   `docs/hardware-gpu.md` **for spark's side**, and **your own `todo.md` rows**.
-* **Never touches:** `prompt.md` / `todo-table.md` (O2) and **`prompt-next.md`** (the parent deletes it);
+* **Never touches:** `prompt.md` / `todo-table.md` (O2) — the third file that rule used to name, `prompt-next.md`,
+  is deleted 2026-09-22;
   `IaC/ansible/roles/monitoring/**` + `templates/docker_services/spark-dcgm/**` +
   `roles/spark/files/spark-oom-watchdog.sh` (all [`prompt-420.md`](prompt-420.md) — ⛔ **never the same wave as 420**:
   both converge spark, and a bench under a changed scrape cadence is not the certified measurement);

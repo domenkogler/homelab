@@ -591,7 +591,8 @@ citation anchors; the wording below is the rule **as it stands**.
 The **coding plane** (IaC/Ansible, C#, React/Vue, homelab epics) is a **separate plane** from the family
 research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from the laptop.
 
-- **Memory = agent-memory.dev, per project.** One instance per project (project = 1+ repos), records tagged
+- **Memory = agent-memory.dev, per project (the wording of this rule is under an open owner call — see the
+  2026-09-21 probe note below).** One instance per project (project = 1+ repos), records tagged
   project+repo; **cross-project recall is opt-in, not default**. Data under `~/.agentmemory/<project>`,
   ports 3111+N, MCP = `@agentmemory/mcp`, consolidation LLM via a LiteLLM scoped key. **OpenViking is rejected
   outright** (2026-09-21, owner): both candidate roles are dead — the corpus index because its markdown index is
@@ -601,6 +602,56 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
   [`../reports/probe-ov-20260921.md`](../reports/probe-ov-20260921.md), decision rows
   [`services-ai-rejected.md`](services-ai-rejected.md). ⚠ The reason previously recorded here ("Docker-only")
   was **wrong** — OV installs venv-native in ~2 min; the rejection does not rest on it. Mem0 stays in the OWUI plane.
+- **Memory plane — 2026-09-21 probe note: measured, NOT decided** (`agentmemory` 0.9.29, ephemeral on oldsrv
+  under the `domen` seat; interpretation
+  [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md), raw evidence in the
+  sibling directory of the same name). Owner rulings taken **before** the run (2026-09-21): **(a)** the wanted
+  shape is **ONE central instance**, not one per project — that *relaxes* the per-project rule above **as a
+  direction only**; the bullet above is **not** amended until the owner accepts a shape that is implementable
+  today; **(b)** "the quadrant" in earlier discussion meant **[Qdrant](https://qdrant.tech/)** (the vector store
+  already live here), **not a host**; **(c)** **Hermes must not keep its own memory store.** What was measured:
+  * **Keyless works, and it is the headline** — 7/10 hit@5 with **zero** LLM in the hot path, determinism 10/10
+    (same query ×5 → identical ranking), **455 tok/query** injected vs **5,267** for OV, ≈0 spark tokens/session.
+  * **The vector leg is an upgrade, not a dependency** — hybrid on our `bge-m3` @1024 beat keyless BM25-only
+    **9/10 vs 7/10** hit@5 and **8/12 vs 6/12** exact-identifier recall, at ≈2× recall latency (398 vs 455 tok).
+    Memory therefore does **not** depend on LiteLLM; if the leg is used, pin
+    **`OPENAI_EMBEDDING_DIMENSIONS=1024`** (upstream `resolveDimensions()` falls back to **1536**) and send the
+    model name **bare** (`openai/bge-m3-vk` → 400; `dimensions` is accepted-and-ignored on our leg).
+  * **"Central" is not buildable as briefed on 0.9.29** — REST binds `127.0.0.1` and the CLI **re-renders that
+    config every boot**, so a LAN bind needs an **authenticating forwarder/proxy** (upstream **#523**); auth is
+    **one shared bearer** (no per-client tokens); **`TEAM_MODE`/`TEAM_ID`/`USER_ID` never reach
+    `mem::search`/`mem::observe`**, so per-user isolation does not exist in the retrieval path — tenancy would be
+    a `project` tag, not enforcement. Two unauthenticated surfaces ride along: the **viewer answers 200 with the
+    secret set**, and `iii` listens on **`0.0.0.0:49134`**.
+  * **Leave LLM compression OFF** — `CONSOLIDATION_ENABLED` + `GRAPH_EXTRACTION_ENABLED` +
+    `AGENTMEMORY_AUTO_COMPRESS` scored **R5 retrieval-key 0/5**: the narratives read well and dropped every
+    identifier (`9002`, `0.34`, `515,786`, `#26`, `HD-268`). Same result as the OV lane's "LLM summary loses to a
+    free 154-token extract", in another product with another model ⇒ **on this corpus LLM memory compression
+    destroys the retrievable payload**.
+  * **The Hermes ruling is implementable** — `memory.memory_enabled: false` + `user_profile_enabled: false` keep
+    `MEMORY.md`/`USER.md` at **0 bytes** (0.19.0). ⚠ `hermes memory status` prints `Built-in: always active`
+    regardless — **never verify by status** — and a model denied its memory tool wrote its own
+    `PERMANENT_NOTES.md`, so a real deployment checks for side-files too. `memory reset` erases content and
+    `memory off` disables only the *external* provider; neither is the disable.
+  * **Ops facts** — `MAX_OBS_PER_SESSION=500` is a **write-time reject** (603 of 3,291 observations discarded);
+    one `POST /search {limit:50}` **killed the worker** (all routes 404 until restart); `AGENTMEMORY_TOOLS=all`
+    burns **5.8×** the context of `core` (≈6,044 vs ≈1,042 tokens) per client per session; snapshots are written
+    into a **git repo the product creates** (key on `commitHash` — there is no `id`, and `/snapshot/restore`
+    rejects `snapshotId`), so the Kopia `backup-snapshot-trigger.sh` seam fits poorly; exit is
+    `GET /agentmemory/export` (plain JSON, no CLI verb) ⇒ **lock-in low**; the `iii` **0.11.2** binary ships **no
+    verifiable license** (GitHub API `license: None`, no LICENSE file) — record those terms as unverified before
+    it ships anywhere. Booting from a different cwd silently switches instance (`dataDirResolution`).
+  * **Open owner calls** (measured, waiting on the owner — nothing here decides them): **OQ-12** single central
+    plane (not as specified — needs a proxy + `project` tags); **OQ-13** Hermes' store (the central plane is the
+    lower-cost option on evidence; **agentmemory can never target Qdrant by design**, so "Hermes on Qdrant +
+    everyone on agentmemory" is two planes nobody reconciles — that arm stayed **unmeasured**, Qdrant is
+    db-internal and unreachable from the seat); **OQ-14** whether the `bge-m3` leg is needed at all (keyless
+    clears every gate; the leg is a measured +2). Tracked in [todo.md](../todo.md) §1.
+  * **A trap that generalises beyond this product (confirmed twice):** a *falsy-but-set* key is a cloud-egress
+    switch. `OPENAI_API_KEY=false` made agentmemory dial **`api.openai.com` once per observation**, and Hermes'
+    `provider: custom` with a **non-loopback** `base_url` silently resolved to **`openrouter.ai`** (its trust
+    check accepts only loopback hostnames). Keyless posture = **leave the var absent, never `false`**. And never
+    `docker inspect` a container's env unfiltered.
 - **Skills = git SSOT** (`skills/` + `sync-skills.sh`), never a service.
 - **ZeroClaw = system-management agent** — laptop primary + oldsrv standby. **Never the VPS** (fleet
   credentials on an internet-facing host is the largest attack-surface increase available). Supervised
@@ -633,6 +684,7 @@ questions are not re-litigated; the sources are upstream repos/trackers, read di
 
 | Item | State |
 |------|-------|
+| **Memory plane for the coding plane** | **Measured, undecided.** The 2026-09-21 `agentmemory` probe answered OQ-12/13/14 in one line each (§9b note + [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md)); the owner call is open and nothing was installed. ⛔ Do not build a central instance before it: the shape the question assumed (LAN bind + per-client tokens + per-user isolation) does not exist in 0.9.29. |
 | **HD-384** scoped-consumer allow-lists | Not started. The simple-querier tier (HA, Docling, OWUI) needs rows for `spark/*` + the pinned legs, and the existing `ollama/*` allow-lists name models that no longer exist. Until it lands, only the admin-grade master key is in play. |
 | **HD-268b** implement `rag-mcp` (+ `forgejo-mcp`) | Stub compose (no `services:` block). The rerank leg ships dormant until this exists. |
 | **HD-267 tails** | Qdrant cutover verification + OKF wiki repos + first-ingest dimension check (1024). |

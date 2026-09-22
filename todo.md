@@ -19,6 +19,15 @@
 
 > **Open as of 2026-09-21 — after the owner answer round, NO decision blocks AI work.** What is left on the owner's side is hands and eyes, not calls: the **HD-147** browser logins (plus the Forgejo-vs-GitHub question that lives inside it), the **HD-411** APK sideload + verdict, and the physical/bench windows listed in [todo-table.md](todo-table.md) §A2.
 >
+> **Open as of 2026-09-22 — three memory-plane calls, measured and waiting (no HD row until you answer):**
+> **OQ-12** is `agentmemory` the ONE central memory plane (not as specified on 0.9.29: loopback-forced REST, one
+> shared bearer, `TEAM_*` inert in the search path ⇒ central means a proxy + `project` tags); **OQ-13** where
+> Hermes' memory lives (the owner ruling "not its own files" **is** implementable — `memory_enabled: false`;
+> `agentmemory` can never target Qdrant, so a Qdrant Hermes means two planes); **OQ-14** whether the `bge-m3` leg
+> is needed (keyless clears every gate; the leg is a measured +2). One line each in
+> [services-ai.md](docs/services-ai.md) §9b, evidence [`reports/probe-agentmemory-20260921.md`](reports/probe-agentmemory-20260921.md).
+> Nothing was installed, nothing was decided, and **no AI work waits on them**.
+>
 > **Decided 2026-09-21** — each written once to its owning doc + its `<domain>-rejected.md` row, so do not re-ask any of them: the cockpit surface + which account runs it (**HD-409**), the exit-node host (**HD-408** → row deleted, stays on the Pi), the family-support onboarding model (**HD-412**), the git-credential shape on the control node (**HD-407 / HD-409**), the scoped-consumer grant (**HD-384**), the second OWUI instance (**HD-248**, deferred), the tailnet resolver chain (**HD-415**, redesigned rather than trimmed), the HA trusted-proxy fix (**HD-418**) and the jellyfin publish (**HD-419**). Note for the next session: four items previously described as "only a human can place these" turned out to be AI-runnable (**HD-347** reads its own group id, **HD-350** appends its own pubkey, **HD-407**'s `op read` is non-interactive) or owner-minted into the vault already — so the human-gate wording in a row is a claim to test, not a fact to obey.
 >
 > Resolved decisions are logged once in their owning `docs/*.md` + the `<domain>-rejected.md` decision log and are **not** duplicated here.

@@ -23,14 +23,14 @@
 
 ## 0. Repo state (one screen)
 
-| Fact | State (measured 2026-09-21) |
+| Fact | State (measured 2026-09-22) |
 |---|---|
 | Primary checkout `/home/domen/source/homelab` | `main`, working tree **clean** — a merge station, not an edit site |
 | `bash scripts/validate-all.sh` | **GREEN** |
-| Session worktrees | **transient by design** — a lane worktree (`../homelab-wt-<YYYYMMDD>-<HHMM>`) exists only while its lane runs, and the parent removes it after the merge. Two were open at the 2026-09-21 sync (HD-395, HD-399, both 0 commits) and were retired with the owner's word via `git worktree remove`; the HD-420 lane (`homelab-wt-20260921-1125`) was merged and pruned at close-out |
+| Session worktrees | **transient by design** — a lane worktree (`../homelab-wt-<YYYYMMDD>-<HHMM>`) exists only while its lane runs, and the parent removes it after the merge. **Swept 2026-09-22:** five finished-lane worktrees (`1359` OV probe, `1403` HD-412, `1440` HD-394, `2259` agentmemory probe, `0100` HD-312 close) were merged and removed by name with `git worktree remove`; one HD-414 lane worktree (`20260922-0200`) is in flight. ⚠ A worktree existing has twice meant *nobody was in it* — check `git log` on the branch, not the directory |
 | **Lane briefs = the dispatch unit** | **one `prompt-<HD>.md` brief = one session = one worktree = one branch.** Each brief carries the rows it owns, the files it owns and the converge host it holds; the row index per brief is §B0 below. Waves, pairing and the merge/cleanup contract are in [prompt.md](prompt.md) **§4**, whose rules deliberately DIFFER from README §4 and CONVENTIONS §6 (items O1–O8 there) — §4 is silent nowhere this table depends on |
 | **Who writes `prompt.md` / `todo-table.md`** | **The orchestrator only** (§4 O2). Lane sessions edit their own `todo.md` rows and their own `deployment-tasks.md` lines, and never touch these two views — `check_todo_done.py` couples `prompt.md` to `todo.md`, so two writers on the views means a red gate by construction |
-| Stale session branches | **all 12 deleted** with `git branch -d`, which refuses an unmerged branch — so the sweep itself proved nothing was stranded |
+| Stale session branches | deleted with `git branch -d`, which refuses an unmerged branch — so the sweep itself proves nothing was stranded (12 at the 2026-09-21 sync; the merged lane branches again on 2026-09-22) |
 | Registry size | **derived, not typed** — row count and the next-free id (max + 1) are read out of [todo.md](todo.md) with `grep -c` on its `HD-` rows; 103 at the 2026-09-21 sync, which registered **HD-420** (a literal pipe would break this cell — see [todo.md](todo.md) HD-417) |
 
 ### What is live vs authored-only
@@ -91,6 +91,7 @@ later session re-asks it. Rows marked ✅ are now pure AI in §B.
 | **Be on-site once** | HD-397 tail | The LAN matrix + the `Mgmt99` vNIC half |
 | **Physical windows** | HD-06 · 301 · 288 · 194 · 34/191 | UPS pull → WoL · a router/switch/AP reset · gaming + Moonlight · one edge login/callback · the yearly restore drill (also where HD-207 and HD-230 get decided) |
 | *(optional)* | HD-409 | If you want oldsrv to **push**, mint a repo-scoped **write-capable** deploy key when HD-409 lands. Until then oldsrv pulls only and commits wait there |
+| **Three memory-plane calls** (OQ-12/13/14) | *(no HD row yet)* | **Measured, waiting on you** — is `agentmemory` the ONE central memory plane, where does Hermes' memory live, and does memory need the `bge-m3` leg at all? One line each in [services-ai.md](docs/services-ai.md) §9b, full evidence in [`reports/probe-agentmemory-20260921.md`](reports/probe-agentmemory-20260921.md). The blocker to accept or reject: a *central* instance on 0.9.29 is loopback-only with **one shared bearer and no per-user isolation**, so it needs a proxy. Nothing was installed and nothing blocks AI work meanwhile |
 
 ---
 
@@ -112,10 +113,15 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 | [prompt-420.md](prompt-420.md) metric cadence | **1** | HD-420 · **395 · 377(b) · 342 · 345** | spark + VPS (`--tags monitoring`) |
 | [prompt-414.md](prompt-414.md) scoped IPv6 + transport | **2** | HD-414 · 415 · 406 · 410 · 405 tail · **419 · 09 · 301** (+159 with a window) | router (global slot) + oldsrv |
 | [prompt-384.md](prompt-384.md) LiteLLM consumer chain | **3** | HD-383 · **384** · 403 · 387 · 373 · 249 | oldsrv + VPS `docker_services` |
-| [prompt-376.md](prompt-376.md) spark engine + bench | **3** | HD-376 · 400 · 359 · 367 · 380 (absorbs the stale `prompt-next.md`) | spark, **owner bench window** |
+| [prompt-376.md](prompt-376.md) spark engine + bench | **3** | HD-376 · 400 · 359 · 367 · 380 (absorbs the stale `prompt-next.md`, now deleted) | spark, **owner bench window** |
 | [prompt-357.md](prompt-357.md) launchpad + home edge | **4** | HD-357 · 17 · 217 · 358 · 418 (window-gated) | oldsrv |
 | [prompt-417.md](prompt-417.md) gates + doc hygiene | **5, alone** | HD-417 · 404 · 248 · 396 | none (repo-only) |
-| [prompt-405.md](prompt-405.md) | — | **CLOSED — no session launches from it;** the parent deletes it in a §4 cleanup commit with its inbound links fixed | — |
+
+> **Briefs deleted at the 2026-09-22 sweep** (job done, links fixed in the same commit): `prompt-412` (HD-412
+> shipped live), `prompt-394`, `prompt-405` (closed banner), `prompt-next` (the 2026-09-15 spark handoff, absorbed
+> by `prompt-376`), `prompt-OV` and `prompt-agentmemory` (both probe lanes closed). **Unbriefed but still open —
+> not lost, just unassigned:** HD-360 · 402 · 103 · 238 · 421 (the HD-394 lane's residue), and HD-412's two
+> enrolment sessions, which need a human at both ends and therefore live in §D.
 
 
 ### 🔥 Active lanes
@@ -142,12 +148,14 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 
 ### 🆕 Remote-dev plane (three file-disjoint lanes — run one per session)
 
-Briefs: [prompt-414.md](prompt-414.md) (transport, successor to the closed [prompt-405.md](prompt-405.md)) ·
+Briefs: [prompt-414.md](prompt-414.md) (transport; it absorbed the closed `prompt-405`) ·
 [prompt-407.md](prompt-407.md) (runner + cockpit, **Wave 1**, also carrying HD-399 / 386 / 416 / 388) ·
-prompt-412.md — brief deleted (remote desktop) · and the follow-on lanes [prompt-384.md](prompt-384.md)
+and the follow-on lanes [prompt-384.md](prompt-384.md)
 (LiteLLM consumer chain), [prompt-357.md](prompt-357.md) (launchpad + home edge),
-[prompt-376.md](prompt-376.md) (spark engine + bench), prompt-394.md — brief deleted (VPS hygiene + backup/DR),
-[prompt-417.md](prompt-417.md) (gates + doc hygiene). Run one brief per session — [prompt.md](prompt.md) §4.
+[prompt-376.md](prompt-376.md) (spark engine + bench) and
+[prompt-417.md](prompt-417.md) (gates + doc hygiene). The remote-desktop (`prompt-412`) and VPS-hygiene
+(`prompt-394`) briefs are **closed and deleted** — HD-412's two enrolment sessions are in §D, and the open VPS
+rows (HD-360 · 402 · 103 · 238 · 421) are unbriefed. Run one brief per session — [prompt.md](prompt.md) §4.
 Decisions are already in the `network` / `deployment` / `services` decision logs — start from the briefs, do not
 re-open the direction. Two standing decisions were **scoped, not repealed**: the tailnet permits exactly one home host
 with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
@@ -161,7 +169,7 @@ with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
 | **HD-410** | 3 | know whether a session is direct or relayed **before** buying a relay | measure `DIRECT` vs `relay` from a phone on mobile data over a few days, then decide | the derp map uses the **public Tailscale** relays, so a failed punch puts a third party in a dev session — but a DERP built on a hypothesis buys a public listener for nothing. Today's reading: relayed is the reality, so HD-414 first · 📋 [`prompt-414.md`](prompt-414.md) |
 | **HD-411** | 3 | a native Android path to the same harness, without a third-party relay | AI: the daemon (systemd or a scoped container), tailnet bind + password + hostname allowlist, **relay off**, one 1P item | **sequence changed: runs simultaneously with HD-409**, one comparison window. Owner hand: sideload + pair + the 2-week verdict. The browser cockpit stays **primary** — an app someone else maintains cannot be a dependency, a URL can · 📋 [`prompt-407.md`](prompt-407.md) |
 | **HD-415** | 3 | one tailnet resolver that works **wherever the device is** | bind Technitium to oldsrv's **tailnet node address**, make it the headscale nameserver, keep the VPS instance as the fallback, drop the two LAN-address entries | **decided 2026-09-21** — the away-vs-WAN-out conflict is a reachability problem, not a sort order; runs inside the HD-414 lane. ⚠ acceptance = the three-case drill (LAN / cellular / **home with the WAN pulled**); direct-over-LAN to the node is the load-bearing assumption · [network-dns.md](docs/network-dns.md) §The resolution requirement · 📋 [`prompt-414.md`](prompt-414.md) |
-| hygiene | — | close two small debts the transport lane named | expire the **retired headscale preauth keys 4 (`tag:pi-dev`) + 5 (`tag:dsh`)** — live, reusable, non-expiring for services that no longer exist; report ids only, never values | one `headscale preauthkeys expire` each; the tombstones in [deployment-secrets.md](docs/deployment-secrets.md) do not revoke them — headscale does. Also: `prompt-405.md` (a closed banner) is deleted by **the orchestrator** in its [prompt.md](prompt.md) §4 cleanup commit, together with the link fixes in `prompt.md` / `todo.md` / `todo-table.md` — no lane deletes a brief (see [prompt-414.md](prompt-414.md) row 8) |
+| hygiene | — | close two small debts the transport lane named | expire the **retired headscale preauth keys 4 (`tag:pi-dev`) + 5 (`tag:dsh`)** — live, reusable, non-expiring for services that no longer exist; report ids only, never values | one `headscale preauthkeys expire` each; the tombstones in [deployment-secrets.md](docs/deployment-secrets.md) do not revoke them — headscale does. (The `prompt-405.md` debt this row also named was paid 2026-09-22: the brief is deleted and the views no longer link it — see [prompt-414.md](prompt-414.md) row 8 for who deletes a brief and why) |
 
 ### AI / Office
 
@@ -264,6 +272,7 @@ also in §A2 with the reasoning.
 | HD-230 · HD-207 | 1 | decide at the drill: which sources get backed up · media rename vs personal-files | the surgical converge + the landing-zone mechanics |
 | HD-362 · HD-57 | 2–3 | the music-pillar 1P values + Lidarr clients · bank tokens (and see HD-354: there is **no local music**, so the pillar's premise is now "if we ever have some") | the last mile on each |
 | HD-366 | 2 | **still deliberately untouched by your instruction** — the JupyterLab LAN edge | nothing, unless you ask |
+| OQ-12 · 13 · 14 | 2 | the memory-plane call (central `agentmemory` vs per-seat, Hermes' store, is the embedding leg needed) — the agentmemory probe answered all three on 2026-09-21/22 and decided none of them | a new HD row + the compose/seat work only after your word |
 
 ---
 
@@ -273,7 +282,8 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
 
 | Claim you might believe | Reality |
 |---|---|
-| "The two open worktrees mean work is in flight" | Both are **empty** — 0 commits ahead of `main`, clean, no stash. The HD-395 and HD-399 lanes were opened and never started; both rows are still fully open |
+| "A worktree existing means work is in flight" | It has meant the opposite twice. The 2026-09-22 sweep found **five finished lanes sitting unmerged** and, a day earlier, two lanes (HD-395, HD-399) opened and never started. Read `git log main..<branch>` and `git status` in the worktree — never the directory name |
+| "The memory plane is decided / agentmemory is live" | **No.** The 2026-09-21 probe measured it and decided nothing: **OQ-12/13/14 are open owner calls**, nothing was installed, and the shape the question assumed (LAN bind + per-client tokens + per-user isolation) **does not exist in 0.9.29** — loopback-forced REST, one shared bearer, `TEAM_*` inert in the search path. And the durable negative: **LLM memory compression scored R5 0/5** — it rewrites identifiers out of existence. Facts: [services-ai.md](docs/services-ai.md) §9b |
 | "HD-407 is blocked on a foreign key" | **Was.** The `oldsrv-rsync` key was retired 2026-09-21 (neutralized on nas, proven inert); `restore-runner-key.sh` now finds an empty path. What is in front of it now is AI work: land the clone for `ansible-admin`, pipe the token, prove `--check` from oldsrv — and delete both key halves after one green backup night |
 | "Signal alerting is closed" | Device linked ✅, workflow live ✅ — but `signal_alert_recipients` is still **empty** in SSOT, so nothing reaches the group. **The value is the group ID signal-cli reports — not the group's invite link** (that blob is an encrypted join payload; HD-347 reads it from the linked daemon) |
 | "Open WebUI ×2 is live" (`services-ai.md` banner) | The VPS runs **one** `open-webui` at `ai.kogler.si`; `chat` is **element-web**. **decided 2026-09-21: no second instance** — HD-248 is now just correcting that banner |
@@ -312,8 +322,9 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
 
 ## Bottom line
 
-- **The owner-side backlog is now two sentences long:** do the browser logins (HD-147), and be present for the
-  windows in §A2. Everything that used to sit in front of the AI work has a decision attached to it.
+- **The owner-side backlog is three sentences long:** do the browser logins (HD-147), be present for the
+  windows in §A2, and answer the three **memory-plane** calls (OQ-12/13/14 — measured, one page, nothing blocks
+  AI work while they wait). Everything that used to sit in front of the AI work has a decision attached to it.
 - **Decided ≠ shipped — that is the honest state of this table.** Every §A1 row is recorded and every one still has
   its code un-written. Cheapest first, in order: **HD-347** (one value, alerting stops being blind) → **HD-399**
   (one `not ansible_check_mode` gate, and every oldsrv `--check` starts working) → **HD-383 → HD-384 → HD-403**
