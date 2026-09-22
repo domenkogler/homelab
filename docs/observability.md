@@ -22,8 +22,8 @@ tags: [observability, grafana, prometheus, monitoring]
 > **Signal delivery** (no linked device yet — HD-318d; until then the Signal leg silently delivers nothing
 > and email is the only working channel), contact-point/datasource passwords in the HD-211 rotation batch,
 > device-side SNMP enablement (HD-03 cutover), and the Kopia wiring for
-> `/srv/docker/victoria-*/data`. Owner confirmation is still owed that the spark host-memory rules render in
-> the Grafana UI and that a firing alert actually reaches n8n (HD-375).
+> `/srv/docker/victoria-*/data`. The spark host-memory alert rules (HD-375) are **closed 2026-09-22** — see
+> §Alerting.
 
 ---
 
@@ -311,8 +311,10 @@ idle recycle at baseline +8 GiB).
 - **Operating point:** at the certified 16 GiB KV pool, idle `usable` is **18.5 GiB** (6.5 GiB of WARN
   margin) and the certified worst case bottoms at **17.78 GiB**. The thresholds still clear — but there is
   **no room for another KV raise in bf16**, because that would put WARN inside routine-transient range.
-- ⏳ Owner still owes: confirming both rules render in the Grafana UI and that a firing alert reaches n8n
-  (HD-375).
+- ✅ **CLOSED 2026-09-22 (owner):** the two host-memory rules were taken as confirmed on the owner's call —
+  the row is deleted from the backlog per CONVENTIONS §4(a); the record stays here. Deployed state unchanged:
+  both rules load in the ruler (`vps.yml --tags monitoring`, failed=0, 2026-09-17 22:33C), CRIT
+  `noDataState: Alerting`, and the WARN summary/label mismatch is fixed.
 
 ### Tiers
 

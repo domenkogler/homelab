@@ -588,16 +588,19 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [x] **HD-386 tail** — **CLOSED 2026-09-21: there was no owner step.** The retired `dsh`/`pi-dev` harness records and their 502 tailnet routes were settled in `group_vars/vps.yml` and documented in [network-vpn.md](docs/network-vpn.md) — the names stay, the 502 is the design, and removal is the one-change procedure written there. What is left on HD-386 is the `failed=0` oldsrv converge sighting, which is Table AI work, not an owner call.
 - [ ] **HD-367 / HD-359** — the Mgmt-99 dual-home leg + the engine-neutral benchmark kit: IaC and boot done, the
       **S1 bench is not yet certified** — the numbers still do not back the tier decision. · [services-ai-bench.md](docs/services-ai-bench.md)
-- [ ] **HD-375 / HD-380 / HD-395** — host-memory OOM alert rules, the governor's second term + OOM-forensics
-      watchdog, and the idle-recycle baselines that move with a boot-time coin-flip. · [hardware-spark.md](docs/hardware-spark.md)
+- [x] **HD-375** — **CLOSED 2026-09-22 (owner).** The two spark host-memory OOM rules are live in the ruler
+      (deployed 2026-09-17 22:33C, `vps.yml --tags monitoring`, failed=0) and the owner took the Grafana-UI +
+      n8n confirmation, so the row is deleted. Record: [observability.md](docs/observability.md) §Alerting.
+- [ ] **HD-380 / HD-395** — the governor's second term + OOM-forensics watchdog, and the idle-recycle baselines
+      that move with a boot-time coin-flip. · [hardware-spark.md](docs/hardware-spark.md)
 - [ ] **HD-377** — one unified LLM dashboard (`homelab-llm`) instead of three vLLM boards. · [observability.md](docs/observability.md)
 - [ ] **HD-420** — spark metric cadence: the hot/cold Alloy scrape split (5 s for the ~50 series behind the nine
       panels the owner named, 60 s for the rest), the DCGM sidecar's 30 s collection interval, the Grafana
       datasource `timeInterval` floor, and the hard-coded `[5m]` prefix-cache panel — then converge
       `vps.yml --tags monitoring` plus the spark-side Alloy/DCGM restart and verify the 5 s granularity survived.
       ⛔ never restart the vLLM engine for this. · [observability.md](docs/observability.md)
-- [ ] **HD-385 / HD-387** — the superseded measurement row and the thinking-control re-measure **through the
-      gateway** (a recorded contradiction between a recommendation and a measurement is still open). · [services-ai-bench.md](docs/services-ai-bench.md)
+- [ ] **HD-387** — the thinking-control re-measure **through the gateway** (a recorded contradiction between a
+      recommendation and a measurement is still open). · [services-ai-bench.md](docs/services-ai-bench.md)
 - [ ] **HD-366** — DGX Dashboard JupyterLab on the LAN (`:11002`) — the integrated lab assigns per-user ports. · [hardware-spark.md](docs/hardware-spark.md)
 - [ ] **HD-376 / HD-388** — harness-side context/timeout tuning and generating the client model config from a repo
       template instead of hand-kept files. · [services-ai.md](docs/services-ai.md)
@@ -697,7 +700,7 @@ on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the 
 
 **Deploy-gated verification (Phase 7):**
 - [ ] **HD-28** — Office AI stack: **⛔ blocked, do not start.** The Ollama half is superseded twice over
-      (spark is the generation tier per decision #24, the pinned-AI legs per #25 → HD-385) and the MCP half waits
+      (spark is the generation tier per decision #24, the pinned-AI legs per #25 → shipped as HD-391, closed) and the MCP half waits
       on HD-111; AnythingLLM + LocPilot are superseded. · [services-office.md](docs/services-office.md)
 - [ ] **Local Homematic RF** — parked by decision (the old HD-13 lineage; **no `todo.md` row**): re-add
       `raspberrymatic` + an HmIP-RFUSB **only** when local RF is purchased — until then HmIP stays on the HAP in
