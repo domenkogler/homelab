@@ -181,22 +181,31 @@ The forward takeover (Pi → oldsrv) has been **drilled live**: Pi LAN cable pul
   2026-09-22 takeover drill, which is why HD-04's KNX cell is still open). The GIRA KNX router (`knx-ip`,
   VLAN 20) answers ICMP and its web UI but **drops KNXnet/IP from oldsrv**: a raw probe from an oldsrv host
   IP sent 5 multicast `SEARCH` requests and got **0 SEARCH_RESPONSE** — it does respond to the Pi, so the
-  router is not broken — no tunnel `CONNECT` ever reaches `hass`, and oldsrv's `nft` `ipfilter_RAW` /
-  `ipfilter_MANGLE` counters show **17 packets** of KNX traffic accepted and then dropped *before* the
-  accept line permitting `ip saddr `home_subnet` tcp dport 3671 ct origdir reply`, a reply rule that can
-  never match because the standby never sees a CONNECT-ACK to reply to. Nothing was dropped by the zone
-  20/40 blocks and the packet path is otherwise correct, so it is **device-side**: a GIRA tunnel-client
-  allowlist that knows only the Pi, or a KNX/IP stack needing a power-cycle.
+  router is not broken — no tunnel `CONNECT` ever completes, and oldsrv's `nft` `ipfilter_RAW` /
+  `ipfilter_MANGLE` counters moved on KNX traffic that never got a reply.
+  **The cause is narrowed, not settled** (2026-09-22 evening, reading the live config entry rather than
+  guessing): HA's KNX integration is a UI config entry in `.storage/core.config_entries` —
+  `connection_type: tunneling`, unicast to the router's own address on `knx-ip` over 3671, `local_ip: null`,
+  credentials present — and that file **is** copied by `ha-config-sync` (only `secrets.yaml` is excluded), so
+  the standby sends the *same* CONNECT with the *same* credentials. Three theories died on that evidence:
+  discovery dependence, a Pi-pinned `local_ip`, and missing standby secrets. What is left standing is that
+  the entry also carries **`individual_address` 0.0.240 — the tunnel client's own KNX address, identical for
+  both HAs** — and a KNXnet/IP router that binds IA→endpoint has every reason to ignore a CONNECT claiming an
+  IA it already holds from a different source IP. That is testable **without the device and without moving
+  the VIP** (spec in **HD-434**): a unicast CONNECT from oldsrv claiming a *different* IA. If it is accepted,
+  the fix is a per-standby IA in the takeover runbook, not an ETS visit.
   **Consequence, stated plainly: HA-on-oldsrv is a state-only standby — the DB replay works, bus control
   does not.** `hass` comes up, serves `VIP:8123`, holds its entities, and cannot switch a single light. So
   **HD-04's acceptance criterion #3 (switch a light after takeover) is unmet.** The fix is device-side and
   owner-first, tracked as **HD-434**.
 - ⚠ **Two dependencies the same drill exposed, both closed on paper 2026-09-22, neither drilled.**
-  **(1) Home DNS was single-homed on the Pi.** The router advertises only the Pi as a resolver, so a Pi-out
-  leaves every home client unable to resolve *anything* — `ha.kogler.si`, SSO's internal answer included —
-  while a Technitium primary sits idle on oldsrv. A takeover that moves the VIP but leaves the house unable
-  to name anything is half a takeover. **Decided: the router advertises both resolvers** (Pi + oldsrv), so
-  there is nothing to move and nothing to fail. **Not yet drilled.** **(2) The tailnet path follows the VIP
+  **(1) Home DNS turned out to be fine and my claim about it was wrong.** I wrote that the router advertised
+  only the Pi, so a Pi-out would leave the house unable to name anything — a "half takeover". Measured on the
+  device: every DHCP network advertises **three** resolvers (Home: Pi → VPS → oldsrv), so resolution already
+  survives one DNS host dying; there was no router change to make and none was made. The residual is
+  per-VLAN, not global: IoT's `:53` is dst-nat'd to the **Pi alone** and the Kids rules to the **VPS alone**,
+  both deliberate, both single-target ([network-dns.md](network-dns.md) §The answer-plane model decision 4).
+  **(2) The tailnet path follows the VIP
   for free:** `ha`/`ha-ts` target the VIP, so after a manual takeover a tailnet client keeps reaching HA
   with no change — the VIP↔edge coupling working as designed; once **HD-435** publishes `ha.kogler.si` with
   two A records the path also stops depending on which home box is a tailnet node. Decisions and their
