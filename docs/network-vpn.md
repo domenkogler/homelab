@@ -350,6 +350,22 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > on the phone, HD-433); and the bug class — Jinja whitespace inside a matcher — passes `--check`, survives
 > review, and is silent at runtime, so it now has a validator, `scripts/check_traefik_host_rules.py`,
 > mutation-tested by re-injecting the space.
+>
+> ⛔ **…and that was only the first of two. The name was unreachable for a second, independent reason
+> (found the same evening, 2026-09-22): the `*.ts.kogler.si` certificate never loaded.** The `tls:` block in
+> the same template read `certFile: "/etc/traefik/certs/ {{ wildcard_ts_cert_file }} "` — spaces around the
+> expression — so the rendered path was `…/certs/ ts.kogler.si.pem `, which does not exist. Traefik does not
+> fail on a certificate it cannot open, so the listener came up and answered that SNI with its generated
+> `CN=TRAEFIK DEFAULT CERT` (SAN `…traefik.default`). Effect: **no browser has ever loaded a `.ts` name at
+> home** — every client rejects the chain — while `curl -k` returned the backend's 401 and made the router
+> look healthy. That is how the first fix's acceptance test passed on a name that still did not work: `-k`
+> switched off the only check that mattered. The pair itself was already on the host (`/opt/traefik-internal/
+> certs/ts.kogler.si.pem`, carried by the cert-pull timer since HD-135b put it on the VPS edge) — nothing was
+> missing but two spaces. After the fix, browser-grade verified against the node's tailnet address: SNI
+> `ha.ts.kogler.si` → `CN=*.ts.kogler.si`, issuer Let's Encrypt, `ssl_verify_result=0`, **HTTP 401** and
+> `curl` exit **0** without `-k`; the LAN edge is unchanged (`CN=*.kogler.si`, media 302). The gate now covers
+> quoted certificate paths as well as matchers for exactly this reason — 11 self-test cases, both shipped
+> instances among them, each mutation-killed.
 
 
 > ⚠ **The verification host was NOT off-LAN.** The laptop chosen for this pass had a *wired* home path live:

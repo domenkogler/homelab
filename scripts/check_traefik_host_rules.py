@@ -1,8 +1,22 @@
 #!/usr/bin/env python3
-"""HD-432: no whitespace inside a traefik Host() rule.
+"""HD-432: no whitespace inside a traefik matcher or a quoted certificate path.
 
 Why this exists
 ---------------
+Same template, same commit family, TWO instances of one bug class:
+
+    rule:     "Host(`ha. {{ tailnet_base_domain }} `)"        -> `Host(`ha. ts.kogler.si `)`
+    certFile: "/etc/traefik/certs/ {{ wildcard_ts_cert_file }} " -> `.../certs/ ts.kogler.si.pem `
+
+The first made the router unmatchable (404 forever). The second made the `*.ts.kogler.si`
+wildcard unloadable, so traefik answered that SNI with its generated `TRAEFIK DEFAULT
+CERT` and every real client rejected the chain — while `curl -k` returned the backend's
+401 and a `--check` run showed a clean converge. Traefik does not fail on either: a rule
+that never matches is legal, and a certificate it cannot open is a warning at most. So
+both shapes are checked here: the matcher and the quoted path.
+
+Why this exists (original report)
+---------------------------------
 `traefik-internal/dynamic/routes.yml.j2` shipped, from 2026-09 until this file, as:
 
     rule: "Host(`ha. {{ tailnet_base_domain }} `) || Host(` {{ tailnet_oldsrv_node_name }} . {{ ... }} `)"
@@ -41,10 +55,20 @@ _SENTINEL = "X"
 
 HOSTNAME_OK = re.compile(r"^[A-Za-z0-9.*!_-]+$")  # traefik host matchers incl. wildcards
 
+# Quoted values that must name a file: traefik resolves them byte-for-byte too, and a
+# path it cannot open does not stop the deploy.
+_PATH_KEY_RE = re.compile(
+    r"(?:certFile|keyFile|caFile|certFilePath|keyFilePath|defaultCertificate)\s*:\s*\"([^\"]*)\""
+)
+
 
 def find_offenders(text: str) -> list[str]:
-    """Return human-readable problems found in one rendered-or-template rule string."""
+    """Return human-readable problems found in one rendered-or-template line."""
     out = []
+    for raw in _PATH_KEY_RE.findall(text):
+        collapsed = _JINJA_RE.sub(_SENTINEL, raw)
+        if re.search(r"\s", collapsed.strip()) or collapsed != collapsed.strip():
+            out.append(f"whitespace in a certificate path (\"{raw}\") — the file never loads")
     for raw in _HOST_RE.findall(text):
         collapsed = _JINJA_RE.sub(_SENTINEL, raw)
         if collapsed != collapsed.strip():
@@ -87,6 +111,11 @@ _CASES = [
     ("rule: \"Host(`media.kogler.si`) || Host(`media.ts.kogler.si`)", False),
     ("rule: \"Host(`ha.{{ tailnet_base_domain }}`)", False),
     ("rule: \"HostRegexp(`^{any:.+}$`)\"", False),                       # not a Host()
+    # the second shipped instance: same class, a path instead of a matcher
+    ('- certFile: "/etc/traefik/certs/ {{ wildcard_ts_cert_file }} "', True),
+    ('- keyFile: "/etc/traefik/certs/ts.kogler.si-key.pem"', False),
+    ('- certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"', False),
+    ('- certFile: "/etc/traefik/certs/ good.pem"', True),
 ]
 
 
@@ -107,13 +136,14 @@ def main() -> int:
         return self_test()
     problems = scan()
     if problems:
-        print("ERROR: traefik Host() rules that cannot match (HD-432 whitespace class):")
+        print("ERROR: traefik matchers/paths that cannot work (HD-432 whitespace class):")
         for p in problems:
             print(f"  {p}")
-        print("  A Host matcher is compared byte-for-byte: one stray space and the router")
-        print("  silently serves nothing while every deploy reports success.")
+        print("  Traefik compares matchers and opens paths byte-for-byte: one stray space and")
+        print("  the router serves nothing, or the certificate never loads — and every deploy")
+        print("  still reports success, because neither condition is an error to traefik.")
         return 1
-    print("OK: no whitespace inside any Host() rule")
+    print("OK: no whitespace inside any Host() matcher or quoted certificate path")
     return 0
 
 

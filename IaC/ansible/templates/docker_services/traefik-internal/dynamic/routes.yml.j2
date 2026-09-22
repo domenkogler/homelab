@@ -316,6 +316,6 @@ tls:
     # the listener, and defaulted, so the standalone validator render (which whitelists its
     # own context and cannot see new group_vars keys) still parses this template.
 {% if tailnet_oldsrv_ip is defined and tailnet_oldsrv_ip %}
-    - certFile: "/etc/traefik/certs/ {{ wildcard_ts_cert_file }} "
-      keyFile: "/etc/traefik/certs/ {{ wildcard_ts_cert_key_file }} "
+    - certFile: "/etc/traefik/certs/{{ wildcard_ts_cert_file }}"
+      keyFile: "/etc/traefik/certs/{{ wildcard_ts_cert_key_file }}"
 {% endif %}
