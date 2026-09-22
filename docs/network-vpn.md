@@ -305,8 +305,11 @@ The tailnet is **not a home-LAN bridge**. Two distinct reach shapes exist, and t
 no `--advertise-routes` (so `headscale routes list` stays empty and no home subnet is reachable from the
 tailnet at all), no exit node (§Exit-node stays the Pi — HD-408 is an open owner call), no Tailscale SSH,
 `--accept-dns=false` (oldsrv *runs* a Technitium instance; a DNS takeover would put a resolver in front of
-the tier it serves), and the ACL admits **`tag:dev:443` only** — port 443 on one node, not `:*` on the box
-that holds the vault token. The boundary's purpose survives on purpose: Shelly/KNX/IoT/guest stay
+the tier it serves), and the ACL admits **`tag:dev:443`** plus **one DNS rule** — `udp 53` to that node's own
+address, written on the address rather than on the tag so a second `tag:dev` node cannot inherit a resolver
+grant (HD-415, 2026-09-22; docs/network-dns.md §The resolution requirement). Port 443 and UDP/53 on one node,
+not `:*` on the box that holds the vault token — and no TCP/53, no other port, nothing by tag. The boundary's
+purpose survives on purpose: Shelly/KNX/IoT/guest stay
 non-tailnet-reachable, and VLAN 99 keeps its seal (HD-398 decision A).
 
 Because a preauth-key node lands in headscale's synthetic `tagged-devices` user rather than the owner's
@@ -316,7 +319,9 @@ user, `dst: ["domen@kogler.si:*"]` cannot reach it — the ONLY path in is the e
 
 **What oldsrv serves on that node** is its own home edge (`traefik-internal`, new `websecure-ts` entrypoint
 bound to the **node's tailnet IP** — never `0.0.0.0`), with TLS from the already-synced `*.ts.kogler.si`
-pair. Today exactly one route is exposed there: `ha-ts` → `ha.ts.kogler.si` (+ the free node name
+pair, and — since HD-415 — the internal zone on **`udp 53`** at that same address (the container's published
+port reached by DNAT from `tailscale0`, which is what makes the node usable as a tailnet nameserver).
+Today exactly one route is exposed there: `ha-ts` → `ha.ts.kogler.si` (+ the free node name
 `oldsrv.ts.kogler.si`) → the HA VIP. Home Assistant was the one service with **no** away-from-home path at
 all: no public record, no `traefik-tailnet` route, and a VIP-only listener. The plain `ha.kogler.si` name
 stays LAN/VIP-only — see [network-dns.md](network-dns.md) §Split-Horizon for why overloading it was rejected.

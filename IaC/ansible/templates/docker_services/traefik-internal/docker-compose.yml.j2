@@ -60,7 +60,8 @@ services:
       - "--entrypoints.websecure-lan.http.middlewares=hsts@file"
 {% if tailnet_oldsrv_ip is defined and tailnet_oldsrv_ip %}
       # HD-405: the tailnet listener. Bound to THIS NODE's tailnet IP — never 0.0.0.0 — so
-      # nothing but a tailnet node the headscale ACL allows (`tag:dev`, 443 only) can even
+      # nothing but a tailnet node the headscale ACL allows (`tag:dev`: tcp/443, plus one
+      # udp/53 rule written on the node address for the resolver role — HD-415) can even
       # open a socket here; no LAN, home-WAN or public client can reach it. Needs
       # net.ipv4.ip_nonlocal_bind=1 (the keepalived VIP bind already requires it on this
       # host), which is what stops a tailscaled restart from crash-looping the whole home

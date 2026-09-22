@@ -371,6 +371,97 @@ rebuild fails loud without these, in this order:
    join lands it under the owner user and silently inherits `dst:domen:*` on every port.
 
 
+### 1.4e Tailnet resolver chain — guarded headscale restart + the three-case drill (HD-415) `[MANUAL — owner present for the drill]`
+
+> The tailnet `dns.nameservers` chain is **MagicDNS loop → the `oldsrv` node address → the VPS public**
+> instance (SSOT `tailnet_oldsrv_ip` + `dns_primary_ip`; rationale in [network-dns.md](docs/network-dns.md)
+> §The resolution requirement). The node entry only works together with the `udp:`-scoped `udp 53` rule in
+> `templates/docker_services/headscale/policy.hujson.j2` — **neither half alone works**, and the nameserver
+> entry without the ACL rule is *worse* than the old chain (queries fall into an ACL drop and the VPS
+> fallback does not save them). Both halves render from the same `tailnet_oldsrv_ip` condition, so they
+> cannot diverge.
+> Landing either half is a headscale stop/start — every tailnet device reconnects — so it runs **only**
+> behind the auto-re-enable net. Never restart headscale by hand here.
+
+1. **Prove the auto-re-enable before the first stop** (the condition on the authorization; it costs one
+   short control-plane blip — existing device sessions survive, netmap updates pause):
+   ```bash
+   bash scripts/guarded-converge.sh --action prove --target vps --container headscale
+   # poll the printed /tmp/guarded-prove-headscale-*.log
+   ```
+   `prove` self-tests the watchdog, copies it to the target, arms it `setsid`+`nohup` **detached**, refuses
+   to continue unless the arm is proven alive (`pgrep` + its own `armed:` log line), and only then
+   `docker stop`s the container and waits. GREEN requires **both** a changed `StartedAt` **and** a
+   `RE-ENABLING` line in `/tmp/headscale-watchdog.log` — a container that came back without that line
+   proves nothing. ⛔ An older sequence that armed in one command and stopped in another was run live and
+   left the control plane down for 2m20s after the arm silently failed: assert and act in the SAME run.
+2. **Validate the candidate render with headscale's own parser, off-line.** Render the two templates to a
+   scratch path (a one-off playbook using the same inventory context is enough), then run the pinned image
+   against them — the container's rootfs is read-only and distroless, so `docker cp`/`docker exec sh` are
+   both impossible; bind-mount instead:
+   ```bash
+   docker run --rm -v /tmp/render/config.yaml:/etc/headscale/config.yaml:ro \
+       -v /tmp/render/policy.hujson:/etc/headscale/policy.hujson:ro \
+       -v /tmp/scratch:/var/lib/headscale --entrypoint /ko-app/headscale \
+       headscale/headscale:0.29.3 policy check --bypass-grpc-and-access-database-directly \
+       -f /etc/headscale/policy.hujson
+   ```
+   Expect `Policy is valid`. Prove the check is not vacuous by re-running it on a copy with `"proto": "udp"`
+   changed to a garbage protocol — that MUST fail with a `parsing policy` error naming `/acls/<n>/proto`.
+   ⚠ `headscale configtest` does **not** validate `dns.nameservers` values (measured: a garbage address
+   passes it silently), so its silence is not evidence about the DNS list.
+3. **Converge behind the net** — one scoped run, both tag classes (the inner per-service tasks are tagged
+   with the service name; `docker_services` alone is a silent no-op), scope to skip the unrelated lanes:
+   ```bash
+   bash scripts/guarded-converge.sh --action converge --target vps --container headscale \
+        --project /opt/headscale --playbook playbooks/vps.yml --limit vps \
+        --tags docker_services,headscale --extra "-e docker_services_scope=headscale"
+   # poll the printed log → `RESULT: GREEN — headscale is running ... and the watchdog is disarmed`
+   ```
+   One restart is expected (the restart-on-config-change step); it bounces the `headscale` compose project,
+   i.e. `headscale` **and** `headplane`. The wrapper's trap re-runs `compose up -d` on any exit and the
+   watchdog stands down only after the post-state is verified.
+4. **Verify the artefacts, not the recap:**
+   ```bash
+   ssh vps 'sed -n "/nameservers:/,/^  # /p" /opt/headscale/config.yaml | grep -v "^ *#"'   # loop, node, VPS public — no LAN IPs
+   ssh vps 'tail -8 /opt/headscale/policy.hujson'                    # proto udp, dst <tailnet_oldsrv_ip>/32:53
+   ssh vps 'docker ps --filter name=head --format "{{.Names}} {{.Status}}"; \
+            docker exec headscale headscale nodes list | grep -c online'
+   ```
+5. **Prove the resolver path over the tailnet** (from any node of the owner's user — the ACL is scoped to
+   that user, so a tagged node cannot run this test):
+   ```bash
+   dig +time=3 +tries=1 +short @<tailnet_oldsrv_ip> media.kogler.si A      # the home-hosted answer
+   dig +time=3 +tries=1 +tcp  @<tailnet_oldsrv_ip> media.kogler.si A       # MUST fail — the grant is udp-only
+   sudo nft list chain ip filter ts-forward                                 # on oldsrv
+   ```
+   The query arrives on `tailscale0`, is DNATed to the Technitium container and the reply leaves on
+   `tailscale0`: expect the `ts-forward` *mark-accept* and *oif accept* counters to move together while the
+   tailscale's anti-loop drop (`ip saddr <the tailnet range> oifname tailscale0 drop`) counter **stays at 0** (the container reply is still
+   source-NATed-to-the-container at the FORWARD hook, so tailscale's anti-loop drop never sees the tailnet
+   source — that is what makes a published container reachable from a tailnet address at all).
+6. **The three-case drill — the row's acceptance, owner present.** Pick a home-hosted name that is NOT a
+   MagicDNS `extra_record` (`media.kogler.si` / `seerr.kogler.si`): the `extra_records` set answers
+   client-side and would pass without testing anything. Read the answer, not just the page:
+   `ERR_NAME_NOT_RESOLVED` = resolver path broken (an HD-415 failure); connected-but-timed-out/refused = DNS
+   worked and reachability is the separate, pre-existing property that the internal zone returns a **LAN**
+   address, which no away device can route to.
+   - **(a) On the LAN** — phone on home Wi-Fi, Tailscale *off*: the name resolves from the DHCP resolver
+     (unchanged path, sanity baseline), then **Tailscale on**: it still resolves.
+   - **(b) Away** — phone on cellular, Wi-Fi off, Tailscale connected: the app's DNS view lists
+     `100.100.100.100`, `<tailnet_oldsrv_ip>`, `<dns_primary_ip>` and reports no `DNS unavailable`, and the
+     name resolves (to the home LAN address — see the caveat above).
+   - **(c) At home, home WAN pulled** *(the load-bearing case)* — pull the WAN at the edge, then on the
+     phone: Tailscale still connected (it runs on its cached netmap while the control plane is unreachable —
+     expect the app to warn, that is not the failure), then ping `oldsrv`'s tailnet address from the app and
+     require a **direct/local** path, then resolve the name. Instrument the same case from a laptop at home
+     (`tailscale ping <tailnet_oldsrv_ip>`, then the `dig` of step 5) — but do not call the case proven on
+     the laptop alone.
+   Restore the WAN and re-check (b). A failure in (c) is not a config bug to guess at: it means the
+   direct-over-LAN leg is missing and the resolver design needs the router leg written in
+   [network-dns.md](docs/network-dns.md) §The resolution requirement.
+
+
 ### 1.4c Technitium primary admin bootstrap + seed (VPS, HD-324)
 
 A from-scratch VPS deploy starts Technitium with a **default `admin` user whose password is

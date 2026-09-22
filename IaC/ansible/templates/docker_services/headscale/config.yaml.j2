@@ -75,9 +75,29 @@ dns:
     # symptom (llm/stats/litellm ERR_NAME_NOT_RESOLVED). Keep the Technitium
     # entries AFTER for the full namespace + per-subnet filtering from the LAN.
     - "100.100.100.100"        # headscale MagicDNS loop (answers extra_records + search-domain locally; tailnet-wide)
-    - "{{ dns_primary_ip }}"   # Technitium PRIMARY (VPS, dns-servers overlay — HD-299, after MagicDNS in chain)
-    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium SECONDARY (oldsrv)
-    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium TERTIARY (Pi)
+    # HD-415 (2026-09-22): the chain is now LOCATION-INDEPENDENT — one resolver that is
+    # reachable from wherever the device happens to be, instead of a list sorted by where
+    # the device usually is. Second entry = oldsrv's own TAILNET NODE ADDRESS, which is
+    # reachable (a) at home direct-over-LAN even with the home WAN pulled — the case the
+    # two LAN entries used to serve and which the VPS can never serve, because a WAN outage
+    # removes the VPS too — and (b) away from home whenever the home link is up. Third entry
+    # stays the VPS PUBLIC instance as the fallback, so a dead node never costs away-side
+    # name resolution (the public half of the zone lives in the same split-horizon set).
+    # The two LAN-address entries (oldsrv + Pi Home-VLAN IPs) are GONE: off-site they were
+    # unreachable, so the Tailscale app said `DNS unavailable` and every lookup burned a
+    # resolver timeout first. Case (d) — away while the HOME WAN is down — is accepted as
+    # unresolvable by the owner; no resolver behind a dead WAN is reachable from anywhere.
+    # ⛔ Order is load-bearing, and so is the pair: naming this entry WITHOUT the `udp 53`
+    # rule in policy.hujson.j2 is worse than the old chain — the client would send its
+    # queries into an ACL drop and the VPS fallback would not save them.
+    # Rendered only when the node address is known (it is assigned by headscale at join;
+    # SSOT tailnet_oldsrv_ip). Empty -> the entry is omitted rather than rendered as "",
+    # which headscale would reject at start — a DNS list must never be able to stop the
+    # control plane it describes.
+{% if tailnet_oldsrv_ip %}
+    - "{{ tailnet_oldsrv_ip }}"  # Technitium SECONDARY on oldsrv, over its tailnet node address (HD-415)
+{% endif %}
+    - "{{ dns_primary_ip }}"   # Technitium PRIMARY (VPS public — HD-299; HD-415 keeps it as the fallback)
   # HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge serves
   # stats/logs/csui/sec/traefik/auto (and their *.ts.kogler.si MagicDNS twins) on
   # the sidecar node `vps-obs` (tag:sidecar). These custom A records make the CLEAN

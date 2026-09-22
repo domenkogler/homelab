@@ -47,6 +47,8 @@
     // way in is the explicit port-scoped rule below. That is the whole point: the box holding
     // the vault token is reachable on 443, not on ":*". If this lane ever needs another port
     // (SSH, RustDesk), add it deliberately — do not widen this to :*
+    // (HD-415 2026-09-22 added one DNS rule; it is NOT under this tag — it names the node's
+    //  own address, so acquiring `tag:dev` does not grant resolver access.)
     "tag:dev": ["domen@kogler.si"]
   },
 
@@ -71,7 +73,9 @@
       "src": ["domen@kogler.si"],
       "dst": ["tag:sidecar:443"]
     },
-    // HD-405 (2026-09-20): oldsrv's tailnet node, **443 ONLY** (owner decision 2026-09-20).
+    // HD-405 (2026-09-20): oldsrv's tailnet node, **tcp/443 only** (owner decision 2026-09-20;
+    // amended 2026-09-22 for ONE DNS rule — see immediately below, and note it is scoped to
+    // the node ADDRESS, not to this tag).
     // What this does NOT do, and must not: no LAN bridge, no advertised routes (the node
     // joins with --advertise-routes absent and `headscale routes list` stays empty), no
     // exit node (HD-408, still the Pi), no Tailscale SSH, and nothing at all toward
@@ -83,5 +87,34 @@
       "src": ["domen@kogler.si"],
       "dst": ["tag:dev:443"]
     }
+    // HD-415 (2026-09-22, owner decision): **DNS only** — udp/53 to oldsrv's tailnet node
+    // address, so the tailnet can use the resolver that is reachable from wherever the device
+    // is (docs/network-dns.md §The resolution requirement). Without this rule the netmap
+    // drops the phone's DNS queries to that nameserver and the whole `*.kogler.si` zone goes
+    // dark away from home, which is why the nameserver entry and this rule ship together.
+    // Deliberate shape:
+    //   * `proto: udp` — this grants DNS and nothing else; tcp/53 stays closed (answers here
+    //     are small A records; a truncated-over-UDP answer would need this widened, and that
+    //     would be a separate owner call).
+    //   * dst = the node ADDRESS, not `tag:dev` — a second node that ever takes `tag:dev`
+    //     must not silently inherit a resolver grant. Every node that is ever named as a
+    //     tailnet nameserver needs its own rule here, written on purpose.
+    //   * src = the owner's user, like every other rule in this file. A tagged/service node
+    //     that ever needs to query this resolver gets its own rule, also on purpose.
+    // Everything else in the 2026-09-20 invariant stands: no LAN bridge, no routes, no exit
+    // node, no Tailscale SSH, nothing toward IoT/guest.
+    // Rendered only when the node address is known (SSOT tailnet_oldsrv_ip) — the same
+    // condition that puts the entry in dns.nameservers, so the two never diverge.
+{% if tailnet_oldsrv_ip %}
+    ,
+    {
+      "action": "accept",
+      "proto": "udp",
+      "src": ["domen@kogler.si"],
+      "dst": ["{{ tailnet_oldsrv_ip }}/32:53"]
+    }
+{% else %}
+    // (tailnet_oldsrv_ip unset — no resolver node to name, so no DNS rule)
+{% endif %}
   ]
 }

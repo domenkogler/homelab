@@ -4,7 +4,7 @@
 > it closed: **HD-414** (scoped IPv6 on VLAN 10, filter before RA, delta folded into the converge, invariants
 > re-proven), **HD-410** (DERP posture decided — no self-hosted relay, confirmed by two measurements), **HD-419**
 > (jellyfin loopback publish, `media` 502→200), **HD-301** (hardening floor verified on the live device) and
-> **HD-09** (void — [docs/network-rejected.md](docs/network-rejected.md)). What this file is still for: **HD-415**
+> **HD-09** (void — [docs/network-rejected.md](docs/network-rejected.md)). What this file is still for: **HD-415** (shipped 2026-09-22 — only the owner's three-case drill remains)
 > — the owner ACL call is **answered ✅ include `udp 53`**, and the headscale stop/start is authorized **conditional
 > on a safety auto-re-enable if the driving session drops**, so it is now AI-runnable — **HD-406**, **re-decided as
 > MikroTik Back To Home** and deferred by the owner, and the **HD-159** wg-down window (owner-gated). Delete this
@@ -65,7 +65,7 @@ not enabled fleet-wide.
 |---|----|--------|-----------------|
 | 1 | **HD-414** | **Scoped IPv6 (dual-stack) on the RB4011** — spec below. Home VLAN 10 gets a GUA path; VLAN 20/30/40 get **no IPv6 at all** | gate: external probe from the VPS proves inbound v6 answers **nothing** except UDP 41641 → oldsrv. Nothing else may be enabled first — 410/406 are measured *after* it |
 | 2 | ~~HD-405 tail~~ | ✅ **DONE 2026-09-21 — the phone-on-cellular matrix ran and passed.** T1 reachable on mobile data; **T2 headscale stopped for 162 s and the node path served a *new* session with the control plane provably dead** (`vpn.kogler.si` → 404; restored at `restarts=0`, no delta left); T3 HA Companion works on `ha.ts.kogler.si`; T4 `PrimaryRoutes` empty on every peer + `10.10.20.10` unreachable. Record: [network-vpn.md](docs/network-vpn.md) §Tailnet boundary | **Nothing owed.** Two measurement traps for anyone re-running this: `headscale routes list` **does not exist** in this build (use `tailscale status --json` → `PrimaryRoutes`), and a loopback `curl` to `ha.ts.kogler.si` returns **000** because the edge binds the node IP only |
-| 3 | **HD-415** | **Tailnet resolver chain — the design is DECIDED; implement it.** Bind Technitium to **oldsrv's tailnet node address**, make that the headscale `nameservers` entry, keep the **VPS public instance as fallback**, drop the **two LAN-address entries**. Acceptance = the three-case drill (LAN / cellular / **home with the WAN pulled**) | **Decided 2026-09-21** (owner): neither "leave it" nor "trim it" — make the resolver reachable from wherever the device is; case (d) *away while the home WAN is down* is accepted as unresolvable ("it is ok that I will not get dns for whole domain, because it is not reachable from the internet"). The 2026-09-20 pass called this a bug and **was wrong** — that stays recorded so nobody deletes the WAN-out resilience instead of reasoning about it |
+| 3 | **HD-415** | **Tailnet resolver chain — ✅ SHIPPED 2026-09-22; only the drill is left.** The chain is MagicDNS loop → **oldsrv's tailnet node address** → **VPS public**, and the net policy carries the `udp:`-scoped `udp 53` rule to that node address. Acceptance = the three-case drill (LAN / cellular / **home with the WAN pulled**) — procedure [deployment-manual.md](deployment-manual.md) §1.4e | **Decided 2026-09-21** (owner): neither "leave it" nor "trim it" — make the resolver reachable from wherever the device is; case (d) *away while the home WAN is down* is accepted as unresolvable ("it is ok that I will not get dns for whole domain, because it is not reachable from the internet"). The 2026-09-20 pass called this a bug and **was wrong** — that stays recorded so nobody deletes the WAN-out resilience instead of reasoning about it |
 | 4 | **HD-406** | Router WG road-warrior peer — **re-evaluate after HD-414**, do not build it before. With v6 direct the case weakens; if v6 fails the case strengthens | it opens a second public listener, and that decision must be made against a measurement |
 | 5 | **HD-410** | DERP posture — **decide after HD-414.** Recommendation on the table today: **do not** self-host DERP on the VPS | a VPS-hosted DERP re-inserts the VPS into the data path, which is the thing HD-405 exists to remove, and fra is already 18 ms from home |
 | 6 | ~~HD-408~~ | ✅ **Deleted row — decided 2026-09-21: the exit node stays on the Pi.** Nothing to do | [network-rejected.md](docs/network-rejected.md) 2026-09-21; the re-open trigger is row 4's full-tunnel profile proving geo-egress with no exit node at all. Do not re-open |
@@ -105,7 +105,18 @@ and **no AAAA records for home hosts in the public zone** while this lands, so n
 becomes an inbound target by DNS accident (which is now moot in the good direction — such a record would be
 unreachable anyway).
 
-## HD-415 detail — decided 2026-09-21; implement as written
+## HD-415 detail — decided 2026-09-21 · ✅ implemented 2026-09-22 · drill pending
+
+> **Status of this section:** everything below is implemented and live. Three things it prescribed that the
+> measurements changed: (1) **no Technitium bind was needed** — it already listens on `0.0.0.0:53` + `[::]:53`,
+> which covers the node address; (2) the blocker was the **headscale ACL** (`tag:dev` was `tcp 443` only), now
+> widened by one `udp 53` rule scoped to the node **address** rather than the tag; (3) the answer from the node
+> is the **home LAN address**, and the VPS fallback's away-side view does **not** carry the media family — so
+> the node entry is the only resolver that has ever answered those names away from home. What shipped, the four
+> measurements and the procedure (including the guarded restart) are in
+> [network-dns.md](docs/network-dns.md) §The resolution requirement and
+> [deployment-manual.md](deployment-manual.md) §1.4e; the design rationale below stays as written so the
+> reasoning that produced it is not lost.
 
 headscale's tailnet `nameservers` chain is MagicDNS loop → VPS public → **oldsrv LAN IP → Pi LAN IP**. The
 last two are unreachable from a phone on cellular → the Tailscale app shows `DNS unavailable` and resolution

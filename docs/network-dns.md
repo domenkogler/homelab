@@ -126,7 +126,7 @@ Client → Technitium (DHCP-pushed chain, see below)
   The `.ts` twin costs the owner one extra entry in the Companion app and keeps both planes honest.
   ⚠ A client can hold a stale MagicDNS answer: `dig @100.100.100.100 ha.ts.kogler.si` proves what headscale
   serves; a client that disagrees needs a Tailscale reconnect (toggle), not a DNS change.
-- **The tailnet resolver chain trades an away-side warning for WAN-outage survival (HD-415).** `dns.nameservers` is MagicDNS loop → VPS public → `oldsrv` → `Pi`, and the last two are **private home addresses**: a phone on cellular cannot reach them, so the Tailscale app reports `DNS unavailable` and resolution burns resolver timeouts before falling back. They stay because they are what keeps `*.kogler.si` answering on a tailnet device **at home with the WAN down** — the only alternative in the chain is the VPS primary, which is precisely the path a WAN outage removes. Names inside the tailnet's own domain answer from the netmap client-side, which is why tailnet-only records (`ha.ts`) resolve even while the warning is up. **This is a decision to make (HD-415), not a defect to delete.**
+- **The tailnet resolver chain is location-independent (HD-415, shipped 2026-09-22).** `dns.nameservers` is **MagicDNS loop → oldsrv's tailnet node address → VPS public**. One resolver reachable from wherever the device is, instead of a list sorted by where the device usually is: the node address answers direct-over-LAN at home with the WAN pulled *and* away while the home link is up, and the VPS instance stays behind it so a dead node never costs away-side resolution. What it replaced was MagicDNS loop → VPS public → `oldsrv` LAN → `Pi` LAN: the last two are private home addresses, so a phone on cellular got `DNS unavailable` and burned resolver timeouts before falling back — but they were also what kept `*.kogler.si` answering on a tailnet device **at home with the WAN down**, since the VPS primary is precisely the path a WAN outage removes. That tradeoff, and why trimming was the wrong answer, is the decision record: §The resolution requirement below + [network-rejected.md](network-rejected.md) 2026-09-21. Names inside the tailnet's own domain answer from the netmap client-side, which is why tailnet-only records (`ha.ts`) resolve on any network regardless of which resolver is up.
 - **The VIP's `:443` edge is served by whichever keepalived node owns the VIP:** in normal mode the Pi's
   minimal **`traefik-ha`** edge serves `ha.kogler.si`; after a forward takeover the home-LAN
   **`traefik-internal`** edge on oldsrv takes over (HD-349/HD-346). Both serve an identical
@@ -286,10 +286,50 @@ which changes the design as written above — recorded here so the next implemen
 2026-09-20 invariant (no LAN bridge, no advertised routes, no exit node, no Tailscale SSH) stands. The headscale
 stop/start is authorized too, **conditional on a safety auto-re-enable if the driving session drops** — the exact
 `udp:` scoping and that condition are written in the HD-415 row, and the auto-re-enable must be proven before the
-first stop. So the row now runs as: publish the
-node-address nameserver → converge headscale at an authorized moment → **then** the three-case drill, including the
-never-yet-proven case (c): phone at home on **cellular**, home WAN pulled, resolving a home-hosted
-`*.kogler.si` name. Do not call it done on a `dig` from the laptop.
+first stop.
+
+✅ **SHIPPED 2026-09-22 — the chain is live; the drill is what remains.** The converged headscale config now
+serves `nameservers: [100.100.100.100, tailnet_oldsrv_ip, dns_primary_ip]` and the net policy carries the
+`udp:`-scoped `udp 53` rule to `{{ tailnet_oldsrv_ip }}/32`; both halves render from the same
+`tailnet_oldsrv_ip` condition, so a nameserver entry can never ship without its grant (and an unset node
+address drops the entry rather than rendering `""`, because a DNS list must never be able to stop the
+control plane it describes). What was measured on the way, ordered by what it costs to re-derive:
+
+* **The node-address resolver answers over the tailnet.** `dig @<tailnet_oldsrv_ip> media.kogler.si` from a
+  tailnet node returned the home answer where the same query had timed out minutes earlier. On `oldsrv` the
+  query arrives on `tailscale0`, is DNATed to the Technitium container and the reply leaves on `tailscale0`
+  again: `ts-forward`'s mark-accept and oif-accept counters moved together while its
+  tailscale's anti-loop drop (`ip saddr <the tailnet range> oifname tailscale0 drop`) counter **stayed at 0** — at the FORWARD hook the container
+  reply is still sourced from the *container* address (the DNAT undo happens later, in POSTROUTING), so
+  tailscale's anti-loop drop never sees a tailnet source. That was the open question about hosting a
+  published container on a node's own tailnet address, and it is why no `roles/network` exception was needed.
+* **The grant really is DNS-only.** udp/53 answers; **tcp/53 times out** (a truncated answer would therefore
+  fail — the answers here are small A records, and widening it is a separate owner call); tcp/8443 stays
+  blocked; the `tag:dev:443` rule is untouched.
+* **The VPS fallback is a *view*, not a copy of the zone.** From an away source the VPS primary answers the
+  control-plane/edge set (`sso`, `vpn`, `ha`, the apex) and **NXDOMAIN for the home-hosted media family**
+  (`media`, `seerr`, the *arr set), while the same instance answers those names for an internal source. The
+  2026-09-22 investigation's line "away that is the VPS Technitium" therefore holds only for the public/edge
+  half: **for the media family the node entry is the only resolver that has ever answered away from home.**
+  That is the strongest argument for this design and exactly what case (b) of the drill must read.
+* **`headscale configtest` does not validate `dns.nameservers` values** — a garbage address passes it
+  silently (canary-proven). `headscale policy check` DOES parse `proto` (a garbage protocol fails naming
+  `/acls/<n>/proto`), so it is the real gate for the policy half; the DNS list is gated by the post-converge
+  dig, not by configtest.
+* **Proving the safety net cost one outage of its own:** an arm step that ran in a different command from the
+  stop did not actually arm, and the stop left the control plane down for 2m20s until a manual `compose up`.
+  `scripts/guarded-converge.sh` now asserts arm-live before it is allowed to stop anything, and the
+  authorization's "prove it first" was then carried out properly (stop → the watchdog brought it back by
+  itself in 19s → disarm honoured mid-window).
+
+⛔ **Still open — the three-case drill** (procedure: [deployment-manual.md](../deployment-manual.md) §1.4e).
+Case (c) is **not** "the phone on cellular": with the home WAN down the node has no public endpoint and DERP
+is unreachable too, so the only thing that can work is the phone on **home Wi-Fi** reaching
+`<tailnet_oldsrv_ip>` **direct over the LAN** while the tailnet runs on its cached netmap (the app warning
+about the unreachable control plane is expected and is not the failure). Read the answer, not the page:
+`ERR_NAME_NOT_RESOLVED` is an HD-415 failure, while connected-but-timed-out is the pre-existing property that
+the internal zone returns **LAN** addresses no away device can route to. A laptop at home may instrument case
+(c) but does not prove it.
 
 ---
 
