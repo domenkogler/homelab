@@ -1,0 +1,146 @@
+# =====================================================================
+# Client model contract — ONE spec, rendered per vendor (HD-388).
+#
+# Why this file exists: the harness contract used to be a hand-maintained
+# ~/.pi/agent/models.json on one laptop, which `scripts/install-pi-wsl.sh` refuses to sync
+# ("Provider/auth config ... is NOT auto-synced") and which docs/pi-harness.md §1 had to call
+# its own "reference copy" because it carries a bearer key. The moment a second client exists
+# (a second workstation, the cockpit on oldsrv under HD-409, a `spark-lane` profile, a
+# Continue.dev in VS Code) a hand-copied JSON is a drift generator with no gate.
+#
+# This is the SSOT. Render with:
+#     python3 scripts/render-pi-config.py --check       # drift gate, writes nothing
+#     python3 scripts/render-pi-config.py                # write vendor files, mode 0600
+#
+# NO CREDENTIAL LIVES HERE. `credential:` names a 1Password item/field and the renderer
+# resolves it at render time (`op`), so the value never enters git, the spec, or a log
+# (CONVENTIONS §6). The rendered file DOES carry the key, so it is 0600 and never committed.
+#
+# WHY A CLIENT NEEDS THIS AT ALL (do not "solve" it by pointing clients at the gateway): a client
+# cannot read its own model contract out of LiteLLM — pi has no `model_info` consumer, and
+# decision #26 routes generation harnesses direct to the engine (services-ai.md §9d).
+# Distribution is the lever, not the proxy.
+#
+# ORDER IS PART OF THE CONTRACT: spec order == render order, and the order below reproduces the
+# live hand-kept file byte-for-byte, so the first render is provably a no-op. Reordering is a
+# deliberate, diff-visible act, not tidying.
+# =====================================================================
+version: 1
+
+vendors:
+  pi:
+    out: ~/.pi/agent/models.json
+  pi_auth:
+    # pi's OTHER credential file: auth for the built-in providers (openrouter, opencode-go), which
+    # was pure hand-kept drift with nothing in git describing it. No trailing newline in the render —
+    # that is what pi writes, and byte-identity is what proves taking over a hand-kept credential
+    # file does not disturb a working client.
+    out: ~/.pi/agent/auth.json
+  continue:
+    # A SEPARATE generated file, never merged into a workstation's own config: a generated block
+    # written over user-authored keys is a data-loss bug. Wiring it in (@-import or merge) is a
+    # per-machine step and is NOT verified by the renderer — docs/pi-harness.md §4b.
+    # It lives under ~/.continue/, not ~/.pi/agent/: this is not a pi artifact, and a stray
+    # generated file in the agent directory gets read by the agent (learned on the first run).
+    out: ~/.continue/homelab-models.generated.yaml
+
+providers:
+  # Credential source exists as of 2026-09-23 (owner minted `entrim_api` in Homelab-ansible) and the
+  # render was proven against the hand-kept file: the vault `credential` and the laptop's live
+  # `providers.entrim.apiKey` hash identically (25 bytes, 39788dc072-prefix family — see the row in
+  # docs/deployment-secrets.md). So this provider is managed: no `unmanaged:` flag, no
+  # --keep-legacy-credentials needed.
+  - id: entrim
+    description: hosted Entrim API (external, cost-bearing)
+    baseUrl: https://api.entrim.ai/v1
+    api: openai-completions
+    credential:
+      vault: Homelab-ansible
+      item: entrim_api
+      field: credential
+    models:
+      - id: deepseek-ai/DeepSeek-V4-Flash
+        name: Entrim DeepSeek v4 Flash
+        contextWindow: 1000000
+        maxTokens: 384000
+        input: [text]
+        continue: {capabilities: [tool]}
+      - id: Qwen/Qwen3.6-27B
+        name: Entrim Qwen3.6-27B
+        contextWindow: 262000
+        maxTokens: 131072
+        input: [text]
+        continue: {capabilities: [tool]}
+
+  - id: spark
+    description: self-hosted vLLM on the GB10 workstation, reached through the `llm` router
+    baseUrl: https://llm.kogler.si/v1
+    api: openai-completions
+    credential:
+      vault: Homelab-ansible
+      item: spark-llm_api
+      field: credential
+    compat:
+      supportsUsageInStreaming: true
+      supportsFinishReason: true
+      maxTokensField: max_tokens
+      supportsDeveloperRole: true
+      supportsReasoningEffort: false
+      supportsStrictMode: false
+      thinkingFormat: qwen-chat-template
+      thinkingTokenBudgetField: thinking_token_budget
+    models:
+      - id: spark/qwen3.8-flash-next
+        name: Qwen 3.8 Flash Next (spark GB10, 262k)
+        reasoning: true
+        input: [text]
+        # ⚠ contextWindow here is the ENGINE ceiling and is deliberately NOT the LiteLLM row's
+        # number. 262144 = the servable per-request `max_model_len` measured off the running
+        # engine (HD-376). The gateway row is `max_input_tokens: 245760` = that same window MINUS
+        # a 16 384 reserve, because the proxy adds the reply to the request. A template that
+        # "harmonises" the two breaks one of the two callers. Measured, not tidied: HD-376.
+        contextWindow: 262144
+        maxTokens: 16384
+        # Binary on purpose: this Qwen template reasons on EVERY turn unless told otherwise
+        # (23–121 hidden reasoning_tokens/turn measured in HD-376) and `reasoning_effort` is
+        # accepted-but-ignored by this engine build, so the graded levels collapse to on/off —
+        # null = off, a value = the budget.
+        thinkingLevelMap:
+          minimal: null
+          low: null
+          medium: null
+          xhigh: null
+          max: null
+        samplingParams:
+          temperature: 1.0
+          top_p: 0.95
+          top_k: 20
+        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
+        # Recorded so the two windows cannot be silently merged by a future editor, and so the
+        # gateway row has a named twin. NOT rendered into any vendor file.
+        gateway_row:
+          max_input_tokens: 245760
+          max_output_tokens: 16384
+          note: 245760 + 16384 = 262144, engine window minus reserve (HD-382 / HD-376)
+        continue:
+          # What the Continue.dev vendor gets. Keep its knobs in step with `compat` above, or
+          # write down why they differ.
+          capabilities: [tool, reasoning]
+
+# pi's provider auth file (vendor `pi-auth`). Same rule as everywhere else in this repo: the spec
+# NAMES the item, the renderer resolves the value at render time, no key material in git.
+# Proven 2026-09-23: both vault `credential` values hash-match what the laptop's live auth.json
+# already holds (openrouter 5ceea2ce6c / 73 B, opencode-go 9f31a67976 / 67 B) — so adopting the
+# render is a no-op on a working machine, which is the only safe way to take over a hand-kept file.
+auth:
+  - provider: openrouter
+    type: api_key
+    credential: {vault: Homelab-ansible, item: openrouter_api, field: credential}
+  - provider: opencode-go
+    type: api_key
+    credential: {vault: Homelab-ansible, item: opencode-go, field: credential}
+
+# Workstation-local keys are NOT here and must not be added: pi-harness.md §5 keeps theme,
+# packages, lastChangelogVersion and the rest of settings.json on the machine. This spec renders
+# the *model contract* only — that boundary is what lets a laptop and a cockpit share a render
+# without carrying someone's editor taste, or a token, from one to the other.

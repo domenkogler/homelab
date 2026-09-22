@@ -381,7 +381,9 @@ permission to write from an automation path that was designed to be read-only.--
 | `n8n_password` | `password` | n8n — `N8N_ENCRYPTION_KEY` (workflow encryption; long-lived, immutable — rotating means re-encrypting stored credentials). NOT used for webhook auth (see `n8n-webhook_api`) · HD-77 |
 | `n8n-webhook_api` | `credential` | n8n — webhook/API auth token (`N8N_BASIC_AUTH_PASSWORD`; Grafana webhook contact point `basicAuthPassword`) — independently rotatable short-lived token so the encryption key is never exposed in webhook auth (KOPS-031 / HD-77). HTTP basic auth user = `grafana` |
 | `n8n_api` | `credential` | **n8n — public REST API key** (Settings → n8n API; JWT `X-N8N-API-KEY`; HD-347). Used to provision/activate the `homelab-alerts` alert-router workflow (`POST /api/v1/workflows` + `/activate`) instead of a manual UI import — the workflow JSON is versioned in `roles/monitoring/files/n8n/`. Created by owner 2026-09-09; **rotatable** — regenerate in the n8n UI + update this item (rotation precedent 2026-09-09: key leaked in a transcript, rotated same day). |
-| `openrouter_api` | `credential` | **AI stack** — LiteLLM: all external LLM generation (OpenRouter). Single key reused across every LLM consumer (Open WebUI, OpenClaw); only LiteLLM sees it. |
+| `openrouter_api` | `credential` | **AI stack** — LiteLLM: all external LLM generation (OpenRouter). Single key reused across every LLM consumer (Open WebUI, OpenClaw); only LiteLLM sees it. **Second consumer since 2026-09-23:** the pi harness's own `~/.pi/agent/auth.json`, rendered by `scripts/render-pi-config.py` (HD-388) — rotating it now also needs a re-render on every client, not just a LiteLLM restart. ⚠ Duplicate-title hazard, measured the same day: two items were named `openrouter_api` in this vault at once (owner removed one) — see §Item titles are load-bearing below. |
+| `entrim_api` | `credential` | **AI stack — client-side** — Entrim (hosted, cost-bearing) bearer for the pi harness's `providers.entrim.apiKey`. Minted 2026-09-23 by the owner to retire the last key that lived only inside a hand-kept `models.json`; the value hash-matched the one already on the laptop, so `scripts/render-pi-config.py` adopted it as a no-op (HD-388). **Recyclable** — replace in Entrim's console, update this item, re-render each client. |
+| `opencode-go` | `credential` | **AI stack — client-side** — opencode-go provider key for the pi harness's `~/.pi/agent/auth.json` (HD-388, vendor `pi-auth`). Recorded 2026-09-23; previously hand-kept with no vault item at all. **Recyclable** at the provider, then re-render. |
 | `spark-llm_api` | `credential` | **AI stack** — spark's engine bearer key (HD-370): vLLM/SGLang `--api-key` on the `llm.kogler.si` OpenAI-API. The spark name edge + both LiteLLMs' spark model entry authenticate with it. **First vault item for the spark node** (was vault-free by design); catalog-created (`provision-secrets.py`). |
 | `spark_login` | `password` (`username` = `admin`) | **DGX Spark (GB10) first-boot admin account** — the password chosen in the NVIDIA/DGX OS setup wizard on first power-on (a human at the display + keyboard). **Not consumed by Ansible** (the automation identity is `ansible-admin` via `ansible-admin_ssh`), so per the two-vault model it lives in the **Homelab (human)** vault as a console/break-glass credential for a re-provision or KVM recovery. Set during [deployment-manual.md](../deployment-manual.md) §spark first-boot. |
 | ~~`cohere_api`~~ | ~~`credential`~~ | ~~**AI stack** — LiteLLM: Cohere **embed-v4 multilingual** (embeddings only).~~ **RETIRED 2026-09-06 (decision #23)** — embed/rerank local on oldsrv RX 7600 via Ollama `:rocm` (decision #24). Item may be deleted from 1P. |
@@ -398,6 +400,30 @@ permission to write from an automation path that was designed to be read-only.--
 > catalog (auto-generated + human-gated items) lives in [`../../scripts/provision-secrets.py`](../scripts/provision-secrets.py)
 > (`--list`) — counts are derived, never hand-entered (CONVENTIONS §2).
 > Future / not-yet-created: `n8n-smtp_login` (SMTP relay — provider not chosen yet, see deployment.md), `ha_mqtt` / `ha-mqtt_login` (if MQTT added to HA), `proxmox_root` / `proxmox_login` (Phase 2).
+
+### Item titles are load-bearing — they are the primary key
+
+1Password resolves items **by title** for every consumer here (`op read op://vault/item/field`,
+`op item edit "$item"`), so a title is a foreign key even though nothing enforces it. Two failure modes
+were measured on 2026-09-23 by sweeping `op item list` against the consumers:
+
+* **Duplicates.** Two items named `openrouter_api` existed in `Homelab-ansible` at once (different ids, same
+  vault). Every title-based lookup resolves to *one* of them, so a rotation can write the copy nobody reads
+  — the same shape as the two live `op_api` tokens in [1password.md](1password.md): a secret that exists
+  twice is a secret that rotates once and then lies about it.
+* **Dirty titles.** `authentik-secret-egress.sh` built item names from a hard-coded `PROVIDERS` array and one
+  entry carried a trailing comma, so `op item edit` failed on `metabase_oidc,` and the fall-through
+  `op item create` **minted it** — and reported success, four times across 18 days, while the real item sat
+  untouched. The general failure mode is the keeper: a create that lands beside a name the fleet already
+  owns is invisible to "write-only-if-changed" logic, so the sync rots quietly. The glue now validates every
+  `slug:item` against `^[a-z0-9][a-z0-9_-]*$` before any `op` call and fails loud; any script that builds
+  item names from a list owes the same check (`scripts/provision-secrets.py` included).
+
+**Read-only sweep** (prints counts, never values):
+
+```bash
+op item list --format json | python3 -c "import json,sys,re,collections; c=collections.Counter(i['title'] for i in json.load(sys.stdin)); print('dups :', {k:v for k,v in c.items() if v>1} or 'none'); print('dirty:', [k for k in c if not re.fullmatch(r'[a-z0-9][a-z0-9_-]*', k)] or 'none')"
+```
 
 ---
 
