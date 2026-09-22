@@ -369,12 +369,13 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 
 > ✅ **T1 RE-RUN FOR REAL — 2026-09-22, the owner's phone, both radios under test.** After both fixes the
 > name serves Home Assistant to a phone on cellular: **`https://ha.ts.kogler.si` works with Wi-Fi off and
-> the tailnet connected.** The pass was a full 4-state matrix (Wi-Fi × Tailscale), which is the shape this
+> the tailnet connected** — and the home cell was measured on its own afterwards, Wi-Fi on + tailnet on,
+> because an expected cell is not a measured one and that exact combination is what failed pre-fix. The pass was a full 4-state matrix (Wi-Fi × Tailscale), which is the shape this
 > acceptance should have had from the start:
 >
 > | name | Wi-Fi on + tailnet on | Wi-Fi on + tailnet off | Wi-Fi off + tailnet on | Wi-Fi off + tailnet off |
 > |---|---|---|---|---|
-> | `ha.ts.kogler.si` | ✅ after the two fixes | ✗ by design (the name lives in the netmap) | ✅ **T1** | ✗ by design |
+> | `ha.ts.kogler.si` | ✅ measured | ✗ by design (the name lives in the netmap) | ✅ **T1, measured** | ✗ by design |
 > | `ha.kogler.si` | ✅ | ✅ | ✗ (HD-432: advisory chain) | ✗ (no LAN DNS, no WAN) |
 > | `media.kogler.si` | ✅ | ✅ | ✗ (HD-432: advisory chain) | ✗ |
 >
