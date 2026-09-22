@@ -111,9 +111,10 @@ later session re-asks it. Rows marked ✅ are now pure AI in §B.
 
 | **HD-434** ⏳ | **Standby KNX: retest, don't re-theorise.** My GIRA-router conclusion was built on unauthenticated probes — the router expects the integration's `user_id`, so those packets would go unanswered from the healthy primary too, which makes them worthless as evidence. The bug actually found was ours (**HD-438**). Needs one owner-present takeover with the primary as a known-good reference. · [todo.md HD-434](todo.md) |
 
-| **HD-438** ⏳ | **The firewall excluded the thing it protected — hole closed, service unproven.** `trusted-ha` gates Home→IoT and named `oldsrv` + `ha-vip` but not the Pi, which runs HA primary and tunnels from its own address; HA's KNX telegram store stops at 2026-09-20 10:16:51. Two address rows closed the hole tonight and the Pi now reaches the router (verified: reachable, accept counter forwarding). What is left is honesty: xknx still times out, there is no flow entry for `:3671` on the router, and both of my "it's fixed" readings were absence-of-errors. Needs a positive instrument and the 09-20 boundary explained. · [todo.md HD-438](todo.md) |
 
+| **HD-438** ✅ | **Half-open KNX tunnel: outbound worked, inbound did not, for three days.** The reply leg lived only on `established/related` conntrack; an idle UDP tunnel that outlives it keeps switching devices while every state read is dropped and xknx never notices. Reload restored it; a `src-port=3671 → trusted-ha` reverse accept closes the recurrence, proven by deleting the conntrack entry under live traffic. My two earlier diagnoses (GIRA router, `trusted-ha`) are withdrawn — the second was measured with ICMP and TCP against a UDP path. Left: the generator's ~36 phantom state GAs, and no detection for this failure mode. · [docs/network-vlans.md](docs/network-vlans.md) |
 ### A2. What still needs you — the honest residue
+| **HD-439** ⏳ | **KNX leftovers:** the generator emits ~36 state group addresses the old working config never used and that never answer (they will keep timing out on every sync, and were the noise that hid a three-day outage), and nothing in the stack detects a half-open tunnel — the reload cadence or an alert on outgoing-telegram-error growth is the missing instrument. · [todo.md HD-439](todo.md) |
 
 | What | HD | Note |
 |---|---|---|

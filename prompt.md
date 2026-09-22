@@ -13,6 +13,33 @@ WSL Debian primary, ext4 (repo runs from the WSL Debian primary, not Windows). `
 
 ## 2. Open work (read the HD rows; this is only the index)
 
+**NEW — tailnet / DNS / KNX thread (2026-09-22→23 session; four HDs open).** The answer-plane architecture is
+now the SSOT in [docs/network-dns.md](docs/network-dns.md) §The answer-plane model — one namespace, three
+planes, and the rule that **an answer must be routable by the client that receives it**. Split-DNS, whole-zone
+`extra_records`, routes to user nodes, `override_local_dns: true`, the VPS as tailnet resolver and hand-typed
+hosts aliases are all refused with their re-open triggers in [docs/network-rejected.md](docs/network-rejected.md).
+Take the rows in this order:
+
+- **HD-436** — `zone_kogler_si`: one derived list replacing the four places the namespace is maintained today
+  (Technitium seed, headscale's two subdomain lists, the public Cloudflare set, an unversioned workstation
+  hosts file). Step 1 is a **pure refactor**: derive from the `docker_services` entries that already carry
+  `name`/`subdomain`/`public`/`enabled`, add `internal` / `tailnet: none|edge|node|dual` / `ts_router`, and
+  acceptance is an **empty zone diff** — nothing else may move in that first change. Strengthen
+  `scripts/guarded-converge.sh`'s post-converge liveness probe before the `extra_records_path` swap: the two
+  extra-record settings are mutually exclusive in the pinned headscale, and a container in a crash loop still
+  reports `Running`.
+- **HD-435** — the Pi joins the tailnet and `ha.kogler.si` gets two A records. Owner authorised the node; the
+  grant to apply is `tcp/443` to that node address from the tailnet only — no routes, no LAN bridge.
+  Acceptance has to **measure** multi-A fall-over with one box powered off, not assume it.
+- **HD-439** — KNX leftovers: `scripts/knx-hass-gen.py` emits state group addresses the bus never publishes
+  (the noise that hid a three-day outage), and nothing detects a half-open KNX tunnel.
+- **HD-434** — KNX on the HA standby: needs an owner-present takeover drill. Do not re-theorise from raw UDP
+  probes — the integration authenticates, so unauthenticated probes fail from healthy hosts too.
+
+Two habits this session paid for: **probe the transport you actually use** (ICMP and TCP/3671 told me nothing
+about a UDP/3671 tunnel, and I built a root cause on them), and **run the probe from a known-healthy host
+first** — the control I skipped was the one that would have saved three days.
+
 > **✅ spark memory/OOM thread — CLOSED (2026-09-18) as a *stability* question. This is a pointer now, not a
 > brief.** Stable config = `spark_vllm_kv_cache_memory: "16000000000"` (reserved 14.9 GiB / 515,786 tok /
 > 1.97× @262k): the 3-rung load chain passed it (0 kernel OOM, 0 engine restarts, 0 guard-fires) and the

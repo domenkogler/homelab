@@ -177,37 +177,21 @@ The forward takeover (Pi → oldsrv) has been **drilled live**: Pi LAN cable pul
 - **Real defect found and fixed:** the standby compose published only `5683/udp` (Shelly CoAP) and **never
   `8123`** — the VIP contract did not hold on takeover. It now publishes `8123` as well. **A standby that is
   reachable by VIP but has no published app port is not a standby.**
-- ✅ **Gap 1 — KNX on the HA primary was broken by our own firewall, and it is fixed (HD-438, 2026-09-23).**
-  What I wrote here earlier today — "the GIRA router drops KNXnet/IP from the standby; device-side allowlist;
-  needs ETS or a power-cycle" — was **wrong in its conclusion**, though the packet evidence that prompted it
-  was real. The measured cause was one hop earlier: the MikroTik Home→IoT (VLAN 20) accept is gated on
-  `src-address-list=trusted-ha`, and that list contained `oldsrv` + `ha-vip` but **not the Pi** — the host that
-  actually runs HA primary. HA opens its KNX tunnel from its own address (`local_ip: null` in the config entry),
-  so from the Pi the tunnel hit a default drop: the KNX router's own address was unreachable at the IP layer while oldsrv
-  reached it fine. HA's KNX therefore timed out continuously on the primary (`GroupValueRead … did not respond`,
-  `L_DATA_CON … timed out`, ~89 events in 20 minutes) for about a week, silently, because the bus and the wall
-  switches work without HA and HA simply served stale state. Two address rows were added live at 00:00:40, widening only, and
-  the **hole is closed**: the Pi reaches the router (ICMP up, `tcp/3671` open) and the `trusted-ha` accept
-  counter advanced 97→99 in 25 s, so traffic that way is forwarded. It does **not** follow that HA's KNX is
-  healthy, and I should not have written that it was: the xknx timeouts continued after the fix (53 in the next
-  8 minutes); my "they stopped completely" was a 3-minute window inside an episodic burst pattern; the router
-  keeps no conntrack or fasttrack entry for `:3671`; and HA's KNX telegram store's newest row is
-  **2026-09-20 10:16:51**, three days before the fix, with the HA container up since 2026-09-07 so no restart
-  explains the cut-off. Two of my three "proofs" here were absence-of-errors reasoning; the telegram store is
-  the only positive instrument in this diagnosis, and it has not moved. **HD-438 stays open**, and what will
-  settle it is a KNX entity visibly changing in the HA UI (or the HA API), the 09-20 10:16 boundary explained,
-  and the 19 of 154 group addresses that answer nothing — a `Kabinet Zaluzije Z6` shutter family, possibly an
-  offline device sitting underneath all of this.
-  **Why every probe I ran failed on both boxes, including the healthy one:** the integration's entry carries a
-  `user_id`, so the router expects authorised clients — my hand-built `SEARCH`/`CONNECT` packets and a bare
-  `xknx` tunnel were unauthenticated, so they answered nothing from *anywhere* and could not distinguish
-  filtering from authorisation. All of today's "device-side" inference rests on packets that were never going
-  to be answered. That is the real defect in the diagnosis: the control that would have caught it — a probe
-  from a host known to be healthy — was the one thing I did not run until the firewall was already fixed.
-  **The standby's own KNX (HD-434) is still unproven, not disproven:** oldsrv was always in `trusted-ha`, so
-  HD-438 does not explain it; the drill observation was made while the primary may still have held the
-  router's tunnel channel. Retest it at the next owner-present takeover, now that the primary is known-good.
-
+- ✅ **Gap 1 — KNX on the HA primary was silently half-open for three days; cause proven, two fixes in.**
+  Symptoms: HA's KNX reported `tunnel established 2026-09-20T07:29:43` and never reconnected,
+  `outgoing_telegram_errors` climbed (6,651 → 6,669 in 72 s), `incoming_telegram_errors = 0`, entity states
+  frozen since 09-20, and **81 group addresses answering nothing** — including 14 state GAs from the old
+  hand-authored config that demonstrably used to respond, which is what ruled out a stale generated config.
+  Devices still switched when commanded, which is why nobody noticed: outbound worked, inbound did not. Cause:
+  the KNX reply leg was accepted only as `established/related` conntrack, so an idle UDP tunnel that outlives
+  the conntrack timeout is permanently half-open and xknx cannot see it. Reload restored inbound; the
+  `src-port=3671 → trusted-ha` reverse accept removes the recurrence, verified by deleting the flow's conntrack
+  entry and watching inbound continue. Two things it did **not** explain and are still open: the ~36 state
+  group addresses the generator emits that your old working config never used (they will keep timing out on
+  every sync even on a healthy bus), and whether the standby's KNX (HD-434) behaves any differently — retest at
+  a drill with the primary now as a known-good reference. My earlier "GIRA router refuses the standby" and
+  "trusted-ha was the cause" claims are both withdrawn; the probe that should have caught the second one was a
+  UDP test, and I ran ICMP and TCP instead.
 - ⚠ **Two dependencies the same drill exposed, both closed on paper 2026-09-22, neither drilled.**
   **(1) Home DNS turned out to be fine and my claim about it was wrong.** I wrote that the router advertised
   only the Pi, so a Pi-out would leave the house unable to name anything — a "half takeover". Measured on the
