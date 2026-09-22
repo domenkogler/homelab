@@ -13,8 +13,11 @@
 >   at its `*-rejected.md` row. §A2 is what is actually left of the owner: logins, a sideload, and physical windows.
 > - **§0 Repo state:** the two empty session worktrees (the HD-395 and HD-399 lanes, both 0 commits) and all twelve
 >   stale `session/*` branches are gone; `main` is the only checkout, clean, `validate-all.sh` green.
-> - **Registry: 102 rows** — HD-408 deleted as decided, **HD-418 / HD-419** registered out of the two fault-notes that
->   lived only in [network-vpn.md](docs/network-vpn.md) prose.
+> - **Registry** (re-derive any count from `todo.md`; never type one) — HD-408 deleted as decided, **HD-418 / HD-419**
+>   registered out of the two fault-notes that lived only in [network-vpn.md](docs/network-vpn.md) prose.
+>   **2026-09-22 (the HD-414 lane):** **HD-419** deleted (shipped + verified), **HD-301** deleted (hardening floor
+>   measured on the live device), **HD-09** deleted as **void** — its ask contradicts [docs/hardware-ups.md](docs/hardware-ups.md)
+>   and the rule never existed despite "IaC done"; it is now a row in [docs/network-rejected.md](docs/network-rejected.md).
 > - **§B** gained the rows the decision round converted from owner-gated to pure AI.
 > - **Watch-list** now also catches the false claims a decision round creates by itself — "`§A` is done" (decided is
 >   not shipped), "Forgejo is the remote" (it holds no copy), "oldsrv will push" (it is pull-only until HD-409).
@@ -44,7 +47,11 @@
 - **The live reality that reorders the transport lane:** the first real away session to the home node came back
   **`Relayed (FRA)`, 60–90 ms**, so "static public IPv4 ⇒ direct" is **false for cellular clients here**. That is why
   HD-414 (scoped IPv6) gates HD-406, HD-410 and now the HD-415 resolver work (it gated HD-412's relay story too — that
-  shipped on the VPS 2026-09-21 without waiting for the measurement).
+  shipped on the VPS 2026-09-21 without waiting for the measurement). ✅ **HD-414 ran 2026-09-22 and the /56 is real**
+  (delegated, leased ~15 min): IPv6 is live on **VLAN 10 only** with a filter whose accept-before-drop order was proved
+  necessary on the device, and oldsrv reports `IPv6: yes`. What it gates is therefore no longer a router change but the
+  **owner's re-measure** below — plus one finding: the planned `UDP 41641 → oldsrv` accept was **deliberately not
+  shipped**, because oldsrv has no predictable Home address to name (stable-privacy + temporary addresses).
 - **Proof order for any live claim:** `todo.md` §3c → [`deployment-tasks.md`](deployment-tasks.md) checkboxes → the
   owning doc's ✅ lines. Doc banners are hints, not proof.
 
@@ -75,7 +82,7 @@ later session re-asks it. Rows marked ✅ are now pure AI in §B.
 | **HD-248** ✅ | **No second OWUI instance now** — the row is now just "correct the stale `x2 live` banner"; the split stays planned until a real second audience exists | [services-rejected.md](docs/services-rejected.md) 2026-09-21 |
 | **HD-336b** | CrewAI **stays parked** — you are evaluating alternatives (incl. Hermes); no pilot until you rule | `todo.md` row |
 | **HD-418** ✅ | `ha_trusted_proxies` += oldsrv's Home IP, **in a planned window** (restarts the controller) — because the standby HA edge has never actually worked | [smart-home-rejected.md](docs/smart-home-rejected.md) 2026-09-21 |
-| **HD-419** ✅ | Publish a jellyfin host port on the Home leg → kills the `media.kogler.si` 502 and feeds HD-357's tile | `todo.md` row |
+| **HD-419** ✅ | Publish a jellyfin host port on the Home leg → kills the `media.kogler.si` 502 and feeds HD-357's tile. **Shipped + verified 2026-09-22, row deleted** — with one deliberate deviation: it publishes on **loopback**, not the Home IP (the edge is host-networked, so loopback is enough, and it keeps Jellyfin's login + its CrowdSec/HSTS bypass off the Home VLAN). ⚠ Verification also found `seerr`/`sonarr` answering the same edge with **502** for the same reason — recorded in [docs/services-traefik.md](docs/services-traefik.md), **no row for it yet** | [docs/services-traefik.md](docs/services-traefik.md) |
 
 ### A2. What still needs you — the honest residue
 
@@ -85,7 +92,7 @@ later session re-asks it. Rows marked ✅ are now pure AI in §B.
 | **Sideload the Paseo APK + pair + a 2-week verdict** | HD-411 | Runs in parallel with HD-409 now |
 | **Check your Jellyfin login at seerrng** | HD-353 | 30 seconds |
 | **A spark bench window** | HD-400 · 376 · 359 · 367 | Detached; never with an agent session attached, never from a spark-backed session |
-| **Re-measure the phone once, after IPv6** | HD-410 · HD-414 | The matrix itself ran ✅ 2026-09-21 (HD-405 closed). One `tailscale ping` from oldsrv to the phone after the /56 lands, plus the app's session-type line: **does it flip to Direct?** |
+| **Re-measure the phone once — IPv6 landed, this is now ripe** | HD-410 · HD-414 tail | **~3 minutes, no hands on any server:** phone on **cellular** (Wi-Fi off) → `tailscale ping <oldsrv tailnet address>` + read the app's session-type line, with the router's `/ipv6 firewall filter print stats` before and after. **Direct ⇒ HD-410 closes with no DERP and no inbound listener; still relayed ⇒ the v4 `dst-nat` experiment becomes the next step.** The 2026-09-21 matrix (HD-405) proved the node path survives a control-plane restart; this one decides the relay question. |
 | **A WAN-pulled drill at home** | HD-415 | The new resolver design's whole load-bearing assumption is that a phone at home reaches the node **direct over the LAN with the WAN pulled**. That is proven by a drill you are present for, not by a `dig` from the laptop |
 | **One visual pass** | HD-316 · 315 · 343 · 377 · 375 · 319 | Launchpad, host-overview (disk-work + temps), Network Clients, `homelab-llm`, the two memory rules in Grafana **and** reaching n8n, the three rekuperator GAs |
 | **Be on-site once** | HD-397 tail | The LAN matrix + the `Mgmt99` vNIC half |
@@ -111,7 +118,7 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 |---|---|---|---|
 | [prompt-407.md](prompt-407.md) runner + cockpit | **1** | HD-407 · 409 · 411 · **399 · 386 · 416 · 388 · 356** | oldsrv |
 | [prompt-420.md](prompt-420.md) metric cadence | **1** | HD-420 · **395 · 377(b) · 342 · 345** | spark + VPS (`--tags monitoring`) |
-| [prompt-414.md](prompt-414.md) scoped IPv6 + transport | **2** | HD-414 · 415 · 406 · 410 · 405 tail · **419 · 09 · 301** (+159 with a window) | router (global slot) + oldsrv |
+| [prompt-414.md](prompt-414.md) scoped IPv6 + transport — **closed 2026-09-22 for its AI half; brief kept as the re-dispatch card for 4 owner-gated row tails** | **2** | HD-414 · 415 · 406 · 410 · 405 tail · **419 · 09 · 301** (+159 with a window) | router slot **now free** + oldsrv |
 | [prompt-384.md](prompt-384.md) LiteLLM consumer chain | **3** | HD-383 · **384** · 403 · 387 · 373 · 249 | oldsrv + VPS `docker_services` |
 | [prompt-376.md](prompt-376.md) spark engine + bench | **3** | HD-376 · 400 · 359 · 367 · 380 (absorbs the stale `prompt-next.md`, now deleted) | spark, **owner bench window** |
 | [prompt-357.md](prompt-357.md) launchpad + home edge | **4** | HD-357 · 17 · 217 · 358 · 418 (window-gated) | oldsrv |
@@ -130,7 +137,7 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 |----|---|------|----------------|------------------------|
 | **HD-399** | 2 | every `docker_services --check` on oldsrv runs at all | gate the Technitium login block with `not ansible_check_mode` (`uri` does not run in check mode, so the registered token dies at `technitium-seed.yml:102`) | pure IaC defect, located 2026-09-19; third instance of a catalogued class in [deployment-ansible.md](docs/deployment-ansible.md) §Dry-run Mode. ⛔ no `default()` / `failed_when: false` — fail-loud. Interim green form: `--check --tags common,network`. **A lane was opened for this and never started (§0)** · 📋 [`prompt-407.md`](prompt-407.md) |
 | **HD-395** | 2 | the watchdog stops restarting a healthy spark engine | baseline the idle recycle only after `/health` 200 **and** a settle window (or max of N samples), then re-check the +8 GiB margin against the certified peak | measured defect: the first-post-boot floor has been read **71,911 / 86,243 / 92,343 MiB** on one config → it either restarts a healthy engine or goes silent. Drive it from the laptop, never from a spark-backed session. **A lane was opened for this and never started (§0)** · 📋 [`prompt-420.md`](prompt-420.md) |
-| **HD-414** | 1 | the phone reaches oldsrv **directly** instead of via a Frankfurt relay | scoped IPv6 on the RB4011: DHCPv6 PD for the /56 → /64s for **Home VLAN 10 only** → RA on VLAN 10 → v6 filter = drop-all-from-WAN with **one** UDP 41641 accept to oldsrv → prove it by probing **from the VPS** | the static /56 exists, the laptop is at home, and it deliberately gates HD-406/410/412. RouterOS 7.21 syntax must be verified before converging; the `.rsc` is generated — never hand-edit, never `system reset`. [prompt-414.md](prompt-414.md) |
+| **HD-414** | 1 | the phone reaches oldsrv **directly** instead of via a Frankfurt relay | ✅ **Landed 2026-09-22** (row stays open on its tail): DHCPv6-PD → one advertised /64 on **VLAN 10 only** → v6 filter with every accept **above** its drop (first-match-wins, proved on the device) and **no inbound accept at all**. The planned `UDP 41641 → oldsrv` was **not** shipped — there is no predictable Home address to name; it needs `IPv6Token=`/no-privacy on the host first (`roles/network`). ⚠ The brief's "prove it by probing **from the VPS**" is **unrunnable**: the VPS has a GUA and a v6 default route but no working IPv6 (100 % `ping6` loss, no ip6 nft ruleset). | Owner's re-measure above; re-run the outside-in probe **from a host with real v6**; rollback is two switches in [docs/network-vlans.md](docs/network-vlans.md) §IPv6 · [prompt-414.md](prompt-414.md) |
 | **HD-416** | 2 | every SSH grant on a managed host is named, or it does not exist | read-only `authorized_keys` audit across the managed hosts (fingerprints + comments), diffed against the named set in [deployment-secrets.md](docs/deployment-secrets.md) §Who is authorized where, failing loud on an unknown | triggered by the `oldsrv-rsync` key that authorized `ansible-admin` (NOPASSWD root on nas) from no vault item; four live grants still have none. ⛔ it must **never** edit an `authorized_keys` — the classic failure of an SSH tool is locking yourself out with your own fix · 📋 [`prompt-407.md`](prompt-407.md) |
 | **HD-417** | 3 | the validators can see a broken table | cell-count check for markdown tables in the docs validator (split on unescaped pipes, compare to the header, fail with file + line) + an escape convention + a one-time legacy sweep | a swallowed newline merged two registry rows and an `/etc/x`-style description added nine stray cells to a 3-column row on 2026-09-21 — both passed every gate. Cheap guard for a failure that is invisible today. · [CONVENTIONS.md](CONVENTIONS.md) §6 · 📋 [`prompt-417.md`](prompt-417.md) |
 | **HD-387** | 2 | know whether thinking is actually OFF through the gateway | run the written probe protocol against the LAN instance (baseline → toggle → budget pair → `top_k` → the proxy's own dropped-params log) | a recorded live measurement and the pinned source contradict each other, and the failure mode is silent thinking-ON at HTTP 200. Master-key path, no client change; the harness route does not move either way (decision #26) · 📋 [`prompt-384.md`](prompt-384.md) |
@@ -199,7 +206,6 @@ with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
 | HD-47 | 3 | Matrix is federated | publish `matrix`/`chat` + `_matrix` well-known/SRV, then prove inbound federation from an external server | servers live; the records are the only missing piece (also a prerequisite inside HD-147) |
 | HD-112 | 2 | Zipline is usable, not just up | post-up seeding: local admin → OIDC login (one owner browser step) → flip `bypass-local-login` → create `guestbin` + `dropzone` → round-trip + 6 h sweep verify | deployed; the remainder is seeding |
 | HD-159 | 2 | the tunnel-down alert is proven | run the deliberate `wg down` test and confirm `wg-s2s-down` fires (short planned window) | rule + scrape deployed, never proven · 📋 [`prompt-414.md`](prompt-414.md) |
-| HD-09 | 2 | the UPS web UI is Mgmt-only | ride the next router converge import and confirm the Home→Mgmt 80/443 rule lands | IaC-only so far · 📋 [`prompt-414.md`](prompt-414.md) |
 | HD-287 | 2 | immich-ml runs with minimal caps | encode `cap_drop: ALL` + the ROCm-init `cap_add` set → converge → verify ML inference still works | its gate (the ML leg being live) is met; rides the HD-386 converge |
 | HD-318(b) | 1 | the *arr quality profiles actually sync | confirm the recyclarr @daily sync landed (after the 2026-09-15 `bind_owner_uid` fix) | stacks are up; observation only |
 | HD-280 | 2 | brute force actually gets banned | observation: confirm a repeated 401/403 produces a ban | jail is live; waits on natural traffic |
@@ -244,7 +250,9 @@ spark converge. The rest of this section is independent of it and of each other.
    `docs/services-ai*.md` stays one-lane-at-a-time (lane 407 while it lives), `templates/docker_services/**` is
    **one writer per service directory**, and there is **one converge in flight per host** (oldsrv / VPS / spark /
    router — the router slot is global because its converge is a device-wide `/import`). `roles/router/**` belongs to
-   the HD-414 lane. Check `git worktree list` + `git log` on the file before editing it.
+   the HD-414 lane — **closed 2026-09-22, so `roles/router/**` and the router's converge slot are free again** (the IPv6
+   section is folded into the converge template; only the owner's phone matrix or the optional one-port exception would
+   reopen it). Check `git worktree list` + `git log` on the file before editing it.
 5. **The runbook has no owning lane — ownership follows the action** (README §4.8): if a session did something a human
    would repeat by hand, `deployment-manual.md` gains the imperative line **in that same change**.
 6. **Never print a secret value** — lengths, prefixes, item ids and hashes only.
@@ -336,8 +344,10 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
   the design is written in [docs/observability.md](docs/observability.md) §Scrape cadence and
   [prompt-420.md](prompt-420.md), and it touches only `roles/monitoring/**` + the dcgm sidecar, so it can run in
   any spare session without colliding with a lane.
-- **Two things are still wrong with the repo, both now with rows:** the standby HA edge cannot proxy (**HD-418**) and
-  `media.kogler.si` answers 502 (**HD-419**). Both decided, both one-change AI work.
+- **One thing is still wrong with the repo and has a row:** the standby HA edge cannot proxy (**HD-418**). The other
+  fault-note of that pair, `media.kogler.si` answering 502 (**HD-419**), was fixed and verified 2026-09-22 — and fixing it
+  exposed that the same `502` shape covers `seerr`/`sonarr` and the rest of the home-hosted route group, which has **no row
+  yet** (recorded in [docs/services-traefik.md](docs/services-traefik.md) so it can be minted with the evidence attached).
 - **Oldsrv reachability is not a blocker:** off-LAN it is the Home leg through the VPS jump, carried in `group_vars`
   since 2026-09-19 — `bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --check …`
   needs no `-e`. The only things presence still buys are the on-site half of HD-397, the `*99` aliases and the
