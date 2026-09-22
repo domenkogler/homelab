@@ -381,10 +381,19 @@ black hole with extra steps.
    **never seeded into the LAN-facing view**; a LAN client gets a clean `NXDOMAIN` ("not here") rather
    than a black hole. Publishing Dozzle / the CrowdSec UI on the public edge was the alternative and
    was declined — that option puts container logs and the security console on the open internet.
-4. **LAN clients get two resolvers.** The router hands out **both** the Pi and oldsrv. Today the Pi is
-   the only DNS the router advertises, so a Pi outage takes home resolution down completely — including
-   `ha.kogler.si` and SSO's internal answer — while a Technitium primary sits idle on oldsrv. No VIP, no
-   runbook step, nothing to move: this is the same shape as decision 6.
+4. **LAN DNS redundancy — the decision was already implemented; my premise for raising it was wrong.**
+   I recorded "the router advertises only the Pi, so a Pi outage ends home resolution" and it is **false**:
+   live `/ip dhcp-server network` on the router shows **all six** DHCP networks advertising **three**
+   resolvers, Home (the Home subnet) first-listed as Pi → VPS → oldsrv, the other VLANs VPS → oldsrv → Pi
+   (RouterOS caps a network at three, which is why all three are used). So the failover I "decided" tonight
+   has been in place since the three-instance design, and no router change was needed. What the same reading
+   **did** turn up is narrower and real: the per-VLAN *forcing* rules override those options, and each forces
+   to a **single** target — IoT (`iot_subnet`, udp+tcp/53) is dst-nat'd to the **Pi tertiary only**
+   (live-confirmed), the Kids VLAN and the kids' reserved MACs to the **VPS primary** (from the rendered
+   template, not re-measured live). Those two are deliberate — query visibility on the Pi's log, filtering
+   enforcement on the primary — but they mean **IoT devices lose DNS with the Pi** and kids' devices lose it
+   with the VPS resolver, even though their DHCP options list three servers. Re-open trigger: an IoT or kids
+   incident where DNS, not WAN, is the dead leg.
 5. **`extra_records` move to the watched file** (`dns.extra_records_path`), so no record edit ever
    restarts the control plane again. Two hazards carried with it: `dns.extra_records` and
    `dns.extra_records_path` are **mutually exclusive** in the pinned version (both set → the process

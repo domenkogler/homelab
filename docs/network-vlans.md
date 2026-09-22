@@ -201,6 +201,25 @@ dig +short <resolver> media.kogler.si AAAA                                   # e
 | Kids (40) | WAN | Drop 22:00–07:00 (bedtime — hard block at firewall) |
 | All (except IoT) | WAN | Allowed (masqueraded) |
 
+> ✅ **`trusted-ha` is the set of hosts that RUN HA — pi (primary), oldsrv (standby), ha-vip — and it was
+> missing the primary until 2026-09-23 (HD-438).** The Home→IoT accept is `src-address-list=trusted-ha`; the
+> HA hosts are `pi`, `oldsrv`, `ha-vip`, so the list has to track *that* set, not a hand-picked subset. When
+> HD-03 narrowed Home→IoT gating to `trusted-ha` on 2026-09-04 it kept `oldsrv` + `ha-vip` (to exclude `nas`)
+> and left the HA **primary** out. HA opens its KNX tunnel from the host's own address — the integration's
+> config entry carries `local_ip: null`, so xknx binds `eth0` — so the primary's KNXnet/IP to the router on
+> VLAN 20 hit the default drop and **HA's KNX has been broken on the primary since 2026-09-20 10:16** (that is where HA's own KNX telegram store stops — a positive instrument, unlike my log windows) with nobody noticing, because wall switches drive the bus without HA and HA just served stale state. Live delta applied
+> 2026-09-23 00:00:40 (two address rows, widening-only, no rule touched); the steady state now lives in
+> `rb4011_converge.rsc.j2`, and the transient delta is deleted per the 3-tier rule. **What that fix proves, and what it does not:** the
+> hole is closed — the Pi reaches the router (ICMP up, `tcp/3671` open) and the `trusted-ha` accept counter
+> advanced 97→99 in 25 s, so traffic that way is forwarded. It is *not* proof that HA's KNX is healthy: xknx
+> timeouts continued after the fix (53 in the next 8 min), the router keeps no conntrack or fasttrack entry for
+> `:3671`, and the telegram store has not gained a row since 09-20. The gate entered the template on 2026-09-10
+> (`4f0604d`) and the store stops on 09-20, so what took effect that day is still unexplained — HD-438 stays
+> open for that reason. The lesson is a validator,
+> not a scold: *a firewall allowlist that names the hosts running a service must be derived from the hosts
+> that run that service* — recorded as an HD-436 check.
+
+
 Implemented with **address-lists** and **interface lists** in RouterOS.
 
 > **Rule-order invariants (RouterOS is first-match-wins):**

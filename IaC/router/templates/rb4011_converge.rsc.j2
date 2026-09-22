@@ -315,6 +315,12 @@ add chain=dstnat src-address=10.10.20.0/24 protocol=udp dst-port=53 action=dst-n
 add chain=dstnat src-address=10.10.20.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - TCP 53 -> Pi (HD-342)"
 
 # ---- Firewall: address lists ----
+# trusted-ha = the hosts that RUN HA, i.e. pi (primary) + oldsrv (standby) + ha-vip.
+# HD-438 (2026-09-23): the HD-03 narrowing that created this list was meant to drop `nas`,
+# but it left the HA PRIMARY out. HA tunnels KNX from the host's own address (`local_ip` is
+# null in the config entry, so xknx picks eth0 = 10.10.1.20), not from the VIP, so the Pi's
+# traffic to the KNX router on VLAN 20 hit the default drop and HA's KNX has been timing out
+# on the primary ever since — silently, because wall switches drive the bus without HA.
 # Reset first (HD-322): a re-import without the reset STACKS duplicate rows for
 # trusted-admin/trusted-ha/internal_lan on top of the previous import (the role's
 # api_modify handles absents, but the converge must own the same single set).
@@ -326,7 +332,7 @@ add chain=dstnat src-address=10.10.20.0/24 protocol=tcp dst-port=53 action=dst-n
 {% if h.name in ['oldsrv','nas','ha-vip','laptop-domen'] %}
 add address={{ h.ip }} list=trusted-admin comment="Trusted admin host: {{ h.name }}"
 {% endif %}
-{% if h.name in ['oldsrv','ha-vip'] %}
+{% if h.name in ['pi','oldsrv','ha-vip'] %}
 add address={{ h.ip }} list=trusted-ha comment="Trusted HA host: {{ h.name }}"
 {% endif %}
 {% endfor %}
