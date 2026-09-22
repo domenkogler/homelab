@@ -15,7 +15,7 @@
 > **Never edit `prompt.md` or `todo-table.md`** (O2 — orchestrator-only); edit **your own `todo.md` rows only**,
 > never re-sort or re-flow the table, and tick **your own** `deployment-tasks.md` lines only.
 > **You hold the oldsrv converge slot** (O3): one converge in flight, detached (`nohup … &` + log + poll),
-> `--tags` + scope, **never `--diff`** on `docker_services` (HD-382 secret dump). Owner gate → **park and
+> `--tags` + scope, **never `--diff`** on `docker_services` (the 2026-09-17 secret-dump class). Owner gate → **park and
 > continue** (O4): write the exact blocked action into the row's ⏳ tail, finish the rest, name the park in your
 > report. Did a hand-repeatable step? `deployment-manual.md` gains the imperative line **in your commit** (O6).
 > Close-out = owning doc + row tail + signed commit + `bash scripts/validate-all.sh` green **in this worktree**

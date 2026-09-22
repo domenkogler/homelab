@@ -24,7 +24,7 @@
 > them, and that claim is withdrawn); edit **your own `todo.md` rows only** and tick **your own**
 > `deployment-tasks.md` lines. **You hold the spark and VPS-monitoring converge slots** (O3): `vps.yml --tags
 > monitoring` and the spark-side Alloy/DCGM converge are yours, one in flight at a time, detached, **no `--diff`**
-> (HD-382). Owner gate → **park and continue** (O4). Did a hand-repeatable step? `deployment-manual.md` gains the
+> (the 2026-09-17 secret-dump class). Owner gate → **park and continue** (O4). Did a hand-repeatable step? `deployment-manual.md` gains the
 > imperative line **in your commit** (O6). Close-out = `docs/observability.md` + row tails + signed commit +
 > `bash scripts/validate-all.sh` green **in this worktree** → **stop**; the parent merges, rebases the sibling,
 > re-syncs the views and deletes this brief.
@@ -71,7 +71,7 @@ second record.
 | 2 | `DCGM_EXPORTER_INTERVAL: "30000"` → `"5000"` in `IaC/ansible/templates/docker_services/spark-dcgm/docker-compose.yml.j2` | ⛔ pre-flight the sidecar's CPU + anon RSS against its `mem_limit: 256M` at 5 s **first** — that cap exists because the exporter outgrew it during HD-378 |
 | 3 | Grafana datasource `jsonData.timeInterval = "5s"` on the `prometheus` uid | the seed only fires `when: … status == 404` → an API PUT on the live datasource, not a seed edit |
 | 4 | Panel fixes: "Prefix Cache Hit Rate" gauge → time series with `[1m]`/`$__rate_interval` (it is hard-coded `[5m]` today); `rate()` for "Cached Token Stats" | re-derive the dashboards with `scripts/build-llm-dashboard.py` / `scripts/adapt-vllm-dashboards.py` — **never hand-edit `files/dashboards/*.json`** |
-| 5 | Converge + verify (acceptance below), then update `docs/observability.md` §Scrape cadence (⏳ → ✅) and §LLM Dashboard in the **same** change | `vps.yml --tags monitoring` (datasource + dashboards) **and** the spark-side Alloy/DCGM converge — detached, `--tags` + scope, **no `--diff`** (HD-382 secret dump) |
+| 5 | Converge + verify (acceptance below), then update `docs/observability.md` §Scrape cadence (⏳ → ✅) and §LLM Dashboard in the **same** change | `vps.yml --tags monitoring` (datasource + dashboards) **and** the spark-side Alloy/DCGM converge — detached, `--tags` + scope, **no `--diff`** (the 2026-09-17 secret-dump class) |
 | 6 | Report the measured after-numbers back into the doc section; close the HD row (delete it, record lands in the doc) | CONVENTIONS §3 lifecycle |
 | 7 | **HD-395** *(merged)* — the watchdog stops restarting a healthy engine: baseline the idle recycle only after `/health` 200 **and** a settle window (or max of N samples), then re-check the +8 GiB margin against the certified peak | `roles/spark/files/spark-oom-watchdog.sh` + the spark converge you already hold. **Genuinely coupled to row 2:** the first-post-boot floor has been read **71,911 / 86,243 / 92,343 MiB** on one config, and raising the DCGM cadence changes spark's load while you measure it — measure both with the same settle rule. ⛔ Drive it from the laptop, never from a spark-backed session |
 | 8 | **HD-377 (b)** *(merged)* — plot the six real GPU signals (util / temp / power / SM clock, + XID as a readiness stat) and **delete the three `DCGM_FI_PROF_*` panels** titled "⚠ impossible on GB10, pending deletion" | Same `roles/monitoring/files/dashboards/` + the same `build-llm-dashboard.py` re-derive as row 4, so do it in that step. ⚠ **(a)** — retiring the three HD-368 boards — stays the owner's: it waits on the sign-off in [todo-table.md](todo-table.md) §A2, so **park it** (O4) |

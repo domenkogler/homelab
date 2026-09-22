@@ -1,8 +1,9 @@
 # `prompt-357.md` — Lane brief · make the launchpad and the home edge tell the truth (HD-357 · HD-17 + HD-217 · HD-358 · + HD-418 window-gated)
 
 > **Role:** one lane for the **family-facing surface**: the tiles that are dead, the failover button that is rendered
-> nowhere, and the two hand-offs that still need a human to paste a key. **Wave 4** — it waits on
-> [`prompt-414.md`](prompt-414.md), because HD-414's row 6b publishes the jellyfin port that HD-357's tile depends on.
+> nowhere, and the two hand-offs that still need a human to paste a key. **Wave 4** — and its old gate is
+> **gone**: the jellyfin publish this lane waited on (**HD-419**, lane 414 row 6b) shipped + verified 2026-09-22, so the
+> tile has an endpoint to point at. What still orders the lane is the **oldsrv converge slot** (§4 O3), not a dependency.
 > Start with [README.md](README.md) §0 → §1 mandatory context → [prompt.md](prompt.md) **§4 (orchestrator mode)** →
 > this file → the rows in [todo.md](todo.md) §2 (Network / platform, AI / Office).
 > **Linked from:** [prompt.md](prompt.md) §2 + §4 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
@@ -20,7 +21,7 @@
 
 | # | HD | Action | Gate / note |
 |---|----|--------|-------------|
-| 1 | **HD-357** | Wire the Homepage tiles/widgets to the **verified** endpoints (home edge + VPS edge): Jellyfin and Seerr are dead, Immich is stuck "Soon" (bug #6) | Endpoints and route tables are **final** — this is wiring, not architecture. The tile only lights up once **HD-419** (lane 414 row 6b) has published the jellyfin Home-leg port; if it has not, say so and park that tile |
+| 1 | **HD-357** | Wire the Homepage tiles/widgets to the **verified** endpoints (home edge + VPS edge): Jellyfin and Seerr are dead, Immich is stuck "Soon" (bug #6) | Endpoints and route tables are **final** — this is wiring, not architecture. **HD-419 shipped 2026-09-22**: `media.kogler.si` answers **200** through the home edge with jellyfin published on **loopback** (`services-traefik.md`), so verify the tile **through the edge**, never from the container |
 | 2 | **HD-17 + HD-217** | Render the **IP-only** failover button (`homepage_failover_button`) — `ha-failover-api` has been active on oldsrv since 2026-09-08, only the render is missing | ⛔ the RFUSB path is obsolete (**HD-18 rejected**); one failover button, IP-only · [services-traefik.md](docs/services-traefik.md) |
 | 3 | **HD-358** | Record the Seerr → \*arr API-key + URL hand-off as a runbook step, and **prefer automating it in IaC** over documenting it (bug #7) | Home edge is up; the manual step is exactly the class README §4.8 says the doing session writes down — or removes |
 | 4 | **HD-418** *(window-gated)* | `ha_trusted_proxies` += `oldsrv_home_ip`, so the **standby** HA edge stops answering `400` to anything oldsrv proxies | ⛔ The fix **restarts the smart-home controller** → it runs only in a planned window the owner names (O4). Decided 2026-09-21; **park it with the exact change staged** if no window is open · [smart-home-rejected.md](docs/smart-home-rejected.md) |
@@ -29,7 +30,10 @@
 
 * **Placement and endpoints are settled** — the home edge (`traefik-internal` on oldsrv) and the VPS edge exist; the
   tile layout is the accessibility SSOT in [services.md](docs/services.md). Do not re-plan the launchpad.
-* **`media.kogler.si` 502 is HD-419, not yours** (lane 414). Your tile consumes its result.
+* **`media.kogler.si` is not a 502 any more** — **HD-419 shipped 2026-09-22** (loopback publish), so the tile is
+  wiring, not a blocked wait. ⚠ Verifying it found the **same 502 shape on `seerr` / `sonarr`** and the rest of the
+  home-hosted group; that has **no row yet** and is not this lane's to fix — record what you see in
+  [services-traefik.md](docs/services-traefik.md) and leave it.
 * **HD-316's visual pass is the owner's eye** ([todo-table.md](todo-table.md) §A2). Land the wiring, hand over the
   eyeball, and leave the row with a ⏳ tail — do not declare a tile "working" from a `curl 200`.
 * **No new public listeners.** The family surface rides the existing edge and middleware tiers.
@@ -49,7 +53,8 @@ the live file — the render is the SSOT.
   `docs/{services.md,services-media.md,services-traefik.md}`, and **your own `todo.md` rows**.
 * **Never touches:** `prompt.md` / `todo-table.md` (O2); `roles/router/**`, `roles/tailscale-node/**`,
   `templates/docker_services/{headscale,technitium,traefik-tailnet}/**` and the **v6/filter** work in
-  `traefik-internal` (lane 414 — if it is still live, you are early: rebase or stop); `docs/{services-ai*,pi-harness,1password,deployment-*}.md` +
+  `traefik-internal` (lane 414's scoped-IPv6/filter work is **closed 2026-09-22** and folded into the converge
+  template — do not re-cut it); `docs/{services-ai*,pi-harness,1password,deployment-*}.md` +
   `scripts/**` (lanes 384 / 407); `roles/monitoring/**` (420); `docs/{services-admin,security,services-vps}.md`
   (412); the frozen archives and generated `*-generated.md`.
 * ⛔ **Never the same wave as `prompt-407` / `prompt-384` / `prompt-414`** — all converge oldsrv.

@@ -14,7 +14,7 @@
 > (`../homelab-wt-<YYYYMMDD>-<HHMM>` / `session/384-gateway-<YYYYMMDD>-<HHMM>`).
 > **Never edit `prompt.md` or `todo-table.md`** (O2); edit **your own `todo.md` rows only** and tick your own
 > `deployment-tasks.md` lines. **You hold the oldsrv + VPS `docker_services` converge slots** (O3): one converge in
-> flight per host, detached, **never `--diff`** (HD-382 secret dump). Owner gate → **park and continue** (O4).
+> flight per host, detached, **never `--diff`** (the 2026-09-17 secret-dump class). Owner gate → **park and continue** (O4).
 > Any hand-repeatable step (an Admin-UI click, a key mint) writes its `deployment-manual.md` line **in your commit**
 > (O6). Close-out = `services-ai.md` + `deployment-secrets.md` + row tails + signed commit +
 > `bash scripts/validate-all.sh` green **in this worktree** → **stop**; the parent merges and cleans up.

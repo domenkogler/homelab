@@ -142,7 +142,7 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 | [prompt-414.md](prompt-414.md) transport — **re-dispatch card only: closed 2026-09-22 for its AI half** (scoped IPv6 shipped, the phone matrix and the punch discriminator both RAN) | **2** | **HD-415 · 406** (+159 with a stated window); the rows it also carried (**414 · 410 · 405 tail · 419 · 09 · 301**) are closed and left the registry | router slot **now free** + oldsrv |
 | [prompt-384.md](prompt-384.md) LiteLLM consumer chain | **3** | HD-383 · **384** · 403 · 387 · 373 · 249 | oldsrv + VPS `docker_services` |
 | [prompt-376.md](prompt-376.md) spark engine + bench | **3** | HD-376 · 400 · 359 · 367 · 380 (absorbs the stale `prompt-next.md`, now deleted) | spark, **owner bench window** |
-| [prompt-357.md](prompt-357.md) launchpad + home edge | **4** | HD-357 · 17 · 217 · 358 · 418 (window-gated) | oldsrv |
+| [prompt-357.md](prompt-357.md) launchpad + home edge — **its old gate fell 2026-09-22** (HD-419 shipped, so the jellyfin tile has an endpoint) | **4** | HD-357 · 17 · 217 · 358 · 418 (window-gated) | oldsrv |
 | [prompt-417.md](prompt-417.md) gates + doc hygiene | **5, alone** | HD-417 · 404 · 248 · 396 | none (repo-only) |
 
 > **Briefs deleted at the 2026-09-22 sweep** (job done, links fixed in the same commit): `prompt-412` (HD-412
