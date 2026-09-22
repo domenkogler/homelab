@@ -367,6 +367,27 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > quoted certificate paths as well as matchers for exactly this reason — 11 self-test cases, both shipped
 > instances among them, each mutation-killed.
 
+> ✅ **T1 RE-RUN FOR REAL — 2026-09-22, the owner's phone, both radios under test.** After both fixes the
+> name serves Home Assistant to a phone on cellular: **`https://ha.ts.kogler.si` works with Wi-Fi off and
+> the tailnet connected.** The pass was a full 4-state matrix (Wi-Fi × Tailscale), which is the shape this
+> acceptance should have had from the start:
+>
+> | name | Wi-Fi on + tailnet on | Wi-Fi on + tailnet off | Wi-Fi off + tailnet on | Wi-Fi off + tailnet off |
+> |---|---|---|---|---|
+> | `ha.ts.kogler.si` | ✅ after the two fixes | ✗ by design (the name lives in the netmap) | ✅ **T1** | ✗ by design |
+> | `ha.kogler.si` | ✅ | ✅ | ✗ (HD-432: advisory chain) | ✗ (no LAN DNS, no WAN) |
+> | `media.kogler.si` | ✅ | ✅ | ✗ (HD-432: advisory chain) | ✗ |
+>
+> What that pins down beyond HA: Android answers the `.ts` extra_record **client-side from the netmap** (so
+> the tailnet twin needs no resolver reachability at all), the per-address `443` grant carries a real user
+> node's browser session, and the `*.<ts>` listener serves a publicly-trusted chain with no internal CA on
+> the device. Consequence for the twin design: **the pattern is portable** — any home app can get an away
+> path by adding a `.ts` twin + a router on the same listener, which is a cheaper route to "apps work away"
+> than making the whole zone resolve over the tailnet (the argument that opened HD-432).
+>
+> The 2026-09-21 ✅ above stands as history, but it verified a router that could not match a request; T1 was
+> closed then on a measurement that could not have produced its result. This is the first run that did.
+
 
 > ⚠ **The verification host was NOT off-LAN.** The laptop chosen for this pass had a *wired* home path live:
 > its Windows default route pointed at the home router over the `VLAN-Switch` vNIC (a Home-VLAN address per
