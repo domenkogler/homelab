@@ -1268,7 +1268,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "SM / tensor-pipe / device-memory activity ratios. **EMPTY PERMANENTLY ⏳ — these three series can never appear on a GB10, and this panel is pending deletion, not wiring.** Measured 2026-09-16 with the `nvidia/dcgm-exporter` image already on spark: the exporter starts, then logs `Not collecting DCP metrics: This request is serviced by a module of DCGM that is not currently loaded`, and forcing the DCP counter file gives `Skipping line 21..25 (GR_ENGINE_ACTIVE / PIPE_TENSOR_ACTIVE / DRAM_ACTIVE / PCIE_TX_BYTES / PCIE_RX_BYTES): metric not enabled`. NVIDIA has stated DCGM profiling will not be supported on Spark (not a datacenter device). What DCGM DOES give here — and what is worth wiring instead — is `DCGM_FI_DEV_GPU_UTIL` (measured 88-90 % under load), `GPU_TEMP` (50-58 C), `POWER_USAGE` (12-39 W), `TOTAL_ENERGY_CONSUMPTION`, `SM_CLOCK` (2509 MHz) and `XID_ERRORS`; none of those is on any other exporter, and they are NOT faked from host CPU%/RAM, which is a different quantity. Runbook + the full emit/refuse table: docs/observability.md §LLM Dashboard (GPU) and §Host sensors and disk I/O.",
+      "description": "HD-377(b): the first of the SIX real GB10 GPU signals, from the `job=\"dcgm\"` whitelist Alloy keeps — all 7 are live in VM, re-measured 2026-09-22 as exactly 7 names under `match[]={job=\"dcgm\"}` for instance=\"spark.kogler.si\"`. `DCGM_FI_DEV_GPU_UTIL`, measured 88-90 % under load. The DGX System Monitor's 1 Hz picture is the SAME exporter at a faster cadence — that gap is HD-420. This replaces the three `DCGM_FI_PROF_*` panels, which can never fill on GB10 (the DCP module refuses to load; NVIDIA: no DCGM profiling on Spark).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1302,7 +1302,7 @@
             }
           },
           "mappings": [],
-          "max": 1,
+          "max": 100,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
@@ -1313,13 +1313,13 @@
               }
             ]
           },
-          "unit": "percentunit"
+          "unit": "percent"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 34
       },
@@ -1346,8 +1346,188 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "DCGM_FI_PROF_SM_ACTIVE{job=\"dcgm\", instance=~\"$instance\"}",
-          "legendFormat": "SM active · {{ instance }}",
+          "expr": "DCGM_FI_DEV_GPU_UTIL{job=\"dcgm\", instance=~\"$instance\"}",
+          "legendFormat": "util · {{ instance }}",
+          "refId": "A"
+        }
+      ],
+      "title": "spark GPU — utilisation (DCGM)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "`DCGM_FI_DEV_GPU_TEMP`, measured 50-58 C. This is the ONLY GPU-die temperature available: there is no nvidia hwmon chip on this box, and the `acpitz` zones on Host Overview run 5-15 C above it and are NOT the GPU (docs §Host sensors).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 34
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "DCGM_FI_DEV_GPU_TEMP{job=\"dcgm\", instance=~\"$instance\"}",
+          "legendFormat": "die · {{ instance }}",
+          "refId": "A"
+        }
+      ],
+      "title": "spark GPU — die temperature (DCGM)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "`DCGM_FI_DEV_POWER_USAGE` (instantaneous W, measured 12-39 W) beside the rate of `DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION` (a mJ counter — /1000 turns its rate into W). Two independent readings of the same quantity: a sustained gap between them means the instant sample is lying.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "DCGM_FI_DEV_POWER_USAGE{job=\"dcgm\", instance=~\"$instance\"}",
+          "legendFormat": "instant W",
           "refId": "A"
         },
         {
@@ -1355,22 +1535,264 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{job=\"dcgm\", instance=~\"$instance\"}",
-          "legendFormat": "tensor pipe · {{ instance }}",
+          "expr": "rate(DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION{job=\"dcgm\", instance=~\"$instance\"}[$__rate_interval]) / 1000",
+          "legendFormat": "energy rate · W",
           "refId": "B"
+        }
+      ],
+      "title": "spark GPU — power draw + energy rate (DCGM)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "`DCGM_FI_DEV_SM_CLOCK` is reported in MHz; ×1e6 lets Grafana's `hertz` unit render it as GHz (measured 2509 MHz). A clock that sags under load while utilisation is high is thermal/power headroom, not a scheduler problem — read it with the power panel.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "hertz"
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 42
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "DCGM_FI_PROF_DRAM_ACTIVE{job=\"dcgm\", instance=~\"$instance\"}",
-          "legendFormat": "DRAM active · {{ instance }}",
-          "refId": "C"
+          "expr": "DCGM_FI_DEV_SM_CLOCK{job=\"dcgm\", instance=~\"$instance\"} * 1000000",
+          "legendFormat": "SM clock · {{ instance }}",
+          "refId": "A"
         }
       ],
-      "title": "spark GPU — DCGM (⚠ impossible on GB10, pending deletion)",
+      "title": "spark GPU — SM clock (DCGM)",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "`DCGM_FI_DEV_PCIE_REPLAY_COUNTER` — retransmissions on the PCIe link, plotted as `increase()` because it is a counter. The seventh whitelisted signal, and the only one with a failure mode that is invisible elsewhere: a link renegotiating to fewer lanes shows here long before it shows in throughput.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 42
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "increase(DCGM_FI_DEV_PCIE_REPLAY_COUNTER{job=\"dcgm\", instance=~\"$instance\"}[$__rate_interval])",
+          "legendFormat": "replays / window",
+          "refId": "A"
+        }
+      ],
+      "title": "spark GPU — PCIe replay counter (DCGM)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "`DCGM_FI_DEV_XID_ERRORS` as the readiness half of the GPU row: 0 is the only acceptable value, and a non-zero here is the engine losing the device (compare the 2026-09-15 `amdgpu init_user_pages` episode on oldsrv, HD-393 — that class shows up as an XID before it shows up as a failed request).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 42
+      },
+      "id": 23,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (instance) (DCGM_FI_DEV_XID_ERRORS{job=\"dcgm\", instance=~\"$instance\"})",
+          "instant": true,
+          "legendFormat": "XID · {{ instance }}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "spark GPU — XID errors (readiness)",
+      "type": "stat"
     },
     {
       "datasource": {
@@ -1427,10 +1849,10 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 34
+        "x": 0,
+        "y": 50
       },
-      "id": 19,
+      "id": 24,
       "options": {
         "legend": {
           "calcs": [
@@ -1489,9 +1911,9 @@
         "h": 3,
         "w": 24,
         "x": 0,
-        "y": 42
+        "y": 58
       },
-      "id": 20,
+      "id": 25,
       "mode": "markdown",
       "options": {
         "content": "**GB10 has no independent VRAM counter, by design.** NVIDIA's own answer to `nvidia-smi` reporting memory as \"Not Supported\": the DGX Spark is a unified-memory device and nvidia-smi reports memory utilisation only when there is dedicated VRAM — for memory usage use `free`/`top` or the DGX Dashboard. Measured here: `nvidia-smi -q -d MEMORY` → FB/BAR1 N/A, `dmon -s um` → fb/bar1 `-`, and the dcgm-exporter emits **no** `FB_*` series. So 'GPU usage' is assembled from three honest signals: unified-pool RAM (the allocation lives there), engine RSS (the process's share of it) and engine-reported work. **Nothing is faked:** the alternative would be a GPU panel plotting CPU. ⚠ The DGX Dashboard's 'GPU Memory' tile is *system* RAM under a GPU label (`memory_total_in_kib` = 127532360 KiB = the whole 121.6 GiB pool; its `gpu_memory_in_use_in_mb` is a hard 0) — do not copy that semantic here. Temperatures are split on purpose: host silicon (NVMe composite, acpitz SoC zones, WiFi PHY) is on **Host Overview** from the Alloy `hwmon` collector; the GPU die temperature is DCGM's `DCGM_FI_DEV_GPU_TEMP` (there is no nvidia hwmon chip, and the acpitz zones run 5-15 C above it — they are NOT the GPU).",
@@ -1507,9 +1929,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 61
       },
-      "id": 21,
+      "id": 26,
       "panels": [],
       "title": "Scheduling & Concurrency",
       "type": "row"
@@ -1571,9 +1993,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 46
+        "y": 62
       },
-      "id": 22,
+      "id": 27,
       "options": {
         "legend": {
           "calcs": [
@@ -1671,9 +2093,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 46
+        "y": 62
       },
-      "id": 23,
+      "id": 28,
       "options": {
         "legend": {
           "calcs": [
@@ -1743,9 +2165,9 @@
         "h": 5,
         "w": 8,
         "x": 16,
-        "y": 46
+        "y": 62
       },
-      "id": 24,
+      "id": 29,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -1885,9 +2307,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 54
+        "y": 70
       },
-      "id": 25,
+      "id": 30,
       "options": {
         "legend": {
           "calcs": [
@@ -2003,9 +2425,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 54
+        "y": 70
       },
-      "id": 26,
+      "id": 31,
       "options": {
         "legend": {
           "calcs": [
@@ -2081,9 +2503,9 @@
         "h": 5,
         "w": 8,
         "x": 16,
-        "y": 54
+        "y": 70
       },
-      "id": 27,
+      "id": 32,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -2160,9 +2582,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 62
+        "y": 78
       },
-      "id": 28,
+      "id": 33,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
@@ -2262,9 +2684,9 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 62
+        "y": 78
       },
-      "id": 29,
+      "id": 34,
       "options": {
         "legend": {
           "calcs": [
@@ -2311,9 +2733,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 70
+        "y": 86
       },
-      "id": 30,
+      "id": 35,
       "panels": [],
       "title": "Latency",
       "type": "row"
@@ -2382,9 +2804,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 71
+        "y": 87
       },
-      "id": 31,
+      "id": 36,
       "options": {
         "legend": {
           "calcs": [
@@ -2525,9 +2947,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 71
+        "y": 87
       },
-      "id": 32,
+      "id": 37,
       "options": {
         "legend": {
           "calcs": [
@@ -2668,9 +3090,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 79
+        "y": 95
       },
-      "id": 33,
+      "id": 38,
       "options": {
         "legend": {
           "calcs": [
@@ -2807,9 +3229,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 79
+        "y": 95
       },
-      "id": 34,
+      "id": 39,
       "options": {
         "legend": {
           "calcs": [
@@ -2874,9 +3296,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 87
+        "y": 103
       },
-      "id": 35,
+      "id": 40,
       "panels": [],
       "title": "Throughput & Workload",
       "type": "row"
@@ -2941,9 +3363,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 88
+        "y": 104
       },
-      "id": 36,
+      "id": 41,
       "options": {
         "legend": {
           "calcs": [
@@ -3053,9 +3475,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 88
+        "y": 104
       },
-      "id": 37,
+      "id": 42,
       "options": {
         "legend": {
           "calcs": [
@@ -3136,9 +3558,9 @@
         "h": 5,
         "w": 8,
         "x": 0,
-        "y": 96
+        "y": 112
       },
-      "id": 38,
+      "id": 43,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -3230,9 +3652,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 96
+        "y": 112
       },
-      "id": 39,
+      "id": 44,
       "options": {
         "legend": {
           "calcs": [
@@ -3301,9 +3723,9 @@
         "h": 3,
         "w": 8,
         "x": 16,
-        "y": 96
+        "y": 112
       },
-      "id": 40,
+      "id": 45,
       "mode": "markdown",
       "options": {
         "content": "The two panels above (gnet 25502) **already** cover both engines: each keeps a `vllm:*` target and the `sglang:realtime_tokens_total` sibling side by side. Re-writing them into one `{__name__=~...}` regex would only be possible by assuming vLLM's `prompt_tokens_total` and SGLang's `realtime_tokens_total` are the same quantity measured the same way — they are not (the SGLang counter carries a `mode` dimension), and a sum across them would print a number that means neither. **Cross-engine joins in this dashboard are applied only where the two engines expose the same metric name** (the waiting_by_reason / prefix_cache_* / num_preemptions_total family), which is why the joins are visible in the Scheduling and Cache rows and absent here.",
@@ -3319,9 +3741,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 104
+        "y": 120
       },
-      "id": 41,
+      "id": 46,
       "panels": [],
       "title": "Cache",
       "type": "row"
@@ -3384,9 +3806,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 105
+        "y": 121
       },
-      "id": 42,
+      "id": 47,
       "options": {
         "legend": {
           "calcs": [
@@ -3422,7 +3844,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair.",
+      "description": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair. HD-420: all three counter targets now carry rate(), so the panel is tokens/s throughout (it mixed a raw monotonic counter with a rate on one axis before).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3482,9 +3904,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 105
+        "y": 121
       },
-      "id": 43,
+      "id": 48,
       "options": {
         "legend": {
           "calcs": [
@@ -3508,7 +3930,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "vllm:prompt_tokens_cached_total{model_name=\"${model_name}\", instance=~\"${instance}\"}",
+          "expr": "rate(vllm:prompt_tokens_cached_total{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])",
           "legendFormat": "vLLM Cached Prompt Tokens",
           "refId": "A"
         },
@@ -3526,7 +3948,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sglang:cached_tokens_total{cache_source=\"total\", model_name=\"${model_name}\", instance=~\"${instance}\"}",
+          "expr": "rate(sglang:cached_tokens_total{cache_source=\"total\", model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])",
           "legendFormat": "SGLang Cached Tokens",
           "refId": "C"
         },
@@ -3535,7 +3957,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sglang:evicted_tokens_total{cache_type=\"RadixCache\", instance=~\"${instance}\"}",
+          "expr": "rate(sglang:evicted_tokens_total{cache_type=\"RadixCache\", instance=~\"${instance}\"}[$__rate_interval])",
           "legendFormat": "SGLang Evicted Tokens",
           "refId": "D"
         }
@@ -3574,9 +3996,9 @@
         "h": 5,
         "w": 8,
         "x": 16,
-        "y": 105
+        "y": 121
       },
-      "id": 44,
+      "id": 49,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -3614,9 +4036,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 113
+        "y": 129
       },
-      "id": 45,
+      "id": 50,
       "panels": [],
       "title": "Reliability",
       "type": "row"
@@ -3693,9 +4115,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 114
+        "y": 130
       },
-      "id": 46,
+      "id": 51,
       "options": {
         "displayLabels": [
           "name",
@@ -3831,9 +4253,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 114
+        "y": 130
       },
-      "id": 47,
+      "id": 52,
       "options": {
         "legend": {
           "calcs": [
@@ -3953,9 +4375,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 114
+        "y": 130
       },
-      "id": 48,
+      "id": 53,
       "options": {
         "legend": {
           "calcs": [
@@ -4002,9 +4424,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 122
+        "y": 138
       },
-      "id": 49,
+      "id": 54,
       "panels": [],
       "title": "Request shape (single-engine deep dive)",
       "type": "row"
@@ -4034,9 +4456,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 123
+        "y": 139
       },
-      "id": 50,
+      "id": 55,
       "options": {
         "calculate": false,
         "cellGap": 1,
@@ -4187,9 +4609,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 123
+        "y": 139
       },
-      "id": 51,
+      "id": 56,
       "options": {
         "legend": {
           "calcs": [
@@ -4235,9 +4657,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 131
+        "y": 147
       },
-      "id": 52,
+      "id": 57,
       "panels": [],
       "title": "Per-engine / TP-rank detail",
       "type": "row"
@@ -4302,9 +4724,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 132
+        "y": 148
       },
-      "id": 53,
+      "id": 58,
       "options": {
         "legend": {
           "calcs": [
@@ -4405,9 +4827,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 132
+        "y": 148
       },
-      "id": 54,
+      "id": 59,
       "options": {
         "legend": {
           "calcs": [
@@ -4516,9 +4938,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 140
+        "y": 156
       },
-      "id": 55,
+      "id": 60,
       "options": {
         "legend": {
           "calcs": [
@@ -4620,9 +5042,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 140
+        "y": 156
       },
-      "id": 56,
+      "id": 61,
       "options": {
         "legend": {
           "calcs": [
@@ -4669,9 +5091,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 148
+        "y": 164
       },
-      "id": 57,
+      "id": 62,
       "panels": [],
       "title": "Forward look — RX 7600 (oldsrv) + SGLang",
       "type": "row"
@@ -4686,9 +5108,9 @@
         "h": 3,
         "w": 24,
         "x": 0,
-        "y": 149
+        "y": 165
       },
-      "id": 58,
+      "id": 63,
       "mode": "markdown",
       "options": {
         "content": "**The rows above are engine-agnostic on purpose.** Every joined query groups `by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds a series, not a dashboard. **RX 7600 (oldsrv, decision #24 pinned-services tier — Whisper STT + bge-m3 embed + bge-reranker):** needs an ROCm exporter (`rocm-smi`/amd_smi → Prometheus textfile) + an oldsrv Alloy scrape job, then its GPU columns land in the node row here — that card DOES expose VRAM, unlike the GB10. **SGLang:** needs `prometheus.scrape \"sglang\"` only; its `sglang:*` sibling is already written into every joined query, so the SGLang half of this dashboard fills from the same file. **The three HD-368 dashboards stay provisioned** until the owner retires them.",

@@ -238,11 +238,17 @@ loki.write "local" {
 // ---- MikroTik SNMP (router + switch — Mgmt VLAN 99, IPs from SSOT) ----
 // Scraped only by the OLDSRV Alloy (home LAN/Mgmt reach) to avoid duplicate collectors;
 // it forwards the SNMP series to the VPS backend like all other home telemetry.
-// HD-347: ONE exporter per device (component id = the target name) — the old single
-// exporter merged router+switch series under one flat instance, and the target `name`
-// label is NOT copied to the metrics (verified live), so an instance relabel by name is
-// impossible. Splitting gives instance="router" / instance="switch" for free (the
-// instance IS the component id).
+// HD-347: ONE exporter per device — the old single exporter merged router+switch series
+// under one flat instance, and the target `name` label is NOT copied to the metrics (verified
+// live), so an instance relabel by name is impossible. Splitting per device stays right.
+// HD-345 (2026-09-22) corrects the rest of that claim: splitting does NOT give
+// instance="router" "for free". Measured in VM, last 1 h: 54 router + 54 switch series of
+// ifAdminStatus/ifOperStatus ARE arriving, plus up{job="integrations/snmp/router"}=present —
+// the walk was never broken. What is on them is
+//   job="integrations/snmp/<dev>"  instance="prometheus.exporter.snmp.<dev>"
+// i.e. the component path, and the inline "job" = "alloy-snmp" on the target is OVERWRITTEN by
+// Alloy's snmp exporter. Nothing in the walk config, the community or the router can explain
+// a label; a post-scrape relabel that REPLACES both is the fix, in this file.
 {% if inventory_hostname == 'oldsrv.kogler.si' %}
 {% for dev in ['router', 'switch'] %}
 prometheus.exporter.snmp "{{ dev }}" {
@@ -259,6 +265,23 @@ prometheus.exporter.snmp "{{ dev }}" {
 
 prometheus.scrape "snmp_{{ dev }}" {
     targets = prometheus.exporter.snmp.{{ dev }}.targets
+    forward_to = [prometheus.relabel.snmp_{{ dev }}.receiver]
+}
+
+// HD-345: re-assert the labels the exporters overwrite. No source_labels + the default
+// replace action is the standard Prometheus idiom for "set this label" (empty input matches
+// the default `(.*)` regex, so `replacement` wins). It lands on every series the scrape
+// forwards, `up` included, so `up{job="alloy-snmp", instance="{{ dev }}"}` is the liveness
+// query a dashboard or rule can actually write.
+prometheus.relabel "snmp_{{ dev }}" {
+    rule {
+        target_label = "job"
+        replacement  = "alloy-snmp"
+    }
+    rule {
+        target_label = "instance"
+        replacement  = "{{ dev }}"
+    }
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 {% endfor %}

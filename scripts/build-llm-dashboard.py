@@ -91,7 +91,9 @@ LAYOUT: list[tuple[str, str, list[tuple[str, int]]]] = [
         ("new:spark_cpu", 8), ("new:spark_ram_pct", 8), ("new:spark_ram", 8),
         ("new:spark_load", 8), ("new:engine_rss", 8), ("new:spark_disk", 8),
         ("new:spark_disk_io", 8), ("new:spark_disk_iops", 8), ("new:spark_disk_sat", 8),
-        ("new:spark_gpu", 12), ("new:gpu_activity", 12),
+        ("new:spark_gpu_util", 8), ("new:spark_gpu_temp", 8), ("new:spark_gpu_power", 8),
+        ("new:spark_gpu_clock", 8), ("new:spark_gpu_pcie", 8), ("new:spark_gpu_xid", 8),
+        ("new:gpu_activity", 12),
         ("new:spark_gpu_note", 24),
     ]),
     ("row_sched", "Scheduling & Concurrency", [
@@ -240,6 +242,23 @@ EXPR_REWRITES = {
          '"vllm:request_decode_time_seconds_count|sglang:per_stage_req_latency_seconds_count", '
          'stage="decode", instance=~"$instance"}[$__rate_interval])), 0.001)', "exact"),
     ],
+    "inf:13": [
+        # HD-420 row 4: 'Cached Token Stats' plotted `vllm:prompt_tokens_cached_total` RAW —
+        # a monotonically increasing counter sharing its axis with a `rate()` target, which is
+        # two different units in one panel and a line that can only ever go up. All three
+        # counter targets become rates so the panel means tokens/s end to end; a 5 s spike is
+        # then actually visible (before, it was invisible inside the counter's slope).
+        ('vllm:prompt_tokens_cached_total{model_name="${model_name}", instance=~"${instance}"}',
+         'rate(vllm:prompt_tokens_cached_total{model_name="${model_name}", '
+         'instance=~"${instance}"}[$__rate_interval])', "exact"),
+        ('sglang:cached_tokens_total{cache_source="total", model_name="${model_name}", '
+         'instance=~"${instance}"}',
+         'rate(sglang:cached_tokens_total{cache_source="total", model_name="${model_name}", '
+         'instance=~"${instance}"}[$__rate_interval])', "exact"),
+        ('sglang:evicted_tokens_total{cache_type="RadixCache", instance=~"${instance}"}',
+         'rate(sglang:evicted_tokens_total{cache_type="RadixCache", '
+         'instance=~"${instance}"}[$__rate_interval])', "exact"),
+    ],
 }
 
 # Legend formats applied per panel after rewrites (keyed by target refId).
@@ -255,6 +274,9 @@ LEGEND = {
 
 # Panels whose expr already joins both engines in the upstream export → carried
 # byte-identical (no rewrite = no silent drift on an upstream refresh).
+# EXCEPT where EXPR_REWRITES names a panel by key: `inf:13` is carried from gnet 25502 and
+# IS rewritten (HD-420 rate() fix), because a rewrite recorded here re-derives on every
+# upstream refresh while a hand-edit of the JSON would be lost by the next one.
 VERBATIM_PREFIXES = ("inf:",)
 
 # ---------------------------------------------------------------------------
@@ -553,32 +575,105 @@ NEW_PANELS = {
              "legend": "busy · {{ device }}"},
         ],
     },
-    "spark_gpu": {
+    "spark_gpu_util": {
         "type": "timeseries",
-        "title": "spark GPU — DCGM (⚠ impossible on GB10, pending deletion)",
+        "title": "spark GPU — utilisation (DCGM)",
         "description": (
-            "SM / tensor-pipe / device-memory activity ratios. **EMPTY PERMANENTLY ⏳ — "
-            "these three series can never appear on a GB10, and this panel is pending "
-            "deletion, not wiring.** "
-            "Measured 2026-09-16 with the `nvidia/dcgm-exporter` image already on spark: "
-            "the exporter starts, then logs `Not collecting DCP metrics: This request is "
-            "serviced by a module of DCGM that is not currently loaded`, and forcing the "
-            "DCP counter file gives `Skipping line 21..25 (GR_ENGINE_ACTIVE / "
-            "PIPE_TENSOR_ACTIVE / DRAM_ACTIVE / PCIE_TX_BYTES / PCIE_RX_BYTES): metric "
-            "not enabled`. NVIDIA has stated DCGM profiling will not be supported on "
-            "Spark (not a datacenter device). What DCGM DOES give here — and what is "
-            "worth wiring instead — is `DCGM_FI_DEV_GPU_UTIL` (measured 88-90 % under "
-            "load), `GPU_TEMP` (50-58 C), `POWER_USAGE` (12-39 W), "
-            "`TOTAL_ENERGY_CONSUMPTION`, `SM_CLOCK` (2509 MHz) and `XID_ERRORS`; none of "
-            "those is on any other exporter, and they are NOT faked from host CPU%/RAM, "
-            "which is a different quantity. Runbook + the full emit/refuse table: "
-            "docs/observability.md §LLM Dashboard (GPU) and §Host sensors and disk I/O."
+            "HD-377(b): the first of the SIX real GB10 GPU signals, from the `job=\"dcgm\"` "
+            "whitelist Alloy keeps — all 7 are live in VM, re-measured 2026-09-22 as exactly "
+            "7 names under `match[]={job=\"dcgm\"}` for instance=\"spark.kogler.si\"`. "
+            "`DCGM_FI_DEV_GPU_UTIL`, measured 88-90 % under load. The DGX System Monitor's "
+            "1 Hz picture is the SAME exporter at a faster cadence — that gap is HD-420. "
+            "This replaces the three `DCGM_FI_PROF_*` panels, which can never fill on GB10 "
+            "(the DCP module refuses to load; NVIDIA: no DCGM profiling on Spark)."
         ),
-        "unit": "percentunit", "min": 0, "max": 1,
+        "unit": "percent", "min": 0, "max": 100,
         "targets": [
-            {"expr": 'DCGM_FI_PROF_SM_ACTIVE{job="dcgm", instance=~"$instance"}', "legend": "SM active · {{ instance }}"},
-            {"expr": 'DCGM_FI_PROF_PIPE_TENSOR_ACTIVE{job="dcgm", instance=~"$instance"}', "legend": "tensor pipe · {{ instance }}"},
-            {"expr": 'DCGM_FI_PROF_DRAM_ACTIVE{job="dcgm", instance=~"$instance"}', "legend": "DRAM active · {{ instance }}"},
+            {"expr": 'DCGM_FI_DEV_GPU_UTIL{job="dcgm", instance=~"$instance"}',
+             "legend": "util · {{ instance }}"},
+        ],
+    },
+    "spark_gpu_temp": {
+        "type": "timeseries",
+        "title": "spark GPU — die temperature (DCGM)",
+        "description": (
+            "`DCGM_FI_DEV_GPU_TEMP`, measured 50-58 C. This is the ONLY GPU-die temperature "
+            "available: there is no nvidia hwmon chip on this box, and the `acpitz` zones on "
+            "Host Overview run 5-15 C above it and are NOT the GPU (docs §Host sensors)."
+        ),
+        "unit": "celsius", "min": 0,
+        "targets": [
+            {"expr": 'DCGM_FI_DEV_GPU_TEMP{job="dcgm", instance=~"$instance"}',
+             "legend": "die · {{ instance }}"},
+        ],
+    },
+    "spark_gpu_power": {
+        "type": "timeseries",
+        "title": "spark GPU — power draw + energy rate (DCGM)",
+        "description": (
+            "`DCGM_FI_DEV_POWER_USAGE` (instantaneous W, measured 12-39 W) beside the rate of "
+            "`DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION` (a mJ counter — /1000 turns its rate into "
+            "W). Two independent readings of the same quantity: a sustained gap between them "
+            "means the instant sample is lying."
+        ),
+        "unit": "watt", "min": 0,
+        "targets": [
+            {"expr": 'DCGM_FI_DEV_POWER_USAGE{job="dcgm", instance=~"$instance"}',
+             "legend": "instant W"},
+            {"expr": 'rate(DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION{job="dcgm", '
+                     'instance=~"$instance"}[$__rate_interval]) / 1000',
+             "legend": "energy rate · W"},
+        ],
+    },
+    "spark_gpu_clock": {
+        "type": "timeseries",
+        "title": "spark GPU — SM clock (DCGM)",
+        "description": (
+            "`DCGM_FI_DEV_SM_CLOCK` is reported in MHz; ×1e6 lets Grafana's `hertz` unit "
+            "render it as GHz (measured 2509 MHz). A clock that sags under load while "
+            "utilisation is high is thermal/power headroom, not a scheduler problem — read "
+            "it with the power panel."
+        ),
+        "unit": "hertz", "min": 0,
+        "targets": [
+            {"expr": 'DCGM_FI_DEV_SM_CLOCK{job="dcgm", instance=~"$instance"} * 1000000',
+             "legend": "SM clock · {{ instance }}"},
+        ],
+    },
+    "spark_gpu_pcie": {
+        "type": "timeseries",
+        "title": "spark GPU — PCIe replay counter (DCGM)",
+        "description": (
+            "`DCGM_FI_DEV_PCIE_REPLAY_COUNTER` — retransmissions on the PCIe link, plotted as "
+            "`increase()` because it is a counter. The seventh whitelisted signal, and the "
+            "only one with a failure mode that is invisible elsewhere: a link renegotiating "
+            "to fewer lanes shows here long before it shows in throughput."
+        ),
+        "unit": "short", "min": 0,
+        "targets": [
+            {"expr": 'increase(DCGM_FI_DEV_PCIE_REPLAY_COUNTER{job="dcgm", '
+                     'instance=~"$instance"}[$__rate_interval])',
+             "legend": "replays / window"},
+        ],
+    },
+    "spark_gpu_xid": {
+        "type": "stat",
+        "title": "spark GPU — XID errors (readiness)",
+        "description": (
+            "`DCGM_FI_DEV_XID_ERRORS` as the readiness half of the GPU row: 0 is the only "
+            "acceptable value, and a non-zero here is the engine losing the device (compare "
+            "the 2026-09-15 `amdgpu init_user_pages` episode on oldsrv, HD-393 — that class "
+            "shows up as an XID before it shows up as a failed request)."
+        ),
+        "unit": "short", "min": 0,
+        "thresholds": [
+            {"color": "green", "value": None},
+            {"color": "red", "value": 1},
+        ],
+        "targets": [
+            {"expr": 'max by (instance) (DCGM_FI_DEV_XID_ERRORS{job="dcgm", '
+                     'instance=~"$instance"})',
+             "legend": "XID · {{ instance }}", "instant": True},
         ],
     },
     "gpu_activity": {
@@ -769,7 +864,7 @@ NEW_PANELS = {
 # Panels that need a title suffix / legend note when carried verbatim.
 DESCRIPTION_NOTES = {
     "inf:14": "Carried from gnet 25502: vLLM per-engine step/token histogram + the SGLang CUDA-graph counter.",
-    "inf:13": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair.",
+    "inf:13": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair. HD-420: all three counter targets now carry rate(), so the panel is tokens/s throughout (it mixed a raw monotonic counter with a rate on one axis before).",
 }
 
 # Operator-visible strings must be English (CONVENTIONS: English technical). The three
@@ -1258,6 +1353,13 @@ LIVE_VLLM_METRICS = (
 # Engine-process + host metrics: live for the engine (job=vllm) and for spark's Alloy
 # unix exporter (job=alloy, instance=spark.kogler.si) respectively — both verified.
 LIVE_PROCESS_METRICS = ("process_resident_memory_bytes", "python_gc_collections_total")
+# GB10 GPU telemetry: the seven series the Alloy `prometheus.relabel "dcgm"` whitelist keeps.
+# Re-confirmed in VM 2026-09-22 by `match[]={job="dcgm"}` → exactly these 7 names, instance
+# spark.kogler.si. The `DCGM_FI_PROF_*` family is NOT here and never will be: the DCP module
+# refuses to load on GB10, which is why those panels are deleted in HD-377(b).
+LIVE_DCGM_METRICS = ("DCGM_FI_DEV_GPU_UTIL", "DCGM_FI_DEV_GPU_TEMP", "DCGM_FI_DEV_POWER_USAGE",
+                     "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION", "DCGM_FI_DEV_SM_CLOCK",
+                     "DCGM_FI_DEV_XID_ERRORS", "DCGM_FI_DEV_PCIE_REPLAY_COUNTER")
 LIVE_NODE_METRICS = ("node_cpu_seconds_total", "node_load1", "node_load5",
                      "node_memory_MemTotal_bytes", "node_memory_MemAvailable_bytes",
                      "node_filesystem_avail_bytes", "node_filesystem_size_bytes",
@@ -1279,6 +1381,8 @@ def _has_live_series(expr: str) -> bool:
     if re.search(r"\bup\s*\{", expr):
         return True
     if any(m in expr for m in LIVE_PROCESS_METRICS + LIVE_NODE_METRICS):
+        return True
+    if any(m in expr for m in LIVE_DCGM_METRICS):
         return True
     for name in re.findall(r"vllm:[A-Za-z0-9_:]+", expr):
         base = name.rstrip("_")
