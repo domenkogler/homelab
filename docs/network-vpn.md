@@ -22,6 +22,11 @@ tags: [network, vpn, wireguard, headscale]
 
 > **Strategy:** WireGuard is **site-to-site only**. User devices use Headscale. There is **no** WireGuard
 > road-warrior endpoint and **no** travel router — Headscale replaces them, and nothing falls back to them.
+> **Update 2026-09-22 (owner decision, HD-406):** one admin path is coming back, as **MikroTik Back To Home** —
+> WireGuard with MikroTik relay fallback — **not yet built**. It is a deliberate exception to the sentence above and
+> it does not restore the *family* road-warrior surface; the two caveats the implementing lane must clear first (it
+> writes router config outside `roles/router`, which the converge rebuilds; and it adds a vendor relay) are in the
+> HD-406 row and [todo.md](../todo.md).
 
 ### Reserved Subnets
 
@@ -425,7 +430,11 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > (its destination would receive nothing) and the v4 `dst-nat` experiment (same reason — the scan traffic proves
 > the mechanism works, it is the phone that cannot ask). The only levers left are the VPS listen-port fix above
 > and **phone-initiated** WireGuard (HD-406), which survives carrier NAT because the UE's own NAT state carries
-> the reply instead of requiring unsolicited inbound to it.
+> the reply instead of requiring unsolicited inbound to it. **Chosen vehicle (owner, 2026-09-22): MikroTik Back To
+> Home, deferred.** That reasoning is why it works where the punch did not — the router is the responder with a
+> public address, so the phone's carrier has no unsolicited inbound to block. Unproven part, to check when it is
+> built: whether BTH picks the **direct** WireGuard path or silently uses a **MikroTik relay**, because a vendor
+> relay is the same 70–240 ms shape measured above.
 > ⚠ **Chain correction, written wrong here once already:** a WAN packet addressed to a *host* (old-srv, not the
 > router) traverses **`chain=forward`**; `chain=input` only ever sees traffic addressed to the router itself. A
 > future inbound-v6 exception therefore belongs in `forward`, above the `no unsolicited v6 into any VLAN` drop —

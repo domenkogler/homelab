@@ -282,7 +282,11 @@ which changes the design as written above — recorded here so the next implemen
    `wg-s2s`, so a tailnet-served RA reaching home resolution with the home WAN down would need router work too —
    that is the leg the three-case drill has never exercised.
 
-⛔ So the row stays open as: **owner call on the ACL widening** (it reverses the "443 ONLY" wording) → publish the
+✅ **Answered 2026-09-22 — the owner authorized the ACL widening: include `udp 53`.** DNS only: the rest of the
+2026-09-20 invariant (no LAN bridge, no advertised routes, no exit node, no Tailscale SSH) stands. The headscale
+stop/start is authorized too, **conditional on a safety auto-re-enable if the driving session drops** — the exact
+`udp:` scoping and that condition are written in the HD-415 row, and the auto-re-enable must be proven before the
+first stop. So the row now runs as: publish the
 node-address nameserver → converge headscale at an authorized moment → **then** the three-case drill, including the
 never-yet-proven case (c): phone at home on **cellular**, home WAN pulled, resolving a home-hosted
 `*.kogler.si` name. Do not call it done on a `dig` from the laptop.

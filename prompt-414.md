@@ -5,9 +5,10 @@
 > re-proven), **HD-410** (DERP posture decided — no self-hosted relay, confirmed by two measurements), **HD-419**
 > (jellyfin loopback publish, `media` 502→200), **HD-301** (hardening floor verified on the live device) and
 > **HD-09** (void — [docs/network-rejected.md](docs/network-rejected.md)). What this file is still for: **HD-415**
-> (blocked on an owner ACL call, not on the server), **HD-406** (unblocked, and the discriminator made it the
-> preferred transport shape) and the **HD-159** wg-down window (owner-gated). Delete this brief when the last of
-> them closes.
+> — the owner ACL call is **answered ✅ include `udp 53`**, and the headscale stop/start is authorized **conditional
+> on a safety auto-re-enable if the driving session drops**, so it is now AI-runnable — **HD-406**, **re-decided as
+> MikroTik Back To Home** and deferred by the owner, and the **HD-159** wg-down window (owner-gated). Delete this
+> brief when the last of them closes.
 
 > **Role:** successor to `prompt-405.md` (the closed transport banner — the orchestrator deleted that file
 > 2026-09-22 with the link fixes in the two views; audit trail `git log --follow prompt-405.md`). That lane shipped the transport (HD-405 LIVE: `oldsrv`
