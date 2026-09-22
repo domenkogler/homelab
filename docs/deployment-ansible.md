@@ -171,6 +171,18 @@ rather than the recap: `docker ps` for the container, and for telemetry a backen
 `VM {job="dcgm"}`). Live case: the first `spark-dcgm` converge reported success with no container on the box;
 the second, run with the name tag, deployed it in ~30 s.
 
+**The third half of the lesson: one green converge proves nothing about idempotence — run it twice.**
+`failed=0` on a first run is also what a converge that churns looks like. Live case 2026-09-23
+(**HD-440**): oldsrv `--tags docker_services,lan-litellm` went `ok=83 changed=5 failed=0`, and re-running
+the identical command from the identical commit gave `ok=83 changed=5 failed=0` again — with
+`lan-litellm` reading `Up 2 minutes` and then `Up 3 minutes`, i.e. a healthy LLM gateway restarted twice
+for nothing. Cause: `Remove stub dirs at extra-template dest paths (HD-268c)` guards with
+`state: absent`, which deletes the *rendered file* it was meant to protect (the guard exists for docker's
+empty stub **directory**), so the template always reports `changed` and the restart-on-config-change guard
+always fires. Ask two questions of any converge that is supposed to be finished: **is `changed` zero on
+the second run**, and **is the task that repeats a state assertion or an unconditional action**. The same
+pass caught a second suspect (`nut`: clearing the `upssched-cmd` ACL) — recorded in the row, not assumed.
+
 ### Compose templates (`templates/docker_services/`)
 - **One directory per service.** Files inside: `docker-compose.yml.j2` (always),
   plus extra configs (e.g. `dynamic/routes.yml.j2`, `tuwunel.toml.j2`).
