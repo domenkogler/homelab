@@ -593,12 +593,16 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
       n8n confirmation, so the row is deleted. Record: [observability.md](docs/observability.md) §Alerting.
 - [ ] **HD-380 / HD-395** — the governor's second term + OOM-forensics watchdog, and the idle-recycle baselines
       that move with a boot-time coin-flip. · [hardware-spark.md](docs/hardware-spark.md)
-- [ ] **HD-377** — one unified LLM dashboard (`homelab-llm`) instead of three vLLM boards. · [observability.md](docs/observability.md)
-- [ ] **HD-420** — spark metric cadence: the hot/cold Alloy scrape split (5 s for the ~50 series behind the nine
-      panels the owner named, 60 s for the rest), the DCGM sidecar's 30 s collection interval, the Grafana
-      datasource `timeInterval` floor, and the hard-coded `[5m]` prefix-cache panel — then converge
-      `vps.yml --tags monitoring` plus the spark-side Alloy/DCGM restart and verify the 5 s granularity survived.
-      ⛔ never restart the vLLM engine for this. · [observability.md](docs/observability.md)
+- [ ] **HD-377** — (a) **owner:** render `homelab-llm` on `stats.kogler.si`; on sign-off, delete the three HD-368
+      boards and re-converge `vps.yml --tags monitoring`. (b) is **DONE 2026-09-22**: the three `DCGM_FI_PROF_*`
+      panels are deleted (impossible on GB10), the six real DCGM signals + an XID readiness stat are wired, and
+      the re-derived board is provisioned. · [observability.md](docs/observability.md)
+- [ ] **HD-420** — the VPS half is DONE 2026-09-22 (datasource `timeInterval` floor + the `rate()` panel fix,
+      converged `changed=3` then `changed=0`). What is left is spark-side and gated: pre-flight the `spark-dcgm`
+      sidecar at 5 s against its 256M cap **from the laptop** (⛔ §C2: never from a spark-backed session), then
+      converge the Alloy hot/cold split and the DCGM interval TOGETHER and read
+      `count_over_time(node_load1{instance=~"spark.*"}[1m])` = 12. ⛔ never restart the vLLM engine for this.
+      · [observability.md](docs/observability.md)
 - [ ] **HD-387** — the thinking-control re-measure **through the gateway** (a recorded contradiction between a
       recommendation and a measurement is still open). · [services-ai-bench.md](docs/services-ai-bench.md)
 - [ ] **HD-366** — DGX Dashboard JupyterLab on the LAN (`:11002`) — the integrated lab assigns per-user ports. · [hardware-spark.md](docs/hardware-spark.md)
@@ -673,8 +677,10 @@ on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the 
       vs the legacy API) + **[MANUAL, owner]** render-verify the panels on `stats.kogler.si`. · [observability.md](docs/observability.md)
 - [ ] **HD-344** — register the Victoria MCP endpoints in pi / Open WebUI / OpenClaw (the servers are live); the
       tailnet redo is an owner call. · [observability.md](docs/observability.md)
-- [ ] **HD-345** — `ifOperStatus` is still 0 in VM (the SNMP walk is not arriving); verify the interface rules and
-      fire a test alert once SNMP data lands. · [observability.md](docs/observability.md)
+- [ ] **HD-345** — the fault is found and fixed in `alloy.river.j2` (the SNMP scrape re-asserts
+      `job="alloy-snmp"` + `instance="<dev>"`, which is the label every consumer already asked for); it now needs
+      an **oldsrv** `monitoring` converge, then verify the interface rules and fire a test alert.
+      · [observability.md](docs/observability.md)
 - [ ] alerting tails are tracked where their hosts are: **HD-159** (Phase 1, prove `wg-s2s-down` fires) and
       **HD-347** (Phase 3, the Signal group UUID in SSOT).
 
