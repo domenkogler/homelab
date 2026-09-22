@@ -356,6 +356,17 @@ add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/
 # HA's KNX tunnel needs its own narrow new-UDP exception. Same pattern as the
 # CoAP 5683 reverse exception above. dst = knx-ip 10.10.20.11 (SSOT, VLAN 20).
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.11 protocol=udp dst-port=3671 comment="Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"
+# KNXnet/IP REPLY path (HD-438, 2026-09-23). Mirrors the CoAP 5683 reverse exception
+# above. Match on the ROUTER'S SOURCE PORT, not dst-port: HA's replies arrive from
+# knx-ip:3671 to xknx's EPHEMERAL tunnel port, so a `dst-port=3671` rule would read
+# correctly and never match a single packet. Without this line the return leg depends
+# entirely on `established,related` conntrack, and a UDP tunnel that goes idle past
+# the conntrack timeout becomes permanently half-open: HA keeps sending (devices still
+# switch!), every L_DATA.con and every state read is dropped, xknx cannot detect it, and
+# entity states freeze at the moment the entry died (HA reported the tunnel as
+# "established 2026-09-20T07:29:43" for three days). Reload alone fixes the symptom;
+# this line removes the recurrence.
+add chain=forward action=accept src-address=10.10.20.11 protocol=udp src-port=3671 dst-address-list=trusted-ha comment="KNX router -> HA (tunnel replies; match src-port 3671, replies go to xknx ephemeral port) - HD-438"
 # Shelly Gen1 RGBW2 REST (HA on the Pi -> Shelly fleet on IoT): same reason
 # as the KNX exception above -- the Pi is a node, NOT in trusted-admin
 # (HD-310 Mgmt-strict posture), so HA's outbound new-TCP to the Shelly HTTP

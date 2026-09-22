@@ -201,23 +201,24 @@ dig +short <resolver> media.kogler.si AAAA                                   # e
 | Kids (40) | WAN | Drop 22:00–07:00 (bedtime — hard block at firewall) |
 | All (except IoT) | WAN | Allowed (masqueraded) |
 
-> ✅ **`trusted-ha` is the set of hosts that RUN HA — pi (primary), oldsrv (standby), ha-vip — and it was
-> missing the primary until 2026-09-23 (HD-438).** The Home→IoT accept is `src-address-list=trusted-ha`; the
-> HA hosts are `pi`, `oldsrv`, `ha-vip`, so the list has to track *that* set, not a hand-picked subset. When
-> HD-03 narrowed Home→IoT gating to `trusted-ha` on 2026-09-04 it kept `oldsrv` + `ha-vip` (to exclude `nas`)
-> and left the HA **primary** out. HA opens its KNX tunnel from the host's own address — the integration's
-> config entry carries `local_ip: null`, so xknx binds `eth0` — so the primary's KNXnet/IP to the router on
-> VLAN 20 hit the default drop and **HA's KNX has been broken on the primary since 2026-09-20 10:16** (that is where HA's own KNX telegram store stops — a positive instrument, unlike my log windows) with nobody noticing, because wall switches drive the bus without HA and HA just served stale state. Live delta applied
-> 2026-09-23 00:00:40 (two address rows, widening-only, no rule touched); the steady state now lives in
-> `rb4011_converge.rsc.j2`, and the transient delta is deleted per the 3-tier rule. **What that fix proves, and what it does not:** the
-> hole is closed — the Pi reaches the router (ICMP up, `tcp/3671` open) and the `trusted-ha` accept counter
-> advanced 97→99 in 25 s, so traffic that way is forwarded. It is *not* proof that HA's KNX is healthy: xknx
-> timeouts continued after the fix (53 in the next 8 min), the router keeps no conntrack or fasttrack entry for
-> `:3671`, and the telegram store has not gained a row since 09-20. The gate entered the template on 2026-09-10
-> (`4f0604d`) and the store stops on 09-20, so what took effect that day is still unexplained — HD-438 stays
-> open for that reason. The lesson is a validator,
-> not a scold: *a firewall allowlist that names the hosts running a service must be derived from the hosts
-> that run that service* — recorded as an HD-436 check.
+> ✅ **KNX from HA primary was broken by the REPLY path, not the outbound one (HD-438, proven 2026-09-23).**
+My first diagnosis here was wrong twice, so the sequence is recorded. (1) `trusted-ha` really was missing the
+HA primary host — a genuine correctness gap, now fixed, and worth a validator (below) — but it was **not** the
+fault, because the template already carried `Home(10) → knx-ip udp/3671` for the whole Home subnet, and my
+before/after evidence was ICMP plus **TCP**/3671 on a **UDP** tunnel: two probes that could not have measured
+the path in question. (2) The actual cause: the forward chain accepts the KNX return leg **only** as
+`established,related` conntrack. A KNXnet/IP UDP tunnel that idles past the conntrack timeout becomes
+permanently half-open — HA keeps sending and devices still switch, every `L_DATA.con` and every state read is
+dropped, xknx cannot detect it, and states freeze at the moment the entry died. HA's own telemetry said
+`tunnel established 2026-09-20T07:29:43` for three days with `outgoing_telegram_errors` climbing and
+`incoming_telegram_errors = 0`. (3) Reload of the KNX integration restored inbound immediately
+(`telegrams` 0→+34/45 s, error growth stopped) — the symptom fix. (4) The structural fix is the reverse accept
+`src=knx-ip protocol=udp src-port=3671 dst-address-list=trusted-ha`, mirroring the CoAP 5683 exception. **Match
+the router's SOURCE port, not dst-port**: replies go to xknx's ephemeral tunnel port, so a `dst-port=3671`
+rule reads correctly and matches nothing. **Verified by experiment, not by inspection** — the single KNX flow's
+conntrack entry was removed and inbound kept flowing (`telegrams` 487→507) while the new rule's counter went
+0→1, i.e. it accepted the first reply without conntrack and the rest rode the entry that created. Rules 56
+deep in the chain still matched, which is the lesson: a firewall rule's position is part of its correctness.
 
 
 Implemented with **address-lists** and **interface lists** in RouterOS.
