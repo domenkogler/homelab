@@ -1,5 +1,14 @@
 # `prompt-414.md` — Lane brief · dual-stack the home edge, then close the remote-dev transport (HD-414 · HD-415 · HD-405 tail · HD-410 · HD-406 · + HD-419 · HD-09 · HD-301 · HD-159)
 
+> **Status — 2026-09-22 close-out.** The AI-runnable half of this lane is **shipped and measured**. Registry rows
+> it closed: **HD-414** (scoped IPv6 on VLAN 10, filter before RA, delta folded into the converge, invariants
+> re-proven), **HD-410** (DERP posture decided — no self-hosted relay, confirmed by two measurements), **HD-419**
+> (jellyfin loopback publish, `media` 502→200), **HD-301** (hardening floor verified on the live device) and
+> **HD-09** (void — [docs/network-rejected.md](docs/network-rejected.md)). What this file is still for: **HD-415**
+> (blocked on an owner ACL call, not on the server), **HD-406** (unblocked, and the discriminator made it the
+> preferred transport shape) and the **HD-159** wg-down window (owner-gated). Delete this brief when the last of
+> them closes.
+
 > **Role:** successor to `prompt-405.md` (the closed transport banner — the orchestrator deleted that file
 > 2026-09-22 with the link fixes in the two views; audit trail `git log --follow prompt-405.md`). That lane shipped the transport (HD-405 LIVE: `oldsrv`
 > is a headscale node on `tag:dev:443`, `ha.ts.kogler.si` served from oldsrv's own edge) and **measured the

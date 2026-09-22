@@ -654,7 +654,6 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 > See `todo.md` + `docs/observability.md`.
 
 - UPS metrics + alerts in Grafana (Critical battery/runtime, Warning on-battery, Info transitions) — **HD-08**
-- UPS web-UI firewall rule (80/443 Home→Mgmt for the `ups` host only, + touches Phase 1.5 firewall) — **HD-09**
 - HA entity list export (Prometheus exporter) for the HA Dashboard (lovelace) + Grafana — **HD-14**
 - HA recorder trim (`purge_keep_days`) to protect the Pi SD — **HD-19**
 - Grafana Alerting tiers (Critical/Warning/Info), self-monitoring, n8n + signal-cli-routing (details: `docs/observability.md`)
