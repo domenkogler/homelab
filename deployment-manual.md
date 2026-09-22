@@ -185,6 +185,40 @@ string**, not a file path. Why each config line in the script is what it is — 
 (`invalid ssh public key`, WSL networking wedges) — is in
 [deployment-ansible.md](docs/deployment-ansible.md) §Windows/WSL runner host facts.
 
+### 0.6 Seed the on-site control node (`oldsrv`, HD-407) `[MANUAL — one-time per box]`
+
+Run this from the laptop. The two traps it exists to survive — a dual-stack runner prefers the VPS's
+AAAA and every jumped leg then times out, and the Cloudflare token filters on the egress **address**,
+not on "being home" — are written up with their measurements in
+[deployment-ansible.md](docs/deployment-ansible.md) §Runner placement.
+
+```bash
+ssh ansible-admin@oldsrv 'git clone https://github.com/domenkogler/homelab ~/source/homelab'
+#   (the read-only `github-homelab_deploy_api` token lives in a 0600 ~/.git-credentials on the box;
+#    prove it is read-only: `git push` from oldsrv must 403. It did.)
+op read "op://Homelab-ansible/op_api/credential" | \
+  ssh ansible-admin@oldsrv 'cd ~/source/homelab && \
+        bash scripts/bootstrap-runner.sh --no-upgrade --no-sudoers --token-stdin'
+ssh ansible-admin@oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh --force-throwaway'
+ssh ansible-admin@oldsrv 'cd ~/source/homelab && bash scripts/seed-runner-ssh.sh'
+ssh ansible-admin@oldsrv 'cd ~/source/homelab && bash scripts/ansible-run.sh playbooks/dns.yml --check'
+#   Then one check per group, from the box:
+ssh ansible-admin@oldsrv 'cd ~/source/homelab && for p in "home_servers.yml --limit oldsrv.kogler.si" \
+        "vps.yml" "storage.yml --limit nas.kogler.si" "raspberry_pi.yml --limit pi.kogler.si" \
+        "spark.yml --limit spark.kogler.si"; do bash scripts/ansible-run.sh playbooks/$p --check --tags common; done'
+```
+
+✔ `seed-runner-ssh.sh` prints `JUMP_OK`; every group ends `unreachable=0 failed=0` — the measured
+per-group numbers and where their logs live are in
+[deployment-ansible.md](docs/deployment-ansible.md) §Runner placement.
+✔ `dns.yml` ends `ok=2 … failed=0`. A `9109` there means the token's IP allowlist is missing this box's
+egress address — **v4 *or* v6** — and the `429 / 10502` that follows it is auth-failure throttling,
+not the cause. Ask the owner to add the address, do not "fix" it by pointing the run at IPv4.
+✖ `--tags docker_services` on the self host is expected RED while the runner sits on a `main` that
+lacks the fix in question: a pull-only runner converges what is on main, never more.
+✔ After any grant change: `python3 scripts/check_ssh_grants.py` (read-only gate over
+[deployment-secrets.md](docs/deployment-secrets.md) §Who is authorized where; it revokes nothing).
+
 ---
 
 ## Phase 0.5 — VPS (re-)provisioning (netcup SCP)

@@ -41,12 +41,32 @@ one vault), both re-issued:
 ### Where a token is installed (the whole list)
 | Host / system | Token | Source of truth |
 |---|---|---|
-| **control node** (this WSL Debian laptop — the only place `ansible-playbook` is run interactively) | `op_api` | `~/.config/op/homelab-sa-token` (0600) |
+| **`oldsrv` — the on-site control node** (seeds 2026-09-22, proving logs 2026-09-23) | `op_api` | `~/.config/op/homelab-sa-token` (0600), written by `bootstrap-runner.sh --token-stdin` from `op read` on the laptop — the value never crossed a prompt or a shell history |
+| **control node (rescue)** — this WSL Debian laptop. No longer "the only place `ansible-playbook` is run interactively" (HD-407 closed that), and it stays installed as the door you open when the on-site runner is the thing that is broken | `op_api`… **nominally** — see the two-token finding below | `~/.config/op/homelab-sa-token` (0600) |
 | **Forgejo CI runner** (the `vault-gate` job + any playbook it runs) | `op_api` | a Forgejo secret |
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
 | home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
 | **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
 | **Win11 desktop** | **none, by design** | git auth/signing uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`) |
+
+### Two live read-scope service-account tokens exist today (measured 2026-09-23, by hash)
+
+`sha256(token)[:12]`, values never printed — the method the rotation section already prescribes:
+
+| Where | length | hash prefix |
+|---|---|---|
+| laptop `~/.config/op/homelab-sa-token` | 850 | `be1939305745` |
+| `op://Homelab-ansible/op_api/credential` (the item the docs call the source of truth) | 850 | `adc2aada8f6e` |
+| oldsrv `~/.config/op/homelab-sa-token` | 850 | `adc2aada8f6e` — matches the vault item |
+
+So the laptop's installed token is **not** the token the vault says is canonical, and both work.
+Consequence, stated plainly: **rotating or deleting `op_api` does not revoke the laptop's token.**
+An SA token that exists only on a disk and in no vault item is invisible to every procedure written
+against the vault, which is the same class of defect as `oldsrv-rsync` (HD-416) in a different
+subsystem. ⏳ Decide deliberately: either re-seat the laptop from `op read` and let the vault item be
+the single mint point, or mint/record the second token as its own vault item with a named consumer.
+Not this lane's call — it is a credential-revocation decision, and revoking the wrong one locks the
+rescue runner out of the vault.
 
 ### Rotating the control-node token
 `scripts/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a

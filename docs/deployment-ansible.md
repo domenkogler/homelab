@@ -505,22 +505,28 @@ or the static gate fails.
 
 The runner is whatever machine executes `scripts/ansible-run.sh`; both scripts and the IaC
 resolve their own paths, so a second runner is a bootstrap, not a fork. Seeding one on
-oldsrv is four steps, and only the first needs a human:
+oldsrv is five steps, and only the first needs a human. **Executed end to end 2026-09-22/23** —
+and the expectations below are what the run produced, which in three places is not what this
+section predicted when it was written:
 
 **The order is not cosmetic.** `--token-stdin` takes the token on stdin, and stdin can only
 carry one thing — so the script must already be ON oldsrv, which means the repo lands first
 and the secret second.
 
 ```bash
-# 0 — repo onto the box. A bundle needs no new credentials on oldsrv; cloning from GitHub
-#     instead is the cleaner end state but means placing a GitHub auth key on it first.
-git bundle create /tmp/oldsrv-runner.bundle main
-rsync -a /tmp/oldsrv-runner.bundle oldsrv:/tmp/
-ssh oldsrv 'git clone /tmp/oldsrv-runner.bundle ~/source/homelab &&
-            cd ~/source/homelab && git remote set-url origin <github-remote> &&
-            git fetch origin && git branch -u origin/main main'
-#     `git clone <bundle>` leaves origin pointing AT THE BUNDLE and `main` with no upstream,
-#     so a later `git pull` dies with "no tracking information" — set-url + -u now, not later.
+# 0 — repo onto the box, from GitHub, with the READ-ONLY deploy token. `github-homelab_deploy_api`
+#     in Homelab-ansible is fine-grained; place it as a 0600 credential store so the clone can pull
+#     without a token in the URL, in the remote, or in shell history:
+#       printf 'https://x-access-token:%s@github.com/domenkogler/homelab\n' "$TOK" > ~/.git-credentials
+#       chmod 600 ~/.git-credentials
+#       git config --global credential.helper 'store --file ~/.git-credentials'
+git clone https://github.com/domenkogler/homelab ~/source/homelab
+#     PULL-ONLY IS PROVEN, NOT ASSUMED: `git push` from oldsrv → remote 403, no write access.
+#     A `git bundle` from the laptop also works and plants no credential, but it plants a commit
+#     GitHub has never seen — worse for reproducibility than a scoped read-only token.
+#     (A `git clone <bundle>` leaves origin pointing AT THE BUNDLE and `main` with no upstream,
+#     so a later `git pull` dies with "no tracking information" — if you use one anyway, set-url
+#     + `git branch -u origin/main main` immediately, not later.)
 
 # 1 — seed the read-scope token: the laptop's op session reads op_api/credential (main vault,
 #     readable by the read-scope SA) and pipes it into the bootstrap ON THE BOX. The value
@@ -533,30 +539,76 @@ op read "op://Homelab-ansible/op_api/credential" | \
 #     effect of setup. --no-sudoers: ansible-admin already holds its grant; the script
 #     verifies sudo instead and fails loud if it is absent.
 
-# 2 — the canonical runner key: 1Password is the SSOT, and bootstrap-runner.sh's generated key
-#     is throwaway (no managed host authorizes it).
-ssh oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh'
-#     EXPECT THIS ONE TO REFUSE on oldsrv: /home/ansible-admin/.ssh/id_ed25519 already holds
-#     `oldsrv-rsync` (measured 2026-09-20) — a hand-made key with NO vault item and no IaC
-#     reference, which the script now refuses to overwrite. Print the fingerprint, find what
-#     authorizes it (nas? the storage box?) and re-point that job deliberately; only then
-#     re-run with --force-throwaway, which keeps a timestamped backup either way.
-#     It prints the fingerprint (public half only) — expect ansible-admin_ssh's.
+# 2 — the canonical runner key. **THE ROW'S PREMISE WAS WRONG.** On 2026-09-22 this refused twice
+#     with "no `oldsrv-rsync` key to restore": the script still treats the key HD-416 RETIRED on
+#     2026-09-21 as the thing to restore, and there is nothing left to restore. The refusal is real;
+#     the old reason recorded here ("it refuses to overwrite the rsync key") is not what fired.
+#     `--force-throwaway` is the path for a box whose id_ed25519 is not the vault key, and it keeps
+#     what it displaced as id_ed25519.pre-restore-<stamp> — which is what happened here, and that
+#     backup is still on the box, unverified (HD-416's tail owns the delete decision):
+ssh oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh --force-throwaway'
+#     Then run it again WITHOUT the flag: it must no-op and print the canonical fingerprint, and
+#     `python3 scripts/check_ssh_grants.py` must show the box presenting `1uKzmwf…`.
 
-# 3 — prove it, from oldsrv, inside what HD-413 permits:
-ssh oldsrv 'cd ~/source/homelab && bash scripts/ansible-run.sh playbooks/home_servers.yml \
-            --limit oldsrv.kogler.si --check --tags common'
-#     `--tags common` because the network/storage legs against oldsrv itself are REFUSED by
-#     design and belong to the VPS runner (off-box, above); the lockout legs may be previewed
-#     with `--check --tags network` if a read-only look is wanted.
-#     `dns.yml` is the one playbook that MUST run from a home-WAN-attached runner: its
-#     Cloudflare token is IP-filtered to the home WAN, and HD-397 measured a laptop on a
-#     hotspot failing exactly that. Moving the runner onto oldsrv is what fixes it.
+# 3 — the jump. Every behind-NAT host is reached with `-o ProxyJump=vps` (group_vars), and a fresh
+#     runner has no `Host vps` alias to jump through. This writes the block, TOFU-captures the
+#     host key, and PROVES the jump authenticates — rc=0 or it did not happen:
+ssh oldsrv 'cd ~/source/homelab && bash scripts/seed-runner-ssh.sh'
+#     It pins `AddressFamily inet`, and that line is load-bearing — see the IPv6 trap below.
+
+# 4 — prove it, from oldsrv, inside what HD-413 permits. One --check per inventory group:
+bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --check --tags common
+bash scripts/ansible-run.sh playbooks/vps.yml                               --check --tags common
+bash scripts/ansible-run.sh playbooks/storage.yml     --limit nas.kogler.si  --check --tags common
+bash scripts/ansible-run.sh playbooks/raspberry_pi.yml --limit pi.kogler.si  --check --tags common
+bash scripts/ansible-run.sh playbooks/spark.yml       --limit spark.kogler.si --check --tags common
+bash scripts/ansible-run.sh playbooks/dns.yml                               --check
+#     `--tags common` because the network/storage legs against the target itself are refused by
+#     design (HD-413) and belong to the off-box path; `common` is unguarded and check-safe.
+#     MEASURED from the seeded runner 2026-09-23 — oldsrv ok=20 · vps ok=18 · nas ok=20 · pi ok=15
+#     · spark ok=10, every one unreachable=0 failed=0, and dns.yml ok=2 failed=0. Full logs kept on
+#     the box under /tmp/hd407-proofs-* and /tmp/dns-oldsrv-*; quote those, not this line.
+#     `--tags docker_services` on the self host is RED from the runner (ok=59 failed=1) and that is
+#     the correct reading, not a broken runner: the clone sits on `main`, which does not yet carry
+#     the HD-399 seed gate, and the same command is green in a tree that does. A pull-only runner
+#     converges exactly what is on main and never more — which is the point of step 0's push test.
 ```
 
-Until step 3 has produced a log, `docs/1password.md` keeps naming the laptop as the
+**The IPv6 trap, measured — it will bite the next dual-stack runner too.** On oldsrv
+`vps.kogler.si` resolves **AAAA first** and the box has real IPv6 egress, while the laptop has no
+IPv6 at all, so the laptop cannot reproduce this class of failure even when it is the one converging.
+TCP/22 to the VPS over IPv6 times out (`ssh -4 vps` ok, `ssh -6 vps` timeout, both deterministic), so
+every `-o ProxyJump=vps` leg dies as `Connection timed out during banner exchange / Connection to
+UNKNOWN port 65535 timed out` — **including the leg to oldsrv's own inventory address**, which reads
+like a dead control node and is not. Direct LAN `ssh ansible-admin@10.10.1.10` from oldsrv works and
+the same `-J vps` from the laptop works, which is what localises it to the jump's address family.
+The `AddressFamily inet` pin in step 3 is the narrow fix; the defect itself is not this file — the
+VPS answers on `[::]:22`, its `inet filter input` accepts `tcp dport 22` for both families and its
+netcup ruleset accepts everything, but `roles/vps-hardening/templates/nftables.conf.j2:41` allows
+only `ip protocol icmp`, which is **IPv4-only**, so under `policy drop` the box discards all ICMPv6:
+NDP to `fe80::1` never resolves and IPv6 is dead in both directions (`ping6 fe80::1%eth0` → 100 %
+loss, `curl -6` → FAIL). The fix is one `meta l4proto ipv6-icmp` accept covering NDP + PMTUD
+(`neighbour-solicitation`, `neighbour-advertisement`, `router-solicitation`, `router-advertisement`,
+`destination-unreachable`, `packet-too-big`, echo) — **and until it lands, any path that depends on
+the VPS having IPv6 is dead**, which includes prompt-414's IPv6-scoped direct transport and the VPS
+`/64` just added to the Cloudflare allowlist.
+
+**`dns.yml` and the Cloudflare filter: the filter is on the egress ADDRESS, not on "being home."**
+`roles/cloudflare_dns/tasks/main.yml:10` and `dns.yml`'s header both say "Egress IP must be
+193.77.156.222". The laptop and oldsrv NAT through that IPv4, yet the first runner run failed with
+`403 / code 9109 — Cannot use the access token from location: 2a00:ee2:2700:8f00:…` — the box's
+**IPv6** address — followed by 429 `10502 Too many authentication failures` once the auth-failure
+throttle engaged. Proven by forcing the family with the same token: IPv4 → `HTTP 200`, IPv6 →
+`403 / 9109`. Fixed on the allowlist side rather than by pinning the runner: the filter is now
+`193.77.156.222, 159.195.111.66, 2a0a:4cc0:60:fcc::/64, 2a00:ee2:2700:8f00::/64` (owner,
+2026-09-23) and `dns.yml --check` from oldsrv is `ok=2 failed=0`. Two things to remember: the WAN
+IPv4 **and** the home `/64` are both ISP-dynamic, so a renumber re-breaks this with the same
+signature (9109 is the fire, the 429 that follows is the smoke); and the VPS `/64` entry is inert
+until the ICMPv6 fix above lands.
+
+Until step 4 has produced a log on a given box, `docs/1password.md` keeps naming the laptop as the
 interactive control node and the laptop runner stays installed — the wording moves with the
-proof, and the laptop is also the rescue door.
+proof, and the laptop is also the rescue door (it is dual-stack-blind, which cuts both ways).
 
 **Commit authorship does not move with the runner.** CONVENTIONS §6/HD-265 signs every commit
 with `github_signing` from the `Private` vault, which a read-scope service account cannot

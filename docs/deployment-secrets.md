@@ -454,7 +454,14 @@ Three independent ED25519 keys, one per purpose. Separate keys = revoke/rotate o
 | `ansible-admin_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
 | `ai_ssh` (private maps to `openrouter_ai`) | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |
 
-**The same three keys are authorized on every homelab host** (nas, oldsrv, ...).
+**Not "the same keys everywhere" — measured per host (2026-09-22 sweep, `scripts/check_ssh_grants.py`).**
+The three vault keys do **not** all ride on every host: `ansible-admin_ssh` is on all five managed
+hosts; `laptop-domen_ssh` is on nas · oldsrv · spark · vps but **not the Pi**; `ai_ssh` is on
+nas · oldsrv only, and only as `ai-debug`. Nothing from this table is authorized on the HA guests
+(`haos-vm-1`, `haos-mininta`) are **NOT swept and their grant state is unknown, not clean** — the short
+names do not resolve from any host I can drive (`ssh ansible-admin@haos-vm-1` → "Could not resolve
+hostname"), so they are outside the sweep set until an address or alias is named for them (HD-416
+tail). Placement and verdicts live in one place: §Who is authorized where below, machine-checked.
 
 **AI access is safe because it is a different user.** The AI key can never log in as `ansible-admin` (which has passwordless root). The `ai-debug` authorized_keys line is injected by `post_install.sh`:
 
@@ -492,7 +499,7 @@ After a host reinstall the host key changes — run `ssh-keygen -R nas` (or `-R 
 
 ---
 
-### Who is authorized where — the grant inventory (measured 2026-09-21)
+### Who is authorized where — the grant inventory (swept 2026-09-22 by `scripts/check_ssh_grants.py`; first hand-swept 2026-09-21)
 
 The three vault keys above are **not** the whole `authorized_keys` picture. Hand-made grants
 exist on the boxes, nothing in IaC declares them, and there was no way to know without
@@ -500,13 +507,35 @@ sweeping every host. Fingerprints only, never key material (CONVENTIONS §6):
 
 | Fingerprint | Identity | Where authorized | Verdict |
 |---|---|---|---|
-| `XTmK3tR…` | `laptop-domen_ssh` | nas · vps · oldsrv → `ansible-admin` | vault-issued, live |
-| `1uKzmwf…` | `ansible-admin_ssh` | every managed host → `ansible-admin` | vault-issued, the converge key (30 accepted logins on nas in 2 days) |
-| `Ug788c…` | `ai_ssh` | nas → `ai-debug` | vault-issued, scoped by HD-51 |
+| `XTmK3tR…` | `laptop-domen_ssh` | nas · oldsrv · spark · vps → `ansible-admin` | vault-issued, live. **spark was not named 2026-09-21** — measured present 2026-09-22; name it or revoke it (HD-416 tail) |
+| `1uKzmwf…` | `ansible-admin_ssh` | every managed host → `ansible-admin`, **plus pi → `admin`** | vault-issued, the converge key (30 accepted logins on nas in 2 days). **⚠️ the `admin` account on the Pi (uid 1000, `/etc/sudoers.d/admin` = `NOPASSWD:ALL`) holds this key too and was named nowhere** — HD-416 tail |
+| `Ug788c…` | `ai_ssh` | nas · **oldsrv** → `ai-debug` | vault-issued, scoped by HD-51. **oldsrv not named 2026-09-21, measured present 2026-09-22** — same call: name or revoke |
 | `DxoZeGK…` | `ha-sync@pi.kogler.si` | oldsrv · vps | hand-made, live (HA failover + cert pull), **no vault item** |
 | `VX0TbLr…` | `traefik-cert-sync@oldsrv.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer (HD-350), **no vault item** |
 | `7ZuAhqI…` | `traefik-cert-sync@spark.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer (HD-350), **no vault item** |
-| `U+6vLRV…` | `oldsrv-rsync` | ~~nas → `ansible-admin`~~ | **retired 2026-09-21** (below) |
+| `U+6vLRV…` | `oldsrv-rsync` | ~~nas → `ansible-admin`~~ | **retired 2026-09-21** (below); re-confirmed ABSENT on the 2026-09-22 sweep |
+
+**This table is a machine-checked gate, not prose (HD-416).** `python3 scripts/check_ssh_grants.py`
+sweeps every `authorized_keys` + `/root/.ssh/authorized_keys` on the managed hosts (`ssh` +
+`ssh-keygen -lf`, read-only), derives the named set from THIS table plus the vault public halves
+(`laptop-domen_ssh` / `ansible-admin_ssh` / `ai_ssh`), and exits 1 unless named ≡ live. It reds on
+`UNKNOWN` (live key nobody named), `RETIRED-BUT-PRESENT`, `WRONG-ACCOUNT` (a named key under an
+account the table does not name — the exact shape of the `oldsrv-rsync` finding), `UNPLACED` (a key
+on a host the table does not name) and `AMBIGUOUS` (two identities matching one key — reported, never
+guessed away). `--self-test` scores fixtures offline, including the false readings the live run
+caught in the checker itself; `--dump` keeps a dated capture. Run it before and after any grant
+change; it revokes nothing. The sweep set is the five managed hosts (`nas`, `oldsrv`, `pi`, `spark`,
+`vps`) — **the HA guests are not in it and are therefore unaudited, which is a hole, not a pass**.
+
+**Two claims this sweep disproved** (both were written as fact and both were wrong): "the same three
+keys are authorized on **every** homelab host" — pi carries ONLY `ansible-admin_ssh`, and no vault
+key is authorized on the HA guests; and the row's premise that `restore-runner-key.sh` "refuses
+before it touches a thing" when the retired key is absent — on 2026-09-22 it refused **twice** with
+"no `oldsrv-rsync` key to restore", which is the retired key still being treated as the expected
+state. The script grew `--force-throwaway` for exactly that case; the box's own key went to
+`id_ed25519.pre-restore-20260922-230051`, and the **grant stays retired** (the restore moved a
+private file, it did not re-authorize anything). The `⏳ Delete both halves after one green backup
+night` gate below is **unsatisfiable as written** — see that paragraph.
 
 **The `oldsrv-rsync` retirement, in full, because it is the reason this section exists.**
 oldsrv's `/home/ansible-admin/.ssh/id_ed25519` was a hand-made key with no vault item and no
@@ -525,6 +554,16 @@ assumed: fresh `ansible-admin` auth to nas + `storage.yml --limit nas --check --
 `svc-backup` and rsync to a local tank path, so they were never the consumer — one night is
 the proof, not the theory). Do **not** adopt it into the vault: adopting would promote a
 one-time migration key to a managed secret, which is backwards.
+
+**⚠️ The "one green backup night" gate cannot be met as written (measured 2026-09-22).** All three
+push timers have been `Result=ERR` **since 2026-09-18** — before the key was retired on the 21st —
+and for a cause with nothing to do with SSH: `rsync: chown3 … Operation not permitted (1)` from
+`svc-backup` into `/srv/backups/nextcloud`, i.e. an ownership problem on the destination. Waiting
+for green would hold an retired private key on disk indefinitely on a criterion that will not turn
+green until a different row lands. The deletion decision belongs to **HD-122** (`push-db-dumps`
+failures) / the owner; what HD-416 owns is the *grant*, and the grant is proven absent. Do not
+"resolve" this by pointing the gate at an unrelated green timer, and do not delete the key while
+those timers are red for whatever reason the owner decides.
 
 **Retiring an SSH grant — the reversible sequence.** The characteristic failure of an SSH change
 is being locked out by your own fix, so the order matters and each step is evidence, not opinion:
