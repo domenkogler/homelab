@@ -43,10 +43,20 @@
   when: svc.template_dir | default('') == 'technitium'
   tags: [docker_services, technitium_seed]
 
+# HD-399: the whole block is gated `not ansible_check_mode`. It is the third instance of
+# the class catalogued in docs/deployment-ansible.md §Dry-run Mode: `uri` does not execute in
+# check mode, so `_tech_login` registers a *skipped* dict and the very next task
+# (`_tech_token: "{{ _tech_login.json.token }}"`) died with `object of type 'dict' has no
+# attribute 'json'` — which aborted EVERY `docker_services` `--check` on oldsrv, i.e. the
+# box could not be previewed at all. Gating is correct here rather than simulating: every
+# task in the block drives the live DNS API (login, zone create, settings set, record add)
+# — there is nothing meaningful to simulate, and a skipped block is honest while a faked
+# token would be a lie. ⛔ The fix is NOT `default()` / `failed_when: false` (HD-65 fail-loud).
 - name: "Technitium: assert container reachable on local API ({{ svc.name }})"
   when:
     - svc.template_dir | default('') == 'technitium'
     - svc.name in (docker_services | map(attribute='name') | list)
+    - not ansible_check_mode
   tags: [docker_services, technitium_seed]
   block:
     - name: "Technitium: build container API base ({{ svc.name }})"

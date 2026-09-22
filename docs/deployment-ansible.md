@@ -334,17 +334,35 @@ Fix = gate the whole live-app block with `not ansible_check_mode` (it is read-or
 running app, so there is nothing meaningful to simulate). **Rule of thumb:** any task that consumes
 a `command`/`shell`-derived fact must carry `not ansible_check_mode`, or the role is not `--check`-safe.
 
-**Same class, second producer — a `uri` task feeding a `set_fact` (⚠ OPEN, found 2026-09-19, HD-399):**
-`roles/docker_services/tasks/technitium-seed.yml` logs in with `ansible.builtin.uri` and registers
-`_tech_login`, then `:102` does `_tech_token: "{{ _tech_login.json.token }}"`. `uri` does not execute in
-check mode, so the registration is a *skipped* dict and **every** `--check` run of a
-`docker_services`-bearing play on oldsrv dies there:
+**Same class, second producer — a `uri` task feeding a `set_fact` (✅ FIXED 2026-09-22, HD-399):**
+`roles/docker_services/tasks/technitium-seed.yml` logged in with `ansible.builtin.uri` and registered
+`_tech_login`, then `_tech_token: "{{ _tech_login.json.token }}"` resolved it. `uri` does not execute in
+check mode, so the registration was a *skipped* dict and **every** `--check` run of a
+`docker_services`-bearing play on oldsrv died there:
 `Error while resolving value for '_tech_token': object of type 'dict' has no attribute 'json'`
-(measured: `home_servers.yml --limit oldsrv.kogler.si --check` → `ok=284 changed=6 unreachable=0
-failed=1` — **the connection was fine**, the failure is this task). Same fix shape: gate the seed block
-with `not ansible_check_mode`. Until it lands, use a tagged check to get a green pre-flight
-(`--check --tags common,network` → `ok=18 changed=0 unreachable=0 failed=0`) and say which form you ran.
-(After HD-413 that interim form is still legal **from the control node itself** — `--check` of a check-safe role stays open — but an *unfiltered* `--check` is refused when the play carries `vps-hardening` and the target is the runner; see §Self-converge guardrail.)
+(first measured 2026-09-19: `home_servers.yml --limit oldsrv.kogler.si --check` → `ok=284 changed=6
+unreachable=0 failed=1` — **the connection was fine**, the failure was this task).
+**Fixed by gating the whole seed block** with `not ansible_check_mode` on its `when` (the block only
+drives the live DNS API — login, zone create, settings set, record add — so there is nothing to simulate;
+⛔ no `default()` / `failed_when: false`, HD-65). Measured A/B on the same command, differing only by the
+gate (`home_servers.yml --limit oldsrv.kogler.si --check --tags docker_services`, run from the laptop =
+off-box): **before** → `ok=59 changed=0 failed=1`, aborting at `Technitium: extract session token`;
+**after** → `ok=64 changed=0 failed=0` with `Technitium: login` reported `skipping`.
+
+**⚠ Same class, third producer (OPEN, found 2026-09-22 while proving HD-399):** with the seed gated, an
+*unfiltered* `--check` of oldsrv now dies one role earlier — `roles/tailscale-node` reads the assigned
+tailnet address with `ansible.builtin.command: tailscale ip -4` (HD-405 assert), and `command` does not
+run under `--check`, so `_ts_ip.stdout` is empty and the very next task fails closed:
+`tailnet_oldsrv_ip=<the SSOT node address> but this node is .` — the assigned address printed EMPTY → `ok=74 changed=2 failed=1`
+(`home_servers.yml --limit oldsrv.kogler.si --check`, 2026-09-22 22:44). Same fix shape, better variant:
+that read is harmless under `--check`, so it wants `check_mode: false` on the `command` task (which
+`check_self_converge_guard.py` permits for a guarded, non-`check_safe` role) rather than gating the assert
+away. `roles/tailscale-node/**` was **lane 414's file this wave** ( [`prompt-414.md`](../prompt-414.md) ),
+so it is recorded here rather than edited — until it lands, the honest oldsrv pre-flight form is
+`--check --tags docker_services` (proved green above) or `--check --tags common,network`, and the form you
+ran must be named in the report. (After HD-413 both are legal **from the control node itself** — `--check`
+of a check-safe role stays open — but an *unfiltered* `--check` is refused when the play carries
+`vps-hardening` and the target is the runner; see §Self-converge guardrail.)
 
 ---
 
