@@ -50,6 +50,13 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 
 - Container on `traefik-public` network (CIDR per [`network-addresses-generated.md`](network-addresses-generated.md) SSOT)
 - Exposes ports 80, 443 on host
+- **Verify an edge route from inside with `--resolve`, not with the public name.** Neither old-srv (upstream
+  `1.1.1.1`) nor the WSL runner resolves `*.kogler.si` — the split DNS lives elsewhere — so a plain `curl` from
+  those vantages returns `000` / exit 6 and reads exactly like an outage. Pin the name to the address where the
+  route actually lives: `curl -sk --resolve <host>:443:<edge addr> https://<host>/` (2026-09-22 the media route
+  answered 302→200 on the old-srv Home address and 404 on the VIP — so a `404` here means "wrong vantage", not
+  "broken service"). Then split "service down" from "route wrong" by asking the upstream itself over its
+  loopback bind. Same class of false alarm as a dead Mgmt99 vNIC — see [network-ops.md](network-ops.md).
 
 ---
 

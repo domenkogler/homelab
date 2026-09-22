@@ -77,6 +77,19 @@ route), and that stops being true the moment a second prefix is advertised.
 on their own and the Home VLAN returns to IPv4-only. Runbook + how to verify: [network-ops.md](network-ops.md)
 §IPv6 and the runbook steps in [deployment-manual.md](../deployment-manual.md) §1.5.3d.
 
+**Serving inbound over v6 is NOT currently available.** Observed 2026-09-22 while instrumenting the Tailscale
+punch ([network-vpn.md](network-vpn.md)): across several windows with the WAN drops logging, **not one
+unsolicited inbound v6 packet reached the delegated prefix** — no probe, no scanner — while v4 scans hit the WAN
+constantly (one hammering `41641` every 6 s). Read it as: this ISP hands out a prefix for egress and reply
+traffic and filters inbound. Unproven by an outside-in probe (the site has never had a working external v6
+prober), but it is the operating assumption: **do not publish a home service via `AAAA`**, and do not spend
+firewall effort on inbound-v6 exceptions until an external v6 prober says otherwise. It also means
+`nagios-dns-v6`'s ban on AAAA at home is right, not merely conservative.
+
+**An inbound-v6 exception belongs in `chain=forward`, not `chain=input`.** A WAN packet addressed to a host
+(old-srv) is *forwarded*; `input` only sees packets addressed to the router itself. HD-414's plan said `input`,
+and the trap is that the `input` version looks fine: rule present, counters zero, nothing matching it.
+
 **Re-checking the invariants** (all four measured clean on the live device 2026-09-22; the fourth is the one that
 quietly regresses if someone adds a second advertised prefix):
 

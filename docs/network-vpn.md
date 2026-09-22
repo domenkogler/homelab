@@ -410,9 +410,42 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > sockets (`0.0.0.0:39417`, `[::]:35131`) instead of 41641, so no firewall could ever allow it and that node is
 > permanently relayed; pinning + publishing its listen port is the cheap win and **has no row yet**. ⛔ Neither is
 > an argument for a self-hosted DERP: a DERP is another relay leg and the cost lives on the phone↔FRA/NUE leg, which
-> the VPS's location does not shorten — HD-410's decision holds. ⚠ **Honest limit:** relayed in both directions
-> cannot separate "carrier blocks the phone" from "our v6 filter drops the phone's probe to `[GUA]:41641`"; the
-> 60-second scratch-accept discriminator in HD-414's tail settles it, and it needs the phone online.
+> the VPS's location does not shorten — HD-410's decision holds.
+>
+> **The discriminator ran minutes later (same day) and the block is upstream of this network — nothing we open
+> here can produce a direct session.** Two things make that test easy to fake, so they are recorded with it.
+> First, **no hole is needed**: put `log=yes` on the WAN drop rules and read whether the packets arrive at all.
+> Second, **validate the instrument before believing its silence** — a rule that known traffic certainly
+> crossed logged 83 entries, and internet scan traffic produced 17 drops in the same window, so "nothing" is
+> evidence here rather than an absent probe. Measured over three punch bursts with the phone online: **zero
+> packets from the phone arrived on either family.** Nothing touched the v6 WAN drops; on v4 the only `41641`
+> traffic was a scanner repeating every 6 s from a hosting provider, correctly dropped. Meanwhile `netcheck`
+> reports our side as textbook-punchable — `UDP: true`, `MappingVariesByDestIP: false`, disco on 41641 on both
+> families, unrestricted egress. ⇒ Both remedies this file carried are **retired**: the single inbound v6 accept
+> (its destination would receive nothing) and the v4 `dst-nat` experiment (same reason — the scan traffic proves
+> the mechanism works, it is the phone that cannot ask). The only levers left are the VPS listen-port fix above
+> and **phone-initiated** WireGuard (HD-406), which survives carrier NAT because the UE's own NAT state carries
+> the reply instead of requiring unsolicited inbound to it.
+> ⚠ **Chain correction, written wrong here once already:** a WAN packet addressed to a *host* (old-srv, not the
+> router) traverses **`chain=forward`**; `chain=input` only ever sees traffic addressed to the router itself. A
+> future inbound-v6 exception therefore belongs in `forward`, above the `no unsolicited v6 into any VLAN` drop —
+> an `input` rule would silently never match, show zero counters, and look like success.
+>
+> **Side-fact worth more than the test it came from: no unsolicited inbound IPv6 reached the delegated prefix
+> at all** in those windows, while v4 scans arrive continuously. Consistent with the ISP filtering inbound v6 on
+> a delegated prefix (egress and replies granted, inbound not). Not proven — the clean proof is an external v6
+> prober, which this site has never had (network-ops §IPv6) — but act on it now: **an `AAAA` record pointing at a
+> home service would be unreachable from the v6 internet**, which makes `nagios-dns-v6`'s ban on AAAA at home
+> correct rather than conservative, and means "publish something over v6 from home" is unavailable at any amount
+> of firewall effort.
+>
+> **RouterOS traps that cost three aborted attempts**, so the next person does not relive them: `place-before=`
+> is **silently ignored** when handed the printed rule number (rule ids are hex `*N` and do **not** equal the `#`
+> column — resolve ids with `find`); `find where connection-state=established,related` matches **nothing**
+> (because the value contains a comma), so match on `comment` instead; and `/log` is memory-capped while a
+> **non-default `/system logging` rule (`ssh → memory`) floods ~1000 packet-dump lines per 3 min**, rotating the
+> buffer in seconds and silently erasing the window under measurement. That ssh rule is foreign config, not
+> repo-managed, and has no row.
 
 **Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the
 moved `dsh`/`pi-dev`) remain reachable by **publishing a host port bound to `oldsrv_home_ip`** + a

@@ -37,6 +37,11 @@ Home is IPv4-only behind RB4011 NAT: `tailscale netcheck` on oldsrv reports `UDP
 mapping**, **no IPv6 anywhere**, nearest DERP fra 18 ms. Single NAT with endpoint-independent mapping is the
 *punchable* case, yet cellular→node still relayed ⇒ the block is on the carrier side and/or the router
 dropping the punch. A `/56` of static IPv6 removes the punching problem instead of winning it.
+**SETTLED by measurement 2026-09-22, and it went the other way.** A log-only discriminator (`log=yes` on the WAN
+drops, no hole opened, instrument validated before its silence was trusted) showed **zero packets from the phone
+arriving on either family** while v4 internet scans hit the WAN constantly — so the router was never the blocker,
+and the `/56` did **not** remove the punching problem (still relayed both ways). Both inbound remedies this brief
+carried are retired. Method, numbers and the RouterOS traps: [network-vpn.md](docs/network-vpn.md).
 
 **The one thing that can wreck the design while doing this:** IPv4 NAT is currently doing *implicit* inbound
 protection for every VLAN. The moment GUAs exist, inbound safety becomes **purely** the RouterOS v6 filter's
@@ -84,8 +89,11 @@ not enabled fleet-wide.
 
 ⚠ Two honest caveats to keep in the row: carriers often firewall **inbound** v6 to phones (fine — the phone
 initiates — but if the SIM's v6 is broken, v6 alone will not produce Direct, which is why step 6 is a
-measurement); and **no AAAA records for home hosts in the public zone** while this lands, so nothing new
-becomes an inbound target by DNS accident.
+measurement) — **that is precisely what happened**, and the mirror half turned out to be bigger: no unsolicited
+inbound v6 reached the delegated prefix at all, so inbound-over-v6 from home is unavailable regardless of SIM;
+and **no AAAA records for home hosts in the public zone** while this lands, so nothing new
+becomes an inbound target by DNS accident (which is now moot in the good direction — such a record would be
+unreachable anyway).
 
 ## HD-415 detail — decided 2026-09-21; implement as written
 
