@@ -398,6 +398,21 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > before/after on the router). ⛔ And note for any future off-site v6 probe: the **VPS cannot take it** — it has a
 > GUA and a v6 default route but no working IPv6 (100 % `ping6` loss to the home GUA and to Quad1111, `curl -6`
 > no connect, no ip6 nft ruleset) — see [network-ops.md](network-ops.md) §IPv6.
+>
+> 📡 **Measured 2026-09-22 (owner's phone on cellular, plus the reciprocal test from oldsrv): IPv6 did NOT make the
+> away session direct.** Phone→oldsrv **relayed via FRA, 70–90 ms**; phone→VPS **relayed via NUE, 50–70 ms**;
+> oldsrv→phone `via DERP(fra)` with **`direct connection not established`** at 73→244 ms. The hypothesis this
+> section carried — "static IPv4 + carrier blockage, IPv6 is the fix" — is **falsified for this path**: the home
+> side now has everything a puncher wants (GUA, EIM IPv4, disco on 41641, free egress) and still cannot establish.
+> Two causes were untangled from that one report, and they are **not** the same: **(1) the phone leg** lacks
+> unsolicited inbound to the UE (carrier NAT / APN behaviour — not ours to fix); **(2) the VPS leg** is ours —
+> `tailscale-sidecar` shares another container's netns with `ports=map[]` and its tailscaled binds **ephemeral**
+> sockets (`0.0.0.0:39417`, `[::]:35131`) instead of 41641, so no firewall could ever allow it and that node is
+> permanently relayed; pinning + publishing its listen port is the cheap win and **has no row yet**. ⛔ Neither is
+> an argument for a self-hosted DERP: a DERP is another relay leg and the cost lives on the phone↔FRA/NUE leg, which
+> the VPS's location does not shorten — HD-410's decision holds. ⚠ **Honest limit:** relayed in both directions
+> cannot separate "carrier blocks the phone" from "our v6 filter drops the phone's probe to `[GUA]:41641`"; the
+> 60-second scratch-accept discriminator in HD-414's tail settles it, and it needs the phone online.
 
 **Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the
 moved `dsh`/`pi-dev`) remain reachable by **publishing a host port bound to `oldsrv_home_ip`** + a
