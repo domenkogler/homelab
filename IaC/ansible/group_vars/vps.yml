@@ -120,6 +120,21 @@ docker_services:
   # `metabase-forgejo_ro` intentionally left in place (owner: leave as-is).
   - { name: metabase,       template_dir: metabase,  subdomain: sec, public: false, enabled: false }
   #   RETIRED (source dropped): db_ro_sync: true, db_ro_item: metabase-forgejo_ro, db_pg_container: forgejo-db
+  #
+  # Metabase — RETIRED 2026-09-23 (owner decision). The IaC is KEPT, not deleted: this line is the switch,
+  # and `enabled: false` means "declared here, ignored by the converge" — which is what a retired-but-not-
+  # forgotten service should look like. It now reaches further than the container: the Authentik → 1Password
+  # secret-egress glue renders its `metabase:metabase_oidc` entry only while this line says enabled, so a
+  # retired service cannot seed — or, per HD-441, *mint* — a vault item. That closes the gap that let four
+  # phantom `metabase_oidc,` items appear over a service that had been off for weeks.
+  # ⚠ What this switch does NOT gate (tracked in its own row, not silently): the Authentik provider + app in
+  #   templates/docker_services/authentik/blueprints/ks-oidc.yml, and the two `edge-sec` proxy providers, two
+  #   `edge-metabase*` apps and their `outpost_embedded` references in ks-forward-auth.yml. Those files are
+  #   copied **unrendered** (deploy-service.yml uses `copy:`, and only `_extra_templates` entries get `template:`),
+  #   so there is no Jinja hook; and they cannot be split into their own blueprint file because `!KeyOf` resolves
+  #   per blueprint file while `outpost_embedded` is one shared object listing every proxy provider — a dangling
+  #   KeyOf fails the whole import, which is an IdP outage. They are inert (no Traefik route has targeted
+  #   metabase:3000 since 2026-09-14) but they are still asserted whenever blueprints are applied.
   # HD-272: CrowdSec Web UI (csui.kogler.si) — richer ops surface alongside Metabase.
   # INTERNAL-ONLY (NO public CNAME); Forward-Auth; LAPI watcher auth (crowdsec-webui_lapi_api).
   - { name: crowdsec-web-ui, template_dir: crowdsec-web-ui, subdomain: csui, public: false, enabled: true }
