@@ -426,6 +426,23 @@ were measured on 2026-09-23 by sweeping `op item list` against the consumers:
 op item list --format json | python3 -c "import json,sys,re,collections; c=collections.Counter(i['title'] for i in json.load(sys.stdin)); print('dups :', {k:v for k,v in c.items() if v>1} or 'none'); print('dirty:', [k for k in c if not re.fullmatch(r'[a-z0-9][a-z0-9_-]*', k)] or 'none')"
 ```
 
+Measured 2026-09-23 on `Homelab-ansible` (118 items): `dups: none`, and `dirty:` reports
+`admin @dns.kogler.si` and `Hertzner-SB-Data` — **both known-legit human-named items**, not glue output.
+The pattern is deliberately stricter than reality because the titles that matter are machine-written;
+the two above are the accepted exceptions, so leave them and watch for anything *new*.
+
+**Closure of the `metabase_oidc,` case (what the fix had to survive):** the owner deleted the four phantoms;
+the full VPS `docker_services` converge of 2026-09-23 (`ok=330 failed=0`) then ran the glue for 15.3 s and
+minted **nothing** — the sweep above shows exactly one clean `metabase_oidc`. The deployed copy on the VPS is
+byte-identical to the template (`md5 d1ccc0d4…`, `bash -n` clean), so the guard is live, not just committed.
+The clinching measurement: `metabase_oidc` still reports `updated_at == created_at == 2026-08-22`, i.e. it was
+**never** written in its whole life — which is precisely what a permanently-failing `op item edit` with a
+successful `op item create` fall-through looks like from the outside. ⚠ One decision left to the owner: the
+entry is still in `PROVIDERS` although Metabase is `enabled: false` since 2026-09-14 and its own compose
+template notes Metabase OSS cannot do OIDC — so either restore a reason for the entry or delete the entry,
+the Authentik `metabase` provider and the dormant item together. A hard-coded provider list that outlives the
+service is how this row's defect stayed invisible: the list, not the fleet, decides what gets synced.
+
 ---
 
 ## Rename Map (legacy → canonical)
