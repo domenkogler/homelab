@@ -161,7 +161,7 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 | Brief | Wave | Rows it carries (lead · merged-in) | Converge host |
 |---|---|---|---|
 | `prompt-407.md` runner + cockpit — **CLOSED 2026-09-23, brief deleted** | **1** | closed as delivered: 407 · 409 · 399 · 386 · 416 · 388 · 356. Open residue: **411** (parked) + **442–449** | oldsrv + one full VPS `docker_services` |
-| [prompt-420.md](prompt-420.md) metric cadence | **1** | HD-420 · **395 · 377(b) · 342 · 345** | spark + VPS (`--tags monitoring`) |
+| [prompt-420.md](prompt-420.md) metric cadence | **1** | HD-420 · **395 · 377(b) · 342 · 345** | spark + VPS (`--tags monitoring`) — **the spark half landed 2026-09-23** (hot/cold + 5 s sidecar + acceptance); the engine-restart residue is [`prompt-spark-external.md`](prompt-spark-external.md) |
 | [prompt-414.md](prompt-414.md) transport — **re-dispatch card only: closed 2026-09-22 for its AI half** (scoped IPv6 shipped, the phone matrix and the punch discriminator both RAN) | **2** | **HD-415 · 406** (+159 with a stated window); the rows it also carried (**414 · 410 · 405 tail · 419 · 09 · 301**) are closed and left the registry | router slot **now free** + oldsrv |
 | [prompt-384.md](prompt-384.md) LiteLLM consumer chain | **3** | HD-383 · **384** · 403 · 387 · 373 · 249 | oldsrv + VPS `docker_services` |
 | [prompt-376.md](prompt-376.md) spark engine + bench | **3** | HD-376 · 400 · 359 · 367 · 380 (absorbs the stale `prompt-next.md`, now deleted) | spark, **owner bench window** |
@@ -180,7 +180,7 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 
 | HD | P | Goal | ⏳ Next action | Why nothing blocks it |
 |----|---|------|----------------|------------------------|
-| **HD-395** | 2 | the watchdog stops restarting a healthy spark engine | baseline the idle recycle only after `/health` 200 **and** a settle window (or max of N samples), then re-check the +8 GiB margin against the certified peak | measured defect: the first-post-boot floor has been read **71,911 / 86,243 / 92,343 MiB** on one config → it either restarts a healthy engine or goes silent. Drive it from the laptop, never from a spark-backed session. **A lane was opened for this and never started (§0)** · 📋 [`prompt-420.md`](prompt-420.md) |
+| **HD-395** | 2 | the watchdog stops restarting a healthy spark engine | fix is authored + self-tested (4/4, 7/7 mutants killed) in `session/395-watchdog-*` — baseline only after `/health` 200 **and** a settle window, committing the **max** of N samples, with the boot floor and the margin verdict emitted as their own `status` fields; ⏳ **the live half** = the scoped `--tags watchdog` converge + the “a unit restart must not recycle” check + one intentional recycle with in-flight 0 — that leg is [`prompt-spark-external.md`](prompt-spark-external.md) J1 | measured defect, still firing: `enforce.log` shows **three** recycles on 2026-09-23 (`03:41`, `04:15`, `04:50`Z), every one reading `92343 MiB > baseline 71911 + 8 GiB` — the guard was permanently armed against a healthy engine — it either restarts a healthy engine or goes silent. The live half must be driven from the laptop **by a session whose own model is not spark** · 📋 [`prompt-spark-external.md`](prompt-spark-external.md) J1 |
 | **HD-417** | 3 | the validators can see a broken table | cell-count check for markdown tables in the docs validator (split on unescaped pipes, compare to the header, fail with file + line) + an escape convention + a one-time legacy sweep | a swallowed newline merged two registry rows and an `/etc/x`-style description added nine stray cells to a 3-column row on 2026-09-21 — both passed every gate. Cheap guard for a failure that is invisible today. · [CONVENTIONS.md](CONVENTIONS.md) §6 · 📋 [`prompt-417.md`](prompt-417.md) |
 | **HD-387** | 2 | know whether thinking is actually OFF through the gateway | run the written probe protocol against the LAN instance (baseline → toggle → budget pair → `top_k` → the proxy's own dropped-params log) | a recorded live measurement and the pinned source contradict each other, and the failure mode is silent thinking-ON at HTTP 200. Master-key path, no client change; the harness route does not move either way (decision #26) · 📋 [`prompt-384.md`](prompt-384.md) |
 | **HD-396** | 2 | the retired `op_api` secret thread ends with a fact | repo-archaeology, one question: does the Forgejo CI runner still exist, and does it still hold the pre-2026-09-19 secret? renew it, or delete the stale Phase 0/5 prerequisite lines in [deployment-tasks.md](deployment-tasks.md) | the leak itself is closed (record: [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a); no IaC references `op_api` any more, so only the Forgejo side can answer it · 📋 [`prompt-417.md`](prompt-417.md) |
@@ -290,8 +290,15 @@ spark converge. The rest of this section is independent of it and of each other.
 1. **HD-397 needs a physical presence for its last half** — the off-LAN matrix is measured + green, the LAN/`Mgmt99`
    half cannot be taken from abroad. It gates nobody's code, only the on-site verification rows. Reachability itself is
    settled: [network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when away.
-2. **Never benchmark or converge spark from a session whose own model is spark** (incidents #3 + #6). Live converges
-   run **detached** (`nohup … &` + log + poll), spark via the VPS jump. `--check` is the only safe foreground form.
+2. **Never benchmark spark, and never run the engine-restart leg, from a session whose own model is
+   spark** (incidents #3 + #6). **Narrowed 2026-09-23 by the owner:** such a session MAY converge spark
+   when the change provably cannot touch the inference engine — `--tags monitoring`, the `spark-dcgm`
+   sidecar, file-provider route edits (`spark-dashboard`, `traefik-tailnet`), `--tags spark,watchdog` —
+   provided it records `docker inspect … vllm-qwen-spark` (id + `StartedAt` + `RestartCount`) before and
+   after and shows `llm.kogler.si` still 200. Anything that recreates `spark-ai` (engine args, its env,
+   the `spark-llm_api` item), the HD-395 live recycle proof and every bench stay outside such a session.
+   Live converges run **detached** (`nohup … &` + log + poll), spark via the VPS jump. `--check` is the
+   only safe foreground form — and it proves scoping only, because the deploy loop skips in check mode.
 3. **Do not merge/converge `main`'s spark values over the certified ones** — the 16 GiB KV pool is the live, certified
    config, and `--enforce-eager` (C3) stays off on measurement, not on deferral.
 4. **One writer per file family** — narrowed for parallel lanes by [prompt.md](prompt.md) §4 **O3**:

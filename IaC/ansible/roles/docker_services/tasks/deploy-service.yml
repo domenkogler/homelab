@@ -79,21 +79,40 @@
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml"
     mode: '0644'
 
-- name: "Remove stub dirs at extra-template dest paths for {{ svc.name }} (HD-268c)"
+- name: "Stat extra-template dest paths for {{ svc.name }} (HD-440)"
+  # HD-440: the removal below must be a TYPE TEST, not a guess. `state: absent` does not care
+  # whether the path is a directory or the regular file the previous converge rendered, so the
+  # untyped version deleted the rendered extra on EVERY converge, the template task then
+  # recreated it (`changed`), and the restart-on-config-change guard at the bottom of this file
+  # bounced a healthy service — forever, with `failed=0` on every run (measured on oldsrv: two
+  # converges of one commit, `changed=5` both times, `lan-litellm` `Up 2 minutes` → `Up 3
+  # minutes`). Stat first; only a DIRECTORY is a stub.
+  tags: "{{ svc.name }}"
+  ansible.builtin.stat:
+    path: "{{ docker_compose_dir }}/{{ svc.name }}/{{ extra | replace('.j2', '') }}"
+  loop: "{{ _extra_templates[svc.template_dir] | default([]) }}"
+  loop_control:
+    label: "{{ extra | replace('.j2', '') }}"
+    loop_var: extra
+  register: extra_dest_stat
+  changed_when: false
+
+- name: "Remove stub DIRS at extra-template dest paths for {{ svc.name }} (HD-268c; type-test HD-440)"
   # HD-268c: when a service bind-mounts a source file from the template dir
   # (e.g. ./serve.json:/config/serve.json:ro) and the file does NOT yet exist,
   # docker compose up auto-creates the source as an EMPTY DIRECTORY (its default
   # behaviour for missing bind-mount sources). On subsequent converges, the template
   # task refuses to overwrite a directory at dest. Pre-remove any such stub so the
-  # render lands as a regular file.
+  # render lands as a regular file — and ONLY a directory stub (HD-440): a regular
+  # file is the previous render, and deleting it is what made every converge non-idempotent.
   tags: "{{ svc.name }}"
   ansible.builtin.file:
-    path: "{{ docker_compose_dir }}/{{ svc.name }}/{{ extra | replace('.j2', '') }}"
+    path: "{{ item.stat.path }}"
     state: absent
-  loop: "{{ _extra_templates[svc.template_dir] | default([]) }}"
+  loop: "{{ extra_dest_stat.results | default([]) }}"
   loop_control:
-    label: "{{ extra | replace('.j2', '') }}"
-    loop_var: extra
+    label: "{{ item.item | default(item) | replace('.j2', '') }}"
+  when: item.stat.isdir | default(false)
 
 - name: "Template extra .j2 files for {{ svc.name }}"
   # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
@@ -151,6 +170,12 @@
 - name: "Validate rendered compose file for {{ svc.name }} (HD-162)"
   ansible.builtin.shell:
     cmd: "docker compose -f {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml config --quiet"   # `compose validate` does not exist (found live Phase 1)
+  # HD-440: `docker compose config --quiet` only PARSES the render — it mutates nothing — but a
+  # bare shell/command task reports `changed` unconditionally, so every service showed a phantom
+  # change on an otherwise clean converge (measured on spark: a third identical run still
+  # `changed=1`, and this task was the whole of it). Same reporting class as the stub-removal bug
+  # above; keep the assertion (rc != 0 still fails the run) and stop the lie.
+  changed_when: false
   when: ansible_facts['service_mgr'] == 'systemd'   # docker available; catch a bad render before compose up
   tags: "{{ svc.name }}"
 
@@ -183,7 +208,13 @@
   # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
   tags: "{{ svc.name }}"
   when:
-    - svc.name not in ['traefik', 'traefik-ha', 'traefik-tailnet']
+    - svc.name not in ['traefik', 'traefik-ha', 'traefik-tailnet', 'spark-dashboard']
+      # ^ HD-451/C2 (2026-09-23): `spark-dashboard` is the FOURTH file-provider edge, not an
+      # ordinary extra-consuming service — its `dynamic/*.yml` land in /etc/traefik/dynamic
+      # with `--providers.file.watch=true`, so Traefik reloads routes in-process and a restart
+      # buys nothing but downtime. And the downtime is not cosmetic: this is also spark's
+      # `llm.kogler.si` name edge, so every needless bounce of it is a 502 window on the
+      # inference path (the reason it joins the three Traefik edges above).
     # Corrected (HD-255/HD-260): the extra .j2 loop uses `loop_var: extra`, so the
     # registered loop results carry the key `extra` (the template filename) — NOT
     # `item`. The old `map(attribute='item')` raised "object of type 'dict' has no

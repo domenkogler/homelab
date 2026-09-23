@@ -364,8 +364,15 @@ http:
     # in front; no Forward-Auth (own-login management surface, Pi traefik-ha precedent).
     # llm.kogler.si / llm.ts.kogler.si — the spark OpenAI-API: same WG path to spark:443;
     # auth is the ENGINE's --api-key (spark-llm_api), not a middleware — only LiteLLM/pi hold it.
+    #
+    # HD-451 (2026-09-23): `spark.ts.kogler.si` is the URL of record for this dashboard off-LAN
+    # and rides the SAME WG-S2S path to spark's own edge; the two `db-spark*` names stay routed so
+    # pre-existing links keep working, but they are LEGACY (owner decision 2026-09-23) — do not
+    # add new consumers on them. The plain `spark.kogler.si` is deliberately NOT matched here: it
+    # is the LAN answer (Technitium, home instances only) and the box's own host name, and it is
+    # published into MagicDNS on purpose (group_vars/vps.yml `tailnet_ts_only_subdomains`).
     db-spark-tailnet:
-      rule: "Host(`db-spark.kogler.si`) || Host(`db-spark.ts.kogler.si`)"
+      rule: "Host(`spark.ts.kogler.si`) || Host(`db-spark.kogler.si`) || Host(`db-spark.ts.kogler.si`)"
       entryPoints:
         - websecure
       service: db-spark-backend
@@ -377,7 +384,9 @@ http:
       service: llm-backend
       tls: true
     db-spark-tailnet-redirect:
-      rule: "Host(`db-spark.kogler.si`) || Host(`db-spark.ts.kogler.si`)"
+      # HD-451: same name set as `db-spark-tailnet` — never split the pair, or the short name
+      # silently loses its :80 → :443 hop and a hand-typed http:// URL dead-ends.
+      rule: "Host(`spark.ts.kogler.si`) || Host(`db-spark.kogler.si`) || Host(`db-spark.ts.kogler.si`)"
       entryPoints:
         - web
       middlewares:

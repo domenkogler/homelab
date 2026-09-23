@@ -59,8 +59,9 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > 7. Comma-syntax `--limit-mm-per-prompt image=0,video=0` errors on current vLLM (upstream #39687); the
 >    JSON form is the supported one.
 
-> **Name edge + OpenAI-API (HD-370/HD-389):** `traefik-spark` is the NAME edge — `db-spark.kogler.si`
-> (dashboard) + `llm.kogler.si` (OpenAI-API) on **:443** (TLS from a pulled wildcard pair, cert CONSUMER —
+> **Name edge + OpenAI-API (HD-370/HD-389):** `traefik-spark` is the NAME edge — the DGX dashboard
+> (`spark.kogler.si`, HD-451; legacy alias `db-spark.kogler.si`) + `llm.kogler.si` (OpenAI-API) on
+> **:443** (TLS from a pulled wildcard pair, cert CONSUMER —
 > the Pi/oldsrv pattern) + HSTS; `:80` is redirect-only. The engine binds loopback on
 > `spark_engine_port` and serves `spark/qwen3.8-flash-next` with `--api-key` from the `spark-llm_api`
 > vault item. VPS/tailnet reach is **over WG S2S** (spark in `wg_s2s_vps.allowed_ips` + router
@@ -72,7 +73,10 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > `*.ts.kogler.si` pair from the default store): the tailnet edge forwards the client's **SNI**, so a
 > `.kogler.si`-only `Host()` rule gives a routerless-vHost 404 *before* auth on the twin.
 > DNS split-horizon: `llm`/`db-spark`/`spark` resolve to spark on the **home instances only** — the VPS
-> primary never answers them ([network-dns.md](network-dns.md)).
+> primary never answers them ([network-dns.md](network-dns.md)). Off-LAN the dashboard is
+> **`spark.ts.kogler.si`** — a `.ts`-namespace MagicDNS record only (`tailnet_ts_only_subdomains`),
+> never a public record; the plain `spark.kogler.si` is deliberately NOT published into MagicDNS
+> because it is this box's host name (HD-451).
 > **Model registration:** `spark/qwen3.8-flash-next` is a DB entry in **both** LiteLLM instances
 > (`api_base https://llm.kogler.si/v1`, **no key in the row** — the bearer is the container's
 > `OPENAI_API_KEY` env from `spark-llm_api`; the name resolves via `extra_hosts`, because neither
@@ -84,18 +88,33 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > **000** and `llm.kogler.si/*` returns **502** — which reads exactly like a broken route. It is not:
 > `docker inspect vllm-qwen-spark --format '{{.State.StartedAt}}'` + `docker logs vllm-qwen-spark | tail`
 > settles it in one look (weight load, then `GPU KV cache size:`). **Check engine health before debugging
-> the edge.** The engine also self-restarts on the watchdog's idle recycle, so a young `StartedAt` you did
-> not cause is normal — see §Unified-memory budget and [`../spark/stability-test.md`](../spark/stability-test.md).
+> the edge.** The engine also self-restarts on the watchdog's idle recycle — but with the HD-395 baseline
+> machine in place a young `StartedAt` you did not cause is **signal, not noise**: read
+> `state/enforce.log` (a `RECYCLE:` line names the watchdog) before assuming a crash — see
+> §Unified-memory budget and [`../spark/stability-test.md`](../spark/stability-test.md).
 
-> **The idle-recycle baseline is a boot-time coin-flip (filed as HD-395).** The guard recycles at
-> *first-post-boot top-pid + 8 GiB after 1800 s idle*, but on this box that first sample is not a constant —
-> the same config has been read at the boot floor as **71,911 / 86,243 / 92,343 MiB**, because the 168 GiB
-> PLE checkpoint loads unevenly and the sampler grabs whatever the very first sample was. Two bad
-> directions: a low baseline makes ordinary traffic cross the line (recycles can fire on a healthy idle
-> box, each costing a ~20 min cold start and an `llm.*` 502 window that reads as an outage); a high
-> baseline puts the line above the traffic peak and the guard goes silent. The `+8 GiB` margin also has to
-> be re-read against the certified peak, not the 8.2 GiB-era one. Evidence:
-> `sudo /usr/local/bin/spark-oom-watchdog.sh status` + `state/enforce.log`.
+> **The idle-recycle baseline WAS a boot-time coin-flip (HD-395 — fix authored, live half owed).** The
+> guard recycled at *first-post-boot top-pid + 8 GiB after 1800 s idle*, but on this box that first sample
+> is not a constant — the same config has been read at the boot floor as **71,911 / 86,243 / 92,343 MiB**,
+> because the 168 GiB PLE checkpoint loads unevenly and the sampler grabbed whatever the very first sample
+> was. Two bad directions: a low baseline lets ordinary traffic cross the line (it **did** — `state/enforce.log`
+> records three recycles on 2026-09-23 alone, `03:41`/`04:15`/`04:50`Z, each reading
+> `92343 MiB > baseline 71911 + 8 GiB`, i.e. the guard was permanently armed against a healthy engine and
+> every ~30-minute idle gap cost a ~20 min cold start plus an `llm.*` 502 window that reads as an outage);
+> a high baseline puts the line above the traffic peak and the guard goes silent.
+> **The baseline machine now:** `await-health` → `settling` → `collecting` → `committed` — `/health` 200,
+> then a settle window, then the **max** of N plausible reads inside a span (a read below
+> `spark_oom_watchdog_baseline_min_mib` is refused, which keeps recycle disarmed rather than armed on
+> garbage). The acquisition is **persisted**, so restarting the watchdog UNIT — what every converge does —
+> never re-baselines a running engine; only a new engine instance or the operator's
+> `sudo /usr/local/bin/spark-oom-watchdog.sh rebaseline` does. The "ratchet the baseline DOWN" rule is
+> deleted (it just re-manufactured the same defect) and `status` now prints the stage, the committed
+> value, the **boot-floor spread** and the `margin:` verdict.
+> ⚠ **The margin is two-sided and that is an open owner call, not a bug:** with a *correct* baseline
+> (~92,343) the trigger sits at ~100,535 MiB, **above** the certified peak 96,235 MiB, so recycle will
+> likely stay silent. `spark_oom_watchdog_recycle_grow_gib` was deliberately NOT re-tuned — decide it on
+> the `status` margin verdict, not by editing a guess.
+> Evidence: `sudo /usr/local/bin/spark-oom-watchdog.sh status` + `state/enforce.log`.
 
 ---
 
@@ -488,6 +507,25 @@ must implement when it lands:
   reachable at **`http://spark.kogler.si:11000`** on the Home VLAN with a local-user login (the dashboard's
   own auth sits in front; never `0.0.0.0`, no public record; its Software-Update flow still needs the
   SSH-tunnel path). Disable via the registry entry `enabled: false`.
+- **URL of record = the short name (HD-451, 2026-09-23):** browse **`https://spark.kogler.si`** on the
+  Home VLAN and **`https://spark.ts.kogler.si`** off-LAN. `db-spark.kogler.si` / `db-spark.ts.kogler.si`
+  are **LEGACY** (owner decision 2026-09-23): still routed on both edges so old links work, but no new
+  consumer may be written against them.
+  - The short name reaches :443 through the `spark-dashboard-name` router (one rule matching both
+    `spark.kogler.si` and `spark.ts.kogler.si`, hsts, TLS from the default store) and the
+    `spark-dashboard-name-http` :80→:443 pair. Before HD-451 the plain name resolved and terminated
+    TLS but had **no** :443 router → Traefik 404 (measured), while `:11000` answered 200.
+  - **Off-LAN is `.ts`-only on purpose.** Publishing the plain host name into MagicDNS
+    (`tailnet_subdomains`) would answer every tailnet client with the edge IP for the name the
+    inventory, `docs/` and the humans use for the box itself — the HD-382/389 resolver-ambiguity trap,
+    and a new VPS dependency for a page the LAN already serves. Neither name is ever a Cloudflare
+    record (`dig A spark.kogler.si @1.1.1.1` = no answer, measured 2026-09-23, and it must stay so).
+  - **Route edits on this edge must not restart it.** `spark-dashboard` is a file-provider edge
+    (`--providers.file.watch=true`) AND the `llm.kogler.si` name edge, so a restart is a 502 window on
+    inference: it is therefore in the restart-guard exclusion list in
+    `roles/docker_services/tasks/deploy-service.yml` (HD-451). Proven 2026-09-23: the route converge
+    re-rendered `dynamic/routes.yml` while `traefik-spark` kept its id and `StartedAt`, and
+    `llm.kogler.si/health` stayed 200 throughout.
   - **The routes must use an explicit `Host(spark.kogler.si)` rule.** A `HostRegexp({host:.+})` catch-all
     silently matches nothing on this Traefik v3.7 → own 404 for every request including `/api` and `/ping`.
     **IP-host requests 404 by design** — browse by name.

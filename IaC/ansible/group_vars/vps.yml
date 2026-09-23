@@ -302,6 +302,20 @@ tailnet_subdomains:
 # `tailnet_oldsrv_ip` (group_vars/all/main.yml), served by oldsrv's own edge.
 tailnet_ts_only_subdomains:
   - { name: ha }     # -> oldsrv tailnet node -> traefik-internal `ha-ts` router -> VIP:8123
+  # HD-451 (2026-09-23): the spark DGX dashboard, short name, OFF-LAN. Deliberately HERE and not
+  # in `tailnet_subdomains`: that list renders BOTH namespaces, and publishing the plain HOST name
+  # `spark.kogler.si` into MagicDNS would answer every tailnet client with the edge IP for the
+  # name the inventory, the docs and the humans use for the box itself — the HD-382/389
+  # resolver-ambiguity trap (`ansible_host` pins SSH, but a browser at home with tailscale on
+  # would hairpin through the VPS for a page the LAN already serves directly, i.e. a new VPS
+  # dependency inside the HD-350 failure domain). So off-LAN the dashboard is
+  # **`spark.ts.kogler.si`** — tailnet-only BY CONSTRUCTION, and NEVER a Cloudflare/public record
+  # (measured 2026-09-23: `dig A spark.kogler.si @1.1.1.1` = no answer; it must stay that way).
+  # `ip` is a LITERAL here because the group_vars loader does no second Jinja pass (see the NOTE
+  # above `tailnet_subdomains`) — keep it equal to `tailnet_sidecar_ip` (100.64.0.1, the vps-obs
+  # edge, which Host-routes it over WG S2S to spark's own edge :443). The LAN answer is
+  # unchanged: Technitium seeds `spark.kogler.si` = `spark_home_ip` on the HOME instances only.
+  - { name: spark, ip: "100.64.0.1" }   # -> vps-obs edge -> db-spark-backend -> https://{{ spark_home_ip }}:443
 
 # HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge
