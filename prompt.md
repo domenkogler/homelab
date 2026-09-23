@@ -136,6 +136,13 @@ VPS. What is left is one scoped change to `roles/monitoring/**` + the `spark-dcg
 > **no row exists for it yet**. **HD-418** is still open AI work.
 
 **AI-actionable now (no owner prerequisite):**
+- **HD-450** — ⏳ **make a cert consumer aging out an alert, not an expiry-day surprise.** Found closing HD-350:
+  oldsrv's `traefik-cert-pull.timer` had been failing every 15 min for four days and **no series Grafana can see
+  shows it** — systemd unit results are not scraped, and no consumer exports the age of the pair it holds. Pick
+  one instrument (the pull units' last-result for `traefik-cert-pull` on oldsrv/spark + `ha-cert-sync` on the Pi,
+  or a per-consumer cert-age gauge at WARN 30 d / CRIT 14 d) and alert on it. **Acceptance = the message arrives
+  in the Signal alert group**, so HD-347's router is the dependency. ⛔ Never mute it by tolerating a non-zero rc:
+  rc 90 is the self-pull guard and must stay loud. · [services-traefik.md](docs/services-traefik.md) §Certification
 - **HD-420** — ⏳ **spark metric cadence: 5 s for the nine panels the owner named, 60 s for everything else.** The
   measurement is finished and written up — **do not re-measure it**: spark emits **1,774 samples per scrape** (160
   of them `node_cpu_seconds_total`, 309 request-driven `_bucket{}`), VM costs ≈ **0.33 B per sample**, so **50 hot
