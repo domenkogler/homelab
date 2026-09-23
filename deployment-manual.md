@@ -1721,3 +1721,77 @@ ssh spark 'docker exec traefik-spark traefik healthcheck --ping'   # "OK: http:/
 
 *Charter: imperative redeploy procedure only (true zero → live) for Phases 0, 0.5, 1, 1a, 1.5, 2, 3, 4 and 4b.
 Progress lives in [deployment-tasks.md](deployment-tasks.md), knowledge in the owning docs, history in git.*
+
+---
+
+## Phase 4c — Coding cockpit on oldsrv under `domen` (HD-409 pi-web) `[MANUAL + Ansible]`
+
+Native host processes under the unprivileged `domen` account — **not** containers, **not** behind
+gateway-auth. Rationale, the auth decision and what is unproven: [`docs/services-ai.md`](docs/services-ai.md)
+§9b-1. Ports come from `group_vars/all/main.yml` (`cockpit_pi_web_port: 31415`, `paseo_port: 31416`) —
+**no role owns these unit files yet**, so keeping the numbers in step below is a hand step, not a converge.
+Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as `domen`.
+
+1. **Install the Node runtime `domen` needs — do NOT use apt's Node.** pi's package declares
+   `engines.node >= 22.19.0`; Debian 13 ships 20.19.2, so `apt install nodejs` produces an install that
+   cannot start. Use the same shape the laptop uses (a pinned tarball, no system footprint, no third-party
+   apt repo):
+   ```bash
+   sudo -u domen mkdir -p /home/domen/.local/share/pi-node
+   sudo -u domen bash -lc 'cd ~/.local/share/pi-node && \
+     curl -fsSLO https://nodejs.org/dist/v22.23.2/node-v22.23.2-linux-x64.tar.xz && \
+     tar -xf node-v22.23.2-linux-x64.tar.xz && rm node-v22.23.2-linux-x64.tar.xz && \
+     ./node-v22.23.2-linux-x64/bin/node -v'          # → v22.23.2
+   ```
+2. **Install pi, then the cockpit AS A PI PACKAGE** (it is a pi package, not a standalone daemon — the
+   package pulls the Go binary and writes the user unit for you):
+   ```bash
+   export PATH=/home/domen/.local/share/pi-node/node-v22.23.2-linux-x64/bin:$PATH
+   sudo -u domen env PATH=$PATH npm install -g @earendil-works/pi-coding-agent && sudo -u domen env PATH=$PATH pi --version
+   sudo -u domen env PATH=$PATH pi install npm:@ygncode/pi-web@beta    # → ~/.pi/agent/bin/pi-web + ~/.config/systemd/user/pi-web.service
+   ```
+3. **Create the sessions directory BEFORE starting it** — the binary exits 1 (`sessions directory not
+   found`) rather than creating it, and pi only makes it on its first run:
+   `sudo -u domen mkdir -p /home/domen/.pi/agent/sessions`
+4. **Render the model contract + provider auth from git — never copy a laptop file.** From a workstation
+   with `op` signed in (HD-388):
+   ```bash
+   python3 scripts/render-pi-config.py --out /tmp/oldsrv-models.json
+   python3 scripts/render-pi-config.py --vendor pi_auth --out /tmp/oldsrv-auth.json
+   scp /tmp/oldsrv-models.json /tmp/oldsrv-auth.json ansible-admin@oldsrv:/tmp/
+   # on oldsrv — 0600 + owned by domen, then wipe the copies:
+   sudo install -m600 -o domen -g domen /tmp/oldsrv-models.json /home/domen/.pi/agent/models.json
+   sudo install -m600 -o domen -g domen /tmp/oldsrv-auth.json   /home/domen/.pi/agent/auth.json
+   rm -f /tmp/oldsrv-models.json /tmp/oldsrv-auth.json
+   sudo -u domen env PATH=$PATH pi --list-models | head    # proves the render is what pi reads
+   ```
+5. **Set the token** in `/home/domen/.config/pi-web/env` as `PI_WEB_TOKEN=...` (dir 700, file 600, owner
+   `domen`). **A non-loopback bind is impossible without it** — the binary refuses unless you pass
+   `-insecure`, which you must not do here. ⚠ The value is **not in the vault** (the write-scoped SA on
+   oldsrv is deleted — see [`docs/deployment-secrets.md`](docs/deployment-secrets.md) `cockpit-pi-web_api`);
+   when that SA is re-minted, create the item with the **same** value so no client needs re-pairing.
+6. **Publish it on the tailnet address only, and make it survive logout.** **Derive oldsrv's headscale
+   address — do not paste a literal** (the repo bans internal IP literals outside the SSOT, and headscale owns
+   that pool, so a pasted address is a stale address waiting to happen). If headscale re-addresses the box, the
+   rendered `ExecStart` is the first thing that breaks and re-running this step is the fix:
+   ```bash
+   TSIP=$(ip -4 -br addr show tailscale0 | awk '{print $3}' | cut -d/ -f1); echo "tailscale0 = $TSIP"
+   sudo mkdir -p /home/domen/.config/systemd/user/pi-web.service.d
+   printf '[Service]\nExecStart=\nExecStart=/home/domen/.pi/agent/bin/pi-web -host %s -p %s\n' "$TSIP" 31415 \
+     | sudo tee /home/domen/.config/systemd/user/pi-web.service.d/tailnet-bind.conf
+   sudo chown -R domen:domen /home/domen/.config/systemd/user
+   sudo loginctl enable-linger domen                    # user units must run with no session attached
+   sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user daemon-reload
+   sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user enable --now pi-web.service
+   ```
+7. **Verify** (the 401/302 pair is the whole auth contract):
+   ```bash
+   ss -ltnp "( sport = :31415 )"                                     # the tailscale0 address:31415 — never 0.0.0.0
+   curl -s -o /dev/null -w 'no-token %{http_code}\n' "http://$TSIP:31415/"                                        # → 401
+   curl -s -o /dev/null -w 'token %{http_code}\n' "http://$TSIP:31415/?token=$(sudo cut -d= -f2- /home/domen/.config/pi-web/env)"  # → 302
+   ```
+   Then open the same URL **from a tailnet peer** (phone). From inside this fleet you cannot: the VPS's
+   `tailscale-sidecar` is a peer but is ACL-scoped away from oldsrv (`tailscale ping "$TSIP"` →
+   `no matching peer`), which is the ACL working, not a fault.
+8. **Stop / roll back:** `sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user disable
+   --now pi-web.service`, then remove the drop-in to return to the installer's loopback-only default.

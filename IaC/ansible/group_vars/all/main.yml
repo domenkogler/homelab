@@ -144,6 +144,15 @@ zfs_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'na
 # zfs_exporter_listen in roles/storage/defaults/main.yml (:9198); keep in sync.
 zfs_exporter_port: 9198
 
+# ==== Coding cockpit on oldsrv — reserved ports (HD-409 / HD-411) ====
+# Two surfaces run SIMULTANEOUSLY for the one comparison window the owner asked for, so each gets its
+# own number and neither is ever written as a literal (HD-344 moved MCP off a shared port for exactly
+# this reason). Both bind oldsrv's TAILNET address, never 0.0.0.0 — the pi-web binary refuses a
+# non-loopback bind without PI_WEB_TOKEN, and the headscale ACL is the outer gate.
+cockpit_pi_web_port: 31415           # upstream's own default (its README names it); keep the number so
+                                     # `/web` links and the QR from `/remote` stay correct without config
+paseo_port: 31416                    # HD-411's daemon — allocated here so the pair cannot collide
+
 # ==== Kopia off-site target: Hetzner Storage Box backup (SSH/SFTP, HD-31/HD-135) ====
 # The backup Box (u653424) supports SSH/SFTP only (no S3/object storage); iDrive e2 was dropped.
 # These drive the kopia-server repo create sftp backend.

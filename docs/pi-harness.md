@@ -24,7 +24,7 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 
 | Item | Where it lives | Managed by |
 |------|----------------|-----------|
-| `~/.pi/agent/models.json` | **rendered**, per machine, by [`../scripts/render-pi-config.py`](../scripts/render-pi-config.py) from the SSOT [`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) | git (the spec) — **not the JSON**; the render carries the bearer key, so it is 0600 and never committed. Was: "this doc is the reference copy" (HD-388 closed that) |
+| `~/.pi/agent/models.json` | **rendered**, per machine, by [`../scripts/render-pi-config.py`](../scripts/render-pi-config.py) from the SSOT [`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) | git (the spec) — **not the JSON**; the render carries the bearer key, so it is 0600 and never committed. Was: "this doc is the reference copy" (HD-388 closed that). Rendered on **two** machines as of 2026-09-23: the laptop, and oldsrv's cockpit account `domen` (HD-409) — so the harness is no longer "admin workstation only", and the second machine got its contract from `--out` + scp rather than a copied file |
 | `~/.pi/agent/auth.json` | **rendered** (vendor `pi-auth`) from the same spec | git — the built-in-provider auth (`openrouter`, `opencode-go`) was the last hand-kept credential file on the client; proven byte-identical to the render 2026-09-23 |
 | `~/.pi/agent/settings.json` | admin workstation only | this doc is the reference copy (§5) — deliberately NOT rendered: theme/packages/`lastChangelogVersion` are workstation-local |
 | `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by [`../scripts/install-pi-wsl.sh`](../scripts/install-pi-wsl.sh) | git (repo → `~/.pi/agent`) |

@@ -667,7 +667,43 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
 - **CrewAI** = long/epic homelab coding orchestration with mandatory human stop-points. Pilot starts only
   when the homelab is finished; kill criterion = a 2-week vertical slice or abandon.
 
+### 9b-1. Coding cockpit surfaces on oldsrv — the placement decision (HD-409 pi-web, HD-411 Paseo)
+
+The owner chose **native host processes under the unprivileged `domen` account**, not containers, and
+**not** behind gateway auth. Recorded here because it is a deliberate exception to the shape every other
+service in this fleet follows:
+
+| Surface | Runtime | Bind | Auth | Why not the house style |
+|---|---|---|---|---|
+| **pi-web** (HD-409) | `~/.pi/agent/bin/pi-web` (28 MB Go binary, installed as a **pi package**: `pi install npm:@ygncode/pi-web@beta`), systemd **user** unit `pi-web.service` under `domen`, linger enabled | oldsrv's `tailscale0` address on `:31415` — **derived, never pasted**, never `0.0.0.0` | `PI_WEB_TOKEN` from `~/.config/pi-web/env` (0600). `?token=` → 302; no token → **401**. A non-loopback bind without a token is refused by the binary unless `-insecure` | A container would mount the whole home tree of the session it watches; the point of the cockpit is to read `~/.pi/agent/sessions/`, so the container boundary would be theatre. `domen` is the blast radius, and it is the account that already owns the sessions |
+| **Paseo** (HD-411) | same posture, same account | same tailnet bind, `paseo_port` (31416) | its own password | Same reasoning |
+
+**Deliberately NOT behind gateway-auth (decision).** The row allowed "a second host network + gateway-auth
+route, if the existing gateway already carries it without contorting the gateway". Measured answer: it does
+not, cleanly. `gateway-auth` authenticates **real client identity** — a phone-driven cockpit has no browser
+that can complete an Authentik flow inside a sub-request, and the daemon-to-origin hop would need a machine
+credential. So the gate is the **tailnet ACL** (headscale decides which node may reach `31415`) **plus** the
+per-daemon token, and TLS-into-Traefik stays with the tailnet/TLS lane (prompt-414).
+
+**Ports are vars, never literals** (`cockpit_pi_web_port: 31415`, `paseo_port: 31416` in
+`group_vars/all/main.yml`) — HD-344 moved MCP off a shared port precisely because a port written twice is
+a port someone will change once. The reservation is recorded in `group_vars/all/main.yml` until a role owns
+the unit files; **no role owns them yet**, which is why the unit + drop-in are hand-installed and written
+out in the deployment manual rather than converged.
+
+**Measured 2026-09-23, and what is NOT proven:** pi 0.87.1 + pi-web beta.36 run under `domen`; the model
+contract and provider auth on that box are **rendered from the HD-388 spec** (`scripts/render-pi-config.py`),
+so `pi --list-models` there is produced from git rather than copied by hand; the listener is confirmed on the
+**derived `tailscale0` address, port 31415** and answers 401/302 as above. **Unproven:** the tailnet path from a real peer. Every
+node I could drive from this session is itself policy-scoped away from oldsrv (the VPS's `tailscale-sidecar`
+has its own CGNAT address and reports `no matching peer` for oldsrv), so the phone is the first genuine client and
+the first owner-side verification. Two known costs of choosing beta software: `@ygncode/pi-web` ships **no
+README in the npm registry** (the GitHub README is the only contract), and the binary **hard-fails** when
+`~/.pi/agent/sessions/` does not exist instead of creating it — so the directory is a documented prerequisite.
+
 ### 9c. Ecosystem constraints (verified from primary sources)
+
+
 
 Durable facts about the surrounding software — the reason several obvious designs are not used. Cited so the
 questions are not re-litigated; the sources are upstream repos/trackers, read directly.
