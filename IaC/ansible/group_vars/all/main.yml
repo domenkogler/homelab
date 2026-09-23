@@ -151,7 +151,10 @@ zfs_exporter_port: 9198
 # non-loopback bind without PI_WEB_TOKEN, and the headscale ACL is the outer gate.
 cockpit_pi_web_port: 31415           # upstream's own default (its README names it); keep the number so
                                      # `/web` links and the QR from `/remote` stay correct without config
-paseo_port: 31416                    # HD-411's daemon — allocated here so the pair cannot collide
+paseo_port: 6767                       # HD-411's daemon. Upstream's own default (its Docker run maps 6767, CLI pairs to host:6767),
+                                     # kept like cockpit_pi_web_port so pairing needs no extra config; 31416 was reserved here earlier
+                                     # in the row and is now freed — do not reuse it, or the two files disagree about what was allocated.
+                                     # Both ports measured free on oldsrv 2026-09-23.
 
 # ==== Kopia off-site target: Hetzner Storage Box backup (SSH/SFTP, HD-31/HD-135) ====
 # The backup Box (u653424) supports SSH/SFTP only (no S3/object storage); iDrive e2 was dropped.

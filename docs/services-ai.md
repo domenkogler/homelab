@@ -676,7 +676,7 @@ service in this fleet follows:
 | Surface | Runtime | Bind | Auth | Why not the house style |
 |---|---|---|---|---|
 | **pi-web** (HD-409) | `~/.pi/agent/bin/pi-web` (28 MB Go binary, installed as a **pi package**: `pi install npm:@ygncode/pi-web@beta`), systemd **user** unit `pi-web.service` under `domen`, linger enabled | oldsrv's `tailscale0` address on `:31415` — **derived, never pasted**, never `0.0.0.0` | `PI_WEB_TOKEN` from `~/.config/pi-web/env` (0600). `?token=` → 302; no token → **401**. A non-loopback bind without a token is refused by the binary unless `-insecure` | A container would mount the whole home tree of the session it watches; the point of the cockpit is to read `~/.pi/agent/sessions/`, so the container boundary would be theatre. `domen` is the blast radius, and it is the account that already owns the sessions |
-| **Paseo** (HD-411) | same posture, same account | same tailnet bind, `paseo_port` (31416) | its own password | Same reasoning |
+| **Paseo** (HD-411) | ⏳ **not installed** (parked 2026-09-23 with a full resume sequence in the row) — planned as `@getpaseo/cli` under the same account | would use `paseo_port` (6767, upstream's default) on the same tailnet bind | its own `PASEO_PASSWORD` | Same reasoning — and the reason it stayed parked is that its acceptance needs a hand on the phone, so nothing I could verify end-to-end tonight |
 
 **Deliberately NOT behind gateway-auth (decision).** The row allowed "a second host network + gateway-auth
 route, if the existing gateway already carries it without contorting the gateway". Measured answer: it does
