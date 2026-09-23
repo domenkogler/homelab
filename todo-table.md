@@ -26,7 +26,7 @@
 >   rows leave the registry as delivered: the oldsrv control node, the Technitium `--check` gate, the SSH-grant auditor, the
 >   parked-pair converge, the rendered client config, the browser cockpit, and the LAN-gateway confirmation whose only tail
 >   was that converge. The lane **deleted its own brief** and re-synced both views, so §B0/§B/§D point at rows rather than
->   at a brief that is gone. **Eight rows were minted from the gates the lane hit** — 442 deleted op service account,
+>   at a brief that is gone. **The gates the lane hit became rows** — 442 deleted op service account,
 >   443 three SSH-grant verdicts keeping the new gate red, 444 the phone has never driven the cockpit, 445 no role owns
 >   the cockpit's unit files, 446 no bare-Debian pi installer, 447 Metabase Authentik objects plus a dormant item, 448 the
 >   VPS has no working IPv6, 449 pull-only promise plus a leftover key backup — and one defect was minted by measurement
