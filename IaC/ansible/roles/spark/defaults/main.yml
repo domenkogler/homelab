@@ -97,9 +97,17 @@ spark_oom_watchdog_enforce_wait_max: 600      # s to wait for in-flight drain
 # Idle-recycling of the cumulative allocator term (flat at idle, +21 GiB / ~30 min of
 # light agent traffic, never returned): recycle when the engine sits baseline + N GiB
 # and has been idle for the configured time.
-spark_oom_watchdog_recycle: true
-spark_oom_watchdog_recycle_grow_gib: 8
-spark_oom_watchdog_recycle_idle_s: 1800
+# ⛔ OWNER DECISION 2026-09-23: OFF. The box is stable and the cold start (~5-20 min of `llm.*`
+# 502s) is not worth buying anything: with HD-395's correct max-of-N baseline the trigger sits
+# ~4 GiB ABOVE the certified peak (92,309 + 8 GiB = 100,501 > 96,235), so making it reachable
+# would mean restarting an engine that is merely healthy. OOM protection does NOT ride on this
+# switch — `enforce` above stays the absolute, baseline-free guard at usable < 8 GiB (HD-381 B),
+# and the sampler/forensics/alerts are untouched. grow/idle stay as the re-arm shape: re-open
+# only on `gpu_top_mib` growing > 2 GiB/h under traffic and not returning at idle (HD-380 C3
+# condition), and re-derive the margin from that measurement rather than from this pair.
+spark_oom_watchdog_recycle: false
+spark_oom_watchdog_recycle_grow_gib: 8    # dormant while recycle is off — the re-arm shape, not a live trigger
+spark_oom_watchdog_recycle_idle_s: 1800    # dormant while recycle is off
 # HD-395: how the boot baseline (the thing the recycle trigger sits +N GiB above) is acquired.
 # The first post-boot read of the engine top-pid is a coin-flip on this box — 71,911 / 86,243 /
 # 92,343 MiB for ONE config, because the 168 GiB PLE checkpoint loads unevenly — and both ends

@@ -595,16 +595,24 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [x] **HD-375** — **CLOSED 2026-09-22 (owner).** The two spark host-memory OOM rules are live in the ruler
       (deployed 2026-09-17 22:33C, `vps.yml --tags monitoring`, failed=0) and the owner took the Grafana-UI +
       n8n confirmation, so the row is deleted. Record: [observability.md](docs/observability.md) §Alerting.
-- [x] **HD-380 / HD-395** — **DONE + PROVEN 2026-09-23**: the governor's second term + OOM-forensics watchdog and the idle-recycle baseline fix are converged live and the intentional-recycle proof passed (engine restarted cleanly, re-baseline committed the max, not the coin-flip). Remaining is only the owner tuning call on `spark_oom_watchdog_recycle_grow_gib` (silent margin). · [hardware-spark.md](docs/hardware-spark.md)
-- [ ] **HD-377** — (a) **owner:** render `homelab-llm` on `stats.kogler.si`; on sign-off, delete the three HD-368
-      boards and re-converge `vps.yml --tags monitoring`. (b) is **DONE 2026-09-22**: the three `DCGM_FI_PROF_*`
-      panels are deleted (impossible on GB10), the six real DCGM signals + an XID readiness stat are wired, and
-      the re-derived board is provisioned. · [observability.md](docs/observability.md)
+- [x] **HD-380 / HD-395** — **DONE + PROVEN 2026-09-23.** The governor's second term + the OOM-forensics
+      watchdog and the idle-recycle baseline machine are converged live; the intentional-recycle proof passed
+      (engine restarted cleanly, re-baseline committed the **max**, not the coin-flip). The idle-recycle term is
+      **OFF by owner decision** (`spark_oom_watchdog_recycle: false`) — the CRIT enforce path, WARN/CRIT rules,
+      the sampler and the forensics stay live. Read back with
+      `sudo /usr/local/bin/spark-oom-watchdog.sh status` (it flags unit/script drift) +
+      `systemctl show -p Environment --value spark-oom-watchdog.service`. · [hardware-spark.md](docs/hardware-spark.md)
+- [ ] **HD-377** — (a) **owner:** open `homelab-llm` on `stats.kogler.si` and sign off; on sign-off, delete the
+      three HD-368 boards and re-converge `vps.yml --tags monitoring`. The board itself is **already provisioned
+      + imported** (VPS file byte-identical to the repo, `uid=homelab-llm`, 53 panels, datasource healthy —
+      verified 2026-09-23). (b) is **DONE 2026-09-22**: the three `DCGM_FI_PROF_*` panels are deleted (impossible
+      on GB10), the six real DCGM signals + an XID readiness stat are wired, and the re-derived board is
+      provisioned. · [observability.md](docs/observability.md)
 - [x] **HD-420** — **DONE 2026-09-23.** VPS half 2026-09-22 (datasource `timeInterval` floor + `rate()` panel fix,
       converged `changed=3` then `changed=0`). Spark half 2026-09-23: Alloy hot/cold split + `DCGM_EXPORTER_INTERVAL:
       "5000"` converged together; the acceptance was measured on external traffic — `count_over_time(node_load1{instance=~"spark.*"}[1m])`
-      = 12, and the sidecar under load sat at 72 MiB / anon 61.5 MiB of the 256M cap (no limit change).
-      · [observability.md](docs/observability.md)
+      = 12 (re-read 2026-09-23: still 12), and the sidecar under load held **anon 56–59 MiB of the 256M cap**
+      (re-measured 2026-09-23; no limit change). · [observability.md](docs/observability.md)
 - [ ] **HD-387** — the thinking-control re-measure **through the gateway** (a recorded contradiction between a
       recommendation and a measurement is still open). · [services-ai-bench.md](docs/services-ai-bench.md)
 - [ ] **HD-366** — DGX Dashboard JupyterLab on the LAN (`:11002`) — the integrated lab assigns per-user ports. · [hardware-spark.md](docs/hardware-spark.md)
@@ -678,9 +686,10 @@ on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the 
       vs the legacy API) + **[MANUAL, owner]** render-verify the panels on `stats.kogler.si`. · [observability.md](docs/observability.md)
 - [ ] **HD-344** — register the Victoria MCP endpoints in pi / Open WebUI / OpenClaw (the servers are live); the
       tailnet redo is an owner call. · [observability.md](docs/observability.md)
-- [ ] **HD-345** — the fault is found and fixed in `alloy.river.j2` (the SNMP scrape re-asserts
-      `job="alloy-snmp"` + `instance="<dev>"`, which is the label every consumer already asked for); it now needs
-      an **oldsrv** `monitoring` converge, then verify the interface rules and fire a test alert.
+- [x] **HD-345** — **DONE + LIVE 2026-09-23.** The label fault is fixed in `alloy.river.j2` (the SNMP scrape
+      re-asserts `job="alloy-snmp"` + `instance="<dev>"`) and the **oldsrv** `monitoring` converge ran
+      (`--tags monitoring`, `failed=0`); read back on the backend: `up{job="alloy-snmp",instance="router"}=1`,
+      `instance="switch"}=1`, `ifOperStatus` = 23 router + 31 switch series with those labels.
       · [observability.md](docs/observability.md)
 - [ ] alerting tails are tracked where their hosts are: **HD-159** (Phase 1, prove `wg-s2s-down` fires) and
       **HD-347** (Phase 3, the Signal group UUID in SSOT).

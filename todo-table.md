@@ -54,14 +54,14 @@
 
 ## 0. Repo state (one screen)
 
-| Fact | State (measured 2026-09-22) |
+| Fact | State (measured 2026-09-23) |
 |---|---|
 | Primary checkout `/home/domen/source/homelab` | `main`, working tree **clean** — a merge station, not an edit site |
 | `bash scripts/validate-all.sh` | **GREEN** |
-| Session worktrees | **transient by design** — a lane worktree (`../homelab-wt-<YYYYMMDD>-<HHMM>`) exists only while its lane runs, and the parent removes it after the merge. **Swept 2026-09-22:** the five finished-lane worktrees (`1359` OV probe, `1403` HD-412, `1440` HD-394, `2259` agentmemory probe, `0100` HD-312 close) and the HD-414 lane worktree (`20260922-0200`) were merged and removed by name with `git worktree remove` — the station held **one** worktree before this sweep and none of them was mid-flight. ⚠ A worktree existing has twice meant *nobody was in it* — check `git log` on the branch, not the directory |
+| Session worktrees | **transient by design** — a lane worktree (`../homelab-wt-<YYYYMMDD>-<HHMM>`) exists only while its lane runs, and the parent removes it after the merge. **Swept 2026-09-22:** the five finished-lane worktrees (`1359` OV probe, `1403` HD-412, `1440` HD-394, `2259` agentmemory probe, `0100` HD-312 close) and the HD-414 lane worktree (`20260922-0200`) were merged and removed by name with `git worktree remove` — the station held **one** worktree before this sweep and none of them was mid-flight. **Swept again 2026-09-23:** the external spark lane (`1025`) merged fast-forward and its worktree came off with the close-out worktree that merged it. ⚠ A worktree existing has **three times** meant *nobody was in it* — check `git log` on the branch, not the directory |
 | **Lane briefs = the dispatch unit** | **one `prompt-<HD>.md` brief = one session = one worktree = one branch.** Each brief carries the rows it owns, the files it owns and the converge host it holds; the row index per brief is §B0 below. Waves, pairing and the merge/cleanup contract are in [prompt.md](prompt.md) **§4**, whose rules deliberately DIFFER from README §4 and CONVENTIONS §6 (items O1–O8 there) — §4 is silent nowhere this table depends on |
 | **Who writes `prompt.md` / `todo-table.md`** | **The orchestrator only** (§4 O2). Lane sessions edit their own `todo.md` rows and their own `deployment-tasks.md` lines, and never touch these two views — `check_todo_done.py` couples `prompt.md` to `todo.md`, so two writers on the views means a red gate by construction |
-| Stale session branches | deleted with `git branch -d`, which refuses an unmerged branch — so the sweep itself proves nothing was stranded (12 at the 2026-09-21 sync; the merged lane branches again on 2026-09-22) |
+| Stale session branches | deleted with `git branch -d`, which refuses an unmerged branch — so the sweep itself proves nothing was stranded (12 at the 2026-09-21 sync; again on 2026-09-22; and on 2026-09-23 the merged 395 / spark-edge / spark-external branches) |
 | Registry size | **derived, never typed** — the row count and the next-free id (max + 1) are read out of [todo.md](todo.md) (`grep -c` on its `HD-` rows, `sort` for the max); this sweep deleted rows, so re-derive rather than trusting any number quoted in prose (a literal pipe would break this cell — see [todo.md](todo.md) HD-417) |
 
 ### What is live vs authored-only
@@ -161,7 +161,7 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 | Brief | Wave | Rows it carries (lead · merged-in) | Converge host |
 |---|---|---|---|
 | `prompt-407.md` runner + cockpit — **CLOSED 2026-09-23, brief deleted** | **1** | closed as delivered: 407 · 409 · 399 · 386 · 416 · 388 · 356. Open residue: **411** (parked) + **442–449** | oldsrv + one full VPS `docker_services` |
-| [prompt-420.md](prompt-420.md) metric cadence — **survives for its unbuilt rows only** | **1** | ⏳ **377(b) · 342 · 345** + HD-420's two tails (the nine panels on external traffic, DCGM anon under load) | VPS + oldsrv. Its spark legs **landed 2026-09-23** (hot/cold Alloy, 5 s sidecar, HD-395 baseline machine converged live); the engine-restart residue is [`prompt-spark-external.md`](prompt-spark-external.md). ⚠ the 395 lane's commit message says it deleted this brief — it did not (its diff was `todo.md` only), and deleting it here would orphan 342/345/377(b) |
+| [prompt-420.md](prompt-420.md) — **trimmed 2026-09-23 to its two surviving rows** | **1** | ⏳ **377(a)** (the owner's render + sign-off of `homelab-llm`) · **342** (the Victoria backup tail, whose client is **HD-191's** change). Closed by it or in it: **420** (cadence LIVE 2026-09-23), **395** (baseline fixed + term OFF by owner), **345** (SNMP labels LIVE 2026-09-23), **377(b)** | VPS + oldsrv `--tags monitoring` (both ran 2026-09-23). ⚠ it is kept ONLY for those two rows — deleting it would orphan them, and it must not be re-dispatched for the cadence work, which is done |
 | [prompt-414.md](prompt-414.md) transport — **re-dispatch card only: closed 2026-09-22 for its AI half** (scoped IPv6 shipped, the phone matrix and the punch discriminator both RAN) | **2** | **HD-415 · 406** (+159 with a stated window); the rows it also carried (**414 · 410 · 405 tail · 419 · 09 · 301**) are closed and left the registry | router slot **now free** + oldsrv |
 | [prompt-384.md](prompt-384.md) LiteLLM consumer chain | **3** | HD-383 · **384** · 403 · 387 · 373 · 249 | oldsrv + VPS `docker_services` |
 | [prompt-376.md](prompt-376.md) spark engine + bench | **3** | HD-376 · 400 · 359 · 367 · 380 (absorbs the stale `prompt-next.md`, now deleted) | spark, **owner bench window** |
@@ -180,7 +180,6 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 
 | HD | P | Goal | ⏳ Next action | Why nothing blocks it |
 |----|---|------|----------------|------------------------|
-| **HD-395** | 2 | the watchdog stops restarting a healthy spark engine | ✅ **CONVERGED LIVE 2026-09-23** (was authored + self-tested: 4/4 cases, 7/7 mutants killed) — baseline only after `/health` 200 **and** a settle window, committing the **max** of N samples, with the boot floor and the margin verdict emitted as their own `status` fields; measured live: `changed=3` + the restart handler, engine id/`StartedAt`/`RestartCount` unchanged across the unit restart, and `status` reads `stage=committed value=93623 MiB · samples=8/8 · boot floor 93623–93623` with its own margin verdict (`trigger=101815 > certified peak 96235 ⇒ recycle will stay SILENT`); ⏳ **one leg left:** the intentional recycle with in-flight 0 (pre-announced) — that leg is [`prompt-spark-external.md`](prompt-spark-external.md) J1 | measured defect, still firing: `enforce.log` shows **three** recycles on 2026-09-23 (`03:41`, `04:15`, `04:50`Z), every one reading `92343 MiB > baseline 71911 + 8 GiB` — the guard was permanently armed against a healthy engine — it either restarts a healthy engine or goes silent. The live half must be driven from the laptop **by a session whose own model is not spark** · 📋 [`prompt-spark-external.md`](prompt-spark-external.md) J1 |
 | **HD-417** | 3 | the validators can see a broken table | cell-count check for markdown tables in the docs validator (split on unescaped pipes, compare to the header, fail with file + line) + an escape convention + a one-time legacy sweep | a swallowed newline merged two registry rows and an `/etc/x`-style description added nine stray cells to a 3-column row on 2026-09-21 — both passed every gate. Cheap guard for a failure that is invisible today. · [CONVENTIONS.md](CONVENTIONS.md) §6 · 📋 [`prompt-417.md`](prompt-417.md) |
 | **HD-387** | 2 | know whether thinking is actually OFF through the gateway | run the written probe protocol against the LAN instance (baseline → toggle → budget pair → `top_k` → the proxy's own dropped-params log) | a recorded live measurement and the pinned source contradict each other, and the failure mode is silent thinking-ON at HTTP 200. Master-key path, no client change; the harness route does not move either way (decision #26) · 📋 [`prompt-384.md`](prompt-384.md) |
 | **HD-396** | 2 | the retired `op_api` secret thread ends with a fact | repo-archaeology, one question: does the Forgejo CI runner still exist, and does it still hold the pre-2026-09-19 secret? renew it, or delete the stale Phase 0/5 prerequisite lines in [deployment-tasks.md](deployment-tasks.md) | the leak itself is closed (record: [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a); no IaC references `op_api` any more, so only the Forgejo side can answer it · 📋 [`prompt-417.md`](prompt-417.md) |
@@ -263,17 +262,11 @@ with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
 
 ### Observability
 
-Lane brief for the cadence row: [prompt-420.md](prompt-420.md) — **Wave 1**, and it now also carries
-HD-395 (the spark watchdog — **landed and converged live 2026-09-23**, its recycle proof now lives in
-[`prompt-spark-external.md`](prompt-spark-external.md) J1), HD-377(b), HD-342 and HD-345. The cadence row's spark half
-landed the same day, so what is left in that brief is the VPS/oldsrv work and the two measurement tails.
-spark converge. The rest of this section is independent of it and of each other.
+Lane brief for this section: [prompt-420.md](prompt-420.md) — **Wave 1**, trimmed 2026-09-23 to the two rows that still live in it (**HD-377(a)** owner sign-off, **HD-342** backup tail → **HD-191**). Everything else it carried has landed: the cadence row (**HD-420**), the spark watchdog (**HD-395** — fixed, then the recycle term switched off by owner), the SNMP labels (**HD-345**) and **HD-377(b)**. The oldsrv `monitoring` converge and the VPS `monitoring` converge both ran 2026-09-23; the rest of this section is independent of it and of each other.
 
 | HD | P | Goal | ⏳ Next action | Note |
 |----|---|------|----------------|------|
-| **HD-420** | 2 | the nine spark panels the owner named show 5-second data — the OOM gauge included — without paying for 1,745 series | author the hot/cold `prometheus.scrape` split in `roles/monitoring/templates/alloy.river.j2` (gated to spark, **disjoint** `keep`/`drop` sets), then `DCGM_EXPORTER_INTERVAL` 30000→5000, then `jsonData.timeInterval: "5s"` on the `prometheus` datasource, then the `[5m]`-gauge panel fix | measured, not guessed: spark = **1,774 samples/scrape**, VM ≈ **0.33 B/sample**, so **50 hot series @ 5 s = +9.2 rows/s / ≈ +95 MB/yr** and blanket 5 s = +125 rows/s / ≈ 3.4 GB. ⛔ age-tiering is **out** (community VM has no `-downsampling.period`/`-retentionFilter`, O2's is enterprise) and a **second store was declined by the owner** — do not re-open either. ⛔ never restart the engine; the DCGM sidecar needs a CPU + anon-RSS pre-flight against its `mem_limit: 256M` first. · [prompt-420.md](prompt-420.md) |
 | HD-344 | 3 | AI can query metrics/logs through MCP from its own tools | register the MCP endpoints in pi / Open WebUI / OpenClaw — **ports are `mcp_metrics_port` 8083 / `mcp_logs_port` 8084**, not :8080/:8081 | servers live on oldsrv; registration is the whole remaining row. ⚠ use the vars, never a literal port |
-| HD-345 | 2 | the last `DatasourceNoData` class goes away | find why the SNMP `ifOperStatus` walk still yields 0 series (rules on, SNMP enabled) | the only one left · 📋 [`prompt-420.md`](prompt-420.md) |
 | HD-342 | 2 | the observability data itself is backed up | Kopia client wiring for the Victoria data dirs | the Victoria cutover is live; this is its backup tail · 📋 [`prompt-420.md`](prompt-420.md) |
 
 ### Docs / policy (no host risk)
@@ -298,7 +291,10 @@ spark converge. The rest of this section is independent of it and of each other.
    sidecar, file-provider route edits (`spark-dashboard`, `traefik-tailnet`), `--tags spark,watchdog` —
    provided it records `docker inspect … vllm-qwen-spark` (id + `StartedAt` + `RestartCount`) before and
    after and shows `llm.kogler.si` still 200. Anything that recreates `spark-ai` (engine args, its env,
-   the `spark-llm_api` item), the HD-395 live recycle proof and every bench stay outside such a session.
+   the `spark-llm_api` item), **any deliberate recycle of the engine** (the idle-recycle term is OFF by owner
+   decision 2026-09-23 — re-arming it is an owner act, not a converge), and every bench stay outside such a
+   session. Used three times on 2026-09-23 within exactly this door (`--tags watchdog`), each time with the
+   engine id + `StartedAt` + `RestartCount` unchanged and `/health` 200.
    Live converges run **detached** (`nohup … &` + log + poll), spark via the VPS jump. `--check` is the
    only safe foreground form — and it proves scoping only, because the deploy loop skips in check mode.
 3. **Do not merge/converge `main`'s spark values over the certified ones** — the 16 GiB KV pool is the live, certified
@@ -333,7 +329,7 @@ also in §A2 with the reasoning.
 | ⚠ **unrowed** | 2 | **remove the router's non-default `/system logging` rule `ssh → memory`** — it floods ~1000 packet-dump lines per 3 min, saturating the memory log (it silently rotated away a window under measurement) and writing handshake bytes into it | mint the row; nothing in repo-managed config creates it |
 | ⚠ **unrowed** | 3 | **decide whether inbound IPv6 from the ISP is worth chasing** — no unsolicited inbound v6 reaches the delegated prefix, so no home service can be published over v6 at any firewall cost | mint a row, or record the acceptance in [docs/network-rejected.md](docs/network-rejected.md) |
 | **HD-415** | 3 | **a WAN-pulled drill at home** — the new resolver design is only as good as "the phone reaches the node direct over the LAN with the WAN pulled" | the chain is shipped — now prove all three cases in that drill (procedure: deployment-manual.md §1.4e) · 📋 [`prompt-414.md`](prompt-414.md) |
-| HD-316 · 315 · 343 · 377 · 319 | 1–2 | the one visual pass (launchpad, host-overview, Network Clients, `homelab-llm`, the three KNX GAs) | fix what the eyeball catches; retire the three superseded dashboards |
+| HD-316 · 315 · 343 · 377 · 319 | 1–2 | the one visual pass — **`homelab-llm` is provisioned + imported and ready for it** (53 panels, verified 2026-09-23), plus launchpad, host-overview, Network Clients and the three KNX GAs | fix what the eyeball catches; retire the three superseded dashboards |
 | HD-397 (tail) | 2 | be on-site: the LAN matrix + the `Mgmt99` vNIC linked | close the row |
 | HD-06 · 288 · 194 · 34 / 191 | 1–4 | physical windows: UPS pull → WoL · a router/switch/AP reset · gaming + Moonlight · one edge login/callback · the yearly restore drill | verify state after each; run the pin + Kopia GUI-vs-CLI assessment during the drill |
 | HD-230 · HD-207 | 1 | decide at the drill: which sources get backed up · media rename vs personal-files | the surgical converge + the landing-zone mechanics |
@@ -362,7 +358,9 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
 | "Navidrome never deployed" | Deployed: container Up, the Box music dir mounted ro, scanner ran. **there is no local music at all** (the family listens from the cloud — owner fact 2026-09-21), so HD-354's library and admin halves are void; do not mint an admin for an empty library |
 | "Matrix waits on unprovisioned hosts" | Tuwunel + Element have been live since 2026-08-22; HD-47/122 are verifies now (DNS records + profile auth) |
 | "Zipline's first deploy is human-gated and pending" | `zipline` + `zipline-db` are Up/healthy — only post-up seeding is left (HD-112) |
-| "The watchdog's idle recycle is a safe background detail" | It restarted the engine twice 35 min apart on a healthy box; its baseline is boot-timing-dependent (HD-395) |
+| "The watchdog's idle recycle is a safe background detail" | It restarted a healthy engine twice 35 min apart and its baseline was boot-timing-dependent (HD-395) — **fixed, and the term is now OFF by owner decision 2026-09-23** (`spark_oom_watchdog_recycle: false`). What still bites: `sudo … status` does NOT inherit the unit's `Environment=`, so it reads script defaults — it prints `⚠ CONFIG DRIFT`; the truth is `systemctl show -p Environment --value spark-oom-watchdog.service` |
+| "`--diff` is harmless on the `monitoring` role" | **It is the same secret-dump class as on `docker_services`** — `alloy.river.j2` renders the Victoria* `basic_auth` credentials straight out of the vault into the diff. `--check` is fine; the *diff* is not |
+| "The SNMP panels are empty because SNMP is off" | **The labels were the fault, not the walk** — 54 router+switch series arrived the whole time under `job="integrations/snmp/<dev>"`. Fixed + live 2026-09-23 (`up{job="alloy-snmp",instance="router"}=1`); check labels before believing a `No data` panel |
 | "oldsrv SSH / the Mgmt plane is broken" | Closed 2026-09-19: HD-392 and HD-398 are deleted rows. The VPS jump rides in `group_vars` (no `-e` needed), `ssh oldsrv` = the **Home** leg, VLAN 99 stays sealed by owner decision **A** |
 | "The §A decisions are done" | **Recorded, not shipped** — though three have since shipped (HD-399, HD-416, HD-350), which is why this line is re-checked, not trusted. The table changed what is *asked*, not what is *built*. The first wins left are HD-347, HD-383→HD-384→HD-403, HD-417 |
 | "Forgejo is the repo's primary remote" | **The VPS Forgejo holds no copy of this repo** — `origin` is GitHub. The "Forgejo primary + GitHub mirror" line in [deployment-secrets.md](docs/deployment-secrets.md) is a plan, and HD-147's Forgejo registration is where you decide whether it stays one |
@@ -400,10 +398,7 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
   [docs/services-traefik.md](docs/services-traefik.md) §Certification).
 - **Then the sequenced chain:** HD-414 (scoped IPv6) was the hinge — it shipped and measured, closing itself and HD-410, which unblocks
   HD-415 resolver redesign: HD-406 now runs and is the surviving transport shape, while HD-415 shipped on 2026-09-22 and now waits on a measurement only — the three-case drill (HD-412 shipped 2026-09-21 without waiting). HD-407 is unblocked and mechanical now, and HD-409 rides it.
-- **Independent of every chain, and already specced:** **HD-420** (spark metric cadence) — the measurement is done,
-  the design is written in [docs/observability.md](docs/observability.md) §Scrape cadence and
-  [prompt-420.md](prompt-420.md), and it touches only `roles/monitoring/**` + the dcgm sidecar, so it can run in
-  any spare session without colliding with a lane.
+- **Closed out of the chain list:** **HD-420** (spark metric cadence) — 5 s for the nine panels the owner named is **LIVE end to end** (hot/cold Alloy + 5 s DCGM + the datasource floor); the answer, the arithmetic and the sidecar's under-load memory are in [docs/observability.md](docs/observability.md) §Scrape cadence.
 - **One thing is still wrong with the repo and has a row:** the standby HA edge cannot proxy (**HD-418**). The other
   fault-note of that pair, `media.kogler.si` answering 502 (**HD-419**), was fixed and verified 2026-09-22 — and fixing it
   exposed that the same `502` shape covers `seerr`/`sonarr` and the rest of the home-hosted route group, which has **no row

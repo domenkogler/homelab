@@ -227,8 +227,9 @@ Container signal = the image's **own** `HEALTHCHECK` (`s6-svstat` on the hbbs + 
 inherited, not overridden, because it checks supervision state, which is the only signal these binaries
 expose (no HTTP surface to probe; contrast the whisper lesson in [services-ai.md](services-ai.md) §3a-3).
 Reachability signal = a blackbox `tcp_connect` probe of 21116/21117 from the VPS blackbox-exporter —
-⛔ **owed**: scrape targets live in `roles/monitoring/**`, which is
-[`prompt-420.md`](../prompt-420.md)'s files this wave (named in the todo row tail).
+⛔ **owed**: scrape targets live in `roles/monitoring/**`, whose owning brief is
+[`prompt-420.md`](../prompt-420.md) (it carries this probe as named, undispatched debt), and it rides on any
+future `--tags monitoring` change rather than a lane of its own.
 
 ### Onboarding stage (CONVENTIONS §5)
 

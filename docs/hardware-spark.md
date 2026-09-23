@@ -88,33 +88,48 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > **000** and `llm.kogler.si/*` returns **502** — which reads exactly like a broken route. It is not:
 > `docker inspect vllm-qwen-spark --format '{{.State.StartedAt}}'` + `docker logs vllm-qwen-spark | tail`
 > settles it in one look (weight load, then `GPU KV cache size:`). **Check engine health before debugging
-> the edge.** The engine also self-restarts on the watchdog's idle recycle — but with the HD-395 baseline
-> machine in place a young `StartedAt` you did not cause is **signal, not noise**: read
-> `state/enforce.log` (a `RECYCLE:` line names the watchdog) before assuming a crash — see
-> §Unified-memory budget and [`../spark/stability-test.md`](../spark/stability-test.md).
+> the edge.** The watchdog can still restart the engine on purpose at CRIT (`usable < 8 GiB`), but the
+> idle recycle is **off** (owner decision 2026-09-23, §Unified-memory budget), so a young `StartedAt` you
+> did not cause is **signal, not noise**: read `state/enforce.log` (an `ENFORCE:`/`RECYCLE:` line names
+> the watchdog) before assuming a crash — see §Unified-memory budget and
+> [`../spark/stability-test.md`](../spark/stability-test.md).
 
-> **The idle-recycle baseline WAS a boot-time coin-flip (HD-395 — fix authored, live half owed).** The
-> guard recycled at *first-post-boot top-pid + 8 GiB after 1800 s idle*, but on this box that first sample
-> is not a constant — the same config has been read at the boot floor as **71,911 / 86,243 / 92,343 MiB**,
-> because the 168 GiB PLE checkpoint loads unevenly and the sampler grabbed whatever the very first sample
-> was. Two bad directions: a low baseline lets ordinary traffic cross the line (it **did** — `state/enforce.log`
-> records three recycles on 2026-09-23 alone, `03:41`/`04:15`/`04:50`Z, each reading
-> `92343 MiB > baseline 71911 + 8 GiB`, i.e. the guard was permanently armed against a healthy engine and
-> every ~30-minute idle gap cost a ~20 min cold start plus an `llm.*` 502 window that reads as an outage);
-> a high baseline puts the line above the traffic peak and the guard goes silent.
-> **The baseline machine now:** `await-health` → `settling` → `collecting` → `committed` — `/health` 200,
-> then a settle window, then the **max** of N plausible reads inside a span (a read below
-> `spark_oom_watchdog_baseline_min_mib` is refused, which keeps recycle disarmed rather than armed on
-> garbage). The acquisition is **persisted**, so restarting the watchdog UNIT — what every converge does —
-> never re-baselines a running engine; only a new engine instance or the operator's
+> **The idle-recycle baseline WAS a boot-time coin-flip (HD-395 — fixed and live-proven; the term is now
+> OFF by owner decision).** The guard recycled at *first-post-boot top-pid + 8 GiB after 1800 s idle*, but
+> on this box that first sample is not a constant — the same config has been read at the boot floor as
+> **71,911 / 86,243 / 92,343 MiB**, because the 168 GiB PLE checkpoint loads unevenly and the sampler
+> grabbed whatever the very first sample was. Two bad directions: a low baseline lets ordinary traffic
+> cross the line (it **did** — `state/enforce.log` records three recycles on 2026-09-23 alone,
+> `03:41`/`04:15`/`04:50`Z, each reading `92343 MiB > baseline 71911 + 8 GiB`, i.e. the guard was
+> permanently armed against a healthy engine and every ~30-minute idle gap cost a ~20 min cold start plus
+> an `llm.*` 502 window that reads as an outage); a high baseline puts the line above the traffic peak and
+> the guard goes silent. There is no value that is right at both ends: the certified peak (96,235 MiB)
+> sits **3.8 GiB** above the committed floor (92,309 MiB), so any margin that clears the peak is
+> unreachable by ordinary traffic and any margin that fires, fires on a healthy engine.
+> **The baseline machine now (kept, even with the term off):** `await-health` → `settling` → `collecting`
+> → `committed` — `/health` 200, then a settle window, then the **max** of N plausible reads inside a span
+> (a read below `spark_oom_watchdog_baseline_min_mib` is refused, which keeps recycle disarmed rather than
+> armed on garbage). The acquisition is **persisted**, so restarting the watchdog UNIT — what every converge
+> does — never re-baselines a running engine; only a new engine instance or the operator's
 > `sudo /usr/local/bin/spark-oom-watchdog.sh rebaseline` does. The "ratchet the baseline DOWN" rule is
-> deleted (it just re-manufactured the same defect) and `status` now prints the stage, the committed
-> value, the **boot-floor spread** and the `margin:` verdict.
-> ⚠ **The margin is two-sided and that is an open owner call, not a bug:** with a *correct* baseline
-> (~92,343) the trigger sits at ~100,535 MiB, **above** the certified peak 96,235 MiB, so recycle will
-> likely stay silent. `spark_oom_watchdog_recycle_grow_gib` was deliberately NOT re-tuned — decide it on
-> the `status` margin verdict, not by editing a guess.
-> Evidence: `sudo /usr/local/bin/spark-oom-watchdog.sh status` + `state/enforce.log`.
+> deleted (it just re-manufactured the same defect) and `status` prints the stage, the committed value and
+> the **boot-floor spread**.
+> ✅ **Owner decision 2026-09-23: the idle-recycle term is DISABLED** (`spark_oom_watchdog_recycle: false`,
+> proven live). Rationale measured, not assumed: the box is stable and a 5–20 min cold start buys nothing —
+> with a *correct* baseline the trigger is 100,501 MiB, i.e. **above** the certified peak, so a reachable
+> margin would mean recycling an engine that is merely healthy. OOM protection does **not** ride on this
+> switch: `enforce` (planned ~4 min restart at `usable < 8 GiB`, max 2 per 2 h — HD-381 term B), WARN 12 /
+> CRIT 8 GiB, the 15 s sampler, the forensic bundles and the HD-375 alert rules are all live and are
+> baseline-free. `spark_oom_watchdog_recycle_grow_gib: 8` and `…_idle_s: 1800` stay as the dormant re-arm
+> shape. **Re-arm condition (the only one):** `gpu_top_mib` in `state/samples.csv` growing **> 2 GiB/h
+> under traffic and not returning at idle** — the same curve that re-arms C3/`--enforce-eager` in HD-380 —
+> and then re-derive the margin from that curve rather than from a guess.
+> ⚠ **`sudo … status` does not inherit the unit's `Environment=`**, so it reads the *script defaults* and
+> can disagree with the deployed config (measured: it printed `recycle=1` while the unit ran
+> `SPARK_OOM_RECYCLE=0`). `status` now prints `⚠ CONFIG DRIFT …` naming the disagreement, and the truth is
+> `systemctl show -p Environment --value spark-oom-watchdog.service`.
+> Evidence: `spark-oom-watchdog.sh status` (6-case / 29-assertion `self-test`, all 5 new guards mutant-
+> killed), `state/enforce.log`, `state/samples.csv`.
 
 ---
 
@@ -255,7 +270,7 @@ then went **88,773 → 109,785 MiB (avail 24.5 → 9.6 GiB)** under ~30 min of *
 | + ~30 min one light agent session (pre-governor) | 109,785 MiB | 9.6 GiB | 1.6 GiB at the kill |
 | boot + `expandable_segments` + prefill cap (8.2 GiB pool) | 85,445 → 86,243 MiB | 26.9 GiB | 30.3 idle / **28.81 worst** |
 | **boot + both + 16 GiB pool (CERTIFIED baseline)** | **92,343 → 93,621 MiB (+1,278)** | 18.5 → 24.9 idle-after | **17.78 worst** under 2×240k ≈ 94.6 % pool |
-| **HD-395 recycle proof (2026-09-23, J1)** | **92,309 MiB committed** (re-baseline after an intentional `docker restart`; boot floor spread **71,911 → 92,309** recorded, the max not the first read) | 118.29 GiB moments after the restart (engine ≈106 GiB released), idle-after 24.3 GiB | recovery 000 → 200 in ~5 min; trigger **100,501 MiB > certified peak 96,235** ⇒ recycle stays SILENT on ordinary traffic (owner tuning call) |
+| **HD-395 recycle proof (2026-09-23, J1)** | **92,309 MiB committed** (re-baseline after an intentional `docker restart`; boot floor spread **71,911 → 92,309** recorded, the max not the first read) | 118.29 GiB moments after the restart (engine ≈106 GiB released), idle-after 24.3 GiB | recovery 000 → 200 in ~5 min; trigger **100,501 MiB > certified peak 96,235** — a margin that is both reachable and above the peak does not exist (peak − floor = 3.8 GiB), so the term was switched **OFF** by owner decision the same day |
 
 The last row is the load-certified peak-bound number: the same class of box went **+21,012 MiB in ~30 min of
 one light session** before the governor and **+1,278 MiB across ~1.5 h of the pessimal two-full-window
@@ -322,7 +337,10 @@ LMCache reaches only the second:
 
 `--enable-prefix-caching` is already on and the pool is 1.97× @262k, so *within* a boot the recurring prefix
 already hits. Its only marginal win was **across** restarts/recycles — the same window **HD-395** (the
-coin-flip idle recycle) manufactures at ~20 min a pop. Fixing HD-395 removes that cost instead of mitigating it.
+coin-flip idle recycle) manufactured at ~20 min a pop. Fixing HD-395 removes that cost instead of
+mitigating it. *(2026-09-23: the recycle term is now OFF by owner decision, so this row's recycle penalty
+is no longer live — the ~20 min boot cost and the blockers below stand on their own and the rejection
+stands.)*
 
 **Why rejected rather than deferred — three independent blockers:**
 

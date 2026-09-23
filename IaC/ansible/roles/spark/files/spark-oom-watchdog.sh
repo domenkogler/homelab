@@ -72,7 +72,9 @@
 #   snapshot <tag> [reason]  take one bundle and exit (tag: KILL|CRIT|WARN|MANUAL)
 #   status                   print current readings + baseline state + last snapshot
 #   rebaseline               drop the committed baseline and re-acquire (operator action)
-#   self-test                offline 4-case test of the baseline/recycle logic (stubs docker)
+#   self-test                offline 6-case test of the baseline/recycle logic (stubs docker)
+#   _margin                  INTERNAL (self-test): print the margin verdict only
+#   _drift                   INTERNAL (self-test): print the unit/script drift note only
 #   _tick                    INTERNAL (self-test): one governor tick, no sampling, no sleep
 #
 # Cheap on purpose: bash + coreutils + awk + docker + nvidia-smi + journalctl.
@@ -116,6 +118,13 @@ NO_ENFORCE_FILE="$BASE_DIR/no-enforce"                   # touch this to arm-off
 # Idle-recycle: the non-KV engine footprint grows per request shape and NEVER returns
 # (flat at idle, +21 GiB per ~30 min of light agent traffic). Predictable recycling is
 # harmless at idle and removes the cumulative term before it can become a kill.
+# OWNER DECISION 2026-09-23: DISABLED (`SPARK_OOM_RECYCLE=0`, set by the role). The box is
+# stable and a ~5-20 min cold start is not worth buying anything: with a correct (max-of-N)
+# baseline the trigger sits ~4 GiB ABOVE the certified peak, so a reachable margin would mean
+# restarting an engine that is merely healthy. OOM protection does NOT depend on this term —
+# enforce_crit() at usable < CRIT is absolute and baseline-free (HD-381 term B). Re-arm only on
+# measurement: `gpu_top_mib` growing > 2 GiB/h under traffic and not returning at idle (the same
+# re-arm condition as C3/--enforce-eager in HD-380).
 RECYCLE="${SPARK_OOM_RECYCLE:-1}"
 RECYCLE_GROW_GIB="${SPARK_OOM_RECYCLE_GROW_GIB:-8}"      # trigger above the boot baseline
 RECYCLE_IDLE_S="${SPARK_OOM_RECYCLE_IDLE_S:-1800}"       # must be idle this long first
@@ -376,6 +385,8 @@ bl_track_floor() {
 # is RECYCLE_GROW_GIB over the baseline and nothing here changes it.
 margin_verdict() {
   local base trigger
+  # A verdict about a term that cannot run is a lie, not a readout (owner decision 2026-09-23).
+  [ "$RECYCLE" = "1" ] || { echo "recycle DISABLED by config (SPARK_OOM_RECYCLE=0, owner decision 2026-09-23) — margin not evaluated"; return 0; }
   base=$(st_read engine_baseline_mib)
   ge_int "$base" 1 || { echo "no committed baseline ⇒ recycle DISARMED (silence by design)"; return 0; }
   trigger=$(( base + RECYCLE_GROW_GIB * 1024 ))
@@ -537,14 +548,47 @@ check_idle_recycle() {
   restart_engine RECYCLE "engine ${top} MiB > baseline ${base} + ${RECYCLE_GROW_GIB} GiB and idle > ${RECYCLE_IDLE_S}s"
 }
 
+# A manual `sudo /usr/local/bin/spark-oom-watchdog.sh status` does NOT inherit the unit's
+# `Environment=` lines, so it reads the SCRIPT DEFAULTS and can disagree with what the running
+# guard actually does (measured live 2026-09-23: the unit ran SPARK_OOM_RECYCLE=0 while a sudo
+# `status` printed `recycle=1` and a margin verdict for a term the unit cannot execute). The unit
+# is what enforces, so say so out loud instead of letting the readout contradict the deploy.
+# SPARK_OOM_UNIT_ENV lets the self-test inject the unit env offline; never set it in production.
+config_drift_note() {
+  local ue pair uvar svar got want drift=""
+  ue="${SPARK_OOM_UNIT_ENV_OVERRIDE:-$(systemctl show -p Environment --value spark-oom-watchdog.service 2>/dev/null || true)}"
+  [ -n "$ue" ] || return 0
+  # unit-var : the variable THIS script actually parsed (the parsed value is what a manual
+  # invocation enforces/reports — comparing the raw env name against itself would always agree).
+  for pair in SPARK_OOM_ENFORCE:ENFORCE SPARK_OOM_RECYCLE:RECYCLE \
+              SPARK_OOM_RECYCLE_GROW_GIB:RECYCLE_GROW_GIB SPARK_OOM_RECYCLE_IDLE_S:RECYCLE_IDLE_S \
+              SPARK_OOM_WARN_GIB:WARN_GIB SPARK_OOM_CRIT_GIB:CRIT_GIB; do
+    uvar=${pair%%:*}; svar=${pair##*:}
+    got=$(printf '%s' "$ue" | tr ' ' '\n' | sed -n "s|^${uvar}=||p")
+    want=$(eval "printf '%s' \"\${$svar:-}\"")
+    [ -n "$got" ] && [ "$got" != "$want" ] && drift="$drift ${uvar}(unit=$got this-shell=$want)"
+  done
+  [ -n "$drift" ] || return 0
+  echo "⚠ CONFIG DRIFT: this invocation read its own environment, not the unit's — the UNIT is what enforces:$drift"
+  echo "  effective unit env: systemctl show -p Environment --value spark-oom-watchdog.service"
+  return 0
+}
+
 # ---- self-test (HD-395) ---------------------------------------------------------------
 # Offline by construction: everything external is stubbed on PATH (docker, nvidia-smi, curl,
 # journalctl, dmesg, uptime) and every state file lands in a temp dir. It drives the REAL
 # governor functions by invoking this same script as `_tick` — one process per tick, which is
 # also how the persistence-across-a-unit-restart property is proved. `docker` here is a file
 # append: the test can never touch a real engine.
-# It is written to be RED-able: each case fails on exactly one guard, and `mutants` in the
-# delivery notes lists the edits that turn each one red.
+# It is written to be RED-able, and the mutants are recorded HERE because the delivery note that
+# used to carry them is deleted: C1 dies if the `/health`-200 or the settle gate in baseline_tick
+# is dropped, or if bl_commit stores the first read instead of the max; C2 dies if a low read may
+# down-ratchet the committed baseline; C3 dies if the growth/idle comparison in check_idle_recycle
+# is inverted (a guard that cannot fire IS the bug); C4 dies if the `in_flight` ERR proof or the
+# committed-baseline precondition is removed (silence must be earned, never assumed); C5 dies if
+# the `[ "$RECYCLE" = "1" ]` early-return in check_idle_recycle or the DISABLED branch of
+# margin_verdict is removed; C6 dies if the comparison in config_drift_note is dropped (it then
+# stays silent while the unit and the script disagree) or inverted (it then cries on agreement).
 self_test() {
   local SELF_SRC tmp bin st pass=0 fail=0
   local T_SETTLE=0 T_SAMPLES=3 T_SPAN=600 T_MINMIB=40000 T_GROW=8 T_IDLE=1800
@@ -589,7 +633,8 @@ case " $* " in
 esac
 printf '000'
 STUB
-  for t in journalctl dmesg; do printf '#!/bin/sh\nexit 0\n' > "$bin/$t"; done
+  printf '#!/bin/sh\nexit 0\n' > "$bin/journalctl"; printf '#!/bin/sh\nexit 0\n' > "$bin/dmesg"
+  printf '#!/bin/sh\ncase " $* " in *Environment*) printf "SPARK_OOM_ENFORCE=1 SPARK_OOM_RECYCLE=0\\n";; esac\nexit 0\n' > "$bin/systemctl"
   printf '#!/bin/sh\n[ "$1" = -s ] && { echo "2026-09-23 00:00:00"; exit 0; }\nprintf "up 0 mins (stub)\\n"\n' > "$bin/uptime"
   chmod +x "$bin"/*
   printf 'true' > "$st/running"; printf '2026-09-23T00:00:00Z' > "$st/started"
@@ -604,6 +649,20 @@ STUB
         SPARK_OOM_RECYCLE=1 SPARK_OOM_RECYCLE_GROW_GIB="$T_GROW" SPARK_OOM_RECYCLE_IDLE_S="$T_IDLE" \
         SPARK_OOM_ENFORCE=0 VLLM_CONTAINER=vllm-qwen-spark \
         bash "$SELF_SRC" _tick >/dev/null 2>&1
+  }
+  tick_off() {   # the SAME tick with the recycle term OFF (the owner-decided live config)
+    env PATH="$bin:$PATH" SPARK_OOM_DIR="$tmp/base" SPARK_OOM_INTERVAL=1 \
+        SPARK_OOM_STUB_DIR="$st" SPARK_OOM_KEEP_SNAPS=2 \
+        SPARK_OOM_BASELINE_SETTLE_S="$T_SETTLE" SPARK_OOM_BASELINE_SAMPLES="$T_SAMPLES" \
+        SPARK_OOM_BASELINE_SPAN_S="$T_SPAN" SPARK_OOM_BASELINE_MIN_MIB="$T_MINMIB" \
+        SPARK_OOM_RECYCLE=0 SPARK_OOM_RECYCLE_GROW_GIB="$T_GROW" SPARK_OOM_RECYCLE_IDLE_S="$T_IDLE" \
+        SPARK_OOM_ENFORCE=0 VLLM_CONTAINER=vllm-qwen-spark \
+        bash "$SELF_SRC" _tick >/dev/null 2>&1
+  }
+  margin_line() { # $1 = SPARK_OOM_RECYCLE value; reads the state the last case left behind
+    env PATH="$bin:$PATH" SPARK_OOM_DIR="$tmp/base" SPARK_OOM_STUB_DIR="$st" \
+        SPARK_OOM_RECYCLE="$1" SPARK_OOM_RECYCLE_GROW_GIB="$T_GROW" \
+        bash "$SELF_SRC" _margin 2>/dev/null | head -1
   }
   seed() { printf '%s' "$1" > "$st/health"; printf '%s' "$2" > "$st/running"
            printf '%s' "$3" > "$st/top_mib"; printf '%s' "$4" > "$st/inflight"; }
@@ -683,8 +742,40 @@ STUB
     bad "C4c silence was not explained in enforce.log"
   fi
 
+  # C5 — the owner-decided live config (2026-09-23): the recycle term is OFF. Everything that
+  #      made C3 fire must now be silent, and the readout must SAY it is disabled instead of
+  #      printing a margin verdict for a term that can never run.
+  new_case
+  commit_by_hand 92343; idle_since 4000
+  seed 200 true 101000 0
+  tick_off; tick_off
+  expect_eq "C5 recycle disabled ⇒ no restart (C3's own trigger state)" "$(restarts)" "0"
+  case "$(margin_line 0)" in
+    *DISABLED*) ok "C5 status/margin says the term is disabled" ;;
+    *) bad "C5 margin line does not say disabled: got '$(margin_line 0)'" ;;
+  esac
+  case "$(margin_line 1)" in
+    *trigger=*) ok "C5 margin verdict is still computed when the term is on" ;;
+    *) bad "C5 margin verdict missing with RECYCLE=1: got '$(margin_line 1)'" ;;
+  esac
+
+  # C6 — the readout must not contradict the deploy: a manual invocation whose environment
+  #      differs from the running unit's must SAY so (sudo does not inherit unit Environment=).
+  drift_line() { # $1 = SPARK_OOM_RECYCLE for this shell, $2 = the fake unit value
+    env PATH="$bin:$PATH" SPARK_OOM_DIR="$tmp/base" SPARK_OOM_STUB_DIR="$st" \
+        SPARK_OOM_RECYCLE="$1" SPARK_OOM_ENFORCE=1 SPARK_OOM_WARN_GIB=12 SPARK_OOM_CRIT_GIB=8 \
+        SPARK_OOM_UNIT_ENV_OVERRIDE="SPARK_OOM_ENFORCE=1 SPARK_OOM_RECYCLE=$2" \
+        bash "$SELF_SRC" _drift 2>/dev/null | head -1
+  }
+  new_case
+  case "$(drift_line 1 0)" in
+    *"CONFIG DRIFT"*) ok "C6 a unit/script disagreement is announced" ;;
+    *) bad "C6 drift was hidden: got '$(drift_line 1 0)'" ;;
+  esac
+  expect_eq "C6 agreement stays silent" "$(drift_line 0 0)" ""
+
   printf 'self-test: %d assertions, %d failed ⇒ %s\n' "$((pass+fail))" "$fail" \
-    "$([ "$fail" -eq 0 ] && echo 'ALL PASS (4/4 cases)' || echo RED)"
+    "$([ "$fail" -eq 0 ] && echo 'ALL PASS (6/6 cases)' || echo RED)"
   rm -rf "$tmp"
   [ "$fail" -eq 0 ]
 }
@@ -711,6 +802,7 @@ case "${1:-sample-loop}" in
     echo "          margin: $(margin_verdict)"
     echo "in flight: $(in_flight)"
     echo "governor: enforce=$ENFORCE (cooldown ${ENFORCE_COOLDOWN}s, max ${ENFORCE_MAX}/${ENFORCE_WINDOW}s, arm-off file $NO_ENFORCE_FILE) recycle=$RECYCLE (+${RECYCLE_GROW_GIB} GiB / ${RECYCLE_IDLE_S}s idle)"
+    config_drift_note
     [ -s "$STATE_DIR/enforce.log" ] && { echo "governor actions:"; tail -5 "$STATE_DIR/enforce.log"; }
     echo "samples: $(wc -l < "$SAMPLES" 2>/dev/null || echo 0) rows in $SAMPLES"
     echo "last snapshots:"; ls -1dt "$SNAP_DIR"/*/ 2>/dev/null | head -5
@@ -748,6 +840,8 @@ case "${1:-sample-loop}" in
     ;;
   enforce-status) echo "see status" ;;
   _tick) _tick_body ;;
+  _margin) margin_verdict ;;
+  _drift) config_drift_note ;;
   rebaseline) # operator action: drop the committed baseline and re-acquire from scratch
     act_log "rebaseline requested (operator): previous baseline=$(st_read engine_baseline_mib) stage=$(bl_stage)"
     bl_reset_acquisition; st_write baseline_stage await-health
