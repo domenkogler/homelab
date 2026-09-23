@@ -183,6 +183,23 @@ Client → Technitium (DHCP-pushed chain, see below)
 - **`modem.kogler.si` is NOT a universal record** — the Comtrend UI is LAN/router-only and must never
   resolve from the VPS/internet; the seed loop skips the `modem` row on the VPS primary via a `when`-gate
   (HD-302).
+- **Two more record classes were missing entirely (found 2026-09-23 by probing the URLs, not the docs).**
+  A route that is deployed, converged and healthy but has **no A record** is invisible to every check that
+  looks at containers — the failure is `NXDOMAIN`, which looks like a client problem:
+  * `cockpit-oldsrv.kogler.si` / `cockpit-nas.kogler.si` → each host's **Home-VLAN address (per SSOT)**.
+    The `cockpit` role had been dropping working file-provider routes since 2026-09-03 with no record ever
+    seeded for either name. They join the `modem`/`spark` **LAN-only** class (seed skips them on the VPS
+    primary): a Home address answered to a travelling peer is a black hole, and `check_dns_seed_drift.py`
+    now holds that class in its `LAN_ONLY` contract so the two lists cannot drift apart again.
+  * `pi-oldsrv.ts.kogler.si` is seeded **nowhere**, and that is the record. It lives in
+    `tailnet_ts_only_subdomains`, which headscale renders as a **single MagicDNS A record** pointing at
+    oldsrv's own tailnet node; `traefik-internal`'s `websecure-ts` listener answers it and proxies to the
+    seat on loopback ([services-ai.md](services-ai.md) §9b-1). No plain `pi-oldsrv.kogler.si` exists in any
+    zone (the `ha`/`spark` HD-451 reasoning: MagicDNS answers extra_records client-side, so a plain name is
+    a second door nobody asked for), so `dig pi-oldsrv.kogler.si` returning nothing is the design working.
+  Verify with the control name in the same call — `dig +short llitellm.kogler.si` resolves, so an empty
+  answer for one of these means the record, not the resolver.
+
 - **Tailnet admin dashboards (HD-135b / HD-273):** the plain `*.kogler.si` admin names (`stats`, `logs`,
   `csui`, `traefik`, `auto`, `db-spark`, `llm`, `litellm`) are **A records on every instance → the
   `tailnet_sidecar_ip`** (the `vps-obs` tailnet IP, `group_vars/vps.yml` = the traefik-tailnet edge). The

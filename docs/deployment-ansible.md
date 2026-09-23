@@ -521,6 +521,32 @@ oldsrv is five steps, and only the first needs a human. **Executed end to end 20
 and the expectations below are what the run produced, which in three places is not what this
 section predicted when it was written:
 
+**Two clones on oldsrv, one pull rule (owner decision 2026-09-23).** The box runs **two**
+repositories with two different jobs, and they must not be confused for each other:
+
+| Clone | Account | Job | Update mechanism |
+|---|---|---|---|
+| `/home/ansible-admin/source/homelab` | `ansible-admin` | **the runner** — the tree every converge executes | `scripts/ansible-run.sh` fast-forwards it before each run |
+| `/home/domen/source/homelab` | `domen` | **the seat** — where dev work happens and what `pi-web` (HD-409) actually edits | plain `git pull`; pull-only until HD-449(a) rules on a write credential |
+
+`scripts/ansible-run.sh` used to declare "NOTHING HERE PULLS", on the sound principle that a
+runner which updates itself mid-run is a runner whose behaviour you did not choose. Measured
+against that: the runner clone sat on `ff4525a5` (2026-09-23) while `main` had moved to
+`9496499` the same afternoon, and no run anywhere reported the gap — the silence was the
+failure mode, not the update. So the pull is now the default and the escape hatch is
+`--no-pull`, with three things it will never do: **merge** (`--ff-only` or die), **touch a
+dirty tree** (loud refusal, never a stash — see the 2026-08-23 worktree incident in
+[CONVENTIONS.md](../CONVENTIONS.md) §6), or **invent an upstream** (a session worktree with no
+upstream is reported and left alone, because converging from one is a legitimate laptop act).
+Every run prints the commit it is about to converge; that line is the thing to read first when
+a converge does not do what the tip of `main` says it should.
+
+**The seat clone did not exist until this decision was written down.** Measured 2026-09-23:
+no `.git` anywhere under `/home/domen`, and `~/.pi/agent/sessions` empty — so the cockpit was
+a live, token-gated listener with no repository and no sessions to drive. Creating it is
+Phase 4c step 8, gated on the credential decision in HD-449(a); copying the runner's 0600
+deploy-token store into `domen` is **not** an acceptable way to satisfy it.
+
 **The order is not cosmetic.** `--token-stdin` takes the token on stdin, and stdin can only
 carry one thing — so the script must already be ON oldsrv, which means the repo lands first
 and the secret second.

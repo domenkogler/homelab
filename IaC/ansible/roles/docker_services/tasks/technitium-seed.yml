@@ -214,6 +214,17 @@
         # HD-370: `llitellm.kogler.si` → oldsrv LAN IP — the LAN (dev) LiteLLM on the HOME
         # edge (llogs pattern). LAN-only by design (the VPS primary never carries it).
         - { name: "llitellm.kogler.si", ip: "{{ oldsrv_home_ip }}" }  # HD-370: LAN LiteLLM (home edge), LAN-only
+        # HD-188 Cockpit management surfaces (cockpit-project.org — own login, deliberately
+        # NOT behind Authentik). The ROUTES have existed since 2026-09-03
+        # (`/opt/traefik/dynamic/cockpit.yml`, rendered by the `cockpit` role) but NO A
+        # record was ever seeded for either name: measured 2026-09-23, both NXDOMAIN'd at
+        # the oldsrv secondary and the Pi tertiary while the control name `llitellm`
+        # resolved — so the URL died long before Traefik was ever consulted. A deployed
+        # route with no record is invisible to every probe, which is why these ride the
+        # seed now. Home-VLAN answers (llitellm/modem pattern): a LAN break-glass surface
+        # must not resolve for a travelling peer.
+        - { name: "cockpit-oldsrv.kogler.si", ip: "{{ oldsrv_home_ip }}" }
+        - { name: "cockpit-nas.kogler.si",    ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}" }
         # HD-330 live 2026-09-07: `tailnet_sidecar_ip` lives in group_vars/vps.yml
         # (VPS-only) but the seed runs on EVERY instance (VPS/oldsrv/Pi). The
         # dashboard records target the VPS tailnet sidecar (100.64.0.1) — a cluster
@@ -264,6 +275,9 @@
       # HD-370: LAN-only names (modem/spark/db-spark/llm/llogs/llitellm) seed ONLY on the
       # home instances (secondary/secondary-pi), never the VPS primary; `litellm` is NOT in
       # the LAN-only set (VPS-resident — primary + home all answer it, split-horizon target).
+      # HD-188 (2026-09-23): the two `cockpit-*` management surfaces join the LAN-only set
+      # for the same reason as modem/spark — their answers are Home-VLAN addresses that
+      # would be black holes for a peer that is not at home.
 
-      when: item.name not in ["modem.kogler.si", "spark.kogler.si", "db-spark.kogler.si", "llm.kogler.si", "llogs.kogler.si", "llitellm.kogler.si"] or svc.instance | default('primary') in ['secondary', 'secondary-pi']
+      when: item.name not in ["modem.kogler.si", "spark.kogler.si", "db-spark.kogler.si", "llm.kogler.si", "llogs.kogler.si", "llitellm.kogler.si", "cockpit-oldsrv.kogler.si", "cockpit-nas.kogler.si"] or svc.instance | default('primary') in ['secondary', 'secondary-pi']
       failed_when: _tech_record.json is not defined or _tech_record.json.status not in ['ok', 'error']

@@ -667,7 +667,13 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
 - **CrewAI** = long/epic homelab coding orchestration with mandatory human stop-points. Pilot starts only
   when the homelab is finished; kill criterion = a 2-week vertical slice or abandon.
 
-### 9b-1. Coding cockpit surfaces on oldsrv — the placement decision (HD-409 pi-web, HD-411 Paseo)
+### 9b-1. Coding-seat surfaces on oldsrv — the placement decision (HD-409 pi-web, HD-411 Paseo)
+
+> **Not the Cockpit console.** "Cockpit" in this section means the coding seat's web front-end
+> (`pi-web`). The management console at `cockpit-<host>.kogler.si` is [cockpit-project.org](https://cockpit-project.org/),
+> a different thing with its own owning role (`roles/cockpit`, routes in `services-traefik.md` §Cockpit Routes,
+> break-glass identity in HD-361). Two docs used to call both a "cockpit", which is how a session came to
+> report "the cockpit has no owning role" about the one component that plainly does — HD-445 is about `pi-web`.
 
 The owner chose **native host processes under the unprivileged `domen` account**, not containers, and
 **not** behind gateway auth. Recorded here because it is a deliberate exception to the shape every other
@@ -675,7 +681,7 @@ service in this fleet follows:
 
 | Surface | Runtime | Bind | Auth | Why not the house style |
 |---|---|---|---|---|
-| **pi-web** (HD-409) | `~/.pi/agent/bin/pi-web` (28 MB Go binary, installed as a **pi package**: `pi install npm:@ygncode/pi-web@beta`), systemd **user** unit `pi-web.service` under `domen`, linger enabled | oldsrv's `tailscale0` address on `:31415` — **derived, never pasted**, never `0.0.0.0` | `PI_WEB_TOKEN` from `~/.config/pi-web/env` (0600). `?token=` → 302; no token → **401**. A non-loopback bind without a token is refused by the binary unless `-insecure` | A container would mount the whole home tree of the session it watches; the point of the cockpit is to read `~/.pi/agent/sessions/`, so the container boundary would be theatre. `domen` is the blast radius, and it is the account that already owns the sessions |
+| **pi-web** (HD-409) | `~/.pi/agent/bin/pi-web` (28 MB Go binary, installed as a **pi package**: `pi install npm:@ygncode/pi-web@beta`), systemd **user** unit `pi-web.service` under `domen`, linger enabled | **owner decision 2026-09-23: loopback only**, on `cockpit_pi_web_port`, published as **`https://pi-oldsrv.ts.kogler.si`** by oldsrv's OWN `websecure-ts` listener on `traefik-internal` (`network_mode: host` reaches the host loopback). No LAN socket, no `0.0.0.0`, no VPS edge, no WG S2S hop. It used to bind the `tailscale0` address — plain HTTP, no cert, and unreachable from every other node in the fleet (`no matching peer`) | `PI_WEB_TOKEN` from `~/.config/pi-web/env` (0600). `?token=` → 302; no token → **401**. A non-loopback bind without a token is refused by the binary unless `-insecure` | A container would mount the whole home tree of the session it watches; the point of the cockpit is to read `~/.pi/agent/sessions/`, so the container boundary would be theatre. `domen` is the blast radius, and it is the account that already owns the sessions |
 | **Paseo** (HD-411) | ⏳ **not installed** (parked 2026-09-23 with a full resume sequence in the row) — planned as `@getpaseo/cli` under the same account | would use `paseo_port` (6767, upstream's default) on the same tailnet bind | its own `PASEO_PASSWORD` | Same reasoning — and the reason it stayed parked is that its acceptance needs a hand on the phone, so nothing I could verify end-to-end tonight |
 
 **Deliberately NOT behind gateway-auth (decision).** The row allowed "a second host network + gateway-auth
@@ -685,19 +691,31 @@ that can complete an Authentik flow inside a sub-request, and the daemon-to-orig
 credential. So the gate is the **tailnet ACL** (headscale decides which node may reach `31415`) **plus** the
 per-daemon token, and TLS-into-Traefik stays with the tailnet/TLS lane (prompt-414).
 
-**Ports are vars, never literals** (`cockpit_pi_web_port: 31415`, `paseo_port: 31416` in
+**Ports are vars, never literals** (`cockpit_pi_web_port: 31415`, `paseo_port: 6767` in
 `group_vars/all/main.yml`) — HD-344 moved MCP off a shared port precisely because a port written twice is
-a port someone will change once. The reservation is recorded in `group_vars/all/main.yml` until a role owns
-the unit files; **no role owns them yet**, which is why the unit + drop-in are hand-installed and written
-out in the deployment manual rather than converged.
+a port someone will change once. (This paragraph used to name `paseo_port: 31416`, which the SSOT explicitly
+freed — HD-404 class.) Since 2026-09-23 `cockpit_pi_web_port` is no longer a reservation nobody reads: the
+`traefik-tailnet` `pi-oldsrv-backend` consumes it, so a port edit is now one change instead of three. What
+has NOT changed: **no role owns the unit files** (HD-445), which is why the unit + drop-in are hand-installed
+and written out in the deployment manual rather than converged. `pi.kogler.si` was never available for this
+seat's URL — that FQDN is the RPi4 node — hence the `-oldsrv` host suffix.
+
+**Where the seat's repository lives (owner decision 2026-09-23):** oldsrv carries **two** clones with two
+jobs — `/home/ansible-admin/source/homelab` **converges** (and `scripts/ansible-run.sh` now fast-forwards it
+before every run, `--no-pull` to opt out) and `/home/domen/source/homelab` **is where dev work happens**, the
+tree the seat actually edits. Neither path appears in this doc before today, which is how a session could say
+"the coding plane runs on oldsrv" while the account the cockpit watches had **no repository at all**.
 
 **Measured 2026-09-23, and what is NOT proven:** pi 0.87.1 + pi-web beta.36 run under `domen`; the model
 contract and provider auth on that box are **rendered from the HD-388 spec** (`scripts/render-pi-config.py`),
-so `pi --list-models` there is produced from git rather than copied by hand; the listener is confirmed on the
-**derived `tailscale0` address, port 31415** and answers 401/302 as above. **Unproven:** the tailnet path from a real peer. Every
-node I could drive from this session is itself policy-scoped away from oldsrv (the VPS's `tailscale-sidecar`
-has its own CGNAT address and reports `no matching peer` for oldsrv), so the phone is the first genuine client and
-the first owner-side verification. Two known costs of choosing beta software: `@ygncode/pi-web` ships **no
+so `pi --list-models` there is produced from git rather than copied by hand; the listener was confirmed on the
+**derived `tailscale0` address, port 31415** and answers 401/302 as above. ⚠ That is the *pre-decision* state:
+the loopback re-bind + `pi-oldsrv-ts` router are authored and validated but **not converged**, so until Phase 4c
+runs the seat has no loopback socket and the new URL 404s by construction. **Unproven:** the tailnet path from a
+real peer — and it stays unprovable from inside this fleet, because every node reachable from a session is itself
+ACL-scoped away from oldsrv (the VPS `tailscale-sidecar` answers `tailscale ping <oldsrv>` with `no matching peer`,
+which is the ACL working, not a fault). The phone is the first genuine client by design. Measured the same night: no `.git` anywhere under
+`/home/domen` and `~/.pi/agent/sessions` is **empty** — the listener had nothing to drive. Two known costs of choosing beta software: `@ygncode/pi-web` ships **no
 README in the npm registry** (the GitHub README is the only contract), and the binary **hard-fails** when
 `~/.pi/agent/sessions/` does not exist instead of creating it — so the directory is a documented prerequisite.
 

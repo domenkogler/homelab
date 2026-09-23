@@ -125,6 +125,17 @@ CATALOG = [
     ("Password",    "ha-vrrp_password",       lambda: [f"password={gen_pw()}"]),
     ("Password",    "nut_password",           lambda: [f"password={gen_pw()}"]),
     ("Password",    "nut-exporter_password",  lambda: [f"password={gen_pw()}"]),
+    # --- Cockpit (cockpit-project.org) break-glass management identity — HD-361 ---
+    # Owner-decided 2026-09-21 (scope: every host that runs cockpit = nas + oldsrv) and never
+    # created: no catalog row, no docs row. Measured 2026-09-23: `getent passwd maint` on oldsrv
+    # is ABSENT, so cockpit-oldsrv.kogler.si has a deployed route, a live 9090 socket and no way
+    # to log in (Cockpit is PAM-only; every account here is key-only with a locked password).
+    # Catalog-generated is correct for these two (unlike cockpit-pi-web_api, whose value must
+    # match a live env file): the account does not exist, so there is nothing to match. The
+    # consumer renders the hash FROM the vault and adds sudo-group membership only — never
+    # NOPASSWD, an SSH key, or AllowUsers membership (HD-361: break-glass != automation).
+    ("Password",    "oldsrv-cockpit_login",   lambda: [f"password={gen_pw()}"]),   # HD-361 maint PAM identity, oldsrv
+    ("Password",    "nas-cockpit_login",      lambda: [f"password={gen_pw()}"]),   # HD-361 maint PAM identity, nas
     ("Password",    "n8n_password",           lambda: [f"password={gen_pw()}"]),
     ("Password",    "matrix_password",        lambda: [f"password={gen_pw()}"]),
     ("Password",    "opencloud-collab_password", lambda: [f"password={gen_pw()}"]),

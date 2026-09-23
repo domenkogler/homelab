@@ -1766,32 +1766,57 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    sudo -u domen env PATH=$PATH pi --list-models | head    # proves the render is what pi reads
    ```
 5. **Set the token** in `/home/domen/.config/pi-web/env` as `PI_WEB_TOKEN=...` (dir 700, file 600, owner
-   `domen`). **A non-loopback bind is impossible without it** — the binary refuses unless you pass
-   `-insecure`, which you must not do here. ⚠ The value is **not in the vault** (the write-scoped SA on
-   oldsrv is deleted — see [`docs/deployment-secrets.md`](docs/deployment-secrets.md) `cockpit-pi-web_api`);
-   when that SA is re-minted, create the item with the **same** value so no client needs re-pairing.
-6. **Publish it on the tailnet address only, and make it survive logout.** **Derive oldsrv's headscale
-   address — do not paste a literal** (the repo bans internal IP literals outside the SSOT, and headscale owns
-   that pool, so a pasted address is a stale address waiting to happen). If headscale re-addresses the box, the
-   rendered `ExecStart` is the first thing that breaks and re-running this step is the fix:
+   `domen`). A non-loopback bind is impossible without it — the binary refuses unless you pass `-insecure`,
+   which you must not do here. The vault item and its minting rule:
+   [`docs/deployment-secrets.md`](docs/deployment-secrets.md) `cockpit-pi-web_api` — mint it with the **same**
+   value, or every paired client needs re-pairing.
+6. **Bind loopback and survive logout.** The seat is published as `https://pi-oldsrv.ts.kogler.si` by
+   oldsrv's own `traefik-internal` `websecure-ts` listener, which runs `network_mode: host` and therefore
+   reaches the host's loopback — so the daemon needs no routable socket at all: no LAN listener, no
+   `tailscale0` bind, and the tailnet ACL + TLS + `PI_WEB_TOKEN` are the only way in. Placement + rationale:
+   [docs/services-ai.md](docs/services-ai.md) §9b-1. **Derive the port; never paste it** (it has an SSOT var):
    ```bash
-   TSIP=$(ip -4 -br addr show tailscale0 | awk '{print $3}' | cut -d/ -f1); echo "tailscale0 = $TSIP"
+   PORT=$(sudo awk -F: '/^cockpit_pi_web_port:/{gsub(/[ #].*/,"",$2); print $2}' \
+          /home/ansible-admin/source/homelab/IaC/ansible/group_vars/all/main.yml)
+   echo "bind = 127.0.0.1:$PORT"
    sudo mkdir -p /home/domen/.config/systemd/user/pi-web.service.d
-   printf '[Service]\nExecStart=\nExecStart=/home/domen/.pi/agent/bin/pi-web -host %s -p %s\n' "$TSIP" 31415 \
-     | sudo tee /home/domen/.config/systemd/user/pi-web.service.d/tailnet-bind.conf
+   printf '[Service]\nExecStart=\nExecStart=/home/domen/.pi/agent/bin/pi-web -host 127.0.0.1 -p %s\n' "$PORT" \
+     | sudo tee /home/domen/.config/systemd/user/pi-web.service.d/loopback-bind.conf
+   sudo rm -f /home/domen/.config/systemd/user/pi-web.service.d/tailnet-bind.conf   # superseded by loopback-bind
    sudo chown -R domen:domen /home/domen/.config/systemd/user
    sudo loginctl enable-linger domen                    # user units must run with no session attached
    sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user daemon-reload
    sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user enable --now pi-web.service
    ```
+   Remove the old `tailnet-bind.conf` drop-in: the router proxies to loopback, so a daemon still bound to the
+   `tailscale0` address leaves a healthy-looking listener next to a 404ing URL.
 7. **Verify** (the 401/302 pair is the whole auth contract):
    ```bash
-   ss -ltnp "( sport = :31415 )"                                     # the tailscale0 address:31415 — never 0.0.0.0
-   curl -s -o /dev/null -w 'no-token %{http_code}\n' "http://$TSIP:31415/"                                        # → 401
-   curl -s -o /dev/null -w 'token %{http_code}\n' "http://$TSIP:31415/?token=$(sudo cut -d= -f2- /home/domen/.config/pi-web/env)"  # → 302
+   ss -ltnp "( sport = :$PORT )"                        # 127.0.0.1:$PORT and NOTHING else — no LAN socket
+   curl -s -o /dev/null -w 'no-token %{http_code}\n'  "http://127.0.0.1:$PORT/"                                       # → 401
+   curl -s -o /dev/null -w 'token %{http_code}\n'     "http://127.0.0.1:$PORT/?token=$(sudo cut -d= -f2- /home/domen/.config/pi-web/env)"  # → 302
    ```
-   Then open the same URL **from a tailnet peer** (phone). From inside this fleet you cannot: the VPS's
-   `tailscale-sidecar` is a peer but is ACL-scoped away from oldsrv (`tailscale ping "$TSIP"` →
-   `no matching peer`), which is the ACL working, not a fault.
-8. **Stop / roll back:** `sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user disable
+   Then the edge, on this box (loopback reaches the tailnet listener, so this proves TLS + router + backend
+   in one call without leaving home):
+   ```bash
+   TSIP=$(ip -4 -br addr show tailscale0 | awk '{print $3}' | cut -d/ -f1)
+   curl -kIs --resolve "pi-oldsrv.ts.kogler.si:443:$TSIP" https://pi-oldsrv.ts.kogler.si/ \
+     | head -1                                             # → HTTP/2 401 (or 200 on the ?token= URL)
+   ```
+   A 404 here = the `pi-oldsrv-ts` router is not converged yet; a TLS name mismatch = the `*.ts.kogler.si`
+   wildcard is not loaded (`check_traefik_host_rules.py` catches the template shape, not the cert store).
+   Final word is a **tailnet peer** — see HD-444: no node inside this fleet may reach oldsrv's tailnet node.
+8. **Seat clone (the authoring repo).** oldsrv runs two clones: `/home/ansible-admin/source/homelab`
+   **converges**, `/home/domen/source/homelab` **is what the seat edits** — roles, update rules and why they
+   are separate are in [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement. If the
+   seat clone is absent (`ls /home/domen/source/homelab`), create it:
+   ```bash
+   sudo -u domen git clone https://github.com/domenkogler/homelab.git /home/domen/source/homelab
+   ```
+   ⚠ Gated on the git-credential decision in HD-449(a): the runner's read-only
+   `github-homelab-deploy_api` store lives under `ansible-admin` at 0600 and must **not** be copied into
+   `domen` to make this step pass. Either `domen` gets its own read-only credential, or the clone is
+   pull-only over a protocol that needs none.
+
+9. **Stop / roll back:** `sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user disable
    --now pi-web.service`, then remove the drop-in to return to the installer's loopback-only default.

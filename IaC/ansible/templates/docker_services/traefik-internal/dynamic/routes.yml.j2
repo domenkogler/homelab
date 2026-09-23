@@ -183,6 +183,20 @@ http:
         - ha-ts-strip-forwarded
       service: ha-backend
       tls: true
+    # The pi agent web UI (HD-409 seat, `pi-web` under `domen`) — tailnet-only BY CONSTRUCTION:
+    # headscale publishes only `pi-oldsrv.{{ tailnet_base_domain }}` (tailnet_ts_only_subdomains),
+    # this listener exists only on oldsrv's own tailnet address, and the seat binds loopback, so
+    # the door set is {tailnet ACL, this router, the daemon's own PI_WEB_TOKEN}. NO
+    # authentik-forward-auth: measured in HD-409 that a phone-driven PWA cannot complete an
+    # Authentik sub-request, and a token-gated cockpit does not need a second identity that it
+    # cannot answer. No `web`-entrypoint redirect here on purpose — this edge declares no :80 on
+    # the tailnet address, so a plain-HTTP client never reaches it at all.
+    pi-oldsrv-ts:
+      rule: "Host(`pi-oldsrv.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: pi-oldsrv-backend
+      tls: true
 {% endif %}
     dns-pi:
       rule: "Host(`dns-pi.kogler.si`)"
@@ -285,6 +299,14 @@ http:
       loadBalancer:
         servers:
           - url: "http://{{ ha_vip }}:8123"
+    # pi-web under `domen`, loopback-bound (Phase 4c). This edge is `network_mode: host`, so it
+    # reaches the host's own loopback — which is what lets the seat stay OFF the LAN entirely.
+    # Port from the reservation var (`cockpit_pi_web_port`, group_vars/all/main.yml); before this
+    # router existed that var was a reservation no template read (HD-445).
+    pi-oldsrv-backend:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:{{ cockpit_pi_web_port }}"
     dns-pi-backend:
       loadBalancer:
         servers:

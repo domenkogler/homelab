@@ -231,10 +231,13 @@ prometheus_ha_exporter: false
 # is served on the headscale sidecar node `vps-obs` (tag:sidecar). headscale
 # `dns.extra_records` maps the clean subdomain names (stats/logs/csui/traefik/auto
 # AND their *.ts.kogler.si twins) to this node's tailnet IPv4.
-# Tailnet IPv4s are assigned SEQUENTIALLY by headscale at node join — current known
-# nodes: 100.64.0.3 laptop, 100.64.0.4 phone. This value is filled at deploy time from
-# `headscale nodes list` after the sidecar joins (empty → headscale renders no
-# extra_records).
+# Tailnet IPv4s are assigned SEQUENTIALLY by headscale at node join. This value is
+# filled at deploy time from `headscale nodes list` after the sidecar joins (empty →
+# headscale renders no extra_records).
+# ⚠ Do NOT re-type a node map here (derived-values ban). The last one this file carried
+# ("100.64.0.3 laptop, 100.64.0.4 phone") was contradicted by live state on 2026-09-23:
+# `ss` on oldsrv showed its `pi-web` listener bound to 100.64.0.3, so .3 is oldsrv's
+# node, not the laptop's. Read `headscale nodes list`; never trust a remembered pair.
 tailnet_sidecar_ip: "100.64.0.1"
 # HD-268c (2026-08-29): Pattern-A tailnet sidecar IPs (vps-dsh / vps-pi-dev).
 # HD-355 (2026-09-10): the sidecars are REMOVED (dsh/pi-dev moved to oldsrv) —
@@ -302,6 +305,15 @@ tailnet_subdomains:
 # `tailnet_oldsrv_ip` (group_vars/all/main.yml), served by oldsrv's own edge.
 tailnet_ts_only_subdomains:
   - { name: ha }     # -> oldsrv tailnet node -> traefik-internal `ha-ts` router -> VIP:8123
+  # The pi agent web UI on oldsrv (HD-409 seat). Owner asked for it on the tailnet; this class is
+  # the strict reading of that and it is HERE for the HD-451 reason, not taste: the list above
+  # renders BOTH namespaces, and MagicDNS answers extra_records CLIENT-SIDE, so publishing a plain
+  # `pi-oldsrv.kogler.si` would be a second door nobody asked for (and `pi.kogler.si` was never on
+  # the table — that FQDN is the RPi4 node itself, inventory.ini + host_vars/pi.kogler.si.yml;
+  # hence the `-oldsrv` host suffix, the same shape as `cockpit-oldsrv` and `dns-pi`).
+  # Served by OLDSRV's own `websecure-ts` listener on its own tailnet node — no VPS edge, no WG S2S
+  # hop, so the seat keeps working when the VPS does not. `ip` defaults to `tailnet_oldsrv_ip`.
+  - { name: pi-oldsrv }  # -> oldsrv tailnet node -> traefik-internal `pi-oldsrv-ts` -> 127.0.0.1:{{ cockpit_pi_web_port }}
   # HD-451 (2026-09-23): the spark DGX dashboard, short name, OFF-LAN. Deliberately HERE and not
   # in `tailnet_subdomains`: that list renders BOTH namespaces, and publishing the plain HOST name
   # `spark.kogler.si` into MagicDNS would answer every tailnet client with the edge IP for the

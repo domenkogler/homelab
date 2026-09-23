@@ -52,6 +52,13 @@ LAN_ONLY = {
     "db-spark.kogler.si": None,               # spark name-edge dashboard (HD-370) — spark_home_ip via SSOT
     "llm.kogler.si": None,                    # spark OpenAI-API name edge (HD-370) — spark_home_ip via SSOT
     "llitellm.kogler.si": None,               # LAN LiteLLM on the home edge (HD-370) — oldsrv_home_ip
+    # HD-188 Cockpit management surfaces (cockpit-project.org). LAN-only for the same reason as
+    # modem/spark: their answers are Home-VLAN addresses, which are black holes for a peer that is
+    # not at home. They were absent from BOTH this contract and the seed until 2026-09-23 — the
+    # routes had been deployed for three weeks with no A record at all, so the URL could not fail
+    # in an interesting way, it just never resolved (NXDOMAIN at the secondary AND the tertiary).
+    "cockpit-oldsrv.kogler.si": None,          # oldsrv_home_ip — oldsrv's traefik-internal file-provider route
+    "cockpit-nas.kogler.si": None,             # nas Home address via SSOT — same route shape on nas
 }
 
 # Documented record classes -> expected target resolution, per instance (docs/network-dns.md).
@@ -63,6 +70,10 @@ HOME_HOSTED = {  # oldsrv_home_ip home / dns_primary_ip VPS
     "prowlarr", "bazarr", "profilarr", "sab", "torrent", "llogs",
 }
 TAILNET = {"stats", "logs", "csui", "traefik", "auto"}
+# NOTE: `pi-oldsrv` is deliberately ABSENT from every set here. It is a
+# `tailnet_ts_only_subdomains` name (MagicDNS-only; headscale renders just the `.ts` twin), so it
+# has no Technitium record at all — a LAN answer for it would be a second door the owner did not
+# ask for. If a future change ever seeds it, that is a decision, not a tidy-up.
 PUBLIC_FLAT = {  # single-namespace parity set (HD-341) — dns_primary_ip on all
     "vps", "home", "vpn", "dns", "sso", "file", "foto", "git", "bin",
     "ai", "office", "pdf", "chat", "matrix", "drop",
@@ -114,6 +125,12 @@ def _build_context(gv: dict, instance: str) -> dict:
         return raw or ""
 
     return {
+        # Rows in the seed may legitimately derive an address from the SSOT inline (the
+        # `network_static_hosts | selectattr(...)` idiom that `nut_exporter_host` and the
+        # cockpit route backends use), so the render context must carry the SSOT itself —
+        # Ansible has it in scope at converge time. Without it such a row renders as a
+        # StrictUndefined error and the checker reports an invented target.
+        "network_static_hosts": hosts,
         "dns_primary_ip": resolve("dns_primary_ip"),
         "oldsrv_home_ip": resolve("oldsrv_home_ip"),
         "ha_vip": resolve("ha_vip"),
@@ -181,6 +198,9 @@ def main() -> int:
         "oldsrv": _ctx_home["oldsrv_home_ip"],
         "ha_vip": _ctx_primary["ha_vip"],
         "spark": _ctx_home["spark_home_ip"],
+        # nas has no `nas_home_ip` var (the seed renders it from the address SSOT inline), so the
+        # expectation resolves through the same helper the seed's expression models.
+        "nas": _host_ip(gv, "nas", 10),
         "tailnet": gv.get("tailnet_sidecar_ip", DEFAULT_TAILNET),
     }
     rendered = {inst: {} for inst in INSTANCES}
@@ -209,6 +229,10 @@ def main() -> int:
                         target = EXPECT["spark"]
                     elif name in ("llogs.kogler.si", "llitellm.kogler.si"):
                         target = EXPECT["oldsrv"]
+                    elif name == "cockpit-oldsrv.kogler.si":   # HD-188 Cockpit on oldsrv
+                        target = EXPECT["oldsrv"]
+                    elif name == "cockpit-nas.kogler.si":      # HD-188 Cockpit on nas
+                        target = EXPECT["nas"]
                     else:
                         target = LAN_ONLY[name]
                     _check(name, ip, {"expect": target, "all": False, "home": True}, findings, inst)

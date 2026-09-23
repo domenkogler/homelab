@@ -1,0 +1,63 @@
+---
+# op-provision-token.yml — deploy the write-scoped 1Password service-account token
+# (item `op-write_api`, HD-143 pattern) to a host that does NOT run Authentik.
+#
+# Why this is its own file (HD-442, 2026-09-23). Before this, the ONLY writer of
+# /etc/op/provision-token was prepass-authentik.yml, which is gated on
+# `'authentik' in docker_services` AND hard-asserts that same condition — and
+# `authentik` exists only in group_vars/vps.yml. So a home host had NO code path that
+# could refresh its copy of the token, ever. What that cost, measured live 2026-09-23:
+#
+#   oldsrv  /etc/op/provision-token  (2026-09-15) → op item list → 403 Forbidden
+#           (Service Account Deleted)
+#   vps     /etc/op/provision-token  (2026-09-19) → op item list → returns rows
+#
+# Same vault item, opposite verdict: the ITEM is alive and the VPS simply received the
+# re-issued value; oldsrv kept a stale copy of a service account that was retired on the
+# 19th. The correct remedy is therefore NOT "mint a new service account" (HD-442 said
+# that, and it would have left the owner hunting a credential that already works) — it is
+# to give home hosts a path to the current value. A host that runs vault-writing glue
+# opts in with `docker_services_op_provision_token: true`.
+#
+# Scope law preserved: this still requires `scope_is_all` (see main.yml) — a surgical
+# `--tags docker_services,<svc>` run must not move fleet credentials as a side effect.
+# `cockpit` and friends are in the HD-413 self-converge lockout set, so an oldsrv run of
+# this leg is issued FROM the laptop, never from oldsrv itself.
+
+- name: Assert safe execution context (token deploy runs only as an allowed admin)
+  ansible.builtin.assert:
+    that:
+      - ansible_user in ansible_admin_users
+    fail_msg: >-
+      The op provision-token task must only run as an allowed admin user
+      ({{ ansible_admin_users | join(', ') }}).
+  tags: [docker_services]
+
+- name: "Deploy provision token for host-side op (HD-143 / HD-442)"
+  ansible.builtin.copy:
+    content: "{{ lookup('community.general.onepassword', 'op-write_api', field='credential', vault=op_vault) }}\n"
+    dest: /etc/op/provision-token
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  tags: [docker_services]
+
+# Fail loud on validity, not on existence. Every consumer in this role tests
+# `[ -r /etc/op/provision-token ]` and then trusts the read — that posture is how a dead
+# credential survived eight days of green converges (HD-442). A read-only list call costs
+# one request and turns the whole class into a failed task instead of a silent no-write.
+- name: "Probe the deployed token is actually accepted (HD-442)"
+  # Reads the file it just wrote rather than re-looking the secret up: keeps the token
+  # out of the task parameters (so this needs no no_log) and leaves the 403 text visible
+  # on failure — the diagnostic IS the point. Same incantation as run-authentik-glue.yml.
+  # `shell` is skipped under --check, so this stays check-mode safe.
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      export OP_SERVICE_ACCOUNT_TOKEN="$(cat /etc/op/provision-token)"
+      op item list --vault "{{ op_vault }}" >/dev/null
+  args:
+    executable: /bin/bash
+  changed_when: false
+  tags: [docker_services]

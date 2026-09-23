@@ -130,13 +130,31 @@
 #   2. deploy authentik (+ bundled pg/redis)     (deploy-service.yml, authentik only)
 #   3. run the glue → seeds 1Password OIDC items (run-authentik-glue.yml)
 #   4. deploy ALL other services                 (deploy-service.yml, authentik excluded)
-# so consumers in step 4 always render with real client creds. Home hosts skip it.
+# so consumers in step 4 always render with real client creds. Home hosts skip it —
+# which is precisely how HD-442 happened: this include was also the ONLY writer of
+# /etc/op/provision-token, so skipping it left oldsrv holding a token it could never
+# refresh, and that copy died with the service account behind it. The token leg now has
+# its own opt-in path for hosts that write to the vault without running Authentik.
 - name: Authentik OIDC secret-egress pre-pass (render + token)
   ansible.builtin.include_tasks:
     file: prepass-authentik.yml
   when:
     - "'authentik' in (docker_services | map(attribute='name') | list)"
     - scope_is_all
+  tags: docker_services
+
+# HD-442: token-only pre-pass for a host that needs to WRITE to the vault but does not
+# run Authentik (today: oldsrv, whose `op`-calling glue and key provisioning had been
+# failing closed for eight days). Mutually exclusive with the Authentik pre-pass above,
+# which already deploys the same file — running both would be a redundant write, and on
+# the VPS the Authentik pre-pass is the authoritative order.
+- name: Deploy the op write-scoped token (non-Authentik hosts, opt-in)
+  ansible.builtin.include_tasks:
+    file: op-provision-token.yml
+  when:
+    - docker_services_op_provision_token | default(false) | bool
+    - scope_is_all
+    - "'authentik' not in (docker_services | map(attribute='name') | list)"
   tags: docker_services
 
 - name: Deploy authentik FIRST (its API must be live before the glue can harvest)
